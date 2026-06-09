@@ -175,7 +175,7 @@ impl SimulationState {
             }
         }
 
-        apply_ramming_damage(&ramming_before, &mut self.tanks, &mut self.damage_events);
+        apply_ramming_damage(&ramming_before, &mut self.tanks, &mut self.damage_events, dt);
         step_shells(
             &mut self.shells,
             &mut self.tanks,

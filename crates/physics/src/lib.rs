@@ -1,5 +1,6 @@
 mod collision;
 mod controller_settings;
+mod cover;
 mod movement;
 mod policy;
 mod world;
@@ -11,9 +12,10 @@ use rapier3d::prelude::{
 use terrain::HeightMap;
 
 pub use collision::{
-    TankFootprint, TankObstacle, TankWorldObstacles, resolve_cover_collision,
-    resolve_cover_collision_with_speed, resolve_tank_collision, resolve_tank_collision_with_speed,
+    TankFootprint, TankObstacle, TankWorldObstacles, resolve_tank_collision,
+    resolve_tank_collision_with_speed, tank_footprints_touch,
 };
+pub use cover::{resolve_cover_collision, resolve_cover_collision_with_speed};
 pub use controller_settings::TankControllerSettings;
 pub use movement::{
     TankControlInput, TankKinematicState, TerrainContact, sample_tank_terrain_contact,

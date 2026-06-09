@@ -1,9 +1,9 @@
 use terrain::{HeightMap, StaticCoverObject};
 
 use crate::collision::{
-    TankWorldObstacles, default_tank_footprint, resolve_cover_collision_with_speed,
-    resolve_tank_collision_with_speed,
+    TankWorldObstacles, default_tank_footprint, resolve_tank_collision_with_speed,
 };
+use crate::cover::resolve_cover_collision_with_speed;
 use crate::controller_settings::TankControllerSettings;
 use crate::movement::{
     TankControlInput, TankKinematicState, TerrainContact, sample_tank_terrain_contact,

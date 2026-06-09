@@ -1,5 +1,6 @@
 use game_core::{DamageCause, DamageEvent, ModuleSlot, TankId};
 use glam::Vec3;
+use physics::{TankObstacle, tank_footprints_touch};
 
 use crate::TankState;
 
@@ -28,6 +29,7 @@ pub(crate) fn apply_ramming_damage(
     before: &[RammingSnapshot],
     tanks: &mut [TankState],
     damage_events: &mut Vec<DamageEvent>,
+    dt_seconds: f32,
 ) {
     for left in 0..tanks.len() {
         for right in left + 1..tanks.len() {
@@ -36,11 +38,15 @@ pub(crate) fn apply_ramming_damage(
             else {
                 continue;
             };
-            let Some(contact) = contact_delta(&tanks[left], &tanks[right]) else {
+            let delta = horizontal(tanks[right].position - tanks[left].position);
+            if delta.length() <= f32::EPSILON {
                 continue;
-            };
-            let closing = closing_speed(left_before, right_before, contact);
+            }
+            let closing = closing_speed(left_before, right_before, delta);
             if closing < RAM_MIN_CLOSING_SPEED_MPS {
+                continue;
+            }
+            if !hulls_in_ram_contact(&tanks[left], &tanks[right], closing, dt_seconds) {
                 continue;
             }
             let damage = ram_damage_hp(left_before.mass_kg, right_before.mass_kg, closing);
@@ -60,15 +66,21 @@ fn snapshot_pair(
     ))
 }
 
-fn contact_delta(left: &TankState, right: &TankState) -> Option<Vec3> {
-    let delta = horizontal(right.position - left.position);
-    let distance = delta.length();
-    if distance <= f32::EPSILON {
-        return None;
-    }
-    let contact_distance =
-        left.spec.hitbox.half_length_m + right.spec.hitbox.half_length_m + RAM_CONTACT_SLOP_M;
-    (distance <= contact_distance).then_some(delta)
+/// True when the two hull footprints (the same OBBs movement collides) touch within the ram
+/// slop. The slop grows by one tick of closing distance so a fast pair resolved just short of
+/// contact by the movement step still registers the ram instead of tunnelling under the
+/// predicate. Center-distance circles are forbidden here: they fired on clean side-by-side
+/// passes (see `tests/ramming_contact.rs`, the negative contact tests).
+fn hulls_in_ram_contact(
+    left: &TankState,
+    right: &TankState,
+    closing_speed_mps: f32,
+    dt_seconds: f32,
+) -> bool {
+    let slop_m = RAM_CONTACT_SLOP_M + closing_speed_mps.max(0.0) * dt_seconds.max(0.0);
+    let left_hull = TankObstacle::from_hitbox(left.position, left.yaw_rad, left.spec.hitbox);
+    let right_hull = TankObstacle::from_hitbox(right.position, right.yaw_rad, right.spec.hitbox);
+    tank_footprints_touch(&left_hull, &right_hull, slop_m)
 }
 
 fn closing_speed(left: RammingSnapshot, right: RammingSnapshot, current_delta: Vec3) -> f32 {

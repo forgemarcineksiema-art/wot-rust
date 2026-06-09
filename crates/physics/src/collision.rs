@@ -2,7 +2,7 @@ use game_core::HitboxProfile;
 use glam::{Vec2, Vec3};
 use terrain::StaticCoverObject;
 
-const TANK_COLLISION_RADIUS_M: f32 = 1.6;
+pub(crate) const TANK_COLLISION_RADIUS_M: f32 = 1.6;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct TankFootprint {
@@ -57,36 +57,19 @@ pub fn default_tank_footprint() -> TankFootprint {
     TankFootprint { half_width_m: TANK_COLLISION_RADIUS_M, half_length_m: TANK_COLLISION_RADIUS_M }
 }
 
-/// Keep a tank out of static cover footprints. Tries the full move, then each horizontal axis
-/// alone so the hull slides along a wall instead of sticking; if every option still overlaps
-/// cover the hull holds its previous horizontal position. `y` is taken from `attempted`.
-pub fn resolve_cover_collision(
-    previous: Vec3,
-    attempted: Vec3,
-    cover: &[StaticCoverObject],
-) -> Vec3 {
-    if cover.is_empty() || !blocked(attempted.x, attempted.z, cover) {
-        return attempted;
-    }
-    if !blocked(attempted.x, previous.z, cover) {
-        return Vec3::new(attempted.x, attempted.y, previous.z);
-    }
-    if !blocked(previous.x, attempted.z, cover) {
-        return Vec3::new(previous.x, attempted.y, attempted.z);
-    }
-    Vec3::new(previous.x, attempted.y, previous.z)
-}
-
-pub fn resolve_cover_collision_with_speed(
-    previous: Vec3,
-    attempted: Vec3,
-    yaw_rad: f32,
-    forward_speed_mps: f32,
-    cover: &[StaticCoverObject],
-    dt_seconds: f32,
-) -> (Vec3, f32) {
-    let resolved = resolve_cover_collision(previous, attempted, cover);
-    trim_forward_speed(previous, attempted, resolved, yaw_rad, forward_speed_mps, dt_seconds)
+/// Whether two hull footprints (OBBs in the XZ plane) touch within `slop_m`. This is the same
+/// SAT used for movement blocking, with footprint `a` inflated by the slop, so "touching" can
+/// never disagree with the shape that movement collided. Ramming uses a per-tick dynamic slop
+/// (base + closing distance per tick) so fast closing hulls cannot tunnel past the contact.
+pub fn tank_footprints_touch(a: &TankObstacle, b: &TankObstacle, slop_m: f32) -> bool {
+    let inflated = TankObstacle {
+        footprint: TankFootprint {
+            half_width_m: a.footprint.half_width_m + slop_m.max(0.0),
+            half_length_m: a.footprint.half_length_m + slop_m.max(0.0),
+        },
+        ..*a
+    };
+    obstacles_overlap(&inflated, b)
 }
 
 /// Keep a moving tank footprint out of other tank footprints. This mirrors the static cover
@@ -126,7 +109,7 @@ pub fn resolve_tank_collision_with_speed(
     trim_forward_speed(previous, attempted, resolved, yaw_rad, forward_speed_mps, dt_seconds)
 }
 
-fn trim_forward_speed(
+pub(crate) fn trim_forward_speed(
     previous: Vec3,
     attempted: Vec3,
     resolved: Vec3,
@@ -152,52 +135,28 @@ fn horizontal_position_matches(a: Vec3, b: Vec3) -> bool {
     (a.x - b.x).abs() <= 1.0e-5 && (a.z - b.z).abs() <= 1.0e-5
 }
 
-fn blocked(x: f32, z: f32, cover: &[StaticCoverObject]) -> bool {
-    cover.iter().any(|object| {
-        let min_x = object.center[0] - object.half_extents_m[0] - TANK_COLLISION_RADIUS_M;
-        let max_x = object.center[0] + object.half_extents_m[0] + TANK_COLLISION_RADIUS_M;
-        let min_z = object.center[2] - object.half_extents_m[2] - TANK_COLLISION_RADIUS_M;
-        let max_z = object.center[2] + object.half_extents_m[2] + TANK_COLLISION_RADIUS_M;
-        (min_x..=max_x).contains(&x) && (min_z..=max_z).contains(&z)
-    })
-}
-
 fn tank_blocked(
     position: Vec3,
     yaw_rad: f32,
     footprint: TankFootprint,
     obstacles: &[TankObstacle],
 ) -> bool {
-    obstacles.iter().any(|obstacle| {
-        footprints_overlap(
-            position,
-            yaw_rad,
-            footprint,
-            obstacle.center,
-            obstacle.yaw_rad,
-            obstacle.footprint,
-        )
-    })
+    let moving = TankObstacle::new(position, yaw_rad, footprint);
+    obstacles.iter().any(|obstacle| obstacles_overlap(&moving, obstacle))
 }
 
-fn footprints_overlap(
-    center_a: Vec3,
-    yaw_a: f32,
-    footprint_a: TankFootprint,
-    center_b: Vec3,
-    yaw_b: f32,
-    footprint_b: TankFootprint,
-) -> bool {
-    let center_a = Vec2::new(center_a.x, center_a.z);
-    let center_b = Vec2::new(center_b.x, center_b.z);
-    let [right_a, forward_a] = footprint_axes(yaw_a);
-    let [right_b, forward_b] = footprint_axes(yaw_b);
+/// XZ-plane separating-axis overlap between two oriented hull footprints.
+pub(crate) fn obstacles_overlap(a: &TankObstacle, b: &TankObstacle) -> bool {
+    let center_a = Vec2::new(a.center.x, a.center.z);
+    let center_b = Vec2::new(b.center.x, b.center.z);
+    let [right_a, forward_a] = footprint_axes(a.yaw_rad);
+    let [right_b, forward_b] = footprint_axes(b.yaw_rad);
     let delta = center_b - center_a;
     for axis in [right_a, forward_a, right_b, forward_b] {
-        let radius_a = footprint_a.half_width_m * axis.dot(right_a).abs()
-            + footprint_a.half_length_m * axis.dot(forward_a).abs();
-        let radius_b = footprint_b.half_width_m * axis.dot(right_b).abs()
-            + footprint_b.half_length_m * axis.dot(forward_b).abs();
+        let radius_a = a.footprint.half_width_m * axis.dot(right_a).abs()
+            + a.footprint.half_length_m * axis.dot(forward_a).abs();
+        let radius_b = b.footprint.half_width_m * axis.dot(right_b).abs()
+            + b.footprint.half_length_m * axis.dot(forward_b).abs();
         if delta.dot(axis).abs() >= radius_a + radius_b - 1.0e-5 {
             return false;
         }
