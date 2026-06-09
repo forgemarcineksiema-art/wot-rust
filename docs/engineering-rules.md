@@ -41,6 +41,7 @@ Run all gates with:
 - Domain-direction changes require tests or docs that preserve terrain, LOD, shadows, spotting, shell physics, and networking as priorities.
 - Terrain or camera projection changes require tests for map layers, coordinate precision, and depth convention.
 - Debug tooling changes require tests for debug draw primitives, overlays, GPU labels, and error policy.
+- Every contact-shape approximation (collision footprint, contact predicate, hit volume, blast radius) requires a negative test: a concrete scenario that must produce **no** contact, no damage, and no event. A passing near-miss is as load-bearing as a passing hit — the 2026-06-10 review found every shipped contact bug (phantom ramming, cover interpenetration) lived exactly where only the positive case was tested.
 - Performance-sensitive systems require a benchmark before they are tuned.
 
 ## Documentation Policy
