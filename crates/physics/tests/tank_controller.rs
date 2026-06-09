@@ -109,19 +109,37 @@ fn drive_north_into_embankment(
 #[test]
 fn cover_collision_blocks_head_on_and_keeps_the_unblocked_axis() {
     let cover = vec![cover_box([0.0, 1.0, 10.0], [6.0, 2.0, 1.0])];
+    let footprint = TankFootprint { half_width_m: 1.6, half_length_m: 1.6 };
     let previous = glam::Vec3::new(0.0, 0.0, 1.0);
 
     // A clear move that never reaches the cover is unchanged.
-    let clear = physics::resolve_cover_collision(previous, glam::Vec3::new(0.0, 0.0, 3.0), &cover);
+    let clear = physics::resolve_cover_collision(
+        previous,
+        glam::Vec3::new(0.0, 0.0, 3.0),
+        0.0,
+        footprint,
+        &cover,
+    );
     assert_eq!(clear, glam::Vec3::new(0.0, 0.0, 3.0));
 
     // Driving straight into the cover is fully blocked: the hull holds its previous position.
-    let head_on =
-        physics::resolve_cover_collision(previous, glam::Vec3::new(0.0, 0.0, 9.5), &cover);
+    let head_on = physics::resolve_cover_collision(
+        previous,
+        glam::Vec3::new(0.0, 0.0, 9.5),
+        0.0,
+        footprint,
+        &cover,
+    );
     assert_eq!(head_on, previous);
 
     // Moving sideways (x) while pressing into the cover (z): x is kept, z is dropped (slide).
-    let slide = physics::resolve_cover_collision(previous, glam::Vec3::new(5.0, 0.0, 9.5), &cover);
+    let slide = physics::resolve_cover_collision(
+        previous,
+        glam::Vec3::new(5.0, 0.0, 9.5),
+        0.0,
+        footprint,
+        &cover,
+    );
     assert!((slide.x - 5.0).abs() < 1.0e-6, "x slide preserved, got {}", slide.x);
     assert!((slide.z - previous.z).abs() < 1.0e-6, "z into cover blocked, got {}", slide.z);
 }

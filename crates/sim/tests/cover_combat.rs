@@ -104,4 +104,14 @@ fn static_cover_stops_a_tank_driving_into_it() {
     let z = state.tank(tank).expect("tank").position.z;
     assert!(z < 25.0, "cover should stop the tank short of the barn (z = {z})");
     assert!(z > 20.0, "the tank should still advance up to the barn (z = {z})");
+
+    // Negative contact lock: the hull's front face must end at (not inside) the barn wall.
+    // The old point-radius blocker buried the T-55A's nose 1.6 m deep into the building.
+    let tank = state.tank(tank).expect("tank");
+    let hull_front_z = tank.position.z + tank.spec.hitbox.half_length_m;
+    let barn_face_z = 30.0 - 4.0;
+    assert!(
+        hull_front_z <= barn_face_z + 1.0e-2,
+        "hull front must stay outside the barn footprint (front z {hull_front_z} vs face {barn_face_z})"
+    );
 }

@@ -3,8 +3,8 @@ use terrain::{HeightMap, StaticCoverObject};
 use crate::collision::{
     TankWorldObstacles, default_tank_footprint, resolve_tank_collision_with_speed,
 };
-use crate::cover::resolve_cover_collision_with_speed;
 use crate::controller_settings::TankControllerSettings;
+use crate::cover::resolve_cover_collision_with_speed;
 use crate::movement::{
     TankControlInput, TankKinematicState, TerrainContact, sample_tank_terrain_contact,
     step_custom_tank_controller_on_contact,
@@ -72,6 +72,7 @@ pub fn step_tank_on_world_with_tanks(
         state.position,
         state.yaw_rad,
         state.forward_speed_mps,
+        obstacles.tank_footprint,
         obstacles.cover,
         dt_seconds,
     );
