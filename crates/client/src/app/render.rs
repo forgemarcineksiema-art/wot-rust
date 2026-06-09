@@ -11,8 +11,8 @@ use winit::window::Window;
 use super::ClientApp;
 use crate::hud::{HudVitals, build_hud_with_reticle};
 use crate::{
-    BattleCameraEnvironment, CameraSubject, append_shell_markers, render_frame_from_objects,
-    split_vehicle_render_frame, terrain_scene_mesh,
+    BattleCameraEnvironment, CameraSubject, append_shell_markers, battlefield_scene_mesh,
+    render_frame_from_objects, split_vehicle_render_frame,
 };
 
 const SNAPSHOT_INTERVAL_SECONDS: f32 = 1.0 / DEFAULT_SNAPSHOT_HZ as f32;
@@ -24,7 +24,8 @@ impl ClientApp {
         width: u32,
         height: u32,
     ) -> Result<(), RenderError> {
-        let (terrain_vertices, terrain_indices) = terrain_scene_mesh(&self.battlefield.heightmap);
+        // Terrain plus static cover: everything the simulation collides must be visible.
+        let (terrain_vertices, terrain_indices) = battlefield_scene_mesh(&self.battlefield);
         let mut renderer =
             WindowRenderer::new(window, width, height, &terrain_vertices, &terrain_indices)?;
         let atlas = crate::hud_font::atlas();

@@ -30,7 +30,7 @@ pub use loop_policy::{
     ClientLoopAction, ClientLoopEvent, ClientLoopPhase, FixedTickAccumulator, WinitLoopDriver,
 };
 pub use render_state::InterpolatedBattleState;
-pub use scene_mesh::terrain_scene_mesh;
+pub use scene_mesh::{battlefield_scene_mesh, terrain_scene_mesh};
 pub use tank_mesh::append_shell_markers;
 pub use vehicle_mesh::{append_tank_mesh, tank_scene_mesh};
 pub use vehicle_render_frame::{

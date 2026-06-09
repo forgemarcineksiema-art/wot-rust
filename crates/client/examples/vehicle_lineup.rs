@@ -2,7 +2,7 @@ use std::fs::File;
 use std::io::BufWriter;
 
 use client::{
-    VehicleMeshCatalog, render_frame_from_objects, tank_render_objects, terrain_scene_mesh,
+    VehicleMeshCatalog, battlefield_scene_mesh, render_frame_from_objects, tank_render_objects,
 };
 use game_core::{TankId, VehicleKind};
 use net::TankSnapshot;
@@ -18,7 +18,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let height = 620u32;
 
     let battlefield = prokhorovka_hill_252_2();
-    let (terrain_vertices, terrain_indices) = terrain_scene_mesh(&battlefield.heightmap);
+    let (terrain_vertices, terrain_indices) = battlefield_scene_mesh(&battlefield);
 
     // A roughly level patch of the map; tanks are spread across it on the X axis.
     let center_x = 340.0_f32;

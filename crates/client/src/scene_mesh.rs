@@ -1,6 +1,43 @@
-use glam::Vec3;
+use glam::{Mat3, Vec3};
 use renderer_api::SceneVertex;
-use terrain::HeightMap;
+use terrain::{BattlefieldMap, HeightMap, StaticCoverKind, StaticCoverObject};
+
+use crate::tank_mesh::push_oriented_box;
+
+/// Build the static battlefield mesh: the terrain plus every static cover object. Cover is
+/// gameplay state (it blocks movement, shells, and the camera), so whatever the simulation
+/// collides must be visible — rendering the exact sim boxes keeps the world honest.
+pub fn battlefield_scene_mesh(battlefield: &BattlefieldMap) -> (Vec<SceneVertex>, Vec<u32>) {
+    let (mut vertices, mut indices) = terrain_scene_mesh(&battlefield.heightmap);
+    for cover in &battlefield.static_cover {
+        append_cover_box(&mut vertices, &mut indices, cover);
+    }
+    (vertices, indices)
+}
+
+fn append_cover_box(
+    vertices: &mut Vec<SceneVertex>,
+    indices: &mut Vec<u32>,
+    cover: &StaticCoverObject,
+) {
+    push_oriented_box(
+        vertices,
+        indices,
+        Vec3::from_array(cover.center),
+        Vec3::from_array(cover.half_extents_m),
+        Mat3::IDENTITY,
+        cover_color(cover.kind),
+    );
+}
+
+fn cover_color(kind: StaticCoverKind) -> [f32; 3] {
+    match kind {
+        StaticCoverKind::FarmBuilding => [0.45, 0.33, 0.24],
+        StaticCoverKind::RailCover => [0.30, 0.24, 0.18],
+        StaticCoverKind::TreeLine => [0.16, 0.30, 0.14],
+        StaticCoverKind::Wreck => [0.25, 0.20, 0.17],
+    }
+}
 
 /// Build a lit triangle mesh for the whole heightmap, colored by height and slope so
 /// the terrain reads clearly: grass in the lowlands, rock on the heights and steeps.
@@ -61,4 +98,36 @@ fn terrain_color(y: f32, min_y: f32, max_y: f32, normal_y: f32) -> [f32; 3] {
     let steep = (1.0 - normal_y).clamp(0.0, 1.0);
     color = color.lerp(Vec3::new(0.33, 0.29, 0.26), steep * 0.6);
     color.to_array()
+}
+
+#[cfg(test)]
+mod tests {
+    use terrain::prokhorovka_hill_252_2;
+
+    use super::*;
+
+    /// Cover is physical for movement, shells, and the camera; an unrendered cover box is an
+    /// invisible wall. Locks that the battlefield mesh draws every static cover object.
+    #[test]
+    fn battlefield_mesh_renders_every_static_cover_object() {
+        let battlefield = prokhorovka_hill_252_2();
+        assert!(!battlefield.static_cover.is_empty(), "map should carry static cover");
+
+        let (terrain_vertices, _) = terrain_scene_mesh(&battlefield.heightmap);
+        let (vertices, indices) = battlefield_scene_mesh(&battlefield);
+
+        assert!(vertices.len() > terrain_vertices.len(), "cover must add geometry");
+        assert!(indices.iter().all(|&index| (index as usize) < vertices.len()));
+        for cover in &battlefield.static_cover {
+            let center = Vec3::from_array(cover.center);
+            let half = Vec3::from_array(cover.half_extents_m);
+            let rendered = vertices.iter().any(|vertex| {
+                let delta = (Vec3::from_array(vertex.position) - center).abs();
+                delta.x <= half.x + 1.0e-3
+                    && delta.y <= half.y + 1.0e-3
+                    && delta.z <= half.z + 1.0e-3
+            });
+            assert!(rendered, "static cover {} must be part of the battlefield mesh", cover.id);
+        }
+    }
 }

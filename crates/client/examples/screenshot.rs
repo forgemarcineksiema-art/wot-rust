@@ -3,7 +3,7 @@ use std::io::BufWriter;
 
 use client::{
     BattleCameraController, BattleCameraEnvironment, CameraSubject, HudVitals,
-    append_shell_markers, append_tank_mesh, build_hud, terrain_scene_mesh,
+    append_shell_markers, append_tank_mesh, battlefield_scene_mesh, build_hud,
 };
 use net::ClientInputCommand;
 use renderer_api::view_projection_matrix;
@@ -21,7 +21,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let height = 720u32;
 
     let battlefield = prokhorovka_hill_252_2();
-    let (terrain_vertices, terrain_indices) = terrain_scene_mesh(&battlefield.heightmap);
+    let (terrain_vertices, terrain_indices) = battlefield_scene_mesh(&battlefield);
 
     let mut server = LocalAuthoritativeServer::new(ServerTickConfig::default());
     let player = server.player_tank();
