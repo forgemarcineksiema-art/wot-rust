@@ -1,0 +1,43 @@
+{
+  "name": "drive_forward_v1",
+  "tick_rate_hz": 20,
+  "spawn": {
+    "team": 1,
+    "position": [0.0, 0.0, 0.0]
+  },
+  "frames": [
+    {
+      "tank_id": 1,
+      "command": {
+        "throttle": 1.0,
+        "steer": 0.0,
+        "turret_yaw_delta": 0.25,
+        "fire": false
+      }
+    },
+    {
+      "tank_id": 1,
+      "command": {
+        "throttle": 1.0,
+        "steer": 0.0,
+        "turret_yaw_delta": 0.25,
+        "fire": false
+      }
+    },
+    {
+      "tank_id": 1,
+      "command": {
+        "throttle": 1.0,
+        "steer": 0.0,
+        "turret_yaw_delta": 0.25,
+        "fire": false
+      }
+    }
+  ],
+  "expected": {
+    "tick": 3,
+    "tank_id": 1,
+    "position_z_min": 0.05,
+    "turret_yaw_min": 0.02
+  }
+}

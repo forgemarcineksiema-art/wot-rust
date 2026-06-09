@@ -1,0 +1,78 @@
+use serde::{Deserialize, Serialize};
+
+use super::{MODULE_SLOT_COUNT, ModuleSlot, VehicleModules};
+
+/// Live battle hit points of each module slot. At zero a module is destroyed and stops
+/// working — the simulation gates movement, traverse and firing on these (see `sim`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ModuleHealth {
+    engine: u32,
+    suspension: u32,
+    turret: u32,
+    gun: u32,
+    #[serde(default = "default_ammo_rack_hp")]
+    ammo_rack: u32,
+    radio: u32,
+}
+
+const fn default_ammo_rack_hp() -> u32 {
+    240
+}
+
+impl ModuleHealth {
+    /// Full health, taken from each installed module's `hit_points`.
+    pub fn from_loadout(modules: &VehicleModules) -> Self {
+        Self {
+            engine: modules.engine.hit_points,
+            suspension: modules.suspension.hit_points,
+            turret: modules.turret.hit_points,
+            gun: modules.gun.hit_points,
+            ammo_rack: modules.gun.hit_points + modules.turret.hit_points / 2,
+            radio: modules.radio.hit_points,
+        }
+    }
+
+    pub fn hit_points(&self, slot: ModuleSlot) -> u32 {
+        match slot {
+            ModuleSlot::Engine => self.engine,
+            ModuleSlot::Suspension => self.suspension,
+            ModuleSlot::Turret => self.turret,
+            ModuleSlot::Gun => self.gun,
+            ModuleSlot::AmmoRack => self.ammo_rack,
+            ModuleSlot::Radio => self.radio,
+        }
+    }
+
+    pub fn hit_points_by_slot(&self) -> [u32; MODULE_SLOT_COUNT] {
+        ModuleSlot::ALL.map(|slot| self.hit_points(slot))
+    }
+
+    pub fn is_functional(&self, slot: ModuleSlot) -> bool {
+        self.hit_points(slot) > 0
+    }
+
+    /// Apply `amount` damage to a slot, saturating at zero.
+    pub fn damage(&mut self, slot: ModuleSlot, amount: u32) {
+        let hp = match slot {
+            ModuleSlot::Engine => &mut self.engine,
+            ModuleSlot::Suspension => &mut self.suspension,
+            ModuleSlot::Turret => &mut self.turret,
+            ModuleSlot::Gun => &mut self.gun,
+            ModuleSlot::AmmoRack => &mut self.ammo_rack,
+            ModuleSlot::Radio => &mut self.radio,
+        };
+        *hp = hp.saturating_sub(amount);
+    }
+
+    /// Bit `i` (in [`ModuleSlot::ALL`] order) is set when that slot is destroyed. A compact
+    /// form for replicating module status over the wire.
+    pub fn destroyed_mask(&self) -> u8 {
+        let mut mask = 0u8;
+        for slot in ModuleSlot::ALL {
+            if !self.is_functional(slot) {
+                mask |= slot.destroyed_mask_bit();
+            }
+        }
+        mask
+    }
+}

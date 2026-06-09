@@ -1,0 +1,48 @@
+{
+  "name": "Panzerkampfwagen VI Tiger Ausf. E",
+  "kind": "TigerI",
+  "mass_kg": 57000.0,
+  "engine_power_kw": 515.0,
+  "max_forward_speed_mps": 10.56,
+  "max_reverse_speed_mps": 3.2,
+  "turn_rate_rad_s": 0.58,
+  "turret_rotation_rad_s": 0.33,
+  "hull": {
+    "hull_front_mm": 100.0,
+    "hull_side_mm": 80.0,
+    "hull_rear_mm": 80.0,
+    "turret_front_mm": 100.0,
+    "turret_side_mm": 80.0,
+    "turret_rear_mm": 80.0
+  },
+  "gun": {
+    "name": "8.8 cm KwK 36 L/56",
+    "reload_seconds": 7.8,
+    "dispersion_mrad": 2.4,
+    "aim_time_seconds": 2.4,
+    "movement_bloom_mrad": 4.5,
+    "shot_bloom_mrad": 3.6,
+    "max_dispersion_mrad": 16.0,
+    "shell": {
+      "caliber_mm": 88.0,
+      "muzzle_velocity_mps": 773.0,
+      "penetration_mm_at_100m": 165.0,
+      "damage_hp": 360
+    }
+  },
+  "hit_points": 1850,
+  "module_health": {
+    "engine": 170,
+    "suspension": 170,
+    "turret": 280,
+    "gun": 150,
+    "radio": 50
+  },
+  "hitbox": {
+    "half_width_m": 1.95,
+    "half_height_m": 1.46,
+    "half_length_m": 3.6,
+    "center_y_m": 1.41,
+    "turret_min_y_m": 0.49
+  }
+}

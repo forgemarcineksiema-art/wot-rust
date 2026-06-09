@@ -1,0 +1,21 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+      - main
+
+jobs:
+  rust:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly-2026-02-12
+          components: clippy, rustfmt
+      - name: Verify
+        shell: pwsh
+        run: ./scripts/verify.ps1

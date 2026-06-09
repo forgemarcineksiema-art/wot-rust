@@ -1,0 +1,26 @@
+mod armor;
+mod damage;
+mod ids;
+pub mod math;
+mod modules;
+mod mount;
+mod tank;
+mod vehicle_kind;
+mod vehicles;
+mod weapon;
+
+pub use armor::{
+    ArmorFacet, ArmorFacetProfile, ArmorFacing, ArmorProfile, ArmorZone, PenetrationResult,
+    resolve_penetration, resolve_penetration_at_distance, resolve_penetration_at_distance_on_zone,
+};
+pub use damage::{DamageCause, DamageEvent};
+pub use ids::{TankId, TeamId};
+pub use modules::{
+    EngineModule, GunModule, HullChassis, MODULE_SLOT_COUNT, ModuleError, ModuleHealth, ModuleSlot,
+    RadioModule, SuspensionModule, TurretModule, TurretTraverse, VehicleModules,
+};
+pub use mount::{MountFrame, MountFrames};
+pub use tank::{HitboxProfile, TankSpec};
+pub use vehicle_kind::VehicleKind;
+pub use vehicles::known_tank_specs;
+pub use weapon::{GunSpec, ShellSpec, ShellType};

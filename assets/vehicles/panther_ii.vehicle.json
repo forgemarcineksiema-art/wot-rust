@@ -1,0 +1,48 @@
+{
+  "name": "Panzerkampfwagen V Panther II",
+  "kind": "PantherII",
+  "mass_kg": 53000.0,
+  "engine_power_kw": 441.0,
+  "max_forward_speed_mps": 12.78,
+  "max_reverse_speed_mps": 3.5,
+  "turn_rate_rad_s": 0.64,
+  "turret_rotation_rad_s": 0.38,
+  "hull": {
+    "hull_front_mm": 100.0,
+    "hull_side_mm": 60.0,
+    "hull_rear_mm": 40.0,
+    "turret_front_mm": 120.0,
+    "turret_side_mm": 60.0,
+    "turret_rear_mm": 45.0
+  },
+  "gun": {
+    "name": "7.5 cm KwK 42 L/70",
+    "reload_seconds": 6.6,
+    "dispersion_mrad": 2.0,
+    "aim_time_seconds": 2.0,
+    "movement_bloom_mrad": 4.0,
+    "shot_bloom_mrad": 3.2,
+    "max_dispersion_mrad": 15.0,
+    "shell": {
+      "caliber_mm": 75.0,
+      "muzzle_velocity_mps": 935.0,
+      "penetration_mm_at_100m": 138.0,
+      "damage_hp": 240
+    }
+  },
+  "hit_points": 1700,
+  "module_health": {
+    "engine": 170,
+    "suspension": 170,
+    "turret": 260,
+    "gun": 140,
+    "radio": 50
+  },
+  "hitbox": {
+    "half_width_m": 1.85,
+    "half_height_m": 1.47,
+    "half_length_m": 3.7,
+    "center_y_m": 1.42,
+    "turret_min_y_m": 0.43
+  }
+}

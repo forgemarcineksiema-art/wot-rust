@@ -1,0 +1,30 @@
+use client::tank_scene_mesh;
+use game_core::{TankId, VehicleKind};
+use net::TankSnapshot;
+
+#[test]
+fn t55a_client_mesh_uses_rich_procedural_geometry() {
+    let snapshot = TankSnapshot {
+        tank_id: TankId(1),
+        vehicle: VehicleKind::T55A,
+        position: [0.0, 0.0, 0.0],
+        yaw_rad: 0.0,
+        turret_yaw_rad: 0.35,
+        turret_yaw_velocity_rad_s: 0.0,
+        gun_pitch_rad: 0.08,
+        hit_points: 1000,
+        reload_remaining_s: 0.0,
+        aim_dispersion_mrad: VehicleKind::T55A.spec().gun.dispersion_mrad,
+        module_hit_points: VehicleKind::T55A.spec().module_health.hit_points_by_slot(),
+        destroyed_modules_mask: 0,
+    };
+
+    let (vertices, indices) = tank_scene_mesh(&snapshot);
+
+    assert!(vertices.iter().all(|vertex| vertex.position.iter().all(|value| value.is_finite())));
+    assert!(vertices.iter().all(|vertex| vertex.normal.iter().all(|value| value.is_finite())));
+    assert!(
+        indices.len() / 3 >= 170,
+        "T-55A should render through richer baked procedural geometry, not the old box stack"
+    );
+}

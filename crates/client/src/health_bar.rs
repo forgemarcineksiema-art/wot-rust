@@ -1,0 +1,81 @@
+use engine::PresentationTank;
+use game_core::{HitboxProfile, TankId};
+use glam::Vec3;
+use renderer_api::HudVertex;
+
+use crate::hud;
+use crate::reticle::world_to_clip_xy;
+
+const BAR_HALF_WIDTH: f32 = 0.055;
+const BAR_HALF_HEIGHT: f32 = 0.008;
+
+pub(crate) fn enemy_health_bars(
+    tanks: &[PresentationTank],
+    player_tank_id: TankId,
+    view_projection: [[f32; 4]; 4],
+    aspect: f32,
+) -> Vec<HudVertex> {
+    let mut vertices = Vec::new();
+
+    for tank in tanks {
+        if tank.id == player_tank_id {
+            continue;
+        }
+
+        let hitbox = HitboxProfile::for_vehicle(tank.vehicle);
+        let bar_world_y = tank.translation[1] + hitbox.center_y_m + hitbox.half_height_m + 0.35;
+        let world_pos = Vec3::new(tank.translation[0], bar_world_y, tank.translation[2]);
+
+        let Some(clip_pos) = world_to_clip_xy(world_pos, view_projection) else {
+            continue;
+        };
+
+        let max_hp = tank.vehicle.spec().hit_points.max(1) as f32;
+        let hp_frac = (tank.hit_points as f32 / max_hp).clamp(0.0, 1.0);
+        let color = hud::health_color(hp_frac);
+
+        let bar_half_w = BAR_HALF_WIDTH / aspect;
+        let bar_center = clip_pos;
+
+        hud::push_quad(
+            &mut vertices,
+            bar_center,
+            [bar_half_w, BAR_HALF_HEIGHT],
+            [0.0, 0.0, 0.0, 0.55],
+        );
+
+        let fill_w = bar_half_w * hp_frac;
+        hud::push_quad(
+            &mut vertices,
+            [bar_center[0] - bar_half_w + fill_w, bar_center[1]],
+            [fill_w, BAR_HALF_HEIGHT],
+            color,
+        );
+
+        let num_digits = digit_count(tank.hit_points.min(9_999));
+        let num_width = num_digits as f32 * 0.035 * 0.6;
+        crate::hud_number::push_number(
+            &mut vertices,
+            tank.hit_points.min(9_999),
+            bar_center[0] + num_width * 0.5,
+            bar_center[1] - BAR_HALF_HEIGHT - 0.012,
+            0.035,
+            aspect,
+            crate::hud_number::HP_COLOR,
+        );
+    }
+
+    vertices
+}
+
+fn digit_count(mut n: u32) -> u32 {
+    if n == 0 {
+        return 1;
+    }
+    let mut count = 0;
+    while n > 0 {
+        n /= 10;
+        count += 1;
+    }
+    count
+}

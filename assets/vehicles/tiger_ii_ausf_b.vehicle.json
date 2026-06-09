@@ -1,0 +1,48 @@
+{
+  "name": "Panzerkampfwagen VI B Tiger II",
+  "kind": "TigerII",
+  "mass_kg": 69800.0,
+  "engine_power_kw": 515.0,
+  "max_forward_speed_mps": 10.56,
+  "max_reverse_speed_mps": 3.0,
+  "turn_rate_rad_s": 0.45,
+  "turret_rotation_rad_s": 0.28,
+  "hull": {
+    "hull_front_mm": 150.0,
+    "hull_side_mm": 80.0,
+    "hull_rear_mm": 80.0,
+    "turret_front_mm": 180.0,
+    "turret_side_mm": 80.0,
+    "turret_rear_mm": 80.0
+  },
+  "gun": {
+    "name": "8.8 cm KwK 43 L/71",
+    "reload_seconds": 8.8,
+    "dispersion_mrad": 2.1,
+    "aim_time_seconds": 2.7,
+    "movement_bloom_mrad": 4.2,
+    "shot_bloom_mrad": 3.4,
+    "max_dispersion_mrad": 15.0,
+    "shell": {
+      "caliber_mm": 88.0,
+      "muzzle_velocity_mps": 1000.0,
+      "penetration_mm_at_100m": 202.0,
+      "damage_hp": 390
+    }
+  },
+  "hit_points": 2050,
+  "module_health": {
+    "engine": 170,
+    "suspension": 180,
+    "turret": 300,
+    "gun": 150,
+    "radio": 50
+  },
+  "hitbox": {
+    "half_width_m": 1.95,
+    "half_height_m": 1.54,
+    "half_length_m": 4.0,
+    "center_y_m": 1.49,
+    "turret_min_y_m": 0.46
+  }
+}

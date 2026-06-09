@@ -1,0 +1,77 @@
+use glam::{Mat4, Vec3};
+
+use crate::Camera;
+
+/// Backend-neutral lit vertex: world-space position, normal, an RGB base color, and a tint weight.
+///
+/// `tint_weight` controls how much of the per-instance team tint multiplies the base color:
+/// `0.0` keeps the color absolute (terrain, barrels, tracks, rubber), `1.0` fully tints it (hull
+/// and turret armor). This lets one team-neutral mesh be drawn in any team color from instance
+/// data, instead of baking a separate mesh per color. POD so backends can upload it zero-copy.
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct SceneVertex {
+    pub position: [f32; 3],
+    pub normal: [f32; 3],
+    pub color: [f32; 3],
+    pub tint_weight: f32,
+}
+
+impl SceneVertex {
+    /// An absolute-colored vertex (`tint_weight` 0.0): the per-instance tint never touches it.
+    pub const fn new(position: [f32; 3], normal: [f32; 3], color: [f32; 3]) -> Self {
+        Self { position, normal, color, tint_weight: 0.0 }
+    }
+
+    /// A vertex that opts into the per-instance team tint by `tint_weight` (`1.0` = fully tinted).
+    pub const fn tinted(
+        position: [f32; 3],
+        normal: [f32; 3],
+        color: [f32; 3],
+        tint_weight: f32,
+    ) -> Self {
+        Self { position, normal, color, tint_weight }
+    }
+}
+
+/// A 2D overlay vertex in clip space (NDC), with atlas UVs and a straight RGBA color. Used for
+/// the HUD (crosshair, health/reload bars, text) drawn on top of the scene in one pass.
+///
+/// `uv` addresses the font/coverage atlas. A negative `uv.x` is a sentinel for "solid": the HUD
+/// shader skips the texture and treats coverage as fully opaque, so bars and crosshairs keep
+/// rendering as flat colored quads while glyph quads sample the atlas — all from one buffer.
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct HudVertex {
+    pub position: [f32; 2],
+    pub uv: [f32; 2],
+    pub color: [f32; 4],
+}
+
+/// `uv` sentinel marking a solid (non-textured) HUD vertex. Any negative `uv.x` qualifies; this is
+/// the canonical value `HudVertex::new` stamps in.
+pub const HUD_SOLID_UV: [f32; 2] = [-1.0, -1.0];
+
+impl HudVertex {
+    /// A solid colored vertex: the HUD shader fills it at full coverage, ignoring the atlas.
+    pub const fn new(position: [f32; 2], color: [f32; 4]) -> Self {
+        Self { position, uv: HUD_SOLID_UV, color }
+    }
+
+    /// A textured vertex sampling the font/coverage atlas at `uv`; `color` tints the sampled
+    /// coverage (alpha = color.a * coverage).
+    pub const fn textured(position: [f32; 2], uv: [f32; 2], color: [f32; 4]) -> Self {
+        Self { position, uv, color }
+    }
+}
+
+/// World -> clip matrix using this project's WebGPU depth convention: `perspective_rh`
+/// maps the depth range to `[0, 1]` (not OpenGL's `[-1, 1]`), paired with a
+/// right-handed look-at. The result is column-major, matching a WGSL `mat4x4<f32>`.
+pub fn view_projection_matrix(camera: &Camera, aspect: f32, near: f32, far: f32) -> [[f32; 4]; 4] {
+    let proj =
+        Mat4::perspective_rh(camera.vertical_fov_degrees.to_radians(), aspect.max(0.01), near, far);
+    let view =
+        Mat4::look_at_rh(Vec3::from_array(camera.eye), Vec3::from_array(camera.target), Vec3::Y);
+    (proj * view).to_cols_array_2d()
+}

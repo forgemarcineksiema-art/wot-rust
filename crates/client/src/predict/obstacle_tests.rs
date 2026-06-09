@@ -1,0 +1,65 @@
+use super::*;
+
+fn snapshot_at(position: [f32; 3]) -> TankSnapshot {
+    let spec = game_core::VehicleKind::T55A.spec();
+    TankSnapshot {
+        tank_id: game_core::TankId(1),
+        vehicle: game_core::VehicleKind::T55A,
+        position,
+        yaw_rad: 0.0,
+        turret_yaw_rad: 0.0,
+        turret_yaw_velocity_rad_s: 0.0,
+        gun_pitch_rad: 0.0,
+        hit_points: spec.hit_points,
+        reload_remaining_s: 0.0,
+        aim_dispersion_mrad: spec.gun.dispersion_mrad,
+        module_hit_points: spec.module_health.hit_points_by_slot(),
+        destroyed_modules_mask: 0,
+    }
+}
+
+#[test]
+fn prediction_is_blocked_by_static_cover_like_the_server() {
+    use terrain::StaticCoverKind;
+
+    let flat = HeightMap::flat(64, 64, 4.0, 0.0).unwrap();
+    let cover = vec![StaticCoverObject {
+        id: "barn".to_string(),
+        name: "barn".to_string(),
+        kind: StaticCoverKind::FarmBuilding,
+        center: [10.0, 1.5, 30.0],
+        half_extents_m: [5.0, 2.5, 4.0],
+    }];
+    let mut predictor = LocalPredictor::new(&TankSpec::t55a());
+    predictor.sync_to(&snapshot_at([10.0, 0.0, 10.0]));
+
+    let drive = TankCommand::drive(1.0, 0.0); // straight north into the barn
+    for _ in 0..240 {
+        predictor.step(drive, &flat, &cover, &[], 1.0 / 60.0);
+    }
+
+    // The predictor shares the server's movement-and-cover step (`step_tank_on_world`), so it
+    // stops where the server does -- the barn's near face -- keeping lockstep instead of
+    // driving through cover and snapping back on the next snapshot.
+    let pos = predictor.position();
+    assert!(pos.z < 25.0, "cover should stop the predicted hull short of the barn (z = {})", pos.z);
+    assert!(pos.z > 20.0, "the hull should still advance up to the barn (z = {})", pos.z);
+}
+
+#[test]
+fn prediction_is_blocked_by_other_tanks_like_the_server() {
+    let flat = HeightMap::flat(64, 64, 4.0, 0.0).unwrap();
+    let spec = TankSpec::t55a();
+    let obstacles =
+        [physics::TankObstacle::from_hitbox(Vec3::new(10.0, 0.0, 18.0), 0.0, spec.hitbox)];
+    let mut predictor = LocalPredictor::new(&spec);
+    predictor.sync_to(&snapshot_at([10.0, 0.0, 10.0]));
+
+    let drive = TankCommand::drive(1.0, 0.0);
+    for _ in 0..240 {
+        predictor.step(drive, &flat, &[], &obstacles, 1.0 / 60.0);
+    }
+
+    let pos = predictor.position();
+    assert!(pos.z <= 11.65, "tank obstacle should stop the predicted hull (z = {})", pos.z);
+}

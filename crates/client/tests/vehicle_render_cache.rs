@@ -1,0 +1,61 @@
+use client::{VehicleMeshCatalog, tank_render_objects};
+use game_core::{TankId, VehicleKind};
+use glam::{Mat4, Vec3};
+use net::TankSnapshot;
+
+#[test]
+fn vehicle_mesh_catalog_bakes_and_registers_material_once_per_vehicle() {
+    let mut catalog = VehicleMeshCatalog::default();
+    let snapshot = snapshot(VehicleKind::T55A, 0.0);
+
+    let _ = tank_render_objects(&mut catalog, &snapshot, [0.30, 0.40, 0.28]);
+    let _ = tank_render_objects(&mut catalog, &snapshot, [0.46, 0.29, 0.25]);
+
+    assert_eq!(catalog.cached_vehicle_count(), 1);
+    assert_eq!(catalog.material_count(), 1);
+}
+
+#[test]
+fn jagdtiger_render_objects_ignore_stray_turret_yaw() {
+    let mut catalog = VehicleMeshCatalog::default();
+    let straight = tank_render_objects(
+        &mut catalog,
+        &snapshot(VehicleKind::Jagdtiger, 0.0),
+        [0.30, 0.40, 0.28],
+    );
+    let stray = tank_render_objects(
+        &mut catalog,
+        &snapshot(VehicleKind::Jagdtiger, 0.8),
+        [0.30, 0.40, 0.28],
+    );
+
+    let straight_turret = Mat4::from_cols_array_2d(&straight[1].transform);
+    let stray_turret = Mat4::from_cols_array_2d(&stray[1].transform);
+    let straight_gun_pos = Mat4::from_cols_array_2d(&straight[2].transform).w_axis.truncate();
+    let stray_gun_pos = Mat4::from_cols_array_2d(&stray[2].transform).w_axis.truncate();
+
+    assert!((straight_turret.w_axis.truncate() - stray_turret.w_axis.truncate()).length() < 1.0e-5);
+    assert!((straight_gun_pos - stray_gun_pos).length() < 1.0e-5);
+    assert!(
+        (straight_turret.transform_vector3(Vec3::Z) - stray_turret.transform_vector3(Vec3::Z))
+            .length()
+            < 1.0e-5
+    );
+}
+
+fn snapshot(vehicle: VehicleKind, turret_yaw_rad: f32) -> TankSnapshot {
+    TankSnapshot {
+        tank_id: TankId(8),
+        vehicle,
+        position: [0.0, 0.0, 0.0],
+        yaw_rad: 0.4,
+        turret_yaw_rad,
+        turret_yaw_velocity_rad_s: 0.0,
+        gun_pitch_rad: 0.0,
+        hit_points: 1500,
+        reload_remaining_s: 0.0,
+        aim_dispersion_mrad: vehicle.spec().gun.dispersion_mrad,
+        module_hit_points: vehicle.spec().module_health.hit_points_by_slot(),
+        destroyed_modules_mask: 0,
+    }
+}

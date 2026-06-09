@@ -1,0 +1,219 @@
+use std::f32::consts::FRAC_PI_2;
+
+use client::{
+    BattleCameraController, BattleCameraEnvironment, BattleCameraInput, BattleCameraMode,
+    BattleCameraSettings, CameraObstacle, CameraSubject,
+};
+use game_core::TankId;
+use net::TankSnapshot;
+use terrain::{HeightMap, prokhorovka_hill_252_2};
+
+#[test]
+fn third_person_camera_follows_tank_and_stays_above_terrain() {
+    let heightmap = HeightMap::flat(32, 32, 1.0, 3.0).expect("heightmap");
+    let subject = CameraSubject::from_snapshot(tank_snapshot([10.0, 3.0, 10.0], 0.0, 0.0), 0.0);
+    let mut camera = BattleCameraController::new(BattleCameraSettings::default());
+    camera.set_mode(BattleCameraMode::ThirdPerson);
+    let render_camera =
+        camera.render_camera(&subject, &BattleCameraEnvironment::with_terrain(&heightmap));
+
+    assert!(render_camera.eye[2] < subject.position[2], "TPP camera should sit behind hull");
+    assert!(render_camera.eye[1] >= 3.0 + camera.settings().terrain_clearance_m);
+    assert!(render_camera.target[1] > subject.position[1]);
+    assert!(
+        render_camera.target[2] > subject.position[2] + 3.0,
+        "TPP aim camera should look ahead of the hull instead of centering the player's turret"
+    );
+    assert!(
+        (render_camera.eye[0] - subject.position[0]).abs() > 0.5,
+        "TPP aim camera should use an over-shoulder sight lane"
+    );
+    assert_eq!(render_camera.vertical_fov_degrees, camera.settings().third_person_fov_degrees);
+}
+
+#[test]
+fn third_person_camera_shortens_boom_against_static_cover_obstacles() {
+    let heightmap = HeightMap::flat(32, 32, 1.0, 0.0).expect("heightmap");
+    let mut environment = BattleCameraEnvironment::with_terrain(&heightmap);
+    environment.add_obstacle(CameraObstacle::aabb(
+        "stone_cover",
+        [11.0, 5.5, 6.0],
+        [1.0, 2.0, 1.0],
+    ));
+    let subject = CameraSubject::from_snapshot(tank_snapshot([10.0, 0.0, 10.0], 0.0, 0.0), 0.0);
+    let mut camera = BattleCameraController::new(BattleCameraSettings::default());
+    camera.set_mode(BattleCameraMode::ThirdPerson);
+    let render_camera = camera.render_camera(&subject, &environment);
+
+    assert!(render_camera.eye[2] > 6.0, "camera boom should be pulled in before obstacle");
+    assert!(render_camera.eye[2] < render_camera.target[2]);
+}
+
+#[test]
+fn third_person_camera_follows_the_hull_rigidly_without_lag() {
+    // The eye spring was removed: the camera tracks an already-smooth subject 1:1.
+    let environment = BattleCameraEnvironment::empty();
+    let subject_a = CameraSubject::from_snapshot(tank_snapshot([0.0, 0.0, 0.0], 0.0, 0.0), 0.0);
+    let subject_b = CameraSubject::from_snapshot(tank_snapshot([0.0, 0.0, 40.0], 0.0, 0.0), 0.0);
+    let mut camera = BattleCameraController::new(BattleCameraSettings::default());
+    camera.set_mode(BattleCameraMode::ThirdPerson);
+
+    let eye_a = camera.render_camera(&subject_a, &environment).eye;
+    let eye_b = camera.render_camera(&subject_b, &environment).eye;
+
+    assert!((eye_b[2] - eye_a[2] - 40.0).abs() < 1.0e-4, "eye must shift 1:1 with the hull");
+    assert!((eye_b[0] - eye_a[0]).abs() < 1.0e-4);
+    assert!((eye_b[1] - eye_a[1]).abs() < 1.0e-4);
+}
+
+#[test]
+fn third_person_camera_uses_turret_yaw_for_over_shoulder_lane() {
+    let environment = BattleCameraEnvironment::empty();
+    let subject = CameraSubject::from_snapshot(tank_snapshot([0.0, 0.0, 0.0], 0.0, FRAC_PI_2), 0.0);
+    let mut camera = BattleCameraController::new(BattleCameraSettings::default());
+    camera.set_mode(BattleCameraMode::ThirdPerson);
+
+    let render_camera = camera.render_camera(&subject, &environment);
+
+    assert!(
+        render_camera.target[0] > subject.position[0] + 3.0,
+        "TPP target should move ahead of the current turret"
+    );
+    assert!(render_camera.eye[0] < subject.position[0], "camera should sit behind turret yaw");
+    assert!(
+        render_camera.eye[2].abs() > 0.5,
+        "over-shoulder offset should rotate with the turret lane"
+    );
+}
+
+#[test]
+fn camera_environment_imports_static_cover_from_battlefield_map() {
+    let map = prokhorovka_hill_252_2();
+    let environment = BattleCameraEnvironment::for_battlefield(&map);
+
+    assert_eq!(environment.obstacles.len(), map.static_cover.len());
+    assert!(environment.terrain.is_some());
+}
+
+#[test]
+fn camera_environment_can_borrow_prebuilt_obstacles_for_hot_render_paths() {
+    let heightmap = HeightMap::flat(32, 32, 1.0, 0.0).expect("heightmap");
+    let obstacles = [CameraObstacle::aabb("barn", [8.0, 2.0, 8.0], [2.0, 2.0, 2.0])];
+
+    let environment = BattleCameraEnvironment::with_obstacles(&heightmap, &obstacles);
+
+    assert_eq!(environment.obstacles.len(), 1);
+    assert_eq!(environment.obstacles[0].label, "barn");
+    assert!(environment.terrain.is_some());
+}
+
+#[test]
+fn sniper_camera_uses_turret_yaw_and_gun_pitch() {
+    let subject =
+        CameraSubject::from_snapshot(tank_snapshot([0.0, 0.0, 0.0], 0.0, FRAC_PI_2), -0.08);
+    let mut camera = BattleCameraController::new(BattleCameraSettings::default());
+    camera.set_mode(BattleCameraMode::Sniper);
+
+    let render_camera = camera.render_camera(&subject, &BattleCameraEnvironment::empty());
+
+    assert!(render_camera.target[0] > render_camera.eye[0] + 100.0);
+    assert!(render_camera.target[1] < render_camera.eye[1], "negative gun pitch aims downward");
+    assert_eq!(render_camera.vertical_fov_degrees, camera.settings().sniper_fov_degrees);
+}
+
+#[test]
+fn sniper_camera_uses_desired_aim_instead_of_current_gun_pitch() {
+    let subject = CameraSubject::from_snapshot(tank_snapshot([0.0, 0.0, 0.0], 0.0, 0.0), 0.25)
+        .with_desired_aim(0.0, -0.12);
+    let mut camera = BattleCameraController::new(BattleCameraSettings::default());
+    camera.set_mode(BattleCameraMode::Sniper);
+
+    let render_camera = camera.render_camera(&subject, &BattleCameraEnvironment::empty());
+
+    assert!(render_camera.target[1] < render_camera.eye[1], "desired aim pitch points downward");
+}
+
+#[test]
+fn sniper_eye_stays_on_current_turret_while_view_tracks_desired_aim() {
+    let subject = CameraSubject::from_snapshot(tank_snapshot([0.0, 0.0, 0.0], 0.0, 0.0), 0.0)
+        .with_desired_aim(FRAC_PI_2, 0.0);
+    let mut camera = BattleCameraController::new(BattleCameraSettings::default());
+    camera.set_mode(BattleCameraMode::Sniper);
+
+    let render_camera = camera.render_camera(&subject, &BattleCameraEnvironment::empty());
+
+    assert!(render_camera.eye[0].abs() < 1.0e-4, "eye should not slide to desired yaw");
+    assert!(render_camera.target[0] > render_camera.eye[0] + 100.0);
+}
+
+#[test]
+fn sniper_scroll_zooms_fov_without_changing_third_person_distance() {
+    let subject = CameraSubject::from_snapshot(tank_snapshot([0.0, 0.0, 0.0], 0.0, 0.0), 0.0);
+    let mut camera = BattleCameraController::new(BattleCameraSettings::default());
+    camera.set_mode(BattleCameraMode::Sniper);
+    let distance = camera.distance_m();
+    let baseline = camera.render_camera(&subject, &BattleCameraEnvironment::empty());
+
+    camera.apply_input(BattleCameraInput {
+        orbit_yaw_delta_rad: 0.0,
+        pitch_delta_rad: 0.0,
+        zoom_delta_m: -2.0,
+    });
+    let zoomed = camera.render_camera(&subject, &BattleCameraEnvironment::empty());
+
+    assert!(zoomed.vertical_fov_degrees < baseline.vertical_fov_degrees);
+    assert_eq!(camera.distance_m(), distance);
+}
+
+#[test]
+fn camera_input_clamps_pitch_and_zoom_without_touching_simulation() {
+    let mut camera = BattleCameraController::new(BattleCameraSettings::default());
+
+    camera.apply_input(BattleCameraInput {
+        orbit_yaw_delta_rad: 0.25,
+        pitch_delta_rad: 10.0,
+        zoom_delta_m: 100.0,
+    });
+
+    assert_eq!(camera.pitch_rad(), camera.settings().max_pitch_rad);
+    assert_eq!(camera.distance_m(), camera.settings().max_distance_m);
+
+    camera.set_mode(BattleCameraMode::Sniper);
+
+    assert_eq!(camera.mode(), BattleCameraMode::Sniper);
+}
+
+#[test]
+fn camera_orbit_yaw_wraps_into_pi_range() {
+    use std::f32::consts::PI;
+    let mut camera = BattleCameraController::new(BattleCameraSettings::default());
+
+    // Seven half-turns must not accumulate unbounded; the angle stays wrapped.
+    for _ in 0..7 {
+        camera.apply_input(BattleCameraInput {
+            orbit_yaw_delta_rad: PI,
+            pitch_delta_rad: 0.0,
+            zoom_delta_m: 0.0,
+        });
+    }
+
+    assert!(camera.orbit_yaw_rad() > -PI - 1e-4 && camera.orbit_yaw_rad() <= PI + 1e-4);
+}
+
+fn tank_snapshot(position: [f32; 3], hull_yaw_rad: f32, turret_yaw_rad: f32) -> TankSnapshot {
+    let spec = game_core::VehicleKind::PrototypeMedium.spec();
+    TankSnapshot {
+        tank_id: TankId(1),
+        vehicle: spec.kind,
+        position,
+        yaw_rad: hull_yaw_rad,
+        turret_yaw_rad,
+        turret_yaw_velocity_rad_s: 0.0,
+        gun_pitch_rad: 0.0,
+        hit_points: spec.hit_points,
+        reload_remaining_s: 0.0,
+        aim_dispersion_mrad: spec.gun.dispersion_mrad,
+        module_hit_points: spec.module_health.hit_points_by_slot(),
+        destroyed_modules_mask: 0,
+    }
+}
