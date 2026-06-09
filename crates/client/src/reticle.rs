@@ -3,8 +3,6 @@ use glam::{Mat4, Vec3, Vec4};
 use net::TankSnapshot;
 use terrain::{HeightMap, StaticCoverObject};
 
-const MAX_GUN_DEPRESSION_RAD: f32 = -0.14;
-const MAX_GUN_ELEVATION_RAD: f32 = 0.35;
 const RETICLE_MATCH_TOLERANCE_M: f32 = 4.0;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -71,7 +69,8 @@ pub(crate) fn reticle_feedback(query: ReticleFeedbackQuery<'_>) -> ReticleFeedba
             muzzle_velocity_mps,
         })
         .impact_point();
-    let in_arc = (MAX_GUN_DEPRESSION_RAD..=MAX_GUN_ELEVATION_RAD).contains(&target_pitch);
+    // The arc is the simulation's gun arc, not a client-side copy that could drift from it.
+    let in_arc = (sim::MIN_GUN_PITCH_RAD..=sim::MAX_GUN_PITCH_RAD).contains(&target_pitch);
     let status = if in_arc
         && terrain_line_clear(heightmap, muzzle, aim)
         && actual_impact_world_point.distance(aim) <= RETICLE_MATCH_TOLERANCE_M

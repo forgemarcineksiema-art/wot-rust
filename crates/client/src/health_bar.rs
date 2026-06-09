@@ -52,7 +52,7 @@ pub(crate) fn enemy_health_bars(
             color,
         );
 
-        let num_digits = digit_count(tank.hit_points.min(9_999));
+        let num_digits = crate::hud_number::digit_count(tank.hit_points.min(9_999));
         let num_width = num_digits as f32 * 0.035 * 0.6;
         crate::hud_number::push_number(
             &mut vertices,
@@ -66,16 +66,4 @@ pub(crate) fn enemy_health_bars(
     }
 
     vertices
-}
-
-fn digit_count(mut n: u32) -> u32 {
-    if n == 0 {
-        return 1;
-    }
-    let mut count = 0;
-    while n > 0 {
-        n /= 10;
-        count += 1;
-    }
-    count
 }

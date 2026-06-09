@@ -63,7 +63,7 @@ impl HitIndicator {
             }
 
             let dmg_color = color_for(entry.penetrated, entry.ricocheted);
-            let num_digits = digits(entry.damage_hp.min(9_999));
+            let num_digits = crate::hud_number::digit_count(entry.damage_hp.min(9_999));
             let num_h = 0.065;
             let num_w = num_digits as f32 * num_h * 0.6;
             crate::hud_number::push_number(
@@ -150,16 +150,4 @@ fn mark_color(penetrated: bool, ricocheted: bool) -> [f32; 3] {
     } else {
         [0.22, 0.20, 0.16]
     }
-}
-
-fn digits(mut n: u32) -> u32 {
-    if n == 0 {
-        return 1;
-    }
-    let mut c = 0;
-    while n > 0 {
-        n /= 10;
-        c += 1;
-    }
-    c
 }
