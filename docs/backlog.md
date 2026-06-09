@@ -8,6 +8,50 @@ Legend: `[x]` done · `[ ]` open · `[?]` needs your decision.
 
 ---
 
+## Done — contact-honesty fix pass (2026-06-10)
+
+From the 2026-06-10 deep review (empirically verified on the live sim). Every fix landed
+with a locking test; a new engineering rule requires a negative test for every
+contact-shape approximation.
+
+- [x] **Phantom ramming** (`sim/ramming.rs`) — contact was a center-distance circle of summed
+  half-lengths, so a clean 4.5 m side pass dealt 360+720 HP and threw both tracks, and a t-bone
+  fired 1.6 m early. Now the same XZ SAT movement collides (`physics::tank_footprints_touch`)
+  with one tick of closing distance as dynamic slop. Locked by `sim/tests/ramming_contact.rs`.
+- [x] **Cover interpenetration** (`physics::cover`) — driving blocked a 1.6 m point radius, so a
+  T-55A buried its nose 1.6 m (Jagdtiger 2.5 m) into buildings, putting the muzzle inside the
+  wall. Cover now blocks the real oriented footprint (cover boxes are yaw-0 obstacles in the
+  shared SAT). Locked by `physics/tests/cover_footprint.rs` + `sim/tests/cover_combat.rs`.
+- [x] **Invisible cover** — static cover blocked movement/shells/camera but was never rendered;
+  `client::battlefield_scene_mesh` now draws the exact sim boxes (per-kind colors). Locked by a
+  mesh test; windowed client and both offscreen examples use it.
+- [x] **Unbounded turret yaw** — `step_aiming` now wraps into (-PI, PI]; ten-minute traverse test.
+- [x] **Cleanups** — dead `ModuleSlot::struck_by` removed, `digit_count` deduped into
+  `hud_number`, reticle arc check reads `sim::MIN/MAX_GUN_PITCH_RAD`.
+- [x] **Repo has history** — baseline commit + one commit per fix (was: zero commits).
+
+## Open — from the 2026-06-10 deep review
+
+- [ ] **Wrecks and allies are shell-ghosts** — shells fly through dead hulls and teammates
+  (`combat.rs::valid_targets`); wrecks need an obstacle path in the shared trace, allies need
+  `team` in `TankSnapshot` (protocol v12).
+- [ ] **Shots eaten silently** — cover absorption emits no event and no tracer reaches the
+  client between 20 Hz snapshots; needs obstacle-impact feedback (protocol v12 candidate,
+  possibly with shell ids).
+- [ ] **Vehicle JSON assets are stale (all six)** — they predate facets/shell_type and nothing
+  loads them; add a regenerate-and-compare gate in `quality` or drop the files.
+- [ ] **HUD vs aiming policy** — pen color/pen bar/impact marker (and post-hit exact mm readouts)
+  contradict `docs/aiming-model-policy.md`; decide policy or trim HUD.
+- [ ] **Renderer contract layer is parallel fiction** — `WgpuRenderer`/`PipelineRegistry`/upload
+  queues are used only by their own tests while `SceneRenderer` bypasses them; wire or demote.
+  Same for stale debug-tools promises (no uncaptured-error handler on the live device) and dead
+  `RenderSettings::vsync`/`limit_profile`; MSAA 4x failure should fall back to 1x, not abort.
+- [ ] **Enemy health bars** render through terrain, show exact HP at any range, and float a "0"
+  bar over wrecks.
+- [ ] **Combat hot path has no benchmark** (`step_shells`/SAT/ramming at 30 tanks, 100 shells).
+
+---
+
 ## Done — playable render slice (2026-06-03)
 
 A real wgpu renderer now draws the battle; verified headlessly with offscreen PNG
