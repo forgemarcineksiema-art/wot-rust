@@ -21,12 +21,13 @@ When changing protocol encoding intentionally:
 4. Update the snapshot fixture.
 5. Document the compatibility impact before merging.
 
-Current compatibility note: protocol v8 extends `DamageEvent` with
-`DamageCause` and the damaged `ModuleSlot`, so combat snapshots can drive
-penetration, HE track crit, bounce, and ramming feedback on the client. v7
-combat snapshot messages are not binary compatible with v8. Input command,
-vehicle selection, and baseline tank snapshot bytes are unchanged but still
-belong to protocol v8 once the shared `PROTOCOL_VERSION` is bumped.
+Current compatibility note: protocol v12 adds `team` to `TankSnapshot` (the
+client splits live enemies from teammates/wrecks with the same rule as the
+server) and the `shell_impacts: Vec<ShellImpact>` list to `Snapshot` (absorbed
+shells report where and on what surface they died). Every snapshot message of
+v11 and earlier is binary incompatible with v12. Input command and vehicle
+selection bytes are unchanged but belong to v12 once the shared
+`PROTOCOL_VERSION` is bumped; the v12 fixtures were regenerated accordingly.
 
 ## Replays
 

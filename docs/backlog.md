@@ -30,14 +30,20 @@ contact-shape approximation.
   `hud_number`, reticle arc check reads `sim::MIN/MAX_GUN_PITCH_RAD`.
 - [x] **Repo has history** — baseline commit + one commit per fix (was: zero commits).
 
+## Done — combat honesty / protocol v12 (2026-06-11)
+
+- [x] **Wrecks and allies block shells** — the shared trace splits live enemies (targets) from
+  teammates + wrecks (absorbing blockers); both server and reticle preview use the same split
+  (`TankSnapshot.team`, protocol v12). Locked by `sim/tests/shell_blockers.rs` and the
+  reticle-sweep tests, including the negative lock (clean enemy hit emits no impact event).
+- [x] **Shots no longer die silently** — every absorbed shell (terrain/cover/hull) emits a
+  replicated `ShellImpact`; the server buffers them to the next snapshot like damage events,
+  and the client draws short-lived impact puffs at the death point.
+- [x] **Enemy health bars** now appear only over *live enemies* (team-filtered; no permanent
+  "0" over wrecks, no bars over teammates).
+
 ## Open — from the 2026-06-10 deep review
 
-- [ ] **Wrecks and allies are shell-ghosts** — shells fly through dead hulls and teammates
-  (`combat.rs::valid_targets`); wrecks need an obstacle path in the shared trace, allies need
-  `team` in `TankSnapshot` (protocol v12).
-- [ ] **Shots eaten silently** — cover absorption emits no event and no tracer reaches the
-  client between 20 Hz snapshots; needs obstacle-impact feedback (protocol v12 candidate,
-  possibly with shell ids).
 - [ ] **Vehicle JSON assets are stale (all six)** — they predate facets/shell_type and nothing
   loads them; add a regenerate-and-compare gate in `quality` or drop the files.
 - [ ] **HUD vs aiming policy** — pen color/pen bar/impact marker (and post-hit exact mm readouts)
@@ -46,9 +52,13 @@ contact-shape approximation.
   queues are used only by their own tests while `SceneRenderer` bypasses them; wire or demote.
   Same for stale debug-tools promises (no uncaptured-error handler on the live device) and dead
   `RenderSettings::vsync`/`limit_profile`; MSAA 4x failure should fall back to 1x, not abort.
-- [ ] **Enemy health bars** render through terrain, show exact HP at any range, and float a "0"
-  bar over wrecks.
+- [ ] **Enemy health bars render through terrain** (no occlusion check) and show exact HP at any
+  range — revisit together with spotting.
 - [ ] **Combat hot path has no benchmark** (`step_shells`/SAT/ramming at 30 tanks, 100 shells).
+- [ ] **From the systems audit (2026-06-10):** turret occupies the hitbox's full width (second
+  turret OBB per vehicle is the fix), the Roof zone uses a horizontal normal (flat shots get a
+  21.6 mm strip), the LowerPlate band covers ~40% of frontal height, Tiger II's pennable turret
+  inverts its hull-down incentive, and `AIM_MAX_RANGE_M` (600 m) is short for a 1000 m map.
 
 ---
 
