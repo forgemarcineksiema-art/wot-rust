@@ -9,6 +9,7 @@ fn snapshots_carry_projectiles_and_damage_events_through_the_wire() {
         server_tick: 9,
         tanks: vec![TankSnapshot {
             tank_id: TankId(1),
+            team: TeamId(1),
             vehicle: VehicleKind::TigerII,
             position: [3.0, 0.5, 12.0],
             yaw_rad: 0.2,
@@ -36,6 +37,11 @@ fn snapshots_carry_projectiles_and_damage_events_through_the_wire() {
             module: Some(ModuleSlot::Gun),
             ..Default::default()
         }],
+        shell_impacts: vec![game_core::ShellImpact {
+            owner: TankId(1),
+            position: Vec3::new(4.0, 0.1, 70.0),
+            surface: game_core::ImpactSurface::Cover,
+        }],
     };
     let message = ProtocolMessage::Snapshot(snapshot);
 
@@ -56,6 +62,20 @@ fn snapshots_carry_projectiles_and_damage_events_through_the_wire() {
     assert_eq!(round.damage_events[0].damage_hp, 320);
     assert_eq!(round.damage_events[0].cause, DamageCause::Shell);
     assert_eq!(round.damage_events[0].module, Some(ModuleSlot::Gun));
+    assert_eq!(round.tanks[0].team, TeamId(1));
+    assert_eq!(round.shell_impacts.len(), 1);
+    assert_eq!(round.shell_impacts[0].surface, game_core::ImpactSurface::Cover);
+}
+
+#[test]
+fn tank_snapshot_replicates_team_and_shell_impacts_from_sim_state() {
+    let mut state = SimulationState::new();
+    state.spawn_tank(TeamId(7), TankSpec::t55a(), Vec3::ZERO);
+
+    let snapshot = Snapshot::from(&state);
+
+    assert_eq!(snapshot.tanks[0].team, TeamId(7));
+    assert!(snapshot.shell_impacts.is_empty(), "no shells fired, no impacts");
 }
 
 #[test]

@@ -8,6 +8,7 @@ fn snapshot_for_vehicle(vehicle: game_core::VehicleKind, position: [f32; 3]) -> 
     let spec = vehicle.spec();
     TankSnapshot {
         tank_id: game_core::TankId(1),
+        team: game_core::TeamId(1),
         vehicle,
         position,
         yaw_rad: 0.0,

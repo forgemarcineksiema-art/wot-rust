@@ -59,6 +59,7 @@ fn snapshot_at(tank_id: TankId, server_tick: u64) -> Snapshot {
         server_tick,
         tanks: vec![TankSnapshot {
             tank_id,
+            team: game_core::TeamId(1),
             vehicle,
             position: [0.0, 0.0, 0.0],
             yaw_rad: 0.0,
@@ -73,5 +74,6 @@ fn snapshot_at(tank_id: TankId, server_tick: u64) -> Snapshot {
         }],
         shells: Vec::new(),
         damage_events: Vec::new(),
+        shell_impacts: Vec::new(),
     }
 }

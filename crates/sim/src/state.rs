@@ -1,4 +1,4 @@
-use game_core::{DamageEvent, TankId, TankSpec, TeamId};
+use game_core::{DamageEvent, ShellImpact, TankId, TankSpec, TeamId};
 use glam::Vec3;
 use physics::TankObstacle;
 use serde::{Deserialize, Serialize};
@@ -19,6 +19,10 @@ pub struct SimulationState {
     tanks: Vec<TankState>,
     shells: Vec<ShellState>,
     damage_events: Vec<DamageEvent>,
+    /// Shells absorbed this tick without damaging an enemy (terrain, cover, wreck, or friendly
+    /// hull), so the firing client gets impact feedback instead of a silently vanished shot.
+    #[serde(default)]
+    shell_impacts: Vec<ShellImpact>,
 }
 
 impl SimulationState {
@@ -29,6 +33,7 @@ impl SimulationState {
             tanks: Vec::new(),
             shells: Vec::new(),
             damage_events: Vec::new(),
+            shell_impacts: Vec::new(),
         }
     }
 
@@ -46,6 +51,10 @@ impl SimulationState {
 
     pub fn damage_events(&self) -> &[DamageEvent] {
         &self.damage_events
+    }
+
+    pub fn shell_impacts(&self) -> &[ShellImpact] {
+        &self.shell_impacts
     }
 
     pub fn spawn_tank(&mut self, team: TeamId, spec: TankSpec, position: Vec3) -> TankId {
@@ -143,6 +152,7 @@ impl SimulationState {
         let dt = timestep.dt_seconds();
         let context = CombatTickContext { dt_seconds: dt };
         self.damage_events.clear();
+        self.shell_impacts.clear();
         let ramming_before = capture_ramming_snapshots(&self.tanks);
         for tank in &mut self.tanks {
             tank.reload_remaining_s = (tank.reload_remaining_s - dt).max(0.0);
@@ -180,6 +190,7 @@ impl SimulationState {
             &mut self.shells,
             &mut self.tanks,
             &mut self.damage_events,
+            &mut self.shell_impacts,
             context,
             heightmap,
             cover,

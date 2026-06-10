@@ -41,6 +41,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let ground = battlefield.heightmap.sample_height(x, center_z).unwrap_or(0.0);
         let snapshot = TankSnapshot {
             tank_id: TankId(index as u64 + 1),
+            team: game_core::TeamId(1),
             vehicle: kind,
             position: [x, ground, center_z],
             yaw_rad: 2.5,

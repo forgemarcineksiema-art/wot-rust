@@ -5,7 +5,7 @@ use game_core::TankId;
 use net::TankSnapshot;
 
 use crate::components::{
-    DestroyedModules, GunPitch, Health, PresentationTank, RenderTransform, TankEntity, Time,
+    DestroyedModules, GunPitch, Health, PresentationTank, RenderTransform, TankEntity, Team, Time,
     TurretYaw, Vehicle,
 };
 
@@ -57,6 +57,7 @@ impl PresentationWorld {
                 TurretYaw(tank.turret_yaw_rad),
                 GunPitch(tank.gun_pitch_rad),
                 Vehicle(tank.vehicle),
+                Team(tank.team),
                 Health { hit_points: tank.hit_points },
                 DestroyedModules(tank.destroyed_modules_mask),
             );
@@ -96,14 +97,16 @@ impl PresentationWorld {
             &TurretYaw,
             &GunPitch,
             &Vehicle,
+            &Team,
             &Health,
             &DestroyedModules,
         )>();
         let mut tanks: Vec<PresentationTank> = query
             .iter(&self.world)
-            .map(|(entity, transform, turret, pitch, vehicle, health, destroyed)| {
+            .map(|(entity, transform, turret, pitch, vehicle, team, health, destroyed)| {
                 PresentationTank {
                     id: entity.id,
+                    team: team.0,
                     vehicle: vehicle.0,
                     translation: transform.translation,
                     hull_yaw_rad: transform.hull_yaw_rad,

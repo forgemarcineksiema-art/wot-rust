@@ -9,14 +9,15 @@ mod terrain;
 
 use ::terrain::{HeightMap, StaticCoverObject};
 use game_core::math::GRAVITY_MPS2;
-use game_core::{ArmorFacing, ArmorZone, HitboxProfile, TankId};
+use game_core::{ArmorFacing, ArmorZone, HitboxProfile, ImpactSurface, TankId};
 use glam::Vec3;
 
 /// Shells live at most this long before despawning (server) / terminating the preview trace.
 pub const SHELL_MAX_AGE_SECONDS: f32 = 4.0;
 
-/// Neutral tank target for shell collision. The server builds these from `TankState`, the client
-/// from `net::TankSnapshot`; both pre-filter the slice (owner / dead / friendly) before tracing.
+/// Neutral tank hull for shell collision. The server builds these from `TankState`, the client
+/// from `net::TankSnapshot`; both pre-split the battle into damageable targets and absorbing
+/// blockers before tracing.
 #[derive(Debug, Clone, Copy)]
 pub struct TraceTank {
     pub id: TankId,
@@ -26,10 +27,13 @@ pub struct TraceTank {
     pub hitbox: HitboxProfile,
 }
 
-/// The static + dynamic world a shell segment is tested against.
+/// The world a shell segment is tested against. `tanks` are live enemies (hits resolve as
+/// damage); `blockers` are hulls that absorb the shell without damage — wrecks and friendly
+/// vehicles. The shell's owner belongs to neither slice.
 #[derive(Debug, Clone, Copy)]
 pub struct ShellTraceWorld<'a> {
     pub tanks: &'a [TraceTank],
+    pub blockers: &'a [TraceTank],
     pub heightmap: Option<&'a HeightMap>,
     pub cover: &'a [StaticCoverObject],
 }
@@ -44,14 +48,15 @@ pub enum SegmentImpact {
         impact_angle_degrees: f32,
         hit_position: Vec3,
     },
-    Obstacle(Vec3),
+    /// Absorbed without enemy damage; `surface` says by what (terrain, cover, or a hull).
+    Obstacle { position: Vec3, surface: ImpactSurface },
 }
 
 impl SegmentImpact {
     pub fn point(self) -> Vec3 {
         match self {
             SegmentImpact::Tank { hit_position, .. } => hit_position,
-            SegmentImpact::Obstacle(point) => point,
+            SegmentImpact::Obstacle { position, .. } => position,
         }
     }
 }
@@ -68,7 +73,10 @@ pub enum TraceOutcome {
         hit_position: Vec3,
         distance_m: f32,
     },
-    Obstacle(Vec3),
+    Obstacle {
+        position: Vec3,
+        surface: ImpactSurface,
+    },
     Expired(Vec3),
 }
 
@@ -76,13 +84,15 @@ impl TraceOutcome {
     pub fn impact_point(self) -> Vec3 {
         match self {
             TraceOutcome::Tank { hit_position, .. } => hit_position,
-            TraceOutcome::Obstacle(point) | TraceOutcome::Expired(point) => point,
+            TraceOutcome::Obstacle { position, .. } => position,
+            TraceOutcome::Expired(point) => point,
         }
     }
 }
 
-/// First impact along a single segment `previous -> current` (the shell travels at `velocity`),
-/// nearest of tank / terrain / cover. Ties resolve to the tank, matching the authoritative step.
+/// First impact along a single segment `previous -> current` (the shell travels at `velocity`):
+/// the nearest of enemy hull / blocker hull / terrain / cover. Ties resolve to the damageable
+/// tank, matching the authoritative step.
 pub fn segment_impact(
     previous: Vec3,
     current: Vec3,
@@ -90,19 +100,17 @@ pub fn segment_impact(
     world: &ShellTraceWorld<'_>,
 ) -> Option<SegmentImpact> {
     let tank = tank::first_tank_impact(previous, current, velocity, world.tanks);
-    let terrain = terrain::first_terrain_impact(previous, current, world.heightmap);
-    let cover = cover::first_cover_impact(previous, current, world.cover);
-    let obstacle = nearer_point(previous, terrain, cover);
+    let obstacle = nearest_obstacle(previous, current, velocity, world);
     match (tank, obstacle) {
-        (Some(tank), Some(obstacle)) => {
-            if tank.point().distance_squared(previous) <= obstacle.distance_squared(previous) {
+        (Some(tank), Some((position, _))) => {
+            if tank.point().distance_squared(previous) <= position.distance_squared(previous) {
                 Some(tank)
             } else {
-                Some(SegmentImpact::Obstacle(obstacle))
+                obstacle_impact(obstacle)
             }
         }
         (Some(tank), None) => Some(tank),
-        (None, Some(obstacle)) => Some(SegmentImpact::Obstacle(obstacle)),
+        (None, Some(_)) => obstacle_impact(obstacle),
         (None, None) => None,
     }
 }
@@ -139,7 +147,9 @@ pub fn trace_shell(
                     distance_m: travelled + hit_position.distance(previous),
                 };
             }
-            Some(SegmentImpact::Obstacle(point)) => return TraceOutcome::Obstacle(point),
+            Some(SegmentImpact::Obstacle { position, surface }) => {
+                return TraceOutcome::Obstacle { position, surface };
+            }
             None => {}
         }
 
@@ -157,16 +167,24 @@ pub fn ground_contact(position: Vec3, heightmap: Option<&HeightMap>) -> bool {
         .is_some_and(|ground| position.y <= ground)
 }
 
-/// The obstacle hit nearer to `origin`, merging the terrain and cover sweeps.
-fn nearer_point(origin: Vec3, a: Option<Vec3>, b: Option<Vec3>) -> Option<Vec3> {
-    match (a, b) {
-        (Some(a), Some(b)) => {
-            if a.distance_squared(origin) <= b.distance_squared(origin) {
-                Some(a)
-            } else {
-                Some(b)
-            }
-        }
-        (first, second) => first.or(second),
-    }
+/// The nearest absorbing obstacle on the segment: terrain, cover, or a blocker hull.
+fn nearest_obstacle(
+    previous: Vec3,
+    current: Vec3,
+    velocity: Vec3,
+    world: &ShellTraceWorld<'_>,
+) -> Option<(Vec3, ImpactSurface)> {
+    let terrain = terrain::first_terrain_impact(previous, current, world.heightmap)
+        .map(|point| (point, ImpactSurface::Terrain));
+    let cover = cover::first_cover_impact(previous, current, world.cover)
+        .map(|point| (point, ImpactSurface::Cover));
+    let hull = tank::first_tank_impact(previous, current, velocity, world.blockers)
+        .map(|impact| (impact.point(), ImpactSurface::Hull));
+    [terrain, cover, hull].into_iter().flatten().min_by(|(a, _), (b, _)| {
+        a.distance_squared(previous).total_cmp(&b.distance_squared(previous))
+    })
+}
+
+fn obstacle_impact(obstacle: Option<(Vec3, ImpactSurface)>) -> Option<SegmentImpact> {
+    obstacle.map(|(position, surface)| SegmentImpact::Obstacle { position, surface })
 }

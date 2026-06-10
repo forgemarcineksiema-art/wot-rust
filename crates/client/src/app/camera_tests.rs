@@ -50,6 +50,7 @@ fn snapshot_with_aim(
         server_tick,
         tanks: vec![TankSnapshot {
             tank_id,
+            team: game_core::TeamId(1),
             vehicle: game_core::VehicleKind::PrototypeMedium,
             position: [10.0, 0.0, 10.0],
             yaw_rad: 0.0,
@@ -67,5 +68,6 @@ fn snapshot_with_aim(
         }],
         shells: Vec::new(),
         damage_events: Vec::new(),
+        shell_impacts: Vec::new(),
     }
 }

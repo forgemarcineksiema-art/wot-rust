@@ -51,6 +51,7 @@ impl ClientApp {
     pub(super) fn accept_and_sync(&mut self, snapshot: net::Snapshot) {
         let player = snapshot.tanks.iter().find(|tank| tank.tank_id == self.player_tank).cloned();
         self.hit_indicator.ingest_damage_events(&snapshot.damage_events, self.player_tank);
+        self.hit_indicator.ingest_shell_impacts(&snapshot.shell_impacts);
         self.render_state.accept_authoritative_snapshot(snapshot);
         if let Some(tank) = player {
             self.predictor.sync_to(&tank);
@@ -107,6 +108,12 @@ impl ClientApp {
             .tanks
             .iter()
             .find(|tank| tank.tank_id == self.player_tank)
+    }
+
+    /// The player's replicated team — the reticle splits targets from blockers with it, exactly
+    /// like the server. Defaults to team 1 before the first snapshot lands.
+    pub(super) fn player_team(&self) -> game_core::TeamId {
+        self.player_snapshot().map_or(game_core::TeamId(1), |tank| tank.team)
     }
 
     pub(super) fn player_spec(&self) -> game_core::TankSpec {

@@ -63,6 +63,7 @@ impl ClientApp {
         let enemy_bars = crate::health_bar::enemy_health_bars(
             &presentation_tanks,
             self.player_tank,
+            self.player_team(),
             view_proj,
             aspect,
         );

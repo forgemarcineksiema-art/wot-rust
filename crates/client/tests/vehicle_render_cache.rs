@@ -46,6 +46,7 @@ fn jagdtiger_render_objects_ignore_stray_turret_yaw() {
 fn snapshot(vehicle: VehicleKind, turret_yaw_rad: f32) -> TankSnapshot {
     TankSnapshot {
         tank_id: TankId(8),
+        team: game_core::TeamId(1),
         vehicle,
         position: [0.0, 0.0, 0.0],
         yaw_rad: 0.4,

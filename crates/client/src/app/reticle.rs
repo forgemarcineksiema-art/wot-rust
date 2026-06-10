@@ -67,6 +67,7 @@ impl ClientApp {
             tanks: &tanks,
             player_spec: &player_spec,
             owner: self.player_tank,
+            owner_team: self.player_team(),
             muzzle,
             aim,
             turret_yaw_rad: tank.yaw_rad + tank.turret_yaw_rad,
@@ -79,6 +80,7 @@ impl ClientApp {
             tanks: &tanks,
             player_spec: &player_spec,
             owner: self.player_tank,
+            owner_team: self.player_team(),
             muzzle,
             aim,
             turret_yaw_rad: tank.yaw_rad + tank.turret_yaw_rad,
@@ -110,6 +112,7 @@ impl ClientApp {
                 &self.battlefield.static_cover,
                 &self.render_state.interpolated_tanks(),
                 self.player_tank,
+                self.player_team(),
                 eye,
                 forward,
             )

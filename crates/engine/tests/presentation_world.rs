@@ -1,10 +1,11 @@
 use engine::PresentationWorld;
-use game_core::{TankId, VehicleKind};
+use game_core::{TankId, TeamId, VehicleKind};
 use net::TankSnapshot;
 
 fn snapshot(id: u64, position: [f32; 3], hit_points: u32) -> TankSnapshot {
     TankSnapshot {
         tank_id: TankId(id),
+        team: TeamId(1),
         vehicle: VehicleKind::T55A,
         position,
         yaw_rad: 0.1,

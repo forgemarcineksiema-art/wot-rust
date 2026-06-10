@@ -47,6 +47,7 @@ mod tests {
     fn snapshot(kind: VehicleKind, turret_yaw_rad: f32) -> TankSnapshot {
         TankSnapshot {
             tank_id: TankId(1),
+            team: game_core::TeamId(1),
             vehicle: kind,
             position: [0.0, 0.0, 0.0],
             yaw_rad: 0.3,

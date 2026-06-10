@@ -13,7 +13,7 @@ pub use armor::{
     ArmorFacet, ArmorFacetProfile, ArmorFacing, ArmorProfile, ArmorZone, PenetrationResult,
     resolve_penetration, resolve_penetration_at_distance, resolve_penetration_at_distance_on_zone,
 };
-pub use damage::{DamageCause, DamageEvent};
+pub use damage::{DamageCause, DamageEvent, ImpactSurface, ShellImpact};
 pub use ids::{TankId, TeamId};
 pub use modules::{
     EngineModule, GunModule, HullChassis, MODULE_SLOT_COUNT, ModuleError, ModuleHealth, ModuleSlot,

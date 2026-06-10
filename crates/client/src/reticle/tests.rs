@@ -1,6 +1,6 @@
 use std::sync::OnceLock;
 
-use game_core::{TankId, TankSpec, VehicleKind};
+use game_core::{TankId, TankSpec, TeamId, VehicleKind};
 use glam::Vec3;
 use net::TankSnapshot;
 use renderer_api::{Camera, view_projection_matrix};
@@ -152,6 +152,7 @@ fn tank_snapshot(tank_id: TankId, position: [f32; 3]) -> TankSnapshot {
     let spec = game_core::VehicleKind::T54_1951.spec();
     TankSnapshot {
         tank_id,
+        team: TeamId(2),
         vehicle: spec.kind,
         position,
         yaw_rad: std::f32::consts::PI,
@@ -187,6 +188,7 @@ fn query<'a>(
         tanks,
         player_spec: default_spec(),
         owner: TankId(1),
+        owner_team: TeamId(1),
         muzzle,
         aim,
         turret_yaw_rad,
@@ -195,6 +197,8 @@ fn query<'a>(
     }
 }
 
+/// Same trajectory as [`query`] — only the firing spec differs, so penetration hints read the
+/// player's shell while the flight stays identical.
 fn query_with_player<'a>(
     heightmap: &'a HeightMap,
     tanks: &'a [TankSnapshot],
@@ -204,16 +208,7 @@ fn query_with_player<'a>(
     player_spec: &'a TankSpec,
 ) -> ReticleFeedbackQuery<'a> {
     ReticleFeedbackQuery {
-        heightmap,
-        cover: &[],
-        tanks,
         player_spec,
-        owner: TankId(1),
-        muzzle,
-        aim,
-        turret_yaw_rad: 0.0,
-        gun_pitch_rad,
-        // Fixed so both queries fly the identical trajectory — only the shell read differs.
-        muzzle_velocity_mps: 895.0,
+        ..query(heightmap, &[], tanks, muzzle, aim, 0.0, gun_pitch_rad)
     }
 }

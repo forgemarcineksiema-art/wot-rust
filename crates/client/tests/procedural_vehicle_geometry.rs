@@ -6,6 +6,7 @@ use net::TankSnapshot;
 fn t55a_client_mesh_uses_rich_procedural_geometry() {
     let snapshot = TankSnapshot {
         tank_id: TankId(1),
+        team: game_core::TeamId(1),
         vehicle: VehicleKind::T55A,
         position: [0.0, 0.0, 0.0],
         yaw_rad: 0.0,

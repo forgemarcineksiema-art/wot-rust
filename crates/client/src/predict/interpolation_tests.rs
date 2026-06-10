@@ -6,6 +6,7 @@ use super::*;
 fn snapshot_at(position: [f32; 3]) -> TankSnapshot {
     TankSnapshot {
         tank_id: game_core::TankId(1),
+        team: game_core::TeamId(1),
         vehicle: game_core::VehicleKind::PrototypeMedium,
         position,
         yaw_rad: 0.0,

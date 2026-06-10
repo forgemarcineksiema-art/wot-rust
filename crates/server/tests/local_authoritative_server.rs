@@ -101,3 +101,45 @@ fn local_server_replication_carries_damage_events_to_next_snapshot() {
     assert_eq!(event.target, target_tank);
     assert!(event.penetrated);
 }
+
+#[test]
+fn local_server_replication_carries_absorbed_shell_impacts_to_next_snapshot() {
+    let mut server = LocalAuthoritativeServer::new(ServerTickConfig::new(60, 20));
+    let player_tank = server.player_tank();
+
+    // Depress the gun fully, then fire into the dirt well short of the target tank.
+    for client_tick in 0..30 {
+        server.tick_with_input(ClientInputCommand {
+            client_tick,
+            tank_id: player_tank,
+            command: TankCommand { gun_pitch_delta: -1.0, ..TankCommand::idle() },
+        });
+    }
+    server.tick_with_input(ClientInputCommand {
+        client_tick: 30,
+        tank_id: player_tank,
+        command: TankCommand { fire: true, ..TankCommand::idle() },
+    });
+
+    let mut impact_snapshot = None;
+    for client_tick in 31..=120 {
+        let tick = server.tick_with_input(ClientInputCommand {
+            client_tick,
+            tank_id: player_tank,
+            command: TankCommand::idle(),
+        });
+        if let Some(snapshot) = tick.snapshot
+            && !snapshot.shell_impacts.is_empty()
+        {
+            impact_snapshot = Some(snapshot);
+            break;
+        }
+    }
+
+    // Snapshot cadence must not drop the impact: it is buffered to the next emitted snapshot,
+    // so the firing client always learns where its shot died.
+    let snapshot = impact_snapshot.expect("an absorbed shell must reach the client in a snapshot");
+    let impact = &snapshot.shell_impacts[0];
+    assert_eq!(impact.owner, player_tank);
+    assert_eq!(impact.surface, game_core::ImpactSurface::Terrain);
+}

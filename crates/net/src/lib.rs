@@ -1,5 +1,5 @@
 use bincode::Options;
-use game_core::{DamageEvent, MODULE_SLOT_COUNT, TankId, VehicleKind};
+use game_core::{DamageEvent, MODULE_SLOT_COUNT, ShellImpact, TankId, TeamId, VehicleKind};
 use serde::{Deserialize, Serialize};
 use sim::{SimulationState, TankCommand, TankState};
 use thiserror::Error;
@@ -8,7 +8,7 @@ mod snapshot_schedule;
 
 pub use snapshot_schedule::SnapshotSchedule;
 
-pub const PROTOCOL_VERSION: u16 = 11;
+pub const PROTOCOL_VERSION: u16 = 12;
 
 #[derive(Debug, Error)]
 pub enum NetError {
@@ -45,6 +45,9 @@ pub struct ClientVehicleSelection {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TankSnapshot {
     pub tank_id: TankId,
+    /// Team identity (protocol v12): the client splits live enemies (targets) from teammates
+    /// and wrecks (shell blockers) with the same rule as the authoritative server.
+    pub team: TeamId,
     /// Stable vehicle identity so the client can pick the right procedural silhouette.
     pub vehicle: VehicleKind,
     pub position: [f32; 3],
@@ -65,6 +68,7 @@ impl From<&TankState> for TankSnapshot {
     fn from(tank: &TankState) -> Self {
         Self {
             tank_id: tank.id,
+            team: tank.team,
             vehicle: tank.spec.kind,
             position: tank.position.to_array(),
             yaw_rad: tank.yaw_rad,
@@ -103,6 +107,9 @@ pub struct Snapshot {
     pub tanks: Vec<TankSnapshot>,
     pub shells: Vec<ShellSnapshot>,
     pub damage_events: Vec<DamageEvent>,
+    /// Shells absorbed without enemy damage (protocol v12): terrain, cover, wreck, or friendly
+    /// hull. Lets the firing client mark where its shot died instead of it vanishing silently.
+    pub shell_impacts: Vec<ShellImpact>,
 }
 
 impl From<&SimulationState> for Snapshot {
@@ -112,6 +119,7 @@ impl From<&SimulationState> for Snapshot {
             tanks: state.tanks().iter().map(TankSnapshot::from).collect(),
             shells: state.shells().iter().map(ShellSnapshot::from).collect(),
             damage_events: state.damage_events().to_vec(),
+            shell_impacts: state.shell_impacts().to_vec(),
         }
     }
 }

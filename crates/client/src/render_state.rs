@@ -51,6 +51,7 @@ impl InterpolatedBattleState {
             .map(|tank| match self.previous_tank(tank.tank_id) {
                 Some(previous) => TankSnapshot {
                     tank_id: tank.tank_id,
+                    team: tank.team,
                     vehicle: tank.vehicle,
                     position: lerp3(previous.position, tank.position, alpha),
                     yaw_rad: lerp_angle(previous.yaw_rad, tank.yaw_rad, alpha),

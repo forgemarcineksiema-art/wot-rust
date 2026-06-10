@@ -1,5 +1,5 @@
 use bevy_ecs::prelude::*;
-use game_core::{TankId, VehicleKind};
+use game_core::{TankId, TeamId, VehicleKind};
 
 /// Render-side clock, advanced once per presented frame. Lives as an ECS resource so future
 /// presentation systems (animation, fade timers) read one shared time source.
@@ -42,6 +42,10 @@ pub struct Health {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Component)]
 pub struct Vehicle(pub VehicleKind);
 
+/// Replicated team identity (protocol v12). The HUD reads it to draw enemy-only overlays.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Component)]
+pub struct Team(pub TeamId);
+
 /// Bitmask of destroyed module slots, used by the renderer for damage tinting.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Component)]
 pub struct DestroyedModules(pub u8);
@@ -52,6 +56,7 @@ pub struct DestroyedModules(pub u8);
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PresentationTank {
     pub id: TankId,
+    pub team: TeamId,
     pub vehicle: VehicleKind,
     pub translation: [f32; 3],
     pub hull_yaw_rad: f32,

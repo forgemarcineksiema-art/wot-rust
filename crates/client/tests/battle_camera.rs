@@ -204,6 +204,7 @@ fn tank_snapshot(position: [f32; 3], hull_yaw_rad: f32, turret_yaw_rad: f32) -> 
     let spec = game_core::VehicleKind::PrototypeMedium.spec();
     TankSnapshot {
         tank_id: TankId(1),
+        team: game_core::TeamId(1),
         vehicle: spec.kind,
         position,
         yaw_rad: hull_yaw_rad,

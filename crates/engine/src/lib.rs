@@ -6,7 +6,7 @@ mod components;
 mod world;
 
 pub use components::{
-    DestroyedModules, GunPitch, Health, PresentationTank, RenderTransform, TankEntity, Time,
+    DestroyedModules, GunPitch, Health, PresentationTank, RenderTransform, TankEntity, Team, Time,
     TurretYaw, Vehicle,
 };
 pub use world::PresentationWorld;

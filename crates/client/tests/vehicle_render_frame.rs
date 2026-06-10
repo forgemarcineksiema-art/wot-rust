@@ -10,6 +10,7 @@ fn vehicle_render_frame_uses_baked_objects_for_every_vehicle() {
         .enumerate()
         .map(|(index, vehicle)| PresentationTank {
             id: TankId(index as u64 + 1),
+            team: game_core::TeamId(1),
             vehicle: *vehicle,
             translation: [index as f32, 0.0, 0.0],
             hull_yaw_rad: 0.0,

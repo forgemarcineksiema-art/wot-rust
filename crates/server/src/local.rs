@@ -1,4 +1,4 @@
-use game_core::{DamageEvent, TankId, TankSpec, TeamId, VehicleKind};
+use game_core::{DamageEvent, ShellImpact, TankId, TankSpec, TeamId, VehicleKind};
 use glam::Vec3;
 use net::{ClientInputCommand, Snapshot};
 use sim::SimulationState;
@@ -22,6 +22,7 @@ pub struct LocalAuthoritativeServer {
     target_tank: TankId,
     latest_snapshot: Snapshot,
     pending_damage_events: Vec<DamageEvent>,
+    pending_shell_impacts: Vec<ShellImpact>,
 }
 
 impl LocalAuthoritativeServer {
@@ -52,6 +53,7 @@ impl LocalAuthoritativeServer {
             target_tank,
             latest_snapshot,
             pending_damage_events: Vec::new(),
+            pending_shell_impacts: Vec::new(),
         }
     }
 
@@ -62,6 +64,7 @@ impl LocalAuthoritativeServer {
             self.player_tank = new_player_tank;
         }
         self.pending_damage_events.clear();
+        self.pending_shell_impacts.clear();
         self.latest_snapshot = Snapshot::from(&self.sim);
         self.latest_snapshot.clone()
     }
@@ -90,10 +93,12 @@ impl LocalAuthoritativeServer {
             &self.battlefield.static_cover,
         );
         self.pending_damage_events.extend_from_slice(self.sim.damage_events());
+        self.pending_shell_impacts.extend_from_slice(self.sim.shell_impacts());
 
         let snapshot = if self.config.snapshot_schedule().should_emit(self.sim.tick()) {
             let mut snapshot = Snapshot::from(&self.sim);
             snapshot.damage_events = std::mem::take(&mut self.pending_damage_events);
+            snapshot.shell_impacts = std::mem::take(&mut self.pending_shell_impacts);
             self.latest_snapshot = snapshot.clone();
             Some(snapshot)
         } else {

@@ -1,5 +1,5 @@
 use client::{VehicleMeshCatalog, tank_render_objects};
-use game_core::{ModuleSlot, TankId, VehicleKind};
+use game_core::{ModuleSlot, TankId, TeamId, VehicleKind};
 use glam::Mat4;
 use net::TankSnapshot;
 use vehicle_geometry::{SmoothingGroup, SubmeshKind, bake_vehicle};
@@ -11,6 +11,7 @@ fn t55a_render_objects_use_static_mesh_handles_for_hull_turret_and_gun() {
     let mut catalog = VehicleMeshCatalog::default();
     let snapshot = TankSnapshot {
         tank_id: TankId(7),
+        team: TeamId(1),
         vehicle: VehicleKind::T55A,
         position: [10.0, 2.0, 30.0],
         yaw_rad: 0.0,
@@ -107,6 +108,7 @@ fn vehicle_mesh_catalog_reports_new_gpu_mesh_uploads_once() {
     let mut catalog = VehicleMeshCatalog::default();
     let snapshot = TankSnapshot {
         tank_id: TankId(7),
+        team: TeamId(1),
         vehicle: VehicleKind::T55A,
         position: [0.0, 0.0, 0.0],
         yaw_rad: 0.0,
@@ -139,6 +141,7 @@ fn distinct_hull_colors_share_one_mesh_and_tint_per_object() {
     let mut catalog = VehicleMeshCatalog::default();
     let snapshot = TankSnapshot {
         tank_id: TankId(7),
+        team: TeamId(1),
         vehicle: VehicleKind::T55A,
         position: [0.0, 0.0, 0.0],
         yaw_rad: 0.0,
@@ -178,6 +181,7 @@ fn destroyed_module_mask_darkens_the_matching_submesh_without_reuploading_meshes
     let mut catalog = VehicleMeshCatalog::default();
     let mut snapshot = TankSnapshot {
         tank_id: TankId(7),
+        team: TeamId(1),
         vehicle: VehicleKind::T55A,
         position: [0.0, 0.0, 0.0],
         yaw_rad: 0.0,

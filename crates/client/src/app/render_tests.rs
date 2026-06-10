@@ -137,6 +137,7 @@ fn render_tanks_are_projected_into_the_persistent_presentation_world() {
     assert_eq!(app.presentation.tank_count(), rendered.len());
 }
 
+/// One-tank snapshot with every pose field zeroed; tests override what they exercise.
 fn snapshot_for_vehicle(
     tank_id: TankId,
     server_tick: u64,
@@ -147,6 +148,7 @@ fn snapshot_for_vehicle(
         server_tick,
         tanks: vec![TankSnapshot {
             tank_id,
+            team: game_core::TeamId(1),
             vehicle,
             position: [0.0, 0.0, 0.0],
             yaw_rad: 0.0,
@@ -161,29 +163,15 @@ fn snapshot_for_vehicle(
         }],
         shells: Vec::new(),
         damage_events: Vec::new(),
+        shell_impacts: Vec::new(),
     }
 }
 
 fn snapshot_at(tank_id: TankId, server_tick: u64, position: [f32; 3]) -> Snapshot {
-    Snapshot {
-        server_tick,
-        tanks: vec![TankSnapshot {
-            tank_id,
-            vehicle: game_core::VehicleKind::PrototypeMedium,
-            position,
-            yaw_rad: 0.0,
-            turret_yaw_rad: 0.0,
-            turret_yaw_velocity_rad_s: 0.0,
-            gun_pitch_rad: 0.0,
-            hit_points: 1000,
-            reload_remaining_s: 0.0,
-            aim_dispersion_mrad: 2.5,
-            module_hit_points: prototype_module_hit_points(),
-            destroyed_modules_mask: 0,
-        }],
-        shells: Vec::new(),
-        damage_events: Vec::new(),
-    }
+    let mut snapshot =
+        snapshot_for_vehicle(tank_id, server_tick, game_core::VehicleKind::PrototypeMedium);
+    snapshot.tanks[0].position = position;
+    snapshot
 }
 
 fn snapshot_with_aim(
@@ -192,27 +180,8 @@ fn snapshot_with_aim(
     turret_yaw_rad: f32,
     gun_pitch_rad: f32,
 ) -> Snapshot {
-    Snapshot {
-        server_tick,
-        tanks: vec![TankSnapshot {
-            tank_id,
-            vehicle: game_core::VehicleKind::PrototypeMedium,
-            position: [10.0, 0.0, 10.0],
-            yaw_rad: 0.0,
-            turret_yaw_rad,
-            turret_yaw_velocity_rad_s: 0.0,
-            gun_pitch_rad,
-            hit_points: 1000,
-            reload_remaining_s: 0.0,
-            aim_dispersion_mrad: 2.5,
-            module_hit_points: prototype_module_hit_points(),
-            destroyed_modules_mask: 0,
-        }],
-        shells: Vec::new(),
-        damage_events: Vec::new(),
-    }
-}
-
-fn prototype_module_hit_points() -> [u32; game_core::MODULE_SLOT_COUNT] {
-    game_core::VehicleKind::PrototypeMedium.spec().module_health.hit_points_by_slot()
+    let mut snapshot = snapshot_at(tank_id, server_tick, [10.0, 0.0, 10.0]);
+    snapshot.tanks[0].turret_yaw_rad = turret_yaw_rad;
+    snapshot.tanks[0].gun_pitch_rad = gun_pitch_rad;
+    snapshot
 }

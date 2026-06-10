@@ -2,8 +2,8 @@
 //! The gun then solves toward the world point under that sight ray. The shot path remains
 //! authoritative server/sim state; this module only provides client-side aim prediction.
 
-use game_core::TankId;
 use game_core::math::{GRAVITY_MPS2, gun_direction, wrap_angle};
+use game_core::{TankId, TeamId};
 use glam::Vec3;
 use net::TankSnapshot;
 use sim::{ShellTraceWorld, segment_impact};
@@ -75,17 +75,24 @@ pub(crate) fn aim_point(heightmap: &HeightMap, eye: Vec3, forward: Vec3) -> Vec3
     eye + forward * AIM_MAX_RANGE_M
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn aim_point_with_sweep(
     heightmap: &HeightMap,
     cover: &[StaticCoverObject],
     tanks: &[TankSnapshot],
     owner: TankId,
+    owner_team: TeamId,
     eye: Vec3,
     forward: Vec3,
 ) -> Vec3 {
     const STEP_M: f32 = 1.0;
-    let targets = crate::reticle_sweep::trace_targets(tanks, owner);
-    let world = ShellTraceWorld { tanks: &targets, heightmap: Some(heightmap), cover };
+    let sets = crate::reticle_sweep::trace_sets(tanks, owner, owner_team);
+    let world = ShellTraceWorld {
+        tanks: &sets.targets,
+        blockers: &sets.blockers,
+        heightmap: Some(heightmap),
+        cover,
+    };
     let mut previous = eye;
     let mut travelled = STEP_M;
     while travelled <= AIM_MAX_RANGE_M {

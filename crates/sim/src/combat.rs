@@ -1,8 +1,8 @@
 use ::terrain::{HeightMap, StaticCoverObject};
 use game_core::math::{GRAVITY_MPS2, world_to_tank_local};
 use game_core::{
-    ArmorFacing, DamageCause, DamageEvent, ModuleSlot, MountFrames, TankId,
-    resolve_penetration_at_distance_on_zone,
+    ArmorFacing, DamageCause, DamageEvent, ImpactSurface, ModuleSlot, MountFrames, ShellImpact,
+    TankId, resolve_penetration_at_distance_on_zone,
 };
 use glam::Vec3;
 
@@ -50,6 +50,7 @@ pub(crate) fn step_shells(
     shells: &mut Vec<ShellState>,
     tanks: &mut [TankState],
     damage_events: &mut Vec<DamageEvent>,
+    shell_impacts: &mut Vec<ShellImpact>,
     context: CombatTickContext,
     heightmap: Option<&HeightMap>,
     cover: &[StaticCoverObject],
@@ -64,8 +65,8 @@ pub(crate) fn step_shells(
         shells[index].age_seconds += dt;
         let segment_distance = shells[index].position.distance(previous);
 
-        let targets = valid_targets(&shells[index], tanks);
-        let world = ShellTraceWorld { tanks: &targets, heightmap, cover };
+        let (targets, blockers) = trace_split(&shells[index], tanks);
+        let world = ShellTraceWorld { tanks: &targets, blockers: &blockers, heightmap, cover };
         match segment_impact(previous, shells[index].position, velocity, &world) {
             Some(SegmentImpact::Tank { id, facing, zone, impact_angle_degrees, hit_position }) => {
                 let distance_m = shells[index].traveled_m + hit_position.distance(previous);
@@ -82,13 +83,20 @@ pub(crate) fn step_shells(
                 damage_events.push(event);
                 shells.swap_remove(index);
             }
-            Some(SegmentImpact::Obstacle(_)) => {
+            Some(SegmentImpact::Obstacle { position, surface }) => {
+                shell_impacts.push(ShellImpact { owner: shells[index].owner, position, surface });
                 shells.swap_remove(index);
             }
             None => {
-                if ground_contact(shells[index].position, heightmap)
-                    || shells[index].age_seconds >= shells[index].max_age_seconds
-                {
+                if ground_contact(shells[index].position, heightmap) {
+                    shell_impacts.push(ShellImpact {
+                        owner: shells[index].owner,
+                        position: shells[index].position,
+                        surface: ImpactSurface::Terrain,
+                    });
+                    shells.swap_remove(index);
+                } else if shells[index].age_seconds >= shells[index].max_age_seconds {
+                    // Expired into open sky: there is no surface to mark.
                     shells.swap_remove(index);
                 } else {
                     shells[index].traveled_m += segment_distance;
@@ -99,22 +107,31 @@ pub(crate) fn step_shells(
     }
 }
 
-/// The shell's valid targets as neutral [`TraceTank`]s: never the owner, the dead, or a teammate.
-fn valid_targets(shell: &ShellState, tanks: &[TankState]) -> Vec<TraceTank> {
+/// Split the battle into this shell's damageable targets and absorbing blockers, as neutral
+/// [`TraceTank`]s. Live enemies take damage; live teammates and every wreck absorb the shell
+/// without damage. The owner belongs to neither slice.
+fn trace_split(shell: &ShellState, tanks: &[TankState]) -> (Vec<TraceTank>, Vec<TraceTank>) {
     let owner_team = tanks.iter().find(|tank| tank.id == shell.owner).map(|tank| tank.team);
-    tanks
-        .iter()
-        .filter(|tank| {
-            tank.id != shell.owner && tank.hit_points > 0 && owner_team != Some(tank.team)
-        })
-        .map(|tank| TraceTank {
+    let mut targets = Vec::new();
+    let mut blockers = Vec::new();
+    for tank in tanks {
+        if tank.id == shell.owner {
+            continue;
+        }
+        let trace = TraceTank {
             id: tank.id,
             position: tank.position,
             yaw_rad: tank.yaw_rad,
             turret_yaw_rad: tank.turret_yaw_rad,
             hitbox: tank.spec.hitbox,
-        })
-        .collect()
+        };
+        if tank.hit_points > 0 && owner_team != Some(tank.team) {
+            targets.push(trace);
+        } else {
+            blockers.push(trace);
+        }
+    }
+    (targets, blockers)
 }
 
 #[allow(clippy::too_many_arguments)]

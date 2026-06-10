@@ -10,6 +10,28 @@ pub enum DamageCause {
     Ram,
 }
 
+/// What absorbed a shell that did **not** damage an enemy. Like [`crate::VehicleKind`], the
+/// variant order is wire identity (bincode discriminants) — append, never reorder.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum ImpactSurface {
+    #[default]
+    Terrain,
+    Cover,
+    /// A hull that blocks without taking damage: a wreck or a friendly vehicle.
+    Hull,
+}
+
+/// A shell ending its flight without damaging an enemy: eaten by terrain, static cover, a
+/// wreck, or a friendly hull. Replicated so the firing client can show *where* the shot died
+/// instead of the shell silently vanishing between snapshots.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Default)]
+pub struct ShellImpact {
+    /// Who fired the absorbed shell.
+    pub owner: TankId,
+    pub position: Vec3,
+    pub surface: ImpactSurface,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Default)]
 pub struct DamageEvent {
     pub source: TankId,

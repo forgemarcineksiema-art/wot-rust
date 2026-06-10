@@ -1,4 +1,4 @@
-use game_core::{ArmorFacing, TankId, TankSpec, resolve_penetration_at_distance_on_zone};
+use game_core::{ArmorFacing, TankId, TankSpec, TeamId, resolve_penetration_at_distance_on_zone};
 use glam::{Mat4, Vec3, Vec4};
 use net::TankSnapshot;
 use terrain::{HeightMap, StaticCoverObject};
@@ -36,6 +36,7 @@ pub(crate) struct ReticleFeedbackQuery<'a> {
     /// shows the *player's* gun, not the gun of whatever tank happens to be under the reticle.
     pub player_spec: &'a TankSpec,
     pub owner: TankId,
+    pub owner_team: TeamId,
     pub muzzle: Vec3,
     pub aim: Vec3,
     pub turret_yaw_rad: f32,
@@ -50,6 +51,7 @@ pub(crate) fn reticle_feedback(query: ReticleFeedbackQuery<'_>) -> ReticleFeedba
         tanks,
         player_spec: _,
         owner,
+        owner_team,
         muzzle,
         aim,
         turret_yaw_rad,
@@ -63,6 +65,7 @@ pub(crate) fn reticle_feedback(query: ReticleFeedbackQuery<'_>) -> ReticleFeedba
             cover,
             tanks,
             owner,
+            owner_team,
             muzzle,
             yaw_rad: turret_yaw_rad,
             pitch_rad: gun_pitch_rad,
@@ -93,6 +96,7 @@ pub(crate) fn penetration_hint(query: ReticleFeedbackQuery<'_>) -> Option<Penetr
         tanks,
         player_spec,
         owner,
+        owner_team,
         muzzle,
         aim: _,
         turret_yaw_rad,
@@ -104,6 +108,7 @@ pub(crate) fn penetration_hint(query: ReticleFeedbackQuery<'_>) -> Option<Penetr
         cover,
         tanks,
         owner,
+        owner_team,
         muzzle,
         yaw_rad: turret_yaw_rad,
         pitch_rad: gun_pitch_rad,

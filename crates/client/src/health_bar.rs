@@ -1,5 +1,5 @@
 use engine::PresentationTank;
-use game_core::{HitboxProfile, TankId};
+use game_core::{HitboxProfile, TankId, TeamId};
 use glam::Vec3;
 use renderer_api::HudVertex;
 
@@ -9,16 +9,19 @@ use crate::reticle::world_to_clip_xy;
 const BAR_HALF_WIDTH: f32 = 0.055;
 const BAR_HALF_HEIGHT: f32 = 0.008;
 
+/// Floating HP bars over **live enemies** only: teammates carry no bar (they are not targets)
+/// and wrecks stop advertising a permanent "0".
 pub(crate) fn enemy_health_bars(
     tanks: &[PresentationTank],
     player_tank_id: TankId,
+    player_team: TeamId,
     view_projection: [[f32; 4]; 4],
     aspect: f32,
 ) -> Vec<HudVertex> {
     let mut vertices = Vec::new();
 
     for tank in tanks {
-        if tank.id == player_tank_id {
+        if tank.id == player_tank_id || tank.team == player_team || tank.hit_points == 0 {
             continue;
         }
 
@@ -66,4 +69,54 @@ pub(crate) fn enemy_health_bars(
     }
 
     vertices
+}
+
+#[cfg(test)]
+mod tests {
+    use game_core::VehicleKind;
+
+    use super::*;
+
+    fn tank(id: u64, team: u16, hit_points: u32) -> PresentationTank {
+        PresentationTank {
+            id: TankId(id),
+            team: TeamId(team),
+            vehicle: VehicleKind::T55A,
+            // Low enough that the floating bar lands inside the identity clip volume.
+            translation: [0.0, -2.0, 0.0],
+            hull_yaw_rad: 0.0,
+            turret_yaw_rad: 0.0,
+            gun_pitch_rad: 0.0,
+            hit_points,
+            destroyed_modules_mask: 0,
+        }
+    }
+
+    const IDENTITY: [[f32; 4]; 4] =
+        [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]];
+
+    #[test]
+    fn bars_appear_over_live_enemies_only() {
+        let player = TankId(1);
+        let team = TeamId(1);
+        let aspect = 16.0 / 9.0;
+
+        let enemy = [tank(2, 2, 900)];
+        assert!(!enemy_health_bars(&enemy, player, team, IDENTITY, aspect).is_empty());
+
+        let ally = [tank(3, 1, 900)];
+        assert!(
+            enemy_health_bars(&ally, player, team, IDENTITY, aspect).is_empty(),
+            "teammates are not targets and carry no bar"
+        );
+
+        let wreck = [tank(4, 2, 0)];
+        assert!(
+            enemy_health_bars(&wreck, player, team, IDENTITY, aspect).is_empty(),
+            "wrecks must stop advertising a permanent zero"
+        );
+
+        let own = [tank(1, 1, 900)];
+        assert!(enemy_health_bars(&own, player, team, IDENTITY, aspect).is_empty());
+    }
 }

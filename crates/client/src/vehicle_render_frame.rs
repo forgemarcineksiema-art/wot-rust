@@ -31,6 +31,7 @@ pub fn split_vehicle_render_frame(
 pub(crate) fn render_snapshot(tank: &PresentationTank) -> TankSnapshot {
     TankSnapshot {
         tank_id: tank.id,
+        team: tank.team,
         vehicle: tank.vehicle,
         position: tank.translation,
         yaw_rad: tank.hull_yaw_rad,
@@ -59,6 +60,7 @@ mod tests {
     fn render_snapshot_carries_every_pose_field_the_meshes_read() {
         let tank = PresentationTank {
             id: TankId(7),
+            team: game_core::TeamId(2),
             vehicle: VehicleKind::TigerII,
             translation: [1.0, 2.0, 3.0],
             hull_yaw_rad: 0.4,

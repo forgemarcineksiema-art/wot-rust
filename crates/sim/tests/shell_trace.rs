@@ -31,8 +31,12 @@ fn reticle_trace_resolves_the_same_tank_impact_as_the_authoritative_step() {
         turret_yaw_rad: target_tank.turret_yaw_rad,
         hitbox: HitboxProfile::for_vehicle(VehicleKind::T54_1951),
     };
-    let world =
-        ShellTraceWorld { tanks: std::slice::from_ref(&trace_tank), heightmap: None, cover: &[] };
+    let world = ShellTraceWorld {
+        tanks: std::slice::from_ref(&trace_tank),
+        blockers: &[],
+        heightmap: None,
+        cover: &[],
+    };
     let outcome = trace_shell(
         shell.position,
         shell.velocity_mps,
