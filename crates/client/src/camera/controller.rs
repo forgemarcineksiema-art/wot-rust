@@ -7,6 +7,9 @@ use super::{
     CameraSubject,
 };
 
+const MIN_SNIPER_FOV_DEGREES: f32 = 3.0;
+const MAX_SNIPER_FOV_DEGREES: f32 = 18.0;
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct BattleCameraController {
     settings: BattleCameraSettings,
@@ -16,9 +19,6 @@ pub struct BattleCameraController {
     distance_m: f32,
     sniper_fov_degrees: f32,
 }
-
-const MIN_SNIPER_FOV_DEGREES: f32 = 3.0;
-const MAX_SNIPER_FOV_DEGREES: f32 = 18.0;
 
 impl BattleCameraController {
     pub fn new(settings: BattleCameraSettings) -> Self {
@@ -52,12 +52,28 @@ impl BattleCameraController {
         self.orbit_yaw_rad
     }
 
+    pub fn sniper_fov_degrees(&self) -> f32 {
+        self.sniper_fov_degrees
+    }
+
     pub fn set_orbit_yaw(&mut self, yaw: f32) {
         self.orbit_yaw_rad = yaw;
     }
 
     pub fn set_mode(&mut self, mode: BattleCameraMode) {
         self.mode = mode;
+    }
+
+    /// Mouse-look scale that keeps on-screen cursor speed roughly constant across views: 1.0 in
+    /// third person, the FOV ratio in sniper (a 3 degree view must turn ~20x slower than the
+    /// wide boom view or maximum zoom is uncontrollable).
+    pub fn look_sensitivity_scale(&self) -> f32 {
+        match self.mode {
+            BattleCameraMode::ThirdPerson => 1.0,
+            BattleCameraMode::Sniper => {
+                self.sniper_fov_degrees / self.settings.third_person_fov_degrees
+            }
+        }
     }
 
     pub fn apply_input(&mut self, input: BattleCameraInput) {

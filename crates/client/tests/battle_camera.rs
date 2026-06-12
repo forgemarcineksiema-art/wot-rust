@@ -166,6 +166,17 @@ fn sniper_scroll_zooms_fov_without_changing_third_person_distance() {
 }
 
 #[test]
+fn look_sensitivity_scales_with_sniper_fov_and_stays_unit_in_third_person() {
+    let mut camera = BattleCameraController::new(BattleCameraSettings::default());
+    assert_eq!(camera.look_sensitivity_scale(), 1.0);
+
+    camera.set_mode(BattleCameraMode::Sniper);
+    let expected = camera.sniper_fov_degrees() / camera.settings().third_person_fov_degrees;
+    assert!((camera.look_sensitivity_scale() - expected).abs() < 1.0e-6);
+    assert!(camera.look_sensitivity_scale() < 0.2, "8 deg of 62 deg must slow the look hard");
+}
+
+#[test]
 fn camera_input_clamps_pitch_and_zoom_without_touching_simulation() {
     let mut camera = BattleCameraController::new(BattleCameraSettings::default());
 

@@ -83,9 +83,7 @@ impl ClientApp {
             PhysicalKey::Code(KeyCode::Digit1) if pressed => {
                 self.camera_controller.set_mode(BattleCameraMode::ThirdPerson);
             }
-            PhysicalKey::Code(KeyCode::Digit2) if pressed => {
-                self.camera_controller.set_mode(BattleCameraMode::Sniper);
-            }
+            PhysicalKey::Code(KeyCode::Digit2) if pressed => self.enter_sniper_mode(),
             PhysicalKey::Code(KeyCode::Escape) if pressed => self.set_cursor_captured(false),
             _ => {}
         }
@@ -103,6 +101,21 @@ impl ClientApp {
         });
     }
 
+    pub(super) fn enter_sniper_mode(&mut self) {
+        if self.camera_controller.mode() == BattleCameraMode::Sniper {
+            return;
+        }
+        self.camera_controller.set_mode(BattleCameraMode::Sniper);
+        self.sync_sniper_entry();
+    }
+
+    /// Start the sniper view where the gun actually points, so entering the mode never jumps
+    /// the sight to a stale pitch; the view tracks the mouse from there.
+    fn sync_sniper_entry(&mut self) {
+        self.desired_aim =
+            crate::aim::DesiredAim::new(self.desired_aim.yaw_rad(), self.predictor.gun_pitch());
+    }
+
     pub(super) fn apply_mouse_look(&mut self) {
         if !self.garage.has_started() || self.garage.is_open() {
             self.input.clear_mouse_look();
@@ -111,16 +124,34 @@ impl ClientApp {
         let (dx, dy) = (self.input.mouse_dx, self.input.mouse_dy);
         self.input.clear_mouse_look();
         // Mouse-right (dx > 0) must look right; +orbit_yaw points toward world +X = screen
-        // left, so negate it. Moving the mouse forward tilts the view up.
+        // left, so negate it. The FOV ratio slows the look exactly as much as zoom magnifies it.
+        let scale = self.camera_controller.look_sensitivity_scale();
+        let yaw_delta = -dx * MOUSE_YAW_SENSITIVITY * scale;
+        let pitch_delta = dy * MOUSE_PITCH_SENSITIVITY * scale;
+        if self.input.free_look {
+            // Free look orbits only the camera without re-aiming the turret.
+            self.camera_controller.apply_input(BattleCameraInput {
+                orbit_yaw_delta_rad: yaw_delta,
+                pitch_delta_rad: pitch_delta,
+                zoom_delta_m: 0.0,
+            });
+            return;
+        }
+        if self.camera_controller.mode() == BattleCameraMode::Sniper {
+            // The sniper view *is* the aim. Mouse forward looks up, mouse back looks down —
+            // the same vertical sense as the third-person camera (camera pitch raises the eye
+            // to look down; gun pitch raises the muzzle to look up, hence the sign flip).
+            self.desired_aim.set_yaw(self.desired_aim.yaw_rad() + yaw_delta);
+            self.desired_aim.apply_pitch_delta(-pitch_delta);
+            self.camera_controller.set_orbit_yaw(self.desired_aim.yaw_rad());
+            return;
+        }
         self.camera_controller.apply_input(BattleCameraInput {
-            orbit_yaw_delta_rad: -dx * MOUSE_YAW_SENSITIVITY,
-            pitch_delta_rad: dy * MOUSE_PITCH_SENSITIVITY,
+            orbit_yaw_delta_rad: yaw_delta,
+            pitch_delta_rad: pitch_delta,
             zoom_delta_m: 0.0,
         });
-        if !self.input.free_look {
-            self.desired_aim.set_yaw(self.camera_controller.orbit_yaw_rad());
-            self.desired_aim.apply_pitch_delta(dy * MOUSE_PITCH_SENSITIVITY);
-        }
+        self.desired_aim.set_yaw(self.camera_controller.orbit_yaw_rad());
     }
 
     pub(super) fn set_cursor_captured(&self, captured: bool) {
@@ -157,15 +188,79 @@ mod tests {
     }
 
     #[test]
-    fn mouse_look_updates_desired_pitch_when_free_look_is_off() {
+    fn third_person_mouse_look_leaves_desired_pitch_to_the_sight_solver() {
         let mut app = ClientApp::new();
         app.confirm_garage_selection();
         app.desired_aim = crate::aim::DesiredAim::new(0.0, 0.0);
+        let pitch_before = app.camera_controller.pitch_rad();
         app.input.mouse_dy = 100.0;
 
         app.apply_mouse_look();
 
-        assert!(app.desired_aim.pitch_rad() > 0.0);
+        // The TPP gun follows the screen-centre ray; the raw desired pitch must not drift with
+        // the mouse, or entering sniper later starts from accumulated junk.
+        assert_eq!(app.desired_aim.pitch_rad(), 0.0);
+        assert!(app.camera_controller.pitch_rad() > pitch_before, "mouse back tilts the boom");
+    }
+
+    #[test]
+    fn sniper_mouse_back_aims_down_matching_the_third_person_sense() {
+        let mut app = ClientApp::new();
+        app.confirm_garage_selection();
+        app.enter_sniper_mode();
+        app.desired_aim = crate::aim::DesiredAim::new(0.0, 0.0);
+        app.input.mouse_dy = 100.0; // mouse pulled back/down
+
+        app.apply_mouse_look();
+
+        // In third person, mouse back looks down; the sniper view must agree, and gun pitch
+        // raises the muzzle, so looking down means a *negative* desired pitch.
+        assert!(app.desired_aim.pitch_rad() < 0.0);
+    }
+
+    #[test]
+    fn sniper_mouse_look_slows_with_magnification() {
+        let mut app = ClientApp::new();
+        app.confirm_garage_selection();
+        app.enter_sniper_mode();
+        let wide_fov = app.camera_controller.sniper_fov_degrees();
+        app.desired_aim = crate::aim::DesiredAim::new(0.0, 0.0);
+        app.input.mouse_dx = 100.0;
+        app.apply_mouse_look();
+        let wide_turn = app.desired_aim.yaw_rad().abs();
+
+        // Step the zoom to the narrowest FOV and repeat the identical mouse motion.
+        while app.camera_controller.sniper_fov_degrees() > 3.0 {
+            app.camera_controller.apply_input(BattleCameraInput {
+                orbit_yaw_delta_rad: 0.0,
+                pitch_delta_rad: 0.0,
+                zoom_delta_m: -0.8,
+            });
+        }
+        app.desired_aim = crate::aim::DesiredAim::new(0.0, 0.0);
+        app.camera_controller.set_orbit_yaw(0.0);
+        app.input.mouse_dx = 100.0;
+        app.apply_mouse_look();
+        let narrow_turn = app.desired_aim.yaw_rad().abs();
+
+        let expected_ratio = 3.0 / wide_fov;
+        assert!(
+            (narrow_turn / wide_turn - expected_ratio).abs() < 1.0e-3,
+            "look speed must scale with FOV: {narrow_turn} vs {wide_turn}"
+        );
+    }
+
+    #[test]
+    fn entering_sniper_with_the_key_syncs_the_view_to_the_gun() {
+        let mut app = ClientApp::new();
+        app.confirm_garage_selection();
+        app.run_fixed_ticks(40); // let the gun converge on the sight solution
+        app.desired_aim = crate::aim::DesiredAim::new(0.0, 0.3);
+
+        app.enter_sniper_mode();
+
+        assert!((app.desired_aim.pitch_rad() - app.predictor.gun_pitch()).abs() < 1.0e-5);
+        assert!((app.desired_aim.pitch_rad() - 0.3).abs() > 1.0e-3, "stale pitch must not leak");
     }
 
     #[test]
