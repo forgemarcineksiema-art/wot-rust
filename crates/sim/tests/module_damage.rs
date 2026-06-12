@@ -30,7 +30,10 @@ fn turret_side_penetration_can_destroy_ammo_rack_module() {
     {
         let shooter = state.tank_mut(shooter).expect("shooter");
         shooter.yaw_rad = PI / 2.0;
-        shooter.gun_pitch_rad = 0.006;
+        // Low over the split: the shot must land on the *turret box side* (the visible turret,
+        // |x| = turret_half_width), and the deterministic module roll there must clear the
+        // ammo-rack chance.
+        shooter.gun_pitch_rad = 0.002;
         shooter.spec.gun.shell.penetration_mm_at_100m = 240.0;
     }
     let ammo_before = module_hp(&state, target, ModuleSlot::AmmoRack);

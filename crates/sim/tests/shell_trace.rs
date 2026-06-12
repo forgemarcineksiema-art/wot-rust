@@ -1,6 +1,6 @@
 use std::f32::consts::PI;
 
-use game_core::{HitboxProfile, TankSpec, TeamId, VehicleKind};
+use game_core::{TankSpec, TeamId, VehicleKind};
 use glam::Vec3;
 use sim::{
     FixedTimestep, SHELL_MAX_AGE_SECONDS, ShellTraceWorld, SimulationState, TankCommand,
@@ -24,13 +24,13 @@ fn reticle_trace_resolves_the_same_tank_impact_as_the_authoritative_step() {
 
     // Trace from the shell's current state with the same world the server sees.
     let target_tank = state.tank(target).expect("target");
-    let trace_tank = TraceTank {
-        id: target,
-        position: target_tank.position,
-        yaw_rad: target_tank.yaw_rad,
-        turret_yaw_rad: target_tank.turret_yaw_rad,
-        hitbox: HitboxProfile::for_vehicle(VehicleKind::T54_1951),
-    };
+    let trace_tank = TraceTank::for_kind(
+        target,
+        target_tank.position,
+        target_tank.yaw_rad,
+        target_tank.turret_yaw_rad,
+        VehicleKind::T54_1951,
+    );
     let world = ShellTraceWorld {
         tanks: std::slice::from_ref(&trace_tank),
         blockers: &[],

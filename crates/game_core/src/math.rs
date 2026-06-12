@@ -7,7 +7,7 @@
 
 use glam::{Mat3, Vec3};
 
-use crate::ArmorFacing;
+use crate::{ArmorFacing, MountFrames};
 
 /// Mildly exaggerated gravity so shell arcs read at map scale (real is ~9.81 m/s^2).
 pub const GRAVITY_MPS2: f32 = 12.0;
@@ -29,6 +29,36 @@ pub fn gun_direction(yaw_rad: f32, pitch_rad: f32) -> Vec3 {
 /// Rotate `point` about `pivot` by `rotation`.
 pub fn rotate_around(point: Vec3, pivot: Vec3, rotation: Mat3) -> Vec3 {
     pivot + rotation * (point - pivot)
+}
+
+/// World-space muzzle position for a tank pose.
+///
+/// The muzzle mount pivots about the trunnion for gun pitch, about the turret ring for turret
+/// traverse, and about the hull origin for hull yaw — the same chain the renderer applies to the
+/// gun submesh. This keeps the ballistic origin on the visible muzzle: approximating the pivot at
+/// the hull centre instead (the old `position + Y·muzzle.y + direction·muzzle.z`) drifts by
+/// `sin(pitch) · trunnion.z` vertically, ~26 cm on a Jagdtiger at full elevation.
+///
+/// `turret_yaw_rad` is the *effective* traverse: casemate vehicles hold it at zero (the sim
+/// already enforces this on its state, and snapshots carry the held value).
+pub fn muzzle_world_position(
+    mounts: &MountFrames,
+    position: Vec3,
+    hull_yaw_rad: f32,
+    turret_yaw_rad: f32,
+    gun_pitch_rad: f32,
+) -> Vec3 {
+    let pitched = rotate_around(
+        mounts.muzzle.translation,
+        mounts.gun_trunnion.translation,
+        Mat3::from_rotation_x(-gun_pitch_rad),
+    );
+    let traversed = rotate_around(
+        pitched,
+        mounts.turret_ring.translation,
+        Mat3::from_rotation_y(turret_yaw_rad),
+    );
+    position + Mat3::from_rotation_y(hull_yaw_rad) * traversed
 }
 
 /// Outward armor-plate normal for a hit, in world space.
@@ -179,6 +209,42 @@ mod tests {
         let dir = gun_direction(0.8, 0.3);
         assert!((dir.length() - 1.0).abs() < 1.0e-6, "gun direction must already be unit length");
         assert!(dir.y > 0.0, "positive pitch elevates the muzzle");
+    }
+
+    #[test]
+    fn muzzle_world_position_pivots_about_the_trunnion_not_the_hull_centre() {
+        use crate::VehicleKind;
+        let mounts = MountFrames::for_vehicle(VehicleKind::T55A);
+        let trunnion = mounts.gun_trunnion.translation;
+        let muzzle = mounts.muzzle.translation;
+        let barrel = muzzle.z - trunnion.z;
+
+        // Level gun, no traverse: the muzzle sits exactly on its authored mount.
+        let level = muzzle_world_position(&mounts, Vec3::ZERO, 0.0, 0.0, 0.0);
+        assert!((level - muzzle).length() < 1.0e-5);
+
+        // Pitched gun: the muzzle rises by sin(pitch) over the *barrel* length from the trunnion
+        // — not over the full muzzle.z from the hull centre.
+        let pitch = 0.14_f32;
+        let pitched = muzzle_world_position(&mounts, Vec3::ZERO, 0.0, 0.0, pitch);
+        let expected =
+            Vec3::new(0.0, trunnion.y + barrel * pitch.sin(), trunnion.z + barrel * pitch.cos());
+        assert!((pitched - expected).length() < 1.0e-4, "{pitched:?} vs {expected:?}");
+
+        // Turret traverse swings the muzzle about the ring; the radius from the ring axis is
+        // preserved.
+        let yawed = muzzle_world_position(&mounts, Vec3::ZERO, 0.0, FRAC_PI_2, 0.0);
+        let ring = mounts.turret_ring.translation;
+        let radius = (muzzle - Vec3::new(0.0, muzzle.y, ring.z)).length();
+        let swung = yawed - Vec3::new(ring.x, yawed.y, ring.z);
+        assert!((swung.length() - radius).abs() < 1.0e-4);
+        assert!(yawed.x > 0.0, "positive traverse swings the muzzle to +x");
+
+        // Hull yaw rotates the whole chain about the tank position.
+        let hull_yawed =
+            muzzle_world_position(&mounts, Vec3::new(3.0, 0.0, -2.0), FRAC_PI_2, 0.0, 0.0);
+        let expected_hull = Vec3::new(3.0 + muzzle.z, muzzle.y, -2.0);
+        assert!((hull_yawed - expected_hull).length() < 1.0e-4);
     }
 
     #[test]

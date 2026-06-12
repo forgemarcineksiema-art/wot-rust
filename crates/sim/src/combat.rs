@@ -34,10 +34,20 @@ pub(crate) fn try_fire_shell(tank: &mut TankState, tick: u64) -> Option<ShellSta
     tank.dispersion_shot_index = tank.dispersion_shot_index.wrapping_add(1);
     apply_shot_bloom(tank);
 
-    let muzzle = MountFrames::for_vehicle(tank.spec.kind).muzzle.translation;
+    // The shell leaves the *visible* muzzle: the mount pivots about the trunnion and ring exactly
+    // like the rendered gun submesh. Dispersion only perturbs the velocity direction — the barrel
+    // itself does not jump around the aim point between shots.
+    let mounts = MountFrames::for_vehicle(tank.spec.kind);
+    let muzzle = game_core::math::muzzle_world_position(
+        &mounts,
+        tank.position,
+        tank.yaw_rad,
+        tank.turret_yaw_rad,
+        tank.gun_pitch_rad,
+    );
     Some(ShellState {
         owner: tank.id,
-        position: tank.position + Vec3::Y * muzzle.y + direction * muzzle.z,
+        position: muzzle,
         velocity_mps: direction * shell.muzzle_velocity_mps,
         shell,
         age_seconds: 0.0,
@@ -118,13 +128,13 @@ fn trace_split(shell: &ShellState, tanks: &[TankState]) -> (Vec<TraceTank>, Vec<
         if tank.id == shell.owner {
             continue;
         }
-        let trace = TraceTank {
-            id: tank.id,
-            position: tank.position,
-            yaw_rad: tank.yaw_rad,
-            turret_yaw_rad: tank.turret_yaw_rad,
-            hitbox: tank.spec.hitbox,
-        };
+        let trace = TraceTank::for_kind(
+            tank.id,
+            tank.position,
+            tank.yaw_rad,
+            tank.turret_yaw_rad,
+            tank.spec.kind,
+        );
         if tank.hit_points > 0 && owner_team != Some(tank.team) {
             targets.push(trace);
         } else {

@@ -10,9 +10,21 @@ pub struct HitboxProfile {
     pub center_y_m: f32,
     /// Local-space Y threshold above which hits are resolved against turret/casemate armor.
     pub turret_min_y_m: f32,
+    /// Plan half-width of the turret/casemate volume above `turret_min_y_m`. Above the split a
+    /// shot only connects inside this turret-frame box (which traverses with the turret); the
+    /// rest of the deck plan is open air over a thin hull roof. Sized to the visual turret and
+    /// gated by `vehicle_geometry`'s turret fit/fill test.
+    pub turret_half_width_m: f32,
+    /// Plan half-length of the turret/casemate volume above the split.
+    pub turret_half_length_m: f32,
+    /// Local-space Z of the turret volume centre (at zero traverse).
+    pub turret_center_z_m: f32,
 }
 
 impl HitboxProfile {
+    /// A plain single-box profile: the turret volume spans the full plan, which makes every hit
+    /// above `turret_min_y_m` a turret hit — the pre-turret-box behaviour. Production vehicles
+    /// narrow it via [`Self::with_turret_plan`].
     pub fn new(
         half_width_m: f32,
         half_height_m: f32,
@@ -20,7 +32,28 @@ impl HitboxProfile {
         center_y_m: f32,
         turret_min_y_m: f32,
     ) -> Self {
-        Self { half_width_m, half_height_m, half_length_m, center_y_m, turret_min_y_m }
+        Self {
+            half_width_m,
+            half_height_m,
+            half_length_m,
+            center_y_m,
+            turret_min_y_m,
+            turret_half_width_m: half_width_m,
+            turret_half_length_m: half_length_m,
+            turret_center_z_m: 0.0,
+        }
+    }
+
+    pub fn with_turret_plan(
+        mut self,
+        turret_half_width_m: f32,
+        turret_half_length_m: f32,
+        turret_center_z_m: f32,
+    ) -> Self {
+        self.turret_half_width_m = turret_half_width_m;
+        self.turret_half_length_m = turret_half_length_m;
+        self.turret_center_z_m = turret_center_z_m;
+        self
     }
 
     /// Per-vehicle collision box. Heights are realistic full-vehicle heights (`2 * half_height`):
@@ -30,22 +63,42 @@ impl HitboxProfile {
     /// keep the *world-space* split height unchanged from the earlier taller boxes, so hit
     /// resolution (which armor a shot meets) is preserved. The visible mesh is sized to fill this
     /// box; see `client::vehicle_visual_specs` and its `body_fits_within_hitbox` test.
+    ///
+    /// The turret plan (`with_turret_plan`) is sized to the *full* plan extents of the visual
+    /// turret submesh — including the cast shoulder where it bulges below the split — so the
+    /// gameplay turret volume is a tight, slightly generous box around the visible turret instead
+    /// of the whole deck. `vehicle_geometry::every_vehicle_turret_fits_and_fills_its_turret_plan`
+    /// keeps these numbers honest against the baked geometry.
     pub fn for_vehicle(kind: VehicleKind) -> Self {
         match kind {
             // height 2.40 m, hull/turret split at world y 1.80
-            VehicleKind::PrototypeMedium => Self::new(1.70, 1.20, 3.20, 1.15, 0.65),
+            VehicleKind::PrototypeMedium => {
+                Self::new(1.70, 1.20, 3.20, 1.15, 0.65).with_turret_plan(0.82, 1.00, 0.0)
+            }
             // height 2.40 m, split at world y 1.80
-            VehicleKind::T54_1951 => Self::new(1.75, 1.20, 3.15, 1.15, 0.65),
+            VehicleKind::T54_1951 => {
+                Self::new(1.75, 1.20, 3.15, 1.15, 0.65).with_turret_plan(1.00, 1.04, 0.03)
+            }
             // height 2.38 m, split at world y 1.80
-            VehicleKind::T55A => Self::new(1.75, 1.19, 3.20, 1.14, 0.66),
+            VehicleKind::T55A => {
+                Self::new(1.75, 1.19, 3.20, 1.14, 0.66).with_turret_plan(0.95, 0.97, 0.07)
+            }
             // height 2.92 m, split at world y 1.90
-            VehicleKind::TigerI => Self::new(1.95, 1.46, 3.60, 1.41, 0.49),
+            VehicleKind::TigerI => {
+                Self::new(1.95, 1.46, 3.60, 1.41, 0.49).with_turret_plan(1.00, 1.34, -0.10)
+            }
             // height 3.08 m, split at world y 1.95
-            VehicleKind::TigerII => Self::new(1.95, 1.54, 4.00, 1.49, 0.46),
+            VehicleKind::TigerII => {
+                Self::new(1.95, 1.54, 4.00, 1.49, 0.46).with_turret_plan(0.96, 1.42, 0.07)
+            }
             // height 2.94 m, split at world y 2.00
-            VehicleKind::Jagdtiger => Self::new(2.00, 1.47, 4.10, 1.42, 0.58),
+            VehicleKind::Jagdtiger => {
+                Self::new(2.00, 1.47, 4.10, 1.42, 0.58).with_turret_plan(1.48, 1.94, -0.02)
+            }
             // height 2.94 m, split at world y 1.85
-            VehicleKind::PantherII => Self::new(1.85, 1.47, 3.70, 1.42, 0.43),
+            VehicleKind::PantherII => {
+                Self::new(1.85, 1.47, 3.70, 1.42, 0.43).with_turret_plan(0.86, 1.27, -0.02)
+            }
         }
     }
 }

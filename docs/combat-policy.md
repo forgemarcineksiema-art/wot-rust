@@ -59,10 +59,27 @@ Shell flight has exactly one implementation, `sim::shell_trace`, used by every p
 that needs to know where a shell goes: the authoritative server step
 (`step_shells`), the client's reticle impact and penetration preview, and the
 client's straight aim-ray sweep. The per-segment collision (`segment_impact`:
-analytic ray versus hull-local AABB for tanks, a one metre stepped sweep for
+analytic ray versus two hull-local boxes per tank, a one metre stepped sweep for
 terrain, and slab tests for cover) and the ballistic integration (`trace_shell`:
 semi-implicit gravity-then-move at the simulation tick `dt`) are the same code for
 all of them.
+
+A tank is two volumes, not one box. Below the armor split (`turret_min_y`) the
+full-plan hull slab applies; above it only the per-vehicle *turret box*
+(`HitboxProfile::with_turret_plan`) connects, and it traverses with the turret
+about the ring axis (`TraceTank::for_kind` sources the pivot from `MountFrames`
+so it cannot desync). A shot at turret height that visually passes beside the
+turret really passes; a plunging hit on the open deck lands on thin `Roof`
+plate instead of a phantom full-thickness turret side. The turret plan is sized
+to the visual turret submesh and `vehicle_geometry`'s turret fit/fill test keeps
+the numbers honest. Casemates hold traverse at zero, so their box stays fixed.
+
+Shells also *spawn* at the visible muzzle: `game_core::math::muzzle_world_position`
+pivots the muzzle mount about the trunnion (pitch), the turret ring (traverse),
+and the hull origin (yaw) — the same chain the renderer applies to the gun
+submesh — and the client reticle uses the identical function, locked by
+`muzzle_position_matches_server_shell_origin`. Dispersion perturbs only the
+velocity direction, never the spawn point.
 
 This is a hard rule, not a convenience. If the preview used a different timestep,
 integration order, or intersection test, the reticle would predict an impact the

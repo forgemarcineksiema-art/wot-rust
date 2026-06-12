@@ -1,5 +1,5 @@
 use game_core::math::gun_direction;
-use game_core::{HitboxProfile, TankId, TeamId};
+use game_core::{TankId, TeamId};
 use glam::Vec3;
 use net::TankSnapshot;
 use sim::{
@@ -50,13 +50,13 @@ pub(crate) fn trace_sets(tanks: &[TankSnapshot], owner: TankId, owner_team: Team
         if tank.tank_id == owner {
             continue;
         }
-        let trace = TraceTank {
-            id: tank.tank_id,
-            position: Vec3::from_array(tank.position),
-            yaw_rad: tank.yaw_rad,
-            turret_yaw_rad: tank.turret_yaw_rad,
-            hitbox: HitboxProfile::for_vehicle(tank.vehicle),
-        };
+        let trace = TraceTank::for_kind(
+            tank.tank_id,
+            Vec3::from_array(tank.position),
+            tank.yaw_rad,
+            tank.turret_yaw_rad,
+            tank.vehicle,
+        );
         if tank.hit_points > 0 && tank.team != owner_team {
             sets.targets.push(trace);
         } else {

@@ -119,15 +119,28 @@ impl ClientApp {
         })
     }
 
+    /// World-space muzzle, pivoted about the trunnion and ring exactly like the rendered gun and
+    /// the server's shell spawn — `muzzle_position_matches_server_shell_origin` locks the three
+    /// together.
     fn muzzle_position(&self) -> Vec3 {
         let Some(tank) = self.local_render_tank() else {
-            let muzzle = MountFrames::for_vehicle(self.player_spec().kind).muzzle.translation;
-            return self.predictor.position() + Vec3::Y * muzzle.y;
+            let mounts = MountFrames::for_vehicle(self.player_spec().kind);
+            return game_core::math::muzzle_world_position(
+                &mounts,
+                self.predictor.position(),
+                self.predictor.yaw(),
+                self.predictor.turret_yaw(),
+                self.predictor.gun_pitch(),
+            );
         };
-        let muzzle = MountFrames::for_vehicle(tank.vehicle).muzzle.translation;
-        let yaw = tank.yaw_rad + tank.turret_yaw_rad;
-        let direction = game_core::math::gun_direction(yaw, tank.gun_pitch_rad);
-        Vec3::from_array(tank.position) + Vec3::Y * muzzle.y + direction * muzzle.z
+        let mounts = MountFrames::for_vehicle(tank.vehicle);
+        game_core::math::muzzle_world_position(
+            &mounts,
+            Vec3::from_array(tank.position),
+            tank.yaw_rad,
+            tank.turret_yaw_rad,
+            tank.gun_pitch_rad,
+        )
     }
 
     fn player_gun_pitch(&self) -> f32 {
@@ -154,23 +167,44 @@ mod tests {
     use super::*;
     use crate::camera::{BattleCameraMode, CameraSubject};
 
+    /// The client's muzzle, the server's shell origin, and the rendered barrel all share one
+    /// pivot chain: pitch about the trunnion, traverse about the ring, hull yaw about the origin.
+    /// The expected value below derives that chain with explicit trigonometry, independent of
+    /// `muzzle_world_position`, so a regression in the shared helper turns this red too.
     #[test]
     fn muzzle_position_matches_server_shell_origin() {
         let mut app = ClientApp::new();
+        app.confirm_garage_selection();
         app.camera_controller.set_mode(BattleCameraMode::Sniper);
         app.desired_aim = crate::aim::DesiredAim::new(0.0, 0.10);
-        app.run_fixed_ticks(4);
+        app.run_fixed_ticks(40);
 
         let tank = app.local_render_tank().expect("local tank");
-        let yaw = tank.yaw_rad + tank.turret_yaw_rad;
-        let forward = Vec3::new(
-            yaw.sin() * tank.gun_pitch_rad.cos(),
-            tank.gun_pitch_rad.sin(),
-            yaw.cos() * tank.gun_pitch_rad.cos(),
-        )
-        .normalize();
-        let mount = MountFrames::for_vehicle(tank.vehicle).muzzle.translation;
-        let expected = Vec3::from_array(tank.position) + Vec3::Y * mount.y + forward * mount.z;
+        assert!(tank.gun_pitch_rad.abs() > 1.0e-3, "pose must exercise a pitched gun");
+        let mounts = MountFrames::for_vehicle(tank.vehicle);
+        let ring = mounts.turret_ring.translation;
+        let trunnion = mounts.gun_trunnion.translation;
+        let barrel = mounts.muzzle.translation.z - trunnion.z;
+
+        // Pitch about the trunnion (the gun axis is level: muzzle.y == trunnion.y).
+        let pitched = Vec3::new(
+            0.0,
+            trunnion.y + barrel * tank.gun_pitch_rad.sin(),
+            trunnion.z + barrel * tank.gun_pitch_rad.cos(),
+        );
+        // Traverse about the ring, then hull yaw about the tank position.
+        let traverse = |point: Vec3, pivot: Vec3, yaw: f32| {
+            let rel = point - pivot;
+            pivot
+                + Vec3::new(
+                    rel.x * yaw.cos() + rel.z * yaw.sin(),
+                    rel.y,
+                    rel.z * yaw.cos() - rel.x * yaw.sin(),
+                )
+        };
+        let traversed = traverse(pitched, ring, tank.turret_yaw_rad);
+        let expected =
+            Vec3::from_array(tank.position) + traverse(traversed, Vec3::ZERO, tank.yaw_rad);
 
         assert!((app.muzzle_position() - expected).length() < 1.0e-4);
     }

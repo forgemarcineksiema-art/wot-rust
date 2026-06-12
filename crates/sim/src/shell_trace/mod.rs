@@ -9,7 +9,9 @@ mod terrain;
 
 use ::terrain::{HeightMap, StaticCoverObject};
 use game_core::math::GRAVITY_MPS2;
-use game_core::{ArmorFacing, ArmorZone, HitboxProfile, ImpactSurface, TankId};
+use game_core::{
+    ArmorFacing, ArmorZone, HitboxProfile, ImpactSurface, MountFrames, TankId, VehicleKind,
+};
 use glam::Vec3;
 
 /// Shells live at most this long before despawning (server) / terminating the preview trace.
@@ -25,6 +27,30 @@ pub struct TraceTank {
     pub yaw_rad: f32,
     pub turret_yaw_rad: f32,
     pub hitbox: HitboxProfile,
+    /// Local-space Z of the turret-ring axis the turret volume traverses about. Comes from the
+    /// vehicle's `MountFrames` — use [`TraceTank::for_kind`] so it cannot desync from the hitbox.
+    pub turret_ring_z_m: f32,
+}
+
+impl TraceTank {
+    /// Build a trace hull for a vehicle kind, sourcing the hitbox and the turret-ring pivot from
+    /// `game_core` so the two cannot drift apart at call sites.
+    pub fn for_kind(
+        id: TankId,
+        position: Vec3,
+        yaw_rad: f32,
+        turret_yaw_rad: f32,
+        kind: VehicleKind,
+    ) -> Self {
+        Self {
+            id,
+            position,
+            yaw_rad,
+            turret_yaw_rad,
+            hitbox: HitboxProfile::for_vehicle(kind),
+            turret_ring_z_m: MountFrames::for_vehicle(kind).turret_ring.translation.z,
+        }
+    }
 }
 
 /// The world a shell segment is tested against. `tanks` are live enemies (hits resolve as
