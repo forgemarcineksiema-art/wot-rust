@@ -1,6 +1,7 @@
 use game_core::VehicleKind;
 use vehicle_geometry::{SmoothingGroup, SubmeshKind, bake_vehicle};
 
+const SG_CUPOLA: SmoothingGroup = SmoothingGroup(3);
 const SG_MANTLET: SmoothingGroup = SmoothingGroup(6);
 const SG_RING: SmoothingGroup = SmoothingGroup(7);
 
@@ -27,6 +28,43 @@ fn turreted_vehicles_have_dedicated_turret_ring_geometry() {
             .count();
 
         assert!(ring_vertices >= 12, "{kind:?} missing visible turret-ring collar");
+    }
+}
+
+/// Cupolas are authored with absolute heights, so this pins their seating: the cupola must crown
+/// the turret (be its highest point) while its base stays sunk into the roof — a mount-frame or
+/// turret-shape change that leaves a cupola floating or swallowed turns this red. The Jagdtiger
+/// (bare casemate) and the prototype medium (plain box turret) carry no cupola by design.
+#[test]
+fn cupolas_crown_their_turret_roofs() {
+    for kind in VehicleKind::ALL {
+        if matches!(kind, VehicleKind::Jagdtiger | VehicleKind::PrototypeMedium) {
+            continue;
+        }
+        let vehicle = bake_vehicle(kind).unwrap_or_else(|e| panic!("{kind:?} should bake: {e}"));
+        let turret = vehicle.submesh(SubmeshKind::Turret).expect("turret submesh");
+
+        let mut cupola_min_y = f32::INFINITY;
+        let mut cupola_max_y = f32::NEG_INFINITY;
+        let mut rest_max_y = f32::NEG_INFINITY;
+        for vertex in turret.mesh.vertices() {
+            if vertex.smoothing == SG_CUPOLA {
+                cupola_min_y = cupola_min_y.min(vertex.position.y);
+                cupola_max_y = cupola_max_y.max(vertex.position.y);
+            } else {
+                rest_max_y = rest_max_y.max(vertex.position.y);
+            }
+        }
+
+        assert!(cupola_max_y.is_finite(), "{kind:?} turret should carry a cupola");
+        assert!(
+            cupola_max_y >= rest_max_y - 1.0e-3,
+            "{kind:?} cupola top {cupola_max_y:.2} swallowed below turret roof {rest_max_y:.2}"
+        );
+        assert!(
+            cupola_min_y <= rest_max_y + 1.0e-3,
+            "{kind:?} cupola base {cupola_min_y:.2} floats above turret roof {rest_max_y:.2}"
+        );
     }
 }
 

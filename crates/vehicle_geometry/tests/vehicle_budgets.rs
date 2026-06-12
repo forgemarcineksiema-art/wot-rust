@@ -62,8 +62,8 @@ fn every_vehicle_bake_is_deterministic_and_hash_is_unique() {
 fn every_vehicle_bake_hash_matches_golden_output() {
     let expected = [
         (VehicleKind::PrototypeMedium, 7_613_624_468_440_756_419_u64),
-        (VehicleKind::T54_1951, 13_134_166_753_031_901_167_u64),
-        (VehicleKind::T55A, 7_671_001_303_853_901_689_u64),
+        (VehicleKind::T54_1951, 9_323_884_532_056_781_199_u64),
+        (VehicleKind::T55A, 16_216_939_546_650_613_941_u64),
         (VehicleKind::TigerI, 16_333_030_985_719_378_589_u64),
         (VehicleKind::TigerII, 1_086_861_276_510_338_113_u64),
         (VehicleKind::Jagdtiger, 4_893_810_432_222_783_231_u64),
@@ -72,7 +72,16 @@ fn every_vehicle_bake_hash_matches_golden_output() {
     let actual: Vec<(VehicleKind, u64)> =
         bake_all().iter().map(|vehicle| (vehicle.kind(), vehicle.deterministic_hash())).collect();
 
-    assert_eq!(actual.as_slice(), expected);
+    if actual.as_slice() != expected {
+        let lines: String = actual
+            .iter()
+            .map(|(kind, hash)| format!("        (VehicleKind::{kind:?}, {hash}_u64),\n"))
+            .collect();
+        panic!(
+            "bake hashes changed; if this geometry change is intentional, replace the golden \
+             array with:\n{lines}"
+        );
+    }
 }
 
 #[test]

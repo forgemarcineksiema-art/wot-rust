@@ -125,6 +125,56 @@ fn extrude_sweeps_a_sloped_section_with_outward_faces() {
     assert_eq!(mesh.triangle_count(), mirror.triangle_count());
 }
 
+/// A reflex corner would silently fan self-overlapping caps, so the kernel must refuse concave
+/// sections at bake time instead of shipping broken geometry.
+#[test]
+#[should_panic(expected = "concave")]
+fn extrude_rejects_concave_sections() {
+    let section = vec![
+        Vec2::new(-1.0, 0.0),
+        Vec2::new(1.0, 0.0),
+        Vec2::new(1.0, 1.0),
+        Vec2::new(0.0, 0.2), // reflex corner poking into the polygon
+        Vec2::new(-1.0, 1.0),
+    ];
+    MeshBuilder::new().extrude(
+        Vec3::ZERO,
+        ExtrudeSpec {
+            section,
+            axis: Axis::X,
+            half_depth: 0.5,
+            material: MaterialRole::RolledArmor,
+            smoothing: SmoothingGroup::hard_edges(),
+        },
+    );
+}
+
+/// Collinear runs are not reflex corners; a section with a midpoint on an edge must still sweep.
+#[test]
+fn extrude_accepts_collinear_section_runs() {
+    let section = vec![
+        Vec2::new(-1.0, 0.0),
+        Vec2::new(0.0, 0.0), // collinear midpoint
+        Vec2::new(1.0, 0.0),
+        Vec2::new(1.0, 1.0),
+        Vec2::new(-1.0, 1.0),
+    ];
+    let mesh = MeshBuilder::new()
+        .extrude(
+            Vec3::ZERO,
+            ExtrudeSpec {
+                section,
+                axis: Axis::X,
+                half_depth: 0.5,
+                material: MaterialRole::RolledArmor,
+                smoothing: SmoothingGroup::hard_edges(),
+            },
+        )
+        .build();
+    assert!(mesh.triangle_count() > 0);
+    assert!(all_faces_point_outward(&mesh));
+}
+
 /// `weld_and_smooth` must fuse coincident vertices that share a *smooth* group and replace their
 /// normals with the face average, while leaving hard-edge seams as distinct per-face normals so
 /// welded plates keep their crisp edges.

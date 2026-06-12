@@ -97,9 +97,70 @@ fn every_vehicle_body_fits_and_fills_its_hitbox() {
     }
 }
 
-/// Each vehicle must read as a distinct shape — not just a recoloured copy. The signature mixes
-/// body extents, turret/casemate extents, and gun length; any two vehicles must differ in at
-/// least one of these by a readable margin.
+/// The gameplay turret volume (`HitboxProfile::with_turret_plan`) must be a tight box around the
+/// visual turret: contained (a shot into the box meets metal) and filled (the box is not padded
+/// with empty air a shot could "hit"). The ring pivot the volume traverses about must sit inside
+/// it. This is what keeps the turret hit model honest against the baked geometry.
+#[test]
+fn every_vehicle_turret_fits_and_fills_its_turret_plan() {
+    const EPS: f32 = 0.05;
+
+    for vehicle in bake_all() {
+        let kind = vehicle.kind();
+        let hitbox = HitboxProfile::for_vehicle(kind);
+        let turret = submesh_bounds(&vehicle, SubmeshKind::Turret);
+        let z_lo = hitbox.turret_center_z_m - hitbox.turret_half_length_m;
+        let z_hi = hitbox.turret_center_z_m + hitbox.turret_half_length_m;
+
+        // Containment: the visual turret may not poke out of its gameplay volume.
+        assert!(
+            turret.min.x >= -hitbox.turret_half_width_m - EPS,
+            "{kind:?} turret pokes left of its plan: {:.2} vs {:.2}",
+            turret.min.x,
+            -hitbox.turret_half_width_m
+        );
+        assert!(
+            turret.max.x <= hitbox.turret_half_width_m + EPS,
+            "{kind:?} turret pokes right of its plan: {:.2} vs {:.2}",
+            turret.max.x,
+            hitbox.turret_half_width_m
+        );
+        assert!(
+            turret.min.z >= z_lo - EPS,
+            "{kind:?} turret pokes behind its plan: {:.2} vs {z_lo:.2}",
+            turret.min.z
+        );
+        assert!(
+            turret.max.z <= z_hi + EPS,
+            "{kind:?} turret pokes ahead of its plan: {:.2} vs {z_hi:.2}",
+            turret.max.z
+        );
+
+        // Fill: the volume may not be padded much wider than the visible turret.
+        assert!(
+            turret.max.x >= 0.85 * hitbox.turret_half_width_m,
+            "{kind:?} turret plan too wide: turret reaches {:.2} of {:.2}",
+            turret.max.x,
+            hitbox.turret_half_width_m
+        );
+        assert!(
+            (turret.max.z - turret.min.z) >= 0.85 * 2.0 * hitbox.turret_half_length_m,
+            "{kind:?} turret plan too long: turret spans {:.2} of {:.2}",
+            turret.max.z - turret.min.z,
+            2.0 * hitbox.turret_half_length_m
+        );
+
+        // The plan stays inside the hull plan, and the traverse pivot sits inside the plan.
+        assert!(hitbox.turret_half_width_m <= hitbox.half_width_m);
+        assert!(z_hi <= hitbox.half_length_m && z_lo >= -hitbox.half_length_m);
+        let ring_z = vehicle.mounts().turret_ring.translation.z;
+        assert!(
+            ring_z > z_lo && ring_z < z_hi,
+            "{kind:?} ring pivot z {ring_z:.2} outside turret plan [{z_lo:.2}, {z_hi:.2}]"
+        );
+    }
+}
+
 #[test]
 fn every_vehicle_has_segmented_tracks_on_both_sides() {
     for vehicle in bake_all() {
@@ -133,6 +194,9 @@ fn every_vehicle_has_segmented_tracks_on_both_sides() {
     }
 }
 
+/// Each vehicle must read as a distinct shape — not just a recoloured copy. The signature mixes
+/// body extents, turret/casemate extents, and gun length; any two vehicles must differ in at
+/// least one of these by a readable margin.
 #[test]
 fn each_vehicle_has_a_distinct_silhouette() {
     const MARGIN: f32 = 0.04;

@@ -67,7 +67,8 @@ pub(crate) fn t55a(hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVehicle
         radius: 0.092,
         segments: 12,
         mantlet,
-        evacuator: Some((3.40, 0.135)),
+        // Mid-barrel evacuator, slightly forward of centre — the T-55A signature.
+        evacuator: Some((0.57, 0.135)),
         muzzle_brake: None,
     });
 
@@ -124,7 +125,8 @@ pub(crate) fn t54_1951(hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVeh
         radius: 0.092,
         segments: 12,
         mantlet,
-        evacuator: Some((4.30, 0.135)),
+        // Evacuator close to the muzzle — keeps the T-54 readable next to the mid-barrel T-55A.
+        evacuator: Some((0.79, 0.135)),
         muzzle_brake: None,
     });
 

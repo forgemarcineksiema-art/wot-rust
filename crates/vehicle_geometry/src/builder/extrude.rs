@@ -22,6 +22,7 @@ impl MeshBuilder {
         if signed_area(&section) < 0.0 {
             section.reverse();
         }
+        assert_convex(&section);
         let count = section.len();
         let centroid = section.iter().fold(Vec2::ZERO, |sum, p| sum + *p) / count as f32;
         let near = -spec.half_depth;
@@ -120,6 +121,24 @@ fn section_to_world(axis: Axis, uv: Vec2, depth: f32) -> Vec3 {
 /// Map an in-section direction into local space (zero component along the sweep axis).
 fn section_to_world_dir(axis: Axis, uv: Vec2) -> Vec3 {
     section_to_world(axis, uv, 0.0)
+}
+
+/// Caps are fanned from the section centroid and side quads assume one outward-facing wall per
+/// edge, so the section must be convex — a reflex corner would silently produce self-overlapping
+/// caps and inward walls. Catch that at bake time. Expects CCW winding (the caller normalizes),
+/// so every turn must be a left turn; collinear runs are allowed.
+fn assert_convex(section: &[Vec2]) {
+    let count = section.len();
+    for index in 0..count {
+        let prev = section[(index + count - 1) % count];
+        let here = section[index];
+        let next = section[(index + 1) % count];
+        let turn = (here - prev).perp_dot(next - here);
+        assert!(
+            turn >= -1.0e-4,
+            "extrude section is concave at point {index} ({here:?}); the kernel only sweeps convex sections"
+        );
+    }
 }
 
 /// Twice the signed area of a polygon (shoelace); positive when wound counter-clockwise.

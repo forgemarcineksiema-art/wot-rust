@@ -44,7 +44,9 @@ while the current dynamic mesh path exists. Static `MeshHandle` registration and
 
 The kernel should support a compact set of operations that are expressive enough for tank shapes:
 
-- `loft` or `sweep` between cross sections for hulls, casemates, and cast turret caps.
+- `loft` or `sweep` between cross sections for hulls, casemates, and cast turret caps. Swept
+  sections must be convex; the kernel asserts this at bake time rather than shipping
+  self-overlapping caps.
 - `revolve` for barrels, mantlets, cupolas, road wheels, drive sprockets, and idlers.
 - `chamfered_prism` for rolled-plate hulls, turrets, hatches, and fenders.
 - `mirror` for left/right vehicle symmetry.
@@ -102,12 +104,19 @@ The intended path is:
 
 This keeps geometry cost stable as tank count grows and matches the renderer upload policy.
 
+Both render paths — the legacy dynamic mesh build and the instanced objects — pose parts through
+one shared chain (`client::vehicle_pose::VehiclePose`: hull yaw about the origin, turret yaw about
+the ring, gun pitch about the trunnion, casemates holding yaw). A drift-lock test compares their
+world-space vertices, so the paths cannot quietly disagree while the dynamic path still exists.
+
 ## Tests And Gates
 
 Every geometry phase needs executable checks:
 
 - finite vertices, valid indices, outward winding, and normalized normals.
 - body fit/fill against `HitboxProfile`, excluding gun length by design.
+- turret fit/fill against the gameplay turret plan box (`HitboxProfile::with_turret_plan`), so
+  the two-volume hit model in `sim::shell_trace` stays honest against the visible turret.
 - turret and gun mount transforms for yaw and pitch.
 - casemate vehicles ignoring turret yaw.
 - per-vehicle silhouette uniqueness beyond raw box dimensions.
