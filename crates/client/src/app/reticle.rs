@@ -96,7 +96,7 @@ impl ClientApp {
                 feedback.actual_impact_world_point,
                 view_projection,
             ),
-            aim_radius_clip: self.player_aim_radius_clip(),
+            aim_radius_clip: self.player_aim_radius_clip(camera.vertical_fov_degrees),
             target_distance_m: Some((feedback.aim_world_point - muzzle).length()),
             status: feedback.status,
             penetration_hint: pen_hint,
@@ -147,7 +147,7 @@ impl ClientApp {
         self.predictor.gun_pitch()
     }
 
-    fn player_aim_radius_clip(&self) -> f32 {
+    fn player_aim_radius_clip(&self, vertical_fov_degrees: f32) -> f32 {
         // Once prediction is seeded, the aim circle follows the locally predicted dispersion
         // (evolved at 60 Hz in lockstep with the server) instead of the stale 20 Hz snapshot value.
         let dispersion_mrad = if self.predictor.is_seeded() {
@@ -155,7 +155,11 @@ impl ClientApp {
         } else {
             self.player_spec().gun.dispersion_mrad
         };
-        dispersion_mrad * 0.001 * 18.0
+        // Project the angular dispersion through the actual view: clip-y = tan(theta)/tan(vfov/2)
+        // (small-angle theta), so the circle magnifies with sniper zoom instead of sitting at a
+        // fixed screen size that matches no FOV.
+        let half_fov_tan = (vertical_fov_degrees.to_radians() * 0.5).tan().max(1.0e-4);
+        dispersion_mrad * 0.001 / half_fov_tan
     }
 }
 
@@ -229,6 +233,24 @@ mod tests {
         );
 
         assert_eq!(camera.target, expected.target);
+    }
+
+    #[test]
+    fn aim_circle_magnifies_with_sniper_zoom_instead_of_fixed_screen_size() {
+        let app = ClientApp::new();
+
+        let wide = app.player_aim_radius_clip(18.0);
+        let narrow = app.player_aim_radius_clip(3.0);
+
+        // Same angular dispersion through a narrower FOV covers proportionally more clip space:
+        // tan(9 deg)/tan(1.5 deg) ~ 6.05.
+        let expected_ratio = (9.0f32.to_radians()).tan() / (1.5f32.to_radians()).tan();
+        assert!((narrow / wide - expected_ratio).abs() < 0.05, "got ratio {}", narrow / wide);
+
+        // And the absolute value is the projected angle, not a magic screen constant.
+        let dispersion_mrad = app.player_spec().gun.dispersion_mrad;
+        let expected = dispersion_mrad * 0.001 / (9.0f32.to_radians()).tan();
+        assert!((wide - expected).abs() < 1.0e-6);
     }
 
     #[test]
