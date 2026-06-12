@@ -58,4 +58,4 @@ interpolated snapshots. The detailed rule lives in `docs/server-first-policy.md`
 
 ## Quality Gates
 
-Architecture rules are executable. `cargo test -p quality` checks required docs, benchmark files, protocol snapshots, replay fixtures, CI, verification script, and the 220-line Rust source limit. The complete local gate is `./scripts/verify.ps1`.
+Architecture rules are executable. `cargo test -p quality` checks required docs, benchmark files, protocol snapshots, replay fixtures, CI, verification script, and the 220-production-line Rust source limit (test code is exempt, with a 440-line total backstop). The complete local gate is `./scripts/verify.ps1`.

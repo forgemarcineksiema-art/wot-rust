@@ -1,17 +1,28 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use quality::MAX_RUST_FILE_LINES;
+use quality::{
+    MAX_RUST_FILE_LINES, MAX_RUST_FILE_TOTAL_LINES, is_test_code_path, production_line_count,
+};
 
+/// The reviewability budget is charged to production lines — inline `#[cfg(test)]` modules and
+/// wholly-test files (integration trees, `*_tests.rs` siblings) are exempt, so locking tests can
+/// live next to the code they lock. The total backstop still caps every file, test code included.
 #[test]
 fn rust_files_stay_small_enough_to_review() {
     let root = workspace_root();
     let mut offenders = Vec::new();
 
     for path in rust_files(&root.join("crates")) {
-        let lines = line_count(&path);
-        if lines > MAX_RUST_FILE_LINES {
-            offenders.push(format!("{} has {lines} lines", path.display()));
+        let source = fs::read_to_string(&path).expect("Rust file should be readable");
+        let total = source.lines().count();
+        if total > MAX_RUST_FILE_TOTAL_LINES {
+            offenders.push(format!("{} has {total} lines total", path.display()));
+        } else if !is_test_code_path(&path) {
+            let production = production_line_count(&source);
+            if production > MAX_RUST_FILE_LINES {
+                offenders.push(format!("{} has {production} production lines", path.display()));
+            }
         }
     }
 
@@ -193,10 +204,6 @@ fn collect_rust_files(root: &Path, paths: &mut Vec<PathBuf>) {
             paths.push(path);
         }
     }
-}
-
-fn line_count(path: &Path) -> usize {
-    fs::read_to_string(path).expect("Rust file should be readable").lines().count()
 }
 
 fn manifest_has_dependency(manifest: &str, dependency: &str) -> bool {
