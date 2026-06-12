@@ -90,15 +90,25 @@ impl ClientApp {
     }
 
     pub(super) fn on_mouse_wheel(&mut self, delta: MouseScrollDelta) {
+        if !self.garage.has_started() || self.garage.is_open() {
+            return;
+        }
         let scroll = match delta {
             MouseScrollDelta::LineDelta(_, y) => y,
             MouseScrollDelta::PixelDelta(position) => position.y as f32 / 60.0,
         };
+        let mode_before = self.camera_controller.mode();
         self.camera_controller.apply_input(BattleCameraInput {
             orbit_yaw_delta_rad: 0.0,
             pitch_delta_rad: 0.0,
             zoom_delta_m: -scroll * 0.8,
         });
+        // Scrolling through the shortest boom hands over to sniper; align its view to the gun.
+        if mode_before == BattleCameraMode::ThirdPerson
+            && self.camera_controller.mode() == BattleCameraMode::Sniper
+        {
+            self.sync_sniper_entry();
+        }
     }
 
     pub(super) fn enter_sniper_mode(&mut self) {
@@ -247,6 +257,34 @@ mod tests {
         assert!(
             (narrow_turn / wide_turn - expected_ratio).abs() < 1.0e-3,
             "look speed must scale with FOV: {narrow_turn} vs {wide_turn}"
+        );
+    }
+
+    #[test]
+    fn mouse_wheel_is_ignored_until_battle_control_starts() {
+        let mut app = ClientApp::new();
+        let distance_before = app.camera_controller.distance_m();
+
+        app.on_mouse_wheel(MouseScrollDelta::LineDelta(0.0, 1.0));
+
+        assert_eq!(app.camera_controller.distance_m(), distance_before);
+    }
+
+    #[test]
+    fn scrolling_past_the_shortest_boom_enters_sniper_aligned_to_the_gun() {
+        let mut app = ClientApp::new();
+        app.confirm_garage_selection();
+        app.run_fixed_ticks(1); // seed prediction so the gun has an authoritative pitch
+        app.desired_aim = crate::aim::DesiredAim::new(0.0, 0.3);
+
+        for _ in 0..15 {
+            app.on_mouse_wheel(MouseScrollDelta::LineDelta(0.0, 1.0));
+        }
+
+        assert_eq!(app.camera_controller.mode(), BattleCameraMode::Sniper);
+        assert!(
+            (app.desired_aim.pitch_rad() - app.predictor.gun_pitch()).abs() < 1.0e-5,
+            "the sniper view must open on the gun, not on stale desired pitch"
         );
     }
 

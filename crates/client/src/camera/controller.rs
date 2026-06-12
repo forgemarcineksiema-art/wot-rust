@@ -4,11 +4,8 @@ use renderer_api::Camera;
 
 use super::{
     BattleCameraEnvironment, BattleCameraInput, BattleCameraMode, BattleCameraSettings,
-    CameraSubject,
+    CameraSubject, zoom,
 };
-
-const MIN_SNIPER_FOV_DEGREES: f32 = 3.0;
-const MAX_SNIPER_FOV_DEGREES: f32 = 18.0;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct BattleCameraController {
@@ -82,13 +79,19 @@ impl BattleCameraController {
         self.orbit_yaw_rad = wrap_angle(self.orbit_yaw_rad + input.orbit_yaw_delta_rad);
         self.pitch_rad = (self.pitch_rad + input.pitch_delta_rad)
             .clamp(self.settings.min_pitch_rad, self.settings.max_pitch_rad);
-        if self.mode == BattleCameraMode::Sniper {
-            self.sniper_fov_degrees = (self.sniper_fov_degrees + input.zoom_delta_m)
-                .clamp(MIN_SNIPER_FOV_DEGREES, MAX_SNIPER_FOV_DEGREES);
-        } else {
-            self.distance_m = (self.distance_m + input.zoom_delta_m)
-                .clamp(self.settings.min_distance_m, self.settings.max_distance_m);
-        }
+        let zoomed = zoom::apply_zoom(
+            zoom::ZoomState {
+                mode: self.mode,
+                distance_m: self.distance_m,
+                sniper_fov_degrees: self.sniper_fov_degrees,
+            },
+            input.zoom_delta_m,
+            self.settings.min_distance_m,
+            self.settings.max_distance_m,
+        );
+        self.mode = zoomed.mode;
+        self.distance_m = zoomed.distance_m;
+        self.sniper_fov_degrees = zoomed.sniper_fov_degrees;
     }
 
     pub fn render_camera(

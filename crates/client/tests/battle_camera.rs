@@ -166,6 +166,45 @@ fn sniper_scroll_zooms_fov_without_changing_third_person_distance() {
 }
 
 #[test]
+fn wheel_sweeps_one_zoom_axis_from_long_boom_to_maximum_magnification() {
+    let mut camera = BattleCameraController::new(BattleCameraSettings::default());
+    let zoom = |delta: f32| BattleCameraInput {
+        orbit_yaw_delta_rad: 0.0,
+        pitch_delta_rad: 0.0,
+        zoom_delta_m: delta,
+    };
+
+    // Scrolling in shortens the boom, then hands over to sniper and steps the magnification.
+    for _ in 0..20 {
+        camera.apply_input(zoom(-0.8));
+    }
+    assert_eq!(camera.mode(), BattleCameraMode::Sniper);
+    assert_eq!(camera.sniper_fov_degrees(), 3.0, "kept scrolling to the narrowest step");
+
+    // Scrolling out steps back through the ladder and exits to the shortest boom.
+    for _ in 0..5 {
+        camera.apply_input(zoom(0.8));
+    }
+    assert_eq!(camera.mode(), BattleCameraMode::ThirdPerson);
+    assert_eq!(camera.distance_m(), camera.settings().min_distance_m);
+}
+
+#[test]
+fn sniper_zoom_uses_discrete_magnification_steps() {
+    let mut camera = BattleCameraController::new(BattleCameraSettings::default());
+    camera.set_mode(BattleCameraMode::Sniper);
+    assert_eq!(camera.sniper_fov_degrees(), 8.0);
+
+    camera.apply_input(BattleCameraInput {
+        orbit_yaw_delta_rad: 0.0,
+        pitch_delta_rad: 0.0,
+        zoom_delta_m: -0.8,
+    });
+
+    assert_eq!(camera.sniper_fov_degrees(), 5.0, "one click moves exactly one ladder step");
+}
+
+#[test]
 fn look_sensitivity_scales_with_sniper_fov_and_stays_unit_in_third_person() {
     let mut camera = BattleCameraController::new(BattleCameraSettings::default());
     assert_eq!(camera.look_sensitivity_scale(), 1.0);
