@@ -60,6 +60,42 @@ contact-shape approximation.
   21.6 mm strip), the LowerPlate band covers ~40% of frontal height, Tiger II's pennable turret
   inverts its hull-down incentive, and `AIM_MAX_RANGE_M` (600 m) is short for a 1000 m map.
 
+## Done — camera feel fix pass (2026-06-12)
+
+From the 2026-06-12 camera audit. Every fix landed with a locking test.
+
+- [x] **Sniper vertical axis was inverted vs third-person** (mouse back aimed *up*; a test even
+  locked the wrong sign). Sniper now matches TPP sense; desired pitch no longer drifts in TPP
+  and entering sniper aligns the view to the actual gun pitch. `client/app/input.rs` tests.
+- [x] **Mouse sensitivity now scales with sniper FOV** (`look_sensitivity_scale`) — max zoom was
+  ~20x too fast to aim with.
+- [x] **Own vehicle hidden in sniper view** — the eye sits at turret-roof height inside the
+  player mesh (`visible_render_tanks`).
+- [x] **Discrete magnification ladder + scroll-through modes** (`camera/zoom.rs`): FOV steps
+  18/12/8/5/3°, wheel sweeps one zoom axis boom↔sniper, WoT-style.
+- [x] **Aim circle projected through the real FOV** — was `mrad * 18.0` clip constant (≈10x too
+  big in TPP, ~2x too small at max zoom, never reacted to zoom).
+- [x] **Free look release returns the camera to the aim** (yaw + pitch) instead of swinging the
+  turret to wherever the player glanced; releasing Alt in sniper no longer teleports the aim.
+- [x] **Wheel zoom ignored while the garage is open / battle not started.**
+
+## Open — from the 2026-06-12 camera audit
+
+- [ ] **No hull pitch/roll in `TankSnapshot`** — vehicles stay level on slopes, so camera, sniper
+  sight and meshes ignore terrain tilt; needs sim+net+render work (biggest remaining camera-feel
+  gap on a hilly 1000 m map).
+- [ ] **TPP boom collision is 32-point sampling** of `contains_point` — thin cover can tunnel;
+  no terrain test along the boom (can see through ridge crests); no boom-length smoothing (pops).
+  Slab-test ray-vs-AABB + smoothing.
+- [ ] **Reticle ray marches are duplicated** — `desired_gun_solution`, `desired_turret_yaw` and
+  `hud_reticle` each run a 600-step sweep per frame/tick, and `reticle_feedback` +
+  `penetration_hint` run the same ballistic trace twice; cache one trace per frame.
+- [ ] **Near/far planes hardcoded** (`0.5/2000` in `render.rs` and examples) while
+  `CameraProjectionPolicy::webgpu_default()` (0.1/3000) is dead — pick one source of truth.
+- [ ] **Sniper eye is a global constant** (2.15 m up / 1.35 m forward) — anchor it to a per-vehicle
+  optics mount in `MountFrames` instead (Jagdtiger and T-55A currently share one eye).
+- [ ] **TPP max boom 18 m** — likely too short for the 1000 m Prokhorovka; retune with the map.
+
 ---
 
 ## Done — playable render slice (2026-06-03)

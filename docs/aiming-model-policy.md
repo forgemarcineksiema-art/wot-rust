@@ -63,4 +63,7 @@ debug server-reticle overlay is added later, it must be clearly optional.
 Sniper camera eye placement is anchored to the current hull/turret sight mount
 so it does not slide sideways before the turret catches up. The view direction
 still tracks `DesiredAim` immediately for responsive aiming. Mouse wheel in
-sniper mode changes sniper FOV/zoom, not third-person boom distance.
+sniper mode steps a discrete magnification ladder, not third-person boom
+distance; mouse sensitivity scales with the FOV ratio so maximum zoom stays
+controllable. The aiming circle is the angular dispersion projected through the
+actual view FOV, so it magnifies together with the world under sniper zoom.
