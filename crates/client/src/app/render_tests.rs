@@ -119,6 +119,24 @@ fn hud_speed_uses_local_prediction_speed_in_kmh() {
 }
 
 #[test]
+fn sniper_mode_hides_the_player_vehicle_but_not_other_tanks() {
+    let mut app = ClientApp::new();
+    let tank_id = app.player_tank;
+    app.accept_and_sync(snapshot_at(tank_id, 3, [5.0, 0.0, 7.0]));
+    let tanks = app.project_render_tanks(0.0);
+    assert!(tanks.iter().any(|tank| tank.id == tank_id), "baseline must include the player");
+
+    let third_person = app.visible_render_tanks(tanks.clone());
+    assert!(third_person.iter().any(|tank| tank.id == tank_id));
+
+    app.camera_controller.set_mode(crate::BattleCameraMode::Sniper);
+    let sniper = app.visible_render_tanks(tanks.clone());
+    // The sniper eye sits inside the player's own turret; the hull must not fill the lens.
+    assert!(!sniper.iter().any(|tank| tank.id == tank_id));
+    assert_eq!(sniper.len(), tanks.len() - 1, "only the player's vehicle is hidden");
+}
+
+#[test]
 fn render_tanks_are_projected_into_the_persistent_presentation_world() {
     let mut app = ClientApp::new();
     let tank_id = app.player_tank;

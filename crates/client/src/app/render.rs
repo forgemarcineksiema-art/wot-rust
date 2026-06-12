@@ -67,9 +67,10 @@ impl ClientApp {
             view_proj,
             aspect,
         );
+        let visible_tanks = self.visible_render_tanks(presentation_tanks);
         let vehicles = split_vehicle_render_frame(
             &mut self.vehicle_mesh_catalog,
-            presentation_tanks,
+            visible_tanks,
             self.player_tank,
         );
         let (vertices, indices) = self.shell_marker_mesh();
@@ -122,6 +123,19 @@ impl ClientApp {
         let render_tanks = self.render_tanks(alpha);
         self.presentation.sync_tanks(&render_tanks);
         self.presentation.presentation_tanks()
+    }
+
+    /// The sniper eye sits at turret-roof height inside the player's own mesh, so the player's
+    /// vehicle is hidden in sniper view; everything else always draws.
+    pub(super) fn visible_render_tanks(
+        &self,
+        tanks: Vec<engine::PresentationTank>,
+    ) -> Vec<engine::PresentationTank> {
+        if self.camera_controller.mode() == crate::BattleCameraMode::Sniper {
+            tanks.into_iter().filter(|tank| tank.id != self.player_tank).collect()
+        } else {
+            tanks
+        }
     }
 
     /// Render camera from the interpolated hull pose: rigid follow, no eye spring, no lag.
