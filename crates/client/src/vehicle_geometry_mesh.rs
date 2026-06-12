@@ -1,10 +1,10 @@
-use game_core::math::rotate_around;
 use glam::{Mat3, Vec3};
 use net::TankSnapshot;
 use renderer_api::SceneVertex;
 use vehicle_geometry::{GeometryMesh, SubmeshKind, bake_vehicle};
 
 use crate::color::{material_color, shade_color};
+use crate::vehicle_pose::VehiclePose;
 
 pub(crate) fn append_baked_tank_mesh(
     vertices: &mut Vec<SceneVertex>,
@@ -15,13 +15,7 @@ pub(crate) fn append_baked_tank_mesh(
     let Ok(vehicle) = bake_vehicle(snapshot.vehicle) else {
         return false;
     };
-
-    let ground = Vec3::from_array(snapshot.position);
-    let hull_rotation = Mat3::from_rotation_y(snapshot.yaw_rad);
-    let turret_rotation =
-        Mat3::from_rotation_y(snapshot.vehicle.effective_turret_yaw_rad(snapshot.turret_yaw_rad));
-    let gun_pitch = Mat3::from_rotation_x(-snapshot.gun_pitch_rad);
-    let mounts = vehicle.mounts();
+    let pose = VehiclePose::from_snapshot(snapshot);
 
     let Some(hull) = vehicle.submesh(SubmeshKind::Hull) else {
         return false;
@@ -30,37 +24,32 @@ pub(crate) fn append_baked_tank_mesh(
         vertices,
         indices,
         &hull.mesh,
-        hull_rotation,
-        |point| ground + hull_rotation * point,
+        pose.hull_basis(),
+        |point| pose.hull_point(point),
         hull_color,
     );
 
     let Some(turret) = vehicle.submesh(SubmeshKind::Turret) else {
         return false;
     };
-    let turret_ring = mounts.turret_ring.translation;
     append_mesh(
         vertices,
         indices,
         &turret.mesh,
-        hull_rotation * turret_rotation,
-        |point| ground + hull_rotation * rotate_around(point, turret_ring, turret_rotation),
+        pose.turret_basis(),
+        |point| pose.turret_point(point),
         hull_color,
     );
 
     let Some(gun) = vehicle.submesh(SubmeshKind::Gun) else {
         return false;
     };
-    let trunnion = mounts.gun_trunnion.translation;
     append_mesh(
         vertices,
         indices,
         &gun.mesh,
-        hull_rotation * turret_rotation * gun_pitch,
-        |point| {
-            let pitched = rotate_around(point, trunnion, gun_pitch);
-            ground + hull_rotation * rotate_around(pitched, turret_ring, turret_rotation)
-        },
+        pose.gun_basis(),
+        |point| pose.gun_point(point),
         hull_color,
     );
     true

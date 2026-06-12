@@ -1,8 +1,7 @@
 use std::collections::HashMap;
 
-use game_core::math::rotate_around;
 use game_core::{ModuleSlot, TankId, VehicleKind};
-use glam::{Mat3, Mat4, Vec3};
+use glam::{Mat4, Vec3};
 use net::TankSnapshot;
 use renderer_api::{
     MaterialDescriptor, MaterialHandle, MeshAsset, MeshHandle, MeshRegistry,
@@ -11,6 +10,7 @@ use renderer_api::{
 use vehicle_geometry::{GeometryMesh, MaterialRole, SubmeshKind, bake_vehicle};
 
 use crate::color::{BARREL_STEEL, RUBBER, TRACK_METAL, shade_color};
+use crate::vehicle_pose::VehiclePose;
 
 #[derive(Debug, Default)]
 pub struct VehicleMeshCatalog {
@@ -27,11 +27,6 @@ struct VehicleRenderEntry {
     turret: MeshHandle,
     gun: MeshHandle,
     material: MaterialHandle,
-    turret_ring: Vec3,
-    trunnion: Vec3,
-    turret_basis: Mat3,
-    gun_basis: Mat3,
-    fixed_casemate: bool,
 }
 
 impl VehicleMeshCatalog {
@@ -52,10 +47,10 @@ impl VehicleMeshCatalog {
             return Some(*entry);
         }
         let vehicle = bake_vehicle(kind).ok()?;
+        // Meshes are registered relative to their pivots; `VehiclePose` reads the same mount
+        // frames at draw time, so registration and posing cannot disagree on the pivot points.
         let turret_ring = vehicle.mounts().turret_ring.translation;
         let trunnion = vehicle.mounts().gun_trunnion.translation;
-        let turret_basis = vehicle.mounts().turret_ring.basis;
-        let gun_basis = vehicle.mounts().gun_trunnion.basis;
         let hull = vehicle.submesh(SubmeshKind::Hull)?;
         let turret = vehicle.submesh(SubmeshKind::Turret)?;
         let gun = vehicle.submesh(SubmeshKind::Gun)?;
@@ -64,11 +59,6 @@ impl VehicleMeshCatalog {
             turret: self.register_mesh(kind, SubmeshKind::Turret, &turret.mesh, turret_ring),
             gun: self.register_mesh(kind, SubmeshKind::Gun, &gun.mesh, trunnion),
             material: self.material(kind),
-            turret_ring,
-            trunnion,
-            turret_basis,
-            gun_basis,
-            fixed_casemate: kind.has_fixed_casemate(),
         };
         self.vehicles.insert(kind, entry);
         Some(entry)
@@ -102,20 +92,14 @@ pub fn tank_render_objects(
     hull_color: [f32; 3],
 ) -> Vec<RenderObject> {
     let entry = catalog.vehicle_entry(snapshot.vehicle).expect("vehicle must have baked geometry");
-    let ground = Vec3::from_array(snapshot.position);
-    let hull_rotation = Mat3::from_rotation_y(snapshot.yaw_rad);
-    let turret_yaw = if entry.fixed_casemate { 0.0 } else { snapshot.turret_yaw_rad };
-    let turret_rotation = Mat3::from_rotation_y(turret_yaw);
-    let gun_pitch = Mat3::from_rotation_x(-snapshot.gun_pitch_rad);
+    let pose = VehiclePose::from_snapshot(snapshot);
 
-    let hull_transform = Mat4::from_translation(ground) * Mat4::from_mat3(hull_rotation);
-    let turret_position = ground + hull_rotation * entry.turret_ring;
-    let turret_transform = Mat4::from_translation(turret_position)
-        * Mat4::from_mat3(hull_rotation * turret_rotation * entry.turret_basis);
-    let gun_position =
-        ground + hull_rotation * rotate_around(entry.trunnion, entry.turret_ring, turret_rotation);
-    let gun_transform = Mat4::from_translation(gun_position)
-        * Mat4::from_mat3(hull_rotation * turret_rotation * entry.gun_basis * gun_pitch);
+    let hull_transform =
+        Mat4::from_translation(pose.hull_translation()) * Mat4::from_mat3(pose.hull_basis());
+    let turret_transform =
+        Mat4::from_translation(pose.turret_translation()) * Mat4::from_mat3(pose.turret_basis());
+    let gun_transform =
+        Mat4::from_translation(pose.gun_translation()) * Mat4::from_mat3(pose.gun_basis());
 
     let hull_tint = damage_tint(
         hull_color,

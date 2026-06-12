@@ -1,10 +1,62 @@
-use client::{VehicleMeshCatalog, tank_render_objects};
+use client::{VehicleMeshCatalog, tank_render_objects, tank_scene_mesh};
 use game_core::{ModuleSlot, TankId, TeamId, VehicleKind};
-use glam::Mat4;
+use glam::{Mat4, Vec3};
 use net::TankSnapshot;
 use vehicle_geometry::{SmoothingGroup, SubmeshKind, bake_vehicle};
 
 const SG_RING: SmoothingGroup = SmoothingGroup(7);
+
+/// Drift lock between the two render paths: the dynamic per-vertex mesh build and the cached
+/// instanced objects must place every vertex identically for the same snapshot — including a
+/// posed turret, pitched gun, and a casemate holding its yaw. If either path grows its own
+/// transform math again, this turns red.
+#[test]
+fn dynamic_and_instanced_paths_agree_on_world_space_vertices() {
+    for (kind, turret_yaw) in [(VehicleKind::T55A, 0.4), (VehicleKind::Jagdtiger, 1.2)] {
+        let snapshot = TankSnapshot {
+            tank_id: TankId(7),
+            team: TeamId(1),
+            vehicle: kind,
+            position: [10.0, 2.0, 30.0],
+            yaw_rad: 0.7,
+            turret_yaw_rad: turret_yaw,
+            turret_yaw_velocity_rad_s: 0.0,
+            gun_pitch_rad: 0.12,
+            hit_points: 900,
+            reload_remaining_s: 0.0,
+            aim_dispersion_mrad: kind.spec().gun.dispersion_mrad,
+            module_hit_points: kind.spec().module_health.hit_points_by_slot(),
+            destroyed_modules_mask: 0,
+        };
+
+        let (dynamic_vertices, _) = tank_scene_mesh(&snapshot);
+
+        let mut catalog = VehicleMeshCatalog::default();
+        let objects = tank_render_objects(&mut catalog, &snapshot, [0.30, 0.40, 0.28]);
+        let uploads = catalog.take_pending_meshes();
+        let mut instanced_vertices = Vec::new();
+        for object in &objects {
+            let (_, mesh) = uploads
+                .iter()
+                .find(|(handle, _)| *handle == object.mesh)
+                .expect("object mesh was uploaded");
+            let transform = Mat4::from_cols_array_2d(&object.transform);
+            for vertex in mesh.vertices() {
+                instanced_vertices
+                    .push(transform.transform_point3(Vec3::from_array(vertex.position)));
+            }
+        }
+
+        assert_eq!(dynamic_vertices.len(), instanced_vertices.len(), "{kind:?} vertex counts");
+        for (dynamic, instanced) in dynamic_vertices.iter().zip(&instanced_vertices) {
+            let world = Vec3::from_array(dynamic.position);
+            assert!(
+                (world - *instanced).length() < 1.0e-4,
+                "{kind:?} vertex drifted between render paths: {world:?} vs {instanced:?}"
+            );
+        }
+    }
+}
 
 #[test]
 fn t55a_render_objects_use_static_mesh_handles_for_hull_turret_and_gun() {

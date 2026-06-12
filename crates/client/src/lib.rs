@@ -16,6 +16,7 @@ mod scene_mesh;
 mod tank_mesh;
 mod vehicle_geometry_mesh;
 mod vehicle_mesh;
+mod vehicle_pose;
 mod vehicle_render_frame;
 mod vehicle_render_objects;
 
