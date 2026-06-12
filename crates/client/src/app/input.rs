@@ -71,9 +71,10 @@ impl ClientApp {
                 self.input.brake = pressed
             }
             PhysicalKey::Code(KeyCode::AltLeft | KeyCode::AltRight) => {
-                self.input.free_look = pressed;
-                if !pressed {
-                    self.desired_aim.set_yaw(self.camera_controller.orbit_yaw_rad());
+                if pressed && !self.input.free_look {
+                    self.begin_free_look();
+                } else if !pressed && self.input.free_look {
+                    self.end_free_look();
                 }
             }
             PhysicalKey::Code(KeyCode::Space) if pressed => self.input.fire_pending = true,
@@ -126,6 +127,21 @@ impl ClientApp {
             crate::aim::DesiredAim::new(self.desired_aim.yaw_rad(), self.predictor.gun_pitch());
     }
 
+    fn begin_free_look(&mut self) {
+        self.input.free_look = true;
+        self.input.free_look_return_pitch = Some(self.camera_controller.pitch_rad());
+    }
+
+    /// Free look never moves the aim: on release the camera returns to the sight lane instead
+    /// of the turret swinging to wherever the player glanced.
+    fn end_free_look(&mut self) {
+        self.input.free_look = false;
+        self.camera_controller.set_orbit_yaw(self.desired_aim.yaw_rad());
+        if let Some(pitch) = self.input.free_look_return_pitch.take() {
+            self.camera_controller.set_pitch(pitch);
+        }
+    }
+
     pub(super) fn apply_mouse_look(&mut self) {
         if !self.garage.has_started() || self.garage.is_open() {
             self.input.clear_mouse_look();
@@ -139,7 +155,7 @@ impl ClientApp {
         let yaw_delta = -dx * MOUSE_YAW_SENSITIVITY * scale;
         let pitch_delta = dy * MOUSE_PITCH_SENSITIVITY * scale;
         if self.input.free_look {
-            // Free look orbits only the camera without re-aiming the turret.
+            // Free look orbits only the camera; `end_free_look` restores it to the aim.
             self.camera_controller.apply_input(BattleCameraInput {
                 orbit_yaw_delta_rad: yaw_delta,
                 pitch_delta_rad: pitch_delta,
@@ -258,6 +274,28 @@ mod tests {
             (narrow_turn / wide_turn - expected_ratio).abs() < 1.0e-3,
             "look speed must scale with FOV: {narrow_turn} vs {wide_turn}"
         );
+    }
+
+    #[test]
+    fn free_look_release_returns_the_camera_to_the_aim() {
+        let mut app = ClientApp::new();
+        app.confirm_garage_selection();
+        app.camera_controller.set_orbit_yaw(0.5);
+        app.desired_aim = crate::aim::DesiredAim::new(0.5, 0.0);
+        let pitch_before = app.camera_controller.pitch_rad();
+
+        app.begin_free_look();
+        app.input.mouse_dx = 200.0;
+        app.input.mouse_dy = 100.0;
+        app.apply_mouse_look();
+        assert!((app.camera_controller.orbit_yaw_rad() - 0.5).abs() > 0.1, "free look orbits");
+
+        app.end_free_look();
+
+        // The glance must not move the gun: aim is untouched, the camera snaps back to it.
+        assert_eq!(app.desired_aim.yaw_rad(), 0.5);
+        assert_eq!(app.camera_controller.orbit_yaw_rad(), 0.5);
+        assert_eq!(app.camera_controller.pitch_rad(), pitch_before);
     }
 
     #[test]

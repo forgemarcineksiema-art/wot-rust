@@ -44,6 +44,8 @@ pub(crate) struct InputState {
     mouse_dy: f32,
     fire_pending: bool,
     free_look: bool,
+    /// Camera pitch captured when free look began, restored on release.
+    free_look_return_pitch: Option<f32>,
 }
 
 pub(crate) struct ClientApp {

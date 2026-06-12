@@ -57,6 +57,10 @@ impl BattleCameraController {
         self.orbit_yaw_rad = yaw;
     }
 
+    pub fn set_pitch(&mut self, pitch_rad: f32) {
+        self.pitch_rad = pitch_rad.clamp(self.settings.min_pitch_rad, self.settings.max_pitch_rad);
+    }
+
     pub fn set_mode(&mut self, mode: BattleCameraMode) {
         self.mode = mode;
     }
