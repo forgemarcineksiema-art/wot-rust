@@ -155,6 +155,86 @@ fn render_tanks_are_projected_into_the_persistent_presentation_world() {
     assert_eq!(app.presentation.tank_count(), rendered.len());
 }
 
+#[test]
+fn new_app_scene_matches_the_renderer_terrain_so_the_first_garage_frame_swaps_in_the_hangar() {
+    // `create_renderer` uploads the battlefield mesh; `current_scene` must agree, or the lazy
+    // `ensure_scene` swap would think the hangar is already loaded and never upload it.
+    let app = ClientApp::new();
+    assert_eq!(app.current_scene, super::SceneKind::Battle);
+}
+
+#[test]
+#[ignore = "visual preview: writes target/garage_preview.png"]
+fn render_garage_preview_png() {
+    use renderer_api::{CameraProjectionPolicy, view_projection_matrix};
+    use renderer_wgpu::{GpuContext, OffscreenTarget, SceneRenderer};
+    use std::fs::File;
+    use std::io::BufWriter;
+
+    use super::garage::GarageState;
+    use crate::garage_scene::{TURNTABLE_TOP_M, hangar_scene_mesh};
+    use crate::{VehicleMeshCatalog, render_frame_from_objects, tank_render_objects};
+
+    let width = 1280u32;
+    let height = 720u32;
+    let aspect = width as f32 / height as f32;
+
+    let garage = GarageState::default();
+    let kind = garage.selected_vehicle();
+    let spec = kind.spec();
+    let snapshot = TankSnapshot {
+        tank_id: TankId(0),
+        team: game_core::TeamId(1),
+        vehicle: kind,
+        position: [0.0, TURNTABLE_TOP_M, 0.0],
+        yaw_rad: 0.6,
+        turret_yaw_rad: 0.0,
+        turret_yaw_velocity_rad_s: 0.0,
+        gun_pitch_rad: 0.0,
+        hit_points: spec.hit_points,
+        reload_remaining_s: 0.0,
+        aim_dispersion_mrad: 0.0,
+        module_hit_points: spec.module_health.hit_points_by_slot(),
+        destroyed_modules_mask: 0,
+    };
+
+    let (terrain_vertices, terrain_indices) = hangar_scene_mesh();
+    let mut catalog = VehicleMeshCatalog::default();
+    let objects = tank_render_objects(&mut catalog, &snapshot, [0.34, 0.42, 0.30]);
+    let render_frame = render_frame_from_objects(objects);
+
+    let camera = garage.orbit_camera();
+    let projection = CameraProjectionPolicy::webgpu_default();
+    let view_proj = view_projection_matrix(
+        &camera,
+        aspect,
+        projection.near_plane_m(),
+        projection.far_plane_m(),
+    );
+
+    let ctx = GpuContext::headless().expect("headless gpu");
+    let target = OffscreenTarget::new(&ctx, width, height).expect("offscreen target");
+    let mut renderer =
+        SceneRenderer::for_offscreen(&ctx, &terrain_vertices, &terrain_indices).expect("renderer");
+    let (font_w, font_h, font_coverage) = crate::hud_font_atlas();
+    renderer.set_hud_font_atlas(&ctx, font_w, font_h, font_coverage);
+    for (handle, mesh) in catalog.take_pending_meshes() {
+        renderer.register_mesh(&ctx, handle, &mesh);
+    }
+    renderer.set_render_frame(&ctx, &render_frame);
+    renderer.set_hud(&ctx, &garage.overlay_vertices(aspect));
+    renderer.render(&ctx, target.render_target(), view_proj).expect("render");
+
+    let pixels = target.read_rgba8(&ctx).expect("read pixels");
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/garage_preview.png");
+    let file = File::create(path).expect("create png");
+    let mut encoder = png::Encoder::new(BufWriter::new(file), width, height);
+    encoder.set_color(png::ColorType::Rgba);
+    encoder.set_depth(png::BitDepth::Eight);
+    encoder.write_header().expect("header").write_image_data(&pixels).expect("data");
+    println!("wrote {path} ({width}x{height})");
+}
+
 /// One-tank snapshot with every pose field zeroed; tests override what they exercise.
 fn snapshot_for_vehicle(
     tank_id: TankId,

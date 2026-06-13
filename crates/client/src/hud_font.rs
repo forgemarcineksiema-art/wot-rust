@@ -14,7 +14,7 @@ use std::sync::OnceLock;
 mod bake;
 mod layout;
 
-pub(crate) use layout::{push_text, push_text_right};
+pub(crate) use layout::{push_text, push_text_right, text_width};
 
 /// One baked glyph: its slot in the atlas (pixels) plus the metrics needed to lay it out on a line.
 #[derive(Debug, Clone, Copy)]

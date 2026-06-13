@@ -10,11 +10,13 @@ use sim::DEFAULT_SNAPSHOT_HZ;
 use tracing::error;
 use winit::window::Window;
 
-use super::ClientApp;
+use game_core::{TankId, TeamId, VehicleKind};
+
+use super::{ClientApp, SceneKind};
 use crate::hud::{HudVitals, build_hud_with_reticle};
 use crate::{
     BattleCameraEnvironment, CameraSubject, append_shell_markers, battlefield_scene_mesh,
-    render_frame_from_objects, split_vehicle_render_frame,
+    render_frame_from_objects, split_vehicle_render_frame, tank_render_objects,
 };
 
 const SNAPSHOT_INTERVAL_SECONDS: f32 = 1.0 / DEFAULT_SNAPSHOT_HZ as f32;
@@ -37,6 +39,10 @@ impl ClientApp {
     }
 
     pub(super) fn render_now(&mut self) {
+        if self.garage.is_open() {
+            self.render_garage();
+            return;
+        }
         let now = Instant::now();
         let raw_dt = now.saturating_duration_since(self.last_render_time).as_secs_f32();
         self.last_render_time = now;
@@ -99,7 +105,7 @@ impl ClientApp {
         );
         hud.extend(enemy_bars);
         hud.extend(self.hit_indicator.render_vertices(view_proj, aspect));
-        hud.extend(self.garage.overlay_vertices(aspect));
+        self.ensure_scene(SceneKind::Battle);
         let Some(renderer) = self.renderer.as_mut() else {
             return;
         };
@@ -111,6 +117,64 @@ impl ClientApp {
         renderer.set_hud(&hud);
         if let Err(error) = renderer.render(view_proj) {
             error!(%error, "frame render failed");
+        }
+    }
+
+    /// Render the static garage hangar: the selected vehicle parked on the turntable under an
+    /// orbit camera, with the garage UI overlay. Replaces the battle scene while the garage is open.
+    pub(super) fn render_garage(&mut self) {
+        self.last_render_time = Instant::now();
+        self.ensure_scene(SceneKind::Garage);
+        let aspect = self.renderer.as_ref().map_or(16.0 / 9.0, WindowRenderer::aspect_ratio);
+        let camera = self.garage.orbit_camera();
+        let projection = CameraProjectionPolicy::webgpu_default();
+        let view_proj = view_projection_matrix(
+            &camera,
+            aspect,
+            projection.near_plane_m(),
+            projection.far_plane_m(),
+        );
+
+        let snapshot = garage_preview_snapshot(self.garage.selected_vehicle());
+        let objects =
+            tank_render_objects(&mut self.vehicle_mesh_catalog, &snapshot, [0.34, 0.42, 0.30]);
+        let render_frame = render_frame_from_objects(objects);
+        let hud = self.garage.overlay_vertices(aspect);
+
+        let Some(renderer) = self.renderer.as_mut() else {
+            return;
+        };
+        for (handle, mesh) in self.vehicle_mesh_catalog.take_pending_meshes() {
+            renderer.register_mesh(handle, &mesh);
+        }
+        renderer.set_render_frame(&render_frame);
+        renderer.set_dynamic_mesh(&[], &[]);
+        renderer.set_hud(&hud);
+        if let Err(error) = renderer.render(view_proj) {
+            error!(%error, "garage frame render failed");
+        }
+    }
+
+    /// Swap the renderer's static geometry to the requested scene if it differs. Cheap because it
+    /// only fires on a garage <-> battle transition, not per frame.
+    fn ensure_scene(&mut self, want: SceneKind) {
+        if self.current_scene == want {
+            return;
+        }
+        let (vertices, indices, sky) = match want {
+            SceneKind::Garage => {
+                let (v, i) = crate::garage_scene::hangar_scene_mesh();
+                (v, i, (0.05, 0.05, 0.06))
+            }
+            SceneKind::Battle => {
+                let (v, i) = battlefield_scene_mesh(&self.battlefield);
+                (v, i, (0.55, 0.69, 0.87))
+            }
+        };
+        if let Some(renderer) = self.renderer.as_mut() {
+            renderer.set_terrain(&vertices, &indices);
+            renderer.set_sky(sky.0, sky.1, sky.2);
+            self.current_scene = want;
         }
     }
 
@@ -178,5 +242,26 @@ impl ClientApp {
         append_shell_markers(&mut vertices, &mut indices, &shells);
         self.hit_indicator.append_world_marks(&mut vertices, &mut indices);
         (vertices, indices)
+    }
+}
+
+/// A pose-only snapshot of the selected vehicle parked on the garage turntable, angled three-
+/// quarters to the camera. Only the fields the mesh kernels read are meaningful.
+fn garage_preview_snapshot(kind: VehicleKind) -> TankSnapshot {
+    let spec = kind.spec();
+    TankSnapshot {
+        tank_id: TankId(0),
+        team: TeamId(1),
+        vehicle: kind,
+        position: [0.0, crate::garage_scene::TURNTABLE_TOP_M, 0.0],
+        yaw_rad: 0.6,
+        turret_yaw_rad: 0.0,
+        turret_yaw_velocity_rad_s: 0.0,
+        gun_pitch_rad: 0.0,
+        hit_points: spec.hit_points,
+        reload_remaining_s: 0.0,
+        aim_dispersion_mrad: 0.0,
+        module_hit_points: spec.module_health.hit_points_by_slot(),
+        destroyed_modules_mask: 0,
     }
 }

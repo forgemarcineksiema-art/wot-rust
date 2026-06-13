@@ -2,6 +2,7 @@ mod aim;
 mod app;
 mod camera;
 mod color;
+mod garage_scene;
 mod health_bar;
 mod hit_indicator;
 mod hud;

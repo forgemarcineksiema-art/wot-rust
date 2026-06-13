@@ -91,13 +91,17 @@ impl ClientApp {
     }
 
     pub(super) fn on_mouse_wheel(&mut self, delta: MouseScrollDelta) {
-        if !self.garage.has_started() || self.garage.is_open() {
-            return;
-        }
         let lines = match delta {
             MouseScrollDelta::LineDelta(_, y) => y,
             MouseScrollDelta::PixelDelta(position) => position.y as f32 / 60.0,
         };
+        if self.garage.is_open() {
+            self.garage.apply_zoom(lines);
+            return;
+        }
+        if !self.garage.has_started() {
+            return;
+        }
         // High-resolution wheels and touchpads deliver one notch as many fractional events;
         // accumulate to whole notches so one gesture cannot step the sniper ladder repeatedly.
         self.input.wheel_pending_lines += lines;
@@ -150,7 +154,14 @@ impl ClientApp {
     }
 
     pub(super) fn apply_mouse_look(&mut self) {
-        if !self.garage.has_started() || self.garage.is_open() {
+        if self.garage.is_open() {
+            // In the garage, mouse motion orbits the inspection camera (only while dragging).
+            let (dx, dy) = (self.input.mouse_dx, self.input.mouse_dy);
+            self.input.clear_mouse_look();
+            self.garage.apply_drag(dx, dy);
+            return;
+        }
+        if !self.garage.has_started() {
             self.input.clear_mouse_look();
             return;
         }
@@ -185,6 +196,17 @@ impl ClientApp {
             zoom_delta_m: 0.0,
         });
         self.desired_aim.set_yaw(self.camera_controller.orbit_yaw_rad());
+    }
+
+    /// Map a window-pixel cursor position into clip space for the garage UI hit test.
+    pub(super) fn on_cursor_moved(&mut self, x: f32, y: f32) {
+        if !self.garage.is_open() {
+            return;
+        }
+        let (w, h) = self.viewport;
+        let clip_x = (x / w as f32) * 2.0 - 1.0;
+        let clip_y = 1.0 - (y / h as f32) * 2.0;
+        self.garage.set_cursor([clip_x, clip_y]);
     }
 
     pub(super) fn set_cursor_captured(&self, captured: bool) {

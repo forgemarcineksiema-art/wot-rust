@@ -103,6 +103,17 @@ impl WindowRenderer {
         self.scene.set_render_frame(&self.ctx, frame);
     }
 
+    /// Swap the static scene geometry (battlefield <-> garage hangar). See
+    /// [`SceneRenderer::set_terrain`]; only call on a scene change, not per frame.
+    pub fn set_terrain(&mut self, vertices: &[SceneVertex], indices: &[u32]) {
+        self.scene.set_terrain(&self.ctx, vertices, indices);
+    }
+
+    /// Set the clear/background color (e.g. a dim interior tone behind the garage hangar).
+    pub fn set_sky(&mut self, r: f64, g: f64, b: f64) {
+        self.scene.sky = wgpu::Color { r, g, b, a: 1.0 };
+    }
+
     pub fn set_hud(&mut self, vertices: &[renderer_api::HudVertex]) {
         self.scene.set_hud(&self.ctx, vertices);
     }

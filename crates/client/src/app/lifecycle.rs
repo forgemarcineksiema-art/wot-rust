@@ -28,6 +28,7 @@ impl ApplicationHandler for ClientApp {
             }
         };
         let size = window.inner_size();
+        self.viewport = (size.width.max(1), size.height.max(1));
         if let Err(error) = self.create_renderer(window.clone(), size.width, size.height) {
             error!(%error, "failed to create renderer");
             event_loop.exit();
@@ -35,7 +36,8 @@ impl ApplicationHandler for ClientApp {
         }
         info!("client ready: WASD drive, mouse aim + camera, Space/left-click fire, Esc cursor");
         self.window = Some(window);
-        self.set_cursor_captured(true);
+        // The garage is a mouse-driven menu: show the cursor there; the battle view captures it.
+        self.set_cursor_captured(!self.garage.is_open());
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
@@ -57,8 +59,20 @@ impl ApplicationHandler for ClientApp {
                 self.on_mouse_wheel(delta);
                 Vec::new()
             }
+            WindowEvent::CursorMoved { position, .. } => {
+                self.on_cursor_moved(position.x as f32, position.y as f32);
+                Vec::new()
+            }
             WindowEvent::MouseInput { state, button, .. } => {
-                if state == ElementState::Pressed {
+                if self.garage.is_open() {
+                    // Garage menu: left click drives selection / Battle / orbit, cursor stays free.
+                    if button == MouseButton::Left {
+                        match state {
+                            ElementState::Pressed => self.garage_primary_press(),
+                            ElementState::Released => self.garage_primary_release(),
+                        }
+                    }
+                } else if state == ElementState::Pressed {
                     self.set_cursor_captured(true);
                     if button == MouseButton::Left {
                         self.input.fire_pending = true;
@@ -67,7 +81,8 @@ impl ApplicationHandler for ClientApp {
                 Vec::new()
             }
             WindowEvent::Focused(focused) => {
-                self.set_cursor_captured(focused);
+                // Keep the cursor free in the garage menu; only the battle view captures it.
+                self.set_cursor_captured(focused && !self.garage.is_open());
                 Vec::new()
             }
             _ => Vec::new(),

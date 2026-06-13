@@ -33,6 +33,14 @@ use crate::{
     VehicleMeshCatalog, WinitLoopDriver,
 };
 
+/// Which static scene the renderer currently holds. The garage and the battlefield share one
+/// renderer; the active scene's geometry is swapped in on transition (see `render`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SceneKind {
+    Garage,
+    Battle,
+}
+
 #[derive(Default)]
 pub(crate) struct InputState {
     forward: bool,
@@ -74,6 +82,10 @@ pub(crate) struct ClientApp {
     hit_indicator: HitIndicator,
     /// Smoothed frames-per-second for the HUD readout (EMA over instantaneous frame rate).
     fps_estimate: f32,
+    /// Static scene geometry currently uploaded to the renderer (garage hangar vs battlefield).
+    current_scene: SceneKind,
+    /// Last known framebuffer size, used to map cursor pixels into clip space for the garage UI.
+    viewport: (u32, u32),
 }
 
 impl ClientApp {
@@ -110,6 +122,10 @@ impl ClientApp {
             last_render_time: Instant::now(),
             hit_indicator: HitIndicator::default(),
             fps_estimate: 0.0,
+            // The renderer is created with the battlefield mesh (see `create_renderer`); the first
+            // garage frame swaps in the hangar. Starting at `Garage` here would skip that swap.
+            current_scene: SceneKind::Battle,
+            viewport: (1280, 720),
         }
     }
 
@@ -125,6 +141,7 @@ impl ClientApp {
                 }
                 ClientLoopAction::RenderFrame => self.render_now(),
                 ClientLoopAction::Resize { width, height } => {
+                    self.viewport = (width.max(1), height.max(1));
                     if let Some(renderer) = &mut self.renderer {
                         renderer.resize(width, height);
                     }
