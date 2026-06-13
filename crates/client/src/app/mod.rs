@@ -1,9 +1,11 @@
 #[cfg(test)]
 mod camera_tests;
 mod garage;
+mod garage_render;
 #[cfg(test)]
 mod hit_mark_tests;
 mod input;
+mod input_state;
 mod lifecycle;
 mod prediction;
 mod render;

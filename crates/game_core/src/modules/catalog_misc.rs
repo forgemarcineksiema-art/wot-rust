@@ -155,11 +155,11 @@ pub(crate) fn gun_prototype() -> GunModule {
             movement_bloom_mrad: 4.6,
             shot_bloom_mrad: 3.7,
             max_dispersion_mrad: 17.0,
+            barrel_length_m: 5.6,
             shell: ShellSpec::armor_piercing(120.0, 900.0, 250.0, 390),
         },
         mass_kg: 2_600.0,
         hit_points: 160,
-        barrel_length_m: 5.6,
     }
 }
 
@@ -173,11 +173,11 @@ pub(crate) fn gun_pak80() -> GunModule {
             movement_bloom_mrad: 3.2,
             shot_bloom_mrad: 3.5,
             max_dispersion_mrad: 14.0,
+            barrel_length_m: 7.0,
             shell: ShellSpec::armor_piercing(128.0, 920.0, 223.0, 530),
         },
         mass_kg: 3_500.0,
         hit_points: 180,
-        barrel_length_m: 7.0,
     }
 }
 
@@ -191,10 +191,10 @@ pub(crate) fn gun_kwk42() -> GunModule {
             movement_bloom_mrad: 4.0,
             shot_bloom_mrad: 3.2,
             max_dispersion_mrad: 15.0,
+            barrel_length_m: 5.2,
             shell: ShellSpec::armor_piercing(75.0, 935.0, 138.0, 240),
         },
         mass_kg: 1_600.0,
         hit_points: 140,
-        barrel_length_m: 5.2,
     }
 }

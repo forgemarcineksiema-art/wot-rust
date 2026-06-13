@@ -140,7 +140,7 @@ impl LoadoutDraft {
 
     /// Exposed barrel length (m) of the installed gun — drives the garage gun silhouette.
     pub(super) fn gun_barrel_length(&self) -> f32 {
-        self.modules.gun.barrel_length_m
+        self.modules.gun.barrel_length_m()
     }
 
     pub(super) fn ammo_index(&self) -> usize {

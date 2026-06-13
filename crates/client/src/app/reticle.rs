@@ -113,23 +113,26 @@ impl ClientApp {
     /// the server's shell spawn — `muzzle_position_matches_server_shell_origin` locks the three
     /// together.
     fn muzzle_position(&self) -> Vec3 {
+        let barrel_scale = self.player_barrel_scale();
         let Some(tank) = self.local_render_tank() else {
             let mounts = MountFrames::for_vehicle(self.player_spec().kind);
-            return game_core::math::muzzle_world_position(
+            return game_core::math::muzzle_world_position_scaled(
                 &mounts,
                 self.predictor.position(),
                 self.predictor.yaw(),
                 self.predictor.turret_yaw(),
                 self.predictor.gun_pitch(),
+                barrel_scale,
             );
         };
         let mounts = MountFrames::for_vehicle(tank.vehicle);
-        game_core::math::muzzle_world_position(
+        game_core::math::muzzle_world_position_scaled(
             &mounts,
             Vec3::from_array(tank.position),
             tank.yaw_rad,
             tank.turret_yaw_rad,
             tank.gun_pitch_rad,
+            barrel_scale,
         )
     }
 

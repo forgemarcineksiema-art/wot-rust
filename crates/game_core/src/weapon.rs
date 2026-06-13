@@ -111,13 +111,22 @@ pub struct GunSpec {
     pub shot_bloom_mrad: f32,
     #[serde(default = "default_max_dispersion_mrad")]
     pub max_dispersion_mrad: f32,
+    /// Exposed barrel length (m). Drives the gun silhouette and the muzzle (shell spawn) so a
+    /// longer-barrelled gun visibly reaches further and fires from its real tip.
+    #[serde(default = "default_barrel_length_m")]
+    pub barrel_length_m: f32,
     pub shell: ShellSpec,
 }
 
+const fn default_barrel_length_m() -> f32 {
+    5.0
+}
+
 impl GunSpec {
-    /// Shells the player can load for this gun: the stock round plus a derived APCR (faster,
-    /// higher penetration, same damage) and an HE round (low penetration, higher damage, splash).
-    /// No economy — every option is freely selectable; the chosen shell is what the tank fires.
+    /// Shells the player can load for this gun — sidegrades, not strict upgrades. The stock AP is
+    /// the balanced default; APCR trades alpha for penetration and shell speed; HE trades
+    /// penetration for damage and splash. No economy — every round is freely selectable, and the
+    /// chosen shell is what the tank fires.
     pub fn ammo_options(&self) -> Vec<ShellSpec> {
         let stock = self.shell;
         let caliber = stock.caliber_mm;
@@ -125,7 +134,7 @@ impl GunSpec {
             caliber,
             stock.muzzle_velocity_mps * 1.20,
             stock.penetration_mm_at_100m * 1.25,
-            stock.damage_hp,
+            ((stock.damage_hp as f32) * 0.85) as u32,
         );
         let he = ShellSpec::high_explosive(
             caliber,
@@ -168,6 +177,11 @@ mod tests {
             options[1].penetration_mm_at_100m > options[0].penetration_mm_at_100m,
             "APCR out-penetrates the stock AP round"
         );
+        // Sidegrade, not strict upgrade: APCR gives up alpha for that penetration; HE is the
+        // opposite trade (more damage, far less penetration).
+        assert!(options[1].damage_hp < options[0].damage_hp, "APCR trades away alpha");
+        assert!(options[2].damage_hp > options[0].damage_hp, "HE trades penetration for damage");
+        assert!(options[2].penetration_mm_at_100m < options[0].penetration_mm_at_100m);
         let kinds: std::collections::HashSet<_> = options.iter().map(|s| s.shell_type).collect();
         assert!(kinds.len() >= 3, "the rounds are of distinct shell types");
     }

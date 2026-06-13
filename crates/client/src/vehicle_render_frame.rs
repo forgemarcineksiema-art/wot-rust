@@ -1,5 +1,6 @@
 use engine::PresentationTank;
 use game_core::TankId;
+use glam::{Mat4, Vec3};
 use net::TankSnapshot;
 use renderer_api::{RenderFrame, RenderObject};
 
@@ -14,13 +15,26 @@ pub fn split_vehicle_render_frame(
     catalog: &mut VehicleMeshCatalog,
     tanks: Vec<PresentationTank>,
     player_tank: TankId,
+    player_gun_scale: f32,
 ) -> VehicleRenderFrame {
     let mut objects = Vec::new();
     for tank in tanks {
-        let hull_color =
-            if tank.id == player_tank { [0.30, 0.40, 0.28] } else { [0.46, 0.29, 0.25] };
+        let is_player = tank.id == player_tank;
+        let hull_color = if is_player { [0.30, 0.40, 0.28] } else { [0.46, 0.29, 0.25] };
         let snapshot = render_snapshot(&tank);
-        objects.append(&mut tank_render_objects(catalog, &snapshot, hull_color));
+        let mut tank_objects = tank_render_objects(catalog, &snapshot, hull_color);
+        // The player's installed gun may have a longer/shorter barrel than the baked stock mesh;
+        // stretch its gun submesh (index 2: [hull, turret, gun]) along the barrel axis to match the
+        // muzzle the sim fires from. Enemies are always stock (scale 1.0).
+        if is_player
+            && (player_gun_scale - 1.0).abs() > 1.0e-3
+            && let Some(gun) = tank_objects.get_mut(2)
+        {
+            let scaled = Mat4::from_cols_array_2d(&gun.transform)
+                * Mat4::from_scale(Vec3::new(1.0, 1.0, player_gun_scale));
+            gun.transform = scaled.to_cols_array_2d();
+        }
+        objects.append(&mut tank_objects);
     }
     VehicleRenderFrame { objects }
 }

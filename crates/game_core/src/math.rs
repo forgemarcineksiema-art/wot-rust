@@ -48,11 +48,30 @@ pub fn muzzle_world_position(
     turret_yaw_rad: f32,
     gun_pitch_rad: f32,
 ) -> Vec3 {
-    let pitched = rotate_around(
-        mounts.muzzle.translation,
-        mounts.gun_trunnion.translation,
-        Mat3::from_rotation_x(-gun_pitch_rad),
-    );
+    muzzle_world_position_scaled(
+        mounts,
+        position,
+        hull_yaw_rad,
+        turret_yaw_rad,
+        gun_pitch_rad,
+        1.0,
+    )
+}
+
+/// As [`muzzle_world_position`], but with the barrel scaled by `barrel_scale` about the trunnion so
+/// a longer/shorter installed gun fires from — and is drawn to — its real tip. `barrel_scale` is
+/// the installed barrel length over the vehicle's stock barrel length (1.0 = stock).
+pub fn muzzle_world_position_scaled(
+    mounts: &MountFrames,
+    position: Vec3,
+    hull_yaw_rad: f32,
+    turret_yaw_rad: f32,
+    gun_pitch_rad: f32,
+    barrel_scale: f32,
+) -> Vec3 {
+    let trunnion = mounts.gun_trunnion.translation;
+    let muzzle = trunnion + (mounts.muzzle.translation - trunnion) * barrel_scale;
+    let pitched = rotate_around(muzzle, trunnion, Mat3::from_rotation_x(-gun_pitch_rad));
     let traversed = rotate_around(
         pitched,
         mounts.turret_ring.translation,
@@ -209,6 +228,22 @@ mod tests {
         let dir = gun_direction(0.8, 0.3);
         assert!((dir.length() - 1.0).abs() < 1.0e-6, "gun direction must already be unit length");
         assert!(dir.y > 0.0, "positive pitch elevates the muzzle");
+    }
+
+    #[test]
+    fn a_longer_barrel_scale_pushes_the_muzzle_further_from_the_trunnion() {
+        use crate::VehicleKind;
+        let mounts = MountFrames::for_vehicle(VehicleKind::T54_1951);
+        let trunnion = mounts.gun_trunnion.translation;
+        let stock = muzzle_world_position_scaled(&mounts, Vec3::ZERO, 0.0, 0.0, 0.0, 1.0);
+        let long = muzzle_world_position_scaled(&mounts, Vec3::ZERO, 0.0, 0.0, 0.0, 1.2);
+        assert!(
+            (long - trunnion).length() > (stock - trunnion).length() + 0.5,
+            "a +20% barrel must reach noticeably further"
+        );
+        // The default helper still matches scale 1.0 exactly.
+        let default = muzzle_world_position(&mounts, Vec3::ZERO, 0.0, 0.0, 0.0);
+        assert!((default - stock).length() < 1.0e-6);
     }
 
     #[test]

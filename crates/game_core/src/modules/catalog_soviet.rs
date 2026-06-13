@@ -108,11 +108,11 @@ pub(crate) fn gun_d10t() -> GunModule {
             movement_bloom_mrad: 5.0,
             shot_bloom_mrad: 4.0,
             max_dispersion_mrad: 18.0,
+            barrel_length_m: 5.0,
             shell: ShellSpec::armor_piercing(100.0, 895.0, 185.0, 320),
         },
         mass_kg: 2_300.0,
         hit_points: 150,
-        barrel_length_m: 5.0,
     }
 }
 
@@ -126,10 +126,12 @@ pub(crate) fn gun_d10t2s() -> GunModule {
             movement_bloom_mrad: 4.8,
             shot_bloom_mrad: 3.8,
             max_dispersion_mrad: 17.0,
-            shell: ShellSpec::armor_piercing(100.0, 895.0, 195.0, 320),
+            barrel_length_m: 5.9,
+            // Sidegrade vs the D-10T: faster, flatter, more penetration, but lower per-shot alpha
+            // (320 -> 300) — a DPM/accuracy gun rather than a strict upgrade.
+            shell: ShellSpec::armor_piercing(100.0, 895.0, 195.0, 300),
         },
         mass_kg: 2_300.0,
         hit_points: 150,
-        barrel_length_m: 5.9,
     }
 }

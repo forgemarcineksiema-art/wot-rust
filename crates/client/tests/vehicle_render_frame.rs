@@ -21,7 +21,7 @@ fn vehicle_render_frame_uses_baked_objects_for_every_vehicle() {
         })
         .collect();
 
-    let frame = split_vehicle_render_frame(&mut catalog, tanks, TankId(1));
+    let frame = split_vehicle_render_frame(&mut catalog, tanks, TankId(1), 1.0);
 
     assert_eq!(frame.objects.len(), VehicleKind::ALL.len() * 3);
     assert_eq!(catalog.take_pending_meshes().len(), VehicleKind::ALL.len() * 3);

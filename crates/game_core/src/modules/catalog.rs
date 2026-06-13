@@ -24,6 +24,11 @@ impl VehicleKind {
         }
     }
 
+    /// The stock gun's barrel length (m) — the reference the silhouette and muzzle scale against.
+    pub fn stock_barrel_length_m(self) -> f32 {
+        self.default_loadout().gun.barrel_length_m()
+    }
+
     /// Guns that can be mounted on this vehicle (first entry is the stock gun). Demonstrates
     /// swappable armament; mounting still goes through [`VehicleModules::try_install_gun`].
     pub fn gun_options(self) -> Vec<GunModule> {
@@ -50,42 +55,39 @@ impl VehicleKind {
         vec![self.default_loadout().hull]
     }
 
-    /// Engines (first is stock). A derived uprated engine demonstrates a working swap: more power
-    /// for a little more mass. No economy — both are freely selectable.
+    /// Engines (first is stock). The uprated engine is a sidegrade, not a free win: more power, but
+    /// heavier and more prone to catching fire when knocked out. No economy — both are selectable.
     pub fn engine_options(self) -> Vec<EngineModule> {
         let stock = self.default_loadout().engine;
         let uprated = EngineModule {
             name: format!("{} (uprated)", stock.name),
             power_kw: stock.power_kw * 1.15,
-            mass_kg: stock.mass_kg * 1.05,
+            mass_kg: stock.mass_kg * 1.10,
+            fire_chance: (stock.fire_chance + 0.08).min(1.0),
             ..stock.clone()
         };
         vec![stock, uprated]
     }
 
-    /// Running gear (first is stock). A derived reinforced set turns faster and carries more, for
-    /// a little more mass. The load limit it sets still gates heavier turret/gun installs.
+    /// Running gear (first is stock). The reinforced set is a sidegrade: it turns faster and
+    /// carries more, but is heavier (which eats into power-to-weight). The load limit it sets still
+    /// gates heavier turret/gun installs.
     pub fn suspension_options(self) -> Vec<SuspensionModule> {
         let stock = self.default_loadout().suspension;
         let reinforced = SuspensionModule {
             name: format!("{} (reinforced)", stock.name),
             turn_rate_rad_s: stock.turn_rate_rad_s * 1.12,
             max_load_kg: stock.max_load_kg * 1.06,
-            mass_kg: stock.mass_kg * 1.03,
+            mass_kg: stock.mass_kg * 1.18,
             ..stock.clone()
         };
         vec![stock, reinforced]
     }
 
-    /// Radios (first is stock). A derived improved radio extends signal range.
+    /// Radios (first is stock). There is no meaningful radio sidegrade in this prototype, so the
+    /// slot shows the stock radio and is not swappable rather than offering a free range bump.
     pub fn radio_options(self) -> Vec<RadioModule> {
-        let stock = self.default_loadout().radio;
-        let improved = RadioModule {
-            name: format!("{} (improved)", stock.name),
-            signal_range_m: stock.signal_range_m * 1.4,
-            ..stock.clone()
-        };
-        vec![stock, improved]
+        vec![self.default_loadout().radio]
     }
 }
 

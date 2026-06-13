@@ -2,34 +2,11 @@ use winit::event::{ElementState, KeyEvent, MouseScrollDelta};
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::CursorGrabMode;
 
-use super::{ClientApp, InputState};
+use super::ClientApp;
 use crate::{BattleCameraInput, BattleCameraMode};
 
 const MOUSE_YAW_SENSITIVITY: f32 = 0.0035;
 const MOUSE_PITCH_SENSITIVITY: f32 = 0.0030;
-
-impl InputState {
-    pub(super) fn clear_mouse_look(&mut self) {
-        self.mouse_dx = 0.0;
-        self.mouse_dy = 0.0;
-    }
-
-    pub(super) fn throttle(&self) -> f32 {
-        axis(self.forward, self.back)
-    }
-
-    pub(super) fn steer(&self) -> f32 {
-        axis(self.right, self.left)
-    }
-
-    pub(super) fn brake_value(&self) -> f32 {
-        if self.brake { 1.0 } else { 0.0 }
-    }
-}
-
-fn axis(positive: bool, negative: bool) -> f32 {
-    f32::from(u8::from(positive)) - f32::from(u8::from(negative))
-}
 
 impl ClientApp {
     pub(super) fn on_keyboard(&mut self, event: &KeyEvent) {
