@@ -72,7 +72,6 @@ impl ClientApp {
     pub(in crate::app) fn garage_primary_press(&mut self) {
         match self.garage.hit_test() {
             GarageHit::Vehicle(index) => self.garage.select_index(index),
-            GarageHit::Tab(tab) => self.garage.set_tab(tab),
             GarageHit::ModuleCycle(slot, dir) => self.garage.cycle_module(slot, dir),
             GarageHit::AmmoSelect(index) => self.garage.set_ammo(index),
             GarageHit::CrewProf(dir) => self.garage.adjust_proficiency(dir),

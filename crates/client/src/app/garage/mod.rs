@@ -8,33 +8,11 @@ use game_core::{TankSpec, VehicleKind};
 
 pub(crate) use self::draft::{FitSlot, LoadoutDraft};
 
-/// The fitting panel currently shown on the right.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum GarageTab {
-    Modules,
-    Ammo,
-    Crew,
-}
-
-impl GarageTab {
-    pub(super) const ALL: [GarageTab; 3] = [GarageTab::Modules, GarageTab::Ammo, GarageTab::Crew];
-
-    pub(super) fn label(self) -> &'static str {
-        match self {
-            GarageTab::Modules => "MODULES",
-            GarageTab::Ammo => "AMMO",
-            GarageTab::Crew => "CREW",
-        }
-    }
-}
-
 /// What a left-button press in the garage landed on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum GarageHit {
-    /// A vehicle row in the tech-tree list.
+    /// A vehicle cell in the bottom carousel.
     Vehicle(usize),
-    /// A fitting-panel tab.
-    Tab(GarageTab),
     /// Cycle a module slot's option by `dir` (-1 / +1).
     ModuleCycle(FitSlot, isize),
     /// Select an ammo option by index.
@@ -52,7 +30,6 @@ pub(super) struct GarageState {
     open: bool,
     started: bool,
     selected_index: usize,
-    active_tab: GarageTab,
     draft: LoadoutDraft,
     orbit_yaw: f32,
     orbit_pitch: f32,
@@ -67,7 +44,6 @@ impl Default for GarageState {
             open: true,
             started: false,
             selected_index: 0,
-            active_tab: GarageTab::Modules,
             draft: LoadoutDraft::for_vehicle(VehicleKind::ALL[0]),
             orbit_yaw: 2.4,
             orbit_pitch: 0.22,
@@ -122,10 +98,6 @@ impl GarageState {
         self.select_index(index);
     }
 
-    pub(super) fn set_tab(&mut self, tab: GarageTab) {
-        self.active_tab = tab;
-    }
-
     pub(super) fn cycle_module(&mut self, slot: FitSlot, dir: isize) {
         self.draft.cycle_module(slot, dir);
     }
@@ -150,10 +122,6 @@ impl GarageState {
 
     pub(super) fn selected_index(&self) -> usize {
         self.selected_index
-    }
-
-    pub(super) fn active_tab(&self) -> GarageTab {
-        self.active_tab
     }
 
     pub(super) fn draft(&self) -> &LoadoutDraft {

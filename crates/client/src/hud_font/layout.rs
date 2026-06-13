@@ -3,6 +3,7 @@
 use renderer_api::HudVertex;
 
 use super::atlas;
+use crate::hud_icons::HudIcon;
 
 /// Clip-space advance width of `text` drawn at em-height `height`. `aspect` squishes x so glyphs
 /// stay square on wide viewports — matching `push_text`.
@@ -67,6 +68,30 @@ pub(crate) fn push_text_right(
 ) {
     let left_x = right_x - text_width(text, height, aspect);
     push_text(vertices, text, left_x, top_y, height, aspect, color);
+}
+
+/// Draw `icon` as a `size`-tall square (x compressed by `aspect` to stay square), top-left at
+/// (`left_x`, `top_y`), tinted `color`. Samples the icon's mask baked into the shared atlas.
+pub(crate) fn push_icon(
+    vertices: &mut Vec<HudVertex>,
+    icon: HudIcon,
+    left_x: f32,
+    top_y: f32,
+    size: f32,
+    aspect: f32,
+    color: [f32; 4],
+) {
+    let font = atlas();
+    let Some(g) = font.icons.get(&icon) else {
+        return;
+    };
+    let (atlas_w, atlas_h) = (font.width as f32, font.height as f32);
+    let width = size / aspect.max(0.01);
+    let u0 = g.atlas_x as f32 / atlas_w;
+    let u1 = (g.atlas_x + g.width_px) as f32 / atlas_w;
+    let v0 = g.atlas_y as f32 / atlas_h;
+    let v1 = (g.atlas_y + g.height_px) as f32 / atlas_h;
+    push_glyph_quad(vertices, left_x, left_x + width, top_y, top_y - size, u0, v0, u1, v1, color);
 }
 
 #[allow(clippy::too_many_arguments)]

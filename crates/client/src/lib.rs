@@ -7,6 +7,7 @@ mod health_bar;
 mod hit_indicator;
 mod hud;
 mod hud_font;
+mod hud_icons;
 mod hud_number;
 mod loop_policy;
 mod predict;

@@ -11,10 +11,12 @@
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
+use crate::hud_icons::HudIcon;
+
 mod bake;
 mod layout;
 
-pub(crate) use layout::{push_text, push_text_right, text_width};
+pub(crate) use layout::{push_icon, push_text, push_text_right, text_width};
 
 /// One baked glyph: its slot in the atlas (pixels) plus the metrics needed to lay it out on a line.
 #[derive(Debug, Clone, Copy)]
@@ -35,6 +37,8 @@ pub(crate) struct FontAtlas {
     height: u32,
     coverage: Vec<u8>,
     glyphs: HashMap<char, Glyph>,
+    /// Icon masks baked into the same atlas; values reuse [`Glyph`] for the atlas rect only.
+    icons: HashMap<HudIcon, Glyph>,
     raster_px: f32,
     ascent_px: f32,
 }

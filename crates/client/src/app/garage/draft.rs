@@ -27,17 +27,6 @@ impl FitSlot {
         FitSlot::Radio,
     ];
 
-    pub(super) fn label(self) -> &'static str {
-        match self {
-            FitSlot::Turret => "Turret",
-            FitSlot::Gun => "Gun",
-            FitSlot::Hull => "Hull",
-            FitSlot::Engine => "Engine",
-            FitSlot::Suspension => "Susp.",
-            FitSlot::Radio => "Radio",
-        }
-    }
-
     fn index(self) -> usize {
         Self::ALL.iter().position(|slot| *slot == self).expect("slot is in ALL")
     }
@@ -80,17 +69,6 @@ impl LoadoutDraft {
 
     pub(super) fn has_choice(&self, slot: FitSlot) -> bool {
         self.options_len(slot) > 1
-    }
-
-    pub(super) fn module_name(&self, slot: FitSlot) -> String {
-        match slot {
-            FitSlot::Turret => self.modules.turret.name.clone(),
-            FitSlot::Gun => self.modules.gun.spec.name.clone(),
-            FitSlot::Hull => self.modules.hull.name.clone(),
-            FitSlot::Engine => self.modules.engine.name.clone(),
-            FitSlot::Suspension => self.modules.suspension.name.clone(),
-            FitSlot::Radio => self.modules.radio.name.clone(),
-        }
     }
 
     /// Advance the chosen option for `slot`. Incompatible installs (caliber / load limit) are

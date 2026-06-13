@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use ab_glyph::{Font, FontRef, PxScale, ScaleFont};
 
 use super::{FontAtlas, Glyph};
+use crate::hud_icons::{HudIcon, ICON_PX, raster as raster_icon};
 
 /// Embedded font (SIL OFL 1.1, see `assets/fonts/OFL.txt`). Rajdhani's squarish, technical letters
 /// read well at small sizes and suit a gunnery HUD without clashing with the flat-shaded scene.
@@ -39,36 +40,24 @@ pub(super) fn bake() -> FontAtlas {
     let rasters: Vec<Raster> =
         (0x20u8..=0x7E).map(|code| raster_glyph(&font, scale, code)).collect();
 
-    // Shelf-pack the bitmaps left-to-right, wrapping to a new row when the shelf fills.
-    let mut cursor_x = GLYPH_PADDING;
-    let mut cursor_y = GLYPH_PADDING;
-    let mut shelf_height = 0u32;
-    let mut placements = Vec::with_capacity(rasters.len());
-    for raster in &rasters {
-        if raster.width == 0 || raster.height == 0 {
-            placements.push((0u32, 0u32));
-            continue;
-        }
-        if cursor_x + raster.width + GLYPH_PADDING > ATLAS_WIDTH {
-            cursor_x = GLYPH_PADDING;
-            cursor_y += shelf_height + GLYPH_PADDING;
-            shelf_height = 0;
-        }
-        placements.push((cursor_x, cursor_y));
-        shelf_height = shelf_height.max(raster.height);
-        cursor_x += raster.width + GLYPH_PADDING;
-    }
-    let atlas_height = cursor_y + shelf_height + GLYPH_PADDING;
+    // Icons share the atlas (one coverage image, one texture upload) — baked like glyphs.
+    let icon_masks: Vec<(HudIcon, Vec<u8>)> =
+        HudIcon::ALL.into_iter().map(|icon| (icon, raster_icon(icon))).collect();
+
+    // Shelf-pack glyphs, then icons, left-to-right, wrapping to a new row when the shelf fills.
+    let mut cx = GLYPH_PADDING;
+    let mut cy = GLYPH_PADDING;
+    let mut shelf = 0u32;
+    let glyph_at: Vec<(u32, u32)> =
+        rasters.iter().map(|r| place(r.width, r.height, &mut cx, &mut cy, &mut shelf)).collect();
+    let icon_at: Vec<(u32, u32)> =
+        icon_masks.iter().map(|_| place(ICON_PX, ICON_PX, &mut cx, &mut cy, &mut shelf)).collect();
+    let atlas_height = cy + shelf + GLYPH_PADDING;
 
     let mut coverage = vec![0u8; (ATLAS_WIDTH * atlas_height) as usize];
     let mut glyphs = HashMap::with_capacity(rasters.len());
-    for (raster, &(x, y)) in rasters.iter().zip(&placements) {
-        for row in 0..raster.height {
-            let src = (row * raster.width) as usize;
-            let dst = ((y + row) * ATLAS_WIDTH + x) as usize;
-            coverage[dst..dst + raster.width as usize]
-                .copy_from_slice(&raster.coverage[src..src + raster.width as usize]);
-        }
+    for (raster, &(x, y)) in rasters.iter().zip(&glyph_at) {
+        blit(&mut coverage, x, y, &raster.coverage, raster.width, raster.height);
         glyphs.insert(
             raster.ch,
             Glyph {
@@ -82,14 +71,56 @@ pub(super) fn bake() -> FontAtlas {
             },
         );
     }
+    let mut icons = HashMap::with_capacity(icon_masks.len());
+    for ((icon, mask), &(x, y)) in icon_masks.iter().zip(&icon_at) {
+        blit(&mut coverage, x, y, mask, ICON_PX, ICON_PX);
+        icons.insert(
+            *icon,
+            Glyph {
+                advance_px: 0.0,
+                atlas_x: x,
+                atlas_y: y,
+                width_px: ICON_PX,
+                height_px: ICON_PX,
+                bearing_x_px: 0.0,
+                bearing_y_px: 0.0,
+            },
+        );
+    }
 
     FontAtlas {
         width: ATLAS_WIDTH,
         height: atlas_height,
         coverage,
         glyphs,
+        icons,
         raster_px: RASTER_PX,
         ascent_px: scaled.ascent(),
+    }
+}
+
+/// Reserve a `w`x`h` slot on the current shelf, wrapping to a new row when it would overflow.
+fn place(w: u32, h: u32, cx: &mut u32, cy: &mut u32, shelf: &mut u32) -> (u32, u32) {
+    if w == 0 || h == 0 {
+        return (0, 0);
+    }
+    if *cx + w + GLYPH_PADDING > ATLAS_WIDTH {
+        *cx = GLYPH_PADDING;
+        *cy += *shelf + GLYPH_PADDING;
+        *shelf = 0;
+    }
+    let placement = (*cx, *cy);
+    *shelf = (*shelf).max(h);
+    *cx += w + GLYPH_PADDING;
+    placement
+}
+
+/// Copy a `w`x`h` coverage block into the atlas at `(x, y)`.
+fn blit(dst: &mut [u8], x: u32, y: u32, src: &[u8], w: u32, h: u32) {
+    for row in 0..h {
+        let s = (row * w) as usize;
+        let d = ((y + row) * ATLAS_WIDTH + x) as usize;
+        dst[d..d + w as usize].copy_from_slice(&src[s..s + w as usize]);
     }
 }
 
