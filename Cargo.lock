@@ -3664,6 +3664,7 @@ name = "vehicle_forge"
 version = "0.1.0"
 dependencies = [
  "game_core",
+ "glam 0.30.10",
  "serde",
  "thiserror 2.0.18",
  "vehicle_geometry",

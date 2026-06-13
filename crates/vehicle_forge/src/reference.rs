@@ -19,11 +19,7 @@ pub struct ReferenceSource {
 }
 
 impl ReferenceSource {
-    pub fn new(
-        label: impl Into<String>,
-        url: impl Into<String>,
-        note: impl Into<String>,
-    ) -> Self {
+    pub fn new(label: impl Into<String>, url: impl Into<String>, note: impl Into<String>) -> Self {
         Self { label: label.into(), url: url.into(), note: note.into() }
     }
 
@@ -150,23 +146,23 @@ impl ReferencePack {
         let turret = submesh_bounds(vehicle, SubmeshKind::Turret)?;
         let gun = submesh_bounds(vehicle, SubmeshKind::Gun)?;
 
-        Some(RatioReport::new(vehicle.kind(), self.clone(), vec![
-            measure(
-                self,
-                RatioKind::HullLengthToWidth,
-                extent_z(hull) / extent_x(hull),
-            )?,
-            measure(
-                self,
-                RatioKind::TurretWidthToHullWidth,
-                extent_x(turret) / extent_x(hull),
-            )?,
-            measure(
-                self,
-                RatioKind::GunProtrusionToHullLength,
-                (gun.max.z - hull.max.z).max(0.0) / extent_z(hull),
-            )?,
-        ]))
+        Some(RatioReport::new(
+            vehicle.kind(),
+            self.clone(),
+            vec![
+                measure(self, RatioKind::HullLengthToWidth, extent_z(hull) / extent_x(hull))?,
+                measure(
+                    self,
+                    RatioKind::TurretWidthToHullWidth,
+                    extent_x(turret) / extent_x(hull),
+                )?,
+                measure(
+                    self,
+                    RatioKind::GunProtrusionToHullLength,
+                    (gun.max.z - hull.max.z).max(0.0) / extent_z(hull),
+                )?,
+            ],
+        ))
     }
 }
 
