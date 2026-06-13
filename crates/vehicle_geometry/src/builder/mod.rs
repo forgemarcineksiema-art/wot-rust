@@ -6,6 +6,7 @@ use crate::{
 
 mod extrude;
 mod loft;
+mod plate;
 mod section;
 mod transform;
 

@@ -263,6 +263,51 @@ fn loft_rejects_concave_sections() {
     );
 }
 
+/// A plate is a box chamfered on every edge: full extent on each axis, a beveled perimeter, and no
+/// sharp box corners left — a cut-steel armour plate rather than a raw cuboid.
+#[test]
+fn plate_box_bevels_every_edge_into_a_cut_plate() {
+    let half = Vec3::new(1.0, 0.1, 1.5);
+    let mesh = MeshBuilder::new()
+        .plate_box(Vec3::ZERO, half, 0.05, MaterialRole::RolledArmor, SmoothingGroup::hard_edges())
+        .build();
+
+    assert!(mesh.vertices().iter().all(|v| v.position.is_finite()));
+    assert!(mesh.vertices().iter().all(|v| v.normal.is_normalized()));
+    assert!(all_faces_point_outward(&mesh), "a chamfered plate is convex and outward-wound");
+
+    // 6 face quads + 12 edge chamfers + 8 corner triangles.
+    assert_eq!(mesh.triangle_count(), 6 * 2 + 12 * 2 + 8);
+
+    let bounds = mesh.bounds().expect("plate bounds");
+    assert!((bounds.min - (-half)).length() < 1.0e-4, "plate reaches -half on every axis");
+    assert!((bounds.max - half).length() < 1.0e-4, "plate reaches +half on every axis");
+
+    let sharp_corner = mesh.vertices().iter().any(|v| {
+        (v.position.x.abs() - half.x).abs() < 1.0e-4
+            && (v.position.y.abs() - half.y).abs() < 1.0e-4
+            && (v.position.z.abs() - half.z).abs() < 1.0e-4
+    });
+    assert!(!sharp_corner, "the bevel must replace every sharp box corner");
+}
+
+/// An over-large bevel is clamped, not panicked: the plate still closes into a valid convex solid.
+#[test]
+fn plate_box_clamps_an_oversized_bevel() {
+    let mesh = MeshBuilder::new()
+        .plate_box(
+            Vec3::ZERO,
+            Vec3::splat(0.5),
+            5.0,
+            MaterialRole::RolledArmor,
+            SmoothingGroup::hard_edges(),
+        )
+        .build();
+
+    assert!(mesh.vertices().iter().all(|v| v.position.is_finite() && v.normal.is_normalized()));
+    assert!(all_faces_point_outward(&mesh));
+}
+
 /// `weld_and_smooth` must fuse coincident vertices that share a *smooth* group and replace their
 /// normals with the face average, while leaving hard-edge seams as distinct per-face normals so
 /// welded plates keep their crisp edges.
