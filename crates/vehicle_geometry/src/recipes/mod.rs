@@ -6,9 +6,9 @@
 //! turret-ring frame and the gun about the trunnion frame, so authoring everything in one space
 //! keeps the mount maths trivial and the fit tests honest.
 //!
-//! Shared shapes live in [`chassis`] (hulls, tracks, wheels) and [`armament`] (guns, mantlets,
-//! cupolas, cast domes); the family modules ([`soviet`], [`german`], [`panther`], [`casemate`])
-//! tune those into distinct vehicles.
+//! Shared shapes live in [`chassis`] (hulls, tracks, wheels), [`armament`] (guns), and
+//! [`turret_fittings`] (cupolas, mantlet sockets, cast domes); the family modules ([`soviet`],
+//! [`german`], [`panther`], [`casemate`]) tune those into distinct vehicles.
 //!
 //! Recipes receive [`MountFrames`] and [`HitboxProfile`] from [`game_core`] as authoritative
 //! inputs — hull dimensions are derived as explicit fractions of the hitbox, and mount points
@@ -27,12 +27,14 @@ mod chassis_blueprint;
 mod german;
 mod panther;
 mod soviet;
+mod turret_fittings;
 
-pub(crate) use armament::{
-    GunPlan, add_cupola, add_mantlet_socket, add_turret_ring, build_gun, cast_dome_turret,
-};
+pub(crate) use armament::{GunPlan, build_gun};
 pub(crate) use chassis::{HullPlan, RunningGear, add_running_gear, hull_body, shade_hull};
 pub(crate) use chassis_blueprint::{blueprint_hull, blueprint_running_gear};
+pub(crate) use turret_fittings::{
+    add_broad_mantlet_socket, add_cupola, add_mantlet_socket, add_turret_ring, cast_dome_turret,
+};
 
 /// Bake the procedural geometry for `kind`.
 ///

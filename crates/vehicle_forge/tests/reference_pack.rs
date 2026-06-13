@@ -54,3 +54,13 @@ fn t54_baked_geometry_produces_a_ratio_report_against_reference_targets() {
     assert!(lines.contains("HullLengthToWidth"));
     assert!(lines.contains("GunProtrusionToHullLength"));
 }
+
+#[test]
+fn t55a_baked_geometry_passes_the_family_reference_ratios() {
+    let pack = ReferencePack::for_vehicle(VehicleKind::T55A).expect("T-55A pack");
+    let vehicle = bake_vehicle(VehicleKind::T55A).expect("T-55A should bake");
+    let report = pack.measure_baked_vehicle(&vehicle).expect("ratio report");
+
+    assert_eq!(report.vehicle(), VehicleKind::T55A);
+    assert!(report.all_pass(), "T-55A is now blueprint-backed and must read in family proportion");
+}
