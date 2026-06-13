@@ -18,6 +18,7 @@ mod scene_mesh;
 mod tank_mesh;
 mod vehicle_geometry_mesh;
 mod vehicle_mesh;
+mod vehicle_pbr_mesh;
 mod vehicle_pose;
 mod vehicle_render_frame;
 mod vehicle_render_objects;
@@ -36,6 +37,7 @@ pub use render_state::InterpolatedBattleState;
 pub use scene_mesh::{battlefield_scene_mesh, terrain_scene_mesh};
 pub use tank_mesh::append_shell_markers;
 pub use vehicle_mesh::{append_tank_mesh, tank_scene_mesh};
+pub use vehicle_pbr_mesh::{material_role_id, vehicle_submesh_vertices};
 pub use vehicle_render_frame::{
     VehicleRenderFrame, render_frame_from_objects, split_vehicle_render_frame,
 };
