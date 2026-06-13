@@ -15,6 +15,8 @@ fn forge_artifact_manifest_names_the_baked_vehicle_profile_and_sources() {
     assert!(manifest.submeshes().iter().any(|submesh| submesh.kind() == "Hull"));
     assert!(manifest.submeshes().iter().any(|submesh| submesh.kind() == "Turret"));
     assert!(manifest.submeshes().iter().any(|submesh| submesh.kind() == "Gun"));
+    let texture_maps: Vec<&str> = manifest.texture_maps().iter().map(|map| map.file()).collect();
+    assert_eq!(texture_maps, vec!["albedo.png", "normal.png", "ao_roughness.png", "cavity.png"]);
 }
 
 #[test]
@@ -48,6 +50,10 @@ fn forge_artifact_writes_manifest_mesh_payload_report_and_review_folder() {
 
     assert!(out.join("manifest.json").is_file());
     assert!(out.join("meshes.bin").is_file());
+    assert_png(&out.join("albedo.png"));
+    assert_png(&out.join("normal.png"));
+    assert_png(&out.join("ao_roughness.png"));
+    assert_png(&out.join("cavity.png"));
     assert!(out.join("report.md").is_file());
     assert!(out.join("review").is_dir());
     assert!(
@@ -59,4 +65,10 @@ fn forge_artifact_writes_manifest_mesh_payload_report_and_review_folder() {
     assert!(report.contains("HullLengthToWidth"));
 
     std::fs::remove_dir_all(out).expect("remove test artifact");
+}
+
+fn assert_png(path: &std::path::Path) {
+    let bytes = std::fs::read(path).unwrap_or_else(|err| panic!("read {}: {err}", path.display()));
+    assert!(bytes.len() > 32, "{} must not be an empty placeholder", path.display());
+    assert_eq!(&bytes[..8], b"\x89PNG\r\n\x1a\n", "{} must be a PNG file", path.display());
 }

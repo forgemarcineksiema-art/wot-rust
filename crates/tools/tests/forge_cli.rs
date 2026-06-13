@@ -16,6 +16,10 @@ fn forge_vehicle_cli_writes_artifact_folder() {
     assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
     assert!(out.join("manifest.json").is_file());
     assert!(out.join("meshes.bin").is_file());
+    assert!(out.join("albedo.png").is_file());
+    assert!(out.join("normal.png").is_file());
+    assert!(out.join("ao_roughness.png").is_file());
+    assert!(out.join("cavity.png").is_file());
     assert!(out.join("report.md").is_file());
 
     let manifest = std::fs::read_to_string(out.join("manifest.json")).expect("manifest json");
@@ -62,7 +66,9 @@ fn forge_lineup_cli_writes_benchmark_artifacts_and_index() {
     assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
     assert!(out.join("index.md").is_file());
     assert!(out.join("t54-1951").join("manifest.json").is_file());
+    assert!(out.join("t54-1951").join("albedo.png").is_file());
     assert!(out.join("t55a").join("manifest.json").is_file());
+    assert!(out.join("t55a").join("ao_roughness.png").is_file());
 
     let index = std::fs::read_to_string(out.join("index.md")).expect("lineup index");
     assert!(index.contains("Armored Vehicle Forge lineup"));

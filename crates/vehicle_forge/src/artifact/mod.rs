@@ -9,8 +9,12 @@ use crate::{RatioReport, ReferencePack};
 
 mod mesh_payload;
 mod review;
+mod slug;
+mod texture_maps;
 
 pub use review::{ReviewCamera, ReviewCameraSet, ReviewCameraSpec};
+pub use slug::forge_vehicle_slug;
+pub use texture_maps::ForgeTextureManifest;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -68,6 +72,7 @@ pub struct ForgeArtifactManifest {
     source_hash: u64,
     mesh_bytes: usize,
     submeshes: Vec<ForgeSubmeshManifest>,
+    texture_maps: Vec<ForgeTextureManifest>,
     review_cameras: ReviewCameraSet,
 }
 
@@ -98,6 +103,10 @@ impl ForgeArtifactManifest {
 
     pub fn submeshes(&self) -> &[ForgeSubmeshManifest] {
         &self.submeshes
+    }
+
+    pub fn texture_maps(&self) -> &[ForgeTextureManifest] {
+        &self.texture_maps
     }
 
     pub fn review_cameras(&self) -> &ReviewCameraSet {
@@ -135,6 +144,7 @@ impl ForgeSubmeshManifest {
 pub struct ForgeArtifact {
     manifest: ForgeArtifactManifest,
     mesh_payload: Vec<u8>,
+    texture_maps: Vec<texture_maps::BakedTextureMap>,
     report: RatioReport,
 }
 
@@ -147,6 +157,7 @@ impl ForgeArtifact {
             .measure_baked_vehicle(&baked)
             .ok_or(ArtifactError::RatioReportRejected(vehicle))?;
         let mesh_payload = mesh_payload::encode(&baked)?;
+        let texture_maps = texture_maps::bake_default_set()?;
         let manifest = ForgeArtifactManifest {
             vehicle,
             vehicle_slug: forge_vehicle_slug(vehicle).to_string(),
@@ -164,9 +175,10 @@ impl ForgeArtifact {
                     triangles: submesh.mesh.triangle_count(),
                 })
                 .collect(),
+            texture_maps: texture_maps.iter().map(|map| map.manifest().clone()).collect(),
             review_cameras: ReviewCameraSet::standard_vehicle_review(),
         };
-        Ok(Self { manifest, mesh_payload, report })
+        Ok(Self { manifest, mesh_payload, texture_maps, report })
     }
 
     pub fn manifest(&self) -> &ForgeArtifactManifest {
@@ -175,6 +187,13 @@ impl ForgeArtifact {
 
     pub fn mesh_payload(&self) -> &[u8] {
         &self.mesh_payload
+    }
+
+    pub fn texture_payload(&self, file: &str) -> Option<&[u8]> {
+        self.texture_maps
+            .iter()
+            .find(|map| map.manifest().file() == file)
+            .map(texture_maps::BakedTextureMap::bytes)
     }
 
     pub fn report(&self) -> &RatioReport {
@@ -190,19 +209,10 @@ impl ForgeArtifact {
         fs::create_dir_all(out.join("review"))?;
         fs::write(out.join("manifest.json"), serde_json::to_string_pretty(&self.manifest)?)?;
         fs::write(out.join("meshes.bin"), &self.mesh_payload)?;
+        for map in &self.texture_maps {
+            fs::write(out.join(map.manifest().file()), map.bytes())?;
+        }
         fs::write(out.join("report.md"), self.report_markdown())?;
         Ok(())
-    }
-}
-
-pub fn forge_vehicle_slug(kind: VehicleKind) -> &'static str {
-    match kind {
-        VehicleKind::PrototypeMedium => "prototype-medium",
-        VehicleKind::T54_1951 => "t54-1951",
-        VehicleKind::T55A => "t55a",
-        VehicleKind::TigerI => "tiger-i-ausf-e",
-        VehicleKind::TigerII => "tiger-ii-ausf-b",
-        VehicleKind::Jagdtiger => "jagdtiger",
-        VehicleKind::PantherII => "panther-ii",
     }
 }
