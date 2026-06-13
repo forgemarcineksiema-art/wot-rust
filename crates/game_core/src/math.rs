@@ -48,14 +48,7 @@ pub fn muzzle_world_position(
     turret_yaw_rad: f32,
     gun_pitch_rad: f32,
 ) -> Vec3 {
-    muzzle_world_position_scaled(
-        mounts,
-        position,
-        hull_yaw_rad,
-        turret_yaw_rad,
-        gun_pitch_rad,
-        1.0,
-    )
+    muzzle_world_position_scaled(mounts, position, hull_yaw_rad, turret_yaw_rad, gun_pitch_rad, 1.0)
 }
 
 /// As [`muzzle_world_position`], but with the barrel scaled by `barrel_scale` about the trunnion so

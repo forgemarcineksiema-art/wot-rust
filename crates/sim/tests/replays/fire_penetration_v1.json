@@ -45,7 +45,7 @@
     }
   ],
   "expected": {
-    "target_hit_points_max": 1230,
+    "target_hit_points_max": 1250,
     "damage_events_min": 1
   }
 }

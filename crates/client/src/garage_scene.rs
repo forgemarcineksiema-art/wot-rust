@@ -90,8 +90,21 @@ pub fn hangar_scene_mesh() -> (Vec<SceneVertex>, Vec<u32>) {
 }
 
 /// An axis-aligned solid box (every face winds CCW outward for back-face culling).
-fn slab(vertices: &mut Vec<SceneVertex>, indices: &mut Vec<u32>, center: [f32; 3], half: [f32; 3], color: [f32; 3]) {
-    push_oriented_box(vertices, indices, Vec3::from_array(center), Vec3::from_array(half), Mat3::IDENTITY, color);
+fn slab(
+    vertices: &mut Vec<SceneVertex>,
+    indices: &mut Vec<u32>,
+    center: [f32; 3],
+    half: [f32; 3],
+    color: [f32; 3],
+) {
+    push_oriented_box(
+        vertices,
+        indices,
+        Vec3::from_array(center),
+        Vec3::from_array(half),
+        Mat3::IDENTITY,
+        color,
+    );
 }
 
 /// A low cylinder resting on the floor: a top cap (normal +Y) plus an outward-facing side ring.

@@ -17,7 +17,23 @@ pub(in crate::app::garage) fn draw(v: &mut Vec<HudVertex>, state: &GarageState, 
         let selected = i == state.selected_index();
         push_quad(v, c, CAR_HALF, if selected { SLOT_SELECTED } else { SLOT });
         let text_color = if selected { TEXT } else { TEXT_DIM };
-        push_text(v, short_name(kind), c[0] - CAR_HALF[0] + 0.01, c[1] + 0.045, 0.03, aspect, text_color);
-        push_text(v, &format!("{}", i + 1), c[0] - CAR_HALF[0] + 0.01, c[1] - 0.005, 0.026, aspect, TEXT_DIM);
+        push_text(
+            v,
+            short_name(kind),
+            c[0] - CAR_HALF[0] + 0.01,
+            c[1] + 0.045,
+            0.03,
+            aspect,
+            text_color,
+        );
+        push_text(
+            v,
+            &format!("{}", i + 1),
+            c[0] - CAR_HALF[0] + 0.01,
+            c[1] - 0.005,
+            0.026,
+            aspect,
+            TEXT_DIM,
+        );
     }
 }

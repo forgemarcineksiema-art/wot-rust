@@ -138,7 +138,7 @@ fn turret_sits_on_top_of_hull_not_embedded() {
     let turret = vehicle.submesh(SubmeshKind::Turret).expect("turret submesh");
     let hull = vehicle.submesh(SubmeshKind::Hull).expect("hull submesh");
 
-    let hull_bounds = hull.mesh.bounds().expect("hull bounds");
+    let turret_bounds = turret.mesh.bounds().expect("turret bounds");
     let turret_body_min_y = turret
         .mesh
         .vertices()
@@ -147,11 +147,27 @@ fn turret_sits_on_top_of_hull_not_embedded() {
         .map(|vertex| vertex.position.y)
         .fold(f32::INFINITY, f32::min);
 
+    // The hull surface *beneath the turret* (its xz footprint) — not the whole hull. Raised
+    // structures elsewhere, like the engine-deck panels behind the turret, legitimately rise above
+    // the deck; what must not happen is the turret sinking into the hull it sits on.
+    let hull_top_under_turret = hull
+        .mesh
+        .vertices()
+        .iter()
+        .filter(|vertex| {
+            vertex.position.x >= turret_bounds.min.x
+                && vertex.position.x <= turret_bounds.max.x
+                && vertex.position.z >= turret_bounds.min.z
+                && vertex.position.z <= turret_bounds.max.z
+        })
+        .map(|vertex| vertex.position.y)
+        .fold(f32::NEG_INFINITY, f32::max);
+
     assert!(
-        turret_body_min_y >= hull_bounds.max.y - 0.02,
-        "turret body bottom y={:.2} should be at or above hull top y={:.2} (ring collar may overlap)",
+        turret_body_min_y >= hull_top_under_turret - 0.02,
+        "turret body bottom y={:.2} should sit at or above the hull under it y={:.2} (ring collar may overlap)",
         turret_body_min_y,
-        hull_bounds.max.y
+        hull_top_under_turret
     );
 }
 

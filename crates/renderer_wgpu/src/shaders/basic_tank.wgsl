@@ -1,5 +1,8 @@
 struct CameraUniform {
     view_proj: mat4x4<f32>,
+    tint_r: f32,
+    tint_g: f32,
+    tint_b: f32,
 };
 
 @group(1) @binding(0)

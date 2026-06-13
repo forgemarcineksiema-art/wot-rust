@@ -11,9 +11,7 @@ use renderer_wgpu::WindowRenderer;
 use tracing::error;
 
 use super::{ClientApp, SceneKind};
-use crate::{
-    battlefield_scene_mesh, render_frame_from_objects, tank_render_objects,
-};
+use crate::{battlefield_scene_mesh, render_frame_from_objects, tank_render_objects};
 
 impl ClientApp {
     /// Render the static garage hangar: the selected vehicle parked on the turntable under an

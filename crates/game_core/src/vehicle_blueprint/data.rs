@@ -13,7 +13,7 @@ use crate::VehicleKind;
 pub(super) fn blueprint(kind: VehicleKind) -> Option<VehicleBlueprint> {
     match kind {
         VehicleKind::T54_1951 => Some(t54()),
-        VehicleKind::T55A => Some(t55a()),
+        VehicleKind::T55A => Some(t55a_blueprint()),
         _ => None,
     }
 }
@@ -100,7 +100,7 @@ fn t54() -> VehicleBlueprint {
 /// trunnion/muzzle mounts are unchanged; only the turret-ring *visual* pivot shifts 2 cm in Z (the
 /// blueprint unifies the ring with the turret-plan centre). Migrating it changes the visible mesh —
 /// most visibly correcting the running gear from six wheels to the historical five — not gameplay.
-fn t55a() -> VehicleBlueprint {
+fn t55a_blueprint() -> VehicleBlueprint {
     VehicleBlueprint {
         kind: VehicleKind::T55A,
         hull: HullShape {
