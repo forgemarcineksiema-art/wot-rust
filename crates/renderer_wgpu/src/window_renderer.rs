@@ -114,6 +114,11 @@ impl WindowRenderer {
         self.scene.sky = wgpu::Color { r, g, b, a: 1.0 };
     }
 
+    /// Set the per-scene RGB colour multiplier (1,1,1 = unchanged). Warms the garage scene.
+    pub fn set_scene_tint(&mut self, tint: [f32; 3]) {
+        self.scene.scene_tint = tint;
+    }
+
     pub fn set_hud(&mut self, vertices: &[renderer_api::HudVertex]) {
         self.scene.set_hud(&self.ctx, vertices);
     }

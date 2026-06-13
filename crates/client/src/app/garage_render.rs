@@ -70,19 +70,21 @@ impl ClientApp {
         if self.current_scene == want {
             return;
         }
-        let (vertices, indices, sky) = match want {
+        let (vertices, indices, sky, tint) = match want {
             SceneKind::Garage => {
                 let (v, i) = crate::garage_scene::hangar_scene_mesh();
-                (v, i, (0.05, 0.05, 0.06))
+                // Dim warm interior + a warm amber cast over the whole scene.
+                (v, i, (0.07, 0.05, 0.04), [1.18, 1.0, 0.78])
             }
             SceneKind::Battle => {
                 let (v, i) = battlefield_scene_mesh(&self.battlefield);
-                (v, i, (0.55, 0.69, 0.87))
+                (v, i, (0.55, 0.69, 0.87), [1.0, 1.0, 1.0])
             }
         };
         if let Some(renderer) = self.renderer.as_mut() {
             renderer.set_terrain(&vertices, &indices);
             renderer.set_sky(sky.0, sky.1, sky.2);
+            renderer.set_scene_tint(tint);
             self.current_scene = want;
         }
     }

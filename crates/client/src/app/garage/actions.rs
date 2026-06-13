@@ -28,7 +28,7 @@ impl GarageState {
                 self.orbit_distance * self.orbit_pitch.sin(),
                 horizontal * self.orbit_yaw.cos(),
             );
-        Camera { eye: eye.to_array(), target: pivot.to_array(), vertical_fov_degrees: 42.0 }
+        Camera { eye: eye.to_array(), target: pivot.to_array(), vertical_fov_degrees: 40.0 }
     }
 
     pub(super) fn begin_drag(&mut self) {

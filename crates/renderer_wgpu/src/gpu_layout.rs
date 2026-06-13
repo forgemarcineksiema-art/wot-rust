@@ -46,6 +46,12 @@ encase::impl_matrix!(4, 4, GpuMat4, f32; using AsRef AsMut From);
 #[derive(Debug, Clone, Copy, PartialEq, ShaderType, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct CameraUniform {
     pub view_proj: GpuMat4,
+    /// Per-scene RGB colour multiplier applied to the lit result (1,1,1 = unchanged). Carried as
+    /// three scalars rather than `[f32; 3]` because encase encodes a `[f32; 3]` as a std140 array,
+    /// not a `vec3`. Lets the garage warm the whole scene without touching the battle look.
+    pub tint_r: f32,
+    pub tint_g: f32,
+    pub tint_b: f32,
 }
 
 impl CameraUniform {
@@ -57,6 +63,9 @@ impl CameraUniform {
                 [0.0, 0.0, 1.0, 0.0],
                 [0.0, 0.0, 0.0, 1.0],
             ]),
+            tint_r: 1.0,
+            tint_g: 1.0,
+            tint_b: 1.0,
         }
     }
 

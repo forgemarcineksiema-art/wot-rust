@@ -46,8 +46,8 @@ impl Default for GarageState {
             selected_index: 0,
             draft: LoadoutDraft::for_vehicle(VehicleKind::ALL[0]),
             orbit_yaw: 2.4,
-            orbit_pitch: 0.22,
-            orbit_distance: 13.0,
+            orbit_pitch: 0.12,
+            orbit_distance: 12.0,
             cursor_clip: [2.0, 2.0],
             dragging: false,
         }

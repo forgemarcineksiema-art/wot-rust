@@ -1,5 +1,8 @@
 struct Camera {
     view_proj: mat4x4<f32>,
+    tint_r: f32,
+    tint_g: f32,
+    tint_b: f32,
 };
 
 @group(0) @binding(0)
@@ -44,5 +47,6 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     // Soft sky fill from above keeps shadowed faces readable rather than black.
     let sky_fill = 0.25 * (0.5 + 0.5 * n.y);
     let shade = 0.30 + diffuse * 0.78 + sky_fill;
-    return vec4<f32>(input.color * shade, 1.0);
+    let tint = vec3<f32>(camera.tint_r, camera.tint_g, camera.tint_b);
+    return vec4<f32>(input.color * shade * tint, 1.0);
 }

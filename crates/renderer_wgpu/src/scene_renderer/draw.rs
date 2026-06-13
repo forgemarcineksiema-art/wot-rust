@@ -16,7 +16,12 @@ impl super::SceneRenderer {
                 self.sample_count, target.sample_count
             )));
         }
-        let camera = CameraUniform { view_proj: GpuMat4(view_proj) };
+        let camera = CameraUniform {
+            view_proj: GpuMat4(view_proj),
+            tint_r: self.scene_tint[0],
+            tint_g: self.scene_tint[1],
+            tint_b: self.scene_tint[2],
+        };
         ctx.queue.write_buffer(&self.camera_buffer, 0, &encode_camera_uniform(&camera)?);
 
         let mut encoder =

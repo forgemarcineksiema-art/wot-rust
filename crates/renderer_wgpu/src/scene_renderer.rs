@@ -40,6 +40,8 @@ pub struct SceneRenderer {
     hud_font_bind_group: wgpu::BindGroup,
     sample_count: u32,
     pub sky: wgpu::Color,
+    /// Per-scene RGB colour multiplier on the lit result (1,1,1 = unchanged). Warm in the garage.
+    pub scene_tint: [f32; 3],
     pub skipped_mesh_draws: Cell<u32>,
 }
 
@@ -159,6 +161,7 @@ impl SceneRenderer {
             hud_font_bind_group,
             sample_count,
             sky: wgpu::Color { r: 0.55, g: 0.69, b: 0.87, a: 1.0 },
+            scene_tint: [1.0, 1.0, 1.0],
             skipped_mesh_draws: Cell::new(0),
         })
     }

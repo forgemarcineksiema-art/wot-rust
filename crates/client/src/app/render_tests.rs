@@ -226,6 +226,7 @@ fn render_garage_preview_png() {
     let target = OffscreenTarget::new(&ctx, width, height).expect("offscreen target");
     let mut renderer =
         SceneRenderer::for_offscreen(&ctx, &terrain_vertices, &terrain_indices).expect("renderer");
+    renderer.scene_tint = [1.18, 1.0, 0.78];
     let (font_w, font_h, font_coverage) = crate::hud_font_atlas();
     renderer.set_hud_font_atlas(&ctx, font_w, font_h, font_coverage);
     for (handle, mesh) in catalog.take_pending_meshes() {
