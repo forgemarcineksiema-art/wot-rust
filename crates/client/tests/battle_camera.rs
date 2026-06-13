@@ -50,6 +50,50 @@ fn third_person_camera_shortens_boom_against_static_cover_obstacles() {
 }
 
 #[test]
+fn boom_collision_catches_obstacles_thinner_than_a_sampling_step() {
+    let heightmap = HeightMap::flat(32, 32, 1.0, 0.0).expect("heightmap");
+    let mut environment = BattleCameraEnvironment::with_terrain(&heightmap);
+    // A 4 cm plate: the old 32-point sampling strode ~0.38 m and could step clean over it.
+    environment.add_obstacle(CameraObstacle::aabb("fence", [11.0, 4.0, 8.0], [3.0, 3.0, 0.02]));
+    let subject = CameraSubject::from_snapshot(tank_snapshot([10.0, 0.0, 10.0], 0.0, 0.0), 0.0);
+    let mut camera = BattleCameraController::new(BattleCameraSettings::default());
+    camera.set_mode(BattleCameraMode::ThirdPerson);
+
+    let frame = camera.render_camera(&subject, &environment);
+
+    assert!(frame.eye[2] > 8.0, "boom must stop on the tank side of the plate: {}", frame.eye[2]);
+}
+
+#[test]
+fn boom_shortens_in_front_of_a_terrain_ridge_instead_of_seeing_through_it() {
+    // Flat map with a 10 m ridge across z = 13..15; the tank sits at z = 24 looking +Z, so the
+    // fully zoomed-out boom would put the eye behind the ridge with the sight line through it.
+    let mut samples = vec![0.0; 64 * 64];
+    for z in 13..=15 {
+        for x in 0..64 {
+            samples[z * 64 + x] = 10.0;
+        }
+    }
+    let heightmap = HeightMap::new(64, 64, 1.0, samples).expect("heightmap");
+    let subject = CameraSubject::from_snapshot(tank_snapshot([32.0, 0.0, 24.0], 0.0, 0.0), 0.0);
+    let mut camera = BattleCameraController::new(BattleCameraSettings::default());
+    camera.set_mode(BattleCameraMode::ThirdPerson);
+    camera.apply_input(BattleCameraInput {
+        orbit_yaw_delta_rad: 0.0,
+        pitch_delta_rad: 0.0,
+        zoom_delta_m: 100.0, // longest boom
+    });
+
+    let frame = camera.render_camera(&subject, &BattleCameraEnvironment::with_terrain(&heightmap));
+
+    assert!(
+        frame.eye[2] > 15.0,
+        "boom must stop on the tank side of the ridge, eye z = {}",
+        frame.eye[2]
+    );
+}
+
+#[test]
 fn third_person_camera_follows_the_hull_rigidly_without_lag() {
     // The eye spring was removed: the camera tracks an already-smooth subject 1:1.
     let environment = BattleCameraEnvironment::empty();
@@ -83,6 +127,53 @@ fn third_person_camera_uses_turret_yaw_for_over_shoulder_lane() {
     assert!(
         render_camera.eye[2].abs() > 0.5,
         "over-shoulder offset should rotate with the turret lane"
+    );
+}
+
+#[test]
+fn third_person_view_direction_is_invariant_under_zoom() {
+    // The over-shoulder offset shifts the whole sight lane; if it sat on the eye only, changing
+    // the boom length rotated the view and dragged the aim point sideways with every scroll.
+    let environment = BattleCameraEnvironment::empty();
+    let subject = CameraSubject::from_snapshot(tank_snapshot([0.0, 0.0, 0.0], 0.3, 0.0), 0.0);
+    let mut camera = BattleCameraController::new(BattleCameraSettings::default());
+    camera.set_mode(BattleCameraMode::ThirdPerson);
+
+    let direction = |camera: &BattleCameraController| {
+        let frame = camera.render_camera(&subject, &environment);
+        let eye = glam::Vec3::from_array(frame.eye);
+        (glam::Vec3::from_array(frame.target) - eye).normalize()
+    };
+    let near = direction(&camera);
+    camera.apply_input(BattleCameraInput {
+        orbit_yaw_delta_rad: 0.0,
+        pitch_delta_rad: 0.0,
+        zoom_delta_m: 6.0,
+    });
+    let far = direction(&camera);
+
+    assert!((near - far).length() < 1.0e-5, "zoom must not rotate the view: {near} vs {far}");
+}
+
+#[test]
+fn sniper_eye_does_not_translate_while_the_turret_traverses() {
+    // The eye sits on the turret-ring axis, so turret catch-up after a mouse flick rotates the
+    // view without sliding the world sideways.
+    let mut camera = BattleCameraController::new(BattleCameraSettings::default());
+    camera.set_mode(BattleCameraMode::Sniper);
+    let environment = BattleCameraEnvironment::empty();
+
+    let still = CameraSubject::from_snapshot(tank_snapshot([5.0, 0.0, 5.0], 0.4, 0.0), 0.0)
+        .with_desired_aim(1.2, 0.0);
+    let slewing = CameraSubject::from_snapshot(tank_snapshot([5.0, 0.0, 5.0], 0.4, 0.9), 0.0)
+        .with_desired_aim(1.2, 0.0);
+
+    let eye_a = camera.render_camera(&still, &environment).eye;
+    let eye_b = camera.render_camera(&slewing, &environment).eye;
+
+    assert!(
+        (glam::Vec3::from_array(eye_a) - glam::Vec3::from_array(eye_b)).length() < 1.0e-5,
+        "traverse must not move the sniper eye: {eye_a:?} vs {eye_b:?}"
     );
 }
 

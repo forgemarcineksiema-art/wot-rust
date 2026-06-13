@@ -18,8 +18,6 @@ pub struct BattleCameraSettings {
     pub third_person_lateral_offset_m: f32,
     pub third_person_pitch_rad: f32,
     pub third_person_fov_degrees: f32,
-    pub sniper_eye_height_m: f32,
-    pub sniper_forward_offset_m: f32,
     pub sniper_fov_degrees: f32,
     pub terrain_clearance_m: f32,
     pub obstacle_clearance_m: f32,
@@ -38,8 +36,6 @@ impl Default for BattleCameraSettings {
             third_person_lateral_offset_m: 1.35,
             third_person_pitch_rad: 0.42,
             third_person_fov_degrees: 62.0,
-            sniper_eye_height_m: 2.15,
-            sniper_forward_offset_m: 1.35,
             sniper_fov_degrees: 8.0,
             terrain_clearance_m: 0.45,
             obstacle_clearance_m: 0.35,
@@ -67,6 +63,8 @@ impl Default for BattleCameraInput {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CameraSubject {
     pub position: [f32; 3],
+    /// Vehicle kind: the sniper camera reads the per-vehicle sight mount from it.
+    pub vehicle: game_core::VehicleKind,
     pub hull_yaw_rad: f32,
     pub turret_yaw_rad: f32,
     pub gun_pitch_rad: f32,
@@ -80,6 +78,7 @@ impl CameraSubject {
         let desired_yaw_rad = snapshot.yaw_rad + snapshot.turret_yaw_rad;
         Self {
             position: snapshot.position,
+            vehicle: snapshot.vehicle,
             hull_yaw_rad: snapshot.yaw_rad,
             turret_yaw_rad: snapshot.turret_yaw_rad,
             gun_pitch_rad,
@@ -117,11 +116,34 @@ impl CameraObstacle {
         Self { label: label.into(), center, half_extents }
     }
 
-    pub(crate) fn contains_point(&self, point: Vec3) -> bool {
+    /// Fraction `t` in `[0, 1]` where the segment `from -> to` first enters this box, or `None`
+    /// on a miss. An exact slab test: boom-length point sampling stepped clean over obstacles
+    /// thinner than one sample stride.
+    pub(crate) fn segment_entry(&self, from: Vec3, to: Vec3) -> Option<f32> {
         let center = Vec3::from_array(self.center);
         let half = Vec3::from_array(self.half_extents);
-        let delta = (point - center).abs();
-        delta.x <= half.x && delta.y <= half.y && delta.z <= half.z
+        let direction = to - from;
+        let mut t_enter = 0.0_f32;
+        let mut t_exit = 1.0_f32;
+        for axis in 0..3 {
+            let origin = from[axis] - center[axis];
+            let speed = direction[axis];
+            if speed.abs() <= f32::EPSILON {
+                if origin.abs() > half[axis] {
+                    return None;
+                }
+                continue;
+            }
+            let t_low = (-half[axis] - origin) / speed;
+            let t_high = (half[axis] - origin) / speed;
+            let (near, far) = if t_low <= t_high { (t_low, t_high) } else { (t_high, t_low) };
+            t_enter = t_enter.max(near);
+            t_exit = t_exit.min(far);
+            if t_enter > t_exit {
+                return None;
+            }
+        }
+        Some(t_enter)
     }
 }
 

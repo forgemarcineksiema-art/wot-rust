@@ -1,10 +1,11 @@
+use game_core::MountFrames;
 use game_core::math::{gun_direction, horizontal_forward, wrap_angle};
-use glam::Vec3;
+use glam::{Mat3, Vec3};
 use renderer_api::Camera;
 
 use super::{
     BattleCameraEnvironment, BattleCameraInput, BattleCameraMode, BattleCameraSettings,
-    CameraSubject, zoom,
+    CameraSubject, collision, zoom,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -16,6 +17,9 @@ pub struct BattleCameraController {
     distance_m: f32,
     sniper_fov_degrees: f32,
 }
+
+/// Sniper sight height above the gun trunnion — roughly where the gunner's optics sit.
+const SNIPER_SIGHT_ABOVE_TRUNNION_M: f32 = 0.35;
 
 impl BattleCameraController {
     pub fn new(settings: BattleCameraSettings) -> Self {
@@ -118,16 +122,28 @@ impl BattleCameraController {
         let yaw = subject.view_yaw_rad;
         let forward = horizontal_forward(yaw);
         let right = horizontal_right(forward);
+        // The over-shoulder offset shifts the *whole* sight lane (target and eye alike): with the
+        // offset on the eye only, the eye->target direction rotated as the boom length changed,
+        // so every zoom click swung the scene sideways and dragged the aim point with it.
         let target = tank
             + Vec3::Y * self.settings.third_person_target_height_m
-            + forward * self.settings.third_person_target_forward_offset_m;
+            + forward * self.settings.third_person_target_forward_offset_m
+            + right * self.settings.third_person_lateral_offset_m;
         let horizontal_distance = self.distance_m * self.pitch_rad.cos().max(0.1);
         let vertical_offset = self.distance_m * self.pitch_rad.sin();
-        let desired_eye = target - forward * horizontal_distance
-            + right * self.settings.third_person_lateral_offset_m
-            + Vec3::Y * vertical_offset;
-        let collided_eye = self.resolve_boom_collision(target, desired_eye, environment);
-        let eye = self.apply_terrain_clearance(collided_eye, environment);
+        let desired_eye = target - forward * horizontal_distance + Vec3::Y * vertical_offset;
+        let collided_eye = collision::resolve_boom_collision(
+            target,
+            desired_eye,
+            environment,
+            self.settings.obstacle_clearance_m,
+            self.settings.terrain_clearance_m,
+        );
+        let eye = collision::apply_terrain_clearance(
+            collided_eye,
+            environment,
+            self.settings.terrain_clearance_m,
+        );
 
         Camera {
             eye: eye.to_array(),
@@ -141,12 +157,18 @@ impl BattleCameraController {
         subject: &CameraSubject,
         environment: &BattleCameraEnvironment<'_>,
     ) -> Camera {
-        let eye_yaw = subject.hull_yaw_rad + subject.turret_yaw_rad;
-        let forward = horizontal_forward(eye_yaw);
-        let eye = subject.position_vec()
-            + Vec3::Y * self.settings.sniper_eye_height_m
-            + forward * self.settings.sniper_forward_offset_m;
-        let eye = self.apply_terrain_clearance(eye, environment);
+        // The eye sits *on* the per-vehicle turret-ring axis at sight height: a point on the
+        // traverse axis does not translate as the turret slews, so the world cannot slide
+        // sideways while the turret catches up to the aim (a forward-offset eye rode a lateral
+        // arc on every mouse move). Height comes from the vehicle's trunnion, not a global.
+        let mounts = MountFrames::for_vehicle(subject.vehicle);
+        let ring = mounts.turret_ring.translation;
+        let ring_axis =
+            Mat3::from_rotation_y(subject.hull_yaw_rad) * Vec3::new(ring.x, 0.0, ring.z);
+        let sight_height = mounts.gun_trunnion.translation.y + SNIPER_SIGHT_ABOVE_TRUNNION_M;
+        let eye = subject.position_vec() + ring_axis + Vec3::Y * sight_height;
+        let eye =
+            collision::apply_terrain_clearance(eye, environment, self.settings.terrain_clearance_m);
         let aim = gun_direction(subject.desired_yaw_rad, subject.desired_pitch_rad);
         let target = eye + aim * 1_000.0;
 
@@ -155,44 +177,6 @@ impl BattleCameraController {
             target: target.to_array(),
             vertical_fov_degrees: self.sniper_fov_degrees,
         }
-    }
-
-    fn resolve_boom_collision(
-        &self,
-        target: Vec3,
-        desired_eye: Vec3,
-        environment: &BattleCameraEnvironment<'_>,
-    ) -> Vec3 {
-        let segment = desired_eye - target;
-        let length = segment.length();
-        if length <= f32::EPSILON {
-            return desired_eye;
-        }
-
-        let direction = segment / length;
-        let mut previous = target;
-        for step in 1..=32 {
-            let t = step as f32 / 32.0;
-            let point = target + segment * t;
-            if environment.obstacles.iter().any(|obstacle| obstacle.contains_point(point)) {
-                return previous - direction * self.settings.obstacle_clearance_m;
-            }
-            previous = point;
-        }
-        desired_eye
-    }
-
-    fn apply_terrain_clearance(
-        &self,
-        mut eye: Vec3,
-        environment: &BattleCameraEnvironment<'_>,
-    ) -> Vec3 {
-        if let Some(terrain) = environment.terrain
-            && let Some(height) = terrain.sample_height(eye.x, eye.z)
-        {
-            eye.y = eye.y.max(height + self.settings.terrain_clearance_m);
-        }
-        eye
     }
 }
 

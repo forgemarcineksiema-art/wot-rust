@@ -1,3 +1,4 @@
+mod collision;
 mod controller;
 mod types;
 mod zoom;
