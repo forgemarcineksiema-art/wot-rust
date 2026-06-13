@@ -58,9 +58,14 @@ impl LocalAuthoritativeServer {
     }
 
     pub fn change_player_vehicle(&mut self, requested_vehicle: VehicleKind) -> Snapshot {
-        if let Some(new_player_tank) =
-            self.sim.replace_tank_with_spec(self.player_tank, requested_vehicle.spec())
-        {
+        self.change_player_vehicle_with_spec(requested_vehicle.spec())
+    }
+
+    /// Respawn the player's tank from a fully assembled [`TankSpec`] — the garage builds a custom
+    /// loadout (modules + ammo + crew) into a spec and installs it here, so a non-stock build
+    /// actually drives and fights with its chosen stats.
+    pub fn change_player_vehicle_with_spec(&mut self, spec: TankSpec) -> Snapshot {
+        if let Some(new_player_tank) = self.sim.replace_tank_with_spec(self.player_tank, spec) {
             self.player_tank = new_player_tank;
         }
         self.pending_damage_events.clear();

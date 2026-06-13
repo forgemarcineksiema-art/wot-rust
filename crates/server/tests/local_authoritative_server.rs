@@ -36,6 +36,24 @@ fn local_server_runtime_vehicle_change_reassigns_player_tank_id() {
 }
 
 #[test]
+fn local_server_installs_a_custom_assembled_spec_not_the_stock_one() {
+    // The garage builds a non-stock spec (e.g. a slower-reloading crew) and installs it here; the
+    // respawned tank must fight with the custom stats, not the vehicle's default loadout.
+    let mut server = LocalAuthoritativeServer::new(ServerTickConfig::new(60, 20));
+    let mut spec = game_core::VehicleKind::TigerII.spec();
+    spec.hit_points += 250;
+    spec.gun.reload_seconds += 3.0;
+
+    let snapshot = server.change_player_vehicle_with_spec(spec.clone());
+    let player =
+        snapshot.tanks.iter().find(|t| t.tank_id == server.player_tank()).expect("player tank");
+
+    assert_eq!(player.vehicle, game_core::VehicleKind::TigerII);
+    assert_eq!(player.hit_points, spec.hit_points);
+    assert_ne!(player.hit_points, game_core::VehicleKind::TigerII.spec().hit_points);
+}
+
+#[test]
 fn local_server_accepts_client_commands_and_emits_authoritative_snapshots() {
     let mut server = LocalAuthoritativeServer::new(ServerTickConfig::new(60, 20));
     let player_tank = server.player_tank();

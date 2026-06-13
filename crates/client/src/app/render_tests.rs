@@ -179,7 +179,9 @@ fn render_garage_preview_png() {
     let height = 720u32;
     let aspect = width as f32 / height as f32;
 
-    let garage = GarageState::default();
+    let mut garage = GarageState::default();
+    // The T-54 has a swappable gun, so the Modules panel shows live cycle arrows.
+    garage.select_vehicle(game_core::VehicleKind::T54_1951);
     let kind = garage.selected_vehicle();
     let spec = kind.spec();
     let snapshot = TankSnapshot {
@@ -222,17 +224,29 @@ fn render_garage_preview_png() {
         renderer.register_mesh(&ctx, handle, &mesh);
     }
     renderer.set_render_frame(&ctx, &render_frame);
-    renderer.set_hud(&ctx, &garage.overlay_vertices(aspect));
-    renderer.render(&ctx, target.render_target(), view_proj).expect("render");
 
-    let pixels = target.read_rgba8(&ctx).expect("read pixels");
-    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/garage_preview.png");
-    let file = File::create(path).expect("create png");
-    let mut encoder = png::Encoder::new(BufWriter::new(file), width, height);
-    encoder.set_color(png::ColorType::Rgba);
-    encoder.set_depth(png::BitDepth::Eight);
-    encoder.write_header().expect("header").write_image_data(&pixels).expect("data");
-    println!("wrote {path} ({width}x{height})");
+    // One PNG per fitting tab so all three panels can be eyeballed.
+    for (tab, suffix) in [
+        (super::garage::GarageTab::Modules, "modules"),
+        (super::garage::GarageTab::Ammo, "ammo"),
+        (super::garage::GarageTab::Crew, "crew"),
+    ] {
+        garage.set_tab(tab);
+        renderer.set_hud(&ctx, &garage.overlay_vertices(aspect));
+        renderer.render(&ctx, target.render_target(), view_proj).expect("render");
+
+        let pixels = target.read_rgba8(&ctx).expect("read pixels");
+        let path = format!(
+            "{}/../../target/garage_preview_{suffix}.png",
+            env!("CARGO_MANIFEST_DIR")
+        );
+        let file = File::create(&path).expect("create png");
+        let mut encoder = png::Encoder::new(BufWriter::new(file), width, height);
+        encoder.set_color(png::ColorType::Rgba);
+        encoder.set_depth(png::BitDepth::Eight);
+        encoder.write_header().expect("header").write_image_data(&pixels).expect("data");
+        println!("wrote {path} ({width}x{height})");
+    }
 }
 
 /// One-tank snapshot with every pose field zeroed; tests override what they exercise.
