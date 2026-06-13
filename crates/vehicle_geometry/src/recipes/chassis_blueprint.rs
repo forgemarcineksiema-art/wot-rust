@@ -2,8 +2,6 @@
 //! fenders) and a wrapped track belt (a stadium that hugs the wheel line) with road wheels, a drive
 //! sprocket, an idler, and return rollers — the realistic running gear, replacing the legacy box.
 
-use std::f32::consts::{FRAC_PI_2, PI};
-
 use game_core::{HullShape, TrackShape};
 use glam::{Vec2, Vec3};
 
@@ -23,52 +21,37 @@ pub(crate) fn blueprint_hull(hull: &HullShape, material: MaterialRole) -> MeshBu
         Vec2::new(hull.half_len - glacis_run, hull.deck_y),
         Vec2::new(-hull.half_len + rear_run, hull.deck_y),
     ];
-    let mut builder = MeshBuilder::new().extrude(
+    MeshBuilder::new().extrude(
         Vec3::ZERO,
         ExtrudeSpec { section, axis: Axis::X, half_depth: hull.half_width, material, smoothing: SG_HARD },
-    );
-
-    // Flat fenders overhanging each track, just below the deck.
-    if hull.sponson_overhang > 0.0 {
-        let fender_x = hull.half_width + hull.sponson_overhang * 0.5;
-        let fender_half =
-            Vec3::new(hull.sponson_overhang * 0.5 + 0.02, 0.04, hull.half_len * 0.96);
-        builder = builder.chamfered_prism(
-            Vec3::new(fender_x, hull.deck_y - 0.06, 0.0),
-            fender_half,
-            0.02,
-            material,
-            SG_HARD,
-        );
-        builder = builder.chamfered_prism(
-            Vec3::new(-fender_x, hull.deck_y - 0.06, 0.0),
-            fender_half,
-            0.02,
-            material,
-            SG_HARD,
-        );
-    }
-    builder
+    )
 }
 
 /// The wrapped running gear for one blueprint, mirrored to both sides.
 pub(crate) fn blueprint_running_gear(track: &TrackShape) -> GeometryMesh {
     let cy = (track.top_y + track.bottom_y) * 0.5;
-    let radius = (track.top_y - track.bottom_y) * 0.5;
     let cz = (track.wheel_first_z + track.wheel_last_z) * 0.5;
     let half_run = (track.wheel_last_z - track.wheel_first_z) * 0.5;
 
-    // The track belt as a stadium (rounded rectangle) hugging the wheel line, extruded across width.
-    let mut builder = MeshBuilder::new().extrude(
-        Vec3::new(track.center_x, 0.0, 0.0),
-        ExtrudeSpec {
-            section: stadium_section(cz, cy, half_run, radius, 6),
-            axis: Axis::X,
-            half_depth: track.belt_half_thickness,
-            material: MaterialRole::TrackMetal,
-            smoothing: SG_HARD,
-        },
-    );
+    // The track as a thin top run and bottom run (not a solid block), so the road wheels show
+    // between them; the drive sprocket and idler round the ends.
+    let run_len = half_run + track.end_radius * 0.5;
+    let run_half = Vec3::new(track.belt_half_thickness, 0.07, run_len);
+    let mut builder = MeshBuilder::new()
+        .chamfered_prism(
+            Vec3::new(track.center_x, track.top_y, cz),
+            run_half,
+            0.05,
+            MaterialRole::TrackMetal,
+            SG_HARD,
+        )
+        .chamfered_prism(
+            Vec3::new(track.center_x, track.bottom_y, cz),
+            run_half,
+            0.05,
+            MaterialRole::TrackMetal,
+            SG_HARD,
+        );
 
     // Road wheels, arrayed along the run.
     let mut wheels = MeshBuilder::new().capped_revolve_at(
@@ -152,17 +135,3 @@ fn wheel_profile(radius: f32, inner_x: f32, outer_x: f32) -> RevolveSpec {
     }
 }
 
-/// A stadium (rounded-rectangle) outline in the (z, y) plane: two semicircles of `radius` at the
-/// run ends joined by straight top and bottom edges. Convex, so the extruder accepts it directly.
-fn stadium_section(cz: f32, cy: f32, half_run: f32, radius: f32, arc: usize) -> Vec<Vec2> {
-    let mut section = Vec::with_capacity(2 * (arc + 1));
-    for i in 0..=arc {
-        let t = -FRAC_PI_2 + PI * (i as f32 / arc as f32);
-        section.push(Vec2::new(cz + half_run + radius * t.cos(), cy + radius * t.sin()));
-    }
-    for i in 0..=arc {
-        let t = FRAC_PI_2 + PI * (i as f32 / arc as f32);
-        section.push(Vec2::new(cz - half_run + radius * t.cos(), cy + radius * t.sin()));
-    }
-    section
-}

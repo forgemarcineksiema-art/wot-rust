@@ -64,7 +64,7 @@ fn every_vehicle_bake_is_deterministic_and_hash_is_unique() {
 fn every_vehicle_bake_hash_matches_golden_output() {
     let expected = [
         (VehicleKind::PrototypeMedium, 7_613_624_468_440_756_419_u64),
-        (VehicleKind::T54_1951, 419_312_435_165_487_051_u64),
+        (VehicleKind::T54_1951, 15_146_120_351_147_717_379_u64),
         (VehicleKind::T55A, 16_216_939_546_650_613_941_u64),
         (VehicleKind::TigerI, 16_333_030_985_719_378_589_u64),
         (VehicleKind::TigerII, 1_086_861_276_510_338_113_u64),
