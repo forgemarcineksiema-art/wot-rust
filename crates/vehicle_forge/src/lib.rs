@@ -4,12 +4,17 @@
 //! semantic targets, bake reports, and eventually Forge artifacts. It may consume
 //! `vehicle_geometry`, but it must stay renderer-backend free.
 
+mod artifact;
 mod packs;
 mod part_data;
 mod part_graph;
 mod reference;
 mod report;
 
+pub use artifact::{
+    ArtifactError, BakeProfile, ForgeArtifact, ForgeArtifactManifest, ForgeSubmeshManifest,
+    ReviewCamera, ReviewCameraSet, ReviewCameraSpec, forge_vehicle_slug,
+};
 pub use packs::t54_t55_reference_pack;
 pub use part_graph::{ForgePart, ForgePartGraph, ForgePartKind, PartAnchor};
 pub use reference::{RatioKind, RatioTarget, ReferencePack, ReferenceSource};

@@ -43,6 +43,10 @@ impl BakedVehicle {
         self.submeshes.iter().find(|submesh| submesh.kind == kind)
     }
 
+    pub fn submeshes(&self) -> &[Submesh] {
+        &self.submeshes
+    }
+
     pub fn mounts(&self) -> &MountFrames {
         &self.mounts
     }

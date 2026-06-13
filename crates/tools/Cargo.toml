@@ -13,6 +13,8 @@ gltf.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 terrain = { path = "../terrain" }
+vehicle_forge = { path = "../vehicle_forge" }
+vehicle_geometry = { path = "../vehicle_geometry" }
 
 [lints]
 workspace = true

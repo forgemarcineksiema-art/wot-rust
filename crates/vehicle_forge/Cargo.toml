@@ -9,6 +9,7 @@ version.workspace = true
 game_core = { path = "../game_core" }
 glam.workspace = true
 serde.workspace = true
+serde_json.workspace = true
 thiserror.workspace = true
 vehicle_geometry = { path = "../vehicle_geometry" }
 

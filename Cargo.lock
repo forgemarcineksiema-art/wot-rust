@@ -3501,6 +3501,8 @@ dependencies = [
  "serde",
  "serde_json",
  "terrain",
+ "vehicle_forge",
+ "vehicle_geometry",
 ]
 
 [[package]]
@@ -3666,6 +3668,7 @@ dependencies = [
  "game_core",
  "glam 0.30.10",
  "serde",
+ "serde_json",
  "thiserror 2.0.18",
  "vehicle_geometry",
 ]
