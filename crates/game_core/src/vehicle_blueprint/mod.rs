@@ -157,3 +157,25 @@ impl VehicleBlueprint {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The migrated T-54's hitbox, mounts, and armour slopes all flow from its blueprint — the
+    /// single source of truth. If any consumer stops reading it, one of these diverges.
+    #[test]
+    fn t54_blueprint_is_the_single_source_for_hitbox_mounts_and_armor() {
+        let bp = VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("blueprint");
+        assert_eq!(bp.hitbox(), HitboxProfile::for_vehicle(VehicleKind::T54_1951));
+        assert_eq!(bp.mount_frames(), MountFrames::for_vehicle(VehicleKind::T54_1951));
+
+        // The armour facet the penetration model uses carries the same plate slope the visible
+        // glacis is built from.
+        let spec = VehicleKind::T54_1951.spec();
+        assert!(
+            (spec.hull.facets.hull_front.slope_degrees - bp.armor.hull_front.0).abs() < 1.0e-6,
+            "glacis armour slope must equal the blueprint glacis angle"
+        );
+    }
+}

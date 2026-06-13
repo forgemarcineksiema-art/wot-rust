@@ -1,5 +1,23 @@
-use game_core::VehicleKind;
+use game_core::{HitboxProfile, VehicleKind};
 use vehicle_geometry::{SmoothingGroup, SubmeshKind, bake_vehicle};
+
+/// The migrated T-54's visible body (hull + turret, tracks included) must sit inside the collision
+/// box the blueprint derives — what you see is what you hit. The gun barrel is excluded by design
+/// (it reaches past the hull), matching `body_bounds`.
+#[test]
+fn t54_body_fits_within_its_blueprint_hitbox() {
+    let vehicle = bake_vehicle(VehicleKind::T54_1951).expect("T-54 bakes");
+    let bounds = vehicle.body_bounds().expect("body has bounds");
+    let hitbox = HitboxProfile::for_vehicle(VehicleKind::T54_1951);
+    let eps = 0.02;
+
+    assert!(bounds.min.x >= -hitbox.half_width_m - eps, "left {}", bounds.min.x);
+    assert!(bounds.max.x <= hitbox.half_width_m + eps, "right {}", bounds.max.x);
+    assert!(bounds.min.z >= -hitbox.half_length_m - eps, "rear {}", bounds.min.z);
+    assert!(bounds.max.z <= hitbox.half_length_m + eps, "front {}", bounds.max.z);
+    let top = hitbox.center_y_m + hitbox.half_height_m;
+    assert!(bounds.max.y <= top + eps, "roof {} above hitbox top {top}", bounds.max.y);
+}
 
 const SG_CUPOLA: SmoothingGroup = SmoothingGroup(3);
 const SG_MANTLET: SmoothingGroup = SmoothingGroup(6);

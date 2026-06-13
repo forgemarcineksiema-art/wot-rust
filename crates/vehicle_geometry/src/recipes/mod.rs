@@ -23,6 +23,7 @@ use crate::{BakeError, BakedVehicle, GeometryMesh, SmoothingGroup, Submesh, Subm
 mod armament;
 mod casemate;
 mod chassis;
+mod chassis_blueprint;
 mod german;
 mod panther;
 mod soviet;
@@ -31,6 +32,7 @@ pub(crate) use armament::{
     GunPlan, add_cupola, add_mantlet_socket, add_turret_ring, build_gun, cast_dome_turret,
 };
 pub(crate) use chassis::{HullPlan, RunningGear, add_running_gear, hull_body, shade_hull};
+pub(crate) use chassis_blueprint::{blueprint_hull, blueprint_running_gear};
 
 /// Bake the procedural geometry for `kind`.
 ///

@@ -6,11 +6,13 @@ use vehicle_geometry::{BakedVehicle, MeshBounds, SubmeshKind, bake_vehicle};
 
 // Triangle budgets (per submesh and per vehicle). Upper bounds keep runtime cost stable as the
 // tank count grows; lower bounds guard against silhouettes regressing back into plain boxes.
-const HULL_TRI_MAX: usize = 1200;
+// Upper bounds raised for the blueprint realism pass: wrapped tracks (belt + road wheels + drive
+// sprocket/idler + return rollers + shoe links) are heavier than the old box, but still tiny.
+const HULL_TRI_MAX: usize = 2400;
 const TURRET_TRI_MAX: usize = 900;
 const GUN_TRI_MAX: usize = 500;
-const VEHICLE_TRI_MAX: usize = 2200;
-const VEHICLE_VERT_MAX: usize = 6000;
+const VEHICLE_TRI_MAX: usize = 3600;
+const VEHICLE_VERT_MAX: usize = 10_000;
 
 const HULL_TRI_MIN: usize = 120;
 const TURRET_TRI_MIN: usize = 24;
@@ -62,7 +64,7 @@ fn every_vehicle_bake_is_deterministic_and_hash_is_unique() {
 fn every_vehicle_bake_hash_matches_golden_output() {
     let expected = [
         (VehicleKind::PrototypeMedium, 7_613_624_468_440_756_419_u64),
-        (VehicleKind::T54_1951, 9_323_884_532_056_781_199_u64),
+        (VehicleKind::T54_1951, 419_312_435_165_487_051_u64),
         (VehicleKind::T55A, 16_216_939_546_650_613_941_u64),
         (VehicleKind::TigerI, 16_333_030_985_719_378_589_u64),
         (VehicleKind::TigerII, 1_086_861_276_510_338_113_u64),

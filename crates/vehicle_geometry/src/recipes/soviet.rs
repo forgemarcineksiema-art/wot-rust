@@ -13,7 +13,8 @@ use glam::Vec3;
 
 use super::{
     GunPlan, HullPlan, RunningGear, SG_CAST, add_cupola, add_mantlet_socket, add_running_gear,
-    add_turret_ring, assemble, build_gun, cast_dome_turret, hull_body, shade_hull,
+    add_turret_ring, assemble, blueprint_hull, blueprint_running_gear, build_gun, cast_dome_turret,
+    hull_body, shade_hull,
 };
 use crate::{BakedVehicle, MaterialRole, MeshBuilder};
 
@@ -75,59 +76,51 @@ pub(crate) fn t55a(hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVehicle
     assemble(VehicleKind::T55A, hull, turret, gun, *mounts)
 }
 
-pub(crate) fn t54_1951(hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVehicle {
+pub(crate) fn t54_1951(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVehicle {
+    // Migrated to the blueprint: hull, tracks, turret, and gun all read one shape source, so the
+    // visible glacis is the armour angle and the running gear wraps the wheels.
+    let bp = game_core::VehicleBlueprint::for_vehicle(VehicleKind::T54_1951)
+        .expect("T-54 has a blueprint");
     let hull = shade_hull(
-        add_running_gear(
-            hull_body(
-                &HullPlan {
-                    half_len: hitbox.half_length_m * 0.952,
-                    belly_y: 0.30,
-                    deck_y: mounts.turret_ring.translation.y,
-                    glacis_run: 0.70,
-                    nose_rise: 0.08,
-                    half_width: hitbox.half_width_m * 0.766,
-                },
-                MaterialRole::RolledArmor,
-            ),
-            &SOVIET_GEAR,
-        )
-        .build(),
+        blueprint_hull(&bp.hull, MaterialRole::RolledArmor)
+            .append(&blueprint_running_gear(&bp.track))
+            .build(),
     );
 
-    let mantlet = Some((0.29, 0.88, 1.22));
+    let t = &bp.turret;
+    let mantlet = Some((t.mantlet_radius, t.mantlet_back_z, t.mantlet_front_z));
     let turret = add_mantlet_socket(
         add_turret_ring(
             add_cupola(
-                cast_dome_turret(0.0, 1.00, 0.34, mounts.turret_ring.translation.y, 2.18, 16),
-                -0.34,
-                -0.10,
-                2.05,
-                0.18,
+                cast_dome_turret(t.ring_z, t.base_radius, t.roof_radius, t.ring_y, t.roof_y, 16),
+                t.cupola_x,
+                t.cupola_z,
+                t.roof_y - 0.13,
+                t.cupola_radius,
                 0.18,
                 true,
             ),
-            mounts.turret_ring.translation.z,
-            mounts.turret_ring.translation.y,
-            0.82,
+            t.ring_z,
+            t.ring_y,
+            t.ring_radius,
             0.12,
             16,
         ),
-        mounts.gun_trunnion.translation.y,
+        bp.gun.trunnion_y,
         mantlet,
         12,
     )
     .build();
 
     let gun = build_gun(&GunPlan {
-        axis_y: mounts.gun_trunnion.translation.y,
-        breech_z: mounts.gun_trunnion.translation.z - 0.18,
-        muzzle_z: mounts.muzzle.translation.z,
-        radius: 0.092,
-        segments: 12,
+        axis_y: bp.gun.trunnion_y,
+        breech_z: bp.gun.trunnion_z - 0.18,
+        muzzle_z: bp.gun.muzzle_z,
+        radius: bp.gun.barrel_radius,
+        segments: bp.gun.segments,
         mantlet,
-        // Evacuator close to the muzzle — keeps the T-54 readable next to the mid-barrel T-55A.
-        evacuator: Some((0.79, 0.135)),
-        muzzle_brake: None,
+        evacuator: bp.gun.evacuator,
+        muzzle_brake: bp.gun.muzzle_brake,
     });
 
     assemble(VehicleKind::T54_1951, hull, turret, gun, *mounts)
