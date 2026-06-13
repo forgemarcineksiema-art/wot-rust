@@ -63,6 +63,26 @@ fn t54_blueprint_hull_has_inset_tub_and_wide_sponson() {
     );
 }
 
+/// The T-54 hull carries welded engine-deck detail (raised beveled plates) on the flat deck behind
+/// the turret — the only hull geometry that rises above the deck there, so finding it proves the
+/// plate_box deck panels baked in.
+#[test]
+fn t54_hull_has_raised_engine_deck_detail_behind_the_turret() {
+    let bp = VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("T-54 blueprint");
+    let vehicle = bake_vehicle(VehicleKind::T54_1951).expect("T-54 bakes");
+    let hull = vehicle.submesh(SubmeshKind::Hull).expect("hull submesh");
+
+    let raised_behind_turret = hull.mesh.vertices().iter().any(|vertex| {
+        vertex.position.z < bp.turret.ring_z - 1.0
+            && vertex.position.y > bp.hull.deck_y + 0.05
+            && vertex.position.x.abs() < bp.hull.half_width
+    });
+    assert!(
+        raised_behind_turret,
+        "engine-deck plates should rise above the rear deck behind the turret ring"
+    );
+}
+
 const SG_CAST: SmoothingGroup = SmoothingGroup(2);
 const SG_CUPOLA: SmoothingGroup = SmoothingGroup(3);
 const SG_MANTLET: SmoothingGroup = SmoothingGroup(6);

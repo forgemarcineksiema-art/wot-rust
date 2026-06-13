@@ -49,6 +49,37 @@ pub(crate) fn blueprint_hull(hull: &HullShape, material: MaterialRole) -> MeshBu
         )
 }
 
+/// Welded engine-deck detail on the flat rear deck behind the turret: a raised, beveled deck panel
+/// flanked by two access hatches, built from [`MeshBuilder::plate_box`] so they read as cut steel
+/// plates. Kept on the flat deck (clear of the sloped glacis and the turret ring) and inside the
+/// hull plan, so they add surface detail without touching the silhouette or the collision fit.
+pub(crate) fn blueprint_deck_details(hull: &HullShape) -> GeometryMesh {
+    // The engine deck spans from just behind the turret ring to short of the rear plate.
+    let deck_front = -1.15;
+    let deck_back = -hull.half_len + 0.35;
+    let center_z = (deck_front + deck_back) * 0.5;
+    let half_z = (deck_front - deck_back) * 0.5;
+    let half_x = hull.lower_half_width * 0.92;
+
+    let mut builder = MeshBuilder::new().plate_box(
+        Vec3::new(0.0, hull.deck_y + 0.03, center_z),
+        Vec3::new(half_x, 0.06, half_z),
+        0.06,
+        MaterialRole::RolledArmor,
+        SG_HARD,
+    );
+    for x in [-half_x * 0.5, half_x * 0.5] {
+        builder = builder.plate_box(
+            Vec3::new(x, hull.deck_y + 0.10, center_z + half_z * 0.3),
+            Vec3::new(half_x * 0.28, 0.05, half_z * 0.35),
+            0.04,
+            MaterialRole::RolledArmor,
+            SG_HARD,
+        );
+    }
+    builder.build()
+}
+
 /// The wrapped running gear for one blueprint, mirrored to both sides.
 pub(crate) fn blueprint_running_gear(track: &TrackShape) -> GeometryMesh {
     let cy = (track.top_y + track.bottom_y) * 0.5;

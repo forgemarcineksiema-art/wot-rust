@@ -31,7 +31,9 @@ mod turret_fittings;
 
 pub(crate) use armament::{GunPlan, build_gun};
 pub(crate) use chassis::{HullPlan, RunningGear, add_running_gear, hull_body, shade_hull};
-pub(crate) use chassis_blueprint::{blueprint_hull, blueprint_running_gear};
+pub(crate) use chassis_blueprint::{
+    blueprint_deck_details, blueprint_hull, blueprint_running_gear,
+};
 pub(crate) use turret_fittings::{
     add_broad_mantlet_socket, add_cupola, add_mantlet_socket, add_turret_ring, cast_turret_shell,
 };
