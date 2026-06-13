@@ -41,6 +41,6 @@ wgpu follows the WebGPU/D3D/Metal depth convention: clip-space depth maps to
 depth range [0, 1]. Camera projection helpers, shader assumptions, and depth
 tests must use that convention from the start.
 
-The default camera policy uses a 0.1 m near plane and 3000 m far plane. Terrain
+The default camera policy uses a 0.5 m near plane and 2000 m far plane. Terrain
 and vehicle render paths can tighten these per view later, but they must not
 silently switch to an OpenGL-style [-1, 1] depth assumption.

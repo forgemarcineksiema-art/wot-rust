@@ -46,7 +46,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut camera_controller = BattleCameraController::default();
     camera_controller.set_orbit_yaw(player_tank.yaw_rad);
     let camera = camera_controller.render_camera(&subject, &environment);
-    let view_proj = view_projection_matrix(&camera, width as f32 / height as f32, 0.5, 2000.0);
+    let projection = renderer_api::CameraProjectionPolicy::webgpu_default();
+    let view_proj = view_projection_matrix(
+        &camera,
+        width as f32 / height as f32,
+        projection.near_plane_m(),
+        projection.far_plane_m(),
+    );
 
     let mut vertices = Vec::new();
     let mut indices = Vec::new();

@@ -2,7 +2,9 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use net::TankSnapshot;
-use renderer_api::{Camera, RenderError, SceneVertex, view_projection_matrix};
+use renderer_api::{
+    Camera, CameraProjectionPolicy, RenderError, SceneVertex, view_projection_matrix,
+};
 use renderer_wgpu::WindowRenderer;
 use sim::DEFAULT_SNAPSHOT_HZ;
 use tracing::error;
@@ -56,7 +58,13 @@ impl ClientApp {
             return;
         };
         let aspect = self.renderer.as_ref().map_or(16.0 / 9.0, WindowRenderer::aspect_ratio);
-        let view_proj = view_projection_matrix(&camera, aspect, 0.5, 2000.0);
+        let projection = CameraProjectionPolicy::webgpu_default();
+        let view_proj = view_projection_matrix(
+            &camera,
+            aspect,
+            projection.near_plane_m(),
+            projection.far_plane_m(),
+        );
         // Project the interpolated (+ locally predicted) tanks into the persistent presentation
         // world, then drive the scene and HUD from the ECS — not from the snapshot vec directly.
         let presentation_tanks = self.project_render_tanks(alpha);

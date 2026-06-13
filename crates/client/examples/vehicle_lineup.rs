@@ -63,7 +63,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         target: [center_x, base + 1.3, center_z],
         vertical_fov_degrees: 44.0,
     };
-    let view_proj = view_projection_matrix(&camera, width as f32 / height as f32, 0.5, 2000.0);
+    let projection = renderer_api::CameraProjectionPolicy::webgpu_default();
+    let view_proj = view_projection_matrix(
+        &camera,
+        width as f32 / height as f32,
+        projection.near_plane_m(),
+        projection.far_plane_m(),
+    );
 
     let ctx = GpuContext::headless()?;
     let target = OffscreenTarget::new(&ctx, width, height)?;
