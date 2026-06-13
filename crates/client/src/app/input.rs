@@ -94,21 +94,28 @@ impl ClientApp {
         if !self.garage.has_started() || self.garage.is_open() {
             return;
         }
-        let scroll = match delta {
+        let lines = match delta {
             MouseScrollDelta::LineDelta(_, y) => y,
             MouseScrollDelta::PixelDelta(position) => position.y as f32 / 60.0,
         };
-        let mode_before = self.camera_controller.mode();
-        self.camera_controller.apply_input(BattleCameraInput {
-            orbit_yaw_delta_rad: 0.0,
-            pitch_delta_rad: 0.0,
-            zoom_delta_m: -scroll * 0.8,
-        });
-        // Scrolling through the shortest boom hands over to sniper; align its view to the gun.
-        if mode_before == BattleCameraMode::ThirdPerson
-            && self.camera_controller.mode() == BattleCameraMode::Sniper
-        {
-            self.sync_sniper_entry();
+        // High-resolution wheels and touchpads deliver one notch as many fractional events;
+        // accumulate to whole notches so one gesture cannot step the sniper ladder repeatedly.
+        self.input.wheel_pending_lines += lines;
+        while self.input.wheel_pending_lines.abs() >= 1.0 {
+            let notch = self.input.wheel_pending_lines.signum();
+            self.input.wheel_pending_lines -= notch;
+            let mode_before = self.camera_controller.mode();
+            self.camera_controller.apply_input(BattleCameraInput {
+                orbit_yaw_delta_rad: 0.0,
+                pitch_delta_rad: 0.0,
+                zoom_delta_m: -notch * 0.8,
+            });
+            // Scrolling through the shortest boom hands over to sniper; align the view to the gun.
+            if mode_before == BattleCameraMode::ThirdPerson
+                && self.camera_controller.mode() == BattleCameraMode::Sniper
+            {
+                self.sync_sniper_entry();
+            }
         }
     }
 
@@ -306,6 +313,23 @@ mod tests {
         app.on_mouse_wheel(MouseScrollDelta::LineDelta(0.0, 1.0));
 
         assert_eq!(app.camera_controller.distance_m(), distance_before);
+    }
+
+    #[test]
+    fn fractional_wheel_events_accumulate_to_whole_notches() {
+        let mut app = ClientApp::new();
+        app.confirm_garage_selection();
+        let distance_before = app.camera_controller.distance_m();
+
+        // A touchpad swipe arrives as many small pixel deltas; 3 x 20 px = exactly one notch.
+        for _ in 0..3 {
+            app.on_mouse_wheel(MouseScrollDelta::PixelDelta(winit::dpi::PhysicalPosition::new(
+                0.0, 20.0,
+            )));
+        }
+
+        let moved = distance_before - app.camera_controller.distance_m();
+        assert!((moved - 0.8).abs() < 1.0e-5, "one notch moves one zoom step, got {moved}");
     }
 
     #[test]

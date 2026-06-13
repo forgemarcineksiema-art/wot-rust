@@ -46,6 +46,8 @@ pub(crate) struct InputState {
     free_look: bool,
     /// Camera pitch captured when free look began, restored on release.
     free_look_return_pitch: Option<f32>,
+    /// Fractional wheel motion below one notch, carried between scroll events.
+    wheel_pending_lines: f32,
 }
 
 pub(crate) struct ClientApp {
