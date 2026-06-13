@@ -94,6 +94,19 @@ impl VehicleModules {
 fn armor_profile_for(kind: VehicleKind, modules: &VehicleModules) -> ArmorProfile {
     let h = &modules.hull;
     let t = &modules.turret;
+    // Migrated vehicles take their plate slopes/weakspots from the blueprint (the same angles the
+    // visible plates are built from); thicknesses still come from the installed modules.
+    if let Some(bp) = crate::VehicleBlueprint::for_vehicle(kind) {
+        let a = &bp.armor;
+        return ArmorProfile::new_with_facets(
+            ArmorFacet::new(h.front_mm, a.hull_front.0, a.hull_front.1),
+            ArmorFacet::new(h.side_mm, a.hull_side.0, a.hull_side.1),
+            ArmorFacet::new(h.rear_mm, a.hull_rear.0, a.hull_rear.1),
+            ArmorFacet::new(t.front_mm, a.turret_front.0, a.turret_front.1),
+            ArmorFacet::new(t.side_mm, a.turret_side.0, a.turret_side.1),
+            ArmorFacet::new(t.rear_mm, a.turret_rear.0, a.turret_rear.1),
+        );
+    }
     match kind {
         VehicleKind::T54_1951 | VehicleKind::T55A => ArmorProfile::new_with_facets(
             weakspot(h.front_mm, 60.0, 0.82),

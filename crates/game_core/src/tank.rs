@@ -70,6 +70,11 @@ impl HitboxProfile {
     /// of the whole deck. `vehicle_geometry::every_vehicle_turret_fits_and_fills_its_turret_plan`
     /// keeps these numbers honest against the baked geometry.
     pub fn for_vehicle(kind: VehicleKind) -> Self {
+        // Migrated vehicles derive the hitbox from their blueprint (the single shape source); the
+        // rest fall back to the hand-authored boxes below.
+        if let Some(blueprint) = crate::VehicleBlueprint::for_vehicle(kind) {
+            return blueprint.hitbox();
+        }
         match kind {
             // height 2.40 m, hull/turret split at world y 1.80
             VehicleKind::PrototypeMedium => {

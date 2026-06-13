@@ -27,6 +27,10 @@ pub struct MountFrames {
 
 impl MountFrames {
     pub fn for_vehicle(kind: VehicleKind) -> Self {
+        // Migrated vehicles derive their mounts from the blueprint; the rest use the constants below.
+        if let Some(blueprint) = crate::VehicleBlueprint::for_vehicle(kind) {
+            return blueprint.mount_frames();
+        }
         match kind {
             VehicleKind::PrototypeMedium => Self {
                 turret_ring: MountFrame::new(Vec3::new(0.0, 1.28, 0.0)),

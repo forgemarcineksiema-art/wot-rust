@@ -6,6 +6,7 @@ pub mod math;
 mod modules;
 mod mount;
 mod tank;
+mod vehicle_blueprint;
 mod vehicle_kind;
 mod vehicles;
 mod weapon;
@@ -23,6 +24,9 @@ pub use modules::{
 };
 pub use mount::{MountFrame, MountFrames};
 pub use tank::{HitboxProfile, TankSpec};
+pub use vehicle_blueprint::{
+    ArmorShape, GunShape, HullShape, TrackShape, TurretForm, TurretShape, VehicleBlueprint,
+};
 pub use vehicle_kind::VehicleKind;
 pub use vehicles::known_tank_specs;
 pub use weapon::{GunSpec, ShellSpec, ShellType};
