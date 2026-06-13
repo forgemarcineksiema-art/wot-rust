@@ -79,21 +79,37 @@ From the 2026-06-12 camera audit. Every fix landed with a locking test.
   turret to wherever the player glanced; releasing Alt in sniper no longer teleports the aim.
 - [x] **Wheel zoom ignored while the garage is open / battle not started.**
 
+## Done — camera feel fix pass 2 (2026-06-13)
+
+From the player-reported scroll wobble + barrel slide. Every fix landed with a locking test.
+
+- [x] **Zoom rotated the whole scene** — the over-shoulder offset sat on the eye only, so the
+  eye→target direction swung with the boom length and dragged the aim point sideways on every
+  scroll click. The lateral offset now shifts the whole sight lane (target + eye), so the view
+  direction is invariant under zoom. `third_person_view_direction_is_invariant_under_zoom`.
+- [x] **Sniper barrel/world slid sideways on every mouse move** — the eye sat 1.35 m ahead of
+  the turret and rode a lateral arc as the turret caught up. The eye now sits on the per-vehicle
+  turret-ring axis (a point on the traverse axis doesn't translate when the turret slews), height
+  from the vehicle trunnion — also retiring the global `sniper_eye_height_m`/`forward_offset_m`.
+  `sniper_eye_does_not_translate_while_the_turret_traverses`.
+- [x] **High-res/touchpad wheel stepped the ladder repeatedly** — fractional scroll events now
+  accumulate to whole notches (`wheel_pending_lines`).
+- [x] **Boom collision is an exact ray-AABB slab + terrain occlusion** — `CameraObstacle::
+  segment_entry` replaces 32-point sampling (thin cover no longer tunnels), and the boom shortens
+  in front of a terrain ridge instead of looking through it. Split into `camera/collision.rs`.
+- [x] **Reticle traces deduplicated** — one sight sweep per fixed-tick batch feeds both turret
+  and elevation (`SightSolution`), and one ballistic trace per frame feeds both reticle status
+  and the pen hint (`reticle_report`). `AIM_MAX_RANGE_M` 600→1200 for the 1000 m map.
+- [x] **Projection has one source of truth** — `CameraProjectionPolicy::webgpu_default()` is now
+  `0.5/2000` and the client render path + both offscreen examples read it instead of hardcoding.
+
 ## Open — from the 2026-06-12 camera audit
 
 - [ ] **No hull pitch/roll in `TankSnapshot`** — vehicles stay level on slopes, so camera, sniper
   sight and meshes ignore terrain tilt; needs sim+net+render work (biggest remaining camera-feel
   gap on a hilly 1000 m map).
-- [ ] **TPP boom collision is 32-point sampling** of `contains_point` — thin cover can tunnel;
-  no terrain test along the boom (can see through ridge crests); no boom-length smoothing (pops).
-  Slab-test ray-vs-AABB + smoothing.
-- [ ] **Reticle ray marches are duplicated** — `desired_gun_solution`, `desired_turret_yaw` and
-  `hud_reticle` each run a 600-step sweep per frame/tick, and `reticle_feedback` +
-  `penetration_hint` run the same ballistic trace twice; cache one trace per frame.
-- [ ] **Near/far planes hardcoded** (`0.5/2000` in `render.rs` and examples) while
-  `CameraProjectionPolicy::webgpu_default()` (0.1/3000) is dead — pick one source of truth.
-- [ ] **Sniper eye is a global constant** (2.15 m up / 1.35 m forward) — anchor it to a per-vehicle
-  optics mount in `MountFrames` instead (Jagdtiger and T-55A currently share one eye).
+- [ ] **No boom-length smoothing** — the slab/terrain cut is exact but instantaneous, so the eye
+  still pops when an obstacle enters/leaves the line; add a critically-damped boom-length spring.
 - [ ] **TPP max boom 18 m** — likely too short for the 1000 m Prokhorovka; retune with the map.
 
 ---
