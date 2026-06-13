@@ -30,6 +30,39 @@ pub struct RevolveSpec {
     pub smoothing: SmoothingGroup,
 }
 
+/// One convex cross-section of a [`LoftSpec`], positioned at `offset` along the loft axis. The
+/// `section` points live in the plane perpendicular to the axis, mapped `(u, v)` exactly as
+/// [`ExtrudeSpec`] documents.
+#[derive(Debug, Clone, PartialEq)]
+pub struct LoftSection {
+    pub offset: f32,
+    pub section: Vec<Vec2>,
+}
+
+impl LoftSection {
+    pub fn new(offset: f32, section: Vec<Vec2>) -> Self {
+        Self { offset, section }
+    }
+}
+
+/// Loft a surface through a sequence of convex cross-sections placed along an axis. Unlike
+/// [`ExtrudeSpec`] — a single section swept at a constant size — a loft lets the section *change*
+/// from station to station, so one shape can describe a hull that tapers toward the bow, a cast
+/// turret that swells at the shoulder and narrows to the roof, or a casemate that rakes forward.
+///
+/// Every section must carry the same point count (rings connect 1:1) and be convex; the builder
+/// reorients each ring to CCW and asserts convexity, then connects consecutive rings with one quad
+/// per edge and optionally fans flat caps over the first and last sections.
+#[derive(Debug, Clone, PartialEq)]
+pub struct LoftSpec {
+    pub sections: Vec<LoftSection>,
+    pub axis: Axis,
+    pub material: MaterialRole,
+    pub smoothing: SmoothingGroup,
+    /// Fan flat caps over the first and last sections (a closed solid) when `true`.
+    pub cap_ends: bool,
+}
+
 /// Sweep a flat **convex** cross-section a fixed depth along an axis, producing a closed prism
 /// with capped ends. This is the kernel's loft/wedge primitive: unlike [`super::MeshBuilder::chamfered_prism`]
 /// (whose front and back faces are always flat caps) an extrusion lets the cross-section itself

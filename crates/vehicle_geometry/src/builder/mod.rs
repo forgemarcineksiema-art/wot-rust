@@ -5,6 +5,8 @@ use crate::{
 };
 
 mod extrude;
+mod loft;
+mod section;
 mod transform;
 
 #[derive(Debug, Default, Clone)]

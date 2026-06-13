@@ -1,7 +1,7 @@
 use glam::{Vec2, Vec3};
 use vehicle_geometry::{
-    Axis, ExtrudeSpec, GeometryMesh, MaterialRole, MeshBuilder, ProfilePoint, RevolveSpec,
-    SmoothingGroup,
+    Axis, ExtrudeSpec, GeometryMesh, LoftSection, LoftSpec, MaterialRole, MeshBuilder,
+    ProfilePoint, RevolveSpec, SmoothingGroup,
 };
 
 #[path = "kernel/support.rs"]
@@ -173,6 +173,94 @@ fn extrude_accepts_collinear_section_runs() {
         .build();
     assert!(mesh.triangle_count() > 0);
     assert!(all_faces_point_outward(&mesh));
+}
+
+/// A loft connects varying cross-sections into a tapered solid: the back is wide and tall, the
+/// bow narrow and low, like a hull plan. The skin must be finite, unit-normalled, outward-wound,
+/// and bounded by the extreme sections.
+#[test]
+fn loft_skins_varying_sections_into_a_tapered_solid() {
+    let wide =
+        vec![Vec2::new(-1.0, 0.0), Vec2::new(1.0, 0.0), Vec2::new(1.0, 1.0), Vec2::new(-1.0, 1.0)];
+    let narrow =
+        vec![Vec2::new(-0.6, 0.0), Vec2::new(0.6, 0.0), Vec2::new(0.6, 0.7), Vec2::new(-0.6, 0.7)];
+    let mesh = MeshBuilder::new()
+        .loft(
+            Vec3::ZERO,
+            LoftSpec {
+                sections: vec![LoftSection::new(-2.0, wide), LoftSection::new(2.0, narrow)],
+                axis: Axis::Z,
+                material: MaterialRole::RolledArmor,
+                smoothing: SmoothingGroup::hard_edges(),
+                cap_ends: true,
+            },
+        )
+        .build();
+
+    assert!(mesh.vertices().iter().all(|v| v.position.is_finite()));
+    assert!(mesh.vertices().iter().all(|v| v.normal.is_normalized()));
+    assert!(all_faces_point_outward(&mesh), "a convex loft must be outward-wound");
+
+    let bounds = mesh.bounds().expect("loft should have bounds");
+    assert!((bounds.min.z + 2.0).abs() < 1.0e-4 && (bounds.max.z - 2.0).abs() < 1.0e-4);
+    assert!((bounds.min.x + 1.0).abs() < 1.0e-4 && (bounds.max.x - 1.0).abs() < 1.0e-4);
+    assert!((bounds.min.y - 0.0).abs() < 1.0e-4 && (bounds.max.y - 1.0).abs() < 1.0e-4);
+
+    // Side walls (4 edges × 1 gap × 2 tris) + two 4-tri caps.
+    assert_eq!(mesh.triangle_count(), 16);
+}
+
+/// Rings must connect 1:1, so mismatched point counts are a bake-time error, not silent garbage.
+#[test]
+#[should_panic(expected = "same point count")]
+fn loft_rejects_mismatched_section_point_counts() {
+    MeshBuilder::new().loft(
+        Vec3::ZERO,
+        LoftSpec {
+            sections: vec![
+                LoftSection::new(
+                    0.0,
+                    vec![Vec2::new(-1.0, 0.0), Vec2::new(1.0, 0.0), Vec2::new(0.0, 1.0)],
+                ),
+                LoftSection::new(
+                    1.0,
+                    vec![
+                        Vec2::new(-1.0, 0.0),
+                        Vec2::new(1.0, 0.0),
+                        Vec2::new(1.0, 1.0),
+                        Vec2::new(-1.0, 1.0),
+                    ],
+                ),
+            ],
+            axis: Axis::Z,
+            material: MaterialRole::RolledArmor,
+            smoothing: SmoothingGroup::hard_edges(),
+            cap_ends: true,
+        },
+    );
+}
+
+/// Like extrude, a loft only sweeps convex sections; a reflex corner is refused at bake time.
+#[test]
+#[should_panic(expected = "concave")]
+fn loft_rejects_concave_sections() {
+    let concave = vec![
+        Vec2::new(-1.0, 0.0),
+        Vec2::new(1.0, 0.0),
+        Vec2::new(1.0, 1.0),
+        Vec2::new(0.0, 0.2),
+        Vec2::new(-1.0, 1.0),
+    ];
+    MeshBuilder::new().loft(
+        Vec3::ZERO,
+        LoftSpec {
+            sections: vec![LoftSection::new(-1.0, concave.clone()), LoftSection::new(1.0, concave)],
+            axis: Axis::Z,
+            material: MaterialRole::RolledArmor,
+            smoothing: SmoothingGroup::hard_edges(),
+            cap_ends: true,
+        },
+    );
 }
 
 /// `weld_and_smooth` must fuse coincident vertices that share a *smooth* group and replace their
