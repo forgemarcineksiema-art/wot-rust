@@ -63,9 +63,36 @@ fn t54_blueprint_hull_has_inset_tub_and_wide_sponson() {
     );
 }
 
+const SG_CAST: SmoothingGroup = SmoothingGroup(2);
 const SG_CUPOLA: SmoothingGroup = SmoothingGroup(3);
 const SG_MANTLET: SmoothingGroup = SmoothingGroup(6);
 const SG_RING: SmoothingGroup = SmoothingGroup(7);
+
+/// The Soviet cast turret is a lofted, egg-shaped shell — fuller ahead of the ring than behind —
+/// not a circular revolve dome. Measured on the shell's own smoothing group so the cupola, ring,
+/// and mantlet fittings don't muddy the read; a symmetric dome would tie front and rear.
+#[test]
+fn t54_cast_turret_shell_carries_its_mass_forward() {
+    let bp = VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("T-54 blueprint");
+    let vehicle = bake_vehicle(VehicleKind::T54_1951).expect("T-54 bakes");
+    let turret = vehicle.submesh(SubmeshKind::Turret).expect("turret submesh");
+
+    let shell_z: Vec<f32> = turret
+        .mesh
+        .vertices()
+        .iter()
+        .filter(|vertex| vertex.smoothing == SG_CAST)
+        .map(|vertex| vertex.position.z)
+        .collect();
+    assert!(!shell_z.is_empty(), "turret must contain a lofted cast shell");
+
+    let front = shell_z.iter().copied().fold(f32::MIN, f32::max) - bp.turret.ring_z;
+    let rear = bp.turret.ring_z - shell_z.iter().copied().fold(f32::MAX, f32::min);
+    assert!(
+        front > rear + 0.10,
+        "cast shell should carry more mass ahead of the ring than behind ({front:.2} vs {rear:.2})"
+    );
+}
 
 #[test]
 fn turreted_vehicles_have_dedicated_turret_ring_geometry() {

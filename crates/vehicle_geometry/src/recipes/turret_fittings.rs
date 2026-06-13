@@ -1,9 +1,9 @@
-//! Shared turret fittings: cupolas, turret rings, mantlet sockets, and cast domes.
+//! Shared turret fittings: cupolas, turret rings, mantlet sockets, and the cast turret shell.
 
-use glam::Vec3;
+use glam::{Vec2, Vec3};
 
 use super::{SG_CAST, SG_CUPOLA, SG_MANTLET, SG_RING};
-use crate::{Axis, MaterialRole, MeshBuilder, ProfilePoint, RevolveSpec};
+use crate::{Axis, LoftSection, LoftSpec, MaterialRole, MeshBuilder, ProfilePoint, RevolveSpec};
 
 /// Append a small cupola (drum or domed) onto a turret roof.
 pub(crate) fn add_cupola(
@@ -113,31 +113,65 @@ fn add_mantlet_socket_with_profile(
     )
 }
 
-/// A low, rounded Soviet cast turret dome centred on the turret ring. Circular in plan; the
-/// four-point profile bulges at the shoulder and tapers to the roof, reading as a cast casting
-/// rather than a box.
-pub(crate) fn cast_dome_turret(
+/// A low, rounded Soviet cast turret shell centred on the turret ring. Unlike a plain revolve dome
+/// (circular in plan), this lofts egg-shaped plan rings — fuller and longer toward the front than
+/// the rear — up through an inset base, a swelling shoulder, a tapering upper, and a small roof, so
+/// the turret reads as an asymmetric casting with real front-cheek mass rather than a turned bowl.
+///
+/// `half_length` sets the fore/aft reach (the front overhang is a touch longer than the rear
+/// bustle); `half_width` the beam at the shoulder; `roof_radius` the small roof ring the cupola and
+/// hatches sit on.
+pub(crate) fn cast_turret_shell(
     center_z: f32,
-    base_radius: f32,
+    half_width: f32,
+    half_length: f32,
     roof_radius: f32,
     base_y: f32,
     roof_y: f32,
     segments: usize,
 ) -> MeshBuilder {
     let span = roof_y - base_y;
-    MeshBuilder::new().capped_revolve_at(
-        Vec3::new(0.0, 0.0, center_z),
-        RevolveSpec {
-            profile: vec![
-                ProfilePoint::new(base_radius * 0.86, base_y),
-                ProfilePoint::new(base_radius, base_y + span * 0.20),
-                ProfilePoint::new(base_radius * 0.80, base_y + span * 0.55),
-                ProfilePoint::new(roof_radius, roof_y),
-            ],
+    let front = half_length * 0.96;
+    let back = half_length * 0.82;
+    let roof_scale = (roof_radius / half_width).clamp(0.2, 0.9);
+    // (height, plan scale): inset base, widest shoulder, tapering upper, small roof.
+    let stations = [
+        (base_y, 0.86),
+        (base_y + span * 0.20, 1.00),
+        (base_y + span * 0.55, 0.80),
+        (roof_y, roof_scale),
+    ];
+    let sections = stations
+        .iter()
+        .map(|&(y, scale)| {
+            LoftSection::new(
+                y,
+                cast_ring(center_z, half_width * scale, front * scale, back * scale, segments),
+            )
+        })
+        .collect();
+    MeshBuilder::new().loft(
+        Vec3::ZERO,
+        LoftSpec {
+            sections,
             axis: Axis::Y,
-            segments,
             material: MaterialRole::CastArmor,
             smoothing: SG_CAST,
+            cap_ends: true,
         },
     )
+}
+
+/// One egg-shaped plan ring in the `(x, z)` plane: an ellipse of beam `half_width` whose forward
+/// half reaches `front` and rear half `back`, so `front > back` biases the casting's mass ahead of
+/// the ring. Convex by construction (two half-ellipses sharing the beam line).
+fn cast_ring(center_z: f32, half_width: f32, front: f32, back: f32, segments: usize) -> Vec<Vec2> {
+    (0..segments)
+        .map(|k| {
+            let theta = (k as f32 / segments as f32) * std::f32::consts::TAU;
+            let (sin, cos) = theta.sin_cos();
+            let reach = if cos >= 0.0 { front } else { back };
+            Vec2::new(half_width * sin, center_z + reach * cos)
+        })
+        .collect()
 }

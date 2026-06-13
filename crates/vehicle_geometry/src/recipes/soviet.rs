@@ -16,7 +16,7 @@ use glam::Vec3;
 use super::{
     GunPlan, HullPlan, RunningGear, SG_CAST, add_broad_mantlet_socket, add_cupola,
     add_mantlet_socket, add_running_gear, add_turret_ring, assemble, blueprint_hull,
-    blueprint_running_gear, build_gun, cast_dome_turret, hull_body, shade_hull,
+    blueprint_running_gear, build_gun, cast_turret_shell, hull_body, shade_hull,
 };
 use crate::{BakedVehicle, MaterialRole, MeshBuilder};
 
@@ -36,7 +36,15 @@ pub(crate) fn t55a(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVehicl
     let turret = add_broad_mantlet_socket(
         add_turret_ring(
             add_cupola(
-                cast_dome_turret(t.ring_z, t.base_radius, t.roof_radius, t.ring_y, t.roof_y, 16),
+                cast_turret_shell(
+                    t.ring_z,
+                    t.base_radius,
+                    t.plan_half_length,
+                    t.roof_radius,
+                    t.ring_y,
+                    t.roof_y,
+                    16,
+                ),
                 t.cupola_x,
                 t.cupola_z,
                 t.roof_y - 0.13,
@@ -86,7 +94,15 @@ pub(crate) fn t54_1951(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVe
     let turret = add_broad_mantlet_socket(
         add_turret_ring(
             add_cupola(
-                cast_dome_turret(t.ring_z, t.base_radius, t.roof_radius, t.ring_y, t.roof_y, 16),
+                cast_turret_shell(
+                    t.ring_z,
+                    t.base_radius,
+                    t.plan_half_length,
+                    t.roof_radius,
+                    t.ring_y,
+                    t.roof_y,
+                    16,
+                ),
                 t.cupola_x,
                 t.cupola_z,
                 t.roof_y - 0.13,
