@@ -9,6 +9,14 @@ pub struct GunModule {
     pub spec: GunSpec,
     pub mass_kg: f32,
     pub hit_points: u32,
+    /// Visible length of the exposed barrel (m). Drives the garage silhouette when a gun is
+    /// swapped; purely cosmetic — the firing muzzle still comes from the vehicle's mount frames.
+    #[serde(default = "default_barrel_length_m")]
+    pub barrel_length_m: f32,
+}
+
+fn default_barrel_length_m() -> f32 {
+    5.0
 }
 
 impl GunModule {

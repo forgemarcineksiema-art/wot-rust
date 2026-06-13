@@ -5,7 +5,7 @@ use game_core::{TankSpec, VehicleKind};
 use glam::Vec3;
 use renderer_api::Camera;
 
-use self::draft::{FitSlot, LoadoutDraft};
+pub(crate) use self::draft::{FitSlot, LoadoutDraft};
 use super::ClientApp;
 use crate::garage_scene::hangar_camera_pivot;
 
@@ -167,6 +167,17 @@ impl GarageState {
 
     pub(super) fn draft(&self) -> &LoadoutDraft {
         &self.draft
+    }
+
+    /// Length scale for the parked tank's gun submesh so swapping guns visibly changes the
+    /// silhouette: the ratio of the installed barrel to the vehicle's stock barrel (the baked
+    /// mesh represents the stock gun). Cosmetic and garage-only — battle muzzle is unchanged.
+    pub(super) fn gun_silhouette_scale(&self) -> f32 {
+        let stock = self.selected_vehicle().default_loadout().gun.barrel_length_m;
+        if stock <= 0.0 {
+            return 1.0;
+        }
+        (self.draft.gun_barrel_length() / stock).clamp(0.6, 1.6)
     }
 
     pub(super) fn cursor_clip(&self) -> [f32; 2] {

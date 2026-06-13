@@ -180,8 +180,10 @@ fn render_garage_preview_png() {
     let aspect = width as f32 / height as f32;
 
     let mut garage = GarageState::default();
-    // The T-54 has a swappable gun, so the Modules panel shows live cycle arrows.
+    // The T-54 has a swappable gun; cycle to the alternate so the longer barrel shows in the
+    // silhouette and the Modules panel arrows are exercised.
     garage.select_vehicle(game_core::VehicleKind::T54_1951);
+    garage.cycle_module(super::garage::FitSlot::Gun, 1);
     let kind = garage.selected_vehicle();
     let spec = kind.spec();
     let snapshot = TankSnapshot {
@@ -202,7 +204,13 @@ fn render_garage_preview_png() {
 
     let (terrain_vertices, terrain_indices) = hangar_scene_mesh();
     let mut catalog = VehicleMeshCatalog::default();
-    let objects = tank_render_objects(&mut catalog, &snapshot, [0.34, 0.42, 0.30]);
+    let mut objects = tank_render_objects(&mut catalog, &snapshot, [0.34, 0.42, 0.30]);
+    let barrel_scale = garage.gun_silhouette_scale();
+    if let Some(gun) = objects.get_mut(2) {
+        let scaled = glam::Mat4::from_cols_array_2d(&gun.transform)
+            * glam::Mat4::from_scale(glam::Vec3::new(1.0, 1.0, barrel_scale));
+        gun.transform = scaled.to_cols_array_2d();
+    }
     let render_frame = render_frame_from_objects(objects);
 
     let camera = garage.orbit_camera();

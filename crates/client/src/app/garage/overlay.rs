@@ -39,9 +39,9 @@ const TAB_X0: f32 = 0.34;
 const TAB_DX: f32 = 0.24;
 const TAB_HALF: [f32; 2] = [0.11, 0.045];
 
-// Module-panel rows + cycle arrows.
-const PANEL_ROW_TOP: f32 = 0.72;
-const PANEL_ROW_PITCH: f32 = 0.12;
+// Module-panel rows + cycle arrows (six slots).
+const PANEL_ROW_TOP: f32 = 0.70;
+const PANEL_ROW_PITCH: f32 = 0.105;
 const ARROW_LEFT_X: f32 = 0.86;
 const ARROW_RIGHT_X: f32 = 0.93;
 const ARROW_HALF: [f32; 2] = [0.024, 0.035];

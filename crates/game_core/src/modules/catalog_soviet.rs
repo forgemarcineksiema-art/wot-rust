@@ -112,6 +112,7 @@ pub(crate) fn gun_d10t() -> GunModule {
         },
         mass_kg: 2_300.0,
         hit_points: 150,
+        barrel_length_m: 5.0,
     }
 }
 
@@ -129,5 +130,6 @@ pub(crate) fn gun_d10t2s() -> GunModule {
         },
         mass_kg: 2_300.0,
         hit_points: 150,
+        barrel_length_m: 5.9,
     }
 }

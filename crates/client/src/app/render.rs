@@ -124,6 +124,9 @@ impl ClientApp {
     /// orbit camera, with the garage UI overlay. Replaces the battle scene while the garage is open.
     pub(super) fn render_garage(&mut self) {
         self.last_render_time = Instant::now();
+        // Apply orbit drag (and clear the cursor delta) — the battle path does this per frame, and
+        // the garage needs it too or the inspection camera never moves.
+        self.apply_mouse_look();
         self.ensure_scene(SceneKind::Garage);
         let aspect = self.renderer.as_ref().map_or(16.0 / 9.0, WindowRenderer::aspect_ratio);
         let camera = self.garage.orbit_camera();
@@ -136,8 +139,18 @@ impl ClientApp {
         );
 
         let snapshot = garage_preview_snapshot(self.garage.selected_vehicle());
-        let objects =
+        let mut objects =
             tank_render_objects(&mut self.vehicle_mesh_catalog, &snapshot, [0.34, 0.42, 0.30]);
+        // Stretch the gun submesh (objects: [hull, turret, gun]) along its barrel axis so swapping
+        // to a longer/shorter gun visibly changes the silhouette. Local +Z is the barrel direction.
+        let barrel_scale = self.garage.gun_silhouette_scale();
+        if (barrel_scale - 1.0).abs() > 1.0e-3
+            && let Some(gun) = objects.get_mut(2)
+        {
+            let scaled = glam::Mat4::from_cols_array_2d(&gun.transform)
+                * glam::Mat4::from_scale(glam::Vec3::new(1.0, 1.0, barrel_scale));
+            gun.transform = scaled.to_cols_array_2d();
+        }
         let render_frame = render_frame_from_objects(objects);
         let hud = self.garage.overlay_vertices(aspect);
 

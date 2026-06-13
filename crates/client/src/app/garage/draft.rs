@@ -13,12 +13,19 @@ pub(crate) enum FitSlot {
     Gun,
     Hull,
     Engine,
+    Suspension,
     Radio,
 }
 
 impl FitSlot {
-    pub(super) const ALL: [FitSlot; 5] =
-        [FitSlot::Turret, FitSlot::Gun, FitSlot::Hull, FitSlot::Engine, FitSlot::Radio];
+    pub(super) const ALL: [FitSlot; 6] = [
+        FitSlot::Turret,
+        FitSlot::Gun,
+        FitSlot::Hull,
+        FitSlot::Engine,
+        FitSlot::Suspension,
+        FitSlot::Radio,
+    ];
 
     pub(super) fn label(self) -> &'static str {
         match self {
@@ -26,6 +33,7 @@ impl FitSlot {
             FitSlot::Gun => "Gun",
             FitSlot::Hull => "Hull",
             FitSlot::Engine => "Engine",
+            FitSlot::Suspension => "Susp.",
             FitSlot::Radio => "Radio",
         }
     }
@@ -39,7 +47,7 @@ impl FitSlot {
 pub(crate) struct LoadoutDraft {
     kind: VehicleKind,
     modules: VehicleModules,
-    option_index: [usize; 5],
+    option_index: [usize; 6],
     ammo_index: usize,
     crew: Crew,
 }
@@ -49,7 +57,7 @@ impl LoadoutDraft {
         Self {
             kind,
             modules: kind.default_loadout(),
-            option_index: [0; 5],
+            option_index: [0; 6],
             ammo_index: 0,
             crew: Crew::default(),
         }
@@ -65,6 +73,7 @@ impl LoadoutDraft {
             FitSlot::Gun => self.kind.gun_options().len(),
             FitSlot::Hull => self.kind.hull_options().len(),
             FitSlot::Engine => self.kind.engine_options().len(),
+            FitSlot::Suspension => self.kind.suspension_options().len(),
             FitSlot::Radio => self.kind.radio_options().len(),
         }
     }
@@ -79,6 +88,7 @@ impl LoadoutDraft {
             FitSlot::Gun => self.modules.gun.spec.name.clone(),
             FitSlot::Hull => self.modules.hull.name.clone(),
             FitSlot::Engine => self.modules.engine.name.clone(),
+            FitSlot::Suspension => self.modules.suspension.name.clone(),
             FitSlot::Radio => self.modules.radio.name.clone(),
         }
     }
@@ -110,6 +120,10 @@ impl LoadoutDraft {
                 self.modules.engine = self.kind.engine_options()[next].clone();
                 true
             }
+            FitSlot::Suspension => {
+                self.modules.suspension = self.kind.suspension_options()[next].clone();
+                true
+            }
             FitSlot::Radio => {
                 self.modules.radio = self.kind.radio_options()[next].clone();
                 true
@@ -122,6 +136,11 @@ impl LoadoutDraft {
 
     pub(super) fn ammo_options(&self) -> Vec<ShellSpec> {
         self.modules.gun.spec.ammo_options()
+    }
+
+    /// Exposed barrel length (m) of the installed gun — drives the garage gun silhouette.
+    pub(super) fn gun_barrel_length(&self) -> f32 {
+        self.modules.gun.barrel_length_m
     }
 
     pub(super) fn ammo_index(&self) -> usize {
@@ -167,6 +186,22 @@ mod tests {
         let before = draft.assembled_spec().gun.reload_seconds;
         draft.cycle_module(FitSlot::Gun, 1);
         assert_ne!(draft.assembled_spec().gun.reload_seconds, before);
+    }
+
+    #[test]
+    fn cycling_the_suspension_changes_assembled_turn_rate() {
+        let mut draft = LoadoutDraft::for_vehicle(VehicleKind::TigerII);
+        let before = draft.assembled_spec().turn_rate_rad_s;
+        draft.cycle_module(FitSlot::Suspension, 1);
+        assert!(draft.assembled_spec().turn_rate_rad_s > before);
+    }
+
+    #[test]
+    fn swapping_the_t54_gun_changes_the_barrel_length() {
+        let mut draft = LoadoutDraft::for_vehicle(VehicleKind::T54_1951);
+        let before = draft.gun_barrel_length();
+        draft.cycle_module(FitSlot::Gun, 1);
+        assert_ne!(draft.gun_barrel_length(), before, "the alternate gun has a different barrel");
     }
 
     #[test]

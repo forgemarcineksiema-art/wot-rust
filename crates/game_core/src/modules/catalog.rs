@@ -4,7 +4,8 @@ use super::catalog_misc::{
 };
 use super::catalog_soviet::{gun_d10t, gun_d10t2s, t54_loadout, t55_loadout};
 use super::{
-    EngineModule, GunModule, HullChassis, RadioModule, TurretModule, VehicleModules,
+    EngineModule, GunModule, HullChassis, RadioModule, SuspensionModule, TurretModule,
+    VehicleModules,
 };
 use crate::VehicleKind;
 
@@ -62,6 +63,20 @@ impl VehicleKind {
         vec![stock, uprated]
     }
 
+    /// Running gear (first is stock). A derived reinforced set turns faster and carries more, for
+    /// a little more mass. The load limit it sets still gates heavier turret/gun installs.
+    pub fn suspension_options(self) -> Vec<SuspensionModule> {
+        let stock = self.default_loadout().suspension;
+        let reinforced = SuspensionModule {
+            name: format!("{} (reinforced)", stock.name),
+            turn_rate_rad_s: stock.turn_rate_rad_s * 1.12,
+            max_load_kg: stock.max_load_kg * 1.06,
+            mass_kg: stock.mass_kg * 1.03,
+            ..stock.clone()
+        };
+        vec![stock, reinforced]
+    }
+
     /// Radios (first is stock). A derived improved radio extends signal range.
     pub fn radio_options(self) -> Vec<RadioModule> {
         let stock = self.default_loadout().radio;
@@ -86,7 +101,14 @@ mod tests {
             assert_eq!(kind.turret_options()[0], default.turret);
             assert_eq!(kind.hull_options()[0], default.hull);
             assert_eq!(kind.engine_options()[0], default.engine);
+            assert_eq!(kind.suspension_options()[0], default.suspension);
             assert_eq!(kind.radio_options()[0], default.radio);
+
+            // The reinforced running gear is a real upgrade (faster traverse, more load headroom).
+            let suspensions = kind.suspension_options();
+            let last = &suspensions[suspensions.len() - 1];
+            assert!(last.turn_rate_rad_s > suspensions[0].turn_rate_rad_s);
+            assert!(last.max_load_kg >= suspensions[0].max_load_kg);
 
             // The uprated engine is a real upgrade and any option still assembles to a valid spec.
             let engines = kind.engine_options();

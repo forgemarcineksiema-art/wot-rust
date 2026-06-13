@@ -112,6 +112,7 @@ pub(crate) fn gun_kwk36() -> GunModule {
         },
         mass_kg: 2_200.0,
         hit_points: 150,
+        barrel_length_m: 4.8,
     }
 }
 
@@ -129,5 +130,6 @@ pub(crate) fn gun_kwk43() -> GunModule {
         },
         mass_kg: 2_300.0,
         hit_points: 150,
+        barrel_length_m: 6.4,
     }
 }
