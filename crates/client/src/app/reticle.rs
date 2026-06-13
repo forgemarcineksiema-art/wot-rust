@@ -7,21 +7,20 @@ use crate::hud::HudReticle;
 
 const GUN_TRACK_GAIN: f32 = 6.0;
 
+/// Gun commands derived from one resolved sight point: the ballistic elevation and the
+/// muzzle->sight turret bearing share a single (expensive) aim sweep per fixed-tick batch.
 #[derive(Debug, Clone, Copy)]
-pub(super) struct DesiredGunSolution {
+pub(super) struct SightSolution {
     pub pitch_rad: f32,
+    /// World-space bearing that points the gun from the muzzle *through* the sight point, so the
+    /// shell converges on the crosshair. Commanding the raw camera yaw instead runs the barrel
+    /// parallel to the over-shoulder sight lane and misses sideways, worst at close range.
+    /// `None` only when the sight point sits on the muzzle.
+    pub turret_bearing_rad: Option<f32>,
 }
 
 impl ClientApp {
-    /// Elevation-rate command (in [-1, 1]) that traverses the gun toward the pitch needed to
-    /// land a shell on the desired sight point.
-    pub(super) fn gun_elevation_command(&self) -> f32 {
-        let target_pitch =
-            self.desired_gun_solution().map_or(self.desired_aim.pitch_rad(), |aim| aim.pitch_rad);
-        ((target_pitch - self.player_gun_pitch()) * GUN_TRACK_GAIN).clamp(-1.0, 1.0)
-    }
-
-    pub(super) fn desired_gun_solution(&self) -> Option<DesiredGunSolution> {
+    pub(super) fn sight_solution(&self) -> Option<SightSolution> {
         let tank = self.local_render_tank()?;
         let camera = self.camera_from_tank(tank);
         let aim = self.aim_world_point(&camera)?;
@@ -32,22 +31,24 @@ impl ClientApp {
             self.player_spec().gun.shell.muzzle_velocity_mps,
         )
         .clamp(sim::MIN_GUN_PITCH_RAD, sim::MAX_GUN_PITCH_RAD);
-        Some(DesiredGunSolution { pitch_rad })
+        let delta = aim - muzzle;
+        // `gun_direction` uses x = sin(yaw), z = cos(yaw), so yaw = atan2(x, z).
+        let turret_bearing_rad =
+            ((delta.x.abs() > 1.0e-4) || (delta.z.abs() > 1.0e-4)).then(|| delta.x.atan2(delta.z));
+        Some(SightSolution { pitch_rad, turret_bearing_rad })
     }
 
-    /// World-space turret heading that points the gun from the muzzle *through* the resolved sight
-    /// point, so the shell converges on the crosshair. The yaw counterpart of `desired_gun_solution`:
-    /// commanding the turret to the raw camera yaw instead runs the barrel parallel to the sight
-    /// lane, which — with the over-shoulder camera offset — misses sideways, worst at close range.
-    pub(super) fn desired_turret_yaw(&self) -> Option<f32> {
-        let tank = self.local_render_tank()?;
-        let camera = self.camera_from_tank(tank);
-        let aim = self.aim_world_point(&camera)?;
-        let muzzle = self.muzzle_position();
-        let delta = aim - muzzle;
-        // Degenerate only if the sight point sits on the muzzle; otherwise the horizontal bearing
-        // is well defined. `gun_direction` uses x = sin(yaw), z = cos(yaw), so yaw = atan2(x, z).
-        ((delta.x.abs() > 1.0e-4) || (delta.z.abs() > 1.0e-4)).then(|| delta.x.atan2(delta.z))
+    /// Elevation-rate command (in [-1, 1]) that traverses the gun toward the pitch needed to
+    /// land a shell on the desired sight point.
+    pub(super) fn gun_elevation_command_for(&self, solution: Option<&SightSolution>) -> f32 {
+        let target_pitch =
+            solution.map_or(self.desired_aim.pitch_rad(), |solution| solution.pitch_rad);
+        ((target_pitch - self.player_gun_pitch()) * GUN_TRACK_GAIN).clamp(-1.0, 1.0)
+    }
+
+    #[cfg(test)]
+    pub(super) fn gun_elevation_command(&self) -> f32 {
+        self.gun_elevation_command_for(self.sight_solution().as_ref())
     }
 
     pub(super) fn hud_reticle(
@@ -61,7 +62,7 @@ impl ClientApp {
         let player_spec = self.player_spec();
         let muzzle_velocity = player_spec.gun.shell.muzzle_velocity_mps;
         let muzzle = self.muzzle_position();
-        let feedback = crate::reticle::reticle_feedback(crate::reticle::ReticleFeedbackQuery {
+        let report = crate::reticle::reticle_report(crate::reticle::ReticleFeedbackQuery {
             heightmap: &self.battlefield.heightmap,
             cover: &self.battlefield.static_cover,
             tanks: &tanks,
@@ -74,19 +75,8 @@ impl ClientApp {
             gun_pitch_rad: tank.gun_pitch_rad,
             muzzle_velocity_mps: muzzle_velocity,
         });
-        let pen_hint = crate::reticle::penetration_hint(crate::reticle::ReticleFeedbackQuery {
-            heightmap: &self.battlefield.heightmap,
-            cover: &self.battlefield.static_cover,
-            tanks: &tanks,
-            player_spec: &player_spec,
-            owner: self.player_tank,
-            owner_team: self.player_team(),
-            muzzle,
-            aim,
-            turret_yaw_rad: tank.yaw_rad + tank.turret_yaw_rad,
-            gun_pitch_rad: tank.gun_pitch_rad,
-            muzzle_velocity_mps: muzzle_velocity,
-        });
+        let feedback = report.feedback;
+        let pen_hint = report.penetration;
 
         Some(HudReticle {
             aim_clip: crate::reticle::world_to_clip_xy(feedback.aim_world_point, view_projection)

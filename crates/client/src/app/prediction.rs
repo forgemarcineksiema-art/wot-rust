@@ -130,11 +130,26 @@ impl ClientApp {
     /// crosshair, not merely parallel to the camera. Falls back to the raw camera yaw when no aim
     /// point is available (e.g. before the local tank exists). Both the bearing and the turret are
     /// measured relative to the hull.
-    pub(super) fn turret_tracking_command(&self) -> f32 {
-        let world_target = self.desired_turret_yaw().unwrap_or_else(|| self.desired_aim.yaw_rad());
+    pub(super) fn turret_tracking_command_for(
+        &self,
+        solution: Option<&super::reticle::SightSolution>,
+    ) -> f32 {
+        let world_target = solution
+            .and_then(|solution| solution.turret_bearing_rad)
+            .unwrap_or_else(|| self.desired_aim.yaw_rad());
         let target = shortest_angle(world_target - self.predictor.yaw());
         let current = self.predictor.turret_yaw();
         (shortest_angle(target - current) * TURRET_TRACK_GAIN).clamp(-1.0, 1.0)
+    }
+
+    #[cfg(test)]
+    pub(super) fn turret_tracking_command(&self) -> f32 {
+        self.turret_tracking_command_for(self.sight_solution().as_ref())
+    }
+
+    #[cfg(test)]
+    pub(super) fn desired_turret_yaw(&self) -> Option<f32> {
+        self.sight_solution().and_then(|solution| solution.turret_bearing_rad)
     }
 }
 

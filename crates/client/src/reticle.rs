@@ -44,87 +44,86 @@ pub(crate) struct ReticleFeedbackQuery<'a> {
     pub muzzle_velocity_mps: f32,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct ReticleReport {
+    pub feedback: ReticleFeedback,
+    pub penetration: Option<PenetrationHint>,
+}
+
+/// One authoritative-shaped ballistic trace serves both the reticle status and the penetration
+/// hint — running the identical trace twice per frame doubled the most expensive HUD work.
+pub(crate) fn reticle_report(query: ReticleFeedbackQuery<'_>) -> ReticleReport {
+    let outcome = crate::reticle_sweep::reticle_trace(crate::reticle_sweep::ReticleTraceQuery {
+        heightmap: query.heightmap,
+        cover: query.cover,
+        tanks: query.tanks,
+        owner: query.owner,
+        owner_team: query.owner_team,
+        muzzle: query.muzzle,
+        yaw_rad: query.turret_yaw_rad,
+        pitch_rad: query.gun_pitch_rad,
+        muzzle_velocity_mps: query.muzzle_velocity_mps,
+    });
+    ReticleReport {
+        feedback: feedback_from_outcome(&query, &outcome),
+        penetration: penetration_from_outcome(&query, &outcome),
+    }
+}
+
+#[cfg(test)]
 pub(crate) fn reticle_feedback(query: ReticleFeedbackQuery<'_>) -> ReticleFeedback {
-    let ReticleFeedbackQuery {
-        heightmap,
-        cover,
-        tanks,
-        player_spec: _,
-        owner,
-        owner_team,
-        muzzle,
-        aim,
-        turret_yaw_rad,
-        gun_pitch_rad,
-        muzzle_velocity_mps,
-    } = query;
-    let target_pitch = crate::aim::gun_pitch_to_hit(muzzle, aim, muzzle_velocity_mps);
-    let actual_impact_world_point =
-        crate::reticle_sweep::reticle_trace(crate::reticle_sweep::ReticleTraceQuery {
-            heightmap,
-            cover,
-            tanks,
-            owner,
-            owner_team,
-            muzzle,
-            yaw_rad: turret_yaw_rad,
-            pitch_rad: gun_pitch_rad,
-            muzzle_velocity_mps,
-        })
-        .impact_point();
+    reticle_report(query).feedback
+}
+
+#[cfg(test)]
+pub(crate) fn penetration_hint(query: ReticleFeedbackQuery<'_>) -> Option<PenetrationHint> {
+    reticle_report(query).penetration
+}
+
+fn feedback_from_outcome(
+    query: &ReticleFeedbackQuery<'_>,
+    outcome: &sim::TraceOutcome,
+) -> ReticleFeedback {
+    let target_pitch =
+        crate::aim::gun_pitch_to_hit(query.muzzle, query.aim, query.muzzle_velocity_mps);
+    let actual_impact_world_point = outcome.impact_point();
     // The arc is the simulation's gun arc, not a client-side copy that could drift from it.
     let in_arc = (sim::MIN_GUN_PITCH_RAD..=sim::MAX_GUN_PITCH_RAD).contains(&target_pitch);
     let status = if in_arc
-        && terrain_line_clear(heightmap, muzzle, aim)
-        && actual_impact_world_point.distance(aim) <= RETICLE_MATCH_TOLERANCE_M
+        && terrain_line_clear(query.heightmap, query.muzzle, query.aim)
+        && actual_impact_world_point.distance(query.aim) <= RETICLE_MATCH_TOLERANCE_M
     {
         ReticleStatus::Clear
     } else {
         ReticleStatus::Blocked
     };
-    let distance = aim.distance(muzzle).max(1.0);
-    let gun_world_point =
-        muzzle + game_core::math::gun_direction(turret_yaw_rad, gun_pitch_rad) * distance;
+    let distance = query.aim.distance(query.muzzle).max(1.0);
+    let gun_world_point = query.muzzle
+        + game_core::math::gun_direction(query.turret_yaw_rad, query.gun_pitch_rad) * distance;
 
-    ReticleFeedback { status, aim_world_point: aim, gun_world_point, actual_impact_world_point }
+    ReticleFeedback {
+        status,
+        aim_world_point: query.aim,
+        gun_world_point,
+        actual_impact_world_point,
+    }
 }
 
-pub(crate) fn penetration_hint(query: ReticleFeedbackQuery<'_>) -> Option<PenetrationHint> {
-    let ReticleFeedbackQuery {
-        heightmap,
-        cover,
-        tanks,
-        player_spec,
-        owner,
-        owner_team,
-        muzzle,
-        aim: _,
-        turret_yaw_rad,
-        gun_pitch_rad,
-        muzzle_velocity_mps,
-    } = query;
-    let outcome = crate::reticle_sweep::reticle_trace(crate::reticle_sweep::ReticleTraceQuery {
-        heightmap,
-        cover,
-        tanks,
-        owner,
-        owner_team,
-        muzzle,
-        yaw_rad: turret_yaw_rad,
-        pitch_rad: gun_pitch_rad,
-        muzzle_velocity_mps,
-    });
+fn penetration_from_outcome(
+    query: &ReticleFeedbackQuery<'_>,
+    outcome: &sim::TraceOutcome,
+) -> Option<PenetrationHint> {
     // Only a tank impact has armor to penetrate; terrain/cover/open-sky shots have no hint.
     let sim::TraceOutcome::Tank { id, facing, zone, impact_angle_degrees, distance_m, .. } =
-        outcome
+        *outcome
     else {
         return None;
     };
     // The player fires their own shell at the *target's* armor — read the shell from the player's
     // spec, not from the tank we are pointing at.
-    let target_hull = tanks.iter().find(|tank| tank.tank_id == id)?.vehicle.spec().hull;
+    let target_hull = query.tanks.iter().find(|tank| tank.tank_id == id)?.vehicle.spec().hull;
     let result = resolve_penetration_at_distance_on_zone(
-        &player_spec.gun.shell,
+        &query.player_spec.gun.shell,
         &target_hull,
         zone,
         impact_angle_degrees,

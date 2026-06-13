@@ -138,9 +138,11 @@ impl ClientApp {
             return;
         }
         // Mouse look is applied per rendered frame (see `render_now`); the fixed step only
-        // consumes the resulting aim, so the turret converges on the latest sight point.
-        let turret_yaw_delta = self.turret_tracking_command();
-        let gun_pitch_delta = self.gun_elevation_command();
+        // consumes the resulting aim, so the turret converges on the latest sight point. One
+        // sight sweep feeds both the traverse and the elevation command.
+        let solution = self.sight_solution();
+        let turret_yaw_delta = self.turret_tracking_command_for(solution.as_ref());
+        let gun_pitch_delta = self.gun_elevation_command_for(solution.as_ref());
         let mut fire = self.input.fire_pending;
         self.input.fire_pending = false;
         self.seed_prediction();

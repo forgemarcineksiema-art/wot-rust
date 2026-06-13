@@ -9,7 +9,9 @@ use net::TankSnapshot;
 use sim::{ShellTraceWorld, segment_impact};
 use terrain::{HeightMap, StaticCoverObject};
 
-const AIM_MAX_RANGE_M: f32 = 600.0;
+// Sight rays must out-range the map: Prokhorovka targets 1000 m of playable space, and a sniper
+// duel across the long diagonal aims well past 600 m.
+const AIM_MAX_RANGE_M: f32 = 1200.0;
 const GUN_PITCH_SOLVER_MIN_RAD: f32 = -0.5;
 const GUN_PITCH_SOLVER_MAX_RAD: f32 = 0.8;
 const GUN_PITCH_SOLVER_STEPS: usize = 18;
