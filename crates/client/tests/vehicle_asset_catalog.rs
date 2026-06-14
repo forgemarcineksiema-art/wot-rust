@@ -59,6 +59,31 @@ fn vehicle_asset_catalog_can_seed_runtime_meshes_from_forge_artifact_folder() {
     std::fs::remove_dir_all(out).expect("remove client artifact");
 }
 
+#[test]
+fn vehicle_asset_catalog_loads_forge_lineup_artifact_tree() {
+    let root =
+        std::env::temp_dir().join(format!("wot_client_artifact_tree_test_{}", std::process::id()));
+    if root.exists() {
+        std::fs::remove_dir_all(&root).expect("remove stale artifact tree");
+    }
+    for kind in [VehicleKind::T54_1951, VehicleKind::T55A] {
+        let artifact = ForgeArtifact::bake(kind, BakeProfile::Lod0).expect("Forge artifact");
+        artifact
+            .write_to_dir(&root.join(artifact.manifest().vehicle_slug()))
+            .expect("write artifact tree entry");
+    }
+
+    let mut catalog = VehicleAssetCatalog::default();
+    let loaded = catalog.load_forge_artifact_tree(&root).expect("load artifact tree");
+
+    assert_eq!(loaded, 2);
+    assert_eq!(catalog.cached_vehicle_count(), 2);
+    assert_eq!(catalog.material_count(), 2);
+    assert_eq!(catalog.take_pending_vehicle_meshes().len(), 6);
+
+    std::fs::remove_dir_all(root).expect("remove artifact tree");
+}
+
 fn snapshot(vehicle: VehicleKind) -> TankSnapshot {
     TankSnapshot {
         tank_id: TankId(11),

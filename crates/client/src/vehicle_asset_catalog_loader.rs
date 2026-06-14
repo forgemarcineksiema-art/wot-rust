@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use renderer_api::{MaterialHandle, VehicleMaterialDescriptor};
@@ -8,6 +8,25 @@ use vehicle_geometry::SubmeshKind;
 use crate::vehicle_asset_catalog::{VehicleAssetCatalog, VehicleAssetEntry};
 
 impl VehicleAssetCatalog {
+    pub fn load_forge_artifact_tree(&mut self, root: impl AsRef<Path>) -> Result<usize> {
+        let root = root.as_ref();
+        if !root.exists() {
+            return Ok(0);
+        }
+        if root.join("manifest.json").is_file() {
+            self.load_forge_artifact_dir(root)?;
+            return Ok(1);
+        }
+        let mut artifact_dirs = artifact_child_dirs(root)?;
+        artifact_dirs.sort();
+        let mut loaded = 0;
+        for dir in artifact_dirs {
+            self.load_forge_artifact_dir(&dir)?;
+            loaded += 1;
+        }
+        Ok(loaded)
+    }
+
     pub fn load_forge_artifact_dir(&mut self, path: impl AsRef<Path>) -> Result<()> {
         let artifact = ForgeArtifact::read_from_dir(path.as_ref()).with_context(|| {
             format!("failed to load Forge artifact from {}", path.as_ref().display())
@@ -67,4 +86,17 @@ fn required_map(maps: &[ForgeTextureManifest], semantic: &str) -> Result<String>
 
 fn optional_map(maps: &[ForgeTextureManifest], semantic: &str) -> Option<String> {
     maps.iter().find(|map| map.semantic() == semantic).map(|map| map.file().to_string())
+}
+
+fn artifact_child_dirs(root: &Path) -> Result<Vec<PathBuf>> {
+    let mut dirs = Vec::new();
+    for entry in std::fs::read_dir(root)
+        .with_context(|| format!("failed to read Forge artifact root {}", root.display()))?
+    {
+        let path = entry?.path();
+        if path.join("manifest.json").is_file() {
+            dirs.push(path);
+        }
+    }
+    Ok(dirs)
 }
