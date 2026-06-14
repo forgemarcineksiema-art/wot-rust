@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use vehicle_geometry::LodLevel;
 
 use super::ArtifactError;
 
@@ -16,6 +17,15 @@ impl BakeProfile {
             Self::Lod0 => "lod0",
             Self::Lod1 => "lod1",
             Self::Lod2 => "lod2",
+        }
+    }
+
+    /// The geometry-kernel LOD tier this bake profile selects.
+    pub fn lod_level(self) -> LodLevel {
+        match self {
+            Self::Lod0 => LodLevel::Lod0,
+            Self::Lod1 => LodLevel::Lod1,
+            Self::Lod2 => LodLevel::Lod2,
         }
     }
 }

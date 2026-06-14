@@ -20,6 +20,30 @@ fn forge_artifact_manifest_names_the_baked_vehicle_profile_and_sources() {
 }
 
 #[test]
+fn bake_profile_selects_progressively_lighter_geometry() {
+    let total_tris = |profile| {
+        let artifact = ForgeArtifact::bake(VehicleKind::T54_1951, profile).expect("T-54 artifact");
+        artifact.manifest().submeshes().iter().map(|s| s.triangles()).sum::<usize>()
+    };
+    let lod0 = total_tris(BakeProfile::Lod0);
+    let lod1 = total_tris(BakeProfile::Lod1);
+    let lod2 = total_tris(BakeProfile::Lod2);
+
+    assert!(
+        lod0 > lod1 && lod1 > lod2,
+        "bake profiles must produce a real LOD ladder: {lod0}/{lod1}/{lod2}"
+    );
+
+    // The reduced profile must also shrink the serialized payload, proving the LOD is baked, not
+    // just labelled.
+    let lod0_bytes =
+        ForgeArtifact::bake(VehicleKind::T54_1951, BakeProfile::Lod0).unwrap().mesh_payload().len();
+    let lod2_bytes =
+        ForgeArtifact::bake(VehicleKind::T54_1951, BakeProfile::Lod2).unwrap().mesh_payload().len();
+    assert!(lod2_bytes < lod0_bytes, "LOD2 payload {lod2_bytes} must be smaller than LOD0 {lod0_bytes}");
+}
+
+#[test]
 fn review_camera_set_contains_required_forge_regression_views() {
     let cameras = ReviewCameraSet::standard_vehicle_review();
     let names: Vec<ReviewCamera> = cameras.cameras().iter().map(|camera| camera.kind()).collect();
