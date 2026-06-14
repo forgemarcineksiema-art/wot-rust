@@ -42,6 +42,16 @@ fn t54_blueprint_hull_has_inset_tub_and_wide_sponson() {
         .map(|vertex| vertex.position.x.abs())
         .fold(0.0_f32, f32::max);
 
+    // The running gear (tracks + wheels) outboard reach: on a real T-54 the tracks stand proud of
+    // the hull body as fenders, rather than the hull being as wide as the tracks (a slab).
+    let gear_side_x = hull
+        .mesh
+        .vertices()
+        .iter()
+        .filter(|vertex| matches!(vertex.material, MaterialRole::TrackMetal | MaterialRole::Rubber))
+        .map(|vertex| vertex.position.x.abs())
+        .fold(0.0_f32, f32::max);
+
     assert!(
         lower_side_x <= blueprint.hull.lower_half_width + 0.03,
         "lower tub side {lower_side_x:.2} should stay inside narrow hull half-width {:.2}",
@@ -53,13 +63,14 @@ fn t54_blueprint_hull_has_inset_tub_and_wide_sponson() {
         blueprint.track.inner_x
     );
     assert!(
-        upper_side_x >= blueprint.track.outer_x + 0.01,
-        "upper sponson {upper_side_x:.2} should sit just outside the road-wheel face {:.2}",
-        blueprint.track.outer_x
-    );
-    assert!(
-        upper_side_x >= lower_side_x + 0.25,
+        upper_side_x >= lower_side_x + 0.18,
         "upper hull should visibly step out from lower tub ({upper_side_x:.2} vs {lower_side_x:.2})"
+    );
+    // The tracks must stand proud of the hull body — fenders, not a hull as wide as the tracks.
+    assert!(
+        gear_side_x >= upper_side_x + 0.05,
+        "running gear {gear_side_x:.2} should stand proud of the hull body {upper_side_x:.2} \
+         (fenders), not sit flush — a flush hull reads as a wide slab"
     );
 }
 

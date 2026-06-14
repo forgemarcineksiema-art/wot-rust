@@ -133,13 +133,16 @@ pub(crate) fn cast_turret_shell(
     let span = roof_y - base_y;
     let front = half_length * 0.96;
     let back = half_length * 0.82;
-    let roof_scale = (roof_radius / half_width).clamp(0.2, 0.9);
-    // (height, plan scale): inset base, widest shoulder, tapering upper, small roof.
+    let _ = roof_radius;
+    // (height, plan scale): a flat "frying-pan" dome — the casting stays broad up through the
+    // shoulder and only rounds over near the very top, instead of tapering to a pointed onion. The
+    // roof ring is kept wide enough that the commander's cupola and hatches seat on a real roof.
     let stations = [
-        (base_y, 0.86),
-        (base_y + span * 0.20, 1.00),
-        (base_y + span * 0.55, 0.80),
-        (roof_y, roof_scale),
+        (base_y, 0.94),
+        (base_y + span * 0.30, 1.00),
+        (base_y + span * 0.62, 0.94),
+        (base_y + span * 0.85, 0.78),
+        (roof_y, 0.60),
     ];
     let sections = stations
         .iter()

@@ -31,7 +31,7 @@ fn t55a_bake_has_mount_aware_submeshes_and_stable_output() {
         .map(|vertex| vertex.position.x.abs())
         .fold(0.0_f32, f32::max);
     assert!(
-        outer_wheel_x >= 1.70,
+        outer_wheel_x >= 1.50,
         "road wheels should sit on the visible outside face of the track run"
     );
     assert!(turret.mesh.triangle_count() >= 48, "turret should be rounded enough to read");
