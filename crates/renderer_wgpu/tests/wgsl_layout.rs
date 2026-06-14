@@ -50,6 +50,16 @@ fn vehicle_shader_is_valid_wgsl_with_pbr_lite_inputs() {
     assert!(report.entry_points.iter().any(|entry| entry == "fs_main"));
     // The vehicle pipeline binds its camera uniform at group 0, binding 0 (like the scene pass).
     assert!(report.has_uniform_binding("camera", 0, 0));
+    let source = vehicle_shader_source();
+    for binding in [
+        "@group(1) @binding(0)\nvar albedo_map",
+        "@group(1) @binding(1)\nvar normal_map",
+        "@group(1) @binding(2)\nvar ao_roughness_map",
+        "@group(1) @binding(3)\nvar cavity_map",
+        "@group(1) @binding(4)\nvar vehicle_sampler",
+    ] {
+        assert!(source.contains(binding), "vehicle shader must bind material resource {binding}");
+    }
 }
 
 #[test]
@@ -60,7 +70,9 @@ fn vehicle_pipeline_builds_on_a_real_device() {
     };
     // Proves the shader compiles on the GPU and the VehicleVertex/instance layout binds without
     // validation errors — the pipeline is real, not just WGSL-parsed.
-    let _ = build_vehicle_pipeline(&ctx.device, wgpu::TextureFormat::Rgba8UnormSrgb, 1);
+    let (_, _, material_bgl) =
+        build_vehicle_pipeline(&ctx.device, wgpu::TextureFormat::Rgba8UnormSrgb, 1);
+    let _ = &material_bgl;
     assert_eq!(core::mem::size_of::<VehicleVertex>(), 56);
 }
 

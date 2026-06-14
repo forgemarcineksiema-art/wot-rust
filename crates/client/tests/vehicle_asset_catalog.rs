@@ -60,6 +60,36 @@ fn vehicle_asset_catalog_can_seed_runtime_meshes_from_forge_artifact_folder() {
 }
 
 #[test]
+fn loaded_forge_artifact_queues_decoded_material_maps_for_gpu_upload() {
+    let artifact =
+        ForgeArtifact::bake(VehicleKind::T54_1951, BakeProfile::Lod0).expect("T-54 artifact");
+    let out = std::env::temp_dir()
+        .join(format!("wot_client_artifact_material_test_{}", std::process::id()));
+    if out.exists() {
+        std::fs::remove_dir_all(&out).expect("remove stale client artifact");
+    }
+    artifact.write_to_dir(&out).expect("write Forge artifact");
+
+    let mut catalog = VehicleAssetCatalog::default();
+    catalog.load_forge_artifact_dir(&out).expect("load Forge artifact into catalog");
+    let materials = catalog.take_pending_vehicle_materials();
+
+    assert_eq!(materials.len(), 1, "one vehicle should queue one material upload");
+    let (_, maps) = &materials[0];
+    // The baked maps are 32x32 RGBA8; decoding must preserve dimensions and tight packing.
+    for map in [maps.albedo(), maps.normal(), maps.ao_roughness()] {
+        assert_eq!(map.width(), 32);
+        assert_eq!(map.height(), 32);
+        assert_eq!(map.rgba().len(), 32 * 32 * 4);
+    }
+    assert!(maps.cavity().is_some(), "T-54 bake includes a cavity map");
+    // A second take is empty — uploads are drained, not duplicated.
+    assert!(catalog.take_pending_vehicle_materials().is_empty());
+
+    std::fs::remove_dir_all(out).expect("remove client artifact");
+}
+
+#[test]
 fn vehicle_asset_catalog_loads_forge_lineup_artifact_tree() {
     let root =
         std::env::temp_dir().join(format!("wot_client_artifact_tree_test_{}", std::process::id()));

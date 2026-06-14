@@ -10,6 +10,26 @@ pub fn vehicle_shader_source() -> &'static str {
     include_str!("shaders/vehicle.wgsl")
 }
 
+pub(crate) fn build_vehicle_material_bind_group_layout(
+    device: &wgpu::Device,
+) -> wgpu::BindGroupLayout {
+    device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        label: Some("vehicle_material_bgl"),
+        entries: &[
+            material_texture_entry(0),
+            material_texture_entry(1),
+            material_texture_entry(2),
+            material_texture_entry(3),
+            wgpu::BindGroupLayoutEntry {
+                binding: 4,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                count: None,
+            },
+        ],
+    })
+}
+
 const VEHICLE_VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 6] = wgpu::vertex_attr_array![
     0 => Float32x3, 1 => Float32x3, 2 => Float32x4, 3 => Float32x2, 4 => Uint32, 5 => Float32];
 const VEHICLE_INSTANCE_ATTRIBUTES: [wgpu::VertexAttribute; 5] = wgpu::vertex_attr_array![
@@ -22,7 +42,7 @@ pub fn build_vehicle_pipeline(
     device: &wgpu::Device,
     color_format: wgpu::TextureFormat,
     sample_count: u32,
-) -> (wgpu::RenderPipeline, wgpu::BindGroupLayout) {
+) -> (wgpu::RenderPipeline, wgpu::BindGroupLayout, wgpu::BindGroupLayout) {
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("vehicle_shader"),
         source: wgpu::ShaderSource::Wgsl(vehicle_shader_source().into()),
@@ -40,9 +60,10 @@ pub fn build_vehicle_pipeline(
             count: None,
         }],
     });
+    let material_bgl = build_vehicle_material_bind_group_layout(device);
     let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("vehicle_pipeline_layout"),
-        bind_group_layouts: &[Some(&camera_bgl)],
+        bind_group_layouts: &[Some(&camera_bgl), Some(&material_bgl)],
         immediate_size: 0,
     });
     let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -92,5 +113,18 @@ pub fn build_vehicle_pipeline(
         multiview_mask: None,
         cache: None,
     });
-    (pipeline, camera_bgl)
+    (pipeline, camera_bgl, material_bgl)
+}
+
+fn material_texture_entry(binding: u32) -> wgpu::BindGroupLayoutEntry {
+    wgpu::BindGroupLayoutEntry {
+        binding,
+        visibility: wgpu::ShaderStages::FRAGMENT,
+        ty: wgpu::BindingType::Texture {
+            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+            view_dimension: wgpu::TextureViewDimension::D2,
+            multisampled: false,
+        },
+        count: None,
+    }
 }

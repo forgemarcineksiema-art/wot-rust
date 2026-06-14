@@ -2,6 +2,7 @@ mod draw;
 mod hud_atlas;
 mod resources;
 mod terrain;
+mod vehicle_materials;
 
 use std::cell::Cell;
 
@@ -35,6 +36,7 @@ pub struct SceneRenderer {
     static_meshes: SceneMeshRegistry,
     vehicle_pipeline: wgpu::RenderPipeline,
     vehicle_camera_bind_group: wgpu::BindGroup,
+    vehicle_materials: vehicle_materials::VehicleMaterialRegistry,
     vehicle_instances: wgpu::Buffer,
     vehicle_instance_count: u32,
     vehicle_draws: Vec<SceneObjectDraw>,
@@ -86,7 +88,7 @@ impl SceneRenderer {
         validate_msaa_support(ctx, color_format, DEPTH_FORMAT, sample_count)?;
         let device = &ctx.device;
         let (pipeline, camera_bgl) = build_scene_pipeline(device, color_format, sample_count);
-        let (vehicle_pipeline, vehicle_camera_bgl) =
+        let (vehicle_pipeline, vehicle_camera_bgl, vehicle_material_bgl) =
             build_vehicle_pipeline(device, color_format, sample_count);
 
         let camera_buffer = device.create_buffer(&wgpu::BufferDescriptor {
@@ -153,6 +155,11 @@ impl SceneRenderer {
         });
         let (hud_font_bgl, hud_font_sampler, hud_font_bind_group) =
             hud_atlas::create_hud_font_resources(device, &ctx.queue);
+        let vehicle_materials = vehicle_materials::VehicleMaterialRegistry::new(
+            device,
+            &ctx.queue,
+            vehicle_material_bgl,
+        );
         let hud_pipeline = build_hud_pipeline(device, color_format, sample_count, &hud_font_bgl);
         let hud_vertices = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("scene_hud_v"),
@@ -178,6 +185,7 @@ impl SceneRenderer {
             static_meshes: SceneMeshRegistry::default(),
             vehicle_pipeline,
             vehicle_camera_bind_group,
+            vehicle_materials,
             vehicle_instances,
             vehicle_instance_count: 0,
             vehicle_draws: Vec::new(),

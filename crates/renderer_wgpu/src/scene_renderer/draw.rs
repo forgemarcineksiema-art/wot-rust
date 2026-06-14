@@ -90,6 +90,7 @@ impl super::SceneRenderer {
                 pass.set_bind_group(0, &self.vehicle_camera_bind_group, &[]);
                 pass.set_vertex_buffer(1, self.vehicle_instances.slice(..));
                 for draw in &self.vehicle_draws {
+                    pass.set_bind_group(1, self.vehicle_materials.bind_group(draw.material), &[]);
                     let Some(mesh) = self.vehicle_meshes.get(draw.mesh) else {
                         self.skipped_mesh_draws
                             .set(self.skipped_mesh_draws.get().saturating_add(1));

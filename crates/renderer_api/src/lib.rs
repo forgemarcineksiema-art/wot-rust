@@ -37,7 +37,9 @@ pub use projection::{CameraProjectionPolicy, DepthRange};
 pub use resources::{MaterialDescriptor, MeshAsset, MeshRegistry, RenderMaterialRegistry};
 pub use scene::{HUD_SOLID_UV, HudVertex, SceneVertex, view_projection_matrix};
 pub use vehicle::{VehicleVertex, generate_tangents};
-pub use vehicle_asset::{VehicleMaterialDescriptor, VehicleMeshAsset};
+pub use vehicle_asset::{
+    VehicleMaterialDescriptor, VehicleMaterialMaps, VehicleMeshAsset, VehicleTextureMap,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RenderSettings {

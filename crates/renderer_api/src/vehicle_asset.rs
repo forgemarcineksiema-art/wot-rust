@@ -74,3 +74,76 @@ impl VehicleMaterialDescriptor {
         self.cavity_texture.as_deref()
     }
 }
+
+/// A single decoded RGBA8 texture map ready for GPU upload. Decoupled from any image codec so the
+/// renderer backend stays format-agnostic; the catalog decodes baked PNGs into this shape.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VehicleTextureMap {
+    width: u32,
+    height: u32,
+    rgba: Vec<u8>,
+}
+
+impl VehicleTextureMap {
+    /// Builds a map from tightly packed RGBA8 rows. Panics if the buffer is not exactly
+    /// `width * height * 4` bytes, since a mismatch would corrupt the upload.
+    pub fn new(width: u32, height: u32, rgba: Vec<u8>) -> Self {
+        assert!(width > 0 && height > 0, "vehicle texture map must be non-empty");
+        assert_eq!(
+            rgba.len(),
+            width as usize * height as usize * 4,
+            "vehicle texture map must be tightly packed RGBA8"
+        );
+        Self { width, height, rgba }
+    }
+
+    pub fn width(&self) -> u32 {
+        self.width
+    }
+
+    pub fn height(&self) -> u32 {
+        self.height
+    }
+
+    pub fn rgba(&self) -> &[u8] {
+        &self.rgba
+    }
+}
+
+/// The decoded PBR-lite material maps for one vehicle: albedo, tangent-space normal, packed
+/// AO/roughness/metalness, and an optional cavity map. The renderer uploads these into the
+/// vehicle material bind group; missing maps fall back to neutral debug textures.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VehicleMaterialMaps {
+    albedo: VehicleTextureMap,
+    normal: VehicleTextureMap,
+    ao_roughness: VehicleTextureMap,
+    cavity: Option<VehicleTextureMap>,
+}
+
+impl VehicleMaterialMaps {
+    pub fn new(
+        albedo: VehicleTextureMap,
+        normal: VehicleTextureMap,
+        ao_roughness: VehicleTextureMap,
+        cavity: Option<VehicleTextureMap>,
+    ) -> Self {
+        Self { albedo, normal, ao_roughness, cavity }
+    }
+
+    pub fn albedo(&self) -> &VehicleTextureMap {
+        &self.albedo
+    }
+
+    pub fn normal(&self) -> &VehicleTextureMap {
+        &self.normal
+    }
+
+    pub fn ao_roughness(&self) -> &VehicleTextureMap {
+        &self.ao_roughness
+    }
+
+    pub fn cavity(&self) -> Option<&VehicleTextureMap> {
+        self.cavity.as_ref()
+    }
+}

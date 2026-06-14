@@ -1,4 +1,7 @@
-use renderer_api::{HudVertex, MeshAsset, MeshHandle, RenderFrame, SceneVertex, VehicleMeshAsset};
+use renderer_api::{
+    HudVertex, MaterialHandle, MeshAsset, MeshHandle, RenderFrame, SceneVertex, VehicleMaterialMaps,
+    VehicleMeshAsset,
+};
 
 use crate::GpuContext;
 use crate::scene_resources::frame_instances;
@@ -33,6 +36,15 @@ impl super::SceneRenderer {
         mesh: &VehicleMeshAsset,
     ) {
         self.vehicle_meshes.register(ctx, handle, mesh);
+    }
+
+    pub fn register_vehicle_material(
+        &mut self,
+        ctx: &GpuContext,
+        handle: MaterialHandle,
+        maps: &VehicleMaterialMaps,
+    ) {
+        self.vehicle_materials.register(ctx, handle, maps);
     }
 
     pub fn set_render_frame(&mut self, ctx: &GpuContext, frame: &RenderFrame) {

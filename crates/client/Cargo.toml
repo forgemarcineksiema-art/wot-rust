@@ -13,6 +13,7 @@ game_core = { path = "../game_core" }
 glam.workspace = true
 net = { path = "../net" }
 physics = { path = "../physics" }
+png = "0.18"
 renderer_api = { path = "../renderer_api" }
 renderer_wgpu = { path = "../renderer_wgpu" }
 server = { path = "../server" }

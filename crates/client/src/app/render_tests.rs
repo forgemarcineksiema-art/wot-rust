@@ -232,6 +232,9 @@ fn render_garage_preview_png() {
     for (handle, mesh) in catalog.take_pending_vehicle_meshes() {
         renderer.register_vehicle_mesh(&ctx, handle, &mesh);
     }
+    for (handle, maps) in catalog.take_pending_vehicle_materials() {
+        renderer.register_vehicle_material(&ctx, handle, &maps);
+    }
     renderer.set_vehicle_render_frame(&ctx, &render_frame);
     renderer.set_hud(&ctx, &garage.overlay_vertices(aspect));
     renderer.render(&ctx, target.render_target(), view_proj).expect("render");

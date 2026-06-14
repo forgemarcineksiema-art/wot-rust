@@ -13,6 +13,17 @@ struct Camera {
 @group(0) @binding(0)
 var<uniform> camera: Camera;
 
+@group(1) @binding(0)
+var albedo_map: texture_2d<f32>;
+@group(1) @binding(1)
+var normal_map: texture_2d<f32>;
+@group(1) @binding(2)
+var ao_roughness_map: texture_2d<f32>;
+@group(1) @binding(3)
+var cavity_map: texture_2d<f32>;
+@group(1) @binding(4)
+var vehicle_sampler: sampler;
+
 struct VsIn {
     @location(0) position: vec3<f32>,
     @location(1) normal: vec3<f32>,
@@ -81,37 +92,35 @@ fn material_params(id: u32) -> Material {
     return m;
 }
 
-// A cheap procedural micro-detail normal in tangent space so the tangent frame is exercised and
-// surfaces break up under specular without uploaded textures. Kept subtle (near +Z).
-fn detail_normal(uv: vec2<f32>) -> vec3<f32> {
-    let freq = 8.0;
-    return normalize(vec3<f32>(sin(uv.x * freq) * 0.06, sin(uv.y * freq) * 0.06, 1.0));
-}
-
 @fragment
 fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     let n = normalize(input.world_normal);
     let t = normalize(input.world_tangent - n * dot(n, input.world_tangent));
     let b = cross(n, t) * input.tangent_w;
-    let dn = detail_normal(input.uv);
+    let dn = normalize(textureSample(normal_map, vehicle_sampler, input.uv).xyz * 2.0 - vec3<f32>(1.0));
     let world_n = normalize(t * dn.x + b * dn.y + n * dn.z);
 
     let mat = material_params(input.material_id);
     // Armour takes the per-instance team tint; detail materials keep their absolute albedo.
     let tinted = mix(vec3<f32>(1.0, 1.0, 1.0), input.team_tint, input.tint_mask);
-    let albedo = mat.albedo * tinted;
+    let baked_albedo = textureSample(albedo_map, vehicle_sampler, input.uv).rgb;
+    let albedo = mat.albedo * baked_albedo * tinted;
+    let ao_rough = textureSample(ao_roughness_map, vehicle_sampler, input.uv).rgb;
+    let ao = ao_rough.r;
+    let cavity = textureSample(cavity_map, vehicle_sampler, input.uv).r;
 
     let sun_dir = normalize(vec3<f32>(0.45, 0.82, 0.35));
     let diffuse = max(dot(world_n, sun_dir), 0.0);
     let sky_fill = 0.25 * (0.5 + 0.5 * world_n.y);
-    let lit = albedo * (0.22 + diffuse * 0.85 + sky_fill);
+    let lit = albedo * (0.22 + diffuse * 0.85 + sky_fill) * ao * cavity;
 
     // Roughness-driven specular: smoother materials get a tighter, brighter highlight. The view
     // direction is approximated (the lite model carries no camera position), enough to separate a
     // glossy barrel from matte rubber.
     let half_v = normalize(sun_dir + normalize(vec3<f32>(0.0, 0.4, 1.0)));
-    let shininess = mix(4.0, 96.0, 1.0 - mat.roughness);
-    let spec = pow(max(dot(world_n, half_v), 0.0), shininess) * (1.0 - mat.roughness) * 0.4;
+    let roughness = clamp(mat.roughness * (0.55 + ao_rough.g), 0.04, 1.0);
+    let shininess = mix(4.0, 96.0, 1.0 - roughness);
+    let spec = pow(max(dot(world_n, half_v), 0.0), shininess) * (1.0 - roughness) * 0.4;
 
     let scene_tint = vec3<f32>(camera.tint_r, camera.tint_g, camera.tint_b);
     return vec4<f32>((lit + vec3<f32>(spec, spec, spec)) * scene_tint, 1.0);

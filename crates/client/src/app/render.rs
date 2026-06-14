@@ -112,6 +112,9 @@ impl ClientApp {
         for (handle, mesh) in self.vehicle_asset_catalog.take_pending_vehicle_meshes() {
             renderer.register_vehicle_mesh(handle, &mesh);
         }
+        for (handle, maps) in self.vehicle_asset_catalog.take_pending_vehicle_materials() {
+            renderer.register_vehicle_material(handle, &maps);
+        }
         renderer.set_render_frame(&RenderFrame::default());
         renderer.set_vehicle_render_frame(&vehicle_frame);
         renderer.set_dynamic_mesh(&vertices, &indices);

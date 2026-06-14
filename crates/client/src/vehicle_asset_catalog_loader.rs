@@ -1,7 +1,9 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
-use renderer_api::{MaterialHandle, VehicleMaterialDescriptor};
+use renderer_api::{
+    MaterialHandle, VehicleMaterialDescriptor, VehicleMaterialMaps, VehicleTextureMap,
+};
 use vehicle_forge::{ForgeArtifact, ForgeTextureManifest};
 use vehicle_geometry::SubmeshKind;
 
@@ -66,18 +68,65 @@ impl VehicleAssetCatalog {
             return Ok(*handle);
         }
         let maps = artifact.manifest().texture_maps();
+        let albedo_file = required_map(maps, "albedo")?;
+        let normal_file = required_map(maps, "normal")?;
+        let ao_file = required_map(maps, "ao_roughness_metalness")?;
+        let cavity_file = optional_map(maps, "cavity");
         let descriptor = VehicleMaterialDescriptor::pbr_lite(
             artifact.manifest().vehicle_slug(),
-            required_map(maps, "albedo")?,
-            required_map(maps, "normal")?,
-            required_map(maps, "ao_roughness_metalness")?,
-            optional_map(maps, "cavity"),
+            albedo_file.clone(),
+            normal_file.clone(),
+            ao_file.clone(),
+            cavity_file.clone(),
         );
         let handle = MaterialHandle(self.materials.len() as u32);
         self.materials.push(descriptor);
         self.material_handles.insert(kind, handle);
+
+        // Decode the baked PNGs now so the renderer can upload real maps; a missing payload simply
+        // leaves the renderer on its neutral fallback texture for that channel.
+        let material_maps = VehicleMaterialMaps::new(
+            decode_required(artifact, &albedo_file)?,
+            decode_required(artifact, &normal_file)?,
+            decode_required(artifact, &ao_file)?,
+            cavity_file.and_then(|file| decode_optional(artifact, &file)),
+        );
+        self.pending_materials.push((handle, material_maps));
         Ok(handle)
     }
+}
+
+fn decode_required(artifact: &ForgeArtifact, file: &str) -> Result<VehicleTextureMap> {
+    decode_optional(artifact, file)
+        .with_context(|| format!("artifact texture {file} is missing or could not be decoded"))
+}
+
+fn decode_optional(artifact: &ForgeArtifact, file: &str) -> Option<VehicleTextureMap> {
+    let bytes = artifact.texture_payload(file)?;
+    decode_png_rgba8(bytes)
+}
+
+fn decode_png_rgba8(bytes: &[u8]) -> Option<VehicleTextureMap> {
+    let decoder = png::Decoder::new(std::io::Cursor::new(bytes));
+    let mut reader = decoder.read_info().ok()?;
+    let mut buffer = vec![0; reader.output_buffer_size()?];
+    let info = reader.next_frame(&mut buffer).ok()?;
+    let (width, height) = (info.width, info.height);
+    let rgba = match info.color_type {
+        png::ColorType::Rgba => buffer[..info.buffer_size()].to_vec(),
+        png::ColorType::Rgb => buffer[..info.buffer_size()]
+            .chunks_exact(3)
+            .flat_map(|px| [px[0], px[1], px[2], 255])
+            .collect(),
+        png::ColorType::Grayscale => {
+            buffer[..info.buffer_size()].iter().flat_map(|&v| [v, v, v, 255]).collect()
+        }
+        _ => return None,
+    };
+    if rgba.len() != width as usize * height as usize * 4 {
+        return None;
+    }
+    Some(VehicleTextureMap::new(width, height, rgba))
 }
 
 fn required_map(maps: &[ForgeTextureManifest], semantic: &str) -> Result<String> {
