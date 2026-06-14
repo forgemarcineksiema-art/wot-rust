@@ -1,6 +1,6 @@
 //! Lineup-wide shape gates: every `VehicleKind` must bake into finite, hitbox-honest, and
 //! visually distinct geometry. Cost and rigging gates (hashes, mounts, budgets) live in
-//! `vehicle_budgets.rs`; per-vehicle detail for the T-55A slice lives in `vehicle_recipe.rs`.
+//! `vehicle_budgets.rs`; legacy T-55A compatibility detail lives in `vehicle_recipe.rs`.
 
 use game_core::{HitboxProfile, VehicleKind};
 use vehicle_geometry::{BakedVehicle, MaterialRole, MeshBounds, SubmeshKind, bake_vehicle};

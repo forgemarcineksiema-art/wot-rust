@@ -1,12 +1,22 @@
 # Armored Vehicle Forge: Długoterminowy Plan Technologii Pojazdów
 
+## Current Benchmark Reset
+
+The active Forge benchmark is now one canonical **T-54-3 obr. 1951**, not a T-54/T-55 family pass.
+T-55A remains in `VehicleKind` for wire/test compatibility only: it is not a production roster
+vehicle, not part of `VehicleKind::PLAYABLE`, not a Forge reference pack, and not a review-lineup
+benchmark. The current acceptance target is one good T-54 LOD0 first: continuous track belt, five
+large road wheels, distinct front idler and rear drive sprocket, no return rollers, low embedded
+mantlet, D-10T without bore evacuator, named hull plates, named turret cheek/mantlet modules, and
+non-tiny 256x256 procedural texture maps.
+
 ## Summary
 
 Budujemy **Armored Vehicle Forge**: proceduralny system authoringu i bake assetów, którego celem jest jakość wizualna w duchu **World of Tanks beta**, ale bez ręcznego modelowania każdego pojazdu od zera. Proceduralność ma być źródłem prawdy i narzędziem produkcji modeli, a runtime ma renderować gotowe, zoptymalizowane assety.
 
 Decyzje zablokowane:
 - Model pipeline: **procedural source + baked assety + runtime warianty**.
-- Pierwszy benchmark jakości: **T-54/T-55 family**.
+- Pierwszy benchmark jakości: **jeden kanoniczny T-54-3 obr. 1951**.
 - Renderer target: **PBR-lite + baked maps**.
 - Nazwa technologii: **Armored Vehicle Forge**, nie `VehicleBlueprint v2`.
 
@@ -81,16 +91,16 @@ Armored Vehicle Forge będzie mieć 6 warstw:
   - `ForgeArtifact`
   - `ReviewCameraSet`
 
-### 2. Zbudować T-54/T-55 jako benchmark jakości
+### 2. Zbudować T-54 jako benchmark jakości
 
-Pierwszy cel nie brzmi „wszystkie pojazdy trochę lepsze”. Pierwszy cel brzmi: **T-54/T-55 family wygląda jak prawdziwy pojazd z WoT-beta-like asset pipeline**.
+Pierwszy cel nie brzmi „wszystkie pojazdy trochę lepsze”. Pierwszy cel brzmi: **T-54-3 obr. 1951 wygląda jak prawdziwy pojazd z WoT-beta-like asset pipeline**.
 
-T-54/T-55 benchmark musi mieć:
-- 5/6-road-wheel decision jawnie udokumentowaną i testowaną.
+T-54 benchmark musi mieć:
+- 5-road-wheel decision jawnie udokumentowaną i testowaną, bez return rollers.
 - Lower hull tub, upper sponsons, fenders, track run.
 - Cast turret z asymetryczną masą frontu/cheeków, nie tylko revolve dome.
 - Mantlet socket + moving gun mask.
-- Cupola, hatch cues, gun evacuator, barrel taper.
+- Cupola, hatch cues, D-10T bez bore evacuatora, barrel taper.
 - LOD0 near/garage model: target 8k-18k tris.
 - LOD1 battle near: 3k-8k tris.
 - LOD2 distance: 800-2k tris.
@@ -153,16 +163,17 @@ Nie wolno dopuścić, żeby ładny model rozjechał gameplay:
 Checklist:
 - [x] Dokument `Armored Vehicle Forge` opisuje model authoring+bake+runtime variation.
 - [x] Stary `VehicleBlueprint` opisany jako prototypowy stepping stone.
-- [x] T-54/T-55 family wybrana jako quality benchmark.
+- [x] T-54-3 obr. 1951 wybrany jako quality benchmark.
+- [x] T-55A cofnięty do legacy/compat: zostaje w `VehicleKind`, ale nie w `PLAYABLE`, Forge packu ani review lineupie.
 - [x] Obecne screenshoty zachowane jako baseline porównawczy.
 
 Acceptance:
-- Każdy kolejny task można ocenić pytaniem: „czy przybliża T-54/T-55 do Forge benchmarku?”
+- Każdy kolejny task można ocenić pytaniem: „czy przybliża T-54 do Forge benchmarku?”
 
 ### Milestone 1: Reference Pack And Ratio Tests
 
 Checklist:
-- [x] Utworzyć `ReferencePack` dla T-54/T-55.
+- [x] Utworzyć `ReferencePack` dla T-54.
 - [x] Dodać photo-derived ratio tests.
 - [x] Testować: road wheel count, hull length/height, track height, turret width, turret height, gun protrusion, cupola position.
 - [x] Raportować różnice procentowe, nie tylko pass/fail.
@@ -174,7 +185,7 @@ Acceptance:
 
 Checklist:
 - [x] Dodać `ForgePartGraph`.
-- [x] Przenieść T-54/T-55 z płaskich constants do części: hull, track, wheels, turret, mantlet, gun, fittings.
+- [x] Przenieść T-54 z płaskich constants do nazwanych części: hull plates, fenders, track belt, road wheels, idler, drive sprocket, turret cheeks, mantlet socket, moving mantlet, gun, fittings.
 - [x] Każda część ma bounds, material role, local frame, source note.
 - [x] Mount frames wynikają z grafu części.
 
@@ -186,13 +197,13 @@ Acceptance:
 Checklist:
 - [x] Plate builder z grubością i bevels.
 - [x] Multi-section loft dla kadłuba.
-- [x] Cast turret shell dla T-54/T-55.
+- [x] Cast turret shell dla T-54.
 - [x] Track belt + real wheel train.
 - [x] Basic fittings: cupola, hatches, handles, exhaust/fuel tank cues.
 - [x] UV unwrap i tangent generation.
 
 Acceptance:
-- T-54/T-55 przestaje wyglądać jak „low-poly approximation”, zaczyna czytać się jako konkretny model pojazdu z referencji.
+- T-54 przestaje wyglądać jak „low-poly approximation”, zaczyna czytać się jako konkretny model pojazdu z referencji.
 
 ### Milestone 4: PBR-lite Vehicle Pipeline
 
@@ -223,7 +234,7 @@ Acceptance:
 ### Milestone 6: First Production Benchmark
 
 Checklist:
-- [x] T-54/T-55 family ma LOD0/LOD1/LOD2.
+- [x] T-54 benchmark ma LOD0/LOD1/LOD2.
 - [x] Screenshoty: front, rear, left/right profile, top, battle-oblique.
 - [x] Ratio report przechodzi.
 - [x] Geometry tests przechodzą.
@@ -232,7 +243,7 @@ Checklist:
 - [x] Wizualnie baseline jest porównywalny z „early WoT-like”: nie AAA, ale konkretny, prawdziwy pojazd.
 
 Acceptance:
-- T-54/T-55 staje się quality bar dla reszty garażu.
+- T-54 staje się quality bar dla reszty garażu.
 
 ### Milestone 7: Runtime Variation
 
@@ -270,7 +281,7 @@ Core commands:
 - `./scripts/verify.ps1` before declaring a phase complete.
 
 Required scenarios:
-- T-54/T-55 bake is deterministic.
+- T-54 bake is deterministic.
 - LODs preserve mount frames and gameplay hitbox honesty.
 - UVs stay inside atlas bounds.
 - Tangents are finite and normalized enough for normal mapping.
@@ -293,7 +304,7 @@ Required scenarios:
 
 All milestones (M0–M8) are implemented and locked by tests. Notable engineering decisions and honest deviations from the original nominal spec:
 
-- **Geometry kernel & part graph (M2/M3).** The T-54/T-55 benchmark is blueprint-backed: every part extent derives from the single `VehicleBlueprint` shape source. The German line (Tiger I/II, Jagdtiger, Panther II) gets a **geometry-derived** part graph from baked submesh bounds + reference-pack running-gear counts — no new magic values, no gameplay change — until those families earn their own blueprints.
+- **Geometry kernel & part graph (M2/M3).** The T-54 benchmark is blueprint-backed: every part extent derives from the single `VehicleBlueprint` shape source. T-55A remains a legacy-compatible blueprint/recipe but has no production `ReferencePack` or Forge part graph. The German line (Tiger I/II, Jagdtiger, Panther II) gets a **geometry-derived** part graph from baked submesh bounds + reference-pack running-gear counts — no new magic values, no gameplay change — until those families earn their own blueprints.
 - **Reference ratios (M1).** Five measurable silhouette ratios per family (hull plan + height, turret width + height, gun protrusion), reported with signed **Δ% deltas**, not just pass/fail. Road-wheel count is gated against the part graph.
 - **PBR-lite renderer (M4/M5).** The vehicle pipeline samples real baked albedo/normal/AO-roughness/cavity maps uploaded per material from the artifact PNGs, with a clean neutral fallback when a map is missing.
 - **LOD ladder (M3/M6).** `BakeProfile` (lod0/lod1/lod2) drives deterministic vertex-cluster decimation that preserves mount frames and the LOD0 hitbox silhouette. The triangle budgets are tuned to the current lean procedural base (LOD0 ≈ 1.2–2.4k tris) rather than the original nominal 8–18k figure, which assumed a denser authoring pass we deliberately deferred to keep many tanks cheap on screen; the *ladder* (strictly lighter, real reduction) is the gated contract.

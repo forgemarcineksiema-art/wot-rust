@@ -9,6 +9,11 @@ pub enum ReviewCamera {
     RightProfile,
     Top,
     BattleOblique,
+    T54CloseFront,
+    T54RunningGear,
+    T54TurretMantlet,
+    T54TopPlan,
+    T54BattleClose,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -44,6 +49,11 @@ impl ReviewCameraSpec {
             ReviewCamera::RightProfile => "right_profile.png",
             ReviewCamera::Top => "top.png",
             ReviewCamera::BattleOblique => "battle_oblique.png",
+            ReviewCamera::T54CloseFront => "t54_close_front.png",
+            ReviewCamera::T54RunningGear => "t54_running_gear.png",
+            ReviewCamera::T54TurretMantlet => "t54_turret_mantlet.png",
+            ReviewCamera::T54TopPlan => "t54_top_plan.png",
+            ReviewCamera::T54BattleClose => "t54_battle_close.png",
         }
     }
 }
@@ -63,6 +73,11 @@ impl ReviewCameraSet {
                 camera(ReviewCamera::RightProfile, 90.0, -4.0, 1.55),
                 camera(ReviewCamera::Top, 0.0, -82.0, 1.70),
                 camera(ReviewCamera::BattleOblique, 35.0, -12.0, 1.35),
+                camera(ReviewCamera::T54CloseFront, 0.0, -5.0, 0.82),
+                camera(ReviewCamera::T54RunningGear, 90.0, -7.0, 0.88),
+                camera(ReviewCamera::T54TurretMantlet, 0.0, -12.0, 0.70),
+                camera(ReviewCamera::T54TopPlan, 0.0, -86.0, 1.10),
+                camera(ReviewCamera::T54BattleClose, 35.0, -10.0, 0.90),
             ],
         }
     }

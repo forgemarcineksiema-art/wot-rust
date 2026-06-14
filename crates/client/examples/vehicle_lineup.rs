@@ -10,7 +10,7 @@ use renderer_api::{Camera, view_projection_matrix};
 use renderer_wgpu::{GpuContext, OffscreenTarget, SceneRenderer};
 use terrain::prokhorovka_hill_252_2;
 
-/// Render every known vehicle side by side offscreen through the baked [`RenderFrame`] path.
+/// Render every production vehicle side by side offscreen through the baked [`RenderFrame`] path.
 /// `cargo run -p client --example vehicle_lineup -- out.png`
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let path = std::env::args().nth(1).unwrap_or_else(|| "target/vehicle_lineup.png".to_string());
@@ -36,8 +36,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut catalog = VehicleMeshCatalog::default();
     let mut render_objects = Vec::new();
-    for (index, kind) in VehicleKind::ALL.into_iter().enumerate() {
-        let x = center_x + (index as f32 - 3.0) * spacing;
+    let roster = VehicleKind::PLAYABLE;
+    let center_index = (roster.len().saturating_sub(1)) as f32 * 0.5;
+    for (index, kind) in roster.into_iter().enumerate() {
+        let x = center_x + (index as f32 - center_index) * spacing;
         let ground = battlefield.heightmap.sample_height(x, center_z).unwrap_or(0.0);
         let snapshot = TankSnapshot {
             tank_id: TankId(index as u64 + 1),
@@ -86,6 +88,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     encoder.set_color(png::ColorType::Rgba);
     encoder.set_depth(png::BitDepth::Eight);
     encoder.write_header()?.write_image_data(&pixels)?;
-    println!("wrote {path} ({width}x{height}) — {} vehicles", VehicleKind::ALL.len());
+    println!("wrote {path} ({width}x{height}) — {} vehicles", VehicleKind::PLAYABLE.len());
     Ok(())
 }

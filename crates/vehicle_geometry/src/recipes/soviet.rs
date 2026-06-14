@@ -15,8 +15,10 @@ use glam::Vec3;
 
 use super::{
     GunPlan, HullPlan, RunningGear, SG_CAST, add_broad_mantlet_socket, add_cupola,
-    add_mantlet_socket, add_running_gear, add_turret_ring, assemble, blueprint_deck_details,
-    blueprint_hull, blueprint_running_gear, build_gun, cast_turret_shell, hull_body, shade_hull,
+    add_mantlet_socket, add_running_gear, add_t54_mantlet_socket, add_turret_ring, assemble,
+    blueprint_deck_details, blueprint_hull, blueprint_running_gear,
+    blueprint_running_gear_with_layout, build_gun, build_gun_with_mantlet_scale, cast_turret_shell,
+    hull_body, shade_hull, t54_hull, t54_turret_front,
 };
 use crate::{BakedVehicle, GeometryMesh, MaterialRole, MeshBuilder};
 
@@ -27,9 +29,21 @@ fn soviet_cast_turret(
     t: &TurretShape,
     trunnion_y: f32,
     mantlet: Option<(f32, f32, f32)>,
+    t54_socket: bool,
+    shell_segments: usize,
 ) -> GeometryMesh {
-    let shell =
-        cast_turret_shell(t.ring_z, t.base_radius, t.plan_half_length, t.roof_radius, t.ring_y, t.roof_y, 16);
+    let mut shell = cast_turret_shell(
+        t.ring_z,
+        t.base_radius,
+        t.plan_half_length,
+        t.roof_radius,
+        t.ring_y,
+        t.roof_y,
+        shell_segments,
+    );
+    if t54_socket {
+        shell = shell.append(&t54_turret_front(t, trunnion_y, mantlet));
+    }
     // Commander's cupola: a real drum standing proud of the roof (not a pimple).
     let with_cupola =
         add_cupola(shell, t.cupola_x, t.cupola_z, t.roof_y - 0.08, t.cupola_radius, 0.26, true);
@@ -43,12 +57,12 @@ fn soviet_cast_turret(
         0.09,
         false,
     );
-    add_broad_mantlet_socket(
-        add_turret_ring(with_hatch, t.ring_z, t.ring_y, t.ring_radius, 0.12, 16),
-        trunnion_y,
-        mantlet,
-        12,
-    )
+    let with_ring = add_turret_ring(with_hatch, t.ring_z, t.ring_y, t.ring_radius, 0.12, 16);
+    if t54_socket {
+        add_t54_mantlet_socket(with_ring, trunnion_y, mantlet, 12)
+    } else {
+        add_broad_mantlet_socket(with_ring, trunnion_y, mantlet, 12)
+    }
     .build()
 }
 
@@ -66,7 +80,7 @@ pub(crate) fn t55a(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVehicl
 
     let t = &bp.turret;
     let mantlet = Some((t.mantlet_radius, t.mantlet_back_z, t.mantlet_front_z));
-    let turret = soviet_cast_turret(t, bp.gun.trunnion_y, mantlet);
+    let turret = soviet_cast_turret(t, bp.gun.trunnion_y, mantlet, false, 16);
 
     let gun = build_gun(&GunPlan {
         axis_y: bp.gun.trunnion_y,
@@ -88,26 +102,30 @@ pub(crate) fn t54_1951(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVe
     let bp = game_core::VehicleBlueprint::for_vehicle(VehicleKind::T54_1951)
         .expect("T-54 has a blueprint");
     let hull = shade_hull(
-        blueprint_hull(&bp.hull, MaterialRole::RolledArmor)
-            .append(&blueprint_running_gear(&bp.track))
+        t54_hull(&bp.hull, &bp.track)
+            .append(&blueprint_running_gear_with_layout(&bp.track, Some(&T54_WHEEL_ZS), 15))
             .append(&blueprint_deck_details(&bp.hull))
             .build(),
     );
 
     let t = &bp.turret;
     let mantlet = Some((t.mantlet_radius, t.mantlet_back_z, t.mantlet_front_z));
-    let turret = soviet_cast_turret(t, bp.gun.trunnion_y, mantlet);
+    let turret = soviet_cast_turret(t, bp.gun.trunnion_y, mantlet, true, 28);
 
-    let gun = build_gun(&GunPlan {
-        axis_y: bp.gun.trunnion_y,
-        breech_z: bp.gun.trunnion_z - 0.18,
-        muzzle_z: bp.gun.muzzle_z,
-        radius: bp.gun.barrel_radius,
-        segments: bp.gun.segments,
-        mantlet,
-        evacuator: bp.gun.evacuator,
-        muzzle_brake: bp.gun.muzzle_brake,
-    });
+    let gun = build_gun_with_mantlet_scale(
+        &GunPlan {
+            axis_y: bp.gun.trunnion_y,
+            breech_z: bp.gun.trunnion_z - 0.18,
+            muzzle_z: bp.gun.muzzle_z,
+            radius: bp.gun.barrel_radius,
+            segments: bp.gun.segments,
+            mantlet,
+            evacuator: bp.gun.evacuator,
+            muzzle_brake: bp.gun.muzzle_brake,
+        },
+        1.55,
+        0.62,
+    );
 
     assemble(VehicleKind::T54_1951, hull, turret, gun, *mounts)
 }
@@ -181,3 +199,5 @@ const PROTOTYPE_GEAR: RunningGear = RunningGear {
     wheel_outer_x: 1.69,
     wheel_segments: 12,
 };
+
+const T54_WHEEL_ZS: [f32; 5] = [-2.10, -0.80, 0.22, 1.18, 2.10];

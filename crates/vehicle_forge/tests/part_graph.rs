@@ -8,12 +8,23 @@ fn t54_part_graph_decomposes_into_expected_semantic_parts() {
 
     for kind in [
         ForgePartKind::Hull,
+        ForgePartKind::UpperGlacis,
+        ForgePartKind::LowerPlate,
+        ForgePartKind::Fenders,
         ForgePartKind::TrackRun,
+        ForgePartKind::TrackBelt,
         ForgePartKind::RoadWheels,
+        ForgePartKind::RoadWheelSet,
+        ForgePartKind::Idler,
+        ForgePartKind::DriveSprocket,
         ForgePartKind::Turret,
+        ForgePartKind::TurretCheeks,
         ForgePartKind::Mantlet,
+        ForgePartKind::MantletSocket,
+        ForgePartKind::MovingMantlet,
         ForgePartKind::Gun,
         ForgePartKind::Cupola,
+        ForgePartKind::EngineDeck,
     ] {
         let part = graph.part(kind).unwrap_or_else(|| panic!("graph missing {kind:?}"));
         assert!(
@@ -110,7 +121,20 @@ fn t54_part_report_explains_existence_role_and_source() {
 
     assert!(report.contains("T-54"));
     assert!(report.contains("Source"));
-    for needle in ["Hull", "TrackRun", "RoadWheels", "Turret", "Mantlet", "Gun", "Cupola"] {
+    for needle in [
+        "Hull",
+        "UpperGlacis",
+        "LowerPlate",
+        "Fenders",
+        "TrackBelt",
+        "RoadWheelSet",
+        "Idler",
+        "DriveSprocket",
+        "TurretCheeks",
+        "MantletSocket",
+        "MovingMantlet",
+        "EngineDeck",
+    ] {
         assert!(report.contains(needle), "report must list {needle}");
     }
     assert!(report.contains("CastArmor"));
@@ -118,14 +142,9 @@ fn t54_part_report_explains_existence_role_and_source() {
 }
 
 #[test]
-fn t55a_is_now_blueprint_backed_and_decomposes_into_a_part_graph() {
-    let graph = ForgePartGraph::for_vehicle(VehicleKind::T55A).expect("T-55A part graph");
-    let blueprint = VehicleBlueprint::for_vehicle(VehicleKind::T55A).expect("T-55A blueprint");
-
-    assert_eq!(graph.road_wheel_count_per_side(), 5);
-    assert!(graph.turret_traverses());
-    assert_eq!(graph.mount_frames(), blueprint.mount_frames());
-    assert!(graph.part(ForgePartKind::Gun).is_some());
+fn t55a_stays_legacy_compatible_but_has_no_production_part_graph() {
+    assert!(VehicleBlueprint::for_vehicle(VehicleKind::T55A).is_some());
+    assert!(ForgePartGraph::for_vehicle(VehicleKind::T55A).is_none());
 }
 
 #[test]

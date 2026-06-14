@@ -35,6 +35,16 @@ impl VehicleKind {
         VehicleKind::PantherII,
     ];
 
+    /// Player-facing production roster. Legacy/test-only vehicles remain in [`Self::ALL`] for
+    /// stable wire identity, but garage and review surfaces should use this list.
+    pub const PLAYABLE: [VehicleKind; 5] = [
+        VehicleKind::T54_1951,
+        VehicleKind::TigerI,
+        VehicleKind::TigerII,
+        VehicleKind::Jagdtiger,
+        VehicleKind::PantherII,
+    ];
+
     /// Asset slug stem; matches `assets/vehicles/<slug>.vehicle.json` for the six vehicles
     /// that ship an asset file (the prototype medium is test-only and has none).
     pub fn slug(self) -> &'static str {
@@ -88,6 +98,22 @@ mod tests {
                 assert_ne!(kind, other, "VehicleKind::ALL must not contain duplicates");
             }
         }
+    }
+
+    #[test]
+    fn playable_roster_exposes_production_vehicles_without_t55a_clone() {
+        assert_eq!(
+            VehicleKind::PLAYABLE,
+            [
+                VehicleKind::T54_1951,
+                VehicleKind::TigerI,
+                VehicleKind::TigerII,
+                VehicleKind::Jagdtiger,
+                VehicleKind::PantherII,
+            ]
+        );
+        assert!(!VehicleKind::PLAYABLE.contains(&VehicleKind::PrototypeMedium));
+        assert!(!VehicleKind::PLAYABLE.contains(&VehicleKind::T55A));
     }
 
     #[test]

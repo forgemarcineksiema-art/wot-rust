@@ -9,10 +9,10 @@ use crate::hud::push_quad;
 use crate::hud_font::push_text;
 
 pub(in crate::app::garage) fn draw(v: &mut Vec<HudVertex>, state: &GarageState, aspect: f32) {
-    let count = VehicleKind::ALL.len();
+    let count = VehicleKind::PLAYABLE.len();
     push_quad(v, [0.0, CAR_Y], [count as f32 * 0.065 + 0.02, CAR_HALF[1] + 0.02], PANEL);
 
-    for (i, kind) in VehicleKind::ALL.into_iter().enumerate() {
+    for (i, kind) in VehicleKind::PLAYABLE.into_iter().enumerate() {
         let c = carousel_center(i, count);
         let selected = i == state.selected_index();
         push_quad(v, c, CAR_HALF, if selected { SLOT_SELECTED } else { SLOT });

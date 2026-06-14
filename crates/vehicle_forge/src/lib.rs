@@ -16,7 +16,7 @@ pub use artifact::{
     ArtifactError, BakeProfile, ForgeArtifact, ForgeArtifactManifest, ForgeSubmeshManifest,
     ForgeTextureManifest, ReviewCamera, ReviewCameraSet, ReviewCameraSpec, forge_vehicle_slug,
 };
-pub use packs::t54_t55_reference_pack;
+pub use packs::t54_reference_pack;
 pub use packs_german::{
     jagdtiger_reference_pack, panther_ii_reference_pack, tiger_i_reference_pack,
     tiger_ii_reference_pack,

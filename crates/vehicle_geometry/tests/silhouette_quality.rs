@@ -11,7 +11,7 @@
 use game_core::{VehicleBlueprint, VehicleKind};
 use vehicle_geometry::{GeometryMesh, MaterialRole, MeshBounds, SubmeshKind, bake_vehicle};
 
-const SOVIET_PAIR: [VehicleKind; 2] = [VehicleKind::T54_1951, VehicleKind::T55A];
+const SOVIET_LEGACY_PAIR: [VehicleKind; 2] = [VehicleKind::T54_1951, VehicleKind::T55A];
 
 fn band_half_width(mesh: &GeometryMesh, y_lo: f32, y_hi: f32) -> f32 {
     mesh.vertices()
@@ -34,10 +34,10 @@ fn material_max_z(mesh: &GeometryMesh, material: MaterialRole) -> Option<f32> {
 }
 
 /// The cast Soviet turret must read as a flat "frying-pan" dome, not a pointed onion: its roof must
-/// keep a real fraction of the shoulder beam. (T-54 model 1951 / T-55 family.)
+/// keep a real fraction of the shoulder beam. (T-54 benchmark plus legacy-compatible T-55A.)
 #[test]
 fn soviet_cast_turret_is_a_dome_not_an_onion() {
-    for kind in SOVIET_PAIR {
+    for kind in SOVIET_LEGACY_PAIR {
         let baked = bake_vehicle(kind).unwrap();
         let turret = &baked.submesh(SubmeshKind::Turret).unwrap().mesh;
         let b = turret.bounds().unwrap();
@@ -56,7 +56,7 @@ fn soviet_cast_turret_is_a_dome_not_an_onion() {
 /// a dead giveaway that the turret is an unfinished blob.
 #[test]
 fn soviet_turret_has_a_real_cupola_drum() {
-    for kind in SOVIET_PAIR {
+    for kind in SOVIET_LEGACY_PAIR {
         let turret_top = submesh_bounds(kind, SubmeshKind::Turret).max.y;
         let roof_y = VehicleBlueprint::for_vehicle(kind).unwrap().turret.roof_y;
         let crown = turret_top - roof_y;
@@ -72,7 +72,7 @@ fn soviet_turret_has_a_real_cupola_drum() {
 /// cast mantlet front must not protrude past the turret shell front by more than a small margin.
 #[test]
 fn soviet_gun_mantlet_is_integrated_not_a_detached_ball() {
-    for kind in SOVIET_PAIR {
+    for kind in SOVIET_LEGACY_PAIR {
         let baked = bake_vehicle(kind).unwrap();
         let turret_front = baked.submesh(SubmeshKind::Turret).unwrap().mesh.bounds().unwrap().max.z;
         let gun = &baked.submesh(SubmeshKind::Gun).unwrap().mesh;
@@ -90,7 +90,7 @@ fn soviet_gun_mantlet_is_integrated_not_a_detached_ball() {
 /// T-54 is ~1.83).
 #[test]
 fn soviet_hull_reads_long_not_a_wide_slab() {
-    for kind in SOVIET_PAIR {
+    for kind in SOVIET_LEGACY_PAIR {
         let hull = submesh_bounds(kind, SubmeshKind::Hull);
         let length = hull.max.z - hull.min.z;
         let width = hull.max.x - hull.min.x;
@@ -107,7 +107,7 @@ fn soviet_hull_reads_long_not_a_wide_slab() {
 /// The track + road-wheel band must span a real fraction of the hull height.
 #[test]
 fn soviet_running_gear_fills_the_lower_hull_side() {
-    for kind in SOVIET_PAIR {
+    for kind in SOVIET_LEGACY_PAIR {
         let baked = bake_vehicle(kind).unwrap();
         let hull = &baked.submesh(SubmeshKind::Hull).unwrap().mesh;
         let hull_bounds = hull.bounds().unwrap();

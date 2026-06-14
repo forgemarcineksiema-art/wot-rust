@@ -1,9 +1,12 @@
 //! Shared turret fittings: cupolas, turret rings, mantlet sockets, and the cast turret shell.
 
+mod socket;
+
 use glam::{Vec2, Vec3};
 
 use super::{SG_CAST, SG_CUPOLA, SG_MANTLET, SG_RING};
 use crate::{Axis, LoftSection, LoftSpec, MaterialRole, MeshBuilder, ProfilePoint, RevolveSpec};
+use socket::oval_socket_mesh;
 
 /// Append a small cupola (drum or domed) onto a turret roof.
 pub(crate) fn add_cupola(
@@ -82,6 +85,29 @@ pub(crate) fn add_broad_mantlet_socket(
     segments: usize,
 ) -> MeshBuilder {
     add_mantlet_socket_with_profile(builder, axis_y, mantlet, segments, 1.40, 1.18)
+}
+
+pub(crate) fn add_t54_mantlet_socket(
+    builder: MeshBuilder,
+    axis_y: f32,
+    mantlet: Option<(f32, f32, f32)>,
+    segments: usize,
+) -> MeshBuilder {
+    let Some((radius, back_z, front_z)) = mantlet else {
+        return builder;
+    };
+    let span = (front_z - back_z).max(0.12);
+    let socket_back = back_z - span * 0.25;
+    let socket_front = back_z + span * 0.40;
+    builder.append(&oval_socket_mesh(
+        Vec3::new(0.0, axis_y, 0.0),
+        radius,
+        socket_back,
+        socket_front,
+        2.15,
+        0.82,
+        segments,
+    ))
 }
 
 fn add_mantlet_socket_with_profile(

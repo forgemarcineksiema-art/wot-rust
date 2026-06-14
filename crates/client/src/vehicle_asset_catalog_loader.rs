@@ -5,7 +5,7 @@ use renderer_api::{
     MaterialHandle, VehicleMaterialDescriptor, VehicleMaterialMaps, VehicleTextureMap,
 };
 use vehicle_forge::{ForgeArtifact, ForgeTextureManifest};
-use vehicle_geometry::SubmeshKind;
+use vehicle_geometry::{SubmeshKind, bake_vehicle, reduce_vehicle};
 
 use crate::vehicle_asset_catalog::{VehicleAssetCatalog, VehicleAssetEntry};
 
@@ -16,23 +16,26 @@ impl VehicleAssetCatalog {
             return Ok(0);
         }
         if root.join("manifest.json").is_file() {
-            self.load_forge_artifact_dir(root)?;
-            return Ok(1);
+            return Ok(self.load_forge_artifact_dir(root)? as usize);
         }
         let mut artifact_dirs = artifact_child_dirs(root)?;
         artifact_dirs.sort();
         let mut loaded = 0;
         for dir in artifact_dirs {
-            self.load_forge_artifact_dir(&dir)?;
-            loaded += 1;
+            if self.load_forge_artifact_dir(&dir)? {
+                loaded += 1;
+            }
         }
         Ok(loaded)
     }
 
-    pub fn load_forge_artifact_dir(&mut self, path: impl AsRef<Path>) -> Result<()> {
+    pub fn load_forge_artifact_dir(&mut self, path: impl AsRef<Path>) -> Result<bool> {
         let artifact = ForgeArtifact::read_from_dir(path.as_ref()).with_context(|| {
             format!("failed to load Forge artifact from {}", path.as_ref().display())
         })?;
+        if !artifact_matches_current_geometry(&artifact)? {
+            return Ok(false);
+        }
         let vehicle = artifact.baked_vehicle()?;
         let kind = vehicle.kind();
         let material = self.material_from_artifact(&artifact)?;
@@ -59,7 +62,7 @@ impl VehicleAssetCatalog {
             material,
         };
         self.vehicles.insert(kind, entry);
-        Ok(())
+        Ok(true)
     }
 
     fn material_from_artifact(&mut self, artifact: &ForgeArtifact) -> Result<MaterialHandle> {
@@ -94,6 +97,13 @@ impl VehicleAssetCatalog {
         self.pending_materials.push((handle, material_maps));
         Ok(handle)
     }
+}
+
+fn artifact_matches_current_geometry(artifact: &ForgeArtifact) -> Result<bool> {
+    let manifest = artifact.manifest();
+    let current =
+        reduce_vehicle(&bake_vehicle(manifest.vehicle())?, manifest.profile().lod_level());
+    Ok(current.deterministic_hash() == manifest.source_hash())
 }
 
 fn decode_required(artifact: &ForgeArtifact, file: &str) -> Result<VehicleTextureMap> {

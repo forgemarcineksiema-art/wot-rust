@@ -68,7 +68,7 @@ fn bake_map(
     channels: &str,
     pixel: fn(u32, u32) -> [u8; 4],
 ) -> Result<BakedTextureMap, io::Error> {
-    const SIZE: u32 = 32;
+    const SIZE: u32 = 256;
     let mut rgba = Vec::with_capacity((SIZE * SIZE * 4) as usize);
     for y in 0..SIZE {
         for x in 0..SIZE {
