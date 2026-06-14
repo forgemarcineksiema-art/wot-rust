@@ -171,7 +171,14 @@ fn parse_vehicle_kind(slug: &str) -> anyhow::Result<VehicleKind> {
 fn write_forge_lineup(out: PathBuf) -> anyhow::Result<()> {
     std::fs::create_dir_all(&out)
         .with_context(|| format!("failed to create output directory {}", out.display()))?;
-    let vehicles = [VehicleKind::T54_1951, VehicleKind::T55A];
+    let vehicles = [
+        VehicleKind::T54_1951,
+        VehicleKind::T55A,
+        VehicleKind::TigerI,
+        VehicleKind::TigerII,
+        VehicleKind::Jagdtiger,
+        VehicleKind::PantherII,
+    ];
     let mut index = String::from("# Armored Vehicle Forge lineup\n\n");
     index.push_str("| Vehicle | Profile | Artifact | Source hash |\n");
     index.push_str("| --- | --- | --- | ---: |\n");

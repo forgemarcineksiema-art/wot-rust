@@ -15,7 +15,10 @@ pub use artifact::{
     ArtifactError, BakeProfile, ForgeArtifact, ForgeArtifactManifest, ForgeSubmeshManifest,
     ForgeTextureManifest, ReviewCamera, ReviewCameraSet, ReviewCameraSpec, forge_vehicle_slug,
 };
-pub use packs::t54_t55_reference_pack;
+pub use packs::{
+    jagdtiger_reference_pack, panther_ii_reference_pack, t54_t55_reference_pack,
+    tiger_i_reference_pack, tiger_ii_reference_pack,
+};
 pub use part_graph::{ForgePart, ForgePartGraph, ForgePartKind, PartAnchor};
 pub use reference::{RatioKind, RatioTarget, ReferencePack, ReferenceSource};
 pub use report::{MeasuredRatio, RatioReport};

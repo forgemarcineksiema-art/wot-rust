@@ -20,6 +20,36 @@ fn forge_artifact_manifest_names_the_baked_vehicle_profile_and_sources() {
 }
 
 #[test]
+fn every_migrated_vehicle_bakes_a_full_artifact_at_every_lod() {
+    for kind in [
+        VehicleKind::T54_1951,
+        VehicleKind::T55A,
+        VehicleKind::TigerI,
+        VehicleKind::TigerII,
+        VehicleKind::Jagdtiger,
+        VehicleKind::PantherII,
+    ] {
+        for profile in [BakeProfile::Lod0, BakeProfile::Lod1, BakeProfile::Lod2] {
+            let artifact = ForgeArtifact::bake(kind, profile)
+                .unwrap_or_else(|e| panic!("{kind:?} {profile:?} should bake: {e}"));
+            let manifest = artifact.manifest();
+            assert_eq!(manifest.profile(), profile);
+            assert!(manifest.mesh_bytes() > 0, "{kind:?} {profile:?} empty mesh");
+            // Hull, turret/casemate, and gun all survive into the artifact at every LOD.
+            for sub in ["Hull", "Turret", "Gun"] {
+                assert!(
+                    manifest.submeshes().iter().any(|s| s.kind() == sub && s.triangles() > 0),
+                    "{kind:?} {profile:?} missing {sub}"
+                );
+            }
+            // The full baked material + review set is present regardless of vehicle.
+            assert_eq!(manifest.texture_maps().len(), 4, "{kind:?} material set incomplete");
+            assert_eq!(manifest.review_cameras().cameras().len(), 6, "{kind:?} review set incomplete");
+        }
+    }
+}
+
+#[test]
 fn bake_profile_selects_progressively_lighter_geometry() {
     let total_tris = |profile| {
         let artifact = ForgeArtifact::bake(VehicleKind::T54_1951, profile).expect("T-54 artifact");

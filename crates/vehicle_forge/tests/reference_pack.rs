@@ -35,7 +35,32 @@ fn t54_reference_pack_is_discoverable_by_vehicle_kind() {
     assert_eq!(t55a.family_slug(), "t54_t55");
     assert_eq!(t54.road_wheel_count_per_side(), 5);
     assert_eq!(t55a.road_wheel_count_per_side(), 5);
-    assert!(ReferencePack::for_vehicle(VehicleKind::TigerI).is_none());
+    // The German heavies are migrated too, each with their own family pack.
+    assert_eq!(ReferencePack::for_vehicle(VehicleKind::TigerI).unwrap().family_slug(), "tiger_i");
+    assert_eq!(ReferencePack::for_vehicle(VehicleKind::Jagdtiger).unwrap().family_slug(), "jagdtiger");
+    // The placeholder prototype is intentionally not a benchmarked family.
+    assert!(ReferencePack::for_vehicle(VehicleKind::PrototypeMedium).is_none());
+}
+
+#[test]
+fn every_migrated_family_pack_passes_its_own_silhouette_ratios() {
+    for kind in [
+        VehicleKind::T54_1951,
+        VehicleKind::T55A,
+        VehicleKind::TigerI,
+        VehicleKind::TigerII,
+        VehicleKind::Jagdtiger,
+        VehicleKind::PantherII,
+    ] {
+        let pack = ReferencePack::for_vehicle(kind).expect("migrated vehicle has a pack");
+        let vehicle = bake_vehicle(kind).expect("vehicle bakes");
+        let report = pack.measure_baked_vehicle(&vehicle).expect("ratio report");
+        assert!(
+            report.all_pass(),
+            "{kind:?} fails its own reference ratios:\n{}",
+            report.markdown_summary()
+        );
+    }
 }
 
 #[test]

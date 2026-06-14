@@ -112,7 +112,11 @@ impl ReferencePack {
     pub fn for_vehicle(kind: VehicleKind) -> Option<Self> {
         match kind {
             VehicleKind::T54_1951 | VehicleKind::T55A => Some(crate::t54_t55_reference_pack()),
-            _ => None,
+            VehicleKind::TigerI => Some(crate::tiger_i_reference_pack()),
+            VehicleKind::TigerII => Some(crate::tiger_ii_reference_pack()),
+            VehicleKind::Jagdtiger => Some(crate::jagdtiger_reference_pack()),
+            VehicleKind::PantherII => Some(crate::panther_ii_reference_pack()),
+            VehicleKind::PrototypeMedium => None,
         }
     }
 
