@@ -35,6 +35,17 @@ impl ReviewCameraSpec {
     pub fn distance_scale(&self) -> f32 {
         self.distance_scale
     }
+
+    pub fn file_name(&self) -> &'static str {
+        match self.kind {
+            ReviewCamera::Front => "front.png",
+            ReviewCamera::Rear => "rear.png",
+            ReviewCamera::LeftProfile => "left_profile.png",
+            ReviewCamera::RightProfile => "right_profile.png",
+            ReviewCamera::Top => "top.png",
+            ReviewCamera::BattleOblique => "battle_oblique.png",
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

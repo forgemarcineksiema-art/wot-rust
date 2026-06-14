@@ -54,6 +54,16 @@ fn forge_artifact_writes_manifest_mesh_payload_report_and_review_folder() {
     assert_png(&out.join("normal.png"));
     assert_png(&out.join("ao_roughness.png"));
     assert_png(&out.join("cavity.png"));
+    for file in [
+        "front.png",
+        "rear.png",
+        "left_profile.png",
+        "right_profile.png",
+        "top.png",
+        "battle_oblique.png",
+    ] {
+        assert_nonblank_png(&out.join("review").join(file));
+    }
     assert!(out.join("report.md").is_file());
     assert!(out.join("review").is_dir());
     assert!(
@@ -71,4 +81,19 @@ fn assert_png(path: &std::path::Path) {
     let bytes = std::fs::read(path).unwrap_or_else(|err| panic!("read {}: {err}", path.display()));
     assert!(bytes.len() > 32, "{} must not be an empty placeholder", path.display());
     assert_eq!(&bytes[..8], b"\x89PNG\r\n\x1a\n", "{} must be a PNG file", path.display());
+}
+
+fn assert_nonblank_png(path: &std::path::Path) {
+    assert_png(path);
+    let bytes = std::fs::read(path).expect("read png");
+    let decoder = png::Decoder::new(std::io::Cursor::new(bytes));
+    let mut reader = decoder.read_info().expect("decode png header");
+    let mut pixels = vec![0; reader.output_buffer_size().expect("png output buffer size")];
+    let info = reader.next_frame(&mut pixels).expect("decode png frame");
+    let pixels = &pixels[..info.buffer_size()];
+    let dark_pixels = pixels
+        .chunks_exact(4)
+        .filter(|pixel| pixel[0] < 245 || pixel[1] < 245 || pixel[2] < 245)
+        .count();
+    assert!(dark_pixels > 400, "{} must contain rendered vehicle pixels", path.display());
 }

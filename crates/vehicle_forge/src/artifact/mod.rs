@@ -7,45 +7,18 @@ use vehicle_geometry::bake_vehicle;
 
 use crate::{RatioReport, ReferencePack};
 
+mod bake_profile;
 mod mesh_payload;
 mod review;
+mod review_images;
+mod review_raster;
 mod slug;
 mod texture_maps;
 
+pub use bake_profile::BakeProfile;
 pub use review::{ReviewCamera, ReviewCameraSet, ReviewCameraSpec};
 pub use slug::forge_vehicle_slug;
 pub use texture_maps::ForgeTextureManifest;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum BakeProfile {
-    Lod0,
-    Lod1,
-    Lod2,
-}
-
-impl BakeProfile {
-    pub fn slug(self) -> &'static str {
-        match self {
-            Self::Lod0 => "lod0",
-            Self::Lod1 => "lod1",
-            Self::Lod2 => "lod2",
-        }
-    }
-}
-
-impl std::str::FromStr for BakeProfile {
-    type Err = ArtifactError;
-
-    fn from_str(value: &str) -> Result<Self, Self::Err> {
-        match value {
-            "lod0" => Ok(Self::Lod0),
-            "lod1" => Ok(Self::Lod1),
-            "lod2" => Ok(Self::Lod2),
-            other => Err(ArtifactError::UnknownProfile(other.to_string())),
-        }
-    }
-}
 
 #[derive(Debug, Error)]
 pub enum ArtifactError {
@@ -145,6 +118,7 @@ pub struct ForgeArtifact {
     manifest: ForgeArtifactManifest,
     mesh_payload: Vec<u8>,
     texture_maps: Vec<texture_maps::BakedTextureMap>,
+    review_images: Vec<review_images::BakedReviewImage>,
     report: RatioReport,
 }
 
@@ -158,6 +132,8 @@ impl ForgeArtifact {
             .ok_or(ArtifactError::RatioReportRejected(vehicle))?;
         let mesh_payload = mesh_payload::encode(&baked)?;
         let texture_maps = texture_maps::bake_default_set()?;
+        let review_cameras = ReviewCameraSet::standard_vehicle_review();
+        let review_images = review_images::bake_review_images(&baked, &review_cameras)?;
         let manifest = ForgeArtifactManifest {
             vehicle,
             vehicle_slug: forge_vehicle_slug(vehicle).to_string(),
@@ -176,9 +152,9 @@ impl ForgeArtifact {
                 })
                 .collect(),
             texture_maps: texture_maps.iter().map(|map| map.manifest().clone()).collect(),
-            review_cameras: ReviewCameraSet::standard_vehicle_review(),
+            review_cameras,
         };
-        Ok(Self { manifest, mesh_payload, texture_maps, report })
+        Ok(Self { manifest, mesh_payload, texture_maps, review_images, report })
     }
 
     pub fn manifest(&self) -> &ForgeArtifactManifest {
@@ -196,6 +172,13 @@ impl ForgeArtifact {
             .map(texture_maps::BakedTextureMap::bytes)
     }
 
+    pub fn review_image_payload(&self, file: &str) -> Option<&[u8]> {
+        self.review_images
+            .iter()
+            .find(|image| image.file() == file)
+            .map(review_images::BakedReviewImage::bytes)
+    }
+
     pub fn report(&self) -> &RatioReport {
         &self.report
     }
@@ -211,6 +194,10 @@ impl ForgeArtifact {
         fs::write(out.join("meshes.bin"), &self.mesh_payload)?;
         for map in &self.texture_maps {
             fs::write(out.join(map.manifest().file()), map.bytes())?;
+        }
+        let review_dir = out.join("review");
+        for image in &self.review_images {
+            fs::write(review_dir.join(image.file()), image.bytes())?;
         }
         fs::write(out.join("report.md"), self.report_markdown())?;
         Ok(())

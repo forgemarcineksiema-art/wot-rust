@@ -21,6 +21,8 @@ fn forge_vehicle_cli_writes_artifact_folder() {
     assert!(out.join("ao_roughness.png").is_file());
     assert!(out.join("cavity.png").is_file());
     assert!(out.join("report.md").is_file());
+    assert!(out.join("review").join("front.png").is_file());
+    assert!(out.join("review").join("battle_oblique.png").is_file());
 
     let manifest = std::fs::read_to_string(out.join("manifest.json")).expect("manifest json");
     assert!(manifest.contains("\"vehicle_slug\": \"t54-1951\""));
@@ -67,8 +69,10 @@ fn forge_lineup_cli_writes_benchmark_artifacts_and_index() {
     assert!(out.join("index.md").is_file());
     assert!(out.join("t54-1951").join("manifest.json").is_file());
     assert!(out.join("t54-1951").join("albedo.png").is_file());
+    assert!(out.join("t54-1951").join("review").join("front.png").is_file());
     assert!(out.join("t55a").join("manifest.json").is_file());
     assert!(out.join("t55a").join("ao_roughness.png").is_file());
+    assert!(out.join("t55a").join("review").join("battle_oblique.png").is_file());
 
     let index = std::fs::read_to_string(out.join("index.md")).expect("lineup index");
     assert!(index.contains("Armored Vehicle Forge lineup"));
