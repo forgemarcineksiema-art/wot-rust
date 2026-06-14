@@ -7,7 +7,9 @@ use crate::RatioReport;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum RatioKind {
     HullLengthToWidth,
+    HullHeightToLength,
     TurretWidthToHullWidth,
+    TurretHeightToHullHeight,
     GunProtrusionToHullLength,
 }
 
@@ -75,6 +77,7 @@ impl RatioTarget {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ReferencePack {
     family_slug: String,
+    display_name: String,
     vehicles: Vec<VehicleKind>,
     summary: String,
     road_wheel_count_per_side: usize,
@@ -83,8 +86,10 @@ pub struct ReferencePack {
 }
 
 impl ReferencePack {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         family_slug: impl Into<String>,
+        display_name: impl Into<String>,
         vehicles: Vec<VehicleKind>,
         summary: impl Into<String>,
         road_wheel_count_per_side: usize,
@@ -95,6 +100,7 @@ impl ReferencePack {
         assert!(road_wheel_count_per_side > 0);
         Self {
             family_slug: family_slug.into(),
+            display_name: display_name.into(),
             vehicles,
             summary: summary.into(),
             road_wheel_count_per_side,
@@ -112,6 +118,10 @@ impl ReferencePack {
 
     pub fn family_slug(&self) -> &str {
         &self.family_slug
+    }
+
+    pub fn display_name(&self) -> &str {
+        &self.display_name
     }
 
     pub fn vehicles(&self) -> &[VehicleKind] {
@@ -151,10 +161,16 @@ impl ReferencePack {
             self.clone(),
             vec![
                 measure(self, RatioKind::HullLengthToWidth, extent_z(hull) / extent_x(hull))?,
+                measure(self, RatioKind::HullHeightToLength, extent_y(hull) / extent_z(hull))?,
                 measure(
                     self,
                     RatioKind::TurretWidthToHullWidth,
                     extent_x(turret) / extent_x(hull),
+                )?,
+                measure(
+                    self,
+                    RatioKind::TurretHeightToHullHeight,
+                    extent_y(turret) / extent_y(hull),
                 )?,
                 measure(
                     self,
@@ -177,6 +193,10 @@ fn submesh_bounds(vehicle: &BakedVehicle, kind: SubmeshKind) -> Option<MeshBound
 
 fn extent_x(bounds: MeshBounds) -> f32 {
     (bounds.max.x - bounds.min.x).max(0.001)
+}
+
+fn extent_y(bounds: MeshBounds) -> f32 {
+    (bounds.max.y - bounds.min.y).max(0.001)
 }
 
 fn extent_z(bounds: MeshBounds) -> f32 {

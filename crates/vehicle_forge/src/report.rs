@@ -31,6 +31,16 @@ impl MeasuredRatio {
     pub fn passed(&self) -> bool {
         self.passed
     }
+
+    /// Signed percentage difference of the measurement from its target. This is the "how wrong",
+    /// not just "pass/fail", that the Milestone 1 acceptance asks for.
+    pub fn percent_difference(&self) -> f32 {
+        let target = self.target.target();
+        if target.abs() < f32::EPSILON {
+            return 0.0;
+        }
+        (self.measured - target) / target * 100.0
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -75,21 +85,23 @@ impl RatioReport {
 
     pub fn markdown_summary(&self) -> String {
         let mut out = format!(
-            "# T-54/T-55 Forge reference report\n\nVehicle: {:?}\nReference: {}\n\n",
+            "# {} Forge reference report\n\nVehicle: {:?}\nReference: {}\n\n",
+            self.reference.display_name(),
             self.vehicle,
             self.reference.family_slug()
         );
-        out.push_str("| Ratio | Measured | Target | Tolerance | Result |\n");
-        out.push_str("| --- | ---: | ---: | ---: | --- |\n");
+        out.push_str("| Ratio | Measured | Target | Tolerance | Δ% | Result |\n");
+        out.push_str("| --- | ---: | ---: | ---: | ---: | --- |\n");
         for measurement in &self.measurements {
             let target = measurement.target();
             let result = if measurement.passed() { "pass" } else { "fail" };
             out.push_str(&format!(
-                "| {:?} | {:.3} | {:.3} | +/-{:.3} | {} |\n",
+                "| {:?} | {:.3} | {:.3} | +/-{:.3} | {:+.1}% | {} |\n",
                 measurement.kind(),
                 measurement.measured(),
                 target.target(),
                 target.tolerance(),
+                measurement.percent_difference(),
                 result
             ));
         }

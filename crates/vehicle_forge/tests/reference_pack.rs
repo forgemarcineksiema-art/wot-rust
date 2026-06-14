@@ -49,10 +49,32 @@ fn t54_baked_geometry_produces_a_ratio_report_against_reference_targets() {
     assert!(report.passes(RatioKind::TurretWidthToHullWidth).expect("turret ratio measured"));
     assert!(report.passes(RatioKind::GunProtrusionToHullLength).expect("gun ratio measured"));
 
+    // The enriched ratio set covers hull plan + height, turret width + height, and gun reach.
+    assert!(report.passes(RatioKind::HullHeightToLength).expect("hull height ratio measured"));
+    assert!(report.passes(RatioKind::TurretHeightToHullHeight).expect("turret height measured"));
+
     let lines = report.markdown_summary();
     assert!(lines.contains("T-54/T-55 Forge reference report"));
     assert!(lines.contains("HullLengthToWidth"));
+    assert!(lines.contains("HullHeightToLength"));
+    assert!(lines.contains("TurretHeightToHullHeight"));
     assert!(lines.contains("GunProtrusionToHullLength"));
+    // Percentage differences are reported, not just pass/fail (Milestone 1 acceptance).
+    assert!(lines.contains("Δ%"), "report must carry a percentage-difference column");
+    assert!(lines.contains('%'));
+}
+
+#[test]
+fn measured_ratio_reports_signed_percentage_difference() {
+    let pack = ReferencePack::for_vehicle(VehicleKind::T54_1951).expect("T-54 pack");
+    let vehicle = bake_vehicle(VehicleKind::T54_1951).expect("T-54 should bake");
+    let report = pack.measure_baked_vehicle(&vehicle).expect("ratio report");
+
+    let hull = report.measurement(RatioKind::HullLengthToWidth).expect("hull measurement");
+    let expected = (hull.measured() - hull.target().target()) / hull.target().target() * 100.0;
+    assert!((hull.percent_difference() - expected).abs() < 1.0e-3);
+    // A passing ratio sits within tolerance, so its percentage delta is small.
+    assert!(hull.percent_difference().abs() < 15.0);
 }
 
 #[test]

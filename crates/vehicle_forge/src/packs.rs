@@ -11,6 +11,7 @@ use crate::{RatioKind, RatioTarget, ReferencePack, ReferenceSource};
 pub fn t54_t55_reference_pack() -> ReferencePack {
     ReferencePack::new(
         "t54_t55",
+        "T-54/T-55",
         vec![VehicleKind::T54_1951, VehicleKind::T55A],
         "Armored Vehicle Forge benchmark for the T-54/T-55 family: low Soviet medium hull, \
          five-road-wheel running gear, rounded cast turret, D-10 gun family, and photo-backed \
@@ -41,10 +42,22 @@ pub fn t54_t55_reference_pack() -> ReferencePack {
                 "Overall hull plan should read as a compact Soviet medium, not a long heavy.",
             ),
             RatioTarget::new(
+                RatioKind::HullHeightToLength,
+                0.245,
+                0.06,
+                "Low Soviet medium silhouette: the hull must read as long and flat, not tall.",
+            ),
+            RatioTarget::new(
                 RatioKind::TurretWidthToHullWidth,
                 0.57,
                 0.14,
                 "Rounded cast turret should be broad but clearly narrower than the track span.",
+            ),
+            RatioTarget::new(
+                RatioKind::TurretHeightToHullHeight,
+                0.65,
+                0.14,
+                "Dome turret stands roughly two-thirds of hull height — present but not a tall casemate.",
             ),
             RatioTarget::new(
                 RatioKind::GunProtrusionToHullLength,
