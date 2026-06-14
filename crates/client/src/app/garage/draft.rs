@@ -81,12 +81,16 @@ impl LoadoutDraft {
         let current = self.option_index[slot.index()];
         let next = (current as isize + dir).rem_euclid(len as isize) as usize;
         let installed = match slot {
-            FitSlot::Turret => self.modules.try_install_turret(self.kind.turret_options()[next].clone()).is_ok(),
+            FitSlot::Turret => {
+                self.modules.try_install_turret(self.kind.turret_options()[next].clone()).is_ok()
+            }
             FitSlot::Gun => {
-                let ok = self.modules.try_install_gun(self.kind.gun_options()[next].clone()).is_ok();
+                let ok =
+                    self.modules.try_install_gun(self.kind.gun_options()[next].clone()).is_ok();
                 if ok {
                     // A new gun has its own ammo list; keep the selection in range.
-                    self.ammo_index = self.ammo_index.min(self.ammo_options().len().saturating_sub(1));
+                    self.ammo_index =
+                        self.ammo_index.min(self.ammo_options().len().saturating_sub(1));
                 }
                 ok
             }

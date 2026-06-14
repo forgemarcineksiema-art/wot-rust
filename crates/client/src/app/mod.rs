@@ -12,6 +12,7 @@ mod render;
 #[cfg(test)]
 mod render_tests;
 mod reticle;
+mod vehicle_assets;
 
 use std::sync::Arc;
 use std::time::Instant;
@@ -32,7 +33,7 @@ use crate::hit_indicator::HitIndicator;
 use crate::predict::LocalPredictor;
 use crate::{
     BattleCameraController, CameraObstacle, ClientLoopAction, InterpolatedBattleState,
-    VehicleMeshCatalog, WinitLoopDriver,
+    VehicleAssetCatalog, WinitLoopDriver,
 };
 
 /// Which static scene the renderer currently holds. The garage and the battlefield share one
@@ -76,7 +77,7 @@ pub(crate) struct ClientApp {
     client_tick: u64,
     input: InputState,
     predictor: LocalPredictor,
-    vehicle_mesh_catalog: VehicleMeshCatalog,
+    vehicle_asset_catalog: VehicleAssetCatalog,
     /// Persistent render-side ECS projected from the snapshot buffer; the renderer/HUD read from
     /// this rather than rebuilding the scene from `Vec<TankSnapshot>` each frame.
     presentation: engine::PresentationWorld,
@@ -92,6 +93,10 @@ pub(crate) struct ClientApp {
 
 impl ClientApp {
     fn new() -> Self {
+        Self::new_with_default_vehicle_artifacts()
+    }
+
+    fn new_without_vehicle_artifacts() -> Self {
         let local_server = LocalAuthoritativeServer::new(ServerTickConfig::default());
         let player_tank = local_server.player_tank();
         let mut render_state = InterpolatedBattleState::default();
@@ -119,7 +124,7 @@ impl ClientApp {
             client_tick: 0,
             input: InputState::default(),
             predictor: LocalPredictor::new(&player_spec),
-            vehicle_mesh_catalog: VehicleMeshCatalog::default(),
+            vehicle_asset_catalog: VehicleAssetCatalog::default(),
             presentation: engine::PresentationWorld::default(),
             last_render_time: Instant::now(),
             hit_indicator: HitIndicator::default(),
@@ -224,5 +229,29 @@ mod tests {
         app.apply_mouse_look();
         assert!((app.camera_controller.orbit_yaw_rad() - before).abs() > 1.0e-4);
         assert_eq!(app.input.mouse_dx, 0.0);
+    }
+
+    #[test]
+    fn startup_can_preload_forge_artifacts_before_first_vehicle_render() {
+        let root = std::env::temp_dir()
+            .join(format!("wot_client_startup_forge_artifacts_{}", std::process::id()));
+        if root.exists() {
+            std::fs::remove_dir_all(&root).expect("remove stale startup artifact root");
+        }
+        let vehicle_dir = root.join("t54-1951");
+        vehicle_forge::ForgeArtifact::bake(
+            game_core::VehicleKind::T54_1951,
+            vehicle_forge::BakeProfile::Lod0,
+        )
+        .expect("bake startup artifact")
+        .write_to_dir(&vehicle_dir)
+        .expect("write startup artifact");
+
+        let app = ClientApp::new_with_vehicle_artifact_root(Some(&root));
+
+        assert_eq!(app.vehicle_asset_catalog.cached_vehicle_count(), 1);
+        assert_eq!(app.vehicle_asset_catalog.material_count(), 1);
+
+        std::fs::remove_dir_all(root).expect("remove startup artifact root");
     }
 }

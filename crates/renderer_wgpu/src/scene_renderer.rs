@@ -1,17 +1,19 @@
 mod draw;
 mod hud_atlas;
+mod resources;
 mod terrain;
+mod vehicle_materials;
 
 use std::cell::Cell;
 
-use renderer_api::{HudVertex, MeshAsset, MeshHandle, RenderError, RenderFrame, SceneVertex};
+use renderer_api::{RenderError, SceneVertex};
 use wgpu::util::DeviceExt;
 
 use crate::msaa::{default_sample_count, validate_msaa_support};
 use crate::offscreen::DEPTH_FORMAT;
 use crate::scene_pipeline::{build_hud_pipeline, build_scene_pipeline};
-use crate::scene_resources::{SceneInstance, SceneMeshRegistry, SceneObjectDraw, frame_instances};
-use crate::{CameraUniform, GpuContext};
+use crate::scene_resources::{SceneInstance, SceneMeshRegistry, SceneObjectDraw};
+use crate::{CameraUniform, GpuContext, VehicleMeshRegistry, build_vehicle_pipeline};
 
 const DYNAMIC_VERTEX_CAPACITY: u64 = 1 << 20;
 const DYNAMIC_INDEX_CAPACITY: u64 = 1 << 20;
@@ -32,6 +34,13 @@ pub struct SceneRenderer {
     frame_instance_count: u32,
     frame_draws: Vec<SceneObjectDraw>,
     static_meshes: SceneMeshRegistry,
+    vehicle_pipeline: wgpu::RenderPipeline,
+    vehicle_camera_bind_group: wgpu::BindGroup,
+    vehicle_materials: vehicle_materials::VehicleMaterialRegistry,
+    vehicle_instances: wgpu::Buffer,
+    vehicle_instance_count: u32,
+    vehicle_draws: Vec<SceneObjectDraw>,
+    vehicle_meshes: VehicleMeshRegistry,
     hud_pipeline: wgpu::RenderPipeline,
     hud_vertices: wgpu::Buffer,
     hud_vertex_count: u32,
@@ -79,6 +88,8 @@ impl SceneRenderer {
         validate_msaa_support(ctx, color_format, DEPTH_FORMAT, sample_count)?;
         let device = &ctx.device;
         let (pipeline, camera_bgl) = build_scene_pipeline(device, color_format, sample_count);
+        let (vehicle_pipeline, vehicle_camera_bgl, vehicle_material_bgl) =
+            build_vehicle_pipeline(device, color_format, sample_count);
 
         let camera_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("scene_camera"),
@@ -89,6 +100,14 @@ impl SceneRenderer {
         let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("scene_camera_bg"),
             layout: &camera_bgl,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: camera_buffer.as_entire_binding(),
+            }],
+        });
+        let vehicle_camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("vehicle_camera_bg"),
+            layout: &vehicle_camera_bgl,
             entries: &[wgpu::BindGroupEntry {
                 binding: 0,
                 resource: camera_buffer.as_entire_binding(),
@@ -128,8 +147,19 @@ impl SceneRenderer {
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
+        let vehicle_instances = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("vehicle_frame_instances"),
+            size: 1 << 16,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
         let (hud_font_bgl, hud_font_sampler, hud_font_bind_group) =
             hud_atlas::create_hud_font_resources(device, &ctx.queue);
+        let vehicle_materials = vehicle_materials::VehicleMaterialRegistry::new(
+            device,
+            &ctx.queue,
+            vehicle_material_bgl,
+        );
         let hud_pipeline = build_hud_pipeline(device, color_format, sample_count, &hud_font_bgl);
         let hud_vertices = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("scene_hud_v"),
@@ -153,6 +183,13 @@ impl SceneRenderer {
             frame_instance_count: 0,
             frame_draws: Vec::new(),
             static_meshes: SceneMeshRegistry::default(),
+            vehicle_pipeline,
+            vehicle_camera_bind_group,
+            vehicle_materials,
+            vehicle_instances,
+            vehicle_instance_count: 0,
+            vehicle_draws: Vec::new(),
+            vehicle_meshes: VehicleMeshRegistry::default(),
             hud_pipeline,
             hud_vertices,
             hud_vertex_count: 0,
@@ -164,47 +201,5 @@ impl SceneRenderer {
             scene_tint: [1.0, 1.0, 1.0],
             skipped_mesh_draws: Cell::new(0),
         })
-    }
-
-    pub fn set_dynamic_mesh(
-        &mut self,
-        ctx: &GpuContext,
-        vertices: &[SceneVertex],
-        indices: &[u32],
-    ) {
-        let vbytes: &[u8] = bytemuck::cast_slice(vertices);
-        let ibytes: &[u8] = bytemuck::cast_slice(indices);
-        if vbytes.len() as u64 > DYNAMIC_VERTEX_CAPACITY
-            || ibytes.len() as u64 > DYNAMIC_INDEX_CAPACITY
-        {
-            return;
-        }
-        ctx.queue.write_buffer(&self.dynamic_vertices, 0, vbytes);
-        ctx.queue.write_buffer(&self.dynamic_indices, 0, ibytes);
-        self.dynamic_index_count = indices.len() as u32;
-    }
-
-    pub fn register_mesh(&mut self, ctx: &GpuContext, handle: MeshHandle, mesh: &MeshAsset) {
-        self.static_meshes.register(ctx, handle, mesh);
-    }
-
-    pub fn set_render_frame(&mut self, ctx: &GpuContext, frame: &RenderFrame) {
-        let (instances, draws) = frame_instances(frame);
-        let bytes: &[u8] = bytemuck::cast_slice(&instances);
-        if bytes.len() as u64 > self.frame_instances.size() {
-            return;
-        }
-        ctx.queue.write_buffer(&self.frame_instances, 0, bytes);
-        self.frame_instance_count = instances.len() as u32;
-        self.frame_draws = draws;
-    }
-
-    pub fn set_hud(&mut self, ctx: &GpuContext, vertices: &[HudVertex]) {
-        let bytes: &[u8] = bytemuck::cast_slice(vertices);
-        if bytes.len() as u64 > HUD_VERTEX_CAPACITY {
-            return;
-        }
-        ctx.queue.write_buffer(&self.hud_vertices, 0, bytes);
-        self.hud_vertex_count = vertices.len() as u32;
     }
 }

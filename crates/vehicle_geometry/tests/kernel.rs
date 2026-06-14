@@ -1,7 +1,7 @@
 use glam::{Vec2, Vec3};
 use vehicle_geometry::{
-    Axis, ExtrudeSpec, GeometryMesh, MaterialRole, MeshBuilder, ProfilePoint, RevolveSpec,
-    SmoothingGroup,
+    Axis, ExtrudeSpec, GeometryMesh, LoftSection, LoftSpec, MaterialRole, MeshBuilder,
+    ProfilePoint, RevolveSpec, SmoothingGroup,
 };
 
 #[path = "kernel/support.rs"]
@@ -172,6 +172,139 @@ fn extrude_accepts_collinear_section_runs() {
         )
         .build();
     assert!(mesh.triangle_count() > 0);
+    assert!(all_faces_point_outward(&mesh));
+}
+
+/// A loft connects varying cross-sections into a tapered solid: the back is wide and tall, the
+/// bow narrow and low, like a hull plan. The skin must be finite, unit-normalled, outward-wound,
+/// and bounded by the extreme sections.
+#[test]
+fn loft_skins_varying_sections_into_a_tapered_solid() {
+    let wide =
+        vec![Vec2::new(-1.0, 0.0), Vec2::new(1.0, 0.0), Vec2::new(1.0, 1.0), Vec2::new(-1.0, 1.0)];
+    let narrow =
+        vec![Vec2::new(-0.6, 0.0), Vec2::new(0.6, 0.0), Vec2::new(0.6, 0.7), Vec2::new(-0.6, 0.7)];
+    let mesh = MeshBuilder::new()
+        .loft(
+            Vec3::ZERO,
+            LoftSpec {
+                sections: vec![LoftSection::new(-2.0, wide), LoftSection::new(2.0, narrow)],
+                axis: Axis::Z,
+                material: MaterialRole::RolledArmor,
+                smoothing: SmoothingGroup::hard_edges(),
+                cap_ends: true,
+            },
+        )
+        .build();
+
+    assert!(mesh.vertices().iter().all(|v| v.position.is_finite()));
+    assert!(mesh.vertices().iter().all(|v| v.normal.is_normalized()));
+    assert!(all_faces_point_outward(&mesh), "a convex loft must be outward-wound");
+
+    let bounds = mesh.bounds().expect("loft should have bounds");
+    assert!((bounds.min.z + 2.0).abs() < 1.0e-4 && (bounds.max.z - 2.0).abs() < 1.0e-4);
+    assert!((bounds.min.x + 1.0).abs() < 1.0e-4 && (bounds.max.x - 1.0).abs() < 1.0e-4);
+    assert!((bounds.min.y - 0.0).abs() < 1.0e-4 && (bounds.max.y - 1.0).abs() < 1.0e-4);
+
+    // Side walls (4 edges × 1 gap × 2 tris) + two 4-tri caps.
+    assert_eq!(mesh.triangle_count(), 16);
+}
+
+/// Rings must connect 1:1, so mismatched point counts are a bake-time error, not silent garbage.
+#[test]
+#[should_panic(expected = "same point count")]
+fn loft_rejects_mismatched_section_point_counts() {
+    MeshBuilder::new().loft(
+        Vec3::ZERO,
+        LoftSpec {
+            sections: vec![
+                LoftSection::new(
+                    0.0,
+                    vec![Vec2::new(-1.0, 0.0), Vec2::new(1.0, 0.0), Vec2::new(0.0, 1.0)],
+                ),
+                LoftSection::new(
+                    1.0,
+                    vec![
+                        Vec2::new(-1.0, 0.0),
+                        Vec2::new(1.0, 0.0),
+                        Vec2::new(1.0, 1.0),
+                        Vec2::new(-1.0, 1.0),
+                    ],
+                ),
+            ],
+            axis: Axis::Z,
+            material: MaterialRole::RolledArmor,
+            smoothing: SmoothingGroup::hard_edges(),
+            cap_ends: true,
+        },
+    );
+}
+
+/// Like extrude, a loft only sweeps convex sections; a reflex corner is refused at bake time.
+#[test]
+#[should_panic(expected = "concave")]
+fn loft_rejects_concave_sections() {
+    let concave = vec![
+        Vec2::new(-1.0, 0.0),
+        Vec2::new(1.0, 0.0),
+        Vec2::new(1.0, 1.0),
+        Vec2::new(0.0, 0.2),
+        Vec2::new(-1.0, 1.0),
+    ];
+    MeshBuilder::new().loft(
+        Vec3::ZERO,
+        LoftSpec {
+            sections: vec![LoftSection::new(-1.0, concave.clone()), LoftSection::new(1.0, concave)],
+            axis: Axis::Z,
+            material: MaterialRole::RolledArmor,
+            smoothing: SmoothingGroup::hard_edges(),
+            cap_ends: true,
+        },
+    );
+}
+
+/// A plate is a box chamfered on every edge: full extent on each axis, a beveled perimeter, and no
+/// sharp box corners left — a cut-steel armour plate rather than a raw cuboid.
+#[test]
+fn plate_box_bevels_every_edge_into_a_cut_plate() {
+    let half = Vec3::new(1.0, 0.1, 1.5);
+    let mesh = MeshBuilder::new()
+        .plate_box(Vec3::ZERO, half, 0.05, MaterialRole::RolledArmor, SmoothingGroup::hard_edges())
+        .build();
+
+    assert!(mesh.vertices().iter().all(|v| v.position.is_finite()));
+    assert!(mesh.vertices().iter().all(|v| v.normal.is_normalized()));
+    assert!(all_faces_point_outward(&mesh), "a chamfered plate is convex and outward-wound");
+
+    // 6 face quads + 12 edge chamfers + 8 corner triangles.
+    assert_eq!(mesh.triangle_count(), 6 * 2 + 12 * 2 + 8);
+
+    let bounds = mesh.bounds().expect("plate bounds");
+    assert!((bounds.min - (-half)).length() < 1.0e-4, "plate reaches -half on every axis");
+    assert!((bounds.max - half).length() < 1.0e-4, "plate reaches +half on every axis");
+
+    let sharp_corner = mesh.vertices().iter().any(|v| {
+        (v.position.x.abs() - half.x).abs() < 1.0e-4
+            && (v.position.y.abs() - half.y).abs() < 1.0e-4
+            && (v.position.z.abs() - half.z).abs() < 1.0e-4
+    });
+    assert!(!sharp_corner, "the bevel must replace every sharp box corner");
+}
+
+/// An over-large bevel is clamped, not panicked: the plate still closes into a valid convex solid.
+#[test]
+fn plate_box_clamps_an_oversized_bevel() {
+    let mesh = MeshBuilder::new()
+        .plate_box(
+            Vec3::ZERO,
+            Vec3::splat(0.5),
+            5.0,
+            MaterialRole::RolledArmor,
+            SmoothingGroup::hard_edges(),
+        )
+        .build();
+
+    assert!(mesh.vertices().iter().all(|v| v.position.is_finite() && v.normal.is_normalized()));
     assert!(all_faces_point_outward(&mesh));
 }
 

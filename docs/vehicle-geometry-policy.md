@@ -122,6 +122,8 @@ Every geometry phase needs executable checks:
 - per-vehicle silhouette uniqueness beyond raw box dimensions.
 - vertex and triangle budgets per submesh and per full vehicle.
 - deterministic bake hashes for recipe output.
+- photo-reference audit for each authored recipe: at least side/front or three-quarter sources,
+  the visible silhouette cues taken from them, and any intentional gameplay/stylization deviations.
 - offscreen `vehicle_lineup` screenshots for human visual review.
 
 The canonical gate remains `./scripts/verify.ps1`. Narrow development loops may run focused crate

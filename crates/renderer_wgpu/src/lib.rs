@@ -15,6 +15,8 @@ mod shader_validation;
 mod surface_config;
 mod texture_upload;
 mod upload_buffers;
+mod vehicle_pipeline;
+mod vehicle_resources;
 mod window_renderer;
 
 use renderer_api::{
@@ -46,6 +48,8 @@ pub use upload_buffers::{
     DynamicUniformAllocation, DynamicUniformRingBuffer, FrameUploadArena, InstanceBatch,
     InstanceBatchKind, InstanceBufferAllocator, UploadBatch,
 };
+pub use vehicle_pipeline::{build_vehicle_pipeline, vehicle_shader_source};
+pub use vehicle_resources::{GpuVehicleMesh, VehicleMeshRegistry};
 pub use window_renderer::WindowRenderer;
 
 pub fn probe_startup_report(instance: &wgpu::Instance) -> Result<RenderAdapterReport, RenderError> {

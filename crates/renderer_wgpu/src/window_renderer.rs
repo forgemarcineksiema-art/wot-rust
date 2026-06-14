@@ -5,6 +5,8 @@ use crate::offscreen::DEPTH_FORMAT;
 use crate::select_present_mode;
 use crate::{GpuContext, SceneRenderTarget, SceneRenderer};
 
+mod vehicle;
+
 /// The live windowed renderer: owns the GPU device, the presentation surface, a depth
 /// buffer, and the scene renderer. The caller passes its window handle (e.g. an
 /// `Arc<winit::window::Window>`) without ever naming a `wgpu` type.

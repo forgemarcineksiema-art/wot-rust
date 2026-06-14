@@ -18,8 +18,14 @@ pub(in crate::app::garage) fn draw(v: &mut Vec<HudVertex>, spec: &TankSpec, aspe
         (HudIcon::StatHp, format!("{}", spec.hit_points)),
         (HudIcon::StatPower, format!("{} kW", spec.engine_power_kw.round() as i32)),
         (HudIcon::StatSpeed, format!("{} km/h", (spec.max_forward_speed_mps * 3.6).round() as i32)),
-        (HudIcon::StatTraverse, format!("{} d/s", spec.turret_rotation_rad_s.to_degrees().round() as i32)),
-        (HudIcon::StatPenetration, format!("{} mm", spec.gun.shell.penetration_mm_at_100m.round() as i32)),
+        (
+            HudIcon::StatTraverse,
+            format!("{} d/s", spec.turret_rotation_rad_s.to_degrees().round() as i32),
+        ),
+        (
+            HudIcon::StatPenetration,
+            format!("{} mm", spec.gun.shell.penetration_mm_at_100m.round() as i32),
+        ),
         (HudIcon::StatReload, format!("{:.1} s", spec.gun.reload_seconds)),
     ];
     for (i, (icon, value)) in rows.iter().enumerate() {

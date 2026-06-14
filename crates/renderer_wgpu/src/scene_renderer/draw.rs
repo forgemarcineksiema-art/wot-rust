@@ -85,6 +85,31 @@ impl super::SceneRenderer {
                     );
                 }
             }
+            if self.vehicle_instance_count > 0 {
+                pass.set_pipeline(&self.vehicle_pipeline);
+                pass.set_bind_group(0, &self.vehicle_camera_bind_group, &[]);
+                pass.set_vertex_buffer(1, self.vehicle_instances.slice(..));
+                for draw in &self.vehicle_draws {
+                    pass.set_bind_group(1, self.vehicle_materials.bind_group(draw.material), &[]);
+                    let Some(mesh) = self.vehicle_meshes.get(draw.mesh) else {
+                        self.skipped_mesh_draws
+                            .set(self.skipped_mesh_draws.get().saturating_add(1));
+                        debug_assert!(
+                            false,
+                            "vehicle render frame references unregistered mesh handle {}",
+                            draw.mesh.0
+                        );
+                        continue;
+                    };
+                    pass.set_vertex_buffer(0, mesh.vertices.slice(..));
+                    pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint32);
+                    pass.draw_indexed(
+                        0..mesh.index_count,
+                        0,
+                        draw.instance_start..draw.instance_start + draw.instance_count,
+                    );
+                }
+            }
             if self.hud_vertex_count > 0 {
                 pass.set_pipeline(&self.hud_pipeline);
                 pass.set_bind_group(0, &self.hud_font_bind_group, &[]);

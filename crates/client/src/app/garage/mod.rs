@@ -180,6 +180,9 @@ mod tests {
         let spec = garage.confirm();
         assert!(!garage.is_open() && garage.has_started());
         assert_eq!(spec.kind, VehicleKind::TigerII);
-        assert!((spec.gun.reload_seconds - green).abs() < 1.0e-6, "confirmed spec carries the edit");
+        assert!(
+            (spec.gun.reload_seconds - green).abs() < 1.0e-6,
+            "confirmed spec carries the edit"
+        );
     }
 }

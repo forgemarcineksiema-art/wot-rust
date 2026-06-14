@@ -4,7 +4,9 @@ use glam::{Mat4, Vec3};
 use net::TankSnapshot;
 use renderer_api::{RenderFrame, RenderObject};
 
-use crate::{VehicleMeshCatalog, tank_render_objects};
+use crate::{
+    VehicleAssetCatalog, VehicleMeshCatalog, tank_render_objects, tank_vehicle_render_objects,
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct VehicleRenderFrame {
@@ -26,17 +28,39 @@ pub fn split_vehicle_render_frame(
         // The player's installed gun may have a longer/shorter barrel than the baked stock mesh;
         // stretch its gun submesh (index 2: [hull, turret, gun]) along the barrel axis to match the
         // muzzle the sim fires from. Enemies are always stock (scale 1.0).
-        if is_player
-            && (player_gun_scale - 1.0).abs() > 1.0e-3
-            && let Some(gun) = tank_objects.get_mut(2)
-        {
-            let scaled = Mat4::from_cols_array_2d(&gun.transform)
-                * Mat4::from_scale(Vec3::new(1.0, 1.0, player_gun_scale));
-            gun.transform = scaled.to_cols_array_2d();
-        }
+        scale_player_gun(&mut tank_objects, is_player, player_gun_scale);
         objects.append(&mut tank_objects);
     }
     VehicleRenderFrame { objects }
+}
+
+pub fn split_pbr_vehicle_render_frame(
+    catalog: &mut VehicleAssetCatalog,
+    tanks: Vec<PresentationTank>,
+    player_tank: TankId,
+    player_gun_scale: f32,
+) -> VehicleRenderFrame {
+    let mut objects = Vec::new();
+    for tank in tanks {
+        let is_player = tank.id == player_tank;
+        let hull_color = if is_player { [0.30, 0.40, 0.28] } else { [0.46, 0.29, 0.25] };
+        let snapshot = render_snapshot(&tank);
+        let mut tank_objects = tank_vehicle_render_objects(catalog, &snapshot, hull_color);
+        scale_player_gun(&mut tank_objects, is_player, player_gun_scale);
+        objects.append(&mut tank_objects);
+    }
+    VehicleRenderFrame { objects }
+}
+
+fn scale_player_gun(objects: &mut [RenderObject], is_player: bool, player_gun_scale: f32) {
+    if is_player
+        && (player_gun_scale - 1.0).abs() > 1.0e-3
+        && let Some(gun) = objects.get_mut(2)
+    {
+        let scaled = Mat4::from_cols_array_2d(&gun.transform)
+            * Mat4::from_scale(Vec3::new(1.0, 1.0, player_gun_scale));
+        gun.transform = scaled.to_cols_array_2d();
+    }
 }
 
 /// Adapt a presentation entity into the pose-only `TankSnapshot` the procedural mesh kernels

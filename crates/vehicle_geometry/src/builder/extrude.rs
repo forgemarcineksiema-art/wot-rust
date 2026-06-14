@@ -5,8 +5,9 @@
 
 use glam::{Vec2, Vec3};
 
+use super::section::{assert_convex, oriented_quad, oriented_tri, section_to_world, signed_area};
 use super::{MeshBuilder, axis_vector};
-use crate::{Axis, ExtrudeSpec, MaterialRole, SmoothingGroup};
+use crate::ExtrudeSpec;
 
 impl MeshBuilder {
     /// Sweep a convex cross-section along an axis. See [`ExtrudeSpec`] for the section mapping.
@@ -33,8 +34,8 @@ impl MeshBuilder {
         for i in 0..count {
             let j = (i + 1) % count;
             let (a, b) = (section[i], section[j]);
-            let outward = section_to_world_dir(axis, (a + b) * 0.5 - centroid);
-            self.push_quad_outward(
+            let outward = section_to_world(axis, (a + b) * 0.5 - centroid, 0.0);
+            let quad = oriented_quad(
                 [
                     center + section_to_world(axis, a, near),
                     center + section_to_world(axis, b, near),
@@ -42,9 +43,8 @@ impl MeshBuilder {
                     center + section_to_world(axis, a, far),
                 ],
                 outward,
-                spec.material,
-                spec.smoothing,
             );
+            self.push_quad(quad, spec.material, spec.smoothing);
         }
 
         // Caps: fan from the section centroid at each end.
@@ -53,101 +53,25 @@ impl MeshBuilder {
         let far_center = center + section_to_world(axis, centroid, far);
         for i in 0..count {
             let j = (i + 1) % count;
-            self.push_tri_outward(
+            let near_tri = oriented_tri(
                 [
                     near_center,
                     center + section_to_world(axis, section[i], near),
                     center + section_to_world(axis, section[j], near),
                 ],
                 -axis_dir,
-                spec.material,
-                spec.smoothing,
             );
-            self.push_tri_outward(
+            self.push_tri(near_tri, spec.material, spec.smoothing);
+            let far_tri = oriented_tri(
                 [
                     far_center,
                     center + section_to_world(axis, section[i], far),
                     center + section_to_world(axis, section[j], far),
                 ],
                 axis_dir,
-                spec.material,
-                spec.smoothing,
             );
+            self.push_tri(far_tri, spec.material, spec.smoothing);
         }
         self
     }
-
-    /// Push a quad, flipping its winding if needed so the geometric normal points along `outward`.
-    fn push_quad_outward(
-        &mut self,
-        mut points: [Vec3; 4],
-        outward: Vec3,
-        material: MaterialRole,
-        smoothing: SmoothingGroup,
-    ) {
-        let normal = (points[1] - points[0]).cross(points[2] - points[0]);
-        if normal.dot(outward) < 0.0 {
-            points.reverse();
-        }
-        self.push_quad(points, material, smoothing);
-    }
-
-    /// Push a triangle, flipping its winding if needed so the geometric normal points along `outward`.
-    fn push_tri_outward(
-        &mut self,
-        mut points: [Vec3; 3],
-        outward: Vec3,
-        material: MaterialRole,
-        smoothing: SmoothingGroup,
-    ) {
-        let normal = (points[1] - points[0]).cross(points[2] - points[0]);
-        if normal.dot(outward) < 0.0 {
-            points.swap(1, 2);
-        }
-        self.push_tri(points, material, smoothing);
-    }
-}
-
-/// Map a section point `(u, v)` at sweep depth `d` into local space for the given axis.
-/// See [`ExtrudeSpec`] for the per-axis `(u, v)` meaning.
-fn section_to_world(axis: Axis, uv: Vec2, depth: f32) -> Vec3 {
-    match axis {
-        Axis::X => Vec3::new(depth, uv.y, uv.x),
-        Axis::Y => Vec3::new(uv.x, depth, uv.y),
-        Axis::Z => Vec3::new(uv.x, uv.y, depth),
-    }
-}
-
-/// Map an in-section direction into local space (zero component along the sweep axis).
-fn section_to_world_dir(axis: Axis, uv: Vec2) -> Vec3 {
-    section_to_world(axis, uv, 0.0)
-}
-
-/// Caps are fanned from the section centroid and side quads assume one outward-facing wall per
-/// edge, so the section must be convex — a reflex corner would silently produce self-overlapping
-/// caps and inward walls. Catch that at bake time. Expects CCW winding (the caller normalizes),
-/// so every turn must be a left turn; collinear runs are allowed.
-fn assert_convex(section: &[Vec2]) {
-    let count = section.len();
-    for index in 0..count {
-        let prev = section[(index + count - 1) % count];
-        let here = section[index];
-        let next = section[(index + 1) % count];
-        let turn = (here - prev).perp_dot(next - here);
-        assert!(
-            turn >= -1.0e-4,
-            "extrude section is concave at point {index} ({here:?}); the kernel only sweeps convex sections"
-        );
-    }
-}
-
-/// Twice the signed area of a polygon (shoelace); positive when wound counter-clockwise.
-fn signed_area(section: &[Vec2]) -> f32 {
-    let mut area = 0.0;
-    for i in 0..section.len() {
-        let a = section[i];
-        let b = section[(i + 1) % section.len()];
-        area += a.x * b.y - b.x * a.y;
-    }
-    area
 }

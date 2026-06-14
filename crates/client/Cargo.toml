@@ -13,6 +13,7 @@ game_core = { path = "../game_core" }
 glam.workspace = true
 net = { path = "../net" }
 physics = { path = "../physics" }
+png = "0.18"
 renderer_api = { path = "../renderer_api" }
 renderer_wgpu = { path = "../renderer_wgpu" }
 server = { path = "../server" }
@@ -20,6 +21,7 @@ sim = { path = "../sim" }
 terrain = { path = "../terrain" }
 tracing.workspace = true
 tracing-subscriber.workspace = true
+vehicle_forge = { path = "../vehicle_forge" }
 vehicle_geometry = { path = "../vehicle_geometry" }
 winit.workspace = true
 

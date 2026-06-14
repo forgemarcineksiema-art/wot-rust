@@ -52,6 +52,7 @@ fn core_architecture_docs_exist() {
         "docs/simulation-render-separation.md",
         "docs/testing-and-regression.md",
         "docs/terrain-large-world-policy.md",
+        "docs/vehicle-forge-policy.md",
         "docs/vehicle-geometry-policy.md",
         "docs/vehicle-movement-policy.md",
         "docs/wgpu-capability-model.md",
@@ -63,6 +64,35 @@ fn core_architecture_docs_exist() {
             "missing required architecture doc: {required_doc}"
         );
     }
+}
+
+#[test]
+fn vehicle_forge_stays_renderer_free() {
+    let root = workspace_root();
+    let manifest = fs::read_to_string(root.join("crates/vehicle_forge/Cargo.toml"))
+        .expect("vehicle_forge manifest exists");
+    let mut offenders = Vec::new();
+
+    for dependency in ["renderer_api", "renderer_wgpu", "wgpu", "winit", "egui"] {
+        if manifest_has_dependency(&manifest, dependency) {
+            offenders.push(format!("vehicle_forge manifest depends on {dependency}"));
+        }
+    }
+
+    for source in rust_files(&root.join("crates/vehicle_forge/src")) {
+        let source_text = fs::read_to_string(&source).expect("vehicle_forge source is readable");
+        for crate_name in ["renderer_api", "renderer_wgpu", "wgpu", "winit", "egui"] {
+            if source_uses_crate(&source_text, crate_name) {
+                offenders.push(format!("{} references {crate_name}", source.display()));
+            }
+        }
+    }
+
+    assert!(
+        offenders.is_empty(),
+        "vehicle_forge must stay an authoring/bake layer, not a renderer layer:\n{}",
+        offenders.join("\n")
+    );
 }
 
 #[test]

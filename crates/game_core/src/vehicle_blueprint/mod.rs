@@ -40,8 +40,11 @@ pub struct HullShape {
     pub nose_rise: f32,
     /// Rear plate slope from vertical (degrees).
     pub rear_slope_deg: f32,
-    /// How far the fender/sponson overhangs past the hull side, per side.
-    pub sponson_overhang: f32,
+    /// Half-width of the lower hull tub (between the tracks); the upper hull (`half_width`) is wider
+    /// and forms the sponson that overhangs and covers the tops of the road wheels.
+    pub lower_half_width: f32,
+    /// Y at which the hull steps out from the narrow tub to the wide sponson (≈ wheel axle height).
+    pub sponson_y: f32,
     // Gameplay collision box (the visual hull fits inside it; checked by a consistency test).
     pub hitbox_half_width: f32,
     pub hitbox_half_height: f32,
@@ -173,6 +176,22 @@ mod tests {
         // The armour facet the penetration model uses carries the same plate slope the visible
         // glacis is built from.
         let spec = VehicleKind::T54_1951.spec();
+        assert!(
+            (spec.hull.facets.hull_front.slope_degrees - bp.armor.hull_front.0).abs() < 1.0e-6,
+            "glacis armour slope must equal the blueprint glacis angle"
+        );
+    }
+
+    /// The T-55A is now blueprint-backed too: its hitbox, mounts, and armour slopes all read the
+    /// one shape source, and it carries the family's historical five road wheels (not six).
+    #[test]
+    fn t55a_blueprint_is_the_single_source_for_hitbox_mounts_and_armor() {
+        let bp = VehicleBlueprint::for_vehicle(VehicleKind::T55A).expect("blueprint");
+        assert_eq!(bp.hitbox(), HitboxProfile::for_vehicle(VehicleKind::T55A));
+        assert_eq!(bp.mount_frames(), MountFrames::for_vehicle(VehicleKind::T55A));
+        assert_eq!(bp.track.wheel_count, 5, "T-55A shares the five-wheel family running gear");
+
+        let spec = VehicleKind::T55A.spec();
         assert!(
             (spec.hull.facets.hull_front.slope_degrees - bp.armor.hull_front.0).abs() < 1.0e-6,
             "glacis armour slope must equal the blueprint glacis angle"
