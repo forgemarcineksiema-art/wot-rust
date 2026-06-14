@@ -6,12 +6,12 @@ use std::time::Instant;
 
 use game_core::{TankId, TeamId, VehicleKind};
 use net::TankSnapshot;
-use renderer_api::{CameraProjectionPolicy, view_projection_matrix};
+use renderer_api::{CameraProjectionPolicy, RenderFrame, view_projection_matrix};
 use renderer_wgpu::WindowRenderer;
 use tracing::error;
 
 use super::{ClientApp, SceneKind};
-use crate::{battlefield_scene_mesh, render_frame_from_objects, tank_render_objects};
+use crate::{battlefield_scene_mesh, render_frame_from_objects, tank_vehicle_render_objects};
 
 impl ClientApp {
     /// Render the static garage hangar: the selected vehicle parked on the turntable under an
@@ -33,8 +33,11 @@ impl ClientApp {
         );
 
         let snapshot = garage_preview_snapshot(self.garage.selected_vehicle());
-        let mut objects =
-            tank_render_objects(&mut self.vehicle_mesh_catalog, &snapshot, [0.34, 0.42, 0.30]);
+        let mut objects = tank_vehicle_render_objects(
+            &mut self.vehicle_asset_catalog,
+            &snapshot,
+            [0.34, 0.42, 0.30],
+        );
         // Stretch the gun submesh (objects: [hull, turret, gun]) along its barrel axis so swapping
         // to a longer/shorter gun visibly changes the silhouette. Local +Z is the barrel direction.
         let barrel_scale = self.garage.gun_silhouette_scale();
@@ -51,10 +54,11 @@ impl ClientApp {
         let Some(renderer) = self.renderer.as_mut() else {
             return;
         };
-        for (handle, mesh) in self.vehicle_mesh_catalog.take_pending_meshes() {
-            renderer.register_mesh(handle, &mesh);
+        for (handle, mesh) in self.vehicle_asset_catalog.take_pending_vehicle_meshes() {
+            renderer.register_vehicle_mesh(handle, &mesh);
         }
-        renderer.set_render_frame(&render_frame);
+        renderer.set_render_frame(&RenderFrame::default());
+        renderer.set_vehicle_render_frame(&render_frame);
         renderer.set_dynamic_mesh(&[], &[]);
         renderer.set_hud(&hud);
         if let Err(error) = renderer.render(view_proj) {

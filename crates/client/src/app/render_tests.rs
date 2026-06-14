@@ -173,7 +173,7 @@ fn render_garage_preview_png() {
 
     use super::garage::GarageState;
     use crate::garage_scene::{TURNTABLE_TOP_M, hangar_scene_mesh};
-    use crate::{VehicleMeshCatalog, render_frame_from_objects, tank_render_objects};
+    use crate::{VehicleAssetCatalog, render_frame_from_objects, tank_vehicle_render_objects};
 
     let width = 1280u32;
     let height = 720u32;
@@ -203,8 +203,8 @@ fn render_garage_preview_png() {
     };
 
     let (terrain_vertices, terrain_indices) = hangar_scene_mesh();
-    let mut catalog = VehicleMeshCatalog::default();
-    let mut objects = tank_render_objects(&mut catalog, &snapshot, [0.34, 0.42, 0.30]);
+    let mut catalog = VehicleAssetCatalog::default();
+    let mut objects = tank_vehicle_render_objects(&mut catalog, &snapshot, [0.34, 0.42, 0.30]);
     let barrel_scale = garage.gun_silhouette_scale();
     if let Some(gun) = objects.get_mut(2) {
         let scaled = glam::Mat4::from_cols_array_2d(&gun.transform)
@@ -229,10 +229,10 @@ fn render_garage_preview_png() {
     renderer.scene_tint = [1.18, 1.0, 0.78];
     let (font_w, font_h, font_coverage) = crate::hud_font_atlas();
     renderer.set_hud_font_atlas(&ctx, font_w, font_h, font_coverage);
-    for (handle, mesh) in catalog.take_pending_meshes() {
-        renderer.register_mesh(&ctx, handle, &mesh);
+    for (handle, mesh) in catalog.take_pending_vehicle_meshes() {
+        renderer.register_vehicle_mesh(&ctx, handle, &mesh);
     }
-    renderer.set_render_frame(&ctx, &render_frame);
+    renderer.set_vehicle_render_frame(&ctx, &render_frame);
     renderer.set_hud(&ctx, &garage.overlay_vertices(aspect));
     renderer.render(&ctx, target.render_target(), view_proj).expect("render");
 

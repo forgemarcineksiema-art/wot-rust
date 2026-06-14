@@ -1,4 +1,6 @@
-use renderer_api::{MeshAsset, MeshHandle, RenderError, RenderFrame, RenderSettings, SceneVertex};
+use renderer_api::{
+    MeshAsset, MeshHandle, RenderError, RenderFrame, RenderSettings, SceneVertex, VehicleMeshAsset,
+};
 
 use crate::msaa::validate_msaa_support;
 use crate::offscreen::DEPTH_FORMAT;
@@ -99,8 +101,16 @@ impl WindowRenderer {
         self.scene.register_mesh(&self.ctx, handle, mesh);
     }
 
+    pub fn register_vehicle_mesh(&mut self, handle: MeshHandle, mesh: &VehicleMeshAsset) {
+        self.scene.register_vehicle_mesh(&self.ctx, handle, mesh);
+    }
+
     pub fn set_render_frame(&mut self, frame: &RenderFrame) {
         self.scene.set_render_frame(&self.ctx, frame);
+    }
+
+    pub fn set_vehicle_render_frame(&mut self, frame: &RenderFrame) {
+        self.scene.set_vehicle_render_frame(&self.ctx, frame);
     }
 
     /// Swap the static scene geometry (battlefield <-> garage hangar). See

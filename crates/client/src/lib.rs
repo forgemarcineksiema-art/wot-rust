@@ -41,6 +41,7 @@ pub use vehicle_asset_catalog::{VehicleAssetCatalog, tank_vehicle_render_objects
 pub use vehicle_mesh::{append_tank_mesh, tank_scene_mesh};
 pub use vehicle_pbr_mesh::{material_role_id, vehicle_submesh_vertices};
 pub use vehicle_render_frame::{
-    VehicleRenderFrame, render_frame_from_objects, split_vehicle_render_frame,
+    VehicleRenderFrame, render_frame_from_objects, split_pbr_vehicle_render_frame,
+    split_vehicle_render_frame,
 };
 pub use vehicle_render_objects::{VehicleMeshCatalog, tank_render_objects};

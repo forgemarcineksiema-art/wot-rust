@@ -3,7 +3,7 @@ use std::time::Instant;
 
 use net::TankSnapshot;
 use renderer_api::{
-    Camera, CameraProjectionPolicy, RenderError, SceneVertex, view_projection_matrix,
+    Camera, CameraProjectionPolicy, RenderError, RenderFrame, SceneVertex, view_projection_matrix,
 };
 use renderer_wgpu::WindowRenderer;
 use sim::DEFAULT_SNAPSHOT_HZ;
@@ -14,7 +14,7 @@ use super::{ClientApp, SceneKind};
 use crate::hud::{HudVitals, build_hud_with_reticle};
 use crate::{
     BattleCameraEnvironment, CameraSubject, append_shell_markers, battlefield_scene_mesh,
-    render_frame_from_objects, split_vehicle_render_frame,
+    split_pbr_vehicle_render_frame,
 };
 
 const SNAPSHOT_INTERVAL_SECONDS: f32 = 1.0 / DEFAULT_SNAPSHOT_HZ as f32;
@@ -81,14 +81,14 @@ impl ClientApp {
         );
         let visible_tanks = self.visible_render_tanks(presentation_tanks);
         let player_gun_scale = self.player_barrel_scale();
-        let vehicles = split_vehicle_render_frame(
-            &mut self.vehicle_mesh_catalog,
+        let vehicles = split_pbr_vehicle_render_frame(
+            &mut self.vehicle_asset_catalog,
             visible_tanks,
             self.player_tank,
             player_gun_scale,
         );
         let (vertices, indices) = self.shell_marker_mesh();
-        let render_frame = render_frame_from_objects(vehicles.objects);
+        let vehicle_frame = RenderFrame { objects: vehicles.objects, ..RenderFrame::default() };
         let (reload_remaining, reload_max) = self.player_reload();
         let vitals = HudVitals {
             hit_points: self.player_hud_hit_points(),
@@ -109,10 +109,11 @@ impl ClientApp {
         let Some(renderer) = self.renderer.as_mut() else {
             return;
         };
-        for (handle, mesh) in self.vehicle_mesh_catalog.take_pending_meshes() {
-            renderer.register_mesh(handle, &mesh);
+        for (handle, mesh) in self.vehicle_asset_catalog.take_pending_vehicle_meshes() {
+            renderer.register_vehicle_mesh(handle, &mesh);
         }
-        renderer.set_render_frame(&render_frame);
+        renderer.set_render_frame(&RenderFrame::default());
+        renderer.set_vehicle_render_frame(&vehicle_frame);
         renderer.set_dynamic_mesh(&vertices, &indices);
         renderer.set_hud(&hud);
         if let Err(error) = renderer.render(view_proj) {
