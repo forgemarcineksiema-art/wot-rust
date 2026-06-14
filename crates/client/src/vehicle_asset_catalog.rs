@@ -11,6 +11,7 @@ use vehicle_geometry::{GeometryMesh, SubmeshKind, bake_vehicle};
 
 use crate::vehicle_pbr_mesh::vehicle_submesh_vertices;
 use crate::vehicle_pose::VehiclePose;
+use crate::vehicle_variation::VehicleVariation;
 
 #[derive(Debug, Default)]
 pub struct VehicleAssetCatalog {
@@ -116,6 +117,23 @@ pub fn tank_vehicle_render_objects(
     snapshot: &TankSnapshot,
     hull_color: [f32; 3],
 ) -> Vec<RenderObject> {
+    tank_vehicle_render_objects_with_variation(
+        catalog,
+        snapshot,
+        hull_color,
+        &VehicleVariation::from_snapshot(snapshot),
+    )
+}
+
+/// As [`tank_vehicle_render_objects`], but with an explicit runtime variation state (camo, dirt,
+/// snow, broken tracks, destroyed modules). The base render path uses the snapshot-derived
+/// variation; callers carrying richer per-tank cosmetic state pass it here.
+pub fn tank_vehicle_render_objects_with_variation(
+    catalog: &mut VehicleAssetCatalog,
+    snapshot: &TankSnapshot,
+    hull_color: [f32; 3],
+    variation: &VehicleVariation,
+) -> Vec<RenderObject> {
     let entry = catalog.vehicle_entry(snapshot.vehicle).expect("vehicle must have baked geometry");
     let pose = VehiclePose::from_snapshot(snapshot);
     let hull_transform =
@@ -125,35 +143,31 @@ pub fn tank_vehicle_render_objects(
     let gun_transform =
         Mat4::from_translation(pose.gun_translation()) * Mat4::from_mat3(pose.gun_basis());
 
+    // The cosmetic overlays (camo/dirt/snow) recolour the whole vehicle; per-module damage then
+    // darkens the submeshes whose modules are knocked out.
+    let surface = variation.surface_tint(hull_color);
+
     vec![
         vehicle_render_object(
             snapshot.tank_id,
             entry.hull,
             entry.material,
             hull_transform,
-            pbr_damage_tint(
-                hull_color,
-                snapshot.destroyed_modules_mask,
-                &[ModuleSlot::Engine, ModuleSlot::Suspension],
-            ),
+            variation.module_tint(surface, &[ModuleSlot::Engine, ModuleSlot::Suspension]),
         ),
         vehicle_render_object(
             snapshot.tank_id,
             entry.turret,
             entry.material,
             turret_transform,
-            pbr_damage_tint(
-                hull_color,
-                snapshot.destroyed_modules_mask,
-                &[ModuleSlot::Turret, ModuleSlot::AmmoRack],
-            ),
+            variation.module_tint(surface, &[ModuleSlot::Turret, ModuleSlot::AmmoRack]),
         ),
         vehicle_render_object(
             snapshot.tank_id,
             entry.gun,
             entry.material,
             gun_transform,
-            pbr_damage_tint(hull_color, snapshot.destroyed_modules_mask, &[ModuleSlot::Gun]),
+            variation.module_tint(surface, &[ModuleSlot::Gun]),
         ),
     ]
 }
@@ -180,14 +194,6 @@ fn vehicle_render_object(
         material,
         transform: transform.to_cols_array_2d(),
         tint,
-    }
-}
-
-fn pbr_damage_tint(base: [f32; 3], mask: u8, slots: &[ModuleSlot]) -> [f32; 3] {
-    if slots.iter().any(|slot| mask & slot.destroyed_mask_bit() != 0) {
-        [base[0] * 0.42, base[1] * 0.40, base[2] * 0.36]
-    } else {
-        base
     }
 }
 

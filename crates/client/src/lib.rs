@@ -24,6 +24,7 @@ mod vehicle_pbr_mesh;
 mod vehicle_pose;
 mod vehicle_render_frame;
 mod vehicle_render_objects;
+mod vehicle_variation;
 
 pub use app::run;
 pub use camera::{
@@ -38,7 +39,9 @@ pub use loop_policy::{
 pub use render_state::InterpolatedBattleState;
 pub use scene_mesh::{battlefield_scene_mesh, terrain_scene_mesh};
 pub use tank_mesh::append_shell_markers;
-pub use vehicle_asset_catalog::{VehicleAssetCatalog, tank_vehicle_render_objects};
+pub use vehicle_asset_catalog::{
+    VehicleAssetCatalog, tank_vehicle_render_objects, tank_vehicle_render_objects_with_variation,
+};
 pub use vehicle_mesh::{append_tank_mesh, tank_scene_mesh};
 pub use vehicle_pbr_mesh::{material_role_id, vehicle_submesh_vertices};
 pub use vehicle_render_frame::{
@@ -46,3 +49,7 @@ pub use vehicle_render_frame::{
     split_vehicle_render_frame,
 };
 pub use vehicle_render_objects::{VehicleMeshCatalog, tank_render_objects};
+pub use vehicle_variation::{
+    CamoPattern, DECAL_FADE_S, EquipmentAnchor, EquipmentPoint, HitDecal, MAX_HIT_DECALS,
+    VehicleVariation, equipment_points,
+};
