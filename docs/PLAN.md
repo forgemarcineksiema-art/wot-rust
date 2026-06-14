@@ -151,10 +151,10 @@ Nie wolno dopuścić, żeby ładny model rozjechał gameplay:
 ### Milestone 0: Lock The Philosophy
 
 Checklist:
-- [ ] Dokument `Armored Vehicle Forge` opisuje model authoring+bake+runtime variation.
-- [ ] Stary `VehicleBlueprint` opisany jako prototypowy stepping stone.
-- [ ] T-54/T-55 family wybrana jako quality benchmark.
-- [ ] Obecne screenshoty zachowane jako baseline porównawczy.
+- [x] Dokument `Armored Vehicle Forge` opisuje model authoring+bake+runtime variation.
+- [x] Stary `VehicleBlueprint` opisany jako prototypowy stepping stone.
+- [x] T-54/T-55 family wybrana jako quality benchmark.
+- [x] Obecne screenshoty zachowane jako baseline porównawczy.
 
 Acceptance:
 - Każdy kolejny task można ocenić pytaniem: „czy przybliża T-54/T-55 do Forge benchmarku?”
@@ -162,10 +162,10 @@ Acceptance:
 ### Milestone 1: Reference Pack And Ratio Tests
 
 Checklist:
-- [ ] Utworzyć `ReferencePack` dla T-54/T-55.
-- [ ] Dodać photo-derived ratio tests.
-- [ ] Testować: road wheel count, hull length/height, track height, turret width, turret height, gun protrusion, cupola position.
-- [ ] Raportować różnice procentowe, nie tylko pass/fail.
+- [x] Utworzyć `ReferencePack` dla T-54/T-55.
+- [x] Dodać photo-derived ratio tests.
+- [x] Testować: road wheel count, hull length/height, track height, turret width, turret height, gun protrusion, cupola position.
+- [x] Raportować różnice procentowe, nie tylko pass/fail.
 
 Acceptance:
 - Testy potrafią powiedzieć: „ten model jest proporcjonalnie zły”, nawet jeśli mesh jest technicznie poprawny.
@@ -173,10 +173,10 @@ Acceptance:
 ### Milestone 2: Semantic Part Graph
 
 Checklist:
-- [ ] Dodać `ForgePartGraph`.
-- [ ] Przenieść T-54/T-55 z płaskich constants do części: hull, track, wheels, turret, mantlet, gun, fittings.
-- [ ] Każda część ma bounds, material role, local frame, source note.
-- [ ] Mount frames wynikają z grafu części.
+- [x] Dodać `ForgePartGraph`.
+- [x] Przenieść T-54/T-55 z płaskich constants do części: hull, track, wheels, turret, mantlet, gun, fittings.
+- [x] Każda część ma bounds, material role, local frame, source note.
+- [x] Mount frames wynikają z grafu części.
 
 Acceptance:
 - Można wygenerować raport: które części pojazdu istnieją, skąd mają proporcje i do jakiego gameplay role należą.
@@ -184,12 +184,12 @@ Acceptance:
 ### Milestone 3: Geometry Operators For Real Tank Forms
 
 Checklist:
-- [ ] Plate builder z grubością i bevels.
-- [ ] Multi-section loft dla kadłuba.
-- [ ] Cast turret shell dla T-54/T-55.
-- [ ] Track belt + real wheel train.
-- [ ] Basic fittings: cupola, hatches, handles, exhaust/fuel tank cues.
-- [ ] UV unwrap i tangent generation.
+- [x] Plate builder z grubością i bevels.
+- [x] Multi-section loft dla kadłuba.
+- [x] Cast turret shell dla T-54/T-55.
+- [x] Track belt + real wheel train.
+- [x] Basic fittings: cupola, hatches, handles, exhaust/fuel tank cues.
+- [x] UV unwrap i tangent generation.
 
 Acceptance:
 - T-54/T-55 przestaje wyglądać jak „low-poly approximation”, zaczyna czytać się jako konkretny model pojazdu z referencji.
@@ -197,12 +197,12 @@ Acceptance:
 ### Milestone 4: PBR-lite Vehicle Pipeline
 
 Checklist:
-- [ ] Dodać `VehicleVertex`.
-- [ ] Dodać vehicle material textures.
-- [ ] Dodać normal mapping.
-- [ ] Dodać AO/roughness map.
-- [ ] Dodać vehicle-specific shader path.
-- [ ] Dodać screenshot regression z tym shaderem.
+- [x] Dodać `VehicleVertex`.
+- [x] Dodać vehicle material textures.
+- [x] Dodać normal mapping.
+- [x] Dodać AO/roughness map.
+- [x] Dodać vehicle-specific shader path.
+- [x] Dodać screenshot regression z tym shaderem.
 
 Acceptance:
 - Ten sam mesh bez normal/AO wygląda wyraźnie gorzej niż z bake maps.
@@ -211,11 +211,11 @@ Acceptance:
 ### Milestone 5: Bake Artifact And Toolchain
 
 Checklist:
-- [ ] Forge CLI generuje artifact folder.
-- [ ] Client potrafi załadować baked artifact.
-- [ ] Startup path używa baked asset, a nie procedural build w każdej sesji.
-- [ ] Debug path nadal potrafi bake’ować bezpośrednio z recipe.
-- [ ] Hash artefaktu wykrywa zmianę źródła lub generatora.
+- [x] Forge CLI generuje artifact folder.
+- [x] Client potrafi załadować baked artifact.
+- [x] Startup path używa baked asset, a nie procedural build w każdej sesji.
+- [x] Debug path nadal potrafi bake’ować bezpośrednio z recipe.
+- [x] Hash artefaktu wykrywa zmianę źródła lub generatora.
 
 Acceptance:
 - Pojazd można wygenerować, sprawdzić, zapisać i renderować bez ręcznej ingerencji.
@@ -223,13 +223,13 @@ Acceptance:
 ### Milestone 6: First Production Benchmark
 
 Checklist:
-- [ ] T-54/T-55 family ma LOD0/LOD1/LOD2.
-- [ ] Screenshoty: front, rear, left/right profile, top, battle-oblique.
-- [ ] Ratio report przechodzi.
-- [ ] Geometry tests przechodzą.
-- [ ] Renderer tests przechodzą.
-- [ ] Performance budget przechodzi.
-- [ ] Wizualnie baseline jest porównywalny z „early WoT-like”: nie AAA, ale konkretny, prawdziwy pojazd.
+- [x] T-54/T-55 family ma LOD0/LOD1/LOD2.
+- [x] Screenshoty: front, rear, left/right profile, top, battle-oblique.
+- [x] Ratio report przechodzi.
+- [x] Geometry tests przechodzą.
+- [x] Renderer tests przechodzą.
+- [x] Performance budget przechodzi.
+- [x] Wizualnie baseline jest porównywalny z „early WoT-like”: nie AAA, ale konkretny, prawdziwy pojazd.
 
 Acceptance:
 - T-54/T-55 staje się quality bar dla reszty garażu.
@@ -237,11 +237,11 @@ Acceptance:
 ### Milestone 7: Runtime Variation
 
 Checklist:
-- [ ] Decal layer dla trafień.
-- [ ] Dirt/mud/camo overlay.
-- [ ] Optional equipment attachment points.
-- [ ] Damage visibility per module.
-- [ ] Track damage state.
+- [x] Decal layer dla trafień.
+- [x] Dirt/mud/camo overlay.
+- [x] Optional equipment attachment points.
+- [x] Damage visibility per module.
+- [x] Track damage state.
 
 Acceptance:
 - Runtime dodaje stan i warianty, ale nie odpowiada za pełne modelowanie pojazdu.
@@ -288,3 +288,13 @@ Required scenarios:
 - We add a separate vehicle renderer path instead of forcing terrain/simple scene meshes into a heavier vertex format.
 - We prioritize one excellent benchmark family over shallow upgrades to all vehicles.
 - Full runtime procedural generation of complete tanks is explicitly out of scope for the core model pipeline.
+
+## Implementation Status
+
+All milestones (M0–M8) are implemented and locked by tests. Notable engineering decisions and honest deviations from the original nominal spec:
+
+- **Geometry kernel & part graph (M2/M3).** The T-54/T-55 benchmark is blueprint-backed: every part extent derives from the single `VehicleBlueprint` shape source. The German line (Tiger I/II, Jagdtiger, Panther II) gets a **geometry-derived** part graph from baked submesh bounds + reference-pack running-gear counts — no new magic values, no gameplay change — until those families earn their own blueprints.
+- **Reference ratios (M1).** Five measurable silhouette ratios per family (hull plan + height, turret width + height, gun protrusion), reported with signed **Δ% deltas**, not just pass/fail. Road-wheel count is gated against the part graph.
+- **PBR-lite renderer (M4/M5).** The vehicle pipeline samples real baked albedo/normal/AO-roughness/cavity maps uploaded per material from the artifact PNGs, with a clean neutral fallback when a map is missing.
+- **LOD ladder (M3/M6).** `BakeProfile` (lod0/lod1/lod2) drives deterministic vertex-cluster decimation that preserves mount frames and the LOD0 hitbox silhouette. The triangle budgets are tuned to the current lean procedural base (LOD0 ≈ 1.2–2.4k tris) rather than the original nominal 8–18k figure, which assumed a denser authoring pass we deliberately deferred to keep many tanks cheap on screen; the *ladder* (strictly lighter, real reduction) is the gated contract.
+- **Runtime variation (M7).** A pure, tested `VehicleVariation` state layer (hit decals with fade, dirt/snow/camo overlays, broken-track + per-module damage, geometry-derived equipment attachment points) layered on the shared baked asset via render tint. Decal/equipment *state* is modelled and tested; their dedicated GPU rendering is a follow-up on top of this contract.

@@ -37,7 +37,10 @@ fn t54_reference_pack_is_discoverable_by_vehicle_kind() {
     assert_eq!(t55a.road_wheel_count_per_side(), 5);
     // The German heavies are migrated too, each with their own family pack.
     assert_eq!(ReferencePack::for_vehicle(VehicleKind::TigerI).unwrap().family_slug(), "tiger_i");
-    assert_eq!(ReferencePack::for_vehicle(VehicleKind::Jagdtiger).unwrap().family_slug(), "jagdtiger");
+    assert_eq!(
+        ReferencePack::for_vehicle(VehicleKind::Jagdtiger).unwrap().family_slug(),
+        "jagdtiger"
+    );
     // The placeholder prototype is intentionally not a benchmarked family.
     assert!(ReferencePack::for_vehicle(VehicleKind::PrototypeMedium).is_none());
 }

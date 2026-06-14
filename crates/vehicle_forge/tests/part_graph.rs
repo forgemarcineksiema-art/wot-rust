@@ -130,12 +130,9 @@ fn t55a_is_now_blueprint_backed_and_decomposes_into_a_part_graph() {
 
 #[test]
 fn german_line_has_geometry_derived_part_graphs() {
-    for kind in [
-        VehicleKind::TigerI,
-        VehicleKind::TigerII,
-        VehicleKind::Jagdtiger,
-        VehicleKind::PantherII,
-    ] {
+    for kind in
+        [VehicleKind::TigerI, VehicleKind::TigerII, VehicleKind::Jagdtiger, VehicleKind::PantherII]
+    {
         let graph = ForgePartGraph::for_vehicle(kind).unwrap_or_else(|| panic!("{kind:?} graph"));
         let pack = ReferencePack::for_vehicle(kind).expect("pack");
         assert_eq!(graph.road_wheel_count_per_side(), pack.road_wheel_count_per_side());
@@ -150,10 +147,14 @@ fn german_line_has_geometry_derived_part_graphs() {
             ForgePartKind::Gun,
             ForgePartKind::Cupola,
         ] {
-            let part = graph.part(part_kind).unwrap_or_else(|| panic!("{kind:?} missing {part_kind:?}"));
+            let part =
+                graph.part(part_kind).unwrap_or_else(|| panic!("{kind:?} missing {part_kind:?}"));
             assert!(!part.source().trim().is_empty(), "{kind:?} {part_kind:?} unsourced");
             let b = part.bounds();
-            assert!(b.max.x > b.min.x && b.max.y > b.min.y && b.max.z > b.min.z, "{kind:?} {part_kind:?} degenerate");
+            assert!(
+                b.max.x > b.min.x && b.max.y > b.min.y && b.max.z > b.min.z,
+                "{kind:?} {part_kind:?} degenerate"
+            );
         }
 
         // The graph rebuilds the same mount chain the bake authored.

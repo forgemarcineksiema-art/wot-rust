@@ -1,6 +1,6 @@
 use renderer_api::{
-    HudVertex, MaterialHandle, MeshAsset, MeshHandle, RenderFrame, SceneVertex, VehicleMaterialMaps,
-    VehicleMeshAsset,
+    HudVertex, MaterialHandle, MeshAsset, MeshHandle, RenderFrame, SceneVertex,
+    VehicleMaterialMaps, VehicleMeshAsset,
 };
 
 use crate::GpuContext;

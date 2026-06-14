@@ -44,7 +44,11 @@ fn every_migrated_vehicle_bakes_a_full_artifact_at_every_lod() {
             }
             // The full baked material + review set is present regardless of vehicle.
             assert_eq!(manifest.texture_maps().len(), 4, "{kind:?} material set incomplete");
-            assert_eq!(manifest.review_cameras().cameras().len(), 6, "{kind:?} review set incomplete");
+            assert_eq!(
+                manifest.review_cameras().cameras().len(),
+                6,
+                "{kind:?} review set incomplete"
+            );
         }
     }
 }
@@ -70,7 +74,10 @@ fn bake_profile_selects_progressively_lighter_geometry() {
         ForgeArtifact::bake(VehicleKind::T54_1951, BakeProfile::Lod0).unwrap().mesh_payload().len();
     let lod2_bytes =
         ForgeArtifact::bake(VehicleKind::T54_1951, BakeProfile::Lod2).unwrap().mesh_payload().len();
-    assert!(lod2_bytes < lod0_bytes, "LOD2 payload {lod2_bytes} must be smaller than LOD0 {lod0_bytes}");
+    assert!(
+        lod2_bytes < lod0_bytes,
+        "LOD2 payload {lod2_bytes} must be smaller than LOD0 {lod0_bytes}"
+    );
 }
 
 #[test]

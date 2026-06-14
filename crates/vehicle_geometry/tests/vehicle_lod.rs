@@ -25,9 +25,18 @@ fn every_vehicle_lod_ladder_gets_strictly_lighter_within_budget() {
         let lod1 = total_tris(&bake_vehicle_lod(kind, LodLevel::Lod1).unwrap());
         let lod2 = total_tris(&bake_vehicle_lod(kind, LodLevel::Lod2).unwrap());
 
-        assert!(lod0 > lod1 && lod1 > lod2, "{kind:?} LOD ladder not strictly lighter: {lod0}/{lod1}/{lod2}");
-        assert!(lod1 as f32 <= 0.75 * lod0 as f32, "{kind:?} LOD1 {lod1} not meaningfully lighter than LOD0 {lod0}");
-        assert!(lod2 as f32 <= 0.45 * lod0 as f32, "{kind:?} LOD2 {lod2} not meaningfully lighter than LOD0 {lod0}");
+        assert!(
+            lod0 > lod1 && lod1 > lod2,
+            "{kind:?} LOD ladder not strictly lighter: {lod0}/{lod1}/{lod2}"
+        );
+        assert!(
+            lod1 as f32 <= 0.75 * lod0 as f32,
+            "{kind:?} LOD1 {lod1} not meaningfully lighter than LOD0 {lod0}"
+        );
+        assert!(
+            lod2 as f32 <= 0.45 * lod0 as f32,
+            "{kind:?} LOD2 {lod2} not meaningfully lighter than LOD0 {lod0}"
+        );
 
         assert!(LOD0_TRI_RANGE.contains(&lod0), "{kind:?} LOD0 {lod0} outside {LOD0_TRI_RANGE:?}");
         assert!(LOD1_TRI_RANGE.contains(&lod1), "{kind:?} LOD1 {lod1} outside {LOD1_TRI_RANGE:?}");
@@ -97,10 +106,26 @@ fn reduced_lods_stay_inside_lod0_silhouette_and_hitbox() {
             assert!(body.max.z <= lod0_body.max.z + EPS, "{kind:?} {} grows fwd", level.slug());
 
             // And it still respects the gameplay hitbox in x/z.
-            assert!(body.min.x >= -hitbox.half_width_m - EPS, "{kind:?} {} pokes left of hitbox", level.slug());
-            assert!(body.max.x <= hitbox.half_width_m + EPS, "{kind:?} {} pokes right of hitbox", level.slug());
-            assert!(body.min.z >= -hitbox.half_length_m - EPS, "{kind:?} {} pokes behind hitbox", level.slug());
-            assert!(body.max.z <= hitbox.half_length_m + EPS, "{kind:?} {} pokes ahead of hitbox", level.slug());
+            assert!(
+                body.min.x >= -hitbox.half_width_m - EPS,
+                "{kind:?} {} pokes left of hitbox",
+                level.slug()
+            );
+            assert!(
+                body.max.x <= hitbox.half_width_m + EPS,
+                "{kind:?} {} pokes right of hitbox",
+                level.slug()
+            );
+            assert!(
+                body.min.z >= -hitbox.half_length_m - EPS,
+                "{kind:?} {} pokes behind hitbox",
+                level.slug()
+            );
+            assert!(
+                body.max.z <= hitbox.half_length_m + EPS,
+                "{kind:?} {} pokes ahead of hitbox",
+                level.slug()
+            );
 
             // The three named submeshes survive reduction (a silhouette is still a whole tank).
             for sub in [SubmeshKind::Hull, SubmeshKind::Turret, SubmeshKind::Gun] {

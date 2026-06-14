@@ -18,6 +18,7 @@ mod scene_mesh;
 mod tank_mesh;
 mod vehicle_asset_catalog;
 mod vehicle_asset_catalog_loader;
+mod vehicle_equipment;
 mod vehicle_geometry_mesh;
 mod vehicle_mesh;
 mod vehicle_pbr_mesh;
@@ -42,6 +43,7 @@ pub use tank_mesh::append_shell_markers;
 pub use vehicle_asset_catalog::{
     VehicleAssetCatalog, tank_vehicle_render_objects, tank_vehicle_render_objects_with_variation,
 };
+pub use vehicle_equipment::{EquipmentAnchor, EquipmentPoint, equipment_points};
 pub use vehicle_mesh::{append_tank_mesh, tank_scene_mesh};
 pub use vehicle_pbr_mesh::{material_role_id, vehicle_submesh_vertices};
 pub use vehicle_render_frame::{
@@ -50,6 +52,5 @@ pub use vehicle_render_frame::{
 };
 pub use vehicle_render_objects::{VehicleMeshCatalog, tank_render_objects};
 pub use vehicle_variation::{
-    CamoPattern, DECAL_FADE_S, EquipmentAnchor, EquipmentPoint, HitDecal, MAX_HIT_DECALS,
-    VehicleVariation, equipment_points,
+    CamoPattern, DECAL_FADE_S, HitDecal, MAX_HIT_DECALS, VehicleVariation,
 };

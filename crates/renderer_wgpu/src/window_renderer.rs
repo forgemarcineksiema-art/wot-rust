@@ -1,12 +1,11 @@
-use renderer_api::{
-    MaterialHandle, MeshAsset, MeshHandle, RenderError, RenderFrame, RenderSettings, SceneVertex,
-    VehicleMaterialMaps, VehicleMeshAsset,
-};
+use renderer_api::{MeshAsset, MeshHandle, RenderError, RenderFrame, RenderSettings, SceneVertex};
 
 use crate::msaa::validate_msaa_support;
 use crate::offscreen::DEPTH_FORMAT;
 use crate::select_present_mode;
 use crate::{GpuContext, SceneRenderTarget, SceneRenderer};
+
+mod vehicle;
 
 /// The live windowed renderer: owns the GPU device, the presentation surface, a depth
 /// buffer, and the scene renderer. The caller passes its window handle (e.g. an
@@ -102,20 +101,8 @@ impl WindowRenderer {
         self.scene.register_mesh(&self.ctx, handle, mesh);
     }
 
-    pub fn register_vehicle_mesh(&mut self, handle: MeshHandle, mesh: &VehicleMeshAsset) {
-        self.scene.register_vehicle_mesh(&self.ctx, handle, mesh);
-    }
-
-    pub fn register_vehicle_material(&mut self, handle: MaterialHandle, maps: &VehicleMaterialMaps) {
-        self.scene.register_vehicle_material(&self.ctx, handle, maps);
-    }
-
     pub fn set_render_frame(&mut self, frame: &RenderFrame) {
         self.scene.set_render_frame(&self.ctx, frame);
-    }
-
-    pub fn set_vehicle_render_frame(&mut self, frame: &RenderFrame) {
-        self.scene.set_vehicle_render_frame(&self.ctx, frame);
     }
 
     /// Swap the static scene geometry (battlefield <-> garage hangar). See

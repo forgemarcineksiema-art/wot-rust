@@ -102,93 +102,20 @@ impl ForgePartGraph {
         let hull = bounds(SubmeshKind::Hull)?;
         let turret = bounds(SubmeshKind::Turret)?;
         let gun = bounds(SubmeshKind::Gun)?;
-        let mounts = baked.mounts();
         let traverses = !kind.has_fixed_casemate();
-
-        let hull_h = hull.max.y - hull.min.y;
-        let lower_top = hull.min.y + 0.45 * hull_h;
-        let wheel_inset = 0.92;
-        let trun = mounts.gun_trunnion.translation;
-        let mantlet = 0.30;
-
-        let parts = vec![
-            part(
-                ForgePartKind::Hull,
-                PartAnchor::Hull,
-                MaterialRole::RolledArmor,
-                Vec3::ZERO,
-                hull.min,
-                hull.max,
-                "Derived from baked hull bounds: rolled-armour hull tub and sponsons.",
-            ),
-            part(
-                ForgePartKind::TrackRun,
-                PartAnchor::Hull,
-                MaterialRole::TrackMetal,
-                Vec3::new(0.0, 0.5 * (hull.min.y + lower_top), 0.0),
-                Vec3::new(hull.min.x, hull.min.y, hull.min.z),
-                Vec3::new(hull.max.x, lower_top, hull.max.z),
-                "Derived from baked geometry: track belt wrapping the lower hull.",
-            ),
-            part(
-                ForgePartKind::RoadWheels,
-                PartAnchor::Hull,
-                MaterialRole::Rubber,
-                Vec3::new(0.0, 0.5 * (hull.min.y + lower_top), 0.0),
-                Vec3::new(hull.min.x * wheel_inset, hull.min.y, hull.min.z),
-                Vec3::new(hull.max.x * wheel_inset, lower_top, hull.max.z),
-                format!(
-                    "Reference pack running gear: {} road wheels per side.",
-                    pack.road_wheel_count_per_side()
-                ),
-            ),
-            part(
-                ForgePartKind::Turret,
-                PartAnchor::TurretRing,
-                MaterialRole::RolledArmor,
-                mounts.turret_ring.translation,
-                turret.min,
-                turret.max,
-                if traverses {
-                    "Derived from baked turret bounds: welded turret shell on the ring."
-                } else {
-                    "Derived from baked bounds: fixed casemate superstructure (no traverse)."
-                },
-            ),
-            part(
-                ForgePartKind::Mantlet,
-                PartAnchor::GunTrunnion,
-                MaterialRole::CastArmor,
-                trun,
-                Vec3::new(-mantlet, trun.y - mantlet, turret.max.z - 2.0 * mantlet),
-                Vec3::new(mantlet, trun.y + mantlet, turret.max.z),
-                "Derived from baked bounds: cast mantlet mask at the gun trunnion.",
-            ),
-            part(
-                ForgePartKind::Gun,
-                PartAnchor::GunTrunnion,
-                MaterialRole::BarrelSteel,
-                trun,
-                Vec3::new(gun.min.x, trun.y - (gun.max.x - gun.min.x) * 0.5, trun.z),
-                Vec3::new(gun.max.x, trun.y + (gun.max.x - gun.min.x) * 0.5, gun.max.z),
-                "Derived from baked gun bounds: barrel from trunnion to muzzle.",
-            ),
-            part(
-                ForgePartKind::Cupola,
-                PartAnchor::TurretRing,
-                MaterialRole::RolledArmor,
-                Vec3::new(turret.min.x * 0.4, turret.max.y, turret.min.z * 0.3),
-                Vec3::new(turret.min.x * 0.4 - 0.18, turret.max.y - 0.12, turret.min.z * 0.3 - 0.18),
-                Vec3::new(turret.min.x * 0.4 + 0.18, turret.max.y + 0.12, turret.min.z * 0.3 + 0.18),
-                "Derived from baked bounds: commander's cupola on the turret/casemate roof.",
-            ),
-        ];
 
         Some(ForgePartGraph {
             kind,
             road_wheel_count_per_side: pack.road_wheel_count_per_side(),
             turret_traverses: traverses,
-            parts,
+            parts: crate::part_data::geometry_derived_parts(
+                pack.road_wheel_count_per_side(),
+                traverses,
+                hull,
+                turret,
+                gun,
+                baked.mounts(),
+            ),
         })
     }
 

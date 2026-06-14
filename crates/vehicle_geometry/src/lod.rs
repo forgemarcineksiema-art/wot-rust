@@ -63,7 +63,7 @@ pub fn reduce_vehicle(base: &BakedVehicle, level: LodLevel) -> BakedVehicle {
             mesh: cluster(&submesh.mesh, cell).weld_and_smooth(),
         })
         .collect();
-    BakedVehicle::new(base.kind(), submeshes, base.mounts().clone())
+    BakedVehicle::new(base.kind(), submeshes, *base.mounts())
 }
 
 struct Cluster {
@@ -123,11 +123,7 @@ fn cluster(mesh: &GeometryMesh, cell: f32) -> GeometryMesh {
     let mut out_vertices: Vec<GeometryVertex> = Vec::new();
     let mut out_indices: Vec<u32> = Vec::new();
     for tri in mesh.indices().chunks_exact(3) {
-        let [a, b, c] = [
-            remap[tri[0] as usize],
-            remap[tri[1] as usize],
-            remap[tri[2] as usize],
-        ];
+        let [a, b, c] = [remap[tri[0] as usize], remap[tri[1] as usize], remap[tri[2] as usize]];
         if a == b || b == c || a == c {
             continue;
         }
