@@ -15,18 +15,18 @@ use crate::vehicle_pose::VehiclePose;
 pub struct VehicleAssetCatalog {
     mesh_labels: BTreeMap<String, MeshHandle>,
     meshes: Vec<(String, VehicleMeshAsset)>,
-    materials: Vec<VehicleMaterialDescriptor>,
-    material_handles: HashMap<VehicleKind, MaterialHandle>,
-    vehicles: HashMap<VehicleKind, VehicleAssetEntry>,
+    pub(crate) materials: Vec<VehicleMaterialDescriptor>,
+    pub(crate) material_handles: HashMap<VehicleKind, MaterialHandle>,
+    pub(crate) vehicles: HashMap<VehicleKind, VehicleAssetEntry>,
     pending_meshes: Vec<(MeshHandle, VehicleMeshAsset)>,
 }
 
 #[derive(Debug, Clone, Copy)]
-struct VehicleAssetEntry {
-    hull: MeshHandle,
-    turret: MeshHandle,
-    gun: MeshHandle,
-    material: MaterialHandle,
+pub(crate) struct VehicleAssetEntry {
+    pub(crate) hull: MeshHandle,
+    pub(crate) turret: MeshHandle,
+    pub(crate) gun: MeshHandle,
+    pub(crate) material: MaterialHandle,
 }
 
 impl VehicleAssetCatalog {
@@ -71,7 +71,7 @@ impl VehicleAssetCatalog {
         Some(entry)
     }
 
-    fn register_vehicle_mesh(
+    pub(crate) fn register_vehicle_mesh(
         &mut self,
         kind: VehicleKind,
         submesh: SubmeshKind,

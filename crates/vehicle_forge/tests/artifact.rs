@@ -77,6 +77,30 @@ fn forge_artifact_writes_manifest_mesh_payload_report_and_review_folder() {
     std::fs::remove_dir_all(out).expect("remove test artifact");
 }
 
+#[test]
+fn written_forge_artifact_loads_back_into_mount_aware_baked_vehicle() {
+    let artifact =
+        ForgeArtifact::bake(VehicleKind::T54_1951, BakeProfile::Lod0).expect("T-54 Forge artifact");
+    let expected_vehicle = artifact.baked_vehicle().expect("decoded baked vehicle");
+    let out =
+        std::env::temp_dir().join(format!("wot_forge_artifact_load_test_{}", std::process::id()));
+    if out.exists() {
+        std::fs::remove_dir_all(&out).expect("remove stale test artifact");
+    }
+
+    artifact.write_to_dir(&out).expect("write Forge artifact");
+    let loaded = ForgeArtifact::read_from_dir(&out).expect("load Forge artifact");
+    let loaded_vehicle = loaded.baked_vehicle().expect("decoded loaded baked vehicle");
+
+    assert_eq!(loaded.manifest(), artifact.manifest());
+    assert_eq!(loaded.mesh_payload(), artifact.mesh_payload());
+    assert_eq!(loaded_vehicle.kind(), VehicleKind::T54_1951);
+    assert_eq!(loaded_vehicle.submeshes().len(), expected_vehicle.submeshes().len());
+    assert_eq!(loaded_vehicle.mounts(), expected_vehicle.mounts());
+
+    std::fs::remove_dir_all(out).expect("remove test artifact");
+}
+
 fn assert_png(path: &std::path::Path) {
     let bytes = std::fs::read(path).unwrap_or_else(|err| panic!("read {}: {err}", path.display()));
     assert!(bytes.len() > 32, "{} must not be an empty placeholder", path.display());

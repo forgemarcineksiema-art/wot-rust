@@ -13,7 +13,7 @@ mod report;
 
 pub use artifact::{
     ArtifactError, BakeProfile, ForgeArtifact, ForgeArtifactManifest, ForgeSubmeshManifest,
-    ReviewCamera, ReviewCameraSet, ReviewCameraSpec, forge_vehicle_slug,
+    ForgeTextureManifest, ReviewCamera, ReviewCameraSet, ReviewCameraSpec, forge_vehicle_slug,
 };
 pub use packs::t54_t55_reference_pack;
 pub use part_graph::{ForgePart, ForgePartGraph, ForgePartKind, PartAnchor};

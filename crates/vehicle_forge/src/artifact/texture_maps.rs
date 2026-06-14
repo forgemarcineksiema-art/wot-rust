@@ -35,6 +35,10 @@ pub struct BakedTextureMap {
 }
 
 impl BakedTextureMap {
+    pub(super) fn from_loaded(manifest: ForgeTextureManifest, bytes: Vec<u8>) -> Self {
+        Self { manifest, bytes }
+    }
+
     pub fn manifest(&self) -> &ForgeTextureManifest {
         &self.manifest
     }

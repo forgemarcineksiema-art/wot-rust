@@ -665,6 +665,7 @@ dependencies = [
  "terrain",
  "tracing",
  "tracing-subscriber",
+ "vehicle_forge",
  "vehicle_geometry",
  "winit",
 ]

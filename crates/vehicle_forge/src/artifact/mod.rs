@@ -3,11 +3,12 @@ use std::{fs, io, path::Path};
 use game_core::VehicleKind;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use vehicle_geometry::bake_vehicle;
+use vehicle_geometry::{BakedVehicle, bake_vehicle};
 
 use crate::{RatioReport, ReferencePack};
 
 mod bake_profile;
+mod load;
 mod mesh_payload;
 mod review;
 mod review_images;
@@ -159,6 +160,10 @@ impl ForgeArtifact {
 
     pub fn manifest(&self) -> &ForgeArtifactManifest {
         &self.manifest
+    }
+
+    pub fn baked_vehicle(&self) -> Result<BakedVehicle, ArtifactError> {
+        Ok(mesh_payload::decode(self.manifest.vehicle(), &self.mesh_payload)?)
     }
 
     pub fn mesh_payload(&self) -> &[u8] {

@@ -20,6 +20,7 @@ sim = { path = "../sim" }
 terrain = { path = "../terrain" }
 tracing.workspace = true
 tracing-subscriber.workspace = true
+vehicle_forge = { path = "../vehicle_forge" }
 vehicle_geometry = { path = "../vehicle_geometry" }
 winit.workspace = true
 

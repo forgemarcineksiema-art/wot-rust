@@ -17,6 +17,10 @@ pub struct BakedReviewImage {
 }
 
 impl BakedReviewImage {
+    pub(super) fn from_loaded(file: &'static str, bytes: Vec<u8>) -> Self {
+        Self { file, bytes }
+    }
+
     pub fn file(&self) -> &'static str {
         self.file
     }

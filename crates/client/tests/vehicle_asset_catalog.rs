@@ -1,6 +1,7 @@
 use client::{VehicleAssetCatalog, tank_vehicle_render_objects};
 use game_core::{TankId, TeamId, VehicleKind};
 use net::TankSnapshot;
+use vehicle_forge::{BakeProfile, ForgeArtifact};
 
 #[test]
 fn vehicle_asset_catalog_uploads_pbr_vehicle_meshes_once() {
@@ -29,6 +30,33 @@ fn vehicle_asset_catalog_uploads_pbr_vehicle_meshes_once() {
     assert!(catalog.take_pending_vehicle_meshes().is_empty());
     assert_eq!(objects[0].mesh, second[0].mesh);
     assert_ne!(objects[0].tint, second[0].tint);
+}
+
+#[test]
+fn vehicle_asset_catalog_can_seed_runtime_meshes_from_forge_artifact_folder() {
+    let artifact =
+        ForgeArtifact::bake(VehicleKind::T54_1951, BakeProfile::Lod0).expect("T-54 artifact");
+    let out = std::env::temp_dir()
+        .join(format!("wot_client_artifact_catalog_test_{}", std::process::id()));
+    if out.exists() {
+        std::fs::remove_dir_all(&out).expect("remove stale client artifact");
+    }
+    artifact.write_to_dir(&out).expect("write Forge artifact");
+
+    let mut catalog = VehicleAssetCatalog::default();
+    catalog.load_forge_artifact_dir(&out).expect("load Forge artifact into catalog");
+    let snapshot = snapshot(VehicleKind::T54_1951);
+
+    let objects = tank_vehicle_render_objects(&mut catalog, &snapshot, [0.30, 0.40, 0.28]);
+    let uploads = catalog.take_pending_vehicle_meshes();
+
+    assert_eq!(objects.len(), 3);
+    assert_eq!(uploads.len(), 3);
+    assert_eq!(catalog.cached_vehicle_count(), 1);
+    assert_eq!(catalog.material_count(), 1);
+    assert!(catalog.take_pending_vehicle_meshes().is_empty());
+
+    std::fs::remove_dir_all(out).expect("remove client artifact");
 }
 
 fn snapshot(vehicle: VehicleKind) -> TankSnapshot {

@@ -17,6 +17,7 @@ mod reticle_sweep;
 mod scene_mesh;
 mod tank_mesh;
 mod vehicle_asset_catalog;
+mod vehicle_asset_catalog_loader;
 mod vehicle_geometry_mesh;
 mod vehicle_mesh;
 mod vehicle_pbr_mesh;
