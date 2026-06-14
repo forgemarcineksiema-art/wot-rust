@@ -8,7 +8,7 @@
 //! vehicle" check is the rendered review-image set (front/side/top/oblique) reviewed by a human.
 //! These tests catch the worst measurable sins so the benchmark stops rubber-stamping rough blobs.
 
-use game_core::VehicleKind;
+use game_core::{VehicleBlueprint, VehicleKind};
 use vehicle_geometry::{GeometryMesh, MaterialRole, MeshBounds, SubmeshKind, bake_vehicle};
 
 const SOVIET_PAIR: [VehicleKind; 2] = [VehicleKind::T54_1951, VehicleKind::T55A];
@@ -48,6 +48,22 @@ fn soviet_cast_turret_is_a_dome_not_an_onion() {
             ratio >= 0.60,
             "{kind:?} turret roof/shoulder width = {ratio:.2} (roof {roof:.2} / shoulder \
              {shoulder:.2}) — reads as a pointed onion, not a T-54 frying-pan dome"
+        );
+    }
+}
+
+/// The turret must carry a real commander's cupola standing proud of the roof, not a flat pimple —
+/// a dead giveaway that the turret is an unfinished blob.
+#[test]
+fn soviet_turret_has_a_real_cupola_drum() {
+    for kind in SOVIET_PAIR {
+        let turret_top = submesh_bounds(kind, SubmeshKind::Turret).max.y;
+        let roof_y = VehicleBlueprint::for_vehicle(kind).unwrap().turret.roof_y;
+        let crown = turret_top - roof_y;
+        assert!(
+            crown >= 0.12,
+            "{kind:?} cupola crowns the roof by only {crown:.2} (top {turret_top:.2} vs roof \
+             {roof_y:.2}) — reads as a flat pimple, not a commander's cupola"
         );
     }
 }
