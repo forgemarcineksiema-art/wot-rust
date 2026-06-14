@@ -11,7 +11,7 @@ use crate::{
 // armour. Pinned for T-55A by `t55a_surface_shading_darkens_lower_running_gear`.
 const SHADE_FLOOR_Y: f32 = -0.05;
 const SHADE_BRIGHT_Y: f32 = 1.05;
-const SHADE_LOW: f32 = 0.56;
+const SHADE_LOW: f32 = 0.70;
 
 /// Side-profile plan for an armoured hull body, swept across the vehicle width.
 pub(crate) struct HullPlan {

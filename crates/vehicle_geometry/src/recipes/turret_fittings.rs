@@ -133,13 +133,17 @@ pub(crate) fn cast_turret_shell(
     let span = roof_y - base_y;
     let front = half_length * 0.96;
     let back = half_length * 0.82;
-    let roof_scale = (roof_radius / half_width).clamp(0.2, 0.9);
-    // (height, plan scale): inset base, widest shoulder, tapering upper, small roof.
+    let _ = roof_radius;
+    // (height, plan scale): a low, wide cast dome with a real flat roof — the casting keeps its beam
+    // through broad, near-vertical sides and only rounds over into a flat roof plane near the top,
+    // so it reads as a T-54 turret casting rather than a smooth bun. The roof ring stays wide enough
+    // that the commander's cupola and loader's hatch seat on a real roof.
     let stations = [
-        (base_y, 0.86),
-        (base_y + span * 0.20, 1.00),
-        (base_y + span * 0.55, 0.80),
-        (roof_y, roof_scale),
+        (base_y, 0.92),
+        (base_y + span * 0.22, 1.00),
+        (base_y + span * 0.55, 0.97),
+        (base_y + span * 0.80, 0.84),
+        (roof_y, 0.66),
     ];
     let sections = stations
         .iter()

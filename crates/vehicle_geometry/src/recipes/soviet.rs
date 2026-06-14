@@ -10,7 +10,7 @@
 //! [`game_core::VehicleBlueprint`]); the prototype still derives its hull from the hitbox fractions
 //! and mount frames.
 
-use game_core::{HitboxProfile, MountFrames, VehicleKind};
+use game_core::{HitboxProfile, MountFrames, TurretShape, VehicleKind};
 use glam::Vec3;
 
 use super::{
@@ -18,7 +18,39 @@ use super::{
     add_mantlet_socket, add_running_gear, add_turret_ring, assemble, blueprint_deck_details,
     blueprint_hull, blueprint_running_gear, build_gun, cast_turret_shell, hull_body, shade_hull,
 };
-use crate::{BakedVehicle, MaterialRole, MeshBuilder};
+use crate::{BakedVehicle, GeometryMesh, MaterialRole, MeshBuilder};
+
+/// The shared Soviet cast turret: a low wide dome carrying a commander's cupola drum, a loader's
+/// hatch, the ring collar, and the mantlet seat. Building both T-54 and T-55A through one helper
+/// keeps the family reading consistently and keeps the recipes short.
+fn soviet_cast_turret(
+    t: &TurretShape,
+    trunnion_y: f32,
+    mantlet: Option<(f32, f32, f32)>,
+) -> GeometryMesh {
+    let shell =
+        cast_turret_shell(t.ring_z, t.base_radius, t.plan_half_length, t.roof_radius, t.ring_y, t.roof_y, 16);
+    // Commander's cupola: a real drum standing proud of the roof (not a pimple).
+    let with_cupola =
+        add_cupola(shell, t.cupola_x, t.cupola_z, t.roof_y - 0.08, t.cupola_radius, 0.26, true);
+    // Loader's hatch: a low flat round hatch on the opposite side of the roof.
+    let with_hatch = add_cupola(
+        with_cupola,
+        -t.cupola_x * 0.85,
+        t.cupola_z + 0.46,
+        t.roof_y - 0.05,
+        t.cupola_radius * 0.78,
+        0.09,
+        false,
+    );
+    add_broad_mantlet_socket(
+        add_turret_ring(with_hatch, t.ring_z, t.ring_y, t.ring_radius, 0.12, 16),
+        trunnion_y,
+        mantlet,
+        12,
+    )
+    .build()
+}
 
 pub(crate) fn t55a(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVehicle {
     // Migrated to the blueprint, reusing the same machinery as the T-54: hull, wrapped five-wheel
@@ -34,36 +66,7 @@ pub(crate) fn t55a(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVehicl
 
     let t = &bp.turret;
     let mantlet = Some((t.mantlet_radius, t.mantlet_back_z, t.mantlet_front_z));
-    let turret = add_broad_mantlet_socket(
-        add_turret_ring(
-            add_cupola(
-                cast_turret_shell(
-                    t.ring_z,
-                    t.base_radius,
-                    t.plan_half_length,
-                    t.roof_radius,
-                    t.ring_y,
-                    t.roof_y,
-                    16,
-                ),
-                t.cupola_x,
-                t.cupola_z,
-                t.roof_y - 0.13,
-                t.cupola_radius,
-                0.18,
-                true,
-            ),
-            t.ring_z,
-            t.ring_y,
-            t.ring_radius,
-            0.12,
-            16,
-        ),
-        bp.gun.trunnion_y,
-        mantlet,
-        12,
-    )
-    .build();
+    let turret = soviet_cast_turret(t, bp.gun.trunnion_y, mantlet);
 
     let gun = build_gun(&GunPlan {
         axis_y: bp.gun.trunnion_y,
@@ -93,36 +96,7 @@ pub(crate) fn t54_1951(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVe
 
     let t = &bp.turret;
     let mantlet = Some((t.mantlet_radius, t.mantlet_back_z, t.mantlet_front_z));
-    let turret = add_broad_mantlet_socket(
-        add_turret_ring(
-            add_cupola(
-                cast_turret_shell(
-                    t.ring_z,
-                    t.base_radius,
-                    t.plan_half_length,
-                    t.roof_radius,
-                    t.ring_y,
-                    t.roof_y,
-                    16,
-                ),
-                t.cupola_x,
-                t.cupola_z,
-                t.roof_y - 0.13,
-                t.cupola_radius,
-                0.18,
-                true,
-            ),
-            t.ring_z,
-            t.ring_y,
-            t.ring_radius,
-            0.12,
-            16,
-        ),
-        bp.gun.trunnion_y,
-        mantlet,
-        12,
-    )
-    .build();
+    let turret = soviet_cast_turret(t, bp.gun.trunnion_y, mantlet);
 
     let gun = build_gun(&GunPlan {
         axis_y: bp.gun.trunnion_y,
