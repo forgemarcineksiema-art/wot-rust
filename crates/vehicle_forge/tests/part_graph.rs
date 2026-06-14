@@ -129,6 +129,46 @@ fn t55a_is_now_blueprint_backed_and_decomposes_into_a_part_graph() {
 }
 
 #[test]
-fn unmigrated_vehicles_have_no_part_graph_yet() {
-    assert!(ForgePartGraph::for_vehicle(VehicleKind::TigerI).is_none());
+fn german_line_has_geometry_derived_part_graphs() {
+    for kind in [
+        VehicleKind::TigerI,
+        VehicleKind::TigerII,
+        VehicleKind::Jagdtiger,
+        VehicleKind::PantherII,
+    ] {
+        let graph = ForgePartGraph::for_vehicle(kind).unwrap_or_else(|| panic!("{kind:?} graph"));
+        let pack = ReferencePack::for_vehicle(kind).expect("pack");
+        assert_eq!(graph.road_wheel_count_per_side(), pack.road_wheel_count_per_side());
+
+        // Every coarse part exists, is sourced, and is a real volume.
+        for part_kind in [
+            ForgePartKind::Hull,
+            ForgePartKind::TrackRun,
+            ForgePartKind::RoadWheels,
+            ForgePartKind::Turret,
+            ForgePartKind::Mantlet,
+            ForgePartKind::Gun,
+            ForgePartKind::Cupola,
+        ] {
+            let part = graph.part(part_kind).unwrap_or_else(|| panic!("{kind:?} missing {part_kind:?}"));
+            assert!(!part.source().trim().is_empty(), "{kind:?} {part_kind:?} unsourced");
+            let b = part.bounds();
+            assert!(b.max.x > b.min.x && b.max.y > b.min.y && b.max.z > b.min.z, "{kind:?} {part_kind:?} degenerate");
+        }
+
+        // The graph rebuilds the same mount chain the bake authored.
+        assert_eq!(graph.mount_frames(), *bake_vehicle(kind).unwrap().mounts());
+    }
+}
+
+#[test]
+fn jagdtiger_part_graph_reads_as_a_fixed_casemate() {
+    let graph = ForgePartGraph::for_vehicle(VehicleKind::Jagdtiger).expect("Jagdtiger graph");
+    assert!(!graph.turret_traverses(), "Jagdtiger casemate must not traverse");
+    assert!(graph.part_report().contains("casemate"));
+}
+
+#[test]
+fn the_placeholder_prototype_has_no_part_graph() {
+    assert!(ForgePartGraph::for_vehicle(VehicleKind::PrototypeMedium).is_none());
 }

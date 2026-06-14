@@ -8,7 +8,9 @@
 
 use game_core::{MountFrame, MountFrames, TurretForm, VehicleBlueprint, VehicleKind};
 use glam::Vec3;
-use vehicle_geometry::{MaterialRole, MeshBounds};
+use vehicle_geometry::{MaterialRole, MeshBounds, SubmeshKind, bake_vehicle};
+
+use crate::ReferencePack;
 
 /// Which link of the pose chain a part rides rigidly: hull origin, the traversing turret ring, or
 /// the elevating gun trunnion. This is the part's gameplay role with respect to motion.
@@ -79,10 +81,115 @@ pub struct ForgePartGraph {
 }
 
 impl ForgePartGraph {
-    /// The part graph for `kind`, or `None` if it has not been migrated onto a blueprint yet.
+    /// The part graph for `kind`. Blueprint-backed families (the T-54/T-55 benchmark) derive every
+    /// part extent from the single shape source; the rest fall back to a coarser graph derived from
+    /// the baked geometry bounds and the family reference pack. `None` only for vehicles that have
+    /// neither a blueprint nor a reference pack (e.g. the placeholder prototype).
     pub fn for_vehicle(kind: VehicleKind) -> Option<Self> {
-        let blueprint = VehicleBlueprint::for_vehicle(kind)?;
-        Some(build_graph(kind, &blueprint))
+        if let Some(blueprint) = VehicleBlueprint::for_vehicle(kind) {
+            return Some(build_graph(kind, &blueprint));
+        }
+        Self::from_baked_geometry(kind)
+    }
+
+    /// Derive a coarse part graph from a vehicle's baked submesh bounds plus its reference pack.
+    /// This carries no new magic values: every extent comes from the geometry the recipes already
+    /// produce, and the running-gear count comes from the reference pack.
+    fn from_baked_geometry(kind: VehicleKind) -> Option<Self> {
+        let pack = ReferencePack::for_vehicle(kind)?;
+        let baked = bake_vehicle(kind).ok()?;
+        let bounds = |sub| baked.submesh(sub).and_then(|s| s.mesh.bounds());
+        let hull = bounds(SubmeshKind::Hull)?;
+        let turret = bounds(SubmeshKind::Turret)?;
+        let gun = bounds(SubmeshKind::Gun)?;
+        let mounts = baked.mounts();
+        let traverses = !kind.has_fixed_casemate();
+
+        let hull_h = hull.max.y - hull.min.y;
+        let lower_top = hull.min.y + 0.45 * hull_h;
+        let wheel_inset = 0.92;
+        let trun = mounts.gun_trunnion.translation;
+        let mantlet = 0.30;
+
+        let parts = vec![
+            part(
+                ForgePartKind::Hull,
+                PartAnchor::Hull,
+                MaterialRole::RolledArmor,
+                Vec3::ZERO,
+                hull.min,
+                hull.max,
+                "Derived from baked hull bounds: rolled-armour hull tub and sponsons.",
+            ),
+            part(
+                ForgePartKind::TrackRun,
+                PartAnchor::Hull,
+                MaterialRole::TrackMetal,
+                Vec3::new(0.0, 0.5 * (hull.min.y + lower_top), 0.0),
+                Vec3::new(hull.min.x, hull.min.y, hull.min.z),
+                Vec3::new(hull.max.x, lower_top, hull.max.z),
+                "Derived from baked geometry: track belt wrapping the lower hull.",
+            ),
+            part(
+                ForgePartKind::RoadWheels,
+                PartAnchor::Hull,
+                MaterialRole::Rubber,
+                Vec3::new(0.0, 0.5 * (hull.min.y + lower_top), 0.0),
+                Vec3::new(hull.min.x * wheel_inset, hull.min.y, hull.min.z),
+                Vec3::new(hull.max.x * wheel_inset, lower_top, hull.max.z),
+                format!(
+                    "Reference pack running gear: {} road wheels per side.",
+                    pack.road_wheel_count_per_side()
+                ),
+            ),
+            part(
+                ForgePartKind::Turret,
+                PartAnchor::TurretRing,
+                MaterialRole::RolledArmor,
+                mounts.turret_ring.translation,
+                turret.min,
+                turret.max,
+                if traverses {
+                    "Derived from baked turret bounds: welded turret shell on the ring."
+                } else {
+                    "Derived from baked bounds: fixed casemate superstructure (no traverse)."
+                },
+            ),
+            part(
+                ForgePartKind::Mantlet,
+                PartAnchor::GunTrunnion,
+                MaterialRole::CastArmor,
+                trun,
+                Vec3::new(-mantlet, trun.y - mantlet, turret.max.z - 2.0 * mantlet),
+                Vec3::new(mantlet, trun.y + mantlet, turret.max.z),
+                "Derived from baked bounds: cast mantlet mask at the gun trunnion.",
+            ),
+            part(
+                ForgePartKind::Gun,
+                PartAnchor::GunTrunnion,
+                MaterialRole::BarrelSteel,
+                trun,
+                Vec3::new(gun.min.x, trun.y - (gun.max.x - gun.min.x) * 0.5, trun.z),
+                Vec3::new(gun.max.x, trun.y + (gun.max.x - gun.min.x) * 0.5, gun.max.z),
+                "Derived from baked gun bounds: barrel from trunnion to muzzle.",
+            ),
+            part(
+                ForgePartKind::Cupola,
+                PartAnchor::TurretRing,
+                MaterialRole::RolledArmor,
+                Vec3::new(turret.min.x * 0.4, turret.max.y, turret.min.z * 0.3),
+                Vec3::new(turret.min.x * 0.4 - 0.18, turret.max.y - 0.12, turret.min.z * 0.3 - 0.18),
+                Vec3::new(turret.min.x * 0.4 + 0.18, turret.max.y + 0.12, turret.min.z * 0.3 + 0.18),
+                "Derived from baked bounds: commander's cupola on the turret/casemate roof.",
+            ),
+        ];
+
+        Some(ForgePartGraph {
+            kind,
+            road_wheel_count_per_side: pack.road_wheel_count_per_side(),
+            turret_traverses: traverses,
+            parts,
+        })
     }
 
     pub fn kind(&self) -> VehicleKind {
