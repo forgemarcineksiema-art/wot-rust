@@ -13,8 +13,9 @@ this move the benchmark vehicle closer to the Forge quality target?*
 
 - **Model pipeline:** procedural source + baked assets + runtime variation. Not runtime full-tank
   generation, and not hand-authored DCC meshes.
-- **First quality benchmark:** the **T-54/T-55 family**. One excellent vehicle before shallow
-  upgrades to all vehicles.
+- **First quality benchmark:** the canonical **T-54-3 obr. 1951**. One excellent vehicle before
+  shallow upgrades to all vehicles. `T-55A` remains only as a legacy/wire-compatible vehicle kind
+  and is not a production roster or Forge benchmark entry.
 - **Renderer target:** PBR-lite with baked maps (albedo, normal, AO/roughness, optional cavity).
 - **Name:** *Armored Vehicle Forge*. The old flat `VehicleBlueprint` is a prototype stepping stone,
   not the destination model.
@@ -107,14 +108,14 @@ complete until the full gate passes.
 ## Milestones
 
 0. **Lock the philosophy** — this document; benchmark and baseline chosen. *(current)*
-1. **Reference pack and ratio tests** — `ReferencePack` for T-54/T-55, photo-derived ratio tests.
-2. **Semantic part graph** — move T-54/T-55 from flat constants to a `ForgePartGraph`.
+1. **Reference pack and ratio tests** — `ReferencePack` for T-54, photo-derived ratio tests.
+2. **Semantic part graph** — move T-54 from flat constants to a `ForgePartGraph`.
 3. **Geometry operators for real tank forms** — plate/loft/cast-shell/track-belt/wheel-train, UVs,
    tangents.
 4. **PBR-lite vehicle pipeline** — `VehicleVertex`, material textures, normal/AO maps, shader path,
    screenshot regression.
 5. **Bake artifact and toolchain** — Forge CLI writes artifact folders; client loads baked assets.
-6. **First production benchmark** — T-54/T-55 with LOD0/1/2, full screenshot set, passing ratio/
+6. **First production benchmark** — T-54 with LOD0/1/2, full screenshot set, passing ratio/
    geometry/renderer/perf gates.
 7. **Runtime variation** — decals, dirt/camo, equipment, damage and track state.
 8. **Migrate other vehicles** — Jagdtiger, Tiger I, Tiger II, then Panther II after an explicit

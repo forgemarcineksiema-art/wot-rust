@@ -86,8 +86,13 @@ impl VehicleAssetCatalog {
         pivot: Vec3,
     ) -> MeshHandle {
         let label = format!("{}_{}_vehicle", kind.slug(), submesh_label(submesh));
-        if let Some(handle) = self.mesh_labels.get(&label) {
-            return *handle;
+        if let Some(handle) = self.mesh_labels.get(&label).copied() {
+            let asset = vehicle_mesh_asset_from_geometry(mesh, pivot);
+            if let Some((_, stored)) = self.meshes.get_mut(handle.0 as usize) {
+                *stored = asset.clone();
+            }
+            self.pending_meshes.push((handle, asset));
+            return handle;
         }
         let handle = MeshHandle(self.meshes.len() as u32);
         let asset = vehicle_mesh_asset_from_geometry(mesh, pivot);

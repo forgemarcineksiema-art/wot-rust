@@ -39,6 +39,7 @@ fn t54_blueprint_hull_has_inset_tub_and_wide_sponson() {
         .iter()
         .filter(|vertex| vertex.material == MaterialRole::RolledArmor)
         .filter(|vertex| vertex.position.y >= blueprint.hull.sponson_y + 0.04)
+        .filter(|vertex| (vertex.position.y - blueprint.track.top_y).abs() > 0.16)
         .map(|vertex| vertex.position.x.abs())
         .fold(0.0_f32, f32::max);
 

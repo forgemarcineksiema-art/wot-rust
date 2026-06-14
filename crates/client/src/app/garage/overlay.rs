@@ -43,7 +43,7 @@ pub(super) fn hit_test(state: &GarageState) -> GarageHit {
     if in_rect(p, right, ARROW_HALF) {
         return GarageHit::CrewProf(1);
     }
-    let count = VehicleKind::ALL.len();
+    let count = VehicleKind::PLAYABLE.len();
     for i in 0..count {
         if in_rect(p, carousel_center(i, count), CAR_HALF) {
             return GarageHit::Vehicle(i);
@@ -65,7 +65,10 @@ mod tests {
     fn cursor_hits_battle_carousel_and_scene() {
         let mut g = GarageState::default();
         assert_eq!(at(&mut g, BATTLE_CENTER), GarageHit::Battle);
-        assert_eq!(at(&mut g, carousel_center(3, VehicleKind::ALL.len())), GarageHit::Vehicle(3));
+        assert_eq!(
+            at(&mut g, carousel_center(3, VehicleKind::PLAYABLE.len())),
+            GarageHit::Vehicle(3)
+        );
         assert_eq!(at(&mut g, [0.0, 0.0]), GarageHit::Scene);
     }
 

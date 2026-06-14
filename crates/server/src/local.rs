@@ -27,7 +27,7 @@ pub struct LocalAuthoritativeServer {
 
 impl LocalAuthoritativeServer {
     pub fn new(config: ServerTickConfig) -> Self {
-        Self::new_with_player_vehicle(config, VehicleKind::T55A)
+        Self::new_with_player_vehicle(config, VehicleKind::T54_1951)
     }
 
     pub fn new_with_player_vehicle(config: ServerTickConfig, player_vehicle: VehicleKind) -> Self {

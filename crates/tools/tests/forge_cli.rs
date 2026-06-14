@@ -46,7 +46,7 @@ fn forge_report_cli_writes_ratio_markdown_only() {
 
     assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
     let report = std::fs::read_to_string(&out).expect("report markdown");
-    assert!(report.contains("T-54/T-55 Forge reference report"));
+    assert!(report.contains("T-54 Forge reference report"));
     assert!(report.contains("GunProtrusionToHullLength"));
 
     std::fs::remove_file(out).expect("remove report");
@@ -70,14 +70,15 @@ fn forge_lineup_cli_writes_benchmark_artifacts_and_index() {
     assert!(out.join("t54-1951").join("manifest.json").is_file());
     assert!(out.join("t54-1951").join("albedo.png").is_file());
     assert!(out.join("t54-1951").join("review").join("front.png").is_file());
-    assert!(out.join("t55a").join("manifest.json").is_file());
-    assert!(out.join("t55a").join("ao_roughness.png").is_file());
-    assert!(out.join("t55a").join("review").join("battle_oblique.png").is_file());
+    assert!(
+        !out.join("t55a").exists(),
+        "T-55A is legacy-compatible only and must not be emitted by forge-lineup"
+    );
 
     let index = std::fs::read_to_string(out.join("index.md")).expect("lineup index");
     assert!(index.contains("Armored Vehicle Forge lineup"));
     assert!(index.contains("t54-1951"));
-    assert!(index.contains("t55a"));
+    assert!(!index.contains("t55a"));
 
     std::fs::remove_dir_all(out).expect("remove lineup");
 }

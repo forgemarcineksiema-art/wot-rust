@@ -20,8 +20,6 @@ impl ClientApp {
                 PhysicalKey::Code(KeyCode::Digit3) => self.select_garage_index(2),
                 PhysicalKey::Code(KeyCode::Digit4) => self.select_garage_index(3),
                 PhysicalKey::Code(KeyCode::Digit5) => self.select_garage_index(4),
-                PhysicalKey::Code(KeyCode::Digit6) => self.select_garage_index(5),
-                PhysicalKey::Code(KeyCode::Digit7) => self.select_garage_index(6),
                 PhysicalKey::Code(KeyCode::Enter) => self.confirm_garage_selection(),
                 PhysicalKey::Code(KeyCode::Escape) => self.garage.close_if_started(),
                 _ if !self.garage.has_started() => {}
@@ -33,7 +31,7 @@ impl ClientApp {
     }
 
     fn select_garage_index(&mut self, index: usize) {
-        if let Some(vehicle) = game_core::VehicleKind::ALL.get(index).copied() {
+        if let Some(vehicle) = game_core::VehicleKind::PLAYABLE.get(index).copied() {
             self.select_garage_vehicle(vehicle);
         }
     }

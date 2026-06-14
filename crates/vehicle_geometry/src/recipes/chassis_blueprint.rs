@@ -82,12 +82,20 @@ pub(crate) fn blueprint_deck_details(hull: &HullShape) -> GeometryMesh {
 
 /// The wrapped running gear for one blueprint, mirrored to both sides.
 pub(crate) fn blueprint_running_gear(track: &TrackShape) -> GeometryMesh {
+    blueprint_running_gear_with_layout(track, None, 10)
+}
+
+pub(crate) fn blueprint_running_gear_with_layout(
+    track: &TrackShape,
+    wheel_zs: Option<&[f32]>,
+    link_count: usize,
+) -> GeometryMesh {
     let cy = (track.top_y + track.bottom_y) * 0.5;
     let cz = (track.wheel_first_z + track.wheel_last_z) * 0.5;
     let half_run = (track.wheel_last_z - track.wheel_first_z) * 0.5;
 
-    // The track as a thin top run and bottom run (not a solid block), so the road wheels show
-    // between them; the drive sprocket and idler round the ends.
+    // The track as a thin top run and bottom run (not a solid block), with wrapped metal end loops
+    // around the idler/sprocket so it reads as one continuous belt.
     let run_len = half_run + track.end_radius * 0.5;
     let run_half = Vec3::new(track.belt_half_thickness, 0.07, run_len);
     let mut builder = MeshBuilder::new()
@@ -104,16 +112,18 @@ pub(crate) fn blueprint_running_gear(track: &TrackShape) -> GeometryMesh {
             0.05,
             MaterialRole::TrackMetal,
             SG_HARD,
-        );
+        )
+        .capped_revolve_at(Vec3::new(0.0, cy, cz - half_run), track_end_wrap_profile(track))
+        .capped_revolve_at(Vec3::new(0.0, cy, cz + half_run), track_end_wrap_profile(track));
 
     // Road wheels, arrayed along the run.
-    let mut wheels = MeshBuilder::new().capped_revolve_at(
-        Vec3::new(0.0, cy, track.wheel_first_z),
-        wheel_profile(track.wheel_radius, track.inner_x, track.outer_x),
-    );
-    if track.wheel_count > 1 {
-        let step = (track.wheel_last_z - track.wheel_first_z) / (track.wheel_count - 1) as f32;
-        wheels = wheels.array_along(Axis::Z, step, track.wheel_count);
+    let positions = wheel_zs.map_or_else(|| uniform_wheel_zs(track), Vec::from);
+    let mut wheels = MeshBuilder::new();
+    for z in positions {
+        wheels = wheels.capped_revolve_at(
+            Vec3::new(0.0, cy, z),
+            wheel_profile(track.wheel_radius, track.inner_x, track.outer_x),
+        );
     }
     builder = builder.append(&wheels.build());
 
@@ -126,16 +136,8 @@ pub(crate) fn blueprint_running_gear(track: &TrackShape) -> GeometryMesh {
         );
     }
 
-    // A few return rollers riding the top run.
-    let mut roller = MeshBuilder::new().capped_revolve_at(
-        Vec3::new(0.0, track.top_y - 0.06, cz - half_run * 0.5),
-        wheel_profile(0.12, track.inner_x + 0.02, track.outer_x),
-    );
-    roller = roller.array_along(Axis::Z, half_run, 2);
-    builder = builder.append(&roller.build());
-
     // Track-shoe links along the top and bottom runs, so the belt reads as a segmented track.
-    builder = add_blueprint_track_links(builder, track, cz, half_run);
+    builder = add_blueprint_track_links(builder, track, cz, half_run, link_count);
 
     builder.mirror(Axis::X).build()
 }
@@ -147,8 +149,8 @@ fn add_blueprint_track_links(
     track: &TrackShape,
     cz: f32,
     half_run: f32,
+    count: usize,
 ) -> MeshBuilder {
-    let count = 10usize;
     let step = (2.0 * half_run) / (count - 1) as f32;
     let outer_x = track.center_x + track.belt_half_thickness;
     let shoe_half_x = track.belt_half_thickness * 0.5;
@@ -178,6 +180,17 @@ fn add_blueprint_track_links(
     builder
 }
 
+fn uniform_wheel_zs(track: &TrackShape) -> Vec<f32> {
+    match track.wheel_count {
+        0 => Vec::new(),
+        1 => vec![track.wheel_first_z],
+        count => {
+            let step = (track.wheel_last_z - track.wheel_first_z) / (count - 1) as f32;
+            (0..count).map(|i| track.wheel_first_z + step * i as f32).collect()
+        }
+    }
+}
+
 fn wheel_profile(radius: f32, inner_x: f32, outer_x: f32) -> RevolveSpec {
     RevolveSpec {
         profile: vec![ProfilePoint::new(radius, inner_x), ProfilePoint::new(radius, outer_x)],
@@ -185,6 +198,19 @@ fn wheel_profile(radius: f32, inner_x: f32, outer_x: f32) -> RevolveSpec {
         segments: 14,
         material: MaterialRole::Rubber,
         smoothing: SG_WHEEL,
+    }
+}
+
+fn track_end_wrap_profile(track: &TrackShape) -> RevolveSpec {
+    RevolveSpec {
+        profile: vec![
+            ProfilePoint::new(track.end_radius, track.inner_x),
+            ProfilePoint::new(track.end_radius, track.outer_x),
+        ],
+        axis: Axis::X,
+        segments: track.segments.max(12),
+        material: MaterialRole::TrackMetal,
+        smoothing: SG_HARD,
     }
 }
 

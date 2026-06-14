@@ -51,15 +51,24 @@ fn vehicle_shader_is_valid_wgsl_with_pbr_lite_inputs() {
     // The vehicle pipeline binds its camera uniform at group 0, binding 0 (like the scene pass).
     assert!(report.has_uniform_binding("camera", 0, 0));
     let source = vehicle_shader_source();
-    for binding in [
-        "@group(1) @binding(0)\nvar albedo_map",
-        "@group(1) @binding(1)\nvar normal_map",
-        "@group(1) @binding(2)\nvar ao_roughness_map",
-        "@group(1) @binding(3)\nvar cavity_map",
-        "@group(1) @binding(4)\nvar vehicle_sampler",
+    for (binding, name) in [
+        ("@group(1) @binding(0)", "var albedo_map"),
+        ("@group(1) @binding(1)", "var normal_map"),
+        ("@group(1) @binding(2)", "var ao_roughness_map"),
+        ("@group(1) @binding(3)", "var cavity_map"),
+        ("@group(1) @binding(4)", "var vehicle_sampler"),
     ] {
-        assert!(source.contains(binding), "vehicle shader must bind material resource {binding}");
+        assert_binding_declared(source, binding, name);
     }
+}
+
+fn assert_binding_declared(source: &str, binding: &str, name: &str) {
+    let binding_at = source.find(binding).unwrap_or_else(|| panic!("missing {binding}"));
+    let tail = &source[binding_at..];
+    assert!(
+        tail.find(name).is_some_and(|offset| offset < 80),
+        "vehicle shader must bind material resource {binding} {name}"
+    );
 }
 
 #[test]

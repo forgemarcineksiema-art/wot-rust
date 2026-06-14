@@ -14,13 +14,14 @@ only partially mature.
   constraints, mount frames, deterministic hashes, budgets, and broad silhouette uniqueness.
 - Runtime integration: strong. The client now renders baked submeshes through cached mesh handles
   and `RenderObject` transforms rather than rebuilding every tank mesh each frame.
-- Photo traceability: mixed. T-54 has started moving toward a single `VehicleBlueprint` source of
-  truth for visible shape, hitbox, mount frames, and armor slopes. Other vehicles still rely mostly
-  on family recipe constants and prose comments.
+- Photo traceability: mixed but now stricter for the benchmark. T-54-3 obr. 1951 is the canonical
+  Forge target and has a single `VehicleBlueprint` source for visible shape, hitbox, mount frames,
+  and armor slopes. T-55A remains legacy-compatible, but it is no longer a production benchmark or
+  review-lineup vehicle.
 - Visual fidelity: acceptable for stylized early playable geometry, not yet museum-grade. The
   lineup communicates vehicle classes and family differences, but several reference-visible cues
   are simplified: German interleaved wheels, Tiger II turret mass/taper, Jagdtiger casemate detail,
-  and the exact T-54/T-55 road-wheel presentation.
+  and the exact T-54 road-wheel/track presentation.
 
 ## Evidence Collected
 
@@ -85,9 +86,9 @@ source assets.
 The photo references used in this pass are deliberately broad. They are not a final per-bolt
 modeling guide; they are evidence for silhouette, massing, and major fittings.
 
-- T-54/T-55 family: Wikimedia Commons T-54/T-55 gallery
+- T-54 benchmark: Wikimedia Commons T-54/T-55 gallery
   (`https://commons.wikimedia.org/wiki/T-54/T-55`), plus the project source notes in
-  `docs/vehicles/t-54-t-55.md`.
+  `docs/vehicles/t-54.md`.
 - Tiger I: Wikimedia Commons Tiger I category
   (`https://commons.wikimedia.org/wiki/Category:Tiger_I`), plus the project source notes in
   `docs/vehicles/panzerkampfwagen-vi-tiger.md`.
@@ -182,7 +183,8 @@ Status: test/gameplay placeholder, not a photo-authored historical vehicle.
 
 Evidence:
 
-- The vehicle is present in `VehicleKind::ALL` and rendered in the lineup.
+- The vehicle is present in `VehicleKind::ALL` for test coverage, but it is not in
+  `VehicleKind::PLAYABLE` and is not rendered in production lineups.
 - It has distinct bake output and must satisfy the same mesh integrity, hitbox, mount, and budget
   tests as the real vehicles.
 
@@ -221,8 +223,9 @@ Photo-backed cues currently represented:
 
 Risks:
 
-- The current blueprint uses five visible road wheels. T-54/T-55 family references often make the
-  road-wheel count a strong side-profile cue, so this should be explicitly justified or corrected.
+- The current blueprint uses five visible road wheels, a continuous track belt, distinct idler and
+  drive sprocket volumes, and no return rollers. These are now explicit T-54 benchmark gates, not
+  a broad T-54/T-55 family assumption.
 - The cast turret is still a procedural dome. It reads correctly from game distance, but it does not
   capture the exact asymmetric cast front/cheek mass of a museum-grade T-54.
 
@@ -233,14 +236,14 @@ replace the approach.
 
 ### T-55A
 
-Status: visually acceptable but not yet blueprint-backed.
+Status: legacy-compatible, not a production Forge benchmark.
 
 Evidence:
 
-- It bakes and passes the same global integrity, fit, and budget tests.
-- Its recipe still uses hand-authored Soviet family constants instead of a `VehicleBlueprint`.
-- Screenshots show correct broad cues: low hull, rounded turret, small cupola, slim 100 mm gun, and
-  bore evacuator.
+- It remains in `VehicleKind` for wire/test compatibility.
+- It may still bake for low-level compatibility tests.
+- It is not in `VehicleKind::PLAYABLE`, not in the Forge `ReferencePack`, and not in production
+  review lineups.
 
 Photo-backed cues currently represented:
 
@@ -252,15 +255,15 @@ Photo-backed cues currently represented:
 
 Risks:
 
-- T-55A and T-54 should be close relatives, but they currently come from different authoring paths:
-  T-54 from blueprint, T-55A from older recipe constants. That makes drift likely.
-- The recipe cannot yet prove that its visible sponson, lower tub, turret plan, and gun fittings
-  derive from the same source as hitboxes and mount frames.
+- Treating T-55A as a near-identical benchmark variant creates a clone problem and dilutes the
+  module-level review of the T-54.
+- T-55A/D-10T2S details, especially the bore evacuator, must not define the canonical T-54-3 obr.
+  1951 silhouette.
 
 Conclusion:
 
-Migrate T-55A next. It should reuse the T-54 blueprint machinery and add T-55A-specific tests for
-evacuator placement, cupola seating, turret dome dimensions, lower tub inset, and sponson coverage.
+Do not migrate or promote T-55A as the next production benchmark in this pass. Keep it as
+compatibility coverage unless a future content plan gives it a distinct, non-clone role.
 
 ### Tiger I
 
@@ -355,7 +358,7 @@ Risks:
 
 Conclusion:
 
-Jagdtiger is the best German candidate after T-55A for blueprint migration. It would prove that the
+Jagdtiger is the best German candidate after the T-54 benchmark is genuinely good. It would prove that the
 blueprint system handles non-turreted vehicles and casemate armor geometry cleanly.
 
 ### Panther II
@@ -389,7 +392,7 @@ Conclusion:
 
 Keep it as a playable variant, but document the interpretation before adding ratio tests. Panther
 II should not be judged by the same "production vehicle photo" standard as Tiger I, Tiger II, or
-T-54/T-55.
+T-54.
 
 ## Cross-Cutting Conclusions
 
@@ -406,8 +409,7 @@ T-54/T-55.
 
 ## Recommended Next Work
 
-1. Migrate T-55A to `VehicleBlueprint`, reusing the T-54 shape model and adding T-55A-specific gun
-   and turret details.
+1. Finish the T-54 LOD0 close-up benchmark before adding adjacent Soviet variants.
 2. Add a small "photo ratios" test module. Start with robust ratios:
    hull length/width, hull height/track height, turret width/hull width, gun protrusion/hull length,
    casemate height/hull height, and lower tub inset/upper sponson width.

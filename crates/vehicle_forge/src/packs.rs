@@ -1,36 +1,36 @@
 //! Concrete `ReferencePack` data, one constructor per benchmarked vehicle family.
 //!
 //! The generic reference types live in [`crate::reference`]; this module is the photo-backed data
-//! that proves where a family's proportions come from. The T-54/T-55 family is the first Forge
+//! that proves where a vehicle's proportions come from. The T-54-3 obr. 1951 is the first Forge
 //! quality benchmark (see `docs/vehicle-forge-policy.md`).
 
 use game_core::VehicleKind;
 
 use crate::{RatioKind, RatioTarget, ReferencePack, ReferenceSource};
 
-pub fn t54_t55_reference_pack() -> ReferencePack {
+pub fn t54_reference_pack() -> ReferencePack {
     ReferencePack::new(
-        "t54_t55",
-        "T-54/T-55",
-        vec![VehicleKind::T54_1951, VehicleKind::T55A],
-        "Armored Vehicle Forge benchmark for the T-54/T-55 family: low Soviet medium hull, \
-         five-road-wheel running gear, rounded cast turret, D-10 gun family, and photo-backed \
-         silhouette ratios.",
+        "t54",
+        "T-54",
+        vec![VehicleKind::T54_1951],
+        "Armored Vehicle Forge benchmark for the canonical T-54-3 obr. 1951: low Soviet medium \
+         hull, five-road-wheel running gear without return rollers, rounded cast turret, D-10T \
+         gun without bore evacuator, and photo-backed silhouette ratios.",
         5,
         vec![
             ReferenceSource::new(
                 "Wikimedia Commons T-54/T-55 gallery",
                 "https://commons.wikimedia.org/wiki/T-54/T-55",
-                "Photo reference for family silhouette, turret mass, running gear, and stowage.",
+                "Photo reference for T-54 silhouette, turret mass, running gear, and stowage.",
             ),
             ReferenceSource::new(
-                "Tank AFV T-55 article",
-                "https://tank-afv.com/coldwar/ussr/T-55.php",
-                "Technical and visual reference for T-55 dimensions, engine, armament, and family cues.",
+                "Tanks Encyclopedia T-54-1 article",
+                "https://tanks-encyclopedia.com/coldwar/soviet/t-54-1-1947/",
+                "Technical and visual baseline for early T-54 hull, turret, and D-10T cues.",
             ),
             ReferenceSource::new(
-                "Project T-54/T-55 vehicle notes",
-                "docs/vehicles/t-54-t-55.md",
+                "Project T-54 vehicle notes",
+                "docs/vehicles/t-54.md",
                 "In-repo gameplay translation and public source summary.",
             ),
         ],

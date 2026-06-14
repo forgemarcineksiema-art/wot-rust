@@ -660,6 +660,7 @@ dependencies = [
  "png",
  "renderer_api",
  "renderer_wgpu",
+ "serde_json",
  "server",
  "sim",
  "terrain",

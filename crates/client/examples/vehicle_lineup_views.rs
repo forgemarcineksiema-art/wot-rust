@@ -154,8 +154,10 @@ fn lineup_objects(
     ];
 
     let mut render_objects = Vec::new();
-    for (index, kind) in VehicleKind::ALL.into_iter().enumerate() {
-        let x = CENTER_X + (index as f32 - 3.0) * SPACING;
+    let roster = VehicleKind::PLAYABLE;
+    let center_index = (roster.len().saturating_sub(1)) as f32 * 0.5;
+    for (index, kind) in roster.into_iter().enumerate() {
+        let x = CENTER_X + (index as f32 - center_index) * SPACING;
         let ground = battlefield.heightmap.sample_height(x, CENTER_Z).unwrap_or(0.0);
         let snapshot = TankSnapshot {
             tank_id: TankId(index as u64 + 1),

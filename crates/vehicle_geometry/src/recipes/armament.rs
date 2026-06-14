@@ -3,7 +3,9 @@
 use glam::Vec3;
 
 use super::{SG_BARREL, SG_MANTLET};
-use crate::{Axis, GeometryMesh, MaterialRole, MeshBuilder, ProfilePoint, RevolveSpec};
+use crate::{
+    Axis, GeometryMesh, GeometryVertex, MaterialRole, MeshBuilder, ProfilePoint, RevolveSpec,
+};
 
 /// Main-gun plan: a revolved barrel plus optional cast mantlet, bore evacuator, and muzzle brake.
 /// All parts share the trunnion's `axis_y` so the whole assembly elevates cleanly as one submesh.
@@ -28,6 +30,16 @@ pub(crate) struct GunPlan {
 
 /// Build the gun submesh from a [`GunPlan`].
 pub(crate) fn build_gun(plan: &GunPlan) -> GeometryMesh {
+    build_gun_with_mantlet_scale(plan, 1.0, 1.0)
+}
+
+/// Build the gun with an optionally flattened moving mantlet. T-54 uses this to model the low,
+/// broad oval mantlet mask seated in the turret cheeks instead of a round revolved collar.
+pub(crate) fn build_gun_with_mantlet_scale(
+    plan: &GunPlan,
+    mantlet_x_scale: f32,
+    mantlet_y_scale: f32,
+) -> GeometryMesh {
     let origin = Vec3::new(0.0, plan.axis_y, 0.0);
     let mut builder = MeshBuilder::new().capped_revolve_at(
         origin,
@@ -45,20 +57,35 @@ pub(crate) fn build_gun(plan: &GunPlan) -> GeometryMesh {
     if let Some((radius, back_z, front_z)) = plan.mantlet {
         // A gently bulged cast mantlet (Saukopf-style) reads rounder than a plain collar.
         let mid = (back_z + front_z) * 0.5;
-        builder = builder.capped_revolve_at(
-            origin,
-            RevolveSpec {
-                profile: vec![
-                    ProfilePoint::new(radius * 0.72, back_z),
-                    ProfilePoint::new(radius, mid),
-                    ProfilePoint::new(radius * 0.82, front_z),
-                ],
-                axis: Axis::Z,
-                segments: plan.segments,
-                material: MaterialRole::CastArmor,
-                smoothing: SG_MANTLET,
-            },
-        );
+        if (mantlet_x_scale - 1.0).abs() < f32::EPSILON
+            && (mantlet_y_scale - 1.0).abs() < f32::EPSILON
+        {
+            builder = builder.capped_revolve_at(
+                origin,
+                RevolveSpec {
+                    profile: vec![
+                        ProfilePoint::new(radius * 0.72, back_z),
+                        ProfilePoint::new(radius, mid),
+                        ProfilePoint::new(radius * 0.82, front_z),
+                    ],
+                    axis: Axis::Z,
+                    segments: plan.segments,
+                    material: MaterialRole::CastArmor,
+                    smoothing: SG_MANTLET,
+                },
+            );
+        } else {
+            builder = builder.append(&oval_mantlet_mesh(
+                origin,
+                radius,
+                back_z,
+                mid,
+                front_z,
+                mantlet_x_scale,
+                mantlet_y_scale,
+                plan.segments,
+            ));
+        }
     }
     if let Some((fraction, radius)) = plan.evacuator {
         assert!(
@@ -96,6 +123,75 @@ pub(crate) fn build_gun(plan: &GunPlan) -> GeometryMesh {
         );
     }
     builder.build()
+}
+
+#[allow(clippy::too_many_arguments)]
+fn oval_mantlet_mesh(
+    origin: Vec3,
+    radius: f32,
+    back_z: f32,
+    mid_z: f32,
+    front_z: f32,
+    x_scale: f32,
+    y_scale: f32,
+    segments: usize,
+) -> GeometryMesh {
+    assert!(segments >= 3);
+    let rings = [(radius * 0.72, back_z), (radius, mid_z), (radius * 0.82, front_z)];
+    let mut vertices = Vec::with_capacity(segments * rings.len() + 2);
+    for segment in 0..segments {
+        let angle = (segment as f32 / segments as f32) * std::f32::consts::TAU;
+        let (sin, cos) = angle.sin_cos();
+        let normal =
+            Vec3::new(cos / x_scale.max(0.001), sin / y_scale.max(0.001), 0.0).normalize_or_zero();
+        for (ring_radius, z) in rings {
+            vertices.push(GeometryVertex::new(
+                origin + Vec3::new(cos * ring_radius * x_scale, sin * ring_radius * y_scale, z),
+                normal,
+                MaterialRole::CastArmor,
+                SG_MANTLET,
+            ));
+        }
+    }
+
+    let mut indices = Vec::with_capacity(segments * 18);
+    let ring_count = rings.len() as u32;
+    for segment in 0..segments as u32 {
+        let next = (segment + 1) % segments as u32;
+        for row in 0..ring_count - 1 {
+            let a = segment * ring_count + row;
+            let b = next * ring_count + row;
+            let c = b + 1;
+            let d = a + 1;
+            indices.extend_from_slice(&[a, b, c, a, c, d]);
+        }
+    }
+
+    let back_center = vertices.len() as u32;
+    vertices.push(GeometryVertex::new(
+        origin + Vec3::new(0.0, 0.0, back_z),
+        -Vec3::Z,
+        MaterialRole::CastArmor,
+        SG_MANTLET,
+    ));
+    let front_center = vertices.len() as u32;
+    vertices.push(GeometryVertex::new(
+        origin + Vec3::new(0.0, 0.0, front_z),
+        Vec3::Z,
+        MaterialRole::CastArmor,
+        SG_MANTLET,
+    ));
+    for segment in 0..segments as u32 {
+        let next = (segment + 1) % segments as u32;
+        indices.extend_from_slice(&[back_center, next * ring_count, segment * ring_count]);
+        indices.extend_from_slice(&[
+            front_center,
+            segment * ring_count + ring_count - 1,
+            next * ring_count + ring_count - 1,
+        ]);
+    }
+
+    GeometryMesh::new(vertices, indices)
 }
 
 #[cfg(test)]

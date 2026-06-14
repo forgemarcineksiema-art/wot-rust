@@ -9,7 +9,7 @@ fn forge_artifact_manifest_names_the_baked_vehicle_profile_and_sources() {
 
     assert_eq!(manifest.vehicle_slug(), "t54-1951");
     assert_eq!(manifest.profile(), BakeProfile::Lod0);
-    assert_eq!(manifest.source_family_slug(), Some("t54_t55"));
+    assert_eq!(manifest.source_family_slug(), Some("t54"));
     assert!(manifest.source_hash() != 0, "bake hash must identify the generated source");
     assert!(manifest.mesh_bytes() > 0, "artifact must account for mesh payload bytes");
     assert!(manifest.submeshes().iter().any(|submesh| submesh.kind() == "Hull"));
@@ -23,7 +23,6 @@ fn forge_artifact_manifest_names_the_baked_vehicle_profile_and_sources() {
 fn every_migrated_vehicle_bakes_a_full_artifact_at_every_lod() {
     for kind in [
         VehicleKind::T54_1951,
-        VehicleKind::T55A,
         VehicleKind::TigerI,
         VehicleKind::TigerII,
         VehicleKind::Jagdtiger,
@@ -46,7 +45,7 @@ fn every_migrated_vehicle_bakes_a_full_artifact_at_every_lod() {
             assert_eq!(manifest.texture_maps().len(), 4, "{kind:?} material set incomplete");
             assert_eq!(
                 manifest.review_cameras().cameras().len(),
-                6,
+                11,
                 "{kind:?} review set incomplete"
             );
         }
@@ -94,8 +93,28 @@ fn review_camera_set_contains_required_forge_regression_views() {
             ReviewCamera::RightProfile,
             ReviewCamera::Top,
             ReviewCamera::BattleOblique,
+            ReviewCamera::T54CloseFront,
+            ReviewCamera::T54RunningGear,
+            ReviewCamera::T54TurretMantlet,
+            ReviewCamera::T54TopPlan,
+            ReviewCamera::T54BattleClose,
         ]
     );
+}
+
+#[test]
+fn forge_texture_maps_are_real_review_sized_pngs() {
+    let artifact =
+        ForgeArtifact::bake(VehicleKind::T54_1951, BakeProfile::Lod0).expect("T-54 Forge artifact");
+
+    for map in artifact.manifest().texture_maps() {
+        let bytes = artifact.texture_payload(map.file()).expect("texture payload");
+        let decoder = png::Decoder::new(std::io::Cursor::new(bytes));
+        let reader = decoder.read_info().expect("decode texture header");
+        let info = reader.info();
+        assert!(info.width >= 256, "{} too narrow: {}", map.file(), info.width);
+        assert!(info.height >= 256, "{} too short: {}", map.file(), info.height);
+    }
 }
 
 #[test]
@@ -122,6 +141,11 @@ fn forge_artifact_writes_manifest_mesh_payload_report_and_review_folder() {
         "right_profile.png",
         "top.png",
         "battle_oblique.png",
+        "t54_close_front.png",
+        "t54_running_gear.png",
+        "t54_turret_mantlet.png",
+        "t54_top_plan.png",
+        "t54_battle_close.png",
     ] {
         assert_nonblank_png(&out.join("review").join(file));
     }
@@ -132,7 +156,7 @@ fn forge_artifact_writes_manifest_mesh_payload_report_and_review_folder() {
         "mesh payload must not be empty"
     );
     let report = std::fs::read_to_string(out.join("report.md")).expect("report markdown");
-    assert!(report.contains("T-54/T-55 Forge reference report"));
+    assert!(report.contains("T-54 Forge reference report"));
     assert!(report.contains("HullLengthToWidth"));
 
     std::fs::remove_dir_all(out).expect("remove test artifact");

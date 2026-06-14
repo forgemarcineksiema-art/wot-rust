@@ -44,7 +44,7 @@ impl Default for GarageState {
             open: true,
             started: false,
             selected_index: 0,
-            draft: LoadoutDraft::for_vehicle(VehicleKind::ALL[0]),
+            draft: LoadoutDraft::for_vehicle(VehicleKind::PLAYABLE[0]),
             orbit_yaw: 2.4,
             orbit_pitch: 0.12,
             orbit_distance: 12.0,
@@ -75,17 +75,17 @@ impl GarageState {
     }
 
     pub(super) fn selected_vehicle(&self) -> VehicleKind {
-        VehicleKind::ALL[self.selected_index]
+        VehicleKind::PLAYABLE[self.selected_index]
     }
 
     pub(super) fn select_vehicle(&mut self, vehicle: VehicleKind) {
-        if let Some(index) = VehicleKind::ALL.iter().position(|kind| *kind == vehicle) {
+        if let Some(index) = VehicleKind::PLAYABLE.iter().position(|kind| *kind == vehicle) {
             self.select_index(index);
         }
     }
 
     pub(super) fn select_index(&mut self, index: usize) {
-        if index < VehicleKind::ALL.len() && index != self.selected_index {
+        if index < VehicleKind::PLAYABLE.len() && index != self.selected_index {
             self.selected_index = index;
             // A different vehicle starts from its own stock loadout, ammo, and crew.
             self.draft = LoadoutDraft::for_vehicle(self.selected_vehicle());
@@ -93,7 +93,7 @@ impl GarageState {
     }
 
     pub(super) fn cycle(&mut self, delta: isize) {
-        let len = VehicleKind::ALL.len() as isize;
+        let len = VehicleKind::PLAYABLE.len() as isize;
         let index = (self.selected_index as isize + delta).rem_euclid(len) as usize;
         self.select_index(index);
     }
@@ -167,8 +167,19 @@ mod tests {
         // Switching vehicles and back must discard the edit.
         garage.select_index(2);
         garage.select_index(1);
-        let stock = VehicleKind::ALL[1].spec();
+        let stock = VehicleKind::PLAYABLE[1].spec();
         assert_eq!(garage.draft().assembled_spec().gun.shell, stock.gun.shell);
+    }
+
+    #[test]
+    fn garage_roster_starts_on_t54_and_rejects_t55a_legacy_clone() {
+        let mut garage = GarageState::default();
+        assert_eq!(garage.selected_vehicle(), VehicleKind::T54_1951);
+        assert!(!VehicleKind::PLAYABLE.contains(&VehicleKind::T55A));
+
+        garage.select_vehicle(VehicleKind::T55A);
+
+        assert_eq!(garage.selected_vehicle(), VehicleKind::T54_1951);
     }
 
     #[test]
