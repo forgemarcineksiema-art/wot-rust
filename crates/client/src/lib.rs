@@ -16,6 +16,7 @@ mod reticle;
 mod reticle_sweep;
 mod scene_mesh;
 mod tank_mesh;
+mod vehicle_asset_catalog;
 mod vehicle_geometry_mesh;
 mod vehicle_mesh;
 mod vehicle_pbr_mesh;
@@ -36,6 +37,7 @@ pub use loop_policy::{
 pub use render_state::InterpolatedBattleState;
 pub use scene_mesh::{battlefield_scene_mesh, terrain_scene_mesh};
 pub use tank_mesh::append_shell_markers;
+pub use vehicle_asset_catalog::{VehicleAssetCatalog, tank_vehicle_render_objects};
 pub use vehicle_mesh::{append_tank_mesh, tank_scene_mesh};
 pub use vehicle_pbr_mesh::{material_role_id, vehicle_submesh_vertices};
 pub use vehicle_render_frame::{

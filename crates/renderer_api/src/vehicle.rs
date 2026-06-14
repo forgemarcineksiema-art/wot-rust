@@ -139,4 +139,30 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn vehicle_mesh_asset_and_material_descriptor_expose_baked_vehicle_contract() {
+        use crate::{VehicleMaterialDescriptor, VehicleMeshAsset};
+
+        let mesh = VehicleMeshAsset::new(
+            vec![VehicleVertex::new([0.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0], 1, 1.0)],
+            vec![0],
+        );
+        let material = VehicleMaterialDescriptor::pbr_lite(
+            "t54-1951",
+            "albedo.png",
+            "normal.png",
+            "ao_roughness.png",
+            Some("cavity.png"),
+        );
+
+        assert_eq!(mesh.vertex_count(), 1);
+        assert_eq!(mesh.index_count(), 1);
+        assert_eq!(mesh.vertices()[0].material_id, 1);
+        assert_eq!(material.label(), "t54-1951");
+        assert_eq!(material.albedo_texture(), "albedo.png");
+        assert_eq!(material.normal_texture(), "normal.png");
+        assert_eq!(material.ao_roughness_texture(), "ao_roughness.png");
+        assert_eq!(material.cavity_texture(), Some("cavity.png"));
+    }
 }

@@ -8,6 +8,7 @@ mod projection;
 mod resources;
 mod scene;
 mod vehicle;
+mod vehicle_asset;
 
 use game_core::TankId;
 
@@ -36,6 +37,7 @@ pub use projection::{CameraProjectionPolicy, DepthRange};
 pub use resources::{MaterialDescriptor, MeshAsset, MeshRegistry, RenderMaterialRegistry};
 pub use scene::{HUD_SOLID_UV, HudVertex, SceneVertex, view_projection_matrix};
 pub use vehicle::{VehicleVertex, generate_tangents};
+pub use vehicle_asset::{VehicleMaterialDescriptor, VehicleMeshAsset};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RenderSettings {
