@@ -21,6 +21,8 @@ pub use packs_german::{
     jagdtiger_reference_pack, panther_ii_reference_pack, tiger_i_reference_pack,
     tiger_ii_reference_pack,
 };
-pub use part_graph::{ForgePart, ForgePartGraph, ForgePartKind, PartAnchor};
+pub use part_graph::{
+    ForgePart, ForgePartGraph, ForgePartKind, GameplayRole, LodPolicy, PartAnchor, PartGroup,
+};
 pub use reference::{RatioKind, RatioTarget, ReferencePack, ReferenceSource};
 pub use report::{MeasuredRatio, RatioReport};

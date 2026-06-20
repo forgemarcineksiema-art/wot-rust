@@ -10,6 +10,46 @@ pub enum PartAnchor {
     GunTrunnion,
 }
 
+/// The three top-level part groups the runtime handles independently (suspension/hull, traversing
+/// turret, elevating gun). A part's group follows its pose anchor, so the grouping cannot disagree
+/// with how the part actually moves.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum PartGroup {
+    Hull,
+    Turret,
+    Gun,
+}
+
+impl PartGroup {
+    pub fn from_anchor(anchor: PartAnchor) -> Self {
+        match anchor {
+            PartAnchor::Hull => PartGroup::Hull,
+            PartAnchor::TurretRing => PartGroup::Turret,
+            PartAnchor::GunTrunnion => PartGroup::Gun,
+        }
+    }
+}
+
+/// What a part *is* for gameplay, independent of where it sits: armour the shell resolves against,
+/// running gear that can be tracked/immobilised, the weapon, or cosmetic fittings.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum GameplayRole {
+    Armor,
+    RunningGear,
+    Weapon,
+    Fitting,
+}
+
+/// How a part survives LOD reduction: characteristic silhouette forms are simplified but kept through
+/// every tier; mount-bearing parts are always kept so the pose chain survives even at LOD2; detail
+/// fittings are simplified at LOD1 and dropped at LOD2.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum LodPolicy {
+    Silhouette,
+    MountCritical,
+    Detail,
+}
+
 /// The semantic identity of a Forge-review part.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ForgePartKind {
@@ -31,6 +71,34 @@ pub enum ForgePartKind {
     Gun,
     Cupola,
     EngineDeck,
+}
+
+impl ForgePartKind {
+    /// What this part is for gameplay.
+    pub fn gameplay_role(self) -> GameplayRole {
+        use ForgePartKind::*;
+        match self {
+            Hull | UpperGlacis | LowerPlate | Turret | TurretCheeks | Mantlet | MantletSocket
+            | MovingMantlet => GameplayRole::Armor,
+            TrackRun | TrackBelt | RoadWheels | RoadWheelSet | Idler | DriveSprocket => {
+                GameplayRole::RunningGear
+            }
+            Gun => GameplayRole::Weapon,
+            Fenders | Cupola | EngineDeck => GameplayRole::Fitting,
+        }
+    }
+
+    /// How this part is treated through the LOD tiers.
+    pub fn lod_policy(self) -> LodPolicy {
+        use ForgePartKind::*;
+        match self {
+            Turret | Gun => LodPolicy::MountCritical,
+            Hull | UpperGlacis | LowerPlate | TrackRun | RoadWheels | TurretCheeks
+            | MovingMantlet => LodPolicy::Silhouette,
+            Fenders | TrackBelt | RoadWheelSet | Idler | DriveSprocket | Mantlet
+            | MantletSocket | Cupola | EngineDeck => LodPolicy::Detail,
+        }
+    }
 }
 
 /// One semantic part: where it sits, what it is made of, and where its proportions came from.
@@ -67,6 +135,21 @@ impl ForgePart {
 
     pub fn source(&self) -> &str {
         &self.source
+    }
+
+    /// The top-level group this part belongs to (follows its pose anchor).
+    pub fn group(&self) -> PartGroup {
+        PartGroup::from_anchor(self.anchor)
+    }
+
+    /// What this part is for gameplay.
+    pub fn gameplay_role(&self) -> GameplayRole {
+        self.kind.gameplay_role()
+    }
+
+    /// How this part is treated through the LOD tiers.
+    pub fn lod_policy(&self) -> LodPolicy {
+        self.kind.lod_policy()
     }
 }
 

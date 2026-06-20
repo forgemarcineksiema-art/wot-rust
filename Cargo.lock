@@ -2967,6 +2967,7 @@ dependencies = [
 name = "revolve"
 version = "0.1.0"
 dependencies = [
+ "game_core",
  "glam 0.30.10",
  "vehicle_geometry",
 ]
@@ -3096,6 +3097,7 @@ name = "sdf_mesh"
 version = "0.1.0"
 dependencies = [
  "criterion",
+ "game_core",
  "glam 0.30.10",
  "png",
  "sdf",
@@ -3305,6 +3307,7 @@ dependencies = [
 name = "solid"
 version = "0.1.0"
 dependencies = [
+ "game_core",
  "glam 0.30.10",
  "vehicle_geometry",
 ]

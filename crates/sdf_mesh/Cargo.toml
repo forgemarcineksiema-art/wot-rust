@@ -6,6 +6,7 @@ license.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+game_core = { path = "../game_core" }
 glam.workspace = true
 png = "0.18"
 sdf = { path = "../sdf" }

@@ -9,4 +9,4 @@ mod t54;
 
 pub use preview::{render_by_material, render_contact_sheet, render_png};
 pub use surface_nets::{Grid, mesh_sdf, mesh_within_budget};
-pub use t54::{GLACIS_SLOPE_DEG, glacis_slope_deg, t54_glacis, t54_turret};
+pub use t54::{t54_glacis, t54_turret};

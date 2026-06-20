@@ -9,4 +9,4 @@ mod convex;
 mod t54;
 
 pub use convex::{ConvexSolid, Plane};
-pub use t54::{GLACIS_SLOPE_DEG, t54_engine_deck, t54_fender, t54_glacis_solid};
+pub use t54::{t54_engine_deck, t54_fender, t54_glacis_solid, t54_hull_solid};

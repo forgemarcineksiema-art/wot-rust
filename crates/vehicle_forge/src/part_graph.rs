@@ -8,7 +8,7 @@
 
 mod types;
 
-pub use types::{ForgePart, ForgePartKind, PartAnchor};
+pub use types::{ForgePart, ForgePartKind, GameplayRole, LodPolicy, PartAnchor, PartGroup};
 pub(crate) use types::{part, turret_material};
 
 use game_core::{MountFrame, MountFrames, VehicleBlueprint, VehicleKind};
@@ -76,6 +76,12 @@ impl ForgePartGraph {
 
     pub fn part(&self, kind: ForgePartKind) -> Option<&ForgePart> {
         self.parts.iter().find(|part| part.kind == kind)
+    }
+
+    /// Every part in one top-level group (hull, turret, or gun) — the slices the runtime assembles
+    /// and animates independently (suspension, traverse, elevation).
+    pub fn parts_in_group(&self, group: PartGroup) -> impl Iterator<Item = &ForgePart> {
+        self.parts.iter().filter(move |p| p.group() == group)
     }
 
     pub fn road_wheel_count_per_side(&self) -> usize {

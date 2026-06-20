@@ -1,0 +1,132 @@
+//! Authoritative *visual* dimensions for the hybrid generator path (currently the T-54 benchmark).
+//!
+//! The flat [`VehicleBlueprint`](super::VehicleBlueprint) fields carry the gameplay shape (hitbox,
+//! mounts, armour slopes). [`HybridVisual`] carries everything the hybrid mesh generators
+//! (`solid`, `sdf_mesh`, `revolve`) need on top of that — the convex hull block, the cast-turret SDF
+//! composition, the barrel and mantlet profiles, the engine deck, the fenders, and the running gear.
+//!
+//! These types live here, in the lowest crate, so the generators read one source of truth rather
+//! than each holding its own copy of a dimension. A generator takes the relevant sub-struct by
+//! reference; nothing outside this struct is allowed to invent a T-54 dimension.
+
+use glam::Vec3;
+
+/// The convex hull block plus its two-plate front. The plate slopes (glacis/side/rear) are *not*
+/// stored here — they are read from [`ArmorShape`](super::ArmorShape) so the visible rake is the same
+/// number the penetration model uses ("what you see is what you shoot").
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct HullVisual {
+    pub half_width: f32,
+    pub belly_y: f32,
+    pub roof_y: f32,
+    pub half_len: f32,
+    /// Plane offset (distance from origin along the glacis normal) of the upper glacis plate.
+    pub glacis_offset: f32,
+    /// Lower nose plate: bevels the bottom-front edge into the T-54's two-plate front.
+    pub nose_normal: Vec3,
+    pub nose_offset: f32,
+}
+
+/// The cast turret as a Surface-Nets SDF: two offset spheres for the flattened dome, a seating ring,
+/// flat roof/ring planes, the commander's cupola, and the recessed mantlet socket. Positions are in
+/// vehicle-local space; the gun's moving mantlet belongs to the gun submesh, not the casting.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct TurretVisual {
+    pub dome_radius: f32,
+    pub dome_front: Vec3,
+    pub dome_rear: Vec3,
+    pub dome_blend: f32,
+    pub ring_radius: f32,
+    pub ring_half_height: f32,
+    pub ring_center: Vec3,
+    pub ring_blend: f32,
+    /// Flat machined planes capping the casting: roof (upper) and ring seat (lower).
+    pub roof_plane_y: f32,
+    pub ring_plane_y: f32,
+    pub cupola_radius: f32,
+    pub cupola_half_height: f32,
+    pub cupola_center: Vec3,
+    pub cupola_blend: f32,
+    pub socket_radius: f32,
+    pub socket_center: Vec3,
+    pub socket_blend: f32,
+    /// Tight world-space meshing box for the casting.
+    pub bbox_min: Vec3,
+    pub bbox_max: Vec3,
+    /// Triangle budget the casting meshes to.
+    pub budget: usize,
+}
+
+/// The gun: a revolved steel barrel (driven by the installed module's length) and the moving cast
+/// mantlet mask. The barrel dimensions are the hybrid visual ones — distinct from the legacy-recipe
+/// `GunShape`, which feeds the older `vehicle_geometry` path.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct GunVisual {
+    pub barrel_radius: f32,
+    pub muzzle_radius: f32,
+    pub muzzle_taper: f32,
+    pub barrel_segments: usize,
+    /// Mantlet side profile as `(z, radius)` points, revolved about Z then scaled to a flat oval.
+    pub mantlet_profile: [(f32, f32); 3],
+    pub mantlet_segments: usize,
+    pub mantlet_scale: Vec3,
+    /// How much of a gun module's length delta the muzzle moves by (visual modularity scale).
+    pub module_delta_scale: f32,
+}
+
+/// An axis-aligned box part (engine deck), as centre + half-extents.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BoxVisual {
+    pub center: Vec3,
+    pub half: Vec3,
+}
+
+/// A fender (mudguard) plate riding above one track run, mirrored to both sides at `±side_x`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct FenderVisual {
+    pub side_x: f32,
+    pub center_y: f32,
+    pub half: Vec3,
+}
+
+/// The road-wheel train: rubber-tyred wheels with proud steel hubs, repeated along each side.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct RunningGearVisual {
+    pub wheel_radius: f32,
+    pub wheel_half_width: f32,
+    pub hub_radius: f32,
+    pub hub_overhang: f32,
+    pub wheel_segments: usize,
+    pub hub_segments: usize,
+    pub wheel_count: usize,
+    pub first_z: f32,
+    pub spacing: f32,
+    pub side_x: f32,
+}
+
+/// The track belt: a rounded loop swept as a rectangular band, wrapping the wheels on each side.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct TrackBeltVisual {
+    pub front_z: f32,
+    pub rear_z: f32,
+    pub axle_y: f32,
+    pub radius: f32,
+    pub side_x: f32,
+    pub half_thickness: f32,
+    pub half_width: f32,
+    pub straight_segments: usize,
+    pub arc_segments: usize,
+}
+
+/// The full hybrid visual description for one vehicle. `Some` only for the hybrid benchmark (T-54);
+/// other vehicles bake through the legacy `vehicle_geometry` path and carry `None`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct HybridVisual {
+    pub hull: HullVisual,
+    pub turret: TurretVisual,
+    pub gun: GunVisual,
+    pub deck: BoxVisual,
+    pub fender: FenderVisual,
+    pub running_gear: RunningGearVisual,
+    pub track_belt: TrackBeltVisual,
+}

@@ -1,12 +1,15 @@
 //! Side-by-side sharpness comparison of the T-54 glacis: SDF + Surface Nets vs exact convex CAD.
 //! Renders both from identical cameras. Run: `cargo run -p sdf_mesh --example glacis_compare`.
 
+use game_core::{VehicleBlueprint, VehicleKind};
 use sdf_mesh::{mesh_within_budget, render_png, t54_glacis};
 use solid::t54_glacis_solid;
 use vehicle_geometry::{MaterialRole, SmoothingGroup};
 
 fn main() {
-    let (sdf_glacis, gmin, gmax) = t54_glacis();
+    let bp = VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("T-54 blueprint");
+    let hybrid = bp.hybrid().expect("T-54 hybrid visual");
+    let (sdf_glacis, gmin, gmax) = t54_glacis(bp.armor.hull_front.0);
     let (sdf_mesh, grid) = mesh_within_budget(
         &sdf_glacis,
         gmin,
@@ -15,8 +18,8 @@ fn main() {
         MaterialRole::RolledArmor,
         SmoothingGroup::hard_edges(),
     );
-    let cad_mesh =
-        t54_glacis_solid().to_mesh(MaterialRole::RolledArmor, SmoothingGroup::hard_edges());
+    let cad_mesh = t54_glacis_solid(&hybrid.hull, bp.armor.hull_front.0)
+        .to_mesh(MaterialRole::RolledArmor, SmoothingGroup::hard_edges());
 
     println!("SDF glacis: {} tris (cell {:.3} m)", sdf_mesh.triangle_count(), grid.cell_size());
     println!("CAD glacis: {} tris (exact convex)", cad_mesh.triangle_count());

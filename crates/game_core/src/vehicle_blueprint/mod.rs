@@ -16,6 +16,13 @@ use glam::Vec3;
 use crate::{HitboxProfile, MountFrame, MountFrames, VehicleKind};
 
 mod data;
+mod hybrid;
+mod t54_hybrid;
+
+pub use hybrid::{
+    BoxVisual, FenderVisual, GunVisual, HullVisual, HybridVisual, RunningGearVisual,
+    TrackBeltVisual, TurretVisual,
+};
 
 /// How the turret/superstructure reads, for both the mesh recipe and the fit tests.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -127,6 +134,9 @@ pub struct VehicleBlueprint {
     pub turret: TurretShape,
     pub gun: GunShape,
     pub armor: ArmorShape,
+    /// Full visual dimensions for the hybrid mesh generators. `Some` only for the hybrid benchmark
+    /// (T-54); other vehicles bake through the legacy `vehicle_geometry` path and carry `None`.
+    pub hybrid: Option<HybridVisual>,
 }
 
 impl VehicleBlueprint {
@@ -149,6 +159,11 @@ impl VehicleBlueprint {
             self.turret.plan_half_length,
             self.turret.ring_z,
         )
+    }
+
+    /// The hybrid visual dimensions, if this vehicle bakes through the hybrid generator path.
+    pub fn hybrid(&self) -> Option<&HybridVisual> {
+        self.hybrid.as_ref()
     }
 
     /// The mount frames (turret ring, gun trunnion, muzzle) derived from the shape.
@@ -180,6 +195,18 @@ mod tests {
             (spec.hull.facets.hull_front.slope_degrees - bp.armor.hull_front.0).abs() < 1.0e-6,
             "glacis armour slope must equal the blueprint glacis angle"
         );
+    }
+
+    /// The T-54 carries full hybrid visual data (the single source the mesh generators read); a
+    /// vehicle still on the legacy path carries none.
+    #[test]
+    fn t54_blueprint_carries_hybrid_visual_data() {
+        let t54 = VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("blueprint");
+        let hybrid = t54.hybrid().expect("T-54 is the hybrid benchmark");
+        assert_eq!(hybrid.running_gear.wheel_count, 5, "five road wheels per side");
+        assert!(hybrid.turret.budget > 0, "the cast turret meshes to a triangle budget");
+        let t55a = VehicleBlueprint::for_vehicle(VehicleKind::T55A).expect("blueprint");
+        assert!(t55a.hybrid().is_none(), "T-55A still bakes through the legacy path");
     }
 
     /// The T-55A is now blueprint-backed too: its hitbox, mounts, and armour slopes all read the

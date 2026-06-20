@@ -5,9 +5,8 @@
 //! so migrating it changes only the *visual* mesh (now built from these same numbers) — gameplay is
 //! byte-for-byte unchanged.
 
-use super::{
-    ArmorShape, GunShape, HullShape, TrackShape, TurretForm, TurretShape, VehicleBlueprint,
-};
+use super::t54_hybrid::t54_hybrid;
+use super::{ArmorShape, GunShape, HullShape, TrackShape, TurretForm, TurretShape, VehicleBlueprint};
 use crate::VehicleKind;
 
 pub(super) fn blueprint(kind: VehicleKind) -> Option<VehicleBlueprint> {
@@ -88,6 +87,7 @@ fn t54() -> VehicleBlueprint {
             turret_side: (25.0, 1.0),
             turret_rear: (10.0, 1.0),
         },
+        hybrid: Some(t54_hybrid()),
     }
 }
 
@@ -170,5 +170,6 @@ fn t55a_blueprint() -> VehicleBlueprint {
             turret_side: (25.0, 1.0),
             turret_rear: (10.0, 1.0),
         },
+        hybrid: None,
     }
 }

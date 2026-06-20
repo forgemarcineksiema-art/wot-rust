@@ -1,14 +1,17 @@
 //! Bake the T-54 turret + glacis from SDF, mesh them with Surface Nets *to a triangle budget*, and
 //! write comparison PNGs to `target/spike_sdf/`. Run: `cargo run -p sdf_mesh --example spike`.
 
-use sdf_mesh::{glacis_slope_deg, mesh_within_budget, render_png, t54_glacis, t54_turret};
+use game_core::{VehicleBlueprint, VehicleKind};
+use sdf_mesh::{mesh_within_budget, render_png, t54_glacis, t54_turret};
 use vehicle_geometry::{MaterialRole, SmoothingGroup};
 
 const TURRET_BUDGET: usize = 9_000;
 const GLACIS_BUDGET: usize = 4_000;
 
 fn main() {
-    let (turret, tmin, tmax) = t54_turret();
+    let bp = VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("T-54 blueprint");
+    let hybrid = bp.hybrid().expect("T-54 hybrid visual");
+    let (turret, tmin, tmax) = t54_turret(&hybrid.turret);
     let (turret_mesh, tgrid) = mesh_within_budget(
         &turret,
         tmin,
@@ -18,7 +21,7 @@ fn main() {
         SmoothingGroup(2),
     );
 
-    let (glacis, gmin, gmax) = t54_glacis();
+    let (glacis, gmin, gmax) = t54_glacis(bp.armor.hull_front.0);
     let (glacis_mesh, ggrid) = mesh_within_budget(
         &glacis,
         gmin,
@@ -33,7 +36,7 @@ fn main() {
     println!("glacis: {} tris (budget {GLACIS_BUDGET})", glacis_mesh.triangle_count());
     let total = turret_mesh.triangle_count() + glacis_mesh.triangle_count();
     println!("combined: {total} tris (LOD0 target ~8000-12000)");
-    println!("glacis plate slope carried exactly: {:.1} deg", glacis_slope_deg());
+    println!("glacis plate slope carried exactly: {:.1} deg", bp.armor.hull_front.0);
 
     let out = std::path::Path::new("target/spike_sdf");
     std::fs::create_dir_all(out).expect("create out dir");

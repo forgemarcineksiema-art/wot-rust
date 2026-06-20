@@ -9,6 +9,6 @@ mod parts;
 mod revolve;
 mod track;
 
-pub use parts::{gun_barrel, gun_barrel_between, road_wheel, t54_running_gear};
+pub use parts::{gun_barrel, gun_barrel_between, moving_mantlet, road_wheel, t54_running_gear};
 pub use revolve::{merge, revolve, translate};
 pub use track::{t54_tracks, track_belt};
