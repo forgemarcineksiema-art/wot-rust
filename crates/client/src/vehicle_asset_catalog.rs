@@ -7,7 +7,7 @@ use renderer_api::{
     MaterialHandle, MeshHandle, RenderObject, VehicleMaterialDescriptor, VehicleMaterialMaps,
     VehicleMeshAsset,
 };
-use vehicle_forge::{BakeProfile, bake_production_vehicle};
+use vehicle_forge::authoritative_baked_vehicle;
 use vehicle_geometry::{GeometryMesh, SubmeshKind};
 
 use crate::vehicle_pbr_mesh::vehicle_submesh_vertices;
@@ -58,7 +58,7 @@ impl VehicleAssetCatalog {
         if let Some(entry) = self.vehicles.get(&kind) {
             return Some(*entry);
         }
-        let vehicle = bake_production_vehicle(kind, BakeProfile::Lod0).ok()?;
+        let vehicle = authoritative_baked_vehicle(kind).ok()?;
         let turret_ring = vehicle.mounts().turret_ring.translation;
         let trunnion = vehicle.mounts().gun_trunnion.translation;
         let hull = vehicle.submesh(SubmeshKind::Hull)?;

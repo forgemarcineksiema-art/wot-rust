@@ -7,7 +7,8 @@ use renderer_api::{
     MaterialDescriptor, MaterialHandle, MeshAsset, MeshHandle, MeshRegistry,
     RenderMaterialRegistry, RenderObject, SceneVertex,
 };
-use vehicle_geometry::{GeometryMesh, MaterialRole, SubmeshKind, bake_vehicle};
+use vehicle_forge::authoritative_baked_vehicle;
+use vehicle_geometry::{GeometryMesh, MaterialRole, SubmeshKind};
 
 use crate::color::{BARREL_STEEL, RUBBER, TRACK_METAL, shade_color};
 use crate::vehicle_pose::VehiclePose;
@@ -46,7 +47,7 @@ impl VehicleMeshCatalog {
         if let Some(entry) = self.vehicles.get(&kind) {
             return Some(*entry);
         }
-        let vehicle = bake_vehicle(kind).ok()?;
+        let vehicle = authoritative_baked_vehicle(kind).ok()?;
         // Meshes are registered relative to their pivots; `VehiclePose` reads the same mount
         // frames at draw time, so registration and posing cannot disagree on the pivot points.
         let turret_ring = vehicle.mounts().turret_ring.translation;

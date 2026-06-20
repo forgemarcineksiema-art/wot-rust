@@ -209,6 +209,50 @@ mod tests {
         assert!(t55a.hybrid().is_none(), "T-55A still bakes through the legacy path");
     }
 
+    /// SSOT guard for the hybrid path: [`HybridVisual`] may *add* visual-only dimensions, but every
+    /// field that merely restates a gameplay-shape number must equal that number — otherwise the
+    /// hybrid mesh and the production (legacy `vehicle_geometry`) mesh would describe two different
+    /// tanks. This is the test the duplicated literals previously had no guard for: `half_len` had
+    /// already drifted (2.90 vs 3.00) and the cupola radius (0.23 vs 0.24) before this locked them.
+    ///
+    /// The one documented exception is the gun barrel radius: [`GunVisual`] is intentionally distinct
+    /// from the legacy [`GunShape`], so it is not asserted here.
+    #[test]
+    fn t54_hybrid_visual_does_not_reduplicate_blueprint_shape_dimensions() {
+        let bp = VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("blueprint");
+        let h = bp.hybrid().expect("T-54 carries hybrid visual data");
+        let (hull, track, turret) = (&bp.hull, &bp.track, &bp.turret);
+
+        let same = |label: &str, hybrid: f32, shape: f32| {
+            assert!(
+                (hybrid - shape).abs() < 1.0e-6,
+                "{label}: hybrid {hybrid} must equal the blueprint shape {shape} (no second source)"
+            );
+        };
+
+        // Hull body extents.
+        same("hull.half_width", h.hull.half_width, hull.half_width);
+        same("hull.belly_y", h.hull.belly_y, hull.belly_y);
+        same("hull.half_len", h.hull.half_len, hull.half_len);
+
+        // Running gear: the wheel train and the track half-spacing.
+        assert_eq!(h.running_gear.wheel_count, track.wheel_count, "wheel_count");
+        same("running_gear.wheel_radius", h.running_gear.wheel_radius, track.wheel_radius);
+        same("running_gear.first_z", h.running_gear.first_z, track.wheel_first_z);
+        same("running_gear.side_x", h.running_gear.side_x, track.center_x);
+        same("fender.side_x", h.fender.side_x, track.center_x);
+        same("track_belt.side_x", h.track_belt.side_x, track.center_x);
+
+        // Turret machined planes and the commander's cupola placement (carried in three places).
+        same("turret.roof_plane_y", h.turret.roof_plane_y, turret.roof_y);
+        same("turret.ring_plane_y", h.turret.ring_plane_y, turret.ring_y);
+        same("turret.cupola_radius", h.turret.cupola_radius, turret.cupola_radius);
+        same("turret.cupola_center.x", h.turret.cupola_center.x, turret.cupola_x);
+        same("turret.cupola_center.z", h.turret.cupola_center.z, turret.cupola_z);
+        same("fittings.cupola_hatch_center.x", h.fittings.cupola_hatch_center.x, turret.cupola_x);
+        same("fittings.cupola_hatch_center.z", h.fittings.cupola_hatch_center.z, turret.cupola_z);
+    }
+
     /// The T-55A is now blueprint-backed too: its hitbox, mounts, and armour slopes all read the
     /// one shape source, and it carries the family's historical five road wheels (not six).
     #[test]

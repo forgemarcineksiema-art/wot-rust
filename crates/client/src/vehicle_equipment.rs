@@ -5,7 +5,8 @@
 //! each module small and reviewable.
 
 use game_core::VehicleKind;
-use vehicle_geometry::{SubmeshKind, bake_vehicle};
+use vehicle_forge::authoritative_baked_vehicle;
+use vehicle_geometry::SubmeshKind;
 
 /// Where an optional stowage/equipment item rides.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -27,7 +28,7 @@ pub struct EquipmentPoint {
 /// bounds: spare track on the glacis, a toolbox on the right fender, a stowage log on the rear hull,
 /// and a radio antenna at the turret rear.
 pub fn equipment_points(kind: VehicleKind) -> Vec<EquipmentPoint> {
-    let Ok(baked) = bake_vehicle(kind) else {
+    let Ok(baked) = authoritative_baked_vehicle(kind) else {
         return Vec::new();
     };
     let hull = baked.submesh(SubmeshKind::Hull).and_then(|s| s.mesh.bounds());

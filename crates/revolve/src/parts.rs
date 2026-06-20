@@ -73,22 +73,39 @@ pub fn moving_mantlet(trunnion: Vec3, gun: &GunVisual) -> GeometryMesh {
     GeometryMesh::new(vertices, base.indices().to_vec()).weld_and_smooth()
 }
 
-/// One road wheel — a rubber tyre with a steel hub disc proud of it — revolved about the axle (X)
-/// and placed at `(side_x, _, center_z)`, lifted so it rests on the ground plane.
-pub fn road_wheel(center_z: f32, side_x: f32, gear: &RunningGearVisual) -> GeometryMesh {
-    let half_width = gear.wheel_half_width;
-    let radius = gear.wheel_radius;
-    let tyre = [(-half_width, 0.0), (-half_width, radius), (half_width, radius), (half_width, 0.0)];
+/// One road wheel — a *dished* rubber tyre (full-radius tread, a stepped rim lip, then the outer
+/// face recessed inboard to the hub seat) carrying a steel hub boss proud of the rim — revolved
+/// about the axle (X) and placed at `(side_x, axle_y, center_z)`. The dish gives the visible disc
+/// depth so it reads as a wheel, not a flat plate; `axle_y` is the shared belt/wheel axle height so
+/// the wheel nests concentrically inside the track belt.
+pub fn road_wheel(
+    center_z: f32,
+    side_x: f32,
+    axle_y: f32,
+    gear: &RunningGearVisual,
+) -> GeometryMesh {
+    let hw = gear.wheel_half_width;
+    let r = gear.wheel_radius;
+    let hub_r = gear.hub_radius;
+    // Recess depth (in X) and the rim lip step (in radius); fractions of the wheel so the profile
+    // never crosses itself for any reasonable wheel.
+    let dish = hw * 0.5;
+    let rim_lip = (r * 0.12).min(hw);
+    let tyre = [
+        (-hw, 0.0),               // inner face centre (cap)
+        (-hw, r),                 // inner rim, full radius
+        (hw, r),                  // outer rim edge, full radius
+        (hw, r - rim_lip),        // rim lip: a thin annulus facing out
+        (hw - dish, r - rim_lip), // step inboard (dish wall)
+        (hw - dish, hub_r),       // dished web down to the hub seat
+    ];
     let tyre =
         revolve(Vec3::X, &tyre, gear.wheel_segments, MaterialRole::Rubber, SmoothingGroup(5));
 
-    let hub_half = half_width + gear.hub_overhang;
-    let hub = [
-        (-hub_half, 0.0),
-        (-hub_half, gear.hub_radius),
-        (hub_half, gear.hub_radius),
-        (hub_half, 0.0),
-    ];
+    // The steel hub boss seats in the dish and stands `hub_overhang` proud of the rim.
+    let hub_back = hw - dish;
+    let hub_front = hw + gear.hub_overhang;
+    let hub = [(hub_back, 0.0), (hub_back, hub_r), (hub_front, hub_r), (hub_front, 0.0)];
     let hub = revolve(
         Vec3::X,
         &hub,
@@ -97,7 +114,7 @@ pub fn road_wheel(center_z: f32, side_x: f32, gear: &RunningGearVisual) -> Geome
         SmoothingGroup::hard_edges(),
     );
 
-    translate(&merge(&[tyre, hub]), Vec3::new(side_x, radius, center_z))
+    translate(&merge(&[tyre, hub]), Vec3::new(side_x, axle_y, center_z))
 }
 
 /// The z of each road-wheel station, front (highest z) to rear, with the T-54's characteristic large
@@ -174,11 +191,11 @@ pub fn t54_track_ends(gear: &RunningGearVisual, belt: &TrackBeltVisual) -> Geome
 }
 
 /// The road-wheel train: `gear.wheel_count` wheels per side, both sides — repetition of [`road_wheel`].
-pub fn t54_running_gear(gear: &RunningGearVisual) -> GeometryMesh {
+pub fn t54_running_gear(gear: &RunningGearVisual, axle_y: f32) -> GeometryMesh {
     let mut wheels = Vec::new();
     for z in road_wheel_stations(gear) {
-        wheels.push(road_wheel(z, gear.side_x, gear));
-        wheels.push(road_wheel(z, -gear.side_x, gear));
+        wheels.push(road_wheel(z, gear.side_x, axle_y, gear));
+        wheels.push(road_wheel(z, -gear.side_x, axle_y, gear));
     }
     merge(&wheels)
 }
@@ -236,8 +253,39 @@ mod tests {
     #[test]
     fn the_running_gear_has_a_wheel_for_each_side_and_station() {
         let g = gear();
-        let one = road_wheel(0.0, g.side_x, &g).triangle_count();
-        assert_eq!(t54_running_gear(&g).triangle_count(), one * 2 * g.wheel_count);
+        let one = road_wheel(0.0, g.side_x, 0.58, &g).triangle_count();
+        assert_eq!(t54_running_gear(&g, 0.58).triangle_count(), one * 2 * g.wheel_count);
+    }
+
+    #[test]
+    fn the_road_wheel_is_dished_with_a_proud_hub() {
+        // The visible (outer, +X) face must not be a flat plate: the rubber web recesses inboard of
+        // the rim edge, and the steel hub boss stands proud of that rim — the depth that stops a
+        // wheel reading as a black disc.
+        let g = gear();
+        let wheel = road_wheel(0.0, g.side_x, 0.58, &g);
+        let max_x = |m: MaterialRole| {
+            wheel
+                .vertices()
+                .iter()
+                .filter(|v| v.material == m)
+                .map(|v| v.position.x)
+                .fold(f32::NEG_INFINITY, f32::max)
+        };
+        // Outer rubber surface: distance between the rim edge and the recessed web.
+        let outer_rubber: Vec<f32> = wheel
+            .vertices()
+            .iter()
+            .filter(|v| v.material == MaterialRole::Rubber && v.position.x > g.side_x)
+            .map(|v| v.position.x)
+            .collect();
+        let rim = outer_rubber.iter().copied().fold(f32::NEG_INFINITY, f32::max);
+        let web = outer_rubber.iter().copied().fold(f32::INFINITY, f32::min);
+        assert!(rim - web > 0.03, "outer face must be dished (rim {rim:.3} vs web {web:.3})");
+        assert!(
+            max_x(MaterialRole::TrackMetal) > rim,
+            "steel hub must stand proud of the rubber rim"
+        );
     }
 
     #[test]

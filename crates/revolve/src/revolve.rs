@@ -42,15 +42,19 @@ pub fn revolve(
     let mut indices = Vec::new();
     for pair in rows.windows(2) {
         let (a, b) = (&pair[0], &pair[1]);
+        // Cap fans are wound so their face normals point along the axis *away* from the body (the
+        // ring sits at one offset, the apex at the same offset on the axis). Get this order wrong and
+        // `weld_and_smooth` — which derives normals purely from winding — flips the flat end disc
+        // inward, so it renders lit-from-behind (the dark "hollow wheel" bug).
         if a.len() == 1 {
             for s in 0..seg {
-                indices.extend_from_slice(&[a[0], b[s], b[(s + 1) % seg]]);
+                indices.extend_from_slice(&[a[0], b[(s + 1) % seg], b[s]]);
             }
             continue;
         }
         if b.len() == 1 {
             for s in 0..seg {
-                indices.extend_from_slice(&[a[s], b[0], a[(s + 1) % seg]]);
+                indices.extend_from_slice(&[a[s], a[(s + 1) % seg], b[0]]);
             }
             continue;
         }
@@ -101,6 +105,39 @@ mod tests {
             "length spans axis"
         );
         assert!((b.max.y - 0.5).abs() < 0.02, "radius reaches 0.5: {:.3}", b.max.y);
+    }
+
+    #[test]
+    fn revolved_caps_face_outward_not_inward() {
+        // A capped cylinder about X: the end-cap fans must wind so the flat disc normals point
+        // along the axis, away from the body. With them inverted, `weld_and_smooth` lit the disc
+        // from behind — the dark "hollow wheel" the hybrid running gear showed. The cap-centre
+        // apex sits alone on the axis, so its welded normal is the pure cap normal.
+        let half = 0.5;
+        let profile = [(-half, 0.0), (-half, 0.4), (half, 0.4), (half, 0.0)];
+        let mesh = revolve(Vec3::X, &profile, 16, MaterialRole::Rubber, SmoothingGroup(5));
+
+        let apex = |x: f32| {
+            *mesh
+                .vertices()
+                .iter()
+                .find(|v| {
+                    (v.position.x - x).abs() < 1.0e-4
+                        && v.position.y.abs() < 1.0e-4
+                        && v.position.z.abs() < 1.0e-4
+                })
+                .expect("cap-centre apex on the axis")
+        };
+        assert!(
+            apex(half).normal.x > 0.9,
+            "outer cap must face +X (outward), got {:?}",
+            apex(half).normal
+        );
+        assert!(
+            apex(-half).normal.x < -0.9,
+            "inner cap must face -X (outward), got {:?}",
+            apex(-half).normal
+        );
     }
 
     #[test]
