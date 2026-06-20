@@ -1,5 +1,7 @@
 /target/
 .worktrees/
+.agents/
+.codex/
 **/*.rs.bk
 *.pdb
 *.ilk
