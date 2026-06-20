@@ -1,7 +1,7 @@
 use client::{VehicleAssetCatalog, tank_vehicle_render_objects};
 use game_core::{TankId, TeamId, VehicleKind};
 use net::TankSnapshot;
-use vehicle_forge::{BakeProfile, ForgeArtifact};
+use vehicle_forge::{BakeProfile, ForgeArtifact, bake_production_vehicle};
 use vehicle_geometry::SubmeshKind;
 
 #[test]
@@ -31,6 +31,25 @@ fn vehicle_asset_catalog_uploads_pbr_vehicle_meshes_once() {
     assert!(catalog.take_pending_vehicle_meshes().is_empty());
     assert_eq!(objects[0].mesh, second[0].mesh);
     assert_ne!(objects[0].tint, second[0].tint);
+}
+
+#[test]
+fn runtime_t54_fallback_uses_the_production_bake() {
+    let mut catalog = VehicleAssetCatalog::default();
+    let snapshot = snapshot(VehicleKind::T54_1951);
+    tank_vehicle_render_objects(&mut catalog, &snapshot, [0.30, 0.40, 0.28]);
+    let uploads = catalog.take_pending_vehicle_meshes();
+    let production = bake_production_vehicle(VehicleKind::T54_1951, BakeProfile::Lod0)
+        .expect("production T-54 bakes");
+
+    for (kind, upload) in [
+        (SubmeshKind::Hull, &uploads[0].1),
+        (SubmeshKind::Turret, &uploads[1].1),
+        (SubmeshKind::Gun, &uploads[2].1),
+    ] {
+        let expected = production.submesh(kind).expect("production submesh");
+        assert_eq!(upload.index_count(), expected.mesh.indices().len(), "{kind:?} index count");
+    }
 }
 
 #[test]

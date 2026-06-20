@@ -3724,6 +3724,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.18",
+ "vehicle_build",
  "vehicle_geometry",
 ]
 

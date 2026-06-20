@@ -1,6 +1,7 @@
 use game_core::VehicleKind;
-use vehicle_forge::{RatioKind, ReferencePack, t54_reference_pack};
-use vehicle_geometry::bake_vehicle;
+use vehicle_forge::{
+    BakeProfile, RatioKind, ReferencePack, bake_production_vehicle, t54_reference_pack,
+};
 
 #[test]
 fn t54_reference_pack_locks_the_forge_benchmark_intent() {
@@ -56,7 +57,7 @@ fn every_migrated_family_pack_passes_its_own_silhouette_ratios() {
         VehicleKind::PantherII,
     ] {
         let pack = ReferencePack::for_vehicle(kind).expect("migrated vehicle has a pack");
-        let vehicle = bake_vehicle(kind).expect("vehicle bakes");
+        let vehicle = bake_production_vehicle(kind, BakeProfile::Lod0).expect("vehicle bakes");
         let report = pack.measure_baked_vehicle(&vehicle).expect("ratio report");
         assert!(
             report.all_pass(),
@@ -69,7 +70,8 @@ fn every_migrated_family_pack_passes_its_own_silhouette_ratios() {
 #[test]
 fn t54_baked_geometry_produces_a_ratio_report_against_reference_targets() {
     let pack = ReferencePack::for_vehicle(VehicleKind::T54_1951).expect("T-54 pack");
-    let vehicle = bake_vehicle(VehicleKind::T54_1951).expect("T-54 should bake");
+    let vehicle = bake_production_vehicle(VehicleKind::T54_1951, BakeProfile::Lod0)
+        .expect("T-54 should bake");
     let report = pack.measure_baked_vehicle(&vehicle).expect("ratio report");
 
     assert_eq!(report.vehicle(), VehicleKind::T54_1951);
@@ -95,7 +97,8 @@ fn t54_baked_geometry_produces_a_ratio_report_against_reference_targets() {
 #[test]
 fn measured_ratio_reports_signed_percentage_difference() {
     let pack = ReferencePack::for_vehicle(VehicleKind::T54_1951).expect("T-54 pack");
-    let vehicle = bake_vehicle(VehicleKind::T54_1951).expect("T-54 should bake");
+    let vehicle = bake_production_vehicle(VehicleKind::T54_1951, BakeProfile::Lod0)
+        .expect("T-54 should bake");
     let report = pack.measure_baked_vehicle(&vehicle).expect("ratio report");
 
     let hull = report.measurement(RatioKind::HullLengthToWidth).expect("hull measurement");
