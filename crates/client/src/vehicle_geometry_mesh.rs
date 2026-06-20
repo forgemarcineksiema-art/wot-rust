@@ -1,7 +1,8 @@
 use glam::{Mat3, Vec3};
 use net::TankSnapshot;
 use renderer_api::SceneVertex;
-use vehicle_geometry::{GeometryMesh, SubmeshKind, bake_vehicle};
+use vehicle_forge::authoritative_baked_vehicle;
+use vehicle_geometry::{GeometryMesh, SubmeshKind};
 
 use crate::color::{material_color, shade_color};
 use crate::vehicle_pose::VehiclePose;
@@ -12,7 +13,7 @@ pub(crate) fn append_baked_tank_mesh(
     snapshot: &TankSnapshot,
     hull_color: [f32; 3],
 ) -> bool {
-    let Ok(vehicle) = bake_vehicle(snapshot.vehicle) else {
+    let Ok(vehicle) = authoritative_baked_vehicle(snapshot.vehicle) else {
         return false;
     };
     let pose = VehiclePose::from_snapshot(snapshot);

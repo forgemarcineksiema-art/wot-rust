@@ -147,10 +147,12 @@ mod tests {
 
     #[test]
     fn the_belt_wraps_a_closed_band_around_the_wheels() {
-        let belt = track_belt(1.5, &belt());
-        assert!(belt.triangle_count() > 0, "belt has geometry");
-        let b = belt.bounds().expect("non-empty");
-        // The band spans the wheel run in z and rises from the ground to above the axle in y.
+        let belt_visual = belt();
+        let band = track_belt(1.5, &belt_visual);
+        assert!(band.triangle_count() > 0, "belt has geometry");
+        let b = band.bounds().expect("non-empty");
+        // The band spans the wheel run in z and, with the grounded layout, rests its bottom run on
+        // the ground (≈0) and wraps up over the wheel tops.
         assert!(
             b.min.z < -1.5 && b.max.z > 1.5,
             "wraps front-to-rear: {:.2}..{:.2}",
@@ -158,12 +160,17 @@ mod tests {
             b.max.z
         );
         assert!(
-            b.min.y < 0.0 && b.max.y > 0.8,
-            "rises ground to top: {:.2}..{:.2}",
+            b.min.y < 0.05 && b.max.y > 1.0,
+            "grounds and wraps over the wheels: {:.2}..{:.2}",
             b.min.y,
             b.max.y
         );
-        assert!((b.max.x - 1.72).abs() < 0.05, "sits at the right track lane: {:.2}", b.max.x);
+        let expected_x = 1.5 + belt_visual.half_width;
+        assert!(
+            (b.max.x - expected_x).abs() < 0.05,
+            "sits at the right track lane: {:.2} vs {expected_x:.2}",
+            b.max.x
+        );
     }
 
     #[test]

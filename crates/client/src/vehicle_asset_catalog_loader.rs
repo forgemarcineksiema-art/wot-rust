@@ -4,8 +4,8 @@ use anyhow::{Context, Result};
 use renderer_api::{
     MaterialHandle, VehicleMaterialDescriptor, VehicleMaterialMaps, VehicleTextureMap,
 };
-use vehicle_forge::{ForgeArtifact, ForgeTextureManifest, bake_production_vehicle};
-use vehicle_geometry::SubmeshKind;
+use vehicle_forge::{ForgeArtifact, ForgeTextureManifest, authoritative_baked_vehicle};
+use vehicle_geometry::{SubmeshKind, reduce_vehicle};
 
 use crate::vehicle_asset_catalog::{VehicleAssetCatalog, VehicleAssetEntry};
 
@@ -101,7 +101,10 @@ impl VehicleAssetCatalog {
 
 fn artifact_matches_current_geometry(artifact: &ForgeArtifact) -> Result<bool> {
     let manifest = artifact.manifest();
-    let current = bake_production_vehicle(manifest.vehicle(), manifest.profile())?;
+    let current = reduce_vehicle(
+        &authoritative_baked_vehicle(manifest.vehicle())?,
+        manifest.profile().lod_level(),
+    );
     Ok(current.deterministic_hash() == manifest.source_hash())
 }
 

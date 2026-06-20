@@ -63,7 +63,7 @@ pub fn t54_from_modules(modules: &VehicleModules) -> VehicleDescription {
         submesh: SubmeshKind::Hull,
         material: MaterialRole::Rubber,
         smoothing: SmoothingGroup(5),
-        shape: PartShape::Mesh(revolve::t54_running_gear(&v.running_gear)),
+        shape: PartShape::Mesh(revolve::t54_running_gear(&v.running_gear, v.track_belt.axle_y)),
         lod: PartLod::Silhouette,
     };
 

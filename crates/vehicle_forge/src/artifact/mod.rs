@@ -3,9 +3,11 @@ use std::{fs, io, path::Path};
 use game_core::VehicleKind;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use vehicle_geometry::BakedVehicle;
+use vehicle_geometry::{BakedVehicle, reduce_vehicle};
 
-use crate::{RatioReport, bake_production_vehicle};
+use crate::authoritative_baked_vehicle;
+
+use crate::RatioReport;
 
 mod bake_profile;
 mod load;
@@ -127,7 +129,7 @@ impl ForgeArtifact {
     pub fn bake(vehicle: VehicleKind, profile: BakeProfile) -> Result<Self, ArtifactError> {
         let spec = crate::registry::forge_spec(vehicle)
             .ok_or(ArtifactError::MissingReferencePack(vehicle))?;
-        let baked = bake_production_vehicle(vehicle, profile)?;
+        let baked = reduce_vehicle(&authoritative_baked_vehicle(vehicle)?, profile.lod_level());
         let reference = (spec.reference_pack)();
         let report = reference
             .measure_baked_vehicle(&baked)

@@ -5,6 +5,7 @@
 //! `vehicle_geometry`, but it must stay renderer-backend free.
 
 mod artifact;
+mod mesh_source;
 mod packs;
 mod packs_german;
 mod part_data;
@@ -18,6 +19,7 @@ pub use artifact::{
     ArtifactError, BakeProfile, ForgeArtifact, ForgeArtifactManifest, ForgeSubmeshManifest,
     ForgeTextureManifest, ReviewCamera, ReviewCameraSet, ReviewCameraSpec, forge_vehicle_slug,
 };
+pub use mesh_source::authoritative_baked_vehicle;
 pub use packs::t54_reference_pack;
 pub use packs_german::{
     jagdtiger_reference_pack, panther_ii_reference_pack, tiger_i_reference_pack,
