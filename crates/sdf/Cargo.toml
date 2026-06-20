@@ -1,0 +1,12 @@
+[package]
+name = "sdf"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+glam.workspace = true
+
+[lints]
+workspace = true

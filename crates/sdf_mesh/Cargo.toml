@@ -1,0 +1,23 @@
+[package]
+name = "sdf_mesh"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+glam.workspace = true
+png = "0.18"
+sdf = { path = "../sdf" }
+vehicle_geometry = { path = "../vehicle_geometry" }
+
+[dev-dependencies]
+criterion.workspace = true
+solid = { path = "../solid" }
+
+[[bench]]
+name = "meshing"
+harness = false
+
+[lints]
+workspace = true

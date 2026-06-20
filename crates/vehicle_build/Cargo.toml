@@ -1,0 +1,18 @@
+[package]
+name = "vehicle_build"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+game_core = { path = "../game_core" }
+glam.workspace = true
+revolve = { path = "../revolve" }
+sdf = { path = "../sdf" }
+sdf_mesh = { path = "../sdf_mesh" }
+solid = { path = "../solid" }
+vehicle_geometry = { path = "../vehicle_geometry" }
+
+[lints]
+workspace = true
