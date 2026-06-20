@@ -54,7 +54,14 @@ pub struct TurretVisual {
     pub dome_radius: f32,
     pub dome_front: Vec3,
     pub dome_rear: Vec3,
+    /// Rear dome radius, smaller than the front, so the casting tapers to a lower narrower bustle.
+    pub dome_rear_radius: f32,
     pub dome_blend: f32,
+    /// Front cheek bulge flanking the mantlet (right side; mirrored to the left). The cast cheeks are
+    /// the T-54 turret's signature front mass, distinct from the rounded rear.
+    pub cheek_radius: f32,
+    pub cheek_center: Vec3,
+    pub cheek_blend: f32,
     pub ring_radius: f32,
     pub ring_half_height: f32,
     pub ring_center: Vec3,
@@ -138,6 +145,9 @@ pub struct TrackBeltVisual {
     pub half_width: f32,
     pub straight_segments: usize,
     pub arc_segments: usize,
+    /// Number of link cues spaced along the ground (bottom) run, so the belt reads as tracked links
+    /// rather than a smooth rubber band. Fine tread is left to the material layer.
+    pub link_count: usize,
 }
 
 /// The full hybrid visual description for one vehicle. `Some` only for the hybrid benchmark (T-54);

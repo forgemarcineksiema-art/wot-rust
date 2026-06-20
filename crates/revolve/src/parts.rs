@@ -3,7 +3,7 @@
 //! [`RunningGearVisual`] — the single source — rather than held here, so the geometry cannot drift
 //! from the blueprint.
 
-use game_core::{GunVisual, RunningGearVisual};
+use game_core::{GunVisual, RunningGearVisual, TrackBeltVisual};
 use glam::Vec3;
 use vehicle_geometry::{GeometryMesh, GeometryVertex, MaterialRole, SmoothingGroup};
 
@@ -116,6 +116,46 @@ pub fn road_wheel_stations(gear: &RunningGearVisual) -> Vec<f32> {
         }
     }
     zs
+}
+
+/// A wheel revolved about the axle (X) and centred at `center` (not lifted to the ground): used for
+/// the track-end idler and drive sprocket, which sit on the axle line at the ends of the belt run.
+fn end_wheel(
+    center: Vec3,
+    radius: f32,
+    half_width: f32,
+    segments: usize,
+    material: MaterialRole,
+    smoothing: SmoothingGroup,
+) -> GeometryMesh {
+    let tyre = [(-half_width, 0.0), (-half_width, radius), (half_width, radius), (half_width, 0.0)];
+    translate(&revolve(Vec3::X, &tyre, segments, material, smoothing), center)
+}
+
+/// The track-end wheels, distinct from the road wheels: a smooth front idler and a faceted rear drive
+/// sprocket (low segment count, reading as toothed), both sides, sitting in the belt's end wraps.
+pub fn t54_track_ends(gear: &RunningGearVisual, belt: &TrackBeltVisual) -> GeometryMesh {
+    let r = belt.radius - belt.half_thickness;
+    let mut parts = Vec::new();
+    for side in [gear.side_x, -gear.side_x] {
+        parts.push(end_wheel(
+            Vec3::new(side, belt.axle_y, belt.front_z),
+            r,
+            gear.wheel_half_width,
+            gear.wheel_segments,
+            MaterialRole::TrackMetal,
+            SmoothingGroup(5),
+        ));
+        parts.push(end_wheel(
+            Vec3::new(side, belt.axle_y, belt.rear_z),
+            r,
+            gear.wheel_half_width + 0.02,
+            8,
+            MaterialRole::TrackMetal,
+            SmoothingGroup::hard_edges(),
+        ));
+    }
+    merge(&parts)
 }
 
 /// The road-wheel train: `gear.wheel_count` wheels per side, both sides — repetition of [`road_wheel`].

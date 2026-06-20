@@ -71,6 +71,22 @@ pub fn t54_from_modules(modules: &VehicleModules) -> VehicleDescription {
         shape: PartShape::Mesh(revolve::t54_tracks(&v.track_belt)),
     };
 
+    // The track ends read as distinct mechanisms: a smooth front idler and a faceted rear sprocket.
+    let track_ends = VehiclePart {
+        submesh: SubmeshKind::Hull,
+        material: MaterialRole::TrackMetal,
+        smoothing: SmoothingGroup::hard_edges(),
+        shape: PartShape::Mesh(revolve::t54_track_ends(&v.running_gear, &v.track_belt)),
+    };
+
+    // Link cues along the ground run so the belt reads as tracked links, not a smooth band.
+    let track_links = VehiclePart {
+        submesh: SubmeshKind::Hull,
+        material: MaterialRole::TrackMetal,
+        smoothing: SmoothingGroup::hard_edges(),
+        shape: PartShape::Mesh(revolve::t54_track_link_cues(&v.track_belt)),
+    };
+
     let (turret_sdf, min, max) = sdf_mesh::t54_turret(&v.turret);
     let turret = VehiclePart {
         submesh: SubmeshKind::Turret,
@@ -103,7 +119,8 @@ pub fn t54_from_modules(modules: &VehicleModules) -> VehicleDescription {
         shape: PartShape::Plates(solid::t54_engine_deck(&v.deck)),
     };
 
-    let mut parts = vec![lower_tub, upper_hull, gear, tracks, turret, barrel, deck];
+    let mut parts =
+        vec![lower_tub, upper_hull, gear, tracks, track_ends, track_links, turret, barrel, deck];
     for side in [v.fender.side_x, -v.fender.side_x] {
         parts.push(VehiclePart {
             submesh: SubmeshKind::Hull,

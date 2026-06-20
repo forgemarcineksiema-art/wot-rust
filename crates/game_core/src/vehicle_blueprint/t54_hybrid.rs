@@ -29,8 +29,12 @@ pub(super) fn t54_hybrid() -> HybridVisual {
         turret: TurretVisual {
             dome_radius: 0.95,
             dome_front: Vec3::new(0.0, 1.80, 0.28),
-            dome_rear: Vec3::new(0.0, 1.80, -0.32),
+            dome_rear: Vec3::new(0.0, 1.78, -0.34),
+            dome_rear_radius: 0.82,
             dome_blend: 0.60,
+            cheek_radius: 0.52,
+            cheek_center: Vec3::new(0.55, 1.62, 0.70),
+            cheek_blend: 0.38,
             ring_radius: 0.98,
             ring_half_height: 0.30,
             ring_center: Vec3::new(0.0, 1.60, 0.0),
@@ -83,6 +87,7 @@ pub(super) fn t54_hybrid() -> HybridVisual {
             half_width: 0.22,
             straight_segments: 6,
             arc_segments: 8,
+            link_count: 22,
         },
     }
 }
