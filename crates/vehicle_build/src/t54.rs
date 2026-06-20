@@ -1,63 +1,22 @@
 //! The T-54 as a hybrid parametric description: hull front from exact CAD plates, cast turret from
-//! the SDF. The single dimension that drives the visible glacis is the same one the armour model
-//! reads — locked by a test so "what you see is what you shoot" holds by construction.
+//! the SDF, round parts revolved. This module is now an *adapter*: every dimension comes from the
+//! vehicle blueprint's [`HybridVisual`](game_core::HybridVisual) and the installed module loadout —
+//! it holds no geometry constants of its own. The single dimension that drives the visible glacis is
+//! the same armour facet the penetration model reads, so "what you see is what you shoot" by
+//! construction.
 
-use game_core::{MountFrames, VehicleKind, VehicleModules};
+use game_core::{VehicleBlueprint, VehicleKind, VehicleModules};
 use glam::Vec3;
-use solid::{ConvexSolid, Plane};
-use vehicle_geometry::{GeometryMesh, GeometryVertex, MaterialRole, SmoothingGroup, SubmeshKind};
+use vehicle_geometry::{MaterialRole, SmoothingGroup, SubmeshKind};
 
 use crate::description::VehicleDescription;
 use crate::part::{PartShape, VehiclePart};
-
-/// Converts an optional gun module's length delta into the spike's visual scale.
-const MODULE_BARREL_DELTA_SCALE: f32 = 0.65;
 
 /// LOD0 triangle budget for a detail-tier medium tank — a deliberate per-class budget that replaces
 /// the spike's tight micro-cap. The fully-detailed hybrid T-54 (multi-slope hull, running gear with
 /// hubs, tracks, cast turret, barrel, fenders, deck) lands ~11.6k; the headroom leaves room for
 /// loadout variants and detail without drifting toward HD-era counts. Tier per LOD/class later.
 pub const MEDIUM_LOD0_TRI_BUDGET: usize = 14_000;
-
-/// The hull as a convex solid whose every plate normal is sloped to the blueprint armour angle in
-/// the `game_core::armor` convention (degrees of normal above horizontal): glacis (hull_front),
-/// sloped sides (hull_side, top narrower), sloped rear (hull_rear), plus a lower nose bevel. So the
-/// visible rake of *every* facet matches the angle the penetration model uses for it.
-fn t54_hull_solid() -> ConvexSolid {
-    let bp =
-        game_core::VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("T-54 blueprint");
-    let (front, side, rear) = (
-        bp.armor.hull_front.0.to_radians(),
-        bp.armor.hull_side.0.to_radians(),
-        bp.armor.hull_rear.0.to_radians(),
-    );
-    let (hx, belly, roof, hz) = (1.45_f32, 0.10_f32, 1.20_f32, 2.90_f32);
-    let side_off = hx * side.cos() + belly * side.sin();
-    ConvexSolid::new(vec![
-        Plane::new(Vec3::new(0.0, -1.0, 0.0), -belly),
-        Plane::new(Vec3::new(0.0, 1.0, 0.0), roof),
-        Plane::new(Vec3::new(side.cos(), side.sin(), 0.0), side_off),
-        Plane::new(Vec3::new(-side.cos(), side.sin(), 0.0), side_off),
-        Plane::new(Vec3::new(0.0, rear.sin(), -rear.cos()), belly * rear.sin() + hz * rear.cos()),
-        Plane::new(Vec3::new(0.0, front.sin(), front.cos()), 1.85),
-        Plane::new(Vec3::new(0.0, -0.5, 1.0), 2.55),
-    ])
-}
-
-fn t54_moving_mantlet(trunnion: Vec3) -> GeometryMesh {
-    let profile = [(-0.18, 0.22), (0.0, 0.34), (0.18, 0.24)];
-    let base = revolve::revolve(Vec3::Z, &profile, 20, MaterialRole::CastArmor, SmoothingGroup(2));
-    let vertices = base
-        .vertices()
-        .iter()
-        .map(|v| GeometryVertex {
-            position: trunnion + Vec3::new(v.position.x * 1.45, v.position.y * 0.72, v.position.z),
-            normal: Vec3::new(v.normal.x / 1.45, v.normal.y / 0.72, v.normal.z).normalize_or_zero(),
-            ..*v
-        })
-        .collect();
-    GeometryMesh::new(vertices, base.indices().to_vec()).weld_and_smooth()
-}
 
 /// Build the hybrid T-54 from the stock loadout (CAD hull plates + SDF cast turret + revolved parts).
 pub fn t54_description() -> VehicleDescription {
@@ -66,52 +25,60 @@ pub fn t54_description() -> VehicleDescription {
 
 /// Build the hybrid T-54 from an explicit module loadout. The installed gun drives the barrel
 /// geometry, so swapping the gun rebuilds the barrel — visual modularity, not a post-bake scale.
+/// All shape dimensions are read from the blueprint; only the gun length comes from the loadout.
 pub fn t54_from_modules(modules: &VehicleModules) -> VehicleDescription {
     let kind = VehicleKind::T54_1951;
+    let bp = VehicleBlueprint::for_vehicle(kind).expect("T-54 blueprint");
+    let v = bp.hybrid().expect("T-54 carries hybrid visual data");
 
     let hull = VehiclePart {
         submesh: SubmeshKind::Hull,
         material: MaterialRole::RolledArmor,
         smoothing: SmoothingGroup::hard_edges(),
-        shape: PartShape::Plates(t54_hull_solid()),
+        shape: PartShape::Plates(solid::t54_hull_solid(
+            &v.hull,
+            bp.armor.hull_front.0,
+            bp.armor.hull_side.0,
+            bp.armor.hull_rear.0,
+        )),
     };
 
     let gear = VehiclePart {
         submesh: SubmeshKind::Hull,
         material: MaterialRole::Rubber,
         smoothing: SmoothingGroup(5),
-        shape: PartShape::Mesh(revolve::t54_running_gear()),
+        shape: PartShape::Mesh(revolve::t54_running_gear(&v.running_gear)),
     };
 
     let tracks = VehiclePart {
         submesh: SubmeshKind::Hull,
         material: MaterialRole::TrackMetal,
         smoothing: SmoothingGroup::hard_edges(),
-        shape: PartShape::Mesh(revolve::t54_tracks()),
+        shape: PartShape::Mesh(revolve::t54_tracks(&v.track_belt)),
     };
 
-    let (turret_sdf, min, max) = sdf_mesh::t54_turret();
+    let (turret_sdf, min, max) = sdf_mesh::t54_turret(&v.turret);
     let turret = VehiclePart {
         submesh: SubmeshKind::Turret,
         material: MaterialRole::CastArmor,
         smoothing: SmoothingGroup(2),
-        shape: PartShape::Cast { sdf: turret_sdf, min, max, budget: 9_000 },
+        shape: PartShape::Cast { sdf: turret_sdf, min, max, budget: v.turret.budget },
     };
 
     // Barrel geometry is driven by the installed gun module — not a post-bake scale of a fixed mesh
     // (the old `barrel_scale` hack). Swap the gun and the barrel is rebuilt at the module's length.
-    let mounts = MountFrames::for_vehicle(kind);
+    let mounts = bp.mount_frames();
     let stock_length = kind.default_loadout().gun.barrel_length_m();
     let muzzle = mounts.muzzle.translation
-        + Vec3::Z * ((modules.gun.barrel_length_m() - stock_length) * MODULE_BARREL_DELTA_SCALE);
+        + Vec3::Z * ((modules.gun.barrel_length_m() - stock_length) * v.gun.module_delta_scale);
     let trunnion = mounts.gun_trunnion.translation;
     let barrel = VehiclePart {
         submesh: SubmeshKind::Gun,
         material: MaterialRole::BarrelSteel,
         smoothing: SmoothingGroup(4),
         shape: PartShape::Mesh(revolve::merge(&[
-            t54_moving_mantlet(trunnion),
-            revolve::gun_barrel_between(trunnion, muzzle),
+            revolve::moving_mantlet(trunnion, &v.gun),
+            revolve::gun_barrel_between(trunnion, muzzle, &v.gun),
         ])),
     };
 
@@ -119,16 +86,16 @@ pub fn t54_from_modules(modules: &VehicleModules) -> VehicleDescription {
         submesh: SubmeshKind::Hull,
         material: MaterialRole::RolledArmor,
         smoothing: SmoothingGroup::hard_edges(),
-        shape: PartShape::Plates(solid::t54_engine_deck()),
+        shape: PartShape::Plates(solid::t54_engine_deck(&v.deck)),
     };
 
     let mut parts = vec![hull, gear, tracks, turret, barrel, deck];
-    for side in [1.5_f32, -1.5] {
+    for side in [v.fender.side_x, -v.fender.side_x] {
         parts.push(VehiclePart {
             submesh: SubmeshKind::Hull,
             material: MaterialRole::RolledArmor,
             smoothing: SmoothingGroup::hard_edges(),
-            shape: PartShape::Plates(solid::t54_fender(side)),
+            shape: PartShape::Plates(solid::t54_fender(side, &v.fender)),
         });
     }
 
@@ -138,22 +105,43 @@ pub fn t54_from_modules(modules: &VehicleModules) -> VehicleDescription {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use game_core::MountFrames;
+
+    #[test]
+    fn the_blueprint_is_the_sole_source_of_hull_dimensions() {
+        // The generated hull is a pure function of the blueprint's HullVisual — no parallel constant
+        // lives in the generator. Its extents track the blueprint block, and perturbing the
+        // blueprint copy moves the geometry with it.
+        let bp = game_core::VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).unwrap();
+        let v = bp.hybrid().unwrap();
+        let to_bounds = |hull: &game_core::HullVisual| {
+            solid::t54_hull_solid(hull, bp.armor.hull_front.0, bp.armor.hull_side.0, bp.armor.hull_rear.0)
+                .to_mesh(MaterialRole::RolledArmor, SmoothingGroup::hard_edges())
+                .bounds()
+                .expect("non-empty hull")
+        };
+
+        let plate = to_bounds(&v.hull);
+        assert!((plate.max.x - v.hull.half_width).abs() < 0.05, "hull width tracks the blueprint");
+        assert!((plate.min.y - v.hull.belly_y).abs() < 0.05, "hull belly tracks the blueprint");
+        assert!((plate.max.y - v.hull.roof_y).abs() < 0.05, "hull roof tracks the blueprint");
+
+        let mut wide = v.hull;
+        wide.half_width *= 2.0;
+        let wide_plate = to_bounds(&wide);
+        assert!(
+            wide_plate.max.x > plate.max.x * 1.8,
+            "doubling the blueprint half-width widens the generated hull (no parallel constant)"
+        );
+    }
 
     #[test]
     fn glacis_geometry_slope_matches_the_armour_blueprint() {
-        // The CAD glacis plate is built from `solid::GLACIS_SLOPE_DEG`; the armour facet reads its
-        // slope from the blueprint. They must be the same number — coherence by construction.
+        // The CAD glacis plate is built from the blueprint armour facet — the single source — so the
+        // *built geometry* carries that angle in the armour convention: a glacis face normal sits
+        // `slope` degrees above horizontal (atan2(n.y, n.z)) — what you see is what you shoot.
         let bp = game_core::VehicleBlueprint::for_vehicle(VehicleKind::T54_1951)
             .expect("T-54 has a blueprint");
-        assert!(
-            (solid::GLACIS_SLOPE_DEG - bp.armor.hull_front.0).abs() < 1.0e-3,
-            "visible glacis {} deg vs armour facet {} deg",
-            solid::GLACIS_SLOPE_DEG,
-            bp.armor.hull_front.0
-        );
-
-        // And the *built geometry* carries that angle in the armour convention: a glacis face normal
-        // sits `slope` degrees above horizontal (atan2(n.y, n.z)) — what you see is what you shoot.
         let baked = t54_description().build();
         let hull = &baked.submesh(SubmeshKind::Hull).expect("hull").mesh;
         let on_slope = hull.vertices().iter().any(|v| {

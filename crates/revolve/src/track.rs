@@ -2,36 +2,37 @@
 //! This is the path-sweep generator — the last new shape kind a tank needs beyond plates, castings
 //! and revolves. Link tread is left to the material/texture layer; the geometry is a smooth band.
 
+use game_core::TrackBeltVisual;
 use glam::{Vec2, Vec3};
 use vehicle_geometry::{GeometryMesh, GeometryVertex, MaterialRole, SmoothingGroup};
 
 use crate::merge;
 
-/// One side's track belt at world `side_x`, wrapping wheels centred on `z = +/-1.2`, axle `y = 0.42`.
-pub fn track_belt(side_x: f32) -> GeometryMesh {
-    sweep_band(&belt_loop(), side_x, 0.06, 0.22)
+/// One side's track belt at world `side_x`, wrapping the wheel run described by the blueprint belt.
+pub fn track_belt(side_x: f32, belt: &TrackBeltVisual) -> GeometryMesh {
+    sweep_band(&belt_loop(belt), side_x, belt.half_thickness, belt.half_width)
 }
 
 /// Both track belts (left and right), merged.
-pub fn t54_tracks() -> GeometryMesh {
-    merge(&[track_belt(1.5), track_belt(-1.5)])
+pub fn t54_tracks(belt: &TrackBeltVisual) -> GeometryMesh {
+    merge(&[track_belt(belt.side_x, belt), track_belt(-belt.side_x, belt)])
 }
 
 /// The side-profile loop as `(z, y)` points: bottom run, rear wrap, top run, front wrap.
-fn belt_loop() -> Vec<Vec2> {
-    let (front, rear, axle, r) = (2.3_f32, -2.3_f32, 0.42_f32, 0.47_f32);
+fn belt_loop(belt: &TrackBeltVisual) -> Vec<Vec2> {
+    let (front, rear, axle, r) = (belt.front_z, belt.rear_z, belt.axle_y, belt.radius);
     let mut pts = Vec::new();
-    let straight = 6;
+    let straight = belt.straight_segments;
     for i in 0..straight {
         let t = i as f32 / straight as f32;
         pts.push(Vec2::new(front + (rear - front) * t, axle - r));
     }
-    push_arc(&mut pts, Vec2::new(rear, axle), r, -90.0, -270.0, 8);
+    push_arc(&mut pts, Vec2::new(rear, axle), r, -90.0, -270.0, belt.arc_segments);
     for i in 0..straight {
         let t = i as f32 / straight as f32;
         pts.push(Vec2::new(rear + (front - rear) * t, axle + r));
     }
-    push_arc(&mut pts, Vec2::new(front, axle), r, 90.0, -90.0, 8);
+    push_arc(&mut pts, Vec2::new(front, axle), r, 90.0, -90.0, belt.arc_segments);
     pts
 }
 
@@ -87,9 +88,17 @@ fn sweep_band(loop_pts: &[Vec2], side_x: f32, half_t: f32, half_w: f32) -> Geome
 mod tests {
     use super::*;
 
+    fn belt() -> TrackBeltVisual {
+        game_core::VehicleBlueprint::for_vehicle(game_core::VehicleKind::T54_1951)
+            .unwrap()
+            .hybrid()
+            .unwrap()
+            .track_belt
+    }
+
     #[test]
     fn the_belt_wraps_a_closed_band_around_the_wheels() {
-        let belt = track_belt(1.5);
+        let belt = track_belt(1.5, &belt());
         assert!(belt.triangle_count() > 0, "belt has geometry");
         let b = belt.bounds().expect("non-empty");
         // The band spans the wheel run in z and rises from the ground to above the axle in y.
@@ -110,6 +119,10 @@ mod tests {
 
     #[test]
     fn both_tracks_double_the_geometry() {
-        assert_eq!(t54_tracks().triangle_count(), 2 * track_belt(1.5).triangle_count());
+        let belt = belt();
+        assert_eq!(
+            t54_tracks(&belt).triangle_count(),
+            2 * track_belt(belt.side_x, &belt).triangle_count()
+        );
     }
 }

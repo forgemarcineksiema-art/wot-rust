@@ -1,5 +1,7 @@
 use game_core::{VehicleBlueprint, VehicleKind};
-use vehicle_forge::{ForgePartGraph, ForgePartKind, PartAnchor, ReferencePack};
+use vehicle_forge::{
+    ForgePartGraph, ForgePartKind, GameplayRole, LodPolicy, PartAnchor, PartGroup, ReferencePack,
+};
 use vehicle_geometry::{MaterialRole, bake_vehicle};
 
 #[test]
@@ -40,6 +42,75 @@ fn t54_part_graph_decomposes_into_expected_semantic_parts() {
             "{kind:?} must be a non-degenerate volume"
         );
         assert!(part.frame().translation.is_finite());
+    }
+}
+
+#[test]
+fn t54_parts_partition_into_hull_turret_gun_groups() {
+    let graph = ForgePartGraph::for_vehicle(VehicleKind::T54_1951).expect("T-54 part graph");
+
+    // Every part lands in exactly one group, and the three groups cover the whole graph — so the
+    // runtime can assemble hull, turret and gun separately with nothing left over or double-counted.
+    let total = graph.parts().len();
+    let mut counted = 0;
+    for group in [PartGroup::Hull, PartGroup::Turret, PartGroup::Gun] {
+        let n = graph.parts_in_group(group).count();
+        assert!(n > 0, "{group:?} group must have parts");
+        counted += n;
+        for part in graph.parts_in_group(group) {
+            assert_eq!(part.group(), group, "{:?} routed to the wrong group", part.kind());
+        }
+    }
+    assert_eq!(counted, total, "groups must partition the part graph exactly");
+
+    // The group follows the pose anchor: the gun trunnion parts (barrel + moving mantlet) are Gun.
+    let gun_kinds: Vec<_> = graph.parts_in_group(PartGroup::Gun).map(|p| p.kind()).collect();
+    assert!(gun_kinds.contains(&ForgePartKind::Gun));
+    assert!(gun_kinds.contains(&ForgePartKind::MovingMantlet));
+    assert!(
+        graph.parts_in_group(PartGroup::Turret).any(|p| p.kind() == ForgePartKind::Turret),
+        "the turret shell is in the turret group"
+    );
+}
+
+#[test]
+fn t54_parts_carry_gameplay_roles_and_lod_policy() {
+    let graph = ForgePartGraph::for_vehicle(VehicleKind::T54_1951).expect("T-54 part graph");
+
+    // Mount-bearing parts are kept through every LOD tier so the pose chain survives at LOD2.
+    assert_eq!(graph.part(ForgePartKind::Turret).unwrap().lod_policy(), LodPolicy::MountCritical);
+    assert_eq!(graph.part(ForgePartKind::Gun).unwrap().lod_policy(), LodPolicy::MountCritical);
+    // Cosmetic fittings are detail that drops out by LOD2.
+    assert_eq!(graph.part(ForgePartKind::Fenders).unwrap().lod_policy(), LodPolicy::Detail);
+
+    // Gameplay roles read off correctly: the barrel is the weapon, the wheels are running gear.
+    assert_eq!(graph.part(ForgePartKind::Gun).unwrap().gameplay_role(), GameplayRole::Weapon);
+    assert_eq!(
+        graph.part(ForgePartKind::RoadWheels).unwrap().gameplay_role(),
+        GameplayRole::RunningGear
+    );
+    assert_eq!(graph.part(ForgePartKind::Hull).unwrap().gameplay_role(), GameplayRole::Armor);
+}
+
+#[test]
+fn t54_hull_and_turret_bounds_fit_the_gameplay_hitbox() {
+    let graph = ForgePartGraph::for_vehicle(VehicleKind::T54_1951).expect("T-54 part graph");
+    let bp = VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("T-54 blueprint");
+    let h = bp.hull;
+    let (xw, zl) = (h.hitbox_half_width, h.hitbox_half_length);
+    let (ylo, yhi) =
+        (h.hitbox_center_y - h.hitbox_half_height, h.hitbox_center_y + h.hitbox_half_height);
+
+    // Hitbox honesty: the hull and turret shells live inside the gameplay collision box, so what the
+    // shell resolves against is no smaller than what is drawn.
+    for kind in [ForgePartKind::Hull, ForgePartKind::Turret] {
+        let b = graph.part(kind).expect("part").bounds();
+        assert!(b.min.x >= -xw - 1.0e-3 && b.max.x <= xw + 1.0e-3, "{kind:?} x escapes the hitbox");
+        assert!(b.min.z >= -zl - 1.0e-3 && b.max.z <= zl + 1.0e-3, "{kind:?} z escapes the hitbox");
+        assert!(
+            b.min.y >= ylo - 1.0e-3 && b.max.y <= yhi + 1.0e-3,
+            "{kind:?} y escapes the hitbox"
+        );
     }
 }
 
