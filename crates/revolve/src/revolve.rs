@@ -21,23 +21,42 @@ pub fn revolve(
     let seg = segments.max(3);
 
     let mut vertices = Vec::with_capacity(profile.len() * seg);
+    let mut rows = Vec::with_capacity(profile.len());
     for &(offset, radius) in profile {
+        let mut row = Vec::with_capacity(if radius == 0.0 { 1 } else { seg });
+        if radius == 0.0 {
+            row.push(vertices.len() as u32);
+            vertices.push(GeometryVertex::new(axis * offset, Vec3::ZERO, material, smoothing));
+            rows.push(row);
+            continue;
+        }
         for s in 0..seg {
             let theta = s as f32 / seg as f32 * std::f32::consts::TAU;
             let pos = axis * offset + u * (radius * theta.cos()) + w * (radius * theta.sin());
+            row.push(vertices.len() as u32);
             vertices.push(GeometryVertex::new(pos, Vec3::ZERO, material, smoothing));
         }
+        rows.push(row);
     }
 
     let mut indices = Vec::new();
-    for ring in 0..profile.len().saturating_sub(1) {
+    for pair in rows.windows(2) {
+        let (a, b) = (&pair[0], &pair[1]);
+        if a.len() == 1 {
+            for s in 0..seg {
+                indices.extend_from_slice(&[a[0], b[s], b[(s + 1) % seg]]);
+            }
+            continue;
+        }
+        if b.len() == 1 {
+            for s in 0..seg {
+                indices.extend_from_slice(&[a[s], b[0], a[(s + 1) % seg]]);
+            }
+            continue;
+        }
         for s in 0..seg {
             let s1 = (s + 1) % seg;
-            let a = (ring * seg + s) as u32;
-            let b = (ring * seg + s1) as u32;
-            let c = ((ring + 1) * seg + s1) as u32;
-            let d = ((ring + 1) * seg + s) as u32;
-            indices.extend_from_slice(&[a, b, c, a, c, d]);
+            indices.extend_from_slice(&[a[s], a[s1], b[s1], a[s], b[s1], b[s]]);
         }
     }
     GeometryMesh::new(vertices, indices).weld_and_smooth()
@@ -82,6 +101,26 @@ mod tests {
             "length spans axis"
         );
         assert!((b.max.y - 0.5).abs() < 0.02, "radius reaches 0.5: {:.3}", b.max.y);
+    }
+
+    #[test]
+    fn capped_revolve_has_no_degenerate_triangles() {
+        let profile = [(0.0, 0.0), (0.0, 0.5), (1.0, 0.5), (1.0, 0.0)];
+        let mesh = revolve(Vec3::Z, &profile, 16, MaterialRole::Rubber, SmoothingGroup(5));
+        for triangle in mesh.indices().chunks_exact(3) {
+            assert!(
+                triangle[0] != triangle[1]
+                    && triangle[1] != triangle[2]
+                    && triangle[0] != triangle[2],
+                "triangle repeats an index: {triangle:?}"
+            );
+            let [a, b, c] = [
+                mesh.vertices()[triangle[0] as usize].position,
+                mesh.vertices()[triangle[1] as usize].position,
+                mesh.vertices()[triangle[2] as usize].position,
+            ];
+            assert!((b - a).cross(c - a).length_squared() > 1.0e-10, "triangle has zero area");
+        }
     }
 
     #[test]

@@ -5,13 +5,13 @@
 use game_core::{MountFrames, VehicleKind, VehicleModules};
 use glam::Vec3;
 use solid::{ConvexSolid, Plane};
-use vehicle_geometry::{MaterialRole, SmoothingGroup, SubmeshKind};
+use vehicle_geometry::{GeometryMesh, GeometryVertex, MaterialRole, SmoothingGroup, SubmeshKind};
 
 use crate::description::VehicleDescription;
 use crate::part::{PartShape, VehiclePart};
 
-/// Maps the gun module's real barrel length (metres) into the spike's stub proportions.
-const SPIKE_GUN_SCALE: f32 = 0.65;
+/// Converts an optional gun module's length delta into the spike's visual scale.
+const MODULE_BARREL_DELTA_SCALE: f32 = 0.65;
 
 /// LOD0 triangle budget for a detail-tier medium tank — a deliberate per-class budget that replaces
 /// the spike's tight micro-cap. The fully-detailed hybrid T-54 (multi-slope hull, running gear with
@@ -42,6 +42,21 @@ fn t54_hull_solid() -> ConvexSolid {
         Plane::new(Vec3::new(0.0, front.sin(), front.cos()), 1.85),
         Plane::new(Vec3::new(0.0, -0.5, 1.0), 2.55),
     ])
+}
+
+fn t54_moving_mantlet(trunnion: Vec3) -> GeometryMesh {
+    let profile = [(-0.18, 0.22), (0.0, 0.34), (0.18, 0.24)];
+    let base = revolve::revolve(Vec3::Z, &profile, 20, MaterialRole::CastArmor, SmoothingGroup(2));
+    let vertices = base
+        .vertices()
+        .iter()
+        .map(|v| GeometryVertex {
+            position: trunnion + Vec3::new(v.position.x * 1.45, v.position.y * 0.72, v.position.z),
+            normal: Vec3::new(v.normal.x / 1.45, v.normal.y / 0.72, v.normal.z).normalize_or_zero(),
+            ..*v
+        })
+        .collect();
+    GeometryMesh::new(vertices, base.indices().to_vec()).weld_and_smooth()
 }
 
 /// Build the hybrid T-54 from the stock loadout (CAD hull plates + SDF cast turret + revolved parts).
@@ -85,12 +100,19 @@ pub fn t54_from_modules(modules: &VehicleModules) -> VehicleDescription {
 
     // Barrel geometry is driven by the installed gun module — not a post-bake scale of a fixed mesh
     // (the old `barrel_scale` hack). Swap the gun and the barrel is rebuilt at the module's length.
-    let barrel_len = modules.gun.barrel_length_m() * SPIKE_GUN_SCALE;
+    let mounts = MountFrames::for_vehicle(kind);
+    let stock_length = kind.default_loadout().gun.barrel_length_m();
+    let muzzle = mounts.muzzle.translation
+        + Vec3::Z * ((modules.gun.barrel_length_m() - stock_length) * MODULE_BARREL_DELTA_SCALE);
+    let trunnion = mounts.gun_trunnion.translation;
     let barrel = VehiclePart {
         submesh: SubmeshKind::Gun,
         material: MaterialRole::BarrelSteel,
         smoothing: SmoothingGroup(4),
-        shape: PartShape::Mesh(revolve::gun_barrel(barrel_len)),
+        shape: PartShape::Mesh(revolve::merge(&[
+            t54_moving_mantlet(trunnion),
+            revolve::gun_barrel_between(trunnion, muzzle),
+        ])),
     };
 
     let deck = VehiclePart {
@@ -110,7 +132,7 @@ pub fn t54_from_modules(modules: &VehicleModules) -> VehicleDescription {
         });
     }
 
-    VehicleDescription { kind, parts, mounts: MountFrames::for_vehicle(kind) }
+    VehicleDescription { kind, parts, mounts }
 }
 
 #[cfg(test)]
@@ -187,7 +209,6 @@ mod tests {
     #[test]
     fn the_barrel_is_keyed_to_the_installed_gun_module() {
         // The muzzle z tracks the GunModule's barrel length — geometry from the module, not a scale.
-        let stock = VehicleKind::T54_1951.default_loadout().gun.barrel_length_m();
         let gun_z = t54_description()
             .build()
             .submesh(SubmeshKind::Gun)
@@ -198,9 +219,33 @@ mod tests {
             .max
             .z;
         assert!(
-            (gun_z - (1.0 + stock * SPIKE_GUN_SCALE)).abs() < 0.1,
-            "muzzle {gun_z:.2} tracks module length {stock:.2}"
+            (gun_z - MountFrames::for_vehicle(VehicleKind::T54_1951).muzzle.translation.z).abs()
+                < 1.0e-4,
+            "muzzle {gun_z:.2} matches its authoritative mount"
         );
+    }
+
+    #[test]
+    fn gun_submesh_uses_the_authoritative_mount_frames() {
+        let baked = t54_description().build();
+        let bounds = baked.submesh(SubmeshKind::Gun).unwrap().mesh.bounds().unwrap();
+        let mounts = MountFrames::for_vehicle(VehicleKind::T54_1951);
+        assert!(bounds.min.y < mounts.gun_trunnion.translation.y);
+        assert!(bounds.max.y > mounts.gun_trunnion.translation.y);
+        assert!((bounds.max.z - mounts.muzzle.translation.z).abs() < 1.0e-4);
+    }
+
+    #[test]
+    fn moving_mantlet_is_part_of_the_gun_submesh() {
+        let gun = t54_description().build().submesh(SubmeshKind::Gun).unwrap().mesh.clone();
+        let cast: Vec<_> =
+            gun.vertices().iter().filter(|v| v.material == MaterialRole::CastArmor).collect();
+        assert!(!cast.is_empty(), "gun submesh needs a moving cast mantlet");
+        let min_x = cast.iter().map(|v| v.position.x).fold(f32::INFINITY, f32::min);
+        let max_x = cast.iter().map(|v| v.position.x).fold(f32::NEG_INFINITY, f32::max);
+        let min_y = cast.iter().map(|v| v.position.y).fold(f32::INFINITY, f32::min);
+        let max_y = cast.iter().map(|v| v.position.y).fold(f32::NEG_INFINITY, f32::max);
+        assert!(max_x - min_x > max_y - min_y, "mantlet is a wide oval");
     }
 
     #[test]

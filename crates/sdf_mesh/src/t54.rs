@@ -26,11 +26,12 @@ pub fn t54_turret() -> (Sdf, Vec3, Vec3) {
     body = body.intersect(Sdf::half_space(Vec3::Y, roof_y));
     body = body.intersect(Sdf::half_space(-Vec3::Y, -ring_y));
 
-    // Commander's cupola standing proud as a drum, and the mantlet bulging from the front cheeks.
+    // Commander's cupola standing proud as a drum; the moving mantlet belongs to the gun submesh,
+    // so the fixed casting contains only its recessed socket.
     let cupola = Sdf::cylinder(0.23, 0.17).translate(Vec3::new(-0.34, roof_y + 0.06, -0.10));
     body = body.smooth_union(cupola, 0.05);
-    let mantlet = Sdf::sphere(0.40).translate(Vec3::new(0.0, ring_y + 0.42, 1.05));
-    body = body.smooth_union(mantlet, 0.16);
+    let socket = Sdf::sphere(0.34).translate(Vec3::new(0.0, ring_y + 0.42, 1.05));
+    body = body.smooth_subtract(socket, 0.06);
 
     (body, Vec3::new(-1.20, ring_y - 0.05, -1.20), Vec3::new(1.20, roof_y + 0.25, 1.45))
 }
