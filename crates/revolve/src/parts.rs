@@ -18,6 +18,17 @@ pub fn gun_barrel(length: f32) -> GeometryMesh {
     revolve(Vec3::Z, &profile, 20, MaterialRole::BarrelSteel, SmoothingGroup(4))
 }
 
+/// A barrel mounted between the authoritative trunnion and muzzle frames in vehicle-local space.
+pub fn gun_barrel_between(trunnion: Vec3, muzzle: Vec3) -> GeometryMesh {
+    let length = (muzzle.z - trunnion.z).max(0.5);
+    let r = 0.09;
+    let profile = [(0.0, 0.0), (0.0, r), (length - 0.2, r), (length, 0.085), (length, 0.0)];
+    translate(
+        &revolve(Vec3::Z, &profile, 20, MaterialRole::BarrelSteel, SmoothingGroup(4)),
+        trunnion,
+    )
+}
+
 /// One road wheel — a rubber tyre with a steel hub disc proud of it — revolved about the axle (X)
 /// and placed at `(side_x, _, center_z)`, lifted so it rests on the ground plane.
 pub fn road_wheel(center_z: f32, side_x: f32) -> GeometryMesh {
@@ -57,6 +68,16 @@ mod tests {
         let b = gun_barrel(3.6).bounds().expect("non-empty");
         assert!(b.max.z > 4.5, "muzzle reaches forward: {:.2}", b.max.z);
         assert!(b.max.x < 0.12 && b.max.y < 0.12, "barrel stays slim");
+    }
+
+    #[test]
+    fn mounted_barrel_uses_the_authoritative_frames() {
+        let trunnion = Vec3::new(0.0, 1.70, 1.10);
+        let muzzle = Vec3::new(0.0, 1.70, 5.20);
+        let barrel = gun_barrel_between(trunnion, muzzle);
+        let b = barrel.bounds().expect("non-empty");
+        assert!(b.min.y < trunnion.y && b.max.y > trunnion.y, "barrel surrounds trunnion height");
+        assert!((b.max.z - muzzle.z).abs() < 1.0e-4, "muzzle reaches its authoritative frame");
     }
 
     #[test]
