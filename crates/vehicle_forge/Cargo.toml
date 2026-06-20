@@ -13,6 +13,7 @@ serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 vehicle_geometry = { path = "../vehicle_geometry" }
+vehicle_build = { path = "../vehicle_build" }
 
 [lints]
 workspace = true

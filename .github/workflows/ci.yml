@@ -19,3 +19,25 @@ jobs:
       - name: Verify
         shell: pwsh
         run: ./scripts/verify.ps1
+
+  forge-t54:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly-2026-02-12
+      - name: Bake production T-54 artifact
+        shell: pwsh
+        run: cargo run -p tools -- forge-vehicle --vehicle t54-1951 --profile lod0 --out target/forge/t54-1951
+      - name: Verify artifact report and review images
+        shell: pwsh
+        run: |
+          Test-Path target/forge/t54-1951/manifest.json
+          Test-Path target/forge/t54-1951/meshes.bin
+          Test-Path target/forge/t54-1951/report.md
+          Test-Path target/forge/t54-1951/review/battle_oblique.png
+      - uses: actions/upload-artifact@v4
+        with:
+          name: forge-t54-lod0
+          path: target/forge/t54-1951

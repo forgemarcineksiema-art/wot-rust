@@ -1,5 +1,17 @@
 use game_core::VehicleKind;
-use vehicle_forge::{BakeProfile, ForgeArtifact, ReviewCamera, ReviewCameraSet};
+use vehicle_forge::{
+    BakeProfile, ForgeArtifact, ReviewCamera, ReviewCameraSet, bake_production_vehicle,
+};
+
+#[test]
+fn production_t54_bake_is_the_hybrid_description_at_the_requested_lod() {
+    let production = bake_production_vehicle(VehicleKind::T54_1951, BakeProfile::Lod0)
+        .expect("production T-54 bakes");
+    let hybrid = vehicle_build::t54_description().build();
+
+    assert_eq!(production.deterministic_hash(), hybrid.deterministic_hash());
+    assert_eq!(production.mounts(), hybrid.mounts());
+}
 
 #[test]
 fn forge_artifact_manifest_names_the_baked_vehicle_profile_and_sources() {

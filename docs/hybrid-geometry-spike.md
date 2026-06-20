@@ -1,7 +1,8 @@
 # Hybrid Vehicle Geometry — Spike And Decision
 
-Status: spike landed 2026-06-14, all gates green (`./scripts/verify.ps1`). Exploratory crates;
-not yet wired into the production `ForgeArtifact` bake.
+Status: spike landed 2026-06-14, all gates green (`./scripts/verify.ps1`). The T-54 hybrid is the
+production-selected source for Forge artifacts and client fallback; other vehicles remain on legacy
+recipes until their own Forge migration.
 
 ## Why
 
@@ -55,8 +56,6 @@ Renders (renderer-free CPU raster, z-buffered) live in `target/spike_sdf/`.
 
 ## Open / next
 
-- Wire the hybrid `BakedVehicle` into the real `ForgeArtifact` bake (manifest/LOD/materials/review),
-  reconciling with the existing golden-hash benchmark.
 - Separate, animated running-gear submesh + damage states tied to `ModuleSlot::Suspension`.
 - Adaptive (octree) dual contouring *only where it shows* — sharp plates meshed from SDF — if any
   cast/plate boundary ever needs it (the spike showed uniform Surface Nets is otherwise enough).
