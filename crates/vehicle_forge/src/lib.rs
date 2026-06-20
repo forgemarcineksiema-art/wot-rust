@@ -10,6 +10,7 @@ mod packs_german;
 mod part_data;
 mod part_graph;
 mod reference;
+mod registry;
 mod report;
 
 pub use artifact::{

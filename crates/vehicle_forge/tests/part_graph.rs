@@ -253,6 +253,31 @@ fn german_line_has_geometry_derived_part_graphs() {
 }
 
 #[test]
+fn geometry_derived_vehicles_do_not_inherit_bespoke_t54_parts() {
+    // Regression lock for the registry fix: the part-graph strategy is now registered per vehicle,
+    // so a vehicle routed through the geometry-derived strategy must never carry the T-54's bespoke
+    // fittings. Before the fix, any blueprint-backed vehicle silently ran the T-54 part table.
+    for kind in
+        [VehicleKind::TigerI, VehicleKind::TigerII, VehicleKind::Jagdtiger, VehicleKind::PantherII]
+    {
+        let graph = ForgePartGraph::for_vehicle(kind).unwrap_or_else(|| panic!("{kind:?} graph"));
+        for bespoke in [
+            ForgePartKind::UpperGlacis,
+            ForgePartKind::TurretCheeks,
+            ForgePartKind::MantletSocket,
+            ForgePartKind::MovingMantlet,
+            ForgePartKind::EngineDeck,
+            ForgePartKind::RoadWheelSet,
+        ] {
+            assert!(
+                graph.part(bespoke).is_none(),
+                "{kind:?} must not carry bespoke T-54 part {bespoke:?}"
+            );
+        }
+    }
+}
+
+#[test]
 fn jagdtiger_part_graph_reads_as_a_fixed_casemate() {
     let graph = ForgePartGraph::for_vehicle(VehicleKind::Jagdtiger).expect("Jagdtiger graph");
     assert!(!graph.turret_traverses(), "Jagdtiger casemate must not traverse");

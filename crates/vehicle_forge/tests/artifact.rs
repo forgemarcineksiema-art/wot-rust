@@ -41,11 +41,14 @@ fn every_migrated_vehicle_bakes_a_full_artifact_at_every_lod() {
                     "{kind:?} {profile:?} missing {sub}"
                 );
             }
-            // The full baked material + review set is present regardless of vehicle.
+            // The full baked material set is present regardless of vehicle.
             assert_eq!(manifest.texture_maps().len(), 4, "{kind:?} material set incomplete");
+            // Review cameras come from the per-vehicle forge spec: the T-54 benchmark carries the
+            // extra close-ups (11); the geometry-derived line gets the generic six.
+            let expected_cameras = if kind == VehicleKind::T54_1951 { 11 } else { 6 };
             assert_eq!(
                 manifest.review_cameras().cameras().len(),
-                11,
+                expected_cameras,
                 "{kind:?} review set incomplete"
             );
         }
@@ -80,12 +83,12 @@ fn bake_profile_selects_progressively_lighter_geometry() {
 }
 
 #[test]
-fn review_camera_set_contains_required_forge_regression_views() {
-    let cameras = ReviewCameraSet::standard_vehicle_review();
-    let names: Vec<ReviewCamera> = cameras.cameras().iter().map(|camera| camera.kind()).collect();
-
+fn review_camera_sets_are_generic_with_a_t54_benchmark_extension() {
+    // The standard set is generic: six all-round silhouette views, no vehicle-specific names.
+    let standard: Vec<ReviewCamera> =
+        ReviewCameraSet::standard_vehicle_review().cameras().iter().map(|c| c.kind()).collect();
     assert_eq!(
-        names,
+        standard,
         vec![
             ReviewCamera::Front,
             ReviewCamera::Rear,
@@ -93,11 +96,26 @@ fn review_camera_set_contains_required_forge_regression_views() {
             ReviewCamera::RightProfile,
             ReviewCamera::Top,
             ReviewCamera::BattleOblique,
-            ReviewCamera::T54CloseFront,
-            ReviewCamera::T54RunningGear,
-            ReviewCamera::T54TurretMantlet,
-            ReviewCamera::T54TopPlan,
-            ReviewCamera::T54BattleClose,
+        ]
+    );
+
+    // The T-54 benchmark extends the generic set with five close-up regression views.
+    let benchmark: Vec<ReviewCamera> =
+        ReviewCameraSet::t54_benchmark_review().cameras().iter().map(|c| c.kind()).collect();
+    assert_eq!(
+        benchmark,
+        vec![
+            ReviewCamera::Front,
+            ReviewCamera::Rear,
+            ReviewCamera::LeftProfile,
+            ReviewCamera::RightProfile,
+            ReviewCamera::Top,
+            ReviewCamera::BattleOblique,
+            ReviewCamera::CloseFront,
+            ReviewCamera::RunningGear,
+            ReviewCamera::TurretMantlet,
+            ReviewCamera::TopPlan,
+            ReviewCamera::BattleClose,
         ]
     );
 }
@@ -141,11 +159,11 @@ fn forge_artifact_writes_manifest_mesh_payload_report_and_review_folder() {
         "right_profile.png",
         "top.png",
         "battle_oblique.png",
-        "t54_close_front.png",
-        "t54_running_gear.png",
-        "t54_turret_mantlet.png",
-        "t54_top_plan.png",
-        "t54_battle_close.png",
+        "close_front.png",
+        "running_gear.png",
+        "turret_mantlet.png",
+        "top_plan.png",
+        "battle_close.png",
     ] {
         assert_nonblank_png(&out.join("review").join(file));
     }

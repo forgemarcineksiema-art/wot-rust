@@ -16,6 +16,7 @@ use glam::Vec3;
 use vehicle_geometry::{SubmeshKind, bake_vehicle};
 
 use crate::ReferencePack;
+use crate::registry::PartStrategy;
 
 /// A vehicle decomposed into semantic parts. Built from the vehicle's [`VehicleBlueprint`].
 #[derive(Debug, Clone, PartialEq)]
@@ -27,23 +28,34 @@ pub struct ForgePartGraph {
 }
 
 impl ForgePartGraph {
-    /// The part graph for `kind`. Blueprint-backed benchmarks (currently T-54) derive every
-    /// part extent from the single shape source; the rest fall back to a coarser graph derived from
-    /// the baked geometry bounds and the family reference pack. `None` only for vehicles that have
-    /// neither a blueprint nor a reference pack (e.g. the placeholder prototype).
+    /// The part graph for `kind`, dispatched on the vehicle's registered part strategy. Blueprint
+    /// benchmarks (currently only the T-54) derive every part extent from their single shape source;
+    /// every other registered vehicle uses a coarser graph derived from the baked geometry bounds and
+    /// the family reference pack. `None` for vehicles with no forge spec (the placeholder prototype
+    /// and the legacy T-55A). Because the strategy is registered per vehicle, a blueprint-backed
+    /// vehicle can no longer silently inherit the T-54 part table.
     pub fn for_vehicle(kind: VehicleKind) -> Option<Self> {
-        let _pack = ReferencePack::for_vehicle(kind)?;
-        if let Some(blueprint) = VehicleBlueprint::for_vehicle(kind) {
-            return Some(build_graph(kind, &blueprint));
+        let spec = crate::registry::forge_spec(kind)?;
+        match spec.parts {
+            PartStrategy::Blueprint(build) => {
+                let blueprint = VehicleBlueprint::for_vehicle(kind)?;
+                Some(ForgePartGraph {
+                    kind,
+                    road_wheel_count_per_side: blueprint.track.wheel_count,
+                    turret_traverses: !kind.has_fixed_casemate(),
+                    parts: build(&blueprint),
+                })
+            }
+            PartStrategy::BakedGeometry => {
+                Self::from_baked_geometry(kind, &(spec.reference_pack)())
+            }
         }
-        Self::from_baked_geometry(kind)
     }
 
     /// Derive a coarse part graph from a vehicle's baked submesh bounds plus its reference pack.
     /// This carries no new magic values: every extent comes from the geometry the recipes already
     /// produce, and the running-gear count comes from the reference pack.
-    fn from_baked_geometry(kind: VehicleKind) -> Option<Self> {
-        let pack = ReferencePack::for_vehicle(kind)?;
+    fn from_baked_geometry(kind: VehicleKind, pack: &ReferencePack) -> Option<Self> {
         let baked = bake_vehicle(kind).ok()?;
         let bounds = |sub| baked.submesh(sub).and_then(|s| s.mesh.bounds());
         let hull = bounds(SubmeshKind::Hull)?;
@@ -123,14 +135,5 @@ impl ForgePartGraph {
             ));
         }
         out
-    }
-}
-
-fn build_graph(kind: VehicleKind, bp: &VehicleBlueprint) -> ForgePartGraph {
-    ForgePartGraph {
-        kind,
-        road_wheel_count_per_side: bp.track.wheel_count,
-        turret_traverses: !kind.has_fixed_casemate(),
-        parts: crate::part_data::t54_family_parts(bp),
     }
 }
