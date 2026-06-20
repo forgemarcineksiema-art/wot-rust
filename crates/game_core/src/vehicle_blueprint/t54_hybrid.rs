@@ -5,8 +5,8 @@
 use glam::Vec3;
 
 use super::{
-    BoxVisual, FenderVisual, GunVisual, HullVisual, HybridVisual, RunningGearVisual, TrackBeltVisual,
-    TurretVisual,
+    BoxVisual, FenderVisual, GunVisual, HullPlatesVisual, HullVisual, HybridVisual,
+    RunningGearVisual, TrackBeltVisual, TurretVisual,
 };
 
 pub(super) fn t54_hybrid() -> HybridVisual {
@@ -19,6 +19,12 @@ pub(super) fn t54_hybrid() -> HybridVisual {
             glacis_offset: 1.85,
             nose_normal: Vec3::new(0.0, -0.5, 1.0),
             nose_offset: 2.55,
+        },
+        hull_plates: HullPlatesVisual {
+            glacis_base_z: 2.85,
+            nose_base_z: 2.55,
+            deck_bevel: 0.10,
+            sponson_overhang: 0.23,
         },
         turret: TurretVisual {
             dome_radius: 0.95,
@@ -64,6 +70,7 @@ pub(super) fn t54_hybrid() -> HybridVisual {
             wheel_count: 5,
             first_z: -2.10,
             spacing: 1.05,
+            first_gap: 1.30,
             side_x: 1.5,
         },
         track_belt: TrackBeltVisual {

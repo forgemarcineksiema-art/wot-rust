@@ -100,11 +100,28 @@ pub fn road_wheel(center_z: f32, side_x: f32, gear: &RunningGearVisual) -> Geome
     translate(&merge(&[tyre, hub]), Vec3::new(side_x, radius, center_z))
 }
 
+/// The z of each road-wheel station, front (highest z) to rear, with the T-54's characteristic large
+/// gap between the front two wheels and the rest spaced evenly — endpoints fixed at the train span.
+pub fn road_wheel_stations(gear: &RunningGearVisual) -> Vec<f32> {
+    let count = gear.wheel_count;
+    let span = (count - 1) as f32 * gear.spacing;
+    let front_z = gear.first_z + span;
+    let mut zs = vec![front_z];
+    if count >= 2 {
+        zs.push(front_z - gear.first_gap);
+        let rear_interval = (span - gear.first_gap) / (count - 2).max(1) as f32;
+        for _ in 2..count {
+            let next = zs.last().copied().unwrap() - rear_interval;
+            zs.push(next);
+        }
+    }
+    zs
+}
+
 /// The road-wheel train: `gear.wheel_count` wheels per side, both sides — repetition of [`road_wheel`].
 pub fn t54_running_gear(gear: &RunningGearVisual) -> GeometryMesh {
     let mut wheels = Vec::new();
-    for i in 0..gear.wheel_count {
-        let z = gear.first_z + i as f32 * gear.spacing;
+    for z in road_wheel_stations(gear) {
         wheels.push(road_wheel(z, gear.side_x, gear));
         wheels.push(road_wheel(z, -gear.side_x, gear));
     }
@@ -166,5 +183,22 @@ mod tests {
         let g = gear();
         let one = road_wheel(0.0, g.side_x, &g).triangle_count();
         assert_eq!(t54_running_gear(&g).triangle_count(), one * 2 * g.wheel_count);
+    }
+
+    #[test]
+    fn the_front_wheel_gap_is_the_largest_and_the_train_keeps_its_span() {
+        let g = gear();
+        let zs = road_wheel_stations(&g);
+        assert_eq!(zs.len(), g.wheel_count);
+        // Front to rear, descending z; the train still spans first_z .. front.
+        let span = (g.wheel_count - 1) as f32 * g.spacing;
+        assert!((zs[0] - (g.first_z + span)).abs() < 1.0e-4, "front wheel at the train front");
+        assert!((zs[zs.len() - 1] - g.first_z).abs() < 1.0e-4, "rear wheel at the train rear");
+        let gaps: Vec<f32> = zs.windows(2).map(|w| w[0] - w[1]).collect();
+        let front_gap = gaps[0];
+        assert!(
+            gaps[1..].iter().all(|&g| front_gap > g + 0.1),
+            "the T-54 front wheel gap {front_gap:.2} is clearly the largest: {gaps:?}"
+        );
     }
 }

@@ -20,8 +20,8 @@ mod hybrid;
 mod t54_hybrid;
 
 pub use hybrid::{
-    BoxVisual, FenderVisual, GunVisual, HullVisual, HybridVisual, RunningGearVisual,
-    TrackBeltVisual, TurretVisual,
+    BoxVisual, FenderVisual, GunVisual, HullPlatesVisual, HullVisual, HybridVisual,
+    RunningGearVisual, TrackBeltVisual, TurretVisual,
 };
 
 /// How the turret/superstructure reads, for both the mesh recipe and the fit tests.

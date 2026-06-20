@@ -31,12 +31,26 @@ pub fn t54_from_modules(modules: &VehicleModules) -> VehicleDescription {
     let bp = VehicleBlueprint::for_vehicle(kind).expect("T-54 blueprint");
     let v = bp.hybrid().expect("T-54 carries hybrid visual data");
 
-    let hull = VehiclePart {
+    // The hull is decomposed into its real T-54 plates: a narrow lower tub and the wide upper hull
+    // that overhangs it as the sponson. The two-plate front (upper glacis over the tucked nose) and
+    // the sloped sides/rear each carry their blueprint armour angle.
+    let lower_tub = VehiclePart {
         submesh: SubmeshKind::Hull,
         material: MaterialRole::RolledArmor,
         smoothing: SmoothingGroup::hard_edges(),
-        shape: PartShape::Plates(solid::t54_hull_solid(
-            &v.hull,
+        shape: PartShape::Plates(solid::t54_lower_tub(
+            &bp.hull,
+            &v.hull_plates,
+            bp.armor.hull_rear.0,
+        )),
+    };
+    let upper_hull = VehiclePart {
+        submesh: SubmeshKind::Hull,
+        material: MaterialRole::RolledArmor,
+        smoothing: SmoothingGroup::hard_edges(),
+        shape: PartShape::Plates(solid::t54_upper_hull(
+            &bp.hull,
+            &v.hull_plates,
             bp.armor.hull_front.0,
             bp.armor.hull_side.0,
             bp.armor.hull_rear.0,
@@ -89,7 +103,7 @@ pub fn t54_from_modules(modules: &VehicleModules) -> VehicleDescription {
         shape: PartShape::Plates(solid::t54_engine_deck(&v.deck)),
     };
 
-    let mut parts = vec![hull, gear, tracks, turret, barrel, deck];
+    let mut parts = vec![lower_tub, upper_hull, gear, tracks, turret, barrel, deck];
     for side in [v.fender.side_x, -v.fender.side_x] {
         parts.push(VehiclePart {
             submesh: SubmeshKind::Hull,
@@ -115,10 +129,15 @@ mod tests {
         let bp = game_core::VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).unwrap();
         let v = bp.hybrid().unwrap();
         let to_bounds = |hull: &game_core::HullVisual| {
-            solid::t54_hull_solid(hull, bp.armor.hull_front.0, bp.armor.hull_side.0, bp.armor.hull_rear.0)
-                .to_mesh(MaterialRole::RolledArmor, SmoothingGroup::hard_edges())
-                .bounds()
-                .expect("non-empty hull")
+            solid::t54_hull_solid(
+                hull,
+                bp.armor.hull_front.0,
+                bp.armor.hull_side.0,
+                bp.armor.hull_rear.0,
+            )
+            .to_mesh(MaterialRole::RolledArmor, SmoothingGroup::hard_edges())
+            .bounds()
+            .expect("non-empty hull")
         };
 
         let plate = to_bounds(&v.hull);

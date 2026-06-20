@@ -27,6 +27,25 @@ pub struct HullVisual {
     pub nose_offset: f32,
 }
 
+/// Visual parameters for the multi-plate hull (Stage 3). The plate *extents* come from the gameplay
+/// [`HullShape`](super::HullShape) — the lower tub width, the sponson step, the deck height, the hull
+/// length — and the plate *slopes* from [`ArmorShape`](super::ArmorShape), so the visible hull is the
+/// reconciled-to-gameplay form. These fields add only what the shape model does not already carry:
+/// where the two-plate front folds, and the small thickness/bevel/seam cues that make the plates read
+/// as plates rather than one block.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct HullPlatesVisual {
+    /// Z where the upper glacis meets the lower nose plate, taken at the sponson step height — the
+    /// fold line of the T-54 two-plate front.
+    pub glacis_base_z: f32,
+    /// Z of the lower nose plate at the belly: tucked back behind the fold, so the nose rakes under.
+    pub nose_base_z: f32,
+    /// Chamfer on the deck's front edge where it meets the glacis, so the lip reads as plate.
+    pub deck_bevel: f32,
+    /// How far the wide sponson sits proud of the lower tub at the side (visual plate seam).
+    pub sponson_overhang: f32,
+}
+
 /// The cast turret as a Surface-Nets SDF: two offset spheres for the flattened dome, a seating ring,
 /// flat roof/ring planes, the commander's cupola, and the recessed mantlet socket. Positions are in
 /// vehicle-local space; the gun's moving mantlet belongs to the gun submesh, not the casting.
@@ -101,6 +120,9 @@ pub struct RunningGearVisual {
     pub wheel_count: usize,
     pub first_z: f32,
     pub spacing: f32,
+    /// The T-54's characteristic large gap between the first and second road wheels. The remaining
+    /// stations are spaced evenly to keep the train within `first_z .. first_z + (count-1)*spacing`.
+    pub first_gap: f32,
     pub side_x: f32,
 }
 
@@ -123,6 +145,7 @@ pub struct TrackBeltVisual {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct HybridVisual {
     pub hull: HullVisual,
+    pub hull_plates: HullPlatesVisual,
     pub turret: TurretVisual,
     pub gun: GunVisual,
     pub deck: BoxVisual,

@@ -5,14 +5,66 @@
 //! visible rake of each facet is the same angle the penetration model uses — what you see is what
 //! you shoot.
 
-use game_core::{BoxVisual, FenderVisual, HullVisual};
+use game_core::{BoxVisual, FenderVisual, HullPlatesVisual, HullShape, HullVisual};
 use glam::Vec3;
 
 use crate::{ConvexSolid, Plane};
 
+/// The wide upper hull (sponson body): a convex solid from the sponson step up to the deck, whose
+/// front is the steep upper glacis, sides rake inward, and rear rakes up — each at its blueprint
+/// armour angle. It overhangs the narrower lower tub, forming the sponson step over the tracks.
+pub fn t54_upper_hull(
+    h: &HullShape,
+    p: &HullPlatesVisual,
+    front_deg: f32,
+    side_deg: f32,
+    rear_deg: f32,
+) -> ConvexSolid {
+    let (front, side, rear) =
+        (front_deg.to_radians(), side_deg.to_radians(), rear_deg.to_radians());
+    let side_off = h.half_width * side.cos() + h.sponson_y * side.sin();
+    let glacis_off = front.sin() * h.sponson_y + front.cos() * p.glacis_base_z;
+    let rear_off = rear.sin() * h.sponson_y + rear.cos() * h.half_len;
+    ConvexSolid::new(vec![
+        Plane::new(Vec3::new(0.0, -1.0, 0.0), -h.sponson_y),
+        Plane::new(Vec3::new(0.0, 1.0, 0.0), h.deck_y),
+        Plane::new(Vec3::new(side.cos(), side.sin(), 0.0), side_off),
+        Plane::new(Vec3::new(-side.cos(), side.sin(), 0.0), side_off),
+        Plane::new(Vec3::new(0.0, rear.sin(), -rear.cos()), rear_off),
+        Plane::new(Vec3::new(0.0, front.sin(), front.cos()), glacis_off),
+    ])
+}
+
+/// The narrow lower tub between the tracks: a convex solid from the belly to the sponson step, with
+/// vertical sides at the tub half-width, a raked rear, and a lower nose plate that folds under the
+/// upper glacis at the blueprint fold line.
+pub fn t54_lower_tub(h: &HullShape, p: &HullPlatesVisual, rear_deg: f32) -> ConvexSolid {
+    let rear = rear_deg.to_radians();
+    let rear_off = rear.sin() * h.belly_y + rear.cos() * h.half_len;
+    // Lower nose plate: the plane through the fold line (sponson step) and the tucked-back belly
+    // front, spanning the tub width. Its forward-and-down normal carries the lower-glacis rake.
+    let dz = p.nose_base_z - p.glacis_base_z;
+    let dy = h.belly_y - h.sponson_y;
+    let nose_normal = Vec3::new(0.0, -dz / dy, 1.0);
+    let nose_off = nose_normal.dot(Vec3::new(0.0, h.sponson_y, p.glacis_base_z));
+    ConvexSolid::new(vec![
+        Plane::new(Vec3::new(0.0, -1.0, 0.0), -h.belly_y),
+        Plane::new(Vec3::new(0.0, 1.0, 0.0), h.sponson_y),
+        Plane::new(Vec3::new(1.0, 0.0, 0.0), h.lower_half_width),
+        Plane::new(Vec3::new(-1.0, 0.0, 0.0), h.lower_half_width),
+        Plane::new(Vec3::new(0.0, rear.sin(), -rear.cos()), rear_off),
+        Plane::new(nose_normal, nose_off),
+    ])
+}
+
 /// The full hull as a convex solid: a block whose glacis, sloped sides and sloped rear carry the
 /// blueprint armour angles (degrees of the plate normal above horizontal), plus a lower nose bevel.
-pub fn t54_hull_solid(hull: &HullVisual, front_deg: f32, side_deg: f32, rear_deg: f32) -> ConvexSolid {
+pub fn t54_hull_solid(
+    hull: &HullVisual,
+    front_deg: f32,
+    side_deg: f32,
+    rear_deg: f32,
+) -> ConvexSolid {
     let (front, side, rear) =
         (front_deg.to_radians(), side_deg.to_radians(), rear_deg.to_radians());
     let (hx, belly, roof, hz) = (hull.half_width, hull.belly_y, hull.roof_y, hull.half_len);
@@ -81,9 +133,13 @@ mod tests {
     fn the_hull_solid_carries_the_armour_glacis_angle() {
         let bp =
             game_core::VehicleBlueprint::for_vehicle(game_core::VehicleKind::T54_1951).unwrap();
-        let mesh =
-            t54_hull_solid(&hull(), bp.armor.hull_front.0, bp.armor.hull_side.0, bp.armor.hull_rear.0)
-                .to_mesh(MaterialRole::RolledArmor, SmoothingGroup::hard_edges());
+        let mesh = t54_hull_solid(
+            &hull(),
+            bp.armor.hull_front.0,
+            bp.armor.hull_side.0,
+            bp.armor.hull_rear.0,
+        )
+        .to_mesh(MaterialRole::RolledArmor, SmoothingGroup::hard_edges());
         let on_slope = mesh.vertices().iter().any(|v| {
             let n = v.normal;
             n.y > 0.2
