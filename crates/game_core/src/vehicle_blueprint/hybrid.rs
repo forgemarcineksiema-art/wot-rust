@@ -150,6 +150,22 @@ pub struct TrackBeltVisual {
     pub link_count: usize,
 }
 
+/// Semantic external fittings carried as their own parts (not anonymous greeble): the commander's
+/// cupola hatch lid and turret-side vision drum ride the turret; the glacis headlight and the front
+/// tow hooks ride the hull. Finer surface detail (welds, grab handles) is left to the material layer.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct FittingsVisual {
+    pub cupola_hatch_center: Vec3,
+    pub cupola_hatch_radius: f32,
+    pub cupola_hatch_half_height: f32,
+    pub headlight_center: Vec3,
+    pub headlight_radius: f32,
+    pub headlight_half_height: f32,
+    /// Front tow hook (right side; mirrored to the left).
+    pub tow_hook_center: Vec3,
+    pub tow_hook_half: Vec3,
+}
+
 /// The full hybrid visual description for one vehicle. `Some` only for the hybrid benchmark (T-54);
 /// other vehicles bake through the legacy `vehicle_geometry` path and carry `None`.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -162,4 +178,5 @@ pub struct HybridVisual {
     pub fender: FenderVisual,
     pub running_gear: RunningGearVisual,
     pub track_belt: TrackBeltVisual,
+    pub fittings: FittingsVisual,
 }

@@ -12,5 +12,5 @@ mod part;
 mod t54;
 
 pub use description::VehicleDescription;
-pub use part::{PartShape, VehiclePart};
+pub use part::{PartLod, PartShape, VehiclePart};
 pub use t54::{MEDIUM_LOD0_TRI_BUDGET, t54_description, t54_from_modules};

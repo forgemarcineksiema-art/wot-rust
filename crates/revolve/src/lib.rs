@@ -10,7 +10,7 @@ mod revolve;
 mod track;
 
 pub use parts::{
-    gun_barrel, gun_barrel_between, moving_mantlet, road_wheel, road_wheel_stations,
+    drum, gun_barrel, gun_barrel_between, moving_mantlet, road_wheel, road_wheel_stations,
     t54_running_gear, t54_track_ends,
 };
 pub use revolve::{merge, revolve, translate};

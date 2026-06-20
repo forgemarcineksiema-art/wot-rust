@@ -20,7 +20,7 @@ mod hybrid;
 mod t54_hybrid;
 
 pub use hybrid::{
-    BoxVisual, FenderVisual, GunVisual, HullPlatesVisual, HullVisual, HybridVisual,
+    BoxVisual, FenderVisual, FittingsVisual, GunVisual, HullPlatesVisual, HullVisual, HybridVisual,
     RunningGearVisual, TrackBeltVisual, TurretVisual,
 };
 

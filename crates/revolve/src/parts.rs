@@ -118,6 +118,21 @@ pub fn road_wheel_stations(gear: &RunningGearVisual) -> Vec<f32> {
     zs
 }
 
+/// A short upright drum (cylinder about Y) centred at `center`: the basis of round fittings such as
+/// the cupola hatch lid and the glacis headlight.
+pub fn drum(
+    center: Vec3,
+    radius: f32,
+    half_height: f32,
+    segments: usize,
+    material: MaterialRole,
+    smoothing: SmoothingGroup,
+) -> GeometryMesh {
+    let profile =
+        [(-half_height, 0.0), (-half_height, radius), (half_height, radius), (half_height, 0.0)];
+    translate(&revolve(Vec3::Y, &profile, segments, material, smoothing), center)
+}
+
 /// A wheel revolved about the axle (X) and centred at `center` (not lifted to the ground): used for
 /// the track-end idler and drive sprocket, which sit on the axle line at the ends of the belt run.
 fn end_wheel(

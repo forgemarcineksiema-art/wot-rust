@@ -5,7 +5,7 @@
 use glam::Vec3;
 
 use super::{
-    BoxVisual, FenderVisual, GunVisual, HullPlatesVisual, HullVisual, HybridVisual,
+    BoxVisual, FenderVisual, FittingsVisual, GunVisual, HullPlatesVisual, HullVisual, HybridVisual,
     RunningGearVisual, TrackBeltVisual, TurretVisual,
 };
 
@@ -88,6 +88,16 @@ pub(super) fn t54_hybrid() -> HybridVisual {
             straight_segments: 6,
             arc_segments: 8,
             link_count: 22,
+        },
+        fittings: FittingsVisual {
+            cupola_hatch_center: Vec3::new(-0.34, 2.30, -0.10),
+            cupola_hatch_radius: 0.20,
+            cupola_hatch_half_height: 0.04,
+            headlight_center: Vec3::new(0.45, 1.10, 1.98),
+            headlight_radius: 0.10,
+            headlight_half_height: 0.07,
+            tow_hook_center: Vec3::new(1.02, 0.32, 2.42),
+            tow_hook_half: Vec3::new(0.12, 0.11, 0.10),
         },
     }
 }
