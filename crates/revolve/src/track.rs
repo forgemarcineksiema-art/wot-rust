@@ -18,6 +18,55 @@ pub fn t54_tracks(belt: &TrackBeltVisual) -> GeometryMesh {
     merge(&[track_belt(belt.side_x, belt), track_belt(-belt.side_x, belt)])
 }
 
+/// Track link cues: a row of small raised blocks along the ground (bottom) run at world `side_x`, so
+/// the belt reads as discrete tracked links. Fine tread is left to the material layer.
+pub fn t54_track_links(side_x: f32, belt: &TrackBeltVisual) -> GeometryMesh {
+    let n = belt.link_count.max(1);
+    let span = belt.front_z - belt.rear_z;
+    let pitch = span / n as f32;
+    let y = belt.axle_y - belt.radius - belt.half_thickness;
+    let half = Vec3::new(belt.half_width * 0.92, belt.half_thickness * 0.6, pitch * 0.36);
+    let mut links = Vec::with_capacity(n);
+    for i in 0..n {
+        let z = belt.rear_z + (i as f32 + 0.5) * pitch;
+        links.push(box_mesh(Vec3::new(side_x, y, z), half));
+    }
+    merge(&links)
+}
+
+/// Both sides' track link rows, merged.
+pub fn t54_track_link_cues(belt: &TrackBeltVisual) -> GeometryMesh {
+    merge(&[t54_track_links(belt.side_x, belt), t54_track_links(-belt.side_x, belt)])
+}
+
+/// A hard-edged axis-aligned box as a `GeometryMesh` (six flat faces, 12 triangles).
+fn box_mesh(center: Vec3, half: Vec3) -> GeometryMesh {
+    let mut vertices = Vec::with_capacity(24);
+    let mut indices = Vec::with_capacity(36);
+    for axis in [Vec3::X, Vec3::Y, Vec3::Z] {
+        for sign in [1.0_f32, -1.0] {
+            let normal = axis * sign;
+            let u = Vec3::new(axis.y, axis.z, axis.x); // a perpendicular in-plane axis
+            let w = normal.cross(u);
+            let base = vertices.len() as u32;
+            for (su, sw) in [(1.0, 1.0), (-1.0, 1.0), (-1.0, -1.0), (1.0, -1.0)] {
+                let pos = center
+                    + normal * half.dot(axis.abs())
+                    + u * (su * half.dot(u.abs()))
+                    + w * (sw * half.dot(w.abs()));
+                vertices.push(GeometryVertex::new(
+                    pos,
+                    normal,
+                    MaterialRole::TrackMetal,
+                    SmoothingGroup::hard_edges(),
+                ));
+            }
+            indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
+        }
+    }
+    GeometryMesh::new(vertices, indices)
+}
+
 /// The side-profile loop as `(z, y)` points: bottom run, rear wrap, top run, front wrap.
 fn belt_loop(belt: &TrackBeltVisual) -> Vec<Vec2> {
     let (front, rear, axle, r) = (belt.front_z, belt.rear_z, belt.axle_y, belt.radius);

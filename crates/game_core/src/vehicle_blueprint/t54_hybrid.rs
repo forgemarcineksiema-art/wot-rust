@@ -5,8 +5,8 @@
 use glam::Vec3;
 
 use super::{
-    BoxVisual, FenderVisual, GunVisual, HullVisual, HybridVisual, RunningGearVisual, TrackBeltVisual,
-    TurretVisual,
+    BoxVisual, FenderVisual, FittingsVisual, GunVisual, HullPlatesVisual, HullVisual, HybridVisual,
+    RunningGearVisual, TrackBeltVisual, TurretVisual,
 };
 
 pub(super) fn t54_hybrid() -> HybridVisual {
@@ -20,11 +20,21 @@ pub(super) fn t54_hybrid() -> HybridVisual {
             nose_normal: Vec3::new(0.0, -0.5, 1.0),
             nose_offset: 2.55,
         },
+        hull_plates: HullPlatesVisual {
+            glacis_base_z: 2.85,
+            nose_base_z: 2.55,
+            deck_bevel: 0.10,
+            sponson_overhang: 0.23,
+        },
         turret: TurretVisual {
             dome_radius: 0.95,
             dome_front: Vec3::new(0.0, 1.80, 0.28),
-            dome_rear: Vec3::new(0.0, 1.80, -0.32),
+            dome_rear: Vec3::new(0.0, 1.78, -0.34),
+            dome_rear_radius: 0.82,
             dome_blend: 0.60,
+            cheek_radius: 0.52,
+            cheek_center: Vec3::new(0.55, 1.62, 0.70),
+            cheek_blend: 0.38,
             ring_radius: 0.98,
             ring_half_height: 0.30,
             ring_center: Vec3::new(0.0, 1.60, 0.0),
@@ -64,6 +74,7 @@ pub(super) fn t54_hybrid() -> HybridVisual {
             wheel_count: 5,
             first_z: -2.10,
             spacing: 1.05,
+            first_gap: 1.30,
             side_x: 1.5,
         },
         track_belt: TrackBeltVisual {
@@ -76,6 +87,17 @@ pub(super) fn t54_hybrid() -> HybridVisual {
             half_width: 0.22,
             straight_segments: 6,
             arc_segments: 8,
+            link_count: 22,
+        },
+        fittings: FittingsVisual {
+            cupola_hatch_center: Vec3::new(-0.34, 2.30, -0.10),
+            cupola_hatch_radius: 0.20,
+            cupola_hatch_half_height: 0.04,
+            headlight_center: Vec3::new(0.45, 1.10, 1.98),
+            headlight_radius: 0.10,
+            headlight_half_height: 0.07,
+            tow_hook_center: Vec3::new(1.02, 0.32, 2.42),
+            tow_hook_half: Vec3::new(0.12, 0.11, 0.10),
         },
     }
 }

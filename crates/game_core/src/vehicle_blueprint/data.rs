@@ -6,7 +6,9 @@
 //! byte-for-byte unchanged.
 
 use super::t54_hybrid::t54_hybrid;
-use super::{ArmorShape, GunShape, HullShape, TrackShape, TurretForm, TurretShape, VehicleBlueprint};
+use super::{
+    ArmorShape, GunShape, HullShape, TrackShape, TurretForm, TurretShape, VehicleBlueprint,
+};
 use crate::VehicleKind;
 
 pub(super) fn blueprint(kind: VehicleKind) -> Option<VehicleBlueprint> {

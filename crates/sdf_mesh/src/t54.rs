@@ -14,10 +14,23 @@ use sdf::Sdf;
 /// contains only its recessed socket.
 pub fn t54_turret(t: &TurretVisual) -> (Sdf, Vec3, Vec3) {
     // The cast dome is a flattened oval — longer front-to-back than tall — so two offset spheres
-    // smooth-blended read truer than a single ball.
+    // smooth-blended read truer than a single ball. The rear sphere is smaller, tapering the casting
+    // to a lower, narrower bustle behind the ring.
     let dome_front = Sdf::sphere(t.dome_radius).translate(t.dome_front);
-    let dome_rear = Sdf::sphere(t.dome_radius).translate(t.dome_rear);
+    let dome_rear = Sdf::sphere(t.dome_rear_radius).translate(t.dome_rear);
     let dome = dome_front.smooth_union(dome_rear, t.dome_blend);
+
+    // The signature front cheeks: a pair of bulges flanking the mantlet, blended into the dome so the
+    // front mass reads heavier than the tapered rear (the T-54 turret's front-to-rear asymmetry).
+    let cheek_right = Sdf::sphere(t.cheek_radius).translate(t.cheek_center);
+    let cheek_left = Sdf::sphere(t.cheek_radius).translate(Vec3::new(
+        -t.cheek_center.x,
+        t.cheek_center.y,
+        t.cheek_center.z,
+    ));
+    let cheeks = cheek_right.smooth_union(cheek_left, t.cheek_blend);
+    let dome = dome.smooth_union(cheeks, t.cheek_blend);
+
     let ring = Sdf::cylinder(t.ring_radius, t.ring_half_height).translate(t.ring_center);
     let mut body = ring.smooth_union(dome, t.ring_blend);
 

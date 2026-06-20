@@ -10,7 +10,7 @@ use glam::Vec3;
 use vehicle_geometry::{MaterialRole, SmoothingGroup, SubmeshKind};
 
 use crate::description::VehicleDescription;
-use crate::part::{PartShape, VehiclePart};
+use crate::part::{PartLod, PartShape, VehiclePart};
 
 /// LOD0 triangle budget for a detail-tier medium tank — a deliberate per-class budget that replaces
 /// the spike's tight micro-cap. The fully-detailed hybrid T-54 (multi-slope hull, running gear with
@@ -31,16 +31,32 @@ pub fn t54_from_modules(modules: &VehicleModules) -> VehicleDescription {
     let bp = VehicleBlueprint::for_vehicle(kind).expect("T-54 blueprint");
     let v = bp.hybrid().expect("T-54 carries hybrid visual data");
 
-    let hull = VehiclePart {
+    // The hull is decomposed into its real T-54 plates: a narrow lower tub and the wide upper hull
+    // that overhangs it as the sponson. The two-plate front (upper glacis over the tucked nose) and
+    // the sloped sides/rear each carry their blueprint armour angle.
+    let lower_tub = VehiclePart {
         submesh: SubmeshKind::Hull,
         material: MaterialRole::RolledArmor,
         smoothing: SmoothingGroup::hard_edges(),
-        shape: PartShape::Plates(solid::t54_hull_solid(
-            &v.hull,
+        shape: PartShape::Plates(solid::t54_lower_tub(
+            &bp.hull,
+            &v.hull_plates,
+            bp.armor.hull_rear.0,
+        )),
+        lod: PartLod::Silhouette,
+    };
+    let upper_hull = VehiclePart {
+        submesh: SubmeshKind::Hull,
+        material: MaterialRole::RolledArmor,
+        smoothing: SmoothingGroup::hard_edges(),
+        shape: PartShape::Plates(solid::t54_upper_hull(
+            &bp.hull,
+            &v.hull_plates,
             bp.armor.hull_front.0,
             bp.armor.hull_side.0,
             bp.armor.hull_rear.0,
         )),
+        lod: PartLod::Silhouette,
     };
 
     let gear = VehiclePart {
@@ -48,6 +64,7 @@ pub fn t54_from_modules(modules: &VehicleModules) -> VehicleDescription {
         material: MaterialRole::Rubber,
         smoothing: SmoothingGroup(5),
         shape: PartShape::Mesh(revolve::t54_running_gear(&v.running_gear)),
+        lod: PartLod::Silhouette,
     };
 
     let tracks = VehiclePart {
@@ -55,6 +72,25 @@ pub fn t54_from_modules(modules: &VehicleModules) -> VehicleDescription {
         material: MaterialRole::TrackMetal,
         smoothing: SmoothingGroup::hard_edges(),
         shape: PartShape::Mesh(revolve::t54_tracks(&v.track_belt)),
+        lod: PartLod::Silhouette,
+    };
+
+    // The track ends read as distinct mechanisms: a smooth front idler and a faceted rear sprocket.
+    let track_ends = VehiclePart {
+        submesh: SubmeshKind::Hull,
+        material: MaterialRole::TrackMetal,
+        smoothing: SmoothingGroup::hard_edges(),
+        shape: PartShape::Mesh(revolve::t54_track_ends(&v.running_gear, &v.track_belt)),
+        lod: PartLod::Detail,
+    };
+
+    // Link cues along the ground run so the belt reads as tracked links, not a smooth band.
+    let track_links = VehiclePart {
+        submesh: SubmeshKind::Hull,
+        material: MaterialRole::TrackMetal,
+        smoothing: SmoothingGroup::hard_edges(),
+        shape: PartShape::Mesh(revolve::t54_track_link_cues(&v.track_belt)),
+        lod: PartLod::Detail,
     };
 
     let (turret_sdf, min, max) = sdf_mesh::t54_turret(&v.turret);
@@ -63,6 +99,7 @@ pub fn t54_from_modules(modules: &VehicleModules) -> VehicleDescription {
         material: MaterialRole::CastArmor,
         smoothing: SmoothingGroup(2),
         shape: PartShape::Cast { sdf: turret_sdf, min, max, budget: v.turret.budget },
+        lod: PartLod::MountCritical,
     };
 
     // Barrel geometry is driven by the installed gun module — not a post-bake scale of a fixed mesh
@@ -80,6 +117,7 @@ pub fn t54_from_modules(modules: &VehicleModules) -> VehicleDescription {
             revolve::moving_mantlet(trunnion, &v.gun),
             revolve::gun_barrel_between(trunnion, muzzle, &v.gun),
         ])),
+        lod: PartLod::MountCritical,
     };
 
     let deck = VehiclePart {
@@ -87,15 +125,71 @@ pub fn t54_from_modules(modules: &VehicleModules) -> VehicleDescription {
         material: MaterialRole::RolledArmor,
         smoothing: SmoothingGroup::hard_edges(),
         shape: PartShape::Plates(solid::t54_engine_deck(&v.deck)),
+        lod: PartLod::Silhouette,
     };
 
-    let mut parts = vec![hull, gear, tracks, turret, barrel, deck];
+    // Semantic fittings. The cupola hatch rides the turret (so it traverses); the headlight and the
+    // front tow hooks ride the hull. Each is its own part, not anonymous greeble.
+    let f = &v.fittings;
+    let cupola_hatch = VehiclePart {
+        submesh: SubmeshKind::Turret,
+        material: MaterialRole::RolledArmor,
+        smoothing: SmoothingGroup::hard_edges(),
+        shape: PartShape::Mesh(revolve::drum(
+            f.cupola_hatch_center,
+            f.cupola_hatch_radius,
+            f.cupola_hatch_half_height,
+            16,
+            MaterialRole::RolledArmor,
+            SmoothingGroup(2),
+        )),
+        lod: PartLod::Detail,
+    };
+    let headlight = VehiclePart {
+        submesh: SubmeshKind::Hull,
+        material: MaterialRole::RolledArmor,
+        smoothing: SmoothingGroup::hard_edges(),
+        shape: PartShape::Mesh(revolve::drum(
+            f.headlight_center,
+            f.headlight_radius,
+            f.headlight_half_height,
+            12,
+            MaterialRole::RolledArmor,
+            SmoothingGroup(2),
+        )),
+        lod: PartLod::Detail,
+    };
+
+    let mut parts = vec![
+        lower_tub,
+        upper_hull,
+        gear,
+        tracks,
+        track_ends,
+        track_links,
+        turret,
+        barrel,
+        deck,
+        cupola_hatch,
+        headlight,
+    ];
+    for side in [f.tow_hook_center.x, -f.tow_hook_center.x] {
+        let center = Vec3::new(side, f.tow_hook_center.y, f.tow_hook_center.z);
+        parts.push(VehiclePart {
+            submesh: SubmeshKind::Hull,
+            material: MaterialRole::RolledArmor,
+            smoothing: SmoothingGroup::hard_edges(),
+            shape: PartShape::Plates(solid::ConvexSolid::box_at(center, f.tow_hook_half)),
+            lod: PartLod::Detail,
+        });
+    }
     for side in [v.fender.side_x, -v.fender.side_x] {
         parts.push(VehiclePart {
             submesh: SubmeshKind::Hull,
             material: MaterialRole::RolledArmor,
             smoothing: SmoothingGroup::hard_edges(),
             shape: PartShape::Plates(solid::t54_fender(side, &v.fender)),
+            lod: PartLod::Detail,
         });
     }
 
@@ -115,10 +209,15 @@ mod tests {
         let bp = game_core::VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).unwrap();
         let v = bp.hybrid().unwrap();
         let to_bounds = |hull: &game_core::HullVisual| {
-            solid::t54_hull_solid(hull, bp.armor.hull_front.0, bp.armor.hull_side.0, bp.armor.hull_rear.0)
-                .to_mesh(MaterialRole::RolledArmor, SmoothingGroup::hard_edges())
-                .bounds()
-                .expect("non-empty hull")
+            solid::t54_hull_solid(
+                hull,
+                bp.armor.hull_front.0,
+                bp.armor.hull_side.0,
+                bp.armor.hull_rear.0,
+            )
+            .to_mesh(MaterialRole::RolledArmor, SmoothingGroup::hard_edges())
+            .bounds()
+            .expect("non-empty hull")
         };
 
         let plate = to_bounds(&v.hull);
@@ -266,20 +365,37 @@ mod tests {
 
     #[test]
     fn the_hybrid_reduces_through_lod_tiers_within_tiered_budgets() {
-        // Per-LOD budgets (the plan's tiered budgets): the hybrid flows through the existing
-        // reduce_vehicle pipeline and each tier lands under its cap, decimating monotonically.
+        // Per-LOD budgets (the plan's tiered budgets): each tier first drops the parts its policy
+        // excludes (build_lod) then decimates (reduce_vehicle), landing under its cap monotonically.
         use vehicle_geometry::{BakedVehicle, LodLevel, reduce_vehicle};
         const LOD1_BUDGET: usize = 4_000;
         const LOD2_BUDGET: usize = 1_200;
-        let baked = t54_description().build();
+        let d = t54_description();
         let total =
             |v: &BakedVehicle| v.submeshes().iter().map(|s| s.mesh.triangle_count()).sum::<usize>();
-        let lod0 = total(&baked);
-        let lod1 = total(&reduce_vehicle(&baked, LodLevel::Lod1));
-        let lod2 = total(&reduce_vehicle(&baked, LodLevel::Lod2));
+        let lod0 = total(&d.build_lod(LodLevel::Lod0));
+        let lod1 = total(&reduce_vehicle(&d.build_lod(LodLevel::Lod1), LodLevel::Lod1));
+        let lod2 = total(&reduce_vehicle(&d.build_lod(LodLevel::Lod2), LodLevel::Lod2));
         assert!(lod0 > lod1 && lod1 > lod2, "tiers decimate monotonically: {lod0} {lod1} {lod2}");
         assert!(lod1 < LOD1_BUDGET, "LOD1 {lod1} within tier budget {LOD1_BUDGET}");
         assert!(lod2 < LOD2_BUDGET, "LOD2 {lod2} within tier budget {LOD2_BUDGET}");
+    }
+
+    #[test]
+    fn higher_lods_drop_detail_parts_but_keep_silhouette_and_mounts() {
+        // Per-part LOD policy: LOD1 drops the detail fittings and track links (so it has fewer raw
+        // triangles than LOD0 before any decimation), while the turret and gun mount parts survive.
+        use vehicle_geometry::{BakedVehicle, LodLevel};
+        let d = t54_description();
+        let total =
+            |v: &BakedVehicle| v.submeshes().iter().map(|s| s.mesh.triangle_count()).sum::<usize>();
+        let lod0 = d.build_lod(LodLevel::Lod0);
+        let lod1 = d.build_lod(LodLevel::Lod1);
+        assert!(total(&lod1) < total(&lod0), "LOD1 drops detail parts before decimation");
+        assert!(
+            lod1.submesh(SubmeshKind::Turret).is_some() && lod1.submesh(SubmeshKind::Gun).is_some(),
+            "mount-bearing turret and gun survive into LOD1"
+        );
     }
 
     #[test]

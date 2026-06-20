@@ -65,11 +65,22 @@ fn gradient(sdf: &Sdf, p: Vec3) -> Vec3 {
     .normalize_or_zero()
 }
 
-fn emit_quad(indices: &mut Vec<u32>, a: u32, b: u32, c: u32, d: u32) {
+fn emit_quad(indices: &mut Vec<u32>, vertices: &[GeometryVertex], a: u32, b: u32, c: u32, d: u32) {
     if [a, b, c, d].contains(&u32::MAX) {
         return;
     }
-    indices.extend_from_slice(&[a, b, c, a, c, d]);
+    // Orient the quad so its winding agrees with the outward SDF-gradient normals at its corners.
+    // Surface Nets stitches the dual quad without a fixed sense, so without this the winding is
+    // effectively random; aligning it to the gradient gives a consistently outward-wound surface.
+    let p = |i: u32| vertices[i as usize].position;
+    let n = |i: u32| vertices[i as usize].normal;
+    let face = (p(b) - p(a)).cross(p(c) - p(a));
+    let outward = n(a) + n(b) + n(c) + n(d);
+    if face.dot(outward) >= 0.0 {
+        indices.extend_from_slice(&[a, b, c, a, c, d]);
+    } else {
+        indices.extend_from_slice(&[a, c, b, a, d, c]);
+    }
 }
 
 /// Mesh `sdf` over `grid`, tagging every vertex with `material`/`smoothing`.
@@ -136,6 +147,7 @@ pub fn mesh_sdf(
                 if y >= 1 && z >= 1 && inside != (s(x + 1, y, z) < 0.0) {
                     emit_quad(
                         &mut indices,
+                        &vertices,
                         vid(x, y, z),
                         vid(x, y - 1, z),
                         vid(x, y - 1, z - 1),
@@ -145,6 +157,7 @@ pub fn mesh_sdf(
                 if x >= 1 && z >= 1 && inside != (s(x, y + 1, z) < 0.0) {
                     emit_quad(
                         &mut indices,
+                        &vertices,
                         vid(x, y, z),
                         vid(x, y, z - 1),
                         vid(x - 1, y, z - 1),
@@ -154,6 +167,7 @@ pub fn mesh_sdf(
                 if x >= 1 && y >= 1 && inside != (s(x, y, z + 1) < 0.0) {
                     emit_quad(
                         &mut indices,
+                        &vertices,
                         vid(x, y, z),
                         vid(x - 1, y, z),
                         vid(x - 1, y - 1, z),

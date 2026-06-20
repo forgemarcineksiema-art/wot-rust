@@ -8,7 +8,27 @@
 use glam::Vec3;
 use sdf::Sdf;
 use solid::ConvexSolid;
-use vehicle_geometry::{GeometryMesh, MaterialRole, SmoothingGroup, SubmeshKind};
+use vehicle_geometry::{GeometryMesh, LodLevel, MaterialRole, SmoothingGroup, SubmeshKind};
+
+/// How a part survives the LOD tiers. Characteristic silhouette forms are kept (then decimated) at
+/// every tier; mount-bearing parts are always kept so the pose chain survives; detail fittings and
+/// track links are dropped from LOD1 down.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PartLod {
+    Silhouette,
+    MountCritical,
+    Detail,
+}
+
+impl PartLod {
+    /// Whether a part with this policy is present in the given LOD tier.
+    pub fn kept_at(self, lod: LodLevel) -> bool {
+        match lod {
+            LodLevel::Lod0 => true,
+            LodLevel::Lod1 | LodLevel::Lod2 => self != PartLod::Detail,
+        }
+    }
+}
 
 /// How a part's geometry is generated.
 pub enum PartShape {
@@ -26,6 +46,7 @@ pub struct VehiclePart {
     pub material: MaterialRole,
     pub smoothing: SmoothingGroup,
     pub shape: PartShape,
+    pub lod: PartLod,
 }
 
 impl VehiclePart {

@@ -25,9 +25,9 @@ pub use modules::{
 pub use mount::{MountFrame, MountFrames};
 pub use tank::{HitboxProfile, TankSpec};
 pub use vehicle_blueprint::{
-    ArmorShape, BoxVisual, FenderVisual, GunShape, GunVisual, HullShape, HullVisual, HybridVisual,
-    RunningGearVisual, TrackBeltVisual, TrackShape, TurretForm, TurretShape, TurretVisual,
-    VehicleBlueprint,
+    ArmorShape, BoxVisual, FenderVisual, FittingsVisual, GunShape, GunVisual, HullPlatesVisual,
+    HullShape, HullVisual, HybridVisual, RunningGearVisual, TrackBeltVisual, TrackShape,
+    TurretForm, TurretShape, TurretVisual, VehicleBlueprint,
 };
 pub use vehicle_kind::VehicleKind;
 pub use vehicles::known_tank_specs;
