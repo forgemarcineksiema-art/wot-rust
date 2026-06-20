@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use vehicle_geometry::{BakedVehicle, bake_vehicle, reduce_vehicle};
 
-use crate::{RatioReport, ReferencePack};
+use crate::RatioReport;
 
 mod bake_profile;
 mod load;
@@ -125,15 +125,16 @@ pub struct ForgeArtifact {
 
 impl ForgeArtifact {
     pub fn bake(vehicle: VehicleKind, profile: BakeProfile) -> Result<Self, ArtifactError> {
-        let baked = reduce_vehicle(&bake_vehicle(vehicle)?, profile.lod_level());
-        let reference = ReferencePack::for_vehicle(vehicle)
+        let spec = crate::registry::forge_spec(vehicle)
             .ok_or(ArtifactError::MissingReferencePack(vehicle))?;
+        let baked = reduce_vehicle(&bake_vehicle(vehicle)?, profile.lod_level());
+        let reference = (spec.reference_pack)();
         let report = reference
             .measure_baked_vehicle(&baked)
             .ok_or(ArtifactError::RatioReportRejected(vehicle))?;
         let mesh_payload = mesh_payload::encode(&baked)?;
         let texture_maps = texture_maps::bake_default_set()?;
-        let review_cameras = ReviewCameraSet::standard_vehicle_review();
+        let review_cameras = (spec.review_cameras)();
         let review_images = review_images::bake_review_images(&baked, &review_cameras)?;
         let manifest = ForgeArtifactManifest {
             vehicle,

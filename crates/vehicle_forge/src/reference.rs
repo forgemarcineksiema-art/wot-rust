@@ -109,16 +109,10 @@ impl ReferencePack {
         }
     }
 
+    /// The reference pack for `kind`, resolved through the central forge registry so the pack, the
+    /// part-graph strategy, and the review cameras all stay registered in one place.
     pub fn for_vehicle(kind: VehicleKind) -> Option<Self> {
-        match kind {
-            VehicleKind::T54_1951 => Some(crate::t54_reference_pack()),
-            VehicleKind::T55A => None,
-            VehicleKind::TigerI => Some(crate::tiger_i_reference_pack()),
-            VehicleKind::TigerII => Some(crate::tiger_ii_reference_pack()),
-            VehicleKind::Jagdtiger => Some(crate::jagdtiger_reference_pack()),
-            VehicleKind::PantherII => Some(crate::panther_ii_reference_pack()),
-            VehicleKind::PrototypeMedium => None,
-        }
+        Some((crate::registry::forge_spec(kind)?.reference_pack)())
     }
 
     pub fn family_slug(&self) -> &str {

@@ -9,11 +9,11 @@ pub enum ReviewCamera {
     RightProfile,
     Top,
     BattleOblique,
-    T54CloseFront,
-    T54RunningGear,
-    T54TurretMantlet,
-    T54TopPlan,
-    T54BattleClose,
+    CloseFront,
+    RunningGear,
+    TurretMantlet,
+    TopPlan,
+    BattleClose,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -49,11 +49,11 @@ impl ReviewCameraSpec {
             ReviewCamera::RightProfile => "right_profile.png",
             ReviewCamera::Top => "top.png",
             ReviewCamera::BattleOblique => "battle_oblique.png",
-            ReviewCamera::T54CloseFront => "t54_close_front.png",
-            ReviewCamera::T54RunningGear => "t54_running_gear.png",
-            ReviewCamera::T54TurretMantlet => "t54_turret_mantlet.png",
-            ReviewCamera::T54TopPlan => "t54_top_plan.png",
-            ReviewCamera::T54BattleClose => "t54_battle_close.png",
+            ReviewCamera::CloseFront => "close_front.png",
+            ReviewCamera::RunningGear => "running_gear.png",
+            ReviewCamera::TurretMantlet => "turret_mantlet.png",
+            ReviewCamera::TopPlan => "top_plan.png",
+            ReviewCamera::BattleClose => "battle_close.png",
         }
     }
 }
@@ -64,27 +64,41 @@ pub struct ReviewCameraSet {
 }
 
 impl ReviewCameraSet {
+    /// The generic review set every vehicle gets: the six all-round silhouette views. Families that
+    /// need closer scrutiny extend this; see [`ReviewCameraSet::t54_benchmark_review`].
     pub fn standard_vehicle_review() -> Self {
-        Self {
-            cameras: vec![
-                camera(ReviewCamera::Front, 0.0, -6.0, 1.45),
-                camera(ReviewCamera::Rear, 180.0, -6.0, 1.45),
-                camera(ReviewCamera::LeftProfile, -90.0, -4.0, 1.55),
-                camera(ReviewCamera::RightProfile, 90.0, -4.0, 1.55),
-                camera(ReviewCamera::Top, 0.0, -82.0, 1.70),
-                camera(ReviewCamera::BattleOblique, 35.0, -12.0, 1.35),
-                camera(ReviewCamera::T54CloseFront, 0.0, -5.0, 0.82),
-                camera(ReviewCamera::T54RunningGear, 90.0, -7.0, 0.88),
-                camera(ReviewCamera::T54TurretMantlet, 0.0, -12.0, 0.70),
-                camera(ReviewCamera::T54TopPlan, 0.0, -86.0, 1.10),
-                camera(ReviewCamera::T54BattleClose, 35.0, -10.0, 0.90),
-            ],
-        }
+        Self { cameras: base_cameras() }
+    }
+
+    /// The T-54 benchmark set: the generic views plus five close-up regression views (running gear,
+    /// mantlet, top plan, battle close) that lock the forge's reference vehicle in extra detail.
+    pub fn t54_benchmark_review() -> Self {
+        let mut cameras = base_cameras();
+        cameras.extend([
+            camera(ReviewCamera::CloseFront, 0.0, -5.0, 0.82),
+            camera(ReviewCamera::RunningGear, 90.0, -7.0, 0.88),
+            camera(ReviewCamera::TurretMantlet, 0.0, -12.0, 0.70),
+            camera(ReviewCamera::TopPlan, 0.0, -86.0, 1.10),
+            camera(ReviewCamera::BattleClose, 35.0, -10.0, 0.90),
+        ]);
+        Self { cameras }
     }
 
     pub fn cameras(&self) -> &[ReviewCameraSpec] {
         &self.cameras
     }
+}
+
+/// The six all-round silhouette cameras shared by every review set.
+fn base_cameras() -> Vec<ReviewCameraSpec> {
+    vec![
+        camera(ReviewCamera::Front, 0.0, -6.0, 1.45),
+        camera(ReviewCamera::Rear, 180.0, -6.0, 1.45),
+        camera(ReviewCamera::LeftProfile, -90.0, -4.0, 1.55),
+        camera(ReviewCamera::RightProfile, 90.0, -4.0, 1.55),
+        camera(ReviewCamera::Top, 0.0, -82.0, 1.70),
+        camera(ReviewCamera::BattleOblique, 35.0, -12.0, 1.35),
+    ]
 }
 
 fn camera(
