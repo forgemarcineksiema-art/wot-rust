@@ -51,7 +51,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Err(error) = catalog.load_forge_artifact_tree("target/forge") {
         eprintln!("note: no Forge artifacts loaded ({error}); using neutral material");
     }
-    let objects = tank_vehicle_render_objects(&mut catalog, &snapshot, [0.34, 0.42, 0.30]);
+    let objects = tank_vehicle_render_objects(&mut catalog, &snapshot, [0.72, 0.76, 0.62]);
     let render_frame = render_frame_from_objects(objects);
 
     // A close, slightly raised right-profile camera that frames the whole hull and running gear.
@@ -71,7 +71,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let ctx = GpuContext::headless()?;
     let target = OffscreenTarget::new(&ctx, width, height)?;
     let mut renderer = SceneRenderer::for_offscreen(&ctx, &terrain_vertices, &terrain_indices)?;
-    renderer.scene_tint = [1.18, 1.0, 0.78];
+    renderer.scene_tint = [1.0, 1.0, 1.0];
     for (handle, mesh) in catalog.take_pending_vehicle_meshes() {
         renderer.register_vehicle_mesh(&ctx, handle, &mesh);
     }

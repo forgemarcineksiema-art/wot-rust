@@ -68,7 +68,7 @@ fn bake_map(
     channels: &str,
     pixel: fn(u32, u32) -> [u8; 4],
 ) -> Result<BakedTextureMap, io::Error> {
-    const SIZE: u32 = 256;
+    const SIZE: u32 = 512;
     let mut rgba = Vec::with_capacity((SIZE * SIZE * 4) as usize);
     for y in 0..SIZE {
         for x in 0..SIZE {
@@ -95,30 +95,43 @@ fn encode_png(width: u32, height: u32, rgba: &[u8]) -> Result<Vec<u8>, io::Error
 }
 
 fn albedo_pixel(x: u32, y: u32) -> [u8; 4] {
-    let band = y / 7;
-    let chip = ((x / 4 + y / 4) % 2) as u8 * 6;
-    match band {
-        0 => [112 + chip, 118 + chip, 104 + chip, 255],
-        1 => [94 + chip, 99 + chip, 92 + chip, 255],
-        2 => [42 + chip, 43 + chip, 40 + chip, 255],
-        3 => [24 + chip, 23 + chip, 22 + chip, 255],
-        _ => [12 + chip, 12 + chip, 13 + chip, 255],
-    }
+    let variation = grain(x, y, 5);
+    [174 + variation, 183 + variation, 153 + variation, 255]
 }
 
 fn normal_pixel(x: u32, y: u32) -> [u8; 4] {
-    let seam = if x.is_multiple_of(8) || y.is_multiple_of(8) { 6 } else { 0 };
-    [128 + seam, 128, 255_u8.saturating_sub(seam / 2), 255]
+    let variation = grain(x, y, 2);
+    [128 + variation, 128 + variation / 2, 255, 255]
 }
 
 fn ao_pixel(x: u32, y: u32) -> [u8; 4] {
-    let recess = if x < 6 || y > 24 { 42 } else { 0 };
-    let roughness = 155 + ((x + y) % 18) as u8;
-    [220_u8.saturating_sub(recess), roughness, 18, 255]
+    let variation = grain(x, y, 4);
+    [238 - variation, 174 + variation, 18, 255]
 }
 
 fn cavity_pixel(x: u32, y: u32) -> [u8; 4] {
-    let line = if x.is_multiple_of(8) || y.is_multiple_of(8) { 86 } else { 0 };
-    let value = 226_u8.saturating_sub(line);
+    let value = 238 - grain(x, y, 3);
     [value, value, value, 255]
+}
+
+fn grain(x: u32, y: u32, amplitude: u8) -> u8 {
+    let mut value = x.wrapping_mul(1_103_515_245) ^ y.wrapping_mul(12_345);
+    value ^= value >> 16;
+    (value % (u32::from(amplitude) + 1)) as u8
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn forge_maps_are_clean_512px_material_inputs() {
+        let maps = bake_default_set().expect("maps bake");
+        for map in maps {
+            let decoder = png::Decoder::new(std::io::Cursor::new(map.bytes()));
+            let reader = decoder.read_info().expect("png header");
+            assert_eq!(reader.info().width, 512);
+            assert_eq!(reader.info().height, 512);
+        }
+    }
 }

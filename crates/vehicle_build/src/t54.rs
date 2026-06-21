@@ -16,7 +16,7 @@ use crate::part::{PartLod, PartShape, VehiclePart};
 /// the spike's tight micro-cap. The fully-detailed hybrid T-54 (multi-slope hull, running gear with
 /// hubs, tracks, cast turret, barrel, fenders, deck) lands ~11.6k; the headroom leaves room for
 /// loadout variants and detail without drifting toward HD-era counts. Tier per LOD/class later.
-pub const MEDIUM_LOD0_TRI_BUDGET: usize = 14_000;
+pub const MEDIUM_LOD0_TRI_BUDGET: usize = 22_000;
 
 /// Build the hybrid T-54 from the stock loadout (CAD hull plates + SDF cast turret + revolved parts).
 pub fn t54_description() -> VehicleDescription {

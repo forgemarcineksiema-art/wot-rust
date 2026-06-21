@@ -38,6 +38,10 @@ pub(super) struct GarageState {
     dragging: bool,
 }
 
+const HERO_ORBIT_YAW: f32 = 0.60;
+const HERO_ORBIT_PITCH: f32 = 0.28;
+const HERO_ORBIT_DISTANCE: f32 = 11.5;
+
 impl Default for GarageState {
     fn default() -> Self {
         Self {
@@ -45,9 +49,9 @@ impl Default for GarageState {
             started: false,
             selected_index: 0,
             draft: LoadoutDraft::for_vehicle(VehicleKind::PLAYABLE[0]),
-            orbit_yaw: 2.4,
-            orbit_pitch: 0.12,
-            orbit_distance: 12.0,
+            orbit_yaw: HERO_ORBIT_YAW,
+            orbit_pitch: HERO_ORBIT_PITCH,
+            orbit_distance: HERO_ORBIT_DISTANCE,
             cursor_clip: [2.0, 2.0],
             dragging: false,
         }
@@ -89,6 +93,7 @@ impl GarageState {
             self.selected_index = index;
             // A different vehicle starts from its own stock loadout, ammo, and crew.
             self.draft = LoadoutDraft::for_vehicle(self.selected_vehicle());
+            self.restore_hero_framing();
         }
     }
 
@@ -96,6 +101,12 @@ impl GarageState {
         let len = VehicleKind::PLAYABLE.len() as isize;
         let index = (self.selected_index as isize + delta).rem_euclid(len) as usize;
         self.select_index(index);
+    }
+
+    fn restore_hero_framing(&mut self) {
+        self.orbit_yaw = HERO_ORBIT_YAW;
+        self.orbit_pitch = HERO_ORBIT_PITCH;
+        self.orbit_distance = HERO_ORBIT_DISTANCE;
     }
 
     pub(super) fn cycle_module(&mut self, slot: FitSlot, dir: isize) {
@@ -180,6 +191,22 @@ mod tests {
         garage.select_vehicle(VehicleKind::T55A);
 
         assert_eq!(garage.selected_vehicle(), VehicleKind::T54_1951);
+    }
+
+    #[test]
+    fn selecting_a_vehicle_restores_the_safe_inspection_framing() {
+        let mut garage = GarageState {
+            orbit_yaw: -1.0,
+            orbit_pitch: 1.0,
+            orbit_distance: 6.0,
+            ..Default::default()
+        };
+
+        garage.select_index(1);
+
+        assert_eq!(garage.orbit_yaw, 0.60);
+        assert_eq!(garage.orbit_pitch, 0.28);
+        assert_eq!(garage.orbit_distance, 11.5);
     }
 
     #[test]

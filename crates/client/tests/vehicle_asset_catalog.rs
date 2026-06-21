@@ -96,11 +96,11 @@ fn loaded_forge_artifact_queues_decoded_material_maps_for_gpu_upload() {
 
     assert_eq!(materials.len(), 1, "one vehicle should queue one material upload");
     let (_, maps) = &materials[0];
-    // The baked maps are 256x256 RGBA8; decoding must preserve dimensions and tight packing.
+    // The baked maps are 512x512 RGBA8; decoding must preserve dimensions and tight packing.
     for map in [maps.albedo(), maps.normal(), maps.ao_roughness()] {
-        assert_eq!(map.width(), 256);
-        assert_eq!(map.height(), 256);
-        assert_eq!(map.rgba().len(), 256 * 256 * 4);
+        assert_eq!(map.width(), 512);
+        assert_eq!(map.height(), 512);
+        assert_eq!(map.rgba().len(), 512 * 512 * 4);
     }
     assert!(maps.cavity().is_some(), "T-54 bake includes a cavity map");
     // A second take is empty — uploads are drained, not duplicated.
