@@ -8,7 +8,7 @@ use client::{
 };
 use game_core::{TankId, TeamId, VehicleKind};
 use net::TankSnapshot;
-use renderer_api::{Camera, CameraProjectionPolicy, view_projection_matrix};
+use renderer_api::{Camera, CameraProjectionPolicy, SceneLighting, view_projection_matrix};
 use renderer_wgpu::{GpuContext, OffscreenTarget, SceneRenderer};
 use terrain::prokhorovka_hill_252_2;
 
@@ -71,7 +71,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let ctx = GpuContext::headless()?;
     let target = OffscreenTarget::new(&ctx, width, height)?;
     let mut renderer = SceneRenderer::for_offscreen(&ctx, &terrain_vertices, &terrain_indices)?;
-    renderer.scene_tint = [1.0, 1.0, 1.0];
+    renderer.scene_lighting = SceneLighting::garage_studio();
     for (handle, mesh) in catalog.take_pending_vehicle_meshes() {
         renderer.register_vehicle_mesh(&ctx, handle, &mesh);
     }
@@ -79,7 +79,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         renderer.register_vehicle_material(&ctx, handle, &maps);
     }
     renderer.set_vehicle_render_frame(&ctx, &render_frame);
-    renderer.render(&ctx, target.render_target(), view_proj)?;
+    renderer.render(&ctx, target.render_target(), view_proj, camera.eye)?;
 
     let pixels = target.read_rgba8(&ctx)?;
     let file = File::create(&path)?;

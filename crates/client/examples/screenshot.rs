@@ -79,7 +79,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         width as f32 / height as f32,
     );
     renderer.set_hud(&ctx, &hud);
-    renderer.render(&ctx, target.render_target(), view_proj)?;
+    renderer.render(&ctx, target.render_target(), view_proj, camera.eye)?;
 
     let pixels = target.read_rgba8(&ctx)?;
     let file = File::create(&path)?;

@@ -119,7 +119,7 @@ impl ClientApp {
         renderer.set_vehicle_render_frame(&vehicle_frame);
         renderer.set_dynamic_mesh(&vertices, &indices);
         renderer.set_hud(&hud);
-        if let Err(error) = renderer.render(view_proj) {
+        if let Err(error) = renderer.render(view_proj, camera.eye) {
             error!(%error, "frame render failed");
         }
     }

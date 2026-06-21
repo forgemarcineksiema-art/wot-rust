@@ -1,7 +1,7 @@
 use renderer_api::RenderError;
 
 use crate::scene_target::{SceneRenderTarget, store_op_for_target};
-use crate::{CameraUniform, GpuContext, GpuMat4, encode_camera_uniform};
+use crate::{CameraUniform, GpuContext, encode_camera_uniform};
 
 impl super::SceneRenderer {
     pub fn render(
@@ -9,6 +9,7 @@ impl super::SceneRenderer {
         ctx: &GpuContext,
         target: SceneRenderTarget<'_>,
         view_proj: [[f32; 4]; 4],
+        camera_pos: [f32; 3],
     ) -> Result<(), RenderError> {
         if target.sample_count != self.sample_count {
             return Err(RenderError::new(format!(
@@ -16,12 +17,7 @@ impl super::SceneRenderer {
                 self.sample_count, target.sample_count
             )));
         }
-        let camera = CameraUniform {
-            view_proj: GpuMat4(view_proj),
-            tint_r: self.scene_tint[0],
-            tint_g: self.scene_tint[1],
-            tint_b: self.scene_tint[2],
-        };
+        let camera = CameraUniform::from_scene(view_proj, camera_pos, &self.scene_lighting);
         ctx.queue.write_buffer(&self.camera_buffer, 0, &encode_camera_uniform(&camera)?);
 
         let mut encoder =

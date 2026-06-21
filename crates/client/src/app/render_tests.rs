@@ -166,7 +166,7 @@ fn new_app_scene_matches_the_renderer_terrain_so_the_first_garage_frame_swaps_in
 #[test]
 #[ignore = "visual preview: writes target/garage_preview.png"]
 fn render_garage_preview_png() {
-    use renderer_api::{CameraProjectionPolicy, view_projection_matrix};
+    use renderer_api::{CameraProjectionPolicy, SceneLighting, view_projection_matrix};
     use renderer_wgpu::{GpuContext, OffscreenTarget, SceneRenderer};
     use std::fs::File;
     use std::io::BufWriter;
@@ -226,7 +226,7 @@ fn render_garage_preview_png() {
     let target = OffscreenTarget::new(&ctx, width, height).expect("offscreen target");
     let mut renderer =
         SceneRenderer::for_offscreen(&ctx, &terrain_vertices, &terrain_indices).expect("renderer");
-    renderer.scene_tint = [1.18, 1.0, 0.78];
+    renderer.scene_lighting = SceneLighting::garage_studio();
     let (font_w, font_h, font_coverage) = crate::hud_font_atlas();
     renderer.set_hud_font_atlas(&ctx, font_w, font_h, font_coverage);
     for (handle, mesh) in catalog.take_pending_vehicle_meshes() {
@@ -237,7 +237,7 @@ fn render_garage_preview_png() {
     }
     renderer.set_vehicle_render_frame(&ctx, &render_frame);
     renderer.set_hud(&ctx, &garage.overlay_vertices(aspect));
-    renderer.render(&ctx, target.render_target(), view_proj).expect("render");
+    renderer.render(&ctx, target.render_target(), view_proj, camera.eye).expect("render");
 
     let pixels = target.read_rgba8(&ctx).expect("read pixels");
     let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/garage_preview.png");

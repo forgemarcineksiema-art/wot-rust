@@ -56,7 +56,12 @@ fn scene_renderer_draws_registered_mesh_from_render_frame_transform() {
         },
     );
     renderer
-        .render(&ctx, target.render_target(), view_projection_matrix(&camera, 1.0, 0.1, 20.0))
+        .render(
+            &ctx,
+            target.render_target(),
+            view_projection_matrix(&camera, 1.0, 0.1, 20.0),
+            camera.eye,
+        )
         .expect("render frame");
 
     let pixels = target.read_rgba8(&ctx).expect("readback");

@@ -6,7 +6,7 @@ use std::time::Instant;
 
 use game_core::{TankId, TeamId, VehicleKind};
 use net::TankSnapshot;
-use renderer_api::{CameraProjectionPolicy, RenderFrame, view_projection_matrix};
+use renderer_api::{CameraProjectionPolicy, RenderFrame, SceneLighting, view_projection_matrix};
 use renderer_wgpu::WindowRenderer;
 use tracing::error;
 
@@ -64,7 +64,7 @@ impl ClientApp {
         renderer.set_vehicle_render_frame(&render_frame);
         renderer.set_dynamic_mesh(&[], &[]);
         renderer.set_hud(&hud);
-        if let Err(error) = renderer.render(view_proj) {
+        if let Err(error) = renderer.render(view_proj, camera.eye) {
             error!(%error, "garage frame render failed");
         }
     }
@@ -75,21 +75,22 @@ impl ClientApp {
         if self.current_scene == want {
             return;
         }
-        let (vertices, indices, sky, tint) = match want {
+        let (vertices, indices, sky, lighting) = match want {
             SceneKind::Garage => {
                 let (v, i) = crate::garage_scene::hangar_scene_mesh();
-                // A neutral studio result keeps the vehicle's olive material readable.
-                (v, i, (0.07, 0.05, 0.04), [1.0, 1.0, 1.0])
+                // A calibrated studio key/fill/rim keeps the vehicle's olive material readable
+                // without casting colour over the whole scene.
+                (v, i, (0.07, 0.05, 0.04), SceneLighting::garage_studio())
             }
             SceneKind::Battle => {
                 let (v, i) = battlefield_scene_mesh(&self.battlefield);
-                (v, i, (0.55, 0.69, 0.87), [1.0, 1.0, 1.0])
+                (v, i, (0.55, 0.69, 0.87), SceneLighting::battlefield_default())
             }
         };
         if let Some(renderer) = self.renderer.as_mut() {
             renderer.set_terrain(&vertices, &indices);
             renderer.set_sky(sky.0, sky.1, sky.2);
-            renderer.set_scene_tint(tint);
+            renderer.set_scene_lighting(lighting);
             self.current_scene = want;
         }
     }
