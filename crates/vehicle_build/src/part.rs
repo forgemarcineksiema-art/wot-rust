@@ -10,6 +10,11 @@ use sdf::Sdf;
 use solid::ConvexSolid;
 use vehicle_geometry::{GeometryMesh, LodLevel, MaterialRole, SmoothingGroup, SubmeshKind};
 
+/// A stable semantic identity for a part or attachment, independent of merged-mesh vertex indices.
+/// Anchors and the Forge graph key off this, so a part keeps its identity across LOD and bakes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct PartKey(pub &'static str);
+
 /// How a part survives the LOD tiers. Characteristic silhouette forms are kept (then decimated) at
 /// every tier; mount-bearing parts are always kept so the pose chain survives; detail fittings and
 /// track links are dropped from LOD1 down.

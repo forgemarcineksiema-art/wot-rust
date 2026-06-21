@@ -7,13 +7,15 @@
 //! `[[geometry-foundation-pivot]]` in project notes. Round parts (barrel, road wheels via a Revolve
 //! generator) and the track belt slot in here next.
 
+mod attachment;
 mod description;
 mod part;
 mod t54;
 mod t54_details;
 mod t54_turret_loft;
 
+pub use attachment::{SurfaceAttachment, t54_attachments};
 pub use description::VehicleDescription;
-pub use part::{PartLod, PartShape, VehiclePart};
+pub use part::{PartKey, PartLod, PartShape, VehiclePart};
 pub use t54::{MEDIUM_LOD0_TRI_BUDGET, t54_description, t54_from_modules};
 pub use t54_turret_loft::t54_turret_loft;
