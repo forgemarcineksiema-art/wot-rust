@@ -7,7 +7,7 @@ use glam::Vec3;
 
 use super::{
     BoxVisual, DetailVisual, FenderVisual, FittingsVisual, GunVisual, HullPlatesVisual, HullVisual,
-    HybridVisual, RunningGearVisual, TrackBeltVisual, TurretVisual,
+    HybridVisual, LoftStation, RunningGearVisual, TrackBeltVisual, TurretLoftVisual, TurretVisual,
 };
 
 pub(super) fn t54_hybrid() -> HybridVisual {
@@ -28,22 +28,30 @@ pub(super) fn t54_hybrid() -> HybridVisual {
             sponson_overhang: 0.23,
         },
         turret: TurretVisual {
-            dome_radius: 0.95,
-            dome_front: Vec3::new(0.0, 1.67, 0.06),
-            // The rear bustle is narrowed (smaller, pulled-back rear sphere) so the casting tapers to
-            // a low, slim tail behind the ring — the front mass reads heavier than the rear.
-            dome_rear: Vec3::new(0.0, 1.64, -0.30),
-            dome_rear_radius: 0.70,
-            dome_blend: 0.45,
-            // Fuller, further-forward front cheeks flanking the mantlet: the T-54 turret's signature
-            // heavy cast front mass, kept within the turret plan (the dome already fills the width).
-            cheek_radius: 0.49,
-            cheek_center: Vec3::new(0.48, 1.56, 0.56),
-            cheek_blend: 0.40,
-            ring_radius: 0.90,
+            // The cast dome bulges LOW and wide: the sphere centre sits just above the ring (not high
+            // in the band), so the widest cross-section overhangs the ring and the casting necks back
+            // in toward the flat roof — the flattened "river-stone" T-54 pancake, not a tall round
+            // pot. The wider radius (>ring_radius) is what gives the signature ring overhang/undercut.
+            dome_radius: 0.91,
+            dome_front: Vec3::new(0.0, 1.44, 0.10),
+            // The rear bustle is a low, broad lobe reaching back behind the ring: a sphere set low
+            // gives the casting a heavy overhanging tail rather than a narrow tapered tip.
+            dome_rear: Vec3::new(0.0, 1.42, -0.27),
+            dome_rear_radius: 0.74,
+            dome_blend: 0.50,
+            // Fuller, further-forward front cheeks flanking the mantlet at gun height: the T-54
+            // turret's signature heavy cast front mass, fused into the dome with a wide blend so the
+            // front reads as one continuous casting, not a separate ball stuck on the face.
+            cheek_radius: 0.50,
+            cheek_center: Vec3::new(0.42, 1.50, 0.52),
+            cheek_blend: 0.52,
+            // The ring is narrowed below the dome so the wider low cast dome visibly overhangs it —
+            // the signature Soviet undercut — while the dome itself stays inside the ±1.00 turret
+            // plan. (Visual ring only; the gameplay turret-ring radius lives in `TurretShape`.)
+            ring_radius: 0.85,
             ring_half_height: 0.18,
             ring_center: Vec3::new(0.0, 1.48, 0.0),
-            ring_blend: 0.32,
+            ring_blend: 0.30,
             roof_plane_y: 1.86,
             ring_plane_y: 1.30,
             cupola_radius: 0.24,
@@ -58,6 +66,80 @@ pub(super) fn t54_hybrid() -> HybridVisual {
             bbox_min: Vec3::new(-1.20, 1.25, -1.20),
             bbox_max: Vec3::new(1.20, 2.00, 1.45),
             budget: 12_000,
+        },
+        // The lofted cast turret: stations from the ring seat (1.30) up to the flat roof (1.86),
+        // widest LOW (station 2) for the ring overhang, front-heavy (front > rear half-length) with a
+        // rear-pulled bustle (negative z_center climbing with height), necking into the flat roof.
+        // All within the ±1.00 / ±1.04 turret plan. Cheeks and the front gun embrasure ride as
+        // localized radial modulations of the one surface.
+        turret_loft: TurretLoftVisual {
+            stations: [
+                LoftStation {
+                    y: 1.30,
+                    half_width: 0.84,
+                    half_len_front: 0.90,
+                    half_len_rear: 0.90,
+                    z_center: 0.00,
+                },
+                LoftStation {
+                    y: 1.40,
+                    half_width: 0.91,
+                    half_len_front: 0.98,
+                    half_len_rear: 0.94,
+                    z_center: -0.02,
+                },
+                LoftStation {
+                    y: 1.50,
+                    half_width: 0.90,
+                    half_len_front: 0.98,
+                    half_len_rear: 0.88,
+                    z_center: -0.03,
+                },
+                LoftStation {
+                    y: 1.60,
+                    half_width: 0.84,
+                    half_len_front: 0.92,
+                    half_len_rear: 0.80,
+                    z_center: -0.05,
+                },
+                LoftStation {
+                    y: 1.70,
+                    half_width: 0.74,
+                    half_len_front: 0.84,
+                    half_len_rear: 0.66,
+                    z_center: -0.08,
+                },
+                LoftStation {
+                    y: 1.80,
+                    half_width: 0.60,
+                    half_len_front: 0.72,
+                    half_len_rear: 0.52,
+                    z_center: -0.11,
+                },
+                LoftStation {
+                    y: 1.86,
+                    half_width: 0.48,
+                    half_len_front: 0.60,
+                    half_len_rear: 0.42,
+                    z_center: -0.12,
+                },
+            ],
+            exponent: 2.8,
+            segments: 64,
+            roof_apex: Vec3::new(0.0, 1.865, -0.06),
+            floor_apex: Vec3::new(0.0, 1.30, 0.0),
+            cheek_amount: 0.10,
+            cheek_azimuth: 0.70,
+            cheek_y: 1.48,
+            cheek_az_width: 0.42,
+            cheek_y_width: 0.18,
+            embrasure_amount: -0.10,
+            embrasure_y: 1.54,
+            embrasure_az_width: 0.50,
+            embrasure_y_width: 0.18,
+            cupola_center: Vec3::new(-0.34, 1.86, -0.10),
+            cupola_radius: 0.24,
+            cupola_half_height: 0.11,
         },
         gun: GunVisual {
             barrel_radius: 0.09,
@@ -76,7 +158,10 @@ pub(super) fn t54_hybrid() -> HybridVisual {
                 (0.28, 0.16),
             ],
             mantlet_segments: 20,
-            mantlet_scale: Vec3::new(1.45, 0.72, 1.0),
+            // Taller in Y than before so the mask fully overlaps the embrasure mouth through the
+            // whole elevation arc (no exposed socket above/below the gun), while staying clearly
+            // wider than tall — the flat cast oval, not a round ball.
+            mantlet_scale: Vec3::new(1.45, 0.86, 1.0),
             module_delta_scale: 0.65,
         },
         deck: BoxVisual { center: Vec3::new(0.0, 1.25, -1.75), half: Vec3::new(1.30, 0.06, 0.95) },

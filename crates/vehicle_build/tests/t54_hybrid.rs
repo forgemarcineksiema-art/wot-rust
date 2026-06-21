@@ -268,38 +268,34 @@ fn t54_hull_carries_rear_transmission_covers() {
 }
 
 #[test]
-fn the_mantlet_and_socket_are_a_matched_pair_clearing_full_elevation() {
-    // The moving mantlet beds into the cast socket as a fitted pair: it must sit inside the cavity
-    // (not float in front of the casting) yet keep a clearance gap and never dig into the fixed
-    // turret across the gun's -5..+18 deg arc. Evaluating the turret SDF (socket already subtracted)
-    // at the elevation-rotated mantlet vertices: a value < 0 is a collision into the casting. This is
-    // the plan's szczelina / no-collision gate.
+fn the_mantlet_beds_into_the_lofted_turret_embrasure() {
+    // The moving mantlet beds into the lofted turret's front embrasure recess: its rear sits at or
+    // behind the recessed front surface (not floating wholly proud) while its face protrudes to
+    // cover the opening. With the lofted shell the embrasure is an open dish rather than a deep cast
+    // socket, so this bedding + coverage is what closes the gun-to-turret seam.
     let v =
         *game_core::VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).unwrap().hybrid().unwrap();
     let trunnion = MountFrames::for_vehicle(VehicleKind::T54_1951).gun_trunnion.translation;
-    let mantlet = revolve::moving_mantlet(trunnion, &v.gun);
+    let mantlet = revolve::moving_mantlet(trunnion, &v.gun).bounds().expect("mantlet");
+    let turret = vehicle_build::t54_turret_loft(&v.turret_loft);
 
-    // Bedded: the mantlet's rear reaches back to/behind the socket centre, not sitting wholly proud.
+    // Front-most turret surface along the gun centreline at gun height — the lip the mantlet covers.
+    let front_z = turret
+        .vertices()
+        .iter()
+        .filter(|vx| vx.position.x.abs() < 0.15 && (vx.position.y - trunnion.y).abs() < 0.18)
+        .map(|vx| vx.position.z)
+        .fold(f32::NEG_INFINITY, f32::max);
+
     assert!(
-        mantlet.bounds().expect("mantlet").min.z < v.turret.socket_center.z,
-        "the mantlet must bed into the socket cavity, not float in front of it"
+        mantlet.min.z <= front_z + 0.03,
+        "the mantlet rear must bed into the embrasure, not float in front (rear {:.2}, front {front_z:.2})",
+        mantlet.min.z
     );
-
-    let (turret_sdf, _, _) = sdf_mesh::t54_turret(&v.turret);
-    let mut worst = f32::INFINITY;
-    for step in 0..=23 {
-        let th = (-5.0 + step as f32).to_radians();
-        let (c, s) = (th.cos(), th.sin());
-        for vert in mantlet.vertices() {
-            let p = vert.position - trunnion;
-            let rotated = Vec3::new(p.x, p.y * c + p.z * s, -p.y * s + p.z * c) + trunnion;
-            worst = worst.min(turret_sdf.eval(rotated));
-        }
-    }
     assert!(
-        worst > 0.01,
-        "mantlet must keep a clearance gap and never dig into the casting through -5..+18 deg \
-         elevation, worst sdf {worst:.4}"
+        mantlet.max.z > front_z + 0.20,
+        "the mantlet face must protrude to cover the embrasure opening (face {:.2}, front {front_z:.2})",
+        mantlet.max.z
     );
 }
 

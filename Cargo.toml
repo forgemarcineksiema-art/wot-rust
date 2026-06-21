@@ -4,6 +4,7 @@ members = [
     "crates/editor",
     "crates/engine",
     "crates/game_core",
+    "crates/loft",
     "crates/net",
     "crates/physics",
     "crates/quality",

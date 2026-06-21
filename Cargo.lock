@@ -666,6 +666,7 @@ dependencies = [
  "terrain",
  "tracing",
  "tracing-subscriber",
+ "vehicle_build",
  "vehicle_forge",
  "vehicle_geometry",
  "winit",
@@ -1887,6 +1888,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "224399e74b87b5f3557511d98dff8b14089b3dadafcab6bb93eab67d3aace965"
 dependencies = [
  "scopeguard",
+]
+
+[[package]]
+name = "loft"
+version = "0.1.0"
+dependencies = [
+ "glam 0.30.10",
+ "vehicle_geometry",
 ]
 
 [[package]]
@@ -3707,6 +3716,7 @@ version = "0.1.0"
 dependencies = [
  "game_core",
  "glam 0.30.10",
+ "loft",
  "revolve",
  "sdf",
  "sdf_mesh",

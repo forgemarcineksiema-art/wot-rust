@@ -93,13 +93,29 @@ pub fn t54_from_modules(modules: &VehicleModules) -> VehicleDescription {
         lod: PartLod::Detail,
     };
 
-    let (turret_sdf, min, max) = sdf_mesh::t54_turret(&v.turret);
+    // The cast turret is a LOFTED shell (replacing the metaball SDF composition): a controlled,
+    // designed surface that reads as one casting from every angle. The cupola is no longer blended
+    // into the shell, so it rides as its own cast drum part on the roof.
     let turret = VehiclePart {
         submesh: SubmeshKind::Turret,
         material: MaterialRole::CastArmor,
         smoothing: SmoothingGroup(2),
-        shape: PartShape::Cast { sdf: turret_sdf, min, max, budget: v.turret.budget },
+        shape: PartShape::Mesh(crate::t54_turret_loft::t54_turret_loft(&v.turret_loft)),
         lod: PartLod::MountCritical,
+    };
+    let cupola = VehiclePart {
+        submesh: SubmeshKind::Turret,
+        material: MaterialRole::CastArmor,
+        smoothing: SmoothingGroup(2),
+        shape: PartShape::Mesh(revolve::drum(
+            v.turret_loft.cupola_center,
+            v.turret_loft.cupola_radius,
+            v.turret_loft.cupola_half_height,
+            20,
+            MaterialRole::CastArmor,
+            SmoothingGroup(2),
+        )),
+        lod: PartLod::Silhouette,
     };
 
     // Barrel geometry is driven by the installed gun module — not a post-bake scale of a fixed mesh
@@ -122,7 +138,7 @@ pub fn t54_from_modules(modules: &VehicleModules) -> VehicleDescription {
 
     let f = &v.fittings;
     let mut parts =
-        vec![lower_tub, upper_hull, gear, tracks, track_ends, track_links, turret, barrel];
+        vec![lower_tub, upper_hull, gear, tracks, track_ends, track_links, turret, cupola, barrel];
     // Semantic drum fittings as their own parts (not anonymous greeble): the commander's cupola
     // hatch and the driver's/loader's hatches (all raised round lids), plus the glacis headlight.
     parts.extend(crate::t54_details::t54_fitting_parts(f));
