@@ -224,7 +224,8 @@ mod tests {
         let bp =
             game_core::VehicleBlueprint::for_vehicle(game_core::VehicleKind::T54_1951).unwrap();
         let mesh = t54_glacis_solid(&hull(), bp.armor.hull_front.0)
-            .to_mesh(MaterialRole::RolledArmor, SmoothingGroup::hard_edges());
+            .to_mesh(MaterialRole::RolledArmor, SmoothingGroup::hard_edges())
+            .expect("glacis solid is valid");
         assert!(mesh.triangle_count() > 0, "glacis solid is empty");
         assert!(
             mesh.triangle_count() < 40,
@@ -243,7 +244,8 @@ mod tests {
             bp.armor.hull_side.0,
             bp.armor.hull_rear.0,
         )
-        .to_mesh(MaterialRole::RolledArmor, SmoothingGroup::hard_edges());
+        .to_mesh(MaterialRole::RolledArmor, SmoothingGroup::hard_edges())
+        .expect("hull solid is valid");
         let on_slope = mesh.vertices().iter().any(|v| {
             let n = v.normal;
             n.y > 0.2
@@ -270,7 +272,10 @@ mod tests {
         let covered: f32 = segs
             .iter()
             .map(|s| {
-                let b = s.to_mesh(MaterialRole::RolledArmor, SmoothingGroup::hard_edges()).bounds();
+                let b = s
+                    .to_mesh(MaterialRole::RolledArmor, SmoothingGroup::hard_edges())
+                    .expect("fender segment is valid")
+                    .bounds();
                 let b = b.expect("non-empty segment");
                 b.max.z - b.min.z
             })
@@ -287,6 +292,7 @@ mod tests {
         for bracket in &brackets {
             let b = bracket
                 .to_mesh(MaterialRole::RolledArmor, SmoothingGroup::hard_edges())
+                .expect("bracket is valid")
                 .bounds()
                 .expect("non-empty bracket");
             assert!(b.min.y < bottom - 0.05, "bracket hangs below the fender plate");
@@ -298,7 +304,8 @@ mod tests {
         // The defect this locks: a plain box has only axis-aligned faces. The periscope must carry a
         // slanted prism face pointing forward and up (the raked glass), so it reads as a real device.
         let mesh = t54_periscope(Vec3::new(0.34, 1.88, 0.42), Vec3::new(0.07, 0.06, 0.07))
-            .to_mesh(MaterialRole::RolledArmor, SmoothingGroup::hard_edges());
+            .to_mesh(MaterialRole::RolledArmor, SmoothingGroup::hard_edges())
+            .expect("periscope is valid");
         let raked = mesh.vertices().iter().any(|v| v.normal.y > 0.3 && v.normal.z > 0.3);
         assert!(raked, "periscope needs a forward-and-up raked prism face, not only box faces");
     }

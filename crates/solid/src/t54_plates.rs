@@ -56,6 +56,7 @@ mod tests {
         assert!(!seams.is_empty(), "the hull carries a glacis-to-roof weld seam");
         let b = seams[0]
             .to_mesh(MaterialRole::RolledArmor, SmoothingGroup::hard_edges())
+            .expect("seam is valid")
             .bounds()
             .expect("non-empty seam");
         // The seam straddles the roof height and lies just ahead of the turret ring, on the join.
@@ -74,6 +75,7 @@ mod tests {
         for cover in &covers {
             let b = cover
                 .to_mesh(MaterialRole::RolledArmor, SmoothingGroup::hard_edges())
+                .expect("cover is valid")
                 .bounds()
                 .expect("non-empty cover");
             assert!(b.max.y > deck_top + 0.02, "cover stands proud of the deck top");

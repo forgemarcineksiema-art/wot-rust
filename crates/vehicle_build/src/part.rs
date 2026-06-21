@@ -53,7 +53,9 @@ impl VehiclePart {
     /// Build this part's triangle mesh through its chosen generator.
     pub fn mesh(&self) -> GeometryMesh {
         match &self.shape {
-            PartShape::Plates(solid) => solid.to_mesh(self.material, self.smoothing),
+            PartShape::Plates(solid) => solid
+                .to_mesh(self.material, self.smoothing)
+                .expect("a vehicle's plate solids are valid bounded armour"),
             PartShape::Cast { sdf, min, max, budget } => {
                 sdf_mesh::mesh_within_budget(
                     sdf,

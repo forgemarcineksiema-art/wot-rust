@@ -22,6 +22,7 @@ fn the_blueprint_is_the_sole_source_of_hull_dimensions() {
             bp.armor.hull_rear.0,
         )
         .to_mesh(MaterialRole::RolledArmor, SmoothingGroup::hard_edges())
+        .expect("hull solid is valid")
         .bounds()
         .expect("non-empty hull")
     };
