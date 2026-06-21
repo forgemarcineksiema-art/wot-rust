@@ -39,7 +39,7 @@ impl DamageLayout {
                 ModuleVolume {
                     slot: ModuleSlot::Gun,
                     min: Vec3::new(-0.46, 0.48, 0.70),
-                    max: Vec3::new(0.46, 1.20, 1.38),
+                    max: Vec3::new(0.46, 1.10, 1.38),
                     priority: 30,
                     requires_penetration: true,
                 },
@@ -59,7 +59,7 @@ impl DamageLayout {
                 },
                 ModuleVolume {
                     slot: ModuleSlot::Suspension,
-                    min: Vec3::new(-1.75, -1.18, -3.15),
+                    min: Vec3::new(-1.75, -1.16, -3.15),
                     max: Vec3::new(1.75, -0.38, 3.15),
                     priority: 10,
                     requires_penetration: false,
@@ -67,7 +67,7 @@ impl DamageLayout {
                 ModuleVolume {
                     slot: ModuleSlot::Turret,
                     min: Vec3::new(-1.00, 0.65, -1.01),
-                    max: Vec3::new(1.00, 1.20, 1.09),
+                    max: Vec3::new(1.00, 1.10, 1.09),
                     priority: 10,
                     requires_penetration: true,
                 },
