@@ -59,7 +59,7 @@ fn t54() -> VehicleBlueprint {
             ring_radius: 0.82,
             base_radius: 1.00,
             roof_radius: 0.34,
-            roof_y: 2.05,
+            roof_y: 1.86,
             front_slope_deg: 35.0,
             side_slope_deg: 25.0,
             rear_slope_deg: 10.0,

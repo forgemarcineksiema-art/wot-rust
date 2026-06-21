@@ -5,7 +5,7 @@
 //! glacis/deck weld bead — and deliberately no mud, rust, battle damage, decals or weathering. Every
 //! piece reads its dimensions from the blueprint's [`HybridVisual`]; none invents a tank dimension.
 
-use game_core::HybridVisual;
+use game_core::{GunVisual, HybridVisual};
 use glam::Vec3;
 use vehicle_geometry::{MaterialRole, SmoothingGroup, SubmeshKind};
 
@@ -58,6 +58,41 @@ pub fn t54_detail_parts(v: &HybridVisual) -> Vec<VehiclePart> {
             solid::ConvexSolid::box_at(center, d.periscope_half),
         ));
     }
+
+    // Loader-side DShK: a compact pedestal and a distinct steel barrel mounted on the turret roof.
+    // It is a real turret part so it traverses with the vehicle; it is not stowage or a texture cue.
+    parts.push(VehiclePart {
+        submesh: SubmeshKind::Turret,
+        material: MaterialRole::TrackMetal,
+        smoothing: SmoothingGroup::hard_edges(),
+        shape: PartShape::Mesh(revolve::drum(
+            d.dshk_mount_center,
+            0.065,
+            0.10,
+            10,
+            MaterialRole::TrackMetal,
+            SmoothingGroup::hard_edges(),
+        )),
+        lod: PartLod::Detail,
+    });
+    let dshk = GunVisual {
+        barrel_radius: 0.025,
+        muzzle_radius: 0.030,
+        muzzle_taper: 0.05,
+        barrel_segments: 10,
+        ..v.gun
+    };
+    parts.push(VehiclePart {
+        submesh: SubmeshKind::Turret,
+        material: MaterialRole::BarrelSteel,
+        smoothing: SmoothingGroup(4),
+        shape: PartShape::Mesh(revolve::gun_barrel_between(
+            d.dshk_mount_center,
+            d.dshk_mount_center + Vec3::Z * d.dshk_barrel_length,
+            &dshk,
+        )),
+        lod: PartLod::Detail,
+    });
 
     // A restrained weld bead along the front edge of the engine deck (a crisp cast/plate seam).
     let bead_center =

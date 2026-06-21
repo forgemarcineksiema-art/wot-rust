@@ -55,9 +55,9 @@ pub fn t54_reference_pack() -> ReferencePack {
             ),
             RatioTarget::new(
                 RatioKind::TurretHeightToHullHeight,
-                0.65,
-                0.14,
-                "Dome turret stands roughly two-thirds of hull height — present but not a tall casemate.",
+                0.50,
+                0.04,
+                "T-54-3 carries a flattened pancake casting, not a high dome or a casemate.",
             ),
             RatioTarget::new(
                 RatioKind::GunProtrusionToHullLength,

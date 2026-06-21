@@ -93,7 +93,7 @@ pub struct GunVisual {
     pub muzzle_taper: f32,
     pub barrel_segments: usize,
     /// Mantlet side profile as `(z, radius)` points, revolved about Z then scaled to a flat oval.
-    pub mantlet_profile: [(f32, f32); 3],
+    pub mantlet_profile: [(f32, f32); 6],
     pub mantlet_segments: usize,
     pub mantlet_scale: Vec3,
     /// How much of a gun module's length delta the muzzle moves by (visual modularity scale).
@@ -188,6 +188,9 @@ pub struct DetailVisual {
     /// Turret-roof periscope block (right of the cupola; mirrored to the loader side by the generator).
     pub periscope_center: Vec3,
     pub periscope_half: Vec3,
+    /// Loader-side DShK anti-aircraft mount: barrel pivot and exposed barrel length.
+    pub dshk_mount_center: Vec3,
+    pub dshk_barrel_length: f32,
     /// Fender lip: a thin downturned edge along the outer fender run (drop below + thickness).
     pub fender_lip_drop: f32,
     pub fender_lip_thickness: f32,
