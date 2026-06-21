@@ -92,9 +92,42 @@ pub fn t54_glacis_solid(hull: &HullVisual, slope_deg: f32) -> ConvexSolid {
     ConvexSolid::box_at(center, half).clipped_by(glacis).clipped_by(nose)
 }
 
-/// A thin fender (mudguard) plate riding above one track run, at world `side_x`.
-pub fn t54_fender(side_x: f32, fender: &FenderVisual) -> ConvexSolid {
-    ConvexSolid::box_at(Vec3::new(side_x, fender.center_y, 0.0), fender.half)
+/// The fender (mudguard) above one track run, split into bolted sections along its length with thin
+/// seam gaps, so it reads as pressed plates rather than one continuous slab. Visual only; the overall
+/// footprint is unchanged. The downturned outer lip ([`t54_fender_lip`]) runs the full edge.
+pub fn t54_fender_segments(side_x: f32, fender: &FenderVisual) -> Vec<ConvexSolid> {
+    const SEGMENTS: usize = 4;
+    let seam = 0.03_f32;
+    let seg_half = Vec3::new(fender.half.x, fender.half.y, fender.half.z / SEGMENTS as f32 - seam);
+    (0..SEGMENTS)
+        .map(|i| {
+            let t = (i as f32 + 0.5) / SEGMENTS as f32;
+            let z = -fender.half.z + t * 2.0 * fender.half.z;
+            ConvexSolid::box_at(Vec3::new(side_x, fender.center_y, z), seg_half)
+        })
+        .collect()
+}
+
+/// Small support brackets hanging below one fender at the hull side, evenly spaced along its length —
+/// the gussets that carry the mudguard's overhang. `hull_half_width` is the upper-hull side the
+/// brackets bear against. Visual only, at the close-up detail tier.
+pub fn t54_fender_brackets(
+    side_x: f32,
+    fender: &FenderVisual,
+    hull_half_width: f32,
+) -> Vec<ConvexSolid> {
+    const BRACKETS: usize = 5;
+    let drop = 0.14_f32;
+    let bottom = fender.center_y - fender.half.y;
+    let edge_x = side_x.signum() * hull_half_width;
+    let half = Vec3::new(0.02, drop * 0.5, 0.05);
+    (0..BRACKETS)
+        .map(|i| {
+            let t = (i as f32 + 0.5) / BRACKETS as f32;
+            let z = -fender.half.z + t * 2.0 * fender.half.z;
+            ConvexSolid::box_at(Vec3::new(edge_x, bottom - drop * 0.5, z), half)
+        })
+        .collect()
 }
 
 /// The raised rear engine deck panel behind the turret.
@@ -218,6 +251,46 @@ mod tests {
                 && (n.y.atan2(n.z).to_degrees() - bp.armor.hull_front.0).abs() < 2.0
         });
         assert!(on_slope, "a glacis face normal carries the blueprint armour slope");
+    }
+
+    fn fender() -> FenderVisual {
+        game_core::VehicleBlueprint::for_vehicle(game_core::VehicleKind::T54_1951)
+            .unwrap()
+            .hybrid()
+            .unwrap()
+            .fender
+    }
+
+    #[test]
+    fn the_fender_splits_into_separated_sections() {
+        let f = fender();
+        let segs = t54_fender_segments(1.5, &f);
+        assert!(segs.len() >= 3, "fender reads as bolted sections, got {}", segs.len());
+        // The seam gaps mean the sections' lengths sum to less than the whole fender span.
+        let covered: f32 = segs
+            .iter()
+            .map(|s| {
+                let b = s.to_mesh(MaterialRole::RolledArmor, SmoothingGroup::hard_edges()).bounds();
+                let b = b.expect("non-empty segment");
+                b.max.z - b.min.z
+            })
+            .sum();
+        assert!(covered < 2.0 * f.half.z - 0.05, "seam gaps separate the fender sections");
+    }
+
+    #[test]
+    fn fender_brackets_hang_below_the_fender() {
+        let f = fender();
+        let brackets = t54_fender_brackets(1.5, &f, 1.45);
+        assert!(brackets.len() >= 3, "several brackets along the run");
+        let bottom = f.center_y - f.half.y;
+        for bracket in &brackets {
+            let b = bracket
+                .to_mesh(MaterialRole::RolledArmor, SmoothingGroup::hard_edges())
+                .bounds()
+                .expect("non-empty bracket");
+            assert!(b.min.y < bottom - 0.05, "bracket hangs below the fender plate");
+        }
     }
 
     #[test]

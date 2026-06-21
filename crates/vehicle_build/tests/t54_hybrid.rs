@@ -214,6 +214,38 @@ fn t54_periscopes_are_raked_prism_heads_on_turret_and_hull() {
 }
 
 #[test]
+fn t54_fenders_are_segmented_with_support_brackets() {
+    use std::collections::HashSet;
+    let baked = t54_description().build();
+    let hull = &baked.submesh(SubmeshKind::Hull).expect("hull").mesh;
+
+    // Segmented fender: the outer fender top now carries many distinct z-edges (one per section
+    // boundary); a single continuous slab would expose only the two end edges.
+    let mut z_bands: HashSet<i32> = HashSet::new();
+    for v in hull.vertices() {
+        if v.material == MaterialRole::RolledArmor && v.position.x > 1.6 && v.position.y > 1.20 {
+            z_bands.insert((v.position.z / 0.05).round() as i32);
+        }
+    }
+    assert!(
+        z_bands.len() >= 6,
+        "fender splits into bolted sections, got {} z-bands",
+        z_bands.len()
+    );
+
+    // Support brackets hang below the fender at the hull side, on both fenders.
+    let has_bracket = |sign: f32| {
+        hull.vertices().iter().any(|v| {
+            v.material == MaterialRole::TrackMetal
+                && v.position.x * sign > 1.35
+                && v.position.y > 1.0
+                && v.position.y < 1.19
+        })
+    };
+    assert!(has_bracket(1.0) && has_bracket(-1.0), "fender support brackets hang below both sides");
+}
+
+#[test]
 fn the_hybrid_t54_silhouette_reads_right() {
     // Locks the hybrid's visual reads against regression (cf. vehicle_geometry silhouette gates).
     let baked = t54_description().build();

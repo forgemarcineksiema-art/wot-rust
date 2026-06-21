@@ -146,14 +146,17 @@ pub fn t54_from_modules(modules: &VehicleModules) -> VehicleDescription {
             lod: PartLod::Detail,
         });
     }
+    // Fenders split into bolted sections along each run, rather than one continuous slab.
     for side in [v.fender.side_x, -v.fender.side_x] {
-        parts.push(VehiclePart {
-            submesh: SubmeshKind::Hull,
-            material: MaterialRole::RolledArmor,
-            smoothing: SmoothingGroup::hard_edges(),
-            shape: PartShape::Plates(solid::t54_fender(side, &v.fender)),
-            lod: PartLod::Detail,
-        });
+        for segment in solid::t54_fender_segments(side, &v.fender) {
+            parts.push(VehiclePart {
+                submesh: SubmeshKind::Hull,
+                material: MaterialRole::RolledArmor,
+                smoothing: SmoothingGroup::hard_edges(),
+                shape: PartShape::Plates(segment),
+                lod: PartLod::Detail,
+            });
+        }
     }
     // Clean factory greeble (grille, exhaust cover, periscopes, fender lips, weld bead) — all at the
     // Detail tier, so the close-up LOD0 carries it and the lower LODs keep only the silhouette.

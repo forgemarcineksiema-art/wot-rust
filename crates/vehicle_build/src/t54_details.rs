@@ -90,13 +90,16 @@ pub fn t54_detail_parts(v: &HybridVisual) -> Vec<VehiclePart> {
         solid::t54_exhaust_housing(d),
     ));
 
-    // Fender lips on both outer fender edges.
+    // Fender lips on both outer fender edges, plus the support brackets hanging below each fender.
     for side in [v.fender.side_x, -v.fender.side_x] {
         parts.push(detail_plate(
             SubmeshKind::Hull,
             MaterialRole::RolledArmor,
             solid::t54_fender_lip(side, &v.fender, d),
         ));
+        for bracket in solid::t54_fender_brackets(side, &v.fender, v.hull.half_width) {
+            parts.push(detail_plate(SubmeshKind::Hull, MaterialRole::TrackMetal, bracket));
+        }
     }
 
     // Turret-roof periscopes (gunner + loader side), riding the turret so they traverse with it.

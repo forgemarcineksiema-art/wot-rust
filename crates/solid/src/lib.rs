@@ -10,6 +10,7 @@ mod t54;
 
 pub use convex::{ConvexSolid, Plane};
 pub use t54::{
-    t54_deck_grille, t54_engine_deck, t54_engine_deck_panels, t54_exhaust_housing, t54_fender,
-    t54_fender_lip, t54_glacis_solid, t54_hull_solid, t54_lower_tub, t54_periscope, t54_upper_hull,
+    t54_deck_grille, t54_engine_deck, t54_engine_deck_panels, t54_exhaust_housing,
+    t54_fender_brackets, t54_fender_lip, t54_fender_segments, t54_glacis_solid, t54_hull_solid,
+    t54_lower_tub, t54_periscope, t54_upper_hull,
 };
