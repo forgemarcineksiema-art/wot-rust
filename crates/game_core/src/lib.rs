@@ -1,6 +1,7 @@
 mod armor;
 mod crew;
 mod damage;
+mod damage_layout;
 mod ids;
 pub mod math;
 mod modules;
@@ -17,6 +18,7 @@ pub use armor::{
 };
 pub use crew::{Crew, CrewRole};
 pub use damage::{DamageCause, DamageEvent, ImpactSurface, ShellImpact};
+pub use damage_layout::{DamageLayout, ModuleVolume};
 pub use ids::{TankId, TeamId};
 pub use modules::{
     EngineModule, GunModule, HullChassis, MODULE_SLOT_COUNT, ModuleError, ModuleHealth, ModuleSlot,

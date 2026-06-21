@@ -127,9 +127,18 @@ pub struct ForgeArtifact {
 
 impl ForgeArtifact {
     pub fn bake(vehicle: VehicleKind, profile: BakeProfile) -> Result<Self, ArtifactError> {
+        Self::bake_from_baked(vehicle, profile, authoritative_baked_vehicle(vehicle)?)
+    }
+
+    /// Build a production artifact from an already-authored vehicle variant.
+    pub fn bake_from_baked(
+        vehicle: VehicleKind,
+        profile: BakeProfile,
+        baked: BakedVehicle,
+    ) -> Result<Self, ArtifactError> {
         let spec = crate::registry::forge_spec(vehicle)
             .ok_or(ArtifactError::MissingReferencePack(vehicle))?;
-        let baked = reduce_vehicle(&authoritative_baked_vehicle(vehicle)?, profile.lod_level());
+        let baked = reduce_vehicle(&baked, profile.lod_level());
         let reference = (spec.reference_pack)();
         let report = reference
             .measure_baked_vehicle(&baked)

@@ -2,10 +2,10 @@ use std::path::PathBuf;
 
 use anyhow::Context;
 use clap::{Parser, Subcommand};
-use game_core::{TankSpec, VehicleKind};
+use game_core::{GunModule, TankSpec, VehicleKind};
 use serde::Serialize;
 use terrain::{HeightMap, prokhorovka_hill_252_2};
-use vehicle_forge::{BakeProfile, ForgeArtifact, ReferencePack};
+use vehicle_forge::{BakeProfile, ForgeArtifact, ReferencePack, TankCompileRequest, compile_tank};
 use vehicle_geometry::bake_vehicle;
 
 #[derive(Debug, Parser)]
@@ -65,6 +65,16 @@ enum Command {
         #[arg(long)]
         out: PathBuf,
     },
+    CompileTank {
+        #[arg(long)]
+        vehicle: String,
+        #[arg(long)]
+        gun: Option<String>,
+        #[arg(long, default_value = "lod0")]
+        profile: String,
+        #[arg(long)]
+        out: PathBuf,
+    },
 }
 
 #[derive(Debug, Serialize)]
@@ -75,6 +85,14 @@ struct ConvertedAssetManifest {
     meshes: usize,
     materials: usize,
     nodes: usize,
+}
+
+#[derive(Debug, Serialize)]
+struct CompiledTankManifest {
+    vehicle: VehicleKind,
+    profile: &'static str,
+    source_hash: u64,
+    spec: TankSpec,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -128,6 +146,25 @@ fn main() -> anyhow::Result<()> {
         }
         Command::ForgeLineup { out } => {
             write_forge_lineup(out)?;
+        }
+        Command::CompileTank { vehicle, gun, profile, out } => {
+            let kind = parse_vehicle_kind(&vehicle)?;
+            let profile: BakeProfile = profile.parse()?;
+            let mut modules = kind.default_loadout();
+            if let Some(gun) = gun {
+                modules.gun = select_gun(kind, &gun)?;
+            }
+            let compiled = compile_tank(TankCompileRequest { vehicle: kind, modules, profile })?;
+            compiled.artifact.write_to_dir(&out)?;
+            write_json(
+                out.join("compiled-tank.json"),
+                &CompiledTankManifest {
+                    vehicle: kind,
+                    profile: compiled.artifact.manifest().profile().slug(),
+                    source_hash: compiled.source_hash,
+                    spec: compiled.spec,
+                },
+            )?;
         }
     }
 
@@ -191,4 +228,25 @@ fn write_forge_lineup(out: PathBuf) -> anyhow::Result<()> {
     }
 
     write_text(out.join("index.md"), &index)
+}
+
+fn select_gun(kind: VehicleKind, slug: &str) -> anyhow::Result<GunModule> {
+    kind.gun_options()
+        .into_iter()
+        .find(|gun| {
+            let name = gun.spec.name.to_ascii_lowercase().replace(' ', "-");
+            name.contains(&slug.to_ascii_lowercase())
+        })
+        .with_context(|| format!("unknown gun variant {slug} for {kind:?}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn t54_compiler_selects_the_requested_gun_variant() {
+        let kind = VehicleKind::T54_1951;
+        assert_eq!(select_gun(kind, "d-10t2s").unwrap().spec.name, "100 mm D-10T2S");
+    }
 }

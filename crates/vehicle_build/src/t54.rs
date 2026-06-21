@@ -136,10 +136,11 @@ pub fn t54_from_modules(modules: &VehicleModules) -> VehicleDescription {
 
     // Barrel geometry is driven by the installed gun module — not a post-bake scale of a fixed mesh
     // (the old `barrel_scale` hack). Swap the gun and the barrel is rebuilt at the module's length.
-    let mounts = bp.mount_frames();
+    let mut mounts = bp.mount_frames();
     let stock_length = kind.default_loadout().gun.barrel_length_m();
     let muzzle = mounts.muzzle.translation
         + Vec3::Z * ((modules.gun.barrel_length_m() - stock_length) * v.gun.module_delta_scale);
+    mounts.muzzle.translation = muzzle;
     let trunnion = mounts.gun_trunnion.translation;
     let barrel = VehiclePart {
         key: PartKey::new("gun_barrel"),

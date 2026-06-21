@@ -10,7 +10,8 @@ mod terrain;
 use ::terrain::{HeightMap, StaticCoverObject};
 use game_core::math::GRAVITY_MPS2;
 use game_core::{
-    ArmorFacing, ArmorZone, HitboxProfile, ImpactSurface, MountFrames, TankId, VehicleKind,
+    ArmorFacing, ArmorZone, HitboxProfile, ImpactSurface, MountFrames, TankId, TankSpec,
+    VehicleKind,
 };
 use glam::Vec3;
 
@@ -33,6 +34,23 @@ pub struct TraceTank {
 }
 
 impl TraceTank {
+    pub fn from_spec(
+        id: TankId,
+        position: Vec3,
+        yaw_rad: f32,
+        turret_yaw_rad: f32,
+        spec: &TankSpec,
+    ) -> Self {
+        Self {
+            id,
+            position,
+            yaw_rad,
+            turret_yaw_rad,
+            hitbox: spec.hitbox,
+            turret_ring_z_m: spec.mounts.turret_ring.translation.z,
+        }
+    }
+
     /// Build a trace hull for a vehicle kind, sourcing the hitbox and the turret-ring pivot from
     /// `game_core` so the two cannot drift apart at call sites.
     pub fn for_kind(
