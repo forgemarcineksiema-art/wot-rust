@@ -268,6 +268,42 @@ fn t54_hull_carries_rear_transmission_covers() {
 }
 
 #[test]
+fn the_mantlet_and_socket_are_a_matched_pair_clearing_full_elevation() {
+    // The moving mantlet beds into the cast socket as a fitted pair: it must sit inside the cavity
+    // (not float in front of the casting) yet keep a clearance gap and never dig into the fixed
+    // turret across the gun's -5..+18 deg arc. Evaluating the turret SDF (socket already subtracted)
+    // at the elevation-rotated mantlet vertices: a value < 0 is a collision into the casting. This is
+    // the plan's szczelina / no-collision gate.
+    let v =
+        *game_core::VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).unwrap().hybrid().unwrap();
+    let trunnion = MountFrames::for_vehicle(VehicleKind::T54_1951).gun_trunnion.translation;
+    let mantlet = revolve::moving_mantlet(trunnion, &v.gun);
+
+    // Bedded: the mantlet's rear reaches back to/behind the socket centre, not sitting wholly proud.
+    assert!(
+        mantlet.bounds().expect("mantlet").min.z < v.turret.socket_center.z,
+        "the mantlet must bed into the socket cavity, not float in front of it"
+    );
+
+    let (turret_sdf, _, _) = sdf_mesh::t54_turret(&v.turret);
+    let mut worst = f32::INFINITY;
+    for step in 0..=23 {
+        let th = (-5.0 + step as f32).to_radians();
+        let (c, s) = (th.cos(), th.sin());
+        for vert in mantlet.vertices() {
+            let p = vert.position - trunnion;
+            let rotated = Vec3::new(p.x, p.y * c + p.z * s, -p.y * s + p.z * c) + trunnion;
+            worst = worst.min(turret_sdf.eval(rotated));
+        }
+    }
+    assert!(
+        worst > 0.01,
+        "mantlet must keep a clearance gap and never dig into the casting through -5..+18 deg \
+         elevation, worst sdf {worst:.4}"
+    );
+}
+
+#[test]
 fn the_hybrid_t54_silhouette_reads_right() {
     // Locks the hybrid's visual reads against regression (cf. vehicle_geometry silhouette gates).
     let baked = t54_description().build();
