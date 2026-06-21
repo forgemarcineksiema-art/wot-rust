@@ -2,6 +2,11 @@
 //! sprocket, and round fittings. Every dimension is read from the vehicle blueprint's
 //! [`RunningGearVisual`] / [`TrackBeltVisual`] — the single source — rather than held here, so the
 //! geometry cannot drift from the blueprint.
+//!
+//! Each road wheel is a dished rubber tyre carrying a proud steel hub; the belt ends read as a
+//! *distinct* smooth front idler and a faceted (lower-segment) rear drive sprocket. Clean factory
+//! build: crisp new running gear — no caked mud, rust or thrown-track damage (that finish belongs to
+//! the material layer).
 
 use game_core::{RunningGearVisual, TrackBeltVisual};
 use glam::Vec3;

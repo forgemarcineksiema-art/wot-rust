@@ -1,6 +1,9 @@
 //! Track belt: a rounded loop wrapping the road wheels on one side, swept as a rectangular band.
 //! This is the path-sweep generator — the last new shape kind a tank needs beyond plates, castings
-//! and revolves. Link tread is left to the material/texture layer; the geometry is a smooth band.
+//! and revolves. The loop arcs wrap tightly around the idler/sprocket ends; the discrete link cues
+//! ([`t54_track_link_cues`]) ride the whole loop but are carried as `PartLod::Detail`, so the
+//! readable links appear only at the close-up LOD0 while lower LODs keep the smooth band. Clean
+//! factory build: a crisp new track run — fine tread and wear stay in the material/texture layer.
 
 use game_core::TrackBeltVisual;
 use glam::{Vec2, Vec3};
