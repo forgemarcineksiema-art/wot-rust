@@ -7,7 +7,7 @@ use glam::Vec3;
 
 use super::{
     BoxVisual, DetailVisual, FenderVisual, FittingsVisual, GunVisual, HullPlatesVisual, HullVisual,
-    HybridVisual, LoftStation, RunningGearVisual, TrackBeltVisual, TurretLoftVisual, TurretVisual,
+    HybridVisual, RunningGearVisual, TrackBeltVisual, TurretVisual,
 };
 
 pub(super) fn t54_hybrid() -> HybridVisual {
@@ -67,78 +67,10 @@ pub(super) fn t54_hybrid() -> HybridVisual {
             bbox_max: Vec3::new(1.20, 2.00, 1.45),
             budget: 12_000,
         },
-        // The lofted cast turret: stations from the ring seat (1.30) up to the flat roof (1.86),
-        // widest LOW (station 2) for the ring overhang, front-heavy (front > rear half-length) with a
-        // rear-pulled bustle (negative z_center climbing with height), necking into the flat roof.
-        // All within the ±1.00 / ±1.04 turret plan. Cheeks and the front gun embrasure ride as
-        // localized radial modulations of the one surface.
-        turret_loft: TurretLoftVisual {
-            stations: [
-                LoftStation {
-                    y: 1.30,
-                    half_width: 0.84,
-                    half_len_front: 0.90,
-                    half_len_rear: 0.90,
-                    z_center: 0.00,
-                },
-                LoftStation {
-                    y: 1.40,
-                    half_width: 0.91,
-                    half_len_front: 0.98,
-                    half_len_rear: 0.94,
-                    z_center: -0.02,
-                },
-                LoftStation {
-                    y: 1.50,
-                    half_width: 0.90,
-                    half_len_front: 0.98,
-                    half_len_rear: 0.88,
-                    z_center: -0.03,
-                },
-                LoftStation {
-                    y: 1.60,
-                    half_width: 0.84,
-                    half_len_front: 0.92,
-                    half_len_rear: 0.80,
-                    z_center: -0.05,
-                },
-                LoftStation {
-                    y: 1.70,
-                    half_width: 0.74,
-                    half_len_front: 0.84,
-                    half_len_rear: 0.66,
-                    z_center: -0.08,
-                },
-                LoftStation {
-                    y: 1.80,
-                    half_width: 0.60,
-                    half_len_front: 0.72,
-                    half_len_rear: 0.52,
-                    z_center: -0.11,
-                },
-                LoftStation {
-                    y: 1.86,
-                    half_width: 0.48,
-                    half_len_front: 0.60,
-                    half_len_rear: 0.42,
-                    z_center: -0.12,
-                },
-            ],
-            exponent: 2.8,
-            segments: 64,
-            cheek_amount: 0.10,
-            cheek_azimuth: 0.70,
-            cheek_y: 1.48,
-            cheek_az_width: 0.42,
-            cheek_y_width: 0.18,
-            embrasure_amount: -0.10,
-            embrasure_y: 1.54,
-            embrasure_az_width: 0.50,
-            embrasure_y_width: 0.18,
-            cupola_center: Vec3::new(-0.34, 1.86, -0.10),
-            cupola_radius: 0.24,
-            cupola_half_height: 0.11,
-        },
+        // The lofted cast turret stations and shaping (split into `t54_hybrid_turret` for the file
+        // budget): widest LOW for the ring overhang, front-heavy with a rear-pulled bustle, necking
+        // into the flat roof, all within the ±1.00 / ±1.04 turret plan.
+        turret_loft: super::t54_hybrid_turret::turret_loft(),
         gun: GunVisual {
             barrel_radius: 0.09,
             muzzle_radius: 0.085,

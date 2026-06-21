@@ -19,6 +19,7 @@ mod data;
 mod fittings;
 mod hybrid;
 mod t54_hybrid;
+mod t54_hybrid_turret;
 
 pub use fittings::{DetailVisual, FittingsVisual};
 pub use hybrid::{
