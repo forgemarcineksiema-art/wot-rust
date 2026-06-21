@@ -113,4 +113,14 @@ mod tests {
         let m = moving_mantlet(Vec3::new(0.0, 1.70, 1.10), &gun()).bounds().expect("non-empty");
         assert!((m.max.x - m.min.x) > (m.max.y - m.min.y), "mantlet reads wider than tall");
     }
+
+    #[test]
+    fn the_t54_mantlet_has_a_deep_stepped_mask_profile() {
+        let m = moving_mantlet(Vec3::new(0.0, 1.70, 1.10), &gun()).bounds().expect("non-empty");
+        assert!(
+            m.max.z - m.min.z >= 0.50,
+            "T-54 mantlet needs a substantial stepped depth, got {:.3}",
+            m.max.z - m.min.z
+        );
+    }
 }

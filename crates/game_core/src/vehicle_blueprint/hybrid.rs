@@ -11,6 +11,8 @@
 
 use glam::Vec3;
 
+use super::{DetailVisual, FittingsVisual};
+
 /// The convex hull block plus its two-plate front. The plate slopes (glacis/side/rear) are *not*
 /// stored here — they are read from [`ArmorShape`](super::ArmorShape) so the visible rake is the same
 /// number the penetration model uses ("what you see is what you shoot").
@@ -93,7 +95,7 @@ pub struct GunVisual {
     pub muzzle_taper: f32,
     pub barrel_segments: usize,
     /// Mantlet side profile as `(z, radius)` points, revolved about Z then scaled to a flat oval.
-    pub mantlet_profile: [(f32, f32); 3],
+    pub mantlet_profile: [(f32, f32); 6],
     pub mantlet_segments: usize,
     pub mantlet_scale: Vec3,
     /// How much of a gun module's length delta the muzzle moves by (visual modularity scale).
@@ -152,48 +154,6 @@ pub struct TrackBeltVisual {
     /// Number of link cues spaced along the ground (bottom) run, so the belt reads as tracked links
     /// rather than a smooth rubber band. Fine tread is left to the material layer.
     pub link_count: usize,
-}
-
-/// Semantic external fittings carried as their own parts (not anonymous greeble): the commander's
-/// cupola hatch lid and turret-side vision drum ride the turret; the glacis headlight and the front
-/// tow hooks ride the hull. Finer surface detail (welds, grab handles) is left to the material layer.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct FittingsVisual {
-    pub cupola_hatch_center: Vec3,
-    pub cupola_hatch_radius: f32,
-    pub cupola_hatch_half_height: f32,
-    pub headlight_center: Vec3,
-    pub headlight_radius: f32,
-    pub headlight_half_height: f32,
-    /// Front tow hook (right side; mirrored to the left).
-    pub tow_hook_center: Vec3,
-    pub tow_hook_half: Vec3,
-}
-
-/// Visual-only factory detailing for the hybrid path. Clean-build intent: a freshly delivered
-/// vehicle — *no* mud, rust, battle damage, decals, or heavy weathering. These descriptors add only
-/// crisp manufactured greeble (engine-deck grille, exhaust housing, turret periscopes, fender lips
-/// and restrained weld beads). Every value is a *new* visual dimension placed inside the already
-/// validated hull/turret volumes; none restates a hull, track, ring, cupola, mantlet, trunnion or
-/// muzzle dimension, and none feeds collision, armour, the mount frames, or the network snapshot.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct DetailVisual {
-    /// Louvered engine-deck grille panel (centre + half-extents) and its slat count.
-    pub grille_center: Vec3,
-    pub grille_half: Vec3,
-    pub grille_slats: usize,
-    /// Exhaust housing: a boxed cover lying along the left fender run.
-    pub exhaust_center: Vec3,
-    pub exhaust_half: Vec3,
-    /// Turret-roof periscope block (right of the cupola; mirrored to the loader side by the generator).
-    pub periscope_center: Vec3,
-    pub periscope_half: Vec3,
-    /// Fender lip: a thin downturned edge along the outer fender run (drop below + thickness).
-    pub fender_lip_drop: f32,
-    pub fender_lip_thickness: f32,
-    /// Restrained weld bead half-thickness for the glacis/deck joins (kept tiny — a crisp cast seam,
-    /// not a weathered weld). Finer surface relief stays in the material/normal layer.
-    pub weld_seam_half_thickness: f32,
 }
 
 /// The full hybrid visual description for one vehicle. `Some` only for the hybrid benchmark (T-54);

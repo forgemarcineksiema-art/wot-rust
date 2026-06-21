@@ -17,30 +17,42 @@
       "throttle": 0.0,
       "steer": 0.0,
       "turret_yaw_delta": 0.0,
+      "gun_pitch_delta": -1.0,
+      "fire": false
+    },
+    {
+      "throttle": 0.0,
+      "steer": 0.0,
+      "turret_yaw_delta": 0.0,
+      "gun_pitch_delta": 0.0,
       "fire": true
     },
     {
       "throttle": 0.0,
       "steer": 0.0,
       "turret_yaw_delta": 0.0,
+      "gun_pitch_delta": 0.0,
       "fire": false
     },
     {
       "throttle": 0.0,
       "steer": 0.0,
       "turret_yaw_delta": 0.0,
+      "gun_pitch_delta": 0.0,
       "fire": false
     },
     {
       "throttle": 0.0,
       "steer": 0.0,
       "turret_yaw_delta": 0.0,
+      "gun_pitch_delta": 0.0,
       "fire": false
     },
     {
       "throttle": 0.0,
       "steer": 0.0,
       "turret_yaw_delta": 0.0,
+      "gun_pitch_delta": 0.0,
       "fire": false
     }
   ],

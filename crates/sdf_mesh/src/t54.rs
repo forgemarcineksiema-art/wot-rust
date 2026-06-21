@@ -45,11 +45,19 @@ pub fn t54_turret(t: &TurretVisual) -> (Sdf, Vec3, Vec3) {
     // glacis are never SDF: those are exact CAD plates from the `solid` generator.
     let cupola = Sdf::cylinder(t.cupola_radius, t.cupola_half_height).translate(t.cupola_center);
     body = body.smooth_union(cupola, t.cupola_blend);
+    // The cavity is carved to *match the wide oval mantlet*, not a round ball: two lateral lobes
+    // widen it so the mantlet's broad flanks bed in with clearance, and a lower lobe gives the rear
+    // room to swing down through full elevation. Sized so the moving mantlet never digs into the
+    // casting across the gun's -5..+18 deg arc (locked by the clearance test in vehicle_build).
+    let side = t.socket_radius * 0.78;
     let socket_low =
-        Vec3::new(t.socket_center.x, t.socket_center.y - t.socket_radius * 0.45, t.socket_center.z);
+        Vec3::new(t.socket_center.x, t.socket_center.y - t.socket_radius * 0.55, t.socket_center.z);
+    let lobe = |offset: Vec3, scale: f32| Sdf::sphere(t.socket_radius * scale).translate(offset);
     let socket = Sdf::sphere(t.socket_radius)
         .translate(t.socket_center)
-        .smooth_union(Sdf::sphere(t.socket_radius * 0.80).translate(socket_low), t.socket_blend);
+        .smooth_union(lobe(t.socket_center + Vec3::X * side, 0.92), t.socket_blend)
+        .smooth_union(lobe(t.socket_center - Vec3::X * side, 0.92), t.socket_blend)
+        .smooth_union(lobe(socket_low, 0.85), t.socket_blend);
     body = body.smooth_subtract(socket, t.socket_blend);
 
     (body, t.bbox_min, t.bbox_max)
@@ -80,11 +88,14 @@ mod tests {
 
     #[test]
     fn turret_bounds_contain_its_surface() {
-        let (turret, min, max) = t54_turret(&turret());
+        let t = turret();
+        let (turret, min, max) = t54_turret(&t);
         // The roof centre is solid, a point well above the roof is empty: the dome sits in its box.
         assert!(turret.eval(Vec3::new(0.0, 1.6, 0.0)) < 0.0);
         assert!(turret.eval(Vec3::new(0.0, max.y + 0.5, 0.0)) > 0.0);
-        assert!(min.y < 1.30 && max.y > 2.05, "box spans ring..roof");
+        // The box spans from below the machined ring seat to above the (lowered) flat roof plane —
+        // tied to the blueprint single source, not a fixed height, so it tracks the pancake casting.
+        assert!(min.y < t.ring_plane_y && max.y > t.roof_plane_y, "box spans ring..roof");
     }
 
     #[test]

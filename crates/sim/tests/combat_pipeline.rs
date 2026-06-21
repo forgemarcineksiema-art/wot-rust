@@ -26,6 +26,10 @@ fn shell_hit_penetrates_armor_and_applies_damage() {
     let shooter = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::ZERO);
     let target = state.spawn_tank(TeamId(2), TankSpec::t54_1951(), Vec3::new(0.0, 0.0, 55.0));
     state.tank_mut(target).expect("target").yaw_rad = PI;
+    // Depress the gun slightly so the round strikes the T-54's hull front: its low 1951 casting sits
+    // below the T-55A muzzle line, so a perfectly level shot would clear the hull and hit the thick
+    // mantlet. This keeps the test exercising a frontal hull penetration.
+    state.tank_mut(shooter).expect("shooter").gun_pitch_rad = -0.007;
     let target_hp = state.tank(target).expect("target").hit_points;
 
     run_until_shell_resolved(&mut state, shooter);

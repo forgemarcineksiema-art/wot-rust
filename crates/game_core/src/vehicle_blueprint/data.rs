@@ -33,9 +33,12 @@ fn t54() -> VehicleBlueprint {
             lower_half_width: 1.22,
             sponson_y: 0.55,
             hitbox_half_width: 1.75,
-            hitbox_half_height: 1.20,
+            // Lowered to honestly bound the flattened 1951 casting (roof ~2.04, not the old ~2.25
+            // dome): top = center_y + half_height = 2.27, leaving no fat air gap above the tank.
+            // Keeps the floor ~5 cm below ground (center_y = half_height - 0.05).
+            hitbox_half_height: 1.16,
             hitbox_half_length: 3.15,
-            hitbox_center_y: 1.15,
+            hitbox_center_y: 1.11,
             hitbox_turret_min_y: 0.65,
         },
         track: TrackShape {
@@ -43,7 +46,7 @@ fn t54() -> VehicleBlueprint {
             belt_half_thickness: 0.13,
             top_y: 0.84,
             bottom_y: 0.02,
-            wheel_radius: 0.42,
+            wheel_radius: 0.34,
             wheel_count: 5,
             wheel_first_z: -2.10,
             wheel_last_z: 2.10,
@@ -59,7 +62,7 @@ fn t54() -> VehicleBlueprint {
             ring_radius: 0.82,
             base_radius: 1.00,
             roof_radius: 0.34,
-            roof_y: 2.05,
+            roof_y: 1.86,
             front_slope_deg: 35.0,
             side_slope_deg: 25.0,
             rear_slope_deg: 10.0,
@@ -73,7 +76,10 @@ fn t54() -> VehicleBlueprint {
             mantlet_front_z: 1.04,
         },
         gun: GunShape {
-            trunnion_y: 1.70,
+            // The D-10TG beds low in the flattened 1951 casting: the trunnion sits below mid-height
+            // of the ring..roof face (ratio ~0.46) so the mantlet reads low, matching the lowered
+            // pancake turret (roof_y 1.86) rather than the old tall dome.
+            trunnion_y: 1.56,
             trunnion_z: 1.10,
             muzzle_z: 5.20,
             barrel_radius: 0.092,

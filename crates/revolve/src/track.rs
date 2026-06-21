@@ -48,6 +48,18 @@ pub fn t54_track_links(side_x: f32, belt: &TrackBeltVisual) -> GeometryMesh {
         let center = Vec3::new(side_x, center_2d.y, center_2d.x);
         let half = Vec3::new(belt.half_width * 0.94, pad_rise, (link_pitch / n as f32) * 0.46);
         links.push(oriented_box_mesh(center, half, tangent, normal));
+
+        // The guide runs on the wheel-facing surface of every shoe. It is deliberately a separate
+        // volume from the tread pad: the close-up model must explain how the track stays centred
+        // on its running gear instead of reading as a smooth rubber belt.
+        let guide_center_2d = midpoint - normal_2d * belt.half_thickness * 0.55;
+        let guide_center = Vec3::new(side_x, guide_center_2d.y, guide_center_2d.x);
+        let guide_half = Vec3::new(
+            belt.half_width * 0.20,
+            belt.half_thickness * 0.72,
+            (link_pitch / n as f32) * 0.28,
+        );
+        links.push(oriented_box_mesh(guide_center, guide_half, tangent, normal));
     }
     merge(&links)
 }
@@ -146,7 +158,12 @@ fn sweep_band(loop_pts: &[Vec2], side_x: f32, half_t: f32, half_w: f32) -> Geome
     GeometryMesh::new(vertices, indices).weld_and_smooth()
 }
 
-fn oriented_box_mesh(center: Vec3, half: Vec3, tangent: Vec3, normal: Vec3) -> GeometryMesh {
+pub(crate) fn oriented_box_mesh(
+    center: Vec3,
+    half: Vec3,
+    tangent: Vec3,
+    normal: Vec3,
+) -> GeometryMesh {
     let side = Vec3::X;
     let axes = [side, tangent, normal];
     let half_values = [half.x, half.z, half.y];
@@ -244,6 +261,16 @@ mod tests {
     #[test]
     fn closeup_track_uses_dense_links_instead_of_a_sparse_comb() {
         assert!(belt().link_count >= 40);
+    }
+
+    #[test]
+    fn closeup_track_has_independent_inner_guide_geometry() {
+        let links = t54_track_link_cues(&belt());
+        assert!(
+            links.triangle_count() > 2_500,
+            "track shoes need separate inner guides, got {} triangles",
+            links.triangle_count()
+        );
     }
 
     #[test]
