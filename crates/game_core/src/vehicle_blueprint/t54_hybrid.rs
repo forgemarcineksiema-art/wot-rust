@@ -100,7 +100,7 @@ pub(super) fn t54_hybrid() -> HybridVisual {
             half_width: 0.26,
             straight_segments: 6,
             arc_segments: 8,
-            link_count: 48,
+            link_count: 56,
         },
         fittings: FittingsVisual {
             cupola_hatch_center: Vec3::new(-0.34, 2.25, -0.10),

@@ -181,7 +181,7 @@ pub fn t54_track_ends(gear: &RunningGearVisual, belt: &TrackBeltVisual) -> Geome
             Vec3::new(side, belt.axle_y, belt.rear_z),
             r,
             gear.wheel_half_width + 0.02,
-            8,
+            12,
             MaterialRole::TrackMetal,
             SmoothingGroup::hard_edges(),
         ));
@@ -189,9 +189,9 @@ pub fn t54_track_ends(gear: &RunningGearVisual, belt: &TrackBeltVisual) -> Geome
             Vec3::new(side, belt.axle_y, belt.rear_z),
             side,
             gear.wheel_half_width + 0.02,
-            r * 0.36,
-            0.10,
-            8,
+            r * 0.32,
+            0.09,
+            12,
             SmoothingGroup::hard_edges(),
         ));
     }

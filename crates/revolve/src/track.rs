@@ -28,6 +28,10 @@ pub fn t54_track_links(side_x: f32, belt: &TrackBeltVisual) -> GeometryMesh {
     let loop_pts = belt_loop(belt);
     let centroid =
         loop_pts.iter().fold(Vec2::ZERO, |sum, &point| sum + point) / loop_pts.len() as f32;
+    // Each pad is a low, wide track shoe seated on the band's outer face and spaced with a thin gap,
+    // so the run reads as a continuous segmented track rather than a sparse comb of proud teeth. A
+    // low profile and dense spacing also keep the pads hugging the tight end arcs without splaying.
+    let pad_rise = belt.half_thickness * 0.40;
     let mut links = Vec::with_capacity(n);
     for link in 0..n {
         let (midpoint, tangent_2d, link_pitch) =
@@ -38,13 +42,11 @@ pub fn t54_track_links(side_x: f32, belt: &TrackBeltVisual) -> GeometryMesh {
         }
         let tangent = Vec3::new(0.0, tangent_2d.y, tangent_2d.x);
         let normal = Vec3::new(0.0, normal_2d.y, normal_2d.x);
-        let center_2d = midpoint + normal_2d * belt.half_thickness * 0.25;
+        // Seat the pad on the band's outer face: half of it beds into the band skin, half stands
+        // proud as a shallow shoe — fused to the band, not floating above it.
+        let center_2d = midpoint + normal_2d * belt.half_thickness;
         let center = Vec3::new(side_x, center_2d.y, center_2d.x);
-        let half = Vec3::new(
-            belt.half_width * 0.92,
-            belt.half_thickness * 0.50,
-            (link_pitch / n as f32) * 0.36,
-        );
+        let half = Vec3::new(belt.half_width * 0.94, pad_rise, (link_pitch / n as f32) * 0.46);
         links.push(oriented_box_mesh(center, half, tangent, normal));
     }
     merge(&links)
