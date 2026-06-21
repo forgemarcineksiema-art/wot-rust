@@ -15,5 +15,8 @@ thiserror.workspace = true
 vehicle_build = { path = "../vehicle_build" }
 vehicle_geometry = { path = "../vehicle_geometry" }
 
+[dev-dependencies]
+cast_loft = { path = "../cast_loft" }
+
 [lints]
 workspace = true

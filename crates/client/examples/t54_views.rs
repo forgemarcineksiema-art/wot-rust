@@ -1,5 +1,6 @@
-//! Multi-angle T-54 studio render: front, top-down, three-quarter and side into separate PNGs, so
-//! the turret/mantlet casting is judged from every revealing angle — not just the flattering profile.
+//! Multi-angle T-54 studio render: front, top-down, three-quarter, rear-three-quarter and side into
+//! separate PNGs, so the turret/mantlet casting is judged from every revealing angle — including the
+//! rear — not just the flattering profile.
 //! `cargo run -p client --example t54_views -- target/t54`  (writes `_front.png`, `_top.png`, …)
 
 use std::f32::consts::FRAC_PI_2;
@@ -65,10 +66,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // The hull faces +X (yaw 90°), so the gun points toward -X... pick eyes around the turret centre.
     let tc = [cx, ground + 1.55, cz];
+    // The hull faces +X, so the gun points toward -X: -X eyes are the front, +X eyes the rear.
     let views = [
         ("front", [cx - 7.0, ground + 1.7, cz], tc),
         ("top", [cx - 0.6, ground + 6.5, cz + 0.2], tc),
         ("threequarter", [cx - 5.5, ground + 3.2, cz + 5.0], tc),
+        ("rearthreequarter", [cx + 5.5, ground + 3.2, cz - 5.0], tc),
         ("side", [cx, ground + 2.0, cz + 8.5], [cx, ground + 1.15, cz]),
     ];
 
