@@ -138,6 +138,8 @@ mod tests {
         assert_eq!(solid.corners().len(), 8, "a box has 8 corners");
         let mesh = solid.to_mesh(MaterialRole::RolledArmor, SmoothingGroup::hard_edges());
         assert_eq!(mesh.triangle_count(), 12, "6 quad faces fan to 12 triangles");
+        mesh.validate_quality(vehicle_geometry::OPEN_OR_CLOSED_MESH)
+            .expect("a fabricated armour box is finite and non-degenerate");
         let b = mesh.bounds().expect("non-empty");
         assert!((b.max - Vec3::splat(1.0)).length() < EPS, "box reaches its exact extent");
     }

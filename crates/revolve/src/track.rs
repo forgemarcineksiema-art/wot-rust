@@ -216,6 +216,8 @@ mod tests {
         let belt_visual = belt();
         let band = track_belt(1.5, &belt_visual);
         assert!(band.triangle_count() > 0, "belt has geometry");
+        band.validate_quality(vehicle_geometry::OPEN_OR_CLOSED_MESH)
+            .expect("the swept track belt stays finite and non-self-degenerate");
         let b = band.bounds().expect("non-empty");
         // The band spans the wheel run in z and, with the grounded layout, rests its bottom run on
         // the ground (≈0) and wraps up over the wheel tops.

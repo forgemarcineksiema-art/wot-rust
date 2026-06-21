@@ -197,30 +197,15 @@ mod tests {
         })
     }
 
-    /// A capped loft is a closed 2-manifold: every undirected edge is shared by exactly two faces.
+    /// A capped loft is a closed, consistently-wound 2-manifold with finite unit normals — the one
+    /// shared mesh-quality contract every generator is measured against.
     #[test]
-    fn capped_loft_is_a_closed_manifold() {
-        let mesh = dome(&[]);
-        let mut edges: std::collections::HashMap<(u32, u32), u32> =
-            std::collections::HashMap::new();
-        for tri in mesh.indices().chunks_exact(3) {
-            for &(a, b) in &[(tri[0], tri[1]), (tri[1], tri[2]), (tri[2], tri[0])] {
-                *edges.entry((a.min(b), a.max(b))).or_insert(0) += 1;
-            }
-        }
-        assert!(!edges.is_empty());
-        assert!(
-            edges.values().all(|&count| count == 2),
-            "a closed shell shares every edge between exactly two faces"
-        );
-    }
-
-    #[test]
-    fn welded_normals_are_finite_and_unit() {
-        let mesh = dome(&[]);
-        for v in mesh.vertices() {
-            assert!(v.normal.is_finite() && (v.normal.length() - 1.0).abs() < 1.0e-3);
-        }
+    fn capped_loft_is_a_closed_smooth_manifold() {
+        let report = dome(&[])
+            .validate_quality(vehicle_geometry::CLOSED_SMOOTH_MESH)
+            .expect("a capped cast loft is a closed smooth manifold");
+        assert_eq!(report.boundary_edges, 0);
+        assert_eq!(report.non_manifold_edges, 0);
     }
 
     #[test]

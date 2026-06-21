@@ -1,7 +1,7 @@
 use glam::{Vec2, Vec3};
 use vehicle_geometry::{
     Axis, ExtrudeSpec, GeometryMesh, LoftSection, LoftSpec, MaterialRole, MeshBuilder,
-    ProfilePoint, RevolveSpec, SmoothingGroup,
+    OPEN_OR_CLOSED_MESH, ProfilePoint, RevolveSpec, SmoothingGroup,
 };
 
 #[path = "kernel/support.rs"]
@@ -24,9 +24,7 @@ fn revolve_creates_finite_indexed_geometry_with_unit_normals() {
         .build();
 
     assert_eq!(mesh.triangle_count(), 24);
-    assert_eq!(mesh.indices().len(), mesh.triangle_count() * 3);
-    assert!(mesh.vertices().iter().all(|vertex| vertex.position.is_finite()));
-    assert!(mesh.vertices().iter().all(|vertex| vertex.normal.is_normalized()));
+    mesh.validate_quality(OPEN_OR_CLOSED_MESH).expect("revolved barrel is a clean mesh");
 
     let bounds = mesh.bounds().expect("revolved barrel should have bounds");
     assert!(bounds.min.z >= -0.001);
@@ -66,8 +64,7 @@ fn chamfered_prism_keeps_bounds_while_adding_shape_detail() {
 
     assert!(mesh.vertex_count() > 24, "chamfering should be richer than a plain box");
     assert!(mesh.triangle_count() > 12, "chamfering should be richer than a plain box");
-    assert!(mesh.vertices().iter().all(|vertex| vertex.position.is_finite()));
-    assert!(mesh.vertices().iter().all(|vertex| vertex.normal.is_normalized()));
+    mesh.validate_quality(OPEN_OR_CLOSED_MESH).expect("chamfered prism is a clean mesh");
 
     let bounds = mesh.bounds().expect("chamfered prism should have bounds");
     assert!((bounds.min.x + 1.0).abs() < 0.001);
@@ -95,8 +92,7 @@ fn extrude_sweeps_a_sloped_section_with_outward_faces() {
         )
         .build();
 
-    assert!(mesh.vertices().iter().all(|v| v.position.is_finite()));
-    assert!(mesh.vertices().iter().all(|v| v.normal.is_normalized()));
+    mesh.validate_quality(OPEN_OR_CLOSED_MESH).expect("extruded prism is a clean mesh");
 
     let bounds = mesh.bounds().expect("extruded prism should have bounds");
     assert!((bounds.min.x + 1.3).abs() < 1.0e-4, "swept to -half_depth on x");
@@ -197,8 +193,7 @@ fn loft_skins_varying_sections_into_a_tapered_solid() {
         )
         .build();
 
-    assert!(mesh.vertices().iter().all(|v| v.position.is_finite()));
-    assert!(mesh.vertices().iter().all(|v| v.normal.is_normalized()));
+    mesh.validate_quality(OPEN_OR_CLOSED_MESH).expect("a capped convex loft is a clean mesh");
     assert!(all_faces_point_outward(&mesh), "a convex loft must be outward-wound");
 
     let bounds = mesh.bounds().expect("loft should have bounds");
@@ -272,8 +267,7 @@ fn plate_box_bevels_every_edge_into_a_cut_plate() {
         .plate_box(Vec3::ZERO, half, 0.05, MaterialRole::RolledArmor, SmoothingGroup::hard_edges())
         .build();
 
-    assert!(mesh.vertices().iter().all(|v| v.position.is_finite()));
-    assert!(mesh.vertices().iter().all(|v| v.normal.is_normalized()));
+    mesh.validate_quality(OPEN_OR_CLOSED_MESH).expect("a chamfered plate is a clean mesh");
     assert!(all_faces_point_outward(&mesh), "a chamfered plate is convex and outward-wound");
 
     // 6 face quads + 12 edge chamfers + 8 corner triangles.
@@ -304,7 +298,7 @@ fn plate_box_clamps_an_oversized_bevel() {
         )
         .build();
 
-    assert!(mesh.vertices().iter().all(|v| v.position.is_finite() && v.normal.is_normalized()));
+    mesh.validate_quality(OPEN_OR_CLOSED_MESH).expect("a clamped plate is still a clean mesh");
     assert!(all_faces_point_outward(&mesh));
 }
 

@@ -226,6 +226,10 @@ mod tests {
         let mesh = mesh_sphere(24);
         assert!(mesh.triangle_count() > 0, "sphere produced no triangles");
         assert_eq!(mesh.triangle_count() % 2, 0, "quads emit two triangles each");
+        // The shared contract proves the watertight, consistently-wound manifold; the Euler
+        // identity below additionally pins it to genus zero.
+        mesh.validate_quality(vehicle_geometry::CLOSED_SMOOTH_MESH)
+            .expect("a meshed sphere is a closed smooth manifold");
         let v = mesh.vertex_count() as i64;
         let q = (mesh.triangle_count() / 2) as i64;
         assert_eq!(v - q, 2, "V - Q must be 2 for a closed genus-0 surface");
