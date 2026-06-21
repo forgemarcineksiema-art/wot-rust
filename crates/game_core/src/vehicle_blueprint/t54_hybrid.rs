@@ -134,6 +134,8 @@ pub(super) fn t54_hybrid() -> HybridVisual {
             exhaust_half: Vec3::new(0.10, 0.10, 0.55),
             periscope_center: Vec3::new(0.34, 1.88, 0.42),
             periscope_half: Vec3::new(0.07, 0.05, 0.07),
+            dshk_mount_center: Vec3::new(0.48, 1.93, -0.18),
+            dshk_barrel_length: 0.62,
             fender_lip_drop: 0.07,
             fender_lip_thickness: 0.03,
             weld_seam_half_thickness: 0.015,

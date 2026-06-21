@@ -188,6 +188,9 @@ pub struct DetailVisual {
     /// Turret-roof periscope block (right of the cupola; mirrored to the loader side by the generator).
     pub periscope_center: Vec3,
     pub periscope_half: Vec3,
+    /// Loader-side DShK anti-aircraft mount: barrel pivot and exposed barrel length.
+    pub dshk_mount_center: Vec3,
+    pub dshk_barrel_length: f32,
     /// Fender lip: a thin downturned edge along the outer fender run (drop below + thickness).
     pub fender_lip_drop: f32,
     pub fender_lip_thickness: f32,
