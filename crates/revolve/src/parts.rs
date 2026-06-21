@@ -1,77 +1,13 @@
-//! T-54 round parts built from the revolve generator: the main gun barrel, the moving cast mantlet,
-//! and the road-wheel train. Every dimension is read from the vehicle blueprint's [`GunVisual`] /
-//! [`RunningGearVisual`] — the single source — rather than held here, so the geometry cannot drift
-//! from the blueprint.
+//! T-54 round parts built from the revolve generator: the road-wheel train, the track-end idler and
+//! sprocket, and round fittings. Every dimension is read from the vehicle blueprint's
+//! [`RunningGearVisual`] / [`TrackBeltVisual`] — the single source — rather than held here, so the
+//! geometry cannot drift from the blueprint.
 
-use game_core::{GunVisual, RunningGearVisual, TrackBeltVisual};
+use game_core::{RunningGearVisual, TrackBeltVisual};
 use glam::Vec3;
 use vehicle_geometry::{GeometryMesh, GeometryVertex, MaterialRole, SmoothingGroup};
 
 use crate::{merge, revolve, translate};
-
-/// The main gun barrel as a capped steel cylinder along +Z, with a slight muzzle swell. `length` is
-/// the breech-to-muzzle span — driven by the installed gun module, not a post-bake scale.
-pub fn gun_barrel(length: f32, gun: &GunVisual) -> GeometryMesh {
-    let r = gun.barrel_radius;
-    let breech = 1.0;
-    let muzzle = breech + length.max(0.5);
-    let profile = [
-        (breech, 0.0),
-        (breech, r),
-        (muzzle - gun.muzzle_taper, r),
-        (muzzle, gun.muzzle_radius),
-        (muzzle, 0.0),
-    ];
-    revolve(Vec3::Z, &profile, gun.barrel_segments, MaterialRole::BarrelSteel, SmoothingGroup(4))
-}
-
-/// A barrel mounted between the authoritative trunnion and muzzle frames in vehicle-local space.
-pub fn gun_barrel_between(trunnion: Vec3, muzzle: Vec3, gun: &GunVisual) -> GeometryMesh {
-    let length = (muzzle.z - trunnion.z).max(0.5);
-    let r = gun.barrel_radius;
-    let profile = [
-        (0.0, 0.0),
-        (0.0, r),
-        (length - gun.muzzle_taper, r),
-        (length, gun.muzzle_radius),
-        (length, 0.0),
-    ];
-    translate(
-        &revolve(
-            Vec3::Z,
-            &profile,
-            gun.barrel_segments,
-            MaterialRole::BarrelSteel,
-            SmoothingGroup(4),
-        ),
-        trunnion,
-    )
-}
-
-/// The moving cast mantlet mask, seated at the trunnion: a profile revolved about Z then squashed to
-/// a wide flat oval (so it reads as a mask, not a round ball) by the blueprint's mantlet scale.
-pub fn moving_mantlet(trunnion: Vec3, gun: &GunVisual) -> GeometryMesh {
-    let base = revolve(
-        Vec3::Z,
-        &gun.mantlet_profile,
-        gun.mantlet_segments,
-        MaterialRole::CastArmor,
-        SmoothingGroup(2),
-    );
-    let s = gun.mantlet_scale;
-    let vertices = base
-        .vertices()
-        .iter()
-        .map(|v| GeometryVertex {
-            position: trunnion
-                + Vec3::new(v.position.x * s.x, v.position.y * s.y, v.position.z * s.z),
-            normal: Vec3::new(v.normal.x / s.x, v.normal.y / s.y, v.normal.z / s.z)
-                .normalize_or_zero(),
-            ..*v
-        })
-        .collect();
-    GeometryMesh::new(vertices, base.indices().to_vec()).weld_and_smooth()
-}
 
 /// One road wheel — a *dished* rubber tyre (full-radius tread, a stepped rim lip, then the outer
 /// face recessed inboard to the hub seat) carrying a steel hub boss proud of the rim — revolved
@@ -114,7 +50,29 @@ pub fn road_wheel(
         SmoothingGroup::hard_edges(),
     );
 
-    translate(&merge(&[tyre, hub]), Vec3::new(side_x, axle_y, center_z))
+    let wheel = merge(&[tyre, hub]);
+    let wheel = if side_x.is_sign_negative() { mirror_x(&wheel) } else { wheel };
+    translate(&wheel, Vec3::new(side_x, axle_y, center_z))
+}
+
+/// Mirrors an axle-aligned part so its raised details face the exterior of the opposite track run.
+/// Mirroring reverses triangle winding, so each triangle is rewound to preserve face culling.
+fn mirror_x(mesh: &GeometryMesh) -> GeometryMesh {
+    let vertices = mesh
+        .vertices()
+        .iter()
+        .map(|vertex| GeometryVertex {
+            position: Vec3::new(-vertex.position.x, vertex.position.y, vertex.position.z),
+            normal: Vec3::new(-vertex.normal.x, vertex.normal.y, vertex.normal.z),
+            ..*vertex
+        })
+        .collect();
+    let indices = mesh
+        .indices()
+        .chunks_exact(3)
+        .flat_map(|triangle| [triangle[0], triangle[2], triangle[1]])
+        .collect();
+    GeometryMesh::new(vertices, indices)
 }
 
 /// The z of each road-wheel station, front (highest z) to rear, with the T-54's characteristic large
@@ -122,7 +80,8 @@ pub fn road_wheel(
 pub fn road_wheel_stations(gear: &RunningGearVisual) -> Vec<f32> {
     let count = gear.wheel_count;
     let span = (count - 1) as f32 * gear.spacing;
-    let front_z = gear.first_z + span;
+    let rear_z = gear.first_z + gear.end_inset;
+    let front_z = rear_z + span;
     let mut zs = vec![front_z];
     if count >= 2 {
         zs.push(front_z - gear.first_gap);
@@ -164,6 +123,32 @@ fn end_wheel(
     translate(&revolve(Vec3::X, &tyre, segments, material, smoothing), center)
 }
 
+/// A raised end-wheel hub placed on the exterior face of either track run.
+fn end_hub(
+    center: Vec3,
+    side_x: f32,
+    half_width: f32,
+    radius: f32,
+    overhang: f32,
+    segments: usize,
+    smoothing: SmoothingGroup,
+) -> GeometryMesh {
+    let local = revolve(
+        Vec3::X,
+        &[
+            (half_width - 0.02, 0.0),
+            (half_width - 0.02, radius),
+            (half_width + overhang, radius),
+            (half_width + overhang, 0.0),
+        ],
+        segments,
+        MaterialRole::TrackMetal,
+        smoothing,
+    );
+    let local = if side_x.is_sign_negative() { mirror_x(&local) } else { local };
+    translate(&local, center)
+}
+
 /// The track-end wheels, distinct from the road wheels: a smooth front idler and a faceted rear drive
 /// sprocket (low segment count, reading as toothed), both sides, sitting in the belt's end wraps.
 pub fn t54_track_ends(gear: &RunningGearVisual, belt: &TrackBeltVisual) -> GeometryMesh {
@@ -178,12 +163,30 @@ pub fn t54_track_ends(gear: &RunningGearVisual, belt: &TrackBeltVisual) -> Geome
             MaterialRole::TrackMetal,
             SmoothingGroup(5),
         ));
+        parts.push(end_hub(
+            Vec3::new(side, belt.axle_y, belt.front_z),
+            side,
+            gear.wheel_half_width,
+            r * 0.28,
+            0.08,
+            gear.hub_segments,
+            SmoothingGroup(5),
+        ));
         parts.push(end_wheel(
             Vec3::new(side, belt.axle_y, belt.rear_z),
             r,
             gear.wheel_half_width + 0.02,
             8,
             MaterialRole::TrackMetal,
+            SmoothingGroup::hard_edges(),
+        ));
+        parts.push(end_hub(
+            Vec3::new(side, belt.axle_y, belt.rear_z),
+            side,
+            gear.wheel_half_width + 0.02,
+            r * 0.36,
+            0.10,
+            8,
             SmoothingGroup::hard_edges(),
         ));
     }
@@ -210,44 +213,6 @@ mod tests {
             .hybrid()
             .unwrap()
             .running_gear
-    }
-
-    fn gun() -> GunVisual {
-        game_core::VehicleBlueprint::for_vehicle(game_core::VehicleKind::T54_1951)
-            .unwrap()
-            .hybrid()
-            .unwrap()
-            .gun
-    }
-
-    #[test]
-    fn the_barrel_reaches_forward_past_the_turret() {
-        let b = gun_barrel(3.6, &gun()).bounds().expect("non-empty");
-        assert!(b.max.z > 4.5, "muzzle reaches forward: {:.2}", b.max.z);
-        assert!(b.max.x < 0.12 && b.max.y < 0.12, "barrel stays slim");
-    }
-
-    #[test]
-    fn mounted_barrel_uses_the_authoritative_frames() {
-        let trunnion = Vec3::new(0.0, 1.70, 1.10);
-        let muzzle = Vec3::new(0.0, 1.70, 5.20);
-        let barrel = gun_barrel_between(trunnion, muzzle, &gun());
-        let b = barrel.bounds().expect("non-empty");
-        assert!(b.min.y < trunnion.y && b.max.y > trunnion.y, "barrel surrounds trunnion height");
-        assert!((b.max.z - muzzle.z).abs() < 1.0e-4, "muzzle reaches its authoritative frame");
-    }
-
-    #[test]
-    fn a_longer_gun_module_makes_a_longer_barrel() {
-        let short = gun_barrel(3.0, &gun()).bounds().unwrap().max.z;
-        let long = gun_barrel(4.5, &gun()).bounds().unwrap().max.z;
-        assert!(long > short + 1.0, "barrel length tracks the module: {long:.2} vs {short:.2}");
-    }
-
-    #[test]
-    fn the_moving_mantlet_is_a_wide_flat_oval() {
-        let m = moving_mantlet(Vec3::new(0.0, 1.70, 1.10), &gun()).bounds().expect("non-empty");
-        assert!((m.max.x - m.min.x) > (m.max.y - m.min.y), "mantlet reads wider than tall");
     }
 
     #[test]
@@ -289,19 +254,80 @@ mod tests {
     }
 
     #[test]
+    fn each_track_side_exposes_its_hub_on_the_outside_face() {
+        let g = gear();
+        let left = road_wheel(0.0, -g.side_x, 0.58, &g);
+        let outer_hub = left
+            .vertices()
+            .iter()
+            .filter(|vertex| vertex.material == MaterialRole::TrackMetal)
+            .map(|vertex| vertex.position.x)
+            .fold(f32::INFINITY, f32::min);
+
+        assert!(outer_hub < -g.side_x - g.wheel_half_width);
+    }
+
+    #[test]
     fn the_front_wheel_gap_is_the_largest_and_the_train_keeps_its_span() {
         let g = gear();
         let zs = road_wheel_stations(&g);
         assert_eq!(zs.len(), g.wheel_count);
-        // Front to rear, descending z; the train still spans first_z .. front.
+        // Front to rear, descending z; the train spans the blueprint range minus end clearance.
         let span = (g.wheel_count - 1) as f32 * g.spacing;
-        assert!((zs[0] - (g.first_z + span)).abs() < 1.0e-4, "front wheel at the train front");
-        assert!((zs[zs.len() - 1] - g.first_z).abs() < 1.0e-4, "rear wheel at the train rear");
+        assert!(
+            (zs[0] - (g.first_z + g.end_inset + span)).abs() < 1.0e-4,
+            "front wheel at the inset train front"
+        );
+        assert!(
+            (zs[zs.len() - 1] - (g.first_z + g.end_inset)).abs() < 1.0e-4,
+            "rear wheel at the inset train rear"
+        );
         let gaps: Vec<f32> = zs.windows(2).map(|w| w[0] - w[1]).collect();
         let front_gap = gaps[0];
         assert!(
             gaps[1..].iter().all(|&g| front_gap > g + 0.1),
             "the T-54 front wheel gap {front_gap:.2} is clearly the largest: {gaps:?}"
         );
+    }
+
+    #[test]
+    fn five_road_wheels_clear_the_idler_and_sprocket() {
+        let blueprint = game_core::VehicleBlueprint::for_vehicle(game_core::VehicleKind::T54_1951)
+            .expect("T-54 blueprint");
+        let visual = blueprint.hybrid().expect("hybrid visual");
+        let gear = visual.running_gear;
+        let belt = visual.track_belt;
+        let stations = road_wheel_stations(&gear);
+        let end_radius = belt.radius - belt.half_thickness;
+        let clearance = 0.05;
+
+        assert_eq!(stations.len(), 5, "the T-54 retains five road wheels");
+        assert!(
+            belt.front_z - stations[0] > gear.wheel_radius + end_radius + clearance,
+            "front road wheel must read separately from the idler"
+        );
+        assert!(
+            stations[4] - belt.rear_z > gear.wheel_radius + end_radius + clearance,
+            "rear road wheel must read separately from the sprocket"
+        );
+    }
+
+    #[test]
+    fn track_end_mechanisms_expose_outer_hubs_on_both_sides() {
+        let blueprint = game_core::VehicleBlueprint::for_vehicle(game_core::VehicleKind::T54_1951)
+            .expect("T-54 blueprint");
+        let visual = blueprint.hybrid().expect("hybrid visual");
+        let mesh = t54_track_ends(&visual.running_gear, &visual.track_belt);
+        let max_x = mesh
+            .vertices()
+            .iter()
+            .map(|vertex| vertex.position.x)
+            .fold(f32::NEG_INFINITY, f32::max);
+        let min_x =
+            mesh.vertices().iter().map(|vertex| vertex.position.x).fold(f32::INFINITY, f32::min);
+        let outer_face = visual.running_gear.side_x + visual.running_gear.wheel_half_width;
+
+        assert!(max_x > outer_face + 0.03, "right outer hub is visible");
+        assert!(min_x < -outer_face - 0.03, "left outer hub is visible");
     }
 }

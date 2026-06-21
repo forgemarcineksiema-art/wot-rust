@@ -22,49 +22,57 @@ pub fn t54_tracks(belt: &TrackBeltVisual) -> GeometryMesh {
 /// the belt reads as discrete tracked links. Fine tread is left to the material layer.
 pub fn t54_track_links(side_x: f32, belt: &TrackBeltVisual) -> GeometryMesh {
     let n = belt.link_count.max(1);
-    let span = belt.front_z - belt.rear_z;
-    let pitch = span / n as f32;
-    let y = belt.axle_y - belt.radius - belt.half_thickness;
-    let half = Vec3::new(belt.half_width * 0.92, belt.half_thickness * 0.6, pitch * 0.36);
+    let loop_pts = belt_loop(belt);
+    let centroid =
+        loop_pts.iter().fold(Vec2::ZERO, |sum, &point| sum + point) / loop_pts.len() as f32;
     let mut links = Vec::with_capacity(n);
-    for i in 0..n {
-        let z = belt.rear_z + (i as f32 + 0.5) * pitch;
-        links.push(box_mesh(Vec3::new(side_x, y, z), half));
+    for link in 0..n {
+        let (midpoint, tangent_2d, link_pitch) =
+            loop_sample(&loop_pts, (link as f32 + 0.5) / n as f32);
+        let mut normal_2d = Vec2::new(-tangent_2d.y, tangent_2d.x);
+        if normal_2d.dot(midpoint - centroid) < 0.0 {
+            normal_2d = -normal_2d;
+        }
+        let tangent = Vec3::new(0.0, tangent_2d.y, tangent_2d.x);
+        let normal = Vec3::new(0.0, normal_2d.y, normal_2d.x);
+        let center_2d = midpoint + normal_2d * belt.half_thickness * 0.25;
+        let center = Vec3::new(side_x, center_2d.y, center_2d.x);
+        let half = Vec3::new(
+            belt.half_width * 0.92,
+            belt.half_thickness * 0.50,
+            (link_pitch / n as f32) * 0.36,
+        );
+        links.push(oriented_box_mesh(center, half, tangent, normal));
     }
     merge(&links)
+}
+
+fn loop_sample(loop_pts: &[Vec2], fraction: f32) -> (Vec2, Vec2, f32) {
+    let lengths: Vec<f32> = (0..loop_pts.len())
+        .map(|index| (loop_pts[(index + 1) % loop_pts.len()] - loop_pts[index]).length())
+        .collect();
+    let perimeter: f32 = lengths.iter().sum();
+    let mut remaining = fraction.clamp(0.0, 1.0) * perimeter;
+    for (index, length) in lengths.iter().copied().enumerate() {
+        if remaining <= length {
+            let start = loop_pts[index];
+            let end = loop_pts[(index + 1) % loop_pts.len()];
+            return (
+                start.lerp(end, remaining / length.max(f32::EPSILON)),
+                (end - start).normalize_or_zero(),
+                perimeter,
+            );
+        }
+        remaining -= length;
+    }
+    let start = loop_pts[0];
+    let end = loop_pts[1];
+    (start, (end - start).normalize_or_zero(), perimeter)
 }
 
 /// Both sides' track link rows, merged.
 pub fn t54_track_link_cues(belt: &TrackBeltVisual) -> GeometryMesh {
     merge(&[t54_track_links(belt.side_x, belt), t54_track_links(-belt.side_x, belt)])
-}
-
-/// A hard-edged axis-aligned box as a `GeometryMesh` (six flat faces, 12 triangles).
-fn box_mesh(center: Vec3, half: Vec3) -> GeometryMesh {
-    let mut vertices = Vec::with_capacity(24);
-    let mut indices = Vec::with_capacity(36);
-    for axis in [Vec3::X, Vec3::Y, Vec3::Z] {
-        for sign in [1.0_f32, -1.0] {
-            let normal = axis * sign;
-            let u = Vec3::new(axis.y, axis.z, axis.x); // a perpendicular in-plane axis
-            let w = normal.cross(u);
-            let base = vertices.len() as u32;
-            for (su, sw) in [(1.0, 1.0), (-1.0, 1.0), (-1.0, -1.0), (1.0, -1.0)] {
-                let pos = center
-                    + normal * half.dot(axis.abs())
-                    + u * (su * half.dot(u.abs()))
-                    + w * (sw * half.dot(w.abs()));
-                vertices.push(GeometryVertex::new(
-                    pos,
-                    normal,
-                    MaterialRole::TrackMetal,
-                    SmoothingGroup::hard_edges(),
-                ));
-            }
-            indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
-        }
-    }
-    GeometryMesh::new(vertices, indices)
 }
 
 /// The side-profile loop as `(z, y)` points: bottom run, rear wrap, top run, front wrap.
@@ -133,6 +141,42 @@ fn sweep_band(loop_pts: &[Vec2], side_x: f32, half_t: f32, half_w: f32) -> Geome
     GeometryMesh::new(vertices, indices).weld_and_smooth()
 }
 
+fn oriented_box_mesh(center: Vec3, half: Vec3, tangent: Vec3, normal: Vec3) -> GeometryMesh {
+    let side = Vec3::X;
+    let axes = [side, tangent, normal];
+    let half_values = [half.x, half.z, half.y];
+    let mut vertices = Vec::with_capacity(24);
+    let mut indices = Vec::with_capacity(36);
+    for (axis_index, axis) in axes.iter().enumerate() {
+        for sign in [1.0_f32, -1.0] {
+            let face_normal = *axis * sign;
+            let first = axes[(axis_index + 1) % 3];
+            let second = axes[(axis_index + 2) % 3];
+            let first_half = half_values[(axis_index + 1) % 3];
+            let second_half = half_values[(axis_index + 2) % 3];
+            let axis_half = half_values[axis_index];
+            let base = vertices.len() as u32;
+            for (first_sign, second_sign) in [(1.0, 1.0), (-1.0, 1.0), (-1.0, -1.0), (1.0, -1.0)] {
+                vertices.push(GeometryVertex::new(
+                    center
+                        + face_normal * axis_half
+                        + first * (first_sign * first_half)
+                        + second * (second_sign * second_half),
+                    face_normal,
+                    MaterialRole::TrackMetal,
+                    SmoothingGroup::hard_edges(),
+                ));
+            }
+            if first.cross(second).dot(face_normal) > 0.0 {
+                indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
+            } else {
+                indices.extend_from_slice(&[base, base + 2, base + 1, base, base + 3, base + 2]);
+            }
+        }
+    }
+    GeometryMesh::new(vertices, indices)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -180,5 +224,38 @@ mod tests {
             t54_tracks(&belt).triangle_count(),
             2 * track_belt(belt.side_x, &belt).triangle_count()
         );
+    }
+
+    #[test]
+    fn link_cues_follow_the_full_track_loop_instead_of_only_the_ground_run() {
+        let belt_visual = belt();
+        let links = t54_track_link_cues(&belt_visual);
+        let bounds = links.bounds().expect("link cues");
+
+        assert!(bounds.min.y < belt_visual.axle_y - belt_visual.radius);
+        assert!(bounds.max.y > belt_visual.axle_y + belt_visual.radius);
+    }
+
+    #[test]
+    fn closeup_track_uses_dense_links_instead_of_a_sparse_comb() {
+        assert!(belt().link_count >= 40);
+    }
+
+    #[test]
+    fn every_oriented_link_face_winds_toward_its_authored_normal() {
+        let mesh = t54_track_links(belt().side_x, &belt());
+        let vertices = mesh.vertices();
+        for triangle in mesh.indices().chunks_exact(3) {
+            let (a, b, c) = (
+                vertices[triangle[0] as usize],
+                vertices[triangle[1] as usize],
+                vertices[triangle[2] as usize],
+            );
+            let face = (b.position - a.position).cross(c.position - a.position);
+            assert!(
+                face.dot(a.normal + b.normal + c.normal) > 0.0,
+                "oriented link face must wind outward"
+            );
+        }
     }
 }

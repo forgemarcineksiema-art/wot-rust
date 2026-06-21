@@ -13,8 +13,8 @@ use crate::garage_scene::hangar_camera_pivot;
 // Orbit camera limits.
 const MIN_PITCH: f32 = -0.05;
 const MAX_PITCH: f32 = 1.20;
-const MIN_DISTANCE: f32 = 6.0;
-const MAX_DISTANCE: f32 = 24.0;
+const MIN_DISTANCE: f32 = 8.5;
+const MAX_DISTANCE: f32 = 20.0;
 const ORBIT_SENSITIVITY: f32 = 0.005;
 const ZOOM_STEP_M: f32 = 1.2;
 
@@ -28,7 +28,7 @@ impl GarageState {
                 self.orbit_distance * self.orbit_pitch.sin(),
                 horizontal * self.orbit_yaw.cos(),
             );
-        Camera { eye: eye.to_array(), target: pivot.to_array(), vertical_fov_degrees: 40.0 }
+        Camera { eye: eye.to_array(), target: pivot.to_array(), vertical_fov_degrees: 32.0 }
     }
 
     pub(super) fn begin_drag(&mut self) {

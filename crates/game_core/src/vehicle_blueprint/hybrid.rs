@@ -125,10 +125,14 @@ pub struct RunningGearVisual {
     pub wheel_segments: usize,
     pub hub_segments: usize,
     pub wheel_count: usize,
+    /// Visual clearance between the blueprint's track-run endpoint and the outermost road wheel.
+    /// This lets a hybrid vehicle show separate idler/sprocket mechanisms without duplicating the
+    /// authoritative track span.
+    pub end_inset: f32,
     pub first_z: f32,
     pub spacing: f32,
     /// The T-54's characteristic large gap between the first and second road wheels. The remaining
-    /// stations are spaced evenly to keep the train within `first_z .. first_z + (count-1)*spacing`.
+    /// stations are spaced evenly within the inset visual train.
     pub first_gap: f32,
     pub side_x: f32,
 }

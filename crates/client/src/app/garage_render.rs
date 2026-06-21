@@ -36,7 +36,7 @@ impl ClientApp {
         let mut objects = tank_vehicle_render_objects(
             &mut self.vehicle_asset_catalog,
             &snapshot,
-            [0.34, 0.42, 0.30],
+            [0.72, 0.76, 0.62],
         );
         // Stretch the gun submesh (objects: [hull, turret, gun]) along its barrel axis so swapping
         // to a longer/shorter gun visibly changes the silhouette. Local +Z is the barrel direction.
@@ -78,8 +78,8 @@ impl ClientApp {
         let (vertices, indices, sky, tint) = match want {
             SceneKind::Garage => {
                 let (v, i) = crate::garage_scene::hangar_scene_mesh();
-                // Dim warm interior + a warm amber cast over the whole scene.
-                (v, i, (0.07, 0.05, 0.04), [1.18, 1.0, 0.78])
+                // A neutral studio result keeps the vehicle's olive material readable.
+                (v, i, (0.07, 0.05, 0.04), [1.0, 1.0, 1.0])
             }
             SceneKind::Battle => {
                 let (v, i) = battlefield_scene_mesh(&self.battlefield);
