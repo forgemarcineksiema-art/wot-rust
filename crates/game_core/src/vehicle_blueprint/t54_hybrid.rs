@@ -53,7 +53,7 @@ pub(super) fn t54_hybrid() -> HybridVisual {
             // A deeper, lower mantlet socket: a wider recess seated slightly lower on the front face,
             // so the cast trough the gun mantlet beds into reads as a real cavity, not a dimple.
             socket_radius: 0.38,
-            socket_center: Vec3::new(0.0, 1.66, 1.04),
+            socket_center: Vec3::new(0.0, 1.52, 1.04),
             socket_blend: 0.07,
             bbox_min: Vec3::new(-1.20, 1.25, -1.20),
             bbox_max: Vec3::new(1.20, 2.00, 1.45),

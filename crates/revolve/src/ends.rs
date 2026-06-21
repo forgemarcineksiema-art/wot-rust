@@ -74,7 +74,13 @@ pub fn t54_track_ends(gear: &RunningGearVisual, belt: &TrackBeltVisual) -> Geome
     for side in [gear.side_x, -gear.side_x] {
         // Front idler: a smooth full-radius disc with a small hub.
         let idler = Vec3::new(side, belt.axle_y, belt.front_z);
-        parts.push(end_wheel(idler, r, gear.wheel_half_width, gear.wheel_segments, SmoothingGroup(5)));
+        parts.push(end_wheel(
+            idler,
+            r,
+            gear.wheel_half_width,
+            gear.wheel_segments,
+            SmoothingGroup(5),
+        ));
         parts.push(end_hub(idler, side, gear.wheel_half_width, r * 0.26, 0.06, gear.hub_segments));
 
         // Rear drive sprocket: a smaller smooth core ringed by teeth, plus a hub.
@@ -87,7 +93,14 @@ pub fn t54_track_ends(gear: &RunningGearVisual, belt: &TrackBeltVisual) -> Geome
             SmoothingGroup::hard_edges(),
         ));
         parts.push(sprocket_teeth(sprocket, gear.wheel_half_width, r, 10));
-        parts.push(end_hub(sprocket, side, gear.wheel_half_width, r * 0.30, 0.07, gear.hub_segments));
+        parts.push(end_hub(
+            sprocket,
+            side,
+            gear.wheel_half_width,
+            r * 0.30,
+            0.07,
+            gear.hub_segments,
+        ));
     }
     merge(&parts)
 }
@@ -107,8 +120,11 @@ mod tests {
     fn track_end_mechanisms_expose_outer_hubs_on_both_sides() {
         let v = visual();
         let mesh = t54_track_ends(&v.running_gear, &v.track_belt);
-        let max_x =
-            mesh.vertices().iter().map(|vertex| vertex.position.x).fold(f32::NEG_INFINITY, f32::max);
+        let max_x = mesh
+            .vertices()
+            .iter()
+            .map(|vertex| vertex.position.x)
+            .fold(f32::NEG_INFINITY, f32::max);
         let min_x =
             mesh.vertices().iter().map(|vertex| vertex.position.x).fold(f32::INFINITY, f32::min);
         let outer_face = v.running_gear.side_x + v.running_gear.wheel_half_width;
@@ -133,6 +149,10 @@ mod tests {
                 sectors.insert((y.atan2(z) / (std::f32::consts::TAU / 12.0)).round() as i32);
             }
         }
-        assert!(sectors.len() >= 6, "drive sprocket teeth must ring the rim: {} sectors", sectors.len());
+        assert!(
+            sectors.len() >= 6,
+            "drive sprocket teeth must ring the rim: {} sectors",
+            sectors.len()
+        );
     }
 }

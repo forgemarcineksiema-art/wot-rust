@@ -272,5 +272,4 @@ mod tests {
             "rear road wheel must read separately from the sprocket"
         );
     }
-
 }
