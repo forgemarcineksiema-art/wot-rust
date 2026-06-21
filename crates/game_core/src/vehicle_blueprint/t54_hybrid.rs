@@ -122,6 +122,16 @@ pub(super) fn t54_hybrid() -> HybridVisual {
             cupola_hatch_center: Vec3::new(-0.34, 1.98, -0.10),
             cupola_hatch_radius: 0.20,
             cupola_hatch_half_height: 0.04,
+            // Driver's hatch on the hull roof, front-left: ahead of the turret ring, on the flat roof
+            // that the 60deg glacis cuts off at z ~= 1.62, so the lid stays clear of the slope.
+            driver_hatch_center: Vec3::new(-0.45, 1.20, 1.40),
+            driver_hatch_radius: 0.17,
+            driver_hatch_half_height: 0.05,
+            // Loader's hatch on the turret roof, loader (right) side: between the right periscope and
+            // the cupola, clear of the DShK pedestal, seated on the 1.86 roof plane.
+            loader_hatch_center: Vec3::new(0.36, 1.88, 0.05),
+            loader_hatch_radius: 0.19,
+            loader_hatch_half_height: 0.04,
             headlight_center: Vec3::new(0.45, 1.10, 1.98),
             headlight_radius: 0.10,
             headlight_half_height: 0.07,

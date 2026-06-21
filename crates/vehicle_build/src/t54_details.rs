@@ -5,11 +5,61 @@
 //! glacis/deck weld bead — and deliberately no mud, rust, battle damage, decals or weathering. Every
 //! piece reads its dimensions from the blueprint's [`HybridVisual`]; none invents a tank dimension.
 
-use game_core::{GunVisual, HybridVisual};
+use game_core::{FittingsVisual, GunVisual, HybridVisual};
 use glam::Vec3;
 use vehicle_geometry::{MaterialRole, SmoothingGroup, SubmeshKind};
 
 use crate::part::{PartLod, PartShape, VehiclePart};
+
+/// A raised round lid/drum fitting (hatch lid or headlight), as its own `Detail` part.
+fn drum_fitting(submesh: SubmeshKind, center: Vec3, radius: f32, half_height: f32) -> VehiclePart {
+    VehiclePart {
+        submesh,
+        material: MaterialRole::RolledArmor,
+        smoothing: SmoothingGroup::hard_edges(),
+        shape: PartShape::Mesh(revolve::drum(
+            center,
+            radius,
+            half_height,
+            16,
+            MaterialRole::RolledArmor,
+            SmoothingGroup(2),
+        )),
+        lod: PartLod::Detail,
+    }
+}
+
+/// The semantic drum fittings: the commander's cupola hatch and the loader's hatch ride the turret
+/// (so they traverse); the driver's hatch and the glacis headlight ride the hull. Each is its own
+/// part, not anonymous greeble.
+pub fn t54_fitting_parts(f: &FittingsVisual) -> Vec<VehiclePart> {
+    vec![
+        drum_fitting(
+            SubmeshKind::Turret,
+            f.cupola_hatch_center,
+            f.cupola_hatch_radius,
+            f.cupola_hatch_half_height,
+        ),
+        drum_fitting(
+            SubmeshKind::Hull,
+            f.driver_hatch_center,
+            f.driver_hatch_radius,
+            f.driver_hatch_half_height,
+        ),
+        drum_fitting(
+            SubmeshKind::Turret,
+            f.loader_hatch_center,
+            f.loader_hatch_radius,
+            f.loader_hatch_half_height,
+        ),
+        drum_fitting(
+            SubmeshKind::Hull,
+            f.headlight_center,
+            f.headlight_radius,
+            f.headlight_half_height,
+        ),
+    ]
+}
 
 fn detail_plate(
     submesh: SubmeshKind,
