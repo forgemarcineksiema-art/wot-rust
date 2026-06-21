@@ -4,6 +4,14 @@ Status: spike landed 2026-06-14, all gates green (`./scripts/verify.ps1`). The T
 production-selected source for Forge artifacts and client fallback; other vehicles remain on legacy
 recipes until their own Forge migration.
 
+**Post-loft baseline (commit `2efa773`).** The T-54 cast turret shell no longer uses the metaball
+`sdf_mesh` generator: it is now a designed **cast loft** (`vehicle_build::t54_turret_loft` over the
+`loft` kernel). This commit is the starting point of the procedural kernel program
+([procedural-kernel-program.md](procedural-kernel-program.md)). SDF and Surface Nets remain available
+for other cast work — fluid unions, sockets, organic local transitions — but are no longer the
+production turret-shell technique. The table below records the original spike decision; the kernel
+selection matrix in the program document supersedes it as the live taxonomy.
+
 ## Why
 
 The original procedural kernel (`vehicle_geometry`) builds vehicles from convex extrude/loft sweeps
