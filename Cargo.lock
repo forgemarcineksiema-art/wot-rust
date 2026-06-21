@@ -556,6 +556,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "37b2a672a2cb129a2e41c10b1224bb368f9f37a2b16b612598138befd7b37eb5"
 
 [[package]]
+name = "cast_loft"
+version = "0.1.0"
+dependencies = [
+ "glam 0.30.10",
+ "vehicle_geometry",
+]
+
+[[package]]
 name = "cc"
 version = "1.2.63"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1888,14 +1896,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "224399e74b87b5f3557511d98dff8b14089b3dadafcab6bb93eab67d3aace965"
 dependencies = [
  "scopeguard",
-]
-
-[[package]]
-name = "loft"
-version = "0.1.0"
-dependencies = [
- "glam 0.30.10",
- "vehicle_geometry",
 ]
 
 [[package]]
@@ -3714,9 +3714,9 @@ checksum = "f1bddf1187be692e79c5ffeab891132dfb0f236ed36a43c7ed39f1165ee20191"
 name = "vehicle_build"
 version = "0.1.0"
 dependencies = [
+ "cast_loft",
  "game_core",
  "glam 0.30.10",
- "loft",
  "revolve",
  "sdf",
  "sdf_mesh",

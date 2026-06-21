@@ -1,10 +1,10 @@
 [workspace]
 members = [
+    "crates/cast_loft",
     "crates/client",
     "crates/editor",
     "crates/engine",
     "crates/game_core",
-    "crates/loft",
     "crates/net",
     "crates/physics",
     "crates/quality",

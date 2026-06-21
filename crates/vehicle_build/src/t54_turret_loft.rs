@@ -1,21 +1,21 @@
-//! The T-54 cast turret as a **lofted** shell — the controlled-surface replacement for the metaball
-//! `sdf_mesh::t54_turret`. Every dimension is read from the blueprint's [`TurretLoftVisual`] (the
-//! single source) and skinned by the generic [`loft`] kernel; the cupola and moving mantlet stay
-//! separate bedded parts, as before.
+//! The T-54 cast turret as a **cast loft** shell — the controlled-surface replacement for the
+//! metaball `sdf_mesh::t54_turret`. Every dimension is read from the blueprint's
+//! [`TurretLoftVisual`] (the single source) and skinned by the [`cast_loft`] kernel; the cupola and
+//! moving mantlet stay separate bedded parts, as before.
 
 use std::f32::consts::FRAC_PI_2;
 
+use cast_loft::{CastBump, CastCaps, CastLoftSpec, CastSection, build_cast_loft};
 use game_core::TurretLoftVisual;
-use loft::{AzimuthBump, Caps, CrossSection, LoftSpec, loft};
 use vehicle_geometry::{GeometryMesh, MaterialRole, SmoothingGroup};
 
 /// Build the lofted T-54 turret casting: the blueprint stations skinned into one shell, with the
 /// symmetric front cheeks and the gun embrasure carried as radial modulations of that one surface.
 pub fn t54_turret_loft(t: &TurretLoftVisual) -> GeometryMesh {
-    let sections: Vec<CrossSection> = t
+    let sections: Vec<CastSection> = t
         .stations
         .iter()
-        .map(|s| CrossSection {
+        .map(|s| CastSection {
             y: s.y,
             half_width: s.half_width,
             half_len_front: s.half_len_front,
@@ -25,7 +25,7 @@ pub fn t54_turret_loft(t: &TurretLoftVisual) -> GeometryMesh {
         })
         .collect();
 
-    let cheek = |azimuth: f32| AzimuthBump {
+    let cheek = |azimuth: f32| CastBump {
         azimuth,
         az_width: t.cheek_az_width,
         y: t.cheek_y,
@@ -36,7 +36,7 @@ pub fn t54_turret_loft(t: &TurretLoftVisual) -> GeometryMesh {
         cheek(FRAC_PI_2 - t.cheek_azimuth),
         cheek(FRAC_PI_2 + t.cheek_azimuth),
         // The front gun embrasure: an inward recess the moving mantlet beds into.
-        AzimuthBump {
+        CastBump {
             azimuth: FRAC_PI_2,
             az_width: t.embrasure_az_width,
             y: t.embrasure_y,
@@ -45,11 +45,11 @@ pub fn t54_turret_loft(t: &TurretLoftVisual) -> GeometryMesh {
         },
     ];
 
-    loft(&LoftSpec {
+    build_cast_loft(&CastLoftSpec {
         sections: &sections,
         bumps: &bumps,
         segments: t.segments,
-        caps: Caps { bottom: Some(t.floor_apex), top: Some(t.roof_apex) },
+        caps: CastCaps { bottom: Some(t.floor_apex), top: Some(t.roof_apex) },
         material: MaterialRole::CastArmor,
         smoothing: SmoothingGroup(2),
     })

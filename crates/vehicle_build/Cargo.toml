@@ -6,9 +6,9 @@ license.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+cast_loft = { path = "../cast_loft" }
 game_core = { path = "../game_core" }
 glam.workspace = true
-loft = { path = "../loft" }
 revolve = { path = "../revolve" }
 sdf = { path = "../sdf" }
 sdf_mesh = { path = "../sdf_mesh" }

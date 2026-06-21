@@ -1,11 +1,17 @@
-//! Cross-section **loft** kernel: skin a stack of horizontal cross-sections into one watertight cast
-//! shell. This is the controlled-surface answer to organic castings (turrets, masks) that metaball
-//! SDF composition cannot express cleanly — a lofted shell is *designed* at every station, so it
+//! **Cast loft** kernel: skin a stack of superelliptic horizontal stations into one watertight cast
+//! shell. This is the controlled-surface answer to *designed castings* (turrets, masks) that
+//! metaball SDF composition cannot express cleanly — the shell is designed at every station, so it
 //! reads as one continuous casting from every angle instead of a pile of blended spheres.
 //!
+//! This is deliberately distinct from the generic [`vehicle_geometry::LoftSpec`]: that is an
+//! arbitrary convex 2D section swept along a cardinal axis, for fabrication and hull-like solids,
+//! whereas a cast loft is superelliptic horizontal stations plus localized cast shaping. Do not put
+//! a cast turret in a generic convex-hull loft, and do not use this superellipse API for flat
+//! armour plates.
+//!
 //! Generic and renderer-free: it knows nothing about any specific vehicle and produces a plain
-//! [`vehicle_geometry::GeometryMesh`]. Rounded cross-sections give a Soviet cast dome; rectangular
-//! ones (high superellipse exponent) give a boxy turret — one kernel for every vehicle family.
+//! [`vehicle_geometry::GeometryMesh`]. Rounded stations give a Soviet cast dome; fuller ones (high
+//! superellipse exponent) give a boxy turret — one kernel for every vehicle family.
 //!
 //! Normals are not authored here: the shell is emitted with a smooth [`SmoothingGroup`] and run
 //! through [`GeometryMesh::weld_and_smooth`], which rebuilds vertex normals from the faces.
@@ -20,7 +26,7 @@ use vehicle_geometry::{GeometryMesh, GeometryVertex, MaterialRole, SmoothingGrou
 /// bustle. `exponent` is the superellipse fullness (`2.0` = ellipse, `>2.0` = fuller "shoulders"
 /// approaching a rounded rectangle).
 #[derive(Debug, Clone, Copy)]
-pub struct CrossSection {
+pub struct CastSection {
     pub y: f32,
     pub half_width: f32,
     pub half_len_front: f32,
@@ -29,7 +35,7 @@ pub struct CrossSection {
     pub exponent: f32,
 }
 
-impl CrossSection {
+impl CastSection {
     /// A symmetric (front == rear) section — the common case for a plain dome ring.
     pub fn symmetric(y: f32, half_width: f32, half_len: f32, z_center: f32, exponent: f32) -> Self {
         Self {
@@ -62,7 +68,7 @@ fn superlerp(c: f32, e: f32) -> f32 {
 /// (a cheek or brow), negative pulls it inward (a gun embrasure recess). The push is part of the one
 /// lofted surface — not a stuck-on primitive — so swellings and recesses stay continuous castings.
 #[derive(Debug, Clone, Copy)]
-pub struct AzimuthBump {
+pub struct CastBump {
     /// Centre azimuth in radians (`PI/2` = front, `0` / `PI` = the two sides).
     pub azimuth: f32,
     /// Gaussian half-spread in azimuth (radians).
@@ -75,7 +81,7 @@ pub struct AzimuthBump {
     pub amount: f32,
 }
 
-impl AzimuthBump {
+impl CastBump {
     fn push(&self, t: f32, y: f32) -> f32 {
         let mut d = (t - self.azimuth).rem_euclid(TAU);
         if d > PI {
@@ -89,26 +95,26 @@ impl AzimuthBump {
 
 /// How the ends of a loft are closed: an apex point each end fans to, or `None` to leave it open.
 #[derive(Debug, Clone, Copy, Default)]
-pub struct Caps {
+pub struct CastCaps {
     pub bottom: Option<Vec3>,
     pub top: Option<Vec3>,
 }
 
 /// Everything needed to skin one shell.
-pub struct LoftSpec<'a> {
+pub struct CastLoftSpec<'a> {
     /// Cross-sections from bottom to top (at least two).
-    pub sections: &'a [CrossSection],
+    pub sections: &'a [CastSection],
     /// Outward/inward radial modulations applied to every station.
-    pub bumps: &'a [AzimuthBump],
+    pub bumps: &'a [CastBump],
     /// Azimuth samples per ring (mesh resolution around the shell).
     pub segments: usize,
-    pub caps: Caps,
+    pub caps: CastCaps,
     pub material: MaterialRole,
     pub smoothing: SmoothingGroup,
 }
 
 /// Skin a stack of cross-sections into a watertight cast shell.
-pub fn loft(spec: &LoftSpec) -> GeometryMesh {
+pub fn build_cast_loft(spec: &CastLoftSpec) -> GeometryMesh {
     let n = spec.segments.max(3);
     let rings = spec.sections.len();
     assert!(rings >= 2, "a loft needs at least two cross-sections");
@@ -174,21 +180,21 @@ pub fn loft(spec: &LoftSpec) -> GeometryMesh {
 mod tests {
     use super::*;
 
-    fn dome_sections() -> Vec<CrossSection> {
+    fn dome_sections() -> Vec<CastSection> {
         vec![
-            CrossSection::symmetric(0.00, 0.84, 0.92, 0.0, 2.8),
-            CrossSection::symmetric(0.16, 0.92, 1.00, -0.02, 2.8),
-            CrossSection::symmetric(0.36, 0.82, 0.86, -0.07, 2.8),
-            CrossSection::symmetric(0.55, 0.50, 0.60, -0.12, 2.8),
+            CastSection::symmetric(0.00, 0.84, 0.92, 0.0, 2.8),
+            CastSection::symmetric(0.16, 0.92, 1.00, -0.02, 2.8),
+            CastSection::symmetric(0.36, 0.82, 0.86, -0.07, 2.8),
+            CastSection::symmetric(0.55, 0.50, 0.60, -0.12, 2.8),
         ]
     }
 
-    fn dome(bumps: &[AzimuthBump]) -> GeometryMesh {
-        loft(&LoftSpec {
+    fn dome(bumps: &[CastBump]) -> GeometryMesh {
+        build_cast_loft(&CastLoftSpec {
             sections: &dome_sections(),
             bumps,
             segments: 48,
-            caps: Caps {
+            caps: CastCaps {
                 bottom: Some(Vec3::new(0.0, 0.0, 0.0)),
                 top: Some(Vec3::new(0.0, 0.55, -0.06)),
             },
@@ -219,15 +225,10 @@ mod tests {
     fn a_cheek_bump_pushes_the_surface_out_only_where_aimed() {
         let plain = dome(&[]).bounds().unwrap();
         // A cheek on the +X side at mid height.
-        let bumped = dome(&[AzimuthBump {
-            azimuth: 0.0,
-            az_width: 0.4,
-            y: 0.2,
-            y_width: 0.2,
-            amount: 0.18,
-        }])
-        .bounds()
-        .unwrap();
+        let bumped =
+            dome(&[CastBump { azimuth: 0.0, az_width: 0.4, y: 0.2, y_width: 0.2, amount: 0.18 }])
+                .bounds()
+                .unwrap();
         assert!(bumped.max.x > plain.max.x + 0.10, "the cheek bulges the aimed side outward");
         assert!((bumped.max.z - plain.max.z).abs() < 0.02, "the front is left untouched");
     }
