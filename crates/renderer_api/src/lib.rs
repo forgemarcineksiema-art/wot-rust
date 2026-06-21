@@ -75,6 +75,60 @@ impl Default for Camera {
     }
 }
 
+/// Calibrated three-point scene lighting: a neutral ambient plus key/fill/rim directional lights,
+/// consumed by both the scene and the vehicle shaders. Each `*_direction` is a world-space vector
+/// pointing *towards* the light (the shader normalizes it); each `*_rgb` is that light's linear
+/// colour and intensity. This replaces the former global colour multiplier, so a warm garage key
+/// no longer casts amber over the whole battlefield — the look is chosen per scene by profile.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SceneLighting {
+    pub ambient_rgb: [f32; 3],
+    pub key_direction: [f32; 3],
+    pub key_rgb: [f32; 3],
+    pub fill_direction: [f32; 3],
+    pub fill_rgb: [f32; 3],
+    pub rim_direction: [f32; 3],
+    pub rim_rgb: [f32; 3],
+}
+
+impl SceneLighting {
+    /// The battlefield look: a warm overhead sun key, a cool sky-fill from straight above, neutral
+    /// ambient and no rim. Calibrated to preserve the pre-lighting battle appearance (no cast).
+    pub fn battlefield_default() -> Self {
+        Self {
+            ambient_rgb: [0.33, 0.34, 0.36],
+            key_direction: [0.45, 0.82, 0.35],
+            key_rgb: [0.85, 0.83, 0.78],
+            fill_direction: [0.0, 1.0, 0.0],
+            fill_rgb: [0.12, 0.13, 0.15],
+            // A direction is needed for normalization, but the battle rim is off (black).
+            rim_direction: [-0.4, 0.5, -0.9],
+            rim_rgb: [0.0, 0.0, 0.0],
+        }
+    }
+
+    /// The garage studio: a soft warm key from front-left-above, a weak cool fill from the right,
+    /// and a restrained rear rim to lift the silhouette, all on a neutral ambient so the vehicle's
+    /// own material colour reads true. The result is a neutral tint with shaped studio light.
+    pub fn garage_studio() -> Self {
+        Self {
+            ambient_rgb: [0.30, 0.30, 0.32],
+            key_direction: [-0.55, 0.72, 0.45],
+            key_rgb: [0.92, 0.84, 0.68],
+            fill_direction: [0.95, 0.25, 0.10],
+            fill_rgb: [0.20, 0.24, 0.30],
+            rim_direction: [0.15, 0.55, -0.95],
+            rim_rgb: [0.26, 0.26, 0.30],
+        }
+    }
+}
+
+impl Default for SceneLighting {
+    fn default() -> Self {
+        Self::battlefield_default()
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct MeshHandle(pub u32);
 

@@ -6,7 +6,7 @@ mod vehicle_materials;
 
 use std::cell::Cell;
 
-use renderer_api::{RenderError, SceneVertex};
+use renderer_api::{RenderError, SceneLighting, SceneVertex};
 use wgpu::util::DeviceExt;
 
 use crate::msaa::{default_sample_count, validate_msaa_support};
@@ -49,8 +49,9 @@ pub struct SceneRenderer {
     hud_font_bind_group: wgpu::BindGroup,
     sample_count: u32,
     pub sky: wgpu::Color,
-    /// Per-scene RGB colour multiplier on the lit result (1,1,1 = unchanged). Warm in the garage.
-    pub scene_tint: [f32; 3],
+    /// The calibrated three-point lighting for this scene. Battle uses the default profile; the
+    /// garage swaps in a warm studio key/fill/rim. Drives both the scene and the vehicle shaders.
+    pub scene_lighting: SceneLighting,
     pub skipped_mesh_draws: Cell<u32>,
 }
 
@@ -198,7 +199,7 @@ impl SceneRenderer {
             hud_font_bind_group,
             sample_count,
             sky: wgpu::Color { r: 0.55, g: 0.69, b: 0.87, a: 1.0 },
-            scene_tint: [1.0, 1.0, 1.0],
+            scene_lighting: SceneLighting::battlefield_default(),
             skipped_mesh_draws: Cell::new(0),
         })
     }

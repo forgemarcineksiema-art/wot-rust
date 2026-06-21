@@ -60,7 +60,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             projection.far_plane_m(),
         );
         renderer.set_render_frame(&ctx, &render_frame_from_objects(objects));
-        renderer.render(&ctx, target.render_target(), view_proj)?;
+        renderer.render(&ctx, target.render_target(), view_proj, camera.eye)?;
 
         let path = out_dir.join(format!("{}.png", view.slug));
         write_png(&path, &target.read_rgba8(&ctx)?)?;

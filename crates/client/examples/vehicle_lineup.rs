@@ -80,7 +80,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         renderer.register_mesh(&ctx, handle, &mesh);
     }
     renderer.set_render_frame(&ctx, &render_frame_from_objects(render_objects));
-    renderer.render(&ctx, target.render_target(), view_proj)?;
+    renderer.render(&ctx, target.render_target(), view_proj, camera.eye)?;
 
     let pixels = target.read_rgba8(&ctx)?;
     let file = File::create(&path)?;

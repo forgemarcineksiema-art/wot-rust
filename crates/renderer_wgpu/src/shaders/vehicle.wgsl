@@ -5,13 +5,30 @@
 
 struct Camera {
     view_proj: mat4x4<f32>,
-    tint_r: f32,
-    tint_g: f32,
-    tint_b: f32,
+    camera_pos: vec3<f32>,
+    ambient_rgb: vec3<f32>,
+    key_direction: vec3<f32>,
+    key_rgb: vec3<f32>,
+    fill_direction: vec3<f32>,
+    fill_rgb: vec3<f32>,
+    rim_direction: vec3<f32>,
+    rim_rgb: vec3<f32>,
 };
 
 @group(0) @binding(0)
 var<uniform> camera: Camera;
+
+// Calibrated three-point lighting: ambient plus key/fill/rim directional terms (directions point
+// towards each light, normalized here). Shared in spirit with scene.wgsl's scene_radiance.
+fn light_radiance(n: vec3<f32>) -> vec3<f32> {
+    let key = max(dot(n, normalize(camera.key_direction)), 0.0);
+    let fill = max(dot(n, normalize(camera.fill_direction)), 0.0);
+    let rim = max(dot(n, normalize(camera.rim_direction)), 0.0);
+    return camera.ambient_rgb
+        + camera.key_rgb * key
+        + camera.fill_rgb * fill
+        + camera.rim_rgb * rim;
+}
 
 @group(1) @binding(0)
 var albedo_map: texture_2d<f32>;
@@ -47,13 +64,16 @@ struct VsOut {
     @location(4) @interpolate(flat) material_id: u32,
     @location(5) tint_mask: f32,
     @location(6) team_tint: vec3<f32>,
+    @location(7) world_pos: vec3<f32>,
 };
 
 @vertex
 fn vs_main(input: VsIn) -> VsOut {
     var out: VsOut;
     let model = mat4x4<f32>(input.model_0, input.model_1, input.model_2, input.model_3);
-    out.clip = camera.view_proj * model * vec4<f32>(input.position, 1.0);
+    let world_position = model * vec4<f32>(input.position, 1.0);
+    out.clip = camera.view_proj * world_position;
+    out.world_pos = world_position.xyz;
     out.world_normal = (model * vec4<f32>(input.normal, 0.0)).xyz;
     out.world_tangent = (model * vec4<f32>(input.tangent.xyz, 0.0)).xyz;
     out.tangent_w = input.tangent.w;
@@ -109,19 +129,18 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     let ao = ao_rough.r;
     let cavity = textureSample(cavity_map, vehicle_sampler, input.uv).r;
 
-    let sun_dir = normalize(vec3<f32>(0.45, 0.82, 0.35));
-    let diffuse = max(dot(world_n, sun_dir), 0.0);
-    let sky_fill = 0.25 * (0.5 + 0.5 * world_n.y);
-    let lit = albedo * (0.22 + diffuse * 0.85 + sky_fill) * ao * cavity;
+    let lit = albedo * light_radiance(world_n) * ao * cavity;
 
-    // Roughness-driven specular: smoother materials get a tighter, brighter highlight. The view
-    // direction is approximated (the lite model carries no camera position), enough to separate a
-    // glossy barrel from matte rubber.
-    let half_v = normalize(sun_dir + normalize(vec3<f32>(0.0, 0.4, 1.0)));
+    // Roughness-driven specular off the key light, evaluated against the real world-space view
+    // direction (camera position - fragment position) so the highlight tracks the camera, not a
+    // fixed approximation. Smoother materials get a tighter, brighter highlight.
+    let view_dir = normalize(camera.camera_pos - input.world_pos);
+    let key_dir = normalize(camera.key_direction);
+    let half_v = normalize(key_dir + view_dir);
     let roughness = clamp(mat.roughness * (0.55 + ao_rough.g), 0.04, 1.0);
     let shininess = mix(4.0, 96.0, 1.0 - roughness);
     let spec = pow(max(dot(world_n, half_v), 0.0), shininess) * (1.0 - roughness) * 0.4;
+    let spec_color = camera.key_rgb * spec;
 
-    let scene_tint = vec3<f32>(camera.tint_r, camera.tint_g, camera.tint_b);
-    return vec4<f32>((lit + vec3<f32>(spec, spec, spec)) * scene_tint, 1.0);
+    return vec4<f32>(lit + spec_color, 1.0);
 }

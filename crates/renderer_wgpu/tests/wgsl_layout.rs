@@ -10,7 +10,9 @@ fn camera_uniform_is_encoded_with_wgsl_uniform_layout() {
     let bytes = encode_camera_uniform(&CameraUniform::identity()).expect("camera uniform encodes");
 
     assert_eq!(bytes.len(), CameraUniform::wgsl_size());
-    assert_eq!(bytes.len(), 80);
+    // view_proj (64) + camera_pos + ambient + key/fill/rim direction+colour, each a vec3 in a
+    // 16-byte uniform slot: 64 + 8 * 16 = 192.
+    assert_eq!(bytes.len(), 192);
     assert_eq!(bytes.len() % 16, 0);
 }
 

@@ -116,9 +116,10 @@ impl WindowRenderer {
         self.scene.sky = wgpu::Color { r, g, b, a: 1.0 };
     }
 
-    /// Set the per-scene RGB colour multiplier (1,1,1 = unchanged). Warms the garage scene.
-    pub fn set_scene_tint(&mut self, tint: [f32; 3]) {
-        self.scene.scene_tint = tint;
+    /// Set the calibrated scene lighting (key/fill/rim + ambient). Battle uses the default profile;
+    /// the garage swaps in [`renderer_api::SceneLighting::garage_studio`].
+    pub fn set_scene_lighting(&mut self, lighting: renderer_api::SceneLighting) {
+        self.scene.scene_lighting = lighting;
     }
 
     pub fn set_hud(&mut self, vertices: &[renderer_api::HudVertex]) {
@@ -131,7 +132,11 @@ impl WindowRenderer {
         self.scene.set_hud_font_atlas(&self.ctx, width, height, coverage);
     }
 
-    pub fn render(&mut self, view_proj: [[f32; 4]; 4]) -> Result<(), RenderError> {
+    pub fn render(
+        &mut self,
+        view_proj: [[f32; 4]; 4],
+        camera_pos: [f32; 3],
+    ) -> Result<(), RenderError> {
         let frame = match self.surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(texture)
             | wgpu::CurrentSurfaceTexture::Suboptimal(texture) => texture,
@@ -148,7 +153,7 @@ impl WindowRenderer {
             depth_view: &self.depth_view,
             sample_count: self.sample_count,
         };
-        self.scene.render(&self.ctx, target, view_proj)?;
+        self.scene.render(&self.ctx, target, view_proj, camera_pos)?;
         frame.present();
         Ok(())
     }

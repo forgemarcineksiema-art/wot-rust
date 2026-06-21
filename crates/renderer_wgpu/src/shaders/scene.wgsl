@@ -1,12 +1,29 @@
 struct Camera {
     view_proj: mat4x4<f32>,
-    tint_r: f32,
-    tint_g: f32,
-    tint_b: f32,
+    camera_pos: vec3<f32>,
+    ambient_rgb: vec3<f32>,
+    key_direction: vec3<f32>,
+    key_rgb: vec3<f32>,
+    fill_direction: vec3<f32>,
+    fill_rgb: vec3<f32>,
+    rim_direction: vec3<f32>,
+    rim_rgb: vec3<f32>,
 };
 
 @group(0) @binding(0)
 var<uniform> camera: Camera;
+
+// Calibrated three-point lighting: ambient plus key/fill/rim directional terms. Directions point
+// towards each light and are normalized here; an unlit (black) light contributes nothing.
+fn scene_radiance(n: vec3<f32>) -> vec3<f32> {
+    let key = max(dot(n, normalize(camera.key_direction)), 0.0);
+    let fill = max(dot(n, normalize(camera.fill_direction)), 0.0);
+    let rim = max(dot(n, normalize(camera.rim_direction)), 0.0);
+    return camera.ambient_rgb
+        + camera.key_rgb * key
+        + camera.fill_rgb * fill
+        + camera.rim_rgb * rim;
+}
 
 struct VsIn {
     @location(0) position: vec3<f32>,
@@ -42,11 +59,5 @@ fn vs_main(input: VsIn) -> VsOut {
 @fragment
 fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     let n = normalize(input.normal);
-    let sun = normalize(vec3<f32>(0.45, 0.82, 0.35));
-    let diffuse = max(dot(n, sun), 0.0);
-    // Soft sky fill from above keeps shadowed faces readable rather than black.
-    let sky_fill = 0.25 * (0.5 + 0.5 * n.y);
-    let shade = 0.30 + diffuse * 0.78 + sky_fill;
-    let tint = vec3<f32>(camera.tint_r, camera.tint_g, camera.tint_b);
-    return vec4<f32>(input.color * shade * tint, 1.0);
+    return vec4<f32>(input.color * scene_radiance(n), 1.0);
 }

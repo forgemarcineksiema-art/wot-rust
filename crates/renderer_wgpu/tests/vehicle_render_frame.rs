@@ -45,7 +45,12 @@ fn scene_renderer_draws_registered_vehicle_mesh_with_vehicle_pipeline() {
         },
     );
     renderer
-        .render(&ctx, target.render_target(), view_projection_matrix(&camera, 1.0, 0.1, 20.0))
+        .render(
+            &ctx,
+            target.render_target(),
+            view_projection_matrix(&camera, 1.0, 0.1, 20.0),
+            camera.eye,
+        )
         .expect("render frame");
 
     let pixels = target.read_rgba8(&ctx).expect("readback");
@@ -85,7 +90,9 @@ fn registered_vehicle_material_overrides_the_neutral_fallback() {
         let mut renderer = SceneRenderer::for_offscreen(&ctx, &[], &[]).expect("renderer");
         renderer.register_vehicle_mesh(&ctx, mesh, &vehicle_triangle());
         renderer.set_vehicle_render_frame(&ctx, &frame);
-        renderer.render(&ctx, target.render_target(), view_proj).expect("render fallback");
+        renderer
+            .render(&ctx, target.render_target(), view_proj, camera.eye)
+            .expect("render fallback");
         target.read_rgba8(&ctx).expect("readback")
     };
 
@@ -96,7 +103,9 @@ fn registered_vehicle_material_overrides_the_neutral_fallback() {
         renderer.register_vehicle_mesh(&ctx, mesh, &vehicle_triangle());
         renderer.register_vehicle_material(&ctx, material, &dark_albedo_maps());
         renderer.set_vehicle_render_frame(&ctx, &frame);
-        renderer.render(&ctx, target.render_target(), view_proj).expect("render uploaded");
+        renderer
+            .render(&ctx, target.render_target(), view_proj, camera.eye)
+            .expect("render uploaded");
         target.read_rgba8(&ctx).expect("readback")
     };
 
