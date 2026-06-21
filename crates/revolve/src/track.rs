@@ -146,7 +146,12 @@ fn sweep_band(loop_pts: &[Vec2], side_x: f32, half_t: f32, half_w: f32) -> Geome
     GeometryMesh::new(vertices, indices).weld_and_smooth()
 }
 
-fn oriented_box_mesh(center: Vec3, half: Vec3, tangent: Vec3, normal: Vec3) -> GeometryMesh {
+pub(crate) fn oriented_box_mesh(
+    center: Vec3,
+    half: Vec3,
+    tangent: Vec3,
+    normal: Vec3,
+) -> GeometryMesh {
     let side = Vec3::X;
     let axes = [side, tangent, normal];
     let half_values = [half.x, half.z, half.y];

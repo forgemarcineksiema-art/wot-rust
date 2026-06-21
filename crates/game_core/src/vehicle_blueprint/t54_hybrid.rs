@@ -72,19 +72,23 @@ pub(super) fn t54_hybrid() -> HybridVisual {
         deck: BoxVisual { center: Vec3::new(0.0, 1.25, -1.75), half: Vec3::new(1.30, 0.06, 0.95) },
         fender: FenderVisual { side_x: 1.5, center_y: 1.22, half: Vec3::new(0.28, 0.03, 2.55) },
         running_gear: RunningGearVisual {
-            wheel_radius: 0.42,
+            // Wheel radius is sized so five wheels clear each other (even gaps wider than the wheel
+            // diameter) and still seat just inside the belt; it is coupled to the belt radius below.
+            wheel_radius: 0.34,
             wheel_half_width: 0.12,
-            hub_radius: 0.24,
+            hub_radius: 0.18,
             hub_overhang: 0.02,
             wheel_segments: 20,
             hub_segments: 14,
             wheel_count: 5,
             // The blueprint owns the overall run. The hybrid places the visible wheel train inside
             // it, leaving room for separate idler and sprocket meshes at the belt ends.
-            end_inset: 0.70,
+            end_inset: 0.58,
             first_z: -2.10,
-            spacing: 0.70,
-            first_gap: 0.90,
+            // Even rear spacing with a larger characteristic gap before the front wheel; both stay
+            // wider than the wheel diameter (0.68) so adjacent road wheels never intersect.
+            spacing: 0.72,
+            first_gap: 0.86,
             side_x: 1.5,
         },
         track_belt: TrackBeltVisual {
@@ -93,8 +97,10 @@ pub(super) fn t54_hybrid() -> HybridVisual {
             // The belt and the road wheels share this axle line (concentric), set so the bottom run
             // rests on the ground (axle_y - radius - half_thickness = 0) and the top run wraps over
             // the wheel tops under the fender — a track that grounds and wraps, not a buried ribbon.
-            axle_y: 0.58,
-            radius: 0.50,
+            // radius - half_thickness (0.35) is the wheel seat; the road wheels (0.34) nest just
+            // inside it, and the smaller loop keeps the idler/sprocket end wraps compact.
+            axle_y: 0.51,
+            radius: 0.43,
             side_x: 1.5,
             half_thickness: 0.08,
             half_width: 0.26,

@@ -43,7 +43,7 @@ fn t54() -> VehicleBlueprint {
             belt_half_thickness: 0.13,
             top_y: 0.84,
             bottom_y: 0.02,
-            wheel_radius: 0.42,
+            wheel_radius: 0.34,
             wheel_count: 5,
             wheel_first_z: -2.10,
             wheel_last_z: 2.10,

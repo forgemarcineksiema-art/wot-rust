@@ -8,7 +8,7 @@
 //! build: crisp new running gear — no caked mud, rust or thrown-track damage (that finish belongs to
 //! the material layer).
 
-use game_core::{RunningGearVisual, TrackBeltVisual};
+use game_core::RunningGearVisual;
 use glam::Vec3;
 use vehicle_geometry::{GeometryMesh, GeometryVertex, MaterialRole, SmoothingGroup};
 
@@ -29,8 +29,9 @@ pub fn road_wheel(
     let r = gear.wheel_radius;
     let hub_r = gear.hub_radius;
     // Recess depth (in X) and the rim lip step (in radius); fractions of the wheel so the profile
-    // never crosses itself for any reasonable wheel.
-    let dish = hw * 0.5;
+    // never crosses itself for any reasonable wheel. The dish is shallow — a stamped-disc face, not
+    // a deep cup, so the wheel reads as solid rather than a ring.
+    let dish = hw * 0.35;
     let rim_lip = (r * 0.12).min(hw);
     let tyre = [
         (-hw, 0.0),               // inner face centre (cap)
@@ -62,7 +63,7 @@ pub fn road_wheel(
 
 /// Mirrors an axle-aligned part so its raised details face the exterior of the opposite track run.
 /// Mirroring reverses triangle winding, so each triangle is rewound to preserve face culling.
-fn mirror_x(mesh: &GeometryMesh) -> GeometryMesh {
+pub(crate) fn mirror_x(mesh: &GeometryMesh) -> GeometryMesh {
     let vertices = mesh
         .vertices()
         .iter()
@@ -80,22 +81,22 @@ fn mirror_x(mesh: &GeometryMesh) -> GeometryMesh {
     GeometryMesh::new(vertices, indices)
 }
 
-/// The z of each road-wheel station, front (highest z) to rear, with the T-54's characteristic large
-/// gap between the front two wheels and the rest spaced evenly — endpoints fixed at the train span.
+/// The z of each road-wheel station, front (highest z) to rear. The rearmost wheel sits at the inset
+/// train rear; wheels then step forward at the even `spacing`, with the larger characteristic
+/// `first_gap` before the front wheel. Both gaps are wider than the wheel diameter, so the wheels are
+/// evenly placed and never overlap (the previous formula crammed the rear wheels and intersected).
 pub fn road_wheel_stations(gear: &RunningGearVisual) -> Vec<f32> {
     let count = gear.wheel_count;
-    let span = (count - 1) as f32 * gear.spacing;
     let rear_z = gear.first_z + gear.end_inset;
-    let front_z = rear_z + span;
-    let mut zs = vec![front_z];
-    if count >= 2 {
-        zs.push(front_z - gear.first_gap);
-        let rear_interval = (span - gear.first_gap) / (count - 2).max(1) as f32;
-        for _ in 2..count {
-            let next = zs.last().copied().unwrap() - rear_interval;
-            zs.push(next);
+    let mut zs = Vec::with_capacity(count);
+    let mut z = rear_z;
+    for index in 0..count {
+        if index > 0 {
+            z += if index == count - 1 { gear.first_gap } else { gear.spacing };
         }
+        zs.push(z);
     }
+    zs.reverse();
     zs
 }
 
@@ -112,90 +113,6 @@ pub fn drum(
     let profile =
         [(-half_height, 0.0), (-half_height, radius), (half_height, radius), (half_height, 0.0)];
     translate(&revolve(Vec3::Y, &profile, segments, material, smoothing), center)
-}
-
-/// A wheel revolved about the axle (X) and centred at `center` (not lifted to the ground): used for
-/// the track-end idler and drive sprocket, which sit on the axle line at the ends of the belt run.
-fn end_wheel(
-    center: Vec3,
-    radius: f32,
-    half_width: f32,
-    segments: usize,
-    material: MaterialRole,
-    smoothing: SmoothingGroup,
-) -> GeometryMesh {
-    let tyre = [(-half_width, 0.0), (-half_width, radius), (half_width, radius), (half_width, 0.0)];
-    translate(&revolve(Vec3::X, &tyre, segments, material, smoothing), center)
-}
-
-/// A raised end-wheel hub placed on the exterior face of either track run.
-fn end_hub(
-    center: Vec3,
-    side_x: f32,
-    half_width: f32,
-    radius: f32,
-    overhang: f32,
-    segments: usize,
-    smoothing: SmoothingGroup,
-) -> GeometryMesh {
-    let local = revolve(
-        Vec3::X,
-        &[
-            (half_width - 0.02, 0.0),
-            (half_width - 0.02, radius),
-            (half_width + overhang, radius),
-            (half_width + overhang, 0.0),
-        ],
-        segments,
-        MaterialRole::TrackMetal,
-        smoothing,
-    );
-    let local = if side_x.is_sign_negative() { mirror_x(&local) } else { local };
-    translate(&local, center)
-}
-
-/// The track-end wheels, distinct from the road wheels: a smooth front idler and a faceted rear drive
-/// sprocket (low segment count, reading as toothed), both sides, sitting in the belt's end wraps.
-pub fn t54_track_ends(gear: &RunningGearVisual, belt: &TrackBeltVisual) -> GeometryMesh {
-    let r = belt.radius - belt.half_thickness;
-    let mut parts = Vec::new();
-    for side in [gear.side_x, -gear.side_x] {
-        parts.push(end_wheel(
-            Vec3::new(side, belt.axle_y, belt.front_z),
-            r,
-            gear.wheel_half_width,
-            gear.wheel_segments,
-            MaterialRole::TrackMetal,
-            SmoothingGroup(5),
-        ));
-        parts.push(end_hub(
-            Vec3::new(side, belt.axle_y, belt.front_z),
-            side,
-            gear.wheel_half_width,
-            r * 0.28,
-            0.08,
-            gear.hub_segments,
-            SmoothingGroup(5),
-        ));
-        parts.push(end_wheel(
-            Vec3::new(side, belt.axle_y, belt.rear_z),
-            r,
-            gear.wheel_half_width + 0.02,
-            12,
-            MaterialRole::TrackMetal,
-            SmoothingGroup::hard_edges(),
-        ));
-        parts.push(end_hub(
-            Vec3::new(side, belt.axle_y, belt.rear_z),
-            side,
-            gear.wheel_half_width + 0.02,
-            r * 0.32,
-            0.09,
-            12,
-            SmoothingGroup::hard_edges(),
-        ));
-    }
-    merge(&parts)
 }
 
 /// The road-wheel train: `gear.wheel_count` wheels per side, both sides — repetition of [`road_wheel`].
@@ -273,16 +190,11 @@ mod tests {
     }
 
     #[test]
-    fn the_front_wheel_gap_is_the_largest_and_the_train_keeps_its_span() {
+    fn the_front_wheel_gap_is_largest_and_the_road_wheels_never_overlap() {
         let g = gear();
         let zs = road_wheel_stations(&g);
         assert_eq!(zs.len(), g.wheel_count);
-        // Front to rear, descending z; the train spans the blueprint range minus end clearance.
-        let span = (g.wheel_count - 1) as f32 * g.spacing;
-        assert!(
-            (zs[0] - (g.first_z + g.end_inset + span)).abs() < 1.0e-4,
-            "front wheel at the inset train front"
-        );
+        // Front to rear, descending z; the rearmost wheel sits at the inset train rear.
         assert!(
             (zs[zs.len() - 1] - (g.first_z + g.end_inset)).abs() < 1.0e-4,
             "rear wheel at the inset train rear"
@@ -292,6 +204,13 @@ mod tests {
         assert!(
             gaps[1..].iter().all(|&g| front_gap > g + 0.1),
             "the T-54 front wheel gap {front_gap:.2} is clearly the largest: {gaps:?}"
+        );
+        // The defect this locks: every centre-to-centre gap must clear the wheel diameter, so no two
+        // road wheels intersect.
+        let diameter = 2.0 * g.wheel_radius;
+        assert!(
+            gaps.iter().all(|&gap| gap >= diameter - 1.0e-4),
+            "road wheels must not overlap: gaps {gaps:?} vs diameter {diameter:.2}"
         );
     }
 
@@ -317,22 +236,4 @@ mod tests {
         );
     }
 
-    #[test]
-    fn track_end_mechanisms_expose_outer_hubs_on_both_sides() {
-        let blueprint = game_core::VehicleBlueprint::for_vehicle(game_core::VehicleKind::T54_1951)
-            .expect("T-54 blueprint");
-        let visual = blueprint.hybrid().expect("hybrid visual");
-        let mesh = t54_track_ends(&visual.running_gear, &visual.track_belt);
-        let max_x = mesh
-            .vertices()
-            .iter()
-            .map(|vertex| vertex.position.x)
-            .fold(f32::NEG_INFINITY, f32::max);
-        let min_x =
-            mesh.vertices().iter().map(|vertex| vertex.position.x).fold(f32::INFINITY, f32::min);
-        let outer_face = visual.running_gear.side_x + visual.running_gear.wheel_half_width;
-
-        assert!(max_x > outer_face + 0.03, "right outer hub is visible");
-        assert!(min_x < -outer_face - 0.03, "left outer hub is visible");
-    }
 }

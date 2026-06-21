@@ -72,3 +72,26 @@ pub fn t54_detail_parts(v: &HybridVisual) -> Vec<VehiclePart> {
 
     parts
 }
+
+/// A visual swing-arm bracket per road wheel, bridging the hull's lower tub side to the wheel hub at
+/// axle height. Without it the road wheels read as floating on a bare axle line; this is the link
+/// that mounts them to the hull. `lower_half_width` is the hull tub half-width (the pivot side).
+pub fn t54_suspension_parts(v: &HybridVisual, lower_half_width: f32) -> Vec<VehiclePart> {
+    let gear = &v.running_gear;
+    let axle_y = v.track_belt.axle_y;
+    let wheel_inner = gear.side_x - gear.wheel_half_width;
+    let arm_cx = 0.5 * (lower_half_width + wheel_inner);
+    let arm_hx = (0.5 * (wheel_inner - lower_half_width)).max(0.04);
+    let mut parts = Vec::new();
+    for z in revolve::road_wheel_stations(gear) {
+        for side in [1.0_f32, -1.0] {
+            let center = Vec3::new(side * arm_cx, axle_y, z);
+            parts.push(detail_plate(
+                SubmeshKind::Hull,
+                MaterialRole::TrackMetal,
+                solid::ConvexSolid::box_at(center, Vec3::new(arm_hx, 0.05, 0.10)),
+            ));
+        }
+    }
+    parts
+}

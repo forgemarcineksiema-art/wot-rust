@@ -196,6 +196,8 @@ pub fn t54_from_modules(modules: &VehicleModules) -> VehicleDescription {
     // Clean factory greeble (grille, exhaust cover, periscopes, fender lips, weld bead) — all at the
     // Detail tier, so the close-up LOD0 carries it and the lower LODs keep only the silhouette.
     parts.extend(crate::t54_details::t54_detail_parts(v));
+    // Swing-arm brackets mounting each road wheel to the hull's lower tub side (suspension cue).
+    parts.extend(crate::t54_details::t54_suspension_parts(v, bp.hull.lower_half_width));
 
     VehicleDescription { kind, parts, mounts }
 }
