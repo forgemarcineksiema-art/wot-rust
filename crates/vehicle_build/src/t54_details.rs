@@ -99,13 +99,28 @@ pub fn t54_detail_parts(v: &HybridVisual) -> Vec<VehiclePart> {
         ));
     }
 
-    // Turret-roof periscopes (commander + loader side), riding the turret so they traverse with it.
+    // Turret-roof periscopes (gunner + loader side), riding the turret so they traverse with it.
+    // Each is a raked prism head (forward-looking glass), not a plain block.
     for side in [d.periscope_center.x, -d.periscope_center.x] {
         let center = Vec3::new(side, d.periscope_center.y, d.periscope_center.z);
         parts.push(detail_plate(
             SubmeshKind::Turret,
             MaterialRole::RolledArmor,
-            solid::ConvexSolid::box_at(center, d.periscope_half),
+            solid::t54_periscope(center, d.periscope_half),
+        ));
+    }
+
+    // The driver's two forward vision periscopes on the hull roof, flanking and just ahead of the
+    // driver's hatch. Derived from the hatch position (no new blueprint dimension) and clear of the
+    // hatch lid; same raked prism head as the turret periscopes.
+    let dh = v.fittings.driver_hatch_center;
+    let driver_peri_half = Vec3::new(0.055, 0.05, 0.05);
+    for dx in [-0.26_f32, 0.26] {
+        let center = Vec3::new(dh.x + dx, dh.y, dh.z + 0.08);
+        parts.push(detail_plate(
+            SubmeshKind::Hull,
+            MaterialRole::RolledArmor,
+            solid::t54_periscope(center, driver_peri_half),
         ));
     }
 

@@ -161,6 +161,18 @@ pub fn t54_fender_lip(side_x: f32, fender: &FenderVisual, d: &DetailVisual) -> C
     ConvexSolid::box_at(center, half)
 }
 
+/// A periscope head: a small housing box whose front-top edge is sliced by a forward-and-up plane,
+/// giving the raked prism (viewing-glass) face that reads as a real periscope rather than a plain
+/// block. The slant looks forward (+z); mirror the centre in x for the opposite-hand device.
+pub fn t54_periscope(center: Vec3, half: Vec3) -> ConvexSolid {
+    // A 45-degree chamfer of depth `s` off the front-top edge: the prism glass rakes back as it
+    // rises. `s` is a fraction of the head so the cut never crosses the box for any sane periscope.
+    let s = 0.7 * half.y.min(half.z);
+    let normal = Vec3::new(0.0, 1.0, 1.0);
+    let through = Vec3::new(center.x, center.y + half.y - s, center.z + half.z);
+    ConvexSolid::box_at(center, half).clipped_by(Plane::new(normal, normal.dot(through)))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -206,5 +218,15 @@ mod tests {
                 && (n.y.atan2(n.z).to_degrees() - bp.armor.hull_front.0).abs() < 2.0
         });
         assert!(on_slope, "a glacis face normal carries the blueprint armour slope");
+    }
+
+    #[test]
+    fn the_periscope_head_has_a_forward_raked_prism_face() {
+        // The defect this locks: a plain box has only axis-aligned faces. The periscope must carry a
+        // slanted prism face pointing forward and up (the raked glass), so it reads as a real device.
+        let mesh = t54_periscope(Vec3::new(0.34, 1.88, 0.42), Vec3::new(0.07, 0.06, 0.07))
+            .to_mesh(MaterialRole::RolledArmor, SmoothingGroup::hard_edges());
+        let raked = mesh.vertices().iter().any(|v| v.normal.y > 0.3 && v.normal.z > 0.3);
+        assert!(raked, "periscope needs a forward-and-up raked prism face, not only box faces");
     }
 }

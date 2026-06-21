@@ -186,6 +186,34 @@ fn t54_carries_driver_and_loader_hatches() {
 }
 
 #[test]
+fn t54_periscopes_are_raked_prism_heads_on_turret_and_hull() {
+    // The defect this locks: periscopes modelled as plain boxes have only axis-aligned faces. Each
+    // must carry a forward-and-up raked prism face (~45 deg, so n.z > 0.6 distinguishes it from the
+    // 60 deg glacis at n.z = 0.5). Filter to RolledArmor so the cast dome's smooth normals are out.
+    let baked = t54_description().build();
+    let turret = &baked.submesh(SubmeshKind::Turret).expect("turret").mesh;
+    let turret_raked = turret
+        .vertices()
+        .iter()
+        .any(|v| v.material == MaterialRole::RolledArmor && v.normal.y > 0.5 && v.normal.z > 0.6);
+    assert!(turret_raked, "turret periscopes must read as raked prism heads");
+
+    let hull = &baked.submesh(SubmeshKind::Hull).expect("hull").mesh;
+    let driver_raked = hull.vertices().iter().any(|v| {
+        v.material == MaterialRole::RolledArmor
+            && v.normal.x.abs() < 0.15
+            && v.normal.y > 0.5
+            && v.normal.z > 0.6
+            && v.position.z > 1.2
+            && v.position.x < 0.0
+    });
+    assert!(
+        driver_raked,
+        "driver periscopes must read as raked prism heads on the hull roof, left"
+    );
+}
+
+#[test]
 fn the_hybrid_t54_silhouette_reads_right() {
     // Locks the hybrid's visual reads against regression (cf. vehicle_geometry silhouette gates).
     let baked = t54_description().build();
