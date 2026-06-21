@@ -55,7 +55,32 @@ pub fn road_wheel(
         SmoothingGroup::hard_edges(),
     );
 
-    let wheel = merge(&[tyre, hub]);
+    // Eight small mounting studs break up the otherwise anonymous hub face. They are authored in
+    // local +X space, then mirrored with the rest of the wheel so they always face outward.
+    let bolt_radius = hub_r * 0.16;
+    let bolt_orbit = hub_r * 0.62;
+    let bolt_profile = [
+        (hub_front, 0.0),
+        (hub_front, bolt_radius),
+        (hub_front + 0.035, bolt_radius),
+        (hub_front + 0.035, 0.0),
+    ];
+    let mut parts = vec![tyre, hub];
+    for index in 0..8 {
+        let angle = std::f32::consts::TAU * index as f32 / 8.0;
+        let bolt = translate(
+            &revolve(
+                Vec3::X,
+                &bolt_profile,
+                8,
+                MaterialRole::TrackMetal,
+                SmoothingGroup::hard_edges(),
+            ),
+            Vec3::new(0.0, bolt_orbit * angle.cos(), bolt_orbit * angle.sin()),
+        );
+        parts.push(bolt);
+    }
+    let wheel = merge(&parts);
     let wheel = if side_x.is_sign_negative() { mirror_x(&wheel) } else { wheel };
     translate(&wheel, Vec3::new(side_x, axle_y, center_z))
 }
@@ -255,6 +280,18 @@ mod tests {
         assert!(
             max_x(MaterialRole::TrackMetal) > rim,
             "steel hub must stand proud of the rubber rim"
+        );
+    }
+
+    #[test]
+    fn the_t54_road_wheel_has_a_bolted_hub_rather_than_a_plain_disc() {
+        let g = gear();
+        let wheel = road_wheel(0.0, g.side_x, 0.58, &g);
+
+        assert!(
+            wheel.triangle_count() > 420,
+            "T-54 road wheel needs the additional hub-bolt geometry, got {} triangles",
+            wheel.triangle_count()
         );
     }
 

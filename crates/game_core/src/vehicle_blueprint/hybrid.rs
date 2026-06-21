@@ -93,7 +93,7 @@ pub struct GunVisual {
     pub muzzle_taper: f32,
     pub barrel_segments: usize,
     /// Mantlet side profile as `(z, radius)` points, revolved about Z then scaled to a flat oval.
-    pub mantlet_profile: [(f32, f32); 3],
+    pub mantlet_profile: [(f32, f32); 6],
     pub mantlet_segments: usize,
     pub mantlet_scale: Vec3,
     /// How much of a gun module's length delta the muzzle moves by (visual modularity scale).

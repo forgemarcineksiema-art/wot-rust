@@ -67,7 +67,9 @@ fn hybrid_t54_body_fits_and_fills_its_hitbox() {
         body.max.z,
         hitbox.half_length_m
     );
-    assert!(body.max.y >= top - 0.30, "too flat: roof {:.2} vs {top:.2}", body.max.y);
+    // The gameplay hitbox reserves vertical headroom for collision stability; it must not force a
+    // historically low T-54-3 casting to grow into a tall dome just to fill the old box.
+    assert!(body.max.y >= top - 0.50, "too flat: roof {:.2} vs {top:.2}", body.max.y);
 
     // The barrel must extend beyond the hitbox.
     assert!(

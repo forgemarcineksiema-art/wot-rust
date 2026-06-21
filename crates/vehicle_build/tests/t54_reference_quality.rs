@@ -21,3 +21,18 @@ fn t54_hybrid_keeps_a_low_wide_turret_and_headroom_for_garage_detail() {
     assert!(turret.mesh.triangle_count() < 12_000);
     assert!(bounds.max.x - bounds.min.x > bounds.max.y - bounds.min.y);
 }
+
+#[test]
+fn t54_turret_has_the_flat_pancake_profile_of_the_1951_casting() {
+    let baked = vehicle_build::t54_description().build();
+    let turret = baked.submesh(SubmeshKind::Turret).expect("turret");
+    let bounds = turret.mesh.bounds().expect("turret bounds");
+    let width = bounds.max.x - bounds.min.x;
+    let height = bounds.max.y - bounds.min.y;
+
+    assert!(
+        height / width <= 0.36,
+        "T-54-3 turret must read as a low pancake casting, got height/width {:.3}",
+        height / width
+    );
+}
