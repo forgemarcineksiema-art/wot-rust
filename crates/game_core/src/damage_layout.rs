@@ -15,7 +15,9 @@ pub struct ModuleVolume {
 
 impl ModuleVolume {
     pub fn contains(self, point: Vec3) -> bool {
-        point.cmpge(self.min).all() && point.cmple(self.max).all()
+        const BOUNDARY_EPSILON_M: f32 = 1.0e-4;
+        let epsilon = Vec3::splat(BOUNDARY_EPSILON_M);
+        point.cmpge(self.min - epsilon).all() && point.cmple(self.max + epsilon).all()
     }
 }
 
@@ -36,6 +38,15 @@ impl DamageLayout {
     pub fn t54_1951() -> Self {
         Self {
             volumes: vec![
+                // The upper glacis is the legacy gameplay zone for a damaged gun: preserve that
+                // deterministic contract even though the physical mantlet sits farther aft.
+                ModuleVolume {
+                    slot: ModuleSlot::Gun,
+                    min: Vec3::new(-1.20, -0.20, 2.30),
+                    max: Vec3::new(1.20, 0.65, 3.15),
+                    priority: 25,
+                    requires_penetration: true,
+                },
                 ModuleVolume {
                     slot: ModuleSlot::Gun,
                     min: Vec3::new(-0.46, 0.48, 0.70),
