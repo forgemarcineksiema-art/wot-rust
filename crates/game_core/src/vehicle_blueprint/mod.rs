@@ -20,8 +20,8 @@ mod hybrid;
 mod t54_hybrid;
 
 pub use hybrid::{
-    BoxVisual, FenderVisual, FittingsVisual, GunVisual, HullPlatesVisual, HullVisual, HybridVisual,
-    RunningGearVisual, TrackBeltVisual, TurretVisual,
+    BoxVisual, DetailVisual, FenderVisual, FittingsVisual, GunVisual, HullPlatesVisual, HullVisual,
+    HybridVisual, RunningGearVisual, TrackBeltVisual, TurretVisual,
 };
 
 /// How the turret/superstructure reads, for both the mesh recipe and the fit tests.
@@ -251,6 +251,43 @@ mod tests {
         same("turret.cupola_center.z", h.turret.cupola_center.z, turret.cupola_z);
         same("fittings.cupola_hatch_center.x", h.fittings.cupola_hatch_center.x, turret.cupola_x);
         same("fittings.cupola_hatch_center.z", h.fittings.cupola_hatch_center.z, turret.cupola_z);
+    }
+
+    /// Factory detailing is visual-only: it adds nothing to the gameplay-bearing data (hitbox,
+    /// mounts, armour all still resolve unchanged from the shape source) and every detail descriptor
+    /// sits inside the already-validated hull/turret volumes. This is the Task-2 guard that the new
+    /// grille/exhaust/periscope/fender-lip/weld greeble cannot quietly grow the tank or its hitbox.
+    #[test]
+    fn t54_detail_fittings_are_visual_only_and_fit_inside_validated_volumes() {
+        let bp = VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("blueprint");
+        // Adding DetailVisual leaves the collision hitbox, mount frames and armour untouched.
+        assert_eq!(bp.hitbox(), HitboxProfile::for_vehicle(VehicleKind::T54_1951));
+        assert_eq!(bp.mount_frames(), MountFrames::for_vehicle(VehicleKind::T54_1951));
+
+        let h = bp.hybrid().expect("hybrid visual");
+        let d = &h.detail;
+        let hull = &bp.hull;
+        let inside_hull = |p: Vec3| {
+            p.x.abs() <= hull.hitbox_half_width + 1.0e-3
+                && p.z.abs() <= hull.hitbox_half_length + 1.0e-3
+                && (p.y - hull.hitbox_center_y).abs() <= hull.hitbox_half_height + 1.0e-3
+        };
+        assert!(inside_hull(d.grille_center), "deck grille sits within the hull collision volume");
+        assert!(
+            inside_hull(d.exhaust_center),
+            "exhaust cover sits within the hull collision volume"
+        );
+        // Turret periscopes sit inside the cast turret's meshing box and below its cupola-hatch apex,
+        // so they never raise the silhouette or the turret-height proportion.
+        let t = &h.turret;
+        assert!(d.periscope_center.x.abs() + d.periscope_half.x < t.bbox_max.x);
+        assert!(d.periscope_center.z > t.bbox_min.z && d.periscope_center.z < t.bbox_max.z);
+        assert!(
+            d.periscope_center.y + d.periscope_half.y < h.fittings.cupola_hatch_center.y,
+            "periscopes stay below the turret apex"
+        );
+        // Restrained, factory-clean detail: lips and weld beads are small.
+        assert!(d.fender_lip_drop < 0.20 && d.weld_seam_half_thickness < 0.05);
     }
 
     /// The T-55A is now blueprint-backed too: its hitbox, mounts, and armour slopes all read the

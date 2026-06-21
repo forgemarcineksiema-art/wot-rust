@@ -120,14 +120,6 @@ pub fn t54_from_modules(modules: &VehicleModules) -> VehicleDescription {
         lod: PartLod::MountCritical,
     };
 
-    let deck = VehiclePart {
-        submesh: SubmeshKind::Hull,
-        material: MaterialRole::RolledArmor,
-        smoothing: SmoothingGroup::hard_edges(),
-        shape: PartShape::Plates(solid::t54_engine_deck(&v.deck)),
-        lod: PartLod::Silhouette,
-    };
-
     // Semantic fittings. The cupola hatch rides the turret (so it traverses); the headlight and the
     // front tow hooks ride the hull. Each is its own part, not anonymous greeble.
     let f = &v.fittings;
@@ -169,10 +161,19 @@ pub fn t54_from_modules(modules: &VehicleModules) -> VehicleDescription {
         track_links,
         turret,
         barrel,
-        deck,
         cupola_hatch,
         headlight,
     ];
+    // The engine deck reads as bolted panels, not one slab — its split plates carry the silhouette.
+    for panel in solid::t54_engine_deck_panels(&v.deck) {
+        parts.push(VehiclePart {
+            submesh: SubmeshKind::Hull,
+            material: MaterialRole::RolledArmor,
+            smoothing: SmoothingGroup::hard_edges(),
+            shape: PartShape::Plates(panel),
+            lod: PartLod::Silhouette,
+        });
+    }
     for side in [f.tow_hook_center.x, -f.tow_hook_center.x] {
         let center = Vec3::new(side, f.tow_hook_center.y, f.tow_hook_center.z);
         parts.push(VehiclePart {
@@ -192,6 +193,9 @@ pub fn t54_from_modules(modules: &VehicleModules) -> VehicleDescription {
             lod: PartLod::Detail,
         });
     }
+    // Clean factory greeble (grille, exhaust cover, periscopes, fender lips, weld bead) — all at the
+    // Detail tier, so the close-up LOD0 carries it and the lower LODs keep only the silhouette.
+    parts.extend(crate::t54_details::t54_detail_parts(v));
 
     VehicleDescription { kind, parts, mounts }
 }

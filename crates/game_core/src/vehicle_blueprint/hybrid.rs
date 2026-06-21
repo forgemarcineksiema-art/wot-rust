@@ -170,6 +170,32 @@ pub struct FittingsVisual {
     pub tow_hook_half: Vec3,
 }
 
+/// Visual-only factory detailing for the hybrid path. Clean-build intent: a freshly delivered
+/// vehicle — *no* mud, rust, battle damage, decals, or heavy weathering. These descriptors add only
+/// crisp manufactured greeble (engine-deck grille, exhaust housing, turret periscopes, fender lips
+/// and restrained weld beads). Every value is a *new* visual dimension placed inside the already
+/// validated hull/turret volumes; none restates a hull, track, ring, cupola, mantlet, trunnion or
+/// muzzle dimension, and none feeds collision, armour, the mount frames, or the network snapshot.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct DetailVisual {
+    /// Louvered engine-deck grille panel (centre + half-extents) and its slat count.
+    pub grille_center: Vec3,
+    pub grille_half: Vec3,
+    pub grille_slats: usize,
+    /// Exhaust housing: a boxed cover lying along the left fender run.
+    pub exhaust_center: Vec3,
+    pub exhaust_half: Vec3,
+    /// Turret-roof periscope block (right of the cupola; mirrored to the loader side by the generator).
+    pub periscope_center: Vec3,
+    pub periscope_half: Vec3,
+    /// Fender lip: a thin downturned edge along the outer fender run (drop below + thickness).
+    pub fender_lip_drop: f32,
+    pub fender_lip_thickness: f32,
+    /// Restrained weld bead half-thickness for the glacis/deck joins (kept tiny — a crisp cast seam,
+    /// not a weathered weld). Finer surface relief stays in the material/normal layer.
+    pub weld_seam_half_thickness: f32,
+}
+
 /// The full hybrid visual description for one vehicle. `Some` only for the hybrid benchmark (T-54);
 /// other vehicles bake through the legacy `vehicle_geometry` path and carry `None`.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -183,4 +209,5 @@ pub struct HybridVisual {
     pub running_gear: RunningGearVisual,
     pub track_belt: TrackBeltVisual,
     pub fittings: FittingsVisual,
+    pub detail: DetailVisual,
 }

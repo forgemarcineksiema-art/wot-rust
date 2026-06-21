@@ -10,6 +10,7 @@
 mod description;
 mod part;
 mod t54;
+mod t54_details;
 
 pub use description::VehicleDescription;
 pub use part::{PartLod, PartShape, VehiclePart};

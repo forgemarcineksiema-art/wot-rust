@@ -1,12 +1,13 @@
-//! The authoritative hybrid visual dimensions for the T-54 benchmark. These reproduce the previous
-//! hand-tuned generator constants exactly, so migrating the generators onto this single source
-//! leaves the baked mesh unchanged; refining the forms toward the hitbox is a later stage.
+//! The authoritative hybrid visual dimensions for the T-54 benchmark — the single source the mesh
+//! generators read. Material intent is a clean, factory-fresh vehicle: crisp cast and machined
+//! surfaces with restrained manufactured detailing, and deliberately *no* mud, rust, battle damage,
+//! decals or heavy weathering (that finish belongs to the material layer, not the geometry).
 
 use glam::Vec3;
 
 use super::{
-    BoxVisual, FenderVisual, FittingsVisual, GunVisual, HullPlatesVisual, HullVisual, HybridVisual,
-    RunningGearVisual, TrackBeltVisual, TurretVisual,
+    BoxVisual, DetailVisual, FenderVisual, FittingsVisual, GunVisual, HullPlatesVisual, HullVisual,
+    HybridVisual, RunningGearVisual, TrackBeltVisual, TurretVisual,
 };
 
 pub(super) fn t54_hybrid() -> HybridVisual {
@@ -29,12 +30,16 @@ pub(super) fn t54_hybrid() -> HybridVisual {
         turret: TurretVisual {
             dome_radius: 0.95,
             dome_front: Vec3::new(0.0, 1.80, 0.06),
-            dome_rear: Vec3::new(0.0, 1.78, -0.26),
-            dome_rear_radius: 0.74,
+            // The rear bustle is narrowed (smaller, pulled-back rear sphere) so the casting tapers to
+            // a low, slim tail behind the ring — the front mass reads heavier than the rear.
+            dome_rear: Vec3::new(0.0, 1.78, -0.30),
+            dome_rear_radius: 0.70,
             dome_blend: 0.45,
-            cheek_radius: 0.47,
-            cheek_center: Vec3::new(0.48, 1.62, 0.52),
-            cheek_blend: 0.38,
+            // Fuller, further-forward front cheeks flanking the mantlet: the T-54 turret's signature
+            // heavy cast front mass, kept within the turret plan (the dome already fills the width).
+            cheek_radius: 0.49,
+            cheek_center: Vec3::new(0.48, 1.62, 0.56),
+            cheek_blend: 0.40,
             ring_radius: 0.90,
             ring_half_height: 0.30,
             ring_center: Vec3::new(0.0, 1.60, 0.0),
@@ -45,9 +50,11 @@ pub(super) fn t54_hybrid() -> HybridVisual {
             cupola_half_height: 0.17,
             cupola_center: Vec3::new(-0.34, 2.06, -0.10),
             cupola_blend: 0.05,
-            socket_radius: 0.34,
-            socket_center: Vec3::new(0.0, 1.72, 1.05),
-            socket_blend: 0.06,
+            // A deeper, lower mantlet socket: a wider recess seated slightly lower on the front face,
+            // so the cast trough the gun mantlet beds into reads as a real cavity, not a dimple.
+            socket_radius: 0.38,
+            socket_center: Vec3::new(0.0, 1.70, 1.04),
+            socket_blend: 0.07,
             bbox_min: Vec3::new(-1.20, 1.25, -1.20),
             bbox_max: Vec3::new(1.20, 2.30, 1.45),
             budget: 12_000,
@@ -104,6 +111,22 @@ pub(super) fn t54_hybrid() -> HybridVisual {
             headlight_half_height: 0.07,
             tow_hook_center: Vec3::new(1.02, 0.32, 2.42),
             tow_hook_half: Vec3::new(0.12, 0.11, 0.10),
+        },
+        // Clean factory-fresh detailing only: a louvered rear-deck grille, a boxed left-fender
+        // exhaust cover, two low turret-roof periscopes, fender lips and a restrained glacis weld
+        // bead. No mud, rust, battle damage, decals or heavy weathering — all sit inside the already
+        // validated hull/turret volumes and add nothing to collision, armour, mounts or the snapshot.
+        detail: DetailVisual {
+            grille_center: Vec3::new(0.0, 1.28, -1.95),
+            grille_half: Vec3::new(0.85, 0.03, 0.55),
+            grille_slats: 6,
+            exhaust_center: Vec3::new(-1.50, 1.30, -1.55),
+            exhaust_half: Vec3::new(0.10, 0.10, 0.55),
+            periscope_center: Vec3::new(0.34, 2.08, 0.42),
+            periscope_half: Vec3::new(0.07, 0.05, 0.07),
+            fender_lip_drop: 0.07,
+            fender_lip_thickness: 0.03,
+            weld_seam_half_thickness: 0.015,
         },
     }
 }

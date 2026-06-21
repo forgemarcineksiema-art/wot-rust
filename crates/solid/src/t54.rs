@@ -5,7 +5,7 @@
 //! visible rake of each facet is the same angle the penetration model uses — what you see is what
 //! you shoot.
 
-use game_core::{BoxVisual, FenderVisual, HullPlatesVisual, HullShape, HullVisual};
+use game_core::{BoxVisual, DetailVisual, FenderVisual, HullPlatesVisual, HullShape, HullVisual};
 use glam::Vec3;
 
 use crate::{ConvexSolid, Plane};
@@ -100,6 +100,65 @@ pub fn t54_fender(side_x: f32, fender: &FenderVisual) -> ConvexSolid {
 /// The raised rear engine deck panel behind the turret.
 pub fn t54_engine_deck(deck: &BoxVisual) -> ConvexSolid {
     ConvexSolid::box_at(deck.center, deck.half)
+}
+
+/// The engine deck split into three recognizable panels (front/centre/rear) separated by thin seam
+/// gaps, so the rear deck reads as bolted plates rather than one slab. Flat tops, hard edges — the
+/// CAD generator keeps the plate normals crisp. The split is visual only; the deck footprint is
+/// unchanged. Clean factory build: panel seams, not weld scars or weathering.
+pub fn t54_engine_deck_panels(deck: &BoxVisual) -> Vec<ConvexSolid> {
+    let panel_half_z = deck.half.z / 3.0 - 0.02;
+    let half = Vec3::new(deck.half.x - 0.02, deck.half.y, panel_half_z);
+    (-1..=1)
+        .map(|row| {
+            let center = Vec3::new(
+                deck.center.x,
+                deck.center.y,
+                deck.center.z + row as f32 * deck.half.z / 1.5,
+            );
+            ConvexSolid::box_at(center, half)
+        })
+        .collect()
+}
+
+/// The louvered engine-deck grille: a thin raised frame around a set of evenly spaced slats. All
+/// boxes, all hard-edged — a manufactured cooling grille, no grime. Built from [`DetailVisual`].
+pub fn t54_deck_grille(d: &DetailVisual) -> Vec<ConvexSolid> {
+    let (c, h) = (d.grille_center, d.grille_half);
+    let rail = 0.04_f32;
+    let mut solids = vec![
+        ConvexSolid::box_at(Vec3::new(c.x, c.y, c.z + h.z), Vec3::new(h.x, h.y, rail)),
+        ConvexSolid::box_at(Vec3::new(c.x, c.y, c.z - h.z), Vec3::new(h.x, h.y, rail)),
+        ConvexSolid::box_at(Vec3::new(c.x + h.x, c.y, c.z), Vec3::new(rail, h.y, h.z)),
+        ConvexSolid::box_at(Vec3::new(c.x - h.x, c.y, c.z), Vec3::new(rail, h.y, h.z)),
+    ];
+    let slats = d.grille_slats.max(1);
+    let slat_half_z = (h.z - rail) / (slats as f32 * 2.0);
+    for slat in 0..slats {
+        let t = (slat as f32 + 0.5) / slats as f32;
+        let z = c.z - h.z + rail + t * 2.0 * (h.z - rail);
+        solids.push(ConvexSolid::box_at(
+            Vec3::new(c.x, c.y + h.y * 0.4, z),
+            Vec3::new(h.x - rail, h.y * 0.6, slat_half_z),
+        ));
+    }
+    solids
+}
+
+/// The boxed exhaust cover riding the rear of the left fender. A simple armoured housing (box, hard
+/// edges) — the clean factory exhaust, not a sooted pipe.
+pub fn t54_exhaust_housing(d: &DetailVisual) -> ConvexSolid {
+    ConvexSolid::box_at(d.exhaust_center, d.exhaust_half)
+}
+
+/// A thin downturned fender lip running the length of one fender's outer edge, at world `side_x`.
+/// It drops just below the fender plate so the mudguard reads as a folded-edge pressing.
+pub fn t54_fender_lip(side_x: f32, fender: &FenderVisual, d: &DetailVisual) -> ConvexSolid {
+    let edge_x = side_x.signum() * (side_x.abs() + fender.half.x);
+    let bottom = fender.center_y - fender.half.y;
+    let center = Vec3::new(edge_x, bottom - d.fender_lip_drop * 0.5, 0.0);
+    let half = Vec3::new(d.fender_lip_thickness * 0.5, d.fender_lip_drop * 0.5, fender.half.z);
+    ConvexSolid::box_at(center, half)
 }
 
 #[cfg(test)]

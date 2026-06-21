@@ -38,10 +38,18 @@ pub fn t54_turret(t: &TurretVisual) -> (Sdf, Vec3, Vec3) {
     body = body.intersect(Sdf::half_space(Vec3::Y, t.roof_plane_y));
     body = body.intersect(Sdf::half_space(-Vec3::Y, -t.ring_plane_y));
 
-    // Commander's cupola standing proud as a drum; the recessed mantlet socket is subtracted.
+    // Commander's cupola standing proud as a drum, blended into the casting (a cast-only transition,
+    // like the cheeks, socket and ring — every turret join here is a smooth blend). The recessed
+    // mantlet socket is subtracted as a short vertical trough — the main socket plus a lower lobe —
+    // so the cavity the gun mantlet beds into reads low and deep. Hard armour seams and the sloped
+    // glacis are never SDF: those are exact CAD plates from the `solid` generator.
     let cupola = Sdf::cylinder(t.cupola_radius, t.cupola_half_height).translate(t.cupola_center);
     body = body.smooth_union(cupola, t.cupola_blend);
-    let socket = Sdf::sphere(t.socket_radius).translate(t.socket_center);
+    let socket_low =
+        Vec3::new(t.socket_center.x, t.socket_center.y - t.socket_radius * 0.45, t.socket_center.z);
+    let socket = Sdf::sphere(t.socket_radius)
+        .translate(t.socket_center)
+        .smooth_union(Sdf::sphere(t.socket_radius * 0.80).translate(socket_low), t.socket_blend);
     body = body.smooth_subtract(socket, t.socket_blend);
 
     (body, t.bbox_min, t.bbox_max)
