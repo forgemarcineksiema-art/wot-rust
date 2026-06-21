@@ -6,6 +6,7 @@ members = [
     "crates/engine",
     "crates/game_core",
     "crates/net",
+    "crates/panel",
     "crates/physics",
     "crates/quality",
     "crates/renderer_api",
