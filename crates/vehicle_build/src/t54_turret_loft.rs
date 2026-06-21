@@ -5,7 +5,7 @@
 
 use std::f32::consts::FRAC_PI_2;
 
-use cast_loft::{CastBump, CastCaps, CastLoftSpec, CastSection, build_cast_loft};
+use cast_loft::{CastBump, CastCap, CastCaps, CastLoftSpec, CastSection, try_build_cast_loft};
 use game_core::TurretLoftVisual;
 use vehicle_geometry::{GeometryMesh, MaterialRole, SmoothingGroup};
 
@@ -45,14 +45,19 @@ pub fn t54_turret_loft(t: &TurretLoftVisual) -> GeometryMesh {
         },
     ];
 
-    build_cast_loft(&CastLoftSpec {
+    try_build_cast_loft(&CastLoftSpec {
         sections: &sections,
         bumps: &bumps,
         segments: t.segments,
-        caps: CastCaps { bottom: Some(t.floor_apex), top: Some(t.roof_apex) },
+        // Flat lids in the ring-seat and roof station planes: a watertight casting beneath the
+        // separate cupola, with no artificial roof spike that reads as a pinched casting.
+        caps: CastCaps { bottom: CastCap::Planar, top: CastCap::Planar },
         material: MaterialRole::CastArmor,
         smoothing: SmoothingGroup(2),
     })
+    // The T-54 turret blueprint is static, validated authoring data, locked by the turret tests;
+    // an error here means the blueprint regressed, not bad runtime input.
+    .expect("the T-54 turret blueprint is a valid cast loft")
 }
 
 #[cfg(test)]
@@ -70,6 +75,16 @@ mod tests {
             .filter(|v| v.position.y >= lo && v.position.y <= hi)
             .map(|v| v.position.x.abs())
             .fold(0.0_f32, f32::max)
+    }
+
+    /// After the planar-cap migration the production turret is a watertight, consistently-wound
+    /// casting with no boundary or non-manifold edges — the closed-shell contract beneath the
+    /// separate cupola.
+    #[test]
+    fn the_planar_capped_turret_is_a_closed_smooth_manifold() {
+        t54_turret_loft(&turret_loft_visual())
+            .validate_quality(vehicle_geometry::CLOSED_SMOOTH_MESH)
+            .expect("the planar-capped T-54 turret is a closed smooth manifold");
     }
 
     /// The lofted casting must bulge LOW (the ring overhang) and neck IN toward the flat roof — the

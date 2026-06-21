@@ -109,9 +109,6 @@ pub struct TurretLoftVisual {
     pub exponent: f32,
     /// Azimuth samples per ring.
     pub segments: usize,
-    /// Apex points the flat roof and ring-seat caps fan to.
-    pub roof_apex: Vec3,
-    pub floor_apex: Vec3,
     /// Symmetric front cheeks: a swell at the front azimuth `±cheek_azimuth`.
     pub cheek_amount: f32,
     pub cheek_azimuth: f32,

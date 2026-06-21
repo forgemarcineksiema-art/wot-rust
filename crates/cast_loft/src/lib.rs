@@ -21,6 +21,10 @@ use std::f32::consts::{PI, TAU};
 use glam::Vec3;
 use vehicle_geometry::{GeometryMesh, GeometryVertex, MaterialRole, SmoothingGroup};
 
+mod error;
+
+pub use error::{CastLoftError, try_build_cast_loft};
+
 /// A closed horizontal cross-section at height `y`: a superellipse in the XZ plane with separate
 /// front (`+Z`) and rear (`-Z`) half-lengths, so a casting can read front-heavy with a tapered rear
 /// bustle. `exponent` is the superellipse fullness (`2.0` = ellipse, `>2.0` = fuller "shoulders"
@@ -93,11 +97,24 @@ impl CastBump {
     }
 }
 
-/// How the ends of a loft are closed: an apex point each end fans to, or `None` to leave it open.
-#[derive(Debug, Clone, Copy, Default)]
+/// How one end of a cast loft is closed.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub enum CastCap {
+    /// Emit no end faces; the shell stays open at this end.
+    #[default]
+    Open,
+    /// Fan flat from the centroid of the terminal ring, in that ring's station plane — a flat lid
+    /// with no artificial spike.
+    Planar,
+    /// Fan to an explicit apex point, for a domed or pointed end.
+    Apex(Vec3),
+}
+
+/// How both ends of a cast loft are closed.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct CastCaps {
-    pub bottom: Option<Vec3>,
-    pub top: Option<Vec3>,
+    pub bottom: CastCap,
+    pub top: CastCap,
 }
 
 /// Everything needed to skin one shell.
@@ -113,8 +130,10 @@ pub struct CastLoftSpec<'a> {
     pub smoothing: SmoothingGroup,
 }
 
-/// Skin a stack of cross-sections into a watertight cast shell.
-pub fn build_cast_loft(spec: &CastLoftSpec) -> GeometryMesh {
+/// Skin a stack of cross-sections into a watertight cast shell, assuming the spec is already valid.
+/// Production callers go through [`try_build_cast_loft`], which validates the spec first; this
+/// unchecked builder stays crate-internal for that wrapper and the tests.
+pub(crate) fn build_cast_loft(spec: &CastLoftSpec) -> GeometryMesh {
     let n = spec.segments.max(3);
     let rings = spec.sections.len();
     assert!(rings >= 2, "a loft needs at least two cross-sections");
@@ -146,27 +165,10 @@ pub fn build_cast_loft(spec: &CastLoftSpec) -> GeometryMesh {
         }
     }
 
-    if let Some(apex) = spec.caps.bottom {
-        let centre = positions.len() as u32;
-        positions.push(apex);
-        for i in 0..n {
-            let i1 = (i + 1) % n;
-            indices.extend_from_slice(&[centre, ring_base(0) + i as u32, ring_base(0) + i1 as u32]);
-        }
-    }
-    if let Some(apex) = spec.caps.top {
-        let centre = positions.len() as u32;
-        positions.push(apex);
-        let last = rings - 1;
-        for i in 0..n {
-            let i1 = (i + 1) % n;
-            indices.extend_from_slice(&[
-                centre,
-                ring_base(last) + i1 as u32,
-                ring_base(last) + i as u32,
-            ]);
-        }
-    }
+    // The bottom cap fans with the ring's natural winding; the top cap reverses it so both end
+    // faces point away from the shell body.
+    add_cap(&mut positions, &mut indices, spec.caps.bottom, ring_base(0), n, false);
+    add_cap(&mut positions, &mut indices, spec.caps.top, ring_base(rings - 1), n, true);
 
     let vertices = positions
         .iter()
@@ -174,6 +176,39 @@ pub fn build_cast_loft(spec: &CastLoftSpec) -> GeometryMesh {
         .collect();
     // Smooth normals are rebuilt from the faces here; the placeholder zero normals above are replaced.
     GeometryMesh::new(vertices, indices).weld_and_smooth()
+}
+
+/// Close one end of the shell according to `cap`. `ring_start` is the first vertex index of the
+/// terminal ring; `reversed` flips the fan winding so the top end faces away from the body too.
+fn add_cap(
+    positions: &mut Vec<Vec3>,
+    indices: &mut Vec<u32>,
+    cap: CastCap,
+    ring_start: u32,
+    n: usize,
+    reversed: bool,
+) {
+    let centre_point = match cap {
+        CastCap::Open => return,
+        CastCap::Apex(apex) => apex,
+        // The terminal ring's points all share the station's y, so their centroid lies in that
+        // station plane — a true flat lid.
+        CastCap::Planar => {
+            let start = ring_start as usize;
+            positions[start..start + n].iter().fold(Vec3::ZERO, |acc, &p| acc + p) / n as f32
+        }
+    };
+    let centre = positions.len() as u32;
+    positions.push(centre_point);
+    for i in 0..n {
+        let i1 = ((i + 1) % n) as u32;
+        let (a, b) = (ring_start + i as u32, ring_start + i1);
+        if reversed {
+            indices.extend_from_slice(&[centre, b, a]);
+        } else {
+            indices.extend_from_slice(&[centre, a, b]);
+        }
+    }
 }
 
 #[cfg(test)]
@@ -189,29 +224,89 @@ mod tests {
         ]
     }
 
-    fn dome(bumps: &[CastBump]) -> GeometryMesh {
+    const SEGMENTS: usize = 48;
+
+    fn loft_with(caps: CastCaps, bumps: &[CastBump]) -> GeometryMesh {
         build_cast_loft(&CastLoftSpec {
             sections: &dome_sections(),
             bumps,
-            segments: 48,
-            caps: CastCaps {
-                bottom: Some(Vec3::new(0.0, 0.0, 0.0)),
-                top: Some(Vec3::new(0.0, 0.55, -0.06)),
-            },
+            segments: SEGMENTS,
+            caps,
             material: MaterialRole::CastArmor,
             smoothing: SmoothingGroup(2),
         })
     }
 
-    /// A capped loft is a closed, consistently-wound 2-manifold with finite unit normals — the one
-    /// shared mesh-quality contract every generator is measured against.
+    /// The production cast turret closes both ends flat, with no artificial roof spike.
+    fn dome(bumps: &[CastBump]) -> GeometryMesh {
+        loft_with(CastCaps { bottom: CastCap::Planar, top: CastCap::Planar }, bumps)
+    }
+
+    /// A planar-capped loft is a closed, consistently-wound 2-manifold with finite unit normals —
+    /// the one shared mesh-quality contract every generator is measured against.
     #[test]
-    fn capped_loft_is_a_closed_smooth_manifold() {
+    fn planar_capped_loft_is_a_closed_smooth_manifold() {
         let report = dome(&[])
             .validate_quality(vehicle_geometry::CLOSED_SMOOTH_MESH)
-            .expect("a capped cast loft is a closed smooth manifold");
+            .expect("a planar-capped cast loft is a closed smooth manifold");
         assert_eq!(report.boundary_edges, 0);
         assert_eq!(report.non_manifold_edges, 0);
+    }
+
+    /// An open loft validates as clean under `Any` topology but carries the two terminal rings as
+    /// boundary edges (`n` per open end).
+    #[test]
+    fn open_loft_validates_as_open_but_clean() {
+        let mesh = loft_with(CastCaps { bottom: CastCap::Open, top: CastCap::Open }, &[]);
+        let report = mesh
+            .validate_quality(vehicle_geometry::OPEN_OR_CLOSED_MESH)
+            .expect("an open cast loft is otherwise clean");
+        assert_eq!(report.boundary_edges, 2 * SEGMENTS, "both terminal rings are open");
+    }
+
+    /// Each cap mode contributes the expected number of boundary edges: a closed end none, an open
+    /// end one ring of `n`.
+    #[test]
+    fn each_cap_mode_has_the_expected_boundary_edge_count() {
+        let count = |caps| {
+            loft_with(caps, &[])
+                .quality_report(vehicle_geometry::OPEN_OR_CLOSED_MESH)
+                .boundary_edges
+        };
+        assert_eq!(count(CastCaps { bottom: CastCap::Planar, top: CastCap::Planar }), 0);
+        assert_eq!(
+            count(CastCaps {
+                bottom: CastCap::Apex(Vec3::new(0.0, -0.1, 0.0)),
+                top: CastCap::Planar
+            }),
+            0
+        );
+        assert_eq!(count(CastCaps { bottom: CastCap::Open, top: CastCap::Planar }), SEGMENTS);
+        assert_eq!(count(CastCaps { bottom: CastCap::Open, top: CastCap::Open }), 2 * SEGMENTS);
+    }
+
+    /// A planar cap fans flat in the terminal station plane: it never protrudes past the bottom and
+    /// top station heights, so there is no pinched roof spike.
+    #[test]
+    fn planar_caps_lie_in_the_terminal_station_plane() {
+        let sections = dome_sections();
+        let bottom_y = sections.first().unwrap().y;
+        let top_y = sections.last().unwrap().y;
+        let b = dome(&[]).bounds().expect("non-empty");
+        assert!((b.min.y - bottom_y).abs() < 1.0e-5, "bottom cap sits in its station plane");
+        assert!((b.max.y - top_y).abs() < 1.0e-5, "top cap sits in its station plane, no spike");
+    }
+
+    /// An explicit apex cap fans to a point without emitting zero-area slivers.
+    #[test]
+    fn apex_cap_has_no_zero_area_triangles() {
+        let caps = CastCaps {
+            bottom: CastCap::Apex(Vec3::new(0.0, -0.12, 0.0)),
+            top: CastCap::Apex(Vec3::new(0.0, 0.68, -0.06)),
+        };
+        let report = loft_with(caps, &[]).quality_report(vehicle_geometry::CLOSED_SMOOTH_MESH);
+        assert_eq!(report.degenerate_triangles, 0);
+        assert_eq!(report.boundary_edges, 0);
     }
 
     #[test]

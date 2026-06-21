@@ -126,8 +126,6 @@ pub(super) fn t54_hybrid() -> HybridVisual {
             ],
             exponent: 2.8,
             segments: 64,
-            roof_apex: Vec3::new(0.0, 1.865, -0.06),
-            floor_apex: Vec3::new(0.0, 1.30, 0.0),
             cheek_amount: 0.10,
             cheek_azimuth: 0.70,
             cheek_y: 1.48,
