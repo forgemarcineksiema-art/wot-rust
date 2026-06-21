@@ -6,9 +6,89 @@ use glam::{Quat, Vec3};
 
 use crate::Sdf;
 
+/// Why an SDF primitive or operation cannot be constructed from the given parameters.
+#[derive(Debug, thiserror::Error, Clone, PartialEq)]
+pub enum SdfError {
+    #[error("radius must be finite and non-negative")]
+    NegativeRadius,
+    #[error("half-extent must be finite and non-negative")]
+    NegativeHalfExtent,
+    #[error("half-space normal must be finite and non-zero")]
+    ZeroNormal,
+    #[error("rigid transform translation must be finite")]
+    NonFiniteTransform,
+    #[error("rotation quaternion must be finite and normalizable")]
+    NonNormalizableRotation,
+    #[error("smooth-blend radius must be finite")]
+    NonFiniteRadius,
+}
+
 impl Sdf {
     pub fn sphere(radius: f32) -> Self {
         Sdf::Sphere { radius }
+    }
+
+    /// Validated sphere: the radius must be finite and non-negative.
+    pub fn try_sphere(radius: f32) -> Result<Self, SdfError> {
+        if !radius.is_finite() || radius < 0.0 {
+            return Err(SdfError::NegativeRadius);
+        }
+        Ok(Sdf::Sphere { radius })
+    }
+
+    /// Validated box: every half-extent must be finite and non-negative.
+    pub fn try_cuboid(half: Vec3) -> Result<Self, SdfError> {
+        if !half.is_finite() || half.min_element() < 0.0 {
+            return Err(SdfError::NegativeHalfExtent);
+        }
+        Ok(Sdf::Cuboid { half })
+    }
+
+    /// Validated half-space: the normal must be finite and non-zero (it is normalised).
+    pub fn try_half_space(normal: Vec3, offset: f32) -> Result<Self, SdfError> {
+        if !normal.is_finite() || !offset.is_finite() || normal.length() < 1.0e-6 {
+            return Err(SdfError::ZeroNormal);
+        }
+        Ok(Sdf::HalfSpace { normal: normal.normalize(), offset })
+    }
+
+    /// Validated cylinder: radius and half-height must be finite and non-negative.
+    pub fn try_cylinder(radius: f32, half_height: f32) -> Result<Self, SdfError> {
+        if !radius.is_finite() || radius < 0.0 {
+            return Err(SdfError::NegativeRadius);
+        }
+        if !half_height.is_finite() || half_height < 0.0 {
+            return Err(SdfError::NegativeHalfExtent);
+        }
+        Ok(Sdf::Cylinder { radius, half_height })
+    }
+
+    /// Validated rigid transform: finite translation and a finite, normalizable rotation.
+    pub fn try_transform(self, rotation: Quat, translation: Vec3) -> Result<Self, SdfError> {
+        if !translation.is_finite() {
+            return Err(SdfError::NonFiniteTransform);
+        }
+        let len = rotation.length();
+        if !len.is_finite() || len < 1.0e-6 {
+            return Err(SdfError::NonNormalizableRotation);
+        }
+        Ok(Sdf::Rigid { rotation: rotation.normalize(), translation, node: Box::new(self) })
+    }
+
+    /// Validated smooth union: the blend radius must be finite.
+    pub fn try_smooth_union(self, other: Sdf, radius: f32) -> Result<Self, SdfError> {
+        if !radius.is_finite() {
+            return Err(SdfError::NonFiniteRadius);
+        }
+        Ok(Sdf::SmoothUnion { a: Box::new(self), b: Box::new(other), radius })
+    }
+
+    /// Validated smooth subtract: the blend radius must be finite.
+    pub fn try_smooth_subtract(self, other: Sdf, radius: f32) -> Result<Self, SdfError> {
+        if !radius.is_finite() {
+            return Err(SdfError::NonFiniteRadius);
+        }
+        Ok(Sdf::SmoothSubtract { a: Box::new(self), b: Box::new(other), radius })
     }
 
     pub fn cuboid(half: Vec3) -> Self {

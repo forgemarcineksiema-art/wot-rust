@@ -55,7 +55,13 @@ fn corner_offset(c: usize) -> Vec3 {
     Vec3::new((c & 1) as f32, ((c >> 1) & 1) as f32, ((c >> 2) & 1) as f32)
 }
 
+/// Prefer the SDF's analytic gradient (exact for plates, primitives and rigid transforms; blended
+/// for smooth nodes), falling back to central differences only where it collapses to zero.
 fn gradient(sdf: &Sdf, p: Vec3) -> Vec3 {
+    let analytic = sdf.gradient(p);
+    if analytic != Vec3::ZERO {
+        return analytic;
+    }
     let h = 1.0e-3;
     Vec3::new(
         sdf.eval(p + Vec3::X * h) - sdf.eval(p - Vec3::X * h),
