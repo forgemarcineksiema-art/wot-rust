@@ -7,6 +7,7 @@
 
 use game_core::TrackBeltVisual;
 use glam::{Vec2, Vec3};
+use sweep::{SweepCaps, SweepFrameMode, SweepPath, SweepSection, SweepSpec, try_sweep};
 use vehicle_geometry::{GeometryMesh, GeometryVertex, MaterialRole, SmoothingGroup};
 
 use crate::merge;
@@ -117,45 +118,32 @@ fn push_arc(pts: &mut Vec<Vec2>, center: Vec2, r: f32, a0_deg: f32, a1_deg: f32,
     }
 }
 
-/// Sweep a `(2*half_w) x (2*half_t)` rectangular cross-section along the closed loop. Each loop
-/// point gets four corners (width in X, thickness along the outward loop normal); consecutive
-/// cross-sections stitch into a closed tube.
+/// Sweep a `(2*half_w) x (2*half_t)` rectangular cross-section along the closed loop using the
+/// general path-sweep kernel. The loop lies in the world Y-Z plane at `side_x`; with a fixed up of
+/// world X, the section's `u` axis is the band width (X) and `v` is the in-plane band thickness, so
+/// the result is the same rectangular band the bespoke sweep produced — now one reusable primitive.
 fn sweep_band(loop_pts: &[Vec2], side_x: f32, half_t: f32, half_w: f32) -> GeometryMesh {
-    let n = loop_pts.len();
-    let centroid = loop_pts.iter().fold(Vec2::ZERO, |a, &p| a + p) / n as f32;
-    let mut vertices = Vec::with_capacity(n * 4);
-    for (i, &p) in loop_pts.iter().enumerate() {
-        let tangent = (loop_pts[(i + 1) % n] - loop_pts[(i + n - 1) % n]).normalize_or_zero();
-        let mut normal = Vec2::new(-tangent.y, tangent.x);
-        if normal.dot(p - centroid) < 0.0 {
-            normal = -normal;
-        }
-        let outer = p + normal * half_t;
-        let inner = p - normal * half_t;
-        for &(x, zy) in &[
-            (side_x - half_w, outer),
-            (side_x + half_w, outer),
-            (side_x + half_w, inner),
-            (side_x - half_w, inner),
-        ] {
-            let pos = Vec3::new(x, zy.y, zy.x);
-            vertices.push(GeometryVertex::new(
-                pos,
-                Vec3::ZERO,
-                MaterialRole::TrackMetal,
-                SmoothingGroup::hard_edges(),
-            ));
-        }
-    }
-    let mut indices = Vec::new();
-    for i in 0..n {
-        let (a, b) = ((i * 4) as u32, (((i + 1) % n) * 4) as u32);
-        for k in 0..4u32 {
-            let k1 = (k + 1) % 4;
-            indices.extend_from_slice(&[a + k, a + k1, b + k1, a + k, b + k1, b + k]);
-        }
-    }
-    GeometryMesh::new(vertices, indices).weld_and_smooth()
+    // Lift the (z, y) side-profile loop to world space at this track lane.
+    let points: Vec<Vec3> = loop_pts.iter().map(|p| Vec3::new(side_x, p.y, p.x)).collect();
+    let path = SweepPath { points, closed: true };
+    let section = SweepSection {
+        points: vec![
+            Vec2::new(-half_w, -half_t),
+            Vec2::new(half_w, -half_t),
+            Vec2::new(half_w, half_t),
+            Vec2::new(-half_w, half_t),
+        ],
+        closed: true,
+    };
+    try_sweep(&SweepSpec {
+        path: &path,
+        section: &section,
+        frame_mode: SweepFrameMode::FixedUp(Vec3::X),
+        caps: SweepCaps::Open,
+        material: MaterialRole::TrackMetal,
+        smoothing: SmoothingGroup::hard_edges(),
+    })
+    .expect("the T-54 track loop is a valid closed sweep path")
 }
 
 pub(crate) fn oriented_box_mesh(

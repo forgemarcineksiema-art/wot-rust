@@ -15,6 +15,7 @@ members = [
     "crates/sdf_mesh",
     "crates/server",
     "crates/solid",
+    "crates/sweep",
     "crates/sim",
     "crates/terrain",
     "crates/vehicle_build",

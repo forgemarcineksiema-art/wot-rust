@@ -1,14 +1,12 @@
 [package]
-name = "revolve"
+name = "sweep"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-game_core = { path = "../game_core" }
 glam.workspace = true
-sweep = { path = "../sweep" }
 thiserror.workspace = true
 vehicle_geometry = { path = "../vehicle_geometry" }
 
