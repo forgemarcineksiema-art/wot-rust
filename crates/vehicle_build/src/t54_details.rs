@@ -176,6 +176,20 @@ pub fn t54_detail_parts(v: &HybridVisual) -> Vec<VehiclePart> {
     parts
 }
 
+/// Hull-plate articulation: the glacis-to-roof weld seam and the rear transmission access covers, as
+/// visual detail plates. `front_deg` is the glacis armour slope (the single source) used to place the
+/// seam on the real plate join.
+pub fn t54_hull_plate_parts(v: &HybridVisual, front_deg: f32) -> Vec<VehiclePart> {
+    let mut parts = Vec::new();
+    for seam in solid::t54_hull_plate_seams(&v.hull, front_deg) {
+        parts.push(detail_plate(SubmeshKind::Hull, MaterialRole::RolledArmor, seam));
+    }
+    for cover in solid::t54_transmission_covers(&v.deck) {
+        parts.push(detail_plate(SubmeshKind::Hull, MaterialRole::RolledArmor, cover));
+    }
+    parts
+}
+
 /// A visual swing-arm bracket per road wheel, bridging the hull's lower tub side to the wheel hub at
 /// axle height. Without it the road wheels read as floating on a bare axle line; this is the link
 /// that mounts them to the hull. `lower_half_width` is the hull tub half-width (the pivot side).

@@ -7,6 +7,7 @@
 
 mod convex;
 mod t54;
+mod t54_plates;
 
 pub use convex::{ConvexSolid, Plane};
 pub use t54::{
@@ -14,3 +15,4 @@ pub use t54::{
     t54_fender_brackets, t54_fender_lip, t54_fender_segments, t54_glacis_solid, t54_hull_solid,
     t54_lower_tub, t54_periscope, t54_upper_hull,
 };
+pub use t54_plates::{t54_hull_plate_seams, t54_transmission_covers};

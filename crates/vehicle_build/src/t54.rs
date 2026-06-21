@@ -163,6 +163,8 @@ pub fn t54_from_modules(modules: &VehicleModules) -> VehicleDescription {
     parts.extend(crate::t54_details::t54_detail_parts(v));
     // Swing-arm brackets mounting each road wheel to the hull's lower tub side (suspension cue).
     parts.extend(crate::t54_details::t54_suspension_parts(v, bp.hull.lower_half_width));
+    // Hull plate articulation: the glacis-to-roof weld seam and the rear transmission covers.
+    parts.extend(crate::t54_details::t54_hull_plate_parts(v, bp.armor.hull_front.0));
 
     VehicleDescription { kind, parts, mounts }
 }

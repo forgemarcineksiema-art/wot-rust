@@ -246,6 +246,28 @@ fn t54_fenders_are_segmented_with_support_brackets() {
 }
 
 #[test]
+fn t54_hull_carries_rear_transmission_covers() {
+    let v =
+        *game_core::VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).unwrap().hybrid().unwrap();
+    let deck_top = v.deck.center.y + v.deck.half.y;
+    let baked = t54_description().build();
+    let hull = &baked.submesh(SubmeshKind::Hull).expect("hull").mesh;
+    // Raised RolledArmor plates standing proud of the rear deck, one on each side of the centreline.
+    let has_cover = |sign: f32| {
+        hull.vertices().iter().any(|vert| {
+            vert.material == MaterialRole::RolledArmor
+                && vert.position.x * sign > 0.9
+                && vert.position.y > deck_top + 0.02
+                && vert.position.z < -0.8
+        })
+    };
+    assert!(
+        has_cover(1.0) && has_cover(-1.0),
+        "transmission covers stand proud of both deck sides"
+    );
+}
+
+#[test]
 fn the_hybrid_t54_silhouette_reads_right() {
     // Locks the hybrid's visual reads against regression (cf. vehicle_geometry silhouette gates).
     let baked = t54_description().build();
