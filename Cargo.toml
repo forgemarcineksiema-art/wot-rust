@@ -2,6 +2,8 @@
 members = [
     "crates/cast_loft",
     "crates/client",
+    "crates/deform",
+    "crates/detail",
     "crates/editor",
     "crates/engine",
     "crates/game_core",

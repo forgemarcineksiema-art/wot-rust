@@ -882,6 +882,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f27ae1dd37df86211c42e150270f82743308803d90a6f6e6651cd730d5e1732f"
 
 [[package]]
+name = "deform"
+version = "0.1.0"
+dependencies = [
+ "glam 0.30.10",
+ "revolve",
+ "vehicle_geometry",
+]
+
+[[package]]
 name = "derive_more"
 version = "2.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -902,6 +911,16 @@ dependencies = [
  "rustc_version",
  "syn",
  "unicode-xid",
+]
+
+[[package]]
+name = "detail"
+version = "0.1.0"
+dependencies = [
+ "glam 0.30.10",
+ "revolve",
+ "sweep",
+ "vehicle_geometry",
 ]
 
 [[package]]

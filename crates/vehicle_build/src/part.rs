@@ -35,6 +35,29 @@ impl PartLod {
     }
 }
 
+/// The maximum visual-only surface displacement a part permits, in metres. Bake-only deformation
+/// (cast asymmetry, a shallow dent, surface wear) clamps to this, so a visual tweak can never push a
+/// vertex far enough to change the part's authored gameplay volume, armour facets or mount frames.
+/// Gameplay-exact armour plates declare `NONE`; only soft visual surfaces open a tolerance.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct VisualTolerance(pub f32);
+
+impl VisualTolerance {
+    /// No visual deformation permitted — the default for gameplay-exact plates.
+    pub const NONE: Self = Self(0.0);
+
+    /// The non-negative tolerance magnitude, ignoring a stray sign or NaN.
+    pub fn metres(self) -> f32 {
+        if self.0.is_finite() { self.0.abs() } else { 0.0 }
+    }
+
+    /// Clamp a proposed signed displacement into `[-tolerance, +tolerance]`.
+    pub fn clamp(self, displacement: f32) -> f32 {
+        let t = self.metres();
+        displacement.clamp(-t, t)
+    }
+}
+
 /// How a part's geometry is generated.
 pub enum PartShape {
     /// Flat armour plates: an exact convex solid (crisp edges, exact slopes, few triangles).
