@@ -105,6 +105,42 @@ mod tests {
         );
     }
 
+    /// The front cheeks must read as the T-54's signature cast front mass: they add real width to
+    /// the front shoulder over a cheekless shell, and they stop the casting from necking IN at the
+    /// front (the old failure mode, where the front quarter was narrower than the sides).
+    #[test]
+    fn the_front_cheeks_carry_real_cast_mass_into_the_front_shoulder() {
+        let v = turret_loft_visual();
+        let front_width = |mesh: &GeometryMesh| {
+            mesh.vertices()
+                .iter()
+                .filter(|p| (1.42..=1.54).contains(&p.position.y))
+                .filter(|p| (0.30..=0.80).contains(&p.position.z))
+                .map(|p| p.position.x.abs())
+                .fold(0.0_f32, f32::max)
+        };
+        let with_cheeks = t54_turret_loft(&v);
+        let cheekless = t54_turret_loft(&TurretLoftVisual { cheek_amount: 0.0, ..v });
+
+        let front = front_width(&with_cheeks);
+        assert!(
+            front > front_width(&cheekless) + 0.04,
+            "the cheeks must add front-shoulder mass: {front:.3} vs cheekless {:.3}",
+            front_width(&cheekless)
+        );
+
+        let side = with_cheeks
+            .vertices()
+            .iter()
+            .filter(|p| (1.42..=1.54).contains(&p.position.y) && p.position.z.abs() <= 0.20)
+            .map(|p| p.position.x.abs())
+            .fold(0.0_f32, f32::max);
+        assert!(
+            front >= side - 0.01,
+            "the front must not neck in: front {front:.3} vs side {side:.3}"
+        );
+    }
+
     /// The lofted turret — cheeks and all — stays inside the gameplay turret plan (±1.0 wide, ±1.04
     /// long), so swapping it for the metaball turret cannot poke out of the hitbox volume.
     #[test]

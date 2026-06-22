@@ -88,10 +88,11 @@ pub(super) fn t54_hybrid() -> HybridVisual {
                 (0.28, 0.16),
             ],
             mantlet_segments: 20,
-            // Taller in Y than before so the mask fully overlaps the embrasure mouth through the
-            // whole elevation arc (no exposed socket above/below the gun), while staying clearly
-            // wider than tall — the flat cast oval, not a round ball.
-            mantlet_scale: Vec3::new(1.45, 0.86, 1.0),
+            // A trim "pig's head" mask: narrower in X than the old wide slab so the cast front cheeks
+            // (not the mask) carry the turret-front mass, with the mask just covering the moving gun
+            // aperture. Kept taller in Y so it still overlaps the embrasure mouth through the whole
+            // elevation arc (no exposed socket above/below the gun), and clearly wider than tall.
+            mantlet_scale: Vec3::new(1.22, 0.92, 1.0),
             module_delta_scale: 0.65,
         },
         deck: BoxVisual { center: Vec3::new(0.0, 1.25, -1.75), half: Vec3::new(1.30, 0.06, 0.95) },
