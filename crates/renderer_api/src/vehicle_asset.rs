@@ -147,3 +147,33 @@ impl VehicleMaterialMaps {
         self.cavity.as_ref()
     }
 }
+
+/// The role-aware material families for one vehicle, in `material_id` layer order (rolled armour,
+/// cast armour, barrel steel, track metal, rubber). The renderer stacks each map kind into a texture
+/// array the vehicle shader indexes by `material_id`, so a vehicle stays one material binding rather
+/// than one mesh handle per role.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VehicleMaterialFamilies {
+    families: Vec<VehicleMaterialMaps>,
+}
+
+impl VehicleMaterialFamilies {
+    /// The fixed number of material-role layers (matches `material_id` range `0..=4`).
+    pub const LAYERS: usize = 5;
+
+    /// Build from exactly [`LAYERS`](Self::LAYERS) families in layer order. Panics otherwise, since a
+    /// mismatched layer count would desynchronise the shader's `material_id` indexing.
+    pub fn new(families: Vec<VehicleMaterialMaps>) -> Self {
+        assert_eq!(families.len(), Self::LAYERS, "a vehicle carries exactly five material layers");
+        Self { families }
+    }
+
+    pub fn families(&self) -> &[VehicleMaterialMaps] {
+        &self.families
+    }
+
+    /// The family at `material_id` (clamped into range so a stray id cannot index out of bounds).
+    pub fn layer(&self, material_id: usize) -> &VehicleMaterialMaps {
+        &self.families[material_id.min(Self::LAYERS - 1)]
+    }
+}

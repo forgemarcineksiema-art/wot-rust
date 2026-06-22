@@ -27,8 +27,20 @@ fn forge_artifact_manifest_names_the_baked_vehicle_profile_and_sources() {
     assert!(manifest.submeshes().iter().any(|submesh| submesh.kind() == "Hull"));
     assert!(manifest.submeshes().iter().any(|submesh| submesh.kind() == "Turret"));
     assert!(manifest.submeshes().iter().any(|submesh| submesh.kind() == "Gun"));
+    // Role-aware material families: five roles × four maps, each tagged with its role and semantic.
     let texture_maps: Vec<&str> = manifest.texture_maps().iter().map(|map| map.file()).collect();
-    assert_eq!(texture_maps, vec!["albedo.png", "normal.png", "ao_roughness.png", "cavity.png"]);
+    assert_eq!(texture_maps.len(), 20, "five families × four maps");
+    for role in ["rolled_armor", "cast_armor", "barrel_steel", "track_metal", "rubber"] {
+        for semantic in ["albedo", "normal", "ao_roughness_metalness", "cavity"] {
+            let file = format!("{role}_{semantic}.png");
+            let entry = manifest
+                .texture_maps()
+                .iter()
+                .find(|m| m.file() == file)
+                .unwrap_or_else(|| panic!("missing material map {file}"));
+            assert_eq!(entry.role(), role, "{file} must record its material role");
+        }
+    }
 }
 
 #[test]
@@ -53,8 +65,8 @@ fn every_migrated_vehicle_bakes_a_full_artifact_at_every_lod() {
                     "{kind:?} {profile:?} missing {sub}"
                 );
             }
-            // The full baked material set is present regardless of vehicle.
-            assert_eq!(manifest.texture_maps().len(), 4, "{kind:?} material set incomplete");
+            // The full baked material-family set is present regardless of vehicle (5 roles × 4 maps).
+            assert_eq!(manifest.texture_maps().len(), 20, "{kind:?} material set incomplete");
             // Review cameras come from the per-vehicle forge spec: the T-54 benchmark carries the
             // extra close-ups (11); the geometry-derived line gets the generic six.
             let expected_cameras = if kind == VehicleKind::T54_1951 { 11 } else { 6 };
@@ -160,10 +172,11 @@ fn forge_artifact_writes_manifest_mesh_payload_report_and_review_folder() {
 
     assert!(out.join("manifest.json").is_file());
     assert!(out.join("meshes.bin").is_file());
-    assert_png(&out.join("albedo.png"));
-    assert_png(&out.join("normal.png"));
-    assert_png(&out.join("ao_roughness.png"));
-    assert_png(&out.join("cavity.png"));
+    // A representative slice of the role-aware material-family set lands on disk.
+    assert_png(&out.join("rolled_armor_albedo.png"));
+    assert_png(&out.join("cast_armor_normal.png"));
+    assert_png(&out.join("track_metal_cavity.png"));
+    assert_png(&out.join("rubber_ao_roughness_metalness.png"));
     for file in [
         "front.png",
         "rear.png",

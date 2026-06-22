@@ -1,6 +1,6 @@
 use renderer_api::{
     HudVertex, MaterialHandle, MeshAsset, MeshHandle, RenderFrame, SceneVertex,
-    VehicleMaterialMaps, VehicleMeshAsset,
+    VehicleMaterialFamilies, VehicleMeshAsset,
 };
 
 use crate::GpuContext;
@@ -42,9 +42,9 @@ impl super::SceneRenderer {
         &mut self,
         ctx: &GpuContext,
         handle: MaterialHandle,
-        maps: &VehicleMaterialMaps,
+        families: &VehicleMaterialFamilies,
     ) {
-        self.vehicle_materials.register(ctx, handle, maps);
+        self.vehicle_materials.register(ctx, handle, families);
     }
 
     pub fn set_render_frame(&mut self, ctx: &GpuContext, frame: &RenderFrame) {

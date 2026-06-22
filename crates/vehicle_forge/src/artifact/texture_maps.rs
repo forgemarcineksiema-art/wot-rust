@@ -1,10 +1,63 @@
+//! Deterministic role-aware material families baked into the artifact.
+//!
+//! One generic grain texture cannot make a cast turret, a welded hull, a steel barrel, tracks and
+//! rubber read as different physical surfaces. So the Forge bakes a *family* per material role — each
+//! with its own albedo, tangent-space normal, packed AO/roughness/metalness and cavity — synthesised
+//! procedurally (no external assets) and reproducibly. The renderer stacks the families into texture
+//! arrays and selects the layer by `material_id`, so a vehicle stays one mesh/material binding.
+
 use std::io;
 
 use serde::{Deserialize, Serialize};
 
+use super::material_synthesis::{MapKind, pixel, profile};
+
+/// Edge of every baked map. Kept modest so the full 5×4 family set stays cheap and artifact-contained.
+const SIZE: u32 = 256;
+
+/// A material role family. The discriminant **is** the renderer's `material_id` / texture-array
+/// layer, so order here is load-bearing and must match `material_role_id` in the client.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MaterialFamily {
+    RolledArmor,
+    CastArmor,
+    BarrelSteel,
+    TrackMetal,
+    Rubber,
+}
+
+impl MaterialFamily {
+    /// Every family in `material_id` order (layer 0..=4).
+    pub const ALL: [MaterialFamily; 5] = [
+        MaterialFamily::RolledArmor,
+        MaterialFamily::CastArmor,
+        MaterialFamily::BarrelSteel,
+        MaterialFamily::TrackMetal,
+        MaterialFamily::Rubber,
+    ];
+
+    /// Stable lowercase slug used in baked filenames and the manifest role field.
+    pub fn slug(self) -> &'static str {
+        match self {
+            MaterialFamily::RolledArmor => "rolled_armor",
+            MaterialFamily::CastArmor => "cast_armor",
+            MaterialFamily::BarrelSteel => "barrel_steel",
+            MaterialFamily::TrackMetal => "track_metal",
+            MaterialFamily::Rubber => "rubber",
+        }
+    }
+
+    /// The renderer layer index this family occupies.
+    pub fn layer(self) -> u32 {
+        Self::ALL.iter().position(|f| *f == self).unwrap() as u32
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ForgeTextureManifest {
     file: String,
+    /// The material role this map belongs to (e.g. `cast_armor`).
+    role: String,
     semantic: String,
     channels: String,
     bytes: usize,
@@ -13,6 +66,10 @@ pub struct ForgeTextureManifest {
 impl ForgeTextureManifest {
     pub fn file(&self) -> &str {
         &self.file
+    }
+
+    pub fn role(&self) -> &str {
+        &self.role
     }
 
     pub fn semantic(&self) -> &str {
@@ -48,38 +105,31 @@ impl BakedTextureMap {
     }
 }
 
+/// Bake the full role-aware set: every family × every map (20 PNGs), in `material_id` layer order.
 pub fn bake_default_set() -> Result<Vec<BakedTextureMap>, io::Error> {
-    Ok(vec![
-        bake_map("albedo.png", "albedo", "rgba", albedo_pixel)?,
-        bake_map("normal.png", "normal", "xyz", normal_pixel)?,
-        bake_map(
-            "ao_roughness.png",
-            "ao_roughness_metalness",
-            "ao,roughness,metalness,unused",
-            ao_pixel,
-        )?,
-        bake_map("cavity.png", "cavity", "cavity,cavity,cavity,unused", cavity_pixel)?,
-    ])
+    let mut maps = Vec::with_capacity(MaterialFamily::ALL.len() * MapKind::ALL.len());
+    for family in MaterialFamily::ALL {
+        for kind in MapKind::ALL {
+            maps.push(bake_family_map(family, kind)?);
+        }
+    }
+    Ok(maps)
 }
 
-fn bake_map(
-    file: &str,
-    semantic: &str,
-    channels: &str,
-    pixel: fn(u32, u32) -> [u8; 4],
-) -> Result<BakedTextureMap, io::Error> {
-    const SIZE: u32 = 512;
+fn bake_family_map(family: MaterialFamily, kind: MapKind) -> Result<BakedTextureMap, io::Error> {
+    let p = profile(family);
     let mut rgba = Vec::with_capacity((SIZE * SIZE * 4) as usize);
     for y in 0..SIZE {
         for x in 0..SIZE {
-            rgba.extend_from_slice(&pixel(x, y));
+            rgba.extend_from_slice(&pixel(&p, kind, x, y));
         }
     }
     let bytes = encode_png(SIZE, SIZE, &rgba)?;
     let manifest = ForgeTextureManifest {
-        file: file.to_string(),
-        semantic: semantic.to_string(),
-        channels: channels.to_string(),
+        file: format!("{}_{}.png", family.slug(), kind.semantic()),
+        role: family.slug().to_string(),
+        semantic: kind.semantic().to_string(),
+        channels: kind.channels().to_string(),
         bytes: bytes.len(),
     };
     Ok(BakedTextureMap { manifest, bytes })
@@ -94,44 +144,73 @@ fn encode_png(width: u32, height: u32, rgba: &[u8]) -> Result<Vec<u8>, io::Error
     Ok(bytes)
 }
 
-fn albedo_pixel(x: u32, y: u32) -> [u8; 4] {
-    let variation = grain(x, y, 5);
-    [174 + variation, 183 + variation, 153 + variation, 255]
-}
-
-fn normal_pixel(x: u32, y: u32) -> [u8; 4] {
-    let variation = grain(x, y, 2);
-    [128 + variation, 128 + variation / 2, 255, 255]
-}
-
-fn ao_pixel(x: u32, y: u32) -> [u8; 4] {
-    let variation = grain(x, y, 4);
-    [238 - variation, 174 + variation, 18, 255]
-}
-
-fn cavity_pixel(x: u32, y: u32) -> [u8; 4] {
-    let value = 238 - grain(x, y, 3);
-    [value, value, value, 255]
-}
-
-fn grain(x: u32, y: u32, amplitude: u8) -> u8 {
-    let mut value = x.wrapping_mul(1_103_515_245) ^ y.wrapping_mul(12_345);
-    value ^= value >> 16;
-    (value % (u32::from(amplitude) + 1)) as u8
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    fn mean_luma(map: &BakedTextureMap) -> f32 {
+        let decoder = png::Decoder::new(std::io::Cursor::new(map.bytes()));
+        let mut reader = decoder.read_info().expect("png header");
+        let mut buf = vec![0; reader.output_buffer_size().expect("buffer size")];
+        let info = reader.next_frame(&mut buf).expect("png frame");
+        let px = &buf[..info.buffer_size()];
+        let sum: f64 = px
+            .chunks_exact(4)
+            .map(|p| 0.299 * p[0] as f64 + 0.587 * p[1] as f64 + 0.114 * p[2] as f64)
+            .sum();
+        (sum / (px.len() / 4) as f64) as f32
+    }
+
+    fn map_of(maps: &[BakedTextureMap], file: &str) -> BakedTextureMap {
+        maps.iter().find(|m| m.manifest().file() == file).expect("map exists").clone()
+    }
+
     #[test]
-    fn forge_maps_are_clean_512px_material_inputs() {
+    fn the_family_set_is_five_roles_times_four_maps() {
         let maps = bake_default_set().expect("maps bake");
-        for map in maps {
+        assert_eq!(maps.len(), 20);
+        for family in MaterialFamily::ALL {
+            for semantic in ["albedo", "normal", "ao_roughness_metalness", "cavity"] {
+                let file = format!("{}_{}.png", family.slug(), semantic);
+                let map = map_of(&maps, &file);
+                assert_eq!(map.manifest().role(), family.slug(), "{file} tagged with its role");
+            }
+        }
+    }
+
+    #[test]
+    fn every_map_is_a_clean_square_png_at_least_256px() {
+        for map in bake_default_set().expect("maps bake") {
             let decoder = png::Decoder::new(std::io::Cursor::new(map.bytes()));
             let reader = decoder.read_info().expect("png header");
-            assert_eq!(reader.info().width, 512);
-            assert_eq!(reader.info().height, 512);
+            assert!(reader.info().width >= 256 && reader.info().width == reader.info().height);
         }
+    }
+
+    #[test]
+    fn roles_read_as_distinct_surfaces() {
+        let maps = bake_default_set().expect("maps bake");
+        let albedo =
+            |f: MaterialFamily| mean_luma(&map_of(&maps, &format!("{}_albedo.png", f.slug())));
+        // Armour is mid-grey; barrel/track/rubber are progressively darker — they are not one texture.
+        assert!(albedo(MaterialFamily::RolledArmor) > albedo(MaterialFamily::BarrelSteel));
+        assert!(albedo(MaterialFamily::BarrelSteel) > albedo(MaterialFamily::Rubber));
+        assert!(albedo(MaterialFamily::Rubber) < 60.0, "rubber is very dark");
+    }
+
+    #[test]
+    fn the_bake_is_deterministic() {
+        let a = bake_default_set().expect("a");
+        let b = bake_default_set().expect("b");
+        assert_eq!(a, b, "material families must bake byte-identically every run");
+    }
+
+    #[test]
+    fn the_family_layer_order_matches_material_id() {
+        assert_eq!(MaterialFamily::RolledArmor.layer(), 0);
+        assert_eq!(MaterialFamily::CastArmor.layer(), 1);
+        assert_eq!(MaterialFamily::BarrelSteel.layer(), 2);
+        assert_eq!(MaterialFamily::TrackMetal.layer(), 3);
+        assert_eq!(MaterialFamily::Rubber.layer(), 4);
     }
 }

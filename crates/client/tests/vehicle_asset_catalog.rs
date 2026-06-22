@@ -95,14 +95,16 @@ fn loaded_forge_artifact_queues_decoded_material_maps_for_gpu_upload() {
     let materials = catalog.take_pending_vehicle_materials();
 
     assert_eq!(materials.len(), 1, "one vehicle should queue one material upload");
-    let (_, maps) = &materials[0];
-    // The baked maps are 512x512 RGBA8; decoding must preserve dimensions and tight packing.
-    for map in [maps.albedo(), maps.normal(), maps.ao_roughness()] {
-        assert_eq!(map.width(), 512);
-        assert_eq!(map.height(), 512);
-        assert_eq!(map.rgba().len(), 512 * 512 * 4);
+    let (_, families) = &materials[0];
+    // One role-aware family per material_id layer; each is a square RGBA8 map decoded tightly.
+    assert_eq!(families.families().len(), 5, "five material-role layers");
+    for layer in families.families() {
+        for map in [layer.albedo(), layer.normal(), layer.ao_roughness()] {
+            assert!(map.width() >= 256 && map.width() == map.height());
+            assert_eq!(map.rgba().len(), map.width() as usize * map.height() as usize * 4);
+        }
+        assert!(layer.cavity().is_some(), "each baked family includes a cavity map");
     }
-    assert!(maps.cavity().is_some(), "T-54 bake includes a cavity map");
     // A second take is empty — uploads are drained, not duplicated.
     assert!(catalog.take_pending_vehicle_materials().is_empty());
 

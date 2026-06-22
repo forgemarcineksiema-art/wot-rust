@@ -11,6 +11,7 @@ use crate::RatioReport;
 
 mod bake_profile;
 mod load;
+mod material_synthesis;
 mod mesh_payload;
 mod review;
 mod review_images;
@@ -21,7 +22,7 @@ mod texture_maps;
 pub use bake_profile::BakeProfile;
 pub use review::{ReviewCamera, ReviewCameraSet, ReviewCameraSpec};
 pub use slug::forge_vehicle_slug;
-pub use texture_maps::ForgeTextureManifest;
+pub use texture_maps::{ForgeTextureManifest, MaterialFamily};
 
 #[derive(Debug, Error)]
 pub enum ArtifactError {

@@ -30,14 +30,16 @@ fn light_radiance(n: vec3<f32>) -> vec3<f32> {
         + camera.rim_rgb * rim;
 }
 
+// Material maps are role-aware texture arrays: one layer per material_id (rolled armour, cast
+// armour, barrel steel, track metal, rubber). The shader selects the layer by the vertex material id.
 @group(1) @binding(0)
-var albedo_map: texture_2d<f32>;
+var albedo_map: texture_2d_array<f32>;
 @group(1) @binding(1)
-var normal_map: texture_2d<f32>;
+var normal_map: texture_2d_array<f32>;
 @group(1) @binding(2)
-var ao_roughness_map: texture_2d<f32>;
+var ao_roughness_map: texture_2d_array<f32>;
 @group(1) @binding(3)
-var cavity_map: texture_2d<f32>;
+var cavity_map: texture_2d_array<f32>;
 @group(1) @binding(4)
 var vehicle_sampler: sampler;
 
@@ -134,15 +136,17 @@ fn triplanar_weights(n: vec3<f32>) -> vec3<f32> {
     return w / max(s, 1.0e-5);
 }
 
-// Sample a map by its three object-local axis projections and blend by the normal weights.
+// Sample a role layer of an array map by its three object-local axis projections, blended by the
+// normal weights. `layer` is the material id.
 fn triplanar_sample(
-    tex: texture_2d<f32>,
+    tex: texture_2d_array<f32>,
+    layer: i32,
     p: vec3<f32>,
     w: vec3<f32>,
 ) -> vec4<f32> {
-    let sx = textureSample(tex, vehicle_sampler, p.zy * TRIPLANAR_SCALE);
-    let sy = textureSample(tex, vehicle_sampler, p.xz * TRIPLANAR_SCALE);
-    let sz = textureSample(tex, vehicle_sampler, p.xy * TRIPLANAR_SCALE);
+    let sx = textureSample(tex, vehicle_sampler, p.zy * TRIPLANAR_SCALE, layer);
+    let sy = textureSample(tex, vehicle_sampler, p.xz * TRIPLANAR_SCALE, layer);
+    let sz = textureSample(tex, vehicle_sampler, p.xy * TRIPLANAR_SCALE, layer);
     return sx * w.x + sy * w.y + sz * w.z;
 }
 
@@ -156,6 +160,7 @@ fn stable_tangent(n: vec3<f32>) -> vec3<f32> {
 @fragment
 fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     let n = normalize(input.world_normal);
+    let layer = i32(input.material_id);
     var world_n: vec3<f32>;
     var baked_albedo: vec3<f32>;
     var ao_rough: vec3<f32>;
@@ -165,21 +170,21 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
         // Parametric: authored UV0 with a tangent-space normal map (as before).
         let t = normalize(input.world_tangent - n * dot(n, input.world_tangent));
         let b = cross(n, t) * input.tangent_w;
-        let dn = normalize(textureSample(normal_map, vehicle_sampler, input.uv).xyz * 2.0 - vec3<f32>(1.0));
+        let dn = normalize(textureSample(normal_map, vehicle_sampler, input.uv, layer).xyz * 2.0 - vec3<f32>(1.0));
         world_n = normalize(t * dn.x + b * dn.y + n * dn.z);
-        baked_albedo = textureSample(albedo_map, vehicle_sampler, input.uv).rgb;
-        ao_rough = textureSample(ao_roughness_map, vehicle_sampler, input.uv).rgb;
-        cavity = textureSample(cavity_map, vehicle_sampler, input.uv).r;
+        baked_albedo = textureSample(albedo_map, vehicle_sampler, input.uv, layer).rgb;
+        ao_rough = textureSample(ao_roughness_map, vehicle_sampler, input.uv, layer).rgb;
+        cavity = textureSample(cavity_map, vehicle_sampler, input.uv, layer).r;
     } else {
         // Triplanar: project from object-local coordinates so the material stays anchored to the
         // part under hull rotation, turret traverse and gun elevation.
         let w = triplanar_weights(normalize(input.local_normal));
-        baked_albedo = triplanar_sample(albedo_map, input.local_pos, w).rgb;
-        ao_rough = triplanar_sample(ao_roughness_map, input.local_pos, w).rgb;
-        cavity = triplanar_sample(cavity_map, input.local_pos, w).r;
+        baked_albedo = triplanar_sample(albedo_map, layer, input.local_pos, w).rgb;
+        ao_rough = triplanar_sample(ao_roughness_map, layer, input.local_pos, w).rgb;
+        cavity = triplanar_sample(cavity_map, layer, input.local_pos, w).r;
         let t = stable_tangent(n);
         let b = cross(n, t);
-        let dn = normalize(triplanar_sample(normal_map, input.local_pos, w).xyz * 2.0 - vec3<f32>(1.0));
+        let dn = normalize(triplanar_sample(normal_map, layer, input.local_pos, w).xyz * 2.0 - vec3<f32>(1.0));
         world_n = normalize(t * dn.x + b * dn.y + n * dn.z);
     }
 

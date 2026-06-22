@@ -18,7 +18,8 @@ mod report;
 
 pub use artifact::{
     ArtifactError, BakeProfile, ForgeArtifact, ForgeArtifactManifest, ForgeSubmeshManifest,
-    ForgeTextureManifest, ReviewCamera, ReviewCameraSet, ReviewCameraSpec, forge_vehicle_slug,
+    ForgeTextureManifest, MaterialFamily, ReviewCamera, ReviewCameraSet, ReviewCameraSpec,
+    forge_vehicle_slug,
 };
 pub use mesh_source::authoritative_baked_vehicle;
 pub use packs::t54_reference_pack;
