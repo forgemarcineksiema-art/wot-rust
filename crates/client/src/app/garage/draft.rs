@@ -27,7 +27,7 @@ impl FitSlot {
         FitSlot::Radio,
     ];
 
-    fn index(self) -> usize {
+    pub(super) fn index(self) -> usize {
         Self::ALL.iter().position(|slot| *slot == self).expect("slot is in ALL")
     }
 }
@@ -71,12 +71,13 @@ impl LoadoutDraft {
         self.options_len(slot) > 1
     }
 
-    /// Advance the chosen option for `slot`. Incompatible installs (caliber / load limit) are
-    /// silently skipped, leaving the slot on its current module.
-    pub(super) fn cycle_module(&mut self, slot: FitSlot, dir: isize) {
+    /// Advance the chosen option for `slot`. Returns `true` if the option changed (or there was
+    /// only one option so nothing to cycle), `false` if the install was rejected by compatibility
+    /// (gun caliber exceeds turret limit, or turret overloads suspension).
+    pub(super) fn cycle_module(&mut self, slot: FitSlot, dir: isize) -> bool {
         let len = self.options_len(slot);
         if len <= 1 {
-            return;
+            return true;
         }
         let current = self.option_index[slot.index()];
         let next = (current as isize + dir).rem_euclid(len as isize) as usize;
@@ -113,6 +114,9 @@ impl LoadoutDraft {
         };
         if installed {
             self.option_index[slot.index()] = next;
+            true
+        } else {
+            false
         }
     }
 
@@ -123,6 +127,23 @@ impl LoadoutDraft {
     /// Exposed barrel length (m) of the installed gun — drives the garage gun silhouette.
     pub(super) fn gun_barrel_length(&self) -> f32 {
         self.modules.gun.barrel_length_m()
+    }
+
+    /// One-line key stat of the installed module, short enough to fit inside a loadout slot.
+    pub(super) fn current_module_summary(&self, slot: FitSlot) -> String {
+        match slot {
+            FitSlot::Turret => format!("{}mm", self.modules.turret.front_mm.round() as i32),
+            FitSlot::Gun => format!("{}mm", self.modules.gun.caliber_mm().round() as i32),
+            FitSlot::Hull => format!("{}", self.modules.hull.hit_points),
+            FitSlot::Engine => format!("{}kW", self.modules.engine.power_kw.round() as i32),
+            FitSlot::Suspension => {
+                format!(
+                    "{}d/s",
+                    self.modules.suspension.turn_rate_rad_s.to_degrees().round() as i32
+                )
+            }
+            FitSlot::Radio => format!("{}m", self.modules.radio.signal_range_m.round() as i32),
+        }
     }
 
     pub(super) fn ammo_index(&self) -> usize {
@@ -213,5 +234,38 @@ mod tests {
         draft.adjust_proficiency(1);
         draft.adjust_proficiency(1);
         assert!(draft.assembled_spec().gun.reload_seconds <= mid, "better crew reloads faster");
+    }
+
+    #[test]
+    fn current_module_summary_is_compact_and_changes_on_swap() {
+        let mut draft = LoadoutDraft::for_vehicle(VehicleKind::T54_1951);
+        let before = draft.current_module_summary(FitSlot::Gun);
+        assert!(!before.is_empty());
+        let eng_before = draft.current_module_summary(FitSlot::Engine);
+        draft.cycle_module(FitSlot::Engine, 1);
+        let eng_after = draft.current_module_summary(FitSlot::Engine);
+        assert_ne!(eng_before, eng_after, "uprated engine shows a different kW value");
+    }
+
+    #[test]
+    fn cycle_module_returns_true_for_successful_install() {
+        let mut draft = LoadoutDraft::for_vehicle(VehicleKind::T54_1951);
+        assert!(draft.cycle_module(FitSlot::Gun, 1), "gun swap should succeed");
+        assert!(draft.cycle_module(FitSlot::Engine, 1), "engine swap should succeed");
+    }
+
+    #[test]
+    fn cycle_module_returns_false_when_gun_exceeds_turret_caliber() {
+        let mut draft = LoadoutDraft::for_vehicle(VehicleKind::T54_1951);
+        draft.modules.turret.max_gun_caliber_mm = 99.0;
+        assert!(
+            !draft.cycle_module(FitSlot::Gun, 1),
+            "gun should be rejected when caliber exceeds turret limit"
+        );
+        assert_eq!(
+            draft.option_index[FitSlot::Gun.index()],
+            0,
+            "rejected cycle must not advance the option index"
+        );
     }
 }

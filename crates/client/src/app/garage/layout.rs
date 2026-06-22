@@ -9,6 +9,8 @@ use super::draft::FitSlot;
 pub(super) const PANEL: [f32; 4] = [0.05, 0.06, 0.07, 0.74];
 pub(super) const SLOT: [f32; 4] = [0.13, 0.15, 0.17, 0.92];
 pub(super) const SLOT_SELECTED: [f32; 4] = [0.40, 0.55, 0.70, 0.95];
+pub(super) const REJECTED: [f32; 4] = [0.50, 0.12, 0.10, 0.92];
+pub(super) const HOVER: [f32; 4] = [1.0, 1.0, 1.0, 0.10];
 pub(super) const BATTLE: [f32; 4] = [0.74, 0.22, 0.18, 0.97];
 pub(super) const ICON: [f32; 4] = [0.86, 0.88, 0.84, 0.96];
 pub(super) const ICON_DIM: [f32; 4] = [0.70, 0.73, 0.70, 0.85];

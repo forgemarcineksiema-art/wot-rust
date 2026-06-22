@@ -1,6 +1,7 @@
 //! Garage HUD orchestration and cursor hit-testing. Draws the WoT-style regions (top bar, left
 //! crew, right stats, bottom loadout strip, bottom carousel) from [`super::panels`] and maps the
-//! cursor to a [`GarageHit`] using the same rects from [`super::layout`].
+//! cursor to a [`GarageHit`] using the same rects from [`super::layout`]. A subtle bright quad is
+//! drawn over the element under the cursor so clickable areas read as interactive.
 
 use game_core::VehicleKind;
 use renderer_api::HudVertex;
@@ -8,6 +9,7 @@ use renderer_api::HudVertex;
 use super::draft::FitSlot;
 use super::layout::*;
 use super::{GarageHit, GarageState, panels};
+use crate::hud::push_quad;
 
 pub(super) fn build(state: &GarageState, aspect: f32) -> Vec<HudVertex> {
     let mut v = Vec::new();
@@ -17,7 +19,31 @@ pub(super) fn build(state: &GarageState, aspect: f32) -> Vec<HudVertex> {
     panels::stats::draw(&mut v, &spec, aspect);
     panels::loadout::draw(&mut v, state, aspect);
     panels::carousel::draw(&mut v, state, aspect);
+
+    if let Some((center, half)) = hover_rect(&state.hit_test()) {
+        push_quad(&mut v, center, half, HOVER);
+    }
+
     v
+}
+
+/// Map the element under the cursor to its rect so a hover highlight can be drawn.
+fn hover_rect(hit: &GarageHit) -> Option<([f32; 2], [f32; 2])> {
+    match hit {
+        GarageHit::Battle => Some((BATTLE_CENTER, BATTLE_HALF)),
+        GarageHit::ModuleCycle(slot, _) => Some((module_slot_center(slot.index()), SLOT_HALF)),
+        GarageHit::AmmoSelect(i) => Some((ammo_slot_center(*i), SLOT_HALF)),
+        GarageHit::CrewProf(dir) => {
+            let (l, r) = crew_prof_arrows();
+            let center = if *dir < 0 { l } else { r };
+            Some((center, ARROW_HALF))
+        }
+        GarageHit::Vehicle(i) => {
+            let count = VehicleKind::PLAYABLE.len();
+            Some((carousel_center(*i, count), CAR_HALF))
+        }
+        GarageHit::Scene => None,
+    }
 }
 
 pub(super) fn hit_test(state: &GarageState) -> GarageHit {
@@ -87,5 +113,40 @@ mod tests {
         let (left, right) = crew_prof_arrows();
         assert_eq!(at(&mut g, right), GarageHit::CrewProf(1));
         assert_eq!(at(&mut g, left), GarageHit::CrewProf(-1));
+    }
+
+    #[test]
+    fn hover_rect_returns_none_for_scene() {
+        let mut g = GarageState::default();
+        g.set_cursor([0.0, 0.0]);
+        assert_eq!(hover_rect(&g.hit_test()), None);
+    }
+
+    #[test]
+    fn hover_rect_returns_the_battle_button_rect() {
+        let mut g = GarageState::default();
+        g.set_cursor(BATTLE_CENTER);
+        assert_eq!(hover_rect(&g.hit_test()), Some((BATTLE_CENTER, BATTLE_HALF)));
+    }
+
+    #[test]
+    fn hover_rect_returns_a_module_slot_rect() {
+        let mut g = GarageState::default();
+        let center = module_slot_center(1);
+        g.set_cursor(center);
+        assert_eq!(hover_rect(&g.hit_test()), Some((center, SLOT_HALF)));
+    }
+
+    #[test]
+    fn build_emits_hover_quad_over_clickable_elements() {
+        let mut g = GarageState::default();
+        let aspect = 16.0 / 9.0;
+
+        g.set_cursor([0.0, 0.0]);
+        let baseline = build(&g, aspect).len();
+
+        g.set_cursor(BATTLE_CENTER);
+        let with_hover = build(&g, aspect).len();
+        assert!(with_hover > baseline, "hovering a clickable element should emit extra vertices");
     }
 }

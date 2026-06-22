@@ -36,6 +36,9 @@ pub(super) struct GarageState {
     orbit_distance: f32,
     cursor_clip: [f32; 2],
     dragging: bool,
+    /// The slot whose last cycle attempt was rejected by compatibility, or `None`.
+    /// Shown red in the loadout strip until any other interaction clears it.
+    rejected_slot: Option<FitSlot>,
 }
 
 const HERO_ORBIT_YAW: f32 = 0.60;
@@ -54,6 +57,7 @@ impl Default for GarageState {
             orbit_distance: HERO_ORBIT_DISTANCE,
             cursor_clip: [2.0, 2.0],
             dragging: false,
+            rejected_slot: None,
         }
     }
 }
@@ -94,6 +98,7 @@ impl GarageState {
             // A different vehicle starts from its own stock loadout, ammo, and crew.
             self.draft = LoadoutDraft::for_vehicle(self.selected_vehicle());
             self.restore_hero_framing();
+            self.rejected_slot = None;
         }
     }
 
@@ -110,15 +115,20 @@ impl GarageState {
     }
 
     pub(super) fn cycle_module(&mut self, slot: FitSlot, dir: isize) {
-        self.draft.cycle_module(slot, dir);
+        self.rejected_slot = None;
+        if !self.draft.cycle_module(slot, dir) {
+            self.rejected_slot = Some(slot);
+        }
     }
 
     pub(super) fn set_ammo(&mut self, index: usize) {
         self.draft.set_ammo(index);
+        self.rejected_slot = None;
     }
 
     pub(super) fn adjust_proficiency(&mut self, dir: isize) {
         self.draft.adjust_proficiency(dir);
+        self.rejected_slot = None;
     }
 
     /// Commit the edited loadout: lock the garage and hand back the assembled spec to install.
@@ -141,6 +151,10 @@ impl GarageState {
 
     pub(super) fn cursor_clip(&self) -> [f32; 2] {
         self.cursor_clip
+    }
+
+    pub(super) fn rejected_slot(&self) -> Option<FitSlot> {
+        self.rejected_slot
     }
 
     /// Length scale for the parked tank's gun submesh so swapping guns visibly changes the
@@ -222,5 +236,31 @@ mod tests {
             (spec.gun.reload_seconds - green).abs() < 1.0e-6,
             "confirmed spec carries the edit"
         );
+    }
+
+    #[test]
+    fn rejected_slot_starts_none_and_clears_on_successful_cycle() {
+        let garage = GarageState::default();
+        assert_eq!(garage.rejected_slot(), None);
+
+        let mut garage = GarageState { rejected_slot: Some(FitSlot::Gun), ..Default::default() };
+        assert_eq!(garage.rejected_slot(), Some(FitSlot::Gun));
+
+        garage.cycle_module(FitSlot::Engine, 1);
+        assert_eq!(garage.rejected_slot(), None, "successful cycle clears rejection");
+    }
+
+    #[test]
+    fn rejected_slot_clears_on_vehicle_select() {
+        let mut garage = GarageState { rejected_slot: Some(FitSlot::Gun), ..Default::default() };
+        garage.select_index(1);
+        assert_eq!(garage.rejected_slot(), None, "selecting a vehicle clears rejection");
+    }
+
+    #[test]
+    fn rejected_slot_clears_on_ammo_select() {
+        let mut garage = GarageState { rejected_slot: Some(FitSlot::Gun), ..Default::default() };
+        garage.set_ammo(1);
+        assert_eq!(garage.rejected_slot(), None, "selecting ammo clears rejection");
     }
 }
