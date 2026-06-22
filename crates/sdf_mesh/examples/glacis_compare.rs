@@ -19,7 +19,8 @@ fn main() {
         SmoothingGroup::hard_edges(),
     );
     let cad_mesh = t54_glacis_solid(&hybrid.hull, bp.armor.hull_front.0)
-        .to_mesh(MaterialRole::RolledArmor, SmoothingGroup::hard_edges());
+        .to_mesh(MaterialRole::RolledArmor, SmoothingGroup::hard_edges())
+        .expect("the T-54 glacis solid is valid");
 
     println!("SDF glacis: {} tris (cell {:.3} m)", sdf_mesh.triangle_count(), grid.cell_size());
     println!("CAD glacis: {} tris (exact convex)", cad_mesh.triangle_count());

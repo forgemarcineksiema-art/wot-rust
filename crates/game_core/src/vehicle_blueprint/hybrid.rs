@@ -85,6 +85,48 @@ pub struct TurretVisual {
     pub budget: usize,
 }
 
+/// One horizontal station of a lofted turret casting: a superellipse outline at height `y`, with
+/// separate front (`+Z`) and rear (`-Z`) half-lengths so the casting reads front-heavy with a
+/// tapered rear bustle.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct LoftStation {
+    pub y: f32,
+    pub half_width: f32,
+    pub half_len_front: f32,
+    pub half_len_rear: f32,
+    pub z_center: f32,
+}
+
+/// A cast turret built by **lofting** the stations below into one continuous skinned shell, with a
+/// symmetric cheek pair and a front gun embrasure as localized radial modulations. This replaces the
+/// metaball [`TurretVisual`] composition with a controlled, *designed* surface that reads as one
+/// casting from every angle. The cupola and the moving mantlet stay separate bedded parts.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct TurretLoftVisual {
+    /// Cross-sections, ring seat (bottom) to roof (top).
+    pub stations: [LoftStation; 7],
+    /// Superellipse fullness (`2.0` = ellipse, `>2.0` = fuller cast shoulders).
+    pub exponent: f32,
+    /// Azimuth samples per ring.
+    pub segments: usize,
+    /// Symmetric front cheeks: a swell at the front azimuth `±cheek_azimuth`.
+    pub cheek_amount: f32,
+    pub cheek_azimuth: f32,
+    pub cheek_y: f32,
+    pub cheek_az_width: f32,
+    pub cheek_y_width: f32,
+    /// Front gun embrasure: an inward recess (negative amount) the moving mantlet beds into.
+    pub embrasure_amount: f32,
+    pub embrasure_y: f32,
+    pub embrasure_az_width: f32,
+    pub embrasure_y_width: f32,
+    /// The commander's cupola drum, raised proud of the roof (the hatch lid is a separate fitting).
+    /// The metaball turret blended this into the casting; the lofted shell carries it as its own part.
+    pub cupola_center: Vec3,
+    pub cupola_radius: f32,
+    pub cupola_half_height: f32,
+}
+
 /// The gun: a revolved steel barrel (driven by the installed module's length) and the moving cast
 /// mantlet mask. The barrel dimensions are the hybrid visual ones — distinct from the legacy-recipe
 /// `GunShape`, which feeds the older `vehicle_geometry` path.
@@ -163,6 +205,9 @@ pub struct HybridVisual {
     pub hull: HullVisual,
     pub hull_plates: HullPlatesVisual,
     pub turret: TurretVisual,
+    /// The lofted cast turret — the controlled-surface replacement for the metaball `turret`. Both
+    /// are carried during migration; the bake selects which one feeds the turret submesh.
+    pub turret_loft: TurretLoftVisual,
     pub gun: GunVisual,
     pub deck: BoxVisual,
     pub fender: FenderVisual,

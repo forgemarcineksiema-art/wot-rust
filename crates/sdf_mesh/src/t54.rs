@@ -50,13 +50,18 @@ pub fn t54_turret(t: &TurretVisual) -> (Sdf, Vec3, Vec3) {
     // room to swing down through full elevation. Sized so the moving mantlet never digs into the
     // casting across the gun's -5..+18 deg arc (locked by the clearance test in vehicle_build).
     let side = t.socket_radius * 0.78;
+    // The widening lobes sit DEEPER (back along -Z) than the mouth: they give the gun mantlet swing
+    // clearance inside the casting without enlarging the opening on the front face, so the moving
+    // mask covers a tight mouth while the cavity behind it stays roomy across the elevation arc.
+    let depth = Vec3::new(0.0, 0.0, -t.socket_radius * 0.5);
     let socket_low =
-        Vec3::new(t.socket_center.x, t.socket_center.y - t.socket_radius * 0.55, t.socket_center.z);
+        Vec3::new(t.socket_center.x, t.socket_center.y - t.socket_radius * 0.55, t.socket_center.z)
+            + depth;
     let lobe = |offset: Vec3, scale: f32| Sdf::sphere(t.socket_radius * scale).translate(offset);
     let socket = Sdf::sphere(t.socket_radius)
         .translate(t.socket_center)
-        .smooth_union(lobe(t.socket_center + Vec3::X * side, 0.92), t.socket_blend)
-        .smooth_union(lobe(t.socket_center - Vec3::X * side, 0.92), t.socket_blend)
+        .smooth_union(lobe(t.socket_center + Vec3::X * side + depth, 0.92), t.socket_blend)
+        .smooth_union(lobe(t.socket_center - Vec3::X * side + depth, 0.92), t.socket_blend)
         .smooth_union(lobe(socket_low, 0.85), t.socket_blend);
     body = body.smooth_subtract(socket, t.socket_blend);
 
@@ -84,6 +89,45 @@ mod tests {
             .hybrid()
             .unwrap()
             .turret
+    }
+
+    /// March outward from the turret axis on the z=0 line at height `y`, returning the half-width
+    /// (first surface crossing). Used to read the cast dome's profile.
+    fn half_width_at(sdf: &sdf::Sdf, y: f32) -> f32 {
+        let mut x = 0.0_f32;
+        while x < 1.4 {
+            if sdf.eval(Vec3::new(x, y, 0.0)) > 0.0 {
+                return x;
+            }
+            x += 0.005;
+        }
+        x
+    }
+
+    #[test]
+    fn cast_dome_bulges_low_and_flattens_toward_the_roof() {
+        // The T-54 turret is a flattened "river-stone" casting: widest LOW (overhanging the ring),
+        // necking in toward a flat roof — not a tall round pot whose widest point sits high. This
+        // locks that profile so a future tweak can't silently restore the tall dome.
+        let t = turret();
+        let (sdf, _, _) = t54_turret(&t);
+        let band = t.roof_plane_y - t.ring_plane_y;
+        let mid = t.ring_plane_y + 0.5 * band;
+
+        let w_lo = half_width_at(&sdf, t.ring_plane_y + 0.08);
+        let w_hi = half_width_at(&sdf, t.roof_plane_y - 0.06);
+        assert!(
+            w_lo > w_hi + 0.05,
+            "casting must bulge low and neck in toward the flat roof: w_lo {w_lo:.2} vs w_hi {w_hi:.2}"
+        );
+
+        // The widest sampled cross-section must live in the lower half of the ring..roof band.
+        let widest_y = (0..=10)
+            .map(|i| t.ring_plane_y + band * i as f32 / 10.0)
+            .map(|y| (y, half_width_at(&sdf, y)))
+            .fold((0.0_f32, 0.0_f32), |a, b| if b.1 > a.1 { b } else { a })
+            .0;
+        assert!(widest_y < mid, "widest cross-section must sit low: {widest_y:.2} vs mid {mid:.2}");
     }
 
     #[test]

@@ -1,13 +1,17 @@
 use std::io::{self, Cursor, Read, Write};
 
 use game_core::{MountFrame, MountFrames, VehicleKind};
-use glam::{Mat3, Vec3};
+use glam::{Mat3, Vec2, Vec3};
 use vehicle_geometry::{
     BakedVehicle, GeometryMesh, GeometryVertex, MaterialRole, SmoothingGroup, Submesh, SubmeshKind,
+    SurfaceMapping,
 };
 
 const MAGIC: &[u8; 8] = b"WOTFORGE";
-const VERSION: u32 = 2;
+/// Current payload version: carries per-vertex UV0 and surface mapping mode.
+const VERSION: u32 = 3;
+/// The previous version, lacking UV0/mapping — decoded by supplying `(0, 0)` and `Triplanar`.
+const VERSION_LEGACY_UV: u32 = 2;
 
 pub fn encode(vehicle: &BakedVehicle) -> Result<Vec<u8>, io::Error> {
     let mut bytes = Vec::new();
@@ -37,7 +41,7 @@ pub fn decode(kind: VehicleKind, bytes: &[u8]) -> Result<BakedVehicle, io::Error
         return invalid_data("Forge mesh payload has an invalid magic header");
     }
     let version = read_u32(&mut cursor)?;
-    if version != VERSION {
+    if version != VERSION && version != VERSION_LEGACY_UV {
         return invalid_data("Forge mesh payload version is not supported");
     }
     let mounts = read_mounts(&mut cursor)?;
@@ -49,7 +53,7 @@ pub fn decode(kind: VehicleKind, bytes: &[u8]) -> Result<BakedVehicle, io::Error
         let index_count = read_u32(&mut cursor)? as usize;
         let mut vertices = Vec::with_capacity(vertex_count);
         for _ in 0..vertex_count {
-            vertices.push(read_vertex(&mut cursor)?);
+            vertices.push(read_vertex(&mut cursor, version)?);
         }
         let mut indices = Vec::with_capacity(index_count);
         for _ in 0..index_count {
@@ -75,19 +79,47 @@ fn write_vertex(bytes: &mut Vec<u8>, vertex: &GeometryVertex) -> Result<(), io::
     for value in vertex.position.to_array().into_iter().chain(vertex.normal.to_array()) {
         write_f32(bytes, value)?;
     }
+    // v3: UV0 and the mapping mode follow the normal, before the material/smoothing/shade tail.
+    write_f32(bytes, vertex.uv0.x)?;
+    write_f32(bytes, vertex.uv0.y)?;
+    write_u32(bytes, surface_mapping_id(vertex.mapping))?;
     write_u32(bytes, payload_material_role_id(vertex.material))?;
     write_u32(bytes, u32::from(vertex.smoothing.0))?;
     write_f32(bytes, vertex.surface_shade)?;
     Ok(())
 }
 
-fn read_vertex(cursor: &mut Cursor<&[u8]>) -> Result<GeometryVertex, io::Error> {
+fn read_vertex(cursor: &mut Cursor<&[u8]>, version: u32) -> Result<GeometryVertex, io::Error> {
     let position = Vec3::new(read_f32(cursor)?, read_f32(cursor)?, read_f32(cursor)?);
     let normal = Vec3::new(read_f32(cursor)?, read_f32(cursor)?, read_f32(cursor)?);
+    // Legacy v2 payloads carry no UV/mapping — supply the triplanar default at the origin.
+    let (uv0, mapping) = if version >= VERSION {
+        (Vec2::new(read_f32(cursor)?, read_f32(cursor)?), read_surface_mapping(cursor)?)
+    } else {
+        (Vec2::ZERO, SurfaceMapping::Triplanar)
+    };
     let material = read_material_role(cursor)?;
     let smoothing = SmoothingGroup(read_u32(cursor)? as u16);
     let surface_shade = read_f32(cursor)?;
-    Ok(GeometryVertex { position, normal, material, smoothing, surface_shade })
+    let mut vertex = GeometryVertex::new(position, normal, material, smoothing);
+    vertex.uv0 = uv0;
+    vertex.mapping = mapping;
+    Ok(vertex.with_surface_shade(surface_shade))
+}
+
+fn surface_mapping_id(mapping: SurfaceMapping) -> u32 {
+    match mapping {
+        SurfaceMapping::ParametricUv => 0,
+        SurfaceMapping::Triplanar => 1,
+    }
+}
+
+fn read_surface_mapping(cursor: &mut Cursor<&[u8]>) -> Result<SurfaceMapping, io::Error> {
+    Ok(match read_u32(cursor)? {
+        0 => SurfaceMapping::ParametricUv,
+        1 => SurfaceMapping::Triplanar,
+        _ => return invalid_data("Forge mesh payload has an unknown surface mapping mode"),
+    })
 }
 
 fn write_mounts(bytes: &mut Vec<u8>, mounts: &MountFrames) -> Result<(), io::Error> {
@@ -180,4 +212,88 @@ fn read_submesh_kind(cursor: &mut Cursor<&[u8]>) -> Result<SubmeshKind, io::Erro
 
 fn invalid_data<T>(message: &'static str) -> Result<T, io::Error> {
     Err(io::Error::new(io::ErrorKind::InvalidData, message))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use glam::Vec2;
+    use vehicle_geometry::SurfaceMapping;
+
+    fn sample_vehicle() -> BakedVehicle {
+        let v =
+            |p: Vec3| GeometryVertex::new(p, Vec3::Y, MaterialRole::CastArmor, SmoothingGroup(2));
+        let parametric = v(Vec3::X).with_uv0(Vec2::new(0.25, 0.75));
+        let mesh = GeometryMesh::new(vec![v(Vec3::ZERO), parametric, v(Vec3::Z)], vec![0, 1, 2]);
+        BakedVehicle::new(
+            VehicleKind::T54_1951,
+            vec![Submesh { kind: SubmeshKind::Hull, mesh }],
+            MountFrames::for_vehicle(VehicleKind::T54_1951),
+        )
+    }
+
+    #[test]
+    fn version_3_round_trips_uv_and_mapping() {
+        let vehicle = sample_vehicle();
+        let decoded = decode(VehicleKind::T54_1951, &encode(&vehicle).unwrap()).unwrap();
+        let original = vehicle.submeshes()[0].mesh.vertices();
+        let round = decoded.submeshes()[0].mesh.vertices();
+        assert_eq!(round.len(), original.len());
+        for (a, b) in original.iter().zip(round) {
+            assert_eq!(a.uv0, b.uv0);
+            assert_eq!(a.mapping, b.mapping);
+            assert_eq!(a.position, b.position);
+        }
+        // The parametric vertex survived as parametric; the others stayed triplanar.
+        assert_eq!(round[1].mapping, SurfaceMapping::ParametricUv);
+        assert_eq!(round[0].mapping, SurfaceMapping::Triplanar);
+    }
+
+    /// Re-encode a vehicle in the legacy v2 layout (no UV/mapping) for the back-compat test.
+    fn encode_v2(vehicle: &BakedVehicle) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        bytes.write_all(MAGIC).unwrap();
+        write_u32(&mut bytes, VERSION_LEGACY_UV).unwrap();
+        write_mounts(&mut bytes, vehicle.mounts()).unwrap();
+        write_u32(&mut bytes, vehicle.submeshes().len() as u32).unwrap();
+        for submesh in vehicle.submeshes() {
+            write_u32(&mut bytes, submesh.kind as u32).unwrap();
+            write_u32(&mut bytes, submesh.mesh.vertex_count() as u32).unwrap();
+            write_u32(&mut bytes, submesh.mesh.indices().len() as u32).unwrap();
+            for vtx in submesh.mesh.vertices() {
+                for value in vtx.position.to_array().into_iter().chain(vtx.normal.to_array()) {
+                    write_f32(&mut bytes, value).unwrap();
+                }
+                write_u32(&mut bytes, payload_material_role_id(vtx.material)).unwrap();
+                write_u32(&mut bytes, u32::from(vtx.smoothing.0)).unwrap();
+                write_f32(&mut bytes, vtx.surface_shade).unwrap();
+            }
+            for index in submesh.mesh.indices() {
+                write_u32(&mut bytes, *index).unwrap();
+            }
+        }
+        bytes
+    }
+
+    #[test]
+    fn version_2_decodes_with_triplanar_defaults() {
+        let vehicle = sample_vehicle();
+        let decoded = decode(VehicleKind::T54_1951, &encode_v2(&vehicle)).unwrap();
+        for vtx in decoded.submeshes()[0].mesh.vertices() {
+            assert_eq!(
+                vtx.mapping,
+                SurfaceMapping::Triplanar,
+                "legacy vertices default to triplanar"
+            );
+            assert_eq!(vtx.uv0, Vec2::ZERO, "legacy vertices have no UV");
+        }
+    }
+
+    #[test]
+    fn an_unknown_version_is_rejected() {
+        let mut bytes = encode(&sample_vehicle()).unwrap();
+        // Overwrite the version word (just after the 8-byte magic) with an unsupported value.
+        bytes[8..12].copy_from_slice(&99u32.to_le_bytes());
+        assert!(decode(VehicleKind::T54_1951, &bytes).is_err());
+    }
 }

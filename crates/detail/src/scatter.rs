@@ -1,0 +1,203 @@
+//! Deterministic surface scatter: walk a fixed-order list of candidate slots and accept each that is
+//! outside every exclusion zone and at least `min_spacing` from every prior acceptance. Order and
+//! per-feature seed depend only on the request identity (never process state), so a bake reproduces.
+
+use glam::Vec3;
+use vehicle_geometry::{GeometryMesh, GeometryVertex, MaterialRole, SmoothingGroup};
+
+use crate::{FeatureKind, stable_hash};
+
+/// A spherical keep-out region — armour seams, the gun socket, hatches, already-placed detail.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ExclusionZone {
+    pub center: Vec3,
+    pub radius: f32,
+}
+
+impl ExclusionZone {
+    fn excludes(&self, p: Vec3) -> bool {
+        (p - self.center).length() <= self.radius
+    }
+}
+
+/// A candidate seat on the surface: where a feature could sit and which way it faces.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ScatterSlot {
+    pub position: Vec3,
+    pub normal: Vec3,
+}
+
+/// A request to scatter one feature kind across an ordered list of candidate slots.
+pub struct ScatterRequest<'a> {
+    pub vehicle: &'a str,
+    pub part: &'a str,
+    pub feature: FeatureKind,
+    pub slots: &'a [ScatterSlot],
+    pub exclusions: &'a [ExclusionZone],
+    pub min_spacing: f32,
+}
+
+/// An accepted placement, carrying its deterministic per-feature seed and ordinal.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ScatterPlacement {
+    pub position: Vec3,
+    pub normal: Vec3,
+    pub seed: u64,
+    pub ordinal: u32,
+}
+
+/// Walk the slots in order, accepting each that is outside every exclusion zone and at least
+/// `min_spacing` from every prior acceptance. Deterministic: the result depends only on the request.
+pub fn scatter(req: &ScatterRequest) -> Vec<ScatterPlacement> {
+    let mut accepted: Vec<ScatterPlacement> = Vec::new();
+    for slot in req.slots {
+        if req.exclusions.iter().any(|z| z.excludes(slot.position)) {
+            continue;
+        }
+        if req.min_spacing > 0.0
+            && accepted.iter().any(|a| (a.position - slot.position).length() < req.min_spacing)
+        {
+            continue;
+        }
+        let ordinal = accepted.len() as u32;
+        let seed = stable_hash(req.vehicle, req.part, req.feature, ordinal);
+        accepted.push(ScatterPlacement {
+            position: slot.position,
+            normal: slot.normal,
+            seed,
+            ordinal,
+        });
+    }
+    accepted
+}
+
+/// An array of `count` thin raised slats filling a `width` × `height` louvre panel centred at
+/// `center` and facing `normal` — the engine-deck / radiator cover detail. Slats run across the
+/// width and are stacked up the height, each standing `depth` proud of the panel.
+pub fn louvre_slats(
+    center: Vec3,
+    normal: Vec3,
+    width: f32,
+    height: f32,
+    depth: f32,
+    count: u32,
+) -> GeometryMesh {
+    let n = normal.normalize_or_zero();
+    let n = if n == Vec3::ZERO { Vec3::Y } else { n };
+    let across =
+        if n.cross(Vec3::Z).length() > 1.0e-3 { n.cross(Vec3::Z).normalize() } else { Vec3::X };
+    let up = n.cross(across).normalize();
+    let count = count.max(1);
+    let pitch = height / count as f32;
+    let half_w = width * 0.5;
+    let half_slat = pitch * 0.35;
+
+    let mut box_meshes = Vec::with_capacity(count as usize);
+    for i in 0..count {
+        let t = (i as f32 + 0.5) / count as f32 - 0.5;
+        let slat_center = center + up * (t * height) + n * (depth * 0.5);
+        box_meshes.push(slat_box(slat_center, across * half_w, up * half_slat, n * (depth * 0.5)));
+    }
+    revolve::merge(&box_meshes).weld_and_smooth()
+}
+
+/// A hard-edged box centred at `c` with half-axes `du`, `dv`, `dw`. Each face authors its own
+/// geometric normal so the welder keeps the corners crisp instead of rounding them.
+fn slat_box(c: Vec3, du: Vec3, dv: Vec3, dw: Vec3) -> GeometryMesh {
+    let mut vertices = Vec::with_capacity(24);
+    let mut indices = Vec::with_capacity(36);
+    // (sign axis, in-plane half-axes) per face, wound CCW seen from outside.
+    let faces =
+        [(dw, du, dv), (-dw, dv, du), (du, dv, dw), (-du, dw, dv), (dv, dw, du), (-dv, du, dw)];
+    for (out, a, b) in faces {
+        let normal = out.normalize_or_zero();
+        let base = vertices.len() as u32;
+        for corner in [out - a - b, out + a - b, out + a + b, out - a + b] {
+            vertices.push(GeometryVertex::new(
+                c + corner,
+                normal,
+                MaterialRole::CastArmor,
+                SmoothingGroup::hard_edges(),
+            ));
+        }
+        indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
+    }
+    GeometryMesh::new(vertices, indices)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn slots() -> Vec<ScatterSlot> {
+        (0..5)
+            .map(|i| ScatterSlot { position: Vec3::new(i as f32 * 0.1, 0.0, 0.0), normal: Vec3::Y })
+            .collect()
+    }
+
+    #[test]
+    fn scatter_is_deterministic_in_order_and_seed() {
+        let s = slots();
+        let req = ScatterRequest {
+            vehicle: "t54",
+            part: "glacis",
+            feature: FeatureKind::Bolt,
+            slots: &s,
+            exclusions: &[],
+            min_spacing: 0.0,
+        };
+        let a = scatter(&req);
+        let b = scatter(&req);
+        assert_eq!(a, b, "same request scatters identically");
+        assert_eq!(a.len(), 5);
+        assert_eq!(a[0].ordinal, 0);
+        assert_ne!(a[0].seed, a[1].seed, "each ordinal gets its own seed");
+    }
+
+    #[test]
+    fn exclusion_zones_drop_slots_inside_them() {
+        let s = slots();
+        let req = ScatterRequest {
+            vehicle: "t54",
+            part: "glacis",
+            feature: FeatureKind::Bolt,
+            slots: &s,
+            exclusions: &[ExclusionZone { center: Vec3::new(0.2, 0.0, 0.0), radius: 0.05 }],
+            min_spacing: 0.0,
+        };
+        let placed = scatter(&req);
+        assert_eq!(placed.len(), 4, "the slot at x=0.2 is excluded");
+        assert!(placed.iter().all(|p| (p.position.x - 0.2).abs() > 1.0e-4));
+        // Ordinals stay contiguous so seeds remain stable regardless of which slots were dropped.
+        assert_eq!(placed.iter().map(|p| p.ordinal).collect::<Vec<_>>(), vec![0, 1, 2, 3]);
+    }
+
+    #[test]
+    fn min_spacing_thins_clustered_slots() {
+        let s = slots();
+        let req = ScatterRequest {
+            vehicle: "t54",
+            part: "glacis",
+            feature: FeatureKind::Bolt,
+            slots: &s,
+            exclusions: &[],
+            min_spacing: 0.25,
+        };
+        let placed = scatter(&req);
+        assert!(placed.len() < 5, "spacing rejects neighbours within 0.25");
+        for (i, a) in placed.iter().enumerate() {
+            for b in &placed[i + 1..] {
+                assert!((a.position - b.position).length() >= 0.25);
+            }
+        }
+    }
+
+    #[test]
+    fn a_louvre_array_is_clean_and_spans_its_panel() {
+        let mesh = louvre_slats(Vec3::ZERO, Vec3::Y, 0.6, 0.4, 0.02, 4);
+        let b = mesh.bounds().expect("louvre bounds");
+        assert!(b.max.y > 0.0, "slats stand proud along +Y");
+        assert!((b.max.x - 0.3).abs() < 0.02 && (b.min.x + 0.3).abs() < 0.02, "spans the width");
+        mesh.validate_quality(vehicle_geometry::OPEN_OR_CLOSED_MESH).expect("clean louvre array");
+    }
+}

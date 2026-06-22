@@ -5,15 +5,25 @@ mod builder;
 mod lod;
 mod mesh;
 mod ops;
+mod polygon;
+mod quality;
 mod recipes;
 mod vehicle;
+mod weld;
 
 pub use bounds::MeshBounds;
 pub use builder::MeshBuilder;
 pub use game_core::{MountFrame, MountFrames};
-pub use lod::{LodLevel, reduce_vehicle};
-pub use mesh::{GeometryMesh, GeometryVertex, MaterialRole, SmoothingGroup};
+pub use lod::{
+    LodAuditError, LodLevel, PartImportance, audit_reduction, reduce_mesh, reduce_vehicle,
+};
+pub use mesh::{GeometryMesh, GeometryVertex, MaterialRole, SmoothingGroup, SurfaceMapping};
 pub use ops::{Axis, ExtrudeSpec, LoftSection, LoftSpec, ProfilePoint, RevolveSpec};
+pub use polygon::{is_convex, signed_area};
+pub use quality::{
+    CLOSED_SMOOTH_MESH, MeshQualityError, MeshQualityReport, MeshQualitySpec, OPEN_OR_CLOSED_MESH,
+    TopologyExpectation,
+};
 pub use recipes::bake_vehicle;
 pub use vehicle::{BakeError, BakedVehicle, Submesh, SubmeshKind};
 

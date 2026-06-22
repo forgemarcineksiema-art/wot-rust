@@ -53,6 +53,7 @@ struct VsIn {
     @location(8) model_2: vec4<f32>,
     @location(9) model_3: vec4<f32>,
     @location(10) tint: vec4<f32>,
+    @location(11) mapping_mode: u32,
 };
 
 struct VsOut {
@@ -65,6 +66,12 @@ struct VsOut {
     @location(5) tint_mask: f32,
     @location(6) team_tint: vec3<f32>,
     @location(7) world_pos: vec3<f32>,
+    // Object-local position/normal: triplanar projects material coordinates from these, so the
+    // texture stays anchored to the part as the hull rotates, the turret traverses and the gun
+    // elevates (the model transform never reaches the material coordinates).
+    @location(8) local_pos: vec3<f32>,
+    @location(9) local_normal: vec3<f32>,
+    @location(10) @interpolate(flat) mapping_mode: u32,
 };
 
 @vertex
@@ -81,6 +88,9 @@ fn vs_main(input: VsIn) -> VsOut {
     out.material_id = input.material_id;
     out.tint_mask = input.tint_mask;
     out.team_tint = input.tint.rgb;
+    out.local_pos = input.position;
+    out.local_normal = input.normal;
+    out.mapping_mode = input.mapping_mode;
     return out;
 }
 
@@ -112,22 +122,72 @@ fn material_params(id: u32) -> Material {
     return m;
 }
 
+// Object-local texels-per-metre for triplanar projection. Matches the client's parametric UV_SCALE
+// so the two mapping modes read at a consistent material density across one vehicle.
+const TRIPLANAR_SCALE: f32 = 0.5;
+
+// Blend weights from the (object-local) normal: a small exponent narrows the projection seams
+// without producing abrupt material bands.
+fn triplanar_weights(n: vec3<f32>) -> vec3<f32> {
+    let w = pow(abs(n), vec3<f32>(4.0, 4.0, 4.0));
+    let s = w.x + w.y + w.z;
+    return w / max(s, 1.0e-5);
+}
+
+// Sample a map by its three object-local axis projections and blend by the normal weights.
+fn triplanar_sample(
+    tex: texture_2d<f32>,
+    p: vec3<f32>,
+    w: vec3<f32>,
+) -> vec4<f32> {
+    let sx = textureSample(tex, vehicle_sampler, p.zy * TRIPLANAR_SCALE);
+    let sy = textureSample(tex, vehicle_sampler, p.xz * TRIPLANAR_SCALE);
+    let sz = textureSample(tex, vehicle_sampler, p.xy * TRIPLANAR_SCALE);
+    return sx * w.x + sy * w.y + sz * w.z;
+}
+
+// A stable world tangent orthogonal to `n`, used to apply a blended detail normal for triplanar
+// surfaces (the sampling coordinates stay object-local, so the material does not swim).
+fn stable_tangent(n: vec3<f32>) -> vec3<f32> {
+    let seed = select(vec3<f32>(0.0, 1.0, 0.0), vec3<f32>(1.0, 0.0, 0.0), abs(n.x) < 0.9);
+    return normalize(seed - n * dot(seed, n));
+}
+
 @fragment
 fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     let n = normalize(input.world_normal);
-    let t = normalize(input.world_tangent - n * dot(n, input.world_tangent));
-    let b = cross(n, t) * input.tangent_w;
-    let dn = normalize(textureSample(normal_map, vehicle_sampler, input.uv).xyz * 2.0 - vec3<f32>(1.0));
-    let world_n = normalize(t * dn.x + b * dn.y + n * dn.z);
+    var world_n: vec3<f32>;
+    var baked_albedo: vec3<f32>;
+    var ao_rough: vec3<f32>;
+    var cavity: f32;
+
+    if (input.mapping_mode == 0u) {
+        // Parametric: authored UV0 with a tangent-space normal map (as before).
+        let t = normalize(input.world_tangent - n * dot(n, input.world_tangent));
+        let b = cross(n, t) * input.tangent_w;
+        let dn = normalize(textureSample(normal_map, vehicle_sampler, input.uv).xyz * 2.0 - vec3<f32>(1.0));
+        world_n = normalize(t * dn.x + b * dn.y + n * dn.z);
+        baked_albedo = textureSample(albedo_map, vehicle_sampler, input.uv).rgb;
+        ao_rough = textureSample(ao_roughness_map, vehicle_sampler, input.uv).rgb;
+        cavity = textureSample(cavity_map, vehicle_sampler, input.uv).r;
+    } else {
+        // Triplanar: project from object-local coordinates so the material stays anchored to the
+        // part under hull rotation, turret traverse and gun elevation.
+        let w = triplanar_weights(normalize(input.local_normal));
+        baked_albedo = triplanar_sample(albedo_map, input.local_pos, w).rgb;
+        ao_rough = triplanar_sample(ao_roughness_map, input.local_pos, w).rgb;
+        cavity = triplanar_sample(cavity_map, input.local_pos, w).r;
+        let t = stable_tangent(n);
+        let b = cross(n, t);
+        let dn = normalize(triplanar_sample(normal_map, input.local_pos, w).xyz * 2.0 - vec3<f32>(1.0));
+        world_n = normalize(t * dn.x + b * dn.y + n * dn.z);
+    }
 
     let mat = material_params(input.material_id);
     // Armour takes the per-instance team tint; detail materials keep their absolute albedo.
     let tinted = mix(vec3<f32>(1.0, 1.0, 1.0), input.team_tint, input.tint_mask);
-    let baked_albedo = textureSample(albedo_map, vehicle_sampler, input.uv).rgb;
     let albedo = mat.albedo * baked_albedo * tinted;
-    let ao_rough = textureSample(ao_roughness_map, vehicle_sampler, input.uv).rgb;
     let ao = ao_rough.r;
-    let cavity = textureSample(cavity_map, vehicle_sampler, input.uv).r;
 
     let lit = albedo * light_radiance(world_n) * ao * cavity;
 

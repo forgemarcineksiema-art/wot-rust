@@ -216,6 +216,60 @@ fn written_forge_artifact_loads_back_into_mount_aware_baked_vehicle() {
     std::fs::remove_dir_all(out).expect("remove test artifact");
 }
 
+/// The artifact source hash is the baked-vehicle deterministic hash, so it must move whenever a
+/// cast-loft input that changes the shell does: a station, a bump, the cap mode, or the material
+/// mapping. This is the invalidation guarantee — a silent cast-loft edit cannot reuse a stale
+/// artifact.
+#[test]
+fn t54_source_hash_reacts_to_cast_loft_inputs() {
+    use cast_loft::{CastBump, CastCap, CastCaps, CastLoftSpec, CastSection, try_build_cast_loft};
+    use game_core::MountFrames;
+    use glam::Vec3;
+    use vehicle_geometry::{BakedVehicle, MaterialRole, SmoothingGroup, Submesh, SubmeshKind};
+
+    let sections = [
+        CastSection::symmetric(0.0, 0.84, 0.92, 0.0, 2.8),
+        CastSection::symmetric(0.2, 0.90, 0.96, -0.02, 2.8),
+        CastSection::symmetric(0.5, 0.50, 0.60, -0.06, 2.8),
+    ];
+    let bump = CastBump { azimuth: 0.0, az_width: 0.4, y: 0.2, y_width: 0.2, amount: 0.12 };
+    let planar = CastCaps { bottom: CastCap::Planar, top: CastCap::Planar };
+
+    let hash = |sections: &[CastSection], bumps: &[CastBump], caps, material| {
+        let mesh = try_build_cast_loft(&CastLoftSpec {
+            sections,
+            bumps,
+            segments: 32,
+            caps,
+            material,
+            smoothing: SmoothingGroup(2),
+        })
+        .expect("valid cast loft");
+        BakedVehicle::new(
+            VehicleKind::T54_1951,
+            vec![Submesh { kind: SubmeshKind::Turret, mesh }],
+            MountFrames::for_vehicle(VehicleKind::T54_1951),
+        )
+        .deterministic_hash()
+    };
+
+    let baseline = hash(&sections, &[bump], planar, MaterialRole::CastArmor);
+
+    let mut moved = sections;
+    moved[1].half_width += 0.05;
+    assert_ne!(baseline, hash(&moved, &[bump], planar, MaterialRole::CastArmor), "station");
+
+    let mut bigger = bump;
+    bigger.amount += 0.03;
+    assert_ne!(baseline, hash(&sections, &[bigger], planar, MaterialRole::CastArmor), "bump");
+
+    let apex =
+        CastCaps { bottom: CastCap::Planar, top: CastCap::Apex(Vec3::new(0.0, 0.55, -0.02)) };
+    assert_ne!(baseline, hash(&sections, &[bump], apex, MaterialRole::CastArmor), "cap mode");
+
+    assert_ne!(baseline, hash(&sections, &[bump], planar, MaterialRole::RolledArmor), "material");
+}
+
 fn assert_png(path: &std::path::Path) {
     let bytes = std::fs::read(path).unwrap_or_else(|err| panic!("read {}: {err}", path.display()));
     assert!(bytes.len() > 32, "{} must not be an empty placeholder", path.display());

@@ -28,22 +28,30 @@ pub(super) fn t54_hybrid() -> HybridVisual {
             sponson_overhang: 0.23,
         },
         turret: TurretVisual {
-            dome_radius: 0.95,
-            dome_front: Vec3::new(0.0, 1.67, 0.06),
-            // The rear bustle is narrowed (smaller, pulled-back rear sphere) so the casting tapers to
-            // a low, slim tail behind the ring — the front mass reads heavier than the rear.
-            dome_rear: Vec3::new(0.0, 1.64, -0.30),
-            dome_rear_radius: 0.70,
-            dome_blend: 0.45,
-            // Fuller, further-forward front cheeks flanking the mantlet: the T-54 turret's signature
-            // heavy cast front mass, kept within the turret plan (the dome already fills the width).
-            cheek_radius: 0.49,
-            cheek_center: Vec3::new(0.48, 1.56, 0.56),
-            cheek_blend: 0.40,
-            ring_radius: 0.90,
+            // The cast dome bulges LOW and wide: the sphere centre sits just above the ring (not high
+            // in the band), so the widest cross-section overhangs the ring and the casting necks back
+            // in toward the flat roof — the flattened "river-stone" T-54 pancake, not a tall round
+            // pot. The wider radius (>ring_radius) is what gives the signature ring overhang/undercut.
+            dome_radius: 0.91,
+            dome_front: Vec3::new(0.0, 1.44, 0.10),
+            // The rear bustle is a low, broad lobe reaching back behind the ring: a sphere set low
+            // gives the casting a heavy overhanging tail rather than a narrow tapered tip.
+            dome_rear: Vec3::new(0.0, 1.42, -0.27),
+            dome_rear_radius: 0.74,
+            dome_blend: 0.50,
+            // Fuller, further-forward front cheeks flanking the mantlet at gun height: the T-54
+            // turret's signature heavy cast front mass, fused into the dome with a wide blend so the
+            // front reads as one continuous casting, not a separate ball stuck on the face.
+            cheek_radius: 0.50,
+            cheek_center: Vec3::new(0.42, 1.50, 0.52),
+            cheek_blend: 0.52,
+            // The ring is narrowed below the dome so the wider low cast dome visibly overhangs it —
+            // the signature Soviet undercut — while the dome itself stays inside the ±1.00 turret
+            // plan. (Visual ring only; the gameplay turret-ring radius lives in `TurretShape`.)
+            ring_radius: 0.85,
             ring_half_height: 0.18,
             ring_center: Vec3::new(0.0, 1.48, 0.0),
-            ring_blend: 0.32,
+            ring_blend: 0.30,
             roof_plane_y: 1.86,
             ring_plane_y: 1.30,
             cupola_radius: 0.24,
@@ -59,6 +67,10 @@ pub(super) fn t54_hybrid() -> HybridVisual {
             bbox_max: Vec3::new(1.20, 2.00, 1.45),
             budget: 12_000,
         },
+        // The lofted cast turret stations and shaping (split into `t54_hybrid_turret` for the file
+        // budget): widest LOW for the ring overhang, front-heavy with a rear-pulled bustle, necking
+        // into the flat roof, all within the ±1.00 / ±1.04 turret plan.
+        turret_loft: super::t54_hybrid_turret::turret_loft(),
         gun: GunVisual {
             barrel_radius: 0.09,
             muzzle_radius: 0.085,
@@ -76,7 +88,10 @@ pub(super) fn t54_hybrid() -> HybridVisual {
                 (0.28, 0.16),
             ],
             mantlet_segments: 20,
-            mantlet_scale: Vec3::new(1.45, 0.72, 1.0),
+            // Taller in Y than before so the mask fully overlaps the embrasure mouth through the
+            // whole elevation arc (no exposed socket above/below the gun), while staying clearly
+            // wider than tall — the flat cast oval, not a round ball.
+            mantlet_scale: Vec3::new(1.45, 0.86, 1.0),
             module_delta_scale: 0.65,
         },
         deck: BoxVisual { center: Vec3::new(0.0, 1.25, -1.75), half: Vec3::new(1.30, 0.06, 0.95) },

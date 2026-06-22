@@ -144,20 +144,8 @@ mod tests {
     fn capped_revolve_has_no_degenerate_triangles() {
         let profile = [(0.0, 0.0), (0.0, 0.5), (1.0, 0.5), (1.0, 0.0)];
         let mesh = revolve(Vec3::Z, &profile, 16, MaterialRole::Rubber, SmoothingGroup(5));
-        for triangle in mesh.indices().chunks_exact(3) {
-            assert!(
-                triangle[0] != triangle[1]
-                    && triangle[1] != triangle[2]
-                    && triangle[0] != triangle[2],
-                "triangle repeats an index: {triangle:?}"
-            );
-            let [a, b, c] = [
-                mesh.vertices()[triangle[0] as usize].position,
-                mesh.vertices()[triangle[1] as usize].position,
-                mesh.vertices()[triangle[2] as usize].position,
-            ];
-            assert!((b - a).cross(c - a).length_squared() > 1.0e-10, "triangle has zero area");
-        }
+        mesh.validate_quality(vehicle_geometry::OPEN_OR_CLOSED_MESH)
+            .expect("a capped revolution has no degenerate or invalid geometry");
     }
 
     #[test]

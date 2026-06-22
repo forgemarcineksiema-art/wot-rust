@@ -10,4 +10,5 @@
 mod node;
 mod shape;
 
-pub use node::Sdf;
+pub use node::{Sdf, SignedDistance};
+pub use shape::SdfError;

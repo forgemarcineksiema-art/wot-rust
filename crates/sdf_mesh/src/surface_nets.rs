@@ -2,8 +2,7 @@
 //!
 //! One vertex per surface-straddling cell, placed at the average of its sign-changing edge crossings
 //! (normal from the SDF gradient); quads stitched across sign-changing grid edges. Surface Nets
-//! deliberately *averages*, so it reads smooth — great for a cast turret, and the honest weak point
-//! for a sharp glacis edge. That tradeoff is exactly what the spike measures.
+//! deliberately *averages*, so it reads smooth — great for a cast turret, weak for a sharp edge.
 
 use glam::Vec3;
 use sdf::Sdf;
@@ -33,6 +32,11 @@ impl Grid {
     pub fn cell_size(&self) -> f32 {
         self.cell
     }
+
+    /// Cells along each axis (including the one-cell empty pad on every side).
+    pub fn cells_per_axis(&self) -> [usize; 3] {
+        self.dims
+    }
 }
 
 // The 12 cube edges as pairs of corner indices (corner bit 0,1,2 = x,y,z).
@@ -55,7 +59,12 @@ fn corner_offset(c: usize) -> Vec3 {
     Vec3::new((c & 1) as f32, ((c >> 1) & 1) as f32, ((c >> 2) & 1) as f32)
 }
 
+/// Prefer the SDF's analytic gradient, falling back to central differences only where it is zero.
 fn gradient(sdf: &Sdf, p: Vec3) -> Vec3 {
+    let analytic = sdf.gradient(p);
+    if analytic != Vec3::ZERO {
+        return analytic;
+    }
     let h = 1.0e-3;
     Vec3::new(
         sdf.eval(p + Vec3::X * h) - sdf.eval(p - Vec3::X * h),
@@ -226,6 +235,10 @@ mod tests {
         let mesh = mesh_sphere(24);
         assert!(mesh.triangle_count() > 0, "sphere produced no triangles");
         assert_eq!(mesh.triangle_count() % 2, 0, "quads emit two triangles each");
+        // The shared contract proves the watertight, consistently-wound manifold; the Euler
+        // identity below additionally pins it to genus zero.
+        mesh.validate_quality(vehicle_geometry::CLOSED_SMOOTH_MESH)
+            .expect("a meshed sphere is a closed smooth manifold");
         let v = mesh.vertex_count() as i64;
         let q = (mesh.triangle_count() / 2) as i64;
         assert_eq!(v - q, 2, "V - Q must be 2 for a closed genus-0 surface");

@@ -556,6 +556,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "37b2a672a2cb129a2e41c10b1224bb368f9f37a2b16b612598138befd7b37eb5"
 
 [[package]]
+name = "cast_loft"
+version = "0.1.0"
+dependencies = [
+ "glam 0.30.10",
+ "thiserror 2.0.18",
+ "vehicle_geometry",
+]
+
+[[package]]
 name = "cc"
 version = "1.2.63"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -666,6 +675,7 @@ dependencies = [
  "terrain",
  "tracing",
  "tracing-subscriber",
+ "vehicle_build",
  "vehicle_forge",
  "vehicle_geometry",
  "winit",
@@ -872,6 +882,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f27ae1dd37df86211c42e150270f82743308803d90a6f6e6651cd730d5e1732f"
 
 [[package]]
+name = "deform"
+version = "0.1.0"
+dependencies = [
+ "glam 0.30.10",
+ "revolve",
+ "vehicle_geometry",
+]
+
+[[package]]
 name = "derive_more"
 version = "2.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -892,6 +911,16 @@ dependencies = [
  "rustc_version",
  "syn",
  "unicode-xid",
+]
+
+[[package]]
+name = "detail"
+version = "0.1.0"
+dependencies = [
+ "glam 0.30.10",
+ "revolve",
+ "sweep",
+ "vehicle_geometry",
 ]
 
 [[package]]
@@ -2482,6 +2511,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "panel"
+version = "0.1.0"
+dependencies = [
+ "glam 0.30.10",
+ "thiserror 2.0.18",
+ "vehicle_geometry",
+]
+
+[[package]]
 name = "parking"
 version = "2.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2969,6 +3007,8 @@ version = "0.1.0"
 dependencies = [
  "game_core",
  "glam 0.30.10",
+ "sweep",
+ "thiserror 2.0.18",
  "vehicle_geometry",
 ]
 
@@ -3090,6 +3130,7 @@ name = "sdf"
 version = "0.1.0"
 dependencies = [
  "glam 0.30.10",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -3182,6 +3223,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f40ca3c46823713e0d4209592e8d6e826aa57e928f09752619fc696c499637f6"
 dependencies = [
  "lazy_static",
+]
+
+[[package]]
+name = "shell"
+version = "0.1.0"
+dependencies = [
+ "glam 0.30.10",
+ "thiserror 2.0.18",
+ "vehicle_geometry",
 ]
 
 [[package]]
@@ -3309,6 +3359,7 @@ version = "0.1.0"
 dependencies = [
  "game_core",
  "glam 0.30.10",
+ "thiserror 2.0.18",
  "vehicle_geometry",
 ]
 
@@ -3365,6 +3416,15 @@ name = "strsim"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
+
+[[package]]
+name = "sweep"
+version = "0.1.0"
+dependencies = [
+ "glam 0.30.10",
+ "thiserror 2.0.18",
+ "vehicle_geometry",
+]
 
 [[package]]
 name = "syn"
@@ -3705,12 +3765,14 @@ checksum = "f1bddf1187be692e79c5ffeab891132dfb0f236ed36a43c7ed39f1165ee20191"
 name = "vehicle_build"
 version = "0.1.0"
 dependencies = [
+ "cast_loft",
  "game_core",
  "glam 0.30.10",
  "revolve",
  "sdf",
  "sdf_mesh",
  "solid",
+ "thiserror 2.0.18",
  "vehicle_geometry",
 ]
 
@@ -3718,6 +3780,7 @@ dependencies = [
 name = "vehicle_forge"
 version = "0.1.0"
 dependencies = [
+ "cast_loft",
  "game_core",
  "glam 0.30.10",
  "png",

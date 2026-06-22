@@ -5,8 +5,8 @@ use std::hint::black_box;
 
 use criterion::{Criterion, criterion_group, criterion_main};
 use game_core::{VehicleBlueprint, VehicleKind};
-use sdf_mesh::{mesh_within_budget, t54_turret};
-use vehicle_geometry::{MaterialRole, SmoothingGroup};
+use sdf_mesh::{SdfMeshingSpec, mesh_to_spec, mesh_within_budget, t54_turret};
+use vehicle_geometry::{MaterialRole, MeshBounds, SmoothingGroup};
 
 fn bench_turret_mesh(c: &mut Criterion) {
     let bp = VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("T-54 blueprint");
@@ -22,6 +22,19 @@ fn bench_turret_mesh(c: &mut Criterion) {
                 SmoothingGroup(2),
             )
         })
+    });
+
+    // The spec-driven path also reports budget utilisation and surface residual.
+    let spec = SdfMeshingSpec {
+        bounds: MeshBounds { min, max },
+        triangle_budget: 9_000,
+        min_cells_per_axis: 8,
+        max_cells_per_axis: 96,
+        material: MaterialRole::CastArmor,
+        smoothing: SmoothingGroup(2),
+    };
+    c.bench_function("mesh_t54_turret_to_spec_9k", |b| {
+        b.iter(|| mesh_to_spec(black_box(&turret), black_box(&spec)))
     });
 }
 

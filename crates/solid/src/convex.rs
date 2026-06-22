@@ -4,8 +4,11 @@
 //! is flat with the plane's true normal, so edges are razor-sharp and the armour slope is the face
 //! normal itself — no meshing softens it. Convex-only (no fillets), which is all a plate block needs.
 
-use glam::{Mat3, Vec3};
+use glam::{Mat3, Vec2, Vec3};
 use vehicle_geometry::{GeometryMesh, GeometryVertex, MaterialRole, SmoothingGroup};
+
+pub use crate::validate::ConvexSolidError;
+use crate::validate::{MIN_NORMAL, is_bounded, validate_planes};
 
 const EPS: f32 = 1.0e-4;
 
@@ -18,10 +21,23 @@ pub struct Plane {
 
 impl Plane {
     /// `normal` need not be unit — it is normalised (and `offset` scaled to match), so the stored
-    /// normal is exactly the surface slope.
+    /// normal is exactly the surface slope. Infallible builder for known-good static plate data;
+    /// validated construction goes through [`Plane::try_new`].
     pub fn new(normal: Vec3, offset: f32) -> Self {
         let len = normal.length().max(1.0e-9);
         Self { normal: normal / len, offset: offset / len }
+    }
+
+    /// Validated plane construction: rejects non-finite data and near-zero normals.
+    pub fn try_new(normal: Vec3, offset: f32) -> Result<Self, ConvexSolidError> {
+        if !normal.is_finite() || !offset.is_finite() {
+            return Err(ConvexSolidError::NonFinitePlane { index: 0 });
+        }
+        let len = normal.length();
+        if len < MIN_NORMAL {
+            return Err(ConvexSolidError::DegenerateNormal { index: 0 });
+        }
+        Ok(Self { normal: normal / len, offset: offset / len })
     }
 }
 
@@ -34,6 +50,27 @@ pub struct ConvexSolid {
 impl ConvexSolid {
     pub fn new(planes: Vec<Plane>) -> Self {
         Self { planes }
+    }
+
+    /// Validated construction: every plane must be finite with a usable normal, and at least four
+    /// distinct planes are needed to bound a volume.
+    pub fn try_new(planes: Vec<Plane>) -> Result<Self, ConvexSolidError> {
+        validate_planes(&planes)?;
+        Ok(Self { planes })
+    }
+
+    /// Distinct planes, collapsing exact duplicates so a repeated half-space does not double-face.
+    fn usable_planes(&self) -> Vec<Plane> {
+        let mut out: Vec<Plane> = Vec::with_capacity(self.planes.len());
+        for plane in &self.planes {
+            let dup = out.iter().any(|q| {
+                q.normal.distance(plane.normal) < EPS && (q.offset - plane.offset).abs() < EPS
+            });
+            if !dup {
+                out.push(*plane);
+            }
+        }
+        out
     }
 
     /// An axis-aligned box centred at `centre` with the given half-extents.
@@ -50,6 +87,11 @@ impl ConvexSolid {
     pub fn clipped_by(mut self, plane: Plane) -> Self {
         self.planes.push(plane);
         self
+    }
+
+    /// Consume the solid and return its bounding planes.
+    pub fn into_planes(self) -> Vec<Plane> {
+        self.planes
     }
 
     fn contains(&self, p: Vec3) -> bool {
@@ -75,31 +117,65 @@ impl ConvexSolid {
         pts
     }
 
-    /// Triangulate the boundary: one flat, fan-triangulated polygon per plane.
-    pub fn to_mesh(&self, material: MaterialRole, smoothing: SmoothingGroup) -> GeometryMesh {
-        let corners = self.corners();
+    /// Triangulate the boundary: one flat, fan-triangulated polygon per plane. Validates the
+    /// half-spaces first, so it never silently emits undefined geometry from bad input.
+    pub fn to_mesh(
+        &self,
+        material: MaterialRole,
+        smoothing: SmoothingGroup,
+    ) -> Result<GeometryMesh, ConvexSolidError> {
+        let planes = self.usable_planes();
+        validate_planes(&planes)?;
+        if !is_bounded(&planes) {
+            return Err(ConvexSolidError::Unbounded);
+        }
+        let solid = ConvexSolid { planes };
+        let corners = solid.corners();
+        if corners.is_empty() {
+            return Err(ConvexSolidError::EmptyIntersection);
+        }
+
         let mut vertices: Vec<GeometryVertex> = Vec::new();
         let mut indices: Vec<u32> = Vec::new();
-        for plane in &self.planes {
+        for plane in &solid.planes {
             let mut ring: Vec<Vec3> = corners
                 .iter()
                 .copied()
                 .filter(|p| (plane.normal.dot(*p) - plane.offset).abs() < EPS)
                 .collect();
-            if ring.len() < 3 {
-                continue;
+            // A fully redundant plane touches no corner (skip it); a plane that touches only an edge
+            // or vertex is a degenerate sliver face, which is malformed input.
+            match ring.len() {
+                0 => continue,
+                1 | 2 => return Err(ConvexSolidError::DegenerateFace),
+                _ => {}
             }
             order_ccw(&mut ring, plane.normal);
             let base = vertices.len() as u32;
+            // Planar UV per face: project each corner onto an in-plane basis (metres, tiling). Plates
+            // are fabricated parts, so they get predictable parametric UVs rather than triplanar.
+            let (u_axis, v_axis) = planar_basis(plane.normal);
             for p in &ring {
-                vertices.push(GeometryVertex::new(*p, plane.normal, material, smoothing));
+                let uv = Vec2::new(p.dot(u_axis), p.dot(v_axis));
+                vertices
+                    .push(GeometryVertex::new(*p, plane.normal, material, smoothing).with_uv0(uv));
             }
             for k in 1..(ring.len() as u32 - 1) {
                 indices.extend_from_slice(&[base, base + k, base + k + 1]);
             }
         }
-        GeometryMesh::new(vertices, indices)
+        Ok(GeometryMesh::new(vertices, indices))
     }
+}
+
+/// A deterministic in-plane `(u, v)` basis for a face with the given unit `normal`. The reference
+/// axis is whichever world axis is least aligned with the normal, so the basis never degenerates.
+fn planar_basis(normal: Vec3) -> (Vec3, Vec3) {
+    let reference = if normal.x.abs() < 0.9 { Vec3::X } else { Vec3::Y };
+    let u = reference.cross(normal).normalize_or_zero();
+    let u = if u == Vec3::ZERO { Vec3::Z } else { u };
+    let v = normal.cross(u).normalize_or_zero();
+    (u, v)
 }
 
 fn intersect3(a: &Plane, b: &Plane, c: &Plane) -> Option<Vec3> {
@@ -136,8 +212,12 @@ mod tests {
     fn a_unit_box_has_eight_corners_and_twelve_triangles() {
         let solid = ConvexSolid::box_at(Vec3::ZERO, Vec3::splat(1.0));
         assert_eq!(solid.corners().len(), 8, "a box has 8 corners");
-        let mesh = solid.to_mesh(MaterialRole::RolledArmor, SmoothingGroup::hard_edges());
+        let mesh = solid
+            .to_mesh(MaterialRole::RolledArmor, SmoothingGroup::hard_edges())
+            .expect("a box is a valid bounded solid");
         assert_eq!(mesh.triangle_count(), 12, "6 quad faces fan to 12 triangles");
+        mesh.validate_quality(vehicle_geometry::OPEN_OR_CLOSED_MESH)
+            .expect("a fabricated armour box is finite and non-degenerate");
         let b = mesh.bounds().expect("non-empty");
         assert!((b.max - Vec3::splat(1.0)).length() < EPS, "box reaches its exact extent");
     }
@@ -149,7 +229,9 @@ mod tests {
         let slope = 60.0_f32.to_radians();
         let cut = Plane::new(Vec3::new(0.0, slope.cos(), slope.sin()), 1.0);
         let solid = ConvexSolid::box_at(Vec3::new(0.0, 0.6, 0.0), Vec3::splat(1.0)).clipped_by(cut);
-        let mesh = solid.to_mesh(MaterialRole::RolledArmor, SmoothingGroup::hard_edges());
+        let mesh = solid
+            .to_mesh(MaterialRole::RolledArmor, SmoothingGroup::hard_edges())
+            .expect("a clipped box is a valid bounded solid");
         let has_exact_slope =
             mesh.vertices().iter().any(|v| (v.normal - cut.normal).length() < 1.0e-3);
         assert!(has_exact_slope, "the glacis face carries the exact plate normal");

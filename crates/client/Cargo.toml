@@ -28,6 +28,7 @@ winit.workspace = true
 [dev-dependencies]
 png = "0.18"
 serde_json.workspace = true
+vehicle_build = { path = "../vehicle_build" }
 
 [lints]
 workspace = true

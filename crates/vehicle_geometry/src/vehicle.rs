@@ -68,6 +68,9 @@ impl BakedVehicle {
                 {
                     hash_u64(&mut hash, value.to_bits() as u64);
                 }
+                hash_u64(&mut hash, vertex.uv0.x.to_bits() as u64);
+                hash_u64(&mut hash, vertex.uv0.y.to_bits() as u64);
+                hash_u64(&mut hash, vertex.mapping as u64);
                 hash_u64(&mut hash, vertex.material as u64);
                 hash_u64(&mut hash, vertex.smoothing.0 as u64);
                 hash_u64(&mut hash, vertex.surface_shade.to_bits() as u64);
