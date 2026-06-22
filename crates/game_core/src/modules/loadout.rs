@@ -1,7 +1,10 @@
 use serde::{Deserialize, Serialize};
 
 use super::{EngineModule, GunModule, HullChassis, RadioModule, SuspensionModule, TurretModule};
-use crate::{ArmorFacet, ArmorProfile, HitboxProfile, ModuleHealth, TankSpec, VehicleKind};
+use crate::{
+    ArmorFacet, ArmorProfile, DamageLayout, HitboxProfile, ModuleHealth, MountFrames, TankSpec,
+    VehicleKind,
+};
 
 /// Why a module could not be installed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -87,6 +90,8 @@ impl VehicleModules {
             hit_points: self.hull.hit_points,
             module_health: ModuleHealth::from_loadout(self),
             hitbox: HitboxProfile::for_vehicle(kind),
+            damage_layout: DamageLayout::for_vehicle(kind),
+            mounts: MountFrames::for_vehicle(kind),
         }
     }
 }

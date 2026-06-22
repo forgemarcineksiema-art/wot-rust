@@ -5,6 +5,7 @@
 //! `vehicle_geometry`, but it must stay renderer-backend free.
 
 mod artifact;
+mod compiler;
 mod mesh_source;
 mod packs;
 mod packs_german;
@@ -20,6 +21,9 @@ pub use artifact::{
     ArtifactError, BakeProfile, ForgeArtifact, ForgeArtifactManifest, ForgeSubmeshManifest,
     ForgeTextureManifest, MaterialFamily, ReviewCamera, ReviewCameraSet, ReviewCameraSpec,
     SurfaceBakeManifest, forge_vehicle_slug,
+};
+pub use compiler::{
+    CompiledTank, TankCompileError, TankCompileRequest, TankValidationError, compile_tank,
 };
 pub use mesh_source::authoritative_baked_vehicle;
 pub use packs::t54_reference_pack;
