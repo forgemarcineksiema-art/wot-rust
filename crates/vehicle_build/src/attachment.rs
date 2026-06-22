@@ -37,7 +37,7 @@ pub fn t54_attachments(visual: &HybridVisual) -> Vec<SurfaceAttachment> {
     let hull = SubmeshKind::Hull;
 
     let anchor = |key, group, pos: Vec3, normal, lod| SurfaceAttachment {
-        key: PartKey(key),
+        key: PartKey::new(key),
         group,
         local_frame: MountFrame::new(pos),
         normal,
@@ -76,7 +76,7 @@ mod tests {
     }
 
     fn find(list: &[SurfaceAttachment], key: &str) -> SurfaceAttachment {
-        *list.iter().find(|a| a.key.0 == key).expect("attachment exists")
+        *list.iter().find(|a| a.key.name == key).expect("attachment exists")
     }
 
     #[test]

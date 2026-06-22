@@ -3772,6 +3772,7 @@ dependencies = [
  "sdf",
  "sdf_mesh",
  "solid",
+ "thiserror 2.0.18",
  "vehicle_geometry",
 ]
 

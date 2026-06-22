@@ -13,9 +13,13 @@ pub fn bake_production_vehicle(
     vehicle: VehicleKind,
     profile: BakeProfile,
 ) -> Result<BakedVehicle, BakeError> {
-    let authored = match vehicle {
-        VehicleKind::T54_1951 => vehicle_build::t54_description().build(),
-        _ => bake_vehicle(vehicle)?,
-    };
-    Ok(reduce_vehicle(&authored, profile.lod_level()))
+    let level = profile.lod_level();
+    match vehicle {
+        // Part-aware LOD: the hybrid T-54 drops the parts excluded at this tier and clusters each
+        // surviving part by its own importance *before* the merge — never a reduction of a flattened
+        // LOD0 blob. The result is audited against the full bake in `part_aware_lod` tests.
+        VehicleKind::T54_1951 => Ok(vehicle_build::t54_description().build_reduced_lod(level)),
+        // Legacy vehicles still flatten then globally cluster until their own Forge migration lands.
+        _ => Ok(reduce_vehicle(&bake_vehicle(vehicle)?, level)),
+    }
 }

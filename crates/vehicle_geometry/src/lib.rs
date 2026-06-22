@@ -12,7 +12,9 @@ mod vehicle;
 pub use bounds::MeshBounds;
 pub use builder::MeshBuilder;
 pub use game_core::{MountFrame, MountFrames};
-pub use lod::{LodLevel, reduce_vehicle};
+pub use lod::{
+    LodAuditError, LodLevel, PartImportance, audit_reduction, reduce_mesh, reduce_vehicle,
+};
 pub use mesh::{GeometryMesh, GeometryVertex, MaterialRole, SmoothingGroup};
 pub use ops::{Axis, ExtrudeSpec, LoftSection, LoftSpec, ProfilePoint, RevolveSpec};
 pub use quality::{

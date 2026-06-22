@@ -8,12 +8,31 @@
 use glam::Vec3;
 use sdf::Sdf;
 use solid::ConvexSolid;
-use vehicle_geometry::{GeometryMesh, LodLevel, MaterialRole, SmoothingGroup, SubmeshKind};
+use vehicle_geometry::{
+    GeometryMesh, LodLevel, MaterialRole, PartImportance, SmoothingGroup, SubmeshKind,
+};
 
 /// A stable semantic identity for a part or attachment, independent of merged-mesh vertex indices.
-/// Anchors and the Forge graph key off this, so a part keeps its identity across LOD and bakes.
+/// Anchors and the Forge graph key off this, so a part keeps its identity across LOD and bakes. The
+/// `instance` distinguishes repeated parts of the same kind (left/right fenders, deck panels) while
+/// `name` carries the shared semantic role.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct PartKey(pub &'static str);
+pub struct PartKey {
+    pub name: &'static str,
+    pub instance: u16,
+}
+
+impl PartKey {
+    /// The sole instance of a named part.
+    pub const fn new(name: &'static str) -> Self {
+        Self { name, instance: 0 }
+    }
+
+    /// One of several repeated instances of a named part (e.g. the third road-wheel bracket).
+    pub const fn indexed(name: &'static str, instance: u16) -> Self {
+        Self { name, instance }
+    }
+}
 
 /// How a part survives the LOD tiers. Characteristic silhouette forms are kept (then decimated) at
 /// every tier; mount-bearing parts are always kept so the pose chain survives; detail fittings and
@@ -31,6 +50,16 @@ impl PartLod {
         match lod {
             LodLevel::Lod0 => true,
             LodLevel::Lod1 | LodLevel::Lod2 => self != PartLod::Detail,
+        }
+    }
+
+    /// The reduction importance this LOD policy implies: silhouette and mount-critical parts are
+    /// held to a finer clustering grid than detail parts.
+    pub fn importance(self) -> PartImportance {
+        match self {
+            PartLod::Silhouette => PartImportance::Silhouette,
+            PartLod::MountCritical => PartImportance::MountCritical,
+            PartLod::Detail => PartImportance::Detail,
         }
     }
 }
@@ -58,6 +87,36 @@ impl VisualTolerance {
     }
 }
 
+/// Which procedural kernel built a part's mesh. Authored explicitly because `PartShape::Mesh` erases
+/// provenance (a revolved barrel and a lofted turret shell are both pre-built meshes), and the Forge
+/// part manifest must report truthfully what generated each part.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum GeneratorKind {
+    /// Exact convex-solid CAD plates (`solid`).
+    Solid,
+    /// SDF meshed to a triangle budget (`sdf_mesh`).
+    Sdf,
+    /// A controlled lofted cast shell (`cast_loft`).
+    CastLoft,
+    /// A surface of revolution (`revolve`).
+    Revolve,
+    /// A cross-section swept along a path (`sweep`) — the track belt and link run.
+    Sweep,
+}
+
+impl GeneratorKind {
+    /// The kernel crate that builds this part, for the Forge part report.
+    pub fn kernel_name(self) -> &'static str {
+        match self {
+            Self::Solid => "solid",
+            Self::Sdf => "sdf_mesh",
+            Self::CastLoft => "cast_loft",
+            Self::Revolve => "revolve",
+            Self::Sweep => "sweep",
+        }
+    }
+}
+
 /// How a part's geometry is generated.
 pub enum PartShape {
     /// Flat armour plates: an exact convex solid (crisp edges, exact slopes, few triangles).
@@ -68,13 +127,16 @@ pub enum PartShape {
     Mesh(GeometryMesh),
 }
 
-/// One part of a vehicle: where it lands (hull/turret/gun), its material, and its shape source.
+/// One part of a vehicle: its stable identity, where it lands (hull/turret/gun), its material, and
+/// its shape source.
 pub struct VehiclePart {
+    pub key: PartKey,
     pub submesh: SubmeshKind,
     pub material: MaterialRole,
     pub smoothing: SmoothingGroup,
     pub shape: PartShape,
     pub lod: PartLod,
+    pub generator: GeneratorKind,
 }
 
 impl VehiclePart {

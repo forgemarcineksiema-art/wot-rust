@@ -10,6 +10,7 @@ mod packs;
 mod packs_german;
 mod part_data;
 mod part_graph;
+mod part_manifest;
 mod production_bake;
 mod reference;
 mod registry;
@@ -27,6 +28,9 @@ pub use packs_german::{
 };
 pub use part_graph::{
     ForgePart, ForgePartGraph, ForgePartKind, GameplayRole, LodPolicy, PartAnchor, PartGroup,
+};
+pub use part_manifest::{
+    part_manifest_report, production_part_manifest, validate_production_manifest,
 };
 pub use production_bake::bake_production_vehicle;
 pub use reference::{RatioKind, RatioTarget, ReferencePack, ReferenceSource};

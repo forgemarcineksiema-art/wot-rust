@@ -1,8 +1,10 @@
 use game_core::{VehicleBlueprint, VehicleKind};
+use vehicle_build::GeneratorKind;
 use vehicle_forge::{
     ForgePartGraph, ForgePartKind, GameplayRole, LodPolicy, PartAnchor, PartGroup, ReferencePack,
+    part_manifest_report, production_part_manifest, validate_production_manifest,
 };
-use vehicle_geometry::{MaterialRole, bake_vehicle};
+use vehicle_geometry::{MaterialRole, MeshBounds, SubmeshKind, bake_vehicle};
 
 #[test]
 fn t54_part_graph_decomposes_into_expected_semantic_parts() {
@@ -287,4 +289,66 @@ fn jagdtiger_part_graph_reads_as_a_fixed_casemate() {
 #[test]
 fn the_placeholder_prototype_has_no_part_graph() {
     assert!(ForgePartGraph::for_vehicle(VehicleKind::PrototypeMedium).is_none());
+}
+
+#[test]
+fn the_t54_executable_manifest_is_production_valid() {
+    // Every production part must carry a non-empty source note and a non-degenerate volume.
+    assert_eq!(validate_production_manifest(VehicleKind::T54_1951), Some(Ok(())));
+}
+
+#[test]
+fn the_manifest_reports_the_generator_that_built_each_part() {
+    let manifest = production_part_manifest(VehicleKind::T54_1951).expect("T-54 manifest");
+    let generator = |name: &str| {
+        manifest
+            .iter()
+            .find(|e| e.key.name == name)
+            .unwrap_or_else(|| panic!("part {name}"))
+            .generator
+    };
+    // The plan's selection: turret shell from the loft, glacis plates from CAD, barrel revolved,
+    // track belt swept.
+    assert_eq!(generator("turret_shell"), GeneratorKind::CastLoft);
+    assert_eq!(generator("upper_hull"), GeneratorKind::Solid);
+    assert_eq!(generator("lower_tub"), GeneratorKind::Solid);
+    assert_eq!(generator("gun_barrel"), GeneratorKind::Revolve);
+    assert_eq!(generator("tracks"), GeneratorKind::Sweep);
+}
+
+#[test]
+fn the_manifest_report_names_every_kernel_and_only_exists_for_migrated_vehicles() {
+    let report = part_manifest_report(VehicleKind::T54_1951).expect("T-54 report");
+    assert!(report.contains("turret_shell") && report.contains("cast_loft"));
+    assert!(report.contains("gun_barrel") && report.contains("revolve"));
+    assert!(report.contains("upper_hull") && report.contains("solid"));
+    assert!(report.contains("tracks") && report.contains("sweep"));
+    // Legacy / unmigrated vehicles have no executable manifest yet.
+    assert!(part_manifest_report(VehicleKind::T55A).is_none());
+    assert!(production_part_manifest(VehicleKind::TigerI).is_none());
+}
+
+#[test]
+fn the_executable_manifest_does_not_drift_from_the_baked_geometry() {
+    // The anti-drift lock: the manifest is derived from the same description that bakes, so every
+    // part's bounds must sit inside the baked vehicle, and the per-group union of part bounds must
+    // match each baked submesh's bounds. Blueprint, semantic graph and executable geometry agree.
+    let manifest = production_part_manifest(VehicleKind::T54_1951).expect("manifest");
+    // The authoritative production bake is the hybrid description, not the legacy recipe path.
+    let baked = vehicle_build::t54_description().build();
+
+    for group in [SubmeshKind::Hull, SubmeshKind::Turret, SubmeshKind::Gun] {
+        let baked_bounds =
+            baked.submesh(group).and_then(|s| s.mesh.bounds()).expect("group bounds");
+        let union = manifest
+            .iter()
+            .filter(|e| e.group == group)
+            .map(|e| e.bounds)
+            .reduce(MeshBounds::union)
+            .expect("each group has parts");
+        // The LOD0 bake is exactly the merged parts, so the union reproduces the baked bounds.
+        let eps = 1.0e-3;
+        assert!((union.min - baked_bounds.min).abs().max_element() < eps, "{group:?} min drift");
+        assert!((union.max - baked_bounds.max).abs().max_element() < eps, "{group:?} max drift");
+    }
 }

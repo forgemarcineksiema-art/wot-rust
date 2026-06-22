@@ -9,11 +9,18 @@ use game_core::{FittingsVisual, GunVisual, HybridVisual};
 use glam::Vec3;
 use vehicle_geometry::{MaterialRole, SmoothingGroup, SubmeshKind};
 
-use crate::part::{PartLod, PartShape, VehiclePart};
+use crate::part::{GeneratorKind, PartKey, PartLod, PartShape, VehiclePart};
 
 /// A raised round lid/drum fitting (hatch lid or headlight), as its own `Detail` part.
-fn drum_fitting(submesh: SubmeshKind, center: Vec3, radius: f32, half_height: f32) -> VehiclePart {
+fn drum_fitting(
+    key: PartKey,
+    submesh: SubmeshKind,
+    center: Vec3,
+    radius: f32,
+    half_height: f32,
+) -> VehiclePart {
     VehiclePart {
+        key,
         submesh,
         material: MaterialRole::RolledArmor,
         smoothing: SmoothingGroup::hard_edges(),
@@ -26,6 +33,7 @@ fn drum_fitting(submesh: SubmeshKind, center: Vec3, radius: f32, half_height: f3
             SmoothingGroup(2),
         )),
         lod: PartLod::Detail,
+        generator: GeneratorKind::Revolve,
     }
 }
 
@@ -35,24 +43,28 @@ fn drum_fitting(submesh: SubmeshKind, center: Vec3, radius: f32, half_height: f3
 pub fn t54_fitting_parts(f: &FittingsVisual) -> Vec<VehiclePart> {
     vec![
         drum_fitting(
+            PartKey::new("cupola_hatch"),
             SubmeshKind::Turret,
             f.cupola_hatch_center,
             f.cupola_hatch_radius,
             f.cupola_hatch_half_height,
         ),
         drum_fitting(
+            PartKey::new("driver_hatch"),
             SubmeshKind::Hull,
             f.driver_hatch_center,
             f.driver_hatch_radius,
             f.driver_hatch_half_height,
         ),
         drum_fitting(
+            PartKey::new("loader_hatch"),
             SubmeshKind::Turret,
             f.loader_hatch_center,
             f.loader_hatch_radius,
             f.loader_hatch_half_height,
         ),
         drum_fitting(
+            PartKey::new("headlight"),
             SubmeshKind::Hull,
             f.headlight_center,
             f.headlight_radius,
@@ -61,17 +73,20 @@ pub fn t54_fitting_parts(f: &FittingsVisual) -> Vec<VehiclePart> {
     ]
 }
 
-fn detail_plate(
+pub(crate) fn detail_plate(
+    key: PartKey,
     submesh: SubmeshKind,
     material: MaterialRole,
     solid: solid::ConvexSolid,
 ) -> VehiclePart {
     VehiclePart {
+        key,
         submesh,
         material,
         smoothing: SmoothingGroup::hard_edges(),
         shape: PartShape::Plates(solid),
         lod: PartLod::Detail,
+        generator: GeneratorKind::Solid,
     }
 }
 
@@ -81,32 +96,47 @@ pub fn t54_detail_parts(v: &HybridVisual) -> Vec<VehiclePart> {
     let mut parts = Vec::new();
 
     // Engine-deck grille (frame + slats) and the left-fender exhaust cover ride the hull.
-    for solid in solid::t54_deck_grille(d) {
-        parts.push(detail_plate(SubmeshKind::Hull, MaterialRole::TrackMetal, solid));
+    for (i, solid) in solid::t54_deck_grille(d).into_iter().enumerate() {
+        parts.push(detail_plate(
+            PartKey::indexed("deck_grille", i as u16),
+            SubmeshKind::Hull,
+            MaterialRole::TrackMetal,
+            solid,
+        ));
     }
     parts.push(detail_plate(
+        PartKey::new("exhaust_cover"),
         SubmeshKind::Hull,
         MaterialRole::TrackMetal,
         solid::t54_exhaust_housing(d),
     ));
 
     // Fender lips on both outer fender edges, plus the support brackets hanging below each fender.
-    for side in [v.fender.side_x, -v.fender.side_x] {
+    let mut bracket_n = 0u16;
+    for (i, side) in [v.fender.side_x, -v.fender.side_x].into_iter().enumerate() {
         parts.push(detail_plate(
+            PartKey::indexed("fender_lip", i as u16),
             SubmeshKind::Hull,
             MaterialRole::RolledArmor,
             solid::t54_fender_lip(side, &v.fender, d),
         ));
         for bracket in solid::t54_fender_brackets(side, &v.fender, v.hull.half_width) {
-            parts.push(detail_plate(SubmeshKind::Hull, MaterialRole::TrackMetal, bracket));
+            parts.push(detail_plate(
+                PartKey::indexed("fender_bracket", bracket_n),
+                SubmeshKind::Hull,
+                MaterialRole::TrackMetal,
+                bracket,
+            ));
+            bracket_n += 1;
         }
     }
 
     // Turret-roof periscopes (gunner + loader side), riding the turret so they traverse with it.
     // Each is a raked prism head (forward-looking glass), not a plain block.
-    for side in [d.periscope_center.x, -d.periscope_center.x] {
+    for (i, side) in [d.periscope_center.x, -d.periscope_center.x].into_iter().enumerate() {
         let center = Vec3::new(side, d.periscope_center.y, d.periscope_center.z);
         parts.push(detail_plate(
+            PartKey::indexed("turret_periscope", i as u16),
             SubmeshKind::Turret,
             MaterialRole::RolledArmor,
             solid::t54_periscope(center, d.periscope_half),
@@ -118,9 +148,10 @@ pub fn t54_detail_parts(v: &HybridVisual) -> Vec<VehiclePart> {
     // hatch lid; same raked prism head as the turret periscopes.
     let dh = v.fittings.driver_hatch_center;
     let driver_peri_half = Vec3::new(0.055, 0.05, 0.05);
-    for dx in [-0.26_f32, 0.26] {
+    for (i, dx) in [-0.26_f32, 0.26].into_iter().enumerate() {
         let center = Vec3::new(dh.x + dx, dh.y, dh.z + 0.08);
         parts.push(detail_plate(
+            PartKey::indexed("driver_periscope", i as u16),
             SubmeshKind::Hull,
             MaterialRole::RolledArmor,
             solid::t54_periscope(center, driver_peri_half),
@@ -130,6 +161,7 @@ pub fn t54_detail_parts(v: &HybridVisual) -> Vec<VehiclePart> {
     // Loader-side DShK: a compact pedestal and a distinct steel barrel mounted on the turret roof.
     // It is a real turret part so it traverses with the vehicle; it is not stowage or a texture cue.
     parts.push(VehiclePart {
+        key: PartKey::new("dshk_mount"),
         submesh: SubmeshKind::Turret,
         material: MaterialRole::TrackMetal,
         smoothing: SmoothingGroup::hard_edges(),
@@ -142,6 +174,7 @@ pub fn t54_detail_parts(v: &HybridVisual) -> Vec<VehiclePart> {
             SmoothingGroup::hard_edges(),
         )),
         lod: PartLod::Detail,
+        generator: GeneratorKind::Revolve,
     });
     let dshk = GunVisual {
         barrel_radius: 0.025,
@@ -151,6 +184,7 @@ pub fn t54_detail_parts(v: &HybridVisual) -> Vec<VehiclePart> {
         ..v.gun
     };
     parts.push(VehiclePart {
+        key: PartKey::new("dshk_barrel"),
         submesh: SubmeshKind::Turret,
         material: MaterialRole::BarrelSteel,
         smoothing: SmoothingGroup(4),
@@ -160,6 +194,7 @@ pub fn t54_detail_parts(v: &HybridVisual) -> Vec<VehiclePart> {
             &dshk,
         )),
         lod: PartLod::Detail,
+        generator: GeneratorKind::Revolve,
     });
 
     // A restrained weld bead along the front edge of the engine deck (a crisp cast/plate seam).
@@ -168,47 +203,11 @@ pub fn t54_detail_parts(v: &HybridVisual) -> Vec<VehiclePart> {
     let bead_half =
         Vec3::new(v.deck.half.x * 0.85, d.weld_seam_half_thickness, d.weld_seam_half_thickness);
     parts.push(detail_plate(
+        PartKey::new("deck_weld_bead"),
         SubmeshKind::Hull,
         MaterialRole::RolledArmor,
         solid::ConvexSolid::box_at(bead_center, bead_half),
     ));
 
-    parts
-}
-
-/// Hull-plate articulation: the glacis-to-roof weld seam and the rear transmission access covers, as
-/// visual detail plates. `front_deg` is the glacis armour slope (the single source) used to place the
-/// seam on the real plate join.
-pub fn t54_hull_plate_parts(v: &HybridVisual, front_deg: f32) -> Vec<VehiclePart> {
-    let mut parts = Vec::new();
-    for seam in solid::t54_hull_plate_seams(&v.hull, front_deg) {
-        parts.push(detail_plate(SubmeshKind::Hull, MaterialRole::RolledArmor, seam));
-    }
-    for cover in solid::t54_transmission_covers(&v.deck) {
-        parts.push(detail_plate(SubmeshKind::Hull, MaterialRole::RolledArmor, cover));
-    }
-    parts
-}
-
-/// A visual swing-arm bracket per road wheel, bridging the hull's lower tub side to the wheel hub at
-/// axle height. Without it the road wheels read as floating on a bare axle line; this is the link
-/// that mounts them to the hull. `lower_half_width` is the hull tub half-width (the pivot side).
-pub fn t54_suspension_parts(v: &HybridVisual, lower_half_width: f32) -> Vec<VehiclePart> {
-    let gear = &v.running_gear;
-    let axle_y = v.track_belt.axle_y;
-    let wheel_inner = gear.side_x - gear.wheel_half_width;
-    let arm_cx = 0.5 * (lower_half_width + wheel_inner);
-    let arm_hx = (0.5 * (wheel_inner - lower_half_width)).max(0.04);
-    let mut parts = Vec::new();
-    for z in revolve::road_wheel_stations(gear) {
-        for side in [1.0_f32, -1.0] {
-            let center = Vec3::new(side * arm_cx, axle_y, z);
-            parts.push(detail_plate(
-                SubmeshKind::Hull,
-                MaterialRole::TrackMetal,
-                solid::ConvexSolid::box_at(center, Vec3::new(arm_hx, 0.05, 0.10)),
-            ));
-        }
-    }
     parts
 }

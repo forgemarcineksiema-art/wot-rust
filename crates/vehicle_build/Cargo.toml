@@ -13,6 +13,7 @@ revolve = { path = "../revolve" }
 sdf = { path = "../sdf" }
 sdf_mesh = { path = "../sdf_mesh" }
 solid = { path = "../solid" }
+thiserror.workspace = true
 vehicle_geometry = { path = "../vehicle_geometry" }
 
 [lints]
