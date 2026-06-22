@@ -16,17 +16,6 @@ pub(super) fn section_to_world(axis: Axis, uv: Vec2, depth: f32) -> Vec3 {
     }
 }
 
-/// Twice the signed area of a polygon (shoelace); positive when wound counter-clockwise.
-pub(super) fn signed_area(section: &[Vec2]) -> f32 {
-    let mut area = 0.0;
-    for i in 0..section.len() {
-        let a = section[i];
-        let b = section[(i + 1) % section.len()];
-        area += a.x * b.y - b.x * a.y;
-    }
-    area
-}
-
 /// Caps are fanned from the section centroid and side quads assume one outward-facing wall per
 /// edge, so the section must be convex — a reflex corner would silently produce self-overlapping
 /// caps and inward walls. Catch that at bake time. Expects CCW winding (callers normalize), so

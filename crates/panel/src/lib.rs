@@ -8,9 +8,9 @@
 mod build;
 
 use glam::{Vec2, Vec3};
-use vehicle_geometry::{GeometryMesh, MaterialRole, SmoothingGroup};
+use vehicle_geometry::{GeometryMesh, MaterialRole, SmoothingGroup, is_convex, signed_area};
 
-use crate::build::{Frame, PanelRings, build, inset_convex, signed_area};
+use crate::build::{Frame, PanelRings, build_panel, inset_convex};
 
 /// How a panel's top perimeter edge is finished.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -80,7 +80,7 @@ pub fn try_panel(spec: &PanelSpec) -> Result<GeometryMesh, PanelError> {
 
     let rings = rings_for(&outline, spec.thickness, spec.edge)?;
     let frame = Frame::new(spec.origin, spec.normal);
-    Ok(build(&frame, &rings, spec.material, spec.smoothing))
+    Ok(build_panel(&frame, &rings, spec.material, spec.smoothing))
 }
 
 fn rings_for(outline: &[Vec2], thickness: f32, edge: PanelEdge) -> Result<PanelRings, PanelError> {
@@ -123,21 +123,4 @@ fn chamfer_inset(outline: &[Vec2], width: f32, thickness: f32) -> Result<Vec<Vec
         return Err(PanelError::InvalidEdge);
     }
     inset_convex(outline, width).ok_or(PanelError::InvalidEdge)
-}
-
-/// A polygon is convex if every consecutive turn keeps the same sign (collinear runs allowed).
-fn is_convex(points: &[Vec2]) -> bool {
-    let n = points.len();
-    let mut sign = 0.0_f32;
-    for i in 0..n {
-        let cross =
-            (points[(i + 1) % n] - points[i]).perp_dot(points[(i + 2) % n] - points[(i + 1) % n]);
-        if cross.abs() > 1.0e-6 {
-            if sign != 0.0 && sign * cross < 0.0 {
-                return false;
-            }
-            sign = cross;
-        }
-    }
-    true
 }

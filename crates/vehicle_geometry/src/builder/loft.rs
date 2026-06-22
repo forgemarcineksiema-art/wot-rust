@@ -4,11 +4,10 @@
 
 use glam::Vec2;
 
-use super::section::{
-    assert_convex, centroid, oriented_quad, oriented_tri, section_to_world, signed_area,
-};
+use super::section::{assert_convex, centroid, oriented_quad, oriented_tri, section_to_world};
 use super::{MeshBuilder, axis_vector};
 use crate::LoftSpec;
+use crate::polygon::signed_area;
 
 impl MeshBuilder {
     /// Loft a skin through `spec.sections` along `spec.axis`. Each section is normalized to CCW and

@@ -5,9 +5,10 @@
 
 use glam::{Vec2, Vec3};
 
-use super::section::{assert_convex, oriented_quad, oriented_tri, section_to_world, signed_area};
+use super::section::{assert_convex, oriented_quad, oriented_tri, section_to_world};
 use super::{MeshBuilder, axis_vector};
 use crate::ExtrudeSpec;
+use crate::polygon::signed_area;
 
 impl MeshBuilder {
     /// Sweep a convex cross-section along an axis. See [`ExtrudeSpec`] for the section mapping.

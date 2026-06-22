@@ -9,7 +9,7 @@
 mod frame;
 
 use glam::{Vec2, Vec3};
-use vehicle_geometry::{GeometryMesh, GeometryVertex, MaterialRole, SmoothingGroup};
+use vehicle_geometry::{GeometryMesh, GeometryVertex, MaterialRole, SmoothingGroup, is_convex};
 
 use crate::frame::{Frame, fixed_up, parallel_transport, tangents};
 
@@ -72,7 +72,7 @@ pub enum SweepError {
 pub fn try_sweep(spec: &SweepSpec<'_>) -> Result<GeometryMesh, SweepError> {
     let path = spec.path;
     let section = spec.section;
-    validate(spec)?;
+    validate_spec(spec)?;
 
     let tans = tangents(&path.points, path.closed);
     let frames = match spec.frame_mode {
@@ -100,7 +100,7 @@ pub fn try_sweep(spec: &SweepSpec<'_>) -> Result<GeometryMesh, SweepError> {
     Ok(GeometryMesh::new(rings, indices).weld_and_smooth())
 }
 
-fn validate(spec: &SweepSpec<'_>) -> Result<(), SweepError> {
+fn validate_spec(spec: &SweepSpec<'_>) -> Result<(), SweepError> {
     let path = spec.path;
     let section = spec.section;
     if path.points.len() < 2 {
@@ -173,23 +173,4 @@ fn add_caps(indices: &mut Vec<u32>, n: usize, m: usize) {
     for k in 1..(m as u32 - 1) {
         indices.extend_from_slice(&[last, last + k, last + k + 1]);
     }
-}
-
-/// A simple polygon is convex if every turn keeps the same sign (allowing collinear runs).
-fn is_convex(points: &[Vec2]) -> bool {
-    let n = points.len();
-    let mut sign = 0.0_f32;
-    for i in 0..n {
-        let a = points[i];
-        let b = points[(i + 1) % n];
-        let c = points[(i + 2) % n];
-        let cross = (b - a).perp_dot(c - b);
-        if cross.abs() > 1.0e-6 {
-            if sign != 0.0 && sign * cross < 0.0 {
-                return false;
-            }
-            sign = cross;
-        }
-    }
-    true
 }

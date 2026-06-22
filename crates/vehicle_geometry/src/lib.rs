@@ -5,6 +5,7 @@ mod builder;
 mod lod;
 mod mesh;
 mod ops;
+mod polygon;
 mod quality;
 mod recipes;
 mod vehicle;
@@ -18,6 +19,7 @@ pub use lod::{
 };
 pub use mesh::{GeometryMesh, GeometryVertex, MaterialRole, SmoothingGroup, SurfaceMapping};
 pub use ops::{Axis, ExtrudeSpec, LoftSection, LoftSpec, ProfilePoint, RevolveSpec};
+pub use polygon::{is_convex, signed_area};
 pub use quality::{
     CLOSED_SMOOTH_MESH, MeshQualityError, MeshQualityReport, MeshQualitySpec, OPEN_OR_CLOSED_MESH,
     TopologyExpectation,

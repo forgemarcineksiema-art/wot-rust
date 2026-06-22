@@ -2,7 +2,7 @@
 //! wall/bottom rings that make a closed plate with an optional edge treatment.
 
 use glam::{Vec2, Vec3};
-use vehicle_geometry::{GeometryMesh, GeometryVertex, MaterialRole, SmoothingGroup};
+use vehicle_geometry::{GeometryMesh, GeometryVertex, MaterialRole, SmoothingGroup, signed_area};
 
 /// A panel's local frame: `origin` with in-plane axes `u`, `v` and outward `normal`.
 pub(crate) struct Frame {
@@ -39,7 +39,7 @@ pub(crate) struct PanelRings {
 /// Build the closed panel mesh from its rings within `frame`. Every triangle carries its own
 /// geometric normal, so hard-edge welding keeps the faces crisp while a smooth group fuses the
 /// coincident rims into a watertight manifold.
-pub(crate) fn build(
+pub(crate) fn build_panel(
     frame: &Frame,
     rings: &PanelRings,
     material: MaterialRole,
@@ -132,9 +132,4 @@ fn line_intersect(p0: Vec2, d0: Vec2, p1: Vec2, d1: Vec2) -> Option<Vec2> {
     }
     let t = (p1 - p0).perp_dot(d1) / denom;
     Some(p0 + d0 * t)
-}
-
-pub(crate) fn signed_area(poly: &[Vec2]) -> f32 {
-    let n = poly.len();
-    0.5 * (0..n).map(|i| poly[i].perp_dot(poly[(i + 1) % n])).sum::<f32>()
 }
