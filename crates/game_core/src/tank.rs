@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{ArmorProfile, GunSpec, ModuleHealth, VehicleKind};
+use crate::{ArmorProfile, DamageLayout, GunSpec, ModuleHealth, MountFrames, VehicleKind};
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct HitboxProfile {
@@ -125,6 +125,10 @@ pub struct TankSpec {
     pub hit_points: u32,
     pub module_health: ModuleHealth,
     pub hitbox: HitboxProfile,
+    #[serde(default)]
+    pub damage_layout: DamageLayout,
+    #[serde(default)]
+    pub mounts: MountFrames,
 }
 
 impl TankSpec {

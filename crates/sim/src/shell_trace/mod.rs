@@ -6,115 +6,17 @@
 mod cover;
 mod tank;
 mod terrain;
+mod types;
 
-use ::terrain::{HeightMap, StaticCoverObject};
+use ::terrain::HeightMap;
+use game_core::ImpactSurface;
 use game_core::math::GRAVITY_MPS2;
-use game_core::{
-    ArmorFacing, ArmorZone, HitboxProfile, ImpactSurface, MountFrames, TankId, VehicleKind,
-};
 use glam::Vec3;
+
+pub use types::{SegmentImpact, ShellTraceWorld, TraceOutcome, TraceTank};
 
 /// Shells live at most this long before despawning (server) / terminating the preview trace.
 pub const SHELL_MAX_AGE_SECONDS: f32 = 4.0;
-
-/// Neutral tank hull for shell collision. The server builds these from `TankState`, the client
-/// from `net::TankSnapshot`; both pre-split the battle into damageable targets and absorbing
-/// blockers before tracing.
-#[derive(Debug, Clone, Copy)]
-pub struct TraceTank {
-    pub id: TankId,
-    pub position: Vec3,
-    pub yaw_rad: f32,
-    pub turret_yaw_rad: f32,
-    pub hitbox: HitboxProfile,
-    /// Local-space Z of the turret-ring axis the turret volume traverses about. Comes from the
-    /// vehicle's `MountFrames` — use [`TraceTank::for_kind`] so it cannot desync from the hitbox.
-    pub turret_ring_z_m: f32,
-}
-
-impl TraceTank {
-    /// Build a trace hull for a vehicle kind, sourcing the hitbox and the turret-ring pivot from
-    /// `game_core` so the two cannot drift apart at call sites.
-    pub fn for_kind(
-        id: TankId,
-        position: Vec3,
-        yaw_rad: f32,
-        turret_yaw_rad: f32,
-        kind: VehicleKind,
-    ) -> Self {
-        Self {
-            id,
-            position,
-            yaw_rad,
-            turret_yaw_rad,
-            hitbox: HitboxProfile::for_vehicle(kind),
-            turret_ring_z_m: MountFrames::for_vehicle(kind).turret_ring.translation.z,
-        }
-    }
-}
-
-/// The world a shell segment is tested against. `tanks` are live enemies (hits resolve as
-/// damage); `blockers` are hulls that absorb the shell without damage — wrecks and friendly
-/// vehicles. The shell's owner belongs to neither slice.
-#[derive(Debug, Clone, Copy)]
-pub struct ShellTraceWorld<'a> {
-    pub tanks: &'a [TraceTank],
-    pub blockers: &'a [TraceTank],
-    pub heightmap: Option<&'a HeightMap>,
-    pub cover: &'a [StaticCoverObject],
-}
-
-/// First thing a single shell segment hits.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum SegmentImpact {
-    Tank {
-        id: TankId,
-        facing: ArmorFacing,
-        zone: ArmorZone,
-        impact_angle_degrees: f32,
-        hit_position: Vec3,
-    },
-    /// Absorbed without enemy damage; `surface` says by what (terrain, cover, or a hull).
-    Obstacle { position: Vec3, surface: ImpactSurface },
-}
-
-impl SegmentImpact {
-    pub fn point(self) -> Vec3 {
-        match self {
-            SegmentImpact::Tank { hit_position, .. } => hit_position,
-            SegmentImpact::Obstacle { position, .. } => position,
-        }
-    }
-}
-
-/// Where a full ballistic trace ended. `Expired` carries the final position so a shot into open
-/// space still yields an aim point for the reticle.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum TraceOutcome {
-    Tank {
-        id: TankId,
-        facing: ArmorFacing,
-        zone: ArmorZone,
-        impact_angle_degrees: f32,
-        hit_position: Vec3,
-        distance_m: f32,
-    },
-    Obstacle {
-        position: Vec3,
-        surface: ImpactSurface,
-    },
-    Expired(Vec3),
-}
-
-impl TraceOutcome {
-    pub fn impact_point(self) -> Vec3 {
-        match self {
-            TraceOutcome::Tank { hit_position, .. } => hit_position,
-            TraceOutcome::Obstacle { position, .. } => position,
-            TraceOutcome::Expired(point) => point,
-        }
-    }
-}
 
 /// First impact along a single segment `previous -> current` (the shell travels at `velocity`):
 /// the nearest of enemy hull / blocker hull / terrain / cover. Ties resolve to the damageable

@@ -1,8 +1,9 @@
 use glam::{Mat3, Vec3};
+use serde::{Deserialize, Serialize};
 
 use crate::VehicleKind;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct MountFrame {
     pub translation: Vec3,
     pub basis: Mat3,
@@ -18,7 +19,7 @@ impl MountFrame {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct MountFrames {
     pub turret_ring: MountFrame,
     pub gun_trunnion: MountFrame,
@@ -68,6 +69,12 @@ impl MountFrames {
                 muzzle: MountFrame::new(Vec3::new(0.0, 2.04, 6.20)),
             },
         }
+    }
+}
+
+impl Default for MountFrames {
+    fn default() -> Self {
+        Self::for_vehicle(VehicleKind::PrototypeMedium)
     }
 }
 

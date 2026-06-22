@@ -1,8 +1,8 @@
 use ::terrain::{HeightMap, StaticCoverObject};
 use game_core::math::{GRAVITY_MPS2, world_to_tank_local};
 use game_core::{
-    ArmorFacing, DamageCause, DamageEvent, ImpactSurface, ModuleSlot, MountFrames, ShellImpact,
-    TankId, resolve_penetration_at_distance_on_zone,
+    ArmorFacing, DamageCause, DamageEvent, ImpactSurface, ModuleSlot, ShellImpact, TankId,
+    resolve_penetration_at_distance_on_zone,
 };
 use glam::Vec3;
 
@@ -37,7 +37,7 @@ pub(crate) fn try_fire_shell(tank: &mut TankState, tick: u64) -> Option<ShellSta
     // The shell leaves the *visible* muzzle: the mount pivots about the trunnion and ring exactly
     // like the rendered gun submesh. Dispersion only perturbs the velocity direction — the barrel
     // itself does not jump around the aim point between shots.
-    let mounts = MountFrames::for_vehicle(tank.spec.kind);
+    let mounts = tank.spec.mounts;
     // A non-stock gun fires from its own barrel tip: scale the muzzle by installed/stock length so
     // the shell spawn tracks the longer/shorter barrel (and the rendered gun, which scales to match).
     let stock_barrel = tank.spec.kind.stock_barrel_length_m();
@@ -134,12 +134,12 @@ fn trace_split(shell: &ShellState, tanks: &[TankState]) -> (Vec<TraceTank>, Vec<
         if tank.id == shell.owner {
             continue;
         }
-        let trace = TraceTank::for_kind(
+        let trace = TraceTank::from_spec(
             tank.id,
             tank.position,
             tank.yaw_rad,
             tank.turret_yaw_rad,
-            tank.spec.kind,
+            &tank.spec,
         );
         if tank.hit_points > 0 && owner_team != Some(tank.team) {
             targets.push(trace);
@@ -180,13 +180,17 @@ fn apply_shell_impact(
         target.spec.hitbox.center_y_m,
         target.yaw_rad,
     );
-    let module = impacted_module(
-        shell.shell.shell_type,
-        penetration.penetrated,
-        zone,
-        local_hit,
-        target.spec.hitbox,
-    );
+    let module = if target.spec.damage_layout.is_empty() {
+        impacted_module(
+            shell.shell.shell_type,
+            penetration.penetrated,
+            zone,
+            local_hit,
+            target.spec.hitbox,
+        )
+    } else {
+        target.spec.damage_layout.impacted_module(penetration.penetrated, local_hit)
+    };
     if let Some(module) = module {
         target.modules.damage(module, penetration.module_damage_hp);
     }
