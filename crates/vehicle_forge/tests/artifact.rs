@@ -41,6 +41,14 @@ fn forge_artifact_manifest_names_the_baked_vehicle_profile_and_sources() {
             assert_eq!(entry.role(), role, "{file} must record its material role");
         }
     }
+
+    // R8 / Task 25: the artifact records the per-vehicle ambient-contact bake — the named cavity
+    // signals and a stable config hash — so the surface bake is documented and intentionally
+    // invalidated when its configuration changes.
+    let surface_bake = manifest.surface_bake().expect("T-54 records its contact bake");
+    let signals: Vec<&str> = surface_bake.signals().iter().map(String::as_str).collect();
+    assert_eq!(signals, ["turret_ring_seam", "mantlet_seat", "running_gear_recess", "glacis_weld"]);
+    assert!(surface_bake.config_hash() != 0, "the cavity config hash must identify the bake");
 }
 
 #[test]

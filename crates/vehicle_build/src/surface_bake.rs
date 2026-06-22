@@ -1,0 +1,115 @@
+//! Semantic contact-cavity bands for the bake-time ambient-occlusion pass (R8 / Task 25).
+//!
+//! The hybrid T-54 carried a flat `surface_shade`; this module darkens the recesses a real casting
+//! and welded hull show in ambient light — the turret-ring seam and undercut, the mantlet seat in
+//! the embrasure, the running-gear/track recess under the sponson, and the glacis weld line. Bands
+//! are derived from the blueprint's [`HybridVisual`] semantics (never from merged-mesh indices), so
+//! the shading is reproducible and survives LOD. The renderer already multiplies albedo by
+//! `surface_shade`; no renderer change is needed. Mud, rust, decals and camouflage stay runtime
+//! overlays — this pass bakes only the geometry's own ambient contact.
+
+use game_core::HybridVisual;
+use glam::Vec3;
+use vehicle_geometry::CavityBand;
+
+/// A contact cavity tagged with the semantic signal it represents (for the Forge manifest summary).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct NamedCavity {
+    pub signal: &'static str,
+    pub band: CavityBand,
+}
+
+/// The set of contact cavities a vehicle bakes into its `surface_shade`.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct SurfaceBake {
+    pub cavities: Vec<NamedCavity>,
+}
+
+impl SurfaceBake {
+    /// The raw bands the geometry pass applies, in author order.
+    pub fn bands(&self) -> Vec<CavityBand> {
+        self.cavities.iter().map(|c| c.band).collect()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.cavities.is_empty()
+    }
+
+    /// The named signals in author order — the human-readable manifest summary.
+    pub fn signals(&self) -> Vec<&'static str> {
+        self.cavities.iter().map(|c| c.signal).collect()
+    }
+
+    /// A stable FNV-1a hash of the band configuration, so a Forge artifact can record exactly which
+    /// cavity set it baked and invalidate intentionally when the bands change.
+    pub fn config_hash(&self) -> u64 {
+        let mut h = 0xcbf2_9ce4_8422_2325_u64;
+        let mut mix = |bits: u64| {
+            h ^= bits;
+            h = h.wrapping_mul(0x0000_0100_0000_01b3);
+        };
+        for c in &self.cavities {
+            for byte in c.signal.bytes() {
+                mix(u64::from(byte));
+            }
+            for v in [c.band.center, c.band.half_extents] {
+                mix(u64::from(v.x.to_bits()));
+                mix(u64::from(v.y.to_bits()));
+                mix(u64::from(v.z.to_bits()));
+            }
+            mix(u64::from(c.band.falloff.to_bits()));
+            mix(u64::from(c.band.amount.to_bits()));
+        }
+        h
+    }
+}
+
+/// Derive the T-54's contact cavities from its hybrid blueprint. Every centre and extent is read
+/// from a blueprint dimension, so the shading tracks the geometry it shades.
+pub fn t54_surface_bake(v: &HybridVisual) -> SurfaceBake {
+    let cavities = vec![
+        // The cast turret seats on the narrowed ring and overhangs it: the seam and undercut read as
+        // a deep ambient shadow around the bottom of the casting and the roof under its skirt.
+        NamedCavity {
+            signal: "turret_ring_seam",
+            band: CavityBand {
+                center: Vec3::new(0.0, v.turret.ring_plane_y, 0.0),
+                half_extents: Vec3::new(1.0, 0.05, 1.1),
+                falloff: 0.14,
+                amount: 0.38,
+            },
+        },
+        // The moving mantlet beds into the recessed embrasure: a tight, dark cast trough.
+        NamedCavity {
+            signal: "mantlet_seat",
+            band: CavityBand {
+                center: v.turret.socket_center,
+                half_extents: Vec3::new(0.45, 0.30, 0.12),
+                falloff: 0.16,
+                amount: 0.45,
+            },
+        },
+        // The running gear and track sit in the recess under the sponson overhang — the darkest band
+        // on the whole hull in ambient light.
+        NamedCavity {
+            signal: "running_gear_recess",
+            band: CavityBand {
+                center: Vec3::new(0.0, v.track_belt.axle_y, 0.0),
+                half_extents: Vec3::new(v.running_gear.side_x + 0.05, 0.42, 2.35),
+                falloff: 0.12,
+                amount: 0.42,
+            },
+        },
+        // The glacis-to-roof weld line catches a thin contact shadow across the hull front.
+        NamedCavity {
+            signal: "glacis_weld",
+            band: CavityBand {
+                center: Vec3::new(0.0, v.hull.roof_y, 1.58),
+                half_extents: Vec3::new(1.45, 0.04, 0.05),
+                falloff: 0.08,
+                amount: 0.30,
+            },
+        },
+    ];
+    SurfaceBake { cavities }
+}

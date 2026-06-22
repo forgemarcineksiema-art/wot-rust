@@ -1,7 +1,6 @@
 use std::{fs, io, path::Path};
 
 use game_core::VehicleKind;
-use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use vehicle_geometry::{BakedVehicle, reduce_vehicle};
 
@@ -11,17 +10,21 @@ use crate::RatioReport;
 
 mod bake_profile;
 mod load;
+mod manifest;
 mod material_synthesis;
 mod mesh_payload;
 mod review;
 mod review_images;
 mod review_raster;
 mod slug;
+mod surface_bake;
 mod texture_maps;
 
 pub use bake_profile::BakeProfile;
+pub use manifest::{ForgeArtifactManifest, ForgeSubmeshManifest};
 pub use review::{ReviewCamera, ReviewCameraSet, ReviewCameraSpec};
 pub use slug::forge_vehicle_slug;
+pub use surface_bake::SurfaceBakeManifest;
 pub use texture_maps::{ForgeTextureManifest, MaterialFamily};
 
 #[derive(Debug, Error)]
@@ -38,83 +41,6 @@ pub enum ArtifactError {
     Io(#[from] io::Error),
     #[error(transparent)]
     Json(#[from] serde_json::Error),
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ForgeArtifactManifest {
-    vehicle: VehicleKind,
-    vehicle_slug: String,
-    profile: BakeProfile,
-    source_family_slug: Option<String>,
-    source_hash: u64,
-    mesh_bytes: usize,
-    submeshes: Vec<ForgeSubmeshManifest>,
-    texture_maps: Vec<ForgeTextureManifest>,
-    review_cameras: ReviewCameraSet,
-}
-
-impl ForgeArtifactManifest {
-    pub fn vehicle(&self) -> VehicleKind {
-        self.vehicle
-    }
-
-    pub fn vehicle_slug(&self) -> &str {
-        &self.vehicle_slug
-    }
-
-    pub fn profile(&self) -> BakeProfile {
-        self.profile
-    }
-
-    pub fn source_family_slug(&self) -> Option<&str> {
-        self.source_family_slug.as_deref()
-    }
-
-    pub fn source_hash(&self) -> u64 {
-        self.source_hash
-    }
-
-    pub fn mesh_bytes(&self) -> usize {
-        self.mesh_bytes
-    }
-
-    pub fn submeshes(&self) -> &[ForgeSubmeshManifest] {
-        &self.submeshes
-    }
-
-    pub fn texture_maps(&self) -> &[ForgeTextureManifest] {
-        &self.texture_maps
-    }
-
-    pub fn review_cameras(&self) -> &ReviewCameraSet {
-        &self.review_cameras
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ForgeSubmeshManifest {
-    kind: String,
-    vertices: usize,
-    indices: usize,
-    triangles: usize,
-}
-
-impl ForgeSubmeshManifest {
-    pub fn kind(&self) -> &str {
-        &self.kind
-    }
-
-    pub fn vertices(&self) -> usize {
-        self.vertices
-    }
-
-    pub fn indices(&self) -> usize {
-        self.indices
-    }
-
-    pub fn triangles(&self) -> usize {
-        self.triangles
-    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -158,6 +84,7 @@ impl ForgeArtifact {
                 .collect(),
             texture_maps: texture_maps.iter().map(|map| map.manifest().clone()).collect(),
             review_cameras,
+            surface_bake: surface_bake::surface_bake_manifest(vehicle),
         };
         Ok(Self { manifest, mesh_payload, texture_maps, review_images, report })
     }
