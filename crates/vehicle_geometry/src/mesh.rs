@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use glam::Vec3;
+use glam::{Vec2, Vec3};
 
 use crate::MeshBounds;
 
@@ -22,16 +22,33 @@ impl SmoothingGroup {
     }
 }
 
+/// How a vertex's material coordinates are derived. Parametric kernels (plates, lofts, revolves,
+/// sweeps, panels) author a deterministic `uv0`; organic kernels (SDF castings, blends, deformation)
+/// declare `Triplanar` and the renderer projects from object-local coordinates instead.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum SurfaceMapping {
+    /// Use the authored `uv0` with a tangent-space normal map.
+    ParametricUv,
+    /// Project material coordinates from object-local position/normal (no authored UV).
+    #[default]
+    Triplanar,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct GeometryVertex {
     pub position: Vec3,
     pub normal: Vec3,
+    pub uv0: Vec2,
+    pub mapping: SurfaceMapping,
     pub material: MaterialRole,
     pub smoothing: SmoothingGroup,
     pub surface_shade: f32,
 }
 
 impl GeometryVertex {
+    /// A vertex with the default surface mapping (`Triplanar`, zero UV) — the safe fallback for the
+    /// organic kernels and the many call sites that do not author parametric coordinates. Parametric
+    /// kernels layer their chart on top with [`with_uv0`](Self::with_uv0).
     pub fn new(
         position: Vec3,
         normal: Vec3,
@@ -41,10 +58,19 @@ impl GeometryVertex {
         Self {
             position,
             normal: normal.normalize_or_zero(),
+            uv0: Vec2::ZERO,
+            mapping: SurfaceMapping::Triplanar,
             material,
             smoothing,
             surface_shade: 1.0,
         }
+    }
+
+    /// Declare an authored parametric chart: sets `uv0` and switches the vertex to `ParametricUv`.
+    pub fn with_uv0(mut self, uv0: Vec2) -> Self {
+        self.uv0 = uv0;
+        self.mapping = SurfaceMapping::ParametricUv;
+        self
     }
 
     pub fn with_surface_shade(mut self, shade: f32) -> Self {
@@ -153,24 +179,39 @@ impl GeometryMesh {
 }
 
 /// Identity used to decide which vertices weld together. Hard edges include the (quantised) normal
-/// so seams stay distinct; smooth groups omit it so coincident corners fuse and average.
+/// so seams stay distinct; smooth groups omit it so coincident corners fuse and average. The mapping
+/// mode and (quantised) `uv0` are always included so a UV seam never welds shut even when position,
+/// normal and smoothing match — a textured chart boundary must survive.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct WeldKey {
     position: [i64; 3],
     smoothing: SmoothingGroup,
     material: MaterialRole,
     normal: Option<[i64; 3]>,
+    mapping: SurfaceMapping,
+    uv0: Option<[i64; 2]>,
 }
 
 fn weld_key(vertex: &GeometryVertex) -> WeldKey {
     let normal =
         (vertex.smoothing == SmoothingGroup::hard_edges()).then(|| quantize(vertex.normal));
+    // Only parametric charts carry a meaningful UV; triplanar vertices share the zero UV, so they
+    // still fuse on position/normal alone.
+    let uv0 = (vertex.mapping == SurfaceMapping::ParametricUv).then(|| quantize_uv(vertex.uv0));
     WeldKey {
         position: quantize(vertex.position),
         smoothing: vertex.smoothing,
         material: vertex.material,
         normal,
+        mapping: vertex.mapping,
+        uv0,
     }
+}
+
+/// Snap a UV to the same sub-unit grid so coincident parametric corners with equal UVs still weld.
+fn quantize_uv(value: Vec2) -> [i64; 2] {
+    const WELD_SCALE: f32 = 4096.0;
+    [(value.x * WELD_SCALE).round() as i64, (value.y * WELD_SCALE).round() as i64]
 }
 
 /// Snap to a sub-millimetre grid so vertices the kernel meant to share a position weld together

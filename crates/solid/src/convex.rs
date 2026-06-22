@@ -4,7 +4,7 @@
 //! is flat with the plane's true normal, so edges are razor-sharp and the armour slope is the face
 //! normal itself — no meshing softens it. Convex-only (no fillets), which is all a plate block needs.
 
-use glam::{Mat3, Vec3};
+use glam::{Mat3, Vec2, Vec3};
 use vehicle_geometry::{GeometryMesh, GeometryVertex, MaterialRole, SmoothingGroup};
 
 pub use crate::validate::ConvexSolidError;
@@ -152,8 +152,13 @@ impl ConvexSolid {
             }
             order_ccw(&mut ring, plane.normal);
             let base = vertices.len() as u32;
+            // Planar UV per face: project each corner onto an in-plane basis (metres, tiling). Plates
+            // are fabricated parts, so they get predictable parametric UVs rather than triplanar.
+            let (u_axis, v_axis) = planar_basis(plane.normal);
             for p in &ring {
-                vertices.push(GeometryVertex::new(*p, plane.normal, material, smoothing));
+                let uv = Vec2::new(p.dot(u_axis), p.dot(v_axis));
+                vertices
+                    .push(GeometryVertex::new(*p, plane.normal, material, smoothing).with_uv0(uv));
             }
             for k in 1..(ring.len() as u32 - 1) {
                 indices.extend_from_slice(&[base, base + k, base + k + 1]);
@@ -161,6 +166,16 @@ impl ConvexSolid {
         }
         Ok(GeometryMesh::new(vertices, indices))
     }
+}
+
+/// A deterministic in-plane `(u, v)` basis for a face with the given unit `normal`. The reference
+/// axis is whichever world axis is least aligned with the normal, so the basis never degenerates.
+fn planar_basis(normal: Vec3) -> (Vec3, Vec3) {
+    let reference = if normal.x.abs() < 0.9 { Vec3::X } else { Vec3::Y };
+    let u = reference.cross(normal).normalize_or_zero();
+    let u = if u == Vec3::ZERO { Vec3::Z } else { u };
+    let v = normal.cross(u).normalize_or_zero();
+    (u, v)
 }
 
 fn intersect3(a: &Plane, b: &Plane, c: &Plane) -> Option<Vec3> {

@@ -15,7 +15,7 @@ pub use game_core::{MountFrame, MountFrames};
 pub use lod::{
     LodAuditError, LodLevel, PartImportance, audit_reduction, reduce_mesh, reduce_vehicle,
 };
-pub use mesh::{GeometryMesh, GeometryVertex, MaterialRole, SmoothingGroup};
+pub use mesh::{GeometryMesh, GeometryVertex, MaterialRole, SmoothingGroup, SurfaceMapping};
 pub use ops::{Axis, ExtrudeSpec, LoftSection, LoftSpec, ProfilePoint, RevolveSpec};
 pub use quality::{
     CLOSED_SMOOTH_MESH, MeshQualityError, MeshQualityReport, MeshQualitySpec, OPEN_OR_CLOSED_MESH,

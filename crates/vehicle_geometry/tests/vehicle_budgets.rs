@@ -63,13 +63,13 @@ fn every_vehicle_bake_is_deterministic_and_hash_is_unique() {
 #[test]
 fn every_vehicle_bake_hash_matches_golden_output() {
     let expected = [
-        (VehicleKind::PrototypeMedium, 14_554_670_777_110_663_437_u64),
-        (VehicleKind::T54_1951, 4_938_680_206_764_346_215_u64),
-        (VehicleKind::T55A, 12_659_096_358_516_680_953_u64),
-        (VehicleKind::TigerI, 17_531_765_140_099_760_775_u64),
-        (VehicleKind::TigerII, 11_722_801_055_558_202_051_u64),
-        (VehicleKind::Jagdtiger, 8_102_385_164_324_550_235_u64),
-        (VehicleKind::PantherII, 9_313_862_440_079_021_814_u64),
+        (VehicleKind::PrototypeMedium, 14_793_728_532_433_154_327_u64),
+        (VehicleKind::T54_1951, 10_079_574_354_260_366_301_u64),
+        (VehicleKind::T55A, 5_691_295_654_294_536_879_u64),
+        (VehicleKind::TigerI, 14_588_552_702_870_529_439_u64),
+        (VehicleKind::TigerII, 18_008_472_870_257_541_227_u64),
+        (VehicleKind::Jagdtiger, 6_582_664_477_001_840_901_u64),
+        (VehicleKind::PantherII, 3_367_156_390_789_742_278_u64),
     ];
     let actual: Vec<(VehicleKind, u64)> =
         bake_all().iter().map(|vehicle| (vehicle.kind(), vehicle.deterministic_hash())).collect();
