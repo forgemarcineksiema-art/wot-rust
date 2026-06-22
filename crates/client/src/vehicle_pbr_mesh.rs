@@ -1,32 +1,41 @@
-//! Adapter from baked [`GeometryMesh`] submeshes to the PBR-lite [`VehicleVertex`] format: box
-//! projection for stable per-submesh UVs, a material id per [`MaterialRole`], a team-tint mask, and
-//! a generated tangent frame. This is the bridge `renderer_api` and `vehicle_geometry` deliberately
-//! cannot make themselves — only the client depends on both.
+//! Adapter from baked [`GeometryMesh`] submeshes to the PBR-lite [`VehicleVertex`] format: the
+//! kernel-authored surface mapping (parametric `uv0` or triplanar), a material id per
+//! [`MaterialRole`], a team-tint mask, and a generated tangent frame. This is the bridge
+//! `renderer_api` and `vehicle_geometry` deliberately cannot make themselves — only the client
+//! depends on both.
 //!
 //! Vertices stay in the submesh's local authoring space (the renderer poses them through the mount
-//! chain), so the box-projected UVs are stable and the texture never swims as the turret traverses.
+//! chain), so both the authored UVs and the triplanar projection are stable and the texture never
+//! swims as the turret traverses.
 
-use renderer_api::{VehicleVertex, generate_tangents};
-use vehicle_geometry::{GeometryMesh, MaterialRole};
+use renderer_api::{MAPPING_PARAMETRIC, MAPPING_TRIPLANAR, VehicleVertex, generate_tangents};
+use vehicle_geometry::{GeometryMesh, MaterialRole, SurfaceMapping};
 
-/// Texels-per-metre for the box projection. A whole tank spans a handful of UV tiles, enough for
-/// panel/weld/cavity detail without the texture reading as wallpaper.
+/// Texels-per-metre applied to the kernel's parametric UVs (the cast/sweep charts author metres).
 const UV_SCALE: f32 = 0.5;
 
-/// Convert one baked submesh into PBR-lite vehicle vertices plus its index list, with a tangent
-/// frame generated from the box-projected UVs.
+/// Convert one baked submesh into PBR-lite vehicle vertices plus its index list. Each vertex carries
+/// the kernel's declared surface mapping; tangents are generated from the parametric UVs (triplanar
+/// vertices fall back to an arbitrary orthogonal tangent, which their shader branch does not rely on).
 pub fn vehicle_submesh_vertices(mesh: &GeometryMesh) -> (Vec<VehicleVertex>, Vec<u32>) {
     let mut vertices: Vec<VehicleVertex> = mesh
         .vertices()
         .iter()
         .map(|vertex| {
+            let (uv, mapping) = match vertex.mapping {
+                SurfaceMapping::ParametricUv => {
+                    ([vertex.uv0.x * UV_SCALE, vertex.uv0.y * UV_SCALE], MAPPING_PARAMETRIC)
+                }
+                SurfaceMapping::Triplanar => ([0.0, 0.0], MAPPING_TRIPLANAR),
+            };
             VehicleVertex::new(
                 vertex.position.to_array(),
                 vertex.normal.to_array(),
-                box_uv(vertex.position.to_array(), vertex.normal.to_array()),
+                uv,
                 material_role_id(vertex.material),
                 material_tint_mask(vertex.material),
             )
+            .with_mapping_mode(mapping)
         })
         .collect();
     let indices: Vec<u32> = mesh.indices().to_vec();
@@ -52,21 +61,6 @@ fn material_tint_mask(material: MaterialRole) -> f32 {
         MaterialRole::RolledArmor | MaterialRole::CastArmor => 1.0,
         MaterialRole::BarrelSteel | MaterialRole::TrackMetal | MaterialRole::Rubber => 0.0,
     }
-}
-
-/// Project onto the plane the surface normal faces most strongly (a single box-projection slot), so
-/// each face gets continuous UVs without authored seams.
-fn box_uv(position: [f32; 3], normal: [f32; 3]) -> [f32; 2] {
-    let [x, y, z] = position;
-    let [nx, ny, nz] = [normal[0].abs(), normal[1].abs(), normal[2].abs()];
-    let (u, v) = if nx >= ny && nx >= nz {
-        (z, y)
-    } else if ny >= nx && ny >= nz {
-        (x, z)
-    } else {
-        (x, y)
-    };
-    [u * UV_SCALE, v * UV_SCALE]
 }
 
 #[cfg(test)]
@@ -95,6 +89,36 @@ mod tests {
             assert!(vertex.material_id <= 4);
             assert!((vertex.tangent[3].abs() - 1.0).abs() < 1.0e-5, "handedness is ±1");
         }
+    }
+
+    #[test]
+    fn the_kernel_surface_mapping_flows_through_to_the_vehicle_vertex() {
+        use glam::{Vec2, Vec3};
+        use vehicle_geometry::{GeometryVertex, SmoothingGroup};
+
+        let parametric = GeometryVertex::new(
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::Y,
+            MaterialRole::RolledArmor,
+            SmoothingGroup(1),
+        )
+        .with_uv0(Vec2::new(2.0, 4.0));
+        let triplanar =
+            GeometryVertex::new(Vec3::ZERO, Vec3::Y, MaterialRole::CastArmor, SmoothingGroup(1));
+        let mesh = GeometryMesh::new(
+            vec![parametric, triplanar, parametric.with_uv0(Vec2::new(0.0, 4.0))],
+            vec![0, 1, 2],
+        );
+
+        let (vertices, _) = vehicle_submesh_vertices(&mesh);
+        assert_eq!(vertices[0].mapping_mode, renderer_api::MAPPING_PARAMETRIC);
+        assert_eq!(
+            vertices[0].uv,
+            [2.0 * UV_SCALE, 4.0 * UV_SCALE],
+            "parametric UV is scaled through"
+        );
+        assert_eq!(vertices[1].mapping_mode, renderer_api::MAPPING_TRIPLANAR);
+        assert_eq!(vertices[1].uv, [0.0, 0.0], "triplanar vertices carry no authored UV");
     }
 
     #[test]

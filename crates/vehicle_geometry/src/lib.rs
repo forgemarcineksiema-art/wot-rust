@@ -8,6 +8,7 @@ mod ops;
 mod quality;
 mod recipes;
 mod vehicle;
+mod weld;
 
 pub use bounds::MeshBounds;
 pub use builder::MeshBuilder;

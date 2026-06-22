@@ -20,10 +20,19 @@ pub struct VehicleVertex {
     pub material_id: u32,
     /// How much of the per-instance team tint multiplies the albedo (`0.0` none, `1.0` full).
     pub tint_mask: f32,
+    /// Surface-mapping mode: `0` parametric (use `uv` + tangent-space normal map), `1` triplanar
+    /// (project material coordinates from object-local position/normal in the shader).
+    pub mapping_mode: u32,
 }
 
+/// `mapping_mode` for parametric (authored UV) surfaces.
+pub const MAPPING_PARAMETRIC: u32 = 0;
+/// `mapping_mode` for triplanar (object-local projected) surfaces — the safe default.
+pub const MAPPING_TRIPLANAR: u32 = 1;
+
 impl VehicleVertex {
-    /// A vertex with its tangent left zeroed; call [`generate_tangents`] once the mesh is assembled.
+    /// A vertex with its tangent left zeroed and triplanar mapping; call [`generate_tangents`] once
+    /// the mesh is assembled, and [`with_mapping_mode`](Self::with_mapping_mode) to set parametric.
     pub const fn new(
         position: [f32; 3],
         normal: [f32; 3],
@@ -31,7 +40,21 @@ impl VehicleVertex {
         material_id: u32,
         tint_mask: f32,
     ) -> Self {
-        Self { position, normal, tangent: [0.0, 0.0, 0.0, 1.0], uv, material_id, tint_mask }
+        Self {
+            position,
+            normal,
+            tangent: [0.0, 0.0, 0.0, 1.0],
+            uv,
+            material_id,
+            tint_mask,
+            mapping_mode: MAPPING_TRIPLANAR,
+        }
+    }
+
+    /// Set the surface-mapping mode (parametric vs triplanar).
+    pub const fn with_mapping_mode(mut self, mapping_mode: u32) -> Self {
+        self.mapping_mode = mapping_mode;
+        self
     }
 }
 
@@ -94,9 +117,10 @@ mod tests {
 
     #[test]
     fn vehicle_vertex_is_pod_with_a_stable_size() {
-        assert_eq!(core::mem::size_of::<VehicleVertex>(), 56);
+        assert_eq!(core::mem::size_of::<VehicleVertex>(), 60);
         let v = [VehicleVertex::new([1.0, 2.0, 3.0], [0.0, 0.0, 1.0], [0.5, 0.5], 2, 1.0)];
-        assert_eq!(bytemuck::cast_slice::<_, u8>(&v).len(), 56);
+        assert_eq!(bytemuck::cast_slice::<_, u8>(&v).len(), 60);
+        assert_eq!(v[0].mapping_mode, MAPPING_TRIPLANAR, "the default mapping is triplanar");
     }
 
     #[test]

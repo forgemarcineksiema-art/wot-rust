@@ -84,7 +84,7 @@ fn vehicle_pipeline_builds_on_a_real_device() {
     let (_, _, material_bgl) =
         build_vehicle_pipeline(&ctx.device, wgpu::TextureFormat::Rgba8UnormSrgb, 1);
     let _ = &material_bgl;
-    assert_eq!(core::mem::size_of::<VehicleVertex>(), 56);
+    assert_eq!(core::mem::size_of::<VehicleVertex>(), 60);
 }
 
 #[test]

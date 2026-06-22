@@ -125,6 +125,68 @@ fn registered_vehicle_material_overrides_the_neutral_fallback() {
     assert_eq!(brightened, 0, "uploaded dark albedo must never brighten ({brightened} px)");
 }
 
+#[test]
+fn both_surface_mapping_branches_render_lit_geometry() {
+    // The triplanar branch is exercised by the default-mapping triangle above; this pins that the
+    // parametric branch (authored UV + tangent normal map) also renders non-empty lit geometry, so
+    // both shader paths are validated headlessly with no NaN/validation errors.
+    let Some(ctx) = headless_context() else {
+        return;
+    };
+    let camera = renderer_api::Camera {
+        eye: [0.0, 0.0, 3.0],
+        target: [0.0, 0.0, 0.0],
+        vertical_fov_degrees: 55.0,
+    };
+    for mapping in [renderer_api::MAPPING_PARAMETRIC, renderer_api::MAPPING_TRIPLANAR] {
+        let target = OffscreenTarget::new(&ctx, 64, 64).expect("target");
+        let mut renderer = SceneRenderer::for_offscreen(&ctx, &[], &[]).expect("renderer");
+        let mesh = MeshHandle(91);
+        renderer.register_vehicle_mesh(&ctx, mesh, &mapped_triangle(mapping));
+        renderer.set_vehicle_render_frame(
+            &ctx,
+            &RenderFrame {
+                camera,
+                objects: vec![RenderObject {
+                    tank_id: Some(TankId(1)),
+                    mesh,
+                    material: MaterialHandle(0),
+                    transform: identity(),
+                    tint: [0.65, 0.85, 0.52],
+                }],
+            },
+        );
+        renderer
+            .render(
+                &ctx,
+                target.render_target(),
+                view_projection_matrix(&camera, 1.0, 0.1, 20.0),
+                camera.eye,
+            )
+            .expect("render frame");
+        let pixels = target.read_rgba8(&ctx).expect("readback");
+        assert!(
+            pixels.chunks_exact(4).any(|p| p[1] > 80 && p[0] > 30 && p[2] > 20),
+            "mapping {mapping} must render a lit tinted triangle",
+        );
+    }
+}
+
+fn mapped_triangle(mapping: u32) -> VehicleMeshAsset {
+    let v = |p: [f32; 3], uv: [f32; 2]| VehicleVertex {
+        tangent: [1.0, 0.0, 0.0, 1.0],
+        ..VehicleVertex::new(p, [0.0, 0.0, 1.0], uv, 0, 1.0).with_mapping_mode(mapping)
+    };
+    VehicleMeshAsset::new(
+        vec![
+            v([-0.6, -0.4, 0.0], [0.0, 0.0]),
+            v([0.6, -0.4, 0.0], [1.0, 0.0]),
+            v([0.0, 0.6, 0.0], [0.5, 1.0]),
+        ],
+        vec![0, 1, 2],
+    )
+}
+
 fn luma(p: &[u8]) -> f32 {
     0.299 * p[0] as f32 + 0.587 * p[1] as f32 + 0.114 * p[2] as f32
 }
