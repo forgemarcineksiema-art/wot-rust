@@ -15,7 +15,13 @@ pub(in crate::app::garage) fn draw(v: &mut Vec<HudVertex>, state: &GarageState, 
 
     for (i, slot) in FitSlot::ALL.into_iter().enumerate() {
         let c = module_slot_center(i);
-        let bg = if state.rejected_slot() == Some(slot) { REJECTED } else { SLOT };
+        let bg = if state.rejected_slot() == Some(slot) {
+            REJECTED
+        } else if state.focused_slot() == slot {
+            SLOT_FOCUSED
+        } else {
+            SLOT
+        };
         push_quad(v, c, SLOT_HALF, bg);
         let tint = if state.draft().has_choice(slot) { ICON } else { ICON_DIM };
         push_icon(v, slot_icon(slot), c[0] - 0.03, c[1] + 0.03, 0.06, aspect, tint);

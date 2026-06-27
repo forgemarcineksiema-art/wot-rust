@@ -66,11 +66,14 @@ impl ApplicationHandler for ClientApp {
             WindowEvent::MouseInput { state, button, .. } => {
                 if self.garage.is_open() {
                     // Garage menu: left click drives selection / Battle / orbit, cursor stays free.
+                    // Right click cycles a module slot backward (no other hit acts on it).
                     if button == MouseButton::Left {
                         match state {
                             ElementState::Pressed => self.garage_primary_press(),
                             ElementState::Released => self.garage_primary_release(),
                         }
+                    } else if button == MouseButton::Right && state == ElementState::Pressed {
+                        self.garage_secondary_press();
                     }
                 } else if state == ElementState::Pressed {
                     self.set_cursor_captured(true);
@@ -78,6 +81,10 @@ impl ApplicationHandler for ClientApp {
                         self.input.fire_pending = true;
                     }
                 }
+                Vec::new()
+            }
+            WindowEvent::ModifiersChanged(modifiers) => {
+                self.input.set_shift(modifiers.state().shift_key());
                 Vec::new()
             }
             WindowEvent::Focused(focused) => {

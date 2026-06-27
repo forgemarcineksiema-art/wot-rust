@@ -27,11 +27,13 @@ mod vehicle_render_frame;
 mod vehicle_render_objects;
 mod vehicle_variation;
 
+pub use app::garage_overlay;
 pub use app::run;
 pub use camera::{
     BattleCameraController, BattleCameraEnvironment, BattleCameraInput, BattleCameraMode,
     BattleCameraSettings, CameraObstacle, CameraSubject,
 };
+pub use garage_scene::{TURNTABLE_TOP_M, hangar_camera_pivot, hangar_scene_mesh};
 pub use hud::{HudVitals, build_hud};
 pub use hud_font::hud_font_atlas;
 pub use loop_policy::{

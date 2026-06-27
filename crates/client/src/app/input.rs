@@ -22,6 +22,20 @@ impl ClientApp {
                 PhysicalKey::Code(KeyCode::Digit5) => self.select_garage_index(4),
                 PhysicalKey::Code(KeyCode::Enter) => self.confirm_garage_selection(),
                 PhysicalKey::Code(KeyCode::Escape) => self.garage.close_if_started(),
+                // Keyboard loadout editing: focus + cycle + ammo + crew.
+                PhysicalKey::Code(KeyCode::BracketLeft) => self.garage.focus_adjacent(-1),
+                PhysicalKey::Code(KeyCode::BracketRight) => self.garage.focus_adjacent(1),
+                PhysicalKey::Code(KeyCode::KeyQ) => self.garage.cycle_focused(-1),
+                PhysicalKey::Code(KeyCode::KeyE) => self.garage.cycle_focused(1),
+                PhysicalKey::Code(KeyCode::KeyZ) => self.garage.set_ammo(0),
+                PhysicalKey::Code(KeyCode::KeyX) => self.garage.set_ammo(1),
+                PhysicalKey::Code(KeyCode::KeyC) => self.garage.set_ammo(2),
+                PhysicalKey::Code(KeyCode::Minus) => self.garage.adjust_proficiency(-1),
+                PhysicalKey::Code(KeyCode::Equal) => self.garage.adjust_proficiency(1),
+                PhysicalKey::Code(KeyCode::KeyT) => match self.garage.view() {
+                    super::garage::GarageView::Hangar => self.garage.open_tech_tree(),
+                    super::garage::GarageView::TechTree => self.garage.close_tech_tree(),
+                },
                 _ if !self.garage.has_started() => {}
                 _ => self.on_driving_keyboard(event, pressed),
             }

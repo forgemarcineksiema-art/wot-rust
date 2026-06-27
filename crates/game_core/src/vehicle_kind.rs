@@ -2,6 +2,31 @@ use serde::{Deserialize, Serialize};
 
 use crate::TankSpec;
 
+/// The historical origin nation of a vehicle. Used by the garage carousel and tech tree to group
+/// the roster; renderer-neutral (no wgpu dependency lives here).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Nation {
+    Ussr,
+    Germany,
+}
+
+impl Nation {
+    pub fn label(self) -> &'static str {
+        match self {
+            Nation::Ussr => "USSR",
+            Nation::Germany => "Germany",
+        }
+    }
+
+    /// Display colour for nation labels and column headers in the garage UI.
+    pub fn color(self) -> [f32; 3] {
+        match self {
+            Nation::Ussr => [0.58, 0.64, 0.40],
+            Nation::Germany => [0.38, 0.42, 0.48],
+        }
+    }
+}
+
 /// Stable, semantic vehicle identity shared across simulation, networking, and rendering.
 ///
 /// **The variant order is the wire identity**: `net` serializes this enum's discriminant via
@@ -81,6 +106,19 @@ impl VehicleKind {
         self.spec().has_fixed_casemate()
     }
 
+    /// The historical origin nation of this vehicle — used by the garage carousel and tech tree.
+    pub fn nation(self) -> Nation {
+        match self {
+            VehicleKind::PrototypeMedium | VehicleKind::T54_1951 | VehicleKind::T55A => {
+                Nation::Ussr
+            }
+            VehicleKind::TigerI
+            | VehicleKind::TigerII
+            | VehicleKind::Jagdtiger
+            | VehicleKind::PantherII => Nation::Germany,
+        }
+    }
+
     pub fn effective_turret_yaw_rad(self, turret_yaw_rad: f32) -> f32 {
         self.spec().effective_turret_yaw_rad(turret_yaw_rad)
     }
@@ -148,5 +186,40 @@ mod tests {
                 if kind == VehicleKind::Jagdtiger { 0.0 } else { 0.75 }
             );
         }
+    }
+
+    #[test]
+    fn each_vehicle_kind_has_a_nation() {
+        for kind in VehicleKind::ALL {
+            let _ = kind.nation();
+        }
+    }
+
+    #[test]
+    fn nation_matches_historical_origin() {
+        assert_eq!(VehicleKind::PrototypeMedium.nation(), Nation::Ussr);
+        assert_eq!(VehicleKind::T54_1951.nation(), Nation::Ussr);
+        assert_eq!(VehicleKind::T55A.nation(), Nation::Ussr);
+        assert_eq!(VehicleKind::TigerI.nation(), Nation::Germany);
+        assert_eq!(VehicleKind::TigerII.nation(), Nation::Germany);
+        assert_eq!(VehicleKind::Jagdtiger.nation(), Nation::Germany);
+        assert_eq!(VehicleKind::PantherII.nation(), Nation::Germany);
+    }
+
+    #[test]
+    fn nation_labels_and_colors_are_distinct() {
+        let labels = [Nation::Ussr.label(), Nation::Germany.label()];
+        assert_ne!(labels[0], labels[1]);
+        assert!(!labels.iter().any(|label| label.is_empty()));
+
+        let colors = [Nation::Ussr.color(), Nation::Germany.color()];
+        assert_ne!(colors[0], colors[1]);
+    }
+
+    #[test]
+    fn playable_roster_spans_both_nations() {
+        let has_ussr = VehicleKind::PLAYABLE.iter().any(|kind| kind.nation() == Nation::Ussr);
+        let has_germany = VehicleKind::PLAYABLE.iter().any(|kind| kind.nation() == Nation::Germany);
+        assert!(has_ussr && has_germany, "playable roster must include both nations");
     }
 }
