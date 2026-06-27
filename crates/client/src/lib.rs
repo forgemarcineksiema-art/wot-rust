@@ -2,17 +2,11 @@ mod aim;
 mod app;
 mod camera;
 mod color;
-mod health_bar;
 mod hit_indicator;
 mod hud;
-mod hud_font;
-mod hud_icons;
-mod hud_number;
 mod loop_policy;
 mod predict;
 mod render_state;
-mod reticle;
-mod reticle_sweep;
 mod scene;
 mod tank_mesh;
 mod vehicle;
@@ -23,8 +17,8 @@ pub use camera::{
     BattleCameraController, BattleCameraEnvironment, BattleCameraInput, BattleCameraMode,
     BattleCameraSettings, CameraObstacle, CameraSubject,
 };
+pub use hud::font::hud_font_atlas;
 pub use hud::{HudVitals, build_hud};
-pub use hud_font::hud_font_atlas;
 pub use loop_policy::{
     ClientLoopAction, ClientLoopEvent, ClientLoopPhase, FixedTickAccumulator, WinitLoopDriver,
 };

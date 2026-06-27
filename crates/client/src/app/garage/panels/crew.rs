@@ -4,9 +4,9 @@ use renderer_api::HudVertex;
 
 use crate::app::garage::GarageState;
 use crate::app::garage::layout::*;
+use crate::hud::font::{push_icon, push_text, text_width};
+use crate::hud::icons::HudIcon;
 use crate::hud::push_quad;
-use crate::hud_font::{push_icon, push_text, text_width};
-use crate::hud_icons::HudIcon;
 
 pub(in crate::app::garage) fn draw(v: &mut Vec<HudVertex>, state: &GarageState, aspect: f32) {
     push_quad(v, [CREW_X, 0.46], [CREW_HALF_X + 0.02, 0.34], PANEL);

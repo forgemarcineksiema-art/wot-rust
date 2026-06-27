@@ -5,9 +5,9 @@ use game_core::TankSpec;
 use renderer_api::HudVertex;
 
 use crate::app::garage::layout::*;
+use crate::hud::font::{push_icon, push_text};
+use crate::hud::icons::HudIcon;
 use crate::hud::push_quad;
-use crate::hud_font::{push_icon, push_text};
-use crate::hud_icons::HudIcon;
 
 pub(in crate::app::garage) fn draw(v: &mut Vec<HudVertex>, spec: &TankSpec, aspect: f32) {
     push_quad(v, [STAT_X, 0.46], [STAT_HALF_X + 0.02, 0.34], PANEL);

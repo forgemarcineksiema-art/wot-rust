@@ -53,17 +53,18 @@ pub(crate) struct ReticleReport {
 /// One authoritative-shaped ballistic trace serves both the reticle status and the penetration
 /// hint — running the identical trace twice per frame doubled the most expensive HUD work.
 pub(crate) fn reticle_report(query: ReticleFeedbackQuery<'_>) -> ReticleReport {
-    let outcome = crate::reticle_sweep::reticle_trace(crate::reticle_sweep::ReticleTraceQuery {
-        heightmap: query.heightmap,
-        cover: query.cover,
-        tanks: query.tanks,
-        owner: query.owner,
-        owner_team: query.owner_team,
-        muzzle: query.muzzle,
-        yaw_rad: query.turret_yaw_rad,
-        pitch_rad: query.gun_pitch_rad,
-        muzzle_velocity_mps: query.muzzle_velocity_mps,
-    });
+    let outcome =
+        crate::hud::reticle_sweep::reticle_trace(crate::hud::reticle_sweep::ReticleTraceQuery {
+            heightmap: query.heightmap,
+            cover: query.cover,
+            tanks: query.tanks,
+            owner: query.owner,
+            owner_team: query.owner_team,
+            muzzle: query.muzzle,
+            yaw_rad: query.turret_yaw_rad,
+            pitch_rad: query.gun_pitch_rad,
+            muzzle_velocity_mps: query.muzzle_velocity_mps,
+        });
     ReticleReport {
         feedback: feedback_from_outcome(&query, &outcome),
         penetration: penetration_from_outcome(&query, &outcome),

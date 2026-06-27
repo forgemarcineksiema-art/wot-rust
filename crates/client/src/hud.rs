@@ -1,8 +1,14 @@
 use renderer_api::HudVertex;
 
-use crate::reticle::ReticleStatus;
+use crate::hud::reticle::ReticleStatus;
 
+pub(crate) mod font;
+pub(crate) mod health_bar;
+pub(crate) mod icons;
+pub(crate) mod number;
+pub(crate) mod reticle;
 mod reticle_overlay;
+pub(crate) mod reticle_sweep;
 
 pub(crate) use reticle_overlay::HudReticle;
 
@@ -44,14 +50,14 @@ pub(crate) fn build_hud_with_reticle(
 
     let hp_frac = (vitals.hit_points as f32 / vitals.max_hit_points.max(1) as f32).clamp(0.0, 1.0);
     push_bar(&mut vertices, [-0.95, 0.9], [0.17, 0.018], hp_frac, health_color(hp_frac));
-    crate::hud_number::push_number(
+    crate::hud::number::push_number(
         &mut vertices,
         vitals.hit_points.min(9_999),
         -0.61,
         0.95,
         0.055,
         aspect,
-        crate::hud_number::HP_COLOR,
+        crate::hud::number::HP_COLOR,
     );
 
     let ready =
@@ -59,47 +65,47 @@ pub(crate) fn build_hud_with_reticle(
     let reload_color =
         if ready >= 1.0 { [0.55, 0.85, 0.96, 0.95] } else { [0.86, 0.55, 0.20, 0.92] };
     push_bar(&mut vertices, [-0.16, -0.9], [0.16, 0.016], ready, reload_color);
-    crate::hud_number::push_number(
+    crate::hud::number::push_number(
         &mut vertices,
         vitals.reload_remaining_s.ceil().clamp(0.0, 99.0) as u32,
         0.06,
         -0.76,
         0.065,
         aspect,
-        crate::hud_number::RELOAD_TIME_COLOR,
+        crate::hud::number::RELOAD_TIME_COLOR,
     );
 
     if fps > 0.0 {
-        crate::hud_number::push_number(
+        crate::hud::number::push_number(
             &mut vertices,
             fps.round() as u32,
             0.97,
             0.97,
             0.05,
             aspect,
-            crate::hud_number::FPS_COLOR,
+            crate::hud::number::FPS_COLOR,
         );
     }
 
     if speed_kmh >= 0.5 {
-        crate::hud_number::push_number(
+        crate::hud::number::push_number(
             &mut vertices,
             speed_kmh.round().clamp(0.0, 999.0) as u32,
             -0.78,
             -0.76,
             0.065,
             aspect,
-            crate::hud_number::SPEED_COLOR,
+            crate::hud::number::SPEED_COLOR,
         );
         // Unit sits just right of the value's anchor, dimmer and a touch smaller for hierarchy.
-        crate::hud_font::push_text(
+        crate::hud::font::push_text(
             &mut vertices,
             "KM/H",
             -0.765,
             -0.764,
             0.045,
             aspect,
-            crate::hud_number::UNIT_COLOR,
+            crate::hud::number::UNIT_COLOR,
         );
     }
 

@@ -35,7 +35,7 @@ pub(crate) fn push_number(
     aspect: f32,
     color: [f32; 4],
 ) {
-    crate::hud_font::push_text_right(
+    crate::hud::font::push_text_right(
         vertices,
         &value.to_string(),
         right_x,

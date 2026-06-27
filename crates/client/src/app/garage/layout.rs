@@ -90,8 +90,8 @@ pub(super) fn short_name(kind: VehicleKind) -> &'static str {
 }
 
 /// The icon for a fitting slot.
-pub(super) fn slot_icon(slot: FitSlot) -> crate::hud_icons::HudIcon {
-    use crate::hud_icons::HudIcon;
+pub(super) fn slot_icon(slot: FitSlot) -> crate::hud::icons::HudIcon {
+    use crate::hud::icons::HudIcon;
     match slot {
         FitSlot::Turret => HudIcon::SlotTurret,
         FitSlot::Gun => HudIcon::SlotGun,
@@ -103,8 +103,8 @@ pub(super) fn slot_icon(slot: FitSlot) -> crate::hud_icons::HudIcon {
 }
 
 /// The icon for an ammo index (0 = AP stock, 1 = APCR, 2 = HE).
-pub(super) fn ammo_icon(index: usize) -> crate::hud_icons::HudIcon {
-    use crate::hud_icons::HudIcon;
+pub(super) fn ammo_icon(index: usize) -> crate::hud::icons::HudIcon {
+    use crate::hud::icons::HudIcon;
     match index {
         1 => HudIcon::AmmoApcr,
         2 => HudIcon::AmmoHe,

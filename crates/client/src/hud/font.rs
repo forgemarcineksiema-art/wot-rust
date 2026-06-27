@@ -11,7 +11,7 @@
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
-use crate::hud_icons::HudIcon;
+use crate::hud::icons::HudIcon;
 
 mod bake;
 mod layout;

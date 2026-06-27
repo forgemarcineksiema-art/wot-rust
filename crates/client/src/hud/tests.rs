@@ -1,9 +1,9 @@
 use super::reticle_overlay::{RETICLE_AIM_CIRCLE, RETICLE_CLEAR, RETICLE_GUN, RETICLE_IMPACT};
 use super::*;
-use crate::hud_number::{
+use crate::hud::number::{
     FPS_COLOR, HP_COLOR, RELOAD_TIME_COLOR, SPEED_COLOR, TARGET_DISTANCE_COLOR,
 };
-use crate::reticle::ReticleStatus;
+use crate::hud::reticle::ReticleStatus;
 
 fn vitals() -> HudVitals {
     HudVitals {
