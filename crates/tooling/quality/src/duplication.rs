@@ -32,7 +32,7 @@ pub fn duplicated_free_functions() -> Vec<String> {
     let root = workspace_root();
     let mut definitions: BTreeMap<String, BTreeSet<PathBuf>> = BTreeMap::new();
 
-    for src_dir in crate_src_dirs(&root) {
+    for src_dir in crate::workspace::crate_src_dirs(&root) {
         for path in rust_files(&src_dir) {
             if is_test_module_file(&path) {
                 continue;
@@ -102,21 +102,13 @@ pub fn duplicate_offenders(
 }
 
 fn workspace_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .and_then(Path::parent)
-        .expect("quality crate should live under crates/quality")
-        .to_path_buf()
-}
-
-fn crate_src_dirs(root: &Path) -> Vec<PathBuf> {
-    fs::read_dir(root.join("crates"))
-        .expect("workspace crates directory should be readable")
-        .filter_map(|entry| {
-            let src = entry.expect("crate entry should be readable").path().join("src");
-            src.is_dir().then_some(src)
-        })
-        .collect()
+    // Layout-agnostic: the nearest ancestor whose Cargo.toml declares [workspace].
+    let mut dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    while !std::fs::read_to_string(dir.join("Cargo.toml")).is_ok_and(|t| t.contains("[workspace]"))
+    {
+        assert!(dir.pop(), "a Cargo.toml with [workspace] should exist in an ancestor");
+    }
+    dir
 }
 
 /// `#[cfg(test)] mod tests` lives in files named `tests.rs` / `*_tests.rs`; their helper functions

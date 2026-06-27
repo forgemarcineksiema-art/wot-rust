@@ -24,10 +24,12 @@ fn combat_policy_doc_is_required() {
 #[test]
 fn sim_state_uses_combat_pipeline_not_placeholder_shell_motion() {
     let root = workspace_root();
-    let state = fs::read_to_string(root.join("crates/sim/src/state.rs")).expect("sim state");
-    let combat = fs::read_to_string(root.join("crates/sim/src/combat.rs")).expect("sim combat");
+    let state =
+        fs::read_to_string(root.join("crates/runtime/sim/src/state.rs")).expect("sim state");
+    let combat =
+        fs::read_to_string(root.join("crates/runtime/sim/src/combat.rs")).expect("sim combat");
     // The shared shell-collision kernel (server + client reticle) owns armor-zone resolution.
-    let trace = fs::read_to_string(root.join("crates/sim/src/shell_trace/tank.rs"))
+    let trace = fs::read_to_string(root.join("crates/runtime/sim/src/shell_trace/tank.rs"))
         .expect("sim shell-trace tank helpers");
 
     assert!(state.contains("CombatTickContext"));
@@ -40,8 +42,8 @@ fn sim_state_uses_combat_pipeline_not_placeholder_shell_motion() {
 
 #[test]
 fn shell_state_does_not_duplicate_shell_damage_value() {
-    let state =
-        fs::read_to_string(workspace_root().join("crates/sim/src/state.rs")).expect("sim state");
+    let state = fs::read_to_string(workspace_root().join("crates/runtime/sim/src/state.rs"))
+        .expect("sim state");
 
     assert!(
         !state.contains("pub damage_hp:"),
@@ -51,9 +53,9 @@ fn shell_state_does_not_duplicate_shell_damage_value() {
 
 #[test]
 fn client_can_send_fire_intent_to_authoritative_server() {
-    let input = fs::read_to_string(workspace_root().join("crates/client/src/app/input.rs"))
+    let input = fs::read_to_string(workspace_root().join("crates/apps/client/src/app/input.rs"))
         .expect("client input");
-    let dispatch = fs::read_to_string(workspace_root().join("crates/client/src/app/mod.rs"))
+    let dispatch = fs::read_to_string(workspace_root().join("crates/apps/client/src/app/mod.rs"))
         .expect("client app");
 
     assert!(input.contains("KeyCode::Space"));
@@ -63,9 +65,11 @@ fn client_can_send_fire_intent_to_authoritative_server() {
 }
 
 fn workspace_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .and_then(std::path::Path::parent)
-        .expect("quality crate should live under crates/quality")
-        .to_path_buf()
+    // Layout-agnostic: the nearest ancestor whose Cargo.toml declares [workspace].
+    let mut dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    while !std::fs::read_to_string(dir.join("Cargo.toml")).is_ok_and(|t| t.contains("[workspace]"))
+    {
+        assert!(dir.pop(), "a Cargo.toml with [workspace] should exist in an ancestor");
+    }
+    dir
 }

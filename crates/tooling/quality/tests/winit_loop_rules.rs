@@ -1,12 +1,12 @@
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 #[test]
 fn client_uses_winit_application_handler_model() {
     let root = workspace_root();
-    let app_mod =
-        fs::read_to_string(root.join("crates/client/src/app/mod.rs")).expect("client app exists");
-    let lifecycle = fs::read_to_string(root.join("crates/client/src/app/lifecycle.rs"))
+    let app_mod = fs::read_to_string(root.join("crates/apps/client/src/app/mod.rs"))
+        .expect("client app exists");
+    let lifecycle = fs::read_to_string(root.join("crates/apps/client/src/app/lifecycle.rs"))
         .expect("client lifecycle exists");
 
     assert!(lifecycle.contains("ApplicationHandler"));
@@ -22,7 +22,7 @@ fn client_uses_winit_application_handler_model() {
 #[test]
 fn client_has_testable_fixed_tick_loop_driver() {
     let root = workspace_root();
-    let loop_policy = fs::read_to_string(root.join("crates/client/src/loop_policy.rs"))
+    let loop_policy = fs::read_to_string(root.join("crates/apps/client/src/loop_policy.rs"))
         .expect("loop policy exists");
 
     assert!(loop_policy.contains("FixedTickAccumulator"));
@@ -33,9 +33,11 @@ fn client_has_testable_fixed_tick_loop_driver() {
 }
 
 fn workspace_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .and_then(Path::parent)
-        .expect("quality crate should live under crates/quality")
-        .to_path_buf()
+    // Layout-agnostic: the nearest ancestor whose Cargo.toml declares [workspace].
+    let mut dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    while !std::fs::read_to_string(dir.join("Cargo.toml")).is_ok_and(|t| t.contains("[workspace]"))
+    {
+        assert!(dir.pop(), "a Cargo.toml with [workspace] should exist in an ancestor");
+    }
+    dir
 }
