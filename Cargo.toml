@@ -57,6 +57,27 @@ tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 wgpu = "29.0.3"
 winit = "0.30.12"
 
+# Internal workspace crates. Paths are centralized here so a crate directory move only edits this
+# one block; each crate depends on them via `name.workspace = true`.
+cast_loft = { path = "crates/cast_loft" }
+engine = { path = "crates/engine" }
+game_core = { path = "crates/game_core" }
+net = { path = "crates/net" }
+physics = { path = "crates/physics" }
+renderer_api = { path = "crates/renderer_api" }
+renderer_wgpu = { path = "crates/renderer_wgpu" }
+revolve = { path = "crates/revolve" }
+sdf = { path = "crates/sdf" }
+sdf_mesh = { path = "crates/sdf_mesh" }
+server = { path = "crates/server" }
+sim = { path = "crates/sim" }
+solid = { path = "crates/solid" }
+sweep = { path = "crates/sweep" }
+terrain = { path = "crates/terrain" }
+vehicle_build = { path = "crates/vehicle_build" }
+vehicle_forge = { path = "crates/vehicle_forge" }
+vehicle_geometry = { path = "crates/vehicle_geometry" }
+
 [workspace.lints.rust]
 unsafe_code = "forbid"
 

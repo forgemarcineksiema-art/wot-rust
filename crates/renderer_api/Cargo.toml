@@ -7,7 +7,7 @@ rust-version.workspace = true
 
 [dependencies]
 bytemuck.workspace = true
-game_core = { path = "../game_core" }
+game_core.workspace = true
 glam.workspace = true
 
 [lints]

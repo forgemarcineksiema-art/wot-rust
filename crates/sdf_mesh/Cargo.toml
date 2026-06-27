@@ -6,15 +6,15 @@ license.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-game_core = { path = "../game_core" }
+game_core.workspace = true
 glam.workspace = true
 png = "0.18"
-sdf = { path = "../sdf" }
-vehicle_geometry = { path = "../vehicle_geometry" }
+sdf.workspace = true
+vehicle_geometry.workspace = true
 
 [dev-dependencies]
 criterion.workspace = true
-solid = { path = "../solid" }
+solid.workspace = true
 
 [[bench]]
 name = "meshing"

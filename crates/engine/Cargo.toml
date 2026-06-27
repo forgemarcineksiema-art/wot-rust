@@ -7,8 +7,8 @@ rust-version.workspace = true
 
 [dependencies]
 bevy_ecs.workspace = true
-game_core = { path = "../game_core" }
-net = { path = "../net" }
+game_core.workspace = true
+net.workspace = true
 
 [lints]
 workspace = true

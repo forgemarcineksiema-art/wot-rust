@@ -7,9 +7,9 @@ rust-version.workspace = true
 
 [dependencies]
 glam.workspace = true
-revolve = { path = "../revolve" }
-sweep = { path = "../sweep" }
-vehicle_geometry = { path = "../vehicle_geometry" }
+revolve.workspace = true
+sweep.workspace = true
+vehicle_geometry.workspace = true
 
 [lints]
 workspace = true

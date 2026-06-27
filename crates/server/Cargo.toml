@@ -8,11 +8,11 @@ rust-version.workspace = true
 [dependencies]
 anyhow.workspace = true
 clap.workspace = true
-game_core = { path = "../game_core" }
+game_core.workspace = true
 glam.workspace = true
-net = { path = "../net" }
-sim = { path = "../sim" }
-terrain = { path = "../terrain" }
+net.workspace = true
+sim.workspace = true
+terrain.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 

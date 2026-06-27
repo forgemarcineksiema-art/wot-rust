@@ -6,15 +6,15 @@ license.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-cast_loft = { path = "../cast_loft" }
-game_core = { path = "../game_core" }
+cast_loft.workspace = true
+game_core.workspace = true
 glam.workspace = true
-revolve = { path = "../revolve" }
-sdf = { path = "../sdf" }
-sdf_mesh = { path = "../sdf_mesh" }
-solid = { path = "../solid" }
+revolve.workspace = true
+sdf.workspace = true
+sdf_mesh.workspace = true
+solid.workspace = true
 thiserror.workspace = true
-vehicle_geometry = { path = "../vehicle_geometry" }
+vehicle_geometry.workspace = true
 
 [lints]
 workspace = true

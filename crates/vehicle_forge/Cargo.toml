@@ -6,17 +6,17 @@ rust-version.workspace = true
 version.workspace = true
 
 [dependencies]
-game_core = { path = "../game_core" }
+game_core.workspace = true
 glam.workspace = true
 png = "0.18"
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
-vehicle_build = { path = "../vehicle_build" }
-vehicle_geometry = { path = "../vehicle_geometry" }
+vehicle_build.workspace = true
+vehicle_geometry.workspace = true
 
 [dev-dependencies]
-cast_loft = { path = "../cast_loft" }
+cast_loft.workspace = true
 
 [lints]
 workspace = true

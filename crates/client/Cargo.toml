@@ -8,27 +8,27 @@ rust-version.workspace = true
 [dependencies]
 ab_glyph = "0.2"
 anyhow.workspace = true
-engine = { path = "../engine" }
-game_core = { path = "../game_core" }
+engine.workspace = true
+game_core.workspace = true
 glam.workspace = true
-net = { path = "../net" }
-physics = { path = "../physics" }
+net.workspace = true
+physics.workspace = true
 png = "0.18"
-renderer_api = { path = "../renderer_api" }
-renderer_wgpu = { path = "../renderer_wgpu" }
-server = { path = "../server" }
-sim = { path = "../sim" }
-terrain = { path = "../terrain" }
+renderer_api.workspace = true
+renderer_wgpu.workspace = true
+server.workspace = true
+sim.workspace = true
+terrain.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
-vehicle_forge = { path = "../vehicle_forge" }
-vehicle_geometry = { path = "../vehicle_geometry" }
+vehicle_forge.workspace = true
+vehicle_geometry.workspace = true
 winit.workspace = true
 
 [dev-dependencies]
 png = "0.18"
 serde_json.workspace = true
-vehicle_build = { path = "../vehicle_build" }
+vehicle_build.workspace = true
 
 [lints]
 workspace = true

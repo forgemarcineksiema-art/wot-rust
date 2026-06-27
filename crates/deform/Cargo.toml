@@ -7,10 +7,10 @@ rust-version.workspace = true
 
 [dependencies]
 glam.workspace = true
-vehicle_geometry = { path = "../vehicle_geometry" }
+vehicle_geometry.workspace = true
 
 [dev-dependencies]
-revolve = { path = "../revolve" }
+revolve.workspace = true
 
 [lints]
 workspace = true
