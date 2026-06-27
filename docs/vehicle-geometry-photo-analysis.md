@@ -151,7 +151,7 @@ simulation and aiming.
 
 ### Screenshot technology
 
-`crates/client/examples/vehicle_lineup_views.rs` uses the same baked render-object path as the
+`crates/apps/client/examples/vehicle_lineup_views.rs` uses the same baked render-object path as the
 runtime client. It is not a separate mesh renderer. The example changes only camera position,
 camera FOV, hull yaw, turret yaw, and gun pitch in the snapshots. That makes the screenshots useful
 evidence for the current production path, not a special debug visualization.

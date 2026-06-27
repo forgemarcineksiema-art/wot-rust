@@ -37,8 +37,8 @@ Run all gates with:
 ## Testing Policy
 
 - New behavior starts with a failing test.
-- Protocol changes require snapshot tests in `crates/net/tests/snapshots`.
-- Simulation bugs require replay fixtures in `crates/sim/tests/replays`.
+- Protocol changes require snapshot tests in `crates/runtime/net/tests/snapshots`.
+- Simulation bugs require replay fixtures in `crates/runtime/sim/tests/replays`.
 - Clock, tick-rate, and snapshot-cadence changes require policy tests in `sim`, `net`, `server`, or `client`.
 - Client/server flow changes require tests proving input commands enter server code before snapshots reach render state.
 - Domain-direction changes require tests or docs that preserve terrain, LOD, shadows, spotting, shell physics, and networking as priorities.

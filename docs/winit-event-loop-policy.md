@@ -23,4 +23,4 @@ The mental model can still be "game loop", but the implementation sits inside th
 - The elapsed time observed by `winit` is an accumulator input only; gameplay systems receive `FixedTimestep`.
 - Window/input events are translated into client actions before touching simulation or renderer state.
 
-`crates/client/src/loop_policy.rs` is intentionally independent from concrete `winit` types so this event-loop policy can be tested without opening a window.
+`crates/apps/client/src/loop_policy.rs` is intentionally independent from concrete `winit` types so this event-loop policy can be tested without opening a window.
