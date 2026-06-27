@@ -8,7 +8,7 @@ is documented here with a reason and a status.
 
 ### Carousel as the primary vehicle selector (not the vertical tech tree)
 
-- **Status:** implemented (`crates/client/src/app/garage/panels/carousel.rs`).
+- **Status:** implemented (`crates/apps/client/src/app/garage/panels/carousel.rs`).
 - **Beta reference:** beta-WoT had no carousel — vehicle choice ran through the
   vertical tech tree / a list (see `garage-beta-reference.md` lines 25–26).
 - **Decision:** adopt the post-release horizontal carousel as the main selection

@@ -9,7 +9,7 @@
 
 ## Protocol Snapshots
 
-Protocol snapshot fixtures live in `crates/net/tests/snapshots`. They cover input
+Protocol snapshot fixtures live in `crates/runtime/net/tests/snapshots`. They cover input
 commands, baseline tank snapshots, and a non-empty combat snapshot with shells
 and damage events.
 
@@ -17,7 +17,7 @@ When changing protocol encoding intentionally:
 
 1. Run `cargo test -p net --test protocol_snapshots`.
 2. Confirm the diff is a deliberate protocol version change.
-3. Bump `PROTOCOL_VERSION` in `crates/net/src/lib.rs`.
+3. Bump `PROTOCOL_VERSION` in `crates/runtime/net/src/lib.rs`.
 4. Update the snapshot fixture.
 5. Document the compatibility impact before merging.
 
@@ -31,7 +31,7 @@ selection bytes are unchanged but belong to v12 once the shared
 
 ## Replays
 
-Replay fixtures live in `crates/sim/tests/replays`.
+Replay fixtures live in `crates/runtime/sim/tests/replays`.
 
 A replay is a compact record of spawn setup, fixed tick rate, command frames, and final expectations. Any fixed simulation bug should get a replay fixture that fails before the fix and passes after it.
 
@@ -67,8 +67,8 @@ Physics tests lock the Rapier/custom split: Rapier is used for world queries and
 
 Benchmarks live beside the crate they measure:
 
-- `crates/sim/benches/fixed_tick.rs`
-- `crates/net/benches/protocol_codec.rs`
+- `crates/runtime/sim/benches/fixed_tick.rs`
+- `crates/runtime/net/benches/protocol_codec.rs`
 
 Compile all benchmark targets with:
 
