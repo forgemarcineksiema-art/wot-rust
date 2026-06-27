@@ -88,7 +88,7 @@ pub(crate) fn aim_point_with_sweep(
     forward: Vec3,
 ) -> Vec3 {
     const STEP_M: f32 = 1.0;
-    let sets = crate::reticle_sweep::trace_sets(tanks, owner, owner_team);
+    let sets = crate::hud::reticle_sweep::trace_sets(tanks, owner, owner_team);
     let world = ShellTraceWorld {
         tanks: &sets.targets,
         blockers: &sets.blockers,
@@ -140,7 +140,7 @@ fn shell_height_at_horizontal(
     muzzle_velocity_mps: f32,
     horizontal: f32,
 ) -> f32 {
-    let dt_seconds = crate::reticle_sweep::tick_dt_seconds();
+    let dt_seconds = crate::hud::reticle_sweep::tick_dt_seconds();
     let mut position = muzzle;
     let mut velocity = gun_direction(0.0, pitch_rad) * muzzle_velocity_mps;
     let mut previous_range = 0.0;

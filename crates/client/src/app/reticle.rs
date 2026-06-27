@@ -62,27 +62,34 @@ impl ClientApp {
         let player_spec = self.player_spec();
         let muzzle_velocity = player_spec.gun.shell.muzzle_velocity_mps;
         let muzzle = self.muzzle_position();
-        let report = crate::reticle::reticle_report(crate::reticle::ReticleFeedbackQuery {
-            heightmap: &self.battlefield.heightmap,
-            cover: &self.battlefield.static_cover,
-            tanks: &tanks,
-            player_spec: &player_spec,
-            owner: self.player_tank,
-            owner_team: self.player_team(),
-            muzzle,
-            aim,
-            turret_yaw_rad: tank.yaw_rad + tank.turret_yaw_rad,
-            gun_pitch_rad: tank.gun_pitch_rad,
-            muzzle_velocity_mps: muzzle_velocity,
-        });
+        let report =
+            crate::hud::reticle::reticle_report(crate::hud::reticle::ReticleFeedbackQuery {
+                heightmap: &self.battlefield.heightmap,
+                cover: &self.battlefield.static_cover,
+                tanks: &tanks,
+                player_spec: &player_spec,
+                owner: self.player_tank,
+                owner_team: self.player_team(),
+                muzzle,
+                aim,
+                turret_yaw_rad: tank.yaw_rad + tank.turret_yaw_rad,
+                gun_pitch_rad: tank.gun_pitch_rad,
+                muzzle_velocity_mps: muzzle_velocity,
+            });
         let feedback = report.feedback;
         let pen_hint = report.penetration;
 
         Some(HudReticle {
-            aim_clip: crate::reticle::world_to_clip_xy(feedback.aim_world_point, view_projection)
-                .unwrap_or([0.0, 0.0]),
-            gun_clip: crate::reticle::world_to_clip_xy(feedback.gun_world_point, view_projection),
-            impact_clip: crate::reticle::world_to_clip_xy(
+            aim_clip: crate::hud::reticle::world_to_clip_xy(
+                feedback.aim_world_point,
+                view_projection,
+            )
+            .unwrap_or([0.0, 0.0]),
+            gun_clip: crate::hud::reticle::world_to_clip_xy(
+                feedback.gun_world_point,
+                view_projection,
+            ),
+            impact_clip: crate::hud::reticle::world_to_clip_xy(
                 feedback.actual_impact_world_point,
                 view_projection,
             ),

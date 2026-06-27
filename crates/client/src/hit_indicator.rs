@@ -4,7 +4,7 @@ use renderer_api::{HudVertex, SceneVertex};
 
 mod hit_indicator_draw;
 
-use crate::reticle::world_to_clip_xy;
+use crate::hud::reticle::world_to_clip_xy;
 use crate::tank_mesh::push_box;
 use hit_indicator_draw::{GRN, RED, color_for, fade, push_marker, push_module_icon, push_pen_bar};
 
@@ -88,10 +88,10 @@ impl HitIndicator {
             }
 
             let dmg_color = color_for(entry.penetrated, entry.ricocheted);
-            let num_digits = crate::hud_number::digit_count(entry.damage_hp.min(9_999));
+            let num_digits = crate::hud::number::digit_count(entry.damage_hp.min(9_999));
             let num_h = 0.065;
             let num_w = num_digits as f32 * num_h * 0.6;
-            crate::hud_number::push_number(
+            crate::hud::number::push_number(
                 &mut verts,
                 entry.damage_hp.min(9_999),
                 clip[0] + num_w * 0.5,
@@ -127,7 +127,7 @@ impl HitIndicator {
             );
 
             let pc = if entry.penetrated { GRN } else { RED };
-            crate::hud_number::push_number(
+            crate::hud::number::push_number(
                 &mut verts,
                 entry.shell_pen_mm.round().min(9_999.0) as u32,
                 clip[0] - 0.065,
@@ -136,7 +136,7 @@ impl HitIndicator {
                 aspect,
                 fade(pc, alpha),
             );
-            crate::hud_number::push_number(
+            crate::hud::number::push_number(
                 &mut verts,
                 entry.armor_mm.round().min(9_999.0) as u32,
                 clip[0] + 0.075,

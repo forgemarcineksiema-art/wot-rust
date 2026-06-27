@@ -62,3 +62,13 @@ unsafe_code = "forbid"
 
 [workspace.lints.clippy]
 all = "warn"
+
+[profile.dev]
+# Faster compiles and much faster linking: keep line numbers for readable backtraces but drop the
+# heavy full debuginfo. Cuts artifact size and link time across the workspace.
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+# Dependencies are rarely stepped through in a debugger; stripping their debuginfo is one of the
+# biggest single wins for link time on a large dependency graph (wgpu, rapier, image, ...).
+debug = false

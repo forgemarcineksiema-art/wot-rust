@@ -172,7 +172,7 @@ fn render_garage_preview_png() {
     use std::io::BufWriter;
 
     use super::garage::GarageState;
-    use crate::garage_scene::{TURNTABLE_TOP_M, hangar_scene_mesh};
+    use crate::scene::hangar::{TURNTABLE_TOP_M, hangar_scene_mesh};
     use crate::{VehicleAssetCatalog, render_frame_from_objects, tank_vehicle_render_objects};
 
     let width = 1280u32;

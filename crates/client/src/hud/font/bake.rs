@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use ab_glyph::{Font, FontRef, PxScale, ScaleFont};
 
 use super::{FontAtlas, Glyph};
-use crate::hud_icons::{HudIcon, ICON_PX, raster as raster_icon};
+use crate::hud::icons::{HudIcon, ICON_PX, raster as raster_icon};
 
 /// Embedded font (SIL OFL 1.1, see `assets/fonts/OFL.txt`). Rajdhani's squarish, technical letters
 /// read well at small sizes and suit a gunnery HUD without clashing with the flat-shaded scene.

@@ -12,8 +12,8 @@ use crate::app::garage::layout::{
     TREE_NODE_HALF, TREE_PANEL_CENTER, TREE_PANEL_HALF, in_rect, short_name, tree_column_x,
     tree_node_center,
 };
+use crate::hud::font::{push_text, text_width};
 use crate::hud::push_quad;
-use crate::hud_font::{push_text, text_width};
 
 /// One entry in the tree layout: (index into `VehicleKind::PLAYABLE`, the kind, its node centre).
 fn tree_nodes() -> Vec<(usize, VehicleKind, [f32; 2])> {

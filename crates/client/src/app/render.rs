@@ -30,7 +30,7 @@ impl ClientApp {
         let (terrain_vertices, terrain_indices) = battlefield_scene_mesh(&self.battlefield);
         let mut renderer =
             WindowRenderer::new(window, width, height, &terrain_vertices, &terrain_indices)?;
-        let atlas = crate::hud_font::atlas();
+        let atlas = crate::hud::font::atlas();
         renderer.set_hud_font_atlas(atlas.width(), atlas.height(), atlas.coverage());
         self.renderer = Some(renderer);
         Ok(())
@@ -72,7 +72,7 @@ impl ClientApp {
         // Project the interpolated (+ locally predicted) tanks into the persistent presentation
         // world, then drive the scene and HUD from the ECS — not from the snapshot vec directly.
         let presentation_tanks = self.project_render_tanks(alpha);
-        let enemy_bars = crate::health_bar::enemy_health_bars(
+        let enemy_bars = crate::hud::health_bar::enemy_health_bars(
             &presentation_tanks,
             self.player_tank,
             self.player_team(),

@@ -1,7 +1,7 @@
 use renderer_api::HudVertex;
 
 use super::push_quad;
-use crate::reticle::{PenetrationHint, ReticleStatus};
+use crate::hud::reticle::{PenetrationHint, ReticleStatus};
 
 pub(crate) const RETICLE_CLEAR: [f32; 4] = [0.86, 0.90, 0.72, 0.64];
 pub(crate) const RETICLE_GUN: [f32; 4] = [0.35, 0.80, 1.00, 0.90];
@@ -62,23 +62,23 @@ fn push_target_distance(
 ) {
     let right_x = (aim_clip[0] + 0.18).clamp(-0.88, 0.96);
     let top_y = (aim_clip[1] - 0.055).clamp(-0.70, 0.90);
-    crate::hud_number::push_number(
+    crate::hud::number::push_number(
         vertices,
         distance_m.round().clamp(0.0, 9_999.0) as u32,
         right_x,
         top_y,
         0.05,
         aspect,
-        crate::hud_number::TARGET_DISTANCE_COLOR,
+        crate::hud::number::TARGET_DISTANCE_COLOR,
     );
-    crate::hud_font::push_text(
+    crate::hud::font::push_text(
         vertices,
         "M",
         right_x + 0.006,
         top_y,
         0.05,
         aspect,
-        crate::hud_number::UNIT_COLOR,
+        crate::hud::number::UNIT_COLOR,
     );
 }
 

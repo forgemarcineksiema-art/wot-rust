@@ -10,9 +10,9 @@ use renderer_api::{
 use vehicle_forge::authoritative_baked_vehicle;
 use vehicle_geometry::{GeometryMesh, SubmeshKind};
 
-use crate::vehicle_pbr_mesh::vehicle_submesh_vertices;
-use crate::vehicle_pose::VehiclePose;
-use crate::vehicle_variation::VehicleVariation;
+use super::pbr_mesh::vehicle_submesh_vertices;
+use super::pose::VehiclePose;
+use super::variation::VehicleVariation;
 
 #[derive(Debug, Default)]
 pub struct VehicleAssetCatalog {

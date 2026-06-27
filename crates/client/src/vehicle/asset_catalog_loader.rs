@@ -8,7 +8,7 @@ use renderer_api::{
 use vehicle_forge::{ForgeArtifact, MaterialFamily, authoritative_baked_vehicle};
 use vehicle_geometry::{SubmeshKind, reduce_vehicle};
 
-use crate::vehicle_asset_catalog::{VehicleAssetCatalog, VehicleAssetEntry};
+use super::asset_catalog::{VehicleAssetCatalog, VehicleAssetEntry};
 
 impl VehicleAssetCatalog {
     pub fn load_forge_artifact_tree(&mut self, root: impl AsRef<Path>) -> Result<usize> {

@@ -6,8 +6,8 @@ use renderer_api::HudVertex;
 
 use crate::app::garage::GarageState;
 use crate::app::garage::layout::*;
+use crate::hud::font::{push_text, text_width};
 use crate::hud::push_quad;
-use crate::hud_font::{push_text, text_width};
 
 pub(in crate::app::garage) fn draw(v: &mut Vec<HudVertex>, state: &GarageState, aspect: f32) {
     let count = VehicleKind::PLAYABLE.len();

@@ -3,7 +3,7 @@
 use renderer_api::HudVertex;
 
 use super::atlas;
-use crate::hud_icons::HudIcon;
+use crate::hud::icons::HudIcon;
 
 /// Clip-space advance width of `text` drawn at em-height `height`. `aspect` squishes x so glyphs
 /// stay square on wide viewports — matching `push_text`.

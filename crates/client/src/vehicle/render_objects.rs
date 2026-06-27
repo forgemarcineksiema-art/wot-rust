@@ -10,8 +10,8 @@ use renderer_api::{
 use vehicle_forge::authoritative_baked_vehicle;
 use vehicle_geometry::{GeometryMesh, MaterialRole, SubmeshKind};
 
+use super::pose::VehiclePose;
 use crate::color::{BARREL_STEEL, RUBBER, TRACK_METAL, shade_color};
-use crate::vehicle_pose::VehiclePose;
 
 #[derive(Debug, Default)]
 pub struct VehicleMeshCatalog {
