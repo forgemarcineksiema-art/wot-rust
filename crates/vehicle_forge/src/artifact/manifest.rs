@@ -4,7 +4,7 @@ use game_core::VehicleKind;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use super::{BakeProfile, ForgeTextureManifest, ReviewCameraSet};
+use super::{BakeProfile, ForgeTextureManifest, ReviewCameraSet, SurfaceBakeManifest};
 
 #[derive(Debug, Error)]
 pub enum ArtifactError {
@@ -33,6 +33,9 @@ pub struct ForgeArtifactManifest {
     pub(crate) submeshes: Vec<ForgeSubmeshManifest>,
     pub(crate) texture_maps: Vec<ForgeTextureManifest>,
     pub(crate) review_cameras: ReviewCameraSet,
+    /// The per-vehicle ambient-contact bake summary, absent for vehicles that bake flat.
+    #[serde(default)]
+    pub(crate) surface_bake: Option<SurfaceBakeManifest>,
 }
 
 impl ForgeArtifactManifest {
@@ -62,6 +65,10 @@ impl ForgeArtifactManifest {
     }
     pub fn review_cameras(&self) -> &ReviewCameraSet {
         &self.review_cameras
+    }
+    /// The per-vehicle ambient-contact bake, or `None` if the vehicle bakes a flat surface shade.
+    pub fn surface_bake(&self) -> Option<&SurfaceBakeManifest> {
+        self.surface_bake.as_ref()
     }
 }
 

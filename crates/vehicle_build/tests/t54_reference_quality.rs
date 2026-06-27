@@ -48,6 +48,22 @@ fn t54_turret_has_the_flat_pancake_profile_of_the_1951_casting() {
 }
 
 #[test]
+fn the_mantlet_reads_as_a_trim_pigs_head_not_a_wide_slab() {
+    // The cast front cheeks carry the turret-front mass; the mantlet just covers the moving gun
+    // aperture. So the mask is a trim oval — narrower than the old wide slab (half-width 0.57) —
+    // while still clearly wider than tall (a flat cast oval, not a round ball).
+    let baked = vehicle_build::t54_description().build();
+    let gun = baked.submesh(SubmeshKind::Gun).expect("gun").mesh.bounds().expect("gun bounds");
+    let half_width = gun.max.x.max(-gun.min.x);
+    assert!(half_width < 0.52, "mantlet must be a trim mask, got half-width {half_width:.3}");
+    let half_height = (gun.max.y - gun.min.y) / 2.0;
+    assert!(
+        half_width > 0.8 * half_height,
+        "mantlet stays a wide flat oval: half-width {half_width:.3} vs half-height {half_height:.3}"
+    );
+}
+
+#[test]
 fn t54_turret_carries_a_loader_side_dshk_mount() {
     let baked = vehicle_build::t54_description().build();
     let turret = baked.submesh(SubmeshKind::Turret).expect("turret");

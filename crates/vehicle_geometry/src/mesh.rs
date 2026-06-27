@@ -95,6 +95,12 @@ impl GeometryMesh {
         &self.vertices
     }
 
+    /// Mutable vertex access for in-crate post-passes (shading, contact cavities). Topology is left
+    /// untouched, so callers must not change the vertex count.
+    pub(crate) fn vertices_mut(&mut self) -> &mut [GeometryVertex] {
+        &mut self.vertices
+    }
+
     pub fn indices(&self) -> &[u32] {
         &self.indices
     }

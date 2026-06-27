@@ -7,7 +7,7 @@ use crate::{RatioReport, authoritative_baked_vehicle};
 
 use super::{
     ArtifactError, BakeProfile, ForgeArtifactManifest, ForgeSubmeshManifest, forge_vehicle_slug,
-    mesh_payload, review_images, texture_maps,
+    mesh_payload, review_images, surface_bake, texture_maps,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -59,6 +59,7 @@ impl ForgeArtifact {
                 .collect(),
             texture_maps: texture_maps.iter().map(|map| map.manifest().clone()).collect(),
             review_cameras,
+            surface_bake: surface_bake::surface_bake_manifest(vehicle),
         };
         Ok(Self { manifest, mesh_payload, texture_maps, review_images, report })
     }

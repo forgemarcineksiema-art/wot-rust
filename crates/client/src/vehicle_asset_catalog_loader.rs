@@ -2,9 +2,10 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use renderer_api::{
-    MaterialHandle, VehicleMaterialDescriptor, VehicleMaterialMaps, VehicleTextureMap,
+    MaterialHandle, VehicleMaterialDescriptor, VehicleMaterialFamilies, VehicleMaterialMaps,
+    VehicleTextureMap,
 };
-use vehicle_forge::{ForgeArtifact, ForgeTextureManifest, authoritative_baked_vehicle};
+use vehicle_forge::{ForgeArtifact, MaterialFamily, authoritative_baked_vehicle};
 use vehicle_geometry::{SubmeshKind, reduce_vehicle};
 
 use crate::vehicle_asset_catalog::{VehicleAssetCatalog, VehicleAssetEntry};
@@ -70,31 +71,31 @@ impl VehicleAssetCatalog {
         if let Some(handle) = self.material_handles.get(&kind) {
             return Ok(*handle);
         }
-        let maps = artifact.manifest().texture_maps();
-        let albedo_file = required_map(maps, "albedo")?;
-        let normal_file = required_map(maps, "normal")?;
-        let ao_file = required_map(maps, "ao_roughness_metalness")?;
-        let cavity_file = optional_map(maps, "cavity");
+        // Decode every role family in material_id layer order; a missing cavity layer simply leaves
+        // that role on the renderer's neutral cavity. The descriptor records the representative
+        // (first-layer) files for the artifact label.
+        let mut families = Vec::with_capacity(VehicleMaterialFamilies::LAYERS);
+        for family in MaterialFamily::ALL {
+            let slug = family.slug();
+            families.push(VehicleMaterialMaps::new(
+                decode_required(artifact, &format!("{slug}_albedo.png"))?,
+                decode_required(artifact, &format!("{slug}_normal.png"))?,
+                decode_required(artifact, &format!("{slug}_ao_roughness_metalness.png"))?,
+                decode_optional(artifact, &format!("{slug}_cavity.png")),
+            ));
+        }
+        let lead = MaterialFamily::ALL[0].slug();
         let descriptor = VehicleMaterialDescriptor::pbr_lite(
             artifact.manifest().vehicle_slug(),
-            albedo_file.clone(),
-            normal_file.clone(),
-            ao_file.clone(),
-            cavity_file.clone(),
+            format!("{lead}_albedo.png"),
+            format!("{lead}_normal.png"),
+            format!("{lead}_ao_roughness_metalness.png"),
+            Some(format!("{lead}_cavity.png")),
         );
         let handle = MaterialHandle(self.materials.len() as u32);
         self.materials.push(descriptor);
         self.material_handles.insert(kind, handle);
-
-        // Decode the baked PNGs now so the renderer can upload real maps; a missing payload simply
-        // leaves the renderer on its neutral fallback texture for that channel.
-        let material_maps = VehicleMaterialMaps::new(
-            decode_required(artifact, &albedo_file)?,
-            decode_required(artifact, &normal_file)?,
-            decode_required(artifact, &ao_file)?,
-            cavity_file.and_then(|file| decode_optional(artifact, &file)),
-        );
-        self.pending_materials.push((handle, material_maps));
+        self.pending_materials.push((handle, VehicleMaterialFamilies::new(families)));
         Ok(handle)
     }
 }
@@ -139,14 +140,6 @@ fn decode_png_rgba8(bytes: &[u8]) -> Option<VehicleTextureMap> {
         return None;
     }
     Some(VehicleTextureMap::new(width, height, rgba))
-}
-
-fn required_map(maps: &[ForgeTextureManifest], semantic: &str) -> Result<String> {
-    optional_map(maps, semantic).with_context(|| format!("artifact is missing {semantic} map"))
-}
-
-fn optional_map(maps: &[ForgeTextureManifest], semantic: &str) -> Option<String> {
-    maps.iter().find(|map| map.semantic() == semantic).map(|map| map.file().to_string())
 }
 
 fn artifact_child_dirs(root: &Path) -> Result<Vec<PathBuf>> {

@@ -4,7 +4,7 @@ use game_core::{ModuleSlot, TankId, VehicleKind};
 use glam::{Mat4, Vec3};
 use net::TankSnapshot;
 use renderer_api::{
-    MaterialHandle, MeshHandle, RenderObject, VehicleMaterialDescriptor, VehicleMaterialMaps,
+    MaterialHandle, MeshHandle, RenderObject, VehicleMaterialDescriptor, VehicleMaterialFamilies,
     VehicleMeshAsset,
 };
 use vehicle_forge::authoritative_baked_vehicle;
@@ -22,7 +22,7 @@ pub struct VehicleAssetCatalog {
     pub(crate) material_handles: HashMap<VehicleKind, MaterialHandle>,
     pub(crate) vehicles: HashMap<VehicleKind, VehicleAssetEntry>,
     pending_meshes: Vec<(MeshHandle, VehicleMeshAsset)>,
-    pub(crate) pending_materials: Vec<(MaterialHandle, VehicleMaterialMaps)>,
+    pub(crate) pending_materials: Vec<(MaterialHandle, VehicleMaterialFamilies)>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -38,7 +38,9 @@ impl VehicleAssetCatalog {
         std::mem::take(&mut self.pending_meshes)
     }
 
-    pub fn take_pending_vehicle_materials(&mut self) -> Vec<(MaterialHandle, VehicleMaterialMaps)> {
+    pub fn take_pending_vehicle_materials(
+        &mut self,
+    ) -> Vec<(MaterialHandle, VehicleMaterialFamilies)> {
         std::mem::take(&mut self.pending_materials)
     }
 

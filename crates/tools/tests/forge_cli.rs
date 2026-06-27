@@ -16,10 +16,11 @@ fn forge_vehicle_cli_writes_artifact_folder() {
     assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
     assert!(out.join("manifest.json").is_file());
     assert!(out.join("meshes.bin").is_file());
-    assert!(out.join("albedo.png").is_file());
-    assert!(out.join("normal.png").is_file());
-    assert!(out.join("ao_roughness.png").is_file());
-    assert!(out.join("cavity.png").is_file());
+    // Role-aware material families: each role writes its own map set (a representative slice here).
+    assert!(out.join("rolled_armor_albedo.png").is_file());
+    assert!(out.join("cast_armor_normal.png").is_file());
+    assert!(out.join("barrel_steel_ao_roughness_metalness.png").is_file());
+    assert!(out.join("rubber_cavity.png").is_file());
     assert!(out.join("report.md").is_file());
     assert!(out.join("review").join("front.png").is_file());
     assert!(out.join("review").join("battle_oblique.png").is_file());
@@ -68,7 +69,7 @@ fn forge_lineup_cli_writes_benchmark_artifacts_and_index() {
     assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
     assert!(out.join("index.md").is_file());
     assert!(out.join("t54-1951").join("manifest.json").is_file());
-    assert!(out.join("t54-1951").join("albedo.png").is_file());
+    assert!(out.join("t54-1951").join("rolled_armor_albedo.png").is_file());
     assert!(out.join("t54-1951").join("review").join("front.png").is_file());
     assert!(
         !out.join("t55a").exists(),

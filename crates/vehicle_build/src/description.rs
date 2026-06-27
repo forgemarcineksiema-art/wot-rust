@@ -7,12 +7,15 @@ use glam::Vec3;
 use vehicle_geometry::{BakedVehicle, LodLevel, Submesh, SubmeshKind, reduce_mesh};
 
 use crate::part::VehiclePart;
+use crate::surface_bake::SurfaceBake;
 
 /// A vehicle as a parametric part list plus its mount frames.
 pub struct VehicleDescription {
     pub kind: VehicleKind,
     pub parts: Vec<VehiclePart>,
     pub mounts: MountFrames,
+    /// Semantic contact cavities baked into `surface_shade` after merge (empty = flat shade).
+    pub surface_bake: SurfaceBake,
 }
 
 impl VehicleDescription {
@@ -26,6 +29,7 @@ impl VehicleDescription {
     /// drop the detail fittings and track links, leaving the silhouette and the mount-bearing parts.
     /// Triangle decimation within a tier is left to `vehicle_geometry::reduce_vehicle`.
     pub fn build_lod(&self, lod: LodLevel) -> BakedVehicle {
+        let bands = self.surface_bake.bands();
         let mut submeshes = Vec::new();
         for kind in [SubmeshKind::Hull, SubmeshKind::Turret, SubmeshKind::Gun] {
             let meshes: Vec<_> = self
@@ -35,7 +39,8 @@ impl VehicleDescription {
                 .map(VehiclePart::mesh)
                 .collect();
             if !meshes.is_empty() {
-                submeshes.push(Submesh { kind, mesh: revolve::merge(&meshes) });
+                let mesh = revolve::merge(&meshes).with_contact_cavity(&bands);
+                submeshes.push(Submesh { kind, mesh });
             }
         }
         BakedVehicle::new(self.kind, submeshes, self.mounts)
@@ -64,6 +69,7 @@ impl VehicleDescription {
             .collect();
         let cell = body_cell(retained.iter().map(|(_, _, m)| m), fraction);
 
+        let bands = self.surface_bake.bands();
         let mut submeshes = Vec::new();
         for kind in [SubmeshKind::Hull, SubmeshKind::Turret, SubmeshKind::Gun] {
             let reduced: Vec<_> = retained
@@ -72,7 +78,9 @@ impl VehicleDescription {
                 .map(|(_, scale, mesh)| reduce_mesh(mesh, cell * scale))
                 .collect();
             if !reduced.is_empty() {
-                submeshes.push(Submesh { kind, mesh: revolve::merge(&reduced) });
+                // Shade the reduced surface by position, matching the full bake's post-merge pass.
+                let mesh = revolve::merge(&reduced).with_contact_cavity(&bands);
+                submeshes.push(Submesh { kind, mesh });
             }
         }
         BakedVehicle::new(self.kind, submeshes, self.mounts)

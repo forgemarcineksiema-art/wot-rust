@@ -64,11 +64,13 @@ pub(super) fn turret_loft() -> TurretLoftVisual {
         ],
         exponent: 2.8,
         segments: 64,
-        cheek_amount: 0.10,
-        cheek_azimuth: 0.70,
+        // Fuller, wider front cheeks pulled in toward the mantlet (smaller azimuth): the signature
+        // T-54 cast front mass must bulge PROUD of the turret sides, not vanish into the superellipse.
+        cheek_amount: 0.18,
+        cheek_azimuth: 0.95,
         cheek_y: 1.48,
-        cheek_az_width: 0.42,
-        cheek_y_width: 0.18,
+        cheek_az_width: 0.50,
+        cheek_y_width: 0.20,
         embrasure_amount: -0.10,
         embrasure_y: 1.54,
         embrasure_az_width: 0.50,

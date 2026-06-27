@@ -1,13 +1,16 @@
 use std::collections::HashMap;
 
-use renderer_api::{MaterialHandle, VehicleMaterialMaps, VehicleTextureMap};
+use renderer_api::{MaterialHandle, VehicleMaterialFamilies, VehicleTextureMap};
 
 use crate::GpuContext;
 
-/// Owns the vehicle material bind groups. Each registered [`MaterialHandle`] gets its own bind
-/// group sampling the uploaded baked maps; handles without uploaded maps resolve to a neutral
-/// fallback bind group so the vehicle pipeline always has valid bindings (the "falls back cleanly
-/// if a debug texture is missing" contract from the Forge plan).
+/// The number of material-role layers stacked into each map's texture array (one per `material_id`).
+const LAYERS: u32 = VehicleMaterialFamilies::LAYERS as u32;
+
+/// Owns the vehicle material bind groups. Each registered [`MaterialHandle`] gets a bind group whose
+/// four maps are **texture arrays** — one layer per material role — so the vehicle shader selects the
+/// role by `material_id` without splitting the mesh. Handles without uploaded maps resolve to a
+/// neutral fallback so the pipeline always has valid bindings.
 pub(super) struct VehicleMaterialRegistry {
     layout: wgpu::BindGroupLayout,
     sampler: wgpu::Sampler,
@@ -31,32 +34,41 @@ impl VehicleMaterialRegistry {
             mipmap_filter: wgpu::MipmapFilterMode::Nearest,
             ..Default::default()
         });
-        let albedo = solid_view(device, queue, "vehicle_albedo_fallback", [255, 255, 255, 255]);
-        let normal = solid_view(device, queue, "vehicle_normal_fallback", [128, 128, 255, 255]);
-        let ao = solid_view(device, queue, "vehicle_ao_roughness_fallback", [255, 160, 0, 255]);
-        let cavity = solid_view(device, queue, "vehicle_cavity_fallback", [255, 255, 255, 255]);
+        let albedo = solid_array(device, queue, "vehicle_albedo_fallback", [255, 255, 255, 255]);
+        let normal = solid_array(device, queue, "vehicle_normal_fallback", [128, 128, 255, 255]);
+        let ao = solid_array(device, queue, "vehicle_ao_roughness_fallback", [255, 160, 0, 255]);
+        let cavity = solid_array(device, queue, "vehicle_cavity_fallback", [255, 255, 255, 255]);
         let fallback =
             build_bind_group(device, &layout, &sampler, &albedo, &normal, &ao, &cavity, "fallback");
         Self { layout, sampler, fallback, materials: HashMap::new() }
     }
 
-    /// Uploads one vehicle's baked maps and builds its bind group. A missing cavity map reuses a
-    /// neutral white texture, matching the shader's "no occlusion" default.
+    /// Upload one vehicle's role families and build its bind group. Each map kind becomes a layered
+    /// texture array; a family missing a cavity layer falls back to neutral white for that layer.
     pub(super) fn register(
         &mut self,
         ctx: &GpuContext,
         handle: MaterialHandle,
-        maps: &VehicleMaterialMaps,
+        families: &VehicleMaterialFamilies,
     ) {
         let device = &ctx.device;
         let queue = &ctx.queue;
-        let albedo = map_view(device, queue, "vehicle_albedo", maps.albedo());
-        let normal = map_view(device, queue, "vehicle_normal", maps.normal());
-        let ao = map_view(device, queue, "vehicle_ao_roughness", maps.ao_roughness());
-        let cavity = match maps.cavity() {
-            Some(map) => map_view(device, queue, "vehicle_cavity", map),
-            None => solid_view(device, queue, "vehicle_cavity_default", [255, 255, 255, 255]),
-        };
+        let layers = families.families();
+        let albedo =
+            layer_array(device, queue, "vehicle_albedo", &layer_maps(layers, |m| m.albedo()));
+        let normal =
+            layer_array(device, queue, "vehicle_normal", &layer_maps(layers, |m| m.normal()));
+        let ao = layer_array(
+            device,
+            queue,
+            "vehicle_ao_roughness",
+            &layer_maps(layers, |m| m.ao_roughness()),
+        );
+        let cavity_layers: Vec<VehicleTextureMap> = layers
+            .iter()
+            .map(|m| m.cavity().cloned().unwrap_or_else(|| solid_map([255, 255, 255, 255])))
+            .collect();
+        let cavity = layer_array(device, queue, "vehicle_cavity", &cavity_layers);
         let bind_group = build_bind_group(
             device,
             &self.layout,
@@ -73,6 +85,13 @@ impl VehicleMaterialRegistry {
     pub(super) fn bind_group(&self, handle: MaterialHandle) -> &wgpu::BindGroup {
         self.materials.get(&handle.0).unwrap_or(&self.fallback)
     }
+}
+
+fn layer_maps(
+    layers: &[renderer_api::VehicleMaterialMaps],
+    pick: impl Fn(&renderer_api::VehicleMaterialMaps) -> &VehicleTextureMap,
+) -> Vec<VehicleTextureMap> {
+    layers.iter().map(|m| pick(m).clone()).collect()
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -99,36 +118,18 @@ fn build_bind_group(
     })
 }
 
-fn map_view(
+/// Build a `LAYERS`-deep texture array from per-layer maps, uploading each layer. All layers must
+/// share dimensions (the baked families are uniform); the first layer's size defines the array.
+fn layer_array(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     label: &str,
-    map: &VehicleTextureMap,
+    maps: &[VehicleTextureMap],
 ) -> wgpu::TextureView {
-    upload_view(device, queue, label, map.width(), map.height(), map.rgba())
-}
-
-fn solid_view(
-    device: &wgpu::Device,
-    queue: &wgpu::Queue,
-    label: &str,
-    rgba: [u8; 4],
-) -> wgpu::TextureView {
-    upload_view(device, queue, label, 1, 1, &rgba)
-}
-
-fn upload_view(
-    device: &wgpu::Device,
-    queue: &wgpu::Queue,
-    label: &str,
-    width: u32,
-    height: u32,
-    rgba: &[u8],
-) -> wgpu::TextureView {
-    let size = wgpu::Extent3d { width, height, depth_or_array_layers: 1 };
+    let (width, height) = (maps[0].width(), maps[0].height());
     let texture = device.create_texture(&wgpu::TextureDescriptor {
         label: Some(label),
-        size,
+        size: wgpu::Extent3d { width, height, depth_or_array_layers: LAYERS },
         mip_level_count: 1,
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
@@ -136,11 +137,43 @@ fn upload_view(
         usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
         view_formats: &[],
     });
+    for (layer, map) in maps.iter().enumerate() {
+        write_layer(queue, &texture, layer as u32, map.width(), map.height(), map.rgba());
+    }
+    texture.create_view(&wgpu::TextureViewDescriptor {
+        dimension: Some(wgpu::TextureViewDimension::D2Array),
+        ..Default::default()
+    })
+}
+
+/// A `LAYERS`-deep array of a single solid colour — the neutral fallback for every role layer.
+fn solid_array(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    label: &str,
+    rgba: [u8; 4],
+) -> wgpu::TextureView {
+    let maps: Vec<VehicleTextureMap> = (0..LAYERS).map(|_| solid_map(rgba)).collect();
+    layer_array(device, queue, label, &maps)
+}
+
+fn solid_map(rgba: [u8; 4]) -> VehicleTextureMap {
+    VehicleTextureMap::new(1, 1, rgba.to_vec())
+}
+
+fn write_layer(
+    queue: &wgpu::Queue,
+    texture: &wgpu::Texture,
+    layer: u32,
+    width: u32,
+    height: u32,
+    rgba: &[u8],
+) {
     queue.write_texture(
         wgpu::TexelCopyTextureInfo {
-            texture: &texture,
+            texture,
             mip_level: 0,
-            origin: wgpu::Origin3d::ZERO,
+            origin: wgpu::Origin3d { x: 0, y: 0, z: layer },
             aspect: wgpu::TextureAspect::All,
         },
         rgba,
@@ -149,9 +182,8 @@ fn upload_view(
             bytes_per_row: Some(width * 4),
             rows_per_image: Some(height),
         },
-        size,
+        wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
     );
-    texture.create_view(&wgpu::TextureViewDescriptor::default())
 }
 
 fn texture_entry<'a>(binding: u32, view: &'a wgpu::TextureView) -> wgpu::BindGroupEntry<'a> {

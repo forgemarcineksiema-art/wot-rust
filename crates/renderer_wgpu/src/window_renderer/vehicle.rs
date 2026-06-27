@@ -2,7 +2,7 @@
 //! material maps and queuing the vehicle render frame. Split out to keep the core file reviewable.
 
 use renderer_api::{
-    MaterialHandle, MeshHandle, RenderFrame, VehicleMaterialMaps, VehicleMeshAsset,
+    MaterialHandle, MeshHandle, RenderFrame, VehicleMaterialFamilies, VehicleMeshAsset,
 };
 
 impl super::WindowRenderer {
@@ -13,9 +13,9 @@ impl super::WindowRenderer {
     pub fn register_vehicle_material(
         &mut self,
         handle: MaterialHandle,
-        maps: &VehicleMaterialMaps,
+        families: &VehicleMaterialFamilies,
     ) {
-        self.scene.register_vehicle_material(&self.ctx, handle, maps);
+        self.scene.register_vehicle_material(&self.ctx, handle, families);
     }
 
     pub fn set_vehicle_render_frame(&mut self, frame: &RenderFrame) {

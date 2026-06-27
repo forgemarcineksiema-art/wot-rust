@@ -2,6 +2,7 @@
 
 mod bounds;
 mod builder;
+mod cavity;
 mod lod;
 mod mesh;
 mod ops;
@@ -13,6 +14,7 @@ mod weld;
 
 pub use bounds::MeshBounds;
 pub use builder::MeshBuilder;
+pub use cavity::CavityBand;
 pub use game_core::{MountFrame, MountFrames};
 pub use lod::{
     LodAuditError, LodLevel, PartImportance, audit_reduction, reduce_mesh, reduce_vehicle,

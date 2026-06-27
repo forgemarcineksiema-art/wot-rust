@@ -1096,15 +1096,19 @@ git commit -m "feat(render): add hybrid vehicle surface mapping"
 - Modify: `crates/vehicle_forge/src/artifact/texture_maps.rs`
 - Modify: `crates/vehicle_forge/tests/artifact.rs`
 
-- [ ] Add optional deterministic bake passes for:
+- [x] Add optional deterministic bake passes for:
   - ambient-contact/cavity around turret ring, mantlet seat, wheel overlaps and track recesses;
-  - local weld darkening;
-  - panel-edge dirt accumulation;
-  - low-amplitude cast variation.
-- [ ] Only parametric-UV geometry receives rasterized per-vehicle layers in this release.
-- [ ] Triplanar geometry keeps its tiled role material plus vertex `surface_shade` and optional procedural cavity.
-- [ ] Store bake source hash and bake configuration in the manifest so artifacts are invalidated intentionally when the algorithm changes.
-- [ ] Keep battle damage, decals, mud and camouflage as runtime overlays, not permanent changes to the base asset.
+  - local weld darkening (glacis-to-roof weld);
+  - panel-edge dirt accumulation; *(deferred — folded into the contact-cavity band model, no separate dirt layer yet)*
+  - low-amplitude cast variation. *(deferred to the `deform` lane; the bake here is ambient contact only)*
+  - Implemented as semantic `CavityBand`s (`vehicle_geometry::with_contact_cavity`) authored from
+    the blueprint (`vehicle_build::t54_surface_bake`) and applied to `surface_shade` at merge.
+- [~] Only parametric-UV geometry receives rasterized per-vehicle layers in this release. *(deferred —
+  the T-54 is predominantly triplanar; the contact bake uses the `surface_shade` channel below, so no
+  per-vehicle UV atlas raster was needed yet. Revisit when a parametric-UV-dominant vehicle migrates.)*
+- [x] Triplanar geometry keeps its tiled role material plus vertex `surface_shade` and optional procedural cavity.
+- [x] Store bake source hash and bake configuration in the manifest so artifacts are invalidated intentionally when the algorithm changes. *(`source_hash` moves with `surface_shade`; the manifest also records the named signals + `config_hash`.)*
+- [x] Keep battle damage, decals, mud and camouflage as runtime overlays, not permanent changes to the base asset. *(this pass bakes only the geometry's own ambient contact.)*
 
 ## 19. Add runtime variation after base materials are stable
 

@@ -209,5 +209,9 @@ pub fn t54_from_modules(modules: &VehicleModules) -> VehicleDescription {
     // Hull plate articulation: the glacis-to-roof weld seam and the rear transmission covers.
     parts.extend(crate::t54_chassis::t54_hull_plate_parts(v, bp.armor.hull_front.0));
 
-    VehicleDescription { kind, parts, mounts }
+    // Bake-time ambient contact: darken the turret-ring seam, mantlet seat, running-gear recess and
+    // glacis weld into `surface_shade` after merge (the cast turret and welded hull no longer read
+    // flat). Derived from the same blueprint `v` that drives the geometry.
+    let surface_bake = crate::surface_bake::t54_surface_bake(v);
+    VehicleDescription { kind, parts, mounts, surface_bake }
 }

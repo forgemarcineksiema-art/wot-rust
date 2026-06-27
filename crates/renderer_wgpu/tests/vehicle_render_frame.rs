@@ -1,7 +1,8 @@
 use game_core::TankId;
 use renderer_api::{
-    MaterialHandle, MeshHandle, RenderFrame, RenderObject, VehicleMaterialMaps, VehicleMeshAsset,
-    VehicleTextureMap, VehicleVertex, view_projection_matrix,
+    MaterialHandle, MeshHandle, RenderFrame, RenderObject, VehicleMaterialFamilies,
+    VehicleMaterialMaps, VehicleMeshAsset, VehicleTextureMap, VehicleVertex,
+    view_projection_matrix,
 };
 use renderer_wgpu::{GpuContext, OffscreenTarget, SceneRenderer};
 
@@ -101,7 +102,7 @@ fn registered_vehicle_material_overrides_the_neutral_fallback() {
         let target = OffscreenTarget::new(&ctx, 64, 64).expect("target");
         let mut renderer = SceneRenderer::for_offscreen(&ctx, &[], &[]).expect("renderer");
         renderer.register_vehicle_mesh(&ctx, mesh, &vehicle_triangle());
-        renderer.register_vehicle_material(&ctx, material, &dark_albedo_maps());
+        renderer.register_vehicle_material(&ctx, material, &dark_albedo_families());
         renderer.set_vehicle_render_frame(&ctx, &frame);
         renderer
             .render(&ctx, target.render_target(), view_proj, camera.eye)
@@ -191,13 +192,18 @@ fn luma(p: &[u8]) -> f32 {
     0.299 * p[0] as f32 + 0.587 * p[1] as f32 + 0.114 * p[2] as f32
 }
 
-fn dark_albedo_maps() -> VehicleMaterialMaps {
-    VehicleMaterialMaps::new(
-        VehicleTextureMap::new(1, 1, vec![8, 8, 8, 255]),
-        VehicleTextureMap::new(1, 1, vec![128, 128, 255, 255]),
-        VehicleTextureMap::new(1, 1, vec![255, 160, 0, 255]),
-        Some(VehicleTextureMap::new(1, 1, vec![255, 255, 255, 255])),
-    )
+/// Five identical dark-albedo role layers, so whichever `material_id` the mesh uses samples a near
+/// black albedo and the triangle visibly darkens.
+fn dark_albedo_families() -> VehicleMaterialFamilies {
+    let layer = || {
+        VehicleMaterialMaps::new(
+            VehicleTextureMap::new(1, 1, vec![8, 8, 8, 255]),
+            VehicleTextureMap::new(1, 1, vec![128, 128, 255, 255]),
+            VehicleTextureMap::new(1, 1, vec![255, 160, 0, 255]),
+            Some(VehicleTextureMap::new(1, 1, vec![255, 255, 255, 255])),
+        )
+    };
+    VehicleMaterialFamilies::new((0..VehicleMaterialFamilies::LAYERS).map(|_| layer()).collect())
 }
 
 fn vehicle_triangle() -> VehicleMeshAsset {
