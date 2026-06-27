@@ -1,7 +1,7 @@
 use net::TankSnapshot;
 use renderer_api::SceneVertex;
 
-use crate::vehicle_geometry_mesh::append_baked_tank_mesh;
+use super::geometry_mesh::append_baked_tank_mesh;
 
 /// Append a fully baked tank mesh in world space.
 pub fn append_tank_mesh(

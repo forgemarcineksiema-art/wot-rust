@@ -4,8 +4,8 @@ use renderer_api::SceneVertex;
 use vehicle_forge::authoritative_baked_vehicle;
 use vehicle_geometry::{GeometryMesh, SubmeshKind};
 
+use super::pose::VehiclePose;
 use crate::color::{material_color, shade_color};
-use crate::vehicle_pose::VehiclePose;
 
 pub(crate) fn append_baked_tank_mesh(
     vertices: &mut Vec<SceneVertex>,

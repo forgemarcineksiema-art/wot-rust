@@ -1,7 +1,7 @@
 //! Optional equipment attachment points for baked vehicles (part of the runtime variation layer).
 //!
 //! Positions are derived from a vehicle's baked hull and turret bounds, so stowage rides on the real
-//! geometry rather than on hand-tuned magic values. Split from [`crate::vehicle_variation`] to keep
+//! geometry rather than on hand-tuned magic values. Split from [`crate::vehicle::variation`] to keep
 //! each module small and reviewable.
 
 use game_core::VehicleKind;
