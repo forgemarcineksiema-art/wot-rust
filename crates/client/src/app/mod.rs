@@ -29,6 +29,7 @@ use winit::window::Window;
 
 use crate::aim::DesiredAim;
 use crate::app::garage::GarageState;
+pub use crate::app::garage::garage_overlay;
 use crate::hit_indicator::HitIndicator;
 use crate::predict::LocalPredictor;
 use crate::{
@@ -59,6 +60,8 @@ pub(crate) struct InputState {
     free_look_return_pitch: Option<f32>,
     /// Fractional wheel motion below one notch, carried between scroll events.
     wheel_pending_lines: f32,
+    /// Whether Shift is currently held — the garage uses Shift+click to cycle a module backward.
+    shift: bool,
 }
 
 pub(crate) struct ClientApp {

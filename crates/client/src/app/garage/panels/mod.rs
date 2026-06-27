@@ -5,4 +5,5 @@ pub(in crate::app::garage) mod carousel;
 pub(in crate::app::garage) mod crew;
 pub(in crate::app::garage) mod loadout;
 pub(in crate::app::garage) mod stats;
+pub(in crate::app::garage) mod techtree;
 pub(in crate::app::garage) mod topbar;

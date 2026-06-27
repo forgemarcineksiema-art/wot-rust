@@ -32,6 +32,6 @@ pub use vehicle_blueprint::{
     TrackBeltVisual, TrackShape, TurretForm, TurretLoftVisual, TurretShape, TurretVisual,
     VehicleBlueprint,
 };
-pub use vehicle_kind::VehicleKind;
+pub use vehicle_kind::{Nation, VehicleKind};
 pub use vehicles::known_tank_specs;
 pub use weapon::{GunSpec, ShellSpec, ShellType};

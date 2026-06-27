@@ -2,13 +2,16 @@
 //! the Battle button, a left crew column, a right stats list, a bottom loadout strip, and a bottom
 //! vehicle carousel. Every rect lives here once so drawing (panels) and hit-testing (overlay) agree.
 
-use game_core::VehicleKind;
+use game_core::{Nation, VehicleKind};
 
 use super::draft::FitSlot;
 
 pub(super) const PANEL: [f32; 4] = [0.05, 0.06, 0.07, 0.74];
 pub(super) const SLOT: [f32; 4] = [0.13, 0.15, 0.17, 0.92];
 pub(super) const SLOT_SELECTED: [f32; 4] = [0.40, 0.55, 0.70, 0.95];
+pub(super) const SLOT_FOCUSED: [f32; 4] = [0.22, 0.34, 0.44, 0.95];
+pub(super) const REJECTED: [f32; 4] = [0.50, 0.12, 0.10, 0.92];
+pub(super) const HOVER: [f32; 4] = [1.0, 1.0, 1.0, 0.10];
 pub(super) const BATTLE: [f32; 4] = [0.74, 0.22, 0.18, 0.97];
 pub(super) const ICON: [f32; 4] = [0.86, 0.88, 0.84, 0.96];
 pub(super) const ICON_DIM: [f32; 4] = [0.70, 0.73, 0.70, 0.85];
@@ -20,6 +23,9 @@ pub(super) const VALUE: [f32; 4] = [0.96, 0.92, 0.70, 0.98];
 pub(super) const BATTLE_CENTER: [f32; 2] = [0.0, 0.90];
 pub(super) const BATTLE_HALF: [f32; 2] = [0.13, 0.052];
 pub(super) const TABS: [&str; 5] = ["GARAGE", "TECH TREE", "DEPOT", "STORE", "BARRACKS"];
+/// Hit-test rect for the clickable TECH TREE tab (the only active tab; others are cosmetic).
+pub(super) const TECH_TREE_TAB_CENTER: [f32; 2] = [0.22, 0.815];
+pub(super) const TECH_TREE_TAB_HALF: [f32; 2] = [0.10, 0.03];
 
 // Left crew column.
 pub(super) const CREW_X: f32 = -0.80;
@@ -48,6 +54,7 @@ const AMMO_START_X: f32 = 0.22;
 pub(super) const CAR_Y: f32 = -0.87;
 pub(super) const CAR_HALF: [f32; 2] = [0.058, 0.072];
 const CAR_STEP: f32 = 0.13;
+pub(super) const NATION_TEXT_SIZE: f32 = 0.022;
 
 pub(super) fn module_slot_center(i: usize) -> [f32; 2] {
     [MODULE_START_X + i as f32 * SLOT_STEP, LOADOUT_Y]
@@ -103,4 +110,27 @@ pub(super) fn ammo_icon(index: usize) -> crate::hud_icons::HudIcon {
         2 => HudIcon::AmmoHe,
         _ => HudIcon::AmmoAp,
     }
+}
+
+// Tech tree view: vehicles grouped by nation in vertical columns (the beta-WoT signature).
+pub(super) const TREE_PANEL_CENTER: [f32; 2] = [0.0, -0.05];
+pub(super) const TREE_PANEL_HALF: [f32; 2] = [0.95, 0.80];
+pub(super) const TREE_USSR_X: f32 = -0.40;
+pub(super) const TREE_GERMANY_X: f32 = 0.40;
+pub(super) const TREE_NODE_HALF: [f32; 2] = [0.14, 0.045];
+pub(super) const TREE_NODE_PITCH: f32 = 0.14;
+pub(super) const TREE_TOP_Y: f32 = 0.50;
+pub(super) const TREE_HEADER_Y: f32 = 0.66;
+pub(super) const TREE_CLOSE_CENTER: [f32; 2] = [0.86, 0.80];
+pub(super) const TREE_CLOSE_HALF: [f32; 2] = [0.06, 0.04];
+
+pub(super) fn tree_column_x(nation: Nation) -> f32 {
+    match nation {
+        Nation::Ussr => TREE_USSR_X,
+        Nation::Germany => TREE_GERMANY_X,
+    }
+}
+
+pub(super) fn tree_node_center(nation: Nation, row: usize) -> [f32; 2] {
+    [tree_column_x(nation), TREE_TOP_Y - row as f32 * TREE_NODE_PITCH]
 }

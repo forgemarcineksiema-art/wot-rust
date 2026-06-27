@@ -9,6 +9,10 @@ impl InputState {
         self.mouse_dy = 0.0;
     }
 
+    pub(super) fn set_shift(&mut self, shift: bool) {
+        self.shift = shift;
+    }
+
     pub(super) fn throttle(&self) -> f32 {
         axis(self.forward, self.back)
     }

@@ -56,6 +56,16 @@ Text articles describe the era but the *look* is best confirmed from images/vide
 3. **Generous low-tier module choice** signals that early WoT valued customization depth —
    a useful contrast point when we decide how much our game diverges from 1:1 WoT.
 
+## Decisions taken
+
+The forks above are resolved in `docs/ui/garage-decisions.md`. In short:
+
+- Carousel is the primary selector (ergonomics); the vertical tech tree survives
+  as a browse-only second screen, not a selection path.
+- Crew is flattened to one shared `proficiency` scalar (prototype scope).
+- No tiers, no matchmaking, no economy — the tech tree groups by nation only.
+- A backward module cycle is added as a deliberate improvement over the beta.
+
 ## Sources
 
 - World of Tanks – zamknięte beta testy (rykoszet.info):

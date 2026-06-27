@@ -56,6 +56,12 @@ pub struct SceneRenderer {
 }
 
 impl SceneRenderer {
+    /// Set the sky clear colour (RGB in 0–1). The garage uses a dim interior tone; the battle
+    /// uses the default daylight blue.
+    pub fn set_sky(&mut self, r: f64, g: f64, b: f64) {
+        self.sky = wgpu::Color { r, g, b, a: 1.0 };
+    }
+
     pub fn for_offscreen(
         ctx: &GpuContext,
         terrain_vertices: &[SceneVertex],
