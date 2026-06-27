@@ -7,9 +7,9 @@ rust-version.workspace = true
 
 [dependencies]
 bincode.workspace = true
-game_core = { path = "../game_core" }
+game_core.workspace = true
 serde.workspace = true
-sim = { path = "../sim" }
+sim.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]

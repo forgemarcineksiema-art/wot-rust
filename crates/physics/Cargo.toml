@@ -6,11 +6,11 @@ license.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-game_core = { path = "../game_core" }
+game_core.workspace = true
 glam.workspace = true
 rapier3d.workspace = true
 serde.workspace = true
-terrain = { path = "../terrain" }
+terrain.workspace = true
 
 [lints]
 workspace = true

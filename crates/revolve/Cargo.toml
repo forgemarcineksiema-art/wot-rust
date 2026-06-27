@@ -6,11 +6,11 @@ license.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-game_core = { path = "../game_core" }
+game_core.workspace = true
 glam.workspace = true
-sweep = { path = "../sweep" }
+sweep.workspace = true
 thiserror.workspace = true
-vehicle_geometry = { path = "../vehicle_geometry" }
+vehicle_geometry.workspace = true
 
 [lints]
 workspace = true

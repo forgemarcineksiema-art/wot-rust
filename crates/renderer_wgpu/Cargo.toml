@@ -10,12 +10,12 @@ bytemuck.workspace = true
 encase.workspace = true
 naga.workspace = true
 pollster.workspace = true
-renderer_api = { path = "../renderer_api" }
+renderer_api.workspace = true
 thiserror.workspace = true
 wgpu.workspace = true
 
 [dev-dependencies]
-game_core = { path = "../game_core" }
+game_core.workspace = true
 png = "0.18"
 
 [lints]
