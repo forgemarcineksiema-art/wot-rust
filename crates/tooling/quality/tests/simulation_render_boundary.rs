@@ -15,7 +15,7 @@ fn sim_net_and_server_stay_free_of_render_frame_concepts() {
     let mut offenders = Vec::new();
 
     for crate_name in ["sim", "net", "server"] {
-        for source in rust_files(&root.join("crates").join(crate_name).join("src")) {
+        for source in rust_files(&quality::crate_src_dir(&root, crate_name)) {
             let text = fs::read_to_string(&source).expect("source should be readable");
             for forbidden in ["RenderFrame", "renderer_api", "renderer_wgpu", "wgpu::", "winit::"] {
                 if text.contains(forbidden) {
@@ -34,7 +34,7 @@ fn sim_net_and_server_stay_free_of_render_frame_concepts() {
 
 #[test]
 fn client_redraw_path_does_not_step_authoritative_simulation() {
-    let dispatch = fs::read_to_string(workspace_root().join("crates/client/src/app/mod.rs"))
+    let dispatch = fs::read_to_string(workspace_root().join("crates/apps/client/src/app/mod.rs"))
         .expect("client loop dispatch should be readable");
     let redraw_index =
         dispatch.find("ClientLoopAction::RenderFrame").expect("render action exists");
@@ -52,7 +52,7 @@ fn client_does_not_own_authoritative_simulation_state() {
     let root = workspace_root();
     let mut offenders = Vec::new();
 
-    for source in rust_files(&root.join("crates/client/src")) {
+    for source in rust_files(&root.join("crates/apps/client/src")) {
         // Production client code must not own the authoritative sim. Test modules may use a
         // `SimulationState` as a parity oracle (e.g. predictor-vs-server lockstep checks).
         if is_test_module_file(&source) {
@@ -78,7 +78,7 @@ fn client_vehicle_rendering_has_no_dynamic_fallback_mesh_path() {
     let root = workspace_root();
     let mut offenders = Vec::new();
 
-    for source in rust_files(&root.join("crates/client/src")) {
+    for source in rust_files(&root.join("crates/apps/client/src")) {
         let text = fs::read_to_string(&source).expect("client source should be readable");
         for forbidden in [
             "dynamic_fallback",
@@ -101,11 +101,13 @@ fn client_vehicle_rendering_has_no_dynamic_fallback_mesh_path() {
 }
 
 fn workspace_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .and_then(Path::parent)
-        .expect("quality crate should live under crates/quality")
-        .to_path_buf()
+    // Layout-agnostic: the nearest ancestor whose Cargo.toml declares [workspace].
+    let mut dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    while !std::fs::read_to_string(dir.join("Cargo.toml")).is_ok_and(|t| t.contains("[workspace]"))
+    {
+        assert!(dir.pop(), "a Cargo.toml with [workspace] should exist in an ancestor");
+    }
+    dir
 }
 
 fn rust_files(root: &Path) -> Vec<PathBuf> {

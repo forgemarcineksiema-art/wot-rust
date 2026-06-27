@@ -24,7 +24,7 @@ fn vehicle_movement_policy_doc_is_required() {
 #[test]
 fn sim_uses_custom_physics_movement_model() {
     let root = workspace_root();
-    let drive = fs::read_to_string(root.join("crates/sim/src/tank_drive.rs"))
+    let drive = fs::read_to_string(root.join("crates/runtime/sim/src/tank_drive.rs"))
         .expect("sim tank-drive source");
 
     // The shared drive step runs the custom controller via the physics world step (the same step
@@ -34,9 +34,11 @@ fn sim_uses_custom_physics_movement_model() {
 }
 
 fn workspace_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .and_then(std::path::Path::parent)
-        .expect("quality crate should live under crates/quality")
-        .to_path_buf()
+    // Layout-agnostic: the nearest ancestor whose Cargo.toml declares [workspace].
+    let mut dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    while !std::fs::read_to_string(dir.join("Cargo.toml")).is_ok_and(|t| t.contains("[workspace]"))
+    {
+        assert!(dir.pop(), "a Cargo.toml with [workspace] should exist in an ancestor");
+    }
+    dir
 }

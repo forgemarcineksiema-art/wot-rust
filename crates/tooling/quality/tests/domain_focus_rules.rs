@@ -31,9 +31,11 @@ fn readme_names_the_project_domain_before_the_stack() {
 }
 
 fn workspace_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .and_then(std::path::Path::parent)
-        .expect("quality crate should live under crates/quality")
-        .to_path_buf()
+    // Layout-agnostic: the nearest ancestor whose Cargo.toml declares [workspace].
+    let mut dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    while !std::fs::read_to_string(dir.join("Cargo.toml")).is_ok_and(|t| t.contains("[workspace]"))
+    {
+        assert!(dir.pop(), "a Cargo.toml with [workspace] should exist in an ancestor");
+    }
+    dir
 }

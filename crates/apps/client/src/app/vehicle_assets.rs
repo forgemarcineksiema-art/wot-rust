@@ -27,6 +27,6 @@ fn default_vehicle_artifact_root() -> Option<PathBuf> {
     if let Some(path) = std::env::var_os(FORGE_ASSET_DIR_ENV).map(PathBuf::from) {
         return Some(path);
     }
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target/forge");
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../target/forge");
     root.exists().then_some(root)
 }

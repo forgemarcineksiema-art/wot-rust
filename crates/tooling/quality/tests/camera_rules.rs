@@ -30,9 +30,9 @@ fn battle_camera_policy_names_core_constraints() {
 
 #[test]
 fn client_render_path_uses_battle_camera_not_default_placeholder() {
-    let dispatch = fs::read_to_string(workspace_root().join("crates/client/src/app/mod.rs"))
+    let dispatch = fs::read_to_string(workspace_root().join("crates/apps/client/src/app/mod.rs"))
         .expect("client app should be readable");
-    let render = fs::read_to_string(workspace_root().join("crates/client/src/app/render.rs"))
+    let render = fs::read_to_string(workspace_root().join("crates/apps/client/src/app/render.rs"))
         .expect("client render path should be readable");
 
     assert!(dispatch.contains("BattleCameraController"));
@@ -41,9 +41,11 @@ fn client_render_path_uses_battle_camera_not_default_placeholder() {
 }
 
 fn workspace_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .and_then(std::path::Path::parent)
-        .expect("quality crate should live under crates/quality")
-        .to_path_buf()
+    // Layout-agnostic: the nearest ancestor whose Cargo.toml declares [workspace].
+    let mut dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    while !std::fs::read_to_string(dir.join("Cargo.toml")).is_ok_and(|t| t.contains("[workspace]"))
+    {
+        assert!(dir.pop(), "a Cargo.toml with [workspace] should exist in an ancestor");
+    }
+    dir
 }

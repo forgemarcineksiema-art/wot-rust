@@ -11,7 +11,7 @@ use crate::hud::icons::{HudIcon, ICON_PX, raster as raster_icon};
 /// read well at small sizes and suit a gunnery HUD without clashing with the flat-shaded scene.
 const FONT_BYTES: &[u8] = include_bytes!(concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/../../assets/fonts/Rajdhani-SemiBold.ttf"
+    "/../../../assets/fonts/Rajdhani-SemiBold.ttf"
 ));
 
 /// Pixel size each glyph is rasterized at. Generous vs the on-screen size so the linear-filtered

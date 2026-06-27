@@ -91,10 +91,10 @@ mod tests {
 
     #[test]
     fn test_code_paths_cover_integration_trees_and_sibling_test_modules() {
-        assert!(is_test_code_path(Path::new("crates/sim/tests/turret_volume.rs")));
-        assert!(is_test_code_path(Path::new("crates/client/src/app/camera_tests.rs")));
-        assert!(is_test_code_path(Path::new("crates/client/src/predict/tests.rs")));
-        assert!(!is_test_code_path(Path::new("crates/client/src/app/reticle.rs")));
-        assert!(!is_test_code_path(Path::new("crates/game_core/src/math.rs")));
+        assert!(is_test_code_path(Path::new("crates/runtime/sim/tests/turret_volume.rs")));
+        assert!(is_test_code_path(Path::new("crates/apps/client/src/app/camera_tests.rs")));
+        assert!(is_test_code_path(Path::new("crates/apps/client/src/predict/tests.rs")));
+        assert!(!is_test_code_path(Path::new("crates/apps/client/src/app/reticle.rs")));
+        assert!(!is_test_code_path(Path::new("crates/foundation/game_core/src/math.rs")));
     }
 }

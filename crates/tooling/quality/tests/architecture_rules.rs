@@ -69,7 +69,7 @@ fn core_architecture_docs_exist() {
 #[test]
 fn vehicle_forge_stays_renderer_free() {
     let root = workspace_root();
-    let manifest = fs::read_to_string(root.join("crates/vehicle_forge/Cargo.toml"))
+    let manifest = fs::read_to_string(root.join("crates/vehicle/vehicle_forge/Cargo.toml"))
         .expect("vehicle_forge manifest exists");
     let mut offenders = Vec::new();
 
@@ -79,7 +79,7 @@ fn vehicle_forge_stays_renderer_free() {
         }
     }
 
-    for source in rust_files(&root.join("crates/vehicle_forge/src")) {
+    for source in rust_files(&root.join("crates/vehicle/vehicle_forge/src")) {
         let source_text = fs::read_to_string(&source).expect("vehicle_forge source is readable");
         for crate_name in ["renderer_api", "renderer_wgpu", "wgpu", "winit", "egui"] {
             if source_uses_crate(&source_text, crate_name) {
@@ -100,7 +100,7 @@ fn wgpu_stays_confined_to_renderer_backend() {
     let root = workspace_root();
     let mut offenders = Vec::new();
 
-    for manifest in crate_manifests(&root) {
+    for manifest in quality::crate_manifests(&root) {
         let crate_name = crate_name_from_manifest(&manifest);
         let manifest_text =
             fs::read_to_string(&manifest).expect("crate manifest should be readable");
@@ -119,7 +119,7 @@ fn wgpu_stays_confined_to_renderer_backend() {
     }
 
     for crate_name in ["game_core", "sim", "net", "physics", "renderer_api", "server"] {
-        for source in rust_files(&root.join("crates").join(crate_name).join("src")) {
+        for source in rust_files(&quality::crate_src_dir(&root, crate_name)) {
             let source_text = fs::read_to_string(&source).expect("Rust source should be readable");
             if source_uses_crate(&source_text, "wgpu") {
                 offenders.push(format!("{} references wgpu", source.display()));
@@ -133,8 +133,8 @@ fn wgpu_stays_confined_to_renderer_backend() {
 #[test]
 fn server_stays_headless_and_renderer_free() {
     let root = workspace_root();
-    let manifest =
-        fs::read_to_string(root.join("crates/server/Cargo.toml")).expect("server manifest exists");
+    let manifest = fs::read_to_string(root.join("crates/apps/server/Cargo.toml"))
+        .expect("server manifest exists");
     let mut offenders = Vec::new();
 
     for dependency in ["renderer", "renderer_api", "renderer_wgpu", "wgpu", "winit", "egui"] {
@@ -143,7 +143,7 @@ fn server_stays_headless_and_renderer_free() {
         }
     }
 
-    for source in rust_files(&root.join("crates/server/src")) {
+    for source in rust_files(&root.join("crates/apps/server/src")) {
         let source_text = fs::read_to_string(&source).expect("server source should be readable");
         for crate_name in ["renderer", "renderer_api", "renderer_wgpu", "wgpu", "winit", "egui"] {
             if source_uses_crate(&source_text, crate_name) {
@@ -163,10 +163,10 @@ fn server_stays_headless_and_renderer_free() {
 fn workspace_has_protocol_snapshots_replays_and_benchmarks() {
     let root = workspace_root();
     for required_path in [
-        "crates/net/tests/snapshots/input_command_v1.hex",
-        "crates/sim/tests/replays/drive_forward_v1.json",
-        "crates/sim/benches/fixed_tick.rs",
-        "crates/net/benches/protocol_codec.rs",
+        "crates/runtime/net/tests/snapshots/input_command_v1.hex",
+        "crates/runtime/sim/tests/replays/drive_forward_v1.json",
+        "crates/runtime/sim/benches/fixed_tick.rs",
+        "crates/runtime/net/benches/protocol_codec.rs",
         "assets/maps/prokhorovka_hill_252_2.terrain.json",
         "assets/vehicles/t54_1951.vehicle.json",
         "assets/vehicles/t55a.vehicle.json",
@@ -191,25 +191,19 @@ fn workspace_has_protocol_snapshots_replays_and_benchmarks() {
 }
 
 fn workspace_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .and_then(Path::parent)
-        .expect("quality crate should live under crates/quality")
-        .to_path_buf()
+    // Layout-agnostic: the nearest ancestor whose Cargo.toml declares [workspace].
+    let mut dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    while !std::fs::read_to_string(dir.join("Cargo.toml")).is_ok_and(|t| t.contains("[workspace]"))
+    {
+        assert!(dir.pop(), "a Cargo.toml with [workspace] should exist in an ancestor");
+    }
+    dir
 }
 
 fn rust_files(root: &Path) -> Vec<PathBuf> {
     let mut paths = Vec::new();
     collect_rust_files(root, &mut paths);
     paths
-}
-
-fn crate_manifests(root: &Path) -> Vec<PathBuf> {
-    fs::read_dir(root.join("crates"))
-        .expect("workspace crates directory should be readable")
-        .map(|entry| entry.expect("crate entry should be readable").path().join("Cargo.toml"))
-        .filter(|path| path.is_file())
-        .collect()
 }
 
 fn crate_name_from_manifest(manifest: &Path) -> String {

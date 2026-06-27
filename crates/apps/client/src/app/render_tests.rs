@@ -240,7 +240,7 @@ fn render_garage_preview_png() {
     renderer.render(&ctx, target.render_target(), view_proj, camera.eye).expect("render");
 
     let pixels = target.read_rgba8(&ctx).expect("read pixels");
-    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/garage_preview.png");
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../../target/garage_preview.png");
     let file = File::create(path).expect("create png");
     let mut encoder = png::Encoder::new(BufWriter::new(file), width, height);
     encoder.set_color(png::ColorType::Rgba);
