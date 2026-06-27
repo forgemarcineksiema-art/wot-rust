@@ -8,7 +8,7 @@ use renderer_api::Camera;
 
 use super::{GarageHit, GarageState};
 use crate::app::ClientApp;
-use crate::garage_scene::hangar_camera_pivot;
+use crate::scene::hangar::hangar_camera_pivot;
 
 // Orbit camera limits.
 const MIN_PITCH: f32 = -0.05;

@@ -2,7 +2,6 @@ mod aim;
 mod app;
 mod camera;
 mod color;
-mod garage_scene;
 mod health_bar;
 mod hit_indicator;
 mod hud;
@@ -14,7 +13,7 @@ mod predict;
 mod render_state;
 mod reticle;
 mod reticle_sweep;
-mod scene_mesh;
+mod scene;
 mod tank_mesh;
 mod vehicle;
 
@@ -24,14 +23,14 @@ pub use camera::{
     BattleCameraController, BattleCameraEnvironment, BattleCameraInput, BattleCameraMode,
     BattleCameraSettings, CameraObstacle, CameraSubject,
 };
-pub use garage_scene::{TURNTABLE_TOP_M, hangar_camera_pivot, hangar_scene_mesh};
 pub use hud::{HudVitals, build_hud};
 pub use hud_font::hud_font_atlas;
 pub use loop_policy::{
     ClientLoopAction, ClientLoopEvent, ClientLoopPhase, FixedTickAccumulator, WinitLoopDriver,
 };
 pub use render_state::InterpolatedBattleState;
-pub use scene_mesh::{battlefield_scene_mesh, terrain_scene_mesh};
+pub use scene::battlefield::{battlefield_scene_mesh, terrain_scene_mesh};
+pub use scene::hangar::{TURNTABLE_TOP_M, hangar_camera_pivot, hangar_scene_mesh};
 pub use tank_mesh::append_shell_markers;
 pub use vehicle::asset_catalog::{
     VehicleAssetCatalog, tank_vehicle_render_objects, tank_vehicle_render_objects_with_variation,

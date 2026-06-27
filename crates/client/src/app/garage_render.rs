@@ -77,7 +77,7 @@ impl ClientApp {
         }
         let (vertices, indices, sky, lighting) = match want {
             SceneKind::Garage => {
-                let (v, i) = crate::garage_scene::hangar_scene_mesh();
+                let (v, i) = crate::scene::hangar::hangar_scene_mesh();
                 // A calibrated studio key/fill/rim keeps the vehicle's olive material readable
                 // without casting colour over the whole scene.
                 (v, i, (0.07, 0.05, 0.04), SceneLighting::garage_studio())
@@ -113,7 +113,7 @@ fn garage_preview_snapshot(kind: VehicleKind) -> TankSnapshot {
         tank_id: TankId(0),
         team: TeamId(1),
         vehicle: kind,
-        position: [0.0, crate::garage_scene::TURNTABLE_TOP_M, 0.0],
+        position: [0.0, crate::scene::hangar::TURNTABLE_TOP_M, 0.0],
         yaw_rad: 0.6,
         turret_yaw_rad: 0.0,
         turret_yaw_velocity_rad_s: 0.0,
