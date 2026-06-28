@@ -1,8 +1,8 @@
-use game_core::math::horizontal_forward;
+use game_core::math::{GRAVITY_MPS2, horizontal_forward, wrap_angle};
 use glam::Vec3;
 use serde::{Deserialize, Serialize};
-use terrain::HeightMap;
 
+use crate::contact::TerrainContact;
 use crate::controller_settings::TankControllerSettings;
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -12,31 +12,35 @@ pub struct TankControlInput {
     pub brake: f32,
 }
 
+/// Planar rigid-body state of a hull. `velocity` is the world-frame XZ velocity (y stays 0; the
+/// hull follows the terrain height kinematically) and `yaw_rate_rad_s` is the hull's angular
+/// velocity. Keeping a real velocity *vector* (not a scalar forward speed) is what lets the hull
+/// carry momentum through a turn, slide on a steep face, and be stopped along one axis by a wall
+/// while still moving along the other.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct TankKinematicState {
     pub position: Vec3,
+    pub velocity: Vec3,
     pub yaw_rad: f32,
-    pub forward_speed_mps: f32,
+    pub yaw_rate_rad_s: f32,
 }
 
 impl Default for TankKinematicState {
     fn default() -> Self {
-        Self { position: Vec3::ZERO, yaw_rad: 0.0, forward_speed_mps: 0.0 }
+        Self { position: Vec3::ZERO, velocity: Vec3::ZERO, yaw_rad: 0.0, yaw_rate_rad_s: 0.0 }
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-pub struct TerrainContact {
-    pub height_m: f32,
-    pub forward_slope: f32,
-    pub side_slope: f32,
-    pub roughness: f32,
-    pub traction: f32,
-}
+impl TankKinematicState {
+    /// Signed speed along the hull's facing (+ forward, - reverse). The old scalar model stored
+    /// this directly; callers that still think in "forward speed" (HUD, bloom sign) read it here.
+    pub fn forward_speed(&self) -> f32 {
+        self.velocity.dot(horizontal_forward(self.yaw_rad))
+    }
 
-impl TerrainContact {
-    pub fn flat(height_m: f32) -> Self {
-        Self { height_m, forward_slope: 0.0, side_slope: 0.0, roughness: 0.0, traction: 1.0 }
+    /// World speed magnitude.
+    pub fn speed(&self) -> f32 {
+        self.velocity.length()
     }
 }
 
@@ -55,6 +59,12 @@ pub fn step_custom_tank_controller(
     );
 }
 
+/// Advance the hull one tick as a planar rigid body. The model is deterministic and runs
+/// identically on the server and the client predictor.
+///
+/// Order matters: rotate the hull first (angular inertia), then resolve forces in the *new* hull
+/// frame so the world-frame velocity that survives a heading change reappears as lateral velocity
+/// — that is the mechanism behind momentum-through-turns and drift.
 pub fn step_custom_tank_controller_on_contact(
     state: &mut TankKinematicState,
     input: TankControlInput,
@@ -65,107 +75,96 @@ pub fn step_custom_tank_controller_on_contact(
     let throttle = input.throttle.clamp(-1.0, 1.0);
     let steer = input.steer.clamp(-1.0, 1.0);
     let brake = input.brake.clamp(0.0, 1.0);
+    let g = GRAVITY_MPS2;
+    let dt = dt_seconds;
+
+    // --- 1. Angular: ramp the yaw rate toward the commanded rate, then integrate the heading. ---
+    // The finite `yaw_accel_rad_s2` ramp is the rotational inertia: the hull no longer snaps to a
+    // new yaw the instant the key is tapped, and releasing steer lets the rotation coast down.
+    let forward_speed = state.forward_speed();
+    let steering_direction = if forward_speed.abs() > 0.01 {
+        forward_speed.signum()
+    } else if throttle.abs() > 0.01 {
+        throttle.signum()
+    } else {
+        // Stationary with no throttle: a steer input still pivots the hull in place (neutral
+        // steer / counter-rotating tracks), decoupled from the throttle.
+        1.0
+    };
+    let turn_grip = (contact.traction - contact.roughness * 0.2).clamp(0.25, 1.0);
+    let target_yaw_rate = steer * steering_direction * settings.turn_rate_rad_s * turn_grip;
+    state.yaw_rate_rad_s =
+        move_towards(state.yaw_rate_rad_s, target_yaw_rate, settings.yaw_accel_rad_s2 * dt);
+    state.yaw_rad = wrap_angle(state.yaw_rad + state.yaw_rate_rad_s * dt);
+
+    // --- 2. Decompose the surviving world velocity into the rotated hull frame. ---
+    let forward = horizontal_forward(state.yaw_rad);
+    let right = Vec3::new(forward.z, 0.0, -forward.x);
+    let mut v_f = state.velocity.dot(forward);
+    let mut v_r = state.velocity.dot(right);
+
+    // --- 3. Gravity along the terrain plane (single source of slope behaviour). ---
+    // grade = |gradient|; `inv` is cos(theta). Projecting gravity onto the plane gives uphill
+    // resistance, downhill acceleration, and sideways pull from one term — the old five stacked
+    // slope penalties collapse into this.
+    let grade = (contact.forward_slope * contact.forward_slope
+        + contact.side_slope * contact.side_slope)
+        .sqrt();
+    let inv = 1.0 / (1.0 + grade * grade).sqrt();
+    let slope_f = -g * contact.forward_slope * inv; // +forward_slope = uphill ahead -> resists
+    let slope_r = -g * contact.side_slope * inv; // +side_slope = right is higher -> pulls left
+
+    // --- 4. Longitudinal: engine/brake bring v_f to its target, then gravity, then holds. ---
     let max_speed = if throttle >= 0.0 {
         settings.max_forward_speed_mps
     } else {
         settings.max_reverse_speed_mps
     };
-    let terrain_speed_scale =
-        (1.0 - contact.forward_slope.abs() * 0.55 - contact.roughness * 0.35).clamp(0.35, 1.0);
-    let motion_sign =
-        if throttle.abs() > 0.01 { throttle.signum() } else { state.forward_speed_mps.signum() };
-    let uphill_grade = (contact.forward_slope * motion_sign).max(0.0);
-    // A slope past the tank's gradeability collapses climb speed to zero, so steep faces
-    // (such as the railway embankment) become real barriers rather than slow climbs.
-    let grade_limit = settings.max_climb_grade.max(0.05);
-    let grade_headroom = ((grade_limit - uphill_grade) / grade_limit).clamp(0.0, 1.0);
-    if uphill_grade >= grade_limit && state.forward_speed_mps * motion_sign > 0.0 {
-        state.forward_speed_mps = 0.0;
-    }
-    let uphill_scale = (1.0 - uphill_grade * 1.5).clamp(0.25, 1.0) * grade_headroom;
-    let target_speed =
-        if brake > 0.0 { 0.0 } else { throttle * max_speed * terrain_speed_scale * uphill_scale };
-    let accel = acceleration_for_input(settings, contact, brake, throttle, uphill_grade);
-
-    state.forward_speed_mps =
-        move_towards(state.forward_speed_mps, target_speed, accel * dt_seconds);
-
-    let speed_factor =
-        (state.forward_speed_mps.abs() / settings.max_forward_speed_mps.max(0.01)).clamp(0.18, 1.0);
-    let turn_grip = (contact.traction - contact.roughness * 0.2).clamp(0.25, 1.0);
-    let steering_direction = if state.forward_speed_mps.abs() > 0.01 {
-        state.forward_speed_mps.signum()
+    // Tracks can only lay down so much thrust: mu * g * traction * cos(theta). A face steeper than
+    // `mu` (= max_climb_grade) therefore cannot out-pull gravity, so the climb stalls on its own.
+    let grip_long = settings.longitudinal_grip_mu * g * contact.traction * inv;
+    let (target_v_f, drive_rate) = if brake > 0.0 {
+        (0.0, settings.brake_deceleration_mps2 * brake)
     } else if throttle.abs() > 0.01 {
-        throttle.signum()
+        (throttle * max_speed, settings.acceleration_mps2.min(grip_long))
     } else {
-        1.0
+        (0.0, settings.idle_drag_mps2)
     };
-    state.yaw_rad += steer
-        * steering_direction
-        * settings.turn_rate_rad_s
-        * speed_factor
-        * turn_grip
-        * dt_seconds;
-
-    let forward = horizontal_forward(state.yaw_rad);
-    state.position += forward * state.forward_speed_mps * dt_seconds;
-    state.position.y = contact.height_m;
-}
-
-pub fn sample_tank_terrain_contact(
-    heightmap: &HeightMap,
-    position: Vec3,
-    yaw_rad: f32,
-    probe_length_m: f32,
-) -> Option<TerrainContact> {
-    let probe = probe_length_m.max(heightmap.cell_size_m() * 0.5).max(0.5);
-    let forward = horizontal_forward(yaw_rad);
-    let right = Vec3::new(forward.z, 0.0, -forward.x);
-    let center = heightmap.sample_height(position.x, position.z)?;
-    let front = sample_offset(heightmap, position, forward, probe).unwrap_or(center);
-    let back = sample_offset(heightmap, position, -forward, probe).unwrap_or(center);
-    let right_h = sample_offset(heightmap, position, right, probe).unwrap_or(center);
-    let left_h = sample_offset(heightmap, position, -right, probe).unwrap_or(center);
-    let forward_slope = (front - back) / (probe * 2.0);
-    let side_slope = (right_h - left_h) / (probe * 2.0);
-    let roughness = [front, back, right_h, left_h]
-        .into_iter()
-        .map(|height| (height - center).abs() / probe)
-        .fold(0.0, f32::max)
-        .clamp(0.0, 1.0);
-    let traction = (1.0 - roughness * 0.45 - side_slope.abs() * 0.35 - forward_slope.abs() * 0.15)
-        .clamp(0.35, 1.0);
-
-    Some(TerrainContact { height_m: center, forward_slope, side_slope, roughness, traction })
-}
-
-fn acceleration_for_input(
-    settings: &TankControllerSettings,
-    contact: TerrainContact,
-    brake: f32,
-    throttle: f32,
-    uphill_grade: f32,
-) -> f32 {
-    if brake > 0.0 {
-        return settings.brake_deceleration_mps2 * brake;
+    v_f = move_towards(v_f, target_v_f, drive_rate * dt);
+    v_f += slope_f * dt;
+    // Track brakes hold a throttled hull on a slope it is climbing instead of letting it creep
+    // backwards; this is what turns an unclimbable face into a clean stall. Fires when gravity
+    // tries to push the hull opposite the way it is being driven.
+    let driven_backwards = (throttle > 0.01 && v_f < 0.0) || (throttle < -0.01 && v_f > 0.0);
+    if driven_backwards {
+        v_f = 0.0;
+    }
+    // Governor: bleed any overspeed (e.g. a long downhill) back toward the track limit.
+    let speed_cap = max_speed.max(0.1);
+    if v_f.abs() > speed_cap {
+        v_f = move_towards(v_f, v_f.signum() * speed_cap, settings.idle_drag_mps2 * dt);
+    }
+    // Designed barrier: a face steeper than the hull's gradeability cannot be mounted at all -- the
+    // tracks lose drive and the nose digs in -- so a steep embankment stays a wall instead of
+    // something a fast hull can bump over on momentum. This only fires *into* an unclimbable uphill
+    // face; climbable slopes keep the smooth gravity model above.
+    let uphill_grade = (contact.forward_slope * v_f.signum()).max(0.0);
+    if uphill_grade >= settings.max_climb_grade && v_f.abs() > 0.0 {
+        v_f = 0.0;
     }
 
-    let base = if throttle.abs() > 0.01 {
-        settings.acceleration_mps2 * contact.traction
-    } else {
-        settings.idle_drag_mps2
-    };
-    (base - uphill_grade * 4.5).max(settings.idle_drag_mps2 * 0.5)
-}
+    // --- 5. Lateral: gravity pulls sideways, kinetic friction removes it up to the grip cap. ---
+    // The friction impulse only ever cancels lateral velocity (never reverses it), so it is stable
+    // at 60 Hz. When the demand (a hard turn at speed, or a steep/low-traction face) exceeds the
+    // cap, the residual is the slide.
+    v_r += slope_r * dt;
+    let lat_cap = settings.lateral_grip_mu * g * contact.traction;
+    v_r -= v_r.signum() * v_r.abs().min(lat_cap * dt);
 
-fn sample_offset(
-    heightmap: &HeightMap,
-    position: Vec3,
-    direction: Vec3,
-    distance: f32,
-) -> Option<f32> {
-    let point = position + direction * distance;
-    heightmap.sample_height(point.x, point.z)
+    // --- 6. Reassemble the world velocity and integrate position; height follows the terrain. ---
+    state.velocity = forward * v_f + right * v_r;
+    state.position += state.velocity * dt;
+    state.position.y = contact.height_m;
 }
 
 fn move_towards(current: f32, target: f32, max_delta: f32) -> f32 {

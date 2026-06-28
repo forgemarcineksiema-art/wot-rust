@@ -17,7 +17,7 @@ fn custom_tank_controller_accelerates_and_turns() {
         0.1,
     );
 
-    assert!(state.forward_speed_mps > 0.0);
+    assert!(state.forward_speed() > 0.0);
     assert!(state.yaw_rad > 0.0);
 }
 
@@ -152,7 +152,9 @@ fn cover_collision_cancels_forward_speed_when_hull_is_fully_blocked() {
     let mut state = TankKinematicState {
         position: glam::Vec3::new(0.0, 0.0, 5.3),
         yaw_rad: 0.0,
-        forward_speed_mps: 12.0,
+        // Charging the cover head-on at 12 m/s (+z is forward at yaw 0).
+        velocity: glam::Vec3::new(0.0, 0.0, 12.0),
+        ..TankKinematicState::default()
     };
 
     step_tank_on_world(
@@ -166,9 +168,9 @@ fn cover_collision_cancels_forward_speed_when_hull_is_fully_blocked() {
 
     assert_eq!(state.position, glam::Vec3::new(0.0, 0.0, 5.3));
     assert!(
-        state.forward_speed_mps.abs() < 0.01,
+        state.forward_speed().abs() < 0.01,
         "blocked hull must not keep phantom forward speed, got {}",
-        state.forward_speed_mps
+        state.forward_speed()
     );
 }
 

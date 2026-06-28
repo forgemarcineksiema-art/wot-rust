@@ -74,6 +74,7 @@ impl SimulationState {
             turret_yaw_velocity_rad_s: 0.0,
             gun_pitch_rad: 0.0,
             velocity_mps: Vec3::ZERO,
+            hull_yaw_velocity_rad_s: 0.0,
             reload_remaining_s: 0.0,
             aim_dispersion_mrad,
             dispersion_shot_index: 0,
@@ -103,6 +104,7 @@ impl SimulationState {
             turret_yaw_velocity_rad_s: 0.0,
             gun_pitch_rad: 0.0,
             velocity_mps: Vec3::ZERO,
+            hull_yaw_velocity_rad_s: 0.0,
             reload_remaining_s: 0.0,
             aim_dispersion_mrad,
             dispersion_shot_index: 0,
@@ -174,6 +176,7 @@ impl SimulationState {
                 let tank = &mut self.tanks[index];
                 if tank.hit_points == 0 {
                     tank.velocity_mps = Vec3::ZERO;
+                    tank.hull_yaw_velocity_rad_s = 0.0;
                     continue;
                 }
                 step_tank(tank, command, dt, heightmap, cover, &tank_obstacles);

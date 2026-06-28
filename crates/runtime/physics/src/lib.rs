@@ -1,4 +1,5 @@
 mod collision;
+mod contact;
 mod controller_settings;
 mod cover;
 mod movement;
@@ -13,13 +14,14 @@ use terrain::HeightMap;
 
 pub use collision::{
     TankFootprint, TankObstacle, TankWorldObstacles, resolve_tank_collision,
-    resolve_tank_collision_with_speed, tank_footprints_touch,
+    resolve_tank_collision_with_velocity, tank_footprints_touch,
 };
+pub use contact::{TerrainContact, sample_tank_terrain_contact};
 pub use controller_settings::TankControllerSettings;
-pub use cover::{resolve_cover_collision, resolve_cover_collision_with_speed};
+pub use cover::{resolve_cover_collision, resolve_cover_collision_with_velocity};
 pub use movement::{
-    TankControlInput, TankKinematicState, TerrainContact, sample_tank_terrain_contact,
-    step_custom_tank_controller, step_custom_tank_controller_on_contact,
+    TankControlInput, TankKinematicState, step_custom_tank_controller,
+    step_custom_tank_controller_on_contact,
 };
 pub use policy::{CustomPhysicsRole, PhysicsOwner, PhysicsOwnershipPolicy, RapierPhysicsRole};
 pub use world::{step_tank_on_heightmap, step_tank_on_world, step_tank_on_world_with_tanks};

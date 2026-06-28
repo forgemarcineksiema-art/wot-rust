@@ -1,7 +1,7 @@
 use glam::Vec3;
 use terrain::StaticCoverObject;
 
-use crate::collision::{TankFootprint, TankObstacle, obstacles_overlap, trim_forward_speed};
+use crate::collision::{TankFootprint, TankObstacle, obstacles_overlap, trim_velocity};
 
 /// Keep a tank hull out of static cover footprints. Tries the full move, then each horizontal
 /// axis alone so the hull slides along a wall instead of sticking; if every option still
@@ -34,17 +34,16 @@ pub fn resolve_cover_collision(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn resolve_cover_collision_with_speed(
+pub fn resolve_cover_collision_with_velocity(
     previous: Vec3,
     attempted: Vec3,
     yaw_rad: f32,
-    forward_speed_mps: f32,
+    velocity: Vec3,
     footprint: TankFootprint,
     cover: &[StaticCoverObject],
-    dt_seconds: f32,
-) -> (Vec3, f32) {
+) -> (Vec3, Vec3) {
     let resolved = resolve_cover_collision(previous, attempted, yaw_rad, footprint, cover);
-    trim_forward_speed(previous, attempted, resolved, yaw_rad, forward_speed_mps, dt_seconds)
+    (resolved, trim_velocity(previous, attempted, resolved, velocity))
 }
 
 /// Whether the hull footprint at `position`/`yaw_rad` overlaps any cover box. A cover box is an
