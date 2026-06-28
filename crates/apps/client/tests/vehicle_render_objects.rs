@@ -2,9 +2,18 @@ use client::{VehicleMeshCatalog, tank_render_objects, tank_scene_mesh};
 use game_core::{ModuleSlot, TankId, TeamId, VehicleKind};
 use glam::{Mat4, Vec3};
 use net::TankSnapshot;
-use vehicle_geometry::{SmoothingGroup, SubmeshKind, bake_vehicle};
+use vehicle_geometry::{RunningGearKinematics, SmoothingGroup, SubmeshKind, bake_vehicle};
 
 const SG_RING: SmoothingGroup = SmoothingGroup(7);
+
+/// Render objects for one T-55A: hull/turret/gun plus the animated running gear.
+fn t55_object_count() -> usize {
+    let kin = RunningGearKinematics::for_vehicle(VehicleKind::T55A).expect("T-55A gear");
+    3 + kin.wheel_zs.len() * 2 + 4 + kin.link_count() * 2
+}
+
+/// Cached meshes for one blueprint vehicle: hull/turret/gun plus three unit gear meshes.
+const BLUEPRINT_MESH_COUNT: usize = 6;
 
 /// Drift lock between the two render paths: the dynamic per-vertex mesh build and the cached
 /// instanced objects must place every vertex identically for the same snapshot — including a
@@ -79,7 +88,7 @@ fn t55a_render_objects_use_static_mesh_handles_for_hull_turret_and_gun() {
 
     let objects = tank_render_objects(&mut catalog, &snapshot, [0.30, 0.40, 0.28]);
 
-    assert_eq!(objects.len(), 3);
+    assert_eq!(objects.len(), t55_object_count());
     assert!(objects.iter().all(|object| object.tank_id == Some(TankId(7))));
     assert_ne!(objects[0].mesh, objects[1].mesh);
     assert_ne!(objects[1].mesh, objects[2].mesh);
@@ -193,7 +202,7 @@ fn vehicle_mesh_catalog_reports_new_gpu_mesh_uploads_once() {
     let objects = tank_render_objects(&mut catalog, &snapshot, [0.30, 0.40, 0.28]);
     let uploads = catalog.take_pending_meshes();
 
-    assert_eq!(uploads.len(), 3);
+    assert_eq!(uploads.len(), BLUEPRINT_MESH_COUNT);
     assert!(uploads.iter().all(|(_, mesh)| mesh.index_count() > 0));
     assert!(objects.iter().all(|object| uploads.iter().any(|(handle, _)| *handle == object.mesh)));
     assert!(catalog.take_pending_meshes().is_empty());
@@ -227,7 +236,11 @@ fn distinct_hull_colors_share_one_mesh_and_tint_per_object() {
     let red = [0.46, 0.29, 0.25];
 
     let green_objects = tank_render_objects(&mut catalog, &snapshot, green);
-    assert_eq!(catalog.take_pending_meshes().len(), 3, "first colour uploads each submesh once");
+    assert_eq!(
+        catalog.take_pending_meshes().len(),
+        BLUEPRINT_MESH_COUNT,
+        "first colour uploads each submesh and gear mesh once"
+    );
     assert!(catalog.take_pending_meshes().is_empty());
 
     let red_objects = tank_render_objects(&mut catalog, &snapshot, red);
@@ -264,7 +277,7 @@ fn destroyed_module_mask_darkens_the_matching_submesh_without_reuploading_meshes
     };
     let base = [0.30, 0.40, 0.28];
     let healthy = tank_render_objects(&mut catalog, &snapshot, base);
-    assert_eq!(catalog.take_pending_meshes().len(), 3);
+    assert_eq!(catalog.take_pending_meshes().len(), BLUEPRINT_MESH_COUNT);
 
     snapshot.destroyed_modules_mask =
         ModuleSlot::Gun.destroyed_mask_bit() | ModuleSlot::Turret.destroyed_mask_bit();

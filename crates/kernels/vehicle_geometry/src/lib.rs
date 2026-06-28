@@ -9,6 +9,8 @@ mod ops;
 mod polygon;
 mod quality;
 mod recipes;
+mod running_gear;
+mod running_gear_geom;
 mod vehicle;
 mod weld;
 
@@ -27,6 +29,8 @@ pub use quality::{
     TopologyExpectation,
 };
 pub use recipes::bake_vehicle;
+pub use running_gear::{GearPart, GearPlacement, RunningGearKinematics, running_gear_placements};
+pub use running_gear_geom::{end_wheel_unit_mesh, road_wheel_unit_mesh, track_link_unit_mesh};
 pub use vehicle::{BakeError, BakedVehicle, Submesh, SubmeshKind};
 
 /// Bake `kind` and reduce it to the requested LOD in one call.

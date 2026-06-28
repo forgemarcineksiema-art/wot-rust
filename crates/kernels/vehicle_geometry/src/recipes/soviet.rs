@@ -16,9 +16,9 @@ use glam::Vec3;
 use super::{
     GunPlan, HullPlan, RunningGear, SG_CAST, add_broad_mantlet_socket, add_cupola,
     add_mantlet_socket, add_running_gear, add_t54_mantlet_socket, add_turret_ring, assemble,
-    blueprint_deck_details, blueprint_hull, blueprint_running_gear,
-    blueprint_running_gear_with_layout, build_gun, build_gun_with_mantlet_scale, cast_turret_shell,
-    hull_body, shade_hull, t54_hull, t54_turret_front,
+    blueprint_deck_details, blueprint_hull, blueprint_running_gear, build_gun,
+    build_gun_with_mantlet_scale, cast_turret_shell, hull_body, shade_hull, t54_hull,
+    t54_turret_front,
 };
 use crate::{BakedVehicle, GeometryMesh, MaterialRole, MeshBuilder};
 
@@ -103,7 +103,7 @@ pub(crate) fn t54_1951(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVe
         .expect("T-54 has a blueprint");
     let hull = shade_hull(
         t54_hull(&bp.hull, &bp.track)
-            .append(&blueprint_running_gear_with_layout(&bp.track, Some(&T54_WHEEL_ZS), 15))
+            .append(&blueprint_running_gear(&bp.track))
             .append(&blueprint_deck_details(&bp.hull))
             .build(),
     );
@@ -199,5 +199,3 @@ const PROTOTYPE_GEAR: RunningGear = RunningGear {
     wheel_outer_x: 1.69,
     wheel_segments: 12,
 };
-
-const T54_WHEEL_ZS: [f32; 5] = [-2.10, -0.80, 0.22, 1.18, 2.10];

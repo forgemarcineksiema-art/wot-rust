@@ -4,6 +4,7 @@
 
 pub(crate) mod asset_catalog;
 pub(crate) mod asset_catalog_loader;
+pub(crate) mod asset_render;
 pub(crate) mod equipment;
 pub(crate) mod geometry_mesh;
 pub(crate) mod mesh;
@@ -11,4 +12,6 @@ pub(crate) mod pbr_mesh;
 pub(crate) mod pose;
 pub(crate) mod render_frame;
 pub(crate) mod render_objects;
+pub(crate) mod render_objects_draw;
+pub(crate) mod running_gear_objects;
 pub(crate) mod variation;

@@ -5,7 +5,7 @@
 use game_core::{HullShape, TrackShape};
 use glam::{Vec2, Vec3};
 
-use super::{SG_HARD, SG_WHEEL};
+use super::SG_HARD;
 use crate::{
     Axis, ExtrudeSpec, GeometryMesh, MaterialRole, MeshBuilder, ProfilePoint, RevolveSpec,
 };
@@ -80,25 +80,19 @@ pub(crate) fn blueprint_deck_details(hull: &HullShape) -> GeometryMesh {
     builder.build()
 }
 
-/// The wrapped running gear for one blueprint, mirrored to both sides.
+/// The **static belt band** for one blueprint, mirrored to both sides: a thin top run and bottom
+/// run with wrapped metal end loops around the idler/sprocket, so the belt reads as one continuous
+/// band. The moving parts — road wheels, drive sprocket, idler, and the shoe links — are no longer
+/// baked here; they are instanced and animated at render time from
+/// [`crate::running_gear::running_gear_placements`] so the wheels spin and the links scroll.
 pub(crate) fn blueprint_running_gear(track: &TrackShape) -> GeometryMesh {
-    blueprint_running_gear_with_layout(track, None, 10)
-}
-
-pub(crate) fn blueprint_running_gear_with_layout(
-    track: &TrackShape,
-    wheel_zs: Option<&[f32]>,
-    link_count: usize,
-) -> GeometryMesh {
     let cy = (track.top_y + track.bottom_y) * 0.5;
     let cz = (track.wheel_first_z + track.wheel_last_z) * 0.5;
     let half_run = (track.wheel_last_z - track.wheel_first_z) * 0.5;
 
-    // The track as a thin top run and bottom run (not a solid block), with wrapped metal end loops
-    // around the idler/sprocket so it reads as one continuous belt.
     let run_len = half_run + track.end_radius * 0.5;
     let run_half = Vec3::new(track.belt_half_thickness, 0.07, run_len);
-    let mut builder = MeshBuilder::new()
+    MeshBuilder::new()
         .chamfered_prism(
             Vec3::new(track.center_x, track.top_y, cz),
             run_half,
@@ -114,91 +108,9 @@ pub(crate) fn blueprint_running_gear_with_layout(
             SG_HARD,
         )
         .capped_revolve_at(Vec3::new(0.0, cy, cz - half_run), track_end_wrap_profile(track))
-        .capped_revolve_at(Vec3::new(0.0, cy, cz + half_run), track_end_wrap_profile(track));
-
-    // Road wheels, arrayed along the run.
-    let positions = wheel_zs.map_or_else(|| uniform_wheel_zs(track), Vec::from);
-    let mut wheels = MeshBuilder::new();
-    for z in positions {
-        wheels = wheels.capped_revolve_at(
-            Vec3::new(0.0, cy, z),
-            wheel_profile(track.wheel_radius, track.inner_x, track.outer_x),
-        );
-    }
-    builder = builder.append(&wheels.build());
-
-    // Drive sprocket (rear) and idler (front): larger discs at the run ends. Kept within the belt
-    // width (outer_x) so the running gear stays inside the collision box.
-    for z in [cz - half_run, cz + half_run] {
-        builder = builder.capped_revolve_at(
-            Vec3::new(0.0, cy, z),
-            wheel_profile(track.end_radius, track.inner_x - 0.04, track.outer_x),
-        );
-    }
-
-    // Track-shoe links along the top and bottom runs, so the belt reads as a segmented track.
-    builder = add_blueprint_track_links(builder, track, cz, half_run, link_count);
-
-    builder.mirror(Axis::X).build()
-}
-
-/// Repeated shoe links riding the outer face of the top and bottom runs (cheap extruded boxes, so
-/// the belt reads as a segmented track without blowing the triangle budget).
-fn add_blueprint_track_links(
-    mut builder: MeshBuilder,
-    track: &TrackShape,
-    cz: f32,
-    half_run: f32,
-    count: usize,
-) -> MeshBuilder {
-    let step = (2.0 * half_run) / (count - 1) as f32;
-    let outer_x = track.center_x + track.belt_half_thickness;
-    let shoe_half_x = track.belt_half_thickness * 0.5;
-    let shoe_half_y = 0.07;
-    let shoe_half_z = step * 0.30;
-    let section = vec![
-        Vec2::new(-shoe_half_z, -shoe_half_y),
-        Vec2::new(shoe_half_z, -shoe_half_y),
-        Vec2::new(shoe_half_z, shoe_half_y),
-        Vec2::new(-shoe_half_z, shoe_half_y),
-    ];
-    for run_y in [track.top_y, track.bottom_y] {
-        for i in 0..count {
-            let z = cz - half_run + step * i as f32;
-            builder = builder.extrude(
-                Vec3::new(outer_x - shoe_half_x, run_y, z),
-                ExtrudeSpec {
-                    section: section.clone(),
-                    axis: Axis::X,
-                    half_depth: shoe_half_x,
-                    material: MaterialRole::TrackMetal,
-                    smoothing: SG_HARD,
-                },
-            );
-        }
-    }
-    builder
-}
-
-fn uniform_wheel_zs(track: &TrackShape) -> Vec<f32> {
-    match track.wheel_count {
-        0 => Vec::new(),
-        1 => vec![track.wheel_first_z],
-        count => {
-            let step = (track.wheel_last_z - track.wheel_first_z) / (count - 1) as f32;
-            (0..count).map(|i| track.wheel_first_z + step * i as f32).collect()
-        }
-    }
-}
-
-fn wheel_profile(radius: f32, inner_x: f32, outer_x: f32) -> RevolveSpec {
-    RevolveSpec {
-        profile: vec![ProfilePoint::new(radius, inner_x), ProfilePoint::new(radius, outer_x)],
-        axis: Axis::X,
-        segments: 14,
-        material: MaterialRole::Rubber,
-        smoothing: SG_WHEEL,
-    }
+        .capped_revolve_at(Vec3::new(0.0, cy, cz + half_run), track_end_wrap_profile(track))
+        .mirror(Axis::X)
+        .build()
 }
 
 fn track_end_wrap_profile(track: &TrackShape) -> RevolveSpec {

@@ -1,5 +1,7 @@
 use game_core::{HitboxProfile, VehicleKind};
-use vehicle_geometry::{MaterialRole, SubmeshKind, bake_vehicle};
+use vehicle_geometry::{
+    MaterialRole, RunningGearKinematics, SubmeshKind, bake_vehicle, road_wheel_unit_mesh,
+};
 
 #[test]
 fn t55a_bake_has_mount_aware_submeshes_and_stable_output() {
@@ -14,24 +16,19 @@ fn t55a_bake_has_mount_aware_submeshes_and_stable_output() {
     let gun = first.submesh(SubmeshKind::Gun).expect("gun submesh");
 
     assert!(hull.mesh.triangle_count() >= 80, "hull should be richer than box tracks");
-    assert!(
-        hull.mesh
-            .vertices()
-            .iter()
-            .filter(|vertex| vertex.material == MaterialRole::Rubber)
-            .count()
-            >= 144,
-        "T-55A hull should include visible road-wheel geometry"
-    );
-    let outer_wheel_x = hull
-        .mesh
+
+    // Road wheels are now animated running gear rather than baked into the hull. Their rubber
+    // geometry and outboard placement are read from the kinematics the renderer instances from.
+    let kin = RunningGearKinematics::for_vehicle(VehicleKind::T55A).expect("T-55A running gear");
+    assert!(kin.wheel_zs.len() >= 5, "T-55A should carry its road-wheel line");
+    let wheel_rubber = road_wheel_unit_mesh(&kin)
         .vertices()
         .iter()
         .filter(|vertex| vertex.material == MaterialRole::Rubber)
-        .map(|vertex| vertex.position.x.abs())
-        .fold(0.0_f32, f32::max);
+        .count();
+    assert!(wheel_rubber >= 24, "road-wheel disc should be rubber geometry");
     assert!(
-        outer_wheel_x >= 1.50,
+        kin.wheel_x + kin.wheel_half_width >= 1.50,
         "road wheels should sit on the visible outside face of the track run"
     );
     assert!(turret.mesh.triangle_count() >= 48, "turret should be rounded enough to read");

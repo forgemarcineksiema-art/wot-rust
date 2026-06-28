@@ -50,6 +50,41 @@ pub struct Team(pub TeamId);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Component)]
 pub struct DestroyedModules(pub u8);
 
+/// Per-side track distance travelled (metres), accumulated from the hull's frame-to-frame pose so
+/// the renderer can spin the wheels and scroll the track links. This is a render-only cue derived
+/// from motion — it is not gameplay state and never leaves the presentation world. Kept out of the
+/// snapshot sync bundle so it persists and accumulates across frames instead of being overwritten.
+#[derive(Debug, Clone, Copy, PartialEq, Default, Component)]
+pub struct TrackAnimation {
+    pub left_m: f32,
+    pub right_m: f32,
+    last_translation: [f32; 3],
+    last_yaw: f32,
+    seeded: bool,
+}
+
+impl TrackAnimation {
+    /// Fold one frame of hull motion into the per-side track distance. Forward travel advances both
+    /// tracks; yaw advances the outer track and retards the inner, so a pivot runs them opposite
+    /// ways. `half_gauge` is roughly the track half-spacing (the turn lever arm).
+    pub fn accumulate(&mut self, translation: [f32; 3], yaw_rad: f32, half_gauge: f32) {
+        use game_core::math::wrap_angle;
+
+        if self.seeded {
+            // Forward displacement = delta projected onto the hull heading (sin, cos in XZ).
+            let dx = translation[0] - self.last_translation[0];
+            let dz = translation[2] - self.last_translation[2];
+            let ds = dx * yaw_rad.sin() + dz * yaw_rad.cos();
+            let dyaw = wrap_angle(yaw_rad - self.last_yaw);
+            self.left_m += ds - dyaw * half_gauge;
+            self.right_m += ds + dyaw * half_gauge;
+        }
+        self.last_translation = translation;
+        self.last_yaw = yaw_rad;
+        self.seeded = true;
+    }
+}
+
 /// Flat view of a presentation entity handed to the renderer and HUD. The render path reads this
 /// instead of `net::TankSnapshot`, so the persistent ECS — not the raw snapshot buffer — is the
 /// presentation source of truth.
@@ -64,4 +99,7 @@ pub struct PresentationTank {
     pub gun_pitch_rad: f32,
     pub hit_points: u32,
     pub destroyed_modules_mask: u8,
+    /// Per-side track distance (metres) for spinning wheels and scrolling track links.
+    pub track_left_m: f32,
+    pub track_right_m: f32,
 }

@@ -1,16 +1,18 @@
 use std::collections::HashMap;
 
-use game_core::{ModuleSlot, TankId, VehicleKind};
-use glam::{Mat4, Vec3};
-use net::TankSnapshot;
+use game_core::VehicleKind;
+use glam::Vec3;
 use renderer_api::{
     MaterialDescriptor, MaterialHandle, MeshAsset, MeshHandle, MeshRegistry,
-    RenderMaterialRegistry, RenderObject, SceneVertex,
+    RenderMaterialRegistry, SceneVertex,
 };
 use vehicle_forge::authoritative_baked_vehicle;
-use vehicle_geometry::{GeometryMesh, MaterialRole, SubmeshKind};
+use vehicle_geometry::{
+    GeometryMesh, MaterialRole, RunningGearKinematics, SubmeshKind, end_wheel_unit_mesh,
+    road_wheel_unit_mesh, track_link_unit_mesh,
+};
 
-use super::pose::VehiclePose;
+use super::running_gear_objects::GearMeshHandles;
 use crate::color::{BARREL_STEEL, RUBBER, TRACK_METAL, shade_color};
 
 #[derive(Debug, Default)]
@@ -23,11 +25,12 @@ pub struct VehicleMeshCatalog {
 }
 
 #[derive(Debug, Clone, Copy)]
-struct VehicleRenderEntry {
-    hull: MeshHandle,
-    turret: MeshHandle,
-    gun: MeshHandle,
-    material: MaterialHandle,
+pub(crate) struct VehicleRenderEntry {
+    pub(crate) hull: MeshHandle,
+    pub(crate) turret: MeshHandle,
+    pub(crate) gun: MeshHandle,
+    pub(crate) material: MaterialHandle,
+    pub(crate) running_gear: Option<GearMeshHandles>,
 }
 
 impl VehicleMeshCatalog {
@@ -43,7 +46,7 @@ impl VehicleMeshCatalog {
         self.material_handles.len()
     }
 
-    fn vehicle_entry(&mut self, kind: VehicleKind) -> Option<VehicleRenderEntry> {
+    pub(crate) fn vehicle_entry(&mut self, kind: VehicleKind) -> Option<VehicleRenderEntry> {
         if let Some(entry) = self.vehicles.get(&kind) {
             return Some(*entry);
         }
@@ -60,9 +63,32 @@ impl VehicleMeshCatalog {
             turret: self.register_mesh(kind, SubmeshKind::Turret, &turret.mesh, turret_ring),
             gun: self.register_mesh(kind, SubmeshKind::Gun, &gun.mesh, trunnion),
             material: self.material(kind),
+            running_gear: self.register_running_gear(kind),
         };
         self.vehicles.insert(kind, entry);
         Some(entry)
+    }
+
+    fn register_running_gear(&mut self, kind: VehicleKind) -> Option<GearMeshHandles> {
+        let kin = RunningGearKinematics::for_vehicle(kind)?;
+        Some(GearMeshHandles {
+            road_wheel: self.register_gear_mesh(kind, "road_wheel", &road_wheel_unit_mesh(&kin)),
+            end_wheel: self.register_gear_mesh(kind, "end_wheel", &end_wheel_unit_mesh(&kin)),
+            link: self.register_gear_mesh(kind, "track_link", &track_link_unit_mesh(&kin)),
+        })
+    }
+
+    fn register_gear_mesh(
+        &mut self,
+        kind: VehicleKind,
+        part: &str,
+        mesh: &GeometryMesh,
+    ) -> MeshHandle {
+        let asset = mesh_asset_from_geometry(mesh, Vec3::ZERO);
+        let handle = self.meshes.register(format!("{}_{}", kind.slug(), part), asset);
+        let mesh = self.meshes.mesh(handle).expect("registered mesh asset").clone();
+        self.pending_meshes.push((handle, mesh));
+        handle
     }
 
     fn register_mesh(
@@ -87,56 +113,6 @@ impl VehicleMeshCatalog {
     }
 }
 
-pub fn tank_render_objects(
-    catalog: &mut VehicleMeshCatalog,
-    snapshot: &TankSnapshot,
-    hull_color: [f32; 3],
-) -> Vec<RenderObject> {
-    let entry = catalog.vehicle_entry(snapshot.vehicle).expect("vehicle must have baked geometry");
-    let pose = VehiclePose::from_snapshot(snapshot);
-
-    let hull_transform =
-        Mat4::from_translation(pose.hull_translation()) * Mat4::from_mat3(pose.hull_basis());
-    let turret_transform =
-        Mat4::from_translation(pose.turret_translation()) * Mat4::from_mat3(pose.turret_basis());
-    let gun_transform =
-        Mat4::from_translation(pose.gun_translation()) * Mat4::from_mat3(pose.gun_basis());
-
-    let hull_tint = damage_tint(
-        hull_color,
-        snapshot.destroyed_modules_mask,
-        &[ModuleSlot::Engine, ModuleSlot::Suspension],
-    );
-    let turret_tint = damage_tint(
-        hull_color,
-        snapshot.destroyed_modules_mask,
-        &[ModuleSlot::Turret, ModuleSlot::AmmoRack],
-    );
-    let gun_tint = damage_tint(hull_color, snapshot.destroyed_modules_mask, &[ModuleSlot::Gun]);
-
-    vec![
-        object(snapshot.tank_id, entry.hull, entry.material, hull_transform, hull_tint),
-        object(snapshot.tank_id, entry.turret, entry.material, turret_transform, turret_tint),
-        object(snapshot.tank_id, entry.gun, entry.material, gun_transform, gun_tint),
-    ]
-}
-
-fn object(
-    tank_id: TankId,
-    mesh: MeshHandle,
-    material: renderer_api::MaterialHandle,
-    transform: Mat4,
-    tint: [f32; 3],
-) -> RenderObject {
-    RenderObject {
-        tank_id: Some(tank_id),
-        mesh,
-        material,
-        transform: transform.to_cols_array_2d(),
-        tint,
-    }
-}
-
 fn mesh_asset_from_geometry(mesh: &GeometryMesh, pivot: Vec3) -> MeshAsset {
     MeshAsset::new(
         mesh.vertices()
@@ -154,14 +130,6 @@ fn mesh_asset_from_geometry(mesh: &GeometryMesh, pivot: Vec3) -> MeshAsset {
             .collect(),
         mesh.indices().to_vec(),
     )
-}
-
-fn damage_tint(base: [f32; 3], mask: u8, slots: &[ModuleSlot]) -> [f32; 3] {
-    if slots.iter().any(|slot| mask & slot.destroyed_mask_bit() != 0) {
-        [base[0] * 0.42, base[1] * 0.40, base[2] * 0.36]
-    } else {
-        base
-    }
 }
 
 /// Team-neutral base colour and tint weight per material role. Armour is white and fully tinted so

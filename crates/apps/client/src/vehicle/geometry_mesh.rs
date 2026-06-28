@@ -2,7 +2,10 @@ use glam::{Mat3, Vec3};
 use net::TankSnapshot;
 use renderer_api::SceneVertex;
 use vehicle_forge::authoritative_baked_vehicle;
-use vehicle_geometry::{GeometryMesh, SubmeshKind};
+use vehicle_geometry::{
+    GearPart, GeometryMesh, RunningGearKinematics, SubmeshKind, end_wheel_unit_mesh,
+    road_wheel_unit_mesh, running_gear_placements, track_link_unit_mesh,
+};
 
 use super::pose::VehiclePose;
 use crate::color::{material_color, shade_color};
@@ -53,7 +56,44 @@ pub(crate) fn append_baked_tank_mesh(
         |point| pose.gun_point(point),
         hull_color,
     );
+
+    // Animatable running gear is no longer baked into the hull; for this static/offscreen path
+    // (screenshots, geometry tests) append it at rest (phase 0) so the vehicle still reads complete.
+    if let Some(kin) = RunningGearKinematics::for_vehicle(snapshot.vehicle) {
+        append_running_gear(vertices, indices, &pose, &kin, hull_color);
+    }
     true
+}
+
+/// Append the running gear at rest (phase 0), each unit mesh placed by the hull pose. Mirrors the
+/// instanced live path so the offscreen mesh matches what the renderer draws.
+fn append_running_gear(
+    vertices: &mut Vec<SceneVertex>,
+    indices: &mut Vec<u32>,
+    pose: &VehiclePose,
+    kin: &RunningGearKinematics,
+    hull_color: [f32; 3],
+) {
+    let road_wheel = road_wheel_unit_mesh(kin);
+    let end_wheel = end_wheel_unit_mesh(kin);
+    let link = track_link_unit_mesh(kin);
+    let hull_basis = pose.hull_basis();
+    for placement in running_gear_placements(kin, 0.0, 0.0) {
+        let mesh = match placement.part {
+            GearPart::RoadWheel => &road_wheel,
+            GearPart::EndWheel => &end_wheel,
+            GearPart::Link => &link,
+        };
+        let normal_basis = hull_basis * Mat3::from_mat4(placement.transform);
+        append_mesh(
+            vertices,
+            indices,
+            mesh,
+            normal_basis,
+            |point| pose.hull_point(placement.transform.transform_point3(point)),
+            hull_color,
+        );
+    }
 }
 
 fn append_mesh(
