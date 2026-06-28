@@ -4,9 +4,9 @@ use glam::{Mat4, Vec3};
 use net::TankSnapshot;
 use renderer_api::{RenderFrame, RenderObject};
 
-use crate::{
-    VehicleAssetCatalog, VehicleMeshCatalog, tank_render_objects, tank_vehicle_render_objects,
-};
+use super::asset_render::tank_vehicle_render_objects_with_tracks;
+use super::variation::VehicleVariation;
+use crate::{VehicleAssetCatalog, VehicleMeshCatalog, tank_render_objects};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct VehicleRenderFrame {
@@ -45,7 +45,15 @@ pub fn split_pbr_vehicle_render_frame(
         let is_player = tank.id == player_tank;
         let hull_color = if is_player { [0.30, 0.40, 0.28] } else { [0.46, 0.29, 0.25] };
         let snapshot = render_snapshot(&tank);
-        let mut tank_objects = tank_vehicle_render_objects(catalog, &snapshot, hull_color);
+        let variation = VehicleVariation::from_snapshot(&snapshot);
+        let mut tank_objects = tank_vehicle_render_objects_with_tracks(
+            catalog,
+            &snapshot,
+            hull_color,
+            &variation,
+            tank.track_left_m,
+            tank.track_right_m,
+        );
         scale_player_gun(&mut tank_objects, is_player, player_gun_scale);
         objects.append(&mut tank_objects);
     }
@@ -106,6 +114,8 @@ mod tests {
             gun_pitch_rad: -0.1,
             hit_points: 1200,
             destroyed_modules_mask: 0b101,
+            track_left_m: 0.0,
+            track_right_m: 0.0,
         };
 
         let snapshot = render_snapshot(&tank);

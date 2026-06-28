@@ -2,7 +2,17 @@ use client::{VehicleAssetCatalog, tank_vehicle_render_objects};
 use game_core::{TankId, TeamId, VehicleKind};
 use net::TankSnapshot;
 use vehicle_forge::{BakeProfile, ForgeArtifact, bake_production_vehicle};
-use vehicle_geometry::SubmeshKind;
+use vehicle_geometry::{RunningGearKinematics, SubmeshKind};
+
+/// Render objects for one T-54: hull/turret/gun plus the animated running-gear instances (road
+/// wheels both sides, two end wheels per side, and the belt links).
+fn t54_object_count() -> usize {
+    let kin = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951).expect("T-54 gear");
+    3 + kin.wheel_zs.len() * 2 + 4 + kin.link_count() * 2
+}
+
+/// Cached meshes for one blueprint vehicle: hull/turret/gun plus three unit gear meshes.
+const BLUEPRINT_MESH_COUNT: usize = 6;
 
 #[test]
 fn vehicle_asset_catalog_uploads_pbr_vehicle_meshes_once() {
@@ -12,11 +22,13 @@ fn vehicle_asset_catalog_uploads_pbr_vehicle_meshes_once() {
     let objects = tank_vehicle_render_objects(&mut catalog, &snapshot, [0.30, 0.40, 0.28]);
     let uploads = catalog.take_pending_vehicle_meshes();
 
-    assert_eq!(objects.len(), 3);
-    assert_eq!(uploads.len(), 3);
+    assert_eq!(objects.len(), t54_object_count());
+    assert_eq!(uploads.len(), BLUEPRINT_MESH_COUNT);
     assert!(uploads.iter().all(|(_, mesh)| mesh.index_count() > 0));
     assert!(uploads.iter().all(|(_, mesh)| mesh.vertices().iter().any(|v| v.material_id <= 4)));
-    assert!(uploads.iter().all(|(_, mesh)| mesh.vertices().iter().any(|v| v.tint_mask == 1.0)));
+    // Armour submeshes carry the team tint; the running-gear unit meshes (rubber/track metal) do
+    // not, so it is enough that some uploaded mesh tints.
+    assert!(uploads.iter().any(|(_, mesh)| mesh.vertices().iter().any(|v| v.tint_mask == 1.0)));
     assert!(uploads.iter().all(|(_, mesh)| {
         mesh.vertices().iter().all(|v| v.tangent.iter().all(|c| c.is_finite()))
     }));
@@ -70,8 +82,8 @@ fn vehicle_asset_catalog_can_seed_runtime_meshes_from_forge_artifact_folder() {
     let objects = tank_vehicle_render_objects(&mut catalog, &snapshot, [0.30, 0.40, 0.28]);
     let uploads = catalog.take_pending_vehicle_meshes();
 
-    assert_eq!(objects.len(), 3);
-    assert_eq!(uploads.len(), 3);
+    assert_eq!(objects.len(), t54_object_count());
+    assert_eq!(uploads.len(), BLUEPRINT_MESH_COUNT);
     assert_eq!(catalog.cached_vehicle_count(), 1);
     assert_eq!(catalog.material_count(), 1);
     assert!(catalog.take_pending_vehicle_meshes().is_empty());
@@ -131,7 +143,8 @@ fn vehicle_asset_catalog_loads_forge_lineup_artifact_tree() {
     assert_eq!(loaded, 2);
     assert_eq!(catalog.cached_vehicle_count(), 2);
     assert_eq!(catalog.material_count(), 2);
-    assert_eq!(catalog.take_pending_vehicle_meshes().len(), 6);
+    // T-54 (blueprint) uploads hull/turret/gun + 3 gear unit meshes; Tiger I (legacy) just 3.
+    assert_eq!(catalog.take_pending_vehicle_meshes().len(), BLUEPRINT_MESH_COUNT + 3);
 
     std::fs::remove_dir_all(root).expect("remove artifact tree");
 }
@@ -159,8 +172,8 @@ fn stale_forge_artifact_does_not_hide_current_runtime_bake() {
         &snapshot(VehicleKind::T54_1951),
         [0.3, 0.4, 0.3],
     );
-    assert_eq!(objects.len(), 3);
-    assert_eq!(catalog.take_pending_vehicle_meshes().len(), 3);
+    assert_eq!(objects.len(), t54_object_count());
+    assert_eq!(catalog.take_pending_vehicle_meshes().len(), BLUEPRINT_MESH_COUNT);
 
     std::fs::remove_dir_all(out).expect("remove stale artifact test dir");
 }

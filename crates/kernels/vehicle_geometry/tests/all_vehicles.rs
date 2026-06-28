@@ -3,7 +3,10 @@
 //! `vehicle_budgets.rs`; legacy T-55A compatibility detail lives in `vehicle_recipe.rs`.
 
 use game_core::{HitboxProfile, VehicleKind};
-use vehicle_geometry::{BakedVehicle, MaterialRole, MeshBounds, SubmeshKind, bake_vehicle};
+use vehicle_geometry::{
+    BakedVehicle, GearPart, MaterialRole, MeshBounds, RunningGearKinematics, SubmeshKind,
+    bake_vehicle, running_gear_placements,
+};
 
 fn bake_all() -> Vec<BakedVehicle> {
     VehicleKind::ALL
@@ -165,6 +168,17 @@ fn every_vehicle_turret_fits_and_fills_its_turret_plan() {
 fn every_vehicle_has_segmented_tracks_on_both_sides() {
     for vehicle in bake_all() {
         let kind = vehicle.kind();
+        // Blueprint vehicles animate their belt: the shoe links are instanced from the kinematics,
+        // not baked into the hull. Verify the loop is segmented (many links) on both sides instead.
+        if let Some(kin) = RunningGearKinematics::for_vehicle(kind) {
+            let placements = running_gear_placements(&kin, 0.0, 0.0);
+            let links = placements.iter().filter(|p| p.part == GearPart::Link).count();
+            assert!(
+                links >= 16,
+                "{kind:?} animated belt must be segmented into many shoe links ({links})"
+            );
+            continue;
+        }
         let hull = vehicle.submesh(SubmeshKind::Hull).expect("hull submesh");
         let hitbox = HitboxProfile::for_vehicle(kind);
         let track_vertices = hull

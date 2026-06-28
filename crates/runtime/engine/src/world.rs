@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 
 use bevy_ecs::prelude::*;
-use game_core::TankId;
+use game_core::{HitboxProfile, TankId};
 use net::TankSnapshot;
 
 use crate::components::{
     DestroyedModules, GunPitch, Health, PresentationTank, RenderTransform, TankEntity, Team, Time,
-    TurretYaw, Vehicle,
+    TrackAnimation, TurretYaw, Vehicle,
 };
 
 /// Persistent client presentation world: a `bevy_ecs` world of presentation entities projected
@@ -61,12 +61,23 @@ impl PresentationWorld {
                 Health { hit_points: tank.hit_points },
                 DestroyedModules(tank.destroyed_modules_mask),
             );
+            // Track distance is accumulated from the pose *delta*, so it must be folded in before
+            // the bundle overwrites the previous `RenderTransform`. Kept out of the bundle so it
+            // persists and accumulates rather than resetting each frame.
+            let half_gauge = HitboxProfile::for_vehicle(tank.vehicle).half_width_m;
             match self.entities.get(&tank.tank_id) {
                 Some(&entity) => {
+                    let mut anim =
+                        self.world.get::<TrackAnimation>(entity).copied().unwrap_or_default();
+                    anim.accumulate(tank.position, tank.yaw_rad, half_gauge);
                     self.world.entity_mut(entity).insert(bundle);
+                    self.world.entity_mut(entity).insert(anim);
                 }
                 None => {
+                    let mut anim = TrackAnimation::default();
+                    anim.accumulate(tank.position, tank.yaw_rad, half_gauge);
                     let entity = self.world.spawn(bundle).id();
+                    self.world.entity_mut(entity).insert(anim);
                     self.entities.insert(tank.tank_id, entity);
                 }
             }
@@ -100,10 +111,11 @@ impl PresentationWorld {
             &Team,
             &Health,
             &DestroyedModules,
+            &TrackAnimation,
         )>();
         let mut tanks: Vec<PresentationTank> = query
             .iter(&self.world)
-            .map(|(entity, transform, turret, pitch, vehicle, team, health, destroyed)| {
+            .map(|(entity, transform, turret, pitch, vehicle, team, health, destroyed, track)| {
                 PresentationTank {
                     id: entity.id,
                     team: team.0,
@@ -114,6 +126,8 @@ impl PresentationWorld {
                     gun_pitch_rad: pitch.0,
                     hit_points: health.hit_points,
                     destroyed_modules_mask: destroyed.0,
+                    track_left_m: track.left_m,
+                    track_right_m: track.right_m,
                 }
             })
             .collect();

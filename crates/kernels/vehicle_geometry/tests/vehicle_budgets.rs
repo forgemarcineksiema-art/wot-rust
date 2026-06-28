@@ -64,8 +64,11 @@ fn every_vehicle_bake_is_deterministic_and_hash_is_unique() {
 fn every_vehicle_bake_hash_matches_golden_output() {
     let expected = [
         (VehicleKind::PrototypeMedium, 14_793_728_532_433_154_327_u64),
-        (VehicleKind::T54_1951, 10_079_574_354_260_366_301_u64),
-        (VehicleKind::T55A, 5_691_295_654_294_536_879_u64),
+        // Updated for the moving-tracks pass: road wheels, sprocket/idler, and shoe links left the
+        // static hull bake (they are now instanced and animated), so the two blueprint vehicles'
+        // hull hashes changed; the legacy vehicles are untouched.
+        (VehicleKind::T54_1951, 13_844_486_152_166_320_413_u64),
+        (VehicleKind::T55A, 259_810_889_616_709_575_u64),
         (VehicleKind::TigerI, 14_588_552_702_870_529_439_u64),
         (VehicleKind::TigerII, 18_008_472_870_257_541_227_u64),
         (VehicleKind::Jagdtiger, 6_582_664_477_001_840_901_u64),

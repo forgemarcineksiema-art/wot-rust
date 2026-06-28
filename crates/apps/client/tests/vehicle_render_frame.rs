@@ -4,6 +4,27 @@ use client::{
 };
 use engine::PresentationTank;
 use game_core::{TankId, VehicleKind};
+use vehicle_geometry::RunningGearKinematics;
+
+/// Base submeshes (hull, turret, gun) plus the animated running-gear instances every blueprint
+/// vehicle adds (road wheels both sides, two end wheels per side, and the belt links).
+fn expected_object_count() -> usize {
+    VehicleKind::ALL
+        .iter()
+        .map(|kind| {
+            3 + RunningGearKinematics::for_vehicle(*kind)
+                .map_or(0, |kin| kin.wheel_zs.len() * 2 + 4 + kin.link_count() * 2)
+        })
+        .sum()
+}
+
+/// Cached meshes: hull/turret/gun for every vehicle plus three unit gear meshes per blueprint one.
+fn expected_mesh_count() -> usize {
+    VehicleKind::ALL
+        .iter()
+        .map(|kind| 3 + if RunningGearKinematics::for_vehicle(*kind).is_some() { 3 } else { 0 })
+        .sum()
+}
 
 #[test]
 fn vehicle_render_frame_uses_baked_objects_for_every_vehicle() {
@@ -21,13 +42,15 @@ fn vehicle_render_frame_uses_baked_objects_for_every_vehicle() {
             gun_pitch_rad: 0.0,
             hit_points: vehicle.spec().hit_points,
             destroyed_modules_mask: 0,
+            track_left_m: 0.0,
+            track_right_m: 0.0,
         })
         .collect();
 
     let frame = split_vehicle_render_frame(&mut catalog, tanks, TankId(1), 1.0);
 
-    assert_eq!(frame.objects.len(), VehicleKind::ALL.len() * 3);
-    assert_eq!(catalog.take_pending_meshes().len(), VehicleKind::ALL.len() * 3);
+    assert_eq!(frame.objects.len(), expected_object_count());
+    assert_eq!(catalog.take_pending_meshes().len(), expected_mesh_count());
 }
 
 #[test]
@@ -37,8 +60,8 @@ fn pbr_vehicle_render_frame_uses_vehicle_assets_for_every_vehicle() {
 
     let frame = split_pbr_vehicle_render_frame(&mut catalog, tanks, TankId(1), 1.2);
 
-    assert_eq!(frame.objects.len(), VehicleKind::ALL.len() * 3);
-    assert_eq!(catalog.take_pending_vehicle_meshes().len(), VehicleKind::ALL.len() * 3);
+    assert_eq!(frame.objects.len(), expected_object_count());
+    assert_eq!(catalog.take_pending_vehicle_meshes().len(), expected_mesh_count());
     assert_eq!(catalog.material_count(), VehicleKind::ALL.len());
     let player_gun = &frame.objects[2];
     let gun_forward = glam::Mat4::from_cols_array_2d(&player_gun.transform)
@@ -61,6 +84,8 @@ fn presentation_tanks() -> Vec<PresentationTank> {
             gun_pitch_rad: 0.0,
             hit_points: vehicle.spec().hit_points,
             destroyed_modules_mask: 0,
+            track_left_m: 0.0,
+            track_right_m: 0.0,
         })
         .collect()
 }

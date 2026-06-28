@@ -1,5 +1,7 @@
-use game_core::{TrackShape, VehicleBlueprint, VehicleKind};
-use vehicle_geometry::{MaterialRole, SmoothingGroup, SubmeshKind, bake_vehicle};
+use game_core::{VehicleBlueprint, VehicleKind};
+use vehicle_geometry::{
+    MaterialRole, RunningGearKinematics, SmoothingGroup, SubmeshKind, bake_vehicle,
+};
 
 const SG_CAST: SmoothingGroup = SmoothingGroup(2);
 const SG_MANTLET: SmoothingGroup = SmoothingGroup(6);
@@ -93,14 +95,13 @@ fn t54_moving_mantlet_is_wide_oval_not_round_ball() {
 
 #[test]
 fn t54_road_wheels_keep_the_first_gap_visible() {
-    let bp = VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("T-54 blueprint");
-    let vehicle = bake_vehicle(VehicleKind::T54_1951).expect("T-54 bakes");
-    let hull = vehicle.submesh(SubmeshKind::Hull).expect("hull submesh");
-    let wheel_tops = road_wheel_top_centers(&bp.track, hull.mesh.vertices().iter());
+    // Road wheels are now animated running gear rather than baked into the hull, so the layout is
+    // read from the kinematics the renderer instances from.
+    let kin = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951).expect("T-54 running gear");
 
-    assert_eq!(wheel_tops.len(), 5, "T-54 should expose five road-wheel centers");
-    let first_gap = wheel_tops[1] - wheel_tops[0];
-    let middle_gap = wheel_tops[3] - wheel_tops[2];
+    assert_eq!(kin.wheel_zs.len(), 5, "T-54 should expose five road-wheel centers");
+    let first_gap = kin.wheel_zs[1] - kin.wheel_zs[0];
+    let middle_gap = kin.wheel_zs[3] - kin.wheel_zs[2];
     assert!(
         first_gap >= middle_gap * 1.18,
         "T-54 first-second wheel gap should read wider than the middle spacing \
@@ -110,25 +111,14 @@ fn t54_road_wheels_keep_the_first_gap_visible() {
 
 #[test]
 fn t54_track_links_are_dense_enough_to_read_as_a_belt() {
-    let bp = VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("T-54 blueprint");
-    let vehicle = bake_vehicle(VehicleKind::T54_1951).expect("T-54 bakes");
-    let hull = vehicle.submesh(SubmeshKind::Hull).expect("hull submesh");
-    let outer_x = bp.track.center_x + bp.track.belt_half_thickness * 0.35;
-
-    let top_edges = unique_z_values(
-        hull.mesh.vertices().iter().filter_map(|v| {
-            (v.material == MaterialRole::TrackMetal
-                && v.position.x > outer_x
-                && (v.position.y - bp.track.top_y).abs() <= 0.12)
-                .then_some(v.position.z)
-        }),
-        0.03,
-    );
+    // The belt is a loop of animated shoe links; density is the link count around the loop, not
+    // baked boxes on the static hull.
+    let kin = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951).expect("T-54 running gear");
 
     assert!(
-        top_edges.len() >= 48,
-        "T-54 top track run needs many repeated shoe edges, not ten boxes ({})",
-        top_edges.len()
+        kin.link_count() >= 40,
+        "T-54 belt needs many shoe links around the loop to read as a track ({})",
+        kin.link_count()
     );
 }
 
@@ -152,22 +142,6 @@ fn t54_cast_turret_has_enough_plan_segments_for_closeup_review() {
         "T-54 cast turret is too faceted for close-up review: {} plan segments",
         plan_angles.len()
     );
-}
-
-fn road_wheel_top_centers<'a>(
-    track: &TrackShape,
-    vertices: impl Iterator<Item = &'a vehicle_geometry::GeometryVertex>,
-) -> Vec<f32> {
-    unique_z_values(
-        vertices.filter_map(|v| {
-            (v.material == MaterialRole::Rubber
-                && (v.position.y - (track.top_y + track.bottom_y) * 0.5 - track.wheel_radius).abs()
-                    <= 0.025
-                && v.position.x > track.inner_x - 0.02)
-                .then_some(v.position.z)
-        }),
-        0.04,
-    )
 }
 
 fn unique_z_values(values: impl Iterator<Item = f32>, tolerance: f32) -> Vec<f32> {

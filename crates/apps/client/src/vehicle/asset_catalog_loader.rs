@@ -61,6 +61,7 @@ impl VehicleAssetCatalog {
                 mounts.gun_trunnion.translation,
             ),
             material,
+            running_gear: self.register_running_gear(kind),
         };
         self.vehicles.insert(kind, entry);
         Ok(true)

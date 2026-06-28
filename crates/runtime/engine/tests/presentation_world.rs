@@ -69,6 +69,49 @@ fn a_tank_absent_from_the_next_sync_is_despawned() {
     assert_eq!(tanks[0].id, TankId(1));
 }
 
+fn posed(position: [f32; 3], yaw_rad: f32) -> TankSnapshot {
+    TankSnapshot { yaw_rad, ..snapshot(1, position, 900) }
+}
+
+fn half_gauge() -> f32 {
+    game_core::HitboxProfile::for_vehicle(VehicleKind::T55A).half_width_m
+}
+
+#[test]
+fn driving_forward_advances_both_tracks_equally() {
+    let mut world = PresentationWorld::default();
+    world.sync_tanks(&[posed([0.0, 0.0, 0.0], 0.0)]); // seed
+    world.sync_tanks(&[posed([0.0, 0.0, 5.0], 0.0)]); // +Z is forward at yaw 0
+
+    let tank = world.presentation_tanks().remove(0);
+    assert!((tank.track_left_m - 5.0).abs() < 1.0e-4, "left {}", tank.track_left_m);
+    assert!((tank.track_right_m - 5.0).abs() < 1.0e-4, "right {}", tank.track_right_m);
+}
+
+#[test]
+fn pivoting_in_place_runs_the_tracks_in_opposite_directions() {
+    let mut world = PresentationWorld::default();
+    world.sync_tanks(&[posed([0.0, 0.0, 0.0], 0.0)]); // seed
+    world.sync_tanks(&[posed([0.0, 0.0, 0.0], 0.5)]); // rotate, no translation
+
+    let tank = world.presentation_tanks().remove(0);
+    assert!(tank.track_left_m < -1.0e-3, "left should run back, got {}", tank.track_left_m);
+    assert!(tank.track_right_m > 1.0e-3, "right should run forward, got {}", tank.track_right_m);
+    assert!((tank.track_left_m + tank.track_right_m).abs() < 1.0e-4, "a pure pivot is symmetric");
+    assert!((tank.track_right_m - 0.5 * half_gauge()).abs() < 1.0e-4);
+}
+
+#[test]
+fn reversing_runs_both_tracks_backward() {
+    let mut world = PresentationWorld::default();
+    world.sync_tanks(&[posed([0.0, 0.0, 0.0], 0.0)]); // seed
+    world.sync_tanks(&[posed([0.0, 0.0, -3.0], 0.0)]); // backward
+
+    let tank = world.presentation_tanks().remove(0);
+    assert!((tank.track_left_m + 3.0).abs() < 1.0e-4, "left {}", tank.track_left_m);
+    assert!((tank.track_right_m + 3.0).abs() < 1.0e-4, "right {}", tank.track_right_m);
+}
+
 #[test]
 fn advance_time_accumulates_ticks_and_elapsed_seconds() {
     let mut world = PresentationWorld::default();
