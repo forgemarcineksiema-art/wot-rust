@@ -121,7 +121,8 @@ impl LocalPredictor {
             dt,
         );
         if self.hit_points == 0 {
-            self.drive.kinematic.forward_speed_mps = 0.0;
+            self.drive.kinematic.velocity = Vec3::ZERO;
+            self.drive.kinematic.yaw_rate_rad_s = 0.0;
             return;
         }
         let modules = DriveModuleStatus {
@@ -153,7 +154,7 @@ impl LocalPredictor {
     }
 
     pub fn speed_mps(&self) -> f32 {
-        self.drive.kinematic.forward_speed_mps.abs()
+        self.drive.kinematic.speed()
     }
 
     pub fn turret_yaw(&self) -> f32 {

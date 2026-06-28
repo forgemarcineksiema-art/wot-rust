@@ -96,43 +96,42 @@ pub fn resolve_tank_collision(
     Vec3::new(previous.x, attempted.y, previous.z)
 }
 
-pub fn resolve_tank_collision_with_speed(
+pub fn resolve_tank_collision_with_velocity(
     previous: Vec3,
     attempted: Vec3,
     yaw_rad: f32,
-    forward_speed_mps: f32,
+    velocity: Vec3,
     footprint: TankFootprint,
     obstacles: &[TankObstacle],
-    dt_seconds: f32,
-) -> (Vec3, f32) {
+) -> (Vec3, Vec3) {
     let resolved = resolve_tank_collision(previous, attempted, yaw_rad, footprint, obstacles);
-    trim_forward_speed(previous, attempted, resolved, yaw_rad, forward_speed_mps, dt_seconds)
+    (resolved, trim_velocity(previous, attempted, resolved, velocity))
 }
 
-pub(crate) fn trim_forward_speed(
+/// Zero the world-axis velocity components that the resolver had to drop back to `previous`,
+/// leaving the sliding axis intact. The axis-separated resolver only ever holds whole world axes,
+/// so killing exactly those axes keeps the surviving velocity tangent to the obstacle (the hull
+/// slides along a wall instead of either sticking or keeping a phantom into-wall component).
+pub(crate) fn trim_velocity(
     previous: Vec3,
     attempted: Vec3,
     resolved: Vec3,
-    yaw_rad: f32,
-    forward_speed_mps: f32,
-    dt_seconds: f32,
-) -> (Vec3, f32) {
-    if horizontal_position_matches(resolved, attempted) || dt_seconds <= f32::EPSILON {
-        return (resolved, forward_speed_mps);
+    velocity: Vec3,
+) -> Vec3 {
+    let mut trimmed = velocity;
+    if axis_blocked(previous.x, attempted.x, resolved.x) {
+        trimmed.x = 0.0;
     }
-
-    let actual_delta = Vec3::new(resolved.x - previous.x, 0.0, resolved.z - previous.z);
-    let forward = Vec3::new(yaw_rad.sin(), 0.0, yaw_rad.cos());
-    let projected_speed = actual_delta.dot(forward) / dt_seconds;
-    if projected_speed.signum() == forward_speed_mps.signum() {
-        (resolved, projected_speed)
-    } else {
-        (resolved, 0.0)
+    if axis_blocked(previous.z, attempted.z, resolved.z) {
+        trimmed.z = 0.0;
     }
+    trimmed
 }
 
-fn horizontal_position_matches(a: Vec3, b: Vec3) -> bool {
-    (a.x - b.x).abs() <= 1.0e-5 && (a.z - b.z).abs() <= 1.0e-5
+/// True when a move along one world axis was attempted but the resolver pinned it back to the
+/// previous value (i.e. that axis is blocked by an obstacle).
+fn axis_blocked(previous: f32, attempted: f32, resolved: f32) -> bool {
+    (attempted - previous).abs() > 1.0e-6 && (resolved - previous).abs() <= 1.0e-5
 }
 
 fn tank_blocked(

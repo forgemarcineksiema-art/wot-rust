@@ -42,7 +42,7 @@ fn uphill_contact_reduces_acceleration() {
         1.0,
     );
 
-    assert!(uphill.forward_speed_mps < flat.forward_speed_mps);
+    assert!(uphill.forward_speed() < flat.forward_speed());
     assert!(uphill.position.z < flat.position.z);
 }
 
@@ -74,7 +74,7 @@ fn rough_contact_limits_traction_and_keeps_tank_grounded() {
         0.5,
     );
 
-    assert!(rough.forward_speed_mps < flat.forward_speed_mps);
+    assert!(rough.forward_speed() < flat.forward_speed());
     assert!(rough.yaw_rad < flat.yaw_rad);
     assert_eq!(rough.position.y, 4.0);
 }
@@ -82,7 +82,10 @@ fn rough_contact_limits_traction_and_keeps_tank_grounded() {
 #[test]
 fn braking_overrides_throttle_and_decelerates() {
     let settings = TankControllerSettings::from_spec(&TankSpec::t55a());
-    let mut state = TankKinematicState { forward_speed_mps: 8.0, ..TankKinematicState::default() };
+    let mut state = TankKinematicState {
+        velocity: glam::Vec3::new(0.0, 0.0, 8.0),
+        ..TankKinematicState::default()
+    };
 
     // Holding throttle AND brake must slow the tank, not keep accelerating forward.
     step_custom_tank_controller_on_contact(
@@ -93,7 +96,7 @@ fn braking_overrides_throttle_and_decelerates() {
         0.2,
     );
 
-    assert!(state.forward_speed_mps < 8.0, "brake must decelerate even with throttle held");
+    assert!(state.forward_speed() < 8.0, "brake must decelerate even with throttle held");
 }
 
 #[test]
@@ -150,39 +153,44 @@ fn slope_past_climb_limit_stalls_the_tank_but_gentle_slope_does_not() {
     }
 
     assert!(
-        steep.forward_speed_mps.abs() < 0.05,
+        steep.forward_speed().abs() < 0.05,
         "an embankment-grade face must stall the tank (got {})",
-        steep.forward_speed_mps
+        steep.forward_speed()
     );
     assert!(
-        gentle.forward_speed_mps > 1.0,
+        gentle.forward_speed() > 1.0,
         "a climbable grade must still move the tank (got {})",
-        gentle.forward_speed_mps
+        gentle.forward_speed()
     );
 }
 
 #[test]
-fn slope_past_climb_limit_cancels_existing_uphill_momentum() {
+fn unclimbable_face_stops_incoming_momentum() {
     let settings = TankControllerSettings::from_spec(&TankSpec::t55a());
-    let mut state = TankKinematicState { forward_speed_mps: 10.0, ..TankKinematicState::default() };
+    // A hull charging an unclimbable face at 10 m/s must not punch through it on momentum: a face
+    // past the gradeability limit is a barrier (the tracks lose drive and the nose digs in), so
+    // the forward momentum is arrested rather than carrying the hull over the top.
+    let mut state = TankKinematicState {
+        velocity: glam::Vec3::new(0.0, 0.0, 10.0),
+        ..TankKinematicState::default()
+    };
+    let input = TankControlInput { throttle: 1.0, steer: 0.0, brake: 0.0 };
+    let contact = contact_with_slope(settings.max_climb_grade + 0.1);
 
-    step_custom_tank_controller_on_contact(
-        &mut state,
-        TankControlInput { throttle: 1.0, steer: 0.0, brake: 0.0 },
-        &settings,
-        contact_with_slope(settings.max_climb_grade + 0.1),
-        1.0 / 60.0,
-    );
+    let mut max_z = 0.0_f32;
+    for _ in 0..120 {
+        step_custom_tank_controller_on_contact(&mut state, input, &settings, contact, 1.0 / 60.0);
+        max_z = max_z.max(state.position.z);
+    }
 
     assert!(
-        state.forward_speed_mps.abs() < 0.01,
-        "unclimbable uphill terrain must cancel uphill momentum, got {}",
-        state.forward_speed_mps
+        state.forward_speed().abs() < 0.05,
+        "an unclimbable face must arrest forward momentum, got {}",
+        state.forward_speed()
     );
     assert!(
-        state.position.z.abs() < 0.01,
-        "unclimbable uphill terrain must not allow extra uphill travel, got z={}",
-        state.position.z
+        max_z < 1.0,
+        "incoming momentum must not carry the hull up an unclimbable face, reached z={max_z}"
     );
 }
 

@@ -1,4 +1,3 @@
-use game_core::math::horizontal_forward;
 use game_core::{ModuleSlot, TankSpec};
 use physics::{
     TankControlInput, TankControllerSettings, TankFootprint, TankKinematicState, TankObstacle,
@@ -71,7 +70,9 @@ pub fn step_tank_drive(
             dt,
         );
     } else {
-        drive.kinematic.forward_speed_mps = 0.0;
+        // A thrown track removes all hull motion, linear and angular.
+        drive.kinematic.velocity = glam::Vec3::ZERO;
+        drive.kinematic.yaw_rate_rad_s = 0.0;
     }
 
     // A destroyed turret cannot traverse, but the gun can still elevate.
@@ -82,14 +83,13 @@ pub fn step_tank_drive(
     }
     step_aiming(&mut drive.aiming, spec, aim_command, dt);
 
-    // Bloom reads the hull's world velocity magnitude (`|forward * speed|`), reconstructed here so
-    // it matches the server's `velocity_mps.length()` to the bit.
-    let velocity = horizontal_forward(drive.kinematic.yaw_rad) * drive.kinematic.forward_speed_mps;
+    // Bloom reads the hull's world velocity magnitude. The rigid-body state already carries the
+    // velocity vector, so this is the same value the server stores in `velocity_mps`.
     command_bloom(
         &mut drive.aim_dispersion_mrad,
         spec,
         modules.gun_damage_fraction,
-        velocity.length(),
+        drive.kinematic.velocity.length(),
         command,
         dt,
     );
@@ -103,12 +103,12 @@ pub(crate) fn step_tank(
     cover: &[StaticCoverObject],
     tank_obstacles: &[TankObstacle],
 ) {
-    let forward = horizontal_forward(tank.yaw_rad);
     let mut drive = TankDriveState {
         kinematic: TankKinematicState {
             position: tank.position,
+            velocity: tank.velocity_mps,
             yaw_rad: tank.yaw_rad,
-            forward_speed_mps: tank.velocity_mps.dot(forward),
+            yaw_rate_rad_s: tank.hull_yaw_velocity_rad_s,
         },
         aiming: AimingState {
             turret_yaw_rad: tank.turret_yaw_rad,
@@ -129,8 +129,8 @@ pub(crate) fn step_tank(
 
     tank.position = drive.kinematic.position;
     tank.yaw_rad = drive.kinematic.yaw_rad;
-    tank.velocity_mps =
-        horizontal_forward(drive.kinematic.yaw_rad) * drive.kinematic.forward_speed_mps;
+    tank.velocity_mps = drive.kinematic.velocity;
+    tank.hull_yaw_velocity_rad_s = drive.kinematic.yaw_rate_rad_s;
     tank.turret_yaw_rad = drive.aiming.turret_yaw_rad;
     tank.turret_yaw_velocity_rad_s = drive.aiming.turret_yaw_velocity_rad_s;
     tank.gun_pitch_rad = drive.aiming.gun_pitch_rad;

@@ -6,15 +6,23 @@ turn rate, traction, or collision outcomes.
 
 ## Model
 
-The custom tank controller derives movement settings from `TankSpec`.
-The power-to-weight ratio controls acceleration, the spec speed caps control forward and
-reverse targets, and the spec turn rate remains the baseline yaw rate. Braking is
-explicit through the input command `brake`; it is not hidden inside render delta
-time or camera input.
+The hull is a planar (2.5D) rigid body: it carries a world-frame velocity *vector* and a yaw rate
+with rotational inertia, not a single scalar forward speed. Because the velocity is a vector that
+only rotates with the hull through lateral friction, the hull keeps its momentum through a turn and
+can break grip and slide (drift) when a turn at speed — or low-traction ground — exceeds the
+lateral grip cap. The height axis stays kinematic (the hull follows the terrain; there is no
+airtime).
 
-This is intentionally a controlled tank-battle movement model, not a realistic
-track simulation. The goal is repeatable handling that can survive networking,
-replays, and regression tests.
+The custom tank controller derives its settings from `TankSpec`. The power-to-weight ratio sets the
+acceleration, the spec speed caps set forward and reverse targets, and the spec turn rate is the
+*steady-state* yaw rate the angular ramp converges to (heavier hulls spool up slower). Steering is
+two-track style and decoupled from the throttle, so a hull can pivot in place under neutral steer.
+Braking is explicit through the input command `brake`; it is not hidden inside render delta time or
+camera input.
+
+This is intentionally a controlled tank-battle movement model, not a full track simulation
+(no per-track terramechanics, suspension, or hull roll). The goal is weighty, repeatable handling
+that stays deterministic so it can survive networking, replays, and regression tests.
 
 ## Shared Drive Step
 
@@ -38,16 +46,20 @@ dispersion tick-for-tick.
 
 ## Terrain Contact
 
-Terrain contact comes from heightmap sampling. The controller samples ahead,
-behind, and to the sides of the hull to estimate slope, side slope, roughness,
-height, and traction. Uphill slope reduces acceleration and target speed; roughness
-reduces traction and turn grip. The tank is grounded to the sampled terrain height
-after each fixed tick.
+Terrain contact comes from heightmap sampling. The controller samples ahead, behind, and to the
+sides of the hull to estimate slope, side slope, roughness, height, and traction. Slope behaviour
+is one source of truth: gravity is projected onto the terrain plane, so the same term resists
+uphill motion, accelerates downhill, and pulls the hull sideways on a side slope. Roughness reduces
+traction and turn grip. The tank is grounded to the sampled terrain height after each fixed tick.
 
-Each tank also has a maximum climbable grade (its gradeability, ~60% by default). A slope
-steeper than that limit collapses climb speed to zero, so steep terrain such as the railway
-embankment acts as a real barrier that must be crossed at prepared gaps, not driven over
-anywhere. Gentle slopes still only slow the tank.
+Track grip is finite. Longitudinally the tracks can deliver at most `mu * g * traction * cos(theta)`
+of thrust, so a face steeper than the hull's gradeability (its longitudinal grip coefficient, ~60%
+by default) cannot be out-pulled and the climb stalls on its own. Such an unclimbable face is also
+treated as a hard barrier — momentum cannot carry a fast hull over it — so steep terrain like the
+railway embankment must be crossed at prepared gaps, not driven over anywhere; gentle slopes only
+slow the tank. Laterally, friction saturates at `mu * g * traction`: below it the hull tracks its
+nose, above it (a hard turn at speed, or a steep low-traction face) it slides. The lateral friction
+impulse only ever cancels sideways velocity, never reverses it, so the step stays stable at 60 Hz.
 
 Static cover (buildings, treelines, wrecks) is a hard obstacle as well: the shared drive step
 keeps the hull out of cover footprints, sliding along a face rather than sticking, so the
