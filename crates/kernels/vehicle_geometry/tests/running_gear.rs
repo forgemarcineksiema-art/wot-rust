@@ -4,8 +4,8 @@
 use game_core::VehicleKind;
 use glam::{Mat4, Vec3};
 use vehicle_geometry::{
-    GearPart, MaterialRole, RunningGearKinematics, idler_unit_mesh, road_wheel_unit_mesh,
-    running_gear_placements, sprocket_unit_mesh, track_link_unit_mesh,
+    GearPart, GeometryMesh, MaterialRole, RunningGearKinematics, idler_unit_mesh,
+    road_wheel_unit_mesh, running_gear_placements, sprocket_unit_mesh, track_link_unit_mesh,
 };
 
 fn t55() -> RunningGearKinematics {
@@ -18,6 +18,24 @@ fn count(placements: &[vehicle_geometry::GearPlacement], part: GearPart) -> usiz
 
 fn mats_close(a: Mat4, b: Mat4) -> bool {
     a.to_cols_array().iter().zip(b.to_cols_array()).all(|(x, y)| (x - y).abs() < 1.0e-3)
+}
+
+fn transformed_min_y(mesh: &GeometryMesh, transform: Mat4) -> f32 {
+    mesh.vertices()
+        .iter()
+        .map(|vertex| transform.transform_point3(vertex.position).y)
+        .fold(f32::INFINITY, f32::min)
+}
+
+fn rounded_axis_values(
+    mesh: &GeometryMesh,
+    material: MaterialRole,
+) -> std::collections::BTreeSet<i32> {
+    mesh.vertices()
+        .iter()
+        .filter(|vertex| vertex.material == material)
+        .map(|vertex| (vertex.position.x * 1000.0).round() as i32)
+        .collect()
 }
 
 #[test]
@@ -142,6 +160,39 @@ fn t54_top_track_run_sags_without_return_rollers() {
 }
 
 #[test]
+fn t54_uses_historical_ninety_track_links_per_side() {
+    let kin = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951).expect("T-54 gear");
+    let link_half_length = (kin.belt_length() / kin.link_count() as f32) * 0.47;
+
+    assert_eq!(kin.link_count(), 90, "T-54 should render 90 metal links per track");
+    assert!(
+        link_half_length < 0.070,
+        "90-link track needs short shoes that can follow end-wheel arcs; got half length {:.3}",
+        link_half_length
+    );
+}
+
+#[test]
+fn t54_end_wrap_links_are_dense_around_idler_and_sprocket() {
+    let kin = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951).expect("T-54 gear");
+    let placements = running_gear_placements(&kin, 0.0, 0.0);
+
+    for (name, center_z) in [("sprocket", kin.cz - kin.half_run), ("idler", kin.cz + kin.half_run)]
+    {
+        let wrapped = placements
+            .iter()
+            .filter(|placement| placement.part == GearPart::Link)
+            .filter(|placement| placement.transform.w_axis.x > 0.0)
+            .filter(|placement| (placement.transform.w_axis.z - center_z).abs() < kin.end_radius)
+            .count();
+        assert!(
+            wrapped >= 12,
+            "{name} wrap needs enough short links to read as a curved track run, got {wrapped}"
+        );
+    }
+}
+
+#[test]
 fn t54_track_link_mesh_has_omsh_plate_horns_and_pin_cues() {
     let kin = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951).expect("T-54 gear");
     let mesh = track_link_unit_mesh(&kin);
@@ -158,12 +209,106 @@ fn t54_track_link_mesh_has_omsh_plate_horns_and_pin_cues() {
         "link plate should read as a wide metal shoe across the side-to-side track width"
     );
     assert!(
-        bounds.min.y < -0.10,
-        "inner guide horns should protrude below the flat shoe, bounds={bounds:?}"
+        bounds.min.y < -0.035,
+        "inner guide horns should be visible below the flat shoe, bounds={bounds:?}"
+    );
+    assert!(
+        bounds.min.y > -0.075,
+        "guide horns must stay shallow; deep comb teeth hang through the top run and wheels, bounds={bounds:?}"
     );
     assert!(
         bounds.max.y < 0.08,
         "bottom run should stay flattened instead of becoming a round rubber tube"
+    );
+}
+
+#[test]
+fn t54_top_track_links_clear_the_road_wheel_tops() {
+    let kin = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951).expect("T-54 gear");
+    let link = track_link_unit_mesh(&kin);
+    let top_clearance_y = kin.cy + kin.wheel_radius - 0.075;
+    let min_top_link_y = running_gear_placements(&kin, 0.0, 0.0)
+        .iter()
+        .filter(|placement| placement.part == GearPart::Link)
+        .filter(|placement| placement.transform.w_axis.x > 0.0)
+        .filter(|placement| placement.transform.w_axis.y > kin.cy + kin.wheel_radius * 0.75)
+        .filter(|placement| placement.transform.w_axis.z.abs() < kin.half_run * 0.70)
+        .map(|placement| transformed_min_y(&link, placement.transform))
+        .fold(f32::INFINITY, f32::min);
+
+    assert!(
+        min_top_link_y >= top_clearance_y,
+        "top-run links must not hang down into the road wheels: min={min_top_link_y:.3}, clearance={top_clearance_y:.3}"
+    );
+}
+
+#[test]
+fn t54_track_shoes_ride_over_the_wheel_plane() {
+    // The belt wraps the road wheels, so each shoe must straddle the wheel plane (the wheel runs
+    // under the shoe), not float as a separate ribbon outboard of the running gear.
+    let kin = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951).expect("T-54 gear");
+    let link = track_link_unit_mesh(&kin).bounds().expect("link bounds");
+
+    let right_link_inner_x = kin.link_x + link.min.x;
+    let right_link_outer_x = kin.link_x + link.max.x;
+    assert!(
+        right_link_inner_x < kin.wheel_x && kin.wheel_x < right_link_outer_x,
+        "track shoe must straddle the wheel plane: link x=[{right_link_inner_x:.3}, {right_link_outer_x:.3}], wheel x={:.3}",
+        kin.wheel_x
+    );
+}
+
+#[test]
+fn t54_road_wheels_have_metal_faces_and_rubber_tires() {
+    let kin = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951).expect("T-54 gear");
+    let wheel = road_wheel_unit_mesh(&kin);
+
+    assert!(wheel.vertices().iter().any(|vertex| vertex.material == MaterialRole::Rubber));
+    assert!(
+        wheel.vertices().iter().any(|vertex| vertex.material == MaterialRole::TrackMetal),
+        "T-54 road wheels need visible metal discs/hubs, not a single black rubber cylinder"
+    );
+    assert!(
+        wheel.triangle_count() > kin.segments * 4,
+        "road wheel mesh should carry tire plus disc/hub detail; got {} triangles",
+        wheel.triangle_count()
+    );
+}
+
+#[test]
+fn t54_road_wheel_reads_as_a_double_wheel_pair() {
+    let kin = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951).expect("T-54 gear");
+    let wheel = road_wheel_unit_mesh(&kin);
+    let rubber_xs = rounded_axis_values(&wheel, MaterialRole::Rubber);
+
+    assert!(
+        rubber_xs.len() >= 4,
+        "double road wheels need two separated rubber tires, got x bands {rubber_xs:?}"
+    );
+}
+
+#[test]
+fn t54_road_wheel_face_shows_steel_not_a_solid_rubber_disc() {
+    // The steel disc must fill most of the wheel face while the rubber stays at the rim, so the
+    // wheel reads as a steel road wheel with a tire — not one black rubber ball.
+    let kin = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951).expect("T-54 gear");
+    let wheel = road_wheel_unit_mesh(&kin);
+    let max_radius = |material: MaterialRole| {
+        wheel
+            .vertices()
+            .iter()
+            .filter(|v| v.material == material)
+            .map(|v| (v.position.y * v.position.y + v.position.z * v.position.z).sqrt())
+            .fold(0.0_f32, f32::max)
+    };
+
+    assert!(
+        max_radius(MaterialRole::TrackMetal) >= kin.wheel_radius * 0.7,
+        "steel disc should fill most of the wheel face, not sit as a tiny hub"
+    );
+    assert!(
+        max_radius(MaterialRole::Rubber) >= kin.wheel_radius * 0.97,
+        "rubber tire must ride at the wheel rim"
     );
 }
 
@@ -178,8 +323,14 @@ fn t54_sprocket_is_visibly_toothed_while_idler_is_smooth() {
         "rear drive sprocket should carry tooth geometry beyond the smooth front idler"
     );
     assert!(
-        sprocket.bounds().expect("sprocket bounds").max.y
-            > idler.bounds().expect("idler bounds").max.y,
-        "sprocket teeth should extend past the smooth idler radius"
+        sprocket.bounds().expect("sprocket bounds").max.y <= kin.end_radius + 0.010,
+        "sprocket teeth must stay inside the track path instead of colliding through the links"
+    );
+    // The idler is a smooth wheel: its silhouette stays a round rim with no radial spikes, so the
+    // front of the track is visibly plain against the rear sprocket's teeth.
+    let idler_bounds = idler.bounds().expect("idler bounds");
+    assert!(
+        idler_bounds.max.y <= kin.end_radius + 0.010 && idler_bounds.max.z <= kin.end_radius + 0.010,
+        "front idler must read as a smooth round wheel, not a toothed ring"
     );
 }

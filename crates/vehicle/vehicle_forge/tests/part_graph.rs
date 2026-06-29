@@ -307,13 +307,16 @@ fn the_manifest_reports_the_generator_that_built_each_part() {
             .unwrap_or_else(|| panic!("part {name}"))
             .generator
     };
-    // The plan's selection: turret shell from the loft, glacis plates from CAD, barrel revolved,
-    // track belt swept.
+    // The plan's selection: turret shell from the loft, glacis plates from CAD, barrel revolved.
+    // The visible track belt is runtime-instanced running gear, not a static manifest part.
     assert_eq!(generator("turret_shell"), GeneratorKind::CastLoft);
     assert_eq!(generator("upper_hull"), GeneratorKind::Solid);
     assert_eq!(generator("lower_tub"), GeneratorKind::Solid);
     assert_eq!(generator("gun_barrel"), GeneratorKind::Revolve);
-    assert_eq!(generator("tracks"), GeneratorKind::Sweep);
+    assert!(
+        manifest.iter().all(|entry| entry.key.name != "tracks"),
+        "runtime running gear must not duplicate a static track belt in the executable manifest"
+    );
 }
 
 #[test]
@@ -322,7 +325,10 @@ fn the_manifest_report_names_every_kernel_and_only_exists_for_migrated_vehicles(
     assert!(report.contains("turret_shell") && report.contains("cast_loft"));
     assert!(report.contains("gun_barrel") && report.contains("revolve"));
     assert!(report.contains("upper_hull") && report.contains("solid"));
-    assert!(report.contains("tracks") && report.contains("sweep"));
+    assert!(
+        !report.contains("tracks"),
+        "static production manifest should leave full track belts to runtime running gear"
+    );
     // Legacy / unmigrated vehicles have no executable manifest yet.
     assert!(part_manifest_report(VehicleKind::T55A).is_none());
     assert!(production_part_manifest(VehicleKind::TigerI).is_none());

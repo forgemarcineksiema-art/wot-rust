@@ -1,6 +1,6 @@
 use game_core::VehicleKind;
 use serde::{Deserialize, Serialize};
-use vehicle_geometry::{BakedVehicle, MeshBounds, SubmeshKind};
+use vehicle_geometry::BakedVehicle;
 
 use crate::RatioReport;
 
@@ -148,56 +148,6 @@ impl ReferencePack {
     }
 
     pub fn measure_baked_vehicle(&self, vehicle: &BakedVehicle) -> Option<RatioReport> {
-        if !self.vehicles.contains(&vehicle.kind()) {
-            return None;
-        }
-        let hull = submesh_bounds(vehicle, SubmeshKind::Hull)?;
-        let turret = submesh_bounds(vehicle, SubmeshKind::Turret)?;
-        let gun = submesh_bounds(vehicle, SubmeshKind::Gun)?;
-
-        Some(RatioReport::new(
-            vehicle.kind(),
-            self.clone(),
-            vec![
-                measure(self, RatioKind::HullLengthToWidth, extent_z(hull) / extent_x(hull))?,
-                measure(self, RatioKind::HullHeightToLength, extent_y(hull) / extent_z(hull))?,
-                measure(
-                    self,
-                    RatioKind::TurretWidthToHullWidth,
-                    extent_x(turret) / extent_x(hull),
-                )?,
-                measure(
-                    self,
-                    RatioKind::TurretHeightToHullHeight,
-                    extent_y(turret) / extent_y(hull),
-                )?,
-                measure(
-                    self,
-                    RatioKind::GunProtrusionToHullLength,
-                    (gun.max.z - hull.max.z).max(0.0) / extent_z(hull),
-                )?,
-            ],
-        ))
+        crate::reference_measure::measure_baked_vehicle(self, vehicle)
     }
-}
-
-fn measure(pack: &ReferencePack, kind: RatioKind, measured: f32) -> Option<crate::MeasuredRatio> {
-    let target = pack.ratio(kind)?.clone();
-    Some(crate::MeasuredRatio::new(target, measured))
-}
-
-fn submesh_bounds(vehicle: &BakedVehicle, kind: SubmeshKind) -> Option<MeshBounds> {
-    vehicle.submesh(kind)?.mesh.bounds()
-}
-
-fn extent_x(bounds: MeshBounds) -> f32 {
-    (bounds.max.x - bounds.min.x).max(0.001)
-}
-
-fn extent_y(bounds: MeshBounds) -> f32 {
-    (bounds.max.y - bounds.min.y).max(0.001)
-}
-
-fn extent_z(bounds: MeshBounds) -> f32 {
-    (bounds.max.z - bounds.min.z).max(0.001)
 }

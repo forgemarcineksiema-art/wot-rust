@@ -11,6 +11,8 @@ mod quality;
 mod recipes;
 mod running_gear;
 mod running_gear_geom;
+mod running_gear_place;
+mod running_gear_wheels;
 mod vehicle;
 mod weld;
 
@@ -31,10 +33,11 @@ pub use quality::{
     TopologyExpectation,
 };
 pub use recipes::bake_vehicle;
-pub use running_gear::{GearPart, GearPlacement, RunningGearKinematics, running_gear_placements};
-pub use running_gear_geom::{
+pub use running_gear::{GearPart, GearPlacement, RunningGearKinematics};
+pub use running_gear_geom::track_link_unit_mesh;
+pub use running_gear_place::running_gear_placements;
+pub use running_gear_wheels::{
     end_wheel_unit_mesh, idler_unit_mesh, road_wheel_unit_mesh, sprocket_unit_mesh,
-    track_link_unit_mesh,
 };
 pub use vehicle::{BakeError, BakedVehicle, Submesh, SubmeshKind};
 
