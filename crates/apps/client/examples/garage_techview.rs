@@ -35,6 +35,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         aim_dispersion_mrad: 0.0,
         module_hit_points: spec.module_health.hit_points_by_slot(),
         destroyed_modules_mask: 0,
+        track_damage_mask: 0,
     };
     let _ = snapshot; // The tech tree view does not render the vehicle mesh; it's an overlay-only
     // screen over the dim hangar. Kept here so the example stays close to the

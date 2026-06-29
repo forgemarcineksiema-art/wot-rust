@@ -7,6 +7,7 @@ pub mod math;
 mod modules;
 mod mount;
 mod tank;
+mod track;
 mod vehicle_blueprint;
 mod vehicle_kind;
 mod vehicles;
@@ -26,6 +27,7 @@ pub use modules::{
 };
 pub use mount::{MountFrame, MountFrames};
 pub use tank::{HitboxProfile, TankSpec};
+pub use track::{TrackDamageMask, TrackSide};
 pub use vehicle_blueprint::{
     ArmorShape, BoxVisual, DetailVisual, FenderVisual, FittingsVisual, GunShape, GunVisual,
     HullPlatesVisual, HullShape, HullVisual, HybridVisual, LoftStation, RunningGearVisual,

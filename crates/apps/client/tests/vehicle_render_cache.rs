@@ -58,5 +58,6 @@ fn snapshot(vehicle: VehicleKind, turret_yaw_rad: f32) -> TankSnapshot {
         aim_dispersion_mrad: vehicle.spec().gun.dispersion_mrad,
         module_hit_points: vehicle.spec().module_health.hit_points_by_slot(),
         destroyed_modules_mask: 0,
+        track_damage_mask: 0,
     }
 }

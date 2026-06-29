@@ -65,6 +65,7 @@ fn snapshot_with_aim(
                 .module_health
                 .hit_points_by_slot(),
             destroyed_modules_mask: 0,
+            track_damage_mask: 0,
         }],
         shells: Vec::new(),
         damage_events: Vec::new(),

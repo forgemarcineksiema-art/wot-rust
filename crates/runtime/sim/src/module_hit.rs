@@ -1,5 +1,23 @@
-use game_core::{ArmorZone, HitboxProfile, ModuleSlot, ShellType};
+use game_core::{ArmorZone, HitboxProfile, ModuleSlot, ShellType, TrackSide};
 use glam::Vec3;
+
+use crate::TankState;
+
+pub(crate) fn apply_track_damage_for_hit(
+    target: &mut TankState,
+    module: Option<ModuleSlot>,
+    zone: ArmorZone,
+    shell_type: ShellType,
+    penetrated: bool,
+) {
+    match zone {
+        ArmorZone::LeftTrack => target.tracks.damage(TrackSide::Left),
+        ArmorZone::RightTrack => target.tracks.damage(TrackSide::Right),
+        _ if shell_type == ShellType::HighExplosive && !penetrated => target.tracks.damage_both(),
+        _ if module == Some(ModuleSlot::Suspension) => target.tracks.damage_both(),
+        _ => {}
+    }
+}
 
 pub(crate) fn impacted_module(
     shell_type: ShellType,

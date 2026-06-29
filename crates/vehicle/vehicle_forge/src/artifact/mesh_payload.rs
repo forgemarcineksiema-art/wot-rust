@@ -7,6 +7,8 @@ use vehicle_geometry::{
     SurfaceMapping,
 };
 
+use super::mesh_optimize::optimize_indices_for_gpu;
+
 const MAGIC: &[u8; 8] = b"WOTFORGE";
 /// Current payload version: carries per-vertex UV0 and surface mapping mode.
 const VERSION: u32 = 3;
@@ -26,7 +28,8 @@ pub fn encode(vehicle: &BakedVehicle) -> Result<Vec<u8>, io::Error> {
         for vertex in submesh.mesh.vertices() {
             write_vertex(&mut bytes, vertex)?;
         }
-        for index in submesh.mesh.indices() {
+        let indices = optimize_indices_for_gpu(submesh.mesh.indices(), submesh.mesh.vertex_count());
+        for index in &indices {
             write_u32(&mut bytes, *index)?;
         }
     }
@@ -295,5 +298,22 @@ mod tests {
         // Overwrite the version word (just after the 8-byte magic) with an unsupported value.
         bytes[8..12].copy_from_slice(&99u32.to_le_bytes());
         assert!(decode(VehicleKind::T54_1951, &bytes).is_err());
+    }
+
+    #[test]
+    fn meshopt_payload_pass_preserves_vertices_materials_and_triangle_count() {
+        let vehicle = sample_vehicle();
+        let decoded = decode(VehicleKind::T54_1951, &encode(&vehicle).unwrap()).unwrap();
+        let original = &vehicle.submeshes()[0].mesh;
+        let optimized = &decoded.submeshes()[0].mesh;
+
+        assert_eq!(optimized.vertex_count(), original.vertex_count());
+        assert_eq!(optimized.indices().len(), original.indices().len());
+        assert_eq!(optimized.indices().len() / 3, original.indices().len() / 3);
+        for (a, b) in original.vertices().iter().zip(optimized.vertices()) {
+            assert_eq!(a.position, b.position);
+            assert_eq!(a.material, b.material);
+            assert_eq!(a.smoothing, b.smoothing);
+        }
     }
 }

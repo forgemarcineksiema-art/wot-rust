@@ -200,6 +200,7 @@ fn render_garage_preview_png() {
         aim_dispersion_mrad: 0.0,
         module_hit_points: spec.module_health.hit_points_by_slot(),
         destroyed_modules_mask: 0,
+        track_damage_mask: 0,
     };
 
     let (terrain_vertices, terrain_indices) = hangar_scene_mesh();
@@ -272,6 +273,7 @@ fn snapshot_for_vehicle(
             aim_dispersion_mrad: spec.gun.dispersion_mrad,
             module_hit_points: spec.module_health.hit_points_by_slot(),
             destroyed_modules_mask: 0,
+            track_damage_mask: 0,
         }],
         shells: Vec::new(),
         damage_events: Vec::new(),

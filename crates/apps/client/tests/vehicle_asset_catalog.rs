@@ -11,8 +11,8 @@ fn t54_object_count() -> usize {
     3 + kin.wheel_zs.len() * 2 + 4 + kin.link_count() * 2
 }
 
-/// Cached meshes for one blueprint vehicle: hull/turret/gun plus three unit gear meshes.
-const BLUEPRINT_MESH_COUNT: usize = 6;
+/// Cached meshes for one blueprint vehicle: hull/turret/gun plus four unit gear meshes.
+const BLUEPRINT_MESH_COUNT: usize = 7;
 
 #[test]
 fn vehicle_asset_catalog_uploads_pbr_vehicle_meshes_once() {
@@ -143,7 +143,7 @@ fn vehicle_asset_catalog_loads_forge_lineup_artifact_tree() {
     assert_eq!(loaded, 2);
     assert_eq!(catalog.cached_vehicle_count(), 2);
     assert_eq!(catalog.material_count(), 2);
-    // T-54 (blueprint) uploads hull/turret/gun + 3 gear unit meshes; Tiger I (legacy) just 3.
+    // T-54 (blueprint) uploads hull/turret/gun + 4 gear unit meshes; Tiger I (legacy) just 3.
     assert_eq!(catalog.take_pending_vehicle_meshes().len(), BLUEPRINT_MESH_COUNT + 3);
 
     std::fs::remove_dir_all(root).expect("remove artifact tree");
@@ -241,5 +241,6 @@ fn snapshot(vehicle: VehicleKind) -> TankSnapshot {
         aim_dispersion_mrad: vehicle.spec().gun.dispersion_mrad,
         module_hit_points: vehicle.spec().module_health.hit_points_by_slot(),
         destroyed_modules_mask: 0,
+        track_damage_mask: 0,
     }
 }

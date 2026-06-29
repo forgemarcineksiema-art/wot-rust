@@ -18,6 +18,7 @@ fn t55a_client_mesh_uses_rich_procedural_geometry() {
         aim_dispersion_mrad: VehicleKind::T55A.spec().gun.dispersion_mrad,
         module_hit_points: VehicleKind::T55A.spec().module_health.hit_points_by_slot(),
         destroyed_modules_mask: 0,
+        track_damage_mask: 0,
     };
 
     let (vertices, indices) = tank_scene_mesh(&snapshot);

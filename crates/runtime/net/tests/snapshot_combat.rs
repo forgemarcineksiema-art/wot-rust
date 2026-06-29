@@ -21,6 +21,7 @@ fn snapshots_carry_projectiles_and_damage_events_through_the_wire() {
             aim_dispersion_mrad: 6.25,
             module_hit_points: VehicleKind::TigerII.spec().module_health.hit_points_by_slot(),
             destroyed_modules_mask: 1 << 3,
+            track_damage_mask: 0,
         }],
         shells: vec![ShellSnapshot {
             owner: TankId(1),

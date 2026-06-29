@@ -12,8 +12,8 @@ fn t55_object_count() -> usize {
     3 + kin.wheel_zs.len() * 2 + 4 + kin.link_count() * 2
 }
 
-/// Cached meshes for one blueprint vehicle: hull/turret/gun plus three unit gear meshes.
-const BLUEPRINT_MESH_COUNT: usize = 6;
+/// Cached meshes for one blueprint vehicle: hull/turret/gun plus four unit gear meshes.
+const BLUEPRINT_MESH_COUNT: usize = 7;
 
 /// Drift lock between the two render paths: the dynamic per-vertex mesh build and the cached
 /// instanced objects must place every vertex identically for the same snapshot — including a
@@ -36,6 +36,7 @@ fn dynamic_and_instanced_paths_agree_on_world_space_vertices() {
             aim_dispersion_mrad: kind.spec().gun.dispersion_mrad,
             module_hit_points: kind.spec().module_health.hit_points_by_slot(),
             destroyed_modules_mask: 0,
+            track_damage_mask: 0,
         };
 
         let (dynamic_vertices, _) = tank_scene_mesh(&snapshot);
@@ -84,6 +85,7 @@ fn t55a_render_objects_use_static_mesh_handles_for_hull_turret_and_gun() {
         aim_dispersion_mrad: VehicleKind::T55A.spec().gun.dispersion_mrad,
         module_hit_points: VehicleKind::T55A.spec().module_health.hit_points_by_slot(),
         destroyed_modules_mask: 0,
+        track_damage_mask: 0,
     };
 
     let objects = tank_render_objects(&mut catalog, &snapshot, [0.30, 0.40, 0.28]);
@@ -197,6 +199,7 @@ fn vehicle_mesh_catalog_reports_new_gpu_mesh_uploads_once() {
         aim_dispersion_mrad: VehicleKind::T55A.spec().gun.dispersion_mrad,
         module_hit_points: VehicleKind::T55A.spec().module_health.hit_points_by_slot(),
         destroyed_modules_mask: 0,
+        track_damage_mask: 0,
     };
 
     let objects = tank_render_objects(&mut catalog, &snapshot, [0.30, 0.40, 0.28]);
@@ -230,6 +233,7 @@ fn distinct_hull_colors_share_one_mesh_and_tint_per_object() {
         aim_dispersion_mrad: VehicleKind::T55A.spec().gun.dispersion_mrad,
         module_hit_points: VehicleKind::T55A.spec().module_health.hit_points_by_slot(),
         destroyed_modules_mask: 0,
+        track_damage_mask: 0,
     };
 
     let green = [0.30, 0.40, 0.28];
@@ -274,6 +278,7 @@ fn destroyed_module_mask_darkens_the_matching_submesh_without_reuploading_meshes
         aim_dispersion_mrad: VehicleKind::T55A.spec().gun.dispersion_mrad,
         module_hit_points: VehicleKind::T55A.spec().module_health.hit_points_by_slot(),
         destroyed_modules_mask: 0,
+        track_damage_mask: 0,
     };
     let base = [0.30, 0.40, 0.28];
     let healthy = tank_render_objects(&mut catalog, &snapshot, base);

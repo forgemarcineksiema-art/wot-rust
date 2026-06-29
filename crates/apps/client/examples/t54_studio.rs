@@ -44,6 +44,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         aim_dispersion_mrad: 0.0,
         module_hit_points: VehicleKind::T54_1951.spec().module_health.hit_points_by_slot(),
         destroyed_modules_mask: 0,
+        track_damage_mask: 0,
     };
 
     // Load the baked Forge artifacts (textured materials) the garage uses; harmless if absent.

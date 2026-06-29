@@ -1,13 +1,14 @@
-use game_core::{DamageEvent, ShellImpact, TankId, TankSpec, TeamId};
+use game_core::{DamageEvent, ShellImpact, TankId, TankSpec, TeamId, TrackDamageMask, TrackSide};
 use glam::Vec3;
 use physics::TankObstacle;
 use serde::{Deserialize, Serialize};
 use terrain::{HeightMap, StaticCoverObject};
 
 use crate::aim_dispersion::recover_aim_dispersion;
-use crate::combat::{CombatTickContext, step_shells, try_fire_shell};
+use crate::combat::{CombatTickContext, try_fire_shell};
 use crate::ramming::{apply_ramming_damage, capture_ramming_snapshots};
 use crate::shell::ShellState;
+use crate::shell_step::step_shells;
 use crate::tank_drive::step_tank;
 use crate::tank_state::TankState;
 use crate::{FixedTimestep, TankCommand};
@@ -78,6 +79,7 @@ impl SimulationState {
             reload_remaining_s: 0.0,
             aim_dispersion_mrad,
             dispersion_shot_index: 0,
+            tracks: TrackDamageMask::healthy(),
             modules,
         });
 
@@ -108,6 +110,7 @@ impl SimulationState {
             reload_remaining_s: 0.0,
             aim_dispersion_mrad,
             dispersion_shot_index: 0,
+            tracks: TrackDamageMask::healthy(),
             modules,
         });
         Some(id)
@@ -119,6 +122,12 @@ impl SimulationState {
 
     pub fn tank_mut(&mut self, id: TankId) -> Option<&mut TankState> {
         self.tanks.iter_mut().find(|tank| tank.id == id)
+    }
+
+    pub fn damage_track(&mut self, id: TankId, side: TrackSide) {
+        if let Some(tank) = self.tank_mut(id) {
+            tank.tracks.damage(side);
+        }
     }
 
     pub fn apply_commands(&mut self, commands: &[(TankId, TankCommand)], timestep: FixedTimestep) {

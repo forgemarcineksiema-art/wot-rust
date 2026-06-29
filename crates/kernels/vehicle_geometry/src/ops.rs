@@ -85,3 +85,17 @@ pub struct ExtrudeSpec {
     pub material: MaterialRole,
     pub smoothing: SmoothingGroup,
 }
+
+/// Sweep a flat polygon, including concave outlines and optional holes, a fixed depth along an
+/// axis. The points are a single Earcut-compatible list: first the outer ring, followed by each
+/// hole ring; `hole_indices` stores the starting index of every hole in that list.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ExtrudePolygonSpec {
+    pub points: Vec<Vec2>,
+    pub hole_indices: Vec<usize>,
+    pub axis: Axis,
+    /// The section is swept from `-half_depth` to `+half_depth` along `axis`.
+    pub half_depth: f32,
+    pub material: MaterialRole,
+    pub smoothing: SmoothingGroup,
+}

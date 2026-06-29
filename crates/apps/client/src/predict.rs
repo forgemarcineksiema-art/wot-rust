@@ -1,10 +1,10 @@
 use game_core::math::lerp_angle;
-use game_core::{MODULE_SLOT_COUNT, ModuleSlot, TankSpec};
+use game_core::{MODULE_SLOT_COUNT, ModuleSlot, TankSpec, TrackDamageMask};
 use glam::Vec3;
 use net::TankSnapshot;
 use physics::{TankKinematicState, TankObstacle};
 use sim::{
-    AimingState, DriveModuleStatus, TankCommand, TankDriveState, TankDriveWorld,
+    AimingState, DriveModuleStatus, TankCommand, TankDriveState, TankDriveWorld, TrackDriveStatus,
     recover_dispersion, step_tank_drive,
 };
 use terrain::{HeightMap, StaticCoverObject};
@@ -30,6 +30,7 @@ pub struct LocalPredictor {
     hit_points: u32,
     module_hit_points: [u32; MODULE_SLOT_COUNT],
     destroyed_modules_mask: u8,
+    track_damage_mask: TrackDamageMask,
     seeded: bool,
     /// Pose at the start of the most recent tick, kept so rendering can interpolate the
     /// gap between the previous and current tick instead of snapping at 60 Hz boundaries.
@@ -48,6 +49,7 @@ impl LocalPredictor {
             hit_points: spec.hit_points,
             module_hit_points: spec.module_health.hit_points_by_slot(),
             destroyed_modules_mask: 0,
+            track_damage_mask: TrackDamageMask::healthy(),
             seeded: false,
             previous: PredictedPose {
                 position: Vec3::ZERO,
@@ -89,6 +91,7 @@ impl LocalPredictor {
         self.hit_points = authoritative.hit_points;
         self.module_hit_points = authoritative.module_hit_points;
         self.destroyed_modules_mask = authoritative.destroyed_modules_mask;
+        self.track_damage_mask = TrackDamageMask::from_bits(authoritative.track_damage_mask);
         // On the very first sync there is no real "previous" tick to blend from, so anchor
         // it to the seed pose -- otherwise the first frames would lerp in from the origin.
         // On later corrections we leave `previous` alone so the render smoothly absorbs the
@@ -125,8 +128,13 @@ impl LocalPredictor {
             self.drive.kinematic.yaw_rate_rad_s = 0.0;
             return;
         }
+        let tracks = if self.module_destroyed(ModuleSlot::Suspension) {
+            TrackDriveStatus::broken()
+        } else {
+            TrackDriveStatus::from_track_damage(self.track_damage_mask)
+        };
         let modules = DriveModuleStatus {
-            tracks_ok: !self.module_destroyed(ModuleSlot::Suspension),
+            tracks,
             engine_ok: !self.module_destroyed(ModuleSlot::Engine),
             turret_ok: !self.module_destroyed(ModuleSlot::Turret),
             gun_damage_fraction,

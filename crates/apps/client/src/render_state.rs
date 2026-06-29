@@ -63,6 +63,7 @@ impl InterpolatedBattleState {
                     aim_dispersion_mrad: tank.aim_dispersion_mrad,
                     module_hit_points: tank.module_hit_points,
                     destroyed_modules_mask: tank.destroyed_modules_mask,
+                    track_damage_mask: tank.track_damage_mask,
                 },
                 None => tank.clone(),
             })

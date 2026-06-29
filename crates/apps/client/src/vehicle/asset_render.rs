@@ -93,6 +93,8 @@ pub fn tank_vehicle_render_objects_with_tracks(
     if let Some(handles) = entry.running_gear
         && let Some(kin) = RunningGearKinematics::for_vehicle(snapshot.vehicle)
     {
+        let track_left_m = if variation.left_track_broken() { 0.0 } else { track_left_m };
+        let track_right_m = if variation.right_track_broken() { 0.0 } else { track_right_m };
         objects.extend(gear_render_objects(
             snapshot.tank_id,
             handles,

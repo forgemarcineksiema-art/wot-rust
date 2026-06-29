@@ -6,6 +6,7 @@ license.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+earcut.workspace = true
 game_core.workspace = true
 glam.workspace = true
 serde.workspace = true

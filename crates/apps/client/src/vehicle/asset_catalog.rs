@@ -8,8 +8,8 @@ use renderer_api::{
 };
 use vehicle_forge::authoritative_baked_vehicle;
 use vehicle_geometry::{
-    GeometryMesh, RunningGearKinematics, SubmeshKind, end_wheel_unit_mesh, road_wheel_unit_mesh,
-    track_link_unit_mesh,
+    GeometryMesh, RunningGearKinematics, SubmeshKind, idler_unit_mesh, road_wheel_unit_mesh,
+    sprocket_unit_mesh, track_link_unit_mesh,
 };
 
 use super::pbr_mesh::vehicle_submesh_vertices;
@@ -91,7 +91,8 @@ impl VehicleAssetCatalog {
         let kin = RunningGearKinematics::for_vehicle(kind)?;
         Some(GearMeshHandles {
             road_wheel: self.register_gear_mesh(kind, "road_wheel", &road_wheel_unit_mesh(&kin)),
-            end_wheel: self.register_gear_mesh(kind, "end_wheel", &end_wheel_unit_mesh(&kin)),
+            idler: self.register_gear_mesh(kind, "idler", &idler_unit_mesh(&kin)),
+            sprocket: self.register_gear_mesh(kind, "sprocket", &sprocket_unit_mesh(&kin)),
             link: self.register_gear_mesh(kind, "track_link", &track_link_unit_mesh(&kin)),
         })
     }

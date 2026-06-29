@@ -1,5 +1,5 @@
 use bevy_ecs::prelude::*;
-use game_core::{TankId, TeamId, VehicleKind};
+use game_core::{TankId, TeamId, TrackDamageMask, TrackSide, VehicleKind};
 
 /// Render-side clock, advanced once per presented frame. Lives as an ECS resource so future
 /// presentation systems (animation, fade timers) read one shared time source.
@@ -50,6 +50,10 @@ pub struct Team(pub TeamId);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Component)]
 pub struct DestroyedModules(pub u8);
 
+/// Side-specific track damage bitmask replicated from the authoritative simulation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Component)]
+pub struct TrackDamage(pub u8);
+
 /// Per-side track distance travelled (metres), accumulated from the hull's frame-to-frame pose so
 /// the renderer can spin the wheels and scroll the track links. This is a render-only cue derived
 /// from motion — it is not gameplay state and never leaves the presentation world. Kept out of the
@@ -67,7 +71,13 @@ impl TrackAnimation {
     /// Fold one frame of hull motion into the per-side track distance. Forward travel advances both
     /// tracks; yaw advances the outer track and retards the inner, so a pivot runs them opposite
     /// ways. `half_gauge` is roughly the track half-spacing (the turn lever arm).
-    pub fn accumulate(&mut self, translation: [f32; 3], yaw_rad: f32, half_gauge: f32) {
+    pub fn accumulate(
+        &mut self,
+        translation: [f32; 3],
+        yaw_rad: f32,
+        half_gauge: f32,
+        damage: TrackDamageMask,
+    ) {
         use game_core::math::wrap_angle;
 
         if self.seeded {
@@ -76,8 +86,12 @@ impl TrackAnimation {
             let dz = translation[2] - self.last_translation[2];
             let ds = dx * yaw_rad.sin() + dz * yaw_rad.cos();
             let dyaw = wrap_angle(yaw_rad - self.last_yaw);
-            self.left_m += ds - dyaw * half_gauge;
-            self.right_m += ds + dyaw * half_gauge;
+            if !damage.is_broken(TrackSide::Left) {
+                self.left_m += ds - dyaw * half_gauge;
+            }
+            if !damage.is_broken(TrackSide::Right) {
+                self.right_m += ds + dyaw * half_gauge;
+            }
         }
         self.last_translation = translation;
         self.last_yaw = yaw_rad;
@@ -99,6 +113,7 @@ pub struct PresentationTank {
     pub gun_pitch_rad: f32,
     pub hit_points: u32,
     pub destroyed_modules_mask: u8,
+    pub track_damage_mask: u8,
     /// Per-side track distance (metres) for spinning wheels and scrolling track links.
     pub track_left_m: f32,
     pub track_right_m: f32,

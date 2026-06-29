@@ -1,5 +1,5 @@
 use engine::PresentationWorld;
-use game_core::{TankId, TeamId, VehicleKind};
+use game_core::{TankId, TeamId, TrackDamageMask, VehicleKind};
 use net::TankSnapshot;
 
 fn snapshot(id: u64, position: [f32; 3], hit_points: u32) -> TankSnapshot {
@@ -17,6 +17,7 @@ fn snapshot(id: u64, position: [f32; 3], hit_points: u32) -> TankSnapshot {
         aim_dispersion_mrad: 2.9,
         module_hit_points: VehicleKind::T55A.spec().module_health.hit_points_by_slot(),
         destroyed_modules_mask: 0,
+        track_damage_mask: 0,
     }
 }
 
@@ -110,6 +111,20 @@ fn reversing_runs_both_tracks_backward() {
     let tank = world.presentation_tanks().remove(0);
     assert!((tank.track_left_m + 3.0).abs() < 1.0e-4, "left {}", tank.track_left_m);
     assert!((tank.track_right_m + 3.0).abs() < 1.0e-4, "right {}", tank.track_right_m);
+}
+
+#[test]
+fn broken_track_side_stops_accumulating_while_healthy_side_moves() {
+    let mut world = PresentationWorld::default();
+    world.sync_tanks(&[posed([0.0, 0.0, 0.0], 0.0)]);
+    world.sync_tanks(&[TankSnapshot {
+        track_damage_mask: TrackDamageMask::LEFT.bits(),
+        ..posed([0.0, 0.0, 5.0], 0.0)
+    }]);
+
+    let tank = world.presentation_tanks().remove(0);
+    assert_eq!(tank.track_left_m, 0.0);
+    assert!((tank.track_right_m - 5.0).abs() < 1.0e-4, "right {}", tank.track_right_m);
 }
 
 #[test]

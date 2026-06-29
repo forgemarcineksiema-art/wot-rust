@@ -59,6 +59,7 @@ mod tests {
             aim_dispersion_mrad: kind.spec().gun.dispersion_mrad,
             module_hit_points: kind.spec().module_health.hit_points_by_slot(),
             destroyed_modules_mask: 0,
+            track_damage_mask: 0,
         }
     }
 }

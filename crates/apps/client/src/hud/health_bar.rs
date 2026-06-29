@@ -89,6 +89,7 @@ mod tests {
             gun_pitch_rad: 0.0,
             hit_points,
             destroyed_modules_mask: 0,
+            track_damage_mask: 0,
             track_left_m: 0.0,
             track_right_m: 0.0,
         }

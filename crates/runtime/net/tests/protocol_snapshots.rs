@@ -25,7 +25,7 @@ fn input_command_wire_snapshot_v12_is_stable() {
 
     let bytes = encode_message(&message).expect("message should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 12);
+    assert_eq!(PROTOCOL_VERSION, 13);
     assert_eq!(hex(&bytes), include_str!("snapshots/input_command_v12.hex").trim());
     assert_eq!(decode_message(&bytes).expect("message should decode"), message);
 }
@@ -39,7 +39,7 @@ fn vehicle_selection_wire_snapshot_v12_is_stable() {
 
     let bytes = encode_message(&message).expect("vehicle selection should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 12);
+    assert_eq!(PROTOCOL_VERSION, 13);
     assert_eq!(hex(&bytes), include_str!("snapshots/vehicle_selection_v12.hex").trim());
     assert_eq!(decode_message(&bytes).expect("message should decode"), message);
 }
@@ -51,7 +51,7 @@ fn tank_snapshot_wire_v12_is_stable() {
 
     let bytes = encode_message(&message).expect("snapshot should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 12);
+    assert_eq!(PROTOCOL_VERSION, 13);
     assert_eq!(hex(&bytes), include_str!("snapshots/snapshot_tank_v12.hex").trim());
     assert_eq!(decode_message(&bytes).expect("snapshot should decode"), message);
 }
@@ -62,7 +62,7 @@ fn combat_snapshot_wire_v12_is_stable() {
 
     let bytes = encode_message(&message).expect("snapshot should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 12);
+    assert_eq!(PROTOCOL_VERSION, 13);
     assert_eq!(hex(&bytes), include_str!("snapshots/snapshot_combat_v12.hex").trim());
     assert_eq!(decode_message(&bytes).expect("snapshot should decode"), message);
 }
@@ -85,6 +85,7 @@ pub fn tank_snapshot_message() -> Snapshot {
             aim_dispersion_mrad: 5.5,
             module_hit_points: VehicleKind::Jagdtiger.spec().module_health.hit_points_by_slot(),
             destroyed_modules_mask: 1 << 3,
+            track_damage_mask: 0,
         }],
         shells: Vec::new(),
         damage_events: Vec::new(),
@@ -111,6 +112,7 @@ pub fn combat_snapshot_message() -> Snapshot {
             aim_dispersion_mrad: 7.25,
             module_hit_points: VehicleKind::TigerII.spec().module_health.hit_points_by_slot(),
             destroyed_modules_mask: 1 << 3,
+            track_damage_mask: 0,
         }],
         shells: vec![ShellSnapshot {
             owner: TankId(7),

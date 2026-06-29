@@ -7,6 +7,6 @@ mod world;
 
 pub use components::{
     DestroyedModules, GunPitch, Health, PresentationTank, RenderTransform, TankEntity, Team, Time,
-    TurretYaw, Vehicle,
+    TrackDamage, TurretYaw, Vehicle,
 };
 pub use world::PresentationWorld;

@@ -1,4 +1,4 @@
-use game_core::{ModuleSlot, TankSpec};
+use game_core::{ModuleSlot, TankSpec, TrackDamageMask, TrackSide};
 use physics::{
     TankControlInput, TankControllerSettings, TankFootprint, TankKinematicState, TankObstacle,
     TankWorldObstacles, step_tank_on_world_with_tanks,
@@ -21,11 +21,47 @@ pub struct TankDriveState {
     pub aim_dispersion_mrad: f32,
 }
 
+/// Deterministic per-side track availability for one fixed tick.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TrackDriveStatus {
+    pub left_ok: bool,
+    pub right_ok: bool,
+}
+
+impl TrackDriveStatus {
+    pub const fn healthy() -> Self {
+        Self { left_ok: true, right_ok: true }
+    }
+
+    pub const fn broken() -> Self {
+        Self { left_ok: false, right_ok: false }
+    }
+
+    pub const fn from_suspension_ok(ok: bool) -> Self {
+        if ok { Self::healthy() } else { Self::broken() }
+    }
+
+    pub const fn from_track_damage(mask: TrackDamageMask) -> Self {
+        Self {
+            left_ok: !mask.is_broken(TrackSide::Left),
+            right_ok: !mask.is_broken(TrackSide::Right),
+        }
+    }
+
+    fn any_ok(self) -> bool {
+        self.left_ok || self.right_ok
+    }
+
+    fn both_ok(self) -> bool {
+        self.left_ok && self.right_ok
+    }
+}
+
 /// Which modules still work, plus partial gun damage for the dispersion math. Built from
 /// `ModuleHealth` on the server and from the snapshot's destroyed-module mask on the client.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct DriveModuleStatus {
-    pub tracks_ok: bool,
+    pub tracks: TrackDriveStatus,
     pub engine_ok: bool,
     pub turret_ok: bool,
     pub gun_damage_fraction: f32,
@@ -50,11 +86,17 @@ pub fn step_tank_drive(
     command: TankCommand,
     dt: f32,
 ) {
-    if modules.tracks_ok {
+    if modules.tracks.any_ok() {
         let settings = TankControllerSettings::from_spec(spec);
-        // A dead engine removes drive; a thrown track (the `else` branch) removes all movement.
-        let (throttle, steer) =
+        // A dead engine removes drive; broken tracks reduce or remove per-side traction.
+        let (mut throttle, mut steer) =
             if modules.engine_ok { (command.throttle, command.steer) } else { (0.0, 0.0) };
+        if !modules.tracks.both_ok() {
+            let bias = if modules.tracks.right_ok { 0.78 } else { -0.78 };
+            let drive_sign = if throttle.abs() > 0.05 { throttle.signum() } else { 1.0 };
+            throttle *= 0.18;
+            steer = (steer * 0.25 + bias * drive_sign).clamp(-1.0, 1.0);
+        }
         let input = TankControlInput { throttle, steer, brake: command.brake };
         let obstacles = TankWorldObstacles::new(
             world.cover,
@@ -117,8 +159,14 @@ pub(crate) fn step_tank(
         },
         aim_dispersion_mrad: tank.aim_dispersion_mrad,
     };
+    let suspension_ok = tank.modules.is_functional(ModuleSlot::Suspension);
+    let tracks = if suspension_ok {
+        TrackDriveStatus::from_track_damage(tank.tracks)
+    } else {
+        TrackDriveStatus::broken()
+    };
     let modules = DriveModuleStatus {
-        tracks_ok: tank.modules.is_functional(ModuleSlot::Suspension),
+        tracks,
         engine_ok: tank.modules.is_functional(ModuleSlot::Engine),
         turret_ok: tank.modules.is_functional(ModuleSlot::Turret),
         gun_damage_fraction: crate::aim_dispersion::gun_damage_fraction(tank),

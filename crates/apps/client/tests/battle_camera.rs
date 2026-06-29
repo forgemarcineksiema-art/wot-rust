@@ -357,5 +357,6 @@ fn tank_snapshot(position: [f32; 3], hull_yaw_rad: f32, turret_yaw_rad: f32) -> 
         aim_dispersion_mrad: spec.gun.dispersion_mrad,
         module_hit_points: spec.module_health.hit_points_by_slot(),
         destroyed_modules_mask: 0,
+        track_damage_mask: 0,
     }
 }

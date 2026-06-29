@@ -46,6 +46,9 @@ pub struct RunningGearKinematics {
     pub link_x: f32,
     /// Half-thickness of one shoe link along its axle.
     pub link_half_width: f32,
+    /// Mid-run droop for the upper belt run. Soviet five-wheel layouts with no return rollers
+    /// need a visible slack curve instead of a ruler-flat top run.
+    pub top_sag_m: f32,
     /// Z of each road wheel.
     pub wheel_zs: Vec<f32>,
     pub segments: usize,
@@ -83,6 +86,10 @@ impl RunningGearKinematics {
             wheel_half_width: ((track.outer_x - track.inner_x) * 0.5).max(0.03),
             link_x: track.center_x + track.belt_half_thickness - track.belt_half_thickness * 0.5,
             link_half_width: (track.belt_half_thickness * 0.5).max(0.02),
+            top_sag_m: match kind {
+                VehicleKind::T54_1951 => 0.075,
+                _ => 0.035,
+            },
             wheel_zs,
             segments: track.segments.max(12),
         })
@@ -103,9 +110,11 @@ impl RunningGearKinematics {
         (self.belt_length() / LINK_SPACING_M).round().max(4.0) as usize
     }
 
-    /// Half-length of one shoe link along the belt (so links sit nose-to-tail at the spacing).
+    /// Half-length of one shoe link along the belt. Links nearly fill their spacing (only a thin
+    /// seam between them) so the belt reads as a continuous segmented band rather than a dashed
+    /// line — a gappy belt strobes badly when it scrolls at speed.
     pub(crate) fn link_half_length(&self) -> f32 {
-        (self.belt_length() / self.link_count() as f32) * 0.34
+        (self.belt_length() / self.link_count() as f32) * 0.47
     }
 }
 
@@ -113,7 +122,8 @@ impl RunningGearKinematics {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GearPart {
     RoadWheel,
-    EndWheel,
+    Idler,
+    Sprocket,
     Link,
 }
 
@@ -158,9 +168,11 @@ fn place_side(
     }
     // Drive sprocket (rear) and idler (front): the larger end wheels the belt wraps.
     let end_spin = phase / kin.end_radius.max(0.05);
-    for z in [kin.cz - kin.half_run, kin.cz + kin.half_run] {
+    for (part, z) in
+        [(GearPart::Sprocket, kin.cz - kin.half_run), (GearPart::Idler, kin.cz + kin.half_run)]
+    {
         out.push(GearPlacement {
-            part: GearPart::EndWheel,
+            part,
             transform: Mat4::from_translation(Vec3::new(side_sign * kin.wheel_x, kin.cy, z))
                 * Mat4::from_rotation_x(end_spin),
         });
@@ -168,8 +180,15 @@ fn place_side(
     // Shoe links: evenly spaced around the loop, advanced by the phase and wrapped.
     let count = kin.link_count();
     let length = kin.belt_length();
+    let mut link_phase = phase.rem_euclid(length);
+    if link_phase < 1.0e-4 || link_phase > length - 1.0e-4 {
+        link_phase = 0.0;
+    }
     for i in 0..count {
-        let s = (phase + (i as f32 / count as f32) * length).rem_euclid(length);
+        let mut s = (link_phase + (i as f32 / count as f32) * length).rem_euclid(length);
+        if s > length - 1.0e-4 {
+            s = 0.0;
+        }
         let sample = sample_belt(kin, s);
         out.push(GearPlacement {
             part: GearPart::Link,

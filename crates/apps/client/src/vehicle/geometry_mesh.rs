@@ -3,8 +3,8 @@ use net::TankSnapshot;
 use renderer_api::SceneVertex;
 use vehicle_forge::authoritative_baked_vehicle;
 use vehicle_geometry::{
-    GearPart, GeometryMesh, RunningGearKinematics, SubmeshKind, end_wheel_unit_mesh,
-    road_wheel_unit_mesh, running_gear_placements, track_link_unit_mesh,
+    GearPart, GeometryMesh, RunningGearKinematics, SubmeshKind, idler_unit_mesh,
+    road_wheel_unit_mesh, running_gear_placements, sprocket_unit_mesh, track_link_unit_mesh,
 };
 
 use super::pose::VehiclePose;
@@ -75,13 +75,15 @@ fn append_running_gear(
     hull_color: [f32; 3],
 ) {
     let road_wheel = road_wheel_unit_mesh(kin);
-    let end_wheel = end_wheel_unit_mesh(kin);
+    let idler = idler_unit_mesh(kin);
+    let sprocket = sprocket_unit_mesh(kin);
     let link = track_link_unit_mesh(kin);
     let hull_basis = pose.hull_basis();
     for placement in running_gear_placements(kin, 0.0, 0.0) {
         let mesh = match placement.part {
             GearPart::RoadWheel => &road_wheel,
-            GearPart::EndWheel => &end_wheel,
+            GearPart::Idler => &idler,
+            GearPart::Sprocket => &sprocket,
             GearPart::Link => &link,
         };
         let normal_basis = hull_basis * Mat3::from_mat4(placement.transform);
