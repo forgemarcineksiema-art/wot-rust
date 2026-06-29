@@ -14,6 +14,7 @@ mod part_graph;
 mod part_manifest;
 mod production_bake;
 mod reference;
+mod reference_measure;
 mod registry;
 mod report;
 

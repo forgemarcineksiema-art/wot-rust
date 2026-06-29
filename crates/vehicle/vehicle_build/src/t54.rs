@@ -63,16 +63,6 @@ pub fn t54_from_modules(modules: &VehicleModules) -> VehicleDescription {
         generator: GeneratorKind::Solid,
     };
 
-    let tracks = VehiclePart {
-        key: PartKey::new("tracks"),
-        submesh: SubmeshKind::Hull,
-        material: MaterialRole::TrackMetal,
-        smoothing: SmoothingGroup::hard_edges(),
-        shape: PartShape::Mesh(revolve::t54_tracks(&v.track_belt)),
-        lod: PartLod::Silhouette,
-        generator: GeneratorKind::Sweep,
-    };
-
     // The cast turret is a LOFTED shell (replacing the metaball SDF composition): a controlled,
     // designed surface that reads as one casting from every angle. The cupola is no longer blended
     // into the shell, so it rides as its own cast drum part on the roof.
@@ -124,7 +114,7 @@ pub fn t54_from_modules(modules: &VehicleModules) -> VehicleDescription {
     };
 
     let f = &v.fittings;
-    let mut parts = vec![lower_tub, upper_hull, tracks, turret, cupola, barrel];
+    let mut parts = vec![lower_tub, upper_hull, turret, cupola, barrel];
     // Semantic drum fittings as their own parts (not anonymous greeble): the commander's cupola
     // hatch and the driver's/loader's hatches (all raised round lids), plus the glacis headlight.
     parts.extend(crate::t54_details::t54_fitting_parts(f));
@@ -172,7 +162,7 @@ pub fn t54_from_modules(modules: &VehicleModules) -> VehicleDescription {
     // Detail tier, so the close-up LOD0 carries it and the lower LODs keep only the silhouette.
     parts.extend(crate::t54_details::t54_detail_parts(v));
     // Swing-arm brackets mounting each road wheel to the hull's lower tub side (suspension cue).
-    parts.extend(crate::t54_chassis::t54_suspension_parts(v, bp.hull.lower_half_width));
+    parts.extend(crate::t54_chassis::t54_suspension_parts(bp.hull.lower_half_width));
     // Hull plate articulation: the glacis-to-roof weld seam and the rear transmission covers.
     parts.extend(crate::t54_chassis::t54_hull_plate_parts(v, bp.armor.hull_front.0));
 

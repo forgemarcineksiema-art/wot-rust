@@ -96,7 +96,9 @@ pub(super) fn t54_hybrid() -> HybridVisual {
             module_delta_scale: 0.65,
         },
         deck: BoxVisual { center: Vec3::new(0.0, 1.25, -1.75), half: Vec3::new(1.30, 0.06, 0.95) },
-        fender: FenderVisual { side_x: 1.5, center_y: 1.22, half: Vec3::new(0.28, 0.03, 2.55) },
+        // The fender rides just over the top track run (≈0.97 clears the belt), not up at the roof —
+        // a mudguard hugging the track, not a wing cantilevered off the hull top.
+        fender: FenderVisual { side_x: 1.5, center_y: 1.00, half: Vec3::new(0.28, 0.03, 2.55) },
         running_gear: RunningGearVisual {
             // Wheel radius is sized so five wheels clear each other (even gaps wider than the wheel
             // diameter) and still seat just inside the belt; it is coupled to the belt radius below.
@@ -168,7 +170,7 @@ pub(super) fn t54_hybrid() -> HybridVisual {
             periscope_half: Vec3::new(0.07, 0.05, 0.07),
             dshk_mount_center: Vec3::new(0.48, 1.93, -0.18),
             dshk_barrel_length: 0.62,
-            fender_lip_drop: 0.07,
+            fender_lip_drop: 0.13,
             fender_lip_thickness: 0.03,
             weld_seam_half_thickness: 0.015,
         },

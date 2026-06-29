@@ -222,9 +222,11 @@ fn t54_fenders_are_segmented_with_support_brackets() {
 
     // Segmented fender: the outer fender top now carries many distinct z-edges (one per section
     // boundary); a single continuous slab would expose only the two end edges.
+    // The fender now rides over the track (top ≈1.03), not up at the roof, so the outer top sits
+    // above 1.0 while staying well below the 1.20 roof.
     let mut z_bands: HashSet<i32> = HashSet::new();
     for v in hull.vertices() {
-        if v.material == MaterialRole::RolledArmor && v.position.x > 1.6 && v.position.y > 1.20 {
+        if v.material == MaterialRole::RolledArmor && v.position.x > 1.6 && v.position.y > 1.0 {
             z_bands.insert((v.position.z / 0.05).round() as i32);
         }
     }
@@ -239,8 +241,8 @@ fn t54_fenders_are_segmented_with_support_brackets() {
         hull.vertices().iter().any(|v| {
             v.material == MaterialRole::TrackMetal
                 && v.position.x * sign > 1.35
-                && v.position.y > 1.0
-                && v.position.y < 1.19
+                && v.position.y > 0.80
+                && v.position.y < 0.98
         })
     };
     assert!(has_bracket(1.0) && has_bracket(-1.0), "fender support brackets hang below both sides");
@@ -252,7 +254,10 @@ fn t54_static_bake_leaves_moving_running_gear_to_the_runtime() {
     let part_names: std::collections::BTreeSet<_> =
         desc.parts.iter().map(|part| part.key.name).collect();
 
-    assert!(part_names.contains("tracks"), "the static track belt remains in the hull bake");
+    assert!(
+        !part_names.contains("tracks"),
+        "full track belts are runtime running gear; baking them into the hull duplicates the moving links"
+    );
     for moving in ["running_gear", "track_ends", "track_links"] {
         assert!(
             !part_names.contains(moving),

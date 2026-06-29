@@ -40,8 +40,9 @@ mod tests {
     fn t54_routes_to_the_dense_hybrid_not_the_lean_procedural_mesh() {
         let seam = authoritative_baked_vehicle(VehicleKind::T54_1951).expect("T-54 bakes");
         let procedural = bake_vehicle(VehicleKind::T54_1951).expect("T-54 procedural bakes");
+        assert_ne!(seam.deterministic_hash(), procedural.deterministic_hash());
         assert!(
-            triangles(&seam) > triangles(&procedural) * 2,
+            triangles(&seam) > triangles(&procedural) * 3 / 2,
             "T-54 seam {} tris must be the dense hybrid, not the procedural {} tris",
             triangles(&seam),
             triangles(&procedural)
