@@ -8,7 +8,7 @@ mod snapshot_schedule;
 
 pub use snapshot_schedule::SnapshotSchedule;
 
-pub const PROTOCOL_VERSION: u16 = 12;
+pub const PROTOCOL_VERSION: u16 = 13;
 
 #[derive(Debug, Error)]
 pub enum NetError {
@@ -62,6 +62,8 @@ pub struct TankSnapshot {
     pub module_hit_points: [u32; MODULE_SLOT_COUNT],
     /// Bitset of destroyed modules in `ModuleSlot::ALL` order.
     pub destroyed_modules_mask: u8,
+    /// Side-specific track damage bitset; see `TrackDamageMask`.
+    pub track_damage_mask: u8,
 }
 
 impl From<&TankState> for TankSnapshot {
@@ -80,6 +82,7 @@ impl From<&TankState> for TankSnapshot {
             aim_dispersion_mrad: tank.aim_dispersion_mrad,
             module_hit_points: tank.modules.hit_points_by_slot(),
             destroyed_modules_mask: tank.modules.destroyed_mask(),
+            track_damage_mask: tank.tracks.bits(),
         }
     }
 }

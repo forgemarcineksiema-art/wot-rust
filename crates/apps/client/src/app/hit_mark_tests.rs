@@ -71,6 +71,7 @@ fn snapshot_at(tank_id: TankId, server_tick: u64) -> Snapshot {
             aim_dispersion_mrad: spec.gun.dispersion_mrad,
             module_hit_points: spec.module_health.hit_points_by_slot(),
             destroyed_modules_mask: 0,
+            track_damage_mask: 0,
         }],
         shells: Vec::new(),
         damage_events: Vec::new(),

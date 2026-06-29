@@ -7,7 +7,7 @@
 //! the renderer layers on top of the shared baked asset. The layer is pure and deterministic so it
 //! can be unit-tested without a GPU.
 
-use game_core::ModuleSlot;
+use game_core::{ModuleSlot, TrackDamageMask, TrackSide};
 use net::TankSnapshot;
 
 /// Hit decals beyond this are the oldest and get recycled — keeps per-tank state bounded.
@@ -45,7 +45,7 @@ pub struct VehicleVariation {
     snow: f32,
     camo: CamoPattern,
     decals: Vec<HitDecal>,
-    tracks_broken: bool,
+    track_damage_mask: TrackDamageMask,
     destroyed_modules_mask: u8,
 }
 
@@ -56,7 +56,7 @@ impl Default for VehicleVariation {
             snow: 0.0,
             camo: CamoPattern::None,
             decals: Vec::new(),
-            tracks_broken: false,
+            track_damage_mask: TrackDamageMask::healthy(),
             destroyed_modules_mask: 0,
         }
     }
@@ -68,7 +68,11 @@ impl VehicleVariation {
     pub fn from_snapshot(snapshot: &TankSnapshot) -> Self {
         let mask = snapshot.destroyed_modules_mask;
         Self {
-            tracks_broken: mask & ModuleSlot::Suspension.destroyed_mask_bit() != 0,
+            track_damage_mask: if mask & ModuleSlot::Suspension.destroyed_mask_bit() != 0 {
+                TrackDamageMask::BOTH
+            } else {
+                TrackDamageMask::from_bits(snapshot.track_damage_mask)
+            },
             destroyed_modules_mask: mask,
             ..Self::default()
         }
@@ -90,11 +94,20 @@ impl VehicleVariation {
     }
 
     pub fn set_tracks_broken(&mut self, broken: bool) {
-        self.tracks_broken = broken;
+        self.track_damage_mask =
+            if broken { TrackDamageMask::BOTH } else { TrackDamageMask::healthy() };
     }
 
     pub fn tracks_broken(&self) -> bool {
-        self.tracks_broken
+        self.track_damage_mask.all_broken()
+    }
+
+    pub fn left_track_broken(&self) -> bool {
+        self.track_damage_mask.is_broken(TrackSide::Left)
+    }
+
+    pub fn right_track_broken(&self) -> bool {
+        self.track_damage_mask.is_broken(TrackSide::Right)
     }
 
     pub fn decals(&self) -> &[HitDecal] {

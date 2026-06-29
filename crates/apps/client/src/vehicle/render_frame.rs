@@ -89,6 +89,7 @@ pub(crate) fn render_snapshot(tank: &PresentationTank) -> TankSnapshot {
         aim_dispersion_mrad: 0.0,
         module_hit_points: tank.vehicle.spec().module_health.hit_points_by_slot(),
         destroyed_modules_mask: tank.destroyed_modules_mask,
+        track_damage_mask: tank.track_damage_mask,
     }
 }
 
@@ -114,6 +115,7 @@ mod tests {
             gun_pitch_rad: -0.1,
             hit_points: 1200,
             destroyed_modules_mask: 0b101,
+            track_damage_mask: 0,
             track_left_m: 0.0,
             track_right_m: 0.0,
         };

@@ -3,6 +3,7 @@ mod bake_profile;
 mod load;
 mod manifest;
 mod material_synthesis;
+mod mesh_optimize;
 mod mesh_payload;
 mod review;
 mod review_images;

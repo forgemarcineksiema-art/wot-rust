@@ -7,6 +7,7 @@ use crate::{
 mod extrude;
 mod loft;
 mod plate;
+mod polygon_extrude;
 mod section;
 mod transform;
 

@@ -94,6 +94,7 @@ mod tests {
             aim_dispersion_mrad: 2.9,
             module_hit_points: VehicleKind::T55A.spec().module_health.hit_points_by_slot(),
             destroyed_modules_mask: 0,
+            track_damage_mask: 0,
         }
     }
 

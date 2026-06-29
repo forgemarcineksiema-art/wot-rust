@@ -1,5 +1,5 @@
 //! Shared mapping from running-gear placements to render objects. Both the geometry and the PBR
-//! vehicle paths cache the three unit meshes (one road wheel, one end wheel, one shoe link) per
+//! vehicle paths cache the four unit meshes (road wheel, idler, sprocket, shoe link) per
 //! vehicle and instance them here, so the wheels spin and the track links scroll from the per-side
 //! track distance the presentation world accumulates.
 
@@ -12,7 +12,8 @@ use vehicle_geometry::{GearPart, RunningGearKinematics, running_gear_placements}
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct GearMeshHandles {
     pub road_wheel: MeshHandle,
-    pub end_wheel: MeshHandle,
+    pub idler: MeshHandle,
+    pub sprocket: MeshHandle,
     pub link: MeshHandle,
 }
 
@@ -35,7 +36,8 @@ pub(crate) fn gear_render_objects(
         .map(|placement| {
             let mesh = match placement.part {
                 GearPart::RoadWheel => handles.road_wheel,
-                GearPart::EndWheel => handles.end_wheel,
+                GearPart::Idler => handles.idler,
+                GearPart::Sprocket => handles.sprocket,
                 GearPart::Link => handles.link,
             };
             RenderObject {

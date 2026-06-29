@@ -7,6 +7,7 @@ mod module_hit;
 mod ramming;
 mod replay;
 mod shell;
+mod shell_step;
 mod shell_trace;
 mod state;
 mod tank_drive;
@@ -28,6 +29,8 @@ pub use shell_trace::{
     trace_shell,
 };
 pub use state::SimulationState;
-pub use tank_drive::{DriveModuleStatus, TankDriveState, TankDriveWorld, step_tank_drive};
+pub use tank_drive::{
+    DriveModuleStatus, TankDriveState, TankDriveWorld, TrackDriveStatus, step_tank_drive,
+};
 pub use tank_state::TankState;
 pub use timestep::FixedTimestep;

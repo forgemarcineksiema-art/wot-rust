@@ -22,7 +22,9 @@ pub use lod::{
     LodAuditError, LodLevel, PartImportance, audit_reduction, reduce_mesh, reduce_vehicle,
 };
 pub use mesh::{GeometryMesh, GeometryVertex, MaterialRole, SmoothingGroup, SurfaceMapping};
-pub use ops::{Axis, ExtrudeSpec, LoftSection, LoftSpec, ProfilePoint, RevolveSpec};
+pub use ops::{
+    Axis, ExtrudePolygonSpec, ExtrudeSpec, LoftSection, LoftSpec, ProfilePoint, RevolveSpec,
+};
 pub use polygon::{is_convex, signed_area};
 pub use quality::{
     CLOSED_SMOOTH_MESH, MeshQualityError, MeshQualityReport, MeshQualitySpec, OPEN_OR_CLOSED_MESH,
@@ -30,7 +32,10 @@ pub use quality::{
 };
 pub use recipes::bake_vehicle;
 pub use running_gear::{GearPart, GearPlacement, RunningGearKinematics, running_gear_placements};
-pub use running_gear_geom::{end_wheel_unit_mesh, road_wheel_unit_mesh, track_link_unit_mesh};
+pub use running_gear_geom::{
+    end_wheel_unit_mesh, idler_unit_mesh, road_wheel_unit_mesh, sprocket_unit_mesh,
+    track_link_unit_mesh,
+};
 pub use vehicle::{BakeError, BakedVehicle, Submesh, SubmeshKind};
 
 /// Bake `kind` and reduce it to the requested LOD in one call.

@@ -16,6 +16,7 @@ fn snapshot_at(position: [f32; 3]) -> TankSnapshot {
         aim_dispersion_mrad: spec.gun.dispersion_mrad,
         module_hit_points: spec.module_health.hit_points_by_slot(),
         destroyed_modules_mask: 0,
+        track_damage_mask: 0,
     }
 }
 

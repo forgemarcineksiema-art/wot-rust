@@ -1,7 +1,7 @@
 use glam::{Vec2, Vec3};
 use vehicle_geometry::{
-    Axis, ExtrudeSpec, GeometryMesh, LoftSection, LoftSpec, MaterialRole, MeshBuilder,
-    OPEN_OR_CLOSED_MESH, ProfilePoint, RevolveSpec, SmoothingGroup,
+    Axis, ExtrudePolygonSpec, ExtrudeSpec, GeometryMesh, LoftSection, LoftSpec, MaterialRole,
+    MeshBuilder, OPEN_OR_CLOSED_MESH, ProfilePoint, RevolveSpec, SmoothingGroup,
 };
 
 #[path = "kernel/support.rs"]
@@ -169,6 +169,45 @@ fn extrude_accepts_collinear_section_runs() {
         .build();
     assert!(mesh.triangle_count() > 0);
     assert!(all_faces_point_outward(&mesh));
+}
+
+#[test]
+fn extrude_polygon_triangulates_concave_section_with_hole() {
+    let mesh = MeshBuilder::new()
+        .extrude_polygon(
+            Vec3::ZERO,
+            ExtrudePolygonSpec {
+                points: vec![
+                    Vec2::new(-1.0, -1.0),
+                    Vec2::new(1.0, -1.0),
+                    Vec2::new(1.0, 1.0),
+                    Vec2::new(0.25, 0.25),
+                    Vec2::new(-1.0, 1.0),
+                    Vec2::new(-0.25, -0.25),
+                    Vec2::new(0.25, -0.25),
+                    Vec2::new(0.25, 0.10),
+                    Vec2::new(-0.25, 0.10),
+                ],
+                hole_indices: vec![5],
+                axis: Axis::Y,
+                half_depth: 0.1,
+                material: MaterialRole::RolledArmor,
+                smoothing: SmoothingGroup::hard_edges(),
+            },
+        )
+        .build();
+
+    mesh.validate_quality(OPEN_OR_CLOSED_MESH).expect("earcut extrusion is a clean mesh");
+    assert!(mesh.triangle_count() >= 16);
+    assert!(mesh.vertices().iter().all(|v| v.position.is_finite()));
+    assert!(
+        mesh.vertices().iter().any(|v| v.position.x > 0.24 && v.normal.x < -0.8),
+        "right hole wall should face into the cutout"
+    );
+    assert!(
+        mesh.vertices().iter().any(|v| v.position.x < -0.24 && v.normal.x > 0.8),
+        "left hole wall should face into the cutout"
+    );
 }
 
 /// A loft connects varying cross-sections into a tapered solid: the back is wide and tall, the

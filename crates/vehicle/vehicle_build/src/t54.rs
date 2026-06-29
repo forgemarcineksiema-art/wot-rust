@@ -63,16 +63,6 @@ pub fn t54_from_modules(modules: &VehicleModules) -> VehicleDescription {
         generator: GeneratorKind::Solid,
     };
 
-    let gear = VehiclePart {
-        key: PartKey::new("running_gear"),
-        submesh: SubmeshKind::Hull,
-        material: MaterialRole::Rubber,
-        smoothing: SmoothingGroup(5),
-        shape: PartShape::Mesh(revolve::t54_running_gear(&v.running_gear, v.track_belt.axle_y)),
-        lod: PartLod::Silhouette,
-        generator: GeneratorKind::Revolve,
-    };
-
     let tracks = VehiclePart {
         key: PartKey::new("tracks"),
         submesh: SubmeshKind::Hull,
@@ -80,28 +70,6 @@ pub fn t54_from_modules(modules: &VehicleModules) -> VehicleDescription {
         smoothing: SmoothingGroup::hard_edges(),
         shape: PartShape::Mesh(revolve::t54_tracks(&v.track_belt)),
         lod: PartLod::Silhouette,
-        generator: GeneratorKind::Sweep,
-    };
-
-    // The track ends read as distinct mechanisms: a smooth front idler and a faceted rear sprocket.
-    let track_ends = VehiclePart {
-        key: PartKey::new("track_ends"),
-        submesh: SubmeshKind::Hull,
-        material: MaterialRole::TrackMetal,
-        smoothing: SmoothingGroup::hard_edges(),
-        shape: PartShape::Mesh(revolve::t54_track_ends(&v.running_gear, &v.track_belt)),
-        lod: PartLod::Detail,
-        generator: GeneratorKind::Revolve,
-    };
-
-    // Link cues along the ground run so the belt reads as tracked links, not a smooth band.
-    let track_links = VehiclePart {
-        key: PartKey::new("track_links"),
-        submesh: SubmeshKind::Hull,
-        material: MaterialRole::TrackMetal,
-        smoothing: SmoothingGroup::hard_edges(),
-        shape: PartShape::Mesh(revolve::t54_track_link_cues(&v.track_belt)),
-        lod: PartLod::Detail,
         generator: GeneratorKind::Sweep,
     };
 
@@ -156,8 +124,7 @@ pub fn t54_from_modules(modules: &VehicleModules) -> VehicleDescription {
     };
 
     let f = &v.fittings;
-    let mut parts =
-        vec![lower_tub, upper_hull, gear, tracks, track_ends, track_links, turret, cupola, barrel];
+    let mut parts = vec![lower_tub, upper_hull, tracks, turret, cupola, barrel];
     // Semantic drum fittings as their own parts (not anonymous greeble): the commander's cupola
     // hatch and the driver's/loader's hatches (all raised round lids), plus the glacis headlight.
     parts.extend(crate::t54_details::t54_fitting_parts(f));

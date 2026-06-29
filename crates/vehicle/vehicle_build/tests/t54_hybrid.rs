@@ -5,7 +5,7 @@
 use game_core::{MountFrames, VehicleKind};
 use glam::Vec3;
 use vehicle_build::{MEDIUM_LOD0_TRI_BUDGET, t54_description, t54_from_modules};
-use vehicle_geometry::{MaterialRole, SmoothingGroup, SubmeshKind};
+use vehicle_geometry::{MaterialRole, RunningGearKinematics, SmoothingGroup, SubmeshKind};
 
 #[test]
 fn the_blueprint_is_the_sole_source_of_hull_dimensions() {
@@ -247,6 +247,21 @@ fn t54_fenders_are_segmented_with_support_brackets() {
 }
 
 #[test]
+fn t54_static_bake_leaves_moving_running_gear_to_the_runtime() {
+    let desc = t54_description();
+    let part_names: std::collections::BTreeSet<_> =
+        desc.parts.iter().map(|part| part.key.name).collect();
+
+    assert!(part_names.contains("tracks"), "the static track belt remains in the hull bake");
+    for moving in ["running_gear", "track_ends", "track_links"] {
+        assert!(
+            !part_names.contains(moving),
+            "{moving} is animated by the runtime running-gear instancer and must not be baked into the static hull"
+        );
+    }
+}
+
+#[test]
 fn t54_hull_carries_rear_transmission_covers() {
     let v =
         *game_core::VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).unwrap().hybrid().unwrap();
@@ -311,9 +326,14 @@ fn the_hybrid_t54_silhouette_reads_right() {
     );
     let hull = &baked.submesh(SubmeshKind::Hull).unwrap().mesh;
     let has = |m: MaterialRole| hull.vertices().iter().any(|v| v.material == m);
+    assert!(has(MaterialRole::TrackMetal), "hull carries the static track belt, not a bare box");
     assert!(
-        has(MaterialRole::Rubber) && has(MaterialRole::TrackMetal),
-        "hull carries running gear (tyres + track), not a bare box"
+        !has(MaterialRole::Rubber),
+        "rubber road wheels are runtime-animated gear, not static hull geometry"
+    );
+    assert!(
+        RunningGearKinematics::for_vehicle(VehicleKind::T54_1951).is_some(),
+        "runtime running gear supplies the animated rubber wheels"
     );
     let b = hull.bounds().unwrap();
     assert!((b.max.z - b.min.z) > (b.max.x - b.min.x), "hull reads longer than wide");

@@ -1,4 +1,4 @@
-use game_core::{ModuleHealth, TankId, TankSpec, TeamId};
+use game_core::{ModuleHealth, TankId, TankSpec, TeamId, TrackDamageMask};
 use glam::Vec3;
 use serde::{Deserialize, Serialize};
 
@@ -22,6 +22,9 @@ pub struct TankState {
     pub reload_remaining_s: f32,
     pub aim_dispersion_mrad: f32,
     pub dispersion_shot_index: u32,
+    /// Side-specific track damage. Zero means both tracks can provide traction.
+    #[serde(default)]
+    pub tracks: TrackDamageMask,
     /// Live hit points of the five module slots; at zero a module stops working.
     pub modules: ModuleHealth,
 }

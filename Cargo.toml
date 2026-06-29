@@ -19,9 +19,12 @@ clap = { version = "4.5", features = ["derive"] }
 criterion = "0.8.2"
 egui = "0.34.3"
 encase = "0.12"
+earcut = "0.4.10"
 glam = { version = "0.30", features = ["serde"] }
 gltf = "1.4"
+meshopt = "0.6.2"
 naga = { version = "29.0.3", features = ["wgsl-in"] }
+parry3d = { version = "0.26.1", default-features = false, features = ["dim3", "f32"] }
 pollster = "0.4"
 rapier3d = { version = "0.32.0", default-features = false, features = ["dim3", "f32"] }
 serde = { version = "1.0", features = ["derive"] }
@@ -52,6 +55,7 @@ terrain = { path = "crates/runtime/terrain" }
 vehicle_build = { path = "crates/vehicle/vehicle_build" }
 vehicle_forge = { path = "crates/vehicle/vehicle_forge" }
 vehicle_geometry = { path = "crates/kernels/vehicle_geometry" }
+experimental_geometry = { path = "crates/kernels/experimental_geometry" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
