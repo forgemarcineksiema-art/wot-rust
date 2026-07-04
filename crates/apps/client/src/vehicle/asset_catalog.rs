@@ -95,6 +95,11 @@ impl VehicleAssetCatalog {
             idler: self.register_gear_mesh(kind, "idler", &idler_unit_mesh(&kin)),
             sprocket: self.register_gear_mesh(kind, "sprocket", &sprocket_unit_mesh(&kin)),
             link: self.register_gear_mesh(kind, "track_link", &track_link_unit_mesh(&kin)),
+            return_roller: self.register_gear_mesh(
+                kind,
+                "return_roller",
+                &vehicle_geometry::return_roller_unit_mesh(&kin),
+            ),
         })
     }
 

@@ -52,6 +52,10 @@ pub(super) fn is3_blueprint() -> VehicleBlueprint {
             outer_x: 1.575,
             segments: 14,
             wheel_stations: None,
+            // The IS family carries its top run on three small return rollers per side — the
+            // heavy's look against the T-54's wheel-riding run.
+            return_rollers: 3,
+            roller_radius: 0.11,
         },
         turret: TurretShape {
             form: TurretForm::CastDome,

@@ -58,6 +58,38 @@ fn placements_cover_both_sides_for_every_part() {
 }
 
 #[test]
+fn the_is3_top_run_rides_three_return_rollers_per_side() {
+    // Return rollers are the IS family's look: six 550 mm wheels below, a TAUT top run carried
+    // on three small rollers per side. The T-54 family keeps its rollerless, wheel-riding run.
+    let kin = RunningGearKinematics::for_vehicle(VehicleKind::IS3).expect("IS-3 gear");
+    assert_eq!(kin.roller_zs.len(), 3, "three rollers per side");
+    let track =
+        game_core::VehicleBlueprint::for_vehicle(VehicleKind::IS3).expect("blueprint").track;
+    assert!(
+        (kin.roller_y + kin.roller_radius - track.top_y).abs() < 1.0e-6,
+        "the roller TOP carries the belt's top run"
+    );
+    assert!(kin.top_sag_m < 0.02, "a rollered top run stays taut, got {}", kin.top_sag_m);
+    assert_eq!(kin.wheel_zs.len(), 6, "six road wheels per side");
+
+    let placements = running_gear_placements(&kin, 0.0, 0.0);
+    assert_eq!(count(&placements, GearPart::ReturnRoller), 6, "three rollers, both sides");
+    // Rollers spin with the belt: a rolled phase changes their rotation.
+    let rolled = running_gear_placements(&kin, 1.0, 1.0);
+    for (rest, moved) in placements
+        .iter()
+        .zip(&rolled)
+        .filter(|(placement, _)| placement.part == GearPart::ReturnRoller)
+    {
+        assert!(!mats_close(rest.transform, moved.transform), "rollers must spin with the belt");
+    }
+
+    let t54 = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951).expect("T-54 gear");
+    assert!(t54.roller_zs.is_empty(), "the T-54 family stays rollerless");
+    assert_eq!(count(&running_gear_placements(&t54, 0.0, 0.0), GearPart::ReturnRoller), 0);
+}
+
+#[test]
 fn a_full_wheel_circumference_of_travel_returns_the_wheel_to_its_pose() {
     let kin = t55();
     let rest = running_gear_placements(&kin, 0.0, 0.0);

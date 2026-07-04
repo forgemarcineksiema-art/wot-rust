@@ -11,9 +11,9 @@ fn t54_object_count() -> usize {
     3 + kin.wheel_zs.len() * 2 * 2 + 4 + kin.link_count() * 2
 }
 
-/// Cached meshes for one blueprint vehicle: hull/turret/gun plus five unit gear meshes
-/// (road wheel, swing arm, sprocket, idler, track link).
-const BLUEPRINT_MESH_COUNT: usize = 8;
+/// Cached meshes for one blueprint vehicle: hull/turret/gun plus six unit gear meshes
+/// (road wheel, swing arm, sprocket, idler, track link, return roller).
+const BLUEPRINT_MESH_COUNT: usize = 9;
 
 #[test]
 fn vehicle_asset_catalog_uploads_pbr_vehicle_meshes_once() {

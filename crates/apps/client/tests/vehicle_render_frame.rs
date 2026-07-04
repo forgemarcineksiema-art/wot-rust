@@ -7,24 +7,25 @@ use game_core::{ModuleSlot, TankId, TrackDamageMask, VehicleKind};
 use vehicle_geometry::RunningGearKinematics;
 
 /// Base submeshes (hull, turret, gun) plus the animated running-gear instances every blueprint
-/// vehicle adds (road wheels and their swing arms both sides, two end wheels per side, and the
-/// belt links).
+/// vehicle adds (road wheels and their swing arms both sides, two end wheels per side, the
+/// return rollers where the layout carries them, and the belt links).
 fn expected_object_count() -> usize {
     VehicleKind::ALL
         .iter()
         .map(|kind| {
-            3 + RunningGearKinematics::for_vehicle(*kind)
-                .map_or(0, |kin| kin.wheel_zs.len() * 2 * 2 + 4 + kin.link_count() * 2)
+            3 + RunningGearKinematics::for_vehicle(*kind).map_or(0, |kin| {
+                kin.wheel_zs.len() * 2 * 2 + 4 + kin.roller_zs.len() * 2 + kin.link_count() * 2
+            })
         })
         .sum()
 }
 
-/// Cached meshes: hull/turret/gun for every vehicle plus five unit gear meshes per blueprint one
-/// (road wheel, swing arm, sprocket, idler, track link).
+/// Cached meshes: hull/turret/gun for every vehicle plus six unit gear meshes per blueprint one
+/// (road wheel, swing arm, sprocket, idler, track link, return roller).
 fn expected_mesh_count() -> usize {
     VehicleKind::ALL
         .iter()
-        .map(|kind| 3 + if RunningGearKinematics::for_vehicle(*kind).is_some() { 5 } else { 0 })
+        .map(|kind| 3 + if RunningGearKinematics::for_vehicle(*kind).is_some() { 6 } else { 0 })
         .sum()
 }
 

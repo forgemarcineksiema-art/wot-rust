@@ -50,10 +50,16 @@ pub struct RunningGearKinematics {
     /// Half-thickness of one shoe link along its axle.
     pub link_half_width: f32,
     /// Mid-run droop for the upper belt run. Soviet five-wheel layouts with no return rollers
-    /// need a visible slack curve instead of a ruler-flat top run.
+    /// need a visible slack curve instead of a ruler-flat top run; rollered layouts stay taut.
     pub top_sag_m: f32,
     /// Z of each road wheel.
     pub wheel_zs: Vec<f32>,
+    /// Z of each return roller (empty when the top run rests on the road wheels).
+    pub roller_zs: Vec<f32>,
+    /// Radius of one return roller.
+    pub roller_radius: f32,
+    /// Y of the return-roller axles: the roller top carries the belt's top run.
+    pub roller_y: f32,
     pub segments: usize,
     link_count: usize,
 }
@@ -88,6 +94,14 @@ impl RunningGearKinematics {
                 (loop_len / LINK_SPACING_M).round().max(4.0) as usize
             }
         };
+        // Return rollers spread evenly along the middle of the wheel run, clear of the end
+        // wraps; the roller TOP carries the belt's top run, so the axle sits one radius below.
+        let roller_zs: Vec<f32> = (0..track.return_rollers)
+            .map(|index| {
+                let t = (index as f32 + 0.5) / track.return_rollers as f32;
+                cz - half_run * 0.72 + (half_run * 1.44) * t
+            })
+            .collect();
         Some(Self {
             center_x: track.center_x,
             cy,
@@ -106,11 +120,18 @@ impl RunningGearKinematics {
                 _ => track.center_x + track.belt_half_thickness - track.belt_half_thickness * 0.5,
             },
             link_half_width,
-            top_sag_m: match kind {
-                VehicleKind::T54_1951 => 0.050,
-                _ => 0.035,
+            top_sag_m: if track.return_rollers > 0 {
+                // A rollered top run stays taut — only a hint of droop between rollers.
+                0.012
+            } else if kind == VehicleKind::T54_1951 {
+                0.050
+            } else {
+                0.035
             },
             wheel_zs,
+            roller_zs,
+            roller_radius: track.roller_radius,
+            roller_y: track.top_y - track.roller_radius,
             segments: track.segments.max(12),
             link_count,
         })
@@ -144,6 +165,8 @@ pub enum GearPart {
     Link,
     /// Trailing torsion-bar swing arm — one per road wheel, rotating with its travel.
     SwingArm,
+    /// Small top-run carrier roller (IS family); spins with the belt like everything it touches.
+    ReturnRoller,
 }
 
 /// One instanced running-gear part: the unit mesh to draw and where (hull-local).

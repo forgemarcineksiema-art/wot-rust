@@ -107,6 +107,16 @@ fn place_side(
         });
     }
 
+    // Return rollers carry the taut top run and spin with the belt passing over them.
+    let roller_spin = phase / kin.roller_radius.max(0.05);
+    for &z in &kin.roller_zs {
+        out.push(GearPlacement {
+            part: GearPart::ReturnRoller,
+            transform: Mat4::from_translation(Vec3::new(side_sign * kin.wheel_x, kin.roller_y, z))
+                * Mat4::from_rotation_x(roller_spin),
+        });
+    }
+
     // End wheels spin at the LINK line's radius (wheel radius + seat), so the sprocket's teeth
     // and the shoes they flank move together instead of creeping past each other.
     let end_spin = phase / crate::running_gear_belt::wrap_radius(kin);

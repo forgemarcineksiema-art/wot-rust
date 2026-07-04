@@ -45,6 +45,37 @@ pub fn road_wheel_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
     builder.build()
 }
 
+/// One return roller: a small rubber-rimmed carrier wheel for the top run (IS family), centred
+/// at the origin with its axle along X — a compact steel hub disc under a rubber band.
+pub fn return_roller_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
+    let seg = kin.segments.max(16);
+    let r = kin.roller_radius.max(0.05);
+    let half_w = kin.wheel_half_width * 0.55;
+    MeshBuilder::new()
+        .append(&wheel_disc_at(0.0, r * 0.72, half_w * 0.9, seg, MaterialRole::TrackMetal))
+        .append(&wheel_disc_at(0.0, r * 0.30, half_w * 1.1, seg, MaterialRole::TrackMetal))
+        .append(&rubber_band(r, half_w, seg))
+        .build()
+}
+
+/// The roller's plain rubber band (no groove — carrier rollers run a flat tire).
+fn rubber_band(r: f32, half_w: f32, segments: usize) -> GeometryMesh {
+    MeshBuilder::new()
+        .revolve(RevolveSpec {
+            profile: vec![
+                ProfilePoint::new(r * 0.70, -half_w),
+                ProfilePoint::new(r, -half_w * 0.8),
+                ProfilePoint::new(r, half_w * 0.8),
+                ProfilePoint::new(r * 0.70, half_w),
+            ],
+            axis: Axis::X,
+            segments,
+            material: MaterialRole::Rubber,
+            smoothing: SG_WHEEL,
+        })
+        .build()
+}
+
 /// A full-width steel ring (closed rectangular profile revolved about the axle): the wheel rim.
 fn steel_ring(r_in: f32, r_out: f32, half_width: f32, segments: usize) -> GeometryMesh {
     MeshBuilder::new()
