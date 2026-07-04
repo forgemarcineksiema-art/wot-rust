@@ -4,6 +4,7 @@
 
 mod attitude;
 mod components;
+mod sync_cues;
 mod world;
 
 pub use attitude::{AttitudeSample, HullAttitude};

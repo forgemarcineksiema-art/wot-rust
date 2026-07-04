@@ -68,9 +68,9 @@ impl HullPose {
 }
 
 /// World firing direction of a gun on a posed hull: the hull-relative gun direction (turret yaw
-/// + gun pitch, both hull-frame state) carried through the hull basis. On a level hull this
-/// degenerates to `gun_direction(hull_yaw + turret_yaw, gun_pitch)`; on a pitched hull the world
-/// arc gains the hull's tilt — which is exactly why hull-down works.
+/// plus gun pitch, both hull-frame state) carried through the hull basis. On a level hull this
+/// degenerates to `gun_direction(hull_yaw + turret_yaw, gun_pitch)`; on a pitched hull the
+/// world arc gains the hull's tilt — which is exactly why hull-down works.
 pub fn gun_direction_world(hull: HullPose, turret_yaw_rad: f32, gun_pitch_rad: f32) -> Vec3 {
     hull.basis() * gun_direction(turret_yaw_rad, gun_pitch_rad)
 }

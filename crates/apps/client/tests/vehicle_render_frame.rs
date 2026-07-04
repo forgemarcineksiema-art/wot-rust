@@ -7,22 +7,24 @@ use game_core::{ModuleSlot, TankId, TrackDamageMask, VehicleKind};
 use vehicle_geometry::RunningGearKinematics;
 
 /// Base submeshes (hull, turret, gun) plus the animated running-gear instances every blueprint
-/// vehicle adds (road wheels both sides, two end wheels per side, and the belt links).
+/// vehicle adds (road wheels and their swing arms both sides, two end wheels per side, and the
+/// belt links).
 fn expected_object_count() -> usize {
     VehicleKind::ALL
         .iter()
         .map(|kind| {
             3 + RunningGearKinematics::for_vehicle(*kind)
-                .map_or(0, |kin| kin.wheel_zs.len() * 2 + 4 + kin.link_count() * 2)
+                .map_or(0, |kin| kin.wheel_zs.len() * 2 * 2 + 4 + kin.link_count() * 2)
         })
         .sum()
 }
 
-/// Cached meshes: hull/turret/gun for every vehicle plus four unit gear meshes per blueprint one.
+/// Cached meshes: hull/turret/gun for every vehicle plus five unit gear meshes per blueprint one
+/// (road wheel, swing arm, sprocket, idler, track link).
 fn expected_mesh_count() -> usize {
     VehicleKind::ALL
         .iter()
-        .map(|kind| 3 + if RunningGearKinematics::for_vehicle(*kind).is_some() { 4 } else { 0 })
+        .map(|kind| 3 + if RunningGearKinematics::for_vehicle(*kind).is_some() { 5 } else { 0 })
         .sum()
 }
 
@@ -105,7 +107,7 @@ fn pbr_render_stops_only_the_broken_track_side() {
         frame_for_t54_tracks_with_masks(0.0, 0.0, 0, TrackDamageMask::LEFT.bits());
 
     let kin = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951).expect("T-54 gear");
-    let right_count = kin.wheel_zs.len() + 2 + kin.link_count();
+    let right_count = kin.wheel_zs.len() * 2 + 2 + kin.link_count();
     let right_range = 3..3 + right_count;
     let left_range = 3 + right_count..3 + right_count * 2;
 
