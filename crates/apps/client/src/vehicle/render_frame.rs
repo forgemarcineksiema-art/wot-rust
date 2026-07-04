@@ -142,8 +142,10 @@ pub(crate) fn render_snapshot(tank: &PresentationTank) -> TankSnapshot {
         vehicle: tank.vehicle,
         position: tank.translation,
         yaw_rad: tank.hull_yaw_rad,
-        hull_pitch_rad: 0.0,
-        hull_roll_rad: 0.0,
+        // The PRESENTATION attitude (authoritative base + weight-transfer spring): the pose
+        // built from this snapshot tilts exactly like the sprung hull the player sees.
+        hull_pitch_rad: tank.attitude_pitch_rad,
+        hull_roll_rad: tank.attitude_roll_rad,
         turret_yaw_rad: tank.turret_yaw_rad,
         turret_yaw_velocity_rad_s: 0.0,
         gun_pitch_rad: tank.gun_pitch_rad,

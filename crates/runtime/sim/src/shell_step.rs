@@ -93,7 +93,7 @@ fn trace_split(shell: &ShellState, tanks: &[TankState]) -> (Vec<TraceTank>, Vec<
         let trace = TraceTank::from_spec(
             tank.id,
             tank.position,
-            tank.yaw_rad,
+            tank.hull_pose(),
             tank.turret_yaw_rad,
             &tank.spec,
         );

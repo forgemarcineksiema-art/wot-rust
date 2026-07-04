@@ -44,6 +44,46 @@ pub fn hull_basis(yaw_rad: f32, pitch_rad: f32, roll_rad: f32) -> Mat3 {
         * Mat3::from_rotation_z(roll_rad)
 }
 
+/// The hull's full authoritative orientation. Everything that hangs off the hull — the muzzle
+/// chain, armor-plate normals, the hitbox frame — takes this instead of a bare yaw, so hull
+/// tilt reaches every combat computation through one type.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct HullPose {
+    pub yaw_rad: f32,
+    /// +nose up — see [`hull_basis`].
+    pub pitch_rad: f32,
+    /// +right side up — see [`hull_basis`].
+    pub roll_rad: f32,
+}
+
+impl HullPose {
+    /// A level hull (the planar pre-attitude pose; tests and flat-ground fixtures).
+    pub fn level(yaw_rad: f32) -> Self {
+        Self { yaw_rad, pitch_rad: 0.0, roll_rad: 0.0 }
+    }
+
+    pub fn basis(&self) -> Mat3 {
+        hull_basis(self.yaw_rad, self.pitch_rad, self.roll_rad)
+    }
+}
+
+/// World firing direction of a gun on a posed hull: the hull-relative gun direction (turret yaw
+/// + gun pitch, both hull-frame state) carried through the hull basis. On a level hull this
+/// degenerates to `gun_direction(hull_yaw + turret_yaw, gun_pitch)`; on a pitched hull the world
+/// arc gains the hull's tilt — which is exactly why hull-down works.
+pub fn gun_direction_world(hull: HullPose, turret_yaw_rad: f32, gun_pitch_rad: f32) -> Vec3 {
+    hull.basis() * gun_direction(turret_yaw_rad, gun_pitch_rad)
+}
+
+/// Inverse of [`gun_direction_world`]: the hull-relative `(turret_yaw, gun_pitch)` that points
+/// the gun along `world_direction` from a posed hull. The client's gun-laying solves its ballistic
+/// arc in world space, then converts through this so the commands it sends respect the hull-frame
+/// gun limits.
+pub fn world_direction_to_turret(hull: HullPose, world_direction: Vec3) -> (f32, f32) {
+    let local = hull.basis().transpose() * world_direction.normalize_or_zero();
+    (local.x.atan2(local.z), local.y.clamp(-1.0, 1.0).asin())
+}
+
 /// World-space muzzle position for a tank pose.
 ///
 /// The muzzle mount pivots about the trunnion for gun pitch, about the turret ring for turret
@@ -57,11 +97,11 @@ pub fn hull_basis(yaw_rad: f32, pitch_rad: f32, roll_rad: f32) -> Mat3 {
 pub fn muzzle_world_position(
     mounts: &MountFrames,
     position: Vec3,
-    hull_yaw_rad: f32,
+    hull: HullPose,
     turret_yaw_rad: f32,
     gun_pitch_rad: f32,
 ) -> Vec3 {
-    muzzle_world_position_scaled(mounts, position, hull_yaw_rad, turret_yaw_rad, gun_pitch_rad, 1.0)
+    muzzle_world_position_scaled(mounts, position, hull, turret_yaw_rad, gun_pitch_rad, 1.0)
 }
 
 /// As [`muzzle_world_position`], but with the barrel scaled by `barrel_scale` about the trunnion so
@@ -70,7 +110,7 @@ pub fn muzzle_world_position(
 pub fn muzzle_world_position_scaled(
     mounts: &MountFrames,
     position: Vec3,
-    hull_yaw_rad: f32,
+    hull: HullPose,
     turret_yaw_rad: f32,
     gun_pitch_rad: f32,
     barrel_scale: f32,
@@ -83,7 +123,7 @@ pub fn muzzle_world_position_scaled(
         mounts.turret_ring.translation,
         Mat3::from_rotation_y(turret_yaw_rad),
     );
-    position + Mat3::from_rotation_y(hull_yaw_rad) * traversed
+    position + hull.basis() * traversed
 }
 
 /// Outward armor-plate normal for a hit, in world space.
@@ -92,40 +132,38 @@ pub fn muzzle_world_position_scaled(
 /// plates stay aligned to the hull. `local_x` (the hit's sideways offset in hull-local space)
 /// picks which side a side hit faces.
 pub fn armor_normal(
-    hull_yaw_rad: f32,
+    hull: HullPose,
     turret_yaw_rad: f32,
     facing: ArmorFacing,
     local_x: f32,
 ) -> Vec3 {
-    let yaw_rad = match facing {
-        ArmorFacing::TurretFront | ArmorFacing::TurretRear | ArmorFacing::TurretSide => {
-            hull_yaw_rad + turret_yaw_rad
+    let local = match facing {
+        ArmorFacing::HullFront => Vec3::Z,
+        ArmorFacing::HullRear => -Vec3::Z,
+        ArmorFacing::HullSide if local_x >= 0.0 => Vec3::X,
+        ArmorFacing::HullSide => -Vec3::X,
+        ArmorFacing::TurretFront => Mat3::from_rotation_y(turret_yaw_rad) * Vec3::Z,
+        ArmorFacing::TurretRear => Mat3::from_rotation_y(turret_yaw_rad) * -Vec3::Z,
+        ArmorFacing::TurretSide if local_x >= 0.0 => {
+            Mat3::from_rotation_y(turret_yaw_rad) * Vec3::X
         }
-        ArmorFacing::HullFront | ArmorFacing::HullRear | ArmorFacing::HullSide => hull_yaw_rad,
+        ArmorFacing::TurretSide => Mat3::from_rotation_y(turret_yaw_rad) * -Vec3::X,
     };
-    let forward = horizontal_forward(yaw_rad);
-    let right = Vec3::new(forward.z, 0.0, -forward.x);
-    match facing {
-        ArmorFacing::HullFront | ArmorFacing::TurretFront => forward,
-        ArmorFacing::HullRear | ArmorFacing::TurretRear => -forward,
-        ArmorFacing::HullSide | ArmorFacing::TurretSide if local_x >= 0.0 => right,
-        ArmorFacing::HullSide | ArmorFacing::TurretSide => -right,
-    }
+    hull.basis() * local
 }
 
 /// Express a world position in a tank's hull-local frame: `x` = right, `y` = up relative to the
-/// hitbox center plane, `z` = forward. `center_y_m` lifts the local origin to the hitbox center.
+/// hitbox center plane, `z` = forward. `center_y_m` lifts the local origin to the hitbox center,
+/// riding the hull basis so the frame tilts with the hull.
 pub fn world_to_tank_local(
     position: Vec3,
     tank_position: Vec3,
     center_y_m: f32,
-    hull_yaw_rad: f32,
+    hull: HullPose,
 ) -> Vec3 {
-    let center = tank_position + Vec3::Y * center_y_m;
-    let rel = position - center;
-    let forward = horizontal_forward(hull_yaw_rad);
-    let right = Vec3::new(forward.z, 0.0, -forward.x);
-    Vec3::new(rel.dot(right), rel.y, rel.dot(forward))
+    let basis = hull.basis();
+    let center = tank_position + basis * (Vec3::Y * center_y_m);
+    basis.transpose() * (position - center)
 }
 
 /// Wrap an angle into the half-open range `(-PI, PI]`.
@@ -204,6 +242,41 @@ mod tests {
     }
 
     #[test]
+    fn hull_pitch_adds_to_the_world_gun_arc() {
+        // The hull-down identity: nose-down hull pitch plus hull-frame gun depression compose
+        // into a steeper world arc (at zero turret yaw the elevations simply add).
+        let hull = HullPose { yaw_rad: 0.0, pitch_rad: -0.10, roll_rad: 0.0 };
+        let dir = gun_direction_world(hull, 0.0, -0.14);
+        let world_elevation = dir.y.asin();
+        assert!(
+            (world_elevation + 0.24).abs() < 1.0e-4,
+            "-0.10 hull + -0.14 gun must reach -0.24 world, got {world_elevation}"
+        );
+    }
+
+    #[test]
+    fn world_direction_to_turret_inverts_gun_direction_world() {
+        let hull = HullPose { yaw_rad: 0.6, pitch_rad: 0.12, roll_rad: -0.08 };
+        let (turret_yaw, gun_pitch) = (0.9, -0.05);
+        let dir = gun_direction_world(hull, turret_yaw, gun_pitch);
+        let (recovered_yaw, recovered_pitch) = world_direction_to_turret(hull, dir);
+        assert!((recovered_yaw - turret_yaw).abs() < 1.0e-5, "yaw {recovered_yaw}");
+        assert!((recovered_pitch - gun_pitch).abs() < 1.0e-5, "pitch {recovered_pitch}");
+    }
+
+    #[test]
+    fn armor_normals_tilt_with_the_hull() {
+        // A nose-up hull points its glacis normal upward: shells arriving level meet the plate
+        // at a steeper effective angle — terrain angling works on armor.
+        let nosed_up = HullPose { yaw_rad: 0.0, pitch_rad: 0.3, roll_rad: 0.0 };
+        let glacis = armor_normal(nosed_up, 0.0, ArmorFacing::HullFront, 0.0);
+        assert!(glacis.y > 0.29, "glacis normal gains lift with hull pitch, got {glacis:?}");
+        // Level hulls keep the planar normals.
+        let level = armor_normal(HullPose::level(0.0), 0.0, ArmorFacing::HullFront, 0.0);
+        assert!((level - Vec3::Z).length() < 1.0e-6);
+    }
+
+    #[test]
     fn rotate_around_pivots_in_place() {
         let rotation = Mat3::from_rotation_y(FRAC_PI_2);
         // The pivot itself is fixed; a point +Z of it swings to +X (yaw 90°).
@@ -218,14 +291,14 @@ mod tests {
     #[test]
     fn armor_normal_follows_turret_rotation_while_hull_stays_put() {
         // Hull points down +z; turret traversed 90° so its front faces the hull's right (+x).
-        let turret_front = armor_normal(0.0, FRAC_PI_2, ArmorFacing::TurretFront, 0.0);
-        let hull_front = armor_normal(0.0, FRAC_PI_2, ArmorFacing::HullFront, 0.0);
+        let turret_front = armor_normal(HullPose::level(0.0), FRAC_PI_2, ArmorFacing::TurretFront, 0.0);
+        let hull_front = armor_normal(HullPose::level(0.0), FRAC_PI_2, ArmorFacing::HullFront, 0.0);
         assert!((turret_front - Vec3::new(1.0, 0.0, 0.0)).length() < 1.0e-5);
         assert!((hull_front - Vec3::new(0.0, 0.0, 1.0)).length() < 1.0e-5);
 
         // Side hits pick the side from the hull-local x sign.
-        let right = armor_normal(0.0, 0.0, ArmorFacing::HullSide, 1.0);
-        let left = armor_normal(0.0, 0.0, ArmorFacing::HullSide, -1.0);
+        let right = armor_normal(HullPose::level(0.0), 0.0, ArmorFacing::HullSide, 1.0);
+        let left = armor_normal(HullPose::level(0.0), 0.0, ArmorFacing::HullSide, -1.0);
         assert!((right - Vec3::new(1.0, 0.0, 0.0)).length() < 1.0e-5);
         assert!((left - Vec3::new(-1.0, 0.0, 0.0)).length() < 1.0e-5);
     }
@@ -234,11 +307,11 @@ mod tests {
     fn world_to_tank_local_maps_forward_right_and_up() {
         // Tank at origin facing +z (yaw 0), hitbox center 1.0 up: a point straight ahead and
         // level with the center maps to pure forward (+z local).
-        let ahead = world_to_tank_local(Vec3::new(0.0, 1.0, 5.0), Vec3::ZERO, 1.0, 0.0);
+        let ahead = world_to_tank_local(Vec3::new(0.0, 1.0, 5.0), Vec3::ZERO, 1.0, HullPose::level(0.0));
         assert!((ahead - Vec3::new(0.0, 0.0, 5.0)).length() < 1.0e-5);
 
         // Yaw 90° (facing +x): a world point off the tank's +x maps to local forward (+z).
-        let yawed = world_to_tank_local(Vec3::new(5.0, 1.0, 0.0), Vec3::ZERO, 1.0, FRAC_PI_2);
+        let yawed = world_to_tank_local(Vec3::new(5.0, 1.0, 0.0), Vec3::ZERO, 1.0, HullPose::level(FRAC_PI_2));
         assert!((yawed - Vec3::new(0.0, 0.0, 5.0)).length() < 1.0e-5);
     }
 
@@ -254,14 +327,14 @@ mod tests {
         use crate::VehicleKind;
         let mounts = MountFrames::for_vehicle(VehicleKind::T54_1951);
         let trunnion = mounts.gun_trunnion.translation;
-        let stock = muzzle_world_position_scaled(&mounts, Vec3::ZERO, 0.0, 0.0, 0.0, 1.0);
-        let long = muzzle_world_position_scaled(&mounts, Vec3::ZERO, 0.0, 0.0, 0.0, 1.2);
+        let stock = muzzle_world_position_scaled(&mounts, Vec3::ZERO, HullPose::level(0.0), 0.0, 0.0, 1.0);
+        let long = muzzle_world_position_scaled(&mounts, Vec3::ZERO, HullPose::level(0.0), 0.0, 0.0, 1.2);
         assert!(
             (long - trunnion).length() > (stock - trunnion).length() + 0.5,
             "a +20% barrel must reach noticeably further"
         );
         // The default helper still matches scale 1.0 exactly.
-        let default = muzzle_world_position(&mounts, Vec3::ZERO, 0.0, 0.0, 0.0);
+        let default = muzzle_world_position(&mounts, Vec3::ZERO, HullPose::level(0.0), 0.0, 0.0);
         assert!((default - stock).length() < 1.0e-6);
     }
 
@@ -274,20 +347,20 @@ mod tests {
         let barrel = muzzle.z - trunnion.z;
 
         // Level gun, no traverse: the muzzle sits exactly on its authored mount.
-        let level = muzzle_world_position(&mounts, Vec3::ZERO, 0.0, 0.0, 0.0);
+        let level = muzzle_world_position(&mounts, Vec3::ZERO, HullPose::level(0.0), 0.0, 0.0);
         assert!((level - muzzle).length() < 1.0e-5);
 
         // Pitched gun: the muzzle rises by sin(pitch) over the *barrel* length from the trunnion
         // — not over the full muzzle.z from the hull centre.
         let pitch = 0.14_f32;
-        let pitched = muzzle_world_position(&mounts, Vec3::ZERO, 0.0, 0.0, pitch);
+        let pitched = muzzle_world_position(&mounts, Vec3::ZERO, HullPose::level(0.0), 0.0, pitch);
         let expected =
             Vec3::new(0.0, trunnion.y + barrel * pitch.sin(), trunnion.z + barrel * pitch.cos());
         assert!((pitched - expected).length() < 1.0e-4, "{pitched:?} vs {expected:?}");
 
         // Turret traverse swings the muzzle about the ring; the radius from the ring axis is
         // preserved.
-        let yawed = muzzle_world_position(&mounts, Vec3::ZERO, 0.0, FRAC_PI_2, 0.0);
+        let yawed = muzzle_world_position(&mounts, Vec3::ZERO, HullPose::level(0.0), FRAC_PI_2, 0.0);
         let ring = mounts.turret_ring.translation;
         let radius = (muzzle - Vec3::new(0.0, muzzle.y, ring.z)).length();
         let swung = yawed - Vec3::new(ring.x, yawed.y, ring.z);
@@ -296,7 +369,7 @@ mod tests {
 
         // Hull yaw rotates the whole chain about the tank position.
         let hull_yawed =
-            muzzle_world_position(&mounts, Vec3::new(3.0, 0.0, -2.0), FRAC_PI_2, 0.0, 0.0);
+            muzzle_world_position(&mounts, Vec3::new(3.0, 0.0, -2.0), HullPose::level(FRAC_PI_2), 0.0, 0.0);
         let expected_hull = Vec3::new(3.0 + muzzle.z, muzzle.y, -2.0);
         assert!((hull_yawed - expected_hull).length() < 1.0e-4);
     }

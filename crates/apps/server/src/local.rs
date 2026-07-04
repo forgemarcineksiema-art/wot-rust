@@ -42,7 +42,10 @@ impl LocalAuthoritativeServer {
         let target_pos = ground_position(&battlefield, 340.0, 340.0);
         let player_tank = sim.spawn_tank(TeamId(1), player_vehicle.spec(), player_pos);
         let target_tank = sim.spawn_tank(TeamId(2), TankSpec::t54_1951(), target_pos);
-        sim.tank_mut(target_tank).expect("spawned target tank").yaw_rad = PI;
+        // The practice target shows its SIDE: with authoritative hull attitude the steppe's
+        // slope angles a frontal glacis past the T-54's own penetration, so a first shell into
+        // the front would bounce. The 80 mm side stays honest practice armor on any local tilt.
+        sim.tank_mut(target_tank).expect("spawned target tank").yaw_rad = PI * 0.5;
         let latest_snapshot = Snapshot::from(&sim);
 
         Self {

@@ -1,11 +1,10 @@
 use std::collections::HashMap;
 
 use bevy_ecs::prelude::*;
-use game_core::{HitboxProfile, TankId, TrackDamageMask};
+use game_core::{HitboxProfile, ModuleSlot, TankId, TrackDamageMask};
 use net::TankSnapshot;
 
-use crate::attitude::HullAttitude;
-use crate::attitude_inputs::{sample_attitude, suspension_pool_fraction};
+use crate::attitude::{AttitudeSample, HullAttitude};
 use crate::components::{
     DestroyedModules, GunPitch, Health, ModuleHitPoints, PresentationTank, RenderTransform,
     TankEntity, Team, Time, TrackAnimation, TrackDamage, TurretYaw, Vehicle,
@@ -52,16 +51,6 @@ impl PresentationWorld {
     /// Project the latest tank set into the world: spawn new ids, update existing entities in
     /// place (stable `Entity`), and despawn entities whose tank is no longer present.
     pub fn sync_tanks(&mut self, tanks: &[TankSnapshot]) {
-        self.sync_tanks_on_terrain(tanks, None);
-    }
-
-    /// As [`Self::sync_tanks`], with the local heightmap so the sprung-hull attitude can sample
-    /// the terrain slope under each hull (presentation-only; `None` keeps hulls level).
-    pub fn sync_tanks_on_terrain(
-        &mut self,
-        tanks: &[TankSnapshot],
-        terrain: Option<&terrain::HeightMap>,
-    ) {
         let dt = self.time().delta_seconds;
         for tank in tanks {
             let bundle = (
@@ -81,7 +70,13 @@ impl PresentationWorld {
             // persists and accumulates rather than resetting each frame.
             let hitbox = HitboxProfile::for_vehicle(tank.vehicle);
             let half_gauge = hitbox.half_width_m;
-            let sample = sample_attitude(terrain, tank, &hitbox);
+            // The spring's base is the AUTHORITATIVE support-plane attitude replicated in the
+            // snapshot (protocol v14): the spring smooths the 20 Hz steps and layers the
+            // weight-transfer theatrics on top — it no longer re-derives terrain itself.
+            let sample = AttitudeSample {
+                terrain_pitch_rad: tank.hull_pitch_rad,
+                terrain_roll_rad: tank.hull_roll_rad,
+            };
             let suspension = suspension_pool_fraction(tank);
             match self.entities.get(&tank.tank_id) {
                 Some(&entity) => {
@@ -187,3 +182,10 @@ impl PresentationWorld {
     }
 }
 
+/// Live suspension pool `0..=1` from the replicated module HP against the vehicle's full pool.
+/// The sprung-hull attitude reads it as spring softness: a wounded suspension wallows.
+fn suspension_pool_fraction(tank: &TankSnapshot) -> f32 {
+    let full = tank.vehicle.spec().module_health.hit_points(ModuleSlot::Suspension);
+    let live = tank.module_hit_points[ModuleSlot::Suspension.wire_index()];
+    (live as f32 / full.max(1) as f32).clamp(0.0, 1.0)
+}

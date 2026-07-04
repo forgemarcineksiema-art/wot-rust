@@ -74,6 +74,8 @@ impl ClientApp {
         Some(TankSnapshot {
             position: pose.position.to_array(),
             yaw_rad: pose.yaw_rad,
+            hull_pitch_rad: pose.hull_pitch_rad,
+            hull_roll_rad: pose.hull_roll_rad,
             turret_yaw_rad: pose.turret_yaw_rad,
             turret_yaw_velocity_rad_s: 0.0,
             gun_pitch_rad: pose.gun_pitch_rad,
@@ -134,10 +136,11 @@ impl ClientApp {
         &self,
         solution: Option<&super::reticle::SightSolution>,
     ) -> f32 {
-        let world_target = solution
-            .and_then(|solution| solution.turret_bearing_rad)
-            .unwrap_or_else(|| self.desired_aim.yaw_rad());
-        let target = shortest_angle(world_target - self.predictor.yaw());
+        // The sight solution already carries the HULL-relative turret target (converted through
+        // the hull pose); only the raw-camera fallback still subtracts the planar hull yaw.
+        let target = solution.and_then(|solution| solution.turret_yaw_rad).unwrap_or_else(|| {
+            shortest_angle(self.desired_aim.yaw_rad() - self.predictor.yaw())
+        });
         let current = self.predictor.turret_yaw();
         (shortest_angle(target - current) * TURRET_TRACK_GAIN).clamp(-1.0, 1.0)
     }
@@ -147,9 +150,13 @@ impl ClientApp {
         self.turret_tracking_command_for(self.sight_solution().as_ref())
     }
 
+    /// World-space bearing of the sight solution (hull-relative target folded back through the
+    /// hull yaw) — test-only readback.
     #[cfg(test)]
     pub(super) fn desired_turret_yaw(&self) -> Option<f32> {
-        self.sight_solution().and_then(|solution| solution.turret_bearing_rad)
+        self.sight_solution()
+            .and_then(|solution| solution.turret_yaw_rad)
+            .map(|turret_yaw| turret_yaw + self.predictor.yaw())
     }
 }
 

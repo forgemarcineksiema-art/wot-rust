@@ -72,6 +72,17 @@ pub struct TankSnapshot {
     pub track_damage_mask: u8,
 }
 
+impl TankSnapshot {
+    /// The hull's replicated orientation as the one shared [`game_core::math::HullPose`] frame.
+    pub fn hull_pose(&self) -> game_core::math::HullPose {
+        game_core::math::HullPose {
+            yaw_rad: self.yaw_rad,
+            pitch_rad: self.hull_pitch_rad,
+            roll_rad: self.hull_roll_rad,
+        }
+    }
+}
+
 impl From<&TankState> for TankSnapshot {
     fn from(tank: &TankState) -> Self {
         Self {

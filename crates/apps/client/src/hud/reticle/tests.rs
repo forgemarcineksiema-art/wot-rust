@@ -194,8 +194,7 @@ fn query<'a>(
         owner_team: TeamId(1),
         muzzle,
         aim,
-        turret_yaw_rad,
-        gun_pitch_rad,
+        gun_direction: game_core::math::gun_direction(turret_yaw_rad, gun_pitch_rad),
         muzzle_velocity_mps: 895.0,
     }
 }

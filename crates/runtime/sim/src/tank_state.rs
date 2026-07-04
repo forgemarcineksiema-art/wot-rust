@@ -1,3 +1,4 @@
+use game_core::math::HullPose;
 use game_core::{ModuleHealth, TankId, TankSpec, TeamId, TrackDamageMask};
 use glam::Vec3;
 use serde::{Deserialize, Serialize};
@@ -34,4 +35,16 @@ pub struct TankState {
     pub tracks: TrackDamageMask,
     /// Live hit points of the five module slots; at zero a module stops working.
     pub modules: ModuleHealth,
+}
+
+impl TankState {
+    /// The hull's full authoritative orientation — the one frame the muzzle chain, armor
+    /// normals and the hitbox all hang off.
+    pub fn hull_pose(&self) -> HullPose {
+        HullPose {
+            yaw_rad: self.yaw_rad,
+            pitch_rad: self.hull_pitch_rad,
+            roll_rad: self.hull_roll_rad,
+        }
+    }
 }
