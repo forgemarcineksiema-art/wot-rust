@@ -3,7 +3,7 @@ use std::time::Instant;
 
 use net::TankSnapshot;
 use renderer_api::{
-    Camera, CameraProjectionPolicy, RenderError, RenderFrame, SceneVertex, view_projection_matrix,
+    Camera, CameraProjectionPolicy, RenderError, RenderFrame, view_projection_matrix,
 };
 use renderer_wgpu::WindowRenderer;
 use sim::DEFAULT_SNAPSHOT_HZ;
@@ -57,6 +57,7 @@ impl ClientApp {
         self.render_state.advance(frame_dt, SNAPSHOT_INTERVAL_SECONDS);
         self.hit_indicator.tick(frame_dt);
         self.fx.tick(frame_dt);
+        self.tick_battle_scars(frame_dt);
 
         let alpha = self.loop_driver.render_alpha();
         // A landing the predictor absorbed since the last frame slams the camera rig once.
@@ -97,7 +98,6 @@ impl ClientApp {
             player_gun_scale,
             Some(&self.battlefield.heightmap),
         );
-        let (vertices, indices) = self.shell_marker_mesh();
         let vehicle_frame = RenderFrame { objects: vehicles.objects, ..RenderFrame::default() };
         let (reload_remaining, reload_max) = self.player_reload();
         let vitals = HudVitals {
@@ -128,7 +128,9 @@ impl ClientApp {
         }
         renderer.set_render_frame(&RenderFrame::default());
         renderer.set_vehicle_render_frame(&vehicle_frame);
-        renderer.set_dynamic_mesh(&vertices, &indices);
+        // Battle no longer builds a per-frame dynamic mesh (hit marks became on-tank decals in
+        // the FX pass); clear whatever the garage left behind.
+        renderer.set_dynamic_mesh(&[], &[]);
         renderer.set_fx(&fx_vertices);
         renderer.set_hud(&hud);
         if let Err(error) = renderer.render(view_proj, camera.eye) {
@@ -193,13 +195,6 @@ impl ClientApp {
         self.camera_controller.render_camera(&subject, &environment)
     }
 
-    pub(super) fn shell_marker_mesh(&self) -> (Vec<SceneVertex>, Vec<u32>) {
-        let mut vertices = Vec::new();
-        let mut indices = Vec::new();
-        self.hit_indicator.append_world_marks(&mut vertices, &mut indices);
-        (vertices, indices)
-    }
-
     /// This frame's full FX batch: the ticked particle pool plus a tracer per in-flight shell
     /// (tracers are stateless — rebuilt each frame from the interpolated shell snapshots).
     pub(super) fn fx_frame_vertices(
@@ -211,6 +206,7 @@ impl ClientApp {
         let mut fx_vertices = self.fx.vertices(eye, glam::Vec3::from_array(target));
         let shells = self.render_state.interpolated_shells(SNAPSHOT_INTERVAL_SECONDS);
         crate::fx::append_shell_tracers(&mut fx_vertices, &shells, eye);
+        self.append_scar_quads(&mut fx_vertices);
         fx_vertices
     }
 }

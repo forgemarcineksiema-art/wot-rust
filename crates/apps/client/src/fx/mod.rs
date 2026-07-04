@@ -4,6 +4,7 @@
 //! instead of a per-effect renderer.
 
 mod billboard;
+mod decals;
 mod emitters;
 mod fire;
 mod impacts;
@@ -13,6 +14,7 @@ mod tracer;
 use glam::Vec3;
 use renderer_api::FxVertex;
 
+pub(crate) use decals::{append_decal_quads, decal_from_damage_event};
 pub(crate) use fire::{FireEvent, detect_fired};
 pub(crate) use particle::{MAX_PARTICLES, Particle};
 pub(crate) use tracer::append_shell_tracers;

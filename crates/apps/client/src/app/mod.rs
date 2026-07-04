@@ -1,3 +1,4 @@
+mod battle_scars;
 #[cfg(test)]
 mod camera_tests;
 #[cfg(test)]
@@ -16,6 +17,7 @@ mod render_tests;
 mod reticle;
 mod vehicle_assets;
 
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -92,6 +94,11 @@ pub(crate) struct ClientApp {
     /// Battle effects (muzzle flash, smoke, dust, impact bursts, tracers): one particle pool
     /// ticked per presented frame and drawn by the renderer's unlit FX pass.
     fx: FxSystem,
+    /// Accumulated battle scars per tank (hit decals in hull/turret local frames). Persistent
+    /// across snapshots — the snapshot replicates damage STATE, the scars record its history.
+    tank_scars: HashMap<game_core::TankId, crate::vehicle::variation::VehicleVariation>,
+    /// Per-tank emission clock for the dead-engine smoke column (seconds since last puff).
+    engine_smoke_accum_s: HashMap<game_core::TankId, f32>,
     /// Smoothed frames-per-second for the HUD readout (EMA over instantaneous frame rate).
     fps_estimate: f32,
     /// Static scene geometry currently uploaded to the renderer (garage hangar vs battlefield).
@@ -138,6 +145,8 @@ impl ClientApp {
             last_render_time: Instant::now(),
             hit_indicator: HitIndicator::default(),
             fx: FxSystem::default(),
+            tank_scars: HashMap::new(),
+            engine_smoke_accum_s: HashMap::new(),
             fps_estimate: 0.0,
             // The renderer is created with the battlefield mesh (see `create_renderer`); the first
             // garage frame swaps in the hangar. Starting at `Garage` here would skip that swap.

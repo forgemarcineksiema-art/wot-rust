@@ -1,6 +1,6 @@
 use client::{
-    CamoPattern, DECAL_FADE_S, EquipmentAnchor, MAX_HIT_DECALS, VehicleAssetCatalog,
-    VehicleVariation, equipment_points, tank_vehicle_render_objects,
+    CamoPattern, DECAL_FADE_S, DecalFrame, DecalKind, EquipmentAnchor, HitDecal, MAX_HIT_DECALS,
+    VehicleAssetCatalog, VehicleVariation, equipment_points, tank_vehicle_render_objects,
     tank_vehicle_render_objects_with_variation,
 };
 use game_core::{ModuleSlot, TankId, TeamId, VehicleKind};
@@ -11,7 +11,6 @@ fn a_clean_vehicle_keeps_its_base_colour() {
     let clean = VehicleVariation::default();
     let base = [0.30, 0.40, 0.28];
     assert_eq!(clean.surface_tint(base), base);
-    assert_eq!(clean.module_tint(base, &[ModuleSlot::Engine]), base);
     assert!(!clean.tracks_broken());
     assert!(clean.decals().is_empty());
 }
@@ -25,19 +24,46 @@ fn weather_and_camo_overlays_shift_the_surface_tint() {
     assert_ne!(VehicleVariation::default().with_camo(CamoPattern::Desert).surface_tint(base), base);
 }
 
+fn decal(x: f32, kind: DecalKind) -> HitDecal {
+    HitDecal {
+        local_position: [x, 0.0, 0.0],
+        local_normal: [1.0, 0.0, 0.0],
+        radius: 0.2,
+        age_s: 0.0,
+        kind,
+        frame: DecalFrame::Hull,
+    }
+}
+
 #[test]
-fn hit_decals_are_capped_and_fade_over_time() {
+fn hit_decals_are_capped_and_scuffs_fade_while_holes_persist() {
     let mut v = VehicleVariation::default();
     for i in 0..(MAX_HIT_DECALS + 4) {
-        v.record_hit([i as f32 * 0.1, 0.0, 0.0], 0.2);
+        v.record_hit(decal(i as f32 * 0.1, DecalKind::Scuff));
     }
     assert_eq!(v.decals().len(), MAX_HIT_DECALS, "decal count must stay bounded");
     assert!((v.decals()[0].opacity() - 1.0).abs() < 1.0e-6, "fresh decal is fully opaque");
 
+    v.record_hit(decal(9.0, DecalKind::Penetration));
     v.tick(DECAL_FADE_S * 0.5);
-    assert!(v.decals()[0].opacity() < 0.6, "decals fade as they age");
+    assert!(v.decals()[0].opacity() < 0.6, "scuffs fade as they age");
     v.tick(DECAL_FADE_S);
-    assert!(v.decals().is_empty(), "fully faded decals are dropped");
+    assert_eq!(v.decals().len(), 1, "only the penetration hole survives the fade");
+    assert_eq!(v.decals()[0].kind, DecalKind::Penetration);
+    assert!((v.decals()[0].opacity() - 1.0).abs() < 1.0e-6, "battle scars stay for the battle");
+}
+
+#[test]
+fn sync_from_snapshot_updates_damage_state_but_keeps_the_scars() {
+    let mut v = VehicleVariation::default();
+    v.record_hit(decal(0.0, DecalKind::Penetration));
+    let mut snap = snapshot(VehicleKind::T54_1951);
+    snap.destroyed_modules_mask = ModuleSlot::Engine.destroyed_mask_bit();
+
+    v.sync_from_snapshot(&snap);
+
+    assert!(v.module_destroyed(ModuleSlot::Engine), "damage state adopts the snapshot");
+    assert_eq!(v.decals().len(), 1, "the accumulated scars survive the sync");
 }
 
 #[test]
@@ -51,10 +77,10 @@ fn snapshot_drives_broken_tracks_and_module_damage() {
     assert!(v.module_destroyed(ModuleSlot::Engine));
     assert!(!v.module_destroyed(ModuleSlot::Turret));
 
-    // A dead engine darkens the hull submesh tint.
+    // A LIVE tank never recolours with damage; only a wreck takes the burnt-out tint.
     let base = [0.5, 0.5, 0.5];
-    let damaged = v.module_tint(base, &[ModuleSlot::Engine, ModuleSlot::Suspension]);
-    assert!(damaged[0] < base[0], "destroyed module must darken its submesh");
+    let charred = VehicleVariation::wreck_tint(base);
+    assert!(charred[0] < base[0] * 0.5, "a wreck is visibly burnt out");
 }
 
 #[test]

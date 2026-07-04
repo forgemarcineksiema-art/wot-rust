@@ -1,11 +1,10 @@
-use game_core::{DamageCause, DamageEvent, ModuleSlot, TankId};
+use game_core::{DamageEvent, ModuleSlot, TankId};
 use glam::Vec3;
-use renderer_api::{HudVertex, SceneVertex};
+use renderer_api::HudVertex;
 
 mod hit_indicator_draw;
 
 use crate::hud::reticle::world_to_clip_xy;
-use crate::tank_mesh::push_box;
 use hit_indicator_draw::{GRN, RED, color_for, fade, push_marker, push_module_icon, push_pen_bar};
 
 const FEEDBACK_TTL: f32 = 2.5;
@@ -21,7 +20,6 @@ struct HitFeedback {
     shell_pen_mm: f32,
     armor_mm: f32,
     module: Option<ModuleSlot>,
-    cause: DamageCause,
     age: f32,
 }
 
@@ -40,7 +38,6 @@ impl HitIndicator {
             shell_pen_mm: e.shell_penetration_mm,
             armor_mm: e.effective_armor_mm,
             module: e.module,
-            cause: e.cause,
             age: 0.0,
         }));
     }
@@ -122,32 +119,5 @@ impl HitIndicator {
             );
         }
         verts
-    }
-
-    pub(crate) fn append_world_marks(
-        &self,
-        vertices: &mut Vec<SceneVertex>,
-        indices: &mut Vec<u32>,
-    ) {
-        for entry in self.entries.iter().filter(|entry| entry.cause == DamageCause::Shell) {
-            push_box(
-                vertices,
-                indices,
-                entry.hit_position + Vec3::Y * 0.035,
-                Vec3::new(0.16, 0.025, 0.16),
-                0.0,
-                mark_color(entry.penetrated, entry.ricocheted),
-            );
-        }
-    }
-}
-
-fn mark_color(penetrated: bool, ricocheted: bool) -> [f32; 3] {
-    if penetrated {
-        [0.05, 0.045, 0.035]
-    } else if ricocheted {
-        [0.95, 0.62, 0.18]
-    } else {
-        [0.22, 0.20, 0.16]
     }
 }

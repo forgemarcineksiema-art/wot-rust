@@ -41,5 +41,5 @@ pub use vehicle::render_frame::{
 pub use vehicle::render_objects::VehicleMeshCatalog;
 pub use vehicle::render_objects_draw::tank_render_objects;
 pub use vehicle::variation::{
-    CamoPattern, DECAL_FADE_S, HitDecal, MAX_HIT_DECALS, VehicleVariation,
+    CamoPattern, DECAL_FADE_S, DecalFrame, DecalKind, HitDecal, MAX_HIT_DECALS, VehicleVariation,
 };

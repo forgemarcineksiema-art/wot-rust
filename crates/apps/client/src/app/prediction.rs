@@ -57,8 +57,16 @@ impl ClientApp {
             self.fx.impact_burst(impact.position, impact.surface);
         }
         for event in &snapshot.damage_events {
-            if event.cause == game_core::DamageCause::Shell {
-                self.fx.armor_hit(event.hit_position, event.penetrated, event.ricocheted);
+            if event.cause != game_core::DamageCause::Shell {
+                continue;
+            }
+            self.fx.armor_hit(event.hit_position, event.penetrated, event.ricocheted);
+            // The strike also scars the target: a permanent hole for a penetration, a fading
+            // scuff/gouge otherwise, recorded in the plate's own rotating frame.
+            if let Some(target) = snapshot.tanks.iter().find(|tank| tank.tank_id == event.target)
+                && let Some(decal) = crate::fx::decal_from_damage_event(event, target)
+            {
+                self.tank_scars.entry(event.target).or_default().record_hit(decal);
             }
         }
         // Shots fired since the previous snapshot: diffed here, where both snapshots exist side
