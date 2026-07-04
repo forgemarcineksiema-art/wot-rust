@@ -6,21 +6,41 @@ combat truth remains server authoritative.
 
 ## Reticle Layers
 
-The persistent HUD reticle has three neutral layers:
+The persistent HUD reticle has three layers in every mode:
 
 - central reticle: the desired sight and camera target under the screen center,
 - gun marker: where the current barrel direction sits at the desired target
-  range, so the player can see turret and elevation catch-up,
+  range, so the player can see turret and elevation catch-up; it fades out as
+  the barrel converges on the sight instead of stacking a second glyph there,
 - aiming circle: the server-replicated current dispersion radius after aim time,
   movement bloom, shot bloom, and gun damage.
 
-The central marker is intentionally smaller and less opaque than the gun marker.
-In third-person it should communicate sight intent without covering enemy
-silhouettes or competing with the actual barrel marker.
+## The Hybrid Honesty Matrix
 
-The HUD must not show penetration colors, weak-spot hints, guaranteed hit
-colors, or a permanent magic impact marker. The player learns armor layouts,
-shell ballistics, and lead by reading the vehicle, range, and shell behavior.
+How much the reticle says about armor depends on the camera mode. Third person
+is situational awareness; sniper mode is deliberate aimed fire where the
+millimeter duel is the skill loop.
+
+| Element | Third person | Sniper |
+| --- | --- | --- |
+| Central marker | neutral, always | pen verdict by color (green/red) |
+| Gun marker | yes (fades when merged) | yes (usually merged) |
+| Aiming circle | yes | yes (FOV-projected, magnifies) |
+| Penetration color | never | yes |
+| Pen/armor mm readout | never | yes |
+| Real-impact marker (amber X) | never | yes, fades in as it separates |
+| BLOCKED broken form | yes | yes |
+| Target distance | yes | yes |
+| Reload arc / hit confirm | yes | yes |
+
+Third person must not show penetration colors, weak-spot hints, guaranteed hit
+colors, or an impact marker: at that altitude the player reads the battlefield,
+not an armor oracle. Sniper mode may speak: the player has committed to a
+deliberate shot, and the verdict plus the pen-vs-armor millimeters teach the
+armor model instead of replacing it. The BLOCKED form and the gun marker report
+the player's own gun and draw in both modes — they leak nothing about the
+target. The penetration hint keeps being computed in third person so a mode
+switch answers instantly; only its rendering is gated.
 
 ## Gun Aim
 
@@ -50,9 +70,9 @@ truth locally.
 
 Client reticle prediction uses the same muzzle origin and obstacle segment
 sweep shape as the local shell preview path: terrain, static cover, and vehicle
-hitboxes are all considered. The result may drive internal status, debugging,
-and training tools, but the normal HUD does not render the actual impact point
-as a player aid.
+hitboxes are all considered. The result drives the reticle status in both modes
+and the sniper-mode impact marker; third person does not render the actual
+impact point as a player aid.
 
 The server remains authoritative for firing, projectile travel, penetration,
 damage, module state, and snapshots. The client reticle is predictive only; if a

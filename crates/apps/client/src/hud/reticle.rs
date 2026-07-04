@@ -11,6 +11,16 @@ pub(crate) enum ReticleStatus {
     Blocked,
 }
 
+/// Which honesty regime the reticle draws under (`docs/aiming-model-policy.md`): third person is
+/// situational awareness — a fully neutral sight that never speaks armor — while sniper mode is
+/// deliberate aimed fire, where the pen verdict, the millimeters and the real impact point are
+/// the skill loop and may print.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ReticleMode {
+    ThirdPerson,
+    Sniper,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct ReticleFeedback {
     pub status: ReticleStatus,

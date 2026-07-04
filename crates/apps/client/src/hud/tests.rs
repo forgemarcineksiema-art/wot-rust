@@ -21,14 +21,19 @@ pub(super) fn reticle_at(
     HudReticle {
         aim_clip: [0.0, 0.0],
         impact_clip: None,
+        gun_clip: None,
         aim_radius_clip: 0.08,
         target_distance_m: None,
         status,
         penetration_hint: hint,
         reload_fraction: 1.0,
         hit_confirm: None,
-        show_penetration_numbers: false,
+        mode: super::reticle::ReticleMode::ThirdPerson,
     }
+}
+
+pub(super) fn sniper(reticle: HudReticle) -> HudReticle {
+    HudReticle { mode: super::reticle::ReticleMode::Sniper, ..reticle }
 }
 
 pub(super) fn hint(penetrates: bool) -> super::reticle::PenetrationHint {

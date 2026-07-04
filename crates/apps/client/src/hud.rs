@@ -8,6 +8,7 @@ pub(crate) mod icons;
 pub(crate) mod number;
 pub(crate) mod primitives;
 pub(crate) mod reticle;
+pub(crate) mod reticle_marks;
 pub(crate) mod reticle_overlay;
 pub(crate) mod reticle_readouts;
 pub(crate) mod reticle_sweep;
@@ -70,13 +71,14 @@ pub(crate) fn build_battle_hud(model: &BattleHudModel, aspect: f32) -> Vec<HudVe
     let reticle = model.reticle.unwrap_or(HudReticle {
         aim_clip: [0.0, 0.0],
         impact_clip: None,
+        gun_clip: None,
         aim_radius_clip: 0.0,
         target_distance_m: None,
         status: ReticleStatus::Clear,
         penetration_hint: None,
         reload_fraction: 1.0,
         hit_confirm: None,
-        show_penetration_numbers: false,
+        mode: crate::hud::reticle::ReticleMode::ThirdPerson,
     });
     reticle_overlay::push_reticle(&mut vertices, &reticle, aspect);
 

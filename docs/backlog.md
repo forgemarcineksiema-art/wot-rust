@@ -46,8 +46,9 @@ contact-shape approximation.
 
 - [ ] **Vehicle JSON assets are stale (all six)** — they predate facets/shell_type and nothing
   loads them; add a regenerate-and-compare gate in `quality` or drop the files.
-- [ ] **HUD vs aiming policy** — pen color/pen bar/impact marker (and post-hit exact mm readouts)
-  contradict `docs/aiming-model-policy.md`; decide policy or trim HUD.
+- [x] **HUD vs aiming policy** — resolved by the hybrid honesty matrix in
+  `docs/aiming-model-policy.md`: third person fully neutral (gun marker restored, no pen
+  colors/mm/impact X), sniper mode speaks penetration.
 - [ ] **Renderer contract layer is parallel fiction** — `WgpuRenderer`/`PipelineRegistry`/upload
   queues are used only by their own tests while `SceneRenderer` bypasses them; wire or demote.
   Same for stale debug-tools promises (no uncaptured-error handler on the live device) and dead

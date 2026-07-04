@@ -68,6 +68,52 @@ pub(crate) fn push_panel(
     }
 }
 
+/// A thin quad between two clip-space points (arc segments, marker arms).
+pub(crate) fn push_segment(
+    vertices: &mut Vec<HudVertex>,
+    a: [f32; 2],
+    b: [f32; 2],
+    half_thick: f32,
+    color: [f32; 4],
+) {
+    let (dx, dy) = (b[0] - a[0], b[1] - a[1]);
+    let len = (dx * dx + dy * dy).sqrt().max(1.0e-6);
+    let (nx, ny) = (-dy / len * half_thick, dx / len * half_thick);
+    let corners = [
+        [a[0] + nx, a[1] + ny],
+        [b[0] + nx, b[1] + ny],
+        [b[0] - nx, b[1] - ny],
+        [a[0] + nx, a[1] + ny],
+        [b[0] - nx, b[1] - ny],
+        [a[0] - nx, a[1] - ny],
+    ];
+    for position in corners {
+        vertices.push(HudVertex::new(position, color));
+    }
+}
+
+/// An arc of short segments around `center`, radius in clip-y units (x aspect-corrected so the
+/// arc stays circular on screen).
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn push_arc(
+    vertices: &mut Vec<HudVertex>,
+    center: [f32; 2],
+    radius: f32,
+    start_rad: f32,
+    sweep_rad: f32,
+    segments: u32,
+    aspect: f32,
+    color: [f32; 4],
+) {
+    let point =
+        |angle: f32| [center[0] + angle.cos() * radius / aspect, center[1] + angle.sin() * radius];
+    for index in 0..segments {
+        let a = start_rad + sweep_rad * (index as f32 / segments as f32);
+        let b = start_rad + sweep_rad * ((index + 1) as f32 / segments as f32);
+        push_segment(vertices, point(a), point(b), 0.0018, color);
+    }
+}
+
 /// A thin horizontal hairline rule from `left_x` to `right_x` centred on `y` — the instrument
 /// panel's engraved divider (`theme::HAIRLINE_THICKNESS` thick).
 pub(crate) fn push_hairline(
