@@ -1,4 +1,3 @@
-use game_core::math::gun_direction;
 use game_core::{TankId, TeamId};
 use glam::Vec3;
 use net::TankSnapshot;
@@ -75,6 +74,7 @@ pub(crate) fn tick_dt_seconds() -> f32 {
 
 #[cfg(test)]
 mod tests {
+    use game_core::math::gun_direction;
     use game_core::{ImpactSurface, VehicleKind};
     use sim::SegmentImpact;
 

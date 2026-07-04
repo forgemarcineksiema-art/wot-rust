@@ -24,6 +24,7 @@ pub use clock::{
     DEFAULT_SERVER_TICK_HZ, DEFAULT_SIMULATION_TICK_HZ, DEFAULT_SNAPSHOT_HZ, SimulationClock,
 };
 pub use command::TankCommand;
+pub use drive_modules::{DriveModuleStatus, TrackDriveStatus};
 pub use landing::SAFE_LANDING_MPS;
 pub use replay::{Replay, ReplayExpected, ReplayFrame, ReplayReport, ReplaySpawn, run_replay};
 pub use shell::ShellState;
@@ -31,7 +32,6 @@ pub use shell_trace::{
     SHELL_MAX_AGE_SECONDS, SegmentImpact, ShellTraceWorld, TraceOutcome, TraceTank, segment_impact,
     trace_shell,
 };
-pub use drive_modules::{DriveModuleStatus, TrackDriveStatus};
 pub use state::SimulationState;
 pub use tank_drive::{TankDriveState, TankDriveWorld, step_tank_drive};
 pub use tank_state::TankState;

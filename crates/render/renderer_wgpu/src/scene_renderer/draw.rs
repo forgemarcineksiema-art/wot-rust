@@ -140,6 +140,14 @@ impl super::SceneRenderer {
                     );
                 }
             }
+            // Battle FX draw after every lit opaque (correct depth occlusion) and before the
+            // HUD overlay; the pipeline reuses the scene camera bind group for view_proj.
+            if self.fx_vertex_count > 0 {
+                pass.set_pipeline(&self.fx_pipeline);
+                pass.set_bind_group(0, &self.camera_bind_group, &[]);
+                pass.set_vertex_buffer(0, self.fx_vertices.slice(..));
+                pass.draw(0..self.fx_vertex_count, 0..1);
+            }
             if self.hud_vertex_count > 0 {
                 pass.set_pipeline(&self.hud_pipeline);
                 pass.set_bind_group(0, &self.hud_font_bind_group, &[]);
@@ -149,4 +157,5 @@ impl super::SceneRenderer {
         }
         ctx.queue.submit(Some(encoder.finish()));
         Ok(())
-    }}
+    }
+}

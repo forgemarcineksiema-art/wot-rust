@@ -94,4 +94,3 @@ fn tank_lid_ribs(instance: u16, center: Vec3, half: Vec3) -> VehiclePart {
         generator: GeneratorKind::Sweep,
     }
 }
-

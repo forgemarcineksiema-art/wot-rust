@@ -52,9 +52,33 @@ impl ClientApp {
         let player = snapshot.tanks.iter().find(|tank| tank.tank_id == self.player_tank).cloned();
         self.hit_indicator.ingest_damage_events(&snapshot.damage_events, self.player_tank);
         self.hit_indicator.ingest_shell_impacts(&snapshot.shell_impacts);
+        // Shots fired since the previous snapshot: diffed here, where both snapshots exist side
+        // by side, then fanned out to every fire cue (muzzle FX, recoil, hull rock, camera kick).
+        let fired = self.render_state.latest_snapshot().map_or_else(Vec::new, |previous| {
+            crate::fx::detect_fired(
+                &previous.tanks,
+                &snapshot.tanks,
+                self.player_tank,
+                self.player_barrel_scale(),
+            )
+        });
         self.render_state.accept_authoritative_snapshot(snapshot);
+        self.apply_fire_events(&fired);
         if let Some(tank) = player {
             self.predictor.sync_to(&tank);
+        }
+    }
+
+    /// Fan one batch of replicated shots out to the presentation cues. Every firing tank gets
+    /// muzzle FX, barrel recoil, and the hull rock; the player's own shot also kicks the camera.
+    fn apply_fire_events(&mut self, events: &[crate::fx::FireEvent]) {
+        for event in events {
+            let ground_y = self.battlefield.heightmap.sample_height(event.muzzle.x, event.muzzle.z);
+            self.fx.muzzle_blast(event.muzzle, event.direction, ground_y);
+            self.presentation.apply_fire_recoil(event.tank_id, event.turret_yaw_rad);
+            if event.tank_id == self.player_tank {
+                self.camera_controller.fire_kick(self.desired_aim.yaw_rad());
+            }
         }
     }
 
@@ -138,9 +162,9 @@ impl ClientApp {
     ) -> f32 {
         // The sight solution already carries the HULL-relative turret target (converted through
         // the hull pose); only the raw-camera fallback still subtracts the planar hull yaw.
-        let target = solution.and_then(|solution| solution.turret_yaw_rad).unwrap_or_else(|| {
-            shortest_angle(self.desired_aim.yaw_rad() - self.predictor.yaw())
-        });
+        let target = solution
+            .and_then(|solution| solution.turret_yaw_rad)
+            .unwrap_or_else(|| shortest_angle(self.desired_aim.yaw_rad() - self.predictor.yaw()));
         let current = self.predictor.turret_yaw();
         (shortest_angle(target - current) * TURRET_TRACK_GAIN).clamp(-1.0, 1.0)
     }

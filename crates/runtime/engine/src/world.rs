@@ -6,8 +6,8 @@ use net::TankSnapshot;
 
 use crate::attitude::{AttitudeSample, HullAttitude};
 use crate::components::{
-    DestroyedModules, GunPitch, Health, ModuleHitPoints, PresentationTank, RenderTransform,
-    TankEntity, Team, Time, TrackAnimation, TrackDamage, TurretYaw, Vehicle,
+    DestroyedModules, GunPitch, GunRecoil, Health, ModuleHitPoints, PresentationTank,
+    RenderTransform, TankEntity, Team, Time, TrackAnimation, TrackDamage, TurretYaw, Vehicle,
 };
 
 /// Persistent client presentation world: a `bevy_ecs` world of presentation entities projected
@@ -90,9 +90,13 @@ impl PresentationWorld {
                     let mut attitude =
                         self.world.get::<HullAttitude>(entity).copied().unwrap_or_default();
                     attitude.step(tank.position, tank.yaw_rad, sample, suspension, dt);
+                    let mut recoil =
+                        self.world.get::<GunRecoil>(entity).copied().unwrap_or_default();
+                    recoil.step(dt);
                     self.world.entity_mut(entity).insert(bundle);
                     self.world.entity_mut(entity).insert(anim);
                     self.world.entity_mut(entity).insert(attitude);
+                    self.world.entity_mut(entity).insert(recoil);
                 }
                 None => {
                     let mut anim = TrackAnimation::default();
@@ -103,11 +107,27 @@ impl PresentationWorld {
                     let entity = self.world.spawn(bundle).id();
                     self.world.entity_mut(entity).insert(anim);
                     self.world.entity_mut(entity).insert(attitude);
+                    self.world.entity_mut(entity).insert(GunRecoil::default());
                     self.entities.insert(tank.tank_id, entity);
                 }
             }
         }
         self.despawn_missing(tanks);
+    }
+
+    /// One replicated shot from `tank_id`: throw its barrel into recoil and rock its sprung hull
+    /// by the turret's heading. Both cues are presentation-only springs; a fire event for a tank
+    /// the world has not seen yet is dropped (its first frame has nothing to animate anyway).
+    pub fn apply_fire_recoil(&mut self, tank_id: TankId, turret_yaw_rad: f32) {
+        let Some(&entity) = self.entities.get(&tank_id) else {
+            return;
+        };
+        if let Some(mut recoil) = self.world.get_mut::<GunRecoil>(entity) {
+            recoil.kick();
+        }
+        if let Some(mut attitude) = self.world.get_mut::<HullAttitude>(entity) {
+            attitude.fire_impulse(turret_yaw_rad);
+        }
     }
 
     fn despawn_missing(&mut self, tanks: &[TankSnapshot]) {
@@ -140,6 +160,7 @@ impl PresentationWorld {
             &TrackDamage,
             &TrackAnimation,
             &HullAttitude,
+            &GunRecoil,
         )>();
         let mut tanks: Vec<PresentationTank> = query
             .iter(&self.world)
@@ -157,6 +178,7 @@ impl PresentationWorld {
                     damage,
                     track,
                     attitude,
+                    recoil,
                 )| {
                     PresentationTank {
                         id: entity.id,
@@ -176,6 +198,7 @@ impl PresentationWorld {
                         attitude_roll_rad: attitude.roll_rad,
                         attitude_heave_m: attitude.heave_m,
                         accel_long_mps2: attitude.accel_long_mps2,
+                        gun_recoil_m: recoil.offset_m,
                     }
                 },
             )
@@ -190,8 +213,10 @@ impl PresentationWorld {
 /// broken sit level (just beaten, which the heave dip already sells).
 fn broken_track_lean_rad(damage: TrackDamageMask) -> f32 {
     const LEAN_RAD: f32 = 0.028;
-    match (damage.is_broken(game_core::TrackSide::Left), damage.is_broken(game_core::TrackSide::Right))
-    {
+    match (
+        damage.is_broken(game_core::TrackSide::Left),
+        damage.is_broken(game_core::TrackSide::Right),
+    ) {
         (true, false) => -LEAN_RAD,
         (false, true) => LEAN_RAD,
         _ => 0.0,

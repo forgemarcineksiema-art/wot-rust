@@ -34,6 +34,29 @@ impl SceneVertex {
     }
 }
 
+/// A world-space FX vertex: unlit, alpha-blended battle effects (muzzle flash, smoke, dirt,
+/// sparks, tracers) drawn after the lit scene with depth *test* but no depth write.
+///
+/// `color` is **premultiplied** RGBA, which lets one pipeline cover the whole range of combat
+/// effects: `alpha = 0` with non-zero RGB blends purely additively (flash, tracer glow), full
+/// premultiplied color blends as ordinary transparency (smoke, dust), and anything in between
+/// mixes the two. `uv` spans `[-1, 1]` across the quad; the FX shader fades the fragment by
+/// `1 - dot(uv, uv)` so every particle is born soft-edged instead of a hard billboard rectangle.
+/// POD so backends can upload it zero-copy.
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct FxVertex {
+    pub position: [f32; 3],
+    pub uv: [f32; 2],
+    pub color: [f32; 4],
+}
+
+impl FxVertex {
+    pub const fn new(position: [f32; 3], uv: [f32; 2], color: [f32; 4]) -> Self {
+        Self { position, uv, color }
+    }
+}
+
 /// A 2D overlay vertex in clip space (NDC), with atlas UVs and a straight RGBA color. Used for
 /// the HUD (crosshair, health/reload bars, text) drawn on top of the scene in one pass.
 ///

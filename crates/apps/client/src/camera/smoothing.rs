@@ -33,6 +33,10 @@ const FOV_BLEND_PER_S: f32 = 1.6;
 const KICK_PER_IMPACT_MPS: f32 = 0.22;
 /// Hardest camera kick a single landing can inject (m/s of anchor velocity).
 const MAX_KICK_MPS: f32 = 3.0;
+/// Anchor velocity of the player's own shot: rearward along the aim (the rig absorbs a share of
+/// the recoil) plus a smaller settle-down component. One firm nudge, not a screen shake.
+const FIRE_KICK_BACK_MPS: f32 = 0.9;
+const FIRE_KICK_DOWN_MPS: f32 = 0.5;
 
 impl BattleCameraController {
     /// Landing slam: inject downward velocity into the follow anchor; the critically damped
@@ -43,6 +47,18 @@ impl BattleCameraController {
             return;
         }
         self.smoothing.anchor_vel.y -= (impact_mps * KICK_PER_IMPACT_MPS).min(MAX_KICK_MPS);
+    }
+
+    /// The player's own shot nudges the follow rig back along the aim and slightly down; the
+    /// critically damped spring returns it in one settle. Sniper stays rigid — at 3 degrees of
+    /// FOV even this nudge would smear the sight picture.
+    pub fn fire_kick(&mut self, view_yaw_rad: f32) {
+        if self.mode() == BattleCameraMode::Sniper {
+            return;
+        }
+        let forward = game_core::math::horizontal_forward(view_yaw_rad);
+        self.smoothing.anchor_vel -= forward * FIRE_KICK_BACK_MPS;
+        self.smoothing.anchor_vel.y -= FIRE_KICK_DOWN_MPS;
     }
 
     /// Step the camera feel once per presented frame: the follow anchor springs after the hull,
@@ -67,12 +83,11 @@ impl BattleCameraController {
         }
         let anchor = s.anchor.unwrap_or(target);
         // Critically damped spring: the rig trails acceleration, not steady cruise.
-        let accel = FOLLOW_OMEGA * FOLLOW_OMEGA * (target - anchor)
-            - 2.0 * FOLLOW_OMEGA * s.anchor_vel;
+        let accel =
+            FOLLOW_OMEGA * FOLLOW_OMEGA * (target - anchor) - 2.0 * FOLLOW_OMEGA * s.anchor_vel;
         s.anchor_vel += accel * dt;
         s.anchor = Some(anchor + s.anchor_vel * dt);
         let fov_target = SPEED_FOV_BOOST_DEG * (s.speed_mps / SPEED_FOV_AT_MPS).clamp(0.0, 1.0);
         s.fov_boost_deg += (fov_target - s.fov_boost_deg) * (FOV_BLEND_PER_S * dt).clamp(0.0, 1.0);
     }
-
 }

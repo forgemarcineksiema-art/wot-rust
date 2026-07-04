@@ -1,5 +1,7 @@
 #[cfg(test)]
 mod camera_tests;
+#[cfg(test)]
+mod fire_fx_tests;
 mod garage;
 mod garage_render;
 #[cfg(test)]
@@ -30,6 +32,7 @@ use winit::window::Window;
 use crate::aim::DesiredAim;
 use crate::app::garage::GarageState;
 pub use crate::app::garage::garage_overlay;
+use crate::fx::FxSystem;
 use crate::hit_indicator::HitIndicator;
 use crate::predict::LocalPredictor;
 use crate::{
@@ -86,6 +89,9 @@ pub(crate) struct ClientApp {
     presentation: engine::PresentationWorld,
     last_render_time: Instant,
     hit_indicator: HitIndicator,
+    /// Battle effects (muzzle flash, smoke, dust, impact bursts, tracers): one particle pool
+    /// ticked per presented frame and drawn by the renderer's unlit FX pass.
+    fx: FxSystem,
     /// Smoothed frames-per-second for the HUD readout (EMA over instantaneous frame rate).
     fps_estimate: f32,
     /// Static scene geometry currently uploaded to the renderer (garage hangar vs battlefield).
@@ -131,6 +137,7 @@ impl ClientApp {
             presentation: engine::PresentationWorld::default(),
             last_render_time: Instant::now(),
             hit_indicator: HitIndicator::default(),
+            fx: FxSystem::default(),
             fps_estimate: 0.0,
             // The renderer is created with the battlefield mesh (see `create_renderer`); the first
             // garage frame swaps in the hangar. Starting at `Garage` here would skip that swap.

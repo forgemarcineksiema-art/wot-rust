@@ -97,6 +97,7 @@ mod tests {
             attitude_roll_rad: 0.0,
             attitude_heave_m: 0.0,
             accel_long_mps2: 0.0,
+            gun_recoil_m: 0.0,
         }
     }
 

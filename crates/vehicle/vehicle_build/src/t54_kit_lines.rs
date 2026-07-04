@@ -53,11 +53,7 @@ fn travel_lock(v: &HybridVisual) -> Vec<VehiclePart> {
         PartKey::new("travel_lock_base"),
         SubmeshKind::Hull,
         MaterialRole::TrackMetal,
-        solid::chamfered_box(
-            Vec3::new(0.0, deck_top + 0.02, z),
-            Vec3::new(0.09, 0.02, 0.06),
-            0.01,
-        ),
+        solid::chamfered_box(Vec3::new(0.0, deck_top + 0.02, z), Vec3::new(0.09, 0.02, 0.06), 0.01),
     )];
     for (i, side) in [-1.0_f32, 1.0].into_iter().enumerate() {
         parts.push(detail_plate(
@@ -77,8 +73,10 @@ fn travel_lock(v: &HybridVisual) -> Vec<VehiclePart> {
 /// The V-shaped splash board across the upper glacis: a raised bead standing just proud of the
 /// plate, vertex low on the centreline, arms rising outward — every front view shows it.
 fn splash_board(v: &HybridVisual) -> VehiclePart {
-    let path: Vec<Vec3> =
-        [(-0.85_f32, 1.42_f32), (0.0, 1.26), (0.85, 1.42)].iter().map(|&(x, y)| glacis_point(v, x, y, 0.03)).collect();
+    let path: Vec<Vec3> = [(-0.85_f32, 1.42_f32), (0.0, 1.26), (0.85, 1.42)]
+        .iter()
+        .map(|&(x, y)| glacis_point(v, x, y, 0.03))
+        .collect();
     VehiclePart {
         key: PartKey::new("splash_board"),
         submesh: SubmeshKind::Hull,
@@ -137,8 +135,11 @@ fn loft_ring_point(loft: &TurretLoftVisual, y: f32, phi: f32, standoff: f32) -> 
     let half_width = lerp(a.half_width, b.half_width);
     let z_center = lerp(a.z_center, b.z_center);
     let (dx, dz) = (phi.sin(), phi.cos());
-    let half_len =
-        if dz >= 0.0 { lerp(a.half_len_front, b.half_len_front) } else { lerp(a.half_len_rear, b.half_len_rear) };
+    let half_len = if dz >= 0.0 {
+        lerp(a.half_len_front, b.half_len_front)
+    } else {
+        lerp(a.half_len_rear, b.half_len_rear)
+    };
     let n = loft.exponent;
     let scale = ((dx.abs() / half_width).powf(n) + (dz.abs() / half_len).powf(n)).powf(-1.0 / n);
     Vec3::new(dx * (scale + standoff), y, z_center + dz * (scale + standoff))

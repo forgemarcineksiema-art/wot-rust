@@ -56,6 +56,7 @@ impl ClientApp {
         }
         self.render_state.advance(frame_dt, SNAPSHOT_INTERVAL_SECONDS);
         self.hit_indicator.tick(frame_dt);
+        self.fx.tick(frame_dt);
 
         let alpha = self.loop_driver.render_alpha();
         // A landing the predictor absorbed since the last frame slams the camera rig once.
@@ -127,6 +128,12 @@ impl ClientApp {
         renderer.set_render_frame(&RenderFrame::default());
         renderer.set_vehicle_render_frame(&vehicle_frame);
         renderer.set_dynamic_mesh(&vertices, &indices);
+        renderer.set_fx(
+            &self.fx.vertices(
+                glam::Vec3::from_array(camera.eye),
+                glam::Vec3::from_array(camera.target),
+            ),
+        );
         renderer.set_hud(&hud);
         if let Err(error) = renderer.render(view_proj, camera.eye) {
             error!(%error, "frame render failed");

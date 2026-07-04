@@ -126,6 +126,12 @@ impl WindowRenderer {
         self.scene.set_hud(&self.ctx, vertices);
     }
 
+    /// Upload this frame's battle-FX quads (world-space, premultiplied colors); see
+    /// [`SceneRenderer::set_fx`].
+    pub fn set_fx(&mut self, vertices: &[renderer_api::FxVertex]) {
+        self.scene.set_fx(&self.ctx, vertices);
+    }
+
     /// Upload the HUD glyph atlas (single-channel R8 coverage, `width`*`height` bytes). Call once
     /// after construction so HUD text samples real glyphs instead of the 1x1 placeholder.
     pub fn set_hud_font_atlas(&mut self, width: u32, height: u32, coverage: &[u8]) {

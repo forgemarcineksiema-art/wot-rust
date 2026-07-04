@@ -48,9 +48,7 @@ impl SsaoResources {
         });
         let prepass_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("ssao_prepass_shader"),
-            source: wgpu::ShaderSource::Wgsl(
-                super::shadow::shadow_shader_source().into(),
-            ),
+            source: wgpu::ShaderSource::Wgsl(super::shadow::shadow_shader_source().into()),
         });
         let depth_bgl = texture_bgl(device, "ssao_depth_bgl", wgpu::TextureSampleType::Depth);
         let src_bgl = texture_bgl(
@@ -159,7 +157,12 @@ impl SsaoResources {
         };
         for (label, pipeline, output, extra_src) in [
             ("ssao_pass", &self.ssao_pipeline, &targets.ao_view, None),
-            ("ssao_blur_pass", &self.blur_pipeline, &targets.blur_view, Some(&targets.blur_src_bind_group)),
+            (
+                "ssao_blur_pass",
+                &self.blur_pipeline,
+                &targets.blur_view,
+                Some(&targets.blur_src_bind_group),
+            ),
         ] {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some(label),
@@ -187,4 +190,3 @@ impl SsaoResources {
         }
     }
 }
-

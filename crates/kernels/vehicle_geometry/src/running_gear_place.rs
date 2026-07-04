@@ -135,11 +135,7 @@ fn place_side(
         // ground run fully, the ramps through the same faded interpolation — so the belt lifts
         // with the gear instead of kinking at the ramp foot and knifing into a bump. The upper
         // wraps and the top run stay rigid (the fade has reached zero there anyway).
-        let dy = if sample.y < kin.end_cy {
-            bottom_travel(kin, travel, sample.z)
-        } else {
-            0.0
-        };
+        let dy = if sample.y < kin.end_cy { bottom_travel(kin, travel, sample.z) } else { 0.0 };
         out.push(GearPlacement {
             part: GearPart::Link,
             transform: Mat4::from_translation(Vec3::new(

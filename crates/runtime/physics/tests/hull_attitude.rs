@@ -23,7 +23,12 @@ fn map_from(height_at: impl Fn(f32, f32) -> f32) -> HeightMap {
     HeightMap::new(61, 61, 1.0, samples).expect("test heightmap dimensions are fixed")
 }
 
-fn settle(map: &HeightMap, position: Vec3, input: TankControlInput, ticks: usize) -> TankKinematicState {
+fn settle(
+    map: &HeightMap,
+    position: Vec3,
+    input: TankControlInput,
+    ticks: usize,
+) -> TankKinematicState {
     let spec = TankSpec::t54_1951();
     let settings = TankControllerSettings::from_spec(&spec);
     let footprint = ContactFootprint::for_vehicle(VehicleKind::T54_1951);

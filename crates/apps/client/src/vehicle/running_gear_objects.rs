@@ -6,7 +6,9 @@
 use game_core::TankId;
 use glam::Mat4;
 use renderer_api::{MaterialHandle, MeshHandle, RenderObject};
-use vehicle_geometry::{GearDynamics, GearPart, RunningGearKinematics, running_gear_placements_dynamic};
+use vehicle_geometry::{
+    GearDynamics, GearPart, RunningGearKinematics, running_gear_placements_dynamic,
+};
 
 /// Cached unit-mesh handles for one vehicle's animatable running gear.
 #[derive(Debug, Clone, Copy)]

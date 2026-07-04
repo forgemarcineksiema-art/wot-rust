@@ -41,8 +41,7 @@ impl ClientApp {
             return Some(SightSolution { pitch_rad, turret_yaw_rad: None });
         }
         // World arc (azimuth muzzle->aim, solved ballistic elevation) -> hull-relative targets.
-        let world_direction =
-            game_core::math::gun_direction(delta.x.atan2(delta.z), world_pitch);
+        let world_direction = game_core::math::gun_direction(delta.x.atan2(delta.z), world_pitch);
         let (turret_yaw, gun_pitch) =
             game_core::math::world_direction_to_turret(hull, world_direction);
         Some(SightSolution {
@@ -225,11 +224,8 @@ mod tests {
                 )
         };
         let traversed = traverse(pitched, ring, tank.turret_yaw_rad);
-        let basis = game_core::math::hull_basis(
-            tank.yaw_rad,
-            tank.hull_pitch_rad,
-            tank.hull_roll_rad,
-        );
+        let basis =
+            game_core::math::hull_basis(tank.yaw_rad, tank.hull_pitch_rad, tank.hull_roll_rad);
         let expected = Vec3::from_array(tank.position) + basis * traversed;
 
         assert!((app.muzzle_position() - expected).length() < 1.0e-4);

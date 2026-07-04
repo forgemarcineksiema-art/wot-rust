@@ -70,8 +70,7 @@ impl DriveModuleStatus {
             tracks,
             engine_ok: live_hp(ModuleSlot::Engine) > 0,
             turret_ok: live_hp(ModuleSlot::Turret) > 0,
-            gun_damage_fraction: (1.0 - live_hp(ModuleSlot::Gun) as f32 / gun_full)
-                .clamp(0.0, 1.0),
+            gun_damage_fraction: (1.0 - live_hp(ModuleSlot::Gun) as f32 / gun_full).clamp(0.0, 1.0),
             engine_power_fraction: game_core::engine_power_fraction(
                 live_hp(ModuleSlot::Engine),
                 full_hp(ModuleSlot::Engine),

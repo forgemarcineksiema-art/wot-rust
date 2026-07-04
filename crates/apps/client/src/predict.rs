@@ -12,9 +12,6 @@ use terrain::{HeightMap, StaticCoverObject};
 /// dt and the same input as the authoritative server, so it matches the server tick-for-tick
 /// and yields a smooth 60 Hz local position between 20 Hz snapshots — without interpolation
 /// lag and, crucially, without per-snapshot reconciliation jitter.
-/// A render-interpolatable snapshot of the predicted hull/turret pose. The visual tank and
-/// the camera blend the previous tick's pose toward the current one so a 60 Hz sim renders
-
 pub struct LocalPredictor {
     spec: TankSpec,
     drive: TankDriveState,
@@ -131,8 +128,7 @@ impl LocalPredictor {
         } else {
             TrackDriveStatus::from_track_damage(self.track_damage_mask)
         };
-        let modules =
-            DriveModuleStatus::from_module_hp(tracks, self.module_hit_points, &self.spec);
+        let modules = DriveModuleStatus::from_module_hp(tracks, self.module_hit_points, &self.spec);
         let footprint = self.spec.contact_footprint();
         let world = TankDriveWorld {
             heightmap: Some(heightmap),
@@ -140,8 +136,10 @@ impl LocalPredictor {
             tank_obstacles,
             footprint: Some(&footprint),
         };
-        let ground = step_tank_drive(&mut self.drive, &self.spec, modules, world, command.clamped(), dt);
-        self.pending_landing_impact_mps = self.pending_landing_impact_mps.max(ground.landing_impact_mps);
+        let ground =
+            step_tank_drive(&mut self.drive, &self.spec, modules, world, command.clamped(), dt);
+        self.pending_landing_impact_mps =
+            self.pending_landing_impact_mps.max(ground.landing_impact_mps);
     }
 
     /// The hardest landing since the last call, consumed by the render loop for the camera slam.
@@ -193,7 +191,6 @@ impl LocalPredictor {
     pub fn aim_dispersion_mrad(&self) -> f32 {
         self.drive.aim_dispersion_mrad
     }
-
 }
 
 mod pose;

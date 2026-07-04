@@ -2,6 +2,7 @@ mod aim;
 mod app;
 mod camera;
 mod color;
+mod fx;
 mod hit_indicator;
 mod hud;
 mod loop_policy;
@@ -35,8 +36,7 @@ pub use vehicle::mesh::{append_tank_mesh, tank_scene_mesh};
 pub use vehicle::pbr_mesh::{material_role_id, vehicle_submesh_vertices};
 pub use vehicle::render_frame::{
     VehicleRenderFrame, render_frame_from_objects, split_pbr_vehicle_render_frame,
-    split_pbr_vehicle_render_frame_on_terrain,
-    split_vehicle_render_frame,
+    split_pbr_vehicle_render_frame_on_terrain, split_vehicle_render_frame,
 };
 pub use vehicle::render_objects::VehicleMeshCatalog;
 pub use vehicle::render_objects_draw::tank_render_objects;

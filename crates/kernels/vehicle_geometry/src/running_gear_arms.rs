@@ -6,7 +6,10 @@
 use glam::{Mat4, Vec2, Vec3};
 
 use crate::running_gear::RunningGearKinematics;
-use crate::{Axis, ExtrudeSpec, GeometryMesh, MaterialRole, MeshBuilder, ProfilePoint, RevolveSpec, SmoothingGroup};
+use crate::{
+    Axis, ExtrudeSpec, GeometryMesh, MaterialRole, MeshBuilder, ProfilePoint, RevolveSpec,
+    SmoothingGroup,
+};
 
 const SG_HARD: SmoothingGroup = SmoothingGroup::hard_edges();
 const SG_ARM: SmoothingGroup = SmoothingGroup(6);
@@ -27,12 +30,7 @@ pub fn swing_arm_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
     let along = tip.normalize_or_zero();
     let across = Vec2::new(-along.y, along.x);
     // Tapered arm plate in the (y, z) plane: wide at the boss, narrower at the axle.
-    let section = vec![
-        -across * 0.055,
-        across * 0.055,
-        tip + across * 0.040,
-        tip - across * 0.040,
-    ];
+    let section = vec![-across * 0.055, across * 0.055, tip + across * 0.040, tip - across * 0.040];
     MeshBuilder::new()
         .extrude(
             Vec3::ZERO,

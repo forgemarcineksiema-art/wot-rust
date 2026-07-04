@@ -126,8 +126,9 @@ pub fn step_tank_on_world_with_tanks(
             settings.ground_probe_length_m,
         )
     {
-        let support = footprint
-            .and_then(|footprint| sample_support(heightmap, state.position, state.yaw_rad, footprint));
+        let support = footprint.and_then(|footprint| {
+            sample_support(heightmap, state.position, state.yaw_rad, footprint)
+        });
         let ground = support.map(|s| s.height_m).unwrap_or(next_contact.height_m);
         let moved_xz = (state.position.x - previous.x).hypot(state.position.z - previous.z);
         let step = resolve_vertical(state, ground, was_grounded, moved_xz, dt_seconds);

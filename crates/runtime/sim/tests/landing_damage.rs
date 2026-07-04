@@ -19,18 +19,18 @@ fn drop_map(plateau_m: f32) -> HeightMap {
 }
 
 /// Drive one tank off the plateau and return the first Impact event, if any tick emitted one.
-fn drive_off(plateau_m: f32) -> (SimulationState, game_core::TankId, Option<game_core::DamageEvent>) {
+fn drive_off(
+    plateau_m: f32,
+) -> (SimulationState, game_core::TankId, Option<game_core::DamageEvent>) {
     let map = drop_map(plateau_m);
     let mut state = SimulationState::new();
-    let id = state.spawn_tank(TeamId(0), TankSpec::medium_test_tank(), Vec3::new(30.0, plateau_m, 8.0));
+    let id =
+        state.spawn_tank(TeamId(0), TankSpec::medium_test_tank(), Vec3::new(30.0, plateau_m, 8.0));
     let timestep = FixedTimestep::from_hz(60);
     for _ in 0..900 {
         state.apply_commands_on_terrain(&[(id, TankCommand::drive(1.0, 0.0))], timestep, &map);
-        let impact = state
-            .damage_events()
-            .iter()
-            .find(|event| event.cause == DamageCause::Impact)
-            .copied();
+        let impact =
+            state.damage_events().iter().find(|event| event.cause == DamageCause::Impact).copied();
         if impact.is_some() {
             return (state, id, impact);
         }

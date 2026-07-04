@@ -29,11 +29,7 @@ pub(super) fn t54_hybrid() -> HybridVisual {
             nose_normal: Vec3::new(0.0, -0.75, 1.0),
             nose_offset: 2.20,
         },
-        hull_plates: HullPlatesVisual {
-            glacis_base_z: 2.95,
-            nose_base_z: 2.52,
-            deck_bevel: 0.10,
-        },
+        hull_plates: HullPlatesVisual { glacis_base_z: 2.95, nose_base_z: 2.52, deck_bevel: 0.10 },
         turret: TurretVisual {
             // The cast dome bulges LOW and wide: the sphere centre sits just above the ring (not high
             // in the band), so the widest cross-section overhangs the ring and the casting necks back

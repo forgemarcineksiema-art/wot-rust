@@ -8,8 +8,8 @@ use renderer_api::{
 };
 use vehicle_forge::authoritative_baked_vehicle;
 use vehicle_geometry::{
-    GeometryMesh, RunningGearKinematics, SubmeshKind, idler_unit_mesh, road_wheel_unit_mesh, swing_arm_unit_mesh,
-    sprocket_unit_mesh, track_link_unit_mesh,
+    GeometryMesh, RunningGearKinematics, SubmeshKind, idler_unit_mesh, road_wheel_unit_mesh,
+    sprocket_unit_mesh, swing_arm_unit_mesh, track_link_unit_mesh,
 };
 
 use super::pbr_mesh::vehicle_submesh_vertices;

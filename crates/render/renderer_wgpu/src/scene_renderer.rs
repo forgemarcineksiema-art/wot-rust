@@ -1,9 +1,9 @@
 mod buffers;
 mod draw;
 mod draw_depth;
+pub(crate) mod env_group;
 mod hud_atlas;
 mod resources;
-pub(crate) mod env_group;
 pub(crate) mod shadow;
 pub(crate) mod ssao;
 mod ssao_pipelines;
@@ -23,6 +23,8 @@ use crate::{CameraUniform, GpuContext, VehicleMeshRegistry, build_vehicle_pipeli
 const DYNAMIC_VERTEX_CAPACITY: u64 = 1 << 20;
 const DYNAMIC_INDEX_CAPACITY: u64 = 1 << 20;
 const HUD_VERTEX_CAPACITY: u64 = 1 << 16;
+/// Battle-FX vertex budget: ~2048 soft quads (6 verts x 36 bytes) with headroom.
+const FX_VERTEX_CAPACITY: u64 = 1 << 19;
 
 pub struct SceneRenderer {
     pipeline: wgpu::RenderPipeline,
@@ -46,6 +48,9 @@ pub struct SceneRenderer {
     vehicle_instance_count: u32,
     vehicle_draws: Vec<SceneObjectDraw>,
     vehicle_meshes: VehicleMeshRegistry,
+    fx_pipeline: wgpu::RenderPipeline,
+    fx_vertices: wgpu::Buffer,
+    fx_vertex_count: u32,
     hud_pipeline: wgpu::RenderPipeline,
     hud_vertices: wgpu::Buffer,
     hud_vertex_count: u32,
@@ -120,11 +125,14 @@ impl SceneRenderer {
         let shadow_bgl = env_group::build_shadow_bind_group_layout(device);
         let (pipeline, camera_bgl) =
             build_scene_pipeline(device, color_format, sample_count, &shadow_bgl);
+        let fx_pipeline =
+            crate::fx_pipeline::build_fx_pipeline(device, color_format, sample_count, &camera_bgl);
         let (vehicle_pipeline, vehicle_camera_bgl, vehicle_material_bgl) =
             build_vehicle_pipeline(device, color_format, sample_count, &shadow_bgl);
         let ssao = ssao::SsaoResources::new(device, &camera_bgl);
         let placeholder_ao = ssao_pipelines::placeholder_ao_view(device, &ctx.queue);
-        let shadow = shadow::ShadowResources::new(device, &shadow_bgl, &camera_bgl, &placeholder_ao);
+        let shadow =
+            shadow::ShadowResources::new(device, &shadow_bgl, &camera_bgl, &placeholder_ao);
 
         let camera_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("scene_camera"),
@@ -181,6 +189,9 @@ impl SceneRenderer {
             vehicle_instance_count: 0,
             vehicle_draws: Vec::new(),
             vehicle_meshes: VehicleMeshRegistry::default(),
+            fx_pipeline,
+            fx_vertices: buffers.fx_vertices,
+            fx_vertex_count: 0,
             hud_pipeline,
             hud_vertices: buffers.hud_vertices,
             hud_vertex_count: 0,

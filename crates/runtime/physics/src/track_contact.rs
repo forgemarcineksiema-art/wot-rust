@@ -184,10 +184,7 @@ mod tests {
         let map = map_from(|_, z| if (29.2..30.8).contains(&z) { -2.0 } else { 1.0 });
         let height = support_height(&map, Vec3::new(30.0, 1.0, 30.0), 0.0, &t54())
             .expect("stations on the map");
-        assert!(
-            (height - 1.0).abs() < 0.05,
-            "the rigid gear must bridge the trench, got {height}"
-        );
+        assert!((height - 1.0).abs() < 0.05, "the rigid gear must bridge the trench, got {height}");
         // The centre sample alone would have dropped the hull into it.
         assert!(map.sample_height(30.0, 30.0).unwrap() < -1.0);
     }
@@ -230,8 +227,7 @@ mod tests {
             VehicleKind::PrototypeMedium,
         ));
         for footprint in [t54(), fallback] {
-            let height =
-                support_height(&map, Vec3::new(30.0, 2.5, 30.0), 0.7, &footprint).unwrap();
+            let height = support_height(&map, Vec3::new(30.0, 2.5, 30.0), 0.7, &footprint).unwrap();
             assert!((height - 2.5).abs() < 1.0e-4);
         }
     }

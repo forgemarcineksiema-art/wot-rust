@@ -50,6 +50,7 @@ fn vehicle_render_frame_uses_baked_objects_for_every_vehicle() {
             attitude_roll_rad: 0.0,
             attitude_heave_m: 0.0,
             accel_long_mps2: 0.0,
+            gun_recoil_m: 0.0,
         })
         .collect();
 
@@ -144,6 +145,7 @@ fn presentation_tanks() -> Vec<PresentationTank> {
             attitude_roll_rad: 0.0,
             attitude_heave_m: 0.0,
             accel_long_mps2: 0.0,
+            gun_recoil_m: 0.0,
         })
         .collect()
 }
@@ -179,6 +181,7 @@ fn frame_for_t54_tracks_with_masks(
             attitude_roll_rad: 0.0,
             attitude_heave_m: 0.0,
             accel_long_mps2: 0.0,
+            gun_recoil_m: 0.0,
         }],
         TankId(1),
         1.0,

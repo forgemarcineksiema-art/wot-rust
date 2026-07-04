@@ -73,7 +73,11 @@ impl VehicleMeshCatalog {
         let kin = RunningGearKinematics::for_vehicle(kind)?;
         Some(GearMeshHandles {
             road_wheel: self.register_gear_mesh(kind, "road_wheel", &road_wheel_unit_mesh(&kin)),
-            swing_arm: self.register_gear_mesh(kind, "swing_arm", &vehicle_geometry::swing_arm_unit_mesh(&kin)),
+            swing_arm: self.register_gear_mesh(
+                kind,
+                "swing_arm",
+                &vehicle_geometry::swing_arm_unit_mesh(&kin),
+            ),
             idler: self.register_gear_mesh(kind, "idler", &idler_unit_mesh(&kin)),
             sprocket: self.register_gear_mesh(kind, "sprocket", &sprocket_unit_mesh(&kin)),
             link: self.register_gear_mesh(kind, "track_link", &track_link_unit_mesh(&kin)),

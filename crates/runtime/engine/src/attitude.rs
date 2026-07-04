@@ -29,6 +29,10 @@ const MAX_HEAVE_DOWN_M: f32 = 0.12;
 /// launches at ~8 m/s² from the first frame; feeding that raw step into the pitch/roll targets
 /// snaps them to their clamps in one frame, which reads as violence rather than weight transfer.
 const ACCEL_SMOOTH_PER_S: f32 = 6.0;
+/// Angular velocity (rad/s) a main-gun shot injects into the sprung hull. With the attitude
+/// spring at ~1.1 Hz this peaks around 0.8 degrees of deflection and settles in one visible nod —
+/// tonnes of hull rocking on its torsion bars, not a flinch.
+const FIRE_IMPULSE_RAD_S: f32 = 0.16;
 /// Spring frequency scale at a fully drained suspension pool: 1.0 at full HP easing to this
 /// floor at 0 HP, so a wounded suspension is a visibly softer spring (the hull wallows).
 const WOUNDED_OMEGA_FLOOR: f32 = 0.6;
@@ -125,15 +129,43 @@ impl HullAttitude {
         let roll_target = sample.terrain_roll_rad
             + (self.accel_lat_mps2 * ROLL_PER_ACCEL).clamp(-MAX_DYNAMIC_ROLL, MAX_DYNAMIC_ROLL);
 
-        spring_step(&mut self.pitch_rad, &mut self.pitch_vel, pitch_target, attitude_omega, attitude_zeta, dt);
-        spring_step(&mut self.roll_rad, &mut self.roll_vel, roll_target, attitude_omega, attitude_zeta, dt);
+        spring_step(
+            &mut self.pitch_rad,
+            &mut self.pitch_vel,
+            pitch_target,
+            attitude_omega,
+            attitude_zeta,
+            dt,
+        );
+        spring_step(
+            &mut self.roll_rad,
+            &mut self.roll_vel,
+            roll_target,
+            attitude_omega,
+            attitude_zeta,
+            dt,
+        );
 
         // Heave: the replicated hull height snaps to the terrain sample; the sprung hull follows
         // it through the same kind of spring, so a step in the heightmap becomes a settle, not a
         // teleport. The offset (not the absolute) is what the render applies.
-        spring_step(&mut self.smoothed_y, &mut self.heave_vel, translation[1], heave_omega, heave_zeta, dt);
-        self.heave_m =
-            (self.smoothed_y - translation[1]).clamp(-MAX_HEAVE_DOWN_M, MAX_HEAVE_UP_M);
+        spring_step(
+            &mut self.smoothed_y,
+            &mut self.heave_vel,
+            translation[1],
+            heave_omega,
+            heave_zeta,
+            dt,
+        );
+        self.heave_m = (self.smoothed_y - translation[1]).clamp(-MAX_HEAVE_DOWN_M, MAX_HEAVE_UP_M);
+    }
+
+    /// One main-gun shot rocks the sprung hull through the same spring that absorbs terrain: the
+    /// recoil moment decomposes by the turret's hull-relative heading, so firing over the bow
+    /// lifts the nose while firing over the side rolls the hull away from the muzzle.
+    pub fn fire_impulse(&mut self, turret_yaw_rad: f32) {
+        self.pitch_vel += turret_yaw_rad.cos() * FIRE_IMPULSE_RAD_S;
+        self.roll_vel += turret_yaw_rad.sin() * FIRE_IMPULSE_RAD_S;
     }
 }
 
@@ -151,7 +183,13 @@ fn spring_to(current: f32, target: f32, alpha: f32) -> f32 {
 mod tests {
     use super::*;
 
-    fn settle(att: &mut HullAttitude, pos: [f32; 3], yaw: f32, sample: AttitudeSample, frames: u32) {
+    fn settle(
+        att: &mut HullAttitude,
+        pos: [f32; 3],
+        yaw: f32,
+        sample: AttitudeSample,
+        frames: u32,
+    ) {
         for _ in 0..frames {
             att.step(pos, yaw, sample, 1.0, 1.0 / 60.0);
         }
