@@ -19,7 +19,11 @@ pub struct SunShadowParams {
 
 impl Default for SunShadowParams {
     fn default() -> Self {
-        Self { focus_radius_m: 32.0, depth_radius_m: 120.0, resolution: 2048 }
+        // 4096 texels over a 64 m box = 1.6 cm texels: running-gear detail (spokes, rims, links)
+        // lives at the 2–9 cm scale, and a coarser map crawls jagged shadow edges across the
+        // wheel faces on every camera move. Depth reach 80 m still clears hills along the sun
+        // axis while halving the depth-bias world slack.
+        Self { focus_radius_m: 32.0, depth_radius_m: 80.0, resolution: 4096 }
     }
 }
 

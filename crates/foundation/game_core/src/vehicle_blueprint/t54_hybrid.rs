@@ -161,7 +161,9 @@ pub(super) fn t54_hybrid() -> HybridVisual {
             // The pedestal drum centre; the DShK barrel rides near its top (+0.16).
             dshk_mount_center: Vec3::new(0.48, 2.20, -0.18),
             dshk_barrel_length: 0.62,
-            fender_lip_drop: 0.13,
+            // Shallow folded edge: the belt's top run carries its link bodies up to ~1.02, so a
+            // deeper lip curtain has the scrolling shoes cutting through it (lip bottom 1.05).
+            fender_lip_drop: 0.05,
             fender_lip_thickness: 0.03,
             weld_seam_half_thickness: 0.015,
         },

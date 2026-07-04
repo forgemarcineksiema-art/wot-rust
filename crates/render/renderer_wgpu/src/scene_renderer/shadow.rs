@@ -39,7 +39,10 @@ impl ShadowResources {
         camera_bgl: &wgpu::BindGroupLayout,
         initial_ao_view: &wgpu::TextureView,
     ) -> Self {
-        let params = SunShadowParams::default();
+        // Capability fallback: a device capped below the requested resolution gets a smaller map
+        // (the texel-derived PCF step and normal offset shrink with it), never a failed texture.
+        let mut params = SunShadowParams::default();
+        params.resolution = params.resolution.min(device.limits().max_texture_dimension_2d);
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("sun_shadow_map"),
             size: wgpu::Extent3d {
@@ -85,12 +88,14 @@ impl ShadowResources {
         let pipeline = build_shadow_pipeline(device, camera_bgl);
         // A small constant depth bias plus a normal offset scaled to the texel footprint kills acne
         // without peter-panning; strength 1 = full shadow (0 is the no-shadow capability fallback).
+        // The bias is NDC over the 2*depth_radius span — 0.0008 * 160 m = ~13 cm of world slack,
+        // tight enough that wheel-scale detail keeps its contact shadow.
         Self {
             depth_view,
             bind_group: std::cell::RefCell::new(bind_group),
             pipeline,
             params,
-            depth_bias: 0.0015,
+            depth_bias: 0.0008,
             normal_offset: params.texel_world_size() * 1.5,
             strength: 1.0,
             shadow_sampler,
