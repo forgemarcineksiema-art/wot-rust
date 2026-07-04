@@ -142,6 +142,8 @@ pub enum GearPart {
     Idler,
     Sprocket,
     Link,
+    /// Trailing torsion-bar swing arm — one per road wheel, rotating with its travel.
+    SwingArm,
 }
 
 /// One instanced running-gear part: the unit mesh to draw and where (hull-local).

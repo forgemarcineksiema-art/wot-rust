@@ -325,10 +325,28 @@ fn t54_sprocket_is_visibly_toothed_while_idler_is_smooth() {
         sprocket.triangle_count() > idler.triangle_count(),
         "rear drive sprocket should carry tooth geometry beyond the smooth front idler"
     );
+    // The tooth rings flank the shoes (the real T-54 layout): teeth MAY reach past the wheel
+    // radius — that is the interleaving read — but everything that does must sit outboard of
+    // the shoe plates, so the teeth pass BESIDE the belt and never through it.
+    let bounds = sprocket.bounds().expect("sprocket bounds");
     assert!(
-        sprocket.bounds().expect("sprocket bounds").max.y <= kin.end_radius + 0.010,
-        "sprocket teeth must stay inside the track path instead of colliding through the links"
+        bounds.max.y > kin.end_radius + 0.02,
+        "the tooth rings must visibly stand past the wheel radius, got {}",
+        bounds.max.y
     );
+    let plate_half_x = kin.link_half_width * 1.25;
+    for vertex in sprocket.vertices() {
+        let radial = (vertex.position.y * vertex.position.y
+            + vertex.position.z * vertex.position.z)
+            .sqrt();
+        if radial > kin.end_radius + 0.010 {
+            assert!(
+                vertex.position.x.abs() > plate_half_x,
+                "a tooth vertex inside the belt band must sit beside the shoes: {:?}",
+                vertex.position
+            );
+        }
+    }
     // The idler is a smooth wheel: its silhouette stays a round rim with no radial spikes, so the
     // front of the track is visibly plain against the rear sprocket's teeth.
     let idler_bounds = idler.bounds().expect("idler bounds");

@@ -14,10 +14,17 @@ pub(crate) struct BeltSample {
     pub rot_x: f32,
 }
 
-/// How far below a wheel rim the ground-run link *centre* line rides. Slightly more than half a
-/// shoe's thickness, so the link plate tops stay a visible hand off the wheel bottoms — a
-/// coincident wheel/shoe contact plane z-fights as the camera moves.
-const LINK_SEAT: f32 = 0.035;
+/// How far below a wheel rim the ground-run link *centre* line rides. The shoe plate reaches
+/// ~0.030 toward the wheel, so this leaves the plate PRESSED lightly into the tire's curve (a
+/// loaded track, not a floating ribbon) while the guide horns ride inside the tire's centre
+/// groove; the surfaces stay curved-vs-flat, so nothing is coplanar enough to z-fight.
+pub(crate) const LINK_SEAT: f32 = 0.02;
+
+/// Radius the shoe-link centre line wraps the end wheels at. The sprocket/idler SPIN must use
+/// this (not the bare wheel radius) so tooth surfaces and links move together.
+pub(crate) fn wrap_radius(kin: &RunningGearKinematics) -> f32 {
+    kin.end_radius.max(0.05) + LINK_SEAT
+}
 
 /// The resolved belt path in the side plane. Two layouts share one loop model:
 ///
@@ -55,15 +62,11 @@ impl BeltPath {
         Self::build(kin, top_sag.clamp(0.0, 0.12))
     }
 
-    /// Arc length of the flat ground run (the loop starts on it), for bottom-run link queries.
-    pub(crate) fn bottom_run_len(&self) -> f32 {
-        2.0 * self.bottom_end_z
-    }
 
     fn build(kin: &RunningGearKinematics, top_sag: f32) -> Self {
         // Links wrap OUTSIDE the end-wheel tread by the same seat as the ground run: a wrap
         // radius equal to the wheel radius buries half a shoe in the idler tire and shimmers.
-        let r = kin.end_radius.max(0.05) + LINK_SEAT;
+        let r = wrap_radius(kin);
         let y_top = kin.end_cy + r;
         let wheel_ground = kin.cy - kin.wheel_radius - LINK_SEAT;
         let raised = kin.end_cy - r > wheel_ground + 1.0e-3 && kin.end_cz > kin.half_run + 1.0e-3;

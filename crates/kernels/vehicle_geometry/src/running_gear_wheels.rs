@@ -104,7 +104,9 @@ fn dual_tire(r: f32, half_w: f32, segments: usize) -> GeometryMesh {
                 ProfilePoint::new(r * 0.91, -half_w),
                 ProfilePoint::new(r, -half_w * 0.80),
                 ProfilePoint::new(r, -half_w * 0.34),
-                ProfilePoint::new(r * 0.95, 0.0),
+                // Groove deep enough that the shoes' guide horns ride INSIDE it on the ground
+                // run and the end wraps (the 0.02 link seat leaves the horns ~1.6 cm proud).
+                ProfilePoint::new(r * 0.92, 0.0),
                 ProfilePoint::new(r, half_w * 0.34),
                 ProfilePoint::new(r, half_w * 0.80),
                 ProfilePoint::new(r * 0.91, half_w),
