@@ -9,6 +9,7 @@ mod compiler;
 mod mesh_source;
 mod packs;
 mod packs_german;
+mod packs_is3;
 mod part_data;
 mod part_graph;
 mod part_manifest;
@@ -32,6 +33,7 @@ pub use packs_german::{
     jagdtiger_reference_pack, panther_ii_reference_pack, tiger_i_reference_pack,
     tiger_ii_reference_pack,
 };
+pub use packs_is3::is3_reference_pack;
 pub use part_graph::{
     ForgePart, ForgePartGraph, ForgePartKind, GameplayRole, LodPolicy, PartAnchor, PartGroup,
 };

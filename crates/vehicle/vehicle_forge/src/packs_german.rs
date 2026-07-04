@@ -11,7 +11,8 @@ use crate::{RatioKind, RatioTarget, ReferencePack, ReferenceSource};
 /// Standard five-ratio silhouette gate shared by the migrated families. Targets are tuned to each
 /// vehicle's baked geometry and documented per family; tolerances are wide enough to survive LOD
 /// reduction but tight enough to catch a proportion regressing into the wrong class of tank.
-fn silhouette_ratios(
+/// Shared with the Soviet heavy pack (`packs_is3`) — one gate, per-vehicle targets.
+pub(crate) fn silhouette_ratios(
     hull_len_to_width: f32,
     hull_height_to_len: f32,
     turret_width: f32,

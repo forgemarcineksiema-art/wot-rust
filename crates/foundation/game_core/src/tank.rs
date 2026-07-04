@@ -106,6 +106,8 @@ impl HitboxProfile {
             VehicleKind::PantherII => {
                 Self::new(1.85, 1.47, 3.70, 1.42, 0.43).with_turret_plan(0.86, 1.27, -0.02)
             }
+            // Blueprint-born: the hitbox comes from `blueprint.hitbox()` above, always.
+            VehicleKind::IS3 => unreachable!("IS-3 is blueprint-migrated"),
         }
     }
 }

@@ -97,6 +97,17 @@ pub(crate) fn t55a(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVehicl
     assemble(VehicleKind::T55A, hull, turret, gun, *mounts)
 }
 
+/// The shared Soviet cast-turret builder, exposed to the IS-3 recipe (`recipes::is3`) — the
+/// heavy rides the same family machinery with its own blueprint numbers.
+pub(super) fn soviet_cast_turret_for(
+    t: &TurretShape,
+    trunnion_y: f32,
+    mantlet: Option<(f32, f32, f32)>,
+    shell_segments: usize,
+) -> GeometryMesh {
+    soviet_cast_turret(t, trunnion_y, mantlet, false, shell_segments)
+}
+
 pub(crate) fn t54_1951(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVehicle {
     // Migrated to the blueprint: hull, tracks, turret, and gun all read one shape source, so the
     // visible glacis is the armour angle and the running gear wraps the wheels.

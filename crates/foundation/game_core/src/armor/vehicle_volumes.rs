@@ -9,7 +9,7 @@
 
 use std::sync::OnceLock;
 
-use glam::Vec3;
+use glam::{Mat3, Vec3};
 
 use super::ArmorZone;
 use super::volumes::{ArmorPatch, ArmorVolume, TaggedPlane};
@@ -29,9 +29,11 @@ pub struct VehicleArmorVolumes {
 pub fn vehicle_armor_volumes(kind: VehicleKind) -> Option<&'static VehicleArmorVolumes> {
     static T54: OnceLock<Option<VehicleArmorVolumes>> = OnceLock::new();
     static T55A: OnceLock<Option<VehicleArmorVolumes>> = OnceLock::new();
+    static IS3: OnceLock<Option<VehicleArmorVolumes>> = OnceLock::new();
     let cell = match kind {
         VehicleKind::T54_1951 => &T54,
         VehicleKind::T55A => &T55A,
+        VehicleKind::IS3 => &IS3,
         _ => return None,
     };
     cell.get_or_init(|| VehicleBlueprint::for_vehicle(kind).map(bake_vehicle_armor)).as_ref()
@@ -72,31 +74,42 @@ fn upper_hull(blueprint: &VehicleBlueprint, cy: f32) -> ArmorVolume {
     let (glacis_sin, glacis_cos) = blueprint.armor.hull_front.0.to_radians().sin_cos();
     let (rear_sin, rear_cos) = blueprint.armor.hull_rear.0.to_radians().sin_cos();
     let step_y = hull.sponson_y - cy;
-    // The hull's forwardmost point at the sponson step: the fold of the two-plate front.
+    // The hull's forwardmost point at the sponson step: the fold of the two-plate front (and
+    // the pike's central ridge, when the bow is a pike).
     let fold = Vec3::new(0.0, step_y, hull.half_len);
-    ArmorVolume {
-        planes: vec![
-            TaggedPlane::new(Vec3::new(0.0, glacis_sin, glacis_cos), fold, ArmorZone::UpperGlacis),
-            TaggedPlane::new(Vec3::Y, Vec3::new(0.0, hull.deck_y - cy, 0.0), ArmorZone::Roof),
-            TaggedPlane::new(
-                Vec3::new(side_slope.cos(), side_slope.sin(), 0.0),
-                Vec3::new(hull.half_width, step_y, 0.0),
-                ArmorZone::HullSide,
-            ),
-            TaggedPlane::new(
-                Vec3::new(-side_slope.cos(), side_slope.sin(), 0.0),
-                Vec3::new(-hull.half_width, step_y, 0.0),
-                ArmorZone::HullSide,
-            ),
-            TaggedPlane::new(
-                Vec3::new(0.0, rear_sin, -rear_cos),
-                Vec3::new(0.0, step_y, -hull.half_len),
-                ArmorZone::HullRear,
-            ),
-            // The sponson underside: reachable only from below the overhang.
-            TaggedPlane::new(-Vec3::Y, Vec3::new(0.0, step_y, 0.0), ArmorZone::HullSide),
-        ],
+    let mut planes = Vec::with_capacity(8);
+    // A pike nose is TWO glacis planes yawed about the central ridge; a flat bow is one.
+    for yaw_deg in bow_sweeps(hull.pike_sweep_deg) {
+        let normal =
+            Mat3::from_rotation_y(yaw_deg.to_radians()) * Vec3::new(0.0, glacis_sin, glacis_cos);
+        planes.push(TaggedPlane::new(normal, fold, ArmorZone::UpperGlacis));
     }
+    planes.extend([
+        TaggedPlane::new(Vec3::Y, Vec3::new(0.0, hull.deck_y - cy, 0.0), ArmorZone::Roof),
+        TaggedPlane::new(
+            Vec3::new(side_slope.cos(), side_slope.sin(), 0.0),
+            Vec3::new(hull.half_width, step_y, 0.0),
+            ArmorZone::HullSide,
+        ),
+        TaggedPlane::new(
+            Vec3::new(-side_slope.cos(), side_slope.sin(), 0.0),
+            Vec3::new(-hull.half_width, step_y, 0.0),
+            ArmorZone::HullSide,
+        ),
+        TaggedPlane::new(
+            Vec3::new(0.0, rear_sin, -rear_cos),
+            Vec3::new(0.0, step_y, -hull.half_len),
+            ArmorZone::HullRear,
+        ),
+        // The sponson underside: reachable only from below the overhang.
+        TaggedPlane::new(-Vec3::Y, Vec3::new(0.0, step_y, 0.0), ArmorZone::HullSide),
+    ]);
+    ArmorVolume { planes }
+}
+
+/// The bow's plan-view yaws: two swept faces for a pike nose, one flat plate otherwise.
+fn bow_sweeps(pike_sweep_deg: f32) -> Vec<f32> {
+    if pike_sweep_deg > 0.0 { vec![pike_sweep_deg, -pike_sweep_deg] } else { vec![0.0] }
 }
 
 /// The lower hull tub: nose plate, belly, tub sides, lower rear — below the sponson step.
@@ -107,33 +120,34 @@ fn lower_hull(blueprint: &VehicleBlueprint, cy: f32) -> ArmorVolume {
     let step_y = hull.sponson_y - cy;
     let belly_y = hull.belly_y - cy;
     let fold = Vec3::new(0.0, step_y, hull.half_len);
-    ArmorVolume {
-        planes: vec![
-            // The nose rakes back going DOWN: its outward normal tips forward-and-down.
-            TaggedPlane::new(
-                Vec3::new(0.0, -lower_slope.sin(), lower_slope.cos()),
-                fold,
-                ArmorZone::LowerPlate,
-            ),
-            TaggedPlane::new(-Vec3::Y, Vec3::new(0.0, belly_y, 0.0), ArmorZone::LowerPlate),
-            TaggedPlane::new(
-                Vec3::X,
-                Vec3::new(hull.lower_half_width, belly_y, 0.0),
-                ArmorZone::HullSide,
-            ),
-            TaggedPlane::new(
-                -Vec3::X,
-                Vec3::new(-hull.lower_half_width, belly_y, 0.0),
-                ArmorZone::HullSide,
-            ),
-            TaggedPlane::new(
-                Vec3::new(0.0, -rear_sin, -rear_cos),
-                Vec3::new(0.0, step_y, -hull.half_len),
-                ArmorZone::HullRear,
-            ),
-            TaggedPlane::new(Vec3::Y, Vec3::new(0.0, step_y, 0.0), ArmorZone::HullSide),
-        ],
+    let mut planes = Vec::with_capacity(8);
+    // The nose rakes back going DOWN: its outward normal tips forward-and-down. A pike bow
+    // carries its sweep into the lower plates too.
+    for yaw_deg in bow_sweeps(hull.pike_sweep_deg) {
+        let normal = Mat3::from_rotation_y(yaw_deg.to_radians())
+            * Vec3::new(0.0, -lower_slope.sin(), lower_slope.cos());
+        planes.push(TaggedPlane::new(normal, fold, ArmorZone::LowerPlate));
     }
+    planes.extend([
+        TaggedPlane::new(-Vec3::Y, Vec3::new(0.0, belly_y, 0.0), ArmorZone::LowerPlate),
+        TaggedPlane::new(
+            Vec3::X,
+            Vec3::new(hull.lower_half_width, belly_y, 0.0),
+            ArmorZone::HullSide,
+        ),
+        TaggedPlane::new(
+            -Vec3::X,
+            Vec3::new(-hull.lower_half_width, belly_y, 0.0),
+            ArmorZone::HullSide,
+        ),
+        TaggedPlane::new(
+            Vec3::new(0.0, -rear_sin, -rear_cos),
+            Vec3::new(0.0, step_y, -hull.half_len),
+            ArmorZone::HullRear,
+        ),
+        TaggedPlane::new(Vec3::Y, Vec3::new(0.0, step_y, 0.0), ArmorZone::HullSide),
+    ]);
+    ArmorVolume { planes }
 }
 
 /// One track band as its real box from [`crate::TrackShape`]: between the tub and the outer

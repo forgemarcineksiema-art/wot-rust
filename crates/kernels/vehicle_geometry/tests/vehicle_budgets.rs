@@ -73,6 +73,9 @@ fn every_vehicle_bake_hash_matches_golden_output() {
         (VehicleKind::TigerII, 18_008_472_870_257_541_227_u64),
         (VehicleKind::Jagdtiger, 6_582_664_477_001_840_901_u64),
         (VehicleKind::PantherII, 3_367_156_390_789_742_278_u64),
+        // First recording: the IS-3 joins the fleet on the blueprint recipe path (shared family
+        // hull/gear/dome machinery); the existing fleet is untouched.
+        (VehicleKind::IS3, 9_129_945_748_288_983_543_u64),
     ];
     let actual: Vec<(VehicleKind, u64)> =
         bake_all().iter().map(|vehicle| (vehicle.kind(), vehicle.deterministic_hash())).collect();

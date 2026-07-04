@@ -98,6 +98,74 @@ pub(crate) fn t55_loadout() -> VehicleModules {
     }
 }
 
+pub(crate) fn is3_loadout() -> VehicleModules {
+    VehicleModules {
+        hull: HullChassis {
+            name: "IS-3 hull".to_string(),
+            mass_kg: 26_000.0,
+            hit_points: 1_900,
+            front_mm: 110.0,
+            side_mm: 90.0,
+            rear_mm: 60.0,
+            max_forward_speed_mps: 11.1,
+            max_reverse_speed_mps: 3.9,
+        },
+        engine: EngineModule {
+            name: "V-11".to_string(),
+            power_kw: 382.0,
+            mass_kg: 1_700.0,
+            hit_points: 160,
+            fire_chance: 0.12,
+        },
+        suspension: SuspensionModule {
+            name: "IS-3 running gear".to_string(),
+            mass_kg: 4_500.0,
+            hit_points: 180,
+            turn_rate_rad_s: 0.58,
+            max_load_kg: 50_000.0,
+        },
+        turret: TurretModule {
+            name: "IS-3 turret".to_string(),
+            mass_kg: 11_000.0,
+            hit_points: 280,
+            front_mm: 250.0,
+            side_mm: 160.0,
+            rear_mm: 110.0,
+            traverse: TurretTraverse::Rotating { rate_rad_s: 0.36 },
+            view_range_m: 350.0,
+            max_gun_caliber_mm: 130.0,
+        },
+        gun: gun_d25t(),
+        radio: RadioModule {
+            name: "10-RK-26".to_string(),
+            mass_kg: 110.0,
+            hit_points: 50,
+            signal_range_m: 625.0,
+        },
+    }
+}
+
+/// The 122 mm D-25T: the heavy's argument. Slow to load, slow to settle, and it does not care —
+/// one shell carries a medium's two. The role trade against the D-10 line is vertical alpha for
+/// horizontal everything-else: DPM, handling, and shell speed all yield.
+pub(crate) fn gun_d25t() -> GunModule {
+    GunModule {
+        spec: GunSpec {
+            name: "122 mm D-25T".to_string(),
+            reload_seconds: 12.6,
+            dispersion_mrad: 3.4,
+            aim_time_seconds: 3.0,
+            movement_bloom_mrad: 5.6,
+            shot_bloom_mrad: 4.8,
+            max_dispersion_mrad: 20.0,
+            barrel_length_m: 5.5,
+            shell: ShellSpec::armor_piercing(122.0, 795.0, 175.0, 390),
+        },
+        mass_kg: 2_600.0,
+        hit_points: 160,
+    }
+}
+
 pub(crate) fn gun_d10t() -> GunModule {
     GunModule {
         spec: GunSpec {

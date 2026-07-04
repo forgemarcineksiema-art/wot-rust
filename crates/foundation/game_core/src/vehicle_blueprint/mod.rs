@@ -18,8 +18,10 @@ use crate::{HitboxProfile, MountFrame, MountFrames, VehicleKind};
 mod data;
 mod fittings;
 mod hybrid;
+mod is3;
 mod t54_hybrid;
 mod t54_hybrid_turret;
+mod t55a;
 
 pub use fittings::{DetailVisual, FittingsVisual};
 pub use hybrid::{
@@ -47,6 +49,11 @@ pub struct HullShape {
     pub deck_y: f32,
     /// Glacis slope from vertical (degrees) — shared by the visual plate and the armour facet.
     pub glacis_slope_deg: f32,
+    /// Plan-view sweep of a PIKE NOSE (degrees): `0` is a single flat glacis plate; a positive
+    /// sweep splits the bow into two plates yawed `±pike_sweep_deg` about the central ridge —
+    /// the IS-3 "shchuchy nos". The armor volumes bake one plane per pike face, so angling a
+    /// pike-nosed hull genuinely flattens one face toward the shooter.
+    pub pike_sweep_deg: f32,
     pub nose_rise: f32,
     /// Rear plate slope from vertical (degrees).
     pub rear_slope_deg: f32,

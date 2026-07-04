@@ -155,6 +155,40 @@ fn the_dome_cheek_presents_a_steeper_angle_than_the_dome_center() {
 }
 
 #[test]
+fn the_is3_pike_rewards_head_on_and_punishes_angling() {
+    // The pike nose inverts the angling instinct: head-on, a bow face compounds its vertical
+    // slope with the plan sweep; yawing the hull toward the shot FLATTENS the near face until
+    // it presents only its vertical slope. Locks that the two baked pike planes are real.
+    let spec = game_core::VehicleKind::IS3.spec();
+    let head_on_tank =
+        TraceTank::from_spec(TankId(3), Vec3::ZERO, HullPose::level(0.0), 0.0, &spec);
+    let (zone, head_on) = hit(Vec3::new(0.6, 1.2, 10.0), Vec3::new(0.6, 1.2, 0.0), head_on_tank);
+    assert_eq!(zone, ArmorZone::UpperGlacis);
+
+    let sweep = game_core::VehicleBlueprint::for_vehicle(game_core::VehicleKind::IS3)
+        .expect("blueprint")
+        .hull
+        .pike_sweep_deg;
+    // Yawing the hull by the sweep squares the RIGHT pike face to the shot — and swings the
+    // bow leftward, so the face's center now sits near world x ≈ -0.8.
+    let angled_tank = TraceTank::from_spec(
+        TankId(3),
+        Vec3::ZERO,
+        HullPose::level(-sweep.to_radians()),
+        0.0,
+        &spec,
+    );
+    let (zone, angled) = hit(Vec3::new(-0.83, 1.2, 10.0), Vec3::new(-0.83, 1.2, 0.0), angled_tank);
+    assert_eq!(zone, ArmorZone::UpperGlacis);
+    // Head-on the face compounds slope and sweep (~64° true); squared, it presents only its
+    // bare ~56° vertical slope — a ~27% effective-armor loss for the angler.
+    assert!(
+        angled < head_on - 5.0,
+        "turning the pike face square must flatten it: angled {angled}° vs head-on {head_on}°"
+    );
+}
+
+#[test]
 fn a_shell_dropping_on_the_deck_lands_on_the_roof_measured_against_up() {
     // Straight down onto the rear deck, behind the turret: the deck is the hull slab's top face.
     let (zone, angle) = hit(

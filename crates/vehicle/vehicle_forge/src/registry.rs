@@ -38,6 +38,13 @@ pub(crate) fn forge_spec(kind: VehicleKind) -> Option<VehicleForgeSpec> {
         VehicleKind::TigerII => german(crate::tiger_ii_reference_pack),
         VehicleKind::Jagdtiger => german(crate::jagdtiger_reference_pack),
         VehicleKind::PantherII => german(crate::panther_ii_reference_pack),
+        // The IS-3 rides the geometry-derived part graph until its bespoke part table lands
+        // with the visual detail package.
+        VehicleKind::IS3 => VehicleForgeSpec {
+            reference_pack: crate::is3_reference_pack,
+            parts: PartStrategy::BakedGeometry,
+            review_cameras: ReviewCameraSet::standard_vehicle_review,
+        },
         VehicleKind::T55A | VehicleKind::PrototypeMedium => return None,
     };
     Some(spec)

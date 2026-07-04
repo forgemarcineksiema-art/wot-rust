@@ -25,6 +25,7 @@ mod casemate;
 mod chassis;
 mod chassis_blueprint;
 mod german;
+mod is3;
 mod panther;
 mod soviet;
 mod t54;
@@ -61,6 +62,7 @@ fn recipe(kind: VehicleKind, hitbox: &HitboxProfile, mounts: &MountFrames) -> Op
         VehicleKind::TigerII => german::tiger_ii(hitbox, mounts),
         VehicleKind::Jagdtiger => casemate::jagdtiger(hitbox, mounts),
         VehicleKind::PantherII => panther::panther_ii(hitbox, mounts),
+        VehicleKind::IS3 => is3::is3(hitbox, mounts),
     })
 }
 
