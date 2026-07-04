@@ -8,13 +8,6 @@ use super::{
     CameraSubject, collision, zoom,
 };
 
-/// Boom length at (and below) which the over-shoulder offset is fully applied. Up close the
-/// offset keeps the player's own turret out of the sight lane...
-const SHOULDER_FULL_DISTANCE_M: f32 = 4.0;
-/// ...and by this boom length it has fully blended away: at battle distance the camera is
-/// CENTERED on the vehicle — the default view holds the tank, not a lane beside it.
-const SHOULDER_GONE_DISTANCE_M: f32 = 7.0;
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct BattleCameraController {
     settings: BattleCameraSettings,
@@ -24,6 +17,7 @@ pub struct BattleCameraController {
     distance_m: f32,
     sniper_fov_degrees: f32,
     pub(super) smoothing: CameraSmoothing,
+    pub(super) presented: super::present::PresentedCamera,
 }
 
 impl BattleCameraController {
@@ -36,6 +30,7 @@ impl BattleCameraController {
             distance_m: settings.third_person_distance_m,
             sniper_fov_degrees: settings.sniper_fov_degrees,
             smoothing: CameraSmoothing::default(),
+            presented: super::present::PresentedCamera::default(),
         }
     }
 
@@ -130,15 +125,13 @@ impl BattleCameraController {
         let yaw = subject.view_yaw_rad;
         let forward = horizontal_forward(yaw);
         let right = horizontal_right(forward);
-        // The over-shoulder offset shifts the *whole* sight lane (target and eye alike): with the
-        // offset on the eye only, the eye->target direction rotated as the boom length changed,
-        // so every zoom click swung the scene sideways and dragged the aim point with it. The
-        // offset itself is CLOSE-RANGE ONLY: it blends in below SHOULDER_GONE_DISTANCE_M (where
-        // the player's own turret would block the lane); the default battle view is centered.
+        // Any lateral offset shifts the *whole* sight lane (target and eye alike): an eye-only
+        // offset — or a zoom-dependent one — rotates the view with the boom length and drags
+        // the scene sideways on every scroll. The default is CENTERED (offset 0).
         let target = tank
             + Vec3::Y * self.settings.third_person_target_height_m
             + forward * self.settings.third_person_target_forward_offset_m
-            + right * self.settings.third_person_lateral_offset_m * self.shoulder_fraction();
+            + right * self.settings.third_person_lateral_offset_m;
         let horizontal_distance = self.distance_m * self.pitch_rad.cos().max(0.1);
         let vertical_offset = self.distance_m * self.pitch_rad.sin();
         let desired_eye = target - forward * horizontal_distance + Vec3::Y * vertical_offset;
@@ -163,12 +156,11 @@ impl BattleCameraController {
         }
     }
 
-    /// How much of the over-shoulder lateral offset applies at the current boom length: full at
-    /// point-blank booms, zero at battle distance (linear in between).
-    fn shoulder_fraction(&self) -> f32 {
-        ((SHOULDER_GONE_DISTANCE_M - self.distance_m)
-            / (SHOULDER_GONE_DISTANCE_M - SHOULDER_FULL_DISTANCE_M))
-            .clamp(0.0, 1.0)
+    /// Relative magnification of the current sniper step against the default battle view, for
+    /// the HUD's zoom readout; `None` in third person.
+    pub fn zoom_factor(&self) -> Option<f32> {
+        (self.mode == BattleCameraMode::Sniper)
+            .then(|| self.settings.third_person_fov_degrees / self.sniper_fov_degrees.max(0.1))
     }
 }
 

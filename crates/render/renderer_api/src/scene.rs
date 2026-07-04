@@ -48,12 +48,22 @@ impl SceneVertex {
 pub struct FxVertex {
     pub position: [f32; 3],
     pub uv: [f32; 2],
+    /// Edge sharpness: 1.0 is the soft gaussian-ish falloff every particle uses; larger values
+    /// steepen the radial edge toward a hard-edged disc (decal holes, gouges) — one pipeline
+    /// covers glow and stamped marks alike.
+    pub sharpness: f32,
     pub color: [f32; 4],
 }
 
 impl FxVertex {
+    /// A soft quad (sharpness 1.0) — the default for every particle and tracer.
     pub const fn new(position: [f32; 3], uv: [f32; 2], color: [f32; 4]) -> Self {
-        Self { position, uv, color }
+        Self { position, uv, sharpness: 1.0, color }
+    }
+
+    /// A quad with an explicit edge sharpness (decal stamps).
+    pub const fn sharp(position: [f32; 3], uv: [f32; 2], sharpness: f32, color: [f32; 4]) -> Self {
+        Self { position, uv, sharpness, color }
     }
 }
 

@@ -1,4 +1,5 @@
 mod battle_scars;
+mod camera_link;
 #[cfg(test)]
 mod camera_tests;
 #[cfg(test)]

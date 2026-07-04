@@ -11,12 +11,15 @@ use renderer_api::HudVertex;
 
 use super::push_quad;
 use crate::hud::reticle::{PenetrationHint, ReticleStatus};
+use crate::hud::reticle_readouts::HitConfirm;
 
 pub(crate) const RETICLE_NEUTRAL: [f32; 4] = [0.88, 0.90, 0.84, 0.85];
 pub(crate) const RETICLE_PEN: [f32; 4] = [0.35, 0.85, 0.40, 0.92];
 pub(crate) const RETICLE_NO_PEN: [f32; 4] = [0.90, 0.30, 0.25, 0.92];
 /// The BLOCKED form: the shot will not reach the aim point (terrain, ally, gun arc).
-pub(crate) const RETICLE_BLOCKED: [f32; 4] = [0.88, 0.28, 0.22, 0.95];
+/// Desaturated gray on purpose — RED is reserved for "reaches but bounces", so the two states
+/// can never be confused: gray broken = no shot here, red = shot arrives and fails.
+pub(crate) const RETICLE_BLOCKED: [f32; 4] = [0.62, 0.62, 0.58, 0.95];
 /// Continuous dispersion ring — quiet on purpose; it frames, the marker speaks.
 pub(crate) const RETICLE_RING: [f32; 4] = [0.86, 0.90, 0.72, 0.38];
 /// Amber "X" at the shell's real landing point (gravity + collision).
@@ -43,6 +46,11 @@ pub(crate) struct HudReticle {
     pub penetration_hint: Option<PenetrationHint>,
     /// Reload progress in `[0, 1]` (1 = ready). Below 1 the reticle arc shows what remains.
     pub reload_fraction: f32,
+    /// The player's most recent landed hit, if fresh — drawn as confirm ticks at the reticle.
+    pub hit_confirm: Option<HitConfirm>,
+    /// Sniper only: print the pen-vs-armor millimeters under the distance. The marker color
+    /// stays the verdict; the numbers are the WHY, shown where deliberate aiming happens.
+    pub show_penetration_numbers: bool,
 }
 
 /// Draw the aiming overlay: dispersion ring, reload arc, the single center marker, the
@@ -62,13 +70,29 @@ pub(crate) fn push_reticle(vertices: &mut Vec<HudVertex>, reticle: &HudReticle, 
         }
     }
 
-    if let Some(impact_clip) = reticle.impact_clip
-        && impact_is_separated(reticle.aim_clip, impact_clip, aspect)
-    {
-        push_impact_marker(vertices, impact_clip, aspect);
+    // The real-impact X FADES in as it separates from the aim point instead of popping at a
+    // threshold: while settling onto a target the marker dissolves into the crosshair.
+    if let Some(impact_clip) = reticle.impact_clip {
+        let alpha = impact_separation_alpha(reticle.aim_clip, impact_clip, aspect);
+        if alpha > 0.0 {
+            push_impact_marker(vertices, impact_clip, aspect, alpha);
+        }
+    }
+    if let Some(confirm) = reticle.hit_confirm {
+        super::reticle_readouts::push_hit_confirm(vertices, reticle.aim_clip, confirm, aspect);
     }
     if let Some(distance_m) = reticle.target_distance_m {
-        push_target_distance(vertices, reticle.aim_clip, distance_m, aspect);
+        super::reticle_readouts::push_target_distance(
+            vertices,
+            reticle.aim_clip,
+            distance_m,
+            aspect,
+        );
+        if reticle.show_penetration_numbers
+            && let Some(hint) = reticle.penetration_hint
+        {
+            super::reticle_readouts::push_pen_numbers(vertices, reticle.aim_clip, hint, aspect);
+        }
     }
 }
 
@@ -143,15 +167,19 @@ fn push_blocked_marker(vertices: &mut Vec<HudVertex>, center: [f32; 2], aspect: 
     }
 }
 
-/// Whether the impact point is far enough from the aim point to be worth its own marker.
-fn impact_is_separated(aim_clip: [f32; 2], impact_clip: [f32; 2], aspect: f32) -> bool {
+/// Alpha of the impact marker by its separation from the aim: 0 at the merge threshold,
+/// full at twice the threshold — a fade, not a pop.
+fn impact_separation_alpha(aim_clip: [f32; 2], impact_clip: [f32; 2], aspect: f32) -> f32 {
     let dx = (impact_clip[0] - aim_clip[0]) * aspect;
     let dy = impact_clip[1] - aim_clip[1];
-    (dx * dx + dy * dy).sqrt() > IMPACT_SEPARATION_CLIP
+    let separation = (dx * dx + dy * dy).sqrt();
+    ((separation - IMPACT_SEPARATION_CLIP) / IMPACT_SEPARATION_CLIP).clamp(0.0, 1.0)
 }
 
 /// A small amber "X" marking where the shell actually lands.
-fn push_impact_marker(vertices: &mut Vec<HudVertex>, center: [f32; 2], aspect: f32) {
+fn push_impact_marker(vertices: &mut Vec<HudVertex>, center: [f32; 2], aspect: f32, alpha: f32) {
+    let mut color = RETICLE_IMPACT;
+    color[3] *= alpha;
     let reach_x = 0.016 / aspect;
     let reach_y = 0.016;
     for (sx, sy) in [(1.0, 1.0), (1.0, -1.0_f32)] {
@@ -160,41 +188,13 @@ fn push_impact_marker(vertices: &mut Vec<HudVertex>, center: [f32; 2], aspect: f
             [center[0] - reach_x * sx, center[1] - reach_y * sy],
             [center[0] + reach_x * sx, center[1] + reach_y * sy],
             0.0028,
-            RETICLE_IMPACT,
+            color,
         );
     }
 }
 
-fn push_target_distance(
-    vertices: &mut Vec<HudVertex>,
-    aim_clip: [f32; 2],
-    distance_m: f32,
-    aspect: f32,
-) {
-    let right_x = (aim_clip[0] + 0.18).clamp(-0.88, 0.96);
-    let top_y = (aim_clip[1] - 0.055).clamp(-0.70, 0.90);
-    crate::hud::number::push_number(
-        vertices,
-        distance_m.round().clamp(0.0, 9_999.0) as u32,
-        right_x,
-        top_y,
-        0.05,
-        aspect,
-        crate::hud::number::TARGET_DISTANCE_COLOR,
-    );
-    crate::hud::font::push_text(
-        vertices,
-        "M",
-        right_x + 0.006,
-        top_y,
-        0.05,
-        aspect,
-        crate::hud::number::UNIT_COLOR,
-    );
-}
-
 /// A thin quad between two clip-space points (arc segments, impact "X" arms).
-fn push_segment(
+pub(super) fn push_segment(
     vertices: &mut Vec<HudVertex>,
     a: [f32; 2],
     b: [f32; 2],

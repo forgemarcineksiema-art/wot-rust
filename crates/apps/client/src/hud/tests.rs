@@ -26,6 +26,8 @@ fn reticle_at(status: ReticleStatus, hint: Option<super::reticle::PenetrationHin
         status,
         penetration_hint: hint,
         reload_fraction: 1.0,
+        hit_confirm: None,
+        show_penetration_numbers: false,
     }
 }
 
@@ -47,6 +49,7 @@ fn a_blocked_shot_draws_the_broken_red_marker_and_nothing_neutral() {
         Some(reticle_at(ReticleStatus::Blocked, Some(hint(true)))),
         0.0,
         0.0,
+        None,
     );
 
     assert!(hud.iter().any(|vertex| vertex.color == RETICLE_BLOCKED), "blocked form draws");
@@ -62,6 +65,7 @@ fn one_marker_owns_the_center_and_speaks_penetration_by_color() {
         Some(reticle_at(ReticleStatus::Clear, None)),
         0.0,
         0.0,
+        None,
     );
     assert!(neutral.iter().any(|vertex| vertex.color == RETICLE_NEUTRAL));
 
@@ -71,6 +75,7 @@ fn one_marker_owns_the_center_and_speaks_penetration_by_color() {
         Some(reticle_at(ReticleStatus::Clear, Some(hint(true)))),
         0.0,
         0.0,
+        None,
     );
     assert!(pen.iter().any(|vertex| vertex.color == RETICLE_PEN));
     assert!(!pen.iter().any(|vertex| vertex.color == RETICLE_NEUTRAL), "one marker, one color");
@@ -81,6 +86,7 @@ fn one_marker_owns_the_center_and_speaks_penetration_by_color() {
         Some(reticle_at(ReticleStatus::Clear, Some(hint(false)))),
         0.0,
         0.0,
+        None,
     );
     assert!(bounce.iter().any(|vertex| vertex.color == RETICLE_NO_PEN));
 }
@@ -93,6 +99,7 @@ fn the_dispersion_ring_is_continuous_geometry_around_the_aim() {
         Some(HudReticle { aim_radius_clip: 0.10, ..reticle_at(ReticleStatus::Clear, None) }),
         0.0,
         0.0,
+        None,
     );
 
     let ring: Vec<_> = hud.iter().filter(|vertex| vertex.color == RETICLE_RING).collect();
@@ -110,6 +117,7 @@ fn the_reload_arc_drains_at_the_reticle_and_vanishes_when_ready() {
         Some(HudReticle { reload_fraction: 0.25, ..reticle_at(ReticleStatus::Clear, None) }),
         0.0,
         0.0,
+        None,
     );
     let early: Vec<_> = reloading.iter().filter(|v| v.color == RETICLE_RELOAD).collect();
     assert!(!early.is_empty(), "the arc draws while loading");
@@ -120,6 +128,7 @@ fn the_reload_arc_drains_at_the_reticle_and_vanishes_when_ready() {
         Some(HudReticle { reload_fraction: 0.9, ..reticle_at(ReticleStatus::Clear, None) }),
         0.0,
         0.0,
+        None,
     );
     let late = nearly.iter().filter(|v| v.color == RETICLE_RELOAD).count();
     assert!(late < early.len(), "the arc drains as the reload progresses");
@@ -130,6 +139,7 @@ fn the_reload_arc_drains_at_the_reticle_and_vanishes_when_ready() {
         Some(reticle_at(ReticleStatus::Clear, None)),
         0.0,
         0.0,
+        None,
     );
     assert!(
         !ready.iter().any(|v| v.color == RETICLE_RELOAD),
@@ -144,8 +154,8 @@ fn fps_readout_draws_digits_in_the_top_right_only_when_positive() {
 
     // More digits means strictly more segment geometry (same digit isolates digit count
     // from which-segments-are-lit). "8" lights 7 segments; "888" lights 21.
-    let one_digit = build_hud_with_reticle(vitals(), 16.0 / 9.0, None, 8.0, 0.0);
-    let three_digit = build_hud_with_reticle(vitals(), 16.0 / 9.0, None, 888.0, 0.0);
+    let one_digit = build_hud_with_reticle(vitals(), 16.0 / 9.0, None, 8.0, 0.0, None);
+    let three_digit = build_hud_with_reticle(vitals(), 16.0 / 9.0, None, 888.0, 0.0, None);
     let count = |hud: &[HudVertex]| hud.iter().filter(|v| v.color == FPS_COLOR).count();
     assert!(count(&one_digit) > 0, "fps digits should be drawn");
     assert!(count(&three_digit) > count(&one_digit), "888 needs more segments than 8");
@@ -160,10 +170,10 @@ fn fps_readout_draws_digits_in_the_top_right_only_when_positive() {
 
 #[test]
 fn speed_readout_draws_vehicle_speed_in_bottom_left_only_when_moving() {
-    let stopped = build_hud_with_reticle(vitals(), 16.0 / 9.0, None, 0.0, 0.0);
+    let stopped = build_hud_with_reticle(vitals(), 16.0 / 9.0, None, 0.0, 0.0, None);
     assert!(!stopped.iter().any(|vertex| vertex.color == SPEED_COLOR), "0 km/h draws nothing");
 
-    let moving = build_hud_with_reticle(vitals(), 16.0 / 9.0, None, 0.0, 42.0);
+    let moving = build_hud_with_reticle(vitals(), 16.0 / 9.0, None, 0.0, 42.0, None);
     let speed_vertices: Vec<_> =
         moving.iter().filter(|vertex| vertex.color == SPEED_COLOR).collect();
 
@@ -224,6 +234,8 @@ fn reticle_with_impact(aim_clip: [f32; 2], impact_clip: Option<[f32; 2]>) -> Hud
         status: ReticleStatus::Clear,
         penetration_hint: None,
         reload_fraction: 1.0,
+        hit_confirm: None,
+        show_penetration_numbers: false,
     }
 }
 
@@ -237,6 +249,7 @@ fn reticle_marks_the_real_impact_point_when_the_shell_drops_off_the_aim() {
         Some(reticle_with_impact([0.0, 0.0], Some(impact))),
         0.0,
         0.0,
+        None,
     );
 
     let impact_vertices: Vec<_> = hud.iter().filter(|v| v.color == RETICLE_IMPACT).collect();
@@ -256,6 +269,7 @@ fn reticle_omits_the_impact_marker_when_it_sits_on_the_crosshair() {
         Some(reticle_with_impact([0.1, 0.1], Some([0.1, 0.105]))),
         0.0,
         0.0,
+        None,
     );
 
     assert!(
@@ -277,9 +291,12 @@ fn reticle_draws_target_distance_meters_near_aim_marker() {
             status: ReticleStatus::Clear,
             penetration_hint: None,
             reload_fraction: 1.0,
+            hit_confirm: None,
+            show_penetration_numbers: false,
         }),
         0.0,
         0.0,
+        None,
     );
     let distance_vertices: Vec<_> =
         hud.iter().filter(|vertex| vertex.color == TARGET_DISTANCE_COLOR).collect();
@@ -291,4 +308,84 @@ fn reticle_draws_target_distance_meters_near_aim_marker() {
             .all(|v| v.position[0] > -0.05 && v.position[1] < 0.05 && v.position[1] > -0.20),
         "distance digits should sit just below and right of the aim reticle"
     );
+}
+
+#[test]
+fn a_fresh_hit_flares_confirm_ticks_that_a_stale_one_no_longer_draws() {
+    use super::reticle_readouts::HitConfirm;
+
+    let confirm_color = [0.45, 1.0, 0.50, 0.95]; // pen ticks at full life
+    let fresh = build_hud_with_reticle(
+        vitals(),
+        16.0 / 9.0,
+        Some(HudReticle {
+            hit_confirm: Some(HitConfirm { age_s: 0.0, penetrated: true, ricocheted: false }),
+            ..reticle_at(ReticleStatus::Clear, None)
+        }),
+        0.0,
+        0.0,
+        None,
+    );
+    assert!(fresh.iter().any(|v| v.color == confirm_color), "fresh pen hit flares green ticks");
+
+    let stale = build_hud_with_reticle(
+        vitals(),
+        16.0 / 9.0,
+        Some(HudReticle {
+            hit_confirm: Some(HitConfirm { age_s: 10.0, penetrated: true, ricocheted: false }),
+            ..reticle_at(ReticleStatus::Clear, None)
+        }),
+        0.0,
+        0.0,
+        None,
+    );
+    assert!(
+        !stale.iter().any(|v| v.color[1] == confirm_color[1] && v.color[0] == confirm_color[0]),
+        "an aged confirm draws nothing"
+    );
+}
+
+#[test]
+fn pen_numbers_print_only_when_the_sniper_flag_is_set() {
+    let base = HudReticle {
+        target_distance_m: Some(300.0),
+        ..reticle_at(ReticleStatus::Clear, Some(hint(true)))
+    };
+    let arcade = build_hud_with_reticle(vitals(), 16.0 / 9.0, Some(base), 0.0, 0.0, None);
+    let sniper = build_hud_with_reticle(
+        vitals(),
+        16.0 / 9.0,
+        Some(HudReticle { show_penetration_numbers: true, ..base }),
+        0.0,
+        0.0,
+        None,
+    );
+    // The sniper view draws strictly more glyph geometry: pen + armor mm join the readout.
+    assert!(sniper.len() > arcade.len() + 30, "sniper adds the pen/armor mm readout");
+}
+
+#[test]
+fn the_impact_marker_fades_in_near_the_merge_threshold_instead_of_popping() {
+    // Just past the threshold: the X draws, but dimmer than its full-alpha color.
+    let near = build_hud_with_reticle(
+        vitals(),
+        16.0 / 9.0,
+        Some(reticle_with_impact([0.0, 0.0], Some([0.0, 0.030]))),
+        0.0,
+        0.0,
+        None,
+    );
+    let dimmed: Vec<_> = near
+        .iter()
+        .filter(|v| {
+            v.color[0] == RETICLE_IMPACT[0]
+                && v.color[3] > 0.0
+                && v.color[3] < RETICLE_IMPACT[3] - 0.05
+        })
+        .collect();
+    assert!(!dimmed.is_empty(), "near the threshold the X draws at partial alpha");
+
+    let zoom = build_hud_with_reticle(vitals(), 16.0 / 9.0, None, 0.0, 0.0, Some(6.89));
+    let zoom_glyphs = zoom.iter().filter(|v| v.color == number::ZOOM_COLOR).count();
+    assert!(zoom_glyphs > 0, "sniper zoom factor prints under the reticle");
 }

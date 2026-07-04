@@ -38,6 +38,19 @@ impl HitIndicator {
         }));
     }
 
+    /// The freshest own hit still inside the confirm window, echoed as ticks at the reticle.
+    pub(crate) fn recent_confirm(&self) -> Option<crate::hud::reticle_readouts::HitConfirm> {
+        self.entries
+            .iter()
+            .filter(|entry| entry.age < crate::hud::reticle_readouts::HIT_CONFIRM_TTL_S)
+            .min_by(|a, b| a.age.total_cmp(&b.age))
+            .map(|entry| crate::hud::reticle_readouts::HitConfirm {
+                age_s: entry.age,
+                penetrated: entry.penetrated,
+                ricocheted: entry.ricocheted,
+            })
+    }
+
     pub(crate) fn tick(&mut self, dt: f32) {
         for e in &mut self.entries {
             e.age += dt;

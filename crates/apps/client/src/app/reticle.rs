@@ -110,6 +110,9 @@ impl ClientApp {
             status: feedback.status,
             penetration_hint: pen_hint,
             reload_fraction: 1.0 - (reload_remaining / reload_max.max(0.001)).clamp(0.0, 1.0),
+            hit_confirm: self.hit_indicator.recent_confirm(),
+            show_penetration_numbers: self.camera_controller.mode()
+                == crate::BattleCameraMode::Sniper,
         })
     }
 

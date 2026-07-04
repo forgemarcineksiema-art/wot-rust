@@ -9,8 +9,8 @@ pub fn fx_shader_source() -> &'static str {
     include_str!("shaders/fx.wgsl")
 }
 
-const FX_ATTRIBUTES: [wgpu::VertexAttribute; 3] =
-    wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x2, 2 => Float32x4];
+const FX_ATTRIBUTES: [wgpu::VertexAttribute; 4] =
+    wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x2, 2 => Float32, 3 => Float32x4];
 
 /// Premultiplied-alpha blending: `src * 1 + dst * (1 - src.a)`. With premultiplied colors this
 /// one state renders the whole FX range — `alpha = 0` degenerates to pure additive.

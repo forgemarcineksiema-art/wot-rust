@@ -33,7 +33,9 @@ impl Default for BattleCameraSettings {
             third_person_distance_m: 12.0,
             third_person_target_height_m: 2.75,
             third_person_target_forward_offset_m: 4.0,
-            third_person_lateral_offset_m: 1.35,
+            // Centered. A boom-length-dependent shoulder blend was tried and rejected: zooming
+            // swept the whole sight lane sideways (the scene "slid left" on every scroll).
+            third_person_lateral_offset_m: 0.0,
             third_person_pitch_rad: 0.42,
             third_person_fov_degrees: 62.0,
             sniper_fov_degrees: 8.0,

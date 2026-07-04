@@ -101,29 +101,99 @@ pub(crate) fn append_decal_quads(
         }
         let u = u.normalize_or_zero();
         let v = normal.cross(u);
-        // A gouge is the scrape of a departing shell: stretched hard along one plate axis.
-        let (half_u, half_v) = match decal.kind {
-            DecalKind::Gouge => (u * decal.radius * 2.6, v * decal.radius * 0.5),
-            _ => (u * decal.radius, v * decal.radius),
-        };
-        let color = decal_color(decal.kind, opacity);
-        for uv in [[-1.0, -1.0], [1.0, -1.0], [1.0, 1.0], [-1.0, -1.0], [1.0, 1.0], [-1.0, 1.0]] {
-            let position = center + half_u * uv[0] + half_v * uv[1];
-            vertices.push(FxVertex::new(position.to_array(), uv, color));
+        let plate = Plate { center, u, v };
+        match decal.kind {
+            DecalKind::Penetration => push_penetration(vertices, plate, decal, opacity),
+            DecalKind::Scuff => push_scuff(vertices, plate, decal, opacity),
+            DecalKind::Gouge => push_gouge(vertices, plate, decal, opacity),
         }
     }
 }
 
-/// Premultiplied decal colors: a penetration hole is a near-black occluder; scuffs and gouges
-/// are bared, scorched metal that thins out with the decal's fade.
-fn decal_color(kind: DecalKind, opacity: f32) -> [f32; 4] {
-    let (tone, alpha) = match kind {
-        DecalKind::Penetration => ([0.015, 0.013, 0.012], 0.92),
-        DecalKind::Scuff => ([0.16, 0.15, 0.14], 0.60),
-        DecalKind::Gouge => ([0.24, 0.23, 0.22], 0.65),
+/// The oriented plane a decal stamps onto: its center (already lifted off the armor) and the
+/// two in-plane axes.
+#[derive(Clone, Copy)]
+struct Plate {
+    center: Vec3,
+    u: Vec3,
+    v: Vec3,
+}
+
+/// A penetration is three layers, not one blob: a wide SOFT scorch halo (burnt paint), the
+/// hard-edged near-black entry hole, and a fan of bright bare-metal splash streaks — the
+/// signature look of a shaped hole in rolled armor, readable at battle range.
+fn push_penetration(vertices: &mut Vec<FxVertex>, plate: Plate, decal: &HitDecal, opacity: f32) {
+    let r = decal.radius;
+    push_stamp(vertices, plate, r * 2.6, r * 2.6, 0.9, premul([0.05, 0.04, 0.035], 0.45 * opacity));
+    push_stamp(vertices, plate, r, r, 6.0, premul([0.012, 0.011, 0.010], 0.95 * opacity));
+    for (angle, length) in splash_angles(decal.local_position) {
+        let direction = plate.u * angle.cos() + plate.v * angle.sin();
+        let streak = Plate {
+            center: plate.center + direction * (r * 0.7 + length * 0.5),
+            u: direction,
+            v: plate.v.cross(plate.u).cross(direction).normalize_or_zero(),
+        };
+        push_stamp(
+            vertices,
+            streak,
+            length * 0.5,
+            r * 0.14,
+            2.5,
+            premul([0.42, 0.41, 0.38], 0.55 * opacity),
+        );
+    }
+}
+
+/// A non-penetrating smack: a soft smudge of scorched paint around a smaller bared-metal core.
+fn push_scuff(vertices: &mut Vec<FxVertex>, plate: Plate, decal: &HitDecal, opacity: f32) {
+    let r = decal.radius;
+    push_stamp(vertices, plate, r * 1.6, r * 1.6, 0.9, premul([0.10, 0.095, 0.09], 0.45 * opacity));
+    push_stamp(vertices, plate, r * 0.7, r * 0.7, 2.0, premul([0.34, 0.33, 0.31], 0.5 * opacity));
+}
+
+/// A ricochet gouge: a hard bright scrape along the plate inside a soft scorched trail.
+fn push_gouge(vertices: &mut Vec<FxVertex>, plate: Plate, decal: &HitDecal, opacity: f32) {
+    let r = decal.radius;
+    push_stamp(vertices, plate, r * 3.0, r * 0.9, 0.9, premul([0.09, 0.085, 0.08], 0.45 * opacity));
+    push_stamp(vertices, plate, r * 2.6, r * 0.35, 3.0, premul([0.40, 0.39, 0.37], 0.6 * opacity));
+}
+
+/// One oriented quad on the plate with half-extents along its axes and an edge sharpness.
+fn push_stamp(
+    vertices: &mut Vec<FxVertex>,
+    plate: Plate,
+    half_u_m: f32,
+    half_v_m: f32,
+    sharpness: f32,
+    color: [f32; 4],
+) {
+    for uv in [[-1.0, -1.0], [1.0, -1.0], [1.0, 1.0], [-1.0, -1.0], [1.0, 1.0], [-1.0, 1.0]] {
+        let position = plate.center + plate.u * (half_u_m * uv[0]) + plate.v * (half_v_m * uv[1]);
+        vertices.push(FxVertex::sharp(position.to_array(), uv, sharpness, color));
+    }
+}
+
+/// Deterministic splash-streak fan for one hole: angles and lengths hashed from the decal's
+/// local position, so every hole looks individual yet renders identically every frame.
+fn splash_angles(local_position: [f32; 3]) -> [(f32, f32); 5] {
+    let mut seed = local_position.iter().fold(0x9E37_79B9_7F4A_7C15_u64, |acc, component| {
+        acc.wrapping_mul(31).wrapping_add(u64::from(component.to_bits()))
+    });
+    let mut next = || {
+        seed = (seed ^ (seed >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        ((seed >> 40) as f32) / ((1u64 << 24) as f32)
     };
-    let a = alpha * opacity;
-    [tone[0] * a, tone[1] * a, tone[2] * a, a]
+    let mut fan = [(0.0, 0.0); 5];
+    for (index, slot) in fan.iter_mut().enumerate() {
+        let angle = index as f32 / 5.0 * std::f32::consts::TAU + next() * 0.9;
+        let length = 0.14 + next() * 0.16;
+        *slot = (angle, length);
+    }
+    fan
+}
+
+fn premul(tone: [f32; 3], alpha: f32) -> [f32; 4] {
+    [tone[0] * alpha, tone[1] * alpha, tone[2] * alpha, alpha]
 }
 
 /// The shared pose both ingest and render use, so the local frame round-trips exactly. Attitude
@@ -191,12 +261,19 @@ mod tests {
 
         let mut vertices = Vec::new();
         append_decal_quads(&mut vertices, &[decal], &tank);
-        assert_eq!(vertices.len(), 6);
-        let center: Vec3 =
-            vertices.iter().map(|vertex| Vec3::from_array(vertex.position)).sum::<Vec3>() / 6.0;
+        // A penetration is layered: scorch halo + hard hole + 5 splash streaks, 6 verts each.
+        assert_eq!(vertices.len(), 7 * 6);
+        // The HARD-EDGED hole stamp (the sharpest layer) must sit exactly on the hit point.
+        let hole: Vec<Vec3> = vertices
+            .iter()
+            .filter(|vertex| vertex.sharpness >= 5.0)
+            .map(|vertex| Vec3::from_array(vertex.position))
+            .collect();
+        assert_eq!(hole.len(), 6, "exactly one hard hole stamp");
+        let center: Vec3 = hole.iter().copied().sum::<Vec3>() / 6.0;
         assert!(
             center.distance(hit) < DECAL_LIFT_M + 0.02,
-            "the quad sits on the hit point (plus its z-fight lift), got {}",
+            "the hole sits on the hit point (plus its z-fight lift), got {}",
             center.distance(hit)
         );
     }
@@ -258,15 +335,23 @@ mod tests {
         assert_eq!(aged_hole.opacity(), 1.0);
         assert_eq!(aged_scuff.opacity(), 0.0);
 
-        // A gouge renders elongated: its quad's side ratio is a streak, a scuff's is square.
-        let aspect = |decal: &HitDecal| {
+        // A gouge's hard scrape renders elongated; a scuff's hard core stays round. Measure the
+        // SHARPEST stamp of each (UV order: v0->v1 spans the u axis, v1->v2 the v axis).
+        let core_aspect = |decal: &HitDecal| {
             let mut vertices = Vec::new();
             append_decal_quads(&mut vertices, std::slice::from_ref(decal), &tank);
-            let at = |i: usize| Vec3::from_array(vertices[i].position);
-            // UV order: v0->v1 spans the u axis, v1->v2 the v axis.
+            let sharpest = vertices
+                .chunks(6)
+                .max_by(|a, b| a[0].sharpness.total_cmp(&b[0].sharpness))
+                .expect("stamps exist");
+            let at = |i: usize| Vec3::from_array(sharpest[i].position);
             at(0).distance(at(1)) / at(1).distance(at(2)).max(1.0e-6)
         };
-        assert!(aspect(&gouge) > 3.0, "gouge stretches along the plate, got {}", aspect(&gouge));
-        assert!(aspect(&scuff) < 1.5, "scuff stays round, got {}", aspect(&scuff));
+        assert!(
+            core_aspect(&gouge) > 3.0,
+            "gouge scrapes along the plate, got {}",
+            core_aspect(&gouge)
+        );
+        assert!(core_aspect(&scuff) < 1.5, "scuff stays round, got {}", core_aspect(&scuff));
     }
 }

@@ -111,25 +111,29 @@ fn third_person_camera_follows_the_hull_rigidly_without_lag() {
 }
 
 #[test]
-fn the_over_shoulder_lane_exists_only_up_close_and_rotates_with_the_view() {
+fn the_camera_stays_centered_at_every_boom_length_so_zoom_cannot_slide_the_view() {
     let environment = BattleCameraEnvironment::empty();
     let subject = CameraSubject::from_snapshot(tank_snapshot([0.0, 0.0, 0.0], 0.0, FRAC_PI_2), 0.0);
     let mut camera = BattleCameraController::new(BattleCameraSettings::default());
     camera.set_mode(BattleCameraMode::ThirdPerson);
 
-    // Default battle boom: centered — the target still leads the turret, but no side lane.
+    // Scroll the boom through its whole range: the lateral placement must not move — a
+    // zoom-dependent offset swept the scene sideways on every scroll (the "slides left" bug).
     let far = camera.render_camera(&subject, &environment);
     assert!(far.target[0] > subject.position[0] + 3.0, "TPP target leads the current turret");
-    assert!(far.eye[2].abs() < 0.05, "no over-shoulder lane at battle distance");
-
-    // Zoomed to the shortest boom: the shoulder blends in fully and rotates with the view
-    // (view yaw FRAC_PI_2 puts the lane's `right` on -Z).
-    camera.apply_input(BattleCameraInput { zoom_delta_m: -100.0, ..Default::default() });
-    let near = camera.render_camera(&subject, &environment);
-    assert!(
-        near.eye[2].abs() > 0.5,
-        "point-blank boom uses the over-shoulder lane to clear the player's own turret"
-    );
+    for _ in 0..24 {
+        camera.apply_input(BattleCameraInput { zoom_delta_m: -0.8, ..Default::default() });
+        let stepped = camera.render_camera(&subject, &environment);
+        if camera.mode() != BattleCameraMode::ThirdPerson {
+            break;
+        }
+        assert!(
+            (stepped.eye[2] - far.eye[2]).abs() < 1.0e-4,
+            "zooming must not slide the view sideways, drifted {}",
+            (stepped.eye[2] - far.eye[2]).abs()
+        );
+        assert!(stepped.target[2].abs() < 1.0e-4, "the sight lane stays centered on the hull");
+    }
 }
 
 #[test]

@@ -172,3 +172,66 @@ fn sniper_eye_rides_the_hull_attitude_and_damps_only_the_vertical_jolt() {
         before + 0.3
     );
 }
+
+#[test]
+fn switching_modes_travels_the_view_instead_of_teleporting_it() {
+    let heightmap = HeightMap::flat(64, 64, 1.0, 0.0).expect("heightmap");
+    let environment = BattleCameraEnvironment::with_terrain(&heightmap);
+    let subject = CameraSubject::from_snapshot(tank_snapshot([20.0, 0.0, 20.0], 0.0, 0.0), 0.0);
+    let mut camera = BattleCameraController::new(BattleCameraSettings::default());
+    camera.advance([20.0, 0.0, 20.0], 1.0 / 60.0);
+    let tpp = camera.present(&subject, &environment, 1.0 / 60.0);
+
+    camera.set_mode(BattleCameraMode::Sniper);
+    // One frame in: the presented FOV has left TPP but not yet reached the sniper step.
+    let mid = camera.present(&subject, &environment, 1.0 / 60.0);
+    let sniper_fov = camera.sniper_fov_degrees();
+    assert!(mid.vertical_fov_degrees < tpp.vertical_fov_degrees - 1.0, "the blend departs");
+    assert!(mid.vertical_fov_degrees > sniper_fov + 1.0, "and has not yet arrived");
+
+    // A quarter second later the transition is over and the sniper camera is exact.
+    let mut settled = mid;
+    for _ in 0..15 {
+        settled = camera.present(&subject, &environment, 1.0 / 60.0);
+    }
+    assert!((settled.vertical_fov_degrees - sniper_fov).abs() < 1.0e-3);
+
+    // The LOGICAL camera never blends: aiming reads the destination immediately.
+    let logical = camera.render_camera(&subject, &environment);
+    assert_eq!(logical.vertical_fov_degrees, sniper_fov);
+}
+
+#[test]
+fn the_boom_snaps_shorter_at_a_wall_and_recovers_smoothly_past_it() {
+    let heightmap = HeightMap::flat(64, 64, 1.0, 0.0).expect("heightmap");
+    let mut environment = BattleCameraEnvironment::with_terrain(&heightmap);
+    let subject = CameraSubject::from_snapshot(tank_snapshot([20.0, 0.0, 20.0], 0.0, 0.0), 0.0);
+    let mut camera = BattleCameraController::new(BattleCameraSettings::default());
+    camera.advance([20.0, 0.0, 20.0], 1.0 / 60.0);
+    let open = camera.present(&subject, &environment, 1.0 / 60.0);
+    let target = glam::Vec3::from_array(open.target);
+    let open_boom = (glam::Vec3::from_array(open.eye) - target).length();
+
+    // A wall drops behind the tank: the boom must shorten THIS frame (never clip)...
+    environment.add_obstacle(client::CameraObstacle::aabb(
+        "wall",
+        [20.0, 5.0, 16.0],
+        [6.0, 8.0, 0.6],
+    ));
+    let blocked = camera.present(&subject, &environment, 1.0 / 60.0);
+    let blocked_boom = (glam::Vec3::from_array(blocked.eye) - target).length();
+    assert!(blocked_boom < open_boom - 2.0, "the boom shortens instantly at the wall");
+
+    // ...and once the wall is gone it eases back out instead of popping.
+    let environment = BattleCameraEnvironment::with_terrain(&heightmap);
+    let first = camera.present(&subject, &environment, 1.0 / 60.0);
+    let first_boom = (glam::Vec3::from_array(first.eye) - target).length();
+    assert!(first_boom > blocked_boom + 0.05, "recovery starts");
+    assert!(first_boom < open_boom - 1.0, "but takes visible time, no pop");
+    let mut last = first;
+    for _ in 0..90 {
+        last = camera.present(&subject, &environment, 1.0 / 60.0);
+    }
+    let final_boom = (glam::Vec3::from_array(last.eye) - target).length();
+    assert!((final_boom - open_boom).abs() < 0.05, "the boom fully recovers");
+}

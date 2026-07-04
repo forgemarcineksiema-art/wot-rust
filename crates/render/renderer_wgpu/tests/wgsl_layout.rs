@@ -49,12 +49,15 @@ fn fx_shader_is_valid_wgsl_and_shares_the_scene_camera_slot() {
 
 #[test]
 fn fx_vertex_is_plain_old_data_matching_the_fx_attribute_layout() {
-    // position (12) + uv (8) + premultiplied color (16) = 36 bytes, zero padding — the WGSL
-    // vertex_attr_array in fx_pipeline.rs assumes this exact packing.
-    assert_eq!(core::mem::size_of::<FxVertex>(), 36);
+    // position (12) + uv (8) + sharpness (4) + premultiplied color (16) = 40 bytes, zero
+    // padding — the WGSL vertex_attr_array in fx_pipeline.rs assumes this exact packing.
+    assert_eq!(core::mem::size_of::<FxVertex>(), 40);
     let vertex = FxVertex::new([1.0, 2.0, 3.0], [-1.0, 1.0], [0.5, 0.4, 0.3, 0.2]);
-    let bytes: &[u8] = bytemuck::bytes_of(&vertex);
-    assert_eq!(bytes.len(), 36);
+    assert_eq!(vertex.sharpness, 1.0, "plain particles stay soft");
+    let stamped = FxVertex::sharp([0.0; 3], [0.0, 0.0], 6.0, [0.1; 4]);
+    assert_eq!(stamped.sharpness, 6.0);
+    let bytes: &[u8] = bytemuck::bytes_of(&stamped);
+    assert_eq!(bytes.len(), 40);
 }
 
 #[test]

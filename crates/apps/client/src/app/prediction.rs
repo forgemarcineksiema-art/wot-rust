@@ -216,13 +216,8 @@ mod tests {
         let mut app = ClientApp::new();
         app.confirm_garage_selection();
         app.seed_prediction();
-        // Zoom to the shortest boom: the over-shoulder lane is CLOSE-RANGE ONLY now (the
-        // default battle view is centered), and close range is exactly where a turret running
-        // parallel to the camera missed worst.
-        app.camera_controller
-            .apply_input(crate::BattleCameraInput { zoom_delta_m: -100.0, ..Default::default() });
 
-        // Let the turret-tracking loop settle against the over-shoulder sight lane.
+        // Let the turret-tracking loop settle against the sight lane.
         for _ in 0..300 {
             app.run_fixed_ticks(1);
         }
@@ -234,16 +229,12 @@ mod tests {
             "settled turret should hold the sight point, got {command}"
         );
 
-        // The convergence target is the muzzle->sight bearing. The over-shoulder camera offset bends
-        // that bearing off the raw camera/orbit yaw; a turret that merely ran parallel to the camera
-        // (the old behavior) would land the shell beside the crosshair — worst at close range.
+        // The convergence target is the muzzle->sight bearing (with the camera centered the
+        // bearing sits near the camera yaw, but the mechanism converges on the SIGHT POINT —
+        // the target-forward offset still separates the two paths).
         let bearing = app.desired_turret_yaw().expect("sight point resolves to a bearing");
-        assert!(
-            shortest_angle(bearing - app.desired_aim.yaw_rad()).abs() > 1.0e-2,
-            "over-shoulder offset must bend the gun bearing off the raw camera yaw"
-        );
 
-        // And the settled turret actually points along that bearing (world space).
+        // The settled turret actually points along that bearing (world space).
         let settled_world_yaw = app.predictor.yaw() + app.predictor.turret_yaw();
         assert!(
             shortest_angle(settled_world_yaw - bearing).abs() < 2.0e-2,

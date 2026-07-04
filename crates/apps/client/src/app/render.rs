@@ -2,9 +2,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use net::TankSnapshot;
-use renderer_api::{
-    Camera, CameraProjectionPolicy, RenderError, RenderFrame, view_projection_matrix,
-};
+use renderer_api::{CameraProjectionPolicy, RenderError, RenderFrame, view_projection_matrix};
 use renderer_wgpu::WindowRenderer;
 use sim::DEFAULT_SNAPSHOT_HZ;
 use tracing::error;
@@ -12,10 +10,7 @@ use winit::window::Window;
 
 use super::{ClientApp, SceneKind};
 use crate::hud::{HudVitals, build_hud_with_reticle};
-use crate::{
-    BattleCameraEnvironment, CameraSubject, battlefield_scene_mesh,
-    split_pbr_vehicle_render_frame_on_terrain,
-};
+use crate::{battlefield_scene_mesh, split_pbr_vehicle_render_frame_on_terrain};
 
 const SNAPSHOT_INTERVAL_SECONDS: f32 = 1.0 / DEFAULT_SNAPSHOT_HZ as f32;
 
@@ -68,7 +63,7 @@ impl ClientApp {
         if let Some(local) = self.interpolated_local_tank(alpha) {
             self.camera_controller.advance(local.position, raw_dt);
         }
-        let Some(camera) = self.camera_for_player_interpolated(alpha) else {
+        let Some(camera) = self.presented_camera_for_player(alpha, raw_dt) else {
             return;
         };
         let aspect = self.renderer.as_ref().map_or(16.0 / 9.0, WindowRenderer::aspect_ratio);
@@ -112,6 +107,7 @@ impl ClientApp {
             self.hud_reticle(&camera, view_proj),
             self.fps_estimate,
             self.player_speed_kmh(),
+            self.camera_controller.zoom_factor(),
         );
         hud.extend(enemy_bars);
         hud.extend(self.hit_indicator.render_vertices(view_proj, aspect));
@@ -168,31 +164,6 @@ impl ClientApp {
         } else {
             tanks
         }
-    }
-
-    /// Render camera from the interpolated hull pose: rigid follow, no eye spring, no lag.
-    fn camera_for_player_interpolated(&self, alpha: f32) -> Option<Camera> {
-        Some(self.camera_from_tank(self.interpolated_local_tank(alpha)?))
-    }
-
-    pub(super) fn camera_from_tank(&self, tank: TankSnapshot) -> Camera {
-        let gun_pitch = tank.gun_pitch_rad;
-        let turret_view_yaw = tank.yaw_rad + tank.turret_yaw_rad;
-        let view_yaw = if self.input.free_look {
-            self.camera_controller.orbit_yaw_rad()
-        } else if self.camera_controller.mode() == crate::BattleCameraMode::ThirdPerson {
-            self.desired_aim.yaw_rad()
-        } else {
-            turret_view_yaw
-        };
-        let subject = CameraSubject::from_snapshot(tank, gun_pitch)
-            .with_view_yaw(view_yaw)
-            .with_desired_aim(self.desired_aim.yaw_rad(), self.desired_aim.pitch_rad());
-        let environment = BattleCameraEnvironment::with_obstacles(
-            &self.battlefield.heightmap,
-            &self.camera_obstacles,
-        );
-        self.camera_controller.render_camera(&subject, &environment)
     }
 
     /// This frame's full FX batch: the ticked particle pool plus a tracer per in-flight shell
