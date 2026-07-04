@@ -1,9 +1,9 @@
-use renderer_api::{BindGroupRole, VehicleVertex, baseline_bind_group_layout};
+use renderer_api::{BindGroupRole, FxVertex, VehicleVertex, baseline_bind_group_layout};
 use renderer_wgpu::{
     CameraUniform, GpuContext, TankVertex, basic_tank_shader_source,
     build_shadow_bind_group_layout, build_vehicle_pipeline, encode_camera_uniform,
-    scene_shader_source, shadow_shader_source, tank_vertex_bytes, validate_wgsl_shader,
-    vehicle_shader_source,
+    fx_shader_source, scene_shader_source, shadow_shader_source, tank_vertex_bytes,
+    validate_wgsl_shader, vehicle_shader_source,
 };
 
 #[test]
@@ -34,6 +34,30 @@ fn scene_shader_is_valid_wgsl_with_tint_inputs() {
 
     assert!(report.entry_points.iter().any(|entry| entry == "vs_main"));
     assert!(report.entry_points.iter().any(|entry| entry == "fs_main"));
+}
+
+#[test]
+fn fx_shader_is_valid_wgsl_and_shares_the_scene_camera_slot() {
+    let report = validate_wgsl_shader("fx", fx_shader_source()).expect("fx shader validates");
+
+    assert!(report.entry_points.iter().any(|entry| entry == "vs_main"));
+    assert!(report.entry_points.iter().any(|entry| entry == "fs_main"));
+    // The FX pipeline reuses the scene camera bind group, so its uniform must sit at the same
+    // slot the scene pipeline binds (group 0, binding 0).
+    assert!(report.has_uniform_binding("camera", 0, 0));
+}
+
+#[test]
+fn fx_vertex_is_plain_old_data_matching_the_fx_attribute_layout() {
+    // position (12) + uv (8) + sharpness (4) + premultiplied color (16) = 40 bytes, zero
+    // padding — the WGSL vertex_attr_array in fx_pipeline.rs assumes this exact packing.
+    assert_eq!(core::mem::size_of::<FxVertex>(), 40);
+    let vertex = FxVertex::new([1.0, 2.0, 3.0], [-1.0, 1.0], [0.5, 0.4, 0.3, 0.2]);
+    assert_eq!(vertex.sharpness, 1.0, "plain particles stay soft");
+    let stamped = FxVertex::sharp([0.0; 3], [0.0, 0.0], 6.0, [0.1; 4]);
+    assert_eq!(stamped.sharpness, 6.0);
+    let bytes: &[u8] = bytemuck::bytes_of(&stamped);
+    assert_eq!(bytes.len(), 40);
 }
 
 #[test]

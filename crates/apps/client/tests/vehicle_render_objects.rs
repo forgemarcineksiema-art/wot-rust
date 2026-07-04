@@ -9,11 +9,12 @@ const SG_RING: SmoothingGroup = SmoothingGroup(7);
 /// Render objects for one T-55A: hull/turret/gun plus the animated running gear.
 fn t55_object_count() -> usize {
     let kin = RunningGearKinematics::for_vehicle(VehicleKind::T55A).expect("T-55A gear");
-    3 + kin.wheel_zs.len() * 2 + 4 + kin.link_count() * 2
+    3 + kin.wheel_zs.len() * 2 * 2 + 4 + kin.link_count() * 2
 }
 
-/// Cached meshes for one blueprint vehicle: hull/turret/gun plus four unit gear meshes.
-const BLUEPRINT_MESH_COUNT: usize = 7;
+/// Cached meshes for one blueprint vehicle: hull/turret/gun plus five unit gear meshes
+/// (road wheel, swing arm, sprocket, idler, track link).
+const BLUEPRINT_MESH_COUNT: usize = 8;
 
 /// Drift lock between the two render paths: the dynamic per-vertex mesh build and the cached
 /// instanced objects must place every vertex identically for the same snapshot — including a

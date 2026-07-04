@@ -2,8 +2,8 @@ use std::fs::File;
 use std::io::BufWriter;
 
 use client::{
-    BattleCameraController, BattleCameraEnvironment, CameraSubject, HudVitals,
-    append_shell_markers, append_tank_mesh, battlefield_scene_mesh, build_hud,
+    BattleCameraController, BattleCameraEnvironment, CameraSubject, HudVitals, append_tank_mesh,
+    battlefield_scene_mesh, build_hud, shell_tracer_vertices,
 };
 use net::ClientInputCommand;
 use renderer_api::view_projection_matrix;
@@ -60,7 +60,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let color = if tank.tank_id == player { [0.30, 0.40, 0.28] } else { [0.46, 0.29, 0.25] };
         append_tank_mesh(&mut vertices, &mut indices, tank, color);
     }
-    append_shell_markers(&mut vertices, &mut indices, &snapshot.shells);
 
     let ctx = GpuContext::headless()?;
     let target = OffscreenTarget::new(&ctx, width, height)?;
@@ -68,6 +67,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (font_w, font_h, font_coverage) = client::hud_font_atlas();
     renderer.set_hud_font_atlas(&ctx, font_w, font_h, font_coverage);
     renderer.set_dynamic_mesh(&ctx, &vertices, &indices);
+    // The in-flight shell draws as an additive tracer streak through the FX pass, exactly like
+    // the live client — this exercises the offscreen FX path end to end.
+    renderer.set_fx(&ctx, &shell_tracer_vertices(&snapshot.shells, camera.eye));
     let player_spec = player_tank.vehicle.spec();
     let hud = build_hud(
         HudVitals {

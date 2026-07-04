@@ -1,5 +1,5 @@
 use renderer_api::{
-    HudVertex, MaterialHandle, MeshAsset, MeshHandle, RenderFrame, SceneVertex,
+    FxVertex, HudVertex, MaterialHandle, MeshAsset, MeshHandle, RenderFrame, SceneVertex,
     VehicleMaterialFamilies, VehicleMeshAsset,
 };
 
@@ -67,6 +67,17 @@ impl super::SceneRenderer {
         ctx.queue.write_buffer(&self.vehicle_instances, 0, bytes);
         self.vehicle_instance_count = instances.len() as u32;
         self.vehicle_draws = draws;
+    }
+
+    /// Upload this frame's battle-FX quads (already world-space, premultiplied colors). Oversized
+    /// uploads are dropped whole, like every other per-frame buffer here.
+    pub fn set_fx(&mut self, ctx: &GpuContext, vertices: &[FxVertex]) {
+        let bytes: &[u8] = bytemuck::cast_slice(vertices);
+        if bytes.len() as u64 > super::FX_VERTEX_CAPACITY {
+            return;
+        }
+        ctx.queue.write_buffer(&self.fx_vertices, 0, bytes);
+        self.fx_vertex_count = vertices.len() as u32;
     }
 
     pub fn set_hud(&mut self, ctx: &GpuContext, vertices: &[HudVertex]) {

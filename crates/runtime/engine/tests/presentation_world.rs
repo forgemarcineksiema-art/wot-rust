@@ -161,3 +161,68 @@ fn a_thrown_left_track_seats_the_hull_toward_the_dead_side() {
         tank.attitude_roll_rad
     );
 }
+
+#[test]
+fn a_fire_event_throws_the_barrel_back_and_the_spring_returns_it_to_battery() {
+    let mut world = PresentationWorld::default();
+    world.advance_time(1.0 / 60.0);
+    world.sync_tanks(&[snapshot(1, [0.0, 0.0, 0.0], 900)]);
+
+    world.apply_fire_recoil(TankId(1), 0.0);
+
+    // The stroke grows over the first frames, peaks visibly, then returns to battery.
+    let mut peak = 0.0_f32;
+    let mut settled = 0.0_f32;
+    for frame in 0..90 {
+        world.advance_time(1.0 / 60.0);
+        world.sync_tanks(&[snapshot(1, [0.0, 0.0, 0.0], 900)]);
+        let recoil = world.presentation_tanks()[0].gun_recoil_m;
+        peak = peak.max(recoil);
+        if frame == 89 {
+            settled = recoil;
+        }
+    }
+    assert!(peak > 0.15, "the stroke must be visible over the fender line, got {peak}");
+    assert!(peak < 0.6, "the stroke stays a recoil, not an ejection, got {peak}");
+    assert!(settled < 0.02, "back in battery within 1.5 s, got {settled}");
+}
+
+#[test]
+fn firing_over_the_bow_pitches_the_hull_and_over_the_side_rolls_it() {
+    let dt = 1.0 / 60.0;
+    let run = |turret_yaw: f32| {
+        let mut world = PresentationWorld::default();
+        world.advance_time(dt);
+        world.sync_tanks(&[snapshot(1, [0.0, 0.0, 0.0], 900)]);
+        // Let the attitude spring seed and settle level first.
+        for _ in 0..120 {
+            world.advance_time(dt);
+            world.sync_tanks(&[snapshot(1, [0.0, 0.0, 0.0], 900)]);
+        }
+        world.apply_fire_recoil(TankId(1), turret_yaw);
+        let (mut max_pitch, mut max_roll) = (0.0_f32, 0.0_f32);
+        for _ in 0..60 {
+            world.advance_time(dt);
+            world.sync_tanks(&[snapshot(1, [0.0, 0.0, 0.0], 900)]);
+            let tank = world.presentation_tanks()[0];
+            max_pitch = max_pitch.max(tank.attitude_pitch_rad.abs());
+            max_roll = max_roll.max(tank.attitude_roll_rad.abs());
+        }
+        (max_pitch, max_roll)
+    };
+
+    let (bow_pitch, bow_roll) = run(0.0);
+    assert!(bow_pitch > 0.005, "a bow shot visibly rocks the hull in pitch, got {bow_pitch}");
+    assert!(bow_roll < bow_pitch * 0.2, "a bow shot barely rolls, got {bow_roll}");
+
+    let (side_pitch, side_roll) = run(std::f32::consts::FRAC_PI_2);
+    assert!(side_roll > 0.005, "a side shot visibly rolls the hull, got {side_roll}");
+    assert!(side_pitch < side_roll * 0.2, "a side shot barely pitches, got {side_pitch}");
+}
+
+#[test]
+fn a_fire_event_for_an_unknown_tank_is_dropped_quietly() {
+    let mut world = PresentationWorld::default();
+    world.apply_fire_recoil(TankId(42), 0.0);
+    assert_eq!(world.tank_count(), 0);
+}

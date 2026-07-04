@@ -89,13 +89,20 @@ fn feedback_from_outcome(
     let actual_impact_world_point = outcome.impact_point();
     // The arc is the simulation's gun arc, not a client-side copy that could drift from it.
     let in_arc = (sim::MIN_GUN_PITCH_RAD..=sim::MAX_GUN_PITCH_RAD).contains(&target_pitch);
-    let status = if in_arc
-        && terrain_line_clear(query.heightmap, query.muzzle, query.aim)
-        && actual_impact_world_point.distance(query.aim) <= RETICLE_MATCH_TOLERANCE_M
+    // BLOCKED means something *stops* the shell short of the aim point: the gun cannot elevate
+    // there, the sight line dives into terrain, or the trace died on an obstacle away from the
+    // aim. An open-sky shot (the trace simply expires in flight with nothing hit) is NOT
+    // blocked — flagging the whole horizon red taught players to ignore the signal entirely.
+    let intercepted =
+        matches!(outcome, sim::TraceOutcome::Obstacle { .. } | sim::TraceOutcome::Tank { .. })
+            && actual_impact_world_point.distance(query.aim) > RETICLE_MATCH_TOLERANCE_M;
+    let status = if !in_arc
+        || intercepted
+        || !terrain_line_clear(query.heightmap, query.muzzle, query.aim)
     {
-        ReticleStatus::Clear
-    } else {
         ReticleStatus::Blocked
+    } else {
+        ReticleStatus::Clear
     };
     let distance = query.aim.distance(query.muzzle).max(1.0);
     let gun_world_point = query.muzzle + query.gun_direction.normalize_or_zero() * distance;

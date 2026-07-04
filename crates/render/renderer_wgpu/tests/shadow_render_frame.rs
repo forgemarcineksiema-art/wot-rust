@@ -106,6 +106,9 @@ fn the_sun_shadow_darkens_the_ground_under_an_occluder() {
         .filter(|(a, b)| luma(b) - luma(a) > 18.0)
         .count();
 
-    assert!(darkened > 15, "the sun shadow must darken a ground patch under the occluder ({darkened} px)");
+    assert!(
+        darkened > 15,
+        "the sun shadow must darken a ground patch under the occluder ({darkened} px)"
+    );
     assert!(brightened < 5, "shadows only darken; got {brightened} brightened px");
 }

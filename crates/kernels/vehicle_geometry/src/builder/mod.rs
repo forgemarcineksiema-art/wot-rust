@@ -79,7 +79,6 @@ impl MeshBuilder {
         }
         self.indices.extend_from_slice(&[base, base + 1, base + 2]);
     }
-
 }
 
 fn triangle_normal(a: Vec3, b: Vec3, c: Vec3) -> Vec3 {

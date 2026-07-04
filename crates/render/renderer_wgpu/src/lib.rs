@@ -1,3 +1,4 @@
+mod fx_pipeline;
 mod gpu_context;
 mod gpu_diagnostics;
 mod gpu_layout;
@@ -24,6 +25,7 @@ use renderer_api::{
     RenderLimitsSummary, TextureCompressionSupport,
 };
 
+pub use fx_pipeline::fx_shader_source;
 pub use gpu_context::GpuContext;
 pub use gpu_diagnostics::{GpuErrorPolicy, WgpuLabelPolicy};
 pub use gpu_layout::{

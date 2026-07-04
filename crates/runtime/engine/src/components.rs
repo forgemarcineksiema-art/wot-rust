@@ -104,6 +104,41 @@ impl TrackAnimation {
     }
 }
 
+/// Render-only gun recoil: firing throws the barrel back along its axis and a critically damped
+/// spring runs it back into battery. Like [`TrackAnimation`] this is presentation state derived
+/// from replicated events — it never leaves the presentation world and is kept out of the
+/// snapshot sync bundle so it persists across frames.
+#[derive(Debug, Clone, Copy, PartialEq, Default, Component)]
+pub struct GunRecoil {
+    /// Meters the barrel currently sits back from battery (>= 0).
+    pub offset_m: f32,
+    velocity_mps: f32,
+}
+
+/// Recoil spring frequency (rad/s): back in ~50 ms, returned to battery in ~a third of a second —
+/// the long-recoil cycle of a mid-century high-pressure gun, readable at battle camera range.
+const RECOIL_OMEGA: f32 = 14.0;
+/// Rearward barrel speed injected per shot (m/s). With critical damping the stroke peaks at
+/// `v0 / (omega * e)` ≈ 0.32 m — right for a D-10T-class recoil visible over the fender line.
+const RECOIL_IMPULSE_MPS: f32 = 12.0;
+
+impl GunRecoil {
+    /// One shot: throw the barrel rearward. Stacks (a fast autoloader keeps it dancing) but the
+    /// spring's stroke stays bounded by the clamp in [`GunRecoil::step`].
+    pub fn kick(&mut self) {
+        self.velocity_mps += RECOIL_IMPULSE_MPS;
+    }
+
+    /// Advance the recoil spring one presented frame (critically damped return to battery).
+    pub fn step(&mut self, dt: f32) {
+        let dt = dt.clamp(0.0, 0.05);
+        let accel =
+            -RECOIL_OMEGA * RECOIL_OMEGA * self.offset_m - 2.0 * RECOIL_OMEGA * self.velocity_mps;
+        self.velocity_mps += accel * dt;
+        self.offset_m = (self.offset_m + self.velocity_mps * dt).clamp(0.0, 0.6);
+    }
+}
+
 /// Flat view of a presentation entity handed to the renderer and HUD. The render path reads this
 /// instead of `net::TankSnapshot`, so the persistent ECS — not the raw snapshot buffer — is the
 /// presentation source of truth.
@@ -131,4 +166,6 @@ pub struct PresentationTank {
     pub attitude_heave_m: f32,
     /// Filtered longitudinal acceleration (m/s^2) - the render-side track-tension cue.
     pub accel_long_mps2: f32,
+    /// Meters the barrel sits back from battery this frame (render-side recoil animation).
+    pub gun_recoil_m: f32,
 }

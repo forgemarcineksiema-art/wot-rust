@@ -1,14 +1,15 @@
 use std::collections::HashMap;
 
 use bevy_ecs::prelude::*;
-use game_core::{HitboxProfile, ModuleSlot, TankId, TrackDamageMask};
+use game_core::{HitboxProfile, TankId, TrackDamageMask};
 use net::TankSnapshot;
 
-use crate::attitude::{AttitudeSample, HullAttitude};
+use crate::attitude::HullAttitude;
 use crate::components::{
-    DestroyedModules, GunPitch, Health, ModuleHitPoints, PresentationTank, RenderTransform,
-    TankEntity, Team, Time, TrackAnimation, TrackDamage, TurretYaw, Vehicle,
+    DestroyedModules, GunPitch, GunRecoil, Health, ModuleHitPoints, PresentationTank,
+    RenderTransform, TankEntity, Team, Time, TrackAnimation, TrackDamage, TurretYaw, Vehicle,
 };
+use crate::sync_cues::{attitude_sample, suspension_pool_fraction};
 
 /// Persistent client presentation world: a `bevy_ecs` world of presentation entities projected
 /// from the snapshot buffer. The renderer and HUD read this, not `net::TankSnapshot` directly.
@@ -70,16 +71,9 @@ impl PresentationWorld {
             // persists and accumulates rather than resetting each frame.
             let hitbox = HitboxProfile::for_vehicle(tank.vehicle);
             let half_gauge = hitbox.half_width_m;
-            // The spring's base is the AUTHORITATIVE support-plane attitude replicated in the
-            // snapshot (protocol v14): the spring smooths the 20 Hz steps and layers the
-            // weight-transfer theatrics on top — it no longer re-derives terrain itself. A
-            // thrown track seats the hull toward the dead side (presentation only: the sim's
-            // collision/armor frame ignores the cosmetic lean), eased in by the same spring.
-            let sample = AttitudeSample {
-                terrain_pitch_rad: tank.hull_pitch_rad,
-                terrain_roll_rad: tank.hull_roll_rad
-                    + broken_track_lean_rad(TrackDamageMask::from_bits(tank.track_damage_mask)),
-            };
+            // The spring's base is the authoritative replicated attitude plus the
+            // thrown-track lean — see `sync_cues` for the derivation.
+            let sample = attitude_sample(tank);
             let suspension = suspension_pool_fraction(tank);
             match self.entities.get(&tank.tank_id) {
                 Some(&entity) => {
@@ -90,9 +84,13 @@ impl PresentationWorld {
                     let mut attitude =
                         self.world.get::<HullAttitude>(entity).copied().unwrap_or_default();
                     attitude.step(tank.position, tank.yaw_rad, sample, suspension, dt);
+                    let mut recoil =
+                        self.world.get::<GunRecoil>(entity).copied().unwrap_or_default();
+                    recoil.step(dt);
                     self.world.entity_mut(entity).insert(bundle);
                     self.world.entity_mut(entity).insert(anim);
                     self.world.entity_mut(entity).insert(attitude);
+                    self.world.entity_mut(entity).insert(recoil);
                 }
                 None => {
                     let mut anim = TrackAnimation::default();
@@ -103,11 +101,22 @@ impl PresentationWorld {
                     let entity = self.world.spawn(bundle).id();
                     self.world.entity_mut(entity).insert(anim);
                     self.world.entity_mut(entity).insert(attitude);
+                    self.world.entity_mut(entity).insert(GunRecoil::default());
                     self.entities.insert(tank.tank_id, entity);
                 }
             }
         }
         self.despawn_missing(tanks);
+    }
+
+    /// The live entity for a networked tank id, if the world has seen it.
+    pub(crate) fn entity_of(&self, tank_id: TankId) -> Option<Entity> {
+        self.entities.get(&tank_id).copied()
+    }
+
+    /// Mutable access to the raw ECS world for sibling presentation modules (`sync_cues`).
+    pub(crate) fn world_mut(&mut self) -> &mut World {
+        &mut self.world
     }
 
     fn despawn_missing(&mut self, tanks: &[TankSnapshot]) {
@@ -140,6 +149,7 @@ impl PresentationWorld {
             &TrackDamage,
             &TrackAnimation,
             &HullAttitude,
+            &GunRecoil,
         )>();
         let mut tanks: Vec<PresentationTank> = query
             .iter(&self.world)
@@ -157,6 +167,7 @@ impl PresentationWorld {
                     damage,
                     track,
                     attitude,
+                    recoil,
                 )| {
                     PresentationTank {
                         id: entity.id,
@@ -176,6 +187,7 @@ impl PresentationWorld {
                         attitude_roll_rad: attitude.roll_rad,
                         attitude_heave_m: attitude.heave_m,
                         accel_long_mps2: attitude.accel_long_mps2,
+                        gun_recoil_m: recoil.offset_m,
                     }
                 },
             )
@@ -183,25 +195,4 @@ impl PresentationWorld {
         tanks.sort_by_key(|tank| tank.id.0);
         tanks
     }
-}
-
-/// A thrown track drops the hull ~a road-wheel rubber's worth on that side: left broken seats
-/// the left side down (negative roll — "+roll" is right side up), right broken mirrors it, both
-/// broken sit level (just beaten, which the heave dip already sells).
-fn broken_track_lean_rad(damage: TrackDamageMask) -> f32 {
-    const LEAN_RAD: f32 = 0.028;
-    match (damage.is_broken(game_core::TrackSide::Left), damage.is_broken(game_core::TrackSide::Right))
-    {
-        (true, false) => -LEAN_RAD,
-        (false, true) => LEAN_RAD,
-        _ => 0.0,
-    }
-}
-
-/// Live suspension pool `0..=1` from the replicated module HP against the vehicle's full pool.
-/// The sprung-hull attitude reads it as spring softness: a wounded suspension wallows.
-fn suspension_pool_fraction(tank: &TankSnapshot) -> f32 {
-    let full = tank.vehicle.spec().module_health.hit_points(ModuleSlot::Suspension);
-    let live = tank.module_hit_points[ModuleSlot::Suspension.wire_index()];
-    (live as f32 / full.max(1) as f32).clamp(0.0, 1.0)
 }

@@ -197,5 +197,4 @@ mod tests {
         });
         assert!(on_slope, "a glacis face normal carries the blueprint armour slope");
     }
-
 }

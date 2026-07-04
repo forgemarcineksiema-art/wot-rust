@@ -68,9 +68,9 @@ impl HullPose {
 }
 
 /// World firing direction of a gun on a posed hull: the hull-relative gun direction (turret yaw
-/// + gun pitch, both hull-frame state) carried through the hull basis. On a level hull this
-/// degenerates to `gun_direction(hull_yaw + turret_yaw, gun_pitch)`; on a pitched hull the world
-/// arc gains the hull's tilt — which is exactly why hull-down works.
+/// plus gun pitch, both hull-frame state) carried through the hull basis. On a level hull this
+/// degenerates to `gun_direction(hull_yaw + turret_yaw, gun_pitch)`; on a pitched hull the
+/// world arc gains the hull's tilt — which is exactly why hull-down works.
 pub fn gun_direction_world(hull: HullPose, turret_yaw_rad: f32, gun_pitch_rad: f32) -> Vec3 {
     hull.basis() * gun_direction(turret_yaw_rad, gun_pitch_rad)
 }
@@ -291,7 +291,8 @@ mod tests {
     #[test]
     fn armor_normal_follows_turret_rotation_while_hull_stays_put() {
         // Hull points down +z; turret traversed 90° so its front faces the hull's right (+x).
-        let turret_front = armor_normal(HullPose::level(0.0), FRAC_PI_2, ArmorFacing::TurretFront, 0.0);
+        let turret_front =
+            armor_normal(HullPose::level(0.0), FRAC_PI_2, ArmorFacing::TurretFront, 0.0);
         let hull_front = armor_normal(HullPose::level(0.0), FRAC_PI_2, ArmorFacing::HullFront, 0.0);
         assert!((turret_front - Vec3::new(1.0, 0.0, 0.0)).length() < 1.0e-5);
         assert!((hull_front - Vec3::new(0.0, 0.0, 1.0)).length() < 1.0e-5);
@@ -307,11 +308,17 @@ mod tests {
     fn world_to_tank_local_maps_forward_right_and_up() {
         // Tank at origin facing +z (yaw 0), hitbox center 1.0 up: a point straight ahead and
         // level with the center maps to pure forward (+z local).
-        let ahead = world_to_tank_local(Vec3::new(0.0, 1.0, 5.0), Vec3::ZERO, 1.0, HullPose::level(0.0));
+        let ahead =
+            world_to_tank_local(Vec3::new(0.0, 1.0, 5.0), Vec3::ZERO, 1.0, HullPose::level(0.0));
         assert!((ahead - Vec3::new(0.0, 0.0, 5.0)).length() < 1.0e-5);
 
         // Yaw 90° (facing +x): a world point off the tank's +x maps to local forward (+z).
-        let yawed = world_to_tank_local(Vec3::new(5.0, 1.0, 0.0), Vec3::ZERO, 1.0, HullPose::level(FRAC_PI_2));
+        let yawed = world_to_tank_local(
+            Vec3::new(5.0, 1.0, 0.0),
+            Vec3::ZERO,
+            1.0,
+            HullPose::level(FRAC_PI_2),
+        );
         assert!((yawed - Vec3::new(0.0, 0.0, 5.0)).length() < 1.0e-5);
     }
 
@@ -327,8 +334,10 @@ mod tests {
         use crate::VehicleKind;
         let mounts = MountFrames::for_vehicle(VehicleKind::T54_1951);
         let trunnion = mounts.gun_trunnion.translation;
-        let stock = muzzle_world_position_scaled(&mounts, Vec3::ZERO, HullPose::level(0.0), 0.0, 0.0, 1.0);
-        let long = muzzle_world_position_scaled(&mounts, Vec3::ZERO, HullPose::level(0.0), 0.0, 0.0, 1.2);
+        let stock =
+            muzzle_world_position_scaled(&mounts, Vec3::ZERO, HullPose::level(0.0), 0.0, 0.0, 1.0);
+        let long =
+            muzzle_world_position_scaled(&mounts, Vec3::ZERO, HullPose::level(0.0), 0.0, 0.0, 1.2);
         assert!(
             (long - trunnion).length() > (stock - trunnion).length() + 0.5,
             "a +20% barrel must reach noticeably further"
@@ -360,7 +369,8 @@ mod tests {
 
         // Turret traverse swings the muzzle about the ring; the radius from the ring axis is
         // preserved.
-        let yawed = muzzle_world_position(&mounts, Vec3::ZERO, HullPose::level(0.0), FRAC_PI_2, 0.0);
+        let yawed =
+            muzzle_world_position(&mounts, Vec3::ZERO, HullPose::level(0.0), FRAC_PI_2, 0.0);
         let ring = mounts.turret_ring.translation;
         let radius = (muzzle - Vec3::new(0.0, muzzle.y, ring.z)).length();
         let swung = yawed - Vec3::new(ring.x, yawed.y, ring.z);
@@ -368,8 +378,13 @@ mod tests {
         assert!(yawed.x > 0.0, "positive traverse swings the muzzle to +x");
 
         // Hull yaw rotates the whole chain about the tank position.
-        let hull_yawed =
-            muzzle_world_position(&mounts, Vec3::new(3.0, 0.0, -2.0), HullPose::level(FRAC_PI_2), 0.0, 0.0);
+        let hull_yawed = muzzle_world_position(
+            &mounts,
+            Vec3::new(3.0, 0.0, -2.0),
+            HullPose::level(FRAC_PI_2),
+            0.0,
+            0.0,
+        );
         let expected_hull = Vec3::new(3.0 + muzzle.z, muzzle.y, -2.0);
         assert!((hull_yawed - expected_hull).length() < 1.0e-4);
     }

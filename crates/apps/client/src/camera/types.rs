@@ -33,7 +33,9 @@ impl Default for BattleCameraSettings {
             third_person_distance_m: 12.0,
             third_person_target_height_m: 2.75,
             third_person_target_forward_offset_m: 4.0,
-            third_person_lateral_offset_m: 1.35,
+            // Centered. A boom-length-dependent shoulder blend was tried and rejected: zooming
+            // swept the whole sight lane sideways (the scene "slid left" on every scroll).
+            third_person_lateral_offset_m: 0.0,
             third_person_pitch_rad: 0.42,
             third_person_fov_degrees: 62.0,
             sniper_fov_degrees: 8.0,
@@ -66,6 +68,9 @@ pub struct CameraSubject {
     /// Vehicle kind: the sniper camera reads the per-vehicle sight mount from it.
     pub vehicle: game_core::VehicleKind,
     pub hull_yaw_rad: f32,
+    /// Authoritative hull pitch/roll (protocol v14): the sniper eye rides the full attitude.
+    pub hull_pitch_rad: f32,
+    pub hull_roll_rad: f32,
     pub turret_yaw_rad: f32,
     pub gun_pitch_rad: f32,
     pub view_yaw_rad: f32,
@@ -80,6 +85,8 @@ impl CameraSubject {
             position: snapshot.position,
             vehicle: snapshot.vehicle,
             hull_yaw_rad: snapshot.yaw_rad,
+            hull_pitch_rad: snapshot.hull_pitch_rad,
+            hull_roll_rad: snapshot.hull_roll_rad,
             turret_yaw_rad: snapshot.turret_yaw_rad,
             gun_pitch_rad,
             view_yaw_rad: desired_yaw_rad,

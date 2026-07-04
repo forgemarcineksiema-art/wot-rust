@@ -66,7 +66,13 @@ fn steel_ring(r_in: f32, r_out: f32, half_width: f32, segments: usize) -> Geomet
 
 /// One radial starfish arm: a tapered prism from the hub seat out to the rim, spanning the full
 /// body width so it stands proud of the recessed web behind it.
-fn spoke_arm(angle: f32, inner_r: f32, outer_r: f32, wheel_r: f32, half_width: f32) -> GeometryMesh {
+fn spoke_arm(
+    angle: f32,
+    inner_r: f32,
+    outer_r: f32,
+    wheel_r: f32,
+    half_width: f32,
+) -> GeometryMesh {
     let (sin, cos) = angle.sin_cos();
     let radial = Vec2::new(sin, cos);
     let tangent = Vec2::new(cos, -sin);
@@ -143,4 +149,3 @@ pub(crate) fn wheel_disc_at(
         )
         .build()
 }
-

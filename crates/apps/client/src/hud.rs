@@ -7,7 +7,8 @@ pub(crate) mod health_bar;
 pub(crate) mod icons;
 pub(crate) mod number;
 pub(crate) mod reticle;
-mod reticle_overlay;
+pub(crate) mod reticle_overlay;
+pub(crate) mod reticle_readouts;
 pub(crate) mod reticle_sweep;
 
 pub(crate) use reticle_overlay::HudReticle;
@@ -23,7 +24,7 @@ pub struct HudVitals {
 /// Build the 2D HUD overlay (center crosshair, top-left health bar, bottom-center reload
 /// bar) in clip space. `aspect` keeps the crosshair square on non-square viewports.
 pub fn build_hud(vitals: HudVitals, aspect: f32) -> Vec<HudVertex> {
-    build_hud_with_reticle(vitals, aspect, None, 0.0, 0.0)
+    build_hud_with_reticle(vitals, aspect, None, 0.0, 0.0, None)
 }
 
 /// `fps` draws a 7-segment frame-rate readout in the top-right corner when positive; pass
@@ -34,17 +35,20 @@ pub(crate) fn build_hud_with_reticle(
     reticle: Option<HudReticle>,
     fps: f32,
     speed_kmh: f32,
+    zoom_factor: Option<f32>,
 ) -> Vec<HudVertex> {
     let mut vertices = Vec::new();
 
     let reticle = reticle.unwrap_or(HudReticle {
         aim_clip: [0.0, 0.0],
-        gun_clip: None,
         impact_clip: None,
         aim_radius_clip: 0.0,
         target_distance_m: None,
         status: ReticleStatus::Clear,
         penetration_hint: None,
+        reload_fraction: 1.0,
+        hit_confirm: None,
+        show_penetration_numbers: false,
     });
     reticle_overlay::push_reticle(&mut vertices, &reticle, aspect);
 
@@ -74,6 +78,21 @@ pub(crate) fn build_hud_with_reticle(
         aspect,
         crate::hud::number::RELOAD_TIME_COLOR,
     );
+
+    // Sniper magnification readout, WT-style "X6.9", just under the reticle center so the
+    // eye reads it without leaving the sight. Third person draws nothing.
+    if let Some(zoom) = zoom_factor {
+        let label = format!("X{:.1}", zoom.clamp(0.0, 99.9));
+        crate::hud::font::push_text(
+            &mut vertices,
+            &label,
+            -0.03,
+            -0.16,
+            0.05,
+            aspect,
+            crate::hud::number::ZOOM_COLOR,
+        );
+    }
 
     if fps > 0.0 {
         crate::hud::number::push_number(

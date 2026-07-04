@@ -6,7 +6,9 @@ use wgpu::util::DeviceExt;
 
 use crate::scene_resources::SceneInstance;
 
-use super::{DYNAMIC_INDEX_CAPACITY, DYNAMIC_VERTEX_CAPACITY, HUD_VERTEX_CAPACITY};
+use super::{
+    DYNAMIC_INDEX_CAPACITY, DYNAMIC_VERTEX_CAPACITY, FX_VERTEX_CAPACITY, HUD_VERTEX_CAPACITY,
+};
 
 pub(super) struct GeometryBuffers {
     pub terrain_vertices: wgpu::Buffer,
@@ -16,6 +18,7 @@ pub(super) struct GeometryBuffers {
     pub identity_instance: wgpu::Buffer,
     pub frame_instances: wgpu::Buffer,
     pub vehicle_instances: wgpu::Buffer,
+    pub fx_vertices: wgpu::Buffer,
     pub hud_vertices: wgpu::Buffer,
 }
 
@@ -64,6 +67,12 @@ impl GeometryBuffers {
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
+        let fx_vertices = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("scene_fx_v"),
+            size: FX_VERTEX_CAPACITY,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
         let hud_vertices = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("scene_hud_v"),
             size: HUD_VERTEX_CAPACITY,
@@ -78,6 +87,7 @@ impl GeometryBuffers {
             identity_instance,
             frame_instances,
             vehicle_instances,
+            fx_vertices,
             hud_vertices,
         }
     }

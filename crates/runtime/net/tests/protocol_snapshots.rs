@@ -141,7 +141,6 @@ pub fn combat_snapshot_message() -> Snapshot {
     }
 }
 
-
 /// The golden wire fixture for `name`. Set `REGEN_WIRE_FIXTURES=1` while running these tests to
 /// rewrite the fixtures after a deliberate protocol bump, then rerun clean to verify.
 fn wire_fixture(bytes: &[u8], name: &str) -> String {

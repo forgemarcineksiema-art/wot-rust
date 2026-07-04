@@ -44,7 +44,6 @@ pub fn build_shadow_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupL
     })
 }
 
-
 /// The full group-2 entries in binding order.
 pub(crate) fn build_environment_bind_group(
     device: &wgpu::Device,
@@ -77,4 +76,3 @@ pub(crate) fn build_environment_bind_group(
         ],
     })
 }
-

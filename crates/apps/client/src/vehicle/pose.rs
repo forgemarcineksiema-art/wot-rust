@@ -38,6 +38,7 @@ impl VehiclePose {
         )
     }
 
+    #[cfg(test)]
     pub fn new(
         kind: VehicleKind,
         ground: Vec3,

@@ -1,6 +1,5 @@
-use game_core::MountFrames;
-use game_core::math::{gun_direction, horizontal_forward, wrap_angle};
-use glam::{Mat3, Vec3};
+use game_core::math::{horizontal_forward, wrap_angle};
+use glam::Vec3;
 use renderer_api::Camera;
 
 use super::smoothing::CameraSmoothing;
@@ -8,9 +7,6 @@ use super::{
     BattleCameraEnvironment, BattleCameraInput, BattleCameraMode, BattleCameraSettings,
     CameraSubject, collision, zoom,
 };
-
-/// Sniper sight height above the gun trunnion — roughly where the gunner's optics sit.
-const SNIPER_SIGHT_ABOVE_TRUNNION_M: f32 = 0.35;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct BattleCameraController {
@@ -21,6 +17,7 @@ pub struct BattleCameraController {
     distance_m: f32,
     sniper_fov_degrees: f32,
     pub(super) smoothing: CameraSmoothing,
+    pub(super) presented: super::present::PresentedCamera,
 }
 
 impl BattleCameraController {
@@ -33,6 +30,7 @@ impl BattleCameraController {
             distance_m: settings.third_person_distance_m,
             sniper_fov_degrees: settings.sniper_fov_degrees,
             smoothing: CameraSmoothing::default(),
+            presented: super::present::PresentedCamera::default(),
         }
     }
 
@@ -127,9 +125,9 @@ impl BattleCameraController {
         let yaw = subject.view_yaw_rad;
         let forward = horizontal_forward(yaw);
         let right = horizontal_right(forward);
-        // The over-shoulder offset shifts the *whole* sight lane (target and eye alike): with the
-        // offset on the eye only, the eye->target direction rotated as the boom length changed,
-        // so every zoom click swung the scene sideways and dragged the aim point with it.
+        // Any lateral offset shifts the *whole* sight lane (target and eye alike): an eye-only
+        // offset — or a zoom-dependent one — rotates the view with the boom length and drags
+        // the scene sideways on every scroll. The default is CENTERED (offset 0).
         let target = tank
             + Vec3::Y * self.settings.third_person_target_height_m
             + forward * self.settings.third_person_target_forward_offset_m
@@ -158,31 +156,11 @@ impl BattleCameraController {
         }
     }
 
-    fn sniper_camera(
-        &self,
-        subject: &CameraSubject,
-        environment: &BattleCameraEnvironment<'_>,
-    ) -> Camera {
-        // The eye sits *on* the per-vehicle turret-ring axis at sight height: a point on the
-        // traverse axis does not translate as the turret slews, so the world cannot slide
-        // sideways while the turret catches up to the aim (a forward-offset eye rode a lateral
-        // arc on every mouse move). Height comes from the vehicle's trunnion, not a global.
-        let mounts = MountFrames::for_vehicle(subject.vehicle);
-        let ring = mounts.turret_ring.translation;
-        let ring_axis =
-            Mat3::from_rotation_y(subject.hull_yaw_rad) * Vec3::new(ring.x, 0.0, ring.z);
-        let sight_height = mounts.gun_trunnion.translation.y + SNIPER_SIGHT_ABOVE_TRUNNION_M;
-        let eye = subject.position_vec() + ring_axis + Vec3::Y * sight_height;
-        let eye =
-            collision::apply_terrain_clearance(eye, environment, self.settings.terrain_clearance_m);
-        let aim = gun_direction(subject.desired_yaw_rad, subject.desired_pitch_rad);
-        let target = eye + aim * 1_000.0;
-
-        Camera {
-            eye: eye.to_array(),
-            target: target.to_array(),
-            vertical_fov_degrees: self.sniper_fov_degrees,
-        }
+    /// Relative magnification of the current sniper step against the default battle view, for
+    /// the HUD's zoom readout; `None` in third person.
+    pub fn zoom_factor(&self) -> Option<f32> {
+        (self.mode == BattleCameraMode::Sniper)
+            .then(|| self.settings.third_person_fov_degrees / self.sniper_fov_degrees.max(0.1))
     }
 }
 

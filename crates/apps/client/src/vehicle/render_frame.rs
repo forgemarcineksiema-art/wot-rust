@@ -1,10 +1,10 @@
 use engine::PresentationTank;
-use terrain::HeightMap;
-use vehicle_geometry::{GearDynamics, RunningGearKinematics};
 use game_core::TankId;
 use glam::{Mat4, Vec3};
 use net::TankSnapshot;
 use renderer_api::{RenderFrame, RenderObject};
+use terrain::HeightMap;
+use vehicle_geometry::{GearDynamics, RunningGearKinematics};
 
 use super::asset_render::tank_vehicle_render_objects_posed;
 use super::variation::VehicleVariation;
@@ -87,10 +87,24 @@ pub fn split_pbr_vehicle_render_frame_on_terrain(
             [tank.attitude_pitch_rad, tank.attitude_roll_rad, tank.attitude_heave_m],
             dynamics,
         );
+        recoil_gun(&mut tank_objects, tank.gun_recoil_m);
         scale_player_gun(&mut tank_objects, is_player, player_gun_scale);
         objects.append(&mut tank_objects);
     }
     VehicleRenderFrame { objects }
+}
+
+/// Slide the gun submesh back along its own barrel axis by the live recoil stroke. Applied
+/// BEFORE the player barrel scale so the stroke stays in real meters — a long gun recoils the
+/// same distance as its stock sibling, it does not stretch the recoil with the mesh.
+fn recoil_gun(objects: &mut [RenderObject], recoil_m: f32) {
+    if recoil_m > 1.0e-4
+        && let Some(gun) = objects.get_mut(2)
+    {
+        let recoiled = Mat4::from_cols_array_2d(&gun.transform)
+            * Mat4::from_translation(Vec3::new(0.0, 0.0, -recoil_m));
+        gun.transform = recoiled.to_cols_array_2d();
+    }
 }
 
 const MAX_ROAD_WHEELS: usize = 8;
@@ -104,8 +118,7 @@ fn wheel_travel(
 ) -> ([f32; MAX_ROAD_WHEELS], [f32; MAX_ROAD_WHEELS], usize) {
     let mut left = [0.0; MAX_ROAD_WHEELS];
     let mut right = [0.0; MAX_ROAD_WHEELS];
-    let (Some(map), Some(kin)) = (terrain, RunningGearKinematics::for_vehicle(tank.vehicle))
-    else {
+    let (Some(map), Some(kin)) = (terrain, RunningGearKinematics::for_vehicle(tank.vehicle)) else {
         return (left, right, 0);
     };
     let count = kin.wheel_zs.len().min(MAX_ROAD_WHEELS);
@@ -194,6 +207,7 @@ mod tests {
             attitude_roll_rad: 0.0,
             attitude_heave_m: 0.0,
             accel_long_mps2: 0.0,
+            gun_recoil_m: 0.0,
         };
 
         let snapshot = render_snapshot(&tank);

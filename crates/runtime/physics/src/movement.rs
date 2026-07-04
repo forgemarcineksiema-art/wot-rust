@@ -171,8 +171,8 @@ pub fn step_custom_tank_controller_on_contact(
     }
     // Rolling + aerodynamic-ish quadratic resistance apply in every state; together with P/v they
     // put the top-speed equilibrium exactly at the spec vmax.
-    let resistance =
-        settings.rolling_resist_mps2 * contact.traction.max(0.5) + settings.drag_quadratic * v_f * v_f;
+    let resistance = settings.rolling_resist_mps2 * contact.traction.max(0.5)
+        + settings.drag_quadratic * v_f * v_f;
     v_f = move_towards(v_f, 0.0, resistance * dt);
     // Skid-steer scrub: turning bleeds forward speed into the ground.
     let scrub = settings.turn_scrub * state.yaw_rate_rad_s.abs() * v_f.abs();

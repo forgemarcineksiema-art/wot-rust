@@ -2,7 +2,7 @@
 //! into the per-submesh and running-gear render objects. Split from `asset_catalog` to keep each
 //! module small.
 
-use game_core::{ModuleSlot, TankId};
+use game_core::TankId;
 use glam::Mat4;
 use net::TankSnapshot;
 use renderer_api::{MaterialHandle, MeshHandle, RenderObject};
@@ -90,34 +90,23 @@ pub fn tank_vehicle_render_objects_posed(
     let gun_transform =
         Mat4::from_translation(pose.gun_translation()) * Mat4::from_mat3(pose.gun_basis());
 
-    // The cosmetic overlays (camo/dirt/snow) recolour the whole vehicle; per-module damage then
-    // darkens the submeshes whose modules are knocked out.
+    // The cosmetic overlays (camo/dirt/snow) recolour the whole vehicle. A LIVE tank never
+    // recolours with damage — wounds speak locally (hit decals, smoke), not through a palette
+    // swap. Only a knocked-out hull takes the whole-vehicle burnt-out tint.
     let surface = variation.surface_tint(hull_color);
-    let suspension_tint =
-        variation.module_tint(surface, &[ModuleSlot::Engine, ModuleSlot::Suspension]);
+    let tint =
+        if snapshot.hit_points == 0 { VehicleVariation::wreck_tint(surface) } else { surface };
 
     let mut objects = vec![
-        vehicle_render_object(
-            snapshot.tank_id,
-            entry.hull,
-            entry.material,
-            hull_transform,
-            suspension_tint,
-        ),
+        vehicle_render_object(snapshot.tank_id, entry.hull, entry.material, hull_transform, tint),
         vehicle_render_object(
             snapshot.tank_id,
             entry.turret,
             entry.material,
             turret_transform,
-            variation.module_tint(surface, &[ModuleSlot::Turret, ModuleSlot::AmmoRack]),
+            tint,
         ),
-        vehicle_render_object(
-            snapshot.tank_id,
-            entry.gun,
-            entry.material,
-            gun_transform,
-            variation.module_tint(surface, &[ModuleSlot::Gun]),
-        ),
+        vehicle_render_object(snapshot.tank_id, entry.gun, entry.material, gun_transform, tint),
     ];
 
     // Running gear rides the hull and tints with the suspension; the wheels spin and the links
@@ -136,7 +125,7 @@ pub fn tank_vehicle_render_objects_posed(
             track_left_m,
             track_right_m,
             gear_dynamics,
-            suspension_tint,
+            tint,
         ));
     }
 

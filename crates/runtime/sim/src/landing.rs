@@ -25,9 +25,9 @@ pub(crate) fn apply_landing_impact(
         return;
     }
     let severity = impact_mps - SAFE_LANDING_MPS;
-    let damage =
-        (severity * severity * LANDING_DAMAGE_FACTOR).round().clamp(1.0, LANDING_DAMAGE_MAX_HP)
-            as u32;
+    let damage = (severity * severity * LANDING_DAMAGE_FACTOR)
+        .round()
+        .clamp(1.0, LANDING_DAMAGE_MAX_HP) as u32;
     tank.hit_points = tank.hit_points.saturating_sub(damage);
     tank.modules.damage(ModuleSlot::Suspension, damage.saturating_mul(2));
     damage_events.push(DamageEvent {

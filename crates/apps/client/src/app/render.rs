@@ -2,9 +2,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use net::TankSnapshot;
-use renderer_api::{
-    Camera, CameraProjectionPolicy, RenderError, RenderFrame, SceneVertex, view_projection_matrix,
-};
+use renderer_api::{CameraProjectionPolicy, RenderError, RenderFrame, view_projection_matrix};
 use renderer_wgpu::WindowRenderer;
 use sim::DEFAULT_SNAPSHOT_HZ;
 use tracing::error;
@@ -12,10 +10,7 @@ use winit::window::Window;
 
 use super::{ClientApp, SceneKind};
 use crate::hud::{HudVitals, build_hud_with_reticle};
-use crate::{
-    BattleCameraEnvironment, CameraSubject, append_shell_markers, battlefield_scene_mesh,
-    split_pbr_vehicle_render_frame_on_terrain,
-};
+use crate::{battlefield_scene_mesh, split_pbr_vehicle_render_frame_on_terrain};
 
 const SNAPSHOT_INTERVAL_SECONDS: f32 = 1.0 / DEFAULT_SNAPSHOT_HZ as f32;
 
@@ -56,6 +51,8 @@ impl ClientApp {
         }
         self.render_state.advance(frame_dt, SNAPSHOT_INTERVAL_SECONDS);
         self.hit_indicator.tick(frame_dt);
+        self.fx.tick(frame_dt);
+        self.tick_battle_scars(frame_dt);
 
         let alpha = self.loop_driver.render_alpha();
         // A landing the predictor absorbed since the last frame slams the camera rig once.
@@ -66,7 +63,7 @@ impl ClientApp {
         if let Some(local) = self.interpolated_local_tank(alpha) {
             self.camera_controller.advance(local.position, raw_dt);
         }
-        let Some(camera) = self.camera_for_player_interpolated(alpha) else {
+        let Some(camera) = self.presented_camera_for_player(alpha, raw_dt) else {
             return;
         };
         let aspect = self.renderer.as_ref().map_or(16.0 / 9.0, WindowRenderer::aspect_ratio);
@@ -96,7 +93,6 @@ impl ClientApp {
             player_gun_scale,
             Some(&self.battlefield.heightmap),
         );
-        let (vertices, indices) = self.shell_marker_mesh();
         let vehicle_frame = RenderFrame { objects: vehicles.objects, ..RenderFrame::default() };
         let (reload_remaining, reload_max) = self.player_reload();
         let vitals = HudVitals {
@@ -111,9 +107,11 @@ impl ClientApp {
             self.hud_reticle(&camera, view_proj),
             self.fps_estimate,
             self.player_speed_kmh(),
+            self.camera_controller.zoom_factor(),
         );
         hud.extend(enemy_bars);
         hud.extend(self.hit_indicator.render_vertices(view_proj, aspect));
+        let fx_vertices = self.fx_frame_vertices(camera.eye, camera.target);
         self.ensure_scene(SceneKind::Battle);
         let Some(renderer) = self.renderer.as_mut() else {
             return;
@@ -126,7 +124,10 @@ impl ClientApp {
         }
         renderer.set_render_frame(&RenderFrame::default());
         renderer.set_vehicle_render_frame(&vehicle_frame);
-        renderer.set_dynamic_mesh(&vertices, &indices);
+        // Battle no longer builds a per-frame dynamic mesh (hit marks became on-tank decals in
+        // the FX pass); clear whatever the garage left behind.
+        renderer.set_dynamic_mesh(&[], &[]);
+        renderer.set_fx(&fx_vertices);
         renderer.set_hud(&hud);
         if let Err(error) = renderer.render(view_proj, camera.eye) {
             error!(%error, "frame render failed");
@@ -165,37 +166,18 @@ impl ClientApp {
         }
     }
 
-    /// Render camera from the interpolated hull pose: rigid follow, no eye spring, no lag.
-    fn camera_for_player_interpolated(&self, alpha: f32) -> Option<Camera> {
-        Some(self.camera_from_tank(self.interpolated_local_tank(alpha)?))
-    }
-
-    pub(super) fn camera_from_tank(&self, tank: TankSnapshot) -> Camera {
-        let gun_pitch = tank.gun_pitch_rad;
-        let turret_view_yaw = tank.yaw_rad + tank.turret_yaw_rad;
-        let view_yaw = if self.input.free_look {
-            self.camera_controller.orbit_yaw_rad()
-        } else if self.camera_controller.mode() == crate::BattleCameraMode::ThirdPerson {
-            self.desired_aim.yaw_rad()
-        } else {
-            turret_view_yaw
-        };
-        let subject = CameraSubject::from_snapshot(tank, gun_pitch)
-            .with_view_yaw(view_yaw)
-            .with_desired_aim(self.desired_aim.yaw_rad(), self.desired_aim.pitch_rad());
-        let environment = BattleCameraEnvironment::with_obstacles(
-            &self.battlefield.heightmap,
-            &self.camera_obstacles,
-        );
-        self.camera_controller.render_camera(&subject, &environment)
-    }
-
-    pub(super) fn shell_marker_mesh(&self) -> (Vec<SceneVertex>, Vec<u32>) {
-        let mut vertices = Vec::new();
-        let mut indices = Vec::new();
+    /// This frame's full FX batch: the ticked particle pool plus a tracer per in-flight shell
+    /// (tracers are stateless — rebuilt each frame from the interpolated shell snapshots).
+    pub(super) fn fx_frame_vertices(
+        &self,
+        eye: [f32; 3],
+        target: [f32; 3],
+    ) -> Vec<renderer_api::FxVertex> {
+        let eye = glam::Vec3::from_array(eye);
+        let mut fx_vertices = self.fx.vertices(eye, glam::Vec3::from_array(target));
         let shells = self.render_state.interpolated_shells(SNAPSHOT_INTERVAL_SECONDS);
-        append_shell_markers(&mut vertices, &mut indices, &shells);
-        self.hit_indicator.append_world_marks(&mut vertices, &mut indices);
-        (vertices, indices)
+        crate::fx::append_shell_tracers(&mut fx_vertices, &shells, eye);
+        self.append_scar_quads(&mut fx_vertices);
+        fx_vertices
     }
 }

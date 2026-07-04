@@ -23,18 +23,47 @@ pub enum CamoPattern {
     Desert,
 }
 
-/// A single impact mark in the hull/turret local space, ageing toward [`DECAL_FADE_S`].
+/// What a shell left on the plate — the mark's shape, colour, and lifetime all key off this.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DecalKind {
+    /// A through-hole: black, hard-edged, and PERMANENT — battle scars stay for the battle.
+    Penetration,
+    /// A non-penetrating smack: bared metal and scorched paint that weathers back over.
+    Scuff,
+    /// A ricochet gouge: a long scrape along the plate that fades like a scuff.
+    Gouge,
+}
+
+/// Which rotating frame the mark lives in: hull marks ride the hull, turret marks traverse
+/// with the turret (a mantlet hit must not slide off when the turret turns).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DecalFrame {
+    Hull,
+    Turret,
+}
+
+/// A single impact mark in its local frame; non-permanent kinds age toward [`DECAL_FADE_S`].
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct HitDecal {
     pub local_position: [f32; 3],
+    /// Outward plate normal in the same local frame — the mark is drawn flat on this plane.
+    pub local_normal: [f32; 3],
     pub radius: f32,
     pub age_s: f32,
+    pub kind: DecalKind,
+    pub frame: DecalFrame,
 }
 
 impl HitDecal {
-    /// 1.0 when fresh, fading to 0.0 at [`DECAL_FADE_S`].
+    /// 1.0 when fresh; scuffs and gouges fade to 0.0 at [`DECAL_FADE_S`], penetration holes
+    /// never fade (they can still be recycled by [`MAX_HIT_DECALS`]).
     pub fn opacity(&self) -> f32 {
-        (1.0 - self.age_s / DECAL_FADE_S).clamp(0.0, 1.0)
+        match self.kind {
+            DecalKind::Penetration => 1.0,
+            DecalKind::Scuff | DecalKind::Gouge => {
+                (1.0 - self.age_s / DECAL_FADE_S).clamp(0.0, 1.0)
+            }
+        }
     }
 }
 
@@ -115,19 +144,27 @@ impl VehicleVariation {
     }
 
     /// Record a fresh impact mark, recycling the oldest decal once [`MAX_HIT_DECALS`] is reached.
-    pub fn record_hit(&mut self, local_position: [f32; 3], radius: f32) {
+    pub fn record_hit(&mut self, decal: HitDecal) {
         if self.decals.len() >= MAX_HIT_DECALS {
             self.decals.remove(0);
         }
-        self.decals.push(HitDecal { local_position, radius: radius.max(0.0), age_s: 0.0 });
+        self.decals.push(HitDecal { radius: decal.radius.max(0.0), age_s: 0.0, ..decal });
     }
 
-    /// Age decals and drop any that have fully faded.
+    /// Age decals and drop any that have fully faded (penetration holes never do).
     pub fn tick(&mut self, dt_s: f32) {
         for decal in &mut self.decals {
             decal.age_s += dt_s.max(0.0);
         }
         self.decals.retain(|decal| decal.opacity() > 0.0);
+    }
+
+    /// Adopt the replicated damage state from the latest snapshot while keeping the accumulated
+    /// battle scars — the persistent per-tank instance calls this instead of `from_snapshot`.
+    pub fn sync_from_snapshot(&mut self, snapshot: &TankSnapshot) {
+        let fresh = Self::from_snapshot(snapshot);
+        self.track_damage_mask = fresh.track_damage_mask;
+        self.destroyed_modules_mask = fresh.destroyed_modules_mask;
     }
 
     /// Whether a given module slot is destroyed.
@@ -147,14 +184,11 @@ impl VehicleVariation {
         c
     }
 
-    /// The tint for a submesh whose listed modules can knock it out (e.g. a dead engine darkens the
-    /// rear hull). Applied on top of [`surface_tint`].
-    pub fn module_tint(&self, base: [f32; 3], slots: &[ModuleSlot]) -> [f32; 3] {
-        if slots.iter().any(|slot| self.module_destroyed(*slot)) {
-            [base[0] * 0.42, base[1] * 0.40, base[2] * 0.36]
-        } else {
-            base
-        }
+    /// The whole-vehicle tint for a knocked-out hull: burnt out, carbon-dark. This is the ONLY
+    /// state that recolours a whole tank — live damage speaks through local cues (decals, smoke),
+    /// never through a hull-wide palette swap.
+    pub fn wreck_tint(base: [f32; 3]) -> [f32; 3] {
+        [base[0] * 0.30, base[1] * 0.28, base[2] * 0.27]
     }
 }
 

@@ -62,7 +62,6 @@ impl BeltPath {
         Self::build(kin, top_sag.clamp(0.0, 0.12))
     }
 
-
     fn build(kin: &RunningGearKinematics, top_sag: f32) -> Self {
         // Links wrap OUTSIDE the end-wheel tread by the same seat as the ground run: a wrap
         // radius equal to the wheel radius buries half a shoe in the idler tire and shimmers.
@@ -165,7 +164,11 @@ impl BeltPath {
             let u = (s / top.max(0.001)).clamp(0.0, 1.0);
             let sag = self.top_sag * (PI * u).sin();
             let dy_dz = -self.top_sag * PI / top.max(0.001) * (PI * u).cos();
-            return BeltSample { y: self.y_top - sag, z: -self.end_cz + s, rot_x: tangent_rot(1.0, dy_dz) };
+            return BeltSample {
+                y: self.y_top - sag,
+                z: -self.end_cz + s,
+                rot_x: tangent_rot(1.0, dy_dz),
+            };
         }
         let s = s - top;
         if s < self.arc_len {
@@ -196,4 +199,3 @@ impl BeltPath {
 fn tangent_rot(dz: f32, dy: f32) -> f32 {
     (-dy).atan2(dz)
 }
-

@@ -51,10 +51,51 @@ impl ClientApp {
     pub(super) fn accept_and_sync(&mut self, snapshot: net::Snapshot) {
         let player = snapshot.tanks.iter().find(|tank| tank.tank_id == self.player_tank).cloned();
         self.hit_indicator.ingest_damage_events(&snapshot.damage_events, self.player_tank);
-        self.hit_indicator.ingest_shell_impacts(&snapshot.shell_impacts);
+        // Every shell death gets its world-space burst: absorbed shells speak the surface they
+        // died against, armor strikes answer with sparks (plus the penetration signature).
+        for impact in &snapshot.shell_impacts {
+            self.fx.impact_burst(impact.position, impact.surface);
+        }
+        for event in &snapshot.damage_events {
+            if event.cause != game_core::DamageCause::Shell {
+                continue;
+            }
+            self.fx.armor_hit(event.hit_position, event.penetrated, event.ricocheted);
+            // The strike also scars the target: a permanent hole for a penetration, a fading
+            // scuff/gouge otherwise, recorded in the plate's own rotating frame.
+            if let Some(target) = snapshot.tanks.iter().find(|tank| tank.tank_id == event.target)
+                && let Some(decal) = crate::fx::decal_from_damage_event(event, target)
+            {
+                self.tank_scars.entry(event.target).or_default().record_hit(decal);
+            }
+        }
+        // Shots fired since the previous snapshot: diffed here, where both snapshots exist side
+        // by side, then fanned out to every fire cue (muzzle FX, recoil, hull rock, camera kick).
+        let fired = self.render_state.latest_snapshot().map_or_else(Vec::new, |previous| {
+            crate::fx::detect_fired(
+                &previous.tanks,
+                &snapshot.tanks,
+                self.player_tank,
+                self.player_barrel_scale(),
+            )
+        });
         self.render_state.accept_authoritative_snapshot(snapshot);
+        self.apply_fire_events(&fired);
         if let Some(tank) = player {
             self.predictor.sync_to(&tank);
+        }
+    }
+
+    /// Fan one batch of replicated shots out to the presentation cues. Every firing tank gets
+    /// muzzle FX, barrel recoil, and the hull rock; the player's own shot also kicks the camera.
+    fn apply_fire_events(&mut self, events: &[crate::fx::FireEvent]) {
+        for event in events {
+            let ground_y = self.battlefield.heightmap.sample_height(event.muzzle.x, event.muzzle.z);
+            self.fx.muzzle_blast(event.muzzle, event.direction, ground_y);
+            self.presentation.apply_fire_recoil(event.tank_id, event.turret_yaw_rad);
+            if event.tank_id == self.player_tank {
+                self.camera_controller.fire_kick(self.desired_aim.yaw_rad());
+            }
         }
     }
 
@@ -138,9 +179,9 @@ impl ClientApp {
     ) -> f32 {
         // The sight solution already carries the HULL-relative turret target (converted through
         // the hull pose); only the raw-camera fallback still subtracts the planar hull yaw.
-        let target = solution.and_then(|solution| solution.turret_yaw_rad).unwrap_or_else(|| {
-            shortest_angle(self.desired_aim.yaw_rad() - self.predictor.yaw())
-        });
+        let target = solution
+            .and_then(|solution| solution.turret_yaw_rad)
+            .unwrap_or_else(|| shortest_angle(self.desired_aim.yaw_rad() - self.predictor.yaw()));
         let current = self.predictor.turret_yaw();
         (shortest_angle(target - current) * TURRET_TRACK_GAIN).clamp(-1.0, 1.0)
     }
@@ -176,7 +217,7 @@ mod tests {
         app.confirm_garage_selection();
         app.seed_prediction();
 
-        // Let the turret-tracking loop settle against the over-shoulder sight lane.
+        // Let the turret-tracking loop settle against the sight lane.
         for _ in 0..300 {
             app.run_fixed_ticks(1);
         }
@@ -188,16 +229,12 @@ mod tests {
             "settled turret should hold the sight point, got {command}"
         );
 
-        // The convergence target is the muzzle->sight bearing. The over-shoulder camera offset bends
-        // that bearing off the raw camera/orbit yaw; a turret that merely ran parallel to the camera
-        // (the old behavior) would land the shell beside the crosshair — worst at close range.
+        // The convergence target is the muzzle->sight bearing (with the camera centered the
+        // bearing sits near the camera yaw, but the mechanism converges on the SIGHT POINT —
+        // the target-forward offset still separates the two paths).
         let bearing = app.desired_turret_yaw().expect("sight point resolves to a bearing");
-        assert!(
-            shortest_angle(bearing - app.desired_aim.yaw_rad()).abs() > 1.0e-2,
-            "over-shoulder offset must bend the gun bearing off the raw camera yaw"
-        );
 
-        // And the settled turret actually points along that bearing (world space).
+        // The settled turret actually points along that bearing (world space).
         let settled_world_yaw = app.predictor.yaw() + app.predictor.turret_yaw();
         assert!(
             shortest_angle(settled_world_yaw - bearing).abs() < 2.0e-2,

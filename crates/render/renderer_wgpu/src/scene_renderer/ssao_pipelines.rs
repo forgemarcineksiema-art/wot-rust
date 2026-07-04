@@ -34,7 +34,6 @@ pub(crate) fn placeholder_ao_view(device: &wgpu::Device, queue: &wgpu::Queue) ->
     texture.create_view(&wgpu::TextureViewDescriptor::default())
 }
 
-
 pub(crate) fn texture_bgl(
     device: &wgpu::Device,
     label: &str,

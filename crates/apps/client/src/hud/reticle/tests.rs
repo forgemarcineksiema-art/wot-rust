@@ -214,3 +214,17 @@ fn query_with_player<'a>(
         ..query(heightmap, &[], tanks, muzzle, aim, 0.0, gun_pitch_rad)
     }
 }
+
+#[test]
+fn an_open_sky_shot_is_not_blocked_just_targetless() {
+    // Aiming above the horizon over a flat map: the trace expires in flight with nothing hit.
+    // That is a shot with no target — NOT a blocked shot. Flagging the whole sky "blocked"
+    // teaches players to ignore the one signal that saves a wasted shell.
+    let heightmap = HeightMap::flat(80, 80, 5.0, 0.0).unwrap();
+    let muzzle = Vec3::new(40.0, 2.0, 40.0);
+    let aim = muzzle + Vec3::new(0.0, 200.0, 1000.0); // well above the horizon
+
+    let feedback = reticle_feedback(query(&heightmap, &[], &[], muzzle, aim, 0.0, 0.35));
+
+    assert_eq!(feedback.status, ReticleStatus::Clear);
+}

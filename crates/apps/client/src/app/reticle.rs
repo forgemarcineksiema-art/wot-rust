@@ -41,8 +41,7 @@ impl ClientApp {
             return Some(SightSolution { pitch_rad, turret_yaw_rad: None });
         }
         // World arc (azimuth muzzle->aim, solved ballistic elevation) -> hull-relative targets.
-        let world_direction =
-            game_core::math::gun_direction(delta.x.atan2(delta.z), world_pitch);
+        let world_direction = game_core::math::gun_direction(delta.x.atan2(delta.z), world_pitch);
         let (turret_yaw, gun_pitch) =
             game_core::math::world_direction_to_turret(hull, world_direction);
         Some(SightSolution {
@@ -95,16 +94,13 @@ impl ClientApp {
         let feedback = report.feedback;
         let pen_hint = report.penetration;
 
+        let (reload_remaining, reload_max) = self.player_reload();
         Some(HudReticle {
             aim_clip: crate::hud::reticle::world_to_clip_xy(
                 feedback.aim_world_point,
                 view_projection,
             )
             .unwrap_or([0.0, 0.0]),
-            gun_clip: crate::hud::reticle::world_to_clip_xy(
-                feedback.gun_world_point,
-                view_projection,
-            ),
             impact_clip: crate::hud::reticle::world_to_clip_xy(
                 feedback.actual_impact_world_point,
                 view_projection,
@@ -113,6 +109,10 @@ impl ClientApp {
             target_distance_m: Some((feedback.aim_world_point - muzzle).length()),
             status: feedback.status,
             penetration_hint: pen_hint,
+            reload_fraction: 1.0 - (reload_remaining / reload_max.max(0.001)).clamp(0.0, 1.0),
+            hit_confirm: self.hit_indicator.recent_confirm(),
+            show_penetration_numbers: self.camera_controller.mode()
+                == crate::BattleCameraMode::Sniper,
         })
     }
 
@@ -225,11 +225,8 @@ mod tests {
                 )
         };
         let traversed = traverse(pitched, ring, tank.turret_yaw_rad);
-        let basis = game_core::math::hull_basis(
-            tank.yaw_rad,
-            tank.hull_pitch_rad,
-            tank.hull_roll_rad,
-        );
+        let basis =
+            game_core::math::hull_basis(tank.yaw_rad, tank.hull_pitch_rad, tank.hull_roll_rad);
         let expected = Vec3::from_array(tank.position) + basis * traversed;
 
         assert!((app.muzzle_position() - expected).length() < 1.0e-4);

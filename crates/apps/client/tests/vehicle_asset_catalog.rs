@@ -5,14 +5,15 @@ use vehicle_forge::{BakeProfile, ForgeArtifact, bake_production_vehicle};
 use vehicle_geometry::{RunningGearKinematics, SubmeshKind};
 
 /// Render objects for one T-54: hull/turret/gun plus the animated running-gear instances (road
-/// wheels both sides, two end wheels per side, and the belt links).
+/// wheels and their swing arms both sides, two end wheels per side, and the belt links).
 fn t54_object_count() -> usize {
     let kin = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951).expect("T-54 gear");
-    3 + kin.wheel_zs.len() * 2 + 4 + kin.link_count() * 2
+    3 + kin.wheel_zs.len() * 2 * 2 + 4 + kin.link_count() * 2
 }
 
-/// Cached meshes for one blueprint vehicle: hull/turret/gun plus four unit gear meshes.
-const BLUEPRINT_MESH_COUNT: usize = 7;
+/// Cached meshes for one blueprint vehicle: hull/turret/gun plus five unit gear meshes
+/// (road wheel, swing arm, sprocket, idler, track link).
+const BLUEPRINT_MESH_COUNT: usize = 8;
 
 #[test]
 fn vehicle_asset_catalog_uploads_pbr_vehicle_meshes_once() {

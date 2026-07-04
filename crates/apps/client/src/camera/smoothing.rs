@@ -29,10 +29,22 @@ const SPEED_FOV_AT_MPS: f32 = 14.0;
 /// Blend rate (1/s) easing the FOV toward its speed target. Slow on purpose: a fast blend reads
 /// as a zoom lurch on every W/S tap instead of the world gradually opening up.
 const FOV_BLEND_PER_S: f32 = 1.6;
+/// Hardest the anchor may trail the hull (meters). A spring lag reads as weight; beyond this it
+/// reads as the camera losing the tank — hard stops and spawn teleports clamp here.
+const MAX_ANCHOR_LAG_M: f32 = 0.6;
+/// Sniper vertical damper frequency (rad/s): ~50 ms — soaks the per-frame jolt of a rut at 3
+/// degrees of FOV without ever reading as float.
+const SNIPER_Y_OMEGA: f32 = 45.0;
+/// Sniper damper authority (meters): the smoothed eye may deviate at most this far vertically.
+const SNIPER_Y_MAX_M: f32 = 0.12;
 /// Downward anchor velocity injected per m/s of absorbed landing speed.
 const KICK_PER_IMPACT_MPS: f32 = 0.22;
 /// Hardest camera kick a single landing can inject (m/s of anchor velocity).
 const MAX_KICK_MPS: f32 = 3.0;
+/// Anchor velocity of the player's own shot: rearward along the aim (the rig absorbs a share of
+/// the recoil) plus a smaller settle-down component. One firm nudge, not a screen shake.
+const FIRE_KICK_BACK_MPS: f32 = 0.9;
+const FIRE_KICK_DOWN_MPS: f32 = 0.5;
 
 impl BattleCameraController {
     /// Landing slam: inject downward velocity into the follow anchor; the critically damped
@@ -45,6 +57,18 @@ impl BattleCameraController {
         self.smoothing.anchor_vel.y -= (impact_mps * KICK_PER_IMPACT_MPS).min(MAX_KICK_MPS);
     }
 
+    /// The player's own shot nudges the follow rig back along the aim and slightly down; the
+    /// critically damped spring returns it in one settle. Sniper stays rigid — at 3 degrees of
+    /// FOV even this nudge would smear the sight picture.
+    pub fn fire_kick(&mut self, view_yaw_rad: f32) {
+        if self.mode() == BattleCameraMode::Sniper {
+            return;
+        }
+        let forward = game_core::math::horizontal_forward(view_yaw_rad);
+        self.smoothing.anchor_vel -= forward * FIRE_KICK_BACK_MPS;
+        self.smoothing.anchor_vel.y -= FIRE_KICK_DOWN_MPS;
+    }
+
     /// Step the camera feel once per presented frame: the follow anchor springs after the hull,
     /// the hull speed is estimated from its raw motion, and the FOV boost eases toward the speed.
     /// Sniper mode snaps rigid (aiming tolerates no lag).
@@ -54,25 +78,41 @@ impl BattleCameraController {
         let sniper = self.mode() == BattleCameraMode::Sniper;
         let s = &mut self.smoothing;
         if let Some(prev) = s.prev_subject {
-            let inst = (target - prev).length() / dt;
+            // HORIZONTAL speed only: heightmap steps and suspension bounce are not "speed", and
+            // feeding them into the FOV cue made the view pulse on every rut.
+            let delta = target - prev;
+            let inst = Vec3::new(delta.x, 0.0, delta.z).length() / dt;
             s.speed_mps += (inst.min(30.0) - s.speed_mps) * (8.0 * dt).clamp(0.0, 1.0);
         }
         s.prev_subject = Some(target);
 
         if sniper {
-            s.anchor = Some(target);
-            s.anchor_vel = Vec3::ZERO;
+            // Sniper is rigid in the aim plane, but a short vertical-only damper soaks the
+            // per-frame jolt of ruts — at 3 degrees of FOV a 1:1 hull jolt slams the whole sight.
+            let anchor = s.anchor.unwrap_or(target);
+            let accel = SNIPER_Y_OMEGA * SNIPER_Y_OMEGA * (target.y - anchor.y)
+                - 2.0 * SNIPER_Y_OMEGA * s.anchor_vel.y;
+            let vel_y = s.anchor_vel.y + accel * dt;
+            let damped_y =
+                (anchor.y + vel_y * dt).clamp(target.y - SNIPER_Y_MAX_M, target.y + SNIPER_Y_MAX_M);
+            s.anchor = Some(Vec3::new(target.x, damped_y, target.z));
+            s.anchor_vel = Vec3::new(0.0, vel_y, 0.0);
             s.fov_boost_deg = 0.0;
             return;
         }
         let anchor = s.anchor.unwrap_or(target);
         // Critically damped spring: the rig trails acceleration, not steady cruise.
-        let accel = FOLLOW_OMEGA * FOLLOW_OMEGA * (target - anchor)
-            - 2.0 * FOLLOW_OMEGA * s.anchor_vel;
+        let accel =
+            FOLLOW_OMEGA * FOLLOW_OMEGA * (target - anchor) - 2.0 * FOLLOW_OMEGA * s.anchor_vel;
         s.anchor_vel += accel * dt;
-        s.anchor = Some(anchor + s.anchor_vel * dt);
+        let mut next = anchor + s.anchor_vel * dt;
+        // The spring may trail, never lose: clamp the total lag (hard stop, spawn teleport).
+        let offset = next - target;
+        if offset.length() > MAX_ANCHOR_LAG_M {
+            next = target + offset.normalize() * MAX_ANCHOR_LAG_M;
+        }
+        s.anchor = Some(next);
         let fov_target = SPEED_FOV_BOOST_DEG * (s.speed_mps / SPEED_FOV_AT_MPS).clamp(0.0, 1.0);
         s.fov_boost_deg += (fov_target - s.fov_boost_deg) * (FOV_BLEND_PER_S * dt).clamp(0.0, 1.0);
     }
-
 }

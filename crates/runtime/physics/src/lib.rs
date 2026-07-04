@@ -23,11 +23,11 @@ pub use collision::{
 pub use contact::{TerrainContact, sample_tank_terrain_contact};
 pub use controller_settings::TankControllerSettings;
 pub use cover::{resolve_cover_collision, resolve_cover_collision_with_velocity};
+pub use hull_attitude::{HULL_ATTITUDE_RATE_RAD_S, MAX_HULL_TILT_RAD, advance_hull_attitude};
 pub use movement::{
     TankControlInput, TankKinematicState, step_custom_tank_controller,
     step_custom_tank_controller_on_contact,
 };
-pub use hull_attitude::{HULL_ATTITUDE_RATE_RAD_S, MAX_HULL_TILT_RAD, advance_hull_attitude};
 pub use parry_query::tank_footprints_intersect_query;
 pub use policy::{CustomPhysicsRole, PhysicsOwner, PhysicsOwnershipPolicy, RapierPhysicsRole};
 pub use track_contact::{SupportContact, sample_support, support_height};

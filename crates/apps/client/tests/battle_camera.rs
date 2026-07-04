@@ -25,8 +25,8 @@ fn third_person_camera_follows_tank_and_stays_above_terrain() {
         "TPP aim camera should look ahead of the hull instead of centering the player's turret"
     );
     assert!(
-        (render_camera.eye[0] - subject.position[0]).abs() > 0.5,
-        "TPP aim camera should use an over-shoulder sight lane"
+        (render_camera.eye[0] - subject.position[0]).abs() < 0.05,
+        "at battle distance the camera is CENTERED on the vehicle, not beside it"
     );
     assert_eq!(render_camera.vertical_fov_degrees, camera.settings().third_person_fov_degrees);
 }
@@ -111,23 +111,29 @@ fn third_person_camera_follows_the_hull_rigidly_without_lag() {
 }
 
 #[test]
-fn third_person_camera_uses_turret_yaw_for_over_shoulder_lane() {
+fn the_camera_stays_centered_at_every_boom_length_so_zoom_cannot_slide_the_view() {
     let environment = BattleCameraEnvironment::empty();
     let subject = CameraSubject::from_snapshot(tank_snapshot([0.0, 0.0, 0.0], 0.0, FRAC_PI_2), 0.0);
     let mut camera = BattleCameraController::new(BattleCameraSettings::default());
     camera.set_mode(BattleCameraMode::ThirdPerson);
 
-    let render_camera = camera.render_camera(&subject, &environment);
-
-    assert!(
-        render_camera.target[0] > subject.position[0] + 3.0,
-        "TPP target should move ahead of the current turret"
-    );
-    assert!(render_camera.eye[0] < subject.position[0], "camera should sit behind turret yaw");
-    assert!(
-        render_camera.eye[2].abs() > 0.5,
-        "over-shoulder offset should rotate with the turret lane"
-    );
+    // Scroll the boom through its whole range: the lateral placement must not move — a
+    // zoom-dependent offset swept the scene sideways on every scroll (the "slides left" bug).
+    let far = camera.render_camera(&subject, &environment);
+    assert!(far.target[0] > subject.position[0] + 3.0, "TPP target leads the current turret");
+    for _ in 0..24 {
+        camera.apply_input(BattleCameraInput { zoom_delta_m: -0.8, ..Default::default() });
+        let stepped = camera.render_camera(&subject, &environment);
+        if camera.mode() != BattleCameraMode::ThirdPerson {
+            break;
+        }
+        assert!(
+            (stepped.eye[2] - far.eye[2]).abs() < 1.0e-4,
+            "zooming must not slide the view sideways, drifted {}",
+            (stepped.eye[2] - far.eye[2]).abs()
+        );
+        assert!(stepped.target[2].abs() < 1.0e-4, "the sight lane stays centered on the hull");
+    }
 }
 
 #[test]

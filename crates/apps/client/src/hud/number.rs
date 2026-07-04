@@ -10,6 +10,8 @@ pub(crate) const RELOAD_TIME_COLOR: [f32; 4] = [0.92, 0.78, 0.48, 0.94];
 pub(crate) const TARGET_DISTANCE_COLOR: [f32; 4] = [0.82, 0.92, 1.00, 0.82];
 /// Dim secondary tint for unit labels (KM/H, M) so they read as context next to the bright value.
 pub(crate) const UNIT_COLOR: [f32; 4] = [0.72, 0.80, 0.74, 0.66];
+/// Sniper magnification readout ("X6.9") under the reticle.
+pub(crate) const ZOOM_COLOR: [f32; 4] = [0.80, 0.88, 0.80, 0.78];
 
 /// Number of decimal digits in `n` (1 for zero); used to budget layout width for readouts.
 pub(crate) fn digit_count(mut n: u32) -> u32 {

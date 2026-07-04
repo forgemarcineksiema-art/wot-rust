@@ -79,8 +79,13 @@ pub fn sprocket_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
     for side in [-1.0_f32, 1.0] {
         let center_x = side * ring_x;
         // Thin carrier ring the teeth root into.
-        builder =
-            builder.append(&wheel_disc_at(center_x, r * 0.80, 0.022, seg, MaterialRole::TrackMetal));
+        builder = builder.append(&wheel_disc_at(
+            center_x,
+            r * 0.80,
+            0.022,
+            seg,
+            MaterialRole::TrackMetal,
+        ));
         for i in 0..teeth {
             let angle = (i as f32 / teeth as f32) * std::f32::consts::TAU;
             builder = builder.append(&sprocket_tooth(center_x, angle, r * 0.66, r * 1.10, 0.028));

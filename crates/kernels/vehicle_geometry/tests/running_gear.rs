@@ -336,9 +336,8 @@ fn t54_sprocket_is_visibly_toothed_while_idler_is_smooth() {
     );
     let plate_half_x = kin.link_half_width * 1.25;
     for vertex in sprocket.vertices() {
-        let radial = (vertex.position.y * vertex.position.y
-            + vertex.position.z * vertex.position.z)
-            .sqrt();
+        let radial =
+            (vertex.position.y * vertex.position.y + vertex.position.z * vertex.position.z).sqrt();
         if radial > kin.end_radius + 0.010 {
             assert!(
                 vertex.position.x.abs() > plate_half_x,
