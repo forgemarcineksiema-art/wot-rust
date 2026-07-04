@@ -26,6 +26,7 @@ mod chassis;
 mod chassis_blueprint;
 mod german;
 mod is3;
+mod is3_hull;
 mod panther;
 mod soviet;
 mod t54;

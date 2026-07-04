@@ -1,23 +1,23 @@
-//! The IS-3: the era's Soviet heavy, blueprint-born from day one. First pass rides the shared
-//! family machinery — hull plates, six-wheel running gear, the flattened cast dome, and the
-//! braked 122 mm all read the IS-3 blueprint, so dimensions, dome, wheels, and the gun already
-//! read true. The visual pike bow and the heavy's deck furniture are the follow-up detail
-//! package (the ARMOR pike is already real — the gameplay volumes carry both bow planes).
+//! The IS-3: the era's Soviet heavy, blueprint-born from day one. The hull is bespoke — the
+//! pike bow ("shchuchy nos") is authored face by face on the EXACT planes the armor volumes
+//! shoot against (same fold ridge, same slopes, same ±sweep), so the visible bow and the
+//! penetration model are one geometry. The dome, running gear, and the braked 122 mm ride the
+//! shared blueprint family machinery.
 
 use game_core::{HitboxProfile, MountFrames, VehicleKind};
 
+use super::is3_hull::is3_pike_hull;
 use super::soviet::soviet_cast_turret_for;
 use super::{
-    GunPlan, assemble, blueprint_deck_details, blueprint_hull, blueprint_running_gear, build_gun,
-    shade_hull,
+    GunPlan, assemble, blueprint_deck_details, blueprint_running_gear, build_gun, shade_hull,
 };
-use crate::{BakedVehicle, MaterialRole};
+use crate::BakedVehicle;
 
 pub(crate) fn is3(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVehicle {
     let bp =
         game_core::VehicleBlueprint::for_vehicle(VehicleKind::IS3).expect("IS-3 has a blueprint");
     let hull = shade_hull(
-        blueprint_hull(&bp.hull, MaterialRole::RolledArmor)
+        is3_pike_hull(&bp.hull)
             .append(&blueprint_running_gear(&bp.track))
             .append(&blueprint_deck_details(&bp.hull))
             .build(),

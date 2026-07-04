@@ -62,7 +62,15 @@ impl MeshBuilder {
         GeometryMesh::new(self.vertices, self.indices)
     }
 
-    fn push_quad(&mut self, points: [Vec3; 4], material: MaterialRole, smoothing: SmoothingGroup) {
+    /// One explicit quad (CCW as seen from its outward normal). `pub(crate)` for bespoke plate
+    /// authoring in recipes — faceted armor like the IS-3 pike bow is built face by face on the
+    /// exact planes the armor volumes shoot against.
+    pub(crate) fn push_quad(
+        &mut self,
+        points: [Vec3; 4],
+        material: MaterialRole,
+        smoothing: SmoothingGroup,
+    ) {
         let base = self.vertices.len() as u32;
         let normal = (points[1] - points[0]).cross(points[2] - points[0]).normalize_or_zero();
         for point in points {
@@ -71,7 +79,13 @@ impl MeshBuilder {
         self.indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
     }
 
-    fn push_tri(&mut self, points: [Vec3; 3], material: MaterialRole, smoothing: SmoothingGroup) {
+    /// One explicit triangle (CCW from its outward normal); see [`Self::push_quad`].
+    pub(crate) fn push_tri(
+        &mut self,
+        points: [Vec3; 3],
+        material: MaterialRole,
+        smoothing: SmoothingGroup,
+    ) {
         let base = self.vertices.len() as u32;
         let normal = (points[1] - points[0]).cross(points[2] - points[0]).normalize_or_zero();
         for point in points {
