@@ -30,3 +30,5 @@ The workspace pins `rapier3d` with `default-features = false` and only `dim3`/`f
 ## Tank Movement
 
 Do not start with realistic track simulation. Start with a custom kinematic controller that produces predictable acceleration, braking, steering, terrain height sampling, and replayable results. More detailed traction can be layered behind the same custom controller once network and replay behavior stay stable.
+
+The first such layer is the running-gear support envelope (see `docs/vehicle-movement-policy.md`, "Hull Attitude and the Support Envelope"): terrain sampled at the vehicle's road-wheel stations, the hull resting as a rigid beam on the highest supports, and a rate-limited authoritative hull pitch/roll derived from that plane. It stays kinematic and deterministic — no springs, no per-link simulation — and every extension must keep the server/predictor parity and replay regression tests green.

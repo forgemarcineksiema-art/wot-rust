@@ -77,6 +77,10 @@ fn t54() -> VehicleBlueprint {
             inner_x: 1.06,
             outer_x: 1.63,
             segments: 14,
+            // 810 mm wheels at a ~0.92 m pitch with the T-54's signature wider gap between the
+            // first and second road wheels at the front (+Z). Single source: the rendered
+            // running gear and the physics contact footprint both read these stations.
+            wheel_stations: Some(&[-1.95, -1.03, -0.11, 0.81, 1.95]),
         },
         turret: TurretShape {
             form: TurretForm::CastDome,
@@ -172,6 +176,7 @@ fn t55a_blueprint() -> VehicleBlueprint {
             inner_x: 1.40,
             outer_x: 1.55,
             segments: 14,
+            wheel_stations: None,
         },
         turret: TurretShape {
             form: TurretForm::CastDome,
