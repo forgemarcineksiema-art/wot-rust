@@ -51,6 +51,8 @@ impl ClientApp {
     pub(super) fn accept_and_sync(&mut self, snapshot: net::Snapshot) {
         let player = snapshot.tanks.iter().find(|tank| tank.tank_id == self.player_tank).cloned();
         self.hit_indicator.ingest_damage_events(&snapshot.damage_events, self.player_tank);
+        self.damage_log.ingest(&snapshot.damage_events, self.player_tank, &snapshot.tanks);
+        self.incoming_hits.ingest(&snapshot.damage_events, self.player_tank, &snapshot.tanks);
         // Every shell death gets its world-space burst: absorbed shells speak the surface they
         // died against, armor strikes answer with sparks (plus the penetration signature). A
         // shell the ground swallowed also digs a crater that outlives the dust.

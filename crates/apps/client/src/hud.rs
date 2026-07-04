@@ -2,8 +2,10 @@ use renderer_api::HudVertex;
 
 use crate::hud::reticle::ReticleStatus;
 
+pub(crate) mod damage_log;
 pub(crate) mod font;
 pub(crate) mod health_bar;
+pub(crate) mod hit_direction;
 pub(crate) mod icons;
 pub(crate) mod number;
 pub(crate) mod primitives;
@@ -39,13 +41,25 @@ pub struct BattleHudModel {
     pub speed_kmh: f32,
     /// Sniper magnification; `None` in third person (no readout).
     pub zoom_factor: Option<f32>,
+    /// Recent dealt/taken damage rows, newest first (`hud/damage_log.rs`).
+    pub damage_log: Vec<damage_log::DamageLogEntry>,
+    /// Incoming hits resolved to screen bearings (`hud/hit_direction.rs`).
+    pub incoming_hits: Vec<hit_direction::IncomingHit>,
 }
 
 /// Build the 2D HUD overlay (center crosshair, top-left health bar, bottom-center reload
 /// bar) in clip space. `aspect` keeps the crosshair square on non-square viewports.
 pub fn build_hud(vitals: HudVitals, aspect: f32) -> Vec<HudVertex> {
     build_battle_hud(
-        &BattleHudModel { vitals, reticle: None, fps: 0.0, speed_kmh: 0.0, zoom_factor: None },
+        &BattleHudModel {
+            vitals,
+            reticle: None,
+            fps: 0.0,
+            speed_kmh: 0.0,
+            zoom_factor: None,
+            damage_log: Vec::new(),
+            incoming_hits: Vec::new(),
+        },
         aspect,
     )
 }
@@ -61,7 +75,18 @@ pub(crate) fn build_hud_with_reticle(
     speed_kmh: f32,
     zoom_factor: Option<f32>,
 ) -> Vec<HudVertex> {
-    build_battle_hud(&BattleHudModel { vitals, reticle, fps, speed_kmh, zoom_factor }, aspect)
+    build_battle_hud(
+        &BattleHudModel {
+            vitals,
+            reticle,
+            fps,
+            speed_kmh,
+            zoom_factor,
+            damage_log: Vec::new(),
+            incoming_hits: Vec::new(),
+        },
+        aspect,
+    )
 }
 
 pub(crate) fn build_battle_hud(model: &BattleHudModel, aspect: f32) -> Vec<HudVertex> {
@@ -136,6 +161,9 @@ pub(crate) fn build_battle_hud(model: &BattleHudModel, aspect: f32) -> Vec<HudVe
             crate::hud::number::FPS_COLOR,
         );
     }
+
+    damage_log::push_damage_log(&mut vertices, &model.damage_log, aspect);
+    hit_direction::push_hit_direction(&mut vertices, &model.incoming_hits, aspect);
 
     if model.speed_kmh >= 0.5 {
         crate::hud::number::push_number(

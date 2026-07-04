@@ -92,6 +92,10 @@ pub(crate) struct ClientApp {
     presentation: engine::PresentationWorld,
     last_render_time: Instant,
     hit_indicator: HitIndicator,
+    /// Rolling dealt/taken damage feed for the left-edge battle log.
+    damage_log: crate::hud::damage_log::DamageLog,
+    /// Incoming hits awaiting their screen-bearing arcs.
+    incoming_hits: crate::hud::hit_direction::IncomingHitFeed,
     /// Battle effects (muzzle flash, smoke, dust, impact bursts, tracers): one particle pool
     /// ticked per presented frame and drawn by the renderer's unlit FX pass.
     fx: FxSystem,
@@ -148,6 +152,8 @@ impl ClientApp {
             presentation: engine::PresentationWorld::default(),
             last_render_time: Instant::now(),
             hit_indicator: HitIndicator::default(),
+            damage_log: crate::hud::damage_log::DamageLog::default(),
+            incoming_hits: crate::hud::hit_direction::IncomingHitFeed::default(),
             fx: FxSystem::default(),
             tank_scars: HashMap::new(),
             terrain_scars: crate::fx::TerrainScars::default(),

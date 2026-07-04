@@ -2,7 +2,7 @@
 //! the Battle button, a left crew column, a right stats list, a bottom loadout strip, and a bottom
 //! vehicle carousel. Every rect lives here once so drawing (panels) and hit-testing (overlay) agree.
 
-use game_core::{Nation, VehicleKind};
+use game_core::Nation;
 
 use super::draft::FitSlot;
 use crate::hud::theme;
@@ -82,18 +82,7 @@ pub(super) fn in_rect(point: [f32; 2], center: [f32; 2], half: [f32; 2]) -> bool
     (point[0] - center[0]).abs() <= half[0] && (point[1] - center[1]).abs() <= half[1]
 }
 
-pub(super) fn short_name(kind: VehicleKind) -> &'static str {
-    match kind {
-        VehicleKind::PrototypeMedium => "Proto",
-        VehicleKind::T54_1951 => "T-54",
-        VehicleKind::T55A => "T-55A",
-        VehicleKind::TigerI => "Tiger I",
-        VehicleKind::TigerII => "Tiger II",
-        VehicleKind::Jagdtiger => "Jagdtg",
-        VehicleKind::PantherII => "Panth II",
-        VehicleKind::IS3 => "IS-3",
-    }
-}
+pub(super) use crate::vehicle::display::short_name;
 
 /// The icon for a fitting slot.
 pub(super) fn slot_icon(slot: FitSlot) -> crate::hud::icons::HudIcon {

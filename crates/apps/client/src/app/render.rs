@@ -51,6 +51,8 @@ impl ClientApp {
         }
         self.render_state.advance(frame_dt, SNAPSHOT_INTERVAL_SECONDS);
         self.hit_indicator.tick(frame_dt);
+        self.damage_log.tick(frame_dt);
+        self.incoming_hits.tick(frame_dt);
         self.fx.tick(frame_dt);
         self.terrain_scars.tick(frame_dt);
         self.tick_battle_scars(frame_dt);
@@ -102,12 +104,16 @@ impl ClientApp {
             reload_remaining_s: reload_remaining,
             reload_seconds: reload_max,
         };
+        let camera_forward_xz =
+            [camera.target[0] - camera.eye[0], camera.target[2] - camera.eye[2]];
         let hud_model = crate::hud::BattleHudModel {
             vitals,
             reticle: self.hud_reticle(&camera, view_proj),
             fps: self.fps_estimate,
             speed_kmh: self.player_speed_kmh(),
             zoom_factor: self.camera_controller.zoom_factor(),
+            damage_log: self.damage_log.visible(),
+            incoming_hits: self.incoming_hits.screen_hits(camera_forward_xz),
         };
         let mut hud = crate::hud::build_battle_hud(&hud_model, aspect);
         hud.extend(enemy_bars);

@@ -166,6 +166,8 @@ fn the_positional_wrapper_and_the_model_build_identical_huds() {
         fps: 61.0,
         speed_kmh: 33.0,
         zoom_factor: Some(4.2),
+        damage_log: Vec::new(),
+        incoming_hits: Vec::new(),
     };
     let from_model = build_battle_hud(&model, 16.0 / 9.0);
     let from_wrapper =
