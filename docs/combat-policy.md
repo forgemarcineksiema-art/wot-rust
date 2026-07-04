@@ -79,15 +79,30 @@ terrain, and slab tests for cover) and the ballistic integration (`trace_shell`:
 semi-implicit gravity-then-move at the simulation tick `dt`) are the same code for
 all of them.
 
-A tank is two volumes, not one box. Below the armor split (`turret_min_y`) the
-full-plan hull slab applies; above it only the per-vehicle *turret box*
-(`HitboxProfile::with_turret_plan`) connects, and it traverses with the turret
-about the ring axis (`TraceTank::for_kind` sources the pivot from `MountFrames`
-so it cannot desync). A shot at turret height that visually passes beside the
-turret really passes; a plunging hit on the open deck lands on thin `Roof`
-plate instead of a phantom full-thickness turret side. The turret plan is sized
-to the visual turret submesh and `vehicle_geometry`'s turret fit/fill test keeps
+Blueprint vehicles resolve against BAKED CONVEX ARMOR VOLUMES
+(`game_core::vehicle_armor_volumes`, built from the same `VehicleBlueprint`
+numbers the visible plates are generated from — what you see is literally what
+you shoot). A vehicle is a set of zone-tagged half-space volumes: the upper
+hull (glacis/deck/sides/rear above the sponson fold), the lower tub (nose
+plate/belly/tub sides), each track band as its real belt box from
+`TrackShape`, and the cast turret as a ring of sloped sector planes whose
+normal sweeps around the casting. The ENTERING plane of the nearest volume is
+the struck plate: its true normal, its zone, and any weakspot patch riding on
+it — the mantlet is a real circle centered on the gun line, not a width band.
+Consequences are physical: the narrow T-54 hull leaves honest air between the
+hull wall and the hitbox width (shots threading over the tracks fly on), the
+deck is the real 1.58/1.30 m hull roof, and dome cheeks auto-glance where the
+casting curves away. The hitbox stays as the broad phase only.
+
+Legacy (non-blueprint) vehicles keep the two-box band model: below the armor
+split (`turret_min_y`) the full-plan hull slab applies; above it only the
+per-vehicle *turret box* (`HitboxProfile::with_turret_plan`) connects, and it
+traverses with the turret about the ring axis (`TraceTank::for_kind` sources
+the pivot from `MountFrames` so it cannot desync). The turret plan is sized to
+the visual turret submesh and `vehicle_geometry`'s turret fit/fill test keeps
 the numbers honest. Casemates hold traverse at zero, so their box stays fixed.
+This path (`shell_trace/legacy_boxes.rs`) shrinks one vehicle at a time as the
+fleet migrates onto blueprints.
 
 Shells also *spawn* at the visible muzzle: `game_core::math::muzzle_world_position`
 pivots the muzzle mount about the trunnion (pitch), the turret ring (traverse),

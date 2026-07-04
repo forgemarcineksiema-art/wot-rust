@@ -10,9 +10,15 @@ fn penetrating_front_hit_damages_the_gun_module() {
     let shooter = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::ZERO);
     let target = state.spawn_tank(TeamId(2), TankSpec::t54_1951(), Vec3::new(0.0, 0.0, 55.0));
     state.tank_mut(target).expect("target").yaw_rad = PI;
-    // Depress onto the T-54's glacis: the low 1951 casting sits below the T-55A muzzle line, so a
-    // level shot clears the hull and strikes the thick mantlet. The upper glacis maps to the gun.
-    state.tank_mut(shooter).expect("shooter").gun_pitch_rad = -0.007;
+    // Depress onto the middle of the T-54's REAL glacis plate (the plane spans 1.0–1.58 m of
+    // height): the low 1951 casting sits below the T-55A muzzle line, so a level shot clears
+    // the hull. Dispersion is zeroed so the shot cannot wander onto the deck edge.
+    {
+        let shooter = state.tank_mut(shooter).expect("shooter");
+        shooter.gun_pitch_rad = -0.010;
+        shooter.aim_dispersion_mrad = 0.0;
+        shooter.spec.gun.dispersion_mrad = 0.0;
+    }
     let gun_hp_before = module_hp(&state, target, ModuleSlot::Gun);
 
     run_until_shell_resolved(&mut state, shooter);

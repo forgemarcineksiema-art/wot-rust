@@ -104,7 +104,9 @@ fn high_side_hit_uses_turret_side_armor_not_hull_side_armor() {
     {
         let shooter = state.tank_mut(shooter).expect("shooter");
         shooter.yaw_rad = PI / 2.0;
-        shooter.gun_pitch_rad = 0.006;
+        // Level fire arrives mid-dome (~1.76 m): the T-55A's real cast turret, not a tall
+        // phantom box — the old +0.006 sailed over the 2.03 m casting.
+        shooter.gun_pitch_rad = 0.0;
         shooter.spec.gun.shell.penetration_mm_at_100m = 85.0;
     }
     let target_hp = state.tank(target).expect("target").hit_points;
@@ -125,6 +127,11 @@ fn off_center_side_hit_on_long_hull_still_uses_side_armor() {
     {
         let shooter = state.tank_mut(shooter).expect("shooter");
         shooter.yaw_rad = PI / 2.0;
+        // Drop the shot to ~0.45 m — the lower tub side. This far forward (z = 2.8, near the
+        // bow) the glacis has already cut the upper hull away above the 0.55 m sponson fold,
+        // and the deck sits at only 1.30 m: a muzzle-height shell honestly clears the bow
+        // entirely (the old model's tall box caught it in air).
+        shooter.gun_pitch_rad = -0.028;
         shooter.aim_dispersion_mrad = 0.0;
         shooter.spec.gun.dispersion_mrad = 0.0;
     }
