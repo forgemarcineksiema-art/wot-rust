@@ -1,10 +1,12 @@
 use engine::PresentationTank;
+use terrain::HeightMap;
+use vehicle_geometry::{GearDynamics, RunningGearKinematics};
 use game_core::TankId;
 use glam::{Mat4, Vec3};
 use net::TankSnapshot;
 use renderer_api::{RenderFrame, RenderObject};
 
-use super::asset_render::tank_vehicle_render_objects_with_tracks;
+use super::asset_render::tank_vehicle_render_objects_posed;
 use super::variation::VehicleVariation;
 use crate::{VehicleAssetCatalog, VehicleMeshCatalog, tank_render_objects};
 
@@ -40,24 +42,83 @@ pub fn split_pbr_vehicle_render_frame(
     player_tank: TankId,
     player_gun_scale: f32,
 ) -> VehicleRenderFrame {
+    split_pbr_vehicle_render_frame_on_terrain(catalog, tanks, player_tank, player_gun_scale, None)
+}
+
+/// As [`split_pbr_vehicle_render_frame`], with the local heightmap so each tank's road wheels can
+/// ride the ground under them (per-wheel suspension travel) and its track tension can follow the
+/// hull's drive state.
+pub fn split_pbr_vehicle_render_frame_on_terrain(
+    catalog: &mut VehicleAssetCatalog,
+    tanks: Vec<PresentationTank>,
+    player_tank: TankId,
+    player_gun_scale: f32,
+    terrain: Option<&HeightMap>,
+) -> VehicleRenderFrame {
     let mut objects = Vec::new();
     for tank in tanks {
         let is_player = tank.id == player_tank;
         let hull_color = if is_player { [0.30, 0.40, 0.28] } else { [0.46, 0.29, 0.25] };
         let snapshot = render_snapshot(&tank);
         let variation = VehicleVariation::from_snapshot(&snapshot);
-        let mut tank_objects = tank_vehicle_render_objects_with_tracks(
+        let (left_travel, right_travel, wheel_count) = wheel_travel(&tank, terrain);
+        // A driven track pulls its top run tight; braking or coasting lets it hang. The gain is
+        // gentle: the P/v launch hits ~8 m/s², and a sag that slams to its clamp on a throttle
+        // tap reads as the track convulsing rather than tensioning.
+        let sag_scale = (1.0 - tank.accel_long_mps2 * 0.05).clamp(0.72, 1.28);
+        let dynamics = GearDynamics {
+            left_travel: &left_travel[..wheel_count],
+            right_travel: &right_travel[..wheel_count],
+            sag_scale,
+        };
+        let mut tank_objects = tank_vehicle_render_objects_posed(
             catalog,
             &snapshot,
             hull_color,
             &variation,
             tank.track_left_m,
             tank.track_right_m,
+            [tank.attitude_pitch_rad, tank.attitude_roll_rad, tank.attitude_heave_m],
+            dynamics,
         );
         scale_player_gun(&mut tank_objects, is_player, player_gun_scale);
         objects.append(&mut tank_objects);
     }
     VehicleRenderFrame { objects }
+}
+
+const MAX_ROAD_WHEELS: usize = 8;
+
+/// Per-wheel vertical travel from the terrain under each road wheel: the residual between the
+/// ground height at the wheel and the sprung hull's ground plane there. Wheels drop into dips and
+/// ride over bumps the hull attitude has already averaged out.
+fn wheel_travel(
+    tank: &PresentationTank,
+    terrain: Option<&HeightMap>,
+) -> ([f32; MAX_ROAD_WHEELS], [f32; MAX_ROAD_WHEELS], usize) {
+    let mut left = [0.0; MAX_ROAD_WHEELS];
+    let mut right = [0.0; MAX_ROAD_WHEELS];
+    let (Some(map), Some(kin)) = (terrain, RunningGearKinematics::for_vehicle(tank.vehicle))
+    else {
+        return (left, right, 0);
+    };
+    let count = kin.wheel_zs.len().min(MAX_ROAD_WHEELS);
+    let (sin, cos) = tank.hull_yaw_rad.sin_cos();
+    let (bx, bz) = (tank.translation[0], tank.translation[2]);
+    let hull_y = tank.translation[1];
+    let (pitch, roll) = (tank.attitude_pitch_rad, tank.attitude_roll_rad);
+    for (index, &wz) in kin.wheel_zs.iter().take(count).enumerate() {
+        for (lane, side) in [(&mut left, -1.0_f32), (&mut right, 1.0)] {
+            let lx = side * kin.wheel_x;
+            // Hull-local (lx, wz) into the world; the sprung ground plane tilts with the attitude.
+            let wx = bx + cos * lx + sin * wz;
+            let wzw = bz - sin * lx + cos * wz;
+            let plane = hull_y + pitch.tan() * wz + roll.tan() * lx;
+            let ground = map.sample_height(wx, wzw).unwrap_or(plane);
+            lane[index] = (ground - plane).clamp(-0.08, 0.20);
+        }
+    }
+    (left, right, count)
 }
 
 fn scale_player_gun(objects: &mut [RenderObject], is_player: bool, player_gun_scale: f32) {
@@ -87,7 +148,7 @@ pub(crate) fn render_snapshot(tank: &PresentationTank) -> TankSnapshot {
         hit_points: tank.hit_points,
         reload_remaining_s: 0.0,
         aim_dispersion_mrad: 0.0,
-        module_hit_points: tank.vehicle.spec().module_health.hit_points_by_slot(),
+        module_hit_points: tank.module_hit_points,
         destroyed_modules_mask: tank.destroyed_modules_mask,
         track_damage_mask: tank.track_damage_mask,
     }
@@ -115,9 +176,14 @@ mod tests {
             gun_pitch_rad: -0.1,
             hit_points: 1200,
             destroyed_modules_mask: 0b101,
+            module_hit_points: [11, 22, 33, 44, 55, 66],
             track_damage_mask: 0,
             track_left_m: 0.0,
             track_right_m: 0.0,
+            attitude_pitch_rad: 0.0,
+            attitude_roll_rad: 0.0,
+            attitude_heave_m: 0.0,
+            accel_long_mps2: 0.0,
         };
 
         let snapshot = render_snapshot(&tank);
@@ -129,5 +195,7 @@ mod tests {
         assert_eq!(snapshot.turret_yaw_rad, 0.5);
         assert_eq!(snapshot.gun_pitch_rad, -0.1);
         assert_eq!(snapshot.destroyed_modules_mask, 0b101);
+        // Live module HP rides through so partial damage can drive mesh-side cues.
+        assert_eq!(snapshot.module_hit_points, [11, 22, 33, 44, 55, 66]);
     }
 }

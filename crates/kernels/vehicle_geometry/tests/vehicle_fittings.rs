@@ -20,31 +20,36 @@ fn t54_body_fits_within_its_blueprint_hitbox() {
 }
 
 #[test]
-fn t54_blueprint_hull_has_inset_tub_and_wide_sponson() {
+fn t54_blueprint_hull_is_a_narrow_box_beside_exposed_tracks() {
+    // The T-54 hull is a NARROW box with vertical sides riding between fully exposed tracks —
+    // there are no Panther-style sponsons overhanging the running gear. The armour body must stay
+    // inside the track inner faces at every height below the fender line, so the tracks (not the
+    // hull) carry the side silhouette.
     let blueprint = VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("T-54 blueprint");
     let vehicle = bake_vehicle(VehicleKind::T54_1951).expect("T-54 bakes");
     let hull = vehicle.submesh(SubmeshKind::Hull).expect("hull submesh");
 
-    let lower_side_x = hull
+    // The armour body below the fender line (the fender shelf itself rides at ~1.12).
+    let body_side_x = hull
         .mesh
         .vertices()
         .iter()
         .filter(|vertex| vertex.material == MaterialRole::RolledArmor)
-        .filter(|vertex| vertex.position.y <= blueprint.hull.sponson_y - 0.04)
+        .filter(|vertex| vertex.position.y <= 1.05)
         .map(|vertex| vertex.position.x.abs())
         .fold(0.0_f32, f32::max);
-    let upper_side_x = hull
+    // The armour body at roof height: the same vertical plane — no widening near the top.
+    let roof_side_x = hull
         .mesh
         .vertices()
         .iter()
         .filter(|vertex| vertex.material == MaterialRole::RolledArmor)
-        .filter(|vertex| vertex.position.y >= blueprint.hull.sponson_y + 0.04)
-        .filter(|vertex| (vertex.position.y - blueprint.track.top_y).abs() > 0.16)
+        .filter(|vertex| {
+            vertex.position.y >= blueprint.hull.deck_y - 0.06
+                && vertex.position.y <= blueprint.hull.deck_y + 0.02
+        })
         .map(|vertex| vertex.position.x.abs())
         .fold(0.0_f32, f32::max);
-
-    // The running gear (tracks + wheels) outboard reach: on a real T-54 the tracks stand proud of
-    // the hull body as fenders, rather than the hull being as wide as the tracks (a slab).
     let gear_side_x = hull
         .mesh
         .vertices()
@@ -54,24 +59,20 @@ fn t54_blueprint_hull_has_inset_tub_and_wide_sponson() {
         .fold(0.0_f32, f32::max);
 
     assert!(
-        lower_side_x <= blueprint.hull.lower_half_width + 0.03,
-        "lower tub side {lower_side_x:.2} should stay inside narrow hull half-width {:.2}",
-        blueprint.hull.lower_half_width
+        body_side_x <= blueprint.hull.half_width + 0.03,
+        "hull body {body_side_x:.2} must stay inside the narrow box half-width {:.2}",
+        blueprint.hull.half_width
     );
     assert!(
-        upper_side_x >= blueprint.track.inner_x - 0.03,
-        "upper sponson {upper_side_x:.2} should cover the track inner face {:.2}",
-        blueprint.track.inner_x
+        roof_side_x <= blueprint.hull.half_width + 0.03,
+        "hull roof edge {roof_side_x:.2} must stay on the same vertical side plane {:.2}",
+        blueprint.hull.half_width
     );
+    // The exposed tracks stand well proud of the hull body — they do the visual work.
     assert!(
-        upper_side_x >= lower_side_x + 0.18,
-        "upper hull should visibly step out from lower tub ({upper_side_x:.2} vs {lower_side_x:.2})"
-    );
-    // The tracks must stand proud of the hull body — fenders, not a hull as wide as the tracks.
-    assert!(
-        gear_side_x >= upper_side_x + 0.05,
-        "running gear {gear_side_x:.2} should stand proud of the hull body {upper_side_x:.2} \
-         (fenders), not sit flush — a flush hull reads as a wide slab"
+        gear_side_x >= blueprint.hull.half_width + 0.45,
+        "running gear {gear_side_x:.2} should stand far proud of the narrow hull {:.2}",
+        blueprint.hull.half_width
     );
 }
 

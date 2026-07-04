@@ -5,7 +5,7 @@
 //! glacis/deck weld bead — and deliberately no mud, rust, battle damage, decals or weathering. Every
 //! piece reads its dimensions from the blueprint's [`HybridVisual`]; none invents a tank dimension.
 
-use game_core::{FittingsVisual, GunVisual, HybridVisual};
+use game_core::{FittingsVisual, HybridVisual};
 use glam::Vec3;
 use vehicle_geometry::{MaterialRole, SmoothingGroup, SubmeshKind};
 
@@ -95,8 +95,11 @@ pub fn t54_detail_parts(v: &HybridVisual) -> Vec<VehiclePart> {
     let d = &v.detail;
     let mut parts = Vec::new();
 
-    // Engine-deck grille (frame + slats) and the left-fender exhaust cover ride the hull.
-    for (i, solid) in solid::t54_deck_grille(d).into_iter().enumerate() {
+    // Engine-deck grille (well + frame + slats) and the left-fender exhaust cover ride the hull. The
+    // well under the slats sits in shadow (the "engine_grille" surface bake) so it reads as a dark
+    // cooling intake, not slats on the bright deck.
+    let deck_top = v.deck.center.y + v.deck.half.y;
+    for (i, solid) in solid::t54_deck_grille(d, deck_top).into_iter().enumerate() {
         parts.push(detail_plate(
             PartKey::indexed("deck_grille", i as u16),
             SubmeshKind::Hull,
@@ -120,7 +123,7 @@ pub fn t54_detail_parts(v: &HybridVisual) -> Vec<VehiclePart> {
             MaterialRole::RolledArmor,
             solid::t54_fender_lip(side, &v.fender, d),
         ));
-        for bracket in solid::t54_fender_brackets(side, &v.fender, v.hull.half_width) {
+        for bracket in solid::t54_fender_brackets(side, &v.fender) {
             parts.push(detail_plate(
                 PartKey::indexed("fender_bracket", bracket_n),
                 SubmeshKind::Hull,
@@ -158,44 +161,8 @@ pub fn t54_detail_parts(v: &HybridVisual) -> Vec<VehiclePart> {
         ));
     }
 
-    // Loader-side DShK: a compact pedestal and a distinct steel barrel mounted on the turret roof.
-    // It is a real turret part so it traverses with the vehicle; it is not stowage or a texture cue.
-    parts.push(VehiclePart {
-        key: PartKey::new("dshk_mount"),
-        submesh: SubmeshKind::Turret,
-        material: MaterialRole::TrackMetal,
-        smoothing: SmoothingGroup::hard_edges(),
-        shape: PartShape::Mesh(revolve::drum(
-            d.dshk_mount_center,
-            0.065,
-            0.10,
-            10,
-            MaterialRole::TrackMetal,
-            SmoothingGroup::hard_edges(),
-        )),
-        lod: PartLod::Detail,
-        generator: GeneratorKind::Revolve,
-    });
-    let dshk = GunVisual {
-        barrel_radius: 0.025,
-        muzzle_radius: 0.030,
-        muzzle_taper: 0.05,
-        barrel_segments: 10,
-        ..v.gun
-    };
-    parts.push(VehiclePart {
-        key: PartKey::new("dshk_barrel"),
-        submesh: SubmeshKind::Turret,
-        material: MaterialRole::BarrelSteel,
-        smoothing: SmoothingGroup(4),
-        shape: PartShape::Mesh(revolve::gun_barrel_between(
-            d.dshk_mount_center,
-            d.dshk_mount_center + Vec3::Z * d.dshk_barrel_length,
-            &dshk,
-        )),
-        lod: PartLod::Detail,
-        generator: GeneratorKind::Revolve,
-    });
+    // Loader-side DShK (pedestal, receiver, ammo can, stepped barrel).
+    parts.extend(crate::t54_dshk::t54_dshk_parts(v));
 
     // A restrained weld bead along the front edge of the engine deck (a crisp cast/plate seam).
     let bead_center =

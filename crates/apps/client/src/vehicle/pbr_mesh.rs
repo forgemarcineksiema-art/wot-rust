@@ -36,6 +36,7 @@ pub fn vehicle_submesh_vertices(mesh: &GeometryMesh) -> (Vec<VehicleVertex>, Vec
                 material_tint_mask(vertex.material),
             )
             .with_mapping_mode(mapping)
+            .with_shade(vertex.surface_shade)
         })
         .collect();
     let indices: Vec<u32> = mesh.indices().to_vec();

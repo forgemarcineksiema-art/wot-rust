@@ -6,6 +6,7 @@ use terrain::{HeightMap, StaticCoverObject};
 
 use crate::aim_dispersion::recover_aim_dispersion;
 use crate::combat::{CombatTickContext, try_fire_shell};
+use crate::landing::apply_landing_impact;
 use crate::ramming::{apply_ramming_damage, capture_ramming_snapshots};
 use crate::shell::ShellState;
 use crate::shell_step::step_shells;
@@ -188,7 +189,8 @@ impl SimulationState {
                     tank.hull_yaw_velocity_rad_s = 0.0;
                     continue;
                 }
-                step_tank(tank, command, dt, heightmap, cover, &tank_obstacles);
+                let ground = step_tank(tank, command, dt, heightmap, cover, &tank_obstacles);
+                apply_landing_impact(tank, ground.landing_impact_mps, &mut self.damage_events);
                 if command.fire
                     && let Some(shell) = try_fire_shell(tank, self.tick)
                 {

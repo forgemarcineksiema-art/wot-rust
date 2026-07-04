@@ -10,6 +10,8 @@ mod polygon;
 mod quality;
 mod recipes;
 mod running_gear;
+mod running_gear_belt;
+mod running_gear_end_wheels;
 mod running_gear_geom;
 mod running_gear_place;
 mod running_gear_wheels;
@@ -35,10 +37,9 @@ pub use quality::{
 pub use recipes::bake_vehicle;
 pub use running_gear::{GearPart, GearPlacement, RunningGearKinematics};
 pub use running_gear_geom::track_link_unit_mesh;
-pub use running_gear_place::running_gear_placements;
-pub use running_gear_wheels::{
-    end_wheel_unit_mesh, idler_unit_mesh, road_wheel_unit_mesh, sprocket_unit_mesh,
-};
+pub use running_gear_place::{GearDynamics, running_gear_placements, running_gear_placements_dynamic};
+pub use running_gear_end_wheels::{end_wheel_unit_mesh, idler_unit_mesh, sprocket_unit_mesh};
+pub use running_gear_wheels::road_wheel_unit_mesh;
 pub use vehicle::{BakeError, BakedVehicle, Submesh, SubmeshKind};
 
 /// Bake `kind` and reduce it to the requested LOD in one call.

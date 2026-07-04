@@ -55,11 +55,42 @@ fn the_mantlet_reads_as_a_trim_pigs_head_not_a_wide_slab() {
     let baked = vehicle_build::t54_description().build();
     let gun = baked.submesh(SubmeshKind::Gun).expect("gun").mesh.bounds().expect("gun bounds");
     let half_width = gun.max.x.max(-gun.min.x);
-    assert!(half_width < 0.52, "mantlet must be a trim mask, got half-width {half_width:.3}");
+    // Caps sized to the 1:1 casting (the ~2.25 m turret): the mask stays subordinate to the cheeks.
+    assert!(
+        half_width < 0.38,
+        "mantlet is oversized for the T-54 nose: half-width {half_width:.3}"
+    );
     let half_height = (gun.max.y - gun.min.y) / 2.0;
     assert!(
-        half_width > 0.8 * half_height,
+        half_height < 0.24,
+        "mantlet is too bulbous in side view: half-height {half_height:.3}"
+    );
+    assert!(
+        half_width > 0.95 * half_height,
         "mantlet stays a wide flat oval: half-width {half_width:.3} vs half-height {half_height:.3}"
+    );
+}
+
+#[test]
+fn the_mantlet_stays_short_and_compact_like_the_1951_reference() {
+    let blueprint = VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("T-54 blueprint");
+    let gun = &blueprint.hybrid().expect("hybrid visual").gun;
+    let profile_back = gun.mantlet_profile.iter().map(|(z, _)| *z).fold(f32::INFINITY, f32::min);
+    let profile_front =
+        gun.mantlet_profile.iter().map(|(z, _)| *z).fold(f32::NEG_INFINITY, f32::max);
+    let profile_depth = profile_front - profile_back;
+    // Sized to the 1:1 casting: the buried shoulder plus the sleeve that covers the embrasure
+    // opening of the ~2.25 m turret; anything longer reads as a pod on the nose.
+    assert!(
+        profile_depth <= 0.70,
+        "mantlet protrudes as an oversized pod: profile depth {profile_depth:.3}"
+    );
+
+    let max_radius = gun.mantlet_profile.iter().map(|(_, radius)| *radius).fold(0.0, f32::max);
+    assert!(
+        max_radius * gun.mantlet_scale.x <= 0.40,
+        "mantlet maximum width must stay subordinate to the turret cheeks: radius {max_radius:.3}, scale {:.3}",
+        gun.mantlet_scale.x
     );
 }
 

@@ -100,8 +100,10 @@ fn t54_road_wheels_keep_the_first_gap_visible() {
     let kin = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951).expect("T-54 running gear");
 
     assert_eq!(kin.wheel_zs.len(), 5, "T-54 should expose five road-wheel centers");
-    let first_gap = kin.wheel_zs[1] - kin.wheel_zs[0];
-    let middle_gap = kin.wheel_zs[3] - kin.wheel_zs[2];
+    // +Z is forward: the signature wide gap sits between the FIRST and SECOND road wheels at the
+    // front of the run (the references), not at the sprocket end.
+    let first_gap = kin.wheel_zs[4] - kin.wheel_zs[3];
+    let middle_gap = kin.wheel_zs[2] - kin.wheel_zs[1];
     assert!(
         first_gap >= middle_gap * 1.18,
         "T-54 first-second wheel gap should read wider than the middle spacing \

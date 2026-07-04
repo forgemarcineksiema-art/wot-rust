@@ -45,9 +45,18 @@ fn the_running_gear_recess_sits_in_shadow() {
 }
 
 #[test]
+fn the_engine_grille_recess_sits_in_shadow() {
+    // The well under the deck louvers reads as a dark cooling intake, not slats on the bright deck.
+    let recess = min_shade(&hull(), |p| {
+        p.x.abs() < 0.85 && (-2.60..=-1.45).contains(&p.z) && (1.43..=1.63).contains(&p.y)
+    });
+    assert!(recess < 0.70, "engine-grille recess must be shaded, got min {recess:.3}");
+}
+
+#[test]
 fn the_turret_ring_seam_sits_in_shadow() {
     // The casting seats on the narrowed ring and overhangs it: the seam reads as a dark undercut.
-    let ring = min_shade(&turret(), |p| (1.27..=1.33).contains(&p.y) && p.x.abs() < 0.9);
+    let ring = min_shade(&turret(), |p| (1.55..=1.61).contains(&p.y) && p.x.abs() < 0.9);
     assert!(ring < 0.66, "turret-ring seam must be shaded, got min {ring:.3}");
 }
 
@@ -56,7 +65,7 @@ fn the_mantlet_seat_sits_in_shadow() {
     // The recessed embrasure the mantlet beds into is a tight, dark cast trough on the turret front;
     // the mask itself rides in the gun submesh, so scan the whole body within the seat band.
     let baked = t54_description().build();
-    let in_seat = |p: glam::Vec3| p.x.abs() < 0.45 && (1.45..=1.62).contains(&p.y) && p.z > 0.85;
+    let in_seat = |p: glam::Vec3| p.x.abs() < 0.45 && (1.68..=1.88).contains(&p.y) && p.z > 0.95;
     let seat: Vec<f32> = baked
         .submeshes()
         .iter()

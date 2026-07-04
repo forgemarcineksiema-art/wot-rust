@@ -7,6 +7,7 @@ mod pipeline;
 mod projection;
 mod resources;
 mod scene;
+mod sun_shadow;
 mod vehicle;
 mod vehicle_asset;
 
@@ -36,6 +37,7 @@ pub use pipeline::{
 pub use projection::{CameraProjectionPolicy, DepthRange};
 pub use resources::{MaterialDescriptor, MeshAsset, MeshRegistry, RenderMaterialRegistry};
 pub use scene::{HUD_SOLID_UV, HudVertex, SceneVertex, view_projection_matrix};
+pub use sun_shadow::{SunShadowParams, sun_light_view_projection};
 pub use vehicle::{MAPPING_PARAMETRIC, MAPPING_TRIPLANAR, VehicleVertex, generate_tangents};
 pub use vehicle_asset::{
     VehicleMaterialDescriptor, VehicleMaterialFamilies, VehicleMaterialMaps, VehicleMeshAsset,
@@ -76,14 +78,19 @@ impl Default for Camera {
     }
 }
 
-/// Calibrated three-point scene lighting: a neutral ambient plus key/fill/rim directional lights,
-/// consumed by both the scene and the vehicle shaders. Each `*_direction` is a world-space vector
-/// pointing *towards* the light (the shader normalizes it); each `*_rgb` is that light's linear
-/// colour and intensity. This replaces the former global colour multiplier, so a warm garage key
-/// no longer casts amber over the whole battlefield — the look is chosen per scene by profile.
+/// Calibrated outdoor scene lighting: a hemispheric sky/ground ambient plus key/fill/rim directional
+/// lights, consumed by both the scene and the vehicle shaders. Each `*_direction` is a world-space
+/// vector pointing *towards* the light (the shader normalizes it); each `*_rgb` is that light's
+/// linear colour and intensity (the sun key may exceed `1.0` for HDR punch the tone curve rolls
+/// off). `ambient_rgb` is the *sky* (upper-hemisphere) ambient and `ground_ambient_rgb` the warmer
+/// ground bounce; the shader blends them by the surface normal's up-facing fraction so a vehicle is
+/// grounded in its field instead of flooded by one flat constant. See `docs/atmosphere-policy.md`.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct SceneLighting {
+    /// Upper-hemisphere (sky) ambient — taken by up-facing surfaces.
     pub ambient_rgb: [f32; 3],
+    /// Lower-hemisphere (ground bounce) ambient — taken by down-facing surfaces.
+    pub ground_ambient_rgb: [f32; 3],
     pub key_direction: [f32; 3],
     pub key_rgb: [f32; 3],
     pub fill_direction: [f32; 3],
@@ -93,29 +100,33 @@ pub struct SceneLighting {
 }
 
 impl SceneLighting {
-    /// The battlefield look: a warm overhead sun key, a cool sky-fill from straight above, neutral
-    /// ambient and no rim. Calibrated to preserve the pre-lighting battle appearance (no cast).
+    /// The battlefield look: a warm sun key raking low from the side (so it sculpts the sides of a
+    /// low hull, not just the decks), a cool sky fill and sky ambient from above, a warm ground
+    /// bounce from below, and a live sky rim that lifts the silhouette off the horizon. Tuned to be
+    /// read through the ACES-lite tone curve, so the key deliberately runs hot.
     pub fn battlefield_default() -> Self {
         Self {
-            ambient_rgb: [0.33, 0.34, 0.36],
-            key_direction: [0.45, 0.82, 0.35],
-            key_rgb: [0.85, 0.83, 0.78],
-            fill_direction: [0.0, 1.0, 0.0],
-            fill_rgb: [0.12, 0.13, 0.15],
-            // A direction is needed for normalization, but the battle rim is off (black).
-            rim_direction: [-0.4, 0.5, -0.9],
-            rim_rgb: [0.0, 0.0, 0.0],
+            ambient_rgb: [0.20, 0.23, 0.29],
+            ground_ambient_rgb: [0.15, 0.14, 0.11],
+            key_direction: [0.62, 0.52, 0.34],
+            key_rgb: [1.08, 0.98, 0.82],
+            fill_direction: [-0.5, 0.62, -0.28],
+            fill_rgb: [0.17, 0.20, 0.26],
+            rim_direction: [-0.42, 0.4, -0.88],
+            rim_rgb: [0.20, 0.23, 0.30],
         }
     }
 
     /// The garage studio: a soft warm key from front-left-above, a weak cool fill from the right,
-    /// and a restrained rear rim to lift the silhouette, all on a neutral ambient so the vehicle's
-    /// own material colour reads true. The result is a neutral tint with shaped studio light.
+    /// and a restrained rear rim to lift the silhouette, on a near-neutral sky/floor ambient so the
+    /// vehicle's own material colour reads true. The result is a neutral tint with shaped studio
+    /// light.
     pub fn garage_studio() -> Self {
         Self {
-            ambient_rgb: [0.30, 0.30, 0.32],
+            ambient_rgb: [0.30, 0.30, 0.33],
+            ground_ambient_rgb: [0.16, 0.16, 0.17],
             key_direction: [-0.55, 0.72, 0.45],
-            key_rgb: [0.92, 0.84, 0.68],
+            key_rgb: [0.98, 0.90, 0.74],
             fill_direction: [0.95, 0.25, 0.10],
             fill_rgb: [0.20, 0.24, 0.30],
             rim_direction: [0.15, 0.55, -0.95],

@@ -48,8 +48,10 @@ fn driven_for(tracks: TrackDriveStatus) -> TankDriveState {
         aiming: AimingState::default(),
         aim_dispersion_mrad: spec.gun.dispersion_mrad,
     };
-    let modules =
-        DriveModuleStatus { tracks, engine_ok: true, turret_ok: true, gun_damage_fraction: 0.0 };
+    let modules = DriveModuleStatus {
+        tracks,
+        ..DriveModuleStatus::healthy(&spec)
+    };
     let world = TankDriveWorld { heightmap: None, cover: &[], tank_obstacles: &[] };
     let command = TankCommand::drive(1.0, 0.0);
 

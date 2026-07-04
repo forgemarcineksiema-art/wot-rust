@@ -69,7 +69,6 @@ pub fn dispatch(command: Command) -> anyhow::Result<()> {
 fn vehicle_spec(slug: &str) -> anyhow::Result<TankSpec> {
     Ok(match slug {
         "t54-1951" => TankSpec::t54_1951(),
-        "t55a" => TankSpec::t55a(),
         "tiger-i-ausf-e" => TankSpec::tiger_i_ausf_e(),
         "tiger-ii-ausf-b" => TankSpec::tiger_ii_ausf_b(),
         "jagdtiger" => TankSpec::jagdtiger(),
@@ -129,7 +128,6 @@ fn parse_vehicle_kind(slug: &str) -> anyhow::Result<VehicleKind> {
     match slug {
         "prototype-medium" | "prototype_medium" => Ok(VehicleKind::PrototypeMedium),
         "t54-1951" | "t54_1951" => Ok(VehicleKind::T54_1951),
-        "t55a" => Ok(VehicleKind::T55A),
         "tiger-i-ausf-e" | "tiger_i_ausf_e" => Ok(VehicleKind::TigerI),
         "tiger-ii-ausf-b" | "tiger_ii_ausf_b" => Ok(VehicleKind::TigerII),
         "jagdtiger" => Ok(VehicleKind::Jagdtiger),

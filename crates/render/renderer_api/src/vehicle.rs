@@ -23,6 +23,9 @@ pub struct VehicleVertex {
     /// Surface-mapping mode: `0` parametric (use `uv` + tangent-space normal map), `1` triplanar
     /// (project material coordinates from object-local position/normal in the shader).
     pub mapping_mode: u32,
+    /// Baked per-vertex contact occlusion (the geometry bake's `surface_shade`): `1.0` open
+    /// surface, lower in seams/recesses. The vehicle shader multiplies it into the lighting.
+    pub shade: f32,
 }
 
 /// `mapping_mode` for parametric (authored UV) surfaces.
@@ -48,12 +51,19 @@ impl VehicleVertex {
             material_id,
             tint_mask,
             mapping_mode: MAPPING_TRIPLANAR,
+            shade: 1.0,
         }
     }
 
     /// Set the surface-mapping mode (parametric vs triplanar).
     pub const fn with_mapping_mode(mut self, mapping_mode: u32) -> Self {
         self.mapping_mode = mapping_mode;
+        self
+    }
+
+    /// Set the baked contact-occlusion shade (defaults to `1.0`, fully open).
+    pub const fn with_shade(mut self, shade: f32) -> Self {
+        self.shade = shade;
         self
     }
 }
@@ -117,9 +127,9 @@ mod tests {
 
     #[test]
     fn vehicle_vertex_is_pod_with_a_stable_size() {
-        assert_eq!(core::mem::size_of::<VehicleVertex>(), 60);
+        assert_eq!(core::mem::size_of::<VehicleVertex>(), 64);
         let v = [VehicleVertex::new([1.0, 2.0, 3.0], [0.0, 0.0, 1.0], [0.5, 0.5], 2, 1.0)];
-        assert_eq!(bytemuck::cast_slice::<_, u8>(&v).len(), 60);
+        assert_eq!(bytemuck::cast_slice::<_, u8>(&v).len(), 64);
         assert_eq!(v[0].mapping_mode, MAPPING_TRIPLANAR, "the default mapping is triplanar");
     }
 

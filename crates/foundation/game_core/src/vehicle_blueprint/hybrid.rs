@@ -44,8 +44,6 @@ pub struct HullPlatesVisual {
     pub nose_base_z: f32,
     /// Chamfer on the deck's front edge where it meets the glacis, so the lip reads as plate.
     pub deck_bevel: f32,
-    /// How far the wide sponson sits proud of the lower tub at the side (visual plate seam).
-    pub sponson_overhang: f32,
 }
 
 /// The cast turret as a Surface-Nets SDF: two offset spheres for the flattened dome, a seating ring,
@@ -137,7 +135,7 @@ pub struct GunVisual {
     pub muzzle_taper: f32,
     pub barrel_segments: usize,
     /// Mantlet side profile as `(z, radius)` points, revolved about Z then scaled to a flat oval.
-    pub mantlet_profile: [(f32, f32); 6],
+    pub mantlet_profile: [(f32, f32); 8],
     pub mantlet_segments: usize,
     pub mantlet_scale: Vec3,
     /// How much of a gun module's length delta the muzzle moves by (visual modularity scale).
@@ -159,45 +157,6 @@ pub struct FenderVisual {
     pub half: Vec3,
 }
 
-/// The road-wheel train: rubber-tyred wheels with proud steel hubs, repeated along each side.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct RunningGearVisual {
-    pub wheel_radius: f32,
-    pub wheel_half_width: f32,
-    pub hub_radius: f32,
-    pub hub_overhang: f32,
-    pub wheel_segments: usize,
-    pub hub_segments: usize,
-    pub wheel_count: usize,
-    /// Visual clearance between the blueprint's track-run endpoint and the outermost road wheel.
-    /// This lets a hybrid vehicle show separate idler/sprocket mechanisms without duplicating the
-    /// authoritative track span.
-    pub end_inset: f32,
-    pub first_z: f32,
-    pub spacing: f32,
-    /// The T-54's characteristic large gap between the first and second road wheels. The remaining
-    /// stations are spaced evenly within the inset visual train.
-    pub first_gap: f32,
-    pub side_x: f32,
-}
-
-/// The track belt: a rounded loop swept as a rectangular band, wrapping the wheels on each side.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct TrackBeltVisual {
-    pub front_z: f32,
-    pub rear_z: f32,
-    pub axle_y: f32,
-    pub radius: f32,
-    pub side_x: f32,
-    pub half_thickness: f32,
-    pub half_width: f32,
-    pub straight_segments: usize,
-    pub arc_segments: usize,
-    /// Number of link cues spaced along the ground (bottom) run, so the belt reads as tracked links
-    /// rather than a smooth rubber band. Fine tread is left to the material layer.
-    pub link_count: usize,
-}
-
 /// The full hybrid visual description for one vehicle. `Some` only for the hybrid benchmark (T-54);
 /// other vehicles bake through the legacy `vehicle_geometry` path and carry `None`.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -211,8 +170,6 @@ pub struct HybridVisual {
     pub gun: GunVisual,
     pub deck: BoxVisual,
     pub fender: FenderVisual,
-    pub running_gear: RunningGearVisual,
-    pub track_belt: TrackBeltVisual,
     pub fittings: FittingsVisual,
     pub detail: DetailVisual,
 }

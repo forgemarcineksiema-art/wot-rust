@@ -89,9 +89,14 @@ mod tests {
             gun_pitch_rad: 0.0,
             hit_points,
             destroyed_modules_mask: 0,
+            module_hit_points: VehicleKind::T55A.spec().module_health.hit_points_by_slot(),
             track_damage_mask: 0,
             track_left_m: 0.0,
             track_right_m: 0.0,
+            attitude_pitch_rad: 0.0,
+            attitude_roll_rad: 0.0,
+            attitude_heave_m: 0.0,
+            accel_long_mps2: 0.0,
         }
     }
 

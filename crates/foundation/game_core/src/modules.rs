@@ -19,7 +19,7 @@ mod turret;
 
 pub use engine::EngineModule;
 pub use gun::GunModule;
-pub use health::ModuleHealth;
+pub use health::{ModuleHealth, engine_power_fraction, suspension_agility_fraction};
 pub use hull::HullChassis;
 pub use loadout::{ModuleError, VehicleModules};
 pub use module_slot::{MODULE_SLOT_COUNT, ModuleSlot};

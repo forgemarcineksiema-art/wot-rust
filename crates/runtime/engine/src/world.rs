@@ -4,9 +4,11 @@ use bevy_ecs::prelude::*;
 use game_core::{HitboxProfile, TankId, TrackDamageMask};
 use net::TankSnapshot;
 
+use crate::attitude::HullAttitude;
+use crate::attitude_inputs::{sample_attitude, suspension_pool_fraction};
 use crate::components::{
-    DestroyedModules, GunPitch, Health, PresentationTank, RenderTransform, TankEntity, Team, Time,
-    TrackAnimation, TrackDamage, TurretYaw, Vehicle,
+    DestroyedModules, GunPitch, Health, ModuleHitPoints, PresentationTank, RenderTransform,
+    TankEntity, Team, Time, TrackAnimation, TrackDamage, TurretYaw, Vehicle,
 };
 
 /// Persistent client presentation world: a `bevy_ecs` world of presentation entities projected
@@ -50,6 +52,17 @@ impl PresentationWorld {
     /// Project the latest tank set into the world: spawn new ids, update existing entities in
     /// place (stable `Entity`), and despawn entities whose tank is no longer present.
     pub fn sync_tanks(&mut self, tanks: &[TankSnapshot]) {
+        self.sync_tanks_on_terrain(tanks, None);
+    }
+
+    /// As [`Self::sync_tanks`], with the local heightmap so the sprung-hull attitude can sample
+    /// the terrain slope under each hull (presentation-only; `None` keeps hulls level).
+    pub fn sync_tanks_on_terrain(
+        &mut self,
+        tanks: &[TankSnapshot],
+        terrain: Option<&terrain::HeightMap>,
+    ) {
+        let dt = self.time().delta_seconds;
         for tank in tanks {
             let bundle = (
                 TankEntity { id: tank.tank_id },
@@ -60,27 +73,38 @@ impl PresentationWorld {
                 Team(tank.team),
                 Health { hit_points: tank.hit_points },
                 DestroyedModules(tank.destroyed_modules_mask),
+                ModuleHitPoints(tank.module_hit_points),
                 TrackDamage(tank.track_damage_mask),
             );
             // Track distance is accumulated from the pose *delta*, so it must be folded in before
             // the bundle overwrites the previous `RenderTransform`. Kept out of the bundle so it
             // persists and accumulates rather than resetting each frame.
-            let half_gauge = HitboxProfile::for_vehicle(tank.vehicle).half_width_m;
+            let hitbox = HitboxProfile::for_vehicle(tank.vehicle);
+            let half_gauge = hitbox.half_width_m;
+            let sample = sample_attitude(terrain, tank, &hitbox);
+            let suspension = suspension_pool_fraction(tank);
             match self.entities.get(&tank.tank_id) {
                 Some(&entity) => {
                     let mut anim =
                         self.world.get::<TrackAnimation>(entity).copied().unwrap_or_default();
                     let damage = TrackDamageMask::from_bits(tank.track_damage_mask);
                     anim.accumulate(tank.position, tank.yaw_rad, half_gauge, damage);
+                    let mut attitude =
+                        self.world.get::<HullAttitude>(entity).copied().unwrap_or_default();
+                    attitude.step(tank.position, tank.yaw_rad, sample, suspension, dt);
                     self.world.entity_mut(entity).insert(bundle);
                     self.world.entity_mut(entity).insert(anim);
+                    self.world.entity_mut(entity).insert(attitude);
                 }
                 None => {
                     let mut anim = TrackAnimation::default();
                     let damage = TrackDamageMask::from_bits(tank.track_damage_mask);
                     anim.accumulate(tank.position, tank.yaw_rad, half_gauge, damage);
+                    let mut attitude = HullAttitude::default();
+                    attitude.step(tank.position, tank.yaw_rad, sample, suspension, dt);
                     let entity = self.world.spawn(bundle).id();
                     self.world.entity_mut(entity).insert(anim);
+                    self.world.entity_mut(entity).insert(attitude);
                     self.entities.insert(tank.tank_id, entity);
                 }
             }
@@ -114,8 +138,10 @@ impl PresentationWorld {
             &Team,
             &Health,
             &DestroyedModules,
+            &ModuleHitPoints,
             &TrackDamage,
             &TrackAnimation,
+            &HullAttitude,
         )>();
         let mut tanks: Vec<PresentationTank> = query
             .iter(&self.world)
@@ -129,8 +155,10 @@ impl PresentationWorld {
                     team,
                     health,
                     destroyed,
+                    modules,
                     damage,
                     track,
+                    attitude,
                 )| {
                     PresentationTank {
                         id: entity.id,
@@ -142,9 +170,14 @@ impl PresentationWorld {
                         gun_pitch_rad: pitch.0,
                         hit_points: health.hit_points,
                         destroyed_modules_mask: destroyed.0,
+                        module_hit_points: modules.0,
                         track_damage_mask: damage.0,
                         track_left_m: track.left_m,
                         track_right_m: track.right_m,
+                        attitude_pitch_rad: attitude.pitch_rad,
+                        attitude_roll_rad: attitude.roll_rad,
+                        attitude_heave_m: attitude.heave_m,
+                        accel_long_mps2: attitude.accel_long_mps2,
                     }
                 },
             )
@@ -153,3 +186,4 @@ impl PresentationWorld {
         tanks
     }
 }
+

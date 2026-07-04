@@ -58,6 +58,7 @@ pub fn tank_render_objects(
             &kin,
             0.0,
             0.0,
+            vehicle_geometry::GearDynamics::default(),
             hull_tint,
         ));
     }

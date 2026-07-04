@@ -5,7 +5,7 @@
 //! visible rake of each facet is the same angle the penetration model uses — what you see is what
 //! you shoot.
 
-use game_core::{BoxVisual, DetailVisual, FenderVisual, HullPlatesVisual, HullShape, HullVisual};
+use game_core::{BoxVisual, DetailVisual, HullPlatesVisual, HullShape, HullVisual};
 use glam::Vec3;
 
 use crate::{ConvexSolid, Plane};
@@ -25,6 +25,8 @@ pub fn t54_upper_hull(
     let side_off = h.half_width * side.cos() + h.sponson_y * side.sin();
     let glacis_off = front.sin() * h.sponson_y + front.cos() * p.glacis_base_z;
     let rear_off = rear.sin() * h.sponson_y + rear.cos() * h.half_len;
+    // The T-54's narrow box carries ONE plane per facet — the glacis is a plain full-hull-width
+    // plate with no bow taper (the exposed tracks flank it; the plan stays rectangular).
     ConvexSolid::new(vec![
         Plane::new(Vec3::new(0.0, -1.0, 0.0), -h.sponson_y),
         Plane::new(Vec3::new(0.0, 1.0, 0.0), h.deck_y),
@@ -92,44 +94,6 @@ pub fn t54_glacis_solid(hull: &HullVisual, slope_deg: f32) -> ConvexSolid {
     ConvexSolid::box_at(center, half).clipped_by(glacis).clipped_by(nose)
 }
 
-/// The fender (mudguard) above one track run, split into bolted sections along its length with thin
-/// seam gaps, so it reads as pressed plates rather than one continuous slab. Visual only; the overall
-/// footprint is unchanged. The downturned outer lip ([`t54_fender_lip`]) runs the full edge.
-pub fn t54_fender_segments(side_x: f32, fender: &FenderVisual) -> Vec<ConvexSolid> {
-    const SEGMENTS: usize = 4;
-    let seam = 0.03_f32;
-    let seg_half = Vec3::new(fender.half.x, fender.half.y, fender.half.z / SEGMENTS as f32 - seam);
-    (0..SEGMENTS)
-        .map(|i| {
-            let t = (i as f32 + 0.5) / SEGMENTS as f32;
-            let z = -fender.half.z + t * 2.0 * fender.half.z;
-            ConvexSolid::box_at(Vec3::new(side_x, fender.center_y, z), seg_half)
-        })
-        .collect()
-}
-
-/// Small support brackets hanging below one fender at the hull side, evenly spaced along its length —
-/// the gussets that carry the mudguard's overhang. `hull_half_width` is the upper-hull side the
-/// brackets bear against. Visual only, at the close-up detail tier.
-pub fn t54_fender_brackets(
-    side_x: f32,
-    fender: &FenderVisual,
-    hull_half_width: f32,
-) -> Vec<ConvexSolid> {
-    const BRACKETS: usize = 5;
-    let drop = 0.14_f32;
-    let bottom = fender.center_y - fender.half.y;
-    let edge_x = side_x.signum() * hull_half_width;
-    let half = Vec3::new(0.02, drop * 0.5, 0.05);
-    (0..BRACKETS)
-        .map(|i| {
-            let t = (i as f32 + 0.5) / BRACKETS as f32;
-            let z = -fender.half.z + t * 2.0 * fender.half.z;
-            ConvexSolid::box_at(Vec3::new(edge_x, bottom - drop * 0.5, z), half)
-        })
-        .collect()
-}
-
 /// The raised rear engine deck panel behind the turret.
 pub fn t54_engine_deck(deck: &BoxVisual) -> ConvexSolid {
     ConvexSolid::box_at(deck.center, deck.half)
@@ -154,12 +118,19 @@ pub fn t54_engine_deck_panels(deck: &BoxVisual) -> Vec<ConvexSolid> {
         .collect()
 }
 
-/// The louvered engine-deck grille: a thin raised frame around a set of evenly spaced slats. All
-/// boxes, all hard-edged — a manufactured cooling grille, no grime. Built from [`DetailVisual`].
-pub fn t54_deck_grille(d: &DetailVisual) -> Vec<ConvexSolid> {
+/// The louvered engine-deck grille: a raised frame around evenly spaced slats, over a shallow well
+/// (top a hair proud of `deck_top`) that the "engine_grille" surface bake drops into shadow — so the
+/// slat gaps read as a dark cooling intake, not the bright deck plate. All boxes, all hard-edged.
+pub fn t54_deck_grille(d: &DetailVisual, deck_top: f32) -> Vec<ConvexSolid> {
     let (c, h) = (d.grille_center, d.grille_half);
     let rail = 0.04_f32;
+    let depth = 0.12_f32;
     let mut solids = vec![
+        // The shadowed well under the louvers.
+        ConvexSolid::box_at(
+            Vec3::new(c.x, deck_top + 0.002 - depth * 0.5, c.z),
+            Vec3::new(h.x - rail, depth * 0.5, h.z - rail),
+        ),
         ConvexSolid::box_at(Vec3::new(c.x, c.y, c.z + h.z), Vec3::new(h.x, h.y, rail)),
         ConvexSolid::box_at(Vec3::new(c.x, c.y, c.z - h.z), Vec3::new(h.x, h.y, rail)),
         ConvexSolid::box_at(Vec3::new(c.x + h.x, c.y, c.z), Vec3::new(rail, h.y, h.z)),
@@ -176,34 +147,6 @@ pub fn t54_deck_grille(d: &DetailVisual) -> Vec<ConvexSolid> {
         ));
     }
     solids
-}
-
-/// The boxed exhaust cover riding the rear of the left fender. A simple armoured housing (box, hard
-/// edges) — the clean factory exhaust, not a sooted pipe.
-pub fn t54_exhaust_housing(d: &DetailVisual) -> ConvexSolid {
-    ConvexSolid::box_at(d.exhaust_center, d.exhaust_half)
-}
-
-/// A thin downturned fender lip running the length of one fender's outer edge, at world `side_x`.
-/// It drops just below the fender plate so the mudguard reads as a folded-edge pressing.
-pub fn t54_fender_lip(side_x: f32, fender: &FenderVisual, d: &DetailVisual) -> ConvexSolid {
-    let edge_x = side_x.signum() * (side_x.abs() + fender.half.x);
-    let bottom = fender.center_y - fender.half.y;
-    let center = Vec3::new(edge_x, bottom - d.fender_lip_drop * 0.5, 0.0);
-    let half = Vec3::new(d.fender_lip_thickness * 0.5, d.fender_lip_drop * 0.5, fender.half.z);
-    ConvexSolid::box_at(center, half)
-}
-
-/// A periscope head: a small housing box whose front-top edge is sliced by a forward-and-up plane,
-/// giving the raked prism (viewing-glass) face that reads as a real periscope rather than a plain
-/// block. The slant looks forward (+z); mirror the centre in x for the opposite-hand device.
-pub fn t54_periscope(center: Vec3, half: Vec3) -> ConvexSolid {
-    // A 45-degree chamfer of depth `s` off the front-top edge: the prism glass rakes back as it
-    // rises. `s` is a fraction of the head so the cut never crosses the box for any sane periscope.
-    let s = 0.7 * half.y.min(half.z);
-    let normal = Vec3::new(0.0, 1.0, 1.0);
-    let through = Vec3::new(center.x, center.y + half.y - s, center.z + half.z);
-    ConvexSolid::box_at(center, half).clipped_by(Plane::new(normal, normal.dot(through)))
 }
 
 #[cfg(test)]
@@ -255,58 +198,4 @@ mod tests {
         assert!(on_slope, "a glacis face normal carries the blueprint armour slope");
     }
 
-    fn fender() -> FenderVisual {
-        game_core::VehicleBlueprint::for_vehicle(game_core::VehicleKind::T54_1951)
-            .unwrap()
-            .hybrid()
-            .unwrap()
-            .fender
-    }
-
-    #[test]
-    fn the_fender_splits_into_separated_sections() {
-        let f = fender();
-        let segs = t54_fender_segments(1.5, &f);
-        assert!(segs.len() >= 3, "fender reads as bolted sections, got {}", segs.len());
-        // The seam gaps mean the sections' lengths sum to less than the whole fender span.
-        let covered: f32 = segs
-            .iter()
-            .map(|s| {
-                let b = s
-                    .to_mesh(MaterialRole::RolledArmor, SmoothingGroup::hard_edges())
-                    .expect("fender segment is valid")
-                    .bounds();
-                let b = b.expect("non-empty segment");
-                b.max.z - b.min.z
-            })
-            .sum();
-        assert!(covered < 2.0 * f.half.z - 0.05, "seam gaps separate the fender sections");
-    }
-
-    #[test]
-    fn fender_brackets_hang_below_the_fender() {
-        let f = fender();
-        let brackets = t54_fender_brackets(1.5, &f, 1.45);
-        assert!(brackets.len() >= 3, "several brackets along the run");
-        let bottom = f.center_y - f.half.y;
-        for bracket in &brackets {
-            let b = bracket
-                .to_mesh(MaterialRole::RolledArmor, SmoothingGroup::hard_edges())
-                .expect("bracket is valid")
-                .bounds()
-                .expect("non-empty bracket");
-            assert!(b.min.y < bottom - 0.05, "bracket hangs below the fender plate");
-        }
-    }
-
-    #[test]
-    fn the_periscope_head_has_a_forward_raked_prism_face() {
-        // The defect this locks: a plain box has only axis-aligned faces. The periscope must carry a
-        // slanted prism face pointing forward and up (the raked glass), so it reads as a real device.
-        let mesh = t54_periscope(Vec3::new(0.34, 1.88, 0.42), Vec3::new(0.07, 0.06, 0.07))
-            .to_mesh(MaterialRole::RolledArmor, SmoothingGroup::hard_edges())
-            .expect("periscope is valid");
-        let raked = mesh.vertices().iter().any(|v| v.normal.y > 0.3 && v.normal.z > 0.3);
-        assert!(raked, "periscope needs a forward-and-up raked prism face, not only box faces");
-    }
 }

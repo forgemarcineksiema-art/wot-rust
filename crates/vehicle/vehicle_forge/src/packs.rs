@@ -34,36 +34,39 @@ pub fn t54_reference_pack() -> ReferencePack {
                 "In-repo gameplay translation and public source summary.",
             ),
         ],
+        // Targets are the documented 1:1 dimensions: hull 6.04 long x 3.27 wide x 1.75 to the
+        // roof, ~2.25 m casting 0.66 tall with the cupola, and the D-10T's 2.96 m bow overhang
+        // (9.00 m with gun forward).
         vec![
             RatioTarget::new(
                 RatioKind::HullLengthToWidth,
-                1.72,
-                0.18,
-                "Overall hull plan should read as a compact Soviet medium, not a long heavy.",
+                1.85,
+                0.15,
+                "Overall hull plan (6.04 / 3.27) should read as a compact Soviet medium, not a long heavy.",
             ),
             RatioTarget::new(
                 RatioKind::HullHeightToLength,
-                0.245,
-                0.06,
-                "Low Soviet medium silhouette: the hull must read as long and flat, not tall.",
+                0.29,
+                0.05,
+                "Low Soviet medium silhouette (roof 1.58 + fittings / length 6.04): long and flat.",
             ),
             RatioTarget::new(
                 RatioKind::TurretWidthToHullWidth,
-                0.57,
-                0.14,
-                "Rounded cast turret should be broad but clearly narrower than the track span.",
+                0.68,
+                0.10,
+                "The ~2.25 m cast turret is broad on the 3.27 m hull but stays inside the track span.",
             ),
             RatioTarget::new(
                 RatioKind::TurretHeightToHullHeight,
-                0.50,
-                0.04,
-                "T-54-3 carries a flattened pancake casting, not a high dome or a casemate.",
+                0.48,
+                0.05,
+                "The tall ~0.7 m hemispherical casting (plus cupola) rides the LOW 1.58 hull roof.",
             ),
             RatioTarget::new(
                 RatioKind::GunProtrusionToHullLength,
-                0.37,
-                0.14,
-                "D-10 family barrel should project decisively past the glacis without reading as a heavy-tank gun.",
+                0.49,
+                0.08,
+                "The D-10T projects 2.96 m past the bow (9.00 m overall) — decisive but not a heavy-tank gun.",
             ),
         ],
     )

@@ -11,7 +11,9 @@ pub(crate) fn t54_hull(hull: &HullShape, track: &TrackShape) -> MeshBuilder {
     let rear_bottom = Vec2::new(-hull.half_len, hull.belly_y);
     let front_bottom = Vec2::new(hull.half_len, hull.belly_y + hull.nose_rise);
     let front_lower_top = Vec2::new(hull.half_len, track.top_y - 0.10);
-    let front_upper_low = Vec2::new(hull.half_len - 0.68, track.top_y + 0.04);
+    // The wide upper hull starts at the sponson step (it overhangs the tracks from there up), so
+    // its front-bottom corner sits on the sponson line, not dipped into the track band.
+    let front_upper_low = Vec2::new(hull.half_len - 0.68, hull.sponson_y + 0.045);
     let front_top = Vec2::new(hull.half_len - 2.05, hull.deck_y);
     let rear_sponson = Vec2::new(-hull.half_len + rear_run, hull.sponson_y);
     let rear_top = Vec2::new(-hull.half_len + rear_run, hull.deck_y);
@@ -54,12 +56,14 @@ pub(crate) fn t54_hull(hull: &HullShape, track: &TrackShape) -> MeshBuilder {
             SG_HARD,
         );
 
-    let fender_half_x = (track.outer_x - track.inner_x) * 0.5 + 0.06;
+    // The fender shelf rides over the exposed track band (outer face flush with the 3.27 m
+    // overall width), a hand above the top run — the kit line of the narrow-box hull.
+    let fender_half_x = (track.outer_x - track.inner_x) * 0.5 + 0.005;
     let fender_center_x = (track.outer_x + track.inner_x) * 0.5;
     let fender_half_z = (track.wheel_last_z - track.wheel_first_z) * 0.5 + track.end_radius * 0.75;
     for side in [-1.0, 1.0] {
         builder = builder.chamfered_prism(
-            Vec3::new(side * fender_center_x, track.top_y + 0.055, 0.0),
+            Vec3::new(side * fender_center_x, hull.sponson_y + 0.12, 0.0),
             Vec3::new(fender_half_x, 0.045, fender_half_z),
             0.025,
             MaterialRole::RolledArmor,

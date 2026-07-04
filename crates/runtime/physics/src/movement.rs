@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::contact::TerrainContact;
 use crate::controller_settings::TankControllerSettings;
+use crate::vertical::is_grounded;
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct TankControlInput {
@@ -12,11 +13,12 @@ pub struct TankControlInput {
     pub brake: f32,
 }
 
-/// Planar rigid-body state of a hull. `velocity` is the world-frame XZ velocity (y stays 0; the
-/// hull follows the terrain height kinematically) and `yaw_rate_rad_s` is the hull's angular
-/// velocity. Keeping a real velocity *vector* (not a scalar forward speed) is what lets the hull
-/// carry momentum through a turn, slide on a steep face, and be stopped along one axis by a wall
-/// while still moving along the other.
+/// Planar rigid-body state of a hull. `velocity` is the world-frame velocity (its y is zero
+/// while the ground carries the hull and becomes the fall speed when it leaves the ground — see
+/// `vertical::resolve_vertical`) and `yaw_rate_rad_s` is the hull's angular velocity. Keeping a
+/// real velocity *vector* (not a scalar forward speed) is what lets the hull carry momentum
+/// through a turn, slide on a steep face, and be stopped along one axis by a wall while still
+/// moving along the other.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct TankKinematicState {
     pub position: Vec3,
@@ -78,6 +80,16 @@ pub fn step_custom_tank_controller_on_contact(
     let g = GRAVITY_MPS2;
     let dt = dt_seconds;
 
+    // In flight nothing the driver does reaches the ground: no thrust, no brakes, no steering
+    // authority, no ground friction. The hull keeps its linear momentum and whatever yaw rotation
+    // it left the ground with; the world step resolves the vertical against the terrain.
+    if !is_grounded(state.position.y, contact.height_m) {
+        state.yaw_rad = wrap_angle(state.yaw_rad + state.yaw_rate_rad_s * dt);
+        state.position.x += state.velocity.x * dt;
+        state.position.z += state.velocity.z * dt;
+        return;
+    }
+
     // --- 1. Angular: ramp the yaw rate toward the commanded rate, then integrate the heading. ---
     // The finite `yaw_accel_rad_s2` ramp is the rotational inertia: the hull no longer snaps to a
     // new yaw the instant the key is tapped, and releasing steer lets the rotation coast down.
@@ -114,7 +126,7 @@ pub fn step_custom_tank_controller_on_contact(
     let slope_f = -g * contact.forward_slope * inv; // +forward_slope = uphill ahead -> resists
     let slope_r = -g * contact.side_slope * inv; // +side_slope = right is higher -> pulls left
 
-    // --- 4. Longitudinal: engine/brake bring v_f to its target, then gravity, then holds. ---
+    // --- 4. Longitudinal: engine force (P/v), resistances, gravity, then holds. ---
     let max_speed = if throttle >= 0.0 {
         settings.max_forward_speed_mps
     } else {
@@ -123,14 +135,33 @@ pub fn step_custom_tank_controller_on_contact(
     // Tracks can only lay down so much thrust: mu * g * traction * cos(theta). A face steeper than
     // `mu` (= max_climb_grade) therefore cannot out-pull gravity, so the climb stalls on its own.
     let grip_long = settings.longitudinal_grip_mu * g * contact.traction * inv;
-    let (target_v_f, drive_rate) = if brake > 0.0 {
-        (0.0, settings.brake_deceleration_mps2 * brake)
+    if brake > 0.0 {
+        v_f = move_towards(v_f, 0.0, settings.brake_deceleration_mps2 * brake * dt);
     } else if throttle.abs() > 0.01 {
-        (throttle * max_speed, settings.acceleration_mps2.min(grip_long))
+        // Engine thrust follows P/v: enormous at a crawl (where the track grip cap takes over),
+        // thin near top speed — so vmax is where thrust meets the resistances, not a clamp.
+        let dir = throttle.signum();
+        let a_engine = settings.drive_power_mps3 * throttle.abs()
+            / v_f.abs().max(settings.min_force_speed_mps);
+        let commanded = dir * max_speed * throttle.abs();
+        if (commanded - v_f) * dir > 0.0 {
+            v_f += dir * a_engine.min(grip_long) * dt;
+        } else {
+            // Above the commanded speed (throttle eased, or a downhill run): engine braking.
+            v_f = move_towards(v_f, commanded, settings.idle_drag_mps2 * dt);
+        }
     } else {
-        (0.0, settings.idle_drag_mps2)
-    };
-    v_f = move_towards(v_f, target_v_f, drive_rate * dt);
+        // Coasting: engine braking + rolling resistance — a long roll-out, not a sudden anchor.
+        v_f = move_towards(v_f, 0.0, settings.idle_drag_mps2 * dt);
+    }
+    // Rolling + aerodynamic-ish quadratic resistance apply in every state; together with P/v they
+    // put the top-speed equilibrium exactly at the spec vmax.
+    let resistance =
+        settings.rolling_resist_mps2 * contact.traction.max(0.5) + settings.drag_quadratic * v_f * v_f;
+    v_f = move_towards(v_f, 0.0, resistance * dt);
+    // Skid-steer scrub: turning bleeds forward speed into the ground.
+    let scrub = settings.turn_scrub * state.yaw_rate_rad_s.abs() * v_f.abs();
+    v_f = move_towards(v_f, 0.0, scrub * dt);
     v_f += slope_f * dt;
     // Track brakes hold a throttled hull on a slope it is climbing instead of letting it creep
     // backwards; this is what turns an unclimbable face into a clean stall. Fires when gravity
@@ -161,10 +192,11 @@ pub fn step_custom_tank_controller_on_contact(
     let lat_cap = settings.lateral_grip_mu * g * contact.traction;
     v_r -= v_r.signum() * v_r.abs().min(lat_cap * dt);
 
-    // --- 6. Reassemble the world velocity and integrate position; height follows the terrain. ---
+    // --- 6. Reassemble the world velocity and integrate position. The height is NOT touched
+    // here: the world step resolves it against the terrain (`vertical::resolve_vertical`), which
+    // is what lets a hull leave the ground instead of teleporting down every face.
     state.velocity = forward * v_f + right * v_r;
     state.position += state.velocity * dt;
-    state.position.y = contact.height_m;
 }
 
 fn move_towards(current: f32, target: f32, max_delta: f32) -> f32 {

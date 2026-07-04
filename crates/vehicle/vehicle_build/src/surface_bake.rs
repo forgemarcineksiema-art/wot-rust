@@ -8,7 +8,7 @@
 //! `surface_shade`; no renderer change is needed. Mud, rust, decals and camouflage stay runtime
 //! overlays — this pass bakes only the geometry's own ambient contact.
 
-use game_core::HybridVisual;
+use game_core::{HybridVisual, TrackShape};
 use glam::Vec3;
 use vehicle_geometry::CavityBand;
 
@@ -64,9 +64,10 @@ impl SurfaceBake {
     }
 }
 
-/// Derive the T-54's contact cavities from its hybrid blueprint. Every centre and extent is read
-/// from a blueprint dimension, so the shading tracks the geometry it shades.
-pub fn t54_surface_bake(v: &HybridVisual) -> SurfaceBake {
+/// Derive the T-54's contact cavities from its hybrid blueprint (and the gameplay `TrackShape`,
+/// which owns the running gear). Every centre and extent is read from a blueprint dimension, so
+/// the shading tracks the geometry it shades.
+pub fn t54_surface_bake(v: &HybridVisual, track: &TrackShape) -> SurfaceBake {
     let cavities = vec![
         // The cast turret seats on the narrowed ring and overhangs it: the seam and undercut read as
         // a deep ambient shadow around the bottom of the casting and the roof under its skirt.
@@ -74,7 +75,7 @@ pub fn t54_surface_bake(v: &HybridVisual) -> SurfaceBake {
             signal: "turret_ring_seam",
             band: CavityBand {
                 center: Vec3::new(0.0, v.turret.ring_plane_y, 0.0),
-                half_extents: Vec3::new(1.0, 0.05, 1.1),
+                half_extents: Vec3::new(1.15, 0.06, 1.25),
                 falloff: 0.14,
                 amount: 0.38,
             },
@@ -94,18 +95,33 @@ pub fn t54_surface_bake(v: &HybridVisual) -> SurfaceBake {
         NamedCavity {
             signal: "running_gear_recess",
             band: CavityBand {
-                center: Vec3::new(0.0, v.track_belt.axle_y, 0.0),
-                half_extents: Vec3::new(v.running_gear.side_x + 0.05, 0.42, 2.35),
+                center: Vec3::new(0.0, (track.top_y + track.bottom_y) * 0.5, 0.0),
+                half_extents: Vec3::new(track.outer_x + 0.10, 0.50, track.end_z + 0.35),
                 falloff: 0.12,
                 amount: 0.42,
+            },
+        },
+        // The engine-deck cooling grille is a louvered intake into the engine bay: the well under
+        // the slats sits in deep shadow so the louver gaps read as a dark interior, not bright deck.
+        NamedCavity {
+            signal: "engine_grille",
+            band: CavityBand {
+                center: Vec3::new(
+                    v.detail.grille_center.x,
+                    (v.deck.center.y + v.deck.half.y) - 0.04,
+                    v.detail.grille_center.z,
+                ),
+                half_extents: Vec3::new(v.detail.grille_half.x, 0.06, v.detail.grille_half.z),
+                falloff: 0.06,
+                amount: 0.55,
             },
         },
         // The glacis-to-roof weld line catches a thin contact shadow across the hull front.
         NamedCavity {
             signal: "glacis_weld",
             band: CavityBand {
-                center: Vec3::new(0.0, v.hull.roof_y, 1.58),
-                half_extents: Vec3::new(1.45, 0.04, 0.05),
+                center: Vec3::new(0.0, v.hull.roof_y, 1.95),
+                half_extents: Vec3::new(1.05, 0.04, 0.05),
                 falloff: 0.08,
                 amount: 0.30,
             },

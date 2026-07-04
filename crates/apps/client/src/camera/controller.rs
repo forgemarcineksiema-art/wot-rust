@@ -3,10 +3,14 @@ use game_core::math::{gun_direction, horizontal_forward, wrap_angle};
 use glam::{Mat3, Vec3};
 use renderer_api::Camera;
 
+use super::smoothing::CameraSmoothing;
 use super::{
     BattleCameraEnvironment, BattleCameraInput, BattleCameraMode, BattleCameraSettings,
     CameraSubject, collision, zoom,
 };
+
+/// Sniper sight height above the gun trunnion — roughly where the gunner's optics sit.
+const SNIPER_SIGHT_ABOVE_TRUNNION_M: f32 = 0.35;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct BattleCameraController {
@@ -16,10 +20,8 @@ pub struct BattleCameraController {
     pitch_rad: f32,
     distance_m: f32,
     sniper_fov_degrees: f32,
+    pub(super) smoothing: CameraSmoothing,
 }
-
-/// Sniper sight height above the gun trunnion — roughly where the gunner's optics sit.
-const SNIPER_SIGHT_ABOVE_TRUNNION_M: f32 = 0.35;
 
 impl BattleCameraController {
     pub fn new(settings: BattleCameraSettings) -> Self {
@@ -30,6 +32,7 @@ impl BattleCameraController {
             pitch_rad: settings.third_person_pitch_rad,
             distance_m: settings.third_person_distance_m,
             sniper_fov_degrees: settings.sniper_fov_degrees,
+            smoothing: CameraSmoothing::default(),
         }
     }
 
@@ -118,7 +121,9 @@ impl BattleCameraController {
         subject: &CameraSubject,
         environment: &BattleCameraEnvironment<'_>,
     ) -> Camera {
-        let tank = subject.position_vec();
+        // The rig follows the SMOOTHED anchor, not the raw hull: heightmap steps and hard stops
+        // reach the eye as an eased settle instead of a 1:1 jolt.
+        let tank = self.smoothing.anchor.unwrap_or(subject.position_vec());
         let yaw = subject.view_yaw_rad;
         let forward = horizontal_forward(yaw);
         let right = horizontal_right(forward);
@@ -148,7 +153,8 @@ impl BattleCameraController {
         Camera {
             eye: eye.to_array(),
             target: target.to_array(),
-            vertical_fov_degrees: self.settings.third_person_fov_degrees,
+            vertical_fov_degrees: self.settings.third_person_fov_degrees
+                + self.smoothing.fov_boost_deg,
         }
     }
 

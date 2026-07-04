@@ -21,10 +21,18 @@ impl GpuContext {
         compatible_surface: Option<&wgpu::Surface<'_>>,
     ) -> Result<Self, RenderError> {
         let adapter = request_adapter(&instance, compatible_surface)?;
+        // Downlevel baseline, with the 2D texture dimension lifted to what the adapter actually
+        // offers (capped at 8k): the focused sun shadow map wants 4096 texels for wheel-scale
+        // detail, and consumers clamp to `device.limits()` so weaker adapters still work.
+        let mut required_limits = wgpu::Limits::downlevel_defaults();
+        required_limits.max_texture_dimension_2d = adapter
+            .limits()
+            .max_texture_dimension_2d
+            .clamp(required_limits.max_texture_dimension_2d, 8_192);
         let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
             label: Some("wot_device"),
             required_features: wgpu::Features::empty(),
-            required_limits: wgpu::Limits::downlevel_defaults(),
+            required_limits,
             experimental_features: wgpu::ExperimentalFeatures::default(),
             memory_hints: wgpu::MemoryHints::default(),
             trace: wgpu::Trace::Off,

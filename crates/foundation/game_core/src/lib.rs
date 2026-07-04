@@ -24,15 +24,15 @@ pub use ids::{TankId, TeamId};
 pub use modules::{
     EngineModule, GunModule, HullChassis, MODULE_SLOT_COUNT, ModuleError, ModuleHealth, ModuleSlot,
     RadioModule, SuspensionModule, TurretModule, TurretTraverse, VehicleModules,
+    engine_power_fraction, suspension_agility_fraction,
 };
 pub use mount::{MountFrame, MountFrames};
 pub use tank::{HitboxProfile, TankSpec};
 pub use track::{TrackDamageMask, TrackSide};
 pub use vehicle_blueprint::{
     ArmorShape, BoxVisual, DetailVisual, FenderVisual, FittingsVisual, GunShape, GunVisual,
-    HullPlatesVisual, HullShape, HullVisual, HybridVisual, LoftStation, RunningGearVisual,
-    TrackBeltVisual, TrackShape, TurretForm, TurretLoftVisual, TurretShape, TurretVisual,
-    VehicleBlueprint,
+    HullPlatesVisual, HullShape, HullVisual, HybridVisual, LoftStation, TrackShape, TurretForm,
+    TurretLoftVisual, TurretShape, TurretVisual, VehicleBlueprint,
 };
 pub use vehicle_kind::{Nation, VehicleKind};
 pub use vehicles::known_tank_specs;

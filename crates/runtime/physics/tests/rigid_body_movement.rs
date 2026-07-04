@@ -80,8 +80,9 @@ fn hard_turn_at_speed_drifts_but_a_gentle_turn_grips() {
 
     let drift_for = |steer: f32| {
         let mut state = TankKinematicState::default();
-        // Reach top speed in a straight line, then turn.
-        drive(&mut state, &settings, 1.0, 0.0, TerrainContact::flat(0.0), 300);
+        // Reach top speed in a straight line, then turn. The force model approaches vmax
+        // asymptotically, so the run-up is a long pull, not the old 5-second snap.
+        drive(&mut state, &settings, 1.0, 0.0, TerrainContact::flat(0.0), 1800);
         drive(&mut state, &settings, 1.0, steer, TerrainContact::flat(0.0), 30);
         lateral_speed(&state).abs()
     };
@@ -89,7 +90,9 @@ fn hard_turn_at_speed_drifts_but_a_gentle_turn_grips() {
     let hard = drift_for(1.0);
     let gentle = drift_for(0.2);
 
-    assert!(hard > 0.15, "a hard turn at speed must break grip and slide, got lateral {hard}");
+    // The scrub term bleeds speed through the turn, so the residual slide is smaller than the
+    // old un-scrubbed model's — but a full-lock turn at speed must still visibly break loose.
+    assert!(hard > 0.08, "a hard turn at speed must break grip and slide, got lateral {hard}");
     assert!(gentle < 0.05, "a gentle turn must hold its line, got lateral {gentle}");
 }
 

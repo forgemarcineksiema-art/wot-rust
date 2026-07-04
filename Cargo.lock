@@ -1214,6 +1214,7 @@ dependencies = [
  "bevy_ecs",
  "game_core",
  "net",
+ "terrain",
 ]
 
 [[package]]
@@ -4617,6 +4618,7 @@ name = "vehicle_build"
 version = "0.1.0"
 dependencies = [
  "cast_loft",
+ "detail",
  "game_core",
  "glam 0.30.10",
  "revolve",

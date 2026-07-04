@@ -31,6 +31,8 @@ pub struct LocalPredictor {
     module_hit_points: [u32; MODULE_SLOT_COUNT],
     destroyed_modules_mask: u8,
     track_damage_mask: TrackDamageMask,
+    /// Hardest landing (m/s of absorbed fall speed) since the render loop last consumed it.
+    pending_landing_impact_mps: f32,
     seeded: bool,
     /// Pose at the start of the most recent tick, kept so rendering can interpolate the
     /// gap between the previous and current tick instead of snapping at 60 Hz boundaries.
@@ -50,6 +52,7 @@ impl LocalPredictor {
             module_hit_points: spec.module_health.hit_points_by_slot(),
             destroyed_modules_mask: 0,
             track_damage_mask: TrackDamageMask::healthy(),
+            pending_landing_impact_mps: 0.0,
             seeded: false,
             previous: PredictedPose {
                 position: Vec3::ZERO,
@@ -133,14 +136,16 @@ impl LocalPredictor {
         } else {
             TrackDriveStatus::from_track_damage(self.track_damage_mask)
         };
-        let modules = DriveModuleStatus {
-            tracks,
-            engine_ok: !self.module_destroyed(ModuleSlot::Engine),
-            turret_ok: !self.module_destroyed(ModuleSlot::Turret),
-            gun_damage_fraction,
-        };
+        let modules =
+            DriveModuleStatus::from_module_hp(tracks, self.module_hit_points, &self.spec);
         let world = TankDriveWorld { heightmap: Some(heightmap), cover, tank_obstacles };
-        step_tank_drive(&mut self.drive, &self.spec, modules, world, command.clamped(), dt);
+        let ground = step_tank_drive(&mut self.drive, &self.spec, modules, world, command.clamped(), dt);
+        self.pending_landing_impact_mps = self.pending_landing_impact_mps.max(ground.landing_impact_mps);
+    }
+
+    /// The hardest landing since the last call, consumed by the render loop for the camera slam.
+    pub fn take_landing_impact_mps(&mut self) -> f32 {
+        std::mem::take(&mut self.pending_landing_impact_mps)
     }
 
     fn module_destroyed(&self, slot: ModuleSlot) -> bool {

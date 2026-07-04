@@ -134,8 +134,10 @@ mod tests {
     fn turret_bounds_contain_its_surface() {
         let t = turret();
         let (turret, min, max) = t54_turret(&t);
-        // The roof centre is solid, a point well above the roof is empty: the dome sits in its box.
-        assert!(turret.eval(Vec3::new(0.0, 1.6, 0.0)) < 0.0);
+        // The casting's mid-height centre is solid, a point well above the roof is empty: the dome
+        // sits in its box. The probe height reads the blueprint so it tracks the ring/roof planes.
+        let mid = 0.5 * (t.ring_plane_y + t.roof_plane_y);
+        assert!(turret.eval(Vec3::new(0.0, mid, 0.0)) < 0.0);
         assert!(turret.eval(Vec3::new(0.0, max.y + 0.5, 0.0)) > 0.0);
         // The box spans from below the machined ring seat to above the (lowered) flat roof plane —
         // tied to the blueprint single source, not a fixed height, so it tracks the pancake casting.

@@ -6,7 +6,7 @@ use game_core::{ModuleSlot, TankId};
 use glam::Mat4;
 use net::TankSnapshot;
 use renderer_api::{MaterialHandle, MeshHandle, RenderObject};
-use vehicle_geometry::RunningGearKinematics;
+use vehicle_geometry::{GearDynamics, RunningGearKinematics};
 
 use super::asset_catalog::VehicleAssetCatalog;
 use super::pose::VehiclePose;
@@ -49,8 +49,40 @@ pub fn tank_vehicle_render_objects_with_tracks(
     track_left_m: f32,
     track_right_m: f32,
 ) -> Vec<RenderObject> {
+    tank_vehicle_render_objects_posed(
+        catalog,
+        snapshot,
+        hull_color,
+        variation,
+        track_left_m,
+        track_right_m,
+        [0.0; 3],
+        GearDynamics::default(),
+    )
+}
+
+/// As [`tank_vehicle_render_objects_with_tracks`], with the sprung-hull attitude
+/// `[pitch, roll, heave]` from the presentation world folded into the hull frame.
+#[allow(clippy::too_many_arguments)]
+pub fn tank_vehicle_render_objects_posed(
+    catalog: &mut VehicleAssetCatalog,
+    snapshot: &TankSnapshot,
+    hull_color: [f32; 3],
+    variation: &VehicleVariation,
+    track_left_m: f32,
+    track_right_m: f32,
+    attitude: [f32; 3],
+    gear_dynamics: GearDynamics<'_>,
+) -> Vec<RenderObject> {
     let entry = catalog.vehicle_entry(snapshot.vehicle).expect("vehicle must have baked geometry");
-    let pose = VehiclePose::from_snapshot(snapshot);
+    let pose = VehiclePose::new_with_attitude(
+        snapshot.vehicle,
+        glam::Vec3::from_array(snapshot.position),
+        snapshot.yaw_rad,
+        snapshot.turret_yaw_rad,
+        snapshot.gun_pitch_rad,
+        attitude,
+    );
     let hull_transform =
         Mat4::from_translation(pose.hull_translation()) * Mat4::from_mat3(pose.hull_basis());
     let turret_transform =
@@ -103,6 +135,7 @@ pub fn tank_vehicle_render_objects_with_tracks(
             &kin,
             track_left_m,
             track_right_m,
+            gear_dynamics,
             suspension_tint,
         ));
     }

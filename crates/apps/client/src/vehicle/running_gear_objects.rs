@@ -6,7 +6,7 @@
 use game_core::TankId;
 use glam::Mat4;
 use renderer_api::{MaterialHandle, MeshHandle, RenderObject};
-use vehicle_geometry::{GearPart, RunningGearKinematics, running_gear_placements};
+use vehicle_geometry::{GearDynamics, GearPart, RunningGearKinematics, running_gear_placements_dynamic};
 
 /// Cached unit-mesh handles for one vehicle's animatable running gear.
 #[derive(Debug, Clone, Copy)]
@@ -29,9 +29,10 @@ pub(crate) fn gear_render_objects(
     kin: &RunningGearKinematics,
     left_m: f32,
     right_m: f32,
+    dynamics: GearDynamics<'_>,
     tint: [f32; 3],
 ) -> Vec<RenderObject> {
-    running_gear_placements(kin, left_m, right_m)
+    running_gear_placements_dynamic(kin, left_m, right_m, dynamics)
         .into_iter()
         .map(|placement| {
             let mesh = match placement.part {

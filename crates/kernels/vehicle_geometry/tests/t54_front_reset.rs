@@ -109,6 +109,28 @@ fn t54_mantlet_socket_is_recessed_between_cheeks() {
 }
 
 #[test]
+fn t54_mantlet_socket_has_a_layered_cast_lip() {
+    let vehicle = bake_vehicle(VehicleKind::T54_1951).expect("T-54 bakes");
+    let trunnion = vehicle.mounts().gun_trunnion.translation;
+    let turret = vehicle.submesh(SubmeshKind::Turret).expect("turret submesh");
+
+    let mut z_bands = std::collections::BTreeSet::new();
+    for vertex in turret
+        .mesh
+        .vertices()
+        .iter()
+        .filter(|v| v.smoothing == SG_MANTLET && (v.position.y - trunnion.y).abs() <= 0.36)
+    {
+        z_bands.insert((vertex.position.z / 0.03).round() as i32);
+    }
+
+    assert!(
+        z_bands.len() >= 4,
+        "T-54 mantlet socket must have a layered cast lip, not a two-ring cone: {z_bands:?}"
+    );
+}
+
+#[test]
 fn t54_moving_mantlet_is_not_a_front_disc() {
     let vehicle = bake_vehicle(VehicleKind::T54_1951).expect("T-54 bakes");
     let trunnion = vehicle.mounts().gun_trunnion.translation;
