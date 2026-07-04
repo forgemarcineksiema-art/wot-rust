@@ -55,6 +55,8 @@ impl InterpolatedBattleState {
                     vehicle: tank.vehicle,
                     position: lerp3(previous.position, tank.position, alpha),
                     yaw_rad: lerp_angle(previous.yaw_rad, tank.yaw_rad, alpha),
+                    hull_pitch_rad: lerp_angle(previous.hull_pitch_rad, tank.hull_pitch_rad, alpha),
+                    hull_roll_rad: lerp_angle(previous.hull_roll_rad, tank.hull_roll_rad, alpha),
                     turret_yaw_rad: lerp_angle(previous.turret_yaw_rad, tank.turret_yaw_rad, alpha),
                     turret_yaw_velocity_rad_s: tank.turret_yaw_velocity_rad_s,
                     gun_pitch_rad: lerp_angle(previous.gun_pitch_rad, tank.gun_pitch_rad, alpha),

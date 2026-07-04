@@ -59,12 +59,19 @@ pub(crate) fn apply_shot_bloom(tank: &mut TankState) {
 }
 
 pub(crate) fn dispersed_gun_direction(tank: &TankState, tick: u64) -> Vec3 {
-    let yaw = tank.yaw_rad + tank.turret_yaw_rad;
     let radius_rad = tank.aim_dispersion_mrad.max(0.0) * 0.001;
     let (unit_a, unit_b) = deterministic_pair(tank.id, tick, tank.dispersion_shot_index);
     let angle = unit_a * std::f32::consts::TAU;
     let radius = radius_rad * unit_b * unit_b;
-    gun_direction(yaw + angle.cos() * radius, tank.gun_pitch_rad + angle.sin() * radius).normalize()
+    // Perturb in the hull frame, then carry the direction through the hull basis: the barrel —
+    // and therefore its dispersion cone — tilts with the hull (on a level hull this degenerates
+    // to the old planar formula exactly).
+    (tank.hull_pose().basis()
+        * gun_direction(
+            tank.turret_yaw_rad + angle.cos() * radius,
+            tank.gun_pitch_rad + angle.sin() * radius,
+        ))
+    .normalize()
 }
 
 fn add_bloom(

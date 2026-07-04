@@ -10,6 +10,8 @@ fn t55a_client_mesh_uses_rich_procedural_geometry() {
         vehicle: VehicleKind::T55A,
         position: [0.0, 0.0, 0.0],
         yaw_rad: 0.0,
+        hull_pitch_rad: 0.0,
+        hull_roll_rad: 0.0,
         turret_yaw_rad: 0.35,
         turret_yaw_velocity_rad_s: 0.0,
         gun_pitch_rad: 0.08,

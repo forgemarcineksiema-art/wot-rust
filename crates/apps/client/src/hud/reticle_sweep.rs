@@ -16,8 +16,9 @@ pub(crate) struct ReticleTraceQuery<'a> {
     pub owner: TankId,
     pub owner_team: TeamId,
     pub muzzle: Vec3,
-    pub yaw_rad: f32,
-    pub pitch_rad: f32,
+    /// World-space unit direction of the barrel — already carried through the hull pose, so a
+    /// tilted hull previews the tilted arc the server will fire.
+    pub gun_direction: Vec3,
     pub muzzle_velocity_mps: f32,
 }
 
@@ -25,7 +26,7 @@ pub(crate) struct ReticleTraceQuery<'a> {
 /// preview and the server run the same trajectory + collision, so a previewed impact is one the
 /// server will confirm — even under input latency.
 pub(crate) fn reticle_trace(query: ReticleTraceQuery<'_>) -> TraceOutcome {
-    let velocity = gun_direction(query.yaw_rad, query.pitch_rad) * query.muzzle_velocity_mps;
+    let velocity = query.gun_direction.normalize_or_zero() * query.muzzle_velocity_mps;
     let sets = trace_sets(query.tanks, query.owner, query.owner_team);
     let world = ShellTraceWorld {
         tanks: &sets.targets,
@@ -53,7 +54,7 @@ pub(crate) fn trace_sets(tanks: &[TankSnapshot], owner: TankId, owner_team: Team
         let trace = TraceTank::for_kind(
             tank.tank_id,
             Vec3::from_array(tank.position),
-            tank.yaw_rad,
+            tank.hull_pose(),
             tank.turret_yaw_rad,
             tank.vehicle,
         );
@@ -86,6 +87,8 @@ mod tests {
             vehicle: VehicleKind::T55A,
             position,
             yaw_rad: std::f32::consts::PI,
+            hull_pitch_rad: 0.0,
+            hull_roll_rad: 0.0,
             turret_yaw_rad: 0.0,
             turret_yaw_velocity_rad_s: 0.0,
             gun_pitch_rad: 0.0,
@@ -128,8 +131,7 @@ mod tests {
             owner: TankId(1),
             owner_team: TeamId(1),
             muzzle,
-            yaw_rad: 0.0,
-            pitch_rad: 0.0,
+            gun_direction: Vec3::Z,
             muzzle_velocity_mps: 895.0,
         });
 
@@ -155,8 +157,7 @@ mod tests {
             owner: TankId(1),
             owner_team: TeamId(1),
             muzzle,
-            yaw_rad: 0.0,
-            pitch_rad: 0.0,
+            gun_direction: Vec3::Z,
             muzzle_velocity_mps: 895.0,
         });
 

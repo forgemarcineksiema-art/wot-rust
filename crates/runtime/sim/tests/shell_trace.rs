@@ -27,7 +27,7 @@ fn reticle_trace_resolves_the_same_tank_impact_as_the_authoritative_step() {
     let trace_tank = TraceTank::for_kind(
         target,
         target_tank.position,
-        target_tank.yaw_rad,
+        target_tank.hull_pose(),
         target_tank.turret_yaw_rad,
         VehicleKind::T54_1951,
     );

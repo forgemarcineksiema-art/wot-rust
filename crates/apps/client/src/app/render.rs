@@ -148,7 +148,7 @@ impl ClientApp {
     /// the snapshot vec.
     pub(super) fn project_render_tanks(&mut self, alpha: f32) -> Vec<engine::PresentationTank> {
         let render_tanks = self.render_tanks(alpha);
-        self.presentation.sync_tanks_on_terrain(&render_tanks, Some(&self.battlefield.heightmap));
+        self.presentation.sync_tanks(&render_tanks);
         self.presentation.presentation_tanks()
     }
 

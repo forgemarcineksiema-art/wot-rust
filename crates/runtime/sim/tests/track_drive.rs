@@ -39,12 +39,7 @@ fn t54_per_side_track_damage_changes_drive_behavior() {
 fn driven_for(tracks: TrackDriveStatus) -> TankDriveState {
     let spec = TankSpec::t54_1951();
     let mut drive = TankDriveState {
-        kinematic: TankKinematicState {
-            position: Vec3::ZERO,
-            velocity: Vec3::ZERO,
-            yaw_rad: 0.0,
-            yaw_rate_rad_s: 0.0,
-        },
+        kinematic: TankKinematicState::default(),
         aiming: AimingState::default(),
         aim_dispersion_mrad: spec.gun.dispersion_mrad,
     };
@@ -52,7 +47,7 @@ fn driven_for(tracks: TrackDriveStatus) -> TankDriveState {
         tracks,
         ..DriveModuleStatus::healthy(&spec)
     };
-    let world = TankDriveWorld { heightmap: None, cover: &[], tank_obstacles: &[] };
+    let world = TankDriveWorld { heightmap: None, cover: &[], tank_obstacles: &[], footprint: None };
     let command = TankCommand::drive(1.0, 0.0);
 
     for _ in 0..60 {

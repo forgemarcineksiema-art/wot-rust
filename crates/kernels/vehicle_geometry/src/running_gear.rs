@@ -66,21 +66,10 @@ impl RunningGearKinematics {
         let cy = (track.top_y + track.bottom_y) * 0.5;
         let cz = (track.wheel_first_z + track.wheel_last_z) * 0.5;
         let half_run = (track.wheel_last_z - track.wheel_first_z) * 0.5;
-        // Most vehicles space their road wheels evenly; the T-54 carries its signature wider
-        // first/second gap, so its layout is explicit.
-        let wheel_zs = match kind {
-            // 810 mm wheels at a ~0.92 m pitch (rims ~0.11 m apart), with the T-54's signature
-            // wider gap between the first and second road wheels at the front (+Z).
-            VehicleKind::T54_1951 => vec![-1.95, -1.03, -0.11, 0.81, 1.95],
-            _ => match track.wheel_count {
-                0 => Vec::new(),
-                1 => vec![track.wheel_first_z],
-                count => {
-                    let step = (track.wheel_last_z - track.wheel_first_z) / (count - 1) as f32;
-                    (0..count).map(|i| track.wheel_first_z + step * i as f32).collect()
-                }
-            },
-        };
+        // Wheel stations come from the blueprint (explicit for the T-54's signature wider
+        // first/second gap, an even spread otherwise) — the SAME stations the physics contact
+        // footprint rides on, so the wheels the player sees are the wheels the hull sits on.
+        let wheel_zs = track.wheel_stations();
         let wheel_half_width = match kind {
             // Wide road wheels to match the tank's scale — thin discs read like wheelbarrow wheels.
             VehicleKind::T54_1951 => 0.18,

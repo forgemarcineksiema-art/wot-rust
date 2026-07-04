@@ -4,12 +4,13 @@
 
 use std::f32::consts::FRAC_PI_2;
 
+use game_core::math::HullPose;
 use game_core::{ArmorFacing, ArmorZone, HitboxProfile, TankId, VehicleKind};
 use glam::Vec3;
 use sim::{SegmentImpact, ShellTraceWorld, TraceTank, segment_impact};
 
 fn t55a_at_origin(turret_yaw_rad: f32) -> TraceTank {
-    TraceTank::for_kind(TankId(1), Vec3::ZERO, 0.0, turret_yaw_rad, VehicleKind::T55A)
+    TraceTank::for_kind(TankId(1), Vec3::ZERO, HullPose::level(0.0), turret_yaw_rad, VehicleKind::T55A)
 }
 
 fn world(tank: &TraceTank) -> ShellTraceWorld<'_> {
@@ -130,14 +131,14 @@ fn turret_traverse_swings_the_hittable_volume() {
         )
     };
 
-    let forward = TraceTank::for_kind(TankId(1), Vec3::ZERO, 0.0, 0.0, VehicleKind::TigerII);
+    let forward = TraceTank::for_kind(TankId(1), Vec3::ZERO, HullPose::level(0.0), 0.0, VehicleKind::TigerII);
     match lane(&forward) {
         Some(SegmentImpact::Tank { zone, .. }) => assert_eq!(zone, ArmorZone::TurretSide),
         other => panic!("expected a turret-side hit at zero traverse, got {other:?}"),
     }
 
     let traversed =
-        TraceTank::for_kind(TankId(1), Vec3::ZERO, 0.0, FRAC_PI_2, VehicleKind::TigerII);
+        TraceTank::for_kind(TankId(1), Vec3::ZERO, HullPose::level(0.0), FRAC_PI_2, VehicleKind::TigerII);
     assert_eq!(
         lane(&traversed),
         None,

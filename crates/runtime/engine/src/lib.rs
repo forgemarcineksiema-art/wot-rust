@@ -3,7 +3,6 @@
 //! general-purpose engine and does not own gameplay truth — see `docs/architecture.md`.
 
 mod attitude;
-mod attitude_inputs;
 mod components;
 mod world;
 

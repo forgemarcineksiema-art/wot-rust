@@ -28,12 +28,13 @@ pub(crate) struct VehiclePose {
 
 impl VehiclePose {
     pub fn from_snapshot(snapshot: &TankSnapshot) -> Self {
-        Self::new(
+        Self::new_with_attitude(
             snapshot.vehicle,
             Vec3::from_array(snapshot.position),
             snapshot.yaw_rad,
             snapshot.turret_yaw_rad,
             snapshot.gun_pitch_rad,
+            [snapshot.hull_pitch_rad, snapshot.hull_roll_rad, 0.0],
         )
     }
 

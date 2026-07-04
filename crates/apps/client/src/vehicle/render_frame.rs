@@ -64,12 +64,18 @@ pub fn split_pbr_vehicle_render_frame_on_terrain(
         let (left_travel, right_travel, wheel_count) = wheel_travel(&tank, terrain);
         // A driven track pulls its top run tight; braking or coasting lets it hang. The gain is
         // gentle: the P/v launch hits ~8 m/s², and a sag that slams to its clamp on a throttle
-        // tap reads as the track convulsing rather than tensioning.
-        let sag_scale = (1.0 - tank.accel_long_mps2 * 0.05).clamp(0.72, 1.28);
+        // tap reads as the track convulsing rather than tensioning. A hard landing (the sprung
+        // hull dips below the replicated height) throws extra slack into both runs for a beat,
+        // and a THROWN track loses its tension entirely — that side hangs deep and dead.
+        let landing_slack = (-tank.attitude_heave_m).max(0.0) * 2.5;
+        let sag_scale = (1.0 - tank.accel_long_mps2 * 0.05 + landing_slack).clamp(0.72, 1.5);
+        let damage = game_core::TrackDamageMask::from_bits(tank.track_damage_mask);
+        let side_sag = |broken: bool| if broken { 2.2 } else { sag_scale };
         let dynamics = GearDynamics {
             left_travel: &left_travel[..wheel_count],
             right_travel: &right_travel[..wheel_count],
-            sag_scale,
+            left_sag_scale: side_sag(damage.is_broken(game_core::TrackSide::Left)),
+            right_sag_scale: side_sag(damage.is_broken(game_core::TrackSide::Right)),
         };
         let mut tank_objects = tank_vehicle_render_objects_posed(
             catalog,
@@ -142,6 +148,10 @@ pub(crate) fn render_snapshot(tank: &PresentationTank) -> TankSnapshot {
         vehicle: tank.vehicle,
         position: tank.translation,
         yaw_rad: tank.hull_yaw_rad,
+        // The PRESENTATION attitude (authoritative base + weight-transfer spring): the pose
+        // built from this snapshot tilts exactly like the sprung hull the player sees.
+        hull_pitch_rad: tank.attitude_pitch_rad,
+        hull_roll_rad: tank.attitude_roll_rad,
         turret_yaw_rad: tank.turret_yaw_rad,
         turret_yaw_velocity_rad_s: 0.0,
         gun_pitch_rad: tank.gun_pitch_rad,

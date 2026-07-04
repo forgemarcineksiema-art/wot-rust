@@ -9,33 +9,46 @@ const GUN_TRACK_GAIN: f32 = 6.0;
 
 /// Gun commands derived from one resolved sight point: the ballistic elevation and the
 /// muzzle->sight turret bearing share a single (expensive) aim sweep per fixed-tick batch.
+/// Both targets are HULL-relative — the ballistic arc is solved in world space, then converted
+/// through the hull pose (`world_direction_to_turret`), so the commands respect the hull-frame
+/// gun limits and hull-down genuinely adds depression.
 #[derive(Debug, Clone, Copy)]
 pub(super) struct SightSolution {
+    /// Hull-relative gun pitch target.
     pub pitch_rad: f32,
-    /// World-space bearing that points the gun from the muzzle *through* the sight point, so the
-    /// shell converges on the crosshair. Commanding the raw camera yaw instead runs the barrel
-    /// parallel to the over-shoulder sight lane and misses sideways, worst at close range.
-    /// `None` only when the sight point sits on the muzzle.
-    pub turret_bearing_rad: Option<f32>,
+    /// Hull-relative turret yaw that points the gun from the muzzle *through* the sight point,
+    /// so the shell converges on the crosshair. Commanding the raw camera yaw instead runs the
+    /// barrel parallel to the over-shoulder sight lane and misses sideways, worst at close
+    /// range. `None` only when the sight point sits on the muzzle.
+    pub turret_yaw_rad: Option<f32>,
 }
 
 impl ClientApp {
     pub(super) fn sight_solution(&self) -> Option<SightSolution> {
         let tank = self.local_render_tank()?;
+        let hull = tank.hull_pose();
         let camera = self.camera_from_tank(tank);
         let aim = self.aim_world_point(&camera)?;
         let muzzle = self.muzzle_position();
-        let pitch_rad = crate::aim::gun_pitch_to_hit(
+        let world_pitch = crate::aim::gun_pitch_to_hit(
             muzzle,
             aim,
             self.player_spec().gun.shell.muzzle_velocity_mps,
-        )
-        .clamp(sim::MIN_GUN_PITCH_RAD, sim::MAX_GUN_PITCH_RAD);
+        );
         let delta = aim - muzzle;
-        // `gun_direction` uses x = sin(yaw), z = cos(yaw), so yaw = atan2(x, z).
-        let turret_bearing_rad =
-            ((delta.x.abs() > 1.0e-4) || (delta.z.abs() > 1.0e-4)).then(|| delta.x.atan2(delta.z));
-        Some(SightSolution { pitch_rad, turret_bearing_rad })
+        if delta.x.abs() <= 1.0e-4 && delta.z.abs() <= 1.0e-4 {
+            let pitch_rad = world_pitch.clamp(sim::MIN_GUN_PITCH_RAD, sim::MAX_GUN_PITCH_RAD);
+            return Some(SightSolution { pitch_rad, turret_yaw_rad: None });
+        }
+        // World arc (azimuth muzzle->aim, solved ballistic elevation) -> hull-relative targets.
+        let world_direction =
+            game_core::math::gun_direction(delta.x.atan2(delta.z), world_pitch);
+        let (turret_yaw, gun_pitch) =
+            game_core::math::world_direction_to_turret(hull, world_direction);
+        Some(SightSolution {
+            pitch_rad: gun_pitch.clamp(sim::MIN_GUN_PITCH_RAD, sim::MAX_GUN_PITCH_RAD),
+            turret_yaw_rad: Some(turret_yaw),
+        })
     }
 
     /// Elevation-rate command (in [-1, 1]) that traverses the gun toward the pitch needed to
@@ -72,8 +85,11 @@ impl ClientApp {
                 owner_team: self.player_team(),
                 muzzle,
                 aim,
-                turret_yaw_rad: tank.yaw_rad + tank.turret_yaw_rad,
-                gun_pitch_rad: tank.gun_pitch_rad,
+                gun_direction: game_core::math::gun_direction_world(
+                    tank.hull_pose(),
+                    tank.turret_yaw_rad,
+                    tank.gun_pitch_rad,
+                ),
                 muzzle_velocity_mps: muzzle_velocity,
             });
         let feedback = report.feedback;
@@ -126,7 +142,7 @@ impl ClientApp {
             return game_core::math::muzzle_world_position_scaled(
                 &mounts,
                 self.predictor.position(),
-                self.predictor.yaw(),
+                self.predictor.hull_pose(),
                 self.predictor.turret_yaw(),
                 self.predictor.gun_pitch(),
                 barrel_scale,
@@ -136,7 +152,7 @@ impl ClientApp {
         game_core::math::muzzle_world_position_scaled(
             &mounts,
             Vec3::from_array(tank.position),
-            tank.yaw_rad,
+            tank.hull_pose(),
             tank.turret_yaw_rad,
             tank.gun_pitch_rad,
             barrel_scale,
@@ -196,7 +212,9 @@ mod tests {
             trunnion.y + barrel * tank.gun_pitch_rad.sin(),
             trunnion.z + barrel * tank.gun_pitch_rad.cos(),
         );
-        // Traverse about the ring, then hull yaw about the tank position.
+        // Traverse about the ring, then the full hull pose about the tank position. The battle
+        // terrain is not flat, so the hull carries a real authoritative attitude here — the
+        // muzzle must ride it exactly like the server's shell spawn does.
         let traverse = |point: Vec3, pivot: Vec3, yaw: f32| {
             let rel = point - pivot;
             pivot
@@ -207,8 +225,12 @@ mod tests {
                 )
         };
         let traversed = traverse(pitched, ring, tank.turret_yaw_rad);
-        let expected =
-            Vec3::from_array(tank.position) + traverse(traversed, Vec3::ZERO, tank.yaw_rad);
+        let basis = game_core::math::hull_basis(
+            tank.yaw_rad,
+            tank.hull_pitch_rad,
+            tank.hull_roll_rad,
+        );
+        let expected = Vec3::from_array(tank.position) + basis * traversed;
 
         assert!((app.muzzle_position() - expected).length() < 1.0e-4);
     }

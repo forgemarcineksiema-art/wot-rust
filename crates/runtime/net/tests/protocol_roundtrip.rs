@@ -45,6 +45,8 @@ fn snapshot_round_trips_track_damage_mask() {
         vehicle: VehicleKind::T54_1951,
         position: [1.0, 2.0, 3.0],
         yaw_rad: 0.25,
+        hull_pitch_rad: 0.0,
+        hull_roll_rad: 0.0,
         turret_yaw_rad: 0.5,
         turret_yaw_velocity_rad_s: 0.0,
         gun_pitch_rad: -0.04,

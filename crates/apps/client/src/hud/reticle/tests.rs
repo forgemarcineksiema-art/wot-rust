@@ -156,6 +156,8 @@ fn tank_snapshot(tank_id: TankId, position: [f32; 3]) -> TankSnapshot {
         vehicle: spec.kind,
         position,
         yaw_rad: std::f32::consts::PI,
+        hull_pitch_rad: 0.0,
+        hull_roll_rad: 0.0,
         turret_yaw_rad: 0.0,
         turret_yaw_velocity_rad_s: 0.0,
         gun_pitch_rad: 0.0,
@@ -192,8 +194,7 @@ fn query<'a>(
         owner_team: TeamId(1),
         muzzle,
         aim,
-        turret_yaw_rad,
-        gun_pitch_rad,
+        gun_direction: game_core::math::gun_direction(turret_yaw_rad, gun_pitch_rad),
         muzzle_velocity_mps: 895.0,
     }
 }

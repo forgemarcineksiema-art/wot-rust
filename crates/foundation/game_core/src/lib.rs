@@ -1,4 +1,5 @@
 mod armor;
+mod contact_footprint;
 mod crew;
 mod damage;
 mod damage_layout;
@@ -17,6 +18,7 @@ pub use armor::{
     ArmorFacet, ArmorFacetProfile, ArmorFacing, ArmorProfile, ArmorZone, PenetrationResult,
     resolve_penetration, resolve_penetration_at_distance, resolve_penetration_at_distance_on_zone,
 };
+pub use contact_footprint::{ContactFootprint, MAX_CONTACT_STATIONS};
 pub use crew::{Crew, CrewRole};
 pub use damage::{DamageCause, DamageEvent, ImpactSurface, ShellImpact};
 pub use damage_layout::{DamageLayout, ModuleVolume};
