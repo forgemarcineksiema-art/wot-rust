@@ -5,7 +5,7 @@ use renderer_api::HudVertex;
 mod hit_indicator_draw;
 
 use crate::hud::reticle::world_to_clip_xy;
-use hit_indicator_draw::{GRN, RED, color_for, fade, push_marker, push_module_icon, push_pen_bar};
+use hit_indicator_draw::{color_for, fade, push_marker, push_module_icon};
 
 const FEEDBACK_TTL: f32 = 2.5;
 const FADE_DURATION: f32 = 0.8;
@@ -17,8 +17,6 @@ struct HitFeedback {
     damage_hp: u32,
     penetrated: bool,
     ricocheted: bool,
-    shell_pen_mm: f32,
-    armor_mm: f32,
     module: Option<ModuleSlot>,
     age: f32,
 }
@@ -35,8 +33,6 @@ impl HitIndicator {
             damage_hp: e.damage_hp,
             penetrated: e.penetrated,
             ricocheted: e.ricocheted,
-            shell_pen_mm: e.shell_penetration_mm,
-            armor_mm: e.effective_armor_mm,
             module: e.module,
             age: 0.0,
         }));
@@ -77,6 +73,9 @@ impl HitIndicator {
             let mcy = clip[1] + 0.02;
             push_marker(&mut verts, [mcx, mcy], entry.penetrated, entry.ricocheted, alpha, aspect);
 
+            // Damage number + result glyph + module icon and NOTHING more: the mm duel
+            // (pen vs armor bar and both numbers) drowned the read in a fight — the color
+            // and glyph already say pen/bounce/ricochet, the world FX say the rest.
             if let Some(module) = entry.module {
                 push_module_icon(
                     &mut verts,
@@ -86,37 +85,6 @@ impl HitIndicator {
                     aspect,
                 );
             }
-
-            let by = clip[1] - 0.015;
-            push_pen_bar(
-                &mut verts,
-                clip[0],
-                by,
-                entry.shell_pen_mm,
-                entry.armor_mm,
-                alpha,
-                aspect,
-            );
-
-            let pc = if entry.penetrated { GRN } else { RED };
-            crate::hud::number::push_number(
-                &mut verts,
-                entry.shell_pen_mm.round().min(9_999.0) as u32,
-                clip[0] - 0.065,
-                by - 0.028,
-                0.03,
-                aspect,
-                fade(pc, alpha),
-            );
-            crate::hud::number::push_number(
-                &mut verts,
-                entry.armor_mm.round().min(9_999.0) as u32,
-                clip[0] + 0.075,
-                by - 0.028,
-                0.03,
-                aspect,
-                fade(RED, alpha),
-            );
         }
         verts
     }

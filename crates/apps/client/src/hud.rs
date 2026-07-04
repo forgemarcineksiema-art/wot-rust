@@ -39,12 +39,12 @@ pub(crate) fn build_hud_with_reticle(
 
     let reticle = reticle.unwrap_or(HudReticle {
         aim_clip: [0.0, 0.0],
-        gun_clip: None,
         impact_clip: None,
         aim_radius_clip: 0.0,
         target_distance_m: None,
         status: ReticleStatus::Clear,
         penetration_hint: None,
+        reload_fraction: 1.0,
     });
     reticle_overlay::push_reticle(&mut vertices, &reticle, aspect);
 

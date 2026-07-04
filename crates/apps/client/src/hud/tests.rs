@@ -1,4 +1,7 @@
-use super::reticle_overlay::{RETICLE_AIM_CIRCLE, RETICLE_CLEAR, RETICLE_GUN, RETICLE_IMPACT};
+use super::reticle_overlay::{
+    RETICLE_BLOCKED, RETICLE_IMPACT, RETICLE_NEUTRAL, RETICLE_NO_PEN, RETICLE_PEN, RETICLE_RELOAD,
+    RETICLE_RING,
+};
 use super::*;
 use crate::hud::number::{
     FPS_COLOR, HP_COLOR, RELOAD_TIME_COLOR, SPEED_COLOR, TARGET_DISTANCE_COLOR,
@@ -14,53 +17,124 @@ fn vitals() -> HudVitals {
     }
 }
 
-#[test]
-fn blocked_reticle_keeps_neutral_aim_marker_and_separate_gun_marker() {
-    let hud = build_hud_with_reticle(
-        vitals(),
-        16.0 / 9.0,
-        Some(HudReticle {
-            aim_clip: [0.0, 0.0],
-            gun_clip: Some([0.25, -0.1]),
-            impact_clip: None,
-            aim_radius_clip: 0.08,
-            target_distance_m: None,
-            status: ReticleStatus::Blocked,
-            penetration_hint: None,
-        }),
-        0.0,
-        0.0,
-    );
+fn reticle_at(status: ReticleStatus, hint: Option<super::reticle::PenetrationHint>) -> HudReticle {
+    HudReticle {
+        aim_clip: [0.0, 0.0],
+        impact_clip: None,
+        aim_radius_clip: 0.08,
+        target_distance_m: None,
+        status,
+        penetration_hint: hint,
+        reload_fraction: 1.0,
+    }
+}
 
-    assert!(hud.iter().any(|vertex| vertex.color == RETICLE_CLEAR));
-    assert!(hud.iter().any(|vertex| {
-        vertex.color == RETICLE_GUN && vertex.position[0] > 0.20 && vertex.position[1] < -0.06
-    }));
+fn hint(penetrates: bool) -> super::reticle::PenetrationHint {
+    super::reticle::PenetrationHint {
+        penetrates,
+        shell_pen_mm: 200.0,
+        armor_mm: 150.0,
+        facing: game_core::ArmorFacing::HullFront,
+    }
 }
 
 #[test]
-fn reticle_draws_neutral_aiming_circle_from_server_dispersion() {
+fn a_blocked_shot_draws_the_broken_red_marker_and_nothing_neutral() {
     let hud = build_hud_with_reticle(
         vitals(),
         16.0 / 9.0,
-        Some(HudReticle {
-            aim_clip: [0.0, 0.0],
-            gun_clip: None,
-            impact_clip: None,
-            aim_radius_clip: 0.10,
-            target_distance_m: None,
-            status: ReticleStatus::Clear,
-            penetration_hint: None,
-        }),
+        // Even with a pen hint present, BLOCKED must override: the shot will not arrive.
+        Some(reticle_at(ReticleStatus::Blocked, Some(hint(true)))),
         0.0,
         0.0,
     );
 
-    let circle_vertices = hud
-        .iter()
-        .filter(|vertex| vertex.color == RETICLE_AIM_CIRCLE && vertex.position[0].abs() > 0.05)
-        .count();
-    assert!(circle_vertices > 0, "aiming circle should draw separate neutral geometry");
+    assert!(hud.iter().any(|vertex| vertex.color == RETICLE_BLOCKED), "blocked form draws");
+    assert!(!hud.iter().any(|vertex| vertex.color == RETICLE_NEUTRAL));
+    assert!(!hud.iter().any(|vertex| vertex.color == RETICLE_PEN), "no pen color can lie over it");
+}
+
+#[test]
+fn one_marker_owns_the_center_and_speaks_penetration_by_color() {
+    let neutral = build_hud_with_reticle(
+        vitals(),
+        16.0 / 9.0,
+        Some(reticle_at(ReticleStatus::Clear, None)),
+        0.0,
+        0.0,
+    );
+    assert!(neutral.iter().any(|vertex| vertex.color == RETICLE_NEUTRAL));
+
+    let pen = build_hud_with_reticle(
+        vitals(),
+        16.0 / 9.0,
+        Some(reticle_at(ReticleStatus::Clear, Some(hint(true)))),
+        0.0,
+        0.0,
+    );
+    assert!(pen.iter().any(|vertex| vertex.color == RETICLE_PEN));
+    assert!(!pen.iter().any(|vertex| vertex.color == RETICLE_NEUTRAL), "one marker, one color");
+
+    let bounce = build_hud_with_reticle(
+        vitals(),
+        16.0 / 9.0,
+        Some(reticle_at(ReticleStatus::Clear, Some(hint(false)))),
+        0.0,
+        0.0,
+    );
+    assert!(bounce.iter().any(|vertex| vertex.color == RETICLE_NO_PEN));
+}
+
+#[test]
+fn the_dispersion_ring_is_continuous_geometry_around_the_aim() {
+    let hud = build_hud_with_reticle(
+        vitals(),
+        16.0 / 9.0,
+        Some(HudReticle { aim_radius_clip: 0.10, ..reticle_at(ReticleStatus::Clear, None) }),
+        0.0,
+        0.0,
+    );
+
+    let ring: Vec<_> = hud.iter().filter(|vertex| vertex.color == RETICLE_RING).collect();
+    // 40 segments x 6 vertices: a drawn circle, not a scatter of dots.
+    assert_eq!(ring.len(), 240, "continuous ring geometry");
+    assert!(ring.iter().any(|v| v.position[0] > 0.04), "ring reaches right of center");
+    assert!(ring.iter().any(|v| v.position[1] < -0.09), "ring reaches below center");
+}
+
+#[test]
+fn the_reload_arc_drains_at_the_reticle_and_vanishes_when_ready() {
+    let reloading = build_hud_with_reticle(
+        vitals(),
+        16.0 / 9.0,
+        Some(HudReticle { reload_fraction: 0.25, ..reticle_at(ReticleStatus::Clear, None) }),
+        0.0,
+        0.0,
+    );
+    let early: Vec<_> = reloading.iter().filter(|v| v.color == RETICLE_RELOAD).collect();
+    assert!(!early.is_empty(), "the arc draws while loading");
+
+    let nearly = build_hud_with_reticle(
+        vitals(),
+        16.0 / 9.0,
+        Some(HudReticle { reload_fraction: 0.9, ..reticle_at(ReticleStatus::Clear, None) }),
+        0.0,
+        0.0,
+    );
+    let late = nearly.iter().filter(|v| v.color == RETICLE_RELOAD).count();
+    assert!(late < early.len(), "the arc drains as the reload progresses");
+
+    let ready = build_hud_with_reticle(
+        vitals(),
+        16.0 / 9.0,
+        Some(reticle_at(ReticleStatus::Clear, None)),
+        0.0,
+        0.0,
+    );
+    assert!(
+        !ready.iter().any(|v| v.color == RETICLE_RELOAD),
+        "a ready gun draws nothing — silence is the signal"
+    );
 }
 
 #[test]
@@ -144,12 +218,12 @@ fn reload_bar_draws_remaining_seconds_above_bottom_reload_bar() {
 fn reticle_with_impact(aim_clip: [f32; 2], impact_clip: Option<[f32; 2]>) -> HudReticle {
     HudReticle {
         aim_clip,
-        gun_clip: None,
         impact_clip,
         aim_radius_clip: 0.0,
         target_distance_m: None,
         status: ReticleStatus::Clear,
         penetration_hint: None,
+        reload_fraction: 1.0,
     }
 }
 
@@ -197,12 +271,12 @@ fn reticle_draws_target_distance_meters_near_aim_marker() {
         16.0 / 9.0,
         Some(HudReticle {
             aim_clip: [0.20, 0.10],
-            gun_clip: None,
             impact_clip: None,
             aim_radius_clip: 0.0,
             target_distance_m: Some(347.4),
             status: ReticleStatus::Clear,
             penetration_hint: None,
+            reload_fraction: 1.0,
         }),
         0.0,
         0.0,

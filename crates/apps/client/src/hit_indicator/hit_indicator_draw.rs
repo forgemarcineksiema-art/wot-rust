@@ -91,25 +91,3 @@ pub(super) fn push_module_icon(
         }
     }
 }
-
-pub(super) fn push_pen_bar(
-    verts: &mut Vec<HudVertex>,
-    cx: f32,
-    cy: f32,
-    pen: f32,
-    arm: f32,
-    a: f32,
-    asp: f32,
-) {
-    let hw = 0.065 / asp;
-    let hh = 0.005;
-    let max = pen.max(arm).max(1.0);
-    push_quad(verts, [cx, cy], [hw, hh], fade([0.0, 0.0, 0.0, 0.55], a));
-    let aw = hw * (arm / max).clamp(0.0, 1.0);
-    push_quad(verts, [cx - hw + aw, cy], [aw, hh], fade(RED, a));
-    let pw = hw * (pen / max).clamp(0.0, 1.0);
-    if pw > aw {
-        let ow = pw - aw;
-        push_quad(verts, [cx - hw + aw + ow, cy], [ow, hh], fade(GRN, a));
-    }
-}
