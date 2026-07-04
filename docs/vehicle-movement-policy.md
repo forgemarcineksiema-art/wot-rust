@@ -10,8 +10,9 @@ The hull is a planar (2.5D) rigid body: it carries a world-frame velocity *vecto
 with rotational inertia, not a single scalar forward speed. Because the velocity is a vector that
 only rotates with the hull through lateral friction, the hull keeps its momentum through a turn and
 can break grip and slide (drift) when a turn at speed — or low-traction ground — exceeds the
-lateral grip cap. The height axis stays kinematic (the hull follows the terrain; there is no
-airtime).
+lateral grip cap. The height axis follows drivable terrain kinematically, but a drop steeper than
+the tracks can follow (a crest, a cliff) goes genuinely ballistic: the hull flies, ignores drive
+input while airborne, and absorbs a landing impact that can damage the suspension.
 
 The custom tank controller derives its settings from `TankSpec`. The power-to-weight ratio sets the
 acceleration, the spec speed caps set forward and reverse targets, and the spec turn rate is the
@@ -20,9 +21,27 @@ two-track style and decoupled from the throttle, so a hull can pivot in place un
 Braking is explicit through the input command `brake`; it is not hidden inside render delta time or
 camera input.
 
-This is intentionally a controlled tank-battle movement model, not a full track simulation
-(no per-track terramechanics, suspension, or hull roll). The goal is weighty, repeatable handling
-that stays deterministic so it can survive networking, replays, and regression tests.
+This is intentionally a controlled tank-battle movement model, not a full track simulation (no
+per-track terramechanics and no sprung suspension in the authoritative state). The goal is weighty,
+repeatable handling that stays deterministic so it can survive networking, replays, and regression
+tests.
+
+## Hull Attitude and the Support Envelope
+
+The hull's ground contact is its running gear, not a point: terrain is sampled at the road-wheel
+stations of the vehicle's `ContactFootprint` (from the blueprint `TrackShape` — the same stations
+the rendered wheels are placed by). The hull rests as a rigid beam on the highest supported
+stations, which is what makes tank-shaped behavior emerge: trenches narrower than the wheel pitch
+are bridged instead of swallowed, and a nose pushed past a crest hangs level until the centre of
+mass passes the last support, then rotates down onto the far slope.
+
+Hull pitch and roll are **authoritative**: computed kinematically from the support plane,
+rate-limited (no springs, no oscillation state in the sim) and frozen while airborne, so they stay
+deterministic and replay-stable. They feed gameplay — gun elevation limits are hull-relative (hull
+down over a crest genuinely adds depression), armor impact angles include the hull's tilt, and the
+hitbox tilts with the hull. Weight-transfer theatrics (brake dive, acceleration squat, turn lean,
+heave) remain a client-side presentation spring layered ON TOP of the authoritative attitude and
+never feed back into it.
 
 ## Shared Drive Step
 

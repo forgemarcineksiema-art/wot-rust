@@ -27,6 +27,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         vehicle: VehicleKind::T54_1951,
         position: [0.0, client::TURNTABLE_TOP_M, 0.0],
         yaw_rad: 0.6,
+        hull_pitch_rad: 0.0,
+        hull_roll_rad: 0.0,
         turret_yaw_rad: 0.0,
         turret_yaw_velocity_rad_s: 0.0,
         gun_pitch_rad: 0.0,

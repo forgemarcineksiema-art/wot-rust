@@ -37,6 +37,7 @@ fn drive_into_wall(footprint: TankFootprint) -> (f32, f32) {
             &settings,
             Some(&heightmap),
             TankWorldObstacles::new(std::slice::from_ref(&wall), footprint, &[]),
+            None,
             1.0 / 60.0,
         );
     }

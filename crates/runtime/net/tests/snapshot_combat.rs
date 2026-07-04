@@ -13,6 +13,8 @@ fn snapshots_carry_projectiles_and_damage_events_through_the_wire() {
             vehicle: VehicleKind::TigerII,
             position: [3.0, 0.5, 12.0],
             yaw_rad: 0.2,
+            hull_pitch_rad: 0.0,
+            hull_roll_rad: 0.0,
             turret_yaw_rad: -0.1,
             turret_yaw_velocity_rad_s: 0.0,
             gun_pitch_rad: 0.05,

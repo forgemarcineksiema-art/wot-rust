@@ -15,14 +15,6 @@ use terrain::{HeightMap, StaticCoverObject};
 /// lag and, crucially, without per-snapshot reconciliation jitter.
 /// A render-interpolatable snapshot of the predicted hull/turret pose. The visual tank and
 /// the camera blend the previous tick's pose toward the current one so a 60 Hz sim renders
-/// smoothly under a faster (or merely phase-drifting) vsync present clock.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct PredictedPose {
-    pub position: Vec3,
-    pub yaw_rad: f32,
-    pub turret_yaw_rad: f32,
-    pub gun_pitch_rad: f32,
-}
 
 pub struct LocalPredictor {
     spec: TankSpec,
@@ -57,6 +49,8 @@ impl LocalPredictor {
             previous: PredictedPose {
                 position: Vec3::ZERO,
                 yaw_rad: 0.0,
+                hull_pitch_rad: 0.0,
+                hull_roll_rad: 0.0,
                 turret_yaw_rad: 0.0,
                 gun_pitch_rad: 0.0,
             },
@@ -84,6 +78,8 @@ impl LocalPredictor {
         }
         self.drive.kinematic.position = Vec3::from_array(authoritative.position);
         self.drive.kinematic.yaw_rad = authoritative.yaw_rad;
+        self.drive.kinematic.pitch_rad = authoritative.hull_pitch_rad;
+        self.drive.kinematic.roll_rad = authoritative.hull_roll_rad;
         self.drive.aiming = AimingState {
             turret_yaw_rad: self.spec.effective_turret_yaw_rad(authoritative.turret_yaw_rad),
             turret_yaw_velocity_rad_s: authoritative.turret_yaw_velocity_rad_s,
@@ -138,7 +134,13 @@ impl LocalPredictor {
         };
         let modules =
             DriveModuleStatus::from_module_hp(tracks, self.module_hit_points, &self.spec);
-        let world = TankDriveWorld { heightmap: Some(heightmap), cover, tank_obstacles };
+        let footprint = self.spec.contact_footprint();
+        let world = TankDriveWorld {
+            heightmap: Some(heightmap),
+            cover,
+            tank_obstacles,
+            footprint: Some(&footprint),
+        };
         let ground = step_tank_drive(&mut self.drive, &self.spec, modules, world, command.clamped(), dt);
         self.pending_landing_impact_mps = self.pending_landing_impact_mps.max(ground.landing_impact_mps);
     }
@@ -178,36 +180,26 @@ impl LocalPredictor {
         self.drive.aiming.gun_pitch_rad
     }
 
+    /// The predicted hull orientation as the shared frame the muzzle chain hangs off.
+    pub fn hull_pose(&self) -> game_core::math::HullPose {
+        game_core::math::HullPose {
+            yaw_rad: self.drive.kinematic.yaw_rad,
+            pitch_rad: self.drive.kinematic.pitch_rad,
+            roll_rad: self.drive.kinematic.roll_rad,
+        }
+    }
+
     /// Locally predicted aim dispersion in milliradians, evolved at 60 Hz from the last snapshot
     /// so the reticle's aim circle tracks the server between 20 Hz updates instead of lagging it.
     pub fn aim_dispersion_mrad(&self) -> f32 {
         self.drive.aim_dispersion_mrad
     }
 
-    /// The pose at the end of the most recently simulated tick.
-    fn current_pose(&self) -> PredictedPose {
-        PredictedPose {
-            position: self.drive.kinematic.position,
-            yaw_rad: self.drive.kinematic.yaw_rad,
-            turret_yaw_rad: self.drive.aiming.turret_yaw_rad,
-            gun_pitch_rad: self.drive.aiming.gun_pitch_rad,
-        }
-    }
-
-    /// Render pose blended `alpha` of the way from the previous tick to the current one.
-    /// `alpha` is the fixed-tick accumulator remainder in `[0, 1]`; this is what lets a
-    /// 60 Hz sim render without judder under a faster or phase-drifting present clock.
-    pub fn interpolated_pose(&self, alpha: f32) -> PredictedPose {
-        let alpha = alpha.clamp(0.0, 1.0);
-        let current = self.current_pose();
-        PredictedPose {
-            position: self.previous.position.lerp(current.position, alpha),
-            yaw_rad: lerp_angle(self.previous.yaw_rad, current.yaw_rad, alpha),
-            turret_yaw_rad: lerp_angle(self.previous.turret_yaw_rad, current.turret_yaw_rad, alpha),
-            gun_pitch_rad: lerp_angle(self.previous.gun_pitch_rad, current.gun_pitch_rad, alpha),
-        }
-    }
 }
+
+mod pose;
+
+pub use pose::PredictedPose;
 
 #[cfg(test)]
 mod interpolation_tests;

@@ -37,8 +37,8 @@ fn tank_segment_hit(
 ) -> Option<SegmentImpact> {
     let hitbox = tank.hitbox;
     let half = Vec3::new(hitbox.half_width_m, hitbox.half_height_m, hitbox.half_length_m);
-    let start = world_to_tank_local(previous, tank.position, hitbox.center_y_m, tank.yaw_rad);
-    let end = world_to_tank_local(current, tank.position, hitbox.center_y_m, tank.yaw_rad);
+    let start = world_to_tank_local(previous, tank.position, hitbox.center_y_m, tank.hull);
+    let end = world_to_tank_local(current, tank.position, hitbox.center_y_m, tank.hull);
 
     let hull = hull_volume_entry(start, end, &hitbox);
     let turret = turret_volume_entry(start, end, tank, &hitbox);
@@ -66,7 +66,7 @@ fn tank_segment_hit(
 
     let hit_position = previous.lerp(current, hit_t);
     let facing = zone.facing();
-    let normal = armor_normal(tank.yaw_rad, tank.turret_yaw_rad, facing, side_x);
+    let normal = armor_normal(tank.hull, tank.turret_yaw_rad, facing, side_x);
     let direction = velocity.normalize_or_zero();
     let impact_angle_degrees = (-direction).dot(normal).clamp(-1.0, 1.0).acos().to_degrees();
     Some(SegmentImpact::Tank { id: tank.id, facing, zone, impact_angle_degrees, hit_position })

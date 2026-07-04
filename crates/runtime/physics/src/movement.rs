@@ -25,11 +25,26 @@ pub struct TankKinematicState {
     pub velocity: Vec3,
     pub yaw_rad: f32,
     pub yaw_rate_rad_s: f32,
+    /// Authoritative hull pitch (+nose up), derived kinematically from the support plane and
+    /// rate-limited (see `hull_attitude`). Frozen while airborne. `serde(default)` keeps older
+    /// fixtures loading level.
+    #[serde(default)]
+    pub pitch_rad: f32,
+    /// Authoritative hull roll (+right side up); same lifecycle as `pitch_rad`.
+    #[serde(default)]
+    pub roll_rad: f32,
 }
 
 impl Default for TankKinematicState {
     fn default() -> Self {
-        Self { position: Vec3::ZERO, velocity: Vec3::ZERO, yaw_rad: 0.0, yaw_rate_rad_s: 0.0 }
+        Self {
+            position: Vec3::ZERO,
+            velocity: Vec3::ZERO,
+            yaw_rad: 0.0,
+            yaw_rate_rad_s: 0.0,
+            pitch_rad: 0.0,
+            roll_rad: 0.0,
+        }
     }
 }
 

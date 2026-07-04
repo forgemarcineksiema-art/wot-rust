@@ -28,6 +28,9 @@ pub struct TankDriveWorld<'a> {
     pub heightmap: Option<&'a HeightMap>,
     pub cover: &'a [StaticCoverObject],
     pub tank_obstacles: &'a [TankObstacle],
+    /// Running-gear contact stations for the support envelope (trench bridging, crest overhang).
+    /// `None` keeps the legacy centre-probe ride height.
+    pub footprint: Option<&'a game_core::ContactFootprint>,
 }
 
 /// Advance one fixed tick: movement (terrain + cover + tank collision), turret/gun aiming, and
@@ -73,6 +76,7 @@ pub fn step_tank_drive(
             &settings,
             world.heightmap,
             obstacles,
+            world.footprint,
             dt,
         )
     } else {
@@ -117,6 +121,8 @@ pub(crate) fn step_tank(
             velocity: tank.velocity_mps,
             yaw_rad: tank.yaw_rad,
             yaw_rate_rad_s: tank.hull_yaw_velocity_rad_s,
+            pitch_rad: tank.hull_pitch_rad,
+            roll_rad: tank.hull_roll_rad,
         },
         aiming: AimingState {
             turret_yaw_rad: tank.turret_yaw_rad,
@@ -133,7 +139,8 @@ pub(crate) fn step_tank(
     };
     let modules =
         DriveModuleStatus::from_module_hp(tracks, tank.modules.hit_points_by_slot(), &tank.spec);
-    let world = TankDriveWorld { heightmap, cover, tank_obstacles };
+    let footprint = tank.spec.contact_footprint();
+    let world = TankDriveWorld { heightmap, cover, tank_obstacles, footprint: Some(&footprint) };
 
     let ground = step_tank_drive(&mut drive, &tank.spec, modules, world, command, dt);
 
@@ -141,6 +148,8 @@ pub(crate) fn step_tank(
     tank.yaw_rad = drive.kinematic.yaw_rad;
     tank.velocity_mps = drive.kinematic.velocity;
     tank.hull_yaw_velocity_rad_s = drive.kinematic.yaw_rate_rad_s;
+    tank.hull_pitch_rad = drive.kinematic.pitch_rad;
+    tank.hull_roll_rad = drive.kinematic.roll_rad;
     tank.turret_yaw_rad = drive.aiming.turret_yaw_rad;
     tank.turret_yaw_velocity_rad_s = drive.aiming.turret_yaw_velocity_rad_s;
     tank.gun_pitch_rad = drive.aiming.gun_pitch_rad;

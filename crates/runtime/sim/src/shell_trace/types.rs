@@ -1,16 +1,18 @@
 use ::terrain::{HeightMap, StaticCoverObject};
+use game_core::math::HullPose;
 use game_core::{
     ArmorFacing, ArmorZone, HitboxProfile, ImpactSurface, MountFrames, TankId, TankSpec,
     VehicleKind,
 };
 use glam::Vec3;
 
-/// Neutral tank hull for shell collision.
+/// Neutral tank hull for shell collision. The hitbox rides the FULL hull pose: a tilted hull
+/// tilts its collision volumes and armor normals with it.
 #[derive(Debug, Clone, Copy)]
 pub struct TraceTank {
     pub id: TankId,
     pub position: Vec3,
-    pub yaw_rad: f32,
+    pub hull: HullPose,
     pub turret_yaw_rad: f32,
     pub hitbox: HitboxProfile,
     pub turret_ring_z_m: f32,
@@ -20,14 +22,14 @@ impl TraceTank {
     pub fn from_spec(
         id: TankId,
         position: Vec3,
-        yaw_rad: f32,
+        hull: HullPose,
         turret_yaw_rad: f32,
         spec: &TankSpec,
     ) -> Self {
         Self {
             id,
             position,
-            yaw_rad,
+            hull,
             turret_yaw_rad,
             hitbox: spec.hitbox,
             turret_ring_z_m: spec.mounts.turret_ring.translation.z,
@@ -37,14 +39,14 @@ impl TraceTank {
     pub fn for_kind(
         id: TankId,
         position: Vec3,
-        yaw_rad: f32,
+        hull: HullPose,
         turret_yaw_rad: f32,
         kind: VehicleKind,
     ) -> Self {
         Self {
             id,
             position,
-            yaw_rad,
+            hull,
             turret_yaw_rad,
             hitbox: HitboxProfile::for_vehicle(kind),
             turret_ring_z_m: MountFrames::for_vehicle(kind).turret_ring.translation.z,

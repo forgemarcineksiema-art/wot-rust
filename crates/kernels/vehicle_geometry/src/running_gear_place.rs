@@ -14,13 +14,15 @@ pub struct GearDynamics<'a> {
     /// Per-road-wheel vertical travel (m), in `wheel_zs` order; missing entries read as 0.
     pub left_travel: &'a [f32],
     pub right_travel: &'a [f32],
-    /// Multiplies the top-run sag. `1.0` = rest; drive pulls it toward ~0.5, braking toward ~1.5.
-    pub sag_scale: f32,
+    /// Per-side multipliers on the top-run sag. `1.0` (or the `0.0` default) = rest; drive pulls
+    /// a side toward ~0.5, braking toward ~1.5, and a THROWN track lets its side hang deep.
+    pub left_sag_scale: f32,
+    pub right_sag_scale: f32,
 }
 
 impl GearDynamics<'_> {
-    fn sag(&self, kin: &RunningGearKinematics) -> f32 {
-        let scale = if self.sag_scale <= 0.0 { 1.0 } else { self.sag_scale };
+    fn sag(&self, kin: &RunningGearKinematics, scale: f32) -> f32 {
+        let scale = if scale <= 0.0 { 1.0 } else { scale };
         kin.top_sag_m * scale
     }
 }
@@ -42,11 +44,11 @@ pub fn running_gear_placements_dynamic(
     dynamics: GearDynamics<'_>,
 ) -> Vec<GearPlacement> {
     let mut placements = Vec::new();
-    for (side_sign, phase, travel) in [
-        (1.0_f32, right_phase_m, dynamics.right_travel),
-        (-1.0_f32, left_phase_m, dynamics.left_travel),
+    for (side_sign, phase, travel, sag_scale) in [
+        (1.0_f32, right_phase_m, dynamics.right_travel, dynamics.right_sag_scale),
+        (-1.0_f32, left_phase_m, dynamics.left_travel, dynamics.left_sag_scale),
     ] {
-        place_side(kin, side_sign, phase, travel, dynamics.sag(kin), &mut placements);
+        place_side(kin, side_sign, phase, travel, dynamics.sag(kin, sag_scale), &mut placements);
     }
     placements
 }

@@ -8,7 +8,7 @@ mod snapshot_schedule;
 
 pub use snapshot_schedule::SnapshotSchedule;
 
-pub const PROTOCOL_VERSION: u16 = 13;
+pub const PROTOCOL_VERSION: u16 = 14;
 
 #[derive(Debug, Error)]
 pub enum NetError {
@@ -52,6 +52,12 @@ pub struct TankSnapshot {
     pub vehicle: VehicleKind,
     pub position: [f32; 3],
     pub yaw_rad: f32,
+    /// Authoritative hull pitch (+nose up) from the running-gear support plane (protocol v14).
+    /// Gun arcs, armor angles and the hitbox frame all tilt with it — see
+    /// `game_core::math::hull_basis`.
+    pub hull_pitch_rad: f32,
+    /// Authoritative hull roll (+right side up); protocol v14 alongside `hull_pitch_rad`.
+    pub hull_roll_rad: f32,
     pub turret_yaw_rad: f32,
     pub turret_yaw_velocity_rad_s: f32,
     pub gun_pitch_rad: f32,
@@ -66,6 +72,17 @@ pub struct TankSnapshot {
     pub track_damage_mask: u8,
 }
 
+impl TankSnapshot {
+    /// The hull's replicated orientation as the one shared [`game_core::math::HullPose`] frame.
+    pub fn hull_pose(&self) -> game_core::math::HullPose {
+        game_core::math::HullPose {
+            yaw_rad: self.yaw_rad,
+            pitch_rad: self.hull_pitch_rad,
+            roll_rad: self.hull_roll_rad,
+        }
+    }
+}
+
 impl From<&TankState> for TankSnapshot {
     fn from(tank: &TankState) -> Self {
         Self {
@@ -74,6 +91,8 @@ impl From<&TankState> for TankSnapshot {
             vehicle: tank.spec.kind,
             position: tank.position.to_array(),
             yaw_rad: tank.yaw_rad,
+            hull_pitch_rad: tank.hull_pitch_rad,
+            hull_roll_rad: tank.hull_roll_rad,
             turret_yaw_rad: tank.turret_yaw_rad,
             turret_yaw_velocity_rad_s: tank.turret_yaw_velocity_rad_s,
             gun_pitch_rad: tank.gun_pitch_rad,

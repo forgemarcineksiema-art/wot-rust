@@ -165,6 +165,8 @@ fn lineup_objects(
             vehicle: kind,
             position: [x, ground, CENTER_Z],
             yaw_rad: view.hull_yaw_rad,
+            hull_pitch_rad: 0.0,
+            hull_roll_rad: 0.0,
             turret_yaw_rad: view.turret_yaw_rad,
             turret_yaw_velocity_rad_s: 0.0,
             gun_pitch_rad: view.gun_pitch_rad,

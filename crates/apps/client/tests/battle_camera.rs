@@ -349,6 +349,8 @@ fn tank_snapshot(position: [f32; 3], hull_yaw_rad: f32, turret_yaw_rad: f32) -> 
         vehicle: spec.kind,
         position,
         yaw_rad: hull_yaw_rad,
+        hull_pitch_rad: 0.0,
+        hull_roll_rad: 0.0,
         turret_yaw_rad,
         turret_yaw_velocity_rad_s: 0.0,
         gun_pitch_rad: 0.0,

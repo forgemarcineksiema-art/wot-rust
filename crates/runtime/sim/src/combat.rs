@@ -42,7 +42,7 @@ pub(crate) fn try_fire_shell(tank: &mut TankState, tick: u64) -> Option<ShellSta
     let muzzle = game_core::math::muzzle_world_position_scaled(
         &mounts,
         tank.position,
-        tank.yaw_rad,
+        tank.hull_pose(),
         tank.turret_yaw_rad,
         tank.gun_pitch_rad,
         barrel_scale,
@@ -86,7 +86,7 @@ pub(crate) fn apply_shell_impact(
         hit_position,
         target.position,
         target.spec.hitbox.center_y_m,
-        target.yaw_rad,
+        target.hull_pose(),
     );
     let module = if target.spec.damage_layout.is_empty() {
         impacted_module(

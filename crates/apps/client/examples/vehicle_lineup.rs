@@ -47,6 +47,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             vehicle: kind,
             position: [x, ground, center_z],
             yaw_rad: 2.5,
+            hull_pitch_rad: 0.0,
+            hull_roll_rad: 0.0,
             turret_yaw_rad: 0.0,
             turret_yaw_velocity_rad_s: 0.0,
             gun_pitch_rad: 0.20,

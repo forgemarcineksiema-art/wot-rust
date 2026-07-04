@@ -39,8 +39,8 @@ pub(crate) struct ReticleFeedbackQuery<'a> {
     pub owner_team: TeamId,
     pub muzzle: Vec3,
     pub aim: Vec3,
-    pub turret_yaw_rad: f32,
-    pub gun_pitch_rad: f32,
+    /// World-space unit direction of the barrel (hull pose already applied).
+    pub gun_direction: Vec3,
     pub muzzle_velocity_mps: f32,
 }
 
@@ -61,8 +61,7 @@ pub(crate) fn reticle_report(query: ReticleFeedbackQuery<'_>) -> ReticleReport {
             owner: query.owner,
             owner_team: query.owner_team,
             muzzle: query.muzzle,
-            yaw_rad: query.turret_yaw_rad,
-            pitch_rad: query.gun_pitch_rad,
+            gun_direction: query.gun_direction,
             muzzle_velocity_mps: query.muzzle_velocity_mps,
         });
     ReticleReport {
@@ -99,8 +98,7 @@ fn feedback_from_outcome(
         ReticleStatus::Blocked
     };
     let distance = query.aim.distance(query.muzzle).max(1.0);
-    let gun_world_point = query.muzzle
-        + game_core::math::gun_direction(query.turret_yaw_rad, query.gun_pitch_rad) * distance;
+    let gun_world_point = query.muzzle + query.gun_direction.normalize_or_zero() * distance;
 
     ReticleFeedback {
         status,

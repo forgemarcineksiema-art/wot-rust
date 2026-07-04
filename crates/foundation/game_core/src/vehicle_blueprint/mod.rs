@@ -85,6 +85,29 @@ pub struct TrackShape {
     pub inner_x: f32,
     pub outer_x: f32,
     pub segments: usize,
+    /// Explicit hull-local Z of each road-wheel axle, when the layout is irregular (the T-54's
+    /// signature wider first/second gap). `None` spreads `wheel_count` wheels evenly between
+    /// `wheel_first_z` and `wheel_last_z`. Read through [`TrackShape::wheel_stations`] — the one
+    /// source both the physics contact footprint and the rendered running gear place wheels by.
+    pub wheel_stations: Option<&'static [f32]>,
+}
+
+impl TrackShape {
+    /// Hull-local Z of each road-wheel axle, front positive: the explicit stations when authored,
+    /// otherwise an even spread between the first and last wheel.
+    pub fn wheel_stations(&self) -> Vec<f32> {
+        if let Some(stations) = self.wheel_stations {
+            return stations.to_vec();
+        }
+        match self.wheel_count {
+            0 => Vec::new(),
+            1 => vec![self.wheel_first_z],
+            count => {
+                let step = (self.wheel_last_z - self.wheel_first_z) / (count - 1) as f32;
+                (0..count).map(|i| self.wheel_first_z + step * i as f32).collect()
+            }
+        }
+    }
 }
 
 /// Turret/casemate placement and plate geometry, plus mantlet-fit parameters shared by the turret

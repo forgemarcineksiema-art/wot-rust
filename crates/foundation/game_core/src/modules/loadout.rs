@@ -92,6 +92,7 @@ impl VehicleModules {
             hitbox: HitboxProfile::for_vehicle(kind),
             damage_layout: DamageLayout::for_vehicle(kind),
             mounts: MountFrames::for_vehicle(kind),
+            contact: crate::ContactFootprint::for_vehicle(kind),
         }
     }
 }
