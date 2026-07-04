@@ -13,7 +13,8 @@ use crate::app::garage::layout::{
     tree_node_center,
 };
 use crate::hud::font::{push_text, text_width};
-use crate::hud::push_quad;
+use crate::hud::push_panel;
+use crate::hud::theme::{CHAMFER_PANEL, CHAMFER_SLOT};
 
 /// One entry in the tree layout: (index into `VehicleKind::PLAYABLE`, the kind, its node centre).
 fn tree_nodes() -> Vec<(usize, VehicleKind, [f32; 2])> {
@@ -41,7 +42,7 @@ fn tree_nodes() -> Vec<(usize, VehicleKind, [f32; 2])> {
 
 pub(in crate::app::garage) fn draw(state: &GarageState, aspect: f32) -> Vec<HudVertex> {
     let mut v = Vec::new();
-    push_quad(&mut v, TREE_PANEL_CENTER, TREE_PANEL_HALF, PANEL);
+    push_panel(&mut v, TREE_PANEL_CENTER, TREE_PANEL_HALF, CHAMFER_PANEL, aspect, PANEL);
 
     // Nation column headers, colored by nation.
     for nation in [Nation::Ussr, Nation::Germany] {
@@ -64,14 +65,14 @@ pub(in crate::app::garage) fn draw(state: &GarageState, aspect: f32) -> Vec<HudV
     let selected = state.selected_index();
     for (i, kind, center) in tree_nodes() {
         let bg = if i == selected { SLOT_SELECTED } else { SLOT };
-        push_quad(&mut v, center, TREE_NODE_HALF, bg);
+        push_panel(&mut v, center, TREE_NODE_HALF, CHAMFER_SLOT, aspect, bg);
         let name = short_name(kind);
         let w = text_width(name, 0.034, aspect);
         push_text(&mut v, name, center[0] - w / 2.0, center[1] + 0.022, 0.034, aspect, TEXT);
     }
 
     // Close button in the top-right corner.
-    push_quad(&mut v, TREE_CLOSE_CENTER, TREE_CLOSE_HALF, BATTLE);
+    push_panel(&mut v, TREE_CLOSE_CENTER, TREE_CLOSE_HALF, CHAMFER_SLOT, aspect, BATTLE);
     let label = crate::ui_strings::garage::BACK;
     let w = text_width(label, 0.028, aspect);
     push_text(

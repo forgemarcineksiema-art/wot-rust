@@ -6,12 +6,13 @@ use crate::app::garage::GarageState;
 use crate::app::garage::layout::*;
 use crate::hud::font::{push_icon, push_text, text_width};
 use crate::hud::icons::HudIcon;
-use crate::hud::push_quad;
+use crate::hud::{push_hairline, push_panel, push_quad};
 
 pub(in crate::app::garage) fn draw(v: &mut Vec<HudVertex>, state: &GarageState, aspect: f32) {
-    push_quad(v, [CREW_X, 0.46], [CREW_HALF_X + 0.02, 0.34], PANEL);
+    push_panel(v, [CREW_X, 0.46], [CREW_HALF_X + 0.02, 0.34], CHAMFER_PANEL, aspect, PANEL);
     let left = CREW_X - CREW_HALF_X;
     push_text(v, crate::ui_strings::garage::CREW, left, 0.80, 0.04, aspect, TEXT_DIM);
+    push_hairline(v, left, CREW_X + CREW_HALF_X, 0.755, HAIRLINE);
 
     for (i, role) in game_core::Crew::roles().into_iter().enumerate() {
         let y = CREW_TOP - i as f32 * CREW_PITCH;

@@ -7,11 +7,12 @@ use ab_glyph::{Font, FontRef, PxScale, ScaleFont};
 use super::{FontAtlas, Glyph};
 use crate::hud::icons::{HudIcon, ICON_PX, raster as raster_icon};
 
-/// Embedded font (SIL OFL 1.1, see `assets/fonts/OFL.txt`). Rajdhani's squarish, technical letters
-/// read well at small sizes and suit a gunnery HUD without clashing with the flat-shaded scene.
+/// Embedded font (SIL OFL 1.1, see `assets/fonts/OFL-BarlowCondensed.txt`). Barlow Condensed's
+/// narrow industrial letterforms carry the "military instrument" art direction (`hud/theme.rs`):
+/// condensed uppercase labels fit tight panels and the digits read like stenciled equipment tags.
 const FONT_BYTES: &[u8] = include_bytes!(concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/../../../assets/fonts/Rajdhani-SemiBold.ttf"
+    "/../../../assets/fonts/BarlowCondensed-Medium.ttf"
 ));
 
 /// Pixel size each glyph is rasterized at. Generous vs the on-screen size so the linear-filtered
@@ -32,7 +33,7 @@ struct Raster {
 }
 
 pub(super) fn bake() -> FontAtlas {
-    let font = FontRef::try_from_slice(FONT_BYTES).expect("embedded Rajdhani TTF is valid");
+    let font = FontRef::try_from_slice(FONT_BYTES).expect("embedded Barlow Condensed TTF is valid");
     let scale = PxScale::from(RASTER_PX);
     let scaled = font.as_scaled(scale);
 

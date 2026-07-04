@@ -389,3 +389,37 @@ fn the_impact_marker_fades_in_near_the_merge_threshold_instead_of_popping() {
     let zoom_glyphs = zoom.iter().filter(|v| v.color == number::ZOOM_COLOR).count();
     assert!(zoom_glyphs > 0, "sniper zoom factor prints under the reticle");
 }
+
+#[test]
+fn a_chamfered_panel_cuts_its_corners_and_stays_inside_its_rect() {
+    let mut v = Vec::new();
+    let (center, half, chamfer, aspect) =
+        ([0.1_f32, -0.2_f32], [0.4_f32, 0.3_f32], 0.05_f32, 2.0_f32);
+    push_panel(&mut v, center, half, chamfer, aspect, theme::color::PANEL);
+
+    assert_eq!(v.len(), 18, "a chamfered panel is a 6-triangle fan");
+    let inside = |p: [f32; 2]| {
+        (p[0] - center[0]).abs() <= half[0] + 1e-6 && (p[1] - center[1]).abs() <= half[1] + 1e-6
+    };
+    assert!(v.iter().all(|vert| inside([vert.position[0], vert.position[1]])));
+
+    // No vertex sits on an exact rect corner: the 45-degree cut removed all four.
+    let corner = |p: [f32; 2]| {
+        ((p[0] - center[0]).abs() - half[0]).abs() < 1e-6
+            && ((p[1] - center[1]).abs() - half[1]).abs() < 1e-6
+    };
+    assert!(
+        v.iter().all(|vert| !corner([vert.position[0], vert.position[1]])),
+        "chamfer must cut every corner"
+    );
+
+    // The x cut is aspect-corrected: a vertex at the top edge starts chamfer/aspect in from the left.
+    let top = center[1] + half[1];
+    let leftmost_top = v
+        .iter()
+        .filter(|vert| (vert.position[1] - top).abs() < 1e-6)
+        .map(|vert| vert.position[0])
+        .fold(f32::INFINITY, f32::min);
+    let expected = center[0] - half[0] + chamfer / aspect;
+    assert!((leftmost_top - expected).abs() < 1e-5, "45-degree cut must be aspect-corrected");
+}
