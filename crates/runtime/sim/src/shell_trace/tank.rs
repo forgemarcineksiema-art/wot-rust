@@ -1,5 +1,5 @@
 use game_core::ArmorZone;
-use game_core::math::{armor_normal, segment_box_entry, world_to_tank_local};
+use game_core::math::{plate_normal, segment_box_entry, world_to_tank_local};
 use glam::{Mat3, Vec3};
 
 use super::{SegmentImpact, TraceTank};
@@ -66,10 +66,20 @@ fn tank_segment_hit(
 
     let hit_position = previous.lerp(current, hit_t);
     let facing = zone.facing();
-    let normal = armor_normal(tank.hull, tank.turret_yaw_rad, facing, side_x);
+    // The impact angle is measured against the plate's TRUE normal: facet slope, hull attitude,
+    // and turret traverse all live in the geometry. Nothing downstream may add slope again.
+    let slope_degrees = tank.armor.plate(zone).slope_degrees;
+    let normal = plate_normal(tank.hull, tank.turret_yaw_rad, zone, side_x, slope_degrees);
     let direction = velocity.normalize_or_zero();
     let impact_angle_degrees = (-direction).dot(normal).clamp(-1.0, 1.0).acos().to_degrees();
-    Some(SegmentImpact::Tank { id: tank.id, facing, zone, impact_angle_degrees, hit_position })
+    Some(SegmentImpact::Tank {
+        id: tank.id,
+        facing,
+        zone,
+        impact_angle_degrees,
+        hit_position,
+        plate_normal: normal,
+    })
 }
 
 /// Entry into the hull slab: full plan, capped at the armor split. Returns the parametric entry

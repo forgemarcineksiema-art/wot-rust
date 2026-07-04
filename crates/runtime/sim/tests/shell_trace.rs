@@ -40,6 +40,7 @@ fn reticle_trace_resolves_the_same_tank_impact_as_the_authoritative_step() {
     let outcome = trace_shell(
         shell.position,
         shell.velocity_mps,
+        shell.shell.drag_per_s(),
         step.dt_seconds(),
         SHELL_MAX_AGE_SECONDS,
         &world,

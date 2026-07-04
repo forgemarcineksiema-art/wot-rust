@@ -1,4 +1,4 @@
-use std::sync::OnceLock;
+﻿use std::sync::OnceLock;
 
 use game_core::{TankId, TankSpec, TeamId, VehicleKind};
 use glam::Vec3;
@@ -25,7 +25,7 @@ fn feedback_is_clear_when_current_gun_arc_lands_near_the_aim_point() {
     let heightmap = HeightMap::flat(80, 80, 5.0, 0.0).unwrap();
     let muzzle = Vec3::new(40.0, 1.15, 40.0);
     let aim = Vec3::new(40.0, 0.0, 140.0);
-    let pitch = crate::aim::gun_pitch_to_hit(muzzle, aim, 895.0);
+    let pitch = crate::aim::gun_pitch_to_hit(muzzle, aim, 895.0, 0.09);
 
     let feedback = reticle_feedback(query(&heightmap, &[], &[], muzzle, aim, 0.0, pitch));
 
@@ -57,7 +57,7 @@ fn feedback_marks_static_cover_blocking_the_shell_path() {
         center: [40.0, 2.0, 75.0],
         half_extents_m: [4.0, 3.0, 2.0],
     };
-    let pitch = crate::aim::gun_pitch_to_hit(muzzle, aim, 895.0);
+    let pitch = crate::aim::gun_pitch_to_hit(muzzle, aim, 895.0, 0.09);
 
     let feedback = reticle_feedback(query(
         &heightmap,
@@ -79,7 +79,7 @@ fn feedback_marks_tank_hit_before_the_terrain_aim_point() {
     let muzzle = Vec3::new(40.0, 1.78, 40.0);
     let aim = Vec3::new(40.0, 0.0, 140.0);
     let target = tank_snapshot(TankId(2), [40.0, 0.0, 82.0]);
-    let pitch = crate::aim::gun_pitch_to_hit(muzzle, aim, 895.0);
+    let pitch = crate::aim::gun_pitch_to_hit(muzzle, aim, 895.0, 0.09);
 
     let feedback = reticle_feedback(query(
         &heightmap,
@@ -101,7 +101,7 @@ fn penetration_hint_reads_the_player_shell_not_the_target_shell() {
     let muzzle = Vec3::new(40.0, 1.78, 40.0);
     let aim = Vec3::new(40.0, 0.0, 140.0);
     let target = tank_snapshot(TankId(2), [40.0, 0.0, 82.0]);
-    let pitch = crate::aim::gun_pitch_to_hit(muzzle, aim, 895.0);
+    let pitch = crate::aim::gun_pitch_to_hit(muzzle, aim, 895.0, 0.09);
 
     // High-penetration gun vs. low-penetration gun; only the *firing* vehicle differs between the
     // two queries — the target armor and geometry are identical.
@@ -196,6 +196,7 @@ fn query<'a>(
         aim,
         gun_direction: game_core::math::gun_direction(turret_yaw_rad, gun_pitch_rad),
         muzzle_velocity_mps: 895.0,
+        drag_per_s: 0.09,
     }
 }
 

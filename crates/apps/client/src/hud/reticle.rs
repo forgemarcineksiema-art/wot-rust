@@ -42,6 +42,8 @@ pub(crate) struct ReticleFeedbackQuery<'a> {
     /// World-space unit direction of the barrel (hull pose already applied).
     pub gun_direction: Vec3,
     pub muzzle_velocity_mps: f32,
+    /// The player shell's linear drag — feedback and pen hint fly the server's air.
+    pub drag_per_s: f32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -63,6 +65,7 @@ pub(crate) fn reticle_report(query: ReticleFeedbackQuery<'_>) -> ReticleReport {
             muzzle: query.muzzle,
             gun_direction: query.gun_direction,
             muzzle_velocity_mps: query.muzzle_velocity_mps,
+            drag_per_s: query.drag_per_s,
         });
     ReticleReport {
         feedback: feedback_from_outcome(&query, &outcome),
@@ -84,8 +87,12 @@ fn feedback_from_outcome(
     query: &ReticleFeedbackQuery<'_>,
     outcome: &sim::TraceOutcome,
 ) -> ReticleFeedback {
-    let target_pitch =
-        crate::aim::gun_pitch_to_hit(query.muzzle, query.aim, query.muzzle_velocity_mps);
+    let target_pitch = crate::aim::gun_pitch_to_hit(
+        query.muzzle,
+        query.aim,
+        query.muzzle_velocity_mps,
+        query.drag_per_s,
+    );
     let actual_impact_world_point = outcome.impact_point();
     // The arc is the simulation's gun arc, not a client-side copy that could drift from it.
     let in_arc = (sim::MIN_GUN_PITCH_RAD..=sim::MAX_GUN_PITCH_RAD).contains(&target_pitch);

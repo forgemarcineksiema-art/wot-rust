@@ -16,17 +16,32 @@ renderer state, and camera mode do not affect reload.
 `ShellSpec` carries a deterministic `ShellType`:
 
 - AP is the baseline kinetic round with normalization, overmatch, and moderate
-  distance falloff.
+  distance falloff (it holds its speed).
 - APCR has higher velocity/close-range penetration, weaker normalization, lower
-  module damage, and harsher distance falloff.
+  module damage, and harsher distance falloff (its light core bleeds speed
+  fastest).
 - HEAT keeps penetration over distance and uses a high ricochet threshold, but
-  does not overmatch.
-- HE never ricochets. If it fails to penetrate, it still applies small external
-  hull damage and can critically damage exposed running gear.
+  does not overmatch and pays a multiple against spaced screens.
+- HE never ricochets and fuzes on the first surface it touches. If it fails to
+  penetrate, it still applies small external hull damage, can critically damage
+  exposed running gear, and its `explosive_radius_m` throws splash damage
+  (`DamageCause::Splash`) at every vehicle inside the radius — attenuated
+  linearly by distance to the hull and soaked by the victim's thinnest external
+  plate. Allies are protected exactly like direct fire; the owner's own HE can
+  hurt the owner.
 
-There is no random damage roll in the first playable slice. Damage, module
-damage, ricochet, overmatch, and range falloff are replay-stable functions of the
-shell, armor facet, impact angle, and travelled distance.
+Kinetic penetration falls out of the impact VELOCITY, not a separate distance
+table: shells fly with linear drag (`ShellSpec::drag_per_s`, integrated by the
+shared `game_core::math::integrate_shell_step`), which makes speed — and
+therefore `penetration_mm_at_distance` — a closed-form function of travelled
+distance. One physics serves the arc you see, the elevation the solver holds,
+and the armor math that resolves the hit. Chemical rounds (HEAT/HE) ignore
+impact speed.
+
+There is no random damage roll — ever; this is a standing design law, not a
+slice limitation. Damage, module damage, ricochet, overmatch, and range falloff
+are replay-stable functions of the shell, armor facet, impact angle, and
+travelled distance.
 
 ## Aim Time And Dispersion
 
@@ -94,12 +109,38 @@ the authority agree on friendly and wreck blocks, not just on trajectories.
 ## Armor And Damage
 
 Combat uses per-vehicle oriented hitboxes with armor facing resolution for hull
-front/side/rear and turret or casemate front/side/rear. `ArmorProfile` now keeps
-the old six readable thickness values plus `ArmorFacet` data: nominal thickness,
-visual/mechanical slope, and a weakspot multiplier. The impact normal produces
-an impact angle, then `game_core::resolve_penetration_at_distance()` applies
-shell normalization, ricochet, AP/APCR overmatch, shell-specific distance
-falloff, and effective armor thickness.
+front/side/rear and turret or casemate front/side/rear. `ArmorProfile` keeps
+the six readable thickness values plus `ArmorFacet` data: nominal thickness,
+plate slope, and a weakspot multiplier.
+
+Plate slope lives in GEOMETRY, never in an angle sum. Each zone's outward
+normal (`game_core::math::plate_normal`) folds together the facet slope, the
+hull's live pitch/roll attitude, and the turret traverse; the impact angle is
+the true 3D angle of incidence between the shell path and that normal. The
+consequences are physical and intended: a flat shot meets a 60° glacis at 60°,
+plunging fire meets the reclined plate far squarer (plunging DEFEATS sloped
+armor), a nose-up hull-down pose steepens every frontal plate, and a shell
+dropping on the deck resolves against the roof measured against UP.
+`game_core::resolve_penetration_at_distance()` then applies shell
+normalization, ricochet, AP/APCR overmatch (a caliber over three times the
+plate neither ricochets nor enjoys unbounded line-of-sight gain), velocity-based
+penetration falloff, and effective armor thickness.
+
+Track zones are SPACED ARMOR, not a hull plate
+(`game_core::resolve_penetration_through_track`): the track band strips its own
+line-of-sight steel off the shell (double for HEAT — the screen kills the
+jet's standoff), and only the remainder challenges the hull side plate behind
+it at that plate's own true angle. Hull hit points fall only if BOTH layers
+fall; the running gear takes its module damage either way, and HE bursts on the
+track without ever reaching the plate.
+
+A ricochet is a deflection, not a despawn: the shell mirrors about the struck
+plate's normal, keeps flying slower and blunted
+(`RICOCHET_SPEED_RETENTION`/`RICOCHET_PENETRATION_RETENTION` in
+`sim::shell_step`), and the next surface it finds resolves it for good — the
+classic turret-roof skip into an engine deck is a real outcome. One skip per
+shell, ever. The reticle preview intentionally stops at the first impact; the
+skip is a server-side continuation.
 
 Penetrating hits subtract hull hit points, then resolve module damage from the
 armor zone and the hull-local hit point. The module map is deterministic and

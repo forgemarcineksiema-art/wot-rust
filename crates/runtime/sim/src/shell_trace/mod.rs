@@ -10,7 +10,7 @@ mod types;
 
 use ::terrain::HeightMap;
 use game_core::ImpactSurface;
-use game_core::math::GRAVITY_MPS2;
+use game_core::math::integrate_shell_step;
 use glam::Vec3;
 
 pub use types::{SegmentImpact, ShellTraceWorld, TraceOutcome, TraceTank};
@@ -43,11 +43,13 @@ pub fn segment_impact(
     }
 }
 
-/// Integrate a ballistic arc from the muzzle (semi-implicit Euler: gravity, then move) until it
-/// hits something or `max_age_seconds` elapses. Mirrors the authoritative per-tick step exactly.
+/// Integrate a ballistic arc from the muzzle (shared semi-implicit Euler: drag, gravity, move)
+/// until it hits something or `max_age_seconds` elapses. Mirrors the authoritative per-tick
+/// step exactly — `drag_per_s` comes from the previewed shell ([`game_core::ShellSpec::drag_per_s`]).
 pub fn trace_shell(
     start_position: Vec3,
     start_velocity: Vec3,
+    drag_per_s: f32,
     dt_seconds: f32,
     max_age_seconds: f32,
     world: &ShellTraceWorld<'_>,
@@ -59,13 +61,20 @@ pub fn trace_shell(
 
     loop {
         let previous = position;
-        velocity.y -= GRAVITY_MPS2 * dt_seconds;
+        integrate_shell_step(&mut velocity, drag_per_s, dt_seconds);
         position += velocity * dt_seconds;
         age += dt_seconds;
         let segment_distance = position.distance(previous);
 
         match segment_impact(previous, position, velocity, world) {
-            Some(SegmentImpact::Tank { id, facing, zone, impact_angle_degrees, hit_position }) => {
+            Some(SegmentImpact::Tank {
+                id,
+                facing,
+                zone,
+                impact_angle_degrees,
+                hit_position,
+                ..
+            }) => {
                 return TraceOutcome::Tank {
                     id,
                     facing,

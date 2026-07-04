@@ -1,7 +1,7 @@
-use game_core::math::world_to_tank_local;
+use game_core::math::{plate_normal, world_to_tank_local};
 use game_core::{
-    ArmorFacing, ArmorZone, DamageCause, DamageEvent, ModuleSlot, TankId,
-    resolve_penetration_at_distance_on_zone,
+    ArmorFacing, ArmorZone, DamageCause, DamageEvent, ModuleSlot, PenetrationResult, TankId,
+    resolve_penetration_at_distance_on_zone, resolve_penetration_through_track,
 };
 use glam::Vec3;
 
@@ -55,6 +55,7 @@ pub(crate) fn try_fire_shell(tank: &mut TankState, tick: u64) -> Option<ShellSta
         age_seconds: 0.0,
         traveled_m: 0.0,
         max_age_seconds: SHELL_MAX_AGE_SECONDS,
+        ricocheted_once: false,
     })
 }
 
@@ -71,13 +72,8 @@ pub(crate) fn apply_shell_impact(
 ) -> DamageEvent {
     let target =
         tanks.iter_mut().find(|tank| tank.id == target_id).expect("hit tank still present");
-    let penetration = resolve_penetration_at_distance_on_zone(
-        &shell.shell,
-        &target.spec.hull,
-        zone,
-        impact_angle_degrees,
-        distance_m,
-    );
+    let penetration =
+        resolve_impact_penetration(shell, target, zone, impact_angle_degrees, distance_m);
     if penetration.damage_hp > 0 {
         target.hit_points = target.hit_points.saturating_sub(penetration.damage_hp);
     }
@@ -127,4 +123,40 @@ pub(crate) fn apply_shell_impact(
         armor_facing: facing,
         armor_zone: zone,
     }
+}
+
+/// The armor test for one resolved hit. Ordinary zones test their single plate; the track zones
+/// are a SPACED-ARMOR pair — the track band screens the hull side plate behind it, and each
+/// layer is measured against its own true 3D normal (the side plate carries its slope and the
+/// hull's live attitude, exactly like a direct side hit would).
+fn resolve_impact_penetration(
+    shell: &ShellState,
+    target: &TankState,
+    zone: ArmorZone,
+    impact_angle_degrees: f32,
+    distance_m: f32,
+) -> PenetrationResult {
+    if !matches!(zone, ArmorZone::LeftTrack | ArmorZone::RightTrack) {
+        return resolve_penetration_at_distance_on_zone(
+            &shell.shell,
+            &target.spec.hull,
+            zone,
+            impact_angle_degrees,
+            distance_m,
+        );
+    }
+    let side_sign = if zone == ArmorZone::LeftTrack { -1.0 } else { 1.0 };
+    let side_slope = target.spec.hull.facet(ArmorFacing::HullSide).slope_degrees;
+    let side_normal =
+        plate_normal(target.hull_pose(), 0.0, ArmorZone::HullSide, side_sign, side_slope);
+    let direction = shell.velocity_mps.normalize_or_zero();
+    let side_angle_degrees = (-direction).dot(side_normal).clamp(-1.0, 1.0).acos().to_degrees();
+    resolve_penetration_through_track(
+        &shell.shell,
+        &target.spec.hull,
+        zone,
+        impact_angle_degrees,
+        side_angle_degrees,
+        distance_m,
+    )
 }
