@@ -1,6 +1,6 @@
 //! Client-side fire detection: the protocol replicates no explicit "tank fired" event, but a
 //! shot is the only thing that *raises* `reload_remaining_s` between snapshots. Deriving fire
-//! events from that jump works identically for the local player, allied tanks, and enemies —
+//! events from that jump works identically for the local player, allied tanks, and enemies â€”
 //! one code path, no protocol change, and at the in-process 20 Hz snapshot cadence the cue lands
 //! within two sim ticks of the authoritative shot.
 
@@ -13,7 +13,7 @@ use net::TankSnapshot;
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct FireEvent {
     pub tank_id: TankId,
-    /// Hull-relative turret heading at the shot — the hull-rock impulse decomposes over it.
+    /// Hull-relative turret heading at the shot â€” the hull-rock impulse decomposes over it.
     pub turret_yaw_rad: f32,
     pub muzzle: Vec3,
     pub direction: Vec3,
@@ -89,6 +89,8 @@ mod tests {
             module_hit_points: [100; game_core::MODULE_SLOT_COUNT],
             destroyed_modules_mask: 0,
             track_damage_mask: 0,
+            ammo_counts: game_core::AmmoLoadout::default().counts,
+            selected_ammo: 0,
         }
     }
 

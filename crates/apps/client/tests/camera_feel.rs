@@ -28,6 +28,8 @@ fn tank_snapshot(position: [f32; 3], hull_yaw_rad: f32, turret_yaw_rad: f32) -> 
         module_hit_points: spec.module_health.hit_points_by_slot(),
         destroyed_modules_mask: 0,
         track_damage_mask: 0,
+        ammo_counts: game_core::AmmoLoadout::default().counts,
+        selected_ammo: 0,
     }
 }
 
@@ -38,7 +40,7 @@ fn the_players_shot_nudges_the_third_person_rig_and_leaves_sniper_rigid() {
     let position = [20.0, 0.0, 20.0];
     let subject = CameraSubject::from_snapshot(tank_snapshot(position, 0.0, 0.0), 0.0);
 
-    // Third person: settle the follow rig, then fire — the eye must dip back/down and recover.
+    // Third person: settle the follow rig, then fire â€” the eye must dip back/down and recover.
     let mut camera = BattleCameraController::new(BattleCameraSettings::default());
     camera.set_mode(BattleCameraMode::ThirdPerson);
     for _ in 0..240 {
@@ -63,7 +65,7 @@ fn the_players_shot_nudges_the_third_person_rig_and_leaves_sniper_rigid() {
     let recovered = camera.render_camera(&subject, &environment).eye;
     assert!((recovered[2] - settled[2]).abs() < 0.01, "the rig recovers to its settle");
 
-    // Sniper: the same kick must not move the eye at all — aiming tolerates no theatrics.
+    // Sniper: the same kick must not move the eye at all â€” aiming tolerates no theatrics.
     let mut sniper = BattleCameraController::new(BattleCameraSettings::default());
     sniper.set_mode(BattleCameraMode::Sniper);
     sniper.advance(position, 1.0 / 60.0);

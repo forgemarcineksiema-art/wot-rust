@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    ArmorProfile, ContactFootprint, DamageLayout, GunSpec, ModuleHealth, MountFrames, VehicleKind,
+    AmmoLoadout, ArmorProfile, ContactFootprint, DamageLayout, GunSpec, ModuleHealth, MountFrames,
+    VehicleKind,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -126,6 +127,13 @@ pub struct TankSpec {
     pub turret_rotation_rad_s: f32,
     pub hull: ArmorProfile,
     pub gun: GunSpec,
+    /// Rounds carried into battle per ammo slot (`AmmoLoadout`); the garage clamps the sum to
+    /// `ammo_capacity`. `serde(default)` keeps older spec fixtures loading with the stock fill.
+    #[serde(default)]
+    pub ammo: AmmoLoadout,
+    /// Total rounds the rack holds.
+    #[serde(default = "crate::ammo::default_ammo_capacity")]
+    pub ammo_capacity: u16,
     pub hit_points: u32,
     pub module_health: ModuleHealth,
     pub hitbox: HitboxProfile,

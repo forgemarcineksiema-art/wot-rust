@@ -56,6 +56,8 @@ fn snapshot_round_trips_track_damage_mask() {
         module_hit_points: VehicleKind::T54_1951.spec().module_health.hit_points_by_slot(),
         destroyed_modules_mask: 0,
         track_damage_mask: TrackDamageMask::LEFT.bits(),
+        ammo_counts: game_core::AmmoLoadout::default().counts,
+        selected_ammo: 0,
     };
     let message = ProtocolMessage::Snapshot(Snapshot {
         server_tick: 99,

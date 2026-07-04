@@ -8,7 +8,7 @@ mod snapshot_schedule;
 
 pub use snapshot_schedule::SnapshotSchedule;
 
-pub const PROTOCOL_VERSION: u16 = 14;
+pub const PROTOCOL_VERSION: u16 = 15;
 
 #[derive(Debug, Error)]
 pub enum NetError {
@@ -70,6 +70,10 @@ pub struct TankSnapshot {
     pub destroyed_modules_mask: u8,
     /// Side-specific track damage bitset; see `TrackDamageMask`.
     pub track_damage_mask: u8,
+    /// Rounds remaining per ammo slot, `GunSpec::ammo_options()` order (protocol v15).
+    pub ammo_counts: [u16; game_core::MAX_AMMO_SLOTS],
+    /// The ammo slot the next shot fires from (protocol v15).
+    pub selected_ammo: u8,
 }
 
 impl TankSnapshot {
@@ -102,6 +106,8 @@ impl From<&TankState> for TankSnapshot {
             module_hit_points: tank.modules.hit_points_by_slot(),
             destroyed_modules_mask: tank.modules.destroyed_mask(),
             track_damage_mask: tank.tracks.bits(),
+            ammo_counts: tank.ammo_counts,
+            selected_ammo: tank.selected_ammo,
         }
     }
 }

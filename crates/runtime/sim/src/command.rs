@@ -14,6 +14,11 @@ pub struct TankCommand {
     #[serde(default)]
     pub gun_pitch_delta: f32,
     pub fire: bool,
+    /// Request to switch the loaded ammo slot (`GunSpec::ammo_options()` index). A real switch
+    /// restarts the reload; out-of-range or same-slot requests are no-ops. `default` keeps older
+    /// JSON replay fixtures loading; it is not bincode wire-compatible (protocol v15).
+    #[serde(default)]
+    pub select_ammo: Option<u8>,
 }
 
 impl TankCommand {
@@ -25,6 +30,7 @@ impl TankCommand {
             turret_yaw_delta: 0.0,
             gun_pitch_delta: 0.0,
             fire: false,
+            select_ammo: None,
         }
     }
 
@@ -48,6 +54,7 @@ impl TankCommand {
             turret_yaw_delta: self.turret_yaw_delta.clamp(-1.0, 1.0),
             gun_pitch_delta: self.gun_pitch_delta.clamp(-1.0, 1.0),
             fire: self.fire,
+            select_ammo: self.select_ammo,
         }
     }
 }

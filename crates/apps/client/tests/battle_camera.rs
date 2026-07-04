@@ -117,7 +117,7 @@ fn the_camera_stays_centered_at_every_boom_length_so_zoom_cannot_slide_the_view(
     let mut camera = BattleCameraController::new(BattleCameraSettings::default());
     camera.set_mode(BattleCameraMode::ThirdPerson);
 
-    // Scroll the boom through its whole range: the lateral placement must not move — a
+    // Scroll the boom through its whole range: the lateral placement must not move â€” a
     // zoom-dependent offset swept the scene sideways on every scroll (the "slides left" bug).
     let far = camera.render_camera(&subject, &environment);
     assert!(far.target[0] > subject.position[0] + 3.0, "TPP target leads the current turret");
@@ -366,5 +366,7 @@ fn tank_snapshot(position: [f32; 3], hull_yaw_rad: f32, turret_yaw_rad: f32) -> 
         module_hit_points: spec.module_health.hit_points_by_slot(),
         destroyed_modules_mask: 0,
         track_damage_mask: 0,
+        ammo_counts: game_core::AmmoLoadout::default().counts,
+        selected_ammo: 0,
     }
 }

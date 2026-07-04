@@ -1,4 +1,4 @@
-//! Hit decals on vehicles: every replicated shell strike leaves a mark ON the plate it hit —
+//! Hit decals on vehicles: every replicated shell strike leaves a mark ON the plate it hit â€”
 //! a permanent black hole for a penetration, a fading bare-metal scuff for a bounce, a long
 //! gouge for a ricochet. Marks are stored in the frame they belong to (hull marks ride the
 //! hull, turret marks traverse with the turret) and drawn as flat oriented quads through the
@@ -120,7 +120,7 @@ pub(super) struct Plate {
 }
 
 /// A penetration is three layers, not one blob: a wide SOFT scorch halo (burnt paint), the
-/// hard-edged near-black entry hole, and a fan of bright bare-metal splash streaks — the
+/// hard-edged near-black entry hole, and a fan of bright bare-metal splash streaks â€” the
 /// signature look of a shaped hole in rolled armor, readable at battle range.
 fn push_penetration(vertices: &mut Vec<FxVertex>, plate: Plate, decal: &HitDecal, opacity: f32) {
     let r = decal.radius;
@@ -235,6 +235,8 @@ mod tests {
             module_hit_points: spec.module_health.hit_points_by_slot(),
             destroyed_modules_mask: 0,
             track_damage_mask: 0,
+            ammo_counts: game_core::AmmoLoadout::default().counts,
+            selected_ammo: 0,
         }
     }
 

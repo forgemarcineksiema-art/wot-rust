@@ -12,7 +12,7 @@ use renderer_api::{Camera, CameraProjectionPolicy, SceneLighting, view_projectio
 use renderer_wgpu::{GpuContext, OffscreenTarget, SceneRenderer};
 use terrain::prokhorovka_hill_252_2;
 
-/// A tight, single-vehicle right-profile studio render of the T-54 through the PBR catalog path —
+/// A tight, single-vehicle right-profile studio render of the T-54 through the PBR catalog path â€”
 /// the same path the garage uses, with the baked Forge artifacts in `target/forge` loaded so the
 /// shot shows the real textured material (falling back to the live hybrid bake + neutral material
 /// if no artifact is present). Best for inspecting the running gear and turret close up.
@@ -29,7 +29,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cz = 300.0_f32;
     let ground = battlefield.heightmap.sample_height(cx, cz).unwrap_or(0.0);
 
-    // Side-on: rotate the hull 90° so its length faces the camera, gun level.
+    // Side-on: rotate the hull 90Â° so its length faces the camera, gun level.
     let snapshot = TankSnapshot {
         tank_id: TankId(1),
         team: TeamId(1),
@@ -47,6 +47,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         module_hit_points: VehicleKind::T54_1951.spec().module_health.hit_points_by_slot(),
         destroyed_modules_mask: 0,
         track_damage_mask: 0,
+        ammo_counts: game_core::AmmoLoadout::default().counts,
+        selected_ammo: 0,
     };
 
     // Load the baked Forge artifacts (textured materials) the garage uses; harmless if absent.

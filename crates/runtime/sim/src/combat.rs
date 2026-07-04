@@ -16,16 +16,20 @@ pub(crate) struct CombatTickContext {
 }
 
 pub(crate) fn try_fire_shell(tank: &mut TankState, tick: u64) -> Option<ShellState> {
+    let selected = (tank.selected_ammo as usize).min(game_core::MAX_AMMO_SLOTS - 1);
     if tank.reload_remaining_s > 0.0
         || tank.hit_points == 0
         || !tank.modules.is_functional(ModuleSlot::Gun)
         || !tank.modules.is_functional(ModuleSlot::AmmoRack)
+        // An empty slot refuses to fire: the player must switch to a slot with rounds left.
+        || tank.ammo_counts[selected] == 0
     {
         return None;
     }
 
     let direction = dispersed_gun_direction(tank, tick);
-    let shell = tank.spec.gun.shell;
+    let shell = tank.selected_shell();
+    tank.ammo_counts[selected] -= 1;
     tank.reload_remaining_s = tank.spec.gun.reload_seconds;
     tank.dispersion_shot_index = tank.dispersion_shot_index.wrapping_add(1);
     apply_shot_bloom(tank);

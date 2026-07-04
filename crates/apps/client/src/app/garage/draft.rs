@@ -166,7 +166,17 @@ impl LoadoutDraft {
         let mut spec = self.modules.assemble(self.kind);
         self.crew.apply(&mut spec);
         let ammo = self.ammo_options();
-        spec.gun.shell = ammo[self.ammo_index.min(ammo.len() - 1)];
+        let selected = self.ammo_index.min(ammo.len() - 1);
+        // The rack carries the default fill with the garage-chosen slot pre-loaded; per-slot
+        // count editing arrives with the in-battle selector package.
+        spec.ammo = game_core::AmmoLoadout {
+            initial_selected: selected as u8,
+            ..game_core::AmmoLoadout::default_for(spec.ammo_capacity)
+        };
+        // Transitional duplication: sim reads `TankState::selected_shell()` now, but client
+        // read-sites (reticle ballistics) still read `gun.shell` until the ammo-selector package
+        // migrates them.
+        spec.gun.shell = ammo[selected];
         spec
     }
 }

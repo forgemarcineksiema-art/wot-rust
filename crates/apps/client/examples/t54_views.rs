@@ -1,7 +1,7 @@
 //! Multi-angle T-54 studio render: front, top-down, three-quarter, rear-three-quarter and side into
-//! separate PNGs, so the turret/mantlet casting is judged from every revealing angle — including the
-//! rear — not just the flattering profile.
-//! `cargo run -p client --example t54_views -- target/t54`  (writes `_front.png`, `_top.png`, …)
+//! separate PNGs, so the turret/mantlet casting is judged from every revealing angle â€” including the
+//! rear â€” not just the flattering profile.
+//! `cargo run -p client --example t54_views -- target/t54`  (writes `_front.png`, `_top.png`, â€¦)
 
 use std::f32::consts::FRAC_PI_2;
 use std::fs::File;
@@ -46,6 +46,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         module_hit_points: VehicleKind::T54_1951.spec().module_health.hit_points_by_slot(),
         destroyed_modules_mask: 0,
         track_damage_mask: 0,
+        ammo_counts: game_core::AmmoLoadout::default().counts,
+        selected_ammo: 0,
     };
 
     let mut catalog = VehicleAssetCatalog::default();
@@ -67,7 +69,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     renderer.set_vehicle_render_frame(&ctx, &render_frame);
 
-    // The hull faces +X (yaw 90°), so the gun points toward -X... pick eyes around the turret centre.
+    // The hull faces +X (yaw 90Â°), so the gun points toward -X... pick eyes around the turret centre.
     let tc = [cx, ground + 1.55, cz];
     // The hull faces +X, so the gun points toward -X: -X eyes are the front, +X eyes the rear.
     let views = [

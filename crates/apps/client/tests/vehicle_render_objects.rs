@@ -17,7 +17,7 @@ fn t55_object_count() -> usize {
 const BLUEPRINT_MESH_COUNT: usize = 9;
 
 /// Drift lock between the two render paths: the dynamic per-vertex mesh build and the cached
-/// instanced objects must place every vertex identically for the same snapshot — including a
+/// instanced objects must place every vertex identically for the same snapshot â€” including a
 /// posed turret, pitched gun, and a casemate holding its yaw. If either path grows its own
 /// transform math again, this turns red.
 #[test]
@@ -40,6 +40,8 @@ fn dynamic_and_instanced_paths_agree_on_world_space_vertices() {
             module_hit_points: kind.spec().module_health.hit_points_by_slot(),
             destroyed_modules_mask: 0,
             track_damage_mask: 0,
+            ammo_counts: game_core::AmmoLoadout::default().counts,
+            selected_ammo: 0,
         };
 
         let (dynamic_vertices, _) = tank_scene_mesh(&snapshot);
@@ -91,6 +93,8 @@ fn t55a_render_objects_use_static_mesh_handles_for_hull_turret_and_gun() {
         module_hit_points: VehicleKind::T55A.spec().module_health.hit_points_by_slot(),
         destroyed_modules_mask: 0,
         track_damage_mask: 0,
+        ammo_counts: game_core::AmmoLoadout::default().counts,
+        selected_ammo: 0,
     };
 
     let objects = tank_render_objects(&mut catalog, &snapshot, [0.30, 0.40, 0.28]);
@@ -163,7 +167,7 @@ fn turret_sits_on_top_of_hull_not_embedded() {
         .map(|vertex| vertex.position.y)
         .fold(f32::INFINITY, f32::min);
 
-    // The hull surface *beneath the turret* (its xz footprint) — not the whole hull. Raised
+    // The hull surface *beneath the turret* (its xz footprint) â€” not the whole hull. Raised
     // structures elsewhere, like the engine-deck panels behind the turret, legitimately rise above
     // the deck; what must not happen is the turret sinking into the hull it sits on.
     let hull_top_under_turret = hull
@@ -207,6 +211,8 @@ fn vehicle_mesh_catalog_reports_new_gpu_mesh_uploads_once() {
         module_hit_points: VehicleKind::T55A.spec().module_health.hit_points_by_slot(),
         destroyed_modules_mask: 0,
         track_damage_mask: 0,
+        ammo_counts: game_core::AmmoLoadout::default().counts,
+        selected_ammo: 0,
     };
 
     let objects = tank_render_objects(&mut catalog, &snapshot, [0.30, 0.40, 0.28]);
@@ -243,6 +249,8 @@ fn distinct_hull_colors_share_one_mesh_and_tint_per_object() {
         module_hit_points: VehicleKind::T55A.spec().module_health.hit_points_by_slot(),
         destroyed_modules_mask: 0,
         track_damage_mask: 0,
+        ammo_counts: game_core::AmmoLoadout::default().counts,
+        selected_ammo: 0,
     };
 
     let green = [0.30, 0.40, 0.28];
@@ -290,6 +298,8 @@ fn destroyed_module_mask_darkens_the_matching_submesh_without_reuploading_meshes
         module_hit_points: VehicleKind::T55A.spec().module_health.hit_points_by_slot(),
         destroyed_modules_mask: 0,
         track_damage_mask: 0,
+        ammo_counts: game_core::AmmoLoadout::default().counts,
+        selected_ammo: 0,
     };
     let base = [0.30, 0.40, 0.28];
     let healthy = tank_render_objects(&mut catalog, &snapshot, base);

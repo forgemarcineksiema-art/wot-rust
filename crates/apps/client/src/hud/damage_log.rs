@@ -1,6 +1,6 @@
 //! The battle damage log: a short left-edge feed of the player's dealt and taken hits, so the
 //! last few seconds of a fight can be read back without a scoreboard. Entries age out after a
-//! few seconds and the list stays capped â€” the log is a pulse, not a ledger.
+//! few seconds and the list stays capped Ă˘â‚¬â€ť the log is a pulse, not a ledger.
 
 use std::collections::VecDeque;
 
@@ -11,7 +11,7 @@ use renderer_api::HudVertex;
 use super::theme::{color as theme, tagged};
 
 /// Dealt rows read as quiet readout off-white; taken rows read as signal red. Unique bytes per
-/// class â€” the HUD tests tag features by exact vertex-color equality.
+/// class Ă˘â‚¬â€ť the HUD tests tag features by exact vertex-color equality.
 pub(crate) const DMG_DEALT_COLOR: [f32; 4] = tagged(theme::READOUT, 0.90);
 pub(crate) const DMG_TAKEN_COLOR: [f32; 4] = [0.90, 0.36, 0.30, 0.92];
 
@@ -47,7 +47,7 @@ pub(crate) struct DamageLog {
 
 impl DamageLog {
     /// Ingest a snapshot's damage events: rows for damage the player dealt or took. Zero-damage
-    /// events (bounces) stay out of the log â€” the hit-direction arcs and confirm ticks carry
+    /// events (bounces) stay out of the log Ă˘â‚¬â€ť the hit-direction arcs and confirm ticks carry
     /// those.
     pub(crate) fn ingest(
         &mut self,
@@ -170,6 +170,8 @@ mod tests {
             module_hit_points: vehicle.spec().module_health.hit_points_by_slot(),
             destroyed_modules_mask: 0,
             track_damage_mask: 0,
+            ammo_counts: game_core::AmmoLoadout::default().counts,
+            selected_ammo: 0,
         }
     }
 

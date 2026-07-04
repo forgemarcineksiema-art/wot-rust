@@ -1,4 +1,4 @@
-//! Locks the damage-event → battle-scar pipeline: a replicated shell strike on a tank records a
+//! Locks the damage-event â†’ battle-scar pipeline: a replicated shell strike on a tank records a
 //! decal in that tank's local frame (rendered on the hull by the FX pass), non-shell damage does
 //! not, and a strike on a tank missing from the snapshot is dropped rather than misplaced.
 
@@ -107,6 +107,8 @@ fn tank_at(tank_id: TankId, position: [f32; 3]) -> TankSnapshot {
         module_hit_points: spec.module_health.hit_points_by_slot(),
         destroyed_modules_mask: 0,
         track_damage_mask: 0,
+        ammo_counts: game_core::AmmoLoadout::default().counts,
+        selected_ammo: 0,
     }
 }
 

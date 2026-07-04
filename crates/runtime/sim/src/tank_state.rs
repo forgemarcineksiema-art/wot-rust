@@ -35,6 +35,18 @@ pub struct TankState {
     pub tracks: TrackDamageMask,
     /// Live hit points of the five module slots; at zero a module stops working.
     pub modules: ModuleHealth,
+    /// Rounds remaining per ammo slot (`GunSpec::ammo_options()` order). Pre-ammo fixtures load
+    /// with the default stock-heavy fill (an empty rack would silently refuse their recorded
+    /// shots); spawned tanks always start from `spec.ammo`.
+    #[serde(default = "default_ammo_counts")]
+    pub ammo_counts: [u16; game_core::MAX_AMMO_SLOTS],
+    /// The ammo slot the next shot fires from. Switching restarts the reload.
+    #[serde(default)]
+    pub selected_ammo: u8,
+}
+
+fn default_ammo_counts() -> [u16; game_core::MAX_AMMO_SLOTS] {
+    game_core::AmmoLoadout::default().counts
 }
 
 impl TankState {
@@ -46,5 +58,13 @@ impl TankState {
             pitch_rad: self.hull_pitch_rad,
             roll_rad: self.hull_roll_rad,
         }
+    }
+
+    /// The shell the currently selected ammo slot fires — `ammo_options()` order, clamped so a
+    /// corrupt index degrades to the stock round instead of panicking.
+    pub fn selected_shell(&self) -> game_core::ShellSpec {
+        let options = self.spec.gun.ammo_options();
+        let index = (self.selected_ammo as usize).min(options.len().saturating_sub(1));
+        options[index]
     }
 }

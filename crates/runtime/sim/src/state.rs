@@ -62,30 +62,7 @@ impl SimulationState {
     pub fn spawn_tank(&mut self, team: TeamId, spec: TankSpec, position: Vec3) -> TankId {
         let id = TankId(self.next_tank_id);
         self.next_tank_id += 1;
-
-        let modules = spec.module_health;
-        let aim_dispersion_mrad = spec.gun.dispersion_mrad;
-        self.tanks.push(TankState {
-            id,
-            team,
-            hit_points: spec.hit_points,
-            spec,
-            position,
-            yaw_rad: 0.0,
-            turret_yaw_rad: 0.0,
-            turret_yaw_velocity_rad_s: 0.0,
-            gun_pitch_rad: 0.0,
-            velocity_mps: Vec3::ZERO,
-            hull_yaw_velocity_rad_s: 0.0,
-            hull_pitch_rad: 0.0,
-            hull_roll_rad: 0.0,
-            reload_remaining_s: 0.0,
-            aim_dispersion_mrad,
-            dispersion_shot_index: 0,
-            tracks: TrackDamageMask::healthy(),
-            modules,
-        });
-
+        self.tanks.push(fresh_tank(id, team, spec, position, 0.0));
         id
     }
 
@@ -96,28 +73,7 @@ impl SimulationState {
 
         let id = TankId(self.next_tank_id);
         self.next_tank_id += 1;
-        let modules = spec.module_health;
-        let aim_dispersion_mrad = spec.gun.dispersion_mrad;
-        self.tanks.push(TankState {
-            id,
-            team: old.team,
-            hit_points: spec.hit_points,
-            spec,
-            position: old.position,
-            yaw_rad: old.yaw_rad,
-            turret_yaw_rad: 0.0,
-            turret_yaw_velocity_rad_s: 0.0,
-            gun_pitch_rad: 0.0,
-            velocity_mps: Vec3::ZERO,
-            hull_yaw_velocity_rad_s: 0.0,
-            hull_pitch_rad: 0.0,
-            hull_roll_rad: 0.0,
-            reload_remaining_s: 0.0,
-            aim_dispersion_mrad,
-            dispersion_shot_index: 0,
-            tracks: TrackDamageMask::healthy(),
-            modules,
-        });
+        self.tanks.push(fresh_tank(id, old.team, spec, old.position, old.yaw_rad));
         Some(id)
     }
 
@@ -195,6 +151,15 @@ impl SimulationState {
                 }
                 let ground = step_tank(tank, command, dt, heightmap, cover, &tank_obstacles);
                 apply_landing_impact(tank, ground.landing_impact_mps, &mut self.damage_events);
+                // Ammo switch before the fire check: the honest rule is simple — any real switch
+                // restarts the full reload (the loader swaps the round out of the breech).
+                if let Some(slot) = command.select_ammo
+                    && (slot as usize) < game_core::MAX_AMMO_SLOTS
+                    && slot != tank.selected_ammo
+                {
+                    tank.selected_ammo = slot;
+                    tank.reload_remaining_s = tank.spec.gun.reload_seconds;
+                }
                 if command.fire
                     && let Some(shell) = try_fire_shell(tank, self.tick)
                 {
@@ -214,5 +179,36 @@ impl SimulationState {
             cover,
         );
         self.tick += 1;
+    }
+}
+
+/// A factory-fresh tank: full health, healthy modules and tracks, the spec's ammo rack loaded,
+/// and a level, stationary hull at the given position/heading.
+fn fresh_tank(id: TankId, team: TeamId, spec: TankSpec, position: Vec3, yaw_rad: f32) -> TankState {
+    let modules = spec.module_health;
+    let aim_dispersion_mrad = spec.gun.dispersion_mrad;
+    let ammo_counts = spec.ammo.counts;
+    let selected_ammo = spec.ammo.initial_selected;
+    TankState {
+        id,
+        team,
+        hit_points: spec.hit_points,
+        spec,
+        position,
+        yaw_rad,
+        turret_yaw_rad: 0.0,
+        turret_yaw_velocity_rad_s: 0.0,
+        gun_pitch_rad: 0.0,
+        velocity_mps: Vec3::ZERO,
+        hull_yaw_velocity_rad_s: 0.0,
+        hull_pitch_rad: 0.0,
+        hull_roll_rad: 0.0,
+        reload_remaining_s: 0.0,
+        aim_dispersion_mrad,
+        dispersion_shot_index: 0,
+        tracks: TrackDamageMask::healthy(),
+        modules,
+        ammo_counts,
+        selected_ammo,
     }
 }

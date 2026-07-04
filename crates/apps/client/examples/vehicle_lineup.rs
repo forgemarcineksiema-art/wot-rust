@@ -58,6 +58,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             module_hit_points: kind.spec().module_health.hit_points_by_slot(),
             destroyed_modules_mask: 0,
             track_damage_mask: 0,
+            ammo_counts: game_core::AmmoLoadout::default().counts,
+            selected_ammo: 0,
         };
         render_objects.append(&mut tank_render_objects(&mut catalog, &snapshot, palette[index]));
     }
@@ -91,6 +93,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     encoder.set_color(png::ColorType::Rgba);
     encoder.set_depth(png::BitDepth::Eight);
     encoder.write_header()?.write_image_data(&pixels)?;
-    println!("wrote {path} ({width}x{height}) — {} vehicles", VehicleKind::PLAYABLE.len());
+    println!("wrote {path} ({width}x{height}) â€” {} vehicles", VehicleKind::PLAYABLE.len());
     Ok(())
 }

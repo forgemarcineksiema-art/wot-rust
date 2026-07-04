@@ -18,7 +18,7 @@ impl ClientApp {
     /// orbit camera, with the garage UI overlay. Replaces the battle scene while the garage is open.
     pub(super) fn render_garage(&mut self) {
         self.last_render_time = Instant::now();
-        // Apply orbit drag (and clear the cursor delta) — the battle path does this per frame, and
+        // Apply orbit drag (and clear the cursor delta) â€” the battle path does this per frame, and
         // the garage needs it too or the inspection camera never moves.
         self.apply_mouse_look();
         self.ensure_scene(SceneKind::Garage);
@@ -96,7 +96,7 @@ impl ClientApp {
     }
 
     /// Barrel-length scale of the player's installed gun vs the vehicle's stock gun. The predictor
-    /// holds the real (custom) loadout — the snapshot-derived `player_spec` is stock by kind — so
+    /// holds the real (custom) loadout â€” the snapshot-derived `player_spec` is stock by kind â€” so
     /// the rendered gun and the reticle muzzle both track the gun the player actually fitted.
     pub(super) fn player_barrel_scale(&self) -> f32 {
         let spec = self.predictor.spec();
@@ -126,5 +126,7 @@ fn garage_preview_snapshot(kind: VehicleKind) -> TankSnapshot {
         module_hit_points: spec.module_health.hit_points_by_slot(),
         destroyed_modules_mask: 0,
         track_damage_mask: 0,
+        ammo_counts: game_core::AmmoLoadout::default().counts,
+        selected_ammo: 0,
     }
 }

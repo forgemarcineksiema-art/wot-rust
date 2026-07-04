@@ -1,4 +1,4 @@
-﻿use std::f32::consts::FRAC_PI_2;
+use std::f32::consts::FRAC_PI_2;
 use std::fs::File;
 use std::io::BufWriter;
 
@@ -47,6 +47,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         module_hit_points: VehicleKind::IS3.spec().module_health.hit_points_by_slot(),
         destroyed_modules_mask: 0,
         track_damage_mask: 0,
+        ammo_counts: game_core::AmmoLoadout::default().counts,
+        selected_ammo: 0,
     };
 
     // Load the baked Forge artifacts (textured materials) the garage uses; harmless if absent.
