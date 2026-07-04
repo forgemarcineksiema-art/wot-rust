@@ -130,17 +130,22 @@ impl ClientApp {
         })
     }
 
-    fn player_hit_points(&self) -> u32 {
-        self.player_snapshot().map_or(0, |tank| tank.hit_points)
-    }
-
     pub(super) fn player_reload(&self) -> (f32, f32) {
         let remaining = self.player_snapshot().map_or(0.0, |tank| tank.reload_remaining_s);
         (remaining, self.player_spec().gun.reload_seconds)
     }
 
     pub(super) fn player_hud_hit_points(&self) -> u32 {
-        self.player_hit_points()
+        self.player_snapshot().map_or(0, |tank| tank.hit_points)
+    }
+
+    /// The rack panel model: counts from the latest authoritative snapshot, the selected slot
+    /// from the predictor (optimistic on a 1/2/3 press).
+    pub(super) fn player_ammo_hud(&self) -> crate::hud::ammo_panel::AmmoHudModel {
+        let counts = self
+            .player_snapshot()
+            .map_or(self.predictor.spec().ammo.counts, |tank| tank.ammo_counts);
+        crate::hud::ammo_panel::AmmoHudModel::new(counts, self.predictor.selected_ammo())
     }
 
     pub(super) fn player_max_hit_points(&self) -> u32 {

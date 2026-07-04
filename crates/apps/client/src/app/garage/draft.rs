@@ -165,18 +165,14 @@ impl LoadoutDraft {
     pub(super) fn assembled_spec(&self) -> TankSpec {
         let mut spec = self.modules.assemble(self.kind);
         self.crew.apply(&mut spec);
-        let ammo = self.ammo_options();
-        let selected = self.ammo_index.min(ammo.len() - 1);
-        // The rack carries the default fill with the garage-chosen slot pre-loaded; per-slot
-        // count editing arrives with the in-battle selector package.
+        let selected = self.ammo_index.min(self.ammo_options().len() - 1);
+        // The rack carries the default fill with the garage-chosen slot pre-loaded (per-slot
+        // count editing is a follow-up). The sim fires `TankState::selected_shell()` and the
+        // reticle reads the predictor's selected shell — `gun.shell` stays the stock round.
         spec.ammo = game_core::AmmoLoadout {
             initial_selected: selected as u8,
             ..game_core::AmmoLoadout::default_for(spec.ammo_capacity)
         };
-        // Transitional duplication: sim reads `TankState::selected_shell()` now, but client
-        // read-sites (reticle ballistics) still read `gun.shell` until the ammo-selector package
-        // migrates them.
-        spec.gun.shell = ammo[selected];
         spec
     }
 }
@@ -226,13 +222,16 @@ mod tests {
     }
 
     #[test]
-    fn selecting_apcr_changes_the_fired_shell_type() {
+    fn selecting_apcr_preloads_that_slot_without_touching_the_stock_shell() {
         let mut draft = LoadoutDraft::for_vehicle(VehicleKind::TigerII);
-        let stock = draft.assembled_spec().gun.shell.shell_type;
+        assert_eq!(draft.assembled_spec().ammo.initial_selected, 0);
         draft.set_ammo(1);
-        let chosen = draft.assembled_spec().gun.shell.shell_type;
-        assert_ne!(chosen, stock);
-        assert_eq!(chosen, game_core::ShellType::Apcr);
+        let spec = draft.assembled_spec();
+        assert_eq!(spec.ammo.initial_selected, 1, "the chosen slot spawns loaded");
+        // gun.shell stays the stock round: the sim fires selected_shell() and the reticle reads
+        // the predictor's selection — nothing bakes the choice into the spec anymore.
+        assert_eq!(spec.gun.shell.shell_type, game_core::ShellType::ArmorPiercing);
+        assert!(spec.ammo.total() > 0 && spec.ammo.total() <= spec.ammo_capacity);
     }
 
     #[test]

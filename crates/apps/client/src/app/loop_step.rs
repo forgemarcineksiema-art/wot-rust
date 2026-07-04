@@ -49,6 +49,8 @@ impl ClientApp {
         let gun_pitch_delta = self.gun_elevation_command_for(solution.as_ref());
         let mut fire = self.input.fire_pending;
         self.input.fire_pending = false;
+        // Like the fire latch: the switch request rides exactly one command (the batch's first).
+        let mut select_ammo = self.input.pending_ammo_select.take();
         self.seed_prediction();
         for _ in 0..count {
             let command = TankCommand {
@@ -58,9 +60,7 @@ impl ClientApp {
                 turret_yaw_delta,
                 gun_pitch_delta,
                 fire,
-                // Battle ammo switching arrives with the HUD selector package; until then the
-                // garage-selected slot rides in from `spec.ammo.initial_selected`.
-                select_ammo: None,
+                select_ammo: select_ammo.take(),
             };
             fire = false;
             self.step_prediction(&command);

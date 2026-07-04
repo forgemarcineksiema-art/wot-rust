@@ -114,6 +114,7 @@ impl ClientApp {
             zoom_factor: self.camera_controller.zoom_factor(),
             damage_log: self.damage_log.visible(),
             incoming_hits: self.incoming_hits.screen_hits(camera_forward_xz),
+            ammo: Some(self.player_ammo_hud()),
         };
         let mut hud = crate::hud::build_battle_hud(&hud_model, aspect);
         hud.extend(enemy_bars);
