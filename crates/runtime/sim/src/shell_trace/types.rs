@@ -2,13 +2,14 @@ use ::terrain::{HeightMap, StaticCoverObject};
 use game_core::math::HullPose;
 use game_core::{
     ArmorFacing, ArmorProfile, ArmorZone, HitboxProfile, ImpactSurface, MountFrames, TankId,
-    TankSpec, VehicleKind,
+    TankSpec, VehicleArmorVolumes, VehicleKind, vehicle_armor_volumes,
 };
 use glam::Vec3;
 
 /// Neutral tank hull for shell collision. The hitbox rides the FULL hull pose: a tilted hull
 /// tilts its collision volumes and armor normals with it. The armor profile rides along so the
-/// impact angle is measured against the TRUE plate normal, slope included.
+/// impact angle is measured against the TRUE plate normal, slope included; blueprint vehicles
+/// additionally carry their baked convex armor volumes, which replace the box bands entirely.
 #[derive(Debug, Clone, Copy)]
 pub struct TraceTank {
     pub id: TankId,
@@ -18,6 +19,7 @@ pub struct TraceTank {
     pub hitbox: HitboxProfile,
     pub turret_ring_z_m: f32,
     pub armor: ArmorProfile,
+    pub armor_volumes: Option<&'static VehicleArmorVolumes>,
 }
 
 impl TraceTank {
@@ -36,6 +38,7 @@ impl TraceTank {
             hitbox: spec.hitbox,
             turret_ring_z_m: spec.mounts.turret_ring.translation.z,
             armor: spec.hull,
+            armor_volumes: vehicle_armor_volumes(spec.kind),
         }
     }
 
@@ -54,6 +57,7 @@ impl TraceTank {
             hitbox: HitboxProfile::for_vehicle(kind),
             turret_ring_z_m: MountFrames::for_vehicle(kind).turret_ring.translation.z,
             armor: kind.spec().hull,
+            armor_volumes: vehicle_armor_volumes(kind),
         }
     }
 }

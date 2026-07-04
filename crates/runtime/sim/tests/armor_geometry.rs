@@ -63,22 +63,94 @@ fn plunging_fire_meets_the_reclined_glacis_far_squarer() {
 
 #[test]
 fn hull_down_nose_up_steepens_the_glacis() {
-    // The nose-up pose moves the bow, so resolve where the upper glacis actually sits (a fixed
-    // hull-local point on the front face carried through the pose) and fire flat through it.
+    // The nose-up pose moves the bow, so resolve where the upper glacis actually sits — a point
+    // on the REAL blueprint glacis plane (fold at the sponson step, reclined by the slope),
+    // carried through the pose — and fire flat through it.
     let nose_up = HullPose { yaw_rad: 0.0, pitch_rad: 0.3, roll_rad: 0.0 };
-    let spec = TankSpec::t54_1951();
-    let glacis_local = Vec3::new(0.0, 0.3, spec.hitbox.half_length_m - 0.001);
-    let glacis_world =
-        nose_up.basis() * (Vec3::Y * spec.hitbox.center_y_m) + nose_up.basis() * glacis_local;
+    let blueprint = game_core::VehicleBlueprint::for_vehicle(game_core::VehicleKind::T54_1951)
+        .expect("blueprint");
+    let cy = blueprint.hull.hitbox_center_y;
+    let up_the_plate = 0.29;
+    let glacis_local = Vec3::new(
+        0.0,
+        (blueprint.hull.sponson_y - cy) + up_the_plate,
+        blueprint.hull.half_len - up_the_plate * blueprint.armor.hull_front.0.to_radians().tan(),
+    );
+    let glacis_world = nose_up.basis() * (Vec3::Y * cy) + nose_up.basis() * glacis_local;
     let (zone, angle) = hit(
         Vec3::new(0.0, glacis_world.y, glacis_world.z + 8.0),
-        Vec3::new(0.0, glacis_world.y, glacis_world.z - 2.0),
+        Vec3::new(0.0, glacis_world.y, glacis_world.z - 4.0),
         t54_at_origin(nose_up),
     );
     assert_eq!(zone, ArmorZone::UpperGlacis);
     assert!(
         angle > glacis_slope() + 12.0,
         "a ~17° nose-up pose adds its pitch to the effective slope, got {angle}"
+    );
+}
+
+/// Fire one straight segment and expect NO tank impact.
+fn misses(from: Vec3, to: Vec3, tank: TraceTank) {
+    let tanks = [tank];
+    let world = ShellTraceWorld { tanks: &tanks, blockers: &[], heightmap: None, cover: &[] };
+    let outcome = sim::segment_impact(from, to, to - from, &world);
+    assert!(outcome.is_none(), "expected a clean miss, got {outcome:?}");
+}
+
+#[test]
+fn the_gap_over_the_tracks_is_honest_air() {
+    // The T-54 hull wall sits at ±1.05 m and the track band tops out around 1.04 m of height;
+    // the old hitbox pretended armor filled the full ±1.75 m width. A shot threading over the
+    // track, outside the narrow hull, must fly on.
+    let blueprint =
+        game_core::VehicleBlueprint::for_vehicle(game_core::VehicleKind::T54_1951).expect("bp");
+    let x = (blueprint.hull.half_width + blueprint.hull.hitbox_half_width) * 0.5;
+    let y = blueprint.track.top_y + blueprint.track.belt_half_thickness + 0.15;
+    misses(Vec3::new(x, y, 10.0), Vec3::new(x, y, -10.0), t54_at_origin(HullPose::level(0.0)));
+}
+
+#[test]
+fn the_track_band_is_the_real_belt_box() {
+    // Into the belt from the side, at wheel height: the impact is the track zone at the belt's
+    // real outer face — the spaced-armor screen in front of the hull wall.
+    let blueprint =
+        game_core::VehicleBlueprint::for_vehicle(game_core::VehicleKind::T54_1951).expect("bp");
+    let y = blueprint.track.wheel_radius; // mid-belt height
+    let (zone, _) =
+        hit(Vec3::new(10.0, y, 0.5), Vec3::new(-10.0, y, 0.5), t54_at_origin(HullPose::level(0.0)));
+    assert_eq!(zone, ArmorZone::RightTrack, "the belt box answers before the hull wall");
+}
+
+#[test]
+fn a_shot_down_the_gun_line_lands_on_the_mantlet_ball() {
+    let blueprint =
+        game_core::VehicleBlueprint::for_vehicle(game_core::VehicleKind::T54_1951).expect("bp");
+    let y = blueprint.gun.trunnion_y;
+    let (zone, _) =
+        hit(Vec3::new(0.0, y, 10.0), Vec3::new(0.0, y, -2.0), t54_at_origin(HullPose::level(0.0)));
+    assert_eq!(zone, ArmorZone::Mantlet, "the gun line meets the mantlet ball, a real circle");
+}
+
+#[test]
+fn the_dome_cheek_presents_a_steeper_angle_than_the_dome_center() {
+    // The cast dome's normal sweeps around the casting: the same flat shot meets the front
+    // center near its base slope and the far cheek sector at a much harsher angle.
+    let blueprint =
+        game_core::VehicleBlueprint::for_vehicle(game_core::VehicleKind::T54_1951).expect("bp");
+    let y = blueprint.gun.trunnion_y;
+    let (_, center_angle) = hit(
+        Vec3::new(0.15, y, 10.0),
+        Vec3::new(0.15, y, -2.0),
+        t54_at_origin(HullPose::level(0.0)),
+    );
+    let (_, cheek_angle) = hit(
+        Vec3::new(0.95, y, 10.0),
+        Vec3::new(0.95, y, -2.0),
+        t54_at_origin(HullPose::level(0.0)),
+    );
+    assert!(
+        cheek_angle > center_angle + 15.0,
+        "the cheek glances: {cheek_angle}° vs center {center_angle}°"
     );
 }
 

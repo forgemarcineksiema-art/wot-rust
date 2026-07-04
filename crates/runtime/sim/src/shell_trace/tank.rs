@@ -1,12 +1,9 @@
-use game_core::ArmorZone;
-use game_core::math::{plate_normal, segment_box_entry, world_to_tank_local};
+use game_core::math::{plate_normal, world_to_tank_local};
+use game_core::{TaggedPlane, VehicleArmorVolumes, segment_volume_entry};
 use glam::{Mat3, Vec3};
 
+use super::legacy_boxes::{classify_hull, classify_turret, hull_volume_entry, turret_volume_entry};
 use super::{SegmentImpact, TraceTank};
-
-/// Entry faces are detected by proximity to a box plane; comfortably larger than float noise,
-/// far smaller than any armor band.
-const FACE_EPS: f32 = 1.0e-3;
 
 /// Nearest tank the segment `previous -> current` enters (analytic ray vs hull-local AABB). The
 /// caller pre-filters the slice (owner, dead, friendly), so this is pure geometry + classification.
@@ -29,6 +26,10 @@ pub(super) fn first_tank_impact(
 /// narrower turret box above it. The turret box traverses with the turret about the ring axis, so
 /// a shot at turret height that visually passes beside the turret really passes — it no longer
 /// connects with deck air the old full-plan box put there.
+///
+/// Blueprint vehicles go further: their baked [`VehicleArmorVolumes`] replace the boxes and the
+/// classification bands entirely — the entering PLANE of a convex armor volume is the struck
+/// plate, carrying its own true normal and zone.
 fn tank_segment_hit(
     previous: Vec3,
     current: Vec3,
@@ -40,8 +41,13 @@ fn tank_segment_hit(
     let start = world_to_tank_local(previous, tank.position, hitbox.center_y_m, tank.hull);
     let end = world_to_tank_local(current, tank.position, hitbox.center_y_m, tank.hull);
 
+    if let Some(volumes) = tank.armor_volumes {
+        return armor_volume_hit(start, end, previous, current, velocity, tank, volumes);
+    }
+
     let hull = hull_volume_entry(start, end, &hitbox);
     let turret = turret_volume_entry(start, end, tank, &hitbox);
+    // (Legacy band model below — blueprint vehicles returned through the volume path above.)
 
     let (hit_t, zone, side_x) = match (hull, turret) {
         (Some((hull_t, hull_local)), Some((turret_t, turret_local))) => {
@@ -82,90 +88,74 @@ fn tank_segment_hit(
     })
 }
 
-/// Entry into the hull slab: full plan, capped at the armor split. Returns the parametric entry
-/// and the hull-local hit point.
-fn hull_volume_entry(
+/// The baked-volume narrow phase: the nearest entering plane across the hull volumes (hull
+/// frame) and the turret volume (turret frame, rotated about the ring axis) IS the struck
+/// plate. Its normal carries the real slope, its zone comes from the plane (or a weakspot
+/// patch riding on it — the mantlet ball), and both ride the full hull attitude.
+fn armor_volume_hit(
     start: Vec3,
     end: Vec3,
-    hitbox: &game_core::HitboxProfile,
-) -> Option<(f32, Vec3)> {
-    let min = Vec3::new(-hitbox.half_width_m, -hitbox.half_height_m, -hitbox.half_length_m);
-    let max = Vec3::new(hitbox.half_width_m, hitbox.turret_min_y_m, hitbox.half_length_m);
-    let t = segment_box_entry(start, end, min, max)?;
-    Some((t, start.lerp(end, t)))
-}
-
-/// Entry into the turret box, evaluated in the turret frame (hull frame yawed by turret traverse
-/// about the ring axis). Returns the parametric entry and the *turret-frame* hit point, which is
-/// the armor frame for turret plates — the mantlet band follows the gun, not the hull.
-fn turret_volume_entry(
-    start: Vec3,
-    end: Vec3,
+    previous: Vec3,
+    current: Vec3,
+    velocity: Vec3,
     tank: &TraceTank,
-    hitbox: &game_core::HitboxProfile,
-) -> Option<(f32, Vec3)> {
-    let pivot = Vec3::new(0.0, 0.0, tank.turret_ring_z_m);
+    volumes: &'static VehicleArmorVolumes,
+) -> Option<SegmentImpact> {
+    struct Entry {
+        t: f32,
+        plane: &'static TaggedPlane,
+        frame_start: Vec3,
+        frame_end: Vec3,
+        turret_frame: bool,
+    }
+    let mut best: Option<Entry> = None;
+    for volume in &volumes.hull {
+        if let Some((t, index)) = segment_volume_entry(start, end, volume)
+            && best.as_ref().is_none_or(|entry| t < entry.t)
+        {
+            best = Some(Entry {
+                t,
+                plane: &volume.planes[index],
+                frame_start: start,
+                frame_end: end,
+                turret_frame: false,
+            });
+        }
+    }
+    // The turret volume lives in the turret frame: rotate the segment about the ring axis.
+    let pivot = Vec3::new(0.0, 0.0, volumes.turret_ring_z);
     let to_turret = Mat3::from_rotation_y(-tank.turret_yaw_rad);
     let turret_start = pivot + to_turret * (start - pivot);
     let turret_end = pivot + to_turret * (end - pivot);
-    let min = Vec3::new(
-        -hitbox.turret_half_width_m,
-        hitbox.turret_min_y_m,
-        hitbox.turret_center_z_m - hitbox.turret_half_length_m,
-    );
-    let max = Vec3::new(
-        hitbox.turret_half_width_m,
-        hitbox.half_height_m,
-        hitbox.turret_center_z_m + hitbox.turret_half_length_m,
-    );
-    let t = segment_box_entry(turret_start, turret_end, min, max)?;
-    Some((t, turret_start.lerp(turret_end, t)))
-}
-
-/// Hull-volume zones. The slab's top face is the deck: a plunging hit beside the turret lands on
-/// thin roof plate, not on a phantom turret side. Below deck the bands are unchanged from the
-/// single-box model.
-fn classify_hull(local_hit: Vec3, half: Vec3, turret_min_y_m: f32) -> (ArmorZone, f32) {
-    if local_hit.y >= turret_min_y_m - FACE_EPS {
-        return (ArmorZone::Roof, local_hit.x);
+    if let Some((t, index)) = segment_volume_entry(turret_start, turret_end, &volumes.turret)
+        && best.as_ref().is_none_or(|entry| t < entry.t)
+    {
+        best = Some(Entry {
+            t,
+            plane: &volumes.turret.planes[index],
+            frame_start: turret_start,
+            frame_end: turret_end,
+            turret_frame: true,
+        });
     }
-    let x_reach = local_hit.x.abs() / half.x.max(0.01);
-    let z_reach = local_hit.z.abs() / half.z.max(0.01);
-    let zone = if z_reach >= x_reach {
-        if local_hit.z >= 0.0 { hull_front_zone(local_hit) } else { ArmorZone::HullRear }
-    } else if local_hit.y <= -half.y * 0.25 {
-        if local_hit.x < 0.0 { ArmorZone::LeftTrack } else { ArmorZone::RightTrack }
+
+    let entry = best?;
+    let frame_hit = entry.frame_start.lerp(entry.frame_end, entry.t);
+    let zone = entry.plane.zone_at(frame_hit);
+    let hull_local_normal = if entry.turret_frame {
+        Mat3::from_rotation_y(tank.turret_yaw_rad) * entry.plane.normal
     } else {
-        ArmorZone::HullSide
+        entry.plane.normal
     };
-    (zone, local_hit.x)
-}
-
-/// Turret-volume zones, in the turret frame. The roof and mantlet bands keep their pre-turret-box
-/// absolute sizes (the roof band hangs off the box top, the mantlet band off the full hull width),
-/// so narrowing the volume did not retune any armor band.
-fn classify_turret(local_hit: Vec3, hitbox: &game_core::HitboxProfile) -> (ArmorZone, f32) {
-    let dz = local_hit.z - hitbox.turret_center_z_m;
-    let x_reach = local_hit.x.abs() / hitbox.turret_half_width_m.max(0.01);
-    let z_reach = dz.abs() / hitbox.turret_half_length_m.max(0.01);
-    let zone = if z_reach >= x_reach {
-        if dz >= 0.0 { turret_front_zone(local_hit, hitbox) } else { ArmorZone::TurretRear }
-    } else {
-        ArmorZone::TurretSide
-    };
-    (zone, local_hit.x)
-}
-
-fn hull_front_zone(local_hit: Vec3) -> ArmorZone {
-    if local_hit.y < -0.15 { ArmorZone::LowerPlate } else { ArmorZone::UpperGlacis }
-}
-
-fn turret_front_zone(local_hit: Vec3, hitbox: &game_core::HitboxProfile) -> ArmorZone {
-    if local_hit.y >= hitbox.half_height_m * 0.88 {
-        ArmorZone::Roof
-    } else if local_hit.x.abs() <= hitbox.half_width_m * 0.32 {
-        ArmorZone::Mantlet
-    } else {
-        ArmorZone::TurretFront
-    }
+    let normal = (tank.hull.basis() * hull_local_normal).normalize_or_zero();
+    let direction = velocity.normalize_or_zero();
+    let impact_angle_degrees = (-direction).dot(normal).clamp(-1.0, 1.0).acos().to_degrees();
+    Some(SegmentImpact::Tank {
+        id: tank.id,
+        facing: zone.facing(),
+        zone,
+        impact_angle_degrees,
+        hit_position: previous.lerp(current, entry.t),
+        plate_normal: normal,
+    })
 }

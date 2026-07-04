@@ -15,9 +15,10 @@ mod vehicles;
 mod weapon;
 
 pub use armor::{
-    ArmorFacet, ArmorFacetProfile, ArmorFacing, ArmorProfile, ArmorZone, PenetrationResult,
-    resolve_penetration, resolve_penetration_at_distance, resolve_penetration_at_distance_on_zone,
-    resolve_penetration_through_track,
+    ArmorFacet, ArmorFacetProfile, ArmorFacing, ArmorPatch, ArmorProfile, ArmorVolume, ArmorZone,
+    PenetrationResult, TaggedPlane, VehicleArmorVolumes, resolve_penetration,
+    resolve_penetration_at_distance, resolve_penetration_at_distance_on_zone,
+    resolve_penetration_through_track, segment_volume_entry, vehicle_armor_volumes,
 };
 pub use contact_footprint::{ContactFootprint, MAX_CONTACT_STATIONS};
 pub use crew::{Crew, CrewRole};

@@ -66,14 +66,15 @@ fn shot_below_the_split_still_lands_on_the_hull_side() {
     }
 }
 
-/// Head-on turret shots keep their pre-turret-box bands: central hits are mantlet, off-centre
-/// hits are turret front.
+/// Head-on turret shots: a shot down the gun line lands on the mantlet ball (a real circular
+/// patch on the casting, not a width band), a cheek shot on plain turret front.
 #[test]
 fn turret_front_keeps_its_mantlet_and_front_bands() {
     let tank = t55a_at_origin(0.0);
+    // The T-55A gun line: trunnion height 1.78 — the mantlet patch is centered on it.
     let center = segment_impact(
-        Vec3::new(0.0, 2.0, 10.0),
-        Vec3::new(0.0, 2.0, -10.0),
+        Vec3::new(0.0, 1.78, 10.0),
+        Vec3::new(0.0, 1.78, -10.0),
         Vec3::new(0.0, 0.0, -300.0),
         &world(&tank),
     );
@@ -86,8 +87,8 @@ fn turret_front_keeps_its_mantlet_and_front_bands() {
     }
 
     let off_center = segment_impact(
-        Vec3::new(0.7, 2.0, 10.0),
-        Vec3::new(0.7, 2.0, -10.0),
+        Vec3::new(0.7, 1.78, 10.0),
+        Vec3::new(0.7, 1.78, -10.0),
         Vec3::new(0.0, 0.0, -300.0),
         &world(&tank),
     );
@@ -112,11 +113,15 @@ fn plunging_hit_on_the_deck_beside_the_turret_is_a_roof_hit() {
     match outcome {
         Some(SegmentImpact::Tank { zone, hit_position, .. }) => {
             assert_eq!(zone, ArmorZone::Roof);
-            let hitbox = HitboxProfile::for_vehicle(VehicleKind::T55A);
-            let deck_y = hitbox.center_y_m + hitbox.turret_min_y_m;
+            // The deck is the REAL blueprint hull roof (1.30 m on the T-55A), not the hitbox
+            // split plane the old box model used.
+            let deck_y = game_core::VehicleBlueprint::for_vehicle(VehicleKind::T55A)
+                .expect("blueprint")
+                .hull
+                .deck_y;
             assert!(
                 (hit_position.y - deck_y).abs() < 1.0e-3,
-                "deck hit should land on the split plane, got y {:.3}",
+                "deck hit should land on the hull roof plane, got y {:.3}",
                 hit_position.y
             );
         }
