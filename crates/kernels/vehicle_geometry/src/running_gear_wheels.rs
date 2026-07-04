@@ -33,11 +33,12 @@ pub fn road_wheel_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
         .append(&wheel_disc_at(0.0, r * 0.22, half_w * 1.05, seg, MaterialRole::TrackMetal))
         // One centred rubber tire grooved down the middle — the dual-tire look without offset bands.
         .append(&dual_tire(r, half_w, seg));
-    // Six radial starfish arms bridging hub to rim, proud of the recessed web. Their tips are
-    // BURIED radially in the rim ring and the hub, and their faces sit just INBOARD of the ring's
-    // side annuli (0.94 x body width vs the ring's full body width) — an arm face flush with the
-    // ring's side plane z-fights across the whole overlap band.
-    let arms = 6usize;
+    // Radial arms bridging hub to rim, proud of the recessed web: the T-54's six-arm starfish
+    // or the IS family's denser rib casting (`wheel_spokes`). Their tips are BURIED radially in
+    // the rim ring and the hub, and their faces sit just INBOARD of the ring's side annuli
+    // (0.94 x body width vs the ring's full body width) — an arm face flush with the ring's
+    // side plane z-fights across the whole overlap band.
+    let arms = kin.wheel_spokes.max(3);
     for i in 0..arms {
         let angle = (i as f32 / arms as f32) * std::f32::consts::TAU;
         builder = builder.append(&spoke_arm(angle, r * 0.16, r * 0.80, r, body_half * 0.94));
