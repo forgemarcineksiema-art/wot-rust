@@ -62,8 +62,10 @@ pub fn split_pbr_vehicle_render_frame_on_terrain(
         let snapshot = render_snapshot(&tank);
         let variation = VehicleVariation::from_snapshot(&snapshot);
         let (left_travel, right_travel, wheel_count) = wheel_travel(&tank, terrain);
-        // A driven track pulls its top run tight; braking or coasting lets it hang.
-        let sag_scale = (1.0 - tank.accel_long_mps2 * 0.12).clamp(0.55, 1.5);
+        // A driven track pulls its top run tight; braking or coasting lets it hang. The gain is
+        // gentle: the P/v launch hits ~8 m/s², and a sag that slams to its clamp on a throttle
+        // tap reads as the track convulsing rather than tensioning.
+        let sag_scale = (1.0 - tank.accel_long_mps2 * 0.05).clamp(0.72, 1.28);
         let dynamics = GearDynamics {
             left_travel: &left_travel[..wheel_count],
             right_travel: &right_travel[..wheel_count],
@@ -113,7 +115,7 @@ fn wheel_travel(
             let wzw = bz - sin * lx + cos * wz;
             let plane = hull_y + pitch.tan() * wz + roll.tan() * lx;
             let ground = map.sample_height(wx, wzw).unwrap_or(plane);
-            lane[index] = (ground - plane).clamp(-0.08, 0.12);
+            lane[index] = (ground - plane).clamp(-0.08, 0.20);
         }
     }
     (left, right, count)

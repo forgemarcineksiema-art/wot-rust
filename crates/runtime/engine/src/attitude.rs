@@ -16,12 +16,19 @@ const ATTITUDE_ZETA: f32 = 0.55;
 const HEAVE_OMEGA: f32 = 9.0;
 const HEAVE_ZETA: f32 = 0.6;
 /// Radians of dynamic pitch per m/s² of longitudinal acceleration (braking dives the nose).
-const PITCH_PER_ACCEL: f32 = 0.009;
+const PITCH_PER_ACCEL: f32 = 0.006;
 /// Radians of dynamic roll per m/s² of lateral (centripetal) acceleration.
-const ROLL_PER_ACCEL: f32 = 0.007;
-const MAX_DYNAMIC_PITCH: f32 = 0.06;
-const MAX_DYNAMIC_ROLL: f32 = 0.05;
-const MAX_HEAVE_M: f32 = 0.30;
+const ROLL_PER_ACCEL: f32 = 0.005;
+const MAX_DYNAMIC_PITCH: f32 = 0.035;
+const MAX_DYNAMIC_ROLL: f32 = 0.035;
+/// The sprung hull may float this far ABOVE the replicated height (a drop reads as a settle)...
+const MAX_HEAVE_UP_M: f32 = 0.30;
+/// ...but only this far BELOW it: a deeper lag visibly buries the tracks in the terrain.
+const MAX_HEAVE_DOWN_M: f32 = 0.12;
+/// Low-pass rate (1/s) for the acceleration estimates that drive the dynamic cues. The P/v drive
+/// launches at ~8 m/s² from the first frame; feeding that raw step into the pitch/roll targets
+/// snaps them to their clamps in one frame, which reads as violence rather than weight transfer.
+const ACCEL_SMOOTH_PER_S: f32 = 6.0;
 /// Spring frequency scale at a fully drained suspension pool: 1.0 at full HP easing to this
 /// floor at 0 HP, so a wounded suspension is a visibly softer spring (the hull wallows).
 const WOUNDED_OMEGA_FLOOR: f32 = 0.6;
@@ -49,6 +56,8 @@ pub struct HullAttitude {
     /// Filtered longitudinal acceleration (m/s², forward positive) — drives the render-side
     /// track-tension cue as well as the dynamic pitch.
     pub accel_long_mps2: f32,
+    /// Filtered lateral (centripetal) acceleration — drives the dynamic roll.
+    accel_lat_mps2: f32,
     pitch_vel: f32,
     roll_vel: f32,
     smoothed_y: f32,
@@ -104,15 +113,17 @@ impl HullAttitude {
         self.prev_translation = translation;
         self.prev_yaw = yaw_rad;
         self.prev_speed = speed;
-        self.accel_long_mps2 = spring_to(self.accel_long_mps2, accel_long, 10.0 * dt);
+        self.accel_long_mps2 = spring_to(self.accel_long_mps2, accel_long, ACCEL_SMOOTH_PER_S * dt);
+        self.accel_lat_mps2 = spring_to(self.accel_lat_mps2, accel_lat, ACCEL_SMOOTH_PER_S * dt);
 
-        // Targets: terrain slope plus the dynamic weight transfer. Braking (negative accel while
-        // moving forward) dives the nose; accelerating squats it; turning leans the hull out of
-        // the corner (centripetal acceleration to the left rolls the right side down).
+        // Targets: terrain slope plus the dynamic weight transfer, read from the SMOOTHED
+        // accelerations so a throttle tap eases the hull over rather than snapping it. Braking
+        // (negative accel while moving forward) dives the nose; accelerating squats it; turning
+        // leans the hull out of the corner.
         let pitch_target = sample.terrain_pitch_rad
-            + (accel_long * PITCH_PER_ACCEL).clamp(-MAX_DYNAMIC_PITCH, MAX_DYNAMIC_PITCH);
+            + (self.accel_long_mps2 * PITCH_PER_ACCEL).clamp(-MAX_DYNAMIC_PITCH, MAX_DYNAMIC_PITCH);
         let roll_target = sample.terrain_roll_rad
-            + (accel_lat * ROLL_PER_ACCEL).clamp(-MAX_DYNAMIC_ROLL, MAX_DYNAMIC_ROLL);
+            + (self.accel_lat_mps2 * ROLL_PER_ACCEL).clamp(-MAX_DYNAMIC_ROLL, MAX_DYNAMIC_ROLL);
 
         spring_step(&mut self.pitch_rad, &mut self.pitch_vel, pitch_target, attitude_omega, attitude_zeta, dt);
         spring_step(&mut self.roll_rad, &mut self.roll_vel, roll_target, attitude_omega, attitude_zeta, dt);
@@ -121,7 +132,8 @@ impl HullAttitude {
         // it through the same kind of spring, so a step in the heightmap becomes a settle, not a
         // teleport. The offset (not the absolute) is what the render applies.
         spring_step(&mut self.smoothed_y, &mut self.heave_vel, translation[1], heave_omega, heave_zeta, dt);
-        self.heave_m = (self.smoothed_y - translation[1]).clamp(-MAX_HEAVE_M, MAX_HEAVE_M);
+        self.heave_m =
+            (self.smoothed_y - translation[1]).clamp(-MAX_HEAVE_DOWN_M, MAX_HEAVE_UP_M);
     }
 }
 
@@ -185,6 +197,33 @@ mod tests {
         assert!(att.heave_m < -0.1, "the sprung hull lags a sudden step, got {}", att.heave_m);
         settle(&mut att, [0.0, 1.2, 0.0], 0.0, AttitudeSample::default(), 240);
         assert!(att.heave_m.abs() < 0.01, "and settles back onto it, got {}", att.heave_m);
+    }
+
+    #[test]
+    fn a_full_throttle_launch_eases_the_hull_over_instead_of_snapping_it() {
+        let mut att = HullAttitude::default();
+        let dt = 1.0 / 60.0;
+        att.step([0.0, 0.0, 0.0], 0.0, AttitudeSample::default(), 1.0, dt); // seed
+        // Hard P/v launch: a constant ~8 m/s² from the very first driven frame.
+        let (mut v, mut z) = (0.0_f32, 0.0_f32);
+        let mut after_three_frames = 0.0;
+        for frame in 0..60 {
+            v += 8.0 * dt;
+            z += v * dt;
+            att.step([0.0, 0.0, z], 0.0, AttitudeSample::default(), 1.0, dt);
+            if frame == 2 {
+                after_three_frames = att.pitch_rad;
+            }
+        }
+        assert!(
+            after_three_frames.abs() < 0.005,
+            "the first frames must ease, not snap: {after_three_frames}"
+        );
+        assert!(
+            att.pitch_rad > 0.015,
+            "a sustained launch still visibly squats the hull: {}",
+            att.pitch_rad
+        );
     }
 
     #[test]

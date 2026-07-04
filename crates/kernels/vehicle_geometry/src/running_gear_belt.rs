@@ -61,7 +61,9 @@ impl BeltPath {
     }
 
     fn build(kin: &RunningGearKinematics, top_sag: f32) -> Self {
-        let r = kin.end_radius.max(0.05);
+        // Links wrap OUTSIDE the end-wheel tread by the same seat as the ground run: a wrap
+        // radius equal to the wheel radius buries half a shoe in the idler tire and shimmers.
+        let r = kin.end_radius.max(0.05) + LINK_SEAT;
         let y_top = kin.end_cy + r;
         let wheel_ground = kin.cy - kin.wheel_radius - LINK_SEAT;
         let raised = kin.end_cy - r > wheel_ground + 1.0e-3 && kin.end_cz > kin.half_run + 1.0e-3;
@@ -181,11 +183,6 @@ impl BeltPath {
             rot_x: tangent_rot(dzr, -dyr),
         }
     }
-}
-
-/// Sample the closed belt loop at arc length `s` in `[0, belt_length)`.
-pub(crate) fn sample_belt(kin: &RunningGearKinematics, s: f32) -> BeltSample {
-    BeltPath::new(kin).sample(s)
 }
 
 /// Rotation about X mapping a link's local +Z onto the belt tangent `(dz, dy)`. A rotation of `θ`

@@ -52,8 +52,10 @@ pub fn running_gear_placements_dynamic(
 }
 
 /// Vertical travel for the wheel at `index` (0 = rest for anything the caller did not provide).
+/// The upward range is generous (a real T-54 bogie travels ~0.2 m): wheels that cap out on a
+/// bump leave the belt buried in the terrain.
 fn travel_at(travel: &[f32], index: usize) -> f32 {
-    travel.get(index).copied().unwrap_or(0.0).clamp(-0.08, 0.12)
+    travel.get(index).copied().unwrap_or(0.0).clamp(-0.08, 0.20)
 }
 
 /// Bottom-run travel under `z`: the shoe follows the wheels it spans, interpolated between the

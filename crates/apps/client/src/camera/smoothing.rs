@@ -23,9 +23,12 @@ pub(super) struct CameraSmoothing {
 /// Follow-spring natural frequency (rad/s): omega 16 with critical damping is a ~0.13 s lag.
 const FOLLOW_OMEGA: f32 = 16.0;
 /// Full-speed FOV widening (degrees) — the subtle "world opens up" cue at top speed.
-const SPEED_FOV_BOOST_DEG: f32 = 4.0;
+const SPEED_FOV_BOOST_DEG: f32 = 2.5;
 /// Speed (m/s) at which the FOV boost saturates.
 const SPEED_FOV_AT_MPS: f32 = 14.0;
+/// Blend rate (1/s) easing the FOV toward its speed target. Slow on purpose: a fast blend reads
+/// as a zoom lurch on every W/S tap instead of the world gradually opening up.
+const FOV_BLEND_PER_S: f32 = 1.6;
 /// Downward anchor velocity injected per m/s of absorbed landing speed.
 const KICK_PER_IMPACT_MPS: f32 = 0.22;
 /// Hardest camera kick a single landing can inject (m/s of anchor velocity).
@@ -69,7 +72,7 @@ impl BattleCameraController {
         s.anchor_vel += accel * dt;
         s.anchor = Some(anchor + s.anchor_vel * dt);
         let fov_target = SPEED_FOV_BOOST_DEG * (s.speed_mps / SPEED_FOV_AT_MPS).clamp(0.0, 1.0);
-        s.fov_boost_deg += (fov_target - s.fov_boost_deg) * (4.0 * dt).clamp(0.0, 1.0);
+        s.fov_boost_deg += (fov_target - s.fov_boost_deg) * (FOV_BLEND_PER_S * dt).clamp(0.0, 1.0);
     }
 
 }

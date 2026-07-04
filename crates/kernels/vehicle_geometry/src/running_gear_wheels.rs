@@ -23,8 +23,9 @@ pub fn road_wheel_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
 
     let mut builder = MeshBuilder::new()
         // Full-width steel rim ring seated under the tire (closed rectangular profile revolved:
-        // outer wall, both side annuli, inner wall) — solid at the rim, open inboard of it. Its
-        // outer face stays clear of the tire's inner bevel (0.91 r): touching surfaces z-fight.
+        // outer wall, both side annuli, inner wall) — solid at the rim, open inboard of it. The
+        // tire's side lips overlap it RADIALLY (down to 0.86 r) but sit on wider planes, so there
+        // is neither a see-through gap between tire and ring nor a coplanar face to z-fight.
         .append(&steel_ring(r * 0.66, r * 0.895, body_half, seg))
         // Recessed centre web the openwork reads against: thin, well inboard of the rim faces.
         .append(&wheel_disc_at(0.0, r * 0.72, body_half * 0.28, seg, MaterialRole::TrackMetal))
@@ -91,11 +92,14 @@ fn spoke_arm(angle: f32, inner_r: f32, outer_r: f32, wheel_r: f32, half_width: f
 
 /// A single centred rubber tire whose tread dips to a groove in the middle, giving the T-54 dual-tire
 /// read as *one* concentric piece. Built as an uncapped surface of revolution so it rings the rim
-/// without a disc cap that would cover the steel face.
+/// without a disc cap that would cover the steel face. Its side lips run inward to 0.86 r —
+/// radially UNDER the steel ring's outer wall (0.895 r) on a wider plane — so no annular window
+/// opens between tire and ring (an open ring flickers as the spokes sweep behind it).
 fn dual_tire(r: f32, half_w: f32, segments: usize) -> GeometryMesh {
     MeshBuilder::new()
         .revolve(RevolveSpec {
             profile: vec![
+                ProfilePoint::new(r * 0.86, -half_w),
                 ProfilePoint::new(r * 0.91, -half_w),
                 ProfilePoint::new(r, -half_w * 0.80),
                 ProfilePoint::new(r, -half_w * 0.34),
@@ -103,6 +107,7 @@ fn dual_tire(r: f32, half_w: f32, segments: usize) -> GeometryMesh {
                 ProfilePoint::new(r, half_w * 0.34),
                 ProfilePoint::new(r, half_w * 0.80),
                 ProfilePoint::new(r * 0.91, half_w),
+                ProfilePoint::new(r * 0.86, half_w),
             ],
             axis: Axis::X,
             segments,
@@ -112,62 +117,7 @@ fn dual_tire(r: f32, half_w: f32, segments: usize) -> GeometryMesh {
         .build()
 }
 
-/// A rubber tire tread: an *uncapped* surface of revolution at `radius`, spanning `center_x ±
-/// half_width` along the axle. Uncapped so it reads as the tire ring around the steel face rather
-/// than a solid coin that hides it.
-fn tread_band(center_x: f32, radius: f32, half_width: f32, segments: usize) -> GeometryMesh {
-    MeshBuilder::new()
-        .revolve(RevolveSpec {
-            profile: vec![
-                ProfilePoint::new(radius, center_x - half_width),
-                ProfilePoint::new(radius, center_x + half_width),
-            ],
-            axis: Axis::X,
-            segments,
-            material: MaterialRole::Rubber,
-            smoothing: SG_WHEEL,
-        })
-        .build()
-}
-
-/// The larger end wheel (drive sprocket / idler), centred at the origin with its axle along X.
-pub fn end_wheel_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
-    idler_unit_mesh(kin)
-}
-
-/// Smooth front idler wheel, centred at the origin with its axle along X. Built as a steel disc
-/// wheel with a rubber tire rim and a proud hub — a *smooth* sibling of the road wheel, so the front
-/// of the track reads as a plain wheel against the toothed drive sprocket at the rear.
-pub fn idler_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
-    let seg = kin.segments.max(20);
-    let r = kin.end_radius;
-    let half_w = kin.wheel_half_width;
-    MeshBuilder::new()
-        .append(&wheel_disc_at(0.0, r * 0.86, half_w, seg, MaterialRole::TrackMetal))
-        .append(&tread_band(0.0, r, half_w * 0.9, seg))
-        .append(&wheel_disc_at(0.0, r * 0.28, half_w * 1.12, seg, MaterialRole::TrackMetal))
-        .build()
-}
-
-/// Rear drive sprocket: a small steel hub plate ringed by distinct teeth, so it reads as a toothed
-/// drive wheel — visibly different from the smooth front idler. The teeth stand clear of a smaller
-/// central plate (rather than a full end-wheel disc) so they are not swallowed by the wrapping links.
-pub fn sprocket_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
-    let seg = kin.segments.max(16);
-    let r = kin.end_radius;
-    let half_w = kin.wheel_half_width;
-    let mut builder = MeshBuilder::new()
-        .append(&wheel_disc_at(0.0, r * 0.62, half_w, seg, MaterialRole::TrackMetal))
-        .append(&wheel_disc_at(0.0, r * 0.26, half_w * 1.15, seg, MaterialRole::TrackMetal));
-    let teeth = 16usize;
-    for i in 0..teeth {
-        let angle = (i as f32 / teeth as f32) * std::f32::consts::TAU;
-        builder = builder.append(&sprocket_tooth(angle, r * 0.60, r * 0.97, half_w * 0.82));
-    }
-    builder.build()
-}
-
-fn wheel_disc_at(
+pub(crate) fn wheel_disc_at(
     center_x: f32,
     radius: f32,
     half_width: f32,
@@ -191,26 +141,3 @@ fn wheel_disc_at(
         .build()
 }
 
-fn sprocket_tooth(angle: f32, inner_r: f32, outer_r: f32, half_width: f32) -> GeometryMesh {
-    let (sin, cos) = angle.sin_cos();
-    let radial = Vec2::new(sin, cos);
-    let tangent = Vec2::new(cos, -sin);
-    let section = vec![
-        radial * inner_r - tangent * 0.060,
-        radial * inner_r + tangent * 0.060,
-        radial * outer_r + tangent * 0.038,
-        radial * outer_r - tangent * 0.038,
-    ];
-    MeshBuilder::new()
-        .extrude(
-            Vec3::ZERO,
-            ExtrudeSpec {
-                section,
-                axis: Axis::X,
-                half_depth: half_width,
-                material: MaterialRole::TrackMetal,
-                smoothing: SG_HARD,
-            },
-        )
-        .build()
-}
