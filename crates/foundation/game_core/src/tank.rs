@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{ArmorProfile, DamageLayout, GunSpec, ModuleHealth, MountFrames, VehicleKind};
+use crate::{
+    ArmorProfile, ContactFootprint, DamageLayout, GunSpec, ModuleHealth, MountFrames, VehicleKind,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct HitboxProfile {
@@ -129,11 +131,26 @@ pub struct TankSpec {
     pub damage_layout: DamageLayout,
     #[serde(default)]
     pub mounts: MountFrames,
+    /// Running-gear ground-contact stations (see [`ContactFootprint`]). `serde(default)` keeps
+    /// older spec fixtures loading; consumers read [`TankSpec::contact_footprint`], which falls
+    /// back to a hitbox estimate when the field is the empty placeholder.
+    #[serde(default)]
+    pub contact: ContactFootprint,
 }
 
 impl TankSpec {
     pub fn medium_test_tank() -> Self {
         VehicleKind::PrototypeMedium.spec()
+    }
+
+    /// The running-gear contact footprint, with the hitbox-estimate fallback for specs that
+    /// predate the authored field. `ContactFootprint` is `Copy`, so this is free per tick.
+    pub fn contact_footprint(&self) -> ContactFootprint {
+        if self.contact.is_empty() {
+            ContactFootprint::from_hitbox(&self.hitbox)
+        } else {
+            self.contact
+        }
     }
 
     pub fn has_fixed_casemate(&self) -> bool {

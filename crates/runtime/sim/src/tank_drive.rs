@@ -28,6 +28,9 @@ pub struct TankDriveWorld<'a> {
     pub heightmap: Option<&'a HeightMap>,
     pub cover: &'a [StaticCoverObject],
     pub tank_obstacles: &'a [TankObstacle],
+    /// Running-gear contact stations for the support envelope (trench bridging, crest overhang).
+    /// `None` keeps the legacy centre-probe ride height.
+    pub footprint: Option<&'a game_core::ContactFootprint>,
 }
 
 /// Advance one fixed tick: movement (terrain + cover + tank collision), turret/gun aiming, and
@@ -73,6 +76,7 @@ pub fn step_tank_drive(
             &settings,
             world.heightmap,
             obstacles,
+            world.footprint,
             dt,
         )
     } else {
@@ -133,7 +137,8 @@ pub(crate) fn step_tank(
     };
     let modules =
         DriveModuleStatus::from_module_hp(tracks, tank.modules.hit_points_by_slot(), &tank.spec);
-    let world = TankDriveWorld { heightmap, cover, tank_obstacles };
+    let footprint = tank.spec.contact_footprint();
+    let world = TankDriveWorld { heightmap, cover, tank_obstacles, footprint: Some(&footprint) };
 
     let ground = step_tank_drive(&mut drive, &tank.spec, modules, world, command, dt);
 

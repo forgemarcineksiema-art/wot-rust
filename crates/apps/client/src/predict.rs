@@ -138,7 +138,13 @@ impl LocalPredictor {
         };
         let modules =
             DriveModuleStatus::from_module_hp(tracks, self.module_hit_points, &self.spec);
-        let world = TankDriveWorld { heightmap: Some(heightmap), cover, tank_obstacles };
+        let footprint = self.spec.contact_footprint();
+        let world = TankDriveWorld {
+            heightmap: Some(heightmap),
+            cover,
+            tank_obstacles,
+            footprint: Some(&footprint),
+        };
         let ground = step_tank_drive(&mut self.drive, &self.spec, modules, world, command.clamped(), dt);
         self.pending_landing_impact_mps = self.pending_landing_impact_mps.max(ground.landing_impact_mps);
     }

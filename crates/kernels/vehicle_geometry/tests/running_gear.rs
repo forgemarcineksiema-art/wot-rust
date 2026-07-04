@@ -418,7 +418,7 @@ fn rendered_wheels_and_physics_footprint_share_one_set_of_stations() {
     for kind in [VehicleKind::T54_1951, VehicleKind::T55A] {
         let kin = RunningGearKinematics::for_vehicle(kind).expect("blueprint running gear");
         let footprint = game_core::ContactFootprint::for_vehicle(kind);
-        assert_eq!(kin.wheel_zs, footprint.station_zs, "{kind:?} stations diverged");
+        assert_eq!(kin.wheel_zs.as_slice(), footprint.station_zs(), "{kind:?} stations diverged");
         assert!((kin.wheel_radius - footprint.wheel_radius).abs() < 1.0e-6);
         assert!((kin.wheel_x - footprint.half_gauge_x).abs() < 1.0e-6);
     }
