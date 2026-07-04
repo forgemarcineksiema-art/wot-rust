@@ -115,7 +115,7 @@ impl ClientApp {
         self.accept_and_sync(snapshot);
         self.set_cursor_captured(true);
         if let Some(window) = &self.window {
-            window.set_title(&format!("WOT Rust Prototype - {display_name}"));
+            window.set_title(&format!("{} - {display_name}", crate::ui_strings::WINDOW_TITLE));
         }
     }
 }
