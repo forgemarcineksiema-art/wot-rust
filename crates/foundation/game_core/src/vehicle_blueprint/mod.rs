@@ -1,4 +1,4 @@
-//! The single parametric source of truth for a vehicle's *shape*. One [`VehicleBlueprint`] drives,
+﻿//! The single parametric source of truth for a vehicle's *shape*. One [`VehicleBlueprint`] drives,
 //! together, the collision hitbox, the mount frames, and the armour facet slopes — and (via
 //! `vehicle_geometry`, which reads the same blueprint) the visual mesh. Because all of these read
 //! one struct, the silhouette, what you hit, and what the armour model resolves cannot drift apart.
@@ -19,6 +19,7 @@ mod data;
 mod fittings;
 mod hybrid;
 mod is3;
+mod shape_track;
 mod t54_hybrid;
 mod t54_hybrid_turret;
 mod t55a;
@@ -28,6 +29,7 @@ pub use hybrid::{
     BoxVisual, FenderVisual, GunVisual, HullPlatesVisual, HullVisual, HybridVisual, LoftStation,
     TurretLoftVisual, TurretVisual,
 };
+pub use shape_track::TrackShape;
 
 /// How the turret/superstructure reads, for both the mesh recipe and the fit tests.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -68,53 +70,6 @@ pub struct HullShape {
     pub hitbox_half_length: f32,
     pub hitbox_center_y: f32,
     pub hitbox_turret_min_y: f32,
-}
-
-/// Running-gear shape: the wrapped track belt, road wheels, drive sprocket, and idler.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct TrackShape {
-    pub center_x: f32,
-    pub belt_half_thickness: f32,
-    pub top_y: f32,
-    pub bottom_y: f32,
-    pub wheel_radius: f32,
-    pub wheel_count: usize,
-    pub wheel_first_z: f32,
-    pub wheel_last_z: f32,
-    pub end_radius: f32,
-    /// |Z| of the idler (front) and drive-sprocket (rear) axles. Beyond `wheel_last_z` on the
-    /// T-54, which carries separate end wheels the belt ramps up to; equal to the wheel-span end
-    /// for vehicles whose belt still wraps at the outermost road wheels (the stadium loop).
-    pub end_z: f32,
-    /// Y of the idler/sprocket axles. Raised above the road-wheel axle line on the T-54; equal to
-    /// the axle line for the stadium wrap.
-    pub end_y: f32,
-    pub inner_x: f32,
-    pub outer_x: f32,
-    pub segments: usize,
-    /// Explicit hull-local Z of each road-wheel axle, when the layout is irregular (the T-54's
-    /// signature wider first/second gap). `None` spreads `wheel_count` wheels evenly between
-    /// `wheel_first_z` and `wheel_last_z`. Read through [`TrackShape::wheel_stations`] — the one
-    /// source both the physics contact footprint and the rendered running gear place wheels by.
-    pub wheel_stations: Option<&'static [f32]>,
-}
-
-impl TrackShape {
-    /// Hull-local Z of each road-wheel axle, front positive: the explicit stations when authored,
-    /// otherwise an even spread between the first and last wheel.
-    pub fn wheel_stations(&self) -> Vec<f32> {
-        if let Some(stations) = self.wheel_stations {
-            return stations.to_vec();
-        }
-        match self.wheel_count {
-            0 => Vec::new(),
-            1 => vec![self.wheel_first_z],
-            count => {
-                let step = (self.wheel_last_z - self.wheel_first_z) / (count - 1) as f32;
-                (0..count).map(|i| self.wheel_first_z + step * i as f32).collect()
-            }
-        }
-    }
 }
 
 /// Turret/casemate placement and plate geometry, plus mantlet-fit parameters shared by the turret

@@ -1,4 +1,4 @@
-//! Per-vehicle blueprint data. Migrated vehicles return `Some`; the rest return `None` and keep the
+﻿//! Per-vehicle blueprint data. Migrated vehicles return `Some`; the rest return `None` and keep the
 //! legacy hand-authored hitbox/mounts/armour + recipe until they are migrated.
 //!
 //! The T-54 values reproduce the current gameplay hitbox, mount frames, and armour facets exactly,
@@ -85,6 +85,8 @@ fn t54() -> VehicleBlueprint {
             // first and second road wheels at the front (+Z). Single source: the rendered
             // running gear and the physics contact footprint both read these stations.
             wheel_stations: Some(&[-1.95, -1.03, -0.11, 0.81, 1.95]),
+            return_rollers: 0,
+            roller_radius: 0.0,
         },
         turret: TurretShape {
             form: TurretForm::CastDome,

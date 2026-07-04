@@ -47,11 +47,17 @@ pub(super) fn is3_blueprint() -> VehicleBlueprint {
             wheel_last_z: 2.30,
             end_radius: 0.28,
             end_z: 2.90,
-            end_y: 0.42,
+            // Wrap top (end_y + end_radius + link seat) = 0.78 = the belt's top line = the
+            // roller tops = the static band: one height, everything meets.
+            end_y: 0.48,
             inner_x: 0.93,
             outer_x: 1.575,
             segments: 14,
             wheel_stations: None,
+            // The IS family carries its top run on three small return rollers per side — the
+            // heavy's look against the T-54's wheel-riding run.
+            return_rollers: 3,
+            roller_radius: 0.11,
         },
         turret: TurretShape {
             form: TurretForm::CastDome,

@@ -12,9 +12,9 @@ fn t55_object_count() -> usize {
     3 + kin.wheel_zs.len() * 2 * 2 + 4 + kin.link_count() * 2
 }
 
-/// Cached meshes for one blueprint vehicle: hull/turret/gun plus five unit gear meshes
-/// (road wheel, swing arm, sprocket, idler, track link).
-const BLUEPRINT_MESH_COUNT: usize = 8;
+/// Cached meshes for one blueprint vehicle: hull/turret/gun plus six unit gear meshes
+/// (road wheel, swing arm, sprocket, idler, track link, return roller).
+const BLUEPRINT_MESH_COUNT: usize = 9;
 
 /// Drift lock between the two render paths: the dynamic per-vertex mesh build and the cached
 /// instanced objects must place every vertex identically for the same snapshot — including a

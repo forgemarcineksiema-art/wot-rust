@@ -33,16 +33,48 @@ pub fn road_wheel_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
         .append(&wheel_disc_at(0.0, r * 0.22, half_w * 1.05, seg, MaterialRole::TrackMetal))
         // One centred rubber tire grooved down the middle — the dual-tire look without offset bands.
         .append(&dual_tire(r, half_w, seg));
-    // Six radial starfish arms bridging hub to rim, proud of the recessed web. Their tips are
-    // BURIED radially in the rim ring and the hub, and their faces sit just INBOARD of the ring's
-    // side annuli (0.94 x body width vs the ring's full body width) — an arm face flush with the
-    // ring's side plane z-fights across the whole overlap band.
-    let arms = 6usize;
+    // Radial arms bridging hub to rim, proud of the recessed web: the T-54's six-arm starfish
+    // or the IS family's denser rib casting (`wheel_spokes`). Their tips are BURIED radially in
+    // the rim ring and the hub, and their faces sit just INBOARD of the ring's side annuli
+    // (0.94 x body width vs the ring's full body width) — an arm face flush with the ring's
+    // side plane z-fights across the whole overlap band.
+    let arms = kin.wheel_spokes.max(3);
     for i in 0..arms {
         let angle = (i as f32 / arms as f32) * std::f32::consts::TAU;
         builder = builder.append(&spoke_arm(angle, r * 0.16, r * 0.80, r, body_half * 0.94));
     }
     builder.build()
+}
+
+/// One return roller: a small rubber-rimmed carrier wheel for the top run (IS family), centred
+/// at the origin with its axle along X — a compact steel hub disc under a rubber band.
+pub fn return_roller_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
+    let seg = kin.segments.max(16);
+    let r = kin.roller_radius.max(0.05);
+    let half_w = kin.wheel_half_width * 0.55;
+    MeshBuilder::new()
+        .append(&wheel_disc_at(0.0, r * 0.72, half_w * 0.9, seg, MaterialRole::TrackMetal))
+        .append(&wheel_disc_at(0.0, r * 0.30, half_w * 1.1, seg, MaterialRole::TrackMetal))
+        .append(&rubber_band(r, half_w, seg))
+        .build()
+}
+
+/// The roller's plain rubber band (no groove — carrier rollers run a flat tire).
+fn rubber_band(r: f32, half_w: f32, segments: usize) -> GeometryMesh {
+    MeshBuilder::new()
+        .revolve(RevolveSpec {
+            profile: vec![
+                ProfilePoint::new(r * 0.70, -half_w),
+                ProfilePoint::new(r, -half_w * 0.8),
+                ProfilePoint::new(r, half_w * 0.8),
+                ProfilePoint::new(r * 0.70, half_w),
+            ],
+            axis: Axis::X,
+            segments,
+            material: MaterialRole::Rubber,
+            smoothing: SG_WHEEL,
+        })
+        .build()
 }
 
 /// A full-width steel ring (closed rectangular profile revolved about the axle): the wheel rim.

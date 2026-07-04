@@ -80,6 +80,7 @@ fn append_running_gear(
     let idler = idler_unit_mesh(kin);
     let sprocket = sprocket_unit_mesh(kin);
     let link = track_link_unit_mesh(kin);
+    let return_roller = vehicle_geometry::return_roller_unit_mesh(kin);
     let hull_basis = pose.hull_basis();
     for placement in running_gear_placements(kin, 0.0, 0.0) {
         let mesh = match placement.part {
@@ -88,6 +89,7 @@ fn append_running_gear(
             GearPart::Sprocket => &sprocket,
             GearPart::Link => &link,
             GearPart::SwingArm => &swing_arm,
+            GearPart::ReturnRoller => &return_roller,
         };
         let normal_basis = hull_basis * Mat3::from_mat4(placement.transform);
         append_mesh(

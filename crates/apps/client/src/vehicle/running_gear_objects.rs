@@ -18,6 +18,7 @@ pub(crate) struct GearMeshHandles {
     pub sprocket: MeshHandle,
     pub link: MeshHandle,
     pub swing_arm: MeshHandle,
+    pub return_roller: MeshHandle,
 }
 
 /// Emit one render object per moving running-gear part, instanced from the cached unit meshes and
@@ -44,6 +45,7 @@ pub(crate) fn gear_render_objects(
                 GearPart::Sprocket => handles.sprocket,
                 GearPart::Link => handles.link,
                 GearPart::SwingArm => handles.swing_arm,
+                GearPart::ReturnRoller => handles.return_roller,
             };
             RenderObject {
                 tank_id: Some(tank_id),
