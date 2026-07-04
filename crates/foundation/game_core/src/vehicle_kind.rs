@@ -46,11 +46,12 @@ pub enum VehicleKind {
     TigerII,
     Jagdtiger,
     PantherII,
+    IS3,
 }
 
 impl VehicleKind {
     /// Every known vehicle, in declaration (wire) order.
-    pub const ALL: [VehicleKind; 7] = [
+    pub const ALL: [VehicleKind; 8] = [
         VehicleKind::PrototypeMedium,
         VehicleKind::T54_1951,
         VehicleKind::T55A,
@@ -58,16 +59,18 @@ impl VehicleKind {
         VehicleKind::TigerII,
         VehicleKind::Jagdtiger,
         VehicleKind::PantherII,
+        VehicleKind::IS3,
     ];
 
     /// Player-facing production roster. Legacy/test-only vehicles remain in [`Self::ALL`] for
     /// stable wire identity, but garage and review surfaces should use this list.
-    pub const PLAYABLE: [VehicleKind; 5] = [
+    pub const PLAYABLE: [VehicleKind; 6] = [
         VehicleKind::T54_1951,
         VehicleKind::TigerI,
         VehicleKind::TigerII,
         VehicleKind::Jagdtiger,
         VehicleKind::PantherII,
+        VehicleKind::IS3,
     ];
 
     /// Asset slug stem; matches `assets/vehicles/<slug>.vehicle.json` for the six vehicles
@@ -81,6 +84,7 @@ impl VehicleKind {
             VehicleKind::TigerII => "tiger_ii_ausf_b",
             VehicleKind::Jagdtiger => "jagdtiger",
             VehicleKind::PantherII => "panther_ii",
+            VehicleKind::IS3 => "is3",
         }
     }
 
@@ -94,6 +98,7 @@ impl VehicleKind {
             VehicleKind::TigerII => "Panzerkampfwagen VI B Tiger II",
             VehicleKind::Jagdtiger => "Panzerjager Tiger Ausf. B Jagdtiger",
             VehicleKind::PantherII => "Panzerkampfwagen V Panther II",
+            VehicleKind::IS3 => "IS-3",
         }
     }
 
@@ -109,9 +114,10 @@ impl VehicleKind {
     /// The historical origin nation of this vehicle — used by the garage carousel and tech tree.
     pub fn nation(self) -> Nation {
         match self {
-            VehicleKind::PrototypeMedium | VehicleKind::T54_1951 | VehicleKind::T55A => {
-                Nation::Ussr
-            }
+            VehicleKind::PrototypeMedium
+            | VehicleKind::T54_1951
+            | VehicleKind::T55A
+            | VehicleKind::IS3 => Nation::Ussr,
             VehicleKind::TigerI
             | VehicleKind::TigerII
             | VehicleKind::Jagdtiger
@@ -130,7 +136,7 @@ mod tests {
 
     #[test]
     fn all_is_complete_and_unique() {
-        assert_eq!(VehicleKind::ALL.len(), 7);
+        assert_eq!(VehicleKind::ALL.len(), 8);
         for (index, kind) in VehicleKind::ALL.iter().enumerate() {
             for other in &VehicleKind::ALL[index + 1..] {
                 assert_ne!(kind, other, "VehicleKind::ALL must not contain duplicates");
@@ -148,6 +154,7 @@ mod tests {
                 VehicleKind::TigerII,
                 VehicleKind::Jagdtiger,
                 VehicleKind::PantherII,
+                VehicleKind::IS3,
             ]
         );
         assert!(!VehicleKind::PLAYABLE.contains(&VehicleKind::PrototypeMedium));
@@ -204,6 +211,7 @@ mod tests {
         assert_eq!(VehicleKind::TigerII.nation(), Nation::Germany);
         assert_eq!(VehicleKind::Jagdtiger.nation(), Nation::Germany);
         assert_eq!(VehicleKind::PantherII.nation(), Nation::Germany);
+        assert_eq!(VehicleKind::IS3.nation(), Nation::Ussr);
     }
 
     #[test]

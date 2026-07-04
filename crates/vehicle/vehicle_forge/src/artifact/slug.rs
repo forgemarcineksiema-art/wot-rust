@@ -9,5 +9,6 @@ pub fn forge_vehicle_slug(kind: VehicleKind) -> &'static str {
         VehicleKind::TigerII => "tiger-ii-ausf-b",
         VehicleKind::Jagdtiger => "jagdtiger",
         VehicleKind::PantherII => "panther-ii",
+        VehicleKind::IS3 => "is3",
     }
 }

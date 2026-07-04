@@ -1,0 +1,48 @@
+{
+  "name": "IS-3",
+  "kind": "IS3",
+  "mass_kg": 45910.0,
+  "engine_power_kw": 382.0,
+  "max_forward_speed_mps": 11.1,
+  "max_reverse_speed_mps": 3.9,
+  "turn_rate_rad_s": 0.58,
+  "turret_rotation_rad_s": 0.36,
+  "hull": {
+    "hull_front_mm": 110.0,
+    "hull_side_mm": 90.0,
+    "hull_rear_mm": 60.0,
+    "turret_front_mm": 250.0,
+    "turret_side_mm": 160.0,
+    "turret_rear_mm": 110.0
+  },
+  "gun": {
+    "name": "122 mm D-25T",
+    "reload_seconds": 12.6,
+    "dispersion_mrad": 3.4,
+    "aim_time_seconds": 3.0,
+    "movement_bloom_mrad": 5.6,
+    "shot_bloom_mrad": 4.8,
+    "max_dispersion_mrad": 20.0,
+    "shell": {
+      "caliber_mm": 122.0,
+      "muzzle_velocity_mps": 795.0,
+      "penetration_mm_at_100m": 175.0,
+      "damage_hp": 390
+    }
+  },
+  "hit_points": 1900,
+  "module_health": {
+    "engine": 160,
+    "suspension": 180,
+    "turret": 280,
+    "gun": 160,
+    "radio": 50
+  },
+  "hitbox": {
+    "half_width_m": 1.575,
+    "half_height_m": 1.27,
+    "half_length_m": 3.44,
+    "center_y_m": 1.22,
+    "turret_min_y_m": 0.40
+  }
+}

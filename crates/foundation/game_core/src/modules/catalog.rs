@@ -2,7 +2,9 @@ use super::catalog_german::{gun_kwk36, gun_kwk43, tiger_i_loadout, tiger_ii_load
 use super::catalog_misc::{
     gun_kwk42, gun_pak80, gun_prototype, jagdtiger_loadout, panther_loadout, prototype_loadout,
 };
-use super::catalog_soviet::{gun_d10t, gun_d10t2s, t54_loadout, t55_loadout};
+use super::catalog_soviet::{
+    gun_d10t, gun_d10t2s, gun_d25t, is3_loadout, t54_loadout, t55_loadout,
+};
 use super::{
     EngineModule, GunModule, HullChassis, RadioModule, SuspensionModule, TurretModule,
     VehicleModules,
@@ -21,6 +23,7 @@ impl VehicleKind {
             VehicleKind::TigerII => tiger_ii_loadout(),
             VehicleKind::Jagdtiger => jagdtiger_loadout(),
             VehicleKind::PantherII => panther_loadout(),
+            VehicleKind::IS3 => is3_loadout(),
         }
     }
 
@@ -40,6 +43,7 @@ impl VehicleKind {
             VehicleKind::TigerII => vec![gun_kwk43()],
             VehicleKind::Jagdtiger => vec![gun_pak80()],
             VehicleKind::PantherII => vec![gun_kwk42()],
+            VehicleKind::IS3 => vec![gun_d25t()],
         }
     }
 

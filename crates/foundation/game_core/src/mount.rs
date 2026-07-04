@@ -68,6 +68,8 @@ impl MountFrames {
                 gun_trunnion: MountFrame::new(Vec3::new(0.0, 2.04, 1.30)),
                 muzzle: MountFrame::new(Vec3::new(0.0, 2.04, 6.20)),
             },
+            // Blueprint-born: mounts come from `blueprint.mount_frames()` above, always.
+            VehicleKind::IS3 => unreachable!("IS-3 is blueprint-migrated"),
         }
     }
 }

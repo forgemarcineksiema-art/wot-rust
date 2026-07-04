@@ -114,6 +114,8 @@ fn armor_profile_for(kind: VehicleKind, modules: &VehicleModules) -> ArmorProfil
         );
     }
     match kind {
+        // Blueprint-born: facets come from `bp.armor` above, always.
+        VehicleKind::IS3 => unreachable!("IS-3 is blueprint-migrated"),
         VehicleKind::T54_1951 | VehicleKind::T55A => ArmorProfile::new_with_facets(
             weakspot(h.front_mm, 60.0, 0.82),
             facet(h.side_mm, 10.0),
