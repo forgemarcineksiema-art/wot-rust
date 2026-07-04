@@ -1,13 +1,14 @@
 use ::terrain::{HeightMap, StaticCoverObject};
 use game_core::math::HullPose;
 use game_core::{
-    ArmorFacing, ArmorZone, HitboxProfile, ImpactSurface, MountFrames, TankId, TankSpec,
-    VehicleKind,
+    ArmorFacing, ArmorProfile, ArmorZone, HitboxProfile, ImpactSurface, MountFrames, TankId,
+    TankSpec, VehicleKind,
 };
 use glam::Vec3;
 
 /// Neutral tank hull for shell collision. The hitbox rides the FULL hull pose: a tilted hull
-/// tilts its collision volumes and armor normals with it.
+/// tilts its collision volumes and armor normals with it. The armor profile rides along so the
+/// impact angle is measured against the TRUE plate normal, slope included.
 #[derive(Debug, Clone, Copy)]
 pub struct TraceTank {
     pub id: TankId,
@@ -16,6 +17,7 @@ pub struct TraceTank {
     pub turret_yaw_rad: f32,
     pub hitbox: HitboxProfile,
     pub turret_ring_z_m: f32,
+    pub armor: ArmorProfile,
 }
 
 impl TraceTank {
@@ -33,6 +35,7 @@ impl TraceTank {
             turret_yaw_rad,
             hitbox: spec.hitbox,
             turret_ring_z_m: spec.mounts.turret_ring.translation.z,
+            armor: spec.hull,
         }
     }
 
@@ -50,6 +53,7 @@ impl TraceTank {
             turret_yaw_rad,
             hitbox: HitboxProfile::for_vehicle(kind),
             turret_ring_z_m: MountFrames::for_vehicle(kind).turret_ring.translation.z,
+            armor: kind.spec().hull,
         }
     }
 }
@@ -70,6 +74,9 @@ pub enum SegmentImpact {
         zone: ArmorZone,
         impact_angle_degrees: f32,
         hit_position: Vec3,
+        /// World-space outward normal of the struck plate (slope + hull attitude + turret yaw
+        /// folded in) — the reflection plane for a ricochet continuation.
+        plate_normal: Vec3,
     },
     Obstacle {
         position: Vec3,

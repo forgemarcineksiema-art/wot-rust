@@ -7,10 +7,23 @@
 
 use glam::{Mat3, Vec3};
 
-use crate::{ArmorFacing, MountFrames};
+use crate::MountFrames;
+
+mod plates;
+
+pub use plates::plate_normal;
 
 /// Mildly exaggerated gravity so shell arcs read at map scale (real is ~9.81 m/s^2).
 pub const GRAVITY_MPS2: f32 = 12.0;
+
+/// One semi-implicit Euler step of shell flight: linear drag bleeds speed, then gravity pulls.
+/// This is the ONE integration every consumer shares — the authoritative server step, the
+/// reticle's ballistic preview, and the gun-elevation solver — so a previewed arc is exactly
+/// the arc the server flies.
+pub fn integrate_shell_step(velocity: &mut Vec3, drag_per_s: f32, dt_seconds: f32) {
+    *velocity *= (1.0 - drag_per_s * dt_seconds).max(0.0);
+    velocity.y -= GRAVITY_MPS2 * dt_seconds;
+}
 
 /// Horizontal unit heading for a yaw angle, in the XZ plane (+Z at yaw 0).
 pub fn horizontal_forward(yaw_rad: f32) -> Vec3 {
@@ -126,32 +139,6 @@ pub fn muzzle_world_position_scaled(
     position + hull.basis() * traversed
 }
 
-/// Outward armor-plate normal for a hit, in world space.
-///
-/// Turret plates rotate with the turret, so their normal follows `hull_yaw + turret_yaw`; hull
-/// plates stay aligned to the hull. `local_x` (the hit's sideways offset in hull-local space)
-/// picks which side a side hit faces.
-pub fn armor_normal(
-    hull: HullPose,
-    turret_yaw_rad: f32,
-    facing: ArmorFacing,
-    local_x: f32,
-) -> Vec3 {
-    let local = match facing {
-        ArmorFacing::HullFront => Vec3::Z,
-        ArmorFacing::HullRear => -Vec3::Z,
-        ArmorFacing::HullSide if local_x >= 0.0 => Vec3::X,
-        ArmorFacing::HullSide => -Vec3::X,
-        ArmorFacing::TurretFront => Mat3::from_rotation_y(turret_yaw_rad) * Vec3::Z,
-        ArmorFacing::TurretRear => Mat3::from_rotation_y(turret_yaw_rad) * -Vec3::Z,
-        ArmorFacing::TurretSide if local_x >= 0.0 => {
-            Mat3::from_rotation_y(turret_yaw_rad) * Vec3::X
-        }
-        ArmorFacing::TurretSide => Mat3::from_rotation_y(turret_yaw_rad) * -Vec3::X,
-    };
-    hull.basis() * local
-}
-
 /// Express a world position in a tank's hull-local frame: `x` = right, `y` = up relative to the
 /// hitbox center plane, `z` = forward. `center_y_m` lifts the local origin to the hitbox center,
 /// riding the hull basis so the frame tilts with the hull.
@@ -265,18 +252,6 @@ mod tests {
     }
 
     #[test]
-    fn armor_normals_tilt_with_the_hull() {
-        // A nose-up hull points its glacis normal upward: shells arriving level meet the plate
-        // at a steeper effective angle — terrain angling works on armor.
-        let nosed_up = HullPose { yaw_rad: 0.0, pitch_rad: 0.3, roll_rad: 0.0 };
-        let glacis = armor_normal(nosed_up, 0.0, ArmorFacing::HullFront, 0.0);
-        assert!(glacis.y > 0.29, "glacis normal gains lift with hull pitch, got {glacis:?}");
-        // Level hulls keep the planar normals.
-        let level = armor_normal(HullPose::level(0.0), 0.0, ArmorFacing::HullFront, 0.0);
-        assert!((level - Vec3::Z).length() < 1.0e-6);
-    }
-
-    #[test]
     fn rotate_around_pivots_in_place() {
         let rotation = Mat3::from_rotation_y(FRAC_PI_2);
         // The pivot itself is fixed; a point +Z of it swings to +X (yaw 90°).
@@ -286,22 +261,6 @@ mod tests {
         );
         let pivot = Vec3::new(5.0, 0.0, 5.0);
         assert!((rotate_around(pivot, pivot, rotation) - pivot).length() < 1.0e-6);
-    }
-
-    #[test]
-    fn armor_normal_follows_turret_rotation_while_hull_stays_put() {
-        // Hull points down +z; turret traversed 90° so its front faces the hull's right (+x).
-        let turret_front =
-            armor_normal(HullPose::level(0.0), FRAC_PI_2, ArmorFacing::TurretFront, 0.0);
-        let hull_front = armor_normal(HullPose::level(0.0), FRAC_PI_2, ArmorFacing::HullFront, 0.0);
-        assert!((turret_front - Vec3::new(1.0, 0.0, 0.0)).length() < 1.0e-5);
-        assert!((hull_front - Vec3::new(0.0, 0.0, 1.0)).length() < 1.0e-5);
-
-        // Side hits pick the side from the hull-local x sign.
-        let right = armor_normal(HullPose::level(0.0), 0.0, ArmorFacing::HullSide, 1.0);
-        let left = armor_normal(HullPose::level(0.0), 0.0, ArmorFacing::HullSide, -1.0);
-        assert!((right - Vec3::new(1.0, 0.0, 0.0)).length() < 1.0e-5);
-        assert!((left - Vec3::new(-1.0, 0.0, 0.0)).length() < 1.0e-5);
     }
 
     #[test]

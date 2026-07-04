@@ -9,6 +9,7 @@ mod module_hit;
 mod ramming;
 mod replay;
 mod shell;
+mod shell_splash;
 mod shell_step;
 mod shell_trace;
 mod state;

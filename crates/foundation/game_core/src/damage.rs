@@ -12,6 +12,8 @@ pub enum DamageCause {
     Ram,
     /// The hull slammed into the ground after a flight (fall damage).
     Impact,
+    /// Blast damage from a high-explosive burst nearby — not the shell body itself.
+    Splash,
 }
 
 /// What absorbed a shell that did **not** damage an enemy. Like [`crate::VehicleKind`], the

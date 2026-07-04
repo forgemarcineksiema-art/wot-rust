@@ -1,6 +1,7 @@
 use game_core::{
     ArmorFacet, ArmorFacing, ArmorProfile, ArmorZone, ShellSpec, ShellType, resolve_penetration,
     resolve_penetration_at_distance, resolve_penetration_at_distance_on_zone,
+    resolve_penetration_through_track,
 };
 
 #[test]
@@ -52,9 +53,17 @@ fn armor_facets_can_describe_visual_slope_and_weakspots() {
     assert_eq!(front.slope_degrees, 60.0);
     assert_eq!(front.weakspot_multiplier, 0.65);
     assert_eq!(turret.slope_degrees, 35.0);
+    // Slope lives in the plate NORMAL (see `plate_normal`), never in an angle sum: the impact
+    // angle passed here is already the true angle of incidence. A horizontal shot meets this
+    // 60° glacis at 60° — and only then does the plate present more than its nominal.
+    assert!(
+        armor.effective_thickness_mm(ArmorFacing::HullFront, front.slope_degrees)
+            > armor.nominal_thickness_mm(ArmorFacing::HullFront)
+    );
     assert!(
         armor.effective_thickness_mm(ArmorFacing::HullFront, 0.0)
-            > armor.nominal_thickness_mm(ArmorFacing::HullFront)
+            < armor.nominal_thickness_mm(ArmorFacing::HullFront),
+        "square-on the plate presents its nominal (times the weakspot multiplier), nothing more"
     );
 }
 
@@ -139,6 +148,58 @@ fn large_ap_shell_overmatches_thin_plate_instead_of_ricocheting() {
     let result = resolve_penetration(&shell, &armor, ArmorFacing::HullSide, 78.0);
 
     assert!(!result.ricocheted);
+}
+
+#[test]
+fn the_track_screen_shields_the_side_plate_behind_it() {
+    // 80 mm side; the track band derives to 28 mm of spaced screen in front of it.
+    let armor = ArmorProfile::new(100.0, 80.0, 45.0, 180.0, 90.0, 65.0);
+
+    // 100 mm of penetration beats the bare side plate but dies in the track + side stack.
+    let shell = ShellSpec::armor_piercing(85.0, 900.0, 100.0, 300);
+    let direct = resolve_penetration_at_distance(&shell, &armor, ArmorFacing::HullSide, 0.0, 100.0);
+    let screened =
+        resolve_penetration_through_track(&shell, &armor, ArmorZone::LeftTrack, 0.0, 0.0, 100.0);
+    assert!(direct.penetrated, "the bare side plate falls to 100 mm of penetration");
+    assert!(!screened.penetrated, "the track screen absorbs what the side alone could not");
+    assert_eq!(screened.damage_hp, 0, "a screened AP shell does no hull damage");
+    assert!(
+        screened.effective_armor_mm > direct.effective_armor_mm,
+        "the reported armor is the whole stack: {} vs {}",
+        screened.effective_armor_mm,
+        direct.effective_armor_mm
+    );
+
+    // Enough penetration for the whole stack goes through and does full damage.
+    let heavy = ShellSpec::armor_piercing(122.0, 800.0, 150.0, 420);
+    let through =
+        resolve_penetration_through_track(&heavy, &armor, ArmorZone::LeftTrack, 0.0, 0.0, 100.0);
+    assert!(through.penetrated);
+    assert_eq!(through.damage_hp, 420);
+}
+
+#[test]
+fn the_screen_detonates_heat_early_and_fuzes_he_on_the_track() {
+    let armor = ArmorProfile::new(100.0, 80.0, 45.0, 180.0, 90.0, 65.0);
+
+    // 130 mm HEAT beats 28 + 80 on paper, but the screen costs a shaped charge double.
+    let heat = ShellSpec::heat(100.0, 760.0, 130.0, 300);
+    let screened =
+        resolve_penetration_through_track(&heat, &armor, ArmorZone::LeftTrack, 0.0, 0.0, 100.0);
+    assert!(!screened.penetrated, "the spaced track kills the jet's standoff");
+
+    let hot = ShellSpec::heat(100.0, 760.0, 145.0, 300);
+    let through =
+        resolve_penetration_through_track(&hot, &armor, ArmorZone::LeftTrack, 0.0, 0.0, 100.0);
+    assert!(through.penetrated, "a hot enough charge still burns through the stack");
+
+    // HE fuzes on the first surface: it bursts on the track for chip damage, never interior.
+    let he = ShellSpec::high_explosive(122.0, 515.0, 300.0, 410, 4.0);
+    let burst =
+        resolve_penetration_through_track(&he, &armor, ArmorZone::LeftTrack, 0.0, 0.0, 100.0);
+    assert!(!burst.penetrated, "HE cannot carry through the screen no matter the numbers");
+    assert!(burst.damage_hp > 0, "the burst still chips the running gear");
+    assert!(burst.damage_hp < 410 / 2, "chip damage, not a penetration's worth");
 }
 
 #[test]

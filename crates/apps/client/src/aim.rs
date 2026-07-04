@@ -2,7 +2,7 @@
 //! The gun then solves toward the world point under that sight ray. The shot path remains
 //! authoritative server/sim state; this module only provides client-side aim prediction.
 
-use game_core::math::{GRAVITY_MPS2, gun_direction, wrap_angle};
+use game_core::math::{gun_direction, wrap_angle};
 use game_core::{TankId, TeamId};
 use glam::Vec3;
 use net::TankSnapshot;
@@ -111,8 +111,13 @@ pub(crate) fn aim_point_with_sweep(
 }
 
 /// Gun elevation (radians, + = up) that puts the muzzle on `aim` using the same fixed-step
-/// ballistic integration as the authoritative shell trace.
-pub(crate) fn gun_pitch_to_hit(muzzle: Vec3, aim: Vec3, muzzle_velocity_mps: f32) -> f32 {
+/// ballistic integration (drag included) as the authoritative shell trace.
+pub(crate) fn gun_pitch_to_hit(
+    muzzle: Vec3,
+    aim: Vec3,
+    muzzle_velocity_mps: f32,
+    drag_per_s: f32,
+) -> f32 {
     let delta = aim - muzzle;
     let horizontal = (delta.x * delta.x + delta.z * delta.z).sqrt();
     if horizontal < 0.5 {
@@ -125,7 +130,9 @@ pub(crate) fn gun_pitch_to_hit(muzzle: Vec3, aim: Vec3, muzzle_velocity_mps: f32
     let mut high = GUN_PITCH_SOLVER_MAX_RAD;
     for _ in 0..GUN_PITCH_SOLVER_STEPS {
         let mid = (low + high) * 0.5;
-        if shell_height_at_horizontal(muzzle, mid, muzzle_velocity_mps, horizontal) < aim.y {
+        if shell_height_at_horizontal(muzzle, mid, muzzle_velocity_mps, drag_per_s, horizontal)
+            < aim.y
+        {
             low = mid;
         } else {
             high = mid;
@@ -138,6 +145,7 @@ fn shell_height_at_horizontal(
     muzzle: Vec3,
     pitch_rad: f32,
     muzzle_velocity_mps: f32,
+    drag_per_s: f32,
     horizontal: f32,
 ) -> f32 {
     let dt_seconds = crate::hud::reticle_sweep::tick_dt_seconds();
@@ -146,7 +154,7 @@ fn shell_height_at_horizontal(
     let mut previous_range = 0.0;
     for _ in 0..(sim::SHELL_MAX_AGE_SECONDS / dt_seconds).ceil() as usize {
         let previous = position;
-        velocity.y -= GRAVITY_MPS2 * dt_seconds;
+        game_core::math::integrate_shell_step(&mut velocity, drag_per_s, dt_seconds);
         position += velocity * dt_seconds;
         let range = ((position.x - muzzle.x).powi(2) + (position.z - muzzle.z).powi(2)).sqrt();
         if range >= horizontal {
@@ -189,9 +197,9 @@ mod tests {
     #[test]
     fn elevation_rises_for_higher_targets() {
         let muzzle = Vec3::new(0.0, 1.0, 0.0);
-        let level = gun_pitch_to_hit(muzzle, Vec3::new(0.0, 1.0, 100.0), 895.0);
+        let level = gun_pitch_to_hit(muzzle, Vec3::new(0.0, 1.0, 100.0), 895.0, 0.09);
         assert!(level.abs() < 0.02, "level shot ~ 0, got {level}");
-        let raised = gun_pitch_to_hit(muzzle, Vec3::new(0.0, 21.0, 100.0), 895.0);
+        let raised = gun_pitch_to_hit(muzzle, Vec3::new(0.0, 21.0, 100.0), 895.0, 0.09);
         assert!(raised > 0.15, "20 m up over 100 m elevates the gun, got {raised}");
     }
 
@@ -199,12 +207,24 @@ mod tests {
     fn elevation_matches_authoritative_shell_step_for_slow_long_shot() {
         let muzzle = Vec3::new(0.0, 1.0, 0.0);
         let aim = Vec3::new(0.0, 1.0, 500.0);
-        let pitch = gun_pitch_to_hit(muzzle, aim, 500.0);
-        let shell_y = shell_height_at_horizontal(muzzle, pitch, 500.0, 500.0);
+        let pitch = gun_pitch_to_hit(muzzle, aim, 500.0, 0.09);
+        let shell_y = shell_height_at_horizontal(muzzle, pitch, 500.0, 0.09, 500.0);
         assert!(
             (shell_y - aim.y).abs() < 0.02,
             "pitch {pitch} should put the simulated shell at target height {}, got {shell_y}",
             aim.y
         );
+    }
+
+    #[test]
+    fn drag_demands_more_elevation_at_range() {
+        // The same shot solved in still air and in drag: the draggy shell arrives slower and
+        // drops longer, so the solver must hold the gun higher — one integration for the arc
+        // you fly and the arc you solve.
+        let muzzle = Vec3::new(0.0, 1.0, 0.0);
+        let aim = Vec3::new(0.0, 1.0, 800.0);
+        let vacuum = gun_pitch_to_hit(muzzle, aim, 500.0, 0.0);
+        let dragged = gun_pitch_to_hit(muzzle, aim, 500.0, 0.21);
+        assert!(dragged > vacuum + 1.0e-3, "drag must raise the solution: {dragged} vs {vacuum}");
     }
 }

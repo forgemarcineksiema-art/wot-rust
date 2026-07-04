@@ -30,10 +30,12 @@ impl ClientApp {
         let camera = self.camera_from_tank(tank);
         let aim = self.aim_world_point(&camera)?;
         let muzzle = self.muzzle_position();
+        let shell = self.player_spec().gun.shell;
         let world_pitch = crate::aim::gun_pitch_to_hit(
             muzzle,
             aim,
-            self.player_spec().gun.shell.muzzle_velocity_mps,
+            shell.muzzle_velocity_mps,
+            shell.drag_per_s(),
         );
         let delta = aim - muzzle;
         if delta.x.abs() <= 1.0e-4 && delta.z.abs() <= 1.0e-4 {
@@ -90,6 +92,7 @@ impl ClientApp {
                     tank.gun_pitch_rad,
                 ),
                 muzzle_velocity_mps: muzzle_velocity,
+                drag_per_s: player_spec.gun.shell.drag_per_s(),
             });
         let feedback = report.feedback;
         let pen_hint = report.penetration;

@@ -40,7 +40,9 @@ fn jagdtiger_pak80_penetrates_tiger_ii_turret_front_when_flat() {
         jagdtiger.gun.shell.damage_hp,
     );
 
-    let result = resolve_penetration(&shell, &target.hull, ArmorFacing::TurretFront, 0.0);
+    // A flat (horizontal) shot meets the turret face at its slope — the true angle of incidence.
+    let flat_shot = target.hull.facet(ArmorFacing::TurretFront).slope_degrees;
+    let result = resolve_penetration(&shell, &target.hull, ArmorFacing::TurretFront, flat_shot);
 
     assert!(result.penetrated);
 }

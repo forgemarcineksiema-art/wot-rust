@@ -19,6 +19,8 @@ pub(crate) struct ReticleTraceQuery<'a> {
     /// tilted hull previews the tilted arc the server will fire.
     pub gun_direction: Vec3,
     pub muzzle_velocity_mps: f32,
+    /// The previewed shell's linear drag — the preview must fly the same air as the server.
+    pub drag_per_s: f32,
 }
 
 /// Trace the player's shot with the authoritative shell physics ([`sim::trace_shell`]). The reticle
@@ -33,7 +35,14 @@ pub(crate) fn reticle_trace(query: ReticleTraceQuery<'_>) -> TraceOutcome {
         heightmap: Some(query.heightmap),
         cover: query.cover,
     };
-    trace_shell(query.muzzle, velocity, tick_dt_seconds(), SHELL_MAX_AGE_SECONDS, &world)
+    trace_shell(
+        query.muzzle,
+        velocity,
+        query.drag_per_s,
+        tick_dt_seconds(),
+        SHELL_MAX_AGE_SECONDS,
+        &world,
+    )
 }
 
 /// The battle split the same way the authoritative server splits it (protocol v12 carries the
@@ -133,6 +142,7 @@ mod tests {
             muzzle,
             gun_direction: Vec3::Z,
             muzzle_velocity_mps: 895.0,
+            drag_per_s: 0.09,
         });
 
         match outcome {
@@ -159,6 +169,7 @@ mod tests {
             muzzle,
             gun_direction: Vec3::Z,
             muzzle_velocity_mps: 895.0,
+            drag_per_s: 0.09,
         });
 
         // The same inputs fed straight through `sim` must produce the identical outcome — the
@@ -172,7 +183,7 @@ mod tests {
             cover: &[],
         };
         let direct =
-            trace_shell(muzzle, velocity, tick_dt_seconds(), SHELL_MAX_AGE_SECONDS, &world);
+            trace_shell(muzzle, velocity, 0.09, tick_dt_seconds(), SHELL_MAX_AGE_SECONDS, &world);
 
         assert_eq!(outcome, direct);
         assert!(

@@ -87,14 +87,40 @@ impl ShellSpec {
         }
     }
 
+    /// Linear aerodynamic drag, in speed lost per second of flight. With `dv/dt = -c·v` a shell
+    /// loses speed LINEARLY with distance (`v(s) = v0 − c·s`), so the flight integration
+    /// ([`crate::math::integrate_shell_step`]), the HUD's penetration readout, and the server's
+    /// impact math all agree in closed form. Full-bore AP holds its speed, light APCR cores
+    /// bleed it fast, and the slow chemical rounds fly like bricks but never cared about speed.
+    pub fn drag_per_s(self) -> f32 {
+        match self.shell_type {
+            ShellType::ArmorPiercing => 0.09,
+            ShellType::Apcr => 0.21,
+            ShellType::Heat | ShellType::HighExplosive => 0.05,
+        }
+    }
+
+    /// Impact speed after `distance_m` of flight — the closed form of the linear-drag flight.
+    pub fn speed_mps_at_distance(self, distance_m: f32) -> f32 {
+        (self.muzzle_velocity_mps - self.drag_per_s() * distance_m.max(0.0))
+            .max(self.muzzle_velocity_mps * 0.2)
+    }
+
+    /// Kinetic penetration falls out of the impact VELOCITY (a De Marre-style power of the
+    /// speed ratio), not out of a separate distance table: one physics for the arc you see and
+    /// the armor math that resolves it. Chemical energy does not care how fast it arrived.
     pub fn penetration_mm_at_distance(self, distance_m: f32) -> f32 {
-        let beyond_100m = (distance_m - 100.0).max(0.0);
-        let retention = match self.shell_type {
-            ShellType::ArmorPiercing => (1.0 - beyond_100m * 0.00015).clamp(0.65, 1.0),
-            ShellType::Apcr => (1.0 - beyond_100m * 0.00028).clamp(0.45, 1.0),
-            ShellType::Heat | ShellType::HighExplosive => 1.0,
-        };
-        self.penetration_mm_at_100m * retention
+        match self.shell_type {
+            ShellType::Heat | ShellType::HighExplosive => self.penetration_mm_at_100m,
+            ShellType::ArmorPiercing | ShellType::Apcr => {
+                let reference = self.speed_mps_at_distance(100.0);
+                if reference <= 0.0 {
+                    return self.penetration_mm_at_100m;
+                }
+                let ratio = (self.speed_mps_at_distance(distance_m) / reference).clamp(0.2, 1.1);
+                self.penetration_mm_at_100m * ratio.powf(1.5)
+            }
+        }
     }
 }
 

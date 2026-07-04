@@ -35,7 +35,9 @@ fn tiger_ii_kwk43_penetrates_tiger_i_front_when_flat() {
         tiger_ii.gun.shell.damage_hp,
     );
 
-    let result = resolve_penetration(&shell, &target.hull, ArmorFacing::HullFront, 0.0);
+    // A flat (horizontal) shot meets the glacis at its slope — the true angle of incidence.
+    let flat_shot = target.hull.facet(ArmorFacing::HullFront).slope_degrees;
+    let result = resolve_penetration(&shell, &target.hull, ArmorFacing::HullFront, flat_shot);
 
     assert!(result.penetrated);
 }

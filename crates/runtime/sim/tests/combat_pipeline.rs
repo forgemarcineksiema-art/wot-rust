@@ -149,7 +149,9 @@ fn long_range_hit_uses_penetration_falloff() {
         shooter.gun_pitch_rad = 0.007;
         shooter.aim_dispersion_mrad = 0.0;
         shooter.spec.gun.dispersion_mrad = 0.0;
-        shooter.spec.gun.shell.penetration_mm_at_100m = 105.0;
+        // Marginal at the muzzle: comfortably beats the plate at 100 m, dies to the velocity
+        // the shell has bled by 900 m (pen(v) — see `ShellSpec::penetration_mm_at_distance`).
+        shooter.spec.gun.shell.penetration_mm_at_100m = 100.0;
     }
     state.tank_mut(target).expect("target").yaw_rad = PI;
     let target_hp = state.tank(target).expect("target").hit_points;
@@ -165,7 +167,7 @@ fn long_range_hit_uses_penetration_falloff() {
 
     let event = state.damage_events().last().expect("long-range hit should resolve");
     assert_eq!(event.target, target);
-    assert!(!event.penetrated, "105 mm at 100 m should fall below Tiger I front at 900 m");
+    assert!(!event.penetrated, "100 mm at 100 m should fall below Tiger I front at 900 m");
     assert_eq!(state.tank(target).expect("target").hit_points, target_hp);
 }
 
