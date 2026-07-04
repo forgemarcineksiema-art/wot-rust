@@ -80,12 +80,29 @@ impl super::SceneRenderer {
         self.fx_vertex_count = vertices.len() as u32;
     }
 
+    /// Upload this frame's HUD overlay. An oversized upload keeps the first triangles that fit
+    /// instead of blanking the whole HUD — losing the last elements beats losing the reticle —
+    /// and warns so the regression is visible in logs.
     pub fn set_hud(&mut self, ctx: &GpuContext, vertices: &[HudVertex]) {
-        let bytes: &[u8] = bytemuck::cast_slice(vertices);
-        if bytes.len() as u64 > super::HUD_VERTEX_CAPACITY {
-            return;
-        }
-        ctx.queue.write_buffer(&self.hud_vertices, 0, bytes);
+        let capacity_vertices =
+            (super::HUD_VERTEX_CAPACITY as usize) / std::mem::size_of::<HudVertex>();
+        let vertices = if vertices.len() > capacity_vertices {
+            let kept = capacity_vertices - capacity_vertices % 3;
+            tracing::warn!(
+                submitted = vertices.len(),
+                kept,
+                "HUD vertex budget exceeded; truncating overlay"
+            );
+            &vertices[..kept]
+        } else {
+            vertices
+        };
+        ctx.queue.write_buffer(&self.hud_vertices, 0, bytemuck::cast_slice(vertices));
         self.hud_vertex_count = vertices.len() as u32;
+    }
+
+    /// Vertices the HUD pass will draw this frame — what `set_hud` accepted after budgeting.
+    pub fn hud_vertex_count(&self) -> u32 {
+        self.hud_vertex_count
     }
 }

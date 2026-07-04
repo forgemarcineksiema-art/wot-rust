@@ -3642,6 +3642,7 @@ dependencies = [
  "pollster",
  "renderer_api",
  "thiserror 2.0.18",
+ "tracing",
  "wgpu",
 ]
 

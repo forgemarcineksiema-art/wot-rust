@@ -25,14 +25,33 @@ pub struct HudVitals {
     pub reload_seconds: f32,
 }
 
+/// Everything the battle HUD draws in one frame, gathered by `render_now` and consumed by
+/// `build_battle_hud`. One struct instead of a growing positional parameter list — upcoming
+/// elements (damage log, ammo panel, minimap) land here as fields.
+#[derive(Debug, Clone, PartialEq)]
+pub struct BattleHudModel {
+    pub vitals: HudVitals,
+    pub reticle: Option<HudReticle>,
+    /// Draws the top-right frame-rate readout when positive; `0.0` omits it (offline examples).
+    pub fps: f32,
+    /// Draws the bottom-left speed readout when at least 0.5 km/h.
+    pub speed_kmh: f32,
+    /// Sniper magnification; `None` in third person (no readout).
+    pub zoom_factor: Option<f32>,
+}
+
 /// Build the 2D HUD overlay (center crosshair, top-left health bar, bottom-center reload
 /// bar) in clip space. `aspect` keeps the crosshair square on non-square viewports.
 pub fn build_hud(vitals: HudVitals, aspect: f32) -> Vec<HudVertex> {
-    build_hud_with_reticle(vitals, aspect, None, 0.0, 0.0, None)
+    build_battle_hud(
+        &BattleHudModel { vitals, reticle: None, fps: 0.0, speed_kmh: 0.0, zoom_factor: None },
+        aspect,
+    )
 }
 
-/// `fps` draws a 7-segment frame-rate readout in the top-right corner when positive; pass
-/// `0.0` to omit it (e.g. the offline screenshot example).
+/// Compatibility wrapper over `build_battle_hud` for the HUD test suite's positional call sites;
+/// production code passes a `BattleHudModel`.
+#[cfg(test)]
 pub(crate) fn build_hud_with_reticle(
     vitals: HudVitals,
     aspect: f32,
@@ -41,9 +60,14 @@ pub(crate) fn build_hud_with_reticle(
     speed_kmh: f32,
     zoom_factor: Option<f32>,
 ) -> Vec<HudVertex> {
-    let mut vertices = Vec::new();
+    build_battle_hud(&BattleHudModel { vitals, reticle, fps, speed_kmh, zoom_factor }, aspect)
+}
 
-    let reticle = reticle.unwrap_or(HudReticle {
+pub(crate) fn build_battle_hud(model: &BattleHudModel, aspect: f32) -> Vec<HudVertex> {
+    let mut vertices = Vec::new();
+    let vitals = model.vitals;
+
+    let reticle = model.reticle.unwrap_or(HudReticle {
         aim_clip: [0.0, 0.0],
         impact_clip: None,
         aim_radius_clip: 0.0,
@@ -85,7 +109,7 @@ pub(crate) fn build_hud_with_reticle(
 
     // Sniper magnification readout, WT-style "X6.9", just under the reticle center so the
     // eye reads it without leaving the sight. Third person draws nothing.
-    if let Some(zoom) = zoom_factor {
+    if let Some(zoom) = model.zoom_factor {
         let label =
             format!("{}{:.1}", crate::ui_strings::battle::ZOOM_PREFIX, zoom.clamp(0.0, 99.9));
         crate::hud::font::push_text(
@@ -99,10 +123,10 @@ pub(crate) fn build_hud_with_reticle(
         );
     }
 
-    if fps > 0.0 {
+    if model.fps > 0.0 {
         crate::hud::number::push_number(
             &mut vertices,
-            fps.round() as u32,
+            model.fps.round() as u32,
             0.97,
             0.97,
             0.05,
@@ -111,10 +135,10 @@ pub(crate) fn build_hud_with_reticle(
         );
     }
 
-    if speed_kmh >= 0.5 {
+    if model.speed_kmh >= 0.5 {
         crate::hud::number::push_number(
             &mut vertices,
-            speed_kmh.round().clamp(0.0, 999.0) as u32,
+            model.speed_kmh.round().clamp(0.0, 999.0) as u32,
             -0.78,
             -0.76,
             0.065,
@@ -146,5 +170,7 @@ pub(crate) fn health_color(frac: f32) -> [f32; 4] {
     }
 }
 
+#[cfg(test)]
+mod reticle_overlay_tests;
 #[cfg(test)]
 mod tests;

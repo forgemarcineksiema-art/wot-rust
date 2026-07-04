@@ -9,7 +9,7 @@ use tracing::error;
 use winit::window::Window;
 
 use super::{ClientApp, SceneKind};
-use crate::hud::{HudVitals, build_hud_with_reticle};
+use crate::hud::HudVitals;
 use crate::{battlefield_scene_mesh, split_pbr_vehicle_render_frame_on_terrain};
 
 const SNAPSHOT_INTERVAL_SECONDS: f32 = 1.0 / DEFAULT_SNAPSHOT_HZ as f32;
@@ -102,14 +102,14 @@ impl ClientApp {
             reload_remaining_s: reload_remaining,
             reload_seconds: reload_max,
         };
-        let mut hud = build_hud_with_reticle(
+        let hud_model = crate::hud::BattleHudModel {
             vitals,
-            aspect,
-            self.hud_reticle(&camera, view_proj),
-            self.fps_estimate,
-            self.player_speed_kmh(),
-            self.camera_controller.zoom_factor(),
-        );
+            reticle: self.hud_reticle(&camera, view_proj),
+            fps: self.fps_estimate,
+            speed_kmh: self.player_speed_kmh(),
+            zoom_factor: self.camera_controller.zoom_factor(),
+        };
+        let mut hud = crate::hud::build_battle_hud(&hud_model, aspect);
         hud.extend(enemy_bars);
         hud.extend(self.hit_indicator.render_vertices(view_proj, aspect));
         let fx_vertices = self.fx_frame_vertices(camera.eye, camera.target);
