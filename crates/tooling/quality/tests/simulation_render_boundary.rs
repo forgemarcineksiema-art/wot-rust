@@ -34,8 +34,9 @@ fn sim_net_and_server_stay_free_of_render_frame_concepts() {
 
 #[test]
 fn client_redraw_path_does_not_step_authoritative_simulation() {
-    let dispatch = fs::read_to_string(workspace_root().join("crates/apps/client/src/app/mod.rs"))
-        .expect("client loop dispatch should be readable");
+    let dispatch =
+        fs::read_to_string(workspace_root().join("crates/apps/client/src/app/loop_step.rs"))
+            .expect("client loop dispatch should be readable");
     let redraw_index =
         dispatch.find("ClientLoopAction::RenderFrame").expect("render action exists");
     let fixed_tick_index =

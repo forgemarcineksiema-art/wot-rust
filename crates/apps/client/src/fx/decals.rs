@@ -111,12 +111,12 @@ pub(crate) fn append_decal_quads(
 }
 
 /// The oriented plane a decal stamps onto: its center (already lifted off the armor) and the
-/// two in-plane axes.
+/// two in-plane axes. Shared with the terrain scars, which stamp the same way onto the ground.
 #[derive(Clone, Copy)]
-struct Plate {
-    center: Vec3,
-    u: Vec3,
-    v: Vec3,
+pub(super) struct Plate {
+    pub(super) center: Vec3,
+    pub(super) u: Vec3,
+    pub(super) v: Vec3,
 }
 
 /// A penetration is three layers, not one blob: a wide SOFT scorch halo (burnt paint), the
@@ -159,7 +159,7 @@ fn push_gouge(vertices: &mut Vec<FxVertex>, plate: Plate, decal: &HitDecal, opac
 }
 
 /// One oriented quad on the plate with half-extents along its axes and an edge sharpness.
-fn push_stamp(
+pub(super) fn push_stamp(
     vertices: &mut Vec<FxVertex>,
     plate: Plate,
     half_u_m: f32,
@@ -192,7 +192,7 @@ fn splash_angles(local_position: [f32; 3]) -> [(f32, f32); 5] {
     fan
 }
 
-fn premul(tone: [f32; 3], alpha: f32) -> [f32; 4] {
+pub(super) fn premul(tone: [f32; 3], alpha: f32) -> [f32; 4] {
     [tone[0] * alpha, tone[1] * alpha, tone[2] * alpha, alpha]
 }
 

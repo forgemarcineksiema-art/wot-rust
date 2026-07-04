@@ -11,6 +11,7 @@ mod hit_mark_tests;
 mod input;
 mod input_state;
 mod lifecycle;
+mod loop_step;
 mod prediction;
 mod render;
 #[cfg(test)]
@@ -24,12 +25,11 @@ use std::time::Instant;
 
 use anyhow::Context;
 use game_core::{TankId, VehicleKind};
-use net::ClientInputCommand;
 use renderer_wgpu::WindowRenderer;
 use server::{LocalAuthoritativeServer, ServerTickConfig};
-use sim::{DEFAULT_SIMULATION_TICK_HZ, TankCommand};
+use sim::DEFAULT_SIMULATION_TICK_HZ;
 use terrain::{BattlefieldMap, prokhorovka_hill_252_2};
-use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
+use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::Window;
 
 use crate::aim::DesiredAim;
@@ -39,8 +39,8 @@ use crate::fx::FxSystem;
 use crate::hit_indicator::HitIndicator;
 use crate::predict::LocalPredictor;
 use crate::{
-    BattleCameraController, CameraObstacle, ClientLoopAction, InterpolatedBattleState,
-    VehicleAssetCatalog, WinitLoopDriver,
+    BattleCameraController, CameraObstacle, InterpolatedBattleState, VehicleAssetCatalog,
+    WinitLoopDriver,
 };
 
 /// Which static scene the renderer currently holds. The garage and the battlefield share one
@@ -98,6 +98,9 @@ pub(crate) struct ClientApp {
     /// Accumulated battle scars per tank (hit decals in hull/turret local frames). Persistent
     /// across snapshots — the snapshot replicates damage STATE, the scars record its history.
     tank_scars: HashMap<game_core::TankId, crate::vehicle::variation::VehicleVariation>,
+    /// Craters and scorch marks where shells struck the ground: a budgeted world-space pool
+    /// stamped onto the terrain through the same FX pass as the on-tank decals.
+    terrain_scars: crate::fx::TerrainScars,
     /// Per-tank emission clock for the dead-engine smoke column (seconds since last puff).
     engine_smoke_accum_s: HashMap<game_core::TankId, f32>,
     /// Smoothed frames-per-second for the HUD readout (EMA over instantaneous frame rate).
@@ -147,71 +150,13 @@ impl ClientApp {
             hit_indicator: HitIndicator::default(),
             fx: FxSystem::default(),
             tank_scars: HashMap::new(),
+            terrain_scars: crate::fx::TerrainScars::default(),
             engine_smoke_accum_s: HashMap::new(),
             fps_estimate: 0.0,
             // The renderer is created with the battlefield mesh (see `create_renderer`); the first
             // garage frame swaps in the hangar. Starting at `Garage` here would skip that swap.
             current_scene: SceneKind::Battle,
             viewport: (1280, 720),
-        }
-    }
-
-    fn handle_actions(&mut self, event_loop: &ActiveEventLoop, actions: Vec<ClientLoopAction>) {
-        for action in actions {
-            match action {
-                ClientLoopAction::CaptureInput => {}
-                ClientLoopAction::RunFixedTicks(count) => self.run_fixed_ticks(count),
-                ClientLoopAction::RequestRedraw => {
-                    if let Some(window) = &self.window {
-                        window.request_redraw();
-                    }
-                }
-                ClientLoopAction::RenderFrame => self.render_now(),
-                ClientLoopAction::Resize { width, height } => {
-                    self.viewport = (width.max(1), height.max(1));
-                    if let Some(renderer) = &mut self.renderer {
-                        renderer.resize(width, height);
-                    }
-                }
-                ClientLoopAction::Exit => event_loop.exit(),
-            }
-        }
-    }
-
-    fn run_fixed_ticks(&mut self, count: u32) {
-        if !self.garage.has_started() {
-            self.input.fire_pending = false;
-            return;
-        }
-        // Mouse look is applied per rendered frame (see `render_now`); the fixed step only
-        // consumes the resulting aim, so the turret converges on the latest sight point. One
-        // sight sweep feeds both the traverse and the elevation command.
-        let solution = self.sight_solution();
-        let turret_yaw_delta = self.turret_tracking_command_for(solution.as_ref());
-        let gun_pitch_delta = self.gun_elevation_command_for(solution.as_ref());
-        let mut fire = self.input.fire_pending;
-        self.input.fire_pending = false;
-        self.seed_prediction();
-        for _ in 0..count {
-            let command = TankCommand {
-                throttle: self.input.throttle(),
-                steer: -self.input.steer(),
-                brake: self.input.brake_value(),
-                turret_yaw_delta,
-                gun_pitch_delta,
-                fire,
-            };
-            fire = false;
-            self.step_prediction(&command);
-            let outcome = self.local_server.tick_with_input(ClientInputCommand {
-                client_tick: self.client_tick,
-                tank_id: self.player_tank,
-                command,
-            });
-            self.client_tick += 1;
-            if let Some(snapshot) = outcome.snapshot {
-                self.accept_and_sync(snapshot);
-            }
         }
     }
 }

@@ -55,8 +55,9 @@ fn shell_state_does_not_duplicate_shell_damage_value() {
 fn client_can_send_fire_intent_to_authoritative_server() {
     let input = fs::read_to_string(workspace_root().join("crates/apps/client/src/app/input.rs"))
         .expect("client input");
-    let dispatch = fs::read_to_string(workspace_root().join("crates/apps/client/src/app/mod.rs"))
-        .expect("client app");
+    let dispatch =
+        fs::read_to_string(workspace_root().join("crates/apps/client/src/app/loop_step.rs"))
+            .expect("client fixed-step dispatch");
 
     assert!(input.contains("KeyCode::Space"));
     assert!(input.contains("fire_pending"));
