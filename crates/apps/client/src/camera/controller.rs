@@ -1,6 +1,5 @@
-use game_core::MountFrames;
-use game_core::math::{gun_direction, horizontal_forward, wrap_angle};
-use glam::{Mat3, Vec3};
+use game_core::math::{horizontal_forward, wrap_angle};
+use glam::Vec3;
 use renderer_api::Camera;
 
 use super::smoothing::CameraSmoothing;
@@ -9,8 +8,12 @@ use super::{
     CameraSubject, collision, zoom,
 };
 
-/// Sniper sight height above the gun trunnion — roughly where the gunner's optics sit.
-const SNIPER_SIGHT_ABOVE_TRUNNION_M: f32 = 0.35;
+/// Boom length at (and below) which the over-shoulder offset is fully applied. Up close the
+/// offset keeps the player's own turret out of the sight lane...
+const SHOULDER_FULL_DISTANCE_M: f32 = 4.0;
+/// ...and by this boom length it has fully blended away: at battle distance the camera is
+/// CENTERED on the vehicle — the default view holds the tank, not a lane beside it.
+const SHOULDER_GONE_DISTANCE_M: f32 = 7.0;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct BattleCameraController {
@@ -129,11 +132,13 @@ impl BattleCameraController {
         let right = horizontal_right(forward);
         // The over-shoulder offset shifts the *whole* sight lane (target and eye alike): with the
         // offset on the eye only, the eye->target direction rotated as the boom length changed,
-        // so every zoom click swung the scene sideways and dragged the aim point with it.
+        // so every zoom click swung the scene sideways and dragged the aim point with it. The
+        // offset itself is CLOSE-RANGE ONLY: it blends in below SHOULDER_GONE_DISTANCE_M (where
+        // the player's own turret would block the lane); the default battle view is centered.
         let target = tank
             + Vec3::Y * self.settings.third_person_target_height_m
             + forward * self.settings.third_person_target_forward_offset_m
-            + right * self.settings.third_person_lateral_offset_m;
+            + right * self.settings.third_person_lateral_offset_m * self.shoulder_fraction();
         let horizontal_distance = self.distance_m * self.pitch_rad.cos().max(0.1);
         let vertical_offset = self.distance_m * self.pitch_rad.sin();
         let desired_eye = target - forward * horizontal_distance + Vec3::Y * vertical_offset;
@@ -158,31 +163,12 @@ impl BattleCameraController {
         }
     }
 
-    fn sniper_camera(
-        &self,
-        subject: &CameraSubject,
-        environment: &BattleCameraEnvironment<'_>,
-    ) -> Camera {
-        // The eye sits *on* the per-vehicle turret-ring axis at sight height: a point on the
-        // traverse axis does not translate as the turret slews, so the world cannot slide
-        // sideways while the turret catches up to the aim (a forward-offset eye rode a lateral
-        // arc on every mouse move). Height comes from the vehicle's trunnion, not a global.
-        let mounts = MountFrames::for_vehicle(subject.vehicle);
-        let ring = mounts.turret_ring.translation;
-        let ring_axis =
-            Mat3::from_rotation_y(subject.hull_yaw_rad) * Vec3::new(ring.x, 0.0, ring.z);
-        let sight_height = mounts.gun_trunnion.translation.y + SNIPER_SIGHT_ABOVE_TRUNNION_M;
-        let eye = subject.position_vec() + ring_axis + Vec3::Y * sight_height;
-        let eye =
-            collision::apply_terrain_clearance(eye, environment, self.settings.terrain_clearance_m);
-        let aim = gun_direction(subject.desired_yaw_rad, subject.desired_pitch_rad);
-        let target = eye + aim * 1_000.0;
-
-        Camera {
-            eye: eye.to_array(),
-            target: target.to_array(),
-            vertical_fov_degrees: self.sniper_fov_degrees,
-        }
+    /// How much of the over-shoulder lateral offset applies at the current boom length: full at
+    /// point-blank booms, zero at battle distance (linear in between).
+    fn shoulder_fraction(&self) -> f32 {
+        ((SHOULDER_GONE_DISTANCE_M - self.distance_m)
+            / (SHOULDER_GONE_DISTANCE_M - SHOULDER_FULL_DISTANCE_M))
+            .clamp(0.0, 1.0)
     }
 }
 

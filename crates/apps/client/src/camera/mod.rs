@@ -1,6 +1,7 @@
 mod collision;
 mod controller;
 mod smoothing;
+mod sniper;
 mod types;
 mod zoom;
 

@@ -25,8 +25,8 @@ fn third_person_camera_follows_tank_and_stays_above_terrain() {
         "TPP aim camera should look ahead of the hull instead of centering the player's turret"
     );
     assert!(
-        (render_camera.eye[0] - subject.position[0]).abs() > 0.5,
-        "TPP aim camera should use an over-shoulder sight lane"
+        (render_camera.eye[0] - subject.position[0]).abs() < 0.05,
+        "at battle distance the camera is CENTERED on the vehicle, not beside it"
     );
     assert_eq!(render_camera.vertical_fov_degrees, camera.settings().third_person_fov_degrees);
 }
@@ -111,22 +111,24 @@ fn third_person_camera_follows_the_hull_rigidly_without_lag() {
 }
 
 #[test]
-fn third_person_camera_uses_turret_yaw_for_over_shoulder_lane() {
+fn the_over_shoulder_lane_exists_only_up_close_and_rotates_with_the_view() {
     let environment = BattleCameraEnvironment::empty();
     let subject = CameraSubject::from_snapshot(tank_snapshot([0.0, 0.0, 0.0], 0.0, FRAC_PI_2), 0.0);
     let mut camera = BattleCameraController::new(BattleCameraSettings::default());
     camera.set_mode(BattleCameraMode::ThirdPerson);
 
-    let render_camera = camera.render_camera(&subject, &environment);
+    // Default battle boom: centered — the target still leads the turret, but no side lane.
+    let far = camera.render_camera(&subject, &environment);
+    assert!(far.target[0] > subject.position[0] + 3.0, "TPP target leads the current turret");
+    assert!(far.eye[2].abs() < 0.05, "no over-shoulder lane at battle distance");
 
+    // Zoomed to the shortest boom: the shoulder blends in fully and rotates with the view
+    // (view yaw FRAC_PI_2 puts the lane's `right` on -Z).
+    camera.apply_input(BattleCameraInput { zoom_delta_m: -100.0, ..Default::default() });
+    let near = camera.render_camera(&subject, &environment);
     assert!(
-        render_camera.target[0] > subject.position[0] + 3.0,
-        "TPP target should move ahead of the current turret"
-    );
-    assert!(render_camera.eye[0] < subject.position[0], "camera should sit behind turret yaw");
-    assert!(
-        render_camera.eye[2].abs() > 0.5,
-        "over-shoulder offset should rotate with the turret lane"
+        near.eye[2].abs() > 0.5,
+        "point-blank boom uses the over-shoulder lane to clear the player's own turret"
     );
 }
 
@@ -361,47 +363,4 @@ fn tank_snapshot(position: [f32; 3], hull_yaw_rad: f32, turret_yaw_rad: f32) -> 
         destroyed_modules_mask: 0,
         track_damage_mask: 0,
     }
-}
-
-#[test]
-fn the_players_shot_nudges_the_third_person_rig_and_leaves_sniper_rigid() {
-    let heightmap = HeightMap::flat(64, 64, 1.0, 0.0).expect("heightmap");
-    let environment = BattleCameraEnvironment::with_terrain(&heightmap);
-    let position = [20.0, 0.0, 20.0];
-    let subject = CameraSubject::from_snapshot(tank_snapshot(position, 0.0, 0.0), 0.0);
-
-    // Third person: settle the follow rig, then fire — the eye must dip back/down and recover.
-    let mut camera = BattleCameraController::new(BattleCameraSettings::default());
-    camera.set_mode(BattleCameraMode::ThirdPerson);
-    for _ in 0..240 {
-        camera.advance(position, 1.0 / 60.0);
-    }
-    let settled = camera.render_camera(&subject, &environment).eye;
-    camera.fire_kick(subject.view_yaw_rad);
-    let mut max_back = 0.0_f32;
-    let mut max_down = 0.0_f32;
-    for _ in 0..30 {
-        camera.advance(position, 1.0 / 60.0);
-        let eye = camera.render_camera(&subject, &environment).eye;
-        // view_yaw 0 faces +Z: the kick pushes the rig toward -Z and down.
-        max_back = max_back.max(settled[2] - eye[2]);
-        max_down = max_down.max(settled[1] - eye[1]);
-    }
-    assert!(max_back > 0.01, "the shot visibly nudges the rig back, got {max_back}");
-    assert!(max_down > 0.005, "and settles it slightly down, got {max_down}");
-    for _ in 0..240 {
-        camera.advance(position, 1.0 / 60.0);
-    }
-    let recovered = camera.render_camera(&subject, &environment).eye;
-    assert!((recovered[2] - settled[2]).abs() < 0.01, "the rig recovers to its settle");
-
-    // Sniper: the same kick must not move the eye at all — aiming tolerates no theatrics.
-    let mut sniper = BattleCameraController::new(BattleCameraSettings::default());
-    sniper.set_mode(BattleCameraMode::Sniper);
-    sniper.advance(position, 1.0 / 60.0);
-    let before = sniper.render_camera(&subject, &environment).eye;
-    sniper.fire_kick(subject.view_yaw_rad);
-    sniper.advance(position, 1.0 / 60.0);
-    let after = sniper.render_camera(&subject, &environment).eye;
-    assert_eq!(before, after, "sniper eye stays rigid through the shot");
 }

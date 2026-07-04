@@ -216,6 +216,11 @@ mod tests {
         let mut app = ClientApp::new();
         app.confirm_garage_selection();
         app.seed_prediction();
+        // Zoom to the shortest boom: the over-shoulder lane is CLOSE-RANGE ONLY now (the
+        // default battle view is centered), and close range is exactly where a turret running
+        // parallel to the camera missed worst.
+        app.camera_controller
+            .apply_input(crate::BattleCameraInput { zoom_delta_m: -100.0, ..Default::default() });
 
         // Let the turret-tracking loop settle against the over-shoulder sight lane.
         for _ in 0..300 {
