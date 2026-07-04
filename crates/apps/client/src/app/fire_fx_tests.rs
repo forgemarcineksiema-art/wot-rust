@@ -107,3 +107,32 @@ fn replicated_shell_deaths_and_armor_hits_burst_into_particles() {
     app.accept_and_sync(snapshot);
     assert_eq!(app.fx.live_particles(), 0, "ram damage draws no shell burst");
 }
+
+#[test]
+fn a_terrain_impact_digs_a_crater_and_an_armor_hit_does_not() {
+    use game_core::{ImpactSurface, ShellImpact};
+
+    let mut app = battle_ready_app();
+    assert_eq!(app.terrain_scars.live_scars(), 0);
+
+    let mut snapshot = app.render_state.latest_snapshot().cloned().expect("snapshot");
+    snapshot.server_tick += 1;
+    snapshot.shell_impacts.push(ShellImpact {
+        owner: app.player_tank,
+        position: glam::Vec3::new(30.0, 0.5, 40.0),
+        surface: ImpactSurface::Terrain,
+    });
+    snapshot.shell_impacts.push(ShellImpact {
+        owner: app.player_tank,
+        position: glam::Vec3::new(50.0, 1.6, 60.0),
+        surface: ImpactSurface::Hull,
+    });
+    app.accept_and_sync(snapshot);
+
+    assert_eq!(app.terrain_scars.live_scars(), 1, "only the swallowed shell marks the ground");
+
+    // The crater is part of the frame's FX batch even after the burst particles die out.
+    app.fx = crate::fx::FxSystem::default();
+    let vertices = app.fx_frame_vertices([30.0, 20.0, 20.0], [30.0, 0.0, 40.0]);
+    assert!(!vertices.is_empty(), "the crater outlives the dust in the FX batch");
+}

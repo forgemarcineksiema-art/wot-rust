@@ -52,6 +52,7 @@ impl ClientApp {
         self.render_state.advance(frame_dt, SNAPSHOT_INTERVAL_SECONDS);
         self.hit_indicator.tick(frame_dt);
         self.fx.tick(frame_dt);
+        self.terrain_scars.tick(frame_dt);
         self.tick_battle_scars(frame_dt);
 
         let alpha = self.loop_driver.render_alpha();
@@ -166,15 +167,19 @@ impl ClientApp {
         }
     }
 
-    /// This frame's full FX batch: the ticked particle pool plus a tracer per in-flight shell
-    /// (tracers are stateless — rebuilt each frame from the interpolated shell snapshots).
+    /// This frame's full FX batch: ground craters first (the farthest surface layer — smoke and
+    /// dust must composite over them), then the ticked particle pool, a tracer per in-flight
+    /// shell (stateless — rebuilt each frame from the interpolated shell snapshots), and the
+    /// on-tank scar decals.
     pub(super) fn fx_frame_vertices(
         &self,
         eye: [f32; 3],
         target: [f32; 3],
     ) -> Vec<renderer_api::FxVertex> {
         let eye = glam::Vec3::from_array(eye);
-        let mut fx_vertices = self.fx.vertices(eye, glam::Vec3::from_array(target));
+        let mut fx_vertices = Vec::new();
+        self.terrain_scars.append_quads(&mut fx_vertices);
+        fx_vertices.extend(self.fx.vertices(eye, glam::Vec3::from_array(target)));
         let shells = self.render_state.interpolated_shells(SNAPSHOT_INTERVAL_SECONDS);
         crate::fx::append_shell_tracers(&mut fx_vertices, &shells, eye);
         self.append_scar_quads(&mut fx_vertices);
