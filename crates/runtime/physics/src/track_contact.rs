@@ -10,22 +10,78 @@ use game_core::math::horizontal_forward;
 use glam::Vec3;
 use terrain::HeightMap;
 
+/// One side's (or the combined) resting line at the hull origin: the support height and the
+/// slope of the segment the rigid beam rests on there.
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct RestLine {
+    height_m: f32,
+    slope: f32,
+}
+
+/// The full support contact of the running gear: ride height under the origin plus the hull
+/// attitude targets the support plane implies (`+pitch` nose up, `+roll` right side up — the
+/// [`game_core::math::hull_basis`] convention).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SupportContact {
+    pub height_m: f32,
+    pub pitch_rad: f32,
+    pub roll_rad: f32,
+}
+
+/// Which track samples feed a rest line.
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum Side {
+    Both,
+    Left,
+    Right,
+}
+
 /// Ground height under the hull origin when the rigid running gear rests on the terrain, or
 /// `None` when no station lands on the map (the caller falls back to the centre probe).
-///
-/// Mechanism: each station samples the ground under both tracks and keeps the higher side (a
-/// rigid frame rests on whichever track touches first). The upper convex hull of the
-/// `(station_z, ground)` profile is the shape a rigid beam can actually rest on — samples below
-/// it (a trench between wheels) never touch the beam. The support height at the origin is that
-/// hull evaluated at `z = 0`, extrapolated along the last segment when the origin has passed the
-/// final support (the crest overhang: the hull keeps its ride line until the geometry, not the
-/// centre sample, says it drops).
 pub fn support_height(
     heightmap: &HeightMap,
     position: Vec3,
     yaw_rad: f32,
     footprint: &ContactFootprint,
 ) -> Option<f32> {
+    rest_line(heightmap, position, yaw_rad, footprint, Side::Both).map(|line| line.height_m)
+}
+
+/// Full support contact: ride height plus the pitch/roll targets of the support plane. Pitch is
+/// the slope of the combined resting segment; roll comes from the difference between the two
+/// per-side resting lines across the track gauge.
+pub fn sample_support(
+    heightmap: &HeightMap,
+    position: Vec3,
+    yaw_rad: f32,
+    footprint: &ContactFootprint,
+) -> Option<SupportContact> {
+    let combined = rest_line(heightmap, position, yaw_rad, footprint, Side::Both)?;
+    let left = rest_line(heightmap, position, yaw_rad, footprint, Side::Left);
+    let right = rest_line(heightmap, position, yaw_rad, footprint, Side::Right);
+    let roll_rad = match (left, right) {
+        (Some(left), Some(right)) => {
+            ((right.height_m - left.height_m) / (2.0 * footprint.half_gauge_x.max(0.1))).atan()
+        }
+        _ => 0.0,
+    };
+    Some(SupportContact { height_m: combined.height_m, pitch_rad: combined.slope.atan(), roll_rad })
+}
+
+/// The resting line of a rigid beam over the station profile of `side`: each station samples the
+/// ground under the selected track(s) — `Both` keeps the higher side, since a rigid frame rests
+/// on whichever track touches first. The upper convex hull of the `(station_z, ground)` profile
+/// is the shape a rigid beam can actually rest on — samples below it (a trench between wheels)
+/// never touch the beam. The rest line at the origin is the hull segment spanning `z = 0`,
+/// extrapolated along the last segment when the origin has passed the final support (the crest
+/// overhang: the hull keeps its ride line until the geometry, not the centre sample, drops it).
+fn rest_line(
+    heightmap: &HeightMap,
+    position: Vec3,
+    yaw_rad: f32,
+    footprint: &ContactFootprint,
+    side: Side,
+) -> Option<RestLine> {
     let stations = footprint.station_zs();
     if stations.is_empty() {
         return None;
@@ -33,20 +89,24 @@ pub fn support_height(
     let forward = horizontal_forward(yaw_rad);
     let right = Vec3::new(forward.z, 0.0, -forward.x);
 
-    // Per-station ground line: the higher of the two track samples (skip stations off the map).
     let mut profile: [(f32, f32); game_core::MAX_CONTACT_STATIONS] =
         [(0.0, 0.0); game_core::MAX_CONTACT_STATIONS];
     let mut count = 0;
     for &station_z in stations {
         let centre = position + forward * station_z;
-        let left = sample(heightmap, centre - right * footprint.half_gauge_x);
+        let left_h = sample(heightmap, centre - right * footprint.half_gauge_x);
         let right_h = sample(heightmap, centre + right * footprint.half_gauge_x);
-        let ground = match (left, right_h) {
-            (Some(l), Some(r)) => l.max(r),
-            (Some(l), None) => l,
-            (None, Some(r)) => r,
-            (None, None) => continue,
+        let ground = match side {
+            Side::Both => match (left_h, right_h) {
+                (Some(l), Some(r)) => Some(l.max(r)),
+                (Some(l), None) => Some(l),
+                (None, Some(r)) => Some(r),
+                (None, None) => None,
+            },
+            Side::Left => left_h,
+            Side::Right => right_h,
         };
+        let Some(ground) = ground else { continue };
         profile[count] = (station_z, ground);
         count += 1;
     }
@@ -68,9 +128,7 @@ pub fn support_height(
         hull[len] = point;
         len += 1;
     }
-    let hull = &hull[..len];
-
-    Some(height_on_hull(hull, 0.0))
+    Some(rest_on_hull(&hull[..len], 0.0))
 }
 
 fn sample(heightmap: &HeightMap, point: Vec3) -> Option<f32> {
@@ -82,11 +140,12 @@ fn turns_right(a: (f32, f32), b: (f32, f32), c: (f32, f32)) -> bool {
     (b.0 - a.0) * (c.1 - a.1) - (b.1 - a.1) * (c.0 - a.0) < 0.0
 }
 
-/// Height of the upper hull at `z`, extrapolating the end segments beyond the station span (the
-/// overhang read: past the last support the beam continues on the last resting slope).
-fn height_on_hull(hull: &[(f32, f32)], z: f32) -> f32 {
+/// Rest line of the upper hull at `z`: height plus the resting segment's slope, extrapolating
+/// the end segments beyond the station span (the overhang read: past the last support the beam
+/// continues on the last resting slope).
+fn rest_on_hull(hull: &[(f32, f32)], z: f32) -> RestLine {
     if hull.len() == 1 {
-        return hull[0].1;
+        return RestLine { height_m: hull[0].1, slope: 0.0 };
     }
     let segment = hull
         .windows(2)
@@ -96,7 +155,7 @@ fn height_on_hull(hull: &[(f32, f32)], z: f32) -> f32 {
     let (a, b) = (segment[0], segment[1]);
     let span = (b.0 - a.0).max(1.0e-6);
     let t = (z - a.0) / span;
-    a.1 + (b.1 - a.1) * t
+    RestLine { height_m: a.1 + (b.1 - a.1) * t, slope: (b.1 - a.1) / span }
 }
 
 #[cfg(test)]

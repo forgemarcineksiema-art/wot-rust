@@ -2,6 +2,7 @@ mod collision;
 mod contact;
 mod controller_settings;
 mod cover;
+mod hull_attitude;
 mod movement;
 mod parry_query;
 mod policy;
@@ -26,9 +27,10 @@ pub use movement::{
     TankControlInput, TankKinematicState, step_custom_tank_controller,
     step_custom_tank_controller_on_contact,
 };
+pub use hull_attitude::{HULL_ATTITUDE_RATE_RAD_S, MAX_HULL_TILT_RAD, advance_hull_attitude};
 pub use parry_query::tank_footprints_intersect_query;
 pub use policy::{CustomPhysicsRole, PhysicsOwner, PhysicsOwnershipPolicy, RapierPhysicsRole};
-pub use track_contact::support_height;
+pub use track_contact::{SupportContact, sample_support, support_height};
 pub use vertical::{GroundStep, is_grounded, resolve_vertical};
 pub use world::{step_tank_on_heightmap, step_tank_on_world, step_tank_on_world_with_tanks};
 

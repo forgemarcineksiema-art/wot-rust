@@ -8,10 +8,11 @@ use crate::collision::{
 use crate::contact::{TerrainContact, sample_tank_terrain_contact};
 use crate::controller_settings::TankControllerSettings;
 use crate::cover::resolve_cover_collision_with_velocity;
+use crate::hull_attitude::advance_hull_attitude;
 use crate::movement::{
     TankControlInput, TankKinematicState, step_custom_tank_controller_on_contact,
 };
-use crate::track_contact::support_height;
+use crate::track_contact::{sample_support, support_height};
 use crate::vertical::{GroundStep, is_grounded, resolve_vertical};
 
 /// Advance one tick on terrain only. Kept for callers without a cover set.
@@ -114,7 +115,9 @@ pub fn step_tank_on_world_with_tanks(
     state.velocity = velocity;
 
     // Vertical resolution against the post-collision ground: the terrain either carries the
-    // hull (the kinematic follow) or lets it fly and later catches it (see `vertical`).
+    // hull (the kinematic follow) or lets it fly and later catches it (see `vertical`). A
+    // grounded hull then rotates toward the support plane's attitude; an airborne hull keeps
+    // the attitude it left the ground with.
     if let Some(heightmap) = heightmap
         && let Some(next_contact) = sample_tank_terrain_contact(
             heightmap,
@@ -123,9 +126,24 @@ pub fn step_tank_on_world_with_tanks(
             settings.ground_probe_length_m,
         )
     {
-        let ground = ride_height(state.position, state.yaw_rad).unwrap_or(next_contact.height_m);
+        let support = footprint
+            .and_then(|footprint| sample_support(heightmap, state.position, state.yaw_rad, footprint));
+        let ground = support.map(|s| s.height_m).unwrap_or(next_contact.height_m);
         let moved_xz = (state.position.x - previous.x).hypot(state.position.z - previous.z);
-        return resolve_vertical(state, ground, was_grounded, moved_xz, dt_seconds);
+        let step = resolve_vertical(state, ground, was_grounded, moved_xz, dt_seconds);
+        if step.grounded {
+            // Attitude targets: the support plane when the running gear is known, the probe
+            // gradients otherwise (+forward_slope = rises ahead = nose up; +side_slope = right
+            // higher = right side up — both match `game_core::math::hull_basis`).
+            let (target_pitch, target_roll) = match support {
+                Some(support) => (support.pitch_rad, support.roll_rad),
+                None => (next_contact.forward_slope.atan(), next_contact.side_slope.atan()),
+            };
+            advance_hull_attitude(state, target_pitch, target_roll, dt_seconds);
+        }
+        return step;
     }
+    // Terrain-free mode: level ground, so the attitude settles back to level.
+    advance_hull_attitude(state, 0.0, 0.0, dt_seconds);
     GroundStep::resting()
 }

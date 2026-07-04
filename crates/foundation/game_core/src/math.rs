@@ -31,6 +31,19 @@ pub fn rotate_around(point: Vec3, pivot: Vec3, rotation: Mat3) -> Vec3 {
     pivot + rotation * (point - pivot)
 }
 
+/// The hull's world basis from its authoritative orientation: yaw about Y, then pitch, then
+/// roll. `+pitch` is nose up (glam's `Rx(+t)` tips local `+Z` downward, so pitch enters
+/// negated); `+roll` is right side up (`Rz(+t)` lifts local `+X` directly).
+///
+/// This is the ONE hull-orientation convention: the simulation (muzzle chain, armor normals,
+/// hitbox frame) and the render pose (`client`'s `VehiclePose`) must both build their hull frame
+/// through it, or the visible tank and the simulated tank tilt apart on every slope.
+pub fn hull_basis(yaw_rad: f32, pitch_rad: f32, roll_rad: f32) -> Mat3 {
+    Mat3::from_rotation_y(yaw_rad)
+        * Mat3::from_rotation_x(-pitch_rad)
+        * Mat3::from_rotation_z(roll_rad)
+}
+
 /// World-space muzzle position for a tank pose.
 ///
 /// The muzzle mount pivots about the trunnion for gun pitch, about the turret ring for turret
@@ -175,6 +188,19 @@ mod tests {
     fn horizontal_forward_points_down_positive_z_at_zero_yaw() {
         assert!((horizontal_forward(0.0) - Vec3::new(0.0, 0.0, 1.0)).length() < 1.0e-6);
         assert!((horizontal_forward(FRAC_PI_2) - Vec3::new(1.0, 0.0, 0.0)).length() < 1.0e-6);
+    }
+
+    #[test]
+    fn hull_basis_lifts_the_nose_with_pitch_and_the_right_side_with_roll() {
+        // +pitch: the hull's forward axis (+Z at yaw 0) gains height.
+        let nosed_up = hull_basis(0.0, 0.2, 0.0) * Vec3::Z;
+        assert!(nosed_up.y > 0.19, "nose up, got {nosed_up:?}");
+        // +roll: the hull's right axis (+X at yaw 0) gains height.
+        let rolled = hull_basis(0.0, 0.0, 0.2) * Vec3::X;
+        assert!(rolled.y > 0.19, "right side up, got {rolled:?}");
+        // Yaw-only degenerates to the planar heading.
+        let heading = hull_basis(0.7, 0.0, 0.0) * Vec3::Z;
+        assert!((heading - horizontal_forward(0.7)).length() < 1.0e-6);
     }
 
     #[test]

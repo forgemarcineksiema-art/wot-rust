@@ -18,6 +18,13 @@ pub struct TankState {
     /// the field) loading.
     #[serde(default)]
     pub hull_yaw_velocity_rad_s: f32,
+    /// Authoritative hull pitch (+nose up) from the running-gear support plane, rate-limited in
+    /// the drive step and frozen while airborne. `serde(default)` keeps older fixtures level.
+    #[serde(default)]
+    pub hull_pitch_rad: f32,
+    /// Authoritative hull roll (+right side up); same lifecycle as `hull_pitch_rad`.
+    #[serde(default)]
+    pub hull_roll_rad: f32,
     pub hit_points: u32,
     pub reload_remaining_s: f32,
     pub aim_dispersion_mrad: f32,

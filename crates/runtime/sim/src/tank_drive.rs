@@ -121,6 +121,8 @@ pub(crate) fn step_tank(
             velocity: tank.velocity_mps,
             yaw_rad: tank.yaw_rad,
             yaw_rate_rad_s: tank.hull_yaw_velocity_rad_s,
+            pitch_rad: tank.hull_pitch_rad,
+            roll_rad: tank.hull_roll_rad,
         },
         aiming: AimingState {
             turret_yaw_rad: tank.turret_yaw_rad,
@@ -146,6 +148,8 @@ pub(crate) fn step_tank(
     tank.yaw_rad = drive.kinematic.yaw_rad;
     tank.velocity_mps = drive.kinematic.velocity;
     tank.hull_yaw_velocity_rad_s = drive.kinematic.yaw_rate_rad_s;
+    tank.hull_pitch_rad = drive.kinematic.pitch_rad;
+    tank.hull_roll_rad = drive.kinematic.roll_rad;
     tank.turret_yaw_rad = drive.aiming.turret_yaw_rad;
     tank.turret_yaw_velocity_rad_s = drive.aiming.turret_yaw_velocity_rad_s;
     tank.gun_pitch_rad = drive.aiming.gun_pitch_rad;
