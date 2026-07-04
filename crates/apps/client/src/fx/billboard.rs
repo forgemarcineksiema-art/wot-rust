@@ -7,7 +7,7 @@ use renderer_api::FxVertex;
 
 /// Camera basis for billboarding: unit right and up vectors spanning the view plane.
 /// Falls back to world axes when the view direction degenerates (eye == target).
-pub(crate) fn camera_basis(eye: Vec3, target: Vec3) -> (Vec3, Vec3) {
+pub(crate) fn view_plane_basis(eye: Vec3, target: Vec3) -> (Vec3, Vec3) {
     let forward = (target - eye).normalize_or_zero();
     if forward == Vec3::ZERO {
         return (Vec3::X, Vec3::Y);
@@ -52,7 +52,7 @@ pub(crate) fn push_stretched(
     let side = axis_half.cross(view).normalize_or_zero();
     let side = if side == Vec3::ZERO {
         // Streak points straight at the camera: it reads as a round glow of its width.
-        camera_basis(eye, center).1
+        view_plane_basis(eye, center).1
     } else {
         side
     };
@@ -80,7 +80,7 @@ mod tests {
     fn billboard_quads_span_the_view_plane() {
         let eye = Vec3::new(0.0, 5.0, -10.0);
         let target = Vec3::new(3.0, 1.0, 4.0);
-        let (right, up) = camera_basis(eye, target);
+        let (right, up) = view_plane_basis(eye, target);
         let forward = (target - eye).normalize();
 
         // The basis is orthonormal and perpendicular to the view direction.
@@ -131,7 +131,7 @@ mod tests {
             Vec3::ZERO,
         );
         // Eye exactly on target.
-        let (right, up) = camera_basis(Vec3::ONE, Vec3::ONE);
+        let (right, up) = view_plane_basis(Vec3::ONE, Vec3::ONE);
         push_billboard(&mut vertices, Vec3::ONE, 1.0, [1.0; 4], right, up);
         for vertex in &vertices {
             assert!(vertex.position.iter().all(|component| component.is_finite()));

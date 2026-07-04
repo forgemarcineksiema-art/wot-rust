@@ -1,5 +1,4 @@
 use glam::{Mat3, Vec3};
-use net::ShellSnapshot;
 use renderer_api::SceneVertex;
 
 /// One box face: four corners wound CCW as seen from outside (`edge_u × edge_v == normal`),
@@ -59,22 +58,4 @@ pub(crate) fn push_box(
     let right = Vec3::new(yaw.cos(), 0.0, -yaw.sin());
     let fwd = Vec3::new(yaw.sin(), 0.0, yaw.cos());
     push_oriented_box(vertices, indices, center, half, Mat3::from_cols(right, Vec3::Y, fwd), color);
-}
-
-/// Append bright tracer cubes for in-flight shells.
-pub fn append_shell_markers(
-    vertices: &mut Vec<SceneVertex>,
-    indices: &mut Vec<u32>,
-    shells: &[ShellSnapshot],
-) {
-    for shell in shells {
-        push_box(
-            vertices,
-            indices,
-            Vec3::from_array(shell.position),
-            Vec3::splat(0.22),
-            0.0,
-            [1.0, 0.85, 0.35],
-        );
-    }
 }

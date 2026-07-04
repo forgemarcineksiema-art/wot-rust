@@ -13,7 +13,7 @@ use winit::window::Window;
 use super::{ClientApp, SceneKind};
 use crate::hud::{HudVitals, build_hud_with_reticle};
 use crate::{
-    BattleCameraEnvironment, CameraSubject, append_shell_markers, battlefield_scene_mesh,
+    BattleCameraEnvironment, CameraSubject, battlefield_scene_mesh,
     split_pbr_vehicle_render_frame_on_terrain,
 };
 
@@ -115,6 +115,7 @@ impl ClientApp {
         );
         hud.extend(enemy_bars);
         hud.extend(self.hit_indicator.render_vertices(view_proj, aspect));
+        let fx_vertices = self.fx_frame_vertices(camera.eye, camera.target);
         self.ensure_scene(SceneKind::Battle);
         let Some(renderer) = self.renderer.as_mut() else {
             return;
@@ -128,12 +129,7 @@ impl ClientApp {
         renderer.set_render_frame(&RenderFrame::default());
         renderer.set_vehicle_render_frame(&vehicle_frame);
         renderer.set_dynamic_mesh(&vertices, &indices);
-        renderer.set_fx(
-            &self.fx.vertices(
-                glam::Vec3::from_array(camera.eye),
-                glam::Vec3::from_array(camera.target),
-            ),
-        );
+        renderer.set_fx(&fx_vertices);
         renderer.set_hud(&hud);
         if let Err(error) = renderer.render(view_proj, camera.eye) {
             error!(%error, "frame render failed");
@@ -200,9 +196,21 @@ impl ClientApp {
     pub(super) fn shell_marker_mesh(&self) -> (Vec<SceneVertex>, Vec<u32>) {
         let mut vertices = Vec::new();
         let mut indices = Vec::new();
-        let shells = self.render_state.interpolated_shells(SNAPSHOT_INTERVAL_SECONDS);
-        append_shell_markers(&mut vertices, &mut indices, &shells);
         self.hit_indicator.append_world_marks(&mut vertices, &mut indices);
         (vertices, indices)
+    }
+
+    /// This frame's full FX batch: the ticked particle pool plus a tracer per in-flight shell
+    /// (tracers are stateless — rebuilt each frame from the interpolated shell snapshots).
+    pub(super) fn fx_frame_vertices(
+        &self,
+        eye: [f32; 3],
+        target: [f32; 3],
+    ) -> Vec<renderer_api::FxVertex> {
+        let eye = glam::Vec3::from_array(eye);
+        let mut fx_vertices = self.fx.vertices(eye, glam::Vec3::from_array(target));
+        let shells = self.render_state.interpolated_shells(SNAPSHOT_INTERVAL_SECONDS);
+        crate::fx::append_shell_tracers(&mut fx_vertices, &shells, eye);
+        fx_vertices
     }
 }

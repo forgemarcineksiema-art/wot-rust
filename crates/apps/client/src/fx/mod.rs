@@ -7,12 +7,23 @@ mod billboard;
 mod emitters;
 mod fire;
 mod particle;
+mod tracer;
 
 use glam::Vec3;
 use renderer_api::FxVertex;
 
 pub(crate) use fire::{FireEvent, detect_fired};
 pub(crate) use particle::{MAX_PARTICLES, Particle};
+pub(crate) use tracer::append_shell_tracers;
+
+/// One frame's tracer batch for a bare shell list — the offscreen/screenshot path, which renders
+/// straight from a server snapshot without a `ClientApp`. The in-game path goes through
+/// [`FxSystem`] + [`append_shell_tracers`] instead.
+pub fn shell_tracer_vertices(shells: &[net::ShellSnapshot], eye: [f32; 3]) -> Vec<FxVertex> {
+    let mut vertices = Vec::new();
+    tracer::append_shell_tracers(&mut vertices, shells, Vec3::from_array(eye));
+    vertices
+}
 
 #[derive(Debug, Default)]
 pub(crate) struct FxSystem {
@@ -40,6 +51,7 @@ impl FxSystem {
         self.particles.retain_mut(|particle| particle.tick(dt));
     }
 
+    #[cfg(test)]
     pub fn live_particles(&self) -> usize {
         self.particles.len()
     }
@@ -47,7 +59,7 @@ impl FxSystem {
     /// Build this frame's FX vertex batch: billboarded (or velocity-stretched) soft quads,
     /// sorted back-to-front so premultiplied smoke composites correctly over itself.
     pub fn vertices(&self, eye: Vec3, target: Vec3) -> Vec<FxVertex> {
-        let (right, up) = billboard::camera_basis(eye, target);
+        let (right, up) = billboard::view_plane_basis(eye, target);
         let mut order: Vec<usize> = (0..self.particles.len()).collect();
         order.sort_by(|&a, &b| {
             let da = self.particles[a].position.distance_squared(eye);

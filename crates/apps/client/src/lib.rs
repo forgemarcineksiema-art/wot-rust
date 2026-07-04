@@ -18,6 +18,7 @@ pub use camera::{
     BattleCameraController, BattleCameraEnvironment, BattleCameraInput, BattleCameraMode,
     BattleCameraSettings, CameraObstacle, CameraSubject,
 };
+pub use fx::shell_tracer_vertices;
 pub use hud::font::hud_font_atlas;
 pub use hud::{HudVitals, build_hud};
 pub use loop_policy::{
@@ -26,7 +27,6 @@ pub use loop_policy::{
 pub use render_state::InterpolatedBattleState;
 pub use scene::battlefield::{battlefield_scene_mesh, terrain_scene_mesh};
 pub use scene::hangar::{TURNTABLE_TOP_M, hangar_camera_pivot, hangar_scene_mesh};
-pub use tank_mesh::append_shell_markers;
 pub use vehicle::asset_catalog::VehicleAssetCatalog;
 pub use vehicle::asset_render::{
     tank_vehicle_render_objects, tank_vehicle_render_objects_with_variation,
