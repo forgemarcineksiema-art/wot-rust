@@ -36,6 +36,9 @@ pub use render_frame_batch::{RenderFrameBatchPlan, RenderObjectDraw};
 pub use renderer::WgpuRenderer;
 pub use scene_pipeline::scene_shader_source;
 pub use scene_renderer::SceneRenderer;
+pub use scene_renderer::env_group::build_shadow_bind_group_layout;
+pub use scene_renderer::shadow::shadow_shader_source;
+pub use scene_renderer::ssao::ssao_shader_source;
 pub use scene_target::SceneRenderTarget;
 pub use shader_validation::{
     WgslUniformBinding, WgslValidationReport, basic_tank_shader_source, validate_wgsl_shader,

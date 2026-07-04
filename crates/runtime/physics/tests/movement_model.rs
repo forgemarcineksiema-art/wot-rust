@@ -9,9 +9,108 @@ fn tank_spec_power_to_weight_changes_acceleration_profile() {
     let t55a = TankControllerSettings::from_spec(&TankSpec::t55a());
     let tiger_ii = TankControllerSettings::from_spec(&TankSpec::tiger_ii_ausf_b());
 
-    assert!(t55a.acceleration_mps2 > tiger_ii.acceleration_mps2);
+    assert!(t55a.drive_power_mps3 > tiger_ii.drive_power_mps3);
     assert!(t55a.max_forward_speed_mps > tiger_ii.max_forward_speed_mps);
-    assert!(tiger_ii.brake_deceleration_mps2 > tiger_ii.acceleration_mps2);
+}
+
+#[test]
+fn acceleration_tapers_and_top_speed_is_an_equilibrium_not_a_clamp() {
+    // The force model's contract: a hard launch, a visible mid-band taper, and a top speed the
+    // hull approaches asymptotically at the spec value. For the Soviet medium that means the
+    // 0 -> 12 m/s (43 km/h) pull takes seconds, not the old sub-2s constant-accel snap.
+    let settings = TankControllerSettings::from_spec(&TankSpec::t54_1951());
+    let input = TankControlInput { throttle: 1.0, steer: 0.0, brake: 0.0 };
+    let dt = 1.0 / 60.0;
+    let mut state = TankKinematicState::default();
+
+    let mut to_12_s = None;
+    let mut elapsed = 0.0_f32;
+    for _ in 0..(90 * 60) {
+        step_custom_tank_controller_on_contact(
+            &mut state,
+            input,
+            &settings,
+            TerrainContact::flat(0.0),
+            dt,
+        );
+        elapsed += dt;
+        if to_12_s.is_none() && state.forward_speed() >= 12.0 {
+            to_12_s = Some(elapsed);
+        }
+    }
+
+    let to_12_s = to_12_s.expect("the hull reaches 12 m/s");
+    assert!(
+        (4.0..=12.0).contains(&to_12_s),
+        "0->43 km/h should take arcade-condensed seconds, got {to_12_s:.1} s"
+    );
+    let vmax = settings.max_forward_speed_mps;
+    assert!(
+        (state.forward_speed() - vmax).abs() < 0.5,
+        "after 90 s the hull sits on its top-speed equilibrium: {} vs {vmax}",
+        state.forward_speed()
+    );
+    assert!(
+        state.forward_speed() <= vmax + 0.01,
+        "the equilibrium must not overshoot the spec top speed"
+    );
+}
+
+#[test]
+fn releasing_the_throttle_rolls_out_over_many_hull_lengths() {
+    let settings = TankControllerSettings::from_spec(&TankSpec::t54_1951());
+    let mut state = TankKinematicState {
+        velocity: glam::Vec3::new(0.0, 0.0, 13.0),
+        ..TankKinematicState::default()
+    };
+    let idle = TankControlInput { throttle: 0.0, steer: 0.0, brake: 0.0 };
+    let start_z = state.position.z;
+    let dt = 1.0 / 60.0;
+    for _ in 0..(30 * 60) {
+        step_custom_tank_controller_on_contact(
+            &mut state,
+            idle,
+            &settings,
+            TerrainContact::flat(0.0),
+            dt,
+        );
+    }
+    let rollout = state.position.z - start_z;
+    assert!(state.speed() < 0.05, "the hull eventually stops");
+    assert!(
+        (25.0..=90.0).contains(&rollout),
+        "a coasting hull rolls out over many hull lengths, got {rollout:.1} m"
+    );
+}
+
+#[test]
+fn turning_at_speed_scrubs_forward_speed() {
+    let settings = TankControllerSettings::from_spec(&TankSpec::t54_1951());
+    let dt = 1.0 / 60.0;
+    let mut straight = TankKinematicState::default();
+    let mut turning = TankKinematicState::default();
+    for _ in 0..(8 * 60) {
+        step_custom_tank_controller_on_contact(
+            &mut straight,
+            TankControlInput { throttle: 1.0, steer: 0.0, brake: 0.0 },
+            &settings,
+            TerrainContact::flat(0.0),
+            dt,
+        );
+        step_custom_tank_controller_on_contact(
+            &mut turning,
+            TankControlInput { throttle: 1.0, steer: 1.0, brake: 0.0 },
+            &settings,
+            TerrainContact::flat(0.0),
+            dt,
+        );
+    }
+    assert!(
+        turning.speed() < straight.speed() - 0.4,
+        "a full-lock turn must bleed speed: {} vs {}",
+        turning.speed(),
+        straight.speed()
+    );
 }
 
 #[test]
@@ -76,6 +175,10 @@ fn rough_contact_limits_traction_and_keeps_tank_grounded() {
 
     assert!(rough.forward_speed() < flat.forward_speed());
     assert!(rough.yaw_rad < flat.yaw_rad);
+    // Grounding is the vertical resolver's job now (the world stepper composes the two): the
+    // rising ground under the hull carries it up, exactly like the old kinematic snap.
+    let step = physics::resolve_vertical(&mut rough, 4.0, true, 0.0, 0.5);
+    assert!(step.grounded && step.landing_impact_mps == 0.0);
     assert_eq!(rough.position.y, 4.0);
 }
 

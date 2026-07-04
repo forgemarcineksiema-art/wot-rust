@@ -47,7 +47,10 @@ fn forge_artifact_manifest_names_the_baked_vehicle_profile_and_sources() {
     // invalidated when its configuration changes.
     let surface_bake = manifest.surface_bake().expect("T-54 records its contact bake");
     let signals: Vec<&str> = surface_bake.signals().iter().map(String::as_str).collect();
-    assert_eq!(signals, ["turret_ring_seam", "mantlet_seat", "running_gear_recess", "glacis_weld"]);
+    assert_eq!(
+        signals,
+        ["turret_ring_seam", "mantlet_seat", "running_gear_recess", "engine_grille", "glacis_weld"]
+    );
     assert!(surface_bake.config_hash() != 0, "the cavity config hash must identify the bake");
 }
 

@@ -105,6 +105,8 @@ impl OffscreenTarget {
             resolve_target: self.msaa_color_view.as_ref().map(|_| &self.color_view),
             depth_view: &self.depth_view,
             sample_count: self.sample_count,
+            width: self.width,
+            height: self.height,
         }
     }
 

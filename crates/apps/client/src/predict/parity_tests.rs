@@ -52,3 +52,48 @@ fn predictor_matches_the_server_pose_and_dispersion_tick_for_tick() {
         );
     }
 }
+
+/// Vertical dynamics run the same shared code: launching off a ledge, the ballistic arc, and the
+/// landing must match the server tick-for-tick — including the hull height mid-flight.
+#[test]
+fn predictor_matches_the_server_through_a_launch_flight_and_landing() {
+    // A 4 m plateau ending at z = 24 on a 1 m grid, then flat ground: tall enough for a real
+    // multi-tick flight, small enough to keep the run inside the map.
+    let mut samples = Vec::with_capacity(61 * 61);
+    for z in 0..61 {
+        for x in 0..61 {
+            let _ = x;
+            samples.push(if z < 24 { 4.0 } else { 0.0 });
+        }
+    }
+    let map = HeightMap::new(61, 61, 1.0, samples).expect("test heightmap dimensions are fixed");
+    let spec = TankSpec::t55a();
+    let step = FixedTimestep::from_hz(60);
+
+    let mut server = SimulationState::new();
+    let tank_id = server.spawn_tank(TeamId(1), spec.clone(), Vec3::new(30.0, 4.0, 10.0));
+    let mut predictor = LocalPredictor::new(&spec);
+    predictor.sync_to(&TankSnapshot::from(server.tank(tank_id).expect("spawned tank")));
+
+    let command = TankCommand::drive(1.0, 0.0);
+    let mut flew = false;
+    for tick in 0..600 {
+        server.apply_commands_on_terrain(&[(tank_id, command)], step, &map);
+        predictor.step(command, &map, &[], &[], step.dt_seconds());
+
+        let tank = server.tank(tank_id).expect("tank");
+        assert!(
+            (predictor.position() - tank.position).length() < 1.0e-3,
+            "tick {tick}: predicted {:?} vs server {:?}",
+            predictor.position(),
+            tank.position
+        );
+        // The hull is airborne once its height is off both plateau and ground level.
+        if tank.position.y > 0.05 && tank.position.y < 3.95 {
+            flew = true;
+        }
+    }
+    assert!(flew, "the run must include a real flight, not just the plateau and the floor");
+    let tank = server.tank(tank_id).expect("tank");
+    assert!(tank.position.y < 0.05, "the run must end landed on the low ground");
+}

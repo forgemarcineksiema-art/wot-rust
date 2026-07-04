@@ -5,6 +5,7 @@ mod cover;
 mod movement;
 mod parry_query;
 mod policy;
+mod vertical;
 mod world;
 
 use rapier3d::prelude::{
@@ -26,6 +27,7 @@ pub use movement::{
 };
 pub use parry_query::tank_footprints_intersect_query;
 pub use policy::{CustomPhysicsRole, PhysicsOwner, PhysicsOwnershipPolicy, RapierPhysicsRole};
+pub use vertical::{GroundStep, is_grounded, resolve_vertical};
 pub use world::{step_tank_on_heightmap, step_tank_on_world, step_tank_on_world_with_tanks};
 
 pub type RapierBroadPhase = BroadPhaseBvh;

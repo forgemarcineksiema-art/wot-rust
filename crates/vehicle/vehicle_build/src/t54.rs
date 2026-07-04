@@ -100,21 +100,29 @@ pub fn t54_from_modules(modules: &VehicleModules) -> VehicleDescription {
         + Vec3::Z * ((modules.gun.barrel_length_m() - stock_length) * v.gun.module_delta_scale);
     mounts.muzzle.translation = muzzle;
     let trunnion = mounts.gun_trunnion.translation;
+    // The moving mantlet is its own CAST part (the painted mask on the turret face), distinct from
+    // the steel barrel — merging them under one material made the mask read as bare gun steel.
+    let mantlet = VehiclePart {
+        key: PartKey::new("gun_mantlet"),
+        submesh: SubmeshKind::Gun,
+        material: MaterialRole::CastArmor,
+        smoothing: SmoothingGroup(2),
+        shape: PartShape::Mesh(revolve::moving_mantlet(trunnion, &v.gun)),
+        lod: PartLod::MountCritical,
+        generator: GeneratorKind::Revolve,
+    };
     let barrel = VehiclePart {
         key: PartKey::new("gun_barrel"),
         submesh: SubmeshKind::Gun,
         material: MaterialRole::BarrelSteel,
         smoothing: SmoothingGroup(4),
-        shape: PartShape::Mesh(revolve::merge(&[
-            revolve::moving_mantlet(trunnion, &v.gun),
-            revolve::gun_barrel_between(trunnion, muzzle, &v.gun),
-        ])),
+        shape: PartShape::Mesh(revolve::gun_barrel_between(trunnion, muzzle, &v.gun)),
         lod: PartLod::MountCritical,
         generator: GeneratorKind::Revolve,
     };
 
     let f = &v.fittings;
-    let mut parts = vec![lower_tub, upper_hull, turret, cupola, barrel];
+    let mut parts = vec![lower_tub, upper_hull, turret, cupola, mantlet, barrel];
     // Semantic drum fittings as their own parts (not anonymous greeble): the commander's cupola
     // hatch and the driver's/loader's hatches (all raised round lids), plus the glacis headlight.
     parts.extend(crate::t54_details::t54_fitting_parts(f));
@@ -161,6 +169,9 @@ pub fn t54_from_modules(modules: &VehicleModules) -> VehicleDescription {
     // Clean factory greeble (grille, exhaust cover, periscopes, fender lips, weld bead) — all at the
     // Detail tier, so the close-up LOD0 carries it and the lower LODs keep only the silhouette.
     parts.extend(crate::t54_details::t54_detail_parts(v));
+    // The external kit: fender stowage and sloping fender ends, the glacis splash board, turret
+    // handrails and stowed tow cables — the reference dressing that makes the narrow hull read.
+    parts.extend(crate::t54_kit::t54_kit_parts(v));
     // Swing-arm brackets mounting each road wheel to the hull's lower tub side (suspension cue).
     parts.extend(crate::t54_chassis::t54_suspension_parts(bp.hull.lower_half_width));
     // Hull plate articulation: the glacis-to-roof weld seam and the rear transmission covers.
@@ -169,6 +180,6 @@ pub fn t54_from_modules(modules: &VehicleModules) -> VehicleDescription {
     // Bake-time ambient contact: darken the turret-ring seam, mantlet seat, running-gear recess and
     // glacis weld into `surface_shade` after merge (the cast turret and welded hull no longer read
     // flat). Derived from the same blueprint `v` that drives the geometry.
-    let surface_bake = crate::surface_bake::t54_surface_bake(v);
+    let surface_bake = crate::surface_bake::t54_surface_bake(v, &bp.track);
     VehicleDescription { kind, parts, mounts, surface_bake }
 }

@@ -15,6 +15,9 @@ mod surface_bake;
 mod t54;
 mod t54_chassis;
 mod t54_details;
+mod t54_dshk;
+mod t54_kit;
+mod t54_kit_lines;
 mod t54_turret_loft;
 
 pub use attachment::{SurfaceAttachment, t54_attachments};

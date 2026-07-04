@@ -1,7 +1,8 @@
 use renderer_api::{BindGroupRole, VehicleVertex, baseline_bind_group_layout};
 use renderer_wgpu::{
-    CameraUniform, GpuContext, TankVertex, basic_tank_shader_source, build_vehicle_pipeline,
-    encode_camera_uniform, scene_shader_source, tank_vertex_bytes, validate_wgsl_shader,
+    CameraUniform, GpuContext, TankVertex, basic_tank_shader_source,
+    build_shadow_bind_group_layout, build_vehicle_pipeline, encode_camera_uniform,
+    scene_shader_source, shadow_shader_source, tank_vertex_bytes, validate_wgsl_shader,
     vehicle_shader_source,
 };
 
@@ -10,9 +11,10 @@ fn camera_uniform_is_encoded_with_wgsl_uniform_layout() {
     let bytes = encode_camera_uniform(&CameraUniform::identity()).expect("camera uniform encodes");
 
     assert_eq!(bytes.len(), CameraUniform::wgsl_size());
-    // view_proj (64) + camera_pos + ambient + key/fill/rim direction+colour, each a vec3 in a
-    // 16-byte uniform slot: 64 + 8 * 16 = 192.
-    assert_eq!(bytes.len(), 192);
+    // view_proj (64) + camera_pos + sky ambient + ground ambient + key/fill/rim direction+colour
+    // (9 vec3 in 16-byte slots, 144) + light_view_proj (mat4, 64) + shadow_params (vec4, 16):
+    // 64 + 144 + 64 + 16 = 304.
+    assert_eq!(bytes.len(), 304);
     assert_eq!(bytes.len() % 16, 0);
 }
 
@@ -32,6 +34,13 @@ fn scene_shader_is_valid_wgsl_with_tint_inputs() {
 
     assert!(report.entry_points.iter().any(|entry| entry == "vs_main"));
     assert!(report.entry_points.iter().any(|entry| entry == "fs_main"));
+}
+
+#[test]
+fn shadow_shader_is_valid_wgsl() {
+    let report =
+        validate_wgsl_shader("shadow", shadow_shader_source()).expect("shadow shader validates");
+    assert!(report.entry_points.iter().any(|entry| entry == "vs_main"));
 }
 
 #[test]
@@ -81,10 +90,11 @@ fn vehicle_pipeline_builds_on_a_real_device() {
     };
     // Proves the shader compiles on the GPU and the VehicleVertex/instance layout binds without
     // validation errors — the pipeline is real, not just WGSL-parsed.
+    let shadow_bgl = build_shadow_bind_group_layout(&ctx.device);
     let (_, _, material_bgl) =
-        build_vehicle_pipeline(&ctx.device, wgpu::TextureFormat::Rgba8UnormSrgb, 1);
+        build_vehicle_pipeline(&ctx.device, wgpu::TextureFormat::Rgba8UnormSrgb, 1, &shadow_bgl);
     let _ = &material_bgl;
-    assert_eq!(core::mem::size_of::<VehicleVertex>(), 60);
+    assert_eq!(core::mem::size_of::<VehicleVertex>(), 64);
 }
 
 #[test]

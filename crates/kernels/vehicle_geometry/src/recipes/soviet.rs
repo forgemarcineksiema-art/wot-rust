@@ -44,9 +44,10 @@ fn soviet_cast_turret(
     if t54_socket {
         shell = shell.append(&t54_turret_front(t, trunnion_y, mantlet));
     }
-    // Commander's cupola: a real drum standing proud of the roof (not a pimple).
+    // Commander's cupola: a real drum standing proud of the roof (not a pimple), capped so its
+    // lid stays inside the hitbox top (the 2.40 m silhouette apex).
     let with_cupola =
-        add_cupola(shell, t.cupola_x, t.cupola_z, t.roof_y - 0.08, t.cupola_radius, 0.26, true);
+        add_cupola(shell, t.cupola_x, t.cupola_z, t.roof_y - 0.08, t.cupola_radius, 0.21, true);
     // Loader's hatch: a low flat round hatch on the opposite side of the roof.
     let with_hatch = add_cupola(
         with_cupola,

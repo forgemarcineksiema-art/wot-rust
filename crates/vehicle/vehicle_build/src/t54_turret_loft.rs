@@ -111,11 +111,13 @@ mod tests {
     #[test]
     fn the_front_cheeks_carry_real_cast_mass_into_the_front_shoulder() {
         let v = turret_loft_visual();
+        // Sample the cast shoulder in the band around the cheek centre (the gun-axis height).
+        let band = (v.cheek_y - 0.06)..=(v.cheek_y + 0.06);
         let front_width = |mesh: &GeometryMesh| {
             mesh.vertices()
                 .iter()
-                .filter(|p| (1.42..=1.54).contains(&p.position.y))
-                .filter(|p| (0.30..=0.80).contains(&p.position.z))
+                .filter(|p| band.contains(&p.position.y))
+                .filter(|p| (0.35..=0.90).contains(&p.position.z))
                 .map(|p| p.position.x.abs())
                 .fold(0.0_f32, f32::max)
         };
@@ -132,7 +134,7 @@ mod tests {
         let side = with_cheeks
             .vertices()
             .iter()
-            .filter(|p| (1.42..=1.54).contains(&p.position.y) && p.position.z.abs() <= 0.20)
+            .filter(|p| band.contains(&p.position.y) && p.position.z.abs() <= 0.20)
             .map(|p| p.position.x.abs())
             .fold(0.0_f32, f32::max);
         assert!(
@@ -141,20 +143,25 @@ mod tests {
         );
     }
 
-    /// The lofted turret — cheeks and all — stays inside the gameplay turret plan (±1.0 wide, ±1.04
-    /// long), so swapping it for the metaball turret cannot poke out of the hitbox volume.
+    /// The lofted turret — cheeks and all — stays inside the gameplay turret plan from the
+    /// blueprint's `TurretShape`, so swapping it for the metaball turret cannot poke out of the
+    /// hitbox volume.
     #[test]
     fn the_lofted_turret_fits_its_gameplay_plan() {
+        let plan = VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).unwrap().turret;
+        let (px, pz) = (plan.plan_half_width + 0.05, plan.plan_half_length + 0.05);
         let b = t54_turret_loft(&turret_loft_visual()).bounds().expect("non-empty");
         assert!(
-            b.min.x >= -1.05 && b.max.x <= 1.05,
-            "within ±1.0 plan in X: {} {}",
+            b.min.x >= -px && b.max.x <= px,
+            "within the ±{:.3} plan in X: {} {}",
+            plan.plan_half_width,
             b.min.x,
             b.max.x
         );
         assert!(
-            b.min.z >= -1.09 && b.max.z <= 1.09,
-            "within ±1.04 plan in Z: {} {}",
+            b.min.z >= -pz && b.max.z <= pz,
+            "within the ±{:.3} plan in Z: {} {}",
+            plan.plan_half_length,
             b.min.z,
             b.max.z
         );

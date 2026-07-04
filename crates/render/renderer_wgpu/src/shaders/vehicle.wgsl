@@ -7,27 +7,50 @@ struct Camera {
     view_proj: mat4x4<f32>,
     camera_pos: vec3<f32>,
     ambient_rgb: vec3<f32>,
+    ground_ambient_rgb: vec3<f32>,
     key_direction: vec3<f32>,
     key_rgb: vec3<f32>,
     fill_direction: vec3<f32>,
     fill_rgb: vec3<f32>,
     rim_direction: vec3<f32>,
     rim_rgb: vec3<f32>,
+    light_view_proj: mat4x4<f32>,
+    shadow_params: vec4<f32>,
+    ssao_params: vec4<f32>,
 };
 
 @group(0) @binding(0)
 var<uniform> camera: Camera;
 
-// Calibrated three-point lighting: ambient plus key/fill/rim directional terms (directions point
-// towards each light, normalized here). Shared in spirit with scene.wgsl's scene_radiance.
-fn light_radiance(n: vec3<f32>) -> vec3<f32> {
-    let key = max(dot(n, normalize(camera.key_direction)), 0.0);
+// Hemispheric ambient (sky above, warmer ground bounce below), blended by the normal's up fraction.
+// Mirrors scene.wgsl's hemi_ambient so terrain and vehicles agree on the ambient.
+fn hemi_ambient(n: vec3<f32>) -> vec3<f32> {
+    let t = clamp(n.y * 0.5 + 0.5, 0.0, 1.0);
+    return mix(camera.ground_ambient_rgb, camera.ambient_rgb, t);
+}
+
+// Hemispheric ambient plus key/fill/rim directional terms (directions point towards each light,
+// normalized here). Shared in spirit with scene.wgsl's scene_radiance.
+fn light_radiance(n: vec3<f32>, shadow: f32) -> vec3<f32> {
+    let key = max(dot(n, normalize(camera.key_direction)), 0.0) * shadow;
     let fill = max(dot(n, normalize(camera.fill_direction)), 0.0);
     let rim = max(dot(n, normalize(camera.rim_direction)), 0.0);
-    return camera.ambient_rgb
+    return hemi_ambient(n)
         + camera.key_rgb * key
         + camera.fill_rgb * fill
         + camera.rim_rgb * rim;
+}
+
+// Filmic ACES-lite tone curve (Narkowicz fit): rolls the hot sun and roughness specular off to
+// display range instead of clipping. The framebuffer is *UnormSrgb, so we output linear tone-mapped
+// colour and let the hardware do the sRGB encode. Mirrors scene.wgsl's tonemap_aces.
+fn tonemap_aces(x: vec3<f32>) -> vec3<f32> {
+    let a = 2.51;
+    let b = 0.03;
+    let c = 2.43;
+    let d = 0.59;
+    let e = 0.14;
+    return clamp((x * (a * x + b)) / (x * (c * x + d) + e), vec3<f32>(0.0), vec3<f32>(1.0));
 }
 
 // Material maps are role-aware texture arrays: one layer per material_id (rolled armour, cast
@@ -43,6 +66,52 @@ var cavity_map: texture_2d_array<f32>;
 @group(1) @binding(4)
 var vehicle_sampler: sampler;
 
+@group(2) @binding(0)
+var shadow_map: texture_depth_2d;
+@group(2) @binding(1)
+var shadow_sampler: sampler_comparison;
+@group(2) @binding(2)
+var ssao_tex: texture_2d<f32>;
+@group(2) @binding(3)
+var ssao_sampler: sampler;
+
+// Screen-space AO from the blurred SSAO target, addressed by framebuffer pixel. Strength 0 (the
+// capability fallback) returns fully open.
+fn screen_ao(frag: vec4<f32>) -> f32 {
+    if (camera.ssao_params.z <= 0.0) {
+        return 1.0;
+    }
+    let dims = vec2<f32>(textureDimensions(ssao_tex));
+    return textureSampleLevel(ssao_tex, ssao_sampler, frag.xy / dims, 0.0).r;
+}
+
+// Focused sun-shadow lookup with a 3x3 PCF (mirrors scene.wgsl's sun_shadow). Only the key light is
+// occluded; strength 0 (capability fallback) returns fully lit. shadow_params = (texel UV step,
+// depth bias, strength, world normal offset).
+fn sun_shadow(world_pos: vec3<f32>, n: vec3<f32>) -> f32 {
+    let strength = camera.shadow_params.z;
+    if (strength <= 0.0) {
+        return 1.0;
+    }
+    let biased = world_pos + n * camera.shadow_params.w;
+    let clip = camera.light_view_proj * vec4<f32>(biased, 1.0);
+    let ndc = clip.xyz / clip.w;
+    let uv = ndc.xy * vec2<f32>(0.5, -0.5) + vec2<f32>(0.5, 0.5);
+    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0 || ndc.z > 1.0 || ndc.z < 0.0) {
+        return 1.0;
+    }
+    let texel = camera.shadow_params.x;
+    let reference = ndc.z - camera.shadow_params.y;
+    var sum = 0.0;
+    for (var i = -1; i <= 1; i = i + 1) {
+        for (var j = -1; j <= 1; j = j + 1) {
+            let off = vec2<f32>(f32(i), f32(j)) * texel;
+            sum = sum + textureSampleCompareLevel(shadow_map, shadow_sampler, uv + off, reference);
+        }
+    }
+    return mix(1.0, sum / 9.0, strength);
+}
+
 struct VsIn {
     @location(0) position: vec3<f32>,
     @location(1) normal: vec3<f32>,
@@ -56,6 +125,8 @@ struct VsIn {
     @location(9) model_3: vec4<f32>,
     @location(10) tint: vec4<f32>,
     @location(11) mapping_mode: u32,
+    // Baked per-vertex contact occlusion (geometry-bake surface_shade): 1.0 open, lower in seams.
+    @location(12) shade: f32,
 };
 
 struct VsOut {
@@ -74,6 +145,7 @@ struct VsOut {
     @location(8) local_pos: vec3<f32>,
     @location(9) local_normal: vec3<f32>,
     @location(10) @interpolate(flat) mapping_mode: u32,
+    @location(11) shade: f32,
 };
 
 @vertex
@@ -93,6 +165,7 @@ fn vs_main(input: VsIn) -> VsOut {
     out.local_pos = input.position;
     out.local_normal = input.normal;
     out.mapping_mode = input.mapping_mode;
+    out.shade = input.shade;
     return out;
 }
 
@@ -194,7 +267,11 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     let albedo = mat.albedo * baked_albedo * tinted;
     let ao = ao_rough.r;
 
-    let lit = albedo * light_radiance(world_n) * ao * cavity;
+    let shadow = sun_shadow(input.world_pos, world_n);
+    // Baked contact occlusion: fully dampens the ambient/fill, partially the direct sun, so the
+    // turret-ring seam, running-gear recess and grille wells read as real cavities.
+    let contact = clamp(input.shade, 0.0, 1.0) * screen_ao(input.clip);
+    let lit = albedo * light_radiance(world_n, shadow) * ao * cavity * contact;
 
     // Roughness-driven specular off the key light, evaluated against the real world-space view
     // direction (camera position - fragment position) so the highlight tracks the camera, not a
@@ -205,7 +282,8 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     let roughness = clamp(mat.roughness * (0.55 + ao_rough.g), 0.04, 1.0);
     let shininess = mix(4.0, 96.0, 1.0 - roughness);
     let spec = pow(max(dot(world_n, half_v), 0.0), shininess) * (1.0 - roughness) * 0.4;
-    let spec_color = camera.key_rgb * spec;
+    // The specular is the key light's highlight, so it is occluded by the same shadow.
+    let spec_color = camera.key_rgb * spec * shadow * contact;
 
-    return vec4<f32>(lit + spec_color, 1.0);
+    return vec4<f32>(tonemap_aces(lit + spec_color), 1.0);
 }

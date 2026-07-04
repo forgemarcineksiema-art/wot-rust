@@ -14,7 +14,7 @@ use super::{ClientApp, SceneKind};
 use crate::hud::{HudVitals, build_hud_with_reticle};
 use crate::{
     BattleCameraEnvironment, CameraSubject, append_shell_markers, battlefield_scene_mesh,
-    split_pbr_vehicle_render_frame,
+    split_pbr_vehicle_render_frame_on_terrain,
 };
 
 const SNAPSHOT_INTERVAL_SECONDS: f32 = 1.0 / DEFAULT_SNAPSHOT_HZ as f32;
@@ -58,6 +58,14 @@ impl ClientApp {
         self.hit_indicator.tick(frame_dt);
 
         let alpha = self.loop_driver.render_alpha();
+        // A landing the predictor absorbed since the last frame slams the camera rig once.
+        let landing_impact = self.predictor.take_landing_impact_mps();
+        if landing_impact > 0.0 {
+            self.camera_controller.impact_kick(landing_impact);
+        }
+        if let Some(local) = self.interpolated_local_tank(alpha) {
+            self.camera_controller.advance(local.position, raw_dt);
+        }
         let Some(camera) = self.camera_for_player_interpolated(alpha) else {
             return;
         };
@@ -81,11 +89,12 @@ impl ClientApp {
         );
         let visible_tanks = self.visible_render_tanks(presentation_tanks);
         let player_gun_scale = self.player_barrel_scale();
-        let vehicles = split_pbr_vehicle_render_frame(
+        let vehicles = split_pbr_vehicle_render_frame_on_terrain(
             &mut self.vehicle_asset_catalog,
             visible_tanks,
             self.player_tank,
             player_gun_scale,
+            Some(&self.battlefield.heightmap),
         );
         let (vertices, indices) = self.shell_marker_mesh();
         let vehicle_frame = RenderFrame { objects: vehicles.objects, ..RenderFrame::default() };
@@ -139,7 +148,7 @@ impl ClientApp {
     /// the snapshot vec.
     pub(super) fn project_render_tanks(&mut self, alpha: f32) -> Vec<engine::PresentationTank> {
         let render_tanks = self.render_tanks(alpha);
-        self.presentation.sync_tanks(&render_tanks);
+        self.presentation.sync_tanks_on_terrain(&render_tanks, Some(&self.battlefield.heightmap));
         self.presentation.presentation_tanks()
     }
 

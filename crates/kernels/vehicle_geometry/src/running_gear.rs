@@ -30,10 +30,15 @@ pub struct RunningGearKinematics {
     pub cy: f32,
     /// Z of the belt centre.
     pub cz: f32,
-    /// Half the distance between the front and rear end wheels.
+    /// Half the distance between the front and rear road wheels.
     pub half_run: f32,
     /// Radius the belt wraps at each end (sprocket / idler).
     pub end_radius: f32,
+    /// |Z| of the idler/sprocket axles — beyond `half_run` on the T-54, whose belt ramps up past
+    /// the road wheels onto separate end wheels; equal to `half_run` for the stadium loop.
+    pub end_cz: f32,
+    /// Y of the idler/sprocket axles (raised above `cy` on the T-54).
+    pub end_cy: f32,
     /// Radius of a road wheel.
     pub wheel_radius: f32,
     /// `x` of the wheel-disc centre (between the inner and outer rubber faces).
@@ -64,7 +69,9 @@ impl RunningGearKinematics {
         // Most vehicles space their road wheels evenly; the T-54 carries its signature wider
         // first/second gap, so its layout is explicit.
         let wheel_zs = match kind {
-            VehicleKind::T54_1951 => vec![-2.10, -0.80, 0.22, 1.18, 2.10],
+            // 810 mm wheels at a ~0.92 m pitch (rims ~0.11 m apart), with the T-54's signature
+            // wider gap between the first and second road wheels at the front (+Z).
+            VehicleKind::T54_1951 => vec![-1.95, -1.03, -0.11, 0.81, 1.95],
             _ => match track.wheel_count {
                 0 => Vec::new(),
                 1 => vec![track.wheel_first_z],
@@ -80,9 +87,9 @@ impl RunningGearKinematics {
             _ => ((track.outer_x - track.inner_x) * 0.5).max(0.03),
         };
         let link_half_width = match kind {
-            // A wide OMSh belt: the shoe spans wider than the road wheels so the track reads as a
-            // broad band covering them, at the ~0.5 m scale of the real 580 mm track.
-            VehicleKind::T54_1951 => 0.20,
+            // A wide OMSh belt: the shoe plate (1.25 × this half-width in the unit mesh) spans the
+            // full 580 mm track band (1.06..1.63), covering the road wheels it rides over.
+            VehicleKind::T54_1951 => 0.23,
             _ => (track.belt_half_thickness * 0.5).max(0.02),
         };
         let link_count = match kind {
@@ -98,6 +105,8 @@ impl RunningGearKinematics {
             cz,
             half_run,
             end_radius: track.end_radius,
+            end_cz: track.end_z,
+            end_cy: track.end_y,
             wheel_radius: track.wheel_radius,
             wheel_x: (track.inner_x + track.outer_x) * 0.5,
             wheel_half_width,
@@ -109,7 +118,7 @@ impl RunningGearKinematics {
             },
             link_half_width,
             top_sag_m: match kind {
-                VehicleKind::T54_1951 => 0.060,
+                VehicleKind::T54_1951 => 0.050,
                 _ => 0.035,
             },
             wheel_zs,
@@ -118,14 +127,10 @@ impl RunningGearKinematics {
         })
     }
 
-    /// Length of the closed belt loop (two straight runs plus two end semicircles).
+    /// Length of the closed belt loop (ground run, end wraps, sagging top run, and — where the
+    /// end wheels sit beyond the road wheels — the tangent ramps up to them).
     pub fn belt_length(&self) -> f32 {
-        4.0 * self.half_run + 2.0 * PI * self.belt_wrap_radius()
-    }
-
-    /// Vertical radius the belt wraps at each end.
-    pub(crate) fn belt_wrap_radius(&self) -> f32 {
-        self.end_radius.max(0.05)
+        crate::running_gear_belt::BeltPath::new(self).length()
     }
 
     /// Number of shoe links around the loop.

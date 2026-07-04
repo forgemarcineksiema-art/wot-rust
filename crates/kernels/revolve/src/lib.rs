@@ -5,16 +5,12 @@
 //! roundness). This crate revolves a profile into a `GeometryMesh`, plus translate/merge for
 //! repetition (wheel trains). See `[[geometry-foundation-pivot]]` in project notes.
 
-mod ends;
 mod gun_parts;
 mod parts;
 mod profile;
 mod revolve;
-mod track;
 
-pub use ends::t54_track_ends;
 pub use gun_parts::{gun_barrel, gun_barrel_between, moving_mantlet};
-pub use parts::{drum, road_wheel, road_wheel_stations, t54_running_gear};
+pub use parts::drum;
 pub use profile::{ProfilePoint, RevolveCaps, RevolveError, RevolveProfile, try_revolve};
 pub use revolve::{merge, revolve, translate};
-pub use track::{t54_track_link_cues, t54_tracks, track_belt};

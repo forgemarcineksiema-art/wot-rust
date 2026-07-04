@@ -69,9 +69,10 @@ fn prediction_seeds_then_drives_the_hull_forward() {
         predictor.step(TankCommand::drive(1.0, 0.0), &flat, &[], &[], 1.0 / 60.0);
     }
 
-    // Yaw 0 means forward = +Z, so the predicted hull advances along +Z with no drift.
+    // Yaw 0 means forward = +Z, so the predicted hull advances along +Z with no drift. The force
+    // model launches at the track-grip limit, so a third of a second covers ~0.3 m.
     let pos = predictor.position();
-    assert!(pos.z > 10.4, "predicted z = {}", pos.z);
+    assert!(pos.z > 10.2, "predicted z = {}", pos.z);
     assert!((pos.x - 10.0).abs() < 1.0e-3, "predicted x = {}", pos.x);
 }
 

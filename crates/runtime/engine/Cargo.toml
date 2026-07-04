@@ -9,6 +9,7 @@ rust-version.workspace = true
 bevy_ecs.workspace = true
 game_core.workspace = true
 net.workspace = true
+terrain.workspace = true
 
 [lints]
 workspace = true

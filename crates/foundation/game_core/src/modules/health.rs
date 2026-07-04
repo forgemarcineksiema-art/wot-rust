@@ -76,3 +76,25 @@ impl ModuleHealth {
         mask
     }
 }
+
+/// A wounded-but-running engine still delivers this floor of its drive power at 1 HP.
+const ENGINE_POWER_FLOOR: f32 = 0.55;
+/// A wounded suspension keeps this floor of its turn rate and yaw spool at 1 HP.
+const SUSPENSION_AGILITY_FLOOR: f32 = 0.6;
+
+/// Fraction of drive power a damaged engine still delivers: `1.0` at full pool, easing linearly
+/// to the floor as the pool drains. Destruction is not a fraction — the drive gate
+/// (`is_functional`) removes throttle entirely. Shared by the server and the client predictor.
+pub fn engine_power_fraction(live_hp: u32, full_hp: u32) -> f32 {
+    damaged_fraction(live_hp, full_hp, ENGINE_POWER_FLOOR)
+}
+
+/// Fraction of turn agility a damaged suspension still delivers; see [`engine_power_fraction`].
+pub fn suspension_agility_fraction(live_hp: u32, full_hp: u32) -> f32 {
+    damaged_fraction(live_hp, full_hp, SUSPENSION_AGILITY_FLOOR)
+}
+
+fn damaged_fraction(live_hp: u32, full_hp: u32, floor: f32) -> f32 {
+    let fraction = (live_hp as f32 / full_hp.max(1) as f32).clamp(0.0, 1.0);
+    floor + (1.0 - floor) * fraction
+}

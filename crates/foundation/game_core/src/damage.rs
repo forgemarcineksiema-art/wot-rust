@@ -3,11 +3,15 @@ use serde::{Deserialize, Serialize};
 
 use crate::{ArmorFacing, ArmorZone, ModuleSlot, ShellType, TankId};
 
+/// Like [`crate::VehicleKind`], the variant order is wire identity (bincode discriminants) —
+/// append, never reorder.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum DamageCause {
     #[default]
     Shell,
     Ram,
+    /// The hull slammed into the ground after a flight (fall damage).
+    Impact,
 }
 
 /// What absorbed a shell that did **not** damage an enemy. Like [`crate::VehicleKind`], the

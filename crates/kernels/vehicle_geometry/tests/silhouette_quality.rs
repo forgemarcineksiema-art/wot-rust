@@ -121,8 +121,10 @@ fn soviet_running_gear_fills_the_lower_hull_side() {
         let lo = gear.iter().copied().fold(f32::INFINITY, f32::min);
         let hi = gear.iter().copied().fold(f32::NEG_INFINITY, f32::max);
         let coverage = (hi - lo) / hull_height.max(0.01);
+        // On the documented 1:1 proportions the track band spans ~0.95 of the 1.75 hull side
+        // (≈0.54); anything much thinner reads as a hull floating on toy tracks.
         assert!(
-            coverage >= 0.62,
+            coverage >= 0.50,
             "{kind:?} running gear covers {coverage:.2} of hull height (y {lo:.2}..{hi:.2}) — too \
              thin, the hull reads as floating on small tracks"
         );

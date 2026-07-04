@@ -17,11 +17,43 @@ impl super::SceneRenderer {
                 self.sample_count, target.sample_count
             )));
         }
-        let camera = CameraUniform::from_scene(view_proj, camera_pos, &self.scene_lighting);
+        // Focus the sun-shadow box on the subject (falls back to the camera, which still covers the
+        // near action), build its texel-snapped light matrix, and pack it into the shared uniform.
+        let focus = self.shadow_focus.unwrap_or(camera_pos);
+        let light_view_proj = renderer_api::sun_light_view_projection(
+            self.scene_lighting.key_direction,
+            focus,
+            self.shadow.params,
+        );
+        // The projection's Y scale (P[1][1]) survives in the view-projection's second row, whose
+        // rotation part is unit length — recovered here so SSAO can convert world radii to pixels.
+        let proj_y_scale = (view_proj[0][1] * view_proj[0][1]
+            + view_proj[1][1] * view_proj[1][1]
+            + view_proj[2][1] * view_proj[2][1])
+            .sqrt();
+        let camera = CameraUniform::from_scene(
+            view_proj,
+            camera_pos,
+            &self.scene_lighting,
+            light_view_proj,
+            self.shadow.shader_params(),
+            [self.ssao.near, self.ssao.far, self.ssao.strength, proj_y_scale],
+        );
         ctx.queue.write_buffer(&self.camera_buffer, 0, &encode_camera_uniform(&camera)?);
+
+        if self.ssao.ensure_targets(&ctx.device, target.width, target.height) {
+            let targets = self.ssao.targets.borrow();
+            let blur_view = &targets.as_ref().expect("ssao targets just created").blur_view;
+            self.shadow.rebind_ao(&ctx.device, &self.shadow_bgl, blur_view);
+        }
 
         let mut encoder =
             ctx.device.create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
+        self.encode_shadow_pass(&mut encoder);
+        if self.ssao.strength > 0.0 {
+            self.encode_ssao_prepass(&mut encoder);
+            self.ssao.encode_ao_passes(&mut encoder, &self.camera_bind_group);
+        }
         {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("scene_pass"),
@@ -48,6 +80,7 @@ impl super::SceneRenderer {
             });
             pass.set_pipeline(&self.pipeline);
             pass.set_bind_group(0, &self.camera_bind_group, &[]);
+            pass.set_bind_group(2, &*self.shadow.bind_group.borrow(), &[]);
             pass.set_vertex_buffer(1, self.identity_instance.slice(..));
             if self.terrain_index_count > 0 {
                 pass.set_vertex_buffer(0, self.terrain_vertices.slice(..));
@@ -84,6 +117,7 @@ impl super::SceneRenderer {
             if self.vehicle_instance_count > 0 {
                 pass.set_pipeline(&self.vehicle_pipeline);
                 pass.set_bind_group(0, &self.vehicle_camera_bind_group, &[]);
+                pass.set_bind_group(2, &*self.shadow.bind_group.borrow(), &[]);
                 pass.set_vertex_buffer(1, self.vehicle_instances.slice(..));
                 for draw in &self.vehicle_draws {
                     pass.set_bind_group(1, self.vehicle_materials.bind_group(draw.material), &[]);
@@ -115,5 +149,4 @@ impl super::SceneRenderer {
         }
         ctx.queue.submit(Some(encoder.finish()));
         Ok(())
-    }
-}
+    }}

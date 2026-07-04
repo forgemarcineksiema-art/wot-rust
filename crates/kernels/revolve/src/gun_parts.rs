@@ -8,37 +8,47 @@ use vehicle_geometry::{GeometryMesh, GeometryVertex, MaterialRole, SmoothingGrou
 
 use crate::{revolve, translate};
 
-/// The main gun barrel as a capped steel cylinder along +Z, with a slight muzzle swell. `length` is
-/// the breech-to-muzzle span — driven by the installed gun module, not a post-bake scale.
-pub fn gun_barrel(length: f32, gun: &GunVisual) -> GeometryMesh {
+/// The barrel side profile from breech (0) to muzzle (`length`): a thick root sleeve behind the
+/// mask, the heavier rear tube half, the D-10 family's mid-tube STEP down to the slim front half,
+/// a stepped muzzle collar, and a RECESSED bore — the muzzle ends as a steel ring with the dark
+/// bore tube set back inside it, never a solid capped rod.
+fn barrel_profile(length: f32, gun: &GunVisual) -> Vec<(f32, f32)> {
     let r = gun.barrel_radius;
+    let collar_r = gun.muzzle_radius * 1.13;
+    let collar_len = (length * 0.06).clamp(0.06, 0.26);
+    let bore = gun.muzzle_radius * 0.55;
+    let recess = (length * 0.035).clamp(0.04, 0.15);
+    vec![
+        (0.0, 0.0),
+        (0.0, r * 1.18),
+        (length * 0.10, r * 1.04),
+        (length * 0.42, r * 0.98),
+        (length * 0.45, r * 0.90),
+        (length - collar_len - gun.muzzle_taper, r * 0.82),
+        (length - collar_len, collar_r),
+        (length, collar_r),
+        (length, bore),
+        (length - recess, bore * 0.95),
+        (length - recess, 0.0),
+    ]
+}
+
+/// The main gun barrel along +Z from a fixed breech station. `length` is the breech-to-muzzle
+/// span — driven by the installed gun module, not a post-bake scale.
+pub fn gun_barrel(length: f32, gun: &GunVisual) -> GeometryMesh {
     let breech = 1.0;
-    let muzzle = breech + length.max(0.5);
-    let profile = [
-        (breech, 0.0),
-        (breech, r),
-        (muzzle - gun.muzzle_taper, r),
-        (muzzle, gun.muzzle_radius),
-        (muzzle, 0.0),
-    ];
+    let profile: Vec<(f32, f32)> =
+        barrel_profile(length.max(0.5), gun).into_iter().map(|(z, r)| (breech + z, r)).collect();
     revolve(Vec3::Z, &profile, gun.barrel_segments, MaterialRole::BarrelSteel, SmoothingGroup(4))
 }
 
 /// A barrel mounted between the authoritative trunnion and muzzle frames in vehicle-local space.
 pub fn gun_barrel_between(trunnion: Vec3, muzzle: Vec3, gun: &GunVisual) -> GeometryMesh {
     let length = (muzzle.z - trunnion.z).max(0.5);
-    let r = gun.barrel_radius;
-    let profile = [
-        (0.0, 0.0),
-        (0.0, r),
-        (length - gun.muzzle_taper, r),
-        (length, gun.muzzle_radius),
-        (length, 0.0),
-    ];
     translate(
         &revolve(
             Vec3::Z,
-            &profile,
+            &barrel_profile(length, gun),
             gun.barrel_segments,
             MaterialRole::BarrelSteel,
             SmoothingGroup(4),

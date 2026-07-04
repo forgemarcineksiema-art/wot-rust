@@ -24,7 +24,7 @@ mod t54_hybrid_turret;
 pub use fittings::{DetailVisual, FittingsVisual};
 pub use hybrid::{
     BoxVisual, FenderVisual, GunVisual, HullPlatesVisual, HullVisual, HybridVisual, LoftStation,
-    RunningGearVisual, TrackBeltVisual, TurretLoftVisual, TurretVisual,
+    TurretLoftVisual, TurretVisual,
 };
 
 /// How the turret/superstructure reads, for both the mesh recipe and the fit tests.
@@ -75,6 +75,13 @@ pub struct TrackShape {
     pub wheel_first_z: f32,
     pub wheel_last_z: f32,
     pub end_radius: f32,
+    /// |Z| of the idler (front) and drive-sprocket (rear) axles. Beyond `wheel_last_z` on the
+    /// T-54, which carries separate end wheels the belt ramps up to; equal to the wheel-span end
+    /// for vehicles whose belt still wraps at the outermost road wheels (the stadium loop).
+    pub end_z: f32,
+    /// Y of the idler/sprocket axles. Raised above the road-wheel axle line on the T-54; equal to
+    /// the axle line for the stadium wrap.
+    pub end_y: f32,
     pub inner_x: f32,
     pub outer_x: f32,
     pub segments: usize,
@@ -206,7 +213,7 @@ mod tests {
     fn t54_blueprint_carries_hybrid_visual_data() {
         let t54 = VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("blueprint");
         let hybrid = t54.hybrid().expect("T-54 is the hybrid benchmark");
-        assert_eq!(hybrid.running_gear.wheel_count, 5, "five road wheels per side");
+        assert_eq!(t54.track.wheel_count, 5, "five road wheels per side");
         assert!(hybrid.turret.budget > 0, "the cast turret meshes to a triangle budget");
         let t55a = VehicleBlueprint::for_vehicle(VehicleKind::T55A).expect("blueprint");
         assert!(t55a.hybrid().is_none(), "T-55A still bakes through the legacy path");
@@ -237,14 +244,11 @@ mod tests {
         same("hull.half_width", h.hull.half_width, hull.half_width);
         same("hull.belly_y", h.hull.belly_y, hull.belly_y);
         same("hull.half_len", h.hull.half_len, hull.half_len);
+        same("hull.roof_y", h.hull.roof_y, hull.deck_y);
 
-        // Running gear: the wheel train and the track half-spacing.
-        assert_eq!(h.running_gear.wheel_count, track.wheel_count, "wheel_count");
-        same("running_gear.wheel_radius", h.running_gear.wheel_radius, track.wheel_radius);
-        same("running_gear.first_z", h.running_gear.first_z, track.wheel_first_z);
-        same("running_gear.side_x", h.running_gear.side_x, track.center_x);
+        // The fender shelf rides the blueprint track lane (the running gear itself has no hybrid
+        // copy — the animated path reads `TrackShape` directly).
         same("fender.side_x", h.fender.side_x, track.center_x);
-        same("track_belt.side_x", h.track_belt.side_x, track.center_x);
 
         // Turret machined planes and the commander's cupola placement (carried in three places).
         same("turret.roof_plane_y", h.turret.roof_plane_y, turret.roof_y);
@@ -291,6 +295,15 @@ mod tests {
         );
         // Restrained, factory-clean detail: lips and weld beads are small.
         assert!(d.fender_lip_drop < 0.20 && d.weld_seam_half_thickness < 0.05);
+
+        // The grille must ride proud of the engine-deck top, never coplanar with it — a coplanar
+        // top z-fights the slats into a flickering mess.
+        let deck_top = h.deck.center.y + h.deck.half.y;
+        assert!(
+            d.grille_center.y + d.grille_half.y > deck_top + 0.01,
+            "deck grille top {} must clear the engine-deck top {deck_top} to avoid z-fighting",
+            d.grille_center.y + d.grille_half.y
+        );
     }
 
     /// The T-55A is now blueprint-backed too: its hitbox, mounts, and armour slopes all read the

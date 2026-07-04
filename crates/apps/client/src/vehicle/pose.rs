@@ -44,10 +44,30 @@ impl VehiclePose {
         turret_yaw_rad: f32,
         gun_pitch_rad: f32,
     ) -> Self {
+        Self::new_with_attitude(kind, ground, yaw_rad, turret_yaw_rad, gun_pitch_rad, [0.0; 3])
+    }
+
+    /// As [`Self::new`], with the sprung-hull attitude `[pitch (+nose up), roll (+right side up),
+    /// heave]` folded into the hull frame — the turret, gun and running gear all ride it, since
+    /// every other transform chains off the hull basis.
+    pub fn new_with_attitude(
+        kind: VehicleKind,
+        ground: Vec3,
+        yaw_rad: f32,
+        turret_yaw_rad: f32,
+        gun_pitch_rad: f32,
+        attitude: [f32; 3],
+    ) -> Self {
+        let [pitch, roll, heave] = attitude;
         let mounts = MountFrames::for_vehicle(kind);
+        // glam's Rx(+t) tips local +Z downward, so nose-up pitch enters negated; Rz(+t) lifts
+        // local +X, matching roll's "+right side up" convention directly.
+        let hull_rotation = Mat3::from_rotation_y(yaw_rad)
+            * Mat3::from_rotation_x(-pitch)
+            * Mat3::from_rotation_z(roll);
         Self {
-            ground,
-            hull_rotation: Mat3::from_rotation_y(yaw_rad),
+            ground: ground + Vec3::Y * heave,
+            hull_rotation,
             turret_rotation: Mat3::from_rotation_y(kind.effective_turret_yaw_rad(turret_yaw_rad)),
             gun_pitch: Mat3::from_rotation_x(-gun_pitch_rad),
             turret_ring: mounts.turret_ring.translation,

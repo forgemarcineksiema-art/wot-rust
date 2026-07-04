@@ -20,6 +20,9 @@ fn static_cover_absorbs_a_shell_before_it_reaches_the_target() {
 #[test]
 fn cover_off_to_the_side_does_not_block_a_clear_shot() {
     let (mut state, shooter, target) = duel();
+    // Face the target away: at 55 m the flat shot arrives just above the 1.75 hull-roof split, so
+    // it meets the turret — the exposed rear plate guarantees the clear shot also penetrates.
+    state.tank_mut(target).expect("target").yaw_rad = 0.0;
 
     fire_and_settle(&mut state, shooter, &flat_field(), &[wall_at(20.0)]);
 

@@ -152,6 +152,8 @@ impl WindowRenderer {
             resolve_target: self.msaa_color_view.as_ref().map(|_| &view),
             depth_view: &self.depth_view,
             sample_count: self.sample_count,
+            width: self.config.width,
+            height: self.config.height,
         };
         self.scene.render(&self.ctx, target, view_proj, camera_pos)?;
         frame.present();

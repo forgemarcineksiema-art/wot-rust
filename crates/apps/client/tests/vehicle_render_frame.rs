@@ -42,9 +42,14 @@ fn vehicle_render_frame_uses_baked_objects_for_every_vehicle() {
             gun_pitch_rad: 0.0,
             hit_points: vehicle.spec().hit_points,
             destroyed_modules_mask: 0,
+            module_hit_points: vehicle.spec().module_health.hit_points_by_slot(),
             track_damage_mask: 0,
             track_left_m: 0.0,
             track_right_m: 0.0,
+            attitude_pitch_rad: 0.0,
+            attitude_roll_rad: 0.0,
+            attitude_heave_m: 0.0,
+            accel_long_mps2: 0.0,
         })
         .collect();
 
@@ -131,9 +136,14 @@ fn presentation_tanks() -> Vec<PresentationTank> {
             gun_pitch_rad: 0.0,
             hit_points: vehicle.spec().hit_points,
             destroyed_modules_mask: 0,
+            module_hit_points: vehicle.spec().module_health.hit_points_by_slot(),
             track_damage_mask: 0,
             track_left_m: 0.0,
             track_right_m: 0.0,
+            attitude_pitch_rad: 0.0,
+            attitude_roll_rad: 0.0,
+            attitude_heave_m: 0.0,
+            accel_long_mps2: 0.0,
         })
         .collect()
 }
@@ -161,9 +171,14 @@ fn frame_for_t54_tracks_with_masks(
             gun_pitch_rad: 0.0,
             hit_points: VehicleKind::T54_1951.spec().hit_points,
             destroyed_modules_mask,
+            module_hit_points: VehicleKind::T54_1951.spec().module_health.hit_points_by_slot(),
             track_damage_mask,
             track_left_m: left,
             track_right_m: right,
+            attitude_pitch_rad: 0.0,
+            attitude_roll_rad: 0.0,
+            attitude_heave_m: 0.0,
+            accel_long_mps2: 0.0,
         }],
         TankId(1),
         1.0,

@@ -1,5 +1,5 @@
 use bevy_ecs::prelude::*;
-use game_core::{TankId, TeamId, TrackDamageMask, TrackSide, VehicleKind};
+use game_core::{MODULE_SLOT_COUNT, TankId, TeamId, TrackDamageMask, TrackSide, VehicleKind};
 
 /// Render-side clock, advanced once per presented frame. Lives as an ECS resource so future
 /// presentation systems (animation, fade timers) read one shared time source.
@@ -49,6 +49,11 @@ pub struct Team(pub TeamId);
 /// Bitmask of destroyed module slots, used by the renderer for damage tinting.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Component)]
 pub struct DestroyedModules(pub u8);
+
+/// Live module HP in `ModuleSlot::ALL` wire order, replicated from the snapshot. Partial damage
+/// drives presentation cues (a wounded suspension softens the sprung-hull attitude).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Component)]
+pub struct ModuleHitPoints(pub [u32; MODULE_SLOT_COUNT]);
 
 /// Side-specific track damage bitmask replicated from the authoritative simulation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Component)]
@@ -113,8 +118,17 @@ pub struct PresentationTank {
     pub gun_pitch_rad: f32,
     pub hit_points: u32,
     pub destroyed_modules_mask: u8,
+    /// Live module HP in `ModuleSlot::ALL` wire order (partial-damage presentation cues).
+    pub module_hit_points: [u32; MODULE_SLOT_COUNT],
     pub track_damage_mask: u8,
     /// Per-side track distance (metres) for spinning wheels and scrolling track links.
     pub track_left_m: f32,
     pub track_right_m: f32,
+    /// Sprung-hull attitude (presentation only): pitch (+nose up), roll (+right side up), and the
+    /// vertical spring offset over the replicated hull height.
+    pub attitude_pitch_rad: f32,
+    pub attitude_roll_rad: f32,
+    pub attitude_heave_m: f32,
+    /// Filtered longitudinal acceleration (m/s^2) - the render-side track-tension cue.
+    pub accel_long_mps2: f32,
 }

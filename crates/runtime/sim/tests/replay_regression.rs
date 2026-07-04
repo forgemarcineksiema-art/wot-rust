@@ -18,7 +18,7 @@ fn drive_forward_replay_is_a_regression_test() {
     assert_eq!(tank.yaw_rad, 0.0);
     // Forward trajectory and turret are pinned tightly (the old floors passed under huge
     // regressions). Update the fixture deliberately if the controller is retuned.
-    assert!((tank.position.z - 0.108).abs() < 1e-4, "position.z drifted: {}", tank.position.z);
+    assert!((tank.position.z - 0.101214).abs() < 1e-4, "position.z drifted: {}", tank.position.z);
     assert!(
         (tank.turret_yaw_rad - 0.028125).abs() < 1e-4,
         "turret_yaw drifted: {}",

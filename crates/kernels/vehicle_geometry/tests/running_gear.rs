@@ -177,16 +177,19 @@ fn t54_end_wrap_links_are_dense_around_idler_and_sprocket() {
     let kin = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951).expect("T-54 gear");
     let placements = running_gear_placements(&kin, 0.0, 0.0);
 
-    for (name, center_z) in [("sprocket", kin.cz - kin.half_run), ("idler", kin.cz + kin.half_run)]
-    {
+    // The idler/sprocket sit beyond the road wheels on raised axles; the window covers the wrap
+    // arc plus the tangent ramp feeding it, where the short links must read as a curved run.
+    for (name, center_z) in [("sprocket", -kin.end_cz), ("idler", kin.end_cz)] {
         let wrapped = placements
             .iter()
             .filter(|placement| placement.part == GearPart::Link)
             .filter(|placement| placement.transform.w_axis.x > 0.0)
-            .filter(|placement| (placement.transform.w_axis.z - center_z).abs() < kin.end_radius)
+            .filter(|placement| {
+                (placement.transform.w_axis.z - center_z).abs() < kin.end_radius + 0.15
+            })
             .count();
         assert!(
-            wrapped >= 12,
+            wrapped >= 10,
             "{name} wrap needs enough short links to read as a curved track run, got {wrapped}"
         );
     }
@@ -330,7 +333,80 @@ fn t54_sprocket_is_visibly_toothed_while_idler_is_smooth() {
     // front of the track is visibly plain against the rear sprocket's teeth.
     let idler_bounds = idler.bounds().expect("idler bounds");
     assert!(
-        idler_bounds.max.y <= kin.end_radius + 0.010 && idler_bounds.max.z <= kin.end_radius + 0.010,
+        idler_bounds.max.y <= kin.end_radius + 0.010
+            && idler_bounds.max.z <= kin.end_radius + 0.010,
         "front idler must read as a smooth round wheel, not a toothed ring"
     );
+}
+
+#[test]
+fn wheel_travel_moves_wheels_and_the_ground_run_follows() {
+    let kin = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951).expect("T-54 gear");
+    let rest = running_gear_placements(&kin, 0.0, 0.0);
+    // Drop the middle wheel into a dip on the right side only.
+    let mut travel = [0.0_f32; 5];
+    travel[2] = -0.06;
+    let dynamics = vehicle_geometry::GearDynamics {
+        left_travel: &[],
+        right_travel: &travel,
+        sag_scale: 1.0,
+    };
+    let bumped = vehicle_geometry::running_gear_placements_dynamic(&kin, 0.0, 0.0, dynamics);
+
+    // The right middle road wheel dropped by exactly the travel; the left stayed at rest.
+    let wheel_y = |set: &[vehicle_geometry::GearPlacement], side: f32, z: f32| {
+        set.iter()
+            .filter(|p| p.part == GearPart::RoadWheel)
+            .map(|p| p.transform.w_axis)
+            .find(|w| w.x * side > 0.0 && (w.z - z).abs() < 0.01)
+            .expect("wheel present")
+            .y
+    };
+    let z_mid = kin.wheel_zs[2];
+    assert!(
+        (wheel_y(&bumped, 1.0, z_mid) - (wheel_y(&rest, 1.0, z_mid) - 0.06)).abs() < 1.0e-4,
+        "the dipped wheel drops by its travel"
+    );
+    assert!(
+        (wheel_y(&bumped, -1.0, z_mid) - wheel_y(&rest, -1.0, z_mid)).abs() < 1.0e-4,
+        "the opposite side stays at rest"
+    );
+
+    // The ground-run links under that wheel follow it down; the top run does not move.
+    let bottom_link_y = |set: &[vehicle_geometry::GearPlacement]| {
+        set.iter()
+            .filter(|p| p.part == GearPart::Link)
+            .map(|p| p.transform.w_axis)
+            .filter(|w| w.x > 0.0 && (w.z - z_mid).abs() < 0.3 && w.y < kin.cy)
+            .map(|w| w.y)
+            .fold(f32::INFINITY, f32::min)
+    };
+    assert!(
+        bottom_link_y(&bumped) < bottom_link_y(&rest) - 0.03,
+        "the ground run conforms to the dipped wheel"
+    );
+}
+
+#[test]
+fn drive_tension_tightens_the_top_run_and_slack_deepens_it() {
+    let kin = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951).expect("T-54 gear");
+    let mid_top_y = |sag_scale: f32| {
+        let dynamics = vehicle_geometry::GearDynamics {
+            left_travel: &[],
+            right_travel: &[],
+            sag_scale,
+        };
+        vehicle_geometry::running_gear_placements_dynamic(&kin, 0.0, 0.0, dynamics)
+            .iter()
+            .filter(|p| p.part == GearPart::Link)
+            .map(|p| p.transform.w_axis)
+            .filter(|w| w.x > 0.0 && w.y > kin.cy && w.z.abs() < 0.4)
+            .map(|w| w.y)
+            .fold(f32::INFINITY, f32::min)
+    };
+    let driven = mid_top_y(0.55);
+    let rest = mid_top_y(1.0);
+    let braking = mid_top_y(1.5);
+    assert!(driven > rest + 0.01, "a driven track pulls its top run tight");
+    assert!(braking < rest - 0.01, "a braking track lets the top run hang");
 }

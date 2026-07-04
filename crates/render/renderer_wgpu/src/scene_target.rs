@@ -3,6 +3,9 @@ pub struct SceneRenderTarget<'a> {
     pub resolve_target: Option<&'a wgpu::TextureView>,
     pub depth_view: &'a wgpu::TextureView,
     pub sample_count: u32,
+    /// Pixel size of the target — sizes the screen-space (SSAO) chain.
+    pub width: u32,
+    pub height: u32,
 }
 
 pub(crate) fn store_op_for_target(resolve_target: Option<&wgpu::TextureView>) -> wgpu::StoreOp {
