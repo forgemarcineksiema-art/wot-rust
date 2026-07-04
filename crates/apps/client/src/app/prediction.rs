@@ -51,7 +51,16 @@ impl ClientApp {
     pub(super) fn accept_and_sync(&mut self, snapshot: net::Snapshot) {
         let player = snapshot.tanks.iter().find(|tank| tank.tank_id == self.player_tank).cloned();
         self.hit_indicator.ingest_damage_events(&snapshot.damage_events, self.player_tank);
-        self.hit_indicator.ingest_shell_impacts(&snapshot.shell_impacts);
+        // Every shell death gets its world-space burst: absorbed shells speak the surface they
+        // died against, armor strikes answer with sparks (plus the penetration signature).
+        for impact in &snapshot.shell_impacts {
+            self.fx.impact_burst(impact.position, impact.surface);
+        }
+        for event in &snapshot.damage_events {
+            if event.cause == game_core::DamageCause::Shell {
+                self.fx.armor_hit(event.hit_position, event.penetrated, event.ricocheted);
+            }
+        }
         // Shots fired since the previous snapshot: diffed here, where both snapshots exist side
         // by side, then fanned out to every fire cue (muzzle FX, recoil, hull rock, camera kick).
         let fired = self.render_state.latest_snapshot().map_or_else(Vec::new, |previous| {

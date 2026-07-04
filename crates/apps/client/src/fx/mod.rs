@@ -6,6 +6,7 @@
 mod billboard;
 mod emitters;
 mod fire;
+mod impacts;
 mod particle;
 mod tracer;
 
