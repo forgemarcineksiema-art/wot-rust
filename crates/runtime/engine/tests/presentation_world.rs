@@ -9,6 +9,8 @@ fn snapshot(id: u64, position: [f32; 3], hit_points: u32) -> TankSnapshot {
         vehicle: VehicleKind::T55A,
         position,
         yaw_rad: 0.1,
+        hull_pitch_rad: 0.0,
+        hull_roll_rad: 0.0,
         turret_yaw_rad: 0.2,
         turret_yaw_velocity_rad_s: 0.0,
         gun_pitch_rad: 0.3,

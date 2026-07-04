@@ -36,6 +36,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         vehicle: VehicleKind::T54_1951,
         position: [cx, ground, cz],
         yaw_rad: FRAC_PI_2,
+        hull_pitch_rad: 0.0,
+        hull_roll_rad: 0.0,
         turret_yaw_rad: 0.0,
         turret_yaw_velocity_rad_s: 0.0,
         gun_pitch_rad: 0.04,

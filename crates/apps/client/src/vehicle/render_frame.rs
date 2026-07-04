@@ -142,6 +142,8 @@ pub(crate) fn render_snapshot(tank: &PresentationTank) -> TankSnapshot {
         vehicle: tank.vehicle,
         position: tank.translation,
         yaw_rad: tank.hull_yaw_rad,
+        hull_pitch_rad: 0.0,
+        hull_roll_rad: 0.0,
         turret_yaw_rad: tank.turret_yaw_rad,
         turret_yaw_velocity_rad_s: 0.0,
         gun_pitch_rad: tank.gun_pitch_rad,

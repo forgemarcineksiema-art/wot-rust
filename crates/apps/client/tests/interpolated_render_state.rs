@@ -90,6 +90,8 @@ fn snapshot_at(server_tick: u64, x: f32) -> Snapshot {
             vehicle: game_core::VehicleKind::PrototypeMedium,
             position: [x, 0.0, 0.0],
             yaw_rad: 0.0,
+            hull_pitch_rad: 0.0,
+            hull_roll_rad: 0.0,
             turret_yaw_rad: 0.0,
             turret_yaw_velocity_rad_s: 0.0,
             gun_pitch_rad: 0.0,

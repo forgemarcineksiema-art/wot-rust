@@ -12,6 +12,8 @@ fn snapshot_for_vehicle(vehicle: game_core::VehicleKind, position: [f32; 3]) -> 
         vehicle,
         position,
         yaw_rad: 0.0,
+        hull_pitch_rad: 0.0,
+        hull_roll_rad: 0.0,
         turret_yaw_rad: 0.0,
         turret_yaw_velocity_rad_s: 0.0,
         gun_pitch_rad: 0.0,

@@ -9,7 +9,7 @@ use net::{
 use sim::TankCommand;
 
 #[test]
-fn input_command_wire_snapshot_v12_is_stable() {
+fn input_command_wire_snapshot_v14_is_stable() {
     let message = ProtocolMessage::Input(ClientInputCommand {
         client_tick: 7,
         tank_id: TankId(42),
@@ -25,13 +25,13 @@ fn input_command_wire_snapshot_v12_is_stable() {
 
     let bytes = encode_message(&message).expect("message should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 13);
-    assert_eq!(hex(&bytes), include_str!("snapshots/input_command_v12.hex").trim());
+    assert_eq!(PROTOCOL_VERSION, 14);
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "input_command_v14"));
     assert_eq!(decode_message(&bytes).expect("message should decode"), message);
 }
 
 #[test]
-fn vehicle_selection_wire_snapshot_v12_is_stable() {
+fn vehicle_selection_wire_snapshot_v14_is_stable() {
     let message = ProtocolMessage::VehicleSelection(ClientVehicleSelection {
         client_tick: 11,
         requested_vehicle: VehicleKind::PantherII,
@@ -39,31 +39,31 @@ fn vehicle_selection_wire_snapshot_v12_is_stable() {
 
     let bytes = encode_message(&message).expect("vehicle selection should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 13);
-    assert_eq!(hex(&bytes), include_str!("snapshots/vehicle_selection_v12.hex").trim());
+    assert_eq!(PROTOCOL_VERSION, 14);
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "vehicle_selection_v14"));
     assert_eq!(decode_message(&bytes).expect("message should decode"), message);
 }
 
 #[test]
-fn tank_snapshot_wire_v12_is_stable() {
+fn tank_snapshot_wire_v14_is_stable() {
     // Locks the v12 wire layout: replicated team identity plus the shell-impact list.
     let message = ProtocolMessage::Snapshot(tank_snapshot_message());
 
     let bytes = encode_message(&message).expect("snapshot should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 13);
-    assert_eq!(hex(&bytes), include_str!("snapshots/snapshot_tank_v12.hex").trim());
+    assert_eq!(PROTOCOL_VERSION, 14);
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_tank_v14"));
     assert_eq!(decode_message(&bytes).expect("snapshot should decode"), message);
 }
 
 #[test]
-fn combat_snapshot_wire_v12_is_stable() {
+fn combat_snapshot_wire_v14_is_stable() {
     let message = ProtocolMessage::Snapshot(combat_snapshot_message());
 
     let bytes = encode_message(&message).expect("snapshot should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 13);
-    assert_eq!(hex(&bytes), include_str!("snapshots/snapshot_combat_v12.hex").trim());
+    assert_eq!(PROTOCOL_VERSION, 14);
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_combat_v14"));
     assert_eq!(decode_message(&bytes).expect("snapshot should decode"), message);
 }
 
@@ -77,6 +77,8 @@ pub fn tank_snapshot_message() -> Snapshot {
             vehicle: VehicleKind::Jagdtiger,
             position: [1.0, 2.0, 3.0],
             yaw_rad: 0.5,
+            hull_pitch_rad: 0.0,
+            hull_roll_rad: 0.0,
             turret_yaw_rad: 0.25,
             turret_yaw_velocity_rad_s: 0.12,
             gun_pitch_rad: 0.1,
@@ -104,6 +106,8 @@ pub fn combat_snapshot_message() -> Snapshot {
             vehicle: VehicleKind::TigerII,
             position: [3.0, 0.5, 12.0],
             yaw_rad: 0.2,
+            hull_pitch_rad: 0.0,
+            hull_roll_rad: 0.0,
             turret_yaw_rad: -0.1,
             turret_yaw_velocity_rad_s: -0.08,
             gun_pitch_rad: 0.05,
@@ -135,6 +139,17 @@ pub fn combat_snapshot_message() -> Snapshot {
             surface: ImpactSurface::Hull,
         }],
     }
+}
+
+
+/// The golden wire fixture for `name`. Set `REGEN_WIRE_FIXTURES=1` while running these tests to
+/// rewrite the fixtures after a deliberate protocol bump, then rerun clean to verify.
+fn wire_fixture(bytes: &[u8], name: &str) -> String {
+    let path = format!("{}/tests/snapshots/{name}.hex", env!("CARGO_MANIFEST_DIR"));
+    if std::env::var_os("REGEN_WIRE_FIXTURES").is_some() {
+        std::fs::write(&path, hex(bytes)).expect("fixture should be writable");
+    }
+    std::fs::read_to_string(&path).expect("wire fixture should exist").trim().to_string()
 }
 
 fn hex(bytes: &[u8]) -> String {

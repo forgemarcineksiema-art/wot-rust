@@ -54,6 +54,8 @@ fn snapshot_with_aim(
             vehicle: game_core::VehicleKind::PrototypeMedium,
             position: [10.0, 0.0, 10.0],
             yaw_rad: 0.0,
+            hull_pitch_rad: 0.0,
+            hull_roll_rad: 0.0,
             turret_yaw_rad,
             turret_yaw_velocity_rad_s: 0.0,
             gun_pitch_rad,

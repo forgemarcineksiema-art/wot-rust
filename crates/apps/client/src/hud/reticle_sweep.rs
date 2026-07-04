@@ -86,6 +86,8 @@ mod tests {
             vehicle: VehicleKind::T55A,
             position,
             yaw_rad: std::f32::consts::PI,
+            hull_pitch_rad: 0.0,
+            hull_roll_rad: 0.0,
             turret_yaw_rad: 0.0,
             turret_yaw_velocity_rad_s: 0.0,
             gun_pitch_rad: 0.0,
