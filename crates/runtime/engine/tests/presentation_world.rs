@@ -141,3 +141,23 @@ fn advance_time_accumulates_ticks_and_elapsed_seconds() {
     assert!((time.delta_seconds - 0.25).abs() < 1.0e-6);
     assert!((time.elapsed_seconds - 0.75).abs() < 1.0e-6);
 }
+
+#[test]
+fn a_thrown_left_track_seats_the_hull_toward_the_dead_side() {
+    let mut world = PresentationWorld::default();
+    let broken = TankSnapshot {
+        track_damage_mask: TrackDamageMask::LEFT.bits(),
+        ..snapshot(1, [0.0, 0.0, 0.0], 900)
+    };
+    // Let the presentation spring ease the lean in over a second of frames.
+    for _ in 0..60 {
+        world.advance_time(1.0 / 60.0);
+        world.sync_tanks(std::slice::from_ref(&broken));
+    }
+    let tank = world.presentation_tanks().remove(0);
+    assert!(
+        tank.attitude_roll_rad < -0.02,
+        "left-broken hull must lean left (+roll is right side up), got {}",
+        tank.attitude_roll_rad
+    );
+}

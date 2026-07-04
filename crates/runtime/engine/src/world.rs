@@ -72,10 +72,13 @@ impl PresentationWorld {
             let half_gauge = hitbox.half_width_m;
             // The spring's base is the AUTHORITATIVE support-plane attitude replicated in the
             // snapshot (protocol v14): the spring smooths the 20 Hz steps and layers the
-            // weight-transfer theatrics on top — it no longer re-derives terrain itself.
+            // weight-transfer theatrics on top — it no longer re-derives terrain itself. A
+            // thrown track seats the hull toward the dead side (presentation only: the sim's
+            // collision/armor frame ignores the cosmetic lean), eased in by the same spring.
             let sample = AttitudeSample {
                 terrain_pitch_rad: tank.hull_pitch_rad,
-                terrain_roll_rad: tank.hull_roll_rad,
+                terrain_roll_rad: tank.hull_roll_rad
+                    + broken_track_lean_rad(TrackDamageMask::from_bits(tank.track_damage_mask)),
             };
             let suspension = suspension_pool_fraction(tank);
             match self.entities.get(&tank.tank_id) {
@@ -179,6 +182,19 @@ impl PresentationWorld {
             .collect();
         tanks.sort_by_key(|tank| tank.id.0);
         tanks
+    }
+}
+
+/// A thrown track drops the hull ~a road-wheel rubber's worth on that side: left broken seats
+/// the left side down (negative roll — "+roll" is right side up), right broken mirrors it, both
+/// broken sit level (just beaten, which the heave dip already sells).
+fn broken_track_lean_rad(damage: TrackDamageMask) -> f32 {
+    const LEAN_RAD: f32 = 0.028;
+    match (damage.is_broken(game_core::TrackSide::Left), damage.is_broken(game_core::TrackSide::Right))
+    {
+        (true, false) => -LEAN_RAD,
+        (false, true) => LEAN_RAD,
+        _ => 0.0,
     }
 }
 
