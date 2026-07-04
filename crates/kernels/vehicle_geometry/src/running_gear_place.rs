@@ -94,15 +94,22 @@ fn place_side(
 ) {
     let wheel_spin = phase / kin.wheel_radius.max(0.05);
     for (index, &z) in kin.wheel_zs.iter().enumerate() {
-        let y = kin.cy + travel_at(travel, index);
+        let lift = travel_at(travel, index);
+        let y = kin.cy + lift;
         out.push(GearPlacement {
             part: GearPart::RoadWheel,
             transform: Mat4::from_translation(Vec3::new(side_sign * kin.wheel_x, y, z))
                 * Mat4::from_rotation_x(wheel_spin),
         });
+        out.push(GearPlacement {
+            part: GearPart::SwingArm,
+            transform: crate::running_gear_arms::swing_arm_transform(kin, side_sign, z, lift),
+        });
     }
 
-    let end_spin = phase / kin.end_radius.max(0.05);
+    // End wheels spin at the LINK line's radius (wheel radius + seat), so the sprocket's teeth
+    // and the shoes they flank move together instead of creeping past each other.
+    let end_spin = phase / crate::running_gear_belt::wrap_radius(kin);
     for (part, z) in [(GearPart::Sprocket, -kin.end_cz), (GearPart::Idler, kin.end_cz)] {
         out.push(GearPlacement {
             part,
@@ -112,7 +119,6 @@ fn place_side(
     }
 
     let path = BeltPath::with_sag(kin, sag);
-    let bottom_len = path.bottom_run_len();
     let count = kin.link_count();
     let length = path.length();
     let mut link_phase = phase.rem_euclid(length);
@@ -125,8 +131,15 @@ fn place_side(
             s = 0.0;
         }
         let sample = path.sample(s);
-        // The ground run conforms to the wheels riding over terrain; wraps and ramps stay rigid.
-        let dy = if s < bottom_len { bottom_travel(kin, travel, sample.z) } else { 0.0 };
+        // The whole LOWER half of the loop conforms to the wheels riding over terrain — the
+        // ground run fully, the ramps through the same faded interpolation — so the belt lifts
+        // with the gear instead of kinking at the ramp foot and knifing into a bump. The upper
+        // wraps and the top run stay rigid (the fade has reached zero there anyway).
+        let dy = if sample.y < kin.end_cy {
+            bottom_travel(kin, travel, sample.z)
+        } else {
+            0.0
+        };
         out.push(GearPlacement {
             part: GearPart::Link,
             transform: Mat4::from_translation(Vec3::new(

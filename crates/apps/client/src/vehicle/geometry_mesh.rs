@@ -4,7 +4,8 @@ use renderer_api::SceneVertex;
 use vehicle_forge::authoritative_baked_vehicle;
 use vehicle_geometry::{
     GearPart, GeometryMesh, RunningGearKinematics, SubmeshKind, idler_unit_mesh,
-    road_wheel_unit_mesh, running_gear_placements, sprocket_unit_mesh, track_link_unit_mesh,
+    road_wheel_unit_mesh, running_gear_placements, sprocket_unit_mesh, swing_arm_unit_mesh,
+    track_link_unit_mesh,
 };
 
 use super::pose::VehiclePose;
@@ -75,6 +76,7 @@ fn append_running_gear(
     hull_color: [f32; 3],
 ) {
     let road_wheel = road_wheel_unit_mesh(kin);
+    let swing_arm = swing_arm_unit_mesh(kin);
     let idler = idler_unit_mesh(kin);
     let sprocket = sprocket_unit_mesh(kin);
     let link = track_link_unit_mesh(kin);
@@ -85,6 +87,7 @@ fn append_running_gear(
             GearPart::Idler => &idler,
             GearPart::Sprocket => &sprocket,
             GearPart::Link => &link,
+            GearPart::SwingArm => &swing_arm,
         };
         let normal_basis = hull_basis * Mat3::from_mat4(placement.transform);
         append_mesh(
