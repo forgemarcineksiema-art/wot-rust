@@ -10,6 +10,7 @@ mod predict;
 mod render_state;
 mod scene;
 mod tank_mesh;
+mod ui_strings;
 mod vehicle;
 
 pub use app::garage_overlay;

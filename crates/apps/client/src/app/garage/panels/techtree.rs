@@ -72,7 +72,7 @@ pub(in crate::app::garage) fn draw(state: &GarageState, aspect: f32) -> Vec<HudV
 
     // Close button in the top-right corner.
     push_quad(&mut v, TREE_CLOSE_CENTER, TREE_CLOSE_HALF, BATTLE);
-    let label = "WSTECZ";
+    let label = crate::ui_strings::garage::BACK;
     let w = text_width(label, 0.028, aspect);
     push_text(
         &mut v,

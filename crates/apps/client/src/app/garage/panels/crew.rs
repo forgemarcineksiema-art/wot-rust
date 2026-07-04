@@ -11,7 +11,7 @@ use crate::hud::push_quad;
 pub(in crate::app::garage) fn draw(v: &mut Vec<HudVertex>, state: &GarageState, aspect: f32) {
     push_quad(v, [CREW_X, 0.46], [CREW_HALF_X + 0.02, 0.34], PANEL);
     let left = CREW_X - CREW_HALF_X;
-    push_text(v, "CREW", left, 0.80, 0.04, aspect, TEXT_DIM);
+    push_text(v, crate::ui_strings::garage::CREW, left, 0.80, 0.04, aspect, TEXT_DIM);
 
     for (i, role) in game_core::Crew::roles().into_iter().enumerate() {
         let y = CREW_TOP - i as f32 * CREW_PITCH;
@@ -19,7 +19,15 @@ pub(in crate::app::garage) fn draw(v: &mut Vec<HudVertex>, state: &GarageState, 
         push_text(v, role.label(), left + 0.075, y + 0.022, 0.038, aspect, TEXT);
     }
 
-    push_text(v, "Proficiency", left, PROF_Y + 0.06, 0.034, aspect, TEXT_DIM);
+    push_text(
+        v,
+        crate::ui_strings::garage::PROFICIENCY,
+        left,
+        PROF_Y + 0.06,
+        0.034,
+        aspect,
+        TEXT_DIM,
+    );
     let (l, r) = crew_prof_arrows();
     push_arrow(v, l, false, aspect);
     push_arrow(v, r, true, aspect);

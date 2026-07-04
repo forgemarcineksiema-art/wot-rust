@@ -16,7 +16,7 @@ impl ApplicationHandler for ClientApp {
             return;
         }
         let attrs = WindowAttributes::default()
-            .with_title("WOT Rust Prototype")
+            .with_title(crate::ui_strings::WINDOW_TITLE)
             .with_inner_size(winit::dpi::LogicalSize::new(1280.0, 720.0))
             .with_maximized(true);
         let window = match event_loop.create_window(attrs) {

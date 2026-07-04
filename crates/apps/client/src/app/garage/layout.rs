@@ -22,8 +22,7 @@ pub(super) const VALUE: [f32; 4] = [0.96, 0.92, 0.70, 0.98];
 // Top bar.
 pub(super) const BATTLE_CENTER: [f32; 2] = [0.0, 0.90];
 pub(super) const BATTLE_HALF: [f32; 2] = [0.13, 0.052];
-pub(super) const TABS: [&str; 5] = ["GARAGE", "TECH TREE", "DEPOT", "STORE", "BARRACKS"];
-/// Hit-test rect for the clickable TECH TREE tab (the only active tab; others are cosmetic).
+/// Hit-test rect for the clickable TECH TREE tab.
 pub(super) const TECH_TREE_TAB_CENTER: [f32; 2] = [0.22, 0.815];
 pub(super) const TECH_TREE_TAB_HALF: [f32; 2] = [0.10, 0.03];
 

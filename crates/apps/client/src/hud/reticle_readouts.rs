@@ -111,7 +111,7 @@ pub(super) fn push_target_distance(
     );
     crate::hud::font::push_text(
         vertices,
-        "M",
+        crate::ui_strings::battle::DISTANCE_UNIT,
         right_x + 0.006,
         top_y,
         0.05,

@@ -82,7 +82,8 @@ pub(crate) fn build_hud_with_reticle(
     // Sniper magnification readout, WT-style "X6.9", just under the reticle center so the
     // eye reads it without leaving the sight. Third person draws nothing.
     if let Some(zoom) = zoom_factor {
-        let label = format!("X{:.1}", zoom.clamp(0.0, 99.9));
+        let label =
+            format!("{}{:.1}", crate::ui_strings::battle::ZOOM_PREFIX, zoom.clamp(0.0, 99.9));
         crate::hud::font::push_text(
             &mut vertices,
             &label,
@@ -119,7 +120,7 @@ pub(crate) fn build_hud_with_reticle(
         // Unit sits just right of the value's anchor, dimmer and a touch smaller for hierarchy.
         crate::hud::font::push_text(
             &mut vertices,
-            "KM/H",
+            crate::ui_strings::battle::SPEED_UNIT,
             -0.765,
             -0.764,
             0.045,
