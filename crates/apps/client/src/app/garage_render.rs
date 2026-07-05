@@ -114,7 +114,11 @@ impl ClientApp {
         };
         if let Some(renderer) = self.renderer.as_mut() {
             renderer.set_terrain(&vertices, &indices);
-            renderer.set_sky(sky.0, sky.1, sky.2);
+            // Interior scenes show a flat backdrop; the battlefield shows the gradient sky dome.
+            match want {
+                SceneKind::Garage => renderer.set_interior_background(sky.0, sky.1, sky.2),
+                SceneKind::Battle => renderer.set_outdoor_sky(sky.0, sky.1, sky.2),
+            }
             renderer.set_scene_lighting(lighting);
             self.current_scene = want;
         }

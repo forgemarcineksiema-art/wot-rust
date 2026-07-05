@@ -2,8 +2,8 @@ use renderer_api::{BindGroupRole, FxVertex, VehicleVertex, baseline_bind_group_l
 use renderer_wgpu::{
     CameraUniform, GpuContext, TankVertex, basic_tank_shader_source,
     build_shadow_bind_group_layout, build_vehicle_pipeline, encode_camera_uniform,
-    fx_shader_source, scene_shader_source, shadow_shader_source, tank_vertex_bytes,
-    validate_wgsl_shader, vehicle_shader_source,
+    fx_shader_source, scene_shader_source, shadow_shader_source, sky_shader_source,
+    tank_vertex_bytes, validate_wgsl_shader, vehicle_shader_source,
 };
 
 #[test]
@@ -12,9 +12,11 @@ fn camera_uniform_is_encoded_with_wgsl_uniform_layout() {
 
     assert_eq!(bytes.len(), CameraUniform::wgsl_size());
     // view_proj (64) + camera_pos + sky ambient + ground ambient + key/fill/rim direction+colour
-    // (9 vec3 in 16-byte slots, 144) + light_view_proj (mat4, 64) + shadow_params (vec4, 16):
-    // 64 + 144 + 64 + 16 = 304.
-    assert_eq!(bytes.len(), 304);
+    // (9 vec3 in 16-byte slots, 144) + light_view_proj (mat4, 64) + shadow_params (vec4, 16)
+    // + ssao_params (vec4, 16): 64 + 144 + 64 + 16 + 16 = 304. Phase-2 atmosphere adds the gradient
+    // sky zenith + horizon (2 vec3, 32) and fog_params (vec4, 16): 304 + 48 = 352, plus the
+    // inv_view_proj mat4 (64) the sky pass unprojects with: 352 + 64 = 416.
+    assert_eq!(bytes.len(), 416);
     assert_eq!(bytes.len() % 16, 0);
 }
 
@@ -58,6 +60,17 @@ fn fx_vertex_is_plain_old_data_matching_the_fx_attribute_layout() {
     assert_eq!(stamped.sharpness, 6.0);
     let bytes: &[u8] = bytemuck::bytes_of(&stamped);
     assert_eq!(bytes.len(), 40);
+}
+
+#[test]
+fn sky_shader_is_valid_wgsl_and_shares_the_scene_camera_slot() {
+    let report = validate_wgsl_shader("sky", sky_shader_source()).expect("sky shader validates");
+
+    assert!(report.entry_points.iter().any(|entry| entry == "vs_main"));
+    assert!(report.entry_points.iter().any(|entry| entry == "fs_main"));
+    // The gradient-sky pass reuses the scene camera bind group (group 0, binding 0) to unproject
+    // the per-pixel view ray, so its uniform must sit at the same slot the scene pipeline binds.
+    assert!(report.has_uniform_binding("camera", 0, 0));
 }
 
 #[test]

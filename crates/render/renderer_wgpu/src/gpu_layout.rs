@@ -104,6 +104,9 @@ encase::impl_vector!(4, GpuVec4, f32; using AsRef AsMut From);
 #[derive(Debug, Clone, Copy, PartialEq, ShaderType, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct CameraUniform {
     pub view_proj: GpuMat4,
+    /// Inverse of `view_proj`, so a shader can unproject a clip point back to world space. The
+    /// gradient-sky pass reconstructs a per-pixel view ray direction from it.
+    pub inv_view_proj: GpuMat4,
     pub camera_pos: GpuVec3,
     pub ambient_rgb: GpuVec3,
     pub ground_ambient_rgb: GpuVec3,
@@ -122,6 +125,14 @@ pub struct CameraUniform {
     /// z = strength (0 disables — the capability fallback), w = projection Y scale (P[1][1],
     /// recovered from the view-projection) for world-radius → pixel-radius conversion.
     pub ssao_params: GpuVec4,
+    /// Gradient-sky zenith colour (linear), sampled straight up by the sky pass.
+    pub sky_zenith_rgb: GpuVec3,
+    /// Gradient-sky horizon colour (linear); also the aerial-perspective fog colour distant
+    /// surfaces fade toward in the lit shaders.
+    pub sky_horizon_rgb: GpuVec3,
+    /// Packed fog controls: x = density, y = height falloff, z/w reserved (0). Density 0 disables
+    /// the aerial perspective (interior looks).
+    pub fog_params: GpuVec4,
 }
 
 impl CameraUniform {
@@ -129,6 +140,7 @@ impl CameraUniform {
     /// profile — the single place the backend-neutral [`SceneLighting`] becomes GPU bytes.
     pub fn from_scene(
         view_proj: [[f32; 4]; 4],
+        inv_view_proj: [[f32; 4]; 4],
         camera_pos: [f32; 3],
         lighting: &SceneLighting,
         light_view_proj: [[f32; 4]; 4],
@@ -137,6 +149,7 @@ impl CameraUniform {
     ) -> Self {
         Self {
             view_proj: GpuMat4(view_proj),
+            inv_view_proj: GpuMat4(inv_view_proj),
             camera_pos: GpuVec3(camera_pos),
             ambient_rgb: GpuVec3(lighting.ambient_rgb),
             ground_ambient_rgb: GpuVec3(lighting.ground_ambient_rgb),
@@ -149,11 +162,15 @@ impl CameraUniform {
             light_view_proj: GpuMat4(light_view_proj),
             shadow_params: GpuVec4(shadow_params),
             ssao_params: GpuVec4(ssao_params),
+            sky_zenith_rgb: GpuVec3(lighting.sky_zenith_rgb),
+            sky_horizon_rgb: GpuVec3(lighting.sky_horizon_rgb),
+            fog_params: GpuVec4([lighting.fog_density, lighting.fog_height_falloff, 0.0, 0.0]),
         }
     }
 
     pub fn identity() -> Self {
         Self::from_scene(
+            IDENTITY_MATRIX,
             IDENTITY_MATRIX,
             [0.0, 0.0, 0.0],
             &SceneLighting::battlefield_default(),

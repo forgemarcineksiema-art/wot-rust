@@ -33,6 +33,7 @@ impl super::SceneRenderer {
             .sqrt();
         let camera = CameraUniform::from_scene(
             view_proj,
+            renderer_api::view_projection_inverse(view_proj),
             camera_pos,
             &self.scene_lighting,
             light_view_proj,
@@ -78,6 +79,13 @@ impl super::SceneRenderer {
                 occlusion_query_set: None,
                 multiview_mask: None,
             });
+            // Gradient-sky background first (depth compare Always, no write), so the geometry drawn
+            // next overwrites it wherever it wins the depth test and the sky shows through elsewhere.
+            if self.draw_sky {
+                pass.set_pipeline(&self.sky_pipeline);
+                pass.set_bind_group(0, &self.camera_bind_group, &[]);
+                pass.draw(0..3, 0..1);
+            }
             pass.set_pipeline(&self.pipeline);
             pass.set_bind_group(0, &self.camera_bind_group, &[]);
             pass.set_bind_group(2, &*self.shadow.bind_group.borrow(), &[]);

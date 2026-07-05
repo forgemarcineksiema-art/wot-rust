@@ -108,3 +108,10 @@ pub fn view_projection_matrix(camera: &Camera, aspect: f32, near: f32, far: f32)
         Mat4::look_at_rh(Vec3::from_array(camera.eye), Vec3::from_array(camera.target), Vec3::Y);
     (proj * view).to_cols_array_2d()
 }
+
+/// Inverse of a column-major world -> clip matrix, so a shader can unproject a clip/NDC point back
+/// to world space (the gradient-sky pass reconstructs a per-pixel view ray direction from it). A
+/// singular matrix inverts to all-zeros in glam, which the sky shader tolerates (degenerate ray).
+pub fn view_projection_inverse(view_proj: [[f32; 4]; 4]) -> [[f32; 4]; 4] {
+    Mat4::from_cols_array_2d(&view_proj).inverse().to_cols_array_2d()
+}

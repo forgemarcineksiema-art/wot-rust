@@ -5,6 +5,7 @@ use crate::offscreen::DEPTH_FORMAT;
 use crate::select_present_mode;
 use crate::{GpuContext, SceneRenderTarget, SceneRenderer};
 
+mod settings;
 mod vehicle;
 
 /// The live windowed renderer: owns the GPU device, the presentation surface, a depth
@@ -109,17 +110,6 @@ impl WindowRenderer {
     /// [`SceneRenderer::set_terrain`]; only call on a scene change, not per frame.
     pub fn set_terrain(&mut self, vertices: &[SceneVertex], indices: &[u32]) {
         self.scene.set_terrain(&self.ctx, vertices, indices);
-    }
-
-    /// Set the clear/background color (e.g. a dim interior tone behind the garage hangar).
-    pub fn set_sky(&mut self, r: f64, g: f64, b: f64) {
-        self.scene.sky = wgpu::Color { r, g, b, a: 1.0 };
-    }
-
-    /// Set the calibrated scene lighting (key/fill/rim + ambient). Battle uses the default profile;
-    /// the garage swaps in [`renderer_api::SceneLighting::garage_studio`].
-    pub fn set_scene_lighting(&mut self, lighting: renderer_api::SceneLighting) {
-        self.scene.scene_lighting = lighting;
     }
 
     pub fn set_hud(&mut self, vertices: &[renderer_api::HudVertex]) {

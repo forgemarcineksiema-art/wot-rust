@@ -5,6 +5,7 @@
 
 struct Camera {
     view_proj: mat4x4<f32>,
+    inv_view_proj: mat4x4<f32>,
     camera_pos: vec3<f32>,
     ambient_rgb: vec3<f32>,
     ground_ambient_rgb: vec3<f32>,
@@ -17,6 +18,9 @@ struct Camera {
     light_view_proj: mat4x4<f32>,
     shadow_params: vec4<f32>,
     ssao_params: vec4<f32>,
+    sky_zenith_rgb: vec3<f32>,
+    sky_horizon_rgb: vec3<f32>,
+    fog_params: vec4<f32>,
 };
 
 @group(0) @binding(0)
@@ -39,6 +43,20 @@ fn light_radiance(n: vec3<f32>, shadow: f32) -> vec3<f32> {
         + camera.key_rgb * key
         + camera.fill_rgb * fill
         + camera.rim_rgb * rim;
+}
+
+// Aerial perspective: fade HDR radiance toward the horizon/sky colour by distance and height, so a
+// vehicle at range melts into the same haze as the terrain behind it. Applied in linear HDR before
+// the tone curve; mirrors scene.wgsl's apply_fog and SceneLighting::fog_factor.
+fn apply_fog(color: vec3<f32>, world_pos: vec3<f32>) -> vec3<f32> {
+    let density = camera.fog_params.x;
+    if (density <= 0.0) {
+        return color;
+    }
+    let distance = length(camera.camera_pos - world_pos);
+    let height_term = exp(-max(world_pos.y, 0.0) * camera.fog_params.y);
+    let fog = clamp(1.0 - exp(-max(distance, 0.0) * density * height_term), 0.0, 1.0);
+    return mix(color, camera.sky_horizon_rgb, fog);
 }
 
 // Filmic ACES-lite tone curve (Narkowicz fit): rolls the hot sun and roughness specular off to
@@ -285,5 +303,5 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     // The specular is the key light's highlight, so it is occluded by the same shadow.
     let spec_color = camera.key_rgb * spec * shadow * contact;
 
-    return vec4<f32>(tonemap_aces(lit + spec_color), 1.0);
+    return vec4<f32>(tonemap_aces(apply_fog(lit + spec_color, input.world_pos)), 1.0);
 }
