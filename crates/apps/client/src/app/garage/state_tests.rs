@@ -2,6 +2,7 @@
 //! reset-on-switch), save-file round-trips, vehicle selection, framing, rejection clearing,
 //! keyboard focus, and the tech-tree view. Split from `garage/mod.rs` for the file budget.
 
+use super::layout::{CAR_HALF, CAR_Y, carousel_arrows};
 use super::*;
 
 fn temp_save_path(name: &str) -> std::path::PathBuf {
@@ -195,4 +196,27 @@ fn open_tech_tree_cancels_drag() {
     garage.begin_drag();
     garage.open_tech_tree();
     assert!(!garage.is_dragging(), "opening tech tree cancels any in-progress drag");
+}
+
+#[test]
+fn the_current_roster_fits_so_the_carousel_never_scrolls_or_shows_arrows() {
+    let mut garage = GarageState::default();
+    // Six vehicles fit inside the window, so scrolling is a no-op and the arrows are inert.
+    garage.scroll_carousel(1);
+    assert_eq!(garage.carousel_scroll(), 0, "a roster that fits never scrolls");
+
+    let (left, right) = carousel_arrows();
+    garage.set_cursor(left);
+    assert_ne!(garage.hit_test(false), GarageHit::CarouselScroll(-1), "no left arrow to hit");
+    garage.set_cursor(right);
+    assert_ne!(garage.hit_test(false), GarageHit::CarouselScroll(1), "no right arrow to hit");
+}
+
+#[test]
+fn the_cursor_over_carousel_predicate_gates_wheel_routing() {
+    let mut garage = GarageState::default();
+    garage.set_cursor([0.0, CAR_Y]);
+    assert!(garage.cursor_over_carousel(), "the wheel scrolls over the carousel row");
+    garage.set_cursor([0.0, CAR_Y + CAR_HALF[1] + 0.2]);
+    assert!(!garage.cursor_over_carousel(), "above the strip the wheel zooms the camera");
 }

@@ -30,7 +30,7 @@ fn build_hangar(state: &GarageState, aspect: f32) -> Vec<HudVertex> {
     panels::loadout::draw(&mut v, state, aspect);
     panels::carousel::draw(&mut v, state, aspect);
 
-    if let Some((center, half)) = hover_rect(&state.hit_test(false)) {
+    if let Some((center, half)) = hover_rect(state, &state.hit_test(false)) {
         push_quad(&mut v, center, half, HOVER);
     }
 
@@ -42,7 +42,7 @@ fn build_tech_tree(state: &GarageState, aspect: f32) -> Vec<HudVertex> {
     panels::topbar::draw(&mut v, state, aspect);
     panels::techtree::draw(state, aspect).into_iter().for_each(|vertex| v.push(vertex));
 
-    if let Some((center, half)) = hover_rect(&state.hit_test(false)) {
+    if let Some((center, half)) = hover_rect(state, &state.hit_test(false)) {
         push_quad(&mut v, center, half, HOVER);
     }
 
@@ -50,7 +50,7 @@ fn build_tech_tree(state: &GarageState, aspect: f32) -> Vec<HudVertex> {
 }
 
 /// Map the element under the cursor to its rect so a hover highlight can be drawn.
-fn hover_rect(hit: &GarageHit) -> Option<([f32; 2], [f32; 2])> {
+fn hover_rect(state: &GarageState, hit: &GarageHit) -> Option<([f32; 2], [f32; 2])> {
     match hit {
         GarageHit::Battle => Some((BATTLE_CENTER, BATTLE_HALF)),
         GarageHit::ModuleCycle(slot, _) => Some((module_slot_center(slot.index()), SLOT_HALF)),
@@ -60,12 +60,22 @@ fn hover_rect(hit: &GarageHit) -> Option<([f32; 2], [f32; 2])> {
             let center = if *dir < 0 { l } else { r };
             Some((center, ARROW_HALF))
         }
-        GarageHit::Vehicle(i) => {
-            let count = VehicleKind::PLAYABLE.len();
-            Some((carousel_center(*i, count), CAR_HALF))
+        GarageHit::Vehicle(i) => carousel_cell_rect(state, *i),
+        GarageHit::CarouselScroll(dir) => {
+            let (left, right) = carousel_arrows();
+            Some((if *dir < 0 { left } else { right }, CAR_ARROW_HALF))
         }
         GarageHit::OpenTechTree | GarageHit::CloseTechTree | GarageHit::Scene => None,
     }
+}
+
+/// Screen rect of an absolute roster cell, if it currently sits inside the visible window.
+fn carousel_cell_rect(state: &GarageState, absolute: usize) -> Option<([f32; 2], [f32; 2])> {
+    let count = VehicleKind::PLAYABLE.len();
+    let window = carousel_window(count, state.carousel_scroll());
+    window
+        .contains(&absolute)
+        .then(|| (carousel_cell_center(absolute - window.start, window.len()), CAR_HALF))
 }
 
 pub(super) fn hit_test(state: &GarageState, shift: bool) -> GarageHit {
@@ -110,9 +120,19 @@ fn hit_test_hangar(state: &GarageState, shift: bool) -> GarageHit {
         return GarageHit::CrewProf(1);
     }
     let count = VehicleKind::PLAYABLE.len();
-    for i in 0..count {
-        if in_rect(p, carousel_center(i, count), CAR_HALF) {
-            return GarageHit::Vehicle(i);
+    if carousel_overflows(count) {
+        let (left, right) = carousel_arrows();
+        if in_rect(p, left, CAR_ARROW_HALF) {
+            return GarageHit::CarouselScroll(-1);
+        }
+        if in_rect(p, right, CAR_ARROW_HALF) {
+            return GarageHit::CarouselScroll(1);
+        }
+    }
+    let window = carousel_window(count, state.carousel_scroll());
+    for (slot, absolute) in window.clone().enumerate() {
+        if in_rect(p, carousel_cell_center(slot, window.len()), CAR_HALF) {
+            return GarageHit::Vehicle(absolute);
         }
     }
     GarageHit::Scene
@@ -136,8 +156,9 @@ mod tests {
     fn cursor_hits_battle_carousel_and_scene() {
         let mut g = GarageState::default();
         assert_eq!(at(&mut g, BATTLE_CENTER), GarageHit::Battle);
+        // The roster fits (< CAR_VISIBLE), so absolute index == visible slot.
         assert_eq!(
-            at(&mut g, carousel_center(3, VehicleKind::PLAYABLE.len())),
+            at(&mut g, carousel_cell_center(3, VehicleKind::PLAYABLE.len())),
             GarageHit::Vehicle(3)
         );
         assert_eq!(at(&mut g, [0.0, 0.0]), GarageHit::Scene);
@@ -171,7 +192,7 @@ mod tests {
         assert_eq!(at_shift(&mut g, BATTLE_CENTER), GarageHit::Battle);
         assert_eq!(at_shift(&mut g, ammo_slot_center(1)), GarageHit::AmmoSelect(1));
         assert_eq!(
-            at_shift(&mut g, carousel_center(2, VehicleKind::PLAYABLE.len())),
+            at_shift(&mut g, carousel_cell_center(2, VehicleKind::PLAYABLE.len())),
             GarageHit::Vehicle(2)
         );
     }
@@ -188,14 +209,14 @@ mod tests {
     fn hover_rect_returns_none_for_scene() {
         let mut g = GarageState::default();
         g.set_cursor([0.0, 0.0]);
-        assert_eq!(hover_rect(&g.hit_test(false)), None);
+        assert_eq!(hover_rect(&g, &g.hit_test(false)), None);
     }
 
     #[test]
     fn hover_rect_returns_the_battle_button_rect() {
         let mut g = GarageState::default();
         g.set_cursor(BATTLE_CENTER);
-        assert_eq!(hover_rect(&g.hit_test(false)), Some((BATTLE_CENTER, BATTLE_HALF)));
+        assert_eq!(hover_rect(&g, &g.hit_test(false)), Some((BATTLE_CENTER, BATTLE_HALF)));
     }
 
     #[test]
@@ -203,7 +224,7 @@ mod tests {
         let mut g = GarageState::default();
         let center = module_slot_center(1);
         g.set_cursor(center);
-        assert_eq!(hover_rect(&g.hit_test(false)), Some((center, SLOT_HALF)));
+        assert_eq!(hover_rect(&g, &g.hit_test(false)), Some((center, SLOT_HALF)));
     }
 
     #[test]

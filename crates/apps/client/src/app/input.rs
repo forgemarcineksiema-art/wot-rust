@@ -54,7 +54,12 @@ impl ClientApp {
             MouseScrollDelta::PixelDelta(position) => position.y as f32 / 60.0,
         };
         if self.garage.is_open() {
-            self.garage.apply_zoom(lines);
+            // Over the carousel the wheel scrolls the roster; anywhere else it zooms the camera.
+            if self.garage.cursor_over_carousel() {
+                self.garage.scroll_carousel(-lines.signum() as i8);
+            } else {
+                self.garage.apply_zoom(lines);
+            }
             return;
         }
         if !self.garage.has_started() {

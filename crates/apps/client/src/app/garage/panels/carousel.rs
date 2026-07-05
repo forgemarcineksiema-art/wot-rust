@@ -1,5 +1,6 @@
-//! Bottom vehicle carousel: a horizontal strip of owned tanks; click selects (resets the draft).
-//! Each cell shows the vehicle's nation label (colored by nation) above its short name.
+//! Bottom vehicle carousel: a horizontal strip of owned tanks that scrolls through a fixed window
+//! once the roster outgrows `CAR_VISIBLE`. Click selects; the scroll arrows appear only when the
+//! roster overflows. Each cell shows the vehicle's nation label above its short name.
 
 use game_core::VehicleKind;
 use renderer_api::HudVertex;
@@ -11,18 +12,21 @@ use crate::hud::push_panel;
 
 pub(in crate::app::garage) fn draw(v: &mut Vec<HudVertex>, state: &GarageState, aspect: f32) {
     let count = VehicleKind::PLAYABLE.len();
+    let window = carousel_window(count, state.carousel_scroll());
+    let visible = window.len();
     push_panel(
         v,
         [0.0, CAR_Y],
-        [count as f32 * 0.065 + 0.02, CAR_HALF[1] + 0.02],
+        [visible as f32 * 0.065 + 0.02, CAR_HALF[1] + 0.02],
         CHAMFER_PANEL,
         aspect,
         PANEL,
     );
 
-    for (i, kind) in VehicleKind::PLAYABLE.into_iter().enumerate() {
-        let c = carousel_center(i, count);
-        let selected = i == state.selected_index();
+    for (slot, absolute) in window.enumerate() {
+        let kind = VehicleKind::PLAYABLE[absolute];
+        let c = carousel_cell_center(slot, visible);
+        let selected = absolute == state.selected_index();
         push_panel(
             v,
             c,
@@ -59,13 +63,23 @@ pub(in crate::app::garage) fn draw(v: &mut Vec<HudVertex>, state: &GarageState, 
         );
         push_text(
             v,
-            &format!("{}", i + 1),
+            &format!("{}", absolute + 1),
             c[0] - CAR_HALF[0] + 0.01,
             c[1] - 0.005,
             0.026,
             aspect,
             TEXT_DIM,
         );
+    }
+
+    // Scroll arrows flank the window only when the roster does not fit.
+    if carousel_overflows(count) {
+        let (left, right) = carousel_arrows();
+        for (center, glyph) in [(left, "<"), (right, ">")] {
+            push_panel(v, center, CAR_ARROW_HALF, CHAMFER_SLOT, aspect, SLOT);
+            let w = text_width(glyph, 0.05, aspect);
+            push_text(v, glyph, center[0] - w / 2.0, center[1] + 0.022, 0.05, aspect, TEXT);
+        }
     }
 }
 

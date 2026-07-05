@@ -2,6 +2,7 @@
 //! selection, fitting edits, Battle, or camera drag. Kept apart from the state core in
 //! [`super`] for reviewability; both operate on the same private [`GarageState`] fields.
 
+#[cfg(test)]
 use game_core::VehicleKind;
 use glam::Vec3;
 use renderer_api::Camera;
@@ -66,6 +67,7 @@ impl ClientApp {
         self.set_cursor_captured(false);
     }
 
+    #[cfg(test)]
     pub(in crate::app) fn select_garage_vehicle(&mut self, vehicle: VehicleKind) {
         self.garage.select_vehicle(vehicle);
     }
@@ -83,6 +85,7 @@ impl ClientApp {
                     self.garage.close_tech_tree();
                 }
             }
+            GarageHit::CarouselScroll(dir) => self.garage.scroll_carousel(dir),
             GarageHit::ModuleCycle(slot, dir) => self.garage.cycle_module(slot, dir),
             GarageHit::AmmoSelect(index) => self.garage.set_ammo(index),
             GarageHit::CrewProf(dir) => self.garage.adjust_proficiency(dir),
@@ -109,13 +112,10 @@ impl ClientApp {
     /// `false` for keys the garage does not own (they fall through to driving once started).
     pub(in crate::app) fn garage_keyboard(&mut self, event: &KeyEvent) -> bool {
         match event.physical_key {
+            // Arrow keys cycle the roster. The old 1-5 vehicle digits are retired: with a scroll
+            // window, a window-relative digit selects a different tank than the label implies.
             PhysicalKey::Code(KeyCode::ArrowLeft) => self.garage.cycle(-1),
             PhysicalKey::Code(KeyCode::ArrowRight) => self.garage.cycle(1),
-            PhysicalKey::Code(KeyCode::Digit1) => self.select_garage_index(0),
-            PhysicalKey::Code(KeyCode::Digit2) => self.select_garage_index(1),
-            PhysicalKey::Code(KeyCode::Digit3) => self.select_garage_index(2),
-            PhysicalKey::Code(KeyCode::Digit4) => self.select_garage_index(3),
-            PhysicalKey::Code(KeyCode::Digit5) => self.select_garage_index(4),
             PhysicalKey::Code(KeyCode::Enter) => self.confirm_garage_selection(),
             PhysicalKey::Code(KeyCode::Escape) => self.garage.close_if_started(),
             // Keyboard loadout editing: focus + cycle + ammo + crew.
@@ -136,12 +136,6 @@ impl ClientApp {
             _ => return !self.garage.has_started(),
         }
         true
-    }
-
-    fn select_garage_index(&mut self, index: usize) {
-        if let Some(vehicle) = VehicleKind::PLAYABLE.get(index).copied() {
-            self.select_garage_vehicle(vehicle);
-        }
     }
 
     /// Turn on garage disk persistence (selected vehicle + per-vehicle loadouts survive restarts).
