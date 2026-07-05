@@ -46,6 +46,7 @@ impl LocalAuthoritativeServer {
         // slope angles a frontal glacis past the T-54's own penetration, so a first shell into
         // the front would bounce. The 80 mm side stays honest practice armor on any local tilt.
         sim.tank_mut(target_tank).expect("spawned target tank").yaw_rad = PI * 0.5;
+        sim.refresh_spotting(Some(&battlefield.heightmap), &battlefield.static_cover);
         let latest_snapshot = Snapshot::from(&sim);
 
         Self {
@@ -73,8 +74,14 @@ impl LocalAuthoritativeServer {
         }
         self.pending_damage_events.clear();
         self.pending_shell_impacts.clear();
+        self.sim
+            .refresh_spotting(Some(&self.battlefield.heightmap), &self.battlefield.static_cover);
         self.latest_snapshot = Snapshot::from(&self.sim);
         self.latest_snapshot.clone()
+    }
+
+    pub fn change_player_vehicle_with_spec_for_player(&mut self, spec: TankSpec) -> Snapshot {
+        self.change_player_vehicle_with_spec(spec).filtered_for_viewer(self.player_tank)
     }
 
     pub fn player_tank(&self) -> TankId {
@@ -91,6 +98,10 @@ impl LocalAuthoritativeServer {
 
     pub fn latest_snapshot(&self) -> Snapshot {
         self.latest_snapshot.clone()
+    }
+
+    pub fn latest_snapshot_for_player(&self) -> Snapshot {
+        self.latest_snapshot.filtered_for_viewer(self.player_tank)
     }
 
     pub fn tick_with_input(&mut self, input: ClientInputCommand) -> AuthoritativeTick {
@@ -114,6 +125,15 @@ impl LocalAuthoritativeServer {
         };
 
         AuthoritativeTick { server_tick: self.sim.tick(), snapshot }
+    }
+
+    pub fn tick_with_player_input(&mut self, input: ClientInputCommand) -> AuthoritativeTick {
+        let viewer = self.player_tank;
+        let tick = self.tick_with_input(input);
+        AuthoritativeTick {
+            server_tick: tick.server_tick,
+            snapshot: tick.snapshot.map(|snapshot| snapshot.filtered_for_viewer(viewer)),
+        }
     }
 }
 

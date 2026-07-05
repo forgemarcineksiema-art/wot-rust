@@ -15,6 +15,7 @@ mod shell_trace;
 mod spotting;
 mod state;
 mod tank_drive;
+mod tank_factory;
 mod tank_state;
 mod timestep;
 

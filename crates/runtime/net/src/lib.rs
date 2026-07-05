@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use sim::{SimulationState, TankCommand, TankState};
 use thiserror::Error;
 
+mod snapshot_filter;
 mod snapshot_schedule;
 
 pub use snapshot_schedule::SnapshotSchedule;
@@ -134,7 +135,7 @@ impl From<&sim::ShellState> for ShellSnapshot {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct Snapshot {
     pub server_tick: u64,
     pub tanks: Vec<TankSnapshot>,

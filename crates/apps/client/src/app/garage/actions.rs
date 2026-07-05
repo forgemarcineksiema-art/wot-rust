@@ -123,7 +123,7 @@ impl ClientApp {
     pub(in crate::app) fn confirm_garage_selection(&mut self) {
         let spec = self.garage.confirm();
         let display_name = spec.name.clone();
-        let snapshot = self.local_server.change_player_vehicle_with_spec(spec.clone());
+        let snapshot = self.local_server.change_player_vehicle_with_spec_for_player(spec.clone());
         self.player_tank = self.local_server.player_tank();
         self.predictor.reset_to_spec(&spec);
         self.render_state = crate::InterpolatedBattleState::default();

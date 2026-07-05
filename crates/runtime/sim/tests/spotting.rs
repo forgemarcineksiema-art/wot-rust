@@ -41,6 +41,19 @@ fn enemies_in_the_open_spot_each_other() {
 }
 
 #[test]
+fn refresh_spotting_seeds_masks_before_the_first_sim_tick() {
+    let mut state = SimulationState::new();
+    let a = state.spawn_tank(TeamId(1), VehicleKind::T54_1951.spec(), Vec3::ZERO);
+    let b = state.spawn_tank(TeamId(2), VehicleKind::T54_1951.spec(), Vec3::new(0.0, 0.0, 60.0));
+
+    state.refresh_spotting(None, &[]);
+
+    assert_eq!(state.tank(a).unwrap().spotted_mask, TEAM_1_BIT | TEAM_2_BIT);
+    assert_eq!(state.tank(b).unwrap().spotted_mask, TEAM_1_BIT | TEAM_2_BIT);
+    assert_eq!(state.tick(), 0, "refreshing visibility must not advance simulation time");
+}
+
+#[test]
 fn beyond_view_range_only_own_team_sees() {
     let (mask_a, mask_b) = duel_masks(VIEW_RANGE_M + 50.0);
     assert_eq!(mask_a, TEAM_1_BIT);

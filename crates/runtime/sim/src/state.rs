@@ -1,4 +1,4 @@
-use game_core::{DamageEvent, ShellImpact, TankId, TankSpec, TeamId, TrackDamageMask, TrackSide};
+use game_core::{DamageEvent, ShellImpact, TankId, TankSpec, TeamId, TrackSide};
 use glam::Vec3;
 use physics::TankObstacle;
 use serde::{Deserialize, Serialize};
@@ -11,6 +11,7 @@ use crate::ramming::{apply_ramming_damage, capture_ramming_snapshots};
 use crate::shell::ShellState;
 use crate::shell_step::step_shells;
 use crate::tank_drive::step_tank;
+use crate::tank_factory::fresh_tank;
 use crate::tank_state::TankState;
 use crate::{FixedTimestep, TankCommand};
 
@@ -57,6 +58,13 @@ impl SimulationState {
 
     pub fn shell_impacts(&self) -> &[ShellImpact] {
         &self.shell_impacts
+    }
+
+    pub fn refresh_spotting(&mut self, heightmap: Option<&HeightMap>, cover: &[StaticCoverObject]) {
+        let masks = crate::spotting::compute_spotted_masks(&self.tanks, heightmap, cover);
+        for (tank, mask) in self.tanks.iter_mut().zip(masks) {
+            tank.spotted_mask = mask;
+        }
     }
 
     pub fn spawn_tank(&mut self, team: TeamId, spec: TankSpec, position: Vec3) -> TankId {
@@ -180,37 +188,5 @@ impl SimulationState {
         );
         crate::spotting::refresh_spotted_masks(self.tick, &mut self.tanks, heightmap, cover);
         self.tick += 1;
-    }
-}
-
-/// A factory-fresh tank: full health, healthy modules and tracks, the spec's ammo rack loaded,
-/// and a level, stationary hull at the given position/heading.
-fn fresh_tank(id: TankId, team: TeamId, spec: TankSpec, position: Vec3, yaw_rad: f32) -> TankState {
-    let modules = spec.module_health;
-    let aim_dispersion_mrad = spec.gun.dispersion_mrad;
-    let ammo_counts = spec.ammo.counts;
-    let selected_ammo = spec.ammo.initial_selected;
-    TankState {
-        id,
-        team,
-        hit_points: spec.hit_points,
-        spec,
-        position,
-        yaw_rad,
-        turret_yaw_rad: 0.0,
-        turret_yaw_velocity_rad_s: 0.0,
-        gun_pitch_rad: 0.0,
-        velocity_mps: Vec3::ZERO,
-        hull_yaw_velocity_rad_s: 0.0,
-        hull_pitch_rad: 0.0,
-        hull_roll_rad: 0.0,
-        reload_remaining_s: 0.0,
-        aim_dispersion_mrad,
-        dispersion_shot_index: 0,
-        tracks: TrackDamageMask::healthy(),
-        modules,
-        ammo_counts,
-        selected_ammo,
-        spotted_mask: 0,
     }
 }
