@@ -1,3 +1,4 @@
+mod ammo;
 mod armor;
 mod contact_footprint;
 mod crew;
@@ -14,6 +15,7 @@ mod vehicle_kind;
 mod vehicles;
 mod weapon;
 
+pub use ammo::{AmmoLoadout, MAX_AMMO_SLOTS, default_ammo_capacity};
 pub use armor::{
     ArmorFacet, ArmorFacetProfile, ArmorFacing, ArmorPatch, ArmorProfile, ArmorVolume, ArmorZone,
     PenetrationResult, TaggedPlane, VehicleArmorVolumes, resolve_penetration,

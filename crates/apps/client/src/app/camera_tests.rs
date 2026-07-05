@@ -68,6 +68,8 @@ fn snapshot_with_aim(
                 .hit_points_by_slot(),
             destroyed_modules_mask: 0,
             track_damage_mask: 0,
+            ammo_counts: game_core::AmmoLoadout::default().counts,
+            selected_ammo: 0,
         }],
         shells: Vec::new(),
         damage_events: Vec::new(),

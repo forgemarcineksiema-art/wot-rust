@@ -58,6 +58,9 @@ impl ClientApp {
                 turret_yaw_delta,
                 gun_pitch_delta,
                 fire,
+                // Battle ammo switching arrives with the HUD selector package; until then the
+                // garage-selected slot rides in from `spec.ammo.initial_selected`.
+                select_ammo: None,
             };
             fire = false;
             self.step_prediction(&command);

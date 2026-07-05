@@ -1,4 +1,4 @@
-﻿use std::sync::OnceLock;
+use std::sync::OnceLock;
 
 use game_core::{TankId, TankSpec, TeamId, VehicleKind};
 use glam::Vec3;
@@ -167,6 +167,8 @@ fn tank_snapshot(tank_id: TankId, position: [f32; 3]) -> TankSnapshot {
         module_hit_points: spec.module_health.hit_points_by_slot(),
         destroyed_modules_mask: 0,
         track_damage_mask: 0,
+        ammo_counts: game_core::AmmoLoadout::default().counts,
+        selected_ammo: 0,
     }
 }
 

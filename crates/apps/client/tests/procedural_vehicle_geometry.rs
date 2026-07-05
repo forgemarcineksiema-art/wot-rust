@@ -21,6 +21,8 @@ fn t55a_client_mesh_uses_rich_procedural_geometry() {
         module_hit_points: VehicleKind::T55A.spec().module_health.hit_points_by_slot(),
         destroyed_modules_mask: 0,
         track_damage_mask: 0,
+        ammo_counts: game_core::AmmoLoadout::default().counts,
+        selected_ammo: 0,
     };
 
     let (vertices, indices) = tank_scene_mesh(&snapshot);

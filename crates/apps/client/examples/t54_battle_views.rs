@@ -1,8 +1,8 @@
 //! T-54 rendered under the **battle** lighting profile (`SceneLighting::battlefield_default`) through
-//! the live PBR vehicle path — the same light the windowed game uses. The `t54_views` studio shots
+//! the live PBR vehicle path â€” the same light the windowed game uses. The `t54_views` studio shots
 //! use `garage_studio`, so this closes the QA gap where humans reviewed a profile the game never
 //! ships. See `docs/atmosphere-policy.md`.
-//! `cargo run -p client --example t54_battle_views -- target/t54_battle`  (writes `_threequarter.png`, …)
+//! `cargo run -p client --example t54_battle_views -- target/t54_battle`  (writes `_threequarter.png`, â€¦)
 
 use std::f32::consts::FRAC_PI_2;
 use std::fs::File;
@@ -47,6 +47,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         module_hit_points: VehicleKind::T54_1951.spec().module_health.hit_points_by_slot(),
         destroyed_modules_mask: 0,
         track_damage_mask: 0,
+        ammo_counts: game_core::AmmoLoadout::default().counts,
+        selected_ammo: 0,
     };
 
     let mut catalog = VehicleAssetCatalog::default();

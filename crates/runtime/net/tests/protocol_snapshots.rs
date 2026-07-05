@@ -9,7 +9,7 @@ use net::{
 use sim::TankCommand;
 
 #[test]
-fn input_command_wire_snapshot_v14_is_stable() {
+fn input_command_wire_snapshot_v15_is_stable() {
     let message = ProtocolMessage::Input(ClientInputCommand {
         client_tick: 7,
         tank_id: TankId(42),
@@ -20,18 +20,19 @@ fn input_command_wire_snapshot_v14_is_stable() {
             turret_yaw_delta: 0.5,
             gun_pitch_delta: 0.125,
             fire: false,
+            select_ammo: Some(1),
         },
     });
 
     let bytes = encode_message(&message).expect("message should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 14);
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "input_command_v14"));
+    assert_eq!(PROTOCOL_VERSION, 15);
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "input_command_v15"));
     assert_eq!(decode_message(&bytes).expect("message should decode"), message);
 }
 
 #[test]
-fn vehicle_selection_wire_snapshot_v14_is_stable() {
+fn vehicle_selection_wire_snapshot_v15_is_stable() {
     let message = ProtocolMessage::VehicleSelection(ClientVehicleSelection {
         client_tick: 11,
         requested_vehicle: VehicleKind::PantherII,
@@ -39,31 +40,31 @@ fn vehicle_selection_wire_snapshot_v14_is_stable() {
 
     let bytes = encode_message(&message).expect("vehicle selection should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 14);
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "vehicle_selection_v14"));
+    assert_eq!(PROTOCOL_VERSION, 15);
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "vehicle_selection_v15"));
     assert_eq!(decode_message(&bytes).expect("message should decode"), message);
 }
 
 #[test]
-fn tank_snapshot_wire_v14_is_stable() {
+fn tank_snapshot_wire_v15_is_stable() {
     // Locks the v12 wire layout: replicated team identity plus the shell-impact list.
     let message = ProtocolMessage::Snapshot(tank_snapshot_message());
 
     let bytes = encode_message(&message).expect("snapshot should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 14);
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_tank_v14"));
+    assert_eq!(PROTOCOL_VERSION, 15);
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_tank_v15"));
     assert_eq!(decode_message(&bytes).expect("snapshot should decode"), message);
 }
 
 #[test]
-fn combat_snapshot_wire_v14_is_stable() {
+fn combat_snapshot_wire_v15_is_stable() {
     let message = ProtocolMessage::Snapshot(combat_snapshot_message());
 
     let bytes = encode_message(&message).expect("snapshot should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 14);
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_combat_v14"));
+    assert_eq!(PROTOCOL_VERSION, 15);
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_combat_v15"));
     assert_eq!(decode_message(&bytes).expect("snapshot should decode"), message);
 }
 
@@ -88,6 +89,8 @@ pub fn tank_snapshot_message() -> Snapshot {
             module_hit_points: VehicleKind::Jagdtiger.spec().module_health.hit_points_by_slot(),
             destroyed_modules_mask: 1 << 3,
             track_damage_mask: 0,
+            ammo_counts: game_core::AmmoLoadout::default().counts,
+            selected_ammo: 0,
         }],
         shells: Vec::new(),
         damage_events: Vec::new(),
@@ -117,6 +120,8 @@ pub fn combat_snapshot_message() -> Snapshot {
             module_hit_points: VehicleKind::TigerII.spec().module_health.hit_points_by_slot(),
             destroyed_modules_mask: 1 << 3,
             track_damage_mask: 0,
+            ammo_counts: game_core::AmmoLoadout::default().counts,
+            selected_ammo: 0,
         }],
         shells: vec![ShellSnapshot {
             owner: TankId(7),

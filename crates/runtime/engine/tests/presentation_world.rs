@@ -20,6 +20,8 @@ fn snapshot(id: u64, position: [f32; 3], hit_points: u32) -> TankSnapshot {
         module_hit_points: VehicleKind::T55A.spec().module_health.hit_points_by_slot(),
         destroyed_modules_mask: 0,
         track_damage_mask: 0,
+        ammo_counts: game_core::AmmoLoadout::default().counts,
+        selected_ammo: 0,
     }
 }
 
@@ -50,7 +52,7 @@ fn re_syncing_a_tank_updates_in_place_without_respawning() {
     world.sync_tanks(&[snapshot(1, [10.0, 0.0, 0.0], 300)]);
     let second = world.presentation_tanks();
 
-    // Same single entity, moved and damaged — not a duplicate.
+    // Same single entity, moved and damaged â€” not a duplicate.
     assert_eq!(world.tank_count(), 1);
     assert_eq!(first.len(), 1);
     assert_eq!(second.len(), 1);
@@ -121,6 +123,8 @@ fn broken_track_side_stops_accumulating_while_healthy_side_moves() {
     world.sync_tanks(&[posed([0.0, 0.0, 0.0], 0.0)]);
     world.sync_tanks(&[TankSnapshot {
         track_damage_mask: TrackDamageMask::LEFT.bits(),
+        ammo_counts: game_core::AmmoLoadout::default().counts,
+        selected_ammo: 0,
         ..posed([0.0, 0.0, 5.0], 0.0)
     }]);
 
@@ -147,6 +151,8 @@ fn a_thrown_left_track_seats_the_hull_toward_the_dead_side() {
     let mut world = PresentationWorld::default();
     let broken = TankSnapshot {
         track_damage_mask: TrackDamageMask::LEFT.bits(),
+        ammo_counts: game_core::AmmoLoadout::default().counts,
+        selected_ammo: 0,
         ..snapshot(1, [0.0, 0.0, 0.0], 900)
     };
     // Let the presentation spring ease the lean in over a second of frames.

@@ -29,20 +29,7 @@ fn braking_command_bleeds_forward_speed_before_reverse() {
     let before_brake = state.tank(tank_id).expect("tank").velocity_mps.length();
 
     for _ in 0..8 {
-        state.apply_commands(
-            &[(
-                tank_id,
-                TankCommand {
-                    throttle: 0.0,
-                    steer: 0.0,
-                    brake: 1.0,
-                    turret_yaw_delta: 0.0,
-                    gun_pitch_delta: 0.0,
-                    fire: false,
-                },
-            )],
-            step,
-        );
+        state.apply_commands(&[(tank_id, TankCommand { brake: 1.0, ..TankCommand::idle() })], step);
     }
     let after_brake = state.tank(tank_id).expect("tank").velocity_mps.length();
 

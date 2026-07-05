@@ -25,6 +25,7 @@ fn predictor_matches_the_server_pose_and_dispersion_tick_for_tick() {
         gun_pitch_delta: 0.4,
         brake: 0.0,
         fire: false,
+        select_ammo: None,
     };
 
     for tick in 0..60 {

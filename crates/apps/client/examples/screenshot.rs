@@ -30,10 +30,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let command = TankCommand {
             throttle: 1.0,
             steer: 0.5,
-            brake: 0.0,
             turret_yaw_delta: 0.18,
-            gun_pitch_delta: 0.0,
             fire: tick == total_ticks - 2,
+            ..TankCommand::idle()
         };
         server.tick_with_input(ClientInputCommand { client_tick: tick, tank_id: player, command });
     }

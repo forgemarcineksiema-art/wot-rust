@@ -87,6 +87,8 @@ impl VehicleModules {
             turret_rotation_rad_s: self.turret.traverse.rate_rad_s(),
             hull: armor_profile_for(kind, self),
             gun: self.gun.spec.clone(),
+            ammo: crate::AmmoLoadout::default_for(crate::default_ammo_capacity()),
+            ammo_capacity: crate::default_ammo_capacity(),
             hit_points: self.hull.hit_points,
             module_health: ModuleHealth::from_loadout(self),
             hitbox: HitboxProfile::for_vehicle(kind),

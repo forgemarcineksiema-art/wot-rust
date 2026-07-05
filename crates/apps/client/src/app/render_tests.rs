@@ -203,6 +203,8 @@ fn render_garage_preview_png() {
         module_hit_points: spec.module_health.hit_points_by_slot(),
         destroyed_modules_mask: 0,
         track_damage_mask: 0,
+        ammo_counts: game_core::AmmoLoadout::default().counts,
+        selected_ammo: 0,
     };
 
     let (terrain_vertices, terrain_indices) = hangar_scene_mesh();
@@ -278,6 +280,8 @@ fn snapshot_for_vehicle(
             module_hit_points: spec.module_health.hit_points_by_slot(),
             destroyed_modules_mask: 0,
             track_damage_mask: 0,
+            ammo_counts: game_core::AmmoLoadout::default().counts,
+            selected_ammo: 0,
         }],
         shells: Vec::new(),
         damage_events: Vec::new(),

@@ -38,12 +38,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         module_hit_points: spec.module_health.hit_points_by_slot(),
         destroyed_modules_mask: 0,
         track_damage_mask: 0,
+        ammo_counts: game_core::AmmoLoadout::default().counts,
+        selected_ammo: 0,
     };
     let _ = snapshot; // The tech tree view does not render the vehicle mesh; it's an overlay-only
     // screen over the dim hangar. Kept here so the example stays close to the
     // real garage frame structure.
 
-    // Hero orbit camera — the same framing the garage opens with.
+    // Hero orbit camera â€” the same framing the garage opens with.
     let pivot = hangar_camera_pivot();
     let orbit_yaw = 0.60_f32;
     let orbit_pitch = 0.28_f32;
