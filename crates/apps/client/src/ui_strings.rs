@@ -41,6 +41,8 @@ pub(crate) mod battle {
     pub const VICTORY: &str = "VICTORY";
     /// Center banner after the player's team is eliminated.
     pub const DEFEAT: &str = "DEFEAT";
+    /// Kill confirmation line under the reticle.
+    pub const TARGET_DESTROYED: &str = "TARGET DESTROYED";
 }
 
 /// OS window title; the selected vehicle's display name is appended after a dash.
@@ -69,6 +71,7 @@ mod tests {
             super::battle::ZOOM_PREFIX,
             super::battle::VICTORY,
             super::battle::DEFEAT,
+            super::battle::TARGET_DESTROYED,
             super::WINDOW_TITLE,
         ];
         for s in all {

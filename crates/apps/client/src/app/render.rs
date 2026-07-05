@@ -53,6 +53,10 @@ impl ClientApp {
         self.hit_indicator.tick(frame_dt);
         self.damage_log.tick(frame_dt);
         self.incoming_hits.tick(frame_dt);
+        self.kill_confirm_age_s = self
+            .kill_confirm_age_s
+            .map(|age| age + frame_dt)
+            .filter(|age| *age < crate::hud::kill_marker::KILL_CONFIRM_TTL_S);
         self.fx.tick(frame_dt);
         self.terrain_scars.tick(frame_dt);
         self.tick_battle_scars(frame_dt);
@@ -118,6 +122,7 @@ impl ClientApp {
             ammo: Some(self.player_ammo_hud()),
             minimap,
             battle_outcome: self.battle_outcome,
+            kill_confirm_age_s: self.kill_confirm_age_s,
         };
         let mut hud = crate::hud::build_battle_hud(&hud_model, aspect);
         hud.extend(enemy_bars);

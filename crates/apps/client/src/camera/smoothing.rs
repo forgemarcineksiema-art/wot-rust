@@ -57,6 +57,28 @@ impl BattleCameraController {
         self.smoothing.anchor_vel.y -= (impact_mps * KICK_PER_IMPACT_MPS).min(MAX_KICK_MPS);
     }
 
+    /// Taking a hit rocks the rig. `push` is the direction the impact shoves the hull (hit point
+    /// toward hull centre; only its horizontal part is used) and `severity` is the damage relative
+    /// to the full health pool — a 0-damage bounce still lands a readable clang. Third person gets
+    /// a directional shove plus a downward settle through the follow spring; sniper keeps only the
+    /// vertical channel, which its micro-damper caps at [`SNIPER_Y_MAX_M`] — the scope dips for a
+    /// beat but the aim never smears sideways.
+    pub fn damage_shudder(&mut self, push: Vec3, severity: f32) {
+        let severity = severity.clamp(0.0, 1.0);
+        if self.mode() == BattleCameraMode::Sniper {
+            // Displace the damped anchor directly: at omega 45 a velocity impulse is eaten within
+            // a frame, but a displacement reads as a dip the damper then recovers from.
+            if let Some(anchor) = self.smoothing.anchor.as_mut() {
+                anchor.y -= 0.035 + 0.075 * severity;
+            }
+            self.smoothing.anchor_vel.y -= 0.4 + 0.8 * severity;
+            return;
+        }
+        let horizontal = Vec3::new(push.x, 0.0, push.z).normalize_or_zero();
+        self.smoothing.anchor_vel += horizontal * (0.5 + 2.0 * severity);
+        self.smoothing.anchor_vel.y -= 0.35 + 1.1 * severity;
+    }
+
     /// The player's own shot nudges the follow rig back along the aim and slightly down; the
     /// critically damped spring returns it in one settle. Sniper stays rigid — at 3 degrees of
     /// FOV even this nudge would smear the sight picture.

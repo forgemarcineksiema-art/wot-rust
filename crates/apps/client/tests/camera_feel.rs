@@ -77,6 +77,60 @@ fn the_players_shot_nudges_the_third_person_rig_and_leaves_sniper_rigid() {
     assert_eq!(before, after, "sniper eye stays rigid through the shot");
 }
 
+/// Taking a hit must be FELT: a directional shove of the third-person rig that recovers on the
+/// spring, and in sniper a strictly vertical scope dip bounded by the micro-damper — the jolt
+/// reads, but the aim never smears sideways.
+#[test]
+fn an_incoming_hit_rocks_the_rig_and_dips_the_sniper_scope_vertically() {
+    let heightmap = HeightMap::flat(64, 64, 1.0, 0.0).expect("heightmap");
+    let environment = BattleCameraEnvironment::with_terrain(&heightmap);
+    let position = [20.0, 0.0, 20.0];
+    let subject = CameraSubject::from_snapshot(tank_snapshot(position, 0.0, 0.0), 0.0);
+
+    // Third person: the shove displaces the settled rig along the push and down, then recovers.
+    let mut camera = BattleCameraController::new(BattleCameraSettings::default());
+    camera.set_mode(BattleCameraMode::ThirdPerson);
+    for _ in 0..240 {
+        camera.advance(position, 1.0 / 60.0);
+    }
+    let settled = camera.render_camera(&subject, &environment).eye;
+    camera.damage_shudder(glam::Vec3::new(0.0, 0.0, -1.0), 0.2);
+    let mut max_shift = 0.0_f32;
+    let mut max_down = 0.0_f32;
+    for _ in 0..30 {
+        camera.advance(position, 1.0 / 60.0);
+        let eye = camera.render_camera(&subject, &environment).eye;
+        max_shift = max_shift.max(settled[2] - eye[2]);
+        max_down = max_down.max(settled[1] - eye[1]);
+    }
+    assert!(max_shift > 0.01, "the hit visibly shoves the rig along the push, got {max_shift}");
+    assert!(max_down > 0.005, "and settles it slightly down, got {max_down}");
+    for _ in 0..240 {
+        camera.advance(position, 1.0 / 60.0);
+    }
+    let recovered = camera.render_camera(&subject, &environment).eye;
+    assert!((recovered[2] - settled[2]).abs() < 0.01, "the rig recovers to its settle");
+
+    // Sniper: the dip is vertical only and bounded — x/z of the eye must not move at all.
+    let mut sniper = BattleCameraController::new(BattleCameraSettings::default());
+    sniper.set_mode(BattleCameraMode::Sniper);
+    for _ in 0..60 {
+        sniper.advance(position, 1.0 / 60.0);
+    }
+    let before = sniper.render_camera(&subject, &environment).eye;
+    sniper.damage_shudder(glam::Vec3::new(1.0, 0.0, 0.0), 1.0);
+    let mut max_dip = 0.0_f32;
+    for _ in 0..30 {
+        sniper.advance(position, 1.0 / 60.0);
+        let eye = sniper.render_camera(&subject, &environment).eye;
+        assert_eq!(eye[0], before[0], "a hit must not smear the sniper aim in x");
+        assert_eq!(eye[2], before[2], "a hit must not smear the sniper aim in z");
+        max_dip = max_dip.max(before[1] - eye[1]);
+    }
+    assert!(max_dip > 0.005, "the scope visibly dips, got {max_dip}");
+    assert!(max_dip <= 0.121, "the micro-damper bounds the dip, got {max_dip}");
+}
+
 #[test]
 fn terrain_bounce_does_not_pulse_the_fov_but_real_speed_widens_it() {
     let environment = BattleCameraEnvironment::empty();

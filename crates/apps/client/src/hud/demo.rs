@@ -67,6 +67,7 @@ pub fn demo_battle_hud(sniper: bool, aspect: f32) -> Vec<HudVertex> {
         ammo: Some(AmmoHudModel::new([22, 9, 6], 0)),
         minimap: Some(demo_minimap()),
         battle_outcome: None,
+        kill_confirm_age_s: None,
     };
     build_battle_hud(&model, aspect)
 }

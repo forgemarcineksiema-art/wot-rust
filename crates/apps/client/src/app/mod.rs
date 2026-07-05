@@ -8,6 +8,7 @@ mod garage;
 mod garage_render;
 #[cfg(test)]
 mod hit_mark_tests;
+mod ingest;
 mod input;
 mod input_state;
 #[cfg(test)]
@@ -116,6 +117,9 @@ pub(crate) struct ClientApp {
     fps_estimate: f32,
     /// Local battle result banner state, derived from the authoritative server outcome.
     battle_outcome: Option<crate::hud::BattleHudOutcome>,
+    /// Seconds since the player's latest kill, driving the reticle confirmation; `None` when the
+    /// confirmation has played out (see `hud/kill_marker.rs`).
+    kill_confirm_age_s: Option<f32>,
     /// Static scene geometry currently uploaded to the renderer (garage hangar vs battlefield).
     current_scene: SceneKind,
     /// Last known framebuffer size, used to map cursor pixels into clip space for the garage UI.
@@ -170,6 +174,7 @@ impl ClientApp {
             engine_smoke_accum_s: HashMap::new(),
             fps_estimate: 0.0,
             battle_outcome: None,
+            kill_confirm_age_s: None,
             // The renderer is created with the battlefield mesh (see `create_renderer`); the first
             // garage frame swaps in the hangar. Starting at `Garage` here would skip that swap.
             current_scene: SceneKind::Battle,
