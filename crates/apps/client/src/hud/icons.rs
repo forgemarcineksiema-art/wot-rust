@@ -32,6 +32,19 @@ pub(crate) enum HudIcon {
 }
 
 impl HudIcon {
+    /// The atlas icon standing in for a damaged module in battle feeds. The ammo rack has no
+    /// dedicated slot icon; the AP shell silhouette reads as "ammunition" at feed sizes.
+    pub(crate) fn for_module(module: game_core::ModuleSlot) -> HudIcon {
+        match module {
+            game_core::ModuleSlot::Engine => HudIcon::SlotEngine,
+            game_core::ModuleSlot::Suspension => HudIcon::SlotSuspension,
+            game_core::ModuleSlot::Turret => HudIcon::SlotTurret,
+            game_core::ModuleSlot::Gun => HudIcon::SlotGun,
+            game_core::ModuleSlot::AmmoRack => HudIcon::AmmoAp,
+            game_core::ModuleSlot::Radio => HudIcon::SlotRadio,
+        }
+    }
+
     pub(crate) const ALL: [HudIcon; 17] = [
         HudIcon::Crew,
         HudIcon::AmmoAp,

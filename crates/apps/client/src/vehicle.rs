@@ -5,6 +5,7 @@
 pub(crate) mod asset_catalog;
 pub(crate) mod asset_catalog_loader;
 pub(crate) mod asset_render;
+pub(crate) mod display;
 pub(crate) mod equipment;
 pub(crate) mod geometry_mesh;
 pub(crate) mod mesh;
