@@ -203,6 +203,7 @@ mod tests {
             gun_pitch_rad: -0.1,
             hit_points: 1200,
             destroyed_modules_mask: 0b101,
+            spotted_by_teams_mask: 0,
             module_hit_points: [11, 22, 33, 44, 55, 66],
             track_damage_mask: 0,
             track_left_m: 0.0,

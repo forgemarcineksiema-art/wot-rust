@@ -14,6 +14,7 @@ mod input_state;
 mod input_tests;
 mod lifecycle;
 mod loop_step;
+mod minimap_build;
 mod prediction;
 mod render;
 #[cfg(test)]

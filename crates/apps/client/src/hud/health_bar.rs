@@ -9,8 +9,9 @@ use crate::hud::reticle::world_to_clip_xy;
 const BAR_HALF_WIDTH: f32 = 0.055;
 const BAR_HALF_HEIGHT: f32 = 0.008;
 
-/// Floating HP bars over **live enemies** only: teammates carry no bar (they are not targets)
-/// and wrecks stop advertising a permanent "0".
+/// Floating HP bars over **live, spotted enemies** only: teammates carry no bar (they are not
+/// targets), wrecks stop advertising a permanent "0", and an enemy the player's team has not
+/// spotted (LOS v1) shows nothing — the same visibility bit that gates the minimap blip.
 pub(crate) fn enemy_health_bars(
     tanks: &[PresentationTank],
     player_tank_id: TankId,
@@ -19,9 +20,13 @@ pub(crate) fn enemy_health_bars(
     aspect: f32,
 ) -> Vec<HudVertex> {
     let mut vertices = Vec::new();
+    let player_bit = player_team.spotting_bit();
 
     for tank in tanks {
         if tank.id == player_tank_id || tank.team == player_team || tank.hit_points == 0 {
+            continue;
+        }
+        if tank.spotted_by_teams_mask & player_bit == 0 {
             continue;
         }
 
@@ -89,6 +94,8 @@ mod tests {
             gun_pitch_rad: 0.0,
             hit_points,
             destroyed_modules_mask: 0,
+            // Spotted by every team by default, so the visibility gate is not what these cases test.
+            spotted_by_teams_mask: u8::MAX,
             module_hit_points: VehicleKind::T55A.spec().module_health.hit_points_by_slot(),
             track_damage_mask: 0,
             track_left_m: 0.0,
@@ -127,5 +134,23 @@ mod tests {
 
         let own = [tank(1, 1, 900)];
         assert!(enemy_health_bars(&own, player, team, IDENTITY, aspect).is_empty());
+    }
+
+    #[test]
+    fn an_unspotted_enemy_shows_no_bar() {
+        let player = TankId(1);
+        let team = TeamId(1);
+        let aspect = 16.0 / 9.0;
+
+        let mut hidden = tank(2, 2, 900);
+        hidden.spotted_by_teams_mask = TeamId(2).spotting_bit(); // seen by its own team, not ours
+        assert!(
+            enemy_health_bars(&[hidden], player, team, IDENTITY, aspect).is_empty(),
+            "an enemy our team has not spotted carries no floating bar"
+        );
+
+        let mut seen = tank(3, 2, 900);
+        seen.spotted_by_teams_mask = TeamId(1).spotting_bit();
+        assert!(!enemy_health_bars(&[seen], player, team, IDENTITY, aspect).is_empty());
     }
 }
