@@ -60,8 +60,16 @@ client-side from the snapshot pair (the wire replicates no velocity).
 spotting-filtered per viewer, so an unspotted enemy has no engine sound
 either — the audible world and the visible world are the same world.
 
+## Terrain occlusion
+
+The straight line ear -> source is scored against the heightmap once per
+event (the audio crate itself knows no terrain — the client passes a 0..1
+judgment): the deepest ridge intrusion over the sight line, with a meter of
+grace, saturating at ~6 m. A masked source loses most of its level and its
+highs close far harder than open-air absorption — only the low thud
+diffracts over the hill. The player's own gun is never occluded.
+
 ## What stays out of v1 (known, deliberate)
 
-- Surface-dependent track noise, HE-specific impact voicing, occlusion by
-  terrain (a shot behind a hill should be duller than one in the open).
+- Surface-dependent track noise, HE-specific impact voicing.
 - A volume/mixer options surface; master gain is a constant today.

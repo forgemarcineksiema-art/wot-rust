@@ -41,17 +41,24 @@ pub(crate) struct VoiceSlot {
 impl VoiceSlot {
     /// Place a voice in the world relative to `listener`. Returns `None` when distance has
     /// pushed it below audibility — an inaudible source must not claim a slot.
+    ///
+    /// `occlusion` (0 clear .. 1 fully masked by terrain) is the game's judgment — the audio
+    /// crate knows no heightmap. A masked source diffracts around the ridge: quieter, and with
+    /// its highs stripped much harder than open-air absorption alone.
     pub fn positioned(
         voice: Box<dyn Voice>,
         listener: &Listener,
         position: Vec3,
         gain: f32,
         travel_delay: bool,
+        occlusion: f32,
         sample_rate_hz: f32,
     ) -> Option<Self> {
+        let occlusion = occlusion.clamp(0.0, 1.0);
         let offset = position - listener.position;
         let distance = offset.length();
-        let gain = gain * REFERENCE_DISTANCE_M / (REFERENCE_DISTANCE_M + distance);
+        let gain = gain * REFERENCE_DISTANCE_M / (REFERENCE_DISTANCE_M + distance)
+            * (1.0 - 0.55 * occlusion);
         if gain < AUDIBLE_GAIN_FLOOR {
             return None;
         }
@@ -63,8 +70,9 @@ impl VoiceSlot {
         } else {
             0.0
         };
-        // Air absorption: ~20 kHz up close, ~2 kHz at half a kilometer.
-        let cutoff_hz = 20_000.0 / (1.0 + distance / 60.0);
+        // Air absorption: ~20 kHz up close, ~2 kHz at half a kilometer. Terrain in the way
+        // closes the filter much further — only the low thud diffracts over a ridge.
+        let cutoff_hz = 20_000.0 / (1.0 + distance / 60.0) / (1.0 + 5.0 * occlusion);
         let delay_samples = if travel_delay {
             (distance / SPEED_OF_SOUND_MPS * sample_rate_hz) as usize
         } else {

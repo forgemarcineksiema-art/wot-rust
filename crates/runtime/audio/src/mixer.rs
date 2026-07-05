@@ -89,6 +89,13 @@ impl AudioEngine {
     }
 
     pub fn push_event(&mut self, event: AudioEvent) {
+        self.push_event_occluded(event, 0.0);
+    }
+
+    /// Push an event with the game's terrain-occlusion judgment (0 clear .. 1 fully masked by a
+    /// ridge). Only world-positioned sounds care; listener-local cues ignore it. The player's
+    /// own shot is never occluded — the muzzle is meters from the ear.
+    pub fn push_event_occluded(&mut self, event: AudioEvent, occlusion: f32) {
         let seed = self.next_seed;
         self.next_seed = self.next_seed.wrapping_add(1);
         match event {
@@ -97,19 +104,19 @@ impl AudioEngine {
                 if own_shot {
                     // The player's own gun: full presence, centered a touch by its true bearing
                     // (the muzzle sits meters ahead), and never delayed behind the muzzle flash.
-                    self.spawn_at(voice, position, 1.0, false);
+                    self.spawn_at(voice, position, 1.0, false, 0.0);
                 } else {
-                    self.spawn_at(voice, position, 1.05, true);
+                    self.spawn_at(voice, position, 1.05, true, occlusion);
                 }
             }
             AudioEvent::ArmorStruck { position, penetrated, ricocheted } => {
                 let voice =
                     Box::new(ArmorHit::new(penetrated, ricocheted, self.sample_rate_hz, seed));
-                self.spawn_at(voice, position, 0.8, true);
+                self.spawn_at(voice, position, 0.8, true, occlusion);
             }
             AudioEvent::ShellAbsorbed { position, surface } => {
                 let voice = Box::new(GroundImpact::new(surface, self.sample_rate_hz, seed));
-                self.spawn_at(voice, position, 0.7, true);
+                self.spawn_at(voice, position, 0.7, true, occlusion);
             }
             AudioEvent::GunReady => {
                 let voice = Box::new(MechanicalClick::new(true, self.sample_rate_hz, seed));
@@ -126,13 +133,21 @@ impl AudioEngine {
     }
 
     /// Spawn a world-positioned voice — see [`VoiceSlot::positioned`] for the physics.
-    fn spawn_at(&mut self, voice: Box<dyn Voice>, position: Vec3, gain: f32, travel_delay: bool) {
+    fn spawn_at(
+        &mut self,
+        voice: Box<dyn Voice>,
+        position: Vec3,
+        gain: f32,
+        travel_delay: bool,
+        occlusion: f32,
+    ) {
         if let Some(slot) = VoiceSlot::positioned(
             voice,
             &self.listener,
             position,
             gain,
             travel_delay,
+            occlusion,
             self.sample_rate_hz,
         ) {
             self.push_slot(slot);
@@ -289,6 +304,36 @@ mod tests {
         let close_zcr = zero_crossing_rate_hz(&close_left[close_start..close_start + 9_600], SR);
         let far_zcr = zero_crossing_rate_hz(&far_left[far_start..far_start + 9_600], SR);
         assert!(far_zcr < close_zcr, "air absorption must dull the far shot");
+    }
+
+    /// A ridge between the shooter and the ear mutes and muffles: the occluded take is quieter
+    /// and darker (fewer zero crossings) than the same shot in the open at the same distance —
+    /// only the low thud diffracts over the hill.
+    #[test]
+    fn an_occluded_shot_is_quieter_and_duller_than_the_same_shot_in_the_open() {
+        let shot = AudioEvent::CannonFired {
+            position: Vec3::new(0.0, 0.0, 120.0),
+            caliber_mm: 100.0,
+            own_shot: false,
+        };
+        let render = |occlusion: f32| {
+            let mut engine = AudioEngine::new(SR);
+            engine.push_event_occluded(shot, occlusion);
+            stereo_chunks(&mut engine, 1.5)
+        };
+        let open = render(0.0);
+        let masked = render(1.0);
+
+        assert!(rms(&masked) < rms(&open) * 0.6, "the ridge takes most of the level");
+        use crate::voice::zero_crossing_rate_hz;
+        let start = open.iter().position(|s| s.abs() > 1.0e-4).expect("audible") & !1;
+        let window = 9_600 * 2;
+        let open_zcr = zero_crossing_rate_hz(&open[start..start + window], SR);
+        let masked_zcr = zero_crossing_rate_hz(&masked[start..start + window], SR);
+        assert!(
+            masked_zcr < open_zcr * 0.8,
+            "the highs must not clear the ridge: {masked_zcr} vs {open_zcr}"
+        );
     }
 
     #[test]

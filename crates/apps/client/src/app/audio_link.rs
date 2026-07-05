@@ -33,6 +33,20 @@ impl ClientApp {
         let wind_level = if in_garage { 0.2 } else { 1.0 };
         let (rpm_norm, load, speed_mps, running) = self.player_engine_audio_state(in_garage);
         let remote = if in_garage { Vec::new() } else { self.remote_engine_states() };
+        // Terrain occlusion is the game's judgment (the audio crate knows no heightmap): each
+        // world-positioned event is scored against the ridge line between ear and source.
+        let occluded: Vec<(audio::AudioEvent, f32)> = events
+            .into_iter()
+            .map(|event| {
+                let occlusion = match (listener, audio_event_position(&event)) {
+                    (Some(listener), Some(source)) => {
+                        terrain_occlusion(&self.battlefield.heightmap, listener.position, source)
+                    }
+                    _ => 0.0,
+                };
+                (event, occlusion)
+            })
+            .collect();
         output.with_engine(move |engine| {
             if let Some(listener) = listener {
                 engine.set_listener(listener);
@@ -40,8 +54,8 @@ impl ClientApp {
             engine.set_wind_level(wind_level);
             engine.set_player_engine(rpm_norm, load, speed_mps, running);
             engine.set_remote_engines(&remote);
-            for event in events {
-                engine.push_event(event);
+            for (event, occlusion) in occluded {
+                engine.push_event_occluded(event, occlusion);
             }
         });
     }
@@ -97,6 +111,34 @@ impl ClientApp {
         let rpm_norm = (speed_mps / top_speed).clamp(0.0, 1.0).max(load * 0.85);
         (rpm_norm, load, speed_mps, alive)
     }
+}
+
+/// The world position a sound event radiates from, or `None` for listener-local cues. The
+/// player's own shot counts as local — the muzzle is meters from the ear, never behind a ridge.
+fn audio_event_position(event: &audio::AudioEvent) -> Option<glam::Vec3> {
+    match event {
+        audio::AudioEvent::CannonFired { own_shot: true, .. } => None,
+        audio::AudioEvent::CannonFired { position, .. }
+        | audio::AudioEvent::ArmorStruck { position, .. }
+        | audio::AudioEvent::ShellAbsorbed { position, .. } => Some(*position),
+        _ => None,
+    }
+}
+
+/// How much terrain masks the straight line ear -> source: 0 clear, 1 deep behind a ridge.
+/// The deepest intrusion of ground above the sight line decides, with a meter of grace so
+/// grazing the grass does not read as a hill; ~6 m of ridge over the line is fully masked.
+fn terrain_occlusion(heightmap: &terrain::HeightMap, eye: glam::Vec3, source: glam::Vec3) -> f32 {
+    const SAMPLES: usize = 24;
+    let mut deepest = 0.0f32;
+    for i in 1..SAMPLES {
+        let t = i as f32 / SAMPLES as f32;
+        let point = eye.lerp(source, t);
+        if let Some(ground) = heightmap.sample_height(point.x, point.z) {
+            deepest = deepest.max(ground - (point.y + 1.0));
+        }
+    }
+    (deepest / 6.0).clamp(0.0, 1.0)
 }
 
 #[cfg(test)]
@@ -212,6 +254,36 @@ mod tests {
         keys.dedup();
         assert_eq!(keys.len(), states.len(), "one bed key per tank");
         assert!(states.iter().all(|s| s.speed_mps.is_finite() && s.speed_mps >= 0.0));
+    }
+
+    /// A ridge between the ear and the source masks it; open ground does not. The player's own
+    /// shot never reports a world position (it is at the ear, not behind terrain).
+    #[test]
+    fn terrain_masks_sources_behind_a_ridge_and_never_the_players_own_shot() {
+        // A 20 m ridge wall across x = 30..34 on an otherwise flat 64 x 64 map.
+        let mut samples = vec![0.0f32; 64 * 64];
+        for z in 0..64 {
+            for x in 30..=34 {
+                samples[z * 64 + x] = 20.0;
+            }
+        }
+        let map = terrain::HeightMap::new(64, 64, 1.0, samples).expect("ridge map");
+        let eye = Vec3::new(5.0, 2.0, 32.0);
+
+        let behind = super::terrain_occlusion(&map, eye, Vec3::new(60.0, 0.0, 32.0));
+        assert_eq!(behind, 1.0, "a 20 m wall across the line is a full mask");
+        let open = super::terrain_occlusion(&map, eye, Vec3::new(5.0, 0.0, 60.0));
+        assert_eq!(open, 0.0, "the line along the wall's face stays clear");
+
+        assert_eq!(
+            super::audio_event_position(&audio::AudioEvent::CannonFired {
+                position: Vec3::new(60.0, 0.0, 32.0),
+                caliber_mm: 100.0,
+                own_shot: true,
+            }),
+            None,
+            "the player's own shot is listener-local"
+        );
     }
 
     #[test]
