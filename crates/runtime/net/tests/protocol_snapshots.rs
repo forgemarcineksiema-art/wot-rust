@@ -47,7 +47,7 @@ fn vehicle_selection_wire_snapshot_v16_is_stable() {
 
 #[test]
 fn tank_snapshot_wire_v16_is_stable() {
-    // Locks the v12 wire layout: replicated team identity plus the shell-impact list.
+    // Locks the v16 raw payload layout; transport framing is covered separately.
     let message = ProtocolMessage::Snapshot(tank_snapshot_message());
 
     let bytes = encode_message(&message).expect("snapshot should encode");
@@ -68,7 +68,7 @@ fn combat_snapshot_wire_v16_is_stable() {
     assert_eq!(decode_message(&bytes).expect("snapshot should decode"), message);
 }
 
-/// Baseline tank snapshot used by the v12 fixture (and its generator).
+/// Baseline tank snapshot used by the v16 fixture (and its generator).
 pub fn tank_snapshot_message() -> Snapshot {
     Snapshot {
         server_tick: 5,
@@ -99,7 +99,7 @@ pub fn tank_snapshot_message() -> Snapshot {
     }
 }
 
-/// Non-empty combat snapshot used by the v12 fixture (and its generator): shells in flight, a
+/// Non-empty combat snapshot used by the v16 fixture (and its generator): shells in flight, a
 /// damage event, and an absorbed-shell impact.
 pub fn combat_snapshot_message() -> Snapshot {
     Snapshot {

@@ -129,7 +129,7 @@ impl ClientApp {
         let local_server = LocalAuthoritativeServer::new(ServerTickConfig::default());
         let player_tank = local_server.player_tank();
         let mut render_state = InterpolatedBattleState::default();
-        render_state.accept_authoritative_snapshot(local_server.latest_snapshot());
+        render_state.accept_authoritative_snapshot(local_server.latest_snapshot_for_player());
         let player_spec = render_state
             .latest_snapshot()
             .and_then(|snapshot| snapshot.tanks.iter().find(|tank| tank.tank_id == player_tank))
@@ -206,6 +206,16 @@ mod tests {
         app.apply_mouse_look();
         assert!((app.camera_controller.orbit_yaw_rad() - before).abs() > 1.0e-4);
         assert_eq!(app.input.mouse_dx, 0.0);
+    }
+
+    #[test]
+    fn new_app_accepts_the_player_filtered_server_snapshot() {
+        let app = ClientApp::new();
+        let client_view = app.render_state.latest_snapshot().expect("initial client snapshot");
+        let server_view = app.local_server.latest_snapshot_for_player();
+
+        assert_eq!(client_view, &server_view);
+        assert!(client_view.tanks.iter().any(|tank| tank.tank_id == app.player_tank));
     }
 
     #[test]

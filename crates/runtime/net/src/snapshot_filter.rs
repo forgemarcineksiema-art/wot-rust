@@ -1,0 +1,59 @@
+use game_core::{TankId, TeamId};
+
+use crate::{Snapshot, TankSnapshot};
+
+impl Snapshot {
+    pub fn filtered_for_viewer(&self, viewer_tank: TankId) -> Self {
+        let Some(viewer_team) = self.viewer_team(viewer_tank) else {
+            return Snapshot { server_tick: self.server_tick, ..Snapshot::default() };
+        };
+        let visible_tanks = self.visible_tanks_for(viewer_tank, viewer_team);
+        let visible_ids = visible_tanks.iter().map(|tank| tank.tank_id).collect::<Vec<_>>();
+
+        Snapshot {
+            server_tick: self.server_tick,
+            tanks: visible_tanks,
+            shells: self
+                .shells
+                .iter()
+                .copied()
+                .filter(|shell| visible_ids.contains(&shell.owner) || shell.owner == viewer_tank)
+                .collect(),
+            damage_events: self
+                .damage_events
+                .iter()
+                .copied()
+                .filter(|event| {
+                    event.source == viewer_tank
+                        || event.target == viewer_tank
+                        || (visible_ids.contains(&event.source)
+                            && visible_ids.contains(&event.target))
+                })
+                .collect(),
+            shell_impacts: self
+                .shell_impacts
+                .iter()
+                .copied()
+                .filter(|impact| visible_ids.contains(&impact.owner) || impact.owner == viewer_tank)
+                .collect(),
+        }
+    }
+
+    fn viewer_team(&self, viewer_tank: TankId) -> Option<TeamId> {
+        self.tanks.iter().find(|tank| tank.tank_id == viewer_tank).map(|tank| tank.team)
+    }
+
+    fn visible_tanks_for(&self, viewer_tank: TankId, viewer_team: TeamId) -> Vec<TankSnapshot> {
+        let viewer_bit = viewer_team.spotting_bit();
+        self.tanks
+            .iter()
+            .filter(|tank| {
+                tank.tank_id == viewer_tank
+                    || tank.team == viewer_team
+                    || tank.hit_points == 0
+                    || tank.spotted_by_teams_mask & viewer_bit != 0
+            })
+            .cloned()
+            .collect()
+    }
+}

@@ -168,6 +168,9 @@ Renderer follow-ups (deferred):
 - [x] **net: bincode trailing-bytes** (`net/lib.rs`) — shared `wire_codec()` (fixint, byte-stable
   vs the v2 hex fixture) that **rejects trailing bytes**; negative tests added (trailing /
   truncated / garbage discriminant / empty).
+- [x] **`PROTOCOL_VERSION` on the wire** — `net::encode_frame` now prefixes each payload with a
+  `WOT1` transport header and the current protocol version, while `ClientHello` / `ServerHello`
+  advertise the same version during handshake. Locked by `net/tests/protocol_frame.rs`.
 - [x] **economy arithmetic** (`game_core/economy.rs`) — uniform `saturating_*`; saturation test.
 - [x] **server CLI** (`server/main.rs`) — `validate_args` → clean `Err`/exit 1 (was panic/101);
   `--max-ticks N` now runs exactly N (was off-by-one). Verified at runtime.
@@ -197,8 +200,6 @@ Renderer follow-ups (deferred):
 
 ## Open — deferred deliberately (mostly waiting on the renderer/transport milestones)
 
-- [ ] **`PROTOCOL_VERSION` on the wire** — the local binary fixtures are at v8, but real transport
-  still needs a version field in the frame header / handshake.
 - [ ] **`latest_snapshot()` borrowing accessor** — low value until there's a render loop calling it.
 - [ ] **`ServerTickConfig` redundant `server_tick_hz`** — cosmetic dedup.
 - [ ] **glTF `convert` loads no geometry** — rename to "manifest summary" or load buffers.

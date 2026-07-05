@@ -64,7 +64,7 @@ impl ClientApp {
             };
             fire = false;
             self.step_prediction(&command);
-            let outcome = self.local_server.tick_with_input(ClientInputCommand {
+            let outcome = self.local_server.tick_with_player_input(ClientInputCommand {
                 client_tick: self.client_tick,
                 tank_id: self.player_tank,
                 command,

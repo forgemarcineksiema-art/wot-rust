@@ -4,8 +4,11 @@ use serde::{Deserialize, Serialize};
 use sim::{SimulationState, TankCommand, TankState};
 use thiserror::Error;
 
+mod frame;
+mod snapshot_filter;
 mod snapshot_schedule;
 
+pub use frame::{FRAME_HEADER_LEN, FRAME_MAGIC, decode_frame, encode_frame};
 pub use snapshot_schedule::SnapshotSchedule;
 
 pub const PROTOCOL_VERSION: u16 = 16;
@@ -14,6 +17,12 @@ pub const PROTOCOL_VERSION: u16 = 16;
 pub enum NetError {
     #[error("protocol codec failed: {0}")]
     Codec(#[from] Box<bincode::ErrorKind>),
+    #[error("protocol frame is too short: {len} bytes")]
+    FrameTooShort { len: usize },
+    #[error("protocol frame magic does not match")]
+    InvalidFrameMagic,
+    #[error("protocol version mismatch: expected {expected}, got {actual}")]
+    ProtocolVersionMismatch { expected: u16, actual: u16 },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -75,8 +84,8 @@ pub struct TankSnapshot {
     /// The ammo slot the next shot fires from (protocol v15).
     pub selected_ammo: u8,
     /// Bitmask of teams that can currently see this tank (bit `t` = `TeamId(t+1)`), from the LOS
-    /// spotting pass (protocol v16). v1 gates UI only — the client uses it to hide unseen enemies'
-    /// minimap blips and HP bars — every tank's position still replicates to every client.
+    /// spotting pass (protocol v16). Local authoritative snapshots are filtered per viewer before
+    /// they reach the client.
     pub spotted_by_teams_mask: u8,
 }
 
@@ -134,7 +143,7 @@ impl From<&sim::ShellState> for ShellSnapshot {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct Snapshot {
     pub server_tick: u64,
     pub tanks: Vec<TankSnapshot>,
@@ -164,6 +173,8 @@ pub enum ProtocolMessage {
     Snapshot(Snapshot),
     Ping { client_time_us: u64 },
     Pong { client_time_us: u64, server_time_us: u64 },
+    ClientHello { protocol_version: u16 },
+    ServerHello { protocol_version: u16 },
 }
 
 /// Wire codec for all protocol messages. Byte-compatible with bincode's standalone

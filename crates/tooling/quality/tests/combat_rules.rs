@@ -64,7 +64,7 @@ fn client_can_send_fire_intent_to_authoritative_server() {
 
     assert!(input.contains("KeyCode::Space"));
     assert!(input.contains("fire_pending"));
-    assert!(dispatch.contains("tick_with_input"));
+    assert!(dispatch.contains("tick_with_player_input"));
     assert!(dispatch.contains("fire"));
 }
 

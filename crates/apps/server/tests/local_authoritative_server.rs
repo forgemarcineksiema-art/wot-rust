@@ -20,6 +20,18 @@ fn local_server_can_start_with_selected_player_vehicle() {
 }
 
 #[test]
+fn latest_player_snapshot_is_filtered_after_seeded_visibility() {
+    let server = LocalAuthoritativeServer::new(ServerTickConfig::new(60, 20));
+    let snapshot = server.latest_snapshot_for_player();
+
+    assert!(snapshot.tanks.iter().any(|tank| tank.tank_id == server.player_tank()));
+    assert!(
+        snapshot.tanks.iter().any(|tank| tank.tank_id == server.target_tank()),
+        "the practice target starts in LOS and should survive player-view filtering"
+    );
+}
+
+#[test]
 fn local_server_runtime_vehicle_change_reassigns_player_tank_id() {
     let mut server = LocalAuthoritativeServer::new(ServerTickConfig::new(60, 20));
     let old_player = server.player_tank();
@@ -33,6 +45,20 @@ fn local_server_runtime_vehicle_change_reassigns_player_tank_id() {
         snapshot.tanks.iter().find(|tank| tank.tank_id == new_player).expect("new player tank");
     assert_eq!(player.vehicle, game_core::VehicleKind::Jagdtiger);
     assert_eq!(player.reload_remaining_s, 0.0);
+}
+
+#[test]
+fn filtered_vehicle_change_keeps_the_new_player_snapshot_visible() {
+    let mut server = LocalAuthoritativeServer::new(ServerTickConfig::new(60, 20));
+
+    let snapshot =
+        server.change_player_vehicle_with_spec_for_player(game_core::TankSpec::tiger_i_ausf_e());
+
+    assert!(snapshot.tanks.iter().any(|tank| tank.tank_id == server.player_tank()));
+    assert!(
+        snapshot.tanks.iter().any(|tank| tank.tank_id == server.target_tank()),
+        "post-garage visibility should be refreshed before filtering"
+    );
 }
 
 #[test]
@@ -51,6 +77,36 @@ fn local_server_installs_a_custom_assembled_spec_not_the_stock_one() {
     assert_eq!(player.vehicle, game_core::VehicleKind::TigerII);
     assert_eq!(player.hit_points, spec.hit_points);
     assert_ne!(player.hit_points, game_core::VehicleKind::TigerII.spec().hit_points);
+}
+
+#[test]
+fn player_tick_emits_filtered_snapshots_with_own_feedback() {
+    let mut server = LocalAuthoritativeServer::new(ServerTickConfig::new(60, 20));
+    let player_tank = server.player_tank();
+
+    server.tick_with_player_input(ClientInputCommand {
+        client_tick: 0,
+        tank_id: player_tank,
+        command: TankCommand { fire: true, ..TankCommand::idle() },
+    });
+
+    let mut damage_snapshot = None;
+    for client_tick in 1..=8 {
+        let tick = server.tick_with_player_input(ClientInputCommand {
+            client_tick,
+            tank_id: player_tank,
+            command: TankCommand::idle(),
+        });
+        if let Some(snapshot) = tick.snapshot
+            && !snapshot.damage_events.is_empty()
+        {
+            damage_snapshot = Some(snapshot);
+            break;
+        }
+    }
+
+    let snapshot = damage_snapshot.expect("player shot feedback should survive filtering");
+    assert!(snapshot.damage_events.iter().any(|event| event.source == player_tank));
 }
 
 #[test]
