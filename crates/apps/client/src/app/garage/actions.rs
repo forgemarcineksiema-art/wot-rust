@@ -4,55 +4,18 @@
 
 #[cfg(test)]
 use game_core::VehicleKind;
-use glam::Vec3;
-use renderer_api::Camera;
 use winit::event::KeyEvent;
 use winit::keyboard::{KeyCode, PhysicalKey};
 
 use super::{GarageHit, GarageState};
 use crate::app::ClientApp;
-use crate::scene::hangar::hangar_camera_pivot;
-
-// Orbit camera limits.
-const MIN_PITCH: f32 = -0.05;
-const MAX_PITCH: f32 = 1.20;
-const MIN_DISTANCE: f32 = 8.5;
-const MAX_DISTANCE: f32 = 20.0;
-const ORBIT_SENSITIVITY: f32 = 0.005;
-const ZOOM_STEP_M: f32 = 1.2;
-
 impl GarageState {
-    pub(in crate::app) fn orbit_camera(&self) -> Camera {
-        let pivot = hangar_camera_pivot();
-        let horizontal = self.orbit_distance * self.orbit_pitch.cos();
-        let eye = pivot
-            + Vec3::new(
-                horizontal * self.orbit_yaw.sin(),
-                self.orbit_distance * self.orbit_pitch.sin(),
-                horizontal * self.orbit_yaw.cos(),
-            );
-        Camera { eye: eye.to_array(), target: pivot.to_array(), vertical_fov_degrees: 32.0 }
-    }
-
     pub(super) fn begin_drag(&mut self) {
         self.dragging = true;
     }
 
     pub(super) fn end_drag(&mut self) {
         self.dragging = false;
-    }
-
-    pub(in crate::app) fn apply_drag(&mut self, dx: f32, dy: f32) {
-        if !self.dragging {
-            return;
-        }
-        self.orbit_yaw += dx * ORBIT_SENSITIVITY;
-        self.orbit_pitch = (self.orbit_pitch - dy * ORBIT_SENSITIVITY).clamp(MIN_PITCH, MAX_PITCH);
-    }
-
-    pub(in crate::app) fn apply_zoom(&mut self, notches: f32) {
-        self.orbit_distance =
-            (self.orbit_distance - notches * ZOOM_STEP_M).clamp(MIN_DISTANCE, MAX_DISTANCE);
     }
 
     pub(in crate::app) fn set_cursor(&mut self, clip: [f32; 2]) {
@@ -86,7 +49,11 @@ impl ClientApp {
                 }
             }
             GarageHit::CarouselScroll(dir) => self.garage.scroll_carousel(dir),
-            GarageHit::ModuleCycle(slot, dir) => self.garage.cycle_module(slot, dir),
+            GarageHit::ModuleCycle(slot, dir) => {
+                self.garage.cycle_module(slot, dir);
+                // Clicking a module both cycles it and flies the camera to frame it.
+                self.garage.focus_module(slot);
+            }
             GarageHit::AmmoSelect(index) => self.garage.set_ammo(index),
             GarageHit::CrewProf(dir) => self.garage.adjust_proficiency(dir),
             GarageHit::Battle => self.confirm_garage_selection(),
@@ -117,7 +84,15 @@ impl ClientApp {
             PhysicalKey::Code(KeyCode::ArrowLeft) => self.garage.cycle(-1),
             PhysicalKey::Code(KeyCode::ArrowRight) => self.garage.cycle(1),
             PhysicalKey::Code(KeyCode::Enter) => self.confirm_garage_selection(),
-            PhysicalKey::Code(KeyCode::Escape) => self.garage.close_if_started(),
+            // Escape first backs out of a module focus (return to the hero framing); a second
+            // press, with the camera already at rest on the hero view, closes the garage.
+            PhysicalKey::Code(KeyCode::Escape) => {
+                if self.garage.is_camera_off_hero() {
+                    self.garage.return_to_hero_view();
+                } else {
+                    self.garage.close_if_started();
+                }
+            }
             // Keyboard loadout editing: focus + cycle + ammo + crew.
             PhysicalKey::Code(KeyCode::BracketLeft) => self.garage.focus_adjacent(-1),
             PhysicalKey::Code(KeyCode::BracketRight) => self.garage.focus_adjacent(1),
@@ -172,9 +147,11 @@ mod tests {
         let mut garage = GarageState::default();
         garage.begin_drag();
         garage.apply_drag(0.0, -100_000.0);
-        assert!(garage.orbit_pitch <= MAX_PITCH + 1.0e-6);
+        assert!(garage.orbit_pitch < 1.3, "pitch clamps short of vertical");
         garage.apply_zoom(1_000.0);
-        assert!(garage.orbit_distance >= MIN_DISTANCE - 1.0e-6);
+        assert!(garage.orbit_distance >= 4.0 - 1.0e-6, "distance clamps at the close boom");
+        garage.apply_zoom(-1_000.0);
+        assert!(garage.orbit_distance <= 20.0 + 1.0e-6, "distance clamps at the far boom");
     }
 
     #[test]

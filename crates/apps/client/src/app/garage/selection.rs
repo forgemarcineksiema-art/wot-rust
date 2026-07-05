@@ -5,9 +5,7 @@
 use game_core::VehicleKind;
 
 use super::layout::{CAR_HALF, CAR_VISIBLE, CAR_Y, carousel_window, clamp_carousel_scroll};
-use super::{
-    FitSlot, GarageState, HERO_ORBIT_DISTANCE, HERO_ORBIT_PITCH, HERO_ORBIT_YAW, LoadoutDraft,
-};
+use super::{FitSlot, GarageState, LoadoutDraft};
 
 fn roster_len() -> usize {
     VehicleKind::PLAYABLE.len()
@@ -35,7 +33,7 @@ impl GarageState {
                 None => LoadoutDraft::for_vehicle(self.selected_vehicle()),
             };
             self.scroll_selection_into_view();
-            self.restore_hero_framing();
+            self.snap_to_hero_view();
             self.rejected_slot = None;
             self.focused_slot = FitSlot::Gun;
             self.persist();
@@ -74,11 +72,5 @@ impl GarageState {
             self.carousel_scroll = self.selected_index + 1 - CAR_VISIBLE;
         }
         self.carousel_scroll = clamp_carousel_scroll(count, self.carousel_scroll);
-    }
-
-    fn restore_hero_framing(&mut self) {
-        self.orbit_yaw = HERO_ORBIT_YAW;
-        self.orbit_pitch = HERO_ORBIT_PITCH;
-        self.orbit_distance = HERO_ORBIT_DISTANCE;
     }
 }
