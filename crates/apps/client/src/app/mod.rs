@@ -176,6 +176,7 @@ pub fn run() -> anyhow::Result<()> {
     let event_loop = EventLoop::new().context("failed to create winit event loop")?;
     event_loop.set_control_flow(ControlFlow::Poll);
     let mut app = ClientApp::new();
+    app.enable_garage_persistence();
     event_loop.run_app(&mut app).context("winit app failed")?;
     Ok(())
 }

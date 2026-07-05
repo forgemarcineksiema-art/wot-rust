@@ -716,6 +716,7 @@ dependencies = [
  "png",
  "renderer_api",
  "renderer_wgpu",
+ "serde",
  "serde_json",
  "server",
  "sim",

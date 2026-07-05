@@ -5,6 +5,8 @@
 
 use game_core::{Crew, ShellSpec, TankSpec, VehicleKind, VehicleModules};
 
+use super::persistence::SavedLoadout;
+
 /// The fitting slots the garage exposes. The hull is the chassis and the suspension stays stock
 /// (it gates the load limit); the rest mirror WoT's module slots.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -81,13 +83,20 @@ impl LoadoutDraft {
         }
         let current = self.option_index[slot.index()];
         let next = (current as isize + dir).rem_euclid(len as isize) as usize;
+        self.try_install_index(slot, next)
+    }
+
+    /// Install a specific option index for `slot`, updating `option_index` only if the fit is
+    /// accepted by compatibility. Returns `true` on success. Shared by keyboard/click cycling and
+    /// saved-loadout restore.
+    fn try_install_index(&mut self, slot: FitSlot, index: usize) -> bool {
         let installed = match slot {
             FitSlot::Turret => {
-                self.modules.try_install_turret(self.kind.turret_options()[next].clone()).is_ok()
+                self.modules.try_install_turret(self.kind.turret_options()[index].clone()).is_ok()
             }
             FitSlot::Gun => {
                 let ok =
-                    self.modules.try_install_gun(self.kind.gun_options()[next].clone()).is_ok();
+                    self.modules.try_install_gun(self.kind.gun_options()[index].clone()).is_ok();
                 if ok {
                     // A new gun has its own ammo list; keep the selection in range.
                     self.ammo_index =
@@ -96,28 +105,51 @@ impl LoadoutDraft {
                 ok
             }
             FitSlot::Hull => {
-                self.modules.hull = self.kind.hull_options()[next].clone();
+                self.modules.hull = self.kind.hull_options()[index].clone();
                 true
             }
             FitSlot::Engine => {
-                self.modules.engine = self.kind.engine_options()[next].clone();
+                self.modules.engine = self.kind.engine_options()[index].clone();
                 true
             }
             FitSlot::Suspension => {
-                self.modules.suspension = self.kind.suspension_options()[next].clone();
+                self.modules.suspension = self.kind.suspension_options()[index].clone();
                 true
             }
             FitSlot::Radio => {
-                self.modules.radio = self.kind.radio_options()[next].clone();
+                self.modules.radio = self.kind.radio_options()[index].clone();
                 true
             }
         };
         if installed {
-            self.option_index[slot.index()] = next;
-            true
-        } else {
-            false
+            self.option_index[slot.index()] = index;
         }
+        installed
+    }
+
+    /// The persistable snapshot of the current choices.
+    pub(super) fn to_saved(&self) -> SavedLoadout {
+        SavedLoadout {
+            option_index: self.option_index,
+            ammo_index: self.ammo_index,
+            crew_proficiency: self.crew.proficiency(),
+        }
+    }
+
+    /// Rebuild a draft from a persisted snapshot. Each option is applied through the checked
+    /// install path in `FitSlot::ALL` order (turret before gun, so the caliber limit is set first)
+    /// — an out-of-range or now-incompatible index silently stays at stock instead of panicking.
+    pub(super) fn from_saved(kind: VehicleKind, saved: &SavedLoadout) -> Self {
+        let mut draft = Self::for_vehicle(kind);
+        for slot in FitSlot::ALL {
+            let target = saved.option_index[slot.index()];
+            if target != 0 && target < draft.options_len(slot) {
+                draft.try_install_index(slot, target);
+            }
+        }
+        draft.set_ammo(saved.ammo_index);
+        draft.crew = Crew::new(saved.crew_proficiency);
+        draft
     }
 
     pub(super) fn ammo_options(&self) -> Vec<ShellSpec> {
@@ -195,6 +227,34 @@ mod tests {
         let before = draft.assembled_spec().gun.reload_seconds;
         draft.cycle_module(FitSlot::Gun, 1);
         assert_ne!(draft.assembled_spec().gun.reload_seconds, before);
+    }
+
+    #[test]
+    fn a_saved_loadout_round_trips_back_into_the_same_spec() {
+        let mut draft = LoadoutDraft::for_vehicle(VehicleKind::T54_1951);
+        draft.cycle_module(FitSlot::Gun, 1);
+        draft.set_ammo(1);
+        draft.adjust_proficiency(1);
+
+        let restored = LoadoutDraft::from_saved(VehicleKind::T54_1951, &draft.to_saved());
+
+        assert_eq!(
+            restored.assembled_spec(),
+            draft.assembled_spec(),
+            "restore reproduces the spec"
+        );
+        assert_eq!(restored.ammo_index(), draft.ammo_index());
+    }
+
+    #[test]
+    fn from_saved_degrades_a_stale_index_to_stock_without_panicking() {
+        // A save from an older build (or a since-removed option) points every slot out of range.
+        let stale = SavedLoadout { option_index: [999; 6], ammo_index: 999, crew_proficiency: 0.8 };
+        let draft = LoadoutDraft::from_saved(VehicleKind::T54_1951, &stale);
+
+        assert_eq!(draft.option_index, [0; 6], "unknown options fall back to stock");
+        assert!(draft.ammo_index < draft.ammo_options().len(), "ammo clamps into range");
+        assert!((draft.crew.proficiency() - 0.8).abs() < 1.0e-6, "valid fields still apply");
     }
 
     #[test]
