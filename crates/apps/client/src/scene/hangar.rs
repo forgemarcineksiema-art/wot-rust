@@ -42,6 +42,12 @@ pub fn hangar_camera_pivot() -> Vec3 {
     Vec3::new(0.0, TURNTABLE_TOP_M + 1.3, 0.0)
 }
 
+/// Interior of the hangar shell as `(half_extent_xz, height)` so the orbit camera can keep its eye
+/// inside the room — otherwise zooming out clips the eye straight through the walls or roof.
+pub fn hangar_interior() -> (f32, f32) {
+    (HALF, WALL_HEIGHT)
+}
+
 /// Build the static hangar mesh. The tank is parked at the origin on top of the turntable
 /// (`TURNTABLE_TOP_M`), so place the parked vehicle's `position.y` at that height.
 pub fn hangar_scene_mesh() -> (Vec<SceneVertex>, Vec<u32>) {
