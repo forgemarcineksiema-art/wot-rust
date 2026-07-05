@@ -286,6 +286,47 @@ mod tests {
         );
     }
 
+    /// HE speaks as the charge: a direct HE hit routes to the burst voice, and a splash strike
+    /// (blast damage without the shell body) detonates audibly too.
+    #[test]
+    fn high_explosive_hits_and_splash_strikes_queue_the_burst_not_the_clang() {
+        let mut app = deployed_app();
+        app.pending_audio.clear();
+        let mut snapshot = app.local_server.latest_snapshot_for_player();
+        snapshot.damage_events.push(game_core::DamageEvent {
+            source: game_core::TankId(1),
+            target: app.player_tank,
+            hit_position: Vec3::new(12.0, 1.2, 18.0),
+            damage_hp: 90,
+            penetrated: true,
+            shell_type: game_core::ShellType::HighExplosive,
+            ..game_core::DamageEvent::default()
+        });
+        snapshot.damage_events.push(game_core::DamageEvent {
+            source: game_core::TankId(1),
+            target: app.player_tank,
+            hit_position: Vec3::new(15.0, 0.4, 21.0),
+            damage_hp: 30,
+            penetrated: false,
+            cause: game_core::DamageCause::Splash,
+            ..game_core::DamageEvent::default()
+        });
+        app.accept_and_sync(snapshot);
+
+        let bursts = app
+            .pending_audio
+            .iter()
+            .filter(|e| matches!(e, audio::AudioEvent::ArmorStruck { high_explosive: true, .. }))
+            .count();
+        assert_eq!(bursts, 2, "the direct HE hit and the splash strike both detonate");
+        assert!(
+            !app.pending_audio
+                .iter()
+                .any(|e| matches!(e, audio::AudioEvent::ArmorStruck { high_explosive: false, .. })),
+            "no kinetic clang for HE-only damage"
+        );
+    }
+
     #[test]
     fn incoming_armor_strikes_queue_spatial_impact_sounds() {
         let mut app = deployed_app();

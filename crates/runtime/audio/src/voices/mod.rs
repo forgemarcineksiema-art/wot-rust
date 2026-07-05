@@ -3,6 +3,7 @@
 //! ringing, a diesel firing) told with the primitives in [`crate::dsp`].
 
 pub mod ambience;
+pub mod blast;
 pub mod cannon;
 pub mod engine;
 pub mod impact;

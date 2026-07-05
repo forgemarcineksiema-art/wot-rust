@@ -14,13 +14,15 @@
 //! - [`mixer`] — events to voices, the voice budget, and the master bus.
 
 pub mod dsp;
+pub mod events;
 pub mod mixer;
 pub mod remote;
 pub mod spatial;
 pub mod voice;
 pub mod voices;
 
-pub use mixer::{AudioEngine, AudioEvent};
+pub use events::AudioEvent;
+pub use mixer::AudioEngine;
 pub use remote::RemoteEngineState;
 pub use spatial::Listener;
 pub use voices::impact::GroundKind;

@@ -37,16 +37,26 @@ impl ClientApp {
             }
         }
         for event in &snapshot.damage_events {
+            // Splash strikes (HE blast damage without the shell body) still detonate audibly.
+            if event.cause == game_core::DamageCause::Splash {
+                self.queue_audio(audio::AudioEvent::ArmorStruck {
+                    position: event.hit_position,
+                    penetrated: false,
+                    ricocheted: false,
+                    high_explosive: true,
+                });
+            }
             if event.cause != game_core::DamageCause::Shell {
                 continue;
             }
             self.fx.armor_hit(event.hit_position, event.penetrated, event.ricocheted);
-            // And rings: the struck plate's clang, with the outcome (penetration thunk /
-            // ricochet whine) layered in by the voice itself.
+            // And rings: the struck plate's clang (or the HE charge's own burst), with the
+            // outcome (penetration thunk / ricochet whine) layered in by the voice itself.
             self.queue_audio(audio::AudioEvent::ArmorStruck {
                 position: event.hit_position,
                 penetrated: event.penetrated,
                 ricocheted: event.ricocheted,
+                high_explosive: event.shell_type == game_core::ShellType::HighExplosive,
             });
             // The strike also scars the target: a permanent hole for a penetration, a fading
             // scuff/gouge otherwise, recorded in the plate's own rotating frame.

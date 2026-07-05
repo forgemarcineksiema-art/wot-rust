@@ -69,7 +69,13 @@ grace, saturating at ~6 m. A masked source loses most of its level and its
 highs close far harder than open-air absorption — only the low thud
 diffracts over the hill. The player's own gun is never occluded.
 
+HE speaks as the charge, not the plate: a direct HE hit (and every splash
+strike) routes to a burst voice — sub boom sweeping 45 -> 25 Hz, a pressure
+wave whose spectrum slams shut, and a long rain of debris — instead of the
+kinetic modal clang.
+
 ## What stays out of v1 (known, deliberate)
 
-- Surface-dependent track noise, HE-specific impact voicing.
+- Surface-dependent track noise; HE bursts against TERRAIN still voice as
+  the ground thud (the shell-impact wire carries no shell type yet).
 - A volume/mixer options surface; master gain is a constant today.

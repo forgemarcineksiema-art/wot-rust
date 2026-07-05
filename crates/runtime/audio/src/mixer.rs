@@ -5,32 +5,18 @@
 
 use glam::Vec3;
 
+pub use crate::events::AudioEvent;
+
 use crate::dsp::soft_clip;
 use crate::remote::{RemoteEngineState, RemoteEngines};
 use crate::spatial::{Listener, VoiceSlot};
 use crate::voice::Voice;
 use crate::voices::ambience::WindAmbience;
+use crate::voices::blast::HeBlast;
 use crate::voices::cannon::CannonShot;
 use crate::voices::engine::EngineVoice;
-use crate::voices::impact::{ArmorHit, GroundImpact, GroundKind};
+use crate::voices::impact::{ArmorHit, GroundImpact};
 use crate::voices::ui::{DoubleThud, MechanicalClick};
-
-/// Everything the game reports to the soundscape. Positions are world-space meters.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum AudioEvent {
-    /// A gun fired. `own_shot` marks the player's gun: full presence, no travel delay.
-    CannonFired { position: Vec3, caliber_mm: f32, own_shot: bool },
-    /// A shell struck a vehicle's armor.
-    ArmorStruck { position: Vec3, penetrated: bool, ricocheted: bool },
-    /// A shell died against the world instead of a target.
-    ShellAbsorbed { position: Vec3, surface: GroundKind },
-    /// The player's reload completed (breech clack at the ear).
-    GunReady,
-    /// The player's target was destroyed (confirmation beat).
-    KillConfirmed,
-    /// A garage/UI interaction; `accent` marks commits over browsing clicks.
-    UiClick { accent: bool },
-}
 
 /// Simultaneous one-shot voices; a 7v7 barrage peaks well under this.
 const MAX_VOICES: usize = 40;
@@ -109,10 +95,15 @@ impl AudioEngine {
                     self.spawn_at(voice, position, 1.05, true, occlusion);
                 }
             }
-            AudioEvent::ArmorStruck { position, penetrated, ricocheted } => {
-                let voice =
-                    Box::new(ArmorHit::new(penetrated, ricocheted, self.sample_rate_hz, seed));
-                self.spawn_at(voice, position, 0.8, true, occlusion);
+            AudioEvent::ArmorStruck { position, penetrated, ricocheted, high_explosive } => {
+                // HE speaks as the charge, not the plate: a burst instead of a modal clang.
+                let voice: Box<dyn Voice> = if high_explosive {
+                    Box::new(HeBlast::new(self.sample_rate_hz, seed))
+                } else {
+                    Box::new(ArmorHit::new(penetrated, ricocheted, self.sample_rate_hz, seed))
+                };
+                let gain = if high_explosive { 1.0 } else { 0.8 };
+                self.spawn_at(voice, position, gain, true, occlusion);
             }
             AudioEvent::ShellAbsorbed { position, surface } => {
                 let voice = Box::new(GroundImpact::new(surface, self.sample_rate_hz, seed));
@@ -221,6 +212,7 @@ impl AudioEngine {
 mod tests {
     use super::*;
     use crate::voice::rms;
+    use crate::voices::impact::GroundKind;
 
     const SR: f32 = 48_000.0;
 
@@ -364,6 +356,7 @@ mod tests {
                 position: Vec3::new(0.0, 0.0, 40.0),
                 penetrated: i % 2 == 0,
                 ricocheted: i % 3 == 0,
+                high_explosive: i % 5 == 0,
             });
         }
         assert!(engine.live_voices() <= MAX_VOICES);
