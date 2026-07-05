@@ -49,10 +49,19 @@ queue drains to nowhere; gameplay behaves identically with and without ears.
 - One-shot voices are budgeted (40); an over-budget barrage drops its
   quietest voice, never grows, and the master bus soft-clips.
 
+## Remote powerplants
+
+Every replicated tank hums: the `remote` module keeps one persistent engine
+bed per vehicle in earshot (nearest 4 within 260 m), spatialized like a
+one-shot but living across frames. A tank that dies or drops out of the
+report spools its bed down instead of cutting. Ground speed is estimated
+client-side from the snapshot pair (the wire replicates no velocity).
+**Audio leaks nothing the renderer doesn't**: the snapshot is already
+spotting-filtered per viewer, so an unspotted enemy has no engine sound
+either — the audible world and the visible world are the same world.
+
 ## What stays out of v1 (known, deliberate)
 
-- Enemy/ally engine beds (only the player's powerplant hums; remote engines
-  need distance-culled persistent voices).
 - Surface-dependent track noise, HE-specific impact voicing, occlusion by
   terrain (a shot behind a hill should be duller than one in the open).
 - A volume/mixer options surface; master gain is a constant today.

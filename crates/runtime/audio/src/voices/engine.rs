@@ -66,6 +66,12 @@ impl EngineVoice {
         self.target_running = if running { 1.0 } else { 0.0 };
     }
 
+    /// True once the bed has spooled fully down (switched off and audibly gone) — the remote
+    /// engine pool frees slots on this instead of hard-cutting a still-sounding voice.
+    pub fn is_silent(&self) -> bool {
+        self.target_running == 0.0 && self.running < 1.0e-3
+    }
+
     /// Render additively into `out` (the mixer owns the buffer; the bed never claims it).
     pub fn render_add(&mut self, out: &mut [f32], gain: f32) {
         // Per-sample one-pole glide: ~120 ms to close 63 % of a control step.

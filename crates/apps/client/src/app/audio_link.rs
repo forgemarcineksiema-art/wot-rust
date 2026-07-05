@@ -32,16 +32,55 @@ impl ClientApp {
         // The hangar is sheltered: a breath of air, engine off. The field gets the full wind.
         let wind_level = if in_garage { 0.2 } else { 1.0 };
         let (rpm_norm, load, speed_mps, running) = self.player_engine_audio_state(in_garage);
+        let remote = if in_garage { Vec::new() } else { self.remote_engine_states() };
         output.with_engine(move |engine| {
             if let Some(listener) = listener {
                 engine.set_listener(listener);
             }
             engine.set_wind_level(wind_level);
             engine.set_player_engine(rpm_norm, load, speed_mps, running);
+            engine.set_remote_engines(&remote);
             for event in events {
                 engine.push_event(event);
             }
         });
+    }
+
+    /// Every other tank's powerplant this frame, for the remote engine beds: position from the
+    /// latest snapshot, ground speed estimated from the snapshot pair (the wire replicates no
+    /// velocity), engine off once the tank is dead. The audio engine culls and budgets — this
+    /// just reports honestly.
+    fn remote_engine_states(&self) -> Vec<audio::RemoteEngineState> {
+        let Some(latest) = self.render_state.latest_snapshot() else {
+            return Vec::new();
+        };
+        let previous = self.render_state.previous_snapshot();
+        let tick_hz = sim::DEFAULT_SIMULATION_TICK_HZ as f32;
+        latest
+            .tanks
+            .iter()
+            .filter(|tank| tank.tank_id != self.player_tank)
+            .map(|tank| {
+                let speed_mps = previous
+                    .and_then(|prev| {
+                        let before = prev.tanks.iter().find(|t| t.tank_id == tank.tank_id)?;
+                        let ticks = latest.server_tick.saturating_sub(prev.server_tick);
+                        if ticks == 0 {
+                            return None;
+                        }
+                        let dx = tank.position[0] - before.position[0];
+                        let dz = tank.position[2] - before.position[2];
+                        Some((dx * dx + dz * dz).sqrt() / (ticks as f32 / tick_hz))
+                    })
+                    .unwrap_or(0.0);
+                audio::RemoteEngineState {
+                    key: tank.tank_id.0,
+                    position: glam::Vec3::from_array(tank.position),
+                    speed_mps,
+                    running: tank.hit_points > 0,
+                }
+            })
+            .collect()
     }
 
     /// The powerplant knobs for the engine bed: RPM follows the faster of actual ground speed
@@ -145,6 +184,34 @@ mod tests {
                 .any(|e| matches!(e, audio::AudioEvent::UiClick { accent: true })),
             "the Battle commit must land the accented click"
         );
+    }
+
+    /// Remote beds report exactly the REPLICATED tanks minus the player. The snapshot is
+    /// already spotting-filtered per viewer, so an unspotted enemy has no engine sound either —
+    /// audio must not leak hidden tanks any more than the renderer does (see spotting policy).
+    #[test]
+    fn every_replicated_tank_reports_a_powerplant_and_the_player_never_does() {
+        let mut app = deployed_app();
+        app.run_fixed_ticks(6);
+        let states = app.remote_engine_states();
+        let replicated = app.render_state.latest_snapshot().expect("snapshot").tanks.len();
+
+        assert_eq!(states.len(), replicated - 1, "every replicated tank except the player hums");
+        assert!(
+            states.len() >= 6,
+            "at minimum the six teammates are always replicated, got {}",
+            states.len()
+        );
+        assert!(
+            states.iter().all(|s| s.key != app.player_tank.0),
+            "the player's own engine is the dedicated center bed, never a remote one"
+        );
+        assert!(states.iter().all(|s| s.running), "a fresh roster is all engines on");
+        let mut keys: Vec<u64> = states.iter().map(|s| s.key).collect();
+        keys.sort_unstable();
+        keys.dedup();
+        assert_eq!(keys.len(), states.len(), "one bed key per tank");
+        assert!(states.iter().all(|s| s.speed_mps.is_finite() && s.speed_mps >= 0.0));
     }
 
     #[test]

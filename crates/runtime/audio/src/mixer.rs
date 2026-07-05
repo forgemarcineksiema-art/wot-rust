@@ -6,6 +6,7 @@
 use glam::Vec3;
 
 use crate::dsp::soft_clip;
+use crate::remote::{RemoteEngineState, RemoteEngines};
 use crate::spatial::{Listener, VoiceSlot};
 use crate::voice::Voice;
 use crate::voices::ambience::WindAmbience;
@@ -41,6 +42,8 @@ pub struct AudioEngine {
     listener: Listener,
     slots: Vec<VoiceSlot>,
     engine_bed: EngineVoice,
+    /// Every other tank's powerplant in earshot (see `remote`).
+    remote_engines: RemoteEngines,
     wind: WindAmbience,
     master_gain: f32,
     /// Mono scratch reused across voices; grows to the largest callback chunk and stays.
@@ -56,6 +59,7 @@ impl AudioEngine {
             listener: Listener::default(),
             slots: Vec::with_capacity(MAX_VOICES),
             engine_bed: EngineVoice::new(sample_rate_hz, 0x0E17_61E5),
+            remote_engines: RemoteEngines::default(),
             wind: WindAmbience::new(sample_rate_hz, 0x57A7_1CA1),
             master_gain: 0.85,
             scratch: Vec::new(),
@@ -75,6 +79,13 @@ impl AudioEngine {
     /// Scene wind amount: ~1 on the battlefield, ~0.25 inside the hangar.
     pub fn set_wind_level(&mut self, level: f32) {
         self.wind.set_level(level);
+    }
+
+    /// This frame's remote powerplants (every other tank the player might hear). The pool keeps
+    /// the nearest few in earshot, spatializes them against the current listener, and spools
+    /// down anything no longer reported — call after [`Self::set_listener`].
+    pub fn set_remote_engines(&mut self, states: &[RemoteEngineState]) {
+        self.remote_engines.sync(states, &self.listener, self.sample_rate_hz);
     }
 
     pub fn push_event(&mut self, event: AudioEvent) {
@@ -171,6 +182,9 @@ impl AudioEngine {
             frame[0] += engine;
             frame[1] += engine;
         }
+
+        // Every other powerplant in earshot, panned to its bearing.
+        self.remote_engines.render_add(out, &mut self.scratch, 0.14);
 
         // One-shot voices: render mono, absorb, pan, mix (see `spatial::VoiceSlot::mix_into`).
         let mut index = 0;

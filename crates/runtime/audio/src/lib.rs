@@ -15,10 +15,12 @@
 
 pub mod dsp;
 pub mod mixer;
+pub mod remote;
 pub mod spatial;
 pub mod voice;
 pub mod voices;
 
 pub use mixer::{AudioEngine, AudioEvent};
+pub use remote::RemoteEngineState;
 pub use spatial::Listener;
 pub use voices::impact::GroundKind;
