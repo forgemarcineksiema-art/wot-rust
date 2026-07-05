@@ -8,10 +8,10 @@ use crate::app::garage::GarageState;
 use crate::app::garage::draft::FitSlot;
 use crate::app::garage::layout::*;
 use crate::hud::font::{push_icon, push_text, text_width};
-use crate::hud::push_quad;
+use crate::hud::push_panel;
 
 pub(in crate::app::garage) fn draw(v: &mut Vec<HudVertex>, state: &GarageState, aspect: f32) {
-    push_quad(v, [-0.03, LOADOUT_Y], [0.52, SLOT_HALF[1] + 0.02], PANEL);
+    push_panel(v, [-0.03, LOADOUT_Y], [0.52, SLOT_HALF[1] + 0.02], CHAMFER_PANEL, aspect, PANEL);
 
     for (i, slot) in FitSlot::ALL.into_iter().enumerate() {
         let c = module_slot_center(i);
@@ -22,7 +22,7 @@ pub(in crate::app::garage) fn draw(v: &mut Vec<HudVertex>, state: &GarageState, 
         } else {
             SLOT
         };
-        push_quad(v, c, SLOT_HALF, bg);
+        push_panel(v, c, SLOT_HALF, CHAMFER_SLOT, aspect, bg);
         let tint = if state.draft().has_choice(slot) { ICON } else { ICON_DIM };
         push_icon(v, slot_icon(slot), c[0] - 0.03, c[1] + 0.03, 0.06, aspect, tint);
 
@@ -34,7 +34,14 @@ pub(in crate::app::garage) fn draw(v: &mut Vec<HudVertex>, state: &GarageState, 
     let selected = state.draft().ammo_index();
     for i in 0..state.draft().ammo_options().len() {
         let c = ammo_slot_center(i);
-        push_quad(v, c, SLOT_HALF, if i == selected { SLOT_SELECTED } else { SLOT });
+        push_panel(
+            v,
+            c,
+            SLOT_HALF,
+            CHAMFER_SLOT,
+            aspect,
+            if i == selected { SLOT_SELECTED } else { SLOT },
+        );
         push_icon(v, ammo_icon(i), c[0] - 0.03, c[1] + 0.03, 0.06, aspect, ICON);
     }
 }

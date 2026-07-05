@@ -6,11 +6,15 @@ pub(crate) mod font;
 pub(crate) mod health_bar;
 pub(crate) mod icons;
 pub(crate) mod number;
+pub(crate) mod primitives;
 pub(crate) mod reticle;
 pub(crate) mod reticle_overlay;
 pub(crate) mod reticle_readouts;
 pub(crate) mod reticle_sweep;
+pub(crate) mod theme;
 
+use primitives::push_bar;
+pub(crate) use primitives::{push_hairline, push_panel, push_quad};
 pub(crate) use reticle_overlay::HudReticle;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -139,35 +143,6 @@ pub(crate) fn health_color(frac: f32) -> [f32; 4] {
         [0.92, 0.78, 0.20, 0.92]
     } else {
         [0.90, 0.26, 0.22, 0.92]
-    }
-}
-
-/// A left-aligned bar: a dark background plus a colored fill of `frac` width.
-/// `left` is the bar's left edge; `half` is the full-bar half-extent.
-fn push_bar(
-    vertices: &mut Vec<HudVertex>,
-    left: [f32; 2],
-    half: [f32; 2],
-    frac: f32,
-    color: [f32; 4],
-) {
-    push_quad(vertices, [left[0] + half[0], left[1]], half, [0.0, 0.0, 0.0, 0.55]);
-    let fill = half[0] * frac.clamp(0.0, 1.0);
-    push_quad(vertices, [left[0] + fill, left[1]], [fill, half[1]], color);
-}
-
-pub(crate) fn push_quad(
-    vertices: &mut Vec<HudVertex>,
-    center: [f32; 2],
-    half: [f32; 2],
-    color: [f32; 4],
-) {
-    let (left, right) = (center[0] - half[0], center[0] + half[0]);
-    let (bottom, top) = (center[1] - half[1], center[1] + half[1]);
-    for position in
-        [[left, bottom], [right, bottom], [right, top], [left, bottom], [right, top], [left, top]]
-    {
-        vertices.push(HudVertex::new(position, color));
     }
 }
 

@@ -7,16 +7,30 @@ use renderer_api::HudVertex;
 use crate::app::garage::GarageState;
 use crate::app::garage::layout::*;
 use crate::hud::font::{push_text, text_width};
-use crate::hud::push_quad;
+use crate::hud::push_panel;
 
 pub(in crate::app::garage) fn draw(v: &mut Vec<HudVertex>, state: &GarageState, aspect: f32) {
     let count = VehicleKind::PLAYABLE.len();
-    push_quad(v, [0.0, CAR_Y], [count as f32 * 0.065 + 0.02, CAR_HALF[1] + 0.02], PANEL);
+    push_panel(
+        v,
+        [0.0, CAR_Y],
+        [count as f32 * 0.065 + 0.02, CAR_HALF[1] + 0.02],
+        CHAMFER_PANEL,
+        aspect,
+        PANEL,
+    );
 
     for (i, kind) in VehicleKind::PLAYABLE.into_iter().enumerate() {
         let c = carousel_center(i, count);
         let selected = i == state.selected_index();
-        push_quad(v, c, CAR_HALF, if selected { SLOT_SELECTED } else { SLOT });
+        push_panel(
+            v,
+            c,
+            CAR_HALF,
+            CHAMFER_SLOT,
+            aspect,
+            if selected { SLOT_SELECTED } else { SLOT },
+        );
         let text_color = if selected { TEXT } else { TEXT_DIM };
 
         // Nation label above the short name, colored by nation for at-a-glance grouping.

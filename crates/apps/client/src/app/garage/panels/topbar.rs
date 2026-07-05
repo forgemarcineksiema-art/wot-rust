@@ -8,13 +8,13 @@ use crate::app::garage::GarageState;
 use crate::app::garage::GarageView;
 use crate::app::garage::layout::*;
 use crate::hud::font::{push_text, text_width};
-use crate::hud::push_quad;
+use crate::hud::{push_panel, push_quad};
 use crate::ui_strings::garage as strings;
 
 pub(in crate::app::garage) fn draw(v: &mut Vec<HudVertex>, state: &GarageState, aspect: f32) {
     push_quad(v, [0.0, 0.93], [1.0, 0.07], PANEL);
 
-    push_quad(v, BATTLE_CENTER, BATTLE_HALF, BATTLE);
+    push_panel(v, BATTLE_CENTER, BATTLE_HALF, CHAMFER_SLOT, aspect, BATTLE);
     let w = text_width(strings::BATTLE, 0.05, aspect);
     push_text(
         v,

@@ -5,19 +5,25 @@
 use game_core::{Nation, VehicleKind};
 
 use super::draft::FitSlot;
+use crate::hud::theme;
 
-pub(super) const PANEL: [f32; 4] = [0.05, 0.06, 0.07, 0.74];
-pub(super) const SLOT: [f32; 4] = [0.13, 0.15, 0.17, 0.92];
-pub(super) const SLOT_SELECTED: [f32; 4] = [0.40, 0.55, 0.70, 0.95];
-pub(super) const SLOT_FOCUSED: [f32; 4] = [0.22, 0.34, 0.44, 0.95];
-pub(super) const REJECTED: [f32; 4] = [0.50, 0.12, 0.10, 0.92];
-pub(super) const HOVER: [f32; 4] = [1.0, 1.0, 1.0, 0.10];
-pub(super) const BATTLE: [f32; 4] = [0.74, 0.22, 0.18, 0.97];
-pub(super) const ICON: [f32; 4] = [0.86, 0.88, 0.84, 0.96];
-pub(super) const ICON_DIM: [f32; 4] = [0.70, 0.73, 0.70, 0.85];
-pub(super) const TEXT: [f32; 4] = [0.90, 0.93, 0.88, 0.97];
-pub(super) const TEXT_DIM: [f32; 4] = [0.72, 0.76, 0.72, 0.85];
-pub(super) const VALUE: [f32; 4] = [0.96, 0.92, 0.70, 0.98];
+// Palette: aliases into the art-direction tokens (`hud/theme.rs`) so the garage and the battle
+// HUD stay one visual system. Retint in the theme, not here.
+pub(super) const PANEL: [f32; 4] = theme::color::PANEL;
+pub(super) const SLOT: [f32; 4] = theme::color::SLOT;
+pub(super) const SLOT_SELECTED: [f32; 4] = theme::color::SLOT_SELECTED;
+pub(super) const SLOT_FOCUSED: [f32; 4] = theme::color::SLOT_FOCUSED;
+pub(super) const REJECTED: [f32; 4] = theme::color::REJECTED;
+pub(super) const HOVER: [f32; 4] = theme::color::HOVER;
+pub(super) const BATTLE: [f32; 4] = theme::color::SIGNAL;
+pub(super) const ICON: [f32; 4] = theme::color::ICON;
+pub(super) const ICON_DIM: [f32; 4] = theme::color::ICON_DIM;
+pub(super) const TEXT: [f32; 4] = theme::color::TEXT;
+pub(super) const TEXT_DIM: [f32; 4] = theme::color::TEXT_DIM;
+pub(super) const VALUE: [f32; 4] = theme::color::VALUE;
+pub(super) const HAIRLINE: [f32; 4] = theme::color::HAIRLINE;
+pub(super) const CHAMFER_PANEL: f32 = theme::CHAMFER_PANEL;
+pub(super) const CHAMFER_SLOT: f32 = theme::CHAMFER_SLOT;
 
 // Top bar.
 pub(super) const BATTLE_CENTER: [f32; 2] = [0.0, 0.90];

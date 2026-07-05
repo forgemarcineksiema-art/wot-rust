@@ -7,13 +7,14 @@ use renderer_api::HudVertex;
 use crate::app::garage::layout::*;
 use crate::hud::font::{push_icon, push_text};
 use crate::hud::icons::HudIcon;
-use crate::hud::push_quad;
+use crate::hud::{push_hairline, push_panel};
 use crate::ui_strings::garage as strings;
 
 pub(in crate::app::garage) fn draw(v: &mut Vec<HudVertex>, spec: &TankSpec, aspect: f32) {
-    push_quad(v, [STAT_X, 0.46], [STAT_HALF_X + 0.02, 0.34], PANEL);
+    push_panel(v, [STAT_X, 0.46], [STAT_HALF_X + 0.02, 0.34], CHAMFER_PANEL, aspect, PANEL);
     let left = STAT_X - STAT_HALF_X;
     push_text(v, strings::VEHICLE, left, 0.80, 0.04, aspect, TEXT_DIM);
+    push_hairline(v, left, STAT_X + STAT_HALF_X, 0.755, HAIRLINE);
 
     let rows = [
         (HudIcon::StatHp, format!("{}", spec.hit_points)),
