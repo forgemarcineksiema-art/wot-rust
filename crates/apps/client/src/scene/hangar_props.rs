@@ -6,7 +6,7 @@
 use glam::Vec3;
 use renderer_api::SceneVertex;
 
-use super::hangar::{push_cylinder, slab};
+use super::hangar::{HALF, WALL_HEIGHT, push_cylinder, slab};
 
 const STEEL: [f32; 3] = [0.24, 0.25, 0.27];
 const DARK_STEEL: [f32; 3] = [0.16, 0.17, 0.18];
@@ -19,22 +19,27 @@ const OIL: [f32; 3] = [0.05, 0.045, 0.04];
 /// Append every workshop prop to the hangar mesh. Wall-side props sit near the shell so the bay
 /// floor around the turntable stays clear for the hero vehicle.
 pub(super) fn push_props(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
+    // Wall-side props are anchored a fixed offset in from the shell, so they follow the wall at any
+    // hall size instead of floating mid-floor.
+    let wall = HALF - 1.7;
+    let corner = HALF - 3.0;
     overhead_crane(v, i);
-    wheel_stack(v, i, -12.0, -12.0);
-    wheel_stack(v, i, -12.7, -12.0);
-    track_link_pile(v, i, 12.0, -12.0);
-    workbench(v, i, 13.3, 6.0);
-    barrels(v, i);
+    wheel_stack(v, i, -corner, -corner);
+    wheel_stack(v, i, -corner - 0.7, -corner);
+    track_link_pile(v, i, corner, -corner);
+    workbench(v, i, wall, 6.0);
+    barrels(v, i, -wall);
     oil_stains(v, i);
 }
 
 /// A gantry crane spanning the bay just under the trusses, with a hoist block hanging over the
 /// turntable — the workshop's signature overhead silhouette.
 fn overhead_crane(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
-    let beam_y = 8.5;
+    let beam_y = WALL_HEIGHT - 2.5;
+    let span = HALF - 1.5;
     // Main box girder across the bay (x-spanning), plus a lighter cross rail it rides on.
-    slab(v, i, [0.0, beam_y, -1.6], [13.5, 0.28, 0.32], STEEL);
-    slab(v, i, [0.0, beam_y + 0.34, -1.6], [13.5, 0.06, 0.5], DARK_STEEL);
+    slab(v, i, [0.0, beam_y, -1.6], [span, 0.28, 0.32], STEEL);
+    slab(v, i, [0.0, beam_y + 0.34, -1.6], [span, 0.06, 0.5], DARK_STEEL);
     // Trolley + hoist block, offset off-centre so it does not sit dead over the hero vehicle.
     slab(v, i, [3.2, beam_y - 0.2, -1.6], [0.5, 0.2, 0.5], DARK_STEEL);
     slab(v, i, [3.2, beam_y - 1.1, -1.6], [0.14, 0.7, 0.14], DARK_STEEL); // cable run
@@ -76,10 +81,10 @@ fn workbench(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>, x: f32, z: f32) {
     }
 }
 
-/// A short row of fuel barrels standing against the left wall.
-fn barrels(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
+/// A short row of fuel barrels standing against the left wall (`wall_x`).
+fn barrels(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>, wall_x: f32) {
     for (n, z) in [-3.4_f32, -2.6, -1.8].into_iter().enumerate() {
-        let x = -13.3 + (n as f32 * 0.05);
+        let x = wall_x + (n as f32 * 0.05);
         push_cylinder(v, i, Vec3::new(x, 0.0, z), 0.34, 0.92, 18, BARREL);
         // Two rim rings read the barrel as steel, not a plain can.
         push_cylinder(v, i, Vec3::new(x, 0.28, z), 0.36, 0.04, 18, DARK_STEEL);

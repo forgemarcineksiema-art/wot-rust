@@ -53,9 +53,9 @@ pub(super) struct GarageState {
 
 const HERO_ORBIT_YAW: f32 = 0.60;
 const HERO_ORBIT_PITCH: f32 = 0.28;
-// Mid-range in the 5–14 m boom: frames the whole vehicle with headroom to scroll both ways inside
-// the enlarged hall. (The hall was sized so this range never reaches the walls — see camera.rs.)
-const HERO_ORBIT_DISTANCE: f32 = 11.0;
+// Standard framing in the 5–17 m boom: a roomy hangar look with headroom to scroll both ways.
+// (The hall is sized so this range never reaches the walls — see camera.rs.)
+const HERO_ORBIT_DISTANCE: f32 = 14.0;
 
 impl Default for GarageState {
     fn default() -> Self {
