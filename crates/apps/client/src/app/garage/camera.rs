@@ -9,15 +9,16 @@ use renderer_api::Camera;
 
 use super::draft::FitSlot;
 use super::{GarageState, HERO_ORBIT_DISTANCE, HERO_ORBIT_PITCH, HERO_ORBIT_YAW};
-use crate::scene::hangar::{hangar_camera_pivot, hangar_interior};
+use crate::scene::hangar::hangar_camera_pivot;
 
 const MIN_PITCH: f32 = -0.05;
-const MAX_PITCH: f32 = 1.20;
-/// Closest boom: pulled in from the old 8.5 m so the player can inspect the running gear.
-const MIN_DISTANCE: f32 = 4.0;
-const MAX_DISTANCE: f32 = 20.0;
-/// Keep the eye at least this far off any wall/roof so the camera never clips through the shell.
-const ROOM_MARGIN: f32 = 0.6;
+/// Capped so a full zoom-out never tips the eye up through the roof — with the boom range below and
+/// the hall size (`hangar_interior`), the whole orbit stays inside the shell without any clamping.
+const MAX_PITCH: f32 = 0.65;
+/// Closest boom (running-gear inspection) and the widest pull-back. Both are chosen to sit inside
+/// the hangar at every angle, so zooming is a plain range — no wall-dependent clamp, no snapping.
+const MIN_DISTANCE: f32 = 5.0;
+const MAX_DISTANCE: f32 = 14.0;
 const ORBIT_SENSITIVITY: f32 = 0.005;
 const ZOOM_STEP_M: f32 = 1.2;
 /// Exponential ease rate of the focus/return spring (per second).
@@ -94,26 +95,6 @@ fn orbit_direction(yaw: f32, pitch: f32) -> Vec3 {
     Vec3::new(pitch.cos() * yaw.sin(), pitch.sin(), pitch.cos() * yaw.cos())
 }
 
-/// The largest boom length that keeps the eye inside the hangar shell (with `ROOM_MARGIN`) looking
-/// from `pivot` along `dir` — this is what stops a zoom-out from clipping through the walls or roof.
-fn room_limited_distance(pivot: Vec3, dir: Vec3, desired: f32) -> f32 {
-    let (half, height) = hangar_interior();
-    let m = ROOM_MARGIN;
-    // Per axis: `(pos, dir, lo, hi)`. The boundary `+dir` reaches is `hi`, `-dir` reaches `lo`.
-    let slabs = [
-        (pivot.x, dir.x, -(half - m), half - m),
-        (pivot.z, dir.z, -(half - m), half - m),
-        (pivot.y, dir.y, m, height - m),
-    ];
-    let mut limit = desired;
-    for (p, d, lo, hi) in slabs {
-        if d.abs() >= 1.0e-4 {
-            limit = limit.min((if d > 0.0 { hi } else { lo } - p) / d);
-        }
-    }
-    limit.max(MIN_DISTANCE)
-}
-
 /// Shortest signed difference `to - from` for an angle, so the yaw spring takes the near way round.
 fn angle_delta(from: f32, to: f32) -> f32 {
     let mut d = to - from;
@@ -129,9 +110,7 @@ fn angle_delta(from: f32, to: f32) -> f32 {
 impl GarageState {
     pub(in crate::app) fn orbit_camera(&self) -> Camera {
         let pivot = hangar_camera_pivot() + self.pivot_offset;
-        let dir = orbit_direction(self.orbit_yaw, self.orbit_pitch);
-        let distance = room_limited_distance(pivot, dir, self.orbit_distance);
-        let eye = pivot + dir * distance;
+        let eye = pivot + orbit_direction(self.orbit_yaw, self.orbit_pitch) * self.orbit_distance;
         Camera { eye: eye.to_array(), target: pivot.to_array(), vertical_fov_degrees: 32.0 }
     }
 
@@ -144,23 +123,13 @@ impl GarageState {
         self.idle_seconds = 0.0;
         self.orbit_yaw += dx * ORBIT_SENSITIVITY;
         self.orbit_pitch = (self.orbit_pitch - dy * ORBIT_SENSITIVITY).clamp(MIN_PITCH, MAX_PITCH);
-        // Tilting to the horizon shrinks the room's reach — pull the boom in so the eye stays inside.
-        self.orbit_distance = self.room_limited_orbit(self.orbit_distance);
     }
 
     pub(in crate::app) fn apply_zoom(&mut self, notches: f32) {
         self.camera_target = None;
         self.idle_seconds = 0.0;
-        let desired =
+        self.orbit_distance =
             (self.orbit_distance - notches * ZOOM_STEP_M).clamp(MIN_DISTANCE, MAX_DISTANCE);
-        // Zoom out only as far as the room allows — no distance banked "outside" the wall.
-        self.orbit_distance = self.room_limited_orbit(desired);
-    }
-
-    /// The desired boom length, capped so the eye stays inside the hangar at the current framing.
-    fn room_limited_orbit(&self, desired: f32) -> f32 {
-        let pivot = hangar_camera_pivot() + self.pivot_offset;
-        room_limited_distance(pivot, orbit_direction(self.orbit_yaw, self.orbit_pitch), desired)
     }
 
     /// Fly the camera to frame a fitting slot's module.
@@ -244,25 +213,21 @@ mod tests {
     }
 
     #[test]
-    fn zooming_out_never_pushes_the_eye_through_the_hangar_shell() {
-        let (half, height) = hangar_interior();
-        // Across the full orbit — every yaw, from a near-horizontal to a steep pitch — scrolling all
-        // the way out must leave the eye inside the room, never clipping a wall or the roof.
-        for yaw_step in 0..12 {
-            let yaw = yaw_step as f32 / 12.0 * std::f32::consts::TAU;
-            for &pitch in &[MIN_PITCH, 0.1, HERO_ORBIT_PITCH, 0.8, MAX_PITCH] {
-                let mut garage =
-                    GarageState { orbit_yaw: yaw, orbit_pitch: pitch, ..GarageState::default() };
-                for _ in 0..40 {
-                    garage.apply_zoom(-1.0); // scroll out to the limit
-                }
-                let [x, y, z] = garage.orbit_camera().eye;
-                assert!(x.abs() < half, "eye left the room on x (yaw {yaw}, pitch {pitch}): {x}");
-                assert!(z.abs() < half, "eye left the room on z (yaw {yaw}, pitch {pitch}): {z}");
-                assert!(
-                    y > 0.0 && y < height,
-                    "eye left the room on y (yaw {yaw}, pitch {pitch}): {y}"
-                );
+    fn the_full_zoom_range_fits_inside_the_hangar_at_every_angle() {
+        // The boom is a plain range (no wall clamp), so correctness is a geometry invariant: at the
+        // widest pull-back and the steepest allowed tilt, from any yaw, the eye must still clear the
+        // shell. If a constant drifts (hall shrinks, boom grows, pitch cap rises) this catches it.
+        let (half, height) = crate::scene::hangar::hangar_interior();
+        let pivot = crate::scene::hangar::hangar_camera_pivot();
+        let margin = 0.4;
+        for yaw_step in 0..24 {
+            let yaw = yaw_step as f32 / 24.0 * std::f32::consts::TAU;
+            for &pitch in &[MIN_PITCH, 0.3, MAX_PITCH] {
+                let eye = pivot + orbit_direction(yaw, pitch) * MAX_DISTANCE;
+                assert!(eye.x.abs() < half - margin, "eye clips x at yaw {yaw}, pitch {pitch}");
+                assert!(eye.z.abs() < half - margin, "eye clips z at yaw {yaw}, pitch {pitch}");
+                assert!(eye.y > margin, "eye clips the floor at yaw {yaw}, pitch {pitch}");
+                assert!(eye.y < height - margin, "eye clips the roof at yaw {yaw}, pitch {pitch}");
             }
         }
     }

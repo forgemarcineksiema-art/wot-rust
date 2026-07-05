@@ -50,7 +50,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let pivot = hangar_camera_pivot();
     let orbit_yaw = 0.60_f32;
     let orbit_pitch = 0.28_f32;
-    let orbit_distance = 9.0_f32;
+    let orbit_distance = 11.0_f32;
     let horizontal = orbit_distance * orbit_pitch.cos();
     let eye = pivot
         + glam::Vec3::new(

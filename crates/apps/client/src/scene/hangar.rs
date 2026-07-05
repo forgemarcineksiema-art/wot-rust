@@ -12,12 +12,12 @@ use renderer_api::SceneVertex;
 
 use crate::tank_mesh::push_oriented_box;
 
-const HALF: f32 = 13.0;
-const WALL_HEIGHT: f32 = 8.0;
+const HALF: f32 = 15.0;
+const WALL_HEIGHT: f32 = 11.0;
 const SLAB: f32 = 0.15;
 /// Height where the gunmetal lower wall meets the near-black upper wall. The two bands **abut** at
 /// this seam — they must never overlap, or their coplanar inner faces z-fight (a moiré band).
-const WALL_SEAM: f32 = 4.8;
+const WALL_SEAM: f32 = 6.0;
 /// Top surface of the turntable the tank rests on, metres above the floor.
 pub const TURNTABLE_TOP_M: f32 = 0.12;
 const TURNTABLE_RADIUS_M: f32 = 5.2;
@@ -42,8 +42,9 @@ pub fn hangar_camera_pivot() -> Vec3 {
     Vec3::new(0.0, TURNTABLE_TOP_M + 1.3, 0.0)
 }
 
-/// Interior of the hangar shell as `(half_extent_xz, height)` so the orbit camera can keep its eye
-/// inside the room — otherwise zooming out clips the eye straight through the walls or roof.
+/// Interior of the hangar shell as `(half_extent_xz, height)`. Used by the camera invariant test to
+/// prove the whole orbit range stays inside the room (the boom range and pitch cap are sized to it).
+#[cfg(test)]
 pub fn hangar_interior() -> (f32, f32) {
     (HALF, WALL_HEIGHT)
 }
@@ -74,21 +75,21 @@ pub fn hangar_scene_mesh() -> (Vec<SceneVertex>, Vec<u32>) {
         slab(&mut v, &mut i, [cx, upper_c, 0.0], [SLAB, upper_h, HALF], UPPER_WALL);
     }
 
-    // Vertical wall ribs (pilasters) proud of the side and back walls.
-    for z in [-9.0_f32, -4.5, 0.0, 4.5, 9.0] {
+    // Vertical wall ribs (pilasters) proud of the side and back walls, spaced to span the bay.
+    for z in [-12.0_f32, -6.0, 0.0, 6.0, 12.0] {
         slab(&mut v, &mut i, [-(HALF - 0.2), h, z], [0.12, h - 0.4, 0.35], RIB);
         slab(&mut v, &mut i, [HALF - 0.2, h, z], [0.12, h - 0.4, 0.35], RIB);
     }
-    for x in [-9.0_f32, -4.5, 4.5, 9.0] {
+    for x in [-12.0_f32, -6.0, 6.0, 12.0] {
         slab(&mut v, &mut i, [x, h, -(HALF - 0.2)], [0.35, h - 0.4, 0.12], RIB);
     }
 
     // Roof trusses spanning the bay, backlit by bright skylight strips above them so the trusses
     // read as dark bars against daylight.
-    for z in [-8.0_f32, -4.0, 0.0, 4.0, 8.0] {
+    for z in [-12.0_f32, -6.0, 0.0, 6.0, 12.0] {
         slab(&mut v, &mut i, [0.0, WALL_HEIGHT - 0.3, z], [HALF - 0.5, 0.12, 0.18], TRUSS);
     }
-    for x in [-6.0_f32, 0.0, 6.0] {
+    for x in [-8.0_f32, 0.0, 8.0] {
         slab(&mut v, &mut i, [x, WALL_HEIGHT - 0.02, 0.0], [1.4, 0.03, HALF - 3.0], SKYLIGHT);
     }
 

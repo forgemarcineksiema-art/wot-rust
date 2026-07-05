@@ -53,10 +53,9 @@ pub(super) struct GarageState {
 
 const HERO_ORBIT_YAW: f32 = 0.60;
 const HERO_ORBIT_PITCH: f32 = 0.28;
-// Pulled in from 11.5 m: at that range the boom sat almost on the 13 m wall, so the tank read small
-// in a cavernous room and there was no headroom to scroll out. 9 m frames the vehicle and leaves
-// room to zoom both ways before the room clamp stops the eye at the shell.
-const HERO_ORBIT_DISTANCE: f32 = 9.0;
+// Mid-range in the 5–14 m boom: frames the whole vehicle with headroom to scroll both ways inside
+// the enlarged hall. (The hall was sized so this range never reaches the walls — see camera.rs.)
+const HERO_ORBIT_DISTANCE: f32 = 11.0;
 
 impl Default for GarageState {
     fn default() -> Self {
