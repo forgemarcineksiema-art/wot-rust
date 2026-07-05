@@ -16,6 +16,8 @@ physics.workspace = true
 png = "0.18"
 renderer_api.workspace = true
 renderer_wgpu.workspace = true
+serde.workspace = true
+serde_json.workspace = true
 server.workspace = true
 sim.workspace = true
 terrain.workspace = true
@@ -27,7 +29,6 @@ winit.workspace = true
 
 [dev-dependencies]
 png = "0.18"
-serde_json.workspace = true
 vehicle_build.workspace = true
 
 [lints]

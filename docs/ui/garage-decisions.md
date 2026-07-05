@@ -81,11 +81,34 @@ is documented here with a reason and a status.
   unlock gating, no XP, no credits** — every `VehicleKind::PLAYABLE` vehicle
   is selectable. The tree is an organisational view, not a progression system.
 
+## Decisions
+
+### Per-vehicle persistent loadouts (behaviour change)
+
+- **Status:** implemented (`garage/persistence.rs`, `garage/mod.rs`,
+  `draft.rs::{to_saved, from_saved}`).
+- **What changed:** the garage used to hold a *single* draft and reset it to
+  stock on every vehicle switch (locked by
+  `selecting_a_new_vehicle_resets_the_draft_to_its_stock_loadout`). Now each
+  vehicle keeps its own edited draft: switching away stashes the outgoing draft
+  and switching back restores it. The reset-on-switch test is replaced by
+  `switching_vehicles_restores_each_vehicles_saved_loadout`.
+- **Persistence:** the selected vehicle and every edited draft are written as
+  versioned JSON to `%APPDATA%/wot-prototype/garage.json` (XDG/`HOME/.config`
+  elsewhere; `garage.json` in the working dir as a last resort). Saved on every
+  mutating action and on Battle. Load is best-effort: a missing, corrupt, or
+  wrong-`version` file degrades to the stock garage, never a panic. Restore
+  re-applies option indices through the compatibility-checked install path, so
+  a stale/removed option silently falls back to stock.
+- **Purity:** `GarageState::default()` stays filesystem-free (tests, offscreen
+  renders); the real client opts in via `ClientApp::enable_garage_persistence()`
+  at startup.
+
 ## Known limitations (deferred deliberately)
 
-- **No cross-app persistence.** The loadout draft is in-memory only; restarting
-  the client loses module swaps. A save/load layer is out of scope for the
-  prototype.
+- **Per-slot ammo counts are not edited yet.** The rack carries the default
+  fill with the garage-chosen slot pre-loaded; editing how many of each round
+  fill the rack is a follow-up.
 - **Orbit camera `MIN_PITCH = -0.05`.** The inspection camera cannot look up
   at the tank from below; it is clamped just below horizon. Acceptable for
   turntable inspection; revisit if under-hull viewing becomes a goal.

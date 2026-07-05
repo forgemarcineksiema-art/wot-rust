@@ -144,6 +144,13 @@ impl ClientApp {
         }
     }
 
+    /// Turn on garage disk persistence (selected vehicle + per-vehicle loadouts survive restarts).
+    /// Called once from the real startup path; `ClientApp::new` stays pure so tests never touch
+    /// the user's save file.
+    pub(in crate::app) fn enable_garage_persistence(&mut self) {
+        self.garage.enable_persistence(super::persistence::save_path());
+    }
+
     pub(in crate::app) fn confirm_garage_selection(&mut self) {
         let spec = self.garage.confirm();
         let display_name = spec.name.clone();
