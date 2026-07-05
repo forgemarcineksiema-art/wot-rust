@@ -87,6 +87,9 @@ impl ClientApp {
             view_proj,
             aspect,
         );
+        let camera_forward_xz =
+            [camera.target[0] - camera.eye[0], camera.target[2] - camera.eye[2]];
+        let minimap = self.build_minimap(&presentation_tanks, camera_forward_xz);
         let visible_tanks = self.visible_render_tanks(presentation_tanks);
         let player_gun_scale = self.player_barrel_scale();
         let vehicles = split_pbr_vehicle_render_frame_on_terrain(
@@ -104,8 +107,6 @@ impl ClientApp {
             reload_remaining_s: reload_remaining,
             reload_seconds: reload_max,
         };
-        let camera_forward_xz =
-            [camera.target[0] - camera.eye[0], camera.target[2] - camera.eye[2]];
         let hud_model = crate::hud::BattleHudModel {
             vitals,
             reticle: self.hud_reticle(&camera, view_proj),
@@ -115,6 +116,7 @@ impl ClientApp {
             damage_log: self.damage_log.visible(),
             incoming_hits: self.incoming_hits.screen_hits(camera_forward_xz),
             ammo: Some(self.player_ammo_hud()),
+            minimap,
         };
         let mut hud = crate::hud::build_battle_hud(&hud_model, aspect);
         hud.extend(enemy_bars);

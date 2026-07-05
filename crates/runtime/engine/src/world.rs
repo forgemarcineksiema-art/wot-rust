@@ -7,7 +7,8 @@ use net::TankSnapshot;
 use crate::attitude::HullAttitude;
 use crate::components::{
     DestroyedModules, GunPitch, GunRecoil, Health, ModuleHitPoints, PresentationTank,
-    RenderTransform, TankEntity, Team, Time, TrackAnimation, TrackDamage, TurretYaw, Vehicle,
+    RenderTransform, Spotted, TankEntity, Team, Time, TrackAnimation, TrackDamage, TurretYaw,
+    Vehicle,
 };
 use crate::sync_cues::{attitude_sample, suspension_pool_fraction};
 
@@ -63,6 +64,7 @@ impl PresentationWorld {
                 Team(tank.team),
                 Health { hit_points: tank.hit_points },
                 DestroyedModules(tank.destroyed_modules_mask),
+                Spotted(tank.spotted_by_teams_mask),
                 ModuleHitPoints(tank.module_hit_points),
                 TrackDamage(tank.track_damage_mask),
             );
@@ -145,6 +147,7 @@ impl PresentationWorld {
             &Team,
             &Health,
             &DestroyedModules,
+            &Spotted,
             &ModuleHitPoints,
             &TrackDamage,
             &TrackAnimation,
@@ -163,6 +166,7 @@ impl PresentationWorld {
                     team,
                     health,
                     destroyed,
+                    spotted,
                     modules,
                     damage,
                     track,
@@ -179,6 +183,7 @@ impl PresentationWorld {
                         gun_pitch_rad: pitch.0,
                         hit_points: health.hit_points,
                         destroyed_modules_mask: destroyed.0,
+                        spotted_by_teams_mask: spotted.0,
                         module_hit_points: modules.0,
                         track_damage_mask: damage.0,
                         track_left_m: track.left_m,

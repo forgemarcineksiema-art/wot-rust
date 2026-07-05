@@ -9,6 +9,7 @@ use renderer_api::HudVertex;
 use super::ammo_panel::AmmoHudModel;
 use super::damage_log::{DamageLogEntry, LogDirection};
 use super::hit_direction::IncomingHit;
+use super::minimap::{self, MinimapBox, MinimapModel};
 use super::reticle::{PenetrationHint, ReticleMode, ReticleStatus};
 use super::reticle_overlay::HudReticle;
 use super::reticle_readouts::HitConfirm;
@@ -64,8 +65,32 @@ pub fn demo_battle_hud(sniper: bool, aspect: f32) -> Vec<HudVertex> {
         ],
         incoming_hits: vec![IncomingHit { bearing_rad: 2.1, age_s: 0.3, penetrated: false }],
         ammo: Some(AmmoHudModel::new([22, 9, 6], 0)),
+        minimap: Some(demo_minimap()),
     };
     build_battle_hud(&model, aspect)
+}
+
+/// A synthetic minimap for the staged frame: a diagonal ridge, one cover block, the player with
+/// its view wedge, an ally, and one spotted enemy.
+fn demo_minimap() -> MinimapModel {
+    let res = minimap::RELIEF_RES;
+    let relief = (0..res * res)
+        .map(|i| {
+            let (x, z) = ((i % res) as f32 / res as f32, (i / res) as f32 / res as f32);
+            (0.5 + 0.5 * ((x + z - 1.0) * std::f32::consts::PI).sin()).clamp(0.0, 1.0)
+        })
+        .collect();
+    MinimapModel {
+        extent_m: [1000.0, 1000.0],
+        relief,
+        cover: vec![MinimapBox { center_xz: [520.0, 470.0], half_xz: [40.0, 14.0] }],
+        player_xz: [420.0, 300.0],
+        player_heading_rad: 0.5,
+        view_yaw_rad: 0.5,
+        view_half_fov_rad: 0.45,
+        allies: vec![[470.0, 360.0]],
+        enemies: vec![[640.0, 660.0]],
+    }
 }
 
 #[cfg(test)]

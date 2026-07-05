@@ -8,7 +8,6 @@
 //! tank's position to every client, so this gates UI (minimap, enemy HP bars), not replication.
 //! Per-client snapshot filtering is the real anti-wallhack follow-up; this mask is its foundation.
 
-use game_core::TeamId;
 use glam::Vec3;
 use terrain::{HeightMap, StaticCoverObject};
 
@@ -18,13 +17,6 @@ use crate::TankState;
 pub const VIEW_RANGE_M: f32 = 400.0;
 /// Recompute cadence: every 6 ticks = 10 Hz at the 60 Hz simulation.
 pub const SPOTTING_INTERVAL_TICKS: u64 = 6;
-
-/// The team-bit for a `TeamId` in the `spotted` mask (team 1 -> bit 0). Teams beyond 8 are
-/// clamped into the top bit; the roster never approaches that.
-fn team_bit(team: TeamId) -> u8 {
-    let index = (team.0 as u32).saturating_sub(1).min(7);
-    1u8 << index
-}
 
 /// Whether the segment `from -> to` clears the terrain: step along it and fail if the ground ever
 /// rises above the sight line (with a little slack so grazing a crest still counts as seeing over).
@@ -127,7 +119,7 @@ pub fn compute_spotted_masks(
     let mut masks = vec![0u8; tanks.len()];
     for (i, target) in tanks.iter().enumerate() {
         // Own team always sees its own vehicles; a wreck is public to all teams.
-        masks[i] |= team_bit(target.team);
+        masks[i] |= target.team.spotting_bit();
         if target.hit_points == 0 {
             masks[i] = u8::MAX;
             continue;
@@ -136,7 +128,7 @@ pub fn compute_spotted_masks(
         for observer in tanks.iter() {
             if observer.hit_points == 0
                 || observer.team == target.team
-                || masks[i] & team_bit(observer.team) != 0
+                || masks[i] & observer.team.spotting_bit() != 0
             {
                 continue;
             }
@@ -145,7 +137,7 @@ pub fn compute_spotted_masks(
                 continue;
             }
             if points.iter().any(|&p| line_of_sight(heightmap, cover, eye, p)) {
-                masks[i] |= team_bit(observer.team);
+                masks[i] |= observer.team.spotting_bit();
             }
         }
     }

@@ -21,8 +21,18 @@ readouts. A staged reference frame is produced by
 | Speed + KM/H | bottom-left | `[-0.78, -0.76]` | `hud.rs` |
 | Damage log (dealt / taken rows) | left edge, mid-low | `x ≈ -0.97`, `y ≈ -0.25` downward | `hud/damage_log.rs` |
 | Incoming-hit direction arcs | ring around centre | radius `0.30` at attacker bearing | `hud/hit_direction.rs` |
-| Enemy floating HP bars | world-anchored over live enemies | projected | `hud/health_bar.rs` |
+| Minimap (relief, cover, view wedge, allies, spotted enemies, player arrow) | bottom-right square | centre `[0.80, -0.58]`, half-height `0.185` | `hud/minimap.rs`, built by `app/minimap_build.rs` |
+| Enemy floating HP bars | world-anchored over live **spotted** enemies | projected | `hud/health_bar.rs` |
 | Outgoing damage numbers | world-anchored at the hit point | projected | `hit_indicator.rs` |
+
+## Spotting gate (LOS v1)
+
+The minimap's enemy blips and the floating enemy HP bars are both gated on the
+same server-authoritative visibility bit: `TankSnapshot::spotted_by_teams_mask &
+player_team.spotting_bit()`. An enemy the player's team has not spotted appears
+in neither. Allies and the player are always shown; a wreck is public. This is a
+UI gate only — positions still replicate to every client. See
+`docs/spotting-policy.md`.
 
 ## Reticle honesty (hybrid)
 
