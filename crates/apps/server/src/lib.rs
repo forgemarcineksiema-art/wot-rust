@@ -3,6 +3,7 @@ use sim::{DEFAULT_SERVER_TICK_HZ, DEFAULT_SNAPSHOT_HZ, FixedTimestep};
 
 mod battle;
 mod bot_aim;
+mod bot_combat;
 mod bot_routes;
 mod bots;
 mod local;

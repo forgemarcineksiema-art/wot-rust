@@ -1,10 +1,11 @@
 use game_core::TankId;
 use glam::Vec3;
-use sim::{TankCommand, TankState, VIEW_RANGE_M};
+use sim::{TankCommand, TankState};
 use terrain::BattlefieldMap;
 
 use crate::battle::BattleSeed;
-use crate::bot_routes::{bot_route_command, seed_route_index};
+use crate::bot_combat::{bot_combat_command, bot_nearest_engageable_enemy};
+use crate::bot_routes::{BotPosture, bot_posture, bot_route_command, seed_route_index};
 
 /// How little per-tick progress counts as "not moving" while the bot commands forward drive
 /// (0.01 m/tick = 0.6 m/s at 60 Hz — well under the slowest route crawl).
@@ -18,6 +19,8 @@ const REVERSE_TICKS: u32 = 80;
 struct BotAgent {
     tank_id: TankId,
     route_index: usize,
+    /// Skirmish (rotate objectives) or overwatch (hold a hull-down point) — see `bot_routes`.
+    posture: BotPosture,
     /// Hull position at the previous command, for stall detection.
     last_position: Option<Vec3>,
     /// Consecutive ticks the bot commanded drive but the hull did not move.
@@ -27,8 +30,15 @@ struct BotAgent {
 }
 
 impl BotAgent {
-    fn new(tank_id: TankId, route_index: usize) -> Self {
-        Self { tank_id, route_index, last_position: None, stall_ticks: 0, reverse_ticks: 0 }
+    fn new(tank_id: TankId, route_index: usize, posture: BotPosture) -> Self {
+        Self {
+            tank_id,
+            route_index,
+            posture,
+            last_position: None,
+            stall_ticks: 0,
+            reverse_ticks: 0,
+        }
     }
 }
 
@@ -46,7 +56,9 @@ impl BotRoster {
         let agents = tank_ids
             .into_iter()
             .enumerate()
-            .map(|(index, tank_id)| BotAgent::new(tank_id, seed_route_index(seed, index)))
+            .map(|(index, tank_id)| {
+                BotAgent::new(tank_id, seed_route_index(seed, index), bot_posture(index))
+            })
             .collect();
         Self { agents }
     }
@@ -93,10 +105,20 @@ fn bot_command_for_tank(
         agent.last_position = Some(tank.position);
         return bot_combat_command(tank, target);
     }
-    if let Some(command) = bot_unstuck_command(agent, tank) {
-        return command;
+    let posture = agent.posture;
+    let command = bot_route_command(&mut agent.route_index, posture, tank, battlefield);
+    // Stall detection guards MOVEMENT intent only. An overwatch bot holding its shelf (and the
+    // slow on-station pivot) stands still on purpose — without this gate the hold would read as
+    // "stuck" every 1.5 s and the bot would bounce off its own position forever.
+    if command.throttle > 0.2 {
+        if let Some(unstuck) = bot_unstuck_command(agent, tank) {
+            return unstuck;
+        }
+    } else {
+        agent.stall_ticks = 0;
+        agent.last_position = Some(tank.position);
     }
-    bot_route_command(&mut agent.route_index, tank, battlefield)
+    command
 }
 
 /// Detect and escape a physical block. The route brain only ever drives FORWARD, so two bots that
@@ -137,56 +159,19 @@ fn bot_reverse_command(tank: &TankState) -> TankCommand {
     }
 }
 
-/// The nearest enemy this bot may ENGAGE: team-spotted, in range, and in the bot's OWN line of
-/// sight. The team mask alone says "someone on my team sees it" — a bot acting on just that parks
-/// and shells the front of a hill (or a building) for the whole reload cycle. Candidates are
-/// walked nearest-first so a closer but masked enemy falls through to a farther visible one, and
-/// a bot with no engageable target keeps driving its route instead of aiming at terrain.
-fn bot_nearest_engageable_enemy<'a>(
-    tank: &TankState,
-    tanks: &'a [TankState],
-    heightmap: Option<&terrain::HeightMap>,
-    cover: &[terrain::StaticCoverObject],
-) -> Option<&'a TankState> {
-    let mut candidates: Vec<&TankState> = tanks
-        .iter()
-        .filter(|target| {
-            target.team != tank.team
-                && target.hit_points > 0
-                && target.position.distance(tank.position) <= VIEW_RANGE_M
-                && target.spotted_mask & tank.team.spotting_bit() != 0
-        })
-        .collect();
-    candidates.sort_by(|a, b| {
-        tank.position
-            .distance_squared(a.position)
-            .total_cmp(&tank.position.distance_squared(b.position))
-    });
-    candidates.into_iter().find(|target| sim::tank_line_of_sight(tank, target, heightmap, cover))
-}
-
-/// Stand and lay the gun on the ballistic firing solution (`bot_aim`); the trigger waits for the
-/// lay to close inside the angle the target actually subtends at this range.
-fn bot_combat_command(tank: &TankState, target: &TankState) -> TankCommand {
-    let aim = crate::bot_aim::bot_aim_solution(tank, target);
-    TankCommand {
-        throttle: 0.0,
-        steer: 0.0,
-        brake: 0.35,
-        turret_yaw_delta: (aim.turret_error * 4.0).clamp(-1.0, 1.0),
-        gun_pitch_delta: (aim.pitch_error * 4.0).clamp(-1.0, 1.0),
-        fire: aim.on_target() && tank.reload_remaining_s <= 0.0,
-        select_ammo: None,
-    }
-}
-
+/// Test-only tank constructors shared by the bot modules' tests.
 #[cfg(test)]
-mod tests {
-    use game_core::TeamId;
+pub(crate) mod test_support {
+    use game_core::{TankId, TeamId};
+    use glam::Vec3;
+    use sim::TankState;
 
-    use super::*;
-
-    fn tank(id: u64, team: TeamId, position: Vec3, spotted_mask: u8) -> TankState {
+    pub(crate) fn tank_with_mask(
+        id: u64,
+        team: TeamId,
+        position: Vec3,
+        spotted_mask: u8,
+    ) -> TankState {
         let spec = game_core::VehicleKind::T54_1951.spec();
         let modules = spec.module_health;
         let ammo_counts = spec.ammo.counts;
@@ -215,6 +200,18 @@ mod tests {
             spotted_mask,
         }
     }
+
+    pub(crate) fn tank_at(id: u64, team: TeamId, position: Vec3) -> TankState {
+        tank_with_mask(id, team, position, team.spotting_bit())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use game_core::TeamId;
+
+    use super::test_support::tank_with_mask as tank;
+    use super::*;
 
     /// The route brain only drives forward, so a physically blocked bot (nose-to-nose with
     /// another bot, pinned on the player, wedged on cover) used to push into the contact for the
@@ -252,58 +249,51 @@ mod tests {
         assert!(resumed, "after backing out the bot resumes its route");
     }
 
+    /// Standing on station is not a stall. The unstuck brain fires on zero progress under a
+    /// DRIVE command; an overwatch bot holding its shelf stands still on purpose, and before the
+    /// movement-intent gate it bounced between hold and reverse every 1.5 s forever.
     #[test]
-    fn bots_target_only_enemies_spotted_by_their_team() {
-        let observer = tank(1, TeamId(1), Vec3::new(300.0, 0.0, 300.0), TeamId(1).spotting_bit());
-        let unspotted_enemy =
-            tank(2, TeamId(2), Vec3::new(305.0, 0.0, 305.0), TeamId(2).spotting_bit());
-
-        assert!(
-            bot_nearest_engageable_enemy(
-                &observer,
-                &[observer.clone(), unspotted_enemy],
-                None,
-                &[]
-            )
-            .is_none(),
-            "bot AI must reuse the authoritative spotting mask instead of running a private LOS target"
+    fn an_overwatch_bot_holding_station_never_reads_as_stuck() {
+        let battlefield = terrain::prokhorovka_hill_252_2();
+        let shelf = battlefield
+            .strategic_points
+            .iter()
+            .find(|point| point.id == "hill_hulldown_south")
+            .expect("authored shelf");
+        // Index 2 takes the overwatch posture (see `bot_posture`).
+        let mut roster =
+            BotRoster::new(vec![TankId(10), TankId(11), TankId(12)], BattleSeed::fixed(7));
+        let mut bot = test_support::tank_at(12, TeamId(1), Vec3::from_array(shelf.position));
+        bot.yaw_rad = crate::bot_routes::bot_yaw_to(
+            bot.position,
+            Vec3::new(battlefield.size_m[0] * 0.5, bot.position.y, battlefield.size_m[1] * 0.5),
         );
+
+        for tick in 0..STALL_TICKS_TO_REVERSE * 3 {
+            let commands = roster.commands(std::slice::from_ref(&bot), &battlefield, false);
+            let (_, command) =
+                *commands.iter().find(|(id, _)| *id == TankId(12)).expect("overwatch command");
+            assert!(
+                command.throttle >= 0.0,
+                "tick {tick}: the hold flipped into a reverse (stuck misread)"
+            );
+            assert!(command.brake > 0.0 || command.throttle > 0.0, "the shelf is held actively");
+        }
     }
 
-    /// A team-spotted enemy is not necessarily in THIS bot's line of sight — acting on the mask
-    /// alone, a bot parked and shelled the front of a hill for the rest of the battle. Locked
-    /// here: a masked-but-occluded enemy is not engaged (the bot keeps driving its route), a
-    /// farther enemy with a clear line wins over a nearer occluded one, and clearing the
-    /// obstruction makes the nearest enemy the target again.
     #[test]
-    fn bots_engage_only_enemies_in_their_own_line_of_sight() {
-        let observer = tank(1, TeamId(1), Vec3::new(300.0, 0.0, 300.0), TeamId(1).spotting_bit());
-        let mask = TeamId(2).spotting_bit() | TeamId(1).spotting_bit();
-        let near_enemy = tank(2, TeamId(2), Vec3::new(300.0, 0.0, 360.0), mask);
-        let far_enemy = tank(3, TeamId(2), Vec3::new(360.0, 0.0, 300.0), mask);
-        let tanks = [observer.clone(), near_enemy, far_enemy];
-        // A wall across the sight line to the near enemy only.
-        let wall = terrain::StaticCoverObject {
-            id: "wall".into(),
-            name: "wall".into(),
-            kind: terrain::StaticCoverKind::FarmBuilding,
-            center: [300.0, 5.0, 330.0],
-            half_extents_m: [20.0, 10.0, 2.0],
-        };
+    fn dead_or_absent_tanks_idle_and_a_finished_battle_idles_everyone() {
+        let battlefield = terrain::prokhorovka_hill_252_2();
+        let mut bot = tank(1, TeamId(1), Vec3::new(300.0, 0.0, 300.0), TeamId(1).spotting_bit());
+        let mut roster = BotRoster::new(vec![bot.id, TankId(99)], BattleSeed::fixed(7));
 
-        let blocked =
-            bot_nearest_engageable_enemy(&observer, &tanks, None, std::slice::from_ref(&wall));
-        assert_eq!(
-            blocked.map(|target| target.id),
-            Some(TankId(3)),
-            "a nearer but occluded enemy must fall through to a farther visible one"
-        );
+        // Battle over: even a live bot receives idle.
+        let over = roster.commands(std::slice::from_ref(&bot), &battlefield, true);
+        assert!(over.iter().all(|(_, command)| *command == TankCommand::idle()));
 
-        let clear = bot_nearest_engageable_enemy(&observer, &tanks, None, &[]);
-        assert_eq!(
-            clear.map(|target| target.id),
-            Some(TankId(2)),
-            "with the line clear the nearest enemy is engaged"
-        );
+        // A dead bot and a bot with no tank in the snapshot both idle.
+        bot.hit_points = 0;
+        let commands = roster.commands(std::slice::from_ref(&bot), &battlefield, false);
+        assert!(commands.iter().all(|(_, command)| *command == TankCommand::idle()));
     }
 }
