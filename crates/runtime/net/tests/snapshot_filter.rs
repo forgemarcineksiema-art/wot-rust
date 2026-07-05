@@ -116,6 +116,7 @@ fn impact(owner: u64) -> ShellImpact {
         owner: TankId(owner),
         position: Vec3::new(owner as f32, 0.0, 10.0),
         surface: ImpactSurface::Terrain,
+        ..ShellImpact::default()
     }
 }
 

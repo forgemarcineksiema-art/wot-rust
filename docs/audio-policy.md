@@ -74,8 +74,12 @@ strike) routes to a burst voice — sub boom sweeping 45 -> 25 Hz, a pressure
 wave whose spectrum slams shut, and a long rain of debris — instead of the
 kinetic modal clang.
 
+HE speaks as the charge everywhere: direct hits and splash strikes route to
+the burst voice, and since protocol v17 the shell-impact wire carries the
+dying shell's type, so an HE round detonating against terrain or cover
+bursts too — kinetic rounds keep the surface thud.
+
 ## What stays out of v1 (known, deliberate)
 
-- Surface-dependent track noise; HE bursts against TERRAIN still voice as
-  the ground thud (the shell-impact wire carries no shell type yet).
+- Surface-dependent track noise.
 - A volume/mixer options surface; master gain is a constant today.

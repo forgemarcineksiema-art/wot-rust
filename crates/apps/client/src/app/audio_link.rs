@@ -311,7 +311,22 @@ mod tests {
             cause: game_core::DamageCause::Splash,
             ..game_core::DamageEvent::default()
         });
+        // Protocol v17: an HE round dying against the world detonates instead of thudding.
+        snapshot.shell_impacts.push(game_core::ShellImpact {
+            owner: game_core::TankId(1),
+            position: Vec3::new(40.0, 0.0, 44.0),
+            surface: game_core::ImpactSurface::Terrain,
+            shell_type: game_core::ShellType::HighExplosive,
+        });
         app.accept_and_sync(snapshot);
+
+        assert!(
+            app.pending_audio.iter().any(|e| matches!(
+                e,
+                audio::AudioEvent::ShellAbsorbed { high_explosive: true, .. }
+            )),
+            "the HE terrain death must burst, not thud"
+        );
 
         let bursts = app
             .pending_audio
@@ -344,6 +359,7 @@ mod tests {
             owner: game_core::TankId(1),
             position: Vec3::new(30.0, 0.0, 40.0),
             surface: game_core::ImpactSurface::Terrain,
+            ..Default::default()
         });
         app.accept_and_sync(snapshot);
 

@@ -47,6 +47,7 @@ fn snapshots_carry_projectiles_and_damage_events_through_the_wire() {
             owner: TankId(1),
             position: Vec3::new(4.0, 0.1, 70.0),
             surface: game_core::ImpactSurface::Cover,
+            ..Default::default()
         }],
     };
     let message = ProtocolMessage::Snapshot(snapshot);

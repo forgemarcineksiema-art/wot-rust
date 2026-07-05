@@ -13,8 +13,9 @@ pub enum AudioEvent {
     /// A shell struck a vehicle's armor. `high_explosive` swaps the kinetic plate clang for the
     /// charge's own burst (HE direct hits and splash strikes alike).
     ArmorStruck { position: Vec3, penetrated: bool, ricocheted: bool, high_explosive: bool },
-    /// A shell died against the world instead of a target.
-    ShellAbsorbed { position: Vec3, surface: GroundKind },
+    /// A shell died against the world instead of a target. A high-explosive round detonates
+    /// (the burst voice) where kinetic rounds thud into the surface.
+    ShellAbsorbed { position: Vec3, surface: GroundKind, high_explosive: bool },
     /// The player's reload completed (breech clack at the ear).
     GunReady,
     /// The player's target was destroyed (confirmation beat).

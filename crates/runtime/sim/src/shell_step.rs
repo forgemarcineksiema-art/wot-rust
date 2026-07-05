@@ -73,7 +73,12 @@ pub(crate) fn step_shells(
                 }
             }
             Some(SegmentImpact::Obstacle { position, surface }) => {
-                shell_impacts.push(ShellImpact { owner: shells[index].owner, position, surface });
+                shell_impacts.push(ShellImpact {
+                    owner: shells[index].owner,
+                    position,
+                    surface,
+                    shell_type: shells[index].shell.shell_type,
+                });
                 burst_he_splash(&shells[index], position, tanks, damage_events, None);
                 shells.swap_remove(index);
             }
@@ -127,6 +132,7 @@ fn step_unhit_shell(
             owner: shells[index].owner,
             position,
             surface: ImpactSurface::Terrain,
+            shell_type: shells[index].shell.shell_type,
         });
         burst_he_splash(&shells[index], position, tanks, damage_events, None);
         shells.swap_remove(index);

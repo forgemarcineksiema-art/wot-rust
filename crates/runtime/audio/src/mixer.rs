@@ -105,9 +105,15 @@ impl AudioEngine {
                 let gain = if high_explosive { 1.0 } else { 0.8 };
                 self.spawn_at(voice, position, gain, true, occlusion);
             }
-            AudioEvent::ShellAbsorbed { position, surface } => {
-                let voice = Box::new(GroundImpact::new(surface, self.sample_rate_hz, seed));
-                self.spawn_at(voice, position, 0.7, true, occlusion);
+            AudioEvent::ShellAbsorbed { position, surface, high_explosive } => {
+                // HE detonates against the world; kinetic rounds thud into it.
+                let voice: Box<dyn Voice> = if high_explosive {
+                    Box::new(HeBlast::new(self.sample_rate_hz, seed))
+                } else {
+                    Box::new(GroundImpact::new(surface, self.sample_rate_hz, seed))
+                };
+                let gain = if high_explosive { 0.95 } else { 0.7 };
+                self.spawn_at(voice, position, gain, true, occlusion);
             }
             AudioEvent::GunReady => {
                 let voice = Box::new(MechanicalClick::new(true, self.sample_rate_hz, seed));
@@ -370,6 +376,7 @@ mod tests {
         engine.push_event(AudioEvent::ShellAbsorbed {
             position: Vec3::new(0.0, 0.0, 50_000.0),
             surface: GroundKind::Soil,
+            high_explosive: false,
         });
         assert_eq!(engine.live_voices(), 0);
     }

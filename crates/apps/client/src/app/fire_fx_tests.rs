@@ -72,6 +72,7 @@ fn replicated_shell_deaths_and_armor_hits_burst_into_particles() {
         owner: app.player_tank,
         position: glam::Vec3::new(30.0, 0.5, 40.0),
         surface: ImpactSurface::Terrain,
+        ..Default::default()
     });
     snapshot.damage_events.push(DamageEvent {
         source: app.player_tank,
@@ -121,11 +122,13 @@ fn a_terrain_impact_digs_a_crater_and_an_armor_hit_does_not() {
         owner: app.player_tank,
         position: glam::Vec3::new(30.0, 0.5, 40.0),
         surface: ImpactSurface::Terrain,
+        ..Default::default()
     });
     snapshot.shell_impacts.push(ShellImpact {
         owner: app.player_tank,
         position: glam::Vec3::new(50.0, 1.6, 60.0),
         surface: ImpactSurface::Hull,
+        ..Default::default()
     });
     app.accept_and_sync(snapshot);
 

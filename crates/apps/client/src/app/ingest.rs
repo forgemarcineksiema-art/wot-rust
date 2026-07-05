@@ -24,13 +24,15 @@ impl ClientApp {
         // shell the ground swallowed also digs a crater that outlives the dust.
         for impact in &snapshot.shell_impacts {
             self.fx.impact_burst(impact.position, impact.surface);
-            // The same shell death also thuds: soil swallows, structures and hulls knock.
+            // The same shell death also speaks: soil swallows, structures and hulls knock, and
+            // a high-explosive round (protocol v17 carries the type) detonates instead.
             self.queue_audio(audio::AudioEvent::ShellAbsorbed {
                 position: impact.position,
                 surface: match impact.surface {
                     game_core::ImpactSurface::Terrain => audio::GroundKind::Soil,
                     _ => audio::GroundKind::Structure,
                 },
+                high_explosive: impact.shell_type == game_core::ShellType::HighExplosive,
             });
             if impact.surface == game_core::ImpactSurface::Terrain {
                 self.terrain_scars.record(impact.position, &self.battlefield.heightmap);

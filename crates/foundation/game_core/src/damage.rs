@@ -36,6 +36,11 @@ pub struct ShellImpact {
     pub owner: TankId,
     pub position: Vec3,
     pub surface: ImpactSurface,
+    /// What kind of shell died here (protocol v17): a high-explosive round detonating against
+    /// the world is a blast, not a thud — presentation needs to know. Appended last for wire
+    /// layout stability; `serde(default)` keeps older fixtures deserializing in tests.
+    #[serde(default)]
+    pub shell_type: ShellType,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Default)]
