@@ -12,9 +12,10 @@ fn camera_uniform_is_encoded_with_wgsl_uniform_layout() {
 
     assert_eq!(bytes.len(), CameraUniform::wgsl_size());
     // view_proj (64) + camera_pos + sky ambient + ground ambient + key/fill/rim direction+colour
-    // (9 vec3 in 16-byte slots, 144) + light_view_proj (mat4, 64) + shadow_params (vec4, 16):
-    // 64 + 144 + 64 + 16 = 304.
-    assert_eq!(bytes.len(), 304);
+    // (9 vec3 in 16-byte slots, 144) + light_view_proj (mat4, 64) + shadow_params (vec4, 16)
+    // + ssao_params (vec4, 16): 64 + 144 + 64 + 16 + 16 = 304. Phase-2 atmosphere adds the gradient
+    // sky zenith + horizon (2 vec3, 32) and fog_params (vec4, 16): 304 + 48 = 352.
+    assert_eq!(bytes.len(), 352);
     assert_eq!(bytes.len() % 16, 0);
 }
 

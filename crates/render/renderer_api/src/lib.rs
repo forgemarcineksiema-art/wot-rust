@@ -97,9 +97,33 @@ pub struct SceneLighting {
     pub fill_rgb: [f32; 3],
     pub rim_direction: [f32; 3],
     pub rim_rgb: [f32; 3],
+    /// Gradient-sky zenith colour (straight up) — linear. The visible sky the ambient hemisphere
+    /// samples; see `docs/atmosphere-policy.md` phase 2.
+    pub sky_zenith_rgb: [f32; 3],
+    /// Gradient-sky horizon colour (and the aerial-perspective fog colour distant surfaces fade
+    /// toward) — linear. Distant terrain/vehicles desaturate to this so a 1000 m map reads with
+    /// real depth instead of as cardboard cut-outs.
+    pub sky_horizon_rgb: [f32; 3],
+    /// Distance-fog density: larger fades the horizon in sooner. 0 disables fog (interior looks).
+    pub fog_density: f32,
+    /// Height falloff for the fog: how fast the fog thins with world height, so valleys fill and
+    /// ridgelines cut through. 0 makes the fog uniform with height.
+    pub fog_height_falloff: f32,
 }
 
 impl SceneLighting {
+    /// Aerial-perspective fog factor for a surface `distance` metres from the camera at world
+    /// `height`: 0 = no fog (near/high), 1 = fully faded to `sky_horizon_rgb`. The CPU mirror of the
+    /// shaders' `apply_fog`, so the model is testable without a GPU. Fog thickens with distance and
+    /// thins with height; density 0 returns 0 everywhere.
+    pub fn fog_factor(&self, distance: f32, height: f32) -> f32 {
+        if self.fog_density <= 0.0 {
+            return 0.0;
+        }
+        let height_term = (-height.max(0.0) * self.fog_height_falloff).exp();
+        let f = 1.0 - (-distance.max(0.0) * self.fog_density * height_term).exp();
+        f.clamp(0.0, 1.0)
+    }
     /// The battlefield look: a warm sun key raking low from the side (so it sculpts the sides of a
     /// low hull, not just the decks), a cool sky fill and sky ambient from above, a warm ground
     /// bounce from below, and a live sky rim that lifts the silhouette off the horizon. Tuned to be
@@ -114,6 +138,13 @@ impl SceneLighting {
             fill_rgb: [0.17, 0.20, 0.26],
             rim_direction: [-0.42, 0.4, -0.88],
             rim_rgb: [0.20, 0.23, 0.30],
+            // A clear-day sky: a deeper blue overhead easing to a pale, slightly warm haze at the
+            // horizon. The horizon doubles as the fog colour, so distant hills melt into the sky.
+            sky_zenith_rgb: [0.19, 0.34, 0.58],
+            sky_horizon_rgb: [0.66, 0.74, 0.82],
+            // Light haze: barely there up close, folding the far end of a 1000 m map into the sky.
+            fog_density: 0.0016,
+            fog_height_falloff: 0.02,
         }
     }
 
@@ -131,6 +162,12 @@ impl SceneLighting {
             fill_rgb: [0.20, 0.24, 0.30],
             rim_direction: [0.15, 0.55, -0.95],
             rim_rgb: [0.26, 0.26, 0.30],
+            // Interior: a neutral studio backdrop, no aerial perspective (the hangar clear colour
+            // still overrides the visible background; these keep the uniform well-formed).
+            sky_zenith_rgb: [0.14, 0.15, 0.17],
+            sky_horizon_rgb: [0.18, 0.19, 0.21],
+            fog_density: 0.0,
+            fog_height_falloff: 0.0,
         }
     }
 
@@ -152,6 +189,11 @@ impl SceneLighting {
             fill_rgb: [0.20, 0.25, 0.34],
             rim_direction: [0.10, 0.45, -0.98],
             rim_rgb: [0.30, 0.33, 0.40],
+            // Workshop interior: a dim cool backdrop, no aerial perspective.
+            sky_zenith_rgb: [0.10, 0.11, 0.13],
+            sky_horizon_rgb: [0.15, 0.16, 0.19],
+            fog_density: 0.0,
+            fog_height_falloff: 0.0,
         }
     }
 }

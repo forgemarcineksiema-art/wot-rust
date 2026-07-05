@@ -62,3 +62,42 @@ fn ambient_blend_grounds_up_faces_to_sky_and_down_faces_to_ground() {
     // A horizontal-facing surface sits between the two hemispheres.
     assert!(luminance(down) < luminance(flat) && luminance(flat) < luminance(up));
 }
+
+#[test]
+fn battle_profile_has_aerial_perspective_and_the_interior_does_not() {
+    let battle = SceneLighting::battlefield_default();
+    // Phase 2: the battlefield fades distant surfaces into the horizon haze for 1000 m depth.
+    assert!(battle.fog_density > 0.0, "battle needs aerial-perspective fog: {}", battle.fog_density);
+    // The horizon (also the fog colour) must differ from the zenith, or the gradient sky and the
+    // fade-to-sky are degenerate flat colours.
+    assert_ne!(
+        battle.sky_horizon_rgb, battle.sky_zenith_rgb,
+        "gradient sky must have a distinct horizon and zenith"
+    );
+    // The horizon is the paler, hazier end of the sky the fog fades toward.
+    assert!(
+        luminance(battle.sky_horizon_rgb) > luminance(battle.sky_zenith_rgb),
+        "horizon haze should out-lume the deeper zenith"
+    );
+    // Interior profiles must not apply aerial perspective (there is no open air/horizon).
+    for interior in [SceneLighting::garage_studio(), SceneLighting::garage_workshop()] {
+        assert_eq!(interior.fog_density, 0.0, "garage interiors carry no distance fog");
+    }
+}
+
+#[test]
+fn fog_thickens_with_distance_and_thins_with_height() {
+    let l = SceneLighting::battlefield_default();
+    // No fog at the camera; a distant surface is heavily fogged; density is monotonic in distance.
+    assert_eq!(l.fog_factor(0.0, 0.0), 0.0, "no fog at zero distance");
+    let near = l.fog_factor(100.0, 0.0);
+    let far = l.fog_factor(900.0, 0.0);
+    assert!(far > near && near > 0.0, "fog thickens with distance: near={near} far={far}");
+    assert!(far <= 1.0, "fog factor saturates at 1: {far}");
+    // At the same distance, a surface higher up sits in thinner air and fogs less.
+    let low = l.fog_factor(600.0, 0.0);
+    let high = l.fog_factor(600.0, 60.0);
+    assert!(high < low, "fog thins with height: low={low} high={high}");
+    // Density 0 (interior) is fully clear regardless of distance.
+    assert_eq!(SceneLighting::garage_studio().fog_factor(900.0, 0.0), 0.0);
+}

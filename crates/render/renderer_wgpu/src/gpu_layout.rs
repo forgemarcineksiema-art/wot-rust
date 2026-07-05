@@ -122,6 +122,14 @@ pub struct CameraUniform {
     /// z = strength (0 disables — the capability fallback), w = projection Y scale (P[1][1],
     /// recovered from the view-projection) for world-radius → pixel-radius conversion.
     pub ssao_params: GpuVec4,
+    /// Gradient-sky zenith colour (linear), sampled straight up by the sky pass.
+    pub sky_zenith_rgb: GpuVec3,
+    /// Gradient-sky horizon colour (linear); also the aerial-perspective fog colour distant
+    /// surfaces fade toward in the lit shaders.
+    pub sky_horizon_rgb: GpuVec3,
+    /// Packed fog controls: x = density, y = height falloff, z/w reserved (0). Density 0 disables
+    /// the aerial perspective (interior looks).
+    pub fog_params: GpuVec4,
 }
 
 impl CameraUniform {
@@ -149,6 +157,14 @@ impl CameraUniform {
             light_view_proj: GpuMat4(light_view_proj),
             shadow_params: GpuVec4(shadow_params),
             ssao_params: GpuVec4(ssao_params),
+            sky_zenith_rgb: GpuVec3(lighting.sky_zenith_rgb),
+            sky_horizon_rgb: GpuVec3(lighting.sky_horizon_rgb),
+            fog_params: GpuVec4([
+                lighting.fog_density,
+                lighting.fog_height_falloff,
+                0.0,
+                0.0,
+            ]),
         }
     }
 

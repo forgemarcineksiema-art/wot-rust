@@ -12,6 +12,9 @@ struct Camera {
     light_view_proj: mat4x4<f32>,
     shadow_params: vec4<f32>,
     ssao_params: vec4<f32>,
+    sky_zenith_rgb: vec3<f32>,
+    sky_horizon_rgb: vec3<f32>,
+    fog_params: vec4<f32>,
 };
 
 @group(0) @binding(0)
@@ -83,6 +86,21 @@ fn scene_radiance(n: vec3<f32>, shadow: f32) -> vec3<f32> {
         + camera.rim_rgb * rim;
 }
 
+// Aerial perspective: fade a fragment's HDR radiance toward the horizon/sky colour by distance and
+// height, so a 1000 m map reads with real depth instead of as cardboard cut-outs at range. Applied
+// in linear HDR *before* the tone curve, and mirrored on the CPU by SceneLighting::fog_factor.
+// fog_params = (density, height falloff, 0, 0); density 0 disables it (interior looks).
+fn apply_fog(color: vec3<f32>, world_pos: vec3<f32>) -> vec3<f32> {
+    let density = camera.fog_params.x;
+    if (density <= 0.0) {
+        return color;
+    }
+    let distance = length(camera.camera_pos - world_pos);
+    let height_term = exp(-max(world_pos.y, 0.0) * camera.fog_params.y);
+    let fog = clamp(1.0 - exp(-max(distance, 0.0) * density * height_term), 0.0, 1.0);
+    return mix(color, camera.sky_horizon_rgb, fog);
+}
+
 // Filmic ACES-lite tone curve (Narkowicz fit): maps HDR radiance to display range so a hot sun and
 // specular roll off instead of clipping to white. The framebuffer is *UnormSrgb, so the hardware
 // does the linear->sRGB encode; we output linear, tone-mapped colour and never a manual sRGB pow.
@@ -134,5 +152,6 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     let n = normalize(input.normal);
     let shadow = sun_shadow(input.world_pos, n);
     let ao = screen_ao(input.clip);
-    return vec4<f32>(tonemap_aces(input.color * scene_radiance(n, shadow) * ao), 1.0);
+    let lit = input.color * scene_radiance(n, shadow) * ao;
+    return vec4<f32>(tonemap_aces(apply_fog(lit, input.world_pos)), 1.0);
 }
