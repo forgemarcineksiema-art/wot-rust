@@ -72,16 +72,20 @@ impl ClientApp {
             let notch = self.input.wheel_pending_lines.signum();
             self.input.wheel_pending_lines -= notch;
             let mode_before = self.camera_controller.mode();
+            // Capture the crosshair's world sight ray before the zoom step may hand over to sniper.
+            let seed = (mode_before == BattleCameraMode::ThirdPerson)
+                .then(|| self.world_sight_seed())
+                .flatten();
             self.camera_controller.apply_input(BattleCameraInput {
                 orbit_yaw_delta_rad: 0.0,
                 pitch_delta_rad: 0.0,
                 zoom_delta_m: -notch * 0.8,
             });
-            // Scrolling through the shortest boom hands over to sniper; align the view to the gun.
+            // Scrolling through the shortest boom hands over to sniper; open on the same point.
             if mode_before == BattleCameraMode::ThirdPerson
                 && self.camera_controller.mode() == BattleCameraMode::Sniper
             {
-                self.sync_sniper_entry();
+                self.apply_sniper_seed(seed);
             }
         }
     }
@@ -106,15 +110,21 @@ impl ClientApp {
         if self.camera_controller.mode() == BattleCameraMode::Sniper {
             return;
         }
+        // Capture where the crosshair rests NOW (still third person), so the sniper view opens on
+        // the same world point instead of jumping to the barrel line or the sky.
+        let seed = self.world_sight_seed();
         self.camera_controller.set_mode(BattleCameraMode::Sniper);
-        self.sync_sniper_entry();
+        self.apply_sniper_seed(seed);
     }
 
-    /// Start the sniper view where the gun actually points, so entering the mode never jumps
-    /// the sight to a stale pitch; the view tracks the mouse from there.
-    fn sync_sniper_entry(&mut self) {
-        self.desired_aim =
-            crate::aim::DesiredAim::new(self.desired_aim.yaw_rad(), self.predictor.gun_pitch());
+    /// Open the sniper sight on `seed` (the world sight ray under the outgoing crosshair), clamped
+    /// to what the gun can reach on the current hull. Yaw stays if no seed is available.
+    fn apply_sniper_seed(&mut self, seed: Option<(f32, f32)>) {
+        if let Some((yaw_rad, pitch_rad)) = seed {
+            self.desired_aim = crate::aim::DesiredAim::new(yaw_rad, pitch_rad);
+        }
+        self.clamp_desired_aim_to_gun_reach();
+        self.camera_controller.set_orbit_yaw(self.desired_aim.yaw_rad());
     }
 
     pub(super) fn begin_free_look(&mut self) {
@@ -161,11 +171,12 @@ impl ClientApp {
             return;
         }
         if self.camera_controller.mode() == BattleCameraMode::Sniper {
-            // The sniper view *is* the aim. Mouse forward looks up, mouse back looks down â€”
-            // the same vertical sense as the third-person camera (camera pitch raises the eye
-            // to look down; gun pitch raises the muzzle to look up, hence the sign flip).
+            // The sniper view *is* the world sight ray. Mouse forward looks up, mouse back looks
+            // down. Pitch is a world elevation now, clamped after the delta to what the gun can
+            // reach on the current hull, so the crosshair never points where the gun cannot.
             self.desired_aim.set_yaw(self.desired_aim.yaw_rad() + yaw_delta);
             self.desired_aim.apply_pitch_delta(-pitch_delta);
+            self.clamp_desired_aim_to_gun_reach();
             self.camera_controller.set_orbit_yaw(self.desired_aim.yaw_rad());
             return;
         }

@@ -55,11 +55,12 @@ impl ClientApp {
     }
 
     /// Elevation-rate command (in [-1, 1]) that traverses the gun toward the pitch needed to
-    /// land a shell on the desired sight point.
+    /// land a shell on the desired sight point. With no sight solution (no local tank yet) the gun
+    /// holds — `desired_aim.pitch` is a *world* sight elevation now, not a hull-relative gun target,
+    /// so it cannot be commanded raw.
     pub(super) fn gun_elevation_command_for(&self, solution: Option<&SightSolution>) -> f32 {
-        let target_pitch =
-            solution.map_or(self.desired_aim.pitch_rad(), |solution| solution.pitch_rad);
-        ((target_pitch - self.player_gun_pitch()) * GUN_TRACK_GAIN).clamp(-1.0, 1.0)
+        let Some(solution) = solution else { return 0.0 };
+        ((solution.pitch_rad - self.player_gun_pitch()) * GUN_TRACK_GAIN).clamp(-1.0, 1.0)
     }
 
     #[cfg(test)]
@@ -131,7 +132,7 @@ impl ClientApp {
         })
     }
 
-    fn aim_world_point(&self, camera: &Camera) -> Option<Vec3> {
+    pub(super) fn aim_world_point(&self, camera: &Camera) -> Option<Vec3> {
         let eye = Vec3::from_array(camera.eye);
         let forward = (Vec3::from_array(camera.target) - eye).normalize_or_zero();
         (forward != Vec3::ZERO).then(|| {
@@ -150,7 +151,7 @@ impl ClientApp {
     /// World-space muzzle, pivoted about the trunnion and ring exactly like the rendered gun and
     /// the server's shell spawn — `muzzle_position_matches_server_shell_origin` locks the three
     /// together.
-    fn muzzle_position(&self) -> Vec3 {
+    pub(super) fn muzzle_position(&self) -> Vec3 {
         let barrel_scale = self.player_barrel_scale();
         let Some(tank) = self.local_render_tank() else {
             let mounts = MountFrames::for_vehicle(self.player_spec().kind);
