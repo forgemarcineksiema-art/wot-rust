@@ -268,19 +268,48 @@ fn slope_past_climb_limit_stalls_the_tank_but_gentle_slope_does_not() {
 }
 
 #[test]
-fn unclimbable_face_stops_incoming_momentum() {
+fn momentum_carries_the_hull_up_a_steep_hump_then_it_stalls() {
     let settings = TankControllerSettings::from_spec(&TankSpec::t55a());
-    // A hull charging an unclimbable face at 10 m/s must not punch through it on momentum: a face
-    // past the gradeability limit is a barrier (the tracks lose drive and the nose digs in), so
-    // the forward momentum is arrested rather than carrying the hull over the top.
+    // A steep-but-below-ceiling face (in the momentum-climb band): a committed run-up at 10 m/s
+    // scrabbles the hull meaningfully up it, then bleeds off and stalls — momentum climbing, not a
+    // wall, but no free crest either.
+    let grade = settings.max_climb_grade + 0.06;
+    assert!(grade < settings.momentum_climb_ceiling, "grade under test must be in the climb band");
     let mut state = TankKinematicState {
         velocity: glam::Vec3::new(0.0, 0.0, 10.0),
         ..TankKinematicState::default()
     };
     let input = TankControlInput { throttle: 1.0, steer: 0.0, brake: 0.0 };
-    let contact = contact_with_slope(settings.max_climb_grade + 0.1);
+    let contact = contact_with_slope(grade);
+    let start_z = state.position.z;
 
-    let mut max_z = 0.0_f32;
+    for _ in 0..600 {
+        step_custom_tank_controller_on_contact(&mut state, input, &settings, contact, 1.0 / 60.0);
+    }
+
+    let climbed = state.position.z - start_z;
+    assert!(climbed > 3.0, "momentum must carry the hull up the hump, climbed only {climbed}");
+    assert!(
+        state.forward_speed().abs() < 1.0,
+        "the climb must bleed off (no free crest), still moving at {}",
+        state.forward_speed()
+    );
+}
+
+#[test]
+fn a_face_past_the_ceiling_is_a_hard_wall_even_with_momentum() {
+    let settings = TankControllerSettings::from_spec(&TankSpec::t55a());
+    // A cliff / railway embankment (past the momentum ceiling) stays a barrier: a 10 m/s charge is
+    // arrested and cannot carry the hull up.
+    let mut state = TankKinematicState {
+        velocity: glam::Vec3::new(0.0, 0.0, 10.0),
+        ..TankKinematicState::default()
+    };
+    let input = TankControlInput { throttle: 1.0, steer: 0.0, brake: 0.0 };
+    let contact = contact_with_slope(settings.momentum_climb_ceiling + 0.2);
+    let start_z = state.position.z;
+
+    let mut max_z = start_z;
     for _ in 0..120 {
         step_custom_tank_controller_on_contact(&mut state, input, &settings, contact, 1.0 / 60.0);
         max_z = max_z.max(state.position.z);
@@ -288,12 +317,53 @@ fn unclimbable_face_stops_incoming_momentum() {
 
     assert!(
         state.forward_speed().abs() < 0.05,
-        "an unclimbable face must arrest forward momentum, got {}",
+        "a cliff must arrest forward momentum, got {}",
         state.forward_speed()
     );
     assert!(
-        max_z < 1.0,
-        "incoming momentum must not carry the hull up an unclimbable face, reached z={max_z}"
+        max_z - start_z < 1.0,
+        "momentum must not carry the hull up a cliff, got {}",
+        max_z - start_z
+    );
+}
+
+#[test]
+fn a_parked_hull_holds_a_slope_it_used_to_creep_down() {
+    let settings = TankControllerSettings::from_spec(&TankSpec::t55a());
+    // A 20° downhill (grade ~0.36) with the throttle released: the static track-lock must hold the
+    // hull in place — the old kinetic-only model crept downhill on anything past ~8°.
+    let grade = 0.36_f32;
+    assert!(grade <= settings.static_grip_mu, "grade under test must be within static hold");
+    let contact = TerrainContact {
+        height_m: 0.0,
+        forward_slope: -grade, // ground ahead is lower = downhill
+        side_slope: 0.0,
+        roughness: 0.0,
+        traction: 1.0,
+    };
+    let idle = TankControlInput { throttle: 0.0, steer: 0.0, brake: 0.0 };
+    let mut state = TankKinematicState::default();
+    let start_z = state.position.z;
+    for _ in 0..600 {
+        step_custom_tank_controller_on_contact(&mut state, idle, &settings, contact, 1.0 / 60.0);
+    }
+    assert!(
+        (state.position.z - start_z).abs() < 0.05,
+        "a parked hull must hold the slope, drifted {}",
+        state.position.z - start_z
+    );
+
+    // A face past the static grade does NOT hold — it slides downhill (+z here). A cliff is not a
+    // parking spot.
+    let steep = TerrainContact { forward_slope: -1.3, ..contact };
+    let mut sliding = TankKinematicState::default();
+    for _ in 0..600 {
+        step_custom_tank_controller_on_contact(&mut sliding, idle, &settings, steep, 1.0 / 60.0);
+    }
+    assert!(
+        sliding.position.z > 1.0,
+        "a too-steep face must still slide, got {}",
+        sliding.position.z
     );
 }
 

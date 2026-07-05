@@ -72,11 +72,26 @@ uphill motion, accelerates downhill, and pulls the hull sideways on a side slope
 traction and turn grip. The tank is grounded to the sampled terrain height after each fixed tick.
 
 Track grip is finite. Longitudinally the tracks can deliver at most `mu * g * traction * cos(theta)`
-of thrust, so a face steeper than the hull's gradeability (its longitudinal grip coefficient, ~60%
-by default) cannot be out-pulled and the climb stalls on its own. Such an unclimbable face is also
-treated as a hard barrier — momentum cannot carry a fast hull over it — so steep terrain like the
-railway embankment must be crossed at prepared gaps, not driven over anywhere; gentle slopes only
-slow the tank. Laterally, friction saturates at `mu * g * traction`: below it the hull tracks its
+of thrust, so steady climbing stalls at the hull's gradeability (its longitudinal grip coefficient,
+~60% / ~31° by default). Steeper faces are handled in a **momentum-climb band** up to a ceiling
+(~0.68 grade / ~34°): the grip *slips* (falls off as `(gradeability/grade)^2`) instead of vanishing,
+so a committed run-up scrabbles the hull a bounded, energy-limited way up a hump before it bleeds off
+and stalls — no free crest, but no invisible wall either. Above the ceiling a face is a hard barrier
+(the tracks find no drive and the nose digs in), so a cliff or the railway embankment cannot be
+driven straight over and must be crossed at prepared gaps. Because the relevant grade is the
+component *along the heading* (`forward_slope`), hitting a steep face at an angle lowers it below the
+ceiling — a diagonal run-up can scale terrain a head-on charge cannot. That angle-of-attack climb is
+emergent, and is the intended "clever, fair" steep climb: skill and commitment, not a bump-over.
+
+Static (parked) hold: a stopped, undriven hull **locks its tracks** and holds any slope up to
+`static_grip_mu * traction` (~0.9 / ~42°) — the demand `g*grade*inv` is met by static friction
+`mu_s*g*traction*inv`, the `cos(theta)` cancels, so the hold is simply `grade <= mu_s * traction`.
+Within it the hull neither creeps downhill nor side-slides while you line up a shot; steeper (or too
+slick) it never grabs and the kinetic model below lets it slide. Static grip is higher than the
+kinetic grips (`mu_s > mu_k`), so the hull "sticks" then breaks loose. A neutral-steer pivot still
+turns a parked hull in place — only the linear drift is locked.
+
+Laterally (while moving), friction saturates at `mu * g * traction`: below it the hull tracks its
 nose, above it (a hard turn at speed, or a steep low-traction face) it slides. The lateral friction
 impulse only ever cancels sideways velocity, never reverses it, so the step stays stable at 60 Hz.
 
