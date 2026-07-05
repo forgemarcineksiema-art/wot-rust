@@ -117,6 +117,20 @@ pub fn line_of_sight(
     !cover.iter().any(|c| segment_hits_box(from, to, c.center, c.half_extents_m))
 }
 
+/// Whether `observer`'s commander eye has a clear line to any of `target`'s sample points — the
+/// exact geometry one observer contributes to the spotting recompute. The bot brain uses this to
+/// engage only targets IT can see: a team-spotted mask says "someone on my team sees it", not
+/// "my own shell has a path", and firing on the mask alone means shelling the front of a hill.
+pub fn tank_line_of_sight(
+    observer: &TankState,
+    target: &TankState,
+    heightmap: Option<&HeightMap>,
+    cover: &[StaticCoverObject],
+) -> bool {
+    let eye = observer_eye(observer);
+    target_points(target).into_iter().any(|point| line_of_sight(heightmap, cover, eye, point))
+}
+
 /// The commander's eye of an observer: the top of the hull box.
 fn observer_eye(tank: &TankState) -> Vec3 {
     tank.position + Vec3::Y * (tank.spec.hitbox.center_y_m + tank.spec.hitbox.half_height_m)
