@@ -30,6 +30,48 @@ fn random_7v7_spawns_fourteen_tanks_with_player_on_team_one() {
     assert_eq!(player.vehicle, game_core::VehicleKind::TigerII);
 }
 
+/// A random battle is one technology bracket: every tank on the field shares the player's era.
+/// This is the era system doing the matchmaker's job — no Tiger ever meets a T-54 (locked for
+/// both directions and across seeds, so it cannot pass by luck of the draw).
+#[test]
+fn random_7v7_fields_a_single_era_battle() {
+    for seed in [1u64, 2, 3, 4, 5] {
+        for player_vehicle in [game_core::VehicleKind::TigerI, game_core::VehicleKind::T54_1951] {
+            let server = LocalAuthoritativeServer::new_random_7v7(
+                ServerTickConfig::new(60, 20),
+                RandomBattleConfig::new(BattleSeed::fixed(seed), player_vehicle),
+            );
+            let snapshot = server.latest_snapshot();
+            for tank in &snapshot.tanks {
+                assert_eq!(
+                    tank.vehicle.era(),
+                    player_vehicle.era(),
+                    "seed {seed}: {:?} broke into a {:?} battle",
+                    tank.vehicle,
+                    player_vehicle.era()
+                );
+            }
+        }
+    }
+}
+
+/// The era pool must not collapse into clone armies: across seeds, the enemy team of an Era II
+/// battle draws more than one design (the pool has four).
+#[test]
+fn random_7v7_era_battles_keep_roster_variety() {
+    let mut kinds = std::collections::HashSet::new();
+    for seed in [11u64, 12, 13, 14] {
+        let server = LocalAuthoritativeServer::new_random_7v7(
+            ServerTickConfig::new(60, 20),
+            RandomBattleConfig::new(BattleSeed::fixed(seed), game_core::VehicleKind::TigerII),
+        );
+        for tank in &server.latest_snapshot().tanks {
+            kinds.insert(tank.vehicle);
+        }
+    }
+    assert!(kinds.len() >= 3, "four seeds of Era II must field variety, got {kinds:?}");
+}
+
 #[test]
 fn random_7v7_uses_map_spawn_zones_and_facing_yaw() {
     let server = LocalAuthoritativeServer::new_random_7v7(
