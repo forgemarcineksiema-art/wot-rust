@@ -110,7 +110,12 @@ impl ClientApp {
             reload_remaining,
             frame_dt,
         );
+        // The ready flash's audible twin: the breech clacks the frame the reload completes.
+        if self.prev_reload_remaining_s > 0.0 && reload_remaining <= 0.0 {
+            self.queue_audio(audio::AudioEvent::GunReady);
+        }
         self.prev_reload_remaining_s = reload_remaining;
+        self.flush_audio(Some(camera.eye), Some(camera.target));
         let vitals = HudVitals {
             hit_points: self.player_hud_hit_points(),
             max_hit_points: self.player_max_hit_points(),

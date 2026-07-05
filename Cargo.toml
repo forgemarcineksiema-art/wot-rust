@@ -13,6 +13,7 @@ version = "0.1.0"
 [workspace.dependencies]
 anyhow = "1.0"
 bevy_ecs = "0.18.0"
+cpal = "0.16"
 bincode = "1.3"
 bytemuck = { version = "1.25", features = ["derive"] }
 clap = { version = "4.5", features = ["derive"] }
@@ -37,6 +38,7 @@ winit = "0.30.12"
 
 # Internal workspace crates. Paths are centralized here so a crate directory move only edits this
 # one block; each crate depends on them via `name.workspace = true`.
+audio = { path = "crates/runtime/audio" }
 cast_loft = { path = "crates/kernels/cast_loft" }
 detail = { path = "crates/kernels/detail" }
 engine = { path = "crates/runtime/engine" }

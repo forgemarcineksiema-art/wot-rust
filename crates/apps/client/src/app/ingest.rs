@@ -24,6 +24,14 @@ impl ClientApp {
         // shell the ground swallowed also digs a crater that outlives the dust.
         for impact in &snapshot.shell_impacts {
             self.fx.impact_burst(impact.position, impact.surface);
+            // The same shell death also thuds: soil swallows, structures and hulls knock.
+            self.queue_audio(audio::AudioEvent::ShellAbsorbed {
+                position: impact.position,
+                surface: match impact.surface {
+                    game_core::ImpactSurface::Terrain => audio::GroundKind::Soil,
+                    _ => audio::GroundKind::Structure,
+                },
+            });
             if impact.surface == game_core::ImpactSurface::Terrain {
                 self.terrain_scars.record(impact.position, &self.battlefield.heightmap);
             }
@@ -33,6 +41,13 @@ impl ClientApp {
                 continue;
             }
             self.fx.armor_hit(event.hit_position, event.penetrated, event.ricocheted);
+            // And rings: the struck plate's clang, with the outcome (penetration thunk /
+            // ricochet whine) layered in by the voice itself.
+            self.queue_audio(audio::AudioEvent::ArmorStruck {
+                position: event.hit_position,
+                penetrated: event.penetrated,
+                ricocheted: event.ricocheted,
+            });
             // The strike also scars the target: a permanent hole for a penetration, a fading
             // scuff/gouge otherwise, recorded in the plate's own rotating frame.
             if let Some(target) = snapshot.tanks.iter().find(|tank| tank.tank_id == event.target)
@@ -58,6 +73,7 @@ impl ClientApp {
             self.player_tank,
         ) {
             self.kill_confirm_age_s = Some(0.0);
+            self.queue_audio(audio::AudioEvent::KillConfirmed);
         }
         self.render_state.accept_authoritative_snapshot(snapshot);
         self.apply_fire_events(&fired);
@@ -76,6 +92,20 @@ impl ClientApp {
             if event.tank_id == self.player_tank {
                 self.camera_controller.fire_kick(self.desired_aim.yaw_rad());
             }
+            // The report, sized by the firing gun's caliber. The player's own shot answers the
+            // trigger instantly; everyone else's arrives at the speed of sound.
+            let caliber_mm = self
+                .render_state
+                .latest_snapshot()
+                .and_then(|snapshot| {
+                    snapshot.tanks.iter().find(|tank| tank.tank_id == event.tank_id)
+                })
+                .map_or(100.0, |tank| tank.vehicle.spec().gun.shell.caliber_mm);
+            self.queue_audio(audio::AudioEvent::CannonFired {
+                position: event.muzzle,
+                caliber_mm,
+                own_shot: event.tank_id == self.player_tank,
+            });
         }
     }
 }

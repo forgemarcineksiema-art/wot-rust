@@ -1,5 +1,6 @@
 mod aim;
 mod app;
+mod audio_out;
 mod camera;
 mod color;
 mod fx;

@@ -1,3 +1,4 @@
+mod audio_link;
 mod battle_scars;
 mod camera_link;
 #[cfg(test)]
@@ -129,6 +130,11 @@ pub(crate) struct ClientApp {
     current_scene: SceneKind,
     /// Last known framebuffer size, used to map cursor pixels into clip space for the garage UI.
     viewport: (u32, u32),
+    /// The platform audio stream; `None` headless or without an output device (silent game).
+    audio: Option<crate::audio_out::AudioOutput>,
+    /// Sounds produced since the last presented frame, flushed to the device with the frame —
+    /// the audio twin of the FX queue (see `app/audio_link.rs`).
+    pending_audio: Vec<audio::AudioEvent>,
 }
 
 impl ClientApp {
@@ -186,6 +192,8 @@ impl ClientApp {
             // garage frame swaps in the hangar. Starting at `Garage` here would skip that swap.
             current_scene: SceneKind::Battle,
             viewport: (1280, 720),
+            audio: None,
+            pending_audio: Vec::new(),
         }
     }
 }

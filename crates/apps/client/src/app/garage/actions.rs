@@ -33,6 +33,8 @@ impl ClientApp {
     #[cfg(test)]
     pub(in crate::app) fn select_garage_vehicle(&mut self, vehicle: VehicleKind) {
         self.garage.select_vehicle(vehicle);
+        // Mirrors the `GarageHit::Vehicle` click in `garage_primary_press`.
+        self.queue_audio(audio::AudioEvent::UiClick { accent: false });
     }
 
     /// Route a left-button press in the garage to selection, fitting, Battle, or orbiting.
@@ -40,7 +42,13 @@ impl ClientApp {
     pub(in crate::app) fn garage_primary_press(&mut self) {
         let shift = self.input.shift;
         let view = self.garage.view();
-        match self.garage.hit_test(shift) {
+        let hit = self.garage.hit_test(shift);
+        // Every acted-on control answers with the switch click; orbiting the camera is not a
+        // control, and Battle lands its own accented click in `confirm_garage_selection`.
+        if !matches!(hit, GarageHit::Scene | GarageHit::Battle) {
+            self.queue_audio(audio::AudioEvent::UiClick { accent: false });
+        }
+        match hit {
             GarageHit::Vehicle(index) => {
                 self.garage.select_index(index);
                 // Selecting a vehicle from the tech tree returns to the hangar view.
@@ -121,6 +129,8 @@ impl ClientApp {
     }
 
     pub(in crate::app) fn confirm_garage_selection(&mut self) {
+        // The commit deserves a heavier hand on the switch than browsing.
+        self.queue_audio(audio::AudioEvent::UiClick { accent: true });
         let spec = self.garage.confirm();
         let display_name = spec.name.clone();
         // Committing from the garage in a random battle ABANDONS it and deploys into a fresh one

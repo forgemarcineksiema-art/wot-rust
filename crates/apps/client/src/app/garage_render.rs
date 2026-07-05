@@ -29,6 +29,9 @@ impl ClientApp {
         self.apply_mouse_look();
         self.garage.tick_camera(dt);
         self.garage.tick_drive_in(dt);
+        // The hangar has ears too: UI clicks flush here, the engine bed idles down, the wind
+        // drops to a sheltered breath. No listener update — the orbit camera is not a battle ear.
+        self.flush_audio(None, None);
         self.ensure_scene(SceneKind::Garage);
         let aspect = self.renderer.as_ref().map_or(16.0 / 9.0, WindowRenderer::aspect_ratio);
         let camera = self.garage.orbit_camera();
