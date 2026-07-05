@@ -68,8 +68,14 @@ all = "warn"
 # Faster compiles and much faster linking: keep line numbers for readable backtraces but drop the
 # heavy full debuginfo. Cuts artifact size and link time across the workspace.
 debug = "line-tables-only"
+# A playable dev build: opt-level 0 cannot hold 60 FPS with a 14-tank battle (the per-frame
+# running-gear math and the 60 Hz sim both crawl unoptimized). Level 1 keeps compiles quick and
+# the game responsive; use `cargo run --release -p client` for the real feel.
+opt-level = 1
 
 [profile.dev.package."*"]
 # Dependencies are rarely stepped through in a debugger; stripping their debuginfo is one of the
 # biggest single wins for link time on a large dependency graph (wgpu, rapier, image, ...).
+# They compile once and land in the cache, so optimize them fully.
 debug = false
+opt-level = 3

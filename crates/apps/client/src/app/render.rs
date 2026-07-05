@@ -109,7 +109,7 @@ impl ClientApp {
         };
         let hud_model = crate::hud::BattleHudModel {
             vitals,
-            reticle: self.hud_reticle(&camera, view_proj),
+            reticle: self.hud_reticle(&camera, view_proj, alpha),
             fps: self.fps_estimate,
             speed_kmh: self.player_speed_kmh(),
             zoom_factor: self.camera_controller.zoom_factor(),
