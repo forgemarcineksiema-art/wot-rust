@@ -78,9 +78,9 @@ impl ClientApp {
         let (vertices, indices, sky, lighting) = match want {
             SceneKind::Garage => {
                 let (v, i) = crate::scene::hangar::hangar_scene_mesh();
-                // A calibrated studio key/fill/rim keeps the vehicle's olive material readable
-                // without casting colour over the whole scene.
-                (v, i, (0.07, 0.05, 0.04), SceneLighting::garage_studio())
+                // The workshop rig rakes a warm sun down through the skylights (real contact shadow
+                // on the turntable) over a dim, near-neutral shop interior.
+                (v, i, (0.05, 0.05, 0.06), SceneLighting::garage_workshop())
             }
             SceneKind::Battle => {
                 let (v, i) = battlefield_scene_mesh(&self.battlefield);

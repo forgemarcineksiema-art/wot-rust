@@ -133,6 +133,27 @@ impl SceneLighting {
             rim_rgb: [0.26, 0.26, 0.30],
         }
     }
+
+    /// The workshop look: a hard warm key raking down nearly vertically as if pouring through the
+    /// roof skylights (so the tank throws a real contact shadow on the turntable and its decks read
+    /// bright against the shaded flanks), a cool weak fill from the open bay door, a low neutral
+    /// ambient so the shadowed sides stay moody rather than flooded, and a cold rear rim to peel the
+    /// silhouette off the dim back wall.
+    pub fn garage_workshop() -> Self {
+        Self {
+            ambient_rgb: [0.19, 0.20, 0.23],
+            ground_ambient_rgb: [0.12, 0.11, 0.10],
+            // Steep and slightly to the front-left: the skylight strips run overhead, so the key
+            // comes down the roof rather than in from the side.
+            key_direction: [-0.28, 0.92, 0.26],
+            key_rgb: [1.15, 1.02, 0.80],
+            // Cool daylight leaking in the back doorway, opposing the warm key.
+            fill_direction: [0.35, 0.30, -0.90],
+            fill_rgb: [0.20, 0.25, 0.34],
+            rim_direction: [0.10, 0.45, -0.98],
+            rim_rgb: [0.30, 0.33, 0.40],
+        }
+    }
 }
 
 impl Default for SceneLighting {
