@@ -108,6 +108,10 @@ impl LocalAuthoritativeServer {
         self.latest_snapshot.clone()
     }
 
+    pub fn current_snapshot(&self) -> Snapshot {
+        Snapshot::from(&self.sim)
+    }
+
     pub fn latest_snapshot_for_player(&self) -> Snapshot {
         self.latest_snapshot.filtered_for_viewer(self.player_tank)
     }

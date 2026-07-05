@@ -1,4 +1,5 @@
 use game_core::TeamId;
+use net::TankSnapshot;
 use sim::{FixedTimestep, SimulationState};
 
 use super::*;

@@ -32,20 +32,19 @@ impl ClientApp {
     }
 
     fn tank_obstacles_for_prediction(&self) -> Vec<TankObstacle> {
-        self.render_state.latest_snapshot().map_or_else(Vec::new, |snapshot| {
-            snapshot
-                .tanks
-                .iter()
-                .filter(|tank| tank.tank_id != self.player_tank)
-                .map(|tank| {
-                    TankObstacle::from_hitbox(
-                        Vec3::from_array(tank.position),
-                        tank.yaw_rad,
-                        game_core::HitboxProfile::for_vehicle(tank.vehicle),
-                    )
-                })
-                .collect()
-        })
+        self.local_server
+            .current_snapshot()
+            .tanks
+            .iter()
+            .filter(|tank| tank.tank_id != self.player_tank)
+            .map(|tank| {
+                TankObstacle::from_hitbox(
+                    Vec3::from_array(tank.position),
+                    tank.yaw_rad,
+                    game_core::HitboxProfile::for_vehicle(tank.vehicle),
+                )
+            })
+            .collect()
     }
 
     pub(super) fn accept_and_sync(&mut self, snapshot: net::Snapshot) {
@@ -221,6 +220,20 @@ fn shortest_angle(radians: f32) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn local_prediction_uses_the_full_local_server_roster_for_tank_obstacles() {
+        let app = ClientApp::new();
+
+        let obstacles = app.tank_obstacles_for_prediction();
+        let full_roster = app.local_server.current_snapshot().tanks.len();
+
+        assert_eq!(
+            obstacles.len(),
+            full_roster.saturating_sub(1),
+            "prediction collision must see every local-server tank except the player, not just the filtered viewer snapshot"
+        );
+    }
 
     #[test]
     fn turret_converges_gun_onto_the_sight_point_not_parallel_to_camera() {

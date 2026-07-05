@@ -1,6 +1,5 @@
 use game_core::{MODULE_SLOT_COUNT, ModuleSlot, TankSpec, TrackDamageMask};
 use glam::Vec3;
-use net::TankSnapshot;
 use physics::{TankKinematicState, TankObstacle};
 use sim::{
     AimingState, DriveModuleStatus, TankCommand, TankDriveState, TankDriveWorld, TrackDriveStatus,
@@ -83,39 +82,6 @@ impl LocalPredictor {
     pub fn selected_shell(&self) -> game_core::ShellSpec {
         let options = self.spec.gun.ammo_options();
         options[(self.selected_ammo as usize).min(options.len() - 1)]
-    }
-
-    /// Snap the predicted hull to an authoritative snapshot. In lockstep this matches the
-    /// prediction (a no-op), but it also seeds the first frame and corrects rare divergence
-    /// without a per-snapshot lerp that would visibly shake the camera.
-    pub fn sync_to(&mut self, authoritative: &TankSnapshot) {
-        if self.spec.kind != authoritative.vehicle {
-            self.spec = authoritative.vehicle.spec();
-        }
-        self.drive.kinematic.position = Vec3::from_array(authoritative.position);
-        self.drive.kinematic.yaw_rad = authoritative.yaw_rad;
-        self.drive.kinematic.pitch_rad = authoritative.hull_pitch_rad;
-        self.drive.kinematic.roll_rad = authoritative.hull_roll_rad;
-        self.drive.aiming = AimingState {
-            turret_yaw_rad: self.spec.effective_turret_yaw_rad(authoritative.turret_yaw_rad),
-            turret_yaw_velocity_rad_s: authoritative.turret_yaw_velocity_rad_s,
-            gun_pitch_rad: authoritative.gun_pitch_rad,
-        };
-        // Seed the live dispersion from the authority, then evolve it locally at 60 Hz.
-        self.drive.aim_dispersion_mrad = authoritative.aim_dispersion_mrad;
-        self.hit_points = authoritative.hit_points;
-        self.module_hit_points = authoritative.module_hit_points;
-        self.destroyed_modules_mask = authoritative.destroyed_modules_mask;
-        self.track_damage_mask = TrackDamageMask::from_bits(authoritative.track_damage_mask);
-        self.selected_ammo = authoritative.selected_ammo;
-        // On the very first sync there is no real "previous" tick to blend from, so anchor
-        // it to the seed pose -- otherwise the first frames would lerp in from the origin.
-        // On later corrections we leave `previous` alone so the render smoothly absorbs the
-        // correction over the next frames instead of snapping the camera.
-        if !self.seeded {
-            self.previous = self.current_pose();
-        }
-        self.seeded = true;
     }
 
     /// Advance one fixed tick with the same input being sent to the server.
@@ -215,6 +181,7 @@ impl LocalPredictor {
 }
 
 mod pose;
+mod sync;
 
 pub use pose::PredictedPose;
 
