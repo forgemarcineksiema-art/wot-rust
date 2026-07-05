@@ -213,6 +213,13 @@ fn battle_outcome_banner_draws_only_when_the_battle_has_ended() {
     let draw_hud = build_battle_hud(&draw, 16.0 / 9.0);
     assert!(draw_hud.iter().any(|vertex| vertex.color == super::outcome::OUTCOME_DRAW_COLOR));
     assert!(!running_hud.iter().any(|vertex| vertex.color == super::outcome::OUTCOME_DRAW_COLOR));
+
+    // Input is dead once the battle ends; every banner carries the way-out hint.
+    let hint = |hud: &[HudVertex]| {
+        hud.iter().any(|vertex| vertex.color == super::outcome::OUTCOME_HINT_COLOR)
+    };
+    assert!(hint(&victory_hud) && hint(&draw_hud), "the ended battle points back to the garage");
+    assert!(!hint(&running_hud), "no garage hint while the battle runs");
 }
 
 /// The battle clock draws top-center when the server reports a timed battle and disappears for

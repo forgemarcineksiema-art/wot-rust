@@ -45,6 +45,8 @@ pub(crate) mod battle {
     pub const DRAW: &str = "DRAW";
     /// Kill confirmation line under the reticle.
     pub const TARGET_DESTROYED: &str = "TARGET DESTROYED";
+    /// Way-out hint under the battle-outcome banner (G opens the garage; Battle deploys fresh).
+    pub const RETURN_TO_GARAGE_HINT: &str = "G - RETURN TO GARAGE";
 }
 
 /// OS window title; the selected vehicle's display name is appended after a dash.
@@ -75,6 +77,7 @@ mod tests {
             super::battle::DEFEAT,
             super::battle::DRAW,
             super::battle::TARGET_DESTROYED,
+            super::battle::RETURN_TO_GARAGE_HINT,
             super::WINDOW_TITLE,
         ];
         for s in all {

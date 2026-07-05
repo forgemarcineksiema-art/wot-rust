@@ -123,6 +123,25 @@ impl ClientApp {
     pub(in crate::app) fn confirm_garage_selection(&mut self) {
         let spec = self.garage.confirm();
         let display_name = spec.name.clone();
+        // Committing from the garage in a random battle ABANDONS it and deploys into a fresh one
+        // (new seed, full roster, full clock). Replacing the player's tank inside the running
+        // battle was a free heal: G mid-fight, confirm, and the hull came back factory-new while
+        // everyone else stayed shot up. It also closes the loop after VICTORY/DEFEAT/DRAW — the
+        // garage's Battle button IS the next battle.
+        if self.local_server.battle_mode() == server::BattleMode::Random7v7 {
+            self.local_server = server::LocalAuthoritativeServer::new_random_7v7(
+                server::ServerTickConfig::default(),
+                server::RandomBattleConfig::runtime(spec.kind),
+            );
+            self.client_tick = 0;
+            self.damage_log = crate::hud::damage_log::DamageLog::default();
+            self.incoming_hits = crate::hud::hit_direction::IncomingHitFeed::default();
+            self.hit_indicator = crate::hit_indicator::HitIndicator::default();
+            self.fx = crate::fx::FxSystem::default();
+            self.tank_scars.clear();
+            self.terrain_scars = crate::fx::TerrainScars::default();
+            self.engine_smoke_accum_s.clear();
+        }
         let snapshot = self.local_server.change_player_vehicle_with_spec_for_player(spec.clone());
         self.player_tank = self.local_server.player_tank();
         self.predictor.reset_to_spec(&spec);
@@ -223,6 +242,30 @@ mod tests {
 
         assert_eq!(app.garage.view(), GarageView::Hangar, "returns to hangar");
         assert_eq!(app.garage.selected_vehicle(), VehicleKind::TigerI);
+    }
+
+    /// Confirming from the garage mid-battle used to REPLACE the player's tank inside the running
+    /// battle: a factory-new hull (free heal) dropped into a half-shot-up roster, and there was
+    /// no way to ever start a new battle. Locked here: the commit abandons the old battle and
+    /// deploys into a fresh one — tick 0, full 14-tank roster, full battle clock, no outcome.
+    #[test]
+    fn confirming_mid_battle_deploys_into_a_fresh_battle_not_a_free_heal() {
+        let mut app = ClientApp::new();
+        app.confirm_garage_selection();
+        app.run_fixed_ticks(30);
+        assert!(app.local_server.authoritative_tick() >= 30, "the first battle is running");
+
+        app.open_garage();
+        app.confirm_garage_selection();
+
+        assert_eq!(app.local_server.authoritative_tick(), 0, "a FRESH battle, not a respawn");
+        assert_eq!(app.local_server.latest_snapshot().tanks.len(), 14, "full fresh roster");
+        assert_eq!(app.local_server.battle_outcome(), None);
+        assert_eq!(
+            app.local_server.battle_time_remaining_s(),
+            Some(server::RANDOM_BATTLE_TIME_LIMIT_S as f32),
+            "the battle clock starts full again"
+        );
     }
 
     #[test]
