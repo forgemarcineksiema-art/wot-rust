@@ -258,6 +258,36 @@ fn switching_modes_travels_the_view_instead_of_teleporting_it() {
     assert_eq!(logical.vertical_fov_degrees, sniper_fov);
 }
 
+/// The transition FOV blends in MAGNIFICATION space: perceived zoom is 1/FOV, so a linear FOV
+/// sweep snaps violently at the wide end and crawls at the narrow end. Locked here: mid-blend the
+/// presented FOV sits well BELOW the linear midpoint (the harmonic path), so the zoom rate reads
+/// constant to the eye.
+#[test]
+fn the_mode_blend_zooms_at_a_perceptually_constant_rate() {
+    let heightmap = HeightMap::flat(64, 64, 1.0, 0.0).expect("heightmap");
+    let environment = BattleCameraEnvironment::with_terrain(&heightmap);
+    let subject = CameraSubject::from_snapshot(tank_snapshot([20.0, 0.0, 20.0], 0.0, 0.0), 0.0);
+    let mut camera = BattleCameraController::new(BattleCameraSettings::default());
+    camera.advance([20.0, 0.0, 20.0], 1.0 / 60.0);
+    let tpp = camera.present(&subject, &environment, 1.0 / 60.0);
+
+    camera.set_mode(BattleCameraMode::Sniper);
+    // Land exactly mid-blend (the 0.14 s transition, eased: smoothstep(0.5) = 0.5).
+    let mid = camera.present(&subject, &environment, 0.07);
+    let sniper_fov = camera.sniper_fov_degrees();
+    let linear_mid = (tpp.vertical_fov_degrees + sniper_fov) * 0.5;
+    let harmonic_mid = 2.0 / (1.0 / tpp.vertical_fov_degrees + 1.0 / sniper_fov);
+    assert!(
+        (mid.vertical_fov_degrees - harmonic_mid).abs() < 0.5,
+        "mid-blend FOV must ride the magnification path ({harmonic_mid:.1}), got {:.1}",
+        mid.vertical_fov_degrees
+    );
+    assert!(
+        mid.vertical_fov_degrees < linear_mid - 4.0,
+        "the magnification path sits well below the linear midpoint ({linear_mid:.1})"
+    );
+}
+
 #[test]
 fn the_boom_snaps_shorter_at_a_wall_and_recovers_smoothly_past_it() {
     let heightmap = HeightMap::flat(64, 64, 1.0, 0.0).expect("heightmap");

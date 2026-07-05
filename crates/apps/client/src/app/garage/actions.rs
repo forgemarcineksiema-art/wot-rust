@@ -131,6 +131,8 @@ impl ClientApp {
         self.input.clear_mouse_look();
         self.battle_outcome = None;
         self.kill_confirm_age_s = None;
+        self.reload_ready_age_s = None;
+        self.prev_reload_remaining_s = 0.0;
         self.accept_and_sync(snapshot);
         self.set_cursor_captured(true);
         if let Some(window) = &self.window {

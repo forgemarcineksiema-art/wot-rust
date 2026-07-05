@@ -106,10 +106,14 @@ fn lerp_camera(from: Camera, to: Camera, t: f32) -> Camera {
             - (Vec3::from_array(from.target) - from_eye).length())
             * t;
     let eye = from_eye.lerp(to_eye, t);
+    // FOV blends in MAGNIFICATION space (1/fov): perceived zoom is the reciprocal of the FOV, so
+    // a linear FOV sweep reads as a violent snap at the wide end and a crawl at the narrow end.
+    // Interpolating the magnification keeps the zoom RATE constant to the eye across the blend.
+    let from_mag = 1.0 / from.vertical_fov_degrees.max(0.1);
+    let to_mag = 1.0 / to.vertical_fov_degrees.max(0.1);
     Camera {
         eye: eye.to_array(),
         target: (eye + dir * dist).to_array(),
-        vertical_fov_degrees: from.vertical_fov_degrees
-            + (to.vertical_fov_degrees - from.vertical_fov_degrees) * t,
+        vertical_fov_degrees: 1.0 / (from_mag + (to_mag - from_mag) * t),
     }
 }

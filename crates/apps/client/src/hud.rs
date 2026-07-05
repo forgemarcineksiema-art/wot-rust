@@ -61,6 +61,8 @@ pub struct BattleHudModel {
     pub battle_outcome: Option<BattleHudOutcome>,
     /// Seconds since the player's most recent kill; `None` once the confirmation has played out.
     pub kill_confirm_age_s: Option<f32>,
+    /// Seconds since the reload finished, driving the gun-ready flash at the reticle.
+    pub reload_ready_age_s: Option<f32>,
 }
 
 /// Build the 2D HUD overlay (center crosshair, top-left health bar, bottom-center reload
@@ -79,6 +81,7 @@ pub fn build_hud(vitals: HudVitals, aspect: f32) -> Vec<HudVertex> {
             minimap: None,
             battle_outcome: None,
             kill_confirm_age_s: None,
+            reload_ready_age_s: None,
         },
         aspect,
     )
@@ -108,6 +111,7 @@ pub(crate) fn build_hud_with_reticle(
             minimap: None,
             battle_outcome: None,
             kill_confirm_age_s: None,
+            reload_ready_age_s: None,
         },
         aspect,
     )
@@ -133,6 +137,9 @@ pub(crate) fn build_battle_hud(model: &BattleHudModel, aspect: f32) -> Vec<HudVe
         scope_overlay::push_scope_overlay(&mut vertices, aspect);
     }
     reticle_overlay::push_reticle(&mut vertices, &reticle, aspect);
+    if let Some(age_s) = model.reload_ready_age_s {
+        reticle_marks::push_ready_flash(&mut vertices, reticle.aim_clip, age_s, aspect);
+    }
 
     readouts::push_battle_readouts(&mut vertices, model, aspect);
 

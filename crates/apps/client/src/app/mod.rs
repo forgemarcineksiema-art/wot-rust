@@ -4,6 +4,7 @@ mod camera_link;
 mod camera_tests;
 #[cfg(test)]
 mod fire_fx_tests;
+mod frame_scene;
 mod garage;
 mod garage_render;
 #[cfg(test)]
@@ -120,6 +121,10 @@ pub(crate) struct ClientApp {
     /// Seconds since the player's latest kill, driving the reticle confirmation; `None` when the
     /// confirmation has played out (see `hud/kill_marker.rs`).
     kill_confirm_age_s: Option<f32>,
+    /// Reload seconds remaining at the previous presented frame, for the ready-flash crossing.
+    prev_reload_remaining_s: f32,
+    /// Seconds since the reload finished, driving the gun-ready flash at the reticle.
+    reload_ready_age_s: Option<f32>,
     /// Static scene geometry currently uploaded to the renderer (garage hangar vs battlefield).
     current_scene: SceneKind,
     /// Last known framebuffer size, used to map cursor pixels into clip space for the garage UI.
@@ -175,6 +180,8 @@ impl ClientApp {
             fps_estimate: 0.0,
             battle_outcome: None,
             kill_confirm_age_s: None,
+            prev_reload_remaining_s: 0.0,
+            reload_ready_age_s: None,
             // The renderer is created with the battlefield mesh (see `create_renderer`); the first
             // garage frame swaps in the hangar. Starting at `Garage` here would skip that swap.
             current_scene: SceneKind::Battle,

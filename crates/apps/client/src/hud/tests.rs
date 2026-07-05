@@ -172,6 +172,7 @@ fn the_positional_wrapper_and_the_model_build_identical_huds() {
         minimap: None,
         battle_outcome: None,
         kill_confirm_age_s: None,
+        reload_ready_age_s: None,
     };
     let from_model = build_battle_hud(&model, 16.0 / 9.0);
     let from_wrapper =
@@ -194,6 +195,7 @@ fn battle_outcome_banner_draws_only_when_the_battle_has_ended() {
         minimap: None,
         battle_outcome: None,
         kill_confirm_age_s: None,
+        reload_ready_age_s: None,
     };
     let victory =
         BattleHudModel { battle_outcome: Some(BattleHudOutcome::Victory), ..running.clone() };
