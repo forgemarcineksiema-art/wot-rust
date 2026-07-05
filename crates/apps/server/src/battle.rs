@@ -61,9 +61,24 @@ impl RandomBattleConfig {
     }
 }
 
+/// Time limit for a random battle, the safety net that guarantees every battle ends: two
+/// last-tank survivors camping opposite corners (or two stuck bots) must not hang the battle
+/// forever. Ten minutes fits the 7v7 scale — real fights resolve well under it.
+pub const RANDOM_BATTLE_TIME_LIMIT_S: u32 = 600;
+
+/// Why a battle ended without a winner.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DrawReason {
+    /// The last tanks of both teams died on the same tick (shell crossfire, mutual ram).
+    MutualElimination,
+    /// The battle clock ran out with both teams still alive.
+    TimeExpired,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BattleOutcome {
     TeamEliminated { winning_team: TeamId },
+    Draw { reason: DrawReason },
 }
 
 impl BattleOutcome {
@@ -82,6 +97,8 @@ impl BattleOutcome {
         }
         if alive.len() == 1 && eliminated > 0 {
             Some(Self::TeamEliminated { winning_team: alive[0] })
+        } else if alive.is_empty() && eliminated > 0 {
+            Some(Self::Draw { reason: DrawReason::MutualElimination })
         } else {
             None
         }
@@ -101,9 +118,11 @@ impl BattleOutcome {
         Self::from_team_alive_counts(counts)
     }
 
-    pub fn winning_team(self) -> TeamId {
+    /// The victor, or `None` for a draw.
+    pub fn winning_team(self) -> Option<TeamId> {
         match self {
-            Self::TeamEliminated { winning_team } => winning_team,
+            Self::TeamEliminated { winning_team } => Some(winning_team),
+            Self::Draw { .. } => None,
         }
     }
 }

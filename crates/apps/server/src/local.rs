@@ -5,7 +5,7 @@ use terrain::BattlefieldMap;
 
 use crate::RandomBattleConfig;
 use crate::ServerTickConfig;
-use crate::battle::{BattleMode, BattleOutcome};
+use crate::battle::{BattleMode, BattleOutcome, DrawReason, RANDOM_BATTLE_TIME_LIMIT_S};
 use crate::bots::BotRoster;
 use crate::setup::{BattleSetup, practice_duel_setup, random_7v7_setup};
 
@@ -25,6 +25,10 @@ pub struct LocalAuthoritativeServer {
     target_tank: TankId,
     bots: BotRoster,
     outcome: Option<BattleOutcome>,
+    /// Battle clock in server ticks; `None` runs untimed (practice duel). When the clock hits
+    /// zero with both teams alive the battle ends in a draw — the safety net that guarantees a
+    /// random battle always ends even if the last survivors never find each other.
+    time_limit_ticks: Option<u64>,
     latest_snapshot: Snapshot,
     pending_damage_events: Vec<DamageEvent>,
     pending_shell_impacts: Vec<ShellImpact>,
@@ -45,6 +49,12 @@ impl LocalAuthoritativeServer {
 
     fn from_setup(config: ServerTickConfig, setup: BattleSetup) -> Self {
         let latest_snapshot = Snapshot::from(&setup.sim);
+        let time_limit_ticks = match setup.mode {
+            BattleMode::PracticeDuel => None,
+            BattleMode::Random7v7 => {
+                Some(u64::from(config.server_tick_hz()) * u64::from(RANDOM_BATTLE_TIME_LIMIT_S))
+            }
+        };
         Self {
             config,
             sim: setup.sim,
@@ -54,6 +64,7 @@ impl LocalAuthoritativeServer {
             target_tank: setup.target_tank,
             bots: setup.bots,
             outcome: None,
+            time_limit_ticks,
             latest_snapshot,
             pending_damage_events: Vec::new(),
             pending_shell_impacts: Vec::new(),
@@ -100,6 +111,19 @@ impl LocalAuthoritativeServer {
         self.outcome
     }
 
+    /// Seconds left on the battle clock; `None` when this battle runs untimed.
+    pub fn battle_time_remaining_s(&self) -> Option<f32> {
+        let limit = self.time_limit_ticks?;
+        let remaining_ticks = limit.saturating_sub(self.sim.tick());
+        Some(remaining_ticks as f32 / self.config.server_tick_hz().max(1) as f32)
+    }
+
+    /// Shrink (or clear) the battle clock. A tuning/testing knob — driving a real 60 Hz battle
+    /// to the ten-minute limit tick by tick is not something a test should pay for.
+    pub fn override_battle_time_limit_ticks(&mut self, time_limit_ticks: Option<u64>) {
+        self.time_limit_ticks = time_limit_ticks;
+    }
+
     pub fn authoritative_tick(&self) -> u64 {
         self.sim.tick()
     }
@@ -133,6 +157,12 @@ impl LocalAuthoritativeServer {
         );
         if self.outcome.is_none() {
             self.outcome = BattleOutcome::from_tanks(self.sim.tanks());
+        }
+        // Elimination on the final tick outranks the clock; only a still-live battle times out.
+        if self.outcome.is_none()
+            && self.time_limit_ticks.is_some_and(|limit| self.sim.tick() >= limit)
+        {
+            self.outcome = Some(BattleOutcome::Draw { reason: DrawReason::TimeExpired });
         }
         self.pending_damage_events.extend_from_slice(self.sim.damage_events());
         self.pending_shell_impacts.extend_from_slice(self.sim.shell_impacts());

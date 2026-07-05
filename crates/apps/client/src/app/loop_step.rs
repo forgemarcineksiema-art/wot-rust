@@ -79,12 +79,11 @@ impl ClientApp {
     }
 
     fn refresh_battle_outcome(&mut self) {
-        self.battle_outcome = self.local_server.battle_outcome().map(|outcome| {
-            if outcome.winning_team() == self.player_team() {
-                crate::hud::BattleHudOutcome::Victory
-            } else {
-                crate::hud::BattleHudOutcome::Defeat
-            }
-        });
+        self.battle_outcome =
+            self.local_server.battle_outcome().map(|outcome| match outcome.winning_team() {
+                Some(team) if team == self.player_team() => crate::hud::BattleHudOutcome::Victory,
+                Some(_) => crate::hud::BattleHudOutcome::Defeat,
+                None => crate::hud::BattleHudOutcome::Draw,
+            });
     }
 }

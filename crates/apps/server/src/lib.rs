@@ -7,7 +7,10 @@ mod bots;
 mod local;
 mod setup;
 
-pub use battle::{BattleMode, BattleOutcome, BattleSeed, RandomBattleConfig};
+pub use battle::{
+    BattleMode, BattleOutcome, BattleSeed, DrawReason, RANDOM_BATTLE_TIME_LIMIT_S,
+    RandomBattleConfig,
+};
 pub use local::{AuthoritativeTick, LocalAuthoritativeServer};
 
 #[derive(Debug, Clone, Copy, PartialEq)]

@@ -1,7 +1,7 @@
 use net::ClientInputCommand;
 use server::{
-    BattleMode, BattleOutcome, BattleSeed, LocalAuthoritativeServer, RandomBattleConfig,
-    ServerTickConfig,
+    BattleMode, BattleOutcome, BattleSeed, DrawReason, LocalAuthoritativeServer,
+    RandomBattleConfig, ServerTickConfig,
 };
 use sim::TankCommand;
 use terrain::prokhorovka_hill_252_2;
@@ -108,6 +108,60 @@ fn battle_outcome_reports_team_wipe_winner() {
     ]);
 
     assert_eq!(outcome, Some(BattleOutcome::TeamEliminated { winning_team: game_core::TeamId(2) }));
+}
+
+/// The last tanks of both teams dying on the same tick used to leave the battle running forever —
+/// no team "alive count == 1" ever happened again. A mutual wipe is a draw, and a draw has no
+/// winning team.
+#[test]
+fn battle_outcome_reports_mutual_wipe_as_a_draw() {
+    let outcome = BattleOutcome::from_team_alive_counts([
+        (game_core::TeamId(1), 0),
+        (game_core::TeamId(2), 0),
+    ]);
+
+    assert_eq!(outcome, Some(BattleOutcome::Draw { reason: DrawReason::MutualElimination }));
+    assert_eq!(outcome.unwrap().winning_team(), None);
+}
+
+/// The battle clock is the safety net that guarantees a random battle always ends: when it runs
+/// out with both teams alive, the battle closes as a draw and stays closed.
+#[test]
+fn random_battle_clock_expiry_ends_the_battle_in_a_draw() {
+    let mut server = LocalAuthoritativeServer::new_random_7v7(
+        ServerTickConfig::new(60, 20),
+        RandomBattleConfig::new(BattleSeed::fixed(11), game_core::VehicleKind::T54_1951),
+    );
+    let player_tank = server.player_tank();
+    assert_eq!(
+        server.battle_time_remaining_s(),
+        Some(server::RANDOM_BATTLE_TIME_LIMIT_S as f32),
+        "the clock starts full"
+    );
+
+    // Driving 36 000 real ticks is not worth a test's time; shrink the clock instead.
+    server.override_battle_time_limit_ticks(Some(4));
+    for client_tick in 0..4 {
+        assert_eq!(server.battle_outcome(), None, "battle runs while the clock has time");
+        server.tick_with_input(ClientInputCommand {
+            client_tick,
+            tank_id: player_tank,
+            command: TankCommand::idle(),
+        });
+    }
+
+    assert_eq!(
+        server.battle_outcome(),
+        Some(BattleOutcome::Draw { reason: DrawReason::TimeExpired })
+    );
+    assert_eq!(server.battle_time_remaining_s(), Some(0.0), "the clock bottoms out at zero");
+}
+
+/// The practice duel is a sandbox: no clock, no timeout draw.
+#[test]
+fn practice_duel_runs_untimed() {
+    let server = LocalAuthoritativeServer::new(ServerTickConfig::new(60, 20));
+    assert_eq!(server.battle_time_remaining_s(), None);
 }
 
 #[test]

@@ -67,6 +67,7 @@ pub fn demo_battle_hud(sniper: bool, aspect: f32) -> Vec<HudVertex> {
         ammo: Some(AmmoHudModel::new([22, 9, 6], 0)),
         minimap: Some(demo_minimap()),
         battle_outcome: None,
+        battle_clock_remaining_s: Some(474.0),
         kill_confirm_age_s: None,
         reload_ready_age_s: None,
     };

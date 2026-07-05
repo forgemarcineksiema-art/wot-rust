@@ -171,6 +171,7 @@ fn the_positional_wrapper_and_the_model_build_identical_huds() {
         ammo: None,
         minimap: None,
         battle_outcome: None,
+        battle_clock_remaining_s: None,
         kill_confirm_age_s: None,
         reload_ready_age_s: None,
     };
@@ -194,6 +195,7 @@ fn battle_outcome_banner_draws_only_when_the_battle_has_ended() {
         ammo: None,
         minimap: None,
         battle_outcome: None,
+        battle_clock_remaining_s: None,
         kill_confirm_age_s: None,
         reload_ready_age_s: None,
     };
@@ -205,4 +207,47 @@ fn battle_outcome_banner_draws_only_when_the_battle_has_ended() {
 
     assert!(!running_hud.iter().any(|vertex| vertex.color == OUTCOME_VICTORY_COLOR));
     assert!(victory_hud.iter().any(|vertex| vertex.color == OUTCOME_VICTORY_COLOR));
+
+    // A draw (mutual wipe or clock expiry) banners in its own neutral color.
+    let draw = BattleHudModel { battle_outcome: Some(BattleHudOutcome::Draw), ..running.clone() };
+    let draw_hud = build_battle_hud(&draw, 16.0 / 9.0);
+    assert!(draw_hud.iter().any(|vertex| vertex.color == super::outcome::OUTCOME_DRAW_COLOR));
+    assert!(!running_hud.iter().any(|vertex| vertex.color == super::outcome::OUTCOME_DRAW_COLOR));
+}
+
+/// The battle clock draws top-center when the server reports a timed battle and disappears for
+/// untimed ones; the last minute switches to the alert color so the squeeze reads at a glance.
+#[test]
+fn battle_clock_draws_only_when_timed_and_warms_in_the_last_minute() {
+    let untimed = BattleHudModel {
+        vitals: vitals(),
+        reticle: None,
+        fps: 0.0,
+        speed_kmh: 0.0,
+        zoom_factor: None,
+        damage_log: Vec::new(),
+        incoming_hits: Vec::new(),
+        ammo: None,
+        minimap: None,
+        battle_outcome: None,
+        battle_clock_remaining_s: None,
+        kill_confirm_age_s: None,
+        reload_ready_age_s: None,
+    };
+    let timed = BattleHudModel { battle_clock_remaining_s: Some(474.0), ..untimed.clone() };
+    let closing = BattleHudModel { battle_clock_remaining_s: Some(42.0), ..untimed.clone() };
+
+    let untimed_hud = build_battle_hud(&untimed, 16.0 / 9.0);
+    let timed_hud = build_battle_hud(&timed, 16.0 / 9.0);
+    let closing_hud = build_battle_hud(&closing, 16.0 / 9.0);
+
+    assert!(
+        timed_hud.len() > untimed_hud.len(),
+        "a timed battle adds clock glyph quads to the HUD"
+    );
+    let alert = |hud: &[HudVertex]| {
+        hud.iter().any(|vertex| vertex.color == super::readouts::CLOCK_CLOSING_COLOR)
+    };
+    assert!(!alert(&timed_hud), "mid-battle clock stays in the calm readout color");
+    assert!(alert(&closing_hud), "the last minute warms to the alert color");
 }

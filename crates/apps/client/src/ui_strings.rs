@@ -41,6 +41,8 @@ pub(crate) mod battle {
     pub const VICTORY: &str = "VICTORY";
     /// Center banner after the player's team is eliminated.
     pub const DEFEAT: &str = "DEFEAT";
+    /// Center banner after a mutual wipe or the battle clock running out.
+    pub const DRAW: &str = "DRAW";
     /// Kill confirmation line under the reticle.
     pub const TARGET_DESTROYED: &str = "TARGET DESTROYED";
 }
@@ -71,6 +73,7 @@ mod tests {
             super::battle::ZOOM_PREFIX,
             super::battle::VICTORY,
             super::battle::DEFEAT,
+            super::battle::DRAW,
             super::battle::TARGET_DESTROYED,
             super::WINDOW_TITLE,
         ];

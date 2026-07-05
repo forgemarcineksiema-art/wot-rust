@@ -6,6 +6,9 @@ use renderer_api::HudVertex;
 use super::primitives::push_bar;
 use super::{BattleHudModel, health_color};
 
+/// Battle-clock color for the final minute — the same alert orange as a running reload.
+pub(crate) const CLOCK_CLOSING_COLOR: [f32; 4] = [0.86, 0.55, 0.20, 0.95];
+
 pub(crate) fn push_battle_readouts(
     vertices: &mut Vec<HudVertex>,
     model: &BattleHudModel,
@@ -53,6 +56,16 @@ pub(crate) fn push_battle_readouts(
             aspect,
             crate::hud::number::ZOOM_COLOR,
         );
+    }
+
+    // Battle clock, top-center M:SS. Steady readout most of the match; the last minute warms to
+    // the alert orange so the closing squeeze reads at a glance.
+    if let Some(remaining_s) = model.battle_clock_remaining_s {
+        let total = remaining_s.max(0.0).ceil() as u32;
+        let label = format!("{}:{:02}", total / 60, total % 60);
+        let color = if total <= 60 { CLOCK_CLOSING_COLOR } else { crate::hud::number::UNIT_COLOR };
+        let width = crate::hud::font::text_width(&label, 0.055, aspect);
+        crate::hud::font::push_text(vertices, &label, -width * 0.5, 0.93, 0.055, aspect, color);
     }
 
     if model.fps > 0.0 {

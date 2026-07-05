@@ -59,6 +59,8 @@ pub struct BattleHudModel {
     pub ammo: Option<ammo_panel::AmmoHudModel>,
     pub minimap: Option<minimap::MinimapModel>,
     pub battle_outcome: Option<BattleHudOutcome>,
+    /// Seconds left on the battle clock, drawn top-center as M:SS; `None` hides it (untimed).
+    pub battle_clock_remaining_s: Option<f32>,
     /// Seconds since the player's most recent kill; `None` once the confirmation has played out.
     pub kill_confirm_age_s: Option<f32>,
     /// Seconds since the reload finished, driving the gun-ready flash at the reticle.
@@ -80,6 +82,7 @@ pub fn build_hud(vitals: HudVitals, aspect: f32) -> Vec<HudVertex> {
             ammo: None,
             minimap: None,
             battle_outcome: None,
+            battle_clock_remaining_s: None,
             kill_confirm_age_s: None,
             reload_ready_age_s: None,
         },
@@ -110,6 +113,7 @@ pub(crate) fn build_hud_with_reticle(
             ammo: None,
             minimap: None,
             battle_outcome: None,
+            battle_clock_remaining_s: None,
             kill_confirm_age_s: None,
             reload_ready_age_s: None,
         },

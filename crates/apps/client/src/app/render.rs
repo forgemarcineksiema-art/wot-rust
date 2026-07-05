@@ -128,6 +128,7 @@ impl ClientApp {
             ammo: Some(self.player_ammo_hud()),
             minimap,
             battle_outcome: self.battle_outcome,
+            battle_clock_remaining_s: self.local_server.battle_time_remaining_s(),
             kill_confirm_age_s: self.kill_confirm_age_s,
             reload_ready_age_s: self.reload_ready_age_s,
         };
