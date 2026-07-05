@@ -1,18 +1,39 @@
+use game_core::TankId;
 use game_core::math::wrap_angle;
-use game_core::{TankId, TeamId};
 use glam::Vec3;
 use sim::{MAX_GUN_PITCH_RAD, MIN_GUN_PITCH_RAD, TankCommand, TankState, VIEW_RANGE_M};
-use terrain::{BattlefieldMap, StrategicPoint, StrategicRole};
+use terrain::BattlefieldMap;
 
 use crate::battle::BattleSeed;
+use crate::bot_routes::{bot_route_command, bot_yaw_to, seed_route_index};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// How little per-tick progress counts as "not moving" while the bot commands forward drive
+/// (0.01 m/tick = 0.6 m/s at 60 Hz — well under the slowest route crawl).
+const STALL_PROGRESS_EPS_M: f32 = 0.01;
+/// Ticks of no progress under a drive command before the bot decides it is stuck (1.5 s).
+const STALL_TICKS_TO_REVERSE: u32 = 90;
+/// How long a stuck bot backs out before resuming its route (~1.3 s, a few hull-lengths' arc).
+const REVERSE_TICKS: u32 = 80;
+
+#[derive(Debug, Clone, Copy, PartialEq)]
 struct BotAgent {
     tank_id: TankId,
     route_index: usize,
+    /// Hull position at the previous command, for stall detection.
+    last_position: Option<Vec3>,
+    /// Consecutive ticks the bot commanded drive but the hull did not move.
+    stall_ticks: u32,
+    /// Remaining ticks of the current back-out maneuver.
+    reverse_ticks: u32,
 }
 
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+impl BotAgent {
+    fn new(tank_id: TankId, route_index: usize) -> Self {
+        Self { tank_id, route_index, last_position: None, stall_ticks: 0, reverse_ticks: 0 }
+    }
+}
+
+#[derive(Debug, Default, Clone, PartialEq)]
 pub(crate) struct BotRoster {
     agents: Vec<BotAgent>,
 }
@@ -26,10 +47,7 @@ impl BotRoster {
         let agents = tank_ids
             .into_iter()
             .enumerate()
-            .map(|(index, tank_id)| BotAgent {
-                tank_id,
-                route_index: seed_route_index(seed, index),
-            })
+            .map(|(index, tank_id)| BotAgent::new(tank_id, seed_route_index(seed, index)))
             .collect();
         Self { agents }
     }
@@ -59,17 +77,6 @@ impl BotRoster {
     }
 }
 
-fn seed_route_index(seed: BattleSeed, index: usize) -> usize {
-    (seed_route_mix(index as u64 ^ seed.route_seed()) % 5) as usize
-}
-
-fn seed_route_mix(mut value: u64) -> u64 {
-    value ^= value >> 33;
-    value = value.wrapping_mul(0xff51_afd7_ed55_8ccd);
-    value ^= value >> 33;
-    value
-}
-
 fn bot_command_for_tank(
     agent: &mut BotAgent,
     tank: &TankState,
@@ -77,9 +84,53 @@ fn bot_command_for_tank(
     battlefield: &BattlefieldMap,
 ) -> TankCommand {
     if let Some(target) = bot_nearest_visible_enemy(tank, tanks) {
+        // Standing to shoot is intentional, not a stall.
+        agent.stall_ticks = 0;
+        agent.last_position = Some(tank.position);
         return bot_combat_command(tank, target);
     }
-    bot_route_command(agent, tank, battlefield)
+    if let Some(command) = bot_unstuck_command(agent, tank) {
+        return command;
+    }
+    bot_route_command(&mut agent.route_index, tank, battlefield)
+}
+
+/// Detect and escape a physical block. The route brain only ever drives FORWARD, so two bots that
+/// meet nose-to-nose (or a bot pinned against the player or a wall) push into the contact for the
+/// rest of the battle. After [`STALL_TICKS_TO_REVERSE`] ticks of commanded drive with no progress,
+/// the bot backs out on an arc for [`REVERSE_TICKS`]; the arc's side alternates by tank id so a
+/// deadlocked pair swings apart instead of mirroring each other back into the same contact.
+fn bot_unstuck_command(agent: &mut BotAgent, tank: &TankState) -> Option<TankCommand> {
+    let moved_m = agent.last_position.map_or(f32::MAX, |previous| previous.distance(tank.position));
+    agent.last_position = Some(tank.position);
+    if agent.reverse_ticks > 0 {
+        agent.reverse_ticks -= 1;
+        return Some(bot_reverse_command(tank));
+    }
+    if moved_m < STALL_PROGRESS_EPS_M {
+        agent.stall_ticks += 1;
+    } else {
+        agent.stall_ticks = 0;
+    }
+    if agent.stall_ticks >= STALL_TICKS_TO_REVERSE {
+        agent.stall_ticks = 0;
+        agent.reverse_ticks = REVERSE_TICKS;
+        return Some(bot_reverse_command(tank));
+    }
+    None
+}
+
+fn bot_reverse_command(tank: &TankState) -> TankCommand {
+    let steer = if tank.id.0.is_multiple_of(2) { 0.45 } else { -0.45 };
+    TankCommand {
+        throttle: -0.7,
+        steer,
+        brake: 0.0,
+        turret_yaw_delta: 0.0,
+        gun_pitch_delta: 0.0,
+        fire: false,
+        select_ammo: None,
+    }
 }
 
 fn bot_nearest_visible_enemy<'a>(
@@ -116,56 +167,6 @@ fn bot_combat_command(tank: &TankState, target: &TankState) -> TankCommand {
     }
 }
 
-fn bot_route_command(
-    agent: &mut BotAgent,
-    tank: &TankState,
-    battlefield: &BattlefieldMap,
-) -> TankCommand {
-    let target = bot_route_target(agent, tank.team, tank.position, battlefield);
-    let desired_yaw = bot_yaw_to(tank.position, target);
-    let yaw_error = wrap_angle(desired_yaw - tank.yaw_rad);
-    TankCommand {
-        throttle: if yaw_error.abs() > 1.2 { 0.35 } else { 0.78 },
-        steer: (yaw_error * 1.8).clamp(-1.0, 1.0),
-        brake: 0.0,
-        turret_yaw_delta: 0.0,
-        gun_pitch_delta: 0.0,
-        fire: false,
-        select_ammo: None,
-    }
-}
-
-fn bot_route_target(
-    agent: &mut BotAgent,
-    team: TeamId,
-    position: Vec3,
-    battlefield: &BattlefieldMap,
-) -> Vec3 {
-    let points: Vec<&StrategicPoint> = battlefield
-        .strategic_points
-        .iter()
-        .filter(|point| bot_point_matches_team(point, team))
-        .collect();
-    if points.is_empty() {
-        return Vec3::new(battlefield.size_m[0] * 0.5, position.y, battlefield.size_m[1] * 0.5);
-    }
-    let point = points[agent.route_index % points.len()];
-    let target = Vec3::from_array(point.position);
-    if position.distance(target) < point.radius_m.max(25.0) {
-        agent.route_index = (agent.route_index + 1) % points.len();
-        Vec3::from_array(points[agent.route_index].position)
-    } else {
-        target
-    }
-}
-
-fn bot_point_matches_team(point: &StrategicPoint, team: TeamId) -> bool {
-    point.role == StrategicRole::Crossing
-        || point.id == "oktyabrskiy"
-        || (team == TeamId(1) && point.id.contains("south"))
-        || (team == TeamId(2) && point.id.contains("north"))
-}
-
 #[derive(Debug, Clone, Copy)]
 struct BotAimSolution {
     turret_error: f32,
@@ -184,13 +185,10 @@ fn bot_aim_solution(tank: &TankState, target: Vec3) -> BotAimSolution {
     }
 }
 
-fn bot_yaw_to(from: Vec3, to: Vec3) -> f32 {
-    let delta = to - from;
-    delta.x.atan2(delta.z)
-}
-
 #[cfg(test)]
 mod tests {
+    use game_core::TeamId;
+
     use super::*;
 
     fn tank(id: u64, team: TeamId, position: Vec3, spotted_mask: u8) -> TankState {
@@ -221,6 +219,42 @@ mod tests {
             selected_ammo,
             spotted_mask,
         }
+    }
+
+    /// The route brain only drives forward, so a physically blocked bot (nose-to-nose with
+    /// another bot, pinned on the player, wedged on cover) used to push into the contact for the
+    /// rest of the battle. Locked here: zero progress under a drive command flips the bot into a
+    /// reverse arc, and after the back-out it resumes its route.
+    #[test]
+    fn a_blocked_bot_backs_out_instead_of_pushing_forever() {
+        let battlefield = terrain::prokhorovka_hill_252_2();
+        let bot = tank(1, TeamId(1), Vec3::new(300.0, 0.0, 300.0), TeamId(1).spotting_bit());
+        let mut roster = BotRoster::new(vec![bot.id], BattleSeed::fixed(7));
+        let command = |roster: &mut BotRoster| {
+            roster.commands(std::slice::from_ref(&bot), &battlefield, false)[0].1
+        };
+
+        assert!(command(&mut roster).throttle > 0.0, "the route brain drives forward");
+
+        // The hull never moves (blocked): within the stall window the bot must flip to reverse.
+        let mut reversed_after = None;
+        for tick in 0..STALL_TICKS_TO_REVERSE + 2 {
+            if command(&mut roster).throttle < 0.0 {
+                reversed_after = Some(tick);
+                break;
+            }
+        }
+        assert!(reversed_after.is_some(), "a stalled bot must back out");
+
+        // The back-out runs its course and the route resumes.
+        let mut resumed = false;
+        for _ in 0..REVERSE_TICKS + 2 {
+            if command(&mut roster).throttle > 0.0 {
+                resumed = true;
+                break;
+            }
+        }
+        assert!(resumed, "after backing out the bot resumes its route");
     }
 
     #[test]
