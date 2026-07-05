@@ -4,8 +4,9 @@
 
 use renderer_api::HudVertex;
 
+use super::primitives::push_segment;
 use super::reticle::PenetrationHint;
-use super::reticle_overlay::{RETICLE_NO_PEN, RETICLE_PEN, push_segment};
+use super::reticle_overlay::{RETICLE_NO_PEN, RETICLE_PEN};
 
 /// A just-landed own hit, echoed at the reticle as a brief four-tick pulse.
 #[derive(Debug, Clone, Copy, PartialEq)]

@@ -108,14 +108,21 @@ impl ClientApp {
                 feedback.actual_impact_world_point,
                 view_projection,
             ),
+            gun_clip: crate::hud::reticle::world_to_clip_xy(
+                feedback.gun_world_point,
+                view_projection,
+            ),
             aim_radius_clip: self.player_aim_radius_clip(camera.vertical_fov_degrees),
             target_distance_m: Some((feedback.aim_world_point - muzzle).length()),
             status: feedback.status,
             penetration_hint: pen_hint,
             reload_fraction: 1.0 - (reload_remaining / reload_max.max(0.001)).clamp(0.0, 1.0),
             hit_confirm: self.hit_indicator.recent_confirm(),
-            show_penetration_numbers: self.camera_controller.mode()
-                == crate::BattleCameraMode::Sniper,
+            mode: if self.camera_controller.mode() == crate::BattleCameraMode::Sniper {
+                crate::hud::reticle::ReticleMode::Sniper
+            } else {
+                crate::hud::reticle::ReticleMode::ThirdPerson
+            },
         })
     }
 

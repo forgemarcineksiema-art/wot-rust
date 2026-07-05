@@ -22,7 +22,10 @@ use crate::{CameraUniform, GpuContext, VehicleMeshRegistry, build_vehicle_pipeli
 
 const DYNAMIC_VERTEX_CAPACITY: u64 = 1 << 20;
 const DYNAMIC_INDEX_CAPACITY: u64 = 1 << 20;
-const HUD_VERTEX_CAPACITY: u64 = 1 << 16;
+/// HUD overlay budget: 8192 vertices (32 B each). Sized for the full battle HUD — reticle,
+/// bars, readouts, damage log, ammo panel and the minimap — with headroom; `set_hud` truncates
+/// (with a warning) instead of blanking the frame if a regression ever exceeds it.
+const HUD_VERTEX_CAPACITY: u64 = 1 << 18;
 /// Battle-FX vertex budget: ~2048 soft quads (6 verts x 36 bytes) with headroom.
 const FX_VERTEX_CAPACITY: u64 = 1 << 19;
 
