@@ -68,8 +68,10 @@ impl SceneLighting {
             // horizon. The horizon doubles as the fog colour, so distant hills melt into the sky.
             sky_zenith_rgb: [0.19, 0.34, 0.58],
             sky_horizon_rgb: [0.66, 0.74, 0.82],
-            // Light haze: barely there up close, folding the far end of a 1000 m map into the sky.
-            fog_density: 0.0016,
+            // Very light haze, tuned so enemy vehicles stay crisply readable at combat range:
+            // ~4% fade at 300 m, ~6% at 500 m, only ~10-15% out past 1 km where the far terrain
+            // melts into the horizon. Aerial perspective for depth, never for hiding targets.
+            fog_density: 0.00013,
             fog_height_falloff: 0.02,
         }
     }
