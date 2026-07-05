@@ -110,6 +110,33 @@ impl FxSystem {
 }
 
 impl FxSystem {
+    /// A puff of dust kicked up behind a tank's tracks as it rolls — sandy, low, thrown backward
+    /// and outward and settling quickly. Used by the garage drive-in; the caller paces the cadence
+    /// by travelled distance. `ground` is the contact point at floor level behind the hull.
+    pub fn track_dust(&mut self, ground: Vec3) {
+        for _ in 0..4 {
+            let spread = Vec3::new(self.rand_signed() * 1.4, 0.0, self.rand_signed() * 0.8);
+            let speed = 1.2 + self.rand_unit() * 1.6;
+            let ttl = 0.7 + self.rand_unit() * 0.7;
+            let lift = 0.4 + self.rand_unit() * 0.6;
+            let alpha = 0.40;
+            // Sandy dirt, biased backward (-Z) so the trail streams out behind the moving tank.
+            self.spawn(Particle {
+                position: ground + Vec3::Y * 0.1 + spread * 0.2,
+                velocity_mps: spread * speed + Vec3::new(0.0, lift, -speed * 0.8),
+                gravity_factor: 0.15,
+                drag_per_s: 3.2,
+                age_s: 0.0,
+                ttl_s: ttl,
+                size_begin_m: 0.5,
+                size_end_m: 1.8,
+                color_begin: [0.44 * alpha, 0.39 * alpha, 0.29 * alpha, alpha],
+                color_end: [0.0, 0.0, 0.0, 0.0],
+                stretch_s: 0.0,
+            });
+        }
+    }
+
     /// One puff of the dead-engine column: darker and slower than gun smoke, rising off the
     /// deck and thinning as it climbs. The caller owns the emission cadence.
     pub fn engine_smoke_puff(&mut self, deck: Vec3) {

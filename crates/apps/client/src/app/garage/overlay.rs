@@ -11,6 +11,18 @@ use super::layout::*;
 use super::{GarageHit, GarageState, GarageView, panels};
 use crate::hud::push_quad;
 
+impl GarageState {
+    /// Length scale for the parked tank's gun submesh so swapping guns visibly changes the
+    /// silhouette: the installed barrel over the vehicle's stock barrel (the baked mesh is stock).
+    pub(in crate::app) fn gun_silhouette_scale(&self) -> f32 {
+        let stock = self.selected_vehicle().stock_barrel_length_m();
+        if stock <= 0.0 {
+            return 1.0;
+        }
+        (self.draft().gun_barrel_length() / stock).clamp(0.6, 1.6)
+    }
+}
+
 pub(super) fn build(state: &GarageState, aspect: f32) -> Vec<HudVertex> {
     if !state.is_open() {
         return Vec::new();
