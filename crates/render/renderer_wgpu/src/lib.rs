@@ -42,6 +42,7 @@ pub use scene_renderer::SceneRenderer;
 pub use scene_renderer::env_group::build_shadow_bind_group_layout;
 pub use scene_renderer::shadow::shadow_shader_source;
 pub use scene_renderer::ssao::ssao_shader_source;
+pub use scene_renderer::{VEHICLE_INSTANCE_CAPACITY, vehicle_instance_budget};
 pub use scene_target::SceneRenderTarget;
 pub use shader_validation::{
     WgslUniformBinding, WgslValidationReport, basic_tank_shader_source, validate_wgsl_shader,

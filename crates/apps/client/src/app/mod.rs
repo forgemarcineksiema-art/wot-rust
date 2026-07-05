@@ -184,6 +184,7 @@ pub fn run() -> anyhow::Result<()> {
     event_loop.set_control_flow(ControlFlow::Poll);
     let mut app = ClientApp::new();
     app.enable_garage_persistence();
+    app.prebake_playable_vehicle_assets();
     event_loop.run_app(&mut app).context("winit app failed")?;
     Ok(())
 }

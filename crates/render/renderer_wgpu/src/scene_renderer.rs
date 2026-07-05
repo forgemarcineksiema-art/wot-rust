@@ -29,6 +29,7 @@ const DYNAMIC_INDEX_CAPACITY: u64 = 1 << 20;
 const HUD_VERTEX_CAPACITY: u64 = 1 << 18;
 /// Battle-FX vertex budget: ~2048 soft quads (6 verts x 36 bytes) with headroom.
 const FX_VERTEX_CAPACITY: u64 = 1 << 19;
+pub use buffers::{VEHICLE_INSTANCE_CAPACITY, vehicle_instance_budget};
 
 pub struct SceneRenderer {
     pipeline: wgpu::RenderPipeline,

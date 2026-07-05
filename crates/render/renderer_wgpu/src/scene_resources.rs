@@ -104,6 +104,31 @@ pub fn frame_instances(frame: &RenderFrame) -> (Vec<SceneInstance>, Vec<SceneObj
     (instances, draws)
 }
 
+/// Clip an instance upload to the buffer budget: keep the first `capacity` instances and trim the
+/// draw list to match (draws past the cut are dropped, the boundary draw is shortened). Returns
+/// whether anything was clipped. Losing the last-submitted objects keeps the frame LIVE — dropping
+/// the whole oversized upload instead leaves the previous frame's instances on screen, freezing
+/// every vehicle in its last uploaded pose.
+pub fn clip_instances_to_capacity(
+    instances: &mut Vec<SceneInstance>,
+    draws: &mut Vec<SceneObjectDraw>,
+    capacity: usize,
+) -> bool {
+    if instances.len() <= capacity {
+        return false;
+    }
+    instances.truncate(capacity);
+    draws.retain_mut(|draw| {
+        let start = draw.instance_start as usize;
+        if start >= capacity {
+            return false;
+        }
+        draw.instance_count = draw.instance_count.min((capacity - start) as u32);
+        true
+    });
+    true
+}
+
 struct SceneObjectBatch {
     mesh: MeshHandle,
     material: MaterialHandle,
@@ -139,6 +164,40 @@ mod tests {
         assert_eq!(instances[0].tint[0], 1.0);
         assert_eq!(instances[1].tint[0], 3.0);
         assert_eq!(instances[2].tint[0], 2.0);
+    }
+
+    #[test]
+    fn clipping_to_budget_shortens_the_boundary_draw_and_drops_the_rest() {
+        let frame = RenderFrame {
+            objects: vec![object(1, 10, 2), object(2, 10, 2), object(3, 11, 2), object(4, 12, 2)],
+            ..Default::default()
+        };
+        let (mut instances, mut draws) = frame_instances(&frame);
+        assert_eq!((instances.len(), draws.len()), (4, 3));
+
+        let clipped = clip_instances_to_capacity(&mut instances, &mut draws, 3);
+
+        assert!(clipped);
+        assert_eq!(instances.len(), 3);
+        // First draw (2 instances) survives whole, the boundary draw is shortened to what fits,
+        // and the draw past the cut is gone — no draw may index instances beyond the upload.
+        assert_eq!(draws.len(), 2);
+        assert_eq!((draws[0].instance_start, draws[0].instance_count), (0, 2));
+        assert_eq!((draws[1].instance_start, draws[1].instance_count), (2, 1));
+        for draw in &draws {
+            assert!((draw.instance_start + draw.instance_count) as usize <= instances.len());
+        }
+    }
+
+    #[test]
+    fn clipping_under_budget_is_a_no_op() {
+        let frame =
+            RenderFrame { objects: vec![object(1, 10, 2), object(2, 11, 2)], ..Default::default() };
+        let (mut instances, mut draws) = frame_instances(&frame);
+
+        assert!(!clip_instances_to_capacity(&mut instances, &mut draws, 2));
+        assert_eq!(instances.len(), 2);
+        assert_eq!(draws.len(), 2);
     }
 
     fn object(tank_id: u64, mesh: u32, material: u32) -> RenderObject {

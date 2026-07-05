@@ -191,6 +191,39 @@ mod tests {
 
     use super::*;
 
+    /// A full 7v7 (14 tanks) of the instance-heaviest playable vehicle must fit the renderer's
+    /// vehicle instance buffer. When it does not, `set_vehicle_render_frame` truncates tanks off
+    /// the frame — and before it truncated, the whole oversized upload was silently dropped,
+    /// freezing every vehicle on screen the moment enough tanks were spotted. This locks the
+    /// budget against roster growth and running-gear detail growth alike.
+    #[test]
+    fn worst_case_7v7_battle_fits_the_vehicle_instance_budget() {
+        let per_tank_worst = VehicleKind::PLAYABLE
+            .iter()
+            .map(|&kind| {
+                let gear = RunningGearKinematics::for_vehicle(kind).map_or(0, |kin| {
+                    vehicle_geometry::running_gear_placements_dynamic(
+                        &kin,
+                        0.0,
+                        0.0,
+                        GearDynamics::default(),
+                    )
+                    .len()
+                });
+                3 + gear // hull + turret + gun + every animated gear part
+            })
+            .max()
+            .expect("playable roster is non-empty");
+
+        let battle_worst = 14 * per_tank_worst;
+        assert!(
+            battle_worst <= renderer_wgpu::vehicle_instance_budget(),
+            "a 14-tank battle can submit {battle_worst} vehicle instances but the renderer budget \
+             holds {}; grow VEHICLE_INSTANCE_CAPACITY before shipping this roster/gear detail",
+            renderer_wgpu::vehicle_instance_budget(),
+        );
+    }
+
     #[test]
     fn render_snapshot_carries_every_pose_field_the_meshes_read() {
         let tank = PresentationTank {

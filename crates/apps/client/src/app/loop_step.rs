@@ -41,18 +41,19 @@ impl ClientApp {
             self.input.fire_pending = false;
             return;
         }
-        // Mouse look is applied per rendered frame (see `render_now`); the fixed step only
-        // consumes the resulting aim, so the turret converges on the latest sight point. One
-        // sight sweep feeds both the traverse and the elevation command.
-        let solution = self.sight_solution();
-        let turret_yaw_delta = self.turret_tracking_command_for(solution.as_ref());
-        let gun_pitch_delta = self.gun_elevation_command_for(solution.as_ref());
         let mut fire = self.input.fire_pending;
         self.input.fire_pending = false;
         // Like the fire latch: the switch request rides exactly one command (the batch's first).
         let mut select_ammo = self.input.pending_ammo_select.take();
         self.seed_prediction();
         for _ in 0..count {
+            // Mouse look is applied per rendered frame (see `render_now`); the fixed step only
+            // consumes the resulting aim. The sight sweep runs EVERY tick — the sight point moves
+            // as the predicted hull advances, and a catch-up batch reusing one stale solution
+            // overshoots the turret each batch, wobbling the reticle exactly when FPS dips.
+            let solution = self.sight_solution();
+            let turret_yaw_delta = self.turret_tracking_command_for(solution.as_ref());
+            let gun_pitch_delta = self.gun_elevation_command_for(solution.as_ref());
             let command = TankCommand {
                 throttle: self.input.throttle(),
                 steer: -self.input.steer(),
