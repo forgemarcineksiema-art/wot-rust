@@ -8,7 +8,7 @@ mod snapshot_schedule;
 
 pub use snapshot_schedule::SnapshotSchedule;
 
-pub const PROTOCOL_VERSION: u16 = 15;
+pub const PROTOCOL_VERSION: u16 = 16;
 
 #[derive(Debug, Error)]
 pub enum NetError {
@@ -74,6 +74,10 @@ pub struct TankSnapshot {
     pub ammo_counts: [u16; game_core::MAX_AMMO_SLOTS],
     /// The ammo slot the next shot fires from (protocol v15).
     pub selected_ammo: u8,
+    /// Bitmask of teams that can currently see this tank (bit `t` = `TeamId(t+1)`), from the LOS
+    /// spotting pass (protocol v16). v1 gates UI only — the client uses it to hide unseen enemies'
+    /// minimap blips and HP bars — every tank's position still replicates to every client.
+    pub spotted_by_teams_mask: u8,
 }
 
 impl TankSnapshot {
@@ -108,6 +112,7 @@ impl From<&TankState> for TankSnapshot {
             track_damage_mask: tank.tracks.bits(),
             ammo_counts: tank.ammo_counts,
             selected_ammo: tank.selected_ammo,
+            spotted_by_teams_mask: tank.spotted_mask,
         }
     }
 }

@@ -22,6 +22,7 @@ fn snapshot(id: u64, position: [f32; 3], hit_points: u32) -> TankSnapshot {
         track_damage_mask: 0,
         ammo_counts: game_core::AmmoLoadout::default().counts,
         selected_ammo: 0,
+        spotted_by_teams_mask: 0,
     }
 }
 
@@ -125,6 +126,7 @@ fn broken_track_side_stops_accumulating_while_healthy_side_moves() {
         track_damage_mask: TrackDamageMask::LEFT.bits(),
         ammo_counts: game_core::AmmoLoadout::default().counts,
         selected_ammo: 0,
+        spotted_by_teams_mask: 0,
         ..posed([0.0, 0.0, 5.0], 0.0)
     }]);
 
@@ -153,6 +155,7 @@ fn a_thrown_left_track_seats_the_hull_toward_the_dead_side() {
         track_damage_mask: TrackDamageMask::LEFT.bits(),
         ammo_counts: game_core::AmmoLoadout::default().counts,
         selected_ammo: 0,
+        spotted_by_teams_mask: 0,
         ..snapshot(1, [0.0, 0.0, 0.0], 900)
     };
     // Let the presentation spring ease the lean in over a second of frames.

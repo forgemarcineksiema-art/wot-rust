@@ -58,6 +58,7 @@ fn snapshot_round_trips_track_damage_mask() {
         track_damage_mask: TrackDamageMask::LEFT.bits(),
         ammo_counts: game_core::AmmoLoadout::default().counts,
         selected_ammo: 0,
+        spotted_by_teams_mask: 0,
     };
     let message = ProtocolMessage::Snapshot(Snapshot {
         server_tick: 99,

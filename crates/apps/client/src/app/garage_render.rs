@@ -153,5 +153,6 @@ fn garage_preview_snapshot(kind: VehicleKind) -> TankSnapshot {
         track_damage_mask: 0,
         ammo_counts: game_core::AmmoLoadout::default().counts,
         selected_ammo: 0,
+        spotted_by_teams_mask: 0,
     }
 }

@@ -43,6 +43,10 @@ pub struct TankState {
     /// The ammo slot the next shot fires from. Switching restarts the reload.
     #[serde(default)]
     pub selected_ammo: u8,
+    /// Bitmask of teams that can currently see this tank (bit `t` = `TeamId(t+1)`), recomputed by
+    /// the LOS spotting pass. `serde(default)` keeps pre-spotting fixtures loading (unspotted).
+    #[serde(default)]
+    pub spotted_mask: u8,
 }
 
 fn default_ammo_counts() -> [u16; game_core::MAX_AMMO_SLOTS] {

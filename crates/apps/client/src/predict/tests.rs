@@ -25,6 +25,7 @@ fn snapshot_for_vehicle(vehicle: game_core::VehicleKind, position: [f32; 3]) -> 
         track_damage_mask: 0,
         ammo_counts: game_core::AmmoLoadout::default().counts,
         selected_ammo: 0,
+        spotted_by_teams_mask: 0,
     }
 }
 

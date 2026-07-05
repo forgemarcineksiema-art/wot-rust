@@ -60,6 +60,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             track_damage_mask: 0,
             ammo_counts: game_core::AmmoLoadout::default().counts,
             selected_ammo: 0,
+            spotted_by_teams_mask: 0,
         };
         render_objects.append(&mut tank_render_objects(&mut catalog, &snapshot, palette[index]));
     }

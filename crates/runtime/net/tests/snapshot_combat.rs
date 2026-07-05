@@ -26,6 +26,7 @@ fn snapshots_carry_projectiles_and_damage_events_through_the_wire() {
             track_damage_mask: 0,
             ammo_counts: [24, 10, 6],
             selected_ammo: 0,
+            spotted_by_teams_mask: 0,
         }],
         shells: vec![ShellSnapshot {
             owner: TankId(1),

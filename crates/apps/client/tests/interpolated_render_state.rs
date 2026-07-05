@@ -106,6 +106,7 @@ fn snapshot_at(server_tick: u64, x: f32) -> Snapshot {
             track_damage_mask: 0,
             ammo_counts: game_core::AmmoLoadout::default().counts,
             selected_ammo: 0,
+            spotted_by_teams_mask: 0,
         }],
         shells: Vec::new(),
         damage_events: Vec::new(),
