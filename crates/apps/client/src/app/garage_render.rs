@@ -5,13 +5,16 @@
 use std::time::Instant;
 
 use game_core::{TankId, TeamId, VehicleKind};
+use glam::Vec3;
 use net::TankSnapshot;
 use renderer_api::{CameraProjectionPolicy, RenderFrame, SceneLighting, view_projection_matrix};
 use renderer_wgpu::WindowRenderer;
 use tracing::error;
 
 use super::{ClientApp, SceneKind};
-use crate::{battlefield_scene_mesh, render_frame_from_objects, tank_vehicle_render_objects};
+use crate::vehicle::asset_render::tank_vehicle_render_objects_with_tracks;
+use crate::vehicle::variation::VehicleVariation;
+use crate::{battlefield_scene_mesh, render_frame_from_objects};
 
 impl ClientApp {
     /// Render the static garage hangar: the selected vehicle parked on the turntable under an
@@ -25,6 +28,7 @@ impl ClientApp {
         // the focus/return spring and the idle auto-orbit.
         self.apply_mouse_look();
         self.garage.tick_camera(dt);
+        self.garage.tick_drive_in(dt);
         self.ensure_scene(SceneKind::Garage);
         let aspect = self.renderer.as_ref().map_or(16.0 / 9.0, WindowRenderer::aspect_ratio);
         let camera = self.garage.orbit_camera();
@@ -36,11 +40,19 @@ impl ClientApp {
             projection.far_plane_m(),
         );
 
-        let snapshot = garage_preview_snapshot(self.garage.selected_vehicle());
-        let mut objects = tank_vehicle_render_objects(
+        // While a vehicle switch rolls the new tank in from the doorway, animate its position down
+        // the entry lane and scroll its tracks with the travelled distance; once parked both are 0.
+        let (drive_z, track_m) = self.garage.drive_in_pose();
+        let mut snapshot = garage_preview_snapshot(self.garage.selected_vehicle());
+        snapshot.position[2] = drive_z;
+        let variation = VehicleVariation::from_snapshot(&snapshot);
+        let mut objects = tank_vehicle_render_objects_with_tracks(
             &mut self.vehicle_asset_catalog,
             &snapshot,
             [0.72, 0.76, 0.62],
+            &variation,
+            track_m,
+            track_m,
         );
         // Stretch the gun submesh (objects: [hull, turret, gun]) along its barrel axis so swapping
         // to a longer/shorter gun visibly changes the silhouette. Local +Z is the barrel direction.
@@ -55,6 +67,14 @@ impl ClientApp {
         let render_frame = render_frame_from_objects(objects);
         let hud = self.garage.overlay_vertices(aspect);
 
+        // Dust streams off the tracks while the tank rolls in; the pool ages out once it parks.
+        if self.garage.poll_drive_dust() {
+            self.fx.track_dust(Vec3::new(0.0, 0.0, drive_z - 3.0));
+        }
+        self.fx.tick(dt);
+        let fx_vertices =
+            self.fx.vertices(Vec3::from_array(camera.eye), Vec3::from_array(camera.target));
+
         let Some(renderer) = self.renderer.as_mut() else {
             return;
         };
@@ -67,6 +87,7 @@ impl ClientApp {
         renderer.set_render_frame(&RenderFrame::default());
         renderer.set_vehicle_render_frame(&render_frame);
         renderer.set_dynamic_mesh(&[], &[]);
+        renderer.set_fx(&fx_vertices);
         renderer.set_hud(&hud);
         if let Err(error) = renderer.render(view_proj, camera.eye) {
             error!(%error, "garage frame render failed");

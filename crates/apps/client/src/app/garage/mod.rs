@@ -1,6 +1,7 @@
 mod actions;
 mod camera;
 mod draft;
+mod drive_in;
 mod layout;
 mod overlay;
 mod panels;
@@ -26,7 +27,7 @@ pub(super) struct GarageState {
     open: bool,
     started: bool,
     selected_index: usize,
-    /// First roster index visible in the carousel window (0 until the roster overflows).
+    /// First roster index visible in the carousel window (0 until it overflows `CAR_VISIBLE`).
     carousel_scroll: usize,
     draft: LoadoutDraft,
     /// Edited loadouts for the non-selected vehicles (the selected one's live draft is `draft`),
@@ -36,17 +37,17 @@ pub(super) struct GarageState {
     orbit_yaw: f32,
     orbit_pitch: f32,
     orbit_distance: f32,
-    /// Camera feel state (`camera.rs`): focus look-point offset, eased framing target, idle timer.
+    // Camera feel (`camera.rs`) + roll-in animation (`drive_in.rs`).
     pivot_offset: Vec3,
     camera_target: Option<CameraTarget>,
     idle_seconds: f32,
+    drive_in: drive_in::DriveIn,
     cursor_clip: [f32; 2],
     dragging: bool,
     /// Slot whose last cycle was rejected by compatibility (shown red until any interaction clears).
     rejected_slot: Option<FitSlot>,
-    /// The module slot highlighted by keyboard focus (`[`/`]`); `Q`/`E` cycle its option.
+    /// Module slot with keyboard focus (`[`/`]` move it, `Q`/`E` cycle it).
     focused_slot: FitSlot,
-    /// Which garage screen is active (hangar vs tech tree).
     view: GarageView,
 }
 
@@ -70,6 +71,7 @@ impl Default for GarageState {
             pivot_offset: Vec3::ZERO,
             camera_target: None,
             idle_seconds: 0.0,
+            drive_in: drive_in::DriveIn::default(),
             cursor_clip: [2.0, 2.0],
             dragging: false,
             rejected_slot: None,
@@ -196,17 +198,6 @@ impl GarageState {
 
     pub(super) fn rejected_slot(&self) -> Option<FitSlot> {
         self.rejected_slot
-    }
-
-    /// Length scale for the parked tank's gun submesh so swapping guns visibly changes the
-    /// silhouette: the ratio of the installed barrel to the vehicle's stock barrel (the baked mesh
-    /// represents the stock gun).
-    pub(super) fn gun_silhouette_scale(&self) -> f32 {
-        let stock = self.selected_vehicle().stock_barrel_length_m();
-        if stock <= 0.0 {
-            return 1.0;
-        }
-        (self.draft.gun_barrel_length() / stock).clamp(0.6, 1.6)
     }
 
     pub(super) fn overlay_vertices(&self, aspect: f32) -> Vec<renderer_api::HudVertex> {
