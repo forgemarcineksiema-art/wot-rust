@@ -15,6 +15,9 @@ use crate::tank_mesh::push_oriented_box;
 const HALF: f32 = 13.0;
 const WALL_HEIGHT: f32 = 8.0;
 const SLAB: f32 = 0.15;
+/// Height where the gunmetal lower wall meets the near-black upper wall. The two bands **abut** at
+/// this seam — they must never overlap, or their coplanar inner faces z-fight (a moiré band).
+const WALL_SEAM: f32 = 4.8;
 /// Top surface of the turntable the tank rests on, metres above the floor.
 pub const TURNTABLE_TOP_M: f32 = 0.12;
 const TURNTABLE_RADIUS_M: f32 = 5.2;
@@ -48,15 +51,21 @@ pub fn hangar_scene_mesh() -> (Vec<SceneVertex>, Vec<u32>) {
 
     // Shell: floor, ceiling, four walls. The lower walls are gunmetal; a near-black upper band
     // above the doorway line lets the roof fall into shadow so the lit bay reads as the subject.
+    // The lower/upper bands abut exactly at `WALL_SEAM` and the upper band runs to the ceiling, so
+    // no two wall faces are ever coplanar (which would z-fight) and there is no gap to the roof.
+    let lower_c = WALL_SEAM / 2.0;
+    let lower_h = WALL_SEAM / 2.0;
+    let upper_c = (WALL_SEAM + WALL_HEIGHT) / 2.0;
+    let upper_h = (WALL_HEIGHT - WALL_SEAM) / 2.0;
     slab(&mut v, &mut i, [0.0, -SLAB, 0.0], [HALF, SLAB, HALF], CONCRETE);
     slab(&mut v, &mut i, [0.0, WALL_HEIGHT + SLAB, 0.0], [HALF, SLAB, HALF], ROOF);
-    for (cz, hz) in [(-HALF, SLAB), (HALF, SLAB)] {
-        slab(&mut v, &mut i, [0.0, 2.4, cz], [HALF, 2.4, hz], METAL);
-        slab(&mut v, &mut i, [0.0, 5.8, cz], [HALF, 1.6, hz], UPPER_WALL);
+    for cz in [-HALF, HALF] {
+        slab(&mut v, &mut i, [0.0, lower_c, cz], [HALF, lower_h, SLAB], METAL);
+        slab(&mut v, &mut i, [0.0, upper_c, cz], [HALF, upper_h, SLAB], UPPER_WALL);
     }
-    for (cx, hx) in [(-HALF, SLAB), (HALF, SLAB)] {
-        slab(&mut v, &mut i, [cx, 2.4, 0.0], [hx, 2.4, HALF], METAL);
-        slab(&mut v, &mut i, [cx, 5.8, 0.0], [hx, 1.6, HALF], UPPER_WALL);
+    for cx in [-HALF, HALF] {
+        slab(&mut v, &mut i, [cx, lower_c, 0.0], [SLAB, lower_h, HALF], METAL);
+        slab(&mut v, &mut i, [cx, upper_c, 0.0], [SLAB, upper_h, HALF], UPPER_WALL);
     }
 
     // Vertical wall ribs (pilasters) proud of the side and back walls.
@@ -206,6 +215,30 @@ mod tests {
                 && v.position[1] < TURNTABLE_TOP_M + 0.02
         });
         assert!(!disc, "the faked shadow disc must be gone");
+    }
+
+    #[test]
+    fn the_two_wall_bands_abut_without_overlapping() {
+        // Regression for the z-fighting moiré band: the gunmetal and near-black wall slabs must
+        // meet edge-to-edge at `WALL_SEAM`, never share coplanar inner faces over an overlap.
+        let (vertices, _) = hangar_scene_mesh();
+        // Vertices on the right side-wall inner plane (x == HALF - SLAB).
+        let on_plane = |c: [f32; 3]| {
+            vertices
+                .iter()
+                .filter(move |v| (v.position[0] - (HALF - SLAB)).abs() < 1.0e-4 && v.color == c)
+                .map(|v| v.position[1])
+        };
+        let metal_top = on_plane(METAL).fold(f32::MIN, f32::max);
+        let upper_bottom = on_plane(UPPER_WALL).fold(f32::MAX, f32::min);
+        assert!(metal_top > 0.0, "the gunmetal band should reach the inner wall plane");
+        assert!(
+            (metal_top - upper_bottom).abs() < 1.0e-4,
+            "wall bands must abut at the seam, not overlap: metal top {metal_top}, upper bottom {upper_bottom}"
+        );
+        // The upper band runs all the way to the ceiling — no gap to the roof.
+        let upper_top = on_plane(UPPER_WALL).fold(f32::MIN, f32::max);
+        assert!((upper_top - WALL_HEIGHT).abs() < 1.0e-4, "upper wall must reach the roof");
     }
 
     #[test]
