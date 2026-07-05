@@ -130,6 +130,8 @@ pub(crate) struct ClientApp {
     current_scene: SceneKind,
     /// Last known framebuffer size, used to map cursor pixels into clip space for the garage UI.
     viewport: (u32, u32),
+    /// Camera mode at the previous presented frame; a change clicks the optics cue.
+    prev_camera_mode: Option<crate::BattleCameraMode>,
     /// The platform audio stream; `None` headless or without an output device (silent game).
     audio: Option<crate::audio_out::AudioOutput>,
     /// Sounds produced since the last presented frame, flushed to the device with the frame —
@@ -192,6 +194,7 @@ impl ClientApp {
             // garage frame swaps in the hangar. Starting at `Garage` here would skip that swap.
             current_scene: SceneKind::Battle,
             viewport: (1280, 720),
+            prev_camera_mode: None,
             audio: None,
             pending_audio: Vec::new(),
         }

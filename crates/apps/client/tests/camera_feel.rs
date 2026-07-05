@@ -258,6 +258,47 @@ fn switching_modes_travels_the_view_instead_of_teleporting_it() {
     assert_eq!(logical.vertical_fov_degrees, sniper_fov);
 }
 
+/// The scope surround rides the SAME clock as the camera's mode blend: it irises in while the
+/// view travels into the optics and lifts away as it leaves. Before this, the vignette popped in
+/// full-strength on the first sniper frame while the camera was still mid-flight — the hard cut
+/// the whole transition blend exists to remove.
+#[test]
+fn the_scope_surround_rides_the_mode_blend_clock() {
+    let heightmap = HeightMap::flat(64, 64, 1.0, 0.0).expect("heightmap");
+    let environment = BattleCameraEnvironment::with_terrain(&heightmap);
+    let subject = CameraSubject::from_snapshot(tank_snapshot([20.0, 0.0, 20.0], 0.0, 0.0), 0.0);
+    let mut camera = BattleCameraController::new(BattleCameraSettings::default());
+    camera.advance([20.0, 0.0, 20.0], 1.0 / 60.0);
+    camera.present(&subject, &environment, 1.0 / 60.0);
+    assert_eq!(camera.scope_dressing(), 0.0, "no scope dressing in third person");
+
+    // Entry: exactly mid-blend (0.14 s transition; smoothstep(0.5) = 0.5) the housing is half in.
+    camera.set_mode(BattleCameraMode::Sniper);
+    camera.present(&subject, &environment, 0.07);
+    let entering = camera.scope_dressing();
+    assert!(
+        (entering - 0.5).abs() < 0.05,
+        "mid-entry the surround must be half-irised, got {entering}"
+    );
+    for _ in 0..15 {
+        camera.present(&subject, &environment, 1.0 / 60.0);
+    }
+    assert_eq!(camera.scope_dressing(), 1.0, "settled sniper shows the full surround");
+
+    // Exit: the housing lifts away on the same clock, not a hard cut.
+    camera.set_mode(BattleCameraMode::ThirdPerson);
+    camera.present(&subject, &environment, 0.07);
+    let leaving = camera.scope_dressing();
+    assert!(
+        (leaving - 0.5).abs() < 0.05,
+        "mid-exit the surround must be half-lifted, got {leaving}"
+    );
+    for _ in 0..15 {
+        camera.present(&subject, &environment, 1.0 / 60.0);
+    }
+    assert_eq!(camera.scope_dressing(), 0.0, "back in third person nothing remains");
+}
+
 /// The transition FOV blends in MAGNIFICATION space: perceived zoom is 1/FOV, so a linear FOV
 /// sweep snaps violently at the wide end and crawls at the narrow end. Locked here: mid-blend the
 /// presented FOV sits well BELOW the linear midpoint (the harmonic path), so the zoom rate reads

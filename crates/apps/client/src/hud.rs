@@ -65,6 +65,10 @@ pub struct BattleHudModel {
     pub kill_confirm_age_s: Option<f32>,
     /// Seconds since the reload finished, driving the gun-ready flash at the reticle.
     pub reload_ready_age_s: Option<f32>,
+    /// How much of the scope surround shows (0 = none, 1 = settled sniper). Rides the presented
+    /// camera's mode-blend clock, so the optics iris in/out WITH the view instead of hard-cutting
+    /// (see `camera::present::scope_dressing`).
+    pub scope_fade: f32,
 }
 
 /// Build the 2D HUD overlay (center crosshair, top-left health bar, bottom-center reload
@@ -85,6 +89,7 @@ pub fn build_hud(vitals: HudVitals, aspect: f32) -> Vec<HudVertex> {
             battle_clock_remaining_s: None,
             kill_confirm_age_s: None,
             reload_ready_age_s: None,
+            scope_fade: 0.0,
         },
         aspect,
     )
@@ -116,6 +121,12 @@ pub(crate) fn build_hud_with_reticle(
             battle_clock_remaining_s: None,
             kill_confirm_age_s: None,
             reload_ready_age_s: None,
+            // The positional test path has no camera; sniper mode implies a settled scope.
+            scope_fade: if reticle.is_some_and(|r| r.mode == reticle::ReticleMode::Sniper) {
+                1.0
+            } else {
+                0.0
+            },
         },
         aspect,
     )
@@ -137,8 +148,10 @@ pub(crate) fn build_battle_hud(model: &BattleHudModel, aspect: f32) -> Vec<HudVe
         mode: crate::hud::reticle::ReticleMode::ThirdPerson,
     });
     // The scope surround paints first so every live marker (reticle, readouts) stays on top.
-    if reticle.mode == crate::hud::reticle::ReticleMode::Sniper {
-        scope_overlay::push_scope_overlay(&mut vertices, aspect);
+    // Fade-driven, not mode-driven: during the TPP <-> sniper camera blend the housing is
+    // already irising in (or lifting away) while the logical mode has long since flipped.
+    if model.scope_fade > 0.001 {
+        scope_overlay::push_scope_overlay(&mut vertices, aspect, model.scope_fade);
     }
     reticle_overlay::push_reticle(&mut vertices, &reticle, aspect);
     if let Some(age_s) = model.reload_ready_age_s {
