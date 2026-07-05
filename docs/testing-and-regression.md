@@ -3,15 +3,23 @@
 ## Test Layers
 
 - Unit and integration tests cover gameplay math, simulation stepping, networking, physics, terrain, and architecture rules.
-- Protocol snapshot tests lock binary wire compatibility for message fixtures.
+- Protocol snapshot tests lock raw binary payload compatibility for message fixtures.
+- Protocol frame tests lock the transport header, handshake messages, and on-wire protocol version.
 - Replay regression tests lock simulation outcomes from recorded inputs.
 - Benchmarks track hot paths before optimization work starts.
 
 ## Protocol Snapshots
 
 Protocol snapshot fixtures live in `crates/runtime/net/tests/snapshots`. They cover input
-commands, baseline tank snapshots, and a non-empty combat snapshot with shells
-and damage events.
+commands, vehicle selection, baseline tank snapshots, and a non-empty combat snapshot with shells
+and damage events. These fixtures exercise `encode_message` / `decode_message`, the raw bincode
+payload used inside transport frames.
+
+Transport framing is covered separately by `crates/runtime/net/tests/protocol_frame.rs`.
+`encode_frame` prefixes every payload with the `WOT1` magic and the current
+`PROTOCOL_VERSION`; `decode_frame` rejects short headers, bad magic, and mismatched versions before
+decoding the payload. `ClientHello` and `ServerHello` messages advertise the same protocol version
+at connection setup.
 
 When changing protocol encoding intentionally:
 
@@ -21,13 +29,12 @@ When changing protocol encoding intentionally:
 4. Update the snapshot fixture.
 5. Document the compatibility impact before merging.
 
-Current compatibility note: protocol v12 adds `team` to `TankSnapshot` (the
-client splits live enemies from teammates/wrecks with the same rule as the
-server) and the `shell_impacts: Vec<ShellImpact>` list to `Snapshot` (absorbed
-shells report where and on what surface they died). Every snapshot message of
-v11 and earlier is binary incompatible with v12. Input command and vehicle
-selection bytes are unchanged but belong to v12 once the shared
-`PROTOCOL_VERSION` is bumped; the v12 fixtures were regenerated accordingly.
+Current compatibility note: protocol v16 adds LOS spotting masks to `TankSnapshot`; local
+authoritative snapshots are now filtered per viewer before they reach the client. Older notable
+payload breaks include v12 adding `team` to `TankSnapshot` and
+`shell_impacts: Vec<ShellImpact>` to `Snapshot`, v14 adding hull pitch/roll, and v15 adding ammo
+state. The transport frame also carries `PROTOCOL_VERSION = 16` on the wire; a peer with a
+different version must fail the frame before payload decode.
 
 ## Replays
 
