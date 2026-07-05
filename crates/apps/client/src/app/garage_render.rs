@@ -17,10 +17,14 @@ impl ClientApp {
     /// Render the static garage hangar: the selected vehicle parked on the turntable under an
     /// orbit camera, with the garage UI overlay. Replaces the battle scene while the garage is open.
     pub(super) fn render_garage(&mut self) {
-        self.last_render_time = Instant::now();
-        // Apply orbit drag (and clear the cursor delta) â€” the battle path does this per frame, and
-        // the garage needs it too or the inspection camera never moves.
+        let now = Instant::now();
+        let dt = now.saturating_duration_since(self.last_render_time).as_secs_f32().min(0.1);
+        self.last_render_time = now;
+        // Apply orbit drag (and clear the cursor delta) — the battle path does this per frame, and
+        // the garage needs it too or the inspection camera never moves. The camera tick then runs
+        // the focus/return spring and the idle auto-orbit.
         self.apply_mouse_look();
+        self.garage.tick_camera(dt);
         self.ensure_scene(SceneKind::Garage);
         let aspect = self.renderer.as_ref().map_or(16.0 / 9.0, WindowRenderer::aspect_ratio);
         let camera = self.garage.orbit_camera();

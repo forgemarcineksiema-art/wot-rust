@@ -1,4 +1,5 @@
 mod actions;
+mod camera;
 mod draft;
 mod layout;
 mod overlay;
@@ -13,7 +14,9 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 use game_core::{TankSpec, VehicleKind};
+use glam::Vec3;
 
+use self::camera::CameraTarget;
 pub(crate) use self::draft::{FitSlot, LoadoutDraft};
 use self::persistence::SavedLoadout;
 pub(super) use self::types::{GarageHit, GarageView};
@@ -26,18 +29,20 @@ pub(super) struct GarageState {
     /// First roster index visible in the carousel window (0 until the roster overflows).
     carousel_scroll: usize,
     draft: LoadoutDraft,
-    /// Edited loadouts for the *non-selected* vehicles, so switching back restores each tank's
-    /// own draft instead of resetting to stock. The selected vehicle's live draft is `draft`.
+    /// Edited loadouts for the non-selected vehicles (the selected one's live draft is `draft`),
+    /// so switching back restores each tank's own draft; persisted to `save_path` when set.
     saved: HashMap<VehicleKind, SavedLoadout>,
-    /// Where to persist edits, or `None` for a pure in-memory garage (tests, offscreen renders).
     save_path: Option<PathBuf>,
     orbit_yaw: f32,
     orbit_pitch: f32,
     orbit_distance: f32,
+    /// Camera feel state (`camera.rs`): focus look-point offset, eased framing target, idle timer.
+    pivot_offset: Vec3,
+    camera_target: Option<CameraTarget>,
+    idle_seconds: f32,
     cursor_clip: [f32; 2],
     dragging: bool,
-    /// The slot whose last cycle attempt was rejected by compatibility, or `None`.
-    /// Shown red in the loadout strip until any other interaction clears it.
+    /// Slot whose last cycle was rejected by compatibility (shown red until any interaction clears).
     rejected_slot: Option<FitSlot>,
     /// The module slot highlighted by keyboard focus (`[`/`]`); `Q`/`E` cycle its option.
     focused_slot: FitSlot,
@@ -62,6 +67,9 @@ impl Default for GarageState {
             orbit_yaw: HERO_ORBIT_YAW,
             orbit_pitch: HERO_ORBIT_PITCH,
             orbit_distance: HERO_ORBIT_DISTANCE,
+            pivot_offset: Vec3::ZERO,
+            camera_target: None,
+            idle_seconds: 0.0,
             cursor_clip: [2.0, 2.0],
             dragging: false,
             rejected_slot: None,
@@ -71,8 +79,7 @@ impl Default for GarageState {
     }
 }
 
-/// Build the garage HUD overlay for an offscreen review render. `tech_tree = true` switches to
-/// the browse-only tech tree view; `false` renders the default hangar overlay.
+/// Build the garage HUD overlay for an offscreen review render (`tech_tree` picks the view).
 pub fn garage_overlay(tech_tree: bool, aspect: f32) -> Vec<renderer_api::HudVertex> {
     let mut state = GarageState::default();
     if tech_tree {
