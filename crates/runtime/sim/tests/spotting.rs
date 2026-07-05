@@ -3,7 +3,10 @@
 
 use game_core::{TeamId, VehicleKind};
 use glam::Vec3;
-use sim::{FixedTimestep, SimulationState, VIEW_RANGE_M, line_of_sight};
+use sim::{
+    FixedTimestep, SPOTTED_HOLD_TICKS, SPOTTING_INTERVAL_TICKS, SimulationState, VIEW_RANGE_M,
+    line_of_sight,
+};
 use terrain::{HeightMap, StaticCoverKind, StaticCoverObject};
 
 const TEAM_1_BIT: u8 = 1 << 0;
@@ -89,6 +92,51 @@ fn a_ridge_between_observers_blocks_the_sight_line() {
     // Flat ground at the same spots is clear.
     let flat = HeightMap::flat(w, w, cell, 0.0).unwrap();
     assert!(line_of_sight(Some(&flat), &[], eye, target));
+}
+
+/// The 10 Hz boolean LOS recompute strobes a target dancing on a ridge or a bush corner — model
+/// pop, minimap blink, and the shooter's ballistic aim point flipping between hull and terrain.
+/// Locked here: after the fresh line breaks, the spot HOLDS for `SPOTTED_HOLD_TICKS`, then drops
+/// on the next recompute past expiry — one clean spot-then-fade cycle instead of a strobe.
+#[test]
+fn a_spotted_target_holds_for_the_grace_window_after_los_breaks() {
+    let timestep = FixedTimestep::from_hz(60);
+    let flat = HeightMap::flat(32, 32, 10.0, 0.0).unwrap();
+    let mut state = SimulationState::new();
+    let _observer = state.spawn_tank(TeamId(1), VehicleKind::T54_1951.spec(), Vec3::ZERO);
+    let target =
+        state.spawn_tank(TeamId(2), VehicleKind::T54_1951.spec(), Vec3::new(0.0, 0.0, 60.0));
+
+    // Tick 0 recompute in the open: freshly spotted.
+    state.apply_commands_on_battlefield(&[], timestep, &flat, &[]);
+    assert_ne!(state.tank(target).unwrap().spotted_mask & TEAM_1_BIT, 0, "fresh spot");
+
+    // A wall now blocks the line. Within the hold window the target must stay lit...
+    let wall = [tree_line([0.0, 5.0, 30.0], [40.0, 10.0, 2.0])];
+    for _ in 0..SPOTTED_HOLD_TICKS {
+        state.apply_commands_on_battlefield(&[], timestep, &flat, &wall);
+    }
+    assert_ne!(
+        state.tank(target).unwrap().spotted_mask & TEAM_1_BIT,
+        0,
+        "the hold keeps the target lit after LOS breaks"
+    );
+
+    // ...and the first recompute past expiry drops it.
+    for _ in 0..2 * SPOTTING_INTERVAL_TICKS {
+        state.apply_commands_on_battlefield(&[], timestep, &flat, &wall);
+    }
+    assert_eq!(
+        state.tank(target).unwrap().spotted_mask & TEAM_1_BIT,
+        0,
+        "the hold expires instead of lasting forever"
+    );
+
+    // Re-acquiring the line re-lights the target immediately on the next recompute.
+    for _ in 0..SPOTTING_INTERVAL_TICKS {
+        state.apply_commands_on_battlefield(&[], timestep, &flat, &[]);
+    }
+    assert_ne!(state.tank(target).unwrap().spotted_mask & TEAM_1_BIT, 0, "re-spot works");
 }
 
 #[test]
