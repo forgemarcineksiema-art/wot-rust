@@ -2,6 +2,7 @@ use renderer_api::HudVertex;
 
 use crate::hud::reticle::ReticleStatus;
 
+pub(crate) mod ammo_panel;
 pub(crate) mod damage_log;
 pub(crate) mod font;
 pub(crate) mod health_bar;
@@ -29,7 +30,7 @@ pub struct HudVitals {
 }
 
 /// Everything the battle HUD draws in one frame, gathered by `render_now` and consumed by
-/// `build_battle_hud`. One struct instead of a growing positional parameter list — upcoming
+/// `build_battle_hud`. One struct instead of a growing positional parameter list â€” upcoming
 /// elements (damage log, ammo panel, minimap) land here as fields.
 #[derive(Debug, Clone, PartialEq)]
 pub struct BattleHudModel {
@@ -45,6 +46,8 @@ pub struct BattleHudModel {
     pub damage_log: Vec<damage_log::DamageLogEntry>,
     /// Incoming hits resolved to screen bearings (`hud/hit_direction.rs`).
     pub incoming_hits: Vec<hit_direction::IncomingHit>,
+    /// The rack panel (`hud/ammo_panel.rs`); `None` outside battle (offline examples).
+    pub ammo: Option<ammo_panel::AmmoHudModel>,
 }
 
 /// Build the 2D HUD overlay (center crosshair, top-left health bar, bottom-center reload
@@ -59,6 +62,7 @@ pub fn build_hud(vitals: HudVitals, aspect: f32) -> Vec<HudVertex> {
             zoom_factor: None,
             damage_log: Vec::new(),
             incoming_hits: Vec::new(),
+            ammo: None,
         },
         aspect,
     )
@@ -84,6 +88,7 @@ pub(crate) fn build_hud_with_reticle(
             zoom_factor,
             damage_log: Vec::new(),
             incoming_hits: Vec::new(),
+            ammo: None,
         },
         aspect,
     )
@@ -164,6 +169,9 @@ pub(crate) fn build_battle_hud(model: &BattleHudModel, aspect: f32) -> Vec<HudVe
 
     damage_log::push_damage_log(&mut vertices, &model.damage_log, aspect);
     hit_direction::push_hit_direction(&mut vertices, &model.incoming_hits, aspect);
+    if let Some(ammo) = &model.ammo {
+        ammo_panel::push_ammo_panel(&mut vertices, ammo, aspect);
+    }
 
     if model.speed_kmh >= 0.5 {
         crate::hud::number::push_number(

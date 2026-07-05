@@ -10,6 +10,8 @@ mod garage_render;
 mod hit_mark_tests;
 mod input;
 mod input_state;
+#[cfg(test)]
+mod input_tests;
 mod lifecycle;
 mod loop_step;
 mod prediction;
@@ -61,6 +63,8 @@ pub(crate) struct InputState {
     mouse_dx: f32,
     mouse_dy: f32,
     fire_pending: bool,
+    /// Ammo slot requested with 1/2/3 this frame, consumed once by the next fixed-tick batch.
+    pending_ammo_select: Option<u8>,
     free_look: bool,
     /// Camera pitch captured when free look began, restored on release.
     free_look_return_pitch: Option<f32>,

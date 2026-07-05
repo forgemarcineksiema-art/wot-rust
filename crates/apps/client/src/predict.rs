@@ -19,6 +19,9 @@ pub struct LocalPredictor {
     module_hit_points: [u32; MODULE_SLOT_COUNT],
     destroyed_modules_mask: u8,
     track_damage_mask: TrackDamageMask,
+    /// The ammo slot the player believes is loaded: set optimistically on the 1/2/3 keys so the
+    /// reticle's ballistics answer the same frame, reconciled from snapshots.
+    selected_ammo: u8,
     /// Hardest landing (m/s of absorbed fall speed) since the render loop last consumed it.
     pending_landing_impact_mps: f32,
     seeded: bool,
@@ -40,6 +43,7 @@ impl LocalPredictor {
             module_hit_points: spec.module_health.hit_points_by_slot(),
             destroyed_modules_mask: 0,
             track_damage_mask: TrackDamageMask::healthy(),
+            selected_ammo: spec.ammo.initial_selected,
             pending_landing_impact_mps: 0.0,
             seeded: false,
             previous: PredictedPose {
@@ -65,6 +69,22 @@ impl LocalPredictor {
         &self.spec
     }
 
+    pub fn selected_ammo(&self) -> u8 {
+        self.selected_ammo
+    }
+
+    /// Adopt an ammo switch optimistically; the server applies the same request on the next
+    /// command, so lockstep keeps them agreeing (invalid slots are clamped like the sim does).
+    pub fn set_selected_ammo(&mut self, slot: u8) {
+        self.selected_ammo = slot.min(game_core::MAX_AMMO_SLOTS as u8 - 1);
+    }
+
+    /// The shell the currently selected slot fires, from the predictor's (custom) loadout.
+    pub fn selected_shell(&self) -> game_core::ShellSpec {
+        let options = self.spec.gun.ammo_options();
+        options[(self.selected_ammo as usize).min(options.len() - 1)]
+    }
+
     /// Snap the predicted hull to an authoritative snapshot. In lockstep this matches the
     /// prediction (a no-op), but it also seeds the first frame and corrects rare divergence
     /// without a per-snapshot lerp that would visibly shake the camera.
@@ -87,6 +107,7 @@ impl LocalPredictor {
         self.module_hit_points = authoritative.module_hit_points;
         self.destroyed_modules_mask = authoritative.destroyed_modules_mask;
         self.track_damage_mask = TrackDamageMask::from_bits(authoritative.track_damage_mask);
+        self.selected_ammo = authoritative.selected_ammo;
         // On the very first sync there is no real "previous" tick to blend from, so anchor
         // it to the seed pose -- otherwise the first frames would lerp in from the origin.
         // On later corrections we leave `previous` alone so the render smoothly absorbs the

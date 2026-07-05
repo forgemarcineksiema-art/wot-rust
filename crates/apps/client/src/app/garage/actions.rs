@@ -5,6 +5,8 @@
 use game_core::VehicleKind;
 use glam::Vec3;
 use renderer_api::Camera;
+use winit::event::KeyEvent;
+use winit::keyboard::{KeyCode, PhysicalKey};
 
 use super::{GarageHit, GarageState};
 use crate::app::ClientApp;
@@ -100,6 +102,45 @@ impl ClientApp {
     pub(in crate::app) fn garage_secondary_press(&mut self) {
         if let GarageHit::ModuleCycle(slot, _) = self.garage.hit_test(true) {
             self.garage.cycle_module(slot, -1);
+        }
+    }
+
+    /// Garage keyboard bindings: selection, loadout editing, crew, tech tree, Battle. Returns
+    /// `false` for keys the garage does not own (they fall through to driving once started).
+    pub(in crate::app) fn garage_keyboard(&mut self, event: &KeyEvent) -> bool {
+        match event.physical_key {
+            PhysicalKey::Code(KeyCode::ArrowLeft) => self.garage.cycle(-1),
+            PhysicalKey::Code(KeyCode::ArrowRight) => self.garage.cycle(1),
+            PhysicalKey::Code(KeyCode::Digit1) => self.select_garage_index(0),
+            PhysicalKey::Code(KeyCode::Digit2) => self.select_garage_index(1),
+            PhysicalKey::Code(KeyCode::Digit3) => self.select_garage_index(2),
+            PhysicalKey::Code(KeyCode::Digit4) => self.select_garage_index(3),
+            PhysicalKey::Code(KeyCode::Digit5) => self.select_garage_index(4),
+            PhysicalKey::Code(KeyCode::Enter) => self.confirm_garage_selection(),
+            PhysicalKey::Code(KeyCode::Escape) => self.garage.close_if_started(),
+            // Keyboard loadout editing: focus + cycle + ammo + crew.
+            PhysicalKey::Code(KeyCode::BracketLeft) => self.garage.focus_adjacent(-1),
+            PhysicalKey::Code(KeyCode::BracketRight) => self.garage.focus_adjacent(1),
+            PhysicalKey::Code(KeyCode::KeyQ) => self.garage.cycle_focused(-1),
+            PhysicalKey::Code(KeyCode::KeyE) => self.garage.cycle_focused(1),
+            PhysicalKey::Code(KeyCode::KeyZ) => self.garage.set_ammo(0),
+            PhysicalKey::Code(KeyCode::KeyX) => self.garage.set_ammo(1),
+            PhysicalKey::Code(KeyCode::KeyC) => self.garage.set_ammo(2),
+            PhysicalKey::Code(KeyCode::Minus) => self.garage.adjust_proficiency(-1),
+            PhysicalKey::Code(KeyCode::Equal) => self.garage.adjust_proficiency(1),
+            PhysicalKey::Code(KeyCode::KeyT) => match self.garage.view() {
+                super::GarageView::Hangar => self.garage.open_tech_tree(),
+                super::GarageView::TechTree => self.garage.close_tech_tree(),
+            },
+            // Before the first battle every other key is swallowed; afterwards it drives.
+            _ => return !self.garage.has_started(),
+        }
+        true
+    }
+
+    fn select_garage_index(&mut self, index: usize) {
+        if let Some(vehicle) = VehicleKind::PLAYABLE.get(index).copied() {
+            self.select_garage_vehicle(vehicle);
         }
     }
 

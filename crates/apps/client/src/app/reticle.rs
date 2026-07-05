@@ -30,7 +30,9 @@ impl ClientApp {
         let camera = self.camera_from_tank(tank);
         let aim = self.aim_world_point(&camera)?;
         let muzzle = self.muzzle_position();
-        let shell = self.player_spec().gun.shell;
+        // The ballistic solution flies the round the player actually has loaded (optimistic on
+        // an ammo switch, reconciled from snapshots) — not the spec's stock shell.
+        let shell = self.predictor.selected_shell();
         let world_pitch = crate::aim::gun_pitch_to_hit(
             muzzle,
             aim,
@@ -73,7 +75,10 @@ impl ClientApp {
         let aim = self.aim_world_point(camera)?;
         let tank = self.local_render_tank()?;
         let tanks = self.render_state.interpolated_tanks();
-        let player_spec = self.player_spec();
+        // The reticle trace and pen hint fly the SELECTED shell (the predictor holds the custom
+        // loadout and the optimistic slot choice); the snapshot-derived spec is stock by kind.
+        let mut player_spec = self.player_spec();
+        player_spec.gun.shell = self.predictor.selected_shell();
         let muzzle_velocity = player_spec.gun.shell.muzzle_velocity_mps;
         let muzzle = self.muzzle_position();
         let report =
