@@ -1,11 +1,10 @@
 use game_core::TankId;
-use game_core::math::wrap_angle;
 use glam::Vec3;
-use sim::{MAX_GUN_PITCH_RAD, MIN_GUN_PITCH_RAD, TankCommand, TankState, VIEW_RANGE_M};
+use sim::{TankCommand, TankState, VIEW_RANGE_M};
 use terrain::BattlefieldMap;
 
 use crate::battle::BattleSeed;
-use crate::bot_routes::{bot_route_command, bot_yaw_to, seed_route_index};
+use crate::bot_routes::{bot_route_command, seed_route_index};
 
 /// How little per-tick progress counts as "not moving" while the bot commands forward drive
 /// (0.01 m/tick = 0.6 m/s at 60 Hz — well under the slowest route crawl).
@@ -166,36 +165,18 @@ fn bot_nearest_engageable_enemy<'a>(
     candidates.into_iter().find(|target| sim::tank_line_of_sight(tank, target, heightmap, cover))
 }
 
+/// Stand and lay the gun on the ballistic firing solution (`bot_aim`); the trigger waits for the
+/// lay to close inside the angle the target actually subtends at this range.
 fn bot_combat_command(tank: &TankState, target: &TankState) -> TankCommand {
-    let aim = bot_aim_solution(tank, target.position + Vec3::Y * target.spec.hitbox.center_y_m);
+    let aim = crate::bot_aim::bot_aim_solution(tank, target);
     TankCommand {
         throttle: 0.0,
         steer: 0.0,
         brake: 0.35,
         turret_yaw_delta: (aim.turret_error * 4.0).clamp(-1.0, 1.0),
         gun_pitch_delta: (aim.pitch_error * 4.0).clamp(-1.0, 1.0),
-        fire: aim.turret_error.abs() < 0.08
-            && aim.pitch_error.abs() < 0.06
-            && tank.reload_remaining_s <= 0.0,
+        fire: aim.on_target() && tank.reload_remaining_s <= 0.0,
         select_ammo: None,
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-struct BotAimSolution {
-    turret_error: f32,
-    pitch_error: f32,
-}
-
-fn bot_aim_solution(tank: &TankState, target: Vec3) -> BotAimSolution {
-    let delta = target - tank.position;
-    let desired_yaw = bot_yaw_to(tank.position, target);
-    let desired_turret = wrap_angle(desired_yaw - tank.yaw_rad);
-    let flat = Vec3::new(delta.x, 0.0, delta.z).length().max(1.0);
-    let desired_pitch = (delta.y / flat).atan().clamp(MIN_GUN_PITCH_RAD, MAX_GUN_PITCH_RAD);
-    BotAimSolution {
-        turret_error: wrap_angle(desired_turret - tank.turret_yaw_rad),
-        pitch_error: desired_pitch - tank.gun_pitch_rad,
     }
 }
 

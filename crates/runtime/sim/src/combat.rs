@@ -37,20 +37,7 @@ pub(crate) fn try_fire_shell(tank: &mut TankState, tick: u64) -> Option<ShellSta
     // The shell leaves the *visible* muzzle: the mount pivots about the trunnion and ring exactly
     // like the rendered gun submesh. Dispersion only perturbs the velocity direction — the barrel
     // itself does not jump around the aim point between shots.
-    let mounts = tank.spec.mounts;
-    // A non-stock gun fires from its own barrel tip: scale the muzzle by installed/stock length so
-    // the shell spawn tracks the longer/shorter barrel (and the rendered gun, which scales to match).
-    let stock_barrel = tank.spec.kind.stock_barrel_length_m();
-    let barrel_scale =
-        if stock_barrel > 0.0 { tank.spec.gun.barrel_length_m / stock_barrel } else { 1.0 };
-    let muzzle = game_core::math::muzzle_world_position_scaled(
-        &mounts,
-        tank.position,
-        tank.hull_pose(),
-        tank.turret_yaw_rad,
-        tank.gun_pitch_rad,
-        barrel_scale,
-    );
+    let muzzle = tank.muzzle_world_position();
     Some(ShellState {
         owner: tank.id,
         position: muzzle,
