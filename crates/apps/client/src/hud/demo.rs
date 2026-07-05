@@ -66,6 +66,7 @@ pub fn demo_battle_hud(sniper: bool, aspect: f32) -> Vec<HudVertex> {
         incoming_hits: vec![IncomingHit { bearing_rad: 2.1, age_s: 0.3, penetrated: false }],
         ammo: Some(AmmoHudModel::new([22, 9, 6], 0)),
         minimap: Some(demo_minimap()),
+        battle_outcome: None,
     };
     build_battle_hud(&model, aspect)
 }

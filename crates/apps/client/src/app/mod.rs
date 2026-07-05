@@ -29,7 +29,7 @@ use std::time::Instant;
 use anyhow::Context;
 use game_core::{TankId, VehicleKind};
 use renderer_wgpu::WindowRenderer;
-use server::{LocalAuthoritativeServer, ServerTickConfig};
+use server::{LocalAuthoritativeServer, RandomBattleConfig, ServerTickConfig};
 use sim::DEFAULT_SIMULATION_TICK_HZ;
 use terrain::{BattlefieldMap, prokhorovka_hill_252_2};
 use winit::event_loop::{ControlFlow, EventLoop};
@@ -114,6 +114,8 @@ pub(crate) struct ClientApp {
     engine_smoke_accum_s: HashMap<game_core::TankId, f32>,
     /// Smoothed frames-per-second for the HUD readout (EMA over instantaneous frame rate).
     fps_estimate: f32,
+    /// Local battle result banner state, derived from the authoritative server outcome.
+    battle_outcome: Option<crate::hud::BattleHudOutcome>,
     /// Static scene geometry currently uploaded to the renderer (garage hangar vs battlefield).
     current_scene: SceneKind,
     /// Last known framebuffer size, used to map cursor pixels into clip space for the garage UI.
@@ -126,7 +128,10 @@ impl ClientApp {
     }
 
     fn new_without_vehicle_artifacts() -> Self {
-        let local_server = LocalAuthoritativeServer::new(ServerTickConfig::default());
+        let local_server = LocalAuthoritativeServer::new_random_7v7(
+            ServerTickConfig::default(),
+            RandomBattleConfig::runtime(VehicleKind::default()),
+        );
         let player_tank = local_server.player_tank();
         let mut render_state = InterpolatedBattleState::default();
         render_state.accept_authoritative_snapshot(local_server.latest_snapshot_for_player());
@@ -164,6 +169,7 @@ impl ClientApp {
             terrain_scars: crate::fx::TerrainScars::default(),
             engine_smoke_accum_s: HashMap::new(),
             fps_estimate: 0.0,
+            battle_outcome: None,
             // The renderer is created with the battlefield mesh (see `create_renderer`); the first
             // garage frame swaps in the hangar. Starting at `Garage` here would skip that swap.
             current_scene: SceneKind::Battle,
@@ -216,6 +222,25 @@ mod tests {
 
         assert_eq!(client_view, &server_view);
         assert!(client_view.tanks.iter().any(|tank| tank.tank_id == app.player_tank));
+    }
+
+    #[test]
+    fn new_app_uses_random_7v7_local_battle() {
+        let app = ClientApp::new();
+        let full_snapshot = app.local_server.latest_snapshot();
+
+        assert_eq!(full_snapshot.tanks.len(), 14);
+        assert_eq!(
+            full_snapshot.tanks.iter().filter(|tank| tank.team == game_core::TeamId(1)).count(),
+            7
+        );
+        assert_eq!(
+            full_snapshot.tanks.iter().filter(|tank| tank.team == game_core::TeamId(2)).count(),
+            7
+        );
+        assert!(app.render_state.latest_snapshot().is_some_and(|snapshot| {
+            snapshot.tanks.iter().any(|tank| tank.tank_id == app.player_tank)
+        }));
     }
 
     #[test]

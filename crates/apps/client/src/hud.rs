@@ -6,11 +6,13 @@ pub(crate) mod ammo_panel;
 pub(crate) mod damage_log;
 pub(crate) mod demo;
 pub(crate) mod font;
+pub(crate) mod health;
 pub(crate) mod health_bar;
 pub(crate) mod hit_direction;
 pub(crate) mod icons;
 pub(crate) mod minimap;
 pub(crate) mod number;
+pub(crate) mod outcome;
 pub(crate) mod primitives;
 pub(crate) mod reticle;
 pub(crate) mod reticle_marks;
@@ -19,6 +21,10 @@ pub(crate) mod reticle_readouts;
 pub(crate) mod reticle_sweep;
 pub(crate) mod theme;
 
+pub(crate) use health::health_color;
+pub(crate) use outcome::BattleHudOutcome;
+#[cfg(test)]
+pub(crate) use outcome::OUTCOME_VICTORY_COLOR;
 use primitives::push_bar;
 pub(crate) use primitives::{push_hairline, push_panel, push_quad};
 pub(crate) use reticle_overlay::HudReticle;
@@ -48,10 +54,9 @@ pub struct BattleHudModel {
     pub damage_log: Vec<damage_log::DamageLogEntry>,
     /// Incoming hits resolved to screen bearings (`hud/hit_direction.rs`).
     pub incoming_hits: Vec<hit_direction::IncomingHit>,
-    /// The rack panel (`hud/ammo_panel.rs`); `None` outside battle (offline examples).
     pub ammo: Option<ammo_panel::AmmoHudModel>,
-    /// The bottom-right minimap (`hud/minimap.rs`); `None` when no battlefield is mapped.
     pub minimap: Option<minimap::MinimapModel>,
+    pub battle_outcome: Option<BattleHudOutcome>,
 }
 
 /// Build the 2D HUD overlay (center crosshair, top-left health bar, bottom-center reload
@@ -68,6 +73,7 @@ pub fn build_hud(vitals: HudVitals, aspect: f32) -> Vec<HudVertex> {
             incoming_hits: Vec::new(),
             ammo: None,
             minimap: None,
+            battle_outcome: None,
         },
         aspect,
     )
@@ -95,6 +101,7 @@ pub(crate) fn build_hud_with_reticle(
             incoming_hits: Vec::new(),
             ammo: None,
             minimap: None,
+            battle_outcome: None,
         },
         aspect,
     )
@@ -181,6 +188,9 @@ pub(crate) fn build_battle_hud(model: &BattleHudModel, aspect: f32) -> Vec<HudVe
     if let Some(map) = &model.minimap {
         minimap::push_minimap(&mut vertices, map, aspect);
     }
+    if let Some(outcome) = model.battle_outcome {
+        outcome::push_battle_outcome(&mut vertices, outcome, aspect);
+    }
 
     if model.speed_kmh >= 0.5 {
         crate::hud::number::push_number(
@@ -205,16 +215,6 @@ pub(crate) fn build_battle_hud(model: &BattleHudModel, aspect: f32) -> Vec<HudVe
     }
 
     vertices
-}
-
-pub(crate) fn health_color(frac: f32) -> [f32; 4] {
-    if frac > 0.5 {
-        [0.30, 0.82, 0.34, 0.92]
-    } else if frac > 0.25 {
-        [0.92, 0.78, 0.20, 0.92]
-    } else {
-        [0.90, 0.26, 0.22, 0.92]
-    }
 }
 
 #[cfg(test)]

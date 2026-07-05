@@ -37,6 +37,10 @@ pub(crate) mod battle {
     pub const DISTANCE_UNIT: &str = "M";
     /// Prefix of the sniper magnification readout ("X6.9", WT-style).
     pub const ZOOM_PREFIX: &str = "X";
+    /// Center banner after the player's team wins a local battle.
+    pub const VICTORY: &str = "VICTORY";
+    /// Center banner after the player's team is eliminated.
+    pub const DEFEAT: &str = "DEFEAT";
 }
 
 /// OS window title; the selected vehicle's display name is appended after a dash.
@@ -63,6 +67,8 @@ mod tests {
             super::battle::SPEED_UNIT,
             super::battle::DISTANCE_UNIT,
             super::battle::ZOOM_PREFIX,
+            super::battle::VICTORY,
+            super::battle::DEFEAT,
             super::WINDOW_TITLE,
         ];
         for s in all {

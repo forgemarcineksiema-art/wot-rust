@@ -73,6 +73,17 @@ impl ClientApp {
             if let Some(snapshot) = outcome.snapshot {
                 self.accept_and_sync(snapshot);
             }
+            self.refresh_battle_outcome();
         }
+    }
+
+    fn refresh_battle_outcome(&mut self) {
+        self.battle_outcome = self.local_server.battle_outcome().map(|outcome| {
+            if outcome.winning_team() == self.player_team() {
+                crate::hud::BattleHudOutcome::Victory
+            } else {
+                crate::hud::BattleHudOutcome::Defeat
+            }
+        });
     }
 }

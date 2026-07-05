@@ -129,6 +129,7 @@ impl ClientApp {
         self.render_state = crate::InterpolatedBattleState::default();
         self.input.fire_pending = false;
         self.input.clear_mouse_look();
+        self.battle_outcome = None;
         self.accept_and_sync(snapshot);
         self.set_cursor_captured(true);
         if let Some(window) = &self.window {
@@ -219,6 +220,25 @@ mod tests {
 
         assert_eq!(app.garage.view(), GarageView::Hangar, "returns to hangar");
         assert_eq!(app.garage.selected_vehicle(), VehicleKind::TigerI);
+    }
+
+    #[test]
+    fn confirming_garage_selection_keeps_random_7v7_roster() {
+        let mut app = ClientApp::new();
+        app.garage.select_vehicle(VehicleKind::IS3);
+
+        app.confirm_garage_selection();
+
+        let full_snapshot = app.local_server.latest_snapshot();
+        assert_eq!(full_snapshot.tanks.len(), 14);
+        assert!(full_snapshot.tanks.iter().any(|tank| {
+            tank.tank_id == app.player_tank
+                && tank.team == game_core::TeamId(1)
+                && tank.vehicle == VehicleKind::IS3
+        }));
+        assert!(app.render_state.latest_snapshot().is_some_and(|snapshot| {
+            snapshot.tanks.iter().any(|tank| tank.tank_id == app.player_tank)
+        }));
     }
 
     #[test]

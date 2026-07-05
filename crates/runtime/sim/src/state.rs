@@ -68,9 +68,19 @@ impl SimulationState {
     }
 
     pub fn spawn_tank(&mut self, team: TeamId, spec: TankSpec, position: Vec3) -> TankId {
+        self.spawn_tank_with_yaw(team, spec, position, 0.0)
+    }
+
+    pub fn spawn_tank_with_yaw(
+        &mut self,
+        team: TeamId,
+        spec: TankSpec,
+        position: Vec3,
+        yaw_rad: f32,
+    ) -> TankId {
         let id = TankId(self.next_tank_id);
         self.next_tank_id += 1;
-        self.tanks.push(fresh_tank(id, team, spec, position, 0.0));
+        self.tanks.push(fresh_tank(id, team, spec, position, yaw_rad));
         id
     }
 

@@ -1,6 +1,114 @@
 use net::ClientInputCommand;
-use server::{LocalAuthoritativeServer, ServerTickConfig};
+use server::{
+    BattleMode, BattleOutcome, BattleSeed, LocalAuthoritativeServer, RandomBattleConfig,
+    ServerTickConfig,
+};
 use sim::TankCommand;
+use terrain::prokhorovka_hill_252_2;
+
+#[test]
+fn random_7v7_spawns_fourteen_tanks_with_player_on_team_one() {
+    let server = LocalAuthoritativeServer::new_random_7v7(
+        ServerTickConfig::new(60, 20),
+        RandomBattleConfig::new(BattleSeed::fixed(42), game_core::VehicleKind::TigerII),
+    );
+
+    let snapshot = server.latest_snapshot();
+    let team_one = snapshot.tanks.iter().filter(|tank| tank.team == game_core::TeamId(1)).count();
+    let team_two = snapshot.tanks.iter().filter(|tank| tank.team == game_core::TeamId(2)).count();
+    let player = snapshot
+        .tanks
+        .iter()
+        .find(|tank| tank.tank_id == server.player_tank())
+        .expect("player tank");
+
+    assert_eq!(server.battle_mode(), BattleMode::Random7v7);
+    assert_eq!(snapshot.tanks.len(), 14);
+    assert_eq!(team_one, 7);
+    assert_eq!(team_two, 7);
+    assert_eq!(player.team, game_core::TeamId(1));
+    assert_eq!(player.vehicle, game_core::VehicleKind::TigerII);
+}
+
+#[test]
+fn random_7v7_uses_map_spawn_zones_and_facing_yaw() {
+    let server = LocalAuthoritativeServer::new_random_7v7(
+        ServerTickConfig::new(60, 20),
+        RandomBattleConfig::new(BattleSeed::fixed(7), game_core::VehicleKind::T54_1951),
+    );
+    let map = prokhorovka_hill_252_2();
+    let snapshot = server.latest_snapshot();
+
+    for tank in &snapshot.tanks {
+        let zone =
+            map.spawn_zones.iter().find(|zone| zone.team == tank.team.0).expect("team spawn zone");
+        let dx = tank.position[0] - zone.center[0];
+        let dz = tank.position[2] - zone.center[2];
+        let distance = (dx * dx + dz * dz).sqrt();
+
+        assert!(distance <= zone.radius_m, "tank {:?} spawned outside zone", tank.tank_id);
+        assert!(
+            (tank.yaw_rad - zone.facing_yaw_rad).abs() < 1.0e-6,
+            "tank {:?} did not face out of spawn",
+            tank.tank_id
+        );
+    }
+}
+
+#[test]
+fn random_7v7_bot_commands_move_or_aim_without_player_input() {
+    let mut server = LocalAuthoritativeServer::new_random_7v7(
+        ServerTickConfig::new(60, 20),
+        RandomBattleConfig::new(BattleSeed::fixed(9), game_core::VehicleKind::T54_1951),
+    );
+    let player_tank = server.player_tank();
+    let bot_tank = server
+        .latest_snapshot()
+        .tanks
+        .iter()
+        .find(|tank| tank.team == game_core::TeamId(1) && tank.tank_id != player_tank)
+        .map(|tank| tank.tank_id)
+        .expect("allied bot");
+    let before = server
+        .latest_snapshot()
+        .tanks
+        .iter()
+        .find(|tank| tank.tank_id == bot_tank)
+        .cloned()
+        .expect("bot before");
+
+    for client_tick in 0..45 {
+        server.tick_with_input(ClientInputCommand {
+            client_tick,
+            tank_id: player_tank,
+            command: TankCommand::idle(),
+        });
+    }
+
+    let after = server
+        .latest_snapshot()
+        .tanks
+        .iter()
+        .find(|tank| tank.tank_id == bot_tank)
+        .cloned()
+        .expect("bot after");
+    let dx = after.position[0] - before.position[0];
+    let dz = after.position[2] - before.position[2];
+    let moved = (dx * dx + dz * dz).sqrt() > 0.05;
+    let aimed = (after.turret_yaw_rad - before.turret_yaw_rad).abs() > 1.0e-4;
+
+    assert!(moved || aimed, "bot should issue deterministic commands during server ticks");
+}
+
+#[test]
+fn battle_outcome_reports_team_wipe_winner() {
+    let outcome = BattleOutcome::from_team_alive_counts([
+        (game_core::TeamId(1), 0),
+        (game_core::TeamId(2), 3),
+    ]);
+
+    assert_eq!(outcome, Some(BattleOutcome::TeamEliminated { winning_team: game_core::TeamId(2) }));
+}
 
 #[test]
 fn local_server_can_start_with_selected_player_vehicle() {

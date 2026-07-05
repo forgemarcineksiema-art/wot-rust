@@ -170,10 +170,35 @@ fn the_positional_wrapper_and_the_model_build_identical_huds() {
         incoming_hits: Vec::new(),
         ammo: None,
         minimap: None,
+        battle_outcome: None,
     };
     let from_model = build_battle_hud(&model, 16.0 / 9.0);
     let from_wrapper =
         build_hud_with_reticle(vitals(), 16.0 / 9.0, Some(reticle), 61.0, 33.0, Some(4.2));
     assert_eq!(from_model, from_wrapper, "wrapper must stay a pure forwarding shim");
     assert!(!from_model.is_empty());
+}
+
+#[test]
+fn battle_outcome_banner_draws_only_when_the_battle_has_ended() {
+    let running = BattleHudModel {
+        vitals: vitals(),
+        reticle: None,
+        fps: 0.0,
+        speed_kmh: 0.0,
+        zoom_factor: None,
+        damage_log: Vec::new(),
+        incoming_hits: Vec::new(),
+        ammo: None,
+        minimap: None,
+        battle_outcome: None,
+    };
+    let victory =
+        BattleHudModel { battle_outcome: Some(BattleHudOutcome::Victory), ..running.clone() };
+
+    let running_hud = build_battle_hud(&running, 16.0 / 9.0);
+    let victory_hud = build_battle_hud(&victory, 16.0 / 9.0);
+
+    assert!(!running_hud.iter().any(|vertex| vertex.color == OUTCOME_VICTORY_COLOR));
+    assert!(victory_hud.iter().any(|vertex| vertex.color == OUTCOME_VICTORY_COLOR));
 }

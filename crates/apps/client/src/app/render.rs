@@ -117,6 +117,7 @@ impl ClientApp {
             incoming_hits: self.incoming_hits.screen_hits(camera_forward_xz),
             ammo: Some(self.player_ammo_hud()),
             minimap,
+            battle_outcome: self.battle_outcome,
         };
         let mut hud = crate::hud::build_battle_hud(&hud_model, aspect);
         hud.extend(enemy_bars);
