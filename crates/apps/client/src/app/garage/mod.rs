@@ -23,6 +23,8 @@ pub(super) struct GarageState {
     open: bool,
     started: bool,
     selected_index: usize,
+    /// First roster index visible in the carousel window (0 until the roster overflows).
+    carousel_scroll: usize,
     draft: LoadoutDraft,
     /// Edited loadouts for the *non-selected* vehicles, so switching back restores each tank's
     /// own draft instead of resetting to stock. The selected vehicle's live draft is `draft`.
@@ -53,6 +55,7 @@ impl Default for GarageState {
             open: true,
             started: false,
             selected_index: 0,
+            carousel_scroll: 0,
             draft: LoadoutDraft::for_vehicle(VehicleKind::PLAYABLE[0]),
             saved: HashMap::new(),
             save_path: None,
@@ -170,6 +173,10 @@ impl GarageState {
 
     pub(super) fn selected_index(&self) -> usize {
         self.selected_index
+    }
+
+    pub(super) fn carousel_scroll(&self) -> usize {
+        self.carousel_scroll
     }
 
     pub(super) fn draft(&self) -> &LoadoutDraft {

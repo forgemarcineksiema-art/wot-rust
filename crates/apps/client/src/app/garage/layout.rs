@@ -55,11 +55,17 @@ const MODULE_START_X: f32 = -0.46;
 const SLOT_STEP: f32 = 0.10;
 const AMMO_START_X: f32 = 0.22;
 
-// Bottom vehicle carousel.
+// Bottom vehicle carousel. A fixed window of cells centred on screen scrolls through the roster
+// once it outgrows `CAR_VISIBLE`; below that everything fits and the scroll arrows stay hidden.
 pub(super) const CAR_Y: f32 = -0.87;
 pub(super) const CAR_HALF: [f32; 2] = [0.058, 0.072];
 const CAR_STEP: f32 = 0.13;
 pub(super) const NATION_TEXT_SIZE: f32 = 0.022;
+/// Most cells shown at once; the roster scrolls through this window when larger.
+pub(super) const CAR_VISIBLE: usize = 7;
+/// Scroll-arrow hit rects, just outside the widest window (drawn only when the roster overflows).
+pub(super) const CAR_ARROW_HALF: [f32; 2] = [0.028, 0.072];
+const CAR_ARROW_X: f32 = 0.52;
 
 pub(super) fn module_slot_center(i: usize) -> [f32; 2] {
     [MODULE_START_X + i as f32 * SLOT_STEP, LOADOUT_Y]
@@ -69,9 +75,35 @@ pub(super) fn ammo_slot_center(i: usize) -> [f32; 2] {
     [AMMO_START_X + i as f32 * SLOT_STEP, LOADOUT_Y]
 }
 
-pub(super) fn carousel_center(i: usize, count: usize) -> [f32; 2] {
-    let start = -((count as f32 - 1.0) / 2.0) * CAR_STEP;
-    [start + i as f32 * CAR_STEP, CAR_Y]
+/// Whether the roster needs the scroll window (and the arrows).
+pub(super) fn carousel_overflows(count: usize) -> bool {
+    count > CAR_VISIBLE
+}
+
+/// Clamp a desired first-visible index to the valid range for `count` (0 when it all fits).
+pub(super) fn clamp_carousel_scroll(count: usize, scroll: usize) -> usize {
+    scroll.min(count.saturating_sub(CAR_VISIBLE))
+}
+
+/// The absolute roster indices currently visible, given `count` and the clamped `scroll`.
+pub(super) fn carousel_window(count: usize, scroll: usize) -> std::ops::Range<usize> {
+    if count <= CAR_VISIBLE {
+        return 0..count;
+    }
+    let start = clamp_carousel_scroll(count, scroll);
+    start..start + CAR_VISIBLE
+}
+
+/// Screen centre of the `slot`-th visible cell (0-based within a window of `visible` cells),
+/// centred on screen so a partial last window still reads as centred.
+pub(super) fn carousel_cell_center(slot: usize, visible: usize) -> [f32; 2] {
+    let start = -((visible as f32 - 1.0) / 2.0) * CAR_STEP;
+    [start + slot as f32 * CAR_STEP, CAR_Y]
+}
+
+/// Left/right scroll-arrow centres.
+pub(super) fn carousel_arrows() -> ([f32; 2], [f32; 2]) {
+    ([-CAR_ARROW_X, CAR_Y], [CAR_ARROW_X, CAR_Y])
 }
 
 pub(super) fn crew_prof_arrows() -> ([f32; 2], [f32; 2]) {
@@ -128,4 +160,41 @@ pub(super) fn tree_column_x(nation: Nation) -> f32 {
 
 pub(super) fn tree_node_center(nation: Nation, row: usize) -> [f32; 2] {
     [tree_column_x(nation), TREE_TOP_Y - row as f32 * TREE_NODE_PITCH]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_roster_that_fits_shows_everything_and_never_scrolls() {
+        let count = CAR_VISIBLE - 1;
+        assert!(!carousel_overflows(count));
+        assert_eq!(carousel_window(count, 0), 0..count);
+        // Even a non-zero scroll request clamps to 0 when it all fits.
+        assert_eq!(clamp_carousel_scroll(count, 3), 0);
+        assert_eq!(carousel_window(count, 3), 0..count);
+    }
+
+    #[test]
+    fn a_large_roster_windows_and_clamps_the_scroll() {
+        let count = 20;
+        assert!(carousel_overflows(count));
+        // The window is always CAR_VISIBLE wide and slides with the scroll.
+        assert_eq!(carousel_window(count, 0), 0..CAR_VISIBLE);
+        assert_eq!(carousel_window(count, 5), 5..5 + CAR_VISIBLE);
+        // Scroll past the end clamps so the last cell stays flush against the right edge.
+        let max_scroll = count - CAR_VISIBLE;
+        assert_eq!(clamp_carousel_scroll(count, 999), max_scroll);
+        assert_eq!(carousel_window(count, 999), max_scroll..count);
+    }
+
+    #[test]
+    fn visible_cells_are_centred_on_screen() {
+        // A full window is symmetric about x = 0.
+        let first = carousel_cell_center(0, CAR_VISIBLE);
+        let last = carousel_cell_center(CAR_VISIBLE - 1, CAR_VISIBLE);
+        assert!((first[0] + last[0]).abs() < 1.0e-6, "the window straddles the centre");
+        assert_eq!(first[1], CAR_Y);
+    }
 }

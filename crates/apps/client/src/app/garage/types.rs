@@ -5,8 +5,10 @@ use super::draft::FitSlot;
 /// What a left-button press in the garage landed on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(in crate::app) enum GarageHit {
-    /// A vehicle cell in the bottom carousel.
+    /// A vehicle cell in the bottom carousel (absolute roster index).
     Vehicle(usize),
+    /// A carousel scroll arrow: `-1` scrolls the window left, `+1` right.
+    CarouselScroll(i8),
     /// Cycle a module slot's option by `dir` (-1 / +1).
     ModuleCycle(FitSlot, isize),
     /// Select an ammo option by index.
