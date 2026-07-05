@@ -1,9 +1,10 @@
-use game_core::math::{GRAVITY_MPS2, horizontal_forward, wrap_angle};
+use game_core::math::{horizontal_forward, wrap_angle};
 use glam::Vec3;
 use serde::{Deserialize, Serialize};
 
 use crate::contact::TerrainContact;
 use crate::controller_settings::TankControllerSettings;
+use crate::forces::move_towards;
 use crate::vertical::is_grounded;
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -92,7 +93,6 @@ pub fn step_custom_tank_controller_on_contact(
     let throttle = input.throttle.clamp(-1.0, 1.0);
     let steer = input.steer.clamp(-1.0, 1.0);
     let brake = input.brake.clamp(0.0, 1.0);
-    let g = GRAVITY_MPS2;
     let dt = dt_seconds;
 
     // In flight nothing the driver does reaches the ground: no thrust, no brakes, no steering
@@ -124,96 +124,27 @@ pub fn step_custom_tank_controller_on_contact(
         move_towards(state.yaw_rate_rad_s, target_yaw_rate, settings.yaw_accel_rad_s2 * dt);
     state.yaw_rad = wrap_angle(state.yaw_rad + state.yaw_rate_rad_s * dt);
 
-    // --- 2. Decompose the surviving world velocity into the rotated hull frame. ---
+    // --- 2. Decompose the surviving world velocity into the rotated hull frame, then resolve the
+    // ground forces (slope gravity, static hold, drive/climb, lateral friction) into a new world
+    // velocity — see `forces::resolve_ground_velocity`. Rotating first is what makes the velocity
+    // that survives a heading change reappear as lateral velocity: momentum-through-turns and drift.
     let forward = horizontal_forward(state.yaw_rad);
     let right = Vec3::new(forward.z, 0.0, -forward.x);
-    let mut v_f = state.velocity.dot(forward);
-    let mut v_r = state.velocity.dot(right);
-
-    // --- 3. Gravity along the terrain plane (single source of slope behaviour). ---
-    // grade = |gradient|; `inv` is cos(theta). Projecting gravity onto the plane gives uphill
-    // resistance, downhill acceleration, and sideways pull from one term — the old five stacked
-    // slope penalties collapse into this.
-    let grade = (contact.forward_slope * contact.forward_slope
-        + contact.side_slope * contact.side_slope)
-        .sqrt();
-    let inv = 1.0 / (1.0 + grade * grade).sqrt();
-    let slope_f = -g * contact.forward_slope * inv; // +forward_slope = uphill ahead -> resists
-    let slope_r = -g * contact.side_slope * inv; // +side_slope = right is higher -> pulls left
-
-    // --- 4. Longitudinal: engine force (P/v), resistances, gravity, then holds. ---
-    let max_speed = if throttle >= 0.0 {
-        settings.max_forward_speed_mps
-    } else {
-        settings.max_reverse_speed_mps
-    };
-    // Tracks can only lay down so much thrust: mu * g * traction * cos(theta). A face steeper than
-    // `mu` (= max_climb_grade) therefore cannot out-pull gravity, so the climb stalls on its own.
-    let grip_long = settings.longitudinal_grip_mu * g * contact.traction * inv;
-    if brake > 0.0 {
-        v_f = move_towards(v_f, 0.0, settings.brake_deceleration_mps2 * brake * dt);
-    } else if throttle.abs() > 0.01 {
-        // Engine thrust follows P/v: enormous at a crawl (where the track grip cap takes over),
-        // thin near top speed — so vmax is where thrust meets the resistances, not a clamp.
-        let dir = throttle.signum();
-        let a_engine = settings.drive_power_mps3 * throttle.abs()
-            / v_f.abs().max(settings.min_force_speed_mps);
-        let commanded = dir * max_speed * throttle.abs();
-        if (commanded - v_f) * dir > 0.0 {
-            v_f += dir * a_engine.min(grip_long) * dt;
-        } else {
-            // Above the commanded speed (throttle eased, or a downhill run): engine braking.
-            v_f = move_towards(v_f, commanded, settings.idle_drag_mps2 * dt);
-        }
-    } else {
-        // Coasting: engine braking + rolling resistance — a long roll-out, not a sudden anchor.
-        v_f = move_towards(v_f, 0.0, settings.idle_drag_mps2 * dt);
-    }
-    // Rolling + aerodynamic-ish quadratic resistance apply in every state; together with P/v they
-    // put the top-speed equilibrium exactly at the spec vmax.
-    let resistance = settings.rolling_resist_mps2 * contact.traction.max(0.5)
-        + settings.drag_quadratic * v_f * v_f;
-    v_f = move_towards(v_f, 0.0, resistance * dt);
-    // Skid-steer scrub: turning bleeds forward speed into the ground.
-    let scrub = settings.turn_scrub * state.yaw_rate_rad_s.abs() * v_f.abs();
-    v_f = move_towards(v_f, 0.0, scrub * dt);
-    v_f += slope_f * dt;
-    // Track brakes hold a throttled hull on a slope it is climbing instead of letting it creep
-    // backwards; this is what turns an unclimbable face into a clean stall. Fires when gravity
-    // tries to push the hull opposite the way it is being driven.
-    let driven_backwards = (throttle > 0.01 && v_f < 0.0) || (throttle < -0.01 && v_f > 0.0);
-    if driven_backwards {
-        v_f = 0.0;
-    }
-    // Governor: bleed any overspeed (e.g. a long downhill) back toward the track limit.
-    let speed_cap = max_speed.max(0.1);
-    if v_f.abs() > speed_cap {
-        v_f = move_towards(v_f, v_f.signum() * speed_cap, settings.idle_drag_mps2 * dt);
-    }
-    // Designed barrier: a face steeper than the hull's gradeability cannot be mounted at all -- the
-    // tracks lose drive and the nose digs in -- so a steep embankment stays a wall instead of
-    // something a fast hull can bump over on momentum. This only fires *into* an unclimbable uphill
-    // face; climbable slopes keep the smooth gravity model above.
-    let uphill_grade = (contact.forward_slope * v_f.signum()).max(0.0);
-    if uphill_grade >= settings.max_climb_grade && v_f.abs() > 0.0 {
-        v_f = 0.0;
-    }
-
-    // --- 5. Lateral: gravity pulls sideways, kinetic friction removes it up to the grip cap. ---
-    // The friction impulse only ever cancels lateral velocity (never reverses it), so it is stable
-    // at 60 Hz. When the demand (a hard turn at speed, or a steep/low-traction face) exceeds the
-    // cap, the residual is the slide.
-    v_r += slope_r * dt;
-    let lat_cap = settings.lateral_grip_mu * g * contact.traction;
-    v_r -= v_r.signum() * v_r.abs().min(lat_cap * dt);
-
-    // --- 6. Reassemble the world velocity and integrate position. The height is NOT touched
-    // here: the world step resolves it against the terrain (`vertical::resolve_vertical`), which
-    // is what lets a hull leave the ground instead of teleporting down every face.
-    state.velocity = forward * v_f + right * v_r;
+    let v_f = state.velocity.dot(forward);
+    let v_r = state.velocity.dot(right);
+    state.velocity = crate::forces::resolve_ground_velocity(
+        v_f,
+        v_r,
+        state.yaw_rate_rad_s,
+        throttle,
+        brake,
+        settings,
+        &contact,
+        forward,
+        right,
+        dt,
+    );
+    // The height is NOT touched here: the world step resolves it against the terrain
+    // (`vertical::resolve_vertical`), which lets a hull leave the ground instead of teleporting.
     state.position += state.velocity * dt;
-}
-
-fn move_towards(current: f32, target: f32, max_delta: f32) -> f32 {
-    current + (target - current).clamp(-max_delta, max_delta)
 }

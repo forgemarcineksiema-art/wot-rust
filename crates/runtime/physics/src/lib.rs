@@ -2,6 +2,7 @@ mod collision;
 mod contact;
 mod controller_settings;
 mod cover;
+mod forces;
 mod hull_attitude;
 mod movement;
 mod parry_query;

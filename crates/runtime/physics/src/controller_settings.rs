@@ -43,6 +43,19 @@ pub struct TankControllerSettings {
     pub lateral_grip_mu: f32,
     /// How strongly a turn bleeds forward speed (skid-steer scrub): decel = k * |yaw_rate| * |v|.
     pub turn_scrub: f32,
+    /// Static (parked) track-lock grip coefficient. A stopped, undriven hull holds any slope up to
+    /// `static_grip_mu * traction` (rise/run) without creeping or sliding — the locked-track hold.
+    /// Higher than the kinetic grips (mu_s > mu_k) so the hull "sticks" and only breaks loose on a
+    /// genuinely too-steep or too-slick face.
+    pub static_grip_mu: f32,
+    /// Below this planar speed an undriven hull is eligible to grab and lock (static hold). Above it
+    /// the kinetic slide model runs, so a moving hull only grabs once it has nearly stopped.
+    pub static_hold_speed_mps: f32,
+    /// Grade past which a face is a hard wall (cliff / railway embankment): the tracks find no
+    /// drive and incoming momentum digs the nose in. Between `max_climb_grade` and this, steep faces
+    /// are momentum-climbable — the grip slips but does not vanish, so a committed run-up scrabbles
+    /// the hull a bounded way up a hump.
+    pub momentum_climb_ceiling: f32,
 }
 
 /// Maximum uphill grade (rise/run) a tank can climb. Steeper faces -- like the railway
@@ -61,6 +74,21 @@ const DRIVE_POWER_FACTOR: f32 = 0.75 * 2.2;
 
 /// Rolling resistance of tracks on firm ground, m/s².
 const ROLLING_RESIST_MPS2: f32 = 0.45;
+
+/// Static track-lock grip. 0.9 (~42°) comfortably holds every drivable slope and most embankment
+/// faces, so a stopped hull stays where you park it. Higher than the kinetic grips (mu_s > mu_k).
+const STATIC_GRIP_MU: f32 = 0.9;
+
+/// A hull slower than this (m/s) and off the throttle grabs and locks onto the slope.
+const STATIC_HOLD_SPEED_MPS: f32 = 0.7;
+
+/// Grade above which a face is a hard wall (cliff / embankment); 0.6–0.68 is the momentum-climb
+/// band (~31° steady gradeability up to ~34° with a run-up). Set under the railway embankment's
+/// ~0.71 head-on probe grade, so a straight charge is walled — but hitting the same face at an angle
+/// drops the *forward* component of the grade below this, so a diagonal run-up can still scale it.
+/// That angle-of-attack climb is emergent (forward_slope is the grade along the heading), and is
+/// exactly the "clever, fair" steep climb: skill and commitment, not a straight bump-over.
+const MOMENTUM_CLIMB_CEILING: f32 = 0.68;
 
 impl TankControllerSettings {
     pub fn arcade_default() -> Self {
@@ -97,6 +125,9 @@ impl TankControllerSettings {
             longitudinal_grip_mu: DEFAULT_MAX_CLIMB_GRADE,
             lateral_grip_mu: DEFAULT_LATERAL_GRIP_MU,
             turn_scrub: 0.25,
+            static_grip_mu: STATIC_GRIP_MU,
+            static_hold_speed_mps: STATIC_HOLD_SPEED_MPS,
+            momentum_climb_ceiling: MOMENTUM_CLIMB_CEILING,
         }
     }
 }

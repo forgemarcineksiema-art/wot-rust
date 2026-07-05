@@ -6,9 +6,10 @@
 
 use crate::movement::TankKinematicState;
 
-/// Hardest tilt the attitude may reach (~26°): past the drivable-slope envelope nothing on the
-/// map should pose steeper, and a clamp keeps a degenerate sample from flipping the hull.
-pub const MAX_HULL_TILT_RAD: f32 = 0.45;
+/// Hardest tilt the attitude may reach (~34°): covers the steady gradeability climb and most of the
+/// momentum-climb band, so a hull on a steep face reads as steep instead of saturating early. A
+/// clamp still keeps a degenerate terrain sample from flipping the hull.
+pub const MAX_HULL_TILT_RAD: f32 = 0.6;
 
 /// How fast the hull rotates onto a new support plane (rad/s). Fast enough to settle onto a
 /// slope within ~0.4 s of full tilt, slow enough that a heightmap step reads as the bow coming
