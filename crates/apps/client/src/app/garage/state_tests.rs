@@ -85,9 +85,9 @@ fn selecting_a_vehicle_restores_the_safe_inspection_framing() {
 
     garage.select_index(1);
 
-    assert_eq!(garage.orbit_yaw, 0.60);
-    assert_eq!(garage.orbit_pitch, 0.28);
-    assert_eq!(garage.orbit_distance, 11.5);
+    assert_eq!(garage.orbit_yaw, HERO_ORBIT_YAW);
+    assert_eq!(garage.orbit_pitch, HERO_ORBIT_PITCH);
+    assert_eq!(garage.orbit_distance, HERO_ORBIT_DISTANCE);
 }
 
 #[test]
