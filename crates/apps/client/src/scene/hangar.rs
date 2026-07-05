@@ -1,10 +1,11 @@
 //! The garage hangar: a single static interior scene the owned tank is parked in, replacing the
-//! battlefield while the garage is open. Modelled the beta-WoT way — an enclosed industrial shed
-//! (concrete floor, ribbed metal walls, roof trusses, a bright doorway in back, parking-bay floor
-//! markings, a turntable spot, and a soft ground shadow). The room is built from *solid slabs*
+//! battlefield while the garage is open. Modelled as a working repair shop — a cool concrete floor,
+//! ribbed metal walls with near-black upper reaches, roof trusses under bright skylight strips, a
+//! cold-daylight doorway in back, a turntable spot, and workshop props (`hangar_props`: crane,
+//! wheel/track stacks, workbench, barrels, oil stains). The room is built from *solid slabs*
 //! surrounding the play volume: each slab's inner surface is an ordinary outward-facing face, so
-//! back-face culling keeps exactly the walls seen from inside. Colours run warm; the renderer's
-//! per-scene tint (set in `garage_render`) pushes the whole scene amber to match the reference.
+//! back-face culling keeps exactly the walls seen from inside. The hero vehicle throws a real
+//! contact shadow on the turntable from the workshop sun key — no faked shadow disc.
 
 use glam::{Mat3, Vec3};
 use renderer_api::SceneVertex;
@@ -18,16 +19,20 @@ const SLAB: f32 = 0.15;
 pub const TURNTABLE_TOP_M: f32 = 0.12;
 const TURNTABLE_RADIUS_M: f32 = 5.2;
 
-const CONCRETE: [f32; 3] = [0.30, 0.27, 0.24];
-const METAL: [f32; 3] = [0.26, 0.24, 0.22];
-const RIB: [f32; 3] = [0.33, 0.30, 0.26];
-const ROOF: [f32; 3] = [0.14, 0.12, 0.11];
-const TRUSS: [f32; 3] = [0.20, 0.18, 0.16];
-const TURNTABLE: [f32; 3] = [0.42, 0.37, 0.31];
-const SKYLIGHT: [f32; 3] = [1.0, 0.92, 0.72];
-const DOORWAY: [f32; 3] = [1.0, 0.95, 0.82];
-const MARKING: [f32; 3] = [0.74, 0.58, 0.20];
-const SHADOW: [f32; 3] = [0.05, 0.04, 0.03];
+// Cooler, more neutral workshop palette than the old amber shed: bare concrete and gunmetal, with
+// the upper walls falling to near-black so the lit panels and the hero vehicle carry the frame.
+const CONCRETE: [f32; 3] = [0.26, 0.26, 0.27];
+const METAL: [f32; 3] = [0.20, 0.21, 0.23];
+const UPPER_WALL: [f32; 3] = [0.10, 0.10, 0.12];
+const RIB: [f32; 3] = [0.27, 0.28, 0.30];
+const ROOF: [f32; 3] = [0.09, 0.09, 0.10];
+const TRUSS: [f32; 3] = [0.15, 0.15, 0.16];
+const TURNTABLE: [f32; 3] = [0.33, 0.33, 0.34];
+/// Skylight strips run hot so the tone curve blooms them into daylight pouring through the roof.
+const SKYLIGHT: [f32; 3] = [1.5, 1.5, 1.35];
+/// Cold daylight in the back doorway, opposing the warm key.
+const DOORWAY: [f32; 3] = [0.86, 0.94, 1.05];
+const MARKING: [f32; 3] = [0.62, 0.55, 0.20];
 
 /// Pivot the garage orbit camera looks at: roughly the centre of a parked tank.
 pub fn hangar_camera_pivot() -> Vec3 {
@@ -41,13 +46,18 @@ pub fn hangar_scene_mesh() -> (Vec<SceneVertex>, Vec<u32>) {
     let mut i = Vec::new();
     let h = WALL_HEIGHT / 2.0;
 
-    // Shell: floor, ceiling, four walls (inner faces look into the room).
+    // Shell: floor, ceiling, four walls. The lower walls are gunmetal; a near-black upper band
+    // above the doorway line lets the roof fall into shadow so the lit bay reads as the subject.
     slab(&mut v, &mut i, [0.0, -SLAB, 0.0], [HALF, SLAB, HALF], CONCRETE);
     slab(&mut v, &mut i, [0.0, WALL_HEIGHT + SLAB, 0.0], [HALF, SLAB, HALF], ROOF);
-    slab(&mut v, &mut i, [0.0, h, -HALF], [HALF, h, SLAB], METAL);
-    slab(&mut v, &mut i, [0.0, h, HALF], [HALF, h, SLAB], METAL);
-    slab(&mut v, &mut i, [-HALF, h, 0.0], [SLAB, h, HALF], METAL);
-    slab(&mut v, &mut i, [HALF, h, 0.0], [SLAB, h, HALF], METAL);
+    for (cz, hz) in [(-HALF, SLAB), (HALF, SLAB)] {
+        slab(&mut v, &mut i, [0.0, 2.4, cz], [HALF, 2.4, hz], METAL);
+        slab(&mut v, &mut i, [0.0, 5.8, cz], [HALF, 1.6, hz], UPPER_WALL);
+    }
+    for (cx, hx) in [(-HALF, SLAB), (HALF, SLAB)] {
+        slab(&mut v, &mut i, [cx, 2.4, 0.0], [hx, 2.4, HALF], METAL);
+        slab(&mut v, &mut i, [cx, 5.8, 0.0], [hx, 1.6, HALF], UPPER_WALL);
+    }
 
     // Vertical wall ribs (pilasters) proud of the side and back walls.
     for z in [-9.0_f32, -4.5, 0.0, 4.5, 9.0] {
@@ -58,15 +68,16 @@ pub fn hangar_scene_mesh() -> (Vec<SceneVertex>, Vec<u32>) {
         slab(&mut v, &mut i, [x, h, -(HALF - 0.2)], [0.35, h - 0.4, 0.12], RIB);
     }
 
-    // Roof trusses spanning the bay, and bright skylight strips below them.
+    // Roof trusses spanning the bay, backlit by bright skylight strips above them so the trusses
+    // read as dark bars against daylight.
     for z in [-8.0_f32, -4.0, 0.0, 4.0, 8.0] {
         slab(&mut v, &mut i, [0.0, WALL_HEIGHT - 0.3, z], [HALF - 0.5, 0.12, 0.18], TRUSS);
     }
     for x in [-6.0_f32, 0.0, 6.0] {
-        slab(&mut v, &mut i, [x, WALL_HEIGHT - 0.05, 0.0], [1.4, 0.03, HALF - 3.0], SKYLIGHT);
+        slab(&mut v, &mut i, [x, WALL_HEIGHT - 0.02, 0.0], [1.4, 0.03, HALF - 3.0], SKYLIGHT);
     }
 
-    // A bright doorway in the back wall: daylight pouring in behind the tank.
+    // Cold daylight in the back doorway behind the tank.
     slab(&mut v, &mut i, [0.0, 3.6, -(HALF - 0.28)], [5.0, 2.4, 0.05], DOORWAY);
 
     // Parking-bay markings flanking the turntable, flush with the floor.
@@ -74,23 +85,17 @@ pub fn hangar_scene_mesh() -> (Vec<SceneVertex>, Vec<u32>) {
         slab(&mut v, &mut i, [x, 0.004, 0.0], [0.14, 0.005, HALF - 2.0], MARKING);
     }
 
-    // Turntable + a soft shadow disc grounding the tank on it.
+    // Turntable (no faked shadow disc — the hero vehicle casts a real contact shadow here).
     push_cylinder(&mut v, &mut i, Vec3::ZERO, TURNTABLE_RADIUS_M, TURNTABLE_TOP_M, 48, TURNTABLE);
-    push_cylinder(
-        &mut v,
-        &mut i,
-        Vec3::new(0.0, TURNTABLE_TOP_M + 0.002, 0.0),
-        3.6,
-        0.002,
-        40,
-        SHADOW,
-    );
+
+    super::hangar_props::push_props(&mut v, &mut i);
 
     (v, i)
 }
 
-/// An axis-aligned solid box (every face winds CCW outward for back-face culling).
-fn slab(
+/// An axis-aligned solid box (every face winds CCW outward for back-face culling). Shared with
+/// `hangar_props`.
+pub(super) fn slab(
     vertices: &mut Vec<SceneVertex>,
     indices: &mut Vec<u32>,
     center: [f32; 3],
@@ -108,8 +113,8 @@ fn slab(
 }
 
 /// A low cylinder resting on the floor: a top cap (normal +Y) plus an outward-facing side ring.
-/// The bottom is omitted — it sits on the floor slab and is never seen.
-fn push_cylinder(
+/// The bottom is omitted — it sits on the floor slab and is never seen. Shared with `hangar_props`.
+pub(super) fn push_cylinder(
     vertices: &mut Vec<SceneVertex>,
     indices: &mut Vec<u32>,
     base_center: Vec3,
@@ -183,5 +188,35 @@ mod tests {
         assert!(any(|p| p[1] <= 0.0), "floor at or below the tank");
         assert!(any(|p| p[1] >= WALL_HEIGHT - 0.5), "ceiling above the tank");
         assert!(pivot.y > 0.0 && pivot.y < WALL_HEIGHT, "camera pivot sits inside the room");
+    }
+
+    #[test]
+    fn the_skylights_run_hot_and_no_faked_shadow_disc_remains() {
+        let (vertices, _) = hangar_scene_mesh();
+        // The skylight strips blow past 1.0 so the tone curve blooms them into daylight.
+        assert!(
+            vertices.iter().any(|v| v.color[0] > 1.2 && v.color[1] > 1.2),
+            "skylight strips must run hot"
+        );
+        // The old near-black shadow disc sat just above the turntable; nothing that dark should
+        // hover there now that the vehicle casts a real contact shadow.
+        let disc = vertices.iter().any(|v| {
+            v.color[0] < 0.08
+                && v.position[1] > TURNTABLE_TOP_M
+                && v.position[1] < TURNTABLE_TOP_M + 0.02
+        });
+        assert!(!disc, "the faked shadow disc must be gone");
+    }
+
+    #[test]
+    fn workshop_props_add_geometry_beyond_the_bare_shell() {
+        let (with_props, _) = hangar_scene_mesh();
+        // The crane, wheel/track stacks, workbench, barrels and stains dwarf the plain shed shell.
+        assert!(with_props.len() > 1500, "the workshop is furnished, got {}", with_props.len());
+        // Props sit outside the turntable, clear of the hero vehicle.
+        assert!(
+            with_props.iter().any(|v| v.position[0].abs() > TURNTABLE_RADIUS_M + 1.0),
+            "props stand off the turntable"
+        );
     }
 }
