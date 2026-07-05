@@ -2,6 +2,7 @@
 //! both the LOGICAL camera (aiming) and the PRESENTED camera (rendering). Split from
 //! `render.rs` for the reviewability budget.
 
+use glam::Vec3;
 use net::TankSnapshot;
 use renderer_api::Camera;
 
@@ -9,6 +10,37 @@ use super::ClientApp;
 use crate::{BattleCameraEnvironment, CameraSubject};
 
 impl ClientApp {
+    /// A world sight-ray seed `(yaw, pitch)` from the point the crosshair currently rests on: the
+    /// direction muzzle -> current aim point. Entering the sniper view seeds from this so the
+    /// crosshair stays on the same world point across the switch (no jump to the barrel line or the
+    /// sky). Call it while still in the *outgoing* camera mode.
+    pub(super) fn world_sight_seed(&self) -> Option<(f32, f32)> {
+        let tank = self.local_render_tank()?;
+        let camera = self.camera_from_tank(tank);
+        let aim = self.aim_world_point(&camera)?;
+        let dir = (aim - self.muzzle_position()).normalize_or_zero();
+        (dir != Vec3::ZERO).then(|| (dir.x.atan2(dir.z), dir.y.clamp(-1.0, 1.0).asin()))
+    }
+
+    /// Clamp the world sight elevation to what the gun can reach on the current hull: convert the
+    /// world sight ray to hull-relative gun angles, clamp the pitch to the gun's limits, and carry
+    /// the clamped angle back to a world elevation. Keeps "crosshair == where the gun can shoot"
+    /// true on slopes, where the hull tilt shifts the world reach.
+    pub(super) fn clamp_desired_aim_to_gun_reach(&mut self) {
+        let Some(tank) = self.local_render_tank() else { return };
+        let hull = tank.hull_pose();
+        let world_dir = game_core::math::gun_direction(
+            self.desired_aim.yaw_rad(),
+            self.desired_aim.pitch_rad(),
+        );
+        let (turret_yaw, gun_pitch) = game_core::math::world_direction_to_turret(hull, world_dir);
+        let clamped = gun_pitch.clamp(sim::MIN_GUN_PITCH_RAD, sim::MAX_GUN_PITCH_RAD);
+        if (clamped - gun_pitch).abs() > 1.0e-6 {
+            let reached = game_core::math::gun_direction_world(hull, turret_yaw, clamped);
+            self.desired_aim.set_pitch(reached.y.clamp(-1.0, 1.0).asin());
+        }
+    }
+
     /// The PRESENTED camera for this frame: the logical camera filtered through the mode
     /// transition blend and boom smoothing. Only the render path calls this; aiming keeps
     /// reading the unfiltered [`Self::camera_from_tank`].

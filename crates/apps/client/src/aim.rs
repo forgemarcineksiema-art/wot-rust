@@ -16,17 +16,27 @@ const GUN_PITCH_SOLVER_MIN_RAD: f32 = -0.5;
 const GUN_PITCH_SOLVER_MAX_RAD: f32 = 0.8;
 const GUN_PITCH_SOLVER_STEPS: usize = 18;
 
+/// The player's sight ray as a **world-space** direction: yaw is the world azimuth, pitch is the
+/// world elevation of the line the crosshair points along (NOT a hull-relative gun angle). The gun
+/// then solves — hull-aware — toward the world point under this ray, and the app clamps the pitch
+/// to what the gun can actually reach on the current hull (`clamp_desired_aim_to_gun_reach`). This
+/// separation is what makes the sniper view correct on slopes: the sight looks where you point in
+/// the world, independent of hull tilt, while the gun carries the tilt.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct DesiredAim {
     yaw_rad: f32,
     pitch_rad: f32,
 }
 
+/// Safety bound on the world sight elevation (~46°). The real limit is the per-frame gun-reach
+/// clamp; this only stops the accumulated pitch from running away past anything sane.
+const VIEW_PITCH_LIMIT_RAD: f32 = 0.8;
+
 impl DesiredAim {
     pub(crate) fn new(yaw_rad: f32, pitch_rad: f32) -> Self {
         Self {
             yaw_rad: wrap_angle(yaw_rad),
-            pitch_rad: pitch_rad.clamp(sim::MIN_GUN_PITCH_RAD, sim::MAX_GUN_PITCH_RAD),
+            pitch_rad: pitch_rad.clamp(-VIEW_PITCH_LIMIT_RAD, VIEW_PITCH_LIMIT_RAD),
         }
     }
 
@@ -42,9 +52,13 @@ impl DesiredAim {
         self.yaw_rad = wrap_angle(yaw_rad);
     }
 
+    /// Set the world sight elevation directly (used by the gun-reach clamp), kept in the safety bound.
+    pub(crate) fn set_pitch(&mut self, pitch_rad: f32) {
+        self.pitch_rad = pitch_rad.clamp(-VIEW_PITCH_LIMIT_RAD, VIEW_PITCH_LIMIT_RAD);
+    }
+
     pub(crate) fn apply_pitch_delta(&mut self, delta_rad: f32) {
-        self.pitch_rad =
-            (self.pitch_rad + delta_rad).clamp(sim::MIN_GUN_PITCH_RAD, sim::MAX_GUN_PITCH_RAD);
+        self.set_pitch(self.pitch_rad + delta_rad);
     }
 }
 

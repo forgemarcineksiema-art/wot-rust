@@ -91,12 +91,24 @@ impl PresentedCamera {
     }
 }
 
+/// Blend two cameras by **view direction**, not by target position. Lerping the target position
+/// between a near TPP look-point (~5 m) and the far sniper target (~1000 m) swept the view angle
+/// wildly — the sight appeared to fly up on entry. Interpolating the *direction* (short-arc nlerp)
+/// plus the eye and the look distance keeps the crosshair travelling straight to its mark.
 fn lerp_camera(from: Camera, to: Camera, t: f32) -> Camera {
-    let mix3 =
-        |a: [f32; 3], b: [f32; 3]| Vec3::from_array(a).lerp(Vec3::from_array(b), t).to_array();
+    let from_eye = Vec3::from_array(from.eye);
+    let to_eye = Vec3::from_array(to.eye);
+    let from_dir = (Vec3::from_array(from.target) - from_eye).normalize_or_zero();
+    let to_dir = (Vec3::from_array(to.target) - to_eye).normalize_or_zero();
+    let dir = from_dir.lerp(to_dir, t).normalize_or_zero();
+    let dist = (Vec3::from_array(from.target) - from_eye).length()
+        + ((Vec3::from_array(to.target) - to_eye).length()
+            - (Vec3::from_array(from.target) - from_eye).length())
+            * t;
+    let eye = from_eye.lerp(to_eye, t);
     Camera {
-        eye: mix3(from.eye, to.eye),
-        target: mix3(from.target, to.target),
+        eye: eye.to_array(),
+        target: (eye + dir * dist).to_array(),
         vertical_fov_degrees: from.vertical_fov_degrees
             + (to.vertical_fov_degrees - from.vertical_fov_degrees) * t,
     }

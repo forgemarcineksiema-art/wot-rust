@@ -133,34 +133,48 @@ fn fractional_wheel_events_accumulate_to_whole_notches() {
 }
 
 #[test]
-fn scrolling_past_the_shortest_boom_enters_sniper_aligned_to_the_gun() {
+fn scrolling_past_the_shortest_boom_opens_sniper_on_the_crosshair_sight_ray() {
     let mut app = ClientApp::new();
     app.confirm_garage_selection();
-    app.run_fixed_ticks(1); // seed prediction so the gun has an authoritative pitch
-    app.desired_aim = crate::aim::DesiredAim::new(0.0, 0.3);
+    app.run_fixed_ticks(1); // seed prediction so the sight ray resolves
+    app.desired_aim = crate::aim::DesiredAim::new(0.0, 0.75); // stale, unreachable pitch
+    let seed = app.world_sight_seed().expect("crosshair sight ray");
 
     for _ in 0..15 {
         app.on_mouse_wheel(MouseScrollDelta::LineDelta(0.0, 1.0));
     }
 
     assert_eq!(app.camera_controller.mode(), BattleCameraMode::Sniper);
-    assert!(
-        (app.desired_aim.pitch_rad() - app.predictor.gun_pitch()).abs() < 1.0e-5,
-        "the sniper view must open on the gun, not on stale desired pitch"
-    );
+    assert_opened_on_seed(&mut app, seed);
 }
 
 #[test]
-fn entering_sniper_with_the_key_syncs_the_view_to_the_gun() {
+fn entering_sniper_with_the_key_opens_on_the_crosshair_sight_ray() {
     let mut app = ClientApp::new();
     app.confirm_garage_selection();
     app.run_fixed_ticks(40); // let the gun converge on the sight solution
-    app.desired_aim = crate::aim::DesiredAim::new(0.0, 0.3);
+    app.desired_aim = crate::aim::DesiredAim::new(0.0, 0.75); // stale, unreachable pitch
+    let seed = app.world_sight_seed().expect("crosshair sight ray");
 
     app.enter_sniper_mode();
 
-    assert!((app.desired_aim.pitch_rad() - app.predictor.gun_pitch()).abs() < 1.0e-5);
-    assert!((app.desired_aim.pitch_rad() - 0.3).abs() > 1.0e-3, "stale pitch must not leak");
+    assert_opened_on_seed(&mut app, seed);
+}
+
+/// The sniper opened on the crosshair's world sight ray, clamped to gun reach: the live desired aim
+/// equals `seed` fed through the exact same open path (`new` + `clamp_desired_aim_to_gun_reach`),
+/// and the stale 0.75 pitch did not leak through.
+fn assert_opened_on_seed(app: &mut ClientApp, seed: (f32, f32)) {
+    let opened = app.desired_aim;
+    assert!((opened.pitch_rad() - 0.75).abs() > 1.0e-3, "stale pitch must not leak");
+    app.desired_aim = crate::aim::DesiredAim::new(seed.0, seed.1);
+    app.clamp_desired_aim_to_gun_reach();
+    let expected = app.desired_aim;
+    assert!(
+        (opened.yaw_rad() - expected.yaw_rad()).abs() < 1.0e-4
+            && (opened.pitch_rad() - expected.pitch_rad()).abs() < 1.0e-4,
+        "opened {opened:?} must equal the clamped crosshair seed {expected:?}"
+    );
 }
 
 #[test]
