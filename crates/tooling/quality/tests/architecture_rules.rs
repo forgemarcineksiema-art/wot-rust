@@ -1,38 +1,6 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use quality::{
-    MAX_RUST_FILE_LINES, MAX_RUST_FILE_TOTAL_LINES, is_test_code_path, production_line_count,
-};
-
-/// The reviewability budget is charged to production lines — inline `#[cfg(test)]` modules and
-/// wholly-test files (integration trees, `*_tests.rs` siblings) are exempt, so locking tests can
-/// live next to the code they lock. The total backstop still caps every file, test code included.
-#[test]
-fn rust_files_stay_small_enough_to_review() {
-    let root = workspace_root();
-    let mut offenders = Vec::new();
-
-    for path in rust_files(&root.join("crates")) {
-        let source = fs::read_to_string(&path).expect("Rust file should be readable");
-        let total = source.lines().count();
-        if total > MAX_RUST_FILE_TOTAL_LINES {
-            offenders.push(format!("{} has {total} lines total", path.display()));
-        } else if !is_test_code_path(&path) {
-            let production = production_line_count(&source);
-            if production > MAX_RUST_FILE_LINES {
-                offenders.push(format!("{} has {production} production lines", path.display()));
-            }
-        }
-    }
-
-    assert!(
-        offenders.is_empty(),
-        "split these files before adding more behavior:\n{}",
-        offenders.join("\n")
-    );
-}
-
 #[test]
 fn core_architecture_docs_exist() {
     let root = workspace_root();

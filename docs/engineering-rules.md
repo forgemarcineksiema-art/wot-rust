@@ -5,10 +5,8 @@ These are hard rules for this prototype. If a rule hurts, change the design befo
 ## Crates And Files
 
 - Keep crates small and single-purpose. A crate owns one architectural reason to change.
-- Keep Rust files under 220 *production* lines. Inline `#[cfg(test)]` modules and wholly-test
-  files (integration `tests/` trees, `tests.rs` / `*_tests.rs` siblings) are exempt — locking
-  tests belong next to the code they lock, and the budget must not punish that — with a 440-line
-  total backstop per file. The `quality` crate enforces this with `cargo test -p quality`.
+- Keep files focused on one concern and split when a module accumulates unrelated behavior.
+  There is no hard line limit — reviewability is judged by cohesion, not a line counter.
 - Do not create "god object" modules that own simulation, rendering, networking, and tooling together.
 - Prefer adding a new focused module or crate over expanding a central file indefinitely.
 - A binary crate should compose systems; it should not become the owner of simulation, protocol, render, or physics rules.

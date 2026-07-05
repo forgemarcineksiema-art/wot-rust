@@ -1,10 +1,9 @@
 //! Architecture gate: detect copy-pasted module-level free functions across crate `src` trees.
 //!
-//! The per-file line limit ([`crate::MAX_RUST_FILE_LINES`]) keeps modules reviewable, but on its
-//! own it rewards *splitting* a file over *sharing* code — so the same leaf helper can be pasted
-//! into several crates while every file stays small. This scan closes that gap: it flags free
-//! functions defined under the same name in more than one `src` module, pushing them into a shared
-//! crate (see `game_core::math`) instead.
+//! Splitting a file is cheaper than sharing code, so the same leaf helper can end up pasted into
+//! several crates. This scan closes that gap: it flags free functions defined under the same name
+//! in more than one `src` module, pushing them into a shared crate (see `game_core::math`)
+//! instead.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
