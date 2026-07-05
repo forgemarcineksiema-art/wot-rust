@@ -4,6 +4,7 @@ use crate::hud::reticle::ReticleStatus;
 
 pub(crate) mod ammo_panel;
 pub(crate) mod damage_log;
+pub(crate) mod demo;
 pub(crate) mod font;
 pub(crate) mod health_bar;
 pub(crate) mod hit_direction;

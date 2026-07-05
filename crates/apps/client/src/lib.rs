@@ -20,6 +20,7 @@ pub use camera::{
     BattleCameraSettings, CameraObstacle, CameraSubject,
 };
 pub use fx::shell_tracer_vertices;
+pub use hud::demo::demo_battle_hud;
 pub use hud::font::hud_font_atlas;
 pub use hud::{HudVitals, build_hud};
 pub use loop_policy::{
