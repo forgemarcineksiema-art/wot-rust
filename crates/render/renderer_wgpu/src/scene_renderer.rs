@@ -4,6 +4,7 @@ mod draw_depth;
 pub(crate) mod env_group;
 mod hud_atlas;
 mod resources;
+mod settings;
 pub(crate) mod shadow;
 pub(crate) mod ssao;
 mod ssao_pipelines;
@@ -51,6 +52,7 @@ pub struct SceneRenderer {
     vehicle_instance_count: u32,
     vehicle_draws: Vec<SceneObjectDraw>,
     vehicle_meshes: VehicleMeshRegistry,
+    sky_pipeline: wgpu::RenderPipeline,
     fx_pipeline: wgpu::RenderPipeline,
     fx_vertices: wgpu::Buffer,
     fx_vertex_count: u32,
@@ -62,6 +64,9 @@ pub struct SceneRenderer {
     hud_font_bind_group: wgpu::BindGroup,
     sample_count: u32,
     pub sky: wgpu::Color,
+    /// Draw the gradient-sky background pass (the outdoor battle look). Interior scenes (the garage
+    /// hangar) turn it off via [`Self::set_interior_background`] so their own backdrop shows instead.
+    pub draw_sky: bool,
     /// The calibrated three-point lighting for this scene. Battle uses the default profile; the
     /// garage swaps in a warm studio key/fill/rim. Drives both the scene and the vehicle shaders.
     pub scene_lighting: SceneLighting,
@@ -75,24 +80,6 @@ pub struct SceneRenderer {
 }
 
 impl SceneRenderer {
-    /// Set the sky clear colour (RGB in 0–1). The garage uses a dim interior tone; the battle
-    /// uses the default daylight blue.
-    pub fn set_sky(&mut self, r: f64, g: f64, b: f64) {
-        self.sky = wgpu::Color { r, g, b, a: 1.0 };
-    }
-
-    /// Enable or disable the sun shadow (the capability fallback disables it). Disabled = `strength`
-    /// 0, which the shaders read as "always lit" while keeping every bind group valid.
-    pub fn set_shadows_enabled(&mut self, enabled: bool) {
-        self.shadow.strength = if enabled { 1.0 } else { 0.0 };
-    }
-
-    /// Enable or disable SSAO (the capability fallback disables it). Disabled = `strength` 0,
-    /// which skips the prepass/AO passes and the shaders read as "fully open".
-    pub fn set_ssao_enabled(&mut self, enabled: bool) {
-        self.ssao.strength = if enabled { 1.0 } else { 0.0 };
-    }
-
     pub fn for_offscreen(
         ctx: &GpuContext,
         terrain_vertices: &[SceneVertex],
@@ -130,6 +117,12 @@ impl SceneRenderer {
             build_scene_pipeline(device, color_format, sample_count, &shadow_bgl);
         let fx_pipeline =
             crate::fx_pipeline::build_fx_pipeline(device, color_format, sample_count, &camera_bgl);
+        let sky_pipeline = crate::sky_pipeline::build_sky_pipeline(
+            device,
+            color_format,
+            sample_count,
+            &camera_bgl,
+        );
         let (vehicle_pipeline, vehicle_camera_bgl, vehicle_material_bgl) =
             build_vehicle_pipeline(device, color_format, sample_count, &shadow_bgl);
         let ssao = ssao::SsaoResources::new(device, &camera_bgl);
@@ -192,6 +185,7 @@ impl SceneRenderer {
             vehicle_instance_count: 0,
             vehicle_draws: Vec::new(),
             vehicle_meshes: VehicleMeshRegistry::default(),
+            sky_pipeline,
             fx_pipeline,
             fx_vertices: buffers.fx_vertices,
             fx_vertex_count: 0,
@@ -203,6 +197,9 @@ impl SceneRenderer {
             hud_font_bind_group,
             sample_count,
             sky: wgpu::Color { r: 0.55, g: 0.69, b: 0.87, a: 1.0 },
+            // Outdoor by default: the gradient-sky pass paints the background. Interior scenes turn
+            // it off (see set_interior_background).
+            draw_sky: true,
             scene_lighting: SceneLighting::battlefield_default(),
             shadow,
             shadow_bgl,

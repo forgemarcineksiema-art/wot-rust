@@ -72,7 +72,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let target = OffscreenTarget::new(&ctx, width, height)?;
     let mut renderer = SceneRenderer::for_offscreen(&ctx, &terrain_vertices, &terrain_indices)?;
     renderer.scene_lighting = SceneLighting::garage_studio();
-    renderer.set_sky(0.07, 0.05, 0.04);
+    renderer.set_interior_background(0.07, 0.05, 0.04);
 
     // The tech tree HUD overlay.
     let (font_w, font_h, font_coverage) = client::hud_font_atlas();

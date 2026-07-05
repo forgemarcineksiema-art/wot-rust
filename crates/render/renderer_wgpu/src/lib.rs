@@ -13,6 +13,7 @@ mod scene_renderer;
 mod scene_resources;
 mod scene_target;
 mod shader_validation;
+mod sky_pipeline;
 mod surface_config;
 mod texture_upload;
 mod upload_buffers;
@@ -45,6 +46,7 @@ pub use scene_target::SceneRenderTarget;
 pub use shader_validation::{
     WgslUniformBinding, WgslValidationReport, basic_tank_shader_source, validate_wgsl_shader,
 };
+pub use sky_pipeline::sky_shader_source;
 pub use surface_config::select_present_mode;
 pub use texture_upload::{
     TextureExtent, TextureFormat, TextureUpload, TextureUploadId, TextureUploadQueue,

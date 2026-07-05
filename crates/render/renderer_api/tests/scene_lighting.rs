@@ -67,7 +67,11 @@ fn ambient_blend_grounds_up_faces_to_sky_and_down_faces_to_ground() {
 fn battle_profile_has_aerial_perspective_and_the_interior_does_not() {
     let battle = SceneLighting::battlefield_default();
     // Phase 2: the battlefield fades distant surfaces into the horizon haze for 1000 m depth.
-    assert!(battle.fog_density > 0.0, "battle needs aerial-perspective fog: {}", battle.fog_density);
+    assert!(
+        battle.fog_density > 0.0,
+        "battle needs aerial-perspective fog: {}",
+        battle.fog_density
+    );
     // The horizon (also the fog colour) must differ from the zenith, or the gradient sky and the
     // fade-to-sky are degenerate flat colours.
     assert_ne!(
