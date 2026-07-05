@@ -178,6 +178,7 @@ impl SimulationState {
             heightmap,
             cover,
         );
+        crate::spotting::refresh_spotted_masks(self.tick, &mut self.tanks, heightmap, cover);
         self.tick += 1;
     }
 }
@@ -210,5 +211,6 @@ fn fresh_tank(id: TankId, team: TeamId, spec: TankSpec, position: Vec3, yaw_rad:
         modules,
         ammo_counts,
         selected_ammo,
+        spotted_mask: 0,
     }
 }

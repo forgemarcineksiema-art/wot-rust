@@ -12,6 +12,7 @@ mod shell;
 mod shell_splash;
 mod shell_step;
 mod shell_trace;
+mod spotting;
 mod state;
 mod tank_drive;
 mod tank_state;
@@ -33,6 +34,7 @@ pub use shell_trace::{
     SHELL_MAX_AGE_SECONDS, SegmentImpact, ShellTraceWorld, TraceOutcome, TraceTank, segment_impact,
     trace_shell,
 };
+pub use spotting::{SPOTTING_INTERVAL_TICKS, VIEW_RANGE_M, compute_spotted_masks, line_of_sight};
 pub use state::SimulationState;
 pub use tank_drive::{TankDriveState, TankDriveWorld, step_tank_drive};
 pub use tank_state::TankState;
