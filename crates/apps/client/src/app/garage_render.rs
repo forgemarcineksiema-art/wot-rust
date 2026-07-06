@@ -78,6 +78,7 @@ impl ClientApp {
         let fx_vertices =
             self.fx.vertices(Vec3::from_array(camera.eye), Vec3::from_array(camera.target));
 
+        let scene_time_s = self.presented_time_s();
         let Some(renderer) = self.renderer.as_mut() else {
             return;
         };
@@ -92,6 +93,7 @@ impl ClientApp {
         renderer.set_dynamic_mesh(&[], &[]);
         renderer.set_fx(&fx_vertices);
         renderer.set_hud(&hud);
+        renderer.set_scene_time_s(scene_time_s);
         if let Err(error) = renderer.render(view_proj, camera.eye) {
             error!(%error, "garage frame render failed");
         }

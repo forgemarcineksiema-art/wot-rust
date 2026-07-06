@@ -23,6 +23,12 @@ WGSL data layout is a renderer backend contract, not a visual detail. Rust struc
 - `CameraUniform` is serialized through `encase::UniformBuffer`.
 - `basic_tank.wgsl` and `scene.wgsl` are validated by `naga` in `renderer_wgpu` tests.
 - The camera uniform lives in group 1, binding 0, matching the camera/view slot.
+- `CameraUniform.time_params.x` is the presentation clock every shader animation reads
+  (water ripple, foliage sway, weather). It is **tick-domain by doctrine**: fed from the fixed
+  simulation tick plus the sub-tick render phase, never integrated from render-frame deltas — a
+  jittery frame clock must not wobble world animation (the `engine::TankMotion` rule). Shaders
+  that do not animate may declare only a prefix of the `Camera` struct (`shadow.wgsl`,
+  `ssao.wgsl`, `fx.wgsl` already do); trailing fields never shift earlier offsets.
 
 ## Growth Path
 

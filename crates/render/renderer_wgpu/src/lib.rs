@@ -30,7 +30,8 @@ pub use fx_pipeline::fx_shader_source;
 pub use gpu_context::GpuContext;
 pub use gpu_diagnostics::{GpuErrorPolicy, WgpuLabelPolicy};
 pub use gpu_layout::{
-    CameraUniform, GpuMat4, GpuVec3, TankVertex, encode_camera_uniform, tank_vertex_bytes,
+    CameraUniform, FramePassParams, GpuMat4, GpuVec3, TankVertex, encode_camera_uniform,
+    tank_vertex_bytes,
 };
 pub use offscreen::{DEPTH_FORMAT, OffscreenTarget, clear_color};
 pub use pipeline_registry::{PipelineHotReloadStats, PipelineRegistry, PipelineWarmupStats};

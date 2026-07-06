@@ -15,8 +15,9 @@ fn camera_uniform_is_encoded_with_wgsl_uniform_layout() {
     // (9 vec3 in 16-byte slots, 144) + light_view_proj (mat4, 64) + shadow_params (vec4, 16)
     // + ssao_params (vec4, 16): 64 + 144 + 64 + 16 + 16 = 304. Phase-2 atmosphere adds the gradient
     // sky zenith + horizon (2 vec3, 32) and fog_params (vec4, 16): 304 + 48 = 352, plus the
-    // inv_view_proj mat4 (64) the sky pass unprojects with: 352 + 64 = 416.
-    assert_eq!(bytes.len(), 416);
+    // inv_view_proj mat4 (64) the sky pass unprojects with: 352 + 64 = 416, plus time_params
+    // (vec4, 16) — the tick-domain presentation clock shader animation runs on: 416 + 16 = 432.
+    assert_eq!(bytes.len(), 432);
     assert_eq!(bytes.len() % 16, 0);
 }
 

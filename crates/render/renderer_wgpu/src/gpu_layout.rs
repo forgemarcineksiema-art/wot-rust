@@ -133,19 +133,47 @@ pub struct CameraUniform {
     /// Packed fog controls: x = density, y = height falloff, z/w reserved (0). Density 0 disables
     /// the aerial perspective (interior looks).
     pub fog_params: GpuVec4,
+    /// Packed presentation clock: x = scene time in seconds, y/z/w reserved (0). Every shader
+    /// animation (water ripple, foliage sway, weather) advances by this one value. Tick-domain
+    /// by doctrine: it is derived from the fixed simulation tick plus the sub-tick render phase,
+    /// never integrated from render-frame deltas — a jittery frame clock must not wobble the
+    /// world (the same rule `engine::TankMotion` follows).
+    pub time_params: GpuVec4,
+}
+
+/// The per-frame pass parameters that ride the camera uniform beside the view matrices and
+/// lighting: the focused sun-shadow matrix with its packed controls, the SSAO controls, and the
+/// tick-domain presentation clock.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct FramePassParams {
+    pub light_view_proj: [[f32; 4]; 4],
+    pub shadow_params: [f32; 4],
+    pub ssao_params: [f32; 4],
+    pub time_s: f32,
+}
+
+impl Default for FramePassParams {
+    fn default() -> Self {
+        Self {
+            light_view_proj: IDENTITY_MATRIX,
+            // strength 0: no shadow / no SSAO (the default frame is unshadowed).
+            shadow_params: [0.0, 0.0, 0.0, 0.0],
+            ssao_params: [0.1, 1500.0, 0.0, 1.0],
+            time_s: 0.0,
+        }
+    }
 }
 
 impl CameraUniform {
-    /// Build the uniform from a view-projection, the world-space camera position, and a lighting
-    /// profile — the single place the backend-neutral [`SceneLighting`] becomes GPU bytes.
+    /// Build the uniform from a view-projection, the world-space camera position, a lighting
+    /// profile, and the frame's pass parameters — the single place the backend-neutral
+    /// [`SceneLighting`] becomes GPU bytes.
     pub fn from_scene(
         view_proj: [[f32; 4]; 4],
         inv_view_proj: [[f32; 4]; 4],
         camera_pos: [f32; 3],
         lighting: &SceneLighting,
-        light_view_proj: [[f32; 4]; 4],
-        shadow_params: [f32; 4],
-        ssao_params: [f32; 4],
+        passes: FramePassParams,
     ) -> Self {
         Self {
             view_proj: GpuMat4(view_proj),
@@ -159,12 +187,13 @@ impl CameraUniform {
             fill_rgb: GpuVec3(lighting.fill_rgb),
             rim_direction: GpuVec3(lighting.rim_direction),
             rim_rgb: GpuVec3(lighting.rim_rgb),
-            light_view_proj: GpuMat4(light_view_proj),
-            shadow_params: GpuVec4(shadow_params),
-            ssao_params: GpuVec4(ssao_params),
+            light_view_proj: GpuMat4(passes.light_view_proj),
+            shadow_params: GpuVec4(passes.shadow_params),
+            ssao_params: GpuVec4(passes.ssao_params),
             sky_zenith_rgb: GpuVec3(lighting.sky_zenith_rgb),
             sky_horizon_rgb: GpuVec3(lighting.sky_horizon_rgb),
             fog_params: GpuVec4([lighting.fog_density, lighting.fog_height_falloff, 0.0, 0.0]),
+            time_params: GpuVec4([passes.time_s, 0.0, 0.0, 0.0]),
         }
     }
 
@@ -174,10 +203,7 @@ impl CameraUniform {
             IDENTITY_MATRIX,
             [0.0, 0.0, 0.0],
             &SceneLighting::battlefield_default(),
-            IDENTITY_MATRIX,
-            // strength 0: no shadow / no SSAO (the identity/default uniform is unshadowed).
-            [0.0, 0.0, 0.0, 0.0],
-            [0.1, 1500.0, 0.0, 1.0],
+            FramePassParams::default(),
         )
     }
 

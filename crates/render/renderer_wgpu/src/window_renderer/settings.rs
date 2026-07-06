@@ -30,4 +30,12 @@ impl WindowRenderer {
     pub fn set_scene_lighting(&mut self, lighting: renderer_api::SceneLighting) {
         self.scene.scene_lighting = lighting;
     }
+
+    /// Advance the presentation clock shaders animate with (water ripple, foliage sway, weather).
+    /// Tick-domain by doctrine: pass interpolated-tick seconds (whole fixed ticks + the sub-tick
+    /// render phase over the tick rate), never an accumulation of render-frame deltas — a jittery
+    /// frame clock must not wobble world animation.
+    pub fn set_scene_time_s(&mut self, time_s: f32) {
+        self.scene.scene_time_s = time_s;
+    }
 }

@@ -77,6 +77,10 @@ pub struct SceneRenderer {
     /// World point the focused sun-shadow box centres on (the player/subject). `None` falls back to
     /// the camera position, which still covers the near action.
     pub shadow_focus: Option<[f32; 3]>,
+    /// The presentation clock shaders animate with (`Camera.time_params.x`). Tick-domain by
+    /// doctrine: the caller feeds interpolated-tick seconds, never an accumulation of
+    /// render-frame deltas (see `CameraUniform::time_params`).
+    pub scene_time_s: f32,
     pub skipped_mesh_draws: Cell<u32>,
 }
 
@@ -206,6 +210,7 @@ impl SceneRenderer {
             shadow_bgl,
             ssao,
             shadow_focus: None,
+            scene_time_s: 0.0,
             skipped_mesh_draws: Cell::new(0),
         })
     }

@@ -36,9 +36,12 @@ impl super::SceneRenderer {
             renderer_api::view_projection_inverse(view_proj),
             camera_pos,
             &self.scene_lighting,
-            light_view_proj,
-            self.shadow.shader_params(),
-            [self.ssao.near, self.ssao.far, self.ssao.strength, proj_y_scale],
+            crate::FramePassParams {
+                light_view_proj,
+                shadow_params: self.shadow.shader_params(),
+                ssao_params: [self.ssao.near, self.ssao.far, self.ssao.strength, proj_y_scale],
+                time_s: self.scene_time_s,
+            },
         );
         ctx.queue.write_buffer(&self.camera_buffer, 0, &encode_camera_uniform(&camera)?);
 
