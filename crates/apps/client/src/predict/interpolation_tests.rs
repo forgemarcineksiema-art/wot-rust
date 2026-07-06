@@ -72,6 +72,48 @@ fn interpolated_pose_blends_previous_tick_toward_current() {
 }
 
 #[test]
+fn motion_reports_the_rigid_bodys_tick_domain_speed_and_launch_accel() {
+    let flat = HeightMap::flat(8, 8, 4.0, 0.0).unwrap();
+    let mut predictor = LocalPredictor::new(&TankSpec::t55a());
+    predictor.sync_to(&snapshot_at([10.0, 0.0, 10.0]));
+
+    let dt = 1.0 / 60.0;
+    predictor.step(TankCommand::drive(1.0, 0.0), &flat, &[], &[], dt);
+
+    // The launch tick: speed goes 0 -> v in one tick, so the tick accel is exactly v/dt and the
+    // presented speed blends from the previous tick's 0 toward v alongside the presented pose.
+    let end = predictor.motion(1.0);
+    assert!(end.forward_speed_mps > 0.0, "a driven tick must report forward speed");
+    assert!(
+        (end.accel_long_mps2 - end.forward_speed_mps / dt).abs() < 1.0e-3,
+        "tick accel is the tick's own speed delta over dt, got {}",
+        end.accel_long_mps2
+    );
+    let start = predictor.motion(0.0);
+    assert!((start.forward_speed_mps - 0.0).abs() < 1.0e-6, "alpha 0 sits on the previous tick");
+    let mid = predictor.motion(0.5);
+    assert!(
+        (mid.forward_speed_mps - end.forward_speed_mps * 0.5).abs() < 1.0e-5,
+        "the presented speed interpolates like the presented pose"
+    );
+}
+
+#[test]
+fn a_large_authoritative_correction_resets_the_motion_history_with_the_pose() {
+    let flat = HeightMap::flat(8, 8, 4.0, 0.0).unwrap();
+    let mut predictor = LocalPredictor::new(&TankSpec::t55a());
+    predictor.sync_to(&snapshot_at([10.0, 0.0, 10.0]));
+    predictor.step(TankCommand::drive(1.0, 0.0), &flat, &[], &[], 1.0 / 60.0);
+
+    predictor.sync_to(&snapshot_at([80.0, 0.0, 80.0]));
+
+    // A teleport-sized correction must not leave a launch acceleration or a stale previous
+    // speed behind — that would rock the sprung hull the frame after a respawn.
+    let motion = predictor.motion(0.0);
+    assert_eq!(motion.accel_long_mps2, 0.0, "no fake launch cue across a teleport");
+}
+
+#[test]
 fn seeding_anchors_previous_pose_so_the_first_frame_does_not_fly_in() {
     let mut predictor = LocalPredictor::new(&TankSpec::t55a());
     predictor.sync_to(&snapshot_at([10.0, 0.0, 10.0]));

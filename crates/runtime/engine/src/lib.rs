@@ -7,7 +7,7 @@ mod components;
 mod sync_cues;
 mod world;
 
-pub use attitude::{AttitudeSample, HullAttitude};
+pub use attitude::{AttitudeSample, HullAttitude, TankMotion};
 pub use components::{
     DestroyedModules, GunPitch, GunRecoil, Health, ModuleHitPoints, PresentationTank,
     RenderTransform, TankEntity, Team, Time, TrackDamage, TurretYaw, Vehicle,

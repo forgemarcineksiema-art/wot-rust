@@ -4,7 +4,7 @@ use bevy_ecs::prelude::*;
 use game_core::{HitboxProfile, TankId, TrackDamageMask};
 use net::TankSnapshot;
 
-use crate::attitude::HullAttitude;
+use crate::attitude::{HullAttitude, TankMotion};
 use crate::components::{
     DestroyedModules, GunPitch, GunRecoil, Health, ModuleHitPoints, PresentationTank,
     RenderTransform, Spotted, TankEntity, Team, Time, TrackAnimation, TrackDamage, TurretYaw,
@@ -37,8 +37,14 @@ impl PresentationWorld {
         *self.world.resource::<Time>()
     }
 
+    /// Longest frame delta the presentation clock accepts. A stall (debugger, OS suspend, window
+    /// drag) otherwise lands as one huge `delta_seconds`, and every frame-domain consumer that
+    /// does not clamp locally lurches through it in a single step.
+    const MAX_FRAME_DELTA_SECONDS: f32 = 0.1;
+
     /// Advance the render clock by one presented frame.
     pub fn advance_time(&mut self, delta_seconds: f32) {
+        let delta_seconds = delta_seconds.clamp(0.0, Self::MAX_FRAME_DELTA_SECONDS);
         let mut time = self.world.resource_mut::<Time>();
         time.tick += 1;
         time.delta_seconds = delta_seconds;
@@ -51,10 +57,12 @@ impl PresentationWorld {
     }
 
     /// Project the latest tank set into the world: spawn new ids, update existing entities in
-    /// place (stable `Entity`), and despawn entities whose tank is no longer present.
-    pub fn sync_tanks(&mut self, tanks: &[TankSnapshot]) {
+    /// place (stable `Entity`), and despawn entities whose tank is no longer present. Each tank
+    /// arrives with its tick-domain [`TankMotion`] — the attitude cues must never re-derive
+    /// motion from the presented positions (see `attitude.rs` for why).
+    pub fn sync_tanks(&mut self, tanks: &[(TankSnapshot, TankMotion)]) {
         let dt = self.time().delta_seconds;
-        for tank in tanks {
+        for (tank, motion) in tanks {
             let bundle = (
                 TankEntity { id: tank.tank_id },
                 RenderTransform { translation: tank.position, hull_yaw_rad: tank.yaw_rad },
@@ -85,7 +93,7 @@ impl PresentationWorld {
                     anim.accumulate(tank.position, tank.yaw_rad, half_gauge, damage);
                     let mut attitude =
                         self.world.get::<HullAttitude>(entity).copied().unwrap_or_default();
-                    attitude.step(tank.position, tank.yaw_rad, sample, suspension, dt);
+                    attitude.step(tank.position, *motion, sample, suspension, dt);
                     let mut recoil =
                         self.world.get::<GunRecoil>(entity).copied().unwrap_or_default();
                     recoil.step(dt);
@@ -99,7 +107,7 @@ impl PresentationWorld {
                     let damage = TrackDamageMask::from_bits(tank.track_damage_mask);
                     anim.accumulate(tank.position, tank.yaw_rad, half_gauge, damage);
                     let mut attitude = HullAttitude::default();
-                    attitude.step(tank.position, tank.yaw_rad, sample, suspension, dt);
+                    attitude.step(tank.position, *motion, sample, suspension, dt);
                     let entity = self.world.spawn(bundle).id();
                     self.world.entity_mut(entity).insert(anim);
                     self.world.entity_mut(entity).insert(attitude);
@@ -121,12 +129,12 @@ impl PresentationWorld {
         &mut self.world
     }
 
-    fn despawn_missing(&mut self, tanks: &[TankSnapshot]) {
+    fn despawn_missing(&mut self, tanks: &[(TankSnapshot, TankMotion)]) {
         let gone: Vec<TankId> = self
             .entities
             .keys()
             .copied()
-            .filter(|id| !tanks.iter().any(|tank| tank.tank_id == *id))
+            .filter(|id| !tanks.iter().any(|(tank, _)| tank.tank_id == *id))
             .collect();
         for id in gone {
             if let Some(entity) = self.entities.remove(&id) {

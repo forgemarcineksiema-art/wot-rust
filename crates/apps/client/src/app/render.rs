@@ -3,7 +3,7 @@ use std::time::Instant;
 
 use renderer_api::{CameraProjectionPolicy, RenderError, RenderFrame, view_projection_matrix};
 use renderer_wgpu::WindowRenderer;
-use sim::DEFAULT_SNAPSHOT_HZ;
+use sim::{DEFAULT_SERVER_TICK_HZ, DEFAULT_SNAPSHOT_HZ};
 use tracing::error;
 use winit::window::Window;
 
@@ -11,9 +11,21 @@ use super::{ClientApp, SceneKind};
 use crate::hud::HudVitals;
 use crate::{battlefield_scene_mesh, split_pbr_vehicle_render_frame_on_terrain};
 
-const SNAPSHOT_INTERVAL_SECONDS: f32 = 1.0 / DEFAULT_SNAPSHOT_HZ as f32;
-
 impl ClientApp {
+    /// Remote interpolation phase: how far the fixed-tick clock has advanced from the latest
+    /// ingested snapshot toward the next one (`ticks since + sub-tick remainder, over the
+    /// snapshot window`). Snapshots are produced by the same fixed-tick loop, so this phase hits
+    /// exactly 1 as the next snapshot lands — integrating render-frame deltas instead let the
+    /// two clocks drift, freezing remote tanks at the window's end and then jumping them.
+    pub(super) fn remote_interpolation_alpha(&self) -> f32 {
+        let window_ticks = self
+            .render_state
+            .snapshot_interval_ticks()
+            .unwrap_or((DEFAULT_SERVER_TICK_HZ / DEFAULT_SNAPSHOT_HZ) as u64)
+            as f32;
+        ((self.ticks_since_snapshot as f32 + self.loop_driver.render_alpha()) / window_ticks)
+            .clamp(0.0, 1.0)
+    }
     pub(super) fn create_renderer(
         &mut self,
         window: Arc<Window>,
@@ -48,7 +60,7 @@ impl ClientApp {
             let instant = 1.0 / frame_dt;
             self.fps_estimate = if prior <= 0.0 { instant } else { prior * 0.9 + instant * 0.1 };
         }
-        self.render_state.advance(frame_dt, SNAPSHOT_INTERVAL_SECONDS);
+        self.render_state.set_interpolation_alpha(self.remote_interpolation_alpha());
         self.hit_indicator.tick(frame_dt);
         self.damage_log.tick(frame_dt);
         self.incoming_hits.tick(frame_dt);
@@ -67,7 +79,9 @@ impl ClientApp {
             self.camera_controller.impact_kick(landing_impact);
         }
         if let Some(local) = self.interpolated_local_tank(alpha) {
-            self.camera_controller.advance(local.position, raw_dt);
+            // Speed comes from the predictor's rigid body (tick domain), not from differencing
+            // presented positions against the render clock — that difference is jitter.
+            self.camera_controller.advance(local.position, self.predictor.speed_mps(), raw_dt);
         }
         let Some(camera) = self.presented_camera_for_player(alpha, raw_dt) else {
             return;

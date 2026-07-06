@@ -2,6 +2,7 @@
 //! their projection into the presentation world, and the frame's FX vertex batch. Split from
 //! `render.rs` (the frame orchestration) for the reviewability budget.
 
+use engine::TankMotion;
 use net::TankSnapshot;
 use sim::DEFAULT_SNAPSHOT_HZ;
 
@@ -10,12 +11,23 @@ use super::ClientApp;
 const SNAPSHOT_INTERVAL_SECONDS: f32 = 1.0 / DEFAULT_SNAPSHOT_HZ as f32;
 
 impl ClientApp {
-    pub(super) fn render_tanks(&self, alpha: f32) -> Vec<TankSnapshot> {
-        let mut tanks = self.render_state.interpolated_tanks();
+    /// This frame's rendered tanks, each paired with its tick-domain motion: remote tanks carry
+    /// the snapshot-pair motion, the local slot is overwritten by the predicted pose with the
+    /// predictor's rigid-body motion.
+    pub(super) fn render_tanks(&self, alpha: f32) -> Vec<(TankSnapshot, TankMotion)> {
+        let mut tanks: Vec<(TankSnapshot, TankMotion)> = self
+            .render_state
+            .interpolated_tanks()
+            .into_iter()
+            .map(|tank| {
+                let motion = self.render_state.motion_of(tank.tank_id);
+                (tank, motion)
+            })
+            .collect();
         if let Some(local) = self.interpolated_local_tank(alpha)
-            && let Some(slot) = tanks.iter_mut().find(|tank| tank.tank_id == self.player_tank)
+            && let Some(slot) = tanks.iter_mut().find(|(tank, _)| tank.tank_id == self.player_tank)
         {
-            *slot = local;
+            *slot = (local, self.predictor.motion(alpha));
         }
         tanks
     }

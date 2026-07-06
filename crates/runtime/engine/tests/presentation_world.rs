@@ -1,6 +1,12 @@
-use engine::PresentationWorld;
+use engine::{PresentationWorld, TankMotion};
 use game_core::{TankId, TeamId, TrackDamageMask, VehicleKind};
 use net::TankSnapshot;
+
+/// A tank synced with zero tick-domain motion — the track/attitude cues that read pose deltas
+/// (not motion) are exercised through position changes alone.
+fn still(snapshot: TankSnapshot) -> (TankSnapshot, TankMotion) {
+    (snapshot, TankMotion::default())
+}
 
 fn snapshot(id: u64, position: [f32; 3], hit_points: u32) -> TankSnapshot {
     TankSnapshot {
@@ -30,7 +36,10 @@ fn snapshot(id: u64, position: [f32; 3], hit_points: u32) -> TankSnapshot {
 fn sync_spawns_an_entity_per_tank_and_extracts_its_pose() {
     let mut world = PresentationWorld::default();
 
-    world.sync_tanks(&[snapshot(1, [1.0, 0.0, 2.0], 900), snapshot(2, [3.0, 0.0, 4.0], 500)]);
+    world.sync_tanks(&[
+        still(snapshot(1, [1.0, 0.0, 2.0], 900)),
+        still(snapshot(2, [3.0, 0.0, 4.0], 500)),
+    ]);
 
     assert_eq!(world.tank_count(), 2);
     let tanks = world.presentation_tanks();
@@ -47,10 +56,10 @@ fn sync_spawns_an_entity_per_tank_and_extracts_its_pose() {
 #[test]
 fn re_syncing_a_tank_updates_in_place_without_respawning() {
     let mut world = PresentationWorld::default();
-    world.sync_tanks(&[snapshot(1, [0.0, 0.0, 0.0], 900)]);
+    world.sync_tanks(&[still(snapshot(1, [0.0, 0.0, 0.0], 900))]);
     let first = world.presentation_tanks();
 
-    world.sync_tanks(&[snapshot(1, [10.0, 0.0, 0.0], 300)]);
+    world.sync_tanks(&[still(snapshot(1, [10.0, 0.0, 0.0], 300))]);
     let second = world.presentation_tanks();
 
     // Same single entity, moved and damaged â€” not a duplicate.
@@ -64,10 +73,10 @@ fn re_syncing_a_tank_updates_in_place_without_respawning() {
 #[test]
 fn a_tank_absent_from_the_next_sync_is_despawned() {
     let mut world = PresentationWorld::default();
-    world.sync_tanks(&[snapshot(1, [0.0; 3], 900), snapshot(2, [0.0; 3], 900)]);
+    world.sync_tanks(&[still(snapshot(1, [0.0; 3], 900)), still(snapshot(2, [0.0; 3], 900))]);
     assert_eq!(world.tank_count(), 2);
 
-    world.sync_tanks(&[snapshot(1, [0.0; 3], 900)]);
+    world.sync_tanks(&[still(snapshot(1, [0.0; 3], 900))]);
 
     assert_eq!(world.tank_count(), 1);
     let tanks = world.presentation_tanks();
@@ -86,8 +95,8 @@ fn half_gauge() -> f32 {
 #[test]
 fn driving_forward_advances_both_tracks_equally() {
     let mut world = PresentationWorld::default();
-    world.sync_tanks(&[posed([0.0, 0.0, 0.0], 0.0)]); // seed
-    world.sync_tanks(&[posed([0.0, 0.0, 5.0], 0.0)]); // +Z is forward at yaw 0
+    world.sync_tanks(&[still(posed([0.0, 0.0, 0.0], 0.0))]); // seed
+    world.sync_tanks(&[still(posed([0.0, 0.0, 5.0], 0.0))]); // +Z is forward at yaw 0
 
     let tank = world.presentation_tanks().remove(0);
     assert!((tank.track_left_m - 5.0).abs() < 1.0e-4, "left {}", tank.track_left_m);
@@ -97,8 +106,8 @@ fn driving_forward_advances_both_tracks_equally() {
 #[test]
 fn pivoting_in_place_runs_the_tracks_in_opposite_directions() {
     let mut world = PresentationWorld::default();
-    world.sync_tanks(&[posed([0.0, 0.0, 0.0], 0.0)]); // seed
-    world.sync_tanks(&[posed([0.0, 0.0, 0.0], 0.5)]); // rotate, no translation
+    world.sync_tanks(&[still(posed([0.0, 0.0, 0.0], 0.0))]); // seed
+    world.sync_tanks(&[still(posed([0.0, 0.0, 0.0], 0.5))]); // rotate, no translation
 
     let tank = world.presentation_tanks().remove(0);
     assert!(tank.track_left_m < -1.0e-3, "left should run back, got {}", tank.track_left_m);
@@ -110,8 +119,8 @@ fn pivoting_in_place_runs_the_tracks_in_opposite_directions() {
 #[test]
 fn reversing_runs_both_tracks_backward() {
     let mut world = PresentationWorld::default();
-    world.sync_tanks(&[posed([0.0, 0.0, 0.0], 0.0)]); // seed
-    world.sync_tanks(&[posed([0.0, 0.0, -3.0], 0.0)]); // backward
+    world.sync_tanks(&[still(posed([0.0, 0.0, 0.0], 0.0))]); // seed
+    world.sync_tanks(&[still(posed([0.0, 0.0, -3.0], 0.0))]); // backward
 
     let tank = world.presentation_tanks().remove(0);
     assert!((tank.track_left_m + 3.0).abs() < 1.0e-4, "left {}", tank.track_left_m);
@@ -121,14 +130,14 @@ fn reversing_runs_both_tracks_backward() {
 #[test]
 fn broken_track_side_stops_accumulating_while_healthy_side_moves() {
     let mut world = PresentationWorld::default();
-    world.sync_tanks(&[posed([0.0, 0.0, 0.0], 0.0)]);
-    world.sync_tanks(&[TankSnapshot {
+    world.sync_tanks(&[still(posed([0.0, 0.0, 0.0], 0.0))]);
+    world.sync_tanks(&[still(TankSnapshot {
         track_damage_mask: TrackDamageMask::LEFT.bits(),
         ammo_counts: game_core::AmmoLoadout::default().counts,
         selected_ammo: 0,
         spotted_by_teams_mask: 0,
         ..posed([0.0, 0.0, 5.0], 0.0)
-    }]);
+    })]);
 
     let tank = world.presentation_tanks().remove(0);
     assert_eq!(tank.track_left_m, 0.0);
@@ -139,25 +148,40 @@ fn broken_track_side_stops_accumulating_while_healthy_side_moves() {
 fn advance_time_accumulates_ticks_and_elapsed_seconds() {
     let mut world = PresentationWorld::default();
 
-    world.advance_time(0.5);
-    world.advance_time(0.25);
+    world.advance_time(0.05);
+    world.advance_time(0.025);
 
     let time = world.time();
     assert_eq!(time.tick, 2);
-    assert!((time.delta_seconds - 0.25).abs() < 1.0e-6);
-    assert!((time.elapsed_seconds - 0.75).abs() < 1.0e-6);
+    assert!((time.delta_seconds - 0.025).abs() < 1.0e-6);
+    assert!((time.elapsed_seconds - 0.075).abs() < 1.0e-6);
+}
+
+#[test]
+fn a_stall_frame_is_clamped_so_the_presentation_never_lurches_through_it() {
+    let mut world = PresentationWorld::default();
+
+    // A debugger pause / OS suspend hands the render clock a 3-second "frame".
+    world.advance_time(3.0);
+
+    let time = world.time();
+    assert!(
+        time.delta_seconds <= 0.1,
+        "a stall must not land as one huge presentation step, got {}",
+        time.delta_seconds
+    );
 }
 
 #[test]
 fn a_thrown_left_track_seats_the_hull_toward_the_dead_side() {
     let mut world = PresentationWorld::default();
-    let broken = TankSnapshot {
+    let broken = still(TankSnapshot {
         track_damage_mask: TrackDamageMask::LEFT.bits(),
         ammo_counts: game_core::AmmoLoadout::default().counts,
         selected_ammo: 0,
         spotted_by_teams_mask: 0,
         ..snapshot(1, [0.0, 0.0, 0.0], 900)
-    };
+    });
     // Let the presentation spring ease the lean in over a second of frames.
     for _ in 0..60 {
         world.advance_time(1.0 / 60.0);
@@ -175,7 +199,7 @@ fn a_thrown_left_track_seats_the_hull_toward_the_dead_side() {
 fn a_fire_event_throws_the_barrel_back_and_the_spring_returns_it_to_battery() {
     let mut world = PresentationWorld::default();
     world.advance_time(1.0 / 60.0);
-    world.sync_tanks(&[snapshot(1, [0.0, 0.0, 0.0], 900)]);
+    world.sync_tanks(&[still(snapshot(1, [0.0, 0.0, 0.0], 900))]);
 
     world.apply_fire_recoil(TankId(1), 0.0);
 
@@ -184,7 +208,7 @@ fn a_fire_event_throws_the_barrel_back_and_the_spring_returns_it_to_battery() {
     let mut settled = 0.0_f32;
     for frame in 0..90 {
         world.advance_time(1.0 / 60.0);
-        world.sync_tanks(&[snapshot(1, [0.0, 0.0, 0.0], 900)]);
+        world.sync_tanks(&[still(snapshot(1, [0.0, 0.0, 0.0], 900))]);
         let recoil = world.presentation_tanks()[0].gun_recoil_m;
         peak = peak.max(recoil);
         if frame == 89 {
@@ -202,17 +226,17 @@ fn firing_over_the_bow_pitches_the_hull_and_over_the_side_rolls_it() {
     let run = |turret_yaw: f32| {
         let mut world = PresentationWorld::default();
         world.advance_time(dt);
-        world.sync_tanks(&[snapshot(1, [0.0, 0.0, 0.0], 900)]);
+        world.sync_tanks(&[still(snapshot(1, [0.0, 0.0, 0.0], 900))]);
         // Let the attitude spring seed and settle level first.
         for _ in 0..120 {
             world.advance_time(dt);
-            world.sync_tanks(&[snapshot(1, [0.0, 0.0, 0.0], 900)]);
+            world.sync_tanks(&[still(snapshot(1, [0.0, 0.0, 0.0], 900))]);
         }
         world.apply_fire_recoil(TankId(1), turret_yaw);
         let (mut max_pitch, mut max_roll) = (0.0_f32, 0.0_f32);
         for _ in 0..60 {
             world.advance_time(dt);
-            world.sync_tanks(&[snapshot(1, [0.0, 0.0, 0.0], 900)]);
+            world.sync_tanks(&[still(snapshot(1, [0.0, 0.0, 0.0], 900))]);
             let tank = world.presentation_tanks()[0];
             max_pitch = max_pitch.max(tank.attitude_pitch_rad.abs());
             max_roll = max_roll.max(tank.attitude_roll_rad.abs());

@@ -27,6 +27,11 @@ pub struct LocalPredictor {
     /// Pose at the start of the most recent tick, kept so rendering can interpolate the
     /// gap between the previous and current tick instead of snapping at 60 Hz boundaries.
     previous: PredictedPose,
+    /// Signed forward speed at the start of the most recent tick — the motion twin of
+    /// `previous`, so the presented speed interpolates alongside the presented pose.
+    previous_forward_speed_mps: f32,
+    /// Forward acceleration over the most recent tick (m/s², tick-domain, exact).
+    tick_accel_long_mps2: f32,
 }
 
 impl LocalPredictor {
@@ -45,6 +50,8 @@ impl LocalPredictor {
             selected_ammo: spec.ammo.initial_selected,
             pending_landing_impact_mps: 0.0,
             seeded: false,
+            previous_forward_speed_mps: 0.0,
+            tick_accel_long_mps2: 0.0,
             previous: PredictedPose {
                 position: Vec3::ZERO,
                 yaw_rad: 0.0,
@@ -97,6 +104,21 @@ impl LocalPredictor {
         // the sub-tick remainder. Captured before any early return so it always tracks the
         // last fully-resolved tick.
         self.previous = self.current_pose();
+        let speed_before = self.drive.kinematic.forward_speed();
+        self.previous_forward_speed_mps = speed_before;
+        self.step_drive(command, heightmap, cover, tank_obstacles, dt);
+        self.tick_accel_long_mps2 =
+            (self.drive.kinematic.forward_speed() - speed_before) / dt.max(1.0e-6);
+    }
+
+    fn step_drive(
+        &mut self,
+        command: TankCommand,
+        heightmap: &HeightMap,
+        cover: &[StaticCoverObject],
+        tank_obstacles: &[TankObstacle],
+        dt: f32,
+    ) {
         // Mirror the server: dispersion recovers every tick, even for a dead hull.
         let gun_damage_fraction = self.module_damage_fraction(ModuleSlot::Gun);
         recover_dispersion(
@@ -154,6 +176,22 @@ impl LocalPredictor {
 
     pub fn speed_mps(&self) -> f32 {
         self.drive.kinematic.speed()
+    }
+
+    /// Tick-domain hull motion for the presentation cues (sprung attitude, camera feel), with
+    /// the forward speed blended `alpha` into the current tick alongside `interpolated_pose`.
+    /// This is the motion source of truth for the local tank: the rigid body knows its velocity,
+    /// so the presentation never has to differentiate presented positions against the render
+    /// clock (which is what used to jitter the hull).
+    pub fn motion(&self, alpha: f32) -> engine::TankMotion {
+        let alpha = alpha.clamp(0.0, 1.0);
+        let current = self.drive.kinematic.forward_speed();
+        engine::TankMotion {
+            forward_speed_mps: self.previous_forward_speed_mps
+                + (current - self.previous_forward_speed_mps) * alpha,
+            accel_long_mps2: self.tick_accel_long_mps2,
+            yaw_rate_rad_s: self.drive.kinematic.yaw_rate_rad_s,
+        }
     }
 
     pub fn turret_yaw(&self) -> f32 {

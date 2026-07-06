@@ -15,7 +15,6 @@ use super::controller::BattleCameraController;
 pub(super) struct CameraSmoothing {
     pub(super) anchor: Option<Vec3>,
     pub(super) anchor_vel: Vec3,
-    pub(super) prev_subject: Option<Vec3>,
     pub(super) speed_mps: f32,
     pub(super) fov_boost_deg: f32,
 }
@@ -91,22 +90,17 @@ impl BattleCameraController {
         self.smoothing.anchor_vel.y -= FIRE_KICK_DOWN_MPS;
     }
 
-    /// Step the camera feel once per presented frame: the follow anchor springs after the hull,
-    /// the hull speed is estimated from its raw motion, and the FOV boost eases toward the speed.
-    /// Sniper mode snaps rigid (aiming tolerates no lag).
-    pub fn advance(&mut self, subject_position: [f32; 3], dt: f32) {
+    /// Step the camera feel once per presented frame: the follow anchor springs after the hull
+    /// and the FOV boost eases toward the hull speed. `hull_speed_mps` comes from the tick
+    /// domain (the predictor's rigid body) — differencing presented positions against the render
+    /// clock made the estimate pulse even at a steady cruise. Sniper mode snaps rigid (aiming
+    /// tolerates no lag).
+    pub fn advance(&mut self, subject_position: [f32; 3], hull_speed_mps: f32, dt: f32) {
         let target = Vec3::from_array(subject_position);
         let dt = dt.clamp(1.0e-3, 0.05);
         let sniper = self.mode() == BattleCameraMode::Sniper;
         let s = &mut self.smoothing;
-        if let Some(prev) = s.prev_subject {
-            // HORIZONTAL speed only: heightmap steps and suspension bounce are not "speed", and
-            // feeding them into the FOV cue made the view pulse on every rut.
-            let delta = target - prev;
-            let inst = Vec3::new(delta.x, 0.0, delta.z).length() / dt;
-            s.speed_mps += (inst.min(30.0) - s.speed_mps) * (8.0 * dt).clamp(0.0, 1.0);
-        }
-        s.prev_subject = Some(target);
+        s.speed_mps = hull_speed_mps.abs().min(30.0);
 
         if sniper {
             // Sniper is rigid in the aim plane, but a short vertical-only damper soaks the

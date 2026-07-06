@@ -1,12 +1,22 @@
-use game_core::math::lerp_angle;
+use std::collections::HashMap;
+
+use engine::TankMotion;
+use game_core::TankId;
+use game_core::math::{horizontal_forward, lerp_angle, wrap_angle};
 use glam::Vec3;
 use net::{ShellSnapshot, Snapshot, TankSnapshot};
+
+/// Seconds of one authoritative server tick — `server_tick` deltas convert to time with it.
+const SERVER_TICK_SECONDS: f32 = 1.0 / sim::DEFAULT_SERVER_TICK_HZ as f32;
 
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct InterpolatedBattleState {
     previous: Option<Snapshot>,
     latest: Option<Snapshot>,
     interpolation_alpha: f32,
+    /// Tick-domain motion per tank, derived from the snapshot pair at accept time (constant,
+    /// known denominator) — never from presented positions against the render clock.
+    motions: HashMap<TankId, TankMotion>,
 }
 
 impl InterpolatedBattleState {
@@ -14,16 +24,27 @@ impl InterpolatedBattleState {
         if self.latest.as_ref().is_some_and(|latest| snapshot.server_tick <= latest.server_tick) {
             return;
         }
+        // Motion first: it pairs the incoming snapshot with the still-buffered latest.
+        self.derive_motions(&snapshot);
         self.previous = self.latest.take();
         self.latest = Some(snapshot);
         self.interpolation_alpha = 0.0;
     }
 
-    /// Advance render-time interpolation toward the latest snapshot. Alpha saturates at
-    /// 1.0 so we interpolate between the two latest snapshots instead of extrapolating.
-    pub fn advance(&mut self, seconds: f32, snapshot_interval_seconds: f32) {
-        let step = seconds / snapshot_interval_seconds.max(1.0e-4);
-        self.interpolation_alpha = (self.interpolation_alpha + step).clamp(0.0, 1.0);
+    /// Set the render-time interpolation phase toward the latest snapshot, `0..=1`. The caller
+    /// derives it from the fixed-tick phase (ticks since the snapshot plus the sub-tick
+    /// remainder), which is the same clock the snapshots are produced on — integrating render
+    /// frame deltas instead lets the two clocks drift, freezing at 1.0 and then jumping.
+    pub fn set_interpolation_alpha(&mut self, alpha: f32) {
+        self.interpolation_alpha = alpha.clamp(0.0, 1.0);
+    }
+
+    /// Authoritative ticks between the two buffered snapshots (the interpolation window), if
+    /// both exist.
+    pub fn snapshot_interval_ticks(&self) -> Option<u64> {
+        let previous = self.previous.as_ref()?;
+        let latest = self.latest.as_ref()?;
+        Some((latest.server_tick - previous.server_tick).max(1))
     }
 
     pub fn previous_snapshot(&self) -> Option<&Snapshot> {
@@ -36,6 +57,12 @@ impl InterpolatedBattleState {
 
     pub fn interpolation_alpha(&self) -> f32 {
         self.interpolation_alpha
+    }
+
+    /// Tick-domain motion of a replicated tank, derived from the snapshot pair. Zero until two
+    /// snapshots have seen the tank.
+    pub fn motion_of(&self, tank_id: TankId) -> TankMotion {
+        self.motions.get(&tank_id).copied().unwrap_or_default()
     }
 
     /// Tanks interpolated between the previous and latest snapshots (shortest-angle for
@@ -93,8 +120,43 @@ impl InterpolatedBattleState {
             .collect()
     }
 
-    fn previous_tank(&self, tank_id: game_core::TankId) -> Option<&TankSnapshot> {
+    fn previous_tank(&self, tank_id: TankId) -> Option<&TankSnapshot> {
         self.previous.as_ref()?.tanks.iter().find(|tank| tank.tank_id == tank_id)
+    }
+
+    /// Rebuild the per-tank motion table from the pair (outgoing latest, incoming snapshot).
+    /// The interval is exact (authoritative tick counts), so the derived speed and yaw rate are
+    /// tick-domain quantities; the acceleration additionally needs the previous pair's speed,
+    /// carried over from the outgoing table.
+    fn derive_motions(&mut self, incoming: &Snapshot) {
+        let Some(outgoing) = self.latest.as_ref() else {
+            self.motions.clear();
+            return;
+        };
+        let interval_ticks = (incoming.server_tick - outgoing.server_tick).max(1);
+        let interval_s = interval_ticks as f32 * SERVER_TICK_SECONDS;
+        let mut motions = HashMap::with_capacity(incoming.tanks.len());
+        for tank in &incoming.tanks {
+            let Some(previous) =
+                outgoing.tanks.iter().find(|candidate| candidate.tank_id == tank.tank_id)
+            else {
+                continue;
+            };
+            let velocity = (Vec3::from_array(tank.position) - Vec3::from_array(previous.position))
+                / interval_s;
+            let forward_speed = velocity.dot(horizontal_forward(tank.yaw_rad));
+            let previous_speed = self.motions.get(&tank.tank_id).map(|m| m.forward_speed_mps);
+            motions.insert(
+                tank.tank_id,
+                TankMotion {
+                    forward_speed_mps: forward_speed,
+                    accel_long_mps2: previous_speed
+                        .map_or(0.0, |prev| (forward_speed - prev) / interval_s),
+                    yaw_rate_rad_s: wrap_angle(tank.yaw_rad - previous.yaw_rad) / interval_s,
+                },
+            );
+        }
+        self.motions = motions;
     }
 }
 
