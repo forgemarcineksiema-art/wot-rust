@@ -1,6 +1,6 @@
 use glam::{Mat3, Vec3};
 use renderer_api::SceneVertex;
-use terrain::{BattlefieldMap, HeightMap, StaticCoverKind, StaticCoverObject};
+use terrain::{BattlefieldMap, HeightMap, StaticCoverKind, StaticCoverObject, WaterBody};
 
 use crate::tank_mesh::push_oriented_box;
 
@@ -8,7 +8,8 @@ use crate::tank_mesh::push_oriented_box;
 /// gameplay state (it blocks movement, shells, and the camera), so whatever the simulation
 /// collides must be visible — rendering the exact sim boxes keeps the world honest.
 pub fn battlefield_scene_mesh(battlefield: &BattlefieldMap) -> (Vec<SceneVertex>, Vec<u32>) {
-    let (mut vertices, mut indices) = terrain_scene_mesh(&battlefield.heightmap);
+    let (mut vertices, mut indices) =
+        terrain_scene_mesh_with_water(&battlefield.heightmap, battlefield.water);
     for cover in &battlefield.static_cover {
         append_cover_box(&mut vertices, &mut indices, cover);
     }
@@ -42,6 +43,16 @@ fn cover_color(kind: StaticCoverKind) -> [f32; 3] {
 /// Build a lit triangle mesh for the whole heightmap, colored by height and slope so
 /// the terrain reads clearly: grass in the lowlands, rock on the heights and steeps.
 pub fn terrain_scene_mesh(heightmap: &HeightMap) -> (Vec<SceneVertex>, Vec<u32>) {
+    terrain_scene_mesh_with_water(heightmap, None)
+}
+
+/// Like [`terrain_scene_mesh`], with submerged ground tinted river-blue by depth — the
+/// stopgap water read until the real animated surface pass lands. Gameplay water (drag,
+/// drowning, splashes) is already live; the tint keeps the danger visible in the meantime.
+pub fn terrain_scene_mesh_with_water(
+    heightmap: &HeightMap,
+    water: Option<WaterBody>,
+) -> (Vec<SceneVertex>, Vec<u32>) {
     let w = heightmap.width();
     let h = heightmap.height();
     let cell = heightmap.cell_size_m();
@@ -52,7 +63,10 @@ pub fn terrain_scene_mesh(heightmap: &HeightMap) -> (Vec<SceneVertex>, Vec<u32>)
         for x in 0..w {
             let y = heightmap.sample_at_index(x, z);
             let normal = vertex_normal(heightmap, x, z, cell);
-            let color = terrain_color(y, stats.min_m, stats.max_m, normal.y);
+            let mut color = terrain_color(y, stats.min_m, stats.max_m, normal.y);
+            if let Some(water) = water {
+                color = water_tint(color, water.depth_over(y));
+            }
             vertices.push(SceneVertex::new(
                 [x as f32 * cell, y, z as f32 * cell],
                 normal.to_array(),
@@ -86,6 +100,19 @@ fn vertex_normal(heightmap: &HeightMap, x: usize, z: usize, cell: f32) -> Vec3 {
     let down = sample_clamped(heightmap, xi, zi - 1);
     let up = sample_clamped(heightmap, xi, zi + 1);
     Vec3::new(left - right, 2.0 * cell, down - up).normalize()
+}
+
+/// Blend submerged ground toward river water: a pale shallow band at the margins, deepening
+/// to a dark channel blue where the current drowns.
+fn water_tint(color: [f32; 3], depth_m: f32) -> [f32; 3] {
+    if depth_m <= 0.02 {
+        return color;
+    }
+    let shallow = Vec3::new(0.18, 0.32, 0.34);
+    let deep = Vec3::new(0.05, 0.13, 0.22);
+    let t = (depth_m / 2.4).clamp(0.0, 1.0);
+    let water = shallow.lerp(deep, t);
+    Vec3::from_array(color).lerp(water, (depth_m / 0.35).clamp(0.35, 1.0)).to_array()
 }
 
 fn terrain_color(y: f32, min_y: f32, max_y: f32, normal_y: f32) -> [f32; 3] {

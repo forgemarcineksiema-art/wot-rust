@@ -151,7 +151,7 @@ impl ClientApp {
     fn new_without_vehicle_artifacts() -> Self {
         let local_server = LocalAuthoritativeServer::new_random_7v7(
             ServerTickConfig::default(),
-            RandomBattleConfig::runtime(VehicleKind::default()),
+            RandomBattleConfig::runtime_from_env(VehicleKind::default()),
         );
         let player_tank = local_server.player_tank();
         let mut render_state = InterpolatedBattleState::default();

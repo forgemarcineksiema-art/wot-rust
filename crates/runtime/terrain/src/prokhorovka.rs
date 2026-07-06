@@ -1,7 +1,8 @@
+use crate::map_build::heightmap_from_fn;
 use crate::prokhorovka_cover::static_cover_objects;
 use crate::prokhorovka_features::map_features;
 use crate::prokhorovka_layout::{spawn_zones, strategic_points};
-use crate::{BattlefieldMap, HeightMap, math};
+use crate::{BattlefieldMap, math};
 
 const MAP_SIZE_M: f32 = 1000.0;
 const CELL_SIZE_M: f32 = 5.0;
@@ -48,7 +49,7 @@ const TERRACE_SIGMA_X_M: f32 = 11.0;
 const TERRACE_Z_SIGMA_M: f32 = 78.0;
 
 pub fn prokhorovka_hill_252_2() -> BattlefieldMap {
-    let heightmap = build_heightmap();
+    let heightmap = heightmap_from_fn(SAMPLES_PER_SIDE, CELL_SIZE_M, height_at);
     BattlefieldMap {
         id: "prokhorovka_hill_252_2".to_string(),
         name: "Prokhorovka - Hill 252.2 Sector".to_string(),
@@ -66,17 +67,6 @@ pub fn prokhorovka_hill_252_2() -> BattlefieldMap {
         static_cover: static_cover_objects(&heightmap),
         heightmap,
     }
-}
-
-fn build_heightmap() -> HeightMap {
-    let mut samples = Vec::with_capacity(SAMPLES_PER_SIDE * SAMPLES_PER_SIDE);
-    for z in 0..SAMPLES_PER_SIDE {
-        for x in 0..SAMPLES_PER_SIDE {
-            samples.push(height_at(x as f32 * CELL_SIZE_M, z as f32 * CELL_SIZE_M));
-        }
-    }
-    HeightMap::new(SAMPLES_PER_SIDE, SAMPLES_PER_SIDE, CELL_SIZE_M, samples)
-        .expect("generated Prokhorovka heightmap dimensions are fixed")
 }
 
 /// Terrain height at a world point, mirror-symmetric across the central east-west axis
