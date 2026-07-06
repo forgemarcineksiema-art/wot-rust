@@ -147,6 +147,11 @@ fn hud_speed_uses_local_prediction_speed_in_kmh() {
     assert!(speed_kmh < 1.0, "one 60 Hz tick from rest should still be a small km/h value");
 }
 
+/// Identity view + an eye at the tanks: everything sits inside the shadow-reach keep gate, so
+/// only the sniper rule decides visibility here (the cull itself is tested in `frame_scene`).
+const IDENTITY_VIEW: [[f32; 4]; 4] =
+    [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]];
+
 #[test]
 fn sniper_mode_hides_the_player_vehicle_but_not_other_tanks() {
     let mut app = ClientApp::new();
@@ -155,11 +160,11 @@ fn sniper_mode_hides_the_player_vehicle_but_not_other_tanks() {
     let tanks = app.project_render_tanks(0.0);
     assert!(tanks.iter().any(|tank| tank.id == tank_id), "baseline must include the player");
 
-    let third_person = app.visible_render_tanks(tanks.clone());
+    let third_person = app.visible_render_tanks(tanks.clone(), IDENTITY_VIEW, [5.0, 0.0, 7.0]);
     assert!(third_person.iter().any(|tank| tank.id == tank_id));
 
     app.camera_controller.set_mode(crate::BattleCameraMode::Sniper);
-    let sniper = app.visible_render_tanks(tanks.clone());
+    let sniper = app.visible_render_tanks(tanks.clone(), IDENTITY_VIEW, [5.0, 0.0, 7.0]);
     // The sniper eye sits inside the player's own turret; the hull must not fill the lens.
     assert!(!sniper.iter().any(|tank| tank.id == tank_id));
     assert_eq!(sniper.len(), tanks.len() - 1, "only the player's vehicle is hidden");

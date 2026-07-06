@@ -107,7 +107,7 @@ impl ClientApp {
         let camera_forward_xz =
             [camera.target[0] - camera.eye[0], camera.target[2] - camera.eye[2]];
         let minimap = self.build_minimap(&presentation_tanks, camera_forward_xz);
-        let visible_tanks = self.visible_render_tanks(presentation_tanks);
+        let visible_tanks = self.visible_render_tanks(presentation_tanks, view_proj, camera.eye);
         let player_gun_scale = self.player_barrel_scale();
         let vehicles = split_pbr_vehicle_render_frame_on_terrain(
             &mut self.vehicle_asset_catalog,
