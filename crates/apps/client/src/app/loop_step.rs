@@ -71,6 +71,7 @@ impl ClientApp {
                 command,
             });
             self.client_tick += 1;
+            self.ticks_since_snapshot = self.ticks_since_snapshot.saturating_add(1);
             if let Some(snapshot) = outcome.snapshot {
                 self.accept_and_sync(snapshot);
             }

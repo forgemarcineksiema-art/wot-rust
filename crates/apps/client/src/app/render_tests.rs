@@ -4,6 +4,34 @@ use net::{Snapshot, TankSnapshot};
 use super::ClientApp;
 
 #[test]
+fn remote_interpolation_alpha_is_phase_locked_to_the_snapshot_cadence() {
+    let mut app = ClientApp::new();
+    app.confirm_garage_selection();
+
+    // Walk whole snapshot windows: the phase must restart at every ingested snapshot and reach
+    // exactly 1 as the next one lands — never freezing short of it, never overshooting.
+    let mut saw_reset = false;
+    let mut max_alpha_before_reset = 0.0_f32;
+    for _ in 0..12 {
+        let before = app.remote_interpolation_alpha();
+        app.run_fixed_ticks(1);
+        let after = app.remote_interpolation_alpha();
+        if after < before {
+            saw_reset = true;
+            max_alpha_before_reset = max_alpha_before_reset.max(before);
+        }
+        assert!((0.0..=1.0).contains(&after), "phase stays in [0,1], got {after}");
+    }
+    assert!(saw_reset, "snapshots must restart the phase");
+    // With a zero sub-tick remainder the phase right before a snapshot is (window-1)/window.
+    let window = app.render_state.snapshot_interval_ticks().expect("two snapshots seen") as f32;
+    assert!(
+        (max_alpha_before_reset - (window - 1.0) / window).abs() < 1.0e-4,
+        "the phase walks the whole window tick by tick, got {max_alpha_before_reset}"
+    );
+}
+
+#[test]
 fn player_spec_and_reload_follow_snapshot_vehicle() {
     let mut app = ClientApp::new();
     let tank_id = app.player_tank;

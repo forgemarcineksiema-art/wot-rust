@@ -92,6 +92,10 @@ pub(crate) struct ClientApp {
     battlefield: BattlefieldMap,
     player_tank: TankId,
     client_tick: u64,
+    /// Fixed ticks run since the last ingested snapshot. Together with the sub-tick remainder it
+    /// is the remote interpolation phase — the same clock the snapshots are produced on, so the
+    /// remote blend can neither freeze at 1.0 nor jump (which wall-clock integration did).
+    ticks_since_snapshot: u32,
     input: InputState,
     predictor: LocalPredictor,
     vehicle_asset_catalog: VehicleAssetCatalog,
@@ -173,6 +177,7 @@ impl ClientApp {
             battlefield,
             player_tank,
             client_tick: 0,
+            ticks_since_snapshot: 0,
             input: InputState::default(),
             predictor: LocalPredictor::new(&player_spec),
             vehicle_asset_catalog: VehicleAssetCatalog::default(),

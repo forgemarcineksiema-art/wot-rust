@@ -35,6 +35,10 @@ impl LocalPredictor {
 
         if !was_seeded || correction_m > MAX_SMOOTH_AUTHORITATIVE_CORRECTION_M {
             self.previous = self.current_pose();
+            // The motion history snaps with the pose: blending speed across a teleport-sized
+            // correction would fake a violent acceleration into the attitude cue.
+            self.previous_forward_speed_mps = self.drive.kinematic.forward_speed();
+            self.tick_accel_long_mps2 = 0.0;
         }
         self.seeded = true;
     }

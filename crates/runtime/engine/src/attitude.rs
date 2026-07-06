@@ -48,6 +48,21 @@ pub struct AttitudeSample {
     pub terrain_roll_rad: f32,
 }
 
+/// Tick-domain hull motion feeding the presentation cues. The values come from whoever actually
+/// knows the motion — the local predictor's rigid body or the snapshot pair — NOT from
+/// differentiating presented positions against the render clock: the presented pose advances on
+/// the sim clock while the frame delta is measured on the render clock, so a finite difference
+/// across the two is noise even at a perfectly steady cruise (that noise was visible hull jitter).
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct TankMotion {
+    /// Signed speed along the hull heading (m/s, forward positive).
+    pub forward_speed_mps: f32,
+    /// Rate of change of the forward speed (m/s², forward positive).
+    pub accel_long_mps2: f32,
+    /// Hull angular velocity (rad/s) — with the forward speed it yields the centripetal cue.
+    pub yaw_rate_rad_s: f32,
+}
+
 /// Spring-filtered hull attitude, persisted per presentation entity across frames.
 #[derive(Debug, Clone, Copy, PartialEq, Default, Component)]
 pub struct HullAttitude {
@@ -66,21 +81,18 @@ pub struct HullAttitude {
     roll_vel: f32,
     smoothed_y: f32,
     heave_vel: f32,
-    prev_translation: [f32; 3],
-    prev_yaw: f32,
-    prev_speed: f32,
     seeded: bool,
 }
 
 impl HullAttitude {
-    /// Fold one presented frame into the sprung attitude. `dt` is the render-frame delta; motion
-    /// (speed, longitudinal and lateral acceleration) is estimated from the pose history so the
-    /// cue needs nothing the snapshot does not already carry. `suspension_fraction` is the live
+    /// Fold one presented frame into the sprung attitude. `dt` is the render-frame delta used to
+    /// integrate the springs only; `motion` is the tick-domain hull motion (see [`TankMotion`] for
+    /// why it must not be re-derived from presented positions). `suspension_fraction` is the live
     /// suspension pool `0..=1`: a wounded suspension is a softer spring, so the hull wallows.
     pub fn step(
         &mut self,
         translation: [f32; 3],
-        yaw_rad: f32,
+        motion: TankMotion,
         sample: AttitudeSample,
         suspension_fraction: f32,
         dt: f32,
@@ -89,8 +101,6 @@ impl HullAttitude {
             self.pitch_rad = sample.terrain_pitch_rad;
             self.roll_rad = sample.terrain_roll_rad;
             self.smoothed_y = translation[1];
-            self.prev_translation = translation;
-            self.prev_yaw = yaw_rad;
             self.seeded = true;
             return;
         }
@@ -106,17 +116,10 @@ impl HullAttitude {
         let heave_omega = HEAVE_OMEGA * omega_scale;
         let heave_zeta = HEAVE_ZETA * zeta_scale;
 
-        // Motion estimates from the pose delta: signed forward speed, its derivative, and the
+        // Motion cues straight from the tick domain: the longitudinal weight transfer and the
         // centripetal acceleration (speed x yaw rate).
-        let dx = translation[0] - self.prev_translation[0];
-        let dz = translation[2] - self.prev_translation[2];
-        let speed = (dx * yaw_rad.sin() + dz * yaw_rad.cos()) / dt;
-        let accel_long = ((speed - self.prev_speed) / dt).clamp(-12.0, 12.0);
-        let yaw_rate = game_core::math::wrap_angle(yaw_rad - self.prev_yaw) / dt;
-        let accel_lat = (speed * yaw_rate).clamp(-12.0, 12.0);
-        self.prev_translation = translation;
-        self.prev_yaw = yaw_rad;
-        self.prev_speed = speed;
+        let accel_long = motion.accel_long_mps2.clamp(-12.0, 12.0);
+        let accel_lat = (motion.forward_speed_mps * motion.yaw_rate_rad_s).clamp(-12.0, 12.0);
         self.accel_long_mps2 = spring_to(self.accel_long_mps2, accel_long, ACCEL_SMOOTH_PER_S * dt);
         self.accel_lat_mps2 = spring_to(self.accel_lat_mps2, accel_lat, ACCEL_SMOOTH_PER_S * dt);
 
@@ -183,15 +186,17 @@ fn spring_to(current: f32, target: f32, alpha: f32) -> f32 {
 mod tests {
     use super::*;
 
-    fn settle(
-        att: &mut HullAttitude,
-        pos: [f32; 3],
-        yaw: f32,
-        sample: AttitudeSample,
-        frames: u32,
-    ) {
+    fn settle(att: &mut HullAttitude, pos: [f32; 3], sample: AttitudeSample, frames: u32) {
         for _ in 0..frames {
-            att.step(pos, yaw, sample, 1.0, 1.0 / 60.0);
+            att.step(pos, TankMotion::default(), sample, 1.0, 1.0 / 60.0);
+        }
+    }
+
+    fn cruise(speed_mps: f32, accel_mps2: f32) -> TankMotion {
+        TankMotion {
+            forward_speed_mps: speed_mps,
+            accel_long_mps2: accel_mps2,
+            yaw_rate_rad_s: 0.0,
         }
     }
 
@@ -199,7 +204,7 @@ mod tests {
     fn attitude_settles_onto_the_terrain_slope() {
         let mut att = HullAttitude::default();
         let sample = AttitudeSample { terrain_pitch_rad: 0.15, terrain_roll_rad: -0.08 };
-        settle(&mut att, [0.0, 1.0, 0.0], 0.0, sample, 240);
+        settle(&mut att, [0.0, 1.0, 0.0], sample, 240);
         assert!((att.pitch_rad - 0.15).abs() < 5.0e-3, "pitch settles: {}", att.pitch_rad);
         assert!((att.roll_rad + 0.08).abs() < 5.0e-3, "roll settles: {}", att.roll_rad);
     }
@@ -208,32 +213,49 @@ mod tests {
     fn braking_dives_the_nose() {
         let mut att = HullAttitude::default();
         let dt = 1.0 / 60.0;
-        // Drive forward at constant speed, then brake hard: pitch must go negative (nose down).
-        let mut z = 0.0;
-        att.step([0.0, 0.0, z], 0.0, AttitudeSample::default(), 1.0, dt);
+        // Cruise at constant speed, then brake hard: pitch must go negative (nose down).
+        settle(&mut att, [0.0, 0.0, 0.0], AttitudeSample::default(), 1);
         for _ in 0..60 {
-            z += 10.0 * dt;
-            att.step([0.0, 0.0, z], 0.0, AttitudeSample::default(), 1.0, dt);
+            att.step([0.0, 0.0, 0.0], cruise(10.0, 0.0), AttitudeSample::default(), 1.0, dt);
         }
-        let mut v = 10.0;
+        let mut v = 10.0_f32;
         let mut min_pitch = 0.0_f32;
         for _ in 0..40 {
             v = (v - 8.0 * dt).max(0.0);
-            z += v * dt;
-            att.step([0.0, 0.0, z], 0.0, AttitudeSample::default(), 1.0, dt);
+            let accel = if v > 0.0 { -8.0 } else { 0.0 };
+            att.step([0.0, 0.0, 0.0], cruise(v, accel), AttitudeSample::default(), 1.0, dt);
             min_pitch = min_pitch.min(att.pitch_rad);
         }
         assert!(min_pitch < -0.02, "braking must dive the nose, got {min_pitch}");
     }
 
     #[test]
+    fn a_turn_leans_the_hull_through_the_centripetal_cue() {
+        let mut att = HullAttitude::default();
+        let dt = 1.0 / 60.0;
+        settle(&mut att, [0.0, 0.0, 0.0], AttitudeSample::default(), 1);
+        let turning =
+            TankMotion { forward_speed_mps: 8.0, accel_long_mps2: 0.0, yaw_rate_rad_s: 0.8 };
+        for _ in 0..120 {
+            att.step([0.0, 0.0, 0.0], turning, AttitudeSample::default(), 1.0, dt);
+        }
+        assert!(att.roll_rad > 0.015, "a sustained turn must lean the hull, got {}", att.roll_rad);
+    }
+
+    #[test]
     fn a_height_step_becomes_a_damped_settle_not_a_teleport() {
         let mut att = HullAttitude::default();
-        settle(&mut att, [0.0, 1.0, 0.0], 0.0, AttitudeSample::default(), 120);
+        settle(&mut att, [0.0, 1.0, 0.0], AttitudeSample::default(), 120);
         // The replicated hull jumps 0.2 m up; the sprung hull must lag below it first.
-        att.step([0.0, 1.2, 0.0], 0.0, AttitudeSample::default(), 1.0, 1.0 / 60.0);
+        att.step(
+            [0.0, 1.2, 0.0],
+            TankMotion::default(),
+            AttitudeSample::default(),
+            1.0,
+            1.0 / 60.0,
+        );
         assert!(att.heave_m < -0.1, "the sprung hull lags a sudden step, got {}", att.heave_m);
-        settle(&mut att, [0.0, 1.2, 0.0], 0.0, AttitudeSample::default(), 240);
+        settle(&mut att, [0.0, 1.2, 0.0], AttitudeSample::default(), 240);
         assert!(att.heave_m.abs() < 0.01, "and settles back onto it, got {}", att.heave_m);
     }
 
@@ -241,14 +263,13 @@ mod tests {
     fn a_full_throttle_launch_eases_the_hull_over_instead_of_snapping_it() {
         let mut att = HullAttitude::default();
         let dt = 1.0 / 60.0;
-        att.step([0.0, 0.0, 0.0], 0.0, AttitudeSample::default(), 1.0, dt); // seed
+        settle(&mut att, [0.0, 0.0, 0.0], AttitudeSample::default(), 1); // seed
         // Hard P/v launch: a constant ~8 m/s² from the very first driven frame.
-        let (mut v, mut z) = (0.0_f32, 0.0_f32);
+        let mut v = 0.0_f32;
         let mut after_three_frames = 0.0;
         for frame in 0..60 {
             v += 8.0 * dt;
-            z += v * dt;
-            att.step([0.0, 0.0, z], 0.0, AttitudeSample::default(), 1.0, dt);
+            att.step([0.0, 0.0, 0.0], cruise(v, 8.0), AttitudeSample::default(), 1.0, dt);
             if frame == 2 {
                 after_three_frames = att.pitch_rad;
             }
@@ -265,19 +286,60 @@ mod tests {
     }
 
     #[test]
+    fn a_steady_cruise_on_a_jittery_frame_clock_keeps_the_hull_level() {
+        // THE frame-domain jitter regression: a tank cruising at a perfectly steady speed,
+        // presented through wildly uneven frame deltas (vsync misses, catch-up batches), must not
+        // rock the hull. The old cue differentiated presented positions against the render clock,
+        // so this exact scenario produced visible pitch noise at a constant real speed.
+        let mut att = HullAttitude::default();
+        let dts = [1.0 / 240.0, 1.0 / 30.0, 1.0 / 144.0, 1.0 / 45.0, 1.0 / 60.0, 1.0 / 33.0];
+        att.step([0.0, 0.0, 0.0], cruise(10.0, 0.0), AttitudeSample::default(), 1.0, 1.0 / 60.0);
+        let mut max_abs_pitch = 0.0_f32;
+        for frame in 0..600 {
+            let dt = dts[frame % dts.len()];
+            att.step([0.0, 0.0, 0.0], cruise(10.0, 0.0), AttitudeSample::default(), 1.0, dt);
+            if frame > 60 {
+                max_abs_pitch = max_abs_pitch.max(att.pitch_rad.abs());
+            }
+        }
+        assert!(
+            max_abs_pitch < 1.0e-4,
+            "a steady cruise must not rock the hull, saw {max_abs_pitch} rad of pitch"
+        );
+    }
+
+    #[test]
     fn a_wounded_suspension_wallows_longer_than_a_healthy_one() {
         let dt = 1.0 / 60.0;
         let mut healthy = HullAttitude::default();
         let mut wounded = HullAttitude::default();
-        settle(&mut healthy, [0.0, 1.0, 0.0], 0.0, AttitudeSample::default(), 240);
+        settle(&mut healthy, [0.0, 1.0, 0.0], AttitudeSample::default(), 240);
         for _ in 0..240 {
-            wounded.step([0.0, 1.0, 0.0], 0.0, AttitudeSample::default(), 0.0, dt);
+            wounded.step(
+                [0.0, 1.0, 0.0],
+                TankMotion::default(),
+                AttitudeSample::default(),
+                0.0,
+                dt,
+            );
         }
         // The same 0.2 m height step: a quarter second in (before either spring's first
         // overshoot) the softer (wounded) spring must hang visibly further below the hull.
         for _ in 0..15 {
-            healthy.step([0.0, 1.2, 0.0], 0.0, AttitudeSample::default(), 1.0, dt);
-            wounded.step([0.0, 1.2, 0.0], 0.0, AttitudeSample::default(), 0.0, dt);
+            healthy.step(
+                [0.0, 1.2, 0.0],
+                TankMotion::default(),
+                AttitudeSample::default(),
+                1.0,
+                dt,
+            );
+            wounded.step(
+                [0.0, 1.2, 0.0],
+                TankMotion::default(),
+                AttitudeSample::default(),
+                0.0,
+                dt,
+            );
         }
         assert!(
             wounded.heave_m < healthy.heave_m - 0.01,

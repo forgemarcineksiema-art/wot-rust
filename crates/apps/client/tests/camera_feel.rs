@@ -45,14 +45,14 @@ fn the_players_shot_nudges_the_third_person_rig_and_leaves_sniper_rigid() {
     let mut camera = BattleCameraController::new(BattleCameraSettings::default());
     camera.set_mode(BattleCameraMode::ThirdPerson);
     for _ in 0..240 {
-        camera.advance(position, 1.0 / 60.0);
+        camera.advance(position, 0.0, 1.0 / 60.0);
     }
     let settled = camera.render_camera(&subject, &environment).eye;
     camera.fire_kick(subject.view_yaw_rad);
     let mut max_back = 0.0_f32;
     let mut max_down = 0.0_f32;
     for _ in 0..30 {
-        camera.advance(position, 1.0 / 60.0);
+        camera.advance(position, 0.0, 1.0 / 60.0);
         let eye = camera.render_camera(&subject, &environment).eye;
         // view_yaw 0 faces +Z: the kick pushes the rig toward -Z and down.
         max_back = max_back.max(settled[2] - eye[2]);
@@ -61,7 +61,7 @@ fn the_players_shot_nudges_the_third_person_rig_and_leaves_sniper_rigid() {
     assert!(max_back > 0.01, "the shot visibly nudges the rig back, got {max_back}");
     assert!(max_down > 0.005, "and settles it slightly down, got {max_down}");
     for _ in 0..240 {
-        camera.advance(position, 1.0 / 60.0);
+        camera.advance(position, 0.0, 1.0 / 60.0);
     }
     let recovered = camera.render_camera(&subject, &environment).eye;
     assert!((recovered[2] - settled[2]).abs() < 0.01, "the rig recovers to its settle");
@@ -69,10 +69,10 @@ fn the_players_shot_nudges_the_third_person_rig_and_leaves_sniper_rigid() {
     // Sniper: the same kick must not move the eye at all â€” aiming tolerates no theatrics.
     let mut sniper = BattleCameraController::new(BattleCameraSettings::default());
     sniper.set_mode(BattleCameraMode::Sniper);
-    sniper.advance(position, 1.0 / 60.0);
+    sniper.advance(position, 0.0, 1.0 / 60.0);
     let before = sniper.render_camera(&subject, &environment).eye;
     sniper.fire_kick(subject.view_yaw_rad);
-    sniper.advance(position, 1.0 / 60.0);
+    sniper.advance(position, 0.0, 1.0 / 60.0);
     let after = sniper.render_camera(&subject, &environment).eye;
     assert_eq!(before, after, "sniper eye stays rigid through the shot");
 }
@@ -91,14 +91,14 @@ fn an_incoming_hit_rocks_the_rig_and_dips_the_sniper_scope_vertically() {
     let mut camera = BattleCameraController::new(BattleCameraSettings::default());
     camera.set_mode(BattleCameraMode::ThirdPerson);
     for _ in 0..240 {
-        camera.advance(position, 1.0 / 60.0);
+        camera.advance(position, 0.0, 1.0 / 60.0);
     }
     let settled = camera.render_camera(&subject, &environment).eye;
     camera.damage_shudder(glam::Vec3::new(0.0, 0.0, -1.0), 0.2);
     let mut max_shift = 0.0_f32;
     let mut max_down = 0.0_f32;
     for _ in 0..30 {
-        camera.advance(position, 1.0 / 60.0);
+        camera.advance(position, 0.0, 1.0 / 60.0);
         let eye = camera.render_camera(&subject, &environment).eye;
         max_shift = max_shift.max(settled[2] - eye[2]);
         max_down = max_down.max(settled[1] - eye[1]);
@@ -106,7 +106,7 @@ fn an_incoming_hit_rocks_the_rig_and_dips_the_sniper_scope_vertically() {
     assert!(max_shift > 0.01, "the hit visibly shoves the rig along the push, got {max_shift}");
     assert!(max_down > 0.005, "and settles it slightly down, got {max_down}");
     for _ in 0..240 {
-        camera.advance(position, 1.0 / 60.0);
+        camera.advance(position, 0.0, 1.0 / 60.0);
     }
     let recovered = camera.render_camera(&subject, &environment).eye;
     assert!((recovered[2] - settled[2]).abs() < 0.01, "the rig recovers to its settle");
@@ -115,13 +115,13 @@ fn an_incoming_hit_rocks_the_rig_and_dips_the_sniper_scope_vertically() {
     let mut sniper = BattleCameraController::new(BattleCameraSettings::default());
     sniper.set_mode(BattleCameraMode::Sniper);
     for _ in 0..60 {
-        sniper.advance(position, 1.0 / 60.0);
+        sniper.advance(position, 0.0, 1.0 / 60.0);
     }
     let before = sniper.render_camera(&subject, &environment).eye;
     sniper.damage_shudder(glam::Vec3::new(1.0, 0.0, 0.0), 1.0);
     let mut max_dip = 0.0_f32;
     for _ in 0..30 {
-        sniper.advance(position, 1.0 / 60.0);
+        sniper.advance(position, 0.0, 1.0 / 60.0);
         let eye = sniper.render_camera(&subject, &environment).eye;
         assert_eq!(eye[0], before[0], "a hit must not smear the sniper aim in x");
         assert_eq!(eye[2], before[2], "a hit must not smear the sniper aim in z");
@@ -137,11 +137,12 @@ fn terrain_bounce_does_not_pulse_the_fov_but_real_speed_widens_it() {
     let subject = CameraSubject::from_snapshot(tank_snapshot([0.0, 0.0, 0.0], 0.0, 0.0), 0.0);
     let base_fov = BattleCameraSettings::default().third_person_fov_degrees;
 
-    // Bouncing in place (vertical motion only): the FOV must not open.
+    // Bouncing in place (vertical hull motion, zero rigid-body speed): the FOV must not open.
+    // The speed is a tick-domain input now, so presented-position noise cannot reach the cue.
     let mut parked = BattleCameraController::new(BattleCameraSettings::default());
     for frame in 0..240 {
         let y = if frame % 2 == 0 { 0.0 } else { 0.4 }; // violent 24 m/s vertical jitter
-        parked.advance([0.0, y, 0.0], 1.0 / 60.0);
+        parked.advance([0.0, y, 0.0], 0.0, 1.0 / 60.0);
     }
     let jittered = parked.render_camera(&subject, &environment).vertical_fov_degrees;
     assert!((jittered - base_fov).abs() < 0.05, "vertical jitter is not speed, got {jittered}");
@@ -151,7 +152,7 @@ fn terrain_bounce_does_not_pulse_the_fov_but_real_speed_widens_it() {
     let mut z = 0.0;
     for _ in 0..240 {
         z += 14.0 / 60.0;
-        cruising.advance([0.0, 0.0, z], 1.0 / 60.0);
+        cruising.advance([0.0, 0.0, z], 14.0, 1.0 / 60.0);
     }
     let opened = cruising
         .render_camera(
@@ -167,7 +168,7 @@ fn a_spawn_teleport_cannot_outrun_the_follow_anchor() {
     let environment = BattleCameraEnvironment::empty();
     let mut camera = BattleCameraController::new(BattleCameraSettings::default());
     for _ in 0..120 {
-        camera.advance([0.0, 0.0, 0.0], 1.0 / 60.0);
+        camera.advance([0.0, 0.0, 0.0], 0.0, 1.0 / 60.0);
     }
     let settled = camera
         .render_camera(
@@ -177,7 +178,7 @@ fn a_spawn_teleport_cannot_outrun_the_follow_anchor() {
         .eye[2];
     // The hull teleports 50 m; one frame later the eye must be within the clamped lag of the
     // new position, not stranded at the old one easing over.
-    camera.advance([0.0, 0.0, 50.0], 1.0 / 60.0);
+    camera.advance([0.0, 0.0, 50.0], 0.0, 1.0 / 60.0);
     let subject = CameraSubject::from_snapshot(tank_snapshot([0.0, 0.0, 50.0], 0.0, 0.0), 0.0);
     let eye = camera.render_camera(&subject, &environment).eye;
     assert!(
@@ -197,7 +198,7 @@ fn sniper_eye_rides_the_hull_attitude_and_damps_only_the_vertical_jolt() {
     pitched.hull_pitch_rad = 0.20;
     let mut camera = BattleCameraController::new(BattleCameraSettings::default());
     camera.set_mode(BattleCameraMode::Sniper);
-    camera.advance([10.0, 2.0, 10.0], 1.0 / 60.0);
+    camera.advance([10.0, 2.0, 10.0], 0.0, 1.0 / 60.0);
     let eye_level = camera.render_camera(&level, &environment).eye;
     let eye_pitched = camera.render_camera(&pitched, &environment).eye;
     let moved = (glam::Vec3::from_array(eye_level) - glam::Vec3::from_array(eye_pitched)).length();
@@ -208,10 +209,10 @@ fn sniper_eye_rides_the_hull_attitude_and_damps_only_the_vertical_jolt() {
     let mut rig = BattleCameraController::new(BattleCameraSettings::default());
     rig.set_mode(BattleCameraMode::Sniper);
     for _ in 0..60 {
-        rig.advance([10.0, 2.0, 10.0], 1.0 / 60.0);
+        rig.advance([10.0, 2.0, 10.0], 0.0, 1.0 / 60.0);
     }
     let before = rig.render_camera(&level, &environment).eye[1];
-    rig.advance([10.0, 2.3, 10.0], 1.0 / 60.0); // 0.3 m rut step in one frame
+    rig.advance([10.0, 2.3, 10.0], 0.0, 1.0 / 60.0); // 0.3 m rut step in one frame
     let bumped = CameraSubject::from_snapshot(tank_snapshot([10.0, 2.3, 10.0], 0.0, 0.0), 0.0);
     let after = rig.render_camera(&bumped, &environment).eye[1];
     assert!(
@@ -220,7 +221,7 @@ fn sniper_eye_rides_the_hull_attitude_and_damps_only_the_vertical_jolt() {
         after - before
     );
     for _ in 0..60 {
-        rig.advance([10.0, 2.3, 10.0], 1.0 / 60.0);
+        rig.advance([10.0, 2.3, 10.0], 0.0, 1.0 / 60.0);
     }
     let settled = rig.render_camera(&bumped, &environment).eye[1];
     assert!(
@@ -236,7 +237,7 @@ fn switching_modes_travels_the_view_instead_of_teleporting_it() {
     let environment = BattleCameraEnvironment::with_terrain(&heightmap);
     let subject = CameraSubject::from_snapshot(tank_snapshot([20.0, 0.0, 20.0], 0.0, 0.0), 0.0);
     let mut camera = BattleCameraController::new(BattleCameraSettings::default());
-    camera.advance([20.0, 0.0, 20.0], 1.0 / 60.0);
+    camera.advance([20.0, 0.0, 20.0], 0.0, 1.0 / 60.0);
     let tpp = camera.present(&subject, &environment, 1.0 / 60.0);
 
     camera.set_mode(BattleCameraMode::Sniper);
@@ -268,7 +269,7 @@ fn the_scope_surround_rides_the_mode_blend_clock() {
     let environment = BattleCameraEnvironment::with_terrain(&heightmap);
     let subject = CameraSubject::from_snapshot(tank_snapshot([20.0, 0.0, 20.0], 0.0, 0.0), 0.0);
     let mut camera = BattleCameraController::new(BattleCameraSettings::default());
-    camera.advance([20.0, 0.0, 20.0], 1.0 / 60.0);
+    camera.advance([20.0, 0.0, 20.0], 0.0, 1.0 / 60.0);
     camera.present(&subject, &environment, 1.0 / 60.0);
     assert_eq!(camera.scope_dressing(), 0.0, "no scope dressing in third person");
 
@@ -309,7 +310,7 @@ fn the_mode_blend_zooms_at_a_perceptually_constant_rate() {
     let environment = BattleCameraEnvironment::with_terrain(&heightmap);
     let subject = CameraSubject::from_snapshot(tank_snapshot([20.0, 0.0, 20.0], 0.0, 0.0), 0.0);
     let mut camera = BattleCameraController::new(BattleCameraSettings::default());
-    camera.advance([20.0, 0.0, 20.0], 1.0 / 60.0);
+    camera.advance([20.0, 0.0, 20.0], 0.0, 1.0 / 60.0);
     let tpp = camera.present(&subject, &environment, 1.0 / 60.0);
 
     camera.set_mode(BattleCameraMode::Sniper);
@@ -335,7 +336,7 @@ fn the_boom_snaps_shorter_at_a_wall_and_recovers_smoothly_past_it() {
     let mut environment = BattleCameraEnvironment::with_terrain(&heightmap);
     let subject = CameraSubject::from_snapshot(tank_snapshot([20.0, 0.0, 20.0], 0.0, 0.0), 0.0);
     let mut camera = BattleCameraController::new(BattleCameraSettings::default());
-    camera.advance([20.0, 0.0, 20.0], 1.0 / 60.0);
+    camera.advance([20.0, 0.0, 20.0], 0.0, 1.0 / 60.0);
     let open = camera.present(&subject, &environment, 1.0 / 60.0);
     let target = glam::Vec3::from_array(open.target);
     let open_boom = (glam::Vec3::from_array(open.eye) - target).length();

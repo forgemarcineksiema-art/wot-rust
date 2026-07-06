@@ -88,6 +88,8 @@ impl ClientApp {
             self.queue_audio(audio::AudioEvent::KillConfirmed);
         }
         self.render_state.accept_authoritative_snapshot(snapshot);
+        // The remote interpolation phase restarts with the window it measures.
+        self.ticks_since_snapshot = 0;
         self.apply_fire_events(&fired);
         if let Some(tank) = player {
             self.predictor.sync_to(&tank);
