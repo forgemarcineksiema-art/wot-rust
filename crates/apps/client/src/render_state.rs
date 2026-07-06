@@ -71,35 +71,42 @@ impl InterpolatedBattleState {
         let Some(latest) = self.latest.as_ref() else {
             return Vec::new();
         };
+        latest.tanks.iter().map(|tank| self.interpolate(tank)).collect()
+    }
+
+    /// One tank interpolated the same way — for the callers that only need the player (the
+    /// per-tick sight solve among them), instead of building and discarding the whole roster.
+    pub fn interpolated_tank(&self, tank_id: TankId) -> Option<TankSnapshot> {
+        let latest = self.latest.as_ref()?;
+        latest.tanks.iter().find(|tank| tank.tank_id == tank_id).map(|tank| self.interpolate(tank))
+    }
+
+    fn interpolate(&self, tank: &TankSnapshot) -> TankSnapshot {
         let alpha = self.interpolation_alpha;
-        latest
-            .tanks
-            .iter()
-            .map(|tank| match self.previous_tank(tank.tank_id) {
-                Some(previous) => TankSnapshot {
-                    tank_id: tank.tank_id,
-                    team: tank.team,
-                    vehicle: tank.vehicle,
-                    position: lerp3(previous.position, tank.position, alpha),
-                    yaw_rad: lerp_angle(previous.yaw_rad, tank.yaw_rad, alpha),
-                    hull_pitch_rad: lerp_angle(previous.hull_pitch_rad, tank.hull_pitch_rad, alpha),
-                    hull_roll_rad: lerp_angle(previous.hull_roll_rad, tank.hull_roll_rad, alpha),
-                    turret_yaw_rad: lerp_angle(previous.turret_yaw_rad, tank.turret_yaw_rad, alpha),
-                    turret_yaw_velocity_rad_s: tank.turret_yaw_velocity_rad_s,
-                    gun_pitch_rad: lerp_angle(previous.gun_pitch_rad, tank.gun_pitch_rad, alpha),
-                    hit_points: tank.hit_points,
-                    reload_remaining_s: tank.reload_remaining_s,
-                    aim_dispersion_mrad: tank.aim_dispersion_mrad,
-                    module_hit_points: tank.module_hit_points,
-                    destroyed_modules_mask: tank.destroyed_modules_mask,
-                    track_damage_mask: tank.track_damage_mask,
-                    ammo_counts: tank.ammo_counts,
-                    selected_ammo: tank.selected_ammo,
-                    spotted_by_teams_mask: tank.spotted_by_teams_mask,
-                },
-                None => tank.clone(),
-            })
-            .collect()
+        match self.previous_tank(tank.tank_id) {
+            Some(previous) => TankSnapshot {
+                tank_id: tank.tank_id,
+                team: tank.team,
+                vehicle: tank.vehicle,
+                position: lerp3(previous.position, tank.position, alpha),
+                yaw_rad: lerp_angle(previous.yaw_rad, tank.yaw_rad, alpha),
+                hull_pitch_rad: lerp_angle(previous.hull_pitch_rad, tank.hull_pitch_rad, alpha),
+                hull_roll_rad: lerp_angle(previous.hull_roll_rad, tank.hull_roll_rad, alpha),
+                turret_yaw_rad: lerp_angle(previous.turret_yaw_rad, tank.turret_yaw_rad, alpha),
+                turret_yaw_velocity_rad_s: tank.turret_yaw_velocity_rad_s,
+                gun_pitch_rad: lerp_angle(previous.gun_pitch_rad, tank.gun_pitch_rad, alpha),
+                hit_points: tank.hit_points,
+                reload_remaining_s: tank.reload_remaining_s,
+                aim_dispersion_mrad: tank.aim_dispersion_mrad,
+                module_hit_points: tank.module_hit_points,
+                destroyed_modules_mask: tank.destroyed_modules_mask,
+                track_damage_mask: tank.track_damage_mask,
+                ammo_counts: tank.ammo_counts,
+                selected_ammo: tank.selected_ammo,
+                spotted_by_teams_mask: tank.spotted_by_teams_mask,
+            },
+            None => tank.clone(),
+        }
     }
 
     /// Shells extrapolated from the latest snapshot by their known velocity, so fast

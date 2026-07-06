@@ -121,6 +121,11 @@ pub(crate) struct ClientApp {
     engine_smoke_accum_s: HashMap<game_core::TankId, f32>,
     /// Smoothed frames-per-second for the HUD readout (EMA over instantaneous frame rate).
     fps_estimate: f32,
+    /// The minimap's static layers (terrain relief + cover boxes), computed once per
+    /// battlefield instead of resampled every frame. Rebuild alongside `battlefield` if a
+    /// future map rotation swaps it mid-session.
+    minimap_relief: Vec<f32>,
+    minimap_cover: Vec<crate::hud::minimap::MinimapBox>,
     /// Local battle result banner state, derived from the authoritative server outcome.
     battle_outcome: Option<crate::hud::BattleHudOutcome>,
     /// Seconds since the player's latest kill, driving the reticle confirmation; `None` when the
@@ -176,6 +181,8 @@ impl ClientApp {
         let battlefield = prokhorovka_hill_252_2();
         let camera_obstacles =
             battlefield.static_cover.iter().map(CameraObstacle::from_static_cover).collect();
+        let (minimap_relief, minimap_cover) =
+            crate::app::minimap_build::minimap_static_layers(&battlefield);
         Self {
             window: None,
             renderer: None,
@@ -204,6 +211,8 @@ impl ClientApp {
             terrain_scars: crate::fx::TerrainScars::default(),
             engine_smoke_accum_s: HashMap::new(),
             fps_estimate: 0.0,
+            minimap_relief,
+            minimap_cover,
             battle_outcome: None,
             kill_confirm_age_s: None,
             prev_reload_remaining_s: 0.0,

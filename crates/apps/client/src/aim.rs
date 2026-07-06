@@ -101,7 +101,6 @@ pub(crate) fn aim_point_with_sweep(
     eye: Vec3,
     forward: Vec3,
 ) -> Vec3 {
-    const STEP_M: f32 = 1.0;
     let sets = crate::hud::reticle_sweep::trace_sets(tanks, owner, owner_team);
     let world = ShellTraceWorld {
         tanks: &sets.targets,
@@ -109,19 +108,15 @@ pub(crate) fn aim_point_with_sweep(
         heightmap: Some(heightmap),
         cover,
     };
-    let mut previous = eye;
-    let mut travelled = STEP_M;
-    while travelled <= AIM_MAX_RANGE_M {
-        let point = eye + forward * travelled;
-        // Straight sight ray, so `forward` stands in for the shell velocity; the aim point only
-        // needs the impact location, not the (unused) tank impact angle.
-        if let Some(impact) = segment_impact(previous, point, forward, &world) {
-            return impact.point();
-        }
-        previous = point;
-        travelled += STEP_M;
-    }
-    eye + forward * AIM_MAX_RANGE_M
+    // ONE nearest-impact query over the whole sight ray. The old outer 1 m march re-tested
+    // every tank OBB and cover slab per metre (~30k tests per sweep, and this sweep runs every
+    // fixed tick AND every frame); `segment_impact` already resolves the nearest hit exactly on
+    // a segment of any length — the slab/OBB tests are analytic, and the terrain sweep steps
+    // internally. Same answer, three orders of magnitude fewer intersection tests.
+    // Straight sight ray, so `forward` stands in for the shell velocity; the aim point only
+    // needs the impact location, not the (unused) tank impact angle.
+    segment_impact(eye, eye + forward * AIM_MAX_RANGE_M, forward, &world)
+        .map_or(eye + forward * AIM_MAX_RANGE_M, |impact| impact.point())
 }
 
 /// Gun elevation (radians, + = up) that puts the muzzle on `aim` using the same fixed-step
@@ -228,6 +223,82 @@ mod tests {
             "pitch {pitch} should put the simulated shell at target height {}, got {shell_y}",
             aim.y
         );
+    }
+
+    /// The single-segment sweep is an optimization, not a behavior change: on a scene with
+    /// terrain relief, cover, and a tank, it must return the same aim point as the old 1 m
+    /// stepped march (inlined here as the oracle) for rays that hit each obstacle class — and
+    /// for the open-sky miss.
+    #[test]
+    fn the_single_segment_sweep_matches_the_stepped_oracle() {
+        let battlefield = terrain::prokhorovka_hill_252_2();
+        let heightmap = &battlefield.heightmap;
+        let cover = &battlefield.static_cover;
+        let spec = game_core::VehicleKind::T54_1951.spec();
+        let tank = net::TankSnapshot {
+            tank_id: TankId(2),
+            team: TeamId(2),
+            vehicle: game_core::VehicleKind::T54_1951,
+            position: [500.0, heightmap.sample_height(500.0, 460.0).unwrap(), 460.0],
+            yaw_rad: 0.0,
+            hull_pitch_rad: 0.0,
+            hull_roll_rad: 0.0,
+            turret_yaw_rad: 0.0,
+            turret_yaw_velocity_rad_s: 0.0,
+            gun_pitch_rad: 0.0,
+            hit_points: spec.hit_points,
+            reload_remaining_s: 0.0,
+            aim_dispersion_mrad: 0.0,
+            module_hit_points: spec.module_health.hit_points_by_slot(),
+            destroyed_modules_mask: 0,
+            track_damage_mask: 0,
+            ammo_counts: game_core::AmmoLoadout::default().counts,
+            selected_ammo: 0,
+            spotted_by_teams_mask: 0,
+        };
+        let tanks = [tank];
+        let eye_ground = heightmap.sample_height(500.0, 400.0).unwrap();
+
+        let oracle = |eye: Vec3, forward: Vec3| -> Vec3 {
+            let sets = crate::hud::reticle_sweep::trace_sets(&tanks, TankId(1), TeamId(1));
+            let world = ShellTraceWorld {
+                tanks: &sets.targets,
+                blockers: &sets.blockers,
+                heightmap: Some(heightmap),
+                cover,
+            };
+            let mut previous = eye;
+            let mut travelled = 1.0_f32;
+            while travelled <= AIM_MAX_RANGE_M {
+                let point = eye + forward * travelled;
+                if let Some(impact) = segment_impact(previous, point, forward, &world) {
+                    return impact.point();
+                }
+                previous = point;
+                travelled += 1.0;
+            }
+            eye + forward * AIM_MAX_RANGE_M
+        };
+
+        let rays = [
+            // Into the enemy hull 60 m ahead.
+            (Vec3::new(500.0, eye_ground + 2.0, 400.0), Vec3::new(0.0, -0.005, 1.0).normalize()),
+            // Down into the terrain.
+            (Vec3::new(500.0, eye_ground + 2.0, 400.0), Vec3::new(0.3, -0.15, 1.0).normalize()),
+            // Along the map into cover (the Oktyabrskiy barns sit near mid-map).
+            (Vec3::new(430.0, eye_ground + 2.5, 470.0), Vec3::new(1.0, 0.0, 0.0).normalize()),
+            // Open sky.
+            (Vec3::new(500.0, eye_ground + 2.0, 400.0), Vec3::new(0.0, 0.5, 1.0).normalize()),
+        ];
+        for (eye, forward) in rays {
+            let fast =
+                aim_point_with_sweep(heightmap, cover, &tanks, TankId(1), TeamId(1), eye, forward);
+            let slow = oracle(eye, forward);
+            assert!(
+                fast.distance(slow) < 1.0e-3,
+                "sweep diverged from the stepped oracle: {fast:?} vs {slow:?} (eye {eye:?})"
+            );
+        }
     }
 
     #[test]

@@ -58,8 +58,9 @@ impl ClientApp {
     }
 
     fn local_tank_with_pose(&self, pose: crate::predict::PredictedPose) -> Option<TankSnapshot> {
-        let interpolated = self.render_state.interpolated_tanks();
-        let local = interpolated.iter().find(|tank| tank.tank_id == self.player_tank)?;
+        // Only the player is needed here, and this runs on the per-tick sight path — pull the
+        // one interpolated tank instead of building and discarding the whole roster.
+        let local = self.render_state.interpolated_tank(self.player_tank)?;
         Some(TankSnapshot {
             position: pose.position.to_array(),
             yaw_rad: pose.yaw_rad,
@@ -68,7 +69,7 @@ impl ClientApp {
             turret_yaw_rad: pose.turret_yaw_rad,
             turret_yaw_velocity_rad_s: 0.0,
             gun_pitch_rad: pose.gun_pitch_rad,
-            ..local.clone()
+            ..local
         })
     }
 
