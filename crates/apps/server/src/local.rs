@@ -1,7 +1,7 @@
-use game_core::{DamageEvent, ShellImpact, TankId, TankSpec, VehicleKind};
+use game_core::{DamageEvent, ShellImpact, TankId, TankSpec, VehicleKind, WeatherVariant};
 use net::{ClientInputCommand, Snapshot};
 use sim::SimulationState;
-use terrain::BattlefieldMap;
+use terrain::{BattlefieldMap, MapId};
 
 use crate::RandomBattleConfig;
 use crate::ServerTickConfig;
@@ -19,7 +19,9 @@ pub struct AuthoritativeTick {
 pub struct LocalAuthoritativeServer {
     config: ServerTickConfig,
     sim: SimulationState,
+    map_id: MapId,
     battlefield: BattlefieldMap,
+    weather: WeatherVariant,
     mode: BattleMode,
     player_tank: TankId,
     target_tank: TankId,
@@ -58,7 +60,9 @@ impl LocalAuthoritativeServer {
         Self {
             config,
             sim: setup.sim,
+            map_id: setup.map_id,
             battlefield: setup.battlefield,
+            weather: setup.weather,
             mode: setup.mode,
             player_tank: setup.player_tank,
             target_tank: setup.target_tank,
@@ -105,6 +109,17 @@ impl LocalAuthoritativeServer {
 
     pub fn battle_mode(&self) -> BattleMode {
         self.mode
+    }
+
+    /// The map this battle runs on. The client regenerates the identical battlefield from
+    /// this id — the world itself never crosses the wire.
+    pub fn map_id(&self) -> MapId {
+        self.map_id
+    }
+
+    /// The match's presentation weather, rolled once from the battle seed at setup.
+    pub fn weather_variant(&self) -> WeatherVariant {
+        self.weather
     }
 
     pub fn battle_outcome(&self) -> Option<BattleOutcome> {

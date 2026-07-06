@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use anyhow::Context;
 use game_core::{GunModule, TankSpec, VehicleKind};
 use serde::Serialize;
-use terrain::{HeightMap, prokhorovka_hill_252_2};
+use terrain::{HeightMap, MapId};
 use vehicle_forge::{BakeProfile, ForgeArtifact, ReferencePack, TankCompileRequest, compile_tank};
 use vehicle_geometry::bake_vehicle;
 
@@ -46,9 +46,12 @@ pub fn dispatch(command: Command) -> anyhow::Result<()> {
         Command::MakeFlatHeightmap { output, width, height, cell_size, height_m } => {
             write_json(output, &HeightMap::flat(width, height, cell_size, height_m)?)?
         }
-        Command::GenerateMap { output, map } => match map.as_str() {
-            "prokhorovka-hill-252-2" => write_json(output, &prokhorovka_hill_252_2())?,
-            other => anyhow::bail!("unknown map profile: {other}"),
+        Command::GenerateMap { output, map } => match MapId::from_slug(&map) {
+            Some(id) => write_json(output, &id.battlefield())?,
+            None => {
+                let known: Vec<&str> = MapId::ALL.iter().map(|id| id.slug()).collect();
+                anyhow::bail!("unknown map profile: {map} (known: {})", known.join(", "))
+            }
         },
         Command::GenerateVehicle { output, vehicle } => {
             write_json(output, &vehicle_spec(&vehicle)?)?

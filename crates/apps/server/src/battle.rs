@@ -2,6 +2,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use game_core::{TeamId, VehicleKind};
 use sim::TankState;
+use terrain::MapId;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BattleMode {
@@ -49,15 +50,23 @@ impl BattleSeed {
 pub struct RandomBattleConfig {
     pub seed: BattleSeed,
     pub player_vehicle: VehicleKind,
+    /// Which world this battle happens on. Server and client both regenerate the map from
+    /// this id — see [`terrain::MapId`].
+    pub map: MapId,
 }
 
 impl RandomBattleConfig {
     pub fn new(seed: BattleSeed, player_vehicle: VehicleKind) -> Self {
-        Self { seed, player_vehicle }
+        Self { seed, player_vehicle, map: MapId::default() }
     }
 
     pub fn runtime(player_vehicle: VehicleKind) -> Self {
         Self::new(BattleSeed::runtime(), player_vehicle)
+    }
+
+    pub fn on_map(mut self, map: MapId) -> Self {
+        self.map = map;
+        self
     }
 }
 

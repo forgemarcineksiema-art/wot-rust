@@ -1,7 +1,10 @@
 use bincode::Options;
-use game_core::{DamageEvent, MODULE_SLOT_COUNT, ShellImpact, TankId, TeamId, VehicleKind};
+use game_core::{
+    DamageEvent, MODULE_SLOT_COUNT, ShellImpact, TankId, TeamId, VehicleKind, WeatherVariant,
+};
 use serde::{Deserialize, Serialize};
 use sim::{SimulationState, TankCommand, TankState};
+use terrain::MapId;
 use thiserror::Error;
 
 mod frame;
@@ -11,9 +14,10 @@ mod snapshot_schedule;
 pub use frame::{FRAME_HEADER_LEN, FRAME_MAGIC, decode_frame, encode_frame};
 pub use snapshot_schedule::SnapshotSchedule;
 
-/// v17: `ShellImpact` carries the dying shell's `shell_type`, so a high-explosive round
-/// detonating against the world sounds (and can look) like a blast instead of a thud.
-pub const PROTOCOL_VERSION: u16 = 17;
+/// v18: `ServerHello` names the match — `map_id` and `weather_variant` — so the client can
+/// deterministically rebuild the same battlefield the server simulates (the map itself is
+/// never sent) and dress it in the same sky. `ImpactSurface` gains `Water`.
+pub const PROTOCOL_VERSION: u16 = 18;
 
 #[derive(Debug, Error)]
 pub enum NetError {
@@ -173,10 +177,24 @@ pub enum ProtocolMessage {
     Input(ClientInputCommand),
     VehicleSelection(ClientVehicleSelection),
     Snapshot(Snapshot),
-    Ping { client_time_us: u64 },
-    Pong { client_time_us: u64, server_time_us: u64 },
-    ClientHello { protocol_version: u16 },
-    ServerHello { protocol_version: u16 },
+    Ping {
+        client_time_us: u64,
+    },
+    Pong {
+        client_time_us: u64,
+        server_time_us: u64,
+    },
+    ClientHello {
+        protocol_version: u16,
+    },
+    /// The server's opening word (protocol v18): which map to generate locally and which
+    /// weather to dress it in. Both sides run the same deterministic map generator, so these
+    /// two ids are all it takes to agree on a world.
+    ServerHello {
+        protocol_version: u16,
+        map_id: MapId,
+        weather_variant: WeatherVariant,
+    },
 }
 
 /// Wire codec for all protocol messages. Byte-compatible with bincode's standalone

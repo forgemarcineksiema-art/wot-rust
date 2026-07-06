@@ -2717,6 +2717,7 @@ dependencies = [
  "glam 0.30.10",
  "serde",
  "sim",
+ "terrain",
  "thiserror 2.0.18",
 ]
 

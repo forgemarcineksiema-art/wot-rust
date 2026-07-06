@@ -15,6 +15,9 @@ impl FxSystem {
             ImpactSurface::Terrain => self.dirt_fountain(position),
             ImpactSurface::Cover => self.masonry_burst(position),
             ImpactSurface::Hull => self.spark_fan(position, 8),
+            // The sim cannot report a water death yet (no map carries water); the real splash
+            // recipe ships with water rendering. Until then, read as the generic fountain.
+            ImpactSurface::Water => self.dirt_fountain(position),
         }
     }
 

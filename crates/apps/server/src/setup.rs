@@ -1,22 +1,26 @@
-use game_core::{TankId, TeamId, VehicleKind};
+use game_core::{TankId, TeamId, VehicleKind, WeatherVariant};
 use glam::Vec3;
 use sim::SimulationState;
-use terrain::{BattlefieldMap, SpawnZone, prokhorovka_hill_252_2};
+use terrain::{BattlefieldMap, MapId, SpawnZone};
 
 use crate::battle::{BattleMode, BattleSeed, RandomBattleConfig};
 use crate::bots::BotRoster;
+use crate::match_info::pick_weather;
 
 pub(crate) struct BattleSetup {
     pub mode: BattleMode,
     pub sim: SimulationState,
+    pub map_id: MapId,
     pub battlefield: BattlefieldMap,
+    pub weather: WeatherVariant,
     pub player_tank: TankId,
     pub target_tank: TankId,
     pub bots: BotRoster,
 }
 
 pub(crate) fn practice_duel_setup(player_vehicle: VehicleKind) -> BattleSetup {
-    let battlefield = prokhorovka_hill_252_2();
+    let map_id = MapId::default();
+    let battlefield = map_id.battlefield();
     let mut sim = SimulationState::new();
     let player_pos = random_battle_ground_position(&battlefield, 340.0, 300.0);
     let target_pos = random_battle_ground_position(&battlefield, 340.0, 340.0);
@@ -32,7 +36,9 @@ pub(crate) fn practice_duel_setup(player_vehicle: VehicleKind) -> BattleSetup {
     BattleSetup {
         mode: BattleMode::PracticeDuel,
         sim,
+        map_id,
         battlefield,
+        weather: WeatherVariant::default(),
         player_tank,
         target_tank,
         bots: BotRoster::empty(),
@@ -40,7 +46,7 @@ pub(crate) fn practice_duel_setup(player_vehicle: VehicleKind) -> BattleSetup {
 }
 
 pub(crate) fn random_7v7_setup(config: RandomBattleConfig) -> BattleSetup {
-    let battlefield = prokhorovka_hill_252_2();
+    let battlefield = config.map.battlefield();
     let mut sim = SimulationState::new();
     let mut bot_ids = Vec::new();
     let team_one = random_battle_spawn_zone(&battlefield, 1);
@@ -73,7 +79,9 @@ pub(crate) fn random_7v7_setup(config: RandomBattleConfig) -> BattleSetup {
     BattleSetup {
         mode: BattleMode::Random7v7,
         sim,
+        map_id: config.map,
         battlefield,
+        weather: pick_weather(config.map, config.seed),
         player_tank,
         target_tank,
         bots: BotRoster::new(bot_ids, config.seed),

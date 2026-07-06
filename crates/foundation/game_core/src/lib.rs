@@ -14,6 +14,7 @@ mod vehicle_blueprint;
 mod vehicle_kind;
 mod vehicles;
 mod weapon;
+mod weather;
 
 pub use ammo::{AmmoLoadout, MAX_AMMO_SLOTS, default_ammo_capacity};
 pub use armor::{
@@ -43,3 +44,4 @@ pub use vehicle_blueprint::{
 pub use vehicle_kind::{Era, Nation, VehicleKind};
 pub use vehicles::known_tank_specs;
 pub use weapon::{GunSpec, ShellSpec, ShellType};
+pub use weather::WeatherVariant;

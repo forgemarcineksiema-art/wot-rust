@@ -10,6 +10,7 @@ bincode.workspace = true
 game_core.workspace = true
 serde.workspace = true
 sim.workspace = true
+terrain.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]

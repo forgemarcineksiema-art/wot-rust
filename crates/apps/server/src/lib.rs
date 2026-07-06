@@ -7,6 +7,7 @@ mod bot_combat;
 mod bot_routes;
 mod bots;
 mod local;
+mod match_info;
 mod setup;
 
 pub use battle::{
@@ -14,6 +15,7 @@ pub use battle::{
     RandomBattleConfig,
 };
 pub use local::{AuthoritativeTick, LocalAuthoritativeServer};
+pub use match_info::{pick_weather, supported_weather};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ServerTickConfig {
