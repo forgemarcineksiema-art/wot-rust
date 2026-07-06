@@ -27,23 +27,51 @@ const GATE_MARGIN: f32 = 0.8;
 /// target subtends. `on_target` compares the two; the command layer turns the errors into
 /// turret/gun rate commands.
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct BotAimSolution {
+pub(crate) struct BotAimErrors {
     pub turret_error: f32,
     pub pitch_error: f32,
     pub yaw_gate: f32,
     pub pitch_gate: f32,
 }
 
-impl BotAimSolution {
+impl BotAimErrors {
     pub(crate) fn on_target(&self) -> bool {
         self.turret_error.abs() < self.yaw_gate && self.pitch_error.abs() < self.pitch_gate
+    }
+}
+
+/// A solved firing lay in ABSOLUTE hull-frame angles, cached on the bot between solves. The
+/// ballistic integration is the expensive half (it flies the shared shell step), so the bot
+/// recomputes it on a cadence; the per-tick half — how far the turret still has to slew —
+/// is [`Self::errors`], pure arithmetic against the live gun state. Storing absolutes (not
+/// errors) is what makes the cache honest: the errors shrink as the turret slews even while
+/// the solution itself stands still.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct BotFiringSolution {
+    /// Who this lay was solved against — a target switch invalidates the cache.
+    pub target: game_core::TankId,
+    desired_turret_yaw_rad: f32,
+    desired_gun_pitch_rad: f32,
+    yaw_gate: f32,
+    pitch_gate: f32,
+}
+
+impl BotFiringSolution {
+    /// The remaining lay error against the live gun state, with the solved gates.
+    pub(crate) fn errors(&self, tank: &TankState) -> BotAimErrors {
+        BotAimErrors {
+            turret_error: wrap_angle(self.desired_turret_yaw_rad - tank.turret_yaw_rad),
+            pitch_error: self.desired_gun_pitch_rad - tank.gun_pitch_rad,
+            yaw_gate: self.yaw_gate,
+            pitch_gate: self.pitch_gate,
+        }
     }
 }
 
 /// The full firing solution against a live target: ballistic drop compensated on the shared
 /// integrator, pulled back through the hull attitude so a pitched or rolled hull still lays the
 /// barrel on the point, gated by the target's real angular size.
-pub(crate) fn bot_aim_solution(tank: &TankState, target: &TankState) -> BotAimSolution {
+pub(crate) fn solve_firing_solution(tank: &TankState, target: &TankState) -> BotFiringSolution {
     let muzzle = tank.muzzle_world_position();
     let aim_point = target.position + Vec3::Y * target.spec.hitbox.center_y_m;
     let delta = aim_point - muzzle;
@@ -57,9 +85,10 @@ pub(crate) fn bot_aim_solution(tank: &TankState, target: &TankState) -> BotAimSo
     let desired_turret = local.x.atan2(local.z);
     let desired_pitch = local.y.clamp(-1.0, 1.0).asin().clamp(MIN_GUN_PITCH_RAD, MAX_GUN_PITCH_RAD);
     let distance = delta.length().max(1.0);
-    BotAimSolution {
-        turret_error: wrap_angle(desired_turret - tank.turret_yaw_rad),
-        pitch_error: desired_pitch - tank.gun_pitch_rad,
+    BotFiringSolution {
+        target: target.id,
+        desired_turret_yaw_rad: desired_turret,
+        desired_gun_pitch_rad: desired_pitch,
         yaw_gate: (target.spec.hitbox.half_width_m * GATE_MARGIN / distance).atan(),
         pitch_gate: (target.spec.hitbox.half_height_m * GATE_MARGIN / distance).atan(),
     }
@@ -151,7 +180,7 @@ mod tests {
     fn the_solved_arc_lands_on_the_target_hull_at_range() {
         let shooter = tank(1, TeamId(1), Vec3::ZERO);
         let target = tank(2, TeamId(2), Vec3::new(0.0, 0.0, 380.0));
-        let aim = bot_aim_solution(&shooter, &target);
+        let aim = solve_firing_solution(&shooter, &target).errors(&shooter);
 
         // Drop compensation is real: the solved pitch sits ABOVE the straight line to the point.
         let muzzle = shooter.muzzle_world_position();
@@ -208,8 +237,8 @@ mod tests {
         let far = tank(2, TeamId(2), Vec3::new(0.0, 0.0, 380.0));
         let near = tank(3, TeamId(2), Vec3::new(0.0, 0.0, 40.0));
 
-        let far_aim = bot_aim_solution(&shooter, &far);
-        let near_aim = bot_aim_solution(&shooter, &near);
+        let far_aim = solve_firing_solution(&shooter, &far).errors(&shooter);
+        let near_aim = solve_firing_solution(&shooter, &near).errors(&shooter);
 
         assert!(
             far_aim.yaw_gate < 0.01,
@@ -222,7 +251,13 @@ mod tests {
         // lands 0.6 m off center at 40 m â€” well inside the hull. Range decides, not a constant.
         let mut sloppy = shooter.clone();
         sloppy.turret_yaw_rad = 0.015;
-        assert!(!bot_aim_solution(&sloppy, &far).on_target(), "5.7 m wide at 380 m: hold fire");
-        assert!(bot_aim_solution(&sloppy, &near).on_target(), "0.6 m wide at 40 m: certain hit");
+        assert!(
+            !solve_firing_solution(&sloppy, &far).errors(&sloppy).on_target(),
+            "5.7 m wide at 380 m: hold fire"
+        );
+        assert!(
+            solve_firing_solution(&sloppy, &near).errors(&sloppy).on_target(),
+            "0.6 m wide at 40 m: certain hit"
+        );
     }
 }

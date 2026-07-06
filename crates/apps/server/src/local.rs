@@ -147,7 +147,12 @@ impl LocalAuthoritativeServer {
             input.tank_id,
             if battle_over { sim::TankCommand::idle() } else { input.command },
         ));
-        commands.extend(self.bots.commands(self.sim.tanks(), &self.battlefield, battle_over));
+        commands.extend(self.bots.commands(
+            self.sim.tick(),
+            self.sim.tanks(),
+            &self.battlefield,
+            battle_over,
+        ));
 
         self.sim.apply_commands_on_battlefield(
             &commands,

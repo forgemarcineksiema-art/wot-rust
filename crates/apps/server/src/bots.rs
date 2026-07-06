@@ -4,7 +4,10 @@ use sim::{TankCommand, TankState};
 use terrain::BattlefieldMap;
 
 use crate::battle::BattleSeed;
-use crate::bot_combat::{bot_combat_command, bot_nearest_engageable_enemy};
+use crate::bot_aim::{BotFiringSolution, solve_firing_solution};
+use crate::bot_combat::{
+    bot_combat_command, bot_nearest_engageable_enemy, bot_target_still_engageable, find_tank,
+};
 use crate::bot_routes::{BotPosture, bot_posture, bot_route_command, seed_route_index};
 
 /// How little per-tick progress counts as "not moving" while the bot commands forward drive
@@ -14,6 +17,21 @@ const STALL_PROGRESS_EPS_M: f32 = 0.01;
 const STALL_TICKS_TO_REVERSE: u32 = 90;
 /// How long a stuck bot backs out before resuming its route (~1.3 s, a few hull-lengths' arc).
 const REVERSE_TICKS: u32 = 80;
+
+/// The expensive halves of the bot brain run on cadences, not every tick. Target selection
+/// (the only per-bot LOS raycasts) re-runs every 6 ticks — the spotting recompute interval,
+/// so a fresher answer would read stale data anyway; between runs the cached target is held
+/// through the cheap gates. The ballistic solve re-runs every 3 ticks; between runs the turret
+/// slews toward the cached ABSOLUTE lay (see `BotFiringSolution`), so aiming stays smooth.
+/// Both cadences are staggered by tank id, spreading the work across ticks instead of letting
+/// all 13 bots think in the same tick — the difference between a level cost and a spike.
+const TARGET_RESELECT_INTERVAL_TICKS: u64 = 6;
+const AIM_SOLVE_INTERVAL_TICKS: u64 = 3;
+
+/// True on the ticks where `tank_id`'s slice of periodic work is due (deterministic stagger).
+fn cadence_due(tick: u64, tank_id: TankId, interval: u64) -> bool {
+    tick.wrapping_add(tank_id.0).is_multiple_of(interval)
+}
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct BotAgent {
@@ -27,6 +45,10 @@ struct BotAgent {
     stall_ticks: u32,
     /// Remaining ticks of the current back-out maneuver.
     reverse_ticks: u32,
+    /// The engaged enemy, held between re-selections through the cheap gates.
+    target: Option<TankId>,
+    /// The cached ballistic lay against `target`, recomputed on the solve cadence.
+    solution: Option<BotFiringSolution>,
 }
 
 impl BotAgent {
@@ -38,6 +60,8 @@ impl BotAgent {
             last_position: None,
             stall_ticks: 0,
             reverse_ticks: 0,
+            target: None,
+            solution: None,
         }
     }
 }
@@ -65,6 +89,7 @@ impl BotRoster {
 
     pub(crate) fn commands(
         &mut self,
+        tick: u64,
         tanks: &[TankState],
         battlefield: &BattlefieldMap,
         battle_over: bool,
@@ -78,7 +103,13 @@ impl BotRoster {
                     if battle_over || tank.hit_points == 0 {
                         TankCommand::idle()
                     } else {
-                        bot_command_for_tank(&mut self.agents[index], tank, tanks, battlefield)
+                        bot_command_for_tank(
+                            &mut self.agents[index],
+                            tick,
+                            tank,
+                            tanks,
+                            battlefield,
+                        )
                     }
                 },
             );
@@ -90,21 +121,28 @@ impl BotRoster {
 
 fn bot_command_for_tank(
     agent: &mut BotAgent,
+    tick: u64,
     tank: &TankState,
     tanks: &[TankState],
     battlefield: &BattlefieldMap,
 ) -> TankCommand {
-    if let Some(target) = bot_nearest_engageable_enemy(
-        tank,
-        tanks,
-        Some(&battlefield.heightmap),
-        &battlefield.static_cover,
-    ) {
+    if let Some(target) = bot_current_target(agent, tick, tank, tanks, battlefield) {
         // Standing to shoot is intentional, not a stall.
         agent.stall_ticks = 0;
         agent.last_position = Some(tank.position);
-        return bot_combat_command(tank, target);
+        let solve_due = match &agent.solution {
+            Some(solution) if solution.target == target.id => {
+                cadence_due(tick, tank.id, AIM_SOLVE_INTERVAL_TICKS)
+            }
+            _ => true,
+        };
+        if solve_due {
+            agent.solution = Some(solve_firing_solution(tank, target));
+        }
+        let solution = agent.solution.expect("solution cached above");
+        return bot_combat_command(tank, &solution);
     }
+    agent.solution = None;
     let posture = agent.posture;
     let command = bot_route_command(&mut agent.route_index, posture, tank, battlefield);
     // Stall detection guards MOVEMENT intent only. An overwatch bot holding its shelf (and the
@@ -144,6 +182,35 @@ fn bot_unstuck_command(agent: &mut BotAgent, tank: &TankState) -> Option<TankCom
         return Some(bot_reverse_command(tank));
     }
     None
+}
+
+/// The engaged target for this tick: the cached one while the cheap gates hold, a full
+/// re-selection (the only per-bot LOS raycasts) on the reselect cadence or the moment the
+/// cache fails. Full selection every tick was the single hottest per-tick cost in a 7v7 —
+/// up to seven 400 m raycasts per bot per tick, duplicating what spotting already knew.
+fn bot_current_target<'a>(
+    agent: &mut BotAgent,
+    tick: u64,
+    tank: &TankState,
+    tanks: &'a [TankState],
+    battlefield: &BattlefieldMap,
+) -> Option<&'a TankState> {
+    let cached = agent
+        .target
+        .and_then(|id| find_tank(tanks, id))
+        .filter(|target| bot_target_still_engageable(tank, target));
+    let target = if cached.is_none() || cadence_due(tick, tank.id, TARGET_RESELECT_INTERVAL_TICKS) {
+        bot_nearest_engageable_enemy(
+            tank,
+            tanks,
+            Some(&battlefield.heightmap),
+            &battlefield.static_cover,
+        )
+    } else {
+        cached
+    };
+    agent.target = target.map(|target| target.id);
+    target
 }
 
 fn bot_reverse_command(tank: &TankState) -> TankCommand {
@@ -223,7 +290,7 @@ mod tests {
         let bot = tank(1, TeamId(1), Vec3::new(300.0, 0.0, 300.0), TeamId(1).spotting_bit());
         let mut roster = BotRoster::new(vec![bot.id], BattleSeed::fixed(7));
         let command = |roster: &mut BotRoster| {
-            roster.commands(std::slice::from_ref(&bot), &battlefield, false)[0].1
+            roster.commands(0, std::slice::from_ref(&bot), &battlefield, false)[0].1
         };
 
         assert!(command(&mut roster).throttle > 0.0, "the route brain drives forward");
@@ -270,7 +337,7 @@ mod tests {
         );
 
         for tick in 0..STALL_TICKS_TO_REVERSE * 3 {
-            let commands = roster.commands(std::slice::from_ref(&bot), &battlefield, false);
+            let commands = roster.commands(0, std::slice::from_ref(&bot), &battlefield, false);
             let (_, command) =
                 *commands.iter().find(|(id, _)| *id == TankId(12)).expect("overwatch command");
             assert!(
@@ -281,6 +348,55 @@ mod tests {
         }
     }
 
+    /// The performance contract behind the bot brain's cadences, locked as behavior: between
+    /// re-selection ticks a bot HOLDS its engaged target (a human gunner does not flick every
+    /// 16 ms), and on the cadence tick it re-selects the nearest visible enemy. A target that
+    /// dies is dropped the same tick regardless of cadence.
+    #[test]
+    fn an_engaged_target_is_held_between_reselect_ticks_and_dropped_when_dead() {
+        let battlefield = terrain::prokhorovka_hill_252_2();
+        let grounded = |x: f32, z: f32| {
+            Vec3::new(x, battlefield.heightmap.sample_height(x, z).expect("inside the map"), z)
+        };
+        let bot_id = TankId(1);
+        let mask = TeamId(1).spotting_bit() | TeamId(2).spotting_bit();
+        let bot = tank(1, TeamId(1), grounded(300.0, 300.0), TeamId(1).spotting_bit());
+        let first = tank(2, TeamId(2), grounded(300.0, 380.0), mask);
+        let mut roster = BotRoster::new(vec![bot_id], BattleSeed::fixed(7));
+
+        // Engage on a cadence tick (tick + id divisible by the reselect interval).
+        let due_tick = TARGET_RESELECT_INTERVAL_TICKS - bot_id.0 % TARGET_RESELECT_INTERVAL_TICKS;
+        let tanks = [bot.clone(), first.clone()];
+        let engaged = roster.commands(due_tick, &tanks, &battlefield, false)[0].1;
+        assert!(engaged.brake > 0.0, "the bot stands to fight the spotted enemy");
+        assert_eq!(roster.agents[0].target, Some(first.id));
+
+        // A NEARER enemy appears off-cadence: the held target must not flick.
+        let nearer = tank(3, TeamId(2), grounded(300.0, 340.0), mask);
+        let tanks = [bot.clone(), first.clone(), nearer.clone()];
+        roster.commands(due_tick + 1, &tanks, &battlefield, false);
+        assert_eq!(
+            roster.agents[0].target,
+            Some(first.id),
+            "off-cadence the engaged target is held, not flicked"
+        );
+
+        // On the next cadence tick the re-selection switches to the nearer enemy.
+        roster.commands(due_tick + TARGET_RESELECT_INTERVAL_TICKS, &tanks, &battlefield, false);
+        assert_eq!(roster.agents[0].target, Some(nearer.id), "cadence tick re-selects nearest");
+
+        // The held target dying is acted on immediately, cadence or not.
+        let mut dead_near = nearer.clone();
+        dead_near.hit_points = 0;
+        let tanks = [bot.clone(), first.clone(), dead_near];
+        roster.commands(due_tick + TARGET_RESELECT_INTERVAL_TICKS + 1, &tanks, &battlefield, false);
+        assert_eq!(
+            roster.agents[0].target,
+            Some(first.id),
+            "a dead target is dropped and replaced the same tick"
+        );
+    }
+
     #[test]
     fn dead_or_absent_tanks_idle_and_a_finished_battle_idles_everyone() {
         let battlefield = terrain::prokhorovka_hill_252_2();
@@ -288,12 +404,12 @@ mod tests {
         let mut roster = BotRoster::new(vec![bot.id, TankId(99)], BattleSeed::fixed(7));
 
         // Battle over: even a live bot receives idle.
-        let over = roster.commands(std::slice::from_ref(&bot), &battlefield, true);
+        let over = roster.commands(0, std::slice::from_ref(&bot), &battlefield, true);
         assert!(over.iter().all(|(_, command)| *command == TankCommand::idle()));
 
         // A dead bot and a bot with no tank in the snapshot both idle.
         bot.hit_points = 0;
-        let commands = roster.commands(std::slice::from_ref(&bot), &battlefield, false);
+        let commands = roster.commands(0, std::slice::from_ref(&bot), &battlefield, false);
         assert!(commands.iter().all(|(_, command)| *command == TankCommand::idle()));
     }
 }

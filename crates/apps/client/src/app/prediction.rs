@@ -180,7 +180,9 @@ mod tests {
 
     #[test]
     fn turret_converges_gun_onto_the_sight_point_not_parallel_to_camera() {
-        let mut app = ClientApp::new();
+        // Fixed seed: with a runtime roster an unlucky bot can reach (and hit) the player
+        // inside the 300-tick settle window and wiggle the sight point under the assert.
+        let mut app = ClientApp::new_seeded(42);
         app.confirm_garage_selection();
         app.seed_prediction();
 

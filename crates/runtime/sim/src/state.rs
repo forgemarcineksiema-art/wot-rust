@@ -156,25 +156,37 @@ impl SimulationState {
             recover_aim_dispersion(tank, dt);
         }
 
+        // Tank-vs-tank obstacles in lockstep with the sequential update: built once from the
+        // start-of-tick hulls and refreshed per moved hull, so a later command collides against
+        // exactly the positions the old per-command rebuild saw — bit-identical (replay-locked)
+        // at a fraction of the rebuilds and without a fresh Vec per command.
+        let mut all_obstacles: Vec<TankObstacle> = self
+            .tanks
+            .iter()
+            .map(|tank| TankObstacle::from_hitbox(tank.position, tank.yaw_rad, tank.spec.hitbox))
+            .collect();
+        let mut obstacle_scratch: Vec<TankObstacle> =
+            Vec::with_capacity(all_obstacles.len().saturating_sub(1));
         for (tank_id, command) in commands.iter().copied() {
             if let Some(index) = self.tanks.iter().position(|tank| tank.id == tank_id) {
                 let command = command.clamped();
-                let tank_obstacles = self
-                    .tanks
-                    .iter()
-                    .enumerate()
-                    .filter(|(other_index, _)| *other_index != index)
-                    .map(|(_, tank)| {
-                        TankObstacle::from_hitbox(tank.position, tank.yaw_rad, tank.spec.hitbox)
-                    })
-                    .collect::<Vec<_>>();
+                obstacle_scratch.clear();
+                obstacle_scratch.extend(
+                    all_obstacles
+                        .iter()
+                        .enumerate()
+                        .filter(|(other_index, _)| *other_index != index)
+                        .map(|(_, obstacle)| *obstacle),
+                );
                 let tank = &mut self.tanks[index];
                 if tank.hit_points == 0 {
                     tank.velocity_mps = Vec3::ZERO;
                     tank.hull_yaw_velocity_rad_s = 0.0;
                     continue;
                 }
-                let ground = step_tank(tank, command, dt, heightmap, cover, &tank_obstacles);
+                let ground = step_tank(tank, command, dt, heightmap, cover, &obstacle_scratch);
+                all_obstacles[index] =
+                    TankObstacle::from_hitbox(tank.position, tank.yaw_rad, tank.spec.hitbox);
                 apply_landing_impact(tank, ground.landing_impact_mps, &mut self.damage_events);
                 // Ammo switch before the fire check: the honest rule is simple — any real switch
                 // restarts the full reload (the loader swaps the round out of the breech).

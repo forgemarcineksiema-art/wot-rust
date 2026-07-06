@@ -149,10 +149,23 @@ impl ClientApp {
     }
 
     fn new_without_vehicle_artifacts() -> Self {
-        let local_server = LocalAuthoritativeServer::new_random_7v7(
-            ServerTickConfig::default(),
-            RandomBattleConfig::runtime(VehicleKind::default()),
-        );
+        Self::from_battle_config(RandomBattleConfig::runtime(VehicleKind::default()))
+    }
+
+    /// A deterministic app for tests that drive real battle ticks: a runtime-seeded battle
+    /// makes such tests flaky by construction (an unlucky roster can reach the player inside
+    /// the test window and perturb whatever is being asserted).
+    #[cfg(test)]
+    pub(crate) fn new_seeded(seed: u64) -> Self {
+        Self::from_battle_config(RandomBattleConfig::new(
+            server::BattleSeed::fixed(seed),
+            VehicleKind::default(),
+        ))
+    }
+
+    fn from_battle_config(config: RandomBattleConfig) -> Self {
+        let local_server =
+            LocalAuthoritativeServer::new_random_7v7(ServerTickConfig::default(), config);
         let player_tank = local_server.player_tank();
         let mut render_state = InterpolatedBattleState::default();
         render_state.accept_authoritative_snapshot(local_server.latest_snapshot_for_player());

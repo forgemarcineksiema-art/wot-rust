@@ -4028,6 +4028,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
+ "criterion",
  "game_core",
  "glam 0.30.10",
  "net",
