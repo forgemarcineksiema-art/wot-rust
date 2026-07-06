@@ -144,8 +144,9 @@ fn vehicle_asset_catalog_loads_forge_lineup_artifact_tree() {
     assert_eq!(loaded, 2);
     assert_eq!(catalog.cached_vehicle_count(), 2);
     assert_eq!(catalog.material_count(), 2);
-    // T-54 (blueprint) uploads hull/turret/gun + 4 gear unit meshes; Tiger I (legacy) just 3.
-    assert_eq!(catalog.take_pending_vehicle_meshes().len(), BLUEPRINT_MESH_COUNT + 3);
+    // Both upload hull/turret/gun + the six gear unit meshes: the Tiger I animates its running
+    // gear from the legacy-track table exactly like the blueprint T-54 does from its blueprint.
+    assert_eq!(catalog.take_pending_vehicle_meshes().len(), 2 * BLUEPRINT_MESH_COUNT);
 
     std::fs::remove_dir_all(root).expect("remove artifact tree");
 }

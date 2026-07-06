@@ -38,11 +38,41 @@ fn rounded_axis_values(
         .collect()
 }
 
+/// Every playable vehicle animates its running gear — blueprint tanks from their blueprint's
+/// track, the German fleet from the authored legacy-track table. Only the test-only prototype
+/// medium keeps fused static gear.
 #[test]
-fn non_blueprint_vehicles_have_no_animated_gear() {
-    // The legacy path keeps its static baked gear; only blueprint vehicles animate.
-    assert!(RunningGearKinematics::for_vehicle(VehicleKind::TigerII).is_none());
-    assert!(RunningGearKinematics::for_vehicle(VehicleKind::T55A).is_some());
+fn every_playable_vehicle_has_animated_gear() {
+    for kind in VehicleKind::PLAYABLE {
+        let kin = RunningGearKinematics::for_vehicle(kind)
+            .unwrap_or_else(|| panic!("{kind:?} must animate its running gear"));
+        assert!(kin.wheel_zs.len() >= 5, "{kind:?} fields a full wheel run");
+        assert!(kin.link_count() >= 40, "{kind:?} belt reads as a segmented band");
+        assert!(kin.wheel_radius > 0.2 && kin.wheel_radius < 0.6, "{kind:?} sane wheel");
+    }
+    assert!(RunningGearKinematics::for_vehicle(VehicleKind::PrototypeMedium).is_none());
+}
+
+/// The legacy fleet's animated dimensions are the retired fused-mesh gear, carried over 1:1 —
+/// the silhouette the fleet always had is what now moves.
+#[test]
+fn legacy_fleet_kinematics_match_the_retired_fused_gear() {
+    let tiger = RunningGearKinematics::for_vehicle(VehicleKind::TigerI).expect("Tiger I");
+    assert_eq!(tiger.wheel_zs.len(), 8);
+    assert_eq!(tiger.wheel_radius, 0.42);
+    assert_eq!(tiger.cy, 0.46);
+    assert_eq!(tiger.half_run, 2.95);
+    // A stadium loop: the belt wraps at the outermost road wheels, at wheel radius.
+    assert_eq!(tiger.end_cz, tiger.half_run);
+    assert_eq!(tiger.end_radius, tiger.wheel_radius);
+    assert!(tiger.roller_zs.is_empty(), "no return rollers on the Tiger line");
+
+    let king = RunningGearKinematics::for_vehicle(VehicleKind::TigerII).expect("Tiger II");
+    assert_eq!(king.wheel_zs.len(), 9);
+    let jagd = RunningGearKinematics::for_vehicle(VehicleKind::Jagdtiger).expect("Jagdtiger");
+    assert_eq!((jagd.wheel_zs.len(), jagd.half_run), (9, 3.40));
+    let panther = RunningGearKinematics::for_vehicle(VehicleKind::PantherII).expect("Panther II");
+    assert_eq!((panther.wheel_zs.len(), panther.wheel_radius), (8, 0.46));
 }
 
 #[test]

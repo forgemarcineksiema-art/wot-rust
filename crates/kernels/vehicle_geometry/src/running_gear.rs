@@ -68,10 +68,13 @@ pub struct RunningGearKinematics {
 }
 
 impl RunningGearKinematics {
-    /// Build the kinematics for `kind`, or `None` for vehicles still on the legacy (non-blueprint)
-    /// running gear — those render their static gear unchanged.
+    /// Build the kinematics for `kind`, or `None` for vehicles that keep fused static gear (the
+    /// test-only prototype medium). Blueprint vehicles read their blueprint's track; the German
+    /// fleet reads the authored [`crate::legacy_tracks`] table — same pipeline, same motion.
     pub fn for_vehicle(kind: VehicleKind) -> Option<Self> {
-        let track = VehicleBlueprint::for_vehicle(kind)?.track;
+        let track = VehicleBlueprint::for_vehicle(kind)
+            .map(|blueprint| blueprint.track)
+            .or_else(|| crate::legacy_tracks::legacy_track_shape(kind))?;
         let cy = (track.top_y + track.bottom_y) * 0.5;
         let cz = (track.wheel_first_z + track.wheel_last_z) * 0.5;
         let half_run = (track.wheel_last_z - track.wheel_first_z) * 0.5;

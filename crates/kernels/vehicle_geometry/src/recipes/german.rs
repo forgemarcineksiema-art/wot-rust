@@ -13,27 +13,25 @@ use game_core::{HitboxProfile, MountFrames, VehicleKind};
 use glam::{Vec2, Vec3};
 
 use super::{
-    GunPlan, HullPlan, RunningGear, SG_HARD, add_cupola, add_mantlet_socket, add_running_gear,
-    add_turret_ring, assemble, build_gun, hull_body, shade_hull,
+    GunPlan, HullPlan, SG_HARD, add_cupola, add_mantlet_socket, add_turret_ring, assemble,
+    build_gun, hull_body, legacy_track_band, shade_hull,
 };
 use crate::{Axis, BakedVehicle, ExtrudeSpec, MaterialRole, MeshBuilder};
 
 pub(crate) fn tiger_i(hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVehicle {
     let hull = shade_hull(
-        add_running_gear(
-            hull_body(
-                &HullPlan {
-                    half_len: hitbox.half_length_m * 0.958,
-                    belly_y: 0.34,
-                    deck_y: mounts.turret_ring.translation.y,
-                    glacis_run: 0.18,
-                    nose_rise: 0.0,
-                    half_width: hitbox.half_width_m * 0.749,
-                },
-                MaterialRole::RolledArmor,
-            ),
-            &TIGER_GEAR,
+        hull_body(
+            &HullPlan {
+                half_len: hitbox.half_length_m * 0.958,
+                belly_y: 0.34,
+                deck_y: mounts.turret_ring.translation.y,
+                glacis_run: 0.18,
+                nose_rise: 0.0,
+                half_width: hitbox.half_width_m * 0.749,
+            },
+            MaterialRole::RolledArmor,
         )
+        .append(&legacy_track_band(VehicleKind::TigerI))
         .build(),
     );
 
@@ -83,20 +81,18 @@ pub(crate) fn tiger_i(hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVehi
 
 pub(crate) fn tiger_ii(hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVehicle {
     let hull = shade_hull(
-        add_running_gear(
-            hull_body(
-                &HullPlan {
-                    half_len: hitbox.half_length_m * 0.962,
-                    belly_y: 0.35,
-                    deck_y: mounts.turret_ring.translation.y,
-                    glacis_run: 1.05,
-                    nose_rise: 0.06,
-                    half_width: hitbox.half_width_m * 0.749,
-                },
-                MaterialRole::RolledArmor,
-            ),
-            &TIGER_GEAR_LONG,
+        hull_body(
+            &HullPlan {
+                half_len: hitbox.half_length_m * 0.962,
+                belly_y: 0.35,
+                deck_y: mounts.turret_ring.translation.y,
+                glacis_run: 1.05,
+                nose_rise: 0.06,
+                half_width: hitbox.half_width_m * 0.749,
+            },
+            MaterialRole::RolledArmor,
         )
+        .append(&legacy_track_band(VehicleKind::TigerII))
         .build(),
     );
 
@@ -160,33 +156,3 @@ fn sloped_turret(section: &[Vec2], half_width: f32) -> MeshBuilder {
         },
     )
 }
-
-const TIGER_GEAR: RunningGear = RunningGear {
-    track_half: Vec3::new(0.27, 0.55, 3.42),
-    track_center_x: 1.68,
-    track_center_y: 0.42,
-    track_center_z: 0.0,
-    wheel_radius: 0.42,
-    wheel_count: 8,
-    wheel_y: 0.46,
-    wheel_first_z: -2.95,
-    wheel_last_z: 2.95,
-    wheel_inner_x: 1.46,
-    wheel_outer_x: 1.92,
-    wheel_segments: 10,
-};
-
-const TIGER_GEAR_LONG: RunningGear = RunningGear {
-    track_half: Vec3::new(0.27, 0.55, 3.82),
-    track_center_x: 1.68,
-    track_center_y: 0.43,
-    track_center_z: 0.0,
-    wheel_radius: 0.42,
-    wheel_count: 9,
-    wheel_y: 0.46,
-    wheel_first_z: -3.30,
-    wheel_last_z: 3.30,
-    wheel_inner_x: 1.46,
-    wheel_outer_x: 1.92,
-    wheel_segments: 10,
-};
