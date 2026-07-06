@@ -9,6 +9,7 @@ mod prokhorovka;
 mod prokhorovka_cover;
 mod prokhorovka_features;
 mod prokhorovka_layout;
+mod water;
 
 pub use battlefield::{
     BattlefieldMap, MapFeature, MapFeatureKind, SpawnZone, StaticCoverKind, StaticCoverObject,
@@ -20,3 +21,4 @@ pub use heightmap::{HeightMap, HeightMapStats, TerrainError};
 pub use map_id::MapId;
 pub use map_plan::{TerrainMapLayer, TerrainMapPlan};
 pub use prokhorovka::prokhorovka_hill_252_2;
+pub use water::WaterBody;

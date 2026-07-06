@@ -13,6 +13,8 @@ use crate::{ShellState, TankState};
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct CombatTickContext {
     pub dt_seconds: f32,
+    /// The map's standing water: shells die in a splash at the surface (see `shell_trace`).
+    pub water: Option<terrain::WaterBody>,
 }
 
 pub(crate) fn try_fire_shell(tank: &mut TankState, tick: u64) -> Option<ShellState> {

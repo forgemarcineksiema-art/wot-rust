@@ -38,5 +38,6 @@ pub(crate) fn fresh_tank(
         ammo_counts,
         selected_ammo,
         spotted_mask: 0,
+        submerged_s: 0.0,
     }
 }

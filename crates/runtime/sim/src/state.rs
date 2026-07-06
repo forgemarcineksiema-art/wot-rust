@@ -2,7 +2,7 @@ use game_core::{DamageEvent, ShellImpact, TankId, TankSpec, TeamId, TrackSide};
 use glam::Vec3;
 use physics::TankObstacle;
 use serde::{Deserialize, Serialize};
-use terrain::{HeightMap, StaticCoverObject};
+use terrain::{HeightMap, StaticCoverObject, WaterBody};
 
 use crate::aim_dispersion::recover_aim_dispersion;
 use crate::combat::{CombatTickContext, try_fire_shell};
@@ -29,6 +29,11 @@ pub struct SimulationState {
     /// Last-fresh-sight memory behind the spotted hold (see `spotting::SpottingMemory`).
     #[serde(default)]
     spotting_memory: crate::spotting::SpottingMemory,
+    /// The battle map's standing water, installed once at setup (like the heightmap, it never
+    /// changes mid-battle). Drives wading drag, drowning, and shell splashes. `serde(default)`
+    /// keeps pre-water fixtures loading dry.
+    #[serde(default)]
+    water: Option<WaterBody>,
 }
 
 impl SimulationState {
@@ -41,7 +46,18 @@ impl SimulationState {
             damage_events: Vec::new(),
             shell_impacts: Vec::new(),
             spotting_memory: crate::spotting::SpottingMemory::default(),
+            water: None,
         }
+    }
+
+    /// Install the battle map's standing water (see [`terrain::WaterBody`]). Call once at
+    /// battle setup alongside the heightmap; `None` (the default) is a dry map.
+    pub fn set_water(&mut self, water: Option<WaterBody>) {
+        self.water = water;
+    }
+
+    pub fn water(&self) -> Option<WaterBody> {
+        self.water
     }
 
     pub fn tick(&self) -> u64 {
@@ -147,7 +163,7 @@ impl SimulationState {
         cover: &[StaticCoverObject],
     ) {
         let dt = timestep.dt_seconds();
-        let context = CombatTickContext { dt_seconds: dt };
+        let context = CombatTickContext { dt_seconds: dt, water: self.water };
         self.damage_events.clear();
         self.shell_impacts.clear();
         let ramming_before = capture_ramming_snapshots(&self.tanks);
@@ -174,7 +190,8 @@ impl SimulationState {
                     tank.hull_yaw_velocity_rad_s = 0.0;
                     continue;
                 }
-                let ground = step_tank(tank, command, dt, heightmap, cover, &tank_obstacles);
+                let ground =
+                    step_tank(tank, command, dt, heightmap, cover, &tank_obstacles, self.water);
                 apply_landing_impact(tank, ground.landing_impact_mps, &mut self.damage_events);
                 // Ammo switch before the fire check: the honest rule is simple — any real switch
                 // restarts the full reload (the loader swaps the round out of the breech).
@@ -194,6 +211,15 @@ impl SimulationState {
         }
 
         apply_ramming_damage(&ramming_before, &mut self.tanks, &mut self.damage_events, dt);
+        // Drowning runs for EVERY living hull, commanded or not — a dead-engine tank in the
+        // river keeps flooding.
+        crate::drowning::step_drowning(
+            &mut self.tanks,
+            heightmap,
+            self.water,
+            dt,
+            &mut self.damage_events,
+        );
         step_shells(
             &mut self.shells,
             &mut self.tanks,

@@ -1,4 +1,4 @@
-//! Locking tests for the planar rigid-body hull: angular inertia, neutral pivot, lateral grip vs
+﻿//! Locking tests for the planar rigid-body hull: angular inertia, neutral pivot, lateral grip vs
 //! drift, slope slide, downhill behaviour, and numerical stability. These pin the *emergent*
 //! behaviour that replaced the old scalar kinematic model.
 
@@ -26,7 +26,7 @@ fn drive(
     }
 }
 
-/// Sideways speed in the hull's current frame — the slip that distinguishes gripping from drifting.
+/// Sideways speed in the hull's current frame â€” the slip that distinguishes gripping from drifting.
 fn lateral_speed(state: &TankKinematicState) -> f32 {
     let forward = horizontal_forward(state.yaw_rad);
     let right = Vec3::new(forward.z, 0.0, -forward.x);
@@ -91,7 +91,7 @@ fn hard_turn_at_speed_drifts_but_a_gentle_turn_grips() {
     let gentle = drift_for(0.2);
 
     // The scrub term bleeds speed through the turn, so the residual slide is smaller than the
-    // old un-scrubbed model's — but a full-lock turn at speed must still visibly break loose.
+    // old un-scrubbed model's â€” but a full-lock turn at speed must still visibly break loose.
     assert!(hard > 0.08, "a hard turn at speed must break grip and slide, got lateral {hard}");
     assert!(gentle < 0.05, "a gentle turn must hold its line, got lateral {gentle}");
 }
@@ -103,8 +103,14 @@ fn steep_low_traction_slope_slides_but_gentle_slope_holds() {
     let drift_x = |side_slope: f32, roughness: f32| {
         // Traction falls off with side slope and roughness exactly as the heightmap sampler models.
         let traction = (1.0 - roughness * 0.45 - side_slope.abs() * 0.35).clamp(0.35, 1.0);
-        let contact =
-            TerrainContact { height_m: 0.0, forward_slope: 0.0, side_slope, roughness, traction };
+        let contact = TerrainContact {
+            height_m: 0.0,
+            forward_slope: 0.0,
+            side_slope,
+            roughness,
+            traction,
+            water_depth_m: 0.0,
+        };
         let mut state = TankKinematicState::default();
         // Sit still on the slope (no throttle, no steer) and see whether it holds.
         drive(&mut state, &settings, 0.0, 0.0, contact, 120);
@@ -129,6 +135,7 @@ fn descending_a_grade_is_not_slower_than_flat() {
             side_slope: 0.0,
             roughness: 0.0,
             traction: 1.0,
+            water_depth_m: 0.0,
         };
         let mut state = TankKinematicState::default();
         drive(&mut state, &settings, 1.0, 0.0, contact, 600);

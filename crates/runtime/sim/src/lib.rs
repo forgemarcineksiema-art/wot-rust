@@ -4,6 +4,7 @@ mod clock;
 mod combat;
 mod command;
 mod drive_modules;
+mod drowning;
 mod landing;
 mod module_hit;
 mod ramming;
@@ -28,6 +29,7 @@ pub use clock::{
 };
 pub use command::TankCommand;
 pub use drive_modules::{DriveModuleStatus, TrackDriveStatus};
+pub use drowning::{DROWN_DEPTH_M, DROWN_PULSE_INTERVAL_S, ENGINE_FLOOD_S};
 pub use landing::SAFE_LANDING_MPS;
 pub use replay::{Replay, ReplayExpected, ReplayFrame, ReplayReport, ReplaySpawn, run_replay};
 pub use shell::ShellState;

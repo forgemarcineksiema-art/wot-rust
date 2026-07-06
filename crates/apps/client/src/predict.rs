@@ -32,6 +32,9 @@ pub struct LocalPredictor {
     previous_forward_speed_mps: f32,
     /// Forward acceleration over the most recent tick (m/s², tick-domain, exact).
     tick_accel_long_mps2: f32,
+    /// The battle map's standing water — a map property, so it survives vehicle resets. The
+    /// predicted wading drag must match the server's or fording would reconciliation-jitter.
+    water: Option<terrain::WaterBody>,
 }
 
 impl LocalPredictor {
@@ -52,6 +55,7 @@ impl LocalPredictor {
             seeded: false,
             previous_forward_speed_mps: 0.0,
             tick_accel_long_mps2: 0.0,
+            water: None,
             previous: PredictedPose {
                 position: Vec3::ZERO,
                 yaw_rad: 0.0,
@@ -68,7 +72,16 @@ impl LocalPredictor {
     }
 
     pub fn reset_to_spec(&mut self, spec: &TankSpec) {
+        // Water belongs to the map, not the vehicle — a garage swap keeps the same river.
+        let water = self.water;
         *self = Self::new(spec);
+        self.water = water;
+    }
+
+    /// Install the battle map's standing water (see [`terrain::WaterBody`]) so predicted wading
+    /// matches the authoritative step. `None` (the default) is a dry map.
+    pub fn set_water(&mut self, water: Option<terrain::WaterBody>) {
+        self.water = water;
     }
 
     pub fn spec(&self) -> &TankSpec {
@@ -144,6 +157,7 @@ impl LocalPredictor {
             cover,
             tank_obstacles,
             footprint: Some(&footprint),
+            water: self.water,
         };
         let ground =
             step_tank_drive(&mut self.drive, &self.spec, modules, world, command.clamped(), dt);

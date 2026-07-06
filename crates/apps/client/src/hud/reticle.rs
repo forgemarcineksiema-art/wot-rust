@@ -41,6 +41,8 @@ pub(crate) struct PenetrationHint {
 pub(crate) struct ReticleFeedbackQuery<'a> {
     pub heightmap: &'a HeightMap,
     pub cover: &'a [StaticCoverObject],
+    /// The map's standing water — the previewed splash must be the server's splash.
+    pub water: Option<terrain::WaterBody>,
     pub tanks: &'a [TankSnapshot],
     /// Spec of the firing (local) vehicle. Penetration hints read the shell from here so the HUD
     /// shows the *player's* gun, not the gun of whatever tank happens to be under the reticle.
@@ -69,6 +71,7 @@ pub(crate) fn reticle_report(query: ReticleFeedbackQuery<'_>) -> ReticleReport {
         crate::hud::reticle_sweep::reticle_trace(crate::hud::reticle_sweep::ReticleTraceQuery {
             heightmap: query.heightmap,
             cover: query.cover,
+            water: query.water,
             tanks: query.tanks,
             owner: query.owner,
             owner_team: query.owner_team,

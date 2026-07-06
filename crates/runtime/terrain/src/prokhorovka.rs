@@ -58,6 +58,8 @@ pub fn prokhorovka_hill_252_2() -> BattlefieldMap {
             "open steppe tank map: a central east-west railway embankment divides the sectors, an open Psel flank in the west, and contested hill high ground in the east".to_string(),
             "1000m x 1000m at 5m height samples; the map is mirror-symmetric across the central embankment axis so both teams get equivalent ground".to_string(),
         ],
+        // The Psel is a dry lowland on this cut of the battlefield — no standing water.
+        water: None,
         spawn_zones: spawn_zones(&heightmap),
         strategic_points: strategic_points(&heightmap),
         features: map_features(&heightmap),
