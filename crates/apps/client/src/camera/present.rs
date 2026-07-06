@@ -25,8 +25,8 @@ const BOOM_RECOVER_MPS: f32 = 14.0;
 pub(super) struct PresentedCamera {
     last_mode: Option<BattleCameraMode>,
     last_camera: Option<Camera>,
-    /// Live mode transition: the camera we are blending FROM and its age.
-    blend: Option<(Camera, f32)>,
+    /// Live mode transition: the camera and mode we are blending FROM and the blend's age.
+    blend: Option<(Camera, BattleCameraMode, f32)>,
     /// Smoothed third-person boom length (meters).
     boom_m: Option<f32>,
 }
@@ -51,14 +51,14 @@ impl BattleCameraController {
 
         let mode = self.mode();
         let state = &mut self.presented;
-        if state.last_mode.is_some_and(|last| last != mode)
+        if let Some(last) = state.last_mode.filter(|last| *last != mode)
             && let Some(from) = state.last_camera
         {
-            state.blend = Some((from, 0.0));
+            state.blend = Some((from, last, 0.0));
         }
         state.last_mode = Some(mode);
 
-        if let Some((from, age)) = &mut state.blend {
+        if let Some((from, _, age)) = &mut state.blend {
             *age += dt;
             let t = (*age / MODE_BLEND_S).clamp(0.0, 1.0);
             let eased = t * t * (3.0 - 2.0 * t); // smoothstep: no velocity pop at either end
@@ -69,6 +69,28 @@ impl BattleCameraController {
         }
         state.last_camera = Some(camera);
         camera
+    }
+
+    /// How much of the sniper dressing (scope surround) shows this frame, 0..1. Rides the SAME
+    /// clock as the presented camera blend, so the optics housing irises in as the view travels
+    /// into the scope and lifts away as it leaves — instead of hard-cutting while the camera is
+    /// still mid-flight.
+    pub fn scope_dressing(&self) -> f32 {
+        let mode = self.presented.last_mode.unwrap_or(self.mode());
+        let eased = self.presented.blend.map(|(_, _, age)| {
+            let t = (age / MODE_BLEND_S).clamp(0.0, 1.0);
+            t * t * (3.0 - 2.0 * t)
+        });
+        match (mode, eased) {
+            (BattleCameraMode::Sniper, Some(eased)) => eased,
+            (BattleCameraMode::Sniper, None) => 1.0,
+            (BattleCameraMode::ThirdPerson, Some(eased))
+                if matches!(self.presented.blend, Some((_, BattleCameraMode::Sniper, _))) =>
+            {
+                1.0 - eased
+            }
+            _ => 0.0,
+        }
     }
 }
 
@@ -106,10 +128,14 @@ fn lerp_camera(from: Camera, to: Camera, t: f32) -> Camera {
             - (Vec3::from_array(from.target) - from_eye).length())
             * t;
     let eye = from_eye.lerp(to_eye, t);
+    // FOV blends in MAGNIFICATION space (1/fov): perceived zoom is the reciprocal of the FOV, so
+    // a linear FOV sweep reads as a violent snap at the wide end and a crawl at the narrow end.
+    // Interpolating the magnification keeps the zoom RATE constant to the eye across the blend.
+    let from_mag = 1.0 / from.vertical_fov_degrees.max(0.1);
+    let to_mag = 1.0 / to.vertical_fov_degrees.max(0.1);
     Camera {
         eye: eye.to_array(),
         target: (eye + dir * dist).to_array(),
-        vertical_fov_degrees: from.vertical_fov_degrees
-            + (to.vertical_fov_degrees - from.vertical_fov_degrees) * t,
+        vertical_fov_degrees: 1.0 / (from_mag + (to_mag - from_mag) * t),
     }
 }

@@ -22,6 +22,9 @@ Every production map plan must account for:
 
 These systems may start as data stubs, but they must have explicit ownership in
 the terrain/server/client/render pipeline before map content grows.
+The first local 7v7 bot battle intentionally uses the existing `SpawnZone` and
+`StrategicPoint` data as a deterministic navigation scaffold; full navmesh
+ownership remains a later terrain milestone, not a client-side shortcut.
 
 ## Coordinate Precision
 

@@ -9,7 +9,7 @@ use net::{
 use sim::TankCommand;
 
 #[test]
-fn input_command_wire_snapshot_v16_is_stable() {
+fn input_command_wire_snapshot_v17_is_stable() {
     let message = ProtocolMessage::Input(ClientInputCommand {
         client_tick: 7,
         tank_id: TankId(42),
@@ -26,13 +26,13 @@ fn input_command_wire_snapshot_v16_is_stable() {
 
     let bytes = encode_message(&message).expect("message should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 16);
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "input_command_v16"));
+    assert_eq!(PROTOCOL_VERSION, 17);
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "input_command_v17"));
     assert_eq!(decode_message(&bytes).expect("message should decode"), message);
 }
 
 #[test]
-fn vehicle_selection_wire_snapshot_v16_is_stable() {
+fn vehicle_selection_wire_snapshot_v17_is_stable() {
     let message = ProtocolMessage::VehicleSelection(ClientVehicleSelection {
         client_tick: 11,
         requested_vehicle: VehicleKind::PantherII,
@@ -40,35 +40,35 @@ fn vehicle_selection_wire_snapshot_v16_is_stable() {
 
     let bytes = encode_message(&message).expect("vehicle selection should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 16);
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "vehicle_selection_v16"));
+    assert_eq!(PROTOCOL_VERSION, 17);
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "vehicle_selection_v17"));
     assert_eq!(decode_message(&bytes).expect("message should decode"), message);
 }
 
 #[test]
-fn tank_snapshot_wire_v16_is_stable() {
-    // Locks the v16 raw payload layout; transport framing is covered separately.
+fn tank_snapshot_wire_v17_is_stable() {
+    // Locks the v17 raw payload layout; transport framing is covered separately.
     let message = ProtocolMessage::Snapshot(tank_snapshot_message());
 
     let bytes = encode_message(&message).expect("snapshot should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 16);
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_tank_v16"));
+    assert_eq!(PROTOCOL_VERSION, 17);
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_tank_v17"));
     assert_eq!(decode_message(&bytes).expect("snapshot should decode"), message);
 }
 
 #[test]
-fn combat_snapshot_wire_v16_is_stable() {
+fn combat_snapshot_wire_v17_is_stable() {
     let message = ProtocolMessage::Snapshot(combat_snapshot_message());
 
     let bytes = encode_message(&message).expect("snapshot should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 16);
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_combat_v16"));
+    assert_eq!(PROTOCOL_VERSION, 17);
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_combat_v17"));
     assert_eq!(decode_message(&bytes).expect("snapshot should decode"), message);
 }
 
-/// Baseline tank snapshot used by the v16 fixture (and its generator).
+/// Baseline tank snapshot used by the v17 fixture (and its generator).
 pub fn tank_snapshot_message() -> Snapshot {
     Snapshot {
         server_tick: 5,
@@ -99,7 +99,7 @@ pub fn tank_snapshot_message() -> Snapshot {
     }
 }
 
-/// Non-empty combat snapshot used by the v16 fixture (and its generator): shells in flight, a
+/// Non-empty combat snapshot used by the v17 fixture (and its generator): shells in flight, a
 /// damage event, and an absorbed-shell impact.
 pub fn combat_snapshot_message() -> Snapshot {
     Snapshot {
@@ -144,6 +144,8 @@ pub fn combat_snapshot_message() -> Snapshot {
             owner: TankId(7),
             position: Vec3::new(2.0, 0.1, 80.0),
             surface: ImpactSurface::Hull,
+            // v17: the wire says WHAT died here — lock a non-default variant into the fixture.
+            shell_type: game_core::ShellType::HighExplosive,
         }],
     }
 }

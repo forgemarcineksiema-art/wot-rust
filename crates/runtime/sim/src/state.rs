@@ -26,6 +26,9 @@ pub struct SimulationState {
     /// hull), so the firing client gets impact feedback instead of a silently vanished shot.
     #[serde(default)]
     shell_impacts: Vec<ShellImpact>,
+    /// Last-fresh-sight memory behind the spotted hold (see `spotting::SpottingMemory`).
+    #[serde(default)]
+    spotting_memory: crate::spotting::SpottingMemory,
 }
 
 impl SimulationState {
@@ -37,6 +40,7 @@ impl SimulationState {
             shells: Vec::new(),
             damage_events: Vec::new(),
             shell_impacts: Vec::new(),
+            spotting_memory: crate::spotting::SpottingMemory::default(),
         }
     }
 
@@ -61,16 +65,29 @@ impl SimulationState {
     }
 
     pub fn refresh_spotting(&mut self, heightmap: Option<&HeightMap>, cover: &[StaticCoverObject]) {
-        let masks = crate::spotting::compute_spotted_masks(&self.tanks, heightmap, cover);
-        for (tank, mask) in self.tanks.iter_mut().zip(masks) {
-            tank.spotted_mask = mask;
-        }
+        crate::spotting::apply_spotted_masks_with_hold(
+            self.tick,
+            &mut self.tanks,
+            &mut self.spotting_memory,
+            heightmap,
+            cover,
+        );
     }
 
     pub fn spawn_tank(&mut self, team: TeamId, spec: TankSpec, position: Vec3) -> TankId {
+        self.spawn_tank_with_yaw(team, spec, position, 0.0)
+    }
+
+    pub fn spawn_tank_with_yaw(
+        &mut self,
+        team: TeamId,
+        spec: TankSpec,
+        position: Vec3,
+        yaw_rad: f32,
+    ) -> TankId {
         let id = TankId(self.next_tank_id);
         self.next_tank_id += 1;
-        self.tanks.push(fresh_tank(id, team, spec, position, 0.0));
+        self.tanks.push(fresh_tank(id, team, spec, position, yaw_rad));
         id
     }
 
@@ -186,7 +203,13 @@ impl SimulationState {
             heightmap,
             cover,
         );
-        crate::spotting::refresh_spotted_masks(self.tick, &mut self.tanks, heightmap, cover);
+        crate::spotting::refresh_spotted_masks(
+            self.tick,
+            &mut self.tanks,
+            &mut self.spotting_memory,
+            heightmap,
+            cover,
+        );
         self.tick += 1;
     }
 }

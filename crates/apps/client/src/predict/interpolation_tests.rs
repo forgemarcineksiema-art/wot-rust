@@ -1,6 +1,8 @@
 //! Render interpolation and authoritative-lockstep tests for the local predictor: the sub-tick
 //! blend that keeps a 60 Hz prediction smooth under a faster present clock, and the guarantee
 //! that prediction does not drift from the server (which would snap the hull back -- "cofa").
+use net::TankSnapshot;
+
 use super::*;
 
 fn snapshot_at(position: [f32; 3]) -> TankSnapshot {
@@ -79,6 +81,25 @@ fn seeding_anchors_previous_pose_so_the_first_frame_does_not_fly_in() {
     for alpha in [0.0, 0.5, 1.0] {
         let pose = predictor.interpolated_pose(alpha);
         assert!((pose.position - Vec3::new(10.0, 0.0, 10.0)).length() < 1.0e-6);
+    }
+}
+
+#[test]
+fn large_authoritative_correction_snaps_the_render_interpolation_anchor() {
+    let flat = HeightMap::flat(8, 8, 4.0, 0.0).unwrap();
+    let mut predictor = LocalPredictor::new(&TankSpec::t55a());
+    predictor.sync_to(&snapshot_at([10.0, 0.0, 10.0]));
+    predictor.step(TankCommand::drive(1.0, 0.0), &flat, &[], &[], 1.0 / 60.0);
+
+    predictor.sync_to(&snapshot_at([80.0, 0.0, 80.0]));
+
+    for alpha in [0.0, 0.5, 1.0] {
+        let pose = predictor.interpolated_pose(alpha);
+        assert!(
+            (pose.position - Vec3::new(80.0, 0.0, 80.0)).length() < 1.0e-6,
+            "large correction must not blend camera/reticle through stale predicted pose at alpha {alpha}: {:?}",
+            pose.position
+        );
     }
 }
 

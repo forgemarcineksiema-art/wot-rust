@@ -12,27 +12,25 @@ use game_core::{HitboxProfile, MountFrames, VehicleKind};
 use glam::{Vec2, Vec3};
 
 use super::{
-    GunPlan, HullPlan, RunningGear, SG_HARD, add_mantlet_socket, add_running_gear, assemble,
-    build_gun, hull_body, shade_hull,
+    GunPlan, HullPlan, SG_HARD, add_mantlet_socket, assemble, build_gun, hull_body,
+    legacy_track_band, shade_hull,
 };
 use crate::{Axis, BakedVehicle, ExtrudeSpec, MaterialRole, MeshBuilder};
 
 pub(crate) fn jagdtiger(hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVehicle {
     let hull = shade_hull(
-        add_running_gear(
-            hull_body(
-                &HullPlan {
-                    half_len: hitbox.half_length_m * 0.963,
-                    belly_y: 0.34,
-                    deck_y: mounts.turret_ring.translation.y,
-                    glacis_run: 0.85,
-                    nose_rise: 0.05,
-                    half_width: hitbox.half_width_m * 0.775,
-                },
-                MaterialRole::RolledArmor,
-            ),
-            &JAGDTIGER_GEAR,
+        hull_body(
+            &HullPlan {
+                half_len: hitbox.half_length_m * 0.963,
+                belly_y: 0.34,
+                deck_y: mounts.turret_ring.translation.y,
+                glacis_run: 0.85,
+                nose_rise: 0.05,
+                half_width: hitbox.half_width_m * 0.775,
+            },
+            MaterialRole::RolledArmor,
         )
+        .append(&legacy_track_band(VehicleKind::Jagdtiger))
         .build(),
     );
 
@@ -74,18 +72,3 @@ pub(crate) fn jagdtiger(hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVe
 
     assemble(VehicleKind::Jagdtiger, hull, casemate, gun, *mounts)
 }
-
-const JAGDTIGER_GEAR: RunningGear = RunningGear {
-    track_half: Vec3::new(0.28, 0.50, 3.92),
-    track_center_x: 1.72,
-    track_center_y: 0.40,
-    track_center_z: 0.0,
-    wheel_radius: 0.42,
-    wheel_count: 9,
-    wheel_y: 0.42,
-    wheel_first_z: -3.40,
-    wheel_last_z: 3.40,
-    wheel_inner_x: 1.50,
-    wheel_outer_x: 1.96,
-    wheel_segments: 10,
-};

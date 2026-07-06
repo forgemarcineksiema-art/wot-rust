@@ -72,42 +72,6 @@ pub fn tank_footprints_touch(a: &TankObstacle, b: &TankObstacle, slop_m: f32) ->
     obstacles_overlap(&inflated, b)
 }
 
-/// Keep a moving tank footprint out of other tank footprints. This mirrors the static cover
-/// resolver: try the full move, then each horizontal axis alone, then hold the previous
-/// horizontal position if every candidate still overlaps.
-pub fn resolve_tank_collision(
-    previous: Vec3,
-    attempted: Vec3,
-    yaw_rad: f32,
-    footprint: TankFootprint,
-    obstacles: &[TankObstacle],
-) -> Vec3 {
-    if obstacles.is_empty() || !tank_blocked(attempted, yaw_rad, footprint, obstacles) {
-        return attempted;
-    }
-    if !tank_blocked(Vec3::new(attempted.x, attempted.y, previous.z), yaw_rad, footprint, obstacles)
-    {
-        return Vec3::new(attempted.x, attempted.y, previous.z);
-    }
-    if !tank_blocked(Vec3::new(previous.x, attempted.y, attempted.z), yaw_rad, footprint, obstacles)
-    {
-        return Vec3::new(previous.x, attempted.y, attempted.z);
-    }
-    Vec3::new(previous.x, attempted.y, previous.z)
-}
-
-pub fn resolve_tank_collision_with_velocity(
-    previous: Vec3,
-    attempted: Vec3,
-    yaw_rad: f32,
-    velocity: Vec3,
-    footprint: TankFootprint,
-    obstacles: &[TankObstacle],
-) -> (Vec3, Vec3) {
-    let resolved = resolve_tank_collision(previous, attempted, yaw_rad, footprint, obstacles);
-    (resolved, trim_velocity(previous, attempted, resolved, velocity))
-}
-
 /// Zero the world-axis velocity components that the resolver had to drop back to `previous`,
 /// leaving the sliding axis intact. The axis-separated resolver only ever holds whole world axes,
 /// so killing exactly those axes keeps the surviving velocity tangent to the obstacle (the hull
@@ -132,16 +96,6 @@ pub(crate) fn trim_velocity(
 /// previous value (i.e. that axis is blocked by an obstacle).
 fn axis_blocked(previous: f32, attempted: f32, resolved: f32) -> bool {
     (attempted - previous).abs() > 1.0e-6 && (resolved - previous).abs() <= 1.0e-5
-}
-
-fn tank_blocked(
-    position: Vec3,
-    yaw_rad: f32,
-    footprint: TankFootprint,
-    obstacles: &[TankObstacle],
-) -> bool {
-    let moving = TankObstacle::new(position, yaw_rad, footprint);
-    obstacles.iter().any(|obstacle| obstacles_overlap(&moving, obstacle))
 }
 
 /// XZ-plane separating-axis overlap between two oriented hull footprints.

@@ -8,7 +8,11 @@
 //! tank's position to every client, so this gates UI (minimap, enemy HP bars), not replication.
 //! Per-client snapshot filtering is the real anti-wallhack follow-up; this mask is its foundation.
 
+use std::collections::HashMap;
+
+use game_core::TankId;
 use glam::Vec3;
+use serde::{Deserialize, Serialize};
 use terrain::{HeightMap, StaticCoverObject};
 
 use crate::TankState;
@@ -17,6 +21,43 @@ use crate::TankState;
 pub const VIEW_RANGE_M: f32 = 400.0;
 /// Recompute cadence: every 6 ticks = 10 Hz at the 60 Hz simulation.
 pub const SPOTTING_INTERVAL_TICKS: u64 = 6;
+/// How long a target stays lit after the fresh line of sight breaks (2 s at the 60 Hz sim).
+pub const SPOTTED_HOLD_TICKS: u64 = 120;
+
+/// A `u8` mask carries up to eight teams.
+const MAX_SPOTTING_TEAMS: usize = 8;
+/// Sentinel for "this team has never had fresh sight of the tank".
+const NEVER_SEEN: u64 = u64::MAX;
+
+/// Per-tank memory of the last tick each team had FRESH line of sight. The LOS test is boolean
+/// and recomputed at 10 Hz, so a target dancing on a ridge line strobes in and out several times
+/// a second — its model pops, the minimap blinks, and the shooter's ballistic aim point flips
+/// between the hull and the terrain behind it. Holding the spot for [`SPOTTED_HOLD_TICKS`] after
+/// the line breaks (WoT's minimum spotted duration, and honest — the crew just saw it) turns the
+/// strobe into one clean spot-then-fade cycle.
+#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SpottingMemory {
+    last_fresh_tick: HashMap<TankId, [u64; MAX_SPOTTING_TEAMS]>,
+}
+
+impl SpottingMemory {
+    /// Record this recompute's fresh sightings and return the mask with held bits added.
+    fn hold(&mut self, tank: TankId, fresh_mask: u8, tick: u64) -> u8 {
+        let entry = self.last_fresh_tick.entry(tank).or_insert([NEVER_SEEN; MAX_SPOTTING_TEAMS]);
+        let mut mask = fresh_mask;
+        for (team, last_fresh) in entry.iter_mut().enumerate() {
+            let bit = 1u8 << team;
+            if fresh_mask & bit != 0 {
+                *last_fresh = tick;
+            } else if *last_fresh != NEVER_SEEN
+                && tick.saturating_sub(*last_fresh) <= SPOTTED_HOLD_TICKS
+            {
+                mask |= bit;
+            }
+        }
+        mask
+    }
+}
 
 /// Whether the segment `from -> to` clears the terrain: step along it and fail if the ground ever
 /// rises above the sight line (with a little slack so grazing a crest still counts as seeing over).
@@ -76,6 +117,20 @@ pub fn line_of_sight(
     !cover.iter().any(|c| segment_hits_box(from, to, c.center, c.half_extents_m))
 }
 
+/// Whether `observer`'s commander eye has a clear line to any of `target`'s sample points — the
+/// exact geometry one observer contributes to the spotting recompute. The bot brain uses this to
+/// engage only targets IT can see: a team-spotted mask says "someone on my team sees it", not
+/// "my own shell has a path", and firing on the mask alone means shelling the front of a hill.
+pub fn tank_line_of_sight(
+    observer: &TankState,
+    target: &TankState,
+    heightmap: Option<&HeightMap>,
+    cover: &[StaticCoverObject],
+) -> bool {
+    let eye = observer_eye(observer);
+    target_points(target).into_iter().any(|point| line_of_sight(heightmap, cover, eye, point))
+}
+
 /// The commander's eye of an observer: the top of the hull box.
 fn observer_eye(tank: &TankState) -> Vec3 {
     tank.position + Vec3::Y * (tank.spec.hitbox.center_y_m + tank.spec.hitbox.half_height_m)
@@ -96,15 +151,27 @@ fn target_points(tank: &TankState) -> [Vec3; 2] {
 pub(crate) fn refresh_spotted_masks(
     tick: u64,
     tanks: &mut [TankState],
+    memory: &mut SpottingMemory,
     heightmap: Option<&HeightMap>,
     cover: &[StaticCoverObject],
 ) {
     if !tick.is_multiple_of(SPOTTING_INTERVAL_TICKS) {
         return;
     }
+    apply_spotted_masks_with_hold(tick, tanks, memory, heightmap, cover);
+}
+
+/// One full recompute: fresh LOS masks, folded through the spotting memory's hold.
+pub(crate) fn apply_spotted_masks_with_hold(
+    tick: u64,
+    tanks: &mut [TankState],
+    memory: &mut SpottingMemory,
+    heightmap: Option<&HeightMap>,
+    cover: &[StaticCoverObject],
+) {
     let masks = compute_spotted_masks(tanks, heightmap, cover);
-    for (tank, mask) in tanks.iter_mut().zip(masks) {
-        tank.spotted_mask = mask;
+    for (tank, fresh_mask) in tanks.iter_mut().zip(masks) {
+        tank.spotted_mask = memory.hold(tank.id, fresh_mask, tick);
     }
 }
 

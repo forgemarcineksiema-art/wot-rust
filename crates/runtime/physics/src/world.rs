@@ -2,9 +2,7 @@ use game_core::ContactFootprint;
 use glam::Vec3;
 use terrain::{HeightMap, StaticCoverObject};
 
-use crate::collision::{
-    TankWorldObstacles, default_tank_footprint, resolve_tank_collision_with_velocity,
-};
+use crate::collision::{TankWorldObstacles, default_tank_footprint};
 use crate::contact::{TerrainContact, sample_tank_terrain_contact};
 use crate::controller_settings::TankControllerSettings;
 use crate::cover::resolve_cover_collision_with_velocity;
@@ -12,6 +10,7 @@ use crate::hull_attitude::advance_hull_attitude;
 use crate::movement::{
     TankControlInput, TankKinematicState, step_custom_tank_controller_on_contact,
 };
+use crate::tank_resolve::resolve_tank_collision_with_velocity;
 use crate::track_contact::{sample_support, support_height};
 use crate::vertical::{GroundStep, is_grounded, resolve_vertical};
 

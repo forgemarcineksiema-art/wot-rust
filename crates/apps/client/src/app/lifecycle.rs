@@ -35,6 +35,7 @@ impl ApplicationHandler for ClientApp {
             return;
         }
         info!("client ready: WASD drive, mouse aim + camera, Space/left-click fire, Esc cursor");
+        self.audio = crate::audio_out::AudioOutput::try_new();
         self.window = Some(window);
         // The garage is a mouse-driven menu: show the cursor there; the battle view captures it.
         self.set_cursor_captured(!self.garage.is_open());

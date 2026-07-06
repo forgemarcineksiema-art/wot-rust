@@ -1,7 +1,6 @@
 use std::sync::Arc;
 use std::time::Instant;
 
-use net::TankSnapshot;
 use renderer_api::{CameraProjectionPolicy, RenderError, RenderFrame, view_projection_matrix};
 use renderer_wgpu::WindowRenderer;
 use sim::DEFAULT_SNAPSHOT_HZ;
@@ -53,6 +52,10 @@ impl ClientApp {
         self.hit_indicator.tick(frame_dt);
         self.damage_log.tick(frame_dt);
         self.incoming_hits.tick(frame_dt);
+        self.kill_confirm_age_s = self
+            .kill_confirm_age_s
+            .map(|age| age + frame_dt)
+            .filter(|age| *age < crate::hud::kill_marker::KILL_CONFIRM_TTL_S);
         self.fx.tick(frame_dt);
         self.terrain_scars.tick(frame_dt);
         self.tick_battle_scars(frame_dt);
@@ -101,6 +104,25 @@ impl ClientApp {
         );
         let vehicle_frame = RenderFrame { objects: vehicles.objects, ..RenderFrame::default() };
         let (reload_remaining, reload_max) = self.player_reload();
+        self.reload_ready_age_s = tick_ready_flash(
+            self.reload_ready_age_s,
+            self.prev_reload_remaining_s,
+            reload_remaining,
+            frame_dt,
+        );
+        // The ready flash's audible twin: the breech clacks the frame the reload completes.
+        if self.prev_reload_remaining_s > 0.0 && reload_remaining <= 0.0 {
+            self.queue_audio(audio::AudioEvent::GunReady);
+        }
+        self.prev_reload_remaining_s = reload_remaining;
+        // Bringing the eye to the optics (and lifting it away) clicks — the mechanical half of
+        // the transition the irising scope surround plays visually.
+        let camera_mode = self.camera_controller.mode();
+        if self.prev_camera_mode.is_some_and(|previous| previous != camera_mode) {
+            self.queue_audio(audio::AudioEvent::UiClick { accent: false });
+        }
+        self.prev_camera_mode = Some(camera_mode);
+        self.flush_audio(Some(camera.eye), Some(camera.target));
         let vitals = HudVitals {
             hit_points: self.player_hud_hit_points(),
             max_hit_points: self.player_max_hit_points(),
@@ -109,7 +131,7 @@ impl ClientApp {
         };
         let hud_model = crate::hud::BattleHudModel {
             vitals,
-            reticle: self.hud_reticle(&camera, view_proj),
+            reticle: self.hud_reticle(&camera, view_proj, alpha),
             fps: self.fps_estimate,
             speed_kmh: self.player_speed_kmh(),
             zoom_factor: self.camera_controller.zoom_factor(),
@@ -117,6 +139,11 @@ impl ClientApp {
             incoming_hits: self.incoming_hits.screen_hits(camera_forward_xz),
             ammo: Some(self.player_ammo_hud()),
             minimap,
+            battle_outcome: self.battle_outcome,
+            battle_clock_remaining_s: self.local_server.battle_time_remaining_s(),
+            kill_confirm_age_s: self.kill_confirm_age_s,
+            reload_ready_age_s: self.reload_ready_age_s,
+            scope_fade: self.camera_controller.scope_dressing(),
         };
         let mut hud = crate::hud::build_battle_hud(&hud_model, aspect);
         hud.extend(enemy_bars);
@@ -143,55 +170,40 @@ impl ClientApp {
             error!(%error, "frame render failed");
         }
     }
+}
 
-    pub(super) fn render_tanks(&self, alpha: f32) -> Vec<TankSnapshot> {
-        let mut tanks = self.render_state.interpolated_tanks();
-        if let Some(local) = self.interpolated_local_tank(alpha)
-            && let Some(slot) = tanks.iter_mut().find(|tank| tank.tank_id == self.player_tank)
-        {
-            *slot = local;
-        }
-        tanks
+/// Advance the gun-ready flash clock: the beat starts the frame the reload crosses to ready,
+/// ages per presented frame, and expires after its TTL. Battle start (reload already at zero)
+/// never fires it — only a real reload finishing does.
+fn tick_ready_flash(
+    age: Option<f32>,
+    prev_remaining_s: f32,
+    remaining_s: f32,
+    dt: f32,
+) -> Option<f32> {
+    if prev_remaining_s > 0.0 && remaining_s <= 0.0 {
+        return Some(0.0);
     }
+    age.map(|a| a + dt).filter(|a| *a < crate::hud::reticle_marks::READY_FLASH_TTL_S)
+}
 
-    /// Sync this frame's rendered tanks into the persistent presentation world and read the
-    /// presentation view back out. The renderer and HUD consume this ECS projection rather than
-    /// the snapshot vec.
-    pub(super) fn project_render_tanks(&mut self, alpha: f32) -> Vec<engine::PresentationTank> {
-        let render_tanks = self.render_tanks(alpha);
-        self.presentation.sync_tanks(&render_tanks);
-        self.presentation.presentation_tanks()
-    }
+#[cfg(test)]
+mod ready_flash_tests {
+    use super::tick_ready_flash;
 
-    /// The sniper eye sits at turret-roof height inside the player's own mesh, so the player's
-    /// vehicle is hidden in sniper view; everything else always draws.
-    pub(super) fn visible_render_tanks(
-        &self,
-        tanks: Vec<engine::PresentationTank>,
-    ) -> Vec<engine::PresentationTank> {
-        if self.camera_controller.mode() == crate::BattleCameraMode::Sniper {
-            tanks.into_iter().filter(|tank| tank.id != self.player_tank).collect()
-        } else {
-            tanks
-        }
-    }
-
-    /// This frame's full FX batch: ground craters first (the farthest surface layer — smoke and
-    /// dust must composite over them), then the ticked particle pool, a tracer per in-flight
-    /// shell (stateless — rebuilt each frame from the interpolated shell snapshots), and the
-    /// on-tank scar decals.
-    pub(super) fn fx_frame_vertices(
-        &self,
-        eye: [f32; 3],
-        target: [f32; 3],
-    ) -> Vec<renderer_api::FxVertex> {
-        let eye = glam::Vec3::from_array(eye);
-        let mut fx_vertices = Vec::new();
-        self.terrain_scars.append_quads(&mut fx_vertices);
-        fx_vertices.extend(self.fx.vertices(eye, glam::Vec3::from_array(target)));
-        let shells = self.render_state.interpolated_shells(SNAPSHOT_INTERVAL_SECONDS);
-        crate::fx::append_shell_tracers(&mut fx_vertices, &shells, eye);
-        self.append_scar_quads(&mut fx_vertices);
-        fx_vertices
+    #[test]
+    fn the_flash_fires_on_the_ready_crossing_ages_and_expires() {
+        // Battle start: reload has always been ready — no flash.
+        assert_eq!(tick_ready_flash(None, 0.0, 0.0, 0.016), None);
+        // Mid-reload: still none.
+        assert_eq!(tick_ready_flash(None, 3.2, 3.0, 0.016), None);
+        // The crossing frame starts the beat.
+        assert_eq!(tick_ready_flash(None, 0.1, 0.0, 0.016), Some(0.0));
+        // Frames age it...
+        assert_eq!(tick_ready_flash(Some(0.0), 0.0, 0.0, 0.1), Some(0.1));
+        // ...and past the TTL it expires.
+        let expired =
+            tick_ready_flash(Some(crate::hud::reticle_marks::READY_FLASH_TTL_S), 0.0, 0.0, 0.016);
+        assert_eq!(expired, None);
     }
 }

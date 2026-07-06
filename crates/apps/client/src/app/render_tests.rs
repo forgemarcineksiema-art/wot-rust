@@ -36,16 +36,17 @@ fn startup_garage_blocks_fixed_tick_commands_until_confirmed() {
 }
 
 #[test]
-fn runtime_garage_confirm_changes_player_tank_id_and_predictor_spec() {
+fn runtime_garage_confirm_deploys_the_new_vehicle_with_a_matching_predictor() {
     let mut app = ClientApp::new();
     app.confirm_garage_selection();
-    let old_player = app.player_tank;
 
     app.open_garage();
     app.select_garage_vehicle(game_core::VehicleKind::Jagdtiger);
     app.confirm_garage_selection();
 
-    assert_ne!(app.player_tank, old_player);
+    // A runtime confirm abandons the old battle and deploys fresh, so the deterministic roster
+    // may hand back the same TankId — what must change is the vehicle under the player and the
+    // predictor spec driving it.
     assert_eq!(
         app.player_snapshot().expect("new player snapshot").vehicle,
         game_core::VehicleKind::Jagdtiger

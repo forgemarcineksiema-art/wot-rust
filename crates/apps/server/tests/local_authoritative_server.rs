@@ -1,6 +1,210 @@
 use net::ClientInputCommand;
-use server::{LocalAuthoritativeServer, ServerTickConfig};
+use server::{
+    BattleMode, BattleOutcome, BattleSeed, DrawReason, LocalAuthoritativeServer,
+    RandomBattleConfig, ServerTickConfig,
+};
 use sim::TankCommand;
+use terrain::prokhorovka_hill_252_2;
+
+#[test]
+fn random_7v7_spawns_fourteen_tanks_with_player_on_team_one() {
+    let server = LocalAuthoritativeServer::new_random_7v7(
+        ServerTickConfig::new(60, 20),
+        RandomBattleConfig::new(BattleSeed::fixed(42), game_core::VehicleKind::TigerII),
+    );
+
+    let snapshot = server.latest_snapshot();
+    let team_one = snapshot.tanks.iter().filter(|tank| tank.team == game_core::TeamId(1)).count();
+    let team_two = snapshot.tanks.iter().filter(|tank| tank.team == game_core::TeamId(2)).count();
+    let player = snapshot
+        .tanks
+        .iter()
+        .find(|tank| tank.tank_id == server.player_tank())
+        .expect("player tank");
+
+    assert_eq!(server.battle_mode(), BattleMode::Random7v7);
+    assert_eq!(snapshot.tanks.len(), 14);
+    assert_eq!(team_one, 7);
+    assert_eq!(team_two, 7);
+    assert_eq!(player.team, game_core::TeamId(1));
+    assert_eq!(player.vehicle, game_core::VehicleKind::TigerII);
+}
+
+/// A random battle is one technology bracket: every tank on the field shares the player's era.
+/// This is the era system doing the matchmaker's job — no Tiger ever meets a T-54 (locked for
+/// both directions and across seeds, so it cannot pass by luck of the draw).
+#[test]
+fn random_7v7_fields_a_single_era_battle() {
+    for seed in [1u64, 2, 3, 4, 5] {
+        for player_vehicle in [game_core::VehicleKind::TigerI, game_core::VehicleKind::T54_1951] {
+            let server = LocalAuthoritativeServer::new_random_7v7(
+                ServerTickConfig::new(60, 20),
+                RandomBattleConfig::new(BattleSeed::fixed(seed), player_vehicle),
+            );
+            let snapshot = server.latest_snapshot();
+            for tank in &snapshot.tanks {
+                assert_eq!(
+                    tank.vehicle.era(),
+                    player_vehicle.era(),
+                    "seed {seed}: {:?} broke into a {:?} battle",
+                    tank.vehicle,
+                    player_vehicle.era()
+                );
+            }
+        }
+    }
+}
+
+/// The era pool must not collapse into clone armies: across seeds, the enemy team of an Era II
+/// battle draws more than one design (the pool has four).
+#[test]
+fn random_7v7_era_battles_keep_roster_variety() {
+    let mut kinds = std::collections::HashSet::new();
+    for seed in [11u64, 12, 13, 14] {
+        let server = LocalAuthoritativeServer::new_random_7v7(
+            ServerTickConfig::new(60, 20),
+            RandomBattleConfig::new(BattleSeed::fixed(seed), game_core::VehicleKind::TigerII),
+        );
+        for tank in &server.latest_snapshot().tanks {
+            kinds.insert(tank.vehicle);
+        }
+    }
+    assert!(kinds.len() >= 3, "four seeds of Era II must field variety, got {kinds:?}");
+}
+
+#[test]
+fn random_7v7_uses_map_spawn_zones_and_facing_yaw() {
+    let server = LocalAuthoritativeServer::new_random_7v7(
+        ServerTickConfig::new(60, 20),
+        RandomBattleConfig::new(BattleSeed::fixed(7), game_core::VehicleKind::T54_1951),
+    );
+    let map = prokhorovka_hill_252_2();
+    let snapshot = server.latest_snapshot();
+
+    for tank in &snapshot.tanks {
+        let zone =
+            map.spawn_zones.iter().find(|zone| zone.team == tank.team.0).expect("team spawn zone");
+        let dx = tank.position[0] - zone.center[0];
+        let dz = tank.position[2] - zone.center[2];
+        let distance = (dx * dx + dz * dz).sqrt();
+
+        assert!(distance <= zone.radius_m, "tank {:?} spawned outside zone", tank.tank_id);
+        assert!(
+            (tank.yaw_rad - zone.facing_yaw_rad).abs() < 1.0e-6,
+            "tank {:?} did not face out of spawn",
+            tank.tank_id
+        );
+    }
+}
+
+#[test]
+fn random_7v7_bot_commands_move_or_aim_without_player_input() {
+    let mut server = LocalAuthoritativeServer::new_random_7v7(
+        ServerTickConfig::new(60, 20),
+        RandomBattleConfig::new(BattleSeed::fixed(9), game_core::VehicleKind::T54_1951),
+    );
+    let player_tank = server.player_tank();
+    let bot_tank = server
+        .latest_snapshot()
+        .tanks
+        .iter()
+        .find(|tank| tank.team == game_core::TeamId(1) && tank.tank_id != player_tank)
+        .map(|tank| tank.tank_id)
+        .expect("allied bot");
+    let before = server
+        .latest_snapshot()
+        .tanks
+        .iter()
+        .find(|tank| tank.tank_id == bot_tank)
+        .cloned()
+        .expect("bot before");
+
+    for client_tick in 0..45 {
+        server.tick_with_input(ClientInputCommand {
+            client_tick,
+            tank_id: player_tank,
+            command: TankCommand::idle(),
+        });
+    }
+
+    let after = server
+        .latest_snapshot()
+        .tanks
+        .iter()
+        .find(|tank| tank.tank_id == bot_tank)
+        .cloned()
+        .expect("bot after");
+    let dx = after.position[0] - before.position[0];
+    let dz = after.position[2] - before.position[2];
+    let moved = (dx * dx + dz * dz).sqrt() > 0.05;
+    let aimed = (after.turret_yaw_rad - before.turret_yaw_rad).abs() > 1.0e-4;
+
+    assert!(moved || aimed, "bot should issue deterministic commands during server ticks");
+}
+
+#[test]
+fn battle_outcome_reports_team_wipe_winner() {
+    let outcome = BattleOutcome::from_team_alive_counts([
+        (game_core::TeamId(1), 0),
+        (game_core::TeamId(2), 3),
+    ]);
+
+    assert_eq!(outcome, Some(BattleOutcome::TeamEliminated { winning_team: game_core::TeamId(2) }));
+}
+
+/// The last tanks of both teams dying on the same tick used to leave the battle running forever —
+/// no team "alive count == 1" ever happened again. A mutual wipe is a draw, and a draw has no
+/// winning team.
+#[test]
+fn battle_outcome_reports_mutual_wipe_as_a_draw() {
+    let outcome = BattleOutcome::from_team_alive_counts([
+        (game_core::TeamId(1), 0),
+        (game_core::TeamId(2), 0),
+    ]);
+
+    assert_eq!(outcome, Some(BattleOutcome::Draw { reason: DrawReason::MutualElimination }));
+    assert_eq!(outcome.unwrap().winning_team(), None);
+}
+
+/// The battle clock is the safety net that guarantees a random battle always ends: when it runs
+/// out with both teams alive, the battle closes as a draw and stays closed.
+#[test]
+fn random_battle_clock_expiry_ends_the_battle_in_a_draw() {
+    let mut server = LocalAuthoritativeServer::new_random_7v7(
+        ServerTickConfig::new(60, 20),
+        RandomBattleConfig::new(BattleSeed::fixed(11), game_core::VehicleKind::T54_1951),
+    );
+    let player_tank = server.player_tank();
+    assert_eq!(
+        server.battle_time_remaining_s(),
+        Some(server::RANDOM_BATTLE_TIME_LIMIT_S as f32),
+        "the clock starts full"
+    );
+
+    // Driving 36 000 real ticks is not worth a test's time; shrink the clock instead.
+    server.override_battle_time_limit_ticks(Some(4));
+    for client_tick in 0..4 {
+        assert_eq!(server.battle_outcome(), None, "battle runs while the clock has time");
+        server.tick_with_input(ClientInputCommand {
+            client_tick,
+            tank_id: player_tank,
+            command: TankCommand::idle(),
+        });
+    }
+
+    assert_eq!(
+        server.battle_outcome(),
+        Some(BattleOutcome::Draw { reason: DrawReason::TimeExpired })
+    );
+    assert_eq!(server.battle_time_remaining_s(), Some(0.0), "the clock bottoms out at zero");
+}
+
+/// The practice duel is a sandbox: no clock, no timeout draw.
+#[test]
+fn practice_duel_runs_untimed() {
+    let server = LocalAuthoritativeServer::new(ServerTickConfig::new(60, 20));
+    assert_eq!(server.battle_time_remaining_s(), None);
+}
 
 #[test]
 fn local_server_can_start_with_selected_player_vehicle() {

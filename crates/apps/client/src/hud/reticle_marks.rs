@@ -49,6 +49,37 @@ pub(super) fn push_reload_arc(
     push_arc(vertices, center, RELOAD_ARC_RADIUS, start, sweep, segments, aspect, RETICLE_RELOAD);
 }
 
+/// Seconds the gun-ready flash lives at the reticle.
+pub(crate) const READY_FLASH_TTL_S: f32 = 0.4;
+
+/// The gun-ready beat: the instant the reload arc drains away, one thin ring expands from the
+/// arc's radius and fades. The whole engagement rhythm times itself against this moment — it must
+/// be readable without ever looking away from the sight picture.
+pub(super) fn push_ready_flash(
+    vertices: &mut Vec<HudVertex>,
+    center: [f32; 2],
+    age_s: f32,
+    aspect: f32,
+) {
+    if !(0.0..READY_FLASH_TTL_S).contains(&age_s) {
+        return;
+    }
+    let t = age_s / READY_FLASH_TTL_S;
+    let radius = RELOAD_ARC_RADIUS * (1.0 + 0.8 * t);
+    let alpha = (1.0 - t) * 0.85;
+    // The ready-state blue of the reload bar, so the two cues read as one system.
+    push_arc(
+        vertices,
+        center,
+        radius,
+        0.0,
+        std::f32::consts::TAU,
+        40,
+        aspect,
+        [0.55, 0.85, 0.96, alpha],
+    );
+}
+
 pub(super) fn push_crosshair(
     vertices: &mut Vec<HudVertex>,
     center: [f32; 2],

@@ -1,8 +1,18 @@
 use net::SnapshotSchedule;
 use sim::{DEFAULT_SERVER_TICK_HZ, DEFAULT_SNAPSHOT_HZ, FixedTimestep};
 
+mod battle;
+mod bot_aim;
+mod bot_combat;
+mod bot_routes;
+mod bots;
 mod local;
+mod setup;
 
+pub use battle::{
+    BattleMode, BattleOutcome, BattleSeed, DrawReason, RANDOM_BATTLE_TIME_LIMIT_S,
+    RandomBattleConfig,
+};
 pub use local::{AuthoritativeTick, LocalAuthoritativeServer};
 
 #[derive(Debug, Clone, Copy, PartialEq)]

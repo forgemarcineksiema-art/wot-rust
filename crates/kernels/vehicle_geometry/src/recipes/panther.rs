@@ -8,27 +8,25 @@ use game_core::{HitboxProfile, MountFrames, VehicleKind};
 use glam::Vec3;
 
 use super::{
-    GunPlan, HullPlan, RunningGear, SG_CAST, add_cupola, add_mantlet_socket, add_running_gear,
-    add_turret_ring, assemble, build_gun, hull_body, shade_hull,
+    GunPlan, HullPlan, SG_CAST, add_cupola, add_mantlet_socket, add_turret_ring, assemble,
+    build_gun, hull_body, legacy_track_band, shade_hull,
 };
 use crate::{BakedVehicle, MaterialRole, MeshBuilder};
 
 pub(crate) fn panther_ii(hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVehicle {
     let hull = shade_hull(
-        add_running_gear(
-            hull_body(
-                &HullPlan {
-                    half_len: hitbox.half_length_m * 0.959,
-                    belly_y: 0.34,
-                    deck_y: mounts.turret_ring.translation.y,
-                    glacis_run: 1.18,
-                    nose_rise: 0.05,
-                    half_width: hitbox.half_width_m * 0.757,
-                },
-                MaterialRole::RolledArmor,
-            ),
-            &PANTHER_GEAR,
+        hull_body(
+            &HullPlan {
+                half_len: hitbox.half_length_m * 0.959,
+                belly_y: 0.34,
+                deck_y: mounts.turret_ring.translation.y,
+                glacis_run: 1.18,
+                nose_rise: 0.05,
+                half_width: hitbox.half_width_m * 0.757,
+            },
+            MaterialRole::RolledArmor,
         )
+        .append(&legacy_track_band(VehicleKind::PantherII))
         .build(),
     );
 
@@ -75,18 +73,3 @@ pub(crate) fn panther_ii(hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedV
 
     assemble(VehicleKind::PantherII, hull, turret, gun, *mounts)
 }
-
-const PANTHER_GEAR: RunningGear = RunningGear {
-    track_half: Vec3::new(0.25, 0.52, 3.52),
-    track_center_x: 1.60,
-    track_center_y: 0.40,
-    track_center_z: 0.0,
-    wheel_radius: 0.46,
-    wheel_count: 8,
-    wheel_y: 0.44,
-    wheel_first_z: -3.00,
-    wheel_last_z: 3.00,
-    wheel_inner_x: 1.38,
-    wheel_outer_x: 1.82,
-    wheel_segments: 10,
-};

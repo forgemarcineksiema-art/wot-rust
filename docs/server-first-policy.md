@@ -24,6 +24,9 @@ The first playable loop is:
 The client may create a `LocalAuthoritativeServer` for early desktop builds, but
 that object is still the server path. Client code must not instantiate
 `SimulationState`, call `apply_commands`, or spawn authoritative tanks directly.
+Local bot battles follow the same rule: the client submits only the player's
+`TankCommand`, while `LocalAuthoritativeServer` appends deterministic bot
+commands before advancing the authoritative simulation.
 
 ## Why This Exists
 

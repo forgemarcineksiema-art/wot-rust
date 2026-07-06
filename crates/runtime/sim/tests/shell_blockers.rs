@@ -137,4 +137,12 @@ fn shot_into_the_ground_emits_a_terrain_impact() {
     assert_eq!(impact.owner, shooter);
     assert!(impact.position.z > 20.0, "impact lands ahead of the muzzle");
     assert!(impact.position.y <= 0.1, "impact sits at ground level, got y {}", impact.position.y);
+    // Protocol v17: the impact says WHAT died here, so presentation can voice HE as a blast.
+    // This shot fired the tank's currently selected shell; the wire must carry its real type,
+    // not a default placeholder.
+    let selected = {
+        let tank = state.tank(shooter).expect("shooter");
+        tank.spec.gun.ammo_options()[tank.selected_ammo as usize].shell_type
+    };
+    assert_eq!(impact.shell_type, selected);
 }

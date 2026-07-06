@@ -68,20 +68,25 @@ impl ClientApp {
         self.gun_elevation_command_for(self.sight_solution().as_ref())
     }
 
+    /// `alpha` is the render sub-tick blend of the PRESENTED camera. The reticle's world points
+    /// (muzzle, gun ray) must come from the SAME blended pose: projected through the camera, a
+    /// full-tick pose is up to one tick of hull motion ahead of the view, and at sniper FOV that
+    /// mismatch jitters the gun marker and impact X across a third of the screen every frame.
     pub(super) fn hud_reticle(
         &self,
         camera: &Camera,
         view_projection: [[f32; 4]; 4],
+        alpha: f32,
     ) -> Option<HudReticle> {
         let aim = self.aim_world_point(camera)?;
-        let tank = self.local_render_tank()?;
+        let tank = self.interpolated_local_tank(alpha)?;
         let tanks = self.render_state.interpolated_tanks();
         // The reticle trace and pen hint fly the SELECTED shell (the predictor holds the custom
         // loadout and the optimistic slot choice); the snapshot-derived spec is stock by kind.
         let mut player_spec = self.player_spec();
         player_spec.gun.shell = self.predictor.selected_shell();
         let muzzle_velocity = player_spec.gun.shell.muzzle_velocity_mps;
-        let muzzle = self.muzzle_position();
+        let muzzle = self.muzzle_position_of(&tank);
         let report =
             crate::hud::reticle::reticle_report(crate::hud::reticle::ReticleFeedbackQuery {
                 heightmap: &self.battlefield.heightmap,
@@ -152,7 +157,6 @@ impl ClientApp {
     /// the server's shell spawn — `muzzle_position_matches_server_shell_origin` locks the three
     /// together.
     pub(super) fn muzzle_position(&self) -> Vec3 {
-        let barrel_scale = self.player_barrel_scale();
         let Some(tank) = self.local_render_tank() else {
             let mounts = MountFrames::for_vehicle(self.player_spec().kind);
             return game_core::math::muzzle_world_position_scaled(
@@ -161,9 +165,15 @@ impl ClientApp {
                 self.predictor.hull_pose(),
                 self.predictor.turret_yaw(),
                 self.predictor.gun_pitch(),
-                barrel_scale,
+                self.player_barrel_scale(),
             );
         };
+        self.muzzle_position_of(&tank)
+    }
+
+    /// The muzzle of a specific local-tank pose — the HUD path feeds the render-blended pose here
+    /// so its markers stay glued to the presented camera.
+    fn muzzle_position_of(&self, tank: &net::TankSnapshot) -> Vec3 {
         let mounts = MountFrames::for_vehicle(tank.vehicle);
         game_core::math::muzzle_world_position_scaled(
             &mounts,
@@ -171,7 +181,7 @@ impl ClientApp {
             tank.hull_pose(),
             tank.turret_yaw_rad,
             tank.gun_pitch_rad,
-            barrel_scale,
+            self.player_barrel_scale(),
         )
     }
 
@@ -286,6 +296,38 @@ mod tests {
         let dispersion_mrad = app.player_spec().gun.dispersion_mrad;
         let expected = dispersion_mrad * 0.001 / (9.0f32.to_radians()).tan();
         assert!((wide - expected).abs() < 1.0e-6);
+    }
+
+    /// The HUD reticle's world points must ride the SAME sub-tick blended pose as the presented
+    /// camera. Fed the full-tick pose instead, the gun marker projects up to one tick of hull
+    /// motion ahead of the view — at sniper FOV that reads as the marker jittering across the
+    /// screen every frame while the hull moves or the turret traverses.
+    #[test]
+    fn hud_reticle_markers_ride_the_render_blended_pose() {
+        let mut app = ClientApp::new();
+        app.confirm_garage_selection();
+        app.camera_controller.set_mode(BattleCameraMode::Sniper);
+        // A small offset keeps the still-traversing gun inside the sniper FOV so its marker
+        // projects on screen at both blend ends.
+        app.desired_aim = crate::aim::DesiredAim::new(0.12, 0.02);
+        app.run_fixed_ticks(2); // mid-traverse: the previous pose differs from the current one
+
+        let tank = app.local_render_tank().expect("local tank");
+        let camera = app.camera_from_tank(tank);
+        let view_proj = renderer_api::view_projection_matrix(&camera, 16.0 / 9.0, 0.1, 2000.0);
+        let start = app.hud_reticle(&camera, view_proj, 0.0).expect("reticle at tick start");
+        let end = app.hud_reticle(&camera, view_proj, 1.0).expect("reticle at tick end");
+
+        let apart = |a: Option<[f32; 2]>, b: Option<[f32; 2]>| match (a, b) {
+            (Some(a), Some(b)) => ((a[0] - b[0]).powi(2) + (a[1] - b[1]).powi(2)).sqrt() > 1.0e-6,
+            _ => false,
+        };
+        assert!(
+            apart(start.gun_clip, end.gun_clip),
+            "the gun marker must blend across the tick exactly like the camera: start {:?} end {:?}",
+            start.gun_clip,
+            end.gun_clip,
+        );
     }
 
     #[test]

@@ -1,3 +1,5 @@
+use net::TankSnapshot;
+
 use super::*;
 
 fn snapshot_at(position: [f32; 3]) -> TankSnapshot {

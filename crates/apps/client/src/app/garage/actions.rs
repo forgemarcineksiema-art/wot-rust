@@ -33,6 +33,8 @@ impl ClientApp {
     #[cfg(test)]
     pub(in crate::app) fn select_garage_vehicle(&mut self, vehicle: VehicleKind) {
         self.garage.select_vehicle(vehicle);
+        // Mirrors the `GarageHit::Vehicle` click in `garage_primary_press`.
+        self.queue_audio(audio::AudioEvent::UiClick { accent: false });
     }
 
     /// Route a left-button press in the garage to selection, fitting, Battle, or orbiting.
@@ -40,7 +42,13 @@ impl ClientApp {
     pub(in crate::app) fn garage_primary_press(&mut self) {
         let shift = self.input.shift;
         let view = self.garage.view();
-        match self.garage.hit_test(shift) {
+        let hit = self.garage.hit_test(shift);
+        // Every acted-on control answers with the switch click; orbiting the camera is not a
+        // control, and Battle lands its own accented click in `confirm_garage_selection`.
+        if !matches!(hit, GarageHit::Scene | GarageHit::Battle) {
+            self.queue_audio(audio::AudioEvent::UiClick { accent: false });
+        }
+        match hit {
             GarageHit::Vehicle(index) => {
                 self.garage.select_index(index);
                 // Selecting a vehicle from the tech tree returns to the hangar view.
@@ -121,14 +129,39 @@ impl ClientApp {
     }
 
     pub(in crate::app) fn confirm_garage_selection(&mut self) {
+        // The commit deserves a heavier hand on the switch than browsing.
+        self.queue_audio(audio::AudioEvent::UiClick { accent: true });
         let spec = self.garage.confirm();
         let display_name = spec.name.clone();
+        // Committing from the garage in a random battle ABANDONS it and deploys into a fresh one
+        // (new seed, full roster, full clock). Replacing the player's tank inside the running
+        // battle was a free heal: G mid-fight, confirm, and the hull came back factory-new while
+        // everyone else stayed shot up. It also closes the loop after VICTORY/DEFEAT/DRAW — the
+        // garage's Battle button IS the next battle.
+        if self.local_server.battle_mode() == server::BattleMode::Random7v7 {
+            self.local_server = server::LocalAuthoritativeServer::new_random_7v7(
+                server::ServerTickConfig::default(),
+                server::RandomBattleConfig::runtime(spec.kind),
+            );
+            self.client_tick = 0;
+            self.damage_log = crate::hud::damage_log::DamageLog::default();
+            self.incoming_hits = crate::hud::hit_direction::IncomingHitFeed::default();
+            self.hit_indicator = crate::hit_indicator::HitIndicator::default();
+            self.fx = crate::fx::FxSystem::default();
+            self.tank_scars.clear();
+            self.terrain_scars = crate::fx::TerrainScars::default();
+            self.engine_smoke_accum_s.clear();
+        }
         let snapshot = self.local_server.change_player_vehicle_with_spec_for_player(spec.clone());
         self.player_tank = self.local_server.player_tank();
         self.predictor.reset_to_spec(&spec);
         self.render_state = crate::InterpolatedBattleState::default();
         self.input.fire_pending = false;
         self.input.clear_mouse_look();
+        self.battle_outcome = None;
+        self.kill_confirm_age_s = None;
+        self.reload_ready_age_s = None;
+        self.prev_reload_remaining_s = 0.0;
         self.accept_and_sync(snapshot);
         self.set_cursor_captured(true);
         if let Some(window) = &self.window {
@@ -219,6 +252,49 @@ mod tests {
 
         assert_eq!(app.garage.view(), GarageView::Hangar, "returns to hangar");
         assert_eq!(app.garage.selected_vehicle(), VehicleKind::TigerI);
+    }
+
+    /// Confirming from the garage mid-battle used to REPLACE the player's tank inside the running
+    /// battle: a factory-new hull (free heal) dropped into a half-shot-up roster, and there was
+    /// no way to ever start a new battle. Locked here: the commit abandons the old battle and
+    /// deploys into a fresh one — tick 0, full 14-tank roster, full battle clock, no outcome.
+    #[test]
+    fn confirming_mid_battle_deploys_into_a_fresh_battle_not_a_free_heal() {
+        let mut app = ClientApp::new();
+        app.confirm_garage_selection();
+        app.run_fixed_ticks(30);
+        assert!(app.local_server.authoritative_tick() >= 30, "the first battle is running");
+
+        app.open_garage();
+        app.confirm_garage_selection();
+
+        assert_eq!(app.local_server.authoritative_tick(), 0, "a FRESH battle, not a respawn");
+        assert_eq!(app.local_server.latest_snapshot().tanks.len(), 14, "full fresh roster");
+        assert_eq!(app.local_server.battle_outcome(), None);
+        assert_eq!(
+            app.local_server.battle_time_remaining_s(),
+            Some(server::RANDOM_BATTLE_TIME_LIMIT_S as f32),
+            "the battle clock starts full again"
+        );
+    }
+
+    #[test]
+    fn confirming_garage_selection_keeps_random_7v7_roster() {
+        let mut app = ClientApp::new();
+        app.garage.select_vehicle(VehicleKind::IS3);
+
+        app.confirm_garage_selection();
+
+        let full_snapshot = app.local_server.latest_snapshot();
+        assert_eq!(full_snapshot.tanks.len(), 14);
+        assert!(full_snapshot.tanks.iter().any(|tank| {
+            tank.tank_id == app.player_tank
+                && tank.team == game_core::TeamId(1)
+                && tank.vehicle == VehicleKind::IS3
+        }));
+        assert!(app.render_state.latest_snapshot().is_some_and(|snapshot| {
+            snapshot.tanks.iter().any(|tank| tank.tank_id == app.player_tank)
+        }));
     }
 
     #[test]

@@ -6,20 +6,28 @@ pub(crate) mod ammo_panel;
 pub(crate) mod damage_log;
 pub(crate) mod demo;
 pub(crate) mod font;
+pub(crate) mod health;
 pub(crate) mod health_bar;
 pub(crate) mod hit_direction;
 pub(crate) mod icons;
+pub(crate) mod kill_marker;
 pub(crate) mod minimap;
 pub(crate) mod number;
+pub(crate) mod outcome;
 pub(crate) mod primitives;
+pub(crate) mod readouts;
 pub(crate) mod reticle;
 pub(crate) mod reticle_marks;
 pub(crate) mod reticle_overlay;
 pub(crate) mod reticle_readouts;
 pub(crate) mod reticle_sweep;
+pub(crate) mod scope_overlay;
 pub(crate) mod theme;
 
-use primitives::push_bar;
+pub(crate) use health::health_color;
+pub(crate) use outcome::BattleHudOutcome;
+#[cfg(test)]
+pub(crate) use outcome::OUTCOME_VICTORY_COLOR;
 pub(crate) use primitives::{push_hairline, push_panel, push_quad};
 pub(crate) use reticle_overlay::HudReticle;
 
@@ -48,10 +56,19 @@ pub struct BattleHudModel {
     pub damage_log: Vec<damage_log::DamageLogEntry>,
     /// Incoming hits resolved to screen bearings (`hud/hit_direction.rs`).
     pub incoming_hits: Vec<hit_direction::IncomingHit>,
-    /// The rack panel (`hud/ammo_panel.rs`); `None` outside battle (offline examples).
     pub ammo: Option<ammo_panel::AmmoHudModel>,
-    /// The bottom-right minimap (`hud/minimap.rs`); `None` when no battlefield is mapped.
     pub minimap: Option<minimap::MinimapModel>,
+    pub battle_outcome: Option<BattleHudOutcome>,
+    /// Seconds left on the battle clock, drawn top-center as M:SS; `None` hides it (untimed).
+    pub battle_clock_remaining_s: Option<f32>,
+    /// Seconds since the player's most recent kill; `None` once the confirmation has played out.
+    pub kill_confirm_age_s: Option<f32>,
+    /// Seconds since the reload finished, driving the gun-ready flash at the reticle.
+    pub reload_ready_age_s: Option<f32>,
+    /// How much of the scope surround shows (0 = none, 1 = settled sniper). Rides the presented
+    /// camera's mode-blend clock, so the optics iris in/out WITH the view instead of hard-cutting
+    /// (see `camera::present::scope_dressing`).
+    pub scope_fade: f32,
 }
 
 /// Build the 2D HUD overlay (center crosshair, top-left health bar, bottom-center reload
@@ -68,6 +85,11 @@ pub fn build_hud(vitals: HudVitals, aspect: f32) -> Vec<HudVertex> {
             incoming_hits: Vec::new(),
             ammo: None,
             minimap: None,
+            battle_outcome: None,
+            battle_clock_remaining_s: None,
+            kill_confirm_age_s: None,
+            reload_ready_age_s: None,
+            scope_fade: 0.0,
         },
         aspect,
     )
@@ -95,6 +117,16 @@ pub(crate) fn build_hud_with_reticle(
             incoming_hits: Vec::new(),
             ammo: None,
             minimap: None,
+            battle_outcome: None,
+            battle_clock_remaining_s: None,
+            kill_confirm_age_s: None,
+            reload_ready_age_s: None,
+            // The positional test path has no camera; sniper mode implies a settled scope.
+            scope_fade: if reticle.is_some_and(|r| r.mode == reticle::ReticleMode::Sniper) {
+                1.0
+            } else {
+                0.0
+            },
         },
         aspect,
     )
@@ -102,7 +134,6 @@ pub(crate) fn build_hud_with_reticle(
 
 pub(crate) fn build_battle_hud(model: &BattleHudModel, aspect: f32) -> Vec<HudVertex> {
     let mut vertices = Vec::new();
-    let vitals = model.vitals;
 
     let reticle = model.reticle.unwrap_or(HudReticle {
         aim_clip: [0.0, 0.0],
@@ -116,62 +147,18 @@ pub(crate) fn build_battle_hud(model: &BattleHudModel, aspect: f32) -> Vec<HudVe
         hit_confirm: None,
         mode: crate::hud::reticle::ReticleMode::ThirdPerson,
     });
+    // The scope surround paints first so every live marker (reticle, readouts) stays on top.
+    // Fade-driven, not mode-driven: during the TPP <-> sniper camera blend the housing is
+    // already irising in (or lifting away) while the logical mode has long since flipped.
+    if model.scope_fade > 0.001 {
+        scope_overlay::push_scope_overlay(&mut vertices, aspect, model.scope_fade);
+    }
     reticle_overlay::push_reticle(&mut vertices, &reticle, aspect);
-
-    let hp_frac = (vitals.hit_points as f32 / vitals.max_hit_points.max(1) as f32).clamp(0.0, 1.0);
-    push_bar(&mut vertices, [-0.95, 0.9], [0.17, 0.018], hp_frac, health_color(hp_frac));
-    crate::hud::number::push_number(
-        &mut vertices,
-        vitals.hit_points.min(9_999),
-        -0.61,
-        0.95,
-        0.055,
-        aspect,
-        crate::hud::number::HP_COLOR,
-    );
-
-    let ready =
-        (1.0 - vitals.reload_remaining_s / vitals.reload_seconds.max(0.001)).clamp(0.0, 1.0);
-    let reload_color =
-        if ready >= 1.0 { [0.55, 0.85, 0.96, 0.95] } else { [0.86, 0.55, 0.20, 0.92] };
-    push_bar(&mut vertices, [-0.16, -0.9], [0.16, 0.016], ready, reload_color);
-    crate::hud::number::push_number(
-        &mut vertices,
-        vitals.reload_remaining_s.ceil().clamp(0.0, 99.0) as u32,
-        0.06,
-        -0.76,
-        0.065,
-        aspect,
-        crate::hud::number::RELOAD_TIME_COLOR,
-    );
-
-    // Sniper magnification readout, WT-style "X6.9", just under the reticle center so the
-    // eye reads it without leaving the sight. Third person draws nothing.
-    if let Some(zoom) = model.zoom_factor {
-        let label =
-            format!("{}{:.1}", crate::ui_strings::battle::ZOOM_PREFIX, zoom.clamp(0.0, 99.9));
-        crate::hud::font::push_text(
-            &mut vertices,
-            &label,
-            -0.03,
-            -0.16,
-            0.05,
-            aspect,
-            crate::hud::number::ZOOM_COLOR,
-        );
+    if let Some(age_s) = model.reload_ready_age_s {
+        reticle_marks::push_ready_flash(&mut vertices, reticle.aim_clip, age_s, aspect);
     }
 
-    if model.fps > 0.0 {
-        crate::hud::number::push_number(
-            &mut vertices,
-            model.fps.round() as u32,
-            0.97,
-            0.97,
-            0.05,
-            aspect,
-            crate::hud::number::FPS_COLOR,
-        );
-    }
+    readouts::push_battle_readouts(&mut vertices, model, aspect);
 
     damage_log::push_damage_log(&mut vertices, &model.damage_log, aspect);
     hit_direction::push_hit_direction(&mut vertices, &model.incoming_hits, aspect);
@@ -181,40 +168,14 @@ pub(crate) fn build_battle_hud(model: &BattleHudModel, aspect: f32) -> Vec<HudVe
     if let Some(map) = &model.minimap {
         minimap::push_minimap(&mut vertices, map, aspect);
     }
-
-    if model.speed_kmh >= 0.5 {
-        crate::hud::number::push_number(
-            &mut vertices,
-            model.speed_kmh.round().clamp(0.0, 999.0) as u32,
-            -0.78,
-            -0.76,
-            0.065,
-            aspect,
-            crate::hud::number::SPEED_COLOR,
-        );
-        // Unit sits just right of the value's anchor, dimmer and a touch smaller for hierarchy.
-        crate::hud::font::push_text(
-            &mut vertices,
-            crate::ui_strings::battle::SPEED_UNIT,
-            -0.765,
-            -0.764,
-            0.045,
-            aspect,
-            crate::hud::number::UNIT_COLOR,
-        );
+    if let Some(outcome) = model.battle_outcome {
+        outcome::push_battle_outcome(&mut vertices, outcome, aspect);
+    }
+    if let Some(age_s) = model.kill_confirm_age_s {
+        kill_marker::push_kill_confirm(&mut vertices, age_s, aspect);
     }
 
     vertices
-}
-
-pub(crate) fn health_color(frac: f32) -> [f32; 4] {
-    if frac > 0.5 {
-        [0.30, 0.82, 0.34, 0.92]
-    } else if frac > 0.25 {
-        [0.92, 0.78, 0.20, 0.92]
-    } else {
-        [0.90, 0.26, 0.22, 0.92]
-    }
 }
 
 #[cfg(test)]

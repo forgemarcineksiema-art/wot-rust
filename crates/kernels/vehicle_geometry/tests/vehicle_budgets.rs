@@ -69,10 +69,13 @@ fn every_vehicle_bake_hash_matches_golden_output() {
         // only through the shared Soviet cupola cap; the German vehicles are untouched.
         (VehicleKind::T54_1951, 14_477_744_753_775_894_004_u64),
         (VehicleKind::T55A, 6_886_842_021_380_663_919_u64),
-        (VehicleKind::TigerI, 14_588_552_702_870_529_439_u64),
-        (VehicleKind::TigerII, 18_008_472_870_257_541_227_u64),
-        (VehicleKind::Jagdtiger, 6_582_664_477_001_840_901_u64),
-        (VehicleKind::PantherII, 3_367_156_390_789_742_278_u64),
+        // Re-recorded for the legacy-fleet moving gear: the fused wheel/box gear left the German
+        // hull bakes for the wrapped belt band; wheels and shoe links are now instanced and
+        // animated at render time like the blueprint fleet. Soviets and prototype untouched.
+        (VehicleKind::TigerI, 12_789_224_975_552_406_567_u64),
+        (VehicleKind::TigerII, 14_245_727_605_461_046_091_u64),
+        (VehicleKind::Jagdtiger, 11_488_926_837_109_973_349_u64),
+        (VehicleKind::PantherII, 12_707_307_636_792_314_550_u64),
         // Re-recorded for the gear realism pass: fender line (shelf, front mudguards, rear
         // flaps) joins the hull bake; the existing fleet is untouched.
         (VehicleKind::IS3, 13_461_797_925_301_907_251_u64),

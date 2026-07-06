@@ -4,7 +4,7 @@ use renderer_api::{
 };
 
 use crate::GpuContext;
-use crate::scene_resources::frame_instances;
+use crate::scene_resources::{SceneInstance, clip_instances_to_capacity, frame_instances};
 
 impl super::SceneRenderer {
     pub fn set_dynamic_mesh(
@@ -47,24 +47,29 @@ impl super::SceneRenderer {
         self.vehicle_materials.register(ctx, handle, families);
     }
 
+    /// An oversized frame is truncated to the buffer budget (with a warning), never dropped
+    /// whole: a dropped upload leaves the previous instances on screen, so every object would
+    /// freeze in its last uploaded pose while the simulation drives on without it.
     pub fn set_render_frame(&mut self, ctx: &GpuContext, frame: &RenderFrame) {
-        let (instances, draws) = frame_instances(frame);
-        let bytes: &[u8] = bytemuck::cast_slice(&instances);
-        if bytes.len() as u64 > self.frame_instances.size() {
-            return;
+        let (mut instances, mut draws) = frame_instances(frame);
+        let capacity = buffer_instance_capacity(&self.frame_instances);
+        if clip_instances_to_capacity(&mut instances, &mut draws, capacity) {
+            tracing::warn!(kept = capacity, "scene instance budget exceeded; truncating frame");
         }
-        ctx.queue.write_buffer(&self.frame_instances, 0, bytes);
+        ctx.queue.write_buffer(&self.frame_instances, 0, bytemuck::cast_slice(&instances));
         self.frame_instance_count = instances.len() as u32;
         self.frame_draws = draws;
     }
 
+    /// See [`Self::set_render_frame`]: truncate-and-warn, never a silent whole-frame drop — that
+    /// is exactly the failure that froze every tank on screen once a 7v7 exceeded the old budget.
     pub fn set_vehicle_render_frame(&mut self, ctx: &GpuContext, frame: &RenderFrame) {
-        let (instances, draws) = frame_instances(frame);
-        let bytes: &[u8] = bytemuck::cast_slice(&instances);
-        if bytes.len() as u64 > self.vehicle_instances.size() {
-            return;
+        let (mut instances, mut draws) = frame_instances(frame);
+        let capacity = buffer_instance_capacity(&self.vehicle_instances);
+        if clip_instances_to_capacity(&mut instances, &mut draws, capacity) {
+            tracing::warn!(kept = capacity, "vehicle instance budget exceeded; truncating frame");
         }
-        ctx.queue.write_buffer(&self.vehicle_instances, 0, bytes);
+        ctx.queue.write_buffer(&self.vehicle_instances, 0, bytemuck::cast_slice(&instances));
         self.vehicle_instance_count = instances.len() as u32;
         self.vehicle_draws = draws;
     }
@@ -105,4 +110,9 @@ impl super::SceneRenderer {
     pub fn hud_vertex_count(&self) -> u32 {
         self.hud_vertex_count
     }
+}
+
+/// How many [`SceneInstance`]s the given GPU buffer holds.
+fn buffer_instance_capacity(buffer: &wgpu::Buffer) -> usize {
+    (buffer.size() as usize) / std::mem::size_of::<SceneInstance>()
 }

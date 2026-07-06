@@ -8,6 +8,8 @@ rust-version.workspace = true
 [dependencies]
 ab_glyph = "0.2"
 anyhow.workspace = true
+audio.workspace = true
+cpal.workspace = true
 engine.workspace = true
 game_core.workspace = true
 glam.workspace = true

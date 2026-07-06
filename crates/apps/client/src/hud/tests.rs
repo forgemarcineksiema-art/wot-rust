@@ -170,10 +170,133 @@ fn the_positional_wrapper_and_the_model_build_identical_huds() {
         incoming_hits: Vec::new(),
         ammo: None,
         minimap: None,
+        battle_outcome: None,
+        battle_clock_remaining_s: None,
+        kill_confirm_age_s: None,
+        reload_ready_age_s: None,
+        scope_fade: 0.0,
     };
     let from_model = build_battle_hud(&model, 16.0 / 9.0);
     let from_wrapper =
         build_hud_with_reticle(vitals(), 16.0 / 9.0, Some(reticle), 61.0, 33.0, Some(4.2));
     assert_eq!(from_model, from_wrapper, "wrapper must stay a pure forwarding shim");
     assert!(!from_model.is_empty());
+}
+
+/// The scope surround follows `scope_fade` (the camera's mode-blend clock), NOT the reticle
+/// mode: mid-transition the reticle has already flipped while the housing is still irising, and
+/// on exit the housing lingers a beat after the reticle returned to third person.
+#[test]
+fn the_scope_surround_is_fade_driven_not_mode_driven() {
+    let base = BattleHudModel {
+        vitals: vitals(),
+        reticle: Some(reticle_at(ReticleStatus::Clear, None)),
+        fps: 0.0,
+        speed_kmh: 0.0,
+        zoom_factor: None,
+        damage_log: Vec::new(),
+        incoming_hits: Vec::new(),
+        ammo: None,
+        minimap: None,
+        battle_outcome: None,
+        battle_clock_remaining_s: None,
+        kill_confirm_age_s: None,
+        reload_ready_age_s: None,
+        scope_fade: 0.0,
+    };
+    let housing = |hud: &[HudVertex]| {
+        let [r, g, b, _] = super::scope_overlay::VIGNETTE_COLOR;
+        hud.iter().any(|v| v.color[0] == r && v.color[1] == g && v.color[2] == b)
+    };
+
+    // A third-person reticle mid-entry: the housing already shows at partial fade.
+    let entering = BattleHudModel { scope_fade: 0.5, ..base.clone() };
+    assert!(housing(&build_battle_hud(&entering, 16.0 / 9.0)), "fade in draws the surround");
+
+    // A sniper reticle with the fade at zero (first logical frame of an exit): nothing draws.
+    let exited = BattleHudModel {
+        reticle: Some(sniper(reticle_at(ReticleStatus::Clear, None))),
+        scope_fade: 0.0,
+        ..base.clone()
+    };
+    assert!(!housing(&build_battle_hud(&exited, 16.0 / 9.0)), "zero fade draws no surround");
+}
+
+#[test]
+fn battle_outcome_banner_draws_only_when_the_battle_has_ended() {
+    let running = BattleHudModel {
+        vitals: vitals(),
+        reticle: None,
+        fps: 0.0,
+        speed_kmh: 0.0,
+        zoom_factor: None,
+        damage_log: Vec::new(),
+        incoming_hits: Vec::new(),
+        ammo: None,
+        minimap: None,
+        battle_outcome: None,
+        battle_clock_remaining_s: None,
+        kill_confirm_age_s: None,
+        reload_ready_age_s: None,
+        scope_fade: 0.0,
+    };
+    let victory =
+        BattleHudModel { battle_outcome: Some(BattleHudOutcome::Victory), ..running.clone() };
+
+    let running_hud = build_battle_hud(&running, 16.0 / 9.0);
+    let victory_hud = build_battle_hud(&victory, 16.0 / 9.0);
+
+    assert!(!running_hud.iter().any(|vertex| vertex.color == OUTCOME_VICTORY_COLOR));
+    assert!(victory_hud.iter().any(|vertex| vertex.color == OUTCOME_VICTORY_COLOR));
+
+    // A draw (mutual wipe or clock expiry) banners in its own neutral color.
+    let draw = BattleHudModel { battle_outcome: Some(BattleHudOutcome::Draw), ..running.clone() };
+    let draw_hud = build_battle_hud(&draw, 16.0 / 9.0);
+    assert!(draw_hud.iter().any(|vertex| vertex.color == super::outcome::OUTCOME_DRAW_COLOR));
+    assert!(!running_hud.iter().any(|vertex| vertex.color == super::outcome::OUTCOME_DRAW_COLOR));
+
+    // Input is dead once the battle ends; every banner carries the way-out hint.
+    let hint = |hud: &[HudVertex]| {
+        hud.iter().any(|vertex| vertex.color == super::outcome::OUTCOME_HINT_COLOR)
+    };
+    assert!(hint(&victory_hud) && hint(&draw_hud), "the ended battle points back to the garage");
+    assert!(!hint(&running_hud), "no garage hint while the battle runs");
+}
+
+/// The battle clock draws top-center when the server reports a timed battle and disappears for
+/// untimed ones; the last minute switches to the alert color so the squeeze reads at a glance.
+#[test]
+fn battle_clock_draws_only_when_timed_and_warms_in_the_last_minute() {
+    let untimed = BattleHudModel {
+        vitals: vitals(),
+        reticle: None,
+        fps: 0.0,
+        speed_kmh: 0.0,
+        zoom_factor: None,
+        damage_log: Vec::new(),
+        incoming_hits: Vec::new(),
+        ammo: None,
+        minimap: None,
+        battle_outcome: None,
+        battle_clock_remaining_s: None,
+        kill_confirm_age_s: None,
+        reload_ready_age_s: None,
+        scope_fade: 0.0,
+    };
+    let timed = BattleHudModel { battle_clock_remaining_s: Some(474.0), ..untimed.clone() };
+    let closing = BattleHudModel { battle_clock_remaining_s: Some(42.0), ..untimed.clone() };
+
+    let untimed_hud = build_battle_hud(&untimed, 16.0 / 9.0);
+    let timed_hud = build_battle_hud(&timed, 16.0 / 9.0);
+    let closing_hud = build_battle_hud(&closing, 16.0 / 9.0);
+
+    assert!(
+        timed_hud.len() > untimed_hud.len(),
+        "a timed battle adds clock glyph quads to the HUD"
+    );
+    let alert = |hud: &[HudVertex]| {
+        hud.iter().any(|vertex| vertex.color == super::readouts::CLOCK_CLOSING_COLOR)
+    };
+    assert!(!alert(&timed_hud), "mid-battle clock stays in the calm readout color");
+    assert!(alert(&closing_hud), "the last minute warms to the alert color");
 }

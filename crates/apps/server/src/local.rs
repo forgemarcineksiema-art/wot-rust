@@ -1,11 +1,13 @@
-use game_core::{DamageEvent, ShellImpact, TankId, TankSpec, TeamId, VehicleKind};
-use glam::Vec3;
+use game_core::{DamageEvent, ShellImpact, TankId, TankSpec, VehicleKind};
 use net::{ClientInputCommand, Snapshot};
 use sim::SimulationState;
-use std::f32::consts::PI;
-use terrain::{BattlefieldMap, prokhorovka_hill_252_2};
+use terrain::BattlefieldMap;
 
+use crate::RandomBattleConfig;
 use crate::ServerTickConfig;
+use crate::battle::{BattleMode, BattleOutcome, DrawReason, RANDOM_BATTLE_TIME_LIMIT_S};
+use crate::bots::BotRoster;
+use crate::setup::{BattleSetup, practice_duel_setup, random_7v7_setup};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct AuthoritativeTick {
@@ -18,8 +20,15 @@ pub struct LocalAuthoritativeServer {
     config: ServerTickConfig,
     sim: SimulationState,
     battlefield: BattlefieldMap,
+    mode: BattleMode,
     player_tank: TankId,
     target_tank: TankId,
+    bots: BotRoster,
+    outcome: Option<BattleOutcome>,
+    /// Battle clock in server ticks; `None` runs untimed (practice duel). When the clock hits
+    /// zero with both teams alive the battle ends in a draw — the safety net that guarantees a
+    /// random battle always ends even if the last survivors never find each other.
+    time_limit_ticks: Option<u64>,
     latest_snapshot: Snapshot,
     pending_damage_events: Vec<DamageEvent>,
     pending_shell_impacts: Vec<ShellImpact>,
@@ -31,30 +40,31 @@ impl LocalAuthoritativeServer {
     }
 
     pub fn new_with_player_vehicle(config: ServerTickConfig, player_vehicle: VehicleKind) -> Self {
-        let battlefield = prokhorovka_hill_252_2();
-        let mut sim = SimulationState::new();
+        Self::from_setup(config, practice_duel_setup(player_vehicle))
+    }
 
-        // A gentle 40 m duel corridor in the south-central steppe, clear of the central
-        // ditch, embankment and the eastern hills: both tanks sit on their own ground and a
-        // level shot carries cleanly (locked by the server combat-replication test), while
-        // the rest of the map rolls and climbs.
-        let player_pos = ground_position(&battlefield, 340.0, 300.0);
-        let target_pos = ground_position(&battlefield, 340.0, 340.0);
-        let player_tank = sim.spawn_tank(TeamId(1), player_vehicle.spec(), player_pos);
-        let target_tank = sim.spawn_tank(TeamId(2), TankSpec::t54_1951(), target_pos);
-        // The practice target shows its SIDE: with authoritative hull attitude the steppe's
-        // slope angles a frontal glacis past the T-54's own penetration, so a first shell into
-        // the front would bounce. The 80 mm side stays honest practice armor on any local tilt.
-        sim.tank_mut(target_tank).expect("spawned target tank").yaw_rad = PI * 0.5;
-        sim.refresh_spotting(Some(&battlefield.heightmap), &battlefield.static_cover);
-        let latest_snapshot = Snapshot::from(&sim);
+    pub fn new_random_7v7(config: ServerTickConfig, battle: RandomBattleConfig) -> Self {
+        Self::from_setup(config, random_7v7_setup(battle))
+    }
 
+    fn from_setup(config: ServerTickConfig, setup: BattleSetup) -> Self {
+        let latest_snapshot = Snapshot::from(&setup.sim);
+        let time_limit_ticks = match setup.mode {
+            BattleMode::PracticeDuel => None,
+            BattleMode::Random7v7 => {
+                Some(u64::from(config.server_tick_hz()) * u64::from(RANDOM_BATTLE_TIME_LIMIT_S))
+            }
+        };
         Self {
             config,
-            sim,
-            battlefield,
-            player_tank,
-            target_tank,
+            sim: setup.sim,
+            battlefield: setup.battlefield,
+            mode: setup.mode,
+            player_tank: setup.player_tank,
+            target_tank: setup.target_tank,
+            bots: setup.bots,
+            outcome: None,
+            time_limit_ticks,
             latest_snapshot,
             pending_damage_events: Vec::new(),
             pending_shell_impacts: Vec::new(),
@@ -74,6 +84,7 @@ impl LocalAuthoritativeServer {
         }
         self.pending_damage_events.clear();
         self.pending_shell_impacts.clear();
+        self.outcome = None;
         self.sim
             .refresh_spotting(Some(&self.battlefield.heightmap), &self.battlefield.static_cover);
         self.latest_snapshot = Snapshot::from(&self.sim);
@@ -92,6 +103,27 @@ impl LocalAuthoritativeServer {
         self.target_tank
     }
 
+    pub fn battle_mode(&self) -> BattleMode {
+        self.mode
+    }
+
+    pub fn battle_outcome(&self) -> Option<BattleOutcome> {
+        self.outcome
+    }
+
+    /// Seconds left on the battle clock; `None` when this battle runs untimed.
+    pub fn battle_time_remaining_s(&self) -> Option<f32> {
+        let limit = self.time_limit_ticks?;
+        let remaining_ticks = limit.saturating_sub(self.sim.tick());
+        Some(remaining_ticks as f32 / self.config.server_tick_hz().max(1) as f32)
+    }
+
+    /// Shrink (or clear) the battle clock. A tuning/testing knob — driving a real 60 Hz battle
+    /// to the ten-minute limit tick by tick is not something a test should pay for.
+    pub fn override_battle_time_limit_ticks(&mut self, time_limit_ticks: Option<u64>) {
+        self.time_limit_ticks = time_limit_ticks;
+    }
+
     pub fn authoritative_tick(&self) -> u64 {
         self.sim.tick()
     }
@@ -100,17 +132,38 @@ impl LocalAuthoritativeServer {
         self.latest_snapshot.clone()
     }
 
+    pub fn current_snapshot(&self) -> Snapshot {
+        Snapshot::from(&self.sim)
+    }
+
     pub fn latest_snapshot_for_player(&self) -> Snapshot {
         self.latest_snapshot.filtered_for_viewer(self.player_tank)
     }
 
     pub fn tick_with_input(&mut self, input: ClientInputCommand) -> AuthoritativeTick {
+        let battle_over = self.outcome.is_some();
+        let mut commands = Vec::with_capacity(1 + self.sim.tanks().len());
+        commands.push((
+            input.tank_id,
+            if battle_over { sim::TankCommand::idle() } else { input.command },
+        ));
+        commands.extend(self.bots.commands(self.sim.tanks(), &self.battlefield, battle_over));
+
         self.sim.apply_commands_on_battlefield(
-            &[(input.tank_id, input.command)],
+            &commands,
             self.config.timestep(),
             &self.battlefield.heightmap,
             &self.battlefield.static_cover,
         );
+        if self.outcome.is_none() {
+            self.outcome = BattleOutcome::from_tanks(self.sim.tanks());
+        }
+        // Elimination on the final tick outranks the clock; only a still-live battle times out.
+        if self.outcome.is_none()
+            && self.time_limit_ticks.is_some_and(|limit| self.sim.tick() >= limit)
+        {
+            self.outcome = Some(BattleOutcome::Draw { reason: DrawReason::TimeExpired });
+        }
         self.pending_damage_events.extend_from_slice(self.sim.damage_events());
         self.pending_shell_impacts.extend_from_slice(self.sim.shell_impacts());
 
@@ -135,8 +188,4 @@ impl LocalAuthoritativeServer {
             snapshot: tick.snapshot.map(|snapshot| snapshot.filtered_for_viewer(viewer)),
         }
     }
-}
-
-fn ground_position(battlefield: &BattlefieldMap, x: f32, z: f32) -> Vec3 {
-    Vec3::new(x, battlefield.heightmap.sample_height(x, z).unwrap_or(0.0), z)
 }

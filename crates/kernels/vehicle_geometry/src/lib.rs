@@ -3,6 +3,7 @@
 mod bounds;
 mod builder;
 mod cavity;
+mod legacy_tracks;
 mod lod;
 mod mesh;
 mod ops;

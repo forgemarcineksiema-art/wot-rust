@@ -11,7 +11,9 @@ mod snapshot_schedule;
 pub use frame::{FRAME_HEADER_LEN, FRAME_MAGIC, decode_frame, encode_frame};
 pub use snapshot_schedule::SnapshotSchedule;
 
-pub const PROTOCOL_VERSION: u16 = 16;
+/// v17: `ShellImpact` carries the dying shell's `shell_type`, so a high-explosive round
+/// detonating against the world sounds (and can look) like a blast instead of a thud.
+pub const PROTOCOL_VERSION: u16 = 17;
 
 #[derive(Debug, Error)]
 pub enum NetError {

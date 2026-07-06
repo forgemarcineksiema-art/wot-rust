@@ -1,13 +1,16 @@
+mod audio_link;
 mod battle_scars;
 mod camera_link;
 #[cfg(test)]
 mod camera_tests;
 #[cfg(test)]
 mod fire_fx_tests;
+mod frame_scene;
 mod garage;
 mod garage_render;
 #[cfg(test)]
 mod hit_mark_tests;
+mod ingest;
 mod input;
 mod input_state;
 #[cfg(test)]
@@ -29,7 +32,7 @@ use std::time::Instant;
 use anyhow::Context;
 use game_core::{TankId, VehicleKind};
 use renderer_wgpu::WindowRenderer;
-use server::{LocalAuthoritativeServer, ServerTickConfig};
+use server::{LocalAuthoritativeServer, RandomBattleConfig, ServerTickConfig};
 use sim::DEFAULT_SIMULATION_TICK_HZ;
 use terrain::{BattlefieldMap, prokhorovka_hill_252_2};
 use winit::event_loop::{ControlFlow, EventLoop};
@@ -114,10 +117,26 @@ pub(crate) struct ClientApp {
     engine_smoke_accum_s: HashMap<game_core::TankId, f32>,
     /// Smoothed frames-per-second for the HUD readout (EMA over instantaneous frame rate).
     fps_estimate: f32,
+    /// Local battle result banner state, derived from the authoritative server outcome.
+    battle_outcome: Option<crate::hud::BattleHudOutcome>,
+    /// Seconds since the player's latest kill, driving the reticle confirmation; `None` when the
+    /// confirmation has played out (see `hud/kill_marker.rs`).
+    kill_confirm_age_s: Option<f32>,
+    /// Reload seconds remaining at the previous presented frame, for the ready-flash crossing.
+    prev_reload_remaining_s: f32,
+    /// Seconds since the reload finished, driving the gun-ready flash at the reticle.
+    reload_ready_age_s: Option<f32>,
     /// Static scene geometry currently uploaded to the renderer (garage hangar vs battlefield).
     current_scene: SceneKind,
     /// Last known framebuffer size, used to map cursor pixels into clip space for the garage UI.
     viewport: (u32, u32),
+    /// Camera mode at the previous presented frame; a change clicks the optics cue.
+    prev_camera_mode: Option<crate::BattleCameraMode>,
+    /// The platform audio stream; `None` headless or without an output device (silent game).
+    audio: Option<crate::audio_out::AudioOutput>,
+    /// Sounds produced since the last presented frame, flushed to the device with the frame —
+    /// the audio twin of the FX queue (see `app/audio_link.rs`).
+    pending_audio: Vec<audio::AudioEvent>,
 }
 
 impl ClientApp {
@@ -126,7 +145,10 @@ impl ClientApp {
     }
 
     fn new_without_vehicle_artifacts() -> Self {
-        let local_server = LocalAuthoritativeServer::new(ServerTickConfig::default());
+        let local_server = LocalAuthoritativeServer::new_random_7v7(
+            ServerTickConfig::default(),
+            RandomBattleConfig::runtime(VehicleKind::default()),
+        );
         let player_tank = local_server.player_tank();
         let mut render_state = InterpolatedBattleState::default();
         render_state.accept_authoritative_snapshot(local_server.latest_snapshot_for_player());
@@ -164,10 +186,17 @@ impl ClientApp {
             terrain_scars: crate::fx::TerrainScars::default(),
             engine_smoke_accum_s: HashMap::new(),
             fps_estimate: 0.0,
+            battle_outcome: None,
+            kill_confirm_age_s: None,
+            prev_reload_remaining_s: 0.0,
+            reload_ready_age_s: None,
             // The renderer is created with the battlefield mesh (see `create_renderer`); the first
             // garage frame swaps in the hangar. Starting at `Garage` here would skip that swap.
             current_scene: SceneKind::Battle,
             viewport: (1280, 720),
+            prev_camera_mode: None,
+            audio: None,
+            pending_audio: Vec::new(),
         }
     }
 }
@@ -178,6 +207,7 @@ pub fn run() -> anyhow::Result<()> {
     event_loop.set_control_flow(ControlFlow::Poll);
     let mut app = ClientApp::new();
     app.enable_garage_persistence();
+    app.prebake_playable_vehicle_assets();
     event_loop.run_app(&mut app).context("winit app failed")?;
     Ok(())
 }
@@ -216,6 +246,25 @@ mod tests {
 
         assert_eq!(client_view, &server_view);
         assert!(client_view.tanks.iter().any(|tank| tank.tank_id == app.player_tank));
+    }
+
+    #[test]
+    fn new_app_uses_random_7v7_local_battle() {
+        let app = ClientApp::new();
+        let full_snapshot = app.local_server.latest_snapshot();
+
+        assert_eq!(full_snapshot.tanks.len(), 14);
+        assert_eq!(
+            full_snapshot.tanks.iter().filter(|tank| tank.team == game_core::TeamId(1)).count(),
+            7
+        );
+        assert_eq!(
+            full_snapshot.tanks.iter().filter(|tank| tank.team == game_core::TeamId(2)).count(),
+            7
+        );
+        assert!(app.render_state.latest_snapshot().is_some_and(|snapshot| {
+            snapshot.tanks.iter().any(|tank| tank.tank_id == app.player_tank)
+        }));
     }
 
     #[test]

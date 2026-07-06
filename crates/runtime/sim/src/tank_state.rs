@@ -71,4 +71,23 @@ impl TankState {
         let index = (self.selected_ammo as usize).min(options.len().saturating_sub(1));
         options[index]
     }
+
+    /// Where the next shell leaves the barrel: the mount chain pivoted about trunnion and ring,
+    /// scaled to the installed barrel's length. The authoritative fire path and the bot aim
+    /// solver both read the muzzle from here so they can never disagree about the spawn point.
+    pub fn muzzle_world_position(&self) -> Vec3 {
+        // A non-stock gun fires from its own barrel tip: scale the muzzle by installed/stock
+        // length so the shell spawn tracks the longer/shorter barrel.
+        let stock_barrel = self.spec.kind.stock_barrel_length_m();
+        let barrel_scale =
+            if stock_barrel > 0.0 { self.spec.gun.barrel_length_m / stock_barrel } else { 1.0 };
+        game_core::math::muzzle_world_position_scaled(
+            &self.spec.mounts,
+            self.position,
+            self.hull_pose(),
+            self.turret_yaw_rad,
+            self.gun_pitch_rad,
+            barrel_scale,
+        )
+    }
 }

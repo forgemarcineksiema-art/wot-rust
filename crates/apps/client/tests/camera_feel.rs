@@ -77,6 +77,60 @@ fn the_players_shot_nudges_the_third_person_rig_and_leaves_sniper_rigid() {
     assert_eq!(before, after, "sniper eye stays rigid through the shot");
 }
 
+/// Taking a hit must be FELT: a directional shove of the third-person rig that recovers on the
+/// spring, and in sniper a strictly vertical scope dip bounded by the micro-damper — the jolt
+/// reads, but the aim never smears sideways.
+#[test]
+fn an_incoming_hit_rocks_the_rig_and_dips_the_sniper_scope_vertically() {
+    let heightmap = HeightMap::flat(64, 64, 1.0, 0.0).expect("heightmap");
+    let environment = BattleCameraEnvironment::with_terrain(&heightmap);
+    let position = [20.0, 0.0, 20.0];
+    let subject = CameraSubject::from_snapshot(tank_snapshot(position, 0.0, 0.0), 0.0);
+
+    // Third person: the shove displaces the settled rig along the push and down, then recovers.
+    let mut camera = BattleCameraController::new(BattleCameraSettings::default());
+    camera.set_mode(BattleCameraMode::ThirdPerson);
+    for _ in 0..240 {
+        camera.advance(position, 1.0 / 60.0);
+    }
+    let settled = camera.render_camera(&subject, &environment).eye;
+    camera.damage_shudder(glam::Vec3::new(0.0, 0.0, -1.0), 0.2);
+    let mut max_shift = 0.0_f32;
+    let mut max_down = 0.0_f32;
+    for _ in 0..30 {
+        camera.advance(position, 1.0 / 60.0);
+        let eye = camera.render_camera(&subject, &environment).eye;
+        max_shift = max_shift.max(settled[2] - eye[2]);
+        max_down = max_down.max(settled[1] - eye[1]);
+    }
+    assert!(max_shift > 0.01, "the hit visibly shoves the rig along the push, got {max_shift}");
+    assert!(max_down > 0.005, "and settles it slightly down, got {max_down}");
+    for _ in 0..240 {
+        camera.advance(position, 1.0 / 60.0);
+    }
+    let recovered = camera.render_camera(&subject, &environment).eye;
+    assert!((recovered[2] - settled[2]).abs() < 0.01, "the rig recovers to its settle");
+
+    // Sniper: the dip is vertical only and bounded — x/z of the eye must not move at all.
+    let mut sniper = BattleCameraController::new(BattleCameraSettings::default());
+    sniper.set_mode(BattleCameraMode::Sniper);
+    for _ in 0..60 {
+        sniper.advance(position, 1.0 / 60.0);
+    }
+    let before = sniper.render_camera(&subject, &environment).eye;
+    sniper.damage_shudder(glam::Vec3::new(1.0, 0.0, 0.0), 1.0);
+    let mut max_dip = 0.0_f32;
+    for _ in 0..30 {
+        sniper.advance(position, 1.0 / 60.0);
+        let eye = sniper.render_camera(&subject, &environment).eye;
+        assert_eq!(eye[0], before[0], "a hit must not smear the sniper aim in x");
+        assert_eq!(eye[2], before[2], "a hit must not smear the sniper aim in z");
+        max_dip = max_dip.max(before[1] - eye[1]);
+    }
+    assert!(max_dip > 0.005, "the scope visibly dips, got {max_dip}");
+    assert!(max_dip <= 0.121, "the micro-damper bounds the dip, got {max_dip}");
+}
+
 #[test]
 fn terrain_bounce_does_not_pulse_the_fov_but_real_speed_widens_it() {
     let environment = BattleCameraEnvironment::empty();
@@ -202,6 +256,77 @@ fn switching_modes_travels_the_view_instead_of_teleporting_it() {
     // The LOGICAL camera never blends: aiming reads the destination immediately.
     let logical = camera.render_camera(&subject, &environment);
     assert_eq!(logical.vertical_fov_degrees, sniper_fov);
+}
+
+/// The scope surround rides the SAME clock as the camera's mode blend: it irises in while the
+/// view travels into the optics and lifts away as it leaves. Before this, the vignette popped in
+/// full-strength on the first sniper frame while the camera was still mid-flight — the hard cut
+/// the whole transition blend exists to remove.
+#[test]
+fn the_scope_surround_rides_the_mode_blend_clock() {
+    let heightmap = HeightMap::flat(64, 64, 1.0, 0.0).expect("heightmap");
+    let environment = BattleCameraEnvironment::with_terrain(&heightmap);
+    let subject = CameraSubject::from_snapshot(tank_snapshot([20.0, 0.0, 20.0], 0.0, 0.0), 0.0);
+    let mut camera = BattleCameraController::new(BattleCameraSettings::default());
+    camera.advance([20.0, 0.0, 20.0], 1.0 / 60.0);
+    camera.present(&subject, &environment, 1.0 / 60.0);
+    assert_eq!(camera.scope_dressing(), 0.0, "no scope dressing in third person");
+
+    // Entry: exactly mid-blend (0.14 s transition; smoothstep(0.5) = 0.5) the housing is half in.
+    camera.set_mode(BattleCameraMode::Sniper);
+    camera.present(&subject, &environment, 0.07);
+    let entering = camera.scope_dressing();
+    assert!(
+        (entering - 0.5).abs() < 0.05,
+        "mid-entry the surround must be half-irised, got {entering}"
+    );
+    for _ in 0..15 {
+        camera.present(&subject, &environment, 1.0 / 60.0);
+    }
+    assert_eq!(camera.scope_dressing(), 1.0, "settled sniper shows the full surround");
+
+    // Exit: the housing lifts away on the same clock, not a hard cut.
+    camera.set_mode(BattleCameraMode::ThirdPerson);
+    camera.present(&subject, &environment, 0.07);
+    let leaving = camera.scope_dressing();
+    assert!(
+        (leaving - 0.5).abs() < 0.05,
+        "mid-exit the surround must be half-lifted, got {leaving}"
+    );
+    for _ in 0..15 {
+        camera.present(&subject, &environment, 1.0 / 60.0);
+    }
+    assert_eq!(camera.scope_dressing(), 0.0, "back in third person nothing remains");
+}
+
+/// The transition FOV blends in MAGNIFICATION space: perceived zoom is 1/FOV, so a linear FOV
+/// sweep snaps violently at the wide end and crawls at the narrow end. Locked here: mid-blend the
+/// presented FOV sits well BELOW the linear midpoint (the harmonic path), so the zoom rate reads
+/// constant to the eye.
+#[test]
+fn the_mode_blend_zooms_at_a_perceptually_constant_rate() {
+    let heightmap = HeightMap::flat(64, 64, 1.0, 0.0).expect("heightmap");
+    let environment = BattleCameraEnvironment::with_terrain(&heightmap);
+    let subject = CameraSubject::from_snapshot(tank_snapshot([20.0, 0.0, 20.0], 0.0, 0.0), 0.0);
+    let mut camera = BattleCameraController::new(BattleCameraSettings::default());
+    camera.advance([20.0, 0.0, 20.0], 1.0 / 60.0);
+    let tpp = camera.present(&subject, &environment, 1.0 / 60.0);
+
+    camera.set_mode(BattleCameraMode::Sniper);
+    // Land exactly mid-blend (the 0.14 s transition, eased: smoothstep(0.5) = 0.5).
+    let mid = camera.present(&subject, &environment, 0.07);
+    let sniper_fov = camera.sniper_fov_degrees();
+    let linear_mid = (tpp.vertical_fov_degrees + sniper_fov) * 0.5;
+    let harmonic_mid = 2.0 / (1.0 / tpp.vertical_fov_degrees + 1.0 / sniper_fov);
+    assert!(
+        (mid.vertical_fov_degrees - harmonic_mid).abs() < 0.5,
+        "mid-blend FOV must ride the magnification path ({harmonic_mid:.1}), got {:.1}",
+        mid.vertical_fov_degrees
+    );
+    assert!(
+        mid.vertical_fov_degrees < linear_mid - 4.0,
+        "the magnification path sits well below the linear midpoint ({linear_mid:.1})"
+    );
 }
 
 #[test]

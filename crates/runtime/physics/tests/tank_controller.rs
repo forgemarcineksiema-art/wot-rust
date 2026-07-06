@@ -209,6 +209,49 @@ fn tank_collision_blocks_head_on_and_keeps_the_unblocked_axis() {
     assert!((slide.z - previous.z).abs() < 1.0e-6, "z into tank blocked, got {}", slide.z);
 }
 
+/// Two hulls can END UP interpenetrated (a pivot swings the unresolved yaw footprint into a
+/// neighbor; two hulls step into the same space on one tick). From that state the resolver must
+/// let a tank back OUT — rejecting every move deadlocked both tanks for the rest of the battle —
+/// while still refusing moves that grind deeper in.
+#[test]
+fn interpenetrating_hulls_can_back_out_but_not_dig_deeper() {
+    let footprint = TankFootprint { half_width_m: 1.6, half_length_m: 3.2 };
+    // Overlapped start: centres 4 m apart along z, combined half-lengths 6.4 m.
+    let obstacles = [TankObstacle::new(glam::Vec3::new(0.0, 0.0, 4.0), 0.0, footprint)];
+    let previous = glam::Vec3::ZERO;
+
+    let back_out = resolve_tank_collision(
+        previous,
+        glam::Vec3::new(0.0, 0.0, -0.3),
+        0.0,
+        footprint,
+        &obstacles,
+    );
+    assert_eq!(back_out, glam::Vec3::new(0.0, 0.0, -0.3), "backing out must be allowed");
+
+    let deeper = resolve_tank_collision(
+        previous,
+        glam::Vec3::new(0.0, 0.0, 0.3),
+        0.0,
+        footprint,
+        &obstacles,
+    );
+    assert_eq!(deeper, previous, "digging deeper must stay blocked");
+
+    // Repeated back-out ticks fully separate the hulls, after which normal blocking resumes.
+    let mut position = previous;
+    for _ in 0..40 {
+        position = resolve_tank_collision(
+            position,
+            position - glam::Vec3::Z * 0.3,
+            0.0,
+            footprint,
+            &obstacles,
+        );
+    }
+    assert!(position.z < -2.4, "the hull must escape the overlap, got z {}", position.z);
+}
+
 fn cover_box(center: [f32; 3], half_extents_m: [f32; 3]) -> terrain::StaticCoverObject {
     terrain::StaticCoverObject {
         id: "wall".to_string(),

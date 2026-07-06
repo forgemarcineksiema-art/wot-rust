@@ -38,6 +38,16 @@ pub(crate) use chassis_blueprint::{
     blueprint_deck_details, blueprint_hull, blueprint_running_gear,
 };
 pub(crate) use t54::{t54_hull, t54_turret_front};
+
+/// The static belt band for a legacy-animated vehicle: the same wrapped band the blueprint fleet
+/// bakes (top/bottom runs + end wraps), built from the authored [`crate::legacy_tracks`] table.
+/// The moving parts — wheels, sprocket, idler, shoe links — are instanced at render time, exactly
+/// like the blueprint fleet; the fused wheel/box gear this replaces is gone.
+pub(crate) fn legacy_track_band(kind: VehicleKind) -> GeometryMesh {
+    let track = crate::legacy_tracks::legacy_track_shape(kind)
+        .expect("legacy_track_band is only called for vehicles with an authored legacy track");
+    blueprint_running_gear(&track)
+}
 pub(crate) use turret_fittings::{
     add_broad_mantlet_socket, add_cupola, add_mantlet_socket, add_t54_mantlet_socket,
     add_turret_ring, cast_turret_shell,

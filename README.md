@@ -25,7 +25,8 @@ cargo fmt --all -- --check
 cargo bench --workspace --no-run
 ./scripts/verify.ps1
 cargo run -p server -- --max-ticks 10
-cargo run -p client
+cargo run --release -p client   # play in release: a 14-tank battle needs the optimized build
+cargo run -p client             # dev build (opt-level 1): fine for quick checks
 cargo run -p tools -- make-flat-heightmap --output assets/generated/flat.heightmap.json
 cargo run -p tools -- generate-map --map prokhorovka-hill-252-2 --output assets/maps/prokhorovka_hill_252_2.terrain.json
 cargo run -p tools -- generate-vehicle --vehicle t54-1951 --output assets/vehicles/t54_1951.vehicle.json

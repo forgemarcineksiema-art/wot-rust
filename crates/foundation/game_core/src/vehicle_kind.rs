@@ -27,6 +27,34 @@ impl Nation {
     }
 }
 
+/// The game's three technology eras — the matchmaking bracket, replacing tier spread entirely:
+/// a battle is one era, never a mix. Era is derived from [`VehicleKind`], never serialized,
+/// so appending eras (and vehicles) later stays wire-compatible.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum Era {
+    /// Early-war designs (1939-42). No playable vehicles yet — reserved by the roadmap.
+    EarlyWar,
+    /// Late-war heavy metal (1943-45): the Tiger/Panther family.
+    LateWar,
+    /// Early Cold War (1946-55): T-54, IS-3 and their contemporaries.
+    ColdWar,
+}
+
+impl Era {
+    pub fn label(self) -> &'static str {
+        match self {
+            Era::EarlyWar => "Era I",
+            Era::LateWar => "Era II",
+            Era::ColdWar => "Era III",
+        }
+    }
+
+    /// The production roster restricted to this era — the pool a random battle draws from.
+    pub fn playable(self) -> impl Iterator<Item = VehicleKind> {
+        VehicleKind::PLAYABLE.into_iter().filter(move |kind| kind.era() == self)
+    }
+}
+
 /// Stable, semantic vehicle identity shared across simulation, networking, and rendering.
 ///
 /// **The variant order is the wire identity**: `net` serializes this enum's discriminant via
@@ -111,6 +139,21 @@ impl VehicleKind {
         self.spec().has_fixed_casemate()
     }
 
+    /// The technology era this vehicle fights in — the matchmaking bracket. The test-only
+    /// prototype medium is a T-55-shaped stand-in, so it sits with the Cold War park.
+    pub fn era(self) -> Era {
+        match self {
+            VehicleKind::TigerI
+            | VehicleKind::TigerII
+            | VehicleKind::Jagdtiger
+            | VehicleKind::PantherII => Era::LateWar,
+            VehicleKind::PrototypeMedium
+            | VehicleKind::T54_1951
+            | VehicleKind::T55A
+            | VehicleKind::IS3 => Era::ColdWar,
+        }
+    }
+
     /// The historical origin nation of this vehicle — used by the garage carousel and tech tree.
     pub fn nation(self) -> Nation {
         match self {
@@ -193,6 +236,41 @@ mod tests {
                 if kind == VehicleKind::Jagdtiger { 0.0 } else { 0.75 }
             );
         }
+    }
+
+    #[test]
+    fn eras_split_the_park_along_the_historical_generation_gap() {
+        // The whole Tiger/Panther family fights in Era II; the postwar Soviet park in Era III.
+        for kind in [
+            VehicleKind::TigerI,
+            VehicleKind::TigerII,
+            VehicleKind::Jagdtiger,
+            VehicleKind::PantherII,
+        ] {
+            assert_eq!(kind.era(), Era::LateWar, "{kind:?}");
+        }
+        for kind in [VehicleKind::T54_1951, VehicleKind::T55A, VehicleKind::IS3] {
+            assert_eq!(kind.era(), Era::ColdWar, "{kind:?}");
+        }
+    }
+
+    #[test]
+    fn every_populated_era_fields_at_least_two_playable_vehicles() {
+        // A one-vehicle era would put clone armies on both teams AND leave the enemy roster
+        // with zero variety; the roadmap fills Era I before any vehicle claims it.
+        for era in [Era::EarlyWar, Era::LateWar, Era::ColdWar] {
+            let pool = era.playable().count();
+            assert!(pool == 0 || pool >= 2, "{era:?} fields {pool} vehicle(s)");
+        }
+        assert!(Era::LateWar.playable().count() >= 2);
+        assert!(Era::ColdWar.playable().count() >= 2);
+    }
+
+    #[test]
+    fn era_labels_read_as_the_three_brackets() {
+        assert_eq!(Era::EarlyWar.label(), "Era I");
+        assert_eq!(Era::LateWar.label(), "Era II");
+        assert_eq!(Era::ColdWar.label(), "Era III");
     }
 
     #[test]
