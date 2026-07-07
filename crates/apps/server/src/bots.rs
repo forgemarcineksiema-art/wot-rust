@@ -9,7 +9,10 @@ use crate::bot_aim::{BotFiringSolution, solve_firing_solution};
 use crate::bot_combat::{
     bot_combat_command, bot_nearest_engageable_enemy, bot_target_still_engageable, find_tank,
 };
-use crate::bot_routes::{BotPosture, bot_posture, bot_route_command, seed_route_index};
+use crate::bot_routes::{
+    BotPosture, ROUTE_REPLAN_INTERVAL_TICKS, RoutePlan, bot_posture, bot_route_command,
+    seed_route_index,
+};
 
 /// How little per-tick progress counts as "not moving" while the bot commands forward drive
 /// (0.01 m/tick = 0.6 m/s at 60 Hz — well under the slowest route crawl).
@@ -33,6 +36,12 @@ const SIDESTEP_TICKS: u32 = 120;
 /// all 13 bots think in the same tick — the difference between a level cost and a spike.
 const TARGET_RESELECT_INTERVAL_TICKS: u64 = 6;
 const AIM_SOLVE_INTERVAL_TICKS: u64 = 3;
+/// Cold acquisition (no target held at all) runs on this short stagger instead of every tick,
+/// so first contact spreads its raycast burst over a few ticks instead of stacking the whole
+/// roster's sweeps onto the same tick as the spotting recompute. ≤ 50 ms of reaction delay —
+/// human, and invisible next to the turret slew time. A bot whose target just DIED still swaps
+/// hot (see `bot_current_target`).
+const ACQUIRE_INTERVAL_TICKS: u64 = 3;
 
 /// Ticks of shooting at one target with its hit points unmoved before the duel is declared
 /// futile (12 s — a full reload cycle and then some of shells eating a crest or a bank).
@@ -89,6 +98,9 @@ struct BotAgent {
     /// A hit from a gun this bot cannot see: the world-yaw bearing of the strike point on its
     /// own hull and the ticks left of turning to face it. See [`THREAT_FACE_TICKS`].
     threat: Option<(f32, u32)>,
+    /// The cached water-detour plan; replanned on [`ROUTE_REPLAN_INTERVAL_TICKS`] or when the
+    /// objective changes. See `bot_routes::RoutePlan`.
+    route_plan: Option<RoutePlan>,
 }
 
 impl BotAgent {
@@ -109,6 +121,7 @@ impl BotAgent {
             sidestep_ticks: 0,
             escape_left,
             threat: None,
+            route_plan: None,
         }
     }
 }
@@ -270,7 +283,15 @@ fn bot_command_for_tank(
         return bot_face_threat_command(tank, bearing);
     }
     let posture = agent.posture;
-    let command = bot_route_command(&mut agent.route_index, posture, tank, battlefield);
+    let replan_due = cadence_due(tick, tank.id, ROUTE_REPLAN_INTERVAL_TICKS);
+    let command = bot_route_command(
+        &mut agent.route_index,
+        &mut agent.route_plan,
+        replan_due,
+        posture,
+        tank,
+        battlefield,
+    );
     // Stall detection guards MOVEMENT intent only. An overwatch bot holding its shelf (and the
     // slow on-station pivot) stands still on purpose — without this gate the hold would read as
     // "stuck" every 1.5 s and the bot would bounce off its own position forever.
@@ -326,6 +347,12 @@ fn bot_unstuck_command(agent: &mut BotAgent, tank: &TankState) -> Option<TankCom
 /// re-selection (the only per-bot LOS raycasts) on the reselect cadence or the moment the
 /// cache fails. Full selection every tick was the single hottest per-tick cost in a 7v7 —
 /// up to seven 400 m raycasts per bot per tick, duplicating what spotting already knew.
+///
+/// Acquisition is two-speed. A bot that JUST lost its target swaps hot, same tick — a fighting
+/// crew shifts to the next threat it already sees, and mass same-tick losses are rare. COLD
+/// acquisition (no engagement at all) rides its own short stagger: before first contact every
+/// cache is empty, so the moment a spotting recompute lit up both teams, all 13 bots used to
+/// fire their full raycast sweeps on that very tick — the recompute's own most expensive tick.
 fn bot_current_target<'a>(
     agent: &mut BotAgent,
     tick: u64,
@@ -336,11 +363,17 @@ fn bot_current_target<'a>(
     // The futile hold: this bot walked away from that duel — the held enemy is out of the
     // candidate pool entirely, so a second visible enemy can still be fought.
     let held = agent.futile_hold.map(|(id, _)| id);
+    let had_target = agent.target.is_some();
     let cached = agent
         .target
         .and_then(|id| find_tank(tanks, id))
         .filter(|target| Some(target.id) != held && bot_target_still_engageable(tank, target));
-    let target = if cached.is_none() || cadence_due(tick, tank.id, TARGET_RESELECT_INTERVAL_TICKS) {
+    let select_due = if cached.is_some() {
+        cadence_due(tick, tank.id, TARGET_RESELECT_INTERVAL_TICKS)
+    } else {
+        had_target || cadence_due(tick, tank.id, ACQUIRE_INTERVAL_TICKS)
+    };
+    let target = if select_due {
         bot_nearest_engageable_enemy(
             tank,
             tanks,
@@ -583,6 +616,41 @@ mod tests {
         let mut roster = BotRoster::new(vec![bot.id], BattleSeed::fixed(7));
         let command = roster.commands(0, std::slice::from_ref(&bot), &battlefield, false, &[])[0].1;
         assert!(command.throttle < 0.0, "a drowning bot reverses out, got {command:?}");
+    }
+
+    /// Cold acquisition rides its own stagger: when a spotting recompute lights up the enemy
+    /// team for everyone at once, the roster's raycast sweeps spread over the next
+    /// ACQUIRE_INTERVAL ticks instead of stacking on the recompute's own tick. Each bot locks
+    /// on within 50 ms — and the existing dead-target test locks that a bot mid-fight still
+    /// swaps hot, same tick.
+    #[test]
+    fn first_contact_acquisition_spreads_across_ticks() {
+        let battlefield = terrain::prokhorovka_hill_252_2();
+        let grounded = |x: f32, z: f32| {
+            Vec3::new(x, battlefield.heightmap.sample_height(x, z).expect("inside the map"), z)
+        };
+        let mask = TeamId(1).spotting_bit() | TeamId(2).spotting_bit();
+        let bots = [
+            tank(1, TeamId(1), grounded(290.0, 300.0), mask),
+            tank(2, TeamId(1), grounded(310.0, 300.0), mask),
+        ];
+        let enemy = tank(9, TeamId(2), grounded(300.0, 380.0), mask);
+        let mut roster = BotRoster::new(vec![bots[0].id, bots[1].id], BattleSeed::fixed(7));
+        let world = [bots[0].clone(), bots[1].clone(), enemy.clone()];
+
+        // Tick 30: neither bot's acquire slice is due ((30+1)%3=1, (30+2)%3=2) — nobody
+        // raycasts on the hypothetical recompute tick itself.
+        roster.commands(30, &world, &battlefield, false, &[]);
+        assert_eq!(roster.agents[0].target, None);
+        assert_eq!(roster.agents[1].target, None);
+
+        // Tick 31: bot 2's slice. Tick 32: bot 1's. Everyone is locked within the interval.
+        roster.commands(31, &world, &battlefield, false, &[]);
+        assert_eq!(roster.agents[0].target, None);
+        assert_eq!(roster.agents[1].target, Some(enemy.id));
+        roster.commands(32, &world, &battlefield, false, &[]);
+        assert_eq!(roster.agents[0].target, Some(enemy.id));
+        assert_eq!(roster.agents[1].target, Some(enemy.id));
     }
 
     /// A bot shot by a gun nobody on its team can see must not die oblivious: it turns hull and

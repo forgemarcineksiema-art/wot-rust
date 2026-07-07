@@ -102,19 +102,20 @@ fn segment_hits_box(from: Vec3, to: Vec3, center: [f32; 3], half: [f32; 3]) -> b
     true
 }
 
-/// A full sight line: terrain unobstructed and no cover box in the way.
+/// A full sight line: terrain unobstructed and no cover box in the way. Cover goes first: a
+/// slab test costs nanoseconds while the terrain walk samples the heightmap every 2 m of the
+/// segment — and in a town fight (Bystra fields ~38 boxes) a building is the common reason a
+/// line is blocked, so the cheap test usually decides.
 pub fn line_of_sight(
     heightmap: Option<&HeightMap>,
     cover: &[StaticCoverObject],
     from: Vec3,
     to: Vec3,
 ) -> bool {
-    if let Some(heightmap) = heightmap
-        && !terrain_clear(heightmap, from, to)
-    {
+    if cover.iter().any(|c| segment_hits_box(from, to, c.center, c.half_extents_m)) {
         return false;
     }
-    !cover.iter().any(|c| segment_hits_box(from, to, c.center, c.half_extents_m))
+    heightmap.is_none_or(|heightmap| terrain_clear(heightmap, from, to))
 }
 
 /// Whether `observer`'s commander eye has a clear line to any of `target`'s sample points — the
