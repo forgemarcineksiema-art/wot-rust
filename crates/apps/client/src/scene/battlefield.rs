@@ -30,28 +30,139 @@ pub fn battlefield_scene_mesh(battlefield: &BattlefieldMap) -> (Vec<SceneVertex>
     (vertices, indices)
 }
 
+/// Every visual stays INSIDE the collision AABB — a building may look like walls and a roof,
+/// but nothing it shows can be shot through or hidden behind that the sim box does not honor
+/// (locked by `cover_visuals_never_leave_the_collision_box`).
 fn append_cover_box(
     vertices: &mut Vec<SceneVertex>,
     indices: &mut Vec<u32>,
     cover: &StaticCoverObject,
 ) {
+    let center = Vec3::from_array(cover.center);
+    let half = Vec3::from_array(cover.half_extents_m);
+    match cover.kind {
+        StaticCoverKind::FarmBuilding => append_building(vertices, indices, cover, center, half),
+        StaticCoverKind::RailCover => {
+            // Stone: walls, parapets, log revetments — a cool masonry tone.
+            push_oriented_box(vertices, indices, center, half, Mat3::IDENTITY, [0.40, 0.38, 0.34]);
+        }
+        StaticCoverKind::TreeLine => {
+            // The solid undergrowth mass; real trees (scenery) fill it visually, so the box
+            // itself darkens into their shadow instead of competing with the canopies.
+            push_oriented_box(vertices, indices, center, half, Mat3::IDENTITY, [0.11, 0.20, 0.10]);
+        }
+        StaticCoverKind::Wreck => {
+            push_oriented_box(vertices, indices, center, half, Mat3::IDENTITY, [0.25, 0.20, 0.17]);
+        }
+    }
+}
+
+/// A building inside its box: a dark plinth course, plastered walls (palette varied per
+/// building id so the town is a town, not a barracks), and a gable roof whose ridge runs the
+/// long axis — eaves at the box's sides, ridge at the box's top, so the silhouette fills the
+/// collision volume exactly.
+fn append_building(
+    vertices: &mut Vec<SceneVertex>,
+    indices: &mut Vec<u32>,
+    cover: &StaticCoverObject,
+    center: Vec3,
+    half: Vec3,
+) {
+    let (wall, roof) = building_palette(&cover.id);
+    let base_y = center.y - half.y;
+    let eaves_y = base_y + half.y * 2.0 * 0.62;
+    let plinth_y = base_y + half.y * 2.0 * 0.10;
+
+    // Plinth course, then the walls up to the eaves.
     push_oriented_box(
         vertices,
         indices,
-        Vec3::from_array(cover.center),
-        Vec3::from_array(cover.half_extents_m),
+        Vec3::new(center.x, (base_y + plinth_y) * 0.5, center.z),
+        Vec3::new(half.x, (plinth_y - base_y) * 0.5, half.z),
         Mat3::IDENTITY,
-        cover_color(cover.kind),
+        [0.24, 0.22, 0.20],
     );
+    push_oriented_box(
+        vertices,
+        indices,
+        Vec3::new(center.x, (plinth_y + eaves_y) * 0.5, center.z),
+        Vec3::new(half.x, (eaves_y - plinth_y) * 0.5, half.z),
+        Mat3::IDENTITY,
+        wall,
+    );
+    push_gable_roof(vertices, indices, center, half, eaves_y, center.y + half.y, roof);
 }
 
-fn cover_color(kind: StaticCoverKind) -> [f32; 3] {
-    match kind {
-        StaticCoverKind::FarmBuilding => [0.45, 0.33, 0.24],
-        StaticCoverKind::RailCover => [0.30, 0.24, 0.18],
-        StaticCoverKind::TreeLine => [0.16, 0.30, 0.14],
-        StaticCoverKind::Wreck => [0.25, 0.20, 0.17],
+/// The gable: two sloped quads from the eaves rectangle to a ridge line along the long axis,
+/// plus the two triangular gable ends.
+fn push_gable_roof(
+    vertices: &mut Vec<SceneVertex>,
+    indices: &mut Vec<u32>,
+    center: Vec3,
+    half: Vec3,
+    eaves_y: f32,
+    ridge_y: f32,
+    roof: [f32; 3],
+) {
+    let along_x = half.x >= half.z;
+    let (long, short) = if along_x { (half.x, half.z) } else { (half.z, half.x) };
+    let axis = if along_x { Vec3::X } else { Vec3::Z };
+    let side = if along_x { Vec3::Z } else { Vec3::X };
+
+    let ridge_a = Vec3::new(center.x, ridge_y, center.z) + axis * long;
+    let ridge_b = Vec3::new(center.x, ridge_y, center.z) - axis * long;
+    for sign in [-1.0_f32, 1.0] {
+        // The slope on this side of the ridge.
+        let eave_a = Vec3::new(center.x, eaves_y, center.z) + axis * long + side * short * sign;
+        let eave_b = Vec3::new(center.x, eaves_y, center.z) - axis * long + side * short * sign;
+        let normal =
+            (side * sign * (ridge_y - eaves_y) + Vec3::Y * short).normalize_or_zero().to_array();
+        let start = vertices.len() as u32;
+        for point in [eave_a, eave_b, ridge_b, ridge_a] {
+            vertices.push(SceneVertex::new(point.to_array(), normal, roof));
+        }
+        if sign > 0.0 {
+            indices.extend_from_slice(&[start, start + 1, start + 2, start, start + 2, start + 3]);
+        } else {
+            indices.extend_from_slice(&[start, start + 2, start + 1, start, start + 3, start + 2]);
+        }
+        // The gable-end triangle at this end of the ridge.
+        let (ridge_end, outward) = if sign > 0.0 { (ridge_a, axis) } else { (ridge_b, -axis) };
+        let g0 = Vec3::new(ridge_end.x, eaves_y, ridge_end.z) + side * short;
+        let g1 = Vec3::new(ridge_end.x, eaves_y, ridge_end.z) - side * short;
+        let gn = outward.to_array();
+        let gable = vertices.len() as u32;
+        for point in [g0, g1, ridge_end] {
+            vertices.push(SceneVertex::new(point.to_array(), gn, roof));
+        }
+        if sign > 0.0 {
+            indices.extend_from_slice(&[gable, gable + 1, gable + 2]);
+        } else {
+            indices.extend_from_slice(&[gable, gable + 2, gable + 1]);
+        }
     }
+}
+
+/// Deterministic per-building palette from the cover id: plaster/brick walls under tile or
+/// slate roofs. The same id always paints the same house.
+fn building_palette(id: &str) -> ([f32; 3], [f32; 3]) {
+    let mut hash = 0xcbf2_9ce4_8422_2325_u64;
+    for byte in id.bytes() {
+        hash ^= u64::from(byte);
+        hash = hash.wrapping_mul(0x0100_0000_01b3);
+    }
+    const WALLS: [[f32; 3]; 4] = [
+        [0.62, 0.56, 0.46], // warm plaster
+        [0.58, 0.52, 0.48], // grey render
+        [0.52, 0.38, 0.28], // brick
+        [0.60, 0.58, 0.52], // limewash
+    ];
+    const ROOFS: [[f32; 3]; 3] = [
+        [0.42, 0.24, 0.18], // clay tile
+        [0.30, 0.28, 0.30], // slate
+        [0.36, 0.30, 0.22], // weathered shingle
+    ];
+    (WALLS[(hash % 4) as usize], ROOFS[((hash >> 8) % 3) as usize])
 }
 
 /// Build a lit triangle mesh for the whole heightmap, colored by height and slope so
@@ -146,6 +257,33 @@ mod tests {
     use terrain::prokhorovka_hill_252_2;
 
     use super::*;
+
+    /// The other half of the honesty rule: a building may LOOK like walls and a gable roof,
+    /// but no visual vertex may leave the collision AABB — nothing on screen can be shot
+    /// through or hidden behind that the sim box does not honor.
+    #[test]
+    fn cover_visuals_never_leave_the_collision_box() {
+        for map in [prokhorovka_hill_252_2(), terrain::bystra_valley()] {
+            for cover in &map.static_cover {
+                let mut vertices = Vec::new();
+                let mut indices = Vec::new();
+                append_cover_box(&mut vertices, &mut indices, cover);
+                let center = Vec3::from_array(cover.center);
+                let half = Vec3::from_array(cover.half_extents_m);
+                for vertex in &vertices {
+                    let delta = (Vec3::from_array(vertex.position) - center).abs();
+                    assert!(
+                        delta.x <= half.x + 1.0e-3
+                            && delta.y <= half.y + 1.0e-3
+                            && delta.z <= half.z + 1.0e-3,
+                        "cover {} draws outside its collision box at {:?}",
+                        cover.id,
+                        vertex.position
+                    );
+                }
+            }
+        }
+    }
 
     /// Cover is physical for movement, shells, and the camera; an unrendered cover box is an
     /// invisible wall. Locks that the battlefield mesh draws every static cover object.

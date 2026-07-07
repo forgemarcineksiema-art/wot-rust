@@ -150,11 +150,43 @@ fn vs_main(input: VsIn) -> VsOut {
     return out;
 }
 
+// --- Procedural material detail ------------------------------------------------------------
+// The world's albedo used to be one flat vertex colour per surface; these functions break that
+// fill with world-space value noise (stable — anchored to world coordinates, so nothing swims)
+// and give steep faces a horizontal strata pattern so cliffs and cut banks read as rock beds,
+// not smooth paint. Purely multiplicative around 1.0: palettes and lighting stay authored.
+
+fn detail_hash(p: vec2<f32>) -> f32 {
+    return fract(sin(dot(p, vec2<f32>(127.1, 311.7))) * 43758.5453);
+}
+
+fn value_noise(p: vec2<f32>) -> f32 {
+    let i = floor(p);
+    let f = fract(p);
+    let u = f * f * (3.0 - 2.0 * f);
+    let a = detail_hash(i);
+    let b = detail_hash(i + vec2<f32>(1.0, 0.0));
+    let c = detail_hash(i + vec2<f32>(0.0, 1.0));
+    let d = detail_hash(i + vec2<f32>(1.0, 1.0));
+    return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
+
+fn material_detail(world: vec3<f32>, n: vec3<f32>) -> f32 {
+    // Two octaves (~2.5 m patches with ~0.6 m grain) on level ground...
+    let ground = value_noise(world.xz * 0.4) * 0.6 + value_noise(world.xz * 1.7) * 0.4;
+    // ...crossfaded into height-banded strata on steep faces (walls, cliffs, cut banks).
+    let strata = value_noise(vec2<f32>(world.y * 2.2, (world.x + world.z) * 0.15));
+    let steep = clamp(1.0 - n.y, 0.0, 1.0);
+    let detail = mix(ground, strata, steep * 0.7);
+    return 0.92 + detail * 0.16;
+}
+
 @fragment
 fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     let n = normalize(input.normal);
     let shadow = sun_shadow(input.world_pos, n);
     let ao = screen_ao(input.clip);
-    let lit = input.color * scene_radiance(n, shadow) * ao;
+    let albedo = input.color * material_detail(input.world_pos, n);
+    let lit = albedo * scene_radiance(n, shadow) * ao;
     return vec4<f32>(tonemap_aces(apply_fog(lit, input.world_pos)), 1.0);
 }
