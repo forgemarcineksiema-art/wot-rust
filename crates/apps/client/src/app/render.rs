@@ -9,7 +9,7 @@ use winit::window::Window;
 
 use super::{ClientApp, SceneKind};
 use crate::hud::HudVitals;
-use crate::{battlefield_scene_mesh, split_pbr_vehicle_render_frame_on_terrain};
+use crate::split_pbr_vehicle_render_frame_on_terrain;
 
 impl ClientApp {
     /// Remote interpolation phase: how far the fixed-tick clock has advanced from the latest
@@ -41,16 +41,22 @@ impl ClientApp {
         width: u32,
         height: u32,
     ) -> Result<(), RenderError> {
-        // Terrain plus static cover: everything the simulation collides must be visible.
-        let (terrain_vertices, terrain_indices) = battlefield_scene_mesh(&self.battlefield);
-        let mut renderer =
-            WindowRenderer::new(window, width, height, &terrain_vertices, &terrain_indices)?;
+        // Terrain plus static cover: everything the simulation collides must be visible. The
+        // bake lands in the app-lifetime cache, so later garage→battle swaps reuse it instead
+        // of freezing their first battle frame on a rebake.
+        self.ensure_battle_scene_meshes();
+        let meshes = self.battle_scene_meshes.as_ref().expect("ensured above");
+        let mut renderer = WindowRenderer::new(
+            window,
+            width,
+            height,
+            &meshes.terrain_vertices,
+            &meshes.terrain_indices,
+        )?;
         let atlas = crate::hud::font::atlas();
         renderer.set_hud_font_atlas(atlas.width(), atlas.height(), atlas.coverage());
         // The battle scene starts loaded, so its river (if the map has one) starts loaded too.
-        let (water_vertices, water_indices) =
-            crate::scene::water::battlefield_water_mesh(&self.battlefield);
-        renderer.set_water(&water_vertices, &water_indices);
+        renderer.set_water(&meshes.water_vertices, &meshes.water_indices);
         self.renderer = Some(renderer);
         // The renderer is born holding generic battlefield defaults; the app is born in battle,
         // so dress it in the actual match's weather right away.

@@ -57,6 +57,33 @@ pub(crate) enum SceneKind {
     Battle,
 }
 
+/// The battle scene's baked CPU meshes — see `ClientApp::battle_scene_meshes`.
+pub(crate) struct BattleSceneMeshes {
+    pub(crate) terrain_vertices: Vec<renderer_api::SceneVertex>,
+    pub(crate) terrain_indices: Vec<u32>,
+    pub(crate) water_vertices: Vec<renderer_api::WaterVertex>,
+    pub(crate) water_indices: Vec<u32>,
+}
+
+impl ClientApp {
+    /// Bake the battle scene's meshes if they are not cached yet. Idempotent; the heavy CPU
+    /// work (the full 1000 m terrain + cover + backdrop bake) runs at most once per app.
+    pub(crate) fn ensure_battle_scene_meshes(&mut self) {
+        if self.battle_scene_meshes.is_some() {
+            return;
+        }
+        let (terrain_vertices, terrain_indices) = crate::battlefield_scene_mesh(&self.battlefield);
+        let (water_vertices, water_indices) =
+            crate::scene::water::battlefield_water_mesh(&self.battlefield);
+        self.battle_scene_meshes = Some(BattleSceneMeshes {
+            terrain_vertices,
+            terrain_indices,
+            water_vertices,
+            water_indices,
+        });
+    }
+}
+
 #[derive(Default)]
 pub(crate) struct InputState {
     forward: bool,
@@ -137,6 +164,13 @@ pub(crate) struct ClientApp {
     reload_ready_age_s: Option<f32>,
     /// Static scene geometry currently uploaded to the renderer (garage hangar vs battlefield).
     current_scene: SceneKind,
+    /// The battle scene's CPU meshes (terrain+cover+backdrop, water), baked lazily ONCE — the
+    /// battlefield never changes within a `ClientApp`. Rebaking them synchronously inside the
+    /// first battle frame of every garage→battle swap froze that frame for hundreds of
+    /// milliseconds on integrated-GPU laptops, and the accumulator then dumped a burst of
+    /// catch-up ticks into the next one. A few MB of CPU residency buys a swap that costs only
+    /// the GPU upload.
+    battle_scene_meshes: Option<BattleSceneMeshes>,
     /// Last known framebuffer size, used to map cursor pixels into clip space for the garage UI.
     viewport: (u32, u32),
     /// Camera mode at the previous presented frame; a change clicks the optics cue.
@@ -224,6 +258,7 @@ impl ClientApp {
             // The renderer is created with the battlefield mesh (see `create_renderer`); the first
             // garage frame swaps in the hangar. Starting at `Garage` here would skip that swap.
             current_scene: SceneKind::Battle,
+            battle_scene_meshes: None,
             viewport: (1280, 720),
             prev_camera_mode: None,
             audio: None,
