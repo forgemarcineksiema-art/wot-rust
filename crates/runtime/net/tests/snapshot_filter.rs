@@ -25,8 +25,13 @@ fn snapshot_filter_keeps_allies_wrecks_and_spotted_enemies_only() {
     assert_eq!(tank_ids(&filtered), vec![1, 2, 3, 5]);
 }
 
+/// Shells and impacts are world events: a tracer in the air and the dirt a near-miss throws are
+/// visible to everyone standing there, whatever the spotting state of the gun that fired. Locked
+/// here on the worst case — an UNSPOTTED shooter (tank 3 is filtered out of the viewer's tank
+/// list) whose round and impact still replicate, so incoming fire is never silent and a shell
+/// never vanishes mid-flight when its owner's spotted hold expires.
 #[test]
-fn snapshot_filter_drops_shells_and_impacts_from_hidden_owners() {
+fn snapshot_filter_replicates_every_shell_and_impact_even_from_hidden_owners() {
     let snapshot = Snapshot {
         server_tick: 12,
         tanks: vec![
@@ -41,10 +46,16 @@ fn snapshot_filter_drops_shells_and_impacts_from_hidden_owners() {
 
     let filtered = snapshot.filtered_for_viewer(TankId(1));
 
-    assert_eq!(filtered.shells.iter().map(|shell| shell.owner.0).collect::<Vec<_>>(), vec![1, 2]);
+    assert_eq!(tank_ids(&filtered), vec![1, 2], "the hidden shooter's TANK stays filtered");
+    assert_eq!(
+        filtered.shells.iter().map(|shell| shell.owner.0).collect::<Vec<_>>(),
+        vec![1, 2, 3],
+        "every shell in the air replicates, including the hidden shooter's"
+    );
     assert_eq!(
         filtered.shell_impacts.iter().map(|impact| impact.owner.0).collect::<Vec<_>>(),
-        vec![1, 2]
+        vec![1, 2, 3],
+        "every impact replicates - a near-miss from an unspotted gun still throws dirt"
     );
 }
 
