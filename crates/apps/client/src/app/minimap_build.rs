@@ -34,6 +34,26 @@ fn sample_relief(heightmap: &HeightMap, extent: [f32; 2]) -> Vec<f32> {
     heights
 }
 
+/// The minimap's static layers — terrain relief and cover boxes — computed ONCE per
+/// battlefield. The relief never changes during a match; resampling and renormalising it
+/// every rendered frame was pure waste (the audit's cheapest isolated win).
+pub(super) fn minimap_static_layers(
+    battlefield: &terrain::BattlefieldMap,
+) -> (Vec<f32>, Vec<MinimapBox>) {
+    let extent = battlefield.heightmap.extent_m();
+    let extent_m = [extent[0].max(1.0), extent[1].max(1.0)];
+    let relief = sample_relief(&battlefield.heightmap, extent_m);
+    let cover = battlefield
+        .static_cover
+        .iter()
+        .map(|c| MinimapBox {
+            center_xz: [c.center[0], c.center[2]],
+            half_xz: [c.half_extents_m[0], c.half_extents_m[2]],
+        })
+        .collect();
+    (relief, cover)
+}
+
 impl ClientApp {
     /// Build the minimap for this frame. Enemy blips are gated to those the player's team has
     /// spotted (LOS v1), the same visibility bit that gates floating HP bars. Returns `None` before
@@ -63,24 +83,14 @@ impl ClientApp {
             .map(xz)
             .collect();
 
-        let heightmap = &self.battlefield.heightmap;
-        let extent = heightmap.extent_m();
+        let extent = self.battlefield.heightmap.extent_m();
         let extent_m = [extent[0].max(1.0), extent[1].max(1.0)];
-        let cover = self
-            .battlefield
-            .static_cover
-            .iter()
-            .map(|c| MinimapBox {
-                center_xz: [c.center[0], c.center[2]],
-                half_xz: [c.half_extents_m[0], c.half_extents_m[2]],
-            })
-            .collect();
 
         // Map yaw convention: heading 0 points up (+world z), so yaw = atan2(x, z).
         Some(MinimapModel {
             extent_m,
-            relief: sample_relief(heightmap, extent_m),
-            cover,
+            relief: self.minimap_relief.clone(),
+            cover: self.minimap_cover.clone(),
             player_xz: [player.translation[0], player.translation[2]],
             player_heading_rad: player.hull_yaw_rad,
             view_yaw_rad: camera_forward_xz[0].atan2(camera_forward_xz[1]),

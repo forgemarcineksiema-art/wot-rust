@@ -71,20 +71,25 @@ pub struct SceneObjectDraw {
 
 pub fn frame_instances(frame: &RenderFrame) -> (Vec<SceneInstance>, Vec<SceneObjectDraw>) {
     let mut batches = Vec::<SceneObjectBatch>::new();
+    // Keyed batch lookup instead of a linear scan per object: with thousands of running-gear
+    // instances over 100+ (mesh, material) batches the old find() was O(objects × batches)
+    // every frame. First-seen batch order is preserved, so draws come out identical.
+    let mut batch_index =
+        std::collections::HashMap::<(u32, u32), usize>::with_capacity(frame.objects.len().min(256));
     for object in &frame.objects {
         let [r, g, b] = object.tint;
         let instance = SceneInstance { model: object.transform, tint: [r, g, b, 1.0] };
-        if let Some(batch) = batches
-            .iter_mut()
-            .find(|batch| batch.mesh == object.mesh && batch.material == object.material)
-        {
-            batch.instances.push(instance);
-        } else {
-            batches.push(SceneObjectBatch {
-                mesh: object.mesh,
-                material: object.material,
-                instances: vec![instance],
-            });
+        let key = (object.mesh.0, object.material.0);
+        match batch_index.get(&key) {
+            Some(&index) => batches[index].instances.push(instance),
+            None => {
+                batch_index.insert(key, batches.len());
+                batches.push(SceneObjectBatch {
+                    mesh: object.mesh,
+                    material: object.material,
+                    instances: vec![instance],
+                });
+            }
         }
     }
 

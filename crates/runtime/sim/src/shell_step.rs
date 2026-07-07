@@ -21,6 +21,11 @@ pub(crate) fn step_shells(
 ) {
     let dt = context.dt_seconds;
     let mut index = 0;
+    // Scratch target/blocker splits reused across every shell this tick — the split changes
+    // per shell (ownership decides who is damageable), but the buffers need not be reallocated
+    // ten times a tick for it.
+    let mut targets: Vec<TraceTank> = Vec::new();
+    let mut blockers: Vec<TraceTank> = Vec::new();
     while index < shells.len() {
         let previous = shells[index].position;
         let drag_per_s = shells[index].shell.drag_per_s();
@@ -30,7 +35,7 @@ pub(crate) fn step_shells(
         shells[index].age_seconds += dt;
         let segment_distance = shells[index].position.distance(previous);
 
-        let (targets, blockers) = trace_split(&shells[index], tanks);
+        trace_split_into(&shells[index], tanks, &mut targets, &mut blockers);
         let world = ShellTraceWorld {
             tanks: &targets,
             blockers: &blockers,
@@ -152,10 +157,15 @@ fn step_unhit_shell(
     }
 }
 
-fn trace_split(shell: &ShellState, tanks: &[TankState]) -> (Vec<TraceTank>, Vec<TraceTank>) {
+fn trace_split_into(
+    shell: &ShellState,
+    tanks: &[TankState],
+    targets: &mut Vec<TraceTank>,
+    blockers: &mut Vec<TraceTank>,
+) {
+    targets.clear();
+    blockers.clear();
     let owner_team = tanks.iter().find(|tank| tank.id == shell.owner).map(|tank| tank.team);
-    let mut targets = Vec::new();
-    let mut blockers = Vec::new();
     for tank in tanks {
         if tank.id == shell.owner {
             continue;
@@ -173,5 +183,4 @@ fn trace_split(shell: &ShellState, tanks: &[TankState]) -> (Vec<TraceTank>, Vec<
             blockers.push(trace);
         }
     }
-    (targets, blockers)
 }
