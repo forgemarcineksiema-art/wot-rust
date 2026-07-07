@@ -166,11 +166,12 @@ fn interpolated_turret_takes_the_shortest_arc_across_the_pi_wrap() {
 fn predictor_stays_in_lockstep_with_the_authoritative_server_under_steering() {
     use net::ClientInputCommand;
     use server::{LocalAuthoritativeServer, ServerTickConfig};
-    use terrain::prokhorovka_hill_252_2;
 
     let mut server = LocalAuthoritativeServer::new(ServerTickConfig::default());
     let player = server.player_tank();
-    let battlefield = prokhorovka_hill_252_2();
+    // The predictor must walk the SAME battlefield the server simulates — map and water both.
+    // (This test hardcoded Prokhorovka and drifted 9 m the day MapId::default() became Bystra.)
+    let battlefield = server.map_id().battlefield();
 
     let seed = server
         .latest_snapshot()
@@ -179,6 +180,7 @@ fn predictor_stays_in_lockstep_with_the_authoritative_server_under_steering() {
         .find(|tank| tank.tank_id == player)
         .expect("player in seed snapshot");
     let mut predictor = LocalPredictor::new(&TankSpec::t55a());
+    predictor.set_water(battlefield.water);
     predictor.sync_to(&seed);
 
     // Hard, sustained steering is the worst case for prediction/authoritative divergence.
