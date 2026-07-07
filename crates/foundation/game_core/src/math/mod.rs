@@ -159,6 +159,17 @@ pub fn wrap_angle(radians: f32) -> f32 {
     if wrapped > std::f32::consts::PI { wrapped - std::f32::consts::TAU } else { wrapped }
 }
 
+/// One splitmix64 step: fold `value` (with the golden-ratio increment) into a well-mixed `u64`.
+/// The shared deterministic hash for the whole workspace — aim dispersion, FX spread, and the
+/// turret pop-off all seed reproducible variation from it, so it lives here rather than being
+/// copy-pasted per crate.
+pub fn splitmix64(value: u64) -> u64 {
+    let mut z = value.wrapping_add(0x9E37_79B9_7F4A_7C15);
+    z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+    z ^ (z >> 31)
+}
+
 /// Shortest-arc interpolation between two angles, so a wrap across +/-PI does not spin the long
 /// way round between the endpoints.
 pub fn lerp_angle(a: f32, b: f32, t: f32) -> f32 {

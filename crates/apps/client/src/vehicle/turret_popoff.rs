@@ -5,6 +5,7 @@
 //! flying turret ignores the wreck's still-replicated turret yaw entirely (its transform is
 //! computed here, not posed from the snapshot), which freezes the turret at detonation as it must.
 
+use game_core::math::splitmix64;
 use game_core::{MountFrames, TankId, VehicleKind};
 use glam::{Mat3, Mat4, Vec3};
 use terrain::HeightMap;
@@ -119,13 +120,6 @@ impl TurretPopoff {
 
 fn origin_above(origin_y: f32, rest_y: f32) -> f32 {
     origin_y - rest_y
-}
-
-fn splitmix64(seed: u64) -> u64 {
-    let mut z = seed.wrapping_add(0x9E37_79B9_7F4A_7C15);
-    z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-    z ^ (z >> 31)
 }
 
 /// Advance the seed and map it to `[0, 1)`.

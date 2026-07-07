@@ -79,6 +79,9 @@ fn battered_variation() -> VehicleVariation {
             age_s: 0.0,
             kind: DecalKind::Penetration,
             frame: DecalFrame::Hull,
+            // Flat stamp for the budget (no conformal patch): the worst case is the flat 7-stamp
+            // penetration; a conformal patch only replaces the hard hole, it does not add layers.
+            patch: None,
         });
     }
     variation
