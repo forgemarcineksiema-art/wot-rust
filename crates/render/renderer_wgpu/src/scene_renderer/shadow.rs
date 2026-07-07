@@ -66,8 +66,10 @@ impl ShadowResources {
         // The caller resolved the resolution per adapter (see `resolve_shadow_resolution`);
         // clamp to the device limit last so a capped device gets a smaller map — with the
         // texel-derived PCF step and normal offset shrinking with it — never a failed texture.
-        let mut params = SunShadowParams::default();
-        params.resolution = resolution.min(device.limits().max_texture_dimension_2d);
+        let params = SunShadowParams {
+            resolution: resolution.min(device.limits().max_texture_dimension_2d),
+            ..SunShadowParams::default()
+        };
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("sun_shadow_map"),
             size: wgpu::Extent3d {
