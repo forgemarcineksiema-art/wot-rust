@@ -154,8 +154,18 @@ impl SceneRenderer {
             build_vehicle_pipeline(device, color_format, sample_count, &shadow_bgl);
         let ssao = ssao::SsaoResources::new(device, &camera_bgl);
         let placeholder_ao = ssao_pipelines::placeholder_ao_view(device, &ctx.queue);
-        let shadow =
-            shadow::ShadowResources::new(device, &shadow_bgl, &camera_bgl, &placeholder_ao);
+        let shadow_resolution = shadow::resolve_shadow_resolution(
+            renderer_api::SunShadowParams::default().resolution,
+            ctx.adapter.get_info().device_type,
+            std::env::var("WOT_SHADOW_RES").ok().as_deref(),
+        );
+        let shadow = shadow::ShadowResources::new(
+            device,
+            &shadow_bgl,
+            &camera_bgl,
+            &placeholder_ao,
+            shadow_resolution,
+        );
 
         let camera_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("scene_camera"),

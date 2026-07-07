@@ -8,6 +8,29 @@ use crate::scene_resources::SceneInstance;
 
 const SHADOW_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 
+/// The shadow-map edge (texels) this adapter should render: the default 4096 on a discrete GPU,
+/// halved to 2048 on integrated/software adapters. A 4096² Depth32Float map is 64 MB
+/// cleared+stored every frame (even with no occluders) and drives 9 comparison taps per pixel in
+/// both main shaders — one of the fattest slices of a shared-memory GPU's frame, for detail a
+/// 20-30 FPS laptop never resolves. Everything downstream (PCF UV step, normal offset, depth
+/// bias) is texel-derived, so quality degrades smoothly. `WOT_SHADOW_RES=1024|2048|4096`
+/// overrides in both directions.
+pub(crate) fn resolve_shadow_resolution(
+    default: u32,
+    device_type: wgpu::DeviceType,
+    env_override: Option<&str>,
+) -> u32 {
+    if let Some(value) = env_override.and_then(|value| value.trim().parse::<u32>().ok())
+        && matches!(value, 512 | 1024 | 2048 | 4096 | 8192)
+    {
+        return value;
+    }
+    match device_type {
+        wgpu::DeviceType::IntegratedGpu | wgpu::DeviceType::Cpu => (default / 2).max(1024),
+        _ => default,
+    }
+}
+
 pub fn shadow_shader_source() -> &'static str {
     include_str!("../shaders/shadow.wgsl")
 }
@@ -38,11 +61,15 @@ impl ShadowResources {
         shadow_bgl: &wgpu::BindGroupLayout,
         camera_bgl: &wgpu::BindGroupLayout,
         initial_ao_view: &wgpu::TextureView,
+        resolution: u32,
     ) -> Self {
-        // Capability fallback: a device capped below the requested resolution gets a smaller map
-        // (the texel-derived PCF step and normal offset shrink with it), never a failed texture.
-        let mut params = SunShadowParams::default();
-        params.resolution = params.resolution.min(device.limits().max_texture_dimension_2d);
+        // The caller resolved the resolution per adapter (see `resolve_shadow_resolution`);
+        // clamp to the device limit last so a capped device gets a smaller map — with the
+        // texel-derived PCF step and normal offset shrinking with it — never a failed texture.
+        let params = SunShadowParams {
+            resolution: resolution.min(device.limits().max_texture_dimension_2d),
+            ..SunShadowParams::default()
+        };
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("sun_shadow_map"),
             size: wgpu::Extent3d {
@@ -182,4 +209,39 @@ fn build_shadow_pipeline(
         multiview_mask: None,
         cache: None,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::resolve_shadow_resolution;
+
+    #[test]
+    fn integrated_adapters_halve_the_shadow_map_and_discrete_keep_it() {
+        assert_eq!(resolve_shadow_resolution(4096, wgpu::DeviceType::IntegratedGpu, None), 2048);
+        assert_eq!(resolve_shadow_resolution(4096, wgpu::DeviceType::Cpu, None), 2048);
+        assert_eq!(resolve_shadow_resolution(4096, wgpu::DeviceType::DiscreteGpu, None), 4096);
+        assert_eq!(resolve_shadow_resolution(4096, wgpu::DeviceType::Other, None), 4096);
+        // The halving never drops below a usable 1024 floor.
+        assert_eq!(resolve_shadow_resolution(2048, wgpu::DeviceType::IntegratedGpu, None), 1024);
+    }
+
+    #[test]
+    fn the_env_override_wins_both_ways_and_garbage_is_ignored() {
+        assert_eq!(
+            resolve_shadow_resolution(4096, wgpu::DeviceType::IntegratedGpu, Some("4096")),
+            4096
+        );
+        assert_eq!(
+            resolve_shadow_resolution(4096, wgpu::DeviceType::DiscreteGpu, Some("1024")),
+            1024
+        );
+        assert_eq!(
+            resolve_shadow_resolution(4096, wgpu::DeviceType::DiscreteGpu, Some("3000")),
+            4096
+        );
+        assert_eq!(
+            resolve_shadow_resolution(4096, wgpu::DeviceType::IntegratedGpu, Some("x")),
+            2048
+        );
+    }
 }
