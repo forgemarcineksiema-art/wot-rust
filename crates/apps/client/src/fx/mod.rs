@@ -6,6 +6,8 @@
 mod billboard;
 #[cfg(test)]
 mod budget;
+#[cfg(test)]
+mod contact_lock;
 mod decals;
 mod emitters;
 mod fire;

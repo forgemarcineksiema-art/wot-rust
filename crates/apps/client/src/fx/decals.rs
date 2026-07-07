@@ -5,36 +5,48 @@
 //! FX pass, so a battered tank *looks* battered without recolouring a single submesh.
 
 use game_core::{ArmorFacing, DamageEvent};
-use glam::Vec3;
+use glam::{Mat3, Vec3};
 use net::TankSnapshot;
 use renderer_api::FxVertex;
+use vehicle_geometry::MeshContactIndex;
 
+use crate::vehicle::asset_catalog::VehicleContactIndex;
 use crate::vehicle::pose::VehiclePose;
 use crate::vehicle::variation::{DecalFrame, DecalKind, HitDecal};
 
-/// How far off the plate the quad floats to never z-fight the armor it marks.
-const DECAL_LIFT_M: f32 = 0.05;
+/// How far off the plate the quad floats to never z-fight the armor it marks. Small now the mark
+/// sits on the TRUE surface with the TRUE normal — 6 mm kills z-fighting without visible float.
+const DECAL_LIFT_M: f32 = 0.006;
+/// Start the visual-mesh ray this far back along the shell's heading, ahead of the collision hit,
+/// so it always begins outside the (inset) mesh and enters the real surface.
+const RAY_BACK_OFF_M: f32 = 0.6;
+/// Cast at most this far forward: the shell line only has to cross the collision-to-visual gap.
+const RAY_MAX_LEN_M: f32 = 1.2;
+/// A ray contact this far or more from the collision hit is a different surface, not the gap —
+/// reject it and fall back rather than teleport the mark across the tank.
+const RAY_ACCEPT_M: f32 = 0.35;
+/// When the ray grazes past the inset mesh, snap the mark to the nearest surface within this.
+const NEAREST_SNAP_M: f32 = 0.30;
 
-/// Resolve one replicated shell strike into a decal in the target's local frame. Returns `None`
-/// only when the hit direction degenerates (a corrupt event).
+/// Resolve one replicated shell strike into a decal seated on the target's VISUAL armor. The
+/// gameplay hit lands on the coarse armor volumes (inset from the detailed mesh), so the raw hit
+/// point floats proud of the surface; casting the shell's line against the real mesh — with a
+/// nearest-point snap and an other-frame retry for the turret-ring seam — recovers the true
+/// contact. Falls back through the transmitted plate normal to the old cardinal guess, so it is
+/// never worse than before. Returns `None` only when the hit degenerates (a corrupt event).
 pub(crate) fn decal_from_damage_event(
     event: &DamageEvent,
     target: &TankSnapshot,
+    contact: Option<&VehicleContactIndex>,
 ) -> Option<HitDecal> {
     let pose = pose_of(target);
     let facing = event.armor_zone.facing();
-    let frame = match facing {
-        ArmorFacing::TurretFront | ArmorFacing::TurretSide | ArmorFacing::TurretRear => {
-            DecalFrame::Turret
-        }
-        _ => DecalFrame::Hull,
-    };
-    let (origin, basis) = match frame {
-        DecalFrame::Hull => (pose.hull_translation(), pose.hull_basis()),
-        DecalFrame::Turret => (pose.turret_translation(), pose.turret_basis()),
-    };
-    let local = basis.transpose() * (event.hit_position - origin);
-    if !local.is_finite() {
+    let primary = frame_for_facing(facing);
+
+    let seat = seat_on_visual_mesh(event, &pose, primary, contact)
+        .unwrap_or_else(|| seat_by_fallback(event, &pose, primary, facing));
+
+    if !seat.local_position.is_finite() || !seat.local_normal.is_finite() {
         return None;
     }
     let kind = if event.penetrated {
@@ -50,13 +62,116 @@ pub(crate) fn decal_from_damage_event(
         DecalKind::Gouge => 0.14,
     };
     Some(HitDecal {
-        local_position: local.to_array(),
-        local_normal: local_facing_normal(facing, local.x).to_array(),
+        local_position: seat.local_position.to_array(),
+        local_normal: seat.local_normal.to_array(),
         radius,
         age_s: 0.0,
         kind,
-        frame,
+        frame: seat.frame,
     })
+}
+
+/// A resolved decal seat: where the mark sits and which way it faces, in a chosen rotating frame.
+struct DecalSeat {
+    local_position: Vec3,
+    local_normal: Vec3,
+    frame: DecalFrame,
+}
+
+fn frame_for_facing(facing: ArmorFacing) -> DecalFrame {
+    match facing {
+        ArmorFacing::TurretFront | ArmorFacing::TurretSide | ArmorFacing::TurretRear => {
+            DecalFrame::Turret
+        }
+        _ => DecalFrame::Hull,
+    }
+}
+
+fn frame_basis(pose: &VehiclePose, frame: DecalFrame) -> (Vec3, Mat3) {
+    match frame {
+        DecalFrame::Hull => (pose.hull_translation(), pose.hull_basis()),
+        DecalFrame::Turret => (pose.turret_translation(), pose.turret_basis()),
+    }
+}
+
+fn frame_index(contact: &VehicleContactIndex, frame: DecalFrame) -> &MeshContactIndex {
+    match frame {
+        DecalFrame::Hull => &contact.hull,
+        DecalFrame::Turret => &contact.turret,
+    }
+}
+
+/// Cast the shell line against the visual mesh, trying the zone's frame first and the other frame
+/// second (the turret-ring seam can zone a hull-lip hit as turret, or vice versa).
+fn seat_on_visual_mesh(
+    event: &DamageEvent,
+    pose: &VehiclePose,
+    primary: DecalFrame,
+    contact: Option<&VehicleContactIndex>,
+) -> Option<DecalSeat> {
+    let contact = contact?;
+    let direction = event.shell_direction;
+    if direction.length_squared() < 1.0e-6 {
+        return None;
+    }
+    let other = match primary {
+        DecalFrame::Hull => DecalFrame::Turret,
+        DecalFrame::Turret => DecalFrame::Hull,
+    };
+    seat_in_frame(event, pose, primary, frame_index(contact, primary), direction)
+        .or_else(|| seat_in_frame(event, pose, other, frame_index(contact, other), direction))
+}
+
+fn seat_in_frame(
+    event: &DamageEvent,
+    pose: &VehiclePose,
+    frame: DecalFrame,
+    index: &MeshContactIndex,
+    world_direction: Vec3,
+) -> Option<DecalSeat> {
+    let (origin, basis) = frame_basis(pose, frame);
+    let inv = basis.transpose();
+    let local_hit = inv * (event.hit_position - origin);
+    let local_dir = (inv * world_direction).normalize_or_zero();
+    if !local_hit.is_finite() || local_dir == Vec3::ZERO {
+        return None;
+    }
+    // Ray from just outside the surface, along the shell, accepting only a contact inside the
+    // collision-to-visual gap; otherwise snap to the nearest surface.
+    let ray_origin = local_hit - local_dir * RAY_BACK_OFF_M;
+    let contact = index
+        .raycast(ray_origin, local_dir, RAY_MAX_LEN_M)
+        .filter(|hit| hit.position.distance(local_hit) <= RAY_ACCEPT_M)
+        .or_else(|| index.nearest_point(local_hit, NEAREST_SNAP_M))?;
+
+    // Face the mark outward, toward the incoming shell.
+    let mut normal = contact.normal.normalize_or_zero();
+    if normal == Vec3::ZERO {
+        return None;
+    }
+    if normal.dot(local_dir) > 0.0 {
+        normal = -normal;
+    }
+    Some(DecalSeat { local_position: contact.position, local_normal: normal, frame })
+}
+
+/// No visual-mesh contact: keep the mark at the collision hit and orient it by the transmitted
+/// plate normal (v19), or — for a pre-v19 event that carries none — the old cardinal facing.
+fn seat_by_fallback(
+    event: &DamageEvent,
+    pose: &VehiclePose,
+    frame: DecalFrame,
+    facing: ArmorFacing,
+) -> DecalSeat {
+    let (origin, basis) = frame_basis(pose, frame);
+    let inv = basis.transpose();
+    let local = inv * (event.hit_position - origin);
+    let local_normal = if event.plate_normal.length_squared() > 1.0e-6 {
+        (inv * event.plate_normal).normalize_or_zero()
+    } else {
+        local_facing_normal(facing, local.x)
+    };
+    DecalSeat { local_position: local, local_normal, frame }
 }
 
 /// Outward plate normal in the local frame of the zone's facing. Both hull and turret frames
@@ -259,8 +374,9 @@ mod tests {
     fn a_decal_round_trips_ingest_and_render_back_to_the_hit_point() {
         let tank = target(0.7, 0.0);
         let hit = Vec3::new(41.5, 2.8, 61.0);
-        let decal = decal_from_damage_event(&event(hit, ArmorZone::HullSide, true, false), &tank)
-            .expect("decal resolves");
+        let decal =
+            decal_from_damage_event(&event(hit, ArmorZone::HullSide, true, false), &tank, None)
+                .expect("decal resolves");
 
         let mut vertices = Vec::new();
         append_decal_quads(&mut vertices, &[decal], &tank);
@@ -285,9 +401,12 @@ mod tests {
     fn turret_marks_traverse_with_the_turret_while_hull_marks_stay() {
         let still = target(0.0, 0.0);
         let hit = Vec3::new(40.0, 3.6, 61.2); // on the turret front, ahead of the ring
-        let decal =
-            decal_from_damage_event(&event(hit, ArmorZone::TurretFront, false, false), &still)
-                .expect("decal resolves");
+        let decal = decal_from_damage_event(
+            &event(hit, ArmorZone::TurretFront, false, false),
+            &still,
+            None,
+        )
+        .expect("decal resolves");
         assert_eq!(decal.frame, DecalFrame::Turret);
 
         // Re-render the same decal with the turret slewed 90 degrees: the mark must move.
@@ -303,6 +422,7 @@ mod tests {
         let hull_decal = decal_from_damage_event(
             &event(Vec3::new(41.0, 2.4, 60.0), ArmorZone::HullSide, false, false),
             &still,
+            None,
         )
         .expect("hull decal");
         let mut hull_zero = Vec::new();
@@ -320,13 +440,14 @@ mod tests {
     fn kinds_map_to_hole_scuff_and_gouge_with_correct_permanence() {
         let tank = target(0.0, 0.0);
         let hit = Vec3::new(40.0, 2.4, 62.0);
-        let hole = decal_from_damage_event(&event(hit, ArmorZone::UpperGlacis, true, false), &tank)
-            .unwrap();
+        let hole =
+            decal_from_damage_event(&event(hit, ArmorZone::UpperGlacis, true, false), &tank, None)
+                .unwrap();
         let scuff =
-            decal_from_damage_event(&event(hit, ArmorZone::UpperGlacis, false, false), &tank)
+            decal_from_damage_event(&event(hit, ArmorZone::UpperGlacis, false, false), &tank, None)
                 .unwrap();
         let gouge =
-            decal_from_damage_event(&event(hit, ArmorZone::UpperGlacis, false, true), &tank)
+            decal_from_damage_event(&event(hit, ArmorZone::UpperGlacis, false, true), &tank, None)
                 .unwrap();
         assert_eq!(hole.kind, DecalKind::Penetration);
         assert_eq!(scuff.kind, DecalKind::Scuff);

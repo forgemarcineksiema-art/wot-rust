@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, HashMap};
+use std::sync::Arc;
 
 use game_core::VehicleKind;
 use glam::Vec3;
@@ -8,8 +9,8 @@ use renderer_api::{
 };
 use vehicle_forge::authoritative_baked_vehicle;
 use vehicle_geometry::{
-    GeometryMesh, RunningGearKinematics, SubmeshKind, idler_unit_mesh, road_wheel_unit_mesh,
-    sprocket_unit_mesh, swing_arm_unit_mesh, track_link_unit_mesh,
+    GeometryMesh, MeshContactIndex, RunningGearKinematics, SubmeshKind, idler_unit_mesh,
+    road_wheel_unit_mesh, sprocket_unit_mesh, swing_arm_unit_mesh, track_link_unit_mesh,
 };
 
 use super::pbr_mesh::vehicle_submesh_vertices;
@@ -22,8 +23,21 @@ pub struct VehicleAssetCatalog {
     pub(crate) materials: Vec<VehicleMaterialDescriptor>,
     pub(crate) material_handles: HashMap<VehicleKind, MaterialHandle>,
     pub(crate) vehicles: HashMap<VehicleKind, VehicleAssetEntry>,
+    /// Per-kind visual-mesh contact indices for seating impact marks flush on the armor. Built
+    /// once alongside the render meshes and shared (the mesh is one per kind), so the ingest path
+    /// borrows it cheaply; the `Arc` lets a hit resolve without holding the catalog borrow.
+    contact_indices: HashMap<VehicleKind, Arc<VehicleContactIndex>>,
     pending_meshes: Vec<(MeshHandle, VehicleMeshAsset)>,
     pub(crate) pending_materials: Vec<(MaterialHandle, VehicleMaterialFamilies)>,
+}
+
+/// The hull and turret contact indices for one vehicle kind, each in its own decal-local frame
+/// (hull about the ground origin, turret about the ring) so a query lines up with how the client
+/// stores and poses the mark.
+#[derive(Debug)]
+pub struct VehicleContactIndex {
+    pub hull: MeshContactIndex,
+    pub turret: MeshContactIndex,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -56,6 +70,13 @@ impl VehicleAssetCatalog {
         self.vehicles.len()
     }
 
+    /// The visual-mesh contact index for a kind, if its assets have been built (they are, for
+    /// every playable vehicle, by `prebake_playable_vehicle_assets` at startup). Cloned `Arc` so
+    /// the caller drops the catalog borrow before posing the mark.
+    pub(crate) fn contact_index(&self, kind: VehicleKind) -> Option<Arc<VehicleContactIndex>> {
+        self.contact_indices.get(&kind).cloned()
+    }
+
     pub fn material_count(&self) -> usize {
         self.material_handles.len()
     }
@@ -70,6 +91,14 @@ impl VehicleAssetCatalog {
         let hull = vehicle.submesh(SubmeshKind::Hull)?;
         let turret = vehicle.submesh(SubmeshKind::Turret)?;
         let gun = vehicle.submesh(SubmeshKind::Gun)?;
+        // Build the visual-mesh contact indices in the same pivots the GPU submeshes use, so an
+        // impact-mark query in the hull/turret frame lands on the surface the player sees.
+        self.contact_indices.entry(kind).or_insert_with(|| {
+            Arc::new(VehicleContactIndex {
+                hull: MeshContactIndex::from_mesh(&hull.mesh, Vec3::ZERO),
+                turret: MeshContactIndex::from_mesh(&turret.mesh, turret_ring),
+            })
+        });
         let entry = VehicleAssetEntry {
             hull: self.register_vehicle_mesh(kind, SubmeshKind::Hull, &hull.mesh, Vec3::ZERO),
             turret: self.register_vehicle_mesh(
