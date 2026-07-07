@@ -16,6 +16,8 @@ pub(crate) struct WeatherLook {
     pub sky: (f64, f64, f64),
     /// Rain streak density, 0.0 disables the rain pass entirely.
     pub rain_intensity: f32,
+    /// World wetness 0..1: darkens albedo, sharpens finishes, pools sheen on flat ground.
+    pub wetness: f32,
 }
 
 /// Total over every (map, variant) pair: an unauthored combination falls back to the map's
@@ -27,21 +29,25 @@ pub(crate) fn weather_look(map: MapId, variant: WeatherVariant) -> WeatherLook {
             lighting: SceneLighting::battlefield_default(),
             sky: (0.55, 0.69, 0.87),
             rain_intensity: 0.0,
+            wetness: 0.0,
         },
         (MapId::BystraValley, WeatherVariant::ClearAfternoon) => WeatherLook {
             lighting: SceneLighting::bystra_clear_afternoon(),
             sky: (0.62, 0.66, 0.72),
             rain_intensity: 0.0,
+            wetness: 0.0,
         },
         (MapId::BystraValley, WeatherVariant::RainSqualls) => WeatherLook {
             lighting: SceneLighting::bystra_rain(),
             sky: (0.42, 0.46, 0.50),
             rain_intensity: 1.0,
+            wetness: 1.0,
         },
         (MapId::BystraValley, WeatherVariant::DawnFog) => WeatherLook {
             lighting: SceneLighting::bystra_dawn_fog(),
             sky: (0.66, 0.64, 0.64),
             rain_intensity: 0.0,
+            wetness: 0.2,
         },
     }
 }
@@ -81,6 +87,9 @@ mod tests {
         let rain = weather_look(MapId::BystraValley, WeatherVariant::RainSqualls);
         let dawn = weather_look(MapId::BystraValley, WeatherVariant::DawnFog);
         assert!(rain.rain_intensity > 0.0 && clear.rain_intensity == 0.0);
+        // Rain soaks the world; dawn leaves only river-mist damp; a clear afternoon is dry.
+        assert!(rain.wetness == 1.0 && clear.wetness == 0.0);
+        assert!(dawn.wetness > 0.0 && dawn.wetness < rain.wetness);
         assert_ne!(clear.lighting.key_rgb, rain.lighting.key_rgb);
         assert_ne!(clear.lighting.fog_density, dawn.lighting.fog_density);
         assert!(

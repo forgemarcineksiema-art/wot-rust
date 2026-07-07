@@ -22,7 +22,7 @@ struct Camera {
     sky_zenith_rgb: vec3<f32>,
     sky_horizon_rgb: vec3<f32>,
     fog_params: vec4<f32>,
-    // x = presentation seconds (tick-domain), y = rain intensity, zw reserved.
+    // x = presentation seconds (tick-domain), y = rain intensity, z = world wetness, w reserved.
     time_params: vec4<f32>,
 };
 

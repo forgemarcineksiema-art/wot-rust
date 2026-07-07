@@ -58,6 +58,8 @@ pub struct SceneRenderer {
     rain_pipeline: wgpu::RenderPipeline,
     /// Rain streak density 0..1 from the weather look; 0 skips the rain pass entirely.
     pub rain_intensity: f32,
+    /// World wetness 0..1 from the weather look (time_params.z).
+    pub wetness: f32,
     water_pipeline: wgpu::RenderPipeline,
     /// The static river mesh (vertex, index); `None` on dry scenes — the draw is skipped.
     water_buffers: Option<(wgpu::Buffer, wgpu::Buffer)>,
@@ -213,6 +215,7 @@ impl SceneRenderer {
             sky_pipeline,
             rain_pipeline,
             rain_intensity: 0.0,
+            wetness: 0.0,
             water_pipeline,
             water_buffers: None,
             water_index_count: 0,

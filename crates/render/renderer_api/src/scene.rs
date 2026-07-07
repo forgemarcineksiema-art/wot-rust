@@ -33,12 +33,28 @@ pub struct SceneVertex {
     pub normal: [f32; 3],
     pub color: [f32; 3],
     pub tint_weight: f32,
+    /// The material lane (materials v2): 0.0 is fully matte (the historical look), 1.0 a
+    /// polished surface. One number drives the scene shader's whole specular response —
+    /// strength, sharpness, and the analytic-sky reflection weight — so grass, plaster,
+    /// slate and steel finally answer light differently.
+    pub gloss: f32,
 }
 
 impl SceneVertex {
     /// An absolute-colored vertex (`tint_weight` 0.0): the per-instance tint never touches it.
+    /// Matte by default — surfaces with a real finish use [`Self::surfaced`].
     pub const fn new(position: [f32; 3], normal: [f32; 3], color: [f32; 3]) -> Self {
-        Self { position, normal, color, tint_weight: 0.0 }
+        Self { position, normal, color, tint_weight: 0.0, gloss: 0.0 }
+    }
+
+    /// A vertex with a material finish (see `gloss`).
+    pub const fn surfaced(
+        position: [f32; 3],
+        normal: [f32; 3],
+        color: [f32; 3],
+        gloss: f32,
+    ) -> Self {
+        Self { position, normal, color, tint_weight: 0.0, gloss }
     }
 
     /// A vertex that opts into the per-instance team tint by `tint_weight` (`1.0` = fully tinted).
@@ -48,7 +64,7 @@ impl SceneVertex {
         color: [f32; 3],
         tint_weight: f32,
     ) -> Self {
-        Self { position, normal, color, tint_weight }
+        Self { position, normal, color, tint_weight, gloss: 0.0 }
     }
 }
 

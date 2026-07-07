@@ -21,7 +21,8 @@ struct Camera {
     sky_zenith_rgb: vec3<f32>,
     sky_horizon_rgb: vec3<f32>,
     fog_params: vec4<f32>,
-    // x = presentation seconds (tick-domain — see gpu_layout.rs), yzw reserved.
+    // x = presentation seconds (tick-domain — see gpu_layout.rs), y = rain intensity,
+    // z = world wetness, w reserved.
     time_params: vec4<f32>,
 };
 
@@ -243,6 +244,13 @@ fn triplanar_sample(
     return sx * w.x + sy * w.y + sz * w.z;
 }
 
+// The same analytic sky the terrain, the dome and the river reflect — a smooth or rain-slick
+// hull borrows it so its reflections come from the real environment, not a constant.
+fn env_sky(dir: vec3<f32>) -> vec3<f32> {
+    let up = clamp(dir.y, 0.0, 1.0);
+    return mix(camera.sky_horizon_rgb, camera.sky_zenith_rgb, sqrt(up));
+}
+
 // A stable world tangent orthogonal to `n`, used to apply a blended detail normal for triplanar
 // surfaces (the sampling coordinates stay object-local, so the material does not swim).
 fn stable_tangent(n: vec3<f32>) -> vec3<f32> {
@@ -284,7 +292,10 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     let mat = material_params(input.material_id);
     // Armour takes the per-instance team tint; detail materials keep their absolute albedo.
     let tinted = mix(vec3<f32>(1.0, 1.0, 1.0), input.team_tint, input.tint_mask);
-    let albedo = mat.albedo * baked_albedo * tinted;
+    // Wetness (camera.time_params.z): rain-soaked paint and steel darken and tighten their
+    // finish, exactly like the terrain does. Presentation only — set by the weather look.
+    let wet = clamp(camera.time_params.z, 0.0, 1.0);
+    let albedo = mat.albedo * baked_albedo * tinted * mix(1.0, 0.85, wet);
     let ao = ao_rough.r;
 
     let shadow = sun_shadow(input.world_pos, world_n);
@@ -299,11 +310,19 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     let view_dir = normalize(camera.camera_pos - input.world_pos);
     let key_dir = normalize(camera.key_direction);
     let half_v = normalize(key_dir + view_dir);
-    let roughness = clamp(mat.roughness * (0.55 + ao_rough.g), 0.04, 1.0);
+    let roughness = clamp(mat.roughness * (0.55 + ao_rough.g) * mix(1.0, 0.55, wet), 0.04, 1.0);
     let shininess = mix(4.0, 96.0, 1.0 - roughness);
     let spec = pow(max(dot(world_n, half_v), 0.0), shininess) * (1.0 - roughness) * 0.4;
     // The specular is the key light's highlight, so it is occluded by the same shadow.
     let spec_color = camera.key_rgb * spec * shadow * contact;
 
-    return vec4<f32>(tonemap_aces(apply_fog(lit + spec_color, input.world_pos)), 1.0);
+    // Analytic-sky environment reflection: the smoother the finish, the more the hull mirrors
+    // the sky along the reflected view ray — strongest at grazing angles (Fresnel), dampened in
+    // baked cavities so recesses don't glow. Rain cuts roughness, so a soaked tank reflects.
+    let smoothness = 1.0 - roughness;
+    let fresnel = 0.25 + 0.75 * pow(1.0 - max(dot(world_n, view_dir), 0.0), 5.0);
+    let env = env_sky(reflect(-view_dir, world_n))
+        * smoothness * smoothness * fresnel * ao * cavity * contact;
+
+    return vec4<f32>(tonemap_aces(apply_fog(lit + spec_color + env, input.world_pos)), 1.0);
 }

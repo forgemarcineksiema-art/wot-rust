@@ -44,6 +44,8 @@ pub fn push_scenery_instance(
             push_frustum(vertices, indices, crown, 1.25 * s, 0.4 * s, 1.5 * s, CANOPY_PALE);
         }
         SceneryKind::Rock => {
+            // Bare mineral faces catch the sky harder than anything vegetal around them.
+            let start = vertices.len();
             push_oriented_box(
                 vertices,
                 indices,
@@ -52,14 +54,19 @@ pub fn push_scenery_instance(
                 Mat3::from_rotation_y(yaw),
                 [0.42, 0.40, 0.37],
             );
+            for vertex in &mut vertices[start..] {
+                vertex.gloss = 0.18;
+            }
         }
     }
 }
 
-const TRUNK: [f32; 3] = [0.30, 0.22, 0.14];
-const CANOPY: [f32; 3] = [0.18, 0.34, 0.15];
-const CANOPY_DARK: [f32; 3] = [0.13, 0.27, 0.12];
-const CANOPY_PALE: [f32; 3] = [0.24, 0.38, 0.19];
+// Each material is (color, gloss): bark is matte, leaf canopies carry the faint waxy sheen
+// that answers a wet sky without ever reading as plastic.
+const TRUNK: ([f32; 3], f32) = ([0.30, 0.22, 0.14], 0.04);
+const CANOPY: ([f32; 3], f32) = ([0.18, 0.34, 0.15], 0.07);
+const CANOPY_DARK: ([f32; 3], f32) = ([0.13, 0.27, 0.12], 0.06);
+const CANOPY_PALE: ([f32; 3], f32) = ([0.24, 0.38, 0.19], 0.08);
 
 /// A flat-shaded n-gon frustum standing on `base`: `r0` at the bottom, `r1` at the top,
 /// closed with a top fan. Six segments keep a tree ~50 tris.
@@ -70,7 +77,7 @@ fn push_frustum(
     r0: f32,
     r1: f32,
     height: f32,
-    color: [f32; 3],
+    (color, gloss): ([f32; 3], f32),
 ) {
     const SEGMENTS: usize = 6;
     let top_center = base + Vec3::Y * height;
@@ -87,16 +94,16 @@ fn push_frustum(
         let normal = (mid * height + Vec3::Y * (r0 - r1)).normalize_or_zero().to_array();
         let start = vertices.len() as u32;
         for point in [b0, b1, t1, t0] {
-            vertices.push(SceneVertex::new(point.to_array(), normal, color));
+            vertices.push(SceneVertex::surfaced(point.to_array(), normal, color, gloss));
         }
         indices.extend_from_slice(&[start, start + 2, start + 1, start, start + 3, start + 2]);
         // Top cap wedge (skipped for near-point tips).
         if r1 > 0.05 {
             let up = [0.0, 1.0, 0.0];
             let cap = vertices.len() as u32;
-            vertices.push(SceneVertex::new(top_center.to_array(), up, color));
-            vertices.push(SceneVertex::new(t0.to_array(), up, color));
-            vertices.push(SceneVertex::new(t1.to_array(), up, color));
+            vertices.push(SceneVertex::surfaced(top_center.to_array(), up, color, gloss));
+            vertices.push(SceneVertex::surfaced(t0.to_array(), up, color, gloss));
+            vertices.push(SceneVertex::surfaced(t1.to_array(), up, color, gloss));
             indices.extend_from_slice(&[cap, cap + 2, cap + 1]);
         }
     }

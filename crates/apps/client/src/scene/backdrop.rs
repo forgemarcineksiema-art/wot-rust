@@ -54,10 +54,13 @@ pub fn backdrop_scene_mesh(battlefield: &BattlefieldMap) -> (Vec<SceneVertex>, V
                     y -= INTERIOR_TUCK_M;
                 }
                 vertex_index[slot] = vertices.len() as u32;
-                vertices.push(SceneVertex::new(
+                // Near-matte: the backdrop is scenery for the fog, not a surface that competes
+                // with the playfield for highlights.
+                vertices.push(SceneVertex::surfaced(
                     [x, y, z],
                     backdrop_normal(x, z),
                     backdrop_color(x, y, z),
+                    0.04,
                 ));
             }
             vertex_index[slot]
