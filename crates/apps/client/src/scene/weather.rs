@@ -1,0 +1,91 @@
+//! The weather look table: what a `(map, weather variant)` pair means for the client's eyes
+//! and ears. The SERVER picks the variant (deterministically from the battle seed) and the
+//! sim never reads it — weather is presentation only, and the fog-fairness test below is the
+//! contract that keeps it that way: no variant may visually erase a legitimately spotted
+//! target at the 400 m view range.
+
+use renderer_api::SceneLighting;
+use terrain::MapId;
+
+use game_core::WeatherVariant;
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct WeatherLook {
+    pub lighting: SceneLighting,
+    /// The renderer's fallback clear colour behind the gradient sky (r, g, b).
+    pub sky: (f64, f64, f64),
+    /// Rain streak density, 0.0 disables the rain pass entirely.
+    pub rain_intensity: f32,
+}
+
+/// Total over every (map, variant) pair: an unauthored combination falls back to the map's
+/// clear look instead of panicking — the server-side `supported_weather` table is what keeps
+/// unauthored variants out of real battles.
+pub(crate) fn weather_look(map: MapId, variant: WeatherVariant) -> WeatherLook {
+    match (map, variant) {
+        (MapId::ProkhorovkaHill252_2, _) => WeatherLook {
+            lighting: SceneLighting::battlefield_default(),
+            sky: (0.55, 0.69, 0.87),
+            rain_intensity: 0.0,
+        },
+        (MapId::BystraValley, WeatherVariant::ClearAfternoon) => WeatherLook {
+            lighting: SceneLighting::bystra_clear_afternoon(),
+            sky: (0.62, 0.66, 0.72),
+            rain_intensity: 0.0,
+        },
+        (MapId::BystraValley, WeatherVariant::RainSqualls) => WeatherLook {
+            lighting: SceneLighting::bystra_rain(),
+            sky: (0.42, 0.46, 0.50),
+            rain_intensity: 1.0,
+        },
+        (MapId::BystraValley, WeatherVariant::DawnFog) => WeatherLook {
+            lighting: SceneLighting::bystra_dawn_fog(),
+            sky: (0.66, 0.64, 0.64),
+            rain_intensity: 0.0,
+        },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// THE fairness lock of the weather system: in every authored look, a target at the sim's
+    /// 400 m view range keeps at least 65% of its contrast at every fighting height — weather
+    /// is presentation, never a gameplay modifier. (`uczciwy czołg`: nobody fights the sky.)
+    const MAX_FOG_AT_VIEW_RANGE: f32 = 0.35;
+
+    #[test]
+    fn no_weather_look_can_hide_a_spotted_target_at_view_range() {
+        for &map in terrain::MapId::ALL {
+            for variant in game_core::WeatherVariant::ALL {
+                let look = weather_look(map, variant);
+                let mut height = 0.0_f32;
+                while height <= 40.0 {
+                    let fog = look.lighting.fog_factor(sim::VIEW_RANGE_M, height);
+                    assert!(
+                        fog <= MAX_FOG_AT_VIEW_RANGE,
+                        "{map:?}/{variant:?} fogs {fog} at {}m/{height}m — hides spotted targets",
+                        sim::VIEW_RANGE_M
+                    );
+                    height += 2.0;
+                }
+            }
+        }
+    }
+
+    /// The table is total and each authored Bystra variant is a genuinely different sky.
+    #[test]
+    fn every_pair_has_a_look_and_bystra_variants_differ() {
+        let clear = weather_look(MapId::BystraValley, WeatherVariant::ClearAfternoon);
+        let rain = weather_look(MapId::BystraValley, WeatherVariant::RainSqualls);
+        let dawn = weather_look(MapId::BystraValley, WeatherVariant::DawnFog);
+        assert!(rain.rain_intensity > 0.0 && clear.rain_intensity == 0.0);
+        assert_ne!(clear.lighting.key_rgb, rain.lighting.key_rgb);
+        assert_ne!(clear.lighting.fog_density, dawn.lighting.fog_density);
+        assert!(
+            dawn.lighting.fog_height_falloff > clear.lighting.fog_height_falloff,
+            "dawn mist fills the valley floor"
+        );
+    }
+}

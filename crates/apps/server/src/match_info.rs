@@ -13,8 +13,11 @@ const WEATHER_SALT: u64 = 0x57EA_7AB1_E000_0001;
 pub fn supported_weather(map: MapId) -> &'static [WeatherVariant] {
     match map {
         MapId::ProkhorovkaHill252_2 => &[WeatherVariant::ClearAfternoon],
-        // Rain and dawn fog join once their full hand-tuned looks ship (weather package).
-        MapId::BystraValley => &[WeatherVariant::ClearAfternoon],
+        // All three hand-tuned looks ship for the valley (client scene::weather + the
+        // fog-fairness lock): the battle seed decides which sky a match gets.
+        MapId::BystraValley => {
+            &[WeatherVariant::ClearAfternoon, WeatherVariant::RainSqualls, WeatherVariant::DawnFog]
+        }
     }
 }
 

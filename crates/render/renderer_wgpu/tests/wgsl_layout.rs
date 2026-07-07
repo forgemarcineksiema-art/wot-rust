@@ -85,6 +85,16 @@ fn water_shader_is_valid_wgsl_and_shares_the_scene_camera_slot() {
 }
 
 #[test]
+fn rain_shader_is_valid_wgsl_and_shares_the_scene_camera_slot() {
+    let report = validate_wgsl_shader("rain", renderer_wgpu::rain_shader_source())
+        .expect("rain shader validates");
+    assert!(report.entry_points.iter().any(|entry| entry == "vs_main"));
+    assert!(report.entry_points.iter().any(|entry| entry == "fs_main"));
+    // Stateless: the streaks are a pure function of (instance, time, camera) in this uniform.
+    assert!(report.has_uniform_binding("camera", 0, 0));
+}
+
+#[test]
 fn shadow_shader_is_valid_wgsl() {
     let report =
         validate_wgsl_shader("shadow", shadow_shader_source()).expect("shadow shader validates");

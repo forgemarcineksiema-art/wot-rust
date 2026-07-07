@@ -47,3 +47,10 @@ impl super::WindowRenderer {
         self.scene.set_water(&self.ctx, vertices, indices);
     }
 }
+
+impl super::WindowRenderer {
+    /// Rain streak density 0..1 from the weather look; 0 skips the rain pass entirely.
+    pub fn set_rain_intensity(&mut self, intensity: f32) {
+        self.scene.rain_intensity = intensity.clamp(0.0, 1.0);
+    }
+}

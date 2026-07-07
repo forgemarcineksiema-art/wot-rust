@@ -55,6 +55,9 @@ pub struct SceneRenderer {
     vehicle_draws: Vec<SceneObjectDraw>,
     vehicle_meshes: VehicleMeshRegistry,
     sky_pipeline: wgpu::RenderPipeline,
+    rain_pipeline: wgpu::RenderPipeline,
+    /// Rain streak density 0..1 from the weather look; 0 skips the rain pass entirely.
+    pub rain_intensity: f32,
     water_pipeline: wgpu::RenderPipeline,
     /// The static river mesh (vertex, index); `None` on dry scenes — the draw is skipped.
     water_buffers: Option<(wgpu::Buffer, wgpu::Buffer)>,
@@ -133,6 +136,12 @@ impl SceneRenderer {
             sample_count,
             &camera_bgl,
         );
+        let rain_pipeline = crate::rain_pipeline::build_rain_pipeline(
+            device,
+            color_format,
+            sample_count,
+            &camera_bgl,
+        );
         let water_pipeline = crate::water_pipeline::build_water_pipeline(
             device,
             color_format,
@@ -202,6 +211,8 @@ impl SceneRenderer {
             vehicle_draws: Vec::new(),
             vehicle_meshes: VehicleMeshRegistry::default(),
             sky_pipeline,
+            rain_pipeline,
+            rain_intensity: 0.0,
             water_pipeline,
             water_buffers: None,
             water_index_count: 0,

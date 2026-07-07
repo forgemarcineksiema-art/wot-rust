@@ -52,6 +52,9 @@ impl ClientApp {
             crate::scene::water::battlefield_water_mesh(&self.battlefield);
         renderer.set_water(&water_vertices, &water_indices);
         self.renderer = Some(renderer);
+        // The renderer is born holding generic battlefield defaults; the app is born in battle,
+        // so dress it in the actual match's weather right away.
+        self.apply_match_weather();
         Ok(())
     }
 

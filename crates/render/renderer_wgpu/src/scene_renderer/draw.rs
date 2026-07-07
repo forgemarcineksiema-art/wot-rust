@@ -41,6 +41,7 @@ impl super::SceneRenderer {
                 shadow_params: self.shadow.shader_params(),
                 ssao_params: [self.ssao.near, self.ssao.far, self.ssao.strength, proj_y_scale],
                 time_s: self.scene_time_s,
+                rain_intensity: self.rain_intensity,
             },
         );
         ctx.queue.write_buffer(&self.camera_buffer, 0, &encode_camera_uniform(&camera)?);
@@ -171,6 +172,15 @@ impl super::SceneRenderer {
                 pass.set_bind_group(0, &self.camera_bind_group, &[]);
                 pass.set_vertex_buffer(0, self.fx_vertices.slice(..));
                 pass.draw(0..self.fx_vertex_count, 0..1);
+            }
+            // Rain, closest to the lens: stateless streaks generated entirely in the vertex
+            // shader from (instance, time, camera); the CPU only scales the population.
+            let rain_streaks =
+                (crate::rain_pipeline::RAIN_MAX_STREAKS as f32 * self.rain_intensity) as u32;
+            if rain_streaks > 0 {
+                pass.set_pipeline(&self.rain_pipeline);
+                pass.set_bind_group(0, &self.camera_bind_group, &[]);
+                pass.draw(0..6, 0..rain_streaks);
             }
             if self.hud_vertex_count > 0 {
                 pass.set_pipeline(&self.hud_pipeline);

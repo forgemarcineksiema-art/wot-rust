@@ -76,6 +76,66 @@ impl SceneLighting {
         }
     }
 
+    /// Dolina Bystrej, golden afternoon: the sun low in the WEST over the farmland flank, so it
+    /// rakes across the valley into the town's facades and glitters down the river. Warm key,
+    /// blue-shadowed ambient, the lightest haze of the three variants.
+    pub fn bystra_clear_afternoon() -> Self {
+        Self {
+            ambient_rgb: [0.19, 0.22, 0.28],
+            ground_ambient_rgb: [0.17, 0.14, 0.10],
+            key_direction: [-0.62, 0.34, 0.18],
+            key_rgb: [1.18, 0.94, 0.66],
+            fill_direction: [0.55, 0.60, -0.30],
+            fill_rgb: [0.16, 0.19, 0.26],
+            rim_direction: [0.45, 0.38, 0.85],
+            rim_rgb: [0.22, 0.22, 0.26],
+            sky_zenith_rgb: [0.20, 0.33, 0.55],
+            sky_horizon_rgb: [0.78, 0.72, 0.62],
+            fog_density: 0.00015,
+            fog_height_falloff: 0.02,
+        }
+    }
+
+    /// Dolina Bystrej, rain squalls: a lead sky, no sun disc worth the name — a weak cool key
+    /// straight down, flat ambient, and the densest fog the fairness bound allows (see the
+    /// fog-fairness test: a spotted tank at 400 m must stay identifiable in EVERY variant).
+    pub fn bystra_rain() -> Self {
+        Self {
+            ambient_rgb: [0.22, 0.24, 0.27],
+            ground_ambient_rgb: [0.12, 0.13, 0.13],
+            key_direction: [0.15, 0.92, 0.20],
+            key_rgb: [0.42, 0.46, 0.52],
+            fill_direction: [-0.40, 0.50, -0.60],
+            fill_rgb: [0.14, 0.16, 0.19],
+            rim_direction: [-0.30, 0.45, 0.80],
+            rim_rgb: [0.16, 0.18, 0.22],
+            sky_zenith_rgb: [0.30, 0.34, 0.39],
+            sky_horizon_rgb: [0.46, 0.50, 0.54],
+            fog_density: 0.0009,
+            fog_height_falloff: 0.004,
+        }
+    }
+
+    /// Dolina Bystrej, dawn fog: a low cold sun rising behind the EASTERN quarry ridge, mist
+    /// filling the valley floor and the river while the ridgelines cut through — the strongest
+    /// height falloff of the set, still under the 400 m fairness bound at every fighting height.
+    pub fn bystra_dawn_fog() -> Self {
+        Self {
+            ambient_rgb: [0.20, 0.22, 0.27],
+            ground_ambient_rgb: [0.13, 0.13, 0.14],
+            key_direction: [0.80, 0.18, -0.12],
+            key_rgb: [0.92, 0.82, 0.70],
+            fill_direction: [-0.55, 0.55, 0.25],
+            fill_rgb: [0.15, 0.17, 0.22],
+            rim_direction: [-0.75, 0.30, 0.30],
+            rim_rgb: [0.24, 0.24, 0.28],
+            sky_zenith_rgb: [0.36, 0.42, 0.55],
+            sky_horizon_rgb: [0.72, 0.68, 0.66],
+            fog_density: 0.00105,
+            fog_height_falloff: 0.10,
+        }
+    }
+
     /// The garage studio: a soft warm key from front-left-above, a weak cool fill from the right,
     /// and a restrained rear rim to lift the silhouette, on a near-neutral sky/floor ambient so the
     /// vehicle's own material colour reads true. The result is a neutral tint with shaped studio

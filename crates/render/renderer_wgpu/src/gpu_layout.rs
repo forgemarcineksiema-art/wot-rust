@@ -150,6 +150,8 @@ pub struct FramePassParams {
     pub shadow_params: [f32; 4],
     pub ssao_params: [f32; 4],
     pub time_s: f32,
+    /// Rain streak density 0..1 (`time_params.y`); 0 in every non-rain look.
+    pub rain_intensity: f32,
 }
 
 impl Default for FramePassParams {
@@ -160,6 +162,7 @@ impl Default for FramePassParams {
             shadow_params: [0.0, 0.0, 0.0, 0.0],
             ssao_params: [0.1, 1500.0, 0.0, 1.0],
             time_s: 0.0,
+            rain_intensity: 0.0,
         }
     }
 }
@@ -193,7 +196,7 @@ impl CameraUniform {
             sky_zenith_rgb: GpuVec3(lighting.sky_zenith_rgb),
             sky_horizon_rgb: GpuVec3(lighting.sky_horizon_rgb),
             fog_params: GpuVec4([lighting.fog_density, lighting.fog_height_falloff, 0.0, 0.0]),
-            time_params: GpuVec4([passes.time_s, 0.0, 0.0, 0.0]),
+            time_params: GpuVec4([passes.time_s, passes.rain_intensity, 0.0, 0.0]),
         }
     }
 

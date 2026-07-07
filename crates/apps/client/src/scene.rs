@@ -6,3 +6,4 @@ pub(crate) mod foliage;
 pub(crate) mod hangar;
 mod hangar_props;
 pub(crate) mod water;
+pub(crate) mod weather;

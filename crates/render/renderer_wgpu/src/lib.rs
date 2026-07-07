@@ -5,6 +5,7 @@ mod gpu_layout;
 mod msaa;
 mod offscreen;
 mod pipeline_registry;
+mod rain_pipeline;
 mod readback_queue;
 mod render_frame_batch;
 mod renderer;
@@ -36,6 +37,7 @@ pub use gpu_layout::{
 };
 pub use offscreen::{DEPTH_FORMAT, OffscreenTarget, clear_color};
 pub use pipeline_registry::{PipelineHotReloadStats, PipelineRegistry, PipelineWarmupStats};
+pub use rain_pipeline::rain_shader_source;
 pub use readback_queue::{GpuReadbackQueue, ReadbackRequest, ReadbackRequestId, ReadbackResult};
 pub use render_frame_batch::{RenderFrameBatchPlan, RenderObjectDraw};
 pub use renderer::WgpuRenderer;
