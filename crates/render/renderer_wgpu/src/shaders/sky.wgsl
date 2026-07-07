@@ -49,15 +49,25 @@ fn vs_main(@builtin(vertex_index) index: u32) -> VsOut {
     return out;
 }
 
+// Gentle display grade after the tone curve (mirrors scene.wgsl's display_grade verbatim) so the sky
+// grades into the same picture as the lit world and the horizon meets the fogged terrain seamlessly.
+fn display_grade(c: vec3<f32>) -> vec3<f32> {
+    let luma = dot(c, vec3<f32>(0.2126, 0.7152, 0.0722));
+    let saturated = mix(vec3<f32>(luma), c, 1.18);
+    let contrasted = (saturated - vec3<f32>(0.5)) * 1.10 + vec3<f32>(0.5);
+    return clamp(contrasted, vec3<f32>(0.0), vec3<f32>(1.0));
+}
+
 // Filmic ACES-lite tone curve (Narkowicz fit); mirrors scene.wgsl/vehicle.wgsl so the sky is graded
-// on the same curve as the lit world and the horizon meets the fogged terrain seamlessly.
+// on the same curve as the lit world.
 fn tonemap_aces(x: vec3<f32>) -> vec3<f32> {
     let a = 2.51;
     let b = 0.03;
     let c = 2.43;
     let d = 0.59;
     let e = 0.14;
-    return clamp((x * (a * x + b)) / (x * (c * x + d) + e), vec3<f32>(0.0), vec3<f32>(1.0));
+    let mapped = clamp((x * (a * x + b)) / (x * (c * x + d) + e), vec3<f32>(0.0), vec3<f32>(1.0));
+    return display_grade(mapped);
 }
 
 @fragment

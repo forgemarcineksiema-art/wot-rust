@@ -56,12 +56,17 @@ impl SceneLighting {
     /// read through the ACES-lite tone curve, so the key deliberately runs hot.
     pub fn battlefield_default() -> Self {
         Self {
-            ambient_rgb: [0.20, 0.23, 0.29],
-            ground_ambient_rgb: [0.15, 0.14, 0.11],
+            // A touch deeper and cooler than before, so the cast shadows the world now throws read as
+            // real shade instead of a flooded mid-grey. Still well above the ground bounce (the
+            // hemispheric-ambient invariant) and above the fog floor (a target at 400 m stays read).
+            ambient_rgb: [0.16, 0.19, 0.26],
+            ground_ambient_rgb: [0.14, 0.13, 0.10],
             key_direction: [0.62, 0.52, 0.34],
-            key_rgb: [1.08, 0.98, 0.82],
+            // A hotter, warmer sun: with a deeper ambient the sunlit decks now separate from the
+            // shaded flanks, and the ACES curve rolls the extra punch off the top rather than clipping.
+            key_rgb: [1.28, 1.14, 0.90],
             fill_direction: [-0.5, 0.62, -0.28],
-            fill_rgb: [0.17, 0.20, 0.26],
+            fill_rgb: [0.16, 0.19, 0.25],
             rim_direction: [-0.42, 0.4, -0.88],
             rim_rgb: [0.20, 0.23, 0.30],
             // A clear-day sky: a deeper blue overhead easing to a pale, slightly warm haze at the
