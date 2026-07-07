@@ -36,7 +36,7 @@ Inside crates, modules stay narrow. For example, `sim` is split into:
 
 The current scaffold intentionally keeps the renderer surface/device setup, real UDP transport, asset binary packing, terrain LOD, and full hit detection behind narrow crate boundaries. That keeps the first project state buildable while leaving clear places to expand within armored vehicle battles.
 
-The project optimizes for terrain, LOD, shadows, spotting, shell physics, and networking. It explicitly does not optimize for full indoor AAA streaming, full-world destruction, or skeletal-animation-first gameplay. The detailed domain rule lives in `docs/armored-battle-domain.md`.
+The project optimizes for terrain, LOD, shadows, spotting, shell physics, and networking. It explicitly does not optimize for full indoor AAA streaming, voxel-style full-world destruction, or skeletal-animation-first gameplay. Battlefield destruction — contact-true impacts, visible vehicle damage, destructible cover as selective gameplay state — is entering scope deliberately, phased and server-authoritative, via `docs/destruction-program.md`. The detailed domain rule lives in `docs/armored-battle-domain.md`.
 
 Terrain and large-world policy is fixed early: maps are heightmap/chunk based,
 with collision terrain, render LOD, splat maps, roads, cover, spawn/capture

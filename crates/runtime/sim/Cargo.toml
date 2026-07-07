@@ -20,5 +20,9 @@ serde_json.workspace = true
 name = "fixed_tick"
 harness = false
 
+[[bench]]
+name = "combat_hot_path"
+harness = false
+
 [lints]
 workspace = true
