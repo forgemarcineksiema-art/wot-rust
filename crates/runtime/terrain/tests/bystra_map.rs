@@ -164,3 +164,38 @@ fn sight_clear(map: &terrain::BattlefieldMap, from: [f32; 3], to: [f32; 3]) -> b
     }
     true
 }
+
+/// The dressing plays fair too: every scenery instance is mirrored (position + kind + scale),
+/// nothing grows in the river corridor, the crossing lanes, or the spawn circles, and the
+/// total stays inside the render budget.
+#[test]
+fn bystra_scenery_is_mirrored_excluded_and_budgeted() {
+    let map = bystra_valley();
+    assert!(map.scenery.len() >= 100, "the valley is dressed, got {}", map.scenery.len());
+    assert!(map.scenery.len() <= 1200, "instance budget breached: {}", map.scenery.len());
+    assert!(map.scenery.len().is_multiple_of(2), "mirrored pairs come in twos");
+
+    for instance in &map.scenery {
+        let [x, _, z] = instance.position;
+        let twin = map.scenery.iter().find(|other| {
+            other.kind == instance.kind
+                && (other.position[0] - x).abs() < 1.0e-3
+                && (other.position[2] - (MAP_M - z)).abs() < 1.0e-3
+                && (other.scale - instance.scale).abs() < 1.0e-6
+        });
+        assert!(twin.is_some(), "scenery at ({x}, {z}) has no mirror twin");
+
+        let river_d = (x - bystra_river_center_x(z)).abs();
+        assert!(
+            river_d > terrain::RIVER_CORRIDOR_HALF_WIDTH_M + 1.5,
+            "scenery grows in the river at ({x}, {z})"
+        );
+        for spawn_z in [150.0_f32, 850.0] {
+            let d2 = (x - 400.0).powi(2) + (z - spawn_z).powi(2);
+            assert!(d2 > 65.0 * 65.0, "scenery inside a spawn circle at ({x}, {z})");
+        }
+    }
+
+    // Determinism: the same map builds the same forest, twig for twig.
+    assert_eq!(map.scenery, bystra_valley().scenery);
+}

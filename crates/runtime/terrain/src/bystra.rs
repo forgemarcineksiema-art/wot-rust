@@ -103,6 +103,8 @@ const QUARRY_FLOOR_M: f32 = 17.5;
 
 pub fn bystra_valley() -> BattlefieldMap {
     let heightmap = heightmap_from_fn(SAMPLES_PER_SIDE, CELL_SIZE_M, valley_height_at);
+    let static_cover = valley_cover_objects(&heightmap);
+    let scenery = crate::bystra_scenery::valley_scenery(&heightmap, &static_cover);
     BattlefieldMap {
         id: "bystra_valley".to_string(),
         name: "Dolina Bystrej".to_string(),
@@ -126,7 +128,8 @@ pub fn bystra_valley() -> BattlefieldMap {
         spawn_zones: valley_spawn_zones(&heightmap),
         strategic_points: valley_strategic_points(&heightmap),
         features: valley_features(&heightmap),
-        static_cover: valley_cover_objects(&heightmap),
+        static_cover,
+        scenery,
         heightmap,
     }
 }

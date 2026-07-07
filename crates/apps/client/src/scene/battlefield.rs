@@ -13,6 +13,11 @@ pub fn battlefield_scene_mesh(battlefield: &BattlefieldMap) -> (Vec<SceneVertex>
     for cover in &battlefield.static_cover {
         append_cover_box(&mut vertices, &mut indices, cover);
     }
+    // Render-only dressing: trees and rocks baked into the same static upload — a dressed
+    // valley costs the frame nothing (see scene::foliage).
+    for instance in &battlefield.scenery {
+        crate::scene::foliage::push_scenery_instance(&mut vertices, &mut indices, instance);
+    }
     (vertices, indices)
 }
 

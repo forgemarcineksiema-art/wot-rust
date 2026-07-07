@@ -65,6 +65,8 @@ pub fn prokhorovka_hill_252_2() -> BattlefieldMap {
         strategic_points: strategic_points(&heightmap),
         features: map_features(&heightmap),
         static_cover: static_cover_objects(&heightmap),
+        // Open steppe: no scenery dressing authored (yet) — the map predates the system.
+        scenery: Vec::new(),
         heightmap,
     }
 }

@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::HeightMap;
+use crate::scenery::SceneryInstance;
 use crate::water::WaterBody;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -84,6 +85,10 @@ pub struct BattlefieldMap {
     pub strategic_points: Vec<StrategicPoint>,
     pub features: Vec<MapFeature>,
     pub static_cover: Vec<StaticCoverObject>,
+    /// Render-only dressing (trees, rocks): never collides, never blocks shells or sight.
+    /// `serde(default)` keeps pre-scenery baked assets deserializing.
+    #[serde(default)]
+    pub scenery: Vec<SceneryInstance>,
 }
 
 impl BattlefieldMap {

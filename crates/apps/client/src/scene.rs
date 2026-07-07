@@ -2,6 +2,7 @@
 //! garage hangar interior. Grouped from the former top-level `scene_mesh` / `garage_scene` modules.
 
 pub(crate) mod battlefield;
+pub(crate) mod foliage;
 pub(crate) mod hangar;
 mod hangar_props;
 pub(crate) mod water;
