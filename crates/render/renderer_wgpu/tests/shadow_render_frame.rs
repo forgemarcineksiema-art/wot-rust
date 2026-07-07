@@ -41,6 +41,16 @@ fn occluder() -> VehicleMeshAsset {
     )
 }
 
+/// A horizontal scene-vertex plate floating 1.2 m above the ground, part of the *static* world
+/// buffer (terrain + baked buildings share this format). It stands in for a building/tree that must
+/// cast even when no vehicle is on the field.
+fn scene_occluder() -> (Vec<SceneVertex>, Vec<u32>) {
+    let n = [0.0, 1.0, 0.0];
+    let c = [0.5, 0.5, 0.5];
+    let v = |x: f32, z: f32| SceneVertex::new([x, 1.2, z], n, c);
+    (vec![v(-0.9, -0.9), v(0.9, -0.9), v(0.9, 0.9), v(-0.9, 0.9)], vec![0, 2, 1, 0, 3, 2])
+}
+
 fn luma(p: &[u8]) -> f32 {
     0.299 * p[0] as f32 + 0.587 * p[1] as f32 + 0.114 * p[2] as f32
 }
@@ -110,5 +120,56 @@ fn the_sun_shadow_darkens_the_ground_under_an_occluder() {
         darkened > 15,
         "the sun shadow must darken a ground patch under the occluder ({darkened} px)"
     );
+    assert!(brightened < 5, "shadows only darken; got {brightened} brightened px");
+}
+
+#[test]
+fn the_static_world_casts_a_shadow_with_no_vehicles_present() {
+    // The whole world now casts, not just the fleet (docs/shadow-policy.md): a raised piece of the
+    // static scene buffer — a building/tree — must darken the ground beneath it even with zero
+    // vehicles registered. This is exactly the case the old vehicle-only pass bailed on.
+    let Some(ctx) = headless() else {
+        return;
+    };
+    let (mut gv, mut gi) = ground();
+    let (ov, oi) = scene_occluder();
+    let base = gv.len() as u32;
+    gv.extend(ov);
+    gi.extend(oi.into_iter().map(|i| i + base));
+
+    let camera = renderer_api::Camera {
+        eye: [0.0, 4.0, 6.0],
+        target: [0.0, 0.0, 0.0],
+        vertical_fov_degrees: 55.0,
+    };
+    let view_proj = view_projection_matrix(&camera, 1.0, 0.1, 40.0);
+
+    let render = |shadows: bool| {
+        let target = OffscreenTarget::new(&ctx, 96, 96).expect("target");
+        let mut r = SceneRenderer::for_offscreen(&ctx, &gv, &gi).expect("renderer");
+        let mut lighting = SceneLighting::battlefield_default();
+        lighting.key_direction = [1.0, 0.6, 0.0];
+        r.scene_lighting = lighting;
+        r.shadow_focus = Some([0.0, 0.0, 0.0]);
+        r.set_shadows_enabled(shadows);
+        // No vehicle registered, no vehicle frame — the static world is the only caster.
+        r.render(&ctx, target.render_target(), view_proj, camera.eye).expect("render");
+        target.read_rgba8(&ctx).expect("readback")
+    };
+
+    let lit = render(false);
+    let shadowed = render(true);
+    let darkened = lit
+        .chunks_exact(4)
+        .zip(shadowed.chunks_exact(4))
+        .filter(|(a, b)| luma(a) - luma(b) > 18.0)
+        .count();
+    let brightened = lit
+        .chunks_exact(4)
+        .zip(shadowed.chunks_exact(4))
+        .filter(|(a, b)| luma(b) - luma(a) > 18.0)
+        .count();
+
+    assert!(darkened > 15, "the static world must cast a ground shadow with no vehicles ({darkened} px)");
     assert!(brightened < 5, "shadows only darken; got {brightened} brightened px");
 }

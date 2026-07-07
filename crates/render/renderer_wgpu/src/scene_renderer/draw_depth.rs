@@ -2,10 +2,12 @@
 //! `draw.rs` to keep each module within the reviewability budget.
 
 impl super::SceneRenderer {
-    /// Depth-only occluder pass: render the vehicles from the sun's point of view into the shadow
-    /// map so the scene and vehicle shaders can shade the key light. Terrain is a receiver, not a
-    /// caster, in this focused phase. The pass always clears the map (so it holds no stale depth) and
-    /// draws occluders only when shadows are on and there are vehicles to cast.
+    /// Depth-only occluder pass: render the world from the sun's point of view into the shadow map
+    /// so the scene and vehicle shaders can shade the key light. The **whole** static world casts —
+    /// terrain, and the buildings/trees baked into the same buffer — alongside the dynamic mesh and
+    /// the running fleet, so hillsides self-shadow under a raking sun and buildings ground on the
+    /// field instead of floating. The pass always clears the map (so it holds no stale depth) and
+    /// draws occluders whenever shadows are on.
     pub(super) fn encode_shadow_pass(&self, encoder: &mut wgpu::CommandEncoder) {
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("shadow_pass"),
@@ -22,23 +24,56 @@ impl super::SceneRenderer {
             occlusion_query_set: None,
             multiview_mask: None,
         });
-        if self.shadow.strength <= 0.0 || self.vehicle_instance_count == 0 {
+        if self.shadow.strength <= 0.0 {
             return;
         }
-        pass.set_pipeline(&self.shadow.pipeline);
+        // Static world + dynamic mesh: the scene vertex stride, driven by the identity/frame
+        // instance transforms — exactly the caster set the SSAO prepass walks.
+        pass.set_pipeline(&self.shadow.pipeline_scene);
         pass.set_bind_group(0, &self.camera_bind_group, &[]);
-        pass.set_vertex_buffer(1, self.vehicle_instances.slice(..));
-        for draw in &self.vehicle_draws {
-            let Some(mesh) = self.vehicle_meshes.get(draw.mesh) else {
-                continue;
-            };
-            pass.set_vertex_buffer(0, mesh.vertices.slice(..));
-            pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint32);
-            pass.draw_indexed(
-                0..mesh.index_count,
-                0,
-                draw.instance_start..draw.instance_start + draw.instance_count,
-            );
+        pass.set_vertex_buffer(1, self.identity_instance.slice(..));
+        if self.terrain_index_count > 0 {
+            pass.set_vertex_buffer(0, self.terrain_vertices.slice(..));
+            pass.set_index_buffer(self.terrain_indices.slice(..), wgpu::IndexFormat::Uint32);
+            pass.draw_indexed(0..self.terrain_index_count, 0, 0..1);
+        }
+        if self.dynamic_index_count > 0 {
+            pass.set_vertex_buffer(0, self.dynamic_vertices.slice(..));
+            pass.set_index_buffer(self.dynamic_indices.slice(..), wgpu::IndexFormat::Uint32);
+            pass.draw_indexed(0..self.dynamic_index_count, 0, 0..1);
+        }
+        if self.frame_instance_count > 0 {
+            pass.set_vertex_buffer(1, self.frame_instances.slice(..));
+            for draw in &self.frame_draws {
+                let Some(mesh) = self.static_meshes.get(draw.mesh) else {
+                    continue;
+                };
+                pass.set_vertex_buffer(0, mesh.vertices.slice(..));
+                pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint32);
+                pass.draw_indexed(
+                    0..mesh.index_count,
+                    0,
+                    draw.instance_start..draw.instance_start + draw.instance_count,
+                );
+            }
+        }
+        // The running fleet: the vehicle vertex stride and its own instance transforms.
+        if self.vehicle_instance_count > 0 {
+            pass.set_pipeline(&self.shadow.pipeline_vehicle);
+            pass.set_bind_group(0, &self.camera_bind_group, &[]);
+            pass.set_vertex_buffer(1, self.vehicle_instances.slice(..));
+            for draw in &self.vehicle_draws {
+                let Some(mesh) = self.vehicle_meshes.get(draw.mesh) else {
+                    continue;
+                };
+                pass.set_vertex_buffer(0, mesh.vertices.slice(..));
+                pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint32);
+                pass.draw_indexed(
+                    0..mesh.index_count,
+                    0,
+                    draw.instance_start..draw.instance_start + draw.instance_count,
+                );
+            }
         }
     }
 

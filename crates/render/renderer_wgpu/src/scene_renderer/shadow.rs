@@ -41,12 +41,19 @@ const SHADOW_INSTANCE_ATTRIBUTES: [wgpu::VertexAttribute; 4] =
     wgpu::vertex_attr_array![6 => Float32x4, 7 => Float32x4, 8 => Float32x4, 9 => Float32x4];
 
 /// The focused sun shadow map: depth target, the group-2 environment bind group (shadow map +
-/// SSAO target), the depth-only occluder pipeline, and the tuning that drives the light matrix
+/// SSAO target), the depth-only occluder pipelines, and the tuning that drives the light matrix
 /// and PCF in the shaders. The bind group is rebuilt whenever the SSAO target resizes.
+///
+/// Two occluder pipelines share one `shadow.wgsl` `vs_main` (both formats lead with `position`),
+/// differing only in vertex stride: `pipeline_scene` for the static world buffer (terrain +
+/// buildings + trees) and the dynamic mesh, `pipeline_vehicle` for the running fleet. The whole
+/// world casts, not just vehicles, so buildings ground on the field and hillsides self-shadow
+/// under a raking sun.
 pub(crate) struct ShadowResources {
     pub depth_view: wgpu::TextureView,
     pub bind_group: std::cell::RefCell<wgpu::BindGroup>,
-    pub pipeline: wgpu::RenderPipeline,
+    pub pipeline_scene: wgpu::RenderPipeline,
+    pub pipeline_vehicle: wgpu::RenderPipeline,
     pub params: SunShadowParams,
     pub depth_bias: f32,
     pub normal_offset: f32,
@@ -112,7 +119,18 @@ impl ShadowResources {
             initial_ao_view,
             &ao_sampler,
         );
-        let pipeline = build_shadow_pipeline(device, camera_bgl);
+        let pipeline_scene = build_shadow_pipeline(
+            device,
+            camera_bgl,
+            std::mem::size_of::<renderer_api::SceneVertex>() as u64,
+            "shadow_pipeline_scene",
+        );
+        let pipeline_vehicle = build_shadow_pipeline(
+            device,
+            camera_bgl,
+            std::mem::size_of::<renderer_api::VehicleVertex>() as u64,
+            "shadow_pipeline_vehicle",
+        );
         // A small constant depth bias plus a normal offset scaled to the texel footprint kills acne
         // without peter-panning; strength 1 = full shadow (0 is the no-shadow capability fallback).
         // The bias is NDC over the 2*depth_radius span — 0.0008 * 160 m = ~13 cm of world slack,
@@ -120,7 +138,8 @@ impl ShadowResources {
         Self {
             depth_view,
             bind_group: std::cell::RefCell::new(bind_group),
-            pipeline,
+            pipeline_scene,
+            pipeline_vehicle,
             params,
             depth_bias: 0.0008,
             normal_offset: params.texel_world_size() * 1.5,
@@ -155,10 +174,14 @@ impl ShadowResources {
 }
 
 /// Depth-only occluder pipeline: transforms position by `camera.light_view_proj * model` and writes
-/// depth. Single-sampled (the shadow map is 1x), camera uniform at group 0.
+/// depth. `vertex_stride` selects the caster format (scene vs vehicle); both lead with `position`,
+/// so the one `vs_main` serves both. Single-sampled (the shadow map is 1x), camera uniform at group
+/// 0.
 fn build_shadow_pipeline(
     device: &wgpu::Device,
     camera_bgl: &wgpu::BindGroupLayout,
+    vertex_stride: u64,
+    label: &str,
 ) -> wgpu::RenderPipeline {
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("shadow_shader"),
@@ -170,7 +193,7 @@ fn build_shadow_pipeline(
         immediate_size: 0,
     });
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label: Some("shadow_pipeline"),
+        label: Some(label),
         layout: Some(&layout),
         vertex: wgpu::VertexState {
             module: &shader,
@@ -178,7 +201,7 @@ fn build_shadow_pipeline(
             compilation_options: wgpu::PipelineCompilationOptions::default(),
             buffers: &[
                 wgpu::VertexBufferLayout {
-                    array_stride: std::mem::size_of::<renderer_api::VehicleVertex>() as u64,
+                    array_stride: vertex_stride,
                     step_mode: wgpu::VertexStepMode::Vertex,
                     attributes: &SHADOW_VERTEX_ATTRIBUTES,
                 },
@@ -192,9 +215,12 @@ fn build_shadow_pipeline(
         primitive: wgpu::PrimitiveState {
             topology: wgpu::PrimitiveTopology::TriangleList,
             front_face: wgpu::FrontFace::Ccw,
-            // Cull front faces in the shadow pass: shadow-casting from back faces reduces acne on lit
-            // surfaces (a common peter-panning/acne trade for solid closed occluders like hulls).
-            cull_mode: Some(wgpu::Face::Front),
+            // No culling: the static world is an open heightmap (buildings/trees are baked into the
+            // same buffer), whose sun-facing surface IS its front face — front-culling it would drop
+            // exactly the casters we want (hills self-shadowing, roofs onto walls). Acne is held off
+            // instead by a slope-scaled hardware depth bias plus the shader's normal offset, which
+            // together behave on both the open ground and the closed hulls.
+            cull_mode: None,
             ..Default::default()
         },
         depth_stencil: Some(wgpu::DepthStencilState {
@@ -202,7 +228,10 @@ fn build_shadow_pipeline(
             depth_write_enabled: Some(true),
             depth_compare: Some(wgpu::CompareFunction::Less),
             stencil: wgpu::StencilState::default(),
-            bias: wgpu::DepthBiasState::default(),
+            // Slope-scaled: grazing hillsides (where the sun rakes along the surface and depth
+            // varies fastest across a texel) get the most push, flat decks almost none — the
+            // classic peter-pan-free acne fix for an open receiver that also casts.
+            bias: wgpu::DepthBiasState { constant: 2, slope_scale: 2.5, clamp: 0.0 },
         }),
         multisample: wgpu::MultisampleState::default(),
         fragment: None,

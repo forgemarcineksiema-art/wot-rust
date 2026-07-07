@@ -2,7 +2,7 @@
 //! orthographic shadow map centred on the action. Backend-neutral (pure `glam`), so the matrix and
 //! its anti-shimmer texel snap are unit-tested without a GPU. See `docs/shadow-policy.md`.
 
-use glam::{Mat4, Vec3, Vec4Swizzles};
+use glam::{Mat4, Vec3, Vec4, Vec4Swizzles};
 
 /// Parameters for the focused sun-shadow map.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -19,11 +19,13 @@ pub struct SunShadowParams {
 
 impl Default for SunShadowParams {
     fn default() -> Self {
-        // 4096 texels over a 64 m box = 1.6 cm texels: running-gear detail (spokes, rims, links)
-        // lives at the 2–9 cm scale, and a coarser map crawls jagged shadow edges across the
-        // wheel faces on every camera move. Depth reach 80 m still clears hills along the sun
-        // axis while halving the depth-bias world slack.
-        Self { focus_radius_m: 32.0, depth_radius_m: 80.0, resolution: 4096 }
+        // A 64 m half-box (128 m across) at 4096 texels = 3.1 cm texels. Wider than a pure hero-shot
+        // box, because on the battlefield the whole near/mid field must ground — a low hull under the
+        // sun, the buildings it fights around, and the hillsides raking into shadow — not only the
+        // ~30 m bubble around one tank. 3.1 cm still resolves running-gear detail through the 3×3 PCF
+        // (a halved map on integrated GPUs lands at 6.3 cm, acceptably soft). Depth reach 100 m clears
+        // hills along the sun axis over the wider footprint.
+        Self { focus_radius_m: 64.0, depth_radius_m: 100.0, resolution: 4096 }
     }
 }
 
@@ -42,6 +44,33 @@ impl SunShadowParams {
 /// A stable up vector for the light view, avoiding degeneracy when the sun is near-vertical.
 fn stable_up(sun_dir: Vec3) -> Vec3 {
     if sun_dir.y.abs() > 0.99 { Vec3::Z } else { Vec3::Y }
+}
+
+/// The auto shadow-focus centre for a chase camera: push the focus box forward along the camera's
+/// **horizontal** look direction so the coverage lands on the field the player is looking at, not on
+/// the empty ground behind a chase camera. `forward_offset_m` is how far ahead of the eye to centre
+/// the box; the vertical stays at the eye height (the box's depth reach spans down to the ground).
+///
+/// The look direction is recovered by unprojecting the screen centre through the inverse
+/// view-projection — a near and a far point on the centre ray — and dropping the vertical component.
+/// A degenerate matrix (or straight-down view) yields no horizontal direction, so the eye position
+/// is returned unchanged.
+pub fn forward_shadow_focus(
+    camera_pos: [f32; 3],
+    view_proj: [[f32; 4]; 4],
+    forward_offset_m: f32,
+) -> [f32; 3] {
+    let inv = Mat4::from_cols_array_2d(&view_proj).inverse();
+    let unproject = |ndc_z: f32| {
+        let clip = inv * Vec4::new(0.0, 0.0, ndc_z, 1.0);
+        if clip.w.abs() < 1.0e-6 { Vec3::ZERO } else { clip.truncate() / clip.w }
+    };
+    let ray = unproject(1.0) - unproject(0.0);
+    let horizontal = Vec3::new(ray.x, 0.0, ray.z);
+    let Some(dir) = horizontal.try_normalize() else {
+        return camera_pos;
+    };
+    (Vec3::from_array(camera_pos) + dir * forward_offset_m).to_array()
 }
 
 /// The light view-projection for the focused sun shadow map, **texel-snapped** to kill edge shimmer
@@ -112,6 +141,36 @@ mod tests {
         let m = sun_light_view_projection(KEY, [0.0, 0.0, 0.0], SunShadowParams::default());
         let ndc = project(&m, Vec3::ZERO);
         assert!(ndc.length() < 0.01, "focus centre should sit near NDC origin, got {ndc:?}");
+    }
+
+    #[test]
+    fn forward_focus_pushes_the_box_along_the_horizontal_look_direction() {
+        use crate::{Camera, view_projection_matrix};
+        // A chase camera behind and above a tank at the origin, looking forward-down toward +Z.
+        let camera = Camera {
+            eye: [0.0, 6.0, -10.0],
+            target: [0.0, 1.5, 0.0],
+            vertical_fov_degrees: 45.0,
+        };
+        let view_proj = view_projection_matrix(&camera, 16.0 / 9.0, 0.1, 1000.0);
+        let focus = forward_shadow_focus(camera.eye, view_proj, 40.0);
+        // The box centre moves ~40 m ahead in +Z (the look direction), stays at eye height, and does
+        // not drift sideways — coverage lands out in the field, not behind the camera.
+        assert!(focus[2] > camera.eye[2] + 30.0, "focus should lead the eye in +Z: {focus:?}");
+        assert!((focus[0] - camera.eye[0]).abs() < 1.0e-3, "no sideways drift: {focus:?}");
+        assert!((focus[1] - camera.eye[1]).abs() < 1.0e-3, "vertical stays at eye height: {focus:?}");
+        // The horizontal displacement is exactly the requested offset (the vertical is dropped).
+        let dx = focus[0] - camera.eye[0];
+        let dz = focus[2] - camera.eye[2];
+        assert!(((dx * dx + dz * dz).sqrt() - 40.0).abs() < 1.0e-2, "offset magnitude: {focus:?}");
+    }
+
+    #[test]
+    fn forward_focus_on_a_degenerate_matrix_returns_the_eye() {
+        // A straight-down view (no horizontal look direction) leaves the focus at the eye rather than
+        // producing a NaN centre.
+        let eye = [3.0, 20.0, 7.0];
+        assert_eq!(forward_shadow_focus(eye, [[0.0; 4]; 4], 40.0), eye);
     }
 
     #[test]

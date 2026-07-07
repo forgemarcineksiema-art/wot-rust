@@ -1,6 +1,8 @@
-// Depth-only occluder pass for the focused sun shadow map. Renders vehicle occluders from the sun's
-// point of view into a depth texture; the scene and vehicle shaders sample it to shade the key
-// light. Only the position and the per-instance model matrix are read — no colour, no fragment.
+// Depth-only occluder pass for the focused sun shadow map. Renders the whole world (static terrain +
+// baked buildings/trees, the dynamic mesh, and the vehicle fleet) from the sun's point of view into
+// a depth texture; the scene and vehicle shaders sample it to shade the key light. Only the position
+// and the per-instance model matrix are read — no colour, no fragment — so one vs_main serves both
+// the scene and vehicle vertex formats (each leads with position).
 
 struct Camera {
     view_proj: mat4x4<f32>,
