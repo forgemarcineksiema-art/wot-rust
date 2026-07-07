@@ -142,17 +142,22 @@ fn push_gable_roof(
         // The slope on this side of the ridge.
         let eave_a = Vec3::new(center.x, eaves_y, center.z) + axis * long + side * short * sign;
         let eave_b = Vec3::new(center.x, eaves_y, center.z) - axis * long + side * short * sign;
-        let normal =
-            (side * sign * (ridge_y - eaves_y) + Vec3::Y * short).normalize_or_zero().to_array();
+        let normal = (side * sign * (ridge_y - eaves_y) + Vec3::Y * short).normalize_or_zero();
         let start = vertices.len() as u32;
         for point in [eave_a, eave_b, ridge_b, ridge_a] {
-            vertices.push(SceneVertex::surfaced(point.to_array(), normal, roof, roof_gloss));
+            vertices.push(SceneVertex::surfaced(
+                point.to_array(),
+                normal.to_array(),
+                roof,
+                roof_gloss,
+            ));
         }
-        if sign > 0.0 {
-            indices.extend_from_slice(&[start, start + 1, start + 2, start, start + 2, start + 3]);
-        } else {
-            indices.extend_from_slice(&[start, start + 2, start + 1, start, start + 3, start + 2]);
-        }
+        // Winding follows the outward normal instead of a per-side guess: swapping the ridge
+        // between the X and Z axis is a reflection, which flips any hand-picked order (the
+        // see-through-roof bug). Locked by `every_cover_triangle_winds_outward`.
+        push_winding(indices, start, &[0, 1, 2, 0, 2, 3], {
+            (eave_b - eave_a).cross(ridge_b - eave_a).dot(normal) > 0.0
+        });
         // The gable-end triangle at this end of the ridge.
         let (ridge_end, outward) = if sign > 0.0 { (ridge_a, axis) } else { (ridge_b, -axis) };
         let g0 = Vec3::new(ridge_end.x, eaves_y, ridge_end.z) + side * short;
@@ -162,11 +167,20 @@ fn push_gable_roof(
         for point in [g0, g1, ridge_end] {
             vertices.push(SceneVertex::surfaced(point.to_array(), gn, roof, roof_gloss));
         }
-        if sign > 0.0 {
-            indices.extend_from_slice(&[gable, gable + 1, gable + 2]);
-        } else {
-            indices.extend_from_slice(&[gable, gable + 2, gable + 1]);
-        }
+        push_winding(indices, gable, &[0, 1, 2], {
+            (g1 - g0).cross(ridge_end - g0).dot(outward) > 0.0
+        });
+    }
+}
+
+/// Append triangles (`pattern` holds corner offsets from `start`, three per triangle) either
+/// as-is or with each triangle's last two corners swapped, so the front face points where the
+/// caller's normal test said it should.
+fn push_winding(indices: &mut Vec<u32>, start: u32, pattern: &[u32], keep: bool) {
+    for triangle in pattern.chunks(3) {
+        let (a, b, c) = (triangle[0], triangle[1], triangle[2]);
+        let (b, c) = if keep { (b, c) } else { (c, b) };
+        indices.extend_from_slice(&[start + a, start + b, start + c]);
     }
 }
 
@@ -316,6 +330,34 @@ mod tests {
                         "cover {} draws outside its collision box at {:?}",
                         cover.id,
                         vertex.position
+                    );
+                }
+            }
+        }
+    }
+
+    /// Culling honesty: every cover triangle's geometric winding must agree with its authored
+    /// normal, or the back-face cull shows the INSIDE of the surface (the gable-roof bug: both
+    /// slopes wound inward, so streets saw through the roof into its underside).
+    #[test]
+    fn every_cover_triangle_winds_outward() {
+        for map in [prokhorovka_hill_252_2(), terrain::bystra_valley()] {
+            for cover in &map.static_cover {
+                let mut vertices = Vec::new();
+                let mut indices = Vec::new();
+                append_cover_box(&mut vertices, &mut indices, cover);
+                for triangle in indices.chunks(3) {
+                    let [a, b, c] = [triangle[0], triangle[1], triangle[2]]
+                        .map(|index| Vec3::from_array(vertices[index as usize].position));
+                    let winding = (b - a).cross(c - a);
+                    if winding.length_squared() < 1.0e-8 {
+                        continue;
+                    }
+                    let normal = Vec3::from_array(vertices[triangle[0] as usize].normal);
+                    assert!(
+                        winding.dot(normal) > 0.0,
+                        "cover {} has a triangle wound against its normal at {a:?}",
+                        cover.id
                     );
                 }
             }
