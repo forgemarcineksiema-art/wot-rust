@@ -200,15 +200,8 @@ impl SimulationState {
                     tank.hull_yaw_velocity_rad_s = 0.0;
                     continue;
                 }
-                let ground = step_tank(
-                    tank,
-                    command,
-                    dt,
-                    heightmap,
-                    cover,
-                    &obstacle_scratch,
-                    self.water,
-                );
+                let ground =
+                    step_tank(tank, command, dt, heightmap, cover, &obstacle_scratch, self.water);
                 all_obstacles[index] =
                     TankObstacle::from_hitbox(tank.position, tank.yaw_rad, tank.spec.hitbox);
                 apply_landing_impact(tank, ground.landing_impact_mps, &mut self.damage_events);
