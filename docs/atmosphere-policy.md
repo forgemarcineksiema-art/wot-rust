@@ -64,7 +64,11 @@ linear colour/intensity. `ground_ambient_rgb` is the only new profile field for 
 ## Sky And Air (phased)
 
 - The flat clear-colour sky becomes a **gradient sky** (zenith→horizon + a soft sun disc/haze) so the
-  upper hemisphere the ambient samples and the visible sky agree.
+  upper hemisphere the ambient samples and the visible sky agree. A **drifting domain-warped FBM cloud
+  sheet** breaks the dome out of a flat two-stop wash — anchored to the ray direction (world-stable,
+  no swim), crawling only by the tick-domain presentation clock, lit toward the sun and greyed on the
+  shadow side, faded out at the horizon band. Coverage is soft-thresholded so open blue shows between
+  the banks, and the same clouds grey down into an overcast lid under the rain profile.
 - **Height + distance fog with aerial perspective**: distant terrain and vehicles desaturate toward
   the horizon/sky colour, giving a 1000 m map real depth instead of cardboard cut-outs at range. Fog
   is a profile parameter (density, colour, height falloff), evaluated in the lit shaders from the

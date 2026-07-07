@@ -69,10 +69,11 @@ impl SceneLighting {
             fill_rgb: [0.16, 0.19, 0.25],
             rim_direction: [-0.42, 0.4, -0.88],
             rim_rgb: [0.20, 0.23, 0.30],
-            // A clear-day sky: a deeper blue overhead easing to a pale, slightly warm haze at the
-            // horizon. The horizon doubles as the fog colour, so distant hills melt into the sky.
-            sky_zenith_rgb: [0.19, 0.34, 0.58],
-            sky_horizon_rgb: [0.66, 0.74, 0.82],
+            // A clear-day sky: a deeper, more saturated blue overhead easing to a hazy blue-grey at
+            // the horizon (less milky than before, so white cloud reads against it). The horizon
+            // doubles as the fog colour, so distant hills still melt into the same haze.
+            sky_zenith_rgb: [0.15, 0.32, 0.62],
+            sky_horizon_rgb: [0.58, 0.70, 0.82],
             // Very light haze, tuned so enemy vehicles stay crisply readable at combat range:
             // ~4% fade at 300 m, ~6% at 500 m, only ~10-15% out past 1 km where the far terrain
             // melts into the horizon. Aerial perspective for depth, never for hiding targets.

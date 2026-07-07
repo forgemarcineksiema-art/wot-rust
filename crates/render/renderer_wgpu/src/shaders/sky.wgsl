@@ -70,6 +70,38 @@ fn tonemap_aces(x: vec3<f32>) -> vec3<f32> {
     return display_grade(mapped);
 }
 
+// --- Procedural clouds ----------------------------------------------------------------------
+// A drifting FBM sheet on a virtual cloud plane, so the dome stops being a flat two-stop wash. The
+// noise is anchored to the ray direction (world-stable — it does not swim as the camera turns) and
+// crawls only by the presentation clock, so a still frame is still and a moving one drifts slowly.
+
+fn cloud_hash(p: vec2<f32>) -> f32 {
+    return fract(sin(dot(p, vec2<f32>(127.1, 311.7))) * 43758.5453);
+}
+
+fn cloud_noise(p: vec2<f32>) -> f32 {
+    let i = floor(p);
+    let f = fract(p);
+    let u = f * f * (3.0 - 2.0 * f);
+    let a = cloud_hash(i);
+    let b = cloud_hash(i + vec2<f32>(1.0, 0.0));
+    let c = cloud_hash(i + vec2<f32>(0.0, 1.0));
+    let d = cloud_hash(i + vec2<f32>(1.0, 1.0));
+    return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
+
+fn cloud_fbm(p: vec2<f32>) -> f32 {
+    var sum = 0.0;
+    var amp = 0.5;
+    var freq = 1.0;
+    for (var i = 0; i < 5; i = i + 1) {
+        sum = sum + amp * cloud_noise(p * freq);
+        freq = freq * 2.0;
+        amp = amp * 0.5;
+    }
+    return sum;
+}
+
 @fragment
 fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     // Unproject the far-plane NDC point to world space and take the direction from the camera: the
@@ -78,18 +110,39 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     let world = camera.inv_view_proj * vec4<f32>(input.ndc, 1.0, 1.0);
     let dir = normalize(world.xyz / world.w - camera.camera_pos);
 
-    // Zenith->horizon gradient by the ray's up fraction. The sqrt lifts the horizon band so the
-    // paler haze hugs the ground line rather than washing the whole dome.
+    // Zenith->horizon gradient by the ray's up fraction. A gentle power keeps the deeper zenith blue
+    // reaching down toward the eye line, so the dome is not one flat pale band; the paler haze still
+    // hugs the ground line where real aerial haze thickens.
     let up = clamp(dir.y, 0.0, 1.0);
-    var color = mix(camera.sky_horizon_rgb, camera.sky_zenith_rgb, sqrt(up));
+    var color = mix(camera.sky_horizon_rgb, camera.sky_zenith_rgb, pow(up, 0.42));
 
-    // Sun: a tight bright disc plus a soft surrounding haze, along the key light direction. Only
-    // above the horizon so a low sun does not bleed a second glow into the ground band.
     let sun = normalize(camera.key_direction);
     let d = max(dot(dir, sun), 0.0);
     let above = smoothstep(-0.02, 0.06, dir.y);
+
+    // Clouds: project the ray onto a plane above the eye (uv foreshortens toward the horizon like
+    // real cloud cover) and drift it by the clock. A domain warp — offsetting the sample by a
+    // low-frequency noise of itself — breaks the grid alignment of raw value noise into billowed,
+    // natural banks instead of angular blobs. Coverage is soft-thresholded so open blue shows between.
+    let drift = camera.time_params.x * 0.004;
+    let uv = dir.xz / (dir.y + 0.45) * 0.8 + vec2<f32>(drift, drift * 0.6);
+    let warp = vec2<f32>(cloud_fbm(uv * 0.5), cloud_fbm(uv * 0.5 + vec2<f32>(5.2, 1.3)));
+    let coverage = cloud_fbm(uv + warp * 0.7);
+    // Fade the sheet out at the horizon (where it would alias into a busy band); a broad, soft
+    // mid-sky belt of cloud so the dome stops reading as one flat pale wash.
+    let band = smoothstep(0.04, 0.32, dir.y);
+    let cloud = smoothstep(0.40, 0.72, coverage) * band;
+    // Lit toward the sun (warm bright tops), a cooler shadowed base on the far side; the spread gives
+    // the banks body rather than reading as flat white paint against the pale sky.
+    let sun_side = clamp(dot(dir, sun) * 0.5 + 0.5, 0.0, 1.0);
+    let cloud_col = mix(vec3<f32>(0.64, 0.68, 0.76), vec3<f32>(1.30, 1.22, 1.06), sun_side);
+    color = mix(color, cloud_col, cloud * 0.9);
+
+    // Sun: a tight bright disc plus a soft surrounding haze, along the key light direction. Drawn
+    // after the clouds and only above the horizon, so a low sun does not bleed a second glow into the
+    // ground band and the disc burns through thin cloud.
     let disc = pow(d, 900.0) * 6.0;
-    let halo = pow(d, 9.0) * 0.18;
+    let halo = pow(d, 9.0) * 0.20;
     color += camera.key_rgb * (disc + halo) * above;
 
     return vec4<f32>(tonemap_aces(color), 1.0);
