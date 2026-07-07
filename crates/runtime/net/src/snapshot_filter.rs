@@ -13,12 +13,14 @@ impl Snapshot {
         Snapshot {
             server_tick: self.server_tick,
             tanks: visible_tanks,
-            shells: self
-                .shells
-                .iter()
-                .copied()
-                .filter(|shell| visible_ids.contains(&shell.owner) || shell.owner == viewer_tank)
-                .collect(),
+            // Shells and impacts are world events, not intel: a tracer in the air and dirt
+            // thrown by a near-miss are visible to everyone standing there, whatever the
+            // spotting state of the gun that fired. Filtering them by OWNER visibility made
+            // fire from beyond spotting range fully invisible (no tracer, no impact, no
+            // counter-battery read — only the damage), and a shell vanished mid-flight the
+            // moment its owner's spotted hold expired. The tank itself stays hidden; the
+            // shot it fired does not.
+            shells: self.shells.clone(),
             damage_events: self
                 .damage_events
                 .iter()
@@ -30,12 +32,7 @@ impl Snapshot {
                             && visible_ids.contains(&event.target))
                 })
                 .collect(),
-            shell_impacts: self
-                .shell_impacts
-                .iter()
-                .copied()
-                .filter(|impact| visible_ids.contains(&impact.owner) || impact.owner == viewer_tank)
-                .collect(),
+            shell_impacts: self.shell_impacts.clone(),
         }
     }
 
