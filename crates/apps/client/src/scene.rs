@@ -4,3 +4,4 @@
 pub(crate) mod battlefield;
 pub(crate) mod hangar;
 mod hangar_props;
+pub(crate) mod water;

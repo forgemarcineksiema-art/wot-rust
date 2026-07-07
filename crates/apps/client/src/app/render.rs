@@ -47,6 +47,10 @@ impl ClientApp {
             WindowRenderer::new(window, width, height, &terrain_vertices, &terrain_indices)?;
         let atlas = crate::hud::font::atlas();
         renderer.set_hud_font_atlas(atlas.width(), atlas.height(), atlas.coverage());
+        // The battle scene starts loaded, so its river (if the map has one) starts loaded too.
+        let (water_vertices, water_indices) =
+            crate::scene::water::battlefield_water_mesh(&self.battlefield);
+        renderer.set_water(&water_vertices, &water_indices);
         self.renderer = Some(renderer);
         Ok(())
     }

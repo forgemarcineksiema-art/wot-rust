@@ -15,10 +15,57 @@ impl FxSystem {
             ImpactSurface::Terrain => self.dirt_fountain(position),
             ImpactSurface::Cover => self.masonry_burst(position),
             ImpactSurface::Hull => self.spark_fan(position, 8),
-            // The sim cannot report a water death yet (no map carries water); the real splash
-            // recipe ships with water rendering. Until then, read as the generic fountain.
-            ImpactSurface::Water => self.dirt_fountain(position),
+            ImpactSurface::Water => self.water_splash(position),
         }
+    }
+
+    /// A shell dying in the river: a bright water column thrown straight up (heavier and
+    /// taller than dirt clods — water holds together), a ring of low flat spray, and a brief
+    /// pale mist. No sparks, no dust — water answers differently than ground.
+    fn water_splash(&mut self, position: Vec3) {
+        // The column: tall, narrow, falls back hard.
+        for _ in 0..10 {
+            let lateral = Vec3::new(self.rand_signed(), 0.0, self.rand_signed()) * 1.2;
+            let up = 7.0 + self.rand_unit() * 5.0;
+            let ttl = 0.8 + self.rand_unit() * 0.5;
+            let alpha = 0.8;
+            self.spawn(Particle {
+                position: position + Vec3::Y * 0.1,
+                velocity_mps: lateral + Vec3::Y * up,
+                gravity_factor: 1.0,
+                drag_per_s: 0.6,
+                age_s: 0.0,
+                ttl_s: ttl,
+                size_begin_m: 0.30,
+                size_end_m: 0.75,
+                color_begin: [0.72 * alpha, 0.78 * alpha, 0.82 * alpha, alpha],
+                color_end: [0.0, 0.0, 0.0, 0.0],
+                stretch_s: 0.08,
+            });
+        }
+        // The ring: fast, flat, short-lived spray skating outward on the surface.
+        for _ in 0..8 {
+            let direction =
+                Vec3::new(self.rand_signed(), 0.12, self.rand_signed()).normalize_or_zero();
+            let speed = 6.0 + self.rand_unit() * 4.0;
+            let ttl = 0.35 + self.rand_unit() * 0.25;
+            let alpha = 0.55;
+            self.spawn(Particle {
+                position: position + Vec3::Y * 0.15,
+                velocity_mps: direction * speed,
+                gravity_factor: 0.8,
+                drag_per_s: 1.4,
+                age_s: 0.0,
+                ttl_s: ttl,
+                size_begin_m: 0.25,
+                size_end_m: 0.5,
+                color_begin: [0.60 * alpha, 0.68 * alpha, 0.72 * alpha, alpha],
+                color_end: [0.0, 0.0, 0.0, 0.0],
+                stretch_s: 0.05,
+            });
+        }
+        // The mist: a soft pale veil hanging where the column collapsed.
+        self.dust_pall(position, [0.66, 0.72, 0.75], 4);
     }
 
     /// A hit on a live tank. Every armor strike throws sparks; a ricochet throws them longer and
@@ -172,6 +219,10 @@ mod tests {
         let mut hull = FxSystem::default();
         hull.impact_burst(Vec3::ZERO, ImpactSurface::Hull);
         assert_eq!(hull.live_particles(), 8, "sparks only — a wreck rings, it does not crater");
+
+        let mut water = FxSystem::default();
+        water.impact_burst(Vec3::ZERO, ImpactSurface::Water);
+        assert_eq!(water.live_particles(), 22, "10 column + 8 ring + 4 mist — the splash");
     }
 
     #[test]

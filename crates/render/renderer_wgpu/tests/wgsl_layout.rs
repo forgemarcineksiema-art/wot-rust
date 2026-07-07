@@ -75,6 +75,16 @@ fn sky_shader_is_valid_wgsl_and_shares_the_scene_camera_slot() {
 }
 
 #[test]
+fn water_shader_is_valid_wgsl_and_shares_the_scene_camera_slot() {
+    let report = validate_wgsl_shader("water", renderer_wgpu::water_shader_source())
+        .expect("water shader validates");
+    assert!(report.entry_points.iter().any(|entry| entry == "vs_main"));
+    assert!(report.entry_points.iter().any(|entry| entry == "fs_main"));
+    // The water pass reuses the scene camera bind group - the ripple runs on its time uniform.
+    assert!(report.has_uniform_binding("camera", 0, 0));
+}
+
+#[test]
 fn shadow_shader_is_valid_wgsl() {
     let report =
         validate_wgsl_shader("shadow", shadow_shader_source()).expect("shadow shader validates");

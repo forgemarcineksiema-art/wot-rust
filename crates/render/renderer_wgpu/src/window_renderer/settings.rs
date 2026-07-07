@@ -39,3 +39,11 @@ impl WindowRenderer {
         self.scene.scene_time_s = time_s;
     }
 }
+
+impl super::WindowRenderer {
+    /// Replace the water-surface mesh (see [`crate::SceneRenderer::set_water`]); an empty
+    /// slice clears the slot. Scene-swap cadence, never per frame.
+    pub fn set_water(&mut self, vertices: &[renderer_api::WaterVertex], indices: &[u32]) {
+        self.scene.set_water(&self.ctx, vertices, indices);
+    }
+}

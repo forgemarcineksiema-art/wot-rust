@@ -151,6 +151,19 @@ impl super::SceneRenderer {
                     );
                 }
             }
+            // The river surface after every lit opaque: depth-tested (banks and hulls above
+            // the waterline occlude it) but drawn over whatever sits below the plane — a
+            // wading hull's submerged running gear correctly reads through the water. Never
+            // writes depth, so the FX splashes drawn next still composite over the surface.
+            if self.water_index_count > 0
+                && let Some((water_vertices, water_indices)) = self.water_buffers.as_ref()
+            {
+                pass.set_pipeline(&self.water_pipeline);
+                pass.set_bind_group(0, &self.camera_bind_group, &[]);
+                pass.set_vertex_buffer(0, water_vertices.slice(..));
+                pass.set_index_buffer(water_indices.slice(..), wgpu::IndexFormat::Uint32);
+                pass.draw_indexed(0..self.water_index_count, 0, 0..1);
+            }
             // Battle FX draw after every lit opaque (correct depth occlusion) and before the
             // HUD overlay; the pipeline reuses the scene camera bind group for view_proj.
             if self.fx_vertex_count > 0 {

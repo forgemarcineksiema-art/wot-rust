@@ -2,6 +2,24 @@ use glam::{Mat4, Vec3};
 
 use crate::Camera;
 
+/// Backend-neutral water-surface vertex: a world-space point ON the still-water plane plus the
+/// water depth under it (`surface level − riverbed height`, baked from the heightmap). Depth
+/// drives the shore fade and the shallow→deep tint in the water shader without any per-pixel
+/// depth-texture read; the animated ripple is purely a shader-side normal perturbation, so the
+/// mesh itself stays static (uploaded once per scene swap). POD for zero-copy upload.
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct WaterVertex {
+    pub position: [f32; 3],
+    pub depth_m: f32,
+}
+
+impl WaterVertex {
+    pub const fn new(position: [f32; 3], depth_m: f32) -> Self {
+        Self { position, depth_m }
+    }
+}
+
 /// Backend-neutral lit vertex: world-space position, normal, an RGB base color, and a tint weight.
 ///
 /// `tint_weight` controls how much of the per-instance team tint multiplies the base color:

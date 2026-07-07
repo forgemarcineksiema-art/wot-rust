@@ -117,8 +117,15 @@ impl ClientApp {
                 (v, i, (0.55, 0.69, 0.87), SceneLighting::battlefield_default())
             }
         };
+        // The river surface swaps with the scene: the battlefield's water (empty on dry maps),
+        // nothing in the hangar.
+        let (water_vertices, water_indices) = match want {
+            SceneKind::Garage => (Vec::new(), Vec::new()),
+            SceneKind::Battle => crate::scene::water::battlefield_water_mesh(&self.battlefield),
+        };
         if let Some(renderer) = self.renderer.as_mut() {
             renderer.set_terrain(&vertices, &indices);
+            renderer.set_water(&water_vertices, &water_indices);
             // Interior scenes show a flat backdrop; the battlefield shows the gradient sky dome.
             match want {
                 SceneKind::Garage => renderer.set_interior_background(sky.0, sky.1, sky.2),

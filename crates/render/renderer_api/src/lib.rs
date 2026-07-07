@@ -39,7 +39,8 @@ pub use pipeline::{
 pub use projection::{CameraProjectionPolicy, DepthRange};
 pub use resources::{MaterialDescriptor, MeshAsset, MeshRegistry, RenderMaterialRegistry};
 pub use scene::{
-    FxVertex, HUD_SOLID_UV, HudVertex, SceneVertex, view_projection_inverse, view_projection_matrix,
+    FxVertex, HUD_SOLID_UV, HudVertex, SceneVertex, WaterVertex, view_projection_inverse,
+    view_projection_matrix,
 };
 pub use sun_shadow::{SunShadowParams, sun_light_view_projection};
 pub use vehicle::{MAPPING_PARAMETRIC, MAPPING_TRIPLANAR, VehicleVertex, generate_tangents};

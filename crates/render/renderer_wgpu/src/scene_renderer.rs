@@ -10,6 +10,7 @@ pub(crate) mod ssao;
 mod ssao_pipelines;
 mod terrain;
 mod vehicle_materials;
+mod water;
 
 use std::cell::Cell;
 
@@ -54,6 +55,10 @@ pub struct SceneRenderer {
     vehicle_draws: Vec<SceneObjectDraw>,
     vehicle_meshes: VehicleMeshRegistry,
     sky_pipeline: wgpu::RenderPipeline,
+    water_pipeline: wgpu::RenderPipeline,
+    /// The static river mesh (vertex, index); `None` on dry scenes — the draw is skipped.
+    water_buffers: Option<(wgpu::Buffer, wgpu::Buffer)>,
+    water_index_count: u32,
     fx_pipeline: wgpu::RenderPipeline,
     fx_vertices: wgpu::Buffer,
     fx_vertex_count: u32,
@@ -128,6 +133,12 @@ impl SceneRenderer {
             sample_count,
             &camera_bgl,
         );
+        let water_pipeline = crate::water_pipeline::build_water_pipeline(
+            device,
+            color_format,
+            sample_count,
+            &camera_bgl,
+        );
         let (vehicle_pipeline, vehicle_camera_bgl, vehicle_material_bgl) =
             build_vehicle_pipeline(device, color_format, sample_count, &shadow_bgl);
         let ssao = ssao::SsaoResources::new(device, &camera_bgl);
@@ -191,6 +202,9 @@ impl SceneRenderer {
             vehicle_draws: Vec::new(),
             vehicle_meshes: VehicleMeshRegistry::default(),
             sky_pipeline,
+            water_pipeline,
+            water_buffers: None,
+            water_index_count: 0,
             fx_pipeline,
             fx_vertices: buffers.fx_vertices,
             fx_vertex_count: 0,
