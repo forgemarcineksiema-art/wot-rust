@@ -60,7 +60,7 @@ pub struct ArmorVolume {
 /// volume is hit only while entry precedes exit.
 pub fn segment_volume_entry(start: Vec3, end: Vec3, volume: &ArmorVolume) -> Option<(f32, usize)> {
     let direction = end - start;
-    let mut enter = 0.0f32;
+    let mut enter = f32::NEG_INFINITY;
     let mut exit = 1.0f32;
     let mut enter_plane: Option<usize> = None;
     for (index, plane) in volume.planes.iter().enumerate() {
@@ -74,7 +74,9 @@ pub fn segment_volume_entry(start: Vec3, end: Vec3, volume: &ArmorVolume) -> Opt
         }
         let t = -signed / denom;
         if denom < 0.0 {
-            // Crossing INTO the half-space: a candidate entering plate.
+            // Crossing INTO the half-space: a candidate entering plate. Crossings behind the
+            // start (t < 0) stay candidates — they identify the plate a start-inside segment
+            // most recently pierced.
             if t > enter {
                 enter = t;
                 enter_plane = Some(index);
@@ -86,10 +88,12 @@ pub fn segment_volume_entry(start: Vec3, end: Vec3, volume: &ArmorVolume) -> Opt
             return None;
         }
     }
-    // A segment starting inside the volume (enter still 0, no entering plane) has no plate to
-    // strike — the muzzle sits inside the armor; callers treat that as no hit.
+    // A segment starting inside the volume strikes immediately: point-blank, the muzzle already
+    // poked through a plate, and that latest-pierced plane (entry crossing behind the start) IS
+    // the plate the shell meets at t = 0. The exit >= 0 guard rejects segments that lie entirely
+    // past the volume.
     let plane = enter_plane?;
-    (enter <= 1.0).then_some((enter, plane))
+    (enter <= 1.0 && exit >= 0.0).then_some((enter.max(0.0), plane))
 }
 
 #[cfg(test)]
@@ -142,7 +146,7 @@ mod tests {
     }
 
     #[test]
-    fn misses_and_inside_starts_return_none() {
+    fn misses_return_none() {
         let volume = unit_box();
         // Clean miss above the box.
         assert_eq!(
@@ -154,8 +158,30 @@ mod tests {
             segment_volume_entry(Vec3::new(0.0, 0.0, 5.0), Vec3::new(0.0, 0.0, 3.0), &volume),
             None
         );
-        // Starting inside: no entering plate to strike.
-        assert_eq!(segment_volume_entry(Vec3::ZERO, Vec3::new(0.0, 0.0, 5.0), &volume), None);
+        // Segment fully past the box, moving away: entry crossings exist behind the start but
+        // the volume was already exited.
+        assert_eq!(
+            segment_volume_entry(Vec3::new(0.0, 0.0, -3.0), Vec3::new(0.0, 0.0, -5.0), &volume),
+            None
+        );
+    }
+
+    #[test]
+    fn a_start_inside_the_volume_strikes_the_latest_pierced_plate_at_t_zero() {
+        let volume = unit_box();
+        // Point-blank: the muzzle poked 0.5 m through the front (+Z) face, firing deeper in.
+        // The shell meets the pierced glacis immediately, not the far side, and never escapes.
+        let (t, plane) =
+            segment_volume_entry(Vec3::new(0.0, 0.0, 0.5), Vec3::new(0.0, 0.0, -5.0), &volume)
+                .expect("a muzzle inside the armor still strikes it");
+        assert_eq!(t, 0.0, "the strike is immediate, not extrapolated behind the muzzle");
+        assert_eq!(volume.planes[plane].zone, ArmorZone::UpperGlacis);
+
+        // From dead centre firing forward the latest-pierced plate along the line is the rear.
+        let (t, plane) =
+            segment_volume_entry(Vec3::ZERO, Vec3::new(0.0, 0.0, 5.0), &volume).expect("hits");
+        assert_eq!(t, 0.0);
+        assert_eq!(volume.planes[plane].zone, ArmorZone::HullRear);
     }
 
     #[test]

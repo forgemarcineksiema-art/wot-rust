@@ -178,6 +178,50 @@ fn long_range_hit_uses_penetration_falloff() {
     assert_eq!(state.tank(target).expect("target").hit_points, target_hp);
 }
 
+/// Point-blank honesty: nose-to-nose the barrel tip sits INSIDE the enemy's armor volume, and
+/// the shot must still connect — at the muzzle, against the plate the barrel poked through —
+/// instead of tunnelling out the far side and sailing on. (Blueprint volumes used to report
+/// start-inside segments as no hit; both duelists would dump whole magazines through each other.)
+#[test]
+fn point_blank_muzzle_inside_the_enemy_still_strikes_it() {
+    let mut state = SimulationState::new();
+    let shooter = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::ZERO);
+    let target = state.spawn_tank(TeamId(2), TankSpec::t54_1951(), Vec3::new(0.0, 0.0, 6.0));
+    state.tank_mut(target).expect("target").yaw_rad = PI;
+
+    // Precondition, so the test keeps meaning something if specs move: the muzzle really sits
+    // inside the enemy turret volume's plan (bumper distance, level gun at dome height).
+    let muzzle = state.tank(shooter).expect("shooter").muzzle_world_position();
+    let hitbox = &state.tank(target).expect("target").spec.hitbox;
+    let local_z = (state.tank(target).expect("target").position.z - muzzle.z).abs();
+    assert!(
+        local_z < hitbox.turret_half_length_m,
+        "muzzle must start inside the enemy turret plan: {local_z} vs {}",
+        hitbox.turret_half_length_m
+    );
+
+    // Point-blank resolves within the very tick that fires (events clear each tick), so probe
+    // right after each step instead of using run_until_shell_resolved.
+    let step = FixedTimestep::from_hz(60);
+    state.apply_commands(&[(shooter, fire_command())], step);
+    for _ in 0..30 {
+        if !state.damage_events().is_empty() || !state.shell_impacts().is_empty() {
+            break;
+        }
+        state.apply_commands(&[], step);
+    }
+
+    assert!(state.shells().is_empty(), "the shot must not tunnel out and sail on");
+    let event = state.damage_events().last().expect("point-blank shot must register an impact");
+    assert_eq!(event.target, target);
+    assert!(
+        event.hit_position.distance(muzzle) < 0.75,
+        "the strike lands at the muzzle, not extrapolated behind it or on the far side: \
+         hit {:?} vs muzzle {muzzle:?}",
+        event.hit_position
+    );
+}
+
 fn run_until_shell_resolved(state: &mut SimulationState, shooter: game_core::TankId) {
     let step = FixedTimestep::from_hz(60);
     state.apply_commands(&[(shooter, fire_command())], step);
