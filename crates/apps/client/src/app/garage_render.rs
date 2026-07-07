@@ -12,9 +12,9 @@ use renderer_wgpu::WindowRenderer;
 use tracing::error;
 
 use super::{ClientApp, SceneKind};
+use crate::render_frame_from_objects;
 use crate::vehicle::asset_render::tank_vehicle_render_objects_with_tracks;
 use crate::vehicle::variation::VehicleVariation;
-use crate::{battlefield_scene_mesh, render_frame_from_objects};
 
 impl ClientApp {
     /// Render the static garage hangar: the selected vehicle parked on the turntable under an
@@ -99,19 +99,41 @@ impl ClientApp {
         }
     }
 
-    /// Swap the renderer's static geometry to the requested scene if it differs. Cheap because it
-    /// only fires on a garage <-> battle transition, not per frame.
+    /// Swap the renderer's static geometry to the requested scene if it differs. Only fires on
+    /// a garage <-> battle transition, not per frame — and the battle meshes come from the
+    /// app-lifetime cache, so the swap costs the GPU upload alone (rebaking the full 1000 m
+    /// battlefield inside the transition frame froze it for hundreds of ms on iGPU laptops).
     pub(super) fn ensure_scene(&mut self, want: SceneKind) {
         if self.current_scene == want {
             return;
         }
-        let (vertices, indices, sky, lighting, rain_intensity, wetness) = match want {
-            SceneKind::Garage => {
-                let (v, i) = crate::scene::hangar::hangar_scene_mesh();
-                // The workshop rig rakes a warm sun down through the skylights (real contact shadow
-                // on the turntable) over a dim, near-neutral shop interior.
-                (v, i, (0.05, 0.05, 0.06), SceneLighting::garage_workshop(), 0.0, 0.0)
-            }
+        if want == SceneKind::Battle {
+            self.ensure_battle_scene_meshes();
+        }
+        // The hangar mesh stays cheap enough to bake on entry; it must outlive the borrow below.
+        let hangar_meshes;
+        // The river surface swaps with the scene: the battlefield's water (empty on dry maps),
+        // nothing in the hangar.
+        let (vertices, indices, water_vertices, water_indices): (&[_], &[u32], &[_], &[u32]) =
+            match want {
+                SceneKind::Garage => {
+                    hangar_meshes = crate::scene::hangar::hangar_scene_mesh();
+                    (&hangar_meshes.0, &hangar_meshes.1, &[], &[])
+                }
+                SceneKind::Battle => {
+                    let meshes = self.battle_scene_meshes.as_ref().expect("ensured above");
+                    (
+                        &meshes.terrain_vertices,
+                        &meshes.terrain_indices,
+                        &meshes.water_vertices,
+                        &meshes.water_indices,
+                    )
+                }
+            };
+        let (sky, lighting, rain_intensity, wetness) = match want {
+            // The workshop rig rakes a warm sun down through the skylights (real contact shadow
+            // on the turntable) over a dim, near-neutral shop interior.
+            SceneKind::Garage => ((0.05, 0.05, 0.06), SceneLighting::garage_workshop(), 0.0, 0.0),
             SceneKind::Battle => {
                 // The battle look is the MATCH's look: the server named the map and rolled the
                 // weather from the battle seed; the client dresses accordingly.
@@ -119,19 +141,12 @@ impl ClientApp {
                     self.local_server.map_id(),
                     self.local_server.weather_variant(),
                 );
-                let (v, i) = battlefield_scene_mesh(&self.battlefield);
-                (v, i, look.sky, look.lighting, look.rain_intensity, look.wetness)
+                (look.sky, look.lighting, look.rain_intensity, look.wetness)
             }
         };
-        // The river surface swaps with the scene: the battlefield's water (empty on dry maps),
-        // nothing in the hangar.
-        let (water_vertices, water_indices) = match want {
-            SceneKind::Garage => (Vec::new(), Vec::new()),
-            SceneKind::Battle => crate::scene::water::battlefield_water_mesh(&self.battlefield),
-        };
         if let Some(renderer) = self.renderer.as_mut() {
-            renderer.set_terrain(&vertices, &indices);
-            renderer.set_water(&water_vertices, &water_indices);
+            renderer.set_terrain(vertices, indices);
+            renderer.set_water(water_vertices, water_indices);
             // Interior scenes show a flat backdrop; the battlefield shows the gradient sky dome.
             match want {
                 SceneKind::Garage => renderer.set_interior_background(sky.0, sky.1, sky.2),

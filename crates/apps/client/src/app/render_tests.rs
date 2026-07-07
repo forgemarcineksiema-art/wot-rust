@@ -76,6 +76,29 @@ fn presentation_time_is_phase_locked_to_the_fixed_tick_clock_under_frame_jitter(
     assert!((steady_time - 0.6).abs() < 1.0e-3, "expected ~0.6 s, got {steady_time}");
 }
 
+/// The battle scene's terrain/water meshes are baked at most once per app: a garage→battle
+/// swap must reuse the cache, never rebake the full 1000 m battlefield inside the transition
+/// frame (the iGPU battle-start freeze). Locked by pointer identity — a rebake would allocate
+/// fresh Vecs.
+#[test]
+fn battle_scene_meshes_are_baked_once_and_reused_across_a_scene_swap() {
+    let mut app = ClientApp::new();
+    app.ensure_battle_scene_meshes();
+    let baked = app.battle_scene_meshes.as_ref().expect("baked");
+    assert!(!baked.terrain_vertices.is_empty(), "the battlefield really produced geometry");
+    let terrain_ptr = baked.terrain_vertices.as_ptr();
+    let water_ptr = baked.water_vertices.as_ptr();
+
+    // A redundant bake is a no-op, and a scene swap toward battle reuses the same allocation.
+    app.ensure_battle_scene_meshes();
+    app.ensure_scene(super::SceneKind::Garage);
+    app.ensure_scene(super::SceneKind::Battle);
+
+    let after = app.battle_scene_meshes.as_ref().expect("still baked");
+    assert_eq!(after.terrain_vertices.as_ptr(), terrain_ptr, "terrain was rebaked");
+    assert_eq!(after.water_vertices.as_ptr(), water_ptr, "water was rebaked");
+}
+
 #[test]
 fn player_spec_and_reload_follow_snapshot_vehicle() {
     let mut app = ClientApp::new();
