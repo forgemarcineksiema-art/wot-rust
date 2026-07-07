@@ -170,6 +170,9 @@ fn the_static_world_casts_a_shadow_with_no_vehicles_present() {
         .filter(|(a, b)| luma(b) - luma(a) > 18.0)
         .count();
 
-    assert!(darkened > 15, "the static world must cast a ground shadow with no vehicles ({darkened} px)");
+    assert!(
+        darkened > 15,
+        "the static world must cast a ground shadow with no vehicles ({darkened} px)"
+    );
     assert!(brightened < 5, "shadows only darken; got {brightened} brightened px");
 }

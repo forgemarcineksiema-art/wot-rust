@@ -147,18 +147,18 @@ mod tests {
     fn forward_focus_pushes_the_box_along_the_horizontal_look_direction() {
         use crate::{Camera, view_projection_matrix};
         // A chase camera behind and above a tank at the origin, looking forward-down toward +Z.
-        let camera = Camera {
-            eye: [0.0, 6.0, -10.0],
-            target: [0.0, 1.5, 0.0],
-            vertical_fov_degrees: 45.0,
-        };
+        let camera =
+            Camera { eye: [0.0, 6.0, -10.0], target: [0.0, 1.5, 0.0], vertical_fov_degrees: 45.0 };
         let view_proj = view_projection_matrix(&camera, 16.0 / 9.0, 0.1, 1000.0);
         let focus = forward_shadow_focus(camera.eye, view_proj, 40.0);
         // The box centre moves ~40 m ahead in +Z (the look direction), stays at eye height, and does
         // not drift sideways — coverage lands out in the field, not behind the camera.
         assert!(focus[2] > camera.eye[2] + 30.0, "focus should lead the eye in +Z: {focus:?}");
         assert!((focus[0] - camera.eye[0]).abs() < 1.0e-3, "no sideways drift: {focus:?}");
-        assert!((focus[1] - camera.eye[1]).abs() < 1.0e-3, "vertical stays at eye height: {focus:?}");
+        assert!(
+            (focus[1] - camera.eye[1]).abs() < 1.0e-3,
+            "vertical stays at eye height: {focus:?}"
+        );
         // The horizontal displacement is exactly the requested offset (the vertical is dropped).
         let dx = focus[0] - camera.eye[0];
         let dz = focus[2] - camera.eye[2];
