@@ -11,7 +11,7 @@ use terrain::HeightMap;
 use super::decals::{Plate, premul, push_stamp};
 
 /// How many ground marks the battle holds at once; past the budget the oldest is recycled.
-const MAX_TERRAIN_SCARS: usize = 128;
+pub(crate) const MAX_TERRAIN_SCARS: usize = 128;
 /// A crater's full lifetime, and the tail of it spent fading back into the field.
 const LIFETIME_S: f32 = 150.0;
 const FADE_S: f32 = 30.0;
