@@ -99,6 +99,56 @@ mod tests {
     }
 
     #[test]
+    fn a_penetrated_wreck_gets_a_dented_per_instance_hull() {
+        use game_core::VehicleKind;
+        use glam::Vec3;
+        use renderer_api::{MaterialHandle, MeshHandle, RenderObject};
+
+        let mut app = ClientApp::new();
+        app.confirm_garage_selection();
+        app.run_fixed_ticks(6);
+
+        // Record a hull penetration on the target, then kill it in the next snapshot.
+        let mut snapshot = app.render_state.latest_snapshot().cloned().expect("snapshot present");
+        snapshot.server_tick += 1;
+        let target =
+            snapshot.tanks.iter_mut().find(|tank| tank.tank_id != app.player_tank).expect("target");
+        let target_id = target.tank_id;
+        let hit = glam::Vec3::from_array(target.position) + Vec3::new(0.0, 1.2, 1.0);
+        snapshot.damage_events.push(game_core::DamageEvent {
+            source: app.player_tank,
+            target: target_id,
+            hit_position: hit,
+            damage_hp: 400,
+            penetrated: true,
+            cause: game_core::DamageCause::Shell,
+            armor_zone: game_core::ArmorZone::UpperGlacis,
+            ..Default::default()
+        });
+        target.hit_points = 0;
+        app.accept_and_sync(snapshot);
+
+        // The wreck now owns a dented hull handle distinct from the shared base hull mesh.
+        let handle =
+            app.wreck_hull_meshes.get(&target_id).copied().expect("wreck has a dented hull");
+        let base = app.vehicle_asset_catalog.vehicle_entry(VehicleKind::T54_1951).map(|e| e.hull);
+        if let Some(base) = base {
+            assert_ne!(handle, base, "the dented wreck hull is a distinct per-instance mesh");
+        }
+
+        // The render override points the wreck's hull object at the dented handle.
+        let mut objects = vec![RenderObject {
+            tank_id: Some(target_id),
+            mesh: MeshHandle(999),
+            material: MaterialHandle(0),
+            transform: glam::Mat4::IDENTITY.to_cols_array_2d(),
+            tint: [0.3, 0.3, 0.3],
+        }];
+        app.apply_wreck_deform(&mut objects);
+        assert_eq!(objects[0].mesh, handle, "the wreck's hull object draws the dented mesh");
+    }
+
+    #[test]
     fn scars_of_despawned_tanks_are_dropped() {
         let mut app = ClientApp::new();
         app.confirm_garage_selection();

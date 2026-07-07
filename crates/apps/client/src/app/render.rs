@@ -35,6 +35,19 @@ impl ClientApp {
         ((self.client_tick as f64 + f64::from(self.loop_driver.render_alpha()))
             / f64::from(sim::DEFAULT_SIMULATION_TICK_HZ)) as f32
     }
+    /// Swap each wreck's hull render object (the first object for that tank) to its dented
+    /// per-instance mesh. Turret, gun, and gear keep the shared meshes.
+    pub(super) fn apply_wreck_deform(&self, objects: &mut [renderer_api::RenderObject]) {
+        if self.wreck_hull_meshes.is_empty() {
+            return;
+        }
+        for (&id, &handle) in &self.wreck_hull_meshes {
+            if let Some(hull) = objects.iter_mut().find(|object| object.tank_id == Some(id)) {
+                hull.mesh = handle;
+            }
+        }
+    }
+
     pub(super) fn create_renderer(
         &mut self,
         window: Arc<Window>,
@@ -125,13 +138,15 @@ impl ClientApp {
         let minimap = self.build_minimap(&presentation_tanks, camera_forward_xz);
         let visible_tanks = self.visible_render_tanks(presentation_tanks, view_proj, camera.eye);
         let player_gun_scale = self.player_barrel_scale();
-        let vehicles = split_pbr_vehicle_render_frame_on_terrain(
+        let mut vehicles = split_pbr_vehicle_render_frame_on_terrain(
             &mut self.vehicle_asset_catalog,
             visible_tanks,
             self.player_tank,
             player_gun_scale,
             Some(&self.battlefield.heightmap),
         );
+        // A wreck draws its dented hull instead of the pristine shared one.
+        self.apply_wreck_deform(&mut vehicles.objects);
         let vehicle_frame = RenderFrame { objects: vehicles.objects, ..RenderFrame::default() };
         let (reload_remaining, reload_max) = self.player_reload();
         self.reload_ready_age_s = tick_ready_flash(

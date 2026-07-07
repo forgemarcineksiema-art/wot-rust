@@ -119,6 +119,10 @@ pub(crate) struct ClientApp {
     terrain_scars: crate::fx::TerrainScars,
     /// Per-tank emission clock for the dead-engine smoke column (seconds since last puff).
     engine_smoke_accum_s: HashMap<game_core::TankId, f32>,
+    /// Per-instance dented hull mesh for each wreck, built once from its recorded penetrations.
+    /// The wreck's hull render object is swapped to this handle so a knocked-out tank reads beaten
+    /// and dented, not pristine-but-tinted. Presentation only (see `vehicle::wreck_deform`).
+    wreck_hull_meshes: HashMap<game_core::TankId, renderer_api::MeshHandle>,
     /// Smoothed frames-per-second for the HUD readout (EMA over instantaneous frame rate).
     fps_estimate: f32,
     /// The minimap's static layers (terrain relief + cover boxes), computed once per
@@ -214,6 +218,7 @@ impl ClientApp {
             tank_scars: HashMap::new(),
             terrain_scars: crate::fx::TerrainScars::default(),
             engine_smoke_accum_s: HashMap::new(),
+            wreck_hull_meshes: HashMap::new(),
             fps_estimate: 0.0,
             minimap_relief,
             minimap_cover,
