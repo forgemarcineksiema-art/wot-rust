@@ -252,7 +252,7 @@ fn bot_command_for_tank(
                 agent.solution = Some(solve_firing_solution(tank, target));
             }
             let solution = agent.solution.expect("solution cached above");
-            return bot_combat_command(tank, &solution);
+            return bot_combat_command(tank, &solution, tanks);
         }
     } else if !repositioning {
         agent.futile_watch = None;
