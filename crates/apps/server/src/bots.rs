@@ -1,4 +1,5 @@
-use game_core::TankId;
+use game_core::math::wrap_angle;
+use game_core::{DamageCause, DamageEvent, TankId};
 use glam::Vec3;
 use sim::{TankCommand, TankState};
 use terrain::BattlefieldMap;
@@ -45,6 +46,13 @@ const FUTILE_TARGET_HOLD_TICKS: u32 = 1200;
 /// targets is not enough — on an open flank a second futile enemy is always visible, and the
 /// one-tick route command between duels moves the hull nowhere.
 const REPOSITION_TICKS: u32 = 480;
+/// How long a hit from an unseen gun keeps the crew turning toward the struck side (4 s):
+/// long enough to bring the bow and turret around and catch the shooter's next tracer, short
+/// enough that one stray round does not park the bot for good. The bearing comes from the
+/// strike point on the bot's own hull — the crew knows which side rang, and NOTHING more; the
+/// shooter's position is never read, so an unspotted marksman stays unspotted until the turned
+/// bot actually sees something.
+const THREAT_FACE_TICKS: u32 = 240;
 
 /// True on the ticks where `tank_id`'s slice of periodic work is due (deterministic stagger).
 fn cadence_due(tick: u64, tank_id: TankId, interval: u64) -> bool {
@@ -78,6 +86,9 @@ struct BotAgent {
     sidestep_ticks: u32,
     /// Which side the next escape maneuver arcs toward; flipped per attempt.
     escape_left: bool,
+    /// A hit from a gun this bot cannot see: the world-yaw bearing of the strike point on its
+    /// own hull and the ticks left of turning to face it. See [`THREAT_FACE_TICKS`].
+    threat: Option<(f32, u32)>,
 }
 
 impl BotAgent {
@@ -97,6 +108,7 @@ impl BotAgent {
             reposition_ticks: 0,
             sidestep_ticks: 0,
             escape_left,
+            threat: None,
         }
     }
 }
@@ -128,6 +140,7 @@ impl BotRoster {
         tanks: &[TankState],
         battlefield: &BattlefieldMap,
         battle_over: bool,
+        damage_events: &[DamageEvent],
     ) -> Vec<(TankId, TankCommand)> {
         let mut commands = Vec::with_capacity(self.agents.len());
         for index in 0..self.agents.len() {
@@ -138,6 +151,7 @@ impl BotRoster {
                     if battle_over || tank.hit_points == 0 {
                         TankCommand::idle()
                     } else {
+                        note_incoming_fire(&mut self.agents[index], tank, damage_events);
                         bot_command_for_tank(
                             &mut self.agents[index],
                             tick,
@@ -151,6 +165,23 @@ impl BotRoster {
             commands.push((tank_id, command));
         }
         commands
+    }
+}
+
+/// Remember last tick's incoming fire as a threat bearing. The crew's honest knowledge is the
+/// strike point on their OWN hull — its bearing says which side rang, and that is all the
+/// reaction may use. `event.source` is deliberately never resolved to a position.
+fn note_incoming_fire(agent: &mut BotAgent, tank: &TankState, damage_events: &[DamageEvent]) {
+    for event in damage_events {
+        if event.target != tank.id
+            || !matches!(event.cause, DamageCause::Shell | DamageCause::Splash)
+        {
+            continue;
+        }
+        let strike = event.hit_position - tank.position;
+        if strike.x.abs().max(strike.z.abs()) > 1.0e-3 {
+            agent.threat = Some((strike.x.atan2(strike.z), THREAT_FACE_TICKS));
+        }
     }
 }
 
@@ -206,7 +237,9 @@ fn bot_command_for_tank(
             agent.target = None;
             agent.solution = None;
         } else {
-            // Standing to shoot is intentional, not a stall.
+            // Standing to shoot is intentional, not a stall. A live engagement also outranks
+            // any hit bearing — the crew is already fighting the enemy it can see.
+            agent.threat = None;
             agent.stall_ticks = 0;
             agent.last_position = Some(tank.position);
             let solve_due = match &agent.solution {
@@ -225,6 +258,17 @@ fn bot_command_for_tank(
         agent.futile_watch = None;
     }
     agent.solution = None;
+    // Shot by a gun nobody on the team can see: turn hull and turret toward the struck side
+    // and look for the shooter. Reposition still outranks this — a bot escaping a futile duel
+    // must actually relocate, not be pinned in place by the very fire it is escaping.
+    if !repositioning && let Some((bearing, ticks)) = agent.threat {
+        let remaining = ticks.saturating_sub(1);
+        agent.threat = (remaining > 0).then_some((bearing, remaining));
+        // Standing to face the threat is intentional, not a stall.
+        agent.stall_ticks = 0;
+        agent.last_position = Some(tank.position);
+        return bot_face_threat_command(tank, bearing);
+    }
     let posture = agent.posture;
     let command = bot_route_command(&mut agent.route_index, posture, tank, battlefield);
     // Stall detection guards MOVEMENT intent only. An overwatch bot holding its shelf (and the
@@ -311,6 +355,19 @@ fn bot_current_target<'a>(
     target
 }
 
+/// Pivot the hull and slew the turret toward the threat bearing; no fire, no drive. The same
+/// steering gain as the route brain, so the turn rate is nothing a driving bot could not do.
+fn bot_face_threat_command(tank: &TankState, bearing: f32) -> TankCommand {
+    let hull_error = wrap_angle(bearing - tank.yaw_rad);
+    let turret_error = wrap_angle(bearing - tank.yaw_rad - tank.turret_yaw_rad);
+    TankCommand {
+        throttle: 0.0,
+        steer: (hull_error * 1.8).clamp(-1.0, 1.0),
+        turret_yaw_delta: (turret_error * 4.0).clamp(-1.0, 1.0),
+        ..TankCommand::idle()
+    }
+}
+
 fn bot_reverse_command(left: bool) -> TankCommand {
     let steer = if left { 0.45 } else { -0.45 };
     TankCommand {
@@ -390,7 +447,7 @@ mod tests {
         let bot = tank(1, TeamId(1), Vec3::new(300.0, 0.0, 300.0), TeamId(1).spotting_bit());
         let mut roster = BotRoster::new(vec![bot.id], BattleSeed::fixed(7));
         let command = |roster: &mut BotRoster| {
-            roster.commands(0, std::slice::from_ref(&bot), &battlefield, false)[0].1
+            roster.commands(0, std::slice::from_ref(&bot), &battlefield, false, &[])[0].1
         };
 
         assert!(command(&mut roster).throttle > 0.0, "the route brain drives forward");
@@ -437,7 +494,7 @@ mod tests {
         );
 
         for tick in 0..STALL_TICKS_TO_REVERSE * 3 {
-            let commands = roster.commands(0, std::slice::from_ref(&bot), &battlefield, false);
+            let commands = roster.commands(0, std::slice::from_ref(&bot), &battlefield, false, &[]);
             let (_, command) =
                 *commands.iter().find(|(id, _)| *id == TankId(12)).expect("overwatch command");
             assert!(
@@ -467,14 +524,14 @@ mod tests {
         // Engage on a cadence tick (tick + id divisible by the reselect interval).
         let due_tick = TARGET_RESELECT_INTERVAL_TICKS - bot_id.0 % TARGET_RESELECT_INTERVAL_TICKS;
         let tanks = [bot.clone(), first.clone()];
-        let engaged = roster.commands(due_tick, &tanks, &battlefield, false)[0].1;
+        let engaged = roster.commands(due_tick, &tanks, &battlefield, false, &[])[0].1;
         assert!(engaged.brake > 0.0, "the bot stands to fight the spotted enemy");
         assert_eq!(roster.agents[0].target, Some(first.id));
 
         // A NEARER enemy appears off-cadence: the held target must not flick.
         let nearer = tank(3, TeamId(2), grounded(300.0, 340.0), mask);
         let tanks = [bot.clone(), first.clone(), nearer.clone()];
-        roster.commands(due_tick + 1, &tanks, &battlefield, false);
+        roster.commands(due_tick + 1, &tanks, &battlefield, false, &[]);
         assert_eq!(
             roster.agents[0].target,
             Some(first.id),
@@ -482,14 +539,26 @@ mod tests {
         );
 
         // On the next cadence tick the re-selection switches to the nearer enemy.
-        roster.commands(due_tick + TARGET_RESELECT_INTERVAL_TICKS, &tanks, &battlefield, false);
+        roster.commands(
+            due_tick + TARGET_RESELECT_INTERVAL_TICKS,
+            &tanks,
+            &battlefield,
+            false,
+            &[],
+        );
         assert_eq!(roster.agents[0].target, Some(nearer.id), "cadence tick re-selects nearest");
 
         // The held target dying is acted on immediately, cadence or not.
         let mut dead_near = nearer.clone();
         dead_near.hit_points = 0;
         let tanks = [bot.clone(), first.clone(), dead_near];
-        roster.commands(due_tick + TARGET_RESELECT_INTERVAL_TICKS + 1, &tanks, &battlefield, false);
+        roster.commands(
+            due_tick + TARGET_RESELECT_INTERVAL_TICKS + 1,
+            &tanks,
+            &battlefield,
+            false,
+            &[],
+        );
         assert_eq!(
             roster.agents[0].target,
             Some(first.id),
@@ -512,8 +581,111 @@ mod tests {
         );
 
         let mut roster = BotRoster::new(vec![bot.id], BattleSeed::fixed(7));
-        let command = roster.commands(0, std::slice::from_ref(&bot), &battlefield, false)[0].1;
+        let command = roster.commands(0, std::slice::from_ref(&bot), &battlefield, false, &[])[0].1;
         assert!(command.throttle < 0.0, "a drowning bot reverses out, got {command:?}");
+    }
+
+    /// A bot shot by a gun nobody on its team can see must not die oblivious: it turns hull and
+    /// turret toward the side the round struck. The reaction is honest by construction — the
+    /// event's `source` id belongs to no tank in the roster's world slice, so there is nothing
+    /// to look up; the bearing comes from the strike point on the bot's own armor.
+    #[test]
+    fn a_bot_shot_by_an_unseen_gun_turns_toward_the_struck_side() {
+        let battlefield = terrain::prokhorovka_hill_252_2();
+        let bot = tank(1, TeamId(1), Vec3::new(300.0, 0.0, 300.0), TeamId(1).spotting_bit());
+        let mut roster = BotRoster::new(vec![bot.id], BattleSeed::fixed(7));
+        // A round into the LEFT flank (-X), slightly forward, from a shooter that exists
+        // nowhere in the passed world.
+        let hit = game_core::DamageEvent {
+            source: TankId(99),
+            target: bot.id,
+            hit_position: bot.position + Vec3::new(-1.05, 0.8, 0.3),
+            damage_hp: 90,
+            penetrated: true,
+            cause: DamageCause::Shell,
+            ..Default::default()
+        };
+
+        let command =
+            roster.commands(1, std::slice::from_ref(&bot), &battlefield, false, &[hit])[0].1;
+
+        assert_eq!(command.throttle, 0.0, "the bot stands to scan, got {command:?}");
+        assert!(command.steer < -0.5, "the hull pivots toward the struck LEFT side");
+        assert!(command.turret_yaw_delta < -0.5, "the turret slews the same way");
+        assert!(!command.fire, "nothing to shoot at yet");
+    }
+
+    /// The threat window runs out: one stray round turns the bot for a few seconds, then the
+    /// route resumes — a single hit must not park a bot for the rest of the battle.
+    #[test]
+    fn threat_facing_expires_back_into_the_route() {
+        let battlefield = terrain::prokhorovka_hill_252_2();
+        let bot = tank(1, TeamId(1), Vec3::new(300.0, 0.0, 300.0), TeamId(1).spotting_bit());
+        let mut roster = BotRoster::new(vec![bot.id], BattleSeed::fixed(7));
+        let hit = game_core::DamageEvent {
+            source: TankId(99),
+            target: bot.id,
+            hit_position: bot.position + Vec3::new(-1.05, 0.8, 0.3),
+            damage_hp: 90,
+            penetrated: true,
+            cause: DamageCause::Shell,
+            ..Default::default()
+        };
+        roster.commands(1, std::slice::from_ref(&bot), &battlefield, false, &[hit]);
+
+        let mut resumed_after = None;
+        for tick in 0..THREAT_FACE_TICKS + 2 {
+            let command = roster.commands(
+                u64::from(tick) + 2,
+                std::slice::from_ref(&bot),
+                &battlefield,
+                false,
+                &[],
+            )[0]
+            .1;
+            if command.throttle > 0.0 {
+                resumed_after = Some(tick);
+                break;
+            }
+        }
+        let resumed = resumed_after.expect("the threat window must expire back into the route");
+        assert!(
+            resumed >= THREAT_FACE_TICKS - 2,
+            "the bot faced the threat for the full window, resumed after {resumed} ticks"
+        );
+    }
+
+    /// A live engagement outranks any hit bearing: a bot trading fire with a visible enemy does
+    /// not spin away because a second, unseen gun clipped its rear.
+    #[test]
+    fn an_engaged_bot_ignores_hit_bearings_and_keeps_fighting() {
+        let battlefield = terrain::prokhorovka_hill_252_2();
+        let grounded = |x: f32, z: f32| {
+            Vec3::new(x, battlefield.heightmap.sample_height(x, z).expect("inside the map"), z)
+        };
+        let bot_id = TankId(1);
+        let mask = TeamId(1).spotting_bit() | TeamId(2).spotting_bit();
+        let bot = tank(1, TeamId(1), grounded(300.0, 300.0), TeamId(1).spotting_bit());
+        let enemy = tank(2, TeamId(2), grounded(300.0, 380.0), mask);
+        let mut roster = BotRoster::new(vec![bot_id], BattleSeed::fixed(7));
+        let due_tick = TARGET_RESELECT_INTERVAL_TICKS - bot_id.0 % TARGET_RESELECT_INTERVAL_TICKS;
+        let rear_hit = game_core::DamageEvent {
+            source: TankId(99),
+            target: bot_id,
+            hit_position: bot.position + Vec3::new(0.0, 0.8, -3.1),
+            damage_hp: 90,
+            penetrated: true,
+            cause: DamageCause::Shell,
+            ..Default::default()
+        };
+
+        let tanks = [bot.clone(), enemy.clone()];
+        let command = roster.commands(due_tick, &tanks, &battlefield, false, &[rear_hit])[0].1;
+
+        assert!(command.brake > 0.0, "the bot stands and fights its visible enemy");
+        assert_eq!(command.steer, 0.0, "no threat pivot while engaged");
+        assert_eq!(roster.agents[0].target, Some(enemy.id));
+        assert_eq!(roster.agents[0].threat, None, "the engagement clears the hit bearing");
     }
 
     #[test]
@@ -523,12 +695,12 @@ mod tests {
         let mut roster = BotRoster::new(vec![bot.id, TankId(99)], BattleSeed::fixed(7));
 
         // Battle over: even a live bot receives idle.
-        let over = roster.commands(0, std::slice::from_ref(&bot), &battlefield, true);
+        let over = roster.commands(0, std::slice::from_ref(&bot), &battlefield, true, &[]);
         assert!(over.iter().all(|(_, command)| *command == TankCommand::idle()));
 
         // A dead bot and a bot with no tank in the snapshot both idle.
         bot.hit_points = 0;
-        let commands = roster.commands(0, std::slice::from_ref(&bot), &battlefield, false);
+        let commands = roster.commands(0, std::slice::from_ref(&bot), &battlefield, false, &[]);
         assert!(commands.iter().all(|(_, command)| *command == TankCommand::idle()));
     }
 }
