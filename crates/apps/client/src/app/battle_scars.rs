@@ -22,7 +22,7 @@ impl ClientApp {
         self.tank_scars.retain(|id, _| tanks.iter().any(|tank| tank.tank_id == *id));
         self.engine_smoke_accum_s.retain(|id, _| tanks.iter().any(|tank| tank.tank_id == *id));
 
-        for tank in &tanks {
+        for tank in tanks {
             let engine_dead =
                 tank.destroyed_modules_mask & ModuleSlot::Engine.destroyed_mask_bit() != 0;
             if !engine_dead || tank.hit_points == 0 {
@@ -39,7 +39,7 @@ impl ClientApp {
 
     /// Append every tank's accumulated hit decals to this frame's FX batch.
     pub(super) fn append_scar_quads(&self, vertices: &mut Vec<FxVertex>) {
-        for tank in &self.render_state.interpolated_tanks() {
+        for tank in self.render_state.interpolated_tanks() {
             if let Some(variation) = self.tank_scars.get(&tank.tank_id) {
                 crate::fx::append_decal_quads(vertices, variation.decals(), tank);
             }
