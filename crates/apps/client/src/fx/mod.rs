@@ -65,15 +65,18 @@ impl FxSystem {
     /// sorted back-to-front so premultiplied smoke composites correctly over itself.
     pub fn vertices(&self, eye: Vec3, target: Vec3) -> Vec<FxVertex> {
         let (right, up) = billboard::view_plane_basis(eye, target);
-        let mut order: Vec<usize> = (0..self.particles.len()).collect();
-        order.sort_by(|&a, &b| {
-            let da = self.particles[a].position.distance_squared(eye);
-            let db = self.particles[b].position.distance_squared(eye);
-            db.total_cmp(&da)
-        });
+        // Depth keys are computed ONCE per particle, not per comparison — a full 2048-particle
+        // pool pays ~2k distance evaluations instead of ~45k inside the comparator.
+        let mut order: Vec<(f32, usize)> = self
+            .particles
+            .iter()
+            .enumerate()
+            .map(|(index, particle)| (particle.position.distance_squared(eye), index))
+            .collect();
+        order.sort_by(|a, b| b.0.total_cmp(&a.0));
 
         let mut vertices = Vec::with_capacity(self.particles.len() * 6);
-        for index in order {
+        for (_, index) in order {
             let particle = &self.particles[index];
             let color = particle.color();
             let size = particle.size_m();

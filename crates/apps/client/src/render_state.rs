@@ -17,6 +17,11 @@ pub struct InterpolatedBattleState {
     /// Tick-domain motion per tank, derived from the snapshot pair at accept time (constant,
     /// known denominator) — never from presented positions against the render clock.
     motions: HashMap<TankId, TankMotion>,
+    /// The roster interpolated at the CURRENT alpha, rebuilt once per phase change (snapshot
+    /// accept or alpha set) and shared by every consumer. The scene, battle scars, reticle and
+    /// HUD used to each re-interpolate the full roster — up to five rebuilds per frame plus one
+    /// per fixed tick, all producing identical data.
+    interpolated: Vec<TankSnapshot>,
 }
 
 impl InterpolatedBattleState {
@@ -29,6 +34,7 @@ impl InterpolatedBattleState {
         self.previous = self.latest.take();
         self.latest = Some(snapshot);
         self.interpolation_alpha = 0.0;
+        self.rebuild_interpolated();
     }
 
     /// Set the render-time interpolation phase toward the latest snapshot, `0..=1`. The caller
@@ -37,6 +43,7 @@ impl InterpolatedBattleState {
     /// frame deltas instead lets the two clocks drift, freezing at 1.0 and then jumping.
     pub fn set_interpolation_alpha(&mut self, alpha: f32) {
         self.interpolation_alpha = alpha.clamp(0.0, 1.0);
+        self.rebuild_interpolated();
     }
 
     /// Authoritative ticks between the two buffered snapshots (the interpolation window), if
@@ -66,19 +73,27 @@ impl InterpolatedBattleState {
     }
 
     /// Tanks interpolated between the previous and latest snapshots (shortest-angle for
-    /// yaw/turret). Health and reload come from the latest authoritative snapshot.
-    pub fn interpolated_tanks(&self) -> Vec<TankSnapshot> {
-        let Some(latest) = self.latest.as_ref() else {
-            return Vec::new();
-        };
-        latest.tanks.iter().map(|tank| self.interpolate(tank)).collect()
+    /// yaw/turret). Health and reload come from the latest authoritative snapshot. This is the
+    /// memoized roster — free to call from every consumer in the frame.
+    pub fn interpolated_tanks(&self) -> &[TankSnapshot] {
+        &self.interpolated
     }
 
     /// One tank interpolated the same way — for the callers that only need the player (the
-    /// per-tick sight solve among them), instead of building and discarding the whole roster.
+    /// per-tick sight solve among them).
     pub fn interpolated_tank(&self, tank_id: TankId) -> Option<TankSnapshot> {
-        let latest = self.latest.as_ref()?;
-        latest.tanks.iter().find(|tank| tank.tank_id == tank_id).map(|tank| self.interpolate(tank))
+        self.interpolated.iter().find(|tank| tank.tank_id == tank_id).cloned()
+    }
+
+    /// Rebuild the memoized interpolated roster for the current snapshot pair and alpha. The
+    /// buffer is reused across frames, so the steady-state cost is the lerp math alone.
+    fn rebuild_interpolated(&mut self) {
+        let mut cache = std::mem::take(&mut self.interpolated);
+        cache.clear();
+        if let Some(latest) = self.latest.as_ref() {
+            cache.extend(latest.tanks.iter().map(|tank| self.interpolate(tank)));
+        }
+        self.interpolated = cache;
     }
 
     fn interpolate(&self, tank: &TankSnapshot) -> TankSnapshot {

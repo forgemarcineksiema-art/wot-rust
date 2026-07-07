@@ -18,10 +18,10 @@ impl ClientApp {
         let mut tanks: Vec<(TankSnapshot, TankMotion)> = self
             .render_state
             .interpolated_tanks()
-            .into_iter()
+            .iter()
             .map(|tank| {
                 let motion = self.render_state.motion_of(tank.tank_id);
-                (tank, motion)
+                (tank.clone(), motion)
             })
             .collect();
         if let Some(local) = self.interpolated_local_tank(alpha)
