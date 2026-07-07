@@ -455,6 +455,7 @@ pub(crate) mod test_support {
             spotted_mask,
             submerged_s: 0.0,
             repair: sim::CrewRepair::default(),
+            turret_detached: false,
         }
     }
 

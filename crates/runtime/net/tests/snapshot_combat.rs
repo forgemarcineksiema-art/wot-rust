@@ -49,6 +49,7 @@ fn snapshots_carry_projectiles_and_damage_events_through_the_wire() {
             surface: game_core::ImpactSurface::Cover,
             ..Default::default()
         }],
+        detached_turrets: vec![TankId(2)],
     };
     let message = ProtocolMessage::Snapshot(snapshot);
 

@@ -46,7 +46,9 @@ fn tank_segment_hit(
     }
 
     let hull = hull_volume_entry(start, end, &hitbox);
-    let turret = turret_volume_entry(start, end, tank, &hitbox);
+    // A decapitated wreck has no turret box to strike: the shot passes over the hull.
+    let turret =
+        if tank.turret_detached { None } else { turret_volume_entry(start, end, tank, &hitbox) };
     // (Legacy band model below — blueprint vehicles returned through the volume path above.)
 
     let (hit_t, zone, side_x) = match (hull, turret) {
@@ -122,21 +124,24 @@ fn armor_volume_hit(
             });
         }
     }
-    // The turret volume lives in the turret frame: rotate the segment about the ring axis.
-    let pivot = Vec3::new(0.0, 0.0, volumes.turret_ring_z);
-    let to_turret = Mat3::from_rotation_y(-tank.turret_yaw_rad);
-    let turret_start = pivot + to_turret * (start - pivot);
-    let turret_end = pivot + to_turret * (end - pivot);
-    if let Some((t, index)) = segment_volume_entry(turret_start, turret_end, &volumes.turret)
-        && best.as_ref().is_none_or(|entry| t < entry.t)
-    {
-        best = Some(Entry {
-            t,
-            plane: &volumes.turret.planes[index],
-            frame_start: turret_start,
-            frame_end: turret_end,
-            turret_frame: true,
-        });
+    // The turret volume lives in the turret frame: rotate the segment about the ring axis. A
+    // decapitated wreck has no turret volume — skip it so the shot passes over the bare hull.
+    if !tank.turret_detached {
+        let pivot = Vec3::new(0.0, 0.0, volumes.turret_ring_z);
+        let to_turret = Mat3::from_rotation_y(-tank.turret_yaw_rad);
+        let turret_start = pivot + to_turret * (start - pivot);
+        let turret_end = pivot + to_turret * (end - pivot);
+        if let Some((t, index)) = segment_volume_entry(turret_start, turret_end, &volumes.turret)
+            && best.as_ref().is_none_or(|entry| t < entry.t)
+        {
+            best = Some(Entry {
+                t,
+                plane: &volumes.turret.planes[index],
+                frame_start: turret_start,
+                frame_end: turret_end,
+                turret_frame: true,
+            });
+        }
     }
 
     let entry = best?;

@@ -32,7 +32,17 @@ impl Snapshot {
                             && visible_ids.contains(&event.target))
                 })
                 .collect(),
+            // Like shells (above), impacts are world events everyone standing there sees, not
+            // owner-gated intel (see #95); they ride through unfiltered.
             shell_impacts: self.shell_impacts.clone(),
+            // Wrecks are always visible (the hit_points == 0 rule above), so every detached-turret
+            // wreck the viewer can see rides through.
+            detached_turrets: self
+                .detached_turrets
+                .iter()
+                .copied()
+                .filter(|id| visible_ids.contains(id))
+                .collect(),
         }
     }
 

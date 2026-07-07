@@ -18,6 +18,9 @@ impl ClientApp {
         for variation in self.tank_scars.values_mut() {
             variation.tick(dt);
         }
+        for popoff in self.turret_popoffs.values_mut() {
+            popoff.tick(dt);
+        }
         let tanks = self.render_state.interpolated_tanks();
         self.tank_scars.retain(|id, _| tanks.iter().any(|tank| tank.tank_id == *id));
         self.engine_smoke_accum_s.retain(|id, _| tanks.iter().any(|tank| tank.tank_id == *id));
@@ -96,6 +99,76 @@ mod tests {
         app.fx = crate::fx::FxSystem::default();
         app.tick_battle_scars(1.0);
         assert_eq!(app.fx.live_particles(), 0, "a wreck's engine no longer smokes");
+    }
+
+    #[test]
+    fn a_detonated_wreck_starts_a_flying_turret_that_settles() {
+        let mut app = ClientApp::new();
+        app.confirm_garage_selection();
+        app.run_fixed_ticks(6);
+
+        // Decapitate the practice target: kill it and list it as a detached-turret wreck.
+        let mut snapshot = app.render_state.latest_snapshot().cloned().expect("snapshot present");
+        snapshot.server_tick += 1;
+        let target =
+            snapshot.tanks.iter_mut().find(|tank| tank.tank_id != app.player_tank).expect("target");
+        target.hit_points = 0;
+        let target_id = target.tank_id;
+        snapshot.detached_turrets.push(target_id);
+        app.accept_and_sync(snapshot);
+
+        assert!(
+            app.turret_popoffs.contains_key(&target_id),
+            "a decapitated wreck starts a flying-turret animation"
+        );
+
+        // The arc advances and then settles instead of falling forever.
+        for _ in 0..400 {
+            app.tick_battle_scars(0.05);
+        }
+        assert!(app.turret_popoffs[&target_id].settled(), "the flung turret lands and rests");
+    }
+
+    #[test]
+    fn the_popoff_override_drives_the_wrecks_turret_and_gun_objects() {
+        use game_core::{TankId, VehicleKind};
+        use glam::Vec3;
+        use renderer_api::{MaterialHandle, MeshHandle, RenderObject};
+
+        let mut app = ClientApp::new();
+        let id = TankId(4242);
+        let object = |mesh: u32| RenderObject {
+            tank_id: Some(id),
+            mesh: MeshHandle(mesh),
+            material: MaterialHandle(0),
+            transform: glam::Mat4::IDENTITY.to_cols_array_2d(),
+            tint: [0.3, 0.3, 0.3],
+        };
+        // [hull, turret, gun] for the wreck; the override drives the turret and gun only.
+        let mut objects = vec![object(0), object(1), object(2)];
+
+        let mut popoff = crate::vehicle::turret_popoff::TurretPopoff::launch(
+            id,
+            VehicleKind::T54_1951,
+            Vec3::new(0.0, 2.0, 0.0),
+            None,
+        );
+        popoff.tick(0.2);
+        app.turret_popoffs.insert(id, popoff);
+
+        app.apply_turret_popoffs(&mut objects);
+
+        assert_eq!(objects[0].transform, glam::Mat4::IDENTITY.to_cols_array_2d(), "hull untouched");
+        assert_ne!(
+            objects[1].transform,
+            glam::Mat4::IDENTITY.to_cols_array_2d(),
+            "the turret rides the pop-off arc"
+        );
+        assert_ne!(
+            objects[2].transform,
+            glam::Mat4::IDENTITY.to_cols_array_2d(),
+            "the gun rides the pop-off arc"
+        );
     }
 
     #[test]

@@ -70,6 +70,7 @@ fn snapshot_round_trips_track_damage_mask() {
         }],
         damage_events: Vec::new(),
         shell_impacts: Vec::new(),
+        detached_turrets: Vec::new(),
     });
 
     let bytes = encode_message(&message).expect("snapshot should encode");

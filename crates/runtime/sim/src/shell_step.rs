@@ -171,13 +171,16 @@ fn trace_split_into(
         if tank.id == shell.owner {
             continue;
         }
-        let trace = TraceTank::from_spec(
+        let mut trace = TraceTank::from_spec(
             tank.id,
             tank.position,
             tank.hull_pose(),
             tank.turret_yaw_rad,
             &tank.spec,
         );
+        // A decapitated wreck blocks with its hull only — its turret is gone (see combat's
+        // ammo-rack detonation). Live tanks never carry the flag.
+        trace.turret_detached = tank.turret_detached;
         if tank.hit_points > 0 && owner_team != Some(tank.team) {
             targets.push(trace);
         } else {

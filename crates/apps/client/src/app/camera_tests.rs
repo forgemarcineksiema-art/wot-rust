@@ -75,5 +75,6 @@ fn snapshot_with_aim(
         shells: Vec::new(),
         damage_events: Vec::new(),
         shell_impacts: Vec::new(),
+        detached_turrets: Vec::new(),
     }
 }

@@ -100,6 +100,16 @@ pub(crate) fn apply_shell_impact(
         penetration.penetrated,
     );
 
+    // The jack-in-the-box: an ammo-rack detonation that kills the tank in this same resolution
+    // blows the turret off. Deterministic — a pure consequence of the module damage above, no
+    // RNG. The trace then skips this wreck's turret and the client flies it on a ballistic arc.
+    if module == Some(ModuleSlot::AmmoRack)
+        && !target.modules.is_functional(ModuleSlot::AmmoRack)
+        && target.hit_points == 0
+    {
+        target.turret_detached = true;
+    }
+
     DamageEvent {
         source: shell.owner,
         target: target.id,

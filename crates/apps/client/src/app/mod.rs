@@ -146,6 +146,10 @@ pub(crate) struct ClientApp {
     terrain_scars: crate::fx::TerrainScars,
     /// Per-tank emission clock for the dead-engine smoke column (seconds since last puff).
     engine_smoke_accum_s: HashMap<game_core::TankId, f32>,
+    /// Flying-turret animation per decapitated wreck (ammo-rack detonation, protocol v20). Started
+    /// when a tank first appears in `Snapshot.detached_turrets`; the turret and gun render objects
+    /// of that wreck are then driven from this deterministic arc instead of the snapshot pose.
+    turret_popoffs: HashMap<game_core::TankId, crate::vehicle::turret_popoff::TurretPopoff>,
     /// Smoothed frames-per-second for the HUD readout (EMA over instantaneous frame rate).
     fps_estimate: f32,
     /// The minimap's static layers (terrain relief + cover boxes), computed once per
@@ -246,6 +250,7 @@ impl ClientApp {
             incoming_hits: crate::hud::hit_direction::IncomingHitFeed::default(),
             fx: FxSystem::default(),
             tank_scars: HashMap::new(),
+            turret_popoffs: HashMap::new(),
             terrain_scars: crate::fx::TerrainScars::default(),
             engine_smoke_accum_s: HashMap::new(),
             fps_estimate: 0.0,

@@ -18,6 +18,7 @@ fn snapshot_filter_keeps_allies_wrecks_and_spotted_enemies_only() {
         shells: Vec::new(),
         damage_events: Vec::new(),
         shell_impacts: Vec::new(),
+        detached_turrets: Vec::new(),
     };
 
     let filtered = snapshot.filtered_for_viewer(TankId(1));
@@ -42,6 +43,7 @@ fn snapshot_filter_replicates_every_shell_and_impact_even_from_hidden_owners() {
         shells: vec![shell(1), shell(2), shell(3)],
         damage_events: Vec::new(),
         shell_impacts: vec![impact(1), impact(2), impact(3)],
+        detached_turrets: Vec::new(),
     };
 
     let filtered = snapshot.filtered_for_viewer(TankId(1));
@@ -77,6 +79,7 @@ fn snapshot_filter_keeps_visible_and_player_combat_events() {
             event(3, 4), // hidden-vs-hidden combat must not leak.
         ],
         shell_impacts: Vec::new(),
+        detached_turrets: Vec::new(),
     };
 
     let filtered = snapshot.filtered_for_viewer(TankId(1));
@@ -87,6 +90,27 @@ fn snapshot_filter_keeps_visible_and_player_combat_events() {
         .map(|event| (event.source.0, event.target.0))
         .collect::<Vec<_>>();
     assert_eq!(pairs, vec![(1, 3), (3, 1), (2, 1)]);
+}
+
+#[test]
+fn snapshot_filter_keeps_detached_turret_wrecks_the_viewer_can_see() {
+    let snapshot = Snapshot {
+        server_tick: 12,
+        tanks: vec![
+            tank(1, 1, 1_000, TeamId(1).spotting_bit()),
+            tank(5, 2, 0, u8::MAX), // a visible enemy wreck
+            tank(6, 2, 0, 0),       // an unspotted enemy wreck — but wrecks are always visible
+        ],
+        shells: Vec::new(),
+        damage_events: Vec::new(),
+        shell_impacts: Vec::new(),
+        // Both wrecks lost their turret; the viewer sees both (the hit_points == 0 rule).
+        detached_turrets: vec![TankId(5), TankId(6)],
+    };
+
+    let filtered = snapshot.filtered_for_viewer(TankId(1));
+
+    assert_eq!(filtered.detached_turrets, vec![TankId(5), TankId(6)]);
 }
 
 fn tank(id: u64, team: u16, hit_points: u32, spotted_by_teams_mask: u8) -> TankSnapshot {

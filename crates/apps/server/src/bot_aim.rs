@@ -171,6 +171,7 @@ mod tests {
             spotted_mask: u8::MAX,
             submerged_s: 0.0,
             repair: sim::CrewRepair::default(),
+            turret_detached: false,
         }
     }
 

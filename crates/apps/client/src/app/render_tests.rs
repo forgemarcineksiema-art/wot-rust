@@ -390,6 +390,7 @@ fn snapshot_for_vehicle(
         shells: Vec::new(),
         damage_events: Vec::new(),
         shell_impacts: Vec::new(),
+        detached_turrets: Vec::new(),
     }
 }
 

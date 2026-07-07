@@ -82,6 +82,9 @@ impl ClientApp {
                 self.player_barrel_scale(),
             )
         });
+        // A decapitated wreck (ammo-rack detonation, protocol v20): start its flying-turret arc
+        // once, with a burst at the ring, and forget wrecks that have despawned.
+        self.sync_turret_popoffs(&snapshot);
         // The payoff beat: a vehicle the player damaged died in this snapshot.
         if crate::hud::kill_marker::player_scored_kill(
             self.render_state.latest_snapshot(),
@@ -98,6 +101,33 @@ impl ClientApp {
         if let Some(tank) = player {
             self.predictor.sync_to(&tank);
         }
+    }
+
+    /// Start a flying-turret animation for every newly-decapitated wreck and drop the ones whose
+    /// wreck has despawned. The arc is deterministic in `(tank_id, ring)`, so no transform crosses
+    /// the wire; the ring position is read from the wreck's replicated pose at detonation.
+    fn sync_turret_popoffs(&mut self, snapshot: &net::Snapshot) {
+        for &id in &snapshot.detached_turrets {
+            if self.turret_popoffs.contains_key(&id) {
+                continue;
+            }
+            let Some(tank) = snapshot.tanks.iter().find(|tank| tank.tank_id == id) else {
+                continue;
+            };
+            let ring = crate::vehicle::pose::VehiclePose::from_snapshot(tank).turret_translation();
+            let popoff = crate::vehicle::turret_popoff::TurretPopoff::launch(
+                id,
+                tank.vehicle,
+                ring,
+                Some(&self.battlefield.heightmap),
+            );
+            self.turret_popoffs.insert(id, popoff);
+            // The kaboom at the ring: a spark-and-flash burst, a puff of smoke, a ring of dust.
+            self.fx.armor_hit(ring, true, false);
+            self.fx.engine_smoke_puff(ring);
+            self.fx.track_dust(ring);
+        }
+        self.turret_popoffs.retain(|id, _| snapshot.tanks.iter().any(|tank| tank.tank_id == *id));
     }
 
     /// Fan one batch of replicated shots out to the presentation cues. Every firing tank gets
