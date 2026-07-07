@@ -44,6 +44,14 @@ const MAX_KICK_MPS: f32 = 3.0;
 /// the recoil) plus a smaller settle-down component. One firm nudge, not a screen shake.
 const FIRE_KICK_BACK_MPS: f32 = 0.9;
 const FIRE_KICK_DOWN_MPS: f32 = 0.5;
+/// Fixed follow-spring substep (seconds), the 60 Hz tick the spring was tuned at. A slow frame is
+/// integrated as a whole number of these plus a remainder, so the rig advances by the real time
+/// elapsed instead of a single clamped step whose clock ran slower than the world (the rig
+/// visibly lagging then lurching to catch up below ~20 FPS). Mirrors the engine attitude substep.
+const FOLLOW_SUBSTEP_S: f32 = 1.0 / 60.0;
+/// The most real time one presented frame may advance the spring (the stall clamp) — matches the
+/// `present()` clamp, so the rig and the boom/mode blend share one ceiling.
+const MAX_FRAME_S: f32 = 0.1;
 
 impl BattleCameraController {
     /// Landing slam: inject downward velocity into the follow anchor; the critically damped
@@ -97,11 +105,23 @@ impl BattleCameraController {
     /// tolerates no lag).
     pub fn advance(&mut self, subject_position: [f32; 3], hull_speed_mps: f32, dt: f32) {
         let target = Vec3::from_array(subject_position);
-        let dt = dt.clamp(1.0e-3, 0.05);
         let sniper = self.mode() == BattleCameraMode::Sniper;
-        let s = &mut self.smoothing;
-        s.speed_mps = hull_speed_mps.abs().min(30.0);
+        self.smoothing.speed_mps = hull_speed_mps.abs().min(30.0);
+        // Integrate the follow spring in fixed 60 Hz substeps up to the stall clamp — at 60+ FPS
+        // exactly one substep (unchanged feel), below it the correct real-time settle instead of
+        // the old single clamped step that lagged.
+        let mut remaining = dt.clamp(0.0, MAX_FRAME_S);
+        while remaining > 1.0e-6 {
+            let step = remaining.min(FOLLOW_SUBSTEP_S);
+            self.advance_substep(target, sniper, step);
+            remaining -= step;
+        }
+    }
 
+    /// One follow-spring substep at `dt` (see [`Self::advance`] for the substep loop). Reads the
+    /// speed already latched by `advance`; the FOV boost eases toward it per substep.
+    fn advance_substep(&mut self, target: Vec3, sniper: bool, dt: f32) {
+        let s = &mut self.smoothing;
         if sniper {
             // Sniper is rigid in the aim plane, but a short vertical-only damper soaks the
             // per-frame jolt of ruts — at 3 degrees of FOV a 1:1 hull jolt slams the whole sight.
@@ -130,5 +150,65 @@ impl BattleCameraController {
         s.anchor = Some(next);
         let fov_target = SPEED_FOV_BOOST_DEG * (s.speed_mps / SPEED_FOV_AT_MPS).clamp(0.0, 1.0);
         s.fov_boost_deg += (fov_target - s.fov_boost_deg) * (FOV_BLEND_PER_S * dt).clamp(0.0, 1.0);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{MAX_ANCHOR_LAG_M, MAX_FRAME_S};
+    use crate::camera::controller::BattleCameraController;
+
+    /// The low-FPS fix, camera side: one slow presented frame springs the follow anchor by the
+    /// same real time as the equivalent 60 Hz frames. A 0.1 s frame is exactly six 1/60 s
+    /// substeps, so the rig must land bit-identical to six 1/60 s steps — no lag-then-lurch.
+    #[test]
+    fn a_slow_frame_springs_the_anchor_the_same_as_the_equivalent_60hz_frames() {
+        let mut one_slow = BattleCameraController::default();
+        let mut many_fast = BattleCameraController::default();
+        // Seed both anchors at the origin, then drive the subject away so the spring has to work.
+        one_slow.advance([0.0, 0.0, 0.0], 8.0, 1.0 / 60.0);
+        many_fast.advance([0.0, 0.0, 0.0], 8.0, 1.0 / 60.0);
+
+        one_slow.advance([0.3, 0.0, 0.4], 8.0, 6.0 / 60.0);
+        for _ in 0..6 {
+            many_fast.advance([0.3, 0.0, 0.4], 8.0, 1.0 / 60.0);
+        }
+
+        let a = one_slow.smoothing.anchor.expect("anchor seeded");
+        let b = many_fast.smoothing.anchor.expect("anchor seeded");
+        assert!((a - b).length() < 1.0e-6, "the follow anchor diverged: {a:?} vs {b:?}");
+        assert!(
+            (one_slow.smoothing.fov_boost_deg - many_fast.smoothing.fov_boost_deg).abs() < 1.0e-6,
+            "the FOV boost diverged"
+        );
+    }
+
+    /// The stall clamp: a one-second hitch advances the spring by at most MAX_FRAME_S — a monster
+    /// stall settles by a bounded amount, it never fast-forwards the rig a full second. Locked as
+    /// a dt=1.0 frame landing bit-identical to a dt=MAX_FRAME_S one, with the anchor kept on its
+    /// lag leash throughout.
+    #[test]
+    fn a_monster_hitch_clamps_to_the_stall_ceiling() {
+        // A modest continuous move, so the spring is genuinely mid-flight (not a spawn teleport,
+        // which is meant to snap): the clamp equivalence is what this locks.
+        let mut hitched = BattleCameraController::default();
+        let mut capped = BattleCameraController::default();
+        hitched.advance([0.0, 0.0, 0.0], 8.0, 1.0 / 60.0);
+        capped.advance([0.0, 0.0, 0.0], 8.0, 1.0 / 60.0);
+
+        hitched.advance([0.4, 0.0, 0.3], 8.0, 1.0);
+        capped.advance([0.4, 0.0, 0.3], 8.0, MAX_FRAME_S);
+
+        let a = hitched.smoothing.anchor.expect("anchor");
+        let b = capped.smoothing.anchor.expect("anchor");
+        assert!(
+            (a - b).length() < 1.0e-6,
+            "a 1 s hitch must clamp to the stall ceiling: {a:?} {b:?}"
+        );
+        let target = glam::Vec3::new(0.4, 0.0, 0.3);
+        assert!(
+            (a - target).length() <= MAX_ANCHOR_LAG_M + 1.0e-4,
+            "the anchor never leaves its leash"
+        );
     }
 }

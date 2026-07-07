@@ -38,6 +38,15 @@ const FIRE_IMPULSE_RAD_S: f32 = 0.16;
 const WOUNDED_OMEGA_FLOOR: f32 = 0.6;
 /// Damping ratio scale at a drained pool — the wallow also overshoots a touch more.
 const WOUNDED_ZETA_FLOOR: f32 = 0.8;
+/// Fixed integration substep (seconds) for the springs — the 60 Hz tick the springs were tuned
+/// at. A slow or uneven presented frame is integrated as a whole number of these plus a
+/// remainder, so the spring's clock always tracks real time: at 60+ FPS a frame is exactly one
+/// substep (unchanged feel), and below it the springs advance by the true elapsed time instead
+/// of a single clamped step that ran their clock slower than the world (the low-FPS rubbery lag).
+const SPRING_SUBSTEP_S: f32 = 1.0 / 60.0;
+/// The most real time one presented frame may advance the springs (the stall clamp): a long
+/// hitch settles by this much, not a full second of fast-forward. Shared with the camera rig.
+const MAX_FRAME_S: f32 = 0.1;
 
 /// The terrain half of one frame's attitude target, sampled by the presentation world.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
@@ -104,8 +113,27 @@ impl HullAttitude {
             self.seeded = true;
             return;
         }
-        let dt = dt.clamp(1.0e-3, 0.05);
+        // Integrate the springs in fixed 60 Hz substeps up to the stall clamp: the frame's motion
+        // and terrain inputs are constant across the substeps, but the spring clock advances by
+        // the true elapsed time. At 60+ FPS this is exactly one substep — bit-identical to the
+        // old single 1/60 step — so this is a no-op at frame rate and only bites the slow frames.
+        let mut remaining = dt.clamp(0.0, MAX_FRAME_S);
+        while remaining > 1.0e-6 {
+            let step = remaining.min(SPRING_SUBSTEP_S);
+            self.integrate(translation, motion, sample, suspension_fraction, step);
+            remaining -= step;
+        }
+    }
 
+    /// One spring-integration substep at `dt` (see [`Self::step`] for the substep loop).
+    fn integrate(
+        &mut self,
+        translation: [f32; 3],
+        motion: TankMotion,
+        sample: AttitudeSample,
+        suspension_fraction: f32,
+        dt: f32,
+    ) {
         // A wounded suspension pool softens every spring below: lower frequency (slower settle)
         // and slightly less damping (one extra visible sway) as the pool drains.
         let pool = suspension_fraction.clamp(0.0, 1.0);
@@ -305,6 +333,74 @@ mod tests {
         assert!(
             max_abs_pitch < 1.0e-4,
             "a steady cruise must not rock the hull, saw {max_abs_pitch} rad of pitch"
+        );
+    }
+
+    /// The low-FPS fix: one slow presented frame advances the springs by the SAME real time as
+    /// the equivalent run of 60 Hz frames. A 0.1 s frame is exactly six 1/60 s substeps, so it
+    /// must land bit-identical to six 1/60 s steps — the spring clock tracks the world, it does
+    /// not run slow and lag (the old single clamped step did, hence the rubbery catch-up).
+    #[test]
+    fn a_slow_frame_settles_the_same_as_the_equivalent_60hz_frames() {
+        let sample = AttitudeSample { terrain_pitch_rad: 0.12, terrain_roll_rad: -0.05 };
+        let mut one_slow = HullAttitude::default();
+        let mut many_fast = HullAttitude::default();
+        // Seed both onto flat ground, then displace the target so the springs have work to do.
+        one_slow.step(
+            [0.0, 1.0, 0.0],
+            TankMotion::default(),
+            AttitudeSample::default(),
+            1.0,
+            1.0 / 60.0,
+        );
+        many_fast.step(
+            [0.0, 1.0, 0.0],
+            TankMotion::default(),
+            AttitudeSample::default(),
+            1.0,
+            1.0 / 60.0,
+        );
+
+        let motion = cruise(9.0, -6.0);
+        one_slow.step([0.0, 1.2, 0.0], motion, sample, 1.0, 6.0 / 60.0);
+        for _ in 0..6 {
+            many_fast.step([0.0, 1.2, 0.0], motion, sample, 1.0, 1.0 / 60.0);
+        }
+
+        assert!((one_slow.pitch_rad - many_fast.pitch_rad).abs() < 1.0e-6, "pitch diverged");
+        assert!((one_slow.roll_rad - many_fast.roll_rad).abs() < 1.0e-6, "roll diverged");
+        assert!((one_slow.heave_m - many_fast.heave_m).abs() < 1.0e-6, "heave diverged");
+    }
+
+    /// The stall clamp: a monster hitch settles by at most MAX_FRAME_S, never a full second of
+    /// fast-forward — so a one-second stall does not snap the hull straight to its target.
+    #[test]
+    fn a_monster_hitch_is_capped_at_the_stall_clamp() {
+        let sample = AttitudeSample { terrain_pitch_rad: 0.2, terrain_roll_rad: 0.0 };
+        let mut hitched = HullAttitude::default();
+        let mut capped = HullAttitude::default();
+        hitched.step(
+            [0.0, 0.0, 0.0],
+            TankMotion::default(),
+            AttitudeSample::default(),
+            1.0,
+            1.0 / 60.0,
+        );
+        capped.step(
+            [0.0, 0.0, 0.0],
+            TankMotion::default(),
+            AttitudeSample::default(),
+            1.0,
+            1.0 / 60.0,
+        );
+
+        hitched.step([0.0, 0.0, 0.0], TankMotion::default(), sample, 1.0, 1.0);
+        capped.step([0.0, 0.0, 0.0], TankMotion::default(), sample, 1.0, MAX_FRAME_S);
+
+        assert!((hitched.pitch_rad - capped.pitch_rad).abs() < 1.0e-6, "a 1 s hitch must clamp");
+        assert!(
+            hitched.pitch_rad < sample.terrain_pitch_rad,
+            "and not snap to target in one frame"
         );
     }
 
