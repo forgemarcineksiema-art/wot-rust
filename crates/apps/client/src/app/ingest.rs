@@ -72,6 +72,9 @@ impl ClientApp {
                 }
             }
         }
+        // A freshly knocked-out hull is DENTED where it was hit: build its per-instance deformed
+        // hull once from the penetrations already recorded above, and forget despawned wrecks.
+        self.sync_wreck_deform(&snapshot);
         // Shots fired since the previous snapshot: diffed here, where both snapshots exist side
         // by side, then fanned out to every fire cue (muzzle FX, recoil, hull rock, camera kick).
         let fired = self.render_state.latest_snapshot().map_or_else(Vec::new, |previous| {
@@ -128,6 +131,42 @@ impl ClientApp {
             self.fx.track_dust(ring);
         }
         self.turret_popoffs.retain(|id, _| snapshot.tanks.iter().any(|tank| tank.tank_id == *id));
+    }
+
+    /// Build the dented hull for each freshly-knocked-out wreck from its recorded hull-frame
+    /// penetrations, once, and drop wrecks that have despawned. Presentation only — the deform
+    /// kernel never touches the hitbox (see `vehicle::wreck_deform`).
+    fn sync_wreck_deform(&mut self, snapshot: &net::Snapshot) {
+        use crate::vehicle::variation::{DecalFrame, DecalKind};
+
+        for tank in &snapshot.tanks {
+            if tank.hit_points != 0 || self.wreck_hull_meshes.contains_key(&tank.tank_id) {
+                continue;
+            }
+            let penetrations: Vec<glam::Vec3> = self
+                .tank_scars
+                .get(&tank.tank_id)
+                .map(|variation| {
+                    variation
+                        .decals()
+                        .iter()
+                        .filter(|d| d.kind == DecalKind::Penetration && d.frame == DecalFrame::Hull)
+                        .map(|d| glam::Vec3::from_array(d.local_position))
+                        .collect()
+                })
+                .unwrap_or_default();
+            if penetrations.is_empty() {
+                continue;
+            }
+            if let Some(handle) = self.vehicle_asset_catalog.wreck_hull_mesh(
+                tank.vehicle,
+                tank.tank_id,
+                &penetrations,
+            ) {
+                self.wreck_hull_meshes.insert(tank.tank_id, handle);
+            }
+        }
+        self.wreck_hull_meshes.retain(|id, _| snapshot.tanks.iter().any(|t| t.tank_id == *id));
     }
 
     /// Fan one batch of replicated shots out to the presentation cues. Every firing tank gets

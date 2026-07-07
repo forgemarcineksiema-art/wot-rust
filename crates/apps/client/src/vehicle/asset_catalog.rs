@@ -115,6 +115,47 @@ impl VehicleAssetCatalog {
         Some(entry)
     }
 
+    /// Register a per-instance DENTED hull for a wreck: the base hull deformed at its penetration
+    /// points (hull-local). Uploaded through the same pending path as every other mesh; a distinct
+    /// label per tank means a distinct handle, so the wreck draws its own dented copy without
+    /// disturbing the shared base mesh other tanks of the kind still use. `None` when there is
+    /// nothing to dent. See `wreck_deform` for the collision-safety contract.
+    pub(crate) fn wreck_hull_mesh(
+        &mut self,
+        kind: VehicleKind,
+        tank_id: game_core::TankId,
+        penetrations_local: &[Vec3],
+    ) -> Option<MeshHandle> {
+        let baked = authoritative_baked_vehicle(kind).ok()?;
+        let hull = baked.submesh(SubmeshKind::Hull)?;
+        let dented =
+            crate::vehicle::wreck_deform::dented_hull(&hull.mesh, penetrations_local, tank_id.0)?;
+        let label = format!("{}_wreck{}_hull", kind.slug(), tank_id.0);
+        Some(self.register_named_mesh(label, &dented, Vec3::ZERO))
+    }
+
+    /// Register (or re-upload) a mesh under an arbitrary label, returning its stable handle.
+    fn register_named_mesh(
+        &mut self,
+        label: String,
+        mesh: &GeometryMesh,
+        pivot: Vec3,
+    ) -> MeshHandle {
+        let asset = vehicle_mesh_asset_from_geometry(mesh, pivot);
+        if let Some(handle) = self.mesh_labels.get(&label).copied() {
+            if let Some((_, stored)) = self.meshes.get_mut(handle.0 as usize) {
+                *stored = asset.clone();
+            }
+            self.pending_meshes.push((handle, asset));
+            return handle;
+        }
+        let handle = MeshHandle(self.meshes.len() as u32);
+        self.mesh_labels.insert(label.clone(), handle);
+        self.meshes.push((label, asset.clone()));
+        self.pending_meshes.push((handle, asset));
+        handle
+    }
+
     /// Cache the three running-gear unit meshes for `kind`, or `None` if it has no blueprint gear.
     pub(crate) fn register_running_gear(&mut self, kind: VehicleKind) -> Option<GearMeshHandles> {
         let kin = RunningGearKinematics::for_vehicle(kind)?;

@@ -9,9 +9,36 @@
 //! only on damage events (a few per second) and the index is built once per vehicle kind, so the
 //! BVH is about traversal simplicity and determinism, not shaving microseconds.
 
-use glam::Vec3;
+use glam::{Vec2, Vec3};
 
 use crate::mesh::GeometryMesh;
+
+/// How far a conformal patch lifts off the armor along the contact normal — enough to clear the
+/// shadow-pass acne without reading as a float.
+const PATCH_LIFT_M: f32 = 0.003;
+
+/// A shell hole that WRAPS the armor: the mesh triangles under the mark, clipped to the mark's
+/// square footprint and lifted a hair off the surface, with planar decal UVs. Unlike a flat quad
+/// this follows a curved casting instead of hovering across its chord. Triangle soup — `positions`
+/// length is a multiple of three, and `uvs` is one entry per position.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct DecalPatch {
+    /// World-space (or decal-frame) triangle-soup positions, lifted off the surface.
+    pub positions: Vec<Vec3>,
+    /// Per-vertex decal-plane coordinates in `[-1, 1]`: the position projected onto the mark's
+    /// axes and normalized by its radius, so the renderer can do a radial falloff.
+    pub uvs: Vec<Vec2>,
+}
+
+impl DecalPatch {
+    pub fn triangle_count(&self) -> usize {
+        self.positions.len() / 3
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.positions.is_empty()
+    }
+}
 
 /// A resolved point on the mesh surface: where it is, which way it faces (the barycentric blend of
 /// the triangle's vertex normals, so curved castings read smooth), and which triangle answered.
@@ -192,6 +219,62 @@ impl MeshContactIndex {
         })
     }
 
+    /// Clip the mesh under a contact into a conformal decal patch: the triangles within the mark's
+    /// square footprint (`radius` half-extent on each in-plane axis), clipped to that box, lifted
+    /// off the surface, capped at `cap` output triangles (nearest kept). The mark then wraps a
+    /// curved casting instead of hovering across its chord.
+    pub fn clip_patch(&self, contact: &SurfaceContact, radius: f32, cap: usize) -> DecalPatch {
+        let center = contact.position;
+        let normal = contact.normal.normalize_or(Vec3::Y);
+        let (u, v) = plane_basis(normal);
+        // A generous gather radius so a triangle straddling the box edge is still considered.
+        let gather = radius * 1.8;
+        let gather_sq = gather * gather;
+
+        // Per source triangle: its clipped fan and how close it sits, so the cap keeps the nearest.
+        let mut pieces: Vec<(f32, Vec<[Vec3; 3]>)> = Vec::new();
+        for tri in &self.tris {
+            if tri.centroid().distance_squared(center) > gather_sq
+                && tri.a.distance_squared(center) > gather_sq
+                && tri.b.distance_squared(center) > gather_sq
+                && tri.c.distance_squared(center) > gather_sq
+            {
+                continue;
+            }
+            let polygon = clip_to_box([tri.a, tri.b, tri.c], center, u, v, radius);
+            if polygon.len() < 3 {
+                continue;
+            }
+            let mut fan = Vec::new();
+            for i in 1..polygon.len() - 1 {
+                fan.push([polygon[0], polygon[i], polygon[i + 1]]);
+            }
+            let dist = tri.centroid().distance(center);
+            pieces.push((dist, fan));
+        }
+
+        pieces.sort_by(|a, b| a.0.total_cmp(&b.0));
+
+        let mut patch = DecalPatch::default();
+        'outer: for (_, fan) in pieces {
+            for tri in fan {
+                if patch.triangle_count() >= cap {
+                    break 'outer;
+                }
+                for corner in tri {
+                    let lifted = corner + normal * PATCH_LIFT_M;
+                    let uv = Vec2::new(
+                        (corner - center).dot(u) / radius,
+                        (corner - center).dot(v) / radius,
+                    );
+                    patch.positions.push(lifted);
+                    patch.uvs.push(uv.clamp(Vec2::splat(-1.0), Vec2::splat(1.0)));
+                }
+            }
+        }
+        patch
+    }
+
     /// A linear ray cast over every triangle, ignoring the BVH — the reference the BVH is tested
     /// against so a tree bug cannot hide behind matching-looking marks.
     #[cfg(test)]
@@ -277,6 +360,49 @@ fn partition(tris: &[Triangle], slice: &mut [u32], axis: usize, mid_value: f32) 
         }
     }
     left
+}
+
+/// An orthonormal in-plane basis `(u, v)` for a decal whose normal is `normal`.
+fn plane_basis(normal: Vec3) -> (Vec3, Vec3) {
+    let mut u = normal.cross(Vec3::Y);
+    if u.length_squared() < 1.0e-6 {
+        u = normal.cross(Vec3::X);
+    }
+    let u = u.normalize_or(Vec3::X);
+    (u, normal.cross(u).normalize_or(Vec3::Z))
+}
+
+/// Sutherland–Hodgman clip of a triangle to the square prism `|dot(p-center,u)| <= radius` and
+/// `|dot(p-center,v)| <= radius` (unbounded along the normal). Returns the clipped convex polygon.
+fn clip_to_box(tri: [Vec3; 3], center: Vec3, u: Vec3, v: Vec3, radius: f32) -> Vec<Vec3> {
+    let mut poly = tri.to_vec();
+    for (axis, sign) in [(u, 1.0_f32), (u, -1.0), (v, 1.0), (v, -1.0)] {
+        // Inside the half-space when `sign * dot(p-center, axis) <= radius`.
+        poly = clip_half_space(&poly, |p| sign * (p - center).dot(axis) - radius);
+        if poly.len() < 3 {
+            return Vec::new();
+        }
+    }
+    poly
+}
+
+/// Keep the part of a polygon where `sd(p) <= 0`, inserting edge crossings.
+fn clip_half_space(poly: &[Vec3], sd: impl Fn(Vec3) -> f32) -> Vec<Vec3> {
+    let mut out = Vec::new();
+    for i in 0..poly.len() {
+        let a = poly[i];
+        let b = poly[(i + 1) % poly.len()];
+        let da = sd(a);
+        let db = sd(b);
+        if da <= 0.0 {
+            out.push(a);
+        }
+        if (da <= 0.0) != (db <= 0.0) {
+            let t = da / (da - db);
+            out.push(a.lerp(b, t));
+        }
+    }
+    out
 }
 
 fn widest_axis(extent: Vec3) -> usize {
@@ -464,5 +590,66 @@ mod tests {
         let index = MeshContactIndex::from_mesh(&GeometryMesh::default(), Vec3::ZERO);
         assert!(index.raycast(Vec3::ZERO, Vec3::NEG_Z, 10.0).is_none());
         assert!(index.nearest_point(Vec3::ZERO, 10.0).is_none());
+    }
+
+    #[test]
+    fn a_clipped_patch_stays_on_the_surface_and_inside_its_footprint() {
+        let index = MeshContactIndex::from_mesh(&quad(), Vec3::ZERO);
+        let contact =
+            index.raycast(Vec3::new(0.1, 0.1, 5.0), Vec3::NEG_Z, 10.0).expect("ray meets the quad");
+        let patch = index.clip_patch(&contact, 0.3, 64);
+        assert!(!patch.is_empty(), "a hit on the quad yields a patch");
+        for (position, uv) in patch.positions.iter().zip(&patch.uvs) {
+            // On the surface (z ~ 0) plus the tiny lift, and inside the [-1,1] decal box.
+            let surface_gap =
+                index.nearest_point(*position, 1.0).map(|c| c.position.distance(*position));
+            assert!(
+                surface_gap.is_some_and(|d| d < 0.004),
+                "every patch vertex hugs the mesh, got {surface_gap:?}"
+            );
+            assert!(uv.x.abs() <= 1.0 + 1.0e-4 && uv.y.abs() <= 1.0 + 1.0e-4, "uv in box: {uv:?}");
+        }
+    }
+
+    #[test]
+    fn a_patch_on_the_curved_turret_spans_several_faceted_triangles() {
+        let baked = crate::bake_vehicle(game_core::VehicleKind::T54_1951).expect("bake");
+        let turret = baked.submesh(crate::SubmeshKind::Turret).expect("turret submesh");
+        let ring = baked.mounts().turret_ring.translation;
+        let index = MeshContactIndex::from_mesh(&turret.mesh, ring);
+        // Fire into the front of the cast dome from ahead at trunnion height.
+        let y = baked.mounts().gun_trunnion.translation.y - ring.y;
+        let contact =
+            index.raycast(Vec3::new(0.0, y, 6.0), Vec3::NEG_Z, 12.0).expect("ray meets the dome");
+        let patch = index.clip_patch(&contact, 0.25, 64);
+        assert!(
+            patch.triangle_count() >= 2,
+            "a dome patch wraps >1 facet, got {}",
+            patch.triangle_count()
+        );
+        // The facets face different ways — that is what "conformal" buys over a flat quad.
+        let normal = |tri: usize| {
+            let p = &patch.positions[tri * 3..tri * 3 + 3];
+            (p[1] - p[0]).cross(p[2] - p[0]).normalize_or_zero()
+        };
+        let first = normal(0);
+        let bent = (1..patch.triangle_count()).any(|t| normal(t).dot(first) < 0.999);
+        assert!(bent, "the patch bends across the casting instead of staying flat");
+    }
+
+    #[test]
+    fn the_patch_triangle_cap_is_respected() {
+        let baked = crate::bake_vehicle(game_core::VehicleKind::T54_1951).expect("bake");
+        let hull = baked.submesh(crate::SubmeshKind::Hull).expect("hull submesh");
+        let index = MeshContactIndex::from_mesh(&hull.mesh, Vec3::ZERO);
+        let contact =
+            index.raycast(Vec3::new(0.0, 1.2, 8.0), Vec3::NEG_Z, 12.0).expect("ray meets the hull");
+        // A large radius over a dense area, capped small.
+        let patch = index.clip_patch(&contact, 1.5, 8);
+        assert!(
+            patch.triangle_count() <= 8,
+            "the cap bounds the patch, got {}",
+            patch.triangle_count()
+        );
     }
 }

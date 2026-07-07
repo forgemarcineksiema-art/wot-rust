@@ -34,7 +34,7 @@ fn a_shell_strike_records_a_scar_on_the_target_in_its_local_frame() {
 
     let scars = app.tank_scars.get(&target_id).expect("target carries a scar");
     assert_eq!(scars.decals().len(), 1);
-    let decal = scars.decals()[0];
+    let decal = &scars.decals()[0];
     assert_eq!(decal.kind, DecalKind::Penetration, "a pen records the permanent hole");
     let local = glam::Vec3::from_array(decal.local_position);
     assert!(

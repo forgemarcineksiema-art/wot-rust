@@ -58,6 +58,19 @@ impl ClientApp {
         }
     }
 
+    /// Swap each wreck's hull render object (the first object for that tank) to its dented
+    /// per-instance mesh. Turret, gun, and gear keep the shared meshes.
+    pub(super) fn apply_wreck_deform(&self, objects: &mut [renderer_api::RenderObject]) {
+        if self.wreck_hull_meshes.is_empty() {
+            return;
+        }
+        for (&id, &handle) in &self.wreck_hull_meshes {
+            if let Some(hull) = objects.iter_mut().find(|object| object.tank_id == Some(id)) {
+                hull.mesh = handle;
+            }
+        }
+    }
+
     pub(super) fn create_renderer(
         &mut self,
         window: Arc<Window>,
@@ -164,6 +177,8 @@ impl ClientApp {
         // A decapitated wreck flies its turret: replace that tank's turret and gun transforms with
         // the deterministic pop-off arc (the snapshot pose is ignored, freezing the turret yaw).
         self.apply_turret_popoffs(&mut vehicles.objects);
+        // A wreck also draws its dented hull instead of the pristine shared one.
+        self.apply_wreck_deform(&mut vehicles.objects);
         let vehicle_frame = RenderFrame { objects: vehicles.objects, ..RenderFrame::default() };
         let (reload_remaining, reload_max) = self.player_reload();
         self.reload_ready_age_s = tick_ready_flash(

@@ -40,6 +40,7 @@ winit = "0.30.12"
 # one block; each crate depends on them via `name.workspace = true`.
 audio = { path = "crates/runtime/audio" }
 cast_loft = { path = "crates/kernels/cast_loft" }
+deform = { path = "crates/kernels/deform" }
 detail = { path = "crates/kernels/detail" }
 engine = { path = "crates/runtime/engine" }
 game_core = { path = "crates/foundation/game_core" }

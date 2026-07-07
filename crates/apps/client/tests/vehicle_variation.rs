@@ -32,6 +32,7 @@ fn decal(x: f32, kind: DecalKind) -> HitDecal {
         age_s: 0.0,
         kind,
         frame: DecalFrame::Hull,
+        patch: None,
     }
 }
 
