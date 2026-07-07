@@ -172,6 +172,7 @@ fn snapshot_at(server_tick: u64, x: f32) -> Snapshot {
         shells: Vec::new(),
         damage_events: Vec::new(),
         shell_impacts: Vec::new(),
+        detached_turrets: Vec::new(),
     }
 }
 

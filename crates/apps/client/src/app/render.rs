@@ -35,6 +35,29 @@ impl ClientApp {
         ((self.client_tick as f64 + f64::from(self.loop_driver.render_alpha()))
             / f64::from(sim::DEFAULT_SIMULATION_TICK_HZ)) as f32
     }
+    /// Drive each decapitated wreck's turret and gun render objects from its deterministic pop-off
+    /// arc. Per tank the objects are laid out `[hull, turret, gun, ...gear]` contiguously, so the
+    /// two objects after the hull are the turret and gun; anything else (a legacy vehicle whose
+    /// order differs) is skipped rather than mis-driven.
+    pub(super) fn apply_turret_popoffs(&self, objects: &mut [renderer_api::RenderObject]) {
+        if self.turret_popoffs.is_empty() {
+            return;
+        }
+        for (&id, popoff) in &self.turret_popoffs {
+            let Some(hull) = objects.iter().position(|object| object.tank_id == Some(id)) else {
+                continue;
+            };
+            let owns_turret = objects.get(hull + 1).map(|o| o.tank_id) == Some(Some(id));
+            let owns_gun = objects.get(hull + 2).map(|o| o.tank_id) == Some(Some(id));
+            if owns_turret {
+                objects[hull + 1].transform = popoff.turret_transform().to_cols_array_2d();
+            }
+            if owns_gun {
+                objects[hull + 2].transform = popoff.gun_transform().to_cols_array_2d();
+            }
+        }
+    }
+
     pub(super) fn create_renderer(
         &mut self,
         window: Arc<Window>,
@@ -125,13 +148,16 @@ impl ClientApp {
         let minimap = self.build_minimap(&presentation_tanks, camera_forward_xz);
         let visible_tanks = self.visible_render_tanks(presentation_tanks, view_proj, camera.eye);
         let player_gun_scale = self.player_barrel_scale();
-        let vehicles = split_pbr_vehicle_render_frame_on_terrain(
+        let mut vehicles = split_pbr_vehicle_render_frame_on_terrain(
             &mut self.vehicle_asset_catalog,
             visible_tanks,
             self.player_tank,
             player_gun_scale,
             Some(&self.battlefield.heightmap),
         );
+        // A decapitated wreck flies its turret: replace that tank's turret and gun transforms with
+        // the deterministic pop-off arc (the snapshot pose is ignored, freezing the turret yaw).
+        self.apply_turret_popoffs(&mut vehicles.objects);
         let vehicle_frame = RenderFrame { objects: vehicles.objects, ..RenderFrame::default() };
         let (reload_remaining, reload_max) = self.player_reload();
         self.reload_ready_age_s = tick_ready_flash(
