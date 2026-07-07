@@ -42,8 +42,25 @@ fn seed_route_mix(mut value: u64) -> u64 {
     value
 }
 
+/// The cached water detour: which objective it was planned against and the waypoint that gets
+/// driven at. Replanning the drive line (the full-length deep-water probe) is the route brain's
+/// only expensive step, so it runs on the bots' replan cadence instead of every tick; the cache
+/// key is the objective, so a route rotation or posture fallback replans immediately.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct RoutePlan {
+    objective: Vec3,
+    drive_at: Vec3,
+}
+
+/// How stale a cached water detour may grow (0.4 s, staggered by tank id). A hull covers ~3 m
+/// between replans — nothing on a 30-40 m river changes faster, and the every-tick deep-water
+/// survival check in `bots.rs` still guards the hull itself.
+pub(crate) const ROUTE_REPLAN_INTERVAL_TICKS: u64 = 24;
+
 pub(crate) fn bot_route_command(
     route_index: &mut usize,
+    plan: &mut Option<RoutePlan>,
+    replan_due: bool,
     posture: BotPosture,
     tank: &TankState,
     battlefield: &BattlefieldMap,
@@ -51,10 +68,36 @@ pub(crate) fn bot_route_command(
     match posture {
         BotPosture::Skirmish => {
             let target = bot_route_target(route_index, tank.team, tank.position, battlefield);
-            bot_drive_toward(tank, water_safe_target(tank, target, battlefield))
+            bot_drive_toward(
+                tank,
+                planned_drive_target(plan, replan_due, tank, target, battlefield),
+            )
         }
-        BotPosture::Overwatch => bot_overwatch_command(tank, battlefield),
+        BotPosture::Overwatch => bot_overwatch_command(plan, replan_due, tank, battlefield),
     }
+}
+
+/// The waypoint to drive at, through the plan cache. Dry maps skip the cache entirely — with no
+/// water body every probe is a constant-time no-op, and the lane math wants the live position.
+fn planned_drive_target(
+    plan: &mut Option<RoutePlan>,
+    replan_due: bool,
+    tank: &TankState,
+    objective: Vec3,
+    battlefield: &BattlefieldMap,
+) -> Vec3 {
+    if battlefield.water.is_none() {
+        return water_safe_target(tank, objective, battlefield);
+    }
+    let stale = replan_due
+        || plan.as_ref().is_none_or(|plan| plan.objective.distance_squared(objective) > 1.0);
+    if stale {
+        *plan = Some(RoutePlan {
+            objective,
+            drive_at: water_safe_target(tank, objective, battlefield),
+        });
+    }
+    plan.as_ref().expect("plan freshened above").drive_at
 }
 
 // --- Water awareness -------------------------------------------------------------------------
@@ -175,16 +218,27 @@ fn crossing_exit(center: Vec3, target: Vec3, battlefield: &BattlefieldMap) -> Ve
 
 /// Drive to the nearest own-side hull-down/high-ground point; once inside its radius, swing the
 /// bow toward the map centre (gun and strongest armor to the field) and hold on the brake.
-fn bot_overwatch_command(tank: &TankState, battlefield: &BattlefieldMap) -> TankCommand {
+fn bot_overwatch_command(
+    plan: &mut Option<RoutePlan>,
+    replan_due: bool,
+    tank: &TankState,
+    battlefield: &BattlefieldMap,
+) -> TankCommand {
     let Some(point) = bot_overwatch_point(tank.team, tank.position, battlefield) else {
         // A map without authored overwatch ground: fall back to standing pressure mid-map.
         let center =
             Vec3::new(battlefield.size_m[0] * 0.5, tank.position.y, battlefield.size_m[1] * 0.5);
-        return bot_drive_toward(tank, water_safe_target(tank, center, battlefield));
+        return bot_drive_toward(
+            tank,
+            planned_drive_target(plan, replan_due, tank, center, battlefield),
+        );
     };
     let target = Vec3::from_array(point.position);
     if tank.position.distance(target) > point.radius_m.max(20.0) {
-        return bot_drive_toward(tank, water_safe_target(tank, target, battlefield));
+        return bot_drive_toward(
+            tank,
+            planned_drive_target(plan, replan_due, tank, target, battlefield),
+        );
     }
     // On station. Face the field, then hold — a hull-down shelf only works bow-on.
     let field_center =
@@ -354,7 +408,15 @@ mod tests {
 
         // Far away: the posture drives toward the shelf, not some rotation waypoint.
         let mut route_index = 0;
-        let approach = bot_route_command(&mut route_index, BotPosture::Overwatch, &tank, &map);
+        let mut plan = None;
+        let approach = bot_route_command(
+            &mut route_index,
+            &mut plan,
+            true,
+            BotPosture::Overwatch,
+            &tank,
+            &map,
+        );
         assert!(approach.throttle > 0.0, "en route the bot drives");
         let desired = bot_yaw_to(tank.position, Vec3::from_array(shelf.position));
         assert!(
@@ -369,13 +431,27 @@ mod tests {
             tank.position,
             Vec3::new(map.size_m[0] * 0.5, tank.position.y, map.size_m[1] * 0.5),
         );
-        let hold = bot_route_command(&mut route_index, BotPosture::Overwatch, &tank, &map);
+        let hold = bot_route_command(
+            &mut route_index,
+            &mut plan,
+            true,
+            BotPosture::Overwatch,
+            &tank,
+            &map,
+        );
         assert_eq!(hold.throttle, 0.0, "an overwatch bot on station stands");
         assert!(hold.brake > 0.0, "and holds the brake");
 
         // On station but bow pointing home: pivot toward the field instead of freezing.
         tank.yaw_rad += std::f32::consts::PI;
-        let pivot = bot_route_command(&mut route_index, BotPosture::Overwatch, &tank, &map);
+        let pivot = bot_route_command(
+            &mut route_index,
+            &mut plan,
+            true,
+            BotPosture::Overwatch,
+            &tank,
+            &map,
+        );
         assert!(pivot.steer.abs() > 0.0, "a shelf only works bow-on: the bot swings its hull");
         assert!(pivot.throttle > 0.0 && pivot.throttle < 0.5, "a pivot creeps, not charges");
     }
@@ -446,7 +522,8 @@ mod tests {
             crate::bots::test_support::tank_at(1, TeamId(1), Vec3::from_array(first.position));
 
         let mut route_index = 0;
-        bot_route_command(&mut route_index, BotPosture::Skirmish, &tank, &map);
+        let mut plan = None;
+        bot_route_command(&mut route_index, &mut plan, true, BotPosture::Skirmish, &tank, &map);
         assert_eq!(route_index, 1, "arriving at the objective advances the rotation");
     }
 }
