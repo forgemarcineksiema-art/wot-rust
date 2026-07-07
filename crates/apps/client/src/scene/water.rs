@@ -12,10 +12,16 @@ const MIN_WET_DEPTH_M: f32 = 0.05;
 /// The battlefield's water mesh; empty on dry maps (`water: None`), so callers can always
 /// upload the result and the renderer skips the draw when there is nothing to draw.
 pub fn battlefield_water_mesh(battlefield: &BattlefieldMap) -> (Vec<WaterVertex>, Vec<u32>) {
-    match battlefield.water {
+    let (mut vertices, mut indices) = match battlefield.water {
         Some(water) => water_surface_mesh(&battlefield.heightmap, water),
         None => (Vec::new(), Vec::new()),
-    }
+    };
+    // The river keeps flowing past the horizon: the backdrop strips render with this same mesh.
+    let (skirt_vertices, skirt_indices) = crate::scene::backdrop::backdrop_water_mesh(battlefield);
+    let base = vertices.len() as u32;
+    vertices.extend(skirt_vertices);
+    indices.extend(skirt_indices.into_iter().map(|index| index + base));
+    (vertices, indices)
 }
 
 /// Grid the heightmap at its own cell resolution and keep every quad with at least one wet
@@ -79,7 +85,9 @@ mod tests {
     fn the_bystra_mesh_covers_the_river_and_only_the_river() {
         let map = bystra_valley();
         let water = map.water.expect("the Bystra is the map");
-        let (vertices, indices) = battlefield_water_mesh(&map);
+        // The corridor contract is about the PLAYFIELD surface; the backdrop continuations
+        // are covered by scene::backdrop tests.
+        let (vertices, indices) = water_surface_mesh(&map.heightmap, water);
 
         assert!(!indices.is_empty(), "the river corridor must produce a surface");
         assert!(indices.len().is_multiple_of(3));

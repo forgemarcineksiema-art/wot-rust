@@ -23,7 +23,9 @@ pub use battlefield::{
     BattlefieldMap, MapFeature, MapFeatureKind, SpawnZone, StaticCoverKind, StaticCoverObject,
     StrategicPoint, StrategicRole,
 };
-pub use bystra::{RIVER_CORRIDOR_HALF_WIDTH_M, bystra_river_center_x, bystra_valley};
+pub use bystra::{
+    RIVER_CORRIDOR_HALF_WIDTH_M, bystra_backdrop_height, bystra_river_center_x, bystra_valley,
+};
 pub use chunk::{DEFAULT_CHUNK_SIZE_M, TerrainChunk, TerrainChunkId};
 pub use coordinates::{CoordinatePrecision, LargeWorldStrategy, WorldCoordinatePolicy};
 pub use heightmap::{HeightMap, HeightMapStats, TerrainError};

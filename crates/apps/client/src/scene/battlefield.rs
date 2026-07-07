@@ -13,6 +13,15 @@ pub fn battlefield_scene_mesh(battlefield: &BattlefieldMap) -> (Vec<SceneVertex>
     for cover in &battlefield.static_cover {
         append_cover_box(&mut vertices, &mut indices, cover);
     }
+    // The world beyond the border (render-only skirt + distant trees), then the dressing:
+    // both baked into the same static upload.
+    {
+        let (skirt_vertices, skirt_indices) =
+            crate::scene::backdrop::backdrop_scene_mesh(battlefield);
+        let base = vertices.len() as u32;
+        vertices.extend(skirt_vertices);
+        indices.extend(skirt_indices.into_iter().map(|index| index + base));
+    }
     // Render-only dressing: trees and rocks baked into the same static upload — a dressed
     // valley costs the frame nothing (see scene::foliage).
     for instance in &battlefield.scenery {

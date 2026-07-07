@@ -199,3 +199,35 @@ fn bystra_scenery_is_mirrored_excluded_and_budgeted() {
     // Determinism: the same map builds the same forest, twig for twig.
     assert_eq!(map.scenery, bystra_valley().scenery);
 }
+
+/// The backdrop skirt is the SAME analytic surface as the playfield: at every heightmap grid
+/// point on the border the two agree exactly, so the horizon meets the map without a seam.
+/// Beyond the border the enclosure rises - except along the river gap, which stays low so the
+/// Bystra visibly continues.
+#[test]
+fn the_backdrop_meets_the_map_exactly_and_closes_the_valley() {
+    let map = bystra_valley();
+    let mut probe = 0.0_f32;
+    while probe <= MAP_M {
+        for (x, z) in [(probe, 0.0), (probe, MAP_M), (0.0, probe), (MAP_M, probe)] {
+            let edge = map.heightmap.sample_height(x, z).unwrap();
+            let skirt = terrain::bystra_backdrop_height(x, z);
+            assert!(
+                (edge - skirt).abs() < 1.0e-3,
+                "seam at ({x}, {z}): heightmap {edge} vs backdrop {skirt}"
+            );
+        }
+        probe += 5.0;
+    }
+
+    // Far outside, the hills close the view on the dry sides...
+    assert!(terrain::bystra_backdrop_height(-400.0, 500.0) > 16.0);
+    assert!(terrain::bystra_backdrop_height(1400.0, 500.0) > 16.0);
+    // ...and the river gap stays below the water level so the Bystra flows out.
+    let far_river_x = bystra_river_center_x(-400.0);
+    assert!(terrain::bystra_backdrop_height(far_river_x, -400.0) < 5.0);
+    let far_river_x = bystra_river_center_x(1400.0);
+    assert!(terrain::bystra_backdrop_height(far_river_x, 1400.0) < 5.0);
+    // Physics never follows the eye out there.
+    assert!(map.heightmap.sample_height(-10.0, 500.0).is_none());
+}

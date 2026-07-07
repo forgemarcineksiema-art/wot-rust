@@ -143,6 +143,36 @@ pub fn bystra_river_center_x(z: f32) -> f32 {
         + MEANDER_WIGGLE_M * (dz / MEANDER_WIGGLE_WAVE_M).cos()
 }
 
+/// The world beyond the map's edge, for the render-only backdrop skirt: the same analytic
+/// surface the playfield is built from (every component of `valley_height_at` is a pure
+/// function, so the fields, the ridge and the RIVER simply continue past the boundary),
+/// blending outward into rolling forested hills that close the valley — except along the
+/// river's course, which keeps its gap so the Bystra visibly flows in from the south and out
+/// to the north. Physics never reads this: `HeightMap::sample_height` still returns `None`
+/// outside the map, and the playable world ends exactly where it always did.
+///
+/// Inside the map bounds this IS `valley_height_at`, so the skirt meets the real heightmap
+/// exactly at every shared grid point (seam-locked in `tests/bystra_map.rs`).
+pub fn bystra_backdrop_height(x: f32, z: f32) -> f32 {
+    let interior = valley_height_at(x, z);
+    let outside_m = (-x).max(x - MAP_SIZE_M).max(-z).max(z - MAP_SIZE_M).max(0.0);
+    if outside_m <= 0.0 {
+        return interior;
+    }
+    let closure = sculpt::smoothstep01((outside_m - 30.0) / 280.0);
+    // The river's exit corridor stays open (the gap follows the extended centerline).
+    let river_gap = sculpt::band_mask(x - bystra_river_center_x(z), 34.0, 40.0);
+    sculpt::lerp(interior, enclosing_hills(x, z), closure * (1.0 - river_gap))
+}
+
+/// The hills that close the horizon: gently rolling, well above the valley floor, never so
+/// tall they read as mountains a tank map forgot to mention.
+fn enclosing_hills(x: f32, z: f32) -> f32 {
+    27.0 + 6.5 * (x * 0.0085 + 1.7).sin() * (z * 0.0060).cos()
+        + 4.0 * (x * 0.013).cos()
+        + 3.0 * (z * 0.011).sin()
+}
+
 /// Terrain height at a world point. Composition order matters and encodes the guarantees:
 /// land shape first, structural flattening second, the river carve third (the channel wins
 /// over anything on land), and the crossing decks last (a deck wins over the channel).
