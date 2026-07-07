@@ -40,7 +40,11 @@ fn frame_rejects_bad_magic_and_short_headers() {
 #[test]
 fn hello_messages_advertise_current_protocol_version() {
     let client = ProtocolMessage::ClientHello { protocol_version: PROTOCOL_VERSION };
-    let server = ProtocolMessage::ServerHello { protocol_version: PROTOCOL_VERSION };
+    let server = ProtocolMessage::ServerHello {
+        protocol_version: PROTOCOL_VERSION,
+        map_id: terrain::MapId::ProkhorovkaHill252_2,
+        weather_variant: game_core::WeatherVariant::ClearAfternoon,
+    };
 
     assert_eq!(decode_frame(&encode_frame(&client).unwrap()).unwrap(), client);
     assert_eq!(decode_frame(&encode_frame(&server).unwrap()).unwrap(), server);

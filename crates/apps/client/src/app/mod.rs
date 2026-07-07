@@ -34,7 +34,7 @@ use game_core::{TankId, VehicleKind};
 use renderer_wgpu::WindowRenderer;
 use server::{LocalAuthoritativeServer, RandomBattleConfig, ServerTickConfig};
 use sim::DEFAULT_SIMULATION_TICK_HZ;
-use terrain::{BattlefieldMap, prokhorovka_hill_252_2};
+use terrain::BattlefieldMap;
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::Window;
 
@@ -160,7 +160,9 @@ impl ClientApp {
             .latest_snapshot()
             .and_then(|snapshot| snapshot.tanks.iter().find(|tank| tank.tank_id == player_tank))
             .map_or_else(|| VehicleKind::default().spec(), |tank| tank.vehicle.spec());
-        let battlefield = prokhorovka_hill_252_2();
+        // The authoritative server names the map; the client regenerates the identical
+        // battlefield locally (the world never crosses the wire — see `terrain::MapId`).
+        let battlefield = local_server.map_id().battlefield();
         let camera_obstacles =
             battlefield.static_cover.iter().map(CameraObstacle::from_static_cover).collect();
         Self {

@@ -25,6 +25,9 @@ pub enum ImpactSurface {
     Cover,
     /// A hull that blocks without taking damage: a wreck or a friendly vehicle.
     Hull,
+    /// Open water swallowed the shell (protocol v18): the splash is the whole story — no
+    /// crater, no ricochet, just a column marking where the shot died.
+    Water,
 }
 
 /// A shell ending its flight without damaging an enemy: eaten by terrain, static cover, a

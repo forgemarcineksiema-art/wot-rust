@@ -2,6 +2,7 @@ mod battlefield;
 mod chunk;
 mod coordinates;
 mod heightmap;
+mod map_id;
 mod map_plan;
 mod math;
 mod prokhorovka;
@@ -16,5 +17,6 @@ pub use battlefield::{
 pub use chunk::{DEFAULT_CHUNK_SIZE_M, TerrainChunk, TerrainChunkId};
 pub use coordinates::{CoordinatePrecision, LargeWorldStrategy, WorldCoordinatePolicy};
 pub use heightmap::{HeightMap, HeightMapStats, TerrainError};
+pub use map_id::MapId;
 pub use map_plan::{TerrainMapLayer, TerrainMapPlan};
 pub use prokhorovka::prokhorovka_hill_252_2;
