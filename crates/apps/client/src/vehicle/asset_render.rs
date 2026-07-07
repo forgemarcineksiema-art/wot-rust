@@ -2,7 +2,7 @@
 //! into the per-submesh and running-gear render objects. Split from `asset_catalog` to keep each
 //! module small.
 
-use game_core::TankId;
+use game_core::{ModuleSlot, TankId};
 use glam::Mat4;
 use net::TankSnapshot;
 use renderer_api::{MaterialHandle, MeshHandle, RenderObject};
@@ -12,6 +12,12 @@ use super::asset_catalog::VehicleAssetCatalog;
 use super::pose::VehiclePose;
 use super::running_gear_objects::gear_render_objects;
 use super::variation::VehicleVariation;
+
+/// Presentation-only barrel droop for a knocked-out gun: the elevation gear is dead, so the
+/// barrel sags off the aim. ~4°. Gameplay/aiming is untouched — the server still owns the gun.
+const GUN_DEAD_DROOP_RAD: f32 = 0.075;
+/// A wreck's gun hangs further, all support gone. ~7°.
+const WRECK_GUN_DROOP_RAD: f32 = 0.12;
 
 pub fn tank_vehicle_render_objects(
     catalog: &mut VehicleAssetCatalog,
@@ -97,6 +103,13 @@ pub fn tank_vehicle_render_objects_posed(
     let tint =
         if snapshot.hit_points == 0 { VehicleVariation::wreck_tint(surface) } else { surface };
 
+    // A dead gun (or a whole wreck) sags off the aim: the barrel is authored around the trunnion,
+    // so a rotation about the gun frame's local X pitches it about the trunnion like a real droop.
+    let gun_transform = match gun_droop_rad(snapshot, variation) {
+        droop if droop > 1.0e-4 => gun_transform * Mat4::from_rotation_x(droop),
+        _ => gun_transform,
+    };
+
     let mut objects = vec![
         vehicle_render_object(snapshot.tank_id, entry.hull, entry.material, hull_transform, tint),
         vehicle_render_object(
@@ -132,6 +145,19 @@ pub fn tank_vehicle_render_objects_posed(
     objects
 }
 
+/// How far the displayed barrel droops below the aim: a knocked-out gun sags, a wreck sags more.
+/// A live tank with a healthy gun returns zero (no droop). Positive pitches the muzzle down about
+/// the trunnion; `+Z` is forward, so `Rx(+droop)` lowers it (see the trunnion-pivoted gun mesh).
+fn gun_droop_rad(snapshot: &TankSnapshot, variation: &VehicleVariation) -> f32 {
+    if snapshot.hit_points == 0 {
+        WRECK_GUN_DROOP_RAD
+    } else if variation.module_destroyed(ModuleSlot::Gun) {
+        GUN_DEAD_DROOP_RAD
+    } else {
+        0.0
+    }
+}
+
 fn vehicle_render_object(
     tank_id: TankId,
     mesh: MeshHandle,
@@ -145,5 +171,78 @@ fn vehicle_render_object(
         material,
         transform: transform.to_cols_array_2d(),
         tint,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use game_core::VehicleKind;
+    use glam::Vec3;
+
+    use super::*;
+
+    fn snapshot(kind: VehicleKind, destroyed_modules_mask: u8, hit_points: u32) -> TankSnapshot {
+        let spec = kind.spec();
+        TankSnapshot {
+            tank_id: TankId(1),
+            team: game_core::TeamId(1),
+            vehicle: kind,
+            position: [0.0, 0.0, 0.0],
+            yaw_rad: 0.0,
+            hull_pitch_rad: 0.0,
+            hull_roll_rad: 0.0,
+            turret_yaw_rad: 0.0,
+            turret_yaw_velocity_rad_s: 0.0,
+            gun_pitch_rad: 0.0,
+            hit_points,
+            reload_remaining_s: 0.0,
+            aim_dispersion_mrad: 0.0,
+            module_hit_points: spec.module_health.hit_points_by_slot(),
+            destroyed_modules_mask,
+            track_damage_mask: 0,
+            ammo_counts: game_core::AmmoLoadout::default().counts,
+            selected_ammo: 0,
+            spotted_by_teams_mask: 0,
+        }
+    }
+
+    /// World height of the muzzle end of the posed gun submesh (index 2). The gun mesh is authored
+    /// around the trunnion, so a point a couple of metres down its local +Z axis rides the barrel.
+    fn muzzle_height(objects: &[RenderObject]) -> f32 {
+        let gun = Mat4::from_cols_array_2d(&objects[2].transform);
+        gun.transform_point3(Vec3::new(0.0, 0.0, 2.5)).y
+    }
+
+    #[test]
+    fn a_dead_gun_and_a_wreck_droop_the_barrel_below_the_live_aim() {
+        let kind = VehicleKind::T54_1951;
+        let mut catalog = VehicleAssetCatalog::default();
+        let color = [0.34, 0.42, 0.30];
+
+        let healthy = tank_vehicle_render_objects(&mut catalog, &snapshot(kind, 0, 1500), color);
+        let gun_bit = ModuleSlot::Gun.destroyed_mask_bit();
+        let gun_dead =
+            tank_vehicle_render_objects(&mut catalog, &snapshot(kind, gun_bit, 1500), color);
+        let wreck = tank_vehicle_render_objects(&mut catalog, &snapshot(kind, gun_bit, 0), color);
+
+        let (live, dead, dead_wreck) =
+            (muzzle_height(&healthy), muzzle_height(&gun_dead), muzzle_height(&wreck));
+        assert!(dead < live - 0.05, "a dead gun visibly droops: {dead} vs live {live}");
+        assert!(
+            dead_wreck < dead - 0.02,
+            "a wreck's gun hangs further than a merely-dead gun: {dead_wreck} vs {dead}"
+        );
+    }
+
+    #[test]
+    fn a_healthy_live_gun_does_not_droop() {
+        let kind = VehicleKind::T54_1951;
+        let mut catalog = VehicleAssetCatalog::default();
+        let objects =
+            tank_vehicle_render_objects(&mut catalog, &snapshot(kind, 0, 1500), [0.3, 0.4, 0.3]);
+        // Index 2 is the gun; with a healthy gun its transform carries no droop rotation, so the
+        // muzzle stays at (or above) the trunnion height for a level gun.
+        assert_eq!(gun_droop_rad(&snapshot(kind, 0, 1500), &VehicleVariation::default()), 0.0);
+        assert!(muzzle_height(&objects).is_finite());
     }
 }
