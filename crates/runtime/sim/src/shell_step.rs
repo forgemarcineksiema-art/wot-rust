@@ -61,6 +61,7 @@ pub(crate) fn step_shells(
                     zone,
                     impact_angle_degrees,
                     hit_position,
+                    plate_normal,
                     distance_m,
                 );
                 let ricochet_continues = event.ricocheted && !shells[index].ricocheted_once;
