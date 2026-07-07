@@ -4,6 +4,8 @@
 //! instead of a per-effect renderer.
 
 mod billboard;
+#[cfg(test)]
+mod contact_lock;
 mod decals;
 mod emitters;
 mod fire;

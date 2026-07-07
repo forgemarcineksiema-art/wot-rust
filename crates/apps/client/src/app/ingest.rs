@@ -61,11 +61,15 @@ impl ClientApp {
                 high_explosive: event.shell_type == game_core::ShellType::HighExplosive,
             });
             // The strike also scars the target: a permanent hole for a penetration, a fading
-            // scuff/gouge otherwise, recorded in the plate's own rotating frame.
-            if let Some(target) = snapshot.tanks.iter().find(|tank| tank.tank_id == event.target)
-                && let Some(decal) = crate::fx::decal_from_damage_event(event, target)
-            {
-                self.tank_scars.entry(event.target).or_default().record_hit(decal);
+            // scuff/gouge otherwise, recorded in the plate's own rotating frame and seated on the
+            // target's visual armor via its cached mesh-contact index.
+            if let Some(target) = snapshot.tanks.iter().find(|tank| tank.tank_id == event.target) {
+                let contact = self.vehicle_asset_catalog.contact_index(target.vehicle);
+                if let Some(decal) =
+                    crate::fx::decal_from_damage_event(event, target, contact.as_deref())
+                {
+                    self.tank_scars.entry(event.target).or_default().record_hit(decal);
+                }
             }
         }
         // Shots fired since the previous snapshot: diffed here, where both snapshots exist side
