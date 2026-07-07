@@ -14,10 +14,15 @@ mod snapshot_schedule;
 pub use frame::{FRAME_HEADER_LEN, FRAME_MAGIC, decode_frame, encode_frame};
 pub use snapshot_schedule::SnapshotSchedule;
 
+/// v19: `DamageEvent` carries the struck plate's world normal and the shell's heading
+/// (`plate_normal`, `shell_direction`), so the client can seat impact marks flush on the visual
+/// armor instead of guessing a cardinal facing normal. Both are appended, `serde(default)`, so
+/// the change is a pure wire-layout extension.
+///
 /// v18: `ServerHello` names the match — `map_id` and `weather_variant` — so the client can
 /// deterministically rebuild the same battlefield the server simulates (the map itself is
 /// never sent) and dress it in the same sky. `ImpactSurface` gains `Water`.
-pub const PROTOCOL_VERSION: u16 = 18;
+pub const PROTOCOL_VERSION: u16 = 19;
 
 #[derive(Debug, Error)]
 pub enum NetError {

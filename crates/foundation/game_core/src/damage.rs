@@ -76,4 +76,17 @@ pub struct DamageEvent {
     pub armor_facing: ArmorFacing,
     #[serde(default)]
     pub armor_zone: ArmorZone,
+    /// World-space outward normal of the struck plate (protocol v19). The server already knows
+    /// the true sloped/curved plate normal from the armor-volume trace; transmitting it lets the
+    /// client seat the impact mark flush on the visual armor instead of guessing a cardinal
+    /// facing normal. Zero for causes with no struck plate (Splash/Ram/Impact/Drowning) — the
+    /// client reads a zero vector as "no normal, fall back". `serde(default)` keeps pre-v19
+    /// fixtures loading.
+    #[serde(default)]
+    pub plate_normal: Vec3,
+    /// Normalized shell travel direction at impact (protocol v19): the client raycasts this line
+    /// against the visual mesh to find the exact surface point, and elongates ricochet gouges
+    /// along the real scrape direction. Zero when there is no shell (Ram/Impact/Drowning).
+    #[serde(default)]
+    pub shell_direction: Vec3,
 }

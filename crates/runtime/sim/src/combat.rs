@@ -61,6 +61,7 @@ pub(crate) fn apply_shell_impact(
     zone: ArmorZone,
     impact_angle_degrees: f32,
     hit_position: Vec3,
+    plate_normal: Vec3,
     distance_m: f32,
 ) -> DamageEvent {
     let target =
@@ -115,6 +116,10 @@ pub(crate) fn apply_shell_impact(
         nominal_armor_mm: target.spec.hull.nominal_thickness_mm(facing),
         armor_facing: facing,
         armor_zone: zone,
+        // The presentation truth the client needs to seat the mark flush on the visual armor:
+        // the plate's true world normal (from the armor-volume trace) and the shell's heading.
+        plate_normal,
+        shell_direction: shell.velocity_mps.normalize_or_zero(),
     }
 }
 
@@ -152,4 +157,74 @@ fn resolve_impact_penetration(
         side_angle_degrees,
         distance_m,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use game_core::{ShellType, TankSpec, TeamId};
+
+    use super::*;
+    use crate::shell_trace::SHELL_MAX_AGE_SECONDS;
+    use crate::tank_factory::fresh_tank;
+
+    fn shell_toward(owner: TankId, from: Vec3, velocity: Vec3, spec: &TankSpec) -> ShellState {
+        ShellState {
+            owner,
+            position: from,
+            velocity_mps: velocity,
+            shell: spec.gun.ammo_options()[0],
+            age_seconds: 0.0,
+            traveled_m: 0.0,
+            max_age_seconds: SHELL_MAX_AGE_SECONDS,
+            ricocheted_once: false,
+        }
+    }
+
+    /// The event must carry through EXACTLY the struck-plate normal the trace resolved and the
+    /// shell's own heading — this is the wire truth the client seats the impact mark on. The
+    /// trace's normal correctness is locked separately (tests/armor_geometry.rs); here we lock
+    /// that `apply_shell_impact` neither drops nor mangles it.
+    #[test]
+    fn the_event_carries_the_plate_normal_and_shell_heading_verbatim() {
+        let spec = TankSpec::t54_1951();
+        let mut tanks =
+            vec![fresh_tank(TankId(2), TeamId(2), spec.clone(), Vec3::new(0.0, 0.0, 20.0), 0.0)];
+        let velocity = Vec3::new(0.0, 0.0, 900.0);
+        let shell = shell_toward(TankId(1), Vec3::new(0.0, 1.5, 0.0), velocity, &spec);
+        // A representative reclined-glacis normal: outward, up-and-back toward the shooter.
+        let plate = Vec3::new(0.0, 0.5, -0.866).normalize();
+
+        let event = apply_shell_impact(
+            &shell,
+            &mut tanks,
+            TankId(2),
+            ArmorFacing::HullFront,
+            ArmorZone::UpperGlacis,
+            30.0,
+            Vec3::new(0.0, 1.5, 18.5),
+            plate,
+            18.5,
+        );
+
+        assert!((event.plate_normal - plate).length() < 1.0e-3, "plate normal survives verbatim");
+        assert!(
+            (event.shell_direction - velocity.normalize()).length() < 1.0e-6,
+            "shell direction is the normalized shell velocity"
+        );
+        assert!(
+            event.plate_normal.dot(event.shell_direction) < 0.0,
+            "an outward plate normal opposes the incoming shell"
+        );
+    }
+
+    /// Non-shell damage has no struck plate: the default must be a zero vector, which the client
+    /// reads as "no normal, fall back". Locks the guarantee the splash/ram/landing paths lean on
+    /// via `..Default::default()`.
+    #[test]
+    fn a_defaulted_event_carries_no_normal() {
+        let event = DamageEvent { cause: DamageCause::Splash, ..Default::default() };
+        assert_eq!(event.plate_normal, Vec3::ZERO);
+        assert_eq!(event.shell_direction, Vec3::ZERO);
+        assert_eq!(ShellType::default(), event.shell_type);
+    }
 }

@@ -11,7 +11,7 @@ use sim::TankCommand;
 use terrain::MapId;
 
 #[test]
-fn input_command_wire_snapshot_v18_is_stable() {
+fn input_command_wire_snapshot_v19_is_stable() {
     let message = ProtocolMessage::Input(ClientInputCommand {
         client_tick: 7,
         tank_id: TankId(42),
@@ -28,13 +28,13 @@ fn input_command_wire_snapshot_v18_is_stable() {
 
     let bytes = encode_message(&message).expect("message should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 18);
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "input_command_v18"));
+    assert_eq!(PROTOCOL_VERSION, 19);
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "input_command_v19"));
     assert_eq!(decode_message(&bytes).expect("message should decode"), message);
 }
 
 #[test]
-fn vehicle_selection_wire_snapshot_v18_is_stable() {
+fn vehicle_selection_wire_snapshot_v19_is_stable() {
     let message = ProtocolMessage::VehicleSelection(ClientVehicleSelection {
         client_tick: 11,
         requested_vehicle: VehicleKind::PantherII,
@@ -42,37 +42,36 @@ fn vehicle_selection_wire_snapshot_v18_is_stable() {
 
     let bytes = encode_message(&message).expect("vehicle selection should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 18);
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "vehicle_selection_v18"));
+    assert_eq!(PROTOCOL_VERSION, 19);
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "vehicle_selection_v19"));
     assert_eq!(decode_message(&bytes).expect("message should decode"), message);
 }
 
 #[test]
-fn tank_snapshot_wire_v18_is_stable() {
-    // Locks the v18 raw payload layout; transport framing is covered separately.
+fn tank_snapshot_wire_v19_is_stable() {
+    // Locks the v19 raw payload layout; transport framing is covered separately.
     let message = ProtocolMessage::Snapshot(tank_snapshot_message());
 
     let bytes = encode_message(&message).expect("snapshot should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 18);
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_tank_v18"));
+    assert_eq!(PROTOCOL_VERSION, 19);
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_tank_v19"));
     assert_eq!(decode_message(&bytes).expect("snapshot should decode"), message);
 }
 
 #[test]
-fn combat_snapshot_wire_v18_is_stable() {
+fn combat_snapshot_wire_v19_is_stable() {
     let message = ProtocolMessage::Snapshot(combat_snapshot_message());
 
     let bytes = encode_message(&message).expect("snapshot should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 18);
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_combat_v18"));
+    assert_eq!(PROTOCOL_VERSION, 19);
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_combat_v19"));
     assert_eq!(decode_message(&bytes).expect("snapshot should decode"), message);
 }
 
 #[test]
-fn server_hello_wire_snapshot_v18_is_stable() {
-    // v18's new message: the match identity (map + weather) the client rebuilds a world from.
+fn server_hello_wire_snapshot_v19_is_stable() {
     let message = ProtocolMessage::ServerHello {
         protocol_version: PROTOCOL_VERSION,
         map_id: MapId::ProkhorovkaHill252_2,
@@ -81,8 +80,8 @@ fn server_hello_wire_snapshot_v18_is_stable() {
 
     let bytes = encode_message(&message).expect("server hello should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 18);
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "server_hello_v18"));
+    assert_eq!(PROTOCOL_VERSION, 19);
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "server_hello_v19"));
     assert_eq!(decode_message(&bytes).expect("server hello should decode"), message);
 }
 
@@ -156,6 +155,10 @@ pub fn combat_snapshot_message() -> Snapshot {
             penetrated: true,
             cause: DamageCause::Shell,
             module: Some(ModuleSlot::Gun),
+            // v19: lock a non-default struck-plate normal and shell heading into the fixture so
+            // the new wire fields cannot silently regress.
+            plate_normal: Vec3::new(0.0, 0.0, -1.0),
+            shell_direction: Vec3::new(0.0, 0.0, 1.0),
             ..Default::default()
         }],
         shell_impacts: vec![ShellImpact {
