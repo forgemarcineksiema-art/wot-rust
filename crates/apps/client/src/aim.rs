@@ -268,6 +268,7 @@ mod tests {
                 blockers: &sets.blockers,
                 heightmap: Some(heightmap),
                 cover,
+                water: None,
             };
             let mut previous = eye;
             let mut travelled = 1.0_f32;
@@ -293,8 +294,16 @@ mod tests {
             (Vec3::new(500.0, eye_ground + 2.0, 400.0), Vec3::new(0.0, 0.5, 1.0).normalize()),
         ];
         for (eye, forward) in rays {
-            let fast =
-                aim_point_with_sweep(heightmap, cover, &tanks, TankId(1), TeamId(1), eye, forward);
+            let fast = aim_point_with_sweep(
+                heightmap,
+                cover,
+                None,
+                &tanks,
+                TankId(1),
+                TeamId(1),
+                eye,
+                forward,
+            );
             let slow = oracle(eye, forward);
             assert!(
                 fast.distance(slow) < 1.0e-3,
