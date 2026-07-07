@@ -105,16 +105,29 @@ fn apply_fog(color: vec3<f32>, world_pos: vec3<f32>) -> vec3<f32> {
     return mix(color, camera.sky_horizon_rgb, fog);
 }
 
+// Gentle display grade after the tone curve: a saturation lift (the raw raster reads pale — grass
+// and armour wash toward grey) and a mild contrast S around mid grey (deeper shadows, now that the
+// whole world casts them). Kept identical in scene.wgsl, vehicle.wgsl and sky.wgsl so the terrain,
+// the hulls and the sky all grade as one picture.
+fn display_grade(c: vec3<f32>) -> vec3<f32> {
+    let luma = dot(c, vec3<f32>(0.2126, 0.7152, 0.0722));
+    let saturated = mix(vec3<f32>(luma), c, 1.18);
+    let contrasted = (saturated - vec3<f32>(0.5)) * 1.10 + vec3<f32>(0.5);
+    return clamp(contrasted, vec3<f32>(0.0), vec3<f32>(1.0));
+}
+
 // Filmic ACES-lite tone curve (Narkowicz fit): maps HDR radiance to display range so a hot sun and
-// specular roll off instead of clipping to white. The framebuffer is *UnormSrgb, so the hardware
-// does the linear->sRGB encode; we output linear, tone-mapped colour and never a manual sRGB pow.
+// specular roll off instead of clipping to white, then the shared display grade. The framebuffer is
+// *UnormSrgb, so the hardware does the linear->sRGB encode; we output linear, tone-mapped colour and
+// never a manual sRGB pow.
 fn tonemap_aces(x: vec3<f32>) -> vec3<f32> {
     let a = 2.51;
     let b = 0.03;
     let c = 2.43;
     let d = 0.59;
     let e = 0.14;
-    return clamp((x * (a * x + b)) / (x * (c * x + d) + e), vec3<f32>(0.0), vec3<f32>(1.0));
+    let mapped = clamp((x * (a * x + b)) / (x * (c * x + d) + e), vec3<f32>(0.0), vec3<f32>(1.0));
+    return display_grade(mapped);
 }
 
 struct VsIn {

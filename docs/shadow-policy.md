@@ -15,9 +15,11 @@ So this is a **focused single shadow map** tightly fitted around the action, not
 ## Model
 
 - **One orthographic shadow map, sun-aligned, focused on a bounded box** (`SunShadowParams`) centred
-  on the camera subject. A 2048² map over a ~32 m half-box is ~3 cm/texel — crisp on hatches and the
-  gun. Far vehicles cast nothing, but they are small and (soon) hazed; nobody looks at their ground
-  shadow. Cascades (CSM) are a later upgrade *only if* the far field ever demands it.
+  on the play field. A 4096² map over a ~64 m half-box is ~3 cm/texel — crisp on hatches and the gun,
+  wide enough that the near/mid field of buildings and hillsides grounds too (a halved 2048² map on
+  integrated GPUs lands at ~6 cm, acceptably soft). Far geometry casts nothing, but it is small and
+  hazed; nobody looks at its ground shadow. Cascades (CSM) are a later upgrade *only if* the far field
+  ever demands it.
 - **Texel-snapped light matrix** (`sun_light_view_projection`): the projected focus centre is rounded
   to the shadow-texel grid so the shadow edge does not shimmer/crawl as the battle camera pans. This
   is the non-obvious step that separates stable shadows from sparkling ones; it is unit-tested
@@ -28,12 +30,25 @@ So this is a **focused single shadow map** tightly fitted around the action, not
 - **Normal-offset + a small depth bias** to kill acne without peter-panning; a **3×3 PCF** tap for
   soft contact edges (hard shadows read "gamey").
 
-## Occluders (this phase)
+## Occluders
 
-The shadow pass renders the **vehicles** as occluders — the primary casters (ground shadow +
-self-shadow). Terrain and vehicles both **receive** (sample the map) in the main pass. Terrain
-casting terrain (ridges) is deferred: low value inside a focused box on gentle ground, and it keeps
-the pass to one depth pipeline. It is a clean follow-up when a map needs it.
+The shadow pass renders the **whole world** as occluders: the static scene buffer (terrain, plus the
+buildings and trees baked into it), the dynamic mesh, and the vehicle fleet. Everything both casts
+and receives. This is the upgrade the maps demanded — a town of buildings floating shadowless read as
+a paper diorama, and gentle terrain wants its hillsides to rake into shadow under a low sun. Two
+depth pipelines (one per vertex stride, scene vs vehicle) share one `vs_main`; the pass runs whenever
+shadows are on, no longer gated on a vehicle being present.
+
+Because the static world is an **open** surface (its sun-facing side is its front face) the pass draws
+with **no face culling** and leans on a slope-scaled hardware depth bias plus the shader normal
+offset to hold off acne — the front-face cull that suited closed hulls would have dropped exactly the
+terrain/ roof casters we now want.
+
+The focused box is sized (±64 m) and **pushed forward along the chase camera's look** so its ~128 m
+footprint straddles the near/mid combat field, not the empty ground behind the camera; studio shots
+pin it to the subject instead. Drawing the full terrain buffer into the map (only the box's slice
+matters) is a known cost — tile/box culling of the caster set is the tracked perf follow-up, aligned
+with the world-tiling lever in the perf plan.
 
 ## Boundaries
 

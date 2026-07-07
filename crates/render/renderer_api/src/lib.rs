@@ -42,7 +42,7 @@ pub use scene::{
     FxVertex, HUD_SOLID_UV, HudVertex, SceneVertex, WaterVertex, view_projection_inverse,
     view_projection_matrix,
 };
-pub use sun_shadow::{SunShadowParams, sun_light_view_projection};
+pub use sun_shadow::{SunShadowParams, forward_shadow_focus, sun_light_view_projection};
 pub use vehicle::{MAPPING_PARAMETRIC, MAPPING_TRIPLANAR, VehicleVertex, generate_tangents};
 pub use vehicle_asset::{
     VehicleMaterialDescriptor, VehicleMaterialFamilies, VehicleMaterialMaps, VehicleMeshAsset,

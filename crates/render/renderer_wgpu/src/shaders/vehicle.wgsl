@@ -62,16 +62,28 @@ fn apply_fog(color: vec3<f32>, world_pos: vec3<f32>) -> vec3<f32> {
     return mix(color, camera.sky_horizon_rgb, fog);
 }
 
+// Gentle display grade after the tone curve (mirrors scene.wgsl's display_grade verbatim): a
+// saturation lift and a mild contrast S around mid grey, so the hull grades into the same picture as
+// the terrain and sky rather than reading pale and flat.
+fn display_grade(c: vec3<f32>) -> vec3<f32> {
+    let luma = dot(c, vec3<f32>(0.2126, 0.7152, 0.0722));
+    let saturated = mix(vec3<f32>(luma), c, 1.18);
+    let contrasted = (saturated - vec3<f32>(0.5)) * 1.10 + vec3<f32>(0.5);
+    return clamp(contrasted, vec3<f32>(0.0), vec3<f32>(1.0));
+}
+
 // Filmic ACES-lite tone curve (Narkowicz fit): rolls the hot sun and roughness specular off to
-// display range instead of clipping. The framebuffer is *UnormSrgb, so we output linear tone-mapped
-// colour and let the hardware do the sRGB encode. Mirrors scene.wgsl's tonemap_aces.
+// display range instead of clipping, then the shared display grade. The framebuffer is *UnormSrgb,
+// so we output linear tone-mapped colour and let the hardware do the sRGB encode. Mirrors
+// scene.wgsl's tonemap_aces.
 fn tonemap_aces(x: vec3<f32>) -> vec3<f32> {
     let a = 2.51;
     let b = 0.03;
     let c = 2.43;
     let d = 0.59;
     let e = 0.14;
-    return clamp((x * (a * x + b)) / (x * (c * x + d) + e), vec3<f32>(0.0), vec3<f32>(1.0));
+    let mapped = clamp((x * (a * x + b)) / (x * (c * x + d) + e), vec3<f32>(0.0), vec3<f32>(1.0));
+    return display_grade(mapped);
 }
 
 // Material maps are role-aware texture arrays: one layer per material_id (rolled armour, cast

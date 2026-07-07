@@ -3,6 +3,11 @@ use renderer_api::RenderError;
 use crate::scene_target::{SceneRenderTarget, store_op_for_target};
 use crate::{CameraUniform, GpuContext, encode_camera_uniform};
 
+/// How far ahead of the chase camera (along its horizontal look) to centre the auto sun-shadow box,
+/// so the ~128 m footprint straddles the near/mid combat field the player is looking at rather than
+/// the ground behind the camera. Paired with `SunShadowParams::default().focus_radius_m`.
+const SHADOW_FORWARD_OFFSET_M: f32 = 40.0;
+
 impl super::SceneRenderer {
     pub fn render(
         &self,
@@ -17,9 +22,13 @@ impl super::SceneRenderer {
                 self.sample_count, target.sample_count
             )));
         }
-        // Focus the sun-shadow box on the subject (falls back to the camera, which still covers the
-        // near action), build its texel-snapped light matrix, and pack it into the shared uniform.
-        let focus = self.shadow_focus.unwrap_or(camera_pos);
+        // Focus the sun-shadow box on the subject. Studio shots set an explicit focus (the tank); the
+        // battlefield leaves it unset, so the box is pushed forward along the view so its coverage
+        // lands on the field the chase camera looks at, not the empty ground behind it. Then build
+        // the texel-snapped light matrix and pack it into the shared uniform.
+        let focus = self.shadow_focus.unwrap_or_else(|| {
+            renderer_api::forward_shadow_focus(camera_pos, view_proj, SHADOW_FORWARD_OFFSET_M)
+        });
         let light_view_proj = renderer_api::sun_light_view_projection(
             self.scene_lighting.key_direction,
             focus,
