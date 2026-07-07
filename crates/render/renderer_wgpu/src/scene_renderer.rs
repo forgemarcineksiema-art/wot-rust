@@ -10,6 +10,7 @@ pub(crate) mod ssao;
 mod ssao_pipelines;
 mod terrain;
 mod vehicle_materials;
+mod water;
 
 use std::cell::Cell;
 
@@ -54,6 +55,15 @@ pub struct SceneRenderer {
     vehicle_draws: Vec<SceneObjectDraw>,
     vehicle_meshes: VehicleMeshRegistry,
     sky_pipeline: wgpu::RenderPipeline,
+    rain_pipeline: wgpu::RenderPipeline,
+    /// Rain streak density 0..1 from the weather look; 0 skips the rain pass entirely.
+    pub rain_intensity: f32,
+    /// World wetness 0..1 from the weather look (time_params.z).
+    pub wetness: f32,
+    water_pipeline: wgpu::RenderPipeline,
+    /// The static river mesh (vertex, index); `None` on dry scenes — the draw is skipped.
+    water_buffers: Option<(wgpu::Buffer, wgpu::Buffer)>,
+    water_index_count: u32,
     fx_pipeline: wgpu::RenderPipeline,
     fx_vertices: wgpu::Buffer,
     fx_vertex_count: u32,
@@ -77,6 +87,10 @@ pub struct SceneRenderer {
     /// World point the focused sun-shadow box centres on (the player/subject). `None` falls back to
     /// the camera position, which still covers the near action.
     pub shadow_focus: Option<[f32; 3]>,
+    /// The presentation clock shaders animate with (`Camera.time_params.x`). Tick-domain by
+    /// doctrine: the caller feeds interpolated-tick seconds, never an accumulation of
+    /// render-frame deltas (see `CameraUniform::time_params`).
+    pub scene_time_s: f32,
     pub skipped_mesh_draws: Cell<u32>,
 }
 
@@ -119,6 +133,18 @@ impl SceneRenderer {
         let fx_pipeline =
             crate::fx_pipeline::build_fx_pipeline(device, color_format, sample_count, &camera_bgl);
         let sky_pipeline = crate::sky_pipeline::build_sky_pipeline(
+            device,
+            color_format,
+            sample_count,
+            &camera_bgl,
+        );
+        let rain_pipeline = crate::rain_pipeline::build_rain_pipeline(
+            device,
+            color_format,
+            sample_count,
+            &camera_bgl,
+        );
+        let water_pipeline = crate::water_pipeline::build_water_pipeline(
             device,
             color_format,
             sample_count,
@@ -187,6 +213,12 @@ impl SceneRenderer {
             vehicle_draws: Vec::new(),
             vehicle_meshes: VehicleMeshRegistry::default(),
             sky_pipeline,
+            rain_pipeline,
+            rain_intensity: 0.0,
+            wetness: 0.0,
+            water_pipeline,
+            water_buffers: None,
+            water_index_count: 0,
             fx_pipeline,
             fx_vertices: buffers.fx_vertices,
             fx_vertex_count: 0,
@@ -206,6 +238,7 @@ impl SceneRenderer {
             shadow_bgl,
             ssao,
             shadow_focus: None,
+            scene_time_s: 0.0,
             skipped_mesh_draws: Cell::new(0),
         })
     }

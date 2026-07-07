@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 
 use crate::HeightMap;
+use crate::scenery::SceneryInstance;
+use crate::water::WaterBody;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum StrategicRole {
@@ -74,10 +76,19 @@ pub struct BattlefieldMap {
     pub historical_basis: String,
     pub design_notes: Vec<String>,
     pub heightmap: HeightMap,
+    /// The map's standing water, if any (see [`WaterBody`]): depth anywhere is
+    /// `water.depth_over(heightmap height)`. `None` is a dry map; `serde(default)` keeps
+    /// pre-water baked assets deserializing.
+    #[serde(default)]
+    pub water: Option<WaterBody>,
     pub spawn_zones: Vec<SpawnZone>,
     pub strategic_points: Vec<StrategicPoint>,
     pub features: Vec<MapFeature>,
     pub static_cover: Vec<StaticCoverObject>,
+    /// Render-only dressing (trees, rocks): never collides, never blocks shells or sight.
+    /// `serde(default)` keeps pre-scenery baked assets deserializing.
+    #[serde(default)]
+    pub scenery: Vec<SceneryInstance>,
 }
 
 impl BattlefieldMap {

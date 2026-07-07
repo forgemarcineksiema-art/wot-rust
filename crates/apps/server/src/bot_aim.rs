@@ -140,6 +140,7 @@ mod tests {
             ammo_counts,
             selected_ammo,
             spotted_mask: u8::MAX,
+            submerged_s: 0.0,
         }
     }
 
@@ -178,7 +179,13 @@ mod tests {
             target.turret_yaw_rad,
             &target.spec,
         )];
-        let world = ShellTraceWorld { tanks: &targets, blockers: &[], heightmap: None, cover: &[] };
+        let world = ShellTraceWorld {
+            tanks: &targets,
+            blockers: &[],
+            heightmap: None,
+            cover: &[],
+            water: None,
+        };
         let outcome = trace_shell(
             aimed.muzzle_world_position(),
             velocity,

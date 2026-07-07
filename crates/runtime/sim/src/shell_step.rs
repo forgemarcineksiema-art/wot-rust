@@ -31,7 +31,13 @@ pub(crate) fn step_shells(
         let segment_distance = shells[index].position.distance(previous);
 
         let (targets, blockers) = trace_split(&shells[index], tanks);
-        let world = ShellTraceWorld { tanks: &targets, blockers: &blockers, heightmap, cover };
+        let world = ShellTraceWorld {
+            tanks: &targets,
+            blockers: &blockers,
+            heightmap,
+            cover,
+            water: context.water,
+        };
         match segment_impact(previous, shells[index].position, velocity, &world) {
             Some(SegmentImpact::Tank {
                 id,

@@ -91,6 +91,7 @@ impl ClientApp {
             crate::hud::reticle::reticle_report(crate::hud::reticle::ReticleFeedbackQuery {
                 heightmap: &self.battlefield.heightmap,
                 cover: &self.battlefield.static_cover,
+                water: self.battlefield.water,
                 tanks: &tanks,
                 player_spec: &player_spec,
                 owner: self.player_tank,
@@ -144,6 +145,7 @@ impl ClientApp {
             crate::aim::aim_point_with_sweep(
                 &self.battlefield.heightmap,
                 &self.battlefield.static_cover,
+                self.battlefield.water,
                 &self.render_state.interpolated_tanks(),
                 self.player_tank,
                 self.player_team(),

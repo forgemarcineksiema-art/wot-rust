@@ -16,6 +16,9 @@ struct Camera {
     sky_zenith_rgb: vec3<f32>,
     sky_horizon_rgb: vec3<f32>,
     fog_params: vec4<f32>,
+    // x = presentation seconds (tick-domain — see gpu_layout.rs), y = rain intensity,
+    // z = world wetness, w reserved.
+    time_params: vec4<f32>,
 };
 
 @group(0) @binding(0)
@@ -119,6 +122,7 @@ struct VsIn {
     @location(1) normal: vec3<f32>,
     @location(2) color: vec3<f32>,
     @location(3) tint_weight: f32,
+    @location(9) gloss: f32,
     @location(4) model_0: vec4<f32>,
     @location(5) model_1: vec4<f32>,
     @location(6) model_2: vec4<f32>,
@@ -131,6 +135,7 @@ struct VsOut {
     @location(0) normal: vec3<f32>,
     @location(1) color: vec3<f32>,
     @location(2) world_pos: vec3<f32>,
+    @location(3) gloss: f32,
 };
 
 @vertex
@@ -145,14 +150,87 @@ fn vs_main(input: VsIn) -> VsOut {
     // detail materials (barrel, tracks, rubber) carry tint_weight 0 and keep their base colour.
     let tint = mix(vec3<f32>(1.0, 1.0, 1.0), input.tint.rgb, input.tint_weight);
     out.color = input.color * tint;
+    out.gloss = input.gloss;
     return out;
+}
+
+// --- Procedural material detail ------------------------------------------------------------
+// The world's albedo used to be one flat vertex colour per surface; these functions break that
+// fill with world-space value noise (stable — anchored to world coordinates, so nothing swims)
+// and give steep faces a horizontal strata pattern so cliffs and cut banks read as rock beds,
+// not smooth paint. Purely multiplicative around 1.0: palettes and lighting stay authored.
+
+fn detail_hash(p: vec2<f32>) -> f32 {
+    return fract(sin(dot(p, vec2<f32>(127.1, 311.7))) * 43758.5453);
+}
+
+fn value_noise(p: vec2<f32>) -> f32 {
+    let i = floor(p);
+    let f = fract(p);
+    let u = f * f * (3.0 - 2.0 * f);
+    let a = detail_hash(i);
+    let b = detail_hash(i + vec2<f32>(1.0, 0.0));
+    let c = detail_hash(i + vec2<f32>(0.0, 1.0));
+    let d = detail_hash(i + vec2<f32>(1.0, 1.0));
+    return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
+
+fn material_detail(world: vec3<f32>, n: vec3<f32>) -> f32 {
+    // Two octaves (~2.5 m patches with ~0.6 m grain) on level ground...
+    let ground = value_noise(world.xz * 0.4) * 0.6 + value_noise(world.xz * 1.7) * 0.4;
+    // ...crossfaded into height-banded strata on steep faces (walls, cliffs, cut banks).
+    let strata = value_noise(vec2<f32>(world.y * 2.2, (world.x + world.z) * 0.15));
+    let steep = clamp(1.0 - n.y, 0.0, 1.0);
+    let detail = mix(ground, strata, steep * 0.7);
+    return 0.92 + detail * 0.16;
+}
+
+// The albedo noise's analytic gradient bent into the normal, so the grain CATCHES LIGHT
+// instead of only darkening the paint. Glossier surfaces perturb less — polish is smooth.
+fn detail_normal(world: vec3<f32>, n: vec3<f32>, gloss: f32) -> vec3<f32> {
+    let e = 0.35;
+    let here = value_noise(world.xz * 1.7);
+    let dx = value_noise((world.xz + vec2<f32>(e, 0.0)) * 1.7) - here;
+    let dz = value_noise((world.xz + vec2<f32>(0.0, e)) * 1.7) - here;
+    let bend = vec3<f32>(-dx, 0.0, -dz) * (0.12 / e) * clamp(1.0 - gloss, 0.35, 1.0);
+    return normalize(n + bend);
+}
+
+// The same analytic sky the dome and the river reflect — smooth scene materials (slate, wet
+// stone, wreck steel) borrow it so their highlights come from a real environment.
+fn scene_sky(dir: vec3<f32>) -> vec3<f32> {
+    let up = clamp(dir.y, 0.0, 1.0);
+    return mix(camera.sky_horizon_rgb, camera.sky_zenith_rgb, sqrt(up));
 }
 
 @fragment
 fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
-    let n = normalize(input.normal);
-    let shadow = sun_shadow(input.world_pos, n);
+    let geometric_n = normalize(input.normal);
+    // Wetness (camera.time_params.z): rain darkens every material, sharpens its finish, and
+    // pools mirror-flat sheen on level ground. Presentation only — set by the weather look.
+    let wet = clamp(camera.time_params.z, 0.0, 1.0);
+    let puddle = smoothstep(0.985, 0.999, geometric_n.y) * wet * 0.45;
+    let gloss = clamp(input.gloss + wet * 0.30 + puddle, 0.0, 1.0);
+
+    let n = detail_normal(input.world_pos, geometric_n, gloss);
+    let shadow = sun_shadow(input.world_pos, geometric_n);
     let ao = screen_ao(input.clip);
-    let lit = input.color * scene_radiance(n, shadow) * ao;
+    var albedo = input.color * material_detail(input.world_pos, geometric_n);
+    albedo *= mix(1.0, 0.80, wet);
+
+    var lit = albedo * scene_radiance(n, shadow) * ao;
+    // Specular: a Blinn lobe on the key light plus the analytic-sky reflection, both scaled by
+    // the material lane. Matte (gloss 0) surfaces skip this entirely — the historical look.
+    if (gloss > 0.001) {
+        let view = normalize(camera.camera_pos - input.world_pos);
+        let key = normalize(camera.key_direction);
+        let halfway = normalize(key + view);
+        let shininess = mix(16.0, 96.0, gloss);
+        let lobe = pow(max(dot(n, halfway), 0.0), shininess);
+        let fresnel = 0.25 + 0.75 * pow(1.0 - max(dot(n, view), 0.0), 5.0);
+        let reflected = reflect(-view, n);
+        lit += camera.key_rgb * lobe * gloss * shadow
+            + scene_sky(reflected) * gloss * gloss * fresnel * ao;
+    }
     return vec4<f32>(tonemap_aces(apply_fog(lit, input.world_pos)), 1.0);
 }

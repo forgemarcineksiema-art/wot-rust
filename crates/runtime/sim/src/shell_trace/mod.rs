@@ -8,6 +8,7 @@ mod legacy_boxes;
 mod tank;
 mod terrain;
 mod types;
+mod water;
 
 use ::terrain::HeightMap;
 use game_core::ImpactSurface;
@@ -118,7 +119,9 @@ fn nearest_obstacle(
         .map(|point| (point, ImpactSurface::Cover));
     let hull = tank::first_tank_impact(previous, current, velocity, world.blockers)
         .map(|impact| (impact.point(), ImpactSurface::Hull));
-    [terrain, cover, hull].into_iter().flatten().min_by(|(a, _), (b, _)| {
+    let water = water::first_water_impact(previous, current, world.heightmap, world.water)
+        .map(|point| (point, ImpactSurface::Water));
+    [terrain, cover, hull, water].into_iter().flatten().min_by(|(a, _), (b, _)| {
         a.distance_squared(previous).total_cmp(&b.distance_squared(previous))
     })
 }

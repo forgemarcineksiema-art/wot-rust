@@ -1,7 +1,8 @@
+use crate::map_build::heightmap_from_fn;
 use crate::prokhorovka_cover::static_cover_objects;
 use crate::prokhorovka_features::map_features;
 use crate::prokhorovka_layout::{spawn_zones, strategic_points};
-use crate::{BattlefieldMap, HeightMap, math};
+use crate::{BattlefieldMap, math};
 
 const MAP_SIZE_M: f32 = 1000.0;
 const CELL_SIZE_M: f32 = 5.0;
@@ -48,7 +49,7 @@ const TERRACE_SIGMA_X_M: f32 = 11.0;
 const TERRACE_Z_SIGMA_M: f32 = 78.0;
 
 pub fn prokhorovka_hill_252_2() -> BattlefieldMap {
-    let heightmap = build_heightmap();
+    let heightmap = heightmap_from_fn(SAMPLES_PER_SIDE, CELL_SIZE_M, height_at);
     BattlefieldMap {
         id: "prokhorovka_hill_252_2".to_string(),
         name: "Prokhorovka - Hill 252.2 Sector".to_string(),
@@ -58,23 +59,16 @@ pub fn prokhorovka_hill_252_2() -> BattlefieldMap {
             "open steppe tank map: a central east-west railway embankment divides the sectors, an open Psel flank in the west, and contested hill high ground in the east".to_string(),
             "1000m x 1000m at 5m height samples; the map is mirror-symmetric across the central embankment axis so both teams get equivalent ground".to_string(),
         ],
+        // The Psel is a dry lowland on this cut of the battlefield — no standing water.
+        water: None,
         spawn_zones: spawn_zones(&heightmap),
         strategic_points: strategic_points(&heightmap),
         features: map_features(&heightmap),
         static_cover: static_cover_objects(&heightmap),
+        // Open steppe: no scenery dressing authored (yet) — the map predates the system.
+        scenery: Vec::new(),
         heightmap,
     }
-}
-
-fn build_heightmap() -> HeightMap {
-    let mut samples = Vec::with_capacity(SAMPLES_PER_SIDE * SAMPLES_PER_SIDE);
-    for z in 0..SAMPLES_PER_SIDE {
-        for x in 0..SAMPLES_PER_SIDE {
-            samples.push(height_at(x as f32 * CELL_SIZE_M, z as f32 * CELL_SIZE_M));
-        }
-    }
-    HeightMap::new(SAMPLES_PER_SIDE, SAMPLES_PER_SIDE, CELL_SIZE_M, samples)
-        .expect("generated Prokhorovka heightmap dimensions are fixed")
 }
 
 /// Terrain height at a world point, mirror-symmetric across the central east-west axis

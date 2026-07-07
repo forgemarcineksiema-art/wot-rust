@@ -64,6 +64,17 @@ impl RandomBattleConfig {
         Self::new(BattleSeed::runtime(), player_vehicle)
     }
 
+    /// Runtime config honoring the `WOT_MAP` env override (a map slug, e.g. "bystra-valley").
+    /// This is the opt-in gate for maps not yet in the rotation: unset or unknown values keep
+    /// the default map, so nothing changes for anyone who has not asked.
+    pub fn runtime_from_env(player_vehicle: VehicleKind) -> Self {
+        let map = std::env::var("WOT_MAP")
+            .ok()
+            .and_then(|slug| MapId::from_slug(slug.trim()))
+            .unwrap_or_default();
+        Self::runtime(player_vehicle).on_map(map)
+    }
+
     pub fn on_map(mut self, map: MapId) -> Self {
         self.map = map;
         self

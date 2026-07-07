@@ -14,6 +14,9 @@ pub enum DamageCause {
     Impact,
     /// Blast damage from a high-explosive burst nearby — not the shell body itself.
     Splash,
+    /// The hull sank past its fording depth: the engine flooded first, then the crew lost the
+    /// vehicle (protocol v18). Always self-inflicted — the river is not a combatant.
+    Drowning,
 }
 
 /// What absorbed a shell that did **not** damage an enemy. Like [`crate::VehicleKind`], the

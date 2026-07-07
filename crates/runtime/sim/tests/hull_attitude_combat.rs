@@ -56,6 +56,7 @@ fn hull_tilt_angles_the_glacis_against_a_level_shot() {
             blockers: &[],
             heightmap: None,
             cover: &[],
+            water: None,
         };
         let from = Vec3::new(0.0, 1.0, 0.0);
         let to = Vec3::new(0.0, 1.0, 40.0);

@@ -30,6 +30,7 @@ pub use loop_policy::{
 pub use render_state::InterpolatedBattleState;
 pub use scene::battlefield::{battlefield_scene_mesh, terrain_scene_mesh};
 pub use scene::hangar::{TURNTABLE_TOP_M, hangar_camera_pivot, hangar_scene_mesh};
+pub use scene::water::battlefield_water_mesh;
 pub use vehicle::asset_catalog::VehicleAssetCatalog;
 pub use vehicle::asset_render::{
     tank_vehicle_render_objects, tank_vehicle_render_objects_with_variation,

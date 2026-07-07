@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::battlefield::BattlefieldMap;
+use crate::bystra::bystra_valley;
 use crate::prokhorovka::prokhorovka_hill_252_2;
 
 /// Stable identity of a playable map — the registry both ends of the wire call.
@@ -12,16 +13,18 @@ use crate::prokhorovka::prokhorovka_hill_252_2;
 pub enum MapId {
     #[default]
     ProkhorovkaHill252_2,
+    BystraValley,
 }
 
 impl MapId {
-    pub const ALL: &'static [MapId] = &[MapId::ProkhorovkaHill252_2];
+    pub const ALL: &'static [MapId] = &[MapId::ProkhorovkaHill252_2, MapId::BystraValley];
 
     /// CLI/asset slug: `generate-map --map <slug>` and the `assets/maps/` filename stem
     /// (with `-` mapped to `_`).
     pub fn slug(self) -> &'static str {
         match self {
             Self::ProkhorovkaHill252_2 => "prokhorovka-hill-252-2",
+            Self::BystraValley => "bystra-valley",
         }
     }
 
@@ -33,6 +36,7 @@ impl MapId {
     pub fn battlefield(self) -> BattlefieldMap {
         match self {
             Self::ProkhorovkaHill252_2 => prokhorovka_hill_252_2(),
+            Self::BystraValley => bystra_valley(),
         }
     }
 }

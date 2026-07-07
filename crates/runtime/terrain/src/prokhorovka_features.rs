@@ -1,10 +1,10 @@
+use crate::map_build::grounded_feature;
 use crate::prokhorovka::{DITCH_OFFSET_M, HALF_M, HILL_OFFSET_M, HILL_X_M};
-use crate::prokhorovka_layout::position;
 use crate::{HeightMap, MapFeature, MapFeatureKind};
 
 pub(crate) fn map_features(heightmap: &HeightMap) -> Vec<MapFeature> {
     vec![
-        feature(
+        grounded_feature(
             heightmap,
             MapFeatureKind::Hill,
             "Hill 252.2",
@@ -13,7 +13,7 @@ pub(crate) fn map_features(heightmap: &HeightMap) -> Vec<MapFeature> {
             130.0,
             "dominant eastern high ground (south massif)",
         ),
-        feature(
+        grounded_feature(
             heightmap,
             MapFeatureKind::Hill,
             "Hill 252.2 north massif",
@@ -22,7 +22,7 @@ pub(crate) fn map_features(heightmap: &HeightMap) -> Vec<MapFeature> {
             130.0,
             "mirrored northern high ground",
         ),
-        feature(
+        grounded_feature(
             heightmap,
             MapFeatureKind::RailEmbankment,
             "railway embankment",
@@ -31,7 +31,7 @@ pub(crate) fn map_features(heightmap: &HeightMap) -> Vec<MapFeature> {
             480.0,
             "central east-west embankment dividing the sectors",
         ),
-        feature(
+        grounded_feature(
             heightmap,
             MapFeatureKind::AntiTankDitch,
             "anti-tank ditch (south)",
@@ -40,7 +40,7 @@ pub(crate) fn map_features(heightmap: &HeightMap) -> Vec<MapFeature> {
             480.0,
             "defensive ditch on the southern approach",
         ),
-        feature(
+        grounded_feature(
             heightmap,
             MapFeatureKind::AntiTankDitch,
             "anti-tank ditch (north)",
@@ -49,7 +49,7 @@ pub(crate) fn map_features(heightmap: &HeightMap) -> Vec<MapFeature> {
             480.0,
             "defensive ditch on the northern approach",
         ),
-        feature(
+        grounded_feature(
             heightmap,
             MapFeatureKind::Lowland,
             "Psel lowland",
@@ -58,7 +58,7 @@ pub(crate) fn map_features(heightmap: &HeightMap) -> Vec<MapFeature> {
             150.0,
             "open western flank along the Psel",
         ),
-        feature(
+        grounded_feature(
             heightmap,
             MapFeatureKind::Farm,
             "Oktyabrskiy State Farm",
@@ -68,22 +68,4 @@ pub(crate) fn map_features(heightmap: &HeightMap) -> Vec<MapFeature> {
             "contested central objective on the embankment",
         ),
     ]
-}
-
-fn feature(
-    heightmap: &HeightMap,
-    kind: MapFeatureKind,
-    name: &str,
-    x: f32,
-    z: f32,
-    radius_m: f32,
-    note: &str,
-) -> MapFeature {
-    MapFeature {
-        kind,
-        name: name.to_string(),
-        center: position(heightmap, x, z),
-        radius_m,
-        note: note.to_string(),
-    }
 }

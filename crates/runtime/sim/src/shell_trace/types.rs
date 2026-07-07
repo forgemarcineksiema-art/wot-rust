@@ -68,6 +68,10 @@ pub struct ShellTraceWorld<'a> {
     pub blockers: &'a [TraceTank],
     pub heightmap: Option<&'a HeightMap>,
     pub cover: &'a [StaticCoverObject],
+    /// The map's standing water: a shell crossing the surface over submerged ground dies there
+    /// (`ImpactSurface::Water`). `None` is a dry map. The reticle preview passes the same value
+    /// as the server so a previewed splash is never a hit the server resolves differently.
+    pub water: Option<::terrain::WaterBody>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

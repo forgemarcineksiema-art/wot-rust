@@ -13,11 +13,22 @@ pub struct TerrainContact {
     pub side_slope: f32,
     pub roughness: f32,
     pub traction: f32,
+    /// Standing water over this ground (map water level − terrain height; see
+    /// [`crate::water`]). Zero on dry maps — `serde(default)` keeps older fixtures loading dry.
+    #[serde(default)]
+    pub water_depth_m: f32,
 }
 
 impl TerrainContact {
     pub fn flat(height_m: f32) -> Self {
-        Self { height_m, forward_slope: 0.0, side_slope: 0.0, roughness: 0.0, traction: 1.0 }
+        Self {
+            height_m,
+            forward_slope: 0.0,
+            side_slope: 0.0,
+            roughness: 0.0,
+            traction: 1.0,
+            water_depth_m: 0.0,
+        }
     }
 }
 
@@ -45,7 +56,14 @@ pub fn sample_tank_terrain_contact(
     let traction = (1.0 - roughness * 0.45 - side_slope.abs() * 0.35 - forward_slope.abs() * 0.15)
         .clamp(0.35, 1.0);
 
-    Some(TerrainContact { height_m: center, forward_slope, side_slope, roughness, traction })
+    Some(TerrainContact {
+        height_m: center,
+        forward_slope,
+        side_slope,
+        roughness,
+        traction,
+        water_depth_m: 0.0,
+    })
 }
 
 fn sample_offset(

@@ -1,0 +1,121 @@
+//! Build the river-surface mesh from the map's water body: a flat grid at `surface_level_m`,
+//! clipped to the cells that are actually wet, with the real depth baked per vertex (the
+//! shader's shore fade and shallow→deep tint read it). One source of truth: the same
+//! `WaterBody::depth_over(heightmap)` rule that drives wading, drowning, and shell splashes.
+
+use renderer_api::WaterVertex;
+use terrain::{BattlefieldMap, HeightMap, WaterBody};
+
+/// Ignore film-thin sheets — same spirit as the shell splash's minimum depth.
+const MIN_WET_DEPTH_M: f32 = 0.05;
+
+/// The battlefield's water mesh; empty on dry maps (`water: None`), so callers can always
+/// upload the result and the renderer skips the draw when there is nothing to draw.
+pub fn battlefield_water_mesh(battlefield: &BattlefieldMap) -> (Vec<WaterVertex>, Vec<u32>) {
+    let (mut vertices, mut indices) = match battlefield.water {
+        Some(water) => water_surface_mesh(&battlefield.heightmap, water),
+        None => (Vec::new(), Vec::new()),
+    };
+    // The river keeps flowing past the horizon: the backdrop strips render with this same mesh.
+    let (skirt_vertices, skirt_indices) = crate::scene::backdrop::backdrop_water_mesh(battlefield);
+    let base = vertices.len() as u32;
+    vertices.extend(skirt_vertices);
+    indices.extend(skirt_indices.into_iter().map(|index| index + base));
+    (vertices, indices)
+}
+
+/// Grid the heightmap at its own cell resolution and keep every quad with at least one wet
+/// corner (so the surface plane reaches the exact shoreline where depth crosses zero, and the
+/// shader's alpha fade dissolves the dry corners). Vertices sit ON the water plane.
+pub fn water_surface_mesh(heightmap: &HeightMap, water: WaterBody) -> (Vec<WaterVertex>, Vec<u32>) {
+    let w = heightmap.width();
+    let h = heightmap.height();
+    let cell = heightmap.cell_size_m();
+    let depth_at = |x: usize, z: usize| water.depth_over(heightmap.sample_at_index(x, z));
+
+    // Vertex indices are allocated lazily so a mostly-dry map costs only its river corridor.
+    let mut vertex_index = vec![u32::MAX; w * h];
+    let mut vertices: Vec<WaterVertex> = Vec::new();
+    let mut indices: Vec<u32> = Vec::new();
+    let corner =
+        |vertex_index: &mut Vec<u32>, vertices: &mut Vec<WaterVertex>, x: usize, z: usize| {
+            let slot = z * w + x;
+            if vertex_index[slot] == u32::MAX {
+                vertex_index[slot] = vertices.len() as u32;
+                vertices.push(WaterVertex::new(
+                    [x as f32 * cell, water.surface_level_m, z as f32 * cell],
+                    depth_at(x, z).max(0.0),
+                ));
+            }
+            vertex_index[slot]
+        };
+
+    for z in 0..h - 1 {
+        for x in 0..w - 1 {
+            let wet = depth_at(x, z) > MIN_WET_DEPTH_M
+                || depth_at(x + 1, z) > MIN_WET_DEPTH_M
+                || depth_at(x, z + 1) > MIN_WET_DEPTH_M
+                || depth_at(x + 1, z + 1) > MIN_WET_DEPTH_M;
+            if !wet {
+                continue;
+            }
+            let i00 = corner(&mut vertex_index, &mut vertices, x, z);
+            let i10 = corner(&mut vertex_index, &mut vertices, x + 1, z);
+            let i01 = corner(&mut vertex_index, &mut vertices, x, z + 1);
+            let i11 = corner(&mut vertex_index, &mut vertices, x + 1, z + 1);
+            indices.extend_from_slice(&[i00, i01, i10, i10, i01, i11]);
+        }
+    }
+    (vertices, indices)
+}
+
+#[cfg(test)]
+mod tests {
+    use terrain::{bystra_valley, prokhorovka_hill_252_2};
+
+    use super::*;
+
+    #[test]
+    fn a_dry_map_builds_no_water_mesh() {
+        let (vertices, indices) = battlefield_water_mesh(&prokhorovka_hill_252_2());
+        assert!(vertices.is_empty() && indices.is_empty());
+    }
+
+    #[test]
+    fn the_bystra_mesh_covers_the_river_and_only_the_river() {
+        let map = bystra_valley();
+        let water = map.water.expect("the Bystra is the map");
+        // The corridor contract is about the PLAYFIELD surface; the backdrop continuations
+        // are covered by scene::backdrop tests.
+        let (vertices, indices) = water_surface_mesh(&map.heightmap, water);
+
+        assert!(!indices.is_empty(), "the river corridor must produce a surface");
+        assert!(indices.len().is_multiple_of(3));
+        assert!(
+            vertices.len() < 12_000,
+            "the mesh is clipped to the corridor, not the whole map ({} verts)",
+            vertices.len()
+        );
+        for vertex in &vertices {
+            assert!(
+                (vertex.position[1] - water.surface_level_m).abs() < 1.0e-6,
+                "every vertex sits ON the still-water plane"
+            );
+            let ground =
+                map.heightmap.sample_height(vertex.position[0], vertex.position[2]).unwrap();
+            assert!(
+                (vertex.depth_m - water.depth_over(ground)).abs() < 1.0e-4,
+                "baked depth must equal the gameplay depth rule"
+            );
+            let d = (vertex.position[0] - terrain::bystra_river_center_x(vertex.position[2])).abs();
+            assert!(
+                d <= terrain::RIVER_CORRIDOR_HALF_WIDTH_M + map.heightmap.cell_size_m() + 3.0,
+                "surface vertex outside the river corridor at {:?}",
+                vertex.position
+            );
+        }
+        for index in &indices {
+            assert!((*index as usize) < vertices.len());
+        }
+    }
+}

@@ -191,6 +191,7 @@ fn query<'a>(
     ReticleFeedbackQuery {
         heightmap,
         cover,
+        water: None,
         tanks,
         player_spec: default_spec(),
         owner: TankId(1),

@@ -10,6 +10,7 @@ mod policy;
 mod tank_resolve;
 mod track_contact;
 mod vertical;
+pub mod water;
 mod world;
 
 use rapier3d::prelude::{

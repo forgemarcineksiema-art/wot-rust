@@ -26,6 +26,15 @@ impl ClientApp {
         ((self.ticks_since_snapshot as f32 + self.loop_driver.render_alpha()) / window_ticks)
             .clamp(0.0, 1.0)
     }
+
+    /// The presentation clock shaders animate with (water, foliage, weather): whole fixed ticks
+    /// plus the sub-tick render phase, over the tick rate. Purely tick-domain — never integrated
+    /// from render-frame deltas, so a jittery frame clock cannot wobble world animation (the same
+    /// doctrine as `engine::TankMotion` and `remote_interpolation_alpha`).
+    pub(super) fn presented_time_s(&self) -> f32 {
+        ((self.client_tick as f64 + f64::from(self.loop_driver.render_alpha()))
+            / f64::from(sim::DEFAULT_SIMULATION_TICK_HZ)) as f32
+    }
     pub(super) fn create_renderer(
         &mut self,
         window: Arc<Window>,
@@ -38,7 +47,14 @@ impl ClientApp {
             WindowRenderer::new(window, width, height, &terrain_vertices, &terrain_indices)?;
         let atlas = crate::hud::font::atlas();
         renderer.set_hud_font_atlas(atlas.width(), atlas.height(), atlas.coverage());
+        // The battle scene starts loaded, so its river (if the map has one) starts loaded too.
+        let (water_vertices, water_indices) =
+            crate::scene::water::battlefield_water_mesh(&self.battlefield);
+        renderer.set_water(&water_vertices, &water_indices);
         self.renderer = Some(renderer);
+        // The renderer is born holding generic battlefield defaults; the app is born in battle,
+        // so dress it in the actual match's weather right away.
+        self.apply_match_weather();
         Ok(())
     }
 
@@ -163,6 +179,7 @@ impl ClientApp {
         hud.extend(enemy_bars);
         hud.extend(self.hit_indicator.render_vertices(view_proj, aspect));
         let fx_vertices = self.fx_frame_vertices(camera.eye, camera.target);
+        let scene_time_s = self.presented_time_s();
         self.ensure_scene(SceneKind::Battle);
         let Some(renderer) = self.renderer.as_mut() else {
             return;
@@ -180,6 +197,7 @@ impl ClientApp {
         renderer.set_dynamic_mesh(&[], &[]);
         renderer.set_fx(&fx_vertices);
         renderer.set_hud(&hud);
+        renderer.set_scene_time_s(scene_time_s);
         if let Err(error) = renderer.render(view_proj, camera.eye) {
             error!(%error, "frame render failed");
         }

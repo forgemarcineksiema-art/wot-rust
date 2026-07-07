@@ -36,9 +36,14 @@ impl super::SceneRenderer {
             renderer_api::view_projection_inverse(view_proj),
             camera_pos,
             &self.scene_lighting,
-            light_view_proj,
-            self.shadow.shader_params(),
-            [self.ssao.near, self.ssao.far, self.ssao.strength, proj_y_scale],
+            crate::FramePassParams {
+                light_view_proj,
+                shadow_params: self.shadow.shader_params(),
+                ssao_params: [self.ssao.near, self.ssao.far, self.ssao.strength, proj_y_scale],
+                time_s: self.scene_time_s,
+                rain_intensity: self.rain_intensity,
+                wetness: self.wetness,
+            },
         );
         ctx.queue.write_buffer(&self.camera_buffer, 0, &encode_camera_uniform(&camera)?);
 
@@ -148,6 +153,19 @@ impl super::SceneRenderer {
                     );
                 }
             }
+            // The river surface after every lit opaque: depth-tested (banks and hulls above
+            // the waterline occlude it) but drawn over whatever sits below the plane — a
+            // wading hull's submerged running gear correctly reads through the water. Never
+            // writes depth, so the FX splashes drawn next still composite over the surface.
+            if self.water_index_count > 0
+                && let Some((water_vertices, water_indices)) = self.water_buffers.as_ref()
+            {
+                pass.set_pipeline(&self.water_pipeline);
+                pass.set_bind_group(0, &self.camera_bind_group, &[]);
+                pass.set_vertex_buffer(0, water_vertices.slice(..));
+                pass.set_index_buffer(water_indices.slice(..), wgpu::IndexFormat::Uint32);
+                pass.draw_indexed(0..self.water_index_count, 0, 0..1);
+            }
             // Battle FX draw after every lit opaque (correct depth occlusion) and before the
             // HUD overlay; the pipeline reuses the scene camera bind group for view_proj.
             if self.fx_vertex_count > 0 {
@@ -155,6 +173,15 @@ impl super::SceneRenderer {
                 pass.set_bind_group(0, &self.camera_bind_group, &[]);
                 pass.set_vertex_buffer(0, self.fx_vertices.slice(..));
                 pass.draw(0..self.fx_vertex_count, 0..1);
+            }
+            // Rain, closest to the lens: stateless streaks generated entirely in the vertex
+            // shader from (instance, time, camera); the CPU only scales the population.
+            let rain_streaks =
+                (crate::rain_pipeline::RAIN_MAX_STREAKS as f32 * self.rain_intensity) as u32;
+            if rain_streaks > 0 {
+                pass.set_pipeline(&self.rain_pipeline);
+                pass.set_bind_group(0, &self.camera_bind_group, &[]);
+                pass.draw(0..6, 0..rain_streaks);
             }
             if self.hud_vertex_count > 0 {
                 pass.set_pipeline(&self.hud_pipeline);

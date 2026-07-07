@@ -88,6 +88,12 @@ pub fn step_tank_on_world_with_tanks(
     if let Some(height) = ride_height(state.position, state.yaw_rad) {
         contact.height_m = height;
     }
+    // Standing water over the contact: wading drag enters the force model through the contact,
+    // and the riverbed softens the tracks. Zero depth (or a dry map) leaves both untouched.
+    if let Some(water) = obstacles.water {
+        contact.water_depth_m = water.depth_over(contact.height_m);
+        contact.traction = crate::water::wading_traction(contact.traction, contact.water_depth_m);
+    }
     let was_grounded = is_grounded(state.position.y, contact.height_m);
 
     step_custom_tank_controller_on_contact(state, input, settings, contact, dt_seconds);

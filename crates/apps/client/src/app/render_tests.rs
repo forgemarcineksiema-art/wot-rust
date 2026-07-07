@@ -32,6 +32,51 @@ fn remote_interpolation_alpha_is_phase_locked_to_the_snapshot_cadence() {
 }
 
 #[test]
+fn presentation_time_is_phase_locked_to_the_fixed_tick_clock_under_frame_jitter() {
+    use std::time::Duration;
+
+    use crate::{ClientLoopAction, ClientLoopEvent};
+
+    // Two frame clocks delivering the identical simulated span: one steady, one jittery. The
+    // presentation clock is a function of (fixed ticks run, sub-tick remainder) ONLY — the same
+    // doctrine as TankMotion — so both runs must land on exactly the same time, and neither may
+    // ever step backwards.
+    let steady: Vec<Duration> = vec![Duration::from_millis(20); 30]; // 600 ms
+    let jittery: Vec<Duration> = [3u64, 45, 2, 90, 10, 50, 100, 100, 60, 80, 25, 35]
+        .into_iter()
+        .map(Duration::from_millis)
+        .collect(); // also 600 ms, wildly uneven
+
+    let run = |frames: &[Duration]| {
+        let mut app = ClientApp::new();
+        app.confirm_garage_selection();
+        let mut last = app.presented_time_s();
+        for &elapsed in frames {
+            for action in app.loop_driver.handle_event(ClientLoopEvent::AboutToWait { elapsed }) {
+                if let ClientLoopAction::RunFixedTicks(count) = action {
+                    app.run_fixed_ticks(count);
+                }
+            }
+            let now = app.presented_time_s();
+            assert!(now >= last, "presentation time stepped backwards: {now} < {last}");
+            last = now;
+        }
+        (app.client_tick, app.presented_time_s())
+    };
+
+    let (steady_ticks, steady_time) = run(&steady);
+    let (jitter_ticks, jitter_time) = run(&jittery);
+
+    assert_eq!(steady_ticks, jitter_ticks, "equal spans must run equal fixed ticks");
+    assert!(
+        (steady_time - jitter_time).abs() < 1.0e-6,
+        "the frame-clock pattern leaked into the presentation clock: {steady_time} vs {jitter_time}"
+    );
+    // And the clock really advanced: 600 ms of span at 60 Hz.
+    assert!((steady_time - 0.6).abs() < 1.0e-3, "expected ~0.6 s, got {steady_time}");
+}
+
+#[test]
 fn player_spec_and_reload_follow_snapshot_vehicle() {
     let mut app = ClientApp::new();
     let tank_id = app.player_tank;

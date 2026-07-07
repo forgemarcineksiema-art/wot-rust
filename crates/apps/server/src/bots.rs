@@ -198,6 +198,7 @@ pub(crate) mod test_support {
             ammo_counts,
             selected_ammo,
             spotted_mask,
+            submerged_s: 0.0,
         }
     }
 

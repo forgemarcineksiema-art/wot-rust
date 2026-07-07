@@ -95,6 +95,7 @@ pub(crate) fn aim_point(heightmap: &HeightMap, eye: Vec3, forward: Vec3) -> Vec3
 pub(crate) fn aim_point_with_sweep(
     heightmap: &HeightMap,
     cover: &[StaticCoverObject],
+    water: Option<terrain::WaterBody>,
     tanks: &[TankSnapshot],
     owner: TankId,
     owner_team: TeamId,
@@ -108,6 +109,7 @@ pub(crate) fn aim_point_with_sweep(
         blockers: &sets.blockers,
         heightmap: Some(heightmap),
         cover,
+        water,
     };
     let mut previous = eye;
     let mut travelled = STEP_M;

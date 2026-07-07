@@ -22,6 +22,7 @@ pub(crate) fn practice_duel_setup(player_vehicle: VehicleKind) -> BattleSetup {
     let map_id = MapId::default();
     let battlefield = map_id.battlefield();
     let mut sim = SimulationState::new();
+    sim.set_water(battlefield.water);
     let player_pos = random_battle_ground_position(&battlefield, 340.0, 300.0);
     let target_pos = random_battle_ground_position(&battlefield, 340.0, 340.0);
     let player_tank = sim.spawn_tank(game_core::TeamId(1), player_vehicle.spec(), player_pos);
@@ -48,6 +49,7 @@ pub(crate) fn practice_duel_setup(player_vehicle: VehicleKind) -> BattleSetup {
 pub(crate) fn random_7v7_setup(config: RandomBattleConfig) -> BattleSetup {
     let battlefield = config.map.battlefield();
     let mut sim = SimulationState::new();
+    sim.set_water(battlefield.water);
     let mut bot_ids = Vec::new();
     let team_one = random_battle_spawn_zone(&battlefield, 1);
     let team_two = random_battle_spawn_zone(&battlefield, 2);

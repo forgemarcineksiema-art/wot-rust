@@ -89,6 +89,13 @@ pub(crate) fn resolve_ground_velocity(
     let resistance = settings.rolling_resist_mps2 * contact.traction.max(0.5)
         + settings.drag_quadratic * v_f * v_f;
     v_f = move_towards(v_f, 0.0, resistance * dt);
+    // Wading: past the splash depth the hull pushes a bow wave and the bed sucks at the tracks
+    // (see `water`). Exactly zero on dry ground, so waterless maps stay bit-identical.
+    let wading = crate::water::wading_resistance_mps2(contact.water_depth_m, v_f);
+    if wading > 0.0 {
+        v_f = move_towards(v_f, 0.0, wading * dt);
+        v_r = move_towards(v_r, 0.0, wading * dt);
+    }
     let scrub = settings.turn_scrub * yaw_rate.abs() * v_f.abs(); // skid-steer bleed
     v_f = move_towards(v_f, 0.0, scrub * dt);
     v_f += slope_f * dt;

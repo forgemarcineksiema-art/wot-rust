@@ -5,6 +5,7 @@ mod gpu_layout;
 mod msaa;
 mod offscreen;
 mod pipeline_registry;
+mod rain_pipeline;
 mod readback_queue;
 mod render_frame_batch;
 mod renderer;
@@ -19,6 +20,7 @@ mod texture_upload;
 mod upload_buffers;
 mod vehicle_pipeline;
 mod vehicle_resources;
+mod water_pipeline;
 mod window_renderer;
 
 use renderer_api::{
@@ -30,10 +32,12 @@ pub use fx_pipeline::fx_shader_source;
 pub use gpu_context::GpuContext;
 pub use gpu_diagnostics::{GpuErrorPolicy, WgpuLabelPolicy};
 pub use gpu_layout::{
-    CameraUniform, GpuMat4, GpuVec3, TankVertex, encode_camera_uniform, tank_vertex_bytes,
+    CameraUniform, FramePassParams, GpuMat4, GpuVec3, TankVertex, encode_camera_uniform,
+    tank_vertex_bytes,
 };
 pub use offscreen::{DEPTH_FORMAT, OffscreenTarget, clear_color};
 pub use pipeline_registry::{PipelineHotReloadStats, PipelineRegistry, PipelineWarmupStats};
+pub use rain_pipeline::rain_shader_source;
 pub use readback_queue::{GpuReadbackQueue, ReadbackRequest, ReadbackRequestId, ReadbackResult};
 pub use render_frame_batch::{RenderFrameBatchPlan, RenderObjectDraw};
 pub use renderer::WgpuRenderer;
@@ -58,6 +62,7 @@ pub use upload_buffers::{
 };
 pub use vehicle_pipeline::{build_vehicle_pipeline, vehicle_shader_source};
 pub use vehicle_resources::{GpuVehicleMesh, VehicleMeshRegistry};
+pub use water_pipeline::water_shader_source;
 pub use window_renderer::WindowRenderer;
 
 pub fn probe_startup_report(instance: &wgpu::Instance) -> Result<RenderAdapterReport, RenderError> {

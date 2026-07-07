@@ -151,7 +151,7 @@ impl ClientApp {
     fn new_without_vehicle_artifacts() -> Self {
         let local_server = LocalAuthoritativeServer::new_random_7v7(
             ServerTickConfig::default(),
-            RandomBattleConfig::runtime(VehicleKind::default()),
+            RandomBattleConfig::runtime_from_env(VehicleKind::default()),
         );
         let player_tank = local_server.player_tank();
         let mut render_state = InterpolatedBattleState::default();
@@ -165,6 +165,8 @@ impl ClientApp {
         let battlefield = local_server.map_id().battlefield();
         let camera_obstacles =
             battlefield.static_cover.iter().map(CameraObstacle::from_static_cover).collect();
+        let mut predictor = LocalPredictor::new(&player_spec);
+        predictor.set_water(battlefield.water);
         Self {
             window: None,
             renderer: None,
@@ -181,7 +183,7 @@ impl ClientApp {
             client_tick: 0,
             ticks_since_snapshot: 0,
             input: InputState::default(),
-            predictor: LocalPredictor::new(&player_spec),
+            predictor,
             vehicle_asset_catalog: VehicleAssetCatalog::default(),
             presentation: engine::PresentationWorld::default(),
             last_render_time: Instant::now(),

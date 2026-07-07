@@ -47,6 +47,10 @@ pub struct TankState {
     /// the LOS spotting pass. `serde(default)` keeps pre-spotting fixtures loading (unspotted).
     #[serde(default)]
     pub spotted_mask: u8,
+    /// Seconds this hull has continuously sat in drowning-deep water (see `drowning`); resets
+    /// the tick it leaves. `serde(default)` keeps pre-water fixtures loading dry.
+    #[serde(default)]
+    pub submerged_s: f32,
 }
 
 fn default_ammo_counts() -> [u16; game_core::MAX_AMMO_SLOTS] {

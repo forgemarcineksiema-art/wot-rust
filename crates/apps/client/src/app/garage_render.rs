@@ -78,6 +78,7 @@ impl ClientApp {
         let fx_vertices =
             self.fx.vertices(Vec3::from_array(camera.eye), Vec3::from_array(camera.target));
 
+        let scene_time_s = self.presented_time_s();
         let Some(renderer) = self.renderer.as_mut() else {
             return;
         };
@@ -92,6 +93,7 @@ impl ClientApp {
         renderer.set_dynamic_mesh(&[], &[]);
         renderer.set_fx(&fx_vertices);
         renderer.set_hud(&hud);
+        renderer.set_scene_time_s(scene_time_s);
         if let Err(error) = renderer.render(view_proj, camera.eye) {
             error!(%error, "garage frame render failed");
         }
@@ -103,27 +105,57 @@ impl ClientApp {
         if self.current_scene == want {
             return;
         }
-        let (vertices, indices, sky, lighting) = match want {
+        let (vertices, indices, sky, lighting, rain_intensity, wetness) = match want {
             SceneKind::Garage => {
                 let (v, i) = crate::scene::hangar::hangar_scene_mesh();
                 // The workshop rig rakes a warm sun down through the skylights (real contact shadow
                 // on the turntable) over a dim, near-neutral shop interior.
-                (v, i, (0.05, 0.05, 0.06), SceneLighting::garage_workshop())
+                (v, i, (0.05, 0.05, 0.06), SceneLighting::garage_workshop(), 0.0, 0.0)
             }
             SceneKind::Battle => {
+                // The battle look is the MATCH's look: the server named the map and rolled the
+                // weather from the battle seed; the client dresses accordingly.
+                let look = crate::scene::weather::weather_look(
+                    self.local_server.map_id(),
+                    self.local_server.weather_variant(),
+                );
                 let (v, i) = battlefield_scene_mesh(&self.battlefield);
-                (v, i, (0.55, 0.69, 0.87), SceneLighting::battlefield_default())
+                (v, i, look.sky, look.lighting, look.rain_intensity, look.wetness)
             }
+        };
+        // The river surface swaps with the scene: the battlefield's water (empty on dry maps),
+        // nothing in the hangar.
+        let (water_vertices, water_indices) = match want {
+            SceneKind::Garage => (Vec::new(), Vec::new()),
+            SceneKind::Battle => crate::scene::water::battlefield_water_mesh(&self.battlefield),
         };
         if let Some(renderer) = self.renderer.as_mut() {
             renderer.set_terrain(&vertices, &indices);
+            renderer.set_water(&water_vertices, &water_indices);
             // Interior scenes show a flat backdrop; the battlefield shows the gradient sky dome.
             match want {
                 SceneKind::Garage => renderer.set_interior_background(sky.0, sky.1, sky.2),
                 SceneKind::Battle => renderer.set_outdoor_sky(sky.0, sky.1, sky.2),
             }
             renderer.set_scene_lighting(lighting);
+            renderer.set_rain_intensity(rain_intensity);
+            renderer.set_wetness(wetness);
             self.current_scene = want;
+        }
+    }
+
+    /// Dress the freshly created renderer in the CURRENT battle's weather (the renderer is
+    /// born holding the generic battlefield defaults; the app is born in battle).
+    pub(super) fn apply_match_weather(&mut self) {
+        let look = crate::scene::weather::weather_look(
+            self.local_server.map_id(),
+            self.local_server.weather_variant(),
+        );
+        if let Some(renderer) = self.renderer.as_mut() {
+            renderer.set_outdoor_sky(look.sky.0, look.sky.1, look.sky.2);
+            renderer.set_scene_lighting(look.lighting);
+            renderer.set_rain_intensity(look.rain_intensity);
+            renderer.set_wetness(look.wetness);
         }
     }
 

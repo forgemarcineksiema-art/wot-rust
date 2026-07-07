@@ -30,4 +30,35 @@ impl WindowRenderer {
     pub fn set_scene_lighting(&mut self, lighting: renderer_api::SceneLighting) {
         self.scene.scene_lighting = lighting;
     }
+
+    /// Advance the presentation clock shaders animate with (water ripple, foliage sway, weather).
+    /// Tick-domain by doctrine: pass interpolated-tick seconds (whole fixed ticks + the sub-tick
+    /// render phase over the tick rate), never an accumulation of render-frame deltas — a jittery
+    /// frame clock must not wobble world animation.
+    pub fn set_scene_time_s(&mut self, time_s: f32) {
+        self.scene.scene_time_s = time_s;
+    }
+}
+
+impl super::WindowRenderer {
+    /// Replace the water-surface mesh (see [`crate::SceneRenderer::set_water`]); an empty
+    /// slice clears the slot. Scene-swap cadence, never per frame.
+    pub fn set_water(&mut self, vertices: &[renderer_api::WaterVertex], indices: &[u32]) {
+        self.scene.set_water(&self.ctx, vertices, indices);
+    }
+}
+
+impl super::WindowRenderer {
+    /// Rain streak density 0..1 from the weather look; 0 skips the rain pass entirely.
+    pub fn set_rain_intensity(&mut self, intensity: f32) {
+        self.scene.rain_intensity = intensity.clamp(0.0, 1.0);
+    }
+}
+
+impl super::WindowRenderer {
+    /// World wetness 0..1 from the weather look: darkens albedo, sharpens material finishes,
+    /// pools sheen on level ground (scene and vehicle shaders alike).
+    pub fn set_wetness(&mut self, wetness: f32) {
+        self.scene.wetness = wetness.clamp(0.0, 1.0);
+    }
 }

@@ -141,7 +141,7 @@ impl ClientApp {
         if self.local_server.battle_mode() == server::BattleMode::Random7v7 {
             self.local_server = server::LocalAuthoritativeServer::new_random_7v7(
                 server::ServerTickConfig::default(),
-                server::RandomBattleConfig::runtime(spec.kind),
+                server::RandomBattleConfig::runtime_from_env(spec.kind),
             );
             self.client_tick = 0;
             self.damage_log = crate::hud::damage_log::DamageLog::default();
