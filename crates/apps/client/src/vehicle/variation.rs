@@ -7,8 +7,11 @@
 //! the renderer layers on top of the shared baked asset. The layer is pure and deterministic so it
 //! can be unit-tested without a GPU.
 
+use std::sync::Arc;
+
 use game_core::{ModuleSlot, TrackDamageMask, TrackSide};
 use net::TankSnapshot;
+use vehicle_geometry::DecalPatch;
 
 /// Hit decals beyond this are the oldest and get recycled — keeps per-tank state bounded.
 pub const MAX_HIT_DECALS: usize = 16;
@@ -43,7 +46,7 @@ pub enum DecalFrame {
 }
 
 /// A single impact mark in its local frame; non-permanent kinds age toward [`DECAL_FADE_S`].
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct HitDecal {
     pub local_position: [f32; 3],
     /// Outward plate normal in the same local frame — the mark is drawn flat on this plane.
@@ -52,6 +55,10 @@ pub struct HitDecal {
     pub age_s: f32,
     pub kind: DecalKind,
     pub frame: DecalFrame,
+    /// A conformal patch (mesh triangles clipped to the mark's footprint, in the same local frame)
+    /// for a penetration hole that wraps a curved casting instead of hovering across its chord.
+    /// `None` for flat marks and for hits that fell back off the mesh — those draw the flat quad.
+    pub patch: Option<Arc<DecalPatch>>,
 }
 
 impl HitDecal {

@@ -24,7 +24,7 @@ mod weld;
 pub use bounds::MeshBounds;
 pub use builder::MeshBuilder;
 pub use cavity::CavityBand;
-pub use contact::{MeshContactIndex, SurfaceContact};
+pub use contact::{DecalPatch, MeshContactIndex, SurfaceContact};
 pub use game_core::{MountFrame, MountFrames};
 pub use lod::{
     LodAuditError, LodLevel, PartImportance, audit_reduction, reduce_mesh, reduce_vehicle,

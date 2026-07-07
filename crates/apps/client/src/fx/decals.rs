@@ -4,15 +4,22 @@
 //! hull, turret marks traverse with the turret) and drawn as flat oriented quads through the
 //! FX pass, so a battered tank *looks* battered without recolouring a single submesh.
 
+use std::sync::Arc;
+
 use game_core::{ArmorFacing, DamageEvent};
 use glam::{Mat3, Vec3};
 use net::TankSnapshot;
 use renderer_api::FxVertex;
-use vehicle_geometry::MeshContactIndex;
+use vehicle_geometry::{DecalPatch, MeshContactIndex, SurfaceContact};
 
 use crate::vehicle::asset_catalog::VehicleContactIndex;
 use crate::vehicle::pose::VehiclePose;
 use crate::vehicle::variation::{DecalFrame, DecalKind, HitDecal};
+
+/// Half-extent of a penetration hole's conformal patch (matches the penetration decal radius).
+const PENETRATION_RADIUS_M: f32 = 0.13;
+/// Cap on a patch's clipped triangles — bounds per-tank memory (`MAX_HIT_DECALS` x this).
+const PATCH_TRIANGLE_CAP: usize = 64;
 
 /// How far off the plate the quad floats to never z-fight the armor it marks. Small now the mark
 /// sits on the TRUE surface with the TRUE normal — 6 mm kills z-fighting without visible float.
@@ -61,6 +68,8 @@ pub(crate) fn decal_from_damage_event(
         DecalKind::Scuff => 0.20,
         DecalKind::Gouge => 0.14,
     };
+    // Only a penetration conforms to the casting; a scuff/gouge stays a flat stamp (soft, fading).
+    let patch = if kind == DecalKind::Penetration { seat.patch } else { None };
     Some(HitDecal {
         local_position: seat.local_position.to_array(),
         local_normal: seat.local_normal.to_array(),
@@ -68,14 +77,17 @@ pub(crate) fn decal_from_damage_event(
         age_s: 0.0,
         kind,
         frame: seat.frame,
+        patch,
     })
 }
 
-/// A resolved decal seat: where the mark sits and which way it faces, in a chosen rotating frame.
+/// A resolved decal seat: where the mark sits and which way it faces, in a chosen rotating frame,
+/// plus (for a mesh-seated penetration) the conformal patch clipped from the visual mesh.
 struct DecalSeat {
     local_position: Vec3,
     local_normal: Vec3,
     frame: DecalFrame,
+    patch: Option<Arc<DecalPatch>>,
 }
 
 fn frame_for_facing(facing: ArmorFacing) -> DecalFrame {
@@ -152,7 +164,13 @@ fn seat_in_frame(
     if normal.dot(local_dir) > 0.0 {
         normal = -normal;
     }
-    Some(DecalSeat { local_position: contact.position, local_normal: normal, frame })
+    // A penetration hole wraps the casting: clip the mesh under it into a conformal patch (in this
+    // same local frame). Scuffs/gouges skip it — they stay flat stamps.
+    let patch = event.penetrated.then(|| {
+        let oriented = SurfaceContact { normal, ..contact };
+        Arc::new(index.clip_patch(&oriented, PENETRATION_RADIUS_M, PATCH_TRIANGLE_CAP))
+    });
+    Some(DecalSeat { local_position: contact.position, local_normal: normal, frame, patch })
 }
 
 /// No visual-mesh contact: keep the mark at the collision hit and orient it by the transmitted
@@ -171,7 +189,8 @@ fn seat_by_fallback(
     } else {
         local_facing_normal(facing, local.x)
     };
-    DecalSeat { local_position: local, local_normal, frame }
+    // No visual-mesh contact to clip against: the mark falls back to a flat quad.
+    DecalSeat { local_position: local, local_normal, frame, patch: None }
 }
 
 /// Outward plate normal in the local frame of the zone's facing. Both hull and turret frames
@@ -218,7 +237,9 @@ pub(crate) fn append_decal_quads(
         let v = normal.cross(u);
         let plate = Plate { center, u, v };
         match decal.kind {
-            DecalKind::Penetration => push_penetration(vertices, plate, decal, opacity),
+            DecalKind::Penetration => {
+                push_penetration(vertices, plate, decal, opacity, origin, basis)
+            }
             DecalKind::Scuff => push_scuff(vertices, plate, decal, opacity),
             DecalKind::Gouge => push_gouge(vertices, plate, decal, opacity),
         }
@@ -236,11 +257,26 @@ pub(super) struct Plate {
 
 /// A penetration is three layers, not one blob: a wide SOFT scorch halo (burnt paint), the
 /// hard-edged near-black entry hole, and a fan of bright bare-metal splash streaks â€” the
-/// signature look of a shaped hole in rolled armor, readable at battle range.
-fn push_penetration(vertices: &mut Vec<FxVertex>, plate: Plate, decal: &HitDecal, opacity: f32) {
+/// signature look of a shaped hole in rolled armor, readable at battle range. When the decal
+/// carries a conformal patch (protocol phase 2) the hard hole is drawn WRAPPED to the casting
+/// instead of as a flat stamp; the soft halo and streaks stay flat (they read fine flat).
+fn push_penetration(
+    vertices: &mut Vec<FxVertex>,
+    plate: Plate,
+    decal: &HitDecal,
+    opacity: f32,
+    origin: Vec3,
+    basis: Mat3,
+) {
     let r = decal.radius;
     push_stamp(vertices, plate, r * 2.6, r * 2.6, 0.9, premul([0.05, 0.04, 0.035], 0.45 * opacity));
-    push_stamp(vertices, plate, r, r, 6.0, premul([0.012, 0.011, 0.010], 0.95 * opacity));
+    let hole = premul([0.012, 0.011, 0.010], 0.95 * opacity);
+    match &decal.patch {
+        Some(patch) if !patch.is_empty() => {
+            push_conformal_hole(vertices, patch, origin, basis, hole)
+        }
+        _ => push_stamp(vertices, plate, r, r, 6.0, hole),
+    }
     for (angle, length) in splash_angles(decal.local_position) {
         let direction = plate.u * angle.cos() + plate.v * angle.sin();
         let streak = Plate {
@@ -271,6 +307,22 @@ fn push_gouge(vertices: &mut Vec<FxVertex>, plate: Plate, decal: &HitDecal, opac
     let r = decal.radius;
     push_stamp(vertices, plate, r * 3.0, r * 0.9, 0.9, premul([0.09, 0.085, 0.08], 0.45 * opacity));
     push_stamp(vertices, plate, r * 2.6, r * 0.35, 3.0, premul([0.40, 0.39, 0.37], 0.6 * opacity));
+}
+
+/// Draw the hard entry hole as a conformal patch: the clipped mesh triangles (local frame) posed
+/// into the world, each vertex carrying its decal-plane UV so the FX pass does the same radial
+/// falloff a flat stamp would — but now wrapped to the casting instead of hovering across it.
+fn push_conformal_hole(
+    vertices: &mut Vec<FxVertex>,
+    patch: &DecalPatch,
+    origin: Vec3,
+    basis: Mat3,
+    color: [f32; 4],
+) {
+    for (local, uv) in patch.positions.iter().zip(&patch.uvs) {
+        let world = origin + basis * *local;
+        vertices.push(FxVertex::sharp(world.to_array(), [uv.x, uv.y], 6.0, color));
+    }
 }
 
 /// One oriented quad on the plate with half-extents along its axes and an edge sharpness.
@@ -411,9 +463,13 @@ mod tests {
 
         // Re-render the same decal with the turret slewed 90 degrees: the mark must move.
         let mut at_zero = Vec::new();
-        append_decal_quads(&mut at_zero, &[decal], &still);
+        append_decal_quads(&mut at_zero, std::slice::from_ref(&decal), &still);
         let mut slewed = Vec::new();
-        append_decal_quads(&mut slewed, &[decal], &target(0.0, std::f32::consts::FRAC_PI_2));
+        append_decal_quads(
+            &mut slewed,
+            std::slice::from_ref(&decal),
+            &target(0.0, std::f32::consts::FRAC_PI_2),
+        );
         let moved =
             Vec3::from_array(at_zero[0].position).distance(Vec3::from_array(slewed[0].position));
         assert!(moved > 0.5, "a turret mark rides the traverse, moved {moved}");
@@ -426,11 +482,11 @@ mod tests {
         )
         .expect("hull decal");
         let mut hull_zero = Vec::new();
-        append_decal_quads(&mut hull_zero, &[hull_decal], &still);
+        append_decal_quads(&mut hull_zero, std::slice::from_ref(&hull_decal), &still);
         let mut hull_slewed = Vec::new();
         append_decal_quads(
             &mut hull_slewed,
-            &[hull_decal],
+            std::slice::from_ref(&hull_decal),
             &target(0.0, std::f32::consts::FRAC_PI_2),
         );
         assert_eq!(hull_zero[0].position, hull_slewed[0].position);
@@ -454,8 +510,8 @@ mod tests {
         assert_eq!(gouge.kind, DecalKind::Gouge);
 
         // Permanence: an aged hole keeps full opacity, an aged scuff is gone.
-        let aged_hole = HitDecal { age_s: 1.0e4, ..hole };
-        let aged_scuff = HitDecal { age_s: 1.0e4, ..scuff };
+        let aged_hole = HitDecal { age_s: 1.0e4, ..hole.clone() };
+        let aged_scuff = HitDecal { age_s: 1.0e4, ..scuff.clone() };
         assert_eq!(aged_hole.opacity(), 1.0);
         assert_eq!(aged_scuff.opacity(), 0.0);
 
