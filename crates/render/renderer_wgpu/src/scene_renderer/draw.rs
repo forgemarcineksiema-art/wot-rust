@@ -42,6 +42,7 @@ impl super::SceneRenderer {
                 ssao_params: [self.ssao.near, self.ssao.far, self.ssao.strength, proj_y_scale],
                 time_s: self.scene_time_s,
                 rain_intensity: self.rain_intensity,
+                wetness: self.wetness,
             },
         );
         ctx.queue.write_buffer(&self.camera_buffer, 0, &encode_camera_uniform(&camera)?);

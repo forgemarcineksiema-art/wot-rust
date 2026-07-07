@@ -105,12 +105,12 @@ impl ClientApp {
         if self.current_scene == want {
             return;
         }
-        let (vertices, indices, sky, lighting, rain_intensity) = match want {
+        let (vertices, indices, sky, lighting, rain_intensity, wetness) = match want {
             SceneKind::Garage => {
                 let (v, i) = crate::scene::hangar::hangar_scene_mesh();
                 // The workshop rig rakes a warm sun down through the skylights (real contact shadow
                 // on the turntable) over a dim, near-neutral shop interior.
-                (v, i, (0.05, 0.05, 0.06), SceneLighting::garage_workshop(), 0.0)
+                (v, i, (0.05, 0.05, 0.06), SceneLighting::garage_workshop(), 0.0, 0.0)
             }
             SceneKind::Battle => {
                 // The battle look is the MATCH's look: the server named the map and rolled the
@@ -120,7 +120,7 @@ impl ClientApp {
                     self.local_server.weather_variant(),
                 );
                 let (v, i) = battlefield_scene_mesh(&self.battlefield);
-                (v, i, look.sky, look.lighting, look.rain_intensity)
+                (v, i, look.sky, look.lighting, look.rain_intensity, look.wetness)
             }
         };
         // The river surface swaps with the scene: the battlefield's water (empty on dry maps),
@@ -139,6 +139,7 @@ impl ClientApp {
             }
             renderer.set_scene_lighting(lighting);
             renderer.set_rain_intensity(rain_intensity);
+            renderer.set_wetness(wetness);
             self.current_scene = want;
         }
     }
@@ -154,6 +155,7 @@ impl ClientApp {
             renderer.set_outdoor_sky(look.sky.0, look.sky.1, look.sky.2);
             renderer.set_scene_lighting(look.lighting);
             renderer.set_rain_intensity(look.rain_intensity);
+            renderer.set_wetness(look.wetness);
         }
     }
 

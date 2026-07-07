@@ -54,3 +54,11 @@ impl super::WindowRenderer {
         self.scene.rain_intensity = intensity.clamp(0.0, 1.0);
     }
 }
+
+impl super::WindowRenderer {
+    /// World wetness 0..1 from the weather look: darkens albedo, sharpens material finishes,
+    /// pools sheen on level ground (scene and vehicle shaders alike).
+    pub fn set_wetness(&mut self, wetness: f32) {
+        self.scene.wetness = wetness.clamp(0.0, 1.0);
+    }
+}
