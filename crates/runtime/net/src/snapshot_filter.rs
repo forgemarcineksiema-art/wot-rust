@@ -36,6 +36,14 @@ impl Snapshot {
                 .copied()
                 .filter(|impact| visible_ids.contains(&impact.owner) || impact.owner == viewer_tank)
                 .collect(),
+            // Wrecks are always visible (the hit_points == 0 rule above), so every detached-turret
+            // wreck the viewer can see rides through.
+            detached_turrets: self
+                .detached_turrets
+                .iter()
+                .copied()
+                .filter(|id| visible_ids.contains(id))
+                .collect(),
         }
     }
 

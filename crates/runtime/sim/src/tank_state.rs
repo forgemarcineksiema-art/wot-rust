@@ -55,6 +55,12 @@ pub struct TankState {
     /// pre-repair fixtures loading with fresh clocks.
     #[serde(default)]
     pub repair: crate::repair::CrewRepair,
+    /// Set once, at death, when an ammo-rack detonation killed the tank: the turret blew off. The
+    /// shell trace then skips this wreck's turret (see `shell_trace`), and the client flies the
+    /// turret on a ballistic arc. Pure consequence of the deterministic module damage — no RNG.
+    /// `serde(default)` keeps pre-v20 fixtures loading with the turret attached.
+    #[serde(default)]
+    pub turret_detached: bool,
 }
 
 fn default_ammo_counts() -> [u16; game_core::MAX_AMMO_SLOTS] {

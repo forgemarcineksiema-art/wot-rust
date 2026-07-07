@@ -14,6 +14,10 @@ mod snapshot_schedule;
 pub use frame::{FRAME_HEADER_LEN, FRAME_MAGIC, decode_frame, encode_frame};
 pub use snapshot_schedule::SnapshotSchedule;
 
+/// v20: `Snapshot` carries `detached_turrets` — the wrecks whose turret an ammo-rack detonation
+/// blew off. Re-sent every snapshot (so a late joiner converges), it drives the client's ballistic
+/// turret pop-off and matches the server's wreck trace, which now skips the detached turret.
+///
 /// v19: `DamageEvent` carries the struck plate's world normal and the shell's heading
 /// (`plate_normal`, `shell_direction`), so the client can seat impact marks flush on the visual
 /// armor instead of guessing a cardinal facing normal. Both are appended, `serde(default)`, so
@@ -22,7 +26,7 @@ pub use snapshot_schedule::SnapshotSchedule;
 /// v18: `ServerHello` names the match — `map_id` and `weather_variant` — so the client can
 /// deterministically rebuild the same battlefield the server simulates (the map itself is
 /// never sent) and dress it in the same sky. `ImpactSurface` gains `Water`.
-pub const PROTOCOL_VERSION: u16 = 19;
+pub const PROTOCOL_VERSION: u16 = 20;
 
 #[derive(Debug, Error)]
 pub enum NetError {
@@ -163,6 +167,12 @@ pub struct Snapshot {
     /// Shells absorbed without enemy damage (protocol v12): terrain, cover, wreck, or friendly
     /// hull. Lets the firing client mark where its shot died instead of it vanishing silently.
     pub shell_impacts: Vec<ShellImpact>,
+    /// Wrecks whose turret an ammo-rack detonation blew off (protocol v20). Derived fresh from the
+    /// full sim state every snapshot, so a late joiner converges on the same decapitated wrecks;
+    /// the client starts (or, on join, resolves) the ballistic turret pop-off from this list.
+    /// `serde(default)` keeps pre-v20 fixtures loading with every turret attached.
+    #[serde(default)]
+    pub detached_turrets: Vec<TankId>,
 }
 
 impl From<&SimulationState> for Snapshot {
@@ -173,6 +183,12 @@ impl From<&SimulationState> for Snapshot {
             shells: state.shells().iter().map(ShellSnapshot::from).collect(),
             damage_events: state.damage_events().to_vec(),
             shell_impacts: state.shell_impacts().to_vec(),
+            detached_turrets: state
+                .tanks()
+                .iter()
+                .filter(|tank| tank.turret_detached)
+                .map(|tank| tank.id)
+                .collect(),
         }
     }
 }

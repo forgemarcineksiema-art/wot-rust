@@ -40,5 +40,6 @@ pub(crate) fn fresh_tank(
         spotted_mask: 0,
         submerged_s: 0.0,
         repair: crate::repair::CrewRepair::default(),
+        turret_detached: false,
     }
 }
