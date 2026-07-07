@@ -8,6 +8,7 @@ mod drowning;
 mod landing;
 mod module_hit;
 mod ramming;
+mod repair;
 mod replay;
 mod shell;
 mod shell_splash;
@@ -31,6 +32,7 @@ pub use command::TankCommand;
 pub use drive_modules::{DriveModuleStatus, TrackDriveStatus};
 pub use drowning::{DROWN_DEPTH_M, DROWN_PULSE_INTERVAL_S, ENGINE_FLOOD_S};
 pub use landing::SAFE_LANDING_MPS;
+pub use repair::{CrewRepair, MODULE_PATCH_FRACTION, MODULE_PATCH_S, TRACK_REPAIR_S};
 pub use replay::{Replay, ReplayExpected, ReplayFrame, ReplayReport, ReplaySpawn, run_replay};
 pub use shell::ShellState;
 pub use shell_trace::{

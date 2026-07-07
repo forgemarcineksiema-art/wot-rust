@@ -19,12 +19,14 @@ use crate::bot_aim::BotFiringSolution;
 pub(crate) fn bot_nearest_engageable_enemy<'a>(
     tank: &TankState,
     tanks: &'a [TankState],
+    exclude: Option<TankId>,
     heightmap: Option<&terrain::HeightMap>,
     cover: &[terrain::StaticCoverObject],
 ) -> Option<&'a TankState> {
     let mut best: Option<(&TankState, f32)> = None;
     for target in tanks {
-        if target.team == tank.team
+        if Some(target.id) == exclude
+            || target.team == tank.team
             || target.hit_points == 0
             || target.spotted_mask & tank.team.spotting_bit() == 0
         {
@@ -95,6 +97,7 @@ mod tests {
                 &observer,
                 &[observer.clone(), unspotted_enemy],
                 None,
+                None,
                 &[]
             )
             .is_none(),
@@ -123,15 +126,20 @@ mod tests {
             half_extents_m: [20.0, 10.0, 2.0],
         };
 
-        let blocked =
-            bot_nearest_engageable_enemy(&observer, &tanks, None, std::slice::from_ref(&wall));
+        let blocked = bot_nearest_engageable_enemy(
+            &observer,
+            &tanks,
+            None,
+            None,
+            std::slice::from_ref(&wall),
+        );
         assert_eq!(
             blocked.map(|target| target.id),
             Some(TankId(3)),
             "a nearer but occluded enemy must fall through to a farther visible one"
         );
 
-        let clear = bot_nearest_engageable_enemy(&observer, &tanks, None, &[]);
+        let clear = bot_nearest_engageable_enemy(&observer, &tanks, None, None, &[]);
         assert_eq!(
             clear.map(|target| target.id),
             Some(TankId(2)),

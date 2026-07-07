@@ -51,10 +51,126 @@ pub(crate) fn bot_route_command(
     match posture {
         BotPosture::Skirmish => {
             let target = bot_route_target(route_index, tank.team, tank.position, battlefield);
-            bot_drive_toward(tank, target)
+            bot_drive_toward(tank, water_safe_target(tank, target, battlefield))
         }
         BotPosture::Overwatch => bot_overwatch_command(tank, battlefield),
     }
+}
+
+// --- Water awareness -------------------------------------------------------------------------
+// The river is a real decision (the current drowns), so the route brain must make it: a bot
+// whose straight line to its objective runs through deep water detours through the nearest
+// authored Crossing point instead of driving into the channel. Dry maps never enter this code —
+// every helper returns "safe" the moment there is no water body.
+
+/// Deeper than this and the route brain treats the water as impassable. Sits between the ford
+/// contract ceiling (`physics::water::FORD_MAX_DEPTH_M` = 0.9 — bots MUST still take fords)
+/// and the drowning line (`sim::DROWN_DEPTH_M` = 1.5); the Bystra channel is >= 2.2 m outside
+/// the crossings, so any value in between separates cleanly.
+const BOT_DEEP_WATER_M: f32 = 1.2;
+/// Sampling step when checking the drive line for deep water (finer than any crossing's deck).
+const WATER_PROBE_STEP_M: f32 = 12.0;
+/// How far past a crossing's centre the exit waypoint sits — beyond the far bank of a
+/// 30-40 m river, so the bot commits across the deck instead of stalling mid-crossing.
+const CROSSING_EXIT_M: f32 = 45.0;
+
+/// True when the hull already stands past the route brain's deep-water line — the survival
+/// check `bots.rs` runs before anything else.
+pub(crate) fn bot_in_deep_water(tank: &TankState, battlefield: &BattlefieldMap) -> bool {
+    water_depth_at(battlefield, tank.position.x, tank.position.z) > BOT_DEEP_WATER_M
+}
+
+/// Standing-water depth under a world point; 0 on dry maps, off-map, or above the waterline.
+pub(crate) fn water_depth_at(battlefield: &BattlefieldMap, x: f32, z: f32) -> f32 {
+    match (battlefield.water, battlefield.heightmap.sample_height(x, z)) {
+        (Some(water), Some(ground)) => water.depth_over(ground).max(0.0),
+        _ => 0.0,
+    }
+}
+
+/// True when the straight drive line from `from` to `to` runs through deep water.
+fn line_crosses_deep_water(battlefield: &BattlefieldMap, from: Vec3, to: Vec3) -> bool {
+    if battlefield.water.is_none() {
+        return false;
+    }
+    let span = to - from;
+    let length = span.length();
+    if length < 1.0 {
+        return false;
+    }
+    let steps = (length / WATER_PROBE_STEP_M).ceil() as usize;
+    (1..=steps).any(|step| {
+        let point = from + span * (step as f32 / steps as f32);
+        water_depth_at(battlefield, point.x, point.z) > BOT_DEEP_WATER_M
+    })
+}
+
+/// The waypoint that actually gets driven at: the objective itself when the straight line is
+/// dry, otherwise the nearest authored Crossing (by total detour length) — and once the bot is
+/// on the crossing, an exit point past the far bank so it commits across the deck.
+fn water_safe_target(tank: &TankState, target: Vec3, battlefield: &BattlefieldMap) -> Vec3 {
+    bot_lane(tank, water_safe_waypoint(tank, target, battlefield), battlefield)
+}
+
+/// Spread the column: each bot aims a deterministic sideways lane off the shared waypoint, so
+/// two bots bound for the same objective stop fighting for the same line forever (the
+/// spawn-funnel deadlock: wedge, back out, drive straight back into the same contact). Lanes
+/// converge inside arrival range, and a lane that would land in deep water collapses back to
+/// the waypoint itself (crossing decks are narrower than the spread).
+fn bot_lane(tank: &TankState, waypoint: Vec3, battlefield: &BattlefieldMap) -> Vec3 {
+    let span = waypoint - tank.position;
+    let flat = Vec3::new(span.x, 0.0, span.z);
+    if flat.length() < 35.0 {
+        return waypoint;
+    }
+    let side = Vec3::new(flat.z, 0.0, -flat.x).normalize_or_zero();
+    let lane = ((tank.id.0 % 5) as f32 - 2.0) * 9.0;
+    let candidate = waypoint + side * lane;
+    if water_depth_at(battlefield, candidate.x, candidate.z) > BOT_DEEP_WATER_M {
+        return waypoint;
+    }
+    candidate
+}
+
+fn water_safe_waypoint(tank: &TankState, target: Vec3, battlefield: &BattlefieldMap) -> Vec3 {
+    if !line_crosses_deep_water(battlefield, tank.position, target) {
+        return target;
+    }
+    let crossings =
+        battlefield.strategic_points.iter().filter(|point| point.role == StrategicRole::Crossing);
+    let Some(crossing) = crossings.min_by(|a, b| {
+        let detour = |point: &StrategicPoint| {
+            let position = Vec3::from_array(point.position);
+            tank.position.distance(position) + position.distance(target)
+        };
+        detour(a).total_cmp(&detour(b))
+    }) else {
+        // A map with deep water but no authored crossing: stop short of the channel.
+        return tank.position;
+    };
+    let center = Vec3::from_array(crossing.position);
+    if tank.position.distance(center) > crossing.radius_m.max(20.0) {
+        return center;
+    }
+    // On the crossing: aim past the far bank. The deck's dry direction is discovered by
+    // probing, not assumed, so any future map's crossing orientation works unedited.
+    crossing_exit(center, target, battlefield)
+}
+
+/// The dry exit waypoint on the target's side of a crossing: of the four axis-aligned
+/// candidates past the deck, keep the dry ones and take the one nearest the objective.
+fn crossing_exit(center: Vec3, target: Vec3, battlefield: &BattlefieldMap) -> Vec3 {
+    let candidates = [
+        center + Vec3::X * CROSSING_EXIT_M,
+        center - Vec3::X * CROSSING_EXIT_M,
+        center + Vec3::Z * CROSSING_EXIT_M,
+        center - Vec3::Z * CROSSING_EXIT_M,
+    ];
+    candidates
+        .into_iter()
+        .filter(|point| water_depth_at(battlefield, point.x, point.z) <= BOT_DEEP_WATER_M)
+        .min_by(|a, b| a.distance_squared(target).total_cmp(&b.distance_squared(target)))
+        .unwrap_or(center)
 }
 
 /// Drive to the nearest own-side hull-down/high-ground point; once inside its radius, swing the
@@ -64,11 +180,11 @@ fn bot_overwatch_command(tank: &TankState, battlefield: &BattlefieldMap) -> Tank
         // A map without authored overwatch ground: fall back to standing pressure mid-map.
         let center =
             Vec3::new(battlefield.size_m[0] * 0.5, tank.position.y, battlefield.size_m[1] * 0.5);
-        return bot_drive_toward(tank, center);
+        return bot_drive_toward(tank, water_safe_target(tank, center, battlefield));
     };
     let target = Vec3::from_array(point.position);
     if tank.position.distance(target) > point.radius_m.max(20.0) {
-        return bot_drive_toward(tank, target);
+        return bot_drive_toward(tank, water_safe_target(tank, target, battlefield));
     }
     // On station. Face the field, then hold — a hull-down shelf only works bow-on.
     let field_center =
@@ -262,6 +378,59 @@ mod tests {
         let pivot = bot_route_command(&mut route_index, BotPosture::Overwatch, &tank, &map);
         assert!(pivot.steer.abs() > 0.0, "a shelf only works bow-on: the bot swings its hull");
         assert!(pivot.throttle > 0.0 && pivot.throttle < 0.5, "a pivot creeps, not charges");
+    }
+
+    /// The river is a route decision, not a grave: a bot bound for the far bank must detour
+    /// through an authored Crossing instead of driving into the drowning channel.
+    #[test]
+    fn a_bot_bound_across_the_river_detours_through_a_crossing() {
+        let map = terrain::bystra_valley();
+        // z=420 runs between the crossings (bridge z=500, ford z=320): open channel only.
+        // Tank id 2: lane offset 0, so waypoints compare exactly.
+        let west = crate::bots::test_support::tank_at(2, TeamId(1), Vec3::new(430.0, 8.0, 420.0));
+        let town = Vec3::new(720.0, 10.0, 420.0);
+
+        assert!(
+            line_crosses_deep_water(&map, west.position, town),
+            "the straight line to the town must cross the channel (test premise)"
+        );
+        let waypoint = water_safe_target(&west, town, &map);
+        let nearest_crossing = map
+            .strategic_points
+            .iter()
+            .filter(|point| point.role == StrategicRole::Crossing)
+            .map(|point| Vec3::from_array(point.position).distance(waypoint))
+            .fold(f32::MAX, f32::min);
+        assert!(
+            nearest_crossing < 1.0,
+            "the detour waypoint must be an authored crossing, got {waypoint:?}"
+        );
+
+        // On the crossing itself the waypoint commits PAST the far bank (dry, on the town's
+        // side), so the bot crosses the deck instead of stalling on its own waypoint.
+        let bridge = map
+            .strategic_points
+            .iter()
+            .find(|point| point.id == "stone_bridge")
+            .expect("authored bridge");
+        let on_deck =
+            crate::bots::test_support::tank_at(7, TeamId(1), Vec3::from_array(bridge.position));
+        let exit = water_safe_target(&on_deck, town, &map);
+        assert!(exit.x > bridge.position[0] + 20.0, "the exit sits on the town side: {exit:?}");
+        assert!(
+            water_depth_at(&map, exit.x, exit.z) <= BOT_DEEP_WATER_M,
+            "the exit waypoint must be drivable"
+        );
+    }
+
+    /// A dry map never pays for water awareness: the safe target IS the target.
+    #[test]
+    fn dry_maps_route_exactly_as_before() {
+        let map = battlefield();
+        // Tank id 2: lane offset 0 (the lane spread itself is water-aware, tested above).
+        let tank = crate::bots::test_support::tank_at(2, TeamId(1), Vec3::new(300.0, 8.0, 300.0));
+        let target = Vec3::new(700.0, 8.0, 700.0);
+        assert_eq!(water_safe_target(&tank, target, &map), target);
     }
 
     #[test]
