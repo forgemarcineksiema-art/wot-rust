@@ -4,7 +4,6 @@ use server::{
     RandomBattleConfig, ServerTickConfig,
 };
 use sim::TankCommand;
-use terrain::prokhorovka_hill_252_2;
 
 #[test]
 fn random_7v7_spawns_fourteen_tanks_with_player_on_team_one() {
@@ -78,7 +77,9 @@ fn random_7v7_uses_map_spawn_zones_and_facing_yaw() {
         ServerTickConfig::new(60, 20),
         RandomBattleConfig::new(BattleSeed::fixed(7), game_core::VehicleKind::T54_1951),
     );
-    let map = prokhorovka_hill_252_2();
+    // The zones must come from the map the server actually spawned on (MapId::default()),
+    // not a hardcoded one — this assertion went red the day the default flipped to Bystra.
+    let map = server.map_id().battlefield();
     let snapshot = server.latest_snapshot();
 
     for tank in &snapshot.tanks {
