@@ -1,6 +1,6 @@
 use renderer_api::{MeshAsset, MeshHandle, RenderError, RenderFrame, RenderSettings, SceneVertex};
 
-use crate::msaa::validate_msaa_support;
+use crate::msaa::{resolve_msaa_samples, validate_msaa_support};
 use crate::offscreen::DEPTH_FORMAT;
 use crate::select_present_mode;
 use crate::{GpuContext, SceneRenderTarget, SceneRenderer};
@@ -60,8 +60,19 @@ impl WindowRenderer {
         if let Some(srgb) = caps.formats.iter().copied().find(wgpu::TextureFormat::is_srgb) {
             config.format = srgb;
         }
-        config.present_mode = select_present_mode(&caps.present_modes);
-        let sample_count = u32::from(settings.msaa_samples);
+        // `WOT_VSYNC=0` lets a sub-refresh machine trade FIFO's judder+latency for
+        // present-as-ready; the settings default stays vsync.
+        let vsync = std::env::var("WOT_VSYNC").map_or(settings.vsync, |value| value.trim() != "0");
+        config.present_mode = select_present_mode(&caps.present_modes, vsync);
+        // One frame in flight, not wgpu's default two: the second queued frame is a whole extra
+        // frame of input latency — at a GPU-bound laptop's 25 FPS that is 40 ms more mush
+        // between the stick and the screen, for no smoothness in return.
+        config.desired_maximum_frame_latency = 1;
+        let sample_count = resolve_msaa_samples(
+            settings.msaa_samples,
+            ctx.adapter.get_info().device_type,
+            std::env::var("WOT_MSAA").ok().as_deref(),
+        );
         validate_msaa_support(&ctx, config.format, DEPTH_FORMAT, sample_count)?;
         surface.configure(&ctx.device, &config);
 
