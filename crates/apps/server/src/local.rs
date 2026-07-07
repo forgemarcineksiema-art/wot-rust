@@ -162,11 +162,14 @@ impl LocalAuthoritativeServer {
             input.tank_id,
             if battle_over { sim::TankCommand::idle() } else { input.command },
         ));
+        // The bots read LAST tick's damage events (cleared on the next sim step): the honest
+        // "we just got hit" signal that lets a blind bot turn toward the fire.
         commands.extend(self.bots.commands(
             self.sim.tick(),
             self.sim.tanks(),
             &self.battlefield,
             battle_over,
+            self.sim.damage_events(),
         ));
 
         self.sim.apply_commands_on_battlefield(
