@@ -19,9 +19,10 @@ fn registry_builds_every_map_deterministically() {
 }
 
 #[test]
-fn default_map_is_prokhorovka() {
-    // The pre-registry world had exactly one hardcoded map; the default keeps every legacy
-    // entry point (practice duel, garage battles, tools) on the same battlefield.
-    assert_eq!(MapId::default(), MapId::ProkhorovkaHill252_2);
-    assert_eq!(MapId::default().battlefield().id, "prokhorovka_hill_252_2");
+fn default_map_is_the_bystra_valley() {
+    // The game PLAYS the valley: every entry point (practice duel, garage battles, tools)
+    // lands on Bystra unless `WOT_MAP` explicitly overrides. Prokhorovka stays registered as
+    // the test substrate (replay fixtures were recorded on it) but is out of the rotation.
+    assert_eq!(MapId::default(), MapId::BystraValley);
+    assert_eq!(MapId::default().battlefield().id, "bystra_valley");
 }

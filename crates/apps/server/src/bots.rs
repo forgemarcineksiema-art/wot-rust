@@ -17,6 +17,11 @@ const STALL_PROGRESS_EPS_M: f32 = 0.01;
 const STALL_TICKS_TO_REVERSE: u32 = 90;
 /// How long a stuck bot backs out before resuming its route (~1.3 s, a few hull-lengths' arc).
 const REVERSE_TICKS: u32 = 80;
+/// After the back-out the bot drives ~2 s on a sideways arc before resuming its route: the
+/// route brain steers straight at the waypoint, so without the sidestep a bot wedged on a
+/// parked hull (or a corner) reverses and drives right back into the same contact forever —
+/// the spawn-cluster deadlock. The arc's side alternates per attempt, so both ways get tried.
+const SIDESTEP_TICKS: u32 = 120;
 
 /// The expensive halves of the bot brain run on cadences, not every tick. Target selection
 /// (the only per-bot LOS raycasts) re-runs every 6 ticks — the spotting recompute interval,
@@ -27,6 +32,19 @@ const REVERSE_TICKS: u32 = 80;
 /// all 13 bots think in the same tick — the difference between a level cost and a spike.
 const TARGET_RESELECT_INTERVAL_TICKS: u64 = 6;
 const AIM_SOLVE_INTERVAL_TICKS: u64 = 3;
+
+/// Ticks of shooting at one target with its hit points unmoved before the duel is declared
+/// futile (12 s — a full reload cycle and then some of shells eating a crest or a bank).
+/// Combat preempts the route, so without this a hull-down standoff parks both teams for the
+/// whole battle (the seed-23 stalemate: shells in flight forever, zero damage after t=22 s).
+const FUTILE_ENGAGE_TICKS: u32 = 720;
+/// How long a futile target stays blacklisted for THIS bot (20 s): long enough to actually
+/// drive somewhere better, short enough to re-engage from the new angle.
+const FUTILE_TARGET_HOLD_TICKS: u32 = 1200;
+/// After a futile duel the bot DRIVES for this long with combat suppressed (8 s). Swapping
+/// targets is not enough — on an open flank a second futile enemy is always visible, and the
+/// one-tick route command between duels moves the hull nowhere.
+const REPOSITION_TICKS: u32 = 480;
 
 /// True on the ticks where `tank_id`'s slice of periodic work is due (deterministic stagger).
 fn cadence_due(tick: u64, tank_id: TankId, interval: u64) -> bool {
@@ -49,10 +67,22 @@ struct BotAgent {
     target: Option<TankId>,
     /// The cached ballistic lay against `target`, recomputed on the solve cadence.
     solution: Option<BotFiringSolution>,
+    /// Futility watch on the engaged target: its hit points when the watch started and how
+    /// long they have not moved. Progress (anyone damaging it) resets the clock.
+    futile_watch: Option<(TankId, u32, u32)>,
+    /// A target this bot walked away from, and the ticks left before it may re-engage it.
+    futile_hold: Option<(TankId, u32)>,
+    /// Remaining ticks of combat-suppressed driving after a futile duel.
+    reposition_ticks: u32,
+    /// Remaining ticks of the post-back-out sideways arc.
+    sidestep_ticks: u32,
+    /// Which side the next escape maneuver arcs toward; flipped per attempt.
+    escape_left: bool,
 }
 
 impl BotAgent {
     fn new(tank_id: TankId, route_index: usize, posture: BotPosture) -> Self {
+        let escape_left = tank_id.0.is_multiple_of(2);
         Self {
             tank_id,
             route_index,
@@ -62,6 +92,11 @@ impl BotAgent {
             reverse_ticks: 0,
             target: None,
             solution: None,
+            futile_watch: None,
+            futile_hold: None,
+            reposition_ticks: 0,
+            sidestep_ticks: 0,
+            escape_left,
         }
     }
 }
@@ -126,21 +161,68 @@ fn bot_command_for_tank(
     tanks: &[TankState],
     battlefield: &BattlefieldMap,
 ) -> TankCommand {
-    if let Some(target) = bot_current_target(agent, tick, tank, tanks, battlefield) {
-        // Standing to shoot is intentional, not a stall.
+    // Survival preempts everything, combat included: a hull past the route brain's deep-water
+    // line is heading for a flooded engine — back out the way it came before doing anything
+    // else. Fords (<= 0.9 m) never trip this; the escape resets the stall counter so the slow
+    // wade out is not misread as being stuck.
+    if crate::bot_routes::bot_in_deep_water(tank, battlefield) {
         agent.stall_ticks = 0;
         agent.last_position = Some(tank.position);
-        let solve_due = match &agent.solution {
-            Some(solution) if solution.target == target.id => {
-                cadence_due(tick, tank.id, AIM_SOLVE_INTERVAL_TICKS)
-            }
-            _ => true,
-        };
-        if solve_due {
-            agent.solution = Some(solve_firing_solution(tank, target));
+        return bot_reverse_command(agent.escape_left);
+    }
+    // The futile-target hold runs down whether fighting or driving.
+    if let Some((_, ticks)) = &mut agent.futile_hold {
+        *ticks = ticks.saturating_sub(1);
+        if *ticks == 0 {
+            agent.futile_hold = None;
         }
-        let solution = agent.solution.expect("solution cached above");
-        return bot_combat_command(tank, &solution);
+    }
+    let repositioning = agent.reposition_ticks > 0;
+    if repositioning {
+        agent.reposition_ticks -= 1;
+    }
+    if !repositioning
+        && let Some(target) = bot_current_target(agent, tick, tank, tanks, battlefield)
+    {
+        // A duel that changes nothing is a parked bot: shells eating a crest or a bank while
+        // combat preempts the route for the whole battle. When the target's hit points have
+        // not moved for the whole futility window, walk away — combat is suppressed for the
+        // reposition window so the hull actually relocates, and the hold keeps this bot from
+        // re-locking the same enemy the moment it stops.
+        let futile = match agent.futile_watch {
+            Some((id, hp, ticks)) if id == target.id && hp == target.hit_points => {
+                agent.futile_watch = Some((id, hp, ticks + 1));
+                ticks + 1 >= FUTILE_ENGAGE_TICKS
+            }
+            _ => {
+                agent.futile_watch = Some((target.id, target.hit_points, 0));
+                false
+            }
+        };
+        if futile {
+            agent.futile_hold = Some((target.id, FUTILE_TARGET_HOLD_TICKS));
+            agent.futile_watch = None;
+            agent.reposition_ticks = REPOSITION_TICKS;
+            agent.target = None;
+            agent.solution = None;
+        } else {
+            // Standing to shoot is intentional, not a stall.
+            agent.stall_ticks = 0;
+            agent.last_position = Some(tank.position);
+            let solve_due = match &agent.solution {
+                Some(solution) if solution.target == target.id => {
+                    cadence_due(tick, tank.id, AIM_SOLVE_INTERVAL_TICKS)
+                }
+                _ => true,
+            };
+            if solve_due {
+                agent.solution = Some(solve_firing_solution(tank, target));
+            }
+            let solution = agent.solution.expect("solution cached above");
+            return bot_combat_command(tank, &solution);
+        }
+    } else if !repositioning {
+        agent.futile_watch = None;
     }
     agent.solution = None;
     let posture = agent.posture;
@@ -169,7 +251,17 @@ fn bot_unstuck_command(agent: &mut BotAgent, tank: &TankState) -> Option<TankCom
     agent.last_position = Some(tank.position);
     if agent.reverse_ticks > 0 {
         agent.reverse_ticks -= 1;
-        return Some(bot_reverse_command(tank));
+        if agent.reverse_ticks == 0 {
+            // Back-out done: arc sideways before the route brain aims straight back at the
+            // waypoint (and straight back into whatever the bot was wedged on).
+            agent.sidestep_ticks = SIDESTEP_TICKS;
+        }
+        return Some(bot_reverse_command(agent.escape_left));
+    }
+    if agent.sidestep_ticks > 0 {
+        agent.sidestep_ticks -= 1;
+        let steer = if agent.escape_left { 0.55 } else { -0.55 };
+        return Some(TankCommand { throttle: 0.75, steer, ..TankCommand::idle() });
     }
     if moved_m < STALL_PROGRESS_EPS_M {
         agent.stall_ticks += 1;
@@ -179,7 +271,9 @@ fn bot_unstuck_command(agent: &mut BotAgent, tank: &TankState) -> Option<TankCom
     if agent.stall_ticks >= STALL_TICKS_TO_REVERSE {
         agent.stall_ticks = 0;
         agent.reverse_ticks = REVERSE_TICKS;
-        return Some(bot_reverse_command(tank));
+        // A new escape attempt tries the other side than the last one.
+        agent.escape_left = !agent.escape_left;
+        return Some(bot_reverse_command(agent.escape_left));
     }
     None
 }
@@ -195,14 +289,18 @@ fn bot_current_target<'a>(
     tanks: &'a [TankState],
     battlefield: &BattlefieldMap,
 ) -> Option<&'a TankState> {
+    // The futile hold: this bot walked away from that duel — the held enemy is out of the
+    // candidate pool entirely, so a second visible enemy can still be fought.
+    let held = agent.futile_hold.map(|(id, _)| id);
     let cached = agent
         .target
         .and_then(|id| find_tank(tanks, id))
-        .filter(|target| bot_target_still_engageable(tank, target));
+        .filter(|target| Some(target.id) != held && bot_target_still_engageable(tank, target));
     let target = if cached.is_none() || cadence_due(tick, tank.id, TARGET_RESELECT_INTERVAL_TICKS) {
         bot_nearest_engageable_enemy(
             tank,
             tanks,
+            held,
             Some(&battlefield.heightmap),
             &battlefield.static_cover,
         )
@@ -213,8 +311,8 @@ fn bot_current_target<'a>(
     target
 }
 
-fn bot_reverse_command(tank: &TankState) -> TankCommand {
-    let steer = if tank.id.0.is_multiple_of(2) { 0.45 } else { -0.45 };
+fn bot_reverse_command(left: bool) -> TankCommand {
+    let steer = if left { 0.45 } else { -0.45 };
     TankCommand {
         throttle: -0.7,
         steer,
@@ -266,6 +364,7 @@ pub(crate) mod test_support {
             selected_ammo,
             spotted_mask,
             submerged_s: 0.0,
+            repair: sim::CrewRepair::default(),
         }
     }
 
@@ -396,6 +495,25 @@ mod tests {
             Some(first.id),
             "a dead target is dropped and replaced the same tick"
         );
+    }
+
+    /// Survival preempts everything: a hull past the deep-water line backs out immediately —
+    /// it does not stand and fight, and it does not wait out the stall counter while flooding.
+    #[test]
+    fn a_bot_in_deep_water_backs_out_before_anything_else() {
+        let battlefield = terrain::bystra_valley();
+        // Mid-channel, away from every crossing window (bridge z=500±45, fords z=500±180±40).
+        let x = terrain::bystra_river_center_x(400.0);
+        let ground = battlefield.heightmap.sample_height(x, 400.0).expect("in the map");
+        let bot = test_support::tank_at(1, TeamId(1), Vec3::new(x, ground, 400.0));
+        assert!(
+            crate::bot_routes::bot_in_deep_water(&bot, &battlefield),
+            "mid-channel must read as deep (test premise)"
+        );
+
+        let mut roster = BotRoster::new(vec![bot.id], BattleSeed::fixed(7));
+        let command = roster.commands(0, std::slice::from_ref(&bot), &battlefield, false)[0].1;
+        assert!(command.throttle < 0.0, "a drowning bot reverses out, got {command:?}");
     }
 
     #[test]

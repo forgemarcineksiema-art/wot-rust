@@ -42,6 +42,11 @@ impl TrackDamageMask {
         self.0 |= Self::BOTH_BITS;
     }
 
+    /// Crew repair: the side is whole again (see `sim::repair` for the timing).
+    pub fn repair(&mut self, side: TrackSide) {
+        self.0 &= !side.bit();
+    }
+
     pub const fn all_broken(self) -> bool {
         self.0 & Self::BOTH_BITS == Self::BOTH_BITS
     }

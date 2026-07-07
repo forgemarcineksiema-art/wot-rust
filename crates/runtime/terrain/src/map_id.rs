@@ -9,10 +9,14 @@ use crate::prokhorovka::prokhorovka_hill_252_2;
 /// The battlefield itself is never networked: server and client each run the same
 /// deterministic generator, so agreeing on a `MapId` is what keeps their worlds identical.
 /// The variant order is wire identity (bincode discriminants) — append, never reorder.
+///
+/// The default is the map the game PLAYS. Prokhorovka stays in the registry as the test
+/// substrate (replay fixtures and contract tests were recorded on it — determinism proof),
+/// but every battle runs on the Bystra valley unless `WOT_MAP` explicitly says otherwise.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum MapId {
-    #[default]
     ProkhorovkaHill252_2,
+    #[default]
     BystraValley,
 }
 

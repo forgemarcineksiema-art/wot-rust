@@ -39,5 +39,6 @@ pub(crate) fn fresh_tank(
         selected_ammo,
         spotted_mask: 0,
         submerged_s: 0.0,
+        repair: crate::repair::CrewRepair::default(),
     }
 }

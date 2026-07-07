@@ -170,6 +170,7 @@ impl SimulationState {
         for tank in &mut self.tanks {
             tank.reload_remaining_s = (tank.reload_remaining_s - dt).max(0.0);
             recover_aim_dispersion(tank, dt);
+            crate::repair::step_crew_repair(tank, dt);
         }
 
         // Tank-vs-tank obstacles in lockstep with the sequential update: built once from the

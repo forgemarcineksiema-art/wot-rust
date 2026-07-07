@@ -51,6 +51,20 @@ impl ModuleHealth {
         self.hit_points(slot) > 0
     }
 
+    /// Crew field repair: raise a slot to `hp` if it currently sits below it. Never lowers —
+    /// a running module is not "repaired" down to the patch level.
+    pub fn restore_to(&mut self, slot: ModuleSlot, hp: u32) {
+        let live = match slot {
+            ModuleSlot::Engine => &mut self.engine,
+            ModuleSlot::Suspension => &mut self.suspension,
+            ModuleSlot::Turret => &mut self.turret,
+            ModuleSlot::Gun => &mut self.gun,
+            ModuleSlot::AmmoRack => &mut self.ammo_rack,
+            ModuleSlot::Radio => &mut self.radio,
+        };
+        *live = (*live).max(hp);
+    }
+
     /// Apply `amount` damage to a slot, saturating at zero.
     pub fn damage(&mut self, slot: ModuleSlot, amount: u32) {
         let hp = match slot {

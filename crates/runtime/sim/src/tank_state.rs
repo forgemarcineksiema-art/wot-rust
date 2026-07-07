@@ -51,6 +51,10 @@ pub struct TankState {
     /// the tick it leaves. `serde(default)` keeps pre-water fixtures loading dry.
     #[serde(default)]
     pub submerged_s: f32,
+    /// Crew repair clocks for the mobility systems (see `repair`). `serde(default)` keeps
+    /// pre-repair fixtures loading with fresh clocks.
+    #[serde(default)]
+    pub repair: crate::repair::CrewRepair,
 }
 
 fn default_ammo_counts() -> [u16; game_core::MAX_AMMO_SLOTS] {
