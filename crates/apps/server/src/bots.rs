@@ -448,7 +448,7 @@ pub(crate) mod test_support {
             reload_remaining_s: 0.0,
             aim_dispersion_mrad: 0.0,
             dispersion_shot_index: 0,
-            tracks: game_core::TrackDamageMask::healthy(),
+            tracks: game_core::TrackHealth::healthy(),
             modules,
             ammo_counts,
             selected_ammo,

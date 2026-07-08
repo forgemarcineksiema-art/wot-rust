@@ -1,6 +1,7 @@
 use bincode::Options;
 use game_core::{
-    DamageEvent, MODULE_SLOT_COUNT, ShellImpact, TankId, TeamId, VehicleKind, WeatherVariant,
+    DamageEvent, MODULE_SLOT_COUNT, ShellImpact, TRACK_HP_MAX, TankId, TeamId, VehicleKind,
+    WeatherVariant,
 };
 use serde::{Deserialize, Serialize};
 use sim::{SimulationState, TankCommand, TankState};
@@ -14,6 +15,12 @@ mod snapshot_schedule;
 pub use frame::{FRAME_HEADER_LEN, FRAME_MAGIC, decode_frame, encode_frame};
 pub use snapshot_schedule::SnapshotSchedule;
 
+/// v22: `TankSnapshot` carries `track_hp` — the graded per-side track pool `[left, right]` — so
+/// the client predictor drives the same damaged-track mobility the server does (the broken-only
+/// `track_damage_mask` cannot express the Damaged tier). `DamageEvent` carries `track_hit` — which
+/// side a shell struck and whether it threw the track — so the client can call it out, log it and
+/// sound it. Both appended, `serde(default)`, a pure wire-layout extension.
+///
 /// v21: `Snapshot` carries `cover_states` — one phase byte per static-cover object (intact /
 /// rubble / gone), so the client can draw collapsed buildings and cleared foliage. Global world
 /// state, re-sent every snapshot (a late joiner converges), index-aligned with the map's cover.
@@ -30,7 +37,7 @@ pub use snapshot_schedule::SnapshotSchedule;
 /// v18: `ServerHello` names the match — `map_id` and `weather_variant` — so the client can
 /// deterministically rebuild the same battlefield the server simulates (the map itself is
 /// never sent) and dress it in the same sky. `ImpactSurface` gains `Water`.
-pub const PROTOCOL_VERSION: u16 = 21;
+pub const PROTOCOL_VERSION: u16 = 22;
 
 #[derive(Debug, Error)]
 pub enum NetError {
@@ -70,6 +77,12 @@ pub struct ClientVehicleSelection {
     pub requested_vehicle: VehicleKind,
 }
 
+/// Serde default for `TankSnapshot::track_hp`: a full pool both sides (pre-v22 fixtures had no
+/// track HP, so they load as healthy rather than as a phantom double-broken hull).
+fn full_track_hp() -> [u8; 2] {
+    [TRACK_HP_MAX; 2]
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TankSnapshot {
     pub tank_id: TankId,
@@ -96,8 +109,14 @@ pub struct TankSnapshot {
     pub module_hit_points: [u32; MODULE_SLOT_COUNT],
     /// Bitset of destroyed modules in `ModuleSlot::ALL` order.
     pub destroyed_modules_mask: u8,
-    /// Side-specific track damage bitset; see `TrackDamageMask`.
+    /// Side-specific *broken* track bitset (derived from the HP pool); see `TrackDamageMask`.
+    /// A side appears here exactly when its pool is at zero.
     pub track_damage_mask: u8,
+    /// Graded per-side track HP `[left, right]` (protocol v22) — the Damaged-tier state the broken
+    /// mask cannot carry, so the predictor drives the same degraded mobility as the server.
+    /// `serde(default)` (full pool) keeps pre-v22 fixtures loading healthy.
+    #[serde(default = "full_track_hp")]
+    pub track_hp: [u8; 2],
     /// Rounds remaining per ammo slot, `GunSpec::ammo_options()` order (protocol v15).
     pub ammo_counts: [u16; game_core::MAX_AMMO_SLOTS],
     /// The ammo slot the next shot fires from (protocol v15).
@@ -137,7 +156,8 @@ impl From<&TankState> for TankSnapshot {
             aim_dispersion_mrad: tank.aim_dispersion_mrad,
             module_hit_points: tank.modules.hit_points_by_slot(),
             destroyed_modules_mask: tank.modules.destroyed_mask(),
-            track_damage_mask: tank.tracks.bits(),
+            track_damage_mask: tank.tracks.broken_mask().bits(),
+            track_hp: tank.tracks.hp_pair(),
             ammo_counts: tank.ammo_counts,
             selected_ammo: tank.selected_ammo,
             spotted_by_teams_mask: tank.spotted_mask,

@@ -130,6 +130,9 @@ pub(crate) fn apply_shell_impact(
         // the plate's true world normal (from the armor-volume trace) and the shell's heading.
         plate_normal,
         shell_direction: shell.velocity_mps.normalize_or_zero(),
+        // Populated with the struck side + throw once the graded track model lands; the plumbing
+        // refactor keeps it None so the drive and replays stay bit-identical.
+        track_hit: None,
     }
 }
 

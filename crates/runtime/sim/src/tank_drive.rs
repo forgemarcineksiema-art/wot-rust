@@ -61,7 +61,7 @@ pub fn step_tank_drive(
         let (mut throttle, mut steer) =
             if modules.engine_ok { (command.throttle, command.steer) } else { (0.0, 0.0) };
         if !modules.tracks.both_ok() {
-            let bias = if modules.tracks.right_ok { 0.78 } else { -0.78 };
+            let bias = if modules.tracks.right_ok() { 0.78 } else { -0.78 };
             let drive_sign = if throttle.abs() > 0.05 { throttle.signum() } else { 1.0 };
             throttle *= 0.18;
             steer = (steer * 0.25 + bias * drive_sign).clamp(-1.0, 1.0);
@@ -137,7 +137,7 @@ pub(crate) fn step_tank(
     };
     let suspension_ok = tank.modules.is_functional(ModuleSlot::Suspension);
     let tracks = if suspension_ok {
-        TrackDriveStatus::from_track_damage(tank.tracks)
+        TrackDriveStatus::from_track_health(&tank.tracks)
     } else {
         TrackDriveStatus::broken()
     };

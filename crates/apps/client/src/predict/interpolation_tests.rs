@@ -26,6 +26,7 @@ fn snapshot_at(position: [f32; 3]) -> TankSnapshot {
             .hit_points_by_slot(),
         destroyed_modules_mask: 0,
         track_damage_mask: 0,
+        track_hp: [game_core::TRACK_HP_MAX; 2],
         ammo_counts: game_core::AmmoLoadout::default().counts,
         selected_ammo: 0,
         spotted_by_teams_mask: 0,

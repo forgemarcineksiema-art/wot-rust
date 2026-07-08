@@ -11,10 +11,10 @@ pub(crate) fn apply_track_damage_for_hit(
     penetrated: bool,
 ) {
     match zone {
-        ArmorZone::LeftTrack => target.tracks.damage(TrackSide::Left),
-        ArmorZone::RightTrack => target.tracks.damage(TrackSide::Right),
-        _ if shell_type == ShellType::HighExplosive && !penetrated => target.tracks.damage_both(),
-        _ if module == Some(ModuleSlot::Suspension) => target.tracks.damage_both(),
+        ArmorZone::LeftTrack => target.tracks.break_side(TrackSide::Left),
+        ArmorZone::RightTrack => target.tracks.break_side(TrackSide::Right),
+        _ if shell_type == ShellType::HighExplosive && !penetrated => target.tracks.break_both(),
+        _ if module == Some(ModuleSlot::Suspension) => target.tracks.break_both(),
         _ => {}
     }
 }

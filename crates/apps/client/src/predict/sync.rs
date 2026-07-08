@@ -29,8 +29,7 @@ impl LocalPredictor {
         self.hit_points = authoritative.hit_points;
         self.module_hit_points = authoritative.module_hit_points;
         self.destroyed_modules_mask = authoritative.destroyed_modules_mask;
-        self.track_damage_mask =
-            game_core::TrackDamageMask::from_bits(authoritative.track_damage_mask);
+        self.tracks = game_core::TrackHealth::from_hp_pair(authoritative.track_hp);
         self.selected_ammo = authoritative.selected_ammo;
 
         if !was_seeded || correction_m > MAX_SMOOTH_AUTHORITATIVE_CORRECTION_M {

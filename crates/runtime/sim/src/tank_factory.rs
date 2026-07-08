@@ -1,4 +1,4 @@
-use game_core::{TankId, TankSpec, TeamId, TrackDamageMask};
+use game_core::{TankId, TankSpec, TeamId, TrackHealth};
 use glam::Vec3;
 
 use crate::tank_state::TankState;
@@ -33,7 +33,7 @@ pub(crate) fn fresh_tank(
         reload_remaining_s: 0.0,
         aim_dispersion_mrad,
         dispersion_shot_index: 0,
-        tracks: TrackDamageMask::healthy(),
+        tracks: TrackHealth::healthy(),
         modules,
         ammo_counts,
         selected_ammo,

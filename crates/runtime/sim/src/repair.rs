@@ -47,7 +47,7 @@ pub(crate) fn step_crew_repair(tank: &mut TankState, dt: f32) {
         if tank.tracks.is_broken(side) {
             *clock += dt;
             if *clock >= TRACK_REPAIR_S {
-                tank.tracks.repair(side);
+                tank.tracks.reseat(side);
                 *clock = 0.0;
             }
         } else {

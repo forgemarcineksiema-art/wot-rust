@@ -31,7 +31,7 @@ pub use clock::{
 };
 pub use command::TankCommand;
 pub use cover_damage::{CoverPhase, CoverState};
-pub use drive_modules::{DriveModuleStatus, TrackDriveStatus};
+pub use drive_modules::{DriveModuleStatus, TrackDriveStatus, TrackSideDrive};
 pub use drowning::{DROWN_DEPTH_M, DROWN_PULSE_INTERVAL_S, ENGINE_FLOOD_S};
 pub use landing::SAFE_LANDING_MPS;
 pub use repair::{CrewRepair, MODULE_PATCH_FRACTION, MODULE_PATCH_S, TRACK_REPAIR_S};
