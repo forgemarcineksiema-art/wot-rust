@@ -75,6 +75,14 @@ impl TrackDriveStatus {
     pub(crate) fn both_ok(self) -> bool {
         self.left_ok() && self.right_ok()
     }
+
+    /// Combined traction of the two sides for the damaged-but-not-thrown tier — the AVERAGE, so a
+    /// single damaged side barely dents mobility while two damaged sides compound (both turn and
+    /// top-speed reads worse). Both healthy → `(1.0 + 1.0) * 0.5 = 1.0` exactly, so the drive
+    /// scaling is a bit-exact no-op on a healthy hull. Only meaningful when neither side is thrown.
+    pub(crate) fn rolling_traction(self) -> f32 {
+        (self.left.traction() + self.right.traction()) * 0.5
+    }
 }
 
 /// Which modules still work, plus the partial-damage fractions that shape the drive: gun damage

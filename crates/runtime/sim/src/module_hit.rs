@@ -1,22 +1,42 @@
-use game_core::{ArmorZone, HitboxProfile, ModuleSlot, ShellType, TrackSide};
+use game_core::{ArmorZone, HitboxProfile, ModuleSlot, ShellType, TrackHit, TrackSide};
 use glam::Vec3;
 
 use crate::TankState;
 
+/// Degrade the struck track band by `chunk` HP and report what happened (which side, and whether
+/// this hit was the one that threw it) so the client can call it out. A direct track-zone hit
+/// degrades that side; an HE burst or a suspension-module penetration degrades BOTH bands (the
+/// running gear takes it across the hull). `None` means the shell touched no track.
 pub(crate) fn apply_track_damage_for_hit(
     target: &mut TankState,
     module: Option<ModuleSlot>,
     zone: ArmorZone,
     shell_type: ShellType,
     penetrated: bool,
-) {
+    chunk: u8,
+) -> Option<TrackHit> {
     match zone {
-        ArmorZone::LeftTrack => target.tracks.break_side(TrackSide::Left),
-        ArmorZone::RightTrack => target.tracks.break_side(TrackSide::Right),
-        _ if shell_type == ShellType::HighExplosive && !penetrated => target.tracks.break_both(),
-        _ if module == Some(ModuleSlot::Suspension) => target.tracks.break_both(),
-        _ => {}
+        ArmorZone::LeftTrack => Some(degrade_side(target, TrackSide::Left, chunk)),
+        ArmorZone::RightTrack => Some(degrade_side(target, TrackSide::Right, chunk)),
+        _ if shell_type == ShellType::HighExplosive && !penetrated => {
+            Some(degrade_both(target, chunk))
+        }
+        _ if module == Some(ModuleSlot::Suspension) => Some(degrade_both(target, chunk)),
+        _ => None,
     }
+}
+
+fn degrade_side(target: &mut TankState, side: TrackSide, chunk: u8) -> TrackHit {
+    let was_broken = target.tracks.is_broken(side);
+    target.tracks.damage(side, chunk);
+    TrackHit { side, broke: !was_broken && target.tracks.is_broken(side) }
+}
+
+/// Chip both bands; report the side that newly broke (else the left) as the callout's subject.
+fn degrade_both(target: &mut TankState, chunk: u8) -> TrackHit {
+    let left = degrade_side(target, TrackSide::Left, chunk);
+    let right = degrade_side(target, TrackSide::Right, chunk);
+    if right.broke && !left.broke { right } else { left }
 }
 
 pub(crate) fn impacted_module(
