@@ -4,7 +4,7 @@
 
 use std::collections::VecDeque;
 
-use game_core::{DamageEvent, ModuleSlot, TankId, VehicleKind};
+use game_core::{DamageEvent, ModuleSlot, TankId, TrackSide, VehicleKind};
 use net::TankSnapshot;
 use renderer_api::HudVertex;
 
@@ -34,6 +34,9 @@ pub(crate) struct DamageLogEntry {
     pub direction: LogDirection,
     pub damage_hp: u32,
     pub module: Option<ModuleSlot>,
+    /// A track band this event struck: `(side, broke)`. Set even when `damage_hp` is 0 (a clean
+    /// track break deals no HP), which is why such an event still earns a row.
+    pub track: Option<(TrackSide, bool)>,
     /// The other party (target when dealt, attacker when taken), if still known.
     pub other_vehicle: Option<VehicleKind>,
     pub age_s: f32,
@@ -63,7 +66,11 @@ impl DamageLog {
             } else {
                 continue;
             };
-            if event.damage_hp == 0 {
+            let track = event.track_hit.map(|hit| (hit.side, hit.broke));
+            // A pure bounce stays out — the arcs and confirm ticks carry those. But a track hit
+            // earns a row even at 0 HP: it is exactly the "your track is gone" event the log used
+            // to swallow.
+            if event.damage_hp == 0 && track.is_none() {
                 continue;
             }
             let other_id =
@@ -74,6 +81,7 @@ impl DamageLog {
                 direction,
                 damage_hp: event.damage_hp,
                 module: event.module,
+                track,
                 other_vehicle,
                 age_s: 0.0,
             });
@@ -113,23 +121,39 @@ pub(crate) fn push_damage_log(
             continue;
         }
 
-        let digits = crate::hud::number::digit_count(entry.damage_hp.min(9_999)) as f32;
-        let number_right = LOG_LEFT_X + digits * LOG_TEXT_SIZE * 0.6;
-        crate::hud::number::push_number(
-            vertices,
-            entry.damage_hp.min(9_999),
-            number_right,
-            y,
-            LOG_TEXT_SIZE,
-            aspect,
-            color,
-        );
+        // The leading slot: the damage number, or a short "TRK" tag for a 0-HP track hit.
+        if entry.damage_hp > 0 {
+            let digits = crate::hud::number::digit_count(entry.damage_hp.min(9_999)) as f32;
+            let number_right = LOG_LEFT_X + digits * LOG_TEXT_SIZE * 0.6;
+            crate::hud::number::push_number(
+                vertices,
+                entry.damage_hp.min(9_999),
+                number_right,
+                y,
+                LOG_TEXT_SIZE,
+                aspect,
+                color,
+            );
+        } else if entry.track.is_some() {
+            crate::hud::font::push_text(vertices, "TRK", LOG_LEFT_X, y, LOG_TEXT_SIZE, aspect, color);
+        }
 
         let mut x = LOG_LEFT_X + 4.0 * LOG_TEXT_SIZE * 0.6 + 0.012;
-        if let Some(module) = entry.module {
+        // A track hit always shows the suspension icon; a plain module hit shows its own.
+        let icon_module =
+            if entry.track.is_some() { Some(ModuleSlot::Suspension) } else { entry.module };
+        if let Some(module) = icon_module {
             let icon = crate::hud::icons::HudIcon::for_module(module);
             crate::hud::font::push_icon(vertices, icon, x, y + 0.008, 0.045, aspect, color);
             x += 0.035;
+        }
+        if let Some((side, _broke)) = entry.track {
+            let tag = match side {
+                TrackSide::Left => "L",
+                TrackSide::Right => "R",
+            };
+            crate::hud::font::push_text(vertices, tag, x, y, LOG_TEXT_SIZE, aspect, color);
+            x += 0.022;
         }
         if let Some(kind) = entry.other_vehicle {
             crate::hud::font::push_text(
@@ -209,6 +233,21 @@ mod tests {
     }
 
     #[test]
+    fn a_zero_hp_track_break_still_earns_a_row() {
+        let mut log = DamageLog::default();
+        let tanks = [tank(1, VehicleKind::T54_1951), tank(2, VehicleKind::IS3)];
+        let mut tracked = event(2, 1, 0); // taken, dealt no HP
+        tracked.track_hit =
+            Some(game_core::TrackHit { side: game_core::TrackSide::Left, broke: true });
+        log.ingest(&[tracked], TankId(1), &tanks);
+
+        let rows = log.visible();
+        assert_eq!(rows.len(), 1, "a 0-HP track break is not a silent bounce");
+        assert_eq!(rows[0].track, Some((game_core::TrackSide::Left, true)));
+        assert_eq!(rows[0].damage_hp, 0, "and it carries no HP number");
+    }
+
+    #[test]
     fn the_log_caps_its_rows_and_stale_entries_expire() {
         let mut log = DamageLog::default();
         let tanks = [tank(1, VehicleKind::T54_1951), tank(2, VehicleKind::IS3)];
@@ -227,6 +266,7 @@ mod tests {
                 direction: LogDirection::Dealt,
                 damage_hp: 320,
                 module: Some(game_core::ModuleSlot::Engine),
+                track: None,
                 other_vehicle: Some(VehicleKind::IS3),
                 age_s: 0.0,
             },
@@ -234,6 +274,7 @@ mod tests {
                 direction: LogDirection::Taken,
                 damage_hp: 150,
                 module: None,
+                track: None,
                 other_vehicle: Some(VehicleKind::TigerI),
                 age_s: 0.0,
             },

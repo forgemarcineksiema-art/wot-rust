@@ -18,6 +18,10 @@ pub enum AudioEvent {
     ShellAbsorbed { position: Vec3, surface: GroundKind, high_explosive: bool },
     /// The player's reload completed (breech clack at the ear).
     GunReady,
+    /// A track band was damaged or thrown. `broken` picks the voice: a sharp metallic snap for a
+    /// thrown track, a duller grind for a mere degrade — distinct from the plate clang, and heard
+    /// even on a clean 0-HP track break.
+    TrackSnapped { position: Vec3, broken: bool },
     /// The player's target was destroyed (confirmation beat).
     KillConfirmed,
     /// A garage/UI interaction; `accent` marks commits over browsing clicks.
