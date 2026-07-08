@@ -154,6 +154,12 @@ pub(crate) struct ClientApp {
     /// The wreck's hull render object is swapped to this handle so a knocked-out tank reads beaten
     /// and dented, not pristine-but-tinted. Presentation only (see `vehicle::wreck_deform`).
     wreck_hull_meshes: HashMap<game_core::TankId, renderer_api::MeshHandle>,
+    /// Last-seen static-cover phase bytes (protocol v21). When a snapshot's cover states differ,
+    /// the battle scene is rebuilt (collapsed buildings become rubble, cleared foliage vanishes)
+    /// and re-uploaded, and a dust burst fires at each freshly-destroyed object.
+    cover_phase_bytes: Vec<u8>,
+    /// Set when `cover_phase_bytes` changed: the next frame rebuilds and re-uploads the scene.
+    scene_cover_dirty: bool,
     /// Smoothed frames-per-second for the HUD readout (EMA over instantaneous frame rate).
     fps_estimate: f32,
     /// The minimap's static layers (terrain relief + cover boxes), computed once per
@@ -258,6 +264,8 @@ impl ClientApp {
             terrain_scars: crate::fx::TerrainScars::default(),
             engine_smoke_accum_s: HashMap::new(),
             wreck_hull_meshes: HashMap::new(),
+            cover_phase_bytes: Vec::new(),
+            scene_cover_dirty: false,
             fps_estimate: 0.0,
             minimap_relief,
             minimap_cover,

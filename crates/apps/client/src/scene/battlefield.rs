@@ -8,10 +8,27 @@ use crate::tank_mesh::push_oriented_box;
 /// gameplay state (it blocks movement, shells, and the camera), so whatever the simulation
 /// collides must be visible — rendering the exact sim boxes keeps the world honest.
 pub fn battlefield_scene_mesh(battlefield: &BattlefieldMap) -> (Vec<SceneVertex>, Vec<u32>) {
+    battlefield_scene_mesh_with_cover_states(battlefield, &[])
+}
+
+/// As [`battlefield_scene_mesh`], dressing each cover object by its replicated phase (protocol
+/// v21): intact objects as-authored, a collapsed building as a low rubble mound, a destroyed
+/// object (flattened foliage/cleared ground) drawn as nothing — and the scenery trees standing
+/// inside a cleared tree line vanish with it. `cover_states` is index-aligned with the map's
+/// cover (a phase byte each: 0 intact, 1 rubble, 2 gone); an empty slice is all-intact. The
+/// client rebuilds this and re-uploads the scene whenever the states change.
+pub fn battlefield_scene_mesh_with_cover_states(
+    battlefield: &BattlefieldMap,
+    cover_states: &[u8],
+) -> (Vec<SceneVertex>, Vec<u32>) {
     let (mut vertices, mut indices) =
         terrain_scene_mesh_with_water(&battlefield.heightmap, battlefield.water);
-    for cover in &battlefield.static_cover {
-        append_cover_box(&mut vertices, &mut indices, cover);
+    for (index, cover) in battlefield.static_cover.iter().enumerate() {
+        match cover_states.get(index).copied().unwrap_or(0) {
+            0 => append_cover_box(&mut vertices, &mut indices, cover),
+            1 => append_rubble_mound(&mut vertices, &mut indices, cover),
+            _ => {} // gone: the object is cleared, draw nothing
+        }
     }
     // The world beyond the border (render-only skirt + distant trees), then the dressing:
     // both baked into the same static upload.
@@ -23,11 +40,50 @@ pub fn battlefield_scene_mesh(battlefield: &BattlefieldMap) -> (Vec<SceneVertex>
         indices.extend(skirt_indices.into_iter().map(|index| index + base));
     }
     // Render-only dressing: trees and rocks baked into the same static upload — a dressed
-    // valley costs the frame nothing (see scene::foliage).
+    // valley costs the frame nothing (see scene::foliage). A tree standing inside a cleared
+    // cover box fell with it, so it is left out of the rebuilt scene.
     for instance in &battlefield.scenery {
+        if scenery_stands_in_cleared_cover(instance, &battlefield.static_cover, cover_states) {
+            continue;
+        }
         crate::scene::foliage::push_scenery_instance(&mut vertices, &mut indices, instance);
     }
     (vertices, indices)
+}
+
+/// Whether a scenery instance stands inside a cover box that has been cleared (phase gone), so it
+/// should vanish with the tree line it dressed. Tested in plan (XZ) — a canopy's trunk is what
+/// anchors it to the cleared footprint.
+fn scenery_stands_in_cleared_cover(
+    instance: &terrain::SceneryInstance,
+    cover: &[StaticCoverObject],
+    cover_states: &[u8],
+) -> bool {
+    let p = instance.position;
+    cover.iter().enumerate().any(|(index, object)| {
+        cover_states.get(index).copied().unwrap_or(0) == 2
+            && (p[0] - object.center[0]).abs() <= object.half_extents_m[0]
+            && (p[2] - object.center[2]).abs() <= object.half_extents_m[2]
+    })
+}
+
+/// A collapsed building: a low, rough rubble mound filling the footprint at the sim's reduced
+/// height (`rubble_height_frac`), so what the eye reads as a blocking mound matches the box a hull
+/// still stops against and a turret-height shot clears.
+fn append_rubble_mound(
+    vertices: &mut Vec<SceneVertex>,
+    indices: &mut Vec<u32>,
+    cover: &StaticCoverObject,
+) {
+    let center = Vec3::from_array(cover.center);
+    let half = Vec3::from_array(cover.half_extents_m);
+    let ground_y = center.y - half.y;
+    let mound_half_y = half.y * cover.kind.rubble_height_frac();
+    let mound_center = Vec3::new(center.x, ground_y + mound_half_y, center.z);
+    // Slightly inset in plan so the pile reads as slumped rubble, not a shrunk building.
+    let mound_half = Vec3::new(half.x * 0.9, mound_half_y, half.z * 0.9);
+    // Dull broken masonry: grey-brown, matte.
+    push_surfaced_box(vertices, indices, mound_center, mound_half, [0.38, 0.34, 0.30], 0.04);
 }
 
 /// Every visual stays INSIDE the collision AABB — a building may look like walls and a roof,
@@ -308,6 +364,73 @@ mod tests {
     use terrain::prokhorovka_hill_252_2;
 
     use super::*;
+
+    #[test]
+    fn a_collapsed_building_slumps_below_its_intact_height() {
+        let barn = StaticCoverObject {
+            id: "barn".into(),
+            name: "barn".into(),
+            kind: StaticCoverKind::FarmBuilding,
+            center: [0.0, 3.0, 0.0],
+            half_extents_m: [5.0, 3.0, 4.0],
+        };
+        let mut vertices = Vec::new();
+        let mut indices = Vec::new();
+        append_rubble_mound(&mut vertices, &mut indices, &barn);
+        assert!(!vertices.is_empty(), "a rubble mound draws geometry");
+        let top = vertices.iter().map(|v| v.position[1]).fold(f32::MIN, f32::max);
+        let intact_top = 3.0 + 3.0;
+        // The mound tops out at the sim's rubble height (0.4), well under the standing building.
+        assert!(top < intact_top * 0.6, "the mound is low ({top} vs intact top {intact_top})");
+        // And it sits on the ground, not floating.
+        let bottom = vertices.iter().map(|v| v.position[1]).fold(f32::MAX, f32::min);
+        assert!((bottom - 0.0).abs() < 1.0e-3, "the mound rests on the ground, got {bottom}");
+    }
+
+    #[test]
+    fn a_cleared_tree_line_removes_its_box_and_the_trees_standing_in_it() {
+        let map = prokhorovka_hill_252_2();
+        let tree_line = map
+            .static_cover
+            .iter()
+            .position(|cover| cover.kind == StaticCoverKind::TreeLine)
+            .expect("prokhorovka has a tree line");
+
+        let intact = battlefield_scene_mesh(&map);
+        let mut states = vec![0u8; map.static_cover.len()];
+        states[tree_line] = 2; // gone
+        let cleared = battlefield_scene_mesh_with_cover_states(&map, &states);
+
+        assert!(
+            cleared.0.len() < intact.0.len(),
+            "clearing a tree line removes geometry ({} vs {})",
+            cleared.0.len(),
+            intact.0.len()
+        );
+    }
+
+    #[test]
+    fn scenery_only_falls_where_the_cover_it_dressed_is_cleared() {
+        let cover = vec![StaticCoverObject {
+            id: "hedge".into(),
+            name: "hedge".into(),
+            kind: StaticCoverKind::TreeLine,
+            center: [0.0, 1.0, 0.0],
+            half_extents_m: [10.0, 1.0, 1.0],
+        }];
+        let inside = terrain::SceneryInstance {
+            kind: terrain::SceneryKind::Oak,
+            position: [3.0, 0.0, 0.5],
+            yaw_rad: 0.0,
+            scale: 1.0,
+        };
+        let outside = terrain::SceneryInstance { position: [40.0, 0.0, 0.0], ..inside };
+
+        // Intact: neither tree falls. Gone: only the tree inside the box falls.
+        assert!(!scenery_stands_in_cleared_cover(&inside, &cover, &[0]));
+        assert!(scenery_stands_in_cleared_cover(&inside, &cover, &[2]));
+        assert!(!scenery_stands_in_cleared_cover(&outside, &cover, &[2]));
+    }
 
     /// The other half of the honesty rule: a building may LOOK like walls and a gable roof,
     /// but no visual vertex may leave the collision AABB — nothing on screen can be shot

@@ -75,6 +75,9 @@ impl ClientApp {
         // A freshly knocked-out hull is DENTED where it was hit: build its per-instance deformed
         // hull once from the penetrations already recorded above, and forget despawned wrecks.
         self.sync_wreck_deform(&snapshot);
+        // Static cover that collapsed or was cleared this snapshot: burst dust at each newly
+        // destroyed object and flag the scene for a rebuild (buildings -> rubble, foliage -> gone).
+        self.sync_cover_destruction(&snapshot);
         // Shots fired since the previous snapshot: diffed here, where both snapshots exist side
         // by side, then fanned out to every fire cue (muzzle FX, recoil, hull rock, camera kick).
         let fired = self.render_state.latest_snapshot().map_or_else(Vec::new, |previous| {
@@ -167,6 +170,34 @@ impl ClientApp {
             }
         }
         self.wreck_hull_meshes.retain(|id, _| snapshot.tanks.iter().any(|t| t.tank_id == *id));
+    }
+
+    /// React to the replicated cover phases (protocol v21): the first snapshot seeds the baseline
+    /// silently; afterwards any object that stepped up in destruction (intact -> rubble/gone, or
+    /// rubble -> gone) bursts dust and flags the scene for a rebuild so the collapse actually shows.
+    fn sync_cover_destruction(&mut self, snapshot: &net::Snapshot) {
+        let states = &snapshot.cover_states;
+        if states == &self.cover_phase_bytes {
+            return;
+        }
+        // Seed silently on the first sight (or a mid-battle map swap changing the count): no phantom
+        // collapses of cover that was already down when we joined.
+        let seeding = self.cover_phase_bytes.len() != states.len();
+        if !seeding {
+            for (index, &phase) in states.iter().enumerate() {
+                let was = self.cover_phase_bytes.get(index).copied().unwrap_or(0);
+                if phase > was
+                    && let Some(object) = self.battlefield.static_cover.get(index)
+                {
+                    let center = glam::Vec3::from_array(object.center);
+                    // Masonry/timber dust at the wreck of the object.
+                    self.fx.impact_burst(center, game_core::ImpactSurface::Cover);
+                    self.fx.track_dust(center);
+                }
+            }
+        }
+        self.cover_phase_bytes = states.clone();
+        self.scene_cover_dirty = true;
     }
 
     /// Fan one batch of replicated shots out to the presentation cues. Every firing tank gets
