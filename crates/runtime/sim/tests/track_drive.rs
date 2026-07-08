@@ -3,13 +3,16 @@ use glam::Vec3;
 use physics::TankKinematicState;
 use sim::{
     AimingState, DriveModuleStatus, TankCommand, TankDriveState, TankDriveWorld, TrackDriveStatus,
-    step_tank_drive,
+    TrackSideDrive, step_tank_drive,
 };
 
 #[test]
 fn t54_per_side_track_damage_changes_drive_behavior() {
     let healthy = driven_for(TrackDriveStatus::healthy());
-    let left_broken = driven_for(TrackDriveStatus { left_ok: false, right_ok: true });
+    let left_broken = driven_for(TrackDriveStatus {
+        left: TrackSideDrive::Thrown,
+        right: TrackSideDrive::Rolling(1.0),
+    });
     let both_broken = driven_for(TrackDriveStatus::broken());
 
     assert!(

@@ -2,41 +2,86 @@
 //! partial-damage fractions that shape one tick of hull motion. Split from `tank_drive.rs` to
 //! keep the drive step within the reviewability budget.
 
-use game_core::{ModuleSlot, TankSpec, TrackDamageMask, TrackSide};
+use game_core::{ModuleSlot, TankSpec, TrackHealth, TrackSide, track_traction_fraction};
 
-/// Deterministic per-side track availability for one fixed tick.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// One side's drive contribution for a fixed tick: either rolling (with a traction fraction,
+/// `1.0` when healthy — exact, so the healthy path stays bit-identical) or thrown.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum TrackSideDrive {
+    Rolling(f32),
+    Thrown,
+}
+
+impl TrackSideDrive {
+    /// Traction fraction, `0.0` for a thrown side.
+    pub fn traction(self) -> f32 {
+        match self {
+            Self::Rolling(fraction) => fraction,
+            Self::Thrown => 0.0,
+        }
+    }
+
+    pub fn is_rolling(self) -> bool {
+        matches!(self, Self::Rolling(_))
+    }
+}
+
+/// Deterministic per-side track state for one fixed tick.
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct TrackDriveStatus {
-    pub left_ok: bool,
-    pub right_ok: bool,
+    pub left: TrackSideDrive,
+    pub right: TrackSideDrive,
 }
 
 impl TrackDriveStatus {
     pub const fn healthy() -> Self {
-        Self { left_ok: true, right_ok: true }
+        Self { left: TrackSideDrive::Rolling(1.0), right: TrackSideDrive::Rolling(1.0) }
     }
 
     pub const fn broken() -> Self {
-        Self { left_ok: false, right_ok: false }
+        Self { left: TrackSideDrive::Thrown, right: TrackSideDrive::Thrown }
     }
 
     pub const fn from_suspension_ok(ok: bool) -> Self {
         if ok { Self::healthy() } else { Self::broken() }
     }
 
-    pub const fn from_track_damage(mask: TrackDamageMask) -> Self {
-        Self {
-            left_ok: !mask.is_broken(TrackSide::Left),
-            right_ok: !mask.is_broken(TrackSide::Right),
-        }
+    /// Project the authoritative per-side HP pool into the drive tick: a drained (0 HP) side is
+    /// thrown; any live side rolls at its graded traction fraction.
+    pub fn from_track_health(tracks: &TrackHealth) -> Self {
+        let side = |s: TrackSide| {
+            let hp = tracks.hp(s);
+            if hp == 0 {
+                TrackSideDrive::Thrown
+            } else {
+                TrackSideDrive::Rolling(track_traction_fraction(hp))
+            }
+        };
+        Self { left: side(TrackSide::Left), right: side(TrackSide::Right) }
+    }
+
+    pub(crate) fn left_ok(self) -> bool {
+        self.left.is_rolling()
+    }
+
+    pub(crate) fn right_ok(self) -> bool {
+        self.right.is_rolling()
     }
 
     pub(crate) fn any_ok(self) -> bool {
-        self.left_ok || self.right_ok
+        self.left_ok() || self.right_ok()
     }
 
     pub(crate) fn both_ok(self) -> bool {
-        self.left_ok && self.right_ok
+        self.left_ok() && self.right_ok()
+    }
+
+    /// Combined traction of the two sides for the damaged-but-not-thrown tier — the AVERAGE, so a
+    /// single damaged side barely dents mobility while two damaged sides compound (both turn and
+    /// top-speed reads worse). Both healthy → `(1.0 + 1.0) * 0.5 = 1.0` exactly, so the drive
+    /// scaling is a bit-exact no-op on a healthy hull. Only meaningful when neither side is thrown.
+    pub(crate) fn rolling_traction(self) -> f32 {
+        (self.left.traction() + self.right.traction()) * 0.5
     }
 }
 

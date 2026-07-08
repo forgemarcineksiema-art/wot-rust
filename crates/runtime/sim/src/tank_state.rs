@@ -1,5 +1,5 @@
 use game_core::math::HullPose;
-use game_core::{ModuleHealth, TankId, TankSpec, TeamId, TrackDamageMask};
+use game_core::{ModuleHealth, TankId, TankSpec, TeamId, TrackHealth};
 use glam::Vec3;
 use serde::{Deserialize, Serialize};
 
@@ -30,9 +30,11 @@ pub struct TankState {
     pub reload_remaining_s: f32,
     pub aim_dispersion_mrad: f32,
     pub dispersion_shot_index: u32,
-    /// Side-specific track damage. Zero means both tracks can provide traction.
+    /// Per-side track HP pool — the authoritative track state. Full HP both sides = both tracks
+    /// roll; a drained side is Damaged (degraded) and a side at 0 is a thrown track (see
+    /// `game_core::TrackHealth`). `serde(default)` keeps pre-two-tier fixtures loading healthy.
     #[serde(default)]
-    pub tracks: TrackDamageMask,
+    pub tracks: TrackHealth,
     /// Live hit points of the five module slots; at zero a module stops working.
     pub modules: ModuleHealth,
     /// Rounds remaining per ammo slot (`GunSpec::ammo_options()` order). Pre-ammo fixtures load

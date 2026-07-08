@@ -136,6 +136,7 @@ fn tank(id: u64, team: u16, hit_points: u32, spotted_by_teams_mask: u8) -> TankS
         module_hit_points: spec.module_health.hit_points_by_slot(),
         destroyed_modules_mask: 0,
         track_damage_mask: 0,
+        track_hp: [game_core::TRACK_HP_MAX; 2],
         ammo_counts: spec.ammo.counts,
         selected_ammo: spec.ammo.initial_selected,
         spotted_by_teams_mask,

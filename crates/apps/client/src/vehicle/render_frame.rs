@@ -174,6 +174,7 @@ pub(crate) fn render_snapshot(tank: &PresentationTank) -> TankSnapshot {
         module_hit_points: tank.module_hit_points,
         destroyed_modules_mask: tank.destroyed_modules_mask,
         track_damage_mask: tank.track_damage_mask,
+        track_hp: [game_core::TRACK_HP_MAX; 2],
         // Ammo is HUD state, not geometry: the mesh kernels never read it (like reload above).
         ammo_counts: [0; game_core::MAX_AMMO_SLOTS],
         selected_ammo: 0,

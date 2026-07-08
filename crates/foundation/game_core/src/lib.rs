@@ -25,7 +25,7 @@ pub use armor::{
 };
 pub use contact_footprint::{ContactFootprint, MAX_CONTACT_STATIONS};
 pub use crew::{Crew, CrewRole};
-pub use damage::{DamageCause, DamageEvent, ImpactSurface, ShellImpact};
+pub use damage::{DamageCause, DamageEvent, ImpactSurface, ShellImpact, TrackHit};
 pub use damage_layout::{DamageLayout, ModuleVolume};
 pub use ids::{TankId, TeamId};
 pub use modules::{
@@ -35,7 +35,10 @@ pub use modules::{
 };
 pub use mount::{MountFrame, MountFrames};
 pub use tank::{HitboxProfile, TankSpec};
-pub use track::{TrackDamageMask, TrackSide};
+pub use track::{
+    TRACK_HP_MAX, TrackDamageMask, TrackHealth, TrackSeverity, TrackSide, track_hit_damage,
+    track_traction_fraction,
+};
 pub use vehicle_blueprint::{
     ArmorShape, BoxVisual, DetailVisual, FenderVisual, FittingsVisual, GunShape, GunVisual,
     HullPlatesVisual, HullShape, HullVisual, HybridVisual, LoftStation, TrackShape, TurretForm,
