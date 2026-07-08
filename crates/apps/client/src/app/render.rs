@@ -58,6 +58,28 @@ impl ClientApp {
         }
     }
 
+    /// Rebuild the battle scene mesh for the current cover phases and re-upload it, so collapsed
+    /// buildings show as rubble and cleared foliage disappears. The rebuilt mesh also replaces the
+    /// cached battle scene, so a garage round-trip re-uploads the current (damaged) world, not the
+    /// pristine one. Runs only on the frame the states changed (`scene_cover_dirty`).
+    pub(super) fn rebuild_cover_scene_if_dirty(&mut self) {
+        if !self.scene_cover_dirty {
+            return;
+        }
+        self.scene_cover_dirty = false;
+        let (vertices, indices) = crate::battlefield_scene_mesh_with_cover_states(
+            &self.battlefield,
+            &self.cover_phase_bytes,
+        );
+        if let Some(renderer) = self.renderer.as_mut() {
+            renderer.set_terrain(&vertices, &indices);
+        }
+        if let Some(meshes) = self.battle_scene_meshes.as_mut() {
+            meshes.terrain_vertices = vertices;
+            meshes.terrain_indices = indices;
+        }
+    }
+
     /// Swap each wreck's hull render object (the first object for that tank) to its dented
     /// per-instance mesh. Turret, gun, and gear keep the shared meshes.
     pub(super) fn apply_wreck_deform(&self, objects: &mut [renderer_api::RenderObject]) {
@@ -129,6 +151,9 @@ impl ClientApp {
         self.fx.tick(frame_dt);
         self.terrain_scars.tick(frame_dt);
         self.tick_battle_scars(frame_dt);
+        // Cover that collapsed or cleared since the last frame: rebuild and re-upload the scene so
+        // the rubble mounds and cleared foliage actually show.
+        self.rebuild_cover_scene_if_dirty();
 
         let alpha = self.loop_driver.render_alpha();
         // A landing the predictor absorbed since the last frame slams the camera rig once.

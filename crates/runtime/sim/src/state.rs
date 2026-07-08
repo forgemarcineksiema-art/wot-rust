@@ -34,7 +34,31 @@ pub struct SimulationState {
     /// keeps pre-water fixtures loading dry.
     #[serde(default)]
     water: Option<WaterBody>,
+    /// Live structural state of the map's static cover (protocol v21), index-aligned with the
+    /// cover slice the battlefield passes in. Rebuilt when the cover count changes (battle setup),
+    /// then damaged by HE and crushed by ramming; every blocking consumer sees the resolved live
+    /// cover derived from it. `serde(default)` keeps pre-v21 fixtures loading with whole cover.
+    #[serde(default)]
+    cover_states: Vec<crate::cover_damage::CoverState>,
 }
+
+/// Cover damage one absorbed shell deals by its type: a high-explosive round brings structures
+/// down, a kinetic round only chips them.
+fn cover_damage_hp(shell_type: game_core::ShellType) -> u32 {
+    match shell_type {
+        game_core::ShellType::HighExplosive => 300,
+        _ => 80,
+    }
+}
+
+/// A hull must be moving at least this fast to flatten a hedgerow it drives into.
+const COVER_CRUSH_MIN_SPEED_MPS: f32 = 2.5;
+/// The nick a hull takes for bulldozing through cover — small, but not free.
+const COVER_CRUSH_SELF_HP: u32 = 8;
+/// Reach ahead of the hull's own footprint at which a fast approach bowls a hedge over — the hull
+/// flattens it just before contact, so the same tick's movement drives through instead of being
+/// stopped by the (still-blocking) intact hedge and losing the speed the crush needs.
+const COVER_CRUSH_APPROACH_M: f32 = 0.8;
 
 impl SimulationState {
     pub fn new() -> Self {
@@ -47,7 +71,14 @@ impl SimulationState {
             shell_impacts: Vec::new(),
             spotting_memory: crate::spotting::SpottingMemory::default(),
             water: None,
+            cover_states: Vec::new(),
         }
+    }
+
+    /// Live structural state of the static cover (protocol v21), index-aligned with the map's
+    /// cover. The client reads it to draw collapsed buildings and cleared foliage.
+    pub fn cover_states(&self) -> &[crate::cover_damage::CoverState] {
+        &self.cover_states
     }
 
     /// Install the battle map's standing water (see [`terrain::WaterBody`]). Call once at
@@ -81,12 +112,16 @@ impl SimulationState {
     }
 
     pub fn refresh_spotting(&mut self, heightmap: Option<&HeightMap>, cover: &[StaticCoverObject]) {
+        if self.cover_states.len() != cover.len() {
+            self.cover_states = crate::cover_damage::cover_states_for(cover);
+        }
+        let live_cover = crate::cover_damage::live_cover_for_blocking(cover, &self.cover_states);
         crate::spotting::apply_spotted_masks_with_hold(
             self.tick,
             &mut self.tanks,
             &mut self.spotting_memory,
             heightmap,
-            cover,
+            &live_cover,
         );
     }
 
@@ -166,6 +201,36 @@ impl SimulationState {
         let context = CombatTickContext { dt_seconds: dt, water: self.water };
         self.damage_events.clear();
         self.shell_impacts.clear();
+        // Keep the cover states aligned with the map's cover (rebuilt only when the count changes,
+        // i.e. at battle setup). A dry `apply_commands` passes no cover and clears the states.
+        if self.cover_states.len() != cover.len() {
+            self.cover_states = crate::cover_damage::cover_states_for(cover);
+        }
+        // A hull driving into a hedgerow flattens it (and takes a nick), BEFORE the live cover is
+        // resolved, so this tick's movement already drives through the gap it just opened.
+        {
+            let tanks = &mut self.tanks;
+            let states = &mut self.cover_states;
+            for tank in tanks.iter_mut() {
+                if tank.hit_points == 0 || tank.velocity_mps.length() < COVER_CRUSH_MIN_SPEED_MPS {
+                    continue;
+                }
+                let reach = tank.spec.hitbox.half_length_m + COVER_CRUSH_APPROACH_M;
+                for (index, object) in cover.iter().enumerate() {
+                    if crate::cover_damage::hull_overlaps_cover_xz(
+                        tank.position.to_array(),
+                        reach,
+                        object,
+                    ) && crate::cover_damage::crush_cover(states, object, index)
+                    {
+                        tank.hit_points = tank.hit_points.saturating_sub(COVER_CRUSH_SELF_HP);
+                    }
+                }
+            }
+        }
+        // The cover the world collides against this tick: intact as-authored, rubble a low mound,
+        // destroyed omitted. Every blocking consumer (movement, shell trace, spotting) uses this.
+        let live_cover = crate::cover_damage::live_cover_for_blocking(cover, &self.cover_states);
         let ramming_before = capture_ramming_snapshots(&self.tanks);
         for tank in &mut self.tanks {
             tank.reload_remaining_s = (tank.reload_remaining_s - dt).max(0.0);
@@ -201,8 +266,15 @@ impl SimulationState {
                     tank.hull_yaw_velocity_rad_s = 0.0;
                     continue;
                 }
-                let ground =
-                    step_tank(tank, command, dt, heightmap, cover, &obstacle_scratch, self.water);
+                let ground = step_tank(
+                    tank,
+                    command,
+                    dt,
+                    heightmap,
+                    &live_cover,
+                    &obstacle_scratch,
+                    self.water,
+                );
                 all_obstacles[index] =
                     TankObstacle::from_hitbox(tank.position, tank.yaw_rad, tank.spec.hitbox);
                 apply_landing_impact(tank, ground.landing_impact_mps, &mut self.damage_events);
@@ -240,14 +312,33 @@ impl SimulationState {
             &mut self.shell_impacts,
             context,
             heightmap,
-            cover,
+            &live_cover,
         );
+        // Shells absorbed by cover this tick bring it down: an HE round to rubble/clear, a kinetic
+        // round chips it. The impact already carries where it died and what died there.
+        for impact in &self.shell_impacts {
+            if impact.surface != game_core::ImpactSurface::Cover {
+                continue;
+            }
+            if let Some(index) = crate::cover_damage::cover_index_at(
+                impact.position.to_array(),
+                cover,
+                &self.cover_states,
+            ) {
+                crate::cover_damage::damage_cover(
+                    &mut self.cover_states,
+                    cover,
+                    index,
+                    cover_damage_hp(impact.shell_type),
+                );
+            }
+        }
         crate::spotting::refresh_spotted_masks(
             self.tick,
             &mut self.tanks,
             &mut self.spotting_memory,
             heightmap,
-            cover,
+            &live_cover,
         );
         self.tick += 1;
     }

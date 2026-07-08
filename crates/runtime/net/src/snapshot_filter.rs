@@ -43,6 +43,8 @@ impl Snapshot {
                 .copied()
                 .filter(|id| visible_ids.contains(id))
                 .collect(),
+            // Cover state is global world state, not intel — everyone sees the same rubble.
+            cover_states: self.cover_states.clone(),
         }
     }
 

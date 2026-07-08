@@ -391,6 +391,7 @@ fn snapshot_for_vehicle(
         damage_events: Vec::new(),
         shell_impacts: Vec::new(),
         detached_turrets: Vec::new(),
+        cover_states: Vec::new(),
     }
 }
 

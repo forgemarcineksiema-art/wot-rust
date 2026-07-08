@@ -222,6 +222,34 @@ mod tests {
     }
 
     #[test]
+    fn a_collapsing_cover_object_bursts_dust_and_flags_a_scene_rebuild() {
+        let mut app = ClientApp::new();
+        app.confirm_garage_selection();
+        app.run_fixed_ticks(6);
+        let cover_count = app.battlefield.static_cover.len();
+        assert!(cover_count > 0, "the battle map has cover to destroy");
+
+        // First snapshot seeds the baseline (all intact) — no phantom collapse, no dust.
+        let mut snapshot = app.render_state.latest_snapshot().cloned().expect("snapshot present");
+        snapshot.server_tick += 1;
+        snapshot.cover_states = vec![0u8; cover_count];
+        app.fx = crate::fx::FxSystem::default();
+        app.accept_and_sync(snapshot);
+        assert_eq!(app.fx.live_particles(), 0, "seeding the baseline bursts no dust");
+
+        // Next snapshot collapses the first object: dust bursts and the scene is flagged dirty.
+        let mut snapshot = app.render_state.latest_snapshot().cloned().expect("snapshot");
+        snapshot.server_tick += 1;
+        snapshot.cover_states = vec![0u8; cover_count];
+        snapshot.cover_states[0] = 1; // rubble
+        app.accept_and_sync(snapshot);
+
+        assert!(app.scene_cover_dirty, "a collapse flags the scene for a rebuild");
+        assert!(app.fx.live_particles() > 0, "the collapse throws dust");
+        assert_eq!(app.cover_phase_bytes[0], 1, "the new phase is remembered");
+    }
+
+    #[test]
     fn scars_of_despawned_tanks_are_dropped() {
         let mut app = ClientApp::new();
         app.confirm_garage_selection();

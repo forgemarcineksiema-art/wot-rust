@@ -50,6 +50,7 @@ fn snapshots_carry_projectiles_and_damage_events_through_the_wire() {
             ..Default::default()
         }],
         detached_turrets: vec![TankId(2)],
+        cover_states: vec![1],
     };
     let message = ProtocolMessage::Snapshot(snapshot);
 

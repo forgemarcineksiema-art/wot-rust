@@ -28,7 +28,9 @@ pub use loop_policy::{
     ClientLoopAction, ClientLoopEvent, ClientLoopPhase, FixedTickAccumulator, WinitLoopDriver,
 };
 pub use render_state::InterpolatedBattleState;
-pub use scene::battlefield::{battlefield_scene_mesh, terrain_scene_mesh};
+pub use scene::battlefield::{
+    battlefield_scene_mesh, battlefield_scene_mesh_with_cover_states, terrain_scene_mesh,
+};
 pub use scene::hangar::{TURNTABLE_TOP_M, hangar_camera_pivot, hangar_scene_mesh};
 pub use scene::water::battlefield_water_mesh;
 pub use vehicle::asset_catalog::VehicleAssetCatalog;
