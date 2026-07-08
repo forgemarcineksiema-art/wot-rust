@@ -70,6 +70,13 @@ impl BattleCameraController {
         self.mode = mode;
     }
 
+    /// Reset the sniper magnification to the default entry step. Key entry (`V`, `Shift`) always
+    /// opens here so the zoom is predictable for muscle memory; the wheel then dials from it. The
+    /// wheel's own third-person->sniper handover keeps its widest-step entry (see `zoom`).
+    pub fn reset_sniper_zoom(&mut self) {
+        self.sniper_fov_degrees = self.settings.sniper_fov_degrees;
+    }
+
     /// Mouse-look scale that keeps on-screen cursor speed roughly constant across views: 1.0 in
     /// third person, the FOV ratio in sniper (a 3 degree view must turn ~20x slower than the
     /// wide boom view or maximum zoom is uncontrollable).

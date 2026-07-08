@@ -36,8 +36,18 @@ turret yaw. Local camera input may orbit, zoom, or switch modes, but the camera
 does not move the tank and does not own authoritative simulation. Gameplay truth
 continues to live in `server` and `sim`.
 
-The current desktop binding uses `1` for Third-person and `2` for Sniper. These
-keys change only the local camera mode.
+The desktop camera bindings change only the local camera mode. `V` toggles
+Third-person and Sniper; the mouse wheel is the primary path, zooming the
+third-person boom in, handing over to Sniper at the shortest boom, then stepping
+the magnification ladder. `Shift` is a hold: pressing it opens the scope on the
+current crosshair point, releasing it returns to whatever mode was active before
+the hold (third person, or sniper if it was already open via `V`). Driving brake
+lives on `Ctrl`.
+
+Key entry (`V`, `Shift`) always opens at the default sniper magnification, never the
+last wheel step: a reflex peek must never snap open at maximum zoom. The wheel dials
+deeper from there. Only the wheel's own third-person-to-sniper handover keeps its
+widest-step entry, since it is one continuous sweep in from the boom.
 
 Free look (`Alt`) orbits only the camera and never moves the aim: on release
 the camera returns to the sight lane (yaw and pitch), instead of the turret
