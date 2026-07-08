@@ -9,13 +9,18 @@
 //! Losing your ability to FIGHT is an honest wound you play around; losing the ability to MOVE
 //! forever just parks the battle (bots included — see the seed-23 stall).
 
-use game_core::{ModuleSlot, TrackSide};
+use game_core::{ModuleSlot, TrackSeverity, TrackSide};
 use serde::{Deserialize, Serialize};
 
 use crate::TankState;
 
 /// Seconds the crew needs to re-seat a thrown track.
 pub const TRACK_REPAIR_S: f32 = 10.0;
+/// Seconds between each chunk of regen on a merely DAMAGED (not thrown) track pool.
+pub const TRACK_REGEN_INTERVAL_S: f32 = 3.5;
+/// HP the crew restores to a damaged pool each interval (capped at full). A half-drained pool
+/// climbs back over ~two intervals; a near-thrown one over the repair window's worth.
+pub const TRACK_REGEN_CHUNK: u8 = 20;
 /// Seconds the crew needs to field-patch a destroyed engine or suspension.
 pub const MODULE_PATCH_S: f32 = 15.0;
 /// The field patch restores this fraction of the module's full pool — enough to run at the
@@ -44,14 +49,26 @@ pub(crate) fn step_crew_repair(tank: &mut TankState, dt: f32) {
             TrackSide::Left => &mut tank.repair.left_track_s,
             TrackSide::Right => &mut tank.repair.right_track_s,
         };
-        if tank.tracks.is_broken(side) {
-            *clock += dt;
-            if *clock >= TRACK_REPAIR_S {
-                tank.tracks.reseat(side);
-                *clock = 0.0;
+        match tank.tracks.severity(side) {
+            // A thrown pool is latched: it does not regen chunk-by-chunk, it is re-seated whole
+            // after the full repair window (and a fresh throw restarts the clock).
+            TrackSeverity::Broken => {
+                *clock += dt;
+                if *clock >= TRACK_REPAIR_S {
+                    tank.tracks.reseat(side);
+                    *clock = 0.0;
+                }
             }
-        } else {
-            *clock = 0.0;
+            // A merely damaged pool the crew nurses back up in chunks, so two-damaged eases to
+            // one-damaged and then to whole on its own.
+            TrackSeverity::Damaged => {
+                *clock += dt;
+                if *clock >= TRACK_REGEN_INTERVAL_S {
+                    tank.tracks.heal(side, TRACK_REGEN_CHUNK);
+                    *clock = 0.0;
+                }
+            }
+            TrackSeverity::Healthy => *clock = 0.0,
         }
     }
     for slot in [ModuleSlot::Engine, ModuleSlot::Suspension] {
