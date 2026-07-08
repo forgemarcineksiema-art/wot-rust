@@ -19,7 +19,7 @@ const REST_CLEARANCE_M: f32 = 0.45;
 /// One flying turret. Deterministic in `(tank_id, ring)` — construct it once at detonation and ask
 /// it for the turret and gun transforms each frame.
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct TurretPopoff {
+pub struct TurretPopoff {
     /// Turret-ring world position at detonation (the launch origin).
     origin: Vec3,
     launch_velocity: Vec3,

@@ -41,7 +41,7 @@ const NEAREST_SNAP_M: f32 = 0.30;
 /// nearest-point snap and an other-frame retry for the turret-ring seam — recovers the true
 /// contact. Falls back through the transmitted plate normal to the old cardinal guess, so it is
 /// never worse than before. Returns `None` only when the hit degenerates (a corrupt event).
-pub(crate) fn decal_from_damage_event(
+pub fn decal_from_damage_event(
     event: &DamageEvent,
     target: &TankSnapshot,
     contact: Option<&VehicleContactIndex>,
@@ -207,7 +207,7 @@ fn local_facing_normal(facing: ArmorFacing, local_x: f32) -> Vec3 {
 
 /// Append one tank's battle scars as flat quads riding its posed hull/turret. `opacity` already
 /// folded per decal; a penetration hole stays pitch dark, scuffs thin back to the paint.
-pub(crate) fn append_decal_quads(
+pub fn append_decal_quads(
     vertices: &mut Vec<FxVertex>,
     decals: &[HitDecal],
     tank: &TankSnapshot,
