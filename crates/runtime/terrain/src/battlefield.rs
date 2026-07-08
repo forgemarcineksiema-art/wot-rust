@@ -59,6 +59,36 @@ pub enum StaticCoverKind {
     Wreck,
 }
 
+impl StaticCoverKind {
+    /// Structural health before the object is destroyed; `None` is indestructible (rail
+    /// embankments, pre-placed decorative wrecks — they never take damage or change phase).
+    pub fn max_health(self) -> Option<u32> {
+        match self {
+            StaticCoverKind::FarmBuilding => Some(600),
+            StaticCoverKind::TreeLine => Some(120),
+            StaticCoverKind::RailCover | StaticCoverKind::Wreck => None,
+        }
+    }
+
+    /// A hull driving through at speed flattens it (hedgerows/tree lines). Buildings and rail
+    /// embankments do not crush — a shell has to bring them down.
+    pub fn is_crushable(self) -> bool {
+        matches!(self, StaticCoverKind::TreeLine)
+    }
+
+    /// When destroyed, a building slumps into a rubble mound that still blocks hulls; foliage
+    /// simply vanishes. `true` = leaves a (lowered) blocking mound, `false` = goes fully clear.
+    pub fn leaves_rubble(self) -> bool {
+        matches!(self, StaticCoverKind::FarmBuilding)
+    }
+
+    /// The fraction of its original height a rubble mound keeps: low enough that a turret-height
+    /// shot clears it, tall enough to still stop a hull.
+    pub fn rubble_height_frac(self) -> f32 {
+        0.4
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct StaticCoverObject {
     pub id: String,

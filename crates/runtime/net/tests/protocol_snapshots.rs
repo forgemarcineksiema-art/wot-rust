@@ -11,7 +11,7 @@ use sim::TankCommand;
 use terrain::MapId;
 
 #[test]
-fn input_command_wire_snapshot_v20_is_stable() {
+fn input_command_wire_snapshot_v21_is_stable() {
     let message = ProtocolMessage::Input(ClientInputCommand {
         client_tick: 7,
         tank_id: TankId(42),
@@ -28,13 +28,13 @@ fn input_command_wire_snapshot_v20_is_stable() {
 
     let bytes = encode_message(&message).expect("message should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 20);
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "input_command_v20"));
+    assert_eq!(PROTOCOL_VERSION, 21);
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "input_command_v21"));
     assert_eq!(decode_message(&bytes).expect("message should decode"), message);
 }
 
 #[test]
-fn vehicle_selection_wire_snapshot_v20_is_stable() {
+fn vehicle_selection_wire_snapshot_v21_is_stable() {
     let message = ProtocolMessage::VehicleSelection(ClientVehicleSelection {
         client_tick: 11,
         requested_vehicle: VehicleKind::PantherII,
@@ -42,36 +42,36 @@ fn vehicle_selection_wire_snapshot_v20_is_stable() {
 
     let bytes = encode_message(&message).expect("vehicle selection should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 20);
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "vehicle_selection_v20"));
+    assert_eq!(PROTOCOL_VERSION, 21);
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "vehicle_selection_v21"));
     assert_eq!(decode_message(&bytes).expect("message should decode"), message);
 }
 
 #[test]
-fn tank_snapshot_wire_v20_is_stable() {
+fn tank_snapshot_wire_v21_is_stable() {
     // Locks the v19 raw payload layout; transport framing is covered separately.
     let message = ProtocolMessage::Snapshot(tank_snapshot_message());
 
     let bytes = encode_message(&message).expect("snapshot should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 20);
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_tank_v20"));
+    assert_eq!(PROTOCOL_VERSION, 21);
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_tank_v21"));
     assert_eq!(decode_message(&bytes).expect("snapshot should decode"), message);
 }
 
 #[test]
-fn combat_snapshot_wire_v20_is_stable() {
+fn combat_snapshot_wire_v21_is_stable() {
     let message = ProtocolMessage::Snapshot(combat_snapshot_message());
 
     let bytes = encode_message(&message).expect("snapshot should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 20);
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_combat_v20"));
+    assert_eq!(PROTOCOL_VERSION, 21);
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_combat_v21"));
     assert_eq!(decode_message(&bytes).expect("snapshot should decode"), message);
 }
 
 #[test]
-fn server_hello_wire_snapshot_v20_is_stable() {
+fn server_hello_wire_snapshot_v21_is_stable() {
     let message = ProtocolMessage::ServerHello {
         protocol_version: PROTOCOL_VERSION,
         map_id: MapId::ProkhorovkaHill252_2,
@@ -80,8 +80,8 @@ fn server_hello_wire_snapshot_v20_is_stable() {
 
     let bytes = encode_message(&message).expect("server hello should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 20);
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "server_hello_v20"));
+    assert_eq!(PROTOCOL_VERSION, 21);
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "server_hello_v21"));
     assert_eq!(decode_message(&bytes).expect("server hello should decode"), message);
 }
 
@@ -114,6 +114,7 @@ pub fn tank_snapshot_message() -> Snapshot {
         damage_events: Vec::new(),
         shell_impacts: Vec::new(),
         detached_turrets: Vec::new(),
+        cover_states: Vec::new(),
     }
 }
 
@@ -171,6 +172,8 @@ pub fn combat_snapshot_message() -> Snapshot {
         }],
         // v20: a decapitated wreck on the wire, so the new detached-turret list is locked.
         detached_turrets: vec![TankId(8)],
+        // v21: a rubble mound + a cleared object, so the new cover-state bytes are locked.
+        cover_states: vec![1, 2],
     }
 }
 

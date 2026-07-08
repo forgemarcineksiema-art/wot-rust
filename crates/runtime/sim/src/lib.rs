@@ -3,6 +3,7 @@ mod aiming;
 mod clock;
 mod combat;
 mod command;
+mod cover_damage;
 mod drive_modules;
 mod drowning;
 mod landing;
@@ -29,6 +30,7 @@ pub use clock::{
     DEFAULT_SERVER_TICK_HZ, DEFAULT_SIMULATION_TICK_HZ, DEFAULT_SNAPSHOT_HZ, SimulationClock,
 };
 pub use command::TankCommand;
+pub use cover_damage::{CoverPhase, CoverState};
 pub use drive_modules::{DriveModuleStatus, TrackDriveStatus};
 pub use drowning::{DROWN_DEPTH_M, DROWN_PULSE_INTERVAL_S, ENGINE_FLOOD_S};
 pub use landing::SAFE_LANDING_MPS;

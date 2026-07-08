@@ -14,6 +14,10 @@ mod snapshot_schedule;
 pub use frame::{FRAME_HEADER_LEN, FRAME_MAGIC, decode_frame, encode_frame};
 pub use snapshot_schedule::SnapshotSchedule;
 
+/// v21: `Snapshot` carries `cover_states` — one phase byte per static-cover object (intact /
+/// rubble / gone), so the client can draw collapsed buildings and cleared foliage. Global world
+/// state, re-sent every snapshot (a late joiner converges), index-aligned with the map's cover.
+///
 /// v20: `Snapshot` carries `detached_turrets` — the wrecks whose turret an ammo-rack detonation
 /// blew off. Re-sent every snapshot (so a late joiner converges), it drives the client's ballistic
 /// turret pop-off and matches the server's wreck trace, which now skips the detached turret.
@@ -26,7 +30,7 @@ pub use snapshot_schedule::SnapshotSchedule;
 /// v18: `ServerHello` names the match — `map_id` and `weather_variant` — so the client can
 /// deterministically rebuild the same battlefield the server simulates (the map itself is
 /// never sent) and dress it in the same sky. `ImpactSurface` gains `Water`.
-pub const PROTOCOL_VERSION: u16 = 20;
+pub const PROTOCOL_VERSION: u16 = 21;
 
 #[derive(Debug, Error)]
 pub enum NetError {
@@ -173,6 +177,11 @@ pub struct Snapshot {
     /// `serde(default)` keeps pre-v20 fixtures loading with every turret attached.
     #[serde(default)]
     pub detached_turrets: Vec<TankId>,
+    /// One phase byte per static-cover object (protocol v21): 0 intact, 1 rubble, 2 gone.
+    /// Index-aligned with the map's cover (deterministic per map), so the client dresses each
+    /// object by its phase. `serde(default)` keeps pre-v21 fixtures loading with whole cover.
+    #[serde(default)]
+    pub cover_states: Vec<u8>,
 }
 
 impl From<&SimulationState> for Snapshot {
@@ -189,6 +198,7 @@ impl From<&SimulationState> for Snapshot {
                 .filter(|tank| tank.turret_detached)
                 .map(|tank| tank.id)
                 .collect(),
+            cover_states: state.cover_states().iter().map(|state| state.phase.to_wire()).collect(),
         }
     }
 }
