@@ -225,6 +225,81 @@ fn v_toggles_between_third_person_and_sniper() {
 }
 
 #[test]
+fn shift_hold_enters_sniper_and_releases_to_third_person() {
+    let mut app = ClientApp::new();
+    app.confirm_garage_selection();
+    assert_eq!(app.camera_controller.mode(), BattleCameraMode::ThirdPerson);
+
+    app.begin_sniper_hold();
+    assert_eq!(app.camera_controller.mode(), BattleCameraMode::Sniper);
+
+    app.end_sniper_hold();
+    assert_eq!(app.camera_controller.mode(), BattleCameraMode::ThirdPerson);
+}
+
+#[test]
+fn shift_hold_released_while_v_sniper_stays_in_sniper() {
+    let mut app = ClientApp::new();
+    app.confirm_garage_selection();
+    app.toggle_camera_mode(); // V puts us in sniper first
+    assert_eq!(app.camera_controller.mode(), BattleCameraMode::Sniper);
+
+    // A Shift hold that starts in sniper must not eject the player on release.
+    app.begin_sniper_hold();
+    app.end_sniper_hold();
+    assert_eq!(app.camera_controller.mode(), BattleCameraMode::Sniper);
+}
+
+#[test]
+fn shift_hold_opens_on_the_crosshair_sight_ray() {
+    let mut app = ClientApp::new();
+    app.confirm_garage_selection();
+    app.run_fixed_ticks(40); // let the gun converge on the sight solution
+    app.desired_aim = crate::aim::DesiredAim::new(0.0, 0.75); // stale, unreachable pitch
+    let seed = app.world_sight_seed().expect("crosshair sight ray");
+
+    app.begin_sniper_hold();
+
+    assert_eq!(app.camera_controller.mode(), BattleCameraMode::Sniper);
+    assert_opened_on_seed(&mut app, seed);
+}
+
+#[test]
+fn key_entry_always_opens_sniper_at_the_default_zoom() {
+    let mut app = ClientApp::new();
+    app.confirm_garage_selection();
+    let default_fov = app.camera_controller.settings().sniper_fov_degrees;
+
+    // Open sniper, then dial the magnification deeper with the wheel.
+    app.enter_sniper_mode();
+    assert!((app.camera_controller.sniper_fov_degrees() - default_fov).abs() < 1.0e-4);
+    for _ in 0..4 {
+        app.on_mouse_wheel(MouseScrollDelta::LineDelta(0.0, 1.0));
+    }
+    assert!(app.camera_controller.sniper_fov_degrees() < default_fov, "wheel dialled in");
+
+    // Leave and re-enter with a key: the zoom snaps back to the default, not the last step.
+    app.camera_controller.set_mode(BattleCameraMode::ThirdPerson);
+    app.enter_sniper_mode();
+    assert!(
+        (app.camera_controller.sniper_fov_degrees() - default_fov).abs() < 1.0e-4,
+        "key entry resets to the default zoom, so an absent-minded peek never opens at max zoom"
+    );
+}
+
+#[test]
+fn shift_hold_ignored_while_garage_open() {
+    let mut app = ClientApp::new();
+    app.confirm_garage_selection();
+    app.open_garage(); // Shift+click here cycles a module; the scope must not open behind it
+    let mode_before = app.camera_controller.mode();
+
+    app.begin_sniper_hold();
+
+    assert_eq!(app.camera_controller.mode(), mode_before, "garage swallows the sniper hold");
+}
+
+#[test]
 fn switching_ammo_updates_the_reticle_ballistics_immediately() {
     let mut app = ClientApp::new();
     app.confirm_garage_selection();
