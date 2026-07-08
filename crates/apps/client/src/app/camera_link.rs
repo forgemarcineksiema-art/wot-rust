@@ -16,9 +16,19 @@ impl ClientApp {
     /// sky). Call it while still in the *outgoing* camera mode.
     pub(super) fn world_sight_seed(&self) -> Option<(f32, f32)> {
         let tank = self.local_render_tank()?;
+        // Seed the direction from the SNIPER EYE (turret-ring axis at optic height), not the
+        // muzzle: the eye is where the sniper view actually opens, and it does not move with turret
+        // traverse. Using the muzzle skews the opening view toward the barrel line when the turret
+        // is mid-traverse or reversed (muzzle sits metres off the ring), so the sniper would look
+        // "somewhere between the gun and straight ahead" instead of at the crosshair's world point.
+        let eye = crate::camera::sniper_eye_from_base(
+            tank.vehicle,
+            Vec3::from_array(tank.position),
+            tank.hull_pose(),
+        );
         let camera = self.camera_from_tank(tank);
         let aim = self.aim_world_point(&camera)?;
-        let dir = (aim - self.muzzle_position()).normalize_or_zero();
+        let dir = (aim - eye).normalize_or_zero();
         (dir != Vec3::ZERO).then(|| (dir.x.atan2(dir.z), dir.y.clamp(-1.0, 1.0).asin()))
     }
 

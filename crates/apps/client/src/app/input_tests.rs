@@ -148,6 +148,37 @@ fn scrolling_past_the_shortest_boom_opens_sniper_on_the_crosshair_sight_ray() {
     assert_opened_on_seed(&mut app, seed);
 }
 
+/// Regression: entering the sniper seeds the sight from the turret-ring axis (where the optics
+/// sit), NOT the muzzle. A muzzle-origin seed skews the opening view toward the barrel line while
+/// the turret is mid-traverse or reversed — the bug where "I aim back, press Shift, and the scope
+/// looks forward". Here the aim flicks straight back and the sniper opens while the turret is still
+/// far from that bearing: the opening view must track the crosshair (back), not the lagging gun.
+#[test]
+fn sniper_entry_seeds_from_the_ring_so_a_traversing_turret_does_not_skew_the_view() {
+    use std::f32::consts::PI;
+    let mut app = ClientApp::new();
+    app.confirm_garage_selection();
+    app.run_fixed_ticks(30); // settle facing forward
+    app.desired_aim = crate::aim::DesiredAim::new(PI, 0.0); // flick the aim straight back
+    app.run_fixed_ticks(120); // enter mid-slew: the muzzle is metres off the ring axis
+
+    let tank = app.local_render_tank().expect("local tank");
+    assert!(
+        (tank.yaw_rad + tank.turret_yaw_rad).abs() < 2.0,
+        "precondition: the turret is still well short of the backward aim, so a muzzle-origin \
+         seed would skew hard"
+    );
+
+    let (seed_yaw, _) = app.world_sight_seed().expect("crosshair sight ray");
+    // World azimuth; straight back is +/-PI. It must land within a few degrees of back.
+    let back_err = (seed_yaw.abs() - PI).abs();
+    assert!(
+        back_err < 0.05,
+        "sniper must open where the crosshair aims (back), got yaw {seed_yaw} ({} deg off back)",
+        back_err.to_degrees()
+    );
+}
+
 #[test]
 fn entering_sniper_with_the_key_opens_on_the_crosshair_sight_ray() {
     let mut app = ClientApp::new();
