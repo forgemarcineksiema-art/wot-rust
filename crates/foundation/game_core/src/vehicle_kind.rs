@@ -116,6 +116,13 @@ impl VehicleKind {
         }
     }
 
+    /// The vehicle whose [`slug`](Self::slug) matches, or `None` for an unknown slug — e.g. a save
+    /// written by a build that has since renamed or removed that vehicle. The inverse of `slug`, used
+    /// by persistence so a stale entry degrades gracefully instead of failing a whole parse.
+    pub fn from_slug(slug: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|kind| kind.slug() == slug)
+    }
+
     /// Canonical display name (the historical designation).
     pub fn display_name(self) -> &'static str {
         match self {
@@ -224,6 +231,15 @@ mod tests {
                 assert_ne!(kind.slug(), other.slug(), "slugs must be unique");
             }
         }
+    }
+
+    #[test]
+    fn from_slug_inverts_slug_and_rejects_unknown() {
+        for kind in VehicleKind::ALL {
+            assert_eq!(VehicleKind::from_slug(kind.slug()), Some(kind), "slug round-trips");
+        }
+        assert_eq!(VehicleKind::from_slug("ghost_tank_9000"), None, "unknown slug is None");
+        assert_eq!(VehicleKind::from_slug(""), None, "empty slug is None");
     }
 
     #[test]

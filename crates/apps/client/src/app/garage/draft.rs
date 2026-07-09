@@ -34,6 +34,20 @@ impl FitSlot {
     }
 }
 
+/// One selectable option for a fitting slot, with the single headline stat the garage option list
+/// compares. The stat is read straight off the catalogue module (no crew scaling), so two options
+/// compare on the module's own merit and the delta between them is stable.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct ModuleOption {
+    pub name: String,
+    pub stat: f32,
+    pub unit: &'static str,
+    /// Whether a higher `stat` is the better outcome (drives the green/red delta colour).
+    pub higher_is_better: bool,
+    /// Whether this is the option currently fitted.
+    pub installed: bool,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct LoadoutDraft {
     kind: VehicleKind,
@@ -178,6 +192,68 @@ impl LoadoutDraft {
         }
     }
 
+    /// The selectable options for `slot` with each one's name and headline stat, for the garage
+    /// option list. The headline is the slot's characteristic number — turret/hull armour and HP,
+    /// engine power, suspension traverse, radio range, and for the gun its reload (where two guns of
+    /// equal calibre still differ). `installed` marks the fitted option.
+    pub(super) fn module_options(&self, slot: FitSlot) -> Vec<ModuleOption> {
+        let installed = self.option_index[slot.index()];
+        let (unit, higher_is_better) = match slot {
+            FitSlot::Turret => ("mm", true),
+            FitSlot::Gun => ("s", false),
+            FitSlot::Hull => ("HP", true),
+            FitSlot::Engine => ("kW", true),
+            FitSlot::Suspension => ("d/s", true),
+            FitSlot::Radio => ("m", true),
+        };
+        (0..self.options_len(slot))
+            .map(|i| {
+                let (name, stat) = self.option_name_stat(slot, i);
+                ModuleOption { name, stat, unit, higher_is_better, installed: i == installed }
+            })
+            .collect()
+    }
+
+    /// The catalogue name and headline stat of option `index` in `slot` (raw module value, no crew).
+    fn option_name_stat(&self, slot: FitSlot, index: usize) -> (String, f32) {
+        match slot {
+            FitSlot::Turret => {
+                let m = &self.kind.turret_options()[index];
+                (m.name.clone(), m.front_mm)
+            }
+            FitSlot::Gun => {
+                let m = &self.kind.gun_options()[index];
+                (m.spec.name.clone(), m.spec.reload_seconds)
+            }
+            FitSlot::Hull => {
+                let m = &self.kind.hull_options()[index];
+                (m.name.clone(), m.hit_points as f32)
+            }
+            FitSlot::Engine => {
+                let m = &self.kind.engine_options()[index];
+                (m.name.clone(), m.power_kw)
+            }
+            FitSlot::Suspension => {
+                let m = &self.kind.suspension_options()[index];
+                (m.name.clone(), m.turn_rate_rad_s.to_degrees())
+            }
+            FitSlot::Radio => {
+                let m = &self.kind.radio_options()[index];
+                (m.name.clone(), m.signal_range_m)
+            }
+        }
+    }
+
+    /// Install a specific option index for `slot` — the option list's direct pick. Compatibility is
+    /// checked through the same `try_install_index` path as cycling; returns whether it took.
+    pub(super) fn set_option(&mut self, slot: FitSlot, index: usize) -> bool {
+        if index >= self.options_len(slot) {
+            return false;
+        }
+        // A new gun keeps the ammo selection in range (mirrors the gun arm of `try_install_index`).
+        self.try_install_index(slot, index)
+    }
+
     pub(super) fn ammo_index(&self) -> usize {
         self.ammo_index
     }
@@ -259,10 +335,17 @@ mod tests {
 
     #[test]
     fn cycling_the_suspension_changes_assembled_turn_rate() {
+        // The Tiger II carries a real second track (narrow transport vs wide combat), so cycling
+        // moves the assembled traverse. The transport track is a sidegrade (worse turn for less
+        // weight), so this locks that the swap *changes* traverse, not that it improves it.
         let mut draft = LoadoutDraft::for_vehicle(VehicleKind::TigerII);
         let before = draft.assembled_spec().turn_rate_rad_s;
         draft.cycle_module(FitSlot::Suspension, 1);
-        assert!(draft.assembled_spec().turn_rate_rad_s > before);
+        assert_ne!(
+            draft.assembled_spec().turn_rate_rad_s,
+            before,
+            "the alternate track moves traverse"
+        );
     }
 
     #[test]
@@ -275,7 +358,8 @@ mod tests {
 
     #[test]
     fn cycling_the_engine_changes_assembled_power() {
-        let mut draft = LoadoutDraft::for_vehicle(VehicleKind::TigerII);
+        // The T-54 has a real engine choice (V-54 stock, V-55 retrofit); the V-55 lifts power.
+        let mut draft = LoadoutDraft::for_vehicle(VehicleKind::T54_1951);
         let before = draft.assembled_spec().engine_power_kw;
         draft.cycle_module(FitSlot::Engine, 1);
         assert!(draft.assembled_spec().engine_power_kw > before);
@@ -313,7 +397,7 @@ mod tests {
         let eng_before = draft.current_module_summary(FitSlot::Engine);
         draft.cycle_module(FitSlot::Engine, 1);
         let eng_after = draft.current_module_summary(FitSlot::Engine);
-        assert_ne!(eng_before, eng_after, "uprated engine shows a different kW value");
+        assert_ne!(eng_before, eng_after, "the V-55 retrofit shows a different kW value");
     }
 
     #[test]
@@ -321,6 +405,33 @@ mod tests {
         let mut draft = LoadoutDraft::for_vehicle(VehicleKind::T54_1951);
         assert!(draft.cycle_module(FitSlot::Gun, 1), "gun swap should succeed");
         assert!(draft.cycle_module(FitSlot::Engine, 1), "engine swap should succeed");
+    }
+
+    #[test]
+    fn module_options_reports_names_stats_and_marks_the_installed() {
+        let draft = LoadoutDraft::for_vehicle(VehicleKind::T54_1951);
+        let guns = draft.module_options(FitSlot::Gun);
+        assert_eq!(guns.len(), 2, "the T-54 has two guns to choose between");
+        assert!(guns.iter().all(|o| !o.name.is_empty()), "every option carries a catalogue name");
+        assert!(guns[0].installed, "the stock gun is the installed one");
+        assert!(!guns[1].installed);
+        // Reload is the gun's headline stat, and a shorter reload is better.
+        assert!(!guns[0].higher_is_better, "lower reload is better → higher_is_better is false");
+        assert_ne!(guns[0].stat, guns[1].stat, "the two guns differ on their headline stat");
+
+        // A single-option slot (radio) reports exactly one option, installed.
+        let radios = draft.module_options(FitSlot::Radio);
+        assert_eq!(radios.len(), 1);
+        assert!(radios[0].installed);
+    }
+
+    #[test]
+    fn set_option_installs_a_specific_index_and_rejects_out_of_range() {
+        let mut draft = LoadoutDraft::for_vehicle(VehicleKind::T54_1951);
+        let before = draft.gun_barrel_length();
+        assert!(draft.set_option(FitSlot::Gun, 1), "installing a valid option succeeds");
+        assert_ne!(draft.gun_barrel_length(), before, "the picked option is installed");
+        assert!(!draft.set_option(FitSlot::Gun, 99), "an out-of-range index is rejected");
     }
 
     #[test]

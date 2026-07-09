@@ -46,7 +46,7 @@ pub(in crate::app::garage) fn draw(v: &mut Vec<HudVertex>, state: &GarageState, 
             v,
             nation_label,
             c[0] - nation_w / 2.0,
-            c[1] + 0.075,
+            c[1] + 0.082,
             NATION_TEXT_SIZE,
             aspect,
             [nation_color[0], nation_color[1], nation_color[2], 0.95],
@@ -60,15 +60,6 @@ pub(in crate::app::garage) fn draw(v: &mut Vec<HudVertex>, state: &GarageState, 
             0.03,
             aspect,
             text_color,
-        );
-        push_text(
-            v,
-            &format!("{}", absolute + 1),
-            c[0] - CAR_HALF[0] + 0.01,
-            c[1] - 0.005,
-            0.026,
-            aspect,
-            TEXT_DIM,
         );
     }
 
@@ -96,11 +87,11 @@ mod tests {
         let mut v = Vec::new();
         draw(&mut v, &state, aspect);
 
-        // 5 vehicle cells: 1 background quad + 5 slot quads = 6 quads = 36 vertices.
-        // "USSR" (4 glyphs) + "Germany" (7 glyphs × 4 vehicles) + short names + indices add
-        // many more, so the total must far exceed the quad-only baseline.
+        // 6 vehicle cells: 1 background quad + 6 slot quads = 7 quads = 42 vertices. Nation labels
+        // ("USSR"/"Germany") and the short names add many more, so the total must far exceed the
+        // quad-only baseline.
         assert!(
-            v.len() > 36,
+            v.len() > 42,
             "carousel must emit text vertices beyond plain quads, got {}",
             v.len()
         );
@@ -108,7 +99,7 @@ mod tests {
 
     #[test]
     fn carousel_emits_more_vertices_for_germany_than_a_single_ussr_label() {
-        // "Germany" is 7 glyphs; "USSR" is 4. With one USSR and four Germany vehicles in the
+        // "Germany" is 7 glyphs; "USSR" is 4. With two USSR and four Germany vehicles in the
         // playable roster, Germany glyphs dominate. This is a smoke test that nation labels
         // are actually drawn, not just the background panel.
         let state = GarageState::default();

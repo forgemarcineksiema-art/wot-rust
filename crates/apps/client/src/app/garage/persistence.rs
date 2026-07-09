@@ -23,23 +23,46 @@ pub(super) struct SavedLoadout {
 }
 
 /// Current on-disk schema version. Bump when `GarageSave`/`SavedLoadout` change shape; an older
-/// or newer version loads as "no save" rather than mis-parsing.
-const SAVE_VERSION: u32 = 1;
+/// or newer version loads as "no save" rather than mis-parsing. v2 switched the vehicle identity
+/// from the `VehicleKind` enum to its slug string, so removing/renaming a vehicle degrades one
+/// entry instead of failing the whole parse.
+const SAVE_VERSION: u32 = 2;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub(super) struct GarageSave {
     pub version: u32,
-    pub selected_vehicle: VehicleKind,
-    /// Per-vehicle edited loadouts; a vehicle absent here has never been edited (stock).
-    pub loadouts: HashMap<VehicleKind, SavedLoadout>,
+    /// Slug of the selected vehicle ([`VehicleKind::slug`]). A slug, not the enum, so a save from a
+    /// build that has since renamed/removed a vehicle still parses (the field just fails to resolve
+    /// and falls back to stock) instead of poisoning the whole file.
+    pub selected_vehicle: String,
+    /// Per-vehicle edited loadouts keyed by slug; a vehicle absent here has never been edited
+    /// (stock), and a slug this build no longer knows is skipped on load.
+    pub loadouts: HashMap<String, SavedLoadout>,
 }
 
 impl GarageSave {
     pub(super) fn new(
         selected_vehicle: VehicleKind,
-        loadouts: HashMap<VehicleKind, SavedLoadout>,
+        loadouts: &HashMap<VehicleKind, SavedLoadout>,
     ) -> Self {
-        Self { version: SAVE_VERSION, selected_vehicle, loadouts }
+        Self {
+            version: SAVE_VERSION,
+            selected_vehicle: selected_vehicle.slug().to_string(),
+            loadouts: loadouts.iter().map(|(kind, l)| (kind.slug().to_string(), *l)).collect(),
+        }
+    }
+
+    /// The selected vehicle, or `None` if its slug no longer resolves in this build.
+    fn selected_kind(&self) -> Option<VehicleKind> {
+        VehicleKind::from_slug(&self.selected_vehicle)
+    }
+
+    /// The stored loadouts whose slug still resolves, re-keyed by kind; unknown slugs are dropped.
+    fn resolved_loadouts(&self) -> HashMap<VehicleKind, SavedLoadout> {
+        self.loadouts
+            .iter()
+            .filter_map(|(slug, l)| VehicleKind::from_slug(slug).map(|kind| (kind, *l)))
+            .collect()
     }
 }
 
@@ -81,7 +104,11 @@ pub(super) fn load(path: &Path) -> Option<GarageSave> {
 }
 
 /// Persist `save` to `path`, creating the parent directory if needed. Best-effort: a failed write
-/// warns and is otherwise ignored — losing a loadout edit must never interrupt play.
+/// warns and is otherwise ignored — losing a loadout edit must never interrupt play. The write is
+/// atomic: the JSON goes to a sibling `.tmp` and is renamed over the target, so an interrupted or
+/// failed write can never truncate the real save (a half-written `garage.json` used to wipe every
+/// stored loadout back to stock). `std::fs::rename` replaces an existing file on both Windows and
+/// Unix.
 pub(super) fn store(path: &Path, save: &GarageSave) {
     if let Some(parent) = path.parent()
         && let Err(error) = std::fs::create_dir_all(parent)
@@ -89,13 +116,21 @@ pub(super) fn store(path: &Path, save: &GarageSave) {
         tracing::warn!(%error, "could not create garage save directory");
         return;
     }
-    match serde_json::to_string_pretty(save) {
-        Ok(json) => {
-            if let Err(error) = std::fs::write(path, json) {
-                tracing::warn!(%error, "could not write garage save");
-            }
+    let json = match serde_json::to_string_pretty(save) {
+        Ok(json) => json,
+        Err(error) => {
+            tracing::warn!(%error, "could not serialize garage save");
+            return;
         }
-        Err(error) => tracing::warn!(%error, "could not serialize garage save"),
+    };
+    let tmp = path.with_extension("json.tmp");
+    if let Err(error) = std::fs::write(&tmp, json) {
+        tracing::warn!(%error, "could not write garage save temp");
+        return;
+    }
+    if let Err(error) = std::fs::rename(&tmp, path) {
+        tracing::warn!(%error, "could not replace garage save");
+        let _ = std::fs::remove_file(&tmp);
     }
 }
 
@@ -106,14 +141,14 @@ impl GarageState {
     /// file it just read.
     pub(super) fn enable_persistence(&mut self, path: PathBuf) {
         if let Some(save) = load(&path) {
-            self.saved = save.loadouts;
-            if let Some(index) =
-                VehicleKind::PLAYABLE.iter().position(|kind| *kind == save.selected_vehicle)
+            self.saved = save.resolved_loadouts();
+            if let Some(kind) = save.selected_kind()
+                && let Some(index) = VehicleKind::PLAYABLE.iter().position(|k| *k == kind)
             {
                 self.selected_index = index;
-                self.draft = match self.saved.get(&save.selected_vehicle) {
-                    Some(saved) => LoadoutDraft::from_saved(save.selected_vehicle, saved),
-                    None => LoadoutDraft::for_vehicle(save.selected_vehicle),
+                self.draft = match self.saved.get(&kind) {
+                    Some(saved) => LoadoutDraft::from_saved(kind, saved),
+                    None => LoadoutDraft::for_vehicle(kind),
                 };
             }
         }
@@ -128,7 +163,7 @@ impl GarageState {
         };
         let mut loadouts = self.saved.clone();
         loadouts.insert(self.selected_vehicle(), self.draft.to_saved());
-        store(path, &GarageSave::new(self.selected_vehicle(), loadouts));
+        store(path, &GarageSave::new(self.selected_vehicle(), &loadouts));
     }
 }
 
@@ -148,7 +183,7 @@ mod tests {
             VehicleKind::T54_1951,
             SavedLoadout { option_index: [0, 1, 0, 0, 0, 0], ammo_index: 1, crew_proficiency: 0.9 },
         );
-        GarageSave::new(VehicleKind::TigerII, loadouts)
+        GarageSave::new(VehicleKind::TigerII, &loadouts)
     }
 
     #[test]
@@ -175,11 +210,50 @@ mod tests {
         store(&versioned, &sample());
         let bumped = std::fs::read_to_string(&versioned)
             .unwrap()
-            .replace("\"version\": 1", "\"version\": 999");
+            .replace("\"version\": 2", "\"version\": 999");
         std::fs::write(&versioned, bumped).unwrap();
         assert_eq!(load(&versioned), None, "unknown version = stock garage");
 
         let _ = std::fs::remove_dir_all(corrupt.parent().unwrap());
         let _ = std::fs::remove_dir_all(versioned.parent().unwrap());
+    }
+
+    #[test]
+    fn an_unknown_slug_is_skipped_without_dropping_the_rest() {
+        // A save referencing a vehicle this build no longer has (renamed/removed) must not fail the
+        // whole parse — the unknown entry is skipped and the known loadouts still load. The old
+        // `HashMap<VehicleKind, _>` rejected the entire file on one unknown key.
+        let path = temp_path("unknown-slug");
+        store(&path, &sample());
+        let raw = std::fs::read_to_string(&path).unwrap();
+        // Inject a bogus slug entry into the on-disk loadout map (JSON ignores the indentation).
+        let hacked = raw.replace(
+            "\"loadouts\": {",
+            "\"loadouts\": {\n\"ghost_tank_9000\": { \"option_index\": [0,0,0,0,0,0], \"ammo_index\": 0, \"crew_proficiency\": 0.5 },",
+        );
+        assert_ne!(hacked, raw, "the injection must have matched the loadouts map");
+        std::fs::write(&path, &hacked).unwrap();
+
+        let loaded = load(&path).expect("a save with an unknown slug still parses");
+        let resolved = loaded.resolved_loadouts();
+        assert!(resolved.contains_key(&VehicleKind::T54_1951), "the known loadout survives");
+        assert_eq!(resolved.len(), 1, "the unknown slug is dropped, not fatal");
+        // The selected vehicle still resolves (it is a known slug).
+        assert_eq!(loaded.selected_kind(), Some(VehicleKind::TigerII));
+
+        let _ = std::fs::remove_dir_all(path.parent().unwrap());
+    }
+
+    #[test]
+    fn a_store_leaves_no_temp_file_behind() {
+        // The atomic write renames its `.tmp` over the target; on success no sibling temp lingers.
+        let path = temp_path("atomic");
+        store(&path, &sample());
+        let tmp = path.with_extension("json.tmp");
+        assert!(path.exists(), "the real save is written");
+        assert!(!tmp.exists(), "the temp file is renamed away, not left behind");
+        assert_eq!(load(&path), Some(sample()), "and it round-trips");
+
+        let _ = std::fs::remove_dir_all(path.parent().unwrap());
     }
 }

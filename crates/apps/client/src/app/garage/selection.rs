@@ -37,6 +37,7 @@ impl GarageState {
             self.start_drive_in();
             self.rejected_slot = None;
             self.focused_slot = FitSlot::Gun;
+            self.option_list = None;
             self.persist();
         }
     }

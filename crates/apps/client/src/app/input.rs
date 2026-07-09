@@ -11,7 +11,7 @@ const MOUSE_PITCH_SENSITIVITY: f32 = 0.0030;
 impl ClientApp {
     pub(super) fn on_keyboard(&mut self, event: &KeyEvent) {
         let pressed = event.state == ElementState::Pressed;
-        if pressed && self.garage.is_open() && self.garage_keyboard(event) {
+        if pressed && self.garage.is_open() && self.garage_keyboard(event.physical_key) {
             return;
         }
         self.on_driving_keyboard(event, pressed);

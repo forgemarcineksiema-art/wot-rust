@@ -40,6 +40,14 @@ fn tree_nodes() -> Vec<(usize, VehicleKind, [f32; 2])> {
     out
 }
 
+/// The tree-node centre for a `VehicleKind::PLAYABLE` index, or `None` if out of range. Reuses the
+/// same `tree_nodes()` enumeration the draw and hit-test paths use, so a hover highlight lands on the
+/// exact node the click would select (the hangar carousel and the tech tree lay nodes out
+/// differently, so the hover rect must be resolved per view).
+pub(in crate::app::garage) fn node_center_for_index(index: usize) -> Option<[f32; 2]> {
+    tree_nodes().into_iter().find(|(i, _, _)| *i == index).map(|(_, _, center)| center)
+}
+
 pub(in crate::app::garage) fn draw(state: &GarageState, aspect: f32) -> Vec<HudVertex> {
     let mut v = Vec::new();
     push_panel(&mut v, TREE_PANEL_CENTER, TREE_PANEL_HALF, CHAMFER_PANEL, aspect, PANEL);

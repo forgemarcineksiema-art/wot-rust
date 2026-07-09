@@ -98,6 +98,44 @@ pub(crate) fn tiger_ii_loadout() -> VehicleModules {
     }
 }
 
+/// The Maybach HL210 P45 (650 PS) of the early-production Tiger, before the HL230 P45 (700 PS)
+/// replaced it. An aluminium block, so it runs lighter and a touch cooler than the HL230 — a real
+/// sidegrade (less power for less weight), not a synthetic detune.
+pub(crate) fn tiger_i_engine_hl210() -> EngineModule {
+    EngineModule {
+        name: "Maybach HL210 P45".to_string(),
+        power_kw: 478.0,
+        mass_kg: 1_950.0,
+        hit_points: 165,
+        fire_chance: 0.19,
+    }
+}
+
+/// The Tiger's narrow rail-loading track (Verladekette), swapped on to fit railway loading gauge.
+/// A narrower contact patch traverses worse and carries less, but weighs less than the wide combat
+/// track (Gefechtskette) — a genuine period trade, not a formula.
+pub(crate) fn tiger_i_transport_track() -> SuspensionModule {
+    SuspensionModule {
+        name: "Tiger transport track".to_string(),
+        mass_kg: 4_100.0,
+        hit_points: 165,
+        turn_rate_rad_s: 0.52,
+        max_load_kg: 60_000.0,
+    }
+}
+
+/// The Tiger II's transport track — the same narrow/wide trade as the Tiger I's, scaled to the
+/// heavier hull.
+pub(crate) fn tiger_ii_transport_track() -> SuspensionModule {
+    SuspensionModule {
+        name: "Tiger II transport track".to_string(),
+        mass_kg: 4_600.0,
+        hit_points: 175,
+        turn_rate_rad_s: 0.40,
+        max_load_kg: 72_000.0,
+    }
+}
+
 pub(crate) fn gun_kwk36() -> GunModule {
     GunModule {
         spec: GunSpec {

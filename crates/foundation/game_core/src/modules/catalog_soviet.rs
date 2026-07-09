@@ -166,6 +166,30 @@ pub(crate) fn gun_d25t() -> GunModule {
     }
 }
 
+/// The V-55 (580 hp) fitted to late T-54s and the T-55 line — a real retrofit over the V-54's
+/// 520 hp. Mostly upside (it was a genuine improvement), at a little extra weight and heat; kept as
+/// an authored alternate rather than a synthetic multiplier so the number means the real engine.
+pub(crate) fn t54_engine_v55() -> EngineModule {
+    EngineModule {
+        name: "V-55".to_string(),
+        power_kw: 433.0,
+        mass_kg: 1_550.0,
+        hit_points: 150,
+        fire_chance: 0.11,
+    }
+}
+
+/// The V-54K-IS the IS-3M modernization fitted — a modest, reliability-driven uprate over the V-11.
+pub(crate) fn is3_engine_v54k() -> EngineModule {
+    EngineModule {
+        name: "V-54K-IS".to_string(),
+        power_kw: 397.0,
+        mass_kg: 1_720.0,
+        hit_points: 165,
+        fire_chance: 0.11,
+    }
+}
+
 pub(crate) fn gun_d10t() -> GunModule {
     GunModule {
         spec: GunSpec {

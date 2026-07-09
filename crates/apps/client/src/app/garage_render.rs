@@ -133,7 +133,7 @@ impl ClientApp {
         let (sky, lighting, rain_intensity, wetness) = match want {
             // The workshop rig rakes a warm sun down through the skylights (real contact shadow
             // on the turntable) over a dim, near-neutral shop interior.
-            SceneKind::Garage => ((0.05, 0.05, 0.06), SceneLighting::garage_workshop(), 0.0, 0.0),
+            SceneKind::Garage => ((0.05, 0.05, 0.06), SceneLighting::garage_hero(), 0.0, 0.0),
             SceneKind::Battle => {
                 // The battle look is the MATCH's look: the server named the map and rolled the
                 // weather from the battle seed; the client dresses accordingly.

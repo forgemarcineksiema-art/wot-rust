@@ -1,9 +1,14 @@
-use super::catalog_german::{gun_kwk36, gun_kwk43, tiger_i_loadout, tiger_ii_loadout};
+use super::catalog_german::{
+    gun_kwk36, gun_kwk43, tiger_i_engine_hl210, tiger_i_loadout, tiger_i_transport_track,
+    tiger_ii_loadout, tiger_ii_transport_track,
+};
 use super::catalog_misc::{
-    gun_kwk42, gun_pak80, gun_prototype, jagdtiger_loadout, panther_loadout, prototype_loadout,
+    gun_kwk42, gun_pak43_l71, gun_pak80, gun_prototype, jagdtiger_loadout,
+    jagdtiger_transport_track, panther_loadout, panther_transport_track, prototype_loadout,
 };
 use super::catalog_soviet::{
-    gun_d10t, gun_d10t2s, gun_d25t, is3_loadout, t54_loadout, t55_loadout,
+    gun_d10t, gun_d10t2s, gun_d25t, is3_engine_v54k, is3_loadout, t54_engine_v55, t54_loadout,
+    t55_loadout,
 };
 use super::{
     EngineModule, GunModule, HullChassis, RadioModule, SuspensionModule, TurretModule,
@@ -41,7 +46,9 @@ impl VehicleKind {
             VehicleKind::T55A => vec![gun_d10t2s(), gun_d10t()],
             VehicleKind::TigerI => vec![gun_kwk36()],
             VehicleKind::TigerII => vec![gun_kwk43()],
-            VehicleKind::Jagdtiger => vec![gun_pak80()],
+            // The actually-fielded "88 Jagdtiger": the long 88 as a DPM/handling trade against the
+            // 12.8 cm's alpha (both fit the casemate's 130 mm caliber limit).
+            VehicleKind::Jagdtiger => vec![gun_pak80(), gun_pak43_l71()],
             VehicleKind::PantherII => vec![gun_kwk42()],
             VehicleKind::IS3 => vec![gun_d25t()],
         }
@@ -59,33 +66,33 @@ impl VehicleKind {
         vec![self.default_loadout().hull]
     }
 
-    /// Engines (first is stock). The uprated engine is a sidegrade, not a free win: more power, but
-    /// heavier and more prone to catching fire when knocked out. No economy — both are selectable.
+    /// Engines (first is stock). Authored per-vehicle historical alternates, not a synthetic
+    /// multiplier: only vehicles that genuinely had a second powerplant offer one, and each is a
+    /// real trade (the early Tiger's lighter-but-weaker HL210, the T-54's V-55 retrofit, the IS-3M's
+    /// V-54K). Vehicles with one service engine list only it — honest over a fake blanket uprate.
     pub fn engine_options(self) -> Vec<EngineModule> {
         let stock = self.default_loadout().engine;
-        let uprated = EngineModule {
-            name: format!("{} (uprated)", stock.name),
-            power_kw: stock.power_kw * 1.15,
-            mass_kg: stock.mass_kg * 1.10,
-            fire_chance: (stock.fire_chance + 0.08).min(1.0),
-            ..stock.clone()
-        };
-        vec![stock, uprated]
+        match self {
+            VehicleKind::T54_1951 => vec![stock, t54_engine_v55()],
+            VehicleKind::TigerI => vec![stock, tiger_i_engine_hl210()],
+            VehicleKind::IS3 => vec![stock, is3_engine_v54k()],
+            _ => vec![stock],
+        }
     }
 
-    /// Running gear (first is stock). The reinforced set is a sidegrade: it turns faster and
-    /// carries more, but is heavier (which eats into power-to-weight). The load limit it sets still
-    /// gates heavier turret/gun installs.
+    /// Running gear (first is stock). The real period choice was track WIDTH: the German heavies
+    /// carried a narrow rail-loading track (Verladekette) alongside the wide combat track
+    /// (Gefechtskette). The transport track is lighter but traverses worse and carries less — a
+    /// genuine trade. Vehicles without a documented second track list only their stock gear.
     pub fn suspension_options(self) -> Vec<SuspensionModule> {
         let stock = self.default_loadout().suspension;
-        let reinforced = SuspensionModule {
-            name: format!("{} (reinforced)", stock.name),
-            turn_rate_rad_s: stock.turn_rate_rad_s * 1.12,
-            max_load_kg: stock.max_load_kg * 1.06,
-            mass_kg: stock.mass_kg * 1.18,
-            ..stock.clone()
-        };
-        vec![stock, reinforced]
+        match self {
+            VehicleKind::TigerI => vec![stock, tiger_i_transport_track()],
+            VehicleKind::TigerII => vec![stock, tiger_ii_transport_track()],
+            VehicleKind::Jagdtiger => vec![stock, jagdtiger_transport_track()],
+            VehicleKind::PantherII => vec![stock, panther_transport_track()],
+            _ => vec![stock],
+        }
     }
 
     /// Radios (first is stock). There is no meaningful radio sidegrade in this prototype, so the
@@ -106,24 +113,79 @@ mod tests {
             assert_eq!(kind.gun_options()[0], default.gun, "{kind:?} stock gun first");
             assert_eq!(kind.turret_options()[0], default.turret);
             assert_eq!(kind.hull_options()[0], default.hull);
-            assert_eq!(kind.engine_options()[0], default.engine);
-            assert_eq!(kind.suspension_options()[0], default.suspension);
+            assert_eq!(kind.engine_options()[0], default.engine, "{kind:?} stock engine first");
+            assert_eq!(
+                kind.suspension_options()[0],
+                default.suspension,
+                "{kind:?} stock gear first"
+            );
             assert_eq!(kind.radio_options()[0], default.radio);
 
-            // The reinforced running gear is a real upgrade (faster traverse, more load headroom).
-            let suspensions = kind.suspension_options();
-            let last = &suspensions[suspensions.len() - 1];
-            assert!(last.turn_rate_rad_s > suspensions[0].turn_rate_rad_s);
-            assert!(last.max_load_kg >= suspensions[0].max_load_kg);
-
-            // The uprated engine is a real upgrade and any option still assembles to a valid spec.
+            // Every engine option (authored, real variants — never a copy of the stock) still
+            // assembles to a valid spec.
             let engines = kind.engine_options();
-            assert!(engines[engines.len() - 1].power_kw > engines[0].power_kw);
-            for engine in engines {
+            for (i, engine) in engines.iter().enumerate() {
+                if i > 0 {
+                    assert_ne!(
+                        *engine, engines[0],
+                        "{kind:?} alternate engine must differ from stock"
+                    );
+                }
                 let mut modules = kind.default_loadout();
-                modules.engine = engine;
+                modules.engine = engine.clone();
                 assert!(modules.assemble(kind).engine_power_kw > 0.0);
             }
+            // Alternate running gear and guns are likewise distinct authored variants.
+            let suspensions = kind.suspension_options();
+            for susp in &suspensions[1..] {
+                assert_ne!(
+                    *susp, suspensions[0],
+                    "{kind:?} alternate track must differ from stock"
+                );
+                assert!(susp.turn_rate_rad_s > 0.0 && susp.max_load_kg > 0.0);
+            }
+            let guns = kind.gun_options();
+            for gun in &guns[1..] {
+                assert_ne!(*gun, guns[0], "{kind:?} alternate gun must differ from stock");
+            }
         }
+    }
+
+    #[test]
+    fn authored_alternates_are_real_trades_not_formula_upgrades() {
+        // T-54: the V-55 retrofit genuinely out-powers the V-54.
+        let t54_engines = VehicleKind::T54_1951.engine_options();
+        assert_eq!(t54_engines.len(), 2);
+        assert!(t54_engines[1].power_kw > t54_engines[0].power_kw, "V-55 out-powers the V-54");
+
+        // Tiger I: the early HL210 is a sidegrade — LESS power for LESS weight, not a strict win.
+        let tiger_engines = VehicleKind::TigerI.engine_options();
+        assert!(tiger_engines[1].power_kw < tiger_engines[0].power_kw, "HL210 gives up power");
+        assert!(tiger_engines[1].mass_kg < tiger_engines[0].mass_kg, "...for less weight");
+
+        // Tiger II: the transport track trades traverse for weight (worse turn, lighter).
+        let tiger2_susp = VehicleKind::TigerII.suspension_options();
+        assert_eq!(tiger2_susp.len(), 2);
+        assert!(
+            tiger2_susp[1].turn_rate_rad_s < tiger2_susp[0].turn_rate_rad_s,
+            "the transport track traverses worse than the combat track"
+        );
+        assert!(tiger2_susp[1].mass_kg < tiger2_susp[0].mass_kg, "...but weighs less");
+
+        // Jagdtiger: the fielded 88 reloads faster but hits softer than the 12.8 cm.
+        let jt_guns = VehicleKind::Jagdtiger.gun_options();
+        assert_eq!(jt_guns.len(), 2);
+        assert!(
+            jt_guns[1].spec.reload_seconds < jt_guns[0].spec.reload_seconds,
+            "the 88 reloads faster than the 12.8 cm"
+        );
+        assert!(
+            jt_guns[1].spec.shell.damage_hp < jt_guns[0].spec.shell.damage_hp,
+            "...for less alpha"
+        );
+
+        // A vehicle with one service engine / one track lists exactly one — no fake blanket uprate.
+        assert_eq!(VehicleKind::TigerII.engine_options().len(), 1, "one service engine only");
+        assert_eq!(VehicleKind::IS3.suspension_options().len(), 1, "one running gear only");
     }
 }

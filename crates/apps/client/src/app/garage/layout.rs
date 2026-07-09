@@ -35,7 +35,10 @@ pub(super) const TECH_TREE_TAB_HALF: [f32; 2] = [0.10, 0.03];
 // Left crew column.
 pub(super) const CREW_X: f32 = -0.80;
 pub(super) const CREW_HALF_X: f32 = 0.18;
-pub(super) const CREW_TOP: f32 = 0.74;
+// The first row sits below the header hairline (0.755): the row-0 icon top is `CREW_TOP + 0.035`,
+// so this must stay under ~0.72 or the first role crashes into the "CREW" header. See the
+// `first_row_clears_the_header_hairline` lock in `panels/stats.rs`.
+pub(super) const CREW_TOP: f32 = 0.71;
 pub(super) const CREW_PITCH: f32 = 0.105;
 pub(super) const PROF_Y: f32 = 0.18;
 pub(super) const PROF_LEFT_X: f32 = -0.90;
@@ -45,7 +48,9 @@ pub(super) const ARROW_HALF: [f32; 2] = [0.024, 0.034];
 // Right stats list.
 pub(super) const STAT_X: f32 = 0.78;
 pub(super) const STAT_HALF_X: f32 = 0.20;
-pub(super) const STAT_TOP: f32 = 0.74;
+// Matches `CREW_TOP`: the row-0 icon top is `STAT_TOP + 0.03`, which must clear the header hairline
+// at 0.755 (see `first_row_clears_the_header_hairline`).
+pub(super) const STAT_TOP: f32 = 0.71;
 pub(super) const STAT_PITCH: f32 = 0.105;
 
 // Bottom loadout strip: six module slots, a gap, then three ammo slots.
@@ -60,7 +65,10 @@ const AMMO_START_X: f32 = 0.22;
 pub(super) const CAR_Y: f32 = -0.87;
 pub(super) const CAR_HALF: [f32; 2] = [0.058, 0.072];
 const CAR_STEP: f32 = 0.13;
-pub(super) const NATION_TEXT_SIZE: f32 = 0.022;
+// At 0.022 the condensed nation label rendered as a ~7px-cap blur; 0.028 brings it up to a legible
+// superscript over the vehicle name (the atlas master is 64px, so size — not resolution — was the
+// bottleneck). The label y is lifted to match (`carousel.rs`) so it stays clear of the name row.
+pub(super) const NATION_TEXT_SIZE: f32 = 0.028;
 /// Most cells shown at once; the roster scrolls through this window when larger.
 pub(super) const CAR_VISIBLE: usize = 7;
 /// Scroll-arrow hit rects, just outside the widest window (drawn only when the roster overflows).
@@ -69,6 +77,26 @@ const CAR_ARROW_X: f32 = 0.52;
 
 pub(super) fn module_slot_center(i: usize) -> [f32; 2] {
     [MODULE_START_X + i as f32 * SLOT_STEP, LOADOUT_Y]
+}
+
+// Module option list: the informed-swap popup the player opens by clicking a swappable slot. Rows
+// stack upward from just above the loadout strip, centred on the clicked slot's column, so the
+// popup reads as rising out of that slot. Each row carries an option name, its headline stat, and a
+// coloured delta against the installed option.
+pub(super) const OPTION_ROW_HALF: [f32; 2] = [0.21, 0.030];
+pub(super) const OPTION_ROW_PITCH: f32 = 0.066;
+/// Lowest row centre (nearest the loadout strip); higher options stack upward toward the tank.
+const OPTION_LIST_BASE_Y: f32 = -0.50;
+/// Semantic delta colours: a swap that improves the slot's headline stat reads green, a regression
+/// red. Kept with the feature — the instrument theme (`hud/theme.rs`) deliberately carries no green,
+/// reserving green/red for meaning (matches the reticle penetration verdict palette).
+pub(super) const DELTA_GOOD: [f32; 4] = [0.35, 0.85, 0.40, 0.95];
+pub(super) const DELTA_BAD: [f32; 4] = [0.90, 0.30, 0.25, 0.95];
+
+/// Screen centre of option `row` (0 = nearest the strip) in the list for the slot at `slot_index`.
+pub(super) fn option_row_center(slot_index: usize, row: usize) -> [f32; 2] {
+    let x = module_slot_center(slot_index)[0].clamp(-0.72, 0.72);
+    [x, OPTION_LIST_BASE_Y + row as f32 * OPTION_ROW_PITCH]
 }
 
 pub(super) fn ammo_slot_center(i: usize) -> [f32; 2] {
@@ -116,6 +144,18 @@ pub(super) fn in_rect(point: [f32; 2], center: [f32; 2], half: [f32; 2]) -> bool
 
 pub(super) use crate::vehicle::display::short_name;
 
+/// The header label for a fitting slot, shown atop its option list.
+pub(super) fn slot_label(slot: FitSlot) -> &'static str {
+    match slot {
+        FitSlot::Turret => "TURRET",
+        FitSlot::Gun => "GUN",
+        FitSlot::Hull => "HULL",
+        FitSlot::Engine => "ENGINE",
+        FitSlot::Suspension => "SUSPENSION",
+        FitSlot::Radio => "RADIO",
+    }
+}
+
 /// The icon for a fitting slot.
 pub(super) fn slot_icon(slot: FitSlot) -> crate::hud::icons::HudIcon {
     use crate::hud::icons::HudIcon;
@@ -139,9 +179,12 @@ pub(super) fn ammo_icon(index: usize) -> crate::hud::icons::HudIcon {
     }
 }
 
-// Tech tree view: vehicles grouped by nation in vertical columns (the beta-WoT signature).
-pub(super) const TREE_PANEL_CENTER: [f32; 2] = [0.0, -0.05];
-pub(super) const TREE_PANEL_HALF: [f32; 2] = [0.95, 0.80];
+// Tech tree view: vehicles grouped by nation in vertical columns (the beta-WoT signature). The
+// panel hugs the node block (nodes span x ±0.54, y ~0.04..0.70) instead of flooding the screen —
+// the old [0.95, 0.80] left a huge dead well below the six nodes. Faza 5 restructures the tree by
+// era; this is just the emptiness trim.
+pub(super) const TREE_PANEL_CENTER: [f32; 2] = [0.0, 0.30];
+pub(super) const TREE_PANEL_HALF: [f32; 2] = [0.70, 0.44];
 pub(super) const TREE_USSR_X: f32 = -0.40;
 pub(super) const TREE_GERMANY_X: f32 = 0.40;
 pub(super) const TREE_NODE_HALF: [f32; 2] = [0.14, 0.045];
