@@ -81,9 +81,11 @@ impl TrackFeedback {
     pub(crate) fn model(&self) -> TrackFeedbackModel {
         let progress = |down: Option<f32>| down.map(|s| (s / RESEAT_S).clamp(0.0, 1.0));
         TrackFeedbackModel {
-            callout: self
-                .callout
-                .map(|c| CalloutView { broke: c.broke, side: c.side, age_s: c.age_s }),
+            callout: self.callout.map(|c| CalloutView {
+                broke: c.broke,
+                side: c.side,
+                age_s: c.age_s,
+            }),
             reseat: [progress(self.left_down_s), progress(self.right_down_s)],
         }
     }
@@ -114,7 +116,11 @@ pub struct CalloutView {
 }
 
 /// Draw the callout line and any active re-seat bars.
-pub(crate) fn push_track_callout(vertices: &mut Vec<HudVertex>, model: &TrackFeedbackModel, aspect: f32) {
+pub(crate) fn push_track_callout(
+    vertices: &mut Vec<HudVertex>,
+    model: &TrackFeedbackModel,
+    aspect: f32,
+) {
     if let Some(callout) = model.callout {
         let base = if callout.broke { BROKE_COLOR } else { DAMAGED_COLOR };
         let fade = ((CALLOUT_TTL_S - callout.age_s) / 0.6).clamp(0.0, 1.0);
@@ -128,7 +134,15 @@ pub(crate) fn push_track_callout(vertices: &mut Vec<HudVertex>, model: &TrackFee
             let label = if callout.broke { "TRACK DESTROYED" } else { "TRACK DAMAGED" };
             let text = format!("{label} {side}");
             let width = super::font::text_width(&text, CALLOUT_TEXT_H, aspect);
-            super::font::push_text(vertices, &text, -width * 0.5, CALLOUT_Y, CALLOUT_TEXT_H, aspect, color);
+            super::font::push_text(
+                vertices,
+                &text,
+                -width * 0.5,
+                CALLOUT_Y,
+                CALLOUT_TEXT_H,
+                aspect,
+                color,
+            );
         }
     }
 
@@ -143,7 +157,15 @@ pub(crate) fn push_track_callout(vertices: &mut Vec<HudVertex>, model: &TrackFee
         push_bar(vertices, [-BAR_HALF[0], y], BAR_HALF, *frac, fill);
         // A side tag on the left of its bar so two down tracks are told apart.
         let tag = if index == 0 { "L" } else { "R" };
-        super::font::push_text(vertices, tag, -BAR_HALF[0] - 0.045, y + 0.014, 0.026, aspect, theme::TEXT_DIM);
+        super::font::push_text(
+            vertices,
+            tag,
+            -BAR_HALF[0] - 0.045,
+            y + 0.014,
+            0.026,
+            aspect,
+            theme::TEXT_DIM,
+        );
         row += 1;
     }
 }
@@ -167,7 +189,10 @@ mod tests {
         fb.ingest(&[track_event(1, TrackSide::Left, false)], TankId(1));
         assert!(fb.model().callout.is_some_and(|c| !c.broke), "damage callout first");
         fb.ingest(&[track_event(1, TrackSide::Left, true)], TankId(1));
-        assert!(fb.model().callout.is_some_and(|c| c.broke), "a throw supersedes the damage callout");
+        assert!(
+            fb.model().callout.is_some_and(|c| c.broke),
+            "a throw supersedes the damage callout"
+        );
     }
 
     #[test]
