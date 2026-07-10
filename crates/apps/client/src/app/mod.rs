@@ -103,6 +103,9 @@ pub(crate) struct InputState {
     wheel_pending_lines: f32,
     /// Whether Shift is currently held — the garage uses Shift+click to cycle a module backward.
     shift: bool,
+    /// Camera mode to restore when a Shift sniper-hold ends; `Some` only while Shift holds the
+    /// scope open. Mirrors `free_look_return_pitch`: captured on press, restored on release.
+    sniper_hold_return: Option<crate::BattleCameraMode>,
 }
 
 pub(crate) struct ClientApp {
@@ -133,6 +136,7 @@ pub(crate) struct ClientApp {
     hit_indicator: HitIndicator,
     /// Rolling dealt/taken damage feed for the left-edge battle log.
     damage_log: crate::hud::damage_log::DamageLog,
+    track_feedback: crate::hud::track_callout::TrackFeedback,
     /// Incoming hits awaiting their screen-bearing arcs.
     incoming_hits: crate::hud::hit_direction::IncomingHitFeed,
     /// Battle effects (muzzle flash, smoke, dust, impact bursts, tracers): one particle pool
@@ -257,6 +261,7 @@ impl ClientApp {
             last_render_time: Instant::now(),
             hit_indicator: HitIndicator::default(),
             damage_log: crate::hud::damage_log::DamageLog::default(),
+            track_feedback: crate::hud::track_callout::TrackFeedback::default(),
             incoming_hits: crate::hud::hit_direction::IncomingHitFeed::default(),
             fx: FxSystem::default(),
             tank_scars: HashMap::new(),

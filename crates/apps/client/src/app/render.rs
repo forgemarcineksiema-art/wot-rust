@@ -143,6 +143,7 @@ impl ClientApp {
         self.render_state.set_interpolation_alpha(self.remote_interpolation_alpha());
         self.hit_indicator.tick(frame_dt);
         self.damage_log.tick(frame_dt);
+        self.track_feedback.tick(frame_dt);
         self.incoming_hits.tick(frame_dt);
         self.kill_confirm_age_s = self
             .kill_confirm_age_s
@@ -238,6 +239,7 @@ impl ClientApp {
             speed_kmh: self.player_speed_kmh(),
             zoom_factor: self.camera_controller.zoom_factor(),
             damage_log: self.damage_log.visible(),
+            track_feedback: self.track_feedback.model(),
             incoming_hits: self.incoming_hits.screen_hits(camera_forward_xz),
             ammo: Some(self.player_ammo_hud()),
             minimap,

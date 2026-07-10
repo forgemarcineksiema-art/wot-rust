@@ -92,12 +92,22 @@ pub(crate) fn apply_shell_impact(
     if let Some(module) = module {
         target.modules.damage(module, penetration.module_damage_hp);
     }
-    apply_track_damage_for_hit(
+    // How hard this shell bit the track band: a clean, near-normal AP round throws it outright; an
+    // oblique or ricocheting hit only degrades it; an HE burst chips it (see `track_hit_damage`).
+    let track_chunk = game_core::track_hit_damage(
+        shell.shell.caliber_mm,
+        impact_angle_degrees,
+        shell.shell.shell_type,
+        penetration.penetrated,
+        penetration.ricocheted,
+    );
+    let track_hit = apply_track_damage_for_hit(
         target,
         module,
         zone,
         shell.shell.shell_type,
         penetration.penetrated,
+        track_chunk,
     );
 
     // The jack-in-the-box: an ammo-rack detonation that kills the tank in this same resolution
@@ -130,6 +140,7 @@ pub(crate) fn apply_shell_impact(
         // the plate's true world normal (from the armor-volume trace) and the shell's heading.
         plate_normal,
         shell_direction: shell.velocity_mps.normalize_or_zero(),
+        track_hit,
     }
 }
 

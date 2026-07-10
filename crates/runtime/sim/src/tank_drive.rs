@@ -11,6 +11,22 @@ use crate::aiming::{AimingState, step_aiming};
 use crate::drive_modules::{DriveModuleStatus, TrackDriveStatus};
 use crate::tank_state::TankState;
 
+/// A hull with two fully-drained-but-not-thrown tracks keeps at least this fraction of top speed
+/// (turn is scaled by traction directly, which bottoms out lower). Damaged mobility should sting,
+/// not immobilize — a thrown track is what stops you.
+const DAMAGED_SPEED_FLOOR: f32 = 0.75;
+/// One thrown track: the live side still drives the hull, but only this fraction of throttle
+/// reaches the ground — a slow, deliberate crawl that still lets you reposition or line up a shot.
+const BROKEN_ONE_THROTTLE_SCALE: f32 = 0.55;
+/// ...and it turns this sluggishly on the one good track.
+const BROKEN_ONE_TURN_SCALE: f32 = 0.6;
+/// Under power a one-track hull drifts toward the dead side by this much steer — small enough that
+/// a counter-steer overrides it, so the hull stays drivable where you point it.
+const BROKEN_ONE_DRIFT_BIAS: f32 = 0.18;
+/// Throttle magnitude below this reads as "no drive input": no drift bias is applied, so a hull
+/// with one thrown track sits still at rest instead of pivoting in place forever.
+const DRIVE_INPUT_EPS: f32 = 0.05;
+
 /// The minimal per-tank state a fixed-tick drive step reads and writes: hull kinematics, turret/gun
 /// aim, and the live aim dispersion. The server projects a `TankState` into this; the client
 /// predictor stores it directly. Both run [`step_tank_drive`], so the local tank is simulated by
@@ -57,14 +73,35 @@ pub fn step_tank_drive(
         settings.drive_power_mps3 *= modules.engine_power_fraction;
         settings.turn_rate_rad_s *= modules.suspension_agility;
         settings.yaw_accel_rad_s2 *= modules.suspension_agility;
-        // A dead engine removes drive; broken tracks reduce or remove per-side traction.
+        // A dead engine removes drive; damaged/thrown tracks shape the rest.
         let (mut throttle, mut steer) =
             if modules.engine_ok { (command.throttle, command.steer) } else { (0.0, 0.0) };
-        if !modules.tracks.both_ok() {
-            let bias = if modules.tracks.right_ok { 0.78 } else { -0.78 };
-            let drive_sign = if throttle.abs() > 0.05 { throttle.signum() } else { 1.0 };
-            throttle *= 0.18;
-            steer = (steer * 0.25 + bias * drive_sign).clamp(-1.0, 1.0);
+        if modules.tracks.both_ok() {
+            // Both sides rolling. A Damaged pool only dulls agility (and shaves a little top
+            // speed); it never biases the steer, so the hull still drives exactly where it is
+            // pointed and can be a hair twitchy but never squirrelly. Both healthy → traction is
+            // exactly 1.0, so every factor below is 1.0 and the healthy drive stays bit-identical
+            // (replay-locked). One light hit is imperceptible; two damaged sides compound.
+            let traction = modules.tracks.rolling_traction();
+            settings.turn_rate_rad_s *= traction;
+            settings.yaw_accel_rad_s2 *= traction;
+            settings.drive_power_mps3 *=
+                DAMAGED_SPEED_FLOOR + (1.0 - DAMAGED_SPEED_FLOOR) * traction;
+        } else {
+            // Exactly one side thrown (the both-thrown case is the hard stop below). The live side
+            // still drives, so the hull crawls — slow, but fully controllable and able to STOP.
+            // The working track pushes the hull around the dead one, so UNDER POWER it drifts
+            // toward the dead side. The drift is small, gated on real throttle input (so a
+            // released hull sits still instead of pivoting forever — the old idle-spin bug), and
+            // simply ADDED to the player's steer so a counter-steer overrides it.
+            throttle *= BROKEN_ONE_THROTTLE_SCALE;
+            settings.turn_rate_rad_s *= BROKEN_ONE_TURN_SCALE;
+            settings.yaw_accel_rad_s2 *= BROKEN_ONE_TURN_SCALE;
+            if command.throttle.abs() > DRIVE_INPUT_EPS {
+                let dead_sign = if modules.tracks.right_ok() { -1.0 } else { 1.0 };
+                let drift = BROKEN_ONE_DRIFT_BIAS * dead_sign * command.throttle.signum();
+                steer = (steer + drift).clamp(-1.0, 1.0);
+            }
         }
         let input = TankControlInput { throttle, steer, brake: command.brake };
         let obstacles = TankWorldObstacles::new(
@@ -137,7 +174,7 @@ pub(crate) fn step_tank(
     };
     let suspension_ok = tank.modules.is_functional(ModuleSlot::Suspension);
     let tracks = if suspension_ok {
-        TrackDriveStatus::from_track_damage(tank.tracks)
+        TrackDriveStatus::from_track_health(&tank.tracks)
     } else {
         TrackDriveStatus::broken()
     };

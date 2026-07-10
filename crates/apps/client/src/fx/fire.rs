@@ -89,6 +89,7 @@ mod tests {
             module_hit_points: [100; game_core::MODULE_SLOT_COUNT],
             destroyed_modules_mask: 0,
             track_damage_mask: 0,
+            track_hp: [game_core::TRACK_HP_MAX; 2],
             ammo_counts: game_core::AmmoLoadout::default().counts,
             selected_ammo: 0,
             spotted_by_teams_mask: 0,

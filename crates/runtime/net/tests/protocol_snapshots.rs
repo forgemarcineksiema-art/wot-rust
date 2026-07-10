@@ -1,4 +1,4 @@
-use game_core::{
+﻿use game_core::{
     DamageCause, DamageEvent, ImpactSurface, ModuleSlot, ShellImpact, TankId, TeamId, VehicleKind,
     WeatherVariant,
 };
@@ -11,7 +11,7 @@ use sim::TankCommand;
 use terrain::MapId;
 
 #[test]
-fn input_command_wire_snapshot_v21_is_stable() {
+fn input_command_wire_snapshot_v23_is_stable() {
     let message = ProtocolMessage::Input(ClientInputCommand {
         client_tick: 7,
         tank_id: TankId(42),
@@ -28,13 +28,13 @@ fn input_command_wire_snapshot_v21_is_stable() {
 
     let bytes = encode_message(&message).expect("message should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 21);
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "input_command_v21"));
+    assert_eq!(PROTOCOL_VERSION, 23);
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "input_command_v23"));
     assert_eq!(decode_message(&bytes).expect("message should decode"), message);
 }
 
 #[test]
-fn vehicle_selection_wire_snapshot_v21_is_stable() {
+fn vehicle_selection_wire_snapshot_v23_is_stable() {
     let message = ProtocolMessage::VehicleSelection(ClientVehicleSelection {
         client_tick: 11,
         requested_vehicle: VehicleKind::PantherII,
@@ -42,46 +42,48 @@ fn vehicle_selection_wire_snapshot_v21_is_stable() {
 
     let bytes = encode_message(&message).expect("vehicle selection should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 21);
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "vehicle_selection_v21"));
+    assert_eq!(PROTOCOL_VERSION, 23);
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "vehicle_selection_v23"));
     assert_eq!(decode_message(&bytes).expect("message should decode"), message);
 }
 
 #[test]
-fn tank_snapshot_wire_v21_is_stable() {
+fn tank_snapshot_wire_v23_is_stable() {
     // Locks the v19 raw payload layout; transport framing is covered separately.
     let message = ProtocolMessage::Snapshot(tank_snapshot_message());
 
     let bytes = encode_message(&message).expect("snapshot should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 21);
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_tank_v21"));
+    assert_eq!(PROTOCOL_VERSION, 23);
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_tank_v23"));
     assert_eq!(decode_message(&bytes).expect("snapshot should decode"), message);
 }
 
 #[test]
-fn combat_snapshot_wire_v21_is_stable() {
+fn combat_snapshot_wire_v23_is_stable() {
     let message = ProtocolMessage::Snapshot(combat_snapshot_message());
 
     let bytes = encode_message(&message).expect("snapshot should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 21);
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_combat_v21"));
+    assert_eq!(PROTOCOL_VERSION, 23);
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_combat_v23"));
     assert_eq!(decode_message(&bytes).expect("snapshot should decode"), message);
 }
 
 #[test]
-fn server_hello_wire_snapshot_v21_is_stable() {
+fn server_hello_wire_snapshot_v23_is_stable() {
     let message = ProtocolMessage::ServerHello {
         protocol_version: PROTOCOL_VERSION,
         map_id: MapId::ProkhorovkaHill252_2,
-        weather_variant: WeatherVariant::ClearAfternoon,
+        // v23: lock one of the appended time-of-day variants into the fixture, so the new
+        // discriminants cannot silently shift on the wire.
+        weather_variant: WeatherVariant::GoldenEvening,
     };
 
     let bytes = encode_message(&message).expect("server hello should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 21);
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "server_hello_v21"));
+    assert_eq!(PROTOCOL_VERSION, 23);
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "server_hello_v23"));
     assert_eq!(decode_message(&bytes).expect("server hello should decode"), message);
 }
 
@@ -106,6 +108,7 @@ pub fn tank_snapshot_message() -> Snapshot {
             module_hit_points: VehicleKind::Jagdtiger.spec().module_health.hit_points_by_slot(),
             destroyed_modules_mask: 1 << 3,
             track_damage_mask: 0,
+            track_hp: [game_core::TRACK_HP_MAX; 2],
             ammo_counts: game_core::AmmoLoadout::default().counts,
             selected_ammo: 0,
             spotted_by_teams_mask: 0,
@@ -140,6 +143,7 @@ pub fn combat_snapshot_message() -> Snapshot {
             module_hit_points: VehicleKind::TigerII.spec().module_health.hit_points_by_slot(),
             destroyed_modules_mask: 1 << 3,
             track_damage_mask: 0,
+            track_hp: [game_core::TRACK_HP_MAX; 2],
             ammo_counts: game_core::AmmoLoadout::default().counts,
             selected_ammo: 0,
             spotted_by_teams_mask: 0,
@@ -161,13 +165,15 @@ pub fn combat_snapshot_message() -> Snapshot {
             // the new wire fields cannot silently regress.
             plate_normal: Vec3::new(0.0, 0.0, -1.0),
             shell_direction: Vec3::new(0.0, 0.0, 1.0),
+            // v22: a thrown-left-track hit, so the new track-feedback field is locked on the wire.
+            track_hit: Some(game_core::TrackHit { side: game_core::TrackSide::Left, broke: true }),
             ..Default::default()
         }],
         shell_impacts: vec![ShellImpact {
             owner: TankId(7),
             position: Vec3::new(2.0, 0.1, 80.0),
             surface: ImpactSurface::Hull,
-            // v17: the wire says WHAT died here — lock a non-default variant into the fixture.
+            // v17: the wire says WHAT died here â€” lock a non-default variant into the fixture.
             shell_type: game_core::ShellType::HighExplosive,
         }],
         // v20: a decapitated wreck on the wire, so the new detached-turret list is locked.

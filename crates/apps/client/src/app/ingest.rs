@@ -9,6 +9,15 @@ impl ClientApp {
         let player = snapshot.tanks.iter().find(|tank| tank.tank_id == self.player_tank).cloned();
         self.hit_indicator.ingest_damage_events(&snapshot.damage_events, self.player_tank);
         self.damage_log.ingest(&snapshot.damage_events, self.player_tank, &snapshot.tanks);
+        self.track_feedback.ingest(&snapshot.damage_events, self.player_tank);
+        // Drive the re-seat bars off the player's own replicated broken mask.
+        if let Some(player) = &player {
+            let mask = game_core::TrackDamageMask::from_bits(player.track_damage_mask);
+            self.track_feedback.sync_player_broken(
+                mask.is_broken(game_core::TrackSide::Left),
+                mask.is_broken(game_core::TrackSide::Right),
+            );
+        }
         self.incoming_hits.ingest(&snapshot.damage_events, self.player_tank, &snapshot.tanks);
         // Feel the hit, not just read it: every incoming strike rocks the camera rig, scaled by
         // how much of the health pool it took (a bounce still lands a small clang).
@@ -17,6 +26,17 @@ impl ClientApp {
             if event.target == self.player_tank && event.source != self.player_tank {
                 let push = self.predictor.position() - event.hit_position;
                 self.camera_controller.damage_shudder(push, event.damage_hp as f32 / full_hp);
+            }
+            // A track the player took OR dealt speaks its own metallic voice — a snap when it
+            // throws, a grind when it only bites — distinct from the plate clang, and heard even
+            // on a clean 0-HP track break the armor clang would otherwise skip.
+            if let Some(hit) = event.track_hit
+                && (event.target == self.player_tank || event.source == self.player_tank)
+            {
+                self.queue_audio(audio::AudioEvent::TrackSnapped {
+                    position: event.hit_position,
+                    broken: hit.broke,
+                });
             }
         }
         // Every shell death gets its world-space burst: absorbed shells speak the surface they

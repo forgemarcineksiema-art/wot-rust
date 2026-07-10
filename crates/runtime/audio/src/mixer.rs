@@ -16,6 +16,7 @@ use crate::voices::blast::HeBlast;
 use crate::voices::cannon::CannonShot;
 use crate::voices::engine::EngineVoice;
 use crate::voices::impact::{ArmorHit, GroundImpact};
+use crate::voices::track::TrackSnap;
 use crate::voices::ui::{DoubleThud, MechanicalClick};
 
 /// Simultaneous one-shot voices; a 7v7 barrage peaks well under this.
@@ -118,6 +119,12 @@ impl AudioEngine {
             AudioEvent::GunReady => {
                 let voice = Box::new(MechanicalClick::new(true, self.sample_rate_hz, seed));
                 self.spawn_flat(voice, 0.5);
+            }
+            AudioEvent::TrackSnapped { position, broken } => {
+                let voice = Box::new(TrackSnap::new(broken, self.sample_rate_hz, seed));
+                // A throw carries further than a scrape; both sit under the plate clang.
+                let gain = if broken { 0.75 } else { 0.5 };
+                self.spawn_at(voice, position, gain, true, occlusion);
             }
             AudioEvent::KillConfirmed => {
                 self.spawn_flat(Box::new(DoubleThud::new(self.sample_rate_hz)), 0.7);
@@ -368,6 +375,18 @@ mod tests {
         assert!(engine.live_voices() <= MAX_VOICES);
         let out = stereo_chunks(&mut engine, 1.0);
         assert!(out.iter().all(|s| s.is_finite() && s.abs() <= 1.0));
+    }
+
+    #[test]
+    fn a_thrown_track_is_routed_audible_and_bounded() {
+        let mut engine = AudioEngine::new(SR);
+        engine.push_event(AudioEvent::TrackSnapped {
+            position: Vec3::new(0.0, 0.0, 20.0),
+            broken: true,
+        });
+        let out = stereo_chunks(&mut engine, 0.5);
+        assert!(out.iter().any(|s| s.abs() > 1.0e-3), "a thrown track speaks");
+        assert!(out.iter().all(|s| s.is_finite() && s.abs() <= 1.0), "and stays bounded");
     }
 
     #[test]

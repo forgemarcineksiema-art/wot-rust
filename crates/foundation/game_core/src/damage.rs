@@ -1,7 +1,7 @@
 use glam::Vec3;
 use serde::{Deserialize, Serialize};
 
-use crate::{ArmorFacing, ArmorZone, ModuleSlot, ShellType, TankId};
+use crate::{ArmorFacing, ArmorZone, ModuleSlot, ShellType, TankId, TrackSide};
 
 /// Like [`crate::VehicleKind`], the variant order is wire identity (bincode discriminants) —
 /// append, never reorder.
@@ -49,6 +49,17 @@ pub struct ShellImpact {
     pub shell_type: ShellType,
 }
 
+/// What a shell did to a track band (protocol v22): which side it struck and whether that hit
+/// drained the pool to zero (a fresh throw). Presentation-only — the client turns it into the
+/// track callout, the damage-log row and the snap/grind cue. `None` on the event means the shell
+/// did not touch a track.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TrackHit {
+    pub side: TrackSide,
+    /// This hit took the side's pool to zero — a newly thrown track, not just further damage.
+    pub broke: bool,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Default)]
 pub struct DamageEvent {
     pub source: TankId,
@@ -89,4 +100,9 @@ pub struct DamageEvent {
     /// along the real scrape direction. Zero when there is no shell (Ram/Impact/Drowning).
     #[serde(default)]
     pub shell_direction: Vec3,
+    /// The track band this shell struck, if any (protocol v22). Drives the client's track
+    /// feedback (callout / log / audio); never fed into the deterministic drive. `serde(default)`
+    /// = `None` keeps pre-v22 fixtures and every `..Default::default()` literal loading.
+    #[serde(default)]
+    pub track_hit: Option<TrackHit>,
 }

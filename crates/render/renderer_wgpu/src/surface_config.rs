@@ -1,28 +1,31 @@
-/// Choose the presentation mode. With vsync the FIFO family is right: at or above the panel's
-/// refresh it paces perfectly and never tears. Without vsync, prefer the modes that show a
-/// finished frame as soon as possible — on a GPU that cannot hold refresh, FIFO parks every
-/// ~40 ms frame behind whole vsync periods (each shown for alternating 33/50 ms — the visible
-/// judder) and adds up to a frame of latency on top.
+/// Choose the presentation mode. Mailbox is the best of both worlds — vsync-correct (never tears)
+/// yet non-blocking, so a sub-refresh GPU shows its freshest frame immediately instead of parking
+/// it behind whole vsync periods the way FIFO does (each ~40 ms frame stretched to an alternating
+/// 33/50 ms cadence — the visible judder — plus up to a frame of latency). So Mailbox is preferred
+/// in BOTH modes; the `vsync` flag only picks the FALLBACK when Mailbox is unavailable: FIFO (never
+/// tears, but judders below refresh) with vsync, Immediate (tears, lowest latency) without.
 pub fn select_present_mode(supported: &[wgpu::PresentMode], vsync: bool) -> wgpu::PresentMode {
-    if !vsync {
-        let fast = [
+    let preference: &[wgpu::PresentMode] = if vsync {
+        // Never tear: Mailbox first, then the FIFO family (blocks, judders below refresh, but is
+        // the one mode wgpu guarantees on every surface).
+        &[
+            wgpu::PresentMode::Mailbox,
+            wgpu::PresentMode::Fifo,
+            wgpu::PresentMode::AutoVsync,
+            wgpu::PresentMode::FifoRelaxed,
+        ]
+    } else {
+        // Freshest frame wins, tearing acceptable.
+        &[
             wgpu::PresentMode::Mailbox,
             wgpu::PresentMode::Immediate,
             wgpu::PresentMode::AutoNoVsync,
-        ];
-        if let Some(mode) = fast.into_iter().find(|mode| supported.contains(mode)) {
-            return mode;
-        }
-    }
-    if supported.contains(&wgpu::PresentMode::Fifo) {
-        wgpu::PresentMode::Fifo
-    } else if supported.contains(&wgpu::PresentMode::AutoVsync) {
-        wgpu::PresentMode::AutoVsync
-    } else if supported.contains(&wgpu::PresentMode::Mailbox) {
-        wgpu::PresentMode::Mailbox
-    } else if supported.contains(&wgpu::PresentMode::FifoRelaxed) {
-        wgpu::PresentMode::FifoRelaxed
-    } else {
-        supported.first().copied().unwrap_or(wgpu::PresentMode::Fifo)
-    }
+            wgpu::PresentMode::Fifo,
+        ]
+    };
+    preference
+        .iter()
+        .copied()
+        .find(|mode| supported.contains(mode))
+        .unwrap_or_else(|| supported.first().copied().unwrap_or(wgpu::PresentMode::Fifo))
 }

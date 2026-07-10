@@ -4,9 +4,10 @@
 //! is shader-side from the tick-domain presentation clock — the buffers upload once per scene.
 
 use crate::offscreen::DEPTH_FORMAT;
+use crate::shader_library::{CAMERA_COMMON_WGSL, LIGHTING_COMMON_WGSL, compose_shader};
 
-pub fn water_shader_source() -> &'static str {
-    include_str!("shaders/water.wgsl")
+pub fn water_shader_source() -> String {
+    compose_shader(&[CAMERA_COMMON_WGSL, LIGHTING_COMMON_WGSL, include_str!("shaders/water.wgsl")])
 }
 
 const WATER_ATTRIBUTES: [wgpu::VertexAttribute; 2] =

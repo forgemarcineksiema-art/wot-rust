@@ -161,9 +161,12 @@ impl SimulationState {
         self.tanks.iter_mut().find(|tank| tank.id == id)
     }
 
+    /// Throw a track outright (test/util helper). Real combat degrades the pool by a
+    /// shell-dependent chunk in `combat::apply_shell_impact`; this is the "immediately broken"
+    /// shortcut the state tests lean on.
     pub fn damage_track(&mut self, id: TankId, side: TrackSide) {
         if let Some(tank) = self.tank_mut(id) {
-            tank.tracks.damage(side);
+            tank.tracks.break_side(side);
         }
     }
 

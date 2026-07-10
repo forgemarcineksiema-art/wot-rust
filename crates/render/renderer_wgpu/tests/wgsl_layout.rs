@@ -17,7 +17,10 @@ fn camera_uniform_is_encoded_with_wgsl_uniform_layout() {
     // sky zenith + horizon (2 vec3, 32) and fog_params (vec4, 16): 304 + 48 = 352, plus the
     // inv_view_proj mat4 (64) the sky pass unprojects with: 352 + 64 = 416, plus time_params
     // (vec4, 16) — the tick-domain presentation clock shader animation runs on: 416 + 16 = 432.
-    assert_eq!(bytes.len(), 432);
+    // The shadow cascades add light_view_proj_far (mat4, 64) and cascade_params (vec4, 16):
+    // 432 + 80 = 512. The profile display grade adds grade_params (vec4, 16): 512 + 16 = 528.
+    // The profile sky adds cloud_params + sky_params (2 vec4, 32): 528 + 32 = 560.
+    assert_eq!(bytes.len(), 560);
     assert_eq!(bytes.len() % 16, 0);
 }
 
@@ -33,7 +36,7 @@ fn basic_tank_shader_is_valid_wgsl() {
 #[test]
 fn scene_shader_is_valid_wgsl_with_tint_inputs() {
     let report =
-        validate_wgsl_shader("scene", scene_shader_source()).expect("scene shader validates");
+        validate_wgsl_shader("scene", &scene_shader_source()).expect("scene shader validates");
 
     assert!(report.entry_points.iter().any(|entry| entry == "vs_main"));
     assert!(report.entry_points.iter().any(|entry| entry == "fs_main"));
@@ -65,7 +68,7 @@ fn fx_vertex_is_plain_old_data_matching_the_fx_attribute_layout() {
 
 #[test]
 fn sky_shader_is_valid_wgsl_and_shares_the_scene_camera_slot() {
-    let report = validate_wgsl_shader("sky", sky_shader_source()).expect("sky shader validates");
+    let report = validate_wgsl_shader("sky", &sky_shader_source()).expect("sky shader validates");
 
     assert!(report.entry_points.iter().any(|entry| entry == "vs_main"));
     assert!(report.entry_points.iter().any(|entry| entry == "fs_main"));
@@ -76,7 +79,7 @@ fn sky_shader_is_valid_wgsl_and_shares_the_scene_camera_slot() {
 
 #[test]
 fn water_shader_is_valid_wgsl_and_shares_the_scene_camera_slot() {
-    let report = validate_wgsl_shader("water", renderer_wgpu::water_shader_source())
+    let report = validate_wgsl_shader("water", &renderer_wgpu::water_shader_source())
         .expect("water shader validates");
     assert!(report.entry_points.iter().any(|entry| entry == "vs_main"));
     assert!(report.entry_points.iter().any(|entry| entry == "fs_main"));
@@ -86,7 +89,7 @@ fn water_shader_is_valid_wgsl_and_shares_the_scene_camera_slot() {
 
 #[test]
 fn rain_shader_is_valid_wgsl_and_shares_the_scene_camera_slot() {
-    let report = validate_wgsl_shader("rain", renderer_wgpu::rain_shader_source())
+    let report = validate_wgsl_shader("rain", &renderer_wgpu::rain_shader_source())
         .expect("rain shader validates");
     assert!(report.entry_points.iter().any(|entry| entry == "vs_main"));
     assert!(report.entry_points.iter().any(|entry| entry == "fs_main"));
@@ -97,7 +100,7 @@ fn rain_shader_is_valid_wgsl_and_shares_the_scene_camera_slot() {
 #[test]
 fn shadow_shader_is_valid_wgsl() {
     let report =
-        validate_wgsl_shader("shadow", shadow_shader_source()).expect("shadow shader validates");
+        validate_wgsl_shader("shadow", &shadow_shader_source()).expect("shadow shader validates");
     assert!(report.entry_points.iter().any(|entry| entry == "vs_main"));
 }
 
@@ -112,8 +115,8 @@ fn tank_vertex_is_plain_old_data_for_vertex_buffers() {
 
 #[test]
 fn vehicle_shader_is_valid_wgsl_with_pbr_lite_inputs() {
-    let report =
-        validate_wgsl_shader("vehicle", vehicle_shader_source()).expect("vehicle shader validates");
+    let report = validate_wgsl_shader("vehicle", &vehicle_shader_source())
+        .expect("vehicle shader validates");
 
     assert!(report.entry_points.iter().any(|entry| entry == "vs_main"));
     assert!(report.entry_points.iter().any(|entry| entry == "fs_main"));
@@ -127,7 +130,72 @@ fn vehicle_shader_is_valid_wgsl_with_pbr_lite_inputs() {
         ("@group(1) @binding(3)", "var cavity_map"),
         ("@group(1) @binding(4)", "var vehicle_sampler"),
     ] {
-        assert_binding_declared(source, binding, name);
+        assert_binding_declared(&source, binding, name);
+    }
+}
+
+#[test]
+fn shared_wgsl_fragments_are_composed_exactly_once_per_shader() {
+    use renderer_wgpu::{rain_shader_source, ssao_shader_source, water_shader_source};
+
+    // Every camera-bound pass gets its Camera struct from camera_common.wgsl — one declaration
+    // per composed source. A count of 0 means the composition dropped the fragment; 2+ means a
+    // duplicated copy crept back into a pass body.
+    for (label, source) in [
+        ("scene", scene_shader_source()),
+        ("vehicle", vehicle_shader_source()),
+        ("sky", sky_shader_source()),
+        ("water", water_shader_source()),
+        ("rain", rain_shader_source()),
+        ("shadow", shadow_shader_source()),
+        ("ssao", ssao_shader_source()),
+    ] {
+        assert_eq!(
+            source.matches("struct Camera {").count(),
+            1,
+            "{label}: exactly one shared Camera struct"
+        );
+    }
+
+    // The lit passes share one copy of the lighting model and display transform.
+    for (label, source) in [
+        ("scene", scene_shader_source()),
+        ("vehicle", vehicle_shader_source()),
+        ("sky", sky_shader_source()),
+        ("water", water_shader_source()),
+    ] {
+        for function in ["fn tonemap_aces(", "fn display_grade(", "fn aces_curve(", "fn apply_fog("]
+        {
+            assert_eq!(
+                source.matches(function).count(),
+                1,
+                "{label}: exactly one shared {function}"
+            );
+        }
+    }
+
+    // Only the geometry passes whose pipeline layout carries the group-2 environment bind group
+    // may declare the shadow/SSAO lookups.
+    for (label, source) in [("scene", scene_shader_source()), ("vehicle", vehicle_shader_source())]
+    {
+        for function in ["fn sun_shadow(", "fn screen_ao("] {
+            assert_eq!(
+                source.matches(function).count(),
+                1,
+                "{label}: exactly one shared {function}"
+            );
+        }
+    }
+    for (label, source) in [
+        ("sky", sky_shader_source()),
+        ("water", water_shader_source()),
+        ("rain", rain_shader_source()),
+    ] {
+        assert_eq!(
+            source.matches("fn sun_shadow(").count(),
+            0,
+            "{label}: no group-2 shadow bindings in a pass without that bind group"
+        );
     }
 }
 

@@ -2,11 +2,11 @@
 //! thrown track or a rammed-dead suspension made the hull a statue for the rest of the battle
 //! (and parked entire bot teams mid-map).
 
-use game_core::{ModuleSlot, TankSpec, TeamId, TrackSide};
+use game_core::{ModuleSlot, TankSpec, TeamId, TrackSeverity, TrackSide};
 use glam::Vec3;
 use sim::{
-    FixedTimestep, MODULE_PATCH_FRACTION, MODULE_PATCH_S, SimulationState, TRACK_REPAIR_S,
-    TankCommand,
+    FixedTimestep, MODULE_PATCH_FRACTION, MODULE_PATCH_S, SimulationState, TRACK_REGEN_INTERVAL_S,
+    TRACK_REPAIR_S, TankCommand,
 };
 use terrain::HeightMap;
 
@@ -30,7 +30,7 @@ fn a_thrown_track_is_reseated_and_the_hull_drives_again() {
     let heightmap = flat_ground();
     let mut sim = SimulationState::new();
     let id = sim.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::new(100.0, 0.0, 100.0));
-    sim.tank_mut(id).unwrap().tracks.damage_both();
+    sim.tank_mut(id).unwrap().tracks.break_both();
 
     // Immobilized now: full throttle moves nothing.
     let start = sim.tank(id).unwrap().position;
@@ -84,11 +84,33 @@ fn destroyed_mobility_modules_are_field_patched_but_the_gun_stays_dead() {
 }
 
 #[test]
+fn a_damaged_track_regenerates_back_to_full_over_time() {
+    let heightmap = flat_ground();
+    let mut sim = SimulationState::new();
+    let id = sim.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::new(100.0, 0.0, 100.0));
+    // A glancing hit that degrades the pool without throwing the track (still rolls).
+    sim.tank_mut(id).unwrap().tracks.damage(TrackSide::Left, 60);
+    assert_eq!(
+        sim.tank(id).unwrap().tracks.severity(TrackSide::Left),
+        TrackSeverity::Damaged,
+        "premise: the hit degraded but did not throw the track"
+    );
+
+    // Over enough regen intervals the crew nurses the pool all the way back to full.
+    drive(&mut sim, id, &heightmap, ticks(TRACK_REGEN_INTERVAL_S * 4.0));
+    assert_eq!(
+        sim.tank(id).unwrap().tracks.severity(TrackSide::Left),
+        TrackSeverity::Healthy,
+        "a damaged pool regenerates to full on its own"
+    );
+}
+
+#[test]
 fn a_fresh_hit_during_the_repair_does_not_carry_the_old_clock() {
     let heightmap = flat_ground();
     let mut sim = SimulationState::new();
     let id = sim.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::new(100.0, 0.0, 100.0));
-    sim.tank_mut(id).unwrap().tracks.damage(TrackSide::Left);
+    sim.tank_mut(id).unwrap().tracks.break_side(TrackSide::Left);
 
     // Let most of the repair run, then re-break the same side: the clock must restart, so
     // shortly after the re-hit the track is still broken.
@@ -100,7 +122,7 @@ fn a_fresh_hit_during_the_repair_does_not_carry_the_old_clock() {
     // Simulate the repair completing, breaking again right after.
     drive(&mut sim, id, &heightmap, ticks(TRACK_REPAIR_S * 0.3));
     assert!(!sim.tank(id).unwrap().tracks.is_broken(TrackSide::Left));
-    sim.tank_mut(id).unwrap().tracks.damage(TrackSide::Left);
+    sim.tank_mut(id).unwrap().tracks.break_side(TrackSide::Left);
     drive(&mut sim, id, &heightmap, ticks(TRACK_REPAIR_S * 0.5));
     assert!(
         sim.tank(id).unwrap().tracks.is_broken(TrackSide::Left),

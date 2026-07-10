@@ -20,7 +20,23 @@ use super::controller::BattleCameraController;
 use super::{BattleCameraEnvironment, CameraSubject, collision};
 
 /// Sniper sight height above the gun trunnion — roughly where the gunner's optics sit.
-const SNIPER_SIGHT_ABOVE_TRUNNION_M: f32 = 0.35;
+pub(crate) const SNIPER_SIGHT_ABOVE_TRUNNION_M: f32 = 0.35;
+
+/// World position of the sniper eye from a base anchor and hull pose: the turret-ring axis at
+/// optic height. It rides the ring, NOT the gun, so it is independent of turret traverse. That
+/// invariance is why it is also the correct origin for seeding the sniper sight onto the
+/// crosshair's world point: seeding from the muzzle skews the opening view toward the barrel line
+/// whenever the turret is mid-traverse or reversed (the muzzle is metres off the ring axis then).
+pub(crate) fn sniper_eye_from_base(
+    vehicle: game_core::VehicleKind,
+    base: Vec3,
+    hull: game_core::math::HullPose,
+) -> Vec3 {
+    let mounts = MountFrames::for_vehicle(vehicle);
+    let ring = mounts.turret_ring.translation;
+    let sight_height = mounts.gun_trunnion.translation.y + SNIPER_SIGHT_ABOVE_TRUNNION_M;
+    base + hull.basis() * Vec3::new(ring.x, sight_height, ring.z)
+}
 
 impl BattleCameraController {
     pub(super) fn sniper_camera(
@@ -28,18 +44,15 @@ impl BattleCameraController {
         subject: &CameraSubject,
         environment: &BattleCameraEnvironment<'_>,
     ) -> Camera {
-        let mounts = MountFrames::for_vehicle(subject.vehicle);
-        let ring = mounts.turret_ring.translation;
-        let sight_height = mounts.gun_trunnion.translation.y + SNIPER_SIGHT_ABOVE_TRUNNION_M;
-        let basis = game_core::math::hull_basis(
-            subject.hull_yaw_rad,
-            subject.hull_pitch_rad,
-            subject.hull_roll_rad,
-        );
         // The smoothed anchor (vertical micro-damper, see `CameraSmoothing::advance`) supplies
         // the base height; x/z snap to the hull so aiming stays rigid.
         let base = self.smoothing.anchor.unwrap_or(subject.position_vec());
-        let eye = base + basis * Vec3::new(ring.x, sight_height, ring.z);
+        let hull = game_core::math::HullPose {
+            yaw_rad: subject.hull_yaw_rad,
+            pitch_rad: subject.hull_pitch_rad,
+            roll_rad: subject.hull_roll_rad,
+        };
+        let eye = sniper_eye_from_base(subject.vehicle, base, hull);
         let eye = collision::apply_terrain_clearance(
             eye,
             environment,

@@ -23,8 +23,15 @@ impl ClientApp {
             PhysicalKey::Code(KeyCode::KeyS | KeyCode::ArrowDown) => self.input.back = pressed,
             PhysicalKey::Code(KeyCode::KeyA | KeyCode::ArrowLeft) => self.input.left = pressed,
             PhysicalKey::Code(KeyCode::KeyD | KeyCode::ArrowRight) => self.input.right = pressed,
-            PhysicalKey::Code(KeyCode::ShiftLeft | KeyCode::ShiftRight) => {
+            PhysicalKey::Code(KeyCode::ControlLeft | KeyCode::ControlRight) => {
                 self.input.brake = pressed
+            }
+            PhysicalKey::Code(KeyCode::ShiftLeft | KeyCode::ShiftRight) => {
+                if pressed {
+                    self.begin_sniper_hold();
+                } else {
+                    self.end_sniper_hold();
+                }
             }
             PhysicalKey::Code(KeyCode::AltLeft | KeyCode::AltRight) => {
                 if pressed && !self.input.free_look {
@@ -114,6 +121,9 @@ impl ClientApp {
         // the same world point instead of jumping to the barrel line or the sky.
         let seed = self.world_sight_seed();
         self.camera_controller.set_mode(BattleCameraMode::Sniper);
+        // Key entry always opens at the default magnification, never the last wheel step: an
+        // absent-minded Shift peek must never snap open at 20x. The wheel dials deeper from here.
+        self.camera_controller.reset_sniper_zoom();
         self.apply_sniper_seed(seed);
     }
 
@@ -125,6 +135,28 @@ impl ClientApp {
         }
         self.clamp_desired_aim_to_gun_reach();
         self.camera_controller.set_orbit_yaw(self.desired_aim.yaw_rad());
+    }
+
+    /// Holding Shift opens the scope; releasing returns to the mode from before the hold. This is
+    /// the "aim-down-sights" path that complements the `V` toggle and the wheel handover.
+    pub(super) fn begin_sniper_hold(&mut self) {
+        // Swallow winit key-repeat, and never open the scope from the garage (there Shift+click
+        // cycles a module backward — the sniper must not open behind the garage overlay).
+        if self.input.sniper_hold_return.is_some() || self.garage.is_open() {
+            return;
+        }
+        self.input.sniper_hold_return = Some(self.camera_controller.mode());
+        // `enter_sniper_mode` seeds the crosshair sight ray (no-op if already in sniper), so the
+        // view opens on the current aim point instead of jumping to the barrel line or the sky.
+        self.enter_sniper_mode();
+    }
+
+    /// Releasing Shift restores the pre-hold mode: from third person it returns to third person,
+    /// and if the player was already in sniper (via `V`), it stays in sniper.
+    pub(super) fn end_sniper_hold(&mut self) {
+        if let Some(prior) = self.input.sniper_hold_return.take() {
+            self.camera_controller.set_mode(prior);
+        }
     }
 
     pub(super) fn begin_free_look(&mut self) {

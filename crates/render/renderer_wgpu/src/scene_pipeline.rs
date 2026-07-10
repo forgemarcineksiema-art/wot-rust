@@ -1,8 +1,16 @@
 use crate::offscreen::DEPTH_FORMAT;
 use crate::scene_resources::SceneInstance;
+use crate::shader_library::{
+    CAMERA_COMMON_WGSL, LIGHTING_COMMON_WGSL, SHADOW_COMMON_WGSL, compose_shader,
+};
 
-pub fn scene_shader_source() -> &'static str {
-    include_str!("shaders/scene.wgsl")
+pub fn scene_shader_source() -> String {
+    compose_shader(&[
+        CAMERA_COMMON_WGSL,
+        LIGHTING_COMMON_WGSL,
+        SHADOW_COMMON_WGSL,
+        include_str!("shaders/scene.wgsl"),
+    ])
 }
 
 pub fn hud_shader_source() -> &'static str {

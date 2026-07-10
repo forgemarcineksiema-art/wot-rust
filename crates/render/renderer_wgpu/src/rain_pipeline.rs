@@ -3,9 +3,10 @@
 //! entire involvement is one instance count scaled by the weather look's intensity.
 
 use crate::offscreen::DEPTH_FORMAT;
+use crate::shader_library::{CAMERA_COMMON_WGSL, compose_shader};
 
-pub fn rain_shader_source() -> &'static str {
-    include_str!("shaders/rain.wgsl")
+pub fn rain_shader_source() -> String {
+    compose_shader(&[CAMERA_COMMON_WGSL, include_str!("shaders/rain.wgsl")])
 }
 
 /// Streak population at intensity 1.0.

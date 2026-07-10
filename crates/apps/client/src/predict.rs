@@ -1,4 +1,4 @@
-use game_core::{MODULE_SLOT_COUNT, ModuleSlot, TankSpec, TrackDamageMask};
+use game_core::{MODULE_SLOT_COUNT, ModuleSlot, TankSpec, TrackHealth};
 use glam::Vec3;
 use physics::{TankKinematicState, TankObstacle};
 use sim::{
@@ -17,7 +17,7 @@ pub struct LocalPredictor {
     hit_points: u32,
     module_hit_points: [u32; MODULE_SLOT_COUNT],
     destroyed_modules_mask: u8,
-    track_damage_mask: TrackDamageMask,
+    tracks: TrackHealth,
     /// The ammo slot the player believes is loaded: set optimistically on the 1/2/3 keys so the
     /// reticle's ballistics answer the same frame, reconciled from snapshots.
     selected_ammo: u8,
@@ -49,7 +49,7 @@ impl LocalPredictor {
             hit_points: spec.hit_points,
             module_hit_points: spec.module_health.hit_points_by_slot(),
             destroyed_modules_mask: 0,
-            track_damage_mask: TrackDamageMask::healthy(),
+            tracks: TrackHealth::healthy(),
             selected_ammo: spec.ammo.initial_selected,
             pending_landing_impact_mps: 0.0,
             seeded: false,
@@ -148,7 +148,7 @@ impl LocalPredictor {
         let tracks = if self.module_destroyed(ModuleSlot::Suspension) {
             TrackDriveStatus::broken()
         } else {
-            TrackDriveStatus::from_track_damage(self.track_damage_mask)
+            TrackDriveStatus::from_track_health(&self.tracks)
         };
         let modules = DriveModuleStatus::from_module_hp(tracks, self.module_hit_points, &self.spec);
         let footprint = self.spec.contact_footprint();

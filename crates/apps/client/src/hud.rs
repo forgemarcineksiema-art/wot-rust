@@ -23,6 +23,7 @@ pub(crate) mod reticle_readouts;
 pub(crate) mod reticle_sweep;
 pub(crate) mod scope_overlay;
 pub(crate) mod theme;
+pub(crate) mod track_callout;
 
 pub(crate) use health::health_color;
 pub(crate) use outcome::BattleHudOutcome;
@@ -54,6 +55,8 @@ pub struct BattleHudModel {
     pub zoom_factor: Option<f32>,
     /// Recent dealt/taken damage rows, newest first (`hud/damage_log.rs`).
     pub damage_log: Vec<damage_log::DamageLogEntry>,
+    /// Track-damage callout + re-seat bars for the player's own hull (`hud/track_callout.rs`).
+    pub track_feedback: track_callout::TrackFeedbackModel,
     /// Incoming hits resolved to screen bearings (`hud/hit_direction.rs`).
     pub incoming_hits: Vec<hit_direction::IncomingHit>,
     pub ammo: Option<ammo_panel::AmmoHudModel>,
@@ -82,6 +85,7 @@ pub fn build_hud(vitals: HudVitals, aspect: f32) -> Vec<HudVertex> {
             speed_kmh: 0.0,
             zoom_factor: None,
             damage_log: Vec::new(),
+            track_feedback: Default::default(),
             incoming_hits: Vec::new(),
             ammo: None,
             minimap: None,
@@ -114,6 +118,7 @@ pub(crate) fn build_hud_with_reticle(
             speed_kmh,
             zoom_factor,
             damage_log: Vec::new(),
+            track_feedback: Default::default(),
             incoming_hits: Vec::new(),
             ammo: None,
             minimap: None,
@@ -161,6 +166,7 @@ pub(crate) fn build_battle_hud(model: &BattleHudModel, aspect: f32) -> Vec<HudVe
     readouts::push_battle_readouts(&mut vertices, model, aspect);
 
     damage_log::push_damage_log(&mut vertices, &model.damage_log, aspect);
+    track_callout::push_track_callout(&mut vertices, &model.track_feedback, aspect);
     hit_direction::push_hit_direction(&mut vertices, &model.incoming_hits, aspect);
     if let Some(ammo) = &model.ammo {
         ammo_panel::push_ammo_panel(&mut vertices, ammo, aspect);

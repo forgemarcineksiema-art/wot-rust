@@ -26,6 +26,7 @@ fn snapshot(id: u64, position: [f32; 3], hit_points: u32) -> TankSnapshot {
         module_hit_points: VehicleKind::T55A.spec().module_health.hit_points_by_slot(),
         destroyed_modules_mask: 0,
         track_damage_mask: 0,
+        track_hp: [game_core::TRACK_HP_MAX; 2],
         ammo_counts: game_core::AmmoLoadout::default().counts,
         selected_ammo: 0,
         spotted_by_teams_mask: 0,
@@ -133,6 +134,7 @@ fn broken_track_side_stops_accumulating_while_healthy_side_moves() {
     world.sync_tanks(&[still(posed([0.0, 0.0, 0.0], 0.0))]);
     world.sync_tanks(&[still(TankSnapshot {
         track_damage_mask: TrackDamageMask::LEFT.bits(),
+        track_hp: [game_core::TRACK_HP_MAX; 2],
         ammo_counts: game_core::AmmoLoadout::default().counts,
         selected_ammo: 0,
         spotted_by_teams_mask: 0,
@@ -177,6 +179,7 @@ fn a_thrown_left_track_seats_the_hull_toward_the_dead_side() {
     let mut world = PresentationWorld::default();
     let broken = still(TankSnapshot {
         track_damage_mask: TrackDamageMask::LEFT.bits(),
+        track_hp: [game_core::TRACK_HP_MAX; 2],
         ammo_counts: game_core::AmmoLoadout::default().counts,
         selected_ammo: 0,
         spotted_by_teams_mask: 0,

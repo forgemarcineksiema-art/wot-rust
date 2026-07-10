@@ -55,7 +55,10 @@ fn snapshot_round_trips_track_damage_mask() {
         aim_dispersion_mrad: 3.5,
         module_hit_points: VehicleKind::T54_1951.spec().module_health.hit_points_by_slot(),
         destroyed_modules_mask: 0,
+        // Left thrown (pool 0), right merely damaged (pool 60): locks that the broken mask and the
+        // graded HP pair both survive the wire independently.
         track_damage_mask: TrackDamageMask::LEFT.bits(),
+        track_hp: [0, 60],
         ammo_counts: game_core::AmmoLoadout::default().counts,
         selected_ammo: 0,
         spotted_by_teams_mask: 0,
@@ -81,4 +84,5 @@ fn snapshot_round_trips_track_damage_mask() {
         panic!("expected snapshot");
     };
     assert_eq!(snapshot.tanks[0].track_damage_mask, TrackDamageMask::LEFT.bits());
+    assert_eq!(snapshot.tanks[0].track_hp, [0, 60], "graded track HP survives the wire");
 }

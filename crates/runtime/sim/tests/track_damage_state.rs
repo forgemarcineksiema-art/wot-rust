@@ -12,7 +12,7 @@ fn side_specific_track_damage_changes_only_that_side() {
     let tank = state.tank(tank).expect("tank");
     assert!(tank.tracks.is_broken(TrackSide::Left));
     assert!(!tank.tracks.is_broken(TrackSide::Right));
-    assert_eq!(tank.tracks, TrackDamageMask::LEFT);
+    assert_eq!(tank.tracks.broken_mask(), TrackDamageMask::LEFT);
 }
 
 #[test]
