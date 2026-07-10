@@ -142,6 +142,11 @@ pub struct GunSpec {
     #[serde(default = "default_barrel_length_m")]
     pub barrel_length_m: f32,
     pub shell: ShellSpec,
+    /// The gun's AUTHORED special round for rack slot 1, when the historical gun fielded one —
+    /// e.g. the D-10's BK-5 HEAT. `None` derives the generic APCR from the stock shell (the
+    /// pre-authoring formula), so guns without a real special round lose nothing.
+    #[serde(default)]
+    pub special_shell: Option<ShellSpec>,
 }
 
 const fn default_barrel_length_m() -> f32 {
@@ -150,18 +155,22 @@ const fn default_barrel_length_m() -> f32 {
 
 impl GunSpec {
     /// Shells the player can load for this gun — sidegrades, not strict upgrades. The stock AP is
-    /// the balanced default; APCR trades alpha for penetration and shell speed; HE trades
-    /// penetration for damage and splash. No economy — every round is freely selectable, and the
-    /// chosen shell is what the tank fires.
+    /// the balanced default; the special slot is the gun's AUTHORED round when it fielded one
+    /// (HEAT holds its penetration at every range but a spaced screen kills the jet and steep
+    /// plates shrug it off), otherwise a generic APCR derived from the stock shell (penetration
+    /// and speed for alpha); HE trades penetration for damage and splash. No economy — every
+    /// round is freely selectable, and the chosen shell is what the tank fires.
     pub fn ammo_options(&self) -> Vec<ShellSpec> {
         let stock = self.shell;
         let caliber = stock.caliber_mm;
-        let apcr = ShellSpec::apcr(
-            caliber,
-            stock.muzzle_velocity_mps * 1.20,
-            stock.penetration_mm_at_100m * 1.25,
-            ((stock.damage_hp as f32) * 0.85) as u32,
-        );
+        let special = self.special_shell.unwrap_or_else(|| {
+            ShellSpec::apcr(
+                caliber,
+                stock.muzzle_velocity_mps * 1.20,
+                stock.penetration_mm_at_100m * 1.25,
+                ((stock.damage_hp as f32) * 0.85) as u32,
+            )
+        });
         let he = ShellSpec::high_explosive(
             caliber,
             stock.muzzle_velocity_mps * 0.70,
@@ -169,7 +178,7 @@ impl GunSpec {
             ((stock.damage_hp as f32) * 1.4) as u32,
             1.5,
         );
-        vec![stock, apcr, he]
+        vec![stock, special, he]
     }
 }
 
@@ -191,7 +200,37 @@ const fn default_max_dispersion_mrad() -> f32 {
 
 #[cfg(test)]
 mod tests {
-    use crate::VehicleKind;
+    use crate::{ShellType, VehicleKind};
+
+    #[test]
+    fn the_d10_family_loads_its_authored_heat_and_it_ignores_range() {
+        // The BK-5 activates ShellType::Heat end-to-end: the T-54's special slot is the authored
+        // HEAT round, not the derived APCR — and chemical penetration is flat with distance,
+        // where the kinetic rounds bleed theirs (the armour model already prices the trade:
+        // spaced screens kill the jet, extreme obliquity sheds it).
+        for kind in [VehicleKind::T54_1951, VehicleKind::T55A] {
+            let options = kind.spec().gun.ammo_options();
+            let special = options[1];
+            assert_eq!(special.shell_type, ShellType::Heat, "{kind:?} slot 1 is the BK-5");
+            assert_eq!(
+                special.penetration_mm_at_distance(50.0),
+                special.penetration_mm_at_distance(900.0),
+                "HEAT penetration must not care about range"
+            );
+            let stock = options[0];
+            assert!(
+                stock.penetration_mm_at_distance(900.0) < stock.penetration_mm_at_100m,
+                "the kinetic stock round still bleeds penetration downrange"
+            );
+            assert!(
+                special.penetration_mm_at_100m > stock.penetration_mm_at_100m,
+                "the BK-5 out-penetrates the AP round point blank too"
+            );
+        }
+        // A gun with no authored special round keeps the derived APCR — nothing regresses.
+        let tiger = VehicleKind::TigerII.spec().gun.ammo_options();
+        assert_eq!(tiger[1].shell_type, ShellType::Apcr, "unauthored guns keep the APCR slot");
+    }
 
     #[test]
     fn ammo_options_offer_distinct_rounds_with_apcr_out_penetrating_ap() {

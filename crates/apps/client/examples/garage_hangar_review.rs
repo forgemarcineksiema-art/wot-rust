@@ -1,30 +1,40 @@
 use std::fs::File;
 use std::io::BufWriter;
 
-use client::{garage_overlay, hangar_camera_pivot, hangar_scene_mesh};
+use client::{
+    VehicleAssetCatalog, garage_overlay, garage_overlay_option_list, hangar_camera_pivot,
+    hangar_scene_mesh, render_frame_from_objects, tank_vehicle_render_objects,
+};
 use game_core::{TankId, TeamId, VehicleKind};
 use net::TankSnapshot;
 use renderer_api::{Camera, CameraProjectionPolicy, SceneLighting, view_projection_matrix};
 use renderer_wgpu::{GpuContext, OffscreenTarget, SceneRenderer};
 
-/// Render the garage in the browse-only tech tree view and save a PNG. This exercises the
-/// tech-tree overlay (nation columns + vehicle nodes) headlessly for visual review.
-/// `cargo run -p client --example garage_techview -- out.png`
+/// Render the REAL garage hangar frame for review: workshop lighting, parked T-54 on the
+/// turntable, hero orbit framing, full hangar UI overlay — the same composition
+/// `render_garage` builds in-game. `cargo run -p client --example garage_hangar_review -- out.png`
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let path = std::env::args().nth(1).unwrap_or_else(|| "target/garage_techview.png".to_string());
-    let width = 1280u32;
-    let height = 720u32;
+    let path =
+        std::env::args().nth(1).unwrap_or_else(|| "target/garage_hangar_review.png".to_string());
+    let width = 1600u32;
+    let height = 900u32;
     let aspect = width as f32 / height as f32;
 
-    // The hangar scene (the tech tree overlay is drawn over it, dimmed by the panel background).
     let (terrain_vertices, terrain_indices) = hangar_scene_mesh();
 
-    // A parked T-54 on the turntable, the same pose the garage uses for the preview.
-    let spec = VehicleKind::T54_1951.spec();
+    // Optional review args: `list <vehicle_index> <slot_index>` renders that vehicle parked with its
+    // module option list open (slot 0=Turret,1=Gun,3=Engine,4=Suspension). Default: T-54, no list.
+    let show_list = std::env::args().nth(2).as_deref() == Some("list");
+    let vehicle_index = std::env::args().nth(3).and_then(|s| s.parse().ok()).unwrap_or(0usize);
+    let slot_index = std::env::args().nth(4).and_then(|s| s.parse().ok()).unwrap_or(1usize);
+    let vehicle = VehicleKind::PLAYABLE[vehicle_index.min(VehicleKind::PLAYABLE.len() - 1)];
+
+    // Parked hero: same pose as `garage_preview_snapshot`.
+    let spec = vehicle.spec();
     let snapshot = TankSnapshot {
         tank_id: TankId(0),
         team: TeamId(1),
-        vehicle: VehicleKind::T54_1951,
+        vehicle,
         position: [0.0, client::TURNTABLE_TOP_M, 0.0],
         yaw_rad: 0.6,
         hull_pitch_rad: 0.0,
@@ -43,15 +53,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         selected_ammo: 0,
         spotted_by_teams_mask: 0,
     };
-    let _ = snapshot; // The tech tree view does not render the vehicle mesh; it's an overlay-only
-    // screen over the dim hangar. Kept here so the example stays close to the
-    // real garage frame structure.
 
-    // Hero orbit camera â€” the same framing the garage opens with.
+    let mut catalog = VehicleAssetCatalog::default();
+    if let Err(error) = catalog.load_forge_artifact_tree("target/forge") {
+        eprintln!("note: no Forge artifacts loaded ({error}); using neutral material");
+    }
+    let objects = tank_vehicle_render_objects(&mut catalog, &snapshot, [0.72, 0.76, 0.62]);
+    let render_frame = render_frame_from_objects(objects);
+
+    // Hero orbit framing — the same numbers the garage opens with.
     let pivot = hangar_camera_pivot();
-    let orbit_yaw = 0.60_f32;
-    let orbit_pitch = 0.28_f32;
-    let orbit_distance = 14.0_f32;
+    let (orbit_yaw, orbit_pitch, orbit_distance) = (0.60_f32, 0.28_f32, 14.0_f32);
     let horizontal = orbit_distance * orbit_pitch.cos();
     let eye = pivot
         + glam::Vec3::new(
@@ -72,15 +84,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let ctx = GpuContext::headless()?;
     let target = OffscreenTarget::new(&ctx, width, height)?;
     let mut renderer = SceneRenderer::for_offscreen(&ctx, &terrain_vertices, &terrain_indices)?;
-    // Match the real garage frame (`ensure_scene`): hero lighting + the interior backdrop the game
-    // uses, so this review shot never flatters the scene differently than the player sees it.
+    // Match `ensure_scene(SceneKind::Garage)`: hero lighting + interior backdrop.
     renderer.scene_lighting = SceneLighting::garage_hero();
     renderer.set_interior_background(0.05, 0.05, 0.06);
+    for (handle, mesh) in catalog.take_pending_vehicle_meshes() {
+        renderer.register_vehicle_mesh(&ctx, handle, &mesh);
+    }
+    for (handle, maps) in catalog.take_pending_vehicle_materials() {
+        renderer.register_vehicle_material(&ctx, handle, &maps);
+    }
+    renderer.set_vehicle_render_frame(&ctx, &render_frame);
 
-    // The tech tree HUD overlay.
     let (font_w, font_h, font_coverage) = client::hud_font_atlas();
     renderer.set_hud_font_atlas(&ctx, font_w, font_h, font_coverage);
-    let hud = garage_overlay(true, aspect);
+    let hud = if show_list {
+        garage_overlay_option_list(vehicle_index, slot_index, aspect)
+    } else {
+        garage_overlay(false, aspect)
+    };
     renderer.set_hud(&ctx, &hud);
 
     renderer.render(&ctx, target.render_target(), view_proj, camera.eye)?;

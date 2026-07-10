@@ -84,7 +84,11 @@ fn battle_profile_has_aerial_perspective_and_the_interior_does_not() {
         "horizon haze should out-lume the deeper zenith"
     );
     // Interior profiles must not apply aerial perspective (there is no open air/horizon).
-    for interior in [SceneLighting::garage_studio(), SceneLighting::garage_workshop()] {
+    for interior in [
+        SceneLighting::garage_studio(),
+        SceneLighting::garage_workshop(),
+        SceneLighting::garage_hero(),
+    ] {
         assert_eq!(interior.fog_density, 0.0, "garage interiors carry no distance fog");
     }
 }
@@ -268,6 +272,68 @@ fn sun_scatter_and_clouds_never_touch_the_fog_amount() {
             "fog amount must not depend on the sky colour params"
         );
     }
+}
+
+#[test]
+fn garage_hero_lifts_the_subject_off_the_workshop_silhouette() {
+    // The hero preset exists to fix a real bug: under `garage_workshop` the parked vehicle rendered
+    // near-black because the camera-facing flanks got ambient only. This locks the three intent
+    // moves so a future retune can't quietly slide back into the silhouette look.
+    let hero = SceneLighting::garage_hero();
+    let workshop = SceneLighting::garage_workshop();
+
+    // 1. Brighter hemispheric ambient than the plain workshop, so shaded flanks clear near-black —
+    //    but still cooler/dimmer than the studio so the moody room survives.
+    assert!(
+        luminance(hero.ambient_rgb) > luminance(workshop.ambient_rgb),
+        "hero ambient must out-lume the workshop: hero {:?} vs workshop {:?}",
+        hero.ambient_rgb,
+        workshop.ambient_rgb
+    );
+    assert!(
+        luminance(hero.ambient_rgb) <= luminance(SceneLighting::garage_studio().ambient_rgb),
+        "hero ambient should stay at or below the flat studio so the room keeps its mood"
+    );
+    // Hemisphere invariant: sky ambient still out-lumes the ground bounce.
+    assert!(luminance(hero.ambient_rgb) > luminance(hero.ground_ambient_rgb));
+
+    // 2. The key rakes the flanks instead of pouring straight down: a real horizontal component,
+    //    unlike the near-vertical workshop key that only lit the decks.
+    let hero_horiz = hero.key_direction[0].hypot(hero.key_direction[2]);
+    let workshop_horiz = workshop.key_direction[0].hypot(workshop.key_direction[2]);
+    assert!(
+        hero_horiz > workshop_horiz,
+        "hero key must rake more than the top-down workshop key: hero {hero_horiz} vs {workshop_horiz}"
+    );
+
+    // 3. The fill lifts the camera-facing flank: near-horizontal (raking, not top-down or out the
+    //    back) and stronger than the workshop fill.
+    assert!(
+        hero.fill_direction[0].abs() > hero.fill_direction[1].abs(),
+        "hero fill must rake the flank horizontally, not point down: {:?}",
+        hero.fill_direction
+    );
+    assert!(
+        luminance(hero.fill_rgb) > luminance(workshop.fill_rgb),
+        "hero fill must be stronger than the workshop fill"
+    );
+
+    // 4. The display grade must SERVE the relight, not undo it (regression from the lighting 2.0
+    //    merge: a workshop-moody black point re-sank the flanks and the hero read as a silhouette
+    //    again). Showroom formation: bright exposure, near-neutral blacks, gentler contrast than
+    //    the moody workshop.
+    assert!(hero.exposure >= 1.1, "hero exposure is showroom-bright, got {}", hero.exposure);
+    assert!(
+        hero.black_point < workshop.black_point,
+        "hero blacks stay open vs the moody workshop: {} vs {}",
+        hero.black_point,
+        workshop.black_point
+    );
+    assert!(hero.black_point <= 0.02, "hero black point stays near-neutral");
+    assert!(
+        hero.contrast <= workshop.contrast,
+        "the hero grade must not out-crush the workshop's contrast"
+    );
 }
 
 #[test]

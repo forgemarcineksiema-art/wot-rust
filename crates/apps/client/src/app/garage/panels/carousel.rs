@@ -1,6 +1,7 @@
 //! Bottom vehicle carousel: a horizontal strip of owned tanks that scrolls through a fixed window
 //! once the roster outgrows `CAR_VISIBLE`. Click selects; the scroll arrows appear only when the
-//! roster overflows. Each cell shows the vehicle's nation label above its short name.
+//! roster overflows. Each cell shows the vehicle's nation label, its short name, and a
+//! recognition-card side silhouette drawn from the vehicle's REAL dimensions.
 
 use game_core::VehicleKind;
 use renderer_api::HudVertex;
@@ -8,7 +9,58 @@ use renderer_api::HudVertex;
 use crate::app::garage::GarageState;
 use crate::app::garage::layout::*;
 use crate::hud::font::{push_text, text_width};
-use crate::hud::push_panel;
+use crate::hud::{push_panel, push_quad};
+
+/// Clip units per metre for the cell silhouettes. One shared scale keeps the profiles honestly
+/// comparable — the IS-3 genuinely reads smaller than a Tiger — capped per vehicle only when a
+/// long gun overhang would otherwise leave the cell.
+const SILHOUETTE_CLIP_PER_M: f32 = 0.0085;
+/// The silhouette's ground line, below the name row inside the cell.
+const SILHOUETTE_GROUND_DY: f32 = -0.056;
+const SILHOUETTE_MAX_HALF_SPAN: f32 = 0.054;
+
+/// The recognition profile, instrument style: three flat quads from gameplay-true numbers — the
+/// hull box to the turret split, the turret (or casemate) box above it, and the stock barrel
+/// reaching from the turret front. Nose points right. No art assets, no mesh walk: the same
+/// `HitboxProfile`/barrel data the battle resolves hits against draws the card, so the shape
+/// cannot lie about the vehicle.
+pub(in crate::app::garage) fn push_silhouette(
+    v: &mut Vec<HudVertex>,
+    kind: VehicleKind,
+    cell: [f32; 2],
+    color: [f32; 4],
+) {
+    let hitbox = game_core::HitboxProfile::for_vehicle(kind);
+    let split_y = hitbox.center_y_m + hitbox.turret_min_y_m;
+    let top_y = hitbox.center_y_m + hitbox.half_height_m;
+    let turret_front = hitbox.turret_center_z_m + hitbox.turret_half_length_m;
+    let muzzle = turret_front + kind.stock_barrel_length_m();
+
+    // Centre the full extent (hull rear to muzzle) and cap the scale so the overhang stays in
+    // the cell; the midpoint shift keeps a long gun from pushing the hull off-centre.
+    let (x_min, x_max) = (-hitbox.half_length_m, muzzle.max(hitbox.half_length_m));
+    let scale =
+        SILHOUETTE_CLIP_PER_M.min(2.0 * SILHOUETTE_MAX_HALF_SPAN / (x_max - x_min).max(0.1));
+    let mid = (x_min + x_max) * 0.5;
+    let at =
+        |z: f32, y: f32| [cell[0] + (z - mid) * scale, cell[1] + SILHOUETTE_GROUND_DY + y * scale];
+
+    // Hull: ground to the turret split, full length.
+    let hull_c = at(0.0, split_y * 0.5);
+    push_quad(v, hull_c, [hitbox.half_length_m * scale, split_y * 0.5 * scale], color);
+    // Turret / casemate: the plan box above the split.
+    let turret_c = at(hitbox.turret_center_z_m, (split_y + top_y) * 0.5);
+    push_quad(
+        v,
+        turret_c,
+        [hitbox.turret_half_length_m * scale, (top_y - split_y) * 0.5 * scale],
+        color,
+    );
+    // The barrel, from the turret front at the gun line's height.
+    let gun_y = split_y + (top_y - split_y) * 0.45;
+    let barrel_c = at((turret_front + muzzle) * 0.5, gun_y);
+    push_quad(v, barrel_c, [(muzzle - turret_front) * 0.5 * scale, 0.0028], color);
+}
 
 pub(in crate::app::garage) fn draw(v: &mut Vec<HudVertex>, state: &GarageState, aspect: f32) {
     let count = VehicleKind::PLAYABLE.len();
@@ -46,7 +98,7 @@ pub(in crate::app::garage) fn draw(v: &mut Vec<HudVertex>, state: &GarageState, 
             v,
             nation_label,
             c[0] - nation_w / 2.0,
-            c[1] + 0.075,
+            c[1] + 0.082,
             NATION_TEXT_SIZE,
             aspect,
             [nation_color[0], nation_color[1], nation_color[2], 0.95],
@@ -61,15 +113,9 @@ pub(in crate::app::garage) fn draw(v: &mut Vec<HudVertex>, state: &GarageState, 
             aspect,
             text_color,
         );
-        push_text(
-            v,
-            &format!("{}", absolute + 1),
-            c[0] - CAR_HALF[0] + 0.01,
-            c[1] - 0.005,
-            0.026,
-            aspect,
-            TEXT_DIM,
-        );
+
+        // The recognition silhouette under the name: the selected tank's card reads bright.
+        push_silhouette(v, kind, c, if selected { ICON } else { ICON_DIM });
     }
 
     // Scroll arrows flank the window only when the roster does not fit.
@@ -96,19 +142,58 @@ mod tests {
         let mut v = Vec::new();
         draw(&mut v, &state, aspect);
 
-        // 5 vehicle cells: 1 background quad + 5 slot quads = 6 quads = 36 vertices.
-        // "USSR" (4 glyphs) + "Germany" (7 glyphs × 4 vehicles) + short names + indices add
-        // many more, so the total must far exceed the quad-only baseline.
+        // 6 vehicle cells: 1 background quad + 6 slot quads = 7 quads = 42 vertices. Nation labels
+        // ("USSR"/"Germany") and the short names add many more, so the total must far exceed the
+        // quad-only baseline.
         assert!(
-            v.len() > 36,
+            v.len() > 42,
             "carousel must emit text vertices beyond plain quads, got {}",
             v.len()
         );
     }
 
     #[test]
+    fn silhouettes_draw_three_quads_from_real_dimensions_and_stay_in_the_cell() {
+        // The recognition card is gameplay-true: hull box + turret box + barrel, from the same
+        // HitboxProfile the battle resolves hits against. Three quads, nose right, in-cell.
+        let cell = [0.0, 0.0];
+        for kind in VehicleKind::PLAYABLE {
+            let mut v = Vec::new();
+            push_silhouette(&mut v, kind, cell, [1.0; 4]);
+            assert_eq!(v.len(), 18, "{kind:?}: hull + turret + barrel = 3 quads");
+            for vert in &v {
+                assert!(
+                    vert.position[0].abs() <= CAR_HALF[0] + 1.0e-3,
+                    "{kind:?} silhouette must stay inside its cell: x {}",
+                    vert.position[0]
+                );
+            }
+        }
+
+        // Shapes genuinely differ: the Jagdtiger's profile spans farther than the compact IS-3's,
+        // and the low T-54 stands shorter than the tall Tiger II.
+        let span = |kind: VehicleKind| {
+            let mut v = Vec::new();
+            push_silhouette(&mut v, kind, cell, [1.0; 4]);
+            let min = v.iter().map(|vert| vert.position[0]).fold(f32::MAX, f32::min);
+            let max = v.iter().map(|vert| vert.position[0]).fold(f32::MIN, f32::max);
+            max - min
+        };
+        assert!(span(VehicleKind::Jagdtiger) > span(VehicleKind::IS3));
+        let height = |kind: VehicleKind| {
+            let mut v = Vec::new();
+            push_silhouette(&mut v, kind, cell, [1.0; 4]);
+            v.iter().map(|vert| vert.position[1]).fold(f32::MIN, f32::max)
+        };
+        assert!(
+            height(VehicleKind::TigerII) > height(VehicleKind::T54_1951),
+            "the famously low T-54 must read lower than the Tiger II"
+        );
+    }
+
+    #[test]
     fn carousel_emits_more_vertices_for_germany_than_a_single_ussr_label() {
-        // "Germany" is 7 glyphs; "USSR" is 4. With one USSR and four Germany vehicles in the
+        // "Germany" is 7 glyphs; "USSR" is 4. With two USSR and four Germany vehicles in the
         // playable roster, Germany glyphs dominate. This is a smoke test that nation labels
         // are actually drawn, not just the background panel.
         let state = GarageState::default();

@@ -48,6 +48,9 @@ pub(super) struct GarageState {
     rejected_slot: Option<FitSlot>,
     /// Module slot with keyboard focus (`[`/`]` move it, `Q`/`E` cycle it).
     focused_slot: FitSlot,
+    /// The slot whose option list is currently open (clicking a swappable slot opens it), or `None`.
+    /// The list is the informed swap path — names + stat deltas; `Q`/`E` stay the express cycle.
+    option_list: Option<FitSlot>,
     view: GarageView,
 }
 
@@ -78,6 +81,7 @@ impl Default for GarageState {
             dragging: false,
             rejected_slot: None,
             focused_slot: FitSlot::Gun,
+            option_list: None,
             view: GarageView::Hangar,
         }
     }
@@ -89,6 +93,21 @@ pub fn garage_overlay(tech_tree: bool, aspect: f32) -> Vec<renderer_api::HudVert
     if tech_tree {
         state.open_tech_tree();
     }
+    state.overlay_vertices(aspect)
+}
+
+/// Build the garage overlay with a module option list open — for offscreen review of the picker.
+/// `vehicle_index` selects a `VehicleKind::PLAYABLE` roster slot and `slot_index` a `FitSlot`
+/// (0=Turret, 1=Gun, 2=Hull, 3=Engine, 4=Suspension, 5=Radio); out-of-range values clamp. The list
+/// only opens for slots that have a real choice.
+pub fn garage_overlay_option_list(
+    vehicle_index: usize,
+    slot_index: usize,
+    aspect: f32,
+) -> Vec<renderer_api::HudVertex> {
+    let mut state = GarageState::default();
+    state.select_index(vehicle_index.min(game_core::VehicleKind::PLAYABLE.len() - 1));
+    state.open_option_list(FitSlot::ALL[slot_index.min(FitSlot::ALL.len() - 1)]);
     state.overlay_vertices(aspect)
 }
 
@@ -130,6 +149,15 @@ impl GarageState {
         self.persist();
     }
 
+    /// Edit the rack fill: move `delta` rounds into/out of ammo slot `index` (clamped to the
+    /// vehicle's capacity and a non-empty rack). Persists only when something actually moved.
+    pub(super) fn adjust_ammo_count(&mut self, index: usize, delta: i32) {
+        if self.draft.adjust_ammo_count(index, delta) {
+            self.rejected_slot = None;
+            self.persist();
+        }
+    }
+
     pub(super) fn adjust_proficiency(&mut self, dir: isize) {
         self.draft.adjust_proficiency(dir);
         self.rejected_slot = None;
@@ -152,6 +180,36 @@ impl GarageState {
         self.focused_slot
     }
 
+    /// The slot whose option list is currently open, if any.
+    pub(super) fn option_list(&self) -> Option<FitSlot> {
+        self.option_list
+    }
+
+    /// Open the informed option list for `slot` (clicking a swappable slot). A slot with no real
+    /// choice never opens a list — there is nothing to pick. Opening also focuses the slot so the
+    /// `Q`/`E` express cycle and the list act on the same slot.
+    pub(super) fn open_option_list(&mut self, slot: FitSlot) {
+        if self.draft.has_choice(slot) {
+            self.option_list = Some(slot);
+            self.focused_slot = slot;
+        }
+    }
+
+    pub(super) fn close_option_list(&mut self) {
+        self.option_list = None;
+    }
+
+    /// Install the option `index` for `slot` (the list's direct pick), then close the list. A pick
+    /// rejected by compatibility flashes the slot red, mirroring a rejected cycle.
+    pub(super) fn select_option(&mut self, slot: FitSlot, index: usize) {
+        self.rejected_slot = None;
+        if !self.draft.set_option(slot, index) {
+            self.rejected_slot = Some(slot);
+        }
+        self.option_list = None;
+        self.persist();
+    }
+
     pub(super) fn view(&self) -> GarageView {
         self.view
     }
@@ -161,9 +219,17 @@ impl GarageState {
         self.dragging
     }
 
+    /// Test hook: force the fitted turret's caliber limit under the alternate gun so cycling
+    /// rejects — exercises the rejection feedback path without inventing an incompatible catalog.
+    #[cfg(test)]
+    pub(super) fn force_turret_caliber_limit_for_test(&mut self, max_mm: f32) {
+        self.draft.force_turret_caliber_limit_for_test(max_mm);
+    }
+
     pub(super) fn open_tech_tree(&mut self) {
         self.view = GarageView::TechTree;
         self.dragging = false;
+        self.option_list = None;
     }
 
     pub(super) fn close_tech_tree(&mut self) {
@@ -176,6 +242,7 @@ impl GarageState {
         self.started = true;
         self.open = false;
         self.dragging = false;
+        self.option_list = None;
         self.persist();
         self.draft.assembled_spec()
     }

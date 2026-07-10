@@ -3,7 +3,7 @@
 //! [`TankSpec`] the stat panel previews and the battle uses. No economy — every option is freely
 //! selectable; compatibility (gun caliber, load limit) is still enforced via `try_install_*`.
 
-use game_core::{Crew, ShellSpec, TankSpec, VehicleKind, VehicleModules};
+use game_core::{Crew, MAX_AMMO_SLOTS, ShellSpec, TankSpec, VehicleKind, VehicleModules};
 
 use super::persistence::SavedLoadout;
 
@@ -34,12 +34,29 @@ impl FitSlot {
     }
 }
 
+/// One selectable option for a fitting slot, with the single headline stat the garage option list
+/// compares. The stat is read straight off the catalogue module (no crew scaling), so two options
+/// compare on the module's own merit and the delta between them is stable.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct ModuleOption {
+    pub name: String,
+    pub stat: f32,
+    pub unit: &'static str,
+    /// Whether a higher `stat` is the better outcome (drives the green/red delta colour).
+    pub higher_is_better: bool,
+    /// Whether this is the option currently fitted.
+    pub installed: bool,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct LoadoutDraft {
     kind: VehicleKind,
     modules: VehicleModules,
     option_index: [usize; 6],
     ammo_index: usize,
+    /// Rounds per rack slot — the honest-ammo pillar's editable half. Constrained to the
+    /// vehicle's authored capacity and at least one round total.
+    ammo_counts: [u16; MAX_AMMO_SLOTS],
     crew: Crew,
 }
 
@@ -50,6 +67,7 @@ impl LoadoutDraft {
             modules: kind.default_loadout(),
             option_index: [0; 6],
             ammo_index: 0,
+            ammo_counts: game_core::AmmoLoadout::default_for(kind.ammo_capacity()).counts,
             crew: Crew::default(),
         }
     }
@@ -132,6 +150,7 @@ impl LoadoutDraft {
         SavedLoadout {
             option_index: self.option_index,
             ammo_index: self.ammo_index,
+            ammo_counts: Some(self.ammo_counts),
             crew_proficiency: self.crew.proficiency(),
         }
     }
@@ -148,12 +167,28 @@ impl LoadoutDraft {
             }
         }
         draft.set_ammo(saved.ammo_index);
+        // A stored rack fill applies only if it still fits this build's authored capacity (a
+        // rebalance may have shrunk the rack) and is not empty; anything stale degrades to the
+        // stock-heavy default instead of an invalid fill.
+        if let Some(counts) = saved.ammo_counts {
+            let total: u16 = counts.iter().sum();
+            if total >= 1 && total <= kind.ammo_capacity() {
+                draft.ammo_counts = counts;
+            }
+        }
         draft.crew = Crew::new(saved.crew_proficiency);
         draft
     }
 
     pub(super) fn ammo_options(&self) -> Vec<ShellSpec> {
         self.modules.gun.spec.ammo_options()
+    }
+
+    /// Test hook: shrink the installed turret's gun-caliber limit so the next gun swap is
+    /// guaranteed to be rejected by compatibility.
+    #[cfg(test)]
+    pub(super) fn force_turret_caliber_limit_for_test(&mut self, max_mm: f32) {
+        self.modules.turret.max_gun_caliber_mm = max_mm;
     }
 
     /// Exposed barrel length (m) of the installed gun — drives the garage gun silhouette.
@@ -178,6 +213,68 @@ impl LoadoutDraft {
         }
     }
 
+    /// The selectable options for `slot` with each one's name and headline stat, for the garage
+    /// option list. The headline is the slot's characteristic number — turret/hull armour and HP,
+    /// engine power, suspension traverse, radio range, and for the gun its reload (where two guns of
+    /// equal calibre still differ). `installed` marks the fitted option.
+    pub(super) fn module_options(&self, slot: FitSlot) -> Vec<ModuleOption> {
+        let installed = self.option_index[slot.index()];
+        let (unit, higher_is_better) = match slot {
+            FitSlot::Turret => ("mm", true),
+            FitSlot::Gun => ("s", false),
+            FitSlot::Hull => ("HP", true),
+            FitSlot::Engine => ("kW", true),
+            FitSlot::Suspension => ("d/s", true),
+            FitSlot::Radio => ("m", true),
+        };
+        (0..self.options_len(slot))
+            .map(|i| {
+                let (name, stat) = self.option_name_stat(slot, i);
+                ModuleOption { name, stat, unit, higher_is_better, installed: i == installed }
+            })
+            .collect()
+    }
+
+    /// The catalogue name and headline stat of option `index` in `slot` (raw module value, no crew).
+    fn option_name_stat(&self, slot: FitSlot, index: usize) -> (String, f32) {
+        match slot {
+            FitSlot::Turret => {
+                let m = &self.kind.turret_options()[index];
+                (m.name.clone(), m.front_mm)
+            }
+            FitSlot::Gun => {
+                let m = &self.kind.gun_options()[index];
+                (m.spec.name.clone(), m.spec.reload_seconds)
+            }
+            FitSlot::Hull => {
+                let m = &self.kind.hull_options()[index];
+                (m.name.clone(), m.hit_points as f32)
+            }
+            FitSlot::Engine => {
+                let m = &self.kind.engine_options()[index];
+                (m.name.clone(), m.power_kw)
+            }
+            FitSlot::Suspension => {
+                let m = &self.kind.suspension_options()[index];
+                (m.name.clone(), m.turn_rate_rad_s.to_degrees())
+            }
+            FitSlot::Radio => {
+                let m = &self.kind.radio_options()[index];
+                (m.name.clone(), m.signal_range_m)
+            }
+        }
+    }
+
+    /// Install a specific option index for `slot` — the option list's direct pick. Compatibility is
+    /// checked through the same `try_install_index` path as cycling; returns whether it took.
+    pub(super) fn set_option(&mut self, slot: FitSlot, index: usize) -> bool {
+        if index >= self.options_len(slot) {
+            return false;
+        }
+        // A new gun keeps the ammo selection in range (mirrors the gun arm of `try_install_index`).
+        self.try_install_index(slot, index)
+    }
+
     pub(super) fn ammo_index(&self) -> usize {
         self.ammo_index
     }
@@ -186,6 +283,43 @@ impl LoadoutDraft {
         if index < self.ammo_options().len() {
             self.ammo_index = index;
         }
+    }
+
+    pub(super) fn ammo_counts(&self) -> [u16; MAX_AMMO_SLOTS] {
+        self.ammo_counts
+    }
+
+    /// The vehicle's authored rack capacity — the hard budget the counts edit inside.
+    pub(super) fn rack_capacity(&self) -> u16 {
+        self.kind.ammo_capacity()
+    }
+
+    pub(super) fn rack_total(&self) -> u16 {
+        self.ammo_counts.iter().sum()
+    }
+
+    /// Move `delta` rounds into (`+`) or out of (`-`) rack slot `slot`, clamped to the honest
+    /// bounds: a slot never goes negative, the rack never exceeds the vehicle's capacity, and at
+    /// least one round stays aboard (an empty rack cannot fight). Returns whether anything moved
+    /// — partial application (e.g. +5 into 2 free spaces) still counts as a change.
+    pub(super) fn adjust_ammo_count(&mut self, slot: usize, delta: i32) -> bool {
+        if slot >= MAX_AMMO_SLOTS || delta == 0 {
+            return false;
+        }
+        let count = i32::from(self.ammo_counts[slot]);
+        let total = i32::from(self.rack_total());
+        let capacity = i32::from(self.rack_capacity());
+        let applied = if delta > 0 {
+            delta.min(capacity - total)
+        } else {
+            // Floor at an empty slot AND at one round total across the rack.
+            delta.max(-count).max(1 - total)
+        };
+        if applied == 0 {
+            return false;
+        }
+        self.ammo_counts[slot] = (count + applied) as u16;
+        true
     }
 
     pub(super) fn adjust_proficiency(&mut self, dir: isize) {
@@ -198,13 +332,11 @@ impl LoadoutDraft {
         let mut spec = self.modules.assemble(self.kind);
         self.crew.apply(&mut spec);
         let selected = self.ammo_index.min(self.ammo_options().len() - 1);
-        // The rack carries the default fill with the garage-chosen slot pre-loaded (per-slot
-        // count editing is a follow-up). The sim fires `TankState::selected_shell()` and the
-        // reticle reads the predictor's selected shell — `gun.shell` stays the stock round.
-        spec.ammo = game_core::AmmoLoadout {
-            initial_selected: selected as u8,
-            ..game_core::AmmoLoadout::default_for(spec.ammo_capacity)
-        };
+        // The rack carries the garage-edited per-slot fill with the chosen slot pre-loaded. The
+        // sim fires `TankState::selected_shell()` and the reticle reads the predictor's selected
+        // shell — `gun.shell` stays the stock round.
+        spec.ammo =
+            game_core::AmmoLoadout { counts: self.ammo_counts, initial_selected: selected as u8 };
         spec
     }
 }
@@ -249,7 +381,12 @@ mod tests {
     #[test]
     fn from_saved_degrades_a_stale_index_to_stock_without_panicking() {
         // A save from an older build (or a since-removed option) points every slot out of range.
-        let stale = SavedLoadout { option_index: [999; 6], ammo_index: 999, crew_proficiency: 0.8 };
+        let stale = SavedLoadout {
+            option_index: [999; 6],
+            ammo_index: 999,
+            ammo_counts: None,
+            crew_proficiency: 0.8,
+        };
         let draft = LoadoutDraft::from_saved(VehicleKind::T54_1951, &stale);
 
         assert_eq!(draft.option_index, [0; 6], "unknown options fall back to stock");
@@ -259,10 +396,17 @@ mod tests {
 
     #[test]
     fn cycling_the_suspension_changes_assembled_turn_rate() {
+        // The Tiger II carries a real second track (narrow transport vs wide combat), so cycling
+        // moves the assembled traverse. The transport track is a sidegrade (worse turn for less
+        // weight), so this locks that the swap *changes* traverse, not that it improves it.
         let mut draft = LoadoutDraft::for_vehicle(VehicleKind::TigerII);
         let before = draft.assembled_spec().turn_rate_rad_s;
         draft.cycle_module(FitSlot::Suspension, 1);
-        assert!(draft.assembled_spec().turn_rate_rad_s > before);
+        assert_ne!(
+            draft.assembled_spec().turn_rate_rad_s,
+            before,
+            "the alternate track moves traverse"
+        );
     }
 
     #[test]
@@ -275,7 +419,8 @@ mod tests {
 
     #[test]
     fn cycling_the_engine_changes_assembled_power() {
-        let mut draft = LoadoutDraft::for_vehicle(VehicleKind::TigerII);
+        // The T-54 has a real engine choice (V-54 stock, V-55 retrofit); the V-55 lifts power.
+        let mut draft = LoadoutDraft::for_vehicle(VehicleKind::T54_1951);
         let before = draft.assembled_spec().engine_power_kw;
         draft.cycle_module(FitSlot::Engine, 1);
         assert!(draft.assembled_spec().engine_power_kw > before);
@@ -292,6 +437,61 @@ mod tests {
         // the predictor's selection — nothing bakes the choice into the spec anymore.
         assert_eq!(spec.gun.shell.shell_type, game_core::ShellType::ArmorPiercing);
         assert!(spec.ammo.total() > 0 && spec.ammo.total() <= spec.ammo_capacity);
+    }
+
+    #[test]
+    fn the_default_rack_fill_matches_the_vehicles_authored_capacity() {
+        // The honest-ammo pillar reaches the garage: a fresh T-54 draft carries its historical
+        // 34-round rack, full, stock-heavy — not the old flat 40.
+        let draft = LoadoutDraft::for_vehicle(VehicleKind::T54_1951);
+        assert_eq!(draft.rack_capacity(), VehicleKind::T54_1951.ammo_capacity());
+        assert_eq!(draft.rack_total(), draft.rack_capacity(), "a fresh rack is full");
+        assert_eq!(draft.assembled_spec().ammo.counts, draft.ammo_counts());
+    }
+
+    #[test]
+    fn adjusting_ammo_counts_respects_capacity_and_never_empties_the_rack() {
+        let mut draft = LoadoutDraft::for_vehicle(VehicleKind::T54_1951);
+        // A full rack cannot take one more round anywhere.
+        assert!(!draft.adjust_ammo_count(0, 1), "a full rack rejects +1");
+        // Freeing two HE rounds opens exactly two spaces; +5 into slot 1 applies partially.
+        assert!(draft.adjust_ammo_count(2, -2));
+        let before = draft.ammo_counts()[1];
+        assert!(draft.adjust_ammo_count(1, 5), "a partial top-up still counts as a change");
+        assert_eq!(draft.ammo_counts()[1], before + 2, "only the free space is filled");
+        assert_eq!(draft.rack_total(), draft.rack_capacity());
+        // A slot floors at zero without disturbing the rest...
+        assert!(draft.adjust_ammo_count(2, -999));
+        assert_eq!(draft.ammo_counts()[2], 0);
+        // ...and the rack as a whole floors at ONE round: drain everything and one AP stays.
+        assert!(draft.adjust_ammo_count(1, -999));
+        assert!(draft.adjust_ammo_count(0, -999));
+        assert_eq!(draft.rack_total(), 1, "an empty rack cannot fight; one round stays aboard");
+        assert!(!draft.adjust_ammo_count(0, -1), "the last round is not removable");
+    }
+
+    #[test]
+    fn an_edited_rack_fill_round_trips_and_a_stale_fill_degrades_to_default() {
+        let mut draft = LoadoutDraft::for_vehicle(VehicleKind::TigerII);
+        draft.adjust_ammo_count(0, -10);
+        draft.adjust_ammo_count(2, 10);
+        let restored = LoadoutDraft::from_saved(VehicleKind::TigerII, &draft.to_saved());
+        assert_eq!(restored.ammo_counts(), draft.ammo_counts(), "the edited fill survives");
+        assert_eq!(restored.assembled_spec().ammo.counts, draft.ammo_counts());
+
+        // A save whose fill exceeds this build's capacity (a rebalance shrank the rack) or is
+        // empty degrades to the stock default instead of loading an invalid rack.
+        let mut stale = draft.to_saved();
+        stale.ammo_counts = Some([999, 999, 999]);
+        let degraded = LoadoutDraft::from_saved(VehicleKind::TigerII, &stale);
+        assert_eq!(degraded.rack_total(), degraded.rack_capacity(), "overflow falls back full");
+        stale.ammo_counts = Some([0, 0, 0]);
+        let empty = LoadoutDraft::from_saved(VehicleKind::TigerII, &stale);
+        assert!(empty.rack_total() >= 1, "an empty stored rack falls back to the default fill");
+        // A pre-editor save (no counts at all) keeps the default fill.
+        stale.ammo_counts = None;
+        let legacy = LoadoutDraft::from_saved(VehicleKind::TigerII, &stale);
+        assert_eq!(legacy.rack_total(), legacy.rack_capacity());
     }
 
     #[test]
@@ -313,7 +513,7 @@ mod tests {
         let eng_before = draft.current_module_summary(FitSlot::Engine);
         draft.cycle_module(FitSlot::Engine, 1);
         let eng_after = draft.current_module_summary(FitSlot::Engine);
-        assert_ne!(eng_before, eng_after, "uprated engine shows a different kW value");
+        assert_ne!(eng_before, eng_after, "the V-55 retrofit shows a different kW value");
     }
 
     #[test]
@@ -321,6 +521,33 @@ mod tests {
         let mut draft = LoadoutDraft::for_vehicle(VehicleKind::T54_1951);
         assert!(draft.cycle_module(FitSlot::Gun, 1), "gun swap should succeed");
         assert!(draft.cycle_module(FitSlot::Engine, 1), "engine swap should succeed");
+    }
+
+    #[test]
+    fn module_options_reports_names_stats_and_marks_the_installed() {
+        let draft = LoadoutDraft::for_vehicle(VehicleKind::T54_1951);
+        let guns = draft.module_options(FitSlot::Gun);
+        assert_eq!(guns.len(), 2, "the T-54 has two guns to choose between");
+        assert!(guns.iter().all(|o| !o.name.is_empty()), "every option carries a catalogue name");
+        assert!(guns[0].installed, "the stock gun is the installed one");
+        assert!(!guns[1].installed);
+        // Reload is the gun's headline stat, and a shorter reload is better.
+        assert!(!guns[0].higher_is_better, "lower reload is better → higher_is_better is false");
+        assert_ne!(guns[0].stat, guns[1].stat, "the two guns differ on their headline stat");
+
+        // A single-option slot (radio) reports exactly one option, installed.
+        let radios = draft.module_options(FitSlot::Radio);
+        assert_eq!(radios.len(), 1);
+        assert!(radios[0].installed);
+    }
+
+    #[test]
+    fn set_option_installs_a_specific_index_and_rejects_out_of_range() {
+        let mut draft = LoadoutDraft::for_vehicle(VehicleKind::T54_1951);
+        let before = draft.gun_barrel_length();
+        assert!(draft.set_option(FitSlot::Gun, 1), "installing a valid option succeeds");
+        assert_ne!(draft.gun_barrel_length(), before, "the picked option is installed");
+        assert!(!draft.set_option(FitSlot::Gun, 99), "an out-of-range index is rejected");
     }
 
     #[test]

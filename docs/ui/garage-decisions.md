@@ -67,7 +67,6 @@ is documented here with a reason and a status.
   - `-` / `=` — adjust crew proficiency down / up.
   - `T` — toggle between `Hangar` and `TechTree` views.
   - `ArrowLeft` / `ArrowRight` — cycle vehicles (unchanged).
-  - `Digit1`–`Digit5` — select vehicle by carousel index (unchanged).
   - `Enter` — commit to battle (unchanged).
   - `Escape` — close the garage (unchanged).
 

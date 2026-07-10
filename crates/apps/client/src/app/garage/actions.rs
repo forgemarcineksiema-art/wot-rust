@@ -4,7 +4,6 @@
 
 #[cfg(test)]
 use game_core::VehicleKind;
-use winit::event::KeyEvent;
 use winit::keyboard::{KeyCode, PhysicalKey};
 
 use super::{GarageHit, GarageState};
@@ -43,6 +42,20 @@ impl ClientApp {
         let shift = self.input.shift;
         let view = self.garage.view();
         let hit = self.garage.hit_test(shift);
+
+        // An open option list is modal: a click either picks a row (installing it) or dismisses the
+        // list — nothing behind it acts on the same press.
+        if self.garage.option_list().is_some() {
+            if let GarageHit::OptionRow(slot, index) = hit {
+                self.queue_audio(audio::AudioEvent::UiClick { accent: false });
+                self.garage.select_option(slot, index);
+                self.garage_reject_feedback();
+            } else {
+                self.garage.close_option_list();
+            }
+            return;
+        }
+
         // Every acted-on control answers with the switch click; orbiting the camera is not a
         // control, and Battle lands its own accented click in `confirm_garage_selection`.
         if !matches!(hit, GarageHit::Scene | GarageHit::Battle) {
@@ -57,12 +70,28 @@ impl ClientApp {
                 }
             }
             GarageHit::CarouselScroll(dir) => self.garage.scroll_carousel(dir),
+            // Plain click opens the informed option list for the slot; Shift+click keeps the express
+            // backward cycle (no list). Both fly the camera to frame the module.
             GarageHit::ModuleCycle(slot, dir) => {
-                self.garage.cycle_module(slot, dir);
-                // Clicking a module both cycles it and flies the camera to frame it.
+                if dir < 0 {
+                    self.garage.cycle_module(slot, dir);
+                    self.garage_reject_feedback();
+                } else {
+                    self.garage.open_option_list(slot);
+                }
                 self.garage.focus_module(slot);
             }
+            // Unreachable while no list is open (rows only hit-test when one is), but kept exhaustive.
+            GarageHit::OptionRow(slot, index) => {
+                self.garage.select_option(slot, index);
+                self.garage_reject_feedback();
+            }
             GarageHit::AmmoSelect(index) => self.garage.set_ammo(index),
+            // The rack count editor: plain click moves one round, Shift moves five.
+            GarageHit::AmmoAdjust(index, dir) => {
+                let step = if shift { 5 } else { 1 };
+                self.garage.adjust_ammo_count(index, dir as i32 * step);
+            }
             GarageHit::CrewProf(dir) => self.garage.adjust_proficiency(dir),
             GarageHit::Battle => self.confirm_garage_selection(),
             GarageHit::OpenTechTree => self.garage.open_tech_tree(),
@@ -78,24 +107,43 @@ impl ClientApp {
     /// Route a right-button press in the garage. Only module slots act on it (cycling backward);
     /// every other hit is ignored so right-click never fires Battle, selects ammo, or starts a drag.
     pub(in crate::app) fn garage_secondary_press(&mut self) {
+        // Right-click dismisses an open option list; otherwise it is the express backward cycle.
+        if self.garage.option_list().is_some() {
+            self.garage.close_option_list();
+            return;
+        }
         if let GarageHit::ModuleCycle(slot, _) = self.garage.hit_test(true) {
             self.garage.cycle_module(slot, -1);
+            self.garage_reject_feedback();
         }
     }
 
-    /// Garage keyboard bindings: selection, loadout editing, crew, tech tree, Battle. Returns
-    /// `false` for keys the garage does not own (they fall through to driving once started).
-    pub(in crate::app) fn garage_keyboard(&mut self, event: &KeyEvent) -> bool {
-        match event.physical_key {
+    /// After a fitting edit, answer a compatibility rejection with the dull knock — the red
+    /// flash's audible half (`rejected_slot` used to light silently). Every edit path resets
+    /// `rejected_slot` before acting, so `Some` here means THIS action was refused.
+    fn garage_reject_feedback(&mut self) {
+        if self.garage.rejected_slot().is_some() {
+            self.queue_audio(audio::AudioEvent::UiReject);
+        }
+    }
+
+    /// Garage keyboard bindings: selection, loadout editing, crew, tech tree, Battle. Takes the
+    /// `PhysicalKey` alone (the only field the garage reads) so the routing is unit-testable — a
+    /// winit `KeyEvent` cannot be constructed outside winit. Always returns `true` while the garage
+    /// is open (its only caller), swallowing unbound keys so none leak to driving.
+    pub(in crate::app) fn garage_keyboard(&mut self, key: PhysicalKey) -> bool {
+        match key {
             // Arrow keys cycle the roster. The old 1-5 vehicle digits are retired: with a scroll
             // window, a window-relative digit selects a different tank than the label implies.
             PhysicalKey::Code(KeyCode::ArrowLeft) => self.garage.cycle(-1),
             PhysicalKey::Code(KeyCode::ArrowRight) => self.garage.cycle(1),
             PhysicalKey::Code(KeyCode::Enter) => self.confirm_garage_selection(),
-            // Escape first backs out of a module focus (return to the hero framing); a second
-            // press, with the camera already at rest on the hero view, closes the garage.
+            // Escape peels back one layer at a time: first an open option list, then a module-focus
+            // framing (return to hero), then — camera already at rest — closes the garage.
             PhysicalKey::Code(KeyCode::Escape) => {
-                if self.garage.is_camera_off_hero() {
+                if self.garage.option_list().is_some() {
+                    self.garage.close_option_list();
+                } else if self.garage.is_camera_off_hero() {
                     self.garage.return_to_hero_view();
                 } else {
                     self.garage.close_if_started();
@@ -104,8 +152,14 @@ impl ClientApp {
             // Keyboard loadout editing: focus + cycle + ammo + crew.
             PhysicalKey::Code(KeyCode::BracketLeft) => self.garage.focus_adjacent(-1),
             PhysicalKey::Code(KeyCode::BracketRight) => self.garage.focus_adjacent(1),
-            PhysicalKey::Code(KeyCode::KeyQ) => self.garage.cycle_focused(-1),
-            PhysicalKey::Code(KeyCode::KeyE) => self.garage.cycle_focused(1),
+            PhysicalKey::Code(KeyCode::KeyQ) => {
+                self.garage.cycle_focused(-1);
+                self.garage_reject_feedback();
+            }
+            PhysicalKey::Code(KeyCode::KeyE) => {
+                self.garage.cycle_focused(1);
+                self.garage_reject_feedback();
+            }
             PhysicalKey::Code(KeyCode::KeyZ) => self.garage.set_ammo(0),
             PhysicalKey::Code(KeyCode::KeyX) => self.garage.set_ammo(1),
             PhysicalKey::Code(KeyCode::KeyC) => self.garage.set_ammo(2),
@@ -115,8 +169,12 @@ impl ClientApp {
                 super::GarageView::Hangar => self.garage.open_tech_tree(),
                 super::GarageView::TechTree => self.garage.close_tech_tree(),
             },
-            // Before the first battle every other key is swallowed; afterwards it drives.
-            _ => return !self.garage.has_started(),
+            // The open garage owns the keyboard: swallow every key it does not itself bind, so a
+            // keystroke never leaks through to drive the tank or switch ammo in the battle running
+            // underneath (mid-battle the sim keeps ticking behind the overlay; before, an unbound
+            // key like W or Space fell through to `on_driving_keyboard` once `has_started`).
+            // `on_keyboard` only routes here while the garage is open, so swallowing all is correct.
+            _ => return true,
         }
         true
     }
@@ -172,6 +230,7 @@ impl ClientApp {
 
 #[cfg(test)]
 mod tests {
+    use super::super::FitSlot;
     use super::super::layout::{BATTLE_CENTER, ammo_slot_center, module_slot_center};
     use super::*;
 
@@ -208,6 +267,54 @@ mod tests {
     }
 
     #[test]
+    fn a_rejected_fit_knocks_back_audibly_and_an_accepted_one_does_not() {
+        let mut app = ClientApp::new();
+        app.garage.select_vehicle(VehicleKind::T54_1951);
+
+        // An accepted express cycle answers with the plain click only.
+        app.pending_audio.clear();
+        app.garage.set_cursor(module_slot_center(1)); // Gun slot
+        app.garage_secondary_press();
+        assert!(
+            !app.pending_audio.contains(&audio::AudioEvent::UiReject),
+            "an accepted swap must not knock"
+        );
+
+        // Force an incompatible fit (turret caliber limit under the gun) via the keyboard cycle:
+        // the red flash now has its audible half.
+        app.garage.force_turret_caliber_limit_for_test(99.0);
+        app.pending_audio.clear();
+        app.garage_keyboard(PhysicalKey::Code(KeyCode::KeyE));
+        assert!(
+            app.pending_audio.contains(&audio::AudioEvent::UiReject),
+            "a rejected fit must answer with the reject knock: {:?}",
+            app.pending_audio
+        );
+    }
+
+    #[test]
+    fn clicking_the_ammo_zones_edits_the_rack_and_shift_steps_by_five() {
+        use crate::app::garage::layout::ammo_adjust_centers;
+        let mut app = ClientApp::new();
+        app.garage.select_vehicle(VehicleKind::T54_1951);
+        let (minus, _plus) = ammo_adjust_centers(0);
+        let before = app.garage.draft().ammo_counts()[0];
+
+        app.garage.set_cursor(minus);
+        app.garage_primary_press();
+        assert_eq!(app.garage.draft().ammo_counts()[0], before - 1, "plain click moves one round");
+
+        app.input.set_shift(true);
+        app.garage_primary_press();
+        assert_eq!(app.garage.draft().ammo_counts()[0], before - 6, "shift+click moves five");
+        assert_eq!(
+            app.garage.draft().ammo_index(),
+            0,
+            "editing the fill never switches the loaded round"
+        );
+    }
+
+    #[test]
     fn right_click_on_ammo_slot_does_not_select() {
         let mut app = ClientApp::new();
         app.garage.select_vehicle(VehicleKind::T54_1951);
@@ -218,36 +325,92 @@ mod tests {
     }
 
     #[test]
-    fn shift_left_click_cycles_backward_opposite_of_plain_click() {
+    fn plain_click_on_a_swappable_slot_opens_its_option_list_without_changing_the_fit() {
+        let mut app = ClientApp::new();
+        app.garage.select_vehicle(VehicleKind::T54_1951);
+        app.garage.set_cursor(module_slot_center(1)); // Gun slot (a real choice on the T-54)
+        let stock = app.garage.draft().gun_barrel_length();
+
+        app.garage_primary_press();
+
+        assert_eq!(
+            app.garage.option_list(),
+            Some(FitSlot::Gun),
+            "plain click opens the option list"
+        );
+        assert_eq!(
+            app.garage.draft().gun_barrel_length(),
+            stock,
+            "opening the list must not change the installed gun"
+        );
+    }
+
+    #[test]
+    fn shift_click_express_cycles_backward_without_opening_a_list() {
         let mut app = ClientApp::new();
         app.garage.select_vehicle(VehicleKind::T54_1951);
         app.garage.set_cursor(module_slot_center(1)); // Gun slot
         let stock = app.garage.draft().gun_barrel_length();
 
-        // Plain click cycles forward to the alternate gun.
-        app.garage_primary_press();
-        let forward = app.garage.draft().gun_barrel_length();
-        assert_ne!(stock, forward, "plain click moves off the stock gun");
-
-        // Shift+click cycles backward, returning to the stock gun.
+        // Shift+click is the express path: it cycles backward (from stock, wraps to the alternate
+        // gun) and never opens the list.
         app.input.set_shift(true);
         app.garage_primary_press();
-        let backward = app.garage.draft().gun_barrel_length();
-        assert_eq!(stock, backward, "shift+click returns to stock (opposite direction)");
+
+        assert_eq!(app.garage.option_list(), None, "the express cycle opens no list");
+        assert_ne!(
+            app.garage.draft().gun_barrel_length(),
+            stock,
+            "shift+click moves off the stock gun (express backward cycle)"
+        );
+    }
+
+    #[test]
+    fn clicking_an_option_row_installs_it_and_closes_the_list() {
+        let mut app = ClientApp::new();
+        app.garage.select_vehicle(VehicleKind::T54_1951);
+        let stock = app.garage.draft().gun_barrel_length();
+
+        // Open the gun list, then click the alternate option row (row 1).
+        app.garage.set_cursor(module_slot_center(1));
+        app.garage_primary_press();
+        assert_eq!(app.garage.option_list(), Some(FitSlot::Gun));
+
+        app.garage
+            .set_cursor(crate::app::garage::layout::option_row_center(FitSlot::Gun.index(), 1));
+        app.garage_primary_press();
+
+        assert_eq!(app.garage.option_list(), None, "picking a row closes the list");
+        assert_ne!(app.garage.draft().gun_barrel_length(), stock, "the picked gun is installed");
+    }
+
+    #[test]
+    fn clicking_outside_an_open_list_dismisses_it_without_acting() {
+        let mut app = ClientApp::new();
+        app.garage.select_vehicle(VehicleKind::T54_1951);
+        app.garage.set_cursor(module_slot_center(1));
+        app.garage_primary_press();
+        assert_eq!(app.garage.option_list(), Some(FitSlot::Gun));
+
+        // A click in empty scene space dismisses the list and must not start a camera drag.
+        app.garage.set_cursor([0.0, 0.0]);
+        app.garage_primary_press();
+        assert_eq!(app.garage.option_list(), None, "clicking away closes the list");
+        assert!(!app.garage.is_dragging(), "the dismiss click does not start an orbit drag");
     }
 
     #[test]
     fn selecting_vehicle_from_tech_tree_returns_to_hangar() {
         use super::super::GarageView;
         use crate::app::garage::layout::tree_node_center;
-        use game_core::Nation;
+        use game_core::Era;
 
         let mut app = ClientApp::new();
         app.garage.open_tech_tree();
         assert_eq!(app.garage.view(), GarageView::TechTree);
 
-        // Click the Tiger I node (first Germany node = PLAYABLE index 1).
-        app.garage.set_cursor(tree_node_center(Nation::Germany, 0));
+        // Click the Tiger I node (first Era II node = PLAYABLE index 1).
+        app.garage.set_cursor(tree_node_center(Era::LateWar, 0));
         app.garage_primary_press();
 
         assert_eq!(app.garage.view(), GarageView::Hangar, "returns to hangar");
@@ -295,6 +458,28 @@ mod tests {
         assert!(app.render_state.latest_snapshot().is_some_and(|snapshot| {
             snapshot.tanks.iter().any(|tank| tank.tank_id == app.player_tank)
         }));
+    }
+
+    /// Regression: after the first battle, unbound keys (W, Space, ammo digits) leaked through the
+    /// open garage into `on_driving_keyboard` and drove/fired the tank that keeps ticking behind the
+    /// overlay. The open garage must swallow every key it does not itself bind.
+    #[test]
+    fn open_garage_swallows_unbound_driving_keys_so_they_never_reach_the_battle() {
+        let mut app = ClientApp::new();
+        app.confirm_garage_selection();
+        app.run_fixed_ticks(5);
+        app.open_garage();
+        assert!(app.garage.is_open() && app.garage.has_started(), "garage open over a live battle");
+
+        for key in [KeyCode::KeyW, KeyCode::KeyS, KeyCode::Space, KeyCode::Digit1] {
+            assert!(
+                app.garage_keyboard(PhysicalKey::Code(key)),
+                "the open garage must swallow {key:?}, not leak it to driving/firing"
+            );
+        }
+        // A key the garage DOES bind still reports handled (sanity that the swallow didn't mask real
+        // bindings): Enter commits to battle.
+        assert!(app.garage_keyboard(PhysicalKey::Code(KeyCode::BracketRight)));
     }
 
     #[test]

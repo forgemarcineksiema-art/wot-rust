@@ -383,6 +383,51 @@ impl SceneLighting {
             fog_sun_scatter: 0.0,
         }
     }
+
+    /// The garage HERO look: the workshop mood kept on the room, but the parked vehicle lit so it
+    /// reads as the subject instead of a silhouette. The plain `garage_workshop` starved the flanks
+    /// the orbit camera sees — a near-vertical key hits only the decks and the fill was aimed out the
+    /// back door, so the camera-facing sides fell to ambient-only near-black. Three moves fix that
+    /// without touching the battle look (the garage is a wholly separate lighting branch): a brighter
+    /// (but still sub-studio, cool) hemispheric ambient so the shaded sides clear black, a key raked
+    /// off vertical so it rakes the vertical flanks, and a near-horizontal fill thrown across the
+    /// turntable from the opposite side of the key to lift the shadowed flank. The upper walls stay
+    /// dark by their own low albedo, so the skylight contrast survives.
+    pub fn garage_hero() -> Self {
+        Self {
+            ambient_rgb: [0.26, 0.27, 0.30],
+            ground_ambient_rgb: [0.15, 0.14, 0.13],
+            // Steep enough to still read as skylight-through-the-roof, but with real horizontal reach
+            // so `dot(n, key)` is meaningful on the vertical flanks, not only the decks.
+            key_direction: [-0.45, 0.78, 0.42],
+            key_rgb: [1.10, 1.00, 0.82],
+            // The lever: a near-horizontal fill from the side opposite the key (studio motif), aimed
+            // across the turntable at the camera-facing flank the key leaves in shadow.
+            fill_direction: [0.85, 0.30, 0.35],
+            fill_rgb: [0.26, 0.28, 0.33],
+            // A cold rear rim to peel the hull off the dim back wall.
+            rim_direction: [0.10, 0.45, -0.98],
+            rim_rgb: [0.30, 0.33, 0.40],
+            sky_zenith_rgb: [0.11, 0.12, 0.14],
+            sky_horizon_rgb: [0.16, 0.17, 0.20],
+            fog_density: 0.0,
+            fog_height_falloff: 0.0,
+            // Hero shot: the grade must SERVE the phase-1a relight, not undo it — a hot black
+            // point re-sank the flanks that the front fill exists to lift (the hero read as the
+            // darkest thing in the frame again). So: a bright showroom exposure, near-neutral
+            // blacks, gentle contrast; the moody-workshop grade stays on garage_workshop.
+            exposure: 1.18,
+            black_point: 0.012,
+            saturation: 1.12,
+            contrast: 1.05,
+            cloud_coverage_bias: 0.0,
+            cloud_scale: 1.0,
+            cloud_opacity: 0.0,
+            cloud_drift: 0.0,
+            cloud_shadow_strength: 0.0,
+            fog_sun_scatter: 0.0,
+        }
+    }
 }
 
 impl Default for SceneLighting {

@@ -71,4 +71,19 @@ mod tests {
             vertices.iter().filter(|v| v.color == VALUE && v.position[1] > 0.78).count();
         assert!(header_value_glyphs > 0, "the era label must sit on the header row");
     }
+
+    /// Regression: the first data row used to render its icon above the 0.755 header hairline,
+    /// colliding with the "VEHICLE"/"CREW" header (visible as a clipped top stat). The highest
+    /// row-0 pixel is the icon top at `TOP + icon_offset`; it must clear the hairline. If a future
+    /// edit raises `STAT_TOP`/`CREW_TOP` back toward the header, this catches it.
+    #[test]
+    fn first_row_clears_the_header_hairline() {
+        const HAIRLINE_Y: f32 = 0.755;
+        // Compile-time locks (the layout values are all consts): the highest row-0 pixel is the icon
+        // top at `TOP + icon_offset` — 0.03 here and 0.035 in crew.rs, mirroring the `push_icon`
+        // calls. It must clear the header hairline; raising STAT_TOP/CREW_TOP back toward the header
+        // fails the build.
+        const { assert!(STAT_TOP + 0.03 < HAIRLINE_Y, "stats row 0 must clear the header hairline") };
+        const { assert!(CREW_TOP + 0.035 < HAIRLINE_Y, "crew row 0 must clear the header hairline") };
+    }
 }

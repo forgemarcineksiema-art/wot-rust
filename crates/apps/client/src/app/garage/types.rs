@@ -11,8 +11,13 @@ pub(in crate::app) enum GarageHit {
     CarouselScroll(i8),
     /// Cycle a module slot's option by `dir` (-1 / +1).
     ModuleCycle(FitSlot, isize),
+    /// Pick option `index` from the open module list for `slot` (installs it and closes the list).
+    OptionRow(FitSlot, usize),
     /// Select an ammo option by index.
     AmmoSelect(usize),
+    /// Move rounds into (`+1`) or out of (`-1`) rack slot `index` — the count editor's − / +
+    /// zones under the ammo slot. Shift steps by 5.
+    AmmoAdjust(usize, isize),
     /// Nudge crew proficiency by `dir`.
     CrewProf(isize),
     /// The "Battle" button.

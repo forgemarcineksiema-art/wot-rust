@@ -20,6 +20,9 @@ pub(crate) mod garage {
     pub const VEHICLE: &str = "VEHICLE";
     /// Tech-tree close button.
     pub const BACK: &str = "BACK";
+    /// Placeholder in an era band with nothing fielded yet (Era I) — the reserved bracket is
+    /// shown, not hidden, because the era axis IS the tree's message.
+    pub const ERA_RESERVED: &str = "RESERVED - NO VEHICLES FIELDED YET";
 
     /// Stat-row units (value formatting stays at the call site; the unit is copy).
     pub const UNIT_KILOWATTS: &str = "kW";
@@ -65,6 +68,7 @@ mod tests {
             super::garage::PROFICIENCY,
             super::garage::VEHICLE,
             super::garage::BACK,
+            super::garage::ERA_RESERVED,
             super::garage::UNIT_KILOWATTS,
             super::garage::UNIT_KMH,
             super::garage::UNIT_DEGREES_PER_S,

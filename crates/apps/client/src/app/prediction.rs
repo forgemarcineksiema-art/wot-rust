@@ -88,7 +88,15 @@ impl ClientApp {
         let counts = self
             .player_snapshot()
             .map_or(self.predictor.spec().ammo.counts, |tank| tank.ammo_counts);
-        crate::hud::ammo_panel::AmmoHudModel::new(counts, self.predictor.selected_ammo())
+        let options = self.predictor.spec().gun.ammo_options();
+        let shell_types = std::array::from_fn(|i| {
+            options.get(i).map_or(game_core::ShellType::ArmorPiercing, |shell| shell.shell_type)
+        });
+        crate::hud::ammo_panel::AmmoHudModel::new(
+            shell_types,
+            counts,
+            self.predictor.selected_ammo(),
+        )
     }
 
     pub(super) fn player_max_hit_points(&self) -> u32 {

@@ -1,6 +1,8 @@
 //! Bottom loadout strip: six module slots (click cycles the option) then the gun's ammo slots
-//! (click selects). Swappable modules read bright; single-option slots read dim. Each module
-//! slot also shows a one-line key stat below the icon so the player sees what's installed.
+//! (click selects the loaded round; the − / + zones under each slot edit how many rounds of it
+//! fill the rack, within the vehicle's authored capacity). Swappable modules read bright;
+//! single-option slots read dim. Each module slot also shows a one-line key stat below the icon
+//! so the player sees what's installed.
 
 use renderer_api::HudVertex;
 
@@ -32,7 +34,9 @@ pub(in crate::app::garage) fn draw(v: &mut Vec<HudVertex>, state: &GarageState, 
     }
 
     let selected = state.draft().ammo_index();
-    for i in 0..state.draft().ammo_options().len() {
+    let options = state.draft().ammo_options();
+    let counts = state.draft().ammo_counts();
+    for (i, shell) in options.iter().enumerate() {
         let c = ammo_slot_center(i);
         push_panel(
             v,
@@ -42,6 +46,23 @@ pub(in crate::app::garage) fn draw(v: &mut Vec<HudVertex>, state: &GarageState, 
             aspect,
             if i == selected { SLOT_SELECTED } else { SLOT },
         );
-        push_icon(v, ammo_icon(i), c[0] - 0.03, c[1] + 0.03, 0.06, aspect, ICON);
+        push_icon(v, ammo_icon(shell.shell_type), c[0] - 0.03, c[1] + 0.03, 0.06, aspect, ICON);
+
+        // The count row: "−  N  +". The zones are real controls (they hit-test before the slot),
+        // so they read as such — bright glyphs flanking the dimmer count.
+        let count = format!("{}", counts.get(i).copied().unwrap_or(0));
+        let w = text_width(&count, 0.024, aspect);
+        push_text(v, &count, c[0] - w / 2.0, c[1] - 0.024, 0.024, aspect, TEXT_DIM);
+        let (minus, plus) = ammo_adjust_centers(i);
+        let glyph_w = text_width("-", 0.026, aspect);
+        push_text(v, "-", minus[0] - glyph_w / 2.0, minus[1] + 0.013, 0.026, aspect, ICON);
+        let glyph_w = text_width("+", 0.026, aspect);
+        push_text(v, "+", plus[0] - glyph_w / 2.0, plus[1] + 0.013, 0.026, aspect, ICON);
     }
+
+    // The rack budget readout: how full the rack is against the vehicle's authored capacity.
+    let total = format!("{}/{}", state.draft().rack_total(), state.draft().rack_capacity());
+    let tc = ammo_total_center();
+    let w = text_width(&total, 0.026, aspect);
+    push_text(v, &total, tc[0] - w / 2.0, tc[1] + 0.013, 0.026, aspect, VALUE);
 }

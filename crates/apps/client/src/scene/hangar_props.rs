@@ -14,7 +14,10 @@ const RUBBER: [f32; 3] = [0.11, 0.11, 0.12];
 const WHEEL_HUB: [f32; 3] = [0.30, 0.28, 0.24];
 const WOOD: [f32; 3] = [0.34, 0.26, 0.17];
 const BARREL: [f32; 3] = [0.30, 0.34, 0.30];
-const OIL: [f32; 3] = [0.05, 0.045, 0.04];
+// A darkened-concrete stain, not a void: against the hero-lit floor a near-black disc read as a
+// hole/pit. Kept a clear step below the concrete (0.26) so it still registers as oil, but close
+// enough that it stains the floor rather than cutting through it.
+const OIL: [f32; 3] = [0.20, 0.19, 0.165];
 
 /// Append every workshop prop to the hangar mesh. Wall-side props sit near the shell so the bay
 /// floor around the turntable stays clear for the hero vehicle.
@@ -94,7 +97,7 @@ fn barrels(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>, wall_x: f32) {
 
 /// Flat oil stains on the concrete just off the turntable, breaking up the clean floor.
 fn oil_stains(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
-    for (x, z, r) in [(6.4_f32, 2.2_f32, 1.1_f32), (-5.8, -3.0, 0.8), (4.2, -5.5, 0.6)] {
+    for (x, z, r) in [(6.4_f32, 2.2_f32, 0.8_f32), (-5.8, -3.0, 0.6), (4.2, -5.5, 0.5)] {
         push_cylinder(v, i, Vec3::new(x, 0.006, z), r, 0.004, 22, OIL);
     }
 }

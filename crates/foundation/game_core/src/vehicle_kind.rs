@@ -41,11 +41,24 @@ pub enum Era {
 }
 
 impl Era {
+    /// Every era, oldest first — the tech tree's primary axis.
+    pub const ALL: [Era; 3] = [Era::EarlyWar, Era::LateWar, Era::ColdWar];
+
     pub fn label(self) -> &'static str {
         match self {
             Era::EarlyWar => "Era I",
             Era::LateWar => "Era II",
             Era::ColdWar => "Era III",
+        }
+    }
+
+    /// The era's descriptive name + years, for surfaces that explain the bracket (the tech
+    /// tree's era bands) rather than just tagging it.
+    pub fn display_name(self) -> &'static str {
+        match self {
+            Era::EarlyWar => "EARLY WAR 1939-42",
+            Era::LateWar => "LATE WAR 1943-45",
+            Era::ColdWar => "COLD WAR 1946-55",
         }
     }
 
@@ -114,6 +127,13 @@ impl VehicleKind {
             VehicleKind::PantherII => "panther_ii",
             VehicleKind::IS3 => "is3",
         }
+    }
+
+    /// The vehicle whose [`slug`](Self::slug) matches, or `None` for an unknown slug — e.g. a save
+    /// written by a build that has since renamed or removed that vehicle. The inverse of `slug`, used
+    /// by persistence so a stale entry degrades gracefully instead of failing a whole parse.
+    pub fn from_slug(slug: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|kind| kind.slug() == slug)
     }
 
     /// Canonical display name (the historical designation).
@@ -224,6 +244,15 @@ mod tests {
                 assert_ne!(kind.slug(), other.slug(), "slugs must be unique");
             }
         }
+    }
+
+    #[test]
+    fn from_slug_inverts_slug_and_rejects_unknown() {
+        for kind in VehicleKind::ALL {
+            assert_eq!(VehicleKind::from_slug(kind.slug()), Some(kind), "slug round-trips");
+        }
+        assert_eq!(VehicleKind::from_slug("ghost_tank_9000"), None, "unknown slug is None");
+        assert_eq!(VehicleKind::from_slug(""), None, "empty slug is None");
     }
 
     #[test]

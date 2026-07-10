@@ -15,6 +15,7 @@ pub(crate) enum HudIcon {
     Crew,
     AmmoAp,
     AmmoApcr,
+    AmmoHeat,
     AmmoHe,
     SlotTurret,
     SlotGun,
@@ -45,10 +46,22 @@ impl HudIcon {
         }
     }
 
-    pub(crate) const ALL: [HudIcon; 17] = [
+    /// The icon for a shell type — the ammo panels map by TYPE, not slot index, so a gun whose
+    /// authored special round is HEAT shows the shaped-charge glyph instead of lying with APCR.
+    pub(crate) fn for_shell(shell_type: game_core::ShellType) -> HudIcon {
+        match shell_type {
+            game_core::ShellType::ArmorPiercing => HudIcon::AmmoAp,
+            game_core::ShellType::Apcr => HudIcon::AmmoApcr,
+            game_core::ShellType::Heat => HudIcon::AmmoHeat,
+            game_core::ShellType::HighExplosive => HudIcon::AmmoHe,
+        }
+    }
+
+    pub(crate) const ALL: [HudIcon; 18] = [
         HudIcon::Crew,
         HudIcon::AmmoAp,
         HudIcon::AmmoApcr,
+        HudIcon::AmmoHeat,
         HudIcon::AmmoHe,
         HudIcon::SlotTurret,
         HudIcon::SlotGun,
@@ -82,6 +95,14 @@ pub(crate) fn raster(icon: HudIcon) -> Vec<u8> {
             c.tri([0.5, 0.10], [0.30, 0.42], [0.70, 0.42]);
             c.rect(0.32, 0.42, 0.68, 0.90);
             c.punch_disc(0.5, 0.64, 0.12);
+        }
+        HudIcon::AmmoHeat => {
+            // The shaped-charge round: the same shell silhouette with the hollow cone punched
+            // out of the NOSE (where APCR's core window sits in the body) — reads as "the tip is
+            // the trick" next to its kinetic siblings.
+            c.tri([0.5, 0.10], [0.30, 0.42], [0.70, 0.42]);
+            c.rect(0.32, 0.42, 0.68, 0.90);
+            c.punch_disc(0.5, 0.34, 0.10);
         }
         HudIcon::AmmoHe => {
             c.disc(0.5, 0.5, 0.18);

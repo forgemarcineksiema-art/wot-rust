@@ -1,4 +1,4 @@
-use super::{
+﻿use super::{
     EngineModule, GunModule, HullChassis, RadioModule, SuspensionModule, TurretModule,
     TurretTraverse, VehicleModules,
 };
@@ -145,6 +145,53 @@ pub(crate) fn panther_loadout() -> VehicleModules {
     }
 }
 
+/// The Jagdtiger's narrow transport track (Verladekette): lighter, but it traverses worse and
+/// carries less than the wide combat track. The same period trade the Tigers had.
+pub(crate) fn jagdtiger_transport_track() -> SuspensionModule {
+    SuspensionModule {
+        name: "Jagdtiger transport track".to_string(),
+        mass_kg: 4_800.0,
+        hit_points: 185,
+        turn_rate_rad_s: 0.28,
+        max_load_kg: 78_000.0,
+    }
+}
+
+/// The Panther II's transport track — narrow rail-loading gear: lighter, worse traverse, less load
+/// than the wide combat track.
+pub(crate) fn panther_transport_track() -> SuspensionModule {
+    SuspensionModule {
+        name: "Panther II transport track".to_string(),
+        mass_kg: 3_850.0,
+        hit_points: 165,
+        turn_rate_rad_s: 0.57,
+        max_load_kg: 55_000.0,
+    }
+}
+
+/// The 8.8 cm Pak 43/3 L/71 of the *actually fielded* "88 Jagdtiger" — a batch built with the long
+/// 88 when the 12.8 cm was in short supply. Half the alpha of the Pak 80 and less penetration, but
+/// it reloads in two-thirds the time and handles far better: a DPM/accuracy trade against the
+/// 12.8 cm's vertical punch. Same L/71 ballistics as the Tiger II's KwK 43.
+pub(crate) fn gun_pak43_l71() -> GunModule {
+    GunModule {
+        spec: GunSpec {
+            name: "8.8 cm Pak 43/3 L/71".to_string(),
+            reload_seconds: 8.6,
+            dispersion_mrad: 2.0,
+            aim_time_seconds: 2.5,
+            movement_bloom_mrad: 3.8,
+            shot_bloom_mrad: 3.2,
+            max_dispersion_mrad: 14.0,
+            barrel_length_m: 6.6,
+            shell: ShellSpec::armor_piercing(88.0, 1_000.0, 202.0, 390),
+            special_shell: None,
+        },
+        mass_kg: 2_400.0,
+        hit_points: 170,
+    }
+}
+
 pub(crate) fn gun_prototype() -> GunModule {
     GunModule {
         spec: GunSpec {
@@ -157,6 +204,7 @@ pub(crate) fn gun_prototype() -> GunModule {
             max_dispersion_mrad: 17.0,
             barrel_length_m: 5.6,
             shell: ShellSpec::armor_piercing(120.0, 900.0, 250.0, 390),
+            special_shell: None,
         },
         mass_kg: 2_600.0,
         hit_points: 160,
@@ -175,6 +223,7 @@ pub(crate) fn gun_pak80() -> GunModule {
             max_dispersion_mrad: 14.0,
             barrel_length_m: 7.0,
             shell: ShellSpec::armor_piercing(128.0, 920.0, 223.0, 530),
+            special_shell: None,
         },
         mass_kg: 3_500.0,
         hit_points: 180,
@@ -193,6 +242,7 @@ pub(crate) fn gun_kwk42() -> GunModule {
             max_dispersion_mrad: 15.0,
             barrel_length_m: 5.2,
             shell: ShellSpec::armor_piercing(75.0, 935.0, 138.0, 240),
+            special_shell: None,
         },
         mass_kg: 1_600.0,
         hit_points: 140,
