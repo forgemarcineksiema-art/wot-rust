@@ -13,6 +13,7 @@ mod scene_pipeline;
 mod scene_renderer;
 mod scene_resources;
 mod scene_target;
+mod shader_library;
 mod shader_validation;
 mod sky_pipeline;
 mod surface_config;
@@ -139,7 +140,7 @@ fn map_backend(backend: wgpu::Backend) -> GpuBackend {
     }
 }
 
-fn map_device_type(device_type: wgpu::DeviceType) -> GpuDeviceType {
+pub(crate) fn map_device_type(device_type: wgpu::DeviceType) -> GpuDeviceType {
     match device_type {
         wgpu::DeviceType::Other => GpuDeviceType::Other,
         wgpu::DeviceType::IntegratedGpu => GpuDeviceType::IntegratedGpu,

@@ -15,6 +15,10 @@ mod snapshot_schedule;
 pub use frame::{FRAME_HEADER_LEN, FRAME_MAGIC, decode_frame, encode_frame};
 pub use snapshot_schedule::SnapshotSchedule;
 
+/// v23: `WeatherVariant` gains `GoldenEvening` and `Overcast` (appended — the variant order is
+/// wire identity), the Prokhorovka time-of-day looks from the lighting 2.0 program. No message
+/// layout changes; only the value domain of an existing field grows.
+///
 /// v22: `TankSnapshot` carries `track_hp` — the graded per-side track pool `[left, right]` — so
 /// the client predictor drives the same damaged-track mobility the server does (the broken-only
 /// `track_damage_mask` cannot express the Damaged tier). `DamageEvent` carries `track_hit` — which
@@ -37,7 +41,7 @@ pub use snapshot_schedule::SnapshotSchedule;
 /// v18: `ServerHello` names the match — `map_id` and `weather_variant` — so the client can
 /// deterministically rebuild the same battlefield the server simulates (the map itself is
 /// never sent) and dress it in the same sky. `ImpactSurface` gains `Water`.
-pub const PROTOCOL_VERSION: u16 = 22;
+pub const PROTOCOL_VERSION: u16 = 23;
 
 #[derive(Debug, Error)]
 pub enum NetError {

@@ -4,28 +4,8 @@
 // world-scaled pixel radius; nearer samples occlude with a distance-falloff range check. Writes
 // the AO factor (1 open, darker in creases) into an R8 target. fs_blur: a 3x3 box that removes the
 // spiral's noise pattern. Both are gated by camera.ssao_params.z (0 = capability fallback).
-
-struct Camera {
-    view_proj: mat4x4<f32>,
-    // Unused here, but the shared uniform layout must match byte-for-byte (see gpu_layout.rs).
-    inv_view_proj: mat4x4<f32>,
-    camera_pos: vec3<f32>,
-    ambient_rgb: vec3<f32>,
-    ground_ambient_rgb: vec3<f32>,
-    key_direction: vec3<f32>,
-    key_rgb: vec3<f32>,
-    fill_direction: vec3<f32>,
-    fill_rgb: vec3<f32>,
-    rim_direction: vec3<f32>,
-    rim_rgb: vec3<f32>,
-    light_view_proj: mat4x4<f32>,
-    shadow_params: vec4<f32>,
-    // x = near plane, y = far plane, z = strength, w = projection Y scale (P[1][1]).
-    ssao_params: vec4<f32>,
-};
-
-@group(0) @binding(0)
-var<uniform> camera: Camera;
+// Composed after camera_common.wgsl (the shared camera uniform declaration; this pass reads
+// ssao_params as x = near plane, y = far plane, z = strength, w = projection Y scale P[1][1]).
 
 @group(1) @binding(0)
 var prepass_depth: texture_depth_2d;

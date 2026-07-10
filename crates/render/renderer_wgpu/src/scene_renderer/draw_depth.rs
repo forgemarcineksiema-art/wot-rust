@@ -77,6 +77,59 @@ impl super::SceneRenderer {
         }
     }
 
+    /// The far-cascade occluder pass: terrain, the dynamic mesh and the static scene meshes from
+    /// the far cascade's point of view — NO vehicle fleet. At the far map's ~0.56 m texels a
+    /// tank's shadow does not resolve (and vehicles past the near box cast nothing today either),
+    /// so the far pass stays nearly free while hillsides and the far town finally ground.
+    pub(super) fn encode_far_shadow_pass(&self, encoder: &mut wgpu::CommandEncoder) {
+        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("shadow_pass_far"),
+            color_attachments: &[],
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: &self.shadow.far_depth_view,
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(1.0),
+                    store: wgpu::StoreOp::Store,
+                }),
+                stencil_ops: None,
+            }),
+            timestamp_writes: None,
+            occlusion_query_set: None,
+            multiview_mask: None,
+        });
+        if self.shadow.strength <= 0.0 || self.shadow.cascade_count < 2 {
+            return;
+        }
+        pass.set_pipeline(&self.shadow.pipeline_scene_far);
+        pass.set_bind_group(0, &self.camera_bind_group, &[]);
+        pass.set_vertex_buffer(1, self.identity_instance.slice(..));
+        if self.terrain_index_count > 0 {
+            pass.set_vertex_buffer(0, self.terrain_vertices.slice(..));
+            pass.set_index_buffer(self.terrain_indices.slice(..), wgpu::IndexFormat::Uint32);
+            pass.draw_indexed(0..self.terrain_index_count, 0, 0..1);
+        }
+        if self.dynamic_index_count > 0 {
+            pass.set_vertex_buffer(0, self.dynamic_vertices.slice(..));
+            pass.set_index_buffer(self.dynamic_indices.slice(..), wgpu::IndexFormat::Uint32);
+            pass.draw_indexed(0..self.dynamic_index_count, 0, 0..1);
+        }
+        if self.frame_instance_count > 0 {
+            pass.set_vertex_buffer(1, self.frame_instances.slice(..));
+            for draw in &self.frame_draws {
+                let Some(mesh) = self.static_meshes.get(draw.mesh) else {
+                    continue;
+                };
+                pass.set_vertex_buffer(0, mesh.vertices.slice(..));
+                pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint32);
+                pass.draw_indexed(
+                    0..mesh.index_count,
+                    0,
+                    draw.instance_start..draw.instance_start + draw.instance_count,
+                );
+            }
+        }
+    }
+
     /// Camera depth prepass for SSAO: terrain, static scene meshes and vehicles rendered
     /// depth-only into the screen-sized prepass texture the SSAO pass evaluates.
     pub(super) fn encode_ssao_prepass(&self, encoder: &mut wgpu::CommandEncoder) {

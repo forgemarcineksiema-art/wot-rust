@@ -8,6 +8,11 @@ use crate::{CameraUniform, GpuContext, encode_camera_uniform};
 /// the ground behind the camera. Paired with `SunShadowParams::default().focus_radius_m`.
 const SHADOW_FORWARD_OFFSET_M: f32 = 40.0;
 
+/// The far cascade's forward offset: its ~576 m footprint is pushed out so the coverage spans the
+/// mid/far field ahead of the camera (roughly 200±288 m along the look) — the ground the single
+/// near box left flat. Paired with `SunShadowParams::far_cascade`.
+const FAR_SHADOW_FORWARD_OFFSET_M: f32 = 200.0;
+
 impl super::SceneRenderer {
     pub fn render(
         &self,
@@ -34,6 +39,16 @@ impl super::SceneRenderer {
             focus,
             self.shadow.params,
         );
+        // The far cascade rides the same sun, centred further out along the look. A studio shot's
+        // explicit focus centres both boxes on the subject — the far box just covers more floor.
+        let far_focus = self.shadow_focus.unwrap_or_else(|| {
+            renderer_api::forward_shadow_focus(camera_pos, view_proj, FAR_SHADOW_FORWARD_OFFSET_M)
+        });
+        let light_view_proj_far = renderer_api::sun_light_view_projection(
+            self.scene_lighting.key_direction,
+            far_focus,
+            self.shadow.far_params,
+        );
         // The projection's Y scale (P[1][1]) survives in the view-projection's second row, whose
         // rotation part is unit length — recovered here so SSAO can convert world radii to pixels.
         let proj_y_scale = (view_proj[0][1] * view_proj[0][1]
@@ -47,8 +62,15 @@ impl super::SceneRenderer {
             &self.scene_lighting,
             crate::FramePassParams {
                 light_view_proj,
+                light_view_proj_far,
                 shadow_params: self.shadow.shader_params(),
+                cascade_params: self.shadow.cascade_shader_params(),
                 ssao_params: [self.ssao.near, self.ssao.far, self.ssao.strength, proj_y_scale],
+                inv_render_size: [
+                    1.0 / target.width.max(1) as f32,
+                    1.0 / target.height.max(1) as f32,
+                ],
+                cloud_shadows_enabled: self.cloud_shadows_enabled,
                 time_s: self.scene_time_s,
                 rain_intensity: self.rain_intensity,
                 wetness: self.wetness,
@@ -65,6 +87,7 @@ impl super::SceneRenderer {
         let mut encoder =
             ctx.device.create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
         self.encode_shadow_pass(&mut encoder);
+        self.encode_far_shadow_pass(&mut encoder);
         if self.ssao.strength > 0.0 {
             self.encode_ssao_prepass(&mut encoder);
             self.ssao.encode_ao_passes(&mut encoder, &self.camera_bind_group);

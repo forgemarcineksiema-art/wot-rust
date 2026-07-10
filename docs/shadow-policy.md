@@ -7,19 +7,31 @@ the single strongest "it is really there" cue.
 
 ## What we optimise for
 
-The valuable shadows here are **contact shadows** — the vehicle's own shadow on the ground and its
-self-shadowing — not distant-terrain self-shadowing. On a gentle rolling heightmap there are few
-sharp far occluders, and aerial perspective (a later atmosphere phase) hazes the far field anyway.
-So this is a **focused single shadow map** tightly fitted around the action, not a full-map cascade.
+The valuable shadows are, first, **contact shadows** — the vehicle's own shadow on the ground and
+its self-shadowing — and second, the **far field grounding at all**. The original single focused
+box optimised only for the first; on a 1000 m map everything past its ~128 m footprint was flat,
+hillsides never raked into shade, and the far town floated — exactly the "later upgrade only if the
+far field ever demands it" case. The lighting 2.0 program cashed that in: this is now a **two-
+cascade** setup — the same crisp focused near box, plus one wide, cheap far cascade for terrain and
+statics.
 
 ## Model
 
-- **One orthographic shadow map, sun-aligned, focused on a bounded box** (`SunShadowParams`) centred
-  on the play field. A 4096² map over a ~64 m half-box is ~3 cm/texel — crisp on hatches and the gun,
-  wide enough that the near/mid field of buildings and hillsides grounds too (a halved 2048² map on
-  integrated GPUs lands at ~6 cm, acceptably soft). Far geometry casts nothing, but it is small and
-  hazed; nobody looks at its ground shadow. Cascades (CSM) are a later upgrade *only if* the far field
-  ever demands it.
+- **Near cascade: one orthographic shadow map, sun-aligned, focused on a bounded box**
+  (`SunShadowParams`) centred on the play field. A 4096² map over a ~64 m half-box is ~3 cm/texel —
+  crisp on hatches and the gun, wide enough that the near/mid field of buildings and hillsides
+  grounds too (a halved 2048² map on integrated GPUs lands at ~6 cm, acceptably soft).
+- **Far cascade** (`SunShadowParams::far_cascade`): a 4.5× box (288 m half-size) at half the
+  resolution, centred ~200 m along the look, in its **own depth texture** (not an array layer —
+  the two maps run at different resolutions, and array layers must share a size). Casters:
+  terrain, the dynamic mesh and static scene meshes only — **no vehicle fleet**. At ~0.56 m/texel
+  a tank's shadow does not resolve, and vehicles beyond the near box cast nothing before either,
+  so the far pass stays nearly free while hillsides and the far town finally ground. Selection is
+  by **containment, not split distance**: a fragment whose near-box UV sits inside a small margin
+  samples the near map (3×3 PCF); everything else falls through to the far map (2×2 PCF), whose
+  softness sits out where the aerial haze lives. A third cascade is deliberately absent — past the
+  far box the 400 m fog fairness band owns the image. `WOT_SHADOW_CASCADES=1` drops back to the
+  single near box, byte-for-byte the pre-cascade lookup.
 - **Texel-snapped light matrix** (`sun_light_view_projection`): the projected focus centre is rounded
   to the shadow-texel grid so the shadow edge does not shimmer/crawl as the battle camera pans. This
   is the non-obvious step that separates stable shadows from sparkling ones; it is unit-tested
@@ -72,16 +84,24 @@ tracked follow-up.
 ## Tests and gates
 
 - unit (no GPU): `sun_light_view_projection` snaps the focus centre onto the shadow-texel grid
-  (anti-shimmer), and maps the focus centre near the shadow-map centre.
+  (anti-shimmer) for **each cascade's own grid**, and maps the focus centre near the shadow-map
+  centre; every near-covered point lands strictly inside the far box (the handoff contract); a
+  point 250 m out misses the near box and lands in the far one (the added capability).
 - render-frame (GPU): the ground directly under a vehicle is darker than open ground (a cast shadow
-  exists); a `strength = 0` render matches the pre-shadow look (fallback is a true no-op).
-- `wgsl_layout`: the camera uniform encodes at its new std140 size with `light_view_proj` +
-  `shadow_params`; both shaders parse with the shadow bind group at group 2.
+  exists); a static occluder **200 m past the shadow focus** darkens the ground beneath it —
+  impossible with the single box; a `strength = 0` render matches the pre-shadow look (fallback is
+  a true no-op).
+- executable budget: per-tier shadow memory is locked to exact bytes (integrated 2048²+1024² =
+  20 MB, discrete 4096²+2048² = 80 MB) in `shadow.rs` tests — moving it is a deliberate diff.
+- `wgsl_layout`: the camera uniform encodes at its new std140 size with both cascade matrices +
+  `shadow_params`/`cascade_params`; both shaders parse with the shadow bind group at group 2.
 
 The canonical gate remains `./scripts/verify.ps1`.
 
 ## Then: one lit pipeline
 
-Sampling the shadow map forces the same code into both `scene.wgsl` and `vehicle.wgsl`. That
-duplication is the agreed trigger to unify the two pipelines behind one lit shader / one vertex
-format with optional channels — done **after** this phase, so the visible win ships first.
+Sampling the shadow map forces the same code into both `scene.wgsl` and `vehicle.wgsl`. The shared
+WGSL half of that is **done**: the camera struct, the lighting model/display transform and the
+shadow/SSAO lookups now live in composed common fragments (`shader_library.rs` — one copy, locked
+by a dedup test), which is what let the cascade lookup land as a single edit. Unifying the two
+pipelines/vertex formats themselves remains open, pending a need.

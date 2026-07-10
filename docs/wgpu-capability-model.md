@@ -28,6 +28,17 @@ The report is backend-neutral so the client can log it without importing `wgpu`.
 
 The renderer chooses behavior from `RenderCapabilityTier`. It must not branch on a specific vendor, adapter name, or one local RTX-class machine.
 
+## Lighting Quality Table
+
+Per-adapter-class lighting knobs live in one backend-neutral table, `renderer_api::LightingQuality`
+(`for_device_type`): near shadow-cascade resolution (the far cascade derives half), cascade count,
+SSAO render scale (half resolution on integrated/software adapters — including the depth prepass,
+the real cost), and whether terrain runs cloud shadows. `renderer_wgpu` maps its adapter type onto
+the table and applies the `WOT_SHADOW_RES` / `WOT_SHADOW_CASCADES` / `WOT_SSAO=off|half|full` env
+overrides in exactly one place (`scene_renderer::quality`), replacing per-feature resolver
+functions scattered through the passes. The tier values and a per-tier lighting memory budget at
+1080p are locked by tests; a future settings menu drives the same struct.
+
 ## Feature Fallback Policy
 
 The baseline render plan is intentionally boring and cross-platform:

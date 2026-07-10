@@ -58,8 +58,12 @@ linear colour/intensity. `ground_ambient_rgb` is the only new profile field for 
   lever after the sun angle.
 - The framebuffer is `*UnormSrgb`, so the hardware applies the linear→sRGB encode on store. Shaders
   therefore output **linear, tone-mapped** colour and must not also apply a manual sRGB `pow`.
-- Later phases add a small exposure scalar and an optional grade (lift/gamma/gain or a 3D LUT) to the
-  profile so a dusk look is a data change, not a shader edit.
+- The profile owns the rest of the image formation (**delivered by the lighting 2.0 program**):
+  `exposure` (a linear multiplier before the curve), `black_point` (post-curve pull so shade reads
+  as shade instead of ACES-lite's lifted near-black), `saturation` and `contrast` (replacing the
+  old constants hardcoded in four shaders). Mirrored on the CPU by `SceneLighting::grade_reference`
+  and locked by profile-envelope + contrast-budget tests. A 3D LUT stays deliberately out of scope
+  — the parametric grade is the right lever count for a solo dev.
 
 ## Sky And Air (phased)
 
@@ -68,7 +72,14 @@ linear colour/intensity. `ground_ambient_rgb` is the only new profile field for 
   sheet** breaks the dome out of a flat two-stop wash — anchored to the ray direction (world-stable,
   no swim), crawling only by the tick-domain presentation clock, lit toward the sun and greyed on the
   shadow side, faded out at the horizon band. Coverage is soft-thresholded so open blue shows between
-  the banks, and the same clouds grey down into an overcast lid under the rain profile.
+  the banks. **Profile-owned since the lighting 2.0 program**: coverage bias / scale / opacity /
+  drift are `SceneLighting` data (`cloud_params`), and the lit/shaded cloud colours DERIVE from the
+  profile's key and ambient — the rain profile biases the same FBM into a genuine overcast lid, a
+  golden sun paints the banks warm for free. The terrain's sun is additionally modulated by a
+  matched-scale, same-clock **cloud-shadow** slice of the layer (strength is profile data, 0 under
+  overcast, gated per tier by `LightingQuality::cloud_shadows`), and the aerial haze warms toward
+  the key colour when looked at toward the sun (**sun scatter** — colour only, the fog amount and
+  its 400 m fairness bound are locked untouched).
 - **Height + distance fog with aerial perspective**: distant terrain and vehicles desaturate toward
   the horizon/sky colour, giving a 1000 m map real depth instead of cardboard cut-outs at range. Fog
   is a profile parameter (density, colour, height falloff), evaluated in the lit shaders from the
@@ -110,7 +121,8 @@ The canonical gate remains `./scripts/verify.ps1`.
 3. **Directional shadow map** (one cascade to start): the step that turns "procedural boxes" into "a
    vehicle on a field". Contact shadows seat hatches, the gun, fenders and tracks.
 4. **Weather / time-of-day profiles + exposure + grade**: dawn / midday / overcast / dusk as data;
-   exposure and an optional LUT grade on the profile.
+   exposure and grade on the profile. *(exposure/black point/saturation/contrast implemented by
+   the lighting 2.0 program; new time-of-day presets ride its final phase)*
 
 Colour-space follow-up (tracked, not phase-gated): vehicle albedo maps upload as `Rgba8Unorm`; if the
 Forge bakes them in sRGB they must upload as `Rgba8UnormSrgb` (or be de-gamma'd) so materials are not
