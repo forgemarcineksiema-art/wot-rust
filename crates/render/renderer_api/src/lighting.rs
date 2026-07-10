@@ -412,6 +412,18 @@ impl SceneLighting {
             sky_horizon_rgb: [0.16, 0.17, 0.20],
             fog_density: 0.0,
             fog_height_falloff: 0.0,
+            // Hero shot: a workshop-moody grade (deeper blacks than the studio), no sky layer,
+            // no cloud shade, no scatter — interior.
+            exposure: 1.05,
+            black_point: 0.03,
+            saturation: 1.12,
+            contrast: 1.10,
+            cloud_coverage_bias: 0.0,
+            cloud_scale: 1.0,
+            cloud_opacity: 0.0,
+            cloud_drift: 0.0,
+            cloud_shadow_strength: 0.0,
+            fog_sun_scatter: 0.0,
         }
     }
 }
