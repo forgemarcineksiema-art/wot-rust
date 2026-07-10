@@ -13,6 +13,7 @@ mod scene_pipeline;
 mod scene_renderer;
 mod scene_resources;
 mod scene_target;
+mod shader_library;
 mod shader_validation;
 mod sky_pipeline;
 mod surface_config;

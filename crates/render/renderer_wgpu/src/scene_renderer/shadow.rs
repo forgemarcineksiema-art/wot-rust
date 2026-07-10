@@ -31,8 +31,11 @@ pub(crate) fn resolve_shadow_resolution(
     }
 }
 
-pub fn shadow_shader_source() -> &'static str {
-    include_str!("../shaders/shadow.wgsl")
+pub fn shadow_shader_source() -> String {
+    crate::shader_library::compose_shader(&[
+        crate::shader_library::CAMERA_COMMON_WGSL,
+        include_str!("../shaders/shadow.wgsl"),
+    ])
 }
 
 const SHADOW_VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 1] =

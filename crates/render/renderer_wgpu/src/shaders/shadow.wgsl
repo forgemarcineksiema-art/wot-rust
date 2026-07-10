@@ -3,27 +3,7 @@
 // a depth texture; the scene and vehicle shaders sample it to shade the key light. Only the position
 // and the per-instance model matrix are read — no colour, no fragment — so one vs_main serves both
 // the scene and vehicle vertex formats (each leads with position).
-
-struct Camera {
-    view_proj: mat4x4<f32>,
-    // Unused here, but the shared uniform layout must match byte-for-byte (see gpu_layout.rs).
-    inv_view_proj: mat4x4<f32>,
-    camera_pos: vec3<f32>,
-    ambient_rgb: vec3<f32>,
-    ground_ambient_rgb: vec3<f32>,
-    key_direction: vec3<f32>,
-    key_rgb: vec3<f32>,
-    fill_direction: vec3<f32>,
-    fill_rgb: vec3<f32>,
-    rim_direction: vec3<f32>,
-    rim_rgb: vec3<f32>,
-    light_view_proj: mat4x4<f32>,
-    shadow_params: vec4<f32>,
-    ssao_params: vec4<f32>,
-};
-
-@group(0) @binding(0)
-var<uniform> camera: Camera;
+// Composed after camera_common.wgsl (the shared camera uniform declaration).
 
 struct VsIn {
     @location(0) position: vec3<f32>,

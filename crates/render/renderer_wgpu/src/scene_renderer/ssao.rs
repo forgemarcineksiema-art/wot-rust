@@ -9,8 +9,11 @@ use renderer_api::CameraProjectionPolicy;
 
 use super::ssao_pipelines::{build_prepass_pipeline, fullscreen_pipeline, texture_bgl};
 
-pub fn ssao_shader_source() -> &'static str {
-    include_str!("../shaders/ssao.wgsl")
+pub fn ssao_shader_source() -> String {
+    crate::shader_library::compose_shader(&[
+        crate::shader_library::CAMERA_COMMON_WGSL,
+        include_str!("../shaders/ssao.wgsl"),
+    ])
 }
 
 /// The screen-sized SSAO chain: the prepass depth, the raw AO target and its blurred copy, plus

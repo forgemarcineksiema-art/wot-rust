@@ -3,32 +3,10 @@
 // reflection needs no offscreen target: the sky is an analytic gradient + sun disc, so the
 // reflected ray simply re-evaluates the same formula sky.wgsl shades the dome with. Depth-tested
 // against the world but never writing depth, alpha-blended over the riverbed drawn beneath it.
-
-struct Camera {
-    view_proj: mat4x4<f32>,
-    inv_view_proj: mat4x4<f32>,
-    camera_pos: vec3<f32>,
-    ambient_rgb: vec3<f32>,
-    ground_ambient_rgb: vec3<f32>,
-    key_direction: vec3<f32>,
-    key_rgb: vec3<f32>,
-    fill_direction: vec3<f32>,
-    fill_rgb: vec3<f32>,
-    rim_direction: vec3<f32>,
-    rim_rgb: vec3<f32>,
-    light_view_proj: mat4x4<f32>,
-    shadow_params: vec4<f32>,
-    ssao_params: vec4<f32>,
-    sky_zenith_rgb: vec3<f32>,
-    sky_horizon_rgb: vec3<f32>,
-    fog_params: vec4<f32>,
-    // x = presentation seconds (tick-domain — see gpu_layout.rs), y = rain intensity,
-    // z = world wetness, w reserved.
-    time_params: vec4<f32>,
-};
-
-@group(0) @binding(0)
-var<uniform> camera: Camera;
+// Composed after camera_common.wgsl and lighting_common.wgsl (camera uniform, env_sky gradient,
+// ACES curve). NOTE: the surface tone-maps through the bare aces_curve, without display_grade —
+// the pre-existing water look, preserved by the shared-WGSL refactor; revisit with the exposure
+// phase, which turns the grade into profile data.
 
 struct VsIn {
     @location(0) position: vec3<f32>,
@@ -50,10 +28,10 @@ fn vs_main(input: VsIn) -> VsOut {
     return out;
 }
 
-// Mirrors sky.wgsl's dome shading so the reflection IS the sky, not an approximation of it.
+// The shared env_sky gradient plus the water's own sun: the reflection IS the sky the dome and
+// the hulls agree on, not an approximation of it.
 fn sky_color(dir: vec3<f32>) -> vec3<f32> {
-    let up = clamp(dir.y, 0.0, 1.0);
-    var color = mix(camera.sky_horizon_rgb, camera.sky_zenith_rgb, sqrt(up));
+    var color = env_sky(dir);
     let sun = normalize(camera.key_direction);
     let d = max(dot(dir, sun), 0.0);
     let above = smoothstep(-0.02, 0.06, dir.y);
@@ -63,17 +41,6 @@ fn sky_color(dir: vec3<f32>) -> vec3<f32> {
     let halo = pow(d, 9.0) * 0.18;
     color += camera.key_rgb * (disc + halo) * above;
     return color;
-}
-
-// Filmic ACES-lite tone curve (Narkowicz fit); mirrors scene/vehicle/sky so the surface grades
-// on the same curve as the world it reflects.
-fn tonemap_aces(x: vec3<f32>) -> vec3<f32> {
-    let a = 2.51;
-    let b = 0.03;
-    let c = 2.43;
-    let d = 0.59;
-    let e = 0.14;
-    return clamp((x * (a * x + b)) / (x * (c * x + d) + e), vec3<f32>(0.0), vec3<f32>(1.0));
 }
 
 @fragment
@@ -115,5 +82,5 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
 
     // Shore fade: film-thin water at the banks dissolves instead of ending in a hard saw edge.
     let alpha = clamp(input.depth_m / 0.4, 0.0, 1.0) * 0.88 + 0.06;
-    return vec4<f32>(tonemap_aces(color), alpha);
+    return vec4<f32>(aces_curve(color), alpha);
 }

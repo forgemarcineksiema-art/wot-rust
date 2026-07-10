@@ -3,32 +3,7 @@
 // horizon gradient plus a soft sun disc/haze along the key light. The horizon colour matches the
 // aerial-perspective fog colour (SceneLighting::sky_horizon_rgb) so distant terrain melts into the
 // visible sky instead of meeting a flat clear colour. See docs/atmosphere-policy.md phase 2.
-
-struct Camera {
-    view_proj: mat4x4<f32>,
-    inv_view_proj: mat4x4<f32>,
-    camera_pos: vec3<f32>,
-    ambient_rgb: vec3<f32>,
-    ground_ambient_rgb: vec3<f32>,
-    key_direction: vec3<f32>,
-    key_rgb: vec3<f32>,
-    fill_direction: vec3<f32>,
-    fill_rgb: vec3<f32>,
-    rim_direction: vec3<f32>,
-    rim_rgb: vec3<f32>,
-    light_view_proj: mat4x4<f32>,
-    shadow_params: vec4<f32>,
-    ssao_params: vec4<f32>,
-    sky_zenith_rgb: vec3<f32>,
-    sky_horizon_rgb: vec3<f32>,
-    fog_params: vec4<f32>,
-    // x = presentation seconds (tick-domain — see gpu_layout.rs), y = rain intensity,
-    // z = world wetness, w reserved.
-    time_params: vec4<f32>,
-};
-
-@group(0) @binding(0)
-var<uniform> camera: Camera;
+// Composed after camera_common.wgsl and lighting_common.wgsl (camera uniform, display transform).
 
 struct VsOut {
     @builtin(position) clip: vec4<f32>,
@@ -47,27 +22,6 @@ fn vs_main(@builtin(vertex_index) index: u32) -> VsOut {
     out.ndc = vec2<f32>(x, y);
     out.clip = vec4<f32>(x, y, 1.0, 1.0);
     return out;
-}
-
-// Gentle display grade after the tone curve (mirrors scene.wgsl's display_grade verbatim) so the sky
-// grades into the same picture as the lit world and the horizon meets the fogged terrain seamlessly.
-fn display_grade(c: vec3<f32>) -> vec3<f32> {
-    let luma = dot(c, vec3<f32>(0.2126, 0.7152, 0.0722));
-    let saturated = mix(vec3<f32>(luma), c, 1.18);
-    let contrasted = (saturated - vec3<f32>(0.5)) * 1.10 + vec3<f32>(0.5);
-    return clamp(contrasted, vec3<f32>(0.0), vec3<f32>(1.0));
-}
-
-// Filmic ACES-lite tone curve (Narkowicz fit); mirrors scene.wgsl/vehicle.wgsl so the sky is graded
-// on the same curve as the lit world.
-fn tonemap_aces(x: vec3<f32>) -> vec3<f32> {
-    let a = 2.51;
-    let b = 0.03;
-    let c = 2.43;
-    let d = 0.59;
-    let e = 0.14;
-    let mapped = clamp((x * (a * x + b)) / (x * (c * x + d) + e), vec3<f32>(0.0), vec3<f32>(1.0));
-    return display_grade(mapped);
 }
 
 // --- Procedural clouds ----------------------------------------------------------------------
