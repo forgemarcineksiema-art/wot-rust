@@ -21,8 +21,13 @@ struct Camera {
     rim_direction: vec3<f32>,
     rim_rgb: vec3<f32>,
     light_view_proj: mat4x4<f32>,
+    // The far shadow cascade's light view-projection (terrain/static casters past the near box).
+    light_view_proj_far: mat4x4<f32>,
     // x = shadow texel UV step, y = depth bias, z = strength (0 disables), w = world normal offset.
     shadow_params: vec4<f32>,
+    // Far-cascade controls: x = far texel UV step, y = far world normal offset,
+    // z = cascade count (< 2 disables the far lookup), w = near-box containment margin (UV).
+    cascade_params: vec4<f32>,
     // x = near plane, y = far plane, z = strength (0 disables), w = projection Y scale (P[1][1]).
     ssao_params: vec4<f32>,
     sky_zenith_rgb: vec3<f32>,

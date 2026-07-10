@@ -159,12 +159,15 @@ impl SceneRenderer {
             ctx.adapter.get_info().device_type,
             std::env::var("WOT_SHADOW_RES").ok().as_deref(),
         );
+        let cascade_count =
+            shadow::resolve_cascade_count(std::env::var("WOT_SHADOW_CASCADES").ok().as_deref());
         let shadow = shadow::ShadowResources::new(
             device,
             &shadow_bgl,
             &camera_bgl,
             &placeholder_ao,
             shadow_resolution,
+            cascade_count,
         );
 
         let camera_buffer = device.create_buffer(&wgpu::BufferDescriptor {

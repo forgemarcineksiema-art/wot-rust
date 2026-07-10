@@ -39,6 +39,20 @@ impl SunShadowParams {
     pub fn texel_uv_size(&self) -> f32 {
         1.0 / self.resolution.max(1) as f32
     }
+
+    /// The far cascade derived from this (near) cascade: a 4.5× focus box (64 m → 288 m half-box,
+    /// so a receiver ~490 m out under a 200 m-forward centre still lands inside) at half the
+    /// resolution — at ~0.56 m/texel the far field reads terrain and building shadows, which is
+    /// all it needs; vehicle-scale detail lives in the near box. The deeper sun-axis reach clears
+    /// hills across the wider footprint. Beyond this box the aerial-perspective haze owns the
+    /// image, so a third cascade buys nothing (see docs/shadow-policy.md).
+    pub fn far_cascade(&self) -> SunShadowParams {
+        SunShadowParams {
+            focus_radius_m: self.focus_radius_m * 4.5,
+            depth_radius_m: 300.0,
+            resolution: (self.resolution / 2).max(512),
+        }
+    }
 }
 
 /// A stable up vector for the light view, avoiding degeneracy when the sun is near-vertical.
@@ -171,6 +185,70 @@ mod tests {
         // producing a NaN centre.
         let eye = [3.0, 20.0, 7.0];
         assert_eq!(forward_shadow_focus(eye, [[0.0; 4]; 4], 40.0), eye);
+    }
+
+    #[test]
+    fn the_far_cascade_footprint_strictly_contains_the_near_box() {
+        // The cascade handoff contract: every world point the near map covers (its NDC inside
+        // [-1, 1]) also lands strictly inside the far map, despite the two boxes being centred at
+        // different forward offsets (40 m vs 200 m along the look). Sampled over a ground/height
+        // grid spanning well past both boxes, under the usual oblique sun.
+        let near = SunShadowParams::default();
+        let far = near.far_cascade();
+        let near_m = sun_light_view_projection(KEY, [40.0, 0.0, 0.0], near);
+        let far_m = sun_light_view_projection(KEY, [200.0, 0.0, 0.0], far);
+        let mut covered = 0;
+        for xi in -12..=18 {
+            for zi in -12..=12 {
+                for y in [0.0, 12.0] {
+                    let p = Vec3::new(xi as f32 * 20.0, y, zi as f32 * 20.0);
+                    let near_ndc = project(&near_m, p);
+                    if near_ndc.x.abs() > 1.0 || near_ndc.y.abs() > 1.0 {
+                        continue;
+                    }
+                    covered += 1;
+                    let far_ndc = project(&far_m, p);
+                    assert!(
+                        far_ndc.x.abs() < 1.0 && far_ndc.y.abs() < 1.0,
+                        "near-covered point {p:?} must land inside the far box, got {far_ndc:?}"
+                    );
+                }
+            }
+        }
+        assert!(covered > 30, "the grid must actually exercise the near box ({covered} points)");
+    }
+
+    #[test]
+    fn a_point_250m_out_is_outside_the_near_box_and_inside_the_far_box() {
+        // The capability the far cascade adds: a receiver/occluder 250 m from the near focus —
+        // dead ground for the old single 64 m box — projects inside the far cascade's NDC.
+        let near = SunShadowParams::default();
+        let far = near.far_cascade();
+        let near_m = sun_light_view_projection(KEY, [40.0, 0.0, 0.0], near);
+        let far_m = sun_light_view_projection(KEY, [200.0, 0.0, 0.0], far);
+        let p = Vec3::new(290.0, 0.0, 0.0);
+        let near_ndc = project(&near_m, p);
+        let far_ndc = project(&far_m, p);
+        assert!(
+            near_ndc.x.abs() > 1.0 || near_ndc.y.abs() > 1.0,
+            "250 m past the near focus must miss the near box: {near_ndc:?}"
+        );
+        assert!(
+            far_ndc.x.abs() < 1.0 && far_ndc.y.abs() < 1.0,
+            "250 m past the near focus must land in the far box: {far_ndc:?}"
+        );
+    }
+
+    #[test]
+    fn the_far_cascade_snaps_to_its_own_texel_grid() {
+        // The anti-shimmer contract holds per cascade: the far matrix snaps on the far map's
+        // (coarser) texel grid, so the far field does not crawl as the camera moves either.
+        let far = SunShadowParams::default().far_cascade();
+        let m = sun_light_view_projection(KEY, [340.3, 1.1, 300.7], far);
+        let ndc = project(&m, Vec3::new(340.3, 1.1, 300.7));
+        let texels = ndc * (0.5 * far.resolution as f32);
+        assert!((texels.x - texels.x.round()).abs() < 1.0e-3, "x off grid: {}", texels.x);
+        assert!((texels.y - texels.y.round()).abs() < 1.0e-3, "y off grid: {}", texels.y);
     }
 
     #[test]

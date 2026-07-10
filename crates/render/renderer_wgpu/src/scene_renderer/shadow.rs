@@ -31,6 +31,21 @@ pub(crate) fn resolve_shadow_resolution(
     }
 }
 
+/// How many sun-shadow cascades to run: 2 (near box + the wide far box) everywhere — the far
+/// pass is nearly free (terrain + statics at half resolution) and it is what keeps a 1000 m map
+/// from going flat past ~128 m. `WOT_SHADOW_CASCADES=1` drops back to the single near box.
+pub(crate) fn resolve_cascade_count(env_override: Option<&str>) -> u32 {
+    env_override
+        .and_then(|value| value.trim().parse::<u32>().ok())
+        .filter(|value| (1..=2).contains(value))
+        .unwrap_or(2)
+}
+
+/// The near box's containment margin in shadow-map UV: fragments inside it take the crisp near
+/// cascade, outside it fall through to the far cascade. Keeps the handoff off the very edge of
+/// the near map, where the 3×3 PCF would read clamped texels.
+const CASCADE_MARGIN_UV: f32 = 0.02;
+
 pub fn shadow_shader_source() -> String {
     crate::shader_library::compose_shader(&[
         crate::shader_library::CAMERA_COMMON_WGSL,
@@ -54,10 +69,17 @@ const SHADOW_INSTANCE_ATTRIBUTES: [wgpu::VertexAttribute; 4] =
 /// under a raking sun.
 pub(crate) struct ShadowResources {
     pub depth_view: wgpu::TextureView,
+    pub far_depth_view: wgpu::TextureView,
     pub bind_group: std::cell::RefCell<wgpu::BindGroup>,
     pub pipeline_scene: wgpu::RenderPipeline,
     pub pipeline_vehicle: wgpu::RenderPipeline,
+    /// The far-cascade occluder pipeline: scene vertex stride through `vs_far`. The fleet has no
+    /// far pipeline on purpose — at the far map's texel size a tank's shadow does not resolve.
+    pub pipeline_scene_far: wgpu::RenderPipeline,
     pub params: SunShadowParams,
+    pub far_params: SunShadowParams,
+    /// 2 = near + far cascades; 1 = the single near box (`WOT_SHADOW_CASCADES=1`).
+    pub cascade_count: u32,
     pub depth_bias: f32,
     pub normal_offset: f32,
     pub strength: f32,
@@ -72,6 +94,7 @@ impl ShadowResources {
         camera_bgl: &wgpu::BindGroupLayout,
         initial_ao_view: &wgpu::TextureView,
         resolution: u32,
+        cascade_count: u32,
     ) -> Self {
         // The caller resolved the resolution per adapter (see `resolve_shadow_resolution`);
         // clamp to the device limit last so a capped device gets a smaller map — with the
@@ -80,21 +103,27 @@ impl ShadowResources {
             resolution: resolution.min(device.limits().max_texture_dimension_2d),
             ..SunShadowParams::default()
         };
-        let texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("sun_shadow_map"),
-            size: wgpu::Extent3d {
-                width: params.resolution,
-                height: params.resolution,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: SHADOW_FORMAT,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-            view_formats: &[],
-        });
-        let depth_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let far_params = params.far_cascade();
+        let cascade_map = |label: &str, resolution: u32| {
+            let texture = device.create_texture(&wgpu::TextureDescriptor {
+                label: Some(label),
+                size: wgpu::Extent3d {
+                    width: resolution,
+                    height: resolution,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: SHADOW_FORMAT,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                    | wgpu::TextureUsages::TEXTURE_BINDING,
+                view_formats: &[],
+            });
+            texture.create_view(&wgpu::TextureViewDescriptor::default())
+        };
+        let depth_view = cascade_map("sun_shadow_map", params.resolution);
+        let far_depth_view = cascade_map("sun_shadow_map_far", far_params.resolution);
         let shadow_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("shadow_sampler"),
             address_mode_u: wgpu::AddressMode::ClampToEdge,
@@ -118,6 +147,7 @@ impl ShadowResources {
             device,
             shadow_bgl,
             &depth_view,
+            &far_depth_view,
             &shadow_sampler,
             initial_ao_view,
             &ao_sampler,
@@ -126,13 +156,22 @@ impl ShadowResources {
             device,
             camera_bgl,
             std::mem::size_of::<renderer_api::SceneVertex>() as u64,
+            "vs_main",
             "shadow_pipeline_scene",
         );
         let pipeline_vehicle = build_shadow_pipeline(
             device,
             camera_bgl,
             std::mem::size_of::<renderer_api::VehicleVertex>() as u64,
+            "vs_main",
             "shadow_pipeline_vehicle",
+        );
+        let pipeline_scene_far = build_shadow_pipeline(
+            device,
+            camera_bgl,
+            std::mem::size_of::<renderer_api::SceneVertex>() as u64,
+            "vs_far",
+            "shadow_pipeline_scene_far",
         );
         // A small constant depth bias plus a normal offset scaled to the texel footprint kills acne
         // without peter-panning; strength 1 = full shadow (0 is the no-shadow capability fallback).
@@ -140,10 +179,14 @@ impl ShadowResources {
         // tight enough that wheel-scale detail keeps its contact shadow.
         Self {
             depth_view,
+            far_depth_view,
             bind_group: std::cell::RefCell::new(bind_group),
             pipeline_scene,
             pipeline_vehicle,
+            pipeline_scene_far,
             params,
+            far_params,
+            cascade_count: cascade_count.clamp(1, 2),
             depth_bias: 0.0008,
             normal_offset: params.texel_world_size() * 1.5,
             strength: 1.0,
@@ -163,6 +206,7 @@ impl ShadowResources {
             device,
             shadow_bgl,
             &self.depth_view,
+            &self.far_depth_view,
             &self.shadow_sampler,
             ao_view,
             &self.ao_sampler,
@@ -174,16 +218,30 @@ impl ShadowResources {
     pub fn shader_params(&self) -> [f32; 4] {
         [self.params.texel_uv_size(), self.depth_bias, self.strength, self.normal_offset]
     }
+
+    /// The packed `cascade_params` the shaders read: far texel UV step, far normal offset,
+    /// cascade count, containment margin. A single-cascade setup packs margin 0, so the near
+    /// box's valid region is exactly the pre-cascade `[0, 1]` UV — byte-for-byte the old lookup.
+    pub fn cascade_shader_params(&self) -> [f32; 4] {
+        [
+            self.far_params.texel_uv_size(),
+            self.far_params.texel_world_size() * 1.5,
+            self.cascade_count as f32,
+            if self.cascade_count >= 2 { CASCADE_MARGIN_UV } else { 0.0 },
+        ]
+    }
 }
 
-/// Depth-only occluder pipeline: transforms position by `camera.light_view_proj * model` and writes
+/// Depth-only occluder pipeline: transforms position by the selected cascade's light matrix
+/// (`entry_point` picks `vs_main` for the near box, `vs_far` for the far cascade) and writes
 /// depth. `vertex_stride` selects the caster format (scene vs vehicle); both lead with `position`,
-/// so the one `vs_main` serves both. Single-sampled (the shadow map is 1x), camera uniform at group
-/// 0.
+/// so the one vertex shader serves both. Single-sampled (the shadow map is 1x), camera uniform at
+/// group 0.
 fn build_shadow_pipeline(
     device: &wgpu::Device,
     camera_bgl: &wgpu::BindGroupLayout,
     vertex_stride: u64,
+    entry_point: &str,
     label: &str,
 ) -> wgpu::RenderPipeline {
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -200,7 +258,7 @@ fn build_shadow_pipeline(
         layout: Some(&layout),
         vertex: wgpu::VertexState {
             module: &shader,
-            entry_point: Some("vs_main"),
+            entry_point: Some(entry_point),
             compilation_options: wgpu::PipelineCompilationOptions::default(),
             buffers: &[
                 wgpu::VertexBufferLayout {
@@ -245,7 +303,42 @@ fn build_shadow_pipeline(
 
 #[cfg(test)]
 mod tests {
-    use super::resolve_shadow_resolution;
+    use super::{resolve_cascade_count, resolve_shadow_resolution};
+
+    #[test]
+    fn two_cascades_by_default_and_the_env_override_can_drop_to_one() {
+        assert_eq!(resolve_cascade_count(None), 2);
+        assert_eq!(resolve_cascade_count(Some("1")), 1);
+        assert_eq!(resolve_cascade_count(Some("2")), 2);
+        // Garbage and out-of-range values keep the default.
+        assert_eq!(resolve_cascade_count(Some("3")), 2);
+        assert_eq!(resolve_cascade_count(Some("x")), 2);
+    }
+
+    #[test]
+    fn shadow_memory_budget_is_locked_per_tier() {
+        // The executable shadow-memory budget (Depth32Float = 4 bytes/texel, near + far cascade).
+        // Moving these numbers is a deliberate decision that belongs in the same diff as the
+        // resolution change — they are the fattest static allocations the renderer owns.
+        let tier_bytes = |device_type: wgpu::DeviceType| {
+            let near = resolve_shadow_resolution(
+                renderer_api::SunShadowParams::default().resolution,
+                device_type,
+                None,
+            );
+            let far = (renderer_api::SunShadowParams {
+                resolution: near,
+                ..renderer_api::SunShadowParams::default()
+            })
+            .far_cascade()
+            .resolution;
+            4 * (u64::from(near) * u64::from(near) + u64::from(far) * u64::from(far))
+        };
+        // Integrated: 2048² + 1024² → 20 MB. The far cascade costs one quarter of the near map.
+        assert_eq!(tier_bytes(wgpu::DeviceType::IntegratedGpu), 20_971_520);
+        // Discrete: 4096² + 2048² → 80 MB.
+        assert_eq!(tier_bytes(wgpu::DeviceType::DiscreteGpu), 83_886_080);
+    }
 
     #[test]
     fn integrated_adapters_halve_the_shadow_map_and_discrete_keep_it() {

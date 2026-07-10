@@ -17,7 +17,9 @@ fn camera_uniform_is_encoded_with_wgsl_uniform_layout() {
     // sky zenith + horizon (2 vec3, 32) and fog_params (vec4, 16): 304 + 48 = 352, plus the
     // inv_view_proj mat4 (64) the sky pass unprojects with: 352 + 64 = 416, plus time_params
     // (vec4, 16) — the tick-domain presentation clock shader animation runs on: 416 + 16 = 432.
-    assert_eq!(bytes.len(), 432);
+    // The shadow cascades add light_view_proj_far (mat4, 64) and cascade_params (vec4, 16):
+    // 432 + 80 = 512.
+    assert_eq!(bytes.len(), 512);
     assert_eq!(bytes.len() % 16, 0);
 }
 

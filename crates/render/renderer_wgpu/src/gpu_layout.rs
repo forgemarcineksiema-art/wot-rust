@@ -118,9 +118,17 @@ pub struct CameraUniform {
     pub rim_rgb: GpuVec3,
     /// The focused sun shadow map's light view-projection (see `renderer_api::sun_shadow`).
     pub light_view_proj: GpuMat4,
+    /// The far cascade's light view-projection: the same texel-snapped sun box, 4.5× wider and
+    /// centred further along the look, so terrain and buildings past the near box still cast
+    /// (see `SunShadowParams::far_cascade`).
+    pub light_view_proj_far: GpuMat4,
     /// Packed shadow controls: x = shadow-map texel UV size (PCF step), y = depth bias,
     /// z = strength (0 disables — the capability fallback), w = world-space normal offset.
     pub shadow_params: GpuVec4,
+    /// Packed far-cascade controls: x = far texel UV size, y = far world-space normal offset,
+    /// z = cascade count (< 2 disables the far lookup), w = the near box's containment margin in
+    /// UV — fragments inside it sample the near map, outside it fall through to the far cascade.
+    pub cascade_params: GpuVec4,
     /// Packed SSAO controls: x = near plane, y = far plane (for depth linearization),
     /// z = strength (0 disables — the capability fallback), w = projection Y scale (P[1][1],
     /// recovered from the view-projection) for world-radius → pixel-radius conversion.
@@ -147,7 +155,11 @@ pub struct CameraUniform {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct FramePassParams {
     pub light_view_proj: [[f32; 4]; 4],
+    /// The far cascade's light view-projection (`CameraUniform::light_view_proj_far`).
+    pub light_view_proj_far: [[f32; 4]; 4],
     pub shadow_params: [f32; 4],
+    /// Packed far-cascade controls (`CameraUniform::cascade_params`).
+    pub cascade_params: [f32; 4],
     pub ssao_params: [f32; 4],
     pub time_s: f32,
     /// Rain streak density 0..1 (`time_params.y`); 0 in every non-rain look.
@@ -161,8 +173,10 @@ impl Default for FramePassParams {
     fn default() -> Self {
         Self {
             light_view_proj: IDENTITY_MATRIX,
+            light_view_proj_far: IDENTITY_MATRIX,
             // strength 0: no shadow / no SSAO (the default frame is unshadowed).
             shadow_params: [0.0, 0.0, 0.0, 0.0],
+            cascade_params: [0.0, 0.0, 0.0, 0.0],
             ssao_params: [0.1, 1500.0, 0.0, 1.0],
             time_s: 0.0,
             rain_intensity: 0.0,
@@ -195,7 +209,9 @@ impl CameraUniform {
             rim_direction: GpuVec3(lighting.rim_direction),
             rim_rgb: GpuVec3(lighting.rim_rgb),
             light_view_proj: GpuMat4(passes.light_view_proj),
+            light_view_proj_far: GpuMat4(passes.light_view_proj_far),
             shadow_params: GpuVec4(passes.shadow_params),
+            cascade_params: GpuVec4(passes.cascade_params),
             ssao_params: GpuVec4(passes.ssao_params),
             sky_zenith_rgb: GpuVec3(lighting.sky_zenith_rgb),
             sky_horizon_rgb: GpuVec3(lighting.sky_horizon_rgb),
