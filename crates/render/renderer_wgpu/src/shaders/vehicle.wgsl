@@ -94,13 +94,41 @@ fn material_params(id: u32) -> Material {
         m.albedo = vec3<f32>(0.14, 0.15, 0.16);
         m.roughness = 0.30;
     } else if (id == 3u) {
-        m.albedo = vec3<f32>(0.10, 0.10, 0.11);
+        // Worn track steel: a stop lighter than raw plate — link faces, guide horns and pad
+        // wear must read as shapes, not merge into one black band under the fenders.
+        m.albedo = vec3<f32>(0.17, 0.17, 0.18);
         m.roughness = 0.60;
     } else {
-        m.albedo = vec3<f32>(0.045, 0.045, 0.05);
+        // Roadwheel rubber: dark but not void — the spoke/tire boundary stays visible.
+        m.albedo = vec3<f32>(0.10, 0.10, 0.11);
         m.roughness = 0.90;
     }
     return m;
+}
+
+// Cheap 3D value noise for material micro-variation, sampled in OBJECT-local space so the
+// grain rides the part (hull rotation, turret traverse) instead of swimming through it.
+fn v_hash(p: vec3<f32>) -> f32 {
+    return fract(sin(dot(p, vec3<f32>(127.1, 311.7, 74.7))) * 43758.5453);
+}
+
+fn v_noise(p: vec3<f32>) -> f32 {
+    let i = floor(p);
+    let f = fract(p);
+    let u = f * f * (3.0 - 2.0 * f);
+    let n000 = v_hash(i);
+    let n100 = v_hash(i + vec3<f32>(1.0, 0.0, 0.0));
+    let n010 = v_hash(i + vec3<f32>(0.0, 1.0, 0.0));
+    let n110 = v_hash(i + vec3<f32>(1.0, 1.0, 0.0));
+    let n001 = v_hash(i + vec3<f32>(0.0, 0.0, 1.0));
+    let n101 = v_hash(i + vec3<f32>(1.0, 0.0, 1.0));
+    let n011 = v_hash(i + vec3<f32>(0.0, 1.0, 1.0));
+    let n111 = v_hash(i + vec3<f32>(1.0, 1.0, 1.0));
+    let nx00 = mix(n000, n100, u.x);
+    let nx10 = mix(n010, n110, u.x);
+    let nx01 = mix(n001, n101, u.x);
+    let nx11 = mix(n011, n111, u.x);
+    return mix(mix(nx00, nx10, u.y), mix(nx01, nx11, u.y), u.z);
 }
 
 // Object-local texels-per-metre for triplanar projection. Matches the client's parametric UV_SCALE
@@ -173,7 +201,30 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     // Wetness (camera.time_params.z): rain-soaked paint and steel darken and tighten their
     // finish, exactly like the terrain does. Presentation only — set by the weather look.
     let wet = clamp(camera.time_params.z, 0.0, 1.0);
-    let albedo = mat.albedo * baked_albedo * tinted * mix(1.0, 0.85, wet);
+
+    // Material micro-variation: broad patches of repainted/faded finish over a finer service
+    // grain. Object-local, so a parked tank and a moving one carry the same wear.
+    let grain = v_noise(input.local_pos * 2.6) * 0.65 + v_noise(input.local_pos * 9.0) * 0.35;
+    let albedo_var = mix(0.92, 1.08, grain);
+    // A burnt-out wreck is charcoal, not lacquer: the wreck tint's near-black luma (well under
+    // any live paint — the darkest camo+dirt tint stays above ~0.33) drives the WHOLE vehicle
+    // matte and kills the sky mirror, so charring never reads as gloss paint. Not gated by
+    // tint_mask: the wreck's running gear chars and sheds its dust with the hull.
+    let tint_luma = dot(input.team_tint, vec3<f32>(0.299, 0.587, 0.114));
+    let burnt = 1.0 - smoothstep(0.16, 0.30, tint_luma);
+
+    // Service weathering: the running gear (track metal + rubber) wears the field's dry-earth
+    // dust, broken up by the broad noise so it reads as use, not paint. Kept off the armour
+    // and barrel — their part-local origins sit at the ring/trunnion, so a height band there
+    // would dust the turret roof — and burnt steel sheds its dust with everything else.
+    let gear = select(0.0, 1.0, input.material_id >= 3u);
+    let dust = gear
+        * (0.45 + 0.55 * v_noise(input.local_pos * 1.7 + vec3<f32>(31.7, 7.3, 19.1)))
+        * (1.0 - burnt);
+    let dust_tone = vec3<f32>(0.36, 0.32, 0.25);
+
+    var albedo = mat.albedo * baked_albedo * tinted * albedo_var * mix(1.0, 0.85, wet);
+    albedo = mix(albedo, dust_tone * albedo_var, dust * 0.30 * (1.0 - wet * 0.5));
     let ao = ao_rough.r;
 
     let shadow = sun_shadow(input.world_pos, world_n);
@@ -191,7 +242,13 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     let view_dir = normalize(camera.camera_pos - input.world_pos);
     let key_dir = normalize(camera.key_direction);
     let half_v = normalize(key_dir + view_dir);
-    let roughness = clamp(mat.roughness * (0.55 + ao_rough.g) * mix(1.0, 0.55, wet), 0.04, 1.0);
+    // Micro-variation and dust roughen the finish; rain tightens it; charring caps it matte.
+    let rough_base = mat.roughness * (0.55 + ao_rough.g) * mix(1.0, 0.55, wet);
+    let roughness = clamp(
+        mix(rough_base + (grain - 0.5) * 0.20 + dust * 0.22, 0.95, burnt),
+        0.04,
+        1.0,
+    );
     let shininess = mix(4.0, 96.0, 1.0 - roughness);
     let spec = pow(max(dot(world_n, half_v), 0.0), shininess) * (1.0 - roughness) * 0.4;
     // The specular is the key light's highlight, so it is occluded by the same shadow.
@@ -204,7 +261,8 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     let fresnel = 0.25 + 0.75 * pow(1.0 - max(dot(world_n, view_dir), 0.0), 5.0);
     // The sky reflection is indirect light, so it takes the screen AO the key terms skip.
     let env = env_sky(reflect(-view_dir, world_n))
-        * smoothness * smoothness * fresnel * ao * cavity * contact * screen;
+        * smoothness * smoothness * fresnel * ao * cavity * contact * screen
+        * (1.0 - burnt * 0.85);
 
     return vec4<f32>(tonemap_aces(apply_fog(lit + spec_color + env, input.world_pos)), 1.0);
 }

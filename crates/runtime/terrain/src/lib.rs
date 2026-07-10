@@ -15,13 +15,14 @@ mod prokhorovka;
 mod prokhorovka_cover;
 mod prokhorovka_features;
 mod prokhorovka_layout;
+mod prokhorovka_scenery;
 mod scenery;
 mod sculpt;
 mod water;
 
 pub use battlefield::{
-    BattlefieldMap, MapFeature, MapFeatureKind, SpawnZone, StaticCoverKind, StaticCoverObject,
-    StrategicPoint, StrategicRole,
+    BattlefieldMap, MapFeature, MapFeatureKind, Road, RoadSurface, SpawnZone, StaticCoverKind,
+    StaticCoverObject, StrategicPoint, StrategicRole,
 };
 pub use bystra::{
     RIVER_CORRIDOR_HALF_WIDTH_M, bystra_backdrop_height, bystra_river_center_x, bystra_valley,

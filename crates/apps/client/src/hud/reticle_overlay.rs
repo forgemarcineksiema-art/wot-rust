@@ -74,8 +74,8 @@ pub(crate) fn push_reticle(vertices: &mut Vec<HudVertex>, reticle: &HudReticle, 
             } else {
                 RETICLE_NEUTRAL
             };
-            push_crosshair(vertices, reticle.aim_clip, 0.020, 0.0026, aspect, color);
-            push_quad(vertices, reticle.aim_clip, [0.0016 / aspect, 0.0016], color);
+            push_crosshair(vertices, reticle.aim_clip, 0.020, 0.0036, aspect, color);
+            push_quad(vertices, reticle.aim_clip, [0.0022 / aspect, 0.0022], color);
         }
     }
 

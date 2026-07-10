@@ -71,7 +71,11 @@ impl GeometryBuffers {
         });
         let frame_instances = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("scene_frame_instances"),
-            size: 1 << 16,
+            // 256 KiB (~3.2k instances at 80 B): the geometry-path lineup examples submit the
+            // whole 7-vehicle roster with animated running gear (~200 instances per tank) —
+            // the old 64 KiB (819 instances) silently clipped the last vehicle out of its own
+            // lineup frame.
+            size: 1 << 18,
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });

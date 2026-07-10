@@ -26,11 +26,11 @@ fn the_hud_buffer_holds_a_full_battle_hud() {
     };
     let mut renderer = SceneRenderer::for_offscreen(&ctx, &[], &[]).expect("renderer");
 
-    // 6000 vertices: a busy frame with minimap, damage log and ammo panel, which the old
-    // 2048-vertex budget silently dropped whole.
-    let busy_frame = hud_vertices(6000);
+    // 12000 vertices: a busy frame with the 36x36-cell minimap, drop-shadowed text, damage
+    // log and ammo panel — the 8192-vertex budget cut the minimap's blips off mid-frame.
+    let busy_frame = hud_vertices(12000);
     renderer.set_hud(&ctx, &busy_frame);
-    assert_eq!(renderer.hud_vertex_count(), 6000, "a busy battle HUD must upload untruncated");
+    assert_eq!(renderer.hud_vertex_count(), 12000, "a busy battle HUD must upload untruncated");
 }
 
 #[test]
@@ -40,7 +40,7 @@ fn an_oversized_hud_upload_truncates_to_whole_triangles_instead_of_blanking() {
     };
     let mut renderer = SceneRenderer::for_offscreen(&ctx, &[], &[]).expect("renderer");
 
-    let oversized = hud_vertices(9000);
+    let oversized = hud_vertices(20000);
     renderer.set_hud(&ctx, &oversized);
 
     let kept = renderer.hud_vertex_count();

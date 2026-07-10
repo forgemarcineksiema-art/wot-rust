@@ -16,7 +16,9 @@ const WIDTH: u32 = 1800;
 const HEIGHT: u32 = 720;
 const CENTER_X: f32 = 340.0;
 const CENTER_Z: f32 = 300.0;
-const SPACING: f32 = 10.0;
+// 8.5 m keeps the seven-vehicle row inside every authored view's frustum (10 m cropped the
+// end vehicles out of the oblique views).
+const SPACING: f32 = 8.5;
 
 #[derive(Debug, Clone, Copy)]
 struct ViewSpec {

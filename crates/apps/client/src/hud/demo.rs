@@ -106,6 +106,8 @@ fn demo_minimap() -> MinimapModel {
     MinimapModel {
         extent_m: [1000.0, 1000.0],
         relief,
+        water: vec![false; res * res],
+        roads: vec![vec![[0.0, 500.0], [1000.0, 500.0]], vec![[500.0, 170.0], [250.0, 500.0]]],
         cover: vec![MinimapBox { center_xz: [520.0, 470.0], half_xz: [40.0, 14.0] }],
         player_xz: [420.0, 300.0],
         player_heading_rad: 0.5,

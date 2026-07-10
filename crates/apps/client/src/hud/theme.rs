@@ -52,6 +52,10 @@ pub(crate) mod color {
     pub const ICON: [f32; 4] = [0.86, 0.87, 0.82, 0.95];
     pub const ICON_DIM: [f32; 4] = [0.60, 0.62, 0.58, 0.80];
 
+    /// Drop shadow under every glyph: what keeps stencil markings legible over a sunlit
+    /// field. Alpha here is the base; it scales with the text's own alpha.
+    pub const TEXT_SHADOW: [f32; 4] = [0.03, 0.04, 0.03, 0.60];
+
     // Battle readouts (referenced by `hud/number.rs`).
     /// Primary battle values: speed, HP, target distance.
     pub const READOUT: [f32; 4] = [0.93, 0.92, 0.86, 0.94];
@@ -86,6 +90,7 @@ mod tests {
             color::READOUT,
             color::READOUT_SOFT,
             color::UNIT,
+            color::TEXT_SHADOW,
         ];
         for c in all {
             assert!(c.iter().all(|ch| (0.0..=1.0).contains(ch)), "channel out of range: {c:?}");

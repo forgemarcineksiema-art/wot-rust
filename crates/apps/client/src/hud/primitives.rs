@@ -110,7 +110,7 @@ pub(crate) fn push_arc(
     for index in 0..segments {
         let a = start_rad + sweep_rad * (index as f32 / segments as f32);
         let b = start_rad + sweep_rad * ((index + 1) as f32 / segments as f32);
-        push_segment(vertices, point(a), point(b), 0.0018, color);
+        push_segment(vertices, point(a), point(b), 0.0024, color);
     }
 }
 

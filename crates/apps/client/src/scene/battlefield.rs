@@ -1,6 +1,8 @@
 use glam::{Mat3, Vec3};
 use renderer_api::SceneVertex;
-use terrain::{BattlefieldMap, HeightMap, StaticCoverKind, StaticCoverObject, WaterBody};
+use terrain::{
+    BattlefieldMap, HeightMap, Road, RoadSurface, StaticCoverKind, StaticCoverObject, WaterBody,
+};
 
 use crate::tank_mesh::push_oriented_box;
 
@@ -22,7 +24,7 @@ pub fn battlefield_scene_mesh_with_cover_states(
     cover_states: &[u8],
 ) -> (Vec<SceneVertex>, Vec<u32>) {
     let (mut vertices, mut indices) =
-        terrain_scene_mesh_with_water(&battlefield.heightmap, battlefield.water);
+        terrain_scene_mesh_full(&battlefield.heightmap, battlefield.water, &battlefield.roads);
     for (index, cover) in battlefield.static_cover.iter().enumerate() {
         match cover_states.get(index).copied().unwrap_or(0) {
             0 => append_cover_box(&mut vertices, &mut indices, cover),
@@ -79,11 +81,56 @@ fn append_rubble_mound(
     let half = Vec3::from_array(cover.half_extents_m);
     let ground_y = center.y - half.y;
     let mound_half_y = half.y * cover.kind.rubble_height_frac();
-    let mound_center = Vec3::new(center.x, ground_y + mound_half_y, center.z);
-    // Slightly inset in plan so the pile reads as slumped rubble, not a shrunk building.
-    let mound_half = Vec3::new(half.x * 0.9, mound_half_y, half.z * 0.9);
+    // The base slab: lower than the sim mound, the settled mass the chunks poke out of.
+    let slab_half_y = mound_half_y * 0.55;
+    let slab_center = Vec3::new(center.x, ground_y + slab_half_y, center.z);
+    let slab_half = Vec3::new(half.x * 0.9, slab_half_y, half.z * 0.9);
     // Dull broken masonry: grey-brown, matte.
-    push_surfaced_box(vertices, indices, mound_center, mound_half, [0.38, 0.34, 0.30], 0.04);
+    push_surfaced_box(vertices, indices, slab_center, slab_half, [0.38, 0.34, 0.30], 0.04);
+
+    // Broken slabs and wall fragments, tilted in plan, seeded from the building id so the same
+    // ruin always collapses the same way. Every chunk stays inside the collision AABB and under
+    // the sim's rubble top: what the eye reads as the pile is what a hull stops against.
+    let mut hash = 0xcbf2_9ce4_8422_2325_u64;
+    for byte in cover.id.bytes() {
+        hash ^= u64::from(byte);
+        hash = hash.wrapping_mul(0x0100_0000_01b3);
+    }
+    let mut next = move || {
+        hash ^= hash << 13;
+        hash ^= hash >> 7;
+        hash ^= hash << 17;
+        (hash >> 40) as f32 / ((1u64 << 24) - 1) as f32
+    };
+    let chunk_tones = [[0.42, 0.38, 0.33], [0.34, 0.30, 0.26], [0.45, 0.40, 0.33]];
+    let count = 4 + (next() * 3.0) as usize;
+    for index in 0..count {
+        let plan = Vec3::new(half.x, 0.0, half.z);
+        let offset = Vec3::new((next() - 0.5) * 1.3, 0.0, (next() - 0.5) * 1.3) * plan * 0.52;
+        let chunk_half = Vec3::new(
+            (0.10 + next() * 0.12) * half.x.max(1.0),
+            mound_half_y * (0.35 + next() * 0.2),
+            (0.10 + next() * 0.12) * half.z.max(1.0),
+        );
+        let chunk_center = Vec3::new(
+            center.x + offset.x,
+            ground_y + slab_half_y * 2.0 + chunk_half.y * (0.2 + next() * 0.4) - chunk_half.y,
+            center.z + offset.z,
+        );
+        let yaw = next() * std::f32::consts::TAU;
+        let start = vertices.len();
+        push_oriented_box(
+            vertices,
+            indices,
+            chunk_center,
+            chunk_half,
+            Mat3::from_rotation_y(yaw),
+            chunk_tones[index % chunk_tones.len()],
+        );
+        for vertex in &mut vertices[start..] {
+            vertex.gloss = 0.05;
+        }
+    }
 }
 
 /// Every visual stays INSIDE the collision AABB — a building may look like walls and a roof,
@@ -146,6 +193,9 @@ fn append_building(
     let base_y = center.y - half.y;
     let eaves_y = base_y + half.y * 2.0 * 0.62;
     let plinth_y = base_y + half.y * 2.0 * 0.10;
+    // The wall body recesses a few centimetres so windows and the door can sit proud of the
+    // PLASTER while every vertex stays inside the collision AABB — the honesty rule holds.
+    let wall_half = Vec3::new(half.x - WALL_RECESS_M, half.y, half.z - WALL_RECESS_M);
 
     // Plinth course (dressed stone, slightly polished by weather), then plaster walls up to
     // the eaves.
@@ -161,10 +211,11 @@ fn append_building(
         vertices,
         indices,
         Vec3::new(center.x, (plinth_y + eaves_y) * 0.5, center.z),
-        Vec3::new(half.x, (eaves_y - plinth_y) * 0.5, half.z),
+        Vec3::new(wall_half.x, (eaves_y - plinth_y) * 0.5, wall_half.z),
         wall,
         0.10,
     );
+    append_joinery(vertices, indices, center, half, plinth_y, eaves_y);
     push_gable_roof(
         vertices,
         indices,
@@ -174,6 +225,88 @@ fn append_building(
         center.y + half.y,
         (roof, roof_gloss),
     );
+}
+
+/// How far the plaster wall sits inside the collision box, making room for the joinery.
+const WALL_RECESS_M: f32 = 0.04;
+/// Window glass: near-black with a glazed sheen — the one thing on a wall that answers the sky.
+const WINDOW: ([f32; 3], f32) = ([0.07, 0.09, 0.11], 0.45);
+/// Plank door: dark weathered timber, matte.
+const DOOR: ([f32; 3], f32) = ([0.16, 0.11, 0.07], 0.06);
+
+/// Windows along both long walls and a door on one gable end — flat quads floating just
+/// outside the recessed wall (still inside the collision AABB), so a house reads as a house
+/// and not a plastered crate. The layout is pure geometry, identical for a given box.
+fn append_joinery(
+    vertices: &mut Vec<SceneVertex>,
+    indices: &mut Vec<u32>,
+    center: Vec3,
+    half: Vec3,
+    plinth_y: f32,
+    eaves_y: f32,
+) {
+    let along_x = half.x >= half.z;
+    let (long_axis, side_axis) = if along_x { (Vec3::X, Vec3::Z) } else { (Vec3::Z, Vec3::X) };
+    let long_half = if along_x { half.x } else { half.z };
+    let side_half = if along_x { half.z } else { half.x };
+    let face_offset = side_half - WALL_RECESS_M * 0.5;
+
+    // Windows: a metre-rhythm row under the eaves on both long faces.
+    let count = ((long_half * 2.0 - 1.6) / 2.4).floor().max(1.0) as i32;
+    let window_half_w = 0.42;
+    let window_half_h = ((eaves_y - plinth_y) * 0.22).clamp(0.25, 0.5);
+    let window_y = plinth_y + (eaves_y - plinth_y) * 0.58;
+    for sign in [-1.0_f32, 1.0] {
+        for index in 0..count {
+            let t = (index as f32 + 0.5) / count as f32 - 0.5;
+            let along = t * (long_half * 2.0 - 1.6);
+            let position = center + long_axis * along + side_axis * face_offset * sign
+                - Vec3::Y * (center.y - window_y);
+            push_face_quad(
+                vertices,
+                indices,
+                position,
+                long_axis * window_half_w,
+                Vec3::Y * window_half_h,
+                side_axis * sign,
+                WINDOW,
+            );
+        }
+    }
+
+    // The door: one gable end, grounded on the plinth.
+    let door_half_h = ((eaves_y - (center.y - half.y)) * 0.5 * 0.62).clamp(0.6, 1.05);
+    let door_face = long_half - WALL_RECESS_M * 0.5;
+    let position = center + long_axis * door_face - Vec3::Y * (half.y - door_half_h);
+    push_face_quad(
+        vertices,
+        indices,
+        position,
+        side_axis * 0.48,
+        Vec3::Y * door_half_h,
+        long_axis,
+        DOOR,
+    );
+}
+
+/// A flat rectangle on a wall plane: `center ± u ± v`, facing `normal` (unit axis), wound to it.
+fn push_face_quad(
+    vertices: &mut Vec<SceneVertex>,
+    indices: &mut Vec<u32>,
+    center: Vec3,
+    u: Vec3,
+    v: Vec3,
+    normal: Vec3,
+    (color, gloss): ([f32; 3], f32),
+) {
+    let start = vertices.len() as u32;
+    let corners = [center - u - v, center + u - v, center + u + v, center - u + v];
+    for corner in corners {
+        vertices.push(SceneVertex::surfaced(corner.to_array(), normal.to_array(), color, gloss));
+    }
+    push_winding(indices, start, &[0, 1, 2, 0, 2, 3], {
+        (corners[1] - corners[0]).cross(corners[2] - corners[0]).dot(normal) > 0.0
+    });
 }
 
 /// The gable: two sloped quads from the eaves rectangle to a ridge line along the long axis,
@@ -277,6 +410,16 @@ pub fn terrain_scene_mesh_with_water(
     heightmap: &HeightMap,
     water: Option<WaterBody>,
 ) -> (Vec<SceneVertex>, Vec<u32>) {
+    terrain_scene_mesh_full(heightmap, water, &[])
+}
+
+/// The full terrain surface: height/slope base color, the grass patchwork, painted roads,
+/// then the water tint — later layers win where they overlap.
+fn terrain_scene_mesh_full(
+    heightmap: &HeightMap,
+    water: Option<WaterBody>,
+    roads: &[Road],
+) -> (Vec<SceneVertex>, Vec<u32>) {
     let w = heightmap.width();
     let h = heightmap.height();
     let cell = heightmap.cell_size_m();
@@ -286,11 +429,16 @@ pub fn terrain_scene_mesh_with_water(
     for z in 0..h {
         for x in 0..w {
             let y = heightmap.sample_at_index(x, z);
+            let (wx, wz) = (x as f32 * cell, z as f32 * cell);
             let normal = vertex_normal(heightmap, x, z, cell);
-            let mut color = terrain_color(y, stats.min_m, stats.max_m, normal.y);
+            let mut color = terrain_color(y, stats.min_m, stats.max_m, normal.y, wx, wz);
             // Grass is near-matte; exposed rock on steep faces takes a mineral sheen; the
             // riverbed under water is permanently wet and reads glossiest of all.
             let mut gloss = 0.03 + (1.0 - normal.y).clamp(0.0, 1.0) * 0.12;
+            if let Some((tone, road_gloss, blend)) = road_paint(roads, wx, wz) {
+                color = Vec3::from_array(color).lerp(tone, blend).to_array();
+                gloss = gloss + (road_gloss - gloss) * blend;
+            }
             if let Some(water) = water {
                 let depth = water.depth_over(y);
                 color = water_tint(color, depth);
@@ -298,12 +446,7 @@ pub fn terrain_scene_mesh_with_water(
                     gloss = 0.35;
                 }
             }
-            vertices.push(SceneVertex::surfaced(
-                [x as f32 * cell, y, z as f32 * cell],
-                normal.to_array(),
-                color,
-                gloss,
-            ));
+            vertices.push(SceneVertex::surfaced([wx, y, wz], normal.to_array(), color, gloss));
         }
     }
 
@@ -347,16 +490,77 @@ fn water_tint(color: [f32; 3], depth_m: f32) -> [f32; 3] {
     Vec3::from_array(color).lerp(water, (depth_m / 0.35).clamp(0.35, 1.0)).to_array()
 }
 
-fn terrain_color(y: f32, min_y: f32, max_y: f32, normal_y: f32) -> [f32; 3] {
+fn terrain_color(y: f32, min_y: f32, max_y: f32, normal_y: f32, wx: f32, wz: f32) -> [f32; 3] {
     let span = (max_y - min_y).max(1.0);
     let t = ((y - min_y) / span).clamp(0.0, 1.0);
-    let grass = Vec3::new(0.26, 0.44, 0.20);
+    // The living grass is a patchwork, not a lawn: broad drifts of sun-dried straw and
+    // deeper lush pockets over the base green, driven by low-frequency world noise.
+    let grass = grass_patchwork(wx, wz);
     let rock = Vec3::new(0.46, 0.41, 0.34);
     let mut color = grass.lerp(rock, t * t);
     // Steep faces drift toward bare rock so slopes read as relief, not flat shading.
     let steep = (1.0 - normal_y).clamp(0.0, 1.0);
     color = color.lerp(Vec3::new(0.33, 0.29, 0.26), steep * 0.6);
     color.to_array()
+}
+
+/// The grass endpoint of the terrain palette at a world point: base green pushed toward
+/// dry straw where the broad noise runs high and toward a lush pocket where it runs low,
+/// with a second octave breaking the drift edges up. Deterministic — the same point always
+/// grows the same grass.
+fn grass_patchwork(wx: f32, wz: f32) -> Vec3 {
+    let base = Vec3::new(0.26, 0.44, 0.20);
+    let dry = Vec3::new(0.40, 0.40, 0.21);
+    let lush = Vec3::new(0.18, 0.36, 0.15);
+    // Broad drifts (~65 m) shaped by a finer octave (~19 m).
+    let n = value_noise(wx / 65.0, wz / 65.0) * 0.72 + value_noise(wx / 19.0, wz / 19.0) * 0.28;
+    if n > 0.5 {
+        base.lerp(dry, ((n - 0.5) * 2.4).min(1.0))
+    } else {
+        base.lerp(lush, ((0.5 - n) * 2.4).min(1.0) * 0.85)
+    }
+}
+
+/// Deterministic 2D value noise in [0, 1]: hashed lattice corners, smoothstep-blended.
+fn value_noise(x: f32, z: f32) -> f32 {
+    let (x0, z0) = (x.floor(), z.floor());
+    let (fx, fz) = (x - x0, z - z0);
+    let (sx, sz) = (fx * fx * (3.0 - 2.0 * fx), fz * fz * (3.0 - 2.0 * fz));
+    let corner = |dx: f32, dz: f32| -> f32 {
+        let (ix, iz) = ((x0 + dx) as i64, (z0 + dz) as i64);
+        // splitmix64 over the packed lattice coordinates.
+        let mut h = (ix as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15) ^ (iz as u64).rotate_left(32);
+        h = (h ^ (h >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        h = (h ^ (h >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+        ((h ^ (h >> 31)) >> 40) as f32 / ((1u64 << 24) - 1) as f32
+    };
+    let top = corner(0.0, 0.0) + (corner(1.0, 0.0) - corner(0.0, 0.0)) * sx;
+    let bottom = corner(0.0, 1.0) + (corner(1.0, 1.0) - corner(0.0, 1.0)) * sx;
+    top + (bottom - top) * sz
+}
+
+/// The road tone at a world point, if any road reaches it: `(tone, gloss, blend)` with the
+/// blend feathering from full paint over the core to nothing at the authored edge.
+fn road_paint(roads: &[Road], wx: f32, wz: f32) -> Option<(Vec3, f32, f32)> {
+    let mut best: Option<(Vec3, f32, f32)> = None;
+    for road in roads {
+        let half = road.width_m * 0.5;
+        let distance = road.distance_to(wx, wz);
+        if distance >= half {
+            continue;
+        }
+        // Full tone over the inner core, feathered out to the grass at the edge.
+        let fade = ((half - distance) / (half * 0.45)).clamp(0.0, 1.0);
+        let blend = fade * fade * (3.0 - 2.0 * fade);
+        let (tone, gloss) = match road.surface {
+            RoadSurface::Dirt => (Vec3::new(0.40, 0.34, 0.24), 0.05),
+            RoadSurface::Ballast => (Vec3::new(0.34, 0.31, 0.28), 0.08),
+        };
+        if best.map(|(_, _, b)| blend > b).unwrap_or(true) {
+            best = Some((tone, gloss, blend));
+        }
+    }
+    best
 }
 
 #[cfg(test)]
@@ -378,6 +582,16 @@ mod tests {
         let mut indices = Vec::new();
         append_rubble_mound(&mut vertices, &mut indices, &barn);
         assert!(!vertices.is_empty(), "a rubble mound draws geometry");
+        // A pile, not a crate: the slab plus tilted chunks — and every chunk inside the box.
+        assert!(vertices.len() > 24, "rubble reads as broken chunks, got {}", vertices.len());
+        for vertex in &vertices {
+            assert!(
+                (vertex.position[0] - 0.0).abs() <= 5.0 + 1.0e-3
+                    && (vertex.position[2] - 0.0).abs() <= 4.0 + 1.0e-3,
+                "rubble stays inside the collision footprint, got {:?}",
+                vertex.position
+            );
+        }
         let top = vertices.iter().map(|v| v.position[1]).fold(f32::MIN, f32::max);
         let intact_top = 3.0 + 3.0;
         // The mound tops out at the sim's rubble height (0.4), well under the standing building.
@@ -514,6 +728,102 @@ mod tests {
             let (_, _, roof_gloss) = building_palette(id);
             assert!(roof_gloss > 0.10, "roof finish must beat the wall for id {id}");
         }
+    }
+
+    /// A farm building carries its joinery: window glass (glazed, outshining the plaster) and
+    /// a plank door, all inside the collision AABB (the walls recess to make the room).
+    #[test]
+    fn buildings_wear_windows_and_a_door() {
+        let map = prokhorovka_hill_252_2();
+        let barn = map
+            .static_cover
+            .iter()
+            .find(|c| c.kind == StaticCoverKind::FarmBuilding)
+            .expect("prokhorovka has barns");
+        let mut vertices = Vec::new();
+        let mut indices = Vec::new();
+        append_cover_box(&mut vertices, &mut indices, barn);
+        let windows = vertices.iter().filter(|v| v.color == WINDOW.0).count();
+        let doors = vertices.iter().filter(|v| v.color == DOOR.0).count();
+        assert!(windows >= 8, "a barn wall carries windows, got {windows} verts");
+        assert_eq!(doors, 4, "one door on a gable end");
+        // Glass answers the sky harder than the plaster around it.
+        assert!(WINDOW.1 > 0.10, "window glaze outshines the wall");
+    }
+
+    /// The steppe roads are painted ground, not decals: a vertex on a dirt road reads as
+    /// earth (red over green), a vertex in the open grass reads as grass (green over red),
+    /// and neither breaks the near-matte bound the material lane promises for dry ground.
+    #[test]
+    fn roads_paint_worn_earth_into_the_grass() {
+        let map = prokhorovka_hill_252_2();
+        let dirt = map
+            .static_cover
+            .iter()
+            .find(|c| c.id == "oktyabrskiy_barn_south")
+            .map(|_| ())
+            .and_then(|_| map.roads.iter().find(|road| road.id == "farm_road_south"))
+            .expect("prokhorovka authors a farm road");
+        let (vertices, _) = battlefield_scene_mesh(&map);
+
+        // The vertex nearest the road's first waypoint is painted dirt; a probe pulled 40 m
+        // to the side keeps its grass.
+        let probe_on = dirt.points[1];
+        let probe_off = [probe_on[0], probe_on[1] - 40.0];
+        let nearest = |probe: [f32; 2]| {
+            vertices
+                .iter()
+                .filter(|v| v.tint_weight == 0.0)
+                .min_by(|a, b| {
+                    let da =
+                        (a.position[0] - probe[0]).powi(2) + (a.position[2] - probe[1]).powi(2);
+                    let db =
+                        (b.position[0] - probe[0]).powi(2) + (b.position[2] - probe[1]).powi(2);
+                    da.partial_cmp(&db).unwrap()
+                })
+                .expect("terrain has vertices")
+        };
+        let on_road = nearest(probe_on);
+        let off_road = nearest(probe_off);
+        assert!(
+            on_road.color[0] > on_road.color[1],
+            "on-road vertex must read as earth, got {:?}",
+            on_road.color
+        );
+        assert!(
+            off_road.color[1] > off_road.color[0],
+            "off-road vertex must stay grass, got {:?}",
+            off_road.color
+        );
+        assert!(on_road.gloss < 0.1, "a dirt road stays matte, got {}", on_road.gloss);
+    }
+
+    /// The grass is a patchwork, not a lawn: across the open steppe the green varies by
+    /// visible drifts, deterministically — the same map builds the same field every time.
+    #[test]
+    fn grass_patchwork_varies_and_is_deterministic() {
+        let map = prokhorovka_hill_252_2();
+        let (first, _) = terrain_scene_mesh(&map.heightmap);
+        let (second, _) = terrain_scene_mesh(&map.heightmap);
+        assert_eq!(first.len(), second.len());
+        assert!(
+            first.iter().zip(&second).all(|(a, b)| a.color == b.color),
+            "the patchwork must be deterministic"
+        );
+
+        let greens: Vec<f32> = first
+            .iter()
+            .filter(|v| v.normal[1] > 0.995 && v.position[1] < 12.0)
+            .map(|v| v.color[1])
+            .collect();
+        assert!(greens.len() > 100, "the steppe has flat grassland");
+        let (lo, hi) =
+            greens.iter().fold((f32::MAX, f32::MIN), |(lo, hi), &g| (lo.min(g), hi.max(g)));
+        assert!(
+            hi - lo > 0.03,
+            "flat grass must vary between dry and lush drifts (spread {})",
+            hi - lo
+        );
     }
 
     /// Cover is physical for movement, shells, and the camera; an unrendered cover box is an

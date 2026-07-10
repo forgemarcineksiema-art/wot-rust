@@ -43,6 +43,13 @@ pub fn push_scenery_instance(
             let crown = base + Vec3::Y * 0.9 * s;
             push_frustum(vertices, indices, crown, 1.25 * s, 0.4 * s, 1.5 * s, CANOPY_PALE);
         }
+        SceneryKind::Bush => {
+            // A squat leafy mound, no trunk: knee-high, so it dresses the steppe without
+            // ever *looking* like the concealment it honestly is not.
+            push_frustum(vertices, indices, base, 1.15 * s, 0.85 * s, 0.55 * s, CANOPY_DARK);
+            let top = base + Vec3::Y * 0.5 * s;
+            push_frustum(vertices, indices, top, 0.8 * s, 0.22 * s, 0.5 * s, CANOPY);
+        }
         SceneryKind::Rock => {
             // Bare mineral faces catch the sky harder than anything vegetal around them.
             let start = vertices.len();
@@ -124,6 +131,7 @@ mod tests {
             SceneryKind::Willow,
             SceneryKind::FruitTree,
             SceneryKind::Rock,
+            SceneryKind::Bush,
         ] {
             let mut vertices = Vec::new();
             let mut indices = Vec::new();

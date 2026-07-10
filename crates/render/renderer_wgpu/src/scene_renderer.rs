@@ -23,12 +23,16 @@ use crate::scene_pipeline::{build_hud_pipeline, build_scene_pipeline};
 use crate::scene_resources::{SceneMeshRegistry, SceneObjectDraw};
 use crate::{CameraUniform, GpuContext, VehicleMeshRegistry, build_vehicle_pipeline};
 
-const DYNAMIC_VERTEX_CAPACITY: u64 = 1 << 20;
-const DYNAMIC_INDEX_CAPACITY: u64 = 1 << 20;
-/// HUD overlay budget: 8192 vertices (32 B each). Sized for the full battle HUD — reticle,
-/// bars, readouts, damage log, ammo panel and the minimap — with headroom; `set_hud` truncates
-/// (with a warning) instead of blanking the frame if a regression ever exceeds it.
-const HUD_VERTEX_CAPACITY: u64 = 1 << 18;
+/// Dynamic-mesh budget (8 MiB each): the offscreen QA examples bake whole blueprint tanks
+/// into this path at ~66k vertices (48 B each) per tank — the old 1 MiB silently dropped
+/// any frame holding more than a third of one tank, rendering an empty meadow.
+const DYNAMIC_VERTEX_CAPACITY: u64 = 1 << 23;
+const DYNAMIC_INDEX_CAPACITY: u64 = 1 << 23;
+/// HUD overlay budget: 16384 vertices (32 B each). Sized for the full battle HUD — reticle,
+/// bars, readouts (each glyph now carries a drop-shadow quad), damage log, ammo panel and the
+/// 36x36-cell minimap — with headroom; `set_hud` truncates (with a warning) instead of
+/// blanking the frame if a regression ever exceeds it.
+const HUD_VERTEX_CAPACITY: u64 = 1 << 19;
 /// Battle-FX vertex budget: ~2048 soft quads (6 verts x 36 bytes) with headroom.
 const FX_VERTEX_CAPACITY: u64 = 1 << 19;
 pub use buffers::{VEHICLE_INSTANCE_CAPACITY, vehicle_instance_budget};

@@ -22,6 +22,8 @@ pub enum SceneryKind {
     FruitTree,
     /// A field boulder.
     Rock,
+    /// Low steppe shrub: a squat leafy mound, the open field's only vertical accent.
+    Bush,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]

@@ -2,7 +2,8 @@ use crate::map_build::heightmap_from_fn;
 use crate::prokhorovka_cover::static_cover_objects;
 use crate::prokhorovka_features::map_features;
 use crate::prokhorovka_layout::{spawn_zones, strategic_points};
-use crate::{BattlefieldMap, math};
+use crate::prokhorovka_scenery::steppe_scenery;
+use crate::{BattlefieldMap, Road, RoadSurface, math};
 
 const MAP_SIZE_M: f32 = 1000.0;
 const CELL_SIZE_M: f32 = 5.0;
@@ -50,6 +51,9 @@ const TERRACE_Z_SIGMA_M: f32 = 78.0;
 
 pub fn prokhorovka_hill_252_2() -> BattlefieldMap {
     let heightmap = heightmap_from_fn(SAMPLES_PER_SIDE, CELL_SIZE_M, height_at);
+    let static_cover = static_cover_objects(&heightmap);
+    let roads = steppe_roads();
+    let scenery = steppe_scenery(&heightmap, &static_cover, &roads);
     BattlefieldMap {
         id: "prokhorovka_hill_252_2".to_string(),
         name: "Prokhorovka - Hill 252.2 Sector".to_string(),
@@ -64,11 +68,56 @@ pub fn prokhorovka_hill_252_2() -> BattlefieldMap {
         spawn_zones: spawn_zones(&heightmap),
         strategic_points: strategic_points(&heightmap),
         features: map_features(&heightmap),
-        static_cover: static_cover_objects(&heightmap),
-        // Open steppe: no scenery dressing authored (yet) — the map predates the system.
-        scenery: Vec::new(),
+        static_cover,
+        scenery,
+        roads,
         heightmap,
     }
+}
+
+/// The steppe's roads, mirror-fair like everything else on the map: the railway ballast runs
+/// ON the symmetry axis (self-mirrored), and each dirt road is authored on the south half
+/// with an exact northern twin, meeting its pair at an embankment crossing on the axis.
+fn steppe_roads() -> Vec<Road> {
+    let mut roads = vec![Road {
+        id: "railway_ballast".to_string(),
+        surface: RoadSurface::Ballast,
+        points: vec![[0.0, HALF_M], [MAP_SIZE_M, HALF_M]],
+        width_m: 6.0,
+    }];
+    // South-half dirt roads; each is emitted together with its z-mirrored twin.
+    let south_roads: [(&str, &[[f32; 2]], f32); 2] = [
+        // Farm road: from the western field past Oktyabrskiy to the eastern crossing.
+        (
+            "farm_road",
+            &[
+                [60.0, 340.0],
+                [230.0, 330.0],
+                [380.0, 380.0],
+                [468.0, 452.0],
+                [620.0, 468.0],
+                [750.0, HALF_M],
+            ],
+            5.0,
+        ),
+        // Spawn approach: from the southern muster down to the western crossing.
+        ("west_approach", &[[500.0, 170.0], [380.0, 260.0], [290.0, 400.0], [250.0, HALF_M]], 5.0),
+    ];
+    for (id, points, width_m) in south_roads {
+        roads.push(Road {
+            id: format!("{id}_south"),
+            surface: RoadSurface::Dirt,
+            points: points.to_vec(),
+            width_m,
+        });
+        roads.push(Road {
+            id: format!("{id}_north"),
+            surface: RoadSurface::Dirt,
+            points: points.iter().map(|p| [p[0], MAP_SIZE_M - p[1]]).collect(),
+            width_m,
+        });
+    }
+    roads
 }
 
 /// Terrain height at a world point, mirror-symmetric across the central east-west axis

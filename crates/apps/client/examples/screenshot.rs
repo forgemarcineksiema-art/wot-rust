@@ -27,10 +27,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let player = server.player_tank();
     let total_ticks = 150u64;
     for tick in 0..total_ticks {
+        // A short turret slew early on, then let it settle: the third-person boom follows
+        // hull yaw + turret yaw, so a turret slewing the whole run walks the camera right
+        // off the tank (the old empty-meadow frame).
         let command = TankCommand {
             throttle: 1.0,
             steer: 0.5,
-            turret_yaw_delta: 0.18,
+            turret_yaw_delta: if tick < 25 { 0.18 } else { 0.0 },
             fire: tick == total_ticks - 2,
             ..TankCommand::idle()
         };

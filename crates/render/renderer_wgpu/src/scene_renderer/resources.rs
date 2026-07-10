@@ -18,6 +18,13 @@ impl super::SceneRenderer {
         if vbytes.len() as u64 > super::DYNAMIC_VERTEX_CAPACITY
             || ibytes.len() as u64 > super::DYNAMIC_INDEX_CAPACITY
         {
+            // Refusing the upload keeps the previous mesh; never do it silently — a dropped
+            // dynamic mesh reads as "the tanks vanished" with no trace of why.
+            tracing::warn!(
+                vertices = vertices.len(),
+                indices = indices.len(),
+                "dynamic mesh exceeds its buffer budget; keeping the previous mesh"
+            );
             return;
         }
         ctx.queue.write_buffer(&self.dynamic_vertices, 0, vbytes);
