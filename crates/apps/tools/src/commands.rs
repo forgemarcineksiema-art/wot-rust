@@ -76,6 +76,8 @@ fn vehicle_spec(slug: &str) -> anyhow::Result<TankSpec> {
         "tiger-ii-ausf-b" => TankSpec::tiger_ii_ausf_b(),
         "jagdtiger" => TankSpec::jagdtiger(),
         "panther-ii" => TankSpec::panther_ii(),
+        "t55a" => TankSpec::t55a(),
+        "is3" | "is-3" => TankSpec::is3(),
         other => anyhow::bail!("unknown vehicle profile: {other}"),
     })
 }
@@ -135,6 +137,8 @@ fn parse_vehicle_kind(slug: &str) -> anyhow::Result<VehicleKind> {
         "tiger-ii-ausf-b" | "tiger_ii_ausf_b" => Ok(VehicleKind::TigerII),
         "jagdtiger" => Ok(VehicleKind::Jagdtiger),
         "panther-ii" | "panther_ii" => Ok(VehicleKind::PantherII),
+        "t55a" => Ok(VehicleKind::T55A),
+        "is3" | "is-3" => Ok(VehicleKind::IS3),
         other => anyhow::bail!("unknown vehicle profile: {other}"),
     }
 }

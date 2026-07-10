@@ -13,7 +13,10 @@ use super::{
     GunPlan, SG_HARD, assemble, blueprint_deck_details, blueprint_running_gear, blueprint_skirts,
     build_gun, shade_hull,
 };
-use crate::{Axis, BakedVehicle, ExtrudeSpec, GeometryMesh, MaterialRole, MeshBuilder};
+use crate::{
+    Axis, BakedVehicle, ExtrudeSpec, GeometryMesh, MaterialRole, MeshBuilder, ProfilePoint,
+    RevolveSpec,
+};
 
 pub(crate) fn is3(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVehicle {
     let bp =
@@ -24,6 +27,7 @@ pub(crate) fn is3(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVehicle
             .append(&blueprint_deck_details(&bp.hull))
             .append(&blueprint_skirts(&bp.hull, &bp.track))
             .append(&is3_fenders(&bp.hull, &bp.track))
+            .append(&is3_fuel_drums(&bp.hull, &bp.track))
             .build(),
     );
 
@@ -43,6 +47,33 @@ pub(crate) fn is3(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVehicle
     });
 
     assemble(VehicleKind::IS3, hull, turret, gun, *mounts)
+}
+
+/// The IS family's external fuel drums: one cylindrical tank lying along each rear fender
+/// shelf — the reference silhouette's tail-end signature, visual-only stowage inside the
+/// hitbox (a drum is NOT armor; the armor volumes ignore it like any stowage).
+fn is3_fuel_drums(hull: &HullShape, track: &TrackShape) -> GeometryMesh {
+    let center_x = (track.inner_x + track.outer_x) * 0.5;
+    let shelf_y = hull.sponson_y + 0.05;
+    let radius = 0.145;
+    let (back_z, front_z) = (-hull.half_len + 0.35, -hull.half_len + 1.15);
+    let mut builder = MeshBuilder::new();
+    for side in [-1.0_f32, 1.0] {
+        builder = builder.capped_revolve_at(
+            Vec3::new(side * center_x, shelf_y + radius, 0.0),
+            RevolveSpec {
+                profile: vec![
+                    ProfilePoint::new(radius, back_z),
+                    ProfilePoint::new(radius, front_z),
+                ],
+                axis: Axis::Z,
+                segments: 10,
+                material: MaterialRole::RolledArmor,
+                smoothing: super::SG_CAST,
+            },
+        );
+    }
+    builder.build()
 }
 
 /// The IS-3's fender line: a thin full-length shelf over each track band, the signature front

@@ -86,9 +86,9 @@ fn every_vehicle_bake_hash_matches_golden_output() {
         // hull, steepest German glacis at 55°, 29° leaned sides, narrow Schmalturm, 7 overlapped
         // steel wheels, braked KwK 42) replaces the last legacy German body.
         (VehicleKind::PantherII, 8_939_939_482_117_310_310_u64),
-        // Re-recorded for the gear realism pass: fender line (shelf, front mudguards, rear
-        // flaps) joins the hull bake; the existing fleet is untouched.
-        (VehicleKind::IS3, 13_461_797_925_301_907_251_u64),
+        // Re-recorded for the IS-3 finish pass: the signature external fuel drums join the
+        // rear fender shelves; the rest of the fleet is untouched.
+        (VehicleKind::IS3, 12_986_415_458_548_359_195_u64),
     ];
     let actual: Vec<(VehicleKind, u64)> =
         bake_all().iter().map(|vehicle| (vehicle.kind(), vehicle.deterministic_hash())).collect();
