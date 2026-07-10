@@ -1,0 +1,302 @@
+//! Visual showcase of the "Honest Steel" destruction program, rendered offscreen through the same
+//! PBR path the game uses. Writes:
+//!   `_cover_intact.png`   — a farm town, whole.
+//!   `_cover_wrecked.png`  — the same town after HE: rubble mounds where buildings stood, a tree
+//!                            line cleared, its trees gone with it.
+//!   `_battle_damage.png`  — a live tank pocked with penetration holes seated on the armor.
+//!   `_wreck.png`          — a knocked-out hull: charred, gun drooped off the aim, scarred.
+//!   `_turret_popoff.png`  — an ammo-rack kill: the turret flung off and settled beside the hull.
+//!
+//! `cargo run -p client --example destruction_showcase -- target/destruction`
+
+use std::f32::consts::FRAC_PI_2;
+use std::fs::File;
+use std::io::BufWriter;
+
+use client::{
+    HitDecal, TurretPopoff, VehicleAssetCatalog, append_decal_quads, battlefield_scene_mesh,
+    battlefield_scene_mesh_with_cover_states, render_frame_from_objects,
+    tank_vehicle_render_objects,
+};
+use game_core::{
+    ArmorZone, DamageCause, DamageEvent, ModuleSlot, MountFrames, TankId, TeamId, VehicleKind,
+};
+use glam::Vec3;
+use net::TankSnapshot;
+use renderer_api::{
+    Camera, CameraProjectionPolicy, FxVertex, RenderFrame, SceneLighting, view_projection_matrix,
+};
+use renderer_wgpu::{GpuContext, OffscreenTarget, SceneRenderer};
+use terrain::{BattlefieldMap, StaticCoverKind, prokhorovka_hill_252_2};
+
+const KIND: VehicleKind = VehicleKind::T54_1951;
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let prefix = std::env::args().nth(1).unwrap_or_else(|| "target/destruction".to_string());
+    let (width, height) = (1100u32, 640u32);
+
+    let mut catalog = VehicleAssetCatalog::default();
+    if let Err(error) = catalog.load_forge_artifact_tree("target/forge") {
+        eprintln!("note: no Forge artifacts ({error}); neutral material");
+    }
+
+    let ctx = GpuContext::headless()?;
+    let target = OffscreenTarget::new(&ctx, width, height)?;
+    let battlefield = prokhorovka_hill_252_2();
+
+    // ---- Cover: a farm town before and after HE ----------------------------------------------
+    cover_shots(&ctx, &target, &battlefield, width, height, &prefix)?;
+
+    // ---- Vehicle destruction: damaged / wreck / turret pop-off -------------------------------
+    vehicle_shots(&ctx, &target, &mut catalog, &battlefield, width, height, &prefix)?;
+
+    Ok(())
+}
+
+/// The town intact, then the same cover states stepped to rubble/gone — the phase-aware scene
+/// builder does the rest.
+fn cover_shots(
+    ctx: &GpuContext,
+    target: &OffscreenTarget,
+    battlefield: &BattlefieldMap,
+    width: u32,
+    height: u32,
+    prefix: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    // Frame tight on the first farm building, with the ground under it.
+    let building = battlefield
+        .static_cover
+        .iter()
+        .position(|cover| cover.kind == StaticCoverKind::FarmBuilding)
+        .expect("map has a farm building");
+    let center = Vec3::from_array(battlefield.static_cover[building].center);
+    let half = Vec3::from_array(battlefield.static_cover[building].half_extents_m);
+    let ground = center.y - half.y;
+    let reach = half.x.max(half.z) + 9.0;
+    let focus = Vec3::new(center.x, ground + 1.0, center.z);
+    let eye = [center.x + reach, ground + half.y + 5.0, center.z + reach];
+    let look = focus.to_array();
+
+    // Intact.
+    let (verts, indices) = battlefield_scene_mesh(battlefield);
+    render_scene(ctx, target, &verts, &indices, focus, eye, look, width, height)?;
+    write_png(ctx, target, width, height, &format!("{prefix}_cover_intact.png"))?;
+
+    // Bring the whole town down: farm buildings -> rubble, tree lines -> gone.
+    let mut states = vec![0u8; battlefield.static_cover.len()];
+    for (index, cover) in battlefield.static_cover.iter().enumerate() {
+        states[index] = match cover.kind {
+            StaticCoverKind::FarmBuilding => 1, // rubble
+            StaticCoverKind::TreeLine => 2,     // gone
+            _ => 0,
+        };
+    }
+    let (verts, indices) = battlefield_scene_mesh_with_cover_states(battlefield, &states);
+    render_scene(ctx, target, &verts, &indices, focus, eye, look, width, height)?;
+    write_png(ctx, target, width, height, &format!("{prefix}_cover_wrecked.png"))?;
+    Ok(())
+}
+
+fn vehicle_shots(
+    ctx: &GpuContext,
+    target: &OffscreenTarget,
+    catalog: &mut VehicleAssetCatalog,
+    battlefield: &BattlefieldMap,
+    width: u32,
+    height: u32,
+    prefix: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let (cx, cz) = (340.0_f32, 300.0_f32);
+    let ground = battlefield.heightmap.sample_height(cx, cz).unwrap_or(0.0);
+    let (terrain_vertices, terrain_indices) = battlefield_scene_mesh(battlefield);
+    let tc = [cx, ground + 1.15, cz];
+    let color = [0.42, 0.46, 0.34];
+    let gun_dead = ModuleSlot::Gun.destroyed_mask_bit();
+
+    // Build all three object sets up front — the first call registers the T-54's meshes in the
+    // catalog, so one renderer (registered once, below) serves every shot.
+    let live = tank_snapshot(cx, ground, cz, 1000, 0);
+    let live_objects = tank_vehicle_render_objects(catalog, &live, color);
+    let mut live_fx = Vec::new();
+    append_decal_quads(&mut live_fx, &battle_decals(&live, cx, ground, cz), &live);
+
+    let wreck = tank_snapshot(cx, ground, cz, 0, gun_dead);
+    let wreck_objects = tank_vehicle_render_objects(catalog, &wreck, color);
+    let mut wreck_fx = Vec::new();
+    append_decal_quads(&mut wreck_fx, &battle_decals(&wreck, cx, ground, cz), &wreck);
+
+    let mut popoff_objects = tank_vehicle_render_objects(catalog, &wreck, color);
+    let ring_local = MountFrames::for_vehicle(KIND).turret_ring.translation;
+    // yaw = FRAC_PI_2: nose +X, so authoring +Z maps to world +X, +X to world -Z.
+    let ring_world = Vec3::new(cx + ring_local.z, ground + ring_local.y, cz - ring_local.x);
+    let mut popoff =
+        TurretPopoff::launch(TankId(1), KIND, ring_world, Some(&battlefield.heightmap));
+    for _ in 0..400 {
+        popoff.tick(0.05); // fly and settle
+    }
+    // Objects are [hull, turret, gun, ...gear]; drive the turret and gun off with the arc.
+    popoff_objects[1].transform = popoff.turret_transform().to_cols_array_2d();
+    popoff_objects[2].transform = popoff.gun_transform().to_cols_array_2d();
+
+    // One renderer, meshes registered once.
+    let mut renderer = SceneRenderer::for_offscreen(ctx, &terrain_vertices, &terrain_indices)?;
+    renderer.scene_lighting = SceneLighting::battlefield_default();
+    renderer.shadow_focus = Some([cx, ground, cz]);
+    for (handle, mesh) in catalog.take_pending_vehicle_meshes() {
+        renderer.register_vehicle_mesh(ctx, handle, &mesh);
+    }
+    for (handle, maps) in catalog.take_pending_vehicle_materials() {
+        renderer.register_vehicle_material(ctx, handle, &maps);
+    }
+
+    let close = [cx + 6.0, ground + 3.4, cz + 5.2];
+    let wide = [cx + 7.5, ground + 3.6, cz + 6.5];
+    draw_vehicle(ctx, target, &mut renderer, live_objects, &live_fx, close, tc, width, height)?;
+    write_png(ctx, target, width, height, &format!("{prefix}_battle_damage.png"))?;
+    draw_vehicle(ctx, target, &mut renderer, wreck_objects, &wreck_fx, close, tc, width, height)?;
+    write_png(ctx, target, width, height, &format!("{prefix}_wreck.png"))?;
+    draw_vehicle(ctx, target, &mut renderer, popoff_objects, &[], wide, tc, width, height)?;
+    write_png(ctx, target, width, height, &format!("{prefix}_turret_popoff.png"))?;
+    Ok(())
+}
+
+/// A few penetration holes on the front, side and turret of the tank at `(cx, ground, cz)`.
+fn battle_decals(tank: &TankSnapshot, cx: f32, ground: f32, cz: f32) -> Vec<HitDecal> {
+    // yaw = FRAC_PI_2: nose points +X, right side is -Z-ish; pick surface points and outward normals.
+    let hits = [
+        (Vec3::new(cx + 2.6, ground + 1.25, cz), ArmorZone::UpperGlacis, Vec3::new(0.7, 0.6, 0.0)),
+        (
+            Vec3::new(cx + 1.9, ground + 1.9, cz + 0.2),
+            ArmorZone::TurretFront,
+            Vec3::new(0.6, 0.5, 0.3),
+        ),
+        (
+            Vec3::new(cx - 0.2, ground + 1.0, cz + 1.05),
+            ArmorZone::HullSide,
+            Vec3::new(0.0, 0.2, 1.0),
+        ),
+        (
+            Vec3::new(cx + 0.6, ground + 1.6, cz + 1.0),
+            ArmorZone::TurretSide,
+            Vec3::new(0.1, 0.3, 1.0),
+        ),
+    ];
+    hits.into_iter()
+        .filter_map(|(hit, zone, normal)| {
+            let event = DamageEvent {
+                source: TankId(2),
+                target: tank.tank_id,
+                hit_position: hit,
+                damage_hp: 200,
+                penetrated: true,
+                cause: DamageCause::Shell,
+                armor_zone: zone,
+                plate_normal: normal.normalize(),
+                shell_direction: (-normal).normalize(),
+                ..Default::default()
+            };
+            client::decal_from_damage_event(&event, tank, None)
+        })
+        .collect()
+}
+
+fn tank_snapshot(
+    cx: f32,
+    ground: f32,
+    cz: f32,
+    hp: u32,
+    destroyed_modules_mask: u8,
+) -> TankSnapshot {
+    let spec = KIND.spec();
+    TankSnapshot {
+        tank_id: TankId(1),
+        team: TeamId(1),
+        vehicle: KIND,
+        position: [cx, ground, cz],
+        yaw_rad: FRAC_PI_2,
+        hull_pitch_rad: 0.0,
+        hull_roll_rad: 0.0,
+        turret_yaw_rad: 0.0,
+        turret_yaw_velocity_rad_s: 0.0,
+        gun_pitch_rad: 0.0,
+        hit_points: hp,
+        reload_remaining_s: 0.0,
+        aim_dispersion_mrad: 0.0,
+        module_hit_points: spec.module_health.hit_points_by_slot(),
+        destroyed_modules_mask,
+        track_damage_mask: 0,
+        track_hp: [game_core::TRACK_HP_MAX; 2],
+        ammo_counts: game_core::AmmoLoadout::default().counts,
+        selected_ammo: 0,
+        spotted_by_teams_mask: 0,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn render_scene(
+    ctx: &GpuContext,
+    target: &OffscreenTarget,
+    verts: &[renderer_api::SceneVertex],
+    indices: &[u32],
+    focus: Vec3,
+    eye: [f32; 3],
+    look: [f32; 3],
+    width: u32,
+    height: u32,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let mut renderer = SceneRenderer::for_offscreen(ctx, verts, indices)?;
+    renderer.scene_lighting = SceneLighting::battlefield_default();
+    renderer.shadow_focus = Some(focus.to_array());
+    let camera = Camera { eye, target: look, vertical_fov_degrees: 40.0 };
+    let vp = camera_vp(&camera, width, height);
+    renderer.render(ctx, target.render_target(), vp, camera.eye)?;
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn draw_vehicle(
+    ctx: &GpuContext,
+    target: &OffscreenTarget,
+    renderer: &mut SceneRenderer,
+    objects: Vec<renderer_api::RenderObject>,
+    fx: &[FxVertex],
+    eye: [f32; 3],
+    look: [f32; 3],
+    width: u32,
+    height: u32,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let frame: RenderFrame = render_frame_from_objects(objects);
+    renderer.set_vehicle_render_frame(ctx, &frame);
+    renderer.set_fx(ctx, fx);
+    let camera = Camera { eye, target: look, vertical_fov_degrees: 34.0 };
+    let vp = camera_vp(&camera, width, height);
+    renderer.render(ctx, target.render_target(), vp, camera.eye)?;
+    Ok(())
+}
+
+fn camera_vp(camera: &Camera, width: u32, height: u32) -> [[f32; 4]; 4] {
+    let projection = CameraProjectionPolicy::webgpu_default();
+    view_projection_matrix(
+        camera,
+        width as f32 / height as f32,
+        projection.near_plane_m(),
+        projection.far_plane_m(),
+    )
+}
+
+fn write_png(
+    ctx: &GpuContext,
+    target: &OffscreenTarget,
+    width: u32,
+    height: u32,
+    path: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let pixels = target.read_rgba8(ctx)?;
+    let file = File::create(path)?;
+    let mut encoder = png::Encoder::new(BufWriter::new(file), width, height);
+    encoder.set_color(png::ColorType::Rgba);
+    encoder.set_depth(png::BitDepth::Eight);
+    encoder.write_header()?.write_image_data(&pixels)?;
+    println!("wrote {path}");
+    Ok(())
+}
