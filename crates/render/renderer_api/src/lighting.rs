@@ -395,8 +395,10 @@ impl SceneLighting {
     /// dark by their own low albedo, so the skylight contrast survives.
     pub fn garage_hero() -> Self {
         Self {
-            ambient_rgb: [0.26, 0.27, 0.30],
-            ground_ambient_rgb: [0.15, 0.14, 0.13],
+            // Near-neutral, faintly warm — the old blue-leaning ambient painted the gunmetal
+            // walls navy; the workshop is lit by daylight and worklights, not moonlight.
+            ambient_rgb: [0.285, 0.28, 0.275],
+            ground_ambient_rgb: [0.16, 0.15, 0.14],
             // Steep enough to still read as skylight-through-the-roof, but with real horizontal reach
             // so `dot(n, key)` is meaningful on the vertical flanks, not only the decks.
             key_direction: [-0.45, 0.78, 0.42],
@@ -404,12 +406,12 @@ impl SceneLighting {
             // The lever: a near-horizontal fill from the side opposite the key (studio motif), aimed
             // across the turntable at the camera-facing flank the key leaves in shadow.
             fill_direction: [0.85, 0.30, 0.35],
-            fill_rgb: [0.26, 0.28, 0.33],
-            // A cold rear rim to peel the hull off the dim back wall.
+            fill_rgb: [0.26, 0.27, 0.30],
+            // A cool rear rim to peel the hull off the dim back wall.
             rim_direction: [0.10, 0.45, -0.98],
             rim_rgb: [0.30, 0.33, 0.40],
-            sky_zenith_rgb: [0.11, 0.12, 0.14],
-            sky_horizon_rgb: [0.16, 0.17, 0.20],
+            sky_zenith_rgb: [0.12, 0.125, 0.14],
+            sky_horizon_rgb: [0.17, 0.175, 0.20],
             fog_density: 0.0,
             fog_height_falloff: 0.0,
             // Hero shot: the grade must SERVE the phase-1a relight, not undo it — a hot black
