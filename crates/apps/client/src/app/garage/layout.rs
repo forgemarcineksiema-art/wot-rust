@@ -2,8 +2,6 @@
 //! the Battle button, a left crew column, a right stats list, a bottom loadout strip, and a bottom
 //! vehicle carousel. Every rect lives here once so drawing (panels) and hit-testing (overlay) agree.
 
-use game_core::Nation;
-
 use super::draft::FitSlot;
 use crate::hud::theme;
 
@@ -194,30 +192,33 @@ pub(super) fn ammo_icon(shell_type: game_core::ShellType) -> crate::hud::icons::
     crate::hud::icons::HudIcon::for_shell(shell_type)
 }
 
-// Tech tree view: vehicles grouped by nation in vertical columns (the beta-WoT signature). The
-// panel hugs the node block (nodes span x ±0.54, y ~0.04..0.70) instead of flooding the screen —
-// the old [0.95, 0.80] left a huge dead well below the six nodes. Faza 5 restructures the tree by
-// era; this is just the emptiness trim.
+// Tech tree view: ERA is the primary axis — the design's three eras replace tier spread, and the
+// tree is where that axis is explained. Three horizontal era bands read chronologically top to
+// bottom (Era I 1939-42 → Era III 1946-55); each band holds its playable vehicles as a row of
+// nodes tagged with their nation. Era I is deliberately drawn EMPTY — the reserved roadmap
+// bracket says "this axis grows" louder than hiding it would.
 pub(super) const TREE_PANEL_CENTER: [f32; 2] = [0.0, 0.30];
-pub(super) const TREE_PANEL_HALF: [f32; 2] = [0.70, 0.44];
-pub(super) const TREE_USSR_X: f32 = -0.40;
-pub(super) const TREE_GERMANY_X: f32 = 0.40;
-pub(super) const TREE_NODE_HALF: [f32; 2] = [0.14, 0.045];
-pub(super) const TREE_NODE_PITCH: f32 = 0.14;
-pub(super) const TREE_TOP_Y: f32 = 0.50;
-pub(super) const TREE_HEADER_Y: f32 = 0.66;
+pub(super) const TREE_PANEL_HALF: [f32; 2] = [0.82, 0.36];
+/// Left edge where each band's era label + years print.
+pub(super) const TREE_ERA_LABEL_X: f32 = -0.76;
+const TREE_NODE_START_X: f32 = -0.34;
+const TREE_NODE_PITCH_X: f32 = 0.31;
+pub(super) const TREE_NODE_HALF: [f32; 2] = [0.14, 0.052];
 pub(super) const TREE_CLOSE_CENTER: [f32; 2] = [0.86, 0.80];
 pub(super) const TREE_CLOSE_HALF: [f32; 2] = [0.06, 0.04];
 
-pub(super) fn tree_column_x(nation: Nation) -> f32 {
-    match nation {
-        Nation::Ussr => TREE_USSR_X,
-        Nation::Germany => TREE_GERMANY_X,
+/// The band centre-line y for an era (chronological, oldest on top).
+pub(super) fn tree_era_y(era: game_core::Era) -> f32 {
+    match era {
+        game_core::Era::EarlyWar => 0.52,
+        game_core::Era::LateWar => 0.30,
+        game_core::Era::ColdWar => 0.08,
     }
 }
 
-pub(super) fn tree_node_center(nation: Nation, row: usize) -> [f32; 2] {
-    [tree_column_x(nation), TREE_TOP_Y - row as f32 * TREE_NODE_PITCH]
+/// Centre of the `col`-th vehicle node in `era`'s band.
+pub(super) fn tree_node_center(era: game_core::Era, col: usize) -> [f32; 2] {
+    [TREE_NODE_START_X + col as f32 * TREE_NODE_PITCH_X, tree_era_y(era)]
 }
 
 #[cfg(test)]

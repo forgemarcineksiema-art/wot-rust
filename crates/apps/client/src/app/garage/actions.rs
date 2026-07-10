@@ -356,14 +356,14 @@ mod tests {
     fn selecting_vehicle_from_tech_tree_returns_to_hangar() {
         use super::super::GarageView;
         use crate::app::garage::layout::tree_node_center;
-        use game_core::Nation;
+        use game_core::Era;
 
         let mut app = ClientApp::new();
         app.garage.open_tech_tree();
         assert_eq!(app.garage.view(), GarageView::TechTree);
 
-        // Click the Tiger I node (first Germany node = PLAYABLE index 1).
-        app.garage.set_cursor(tree_node_center(Nation::Germany, 0));
+        // Click the Tiger I node (first Era II node = PLAYABLE index 1).
+        app.garage.set_cursor(tree_node_center(Era::LateWar, 0));
         app.garage_primary_press();
 
         assert_eq!(app.garage.view(), GarageView::Hangar, "returns to hangar");

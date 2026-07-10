@@ -41,11 +41,24 @@ pub enum Era {
 }
 
 impl Era {
+    /// Every era, oldest first — the tech tree's primary axis.
+    pub const ALL: [Era; 3] = [Era::EarlyWar, Era::LateWar, Era::ColdWar];
+
     pub fn label(self) -> &'static str {
         match self {
             Era::EarlyWar => "Era I",
             Era::LateWar => "Era II",
             Era::ColdWar => "Era III",
+        }
+    }
+
+    /// The era's descriptive name + years, for surfaces that explain the bracket (the tech
+    /// tree's era bands) rather than just tagging it.
+    pub fn display_name(self) -> &'static str {
+        match self {
+            Era::EarlyWar => "EARLY WAR 1939-42",
+            Era::LateWar => "LATE WAR 1943-45",
+            Era::ColdWar => "COLD WAR 1946-55",
         }
     }
 
