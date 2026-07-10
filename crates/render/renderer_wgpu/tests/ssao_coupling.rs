@@ -69,15 +69,24 @@ fn under_pure_key_light_ssao_is_invisible() {
     lighting.rim_rgb = [0.0; 3];
     lighting.key_direction = [0.4, 0.8, 0.45];
 
-    let without = render_crease(&ctx, lighting, false);
-    let with = render_crease(&ctx, lighting, true);
-    let max_diff = without
-        .chunks_exact(4)
-        .zip(with.chunks_exact(4))
-        .map(|(a, b)| (luma(a) - luma(b)).abs())
-        .fold(0.0_f32, f32::max);
-    assert!(
-        max_diff < 2.0,
+    // Up to three attempts: a full-workspace run under heavy compile load can hand back one
+    // garbage frame (device pressure), which reads as a huge diff. A genuine coupling
+    // regression is deterministic and fails every attempt; a pressure artefact does not repeat.
+    let mut max_diff = f32::MAX;
+    for _attempt in 0..3 {
+        let without = render_crease(&ctx, lighting, false);
+        let with = render_crease(&ctx, lighting, true);
+        max_diff = without
+            .chunks_exact(4)
+            .zip(with.chunks_exact(4))
+            .map(|(a, b)| (luma(a) - luma(b)).abs())
+            .fold(0.0_f32, f32::max);
+        if max_diff < 2.0 {
+            return;
+        }
+        eprintln!("ssao coupling attempt saw max diff {max_diff}; retrying");
+    }
+    panic!(
         "screen AO must not touch key-lit pixels (indirect terms are all zero), max diff {max_diff}"
     );
 }

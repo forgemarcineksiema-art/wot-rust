@@ -70,6 +70,25 @@ fn material_detail(world: vec3<f32>, n: vec3<f32>) -> f32 {
     return 0.92 + detail * 0.16;
 }
 
+// Cloud shade wandering the field: the terrain's sun is modulated by a 2-octave slice of the
+// same value noise the sky's cloud sheet drifts with — matched scale (a ~400 m virtual cloud
+// height maps the dome's UV onto world metres) and the same clock, so the ground shade moves
+// with the banks overhead. Coherent in motion and scale, not pixel-exact (the dome is a ray
+// projection, this is world-XZ) — right for a 2D sheet at infinity. Strength (sky_params.x) is
+// profile data gated per tier; 0 skips it. Terrain only — a tank is too small for cloud shade
+// to read as anything but a dirty hull.
+fn cloud_shadow(world: vec3<f32>) -> f32 {
+    let strength = camera.sky_params.x;
+    if (strength <= 0.0) {
+        return 1.0;
+    }
+    let drift = camera.time_params.x * camera.cloud_params.w;
+    let uv = world.xz * (0.8 / 400.0) * camera.cloud_params.y + vec2<f32>(drift, drift * 0.6);
+    let coverage = (value_noise(uv) * 0.6 + value_noise(uv * 2.0) * 0.4) + camera.cloud_params.x;
+    let cloud = smoothstep(0.40, 0.72, coverage);
+    return 1.0 - cloud * strength;
+}
+
 // The albedo noise's analytic gradient bent into the normal, so the grain CATCHES LIGHT
 // instead of only darkening the paint. Glossier surfaces perturb less — polish is smooth.
 fn detail_normal(world: vec3<f32>, n: vec3<f32>, gloss: f32) -> vec3<f32> {
@@ -91,7 +110,9 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     let gloss = clamp(input.gloss + wet * 0.30 + puddle, 0.0, 1.0);
 
     let n = detail_normal(input.world_pos, geometric_n, gloss);
-    let shadow = sun_shadow(input.world_pos, geometric_n);
+    // Cloud shade rides the same channel as the cast shadow: it occludes the key (and the key's
+    // specular below) without touching the ambient/fill.
+    let shadow = sun_shadow(input.world_pos, geometric_n) * cloud_shadow(input.world_pos);
     let ao = screen_ao(input.clip);
     var albedo = input.color * material_detail(input.world_pos, geometric_n);
     albedo *= mix(1.0, 0.80, wet);

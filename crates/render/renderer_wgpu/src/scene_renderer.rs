@@ -85,6 +85,8 @@ pub struct SceneRenderer {
     shadow: shadow::ShadowResources,
     shadow_bgl: wgpu::BindGroupLayout,
     ssao: ssao::SsaoResources,
+    /// Whether this adapter tier runs terrain cloud shadows (`LightingQuality::cloud_shadows`).
+    cloud_shadows_enabled: bool,
     /// World point the focused sun-shadow box centres on (the player/subject). `None` falls back to
     /// the camera position, which still covers the near action.
     pub shadow_focus: Option<[f32; 3]>,
@@ -251,6 +253,7 @@ impl SceneRenderer {
             shadow,
             shadow_bgl,
             ssao,
+            cloud_shadows_enabled: lighting_quality.cloud_shadows,
             shadow_focus: None,
             scene_time_s: 0.0,
             skipped_mesh_draws: Cell::new(0),

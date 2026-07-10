@@ -80,3 +80,57 @@ fn a_battle_frame_spans_true_blacks_and_bright_highlights() {
         "the sun/highlights must stay bright through the grade, got max luma {max:.4}"
     );
 }
+
+#[test]
+fn cloud_shade_darkens_the_terrain_key_and_strength_zero_is_a_noop() {
+    let Some(ctx) = (match GpuContext::headless() {
+        Ok(ctx) => Some(ctx),
+        Err(error) => {
+            eprintln!("skipping cloud shade test: {error}");
+            None
+        }
+    }) else {
+        return;
+    };
+    // A plain sunlit ground plane; with the coverage biased into a full lid and the shade
+    // strength up, the terrain's key must dim everywhere the sun previously hit.
+    let n = [0.0, 1.0, 0.0];
+    let c = [0.35, 0.45, 0.28];
+    let v = |x: f32, z: f32| SceneVertex::new([x, 0.0, z], n, c);
+    let vertices = vec![v(-20.0, -20.0), v(20.0, -20.0), v(20.0, 20.0), v(-20.0, 20.0)];
+    let indices = vec![0u32, 2, 1, 0, 3, 2];
+    let camera = renderer_api::Camera {
+        eye: [0.0, 6.0, 10.0],
+        target: [0.0, 0.0, 0.0],
+        vertical_fov_degrees: 55.0,
+    };
+    let view_proj = view_projection_matrix(&camera, 1.0, 0.1, 100.0);
+
+    let render = |strength: f32| {
+        let target = OffscreenTarget::new(&ctx, 96, 96).expect("target");
+        let mut renderer =
+            SceneRenderer::for_offscreen(&ctx, &vertices, &indices).expect("renderer");
+        let mut lighting = SceneLighting::battlefield_default();
+        lighting.cloud_coverage_bias = 1.0;
+        lighting.cloud_shadow_strength = strength;
+        renderer.scene_lighting = lighting;
+        renderer.shadow_focus = Some([0.0, 0.0, 0.0]);
+        renderer.render(&ctx, target.render_target(), view_proj, camera.eye).expect("render");
+        target.read_rgba8(&ctx).expect("readback")
+    };
+
+    let open = render(0.0);
+    let shaded = render(0.8);
+    let darkened = open
+        .chunks_exact(4)
+        .zip(shaded.chunks_exact(4))
+        .filter(|(a, b)| luma(a) - luma(b) > 10.0 / 255.0)
+        .count();
+    assert!(
+        darkened > 2000,
+        "a full cloud lid at strength 0.8 must dim the sunlit ground broadly ({darkened} px)"
+    );
+    // And strength 0 twice in a row is deterministic — the gate really skips the modulation.
+    let open_again = render(0.0);
+    assert_eq!(open, open_again, "cloud shade strength 0 must be a stable no-op");
+}

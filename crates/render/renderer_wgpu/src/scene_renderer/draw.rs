@@ -70,6 +70,7 @@ impl super::SceneRenderer {
                     1.0 / target.width.max(1) as f32,
                     1.0 / target.height.max(1) as f32,
                 ],
+                cloud_shadows_enabled: self.cloud_shadows_enabled,
                 time_s: self.scene_time_s,
                 rain_intensity: self.rain_intensity,
                 wetness: self.wetness,

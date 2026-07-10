@@ -35,18 +35,29 @@ fn env_sky(dir: vec3<f32>) -> vec3<f32> {
     return mix(camera.sky_horizon_rgb, camera.sky_zenith_rgb, sqrt(up));
 }
 
-// Aerial perspective: fade a fragment's HDR radiance toward the horizon/sky colour by distance and
-// height, so a 1000 m map reads with real depth instead of as cardboard cut-outs at range. Applied
-// in linear HDR *before* the tone curve, and mirrored on the CPU by SceneLighting::fog_factor.
+// Aerial perspective: fade a fragment's HDR radiance toward the horizon haze by distance and
+// height, so a 1000 m map reads with real depth instead of as cardboard cut-outs at range. Looked
+// at TOWARD the sun, the haze warms toward the key colour (sun-directional scatter — the classic
+// backlit-air cue), scaled by the profile's sky_params.y. Colour only: the fog AMOUNT (density,
+// height falloff — and with it the 400 m spotting-fairness bound) is exactly the pre-scatter
+// model, mirrored on the CPU by SceneLighting::fog_factor. Applied in linear HDR before the tone
+// curve.
 fn apply_fog(color: vec3<f32>, world_pos: vec3<f32>) -> vec3<f32> {
     let density = camera.fog_params.x;
     if (density <= 0.0) {
         return color;
     }
-    let distance = length(camera.camera_pos - world_pos);
+    let to_fragment = world_pos - camera.camera_pos;
+    let distance = length(to_fragment);
     let height_term = exp(-max(world_pos.y, 0.0) * camera.fog_params.y);
     let fog = clamp(1.0 - exp(-max(distance, 0.0) * density * height_term), 0.0, 1.0);
-    return mix(color, camera.sky_horizon_rgb, fog);
+    let sun_amount = pow(
+        max(dot(to_fragment / max(distance, 1.0e-4), normalize(camera.key_direction)), 0.0),
+        8.0,
+    ) * camera.sky_params.y;
+    let sun_haze = camera.sky_horizon_rgb * 0.4 + camera.key_rgb * 0.8;
+    let haze = mix(camera.sky_horizon_rgb, sun_haze, sun_amount);
+    return mix(color, haze, fog);
 }
 
 // Profile-driven display grade after the tone curve (grade_params, mirrored on the CPU by

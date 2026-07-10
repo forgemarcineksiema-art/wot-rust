@@ -41,6 +41,12 @@ struct Camera {
     // Display grade from the lighting profile: x = exposure (pre-curve HDR multiplier),
     // y = black point, z = saturation, w = contrast.
     grade_params: vec4<f32>,
+    // Cloud layer from the lighting profile: x = coverage bias, y = pattern scale, z = opacity,
+    // w = drift speed (UV per presentation second).
+    cloud_params: vec4<f32>,
+    // Sky/air extras: x = terrain cloud-shadow strength (0 disables), y = sun-directional
+    // scatter in the aerial perspective, zw reserved.
+    sky_params: vec4<f32>,
 };
 
 @group(0) @binding(0)

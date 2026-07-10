@@ -153,6 +153,13 @@ pub struct CameraUniform {
     /// y = black point, z = saturation, w = contrast. Mirrored on the CPU by
     /// `SceneLighting::grade_reference`.
     pub grade_params: GpuVec4,
+    /// Packed cloud layer from the lighting profile: x = coverage bias, y = pattern scale,
+    /// z = opacity, w = drift speed (UV per presentation second).
+    pub cloud_params: GpuVec4,
+    /// Packed sky/air extras: x = cloud-shadow strength on the terrain key (profile strength,
+    /// already gated by `LightingQuality::cloud_shadows` — 0 disables), y = sun-directional
+    /// scatter in the aerial perspective, z/w reserved (0).
+    pub sky_params: GpuVec4,
 }
 
 /// The per-frame pass parameters that ride the camera uniform beside the view matrices and
@@ -170,6 +177,9 @@ pub struct FramePassParams {
     /// Inverse render-target size (`1/width`, `1/height`) — rides `fog_params.zw` so the shaders
     /// can address reduced-resolution screen targets by framebuffer pixel.
     pub inv_render_size: [f32; 2],
+    /// Whether this adapter tier runs terrain cloud shadows (`LightingQuality::cloud_shadows`);
+    /// false zeroes the profile's strength in `sky_params.x`.
+    pub cloud_shadows_enabled: bool,
     pub time_s: f32,
     /// Rain streak density 0..1 (`time_params.y`); 0 in every non-rain look.
     pub rain_intensity: f32,
@@ -188,6 +198,7 @@ impl Default for FramePassParams {
             cascade_params: [0.0, 0.0, 0.0, 0.0],
             ssao_params: [0.1, 1500.0, 0.0, 1.0],
             inv_render_size: [0.0, 0.0],
+            cloud_shadows_enabled: true,
             time_s: 0.0,
             rain_intensity: 0.0,
             wetness: 0.0,
@@ -237,6 +248,18 @@ impl CameraUniform {
                 lighting.black_point,
                 lighting.saturation,
                 lighting.contrast,
+            ]),
+            cloud_params: GpuVec4([
+                lighting.cloud_coverage_bias,
+                lighting.cloud_scale,
+                lighting.cloud_opacity,
+                lighting.cloud_drift,
+            ]),
+            sky_params: GpuVec4([
+                if passes.cloud_shadows_enabled { lighting.cloud_shadow_strength } else { 0.0 },
+                lighting.fog_sun_scatter,
+                0.0,
+                0.0,
             ]),
         }
     }

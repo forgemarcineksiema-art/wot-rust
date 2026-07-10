@@ -177,6 +177,55 @@ fn exposure_brightens_monotonically_before_the_curve() {
 }
 
 #[test]
+fn each_sky_look_owns_a_distinct_cloud_layer() {
+    // Rain reads as an overcast lid: much thicker coverage than the clear looks, near-full
+    // opacity — and NO terrain cloud shade (the lid itself is the shadow, moving patches under a
+    // sunless sky would look wrong).
+    let rain = SceneLighting::bystra_rain();
+    let clear = SceneLighting::bystra_clear_afternoon();
+    let dawn = SceneLighting::bystra_dawn_fog();
+    assert!(
+        rain.cloud_coverage_bias > clear.cloud_coverage_bias + 0.2,
+        "rain must push the coverage into a lid: {} vs {}",
+        rain.cloud_coverage_bias,
+        clear.cloud_coverage_bias
+    );
+    assert_eq!(rain.cloud_shadow_strength, 0.0, "no cloud shade under an overcast lid");
+    // The three Bystra looks are genuinely different skies, not one cloud layer recoloured.
+    let params = |l: &SceneLighting| {
+        (l.cloud_coverage_bias, l.cloud_scale, l.cloud_opacity, l.cloud_shadow_strength)
+    };
+    assert_ne!(params(&rain), params(&clear));
+    assert_ne!(params(&clear), params(&dawn));
+    assert_ne!(params(&rain), params(&dawn));
+    // Interiors carry no sky layer at all.
+    for interior in [SceneLighting::garage_studio(), SceneLighting::garage_workshop()] {
+        assert_eq!(interior.cloud_opacity, 0.0);
+        assert_eq!(interior.cloud_shadow_strength, 0.0);
+        assert_eq!(interior.fog_sun_scatter, 0.0);
+    }
+}
+
+#[test]
+fn sun_scatter_and_clouds_never_touch_the_fog_amount() {
+    // The 400 m spotting-fairness bound rests on fog_factor; the sky phase adds COLOUR only.
+    // Wildly different scatter/cloud settings must leave the fog amount bit-identical.
+    let base = SceneLighting::battlefield_default();
+    let mut wild = base;
+    wild.fog_sun_scatter = 1.0;
+    wild.cloud_coverage_bias = 0.5;
+    wild.cloud_opacity = 1.0;
+    wild.cloud_shadow_strength = 1.0;
+    for (distance, height) in [(100.0, 0.0), (400.0, 0.0), (600.0, 40.0), (900.0, 5.0)] {
+        assert_eq!(
+            base.fog_factor(distance, height),
+            wild.fog_factor(distance, height),
+            "fog amount must not depend on the sky colour params"
+        );
+    }
+}
+
+#[test]
 fn fog_thickens_with_distance_and_thins_with_height() {
     let l = SceneLighting::battlefield_default();
     // No fog at the camera; a distant surface is heavily fogged; density is monotonic in distance.

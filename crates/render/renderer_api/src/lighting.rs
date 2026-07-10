@@ -48,6 +48,24 @@ pub struct SceneLighting {
     /// Display contrast S-curve slope around mid grey; 1.0 is neutral. Replaces the old
     /// hardcoded 1.10.
     pub contrast: f32,
+    /// Cloud coverage bias, added to the sky FBM before the coverage threshold: 0 is the clear-day
+    /// baseline, positive values thicken the banks (≥ ~0.3 reads as an overcast lid), negative
+    /// values thin them to high sheets.
+    pub cloud_coverage_bias: f32,
+    /// Cloud pattern scale (UV multiplier): 1.0 is the baseline bank size; higher = finer/higher
+    /// sheets.
+    pub cloud_scale: f32,
+    /// Cloud opacity over the sky gradient (0..1). 0 removes the layer entirely.
+    pub cloud_opacity: f32,
+    /// Cloud drift speed in UV per presentation second (tick-domain clock).
+    pub cloud_drift: f32,
+    /// How strongly the cloud layer shades the terrain's sun (0..1). Kept at 0 under overcast —
+    /// the lid itself is the shadow — and gated per tier by `LightingQuality::cloud_shadows`.
+    pub cloud_shadow_strength: f32,
+    /// Sun-directional scatter in the aerial perspective (0..1): haze looked at *toward* the sun
+    /// warms toward the key colour instead of the flat horizon grey. Colour only — the fog
+    /// density/height model (and its 400 m fairness bound) is untouched by this.
+    pub fog_sun_scatter: f32,
 }
 
 impl SceneLighting {
@@ -119,6 +137,14 @@ impl SceneLighting {
             black_point: 0.03,
             saturation: 1.18,
             contrast: 1.15,
+            // A clear day with scattered banks: baseline coverage and drift, a gentle patchwork
+            // of cloud shade wandering the field, light warm scatter around the sun.
+            cloud_coverage_bias: 0.0,
+            cloud_scale: 1.0,
+            cloud_opacity: 0.9,
+            cloud_drift: 0.004,
+            cloud_shadow_strength: 0.25,
+            fog_sun_scatter: 0.5,
         }
     }
 
@@ -144,6 +170,14 @@ impl SceneLighting {
             black_point: 0.025,
             saturation: 1.22,
             contrast: 1.12,
+            // Golden afternoon: a few more banks than the battle noon, drifting cloud shade on
+            // the farmland, and a strong warm glow in the haze around the low western sun.
+            cloud_coverage_bias: 0.04,
+            cloud_scale: 1.1,
+            cloud_opacity: 0.9,
+            cloud_drift: 0.004,
+            cloud_shadow_strength: 0.3,
+            fog_sun_scatter: 0.65,
         }
     }
 
@@ -170,6 +204,14 @@ impl SceneLighting {
             black_point: 0.015,
             saturation: 1.06,
             contrast: 1.08,
+            // Rain: the coverage bias pushes the same FBM into a genuine overcast lid; no cloud
+            // shade on the ground (the lid IS the shadow), no sun to scatter around.
+            cloud_coverage_bias: 0.35,
+            cloud_scale: 1.3,
+            cloud_opacity: 0.97,
+            cloud_drift: 0.006,
+            cloud_shadow_strength: 0.0,
+            fog_sun_scatter: 0.15,
         }
     }
 
@@ -196,6 +238,14 @@ impl SceneLighting {
             black_point: 0.02,
             saturation: 1.10,
             contrast: 1.10,
+            // Dawn: thin, fine high sheets rather than banks; the strongest sun scatter of the
+            // set — the whole eastern mist glows toward the low sun.
+            cloud_coverage_bias: -0.05,
+            cloud_scale: 1.6,
+            cloud_opacity: 0.55,
+            cloud_drift: 0.003,
+            cloud_shadow_strength: 0.1,
+            fog_sun_scatter: 0.8,
         }
     }
 
@@ -224,6 +274,13 @@ impl SceneLighting {
             black_point: 0.02,
             saturation: 1.10,
             contrast: 1.08,
+            // Interior: no sky layer, no cloud shade, no scatter.
+            cloud_coverage_bias: 0.0,
+            cloud_scale: 1.0,
+            cloud_opacity: 0.0,
+            cloud_drift: 0.0,
+            cloud_shadow_strength: 0.0,
+            fog_sun_scatter: 0.0,
         }
     }
 
@@ -255,6 +312,13 @@ impl SceneLighting {
             black_point: 0.035,
             saturation: 1.10,
             contrast: 1.12,
+            // Interior: no sky layer, no cloud shade, no scatter.
+            cloud_coverage_bias: 0.0,
+            cloud_scale: 1.0,
+            cloud_opacity: 0.0,
+            cloud_drift: 0.0,
+            cloud_shadow_strength: 0.0,
+            fog_sun_scatter: 0.0,
         }
     }
 }

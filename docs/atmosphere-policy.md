@@ -72,7 +72,14 @@ linear colour/intensity. `ground_ambient_rgb` is the only new profile field for 
   sheet** breaks the dome out of a flat two-stop wash — anchored to the ray direction (world-stable,
   no swim), crawling only by the tick-domain presentation clock, lit toward the sun and greyed on the
   shadow side, faded out at the horizon band. Coverage is soft-thresholded so open blue shows between
-  the banks, and the same clouds grey down into an overcast lid under the rain profile.
+  the banks. **Profile-owned since the lighting 2.0 program**: coverage bias / scale / opacity /
+  drift are `SceneLighting` data (`cloud_params`), and the lit/shaded cloud colours DERIVE from the
+  profile's key and ambient — the rain profile biases the same FBM into a genuine overcast lid, a
+  golden sun paints the banks warm for free. The terrain's sun is additionally modulated by a
+  matched-scale, same-clock **cloud-shadow** slice of the layer (strength is profile data, 0 under
+  overcast, gated per tier by `LightingQuality::cloud_shadows`), and the aerial haze warms toward
+  the key colour when looked at toward the sun (**sun scatter** — colour only, the fog amount and
+  its 400 m fairness bound are locked untouched).
 - **Height + distance fog with aerial perspective**: distant terrain and vehicles desaturate toward
   the horizon/sky colour, giving a 1000 m map real depth instead of cardboard cut-outs at range. Fog
   is a profile parameter (density, colour, height falloff), evaluated in the lit shaders from the
