@@ -412,12 +412,14 @@ impl SceneLighting {
             sky_horizon_rgb: [0.16, 0.17, 0.20],
             fog_density: 0.0,
             fog_height_falloff: 0.0,
-            // Hero shot: a workshop-moody grade (deeper blacks than the studio), no sky layer,
-            // no cloud shade, no scatter — interior.
-            exposure: 1.05,
-            black_point: 0.03,
+            // Hero shot: the grade must SERVE the phase-1a relight, not undo it — a hot black
+            // point re-sank the flanks that the front fill exists to lift (the hero read as the
+            // darkest thing in the frame again). So: a bright showroom exposure, near-neutral
+            // blacks, gentle contrast; the moody-workshop grade stays on garage_workshop.
+            exposure: 1.18,
+            black_point: 0.012,
             saturation: 1.12,
-            contrast: 1.10,
+            contrast: 1.05,
             cloud_coverage_bias: 0.0,
             cloud_scale: 1.0,
             cloud_opacity: 0.0,

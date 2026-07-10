@@ -317,6 +317,23 @@ fn garage_hero_lifts_the_subject_off_the_workshop_silhouette() {
         luminance(hero.fill_rgb) > luminance(workshop.fill_rgb),
         "hero fill must be stronger than the workshop fill"
     );
+
+    // 4. The display grade must SERVE the relight, not undo it (regression from the lighting 2.0
+    //    merge: a workshop-moody black point re-sank the flanks and the hero read as a silhouette
+    //    again). Showroom formation: bright exposure, near-neutral blacks, gentler contrast than
+    //    the moody workshop.
+    assert!(hero.exposure >= 1.1, "hero exposure is showroom-bright, got {}", hero.exposure);
+    assert!(
+        hero.black_point < workshop.black_point,
+        "hero blacks stay open vs the moody workshop: {} vs {}",
+        hero.black_point,
+        workshop.black_point
+    );
+    assert!(hero.black_point <= 0.02, "hero black point stays near-neutral");
+    assert!(
+        hero.contrast <= workshop.contrast,
+        "the hero grade must not out-crush the workshop's contrast"
+    );
 }
 
 #[test]
