@@ -121,7 +121,8 @@ fn armor_profile_for(kind: VehicleKind, modules: &VehicleModules) -> ArmorProfil
         | VehicleKind::TigerI
         | VehicleKind::TigerII
         | VehicleKind::Jagdtiger
-        | VehicleKind::PantherII => {
+        | VehicleKind::PantherII
+        | VehicleKind::Centurion => {
             unreachable!("{kind:?} is blueprint-migrated")
         }
         VehicleKind::T54_1951 | VehicleKind::T55A => ArmorProfile::new_with_facets(

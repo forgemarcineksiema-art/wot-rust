@@ -8,6 +8,7 @@ use crate::TankSpec;
 pub enum Nation {
     Ussr,
     Germany,
+    Britain,
 }
 
 impl Nation {
@@ -15,6 +16,7 @@ impl Nation {
         match self {
             Nation::Ussr => "USSR",
             Nation::Germany => "Germany",
+            Nation::Britain => "Britain",
         }
     }
 
@@ -23,6 +25,7 @@ impl Nation {
         match self {
             Nation::Ussr => [0.58, 0.64, 0.40],
             Nation::Germany => [0.38, 0.42, 0.48],
+            Nation::Britain => [0.52, 0.46, 0.34],
         }
     }
 }
@@ -88,11 +91,12 @@ pub enum VehicleKind {
     Jagdtiger,
     PantherII,
     IS3,
+    Centurion,
 }
 
 impl VehicleKind {
     /// Every known vehicle, in declaration (wire) order.
-    pub const ALL: [VehicleKind; 8] = [
+    pub const ALL: [VehicleKind; 9] = [
         VehicleKind::PrototypeMedium,
         VehicleKind::T54_1951,
         VehicleKind::T55A,
@@ -101,17 +105,19 @@ impl VehicleKind {
         VehicleKind::Jagdtiger,
         VehicleKind::PantherII,
         VehicleKind::IS3,
+        VehicleKind::Centurion,
     ];
 
     /// Player-facing production roster. Legacy/test-only vehicles remain in [`Self::ALL`] for
     /// stable wire identity, but garage and review surfaces should use this list.
-    pub const PLAYABLE: [VehicleKind; 6] = [
+    pub const PLAYABLE: [VehicleKind; 7] = [
         VehicleKind::T54_1951,
         VehicleKind::TigerI,
         VehicleKind::TigerII,
         VehicleKind::Jagdtiger,
         VehicleKind::PantherII,
         VehicleKind::IS3,
+        VehicleKind::Centurion,
     ];
 
     /// Asset slug stem; matches `assets/vehicles/<slug>.vehicle.json` for the six vehicles
@@ -126,6 +132,7 @@ impl VehicleKind {
             VehicleKind::Jagdtiger => "jagdtiger",
             VehicleKind::PantherII => "panther_ii",
             VehicleKind::IS3 => "is3",
+            VehicleKind::Centurion => "centurion_mk3",
         }
     }
 
@@ -147,6 +154,7 @@ impl VehicleKind {
             VehicleKind::Jagdtiger => "Panzerjager Tiger Ausf. B Jagdtiger",
             VehicleKind::PantherII => "Panzerkampfwagen V Panther II",
             VehicleKind::IS3 => "IS-3",
+            VehicleKind::Centurion => "Centurion Mk 3",
         }
     }
 
@@ -170,7 +178,8 @@ impl VehicleKind {
             VehicleKind::PrototypeMedium
             | VehicleKind::T54_1951
             | VehicleKind::T55A
-            | VehicleKind::IS3 => Era::ColdWar,
+            | VehicleKind::IS3
+            | VehicleKind::Centurion => Era::ColdWar,
         }
     }
 
@@ -185,6 +194,7 @@ impl VehicleKind {
             | VehicleKind::TigerII
             | VehicleKind::Jagdtiger
             | VehicleKind::PantherII => Nation::Germany,
+            VehicleKind::Centurion => Nation::Britain,
         }
     }
 
@@ -199,7 +209,7 @@ mod tests {
 
     #[test]
     fn all_is_complete_and_unique() {
-        assert_eq!(VehicleKind::ALL.len(), 8);
+        assert_eq!(VehicleKind::ALL.len(), 9);
         for (index, kind) in VehicleKind::ALL.iter().enumerate() {
             for other in &VehicleKind::ALL[index + 1..] {
                 assert_ne!(kind, other, "VehicleKind::ALL must not contain duplicates");
@@ -218,6 +228,7 @@ mod tests {
                 VehicleKind::Jagdtiger,
                 VehicleKind::PantherII,
                 VehicleKind::IS3,
+                VehicleKind::Centurion,
             ]
         );
         assert!(!VehicleKind::PLAYABLE.contains(&VehicleKind::PrototypeMedium));
@@ -278,7 +289,9 @@ mod tests {
         ] {
             assert_eq!(kind.era(), Era::LateWar, "{kind:?}");
         }
-        for kind in [VehicleKind::T54_1951, VehicleKind::T55A, VehicleKind::IS3] {
+        for kind in
+            [VehicleKind::T54_1951, VehicleKind::T55A, VehicleKind::IS3, VehicleKind::Centurion]
+        {
             assert_eq!(kind.era(), Era::ColdWar, "{kind:?}");
         }
     }
@@ -319,22 +332,34 @@ mod tests {
         assert_eq!(VehicleKind::Jagdtiger.nation(), Nation::Germany);
         assert_eq!(VehicleKind::PantherII.nation(), Nation::Germany);
         assert_eq!(VehicleKind::IS3.nation(), Nation::Ussr);
+        assert_eq!(VehicleKind::Centurion.nation(), Nation::Britain);
     }
 
     #[test]
     fn nation_labels_and_colors_are_distinct() {
-        let labels = [Nation::Ussr.label(), Nation::Germany.label()];
-        assert_ne!(labels[0], labels[1]);
-        assert!(!labels.iter().any(|label| label.is_empty()));
+        let labels = [Nation::Ussr.label(), Nation::Germany.label(), Nation::Britain.label()];
+        for (index, label) in labels.iter().enumerate() {
+            assert!(!label.is_empty());
+            for other in &labels[index + 1..] {
+                assert_ne!(label, other);
+            }
+        }
 
-        let colors = [Nation::Ussr.color(), Nation::Germany.color()];
-        assert_ne!(colors[0], colors[1]);
+        let colors = [Nation::Ussr.color(), Nation::Germany.color(), Nation::Britain.color()];
+        for (index, color) in colors.iter().enumerate() {
+            for other in &colors[index + 1..] {
+                assert_ne!(color, other);
+            }
+        }
     }
 
     #[test]
-    fn playable_roster_spans_both_nations() {
-        let has_ussr = VehicleKind::PLAYABLE.iter().any(|kind| kind.nation() == Nation::Ussr);
-        let has_germany = VehicleKind::PLAYABLE.iter().any(|kind| kind.nation() == Nation::Germany);
-        assert!(has_ussr && has_germany, "playable roster must include both nations");
+    fn playable_roster_spans_all_nations() {
+        for nation in [Nation::Ussr, Nation::Germany, Nation::Britain] {
+            assert!(
+                VehicleKind::PLAYABLE.iter().any(|kind| kind.nation() == nation),
+                "playable roster must include {nation:?}"
+            );
+        }
     }
 }

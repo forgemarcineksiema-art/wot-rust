@@ -4,6 +4,7 @@
 //! modules are the single source of truth for a vehicle's stats.
 
 mod catalog;
+mod catalog_british;
 mod catalog_german;
 mod catalog_misc;
 mod catalog_soviet;

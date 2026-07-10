@@ -89,6 +89,9 @@ fn every_vehicle_bake_hash_matches_golden_output() {
         // Re-recorded for the IS-3 finish pass: the signature external fuel drums join the
         // rear fender shelves; the rest of the fleet is untouched.
         (VehicleKind::IS3, 12_986_415_458_548_359_195_u64),
+        // Recorded at birth: the Centurion Mk 3 (skirted hull over Horstmann bogie pairs,
+        // 57° glacis, cast Mk 3 dome with the bustle bin, clean 20-pounder).
+        (VehicleKind::Centurion, 1_113_949_107_773_166_927_u64),
     ];
     let actual: Vec<(VehicleKind, u64)> =
         bake_all().iter().map(|vehicle| (vehicle.kind(), vehicle.deterministic_hash())).collect();

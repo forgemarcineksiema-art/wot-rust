@@ -117,10 +117,30 @@ const WATER_PROBE_STEP_M: f32 = 12.0;
 /// 30-40 m river, so the bot commits across the deck instead of stalling mid-crossing.
 const CROSSING_EXIT_M: f32 = 45.0;
 
-/// True when the hull already stands past the route brain's deep-water line — the survival
-/// check `bots.rs` runs before anything else.
+/// Wading past the ford ceiling arms the momentum check below: every authored ford stays at
+/// or under `physics::water::FORD_MAX_DEPTH_M` (0.9), so a hull deeper than this is already
+/// OFF every legitimate crossing line.
+const WADE_ALERT_M: f32 = 0.95;
+/// How far ahead of the hull the armed momentum check probes, in seconds of current velocity.
+/// Momentum is what carries a wading hull past the 1.2 m line toward the 1.5 m drowning line
+/// before a reactive escape bites — a heavy, slow-reversing hull (the Centurion) overshot to
+/// 1.52 m with a purely positional check. The check only arms past `WADE_ALERT_M`, so dry
+/// approaches to bridges and honest ford runs never trip it.
+const DEEP_WATER_LOOKAHEAD_S: f32 = 0.8;
+
+/// True when the hull stands past the route brain's deep-water line — or is already wading
+/// off every crossing line with momentum still carrying it deeper — the survival check
+/// `bots.rs` runs before anything else.
 pub(crate) fn bot_in_deep_water(tank: &TankState, battlefield: &BattlefieldMap) -> bool {
-    water_depth_at(battlefield, tank.position.x, tank.position.z) > BOT_DEEP_WATER_M
+    let here = water_depth_at(battlefield, tank.position.x, tank.position.z);
+    if here > BOT_DEEP_WATER_M {
+        return true;
+    }
+    if here <= WADE_ALERT_M {
+        return false;
+    }
+    let ahead = tank.position + tank.velocity_mps * DEEP_WATER_LOOKAHEAD_S;
+    water_depth_at(battlefield, ahead.x, ahead.z) > here
 }
 
 /// Standing-water depth under a world point; 0 on dry maps, off-map, or above the waterline.
@@ -169,7 +189,14 @@ fn bot_lane(tank: &TankState, waypoint: Vec3, battlefield: &BattlefieldMap) -> V
     let side = Vec3::new(flat.z, 0.0, -flat.x).normalize_or_zero();
     let lane = ((tank.id.0 % 5) as f32 - 2.0) * 9.0;
     let candidate = waypoint + side * lane;
-    if water_depth_at(battlefield, candidate.x, candidate.z) > BOT_DEEP_WATER_M {
+    // The lane must be dry along its DRIVE LINE, not just at the endpoint: an offset exit
+    // past a crossing can sit on the dry far bank while the offset line leaves the deck and
+    // runs through the channel beside it. Enforced only on the final approach — far from the
+    // waypoint the lanes must keep spreading traffic or the spawn-funnel deadlock returns.
+    let final_approach = flat.length() < 90.0;
+    if water_depth_at(battlefield, candidate.x, candidate.z) > BOT_DEEP_WATER_M
+        || (final_approach && line_crosses_deep_water(battlefield, tank.position, candidate))
+    {
         return waypoint;
     }
     candidate

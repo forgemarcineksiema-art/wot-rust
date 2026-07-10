@@ -1,3 +1,4 @@
+use super::catalog_british::{centurion_loadout, gun_20pdr_type_b};
 use super::catalog_german::{
     gun_kwk36, gun_kwk43, tiger_i_engine_hl210, tiger_i_loadout, tiger_i_transport_track,
     tiger_ii_loadout, tiger_ii_transport_track,
@@ -29,6 +30,7 @@ impl VehicleKind {
             VehicleKind::Jagdtiger => jagdtiger_loadout(),
             VehicleKind::PantherII => panther_loadout(),
             VehicleKind::IS3 => is3_loadout(),
+            VehicleKind::Centurion => centurion_loadout(),
         }
     }
 
@@ -51,6 +53,12 @@ impl VehicleKind {
             VehicleKind::Jagdtiger => vec![gun_pak80(), gun_pak43_l71()],
             VehicleKind::PantherII => vec![gun_kwk42()],
             VehicleKind::IS3 => vec![gun_d25t()],
+            // The two fielded 20-pounder barrels: the original Type A and the fume-extractor
+            // Type B — same ballistics, a handling/reload sidegrade.
+            VehicleKind::Centurion => {
+                let stock = self.default_loadout().gun;
+                vec![stock, gun_20pdr_type_b()]
+            }
         }
     }
 

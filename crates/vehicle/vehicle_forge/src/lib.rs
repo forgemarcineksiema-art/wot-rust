@@ -1,4 +1,4 @@
-//! Armored Vehicle Forge foundation.
+﻿//! Armored Vehicle Forge foundation.
 //!
 //! This crate owns the source-of-truth layer above low-level procedural geometry: reference packs,
 //! semantic targets, bake reports, and eventually Forge artifacts. It may consume
@@ -8,6 +8,7 @@ mod artifact;
 mod compiler;
 mod mesh_source;
 mod packs;
+mod packs_british;
 mod packs_german;
 mod packs_is3;
 mod part_data;
@@ -29,6 +30,7 @@ pub use compiler::{
 };
 pub use mesh_source::authoritative_baked_vehicle;
 pub use packs::t54_reference_pack;
+pub use packs_british::centurion_reference_pack;
 pub use packs_german::{
     jagdtiger_reference_pack, panther_ii_reference_pack, tiger_i_reference_pack,
     tiger_ii_reference_pack,
