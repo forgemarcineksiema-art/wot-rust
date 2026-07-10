@@ -130,17 +130,21 @@ pub fn jagdtiger_reference_pack() -> ReferencePack {
             "https://tank-afv.com/ww2/germany/Jagdtiger.php",
             "docs/vehicles/jagdtiger.md",
         ),
+        // Re-tuned to the blueprint-born 1:1 body (7.80 m hull, 3.64 m beam, 2.95 m roof): the
+        // casemate flank now CONTINUES the hull's 25° plane, so the "hull" band carries most of
+        // the height and the superstructure reads as a low wide crown on it — the old targets
+        // described the legacy tall-box-on-flat-hull construction.
         silhouette_ratios(
-            1.97,
-            0.146,
-            0.74,
-            1.56,
-            0.49,
+            2.10,
+            0.26,
+            0.73,
+            0.53,
+            0.37,
             [
-                "Long heavy hull shared with the Tiger II.",
-                "Low hull — the mass is in the casemate above it, not the hull.",
+                "The longest hull in the German line, stretched from the Tiger II.",
+                "The unbroken flank makes the hull band deep; the casemate is welded INTO it.",
                 "Wide fixed casemate fills most of the hull width.",
-                "Casemate superstructure stands taller than the hull itself.",
+                "A low wide fighting compartment crowns the deep hull, no cupola.",
                 "12.8 cm Pak reaches far past the nose.",
             ],
         ),

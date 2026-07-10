@@ -19,6 +19,7 @@ mod data;
 mod fittings;
 mod hybrid;
 mod is3;
+mod jagdtiger;
 mod shape_track;
 mod t54_hybrid;
 mod t54_hybrid_turret;

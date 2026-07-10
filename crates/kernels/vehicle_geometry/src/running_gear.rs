@@ -95,7 +95,7 @@ impl RunningGearKinematics {
             // Interleaved/overlapped discs: each row must be thin enough that the inner row
             // (one `overlap_inner_dx` inboard) clears the outer row's faces.
             VehicleKind::TigerI => 0.10,
-            VehicleKind::TigerII => 0.09,
+            VehicleKind::TigerII | VehicleKind::Jagdtiger => 0.09,
             _ => ((track.outer_x - track.inner_x) * 0.5).max(0.03),
         };
         let link_half_width = match kind {
@@ -107,7 +107,7 @@ impl RunningGearKinematics {
             // The Tiger family's combat bands (725/800 mm): wide shoes spanning the
             // interleaved wheel rows they ride over.
             VehicleKind::TigerI => 0.28,
-            VehicleKind::TigerII => 0.31,
+            VehicleKind::TigerII | VehicleKind::Jagdtiger => 0.31,
             _ => (track.belt_half_thickness * 0.5).max(0.02),
         };
         let link_count = match kind {
@@ -144,7 +144,8 @@ impl RunningGearKinematics {
                 VehicleKind::T54_1951
                 | VehicleKind::IS3
                 | VehicleKind::TigerI
-                | VehicleKind::TigerII => (track.inner_x + track.outer_x) * 0.5,
+                | VehicleKind::TigerII
+                | VehicleKind::Jagdtiger => (track.inner_x + track.outer_x) * 0.5,
                 _ => track.center_x + track.belt_half_thickness - track.belt_half_thickness * 0.5,
             },
             link_half_width,

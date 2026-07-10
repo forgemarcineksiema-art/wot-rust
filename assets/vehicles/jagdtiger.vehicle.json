@@ -13,7 +13,39 @@
     "hull_rear_mm": 80.0,
     "turret_front_mm": 250.0,
     "turret_side_mm": 80.0,
-    "turret_rear_mm": 80.0
+    "turret_rear_mm": 80.0,
+    "facets": {
+      "hull_front": {
+        "nominal_thickness_mm": 150.0,
+        "slope_degrees": 50.0,
+        "weakspot_multiplier": 1.0
+      },
+      "hull_side": {
+        "nominal_thickness_mm": 80.0,
+        "slope_degrees": 25.0,
+        "weakspot_multiplier": 1.0
+      },
+      "hull_rear": {
+        "nominal_thickness_mm": 80.0,
+        "slope_degrees": 30.0,
+        "weakspot_multiplier": 1.0
+      },
+      "turret_front": {
+        "nominal_thickness_mm": 250.0,
+        "slope_degrees": 15.0,
+        "weakspot_multiplier": 0.95
+      },
+      "turret_side": {
+        "nominal_thickness_mm": 80.0,
+        "slope_degrees": 25.0,
+        "weakspot_multiplier": 1.0
+      },
+      "turret_rear": {
+        "nominal_thickness_mm": 80.0,
+        "slope_degrees": 5.0,
+        "weakspot_multiplier": 1.0
+      }
+    }
   },
   "gun": {
     "name": "12.8 cm Pak 80 L/55",
@@ -23,26 +55,117 @@
     "movement_bloom_mrad": 3.2,
     "shot_bloom_mrad": 3.5,
     "max_dispersion_mrad": 14.0,
+    "barrel_length_m": 7.0,
     "shell": {
+      "shell_type": "ArmorPiercing",
       "caliber_mm": 128.0,
       "muzzle_velocity_mps": 920.0,
       "penetration_mm_at_100m": 223.0,
-      "damage_hp": 530
-    }
+      "damage_hp": 530,
+      "explosive_radius_m": 0.0
+    },
+    "special_shell": null
   },
+  "ammo": {
+    "counts": [
+      24,
+      10,
+      6
+    ],
+    "initial_selected": 0
+  },
+  "ammo_capacity": 40,
   "hit_points": 2200,
   "module_health": {
     "engine": 170,
     "suspension": 190,
     "turret": 320,
     "gun": 180,
+    "ammo_rack": 340,
     "radio": 50
   },
   "hitbox": {
-    "half_width_m": 2.0,
-    "half_height_m": 1.47,
-    "half_length_m": 4.1,
-    "center_y_m": 1.42,
-    "turret_min_y_m": 0.58
+    "half_width_m": 1.82,
+    "half_height_m": 1.5,
+    "half_length_m": 3.95,
+    "center_y_m": 1.45,
+    "turret_min_y_m": 0.41,
+    "turret_half_width_m": 1.356,
+    "turret_half_length_m": 1.6,
+    "turret_center_z_m": -0.3
+  },
+  "damage_layout": {
+    "volumes": []
+  },
+  "mounts": {
+    "turret_ring": {
+      "translation": [
+        0.0,
+        1.86,
+        -0.3
+      ],
+      "basis": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "gun_trunnion": {
+      "translation": [
+        0.0,
+        2.25,
+        1.3
+      ],
+      "basis": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "muzzle": {
+      "translation": [
+        0.0,
+        2.25,
+        6.75
+      ],
+      "basis": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    }
+  },
+  "contact": {
+    "stations": [
+      -2.1,
+      -1.5749999,
+      -1.05,
+      -0.525,
+      0.0,
+      0.5250001,
+      1.05,
+      1.5749998
+    ],
+    "station_count": 8,
+    "half_gauge_x": 1.4,
+    "wheel_radius": 0.4
   }
 }
