@@ -56,13 +56,22 @@ pub enum ForgePartKind {
     Hull,
     UpperGlacis,
     LowerPlate,
+    /// A pike nose (IS-3): TWO swept bow plates meeting at the central ridge — one silhouette
+    /// part, because the pair reads (and armors) as one construction.
+    PikeBow,
     Fenders,
+    /// Full-length side skirts (the Centurion's bazooka plates): gameplay-real spaced armor,
+    /// not a fitting — `ArmorZone::Skirt` resolves on the plane this part stands on.
+    Skirts,
     TrackRun,
     TrackBelt,
     RoadWheels,
     RoadWheelSet,
     Idler,
     DriveSprocket,
+    /// Small top-run carrier rollers (IS family, Centurion) — running gear, distinct from the
+    /// road wheels the belt rides between them.
+    ReturnRollers,
     Turret,
     TurretCheeks,
     Mantlet,
@@ -71,6 +80,11 @@ pub enum ForgePartKind {
     Gun,
     Cupola,
     EngineDeck,
+    /// The turret bustle stowage bin (Centurion Mk 3, the Tiger's Rommelkiste): external
+    /// stowage riding the turret, cosmetic to the armor model.
+    StowageBin,
+    /// External fuel drums on the rear fenders (IS family): cosmetic stowage.
+    FuelDrums,
 }
 
 impl ForgePartKind {
@@ -78,13 +92,12 @@ impl ForgePartKind {
     pub fn gameplay_role(self) -> GameplayRole {
         use ForgePartKind::*;
         match self {
-            Hull | UpperGlacis | LowerPlate | Turret | TurretCheeks | Mantlet | MantletSocket
-            | MovingMantlet => GameplayRole::Armor,
-            TrackRun | TrackBelt | RoadWheels | RoadWheelSet | Idler | DriveSprocket => {
-                GameplayRole::RunningGear
-            }
+            Hull | UpperGlacis | LowerPlate | PikeBow | Skirts | Turret | TurretCheeks
+            | Mantlet | MantletSocket | MovingMantlet => GameplayRole::Armor,
+            TrackRun | TrackBelt | RoadWheels | RoadWheelSet | Idler | DriveSprocket
+            | ReturnRollers => GameplayRole::RunningGear,
             Gun => GameplayRole::Weapon,
-            Fenders | Cupola | EngineDeck => GameplayRole::Fitting,
+            Fenders | Cupola | EngineDeck | StowageBin | FuelDrums => GameplayRole::Fitting,
         }
     }
 
@@ -93,10 +106,12 @@ impl ForgePartKind {
         use ForgePartKind::*;
         match self {
             Turret | Gun => LodPolicy::MountCritical,
-            Hull | UpperGlacis | LowerPlate | TrackRun | RoadWheels | TurretCheeks
-            | MovingMantlet => LodPolicy::Silhouette,
-            Fenders | TrackBelt | RoadWheelSet | Idler | DriveSprocket | Mantlet
-            | MantletSocket | Cupola | EngineDeck => LodPolicy::Detail,
+            Hull | UpperGlacis | LowerPlate | PikeBow | Skirts | TrackRun | RoadWheels
+            | TurretCheeks | MovingMantlet => LodPolicy::Silhouette,
+            Fenders | TrackBelt | RoadWheelSet | Idler | DriveSprocket | ReturnRollers
+            | Mantlet | MantletSocket | Cupola | EngineDeck | StowageBin | FuelDrums => {
+                LodPolicy::Detail
+            }
         }
     }
 }

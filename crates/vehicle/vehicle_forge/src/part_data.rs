@@ -1,7 +1,11 @@
 //! Semantic part derivation helpers.
 
+mod centurion;
+mod is3;
 mod t54;
 
+pub(crate) use centurion::centurion_parts;
+pub(crate) use is3::is3_parts;
 pub(crate) use t54::t54_family_parts;
 
 use game_core::MountFrames;
