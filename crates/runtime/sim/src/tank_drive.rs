@@ -85,7 +85,8 @@ pub fn step_tank_drive(
             let traction = modules.tracks.rolling_traction();
             settings.turn_rate_rad_s *= traction;
             settings.yaw_accel_rad_s2 *= traction;
-            settings.drive_power_mps3 *= DAMAGED_SPEED_FLOOR + (1.0 - DAMAGED_SPEED_FLOOR) * traction;
+            settings.drive_power_mps3 *=
+                DAMAGED_SPEED_FLOOR + (1.0 - DAMAGED_SPEED_FLOOR) * traction;
         } else {
             // Exactly one side thrown (the both-thrown case is the hard stop below). The live side
             // still drives, so the hull crawls — slow, but fully controllable and able to STOP.
