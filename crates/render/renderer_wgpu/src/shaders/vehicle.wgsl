@@ -234,7 +234,8 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     // terms only, so a sunlit hull keeps its full key.
     let contact = clamp(input.shade, 0.0, 1.0);
     let screen = screen_ao(input.clip);
-    let lit = albedo * light_radiance(world_n, shadow, screen) * ao * cavity * contact;
+    let lit =
+        albedo * light_radiance(input.world_pos, world_n, shadow, screen) * ao * cavity * contact;
 
     // Roughness-driven specular off the key light, evaluated against the real world-space view
     // direction (camera position - fragment position) so the highlight tracks the camera, not a

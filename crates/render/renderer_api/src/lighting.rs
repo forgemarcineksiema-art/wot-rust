@@ -3,6 +3,44 @@
 //! into GPU bytes in exactly one place (`renderer_wgpu::CameraUniform::from_scene`). See
 //! `docs/atmosphere-policy.md`.
 
+/// How many local light slots ride the camera uniform. Fixed so the GPU layout is static; unused
+/// slots are disabled by `radius_m == 0` and cost one uniform read.
+pub const MAX_LOCAL_LIGHTS: usize = 6;
+
+/// An unshadowed local fill pool — a worklamp over the turntable, the glow of a frosted pane.
+/// Purely additive on top of the directional rig, attenuated by distance so it reads as a POOL
+/// of light, never a sun. No shadowing: these are bounce-light approximations, kept soft.
+/// `radius_m == 0` disables the slot (the outdoor profiles carry all-off arrays for free).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct LocalLight {
+    /// World position of the emitter.
+    pub position: [f32; 3],
+    /// Radius the pool fades to zero at; 0 disables the light entirely.
+    pub radius_m: f32,
+    /// Linear colour.
+    pub rgb: [f32; 3],
+    /// Intensity multiplier on the colour.
+    pub intensity: f32,
+}
+
+impl LocalLight {
+    pub const OFF: Self = Self { position: [0.0; 3], radius_m: 0.0, rgb: [0.0; 3], intensity: 0.0 };
+
+    /// CPU mirror of the shader falloff (`local_pools` in `lighting_common.wgsl`):
+    /// `t = clamp(1 - d²/r², 0, 1); t²`. Returns 0 for a disabled light, 1 at the emitter,
+    /// 0 at and beyond the radius — testable without a GPU.
+    pub fn attenuation_at(&self, distance_m: f32) -> f32 {
+        if self.radius_m <= 0.0 {
+            return 0.0;
+        }
+        let t = (1.0 - (distance_m * distance_m) / (self.radius_m * self.radius_m)).clamp(0.0, 1.0);
+        t * t
+    }
+}
+
+/// The all-off local light array every outdoor profile carries: zero radius = disabled slots.
+pub const NO_LOCAL_LIGHTS: [LocalLight; MAX_LOCAL_LIGHTS] = [LocalLight::OFF; MAX_LOCAL_LIGHTS];
+
 /// Calibrated outdoor scene lighting: a hemispheric sky/ground ambient plus key/fill/rim directional
 /// lights, consumed by both the scene and the vehicle shaders. Each `*_direction` is a world-space
 /// vector pointing *towards* the light (the shader normalizes it); each `*_rgb` is that light's
@@ -66,6 +104,9 @@ pub struct SceneLighting {
     /// warms toward the key colour instead of the flat horizon grey. Colour only — the fog
     /// density/height model (and its 400 m fairness bound) is untouched by this.
     pub fog_sun_scatter: f32,
+    /// Unshadowed local fill pools (see [`LocalLight`]). All-off on every outdoor profile
+    /// ([`NO_LOCAL_LIGHTS`]); the garage rig hangs its worklamps here.
+    pub local_lights: [LocalLight; MAX_LOCAL_LIGHTS],
 }
 
 impl SceneLighting {
@@ -145,6 +186,7 @@ impl SceneLighting {
             cloud_drift: 0.004,
             cloud_shadow_strength: 0.25,
             fog_sun_scatter: 0.5,
+            local_lights: NO_LOCAL_LIGHTS,
         }
     }
 
@@ -178,6 +220,7 @@ impl SceneLighting {
             cloud_drift: 0.004,
             cloud_shadow_strength: 0.3,
             fog_sun_scatter: 0.65,
+            local_lights: NO_LOCAL_LIGHTS,
         }
     }
 
@@ -212,6 +255,7 @@ impl SceneLighting {
             cloud_drift: 0.006,
             cloud_shadow_strength: 0.0,
             fog_sun_scatter: 0.15,
+            local_lights: NO_LOCAL_LIGHTS,
         }
     }
 
@@ -246,6 +290,7 @@ impl SceneLighting {
             cloud_drift: 0.003,
             cloud_shadow_strength: 0.1,
             fog_sun_scatter: 0.8,
+            local_lights: NO_LOCAL_LIGHTS,
         }
     }
 
@@ -278,6 +323,7 @@ impl SceneLighting {
             cloud_drift: 0.004,
             cloud_shadow_strength: 0.3,
             fog_sun_scatter: 0.85,
+            local_lights: NO_LOCAL_LIGHTS,
         }
     }
 
@@ -308,6 +354,7 @@ impl SceneLighting {
             cloud_drift: 0.005,
             cloud_shadow_strength: 0.0,
             fog_sun_scatter: 0.1,
+            local_lights: NO_LOCAL_LIGHTS,
         }
     }
 
@@ -343,6 +390,7 @@ impl SceneLighting {
             cloud_drift: 0.0,
             cloud_shadow_strength: 0.0,
             fog_sun_scatter: 0.0,
+            local_lights: NO_LOCAL_LIGHTS,
         }
     }
 
@@ -381,6 +429,7 @@ impl SceneLighting {
             cloud_drift: 0.0,
             cloud_shadow_strength: 0.0,
             fog_sun_scatter: 0.0,
+            local_lights: NO_LOCAL_LIGHTS,
         }
     }
 
@@ -397,8 +446,10 @@ impl SceneLighting {
         Self {
             // Near-neutral, faintly warm — the old blue-leaning ambient painted the gunmetal
             // walls navy; the workshop is lit by daylight and worklights, not moonlight.
-            ambient_rgb: [0.285, 0.28, 0.275],
-            ground_ambient_rgb: [0.16, 0.15, 0.14],
+            // Trimmed a step below the facelift value: the local pools carry the warmth now,
+            // and pools only read as POOLS against a quieter base.
+            ambient_rgb: [0.26, 0.255, 0.25],
+            ground_ambient_rgb: [0.15, 0.14, 0.13],
             // Steep enough to still read as skylight-through-the-roof, but with real horizontal reach
             // so `dot(n, key)` is meaningful on the vertical flanks, not only the decks.
             key_direction: [-0.45, 0.78, 0.42],
@@ -428,6 +479,49 @@ impl SceneLighting {
             cloud_drift: 0.0,
             cloud_shadow_strength: 0.0,
             fog_sun_scatter: 0.0,
+            // The worklight rig. Positions coincide with the lamp housings the hangar mesh
+            // hangs (`hangar_gallery::push_high_bay_lamps`) — the light pools where the lamp
+            // is, or the room reads as haunted. Two warm high-bays over the turntable, a
+            // strip over the workbench, the cool glow of the frosted panes over the gate,
+            // and a zone lamp each for the stores corner and the second bay.
+            local_lights: [
+                LocalLight {
+                    position: [-3.6, 9.8, 1.8],
+                    radius_m: 11.0,
+                    rgb: [1.0, 0.88, 0.70],
+                    intensity: 1.5,
+                },
+                LocalLight {
+                    position: [3.6, 9.8, -1.8],
+                    radius_m: 11.0,
+                    rgb: [1.0, 0.88, 0.70],
+                    intensity: 1.3,
+                },
+                LocalLight {
+                    position: [16.0, 3.4, 6.0],
+                    radius_m: 6.0,
+                    rgb: [1.0, 0.95, 0.85],
+                    intensity: 1.2,
+                },
+                LocalLight {
+                    position: [0.0, 7.6, -17.0],
+                    radius_m: 10.0,
+                    rgb: [0.72, 0.82, 1.0],
+                    intensity: 0.8,
+                },
+                LocalLight {
+                    position: [-14.5, 6.2, 10.0],
+                    radius_m: 7.0,
+                    rgb: [1.0, 0.90, 0.75],
+                    intensity: 1.0,
+                },
+                LocalLight {
+                    position: [10.5, 8.6, 9.5],
+                    radius_m: 8.0,
+                    rgb: [1.0, 0.90, 0.75],
+                    intensity: 1.0,
+                },
+            ],
         }
     }
 }

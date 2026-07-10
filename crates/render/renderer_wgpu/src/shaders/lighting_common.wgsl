@@ -17,14 +17,37 @@ fn hemi_ambient(n: vec3<f32>) -> vec3<f32> {
 // bouncing. The sun key is already occluded by the shadow map; multiplying it by screen AO too
 // double-darkened every sunlit crease and dirtied the whole key-lit field. The rim is a grazing
 // silhouette accent and stays out of both.
-fn light_radiance(n: vec3<f32>, shadow: f32, ao: f32) -> vec3<f32> {
+// Unshadowed local fill pools (worklamps, pane glow): a smooth squared falloff to each light's
+// radius, with a soft-wrap facing term so the pool reads as BOUNCED worklight filling a bay, not
+// a CG spot with a hard terminator. Indirect-like light, so the caller's screen AO applies (via
+// light_radiance) and grounds the pools in creases. A zero radius disables the slot; every
+// outdoor profile ships all-off arrays, making this a no-op on the battlefield.
+fn local_pools(world_pos: vec3<f32>, n: vec3<f32>) -> vec3<f32> {
+    var sum = vec3<f32>(0.0, 0.0, 0.0);
+    for (var k = 0u; k < 6u; k = k + 1u) {
+        let pr = camera.light_pos_radius[k];
+        if (pr.w <= 0.0) {
+            continue;
+        }
+        let to_light = pr.xyz - world_pos;
+        let d = length(to_light);
+        let t = clamp(1.0 - (d * d) / (pr.w * pr.w), 0.0, 1.0);
+        let facing = 0.25 + 0.75 * max(dot(n, to_light / max(d, 1.0e-4)), 0.0);
+        let ci = camera.light_rgb_intensity[k];
+        sum += ci.rgb * ci.w * t * t * facing;
+    }
+    return sum;
+}
+
+fn light_radiance(world_pos: vec3<f32>, n: vec3<f32>, shadow: f32, ao: f32) -> vec3<f32> {
     let key = max(dot(n, normalize(camera.key_direction)), 0.0) * shadow;
     let fill = max(dot(n, normalize(camera.fill_direction)), 0.0) * ao;
     let rim = max(dot(n, normalize(camera.rim_direction)), 0.0);
     return hemi_ambient(n) * ao
         + camera.key_rgb * key
         + camera.fill_rgb * fill
-        + camera.rim_rgb * rim;
+        + camera.rim_rgb * rim
+        + local_pools(world_pos, n) * ao;
 }
 
 // The analytic sky gradient every smooth material reflects (slate, wet stone, hull steel, the

@@ -106,6 +106,73 @@ fn all_profiles() -> [(&'static str, SceneLighting); 8] {
     ]
 }
 
+/// Local fill pools are an INTERIOR tool: every outdoor profile ships all-off arrays, so the
+/// battlefield image is bit-identical to the pre-pool renderer (a zero radius disables the
+/// slot before any math runs).
+#[test]
+fn outdoor_profiles_carry_no_local_lights() {
+    for (name, l) in all_profiles() {
+        if name.starts_with("garage") {
+            continue;
+        }
+        assert!(
+            l.local_lights.iter().all(|light| light.radius_m == 0.0),
+            "{name}: outdoor profiles must not carry local lights"
+        );
+    }
+}
+
+/// CPU mirror of the shader falloff: full at the emitter, exactly zero at and past the radius,
+/// zero always for a disabled slot — the attenuation model is testable without a GPU.
+#[test]
+fn local_light_attenuation_is_bounded_and_vanishes_at_radius() {
+    let light = renderer_api::LocalLight {
+        position: [0.0; 3],
+        radius_m: 10.0,
+        rgb: [1.0, 0.9, 0.7],
+        intensity: 1.5,
+    };
+    assert!((light.attenuation_at(0.0) - 1.0).abs() < 1.0e-6, "full strength at the emitter");
+    let mid = light.attenuation_at(5.0);
+    assert!(mid > 0.0 && mid < 1.0, "falls off smoothly, got {mid}");
+    assert_eq!(light.attenuation_at(10.0), 0.0, "vanishes exactly at the radius");
+    assert_eq!(light.attenuation_at(25.0), 0.0, "stays zero beyond it");
+    assert_eq!(renderer_api::LocalLight::OFF.attenuation_at(0.0), 0.0, "disabled slot is dark");
+}
+
+/// The garage rig hangs its light where the work is: warm pools over the turntable, exactly one
+/// cool pane-glow at the back wall, every emitter inside the hall, and enough of them that the
+/// hall reads worked-in. Positions must agree with the lamp housings the hangar mesh hangs.
+#[test]
+fn garage_hero_pools_the_light_where_the_work_is() {
+    let rig = SceneLighting::garage_hero().local_lights;
+    let enabled: Vec<_> = rig.iter().filter(|l| l.radius_m > 0.0).collect();
+    assert!(enabled.len() >= 4, "the hall is worked-in: got {} lights", enabled.len());
+
+    let warm_by_turntable = enabled
+        .iter()
+        .filter(|l| {
+            l.rgb[0] > l.rgb[2] && (l.position[0].powi(2) + l.position[2].powi(2)).sqrt() < 6.0
+        })
+        .count();
+    assert!(warm_by_turntable >= 2, "warm pools hang over the turntable: {warm_by_turntable}");
+
+    let cool_at_back =
+        enabled.iter().filter(|l| l.rgb[2] > l.rgb[0] && l.position[2] < -15.0).count();
+    assert_eq!(cool_at_back, 1, "exactly one cool pane-glow over the gate");
+
+    for light in &enabled {
+        assert!(
+            light.position[0].abs() < 18.0
+                && light.position[2].abs() < 18.0
+                && light.position[1] > 0.0
+                && light.position[1] < 12.6,
+            "light at {:?} must hang inside the hall",
+            light.position
+        );
+    }
+}
+
 #[test]
 fn every_profile_grades_within_the_sane_display_envelope() {
     // The grade is data now, so a fat-fingered preset (exposure 11.0, black point 0.8) would

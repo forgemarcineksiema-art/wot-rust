@@ -18,7 +18,7 @@ const MAX_PITCH: f32 = 0.65;
 /// Closest boom (running-gear inspection) and the widest pull-back. Both are chosen to sit inside
 /// the hangar at every angle, so zooming is a plain range — no wall-dependent clamp, no snapping.
 const MIN_DISTANCE: f32 = 5.0;
-const MAX_DISTANCE: f32 = 11.5;
+const MAX_DISTANCE: f32 = 17.0;
 const ORBIT_SENSITIVITY: f32 = 0.005;
 const ZOOM_STEP_M: f32 = 1.2;
 /// Exponential ease rate of the focus/return spring (per second).
@@ -230,6 +230,17 @@ mod tests {
                 assert!(eye.y < height - margin, "eye clips the roof at yaw {yaw}, pitch {pitch}");
             }
         }
+    }
+
+    /// The user rejected the tight 9.5 m repair-bay framing: the hero shot is the ROOMY hall
+    /// look. Any future "let's pull the camera in" regresses here first. Locking constants is
+    /// the point, so the constant-assertion lint is deliberately silenced.
+    #[test]
+    #[allow(clippy::assertions_on_constants)]
+    fn the_hero_framing_is_the_roomy_cathedral_shot() {
+        assert!(HERO_ORBIT_DISTANCE >= 14.0 - 1.0e-4, "hero boom stays roomy");
+        assert!(MAX_DISTANCE >= 17.0 - 1.0e-4, "full pull-back stays available");
+        assert!(MIN_DISTANCE <= 5.0, "close inspection stays available");
     }
 
     #[test]

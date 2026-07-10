@@ -160,6 +160,11 @@ pub struct CameraUniform {
     /// already gated by `LightingQuality::cloud_shadows` — 0 disables), y = sun-directional
     /// scatter in the aerial perspective, z/w reserved (0).
     pub sky_params: GpuVec4,
+    /// Local fill pools ([`renderer_api::LocalLight`]): xyz = world position, w = radius (0
+    /// disables the slot). Appended at the END of the struct so no existing offset moves.
+    pub light_pos_radius: [GpuVec4; 6],
+    /// Local pool colours: xyz = linear rgb, w = intensity multiplier.
+    pub light_rgb_intensity: [GpuVec4; 6],
 }
 
 /// The per-frame pass parameters that ride the camera uniform beside the view matrices and
@@ -261,6 +266,12 @@ impl CameraUniform {
                 0.0,
                 0.0,
             ]),
+            light_pos_radius: lighting.local_lights.map(|light| {
+                GpuVec4([light.position[0], light.position[1], light.position[2], light.radius_m])
+            }),
+            light_rgb_intensity: lighting
+                .local_lights
+                .map(|light| GpuVec4([light.rgb[0], light.rgb[1], light.rgb[2], light.intensity])),
         }
     }
 

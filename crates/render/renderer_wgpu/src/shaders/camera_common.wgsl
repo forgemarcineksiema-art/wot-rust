@@ -47,6 +47,11 @@ struct Camera {
     // Sky/air extras: x = terrain cloud-shadow strength (0 disables), y = sun-directional
     // scatter in the aerial perspective, zw reserved.
     sky_params: vec4<f32>,
+    // Local fill pools (worklamps, pane glow — see renderer_api::LocalLight): xyz = world
+    // position, w = radius (0 disables the slot). All-off on every outdoor profile.
+    light_pos_radius: array<vec4<f32>, 6>,
+    // Pool colours: xyz = linear rgb, w = intensity multiplier.
+    light_rgb_intensity: array<vec4<f32>, 6>,
 };
 
 @group(0) @binding(0)

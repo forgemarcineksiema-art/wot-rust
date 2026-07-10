@@ -56,9 +56,11 @@ pub(super) struct GarageState {
 
 const HERO_ORBIT_YAW: f32 = 0.60;
 const HERO_ORBIT_PITCH: f32 = 0.28;
-// Standard framing in the 5–11.5 m boom: the repair-bay look with headroom to scroll both ways.
-// (The hall is sized so this range never reaches the walls — see camera.rs.)
-const HERO_ORBIT_DISTANCE: f32 = 9.5;
+// Standard framing in the 5–17 m boom: the roomy maintenance-hall look with headroom to scroll
+// both ways. The 9.5 m repair-bay framing was tried and REJECTED as too close to the hero —
+// locked by `the_hero_framing_is_the_roomy_cathedral_shot`. (The hall is sized so this range
+// never reaches the walls — see camera.rs.)
+const HERO_ORBIT_DISTANCE: f32 = 14.0;
 
 impl Default for GarageState {
     fn default() -> Self {

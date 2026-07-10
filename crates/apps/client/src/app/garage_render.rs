@@ -155,6 +155,15 @@ impl ClientApp {
             renderer.set_scene_lighting(lighting);
             renderer.set_rain_intensity(rain_intensity);
             renderer.set_wetness(wetness);
+            // The garage pins the shadow boxes to the turntable (the orbit camera's "forward"
+            // swings a full circle); battle restores the forward chase-camera heuristic. Both
+            // arms live here so neither scene inherits the other's focus.
+            match want {
+                SceneKind::Garage => {
+                    renderer.set_shadow_focus(Some(crate::scene::hangar::hangar_shadow_focus()))
+                }
+                SceneKind::Battle => renderer.set_shadow_focus(None),
+            }
             self.current_scene = want;
         }
     }
