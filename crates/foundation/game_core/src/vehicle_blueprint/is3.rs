@@ -30,6 +30,7 @@ pub(super) fn is3_blueprint() -> VehicleBlueprint {
             rear_slope_deg: 18.0,
             lower_half_width: 0.92,
             sponson_y: 0.90,
+            skirt: None,
             hitbox_half_width: 1.575,
             hitbox_half_height: 1.27,
             hitbox_half_length: 3.44,
@@ -58,6 +59,7 @@ pub(super) fn is3_blueprint() -> VehicleBlueprint {
             // heavy's look against the T-54's wheel-riding run.
             return_rollers: 3,
             roller_radius: 0.11,
+            overlap_inner_dx: 0.0,
         },
         turret: TurretShape {
             form: TurretForm::CastDome,

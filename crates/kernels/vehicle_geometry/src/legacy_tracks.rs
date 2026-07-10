@@ -46,6 +46,7 @@ pub(crate) fn legacy_track_shape(kind: VehicleKind) -> Option<TrackShape> {
         wheel_stations: None,
         return_rollers: 0,
         roller_radius: 0.0,
+        overlap_inner_dx: 0.0,
     })
 }
 

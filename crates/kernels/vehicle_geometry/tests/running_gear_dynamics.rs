@@ -10,6 +10,35 @@ fn t55() -> RunningGearKinematics {
 }
 
 #[test]
+fn wheel_overlap_pulls_only_the_odd_row_inboard() {
+    // Schachtellaufwerk plumbing: with an overlap authored, odd-indexed wheels ride an inner
+    // row; even wheels and everything else stay put. Zero overlap is byte-for-byte today's
+    // single file — the existing fleet's golden hashes never move.
+    let mut kin = t55();
+    let single_file = running_gear_placements(&kin, 0.0, 0.0);
+    kin.wheel_overlap_dx = 0.20;
+    let interleaved = running_gear_placements(&kin, 0.0, 0.0);
+
+    let wheel_xs = |set: &[vehicle_geometry::GearPlacement]| -> Vec<f32> {
+        set.iter()
+            .filter(|p| p.part == GearPart::RoadWheel && p.transform.w_axis.x > 0.0)
+            .map(|p| p.transform.w_axis.x)
+            .collect()
+    };
+    let before = wheel_xs(&single_file);
+    let after = wheel_xs(&interleaved);
+    assert_eq!(before.len(), after.len());
+    assert!(before.windows(2).all(|w| (w[0] - w[1]).abs() < 1.0e-6), "today: one file");
+    for (index, (b, a)) in before.iter().zip(&after).enumerate() {
+        if index % 2 == 1 {
+            assert!((a - (b - 0.20)).abs() < 1.0e-4, "odd wheel {index} rides the inner row");
+        } else {
+            assert!((a - b).abs() < 1.0e-6, "even wheel {index} stays on the outer row");
+        }
+    }
+}
+
+#[test]
 fn wheel_travel_moves_wheels_and_the_ground_run_follows() {
     let kin = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951).expect("T-54 gear");
     let rest = running_gear_placements(&kin, 0.0, 0.0);

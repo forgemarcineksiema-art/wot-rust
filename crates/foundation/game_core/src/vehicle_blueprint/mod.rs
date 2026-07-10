@@ -42,6 +42,23 @@ pub enum TurretForm {
     Casemate,
 }
 
+/// A thin side skirt hung outside the track band (Schürzen, the Centurion's full-length
+/// bazooka plates): a spaced standoff layer, honest in both directions — it visually hides the
+/// upper run AND the armor volumes bake it as a screen a HEAT jet detonates against early.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SkirtShape {
+    /// Ground-relative top/bottom of the plate (typically sponson down over the wheel tops).
+    pub top_y: f32,
+    pub bottom_y: f32,
+    /// Hull-local Z span of the plate run (front positive).
+    pub front_z: f32,
+    pub rear_z: f32,
+    /// Air gap between the track's outer face and the skirt — the standoff that kills the jet.
+    pub standoff_m: f32,
+    /// Plate thickness (m). Real skirts are 5–10 mm sheet; the armor facet derives from this.
+    pub thickness_m: f32,
+}
+
 /// Hull body shape (visual plate extents) plus the gameplay collision box.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct HullShape {
@@ -64,6 +81,8 @@ pub struct HullShape {
     pub lower_half_width: f32,
     /// Y at which the hull steps out from the narrow tub to the wide sponson (≈ wheel axle height).
     pub sponson_y: f32,
+    /// Side skirts, when the vehicle carries them (`None` for the bare-track fleet).
+    pub skirt: Option<SkirtShape>,
     // Gameplay collision box (the visual hull fits inside it; checked by a consistency test).
     pub hitbox_half_width: f32,
     pub hitbox_half_height: f32,

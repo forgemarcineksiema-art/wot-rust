@@ -68,6 +68,8 @@ fn module_volume_at_hit(
     let z = local_hit.z / half_length;
 
     let (slot, hit_chance) = match zone {
+        // A skirt is sheet metal over air — a shell that only met the skirt reached no module.
+        ArmorZone::Skirt => return None,
         ArmorZone::LeftTrack | ArmorZone::RightTrack => (ModuleSlot::Suspension, 1.0),
         ArmorZone::Mantlet => (ModuleSlot::Gun, 1.0),
         ArmorZone::TurretFront | ArmorZone::Roof => (ModuleSlot::Turret, 0.80),
@@ -115,6 +117,7 @@ fn zone_roll_bias(zone: ArmorZone) -> f32 {
         ArmorZone::Roof => 0.53,
         ArmorZone::LeftTrack => 0.59,
         ArmorZone::RightTrack => 0.61,
+        ArmorZone::Skirt => 0.67,
     }
 }
 
@@ -123,6 +126,36 @@ mod tests {
     use game_core::HitboxProfile;
 
     use super::*;
+
+    #[test]
+    fn a_skirt_hit_is_sheet_metal_never_a_track_or_module_hit() {
+        // The skirt hangs over the running gear, but it is NOT the running gear: a shell that
+        // resolved on the skirt zone must not degrade a track band or roll a module.
+        let hitbox = HitboxProfile::new(1.75, 1.19, 3.20, 1.14, 0.66);
+        assert_eq!(
+            module_volume_at_hit(ArmorZone::Skirt, Vec3::new(1.7, 0.0, 0.5), hitbox),
+            None,
+            "no module behind sheet metal"
+        );
+        let mut target = crate::tank_factory::fresh_tank(
+            game_core::TankId(1),
+            game_core::TeamId(1),
+            game_core::VehicleKind::T54_1951.spec(),
+            Vec3::ZERO,
+            0.0,
+        );
+        let before = target.tracks;
+        let hit = apply_track_damage_for_hit(
+            &mut target,
+            None,
+            ArmorZone::Skirt,
+            ShellType::ArmorPiercing,
+            false,
+            40,
+        );
+        assert_eq!(hit, None, "a skirt hit reports no track feedback");
+        assert_eq!(target.tracks, before, "and degrades no band");
+    }
 
     #[test]
     fn generic_side_penetration_can_deterministically_miss_modules() {

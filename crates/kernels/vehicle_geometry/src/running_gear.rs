@@ -43,6 +43,10 @@ pub struct RunningGearKinematics {
     pub wheel_radius: f32,
     /// `x` of the wheel-disc centre (between the inner and outer rubber faces).
     pub wheel_x: f32,
+    /// Schachtellaufwerk: how far INBOARD every odd-indexed road wheel sits (0 = single file).
+    /// A wheel-width offset reads as the Tiger's interleaved double row; a small one as the
+    /// Tiger II/Panther overlapped stagger.
+    pub wheel_overlap_dx: f32,
     /// Half-width of a wheel disc along its axle.
     pub wheel_half_width: f32,
     /// `x` of the outer belt face (where shoe links ride).
@@ -124,6 +128,7 @@ impl RunningGearKinematics {
             end_cy: track.end_y,
             wheel_radius: track.wheel_radius,
             wheel_x: (track.inner_x + track.outer_x) * 0.5,
+            wheel_overlap_dx: track.overlap_inner_dx,
             wheel_half_width,
             link_x: match kind {
                 // The track shoes ride over the road wheels, centred on the wheel plane so the belt
