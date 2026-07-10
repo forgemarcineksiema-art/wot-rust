@@ -37,6 +37,9 @@ struct Camera {
     // x = presentation seconds (tick-domain — see gpu_layout.rs), y = rain intensity,
     // z = world wetness, w reserved.
     time_params: vec4<f32>,
+    // Display grade from the lighting profile: x = exposure (pre-curve HDR multiplier),
+    // y = black point, z = saturation, w = contrast.
+    grade_params: vec4<f32>,
 };
 
 @group(0) @binding(0)

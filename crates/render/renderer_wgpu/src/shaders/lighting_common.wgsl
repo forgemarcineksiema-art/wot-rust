@@ -45,31 +45,40 @@ fn apply_fog(color: vec3<f32>, world_pos: vec3<f32>) -> vec3<f32> {
     return mix(color, camera.sky_horizon_rgb, fog);
 }
 
-// Gentle display grade after the tone curve: a saturation lift (the raw raster reads pale — grass
-// and armour wash toward grey) and a mild contrast S around mid grey (deeper shadows, now that the
-// whole world casts them).
+// Profile-driven display grade after the tone curve (grade_params, mirrored on the CPU by
+// SceneLighting::grade_reference): a black-point pull so shade reads as shade instead of the
+// ACES-lite lifted near-black, a saturation lift around per-pixel luma (the raw raster reads
+// pale), and a contrast S around mid grey. All data, not shader constants — each look owns its
+// grade.
 fn display_grade(c: vec3<f32>) -> vec3<f32> {
-    let luma = dot(c, vec3<f32>(0.2126, 0.7152, 0.0722));
-    let saturated = mix(vec3<f32>(luma), c, 1.18);
-    let contrasted = (saturated - vec3<f32>(0.5)) * 1.10 + vec3<f32>(0.5);
+    let black = camera.grade_params.y;
+    let pulled = clamp((c - vec3<f32>(black)) / (1.0 - black), vec3<f32>(0.0), vec3<f32>(1.0));
+    let luma = dot(pulled, vec3<f32>(0.2126, 0.7152, 0.0722));
+    let saturated = mix(vec3<f32>(luma), pulled, camera.grade_params.z);
+    let contrasted = (saturated - vec3<f32>(0.5)) * camera.grade_params.w + vec3<f32>(0.5);
     return clamp(contrasted, vec3<f32>(0.0), vec3<f32>(1.0));
 }
 
-// Filmic ACES-lite tone curve (Narkowicz fit): maps HDR radiance to display range so a hot sun and
-// specular roll off instead of clipping to white. The framebuffer is *UnormSrgb, so the hardware
-// does the linear->sRGB encode; we output linear, tone-mapped colour and never a manual sRGB pow.
-// Bare curve, no grade: the water pass tone-maps without the display grade (pre-existing look,
-// preserved exactly — unifying it is a grading decision for the exposure phase, not this refactor).
+// Filmic ACES-lite tone curve (Narkowicz fit) with the profile's exposure applied in linear HDR
+// first: maps radiance to display range so a hot sun and specular roll off instead of clipping to
+// white. The framebuffer is *UnormSrgb, so the hardware does the linear->sRGB encode; we output
+// linear, tone-mapped colour and never a manual sRGB pow. Curve + exposure only, no grade: the
+// water pass tone-maps through this without the display grade (its pre-existing look).
 fn aces_curve(x: vec3<f32>) -> vec3<f32> {
     let a = 2.51;
     let b = 0.03;
     let c = 2.43;
     let d = 0.59;
     let e = 0.14;
-    return clamp((x * (a * x + b)) / (x * (c * x + d) + e), vec3<f32>(0.0), vec3<f32>(1.0));
+    let exposed = x * camera.grade_params.x;
+    return clamp(
+        (exposed * (a * exposed + b)) / (exposed * (c * exposed + d) + e),
+        vec3<f32>(0.0),
+        vec3<f32>(1.0),
+    );
 }
 
-// The full display transform: ACES-lite curve, then the shared grade.
+// The full display transform: exposure + ACES-lite curve, then the profile grade.
 fn tonemap_aces(x: vec3<f32>) -> vec3<f32> {
     return display_grade(aces_curve(x));
 }

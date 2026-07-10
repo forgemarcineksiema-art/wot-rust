@@ -89,6 +89,93 @@ fn battle_profile_has_aerial_perspective_and_the_interior_does_not() {
     }
 }
 
+fn all_profiles() -> [(&'static str, SceneLighting); 6] {
+    [
+        ("battlefield_default", SceneLighting::battlefield_default()),
+        ("bystra_clear_afternoon", SceneLighting::bystra_clear_afternoon()),
+        ("bystra_rain", SceneLighting::bystra_rain()),
+        ("bystra_dawn_fog", SceneLighting::bystra_dawn_fog()),
+        ("garage_studio", SceneLighting::garage_studio()),
+        ("garage_workshop", SceneLighting::garage_workshop()),
+    ]
+}
+
+#[test]
+fn every_profile_grades_within_the_sane_display_envelope() {
+    // The grade is data now, so a fat-fingered preset (exposure 11.0, black point 0.8) would
+    // silently crush the image; these bounds are the envelope the image formation was designed
+    // for. Widening them is a deliberate diff, not a tuning accident.
+    for (name, l) in all_profiles() {
+        assert!((0.5..=2.0).contains(&l.exposure), "{name}: exposure {} out of range", l.exposure);
+        assert!(
+            (0.0..=0.08).contains(&l.black_point),
+            "{name}: black point {} out of range",
+            l.black_point
+        );
+        assert!(
+            (0.8..=1.5).contains(&l.saturation),
+            "{name}: saturation {} out of range",
+            l.saturation
+        );
+        assert!((0.9..=1.4).contains(&l.contrast), "{name}: contrast {} out of range", l.contrast);
+    }
+}
+
+#[test]
+fn a_neutral_grade_only_applies_the_tone_curve() {
+    // With exposure 1 / black 0 / saturation 1 / contrast 1, grade_reference reduces to the bare
+    // ACES-lite curve — the identity of the grading stage. Locks that no hidden constant remains
+    // in the pipeline now that the old hardcoded 1.18/1.10 moved into the profiles.
+    let mut l = SceneLighting::battlefield_default();
+    l.exposure = 1.0;
+    l.black_point = 0.0;
+    l.saturation = 1.0;
+    l.contrast = 1.0;
+    let aces = |x: f32| ((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14)).clamp(0.0, 1.0);
+    for value in [0.0, 0.02, 0.18, 0.5, 1.0, 4.0] {
+        let graded = l.grade_reference([value; 3]);
+        for channel in graded {
+            assert!(
+                (channel - aces(value)).abs() < 1.0e-6,
+                "neutral grade must be the bare curve at {value}: {channel} vs {}",
+                aces(value)
+            );
+        }
+    }
+}
+
+#[test]
+fn the_battle_profile_pulls_deep_shade_to_true_black() {
+    // The point of the black point: the ACES-lite curve lifts near-blacks (aces(0.02) ≈ 0.017,
+    // never 0), which is why cast shadows read milky. The battle grade must map a 0.02 HDR input
+    // essentially to black — real shade, not grey.
+    let battle = SceneLighting::battlefield_default();
+    let graded = battle.grade_reference([0.02; 3]);
+    for channel in graded {
+        assert!(channel < 0.005, "deep shade must grade to black, got {channel}");
+    }
+    // And it must not crush everything: mid grey stays mid, highlights stay bright.
+    let mid = battle.grade_reference([0.18; 3]);
+    assert!(mid[1] > 0.2 && mid[1] < 0.6, "mid grey survives the grade: {}", mid[1]);
+    let bright = battle.grade_reference([4.0; 3]);
+    assert!(bright[1] > 0.85, "highlights stay bright through the grade: {}", bright[1]);
+}
+
+#[test]
+fn exposure_brightens_monotonically_before_the_curve() {
+    let mut l = SceneLighting::battlefield_default();
+    l.exposure = 0.8;
+    let dim = l.grade_reference([0.3; 3]);
+    l.exposure = 1.4;
+    let bright = l.grade_reference([0.3; 3]);
+    assert!(
+        bright[1] > dim[1] + 0.05,
+        "higher exposure must brighten the same radiance: {} vs {}",
+        bright[1],
+        dim[1]
+    );
+}
+
 #[test]
 fn fog_thickens_with_distance_and_thins_with_height() {
     let l = SceneLighting::battlefield_default();

@@ -147,6 +147,10 @@ pub struct CameraUniform {
     /// never integrated from render-frame deltas — a jittery frame clock must not wobble the
     /// world (the same rule `engine::TankMotion` follows).
     pub time_params: GpuVec4,
+    /// Packed display grade from the lighting profile: x = exposure (pre-curve HDR multiplier),
+    /// y = black point, z = saturation, w = contrast. Mirrored on the CPU by
+    /// `SceneLighting::grade_reference`.
+    pub grade_params: GpuVec4,
 }
 
 /// The per-frame pass parameters that ride the camera uniform beside the view matrices and
@@ -217,6 +221,12 @@ impl CameraUniform {
             sky_horizon_rgb: GpuVec3(lighting.sky_horizon_rgb),
             fog_params: GpuVec4([lighting.fog_density, lighting.fog_height_falloff, 0.0, 0.0]),
             time_params: GpuVec4([passes.time_s, passes.rain_intensity, passes.wetness, 0.0]),
+            grade_params: GpuVec4([
+                lighting.exposure,
+                lighting.black_point,
+                lighting.saturation,
+                lighting.contrast,
+            ]),
         }
     }
 

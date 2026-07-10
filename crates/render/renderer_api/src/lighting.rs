@@ -34,6 +34,20 @@ pub struct SceneLighting {
     /// Height falloff for the fog: how fast the fog thins with world height, so valleys fill and
     /// ridgelines cut through. 0 makes the fog uniform with height.
     pub fog_height_falloff: f32,
+    /// Linear exposure multiplier applied to HDR radiance *before* the ACES tone curve: the one
+    /// knob that makes the whole picture read brighter or moodier without re-tuning every light.
+    /// 1.0 is neutral; profiles stay within `[0.5, 2.0]` (locked by tests).
+    pub exposure: f32,
+    /// Display black point: post-curve values at or below it are pulled to true black
+    /// (`(c - black) / (1 - black)`), undoing the ACES-lite lifted near-blacks so shade reads as
+    /// shade. 0 is neutral; profiles stay within `[0, 0.08]`.
+    pub black_point: f32,
+    /// Display saturation around per-pixel luma; 1.0 is neutral. Replaces the old constant 1.18
+    /// hardcoded in four shaders — the grade is profile data now.
+    pub saturation: f32,
+    /// Display contrast S-curve slope around mid grey; 1.0 is neutral. Replaces the old
+    /// hardcoded 1.10.
+    pub contrast: f32,
 }
 
 impl SceneLighting {
@@ -48,6 +62,24 @@ impl SceneLighting {
         let height_term = (-height.max(0.0) * self.fog_height_falloff).exp();
         let f = 1.0 - (-distance.max(0.0) * self.fog_density * height_term).exp();
         f.clamp(0.0, 1.0)
+    }
+
+    /// The full display transform for one linear HDR colour: exposure → ACES-lite curve → black
+    /// point pull → saturation → contrast. The CPU mirror of the shaders' `aces_curve` +
+    /// `display_grade` (lighting_common.wgsl), kept in exact lockstep so the image formation is
+    /// testable without a GPU — the same role `fog_factor` plays for `apply_fog`.
+    pub fn grade_reference(&self, hdr: [f32; 3]) -> [f32; 3] {
+        let aces = |x: f32| {
+            let x = x * self.exposure;
+            ((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14)).clamp(0.0, 1.0)
+        };
+        let black = self.black_point;
+        let pulled = hdr.map(|c| ((aces(c) - black) / (1.0 - black)).clamp(0.0, 1.0));
+        let luma = 0.2126 * pulled[0] + 0.7152 * pulled[1] + 0.0722 * pulled[2];
+        pulled.map(|c| {
+            let saturated = luma + (c - luma) * self.saturation;
+            ((saturated - 0.5) * self.contrast + 0.5).clamp(0.0, 1.0)
+        })
     }
 
     /// The battlefield look: a warm sun key raking low from the side (so it sculpts the sides of a
@@ -79,6 +111,14 @@ impl SceneLighting {
             // melts into the horizon. Aerial perspective for depth, never for hiding targets.
             fog_density: 0.00013,
             fog_height_falloff: 0.02,
+            // First-pass image formation (the proper per-map taste pass is a later phase): a
+            // touch of extra exposure so the sunlit field glows, a real black point so cast
+            // shadows finally reach black, and slightly more contrast than the old hardcoded
+            // 1.10 now that the blacks anchor it.
+            exposure: 1.1,
+            black_point: 0.03,
+            saturation: 1.18,
+            contrast: 1.15,
         }
     }
 
@@ -99,6 +139,11 @@ impl SceneLighting {
             sky_horizon_rgb: [0.78, 0.72, 0.62],
             fog_density: 0.00015,
             fog_height_falloff: 0.02,
+            // Golden afternoon: warm light wants saturation and glow, gentle blacks.
+            exposure: 1.1,
+            black_point: 0.025,
+            saturation: 1.22,
+            contrast: 1.12,
         }
     }
 
@@ -119,6 +164,12 @@ impl SceneLighting {
             sky_horizon_rgb: [0.46, 0.50, 0.54],
             fog_density: 0.0009,
             fog_height_falloff: 0.004,
+            // Rain: a flat lead-grey day — near-neutral saturation, soft contrast, shallow
+            // blacks (an overcast sky fills every shadow).
+            exposure: 1.0,
+            black_point: 0.015,
+            saturation: 1.06,
+            contrast: 1.08,
         }
     }
 
@@ -139,6 +190,12 @@ impl SceneLighting {
             sky_horizon_rgb: [0.72, 0.68, 0.66],
             fog_density: 0.00105,
             fog_height_falloff: 0.10,
+            // Dawn mist: muted colour in the fog, a little extra exposure so the low sun still
+            // carries through it.
+            exposure: 1.05,
+            black_point: 0.02,
+            saturation: 1.10,
+            contrast: 1.10,
         }
     }
 
@@ -162,6 +219,11 @@ impl SceneLighting {
             sky_horizon_rgb: [0.18, 0.19, 0.21],
             fog_density: 0.0,
             fog_height_falloff: 0.0,
+            // Studio: near-neutral grade — the vehicle's own material colour reads true.
+            exposure: 1.0,
+            black_point: 0.02,
+            saturation: 1.10,
+            contrast: 1.08,
         }
     }
 
@@ -188,6 +250,11 @@ impl SceneLighting {
             sky_horizon_rgb: [0.15, 0.16, 0.19],
             fog_density: 0.0,
             fog_height_falloff: 0.0,
+            // Workshop: moodier than the studio — deeper blacks under the skylight key.
+            exposure: 1.05,
+            black_point: 0.035,
+            saturation: 1.10,
+            contrast: 1.12,
         }
     }
 }

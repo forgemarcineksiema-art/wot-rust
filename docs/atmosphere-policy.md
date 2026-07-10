@@ -58,8 +58,12 @@ linear colour/intensity. `ground_ambient_rgb` is the only new profile field for 
   lever after the sun angle.
 - The framebuffer is `*UnormSrgb`, so the hardware applies the linear→sRGB encode on store. Shaders
   therefore output **linear, tone-mapped** colour and must not also apply a manual sRGB `pow`.
-- Later phases add a small exposure scalar and an optional grade (lift/gamma/gain or a 3D LUT) to the
-  profile so a dusk look is a data change, not a shader edit.
+- The profile owns the rest of the image formation (**delivered by the lighting 2.0 program**):
+  `exposure` (a linear multiplier before the curve), `black_point` (post-curve pull so shade reads
+  as shade instead of ACES-lite's lifted near-black), `saturation` and `contrast` (replacing the
+  old constants hardcoded in four shaders). Mirrored on the CPU by `SceneLighting::grade_reference`
+  and locked by profile-envelope + contrast-budget tests. A 3D LUT stays deliberately out of scope
+  — the parametric grade is the right lever count for a solo dev.
 
 ## Sky And Air (phased)
 
@@ -110,7 +114,8 @@ The canonical gate remains `./scripts/verify.ps1`.
 3. **Directional shadow map** (one cascade to start): the step that turns "procedural boxes" into "a
    vehicle on a field". Contact shadows seat hatches, the gun, fenders and tracks.
 4. **Weather / time-of-day profiles + exposure + grade**: dawn / midday / overcast / dusk as data;
-   exposure and an optional LUT grade on the profile.
+   exposure and grade on the profile. *(exposure/black point/saturation/contrast implemented by
+   the lighting 2.0 program; new time-of-day presets ride its final phase)*
 
 Colour-space follow-up (tracked, not phase-gated): vehicle albedo maps upload as `Rgba8Unorm`; if the
 Forge bakes them in sRGB they must upload as `Rgba8UnormSrgb` (or be de-gamma'd) so materials are not
