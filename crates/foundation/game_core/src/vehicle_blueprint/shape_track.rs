@@ -32,6 +32,11 @@ pub struct TrackShape {
     pub return_rollers: usize,
     /// Radius of one return roller (ignored when `return_rollers` is 0).
     pub roller_radius: f32,
+    /// Schachtellaufwerk: how far INBOARD every odd-indexed road wheel sits relative to the even
+    /// row. `0` is the ordinary single file; a large offset (≈ a wheel's width) reads as the
+    /// Tiger's interleaved double row, a small one as the Tiger II/Panther overlapped stagger.
+    /// Presentation only — the contact footprint and belt stay on the shared centreline.
+    pub overlap_inner_dx: f32,
 }
 
 impl TrackShape {

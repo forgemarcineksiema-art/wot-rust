@@ -1,4 +1,4 @@
-//! Per-vehicle armor volumes baked from the [`crate::VehicleBlueprint`] — the same numbers the
+﻿//! Per-vehicle armor volumes baked from the [`crate::VehicleBlueprint`] — the same numbers the
 //! visible plates are built from, so what you see is literally what you shoot. Migration is
 //! per-vehicle exactly like the blueprint itself: vehicles without a blueprint return `None`
 //! and keep the legacy hitbox-band model until they are migrated.
@@ -13,6 +13,7 @@ use glam::{Mat3, Vec3};
 
 use super::ArmorZone;
 use super::volumes::{ArmorPatch, ArmorVolume, TaggedPlane};
+use crate::vehicle_blueprint::TurretForm;
 use crate::{VehicleBlueprint, VehicleKind};
 
 /// The armor shape of one vehicle: convex hull volumes (body plates + running gear) in the
@@ -55,16 +56,23 @@ const MANTLET_PATCH_SCALE: f32 = 1.2;
 
 fn bake_vehicle_armor(blueprint: VehicleBlueprint) -> VehicleArmorVolumes {
     let cy = blueprint.hull.hitbox_center_y;
-    VehicleArmorVolumes {
-        hull: vec![
-            upper_hull(&blueprint, cy),
-            lower_hull(&blueprint, cy),
-            track(&blueprint, cy, 1.0, ArmorZone::RightTrack),
-            track(&blueprint, cy, -1.0, ArmorZone::LeftTrack),
-        ],
-        turret: turret_dome(&blueprint, cy),
-        turret_ring_z: blueprint.turret.ring_z,
+    let mut hull = vec![
+        upper_hull(&blueprint, cy),
+        lower_hull(&blueprint, cy),
+        track(&blueprint, cy, 1.0, ArmorZone::RightTrack),
+        track(&blueprint, cy, -1.0, ArmorZone::LeftTrack),
+    ];
+    if blueprint.hull.skirt.is_some() {
+        hull.push(skirt(&blueprint, cy, 1.0));
+        hull.push(skirt(&blueprint, cy, -1.0));
     }
+    // The turret volume follows the blueprint's construction: a cast dome sweeps sector planes
+    // around the casting; a welded box or fixed casemate is a faceted plate prism.
+    let turret = match blueprint.turret.form {
+        TurretForm::CastDome => turret_dome(&blueprint, cy),
+        TurretForm::WeldedBox | TurretForm::Casemate => turret_prism(&blueprint, cy),
+    };
+    VehicleArmorVolumes { hull, turret, turret_ring_z: blueprint.turret.ring_z }
 }
 
 /// The upper hull: glacis, deck, upper sides, upper rear — everything above the sponson step.
@@ -218,6 +226,87 @@ fn turret_dome(blueprint: &VehicleBlueprint, cy: f32) -> ArmorVolume {
     ArmorVolume { planes }
 }
 
+/// A welded box turret or a fixed casemate: four sloped plates (front, two sides, rear — angles
+/// from the blueprint's turret slopes), a flat roof and the underside. Unlike the swept dome,
+/// the normal a shell meets is the PLATE's normal across its whole face — flat German steel
+/// behaves like flat steel, and angling the hull is what changes the presented angle. The
+/// mantlet patch rides the front plate exactly like the dome's front sectors. A casemate never
+/// traverses in practice (its spec clamps yaw), so the same prism serves both forms.
+fn turret_prism(blueprint: &VehicleBlueprint, cy: f32) -> ArmorVolume {
+    let turret = blueprint.turret;
+    let ring_y = turret.ring_y - cy;
+    let mantlet = ArmorPatch {
+        zone: ArmorZone::Mantlet,
+        center: Vec3::new(0.0, blueprint.gun.trunnion_y - cy, turret.mantlet_front_z),
+        radius_m: turret.mantlet_radius * MANTLET_PATCH_SCALE,
+    };
+    let (front_sin, front_cos) = turret.front_slope_deg.to_radians().sin_cos();
+    let (side_sin, side_cos) = turret.side_slope_deg.to_radians().sin_cos();
+    let (rear_sin, rear_cos) = turret.rear_slope_deg.to_radians().sin_cos();
+    let front_point = Vec3::new(0.0, ring_y, turret.ring_z + turret.plan_half_length);
+    let mut front =
+        TaggedPlane::new(Vec3::new(0.0, front_sin, front_cos), front_point, ArmorZone::TurretFront);
+    // The patch center projected onto the front plate, so a shot down the gun line always lands
+    // inside the mantlet whatever the plate's slope (the dome uses the same trick per sector).
+    let on_plane =
+        mantlet.center - front.normal * (front.normal.dot(mantlet.center) - front.offset);
+    front = front.with_patches(vec![ArmorPatch { center: on_plane, ..mantlet }]);
+    ArmorVolume {
+        planes: vec![
+            front,
+            TaggedPlane::new(
+                Vec3::new(side_cos, side_sin, 0.0),
+                Vec3::new(turret.plan_half_width, ring_y, turret.ring_z),
+                ArmorZone::TurretSide,
+            ),
+            TaggedPlane::new(
+                Vec3::new(-side_cos, side_sin, 0.0),
+                Vec3::new(-turret.plan_half_width, ring_y, turret.ring_z),
+                ArmorZone::TurretSide,
+            ),
+            TaggedPlane::new(
+                Vec3::new(0.0, rear_sin, -rear_cos),
+                Vec3::new(0.0, ring_y, turret.ring_z - turret.plan_half_length),
+                ArmorZone::TurretRear,
+            ),
+            TaggedPlane::new(
+                Vec3::Y,
+                Vec3::new(0.0, turret.roof_y - cy, turret.ring_z),
+                ArmorZone::Roof,
+            ),
+            // The box's underside at the ring seat: reachable only from under the overhang.
+            TaggedPlane::new(
+                -Vec3::Y,
+                Vec3::new(0.0, ring_y, turret.ring_z),
+                ArmorZone::TurretSide,
+            ),
+        ],
+    }
+}
+
+/// One side skirt as a thin spaced layer OUTSIDE the track band: full authored span, tagged
+/// [`ArmorZone::Skirt`] so the resolver treats it as a standoff screen (deadly to HEAT jets),
+/// never as running gear — a hit on the skirt must not degrade the track.
+fn skirt(blueprint: &VehicleBlueprint, cy: f32, side: f32) -> ArmorVolume {
+    let shape = blueprint.hull.skirt.expect("caller checked skirt presence");
+    let outer_x = blueprint.track.outer_x + shape.standoff_m;
+    let zone = ArmorZone::Skirt;
+    ArmorVolume {
+        planes: vec![
+            TaggedPlane::new(
+                Vec3::X * side,
+                Vec3::new(side * (outer_x + shape.thickness_m), 0.0, 0.0),
+                zone,
+            ),
+            TaggedPlane::new(-Vec3::X * side, Vec3::new(side * outer_x, 0.0, 0.0), zone),
+            TaggedPlane::new(Vec3::Y, Vec3::new(0.0, shape.top_y - cy, 0.0), zone),
+            TaggedPlane::new(-Vec3::Y, Vec3::new(0.0, shape.bottom_y - cy, 0.0), zone),
+            TaggedPlane::new(Vec3::Z, Vec3::new(0.0, 0.0, shape.front_z), zone),
+            TaggedPlane::new(-Vec3::Z, Vec3::new(0.0, 0.0, shape.rear_z), zone),
+        ],
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -294,6 +383,85 @@ mod tests {
         .expect("dome cheek hit");
         let hit = Vec3::new(0.75, gun_y, 8.0).lerp(Vec3::new(0.75, gun_y, 0.0), t);
         assert_eq!(volumes.turret.planes[plane].zone_at(hit), ArmorZone::TurretFront);
+    }
+
+    #[test]
+    fn a_welded_box_turret_bakes_a_plate_prism_not_a_dome() {
+        // The plumbing for the German fleet: switch the T-54's blueprint to a welded box and the
+        // turret volume becomes four sloped PLATES (+roof/underside) whose normals carry the
+        // blueprint slopes — flat steel behaves like flat steel, no swept sectors.
+        let mut blueprint =
+            VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("blueprint");
+        blueprint.turret.form = TurretForm::WeldedBox;
+        let cy = blueprint.hull.hitbox_center_y;
+        let volumes = bake_vehicle_armor(blueprint);
+
+        assert_eq!(volumes.turret.planes.len(), 6, "front + 2 sides + rear + roof + underside");
+        let headings: Vec<f32> = volumes
+            .turret
+            .planes
+            .iter()
+            .filter(|plane| plane.normal.y.abs() < 0.9)
+            .map(|plane| plane.normal.x.atan2(plane.normal.z))
+            .collect();
+        assert_eq!(headings.len(), 4, "exactly four wall plates, not {TURRET_SECTORS} sectors");
+
+        // The front plate carries the blueprint's front slope in its normal, and a shot down the
+        // gun line still lands on the mantlet patch.
+        let front = volumes
+            .turret
+            .planes
+            .iter()
+            .find(|plane| plane.zone == ArmorZone::TurretFront)
+            .expect("front plate");
+        let slope = front.normal.y.asin().to_degrees();
+        assert!(
+            (slope - blueprint.turret.front_slope_deg).abs() < 1.0e-3,
+            "front plate slope from the normal: {slope}"
+        );
+        let gun_y = blueprint.gun.trunnion_y - cy;
+        let (t, plane) = segment_volume_entry(
+            Vec3::new(0.0, gun_y, 8.0),
+            Vec3::new(0.0, gun_y, 0.0),
+            &volumes.turret,
+        )
+        .expect("front plate hit");
+        let hit = Vec3::new(0.0, gun_y, 8.0).lerp(Vec3::new(0.0, gun_y, 0.0), t);
+        assert_eq!(volumes.turret.planes[plane].zone_at(hit), ArmorZone::Mantlet);
+
+        // A casemate bakes the same prism (its traverse clamp lives in the spec, not the shape).
+        let mut casemate = VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("blueprint");
+        casemate.turret.form = TurretForm::Casemate;
+        assert_eq!(bake_vehicle_armor(casemate).turret.planes.len(), 6);
+    }
+
+    #[test]
+    fn an_authored_skirt_bakes_a_spaced_screen_pair_outside_the_tracks() {
+        let mut blueprint =
+            VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("blueprint");
+        let bare = bake_vehicle_armor(blueprint);
+        assert_eq!(bare.hull.len(), 4, "no skirt volumes without an authored skirt");
+
+        blueprint.hull.skirt = Some(crate::SkirtShape {
+            top_y: 1.3,
+            bottom_y: 0.6,
+            front_z: 2.8,
+            rear_z: -2.8,
+            standoff_m: 0.12,
+            thickness_m: 0.008,
+        });
+        let skirted = bake_vehicle_armor(blueprint);
+        assert_eq!(skirted.hull.len(), 6, "a skirt adds one thin volume per side");
+        let skirt = &skirted.hull[4];
+        assert!(skirt.planes.iter().all(|plane| plane.zone == ArmorZone::Skirt));
+        // The plate hangs OUTSIDE the track band by the authored standoff — the same plane the
+        // visible sheet is built on, and thin like sheet metal.
+        let outer = skirt.planes.iter().find(|plane| plane.normal.x > 0.9).expect("outer face");
+        assert!(
+            (outer.offset - (blueprint.track.outer_x + 0.12 + 0.008)).abs() < 1.0e-3,
+            "skirt face at track outer + standoff + thickness, got {}",
+            outer.offset
+        );
     }
 
     #[test]

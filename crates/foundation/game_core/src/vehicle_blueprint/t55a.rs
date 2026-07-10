@@ -29,6 +29,7 @@ pub(super) fn t55a_blueprint() -> VehicleBlueprint {
             rear_slope_deg: 8.0,
             lower_half_width: 1.22,
             sponson_y: 0.55,
+            skirt: None,
             hitbox_half_width: 1.75,
             hitbox_half_height: 1.19,
             hitbox_half_length: 3.20,
@@ -55,6 +56,7 @@ pub(super) fn t55a_blueprint() -> VehicleBlueprint {
             wheel_stations: None,
             return_rollers: 0,
             roller_radius: 0.0,
+            overlap_inner_dx: 0.0,
         },
         turret: TurretShape {
             form: TurretForm::CastDome,

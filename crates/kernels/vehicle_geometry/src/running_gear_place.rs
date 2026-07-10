@@ -96,9 +96,12 @@ fn place_side(
     for (index, &z) in kin.wheel_zs.iter().enumerate() {
         let lift = travel_at(travel, index);
         let y = kin.cy + lift;
+        // Schachtellaufwerk: odd-indexed wheels ride the inner row, offset inboard — the Tiger
+        // family's interleaved/overlapped look. Zero for the single-file layouts.
+        let wheel_x = kin.wheel_x - if index % 2 == 1 { kin.wheel_overlap_dx } else { 0.0 };
         out.push(GearPlacement {
             part: GearPart::RoadWheel,
-            transform: Mat4::from_translation(Vec3::new(side_sign * kin.wheel_x, y, z))
+            transform: Mat4::from_translation(Vec3::new(side_sign * wheel_x, y, z))
                 * Mat4::from_rotation_x(wheel_spin),
         });
         out.push(GearPlacement {

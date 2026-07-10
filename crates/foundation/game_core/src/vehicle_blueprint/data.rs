@@ -51,6 +51,7 @@ fn t54() -> VehicleBlueprint {
             // One box: the "tub" and the plate above the fold share the same vertical side plane.
             lower_half_width: 1.05,
             sponson_y: 1.00,
+            skirt: None,
             hitbox_half_width: 1.75,
             // Realistic full height: top = center_y + half_height = 2.43 bounds the 2.40 m tank
             // (cupola apex ~2.42). Floor ~5 cm below ground (center_y = half_height - 0.05);
@@ -87,6 +88,7 @@ fn t54() -> VehicleBlueprint {
             wheel_stations: Some(&[-1.95, -1.03, -0.11, 0.81, 1.95]),
             return_rollers: 0,
             roller_radius: 0.0,
+            overlap_inner_dx: 0.0,
         },
         turret: TurretShape {
             form: TurretForm::CastDome,

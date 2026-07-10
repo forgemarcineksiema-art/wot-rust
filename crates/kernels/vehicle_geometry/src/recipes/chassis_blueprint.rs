@@ -2,7 +2,7 @@
 //! fenders) and a wrapped track belt (a stadium that hugs the wheel line) with road wheels, a drive
 //! sprocket, an idler, and return rollers — the realistic running gear, replacing the legacy box.
 
-use game_core::{HullShape, TrackShape};
+use game_core::{HullShape, SkirtShape, TrackShape};
 use glam::{Vec2, Vec3};
 
 use super::SG_HARD;
@@ -109,6 +109,28 @@ pub(crate) fn blueprint_running_gear(track: &TrackShape) -> GeometryMesh {
         )
         .capped_revolve_at(Vec3::new(0.0, cy, cz - half_run), track_end_wrap_profile(track))
         .capped_revolve_at(Vec3::new(0.0, cy, cz + half_run), track_end_wrap_profile(track))
+        .mirror(Axis::X)
+        .build()
+}
+
+/// The side skirts, mirrored to both sides: one thin plate run hung outside the track band at
+/// the blueprint's standoff — the SAME plane the armor volumes bake the skirt screen on, so the
+/// sheet the player sees is the sheet a HEAT jet detonates against. A skirt-less blueprint
+/// builds an empty mesh (a no-op append), so every blueprint recipe can call this untouched.
+pub(crate) fn blueprint_skirts(hull: &HullShape, track: &TrackShape) -> GeometryMesh {
+    let Some(skirt): Option<SkirtShape> = hull.skirt else {
+        return MeshBuilder::new().build();
+    };
+    let cx = track.outer_x + skirt.standoff_m + skirt.thickness_m * 0.5;
+    let cy = (skirt.top_y + skirt.bottom_y) * 0.5;
+    let cz = (skirt.front_z + skirt.rear_z) * 0.5;
+    let half = Vec3::new(
+        skirt.thickness_m * 0.5,
+        (skirt.top_y - skirt.bottom_y).abs() * 0.5,
+        (skirt.front_z - skirt.rear_z).abs() * 0.5,
+    );
+    MeshBuilder::new()
+        .chamfered_prism(Vec3::new(cx, cy, cz), half, 0.02, MaterialRole::RolledArmor, SG_HARD)
         .mirror(Axis::X)
         .build()
 }

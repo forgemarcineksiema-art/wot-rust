@@ -32,7 +32,7 @@ pub fn plate_normal(
     let local = match zone {
         ArmorZone::UpperGlacis | ArmorZone::LowerPlate => Vec3::new(0.0, sin, cos),
         ArmorZone::HullRear => Vec3::new(0.0, sin, -cos),
-        ArmorZone::HullSide | ArmorZone::LeftTrack | ArmorZone::RightTrack => {
+        ArmorZone::HullSide | ArmorZone::LeftTrack | ArmorZone::RightTrack | ArmorZone::Skirt => {
             Vec3::new(side * cos, sin, 0.0)
         }
         ArmorZone::Roof => Vec3::Y,

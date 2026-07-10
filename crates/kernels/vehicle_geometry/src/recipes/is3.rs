@@ -10,8 +10,8 @@ use glam::{Vec2, Vec3};
 use super::is3_hull::is3_pike_hull;
 use super::soviet::soviet_cast_turret_for;
 use super::{
-    GunPlan, SG_HARD, assemble, blueprint_deck_details, blueprint_running_gear, build_gun,
-    shade_hull,
+    GunPlan, SG_HARD, assemble, blueprint_deck_details, blueprint_running_gear, blueprint_skirts,
+    build_gun, shade_hull,
 };
 use crate::{Axis, BakedVehicle, ExtrudeSpec, GeometryMesh, MaterialRole, MeshBuilder};
 
@@ -22,6 +22,7 @@ pub(crate) fn is3(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVehicle
         is3_pike_hull(&bp.hull)
             .append(&blueprint_running_gear(&bp.track))
             .append(&blueprint_deck_details(&bp.hull))
+            .append(&blueprint_skirts(&bp.hull, &bp.track))
             .append(&is3_fenders(&bp.hull, &bp.track))
             .build(),
     );

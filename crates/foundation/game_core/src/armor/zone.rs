@@ -17,15 +17,21 @@ pub enum ArmorZone {
     Roof,
     LeftTrack,
     RightTrack,
+    /// A thin side skirt hung outside the track: a spaced standoff SCREEN, resolved like the
+    /// track band (it strips its LOS off the shell — a multiple for HEAT — before the hull side
+    /// plate behind it), but it is sheet metal, NOT running gear: a skirt hit never degrades the
+    /// track. Appended last — the zone rides the wire inside damage events.
+    Skirt,
 }
 
 impl ArmorZone {
     pub fn facing(self) -> ArmorFacing {
         match self {
             ArmorZone::UpperGlacis | ArmorZone::LowerPlate => ArmorFacing::HullFront,
-            ArmorZone::HullSide | ArmorZone::LeftTrack | ArmorZone::RightTrack => {
-                ArmorFacing::HullSide
-            }
+            ArmorZone::HullSide
+            | ArmorZone::LeftTrack
+            | ArmorZone::RightTrack
+            | ArmorZone::Skirt => ArmorFacing::HullSide,
             ArmorZone::HullRear => ArmorFacing::HullRear,
             ArmorZone::TurretFront | ArmorZone::Mantlet | ArmorZone::Roof => {
                 ArmorFacing::TurretFront
@@ -49,6 +55,7 @@ impl ArmorProfile {
             ArmorZone::TurretRear => self.facet(ArmorFacing::TurretRear),
             ArmorZone::Roof => roof_plate(self),
             ArmorZone::LeftTrack | ArmorZone::RightTrack => track_plate(self),
+            ArmorZone::Skirt => skirt_plate(),
         }
     }
 }
@@ -71,6 +78,13 @@ fn track_plate(profile: &ArmorProfile) -> ArmorFacet {
     ArmorFacet::new((side.nominal_thickness_mm * 0.35).clamp(18.0, 35.0), 0.0, 1.0)
 }
 
+/// A skirt is thin sheet (historically 5–10 mm): almost no steel to a kinetic round, but the
+/// STANDOFF it creates is what the HEAT screen factor prices — the jet detonates a track-width
+/// early and the side plate behind eats a spent slug.
+fn skirt_plate() -> ArmorFacet {
+    ArmorFacet::new(8.0, 0.0, 1.0)
+}
+
 pub fn resolve_penetration_at_distance_on_zone(
     shell: &ShellSpec,
     armor: &ArmorProfile,
@@ -84,4 +98,49 @@ pub fn resolve_penetration_at_distance_on_zone(
         impact_angle_degrees,
         distance_m,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{ShellSpec, VehicleKind};
+
+    #[test]
+    fn a_skirt_is_thin_sheet_that_screens_a_heat_jet_like_the_track_band() {
+        let armor = VehicleKind::T54_1951.spec().hull;
+        let plate = armor.plate(ArmorZone::Skirt);
+        assert!(plate.nominal_thickness_mm <= 10.0, "sheet metal, not a hull plate");
+        assert!(
+            plate.nominal_thickness_mm < armor.plate(ArmorZone::LeftTrack).nominal_thickness_mm,
+            "thinner than the track band it hangs beside"
+        );
+
+        // The spaced resolve prices the skirt exactly like the track band: a HEAT jet loses a
+        // MULTIPLE of the sheet's LOS (the standoff kills it), a kinetic round only the sheet.
+        let heat = ShellSpec::heat(100.0, 900.0, 280.0, 320);
+        let ap = ShellSpec::armor_piercing(100.0, 895.0, 185.0, 320);
+        let heat_result = super::super::resolve_penetration_through_track(
+            &heat,
+            &armor,
+            ArmorZone::Skirt,
+            0.0,
+            0.0,
+            100.0,
+        );
+        let ap_result = super::super::resolve_penetration_through_track(
+            &ap,
+            &armor,
+            ArmorZone::Skirt,
+            0.0,
+            0.0,
+            100.0,
+        );
+        let side = armor.facet(ArmorFacing::HullSide).nominal_thickness_mm;
+        let heat_screen = heat_result.effective_armor_mm - side;
+        let ap_screen = ap_result.effective_armor_mm - side;
+        assert!(
+            heat_screen > ap_screen * 1.5,
+            "the standoff must punish HEAT harder: {heat_screen} vs {ap_screen}"
+        );
+    }
 }
