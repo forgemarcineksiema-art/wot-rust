@@ -5,6 +5,7 @@
 //! so migrating it changes only the *visual* mesh (now built from these same numbers) — gameplay is
 //! byte-for-byte unchanged.
 
+use super::centurion::centurion_blueprint;
 use super::is3::is3_blueprint;
 use super::jagdtiger::jagdtiger_blueprint;
 use super::panther_ii::panther_ii_blueprint;
@@ -26,6 +27,7 @@ pub(super) fn blueprint(kind: VehicleKind) -> Option<VehicleBlueprint> {
         VehicleKind::TigerII => Some(tiger_ii_blueprint()),
         VehicleKind::Jagdtiger => Some(jagdtiger_blueprint()),
         VehicleKind::PantherII => Some(panther_ii_blueprint()),
+        VehicleKind::Centurion => Some(centurion_blueprint()),
         _ => None,
     }
 }

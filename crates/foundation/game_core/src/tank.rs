@@ -96,7 +96,8 @@ impl HitboxProfile {
             | VehicleKind::TigerI
             | VehicleKind::TigerII
             | VehicleKind::Jagdtiger
-            | VehicleKind::PantherII => {
+            | VehicleKind::PantherII
+            | VehicleKind::Centurion => {
                 unreachable!("{kind:?} is blueprint-migrated")
             }
         }

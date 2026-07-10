@@ -32,6 +32,7 @@ impl VehicleKind {
             VehicleKind::Jagdtiger => 40,
             VehicleKind::PantherII => 79,
             VehicleKind::IS3 => 28,
+            VehicleKind::Centurion => 65,
         }
     }
 }

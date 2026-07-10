@@ -78,6 +78,7 @@ fn vehicle_spec(slug: &str) -> anyhow::Result<TankSpec> {
         "panther-ii" => TankSpec::panther_ii(),
         "t55a" => TankSpec::t55a(),
         "is3" | "is-3" => TankSpec::is3(),
+        "centurion-mk3" | "centurion_mk3" => TankSpec::centurion_mk3(),
         other => anyhow::bail!("unknown vehicle profile: {other}"),
     })
 }
@@ -139,6 +140,7 @@ fn parse_vehicle_kind(slug: &str) -> anyhow::Result<VehicleKind> {
         "panther-ii" | "panther_ii" => Ok(VehicleKind::PantherII),
         "t55a" => Ok(VehicleKind::T55A),
         "is3" | "is-3" => Ok(VehicleKind::IS3),
+        "centurion-mk3" | "centurion_mk3" => Ok(VehicleKind::Centurion),
         other => anyhow::bail!("unknown vehicle profile: {other}"),
     }
 }

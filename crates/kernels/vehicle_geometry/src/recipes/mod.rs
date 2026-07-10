@@ -22,6 +22,7 @@ use game_core::{HitboxProfile, MountFrames, VehicleKind};
 use crate::{BakeError, BakedVehicle, GeometryMesh, SmoothingGroup, Submesh, SubmeshKind};
 
 mod armament;
+mod centurion;
 mod chassis;
 mod chassis_blueprint;
 mod is3;
@@ -68,6 +69,7 @@ fn recipe(kind: VehicleKind, hitbox: &HitboxProfile, mounts: &MountFrames) -> Op
         VehicleKind::Jagdtiger => jagdtiger::jagdtiger(hitbox, mounts),
         VehicleKind::PantherII => panther_ii::panther_ii(hitbox, mounts),
         VehicleKind::IS3 => is3::is3(hitbox, mounts),
+        VehicleKind::Centurion => centurion::centurion(hitbox, mounts),
     })
 }
 

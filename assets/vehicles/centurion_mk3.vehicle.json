@@ -1,0 +1,178 @@
+{
+  "name": "Centurion Mk 3",
+  "kind": "Centurion",
+  "mass_kg": 48990.0,
+  "engine_power_kw": 480.0,
+  "max_forward_speed_mps": 9.6,
+  "max_reverse_speed_mps": 3.4,
+  "turn_rate_rad_s": 0.62,
+  "turret_rotation_rad_s": 0.44,
+  "hull": {
+    "hull_front_mm": 76.0,
+    "hull_side_mm": 51.0,
+    "hull_rear_mm": 38.0,
+    "turret_front_mm": 152.0,
+    "turret_side_mm": 112.0,
+    "turret_rear_mm": 90.0,
+    "facets": {
+      "hull_front": {
+        "nominal_thickness_mm": 76.0,
+        "slope_degrees": 57.0,
+        "weakspot_multiplier": 0.9
+      },
+      "hull_side": {
+        "nominal_thickness_mm": 51.0,
+        "slope_degrees": 0.0,
+        "weakspot_multiplier": 1.0
+      },
+      "hull_rear": {
+        "nominal_thickness_mm": 38.0,
+        "slope_degrees": 8.0,
+        "weakspot_multiplier": 1.0
+      },
+      "turret_front": {
+        "nominal_thickness_mm": 152.0,
+        "slope_degrees": 40.0,
+        "weakspot_multiplier": 0.9
+      },
+      "turret_side": {
+        "nominal_thickness_mm": 112.0,
+        "slope_degrees": 30.0,
+        "weakspot_multiplier": 1.0
+      },
+      "turret_rear": {
+        "nominal_thickness_mm": 90.0,
+        "slope_degrees": 15.0,
+        "weakspot_multiplier": 1.0
+      }
+    }
+  },
+  "gun": {
+    "name": "84 mm 20-pounder Type A",
+    "reload_seconds": 8.0,
+    "dispersion_mrad": 2.4,
+    "aim_time_seconds": 2.2,
+    "movement_bloom_mrad": 4.6,
+    "shot_bloom_mrad": 3.6,
+    "max_dispersion_mrad": 16.0,
+    "barrel_length_m": 5.6,
+    "shell": {
+      "shell_type": "ArmorPiercing",
+      "caliber_mm": 84.0,
+      "muzzle_velocity_mps": 1020.0,
+      "penetration_mm_at_100m": 230.0,
+      "damage_hp": 240,
+      "explosive_radius_m": 0.0
+    },
+    "special_shell": {
+      "shell_type": "Apcr",
+      "caliber_mm": 84.0,
+      "muzzle_velocity_mps": 1465.0,
+      "penetration_mm_at_100m": 300.0,
+      "damage_hp": 220,
+      "explosive_radius_m": 0.0
+    }
+  },
+  "ammo": {
+    "counts": [
+      40,
+      16,
+      9
+    ],
+    "initial_selected": 0
+  },
+  "ammo_capacity": 65,
+  "hit_points": 1650,
+  "module_health": {
+    "engine": 150,
+    "suspension": 170,
+    "turret": 250,
+    "gun": 150,
+    "ammo_rack": 275,
+    "radio": 50
+  },
+  "hitbox": {
+    "half_width_m": 1.7,
+    "half_height_m": 1.52,
+    "half_length_m": 3.86,
+    "center_y_m": 1.47,
+    "turret_min_y_m": 0.41,
+    "turret_half_width_m": 1.1,
+    "turret_half_length_m": 1.45,
+    "turret_center_z_m": -0.15
+  },
+  "damage_layout": {
+    "volumes": []
+  },
+  "mounts": {
+    "turret_ring": {
+      "translation": [
+        0.0,
+        1.88,
+        -0.15
+      ],
+      "basis": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "gun_trunnion": {
+      "translation": [
+        0.0,
+        2.16,
+        1.3
+      ],
+      "basis": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "muzzle": {
+      "translation": [
+        0.0,
+        2.16,
+        6.03
+      ],
+      "basis": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    }
+  },
+  "contact": {
+    "stations": [
+      -2.05,
+      -1.45,
+      -0.3,
+      0.3,
+      1.45,
+      2.05,
+      0.0,
+      0.0
+    ],
+    "station_count": 6,
+    "half_gauge_x": 1.2750001,
+    "wheel_radius": 0.4
+  }
+}

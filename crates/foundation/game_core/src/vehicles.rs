@@ -30,6 +30,10 @@ impl TankSpec {
     pub fn is3() -> Self {
         VehicleKind::IS3.spec()
     }
+
+    pub fn centurion_mk3() -> Self {
+        VehicleKind::Centurion.spec()
+    }
 }
 
 pub fn known_tank_specs() -> Vec<TankSpec> {

@@ -14,5 +14,6 @@ pub(crate) fn short_name(kind: VehicleKind) -> &'static str {
         VehicleKind::Jagdtiger => "Jagdtg",
         VehicleKind::PantherII => "Panth II",
         VehicleKind::IS3 => "IS-3",
+        VehicleKind::Centurion => "Cent 3",
     }
 }

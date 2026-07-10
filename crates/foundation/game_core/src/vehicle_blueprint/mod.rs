@@ -15,6 +15,7 @@ use glam::Vec3;
 
 use crate::{HitboxProfile, MountFrame, MountFrames, VehicleKind};
 
+mod centurion;
 mod data;
 mod fittings;
 mod hybrid;
