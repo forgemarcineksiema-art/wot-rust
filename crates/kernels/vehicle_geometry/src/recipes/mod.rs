@@ -30,6 +30,7 @@ mod is3_hull;
 mod panther;
 mod soviet;
 mod t54;
+mod tiger_i;
 mod turret_fittings;
 
 pub(crate) use armament::{GunPlan, build_gun, build_gun_with_mantlet_scale};
@@ -69,7 +70,7 @@ fn recipe(kind: VehicleKind, hitbox: &HitboxProfile, mounts: &MountFrames) -> Op
         VehicleKind::PrototypeMedium => soviet::prototype_medium(hitbox, mounts),
         VehicleKind::T54_1951 => soviet::t54_1951(hitbox, mounts),
         VehicleKind::T55A => soviet::t55a(hitbox, mounts),
-        VehicleKind::TigerI => german::tiger_i(hitbox, mounts),
+        VehicleKind::TigerI => tiger_i::tiger_i(hitbox, mounts),
         VehicleKind::TigerII => german::tiger_ii(hitbox, mounts),
         VehicleKind::Jagdtiger => casemate::jagdtiger(hitbox, mounts),
         VehicleKind::PantherII => panther::panther_ii(hitbox, mounts),

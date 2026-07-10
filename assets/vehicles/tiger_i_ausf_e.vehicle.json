@@ -13,7 +13,39 @@
     "hull_rear_mm": 80.0,
     "turret_front_mm": 100.0,
     "turret_side_mm": 80.0,
-    "turret_rear_mm": 80.0
+    "turret_rear_mm": 80.0,
+    "facets": {
+      "hull_front": {
+        "nominal_thickness_mm": 100.0,
+        "slope_degrees": 9.0,
+        "weakspot_multiplier": 0.9
+      },
+      "hull_side": {
+        "nominal_thickness_mm": 80.0,
+        "slope_degrees": 0.0,
+        "weakspot_multiplier": 1.0
+      },
+      "hull_rear": {
+        "nominal_thickness_mm": 80.0,
+        "slope_degrees": 8.0,
+        "weakspot_multiplier": 1.0
+      },
+      "turret_front": {
+        "nominal_thickness_mm": 100.0,
+        "slope_degrees": 8.0,
+        "weakspot_multiplier": 0.92
+      },
+      "turret_side": {
+        "nominal_thickness_mm": 80.0,
+        "slope_degrees": 0.0,
+        "weakspot_multiplier": 1.0
+      },
+      "turret_rear": {
+        "nominal_thickness_mm": 80.0,
+        "slope_degrees": 0.0,
+        "weakspot_multiplier": 1.0
+      }
+    }
   },
   "gun": {
     "name": "8.8 cm KwK 36 L/56",
@@ -23,26 +55,117 @@
     "movement_bloom_mrad": 4.5,
     "shot_bloom_mrad": 3.6,
     "max_dispersion_mrad": 16.0,
+    "barrel_length_m": 4.8,
     "shell": {
+      "shell_type": "ArmorPiercing",
       "caliber_mm": 88.0,
       "muzzle_velocity_mps": 773.0,
       "penetration_mm_at_100m": 165.0,
-      "damage_hp": 360
-    }
+      "damage_hp": 360,
+      "explosive_radius_m": 0.0
+    },
+    "special_shell": null
   },
+  "ammo": {
+    "counts": [
+      56,
+      23,
+      13
+    ],
+    "initial_selected": 0
+  },
+  "ammo_capacity": 92,
   "hit_points": 1850,
   "module_health": {
     "engine": 170,
     "suspension": 170,
     "turret": 280,
     "gun": 150,
+    "ammo_rack": 290,
     "radio": 50
   },
   "hitbox": {
-    "half_width_m": 1.95,
-    "half_height_m": 1.46,
-    "half_length_m": 3.6,
-    "center_y_m": 1.41,
-    "turret_min_y_m": 0.49
+    "half_width_m": 1.87,
+    "half_height_m": 1.53,
+    "half_length_m": 3.22,
+    "center_y_m": 1.48,
+    "turret_min_y_m": 0.42,
+    "turret_half_width_m": 1.0,
+    "turret_half_length_m": 1.25,
+    "turret_center_z_m": -0.1
+  },
+  "damage_layout": {
+    "volumes": []
+  },
+  "mounts": {
+    "turret_ring": {
+      "translation": [
+        0.0,
+        1.9,
+        -0.1
+      ],
+      "basis": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "gun_trunnion": {
+      "translation": [
+        0.0,
+        2.17,
+        1.15
+      ],
+      "basis": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "muzzle": {
+      "translation": [
+        0.0,
+        2.17,
+        5.29
+      ],
+      "basis": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    }
+  },
+  "contact": {
+    "stations": [
+      -1.8,
+      -1.2857143,
+      -0.7714286,
+      -0.2571429,
+      0.25714278,
+      0.77142835,
+      1.2857141,
+      1.8
+    ],
+    "station_count": 8,
+    "half_gauge_x": 1.485,
+    "wheel_radius": 0.4
   }
 }

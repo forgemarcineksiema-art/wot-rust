@@ -116,8 +116,10 @@ fn armor_profile_for(kind: VehicleKind, modules: &VehicleModules) -> ArmorProfil
         );
     }
     match kind {
-        // Blueprint-born: facets come from `bp.armor` above, always.
-        VehicleKind::IS3 => unreachable!("IS-3 is blueprint-migrated"),
+        // Blueprint-migrated: facets come from `bp.armor` above, always.
+        VehicleKind::IS3 | VehicleKind::TigerI => {
+            unreachable!("{kind:?} is blueprint-migrated")
+        }
         VehicleKind::T54_1951 | VehicleKind::T55A => ArmorProfile::new_with_facets(
             weakspot(h.front_mm, 60.0, 0.82),
             facet(h.side_mm, 10.0),
@@ -156,18 +158,6 @@ fn armor_profile_for(kind: VehicleKind, modules: &VehicleModules) -> ArmorProfil
             facet(h.rear_mm, 0.0),
             weakspot(t.front_mm, 25.0, 0.9),
             facet(t.side_mm, 10.0),
-            facet(t.rear_mm, 0.0),
-        ),
-        // The Tiger I is famous for its slab-sided, nearly vertical plates — far flatter than its
-        // sloped successors, with vertical (unsloped) sides and rear. The shallow front slopes
-        // plus the driver's-plate and mantlet weakspots keep it in the same facet model as the
-        // rest of the roster instead of falling back to flat 0°/no-weakspot defaults.
-        VehicleKind::TigerI => ArmorProfile::new_with_facets(
-            weakspot(h.front_mm, 10.0, 0.9),
-            facet(h.side_mm, 0.0),
-            facet(h.rear_mm, 0.0),
-            weakspot(t.front_mm, 8.0, 0.92),
-            facet(t.side_mm, 0.0),
             facet(t.rear_mm, 0.0),
         ),
     }

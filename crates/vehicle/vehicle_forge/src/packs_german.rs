@@ -60,19 +60,23 @@ pub fn tiger_i_reference_pack() -> ReferencePack {
         heavy_sources(
             "https://commons.wikimedia.org/wiki/Tiger_I",
             "https://tank-afv.com/ww2/germany/Tiger.php",
-            "docs/vehicles/tiger-i.md",
+            "docs/vehicles/panzerkampfwagen-vi-tiger.md",
         ),
+        // Re-tuned to the blueprint-born 1:1 body (6.32 m hull, 3.705 m beam, 3.0 m tall): the
+        // documented Tiger is a genuinely DEEP slab (hull-height/length ~0.33), and its broad
+        // horseshoe turret is a low band on that tall superstructure — the old targets described
+        // the squat legacy stretch.
         silhouette_ratios(
-            1.77,
-            0.233,
-            0.51,
-            0.86,
-            0.35,
+            1.66,
+            0.33,
+            0.52,
+            0.58,
+            0.34,
             [
                 "Hull plan reads as a long heavy, not a medium.",
-                "Tall, slab-sided heavy hull — clearly deeper than a Soviet medium.",
-                "Welded box turret is broad but narrower than the wide track span.",
-                "Boxy turret stands tall on the hull roof.",
+                "Tall, slab-sided heavy hull — the deepest body in the German line.",
+                "Horseshoe turret is broad but narrower than the full sponson beam.",
+                "The turret is a low broad band on the tall superstructure, cupola on the left.",
                 "8.8 cm KwK 36 projects well past the flat nose.",
             ],
         ),
