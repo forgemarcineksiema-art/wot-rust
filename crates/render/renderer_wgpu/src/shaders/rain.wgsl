@@ -3,31 +3,7 @@
 // Streaks live in a cylinder around the camera and wrap vertically as they fall; each is a
 // thin camera-lateral quad slanted by the wind. Drawn after the world (depth-tested, no
 // write) so rain never falls through a roof in view, additively faint.
-
-struct Camera {
-    view_proj: mat4x4<f32>,
-    inv_view_proj: mat4x4<f32>,
-    camera_pos: vec3<f32>,
-    ambient_rgb: vec3<f32>,
-    ground_ambient_rgb: vec3<f32>,
-    key_direction: vec3<f32>,
-    key_rgb: vec3<f32>,
-    fill_direction: vec3<f32>,
-    fill_rgb: vec3<f32>,
-    rim_direction: vec3<f32>,
-    rim_rgb: vec3<f32>,
-    light_view_proj: mat4x4<f32>,
-    shadow_params: vec4<f32>,
-    ssao_params: vec4<f32>,
-    sky_zenith_rgb: vec3<f32>,
-    sky_horizon_rgb: vec3<f32>,
-    fog_params: vec4<f32>,
-    // x = presentation seconds (tick-domain), y = rain intensity, z = world wetness, w reserved.
-    time_params: vec4<f32>,
-};
-
-@group(0) @binding(0)
-var<uniform> camera: Camera;
+// Composed after camera_common.wgsl (the shared camera uniform declaration).
 
 const CYLINDER_RADIUS_M: f32 = 26.0;
 const HALF_HEIGHT_M: f32 = 14.0;

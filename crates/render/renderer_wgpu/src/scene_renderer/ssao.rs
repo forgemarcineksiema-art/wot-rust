@@ -9,8 +9,11 @@ use renderer_api::CameraProjectionPolicy;
 
 use super::ssao_pipelines::{build_prepass_pipeline, fullscreen_pipeline, texture_bgl};
 
-pub fn ssao_shader_source() -> &'static str {
-    include_str!("../shaders/ssao.wgsl")
+pub fn ssao_shader_source() -> String {
+    crate::shader_library::compose_shader(&[
+        crate::shader_library::CAMERA_COMMON_WGSL,
+        include_str!("../shaders/ssao.wgsl"),
+    ])
 }
 
 /// The screen-sized SSAO chain: the prepass depth, the raw AO target and its blurred copy, plus
@@ -26,9 +29,13 @@ pub(crate) struct SsaoTargets {
 }
 
 /// SSAO pipelines and settings. `strength` 0 disables (capability fallback); `near`/`far` default
-/// to the shared projection policy and only need changing for exotic cameras.
+/// to the shared projection policy and only need changing for exotic cameras. `scale` is the
+/// SSAO render scale from the lighting-quality table: 0.5 on integrated GPUs quarters the AO
+/// pixels — including the depth prepass rasterization, the real cost — for a soft effect the
+/// 3×3 blur was smearing anyway.
 pub(crate) struct SsaoResources {
     pub strength: f32,
+    pub scale: f32,
     pub near: f32,
     pub far: f32,
     pub prepass_vehicle_pipeline: wgpu::RenderPipeline,
@@ -41,7 +48,7 @@ pub(crate) struct SsaoResources {
 }
 
 impl SsaoResources {
-    pub fn new(device: &wgpu::Device, camera_bgl: &wgpu::BindGroupLayout) -> Self {
+    pub fn new(device: &wgpu::Device, camera_bgl: &wgpu::BindGroupLayout, scale: f32) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("ssao_shader"),
             source: wgpu::ShaderSource::Wgsl(ssao_shader_source().into()),
@@ -68,7 +75,10 @@ impl SsaoResources {
         });
         let policy = CameraProjectionPolicy::webgpu_default();
         Self {
-            strength: 1.0,
+            // Scale 0 is the WOT_SSAO=off override: the whole chain stays valid, strength 0 skips
+            // the passes and the shaders read fully open.
+            strength: if scale > 0.0 { 1.0 } else { 0.0 },
+            scale: scale.clamp(0.0, 1.0),
             near: policy.near_plane_m(),
             far: policy.far_plane_m(),
             prepass_vehicle_pipeline: build_prepass_pipeline(
@@ -93,8 +103,9 @@ impl SsaoResources {
         }
     }
 
-    /// Ensure the screen-sized chain matches `width`x`height`; returns `true` when it was
-    /// (re)created and the group-2 environment bind group must be re-pointed at the new blur view.
+    /// Ensure the AO chain matches the `width`×`height` RENDER target (textures are created at
+    /// `scale` times that size); returns `true` when it was (re)created and the group-2
+    /// environment bind group must be re-pointed at the new blur view.
     pub fn ensure_targets(&self, device: &wgpu::Device, width: u32, height: u32) -> bool {
         let current = self.targets.borrow();
         if current.as_ref().is_some_and(|t| t.width == width && t.height == height) {
@@ -102,11 +113,17 @@ impl SsaoResources {
         }
         drop(current);
 
+        let scaled = |edge: u32| ((edge as f32 * self.scale.max(0.25)).round() as u32).max(1);
+        let (ao_width, ao_height) = (scaled(width), scaled(height));
         let make = |label: &str, format: wgpu::TextureFormat| {
             device
                 .create_texture(&wgpu::TextureDescriptor {
                     label: Some(label),
-                    size: wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
+                    size: wgpu::Extent3d {
+                        width: ao_width,
+                        height: ao_height,
+                        depth_or_array_layers: 1,
+                    },
                     mip_level_count: 1,
                     sample_count: 1,
                     dimension: wgpu::TextureDimension::D2,

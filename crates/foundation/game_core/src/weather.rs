@@ -13,9 +13,18 @@ pub enum WeatherVariant {
     ClearAfternoon,
     RainSqualls,
     DawnFog,
+    /// A low western sun raking long shadows across the field — the golden-hour look.
+    GoldenEvening,
+    /// A dry lead-grey lid: flat light, no sun disc worth the name, no rain.
+    Overcast,
 }
 
 impl WeatherVariant {
-    pub const ALL: [WeatherVariant; 3] =
-        [WeatherVariant::ClearAfternoon, WeatherVariant::RainSqualls, WeatherVariant::DawnFog];
+    pub const ALL: [WeatherVariant; 5] = [
+        WeatherVariant::ClearAfternoon,
+        WeatherVariant::RainSqualls,
+        WeatherVariant::DawnFog,
+        WeatherVariant::GoldenEvening,
+        WeatherVariant::Overcast,
+    ];
 }

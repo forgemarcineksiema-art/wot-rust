@@ -293,7 +293,10 @@ mod tests {
     fn oblique_and_ricochet_only_degrade() {
         let oblique = track_hit_damage(100.0, 55.0, ShellType::ArmorPiercing, true, false);
         let ricochet = track_hit_damage(100.0, 20.0, ShellType::ArmorPiercing, false, true);
-        assert!(oblique > 0 && oblique < TRACK_HP_MAX, "oblique degrades but does not throw: {oblique}");
+        assert!(
+            oblique > 0 && oblique < TRACK_HP_MAX,
+            "oblique degrades but does not throw: {oblique}"
+        );
         assert!(ricochet > 0 && ricochet < TRACK_HP_MAX, "a ricochet barely scores: {ricochet}");
     }
 }

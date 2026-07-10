@@ -118,9 +118,17 @@ pub struct CameraUniform {
     pub rim_rgb: GpuVec3,
     /// The focused sun shadow map's light view-projection (see `renderer_api::sun_shadow`).
     pub light_view_proj: GpuMat4,
+    /// The far cascade's light view-projection: the same texel-snapped sun box, 4.5× wider and
+    /// centred further along the look, so terrain and buildings past the near box still cast
+    /// (see `SunShadowParams::far_cascade`).
+    pub light_view_proj_far: GpuMat4,
     /// Packed shadow controls: x = shadow-map texel UV size (PCF step), y = depth bias,
     /// z = strength (0 disables — the capability fallback), w = world-space normal offset.
     pub shadow_params: GpuVec4,
+    /// Packed far-cascade controls: x = far texel UV size, y = far world-space normal offset,
+    /// z = cascade count (< 2 disables the far lookup), w = the near box's containment margin in
+    /// UV — fragments inside it sample the near map, outside it fall through to the far cascade.
+    pub cascade_params: GpuVec4,
     /// Packed SSAO controls: x = near plane, y = far plane (for depth linearization),
     /// z = strength (0 disables — the capability fallback), w = projection Y scale (P[1][1],
     /// recovered from the view-projection) for world-radius → pixel-radius conversion.
@@ -130,8 +138,10 @@ pub struct CameraUniform {
     /// Gradient-sky horizon colour (linear); also the aerial-perspective fog colour distant
     /// surfaces fade toward in the lit shaders.
     pub sky_horizon_rgb: GpuVec3,
-    /// Packed fog controls: x = density, y = height falloff, z/w reserved (0). Density 0 disables
-    /// the aerial perspective (interior looks).
+    /// Packed fog controls + render size: x = density, y = height falloff (density 0 disables
+    /// the aerial perspective — interior looks); z/w = inverse render-target width/height, which
+    /// `screen_ao` uses to address the (possibly reduced-resolution) AO chain by framebuffer
+    /// pixel.
     pub fog_params: GpuVec4,
     /// Packed presentation clock: x = scene time in seconds, y/z/w reserved (0). Every shader
     /// animation (water ripple, foliage sway, weather) advances by this one value. Tick-domain
@@ -139,6 +149,17 @@ pub struct CameraUniform {
     /// never integrated from render-frame deltas — a jittery frame clock must not wobble the
     /// world (the same rule `engine::TankMotion` follows).
     pub time_params: GpuVec4,
+    /// Packed display grade from the lighting profile: x = exposure (pre-curve HDR multiplier),
+    /// y = black point, z = saturation, w = contrast. Mirrored on the CPU by
+    /// `SceneLighting::grade_reference`.
+    pub grade_params: GpuVec4,
+    /// Packed cloud layer from the lighting profile: x = coverage bias, y = pattern scale,
+    /// z = opacity, w = drift speed (UV per presentation second).
+    pub cloud_params: GpuVec4,
+    /// Packed sky/air extras: x = cloud-shadow strength on the terrain key (profile strength,
+    /// already gated by `LightingQuality::cloud_shadows` — 0 disables), y = sun-directional
+    /// scatter in the aerial perspective, z/w reserved (0).
+    pub sky_params: GpuVec4,
 }
 
 /// The per-frame pass parameters that ride the camera uniform beside the view matrices and
@@ -147,8 +168,18 @@ pub struct CameraUniform {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct FramePassParams {
     pub light_view_proj: [[f32; 4]; 4],
+    /// The far cascade's light view-projection (`CameraUniform::light_view_proj_far`).
+    pub light_view_proj_far: [[f32; 4]; 4],
     pub shadow_params: [f32; 4],
+    /// Packed far-cascade controls (`CameraUniform::cascade_params`).
+    pub cascade_params: [f32; 4],
     pub ssao_params: [f32; 4],
+    /// Inverse render-target size (`1/width`, `1/height`) — rides `fog_params.zw` so the shaders
+    /// can address reduced-resolution screen targets by framebuffer pixel.
+    pub inv_render_size: [f32; 2],
+    /// Whether this adapter tier runs terrain cloud shadows (`LightingQuality::cloud_shadows`);
+    /// false zeroes the profile's strength in `sky_params.x`.
+    pub cloud_shadows_enabled: bool,
     pub time_s: f32,
     /// Rain streak density 0..1 (`time_params.y`); 0 in every non-rain look.
     pub rain_intensity: f32,
@@ -161,9 +192,13 @@ impl Default for FramePassParams {
     fn default() -> Self {
         Self {
             light_view_proj: IDENTITY_MATRIX,
+            light_view_proj_far: IDENTITY_MATRIX,
             // strength 0: no shadow / no SSAO (the default frame is unshadowed).
             shadow_params: [0.0, 0.0, 0.0, 0.0],
+            cascade_params: [0.0, 0.0, 0.0, 0.0],
             ssao_params: [0.1, 1500.0, 0.0, 1.0],
+            inv_render_size: [0.0, 0.0],
+            cloud_shadows_enabled: true,
             time_s: 0.0,
             rain_intensity: 0.0,
             wetness: 0.0,
@@ -195,12 +230,37 @@ impl CameraUniform {
             rim_direction: GpuVec3(lighting.rim_direction),
             rim_rgb: GpuVec3(lighting.rim_rgb),
             light_view_proj: GpuMat4(passes.light_view_proj),
+            light_view_proj_far: GpuMat4(passes.light_view_proj_far),
             shadow_params: GpuVec4(passes.shadow_params),
+            cascade_params: GpuVec4(passes.cascade_params),
             ssao_params: GpuVec4(passes.ssao_params),
             sky_zenith_rgb: GpuVec3(lighting.sky_zenith_rgb),
             sky_horizon_rgb: GpuVec3(lighting.sky_horizon_rgb),
-            fog_params: GpuVec4([lighting.fog_density, lighting.fog_height_falloff, 0.0, 0.0]),
+            fog_params: GpuVec4([
+                lighting.fog_density,
+                lighting.fog_height_falloff,
+                passes.inv_render_size[0],
+                passes.inv_render_size[1],
+            ]),
             time_params: GpuVec4([passes.time_s, passes.rain_intensity, passes.wetness, 0.0]),
+            grade_params: GpuVec4([
+                lighting.exposure,
+                lighting.black_point,
+                lighting.saturation,
+                lighting.contrast,
+            ]),
+            cloud_params: GpuVec4([
+                lighting.cloud_coverage_bias,
+                lighting.cloud_scale,
+                lighting.cloud_opacity,
+                lighting.cloud_drift,
+            ]),
+            sky_params: GpuVec4([
+                if passes.cloud_shadows_enabled { lighting.cloud_shadow_strength } else { 0.0 },
+                lighting.fog_sun_scatter,
+                0.0,
+                0.0,
+            ]),
         }
     }
 

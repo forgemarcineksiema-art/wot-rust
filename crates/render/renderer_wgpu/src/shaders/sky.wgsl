@@ -3,32 +3,7 @@
 // horizon gradient plus a soft sun disc/haze along the key light. The horizon colour matches the
 // aerial-perspective fog colour (SceneLighting::sky_horizon_rgb) so distant terrain melts into the
 // visible sky instead of meeting a flat clear colour. See docs/atmosphere-policy.md phase 2.
-
-struct Camera {
-    view_proj: mat4x4<f32>,
-    inv_view_proj: mat4x4<f32>,
-    camera_pos: vec3<f32>,
-    ambient_rgb: vec3<f32>,
-    ground_ambient_rgb: vec3<f32>,
-    key_direction: vec3<f32>,
-    key_rgb: vec3<f32>,
-    fill_direction: vec3<f32>,
-    fill_rgb: vec3<f32>,
-    rim_direction: vec3<f32>,
-    rim_rgb: vec3<f32>,
-    light_view_proj: mat4x4<f32>,
-    shadow_params: vec4<f32>,
-    ssao_params: vec4<f32>,
-    sky_zenith_rgb: vec3<f32>,
-    sky_horizon_rgb: vec3<f32>,
-    fog_params: vec4<f32>,
-    // x = presentation seconds (tick-domain — see gpu_layout.rs), y = rain intensity,
-    // z = world wetness, w reserved.
-    time_params: vec4<f32>,
-};
-
-@group(0) @binding(0)
-var<uniform> camera: Camera;
+// Composed after camera_common.wgsl and lighting_common.wgsl (camera uniform, display transform).
 
 struct VsOut {
     @builtin(position) clip: vec4<f32>,
@@ -47,27 +22,6 @@ fn vs_main(@builtin(vertex_index) index: u32) -> VsOut {
     out.ndc = vec2<f32>(x, y);
     out.clip = vec4<f32>(x, y, 1.0, 1.0);
     return out;
-}
-
-// Gentle display grade after the tone curve (mirrors scene.wgsl's display_grade verbatim) so the sky
-// grades into the same picture as the lit world and the horizon meets the fogged terrain seamlessly.
-fn display_grade(c: vec3<f32>) -> vec3<f32> {
-    let luma = dot(c, vec3<f32>(0.2126, 0.7152, 0.0722));
-    let saturated = mix(vec3<f32>(luma), c, 1.18);
-    let contrasted = (saturated - vec3<f32>(0.5)) * 1.10 + vec3<f32>(0.5);
-    return clamp(contrasted, vec3<f32>(0.0), vec3<f32>(1.0));
-}
-
-// Filmic ACES-lite tone curve (Narkowicz fit); mirrors scene.wgsl/vehicle.wgsl so the sky is graded
-// on the same curve as the lit world.
-fn tonemap_aces(x: vec3<f32>) -> vec3<f32> {
-    let a = 2.51;
-    let b = 0.03;
-    let c = 2.43;
-    let d = 0.59;
-    let e = 0.14;
-    let mapped = clamp((x * (a * x + b)) / (x * (c * x + d) + e), vec3<f32>(0.0), vec3<f32>(1.0));
-    return display_grade(mapped);
 }
 
 // --- Procedural clouds ----------------------------------------------------------------------
@@ -123,26 +77,34 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     // Clouds: project the ray onto a plane above the eye (uv foreshortens toward the horizon like
     // real cloud cover) and drift it by the clock. A domain warp — offsetting the sample by a
     // low-frequency noise of itself — breaks the grid alignment of raw value noise into billowed,
-    // natural banks instead of angular blobs. Coverage is soft-thresholded so open blue shows between.
-    let drift = camera.time_params.x * 0.004;
-    let uv = dir.xz / (dir.y + 0.45) * 0.8 + vec2<f32>(drift, drift * 0.6);
+    // natural banks instead of angular blobs. Coverage is soft-thresholded so open blue shows
+    // between. Scale, drift, coverage bias and opacity come from the profile (cloud_params), so
+    // each look owns its sky: the rain profile biases the same FBM into an overcast lid, dawn
+    // thins it to high sheets.
+    let drift = camera.time_params.x * camera.cloud_params.w;
+    let uv = dir.xz / (dir.y + 0.45) * 0.8 * camera.cloud_params.y + vec2<f32>(drift, drift * 0.6);
     let warp = vec2<f32>(cloud_fbm(uv * 0.5), cloud_fbm(uv * 0.5 + vec2<f32>(5.2, 1.3)));
-    let coverage = cloud_fbm(uv + warp * 0.7);
+    let coverage = cloud_fbm(uv + warp * 0.7) + camera.cloud_params.x;
     // Fade the sheet out at the horizon (where it would alias into a busy band); a broad, soft
     // mid-sky belt of cloud so the dome stops reading as one flat pale wash.
     let band = smoothstep(0.04, 0.32, dir.y);
     let cloud = smoothstep(0.40, 0.72, coverage) * band;
-    // Lit toward the sun (warm bright tops), a cooler shadowed base on the far side; the spread gives
-    // the banks body rather than reading as flat white paint against the pale sky.
+    // Lit toward the sun, shaded on the far side — both DERIVED from the profile's key and
+    // ambient instead of hardcoded constants, so a golden-hour sun paints the banks warm and an
+    // overcast profile's weak grey key reads as a lead lid, for free.
     let sun_side = clamp(dot(dir, sun) * 0.5 + 0.5, 0.0, 1.0);
-    let cloud_col = mix(vec3<f32>(0.64, 0.68, 0.76), vec3<f32>(1.30, 1.22, 1.06), sun_side);
-    color = mix(color, cloud_col, cloud * 0.9);
+    let cloud_lit = camera.key_rgb + camera.ambient_rgb * 0.5;
+    let cloud_shade = camera.ambient_rgb * 2.5 + vec3<f32>(0.15, 0.15, 0.15);
+    let cloud_col = mix(cloud_shade, cloud_lit, sun_side);
+    color = mix(color, cloud_col, cloud * camera.cloud_params.z);
 
-    // Sun: a tight bright disc plus a soft surrounding haze, along the key light direction. Drawn
-    // after the clouds and only above the horizon, so a low sun does not bleed a second glow into the
+    // Sun: a tight bright disc plus a soft surrounding haze, along the key light direction. The
+    // haze of the profile fattens and softens the disc (a hazy day has a milky sun); drawn after
+    // the clouds and only above the horizon, so a low sun does not bleed a second glow into the
     // ground band and the disc burns through thin cloud.
-    let disc = pow(d, 900.0) * 6.0;
-    let halo = pow(d, 9.0) * 0.20;
+    let hazy = clamp(camera.fog_params.x * 700.0, 0.0, 1.0);
+    let disc = pow(d, mix(900.0, 350.0, hazy)) * mix(6.0, 3.5, hazy);
+    let halo = pow(d, mix(9.0, 6.0, hazy)) * mix(0.20, 0.30, hazy);
     color += camera.key_rgb * (disc + halo) * above;
 
     return vec4<f32>(tonemap_aces(color), 1.0);

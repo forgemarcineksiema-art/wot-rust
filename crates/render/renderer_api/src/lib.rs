@@ -3,6 +3,7 @@ mod capabilities;
 mod debug_tools;
 mod feature_plan;
 mod lighting;
+mod lighting_quality;
 mod limits;
 mod pipeline;
 mod projection;
@@ -31,6 +32,7 @@ pub use feature_plan::{
     FallbackReason, FeatureFallback, RenderFeature, RenderFeaturePlan, select_render_feature_plan,
 };
 pub use lighting::SceneLighting;
+pub use lighting_quality::LightingQuality;
 pub use limits::RenderLimitProfile;
 pub use pipeline::{
     AlphaMode, ColorFormat, DepthFormat, MaterialPipelineFlags, PipelineCacheMode, PipelineKey,

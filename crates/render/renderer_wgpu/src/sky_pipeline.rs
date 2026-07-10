@@ -4,9 +4,10 @@
 //! camera bind group. See `docs/atmosphere-policy.md` phase 2.
 
 use crate::offscreen::DEPTH_FORMAT;
+use crate::shader_library::{CAMERA_COMMON_WGSL, LIGHTING_COMMON_WGSL, compose_shader};
 
-pub fn sky_shader_source() -> &'static str {
-    include_str!("shaders/sky.wgsl")
+pub fn sky_shader_source() -> String {
+    compose_shader(&[CAMERA_COMMON_WGSL, LIGHTING_COMMON_WGSL, include_str!("shaders/sky.wgsl")])
 }
 
 /// Build the gradient-sky pipeline against the shared scene camera bind-group layout (group 0).

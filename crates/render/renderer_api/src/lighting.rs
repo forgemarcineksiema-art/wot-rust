@@ -34,6 +34,38 @@ pub struct SceneLighting {
     /// Height falloff for the fog: how fast the fog thins with world height, so valleys fill and
     /// ridgelines cut through. 0 makes the fog uniform with height.
     pub fog_height_falloff: f32,
+    /// Linear exposure multiplier applied to HDR radiance *before* the ACES tone curve: the one
+    /// knob that makes the whole picture read brighter or moodier without re-tuning every light.
+    /// 1.0 is neutral; profiles stay within `[0.5, 2.0]` (locked by tests).
+    pub exposure: f32,
+    /// Display black point: post-curve values at or below it are pulled to true black
+    /// (`(c - black) / (1 - black)`), undoing the ACES-lite lifted near-blacks so shade reads as
+    /// shade. 0 is neutral; profiles stay within `[0, 0.08]`.
+    pub black_point: f32,
+    /// Display saturation around per-pixel luma; 1.0 is neutral. Replaces the old constant 1.18
+    /// hardcoded in four shaders — the grade is profile data now.
+    pub saturation: f32,
+    /// Display contrast S-curve slope around mid grey; 1.0 is neutral. Replaces the old
+    /// hardcoded 1.10.
+    pub contrast: f32,
+    /// Cloud coverage bias, added to the sky FBM before the coverage threshold: 0 is the clear-day
+    /// baseline, positive values thicken the banks (≥ ~0.3 reads as an overcast lid), negative
+    /// values thin them to high sheets.
+    pub cloud_coverage_bias: f32,
+    /// Cloud pattern scale (UV multiplier): 1.0 is the baseline bank size; higher = finer/higher
+    /// sheets.
+    pub cloud_scale: f32,
+    /// Cloud opacity over the sky gradient (0..1). 0 removes the layer entirely.
+    pub cloud_opacity: f32,
+    /// Cloud drift speed in UV per presentation second (tick-domain clock).
+    pub cloud_drift: f32,
+    /// How strongly the cloud layer shades the terrain's sun (0..1). Kept at 0 under overcast —
+    /// the lid itself is the shadow — and gated per tier by `LightingQuality::cloud_shadows`.
+    pub cloud_shadow_strength: f32,
+    /// Sun-directional scatter in the aerial perspective (0..1): haze looked at *toward* the sun
+    /// warms toward the key colour instead of the flat horizon grey. Colour only — the fog
+    /// density/height model (and its 400 m fairness bound) is untouched by this.
+    pub fog_sun_scatter: f32,
 }
 
 impl SceneLighting {
@@ -48,6 +80,24 @@ impl SceneLighting {
         let height_term = (-height.max(0.0) * self.fog_height_falloff).exp();
         let f = 1.0 - (-distance.max(0.0) * self.fog_density * height_term).exp();
         f.clamp(0.0, 1.0)
+    }
+
+    /// The full display transform for one linear HDR colour: exposure → ACES-lite curve → black
+    /// point pull → saturation → contrast. The CPU mirror of the shaders' `aces_curve` +
+    /// `display_grade` (lighting_common.wgsl), kept in exact lockstep so the image formation is
+    /// testable without a GPU — the same role `fog_factor` plays for `apply_fog`.
+    pub fn grade_reference(&self, hdr: [f32; 3]) -> [f32; 3] {
+        let aces = |x: f32| {
+            let x = x * self.exposure;
+            ((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14)).clamp(0.0, 1.0)
+        };
+        let black = self.black_point;
+        let pulled = hdr.map(|c| ((aces(c) - black) / (1.0 - black)).clamp(0.0, 1.0));
+        let luma = 0.2126 * pulled[0] + 0.7152 * pulled[1] + 0.0722 * pulled[2];
+        pulled.map(|c| {
+            let saturated = luma + (c - luma) * self.saturation;
+            ((saturated - 0.5) * self.contrast + 0.5).clamp(0.0, 1.0)
+        })
     }
 
     /// The battlefield look: a warm sun key raking low from the side (so it sculpts the sides of a
@@ -79,6 +129,22 @@ impl SceneLighting {
             // melts into the horizon. Aerial perspective for depth, never for hiding targets.
             fog_density: 0.00013,
             fog_height_falloff: 0.02,
+            // First-pass image formation (the proper per-map taste pass is a later phase): a
+            // touch of extra exposure so the sunlit field glows, a real black point so cast
+            // shadows finally reach black, and slightly more contrast than the old hardcoded
+            // 1.10 now that the blacks anchor it.
+            exposure: 1.1,
+            black_point: 0.03,
+            saturation: 1.18,
+            contrast: 1.15,
+            // A clear day with scattered banks: baseline coverage and drift, a gentle patchwork
+            // of cloud shade wandering the field, light warm scatter around the sun.
+            cloud_coverage_bias: 0.0,
+            cloud_scale: 1.0,
+            cloud_opacity: 0.9,
+            cloud_drift: 0.004,
+            cloud_shadow_strength: 0.25,
+            fog_sun_scatter: 0.5,
         }
     }
 
@@ -99,6 +165,19 @@ impl SceneLighting {
             sky_horizon_rgb: [0.78, 0.72, 0.62],
             fog_density: 0.00015,
             fog_height_falloff: 0.02,
+            // Golden afternoon: warm light wants saturation and glow, gentle blacks.
+            exposure: 1.1,
+            black_point: 0.025,
+            saturation: 1.22,
+            contrast: 1.12,
+            // Golden afternoon: a few more banks than the battle noon, drifting cloud shade on
+            // the farmland, and a strong warm glow in the haze around the low western sun.
+            cloud_coverage_bias: 0.04,
+            cloud_scale: 1.1,
+            cloud_opacity: 0.9,
+            cloud_drift: 0.004,
+            cloud_shadow_strength: 0.3,
+            fog_sun_scatter: 0.65,
         }
     }
 
@@ -119,6 +198,20 @@ impl SceneLighting {
             sky_horizon_rgb: [0.46, 0.50, 0.54],
             fog_density: 0.0009,
             fog_height_falloff: 0.004,
+            // Rain: a flat lead-grey day — near-neutral saturation, soft contrast, shallow
+            // blacks (an overcast sky fills every shadow).
+            exposure: 1.0,
+            black_point: 0.015,
+            saturation: 1.06,
+            contrast: 1.08,
+            // Rain: the coverage bias pushes the same FBM into a genuine overcast lid; no cloud
+            // shade on the ground (the lid IS the shadow), no sun to scatter around.
+            cloud_coverage_bias: 0.35,
+            cloud_scale: 1.3,
+            cloud_opacity: 0.97,
+            cloud_drift: 0.006,
+            cloud_shadow_strength: 0.0,
+            fog_sun_scatter: 0.15,
         }
     }
 
@@ -139,6 +232,82 @@ impl SceneLighting {
             sky_horizon_rgb: [0.72, 0.68, 0.66],
             fog_density: 0.00105,
             fog_height_falloff: 0.10,
+            // Dawn mist: muted colour in the fog, a little extra exposure so the low sun still
+            // carries through it.
+            exposure: 1.05,
+            black_point: 0.02,
+            saturation: 1.10,
+            contrast: 1.10,
+            // Dawn: thin, fine high sheets rather than banks; the strongest sun scatter of the
+            // set — the whole eastern mist glows toward the low sun.
+            cloud_coverage_bias: -0.05,
+            cloud_scale: 1.6,
+            cloud_opacity: 0.55,
+            cloud_drift: 0.003,
+            cloud_shadow_strength: 0.1,
+            fog_sun_scatter: 0.8,
+        }
+    }
+
+    /// Prokhorovka, golden evening: the sun low in the WEST, raking long shadows across the Psel
+    /// killzone — the look the shadow cascades were built to sell. A hot amber key, dusk-blue
+    /// ambient in the shade, a deep-blue zenith easing into a warm band at the horizon, and the
+    /// strongest sun scatter of the outdoor set so the whole western haze glows.
+    pub fn prokhorovka_golden_evening() -> Self {
+        Self {
+            ambient_rgb: [0.13, 0.15, 0.24],
+            ground_ambient_rgb: [0.15, 0.11, 0.08],
+            // Low in the west: the normalized elevation sits ~0.25 — long shadows, real raking.
+            key_direction: [-0.92, 0.25, 0.20],
+            key_rgb: [1.32, 0.95, 0.55],
+            fill_direction: [0.60, 0.55, -0.30],
+            fill_rgb: [0.13, 0.15, 0.22],
+            rim_direction: [0.50, 0.35, 0.80],
+            rim_rgb: [0.24, 0.20, 0.20],
+            sky_zenith_rgb: [0.15, 0.23, 0.46],
+            sky_horizon_rgb: [0.86, 0.66, 0.46],
+            fog_density: 0.00018,
+            fog_height_falloff: 0.02,
+            exposure: 1.1,
+            black_point: 0.035,
+            saturation: 1.25,
+            contrast: 1.15,
+            cloud_coverage_bias: 0.02,
+            cloud_scale: 1.0,
+            cloud_opacity: 0.9,
+            cloud_drift: 0.004,
+            cloud_shadow_strength: 0.3,
+            fog_sun_scatter: 0.85,
+        }
+    }
+
+    /// Prokhorovka, dry overcast: a lead lid over the steppe — flat cool light, no sun disc worth
+    /// the name, soft contrast — but DRY, unlike the Bystra squalls: no rain pass, no soaked
+    /// world. The mood day for a long-range gunnery duel.
+    pub fn prokhorovka_overcast() -> Self {
+        Self {
+            ambient_rgb: [0.24, 0.26, 0.29],
+            ground_ambient_rgb: [0.13, 0.13, 0.13],
+            key_direction: [0.20, 0.90, 0.15],
+            key_rgb: [0.50, 0.53, 0.58],
+            fill_direction: [-0.45, 0.50, -0.55],
+            fill_rgb: [0.14, 0.16, 0.19],
+            rim_direction: [-0.30, 0.45, 0.80],
+            rim_rgb: [0.16, 0.18, 0.22],
+            sky_zenith_rgb: [0.34, 0.37, 0.42],
+            sky_horizon_rgb: [0.52, 0.55, 0.58],
+            fog_density: 0.0005,
+            fog_height_falloff: 0.01,
+            exposure: 1.0,
+            black_point: 0.015,
+            saturation: 1.05,
+            contrast: 1.08,
+            cloud_coverage_bias: 0.4,
+            cloud_scale: 1.2,
+            cloud_opacity: 0.95,
+            cloud_drift: 0.005,
+            cloud_shadow_strength: 0.0,
+            fog_sun_scatter: 0.1,
         }
     }
 
@@ -162,6 +331,18 @@ impl SceneLighting {
             sky_horizon_rgb: [0.18, 0.19, 0.21],
             fog_density: 0.0,
             fog_height_falloff: 0.0,
+            // Studio: near-neutral grade — the vehicle's own material colour reads true.
+            exposure: 1.0,
+            black_point: 0.02,
+            saturation: 1.10,
+            contrast: 1.08,
+            // Interior: no sky layer, no cloud shade, no scatter.
+            cloud_coverage_bias: 0.0,
+            cloud_scale: 1.0,
+            cloud_opacity: 0.0,
+            cloud_drift: 0.0,
+            cloud_shadow_strength: 0.0,
+            fog_sun_scatter: 0.0,
         }
     }
 
@@ -188,6 +369,18 @@ impl SceneLighting {
             sky_horizon_rgb: [0.15, 0.16, 0.19],
             fog_density: 0.0,
             fog_height_falloff: 0.0,
+            // Workshop: moodier than the studio — deeper blacks under the skylight key.
+            exposure: 1.05,
+            black_point: 0.035,
+            saturation: 1.10,
+            contrast: 1.12,
+            // Interior: no sky layer, no cloud shade, no scatter.
+            cloud_coverage_bias: 0.0,
+            cloud_scale: 1.0,
+            cloud_opacity: 0.0,
+            cloud_drift: 0.0,
+            cloud_shadow_strength: 0.0,
+            fog_sun_scatter: 0.0,
         }
     }
 }
