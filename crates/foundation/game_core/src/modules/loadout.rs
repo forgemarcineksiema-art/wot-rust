@@ -117,7 +117,11 @@ fn armor_profile_for(kind: VehicleKind, modules: &VehicleModules) -> ArmorProfil
     }
     match kind {
         // Blueprint-migrated: facets come from `bp.armor` above, always.
-        VehicleKind::IS3 | VehicleKind::TigerI | VehicleKind::TigerII | VehicleKind::Jagdtiger => {
+        VehicleKind::IS3
+        | VehicleKind::TigerI
+        | VehicleKind::TigerII
+        | VehicleKind::Jagdtiger
+        | VehicleKind::PantherII => {
             unreachable!("{kind:?} is blueprint-migrated")
         }
         VehicleKind::T54_1951 | VehicleKind::T55A => ArmorProfile::new_with_facets(
@@ -127,14 +131,6 @@ fn armor_profile_for(kind: VehicleKind, modules: &VehicleModules) -> ArmorProfil
             weakspot(t.front_mm, 35.0, 0.9),
             facet(t.side_mm, 25.0),
             facet(t.rear_mm, 10.0),
-        ),
-        VehicleKind::PantherII => ArmorProfile::new_with_facets(
-            facet(h.front_mm, 55.0),
-            facet(h.side_mm, 0.0),
-            facet(h.rear_mm, 0.0),
-            weakspot(t.front_mm, 20.0, 0.9),
-            facet(t.side_mm, 0.0),
-            facet(t.rear_mm, 0.0),
         ),
         VehicleKind::PrototypeMedium => ArmorProfile::new_with_facets(
             facet(h.front_mm, 35.0),

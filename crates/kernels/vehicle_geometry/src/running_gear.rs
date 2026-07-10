@@ -73,12 +73,10 @@ pub struct RunningGearKinematics {
 
 impl RunningGearKinematics {
     /// Build the kinematics for `kind`, or `None` for vehicles that keep fused static gear (the
-    /// test-only prototype medium). Blueprint vehicles read their blueprint's track; the German
-    /// fleet reads the authored [`crate::legacy_tracks`] table — same pipeline, same motion.
+    /// test-only prototype medium). The whole animated fleet reads its blueprint's track — the
+    /// legacy hand-authored table is gone with the last legacy vehicle.
     pub fn for_vehicle(kind: VehicleKind) -> Option<Self> {
-        let track = VehicleBlueprint::for_vehicle(kind)
-            .map(|blueprint| blueprint.track)
-            .or_else(|| crate::legacy_tracks::legacy_track_shape(kind))?;
+        let track = VehicleBlueprint::for_vehicle(kind).map(|blueprint| blueprint.track)?;
         let cy = (track.top_y + track.bottom_y) * 0.5;
         let cz = (track.wheel_first_z + track.wheel_last_z) * 0.5;
         let half_run = (track.wheel_last_z - track.wheel_first_z) * 0.5;
@@ -95,7 +93,7 @@ impl RunningGearKinematics {
             // Interleaved/overlapped discs: each row must be thin enough that the inner row
             // (one `overlap_inner_dx` inboard) clears the outer row's faces.
             VehicleKind::TigerI => 0.10,
-            VehicleKind::TigerII | VehicleKind::Jagdtiger => 0.09,
+            VehicleKind::TigerII | VehicleKind::Jagdtiger | VehicleKind::PantherII => 0.09,
             _ => ((track.outer_x - track.inner_x) * 0.5).max(0.03),
         };
         let link_half_width = match kind {
@@ -108,6 +106,8 @@ impl RunningGearKinematics {
             // interleaved wheel rows they ride over.
             VehicleKind::TigerI => 0.28,
             VehicleKind::TigerII | VehicleKind::Jagdtiger => 0.31,
+            // The Panther II's 660 mm band, spanning its overlapped steel wheels.
+            VehicleKind::PantherII => 0.26,
             _ => (track.belt_half_thickness * 0.5).max(0.02),
         };
         let link_count = match kind {
@@ -145,7 +145,8 @@ impl RunningGearKinematics {
                 | VehicleKind::IS3
                 | VehicleKind::TigerI
                 | VehicleKind::TigerII
-                | VehicleKind::Jagdtiger => (track.inner_x + track.outer_x) * 0.5,
+                | VehicleKind::Jagdtiger
+                | VehicleKind::PantherII => (track.inner_x + track.outer_x) * 0.5,
                 _ => track.center_x + track.belt_half_thickness - track.belt_half_thickness * 0.5,
             },
             link_half_width,

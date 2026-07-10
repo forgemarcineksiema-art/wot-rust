@@ -4,17 +4,74 @@
 
 - `Panzerkampfwagen V Panther II`
 
-This is the improved Panther project from 1943: a Panther with heavier armor and Tiger II component commonality goals. The game spec models the historically grounded Panther II prototype direction, not the popular later-game fantasy of a Panther II with the Tiger II 8.8 cm KwK 43.
+This is the improved Panther project from 1943: a Panther with heavier armor and Tiger II
+component commonality goals. The game spec models the historically grounded Panther II
+prototype direction, not the popular later-game fantasy of a Panther II with the Tiger II
+8.8 cm KwK 43.
+
+## Blueprint Migration (2026-07)
+
+The Panther II is blueprint-born — and the LAST German off the legacy path, which retires the
+hand-authored `legacy_tracks` table entirely (every animated vehicle now reads its blueprint's
+running gear). `game_core::vehicle_blueprint::panther_ii` is the single shape source for the
+hitbox, mounts, armor facet slopes, `WeldedBox` armor volumes, and (via
+`vehicle_geometry::recipes::panther_ii`) the visible mesh, locked by
+`panther_ii_benchmark.rs`.
+
+### Anchor dimensions (1:1)
+
+| Anchor | Value | In the blueprint |
+| --- | --- | --- |
+| Hull length | 6.87 m | `half_len 3.435` |
+| Width over tracks | 3.42 m | `track.outer_x 1.70` |
+| Height | 2.99 m | `deck_y 1.85`, `roof_y 2.72`, cupola to 2.99 |
+| Ground clearance | 0.54 m | `belly_y 0.54` |
+| Road wheels | 7 × ⌀0.80 m overlapped steel | `wheel_count 7`, `overlap_inner_dx 0.20` |
+| Track width | 660 mm | `inner_x 1.00 .. outer_x 1.70` |
+| Contact run | ~3.5 m | `wheel_first_z/last_z ±1.75` |
+| Overall with gun | ~8.9 m | `muzzle_z 5.60` (7.5 cm KwK 42 L/70) |
+| Fire line | ~2.18 m | `trunnion_y 2.18` |
+
+### The wedge, honestly
+
+- The 100 mm glacis leans 55° — the steepest German plate in the fleet, one ramp from the
+  fold to the deck, standing ON the armor volume plane (`blueprint_prism_hull`).
+- Upper sides lean their 29° (the Panther family's sponson rake; the legacy model called them
+  vertical); rear at 30°.
+- The Schmalturm: the narrowest turret in the German line — a small 20° face barely wider
+  than the cone Saukopf mantlet, 25° cheeks converging hard to a slim roof, cupola pulled to
+  the centreline. Its plates ARE the armor prism planes.
+- Seven overlapped steel-rimmed wheels of the Tiger II school (the Panther II traded the
+  interleaved rubber dish for the simpler stagger), no return rollers.
+
+### What deliberately changed for gameplay (re-recorded consciously)
+
+- Hitbox: 7.40 × 3.70 × 2.94 m → 6.98 × 3.46 × 2.99 m (the real proportions).
+- Armor geometry: hull sides 0° → 29°, rear 0° → 30°, turret sides/rear 0° → 25°/20°; bands →
+  volumes.
+- Fire line raised 2.04 → 2.18 m; muzzle reach corrected 6.20 → 5.60 (an L/70, not an L/71 —
+  the old barrel borrowed half a metre from the King Tiger).
+- Contact footprint: seven real wheel stations.
+- With this vehicle the `legacy_tracks` table and the last legacy recipe (`panther.rs`) are
+  deleted: the German fleet is 100% blueprint-born.
 
 ## Data Sources And Gameplay Translation
 
-The implemented values are practical gameplay specs grounded in public historical data.
-
 Reference points:
 
-- [Panzerworld Panther](https://panzerworld.com/pz-kpfw-panther): Panther II was initiated as an up-armored Panther, with 100 mm glacis, 60 mm hull sides, 120 mm turret front in later armor notes, Tiger II component sharing goals, and a note that the 8.8 cm KwK 43 was not feasible for the Panther II turret ring.
-- [DeWiki Panther II](https://dewiki.de/Lexikon/Panzerkampfwagen_V_Panther_II): Jentz/Doyle-derived technical data lists 53 t weight, 100 mm front armor, 60 mm side armor, 40 mm rear armor, Maybach HL 230, 46 km/h speed, five crew, one turretless prototype, and 7.5 cm KwK L/70 armament.
-- [Panzerworld 7.5 cm KwK 42 L/70](https://panzerworld.com/7-5-cm-kw-k-42-l-70): 75 mm caliber, 70-caliber barrel, 935 m/s muzzle velocity and 138 mm penetration at 100 m for Pzgr 39/42 APCBC-HE.
+- [Panzerworld Panther](https://panzerworld.com/pz-kpfw-panther): Panther II was initiated as
+  an up-armored Panther, with 100 mm glacis, 60 mm hull sides, 120 mm turret front in later
+  armor notes, Tiger II component sharing goals, and a note that the 8.8 cm KwK 43 was not
+  feasible for the Panther II turret ring.
+- [DeWiki Panther II](https://dewiki.de/Lexikon/Panzerkampfwagen_V_Panther_II): Jentz/Doyle-
+  derived technical data lists 53 t weight, 100 mm front armor, 60 mm side armor, 40 mm rear
+  armor, Maybach HL 230, 46 km/h speed, five crew, one turretless prototype, and 7.5 cm KwK
+  L/70 armament.
+- [Panzerworld 7.5 cm KwK 42 L/70](https://panzerworld.com/7-5-cm-kw-k-42-l-70): 75 mm
+  caliber, 70-caliber barrel, 935 m/s muzzle velocity and 138 mm penetration at 100 m for
+  Pzgr 39/42 APCBC-HE.
+- Wikimedia Commons photo galleries for the Panther proportions, ramp line, and Schmalturm
+  references used by the Forge reference pack ratio gates.
 
 ## Current Gameplay Spec
 
@@ -23,9 +80,14 @@ Reference points:
 - Engine: 441 kW Maybach HL 230-class
 - Max forward speed: 12.78 m/s
 - Gun: 7.5 cm KwK 42 L/70
-- Armor model: 100 mm hull front, 60 mm hull side, 40 mm hull rear, 120 mm turret front
+- Armor model: 100 mm hull front @55°, 60 mm hull side @29°, 40 mm hull rear @30°, 120 mm
+  turret front @20° (mantlet weakspot 0.9), turret sides @25°, rear @20° — thicknesses from
+  the installed modules, geometry from the blueprint.
 
-The `turret_front_mm` value uses the planned Panther II/late Panther turret-front protection, while the current four-value armor model does not separately represent mantlets or roof armor. The 8.8 cm KwK 43 is intentionally not used here because the Panther II program ended before that later Schmalturm/firepower work and the turret-ring constraint makes it a poor historical fit.
+The `turret_front_mm` value uses the planned Panther II/late Panther turret-front protection.
+The 8.8 cm KwK 43 is intentionally not used here because the Panther II program ended before
+that later Schmalturm/firepower work and the turret-ring constraint makes it a poor
+historical fit.
 
 ## Asset
 

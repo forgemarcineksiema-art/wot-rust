@@ -82,7 +82,10 @@ fn every_vehicle_bake_hash_matches_golden_output() {
         // (7.80 m hull, superstructure flank continuing the hull's 25° plane, 15° 250 mm face,
         // periscope roof, 9 overlapped wheels, braked PaK 44) replaces the legacy box.
         (VehicleKind::Jagdtiger, 4_221_782_223_902_766_305_u64),
-        (VehicleKind::PantherII, 12_707_307_636_792_314_550_u64),
+        // Re-recorded for the Panther II blueprint migration: the researched 1:1 wedge (6.87 m
+        // hull, steepest German glacis at 55°, 29° leaned sides, narrow Schmalturm, 7 overlapped
+        // steel wheels, braked KwK 42) replaces the last legacy German body.
+        (VehicleKind::PantherII, 8_939_939_482_117_310_310_u64),
         // Re-recorded for the gear realism pass: fender line (shelf, front mudguards, rear
         // flaps) joins the hull bake; the existing fleet is untouched.
         (VehicleKind::IS3, 13_461_797_925_301_907_251_u64),

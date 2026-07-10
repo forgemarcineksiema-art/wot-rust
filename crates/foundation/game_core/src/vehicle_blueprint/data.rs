@@ -1,4 +1,4 @@
-//! Per-vehicle blueprint data. Migrated vehicles return `Some`; the rest return `None` and keep the
+﻿//! Per-vehicle blueprint data. Migrated vehicles return `Some`; the rest return `None` and keep the
 //! legacy hand-authored hitbox/mounts/armour + recipe until they are migrated.
 //!
 //! The T-54 values reproduce the current gameplay hitbox, mount frames, and armour facets exactly,
@@ -7,6 +7,7 @@
 
 use super::is3::is3_blueprint;
 use super::jagdtiger::jagdtiger_blueprint;
+use super::panther_ii::panther_ii_blueprint;
 use super::t54_hybrid::t54_hybrid;
 use super::t55a::t55a_blueprint;
 use super::tiger_i::tiger_i_blueprint;
@@ -24,6 +25,7 @@ pub(super) fn blueprint(kind: VehicleKind) -> Option<VehicleBlueprint> {
         VehicleKind::TigerI => Some(tiger_i_blueprint()),
         VehicleKind::TigerII => Some(tiger_ii_blueprint()),
         VehicleKind::Jagdtiger => Some(jagdtiger_blueprint()),
+        VehicleKind::PantherII => Some(panther_ii_blueprint()),
         _ => None,
     }
 }
