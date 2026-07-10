@@ -8,8 +8,8 @@
 //!
 //! Shared shapes live in [`chassis`] (hulls, tracks, wheels), [`armament`] (guns), and
 //! [`turret_fittings`] (cupolas, mantlet sockets, cast domes); the family modules ([`soviet`],
-//! [`panther`], [`casemate`]) tune those into distinct vehicles, while blueprint-born vehicles
-//! carry their own modules ([`tiger_i`], [`tiger_ii`], [`is3`]).
+//! [`panther`]) tune those into distinct vehicles, while blueprint-born vehicles carry their
+//! own modules ([`tiger_i`], [`tiger_ii`], [`jagdtiger`], [`is3`]).
 //!
 //! Recipes receive [`MountFrames`] and [`HitboxProfile`] from [`game_core`] as authoritative
 //! inputs — hull dimensions are derived as explicit fractions of the hitbox, and mount points
@@ -22,11 +22,11 @@ use game_core::{HitboxProfile, MountFrames, VehicleKind};
 use crate::{BakeError, BakedVehicle, GeometryMesh, SmoothingGroup, Submesh, SubmeshKind};
 
 mod armament;
-mod casemate;
 mod chassis;
 mod chassis_blueprint;
 mod is3;
 mod is3_hull;
+mod jagdtiger;
 mod panther;
 mod soviet;
 mod t54;
@@ -74,7 +74,7 @@ fn recipe(kind: VehicleKind, hitbox: &HitboxProfile, mounts: &MountFrames) -> Op
         VehicleKind::T55A => soviet::t55a(hitbox, mounts),
         VehicleKind::TigerI => tiger_i::tiger_i(hitbox, mounts),
         VehicleKind::TigerII => tiger_ii::tiger_ii(hitbox, mounts),
-        VehicleKind::Jagdtiger => casemate::jagdtiger(hitbox, mounts),
+        VehicleKind::Jagdtiger => jagdtiger::jagdtiger(hitbox, mounts),
         VehicleKind::PantherII => panther::panther_ii(hitbox, mounts),
         VehicleKind::IS3 => is3::is3(hitbox, mounts),
     })

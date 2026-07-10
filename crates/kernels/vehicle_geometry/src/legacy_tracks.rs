@@ -15,8 +15,6 @@ use game_core::{TrackShape, VehicleKind};
 /// test-only prototype medium).
 pub(crate) fn legacy_track_shape(kind: VehicleKind) -> Option<TrackShape> {
     let (wheel_radius, wheel_count, wheel_y, wheel_span_z, inner_x, outer_x) = match kind {
-        // JAGDTIGER_GEAR: the longest run in the lineup, sitting lowest.
-        VehicleKind::Jagdtiger => (0.42, 9, 0.42, 3.40, 1.50, 1.96),
         // PANTHER_GEAR: the largest wheels of the four.
         VehicleKind::PantherII => (0.46, 8, 0.44, 3.00, 1.38, 1.82),
         _ => return None,
@@ -50,13 +48,14 @@ pub(crate) fn legacy_track_shape(kind: VehicleKind) -> Option<TrackShape> {
 mod tests {
     use super::*;
 
-    const LEGACY_ANIMATED: [VehicleKind; 2] = [VehicleKind::Jagdtiger, VehicleKind::PantherII];
+    const LEGACY_ANIMATED: [VehicleKind; 1] = [VehicleKind::PantherII];
 
     #[test]
     fn every_legacy_animated_vehicle_gets_a_stadium_track() {
         for kind in LEGACY_ANIMATED {
             let track = legacy_track_shape(kind).expect("authored track");
             assert!(track.wheel_count >= 8, "{kind:?}");
+            assert!(track.wheel_radius > 0.4, "{kind:?}");
             // Stadium invariants: the belt is tangent to the wheels and wraps at their radius.
             assert_eq!(track.end_radius, track.wheel_radius, "{kind:?}");
             assert_eq!(track.end_z, track.wheel_last_z, "{kind:?}");
@@ -79,6 +78,7 @@ mod tests {
             VehicleKind::IS3,
             VehicleKind::TigerI,
             VehicleKind::TigerII,
+            VehicleKind::Jagdtiger,
             VehicleKind::PrototypeMedium,
         ] {
             assert!(legacy_track_shape(kind).is_none(), "{kind:?}");
