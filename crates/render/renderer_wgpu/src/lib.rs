@@ -140,7 +140,7 @@ fn map_backend(backend: wgpu::Backend) -> GpuBackend {
     }
 }
 
-fn map_device_type(device_type: wgpu::DeviceType) -> GpuDeviceType {
+pub(crate) fn map_device_type(device_type: wgpu::DeviceType) -> GpuDeviceType {
     match device_type {
         wgpu::DeviceType::Other => GpuDeviceType::Other,
         wgpu::DeviceType::IntegratedGpu => GpuDeviceType::IntegratedGpu,

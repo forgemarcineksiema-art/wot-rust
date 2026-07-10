@@ -96,7 +96,9 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     var albedo = input.color * material_detail(input.world_pos, geometric_n);
     albedo *= mix(1.0, 0.80, wet);
 
-    var lit = albedo * light_radiance(n, shadow) * ao;
+    // Screen AO rides inside light_radiance on the indirect terms only — a sunlit crease keeps
+    // its full key while its ambient/fill correctly dampens.
+    var lit = albedo * light_radiance(n, shadow, ao);
     // Specular: a Blinn lobe on the key light plus the analytic-sky reflection, both scaled by
     // the material lane. Matte (gloss 0) surfaces skip this entirely — the historical look.
     if (gloss > 0.001) {

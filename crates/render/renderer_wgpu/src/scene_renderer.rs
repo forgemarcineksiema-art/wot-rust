@@ -3,6 +3,7 @@ mod draw;
 mod draw_depth;
 pub(crate) mod env_group;
 mod hud_atlas;
+mod quality;
 mod resources;
 mod settings;
 pub(crate) mod shadow;
@@ -152,22 +153,22 @@ impl SceneRenderer {
         );
         let (vehicle_pipeline, vehicle_camera_bgl, vehicle_material_bgl) =
             build_vehicle_pipeline(device, color_format, sample_count, &shadow_bgl);
-        let ssao = ssao::SsaoResources::new(device, &camera_bgl);
-        let placeholder_ao = ssao_pipelines::placeholder_ao_view(device, &ctx.queue);
-        let shadow_resolution = shadow::resolve_shadow_resolution(
-            renderer_api::SunShadowParams::default().resolution,
+        // Adapter class + WOT_* env overrides become the frame's lighting quality in one place.
+        let lighting_quality = quality::resolve_lighting_quality(
             ctx.adapter.get_info().device_type,
             std::env::var("WOT_SHADOW_RES").ok().as_deref(),
+            std::env::var("WOT_SHADOW_CASCADES").ok().as_deref(),
+            std::env::var("WOT_SSAO").ok().as_deref(),
         );
-        let cascade_count =
-            shadow::resolve_cascade_count(std::env::var("WOT_SHADOW_CASCADES").ok().as_deref());
+        let ssao = ssao::SsaoResources::new(device, &camera_bgl, lighting_quality.ssao_scale);
+        let placeholder_ao = ssao_pipelines::placeholder_ao_view(device, &ctx.queue);
         let shadow = shadow::ShadowResources::new(
             device,
             &shadow_bgl,
             &camera_bgl,
             &placeholder_ao,
-            shadow_resolution,
-            cascade_count,
+            lighting_quality.shadow_resolution,
+            lighting_quality.shadow_cascades,
         );
 
         let camera_buffer = device.create_buffer(&wgpu::BufferDescriptor {

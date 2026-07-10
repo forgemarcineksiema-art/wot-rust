@@ -8,42 +8,9 @@ use crate::scene_resources::SceneInstance;
 
 const SHADOW_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 
-/// The shadow-map edge (texels) this adapter should render: the default 4096 on a discrete GPU,
-/// halved to 2048 on integrated/software adapters. A 4096² Depth32Float map is 64 MB
-/// cleared+stored every frame (even with no occluders) and drives 9 comparison taps per pixel in
-/// both main shaders — one of the fattest slices of a shared-memory GPU's frame, for detail a
-/// 20-30 FPS laptop never resolves. Everything downstream (PCF UV step, normal offset, depth
-/// bias) is texel-derived, so quality degrades smoothly. `WOT_SHADOW_RES=1024|2048|4096`
-/// overrides in both directions.
-pub(crate) fn resolve_shadow_resolution(
-    default: u32,
-    device_type: wgpu::DeviceType,
-    env_override: Option<&str>,
-) -> u32 {
-    if let Some(value) = env_override.and_then(|value| value.trim().parse::<u32>().ok())
-        && matches!(value, 512 | 1024 | 2048 | 4096 | 8192)
-    {
-        return value;
-    }
-    match device_type {
-        wgpu::DeviceType::IntegratedGpu | wgpu::DeviceType::Cpu => (default / 2).max(1024),
-        _ => default,
-    }
-}
-
-/// How many sun-shadow cascades to run: 2 (near box + the wide far box) everywhere — the far
-/// pass is nearly free (terrain + statics at half resolution) and it is what keeps a 1000 m map
-/// from going flat past ~128 m. `WOT_SHADOW_CASCADES=1` drops back to the single near box.
-pub(crate) fn resolve_cascade_count(env_override: Option<&str>) -> u32 {
-    env_override
-        .and_then(|value| value.trim().parse::<u32>().ok())
-        .filter(|value| (1..=2).contains(value))
-        .unwrap_or(2)
-}
-
 /// The near box's containment margin in shadow-map UV: fragments inside it take the crisp near
 /// cascade, outside it fall through to the far cascade. Keeps the handoff off the very edge of
-/// the near map, where the 3×3 PCF would read clamped texels.
+/// the near map, where the 3Ă—3 PCF would read clamped texels.
 const CASCADE_MARGIN_UV: f32 = 0.02;
 
 pub fn shadow_shader_source() -> String {
@@ -74,7 +41,7 @@ pub(crate) struct ShadowResources {
     pub pipeline_scene: wgpu::RenderPipeline,
     pub pipeline_vehicle: wgpu::RenderPipeline,
     /// The far-cascade occluder pipeline: scene vertex stride through `vs_far`. The fleet has no
-    /// far pipeline on purpose — at the far map's texel size a tank's shadow does not resolve.
+    /// far pipeline on purpose â€” at the far map's texel size a tank's shadow does not resolve.
     pub pipeline_scene_far: wgpu::RenderPipeline,
     pub params: SunShadowParams,
     pub far_params: SunShadowParams,
@@ -96,9 +63,9 @@ impl ShadowResources {
         resolution: u32,
         cascade_count: u32,
     ) -> Self {
-        // The caller resolved the resolution per adapter (see `resolve_shadow_resolution`);
-        // clamp to the device limit last so a capped device gets a smaller map — with the
-        // texel-derived PCF step and normal offset shrinking with it — never a failed texture.
+        // The caller resolved the resolution per adapter (`quality::resolve_lighting_quality`);
+        // clamp to the device limit last so a capped device gets a smaller map â€” with the
+        // texel-derived PCF step and normal offset shrinking with it â€” never a failed texture.
         let params = SunShadowParams {
             resolution: resolution.min(device.limits().max_texture_dimension_2d),
             ..SunShadowParams::default()
@@ -175,7 +142,7 @@ impl ShadowResources {
         );
         // A small constant depth bias plus a normal offset scaled to the texel footprint kills acne
         // without peter-panning; strength 1 = full shadow (0 is the no-shadow capability fallback).
-        // The bias is NDC over the 2*depth_radius span — 0.0008 * 160 m = ~13 cm of world slack,
+        // The bias is NDC over the 2*depth_radius span â€” 0.0008 * 160 m = ~13 cm of world slack,
         // tight enough that wheel-scale detail keeps its contact shadow.
         Self {
             depth_view,
@@ -221,7 +188,7 @@ impl ShadowResources {
 
     /// The packed `cascade_params` the shaders read: far texel UV step, far normal offset,
     /// cascade count, containment margin. A single-cascade setup packs margin 0, so the near
-    /// box's valid region is exactly the pre-cascade `[0, 1]` UV — byte-for-byte the old lookup.
+    /// box's valid region is exactly the pre-cascade `[0, 1]` UV â€” byte-for-byte the old lookup.
     pub fn cascade_shader_params(&self) -> [f32; 4] {
         [
             self.far_params.texel_uv_size(),
@@ -277,7 +244,7 @@ fn build_shadow_pipeline(
             topology: wgpu::PrimitiveTopology::TriangleList,
             front_face: wgpu::FrontFace::Ccw,
             // No culling: the static world is an open heightmap (buildings/trees are baked into the
-            // same buffer), whose sun-facing surface IS its front face — front-culling it would drop
+            // same buffer), whose sun-facing surface IS its front face â€” front-culling it would drop
             // exactly the casters we want (hills self-shadowing, roofs onto walls). Acne is held off
             // instead by a slope-scaled hardware depth bias plus the shader's normal offset, which
             // together behave on both the open ground and the closed hulls.
@@ -290,7 +257,7 @@ fn build_shadow_pipeline(
             depth_compare: Some(wgpu::CompareFunction::Less),
             stencil: wgpu::StencilState::default(),
             // Slope-scaled: grazing hillsides (where the sun rakes along the surface and depth
-            // varies fastest across a texel) get the most push, flat decks almost none — the
+            // varies fastest across a texel) get the most push, flat decks almost none â€” the
             // classic peter-pan-free acne fix for an open receiver that also casts.
             bias: wgpu::DepthBiasState { constant: 2, slope_scale: 2.5, clamp: 0.0 },
         }),
@@ -299,74 +266,4 @@ fn build_shadow_pipeline(
         multiview_mask: None,
         cache: None,
     })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{resolve_cascade_count, resolve_shadow_resolution};
-
-    #[test]
-    fn two_cascades_by_default_and_the_env_override_can_drop_to_one() {
-        assert_eq!(resolve_cascade_count(None), 2);
-        assert_eq!(resolve_cascade_count(Some("1")), 1);
-        assert_eq!(resolve_cascade_count(Some("2")), 2);
-        // Garbage and out-of-range values keep the default.
-        assert_eq!(resolve_cascade_count(Some("3")), 2);
-        assert_eq!(resolve_cascade_count(Some("x")), 2);
-    }
-
-    #[test]
-    fn shadow_memory_budget_is_locked_per_tier() {
-        // The executable shadow-memory budget (Depth32Float = 4 bytes/texel, near + far cascade).
-        // Moving these numbers is a deliberate decision that belongs in the same diff as the
-        // resolution change — they are the fattest static allocations the renderer owns.
-        let tier_bytes = |device_type: wgpu::DeviceType| {
-            let near = resolve_shadow_resolution(
-                renderer_api::SunShadowParams::default().resolution,
-                device_type,
-                None,
-            );
-            let far = (renderer_api::SunShadowParams {
-                resolution: near,
-                ..renderer_api::SunShadowParams::default()
-            })
-            .far_cascade()
-            .resolution;
-            4 * (u64::from(near) * u64::from(near) + u64::from(far) * u64::from(far))
-        };
-        // Integrated: 2048² + 1024² → 20 MB. The far cascade costs one quarter of the near map.
-        assert_eq!(tier_bytes(wgpu::DeviceType::IntegratedGpu), 20_971_520);
-        // Discrete: 4096² + 2048² → 80 MB.
-        assert_eq!(tier_bytes(wgpu::DeviceType::DiscreteGpu), 83_886_080);
-    }
-
-    #[test]
-    fn integrated_adapters_halve_the_shadow_map_and_discrete_keep_it() {
-        assert_eq!(resolve_shadow_resolution(4096, wgpu::DeviceType::IntegratedGpu, None), 2048);
-        assert_eq!(resolve_shadow_resolution(4096, wgpu::DeviceType::Cpu, None), 2048);
-        assert_eq!(resolve_shadow_resolution(4096, wgpu::DeviceType::DiscreteGpu, None), 4096);
-        assert_eq!(resolve_shadow_resolution(4096, wgpu::DeviceType::Other, None), 4096);
-        // The halving never drops below a usable 1024 floor.
-        assert_eq!(resolve_shadow_resolution(2048, wgpu::DeviceType::IntegratedGpu, None), 1024);
-    }
-
-    #[test]
-    fn the_env_override_wins_both_ways_and_garbage_is_ignored() {
-        assert_eq!(
-            resolve_shadow_resolution(4096, wgpu::DeviceType::IntegratedGpu, Some("4096")),
-            4096
-        );
-        assert_eq!(
-            resolve_shadow_resolution(4096, wgpu::DeviceType::DiscreteGpu, Some("1024")),
-            1024
-        );
-        assert_eq!(
-            resolve_shadow_resolution(4096, wgpu::DeviceType::DiscreteGpu, Some("3000")),
-            4096
-        );
-        assert_eq!(
-            resolve_shadow_resolution(4096, wgpu::DeviceType::IntegratedGpu, Some("x")),
-            2048
-        );
-    }
 }

@@ -177,10 +177,13 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     let ao = ao_rough.r;
 
     let shadow = sun_shadow(input.world_pos, world_n);
-    // Baked contact occlusion: fully dampens the ambient/fill, partially the direct sun, so the
-    // turret-ring seam, running-gear recess and grille wells read as real cavities.
-    let contact = clamp(input.shade, 0.0, 1.0) * screen_ao(input.clip);
-    let lit = albedo * light_radiance(world_n, shadow) * ao * cavity * contact;
+    // Baked contact occlusion (geometry-bake surface_shade): authored per-vertex, it dampens
+    // every term so the turret-ring seam, running-gear recess and grille wells read as real
+    // cavities. SCREEN-space AO is different — it rides inside light_radiance on the indirect
+    // terms only, so a sunlit hull keeps its full key.
+    let contact = clamp(input.shade, 0.0, 1.0);
+    let screen = screen_ao(input.clip);
+    let lit = albedo * light_radiance(world_n, shadow, screen) * ao * cavity * contact;
 
     // Roughness-driven specular off the key light, evaluated against the real world-space view
     // direction (camera position - fragment position) so the highlight tracks the camera, not a
@@ -199,8 +202,9 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     // baked cavities so recesses don't glow. Rain cuts roughness, so a soaked tank reflects.
     let smoothness = 1.0 - roughness;
     let fresnel = 0.25 + 0.75 * pow(1.0 - max(dot(world_n, view_dir), 0.0), 5.0);
+    // The sky reflection is indirect light, so it takes the screen AO the key terms skip.
     let env = env_sky(reflect(-view_dir, world_n))
-        * smoothness * smoothness * fresnel * ao * cavity * contact;
+        * smoothness * smoothness * fresnel * ao * cavity * contact * screen;
 
     return vec4<f32>(tonemap_aces(apply_fog(lit + spec_color + env, input.world_pos)), 1.0);
 }

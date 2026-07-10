@@ -66,6 +66,10 @@ impl super::SceneRenderer {
                 shadow_params: self.shadow.shader_params(),
                 cascade_params: self.shadow.cascade_shader_params(),
                 ssao_params: [self.ssao.near, self.ssao.far, self.ssao.strength, proj_y_scale],
+                inv_render_size: [
+                    1.0 / target.width.max(1) as f32,
+                    1.0 / target.height.max(1) as f32,
+                ],
                 time_s: self.scene_time_s,
                 rain_intensity: self.rain_intensity,
                 wetness: self.wetness,

@@ -138,8 +138,10 @@ pub struct CameraUniform {
     /// Gradient-sky horizon colour (linear); also the aerial-perspective fog colour distant
     /// surfaces fade toward in the lit shaders.
     pub sky_horizon_rgb: GpuVec3,
-    /// Packed fog controls: x = density, y = height falloff, z/w reserved (0). Density 0 disables
-    /// the aerial perspective (interior looks).
+    /// Packed fog controls + render size: x = density, y = height falloff (density 0 disables
+    /// the aerial perspective — interior looks); z/w = inverse render-target width/height, which
+    /// `screen_ao` uses to address the (possibly reduced-resolution) AO chain by framebuffer
+    /// pixel.
     pub fog_params: GpuVec4,
     /// Packed presentation clock: x = scene time in seconds, y/z/w reserved (0). Every shader
     /// animation (water ripple, foliage sway, weather) advances by this one value. Tick-domain
@@ -165,6 +167,9 @@ pub struct FramePassParams {
     /// Packed far-cascade controls (`CameraUniform::cascade_params`).
     pub cascade_params: [f32; 4],
     pub ssao_params: [f32; 4],
+    /// Inverse render-target size (`1/width`, `1/height`) — rides `fog_params.zw` so the shaders
+    /// can address reduced-resolution screen targets by framebuffer pixel.
+    pub inv_render_size: [f32; 2],
     pub time_s: f32,
     /// Rain streak density 0..1 (`time_params.y`); 0 in every non-rain look.
     pub rain_intensity: f32,
@@ -182,6 +187,7 @@ impl Default for FramePassParams {
             shadow_params: [0.0, 0.0, 0.0, 0.0],
             cascade_params: [0.0, 0.0, 0.0, 0.0],
             ssao_params: [0.1, 1500.0, 0.0, 1.0],
+            inv_render_size: [0.0, 0.0],
             time_s: 0.0,
             rain_intensity: 0.0,
             wetness: 0.0,
@@ -219,7 +225,12 @@ impl CameraUniform {
             ssao_params: GpuVec4(passes.ssao_params),
             sky_zenith_rgb: GpuVec3(lighting.sky_zenith_rgb),
             sky_horizon_rgb: GpuVec3(lighting.sky_horizon_rgb),
-            fog_params: GpuVec4([lighting.fog_density, lighting.fog_height_falloff, 0.0, 0.0]),
+            fog_params: GpuVec4([
+                lighting.fog_density,
+                lighting.fog_height_falloff,
+                passes.inv_render_size[0],
+                passes.inv_render_size[1],
+            ]),
             time_params: GpuVec4([passes.time_s, passes.rain_intensity, passes.wetness, 0.0]),
             grade_params: GpuVec4([
                 lighting.exposure,

@@ -32,7 +32,8 @@ struct Camera {
     ssao_params: vec4<f32>,
     sky_zenith_rgb: vec3<f32>,
     sky_horizon_rgb: vec3<f32>,
-    // x = density, y = height falloff; density 0 disables fog (interior looks).
+    // x = fog density (0 disables — interior looks), y = height falloff,
+    // zw = inverse render-target size (screen-pixel -> UV for reduced-resolution screen targets).
     fog_params: vec4<f32>,
     // x = presentation seconds (tick-domain — see gpu_layout.rs), y = rain intensity,
     // z = world wetness, w reserved.

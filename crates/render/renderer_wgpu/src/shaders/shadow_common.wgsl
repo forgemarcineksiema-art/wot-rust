@@ -14,14 +14,16 @@ var ssao_sampler: sampler;
 @group(2) @binding(4)
 var shadow_map_far: texture_depth_2d;
 
-// Screen-space AO from the blurred SSAO target, addressed by framebuffer pixel. Strength 0 (the
-// capability fallback) returns fully open.
+// Screen-space AO from the blurred SSAO target, addressed by framebuffer pixel scaled by the
+// inverse RENDER target size (fog_params.zw) — the AO chain may run at a reduced resolution
+// (half on integrated GPUs), so the texture's own dimensions are not the frame's. Strength 0
+// (the capability fallback) returns fully open. Applied to the indirect (ambient/fill/env)
+// terms only; the key light is occluded by the shadow map, not by screen-space AO.
 fn screen_ao(frag: vec4<f32>) -> f32 {
     if (camera.ssao_params.z <= 0.0) {
         return 1.0;
     }
-    let dims = vec2<f32>(textureDimensions(ssao_tex));
-    return textureSampleLevel(ssao_tex, ssao_sampler, frag.xy / dims, 0.0).r;
+    return textureSampleLevel(ssao_tex, ssao_sampler, frag.xy * camera.fog_params.zw, 0.0).r;
 }
 
 // Two-cascade sun-shadow lookup. Only the key light is occluded; strength 0 (the capability

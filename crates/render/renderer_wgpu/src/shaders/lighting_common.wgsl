@@ -12,12 +12,16 @@ fn hemi_ambient(n: vec3<f32>) -> vec3<f32> {
 }
 
 // Hemispheric ambient plus key/fill/rim directional terms. Directions point towards each light and
-// are normalized here; an unlit (black) light contributes nothing.
-fn light_radiance(n: vec3<f32>, shadow: f32) -> vec3<f32> {
+// are normalized here; an unlit (black) light contributes nothing. `ao` (screen-space AO)
+// attenuates the INDIRECT terms only — ambient and fill, the light that reaches a crease by
+// bouncing. The sun key is already occluded by the shadow map; multiplying it by screen AO too
+// double-darkened every sunlit crease and dirtied the whole key-lit field. The rim is a grazing
+// silhouette accent and stays out of both.
+fn light_radiance(n: vec3<f32>, shadow: f32, ao: f32) -> vec3<f32> {
     let key = max(dot(n, normalize(camera.key_direction)), 0.0) * shadow;
-    let fill = max(dot(n, normalize(camera.fill_direction)), 0.0);
+    let fill = max(dot(n, normalize(camera.fill_direction)), 0.0) * ao;
     let rim = max(dot(n, normalize(camera.rim_direction)), 0.0);
-    return hemi_ambient(n)
+    return hemi_ambient(n) * ao
         + camera.key_rgb * key
         + camera.fill_rgb * fill
         + camera.rim_rgb * rim;
