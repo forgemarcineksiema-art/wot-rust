@@ -157,24 +157,27 @@ pub fn panther_ii_reference_pack() -> ReferencePack {
         "Panther II",
         vec![VehicleKind::PantherII],
         "Armored Vehicle Forge reference for the Panther II (prototype/planned variant): the long \
-         sloped Panther hull with eight-wheel running gear and a narrow sloped turret.",
-        8,
+         sloped Panther hull with seven overlapped steel wheels and the narrow Schmalturm.",
+        7,
         heavy_sources(
             "https://commons.wikimedia.org/wiki/Panther_tank",
             "https://tank-afv.com/ww2/germany/Panther.php",
-            "docs/vehicles/panther-ii.md",
+            "docs/vehicles/panzerkampfwagen-v-panther-ii.md",
         ),
+        // Re-tuned to the blueprint-born 1:1 body (6.87 m hull, 3.42 m beam, 2.99 m tall): the
+        // wedge's ramp makes the hull band deeper than the legacy-tuned target, and the narrow
+        // Schmalturm is a low crest, not a near-hull-height tower.
         silhouette_ratios(
-            1.92,
-            0.221,
-            0.465,
-            0.85,
-            0.374,
+            1.97,
+            0.30,
+            0.49,
+            0.58,
+            0.32,
             [
                 "Long sloped medium/heavy hull.",
-                "Low sloped hull in the Panther family proportion.",
-                "Narrow sloped turret, clearly inset from the wide tracks.",
-                "Turret stands a little under hull height.",
+                "The 55° ramp carries the hull band deep in the Panther proportion.",
+                "The Schmalturm is the narrowest turret in the German line.",
+                "A low converging turret crest on the wedge, cupola near the centreline.",
                 "Long 7.5 cm reaches well past the sloped glacis.",
             ],
         ),

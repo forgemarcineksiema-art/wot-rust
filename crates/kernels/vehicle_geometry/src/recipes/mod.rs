@@ -7,9 +7,9 @@
 //! keeps the mount maths trivial and the fit tests honest.
 //!
 //! Shared shapes live in [`chassis`] (hulls, tracks, wheels), [`armament`] (guns), and
-//! [`turret_fittings`] (cupolas, mantlet sockets, cast domes); the family modules ([`soviet`],
-//! [`panther`]) tune those into distinct vehicles, while blueprint-born vehicles carry their
-//! own modules ([`tiger_i`], [`tiger_ii`], [`jagdtiger`], [`is3`]).
+//! [`turret_fittings`] (cupolas, mantlet sockets, cast domes); the [`soviet`] family module
+//! tunes those into the remaining legacy vehicles, while blueprint-born vehicles carry their
+//! own modules ([`tiger_i`], [`tiger_ii`], [`jagdtiger`], [`panther_ii`], [`is3`]).
 //!
 //! Recipes receive [`MountFrames`] and [`HitboxProfile`] from [`game_core`] as authoritative
 //! inputs — hull dimensions are derived as explicit fractions of the hitbox, and mount points
@@ -27,7 +27,7 @@ mod chassis_blueprint;
 mod is3;
 mod is3_hull;
 mod jagdtiger;
-mod panther;
+mod panther_ii;
 mod soviet;
 mod t54;
 mod tiger_i;
@@ -42,15 +42,6 @@ pub(crate) use chassis_blueprint::{
 };
 pub(crate) use t54::{t54_hull, t54_turret_front};
 
-/// The static belt band for a legacy-animated vehicle: the same wrapped band the blueprint fleet
-/// bakes (top/bottom runs + end wraps), built from the authored [`crate::legacy_tracks`] table.
-/// The moving parts — wheels, sprocket, idler, shoe links — are instanced at render time, exactly
-/// like the blueprint fleet; the fused wheel/box gear this replaces is gone.
-pub(crate) fn legacy_track_band(kind: VehicleKind) -> GeometryMesh {
-    let track = crate::legacy_tracks::legacy_track_shape(kind)
-        .expect("legacy_track_band is only called for vehicles with an authored legacy track");
-    blueprint_running_gear(&track)
-}
 pub(crate) use turret_fittings::{
     add_broad_mantlet_socket, add_cupola, add_mantlet_socket, add_t54_mantlet_socket,
     add_turret_ring, cast_turret_shell,
@@ -75,7 +66,7 @@ fn recipe(kind: VehicleKind, hitbox: &HitboxProfile, mounts: &MountFrames) -> Op
         VehicleKind::TigerI => tiger_i::tiger_i(hitbox, mounts),
         VehicleKind::TigerII => tiger_ii::tiger_ii(hitbox, mounts),
         VehicleKind::Jagdtiger => jagdtiger::jagdtiger(hitbox, mounts),
-        VehicleKind::PantherII => panther::panther_ii(hitbox, mounts),
+        VehicleKind::PantherII => panther_ii::panther_ii(hitbox, mounts),
         VehicleKind::IS3 => is3::is3(hitbox, mounts),
     })
 }

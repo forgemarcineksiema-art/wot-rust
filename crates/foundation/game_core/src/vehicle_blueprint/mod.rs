@@ -20,6 +20,7 @@ mod fittings;
 mod hybrid;
 mod is3;
 mod jagdtiger;
+mod panther_ii;
 mod shape_track;
 mod t54_hybrid;
 mod t54_hybrid_turret;

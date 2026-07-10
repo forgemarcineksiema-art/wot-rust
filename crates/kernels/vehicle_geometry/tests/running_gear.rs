@@ -53,16 +53,17 @@ fn every_playable_vehicle_has_animated_gear() {
     assert!(RunningGearKinematics::for_vehicle(VehicleKind::PrototypeMedium).is_none());
 }
 
-/// The legacy fleet's animated dimensions are the retired fused-mesh gear, carried over 1:1 —
-/// the silhouette the fleet always had is what now moves.
+/// The legacy hand-authored track table is gone with the last legacy vehicle: every animated
+/// vehicle's gear now comes from its blueprint, and only the test-only prototype keeps fused
+/// static gear.
 #[test]
-fn legacy_fleet_kinematics_match_the_retired_fused_gear() {
-    let panther = RunningGearKinematics::for_vehicle(VehicleKind::PantherII).expect("Panther II");
-    assert_eq!((panther.wheel_zs.len(), panther.wheel_radius), (8, 0.46));
-    // A stadium loop: the belt wraps at the outermost road wheels, at wheel radius.
-    assert_eq!(panther.end_cz, panther.half_run);
-    assert_eq!(panther.end_radius, panther.wheel_radius);
-    assert!(panther.roller_zs.is_empty(), "no return rollers on the Panther line");
+fn the_whole_animated_fleet_rides_blueprint_gear() {
+    for kind in VehicleKind::PLAYABLE {
+        let has_blueprint = game_core::VehicleBlueprint::for_vehicle(kind).is_some();
+        assert!(has_blueprint, "{kind:?} must carry a blueprint track");
+        assert!(RunningGearKinematics::for_vehicle(kind).is_some(), "{kind:?} animates");
+    }
+    assert!(RunningGearKinematics::for_vehicle(VehicleKind::PrototypeMedium).is_none());
 }
 
 #[test]
