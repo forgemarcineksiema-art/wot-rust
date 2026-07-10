@@ -74,10 +74,10 @@ fn every_vehicle_bake_hash_matches_golden_output() {
         // eight-wheel gear, braked KwK 36) replaces the legacy hitbox-fraction body. The rest of
         // the German fleet is untouched.
         (VehicleKind::TigerI, 17_647_880_481_568_048_678_u64),
-        // Re-recorded for the legacy-fleet moving gear: the fused wheel/box gear left the German
-        // hull bakes for the wrapped belt band; wheels and shoe links are now instanced and
-        // animated at render time like the blueprint fleet. Soviets and prototype untouched.
-        (VehicleKind::TigerII, 14_245_727_605_461_046_091_u64),
+        // Re-recorded for the Tiger II blueprint migration: the researched 1:1 sloped body
+        // (7.38 m hull, fleet's longest glacis at 50°, 25° leaned upper sides, Henschel prism
+        // with bustle, 9 overlapped wheels, braked KwK 43) replaces the legacy stretch.
+        (VehicleKind::TigerII, 13_326_796_876_246_991_267_u64),
         (VehicleKind::Jagdtiger, 11_488_926_837_109_973_349_u64),
         (VehicleKind::PantherII, 12_707_307_636_792_314_550_u64),
         // Re-recorded for the gear realism pass: fender line (shelf, front mudguards, rear

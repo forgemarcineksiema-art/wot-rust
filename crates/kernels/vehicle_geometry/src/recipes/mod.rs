@@ -8,7 +8,8 @@
 //!
 //! Shared shapes live in [`chassis`] (hulls, tracks, wheels), [`armament`] (guns), and
 //! [`turret_fittings`] (cupolas, mantlet sockets, cast domes); the family modules ([`soviet`],
-//! [`german`], [`panther`], [`casemate`]) tune those into distinct vehicles.
+//! [`panther`], [`casemate`]) tune those into distinct vehicles, while blueprint-born vehicles
+//! carry their own modules ([`tiger_i`], [`tiger_ii`], [`is3`]).
 //!
 //! Recipes receive [`MountFrames`] and [`HitboxProfile`] from [`game_core`] as authoritative
 //! inputs — hull dimensions are derived as explicit fractions of the hitbox, and mount points
@@ -24,19 +25,20 @@ mod armament;
 mod casemate;
 mod chassis;
 mod chassis_blueprint;
-mod german;
 mod is3;
 mod is3_hull;
 mod panther;
 mod soviet;
 mod t54;
 mod tiger_i;
+mod tiger_ii;
 mod turret_fittings;
 
 pub(crate) use armament::{GunPlan, build_gun, build_gun_with_mantlet_scale};
 pub(crate) use chassis::{HullPlan, RunningGear, add_running_gear, hull_body, shade_hull};
 pub(crate) use chassis_blueprint::{
-    blueprint_deck_details, blueprint_hull, blueprint_running_gear, blueprint_skirts,
+    blueprint_deck_details, blueprint_hull, blueprint_prism_hull, blueprint_running_gear,
+    blueprint_skirts,
 };
 pub(crate) use t54::{t54_hull, t54_turret_front};
 
@@ -71,7 +73,7 @@ fn recipe(kind: VehicleKind, hitbox: &HitboxProfile, mounts: &MountFrames) -> Op
         VehicleKind::T54_1951 => soviet::t54_1951(hitbox, mounts),
         VehicleKind::T55A => soviet::t55a(hitbox, mounts),
         VehicleKind::TigerI => tiger_i::tiger_i(hitbox, mounts),
-        VehicleKind::TigerII => german::tiger_ii(hitbox, mounts),
+        VehicleKind::TigerII => tiger_ii::tiger_ii(hitbox, mounts),
         VehicleKind::Jagdtiger => casemate::jagdtiger(hitbox, mounts),
         VehicleKind::PantherII => panther::panther_ii(hitbox, mounts),
         VehicleKind::IS3 => is3::is3(hitbox, mounts),

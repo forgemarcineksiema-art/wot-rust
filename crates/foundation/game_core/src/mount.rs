@@ -48,11 +48,6 @@ impl MountFrames {
                 gun_trunnion: MountFrame::new(Vec3::new(0.0, 1.78, 1.05)),
                 muzzle: MountFrame::new(Vec3::new(0.0, 1.78, 5.30)),
             },
-            VehicleKind::TigerII => Self {
-                turret_ring: MountFrame::new(Vec3::new(0.0, 1.50, -0.05)),
-                gun_trunnion: MountFrame::new(Vec3::new(0.0, 2.06, 1.45)),
-                muzzle: MountFrame::new(Vec3::new(0.0, 2.06, 6.70)),
-            },
             VehicleKind::Jagdtiger => Self {
                 turret_ring: MountFrame::new(Vec3::new(0.0, 1.05, 0.0)),
                 gun_trunnion: MountFrame::new(Vec3::new(0.0, 2.05, 1.88)),
@@ -64,7 +59,7 @@ impl MountFrames {
                 muzzle: MountFrame::new(Vec3::new(0.0, 2.04, 6.20)),
             },
             // Blueprint-migrated: mounts come from `blueprint.mount_frames()` above, always.
-            VehicleKind::IS3 | VehicleKind::TigerI => {
+            VehicleKind::IS3 | VehicleKind::TigerI | VehicleKind::TigerII => {
                 unreachable!("{kind:?} is blueprint-migrated")
             }
         }

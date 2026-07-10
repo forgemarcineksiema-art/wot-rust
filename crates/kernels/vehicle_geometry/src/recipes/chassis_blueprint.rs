@@ -7,7 +7,8 @@ use glam::{Vec2, Vec3};
 
 use super::SG_HARD;
 use crate::{
-    Axis, ExtrudeSpec, GeometryMesh, MaterialRole, MeshBuilder, ProfilePoint, RevolveSpec,
+    Axis, ExtrudeSpec, GeometryMesh, LoftSection, LoftSpec, MaterialRole, MeshBuilder,
+    ProfilePoint, RevolveSpec,
 };
 
 /// The hull body: a side silhouette whose glacis is built from `glacis_slope_deg` (so the visible
@@ -47,6 +48,57 @@ pub(crate) fn blueprint_hull(hull: &HullShape, material: MaterialRole) -> MeshBu
                 smoothing: SG_HARD,
             },
         )
+}
+
+/// The plane-honest prism hull: both body prisms lofted directly from the armor volumes' plane
+/// equations — the fold ridge at the sponson step, the glacis leaning `glacis_slope_deg` above
+/// it, the derived lower nose below it, the rear pair at `rear_slope_deg`, and (unlike the
+/// extruded [`blueprint_hull`]) upper SIDE walls leaned inward by `side_slope_deg`, the same
+/// plane the armor model resolves a side shot on. For the sloped German school: what you see
+/// leaning is what you shoot.
+pub(crate) fn blueprint_prism_hull(hull: &HullShape, side_slope_deg: f32) -> MeshBuilder {
+    let glacis = hull.glacis_slope_deg.to_radians().tan();
+    // The lower-plate slope derives from the glacis exactly like the armor model's zone table.
+    let lower = (hull.glacis_slope_deg * 0.45).to_radians().tan();
+    let rear = hull.rear_slope_deg.to_radians().tan();
+    let side = side_slope_deg.to_radians().tan();
+    let step = hull.sponson_y;
+
+    // One rectangular plan ring per height: front/rear z from the fold planes, width from the
+    // side lean above the step (the tub stays vertical below it).
+    let ring = |y: f32| -> Vec<Vec2> {
+        let (width, run) = if y >= step {
+            (hull.half_width - (y - step) * side, y - step)
+        } else {
+            (hull.lower_half_width, 0.0)
+        };
+        let front = if y >= step {
+            hull.half_len - run * glacis
+        } else {
+            hull.half_len - (step - y) * lower
+        };
+        let back = if y >= step {
+            -hull.half_len + run * rear
+        } else {
+            -hull.half_len + (step - y) * rear
+        };
+        vec![
+            Vec2::new(width, front),
+            Vec2::new(width, back),
+            Vec2::new(-width, back),
+            Vec2::new(-width, front),
+        ]
+    };
+    let prism = |bottom: f32, top: f32| LoftSpec {
+        sections: vec![LoftSection::new(bottom, ring(bottom)), LoftSection::new(top, ring(top))],
+        axis: Axis::Y,
+        material: MaterialRole::RolledArmor,
+        smoothing: SG_HARD,
+        cap_ends: true,
+    };
+    MeshBuilder::new()
+        .loft(Vec3::ZERO, prism(hull.belly_y, step))
+        .loft(Vec3::ZERO, prism(step, hull.deck_y))
 }
 
 /// Welded engine-deck detail on the flat rear deck behind the turret: a raised, beveled deck panel

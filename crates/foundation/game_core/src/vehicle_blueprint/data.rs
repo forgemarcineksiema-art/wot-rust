@@ -9,6 +9,7 @@ use super::is3::is3_blueprint;
 use super::t54_hybrid::t54_hybrid;
 use super::t55a::t55a_blueprint;
 use super::tiger_i::tiger_i_blueprint;
+use super::tiger_ii::tiger_ii_blueprint;
 use super::{
     ArmorShape, GunShape, HullShape, TrackShape, TurretForm, TurretShape, VehicleBlueprint,
 };
@@ -20,6 +21,7 @@ pub(super) fn blueprint(kind: VehicleKind) -> Option<VehicleBlueprint> {
         VehicleKind::T55A => Some(t55a_blueprint()),
         VehicleKind::IS3 => Some(is3_blueprint()),
         VehicleKind::TigerI => Some(tiger_i_blueprint()),
+        VehicleKind::TigerII => Some(tiger_ii_blueprint()),
         _ => None,
     }
 }

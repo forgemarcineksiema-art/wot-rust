@@ -88,6 +88,15 @@ fn vehicle_specific_hitbox_width_is_used_for_shell_hits() {
     let shooter = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::new(1.8, 0.0, 0.0));
     let target =
         state.spawn_tank(TeamId(2), TankSpec::tiger_ii_ausf_b(), Vec3::new(0.0, 0.0, 55.0));
+    {
+        // At x = 1.8 only the Tiger II's full 3.75 m running gear is that wide — its 25° leaned
+        // upper sides have honestly receded at muzzle height — so drop the shot into the track
+        // band (~0.95 m) where the wide body genuinely lives. A narrower vehicle whiffs here.
+        let shooter = state.tank_mut(shooter).expect("shooter");
+        shooter.gun_pitch_rad = -0.016;
+        shooter.aim_dispersion_mrad = 0.0;
+        shooter.spec.gun.dispersion_mrad = 0.0;
+    }
     state.tank_mut(target).expect("target").yaw_rad = PI;
 
     run_until_shell_resolved(&mut state, shooter);

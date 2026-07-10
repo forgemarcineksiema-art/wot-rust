@@ -94,19 +94,23 @@ pub fn tiger_ii_reference_pack() -> ReferencePack {
         heavy_sources(
             "https://commons.wikimedia.org/wiki/Tiger_II",
             "https://tank-afv.com/ww2/germany/Tiger_II.php",
-            "docs/vehicles/tiger-ii.md",
+            "docs/vehicles/panzerkampfwagen-vi-b-tiger-ii.md",
         ),
+        // Re-tuned to the blueprint-born 1:1 body (7.38 m hull, 3.755 m beam, 3.09 m tall):
+        // still visibly flatter than the upright Tiger I (0.28 vs 0.33), and the long Henschel
+        // turret is a low sloped band on the deck, not the near-hull-height tower the old
+        // legacy-tuned target described.
         silhouette_ratios(
-            1.97,
-            0.21,
-            0.49,
-            0.98,
-            0.37,
+            1.91,
+            0.28,
+            0.51,
+            0.62,
+            0.39,
             [
                 "Very long sloped heavy hull.",
-                "Low, long sloped hull — flatter than the upright Tiger I.",
-                "Sloped turret is narrower than the broad hull.",
-                "Tall sloped turret with a rear bustle stands nearly hull-height again.",
+                "Long sloped hull — flatter than the upright Tiger I.",
+                "Sloped Henschel turret is narrower than the broad hull.",
+                "Low faceted turret with a rear bustle rides the wide deck.",
                 "Long 8.8 cm KwK 43 reaches decisively past the sloped glacis.",
             ],
         ),

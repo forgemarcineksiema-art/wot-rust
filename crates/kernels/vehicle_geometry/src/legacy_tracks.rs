@@ -11,12 +11,10 @@
 use game_core::{TrackShape, VehicleKind};
 
 /// The authored track for a legacy vehicle, or `None` for vehicles that either have a real
-/// blueprint (T-54 family, IS-3, Tiger I) or deliberately keep the fused static gear (the
+/// blueprint (T-54 family, IS-3, the Tigers) or deliberately keep the fused static gear (the
 /// test-only prototype medium).
 pub(crate) fn legacy_track_shape(kind: VehicleKind) -> Option<TrackShape> {
     let (wheel_radius, wheel_count, wheel_y, wheel_span_z, inner_x, outer_x) = match kind {
-        // TIGER_GEAR_LONG: one more station on the longer King Tiger hull.
-        VehicleKind::TigerII => (0.42, 9, 0.46, 3.30, 1.46, 1.92),
         // JAGDTIGER_GEAR: the longest run in the lineup, sitting lowest.
         VehicleKind::Jagdtiger => (0.42, 9, 0.42, 3.40, 1.50, 1.96),
         // PANTHER_GEAR: the largest wheels of the four.
@@ -52,8 +50,7 @@ pub(crate) fn legacy_track_shape(kind: VehicleKind) -> Option<TrackShape> {
 mod tests {
     use super::*;
 
-    const LEGACY_ANIMATED: [VehicleKind; 3] =
-        [VehicleKind::TigerII, VehicleKind::Jagdtiger, VehicleKind::PantherII];
+    const LEGACY_ANIMATED: [VehicleKind; 2] = [VehicleKind::Jagdtiger, VehicleKind::PantherII];
 
     #[test]
     fn every_legacy_animated_vehicle_gets_a_stadium_track() {
@@ -81,6 +78,7 @@ mod tests {
             VehicleKind::T55A,
             VehicleKind::IS3,
             VehicleKind::TigerI,
+            VehicleKind::TigerII,
             VehicleKind::PrototypeMedium,
         ] {
             assert!(legacy_track_shape(kind).is_none(), "{kind:?}");
