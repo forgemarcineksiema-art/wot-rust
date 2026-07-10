@@ -17,9 +17,24 @@ is GEOMETRY first — the bow and the turret both defeat shells by shape, not by
   at the face with 55° of continuous curvature, 45° flanks, sloped even at the rear. The armor
   volumes tessellate it into swept sector planes, so the impact normal follows the casting.
 - Running gear: six 550 mm road wheels per side (the IS family's small-wheel look), drive
-  sprocket rear, tracks 650 mm wide.
+  sprocket rear, tracks 650 mm wide, and the top run carried on THREE small return rollers per
+  side — the heavy's look against the wheel-riding T-54 family.
 - Low silhouette for a heavy: hull roof at 1.62 m, the stepped-down engine deck and the dome
-  carrying the rest.
+  carrying the rest — over half a metre SHORTER than every German heavy in the lineup.
+- Tail-end signature: two external cylindrical fuel drums lying along the rear fender shelves
+  (visual stowage — the armor volumes rightly ignore them).
+
+## Shape locks (the benchmark cage)
+
+The IS-3 was blueprint-born from day one; the finish pass gave it the same per-vehicle test
+cage the German fleet carries:
+
+- `is3_pike.rs::the_visible_pike_bow_is_the_armor_pike` — the visible bow plates lie ON the
+  armor volume planes (the original honesty lock, the pattern the whole fleet copied).
+- `is3_benchmark.rs` — the ±38° plan sweep is symmetric about the ridge; the dome overhangs
+  its ring and out-slopes every other dome; the D-25T wears its brake and no evacuator; three
+  return rollers per side over six 550 mm wheels; the rear fuel drums stand proud of the
+  fenders; and the 2.44 m heavy stays over 0.4 m lower than every German heavy.
 
 ## Gameplay shape
 
