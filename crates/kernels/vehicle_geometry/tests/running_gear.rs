@@ -57,16 +57,12 @@ fn every_playable_vehicle_has_animated_gear() {
 /// the silhouette the fleet always had is what now moves.
 #[test]
 fn legacy_fleet_kinematics_match_the_retired_fused_gear() {
-    let king = RunningGearKinematics::for_vehicle(VehicleKind::TigerII).expect("Tiger II");
-    assert_eq!(king.wheel_zs.len(), 9);
-    assert_eq!(king.wheel_radius, 0.42);
-    assert_eq!(king.cy, 0.46);
-    // A stadium loop: the belt wraps at the outermost road wheels, at wheel radius.
-    assert_eq!(king.end_cz, king.half_run);
-    assert_eq!(king.end_radius, king.wheel_radius);
-    assert!(king.roller_zs.is_empty(), "no return rollers on the Tiger line");
     let jagd = RunningGearKinematics::for_vehicle(VehicleKind::Jagdtiger).expect("Jagdtiger");
     assert_eq!((jagd.wheel_zs.len(), jagd.half_run), (9, 3.40));
+    // A stadium loop: the belt wraps at the outermost road wheels, at wheel radius.
+    assert_eq!(jagd.end_cz, jagd.half_run);
+    assert_eq!(jagd.end_radius, jagd.wheel_radius);
+    assert!(jagd.roller_zs.is_empty(), "no return rollers on the Tiger line");
     let panther = RunningGearKinematics::for_vehicle(VehicleKind::PantherII).expect("Panther II");
     assert_eq!((panther.wheel_zs.len(), panther.wheel_radius), (8, 0.46));
 }

@@ -24,6 +24,7 @@ mod t54_hybrid;
 mod t54_hybrid_turret;
 mod t55a;
 mod tiger_i;
+mod tiger_ii;
 
 pub use fittings::{DetailVisual, FittingsVisual};
 pub use hybrid::{
