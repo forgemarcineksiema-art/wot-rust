@@ -219,6 +219,13 @@ impl GarageState {
         self.dragging
     }
 
+    /// Test hook: force the fitted turret's caliber limit under the alternate gun so cycling
+    /// rejects — exercises the rejection feedback path without inventing an incompatible catalog.
+    #[cfg(test)]
+    pub(super) fn force_turret_caliber_limit_for_test(&mut self, max_mm: f32) {
+        self.draft.force_turret_caliber_limit_for_test(max_mm);
+    }
+
     pub(super) fn open_tech_tree(&mut self) {
         self.view = GarageView::TechTree;
         self.dragging = false;

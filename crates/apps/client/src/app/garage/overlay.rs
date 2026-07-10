@@ -37,6 +37,7 @@ fn build_hangar(state: &GarageState, aspect: f32) -> Vec<HudVertex> {
     let mut v = Vec::new();
     let spec = state.draft().assembled_spec();
     panels::topbar::draw(&mut v, state, aspect);
+    panels::nameplate::draw(&mut v, state, aspect);
     panels::crew::draw(&mut v, state, aspect);
     panels::stats::draw(&mut v, &spec, aspect);
     panels::loadout::draw(&mut v, state, aspect);

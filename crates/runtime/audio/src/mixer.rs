@@ -17,7 +17,7 @@ use crate::voices::cannon::CannonShot;
 use crate::voices::engine::EngineVoice;
 use crate::voices::impact::{ArmorHit, GroundImpact};
 use crate::voices::track::TrackSnap;
-use crate::voices::ui::{DoubleThud, MechanicalClick};
+use crate::voices::ui::{DoubleThud, MechanicalClick, RejectedThunk};
 
 /// Simultaneous one-shot voices; a 7v7 barrage peaks well under this.
 const MAX_VOICES: usize = 40;
@@ -132,6 +132,10 @@ impl AudioEngine {
             AudioEvent::UiClick { accent } => {
                 let voice = Box::new(MechanicalClick::new(accent, self.sample_rate_hz, seed));
                 self.spawn_flat(voice, 0.4);
+            }
+            AudioEvent::UiReject => {
+                let voice = Box::new(RejectedThunk::new(self.sample_rate_hz, seed));
+                self.spawn_flat(voice, 0.45);
             }
         }
     }

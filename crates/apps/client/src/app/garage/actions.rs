@@ -49,6 +49,7 @@ impl ClientApp {
             if let GarageHit::OptionRow(slot, index) = hit {
                 self.queue_audio(audio::AudioEvent::UiClick { accent: false });
                 self.garage.select_option(slot, index);
+                self.garage_reject_feedback();
             } else {
                 self.garage.close_option_list();
             }
@@ -74,13 +75,17 @@ impl ClientApp {
             GarageHit::ModuleCycle(slot, dir) => {
                 if dir < 0 {
                     self.garage.cycle_module(slot, dir);
+                    self.garage_reject_feedback();
                 } else {
                     self.garage.open_option_list(slot);
                 }
                 self.garage.focus_module(slot);
             }
             // Unreachable while no list is open (rows only hit-test when one is), but kept exhaustive.
-            GarageHit::OptionRow(slot, index) => self.garage.select_option(slot, index),
+            GarageHit::OptionRow(slot, index) => {
+                self.garage.select_option(slot, index);
+                self.garage_reject_feedback();
+            }
             GarageHit::AmmoSelect(index) => self.garage.set_ammo(index),
             // The rack count editor: plain click moves one round, Shift moves five.
             GarageHit::AmmoAdjust(index, dir) => {
@@ -109,6 +114,16 @@ impl ClientApp {
         }
         if let GarageHit::ModuleCycle(slot, _) = self.garage.hit_test(true) {
             self.garage.cycle_module(slot, -1);
+            self.garage_reject_feedback();
+        }
+    }
+
+    /// After a fitting edit, answer a compatibility rejection with the dull knock — the red
+    /// flash's audible half (`rejected_slot` used to light silently). Every edit path resets
+    /// `rejected_slot` before acting, so `Some` here means THIS action was refused.
+    fn garage_reject_feedback(&mut self) {
+        if self.garage.rejected_slot().is_some() {
+            self.queue_audio(audio::AudioEvent::UiReject);
         }
     }
 
@@ -137,8 +152,14 @@ impl ClientApp {
             // Keyboard loadout editing: focus + cycle + ammo + crew.
             PhysicalKey::Code(KeyCode::BracketLeft) => self.garage.focus_adjacent(-1),
             PhysicalKey::Code(KeyCode::BracketRight) => self.garage.focus_adjacent(1),
-            PhysicalKey::Code(KeyCode::KeyQ) => self.garage.cycle_focused(-1),
-            PhysicalKey::Code(KeyCode::KeyE) => self.garage.cycle_focused(1),
+            PhysicalKey::Code(KeyCode::KeyQ) => {
+                self.garage.cycle_focused(-1);
+                self.garage_reject_feedback();
+            }
+            PhysicalKey::Code(KeyCode::KeyE) => {
+                self.garage.cycle_focused(1);
+                self.garage_reject_feedback();
+            }
             PhysicalKey::Code(KeyCode::KeyZ) => self.garage.set_ammo(0),
             PhysicalKey::Code(KeyCode::KeyX) => self.garage.set_ammo(1),
             PhysicalKey::Code(KeyCode::KeyC) => self.garage.set_ammo(2),
@@ -243,6 +264,32 @@ mod tests {
         app.garage_secondary_press();
         assert!(app.garage.is_open(), "right-click never commits to battle");
         assert!(!app.garage.has_started());
+    }
+
+    #[test]
+    fn a_rejected_fit_knocks_back_audibly_and_an_accepted_one_does_not() {
+        let mut app = ClientApp::new();
+        app.garage.select_vehicle(VehicleKind::T54_1951);
+
+        // An accepted express cycle answers with the plain click only.
+        app.pending_audio.clear();
+        app.garage.set_cursor(module_slot_center(1)); // Gun slot
+        app.garage_secondary_press();
+        assert!(
+            !app.pending_audio.contains(&audio::AudioEvent::UiReject),
+            "an accepted swap must not knock"
+        );
+
+        // Force an incompatible fit (turret caliber limit under the gun) via the keyboard cycle:
+        // the red flash now has its audible half.
+        app.garage.force_turret_caliber_limit_for_test(99.0);
+        app.pending_audio.clear();
+        app.garage_keyboard(PhysicalKey::Code(KeyCode::KeyE));
+        assert!(
+            app.pending_audio.contains(&audio::AudioEvent::UiReject),
+            "a rejected fit must answer with the reject knock: {:?}",
+            app.pending_audio
+        );
     }
 
     #[test]

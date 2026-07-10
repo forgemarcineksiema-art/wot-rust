@@ -184,6 +184,13 @@ impl LoadoutDraft {
         self.modules.gun.spec.ammo_options()
     }
 
+    /// Test hook: shrink the installed turret's gun-caliber limit so the next gun swap is
+    /// guaranteed to be rejected by compatibility.
+    #[cfg(test)]
+    pub(super) fn force_turret_caliber_limit_for_test(&mut self, max_mm: f32) {
+        self.modules.turret.max_gun_caliber_mm = max_mm;
+    }
+
     /// Exposed barrel length (m) of the installed gun — drives the garage gun silhouette.
     pub(super) fn gun_barrel_length(&self) -> f32 {
         self.modules.gun.barrel_length_m()

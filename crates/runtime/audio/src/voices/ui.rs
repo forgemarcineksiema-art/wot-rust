@@ -2,7 +2,7 @@
 //! No synth beeps — the gun-ready cue is a breech block seating, the kill confirmation a
 //! double low thud, the garage click a switch toggle.
 
-use crate::dsp::{Biquad, ExpDecay, Noise};
+use crate::dsp::{Biquad, ExpDecay, Noise, OnePoleLowPass};
 use crate::voice::Voice;
 
 /// A short metallic tick from a pair of high inharmonic partials plus a breath of noise.
@@ -47,6 +47,63 @@ impl Voice for MechanicalClick {
             *sample = phase_a.sin() * env_a.step() + phase_b.sin() * env_b.step() + noise;
         }
         !(self.partial_a.2.is_quiet() && self.partial_b.2.is_quiet() && self.noise_env.is_quiet())
+    }
+}
+
+/// A fit the garage REFUSED: a dead, damped double-knock in a low register — the switch that
+/// did not engage. Deliberately duller than [`MechanicalClick`] (no bright partials, heavier
+/// damping) so acceptance and refusal are told apart by ear alone.
+pub struct RejectedThunk {
+    age_samples: usize,
+    knock: (f32, f32, ExpDecay),
+    second: (f32, f32, ExpDecay),
+    second_start: usize,
+    noise: Noise,
+    noise_env: ExpDecay,
+    noise_lp: OnePoleLowPass,
+}
+
+impl RejectedThunk {
+    pub fn new(sample_rate_hz: f32, seed: u64) -> Self {
+        Self {
+            age_samples: 0,
+            knock: (
+                0.0,
+                std::f32::consts::TAU * 210.0 / sample_rate_hz,
+                ExpDecay::new(0.40, 0.028, sample_rate_hz),
+            ),
+            // The refusal repeats a shade LOWER — the opposite contour of the kill thud's rise.
+            second: (
+                0.0,
+                std::f32::consts::TAU * 165.0 / sample_rate_hz,
+                ExpDecay::new(0.34, 0.034, sample_rate_hz),
+            ),
+            second_start: (0.07 * sample_rate_hz) as usize,
+            noise: Noise::new(seed),
+            noise_env: ExpDecay::new(0.12, 0.006, sample_rate_hz),
+            noise_lp: OnePoleLowPass::new(900.0, sample_rate_hz),
+        }
+    }
+}
+
+impl Voice for RejectedThunk {
+    fn render(&mut self, out: &mut [f32]) -> bool {
+        for sample in out.iter_mut() {
+            let (phase, step, env) = &mut self.knock;
+            *phase += *step;
+            let mut acc = phase.sin() * env.step();
+            if self.age_samples >= self.second_start {
+                let (phase, step, env) = &mut self.second;
+                *phase += *step;
+                acc += phase.sin() * env.step();
+            }
+            acc += self.noise_lp.process(self.noise.signed()) * self.noise_env.step();
+            *sample = acc;
+            self.age_samples += 1;
+        }
+        !(self.knock.2.is_quiet()
+            && self.noise_env.is_quiet()
+            && (self.second.2.is_quiet() || self.age_samples < self.second_start))
     }
 }
 
@@ -114,6 +171,20 @@ mod tests {
             assert!(peak(&wave[..480]) > 0.1, "but must still be heard");
             assert!(wave.iter().all(|s| s.is_finite()));
         }
+    }
+
+    #[test]
+    fn the_rejection_is_a_dull_double_knock_distinct_from_the_click() {
+        let mut thunk = RejectedThunk::new(SR, 7);
+        let wave = render_to_vec(&mut thunk, SR as usize);
+        assert!(wave.len() < (0.6 * SR) as usize, "the refusal is over fast");
+        assert!(peak(&wave) < 0.8, "UI cues stay under the battle sounds");
+        assert!(peak(&wave[..480]) > 0.1, "the first knock lands immediately");
+        // The second knock rises over the first's decay — the double contour IS the message.
+        let trough = peak(&wave[(0.05 * SR) as usize..(0.068 * SR) as usize]);
+        let second = peak(&wave[(0.07 * SR) as usize..(0.12 * SR) as usize]);
+        assert!(second > trough, "the refusal knocks twice: {second} vs trough {trough}");
+        assert!(wave.iter().all(|s| s.is_finite()));
     }
 
     #[test]

@@ -26,4 +26,7 @@ pub enum AudioEvent {
     KillConfirmed,
     /// A garage/UI interaction; `accent` marks commits over browsing clicks.
     UiClick { accent: bool },
+    /// The garage REFUSED an edit (incompatible fit): the dull knock that answers the red flash,
+    /// so a rejection is heard, not only seen.
+    UiReject,
 }
