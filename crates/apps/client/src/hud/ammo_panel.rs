@@ -33,16 +33,18 @@ pub struct AmmoHudModel {
     pub selected: u8,
 }
 
-/// The icon order mirrors `GunSpec::ammo_options()`: stock AP, APCR, HE.
-pub(crate) const AMMO_SLOT_ICONS: [HudIcon; game_core::MAX_AMMO_SLOTS] =
-    [HudIcon::AmmoAp, HudIcon::AmmoApcr, HudIcon::AmmoHe];
-
 impl AmmoHudModel {
-    /// Rack counts (latest snapshot) + the predictor's selected slot, icons in options order.
-    pub(crate) fn new(counts: [u16; game_core::MAX_AMMO_SLOTS], selected: u8) -> Self {
+    /// Rack counts (latest snapshot) + the predictor's selected slot. Icons map from the gun's
+    /// actual shell TYPES (`GunSpec::ammo_options()` order), not a fixed slot order — a gun whose
+    /// authored special round is HEAT shows the shaped-charge glyph, not a lying APCR.
+    pub(crate) fn new(
+        shell_types: [game_core::ShellType; game_core::MAX_AMMO_SLOTS],
+        counts: [u16; game_core::MAX_AMMO_SLOTS],
+        selected: u8,
+    ) -> Self {
         Self {
             slots: std::array::from_fn(|i| AmmoSlotHud {
-                icon: AMMO_SLOT_ICONS[i],
+                icon: HudIcon::for_shell(shell_types[i]),
                 count: counts[i],
             }),
             selected,
@@ -104,14 +106,22 @@ mod tests {
     use super::*;
 
     fn model(counts: [u16; 3], selected: u8) -> AmmoHudModel {
-        AmmoHudModel {
-            slots: [
-                AmmoSlotHud { icon: AMMO_SLOT_ICONS[0], count: counts[0] },
-                AmmoSlotHud { icon: AMMO_SLOT_ICONS[1], count: counts[1] },
-                AmmoSlotHud { icon: AMMO_SLOT_ICONS[2], count: counts[2] },
-            ],
+        use game_core::ShellType;
+        AmmoHudModel::new(
+            [ShellType::ArmorPiercing, ShellType::Apcr, ShellType::HighExplosive],
+            counts,
             selected,
-        }
+        )
+    }
+
+    #[test]
+    fn a_heat_loading_gun_shows_the_shaped_charge_glyph_not_apcr() {
+        use game_core::VehicleKind;
+        let options = VehicleKind::T54_1951.spec().gun.ammo_options();
+        let types = std::array::from_fn(|i| options[i].shell_type);
+        let model = AmmoHudModel::new(types, [20, 8, 6], 0);
+        assert_eq!(model.slots[1].icon, HudIcon::AmmoHeat, "slot 1 carries the BK-5 glyph");
+        assert_ne!(model.slots[1].icon, model.slots[0].icon);
     }
 
     #[test]

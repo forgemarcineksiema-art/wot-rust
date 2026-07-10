@@ -15,6 +15,9 @@ pub(in crate::app) enum GarageHit {
     OptionRow(FitSlot, usize),
     /// Select an ammo option by index.
     AmmoSelect(usize),
+    /// Move rounds into (`+1`) or out of (`-1`) rack slot `index` — the count editor's − / +
+    /// zones under the ammo slot. Shift steps by 5.
+    AmmoAdjust(usize, isize),
     /// Nudge crew proficiency by `dir`.
     CrewProf(isize),
     /// The "Battle" button.

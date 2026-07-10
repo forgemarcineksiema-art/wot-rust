@@ -1,4 +1,4 @@
-use super::{
+﻿use super::{
     EngineModule, GunModule, HullChassis, RadioModule, SuspensionModule, TurretModule,
     TurretTraverse, VehicleModules,
 };
@@ -185,6 +185,7 @@ pub(crate) fn gun_pak43_l71() -> GunModule {
             max_dispersion_mrad: 14.0,
             barrel_length_m: 6.6,
             shell: ShellSpec::armor_piercing(88.0, 1_000.0, 202.0, 390),
+            special_shell: None,
         },
         mass_kg: 2_400.0,
         hit_points: 170,
@@ -203,6 +204,7 @@ pub(crate) fn gun_prototype() -> GunModule {
             max_dispersion_mrad: 17.0,
             barrel_length_m: 5.6,
             shell: ShellSpec::armor_piercing(120.0, 900.0, 250.0, 390),
+            special_shell: None,
         },
         mass_kg: 2_600.0,
         hit_points: 160,
@@ -221,6 +223,7 @@ pub(crate) fn gun_pak80() -> GunModule {
             max_dispersion_mrad: 14.0,
             barrel_length_m: 7.0,
             shell: ShellSpec::armor_piercing(128.0, 920.0, 223.0, 530),
+            special_shell: None,
         },
         mass_kg: 3_500.0,
         hit_points: 180,
@@ -239,6 +242,7 @@ pub(crate) fn gun_kwk42() -> GunModule {
             max_dispersion_mrad: 15.0,
             barrel_length_m: 5.2,
             shell: ShellSpec::armor_piercing(75.0, 935.0, 138.0, 240),
+            special_shell: None,
         },
         mass_kg: 1_600.0,
         hit_points: 140,

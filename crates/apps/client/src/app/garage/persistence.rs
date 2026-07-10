@@ -19,6 +19,11 @@ use super::{GarageState, LoadoutDraft};
 pub(super) struct SavedLoadout {
     pub option_index: [usize; 6],
     pub ammo_index: usize,
+    /// The edited per-slot rack fill. `serde(default)` (= `None` = stock-heavy default fill)
+    /// keeps every pre-editor save loading unchanged; a stored fill that no longer fits the
+    /// vehicle's capacity degrades to the default in `draft::from_saved`.
+    #[serde(default)]
+    pub ammo_counts: Option<[u16; game_core::MAX_AMMO_SLOTS]>,
     pub crew_proficiency: f32,
 }
 
@@ -181,7 +186,12 @@ mod tests {
         let mut loadouts = HashMap::new();
         loadouts.insert(
             VehicleKind::T54_1951,
-            SavedLoadout { option_index: [0, 1, 0, 0, 0, 0], ammo_index: 1, crew_proficiency: 0.9 },
+            SavedLoadout {
+                option_index: [0, 1, 0, 0, 0, 0],
+                ammo_index: 1,
+                ammo_counts: Some([20, 8, 6]),
+                crew_proficiency: 0.9,
+            },
         );
         GarageSave::new(VehicleKind::TigerII, &loadouts)
     }

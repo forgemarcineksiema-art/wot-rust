@@ -82,6 +82,11 @@ impl ClientApp {
             // Unreachable while no list is open (rows only hit-test when one is), but kept exhaustive.
             GarageHit::OptionRow(slot, index) => self.garage.select_option(slot, index),
             GarageHit::AmmoSelect(index) => self.garage.set_ammo(index),
+            // The rack count editor: plain click moves one round, Shift moves five.
+            GarageHit::AmmoAdjust(index, dir) => {
+                let step = if shift { 5 } else { 1 };
+                self.garage.adjust_ammo_count(index, dir as i32 * step);
+            }
             GarageHit::CrewProf(dir) => self.garage.adjust_proficiency(dir),
             GarageHit::Battle => self.confirm_garage_selection(),
             GarageHit::OpenTechTree => self.garage.open_tech_tree(),
@@ -238,6 +243,28 @@ mod tests {
         app.garage_secondary_press();
         assert!(app.garage.is_open(), "right-click never commits to battle");
         assert!(!app.garage.has_started());
+    }
+
+    #[test]
+    fn clicking_the_ammo_zones_edits_the_rack_and_shift_steps_by_five() {
+        use crate::app::garage::layout::ammo_adjust_centers;
+        let mut app = ClientApp::new();
+        app.garage.select_vehicle(VehicleKind::T54_1951);
+        let (minus, _plus) = ammo_adjust_centers(0);
+        let before = app.garage.draft().ammo_counts()[0];
+
+        app.garage.set_cursor(minus);
+        app.garage_primary_press();
+        assert_eq!(app.garage.draft().ammo_counts()[0], before - 1, "plain click moves one round");
+
+        app.input.set_shift(true);
+        app.garage_primary_press();
+        assert_eq!(app.garage.draft().ammo_counts()[0], before - 6, "shift+click moves five");
+        assert_eq!(
+            app.garage.draft().ammo_index(),
+            0,
+            "editing the fill never switches the loaded round"
+        );
     }
 
     #[test]

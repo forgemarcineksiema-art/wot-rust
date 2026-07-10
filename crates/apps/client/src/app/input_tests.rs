@@ -334,15 +334,20 @@ fn shift_hold_ignored_while_garage_open() {
 fn switching_ammo_updates_the_reticle_ballistics_immediately() {
     let mut app = ClientApp::new();
     app.confirm_garage_selection();
-    let stock_velocity = app.predictor.selected_shell().muzzle_velocity_mps;
+    let stock = app.predictor.selected_shell();
 
-    // Same frame, no server round-trip: APCR flies faster, so the ballistic solution the
-    // reticle and the gun commands read must change the instant the key lands.
+    // Same frame, no server round-trip: the ballistic solution the reticle and the gun commands
+    // read must change the instant the key lands. The default T-54's slot 1 is its authored
+    // BK-5 HEAT (a different round entirely), so the selected shell — not just a stat — flips.
     app.request_ammo_slot(1);
-    let apcr_velocity = app.predictor.selected_shell().muzzle_velocity_mps;
-    assert!(
-        apcr_velocity > stock_velocity * 1.1,
-        "APCR must out-fly stock immediately: {apcr_velocity} vs {stock_velocity}"
+    let special = app.predictor.selected_shell();
+    assert_ne!(
+        special.shell_type, stock.shell_type,
+        "the selected round must switch immediately: {special:?} vs {stock:?}"
+    );
+    assert_ne!(
+        special.penetration_mm_at_100m, stock.penetration_mm_at_100m,
+        "and the reticle's penetration input moves with it"
     );
 }
 

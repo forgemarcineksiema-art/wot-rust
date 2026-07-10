@@ -75,6 +75,10 @@ fn hover_rect(state: &GarageState, hit: &GarageHit) -> Option<([f32; 2], [f32; 2
             Some((option_row_center(slot.index(), *i), OPTION_ROW_HALF))
         }
         GarageHit::AmmoSelect(i) => Some((ammo_slot_center(*i), SLOT_HALF)),
+        GarageHit::AmmoAdjust(i, dir) => {
+            let (minus, plus) = ammo_adjust_centers(*i);
+            Some((if *dir < 0 { minus } else { plus }, AMMO_ADJUST_HALF))
+        }
         GarageHit::CrewProf(dir) => {
             let (l, r) = crew_prof_arrows();
             let center = if *dir < 0 { l } else { r };
@@ -158,6 +162,15 @@ fn hit_test_hangar(state: &GarageState, shift: bool) -> GarageHit {
         }
     }
     for i in 0..state.draft().ammo_options().len() {
+        // The − / + count zones sit inside the slot's bottom band and take priority over the
+        // select area, so editing the fill never switches the loaded round.
+        let (minus, plus) = ammo_adjust_centers(i);
+        if in_rect(p, minus, AMMO_ADJUST_HALF) {
+            return GarageHit::AmmoAdjust(i, -1);
+        }
+        if in_rect(p, plus, AMMO_ADJUST_HALF) {
+            return GarageHit::AmmoAdjust(i, 1);
+        }
         if in_rect(p, ammo_slot_center(i), SLOT_HALF) {
             return GarageHit::AmmoSelect(i);
         }
@@ -245,6 +258,21 @@ mod tests {
             at_shift(&mut g, carousel_cell_center(2, VehicleKind::PLAYABLE.len())),
             GarageHit::Vehicle(2)
         );
+    }
+
+    #[test]
+    fn ammo_adjust_zones_hit_before_the_slots_select_area() {
+        let mut g = GarageState::default();
+        g.select_vehicle(VehicleKind::T54_1951);
+        let (minus, plus) = ammo_adjust_centers(1);
+        assert_eq!(at(&mut g, minus), GarageHit::AmmoAdjust(1, -1));
+        assert_eq!(at(&mut g, plus), GarageHit::AmmoAdjust(1, 1));
+        // The icon band (upper half of the slot) still selects the round.
+        let c = ammo_slot_center(1);
+        assert_eq!(at(&mut g, [c[0], c[1] + 0.03]), GarageHit::AmmoSelect(1));
+        // And the hover highlight lands on the zone, not the whole slot.
+        g.set_cursor(plus);
+        assert_eq!(hover_rect(&g, &g.hit_test(false)), Some((plus, AMMO_ADJUST_HALF)));
     }
 
     #[test]

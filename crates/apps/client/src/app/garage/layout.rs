@@ -103,6 +103,25 @@ pub(super) fn ammo_slot_center(i: usize) -> [f32; 2] {
     [AMMO_START_X + i as f32 * SLOT_STEP, LOADOUT_Y]
 }
 
+// Ammo-rack count editor: a − / + zone pair inside the bottom band of each ammo slot, flanking
+// the slot's round count. They hit-test BEFORE the slot's select area, so clicking a zone edits
+// the fill without switching the loaded round.
+pub(super) const AMMO_ADJUST_HALF: [f32; 2] = [0.013, 0.020];
+const AMMO_ADJUST_DX: f32 = 0.028;
+const AMMO_ADJUST_DY: f32 = -0.036;
+
+/// The (−, +) zone centres for ammo slot `i`.
+pub(super) fn ammo_adjust_centers(i: usize) -> ([f32; 2], [f32; 2]) {
+    let c = ammo_slot_center(i);
+    ([c[0] - AMMO_ADJUST_DX, c[1] + AMMO_ADJUST_DY], [c[0] + AMMO_ADJUST_DX, c[1] + AMMO_ADJUST_DY])
+}
+
+/// Centre of the rack total readout ("N/CAP"), under the ammo slot group between the loadout
+/// strip and the carousel.
+pub(super) fn ammo_total_center() -> [f32; 2] {
+    [AMMO_START_X + SLOT_STEP, LOADOUT_Y - SLOT_HALF[1] - 0.035]
+}
+
 /// Whether the roster needs the scroll window (and the arrows).
 pub(super) fn carousel_overflows(count: usize) -> bool {
     count > CAR_VISIBLE
@@ -169,14 +188,10 @@ pub(super) fn slot_icon(slot: FitSlot) -> crate::hud::icons::HudIcon {
     }
 }
 
-/// The icon for an ammo index (0 = AP stock, 1 = APCR, 2 = HE).
-pub(super) fn ammo_icon(index: usize) -> crate::hud::icons::HudIcon {
-    use crate::hud::icons::HudIcon;
-    match index {
-        1 => HudIcon::AmmoApcr,
-        2 => HudIcon::AmmoHe,
-        _ => HudIcon::AmmoAp,
-    }
+/// The icon for a rack slot, mapped from the shell's TYPE (a HEAT-loading gun shows the
+/// shaped-charge glyph, not a fixed per-index icon).
+pub(super) fn ammo_icon(shell_type: game_core::ShellType) -> crate::hud::icons::HudIcon {
+    crate::hud::icons::HudIcon::for_shell(shell_type)
 }
 
 // Tech tree view: vehicles grouped by nation in vertical columns (the beta-WoT signature). The

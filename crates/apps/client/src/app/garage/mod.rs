@@ -149,6 +149,15 @@ impl GarageState {
         self.persist();
     }
 
+    /// Edit the rack fill: move `delta` rounds into/out of ammo slot `index` (clamped to the
+    /// vehicle's capacity and a non-empty rack). Persists only when something actually moved.
+    pub(super) fn adjust_ammo_count(&mut self, index: usize, delta: i32) {
+        if self.draft.adjust_ammo_count(index, delta) {
+            self.rejected_slot = None;
+            self.persist();
+        }
+    }
+
     pub(super) fn adjust_proficiency(&mut self, dir: isize) {
         self.draft.adjust_proficiency(dir);
         self.rejected_slot = None;

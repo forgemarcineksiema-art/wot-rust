@@ -1,4 +1,4 @@
-use super::{
+﻿use super::{
     EngineModule, GunModule, HullChassis, RadioModule, SuspensionModule, TurretModule,
     TurretTraverse, VehicleModules,
 };
@@ -160,6 +160,7 @@ pub(crate) fn gun_d25t() -> GunModule {
             max_dispersion_mrad: 20.0,
             barrel_length_m: 5.5,
             shell: ShellSpec::armor_piercing(122.0, 795.0, 175.0, 390),
+            special_shell: None,
         },
         mass_kg: 2_600.0,
         hit_points: 160,
@@ -202,6 +203,10 @@ pub(crate) fn gun_d10t() -> GunModule {
             max_dispersion_mrad: 18.0,
             barrel_length_m: 5.0,
             shell: ShellSpec::armor_piercing(100.0, 895.0, 185.0, 320),
+            // The D-10 family's fielded chemical round: penetration that ignores range, paid for
+            // with the HEAT weaknesses the armour model enforces (spaced screens kill the jet,
+            // extreme obliquity sheds it).
+            special_shell: Some(ShellSpec::heat(100.0, 900.0, 280.0, 320)),
         },
         mass_kg: 2_300.0,
         hit_points: 150,
@@ -222,6 +227,8 @@ pub(crate) fn gun_d10t2s() -> GunModule {
             // Sidegrade vs the D-10T: faster, flatter, more penetration, but lower per-shot alpha
             // (320 -> 300) — a DPM/accuracy gun rather than a strict upgrade.
             shell: ShellSpec::armor_piercing(100.0, 895.0, 195.0, 300),
+            // The same BK-5 the D-10T loads — one physical round for the whole gun family.
+            special_shell: Some(ShellSpec::heat(100.0, 900.0, 280.0, 320)),
         },
         mass_kg: 2_300.0,
         hit_points: 150,
