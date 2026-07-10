@@ -23,6 +23,7 @@ mod shape_track;
 mod t54_hybrid;
 mod t54_hybrid_turret;
 mod t55a;
+mod tiger_i;
 
 pub use fittings::{DetailVisual, FittingsVisual};
 pub use hybrid::{

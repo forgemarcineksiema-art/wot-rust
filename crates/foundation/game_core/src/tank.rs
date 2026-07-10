@@ -91,10 +91,6 @@ impl HitboxProfile {
             VehicleKind::T55A => {
                 Self::new(1.75, 1.19, 3.20, 1.14, 0.66).with_turret_plan(0.95, 0.97, 0.07)
             }
-            // height 2.92 m, split at world y 1.90
-            VehicleKind::TigerI => {
-                Self::new(1.95, 1.46, 3.60, 1.41, 0.49).with_turret_plan(1.00, 1.34, -0.10)
-            }
             // height 3.08 m, split at world y 1.95
             VehicleKind::TigerII => {
                 Self::new(1.95, 1.54, 4.00, 1.49, 0.46).with_turret_plan(0.96, 1.42, 0.07)
@@ -107,8 +103,10 @@ impl HitboxProfile {
             VehicleKind::PantherII => {
                 Self::new(1.85, 1.47, 3.70, 1.42, 0.43).with_turret_plan(0.86, 1.27, -0.02)
             }
-            // Blueprint-born: the hitbox comes from `blueprint.hitbox()` above, always.
-            VehicleKind::IS3 => unreachable!("IS-3 is blueprint-migrated"),
+            // Blueprint-migrated: the hitbox comes from `blueprint.hitbox()` above, always.
+            VehicleKind::IS3 | VehicleKind::TigerI => {
+                unreachable!("{kind:?} is blueprint-migrated")
+            }
         }
     }
 }

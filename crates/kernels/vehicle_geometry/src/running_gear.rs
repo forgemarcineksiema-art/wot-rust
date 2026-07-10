@@ -92,6 +92,9 @@ impl RunningGearKinematics {
             // The IS family's 550 mm cast wheels are NARROW discs; the auto-derived track-band
             // width turns them into barrels.
             VehicleKind::IS3 => 0.14,
+            // Interleaved discs: each row must be thin enough that the inner row (one
+            // `overlap_inner_dx` inboard) clears the outer row's faces.
+            VehicleKind::TigerI => 0.10,
             _ => ((track.outer_x - track.inner_x) * 0.5).max(0.03),
         };
         let link_half_width = match kind {
@@ -100,6 +103,9 @@ impl RunningGearKinematics {
             VehicleKind::T54_1951 => 0.23,
             // The IS-3's 650 mm band, same treatment: the shoes span the full track width.
             VehicleKind::IS3 => 0.26,
+            // The Tiger's 725 mm combat band: the widest shoes in the lineup, spanning the
+            // interleaved wheel rows they ride over.
+            VehicleKind::TigerI => 0.28,
             _ => (track.belt_half_thickness * 0.5).max(0.02),
         };
         let link_count = match kind {
@@ -133,7 +139,9 @@ impl RunningGearKinematics {
             link_x: match kind {
                 // The track shoes ride over the road wheels, centred on the wheel plane so the belt
                 // wraps the wheels instead of floating as a separate ribbon outboard of them.
-                VehicleKind::T54_1951 | VehicleKind::IS3 => (track.inner_x + track.outer_x) * 0.5,
+                VehicleKind::T54_1951 | VehicleKind::IS3 | VehicleKind::TigerI => {
+                    (track.inner_x + track.outer_x) * 0.5
+                }
                 _ => track.center_x + track.belt_half_thickness - track.belt_half_thickness * 0.5,
             },
             link_half_width,

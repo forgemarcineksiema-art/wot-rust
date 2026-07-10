@@ -69,10 +69,14 @@ fn every_vehicle_bake_hash_matches_golden_output() {
         // only through the shared Soviet cupola cap; the German vehicles are untouched.
         (VehicleKind::T54_1951, 14_477_744_753_775_894_004_u64),
         (VehicleKind::T55A, 6_886_842_021_380_663_919_u64),
+        // Re-recorded for the Tiger I blueprint migration: the researched 1:1 slab (6.32 m hull,
+        // 3.7 m beam, 3.0 m tall, face-honest plates, horseshoe turret + Rommelkiste, interleaved
+        // eight-wheel gear, braked KwK 36) replaces the legacy hitbox-fraction body. The rest of
+        // the German fleet is untouched.
+        (VehicleKind::TigerI, 17_647_880_481_568_048_678_u64),
         // Re-recorded for the legacy-fleet moving gear: the fused wheel/box gear left the German
         // hull bakes for the wrapped belt band; wheels and shoe links are now instanced and
         // animated at render time like the blueprint fleet. Soviets and prototype untouched.
-        (VehicleKind::TigerI, 12_789_224_975_552_406_567_u64),
         (VehicleKind::TigerII, 14_245_727_605_461_046_091_u64),
         (VehicleKind::Jagdtiger, 11_488_926_837_109_973_349_u64),
         (VehicleKind::PantherII, 12_707_307_636_792_314_550_u64),
