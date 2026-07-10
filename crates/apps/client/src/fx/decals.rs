@@ -207,11 +207,7 @@ fn local_facing_normal(facing: ArmorFacing, local_x: f32) -> Vec3 {
 
 /// Append one tank's battle scars as flat quads riding its posed hull/turret. `opacity` already
 /// folded per decal; a penetration hole stays pitch dark, scuffs thin back to the paint.
-pub fn append_decal_quads(
-    vertices: &mut Vec<FxVertex>,
-    decals: &[HitDecal],
-    tank: &TankSnapshot,
-) {
+pub fn append_decal_quads(vertices: &mut Vec<FxVertex>, decals: &[HitDecal], tank: &TankSnapshot) {
     if decals.is_empty() {
         return;
     }

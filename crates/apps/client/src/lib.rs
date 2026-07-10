@@ -22,7 +22,6 @@ pub use camera::{
 };
 pub use fx::shell_tracer_vertices;
 pub use fx::{append_decal_quads, decal_from_damage_event};
-pub use vehicle::turret_popoff::TurretPopoff;
 pub use hud::demo::demo_battle_hud;
 pub use hud::font::hud_font_atlas;
 pub use hud::{HudVitals, build_hud};
@@ -48,6 +47,7 @@ pub use vehicle::render_frame::{
 };
 pub use vehicle::render_objects::VehicleMeshCatalog;
 pub use vehicle::render_objects_draw::tank_render_objects;
+pub use vehicle::turret_popoff::TurretPopoff;
 pub use vehicle::variation::{
     CamoPattern, DECAL_FADE_S, DecalFrame, DecalKind, HitDecal, MAX_HIT_DECALS, VehicleVariation,
 };

@@ -15,7 +15,8 @@ use std::io::BufWriter;
 
 use client::{
     HitDecal, TurretPopoff, VehicleAssetCatalog, append_decal_quads, battlefield_scene_mesh,
-    battlefield_scene_mesh_with_cover_states, render_frame_from_objects, tank_vehicle_render_objects,
+    battlefield_scene_mesh_with_cover_states, render_frame_from_objects,
+    tank_vehicle_render_objects,
 };
 use game_core::{
     ArmorZone, DamageCause, DamageEvent, ModuleSlot, MountFrames, TankId, TeamId, VehicleKind,
@@ -128,7 +129,8 @@ fn vehicle_shots(
     let ring_local = MountFrames::for_vehicle(KIND).turret_ring.translation;
     // yaw = FRAC_PI_2: nose +X, so authoring +Z maps to world +X, +X to world -Z.
     let ring_world = Vec3::new(cx + ring_local.z, ground + ring_local.y, cz - ring_local.x);
-    let mut popoff = TurretPopoff::launch(TankId(1), KIND, ring_world, Some(&battlefield.heightmap));
+    let mut popoff =
+        TurretPopoff::launch(TankId(1), KIND, ring_world, Some(&battlefield.heightmap));
     for _ in 0..400 {
         popoff.tick(0.05); // fly and settle
     }
@@ -163,9 +165,21 @@ fn battle_decals(tank: &TankSnapshot, cx: f32, ground: f32, cz: f32) -> Vec<HitD
     // yaw = FRAC_PI_2: nose points +X, right side is -Z-ish; pick surface points and outward normals.
     let hits = [
         (Vec3::new(cx + 2.6, ground + 1.25, cz), ArmorZone::UpperGlacis, Vec3::new(0.7, 0.6, 0.0)),
-        (Vec3::new(cx + 1.9, ground + 1.9, cz + 0.2), ArmorZone::TurretFront, Vec3::new(0.6, 0.5, 0.3)),
-        (Vec3::new(cx - 0.2, ground + 1.0, cz + 1.05), ArmorZone::HullSide, Vec3::new(0.0, 0.2, 1.0)),
-        (Vec3::new(cx + 0.6, ground + 1.6, cz + 1.0), ArmorZone::TurretSide, Vec3::new(0.1, 0.3, 1.0)),
+        (
+            Vec3::new(cx + 1.9, ground + 1.9, cz + 0.2),
+            ArmorZone::TurretFront,
+            Vec3::new(0.6, 0.5, 0.3),
+        ),
+        (
+            Vec3::new(cx - 0.2, ground + 1.0, cz + 1.05),
+            ArmorZone::HullSide,
+            Vec3::new(0.0, 0.2, 1.0),
+        ),
+        (
+            Vec3::new(cx + 0.6, ground + 1.6, cz + 1.0),
+            ArmorZone::TurretSide,
+            Vec3::new(0.1, 0.3, 1.0),
+        ),
     ];
     hits.into_iter()
         .filter_map(|(hit, zone, normal)| {
@@ -186,7 +200,13 @@ fn battle_decals(tank: &TankSnapshot, cx: f32, ground: f32, cz: f32) -> Vec<HitD
         .collect()
 }
 
-fn tank_snapshot(cx: f32, ground: f32, cz: f32, hp: u32, destroyed_modules_mask: u8) -> TankSnapshot {
+fn tank_snapshot(
+    cx: f32,
+    ground: f32,
+    cz: f32,
+    hp: u32,
+    destroyed_modules_mask: u8,
+) -> TankSnapshot {
     let spec = KIND.spec();
     TankSnapshot {
         tank_id: TankId(1),
@@ -205,6 +225,7 @@ fn tank_snapshot(cx: f32, ground: f32, cz: f32, hp: u32, destroyed_modules_mask:
         module_hit_points: spec.module_health.hit_points_by_slot(),
         destroyed_modules_mask,
         track_damage_mask: 0,
+        track_hp: [game_core::TRACK_HP_MAX; 2],
         ammo_counts: game_core::AmmoLoadout::default().counts,
         selected_ammo: 0,
         spotted_by_teams_mask: 0,
