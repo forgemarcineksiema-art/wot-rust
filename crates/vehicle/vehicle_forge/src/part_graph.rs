@@ -28,12 +28,12 @@ pub struct ForgePartGraph {
 }
 
 impl ForgePartGraph {
-    /// The part graph for `kind`, dispatched on the vehicle's registered part strategy. Blueprint
-    /// benchmarks (currently only the T-54) derive every part extent from their single shape source;
-    /// every other registered vehicle uses a coarser graph derived from the baked geometry bounds and
+    /// The part graph for `kind`, dispatched on the vehicle's registered part strategy. Bespoke
+    /// blueprint tables (T-54, IS-3, Centurion) derive every part extent from their single shape
+    /// source; the German line uses a coarser graph derived from the baked geometry bounds and
     /// the family reference pack. `None` for vehicles with no forge spec (the placeholder prototype
     /// and the legacy T-55A). Because the strategy is registered per vehicle, a blueprint-backed
-    /// vehicle can no longer silently inherit the T-54 part table.
+    /// vehicle can no longer silently inherit another vehicle's part table.
     pub fn for_vehicle(kind: VehicleKind) -> Option<Self> {
         let spec = crate::registry::forge_spec(kind)?;
         match spec.parts {

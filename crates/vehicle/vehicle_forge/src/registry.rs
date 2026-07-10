@@ -38,16 +38,16 @@ pub(crate) fn forge_spec(kind: VehicleKind) -> Option<VehicleForgeSpec> {
         VehicleKind::TigerII => german(crate::tiger_ii_reference_pack),
         VehicleKind::Jagdtiger => german(crate::jagdtiger_reference_pack),
         VehicleKind::PantherII => german(crate::panther_ii_reference_pack),
-        // The IS-3 rides the geometry-derived part graph until its bespoke part table lands
-        // with the visual detail package.
+        // Blueprint-backed bespoke part tables: every extent restates a blueprint field, so
+        // the parts carry the pike/skirt/bogie identity instead of coarse baked bounds.
         VehicleKind::IS3 => VehicleForgeSpec {
             reference_pack: crate::is3_reference_pack,
-            parts: PartStrategy::BakedGeometry,
+            parts: PartStrategy::Blueprint(crate::part_data::is3_parts),
             review_cameras: ReviewCameraSet::standard_vehicle_review,
         },
         VehicleKind::Centurion => VehicleForgeSpec {
             reference_pack: crate::centurion_reference_pack,
-            parts: PartStrategy::BakedGeometry,
+            parts: PartStrategy::Blueprint(crate::part_data::centurion_parts),
             review_cameras: ReviewCameraSet::standard_vehicle_review,
         },
         VehicleKind::T55A | VehicleKind::PrototypeMedium => return None,

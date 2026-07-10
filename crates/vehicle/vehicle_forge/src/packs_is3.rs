@@ -16,7 +16,8 @@ pub fn is3_reference_pack() -> ReferencePack {
         "Armored Vehicle Forge reference for the IS-3: the pike-nose heavy — two swept bow \
          plates meeting at a central ridge, a wide flattened cast dome overhanging its ring, six \
          small road wheels per side, and the braked 122 mm D-25T.",
-        8,
+        // Six per side — the blueprint's wheel_count; the part graph cross-checks this.
+        6,
         vec![
             ReferenceSource::new(
                 "Wikimedia Commons gallery",

@@ -279,6 +279,183 @@ fn geometry_derived_vehicles_do_not_inherit_bespoke_t54_parts() {
     }
 }
 
+/// The IS-3's bespoke table: pike bow, small-wheel rollered gear, overhanging dome, fuel
+/// drums — every part sourced, non-degenerate, and the mount chain rebuilt from the parts
+/// reproduces the blueprint mounts exactly (no drift, no magic values).
+#[test]
+fn is3_part_graph_is_blueprint_born_with_its_signature_parts() {
+    let graph = ForgePartGraph::for_vehicle(VehicleKind::IS3).expect("IS-3 part graph");
+    let bp = VehicleBlueprint::for_vehicle(VehicleKind::IS3).expect("IS-3 blueprint");
+
+    for kind in [
+        ForgePartKind::Hull,
+        ForgePartKind::PikeBow,
+        ForgePartKind::LowerPlate,
+        ForgePartKind::Fenders,
+        ForgePartKind::TrackRun,
+        ForgePartKind::TrackBelt,
+        ForgePartKind::RoadWheels,
+        ForgePartKind::RoadWheelSet,
+        ForgePartKind::Idler,
+        ForgePartKind::DriveSprocket,
+        ForgePartKind::ReturnRollers,
+        ForgePartKind::Turret,
+        ForgePartKind::Mantlet,
+        ForgePartKind::Gun,
+        ForgePartKind::Cupola,
+        ForgePartKind::EngineDeck,
+        ForgePartKind::FuelDrums,
+    ] {
+        let part = graph.part(kind).unwrap_or_else(|| panic!("IS-3 graph missing {kind:?}"));
+        assert!(!part.source().trim().is_empty(), "{kind:?} must record its source");
+        let b = part.bounds();
+        assert!(
+            b.max.x > b.min.x && b.max.y > b.min.y && b.max.z > b.min.z,
+            "{kind:?} must be a non-degenerate volume"
+        );
+    }
+
+    // The semantic graph supersedes the flat blueprint: no mount drift.
+    assert_eq!(graph.mount_frames(), bp.mount_frames());
+    assert_eq!(graph.road_wheel_count_per_side(), 6);
+    assert_eq!(
+        graph.road_wheel_count_per_side(),
+        ReferencePack::for_vehicle(VehicleKind::IS3).expect("pack").road_wheel_count_per_side()
+    );
+
+    // Character reads off the parts: a cast dome that traverses, gameplay-real pike armor,
+    // cosmetic drums, and running-gear rollers.
+    assert_eq!(graph.part(ForgePartKind::Turret).unwrap().material(), MaterialRole::CastArmor);
+    assert!(graph.turret_traverses());
+    assert_eq!(graph.part(ForgePartKind::PikeBow).unwrap().gameplay_role(), GameplayRole::Armor);
+    assert_eq!(graph.part(ForgePartKind::PikeBow).unwrap().lod_policy(), LodPolicy::Silhouette);
+    assert_eq!(
+        graph.part(ForgePartKind::FuelDrums).unwrap().gameplay_role(),
+        GameplayRole::Fitting
+    );
+    assert_eq!(
+        graph.part(ForgePartKind::ReturnRollers).unwrap().gameplay_role(),
+        GameplayRole::RunningGear
+    );
+}
+
+/// The Centurion's bespoke table: skirts, bogie pairs, bustle bin, clean 20-pounder — with the
+/// SKIRT carried as gameplay-real Armor (ArmorZone::Skirt resolves on its plane), not a
+/// fitting, and standing exactly one standoff+sheet outside the track band.
+#[test]
+fn centurion_part_graph_is_blueprint_born_with_its_signature_parts() {
+    let graph = ForgePartGraph::for_vehicle(VehicleKind::Centurion).expect("Centurion graph");
+    let bp = VehicleBlueprint::for_vehicle(VehicleKind::Centurion).expect("blueprint");
+
+    for kind in [
+        ForgePartKind::Hull,
+        ForgePartKind::UpperGlacis,
+        ForgePartKind::LowerPlate,
+        ForgePartKind::Skirts,
+        ForgePartKind::TrackRun,
+        ForgePartKind::TrackBelt,
+        ForgePartKind::RoadWheels,
+        ForgePartKind::RoadWheelSet,
+        ForgePartKind::Idler,
+        ForgePartKind::DriveSprocket,
+        ForgePartKind::ReturnRollers,
+        ForgePartKind::Turret,
+        ForgePartKind::StowageBin,
+        ForgePartKind::Mantlet,
+        ForgePartKind::Gun,
+        ForgePartKind::Cupola,
+        ForgePartKind::EngineDeck,
+    ] {
+        let part = graph.part(kind).unwrap_or_else(|| panic!("Centurion missing {kind:?}"));
+        assert!(!part.source().trim().is_empty(), "{kind:?} must record its source");
+        let b = part.bounds();
+        assert!(
+            b.max.x > b.min.x && b.max.y > b.min.y && b.max.z > b.min.z,
+            "{kind:?} must be a non-degenerate volume"
+        );
+    }
+
+    assert_eq!(graph.mount_frames(), bp.mount_frames());
+    assert_eq!(graph.road_wheel_count_per_side(), 6);
+    assert_eq!(
+        graph.road_wheel_count_per_side(),
+        ReferencePack::for_vehicle(VehicleKind::Centurion)
+            .expect("pack")
+            .road_wheel_count_per_side()
+    );
+
+    // The skirt is spaced ARMOR at the exact screen plane, kept through LOD as silhouette;
+    // the bustle bin is cosmetic stowage in the turret group.
+    let skirt = graph.part(ForgePartKind::Skirts).expect("skirts");
+    assert_eq!(skirt.gameplay_role(), GameplayRole::Armor);
+    assert_eq!(skirt.lod_policy(), LodPolicy::Silhouette);
+    let authored = bp.hull.skirt.expect("authored skirt");
+    let expected_outer = bp.track.outer_x + authored.standoff_m + authored.thickness_m;
+    assert!(
+        (skirt.bounds().max.x - expected_outer).abs() < 1.0e-6,
+        "the skirt part stands on the armor screen plane: {} vs {expected_outer}",
+        skirt.bounds().max.x
+    );
+    let bin = graph.part(ForgePartKind::StowageBin).expect("bin");
+    assert_eq!(bin.gameplay_role(), GameplayRole::Fitting);
+    assert_eq!(bin.group(), PartGroup::Turret, "the bin traverses with the turret");
+}
+
+/// Hitbox honesty and containment for both bespoke tables: hull and turret shells live inside
+/// the gameplay collision box, and every part stays inside the baked vehicle's total bounds.
+#[test]
+fn is3_and_centurion_parts_fit_the_hitbox_and_the_baked_vehicle() {
+    for kind in [VehicleKind::IS3, VehicleKind::Centurion] {
+        let graph = ForgePartGraph::for_vehicle(kind).expect("part graph");
+        let bp = VehicleBlueprint::for_vehicle(kind).expect("blueprint");
+        let h = bp.hull;
+        let (xw, zl) = (h.hitbox_half_width, h.hitbox_half_length);
+        let (ylo, yhi) =
+            (h.hitbox_center_y - h.hitbox_half_height, h.hitbox_center_y + h.hitbox_half_height);
+        for part_kind in [ForgePartKind::Hull, ForgePartKind::Turret] {
+            let b = graph.part(part_kind).expect("part").bounds();
+            assert!(
+                b.min.x >= -xw - 1.0e-3 && b.max.x <= xw + 1.0e-3,
+                "{kind:?} {part_kind:?} x escapes the hitbox"
+            );
+            assert!(
+                b.min.z >= -zl - 1.0e-3 && b.max.z <= zl + 1.0e-3,
+                "{kind:?} {part_kind:?} z escapes the hitbox"
+            );
+            assert!(
+                b.min.y >= ylo - 1.0e-3 && b.max.y <= yhi + 1.0e-3,
+                "{kind:?} {part_kind:?} y escapes the hitbox"
+            );
+        }
+
+        let baked = bake_vehicle(kind).expect("bakes");
+        let mut vehicle = None::<MeshBounds>;
+        for sub in [SubmeshKind::Hull, SubmeshKind::Turret, SubmeshKind::Gun] {
+            if let Some(bounds) = baked.submesh(sub).and_then(|submesh| submesh.mesh.bounds()) {
+                vehicle = Some(match vehicle {
+                    Some(acc) => acc.union(bounds),
+                    None => bounds,
+                });
+            }
+        }
+        let vehicle = vehicle.expect("baked bounds");
+        let eps = 0.12;
+        for part in graph.parts() {
+            let b = part.bounds();
+            assert!(
+                b.min.x >= vehicle.min.x - eps
+                    && b.min.y >= vehicle.min.y - eps
+                    && b.min.z >= vehicle.min.z - eps
+                    && b.max.x <= vehicle.max.x + eps
+                    && b.max.y <= vehicle.max.y + eps
+                    && b.max.z <= vehicle.max.z + eps,
+                "{kind:?} {:?} bounds {b:?} escape the baked vehicle {vehicle:?}",
+                part.kind(),
+            );
+        }
+    }
+}
+
 #[test]
 fn jagdtiger_part_graph_reads_as_a_fixed_casemate() {
     let graph = ForgePartGraph::for_vehicle(VehicleKind::Jagdtiger).expect("Jagdtiger graph");
