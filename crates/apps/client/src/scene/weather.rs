@@ -25,15 +25,22 @@ pub(crate) struct WeatherLook {
 /// unauthored variants out of real battles.
 pub(crate) fn weather_look(map: MapId, variant: WeatherVariant) -> WeatherLook {
     match (map, variant) {
-        (MapId::ProkhorovkaHill252_2, _) => WeatherLook {
-            lighting: SceneLighting::battlefield_default(),
-            sky: (0.55, 0.69, 0.87),
+        (MapId::ProkhorovkaHill252_2, WeatherVariant::GoldenEvening) => WeatherLook {
+            lighting: SceneLighting::prokhorovka_golden_evening(),
+            sky: (0.80, 0.62, 0.45),
             rain_intensity: 0.0,
             wetness: 0.0,
         },
-        (MapId::BystraValley, WeatherVariant::ClearAfternoon) => WeatherLook {
-            lighting: SceneLighting::bystra_clear_afternoon(),
-            sky: (0.62, 0.66, 0.72),
+        (MapId::ProkhorovkaHill252_2, WeatherVariant::Overcast) => WeatherLook {
+            lighting: SceneLighting::prokhorovka_overcast(),
+            sky: (0.48, 0.51, 0.55),
+            rain_intensity: 0.0,
+            wetness: 0.0,
+        },
+        // The hazy-noon default, and the fallback for variants the steppe does not author.
+        (MapId::ProkhorovkaHill252_2, _) => WeatherLook {
+            lighting: SceneLighting::battlefield_default(),
+            sky: (0.55, 0.69, 0.87),
             rain_intensity: 0.0,
             wetness: 0.0,
         },
@@ -48,6 +55,14 @@ pub(crate) fn weather_look(map: MapId, variant: WeatherVariant) -> WeatherLook {
             sky: (0.66, 0.64, 0.64),
             rain_intensity: 0.0,
             wetness: 0.2,
+        },
+        // The clear afternoon, and the fallback for variants the valley does not author
+        // (the server-side supported_weather table keeps those out of real battles).
+        (MapId::BystraValley, _) => WeatherLook {
+            lighting: SceneLighting::bystra_clear_afternoon(),
+            sky: (0.62, 0.66, 0.72),
+            rain_intensity: 0.0,
+            wetness: 0.0,
         },
     }
 }

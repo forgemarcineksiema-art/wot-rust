@@ -12,7 +12,13 @@ const WEATHER_SALT: u64 = 0x57EA_7AB1_E000_0001;
 /// before. Weather is presentation-only by contract; the sim never reads it.
 pub fn supported_weather(map: MapId) -> &'static [WeatherVariant] {
     match map {
-        MapId::ProkhorovkaHill252_2 => &[WeatherVariant::ClearAfternoon],
+        // The steppe ships three times of day (lighting 2.0 program): the hazy noon, a golden
+        // evening the shadow cascades rake long, and a dry lead overcast.
+        MapId::ProkhorovkaHill252_2 => &[
+            WeatherVariant::ClearAfternoon,
+            WeatherVariant::GoldenEvening,
+            WeatherVariant::Overcast,
+        ],
         // All three hand-tuned looks ship for the valley (client scene::weather + the
         // fog-fairness lock): the battle seed decides which sky a match gets.
         MapId::BystraValley => {

@@ -89,12 +89,14 @@ fn battle_profile_has_aerial_perspective_and_the_interior_does_not() {
     }
 }
 
-fn all_profiles() -> [(&'static str, SceneLighting); 6] {
+fn all_profiles() -> [(&'static str, SceneLighting); 8] {
     [
         ("battlefield_default", SceneLighting::battlefield_default()),
         ("bystra_clear_afternoon", SceneLighting::bystra_clear_afternoon()),
         ("bystra_rain", SceneLighting::bystra_rain()),
         ("bystra_dawn_fog", SceneLighting::bystra_dawn_fog()),
+        ("prokhorovka_golden_evening", SceneLighting::prokhorovka_golden_evening()),
+        ("prokhorovka_overcast", SceneLighting::prokhorovka_overcast()),
         ("garage_studio", SceneLighting::garage_studio()),
         ("garage_workshop", SceneLighting::garage_workshop()),
     ]
@@ -174,6 +176,49 @@ fn exposure_brightens_monotonically_before_the_curve() {
         bright[1],
         dim[1]
     );
+}
+
+#[test]
+fn every_outdoor_profile_keeps_the_hemispheric_ambient_real() {
+    for (name, l) in all_profiles() {
+        assert_ne!(
+            l.ambient_rgb, l.ground_ambient_rgb,
+            "{name}: sky and ground ambient must differ, or the hemisphere is a flat constant"
+        );
+    }
+}
+
+#[test]
+fn the_golden_evening_sun_is_genuinely_low_and_warm() {
+    let l = SceneLighting::prokhorovka_golden_evening();
+    // A real golden hour: the NORMALIZED sun elevation sits in the long-shadow band. This is the
+    // look the far shadow cascade exists to sell — a near-noon sun here would waste it.
+    let d = l.key_direction;
+    let len = (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt();
+    let elevation = d[1] / len;
+    assert!(
+        (0.12..=0.35).contains(&elevation),
+        "golden-hour sun elevation must rake long shadows, got {elevation}"
+    );
+    // Amber light: red over green over blue, decisively.
+    let [r, g, b] = l.key_rgb;
+    assert!(r > g && g > b && r > b * 1.8, "the evening key must be warm amber: {:?}", l.key_rgb);
+    // The overcast sibling is the opposite pole: high flat sun, near-neutral cool key.
+    let o = SceneLighting::prokhorovka_overcast();
+    assert!(o.key_direction[1] > o.key_direction[0].abs(), "overcast light comes from the lid");
+    assert_eq!(o.cloud_shadow_strength, 0.0, "no cloud patches under a full lid");
+    assert!(o.cloud_coverage_bias > 0.3, "the overcast profile must actually close the lid");
+}
+
+#[test]
+fn the_prokhorovka_variants_are_three_different_days() {
+    let noon = SceneLighting::battlefield_default();
+    let evening = SceneLighting::prokhorovka_golden_evening();
+    let overcast = SceneLighting::prokhorovka_overcast();
+    let signature = |l: &SceneLighting| (l.key_direction, l.key_rgb, l.sky_horizon_rgb);
+    assert_ne!(signature(&noon), signature(&evening));
+    assert_ne!(signature(&noon), signature(&overcast));
+    assert_ne!(signature(&evening), signature(&overcast));
 }
 
 #[test]

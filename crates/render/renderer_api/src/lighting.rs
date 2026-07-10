@@ -249,6 +249,68 @@ impl SceneLighting {
         }
     }
 
+    /// Prokhorovka, golden evening: the sun low in the WEST, raking long shadows across the Psel
+    /// killzone — the look the shadow cascades were built to sell. A hot amber key, dusk-blue
+    /// ambient in the shade, a deep-blue zenith easing into a warm band at the horizon, and the
+    /// strongest sun scatter of the outdoor set so the whole western haze glows.
+    pub fn prokhorovka_golden_evening() -> Self {
+        Self {
+            ambient_rgb: [0.13, 0.15, 0.24],
+            ground_ambient_rgb: [0.15, 0.11, 0.08],
+            // Low in the west: the normalized elevation sits ~0.25 — long shadows, real raking.
+            key_direction: [-0.92, 0.25, 0.20],
+            key_rgb: [1.32, 0.95, 0.55],
+            fill_direction: [0.60, 0.55, -0.30],
+            fill_rgb: [0.13, 0.15, 0.22],
+            rim_direction: [0.50, 0.35, 0.80],
+            rim_rgb: [0.24, 0.20, 0.20],
+            sky_zenith_rgb: [0.15, 0.23, 0.46],
+            sky_horizon_rgb: [0.86, 0.66, 0.46],
+            fog_density: 0.00018,
+            fog_height_falloff: 0.02,
+            exposure: 1.1,
+            black_point: 0.035,
+            saturation: 1.25,
+            contrast: 1.15,
+            cloud_coverage_bias: 0.02,
+            cloud_scale: 1.0,
+            cloud_opacity: 0.9,
+            cloud_drift: 0.004,
+            cloud_shadow_strength: 0.3,
+            fog_sun_scatter: 0.85,
+        }
+    }
+
+    /// Prokhorovka, dry overcast: a lead lid over the steppe — flat cool light, no sun disc worth
+    /// the name, soft contrast — but DRY, unlike the Bystra squalls: no rain pass, no soaked
+    /// world. The mood day for a long-range gunnery duel.
+    pub fn prokhorovka_overcast() -> Self {
+        Self {
+            ambient_rgb: [0.24, 0.26, 0.29],
+            ground_ambient_rgb: [0.13, 0.13, 0.13],
+            key_direction: [0.20, 0.90, 0.15],
+            key_rgb: [0.50, 0.53, 0.58],
+            fill_direction: [-0.45, 0.50, -0.55],
+            fill_rgb: [0.14, 0.16, 0.19],
+            rim_direction: [-0.30, 0.45, 0.80],
+            rim_rgb: [0.16, 0.18, 0.22],
+            sky_zenith_rgb: [0.34, 0.37, 0.42],
+            sky_horizon_rgb: [0.52, 0.55, 0.58],
+            fog_density: 0.0005,
+            fog_height_falloff: 0.01,
+            exposure: 1.0,
+            black_point: 0.015,
+            saturation: 1.05,
+            contrast: 1.08,
+            cloud_coverage_bias: 0.4,
+            cloud_scale: 1.2,
+            cloud_opacity: 0.95,
+            cloud_drift: 0.005,
+            cloud_shadow_strength: 0.0,
+            fog_sun_scatter: 0.1,
+        }
+    }
+
     /// The garage studio: a soft warm key from front-left-above, a weak cool fill from the right,
     /// and a restrained rear rim to lift the silhouette, on a near-neutral sky/floor ambient so the
     /// vehicle's own material colour reads true. The result is a neutral tint with shaped studio

@@ -135,7 +135,15 @@ pub(crate) fn push_damage_log(
                 color,
             );
         } else if entry.track.is_some() {
-            crate::hud::font::push_text(vertices, "TRK", LOG_LEFT_X, y, LOG_TEXT_SIZE, aspect, color);
+            crate::hud::font::push_text(
+                vertices,
+                "TRK",
+                LOG_LEFT_X,
+                y,
+                LOG_TEXT_SIZE,
+                aspect,
+                color,
+            );
         }
 
         let mut x = LOG_LEFT_X + 4.0 * LOG_TEXT_SIZE * 0.6 + 0.012;
