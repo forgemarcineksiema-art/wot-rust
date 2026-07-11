@@ -61,6 +61,12 @@ fn value_noise(p: vec2<f32>) -> f32 {
 }
 
 fn material_detail(world: vec3<f32>, n: vec3<f32>) -> f32 {
+    // Interior looks (fog density 0 — the hangar; see `fog_params` docs) keep a near-flat
+    // finish: painted panels and cast concrete carry no strata, and the outdoor patch noise
+    // reads as damp stains smeared down a wall indoors.
+    if (camera.fog_params.x <= 0.0) {
+        return 0.97 + value_noise(world.xz * 1.1) * 0.05;
+    }
     // Two octaves (~2.5 m patches with ~0.6 m grain) on level ground...
     let ground = value_noise(world.xz * 0.4) * 0.6 + value_noise(world.xz * 1.7) * 0.4;
     // ...crossfaded into height-banded strata on steep faces (walls, cliffs, cut banks).
@@ -92,6 +98,10 @@ fn cloud_shadow(world: vec3<f32>) -> f32 {
 // The albedo noise's analytic gradient bent into the normal, so the grain CATCHES LIGHT
 // instead of only darkening the paint. Glossier surfaces perturb less — polish is smooth.
 fn detail_normal(world: vec3<f32>, n: vec3<f32>, gloss: f32) -> vec3<f32> {
+    // Interiors: machined and painted surfaces stay true to their authored normal.
+    if (camera.fog_params.x <= 0.0) {
+        return n;
+    }
     let e = 0.35;
     let here = value_noise(world.xz * 1.7);
     let dx = value_noise((world.xz + vec2<f32>(e, 0.0)) * 1.7) - here;
