@@ -5,12 +5,12 @@ use terrain::{HeightMap, StaticCoverObject};
 use crate::collision::{TankWorldObstacles, default_tank_footprint};
 use crate::contact::{TerrainContact, sample_tank_terrain_contact};
 use crate::controller_settings::TankControllerSettings;
-use crate::cover::resolve_cover_collision_with_velocity;
+use crate::cover::{footprint_blocked_by_cover, resolve_cover_collision_with_velocity};
 use crate::hull_attitude::advance_hull_attitude;
 use crate::movement::{
     TankControlInput, TankKinematicState, step_custom_tank_controller_on_contact,
 };
-use crate::tank_resolve::resolve_tank_collision_with_velocity;
+use crate::tank_resolve::{footprint_blocked_by_tanks, resolve_tank_collision_with_velocity};
 use crate::track_contact::{sample_support, support_height};
 use crate::vertical::{GroundStep, is_grounded, resolve_vertical};
 
@@ -96,7 +96,24 @@ pub fn step_tank_on_world_with_tanks(
     }
     let was_grounded = is_grounded(state.position.y, contact.height_m);
 
+    let previous_yaw = state.yaw_rad;
     step_custom_tank_controller_on_contact(state, input, settings, contact, dt_seconds);
+    // Rotation is collision-resolved like translation: a pivot that would grind the hull's
+    // corners INTO a wall or a neighbour is refused (yaw reverts, the rotation rate dies),
+    // exactly as a blocked move holds its position. Tested at the PREVIOUS position so pure
+    // rotation is judged on its own; and only when the OLD yaw was clear — a hull already
+    // overlapped (spawn accident, pileup) keeps its freedom to rotate its way out.
+    {
+        let fp = obstacles.tank_footprint;
+        let blocked = |yaw: f32| {
+            footprint_blocked_by_cover(previous, yaw, fp, obstacles.cover)
+                || footprint_blocked_by_tanks(previous, yaw, fp, obstacles.tanks)
+        };
+        if state.yaw_rad != previous_yaw && blocked(state.yaw_rad) && !blocked(previous_yaw) {
+            state.yaw_rad = previous_yaw;
+            state.yaw_rate_rad_s = 0.0;
+        }
+    }
     let (position, velocity) = resolve_cover_collision_with_velocity(
         previous,
         state.position,

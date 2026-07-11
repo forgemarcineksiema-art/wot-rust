@@ -33,7 +33,7 @@ pub fn resolve_tank_collision(
     ];
     for candidate in candidates {
         let allowed = if stuck_on.is_empty() {
-            !tank_blocked(candidate, yaw_rad, footprint, obstacles)
+            !footprint_blocked_by_tanks(candidate, yaw_rad, footprint, obstacles)
         } else {
             escapes_overlaps(previous, candidate, yaw_rad, footprint, obstacles, &stuck_on)
         };
@@ -95,7 +95,9 @@ fn escapes_overlaps(
     })
 }
 
-fn tank_blocked(
+/// Whether the hull footprint at `position`/`yaw_rad` overlaps any tank obstacle. Public
+/// because the world step also asks it about a ROTATION candidate.
+pub fn footprint_blocked_by_tanks(
     position: Vec3,
     yaw_rad: f32,
     footprint: TankFootprint,

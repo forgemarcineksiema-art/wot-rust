@@ -56,10 +56,24 @@ contact-shape approximation.
 - [ ] **Enemy health bars render through terrain** (no occlusion check) and show exact HP at any
   range — revisit together with spotting.
 - [ ] **Combat hot path has no benchmark** (`step_shells`/SAT/ramming at 30 tanks, 100 shells).
-- [ ] **From the systems audit (2026-06-10):** turret occupies the hitbox's full width (second
-  turret OBB per vehicle is the fix), the Roof zone uses a horizontal normal (flat shots get a
-  21.6 mm strip), the LowerPlate band covers ~40% of frontal height, Tiger II's pennable turret
-  inverts its hull-down incentive, and `AIM_MAX_RANGE_M` (600 m) is short for a 1000 m map.
+- [ ] **From the systems audit (2026-06-10), re-audited 2026-07-11:** most of this paragraph is
+  stale after the fleet's blueprint-armour migration and protocol v14. Still open: **Tiger II's
+  turret** may be pennable enough to invert the hull-down incentive — a blueprint *data* question
+  (glacis/turret ratios), not a collision-model bug; wants a per-vehicle armour-ratio test. The
+  rest is resolved: the "turret occupies the full hull width" and "LowerPlate ~40% band" items
+  now apply only to the non-canonical `PrototypeMedium` legacy path — every playable vehicle
+  resolves hits against convex blueprint volumes with narrow turret shells (T-54 turret 1.00 m vs
+  hull 1.75 m); the "flat Roof normal / 21.6 mm strip" is moot on the convex volumes (a flat shot
+  enters the glacis or side before it reaches the roof plane, and 3× overmatch still applies);
+  hull pitch/roll **is** on the wire (v14 — the "vehicles stay level on slopes" claim is false);
+  and `AIM_MAX_RANGE_M` was raised to 1200 m.
+- [x] **Collision honesty pass (2026-07-11).** HE splash now respects terrain line-of-sight (a
+  hull-down tank behind a ridge is safe from blast, not just from shot) and soaks by the plate
+  *facing* the burst rather than the thinnest plate anywhere; a broken track stops acting as a
+  spaced screen (bare hull side); hull rotation is collision-resolved like translation (a pivot
+  into a wall/neighbour is refused instead of relying on the interpenetration-escape crutch); the
+  ricochet lift grew 5 cm → 15 cm so a grazing bounce off a convex dome cannot clip back in. Each
+  locked by a test (`sim` shell_splash/combat, `physics` yaw_collision).
 
 ## Done — camera feel fix pass (2026-06-12)
 
