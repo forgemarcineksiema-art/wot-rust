@@ -151,5 +151,6 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
         lit += camera.key_rgb * lobe * gloss * shadow
             + env_sky(reflected) * gloss * gloss * fresnel * ao;
     }
-    return vec4<f32>(tonemap_aces(apply_fog(lit, input.world_pos)), 1.0);
+    // Linear HDR out: the display transform lives in the central post pass (rule 7).
+    return vec4<f32>(apply_fog(lit, input.world_pos), 1.0);
 }

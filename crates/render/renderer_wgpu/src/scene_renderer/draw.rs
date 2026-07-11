@@ -1,6 +1,6 @@
 use renderer_api::{Frustum, RenderError};
 
-use crate::scene_target::{SceneRenderTarget, store_op_for_target};
+use crate::scene_target::SceneRenderTarget;
 use crate::{CameraUniform, GpuContext, encode_camera_uniform};
 
 /// How far ahead of the chase camera (along its horizontal look) to centre the auto sun-shadow box,
@@ -89,6 +89,7 @@ impl super::SceneRenderer {
             let blur_view = &targets.as_ref().expect("ssao targets just created").blur_view;
             self.shadow.rebind_ao(&ctx.device, &self.shadow_bgl, blur_view);
         }
+        self.post.ensure_targets(&ctx.device, target.width, target.height, self.sample_count);
 
         let mut encoder =
             ctx.device.create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
@@ -98,16 +99,24 @@ impl super::SceneRenderer {
             self.encode_ssao_prepass(&mut encoder, &camera_frustum);
             self.ssao.encode_ao_passes(&mut encoder, &self.camera_bind_group);
         }
+        // The world renders linear HDR into the internal Rgba16Float chain; the caller's target
+        // receives only the post pass's display-transformed picture (plus the HUD).
+        let hdr = self.post.targets.borrow();
+        let hdr = hdr.as_ref().expect("post targets just ensured");
         {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("scene_pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: target.color_view,
-                    resolve_target: target.resolve_target,
+                    view: &hdr.color_view,
+                    resolve_target: hdr.multisampled.then_some(&hdr.resolve_view),
                     depth_slice: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(self.sky),
-                        store: store_op_for_target(target.resolve_target),
+                        store: if hdr.multisampled {
+                            wgpu::StoreOp::Discard
+                        } else {
+                            wgpu::StoreOp::Store
+                        },
                     },
                 })],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
@@ -221,6 +230,33 @@ impl super::SceneRenderer {
                 pass.set_bind_group(0, &self.camera_bind_group, &[]);
                 pass.draw(0..6, 0..rain_streaks);
             }
+        }
+        // The post pass: one fullscreen triangle applies the display transform (exposure ->
+        // ACES -> grade) to the resolved HDR frame and writes the caller's target — the single
+        // place the picture is formed. The HUD draws after it, un-graded: the UI reads the
+        // battle, it is not part of the painting.
+        {
+            let output_view = target.resolve_target.unwrap_or(target.color_view);
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("post_pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: output_view,
+                    resolve_target: None,
+                    depth_slice: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            });
+            pass.set_pipeline(&self.post.pipeline);
+            pass.set_bind_group(0, &self.camera_bind_group, &[]);
+            pass.set_bind_group(1, &hdr.bind_group, &[]);
+            pass.draw(0..3, 0..1);
             if self.hud_vertex_count > 0 {
                 pass.set_pipeline(&self.hud_pipeline);
                 pass.set_bind_group(0, &self.hud_font_bind_group, &[]);

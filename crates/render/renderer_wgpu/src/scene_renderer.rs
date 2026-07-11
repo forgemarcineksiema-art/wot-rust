@@ -3,6 +3,7 @@ mod draw;
 mod draw_depth;
 pub(crate) mod env_group;
 mod hud_atlas;
+pub(crate) mod post;
 mod quality;
 mod resources;
 mod settings;
@@ -92,6 +93,9 @@ pub struct SceneRenderer {
     shadow: shadow::ShadowResources,
     shadow_bgl: wgpu::BindGroupLayout,
     ssao: ssao::SsaoResources,
+    /// The HDR image-formation chain: the internal Rgba16Float target the world renders into
+    /// and the fullscreen display-transform pass that forms the final picture (rule 7).
+    post: post::PostResources,
     /// Whether this adapter tier runs terrain cloud shadows (`LightingQuality::cloud_shadows`).
     cloud_shadows_enabled: bool,
     /// World point the focused sun-shadow box centres on (the player/subject). `None` falls back to
@@ -138,30 +142,29 @@ impl SceneRenderer {
         validate_msaa_support(ctx, color_format, DEPTH_FORMAT, sample_count)?;
         let device = &ctx.device;
         let shadow_bgl = env_group::build_shadow_bind_group_layout(device);
+        // Every world pipeline renders linear HDR into the internal Rgba16Float target; only the
+        // post pass (display transform) and the HUD write the caller's output format.
+        let hdr_format = post::HDR_FORMAT;
         let (pipeline, camera_bgl) =
-            build_scene_pipeline(device, color_format, sample_count, &shadow_bgl);
+            build_scene_pipeline(device, hdr_format, sample_count, &shadow_bgl);
         let fx_pipeline =
-            crate::fx_pipeline::build_fx_pipeline(device, color_format, sample_count, &camera_bgl);
-        let sky_pipeline = crate::sky_pipeline::build_sky_pipeline(
-            device,
-            color_format,
-            sample_count,
-            &camera_bgl,
-        );
+            crate::fx_pipeline::build_fx_pipeline(device, hdr_format, sample_count, &camera_bgl);
+        let sky_pipeline =
+            crate::sky_pipeline::build_sky_pipeline(device, hdr_format, sample_count, &camera_bgl);
         let rain_pipeline = crate::rain_pipeline::build_rain_pipeline(
             device,
-            color_format,
+            hdr_format,
             sample_count,
             &camera_bgl,
         );
         let water_pipeline = crate::water_pipeline::build_water_pipeline(
             device,
-            color_format,
+            hdr_format,
             sample_count,
             &camera_bgl,
         );
         let (vehicle_pipeline, vehicle_camera_bgl, vehicle_material_bgl) =
-            build_vehicle_pipeline(device, color_format, sample_count, &shadow_bgl);
+            build_vehicle_pipeline(device, hdr_format, sample_count, &shadow_bgl);
         // Adapter class + WOT_* env overrides become the frame's lighting quality in one place.
         let lighting_quality = quality::resolve_lighting_quality(
             ctx.adapter.get_info().device_type,
@@ -213,7 +216,8 @@ impl SceneRenderer {
             &ctx.queue,
             vehicle_material_bgl,
         );
-        let hud_pipeline = build_hud_pipeline(device, color_format, sample_count, &hud_font_bgl);
+        let hud_pipeline = build_hud_pipeline(device, color_format, &hud_font_bgl);
+        let post = post::PostResources::new(device, color_format, &camera_bgl);
 
         Ok(Self {
             pipeline,
@@ -263,6 +267,7 @@ impl SceneRenderer {
             shadow,
             shadow_bgl,
             ssao,
+            post,
             cloud_shadows_enabled: lighting_quality.cloud_shadows,
             shadow_focus: None,
             scene_time_s: 0.0,

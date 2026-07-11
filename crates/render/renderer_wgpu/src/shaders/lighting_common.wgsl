@@ -1,7 +1,8 @@
-// Shared image formation: the lighting model, aerial perspective and the display transform that
-// every lit pass (scene, vehicle, sky, water) grades through, so the terrain, the hulls, the dome
-// and the river read as ONE picture. Composed after camera_common.wgsl (these functions read the
-// `camera` uniform). Extracted from four hand-mirrored copies — edit image formation here, once.
+// Shared image formation: the lighting model and aerial perspective the lit passes (scene,
+// vehicle, sky, water) shade with, plus the display transform (exposure -> ACES-lite -> grade)
+// that the central post pass applies ONCE to the resolved HDR frame — so the terrain, the hulls,
+// the dome and the river read as ONE picture (art-direction rule 7). Composed after
+// camera_common.wgsl (these functions read the `camera` uniform).
 
 // Hemispheric ambient: up-facing surfaces take the sky colour, down-facing surfaces the warmer
 // ground bounce, blended by the normal's up fraction. This grounds a vehicle in its field instead
@@ -99,9 +100,10 @@ fn display_grade(c: vec3<f32>) -> vec3<f32> {
 
 // Filmic ACES-lite tone curve (Narkowicz fit) with the profile's exposure applied in linear HDR
 // first: maps radiance to display range so a hot sun and specular roll off instead of clipping to
-// white. The framebuffer is *UnormSrgb, so the hardware does the linear->sRGB encode; we output
-// linear, tone-mapped colour and never a manual sRGB pow. Curve + exposure only, no grade: the
-// water pass tone-maps through this without the display grade (its pre-existing look).
+// white. Called ONLY by the central post pass (post.wgsl) — the world shaders output linear HDR
+// into the Rgba16Float chain and never tone-map themselves (art-direction rule 7). The final
+// framebuffer is *UnormSrgb, so the hardware does the linear->sRGB encode; we output linear,
+// tone-mapped colour and never a manual sRGB pow.
 fn aces_curve(x: vec3<f32>) -> vec3<f32> {
     let a = 2.51;
     let b = 0.03;
