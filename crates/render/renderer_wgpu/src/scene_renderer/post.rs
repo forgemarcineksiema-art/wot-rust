@@ -36,7 +36,6 @@ pub(crate) struct HdrTargets {
     pub resolve_view: wgpu::TextureView,
     /// True when the scene pass needs a resolve attachment (sample_count > 1).
     pub multisampled: bool,
-    pub bind_group: wgpu::BindGroup,
     /// The resolved HDR texture, kept for the diagnostic readback.
     resolve_texture: wgpu::Texture,
 }
@@ -44,7 +43,11 @@ pub(crate) struct HdrTargets {
 pub(crate) struct PostResources {
     pub pipeline: wgpu::RenderPipeline,
     bind_group_layout: wgpu::BindGroupLayout,
+    sampler: wgpu::Sampler,
     pub targets: RefCell<Option<HdrTargets>>,
+    /// The pass's input bind group (HDR frame + bloom mip); rebuilt whenever either chain's
+    /// targets are recreated.
+    pub bind_group: RefCell<Option<wgpu::BindGroup>>,
 }
 
 impl PostResources {
@@ -55,16 +58,34 @@ impl PostResources {
     ) -> Self {
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("post_bgl"),
-            entries: &[wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::FRAGMENT,
-                ty: wgpu::BindingType::Texture {
-                    sample_type: wgpu::TextureSampleType::Float { filterable: false },
-                    view_dimension: wgpu::TextureViewDimension::D2,
-                    multisampled: false,
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: false },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
                 },
-                count: None,
-            }],
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
+            ],
         });
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("post_shader"),
@@ -101,24 +122,66 @@ impl PostResources {
             multiview_mask: None,
             cache: None,
         });
-        Self { pipeline, bind_group_layout, targets: RefCell::new(None) }
+        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("post_bloom_sampler"),
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            ..Default::default()
+        });
+        Self {
+            pipeline,
+            bind_group_layout,
+            sampler,
+            targets: RefCell::new(None),
+            bind_group: RefCell::new(None),
+        }
+    }
+
+    /// Rebuild the pass's input bind group (called whenever the HDR or bloom targets change).
+    pub fn rebuild_bind_group(&self, device: &wgpu::Device, bloom_view: &wgpu::TextureView) {
+        let targets = self.targets.borrow();
+        let Some(t) = targets.as_ref() else {
+            return;
+        };
+        *self.bind_group.borrow_mut() =
+            Some(device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("post_bg"),
+                layout: &self.bind_group_layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::TextureView(&t.resolve_view),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::TextureView(bloom_view),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: wgpu::BindingResource::Sampler(&self.sampler),
+                    },
+                ],
+            }));
     }
 
     /// Make sure the HDR chain matches the output size/sample count; rebuilds lazily on change.
+    /// Returns true when the targets were (re)created — the input bind group must follow.
     pub fn ensure_targets(
         &self,
         device: &wgpu::Device,
         width: u32,
         height: u32,
         sample_count: u32,
-    ) {
+    ) -> bool {
         let current = self.targets.borrow();
         if let Some(t) = current.as_ref()
             && t.width == width
             && t.height == height
             && t.sample_count == sample_count
         {
-            return;
+            return false;
         }
         drop(current);
 
@@ -153,14 +216,6 @@ impl PostResources {
         } else {
             resolve_texture.create_view(&wgpu::TextureViewDescriptor::default())
         };
-        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("post_bg"),
-            layout: &self.bind_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: wgpu::BindingResource::TextureView(&resolve_view),
-            }],
-        });
         *self.targets.borrow_mut() = Some(HdrTargets {
             width,
             height,
@@ -168,9 +223,9 @@ impl PostResources {
             color_view,
             resolve_view,
             multisampled,
-            bind_group,
             resolve_texture,
         });
+        true
     }
 }
 

@@ -14,11 +14,12 @@
 
 use renderer_api::LightingQuality;
 
-pub(crate) fn resolve_lighting_quality(
+pub(crate) fn resolve_lighting_quality_with_bloom(
     device_type: wgpu::DeviceType,
     shadow_res_env: Option<&str>,
     cascades_env: Option<&str>,
     ssao_env: Option<&str>,
+    bloom_env: Option<&str>,
 ) -> LightingQuality {
     let mut quality = LightingQuality::for_device_type(crate::map_device_type(device_type));
     if let Some(value) = shadow_res_env.and_then(|value| value.trim().parse::<u32>().ok())
@@ -37,60 +38,87 @@ pub(crate) fn resolve_lighting_quality(
         Some("full") => quality.ssao_scale = 1.0,
         _ => {}
     }
+    match bloom_env.map(str::trim) {
+        Some("off") => quality.bloom_mips = 0,
+        Some("low") => quality.bloom_mips = 3,
+        Some("full") => quality.bloom_mips = 5,
+        _ => {}
+    }
     quality
 }
 
 #[cfg(test)]
 mod tests {
-    use super::resolve_lighting_quality;
+    use super::resolve_lighting_quality_with_bloom;
 
     #[test]
     fn integrated_adapters_halve_the_shadow_map_and_ssao_and_discrete_keep_them() {
-        let integrated =
-            resolve_lighting_quality(wgpu::DeviceType::IntegratedGpu, None, None, None);
+        let integrated = resolve_lighting_quality_with_bloom(
+            wgpu::DeviceType::IntegratedGpu,
+            None,
+            None,
+            None,
+            None,
+        );
         assert_eq!(integrated.shadow_resolution, 2048);
         assert_eq!(integrated.shadow_cascades, 2);
         assert_eq!(integrated.ssao_scale, 0.5);
 
-        let discrete = resolve_lighting_quality(wgpu::DeviceType::DiscreteGpu, None, None, None);
+        let discrete = resolve_lighting_quality_with_bloom(
+            wgpu::DeviceType::DiscreteGpu,
+            None,
+            None,
+            None,
+            None,
+        );
         assert_eq!(discrete.shadow_resolution, 4096);
         assert_eq!(discrete.shadow_cascades, 2);
         assert_eq!(discrete.ssao_scale, 1.0);
 
-        let cpu = resolve_lighting_quality(wgpu::DeviceType::Cpu, None, None, None);
+        let cpu =
+            resolve_lighting_quality_with_bloom(wgpu::DeviceType::Cpu, None, None, None, None);
         assert_eq!(cpu.shadow_resolution, 2048);
         assert_eq!(cpu.ssao_scale, 0.5);
     }
 
     #[test]
     fn env_overrides_win_both_ways_and_garbage_is_ignored() {
-        let up = resolve_lighting_quality(
+        let up = resolve_lighting_quality_with_bloom(
             wgpu::DeviceType::IntegratedGpu,
             Some("4096"),
             Some("1"),
             Some("full"),
+            None,
         );
         assert_eq!(up.shadow_resolution, 4096);
         assert_eq!(up.shadow_cascades, 1);
         assert_eq!(up.ssao_scale, 1.0);
 
-        let down = resolve_lighting_quality(
+        let down = resolve_lighting_quality_with_bloom(
             wgpu::DeviceType::DiscreteGpu,
             Some("1024"),
             Some("2"),
             Some("half"),
+            None,
         );
         assert_eq!(down.shadow_resolution, 1024);
         assert_eq!(down.ssao_scale, 0.5);
 
-        let off = resolve_lighting_quality(wgpu::DeviceType::DiscreteGpu, None, None, Some("off"));
+        let off = resolve_lighting_quality_with_bloom(
+            wgpu::DeviceType::DiscreteGpu,
+            None,
+            None,
+            Some("off"),
+            None,
+        );
         assert_eq!(off.ssao_scale, 0.0);
 
-        let garbage = resolve_lighting_quality(
+        let garbage = resolve_lighting_quality_with_bloom(
             wgpu::DeviceType::IntegratedGpu,
             Some("3000"),
             Some("7"),
             Some("x"),
+            Some("banana"),
         );
         assert_eq!(garbage.shadow_resolution, 2048);
         assert_eq!(garbage.shadow_cascades, 2);
@@ -104,7 +132,7 @@ mod tests {
         // the tier's ssao_scale. Moving these numbers is a deliberate decision that belongs in
         // the same diff as the quality-table change.
         let tier_bytes = |device_type: wgpu::DeviceType| {
-            let q = resolve_lighting_quality(device_type, None, None, None);
+            let q = resolve_lighting_quality_with_bloom(device_type, None, None, None, None);
             let near = u64::from(q.shadow_resolution);
             let far = u64::from(
                 (renderer_api::SunShadowParams {

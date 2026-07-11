@@ -233,3 +233,37 @@ fn every_outdoor_look_carries_aerial_perspective_into_the_horizon() {
         );
     }
 }
+
+/// RULE 6 (light is the only bling): bloom is a small, energy-proportional composite and the
+/// vignette never reads as a lens. Every profile - outdoor and garage alike - stays inside the
+/// bible's ceilings; a dream-sequence bloom or a tunnel vignette is a locked-out accident.
+#[test]
+fn bloom_and_vignette_stay_inside_the_bible_ceilings() {
+    let all = [
+        ("battlefield_default", SceneLighting::battlefield_default()),
+        ("bystra_clear_afternoon", SceneLighting::bystra_clear_afternoon()),
+        ("bystra_rain", SceneLighting::bystra_rain()),
+        ("bystra_dawn_fog", SceneLighting::bystra_dawn_fog()),
+        ("prokhorovka_golden_evening", SceneLighting::prokhorovka_golden_evening()),
+        ("prokhorovka_overcast", SceneLighting::prokhorovka_overcast()),
+        ("garage_studio", SceneLighting::garage_studio()),
+        ("garage_workshop", SceneLighting::garage_workshop()),
+        ("garage_hero", SceneLighting::garage_hero()),
+    ];
+    for (name, l) in all {
+        assert!(
+            (0.0..=0.10).contains(&l.bloom_weight),
+            "{name}: bloom weight {} outside the [0, 0.10] ceiling",
+            l.bloom_weight
+        );
+        assert!(
+            (0.0..=0.15).contains(&l.vignette),
+            "{name}: vignette {} outside the [0, 0.15] ceiling",
+            l.vignette
+        );
+    }
+    // Every outdoor look carries SOME bloom - the sun disc and tracers must glow everywhere.
+    for (name, l) in outdoor_profiles() {
+        assert!(l.bloom_weight > 0.0, "{name}: outdoor looks carry a live bloom weight");
+    }
+}

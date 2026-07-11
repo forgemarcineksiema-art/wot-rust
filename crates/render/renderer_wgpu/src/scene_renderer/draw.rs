@@ -71,6 +71,7 @@ impl super::SceneRenderer {
                     1.0 / target.height.max(1) as f32,
                 ],
                 cloud_shadows_enabled: self.cloud_shadows_enabled,
+                bloom_enabled: self.bloom.mips > 0,
                 time_s: self.scene_time_s,
                 rain_intensity: self.rain_intensity,
                 wetness: self.wetness,
@@ -89,7 +90,32 @@ impl super::SceneRenderer {
             let blur_view = &targets.as_ref().expect("ssao targets just created").blur_view;
             self.shadow.rebind_ao(&ctx.device, &self.shadow_bgl, blur_view);
         }
-        self.post.ensure_targets(&ctx.device, target.width, target.height, self.sample_count);
+        let hdr_recreated =
+            self.post.ensure_targets(&ctx.device, target.width, target.height, self.sample_count);
+        {
+            let targets = self.post.targets.borrow();
+            let hdr = targets.as_ref().expect("post targets just ensured");
+            self.bloom.ensure_targets(&ctx.device, target.width, target.height, &hdr.resolve_view);
+        }
+        if hdr_recreated || self.post.bind_group.borrow().is_none() {
+            // The post pass reads the HDR frame and the bloom mip; a black 1x1 stands in when
+            // the ladder is off (bloom_mips 0 / weight 0).
+            let bloom_view = self.bloom.output_view().unwrap_or_else(|| {
+                let texture = ctx.device.create_texture(&wgpu::TextureDescriptor {
+                    label: Some("bloom_black_fallback"),
+                    size: wgpu::Extent3d { width: 1, height: 1, depth_or_array_layers: 1 },
+                    mip_level_count: 1,
+                    sample_count: 1,
+                    dimension: wgpu::TextureDimension::D2,
+                    format: wgpu::TextureFormat::Rgba16Float,
+                    usage: wgpu::TextureUsages::TEXTURE_BINDING
+                        | wgpu::TextureUsages::RENDER_ATTACHMENT,
+                    view_formats: &[],
+                });
+                texture.create_view(&wgpu::TextureViewDescriptor::default())
+            });
+            self.post.rebuild_bind_group(&ctx.device, &bloom_view);
+        }
 
         let mut encoder =
             ctx.device.create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
@@ -245,6 +271,11 @@ impl super::SceneRenderer {
                 pass.draw(0..6, 0..rain_streaks);
             }
         }
+        // The bloom ladder blurs the resolved HDR frame down and back up before the post pass
+        // composites it (rule 6); skipped entirely at weight 0 or bloom_mips 0.
+        if self.scene_lighting.bloom_weight > 0.0 {
+            self.bloom.encode(&mut encoder);
+        }
         // The post pass: one fullscreen triangle applies the display transform (exposure ->
         // ACES -> grade) to the resolved HDR frame and writes the caller's target — the single
         // place the picture is formed. The HUD draws after it, un-graded: the UI reads the
@@ -269,7 +300,11 @@ impl super::SceneRenderer {
             });
             pass.set_pipeline(&self.post.pipeline);
             pass.set_bind_group(0, &self.camera_bind_group, &[]);
-            pass.set_bind_group(1, &hdr.bind_group, &[]);
+            pass.set_bind_group(
+                1,
+                self.post.bind_group.borrow().as_ref().expect("post bind group just ensured"),
+                &[],
+            );
             pass.draw(0..3, 0..1);
             if self.hud_vertex_count > 0 {
                 pass.set_pipeline(&self.hud_pipeline);

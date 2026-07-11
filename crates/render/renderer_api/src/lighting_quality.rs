@@ -20,6 +20,9 @@ pub struct LightingQuality {
     /// Whether the terrain modulates the sun by the procedural cloud layer (a ~10 ALU/px cost the
     /// weakest adapters skip).
     pub cloud_shadows: bool,
+    /// Bloom mip-chain depth in the central post pass: 0 disables the chain entirely, 3 is the
+    /// integrated-GPU budget (half/quarter/eighth res), 5 the full dual-Kawase ladder.
+    pub bloom_mips: u32,
 }
 
 impl LightingQuality {
@@ -34,18 +37,21 @@ impl LightingQuality {
                 shadow_cascades: 2,
                 ssao_scale: 0.5,
                 cloud_shadows: true,
+                bloom_mips: 3,
             },
             GpuDeviceType::Cpu => Self {
                 shadow_resolution: 2048,
                 shadow_cascades: 2,
                 ssao_scale: 0.5,
                 cloud_shadows: false,
+                bloom_mips: 0,
             },
             GpuDeviceType::DiscreteGpu | GpuDeviceType::VirtualGpu | GpuDeviceType::Other => Self {
                 shadow_resolution: 4096,
                 shadow_cascades: 2,
                 ssao_scale: 1.0,
                 cloud_shadows: true,
+                bloom_mips: 5,
             },
         }
     }

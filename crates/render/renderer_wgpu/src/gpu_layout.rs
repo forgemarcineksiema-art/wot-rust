@@ -158,7 +158,8 @@ pub struct CameraUniform {
     pub cloud_params: GpuVec4,
     /// Packed sky/air extras: x = cloud-shadow strength on the terrain key (profile strength,
     /// already gated by `LightingQuality::cloud_shadows` — 0 disables), y = sun-directional
-    /// scatter in the aerial perspective, z/w reserved (0).
+    /// scatter in the aerial perspective, z = bloom composite weight (profile, gated by
+    /// `LightingQuality::bloom_mips` — 0 disables), w = display vignette strength.
     pub sky_params: GpuVec4,
     /// Local fill pools ([`renderer_api::LocalLight`]): xyz = world position, w = radius (0
     /// disables the slot). Appended at the END of the struct so no existing offset moves.
@@ -185,6 +186,9 @@ pub struct FramePassParams {
     /// Whether this adapter tier runs terrain cloud shadows (`LightingQuality::cloud_shadows`);
     /// false zeroes the profile's strength in `sky_params.x`.
     pub cloud_shadows_enabled: bool,
+    /// Whether this adapter tier runs the bloom chain (`LightingQuality::bloom_mips > 0`);
+    /// false zeroes the profile's weight in `sky_params.z`.
+    pub bloom_enabled: bool,
     pub time_s: f32,
     /// Rain streak density 0..1 (`time_params.y`); 0 in every non-rain look.
     pub rain_intensity: f32,
@@ -204,6 +208,7 @@ impl Default for FramePassParams {
             ssao_params: [0.1, 1500.0, 0.0, 1.0],
             inv_render_size: [0.0, 0.0],
             cloud_shadows_enabled: true,
+            bloom_enabled: true,
             time_s: 0.0,
             rain_intensity: 0.0,
             wetness: 0.0,
@@ -263,8 +268,8 @@ impl CameraUniform {
             sky_params: GpuVec4([
                 if passes.cloud_shadows_enabled { lighting.cloud_shadow_strength } else { 0.0 },
                 lighting.fog_sun_scatter,
-                0.0,
-                0.0,
+                if passes.bloom_enabled { lighting.bloom_weight } else { 0.0 },
+                lighting.vignette,
             ]),
             light_pos_radius: lighting.local_lights.map(|light| {
                 GpuVec4([light.position[0], light.position[1], light.position[2], light.radius_m])
