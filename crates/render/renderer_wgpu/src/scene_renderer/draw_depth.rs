@@ -1,5 +1,9 @@
 //! Depth-only passes: the sun-shadow occluder pass and the SSAO camera depth prepass. Split from
-//! `draw.rs` to keep each module within the reviewability budget.
+//! `draw.rs` to keep each module within the reviewability budget. Each pass culls the terrain
+//! chunks by ITS OWN frustum — the shadow passes by their focused light boxes (most of a
+//! 1000 m map sits outside a ~128 m box), the SSAO prepass by the camera.
+
+use renderer_api::Frustum;
 
 impl super::SceneRenderer {
     /// Depth-only occluder pass: render the world from the sun's point of view into the shadow map
@@ -8,7 +12,11 @@ impl super::SceneRenderer {
     /// the running fleet, so hillsides self-shadow under a raking sun and buildings ground on the
     /// field instead of floating. The pass always clears the map (so it holds no stale depth) and
     /// draws occluders whenever shadows are on.
-    pub(super) fn encode_shadow_pass(&self, encoder: &mut wgpu::CommandEncoder) {
+    pub(super) fn encode_shadow_pass(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        light_frustum: &Frustum,
+    ) {
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("shadow_pass"),
             color_attachments: &[],
@@ -35,7 +43,7 @@ impl super::SceneRenderer {
         if self.terrain_index_count > 0 {
             pass.set_vertex_buffer(0, self.terrain_vertices.slice(..));
             pass.set_index_buffer(self.terrain_indices.slice(..), wgpu::IndexFormat::Uint32);
-            pass.draw_indexed(0..self.terrain_index_count, 0, 0..1);
+            self.draw_visible_terrain(&mut pass, light_frustum);
         }
         if self.dynamic_index_count > 0 {
             pass.set_vertex_buffer(0, self.dynamic_vertices.slice(..));
@@ -81,7 +89,11 @@ impl super::SceneRenderer {
     /// the far cascade's point of view — NO vehicle fleet. At the far map's ~0.56 m texels a
     /// tank's shadow does not resolve (and vehicles past the near box cast nothing today either),
     /// so the far pass stays nearly free while hillsides and the far town finally ground.
-    pub(super) fn encode_far_shadow_pass(&self, encoder: &mut wgpu::CommandEncoder) {
+    pub(super) fn encode_far_shadow_pass(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        light_frustum: &Frustum,
+    ) {
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("shadow_pass_far"),
             color_attachments: &[],
@@ -106,7 +118,7 @@ impl super::SceneRenderer {
         if self.terrain_index_count > 0 {
             pass.set_vertex_buffer(0, self.terrain_vertices.slice(..));
             pass.set_index_buffer(self.terrain_indices.slice(..), wgpu::IndexFormat::Uint32);
-            pass.draw_indexed(0..self.terrain_index_count, 0, 0..1);
+            self.draw_visible_terrain(&mut pass, light_frustum);
         }
         if self.dynamic_index_count > 0 {
             pass.set_vertex_buffer(0, self.dynamic_vertices.slice(..));
@@ -132,7 +144,11 @@ impl super::SceneRenderer {
 
     /// Camera depth prepass for SSAO: terrain, static scene meshes and vehicles rendered
     /// depth-only into the screen-sized prepass texture the SSAO pass evaluates.
-    pub(super) fn encode_ssao_prepass(&self, encoder: &mut wgpu::CommandEncoder) {
+    pub(super) fn encode_ssao_prepass(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        camera_frustum: &Frustum,
+    ) {
         let targets = self.ssao.targets.borrow();
         let Some(targets) = targets.as_ref() else {
             return;
@@ -158,7 +174,7 @@ impl super::SceneRenderer {
         if self.terrain_index_count > 0 {
             pass.set_vertex_buffer(0, self.terrain_vertices.slice(..));
             pass.set_index_buffer(self.terrain_indices.slice(..), wgpu::IndexFormat::Uint32);
-            pass.draw_indexed(0..self.terrain_index_count, 0, 0..1);
+            self.draw_visible_terrain(&mut pass, camera_frustum);
         }
         if self.frame_instance_count > 0 {
             pass.set_vertex_buffer(1, self.frame_instances.slice(..));
