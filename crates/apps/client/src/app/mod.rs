@@ -190,6 +190,9 @@ pub(crate) struct ClientApp {
     prev_reload_remaining_s: f32,
     /// Seconds since the reload finished, driving the gun-ready flash at the reticle.
     reload_ready_age_s: Option<f32>,
+    /// Seconds since a fire click was refused (see `register_fire_intent_feedback`); drives the
+    /// red denial pulse at the reticle and expires with it.
+    fire_denied_age_s: Option<f32>,
     /// Static scene geometry currently uploaded to the renderer (garage hangar vs battlefield).
     current_scene: SceneKind,
     /// The battle scene's CPU meshes (terrain+cover+backdrop, water), baked lazily ONCE — the
@@ -286,6 +289,7 @@ impl ClientApp {
             kill_confirm_age_s: None,
             prev_reload_remaining_s: 0.0,
             reload_ready_age_s: None,
+            fire_denied_age_s: None,
             // The renderer is created with the battlefield mesh (see `create_renderer`); the first
             // garage frame swaps in the hangar. Starting at `Garage` here would skip that swap.
             current_scene: SceneKind::Battle,

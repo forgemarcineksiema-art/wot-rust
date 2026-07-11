@@ -43,6 +43,9 @@ impl ClientApp {
         }
         let mut fire = self.input.fire_pending;
         self.input.fire_pending = false;
+        if fire {
+            self.register_fire_intent_feedback();
+        }
         // Like the fire latch: the switch request rides exactly one command (the batch's first).
         let mut select_ammo = self.input.pending_ammo_select.take();
         self.seed_prediction();
@@ -86,5 +89,39 @@ impl ClientApp {
                 Some(_) => crate::hud::BattleHudOutcome::Defeat,
                 None => crate::hud::BattleHudOutcome::Draw,
             });
+    }
+}
+
+impl super::ClientApp {
+    /// The audible/visible answer to every fire click, the instant it is issued. The server
+    /// held or refused silently before: a click landing a hair early (inside the sim's
+    /// FIRE_BUFFER_S) is now HELD server-side — acknowledge it with the soft mechanical click;
+    /// a genuinely refused click (still reloading, empty slot, dead gun/rack) gets the UiReject
+    /// knock plus the red reticle pulse, so a shot that does not happen is REFUSED, never
+    /// swallowed. Classification reads the latest authoritative snapshot — presentation only,
+    /// the server still decides.
+    fn register_fire_intent_feedback(&mut self) {
+        let Some(tank) = self.player_snapshot() else {
+            return;
+        };
+        if tank.hit_points == 0 {
+            return;
+        }
+        let gun_out = tank.destroyed_modules_mask
+            & (game_core::ModuleSlot::Gun.destroyed_mask_bit()
+                | game_core::ModuleSlot::AmmoRack.destroyed_mask_bit())
+            != 0;
+        let selected = (tank.selected_ammo as usize).min(game_core::MAX_AMMO_SLOTS - 1);
+        let slot_empty = tank.ammo_counts[selected] == 0;
+        let reloading_long = tank.reload_remaining_s > sim::FIRE_BUFFER_S;
+        let held = tank.reload_remaining_s > 0.0 && !reloading_long;
+        if gun_out || slot_empty || reloading_long {
+            self.fire_denied_age_s = Some(0.0);
+            self.queue_audio(audio::AudioEvent::UiReject);
+        } else if held {
+            // Inside the buffer window: the sim holds the click and fires on the ready tick —
+            // acknowledge the trigger squeeze so the held shot feels intentional.
+            self.queue_audio(audio::AudioEvent::UiClick { accent: false });
+        }
     }
 }

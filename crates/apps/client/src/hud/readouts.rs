@@ -27,20 +27,8 @@ pub(crate) fn push_battle_readouts(
         crate::hud::number::HP_COLOR,
     );
 
-    let ready =
-        (1.0 - vitals.reload_remaining_s / vitals.reload_seconds.max(0.001)).clamp(0.0, 1.0);
-    let reload_color =
-        if ready >= 1.0 { [0.55, 0.85, 0.96, 0.95] } else { [0.86, 0.55, 0.20, 0.92] };
-    push_bar(vertices, [-0.16, -0.9], [0.16, 0.016], ready, reload_color);
-    crate::hud::number::push_number(
-        vertices,
-        vitals.reload_remaining_s.ceil().clamp(0.0, 99.0) as u32,
-        0.06,
-        -0.76,
-        0.065,
-        aspect,
-        crate::hud::number::RELOAD_TIME_COLOR,
-    );
+    // The reload lives at the reticle alone (arc + seconds): the old bottom-center bar drew a
+    // SECOND loading indicator that split the eye between two progress displays for one gun.
 
     // Sniper magnification readout, WT-style "X6.9", just under the reticle center so the
     // eye reads it without leaving the sight. Third person draws nothing.

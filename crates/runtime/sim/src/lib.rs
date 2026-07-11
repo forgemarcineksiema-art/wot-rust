@@ -29,6 +29,7 @@ pub use aiming::{
 pub use clock::{
     DEFAULT_SERVER_TICK_HZ, DEFAULT_SIMULATION_TICK_HZ, DEFAULT_SNAPSHOT_HZ, SimulationClock,
 };
+pub use combat::FIRE_BUFFER_S;
 pub use command::TankCommand;
 pub use cover_damage::{CoverPhase, CoverState};
 pub use drive_modules::{DriveModuleStatus, TrackDriveStatus, TrackSideDrive};
