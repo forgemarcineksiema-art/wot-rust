@@ -20,6 +20,17 @@ pub(crate) fn resolve_lighting_quality(
     cascades_env: Option<&str>,
     ssao_env: Option<&str>,
 ) -> LightingQuality {
+    resolve_lighting_quality_with_bloom(device_type, shadow_res_env, cascades_env, ssao_env, None)
+}
+
+/// As [`resolve_lighting_quality`], with the `WOT_BLOOM=off|low|full` override.
+pub(crate) fn resolve_lighting_quality_with_bloom(
+    device_type: wgpu::DeviceType,
+    shadow_res_env: Option<&str>,
+    cascades_env: Option<&str>,
+    ssao_env: Option<&str>,
+    bloom_env: Option<&str>,
+) -> LightingQuality {
     let mut quality = LightingQuality::for_device_type(crate::map_device_type(device_type));
     if let Some(value) = shadow_res_env.and_then(|value| value.trim().parse::<u32>().ok())
         && matches!(value, 512 | 1024 | 2048 | 4096 | 8192)
@@ -35,6 +46,12 @@ pub(crate) fn resolve_lighting_quality(
         Some("off") => quality.ssao_scale = 0.0,
         Some("half") => quality.ssao_scale = 0.5,
         Some("full") => quality.ssao_scale = 1.0,
+        _ => {}
+    }
+    match bloom_env.map(str::trim) {
+        Some("off") => quality.bloom_mips = 0,
+        Some("low") => quality.bloom_mips = 3,
+        Some("full") => quality.bloom_mips = 5,
         _ => {}
     }
     quality

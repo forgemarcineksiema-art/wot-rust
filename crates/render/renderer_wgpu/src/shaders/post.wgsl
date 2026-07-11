@@ -7,6 +7,8 @@
 // Composed after camera_common.wgsl and lighting_common.wgsl (camera uniform, display transform).
 
 @group(1) @binding(0) var hdr_input: texture_2d<f32>;
+@group(1) @binding(1) var bloom_input: texture_2d<f32>;
+@group(1) @binding(2) var bloom_sampler: sampler;
 
 struct VsOut {
     @builtin(position) clip: vec4<f32>,
@@ -26,5 +28,16 @@ fn vs_main(@builtin(vertex_index) index: u32) -> VsOut {
 fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     // The resolved HDR frame is exactly framebuffer-sized: load the texel under this fragment.
     let hdr = textureLoad(hdr_input, vec2<i32>(input.clip.xy), 0).rgb;
-    return vec4<f32>(tonemap_aces(hdr), 1.0);
+    // Threshold-free bloom: fold the blurred HDR ladder back over the sharp frame at the
+    // profile's small weight BEFORE the curve — only genuinely hot energy visibly glows
+    // (rule 6). fog_params.zw is the inverse render size; sky_params.z the profile weight.
+    let uv = input.clip.xy * camera.fog_params.zw;
+    let bloom = textureSampleLevel(bloom_input, bloom_sampler, uv, 0.0).rgb;
+    let composed = hdr + bloom * camera.sky_params.z;
+    var out = tonemap_aces(composed);
+    // Profile vignette after the grade (sky_params.w, bible-capped at 0.15): a gentle pull at
+    // the frame's corners that seats the picture without ever reading as a lens.
+    let ndc = uv * 2.0 - vec2<f32>(1.0);
+    let vignette = 1.0 - camera.sky_params.w * smoothstep(0.55, 1.45, length(ndc));
+    return vec4<f32>(out * vignette, 1.0);
 }

@@ -1,3 +1,4 @@
+mod bloom;
 mod buffers;
 mod draw;
 mod draw_depth;
@@ -99,6 +100,8 @@ pub struct SceneRenderer {
     /// The HDR image-formation chain: the internal Rgba16Float target the world renders into
     /// and the fullscreen display-transform pass that forms the final picture (rule 7).
     post: post::PostResources,
+    /// The dual-Kawase bloom ladder feeding the post pass (rule 6); depth from the quality tier.
+    bloom: bloom::BloomResources,
     /// Whether this adapter tier runs terrain cloud shadows (`LightingQuality::cloud_shadows`).
     cloud_shadows_enabled: bool,
     /// World point the focused sun-shadow box centres on (the player/subject). `None` falls back to
@@ -169,11 +172,12 @@ impl SceneRenderer {
         let (vehicle_pipeline, vehicle_camera_bgl, vehicle_material_bgl) =
             build_vehicle_pipeline(device, hdr_format, sample_count, &shadow_bgl);
         // Adapter class + WOT_* env overrides become the frame's lighting quality in one place.
-        let lighting_quality = quality::resolve_lighting_quality(
+        let lighting_quality = quality::resolve_lighting_quality_with_bloom(
             ctx.adapter.get_info().device_type,
             std::env::var("WOT_SHADOW_RES").ok().as_deref(),
             std::env::var("WOT_SHADOW_CASCADES").ok().as_deref(),
             std::env::var("WOT_SSAO").ok().as_deref(),
+            std::env::var("WOT_BLOOM").ok().as_deref(),
         );
         let ssao = ssao::SsaoResources::new(device, &camera_bgl, lighting_quality.ssao_scale);
         let placeholder_ao = ssao_pipelines::placeholder_ao_view(device, &ctx.queue);
@@ -221,6 +225,7 @@ impl SceneRenderer {
         );
         let hud_pipeline = build_hud_pipeline(device, color_format, &hud_font_bgl);
         let post = post::PostResources::new(device, color_format, &camera_bgl);
+        let bloom = bloom::BloomResources::new(device, lighting_quality.bloom_mips);
         let ground = ground::GroundResources::new(
             device,
             hdr_format,
@@ -279,6 +284,7 @@ impl SceneRenderer {
             ssao,
             ground,
             post,
+            bloom,
             cloud_shadows_enabled: lighting_quality.cloud_shadows,
             shadow_focus: None,
             scene_time_s: 0.0,

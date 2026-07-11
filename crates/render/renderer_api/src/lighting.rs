@@ -104,6 +104,14 @@ pub struct SceneLighting {
     /// warms toward the key colour instead of the flat horizon grey. Colour only — the fog
     /// density/height model (and its 400 m fairness bound) is untouched by this.
     pub fog_sun_scatter: f32,
+    /// Threshold-free bloom composite weight in the central post pass: how much of the blurred
+    /// HDR frame folds back over the sharp one BEFORE the tone curve. Energy-proportional — only
+    /// genuinely hot sources (sun, tracers, fires, glints) visibly glow (art-direction rule 6).
+    /// Profiles stay within `[0, 0.10]` (locked); 0 disables the chain.
+    pub bloom_weight: f32,
+    /// Display vignette strength after the grade: 0 = none, capped at 0.15 by the art-direction
+    /// bible (rule 6 — the camera is an eye, not a lens).
+    pub vignette: f32,
     /// Unshadowed local fill pools (see [`LocalLight`]). All-off on every outdoor profile
     /// ([`NO_LOCAL_LIGHTS`]); the garage rig hangs its worklamps here.
     pub local_lights: [LocalLight; MAX_LOCAL_LIGHTS],
@@ -186,6 +194,8 @@ impl SceneLighting {
             cloud_drift: 0.004,
             cloud_shadow_strength: 0.25,
             fog_sun_scatter: 0.5,
+            bloom_weight: 0.05,
+            vignette: 0.08,
             local_lights: NO_LOCAL_LIGHTS,
         }
     }
@@ -220,6 +230,8 @@ impl SceneLighting {
             cloud_drift: 0.004,
             cloud_shadow_strength: 0.3,
             fog_sun_scatter: 0.65,
+            bloom_weight: 0.05,
+            vignette: 0.08,
             local_lights: NO_LOCAL_LIGHTS,
         }
     }
@@ -255,6 +267,8 @@ impl SceneLighting {
             cloud_drift: 0.006,
             cloud_shadow_strength: 0.0,
             fog_sun_scatter: 0.15,
+            bloom_weight: 0.04,
+            vignette: 0.06,
             local_lights: NO_LOCAL_LIGHTS,
         }
     }
@@ -290,6 +304,8 @@ impl SceneLighting {
             cloud_drift: 0.003,
             cloud_shadow_strength: 0.1,
             fog_sun_scatter: 0.8,
+            bloom_weight: 0.06,
+            vignette: 0.08,
             local_lights: NO_LOCAL_LIGHTS,
         }
     }
@@ -323,6 +339,8 @@ impl SceneLighting {
             cloud_drift: 0.004,
             cloud_shadow_strength: 0.3,
             fog_sun_scatter: 0.85,
+            bloom_weight: 0.06,
+            vignette: 0.1,
             local_lights: NO_LOCAL_LIGHTS,
         }
     }
@@ -354,6 +372,8 @@ impl SceneLighting {
             cloud_drift: 0.005,
             cloud_shadow_strength: 0.0,
             fog_sun_scatter: 0.1,
+            bloom_weight: 0.04,
+            vignette: 0.06,
             local_lights: NO_LOCAL_LIGHTS,
         }
     }
@@ -390,6 +410,8 @@ impl SceneLighting {
             cloud_drift: 0.0,
             cloud_shadow_strength: 0.0,
             fog_sun_scatter: 0.0,
+            bloom_weight: 0.02,
+            vignette: 0.0,
             local_lights: NO_LOCAL_LIGHTS,
         }
     }
@@ -429,6 +451,8 @@ impl SceneLighting {
             cloud_drift: 0.0,
             cloud_shadow_strength: 0.0,
             fog_sun_scatter: 0.0,
+            bloom_weight: 0.03,
+            vignette: 0.06,
             local_lights: NO_LOCAL_LIGHTS,
         }
     }
@@ -484,6 +508,8 @@ impl SceneLighting {
             // is, or the room reads as haunted. Two warm high-bays over the turntable, a
             // strip over the workbench, the cool glow of the frosted panes over the gate,
             // and a zone lamp each for the stores corner and the second bay.
+            bloom_weight: 0.03,
+            vignette: 0.05,
             local_lights: [
                 LocalLight {
                     position: [-3.6, 9.8, 1.8],
