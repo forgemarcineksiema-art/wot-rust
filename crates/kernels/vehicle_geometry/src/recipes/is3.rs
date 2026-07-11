@@ -23,7 +23,7 @@ pub(crate) fn is3(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVehicle
     let hull = shade_hull(
         is3_pike_hull(&bp.hull)
             .append(&blueprint_running_gear(&bp.track))
-            .append(&blueprint_deck_details(&bp.hull))
+            .append(&blueprint_deck_details(&bp))
             .append(&blueprint_skirts(&bp.hull, &bp.track))
             .append(&is3_fenders(&bp.hull, &bp.track))
             .append(&is3_fuel_drums(&bp.hull, &bp.track))

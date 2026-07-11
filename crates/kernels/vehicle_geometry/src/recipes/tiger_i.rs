@@ -21,7 +21,7 @@ pub(crate) fn tiger_i(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVeh
     let hull = shade_hull(
         tiger_slab_hull(&bp.hull)
             .append(&blueprint_running_gear(&bp.track))
-            .append(&blueprint_deck_details(&bp.hull))
+            .append(&blueprint_deck_details(&bp))
             .append(&tiger_hull_details(&bp.hull))
             .build(),
     );

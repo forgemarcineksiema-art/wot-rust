@@ -74,7 +74,7 @@ pub(crate) fn t55a(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVehicl
     let hull = shade_hull(
         blueprint_hull(&bp.hull, MaterialRole::RolledArmor)
             .append(&blueprint_running_gear(&bp.track))
-            .append(&blueprint_deck_details(&bp.hull))
+            .append(&blueprint_deck_details(&bp))
             .append(&blueprint_skirts(&bp.hull, &bp.track))
             .build(),
     );
@@ -115,7 +115,7 @@ pub(crate) fn t54_1951(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVe
     let hull = shade_hull(
         t54_hull(&bp.hull, &bp.track)
             .append(&blueprint_running_gear(&bp.track))
-            .append(&blueprint_deck_details(&bp.hull))
+            .append(&blueprint_deck_details(&bp))
             .append(&blueprint_skirts(&bp.hull, &bp.track))
             .build(),
     );

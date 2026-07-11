@@ -105,7 +105,8 @@ pub(crate) fn blueprint_prism_hull(hull: &HullShape, side_slope_deg: f32) -> Mes
 /// flanked by two access hatches, built from [`MeshBuilder::plate_box`] so they read as cut steel
 /// plates. Kept on the flat deck (clear of the sloped glacis and the turret ring) and inside the
 /// hull plan, so they add surface detail without touching the silhouette or the collision fit.
-pub(crate) fn blueprint_deck_details(hull: &HullShape) -> GeometryMesh {
+pub(crate) fn blueprint_deck_details(bp: &game_core::VehicleBlueprint) -> GeometryMesh {
+    let hull = &bp.hull;
     // The engine deck spans from just behind the turret ring to short of the rear plate.
     let deck_front = -1.15;
     let deck_back = -hull.half_len + 0.35;
@@ -129,6 +130,78 @@ pub(crate) fn blueprint_deck_details(hull: &HullShape) -> GeometryMesh {
             SG_HARD,
         );
     }
+
+    // --- Fleet fittings (the polish pass): every piece is derived from blueprint fields, sits
+    // --- inside the hitbox, and skips itself when the turret plan covers its spot.
+    let glacis_run =
+        (hull.deck_y - hull.sponson_y).max(0.0) * hull.glacis_slope_deg.to_radians().tan();
+    let deck_front_edge = hull.half_len - glacis_run;
+    // Whether a fitting of z-half-extent `half` centred at `z` would intrude on the turret's
+    // seat (its plan plus a clearance ring). The WHOLE fitting must clear, not just its centre —
+    // a hatch corner grazing the turret bounds reads as the turret sunk into the deck.
+    let turret_covers = |z: f32, half: f32| -> bool {
+        (z - bp.turret.ring_z).abs() < bp.turret.plan_half_length + half + 0.25
+    };
+
+    // Driver's hatch: a low plate on the forward deck, offset to the port side. A pike bow
+    // narrows the deck to a ridge there — pike hulls seat their hatches elsewhere, so skip.
+    let hatch_z = deck_front_edge - 0.45;
+    if hull.pike_sweep_deg == 0.0 && !turret_covers(hatch_z, 0.36) && hatch_z > deck_front {
+        builder = builder.plate_box(
+            Vec3::new(hull.lower_half_width * 0.45, hull.deck_y + 0.045, hatch_z),
+            Vec3::new(0.26, 0.025, 0.30),
+            0.05,
+            MaterialRole::RolledArmor,
+            SG_HARD,
+        );
+    }
+
+    // Headlight pods on the glacis shoulder corners (a pike has no shoulders to sit on).
+    let light_z = deck_front_edge - 0.12;
+    if hull.pike_sweep_deg == 0.0 && light_z > deck_front {
+        for sign in [-1.0_f32, 1.0] {
+            builder = builder.plate_box(
+                Vec3::new(sign * hull.half_width * 0.62, hull.deck_y + 0.08, light_z),
+                Vec3::new(0.09, 0.08, 0.09),
+                0.03,
+                MaterialRole::BarrelSteel,
+                SG_HARD,
+            );
+        }
+    }
+
+    // Tow hooks: paired stubs seated against the bow and stern plates, kept INSIDE the hull
+    // length so no vehicle's honesty gate (visuals within the hitbox) is ever poked. A pike
+    // bow carries no flat plate to seat the front pair on — the stern pair stays.
+    let hook_stations: &[f32] = if hull.pike_sweep_deg == 0.0 {
+        &[hull.half_len - 0.14, -hull.half_len + 0.14]
+    } else {
+        &[-hull.half_len + 0.14]
+    };
+    for &z in hook_stations {
+        for sign in [-1.0_f32, 1.0] {
+            builder = builder.plate_box(
+                Vec3::new(sign * hull.lower_half_width * 0.62, hull.sponson_y + 0.10, z),
+                Vec3::new(0.10, 0.08, 0.12),
+                0.04,
+                MaterialRole::RolledArmor,
+                SG_HARD,
+            );
+        }
+    }
+
+    // Antenna pot on the rear deck corner.
+    let antenna_z = deck_back + 0.35;
+    if !turret_covers(antenna_z, 0.16) {
+        builder = builder.plate_box(
+            Vec3::new(-half_x * 0.8, hull.deck_y + 0.10, antenna_z),
+            Vec3::new(0.06, 0.09, 0.06),
+            0.02,
+            MaterialRole::BarrelSteel,
+            SG_HARD,
+        );
+    }
+
     builder.build()
 }
 
