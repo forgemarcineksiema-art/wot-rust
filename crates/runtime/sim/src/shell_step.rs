@@ -75,6 +75,7 @@ pub(crate) fn step_shells(
                         tanks,
                         damage_events,
                         Some(direct_target),
+                        heightmap,
                     );
                 }
                 if ricochet_continues {
@@ -91,7 +92,7 @@ pub(crate) fn step_shells(
                     surface,
                     shell_type: shells[index].shell.shell_type,
                 });
-                burst_he_splash(&shells[index], position, tanks, damage_events, None);
+                burst_he_splash(&shells[index], position, tanks, damage_events, None, heightmap);
                 shells.swap_remove(index);
             }
             None => {
@@ -117,7 +118,9 @@ pub(crate) fn step_shells(
 const RICOCHET_SPEED_RETENTION: f32 = 0.75;
 const RICOCHET_PENETRATION_RETENTION: f32 = 0.6;
 /// Lift off the struck plate so the reflected shell does not re-enter the same hitbox face.
-const RICOCHET_LIFT_M: f32 = 0.05;
+// 0.15 m: the old 5 cm sat inside the re-entry epsilon of a grazing hit on a convex dome,
+// so the deflected segment could clip straight back into the volume it just left.
+const RICOCHET_LIFT_M: f32 = 0.15;
 
 fn deflect_shell(shell: &mut ShellState, hit_position: Vec3, plate_normal: Vec3, distance_m: f32) {
     let velocity = shell.velocity_mps;
@@ -146,7 +149,7 @@ fn step_unhit_shell(
             surface: ImpactSurface::Terrain,
             shell_type: shells[index].shell.shell_type,
         });
-        burst_he_splash(&shells[index], position, tanks, damage_events, None);
+        burst_he_splash(&shells[index], position, tanks, damage_events, None, heightmap);
         shells.swap_remove(index);
         false
     } else if shells[index].age_seconds >= shells[index].max_age_seconds {

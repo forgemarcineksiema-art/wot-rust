@@ -19,15 +19,15 @@ pub fn resolve_cover_collision(
     footprint: TankFootprint,
     cover: &[StaticCoverObject],
 ) -> Vec3 {
-    if cover.is_empty() || !blocked(attempted, yaw_rad, footprint, cover) {
+    if cover.is_empty() || !footprint_blocked_by_cover(attempted, yaw_rad, footprint, cover) {
         return attempted;
     }
     let x_only = Vec3::new(attempted.x, attempted.y, previous.z);
-    if !blocked(x_only, yaw_rad, footprint, cover) {
+    if !footprint_blocked_by_cover(x_only, yaw_rad, footprint, cover) {
         return x_only;
     }
     let z_only = Vec3::new(previous.x, attempted.y, attempted.z);
-    if !blocked(z_only, yaw_rad, footprint, cover) {
+    if !footprint_blocked_by_cover(z_only, yaw_rad, footprint, cover) {
         return z_only;
     }
     Vec3::new(previous.x, attempted.y, previous.z)
@@ -47,8 +47,9 @@ pub fn resolve_cover_collision_with_velocity(
 }
 
 /// Whether the hull footprint at `position`/`yaw_rad` overlaps any cover box. A cover box is an
-/// axis-aligned obstacle, i.e. a yaw-0 footprint in the shared SAT.
-fn blocked(
+/// axis-aligned obstacle, i.e. a yaw-0 footprint in the shared SAT. Public because the world
+/// step also asks it about a ROTATION candidate (yaw is collision-resolved like translation).
+pub fn footprint_blocked_by_cover(
     position: Vec3,
     yaw_rad: f32,
     footprint: TankFootprint,

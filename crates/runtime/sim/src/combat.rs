@@ -182,6 +182,14 @@ fn resolve_impact_penetration(
             distance_m,
         );
     }
+    // A BROKEN track is not there any more: the thrown belt lies on the ground beside the
+    // hull, so the shot meets the bare side plate with no spaced screen. The sim stops
+    // charging armor for steel the eye can see is missing.
+    let broken_side = match zone {
+        ArmorZone::LeftTrack => target.tracks.hp(game_core::TrackSide::Left) == 0,
+        ArmorZone::RightTrack => target.tracks.hp(game_core::TrackSide::Right) == 0,
+        _ => false,
+    };
     let side_sign = match zone {
         ArmorZone::LeftTrack => -1.0,
         ArmorZone::RightTrack => 1.0,
@@ -198,6 +206,15 @@ fn resolve_impact_penetration(
         plate_normal(target.hull_pose(), 0.0, ArmorZone::HullSide, side_sign, side_slope);
     let direction = shell.velocity_mps.normalize_or_zero();
     let side_angle_degrees = (-direction).dot(side_normal).clamp(-1.0, 1.0).acos().to_degrees();
+    if broken_side {
+        return resolve_penetration_at_distance_on_zone(
+            &shell.shell,
+            &target.spec.hull,
+            ArmorZone::HullSide,
+            side_angle_degrees,
+            distance_m,
+        );
+    }
     resolve_penetration_through_track(
         &shell.shell,
         &target.spec.hull,
@@ -263,6 +280,36 @@ mod tests {
         assert!(
             event.plate_normal.dot(event.shell_direction) < 0.0,
             "an outward plate normal opposes the incoming shell"
+        );
+    }
+
+    /// K4: a BROKEN track is thrown steel on the ground, not a spaced screen. A side hit on
+    /// the broken track resolves against the bare hull side alone, so its effective armour is
+    /// LESS than the same hit on a healthy track (which still adds the belt's LOS). The sim
+    /// stops charging armour for a track the eye can see is gone.
+    #[test]
+    fn a_broken_track_no_longer_screens_the_hull_side() {
+        let spec = TankSpec::t54_1951();
+        let make = |broken: bool| {
+            let mut tank = fresh_tank(TankId(2), TeamId(2), spec.clone(), Vec3::ZERO, 0.0);
+            if broken {
+                tank.tracks.break_side(game_core::TrackSide::Left);
+            }
+            tank
+        };
+        // A shell moving +x meets the LEFT side plate (outward normal -x) head-on.
+        let shell =
+            shell_toward(TankId(1), Vec3::new(-5.0, 0.0, 0.0), Vec3::new(900.0, 0.0, 0.0), &spec);
+
+        let healthy =
+            resolve_impact_penetration(&shell, &make(false), ArmorZone::LeftTrack, 0.0, 20.0);
+        let broken =
+            resolve_impact_penetration(&shell, &make(true), ArmorZone::LeftTrack, 0.0, 20.0);
+        assert!(
+            broken.effective_armor_mm < healthy.effective_armor_mm - 1.0,
+            "a broken track must drop the effective armour (screen gone): broken {} vs healthy {}",
+            broken.effective_armor_mm,
+            healthy.effective_armor_mm
         );
     }
 
