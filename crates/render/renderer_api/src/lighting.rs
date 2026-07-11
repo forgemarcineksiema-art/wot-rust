@@ -104,6 +104,26 @@ pub struct SceneLighting {
     /// warms toward the key colour instead of the flat horizon grey. Colour only — the fog
     /// density/height model (and its 400 m fairness bound) is untouched by this.
     pub fog_sun_scatter: f32,
+    /// Low-lying valley haze: a SECOND fog layer pooled below `valley_haze_height_m`, its
+    /// density fading quadratically to zero at that height. Dawn mist finally sits IN the
+    /// valley floor instead of everywhere. The 400 m spotting-fairness sweep covers the SUM of
+    /// both layers at every fighting height — a profile that pools too hard fails the gate.
+    pub valley_haze_density: f32,
+    /// Height (m) the valley haze fades out at; 0 disables the layer.
+    pub valley_haze_height_m: f32,
+    /// Screen-space crepuscular rays in the central post pass: how strongly hot HDR energy
+    /// (the sun disc and its halo) streaks toward the camera through the air. Painted light
+    /// shafts, not a volumetric sim — profile-gated, 0 skips the march entirely.
+    pub god_ray_strength: f32,
+    /// A second, high thin cloud sheet over the cumulus layer: opacity (0 removes it).
+    pub cloud_sheet_opacity: f32,
+    /// Pattern scale of the high sheet relative to the cumulus layer.
+    pub cloud_sheet_scale: f32,
+    /// Storm-front heading in radians (world XZ): the horizon direction the front wall
+    /// advances from. Only read when `storm_front_strength > 0`.
+    pub storm_front_dir_rad: f32,
+    /// How hard the front closes coverage and darkens cloud colour along its heading (0..1).
+    pub storm_front_strength: f32,
     /// Threshold-free bloom composite weight in the central post pass: how much of the blurred
     /// HDR frame folds back over the sharp one BEFORE the tone curve. Energy-proportional — only
     /// genuinely hot sources (sun, tracers, fires, glints) visibly glow (art-direction rule 6).
@@ -123,11 +143,18 @@ impl SceneLighting {
     /// shaders' `apply_fog`, so the model is testable without a GPU. Fog thickens with distance and
     /// thins with height; density 0 returns 0 everywhere.
     pub fn fog_factor(&self, distance: f32, height: f32) -> f32 {
-        if self.fog_density <= 0.0 {
+        let valley = if self.valley_haze_height_m > 0.0 {
+            let pooled = (1.0 - height.max(0.0) / self.valley_haze_height_m).clamp(0.0, 1.0);
+            self.valley_haze_density * pooled * pooled
+        } else {
+            0.0
+        };
+        let density = self.fog_density.max(0.0);
+        if density <= 0.0 && valley <= 0.0 {
             return 0.0;
         }
         let height_term = (-height.max(0.0) * self.fog_height_falloff).exp();
-        let f = 1.0 - (-distance.max(0.0) * self.fog_density * height_term).exp();
+        let f = 1.0 - (-distance.max(0.0) * (density * height_term + valley)).exp();
         f.clamp(0.0, 1.0)
     }
 
@@ -194,6 +221,13 @@ impl SceneLighting {
             cloud_drift: 0.004,
             cloud_shadow_strength: 0.25,
             fog_sun_scatter: 0.5,
+            valley_haze_density: 0.0,
+            valley_haze_height_m: 0.0,
+            god_ray_strength: 0.0,
+            cloud_sheet_opacity: 0.25,
+            cloud_sheet_scale: 1.4,
+            storm_front_dir_rad: 0.0,
+            storm_front_strength: 0.0,
             bloom_weight: 0.05,
             vignette: 0.08,
             local_lights: NO_LOCAL_LIGHTS,
@@ -230,6 +264,13 @@ impl SceneLighting {
             cloud_drift: 0.004,
             cloud_shadow_strength: 0.3,
             fog_sun_scatter: 0.65,
+            valley_haze_density: 5e-05,
+            valley_haze_height_m: 8.0,
+            god_ray_strength: 0.0,
+            cloud_sheet_opacity: 0.3,
+            cloud_sheet_scale: 1.5,
+            storm_front_dir_rad: 0.0,
+            storm_front_strength: 0.0,
             bloom_weight: 0.05,
             vignette: 0.08,
             local_lights: NO_LOCAL_LIGHTS,
@@ -267,6 +308,13 @@ impl SceneLighting {
             cloud_drift: 0.006,
             cloud_shadow_strength: 0.0,
             fog_sun_scatter: 0.15,
+            valley_haze_density: 0.0001,
+            valley_haze_height_m: 10.0,
+            god_ray_strength: 0.0,
+            cloud_sheet_opacity: 0.35,
+            cloud_sheet_scale: 1.2,
+            storm_front_dir_rad: 2.4,
+            storm_front_strength: 0.5,
             bloom_weight: 0.04,
             vignette: 0.06,
             local_lights: NO_LOCAL_LIGHTS,
@@ -288,7 +336,9 @@ impl SceneLighting {
             rim_rgb: [0.24, 0.24, 0.28],
             sky_zenith_rgb: [0.36, 0.42, 0.55],
             sky_horizon_rgb: [0.72, 0.68, 0.66],
-            fog_density: 0.00105,
+            // Rebalanced for the two-layer model: the valley haze carries the floor
+            // mist now; base + valley at height 0 stays under the 400 m fairness bound.
+            fog_density: 0.0008,
             fog_height_falloff: 0.10,
             // Dawn mist: muted colour in the fog, a little extra exposure so the low sun still
             // carries through it.
@@ -304,6 +354,13 @@ impl SceneLighting {
             cloud_drift: 0.003,
             cloud_shadow_strength: 0.1,
             fog_sun_scatter: 0.8,
+            valley_haze_density: 0.00022,
+            valley_haze_height_m: 12.0,
+            god_ray_strength: 0.12,
+            cloud_sheet_opacity: 0.45,
+            cloud_sheet_scale: 2.0,
+            storm_front_dir_rad: 0.0,
+            storm_front_strength: 0.0,
             bloom_weight: 0.06,
             vignette: 0.08,
             local_lights: NO_LOCAL_LIGHTS,
@@ -339,6 +396,13 @@ impl SceneLighting {
             cloud_drift: 0.004,
             cloud_shadow_strength: 0.3,
             fog_sun_scatter: 0.85,
+            valley_haze_density: 0.0,
+            valley_haze_height_m: 0.0,
+            god_ray_strength: 0.15,
+            cloud_sheet_opacity: 0.25,
+            cloud_sheet_scale: 1.3,
+            storm_front_dir_rad: 0.0,
+            storm_front_strength: 0.0,
             bloom_weight: 0.06,
             vignette: 0.1,
             local_lights: NO_LOCAL_LIGHTS,
@@ -372,6 +436,13 @@ impl SceneLighting {
             cloud_drift: 0.005,
             cloud_shadow_strength: 0.0,
             fog_sun_scatter: 0.1,
+            valley_haze_density: 0.0,
+            valley_haze_height_m: 0.0,
+            god_ray_strength: 0.0,
+            cloud_sheet_opacity: 0.5,
+            cloud_sheet_scale: 1.1,
+            storm_front_dir_rad: 0.0,
+            storm_front_strength: 0.0,
             bloom_weight: 0.04,
             vignette: 0.06,
             local_lights: NO_LOCAL_LIGHTS,
@@ -410,6 +481,13 @@ impl SceneLighting {
             cloud_drift: 0.0,
             cloud_shadow_strength: 0.0,
             fog_sun_scatter: 0.0,
+            valley_haze_density: 0.0,
+            valley_haze_height_m: 0.0,
+            god_ray_strength: 0.0,
+            cloud_sheet_opacity: 0.0,
+            cloud_sheet_scale: 0.0,
+            storm_front_dir_rad: 0.0,
+            storm_front_strength: 0.0,
             bloom_weight: 0.02,
             vignette: 0.0,
             local_lights: NO_LOCAL_LIGHTS,
@@ -451,6 +529,13 @@ impl SceneLighting {
             cloud_drift: 0.0,
             cloud_shadow_strength: 0.0,
             fog_sun_scatter: 0.0,
+            valley_haze_density: 0.0,
+            valley_haze_height_m: 0.0,
+            god_ray_strength: 0.0,
+            cloud_sheet_opacity: 0.0,
+            cloud_sheet_scale: 0.0,
+            storm_front_dir_rad: 0.0,
+            storm_front_strength: 0.0,
             bloom_weight: 0.03,
             vignette: 0.06,
             local_lights: NO_LOCAL_LIGHTS,
@@ -508,6 +593,13 @@ impl SceneLighting {
             // is, or the room reads as haunted. Two warm high-bays over the turntable, a
             // strip over the workbench, the cool glow of the frosted panes over the gate,
             // and a zone lamp each for the stores corner and the second bay.
+            valley_haze_density: 0.0,
+            valley_haze_height_m: 0.0,
+            god_ray_strength: 0.0,
+            cloud_sheet_opacity: 0.0,
+            cloud_sheet_scale: 0.0,
+            storm_front_dir_rad: 0.0,
+            storm_front_strength: 0.0,
             bloom_weight: 0.03,
             vignette: 0.05,
             local_lights: [

@@ -84,19 +84,54 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     let drift = camera.time_params.x * camera.cloud_params.w;
     let uv = dir.xz / (dir.y + 0.45) * 0.8 * camera.cloud_params.y + vec2<f32>(drift, drift * 0.6);
     let warp = vec2<f32>(cloud_fbm(uv * 0.5), cloud_fbm(uv * 0.5 + vec2<f32>(5.2, 1.3)));
-    let coverage = cloud_fbm(uv + warp * 0.7) + camera.cloud_params.x;
+    // Cumulus body: the warped FBM plus a RIDGED octave pair — 1-|2n-1| billows the tops into
+    // rounded heads instead of soft mush (clouds 2.0). The storm front (cloud2_params.zw)
+    // closes coverage along its heading: a dark wall advancing from one horizon, pure profile
+    // data (the rain squalls carry one; a clear day carries none).
+    let ridged = 1.0 - abs(2.0 * cloud_noise(uv * 3.1 + warp) - 1.0);
+    var coverage = cloud_fbm(uv + warp * 0.7) + ridged * 0.18 + camera.cloud_params.x;
+    let front_strength = camera.cloud2_params.w;
+    var front = 0.0;
+    if (front_strength > 0.0) {
+        let heading =
+            vec2<f32>(cos(camera.cloud2_params.z), sin(camera.cloud2_params.z));
+        let flat_dir = normalize(vec2<f32>(dir.x, dir.z) + vec2<f32>(1.0e-4, 0.0));
+        front = smoothstep(0.15, 0.85, dot(flat_dir, heading)) * front_strength
+            * (1.0 - smoothstep(0.3, 0.6, dir.y));
+        coverage += front * 0.5;
+    }
     // Fade the sheet out at the horizon (where it would alias into a busy band); a broad, soft
     // mid-sky belt of cloud so the dome stops reading as one flat pale wash.
     let band = smoothstep(0.04, 0.32, dir.y);
     let cloud = smoothstep(0.40, 0.72, coverage) * band;
     // Lit toward the sun, shaded on the far side — both DERIVED from the profile's key and
     // ambient instead of hardcoded constants, so a golden-hour sun paints the banks warm and an
-    // overcast profile's weak grey key reads as a lead lid, for free.
+    // overcast profile's weak grey key reads as a lead lid, for free. The front wall darkens
+    // its clouds toward the shaded tone regardless of sun side — a storm face holds no warmth.
     let sun_side = clamp(dot(dir, sun) * 0.5 + 0.5, 0.0, 1.0);
     let cloud_lit = camera.key_rgb + camera.ambient_rgb * 0.5;
     let cloud_shade = camera.ambient_rgb * 2.5 + vec3<f32>(0.15, 0.15, 0.15);
-    let cloud_col = mix(cloud_shade, cloud_lit, sun_side);
+    var cloud_col = mix(cloud_shade, cloud_lit, sun_side);
+    cloud_col = mix(cloud_col, cloud_shade * 0.8, clamp(front, 0.0, 1.0));
     color = mix(color, cloud_col, cloud * camera.cloud_params.z);
+
+    // The high thin sheet (cloud2_params.xy): a second, finer and slower layer far above the
+    // cumulus — pale streaks that give the dome depth between blue and bank. Drawn at low
+    // opacity BEHIND the cumulus (its colour never darkens; high ice stays bright).
+    let sheet_opacity = camera.cloud2_params.x;
+    if (sheet_opacity > 0.0) {
+        let sheet_uv = dir.xz / (dir.y + 0.55) * 1.6 * camera.cloud2_params.y
+            + vec2<f32>(drift * 0.35, drift * 0.2);
+        let sheet = smoothstep(0.52, 0.78, cloud_fbm(sheet_uv))
+            * smoothstep(0.08, 0.4, dir.y) * (1.0 - cloud);
+        let sheet_col = mix(color, cloud_lit * 0.9 + vec3<f32>(0.1), 0.85);
+        color = mix(color, sheet_col, sheet * sheet_opacity);
+    }
+
+    // Horizon treatment: a pale distance band where the air thickens against the ground line,
+    // so the dome never meets the terrain as a clean gradient cut (rule 4 — one atmosphere).
+    let horizon_band = (1.0 - smoothstep(0.0, 0.12, dir.y)) * smoothstep(-0.05, 0.0, dir.y);
+    color = mix(color, camera.sky_horizon_rgb * 1.06, horizon_band * 0.5);
 
     // Sun: a tight bright disc plus a soft surrounding haze, along the key light direction. The
     // haze of the profile fattens and softens the disc (a hazy day has a milky sun); drawn after

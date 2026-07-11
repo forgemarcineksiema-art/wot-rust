@@ -67,20 +67,31 @@ fn env_sky(dir: vec3<f32>) -> vec3<f32> {
 // model, mirrored on the CPU by SceneLighting::fog_factor. Applied in linear HDR before the tone
 // curve.
 fn apply_fog(color: vec3<f32>, world_pos: vec3<f32>) -> vec3<f32> {
-    let density = camera.fog_params.x;
-    if (density <= 0.0) {
+    let density = max(camera.fog_params.x, 0.0);
+    // The second air layer: valley haze pooled below its fade-out height, quadratic falloff.
+    // CPU-mirrored by SceneLighting::fog_factor; the 400 m fairness sweep bounds the SUM.
+    var valley = 0.0;
+    if (camera.haze_params.y > 0.0) {
+        let pooled = clamp(1.0 - max(world_pos.y, 0.0) / camera.haze_params.y, 0.0, 1.0);
+        valley = camera.haze_params.x * pooled * pooled;
+    }
+    if (density <= 0.0 && valley <= 0.0) {
         return color;
     }
     let to_fragment = world_pos - camera.camera_pos;
     let distance = length(to_fragment);
     let height_term = exp(-max(world_pos.y, 0.0) * camera.fog_params.y);
-    let fog = clamp(1.0 - exp(-max(distance, 0.0) * density * height_term), 0.0, 1.0);
-    let sun_amount = pow(
-        max(dot(to_fragment / max(distance, 1.0e-4), normalize(camera.key_direction)), 0.0),
-        8.0,
-    ) * camera.sky_params.y;
+    let fog = clamp(
+        1.0 - exp(-max(distance, 0.0) * (density * height_term + valley)), 0.0, 1.0);
+    // Sun-directional scatter, colour only: a broad lobe for the general sun-side warmth plus
+    // a tight second lobe that makes the air GLOW right around the low sun (forward
+    // scattering) — the fog AMOUNT above is untouched by either.
+    let toward_sun =
+        max(dot(to_fragment / max(distance, 1.0e-4), normalize(camera.key_direction)), 0.0);
+    let sun_amount =
+        (pow(toward_sun, 8.0) * 0.75 + pow(toward_sun, 64.0) * 0.55) * camera.sky_params.y;
     let sun_haze = camera.sky_horizon_rgb * 0.4 + camera.key_rgb * 0.8;
-    let haze = mix(camera.sky_horizon_rgb, sun_haze, sun_amount);
+    let haze = mix(camera.sky_horizon_rgb, sun_haze, min(sun_amount, 1.0));
     return mix(color, haze, fog);
 }
 

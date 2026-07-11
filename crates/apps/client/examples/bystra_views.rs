@@ -1,7 +1,10 @@
 use std::fs::File;
 use std::io::BufWriter;
 
-use client::{battlefield_scene_mesh, battlefield_water_mesh};
+use client::{
+    bake_terrain_ground_maps, battlefield_ground_and_statics_meshes, battlefield_water_mesh,
+    terrain_material_set_for,
+};
 use renderer_api::{Camera, CameraProjectionPolicy, SceneLighting, view_projection_matrix};
 use renderer_wgpu::{GpuContext, OffscreenTarget, SceneRenderer};
 use terrain::bystra_valley;
@@ -15,7 +18,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let height = 720u32;
 
     let battlefield = bystra_valley();
-    let (vertices, indices) = battlefield_scene_mesh(&battlefield);
+    let ((ground_vertices, ground_indices), (vertices, indices)) =
+        battlefield_ground_and_statics_meshes(&battlefield, &[]);
+    let ground_maps = bake_terrain_ground_maps(&battlefield);
     let (water_vertices, water_indices) = battlefield_water_mesh(&battlefield);
     let ground =
         |x: f32, z: f32| -> f32 { battlefield.heightmap.sample_height(x, z).unwrap_or(5.0) };
@@ -73,6 +78,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let ctx = GpuContext::headless()?;
     let target = OffscreenTarget::new(&ctx, width, height)?;
     let mut renderer = SceneRenderer::for_offscreen(&ctx, &vertices, &indices)?;
+    renderer.set_battlefield_ground(
+        &ctx,
+        &ground_vertices,
+        &ground_indices,
+        &ground_maps,
+        &terrain_material_set_for(terrain::MapId::BystraValley),
+    );
     renderer.set_water(&ctx, &water_vertices, &water_indices);
     renderer.scene_time_s = 12.0;
 
