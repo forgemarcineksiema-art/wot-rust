@@ -21,8 +21,9 @@ fn camera_uniform_is_encoded_with_wgsl_uniform_layout() {
     // 432 + 80 = 512. The profile display grade adds grade_params (vec4, 16): 512 + 16 = 528.
     // The profile sky adds cloud_params + sky_params (2 vec4, 32): 528 + 32 = 560. The local
     // fill pools add light_pos_radius + light_rgb_intensity (2 x array<vec4, 6>, 192):
-    // 560 + 192 = 752.
-    assert_eq!(bytes.len(), 752);
+    // 560 + 192 = 752. The two-layer air + second cloud layer append haze_params +
+    // cloud2_params (2 vec4, 32): 752 + 32 = 784.
+    assert_eq!(bytes.len(), 784);
     assert_eq!(bytes.len() % 16, 0);
 }
 

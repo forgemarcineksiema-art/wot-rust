@@ -166,6 +166,13 @@ pub struct CameraUniform {
     pub light_pos_radius: [GpuVec4; 6],
     /// Local pool colours: xyz = linear rgb, w = intensity multiplier.
     pub light_rgb_intensity: [GpuVec4; 6],
+    /// Two-layer air (appended at the END so no existing offset moves): x = valley haze
+    /// density, y = valley haze fade-out height (m, 0 disables), z = crepuscular-ray strength
+    /// in the post pass (0 skips the march), w reserved.
+    pub haze_params: GpuVec4,
+    /// Cloud layer 2 (appended): x = high-sheet opacity, y = high-sheet scale, z = storm-front
+    /// heading (radians, world XZ), w = storm-front strength (0 disables).
+    pub cloud2_params: GpuVec4,
 }
 
 /// The per-frame pass parameters that ride the camera uniform beside the view matrices and
@@ -277,6 +284,18 @@ impl CameraUniform {
             light_rgb_intensity: lighting
                 .local_lights
                 .map(|light| GpuVec4([light.rgb[0], light.rgb[1], light.rgb[2], light.intensity])),
+            haze_params: GpuVec4([
+                lighting.valley_haze_density,
+                lighting.valley_haze_height_m,
+                lighting.god_ray_strength,
+                0.0,
+            ]),
+            cloud2_params: GpuVec4([
+                lighting.cloud_sheet_opacity,
+                lighting.cloud_sheet_scale,
+                lighting.storm_front_dir_rad,
+                lighting.storm_front_strength,
+            ]),
         }
     }
 

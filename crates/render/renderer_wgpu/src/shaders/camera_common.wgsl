@@ -52,6 +52,12 @@ struct Camera {
     light_pos_radius: array<vec4<f32>, 6>,
     // Pool colours: xyz = linear rgb, w = intensity multiplier.
     light_rgb_intensity: array<vec4<f32>, 6>,
+    // Two-layer air: x = valley haze density, y = valley fade-out height (m, 0 disables),
+    // z = crepuscular-ray strength (post pass), w reserved.
+    haze_params: vec4<f32>,
+    // Cloud layer 2: x = high-sheet opacity, y = high-sheet scale, z = storm-front heading
+    // (radians), w = storm-front strength (0 disables).
+    cloud2_params: vec4<f32>,
 };
 
 @group(0) @binding(0)

@@ -267,3 +267,74 @@ fn bloom_and_vignette_stay_inside_the_bible_ceilings() {
         assert!(l.bloom_weight > 0.0, "{name}: outdoor looks carry a live bloom weight");
     }
 }
+
+/// RULE 4/6 envelopes for Atmosphere 2.0: the valley haze pools but never floods (the 400 m
+/// fairness sweep in the client bounds the SUM of both layers), crepuscular rays stay painted
+/// accents, the second cloud layer stays a veil, and the storm front belongs to the squalls.
+#[test]
+fn atmosphere_two_point_oh_stays_inside_its_envelopes() {
+    for (name, l) in outdoor_profiles() {
+        assert!(
+            (0.0..=0.0005).contains(&l.valley_haze_density),
+            "{name}: valley haze density {} out of envelope",
+            l.valley_haze_density
+        );
+        assert!(
+            (0.0..=30.0).contains(&l.valley_haze_height_m),
+            "{name}: valley haze height {} out of envelope",
+            l.valley_haze_height_m
+        );
+        assert!(
+            (0.0..=0.25).contains(&l.god_ray_strength),
+            "{name}: god-ray strength {} out of envelope",
+            l.god_ray_strength
+        );
+        assert!(
+            (0.0..=0.6).contains(&l.cloud_sheet_opacity),
+            "{name}: cloud sheet opacity {} out of envelope",
+            l.cloud_sheet_opacity
+        );
+        assert!(
+            (0.0..=0.8).contains(&l.storm_front_strength),
+            "{name}: storm front strength {} out of envelope",
+            l.storm_front_strength
+        );
+    }
+    // The features live where they were authored: dawn mist pools in the valley, the low sun
+    // days carry rays, and only the squalls advance a front.
+    assert!(SceneLighting::bystra_dawn_fog().valley_haze_density > 0.0);
+    assert!(SceneLighting::prokhorovka_golden_evening().god_ray_strength > 0.0);
+    assert!(SceneLighting::bystra_rain().storm_front_strength > 0.0);
+    assert_eq!(SceneLighting::prokhorovka_overcast().storm_front_strength, 0.0);
+}
+
+/// The two-layer fog model: the valley haze thickens the FLOOR without touching high ground —
+/// and a profile with no valley layer evaluates bit-identically to the single-layer model.
+#[test]
+fn valley_haze_pools_in_the_floor_and_zero_layer_is_the_old_model() {
+    let dawn = SceneLighting::bystra_dawn_fog();
+    // Same distance: the valley floor fogs harder than a ridge at 20 m.
+    let floor = dawn.fog_factor(400.0, 0.0);
+    let ridge = dawn.fog_factor(400.0, 20.0);
+    assert!(
+        floor > ridge + 0.05,
+        "dawn mist must pool in the floor: floor {floor:.3} vs ridge {ridge:.3}"
+    );
+    // Above the fade-out height the layer contributes nothing: the base model alone remains.
+    let mut base_only = dawn;
+    base_only.valley_haze_density = 0.0;
+    base_only.valley_haze_height_m = 0.0;
+    for h in [12.0, 20.0, 40.0] {
+        assert_eq!(
+            dawn.fog_factor(500.0, h),
+            base_only.fog_factor(500.0, h),
+            "above the valley the two models are bit-identical at {h} m"
+        );
+    }
+    // A profile with no valley layer is the exact single-layer model everywhere.
+    let noon = SceneLighting::battlefield_default();
+    for (d, h) in [(100.0, 0.0), (400.0, 3.0), (900.0, 25.0)] {
+        let manual = 1.0 - (-d * noon.fog_density * (-h * noon.fog_height_falloff).exp()).exp();
+        assert!((noon.fog_factor(d, h) - manual.clamp(0.0, 1.0)).abs() < 1.0e-6);
+    }
+}
