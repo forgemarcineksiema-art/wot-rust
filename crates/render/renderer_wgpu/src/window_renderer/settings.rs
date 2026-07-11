@@ -31,6 +31,13 @@ impl WindowRenderer {
         self.scene.scene_lighting = lighting;
     }
 
+    /// Pin the sun-shadow boxes to a world point, or `None` to restore the forward chase-camera
+    /// heuristic. The garage pins the turntable — the orbit camera's "forward" swings a full
+    /// circle, and an unpinned focus walks the shadow boxes off the parked hero.
+    pub fn set_shadow_focus(&mut self, focus: Option<[f32; 3]>) {
+        self.scene.shadow_focus = focus;
+    }
+
     /// Advance the presentation clock shaders animate with (water ripple, foliage sway, weather).
     /// Tick-domain by doctrine: pass interpolated-tick seconds (whole fixed ticks + the sub-tick
     /// render phase over the tick rate), never an accumulation of render-frame deltas — a jittery

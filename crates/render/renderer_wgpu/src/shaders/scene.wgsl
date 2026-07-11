@@ -63,9 +63,12 @@ fn value_noise(p: vec2<f32>) -> f32 {
 fn material_detail(world: vec3<f32>, n: vec3<f32>) -> f32 {
     // Interior looks (fog density 0 — the hangar; see `fog_params` docs) keep a near-flat
     // finish: painted panels and cast concrete carry no strata, and the outdoor patch noise
-    // reads as damp stains smeared down a wall indoors.
+    // reads as damp stains smeared down a wall indoors. One gentle octave of paint-sheen
+    // variation that also climbs the walls (the y term keeps a vertical panel from sampling
+    // one constant noise row).
     if (camera.fog_params.x <= 0.0) {
-        return 0.97 + value_noise(world.xz * 1.1) * 0.05;
+        let p = world.xz * 1.3 + vec2<f32>(world.y * 0.7, world.y * 0.4);
+        return 0.955 + value_noise(p) * 0.07;
     }
     // Two octaves (~2.5 m patches with ~0.6 m grain) on level ground...
     let ground = value_noise(world.xz * 0.4) * 0.6 + value_noise(world.xz * 1.7) * 0.4;
@@ -134,7 +137,7 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
 
     // Screen AO rides inside light_radiance on the indirect terms only — a sunlit crease keeps
     // its full key while its ambient/fill correctly dampens.
-    var lit = albedo * light_radiance(n, shadow, ao);
+    var lit = albedo * light_radiance(input.world_pos, n, shadow, ao);
     // Specular: a Blinn lobe on the key light plus the analytic-sky reflection, both scaled by
     // the material lane. Matte (gloss 0) surfaces skip this entirely — the historical look.
     if (gloss > 0.001) {

@@ -7,8 +7,9 @@
 use super::GarageState;
 
 const DRIVE_IN_DURATION_S: f32 = 1.5;
-/// Where the tank starts, a few metres back toward the doorway (it drives forward to `z = 0`).
-const DRIVE_IN_START_Z: f32 = -9.0;
+/// Where the tank starts, back toward the bay gate (it drives forward to `z = 0`) — the longer
+/// hall earns a longer roll-in.
+const DRIVE_IN_START_Z: f32 = -13.0;
 /// Emit one dust puff per this much travelled track.
 const DUST_INTERVAL_M: f32 = 0.6;
 
@@ -131,8 +132,8 @@ mod tests {
                 puffs += 1;
             }
         }
-        // ~9 m of travel at one puff per 0.6 m is a healthy trail, not a single blip or a storm.
-        assert!((8..=20).contains(&puffs), "expected a paced dust trail, got {puffs}");
+        // ~13 m of travel at one puff per 0.6 m is a healthy trail, not a single blip or a storm.
+        assert!((12..=28).contains(&puffs), "expected a paced dust trail, got {puffs}");
         assert!(!garage.poll_drive_dust(), "no dust once parked");
     }
 

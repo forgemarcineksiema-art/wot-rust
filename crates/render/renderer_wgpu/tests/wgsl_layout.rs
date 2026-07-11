@@ -19,8 +19,10 @@ fn camera_uniform_is_encoded_with_wgsl_uniform_layout() {
     // (vec4, 16) — the tick-domain presentation clock shader animation runs on: 416 + 16 = 432.
     // The shadow cascades add light_view_proj_far (mat4, 64) and cascade_params (vec4, 16):
     // 432 + 80 = 512. The profile display grade adds grade_params (vec4, 16): 512 + 16 = 528.
-    // The profile sky adds cloud_params + sky_params (2 vec4, 32): 528 + 32 = 560.
-    assert_eq!(bytes.len(), 560);
+    // The profile sky adds cloud_params + sky_params (2 vec4, 32): 528 + 32 = 560. The local
+    // fill pools add light_pos_radius + light_rgb_intensity (2 x array<vec4, 6>, 192):
+    // 560 + 192 = 752.
+    assert_eq!(bytes.len(), 752);
     assert_eq!(bytes.len() % 16, 0);
 }
 
