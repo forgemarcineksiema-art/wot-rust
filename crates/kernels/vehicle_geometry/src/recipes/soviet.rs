@@ -70,8 +70,7 @@ fn soviet_cast_turret(
 pub(crate) fn t55a(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVehicle {
     // Migrated to the blueprint, reusing the same machinery as the T-54: hull, wrapped five-wheel
     // running gear, cast turret, and the longer D-10 gun all read one shape source.
-    let bp =
-        game_core::VehicleBlueprint::for_vehicle(VehicleKind::T55A).expect("T-55A has a blueprint");
+    let bp = super::active_blueprint(VehicleKind::T55A).expect("T-55A has a blueprint");
     let hull = shade_hull(
         blueprint_hull(&bp.hull, MaterialRole::RolledArmor)
             .append(&blueprint_running_gear(&bp.track))
@@ -112,8 +111,7 @@ pub(super) fn soviet_cast_turret_for(
 pub(crate) fn t54_1951(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVehicle {
     // Migrated to the blueprint: hull, tracks, turret, and gun all read one shape source, so the
     // visible glacis is the armour angle and the running gear wraps the wheels.
-    let bp = game_core::VehicleBlueprint::for_vehicle(VehicleKind::T54_1951)
-        .expect("T-54 has a blueprint");
+    let bp = super::active_blueprint(VehicleKind::T54_1951).expect("T-54 has a blueprint");
     let hull = shade_hull(
         t54_hull(&bp.hull, &bp.track)
             .append(&blueprint_running_gear(&bp.track))

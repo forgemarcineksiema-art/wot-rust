@@ -57,6 +57,11 @@ pub(super) fn t55a_blueprint() -> VehicleBlueprint {
             return_rollers: 0,
             roller_radius: 0.0,
             overlap_inner_dx: 0.0,
+            wheel_half_width: 0.18,
+            link_half_width: 0.23,
+            link_count: Some(90),
+            top_sag_m: 0.05,
+            wheel_spokes: 6,
         },
         turret: TurretShape {
             form: TurretForm::CastDome,

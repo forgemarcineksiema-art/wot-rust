@@ -72,6 +72,11 @@ pub(super) fn tiger_i_blueprint() -> VehicleBlueprint {
             // The Schachtellaufwerk: every odd wheel rides a genuinely separate inner row, deep
             // enough that the two rows of discs read as the Tiger's interleaved wall of wheels.
             overlap_inner_dx: 0.22,
+            wheel_half_width: 0.1,
+            link_half_width: 0.28,
+            link_count: None,
+            top_sag_m: 0.035,
+            wheel_spokes: 6,
         },
         turret: TurretShape {
             // The horseshoe: one bent side wall around a flat front plate, all of it VERTICAL —

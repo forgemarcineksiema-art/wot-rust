@@ -84,48 +84,16 @@ impl RunningGearKinematics {
         // first/second gap, an even spread otherwise) — the SAME stations the physics contact
         // footprint rides on, so the wheels the player sees are the wheels the hull sits on.
         let wheel_zs = track.wheel_stations();
-        let wheel_half_width = match kind {
-            // Wide road wheels to match the tank's scale — thin discs read like wheelbarrow wheels.
-            VehicleKind::T54_1951 => 0.18,
-            // The IS family's 550 mm cast wheels are NARROW discs; the auto-derived track-band
-            // width turns them into barrels.
-            VehicleKind::IS3 => 0.14,
-            // Interleaved/overlapped discs: each row must be thin enough that the inner row
-            // (one `overlap_inner_dx` inboard) clears the outer row's faces.
-            VehicleKind::TigerI => 0.10,
-            VehicleKind::TigerII | VehicleKind::Jagdtiger | VehicleKind::PantherII => 0.09,
-            // The Centurion's bogie wheels live half-hidden behind the skirts.
-            VehicleKind::Centurion => 0.12,
-            // The T-34's 830 mm Christie discs are broad-faced pressed wheels.
-            VehicleKind::T34_85 => 0.16,
-            _ => ((track.outer_x - track.inner_x) * 0.5).max(0.03),
-        };
-        let link_half_width = match kind {
-            // A wide OMSh belt: the shoe plate (1.25 × this half-width in the unit mesh) spans the
-            // full 580 mm track band (1.06..1.63), covering the road wheels it rides over.
-            VehicleKind::T54_1951 => 0.23,
-            // The IS-3's 650 mm band, same treatment: the shoes span the full track width.
-            VehicleKind::IS3 => 0.26,
-            // The Tiger family's combat bands (725/800 mm): wide shoes spanning the
-            // interleaved wheel rows they ride over.
-            VehicleKind::TigerI => 0.28,
-            VehicleKind::TigerII | VehicleKind::Jagdtiger => 0.31,
-            // The Panther II's 660 mm band, spanning its overlapped steel wheels.
-            VehicleKind::PantherII => 0.26,
-            // The Centurion's 610 mm band under the skirts.
-            VehicleKind::Centurion => 0.24,
-            // The T-34's 500 mm waffle band, spanning the full wheel faces.
-            VehicleKind::T34_85 => 0.22,
-            _ => (track.belt_half_thickness * 0.5).max(0.02),
-        };
-        let link_count = match kind {
-            VehicleKind::T54_1951 => 90,
-            VehicleKind::IS3 => 104,
-            _ => {
-                let loop_len = 4.0 * half_run + 2.0 * PI * track.end_radius.max(0.05);
-                (loop_len / LINK_SPACING_M).round().max(4.0) as usize
-            }
-        };
+        // Gear identity is BLUEPRINT DATA now (the TrackShape lift): wheel/shoe widths, the
+        // authored link count, top-run sag and spoke count all come from the same RON file the
+        // rest of the shape does — the per-kind match tables this replaced were the last
+        // hand-tuned gear constants living outside the blueprint.
+        let wheel_half_width = track.wheel_half_width.max(0.03);
+        let link_half_width = track.link_half_width.max(0.02);
+        let link_count = track.link_count.unwrap_or_else(|| {
+            let loop_len = 4.0 * half_run + 2.0 * PI * track.end_radius.max(0.05);
+            (loop_len / LINK_SPACING_M).round().max(4.0) as usize
+        });
         // Return rollers spread evenly along the middle of the wheel run, clear of the end
         // wraps; the roller TOP carries the belt's top run, so the axle sits one radius below.
         let roller_zs: Vec<f32> = (0..track.return_rollers)
@@ -146,34 +114,13 @@ impl RunningGearKinematics {
             wheel_x: (track.inner_x + track.outer_x) * 0.5,
             wheel_overlap_dx: track.overlap_inner_dx,
             wheel_half_width,
-            link_x: match kind {
-                // The track shoes ride over the road wheels, centred on the wheel plane so the belt
-                // wraps the wheels instead of floating as a separate ribbon outboard of them.
-                VehicleKind::T54_1951
-                | VehicleKind::T34_85
-                | VehicleKind::IS3
-                | VehicleKind::TigerI
-                | VehicleKind::TigerII
-                | VehicleKind::Jagdtiger
-                | VehicleKind::PantherII
-                | VehicleKind::Centurion => (track.inner_x + track.outer_x) * 0.5,
-                _ => track.center_x + track.belt_half_thickness - track.belt_half_thickness * 0.5,
-            },
+            // The track shoes ride over the road wheels, centred on the wheel plane so the
+            // belt wraps the wheels instead of floating as a separate ribbon outboard of them.
+            link_x: (track.inner_x + track.outer_x) * 0.5,
             link_half_width,
-            top_sag_m: if track.return_rollers > 0 {
-                // A rollered top run stays taut — only a hint of droop between rollers.
-                0.012
-            } else if kind == VehicleKind::T54_1951 || kind == VehicleKind::T34_85 {
-                // Rollerless layouts: the top run rests on and sags between the road wheels.
-                0.050
-            } else {
-                0.035
-            },
+            top_sag_m: track.top_sag_m,
             wheel_zs,
-            wheel_spokes: match kind {
-                VehicleKind::IS3 => 12,
-                _ => 6,
-            },
+            wheel_spokes: track.wheel_spokes.max(3),
             roller_zs,
             roller_radius: track.roller_radius,
             roller_y: track.top_y - track.roller_radius,

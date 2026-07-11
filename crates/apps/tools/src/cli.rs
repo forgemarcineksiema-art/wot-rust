@@ -82,5 +82,9 @@ pub enum Command {
         vehicle: String,
         #[arg(long)]
         out: Option<PathBuf>,
+        /// Live-override: bake THIS RON file instead of the embedded blueprint (no rebuild) —
+        /// the fast loop for shape-tuning. The file's `kind` must match --vehicle.
+        #[arg(long)]
+        blueprint_file: Option<PathBuf>,
     },
 }

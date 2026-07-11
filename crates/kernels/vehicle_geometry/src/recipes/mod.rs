@@ -17,9 +17,43 @@
 //! nearly tautological and prevents drift between the visual geometry, the collision box, and
 //! the simulation shell spawn.
 
-use game_core::{HitboxProfile, MountFrames, VehicleKind};
+use std::cell::Cell;
+
+use game_core::{HitboxProfile, MountFrames, VehicleBlueprint, VehicleKind};
 
 use crate::{BakeError, BakedVehicle, GeometryMesh, SmoothingGroup, Submesh, SubmeshKind};
+
+thread_local! {
+    /// The Forge Studio's live-override blueprint (see [`bake_vehicle_from_blueprint`]):
+    /// while set, recipes read THIS blueprint instead of the registered one, so an author can
+    /// bake an edited RON file without recompiling the workspace.
+    static BLUEPRINT_OVERRIDE: Cell<Option<VehicleBlueprint>> = const { Cell::new(None) };
+}
+
+/// The blueprint a recipe should read for `kind`: the live override when one is active (and
+/// tagged for this kind), otherwise the registered blueprint. Every recipe fetches through
+/// this — a direct `VehicleBlueprint::for_vehicle` in a recipe would silently ignore the
+/// studio's override path.
+pub(crate) fn active_blueprint(kind: VehicleKind) -> Option<VehicleBlueprint> {
+    BLUEPRINT_OVERRIDE
+        .get()
+        .filter(|blueprint| blueprint.kind == kind)
+        .or_else(|| VehicleBlueprint::for_vehicle(kind))
+}
+
+/// Bake `blueprint.kind` through its RECIPE path with `blueprint` as the live shape source —
+/// the Forge Studio's fast loop (edit a RON on disk, bake it in-process, no rebuild). Note the
+/// T-54's authoritative mesh is the hybrid `vehicle_build` path; overriding it there is not
+/// supported — the override bakes its legacy recipe, which is fine for shape-tuning.
+pub fn bake_vehicle_from_blueprint(
+    blueprint: &VehicleBlueprint,
+) -> Result<BakedVehicle, BakeError> {
+    BLUEPRINT_OVERRIDE.set(Some(*blueprint));
+    let result = recipe(blueprint.kind, &blueprint.hitbox(), &blueprint.mount_frames())
+        .ok_or(BakeError::MissingRecipe(blueprint.kind));
+    BLUEPRINT_OVERRIDE.set(None);
+    result
+}
 
 mod armament;
 mod centurion;

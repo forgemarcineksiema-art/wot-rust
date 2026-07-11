@@ -42,6 +42,19 @@ pub struct TrackShape {
     /// Tiger's interleaved double row, a small one as the Tiger II/Panther overlapped stagger.
     /// Presentation only — the contact footprint and belt stay on the shared centreline.
     pub overlap_inner_dx: f32,
+    /// Half-width of one road-wheel disc face. Narrow cast discs (IS family ~0.14) vs broad
+    /// pressed wheels (T-54 0.18); interleaved rows must be thin enough to clear each other.
+    pub wheel_half_width: f32,
+    /// Half-width of one track shoe plate — the belt band the links span.
+    pub link_half_width: f32,
+    /// Authored links per side (the documented shoe count), or `None` to derive from the loop
+    /// length at the standard shoe pitch.
+    pub link_count: Option<usize>,
+    /// Top-run droop between supports: a rollered run stays taut (~0.012), a run resting on
+    /// the road wheels sags visibly (~0.05).
+    pub top_sag_m: f32,
+    /// Spoke count of the road-wheel face (12 for the IS family's cast wheels, 6 typical).
+    pub wheel_spokes: usize,
 }
 
 /// Deserialize `Option<Vec<f32>>` into the `Copy`-preserving `Option<&'static [f32]>` by

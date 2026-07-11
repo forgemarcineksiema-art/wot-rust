@@ -51,6 +51,11 @@ BlueprintFile(
         return_rollers: 3,
         roller_radius: 0.1,
         overlap_inner_dx: 0.0,
+        wheel_half_width: 0.12,
+        link_half_width: 0.24,
+        link_count: None,
+        top_sag_m: 0.035,
+        wheel_spokes: 6,
     ),
     turret: TurretShape(
         form: CastDome,

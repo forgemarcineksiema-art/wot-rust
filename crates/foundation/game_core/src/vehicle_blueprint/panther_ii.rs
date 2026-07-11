@@ -60,6 +60,11 @@ pub(super) fn panther_ii_blueprint() -> VehicleBlueprint {
             return_rollers: 0,
             roller_radius: 0.0,
             overlap_inner_dx: 0.20,
+            wheel_half_width: 0.09,
+            link_half_width: 0.26,
+            link_count: None,
+            top_sag_m: 0.035,
+            wheel_spokes: 6,
         },
         turret: TurretShape {
             // The Schmalturm: deliberately NARROW — a small 20° face behind the cone mantlet,

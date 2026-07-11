@@ -39,7 +39,7 @@ pub use quality::{
     CLOSED_SMOOTH_MESH, MeshQualityError, MeshQualityReport, MeshQualitySpec, OPEN_OR_CLOSED_MESH,
     TopologyExpectation,
 };
-pub use recipes::bake_vehicle;
+pub use recipes::{bake_vehicle, bake_vehicle_from_blueprint};
 pub use running_gear::{GearPart, GearPlacement, RunningGearKinematics};
 pub use running_gear_arms::swing_arm_unit_mesh;
 pub use running_gear_end_wheels::{end_wheel_unit_mesh, idler_unit_mesh, sprocket_unit_mesh};

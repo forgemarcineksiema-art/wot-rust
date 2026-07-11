@@ -72,6 +72,11 @@ pub(super) fn centurion_blueprint() -> VehicleBlueprint {
             return_rollers: 3,
             roller_radius: 0.10,
             overlap_inner_dx: 0.0,
+            wheel_half_width: 0.12,
+            link_half_width: 0.24,
+            link_count: None,
+            top_sag_m: 0.035,
+            wheel_spokes: 6,
         },
         turret: TurretShape {
             // The Mk 3 casting: a rounded dome on the 74-inch race, its bustle closed by the

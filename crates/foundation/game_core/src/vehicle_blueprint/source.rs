@@ -82,6 +82,9 @@ pub(super) fn blueprint_ron(kind: VehicleKind) -> Option<&'static str> {
 /// live-override path, and the tests; panics are reserved for the embedded files (a broken
 /// embedded blueprint is a build defect, caught by `all_blueprints_pass_lint`).
 pub fn parse_blueprint(kind: VehicleKind, ron_text: &str) -> Result<VehicleBlueprint, String> {
+    // Windows editors love to prepend a UTF-8 BOM; a live-override author should never
+    // lose a loop iteration to an invisible byte.
+    let ron_text = ron_text.trim_start_matches('\u{feff}');
     let file: BlueprintFile = ron::from_str(ron_text)
         .map_err(|error| format!("{}: blueprint RON does not parse: {error}", kind.slug()))?;
     if file.kind != kind {

@@ -19,8 +19,7 @@ use crate::{
 };
 
 pub(crate) fn is3(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVehicle {
-    let bp =
-        game_core::VehicleBlueprint::for_vehicle(VehicleKind::IS3).expect("IS-3 has a blueprint");
+    let bp = super::active_blueprint(VehicleKind::IS3).expect("IS-3 has a blueprint");
     let hull = shade_hull(
         is3_pike_hull(&bp.hull)
             .append(&blueprint_running_gear(&bp.track))
