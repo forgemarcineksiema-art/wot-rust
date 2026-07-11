@@ -1,7 +1,7 @@
 //! The running-gear shape data, split from `mod.rs` for the file budget: the wrapped belt, road
 //! wheels, idler/sprocket placement, and the return rollers of layouts that carry their top run.
 /// Running-gear shape: the wrapped track belt, road wheels, drive sprocket, and idler.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct TrackShape {
     pub center_x: f32,
     pub belt_half_thickness: f32,
@@ -26,6 +26,11 @@ pub struct TrackShape {
     /// signature wider first/second gap). `None` spreads `wheel_count` wheels evenly between
     /// `wheel_first_z` and `wheel_last_z`. Read through [`TrackShape::wheel_stations`] — the one
     /// source both the physics contact footprint and the rendered running gear place wheels by.
+    ///
+    /// The `&'static` keeps [`TrackShape`] `Copy` for every consumer; the RON loader
+    /// deserializes an owned list and `Box::leak`s it — bounded to one small slice per vehicle
+    /// kind per process, parsed once behind a `OnceLock` (see `source.rs`).
+    #[serde(deserialize_with = "leak_wheel_stations")]
     pub wheel_stations: Option<&'static [f32]>,
     /// Return rollers carrying the top run (`0` for layouts whose top run rests on the road
     /// wheels, like the T-54 family). The IS family runs three small rollers per side.
@@ -37,6 +42,17 @@ pub struct TrackShape {
     /// Tiger's interleaved double row, a small one as the Tiger II/Panther overlapped stagger.
     /// Presentation only — the contact footprint and belt stay on the shared centreline.
     pub overlap_inner_dx: f32,
+}
+
+/// Deserialize `Option<Vec<f32>>` into the `Copy`-preserving `Option<&'static [f32]>` by
+/// leaking the vector. Bounded: at most one small slice per vehicle kind, once per process
+/// (the loader caches the parsed blueprint in a `OnceLock`).
+fn leak_wheel_stations<'de, D>(deserializer: D) -> Result<Option<&'static [f32]>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let stations: Option<Vec<f32>> = serde::Deserialize::deserialize(deserializer)?;
+    Ok(stations.map(|list| &*list.leak()))
 }
 
 impl TrackShape {

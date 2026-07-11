@@ -69,4 +69,18 @@ pub enum Command {
         #[arg(long)]
         out: PathBuf,
     },
+    /// Re-serialize every vehicle blueprint to its RON source file — the one-off migration
+    /// exporter, kept as a permanent normalizer (a hand-edited file can be re-canonicalized).
+    ExportBlueprints {
+        #[arg(long)]
+        out: PathBuf,
+    },
+    /// Bake one vehicle and write the AI review bundle: a multi-view contact sheet, per-view
+    /// tiles, and a report.md with ratios, budgets, mesh quality and blueprint lint.
+    Studio {
+        #[arg(long)]
+        vehicle: String,
+        #[arg(long)]
+        out: Option<PathBuf>,
+    },
 }

@@ -8,7 +8,9 @@ mod mesh_payload;
 mod review;
 mod review_images;
 mod review_raster;
+mod review_text;
 mod slug;
+mod studio;
 mod surface_bake;
 mod texture_maps;
 
@@ -17,5 +19,6 @@ pub use bake_profile::BakeProfile;
 pub use manifest::{ArtifactError, ForgeArtifactManifest, ForgeSubmeshManifest};
 pub use review::{ReviewCamera, ReviewCameraSet, ReviewCameraSpec};
 pub use slug::forge_vehicle_slug;
+pub use studio::{StudioBundle, bake_studio_bundle};
 pub use surface_bake::SurfaceBakeManifest;
 pub use texture_maps::{ForgeTextureManifest, MaterialFamily};

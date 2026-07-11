@@ -65,7 +65,43 @@ pub fn dispatch(command: Command) -> anyhow::Result<()> {
         Command::CompileTank { vehicle, gun, profile, out } => {
             compile_tank_command(&vehicle, gun.as_deref(), profile.parse()?, out)?
         }
+        Command::ExportBlueprints { out } => export_blueprints(out)?,
+        Command::Studio { vehicle, out } => studio_command(&vehicle, out)?,
     }
+    Ok(())
+}
+
+/// Serialize every blueprint-backed vehicle to `<out>/<slug>.blueprint.ron` — the migration
+/// exporter, kept as a permanent normalizer for hand-edited files. f32 serializes at
+/// shortest-round-trip precision, so parse-back is bit-identical to the source values.
+fn export_blueprints(out: PathBuf) -> anyhow::Result<()> {
+    std::fs::create_dir_all(&out)
+        .with_context(|| format!("failed to create output directory {}", out.display()))?;
+    let pretty = ron::ser::PrettyConfig::new().struct_names(true).depth_limit(4);
+    for kind in VehicleKind::ALL {
+        let Some(blueprint) = game_core::VehicleBlueprint::for_vehicle(kind) else {
+            continue;
+        };
+        let file = game_core::BlueprintFile::from_blueprint(&blueprint);
+        let text = ron::ser::to_string_pretty(&file, pretty.clone())
+            .with_context(|| format!("failed to serialize {kind:?}"))?;
+        let path = out.join(format!("{}.blueprint.ron", kind.slug()));
+        std::fs::write(&path, text.as_bytes())
+            .with_context(|| format!("failed to write {}", path.display()))?;
+        println!("wrote {}", path.display());
+    }
+    Ok(())
+}
+
+/// The AI review loop: bake one vehicle, write the studio bundle (contact sheet, per-view
+/// tiles, report.md) under `target/studio/<slug>` unless `--out` overrides it.
+fn studio_command(vehicle: &str, out: Option<PathBuf>) -> anyhow::Result<()> {
+    let kind = parse_vehicle_kind(vehicle)?;
+    let bundle = vehicle_forge::bake_studio_bundle(kind)?;
+    let dir = out.unwrap_or_else(|| PathBuf::from("target/studio").join(kind.slug()));
+    bundle.write_to_dir(&dir)?;
+    println!("wrote studio bundle to {}", dir.display());
+    println!("  read {}\\report.md first, then contact_sheet.png", dir.display());
     Ok(())
 }
 

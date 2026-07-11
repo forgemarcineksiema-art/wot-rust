@@ -15,18 +15,29 @@ use glam::Vec3;
 
 use crate::{HitboxProfile, MountFrame, MountFrames, VehicleKind};
 
+// The seven per-vehicle Rust constructors are TEST-ONLY golden fixtures now: the runtime
+// source is the RON file per vehicle (see `source.rs` / `data.rs`).
+#[cfg(test)]
 mod centurion;
 mod data;
 mod fittings;
 mod hybrid;
+#[cfg(test)]
 mod is3;
+#[cfg(test)]
 mod jagdtiger;
+pub mod lint;
+#[cfg(test)]
 mod panther_ii;
 mod shape_track;
+mod source;
 mod t54_hybrid;
 mod t54_hybrid_turret;
+#[cfg(test)]
 mod t55a;
+#[cfg(test)]
 mod tiger_i;
+#[cfg(test)]
 mod tiger_ii;
 
 pub use fittings::{DetailVisual, FittingsVisual};
@@ -35,9 +46,10 @@ pub use hybrid::{
     TurretLoftVisual, TurretVisual,
 };
 pub use shape_track::TrackShape;
+pub use source::{BlueprintFile, parse_blueprint};
 
 /// How the turret/superstructure reads, for both the mesh recipe and the fit tests.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum TurretForm {
     /// A rounded cast dome (Soviet mediums).
     CastDome,
@@ -50,7 +62,7 @@ pub enum TurretForm {
 /// A thin side skirt hung outside the track band (Schürzen, the Centurion's full-length
 /// bazooka plates): a spaced standoff layer, honest in both directions — it visually hides the
 /// upper run AND the armor volumes bake it as a screen a HEAT jet detonates against early.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct SkirtShape {
     /// Ground-relative top/bottom of the plate (typically sponson down over the wheel tops).
     pub top_y: f32,
@@ -65,7 +77,7 @@ pub struct SkirtShape {
 }
 
 /// Hull body shape (visual plate extents) plus the gameplay collision box.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct HullShape {
     pub half_len: f32,
     pub half_width: f32,
@@ -98,7 +110,7 @@ pub struct HullShape {
 
 /// Turret/casemate placement and plate geometry, plus mantlet-fit parameters shared by the turret
 /// socket and the gun mantlet so they always meet.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct TurretShape {
     pub form: TurretForm,
     pub ring_y: f32,
@@ -122,7 +134,7 @@ pub struct TurretShape {
 }
 
 /// Gun placement and barrel shape.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct GunShape {
     pub trunnion_y: f32,
     pub trunnion_z: f32,
@@ -135,7 +147,7 @@ pub struct GunShape {
 
 /// Per-facing armour geometry: plate slope (degrees from vertical) and weakspot multiplier. The
 /// thickness is supplied by the installed module; this is the shape contribution.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ArmorShape {
     pub hull_front: (f32, f32),
     pub hull_side: (f32, f32),

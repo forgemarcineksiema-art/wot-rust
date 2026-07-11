@@ -1,6 +1,7 @@
 //! Deterministic procedural vehicle geometry.
 
 mod bounds;
+mod budgets;
 mod builder;
 mod cavity;
 mod contact;
@@ -21,6 +22,7 @@ mod vehicle;
 mod weld;
 
 pub use bounds::MeshBounds;
+pub use budgets::{GOLDEN_BAKE_HASHES, VEHICLE_BUDGETS, VehicleBudgets, golden_bake_hash};
 pub use builder::MeshBuilder;
 pub use cavity::CavityBand;
 pub use contact::{DecalPatch, MeshContactIndex, SurfaceContact};

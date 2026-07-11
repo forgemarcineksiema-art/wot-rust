@@ -1,35 +1,18 @@
-﻿//! Per-vehicle blueprint data. Migrated vehicles return `Some`; the rest return `None` and keep the
-//! legacy hand-authored hitbox/mounts/armour + recipe until they are migrated.
+//! Per-vehicle blueprint data. The SOURCE is the RON file per vehicle
+//! (`crates/foundation/game_core/blueprints/<slug>.blueprint.ron`, loaded by `source.rs`);
+//! migrated vehicles return `Some`, the rest return `None` and keep the legacy hand-authored
+//! hitbox/mounts/armour + recipe until they are migrated.
 //!
-//! The T-54 values reproduce the current gameplay hitbox, mount frames, and armour facets exactly,
-//! so migrating it changes only the *visual* mesh (now built from these same numbers) — gameplay is
-//! byte-for-byte unchanged.
+//! The old Rust constructors survive below as `#[cfg(test)]` GOLDEN FIXTURES: the transitional
+//! `parsed_ron_equals_rust_fixture` test proves every parsed file is field-for-field identical
+//! to the literals it was exported from, and the bake-hash goldens in `vehicle_geometry` are
+//! the outer judge. Once the fleet has lived on RON for a while, the fixtures can be deleted.
 
-use super::centurion::centurion_blueprint;
-use super::is3::is3_blueprint;
-use super::jagdtiger::jagdtiger_blueprint;
-use super::panther_ii::panther_ii_blueprint;
-use super::t54_hybrid::t54_hybrid;
-use super::t55a::t55a_blueprint;
-use super::tiger_i::tiger_i_blueprint;
-use super::tiger_ii::tiger_ii_blueprint;
-use super::{
-    ArmorShape, GunShape, HullShape, TrackShape, TurretForm, TurretShape, VehicleBlueprint,
-};
+use super::{VehicleBlueprint, source};
 use crate::VehicleKind;
 
 pub(super) fn blueprint(kind: VehicleKind) -> Option<VehicleBlueprint> {
-    match kind {
-        VehicleKind::T54_1951 => Some(t54()),
-        VehicleKind::T55A => Some(t55a_blueprint()),
-        VehicleKind::IS3 => Some(is3_blueprint()),
-        VehicleKind::TigerI => Some(tiger_i_blueprint()),
-        VehicleKind::TigerII => Some(tiger_ii_blueprint()),
-        VehicleKind::Jagdtiger => Some(jagdtiger_blueprint()),
-        VehicleKind::PantherII => Some(panther_ii_blueprint()),
-        VehicleKind::Centurion => Some(centurion_blueprint()),
-        _ => None,
-    }
+    source::load_blueprint(kind)
 }
 
 // The T-54 obr. 1951 at its documented 1:1 dimensions (blueprint-verified): hull 6.04 m long,
@@ -37,7 +20,10 @@ pub(super) fn blueprint(kind: VehicleKind) -> Option<VehicleBlueprint> {
 // 580 mm track, a ~2.25 m cast turret seated on the 1.75 m hull roof, and the D-10T reaching
 // z = 5.95 (9.0 m overall length, gun forward). Every consumer reads these numbers, so the visible
 // tank, the hitbox and the armour all describe the same vehicle the references show.
+#[cfg(test)]
 fn t54() -> VehicleBlueprint {
+    use super::t54_hybrid::t54_hybrid;
+    use super::{ArmorShape, GunShape, HullShape, TrackShape, TurretForm, TurretShape};
     VehicleBlueprint {
         kind: VehicleKind::T54_1951,
         hull: HullShape {
@@ -146,5 +132,40 @@ fn t54() -> VehicleBlueprint {
             turret_rear: (10.0, 1.0),
         },
         hybrid: Some(t54_hybrid()),
+    }
+}
+
+#[cfg(test)]
+mod golden_fixtures {
+    use super::super::centurion::centurion_blueprint;
+    use super::super::is3::is3_blueprint;
+    use super::super::jagdtiger::jagdtiger_blueprint;
+    use super::super::panther_ii::panther_ii_blueprint;
+    use super::super::t55a::t55a_blueprint;
+    use super::super::tiger_i::tiger_i_blueprint;
+    use super::super::tiger_ii::tiger_ii_blueprint;
+    use super::*;
+
+    /// TRANSITIONAL migration lock: every parsed RON blueprint must equal, field for field, the
+    /// Rust literal it was exported from. Together with the golden bake hashes this proves the
+    /// RON flip changed no geometry. Delete the fixtures (and this test) once the fleet has
+    /// lived on RON long enough that the files are the undisputed source.
+    #[test]
+    fn parsed_ron_equals_rust_fixture() {
+        let fixtures: [(VehicleKind, VehicleBlueprint); 8] = [
+            (VehicleKind::T54_1951, super::t54()),
+            (VehicleKind::T55A, t55a_blueprint()),
+            (VehicleKind::IS3, is3_blueprint()),
+            (VehicleKind::TigerI, tiger_i_blueprint()),
+            (VehicleKind::TigerII, tiger_ii_blueprint()),
+            (VehicleKind::Jagdtiger, jagdtiger_blueprint()),
+            (VehicleKind::PantherII, panther_ii_blueprint()),
+            (VehicleKind::Centurion, centurion_blueprint()),
+        ];
+        for (kind, fixture) in fixtures {
+            let parsed =
+                blueprint(kind).unwrap_or_else(|| panic!("{kind:?} must load from its RON source"));
+            assert_eq!(parsed, fixture, "{kind:?}: parsed RON diverges from the Rust fixture");
+        }
     }
 }
