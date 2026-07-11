@@ -40,9 +40,10 @@ pub use track::{
     track_traction_fraction,
 };
 pub use vehicle_blueprint::{
-    ArmorShape, BoxVisual, DetailVisual, FenderVisual, FittingsVisual, GunShape, GunVisual,
-    HullPlatesVisual, HullShape, HullVisual, HybridVisual, LoftStation, SkirtShape, TrackShape,
-    TurretForm, TurretLoftVisual, TurretShape, TurretVisual, VehicleBlueprint,
+    ArmorShape, BlueprintFile, BoxVisual, DetailVisual, FenderVisual, FittingsVisual, GunShape,
+    GunVisual, HullPlatesVisual, HullShape, HullVisual, HybridVisual, LoftStation, SkirtShape,
+    TrackShape, TurretForm, TurretLoftVisual, TurretShape, TurretVisual, VehicleBlueprint, lint,
+    parse_blueprint,
 };
 pub use vehicle_kind::{Era, Nation, VehicleKind};
 pub use vehicles::known_tank_specs;

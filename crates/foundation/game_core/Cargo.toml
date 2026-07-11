@@ -7,6 +7,7 @@ rust-version.workspace = true
 
 [dependencies]
 glam.workspace = true
+ron.workspace = true
 serde.workspace = true
 
 [lints]

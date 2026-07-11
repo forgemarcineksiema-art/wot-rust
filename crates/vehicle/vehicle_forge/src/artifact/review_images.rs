@@ -47,6 +47,21 @@ pub fn bake_review_images(
         .collect()
 }
 
+/// Render one review camera at an arbitrary resolution — the Forge Studio's tile renderer.
+/// The artifact path above stays on the fixed 256x160 so artifact bytes do not move.
+pub(super) fn render_camera_sized(
+    vehicle: &BakedVehicle,
+    camera: &ReviewCameraSpec,
+    width: u32,
+    height: u32,
+) -> Vec<u8> {
+    render_camera_at(vehicle, camera, width, height)
+}
+
+pub(super) fn encode_png_sized(width: u32, height: u32, rgba: &[u8]) -> Result<Vec<u8>, io::Error> {
+    encode_review_png(width, height, rgba)
+}
+
 #[derive(Clone, Copy)]
 struct ProjectedTri {
     p: [Vec2; 3],
@@ -61,26 +76,35 @@ struct CameraBasis {
 }
 
 fn render_camera(vehicle: &BakedVehicle, camera: &ReviewCameraSpec) -> Vec<u8> {
+    render_camera_at(vehicle, camera, WIDTH, HEIGHT)
+}
+
+fn render_camera_at(
+    vehicle: &BakedVehicle,
+    camera: &ReviewCameraSpec,
+    width: u32,
+    height: u32,
+) -> Vec<u8> {
     let basis = camera_basis(camera);
     let mut tris = projected_tris(vehicle, &basis);
     tris.sort_by(|a, b| a.depth.total_cmp(&b.depth));
 
     let (min, max) = projected_bounds(&tris);
-    let scale = image_scale(min, max, camera.distance_scale());
+    let scale = image_scale(min, max, camera.distance_scale(), width, height);
     let centre = (min + max) * 0.5;
-    let mut pixels = vec![0; (WIDTH * HEIGHT * 4) as usize];
+    let mut pixels = vec![0; (width * height * 4) as usize];
     for pixel in pixels.chunks_exact_mut(4) {
         pixel.copy_from_slice(&BACKGROUND);
     }
 
     for tri in tris {
         let screen = [
-            to_screen(tri.p[0], centre, scale),
-            to_screen(tri.p[1], centre, scale),
-            to_screen(tri.p[2], centre, scale),
+            to_screen(tri.p[0], centre, scale, width, height),
+            to_screen(tri.p[1], centre, scale, width, height),
+            to_screen(tri.p[2], centre, scale, width, height),
         ];
-        fill_triangle(&mut pixels, WIDTH, HEIGHT, screen, tri.color);
-        draw_triangle_edges(&mut pixels, WIDTH, HEIGHT, screen);
+        fill_triangle(&mut pixels, width, height, screen, tri.color);
+        draw_triangle_edges(&mut pixels, width, height, screen);
     }
     pixels
 }
@@ -133,16 +157,17 @@ fn projected_bounds(tris: &[ProjectedTri]) -> (Vec2, Vec2) {
     (min, max)
 }
 
-fn image_scale(min: Vec2, max: Vec2, distance_scale: f32) -> f32 {
+fn image_scale(min: Vec2, max: Vec2, distance_scale: f32, width: u32, height: u32) -> f32 {
+    // The margins scale with the tile so a studio tile keeps the artifact framing proportions.
     let extent = (max - min).max(Vec2::splat(0.001));
-    let scale_x = (WIDTH as f32 - 28.0) / extent.x;
-    let scale_y = (HEIGHT as f32 - 22.0) / extent.y;
+    let scale_x = (width as f32 - 28.0 * width as f32 / WIDTH as f32) / extent.x;
+    let scale_y = (height as f32 - 22.0 * height as f32 / HEIGHT as f32) / extent.y;
     scale_x.min(scale_y) / distance_scale.max(0.1)
 }
 
-fn to_screen(point: Vec2, centre: Vec2, scale: f32) -> Vec2 {
+fn to_screen(point: Vec2, centre: Vec2, scale: f32, width: u32, height: u32) -> Vec2 {
     let p = (point - centre) * scale;
-    Vec2::new(WIDTH as f32 * 0.5 + p.x, HEIGHT as f32 * 0.5 - p.y)
+    Vec2::new(width as f32 * 0.5 + p.x, height as f32 * 0.5 - p.y)
 }
 
 fn shaded_material(
