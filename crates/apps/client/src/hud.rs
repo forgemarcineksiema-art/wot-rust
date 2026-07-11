@@ -156,6 +156,7 @@ pub(crate) fn build_battle_hud(model: &BattleHudModel, aspect: f32) -> Vec<HudVe
         penetration_hint: None,
         reload_fraction: 1.0,
         hit_confirm: None,
+        converged: false,
         mode: crate::hud::reticle::ReticleMode::ThirdPerson,
     });
     // The scope surround paints first so every live marker (reticle, readouts) stays on top.

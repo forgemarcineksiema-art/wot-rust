@@ -130,6 +130,7 @@ impl ClientApp {
             penetration_hint: pen_hint,
             reload_fraction: 1.0 - (reload_remaining / reload_max.max(0.001)).clamp(0.0, 1.0),
             hit_confirm: self.hit_indicator.recent_confirm(),
+            converged: self.player_aim_converged(),
             mode: if self.camera_controller.mode() == crate::BattleCameraMode::Sniper {
                 crate::hud::reticle::ReticleMode::Sniper
             } else {
@@ -204,6 +205,15 @@ impl ClientApp {
         // fixed screen size that matches no FOV.
         let half_fov_tan = (vertical_fov_degrees.to_radians() * 0.5).tan().max(1.0e-4);
         dispersion_mrad * 0.001 / half_fov_tan
+    }
+
+    /// Whether the live dispersion has settled onto the gun's minimum (within a small margin):
+    /// the ring brightens as the ready-to-fire signal. Uses the same source as the drawn ring.
+    fn player_aim_converged(&self) -> bool {
+        let settled = self.player_spec().gun.dispersion_mrad;
+        let current =
+            if self.predictor.is_seeded() { self.predictor.aim_dispersion_mrad() } else { settled };
+        current <= settled * 1.12
     }
 }
 

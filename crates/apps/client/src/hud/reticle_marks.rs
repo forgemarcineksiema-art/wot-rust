@@ -7,28 +7,51 @@ use renderer_api::HudVertex;
 use super::primitives::{push_arc, push_quad, push_segment};
 use super::reticle_overlay::{
     RETICLE_BLOCKED, RETICLE_GUN, RETICLE_IMPACT, RETICLE_RELOAD, RETICLE_RING,
+    RETICLE_RING_CONVERGED, RETICLE_RING_OUTLINE,
 };
 
-/// Fixed screen radius of the reload arc: inside any realistic dispersion ring, outside the
-/// marker, independent of zoom so the eye always finds it in the same place.
+/// Floor for the reload arc / flash radius: even a fully settled hairline ring leaves the arc
+/// readable (it hugs the ring whenever the ring is larger).
+const RELOAD_ARC_MIN_RADIUS: f32 = 0.040;
+/// Kept for the ready/denied flashes' base scale.
 const RELOAD_ARC_RADIUS: f32 = 0.055;
 
-/// Below this screen-space gap a secondary marker (impact X, gun circle) sits inside the
-/// crosshair; above it the separation is worth its own glyph.
-const IMPACT_SEPARATION_CLIP: f32 = 0.022;
+/// The secondary-marker fade band (impact X, gun circle): fully hidden below the low edge,
+/// fully drawn above the high one. A BAND, not a threshold — the old single 0.022 cutoff made
+/// the gun marker flicker on/off every frame while the turret settled across it.
+const SEPARATION_FADE_LOW_CLIP: f32 = 0.014;
+const SEPARATION_FADE_HIGH_CLIP: f32 = 0.030;
 
 /// A continuous circle outline: short segments between consecutive points, not floating dots.
+/// The ring is HONEST now: no fat minimum clamp — the old 0.025 floor sat a third-person
+/// circle permanently on the clamp, ~40% larger than the real dispersion and dead to aiming.
+/// A hairline floor only guards degeneracy; the visible size IS the server's dispersion, so
+/// watching the circle shrink to its settled hairline is the convergence signal the sight
+/// never had. A dark underlay ring keeps it readable on bright straw and dark shade alike.
 pub(super) fn push_dispersion_ring(
     vertices: &mut Vec<HudVertex>,
     center: [f32; 2],
     radius: f32,
     aspect: f32,
+    converged: bool,
 ) {
     if radius <= 0.0 {
         return;
     }
-    let radius = radius.clamp(0.025, 0.25);
-    push_arc(vertices, center, radius, 0.0, std::f32::consts::TAU, 40, aspect, RETICLE_RING);
+    let radius = radius.clamp(0.008, 0.35);
+    let color = if converged { RETICLE_RING_CONVERGED } else { RETICLE_RING };
+    // Underlay first: a slightly offset dark twin on each side reads as an outline.
+    push_arc(
+        vertices,
+        center,
+        radius + 0.0018,
+        0.0,
+        std::f32::consts::TAU,
+        40,
+        aspect,
+        RETICLE_RING_OUTLINE,
+    );
+    push_arc(vertices, center, radius, 0.0, std::f32::consts::TAU, 40, aspect, color);
 }
 
 /// The remaining reload as an arc that DRAINS clockwise from the top: full circle right after
@@ -37,6 +60,7 @@ pub(super) fn push_reload_arc(
     vertices: &mut Vec<HudVertex>,
     center: [f32; 2],
     fraction: f32,
+    ring_radius: f32,
     aspect: f32,
 ) {
     let remaining = (1.0 - fraction).clamp(0.0, 1.0);
@@ -46,7 +70,10 @@ pub(super) fn push_reload_arc(
     let sweep = remaining * std::f32::consts::TAU;
     let start = std::f32::consts::FRAC_PI_2 - sweep; // ends at 12 o'clock, drains clockwise
     let segments = (remaining * 32.0).ceil().max(2.0) as u32;
-    push_arc(vertices, center, RELOAD_ARC_RADIUS, start, sweep, segments, aspect, RETICLE_RELOAD);
+    // The arc RIDES the dispersion ring (just outside it): one visual centre for one gun,
+    // instead of the old fixed-radius arc fighting the live ring for the eye.
+    let radius = (ring_radius + 0.008).max(RELOAD_ARC_MIN_RADIUS);
+    push_arc(vertices, center, radius, start, sweep, segments, aspect, RETICLE_RELOAD);
 }
 
 /// Seconds the gun-ready flash lives at the reticle.
@@ -130,8 +157,9 @@ pub(super) fn push_blocked_marker(vertices: &mut Vec<HudVertex>, center: [f32; 2
     }
 }
 
-/// Alpha of a secondary marker by its separation from the aim: 0 at the merge threshold,
-/// full at twice the threshold — a fade, not a pop.
+/// Alpha of a secondary marker by its separation from the aim: hidden below the fade band,
+/// full above it. A BAND (0.014..0.030), not the old single 0.022 threshold whose zero-width
+/// onset made the gun marker flicker on/off every frame while the turret settled across it.
 pub(super) fn impact_separation_alpha(
     aim_clip: [f32; 2],
     marker_clip: [f32; 2],
@@ -140,7 +168,9 @@ pub(super) fn impact_separation_alpha(
     let dx = (marker_clip[0] - aim_clip[0]) * aspect;
     let dy = marker_clip[1] - aim_clip[1];
     let separation = (dx * dx + dy * dy).sqrt();
-    ((separation - IMPACT_SEPARATION_CLIP) / IMPACT_SEPARATION_CLIP).clamp(0.0, 1.0)
+    ((separation - SEPARATION_FADE_LOW_CLIP)
+        / (SEPARATION_FADE_HIGH_CLIP - SEPARATION_FADE_LOW_CLIP))
+        .clamp(0.0, 1.0)
 }
 
 /// A small amber "X" marking where the shell actually lands.

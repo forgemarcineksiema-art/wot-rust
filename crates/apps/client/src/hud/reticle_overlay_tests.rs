@@ -158,8 +158,9 @@ fn the_sniper_impact_x_merges_into_the_crosshair_instead_of_stacking() {
         "an on-crosshair impact must not clutter the center with a second marker"
     );
 
-    // And just past the threshold it FADES in at partial alpha instead of popping.
-    let near = hud_with(sniper(reticle_with_impact([0.0, 0.0], Some([0.0, 0.030]))));
+    // And inside the fade band it draws at partial alpha instead of popping (the band runs
+    // 0.014..0.030 — a zero-width threshold used to flicker as the barrel settled across it).
+    let near = hud_with(sniper(reticle_with_impact([0.0, 0.0], Some([0.0, 0.022]))));
     let dimmed: Vec<_> = near
         .iter()
         .filter(|v| {
@@ -226,5 +227,51 @@ fn pen_numbers_print_only_in_sniper_mode() {
     assert!(
         sniper_hud.len() > third_person.len() + 30,
         "sniper adds the pen/armor mm readout that third person must not print"
+    );
+}
+
+#[test]
+fn the_dispersion_ring_is_honest_brightens_when_converged_and_carries_its_arc() {
+    use super::reticle_overlay::{RETICLE_RELOAD, RETICLE_RING, RETICLE_RING_CONVERGED};
+    let dist = |v: &renderer_api::HudVertex, c: [f32; 2], aspect: f32| {
+        let dx = (v.position[0] - c[0]) * aspect;
+        let dy = v.position[1] - c[1];
+        (dx * dx + dy * dy).sqrt()
+    };
+    let aspect = 16.0 / 9.0;
+
+    // HONEST: a settled 0.012-clip dispersion draws at ~0.012 — the old 0.025 floor forced a
+    // permanently oversized, aim-dead circle in third person.
+    let small =
+        hud_with(HudReticle { aim_radius_clip: 0.012, ..reticle_with_impact([0.0, 0.0], None) });
+    let ring: Vec<_> = small.iter().filter(|v| v.color == RETICLE_RING).collect();
+    assert!(!ring.is_empty(), "the ring draws");
+    assert!(
+        ring.iter().all(|v| dist(v, [0.0, 0.0], aspect) < 0.021),
+        "a settled ring draws at its true (small) radius, not the old 0.025 clamped floor"
+    );
+
+    // CONVERGED: the settled gun brightens the ring — the ready-to-fire signal.
+    let converged = hud_with(HudReticle {
+        aim_radius_clip: 0.012,
+        converged: true,
+        ..reticle_with_impact([0.0, 0.0], None)
+    });
+    assert!(
+        converged.iter().any(|v| v.color == RETICLE_RING_CONVERGED),
+        "a converged gun draws the bright ring"
+    );
+
+    // ONE CENTRE: the reload arc rides just outside the live ring instead of a fixed radius.
+    let loading = hud_with(HudReticle {
+        aim_radius_clip: 0.20,
+        reload_fraction: 0.5,
+        ..reticle_with_impact([0.0, 0.0], None)
+    });
+    let arc: Vec<_> = loading.iter().filter(|v| v.color == RETICLE_RELOAD).collect();
+    assert!(!arc.is_empty(), "the reload arc draws while loading");
+    assert!(
+        arc.iter().all(|v| dist(v, [0.0, 0.0], aspect) > 0.19),
+        "the reload arc rides the bloomed ring, not a fixed small circle"
     );
 }
