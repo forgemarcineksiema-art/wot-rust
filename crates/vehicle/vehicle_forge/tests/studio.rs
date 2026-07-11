@@ -50,3 +50,40 @@ fn the_report_quotes_every_gate_the_fleet_is_held_to() {
     assert!(!bundle.views().is_empty());
     assert!(bundle.views().iter().all(|view| !view.png.is_empty()));
 }
+
+/// Program C's un-T-54'd compiler: a NON-benchmark vehicle compiles with a swapped gun module,
+/// and the module genuinely reshapes the geometry — the Jagdtiger's alternate 8.8 cm reaches a
+/// different muzzle than the stock 12.8 cm, in the baked mesh and the mount frames alike.
+#[test]
+fn a_swapped_gun_module_reshapes_a_non_t54_vehicle() {
+    use vehicle_forge::{TankCompileRequest, compile_tank};
+
+    let kind = game_core::VehicleKind::Jagdtiger;
+    let guns = kind.gun_options();
+    assert!(guns.len() >= 2, "the Jagdtiger fields two guns");
+
+    let compiled: Vec<_> = guns
+        .into_iter()
+        .map(|gun| {
+            let mut modules = kind.default_loadout();
+            modules.gun = gun;
+            compile_tank(TankCompileRequest {
+                vehicle: kind,
+                modules,
+                profile: vehicle_forge::BakeProfile::Lod0,
+            })
+            .expect("non-T-54 compiles")
+        })
+        .collect();
+
+    let stock_muzzle = compiled[0].mounts.muzzle.translation.z;
+    let alt_muzzle = compiled[1].mounts.muzzle.translation.z;
+    assert!(
+        (stock_muzzle - alt_muzzle).abs() > 0.2,
+        "the swapped gun must move the muzzle: stock {stock_muzzle:.2} vs alt {alt_muzzle:.2}"
+    );
+    assert_ne!(
+        compiled[0].source_hash, compiled[1].source_hash,
+        "a different gun is a different baked silhouette"
+    );
+}

@@ -56,6 +56,7 @@ pub fn bake_vehicle_from_blueprint(
 }
 
 mod armament;
+mod blueprint_cavity;
 mod centurion;
 mod chassis;
 mod chassis_blueprint;
@@ -129,12 +130,28 @@ pub(crate) fn assemble(
     gun: GeometryMesh,
     mounts: MountFrames,
 ) -> BakedVehicle {
+    // Program C: every blueprint vehicle bakes the generic contact cavities (ring seam,
+    // mantlet seat, gear recess, deck shadow, weld line) the T-54's bespoke bake pioneered —
+    // the fleet's ambient look stops being flat the moment a blueprint exists.
+    let (hull_bands, turret_bands, gun_bands) = match active_blueprint(kind) {
+        Some(blueprint) => blueprint_cavity::blueprint_cavity_bands(&blueprint),
+        None => (Vec::new(), Vec::new(), Vec::new()),
+    };
     BakedVehicle::new(
         kind,
         vec![
-            Submesh { kind: SubmeshKind::Hull, mesh: hull.weld_and_smooth() },
-            Submesh { kind: SubmeshKind::Turret, mesh: turret.weld_and_smooth() },
-            Submesh { kind: SubmeshKind::Gun, mesh: gun.weld_and_smooth() },
+            Submesh {
+                kind: SubmeshKind::Hull,
+                mesh: hull.weld_and_smooth().with_contact_cavity(&hull_bands),
+            },
+            Submesh {
+                kind: SubmeshKind::Turret,
+                mesh: turret.weld_and_smooth().with_contact_cavity(&turret_bands),
+            },
+            Submesh {
+                kind: SubmeshKind::Gun,
+                mesh: gun.weld_and_smooth().with_contact_cavity(&gun_bands),
+            },
         ],
         mounts,
     )
