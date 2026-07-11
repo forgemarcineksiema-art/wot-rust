@@ -92,11 +92,12 @@ pub enum VehicleKind {
     PantherII,
     IS3,
     Centurion,
+    T34_85,
 }
 
 impl VehicleKind {
     /// Every known vehicle, in declaration (wire) order.
-    pub const ALL: [VehicleKind; 9] = [
+    pub const ALL: [VehicleKind; 10] = [
         VehicleKind::PrototypeMedium,
         VehicleKind::T54_1951,
         VehicleKind::T55A,
@@ -106,11 +107,12 @@ impl VehicleKind {
         VehicleKind::PantherII,
         VehicleKind::IS3,
         VehicleKind::Centurion,
+        VehicleKind::T34_85,
     ];
 
     /// Player-facing production roster. Legacy/test-only vehicles remain in [`Self::ALL`] for
     /// stable wire identity, but garage and review surfaces should use this list.
-    pub const PLAYABLE: [VehicleKind; 7] = [
+    pub const PLAYABLE: [VehicleKind; 8] = [
         VehicleKind::T54_1951,
         VehicleKind::TigerI,
         VehicleKind::TigerII,
@@ -118,6 +120,7 @@ impl VehicleKind {
         VehicleKind::PantherII,
         VehicleKind::IS3,
         VehicleKind::Centurion,
+        VehicleKind::T34_85,
     ];
 
     /// Asset slug stem; matches `assets/vehicles/<slug>.vehicle.json` for the six vehicles
@@ -133,6 +136,7 @@ impl VehicleKind {
             VehicleKind::PantherII => "panther_ii",
             VehicleKind::IS3 => "is3",
             VehicleKind::Centurion => "centurion_mk3",
+            VehicleKind::T34_85 => "t34_85",
         }
     }
 
@@ -155,6 +159,7 @@ impl VehicleKind {
             VehicleKind::PantherII => "Panzerkampfwagen V Panther II",
             VehicleKind::IS3 => "IS-3",
             VehicleKind::Centurion => "Centurion Mk 3",
+            VehicleKind::T34_85 => "T-34-85",
         }
     }
 
@@ -171,7 +176,8 @@ impl VehicleKind {
     /// prototype medium is a T-55-shaped stand-in, so it sits with the Cold War park.
     pub fn era(self) -> Era {
         match self {
-            VehicleKind::TigerI
+            VehicleKind::T34_85
+            | VehicleKind::TigerI
             | VehicleKind::TigerII
             | VehicleKind::Jagdtiger
             | VehicleKind::PantherII => Era::LateWar,
@@ -187,6 +193,7 @@ impl VehicleKind {
     pub fn nation(self) -> Nation {
         match self {
             VehicleKind::PrototypeMedium
+            | VehicleKind::T34_85
             | VehicleKind::T54_1951
             | VehicleKind::T55A
             | VehicleKind::IS3 => Nation::Ussr,
@@ -209,7 +216,7 @@ mod tests {
 
     #[test]
     fn all_is_complete_and_unique() {
-        assert_eq!(VehicleKind::ALL.len(), 9);
+        assert_eq!(VehicleKind::ALL.len(), 10);
         for (index, kind) in VehicleKind::ALL.iter().enumerate() {
             for other in &VehicleKind::ALL[index + 1..] {
                 assert_ne!(kind, other, "VehicleKind::ALL must not contain duplicates");
@@ -229,6 +236,7 @@ mod tests {
                 VehicleKind::PantherII,
                 VehicleKind::IS3,
                 VehicleKind::Centurion,
+                VehicleKind::T34_85,
             ]
         );
         assert!(!VehicleKind::PLAYABLE.contains(&VehicleKind::PrototypeMedium));

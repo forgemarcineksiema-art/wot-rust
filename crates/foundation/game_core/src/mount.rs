@@ -49,7 +49,8 @@ impl MountFrames {
                 muzzle: MountFrame::new(Vec3::new(0.0, 1.78, 5.30)),
             },
             // Blueprint-migrated: mounts come from `blueprint.mount_frames()` above, always.
-            VehicleKind::IS3
+            VehicleKind::T34_85
+            | VehicleKind::IS3
             | VehicleKind::TigerI
             | VehicleKind::TigerII
             | VehicleKind::Jagdtiger

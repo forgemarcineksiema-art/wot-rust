@@ -11,6 +11,7 @@ mod packs;
 mod packs_british;
 mod packs_german;
 mod packs_is3;
+mod packs_t34;
 mod part_data;
 mod part_graph;
 mod part_manifest;
@@ -36,6 +37,7 @@ pub use packs_german::{
     tiger_ii_reference_pack,
 };
 pub use packs_is3::is3_reference_pack;
+pub use packs_t34::t34_85_reference_pack;
 pub use part_graph::{
     ForgePart, ForgePartGraph, ForgePartKind, GameplayRole, LodPolicy, PartAnchor, PartGroup,
 };

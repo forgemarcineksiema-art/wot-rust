@@ -33,6 +33,8 @@ impl VehicleKind {
             VehicleKind::PantherII => 79,
             VehicleKind::IS3 => 28,
             VehicleKind::Centurion => 65,
+            // The documented 55-60 round stowage (floor bins + sponson racks).
+            VehicleKind::T34_85 => 56,
         }
     }
 }

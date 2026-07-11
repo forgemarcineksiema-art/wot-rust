@@ -8,8 +8,8 @@ use super::catalog_misc::{
     jagdtiger_transport_track, panther_loadout, panther_transport_track, prototype_loadout,
 };
 use super::catalog_soviet::{
-    gun_d10t, gun_d10t2s, gun_d25t, is3_engine_v54k, is3_loadout, t54_engine_v55, t54_loadout,
-    t55_loadout,
+    gun_d10t, gun_d10t2s, gun_d25t, is3_engine_v54k, is3_loadout, t34_85_loadout, t54_engine_v55,
+    t54_loadout, t55_loadout,
 };
 use super::{
     EngineModule, GunModule, HullChassis, RadioModule, SuspensionModule, TurretModule,
@@ -31,6 +31,7 @@ impl VehicleKind {
             VehicleKind::PantherII => panther_loadout(),
             VehicleKind::IS3 => is3_loadout(),
             VehicleKind::Centurion => centurion_loadout(),
+            VehicleKind::T34_85 => t34_85_loadout(),
         }
     }
 
@@ -59,6 +60,8 @@ impl VehicleKind {
                 let stock = self.default_loadout().gun;
                 vec![stock, gun_20pdr_type_b()]
             }
+            // One service gun: the ZiS-S-53 was THE T-34-85; the earlier D-5T is a museum piece.
+            VehicleKind::T34_85 => vec![self.default_loadout().gun],
         }
     }
 

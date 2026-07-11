@@ -177,6 +177,7 @@ fn parse_vehicle_kind(slug: &str) -> anyhow::Result<VehicleKind> {
         "t55a" => Ok(VehicleKind::T55A),
         "is3" | "is-3" => Ok(VehicleKind::IS3),
         "centurion-mk3" | "centurion_mk3" => Ok(VehicleKind::Centurion),
+        "t34-85" | "t34_85" => Ok(VehicleKind::T34_85),
         other => anyhow::bail!("unknown vehicle profile: {other}"),
     }
 }

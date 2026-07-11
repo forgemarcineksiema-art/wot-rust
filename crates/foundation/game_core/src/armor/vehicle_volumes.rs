@@ -36,6 +36,7 @@ pub fn vehicle_armor_volumes(kind: VehicleKind) -> Option<&'static VehicleArmorV
     static JAGDTIGER: OnceLock<Option<VehicleArmorVolumes>> = OnceLock::new();
     static PANTHER_II: OnceLock<Option<VehicleArmorVolumes>> = OnceLock::new();
     static CENTURION: OnceLock<Option<VehicleArmorVolumes>> = OnceLock::new();
+    static T34_85: OnceLock<Option<VehicleArmorVolumes>> = OnceLock::new();
     let cell = match kind {
         VehicleKind::T54_1951 => &T54,
         VehicleKind::T55A => &T55A,
@@ -45,6 +46,7 @@ pub fn vehicle_armor_volumes(kind: VehicleKind) -> Option<&'static VehicleArmorV
         VehicleKind::Jagdtiger => &JAGDTIGER,
         VehicleKind::PantherII => &PANTHER_II,
         VehicleKind::Centurion => &CENTURION,
+        VehicleKind::T34_85 => &T34_85,
         _ => return None,
     };
     cell.get_or_init(|| VehicleBlueprint::for_vehicle(kind).map(bake_vehicle_armor)).as_ref()

@@ -92,7 +92,8 @@ impl HitboxProfile {
                 Self::new(1.75, 1.19, 3.20, 1.14, 0.66).with_turret_plan(0.95, 0.97, 0.07)
             }
             // Blueprint-migrated: the hitbox comes from `blueprint.hitbox()` above, always.
-            VehicleKind::IS3
+            VehicleKind::T34_85
+            | VehicleKind::IS3
             | VehicleKind::TigerI
             | VehicleKind::TigerII
             | VehicleKind::Jagdtiger
