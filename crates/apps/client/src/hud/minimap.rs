@@ -9,7 +9,7 @@
 
 use renderer_api::HudVertex;
 
-use super::primitives::{push_panel, push_quad};
+use super::primitives::{push_panel, push_quad, push_segment};
 use super::theme;
 
 /// Screen anchor (clip space) and half-height of the square. The x half-extent is aspect-corrected
@@ -17,11 +17,16 @@ use super::theme;
 const CENTER: [f32; 2] = [0.80, -0.58];
 const HALF_H: f32 = 0.185;
 /// Height-grid resolution; `RES * RES` shaded cells back the map.
-pub const RELIEF_RES: usize = 20;
+pub const RELIEF_RES: usize = 36;
 
-const RELIEF_LO: [f32; 3] = [0.10, 0.115, 0.105];
-const RELIEF_HI: [f32; 3] = [0.33, 0.36, 0.31];
-const COVER: [f32; 4] = [0.20, 0.215, 0.155, 0.75];
+// Terrain-toned relief ramp: valley olive up to pale high-ground khaki, contrasty enough
+// that ridgelines and lowlands read at a glance instead of dissolving into one gray.
+const RELIEF_LO: [f32; 3] = [0.085, 0.125, 0.075];
+const RELIEF_HI: [f32; 3] = [0.42, 0.44, 0.30];
+const WATER: [f32; 4] = [0.13, 0.22, 0.30, 0.92];
+const ROAD: [f32; 4] = [0.45, 0.39, 0.28, 0.85];
+const ROAD_THICKNESS: f32 = 0.0035;
+const COVER: [f32; 4] = [0.24, 0.26, 0.17, 0.85];
 const ALLY: [f32; 4] = [0.30, 0.72, 0.34, 0.95];
 const ENEMY: [f32; 4] = [0.87, 0.24, 0.20, 0.96];
 const VIEW_WEDGE: [f32; 4] = [0.95, 0.93, 0.85, 0.10];
@@ -43,6 +48,10 @@ pub struct MinimapModel {
     pub extent_m: [f32; 2],
     /// `RELIEF_RES * RELIEF_RES` normalised heights (0..1), row-major with z increasing per row.
     pub relief: Vec<f32>,
+    /// Same grid as `relief`: `true` where standing water covers the cell.
+    pub water: Vec<bool>,
+    /// Road polylines in world XZ metres, drawn as thin worn-earth lines.
+    pub roads: Vec<Vec<[f32; 2]>>,
     pub cover: Vec<MinimapBox>,
     pub player_xz: [f32; 2],
     pub player_heading_rad: f32,
@@ -92,6 +101,7 @@ pub(crate) fn push_minimap(vertices: &mut Vec<HudVertex>, model: &MinimapModel, 
     );
 
     push_relief(vertices, model, aspect);
+    push_roads(vertices, model, aspect);
 
     for cover in &model.cover {
         let lo = model.world_to_clip(
@@ -127,10 +137,28 @@ fn push_relief(vertices: &mut Vec<HudVertex>, model: &MinimapModel, aspect: f32)
     let cell = [hx / RELIEF_RES as f32, HALF_H / RELIEF_RES as f32];
     for iz in 0..RELIEF_RES {
         for ix in 0..RELIEF_RES {
-            let h = model.relief[iz * RELIEF_RES + ix].clamp(0.0, 1.0);
+            let index = iz * RELIEF_RES + ix;
+            let h = model.relief[index].clamp(0.0, 1.0);
             let u = (ix as f32 + 0.5) / RELIEF_RES as f32;
             let v = (iz as f32 + 0.5) / RELIEF_RES as f32;
-            push_quad(vertices, model.uv_to_clip(u, v, aspect), cell, relief_tint(h));
+            let tint = if model.water.get(index).copied().unwrap_or(false) {
+                WATER
+            } else {
+                relief_tint(h)
+            };
+            push_quad(vertices, model.uv_to_clip(u, v, aspect), cell, tint);
+        }
+    }
+}
+
+/// The map's roads as thin worn-earth polylines — the orientation grid a steppe map
+/// otherwise lacks.
+fn push_roads(vertices: &mut Vec<HudVertex>, model: &MinimapModel, aspect: f32) {
+    for road in &model.roads {
+        for pair in road.windows(2) {
+            let a = model.world_to_clip(pair[0], aspect);
+            let b = model.world_to_clip(pair[1], aspect);
+            push_segment(vertices, a, b, ROAD_THICKNESS, ROAD);
         }
     }
 }
@@ -174,6 +202,8 @@ mod tests {
         MinimapModel {
             extent_m: [1000.0, 1000.0],
             relief: vec![0.5; RELIEF_RES * RELIEF_RES],
+            water: vec![false; RELIEF_RES * RELIEF_RES],
+            roads: vec![vec![[0.0, 500.0], [1000.0, 500.0]]],
             cover: vec![MinimapBox { center_xz: [500.0, 500.0], half_xz: [30.0, 12.0] }],
             player_xz: [400.0, 300.0],
             player_heading_rad: 0.3,
@@ -193,6 +223,18 @@ mod tests {
         // never crowd out the rest of the frame.
         let relief_verts = RELIEF_RES * RELIEF_RES * 6;
         assert!(v.len() < relief_verts + 400, "minimap vertex count regressed: {}", v.len());
+    }
+
+    /// The static layers actually read: a water cell abandons the relief ramp for the river
+    /// blue, and a road polyline draws as worn-earth segments.
+    #[test]
+    fn water_cells_and_roads_read_on_the_map() {
+        let mut m = model();
+        m.water[RELIEF_RES + 3] = true;
+        let mut v = Vec::new();
+        push_minimap(&mut v, &m, 16.0 / 9.0);
+        assert!(v.iter().any(|vert| vert.color == WATER), "a water cell tints river-blue");
+        assert!(v.iter().any(|vert| vert.color == ROAD), "roads draw as worn-earth lines");
     }
 
     #[test]

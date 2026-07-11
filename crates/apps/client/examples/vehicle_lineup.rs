@@ -67,8 +67,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let base = battlefield.heightmap.sample_height(center_x, center_z).unwrap_or(0.0);
+    // Pulled back far enough that the WHOLE seven-vehicle roster fits the frame — the old
+    // 34 m boom cropped the end vehicles out of their own lineup.
     let camera = Camera {
-        eye: [center_x, base + 13.0, center_z - 34.0],
+        eye: [center_x, base + 15.0, center_z - 44.0],
         target: [center_x, base + 1.3, center_z],
         vertical_fov_degrees: 44.0,
     };

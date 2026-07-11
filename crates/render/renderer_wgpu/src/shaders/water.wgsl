@@ -71,9 +71,11 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     let body = mix(shallow, deep, clamp(input.depth_m / 2.2, 0.0, 1.0));
 
     // Fresnel: grazing looks are mirror, straight-down looks read the body under the surface.
+    // The mirror is capped short of total and cast faintly blue-green, so a long grazing view
+    // (the panorama) reads as a RIVER holding the sky, not a grey band losing to the horizon.
     let facing = clamp(dot(-view, normal), 0.0, 1.0);
-    let fresnel = 0.08 + 0.92 * pow(1.0 - facing, 5.0);
-    var color = mix(body, sky, fresnel);
+    let fresnel = 0.08 + 0.78 * pow(1.0 - facing, 5.0);
+    var color = mix(body, sky * vec3<f32>(0.86, 0.97, 1.06), fresnel);
 
     // Aerial perspective, mirroring scene.wgsl: distant water melts toward the horizon color.
     let distance = length(input.world - camera.camera_pos);

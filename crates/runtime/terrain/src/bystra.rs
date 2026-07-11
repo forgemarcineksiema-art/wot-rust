@@ -130,6 +130,8 @@ pub fn bystra_valley() -> BattlefieldMap {
         features: valley_features(&heightmap),
         static_cover,
         scenery,
+        // Kamienna's lanes read from the house rows themselves; painted roads are a follow-up.
+        roads: Vec::new(),
         heightmap,
     }
 }

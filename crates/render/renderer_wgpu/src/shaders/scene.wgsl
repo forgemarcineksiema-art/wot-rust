@@ -106,8 +106,13 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     // Wetness (camera.time_params.z): rain darkens every material, sharpens its finish, and
     // pools mirror-flat sheen on level ground. Presentation only — set by the weather look.
     let wet = clamp(camera.time_params.z, 0.0, 1.0);
-    let puddle = smoothstep(0.985, 0.999, geometric_n.y) * wet * 0.45;
-    let gloss = clamp(input.gloss + wet * 0.30 + puddle, 0.0, 1.0);
+    // Rain sheen lives in the puddles, and puddles are PATCHES pooled in the noise's hollows
+    // — not a sheet mirror over every flat metre (the old broad gloss painted the whole
+    // ground with the overcast sky and read as a mint wash). Soaked ground between them is
+    // simply dark.
+    let pool = smoothstep(0.58, 0.82, value_noise(input.world_pos.xz * 0.16));
+    let puddle = smoothstep(0.985, 0.999, geometric_n.y) * wet * pool * 0.5;
+    let gloss = clamp(input.gloss + wet * 0.08 + puddle, 0.0, 1.0);
 
     let n = detail_normal(input.world_pos, geometric_n, gloss);
     // Cloud shade rides the same channel as the cast shadow: it occludes the key (and the key's
@@ -115,7 +120,7 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     let shadow = sun_shadow(input.world_pos, geometric_n) * cloud_shadow(input.world_pos);
     let ao = screen_ao(input.clip);
     var albedo = input.color * material_detail(input.world_pos, geometric_n);
-    albedo *= mix(1.0, 0.80, wet);
+    albedo *= mix(1.0, 0.62, wet);
 
     // Screen AO rides inside light_radiance on the indirect terms only — a sunlit crease keeps
     // its full key while its ambient/fill correctly dampens.
