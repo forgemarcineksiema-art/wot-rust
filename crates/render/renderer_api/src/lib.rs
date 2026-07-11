@@ -1,5 +1,6 @@
 mod bindings;
 mod capabilities;
+mod culling;
 mod debug_tools;
 mod feature_plan;
 mod lighting;
@@ -25,6 +26,7 @@ pub use capabilities::{
     GpuBackend, GpuDeviceType, RenderAdapterReport, RenderCapabilityTier, RenderLimitsSummary,
     TextureCompressionSupport,
 };
+pub use culling::{Aabb, Frustum, SceneChunk, chunk_scene_indices};
 pub use debug_tools::{
     DebugDrawBatch, DebugDrawCommand, DebugDrawKind, DebugToolKind, DebugToolPlan, RgbaDebugColor,
 };

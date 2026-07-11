@@ -44,6 +44,9 @@ pub struct SceneRenderer {
     terrain_vertices: wgpu::Buffer,
     terrain_indices: wgpu::Buffer,
     terrain_index_count: u32,
+    /// Spatial draw ranges of the terrain slot (see `terrain.rs`): every pass draws only the
+    /// chunks its frustum sees.
+    terrain_chunks: Vec<renderer_api::SceneChunk>,
     dynamic_vertices: wgpu::Buffer,
     dynamic_indices: wgpu::Buffer,
     dynamic_index_count: u32,
@@ -200,7 +203,9 @@ impl SceneRenderer {
             }],
         });
 
-        let buffers = buffers::GeometryBuffers::new(device, terrain_vertices, terrain_indices);
+        let (chunked_indices, terrain_chunks) =
+            terrain::chunk_initial_terrain(terrain_vertices, terrain_indices);
+        let buffers = buffers::GeometryBuffers::new(device, terrain_vertices, &chunked_indices);
         let (hud_font_bgl, hud_font_sampler, hud_font_bind_group) =
             hud_atlas::create_hud_font_resources(device, &ctx.queue);
         let vehicle_materials = vehicle_materials::VehicleMaterialRegistry::new(
@@ -216,7 +221,8 @@ impl SceneRenderer {
             camera_bind_group,
             terrain_vertices: buffers.terrain_vertices,
             terrain_indices: buffers.terrain_indices,
-            terrain_index_count: terrain_indices.len() as u32,
+            terrain_index_count: chunked_indices.len() as u32,
+            terrain_chunks,
             dynamic_vertices: buffers.dynamic_vertices,
             dynamic_indices: buffers.dynamic_indices,
             dynamic_index_count: 0,

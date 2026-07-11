@@ -1,4 +1,4 @@
-use renderer_api::RenderError;
+use renderer_api::{Frustum, RenderError};
 
 use crate::scene_target::{SceneRenderTarget, store_op_for_target};
 use crate::{CameraUniform, GpuContext, encode_camera_uniform};
@@ -78,6 +78,12 @@ impl super::SceneRenderer {
         );
         ctx.queue.write_buffer(&self.camera_buffer, 0, &encode_camera_uniform(&camera)?);
 
+        // Per-pass visibility: each pass draws only the terrain chunks its own frustum sees —
+        // the camera passes cull by the view frustum, the shadow passes by their light boxes.
+        let camera_frustum = Frustum::from_view_proj(&view_proj);
+        let light_frustum = Frustum::from_view_proj(&light_view_proj);
+        let light_frustum_far = Frustum::from_view_proj(&light_view_proj_far);
+
         if self.ssao.ensure_targets(&ctx.device, target.width, target.height) {
             let targets = self.ssao.targets.borrow();
             let blur_view = &targets.as_ref().expect("ssao targets just created").blur_view;
@@ -86,10 +92,10 @@ impl super::SceneRenderer {
 
         let mut encoder =
             ctx.device.create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
-        self.encode_shadow_pass(&mut encoder);
-        self.encode_far_shadow_pass(&mut encoder);
+        self.encode_shadow_pass(&mut encoder, &light_frustum);
+        self.encode_far_shadow_pass(&mut encoder, &light_frustum_far);
         if self.ssao.strength > 0.0 {
-            self.encode_ssao_prepass(&mut encoder);
+            self.encode_ssao_prepass(&mut encoder, &camera_frustum);
             self.ssao.encode_ao_passes(&mut encoder, &self.camera_bind_group);
         }
         {
@@ -130,7 +136,7 @@ impl super::SceneRenderer {
             if self.terrain_index_count > 0 {
                 pass.set_vertex_buffer(0, self.terrain_vertices.slice(..));
                 pass.set_index_buffer(self.terrain_indices.slice(..), wgpu::IndexFormat::Uint32);
-                pass.draw_indexed(0..self.terrain_index_count, 0, 0..1);
+                self.draw_visible_terrain(&mut pass, &camera_frustum);
             }
             if self.dynamic_index_count > 0 {
                 pass.set_vertex_buffer(0, self.dynamic_vertices.slice(..));
