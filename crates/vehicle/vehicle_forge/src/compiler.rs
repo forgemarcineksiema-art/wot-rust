@@ -45,9 +45,6 @@ pub enum TankValidationError {
 }
 
 pub fn compile_tank(request: TankCompileRequest) -> Result<CompiledTank, TankCompileError> {
-    if request.vehicle != VehicleKind::T54_1951 {
-        return Err(TankCompileError::UnsupportedVehicle(request.vehicle));
-    }
     let mut validation = Vec::new();
     if !request.modules.can_mount_gun(&request.modules.gun) {
         validation.push(TankValidationError::GunTooLarge {
@@ -69,10 +66,23 @@ pub fn compile_tank(request: TankCompileRequest) -> Result<CompiledTank, TankCom
     if !spec.damage_layout.fits_within(spec.hitbox) {
         return Err(TankCompileError::DamageLayoutOutsideHitbox);
     }
-    let description = vehicle_build::t54_from_modules(&request.modules);
-    let mounts = description.mounts;
+
+    // Modules -> geometry, for the whole fleet (Program C: un-T-54'd). The hybrid benchmark
+    // keeps its bespoke part-description path; every other vehicle bakes its recipe from a
+    // blueprint whose GUN is rescaled to the installed module, so a longer barrel is a longer
+    // silhouette everywhere, not just on the T-54.
+    let (mounts, baked_vehicle) = if request.vehicle == VehicleKind::T54_1951 {
+        let description = vehicle_build::t54_from_modules(&request.modules);
+        (description.mounts, description.build_lod(request.profile.lod_level()))
+    } else {
+        let blueprint = game_core::VehicleBlueprint::for_vehicle(request.vehicle)
+            .ok_or(TankCompileError::UnsupportedVehicle(request.vehicle))?;
+        let blueprint = blueprint_with_gun_module(blueprint, &request.modules);
+        let baked = vehicle_geometry::bake_vehicle_from_blueprint(&blueprint)
+            .map_err(|error| TankCompileError::Artifact(ArtifactError::Bake(error)))?;
+        (blueprint.mount_frames(), baked)
+    };
     spec.mounts = mounts;
-    let baked_vehicle = description.build_lod(request.profile.lod_level());
     if *baked_vehicle.mounts() != mounts {
         return Err(TankCompileError::InconsistentMounts);
     }
@@ -80,4 +90,20 @@ pub fn compile_tank(request: TankCompileRequest) -> Result<CompiledTank, TankCom
     let baked_vehicle = artifact.baked_vehicle()?;
     let source_hash = artifact.manifest().source_hash();
     Ok(CompiledTank { spec, mounts, baked_vehicle, artifact, source_hash })
+}
+
+/// The installed gun reshapes the blueprint: the barrel keeps its authored trunnion and scales
+/// its reach by the module's length against the stock gun, so a swapped gun visibly changes
+/// the silhouette (and the muzzle the shared shell trace fires from moves with it).
+fn blueprint_with_gun_module(
+    mut blueprint: game_core::VehicleBlueprint,
+    modules: &VehicleModules,
+) -> game_core::VehicleBlueprint {
+    let stock_length = blueprint.kind.stock_barrel_length_m();
+    let module_length = modules.gun.barrel_length_m();
+    if stock_length > 0.1 && (module_length - stock_length).abs() > 1.0e-3 {
+        let reach = blueprint.gun.muzzle_z - blueprint.gun.trunnion_z;
+        blueprint.gun.muzzle_z = blueprint.gun.trunnion_z + reach * (module_length / stock_length);
+    }
+    blueprint
 }
