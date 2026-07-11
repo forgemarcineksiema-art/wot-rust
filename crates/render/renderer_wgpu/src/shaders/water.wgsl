@@ -84,5 +84,7 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
 
     // Shore fade: film-thin water at the banks dissolves instead of ending in a hard saw edge.
     let alpha = clamp(input.depth_m / 0.4, 0.0, 1.0) * 0.88 + 0.06;
-    return vec4<f32>(aces_curve(color), alpha);
+    // Linear HDR out: the river finally grades through the SAME display transform as the
+    // rest of the picture (the old bare-curve bypass is gone — rule 7).
+    return vec4<f32>(color, alpha);
 }

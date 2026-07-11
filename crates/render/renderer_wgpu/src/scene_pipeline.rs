@@ -46,12 +46,12 @@ pub(crate) fn build_hud_font_bind_group_layout(device: &wgpu::Device) -> wgpu::B
     })
 }
 
-/// Build the 2D HUD overlay pipeline: clip-space triangles, alpha-blended, drawn on top
-/// (depth compare Always, no depth write) so it never z-fights the scene.
+/// Build the 2D HUD overlay pipeline: clip-space triangles, alpha-blended, drawn in the post
+/// pass AFTER the display transform (the UI is not part of the picture — it never grades).
+/// That pass has no depth attachment and is single-sampled, so neither does this pipeline.
 pub(crate) fn build_hud_pipeline(
     device: &wgpu::Device,
     color_format: wgpu::TextureFormat,
-    sample_count: u32,
     font_bgl: &wgpu::BindGroupLayout,
 ) -> wgpu::RenderPipeline {
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -77,14 +77,8 @@ pub(crate) fn build_hud_pipeline(
             }],
         },
         primitive: wgpu::PrimitiveState::default(),
-        depth_stencil: Some(wgpu::DepthStencilState {
-            format: DEPTH_FORMAT,
-            depth_write_enabled: Some(false),
-            depth_compare: Some(wgpu::CompareFunction::Always),
-            stencil: wgpu::StencilState::default(),
-            bias: wgpu::DepthBiasState::default(),
-        }),
-        multisample: wgpu::MultisampleState { count: sample_count, ..Default::default() },
+        depth_stencil: None,
+        multisample: wgpu::MultisampleState::default(),
         fragment: Some(wgpu::FragmentState {
             module: &shader,
             entry_point: Some("fs_main"),

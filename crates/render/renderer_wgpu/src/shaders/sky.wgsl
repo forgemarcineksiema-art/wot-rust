@@ -107,5 +107,7 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     let halo = pow(d, mix(9.0, 6.0, hazy)) * mix(0.20, 0.30, hazy);
     color += camera.key_rgb * (disc + halo) * above;
 
-    return vec4<f32>(tonemap_aces(color), 1.0);
+    // Linear HDR out: the sun disc stays hot past 1.0 so the post pass (and later bloom)
+    // receives real energy instead of a clipped white.
+    return vec4<f32>(color, 1.0);
 }
