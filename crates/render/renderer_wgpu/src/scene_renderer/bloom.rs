@@ -19,8 +19,6 @@ fn bloom_shader_source() -> String {
 struct BloomLevel {
     view: wgpu::TextureView,
     read_bind: wgpu::BindGroup,
-    width: u32,
-    height: u32,
 }
 
 pub(crate) struct BloomTargets {
@@ -189,7 +187,7 @@ impl BloomResources {
             });
             let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
             let read_bind = make_read_bind(&view);
-            levels.push(BloomLevel { view, read_bind, width: w, height: h });
+            levels.push(BloomLevel { view, read_bind });
         }
         let black = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("bloom_black"),
@@ -221,9 +219,9 @@ impl BloomResources {
         let Some(t) = targets.as_ref() else {
             return;
         };
-        let mut pass_into = |view: &wgpu::TextureView,
-                             encoder: &mut wgpu::CommandEncoder,
-                             load: wgpu::LoadOp<wgpu::Color>|
+        let pass_into = |view: &wgpu::TextureView,
+                         encoder: &mut wgpu::CommandEncoder,
+                         load: wgpu::LoadOp<wgpu::Color>|
          -> wgpu::RenderPass<'static> {
             encoder
                 .begin_render_pass(&wgpu::RenderPassDescriptor {
