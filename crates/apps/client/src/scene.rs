@@ -8,5 +8,6 @@ pub(crate) mod hangar;
 mod hangar_gallery;
 mod hangar_props;
 pub(crate) mod review_views;
+pub(crate) mod terrain_maps;
 pub(crate) mod water;
 pub(crate) mod weather;

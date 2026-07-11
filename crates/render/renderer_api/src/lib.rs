@@ -11,6 +11,7 @@ mod projection;
 mod resources;
 mod scene;
 mod sun_shadow;
+mod terrain_material;
 mod vehicle;
 mod vehicle_asset;
 
@@ -47,6 +48,7 @@ pub use scene::{
     view_projection_matrix,
 };
 pub use sun_shadow::{SunShadowParams, forward_shadow_focus, sun_light_view_projection};
+pub use terrain_material::{TERRAIN_LAYERS, TerrainGroundMaps, TerrainLayer, TerrainMaterialSet};
 pub use vehicle::{MAPPING_PARAMETRIC, MAPPING_TRIPLANAR, VehicleVertex, generate_tangents};
 pub use vehicle_asset::{
     VehicleMaterialDescriptor, VehicleMaterialFamilies, VehicleMaterialMaps, VehicleMeshAsset,

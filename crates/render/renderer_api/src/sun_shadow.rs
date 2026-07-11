@@ -49,7 +49,14 @@ impl SunShadowParams {
     pub fn far_cascade(&self) -> SunShadowParams {
         SunShadowParams {
             focus_radius_m: self.focus_radius_m * 4.5,
-            depth_radius_m: 300.0,
+            // The sun-axis reach must contain EVERY potential occluder on a 1000 m map, not
+            // just the box's own footprint: geometry between the light and the box's near
+            // plane pancakes to depth 0, and under a grazing golden-evening sun (~14°) the
+            // whole western map overlaps the eastern field's shadow UVs — a too-short reach
+            // turns that pancake into a blanket of false shadow across the far field. 1100 m
+            // covers a worst-case focus at the far map edge; the wider NDC depth span also
+            // scales the fixed NDC bias to ~1.8 m of world slack, right for 0.5-1.1 m texels.
+            depth_radius_m: 1100.0,
             resolution: (self.resolution / 2).max(512),
         }
     }

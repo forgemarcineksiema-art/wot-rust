@@ -95,9 +95,9 @@ pub(crate) fn build_hud_pipeline(
 }
 
 // Locations 4..=8 belong to the instance buffer, so the material lane (gloss) sits at 9.
-const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 5] = wgpu::vertex_attr_array![
+pub(crate) const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 5] = wgpu::vertex_attr_array![
     0 => Float32x3, 1 => Float32x3, 2 => Float32x3, 3 => Float32, 9 => Float32];
-const INSTANCE_ATTRIBUTES: [wgpu::VertexAttribute; 5] = wgpu::vertex_attr_array![
+pub(crate) const INSTANCE_ATTRIBUTES: [wgpu::VertexAttribute; 5] = wgpu::vertex_attr_array![
     4 => Float32x4, 5 => Float32x4, 6 => Float32x4, 7 => Float32x4, 8 => Float32x4];
 
 /// Build the lit scene pipeline (camera uniform at group 0, depth-tested triangles)

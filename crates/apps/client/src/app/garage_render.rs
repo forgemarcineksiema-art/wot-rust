@@ -123,8 +123,8 @@ impl ClientApp {
                 SceneKind::Battle => {
                     let meshes = self.battle_scene_meshes.as_ref().expect("ensured above");
                     (
-                        &meshes.terrain_vertices,
-                        &meshes.terrain_indices,
+                        &meshes.statics_vertices,
+                        &meshes.statics_indices,
                         &meshes.water_vertices,
                         &meshes.water_indices,
                     )
@@ -146,6 +146,21 @@ impl ClientApp {
         };
         if let Some(renderer) = self.renderer.as_mut() {
             renderer.set_terrain(vertices, indices);
+            // The splat ground rides only the battle scene; the hangar floor is its own mesh.
+            match want {
+                SceneKind::Garage => renderer.clear_battlefield_ground(),
+                SceneKind::Battle => {
+                    let meshes = self.battle_scene_meshes.as_ref().expect("ensured above");
+                    renderer.set_battlefield_ground(
+                        &meshes.ground_vertices,
+                        &meshes.ground_indices,
+                        &meshes.ground_maps,
+                        &crate::scene::terrain_maps::terrain_material_set_for(
+                            self.local_server.map_id(),
+                        ),
+                    );
+                }
+            }
             renderer.set_water(water_vertices, water_indices);
             // Interior scenes show a flat backdrop; the battlefield shows the gradient sky dome.
             match want {

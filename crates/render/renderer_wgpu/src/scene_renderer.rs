@@ -2,6 +2,7 @@ mod buffers;
 mod draw;
 mod draw_depth;
 pub(crate) mod env_group;
+pub(crate) mod ground;
 mod hud_atlas;
 pub(crate) mod post;
 mod quality;
@@ -93,6 +94,8 @@ pub struct SceneRenderer {
     shadow: shadow::ShadowResources,
     shadow_bgl: wgpu::BindGroupLayout,
     ssao: ssao::SsaoResources,
+    /// The Terrain Material 2.0 ground slot (battlefield heightfield + splat/macro maps).
+    ground: ground::GroundResources,
     /// The HDR image-formation chain: the internal Rgba16Float target the world renders into
     /// and the fullscreen display-transform pass that forms the final picture (rule 7).
     post: post::PostResources,
@@ -218,6 +221,13 @@ impl SceneRenderer {
         );
         let hud_pipeline = build_hud_pipeline(device, color_format, &hud_font_bgl);
         let post = post::PostResources::new(device, color_format, &camera_bgl);
+        let ground = ground::GroundResources::new(
+            device,
+            hdr_format,
+            sample_count,
+            &camera_bgl,
+            &shadow_bgl,
+        );
 
         Ok(Self {
             pipeline,
@@ -267,6 +277,7 @@ impl SceneRenderer {
             shadow,
             shadow_bgl,
             ssao,
+            ground,
             post,
             cloud_shadows_enabled: lighting_quality.cloud_shadows,
             shadow_focus: None,

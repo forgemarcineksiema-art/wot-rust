@@ -16,7 +16,8 @@ use std::io::{BufReader, BufWriter};
 use std::path::PathBuf;
 
 use client::{
-    ReviewView, battlefield_scene_mesh, battlefield_water_mesh, prokhorovka_review_views,
+    ReviewView, bake_terrain_ground_maps, battlefield_ground_and_statics_meshes,
+    battlefield_water_mesh, prokhorovka_review_views, terrain_material_set_for,
 };
 use renderer_api::{Camera, CameraProjectionPolicy, view_projection_matrix};
 use renderer_wgpu::{GpuContext, OffscreenTarget, SceneRenderer};
@@ -35,13 +36,22 @@ fn golden_path(name: &str) -> PathBuf {
 
 fn render_views(views: &[ReviewView]) -> Vec<Vec<u8>> {
     let battlefield = prokhorovka_hill_252_2();
-    let (vertices, indices) = battlefield_scene_mesh(&battlefield);
+    let ((ground_vertices, ground_indices), (statics_vertices, statics_indices)) =
+        battlefield_ground_and_statics_meshes(&battlefield, &[]);
+    let ground_maps = bake_terrain_ground_maps(&battlefield);
     let (water_vertices, water_indices) = battlefield_water_mesh(&battlefield);
 
     let ctx = GpuContext::headless().expect("headless GPU context");
     let target = OffscreenTarget::new(&ctx, WIDTH, HEIGHT).expect("offscreen target");
-    let mut renderer =
-        SceneRenderer::for_offscreen(&ctx, &vertices, &indices).expect("scene renderer");
+    let mut renderer = SceneRenderer::for_offscreen(&ctx, &statics_vertices, &statics_indices)
+        .expect("scene renderer");
+    renderer.set_battlefield_ground(
+        &ctx,
+        &ground_vertices,
+        &ground_indices,
+        &ground_maps,
+        &terrain_material_set_for(terrain::MapId::ProkhorovkaHill252_2),
+    );
     renderer.set_water(&ctx, &water_vertices, &water_indices);
     renderer.scene_time_s = 12.0;
 

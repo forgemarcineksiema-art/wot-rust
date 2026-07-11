@@ -119,6 +119,20 @@ impl WindowRenderer {
 
     /// Swap the static scene geometry (battlefield <-> garage hangar). See
     /// [`SceneRenderer::set_terrain`]; only call on a scene change, not per frame.
+    pub fn set_battlefield_ground(
+        &mut self,
+        vertices: &[SceneVertex],
+        indices: &[u32],
+        maps: &renderer_api::TerrainGroundMaps,
+        materials: &renderer_api::TerrainMaterialSet,
+    ) {
+        self.scene.set_battlefield_ground(&self.ctx, vertices, indices, maps, materials);
+    }
+
+    pub fn clear_battlefield_ground(&mut self) {
+        self.scene.clear_battlefield_ground();
+    }
+
     pub fn set_terrain(&mut self, vertices: &[SceneVertex], indices: &[u32]) {
         self.scene.set_terrain(&self.ctx, vertices, indices);
     }
