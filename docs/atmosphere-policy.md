@@ -12,7 +12,9 @@ radiance into a graded picture. It is a first-class, designable axis — time of
 profiles, not hardcoded constants.
 
 This policy is the counterpart of `docs/vehicle-geometry-policy.md`: geometry answers *what shape is
-this part*; atmosphere answers *what does this scene feel like*.
+this part*; atmosphere answers *what does this scene feel like*. The TARGET the atmosphere serves —
+the one picture every profile and pass must compose into, with its global rules and their locking
+tests — is `docs/art-direction-policy.md`.
 
 ## Direction
 
