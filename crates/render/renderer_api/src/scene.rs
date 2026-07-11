@@ -12,11 +12,21 @@ use crate::Camera;
 pub struct WaterVertex {
     pub position: [f32; 3],
     pub depth_m: f32,
+    /// World-space XZ downstream direction of the current at this vertex (unit-ish, or zero
+    /// for still water). Waves and foam ADVECT along it, so the river reads as flowing rather
+    /// than three static sine trains crossing in place.
+    pub flow: [f32; 2],
 }
 
 impl WaterVertex {
+    /// Still water: no current (`flow = 0`), the pre-flow behaviour.
     pub const fn new(position: [f32; 3], depth_m: f32) -> Self {
-        Self { position, depth_m }
+        Self { position, depth_m, flow: [0.0, 0.0] }
+    }
+
+    /// Flowing water: the current direction advects the waves and bank foam downstream.
+    pub const fn flowing(position: [f32; 3], depth_m: f32, flow: [f32; 2]) -> Self {
+        Self { position, depth_m, flow }
     }
 }
 
