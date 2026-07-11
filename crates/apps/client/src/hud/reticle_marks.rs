@@ -52,6 +52,27 @@ pub(super) fn push_reload_arc(
 /// Seconds the gun-ready flash lives at the reticle.
 pub(crate) const READY_FLASH_TTL_S: f32 = 0.4;
 
+/// A refused fire click: one short red pulse ring at the reticle — the visual twin of the
+/// UiReject knock, so a swallowed shot is SEEN as refused, never wondered about. Distinct
+/// from the blue ready flash by colour and by pulsing inward (denial) vs outward (ready).
+pub(super) fn push_denied_flash(
+    vertices: &mut Vec<renderer_api::HudVertex>,
+    center: [f32; 2],
+    age_s: f32,
+    aspect: f32,
+) {
+    const DENIED_FLASH_S: f32 = 0.32;
+    if !(0.0..DENIED_FLASH_S).contains(&age_s) {
+        return;
+    }
+    let t = age_s / DENIED_FLASH_S;
+    // Collapse inward from the reload-arc radius toward the marker, fading out.
+    let radius = RELOAD_ARC_RADIUS * (1.0 - t * 0.55);
+    let alpha = (1.0 - t) * 0.85;
+    let color = [0.92, 0.28, 0.22, alpha];
+    push_arc(vertices, center, radius, 0.0, std::f32::consts::TAU, 40, aspect, color);
+}
+
 /// The gun-ready beat: the instant the reload arc drains away, one thin ring expands from the
 /// arc's radius and fades. The whole engagement rhythm times itself against this moment — it must
 /// be readable without ever looking away from the sight picture.

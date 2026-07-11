@@ -31,6 +31,7 @@ pub(crate) fn fresh_tank(
         hull_pitch_rad: 0.0,
         hull_roll_rad: 0.0,
         reload_remaining_s: 0.0,
+        fire_buffered: false,
         aim_dispersion_mrad,
         dispersion_shot_index: 0,
         tracks: TrackHealth::healthy(),

@@ -103,7 +103,9 @@ fn hp_bar_draws_current_hit_points_on_top_left_bar() {
 }
 
 #[test]
-fn reload_bar_draws_remaining_seconds_above_bottom_reload_bar() {
+fn reload_seconds_count_down_at_the_reticle_and_nowhere_else() {
+    // ONE loading display: the countdown lives beside the reticle's reload arc (where the eye
+    // already is). The old bottom-center reload bar drew a second, competing indicator.
     let hud = build_hud(
         HudVitals {
             hit_points: 1000,
@@ -118,8 +120,22 @@ fn reload_bar_draws_remaining_seconds_above_bottom_reload_bar() {
 
     assert!(!reload_vertices.is_empty(), "reload seconds should be drawn while reloading");
     assert!(
-        reload_vertices.iter().all(|v| v.position[1] < -0.72),
-        "reload digits should stay near the bottom reload bar"
+        reload_vertices.iter().all(|v| v.position[1] > -0.25 && v.position[1] < 0.05),
+        "reload digits sit beside the reticle, not at a bottom bar"
+    );
+    // And when the gun is ready, the countdown vanishes entirely.
+    let ready = build_hud(
+        HudVitals {
+            hit_points: 1000,
+            max_hit_points: 1000,
+            reload_remaining_s: 0.0,
+            reload_seconds: 5.0,
+        },
+        16.0 / 9.0,
+    );
+    assert!(
+        ready.iter().all(|vertex| vertex.color != RELOAD_TIME_COLOR),
+        "no countdown when the gun is ready"
     );
 }
 
@@ -175,6 +191,7 @@ fn the_positional_wrapper_and_the_model_build_identical_huds() {
         battle_clock_remaining_s: None,
         kill_confirm_age_s: None,
         reload_ready_age_s: None,
+        fire_denied_age_s: None,
         scope_fade: 0.0,
     };
     let from_model = build_battle_hud(&model, 16.0 / 9.0);
@@ -204,6 +221,7 @@ fn the_scope_surround_is_fade_driven_not_mode_driven() {
         battle_clock_remaining_s: None,
         kill_confirm_age_s: None,
         reload_ready_age_s: None,
+        fire_denied_age_s: None,
         scope_fade: 0.0,
     };
     let housing = |hud: &[HudVertex]| {
@@ -241,6 +259,7 @@ fn battle_outcome_banner_draws_only_when_the_battle_has_ended() {
         battle_clock_remaining_s: None,
         kill_confirm_age_s: None,
         reload_ready_age_s: None,
+        fire_denied_age_s: None,
         scope_fade: 0.0,
     };
     let victory =
@@ -285,6 +304,7 @@ fn battle_clock_draws_only_when_timed_and_warms_in_the_last_minute() {
         battle_clock_remaining_s: None,
         kill_confirm_age_s: None,
         reload_ready_age_s: None,
+        fire_denied_age_s: None,
         scope_fade: 0.0,
     };
     let timed = BattleHudModel { battle_clock_remaining_s: Some(474.0), ..untimed.clone() };

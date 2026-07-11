@@ -225,6 +225,9 @@ impl ClientApp {
             self.queue_audio(audio::AudioEvent::GunReady);
         }
         self.prev_reload_remaining_s = reload_remaining;
+        // The denial pulse ages with the frame clock and expires with its flash.
+        self.fire_denied_age_s =
+            self.fire_denied_age_s.map(|age| age + frame_dt).filter(|age| *age < 0.4);
         // Bringing the eye to the optics (and lifting it away) clicks — the mechanical half of
         // the transition the irising scope surround plays visually.
         let camera_mode = self.camera_controller.mode();
@@ -254,6 +257,7 @@ impl ClientApp {
             battle_clock_remaining_s: self.local_server.battle_time_remaining_s(),
             kill_confirm_age_s: self.kill_confirm_age_s,
             reload_ready_age_s: self.reload_ready_age_s,
+            fire_denied_age_s: self.fire_denied_age_s,
             scope_fade: self.camera_controller.scope_dressing(),
         };
         let mut hud = crate::hud::build_battle_hud(&hud_model, aspect);

@@ -68,6 +68,10 @@ pub struct BattleHudModel {
     pub kill_confirm_age_s: Option<f32>,
     /// Seconds since the reload finished, driving the gun-ready flash at the reticle.
     pub reload_ready_age_s: Option<f32>,
+    /// Seconds since a fire click was REFUSED (still reloading / empty slot / dead gun),
+    /// driving the red denial pulse at the reticle — a swallowed shot is seen, never wondered
+    /// about. `None` when no refusal is fresh.
+    pub fire_denied_age_s: Option<f32>,
     /// How much of the scope surround shows (0 = none, 1 = settled sniper). Rides the presented
     /// camera's mode-blend clock, so the optics iris in/out WITH the view instead of hard-cutting
     /// (see `camera::present::scope_dressing`).
@@ -93,6 +97,7 @@ pub fn build_hud(vitals: HudVitals, aspect: f32) -> Vec<HudVertex> {
             battle_clock_remaining_s: None,
             kill_confirm_age_s: None,
             reload_ready_age_s: None,
+            fire_denied_age_s: None,
             scope_fade: 0.0,
         },
         aspect,
@@ -126,6 +131,7 @@ pub(crate) fn build_hud_with_reticle(
             battle_clock_remaining_s: None,
             kill_confirm_age_s: None,
             reload_ready_age_s: None,
+            fire_denied_age_s: None,
             // The positional test path has no camera; sniper mode implies a settled scope.
             scope_fade: if reticle.is_some_and(|r| r.mode == reticle::ReticleMode::Sniper) {
                 1.0
@@ -161,6 +167,22 @@ pub(crate) fn build_battle_hud(model: &BattleHudModel, aspect: f32) -> Vec<HudVe
     reticle_overlay::push_reticle(&mut vertices, &reticle, aspect);
     if let Some(age_s) = model.reload_ready_age_s {
         reticle_marks::push_ready_flash(&mut vertices, reticle.aim_clip, age_s, aspect);
+    }
+    if let Some(age_s) = model.fire_denied_age_s {
+        reticle_marks::push_denied_flash(&mut vertices, reticle.aim_clip, age_s, aspect);
+    }
+    // The reload countdown lives AT the reticle with its arc — one loading display, where the
+    // eye already is (the old bottom-center bar was a second, competing one).
+    if model.vitals.reload_remaining_s > 0.05 {
+        crate::hud::number::push_number(
+            &mut vertices,
+            model.vitals.reload_remaining_s.ceil().clamp(0.0, 99.0) as u32,
+            reticle.aim_clip[0] + 0.075,
+            reticle.aim_clip[1] - 0.115,
+            0.042,
+            aspect,
+            crate::hud::number::RELOAD_TIME_COLOR,
+        );
     }
 
     readouts::push_battle_readouts(&mut vertices, model, aspect);

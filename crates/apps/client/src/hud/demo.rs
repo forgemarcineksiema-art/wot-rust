@@ -88,6 +88,7 @@ pub fn demo_battle_hud(sniper: bool, aspect: f32) -> Vec<HudVertex> {
         battle_clock_remaining_s: Some(474.0),
         kill_confirm_age_s: None,
         reload_ready_age_s: None,
+        fire_denied_age_s: None,
         scope_fade: if sniper { 1.0 } else { 0.0 },
     };
     build_battle_hud(&model, aspect)

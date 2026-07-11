@@ -17,6 +17,24 @@ pub(crate) struct CombatTickContext {
     pub water: Option<terrain::WaterBody>,
 }
 
+/// How early a fire click may land before the reload completes and still count: the input
+/// buffer window. Inside it the shot is HELD and released the tick the breech closes; earlier
+/// clicks are genuine misfires and refuse as before. Sized to human anticipation timing (the
+/// player squeezes as the reticle reads ready), not to hide the reload.
+pub const FIRE_BUFFER_S: f32 = 0.3;
+
+/// Whether a refused fire click qualifies for the input buffer: everything about the gun is
+/// ready EXCEPT the last sliver of reload.
+pub(crate) fn fire_click_buffers(tank: &TankState) -> bool {
+    let selected = (tank.selected_ammo as usize).min(game_core::MAX_AMMO_SLOTS - 1);
+    tank.hit_points > 0
+        && tank.modules.is_functional(ModuleSlot::Gun)
+        && tank.modules.is_functional(ModuleSlot::AmmoRack)
+        && tank.ammo_counts[selected] > 0
+        && tank.reload_remaining_s > 0.0
+        && tank.reload_remaining_s <= FIRE_BUFFER_S
+}
+
 pub(crate) fn try_fire_shell(tank: &mut TankState, tick: u64) -> Option<ShellState> {
     let selected = (tank.selected_ammo as usize).min(game_core::MAX_AMMO_SLOTS - 1);
     if tank.reload_remaining_s > 0.0

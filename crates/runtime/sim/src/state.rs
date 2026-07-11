@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use terrain::{HeightMap, StaticCoverObject, WaterBody};
 
 use crate::aim_dispersion::recover_aim_dispersion;
-use crate::combat::{CombatTickContext, try_fire_shell};
+use crate::combat::{CombatTickContext, fire_click_buffers, try_fire_shell};
 use crate::landing::apply_landing_impact;
 use crate::ramming::{apply_ramming_damage, capture_ramming_snapshots};
 use crate::shell::ShellState;
@@ -240,6 +240,17 @@ impl SimulationState {
             recover_aim_dispersion(tank, dt);
             crate::repair::step_crew_repair(tank, dt);
         }
+        // Release buffered fire clicks the tick their reload completes — one attempt, then the
+        // intent drops (if the gun died in the meantime, nothing fires and nothing lingers).
+        for index in 0..self.tanks.len() {
+            let tank = &mut self.tanks[index];
+            if tank.fire_buffered && tank.reload_remaining_s <= 0.0 {
+                tank.fire_buffered = false;
+                if let Some(shell) = try_fire_shell(tank, self.tick) {
+                    self.shells.push(shell);
+                }
+            }
+        }
 
         // Tank-vs-tank obstacles in lockstep with the sequential update: built once from the
         // start-of-tick hulls and refreshed per moved hull, so a later command collides against
@@ -289,11 +300,15 @@ impl SimulationState {
                 {
                     tank.selected_ammo = slot;
                     tank.reload_remaining_s = tank.spec.gun.reload_seconds;
+                    // A held click must not survive the switch: the reload it anticipated is gone.
+                    tank.fire_buffered = false;
                 }
-                if command.fire
-                    && let Some(shell) = try_fire_shell(tank, self.tick)
-                {
-                    self.shells.push(shell);
+                if command.fire {
+                    if let Some(shell) = try_fire_shell(tank, self.tick) {
+                        self.shells.push(shell);
+                    } else if fire_click_buffers(tank) {
+                        tank.fire_buffered = true;
+                    }
                 }
             }
         }

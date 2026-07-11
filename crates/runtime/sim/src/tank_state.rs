@@ -28,6 +28,12 @@ pub struct TankState {
     pub hull_roll_rad: f32,
     pub hit_points: u32,
     pub reload_remaining_s: f32,
+    /// A fire command that arrived a hair before the reload completed (within the input-buffer
+    /// window): held server-side and released on the exact tick the breech closes, so a click
+    /// on the visually-ready reticle is never silently swallowed by a few hundredths of a
+    /// second of authoritative reload. Cleared by an ammo switch (the switch restarts the
+    /// reload — holding a stale click across a full reload would fire a shot nobody asked for).
+    pub fire_buffered: bool,
     pub aim_dispersion_mrad: f32,
     pub dispersion_shot_index: u32,
     /// Per-side track HP pool — the authoritative track state. Full HP both sides = both tracks
