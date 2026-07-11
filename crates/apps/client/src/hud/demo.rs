@@ -35,6 +35,7 @@ pub fn demo_battle_hud(sniper: bool, aspect: f32) -> Vec<HudVertex> {
         reload_fraction: 0.4,
         hit_confirm: Some(HitConfirm { age_s: 0.1, penetrated: true, ricocheted: false }),
         mode,
+        converged: true,
     };
     let model = BattleHudModel {
         vitals: HudVitals {

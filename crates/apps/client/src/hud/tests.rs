@@ -28,12 +28,13 @@ pub(super) fn reticle_at(
         penetration_hint: hint,
         reload_fraction: 1.0,
         hit_confirm: None,
+        converged: false,
         mode: super::reticle::ReticleMode::ThirdPerson,
     }
 }
 
 pub(super) fn sniper(reticle: HudReticle) -> HudReticle {
-    HudReticle { mode: super::reticle::ReticleMode::Sniper, ..reticle }
+    HudReticle { converged: false, mode: super::reticle::ReticleMode::Sniper, ..reticle }
 }
 
 pub(super) fn hint(penetrates: bool) -> super::reticle::PenetrationHint {

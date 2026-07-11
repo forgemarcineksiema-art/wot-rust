@@ -28,8 +28,14 @@ pub(crate) const RETICLE_GUN: [f32; 4] = [0.86, 0.90, 0.86, 0.80];
 /// Desaturated gray on purpose — RED is reserved for "reaches but bounces", so the two states
 /// can never be confused: gray broken = no shot here, red = shot arrives and fails.
 pub(crate) const RETICLE_BLOCKED: [f32; 4] = [0.62, 0.62, 0.58, 0.95];
-/// Continuous dispersion ring — quiet on purpose; it frames, the marker speaks.
-pub(crate) const RETICLE_RING: [f32; 4] = [0.86, 0.90, 0.72, 0.38];
+/// Continuous dispersion ring. Bright enough to live on the pale straw steppe (the old 0.38
+/// alpha vanished against it); the dark underlay ring supplies contrast on shade.
+pub(crate) const RETICLE_RING: [f32; 4] = [0.88, 0.92, 0.78, 0.72];
+/// The ring's dark underlay: a slightly larger twin that reads as an outline on any ground.
+pub(crate) const RETICLE_RING_OUTLINE: [f32; 4] = [0.05, 0.06, 0.05, 0.55];
+/// The ring once the gun has SETTLED to its minimum dispersion: a touch whiter and fully
+/// opaque — the convergence signal the sight never had. Fire now and the circle is the truth.
+pub(crate) const RETICLE_RING_CONVERGED: [f32; 4] = [0.96, 0.98, 0.92, 0.95];
 /// Amber "X" at the shell's real landing point (gravity + collision).
 pub(crate) const RETICLE_IMPACT: [f32; 4] = [0.98, 0.66, 0.18, 0.92];
 /// The reload arc draining clockwise around the marker while the gun is loading.
@@ -53,14 +59,29 @@ pub(crate) struct HudReticle {
     pub hit_confirm: Option<HitConfirm>,
     /// The honesty regime: third person draws fully neutral, sniper may speak penetration.
     pub mode: ReticleMode,
+    /// Whether the gun has settled to its minimum dispersion (aim fully taken): the ring
+    /// brightens as the ready-to-fire signal. Server truth via the replicated dispersion.
+    pub converged: bool,
 }
 
 /// Draw the aiming overlay: dispersion ring, reload arc, gun marker, the single center marker,
 /// and — in sniper mode only — the pen verdict, the real-impact marker and the mm readout.
 pub(crate) fn push_reticle(vertices: &mut Vec<HudVertex>, reticle: &HudReticle, aspect: f32) {
     let sniper = reticle.mode == ReticleMode::Sniper;
-    push_dispersion_ring(vertices, reticle.aim_clip, reticle.aim_radius_clip, aspect);
-    push_reload_arc(vertices, reticle.aim_clip, reticle.reload_fraction, aspect);
+    push_dispersion_ring(
+        vertices,
+        reticle.aim_clip,
+        reticle.aim_radius_clip,
+        aspect,
+        reticle.converged,
+    );
+    push_reload_arc(
+        vertices,
+        reticle.aim_clip,
+        reticle.reload_fraction,
+        reticle.aim_radius_clip,
+        aspect,
+    );
 
     match reticle.status {
         ReticleStatus::Blocked => push_blocked_marker(vertices, reticle.aim_clip, aspect),
