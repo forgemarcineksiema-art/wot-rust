@@ -136,3 +136,27 @@ fn every_vehicle_respects_triangle_and_vertex_budgets() {
         );
     }
 }
+
+/// The studio's live-override path: a modified blueprint bakes to a different shape, and the
+/// override never leaks — the very next registered bake is byte-identical to the golden.
+#[test]
+fn blueprint_override_changes_the_bake_and_never_leaks() {
+    let kind = VehicleKind::T34_85;
+    let mut blueprint =
+        game_core::VehicleBlueprint::for_vehicle(kind).expect("T-34-85 has a blueprint");
+    blueprint.turret.roof_y -= 0.2;
+
+    let overridden =
+        vehicle_geometry::bake_vehicle_from_blueprint(&blueprint).expect("override bakes");
+    let registered = bake_vehicle(kind).expect("registered bakes");
+    assert_ne!(
+        overridden.deterministic_hash(),
+        registered.deterministic_hash(),
+        "a lowered roof must produce a different bake"
+    );
+    assert_eq!(
+        registered.deterministic_hash(),
+        vehicle_geometry::golden_bake_hash(kind).expect("golden recorded"),
+        "the override must not leak into the registered path"
+    );
+}

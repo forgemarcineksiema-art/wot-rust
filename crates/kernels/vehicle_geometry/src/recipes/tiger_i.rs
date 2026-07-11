@@ -17,8 +17,7 @@ use crate::{
 };
 
 pub(crate) fn tiger_i(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVehicle {
-    let bp = game_core::VehicleBlueprint::for_vehicle(VehicleKind::TigerI)
-        .expect("Tiger I has a blueprint");
+    let bp = super::active_blueprint(VehicleKind::TigerI).expect("Tiger I has a blueprint");
     let hull = shade_hull(
         tiger_slab_hull(&bp.hull)
             .append(&blueprint_running_gear(&bp.track))

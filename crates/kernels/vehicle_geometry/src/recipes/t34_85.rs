@@ -15,8 +15,7 @@ use super::{
 use crate::BakedVehicle;
 
 pub(crate) fn t34_85(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVehicle {
-    let bp = game_core::VehicleBlueprint::for_vehicle(VehicleKind::T34_85)
-        .expect("T-34-85 has a blueprint");
+    let bp = super::active_blueprint(VehicleKind::T34_85).expect("T-34-85 has a blueprint");
     let hull = shade_hull(
         blueprint_prism_hull(&bp.hull, bp.armor.hull_side.0)
             .append(&blueprint_running_gear(&bp.track))

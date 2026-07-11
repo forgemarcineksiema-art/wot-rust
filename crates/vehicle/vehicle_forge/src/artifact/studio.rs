@@ -75,9 +75,26 @@ impl StudioBundle {
 
 /// Bake `kind` through its authoritative mesh path and assemble the review bundle.
 pub fn bake_studio_bundle(kind: VehicleKind) -> Result<StudioBundle, ArtifactError> {
+    let baked = authoritative_baked_vehicle(kind)?;
+    bundle_from_baked(kind, baked)
+}
+
+/// The fast loop: assemble the bundle from a LIVE blueprint (an edited RON parsed from disk,
+/// no rebuild). Bakes through the recipe path — for the T-54 that is its legacy recipe, not
+/// the authoritative hybrid, which is fine for shape-tuning the blueprint fields.
+pub fn bake_studio_bundle_from_blueprint(
+    blueprint: &game_core::VehicleBlueprint,
+) -> Result<StudioBundle, ArtifactError> {
+    let baked = vehicle_geometry::bake_vehicle_from_blueprint(blueprint)?;
+    bundle_from_baked(blueprint.kind, baked)
+}
+
+fn bundle_from_baked(
+    kind: VehicleKind,
+    baked: BakedVehicle,
+) -> Result<StudioBundle, ArtifactError> {
     let spec =
         crate::registry::forge_spec(kind).ok_or(ArtifactError::MissingReferencePack(kind))?;
-    let baked = authoritative_baked_vehicle(kind)?;
     let cameras = (spec.review_cameras)();
     let reference = (spec.reference_pack)();
     let ratio_report =

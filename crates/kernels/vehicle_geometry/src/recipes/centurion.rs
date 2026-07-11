@@ -15,8 +15,7 @@ use super::{
 use crate::{BakedVehicle, MaterialRole, MeshBuilder};
 
 pub(crate) fn centurion(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVehicle {
-    let bp = game_core::VehicleBlueprint::for_vehicle(VehicleKind::Centurion)
-        .expect("Centurion has a blueprint");
+    let bp = super::active_blueprint(VehicleKind::Centurion).expect("Centurion has a blueprint");
     let hull = shade_hull(
         blueprint_prism_hull(&bp.hull, bp.armor.hull_side.0)
             .append(&blueprint_running_gear(&bp.track))

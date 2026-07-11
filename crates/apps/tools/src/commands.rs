@@ -66,7 +66,9 @@ pub fn dispatch(command: Command) -> anyhow::Result<()> {
             compile_tank_command(&vehicle, gun.as_deref(), profile.parse()?, out)?
         }
         Command::ExportBlueprints { out } => export_blueprints(out)?,
-        Command::Studio { vehicle, out } => studio_command(&vehicle, out)?,
+        Command::Studio { vehicle, out, blueprint_file } => {
+            studio_command(&vehicle, out, blueprint_file)?
+        }
     }
     Ok(())
 }
@@ -95,9 +97,23 @@ fn export_blueprints(out: PathBuf) -> anyhow::Result<()> {
 
 /// The AI review loop: bake one vehicle, write the studio bundle (contact sheet, per-view
 /// tiles, report.md) under `target/studio/<slug>` unless `--out` overrides it.
-fn studio_command(vehicle: &str, out: Option<PathBuf>) -> anyhow::Result<()> {
+fn studio_command(
+    vehicle: &str,
+    out: Option<PathBuf>,
+    blueprint_file: Option<PathBuf>,
+) -> anyhow::Result<()> {
     let kind = parse_vehicle_kind(vehicle)?;
-    let bundle = vehicle_forge::bake_studio_bundle(kind)?;
+    let bundle = match blueprint_file {
+        Some(path) => {
+            let text = std::fs::read_to_string(&path)
+                .with_context(|| format!("failed to read {}", path.display()))?;
+            let blueprint = game_core::parse_blueprint(kind, &text)
+                .map_err(|error| anyhow::anyhow!("{error}"))?;
+            println!("live override: baking {} from {}", kind.slug(), path.display());
+            vehicle_forge::bake_studio_bundle_from_blueprint(&blueprint)?
+        }
+        None => vehicle_forge::bake_studio_bundle(kind)?,
+    };
     let dir = out.unwrap_or_else(|| PathBuf::from("target/studio").join(kind.slug()));
     bundle.write_to_dir(&dir)?;
     println!("wrote studio bundle to {}", dir.display());

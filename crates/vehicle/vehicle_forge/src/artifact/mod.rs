@@ -19,6 +19,6 @@ pub use bake_profile::BakeProfile;
 pub use manifest::{ArtifactError, ForgeArtifactManifest, ForgeSubmeshManifest};
 pub use review::{ReviewCamera, ReviewCameraSet, ReviewCameraSpec};
 pub use slug::forge_vehicle_slug;
-pub use studio::{StudioBundle, bake_studio_bundle};
+pub use studio::{StudioBundle, bake_studio_bundle, bake_studio_bundle_from_blueprint};
 pub use surface_bake::SurfaceBakeManifest;
 pub use texture_maps::{ForgeTextureManifest, MaterialFamily};
