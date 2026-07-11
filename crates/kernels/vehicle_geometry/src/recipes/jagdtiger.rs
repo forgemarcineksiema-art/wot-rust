@@ -19,7 +19,7 @@ pub(crate) fn jagdtiger(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedV
     let hull = shade_hull(
         blueprint_prism_hull(&bp.hull, bp.armor.hull_side.0)
             .append(&blueprint_running_gear(&bp.track))
-            .append(&blueprint_deck_details(&bp.hull))
+            .append(&blueprint_deck_details(&bp))
             .build(),
     );
 
