@@ -30,6 +30,7 @@ mod is3_hull;
 mod jagdtiger;
 mod panther_ii;
 mod soviet;
+mod t34_85;
 mod t54;
 mod tiger_i;
 mod tiger_ii;
@@ -70,6 +71,7 @@ fn recipe(kind: VehicleKind, hitbox: &HitboxProfile, mounts: &MountFrames) -> Op
         VehicleKind::PantherII => panther_ii::panther_ii(hitbox, mounts),
         VehicleKind::IS3 => is3::is3(hitbox, mounts),
         VehicleKind::Centurion => centurion::centurion(hitbox, mounts),
+        VehicleKind::T34_85 => t34_85::t34_85(hitbox, mounts),
     })
 }
 

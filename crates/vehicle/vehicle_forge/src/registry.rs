@@ -50,6 +50,13 @@ pub(crate) fn forge_spec(kind: VehicleKind) -> Option<VehicleForgeSpec> {
             parts: PartStrategy::Blueprint(crate::part_data::centurion_parts),
             review_cameras: ReviewCameraSet::standard_vehicle_review,
         },
+        // Studio-born: shares the standard cameras and a geometry-derived part graph until
+        // a bespoke table earns its keep (the IS-3/Centurion pattern).
+        VehicleKind::T34_85 => VehicleForgeSpec {
+            reference_pack: crate::t34_85_reference_pack,
+            parts: PartStrategy::BakedGeometry,
+            review_cameras: ReviewCameraSet::standard_vehicle_review,
+        },
         VehicleKind::T55A | VehicleKind::PrototypeMedium => return None,
     };
     Some(spec)

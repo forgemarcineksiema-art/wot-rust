@@ -1,0 +1,100 @@
+// T-34-85 (1944) at its documented dimensions: 6.10 m hull (8.10 m gun forward), 3.00 m over
+// the tracks, 2.72 m to the cupola, 0.40 m clearance. The whole tank is one idea — a 45 mm
+// plate everywhere, SLOPED: the 60-degree glacis, the raked sides overhanging the tracks, and
+// the wide low three-man cast turret of the 85 refit. Five big 830 mm Christie wheels with the
+// signature open gap after the first pair, no return rollers, drive sprocket at the rear.
+BlueprintFile(
+    kind: T34_85,
+    hull: HullShape(
+        half_len: 3.05,
+        // Full 3.00 m beam: the raked upper sides overhang the tracks (unlike the T-54's
+        // narrow box) — the sponson carries the fuel cells.
+        half_width: 1.48,
+        belly_y: 0.40,
+        // Low hull roof; the turret carries the rest of the 2.72 m silhouette.
+        deck_y: 1.56,
+        glacis_slope_deg: 60.0,
+        pike_sweep_deg: 0.0,
+        nose_rise: 0.10,
+        rear_slope_deg: 47.0,
+        // The tub between the tracks.
+        lower_half_width: 1.00,
+        sponson_y: 0.95,
+        skirt: None,
+        hitbox_half_width: 1.50,
+        hitbox_half_height: 1.40,
+        hitbox_half_length: 3.20,
+        hitbox_center_y: 1.35,
+        hitbox_turret_min_y: 0.40,
+    ),
+    track: TrackShape(
+        // The 500 mm band: outer face at the 3.00 m beam, inner face at the tub side.
+        center_x: 1.24,
+        belt_half_thickness: 0.11,
+        top_y: 0.86,
+        bottom_y: 0.03,
+        // The big 830 mm Christie discs.
+        wheel_radius: 0.415,
+        wheel_count: 5,
+        wheel_first_z: -1.90,
+        wheel_last_z: 1.90,
+        end_radius: 0.30,
+        end_z: 2.52,
+        end_y: 0.52,
+        inner_x: 0.99,
+        outer_x: 1.49,
+        segments: 14,
+        // The T-34 signature: an open gap between the FIRST and second road wheels at the
+        // front (+Z) — the Christie spring wells live in the hull side there.
+        wheel_stations: Some([-1.90, -0.98, -0.06, 0.86, 1.90]),
+        return_rollers: 0,
+        roller_radius: 0.0,
+        overlap_inner_dx: 0.0,
+    ),
+    turret: TurretShape(
+        form: CastDome,
+        ring_y: 1.56,
+        // The 85 turret sits forward on the hull.
+        ring_z: 0.38,
+        // The widened 1.6 m race the -85 refit brought.
+        ring_radius: 0.80,
+        base_radius: 1.06,
+        // Flatter, wider crown than the T-54 dome — the -85 casting is a low pot, not a bowl.
+        roof_radius: 0.54,
+        roof_y: 2.42,
+        front_slope_deg: 28.0,
+        side_slope_deg: 20.0,
+        rear_slope_deg: 12.0,
+        // Commander's cupola aft-left on the roof.
+        cupola_x: -0.32,
+        cupola_z: -0.05,
+        cupola_radius: 0.23,
+        plan_half_width: 1.10,
+        plan_half_length: 1.32,
+        mantlet_radius: 0.28,
+        mantlet_back_z: 1.06,
+        mantlet_front_z: 1.32,
+    ),
+    gun: GunShape(
+        // Fire line ~1.90: the gun bedded a third of a metre over the ring seat.
+        trunnion_y: 1.90,
+        trunnion_z: 1.25,
+        // ZiS-S-53 L/54.6: 8.10 m overall length gun forward, hull bow at 3.05.
+        muzzle_z: 5.05,
+        barrel_radius: 0.072,
+        evacuator: None,
+        muzzle_brake: None,
+        segments: 12,
+    ),
+    armor: ArmorShape(
+        // Slope IS the armour: 45 mm at 60 degrees front...
+        hull_front: (60.0, 0.85),
+        // ...40-degree raked upper sides...
+        hull_side: (40.0, 1.0),
+        hull_rear: (47.0, 1.0),
+        // ...and the rounded 90 mm turret face around the mantlet.
+        turret_front: (28.0, 0.9),
+        turret_side: (20.0, 1.0),
+        turret_rear: (12.0, 1.0),
+    ),
+)

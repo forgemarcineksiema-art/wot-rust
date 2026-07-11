@@ -32,6 +32,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         [0.32, 0.36, 0.40],
         [0.40, 0.34, 0.44],
         [0.28, 0.44, 0.40],
+        [0.42, 0.44, 0.28],
     ];
 
     let mut catalog = VehicleMeshCatalog::default();

@@ -98,6 +98,79 @@ pub(crate) fn t55_loadout() -> VehicleModules {
     }
 }
 
+pub(crate) fn t34_85_loadout() -> VehicleModules {
+    VehicleModules {
+        hull: HullChassis {
+            name: "T-34-85 hull".to_string(),
+            mass_kg: 18_000.0,
+            hit_points: 1_300,
+            // The 45 mm plate everywhere — the T-34 bet on SLOPE, not thickness: the 60-degree
+            // glacis is the armour, the plate is just its material.
+            front_mm: 45.0,
+            side_mm: 45.0,
+            rear_mm: 45.0,
+            max_forward_speed_mps: 15.0,
+            max_reverse_speed_mps: 4.0,
+        },
+        engine: EngineModule {
+            name: "V-2-34".to_string(),
+            power_kw: 368.0,
+            mass_kg: 1_400.0,
+            hit_points: 140,
+            // The fuel cells ride in the fighting compartment sponsons — the T-34's documented
+            // fire liability.
+            fire_chance: 0.13,
+        },
+        suspension: SuspensionModule {
+            name: "T-34 Christie gear".to_string(),
+            mass_kg: 3_300.0,
+            hit_points: 140,
+            turn_rate_rad_s: 0.80,
+            max_load_kg: 36_000.0,
+        },
+        turret: TurretModule {
+            name: "T-34-85 turret".to_string(),
+            mass_kg: 7_500.0,
+            hit_points: 220,
+            front_mm: 90.0,
+            side_mm: 75.0,
+            rear_mm: 52.0,
+            traverse: TurretTraverse::Rotating { rate_rad_s: 0.44 },
+            view_range_m: 350.0,
+            max_gun_caliber_mm: 85.0,
+        },
+        gun: gun_zis_s53(),
+        radio: RadioModule {
+            name: "9-RS".to_string(),
+            mass_kg: 100.0,
+            hit_points: 50,
+            signal_range_m: 550.0,
+        },
+    }
+}
+
+/// The 85 mm ZiS-S-53: the war-winning medium's gun. Fast-handling and quick to reload — the
+/// Era II Soviet answer trades the German guns' penetration for cadence and mobility-friendly
+/// bloom; the BR-365P arrowhead round buys back penetration at a per-shot damage cost.
+pub(crate) fn gun_zis_s53() -> GunModule {
+    GunModule {
+        spec: GunSpec {
+            name: "85 mm ZiS-S-53".to_string(),
+            reload_seconds: 7.4,
+            dispersion_mrad: 3.0,
+            aim_time_seconds: 2.3,
+            movement_bloom_mrad: 4.6,
+            shot_bloom_mrad: 3.8,
+            max_dispersion_mrad: 17.0,
+            barrel_length_m: 4.645,
+            shell: ShellSpec::armor_piercing(85.0, 792.0, 145.0, 200),
+            special_shell: Some(ShellSpec::apcr(85.0, 1_030.0, 170.0, 170)),
+        },
+        mass_kg: 1_700.0,
+        hit_points: 140,
+    }
+}
+
 pub(crate) fn is3_loadout() -> VehicleModules {
     VehicleModules {
         hull: HullChassis {

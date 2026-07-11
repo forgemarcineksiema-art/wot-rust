@@ -29,7 +29,7 @@ pub const VEHICLE_BUDGETS: VehicleBudgets = VehicleBudgets {
 /// its entry (the enforcement test prints the replacement array); anything else failing here is
 /// a regression. Kept beside the budgets so the studio report can say whether the current bake
 /// still matches its golden.
-pub const GOLDEN_BAKE_HASHES: [(VehicleKind, u64); 9] = [
+pub const GOLDEN_BAKE_HASHES: [(VehicleKind, u64); 10] = [
     (VehicleKind::PrototypeMedium, 14_793_728_532_433_154_327_u64),
     // Re-recorded for the T-54 1:1 blueprint reset (documented 6.04 × 3.27 × 2.40 m body,
     // 810 mm wheels, raised idler/sprocket, 2.25 m turret on the 1.75 m roof). The T-55A moves
@@ -58,6 +58,10 @@ pub const GOLDEN_BAKE_HASHES: [(VehicleKind, u64); 9] = [
     // Recorded at birth: the Centurion Mk 3 (skirted hull over Horstmann bogie pairs,
     // 57° glacis, cast Mk 3 dome with the bustle bin, clean 20-pounder).
     (VehicleKind::Centurion, 1_113_949_107_773_166_927_u64),
+    // Recorded at birth: the T-34-85 — the first vehicle authored through the Forge Studio
+    // loop (60° glacis, raked sides, five bare Christie wheels with the open gap, low wide
+    // -85 cast dome seated forward, clean ZiS-S-53).
+    (VehicleKind::T34_85, 4_829_830_574_282_901_927_u64),
 ];
 
 /// The golden hash recorded for `kind`, if any.

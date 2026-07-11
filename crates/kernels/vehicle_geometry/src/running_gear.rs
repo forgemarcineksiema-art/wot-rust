@@ -96,6 +96,8 @@ impl RunningGearKinematics {
             VehicleKind::TigerII | VehicleKind::Jagdtiger | VehicleKind::PantherII => 0.09,
             // The Centurion's bogie wheels live half-hidden behind the skirts.
             VehicleKind::Centurion => 0.12,
+            // The T-34's 830 mm Christie discs are broad-faced pressed wheels.
+            VehicleKind::T34_85 => 0.16,
             _ => ((track.outer_x - track.inner_x) * 0.5).max(0.03),
         };
         let link_half_width = match kind {
@@ -112,6 +114,8 @@ impl RunningGearKinematics {
             VehicleKind::PantherII => 0.26,
             // The Centurion's 610 mm band under the skirts.
             VehicleKind::Centurion => 0.24,
+            // The T-34's 500 mm waffle band, spanning the full wheel faces.
+            VehicleKind::T34_85 => 0.22,
             _ => (track.belt_half_thickness * 0.5).max(0.02),
         };
         let link_count = match kind {
@@ -146,6 +150,7 @@ impl RunningGearKinematics {
                 // The track shoes ride over the road wheels, centred on the wheel plane so the belt
                 // wraps the wheels instead of floating as a separate ribbon outboard of them.
                 VehicleKind::T54_1951
+                | VehicleKind::T34_85
                 | VehicleKind::IS3
                 | VehicleKind::TigerI
                 | VehicleKind::TigerII
@@ -158,7 +163,8 @@ impl RunningGearKinematics {
             top_sag_m: if track.return_rollers > 0 {
                 // A rollered top run stays taut — only a hint of droop between rollers.
                 0.012
-            } else if kind == VehicleKind::T54_1951 {
+            } else if kind == VehicleKind::T54_1951 || kind == VehicleKind::T34_85 {
+                // Rollerless layouts: the top run rests on and sags between the road wheels.
                 0.050
             } else {
                 0.035
