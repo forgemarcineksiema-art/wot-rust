@@ -67,16 +67,17 @@ impl ClientApp {
             return;
         }
         self.scene_cover_dirty = false;
-        let (vertices, indices) = crate::battlefield_scene_mesh_with_cover_states(
-            &self.battlefield,
-            &self.cover_phase_bytes,
-        );
+        // Cover phases only touch the STATICS slot: the ground mesh and its baked splat/macro
+        // maps are invariant under destruction, so a collapsing building re-uploads a fraction
+        // of the world instead of forcing a 1024^2 rebake.
+        let (vertices, indices) =
+            crate::battlefield_statics_mesh(&self.battlefield, &self.cover_phase_bytes);
         if let Some(renderer) = self.renderer.as_mut() {
             renderer.set_terrain(&vertices, &indices);
         }
         if let Some(meshes) = self.battle_scene_meshes.as_mut() {
-            meshes.terrain_vertices = vertices;
-            meshes.terrain_indices = indices;
+            meshes.statics_vertices = vertices;
+            meshes.statics_indices = indices;
         }
     }
 
@@ -108,9 +109,15 @@ impl ClientApp {
             window,
             width,
             height,
-            &meshes.terrain_vertices,
-            &meshes.terrain_indices,
+            &meshes.statics_vertices,
+            &meshes.statics_indices,
         )?;
+        renderer.set_battlefield_ground(
+            &meshes.ground_vertices,
+            &meshes.ground_indices,
+            &meshes.ground_maps,
+            &crate::scene::terrain_maps::terrain_material_set_for(self.local_server.map_id()),
+        );
         let atlas = crate::hud::font::atlas();
         renderer.set_hud_font_atlas(atlas.width(), atlas.height(), atlas.coverage());
         // The battle scene starts loaded, so its river (if the map has one) starts loaded too.

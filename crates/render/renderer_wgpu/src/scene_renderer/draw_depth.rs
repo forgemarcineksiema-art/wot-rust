@@ -40,6 +40,7 @@ impl super::SceneRenderer {
         pass.set_pipeline(&self.shadow.pipeline_scene);
         pass.set_bind_group(0, &self.camera_bind_group, &[]);
         pass.set_vertex_buffer(1, self.identity_instance.slice(..));
+        self.draw_visible_ground(&mut pass, light_frustum);
         if self.terrain_index_count > 0 {
             pass.set_vertex_buffer(0, self.terrain_vertices.slice(..));
             pass.set_index_buffer(self.terrain_indices.slice(..), wgpu::IndexFormat::Uint32);
@@ -115,6 +116,7 @@ impl super::SceneRenderer {
         pass.set_pipeline(&self.shadow.pipeline_scene_far);
         pass.set_bind_group(0, &self.camera_bind_group, &[]);
         pass.set_vertex_buffer(1, self.identity_instance.slice(..));
+        self.draw_visible_ground(&mut pass, light_frustum);
         if self.terrain_index_count > 0 {
             pass.set_vertex_buffer(0, self.terrain_vertices.slice(..));
             pass.set_index_buffer(self.terrain_indices.slice(..), wgpu::IndexFormat::Uint32);
@@ -171,6 +173,7 @@ impl super::SceneRenderer {
         pass.set_pipeline(&self.ssao.prepass_scene_pipeline);
         pass.set_bind_group(0, &self.camera_bind_group, &[]);
         pass.set_vertex_buffer(1, self.identity_instance.slice(..));
+        self.draw_visible_ground(&mut pass, camera_frustum);
         if self.terrain_index_count > 0 {
             pass.set_vertex_buffer(0, self.terrain_vertices.slice(..));
             pass.set_index_buffer(self.terrain_indices.slice(..), wgpu::IndexFormat::Uint32);

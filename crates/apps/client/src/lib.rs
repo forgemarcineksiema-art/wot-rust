@@ -30,10 +30,12 @@ pub use loop_policy::{
 };
 pub use render_state::InterpolatedBattleState;
 pub use scene::battlefield::{
-    battlefield_scene_mesh, battlefield_scene_mesh_with_cover_states, terrain_scene_mesh,
+    battlefield_ground_and_statics_meshes, battlefield_scene_mesh,
+    battlefield_scene_mesh_with_cover_states, battlefield_statics_mesh, terrain_scene_mesh,
 };
 pub use scene::hangar::{TURNTABLE_TOP_M, hangar_camera_pivot, hangar_scene_mesh};
 pub use scene::review_views::{ReviewView, prokhorovka_review_views};
+pub use scene::terrain_maps::{bake_terrain_ground_maps, terrain_material_set_for};
 pub use scene::water::battlefield_water_mesh;
 pub use vehicle::asset_catalog::VehicleAssetCatalog;
 pub use vehicle::asset_render::{

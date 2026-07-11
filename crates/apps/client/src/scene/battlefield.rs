@@ -23,8 +23,39 @@ pub fn battlefield_scene_mesh_with_cover_states(
     battlefield: &BattlefieldMap,
     cover_states: &[u8],
 ) -> (Vec<SceneVertex>, Vec<u32>) {
-    let (mut vertices, mut indices) =
+    let (ground, statics) = battlefield_ground_and_statics_meshes(battlefield, cover_states);
+    let (mut vertices, mut indices) = ground;
+    let base = vertices.len() as u32;
+    vertices.extend(statics.0);
+    indices.extend(statics.1.into_iter().map(|index| index + base));
+    (vertices, indices)
+}
+
+/// One indexed scene mesh: vertices plus triangle indices.
+pub type SceneMeshData = (Vec<SceneVertex>, Vec<u32>);
+
+/// The battlefield split for Terrain Material 2.0: the GROUND (the heightfield the terrain
+/// pipeline shades with splat layers + macro normals) separately from the STATICS (cover,
+/// backdrop skirt, scenery — the generic scene pipeline). Same content as
+/// [`battlefield_scene_mesh_with_cover_states`], split at the pipeline seam.
+pub fn battlefield_ground_and_statics_meshes(
+    battlefield: &BattlefieldMap,
+    cover_states: &[u8],
+) -> (SceneMeshData, SceneMeshData) {
+    let ground =
         terrain_scene_mesh_full(&battlefield.heightmap, battlefield.water, &battlefield.roads);
+    (ground, battlefield_statics_mesh(battlefield, cover_states))
+}
+
+/// The statics alone (cover, backdrop skirt, scenery) — what a cover-state change rebuilds.
+/// The ground and its baked maps never depend on cover phases, so a collapsing building costs
+/// only this mesh, never a 1024^2 map rebake.
+pub fn battlefield_statics_mesh(
+    battlefield: &BattlefieldMap,
+    cover_states: &[u8],
+) -> (Vec<SceneVertex>, Vec<u32>) {
+    let mut vertices = Vec::new();
+    let mut indices = Vec::new();
     for (index, cover) in battlefield.static_cover.iter().enumerate() {
         match cover_states.get(index).copied().unwrap_or(0) {
             0 => append_cover_box(&mut vertices, &mut indices, cover),
@@ -439,14 +470,25 @@ fn terrain_scene_mesh_full(
                 color = Vec3::from_array(color).lerp(tone, blend).to_array();
                 gloss = gloss + (road_gloss - gloss) * blend;
             }
+            // The ground pipeline reads its albedo from the splat layers; the vertex colour
+            // wins only where the tint lane says so — the submerged riverbed, whose depth
+            // tint has no splat equivalent. Dry ground carries 0 (splat rules).
+            let mut vertex_color_dominance = 0.0;
             if let Some(water) = water {
                 let depth = water.depth_over(y);
                 color = water_tint(color, depth);
                 if depth > 0.02 {
                     gloss = 0.35;
+                    vertex_color_dominance = (depth / 0.35).clamp(0.35, 1.0);
                 }
             }
-            vertices.push(SceneVertex::surfaced([wx, y, wz], normal.to_array(), color, gloss));
+            vertices.push(SceneVertex {
+                position: [wx, y, wz],
+                normal: normal.to_array(),
+                color,
+                tint_weight: vertex_color_dominance,
+                gloss,
+            });
         }
     }
 
@@ -512,13 +554,25 @@ fn grass_patchwork(wx: f32, wz: f32) -> Vec3 {
     let base = Vec3::new(0.26, 0.44, 0.20);
     let dry = Vec3::new(0.40, 0.40, 0.21);
     let lush = Vec3::new(0.18, 0.36, 0.15);
-    // Broad drifts (~65 m) shaped by a finer octave (~19 m).
-    let n = value_noise(wx / 65.0, wz / 65.0) * 0.72 + value_noise(wx / 19.0, wz / 19.0) * 0.28;
+    let n = grass_patchwork_noise(wx, wz);
     if n > 0.5 {
         base.lerp(dry, ((n - 0.5) * 2.4).min(1.0))
     } else {
         base.lerp(lush, ((0.5 - n) * 2.4).min(1.0) * 0.85)
     }
+}
+
+/// The patchwork drift noise itself, shared with the splat bake so the per-pixel grass/straw
+/// split lands exactly where the old vertex palette drifted: broad drifts (~65 m) shaped by a
+/// finer octave (~19 m), deterministic in the world point.
+pub(crate) fn grass_patchwork_noise(wx: f32, wz: f32) -> f32 {
+    value_noise(wx / 65.0, wz / 65.0) * 0.72 + value_noise(wx / 19.0, wz / 19.0) * 0.28
+}
+
+/// The strongest road-paint blend at a world point, 0 where no road reaches — the splat bake's
+/// dirt-layer source, sharing `road_paint`'s feathering exactly.
+pub(crate) fn road_blend_at(roads: &[Road], wx: f32, wz: f32) -> f32 {
+    road_paint(roads, wx, wz).map(|(_, _, blend)| blend).unwrap_or(0.0)
 }
 
 /// Deterministic 2D value noise in [0, 1]: hashed lattice corners, smoothstep-blended.

@@ -161,6 +161,45 @@ fn outdoor_grades_lift_saturation_gently_and_never_tint_grey() {
     }
 }
 
+/// RULE 2, the content side: the ACTUAL terrain layer palettes (Terrain Material 2.0) obey the
+/// ground-saturation window — the swatch discipline stopped being advisory the day the ground
+/// started rendering from these. Grass is grey-green here, never lawn-green.
+#[test]
+fn terrain_material_sets_stay_inside_the_saturation_window() {
+    use renderer_api::TerrainMaterialSet;
+    for (name, set) in [
+        ("prokhorovka", TerrainMaterialSet::prokhorovka()),
+        ("bystra", TerrainMaterialSet::bystra()),
+    ] {
+        for (i, layer) in set.layers.iter().enumerate() {
+            let sat = saturation(layer.albedo);
+            assert!(
+                sat <= 0.45,
+                "{name} layer {i} albedo {:?} exceeds the saturation window: {sat:.3}",
+                layer.albedo
+            );
+            for c in layer.albedo {
+                assert!((0.05..=0.7).contains(&c), "{name} layer {i}: albedo {c} out of range");
+            }
+            assert!(
+                (0.0..=1.2).contains(&layer.detail),
+                "{name} layer {i}: detail {} out of envelope",
+                layer.detail
+            );
+            assert!((0.0..=0.3).contains(&layer.gloss), "{name} layer {i}: ground gloss envelope");
+        }
+        assert!(
+            (0.0..=1.0).contains(&set.macro_normal_strength),
+            "{name}: macro normal strength out of range"
+        );
+        // Rule 1 support: the straw layer out-lumes the grass (the patchwork must keep value
+        // separation, not just hue), and rock is the brightest ground (chalk break reads).
+        let luma_of = |i: usize| luminance(set.layers[i].albedo);
+        assert!(luma_of(1) > luma_of(0), "{name}: straw must read lighter than grass");
+        assert!(luma_of(3) > luma_of(2), "{name}: broken rock must read lighter than dirt");
+    }
+}
+
 /// RULE 3 (warm key / cool fill): the light axis of the whole art direction. The sun key is
 /// always warmer than the sky fill; an overcast lid compresses the split but never inverts it,
 /// and the clear-sky looks keep it decisive (a genuinely warm key against a genuinely cool fill).

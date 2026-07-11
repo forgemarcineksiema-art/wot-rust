@@ -85,8 +85,8 @@ fn battle_scene_meshes_are_baked_once_and_reused_across_a_scene_swap() {
     let mut app = ClientApp::new();
     app.ensure_battle_scene_meshes();
     let baked = app.battle_scene_meshes.as_ref().expect("baked");
-    assert!(!baked.terrain_vertices.is_empty(), "the battlefield really produced geometry");
-    let terrain_ptr = baked.terrain_vertices.as_ptr();
+    assert!(!baked.ground_vertices.is_empty(), "the battlefield really produced geometry");
+    let terrain_ptr = baked.ground_vertices.as_ptr();
     let water_ptr = baked.water_vertices.as_ptr();
 
     // A redundant bake is a no-op, and a scene swap toward battle reuses the same allocation.
@@ -95,7 +95,7 @@ fn battle_scene_meshes_are_baked_once_and_reused_across_a_scene_swap() {
     app.ensure_scene(super::SceneKind::Battle);
 
     let after = app.battle_scene_meshes.as_ref().expect("still baked");
-    assert_eq!(after.terrain_vertices.as_ptr(), terrain_ptr, "terrain was rebaked");
+    assert_eq!(after.ground_vertices.as_ptr(), terrain_ptr, "terrain was rebaked");
     assert_eq!(after.water_vertices.as_ptr(), water_ptr, "water was rebaked");
 }
 

@@ -59,8 +59,14 @@ pub(crate) enum SceneKind {
 
 /// The battle scene's baked CPU meshes — see `ClientApp::battle_scene_meshes`.
 pub(crate) struct BattleSceneMeshes {
-    pub(crate) terrain_vertices: Vec<renderer_api::SceneVertex>,
-    pub(crate) terrain_indices: Vec<u32>,
+    /// The heightfield the terrain pipeline shades (splat layers + macro normals).
+    pub(crate) ground_vertices: Vec<renderer_api::SceneVertex>,
+    pub(crate) ground_indices: Vec<u32>,
+    /// The baked ground maps (splat + macro normal) — cover changes never touch these.
+    pub(crate) ground_maps: renderer_api::TerrainGroundMaps,
+    /// Cover, backdrop skirt and scenery — the generic scene pipeline's slot.
+    pub(crate) statics_vertices: Vec<renderer_api::SceneVertex>,
+    pub(crate) statics_indices: Vec<u32>,
     pub(crate) water_vertices: Vec<renderer_api::WaterVertex>,
     pub(crate) water_indices: Vec<u32>,
 }
@@ -72,12 +78,17 @@ impl ClientApp {
         if self.battle_scene_meshes.is_some() {
             return;
         }
-        let (terrain_vertices, terrain_indices) = crate::battlefield_scene_mesh(&self.battlefield);
+        let ((ground_vertices, ground_indices), (statics_vertices, statics_indices)) =
+            crate::battlefield_ground_and_statics_meshes(&self.battlefield, &[]);
+        let ground_maps = crate::scene::terrain_maps::bake_terrain_ground_maps(&self.battlefield);
         let (water_vertices, water_indices) =
             crate::scene::water::battlefield_water_mesh(&self.battlefield);
         self.battle_scene_meshes = Some(BattleSceneMeshes {
-            terrain_vertices,
-            terrain_indices,
+            ground_vertices,
+            ground_indices,
+            ground_maps,
+            statics_vertices,
+            statics_indices,
             water_vertices,
             water_indices,
         });

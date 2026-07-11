@@ -71,7 +71,13 @@ fn sun_shadow(world_pos: vec3<f32>, n: vec3<f32>) -> f32 {
         return 1.0;
     }
     let texel_far = camera.cascade_params.x;
-    let reference_far = ndc_far.z - camera.shadow_params.y;
+    // The NDC depth bias is worth bias * depth_span metres of forgiveness. The far box is 3.7x
+    // deeper than it was born (300 m -> 1100 m, to contain every occluder on a 1000 m map so
+    // nothing pancakes to depth 0 and blankets the field in false shadow); scaling the shared
+    // bias back down keeps the far cascade's WORLD-space forgiveness at its calibrated ~0.5 m
+    // — a 1.2 m plate still casts, grazing terrain still doesn't acne. Keep in lockstep with
+    // SunShadowParams::far_cascade (renderer_api/sun_shadow.rs).
+    let reference_far = ndc_far.z - camera.shadow_params.y * (300.0 / 1100.0);
     var sum_far = 0.0;
     for (var i = 0; i < 2; i = i + 1) {
         for (var j = 0; j < 2; j = j + 1) {

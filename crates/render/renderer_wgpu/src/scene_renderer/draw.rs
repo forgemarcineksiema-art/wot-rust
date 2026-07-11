@@ -174,6 +174,20 @@ impl super::SceneRenderer {
                     );
                 }
             }
+            // The battlefield ground: its own pipeline (splat layers + macro normals at
+            // group 1), the same camera/shadow groups, chunk-culled by the camera frustum.
+            // Drawn AFTER every scene-pipeline draw on purpose: the scene pipeline's layout
+            // carries a hole (None) at group 1, and leaving a foreign bind group parked in a
+            // hole corrupts the group-2 shadow sampling on some backends — the ground must
+            // never leave its material group behind for a holed layout to trip over.
+            if let Some(binding) = self.ground.binding.as_ref() {
+                pass.set_pipeline(&self.ground.pipeline);
+                pass.set_bind_group(0, &self.camera_bind_group, &[]);
+                pass.set_bind_group(1, &binding.bind_group, &[]);
+                pass.set_bind_group(2, &*self.shadow.bind_group.borrow(), &[]);
+                pass.set_vertex_buffer(1, self.identity_instance.slice(..));
+                self.draw_visible_ground(&mut pass, &camera_frustum);
+            }
             if self.vehicle_instance_count > 0 {
                 pass.set_pipeline(&self.vehicle_pipeline);
                 pass.set_bind_group(0, &self.vehicle_camera_bind_group, &[]);
