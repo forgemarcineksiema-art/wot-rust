@@ -33,6 +33,33 @@ pub fn water_surface_mesh(heightmap: &HeightMap, water: WaterBody) -> (Vec<Water
     let cell = heightmap.cell_size_m();
     let depth_at = |x: usize, z: usize| water.depth_over(heightmap.sample_at_index(x, z));
 
+    // The downstream current at a grid node: the river flows ALONG its channel, i.e.
+    // perpendicular to the cross-channel depth gradient (which points toward the deep line).
+    // Map-agnostic - it reads only the depth field, so it follows any meander for free.
+    // Oriented toward +Z (Bystra's downstream); a flat pool (no gradient) defaults downstream.
+    let flow_at = |x: usize, z: usize| -> [f32; 2] {
+        let sample = |xi: i32, zi: i32| {
+            let cx = xi.clamp(0, w as i32 - 1) as usize;
+            let cz = zi.clamp(0, h as i32 - 1) as usize;
+            depth_at(cx, cz)
+        };
+        let (xi, zi) = (x as i32, z as i32);
+        let grad = glam::Vec2::new(
+            sample(xi + 1, zi) - sample(xi - 1, zi),
+            sample(xi, zi + 1) - sample(xi, zi - 1),
+        );
+        // Perpendicular to the depth gradient = along the channel. Rotate +90 degrees.
+        let mut along = glam::Vec2::new(-grad.y, grad.x);
+        if along.length_squared() < 1.0e-8 {
+            return [0.0, 1.0];
+        }
+        along = along.normalize();
+        if along.y < 0.0 {
+            along = -along; // bias to +Z downstream
+        }
+        [along.x, along.y]
+    };
+
     // Vertex indices are allocated lazily so a mostly-dry map costs only its river corridor.
     let mut vertex_index = vec![u32::MAX; w * h];
     let mut vertices: Vec<WaterVertex> = Vec::new();
@@ -42,9 +69,10 @@ pub fn water_surface_mesh(heightmap: &HeightMap, water: WaterBody) -> (Vec<Water
             let slot = z * w + x;
             if vertex_index[slot] == u32::MAX {
                 vertex_index[slot] = vertices.len() as u32;
-                vertices.push(WaterVertex::new(
+                vertices.push(WaterVertex::flowing(
                     [x as f32 * cell, water.surface_level_m, z as f32 * cell],
                     depth_at(x, z).max(0.0),
+                    flow_at(x, z),
                 ));
             }
             vertex_index[slot]
@@ -74,6 +102,37 @@ mod tests {
     use terrain::{bystra_valley, prokhorovka_hill_252_2};
 
     use super::*;
+
+    #[test]
+    fn the_baked_current_flows_downstream_along_the_channel() {
+        let map = bystra_valley();
+        let water = map.water.expect("the Bystra is the map");
+        let (vertices, _) = water_surface_mesh(&map.heightmap, water);
+
+        let mut flowing = 0usize;
+        for vertex in &vertices {
+            let flow = glam::Vec2::from(vertex.flow);
+            let len = flow.length();
+            // Every flow is either still (0) or a unit direction — never a stray magnitude.
+            assert!(len < 1.0e-3 || (0.99..=1.01).contains(&len), "flow not unit: {len}");
+            if len > 0.5 {
+                flowing += 1;
+                // The Bystra runs +Z: the current carries a real downstream component, never
+                // pointing back upstream (the depth-gradient perpendicular is oriented to +Z).
+                assert!(
+                    flow.y >= -1.0e-3,
+                    "current must not point upstream at {:?}: {:?}",
+                    vertex.position,
+                    vertex.flow
+                );
+            }
+        }
+        assert!(
+            flowing * 3 > vertices.len(),
+            "most of the river must carry a current: {flowing}/{}",
+            vertices.len()
+        );
+    }
 
     #[test]
     fn a_dry_map_builds_no_water_mesh() {

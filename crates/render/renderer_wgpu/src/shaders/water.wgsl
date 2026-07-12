@@ -1,22 +1,24 @@
-// The river surface: a static mesh on the still-water plane, animated entirely in-shader from
-// the tick-domain presentation clock (camera.time_params.x — never render-frame dt). The
-// reflection needs no offscreen target: the sky is an analytic gradient + sun disc, so the
-// reflected ray simply re-evaluates the same formula sky.wgsl shades the dome with. Depth-tested
-// against the world but never writing depth, alpha-blended over the riverbed drawn beneath it.
-// Composed after camera_common.wgsl and lighting_common.wgsl (camera uniform, env_sky gradient,
-// ACES curve). NOTE: the surface tone-maps through the bare aces_curve, without display_grade —
-// the pre-existing water look, preserved by the shared-WGSL refactor; revisit with the exposure
-// phase, which turns the grade into profile data.
+// The river surface (Water 2.0): a static mesh on the still-water plane, animated in-shader from
+// the tick-domain presentation clock (camera.time_params.x — never render-frame dt). Waves now
+// ADVECT along the baked per-vertex current instead of three static crossing sines, so the river
+// reads as flowing; the shallow banks carry scrolling foam flecks. The reflection needs no
+// offscreen target: the sky is an analytic gradient + sun disc, so the reflected ray re-evaluates
+// the same formula sky.wgsl shades the dome with (refraction — a grab of the scene behind the
+// surface — is the deferred A6b step). Depth-tested against the world but never writing depth,
+// alpha-blended over the riverbed drawn beneath it. Composed after camera_common.wgsl and
+// lighting_common.wgsl (camera uniform, env_sky gradient).
 
 struct VsIn {
     @location(0) position: vec3<f32>,
     @location(1) depth_m: f32,
+    @location(2) flow: vec2<f32>,
 };
 
 struct VsOut {
     @builtin(position) clip: vec4<f32>,
     @location(0) world: vec3<f32>,
     @location(1) depth_m: f32,
+    @location(2) flow: vec2<f32>,
 };
 
 @vertex
@@ -24,8 +26,24 @@ fn vs_main(input: VsIn) -> VsOut {
     var out: VsOut;
     out.world = input.position;
     out.depth_m = input.depth_m;
+    out.flow = input.flow;
     out.clip = camera.view_proj * vec4<f32>(input.position, 1.0);
     return out;
+}
+
+fn water_hash(p: vec2<f32>) -> f32 {
+    return fract(sin(dot(p, vec2<f32>(127.1, 311.7))) * 43758.5453);
+}
+
+fn water_noise(p: vec2<f32>) -> f32 {
+    let i = floor(p);
+    let f = fract(p);
+    let u = f * f * (3.0 - 2.0 * f);
+    let a = water_hash(i);
+    let b = water_hash(i + vec2<f32>(1.0, 0.0));
+    let c = water_hash(i + vec2<f32>(0.0, 1.0));
+    let d = water_hash(i + vec2<f32>(1.0, 1.0));
+    return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
 }
 
 // The shared env_sky gradient plus the water's own sun: the reflection IS the sky the dome and
@@ -46,18 +64,30 @@ fn sky_color(dir: vec3<f32>) -> vec3<f32> {
 @fragment
 fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     let time = camera.time_params.x;
-    // Two crossing ripple trains perturb the up normal: small amplitude, incommensurate wave
-    // lengths and speeds so the pattern never visibly loops. GAMEPLAY water stays a flat plane;
-    // this is presentation only.
     let p = input.world.xz;
-    let ripple_a = sin(dot(p, vec2<f32>(0.23, 0.11)) + time * 0.9);
-    let ripple_b = sin(dot(p, vec2<f32>(-0.13, 0.27)) + time * 1.3);
-    let ripple_c = sin(dot(p, vec2<f32>(0.05, -0.07)) + time * 0.5);
-    let normal = normalize(vec3<f32>(
-        (ripple_a + ripple_c * 0.6) * 0.035,
-        1.0,
-        (ripple_b - ripple_c * 0.4) * 0.035,
-    ));
+
+    // The current: the baked downstream direction, and the cross-stream axis. Still water
+    // (flow ~ 0) falls back to a fixed frame so a lake still ripples gently.
+    var flow = input.flow;
+    if (length(flow) < 1.0e-3) {
+        flow = vec2<f32>(0.0, 1.0);
+    } else {
+        flow = normalize(flow);
+    }
+    let cross_axis = vec2<f32>(-flow.y, flow.x);
+
+    // Waves ADVECT downstream: each train's phase carries `-time * speed` ALONG the flow, so
+    // crests travel with the current instead of standing in place. A long primary train down
+    // the channel, a finer secondary at a slight angle, and a cross chop for texture.
+    let along = dot(p, flow);
+    let side = dot(p, cross_axis);
+    // Slope of the wave height along the two axes -> a perturbed up-normal.
+    let d_along = cos(along * 0.16 - time * 1.1) * 0.16 * 0.9
+        + cos((along * 0.31 + side * 0.12) - time * 1.7) * 0.31 * 0.5;
+    let d_side = cos((along * 0.31 + side * 0.12) - time * 1.7) * 0.12 * 0.5
+        + cos(side * 0.24 - time * 0.6) * 0.24 * 0.7;
+    let slope = flow * d_along + cross_axis * d_side;
+    let normal = normalize(vec3<f32>(-slope.x * 0.11, 1.0, -slope.y * 0.11));
 
     let view = normalize(input.world - camera.camera_pos);
     let reflected = reflect(view, normal);
@@ -77,6 +107,19 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     let fresnel = 0.08 + 0.78 * pow(1.0 - facing, 5.0);
     var color = mix(body, sky * vec3<f32>(0.86, 0.97, 1.06), fresnel);
 
+    // Bank foam: where the water films thin over the shore, scrolling white flecks gather —
+    // two noise octaves advected downstream, thresholded so it reads as painterly speckle, not
+    // a solid white rim. Strongest at the very edge, gone by ~0.35 m of depth.
+    let foam_zone = smoothstep(0.35, 0.03, input.depth_m);
+    if (foam_zone > 0.0) {
+        let drift = flow * time * 0.35;
+        let f1 = water_noise(p * 0.9 - drift);
+        let f2 = water_noise(p * 2.3 - drift * 1.7);
+        let speckle = smoothstep(0.55, 0.85, f1 * 0.6 + f2 * 0.4);
+        let foam = speckle * foam_zone;
+        color = mix(color, vec3<f32>(0.92, 0.96, 0.98), foam * 0.85);
+    }
+
     // Aerial perspective, mirroring scene.wgsl: distant water melts toward the horizon color.
     let distance = length(input.world - camera.camera_pos);
     let fog = 1.0 - exp(-camera.fog_params.x * distance);
@@ -84,7 +127,6 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
 
     // Shore fade: film-thin water at the banks dissolves instead of ending in a hard saw edge.
     let alpha = clamp(input.depth_m / 0.4, 0.0, 1.0) * 0.88 + 0.06;
-    // Linear HDR out: the river finally grades through the SAME display transform as the
-    // rest of the picture (the old bare-curve bypass is gone — rule 7).
+    // Linear HDR out: the river grades through the shared display transform in the post pass.
     return vec4<f32>(color, alpha);
 }

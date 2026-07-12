@@ -10,8 +10,8 @@ pub fn water_shader_source() -> String {
     compose_shader(&[CAMERA_COMMON_WGSL, LIGHTING_COMMON_WGSL, include_str!("shaders/water.wgsl")])
 }
 
-const WATER_ATTRIBUTES: [wgpu::VertexAttribute; 2] =
-    wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32];
+const WATER_ATTRIBUTES: [wgpu::VertexAttribute; 3] =
+    wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32, 2 => Float32x2];
 
 /// Classic transparency: the fragment's alpha (the shore fade) weights the surface over the
 /// riverbed beneath.

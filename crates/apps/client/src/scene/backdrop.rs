@@ -136,8 +136,17 @@ pub fn backdrop_water_mesh(battlefield: &BattlefieldMap) -> (Vec<WaterVertex>, V
             let start = vertices.len() as u32;
             for (zz, half) in [(z, 26.0_f32), (z_next, 26.0)] {
                 let center = terrain::bystra_river_center_x(zz);
+                // Downstream tangent of the meander center line (biased +Z, the flow direction).
+                let eps = 2.0;
+                let dcx = terrain::bystra_river_center_x(zz + eps)
+                    - terrain::bystra_river_center_x(zz - eps);
+                let flow = glam::Vec2::new(dcx, 2.0 * eps).normalize();
                 for x in [center - half, center + half] {
-                    vertices.push(WaterVertex::new([x, water.surface_level_m, zz], 2.0));
+                    vertices.push(WaterVertex::flowing(
+                        [x, water.surface_level_m, zz],
+                        2.0,
+                        [flow.x, flow.y],
+                    ));
                 }
             }
             indices.extend_from_slice(&[
