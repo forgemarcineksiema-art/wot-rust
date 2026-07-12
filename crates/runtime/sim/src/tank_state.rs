@@ -94,6 +94,16 @@ impl TankState {
         options[index]
     }
 
+    /// The reload the loader actually starts on the next shot: the gun's base reload stretched by
+    /// its wound (a damaged breech loads slower — see [`game_core::gun_reload_multiplier`]). A
+    /// whole gun returns the stock time; a destroyed gun never reaches this path (it cannot fire).
+    /// Both fire and ammo-switch route their reload through here so the penalty is single-sourced.
+    pub fn full_reload_seconds(&self) -> f32 {
+        let full = self.spec.module_health.hit_points(game_core::ModuleSlot::Gun);
+        let live = self.modules.hit_points(game_core::ModuleSlot::Gun);
+        self.spec.gun.reload_seconds * game_core::gun_reload_multiplier(live, full)
+    }
+
     /// Where the next shell leaves the barrel: the mount chain pivoted about trunnion and ring,
     /// scaled to the installed barrel's length. The authoritative fire path and the bot aim
     /// solver both read the muzzle from here so they can never disagree about the spawn point.

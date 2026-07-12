@@ -84,6 +84,13 @@ pub fn demo_battle_hud(sniper: bool, aspect: f32) -> Vec<HudVertex> {
             [22, 9, 6],
             0,
         )),
+        // A wounded gun (amber) and a thrown track (red running gear) so the staged frame shows
+        // the module panel doing its job. Order: [Engine, Suspension, Turret, Gun, AmmoRack, Radio].
+        modules: Some(crate::hud::module_panel::ModulePanelModel::new(
+            [400, 300, 300, 60, 225, 60],
+            [400, 300, 300, 150, 225, 60],
+            game_core::ModuleCondition::Destroyed,
+        )),
         minimap: Some(demo_minimap()),
         battle_outcome: None,
         battle_clock_remaining_s: Some(474.0),

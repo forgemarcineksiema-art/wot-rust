@@ -187,6 +187,7 @@ fn the_positional_wrapper_and_the_model_build_identical_huds() {
         track_feedback: Default::default(),
         incoming_hits: Vec::new(),
         ammo: None,
+        modules: None,
         minimap: None,
         battle_outcome: None,
         battle_clock_remaining_s: None,
@@ -217,6 +218,7 @@ fn the_scope_surround_is_fade_driven_not_mode_driven() {
         track_feedback: Default::default(),
         incoming_hits: Vec::new(),
         ammo: None,
+        modules: None,
         minimap: None,
         battle_outcome: None,
         battle_clock_remaining_s: None,
@@ -255,6 +257,7 @@ fn battle_outcome_banner_draws_only_when_the_battle_has_ended() {
         track_feedback: Default::default(),
         incoming_hits: Vec::new(),
         ammo: None,
+        modules: None,
         minimap: None,
         battle_outcome: None,
         battle_clock_remaining_s: None,
@@ -300,6 +303,7 @@ fn battle_clock_draws_only_when_timed_and_warms_in_the_last_minute() {
         track_feedback: Default::default(),
         incoming_hits: Vec::new(),
         ammo: None,
+        modules: None,
         minimap: None,
         battle_outcome: None,
         battle_clock_remaining_s: None,
@@ -324,4 +328,49 @@ fn battle_clock_draws_only_when_timed_and_warms_in_the_last_minute() {
     };
     assert!(!alert(&timed_hud), "mid-battle clock stays in the calm readout color");
     assert!(alert(&closing_hud), "the last minute warms to the alert color");
+}
+
+/// The module panel draws only when the model carries one, and a knocked-out module paints its
+/// signal red into the frame — the fix for a silent fire-refusal.
+#[test]
+fn the_module_panel_draws_only_when_present_and_a_dead_module_reads_red() {
+    let base = BattleHudModel {
+        vitals: vitals(),
+        reticle: None,
+        fps: 0.0,
+        speed_kmh: 0.0,
+        zoom_factor: None,
+        damage_log: Vec::new(),
+        track_feedback: Default::default(),
+        incoming_hits: Vec::new(),
+        ammo: None,
+        modules: None,
+        minimap: None,
+        battle_outcome: None,
+        battle_clock_remaining_s: None,
+        kill_confirm_age_s: None,
+        reload_ready_age_s: None,
+        fire_denied_age_s: None,
+        scope_fade: 0.0,
+    };
+    let red =
+        |hud: &[HudVertex]| hud.iter().any(|v| v.color == super::module_panel::MODULE_DESTROYED);
+
+    assert!(!red(&build_battle_hud(&base, 16.0 / 9.0)), "no module red while the panel is absent");
+
+    let full = [400, 300, 300, 150, 225, 60];
+    let mut live = full;
+    live[game_core::ModuleSlot::Gun.wire_index()] = 0; // gun knocked out
+    let with_dead_gun = BattleHudModel {
+        modules: Some(super::module_panel::ModulePanelModel::new(
+            live,
+            full,
+            game_core::ModuleCondition::Healthy,
+        )),
+        ..base.clone()
+    };
+    assert!(
+        red(&build_battle_hud(&with_dead_gun, 16.0 / 9.0)),
+        "a dead gun must read red in the module panel"
+    );
 }

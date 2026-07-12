@@ -252,6 +252,7 @@ impl ClientApp {
             track_feedback: self.track_feedback.model(),
             incoming_hits: self.incoming_hits.screen_hits(camera_forward_xz),
             ammo: Some(self.player_ammo_hud()),
+            modules: self.player_module_hud(),
             minimap,
             battle_outcome: self.battle_outcome,
             battle_clock_remaining_s: self.local_server.battle_time_remaining_s(),

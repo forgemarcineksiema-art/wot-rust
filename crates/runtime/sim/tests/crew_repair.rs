@@ -1,6 +1,8 @@
-//! Crew repair locks: mobility comes back, fighting power does not. Before this system a
+//! Crew repair locks: mobility AND fighting power come back, but wounded. Before this system a
 //! thrown track or a rammed-dead suspension made the hull a statue for the rest of the battle
-//! (and parked entire bot teams mid-map).
+//! (and parked entire bot teams mid-map); a knocked-out gun silently locked out firing for the
+//! whole match. Now the crew field-patches engine, suspension, gun and ammo rack back to a
+//! wounded state — the turret ring and radio still stay out.
 
 use game_core::{ModuleSlot, TankSpec, TeamId, TrackSeverity, TrackSide};
 use glam::Vec3;
@@ -53,21 +55,29 @@ fn a_thrown_track_is_reseated_and_the_hull_drives_again() {
 }
 
 #[test]
-fn destroyed_mobility_modules_are_field_patched_but_the_gun_stays_dead() {
+fn destroyed_modules_are_field_patched_including_the_gun_and_rack_but_not_the_turret_ring() {
     let heightmap = flat_ground();
     let mut sim = SimulationState::new();
     let id = sim.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::new(100.0, 0.0, 100.0));
     {
         let tank = sim.tank_mut(id).unwrap();
-        tank.modules.damage(ModuleSlot::Suspension, u32::MAX);
-        tank.modules.damage(ModuleSlot::Engine, u32::MAX);
-        tank.modules.damage(ModuleSlot::Gun, u32::MAX);
+        for slot in [
+            ModuleSlot::Suspension,
+            ModuleSlot::Engine,
+            ModuleSlot::Gun,
+            ModuleSlot::AmmoRack,
+            ModuleSlot::Turret,
+        ] {
+            tank.modules.damage(slot, u32::MAX);
+        }
     }
 
     drive(&mut sim, id, &heightmap, ticks(MODULE_PATCH_S));
     let tank = sim.tank(id).unwrap();
     let spec = &tank.spec.module_health;
-    for slot in [ModuleSlot::Engine, ModuleSlot::Suspension] {
+    // Mobility AND fighting modules come back — wounded, at the field-patch fraction, not full.
+    for slot in [ModuleSlot::Engine, ModuleSlot::Suspension, ModuleSlot::Gun, ModuleSlot::AmmoRack]
+    {
         let patched = tank.modules.hit_points(slot);
         assert!(patched > 0, "{slot:?} must be field-patched back to life");
         assert!(
@@ -75,12 +85,35 @@ fn destroyed_mobility_modules_are_field_patched_but_the_gun_stays_dead() {
             "{slot:?} is a field patch, not shop condition (got {patched})"
         );
     }
-    assert_eq!(tank.modules.hit_points(ModuleSlot::Gun), 0, "a knocked-out gun stays out");
+    // The turret ring is deliberately left out — a jammed ring stays jammed.
+    assert_eq!(tank.modules.hit_points(ModuleSlot::Turret), 0, "the turret ring stays knocked out");
 
     // And the patched hull actually drives.
     let before = sim.tank(id).unwrap().position;
     drive(&mut sim, id, &heightmap, 180);
     assert!(sim.tank(id).unwrap().position.distance(before) > 2.0, "patched mobility drives");
+}
+
+#[test]
+fn a_field_patched_gun_fires_again_but_reloads_slower_than_a_whole_one() {
+    let mut sim = SimulationState::new();
+    let id = sim.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::new(100.0, 0.0, 100.0));
+
+    let whole_reload = sim.tank(id).unwrap().full_reload_seconds();
+    // Drain the gun to roughly the crew-patch fraction — a wounded but functional breech.
+    let full = sim.tank(id).unwrap().spec.module_health.hit_points(ModuleSlot::Gun);
+    sim.tank_mut(id).unwrap().modules.damage(ModuleSlot::Gun, full * 3 / 4);
+
+    let tank = sim.tank(id).unwrap();
+    assert!(
+        tank.modules.is_functional(ModuleSlot::Gun),
+        "a wounded (not destroyed) gun must still be able to fire"
+    );
+    let wounded_reload = tank.full_reload_seconds();
+    assert!(
+        wounded_reload > whole_reload * 1.2,
+        "a wounded gun reloads meaningfully slower ({wounded_reload:.2}s vs whole {whole_reload:.2}s)"
+    );
 }
 
 #[test]
