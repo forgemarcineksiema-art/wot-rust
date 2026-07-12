@@ -40,6 +40,70 @@ fn shell_hit_penetrates_armor_and_applies_damage() {
     assert!(event.penetrated);
     assert!(event.damage_hp > 0);
     assert!(state.tank(target).expect("target").hit_points < target_hp);
+    assert_eq!(state.shells().len(), 1, "a perforating kinetic round exits with residual energy");
+    assert_eq!(state.shells()[0].last_penetrated_target, Some(target));
+}
+
+#[test]
+fn kinetic_round_can_perforate_one_light_hull_and_damage_the_tank_behind_it() {
+    use game_core::VehicleKind;
+
+    let mut state = SimulationState::new();
+    let shooter = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::ZERO);
+    let first = state.spawn_tank(TeamId(2), VehicleKind::T34_85.spec(), Vec3::new(0.0, 0.0, 35.0));
+    let second = state.spawn_tank(TeamId(2), VehicleKind::T34_85.spec(), Vec3::new(0.0, 0.0, 50.0));
+    state.tank_mut(first).expect("first").yaw_rad = PI;
+    state.tank_mut(second).expect("second").yaw_rad = PI;
+    let first_hp = state.tank(first).expect("first").hit_points;
+    let second_hp = state.tank(second).expect("second").hit_points;
+    let step = FixedTimestep::from_hz(60);
+
+    state.apply_commands(&[(shooter, fire_command())], step);
+    for _ in 0..20 {
+        state.apply_commands(&[], step);
+        if state.tank(second).expect("second").hit_points < second_hp {
+            break;
+        }
+    }
+
+    assert!(state.tank(first).expect("first").hit_points < first_hp, "front hull is perforated");
+    assert!(
+        state.tank(second).expect("second").hit_points < second_hp,
+        "residual projectile reaches the aligned rear tank"
+    );
+}
+
+#[test]
+fn heat_jet_resolves_on_the_first_hull_and_never_becomes_a_second_projectile() {
+    use game_core::{ShellType, VehicleKind};
+
+    let mut state = SimulationState::new();
+    let shooter = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::ZERO);
+    let first = state.spawn_tank(TeamId(2), VehicleKind::T34_85.spec(), Vec3::new(0.0, 0.0, 35.0));
+    let second = state.spawn_tank(TeamId(2), VehicleKind::T34_85.spec(), Vec3::new(0.0, 0.0, 50.0));
+    state.tank_mut(first).expect("first").yaw_rad = PI;
+    state.tank_mut(second).expect("second").yaw_rad = PI;
+    let shooter_state = state.tank_mut(shooter).expect("shooter");
+    shooter_state.selected_ammo = 1;
+    assert_eq!(shooter_state.selected_shell().shell_type, ShellType::Heat);
+    let first_hp = state.tank(first).expect("first").hit_points;
+    let second_hp = state.tank(second).expect("second").hit_points;
+    let step = FixedTimestep::from_hz(60);
+
+    state.apply_commands(&[(shooter, fire_command())], step);
+    for _ in 0..20 {
+        state.apply_commands(&[], step);
+        if state.shells().is_empty() {
+            break;
+        }
+    }
+
+    assert!(state.tank(first).expect("first").hit_points < first_hp, "HEAT penetrates first hull");
+    assert_eq!(
+        state.tank(second).expect("second").hit_points,
+        second_hp,
+        "chemical jet does not continue as a flying shell"
+    );
     assert!(state.shells().is_empty());
 }
 
@@ -236,7 +300,7 @@ fn run_until_shell_resolved(state: &mut SimulationState, shooter: game_core::Tan
     state.apply_commands(&[(shooter, fire_command())], step);
     for _ in 0..30 {
         state.apply_commands(&[], step);
-        if state.shells().is_empty() && !state.damage_events().is_empty() {
+        if !state.damage_events().is_empty() {
             return;
         }
     }

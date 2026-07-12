@@ -125,8 +125,9 @@ impl InterpolatedBattleState {
         }
     }
 
-    /// Shells extrapolated from the latest snapshot by their known velocity, so fast
-    /// tracers move smoothly between 20 Hz snapshots.
+    /// Shells extrapolated from the latest snapshot with the authoritative flight integrator, so
+    /// fast tracers move smoothly between 20 Hz snapshots without visually shedding gravity or
+    /// drag. Substeps never exceed the sim tick: presentation follows the same integration order.
     pub fn interpolated_shells(&self, snapshot_interval_seconds: f32) -> Vec<ShellSnapshot> {
         let Some(latest) = self.latest.as_ref() else {
             return Vec::new();
@@ -136,9 +137,21 @@ impl InterpolatedBattleState {
             .shells
             .iter()
             .map(|shell| {
-                let advanced =
-                    Vec3::from_array(shell.position) + Vec3::from_array(shell.velocity_mps) * dt;
-                ShellSnapshot { position: advanced.to_array(), ..*shell }
+                let mut position = Vec3::from_array(shell.position);
+                let mut velocity = Vec3::from_array(shell.velocity_mps);
+                let max_step = 1.0 / sim::DEFAULT_SIMULATION_TICK_HZ as f32;
+                let steps = (dt / max_step).ceil().max(1.0) as usize;
+                let step = dt / steps as f32;
+                for _ in 0..steps {
+                    game_core::math::integrate_shell_step(&mut velocity, shell.drag_per_s, step);
+                    position += velocity * step;
+                }
+                ShellSnapshot {
+                    position: position.to_array(),
+                    velocity_mps: velocity.to_array(),
+                    age_seconds: shell.age_seconds + dt,
+                    ..*shell
+                }
             })
             .collect()
     }

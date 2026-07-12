@@ -71,6 +71,9 @@ impl TraceTank {
 
 #[derive(Debug, Clone, Copy)]
 pub struct ShellTraceWorld<'a> {
+    /// Radius of the swept projectile body. Zero keeps ray queries (camera/selection) exact;
+    /// ballistic shell paths pass their physical caliber radius.
+    pub projectile_radius_m: f32,
     pub tanks: &'a [TraceTank],
     pub blockers: &'a [TraceTank],
     pub heightmap: Option<&'a HeightMap>,

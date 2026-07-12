@@ -1,5 +1,5 @@
 use game_core::math::{plate_normal, world_to_tank_local};
-use game_core::{TaggedPlane, VehicleArmorVolumes, segment_volume_entry};
+use game_core::{TaggedPlane, VehicleArmorVolumes, segment_volume_entry_with_margin};
 use glam::{Mat3, Vec3};
 
 use super::legacy_boxes::{classify_hull, classify_turret, hull_volume_entry, turret_volume_entry};
@@ -12,14 +12,16 @@ pub(super) fn first_tank_impact(
     current: Vec3,
     velocity: Vec3,
     tanks: &[TraceTank],
+    radius_m: f32,
 ) -> Option<SegmentImpact> {
-    tanks.iter().filter_map(|tank| tank_segment_hit(previous, current, velocity, tank)).min_by(
-        |left, right| {
+    tanks
+        .iter()
+        .filter_map(|tank| tank_segment_hit(previous, current, velocity, tank, radius_m))
+        .min_by(|left, right| {
             left.point()
                 .distance_squared(previous)
                 .total_cmp(&right.point().distance_squared(previous))
-        },
-    )
+        })
 }
 
 /// A tank is two volumes, not one box: the full-plan hull slab below the armor split, and the
@@ -35,20 +37,31 @@ fn tank_segment_hit(
     current: Vec3,
     velocity: Vec3,
     tank: &TraceTank,
+    radius_m: f32,
 ) -> Option<SegmentImpact> {
     let hitbox = tank.hitbox;
+    let mut swept_hitbox = hitbox;
+    swept_hitbox.half_width_m += radius_m;
+    swept_hitbox.half_height_m += radius_m;
+    swept_hitbox.half_length_m += radius_m;
+    swept_hitbox.turret_half_width_m += radius_m;
+    swept_hitbox.turret_half_length_m += radius_m;
+    swept_hitbox.turret_min_y_m -= radius_m;
     let half = Vec3::new(hitbox.half_width_m, hitbox.half_height_m, hitbox.half_length_m);
     let start = world_to_tank_local(previous, tank.position, hitbox.center_y_m, tank.hull);
     let end = world_to_tank_local(current, tank.position, hitbox.center_y_m, tank.hull);
 
     if let Some(volumes) = tank.armor_volumes {
-        return armor_volume_hit(start, end, previous, current, velocity, tank, volumes);
+        return armor_volume_hit(start, end, previous, current, velocity, tank, volumes, radius_m);
     }
 
-    let hull = hull_volume_entry(start, end, &hitbox);
+    let hull = hull_volume_entry(start, end, &swept_hitbox);
     // A decapitated wreck has no turret box to strike: the shot passes over the hull.
-    let turret =
-        if tank.turret_detached { None } else { turret_volume_entry(start, end, tank, &hitbox) };
+    let turret = if tank.turret_detached {
+        None
+    } else {
+        turret_volume_entry(start, end, tank, &swept_hitbox)
+    };
     // (Legacy band model below — blueprint vehicles returned through the volume path above.)
 
     let (hit_t, zone, side_x) = match (hull, turret) {
@@ -72,7 +85,7 @@ fn tank_segment_hit(
         (None, None) => return None,
     };
 
-    let hit_position = previous.lerp(current, hit_t);
+    let center_position = previous.lerp(current, hit_t);
     let facing = zone.facing();
     // The impact angle is measured against the plate's TRUE normal: facet slope, hull attitude,
     // and turret traverse all live in the geometry. Nothing downstream may add slope again.
@@ -80,6 +93,7 @@ fn tank_segment_hit(
     let normal = plate_normal(tank.hull, tank.turret_yaw_rad, zone, side_x, slope_degrees);
     let direction = velocity.normalize_or_zero();
     let impact_angle_degrees = (-direction).dot(normal).clamp(-1.0, 1.0).acos().to_degrees();
+    let hit_position = center_position - normal * radius_m;
     Some(SegmentImpact::Tank {
         id: tank.id,
         facing,
@@ -94,6 +108,7 @@ fn tank_segment_hit(
 /// frame) and the turret volume (turret frame, rotated about the ring axis) IS the struck
 /// plate. Its normal carries the real slope, its zone comes from the plane (or a weakspot
 /// patch riding on it — the mantlet ball), and both ride the full hull attitude.
+#[allow(clippy::too_many_arguments)]
 fn armor_volume_hit(
     start: Vec3,
     end: Vec3,
@@ -102,6 +117,7 @@ fn armor_volume_hit(
     velocity: Vec3,
     tank: &TraceTank,
     volumes: &'static VehicleArmorVolumes,
+    radius_m: f32,
 ) -> Option<SegmentImpact> {
     struct Entry {
         t: f32,
@@ -112,7 +128,7 @@ fn armor_volume_hit(
     }
     let mut best: Option<Entry> = None;
     for volume in &volumes.hull {
-        if let Some((t, index)) = segment_volume_entry(start, end, volume)
+        if let Some((t, index)) = segment_volume_entry_with_margin(start, end, volume, radius_m)
             && best.as_ref().is_none_or(|entry| t < entry.t)
         {
             best = Some(Entry {
@@ -131,7 +147,8 @@ fn armor_volume_hit(
         let to_turret = Mat3::from_rotation_y(-tank.turret_yaw_rad);
         let turret_start = pivot + to_turret * (start - pivot);
         let turret_end = pivot + to_turret * (end - pivot);
-        if let Some((t, index)) = segment_volume_entry(turret_start, turret_end, &volumes.turret)
+        if let Some((t, index)) =
+            segment_volume_entry_with_margin(turret_start, turret_end, &volumes.turret, radius_m)
             && best.as_ref().is_none_or(|entry| t < entry.t)
         {
             best = Some(Entry {
@@ -145,8 +162,9 @@ fn armor_volume_hit(
     }
 
     let entry = best?;
-    let frame_hit = entry.frame_start.lerp(entry.frame_end, entry.t);
-    let zone = entry.plane.zone_at(frame_hit);
+    let frame_center = entry.frame_start.lerp(entry.frame_end, entry.t);
+    let frame_contact = frame_center - entry.plane.normal * radius_m;
+    let zone = entry.plane.zone_at(frame_contact);
     let hull_local_normal = if entry.turret_frame {
         Mat3::from_rotation_y(tank.turret_yaw_rad) * entry.plane.normal
     } else {
@@ -160,7 +178,7 @@ fn armor_volume_hit(
         facing: zone.facing(),
         zone,
         impact_angle_degrees,
-        hit_position: previous.lerp(current, entry.t),
+        hit_position: previous.lerp(current, entry.t) - normal * radius_m,
         plate_normal: normal,
     })
 }

@@ -14,14 +14,17 @@ pub(super) fn first_water_impact(
     current: Vec3,
     heightmap: Option<&HeightMap>,
     water: Option<WaterBody>,
+    radius_m: f32,
 ) -> Option<Vec3> {
     let heightmap = heightmap?;
     let level = water?.surface_level_m;
-    if previous.y <= level || current.y > level {
+    let center_level = level + radius_m.max(0.0);
+    if previous.y <= center_level || current.y > center_level {
         return None;
     }
-    let t = (previous.y - level) / (previous.y - current.y);
-    let point = previous.lerp(current, t.clamp(0.0, 1.0));
+    let t = (previous.y - center_level) / (previous.y - current.y);
+    let center = previous.lerp(current, t.clamp(0.0, 1.0));
+    let point = Vec3::new(center.x, level, center.z);
     let ground = heightmap.sample_height(point.x, point.z)?;
     (ground < level - MIN_SPLASH_DEPTH_M).then_some(point)
 }

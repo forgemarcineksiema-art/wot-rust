@@ -3,6 +3,7 @@
 //! flight path — instead of a floating marker. Stateless per frame: geometry derives purely
 //! from the interpolated `ShellSnapshot`s, so it needs no per-shell identity or history.
 
+use game_core::ShellType;
 use glam::Vec3;
 use net::ShellSnapshot;
 use renderer_api::FxVertex;
@@ -17,9 +18,32 @@ const MAX_LENGTH_M: f32 = 22.0;
 
 /// All colors premultiplied with `alpha = 0`: tracers are pure additive glow, so overlapping
 /// streaks brighten instead of occluding, and draw order cannot matter.
-const CORE_COLOR: [f32; 4] = [1.0, 0.93, 0.72, 0.0];
-const GLOW_COLOR: [f32; 4] = [0.55, 0.30, 0.10, 0.0];
-const HEAD_COLOR: [f32; 4] = [1.0, 0.98, 0.90, 0.0];
+struct TracerLook {
+    core: [f32; 4],
+    glow: [f32; 4],
+    head: [f32; 4],
+    width_scale: f32,
+    trail_scale: f32,
+}
+
+fn tracer_look(shell: &ShellSnapshot) -> TracerLook {
+    let caliber_scale = (shell.caliber_mm / 100.0).sqrt().clamp(0.72, 1.45);
+    let (core, glow, head, type_width, trail_scale) = match shell.shell_type {
+        ShellType::ArmorPiercing => {
+            ([1.0, 0.93, 0.72, 0.0], [0.55, 0.30, 0.10, 0.0], [1.0, 0.98, 0.90, 0.0], 1.0, 1.0)
+        }
+        ShellType::Apcr => {
+            ([0.88, 0.96, 1.0, 0.0], [0.18, 0.42, 0.72, 0.0], [0.96, 1.0, 1.0, 0.0], 0.82, 1.12)
+        }
+        ShellType::Heat => {
+            ([1.0, 0.82, 0.42, 0.0], [0.72, 0.18, 0.03, 0.0], [1.0, 0.92, 0.64, 0.0], 1.12, 0.82)
+        }
+        ShellType::HighExplosive => {
+            ([1.0, 0.62, 0.24, 0.0], [0.68, 0.08, 0.02, 0.0], [1.0, 0.78, 0.38, 0.0], 1.30, 0.72)
+        }
+    };
+    TracerLook { core, glow, head, width_scale: caliber_scale * type_width, trail_scale }
+}
 
 /// Append every live shell's tracer to this frame's FX batch: a thin white-hot core inside a
 /// wider amber glow, plus a short bright head right at the shell.
@@ -35,15 +59,23 @@ pub(crate) fn append_shell_tracers(
             continue;
         }
         let direction = velocity / speed;
-        let length = (speed * TRAIL_SECONDS).clamp(MIN_LENGTH_M, MAX_LENGTH_M);
+        let look = tracer_look(shell);
+        let length = (speed * TRAIL_SECONDS * look.trail_scale).clamp(MIN_LENGTH_M, MAX_LENGTH_M);
         let head = Vec3::from_array(shell.position);
         // The streak's LEADING edge sits on the shell: center it half a length behind the head.
         let center = head - direction * (length * 0.5);
         let axis_half = direction * (length * 0.5);
 
-        push_stretched(vertices, center, axis_half, 0.30, GLOW_COLOR, eye);
-        push_stretched(vertices, center, axis_half, 0.09, CORE_COLOR, eye);
-        push_stretched(vertices, head - direction * 0.6, direction * 0.6, 0.22, HEAD_COLOR, eye);
+        push_stretched(vertices, center, axis_half, 0.30 * look.width_scale, look.glow, eye);
+        push_stretched(vertices, center, axis_half, 0.09 * look.width_scale, look.core, eye);
+        push_stretched(
+            vertices,
+            head - direction * 0.6,
+            direction * 0.6,
+            0.22 * look.width_scale,
+            look.head,
+            eye,
+        );
     }
 }
 
@@ -54,7 +86,13 @@ mod tests {
     use super::*;
 
     fn shell(position: [f32; 3], velocity_mps: [f32; 3]) -> ShellSnapshot {
-        ShellSnapshot { owner: TankId(1), position, velocity_mps }
+        ShellSnapshot {
+            owner: TankId(1),
+            position,
+            velocity_mps,
+            caliber_mm: 100.0,
+            ..Default::default()
+        }
     }
 
     /// Longest reach of any vertex along `direction` from the origin.

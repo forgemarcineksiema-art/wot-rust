@@ -12,6 +12,7 @@ mod ramming;
 mod repair;
 mod replay;
 mod shell;
+mod shell_continuation;
 mod shell_splash;
 mod shell_step;
 mod shell_trace;

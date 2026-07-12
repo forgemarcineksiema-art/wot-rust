@@ -3,7 +3,8 @@ use glam::{Mat4, Vec3, Vec4};
 use net::TankSnapshot;
 use terrain::{HeightMap, StaticCoverObject};
 
-const RETICLE_MATCH_TOLERANCE_M: f32 = 4.0;
+// A physical shell touches shallow ground slightly before its center-line ballistic solution.
+const RETICLE_MATCH_TOLERANCE_M: f32 = 4.5;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ReticleStatus {
@@ -78,6 +79,7 @@ pub(crate) fn reticle_report(query: ReticleFeedbackQuery<'_>) -> ReticleReport {
             muzzle: query.muzzle,
             gun_direction: query.gun_direction,
             muzzle_velocity_mps: query.muzzle_velocity_mps,
+            projectile_radius_m: query.player_spec.gun.shell.collision_radius_m(),
             drag_per_s: query.drag_per_s,
         });
     ReticleReport {

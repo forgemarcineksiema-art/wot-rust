@@ -22,6 +22,14 @@ pub struct ShellSpec {
 }
 
 impl ShellSpec {
+    /// Physical projectile radius used by continuous collision sweeps. Authored caliber is a
+    /// diameter in millimetres; a small lower bound keeps malformed zero-caliber content from
+    /// becoming an infinitely thin ray, while the upper bound prevents naval-scale mod content
+    /// from inflating every nearby hitbox beyond readable tank-combat behavior.
+    pub fn collision_radius_m(self) -> f32 {
+        (self.caliber_mm * 0.0005).clamp(0.01, 0.10)
+    }
+
     pub fn armor_piercing(
         caliber_mm: f32,
         muzzle_velocity_mps: f32,

@@ -52,6 +52,7 @@ fn hull_tilt_angles_the_glacis_against_a_level_shot() {
             VehicleKind::T54_1951,
         );
         let world = ShellTraceWorld {
+            projectile_radius_m: 0.0,
             tanks: std::slice::from_ref(&tank),
             blockers: &[],
             heightmap: None,

@@ -148,6 +148,7 @@ fn shell(owner: u64) -> ShellSnapshot {
         owner: TankId(owner),
         position: [owner as f32, 1.5, 0.0],
         velocity_mps: [0.0, 0.0, 900.0],
+        ..Default::default()
     }
 }
 

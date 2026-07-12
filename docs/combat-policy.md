@@ -26,8 +26,9 @@ renderer state, and camera mode do not affect reload.
   penetrate, it still applies small external hull damage, can critically damage
   exposed running gear, and its `explosive_radius_m` throws splash damage
   (`DamageCause::Splash`) at every vehicle inside the radius — attenuated
-  linearly by distance to the hull and soaked by the victim's thinnest external
-  plate. Allies are protected exactly like direct fire; the owner's own HE can
+  linearly by distance to the hull and soaked by the external plate facing the
+  burst (roof from above, glacis from ahead, side from the flank). Allies are
+  protected exactly like direct fire; the owner's own HE can
   hurt the owner.
 
 Kinetic penetration falls out of the impact VELOCITY, not a separate distance
@@ -121,6 +122,13 @@ wrecks are absorbing blockers (the server from `TankState`, the client from
 `TankSnapshot`, which carries the team since protocol v12) — so the preview and
 the authority agree on friendly and wreck blocks, not just on trajectories.
 
+Shell collision is a swept BODY, not an infinitely thin ray. Its radius is half the authored
+caliber (clamped only against malformed or modded extremes). Convex armor volumes are expanded by
+that radius plane-by-plane, which is the exact sphere-vs-convex Minkowski sweep; the reported hit
+point is then projected back onto the original armor plane. Terrain, water, cover, legacy hitboxes,
+the authoritative step, and the reticle preview use the same radius. Camera and selection rays pass
+zero radius and remain true sight lines.
+
 ## Armor And Damage
 
 Combat uses per-vehicle oriented hitboxes with armor facing resolution for hull
@@ -168,6 +176,14 @@ without damaging a module; exposed running gear and mantlet hits remain direct.
 Non-penetrating AP/APCR or HEAT hits emit a bounce `DamageEvent` with zero damage
 and no module. HE surface hits emit non-penetrating damage and can throw tracks.
 
+A kinetic AP/APCR perforation no longer destroys the projectile automatically. The struck LOS
+steel is removed from its penetration budget, velocity falls with the square root of the remaining
+energy fraction, and the shell exits forward while the just-perforated hull is ignored for the exit
+step. It can then hit another aligned vehicle with the residual penetration. HE detonates on its
+first surface and HEAT resolves its shaped-charge jet there; neither continues as a second flying
+projectile. This is the first internal-path slice: it models residual through-flight between hulls,
+but not yet internal bulkheads, spall fragments, crew rays, or a separately authored exit plate.
+
 ## Ramming
 
 Tank-to-tank collision is not only positional. The simulation captures tank
@@ -184,8 +200,10 @@ aim dispersion, live module hit points, destroyed module masks, damage events,
 and absorbed-shell impacts. Damage events carry cause, armor zone, hit position,
 and module data so the client can distinguish shell penetration, HE track crits,
 bounces, ramming, and exact impact feedback. Protocol snapshot tests cover
-command wire format; protocol v11 added module HP and turret yaw velocity, v12
-adds the tank team and the `ShellImpact` list. The server buffers damage events
+command wire format; protocol v24 gives each projectile a stable `ShellId` and
+replicates its type, caliber, drag, and age beside position and velocity. The
+client extrapolates tracers with the shared ballistic integrator and gives AP,
+APCR, HEAT, and HE distinct caliber-scaled silhouettes. The server buffers damage events
 and shell impacts until the next emitted snapshot so cadence does not drop
 feedback. Combat tests and
 replay regression fixtures cover fire, projectile travel, penetration, ricochet,

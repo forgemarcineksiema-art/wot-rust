@@ -1,7 +1,7 @@
 use game_core::math::{plate_normal, world_to_tank_local};
 use game_core::{
-    ArmorFacing, ArmorZone, DamageCause, DamageEvent, ModuleSlot, PenetrationResult, TankId,
-    resolve_penetration_at_distance_on_zone, resolve_penetration_through_track,
+    ArmorFacing, ArmorZone, DamageCause, DamageEvent, ModuleSlot, PenetrationResult, ShellId,
+    TankId, resolve_penetration_at_distance_on_zone, resolve_penetration_through_track,
 };
 use glam::Vec3;
 
@@ -51,6 +51,7 @@ pub(crate) fn try_fire_shell(tank: &mut TankState, tick: u64) -> Option<ShellSta
     let shell = tank.selected_shell();
     tank.ammo_counts[selected] -= 1;
     tank.reload_remaining_s = tank.spec.gun.reload_seconds;
+    let shell_id = ShellId::from_shot(tank.id, tank.dispersion_shot_index);
     tank.dispersion_shot_index = tank.dispersion_shot_index.wrapping_add(1);
     apply_shot_bloom(tank);
 
@@ -59,6 +60,7 @@ pub(crate) fn try_fire_shell(tank: &mut TankState, tick: u64) -> Option<ShellSta
     // itself does not jump around the aim point between shots.
     let muzzle = tank.muzzle_world_position();
     Some(ShellState {
+        id: shell_id,
         owner: tank.id,
         position: muzzle,
         velocity_mps: direction * shell.muzzle_velocity_mps,
@@ -67,6 +69,7 @@ pub(crate) fn try_fire_shell(tank: &mut TankState, tick: u64) -> Option<ShellSta
         traveled_m: 0.0,
         max_age_seconds: SHELL_MAX_AGE_SECONDS,
         ricocheted_once: false,
+        last_penetrated_target: None,
     })
 }
 
@@ -235,6 +238,7 @@ mod tests {
 
     fn shell_toward(owner: TankId, from: Vec3, velocity: Vec3, spec: &TankSpec) -> ShellState {
         ShellState {
+            id: ShellId::default(),
             owner,
             position: from,
             velocity_mps: velocity,
@@ -243,6 +247,7 @@ mod tests {
             traveled_m: 0.0,
             max_age_seconds: SHELL_MAX_AGE_SECONDS,
             ricocheted_once: false,
+            last_penetrated_target: None,
         }
     }
 

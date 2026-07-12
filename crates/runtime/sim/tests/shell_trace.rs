@@ -32,6 +32,7 @@ fn reticle_trace_resolves_the_same_tank_impact_as_the_authoritative_step() {
         VehicleKind::T54_1951,
     );
     let world = ShellTraceWorld {
+        projectile_radius_m: shell.shell.collision_radius_m(),
         tanks: std::slice::from_ref(&trace_tank),
         blockers: &[],
         heightmap: None,
@@ -76,6 +77,41 @@ fn fire_command() -> TankCommand {
     TankCommand { fire: true, ..TankCommand::idle() }
 }
 
+#[test]
+fn projectile_radius_catches_a_cover_edge_and_reports_the_real_surface() {
+    use game_core::ImpactSurface;
+    use sim::{SegmentImpact, segment_impact};
+    use terrain::{StaticCoverKind, StaticCoverObject};
+
+    let cover = [StaticCoverObject {
+        id: "edge".into(),
+        name: "edge".into(),
+        kind: StaticCoverKind::FarmBuilding,
+        center: [0.0, 1.0, 10.0],
+        half_extents_m: [1.0, 1.0, 1.0],
+    }];
+    let from = Vec3::new(1.05, 1.0, 0.0);
+    let to = Vec3::new(1.05, 1.0, 20.0);
+    let ray_world = ShellTraceWorld {
+        projectile_radius_m: 0.0,
+        tanks: &[],
+        blockers: &[],
+        heightmap: None,
+        cover: &cover,
+        water: None,
+    };
+    assert!(segment_impact(from, to, to - from, &ray_world).is_none(), "center ray clears");
+
+    let shell_world = ShellTraceWorld { projectile_radius_m: 0.06, ..ray_world };
+    match segment_impact(from, to, to - from, &shell_world) {
+        Some(SegmentImpact::Obstacle { position, surface }) => {
+            assert_eq!(surface, ImpactSurface::Cover);
+            assert!((position.x - 1.0).abs() < 1.0e-6, "contact is on the real box: {position:?}");
+        }
+        other => panic!("the 12 cm projectile must clip the edge, got {other:?}"),
+    }
+}
+
 /// A shell arcing into a flooded basin dies at the SURFACE (`ImpactSurface::Water`), not on the
 /// riverbed below — the splash is where the players see the shot end, and the reticle preview
 /// runs this exact trace.
@@ -87,6 +123,7 @@ fn a_shell_falling_into_water_splashes_at_the_surface_not_the_bed() {
     let heightmap = HeightMap::flat(60, 60, 5.0, 0.0).expect("flat basin");
     let water = WaterBody { surface_level_m: 2.0 };
     let world = ShellTraceWorld {
+        projectile_radius_m: 0.0,
         tanks: &[],
         blockers: &[],
         heightmap: Some(&heightmap),

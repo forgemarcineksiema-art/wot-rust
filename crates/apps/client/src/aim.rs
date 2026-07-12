@@ -104,6 +104,7 @@ pub(crate) fn aim_point_with_sweep(
 ) -> Vec3 {
     let sets = crate::hud::reticle_sweep::trace_sets(tanks, owner, owner_team);
     let world = ShellTraceWorld {
+        projectile_radius_m: 0.0,
         tanks: &sets.targets,
         blockers: &sets.blockers,
         heightmap: Some(heightmap),
@@ -265,6 +266,7 @@ mod tests {
         let oracle = |eye: Vec3, forward: Vec3| -> Vec3 {
             let sets = crate::hud::reticle_sweep::trace_sets(&tanks, TankId(1), TeamId(1));
             let world = ShellTraceWorld {
+                projectile_radius_m: 0.0,
                 tanks: &sets.targets,
                 blockers: &sets.blockers,
                 heightmap: Some(heightmap),

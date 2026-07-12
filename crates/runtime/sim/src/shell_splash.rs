@@ -154,6 +154,7 @@ mod tests {
             .find(|s| s.shell_type == ShellType::HighExplosive)
             .expect("t55a carries HE");
         ShellState {
+            id: game_core::ShellId::default(),
             owner,
             position: at,
             velocity_mps: Vec3::new(0.0, -50.0, 0.0),
@@ -162,6 +163,7 @@ mod tests {
             traveled_m: 0.0,
             max_age_seconds: SHELL_MAX_AGE_SECONDS,
             ricocheted_once: false,
+            last_penetrated_target: None,
         }
     }
 

@@ -63,6 +63,9 @@ fn render_state_extrapolates_shells_from_latest_velocity() {
 
     let shell = &render_state.interpolated_shells(0.05)[0];
     assert!((shell.position[0] - 1.25).abs() < 1.0e-4, "extrapolated x = {}", shell.position[0]);
+    assert!(shell.position[1] < 0.0, "visual flight must fall under shared gravity");
+    assert!(shell.velocity_mps[1] < 0.0, "replicated velocity advances with the arc");
+    assert!((shell.age_seconds - 0.025).abs() < 1.0e-6, "visual age advances with flight");
 }
 
 #[test]
@@ -186,6 +189,12 @@ fn snapshot_with_yaw(server_tick: u64, yaw_rad: f32) -> Snapshot {
 
 fn snapshot_with_shell(server_tick: u64, position: [f32; 3], velocity_mps: [f32; 3]) -> Snapshot {
     let mut snapshot = snapshot_at(server_tick, 0.0);
-    snapshot.shells.push(ShellSnapshot { owner: TankId(1), position, velocity_mps });
+    snapshot.shells.push(ShellSnapshot {
+        owner: TankId(1),
+        position,
+        velocity_mps,
+        caliber_mm: 100.0,
+        ..Default::default()
+    });
     snapshot
 }

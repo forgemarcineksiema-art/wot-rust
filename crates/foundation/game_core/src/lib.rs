@@ -21,13 +21,14 @@ pub use armor::{
     ArmorFacet, ArmorFacetProfile, ArmorFacing, ArmorPatch, ArmorProfile, ArmorVolume, ArmorZone,
     PenetrationResult, TaggedPlane, VehicleArmorVolumes, resolve_penetration,
     resolve_penetration_at_distance, resolve_penetration_at_distance_on_zone,
-    resolve_penetration_through_track, segment_volume_entry, vehicle_armor_volumes,
+    resolve_penetration_through_track, segment_volume_entry, segment_volume_entry_with_margin,
+    vehicle_armor_volumes,
 };
 pub use contact_footprint::{ContactFootprint, MAX_CONTACT_STATIONS};
 pub use crew::{Crew, CrewRole};
 pub use damage::{DamageCause, DamageEvent, ImpactSurface, ShellImpact, TrackHit};
 pub use damage_layout::{DamageLayout, ModuleVolume};
-pub use ids::{TankId, TeamId};
+pub use ids::{ShellId, TankId, TeamId};
 pub use modules::{
     EngineModule, GunModule, HullChassis, MODULE_SLOT_COUNT, ModuleError, ModuleHealth, ModuleSlot,
     RadioModule, SuspensionModule, TurretModule, TurretTraverse, VehicleModules,

@@ -212,6 +212,7 @@ mod tests {
             &target.spec,
         )];
         let world = ShellTraceWorld {
+            projectile_radius_m: shell.collision_radius_m(),
             tanks: &targets,
             blockers: &[],
             heightmap: None,

@@ -16,8 +16,14 @@ fn t54_at_origin(hull: HullPose) -> TraceTank {
 /// Fire one straight segment and expect a tank impact.
 fn hit(from: Vec3, to: Vec3, tank: TraceTank) -> (ArmorZone, f32) {
     let tanks = [tank];
-    let world =
-        ShellTraceWorld { tanks: &tanks, blockers: &[], heightmap: None, cover: &[], water: None };
+    let world = ShellTraceWorld {
+        projectile_radius_m: 0.0,
+        tanks: &tanks,
+        blockers: &[],
+        heightmap: None,
+        cover: &[],
+        water: None,
+    };
     match segment_impact(from, to, to - from, &world) {
         Some(SegmentImpact::Tank { zone, impact_angle_degrees, .. }) => {
             (zone, impact_angle_degrees)
@@ -93,8 +99,14 @@ fn hull_down_nose_up_steepens_the_glacis() {
 /// Fire one straight segment and expect NO tank impact.
 fn misses(from: Vec3, to: Vec3, tank: TraceTank) {
     let tanks = [tank];
-    let world =
-        ShellTraceWorld { tanks: &tanks, blockers: &[], heightmap: None, cover: &[], water: None };
+    let world = ShellTraceWorld {
+        projectile_radius_m: 0.0,
+        tanks: &tanks,
+        blockers: &[],
+        heightmap: None,
+        cover: &[],
+        water: None,
+    };
     let outcome = sim::segment_impact(from, to, to - from, &world);
     assert!(outcome.is_none(), "expected a clean miss, got {outcome:?}");
 }

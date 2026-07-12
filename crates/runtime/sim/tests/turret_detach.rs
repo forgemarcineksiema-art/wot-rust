@@ -17,7 +17,7 @@ fn run_until_shell_resolved(state: &mut SimulationState, shooter: TankId) {
     let step = FixedTimestep::from_hz(60);
     state.apply_commands(&[(shooter, TankCommand { fire: true, ..TankCommand::idle() })], step);
     for _ in 0..240 {
-        if state.shells().is_empty() {
+        if state.shells().is_empty() || !state.damage_events().is_empty() {
             return;
         }
         state.apply_commands(&[(shooter, TankCommand::idle())], step);
@@ -114,7 +114,13 @@ fn trace_one(
     let mut tank = TraceTank::from_spec(TankId(9), Vec3::ZERO, HullPose::level(0.0), 0.0, spec);
     tank.turret_detached = turret_detached;
     let tanks = [tank];
-    let world =
-        ShellTraceWorld { tanks: &tanks, blockers: &[], heightmap: None, cover: &[], water: None };
+    let world = ShellTraceWorld {
+        projectile_radius_m: 0.0,
+        tanks: &tanks,
+        blockers: &[],
+        heightmap: None,
+        cover: &[],
+        water: None,
+    };
     segment_impact(from, to, to - from, &world)
 }

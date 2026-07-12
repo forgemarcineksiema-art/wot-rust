@@ -21,6 +21,7 @@ fn t55a_at_origin(turret_yaw_rad: f32) -> TraceTank {
 
 fn world(tank: &TraceTank) -> ShellTraceWorld<'_> {
     ShellTraceWorld {
+        projectile_radius_m: 0.0,
         tanks: std::slice::from_ref(tank),
         blockers: &[],
         heightmap: None,

@@ -33,6 +33,7 @@ fn snapshots_carry_projectiles_and_damage_events_through_the_wire() {
             owner: TankId(1),
             position: [0.0, 1.5, 12.0],
             velocity_mps: [0.0, 0.0, 900.0],
+            ..Default::default()
         }],
         damage_events: vec![DamageEvent {
             source: TankId(1),
@@ -86,6 +87,27 @@ fn tank_snapshot_replicates_team_and_shell_impacts_from_sim_state() {
 
     assert_eq!(snapshot.tanks[0].team, TeamId(7));
     assert!(snapshot.shell_impacts.is_empty(), "no shells fired, no impacts");
+}
+
+#[test]
+fn shell_snapshot_carries_stable_identity_and_flight_parameters_from_sim() {
+    let mut state = SimulationState::new();
+    let tank = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::ZERO);
+    state.apply_commands(
+        &[(tank, sim::TankCommand { fire: true, ..sim::TankCommand::idle() })],
+        sim::FixedTimestep::from_hz(60),
+    );
+
+    let authoritative = state.shells().first().expect("shot remains in flight");
+    let snapshot = Snapshot::from(&state);
+    let replicated = snapshot.shells.first().expect("shot is replicated");
+
+    assert_eq!(replicated.shell_id, authoritative.id);
+    assert_ne!(replicated.shell_id, game_core::ShellId::default());
+    assert_eq!(replicated.shell_type, authoritative.shell.shell_type);
+    assert_eq!(replicated.caliber_mm, authoritative.shell.caliber_mm);
+    assert_eq!(replicated.drag_per_s, authoritative.shell.drag_per_s());
+    assert_eq!(replicated.age_seconds, authoritative.age_seconds);
 }
 
 #[test]
