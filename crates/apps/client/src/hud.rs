@@ -12,6 +12,7 @@ pub(crate) mod hit_direction;
 pub(crate) mod icons;
 pub(crate) mod kill_marker;
 pub(crate) mod minimap;
+pub(crate) mod module_panel;
 pub(crate) mod number;
 pub(crate) mod outcome;
 pub(crate) mod primitives;
@@ -60,6 +61,9 @@ pub struct BattleHudModel {
     /// Incoming hits resolved to screen bearings (`hud/hit_direction.rs`).
     pub incoming_hits: Vec<hit_direction::IncomingHit>,
     pub ammo: Option<ammo_panel::AmmoHudModel>,
+    /// The player's own module-condition row under the health bar (`hud/module_panel.rs`); `None`
+    /// before the first snapshot, then always present so a knocked-out gun is never a mystery.
+    pub modules: Option<module_panel::ModulePanelModel>,
     pub minimap: Option<minimap::MinimapModel>,
     pub battle_outcome: Option<BattleHudOutcome>,
     /// Seconds left on the battle clock, drawn top-center as M:SS; `None` hides it (untimed).
@@ -92,6 +96,7 @@ pub fn build_hud(vitals: HudVitals, aspect: f32) -> Vec<HudVertex> {
             track_feedback: Default::default(),
             incoming_hits: Vec::new(),
             ammo: None,
+            modules: None,
             minimap: None,
             battle_outcome: None,
             battle_clock_remaining_s: None,
@@ -126,6 +131,7 @@ pub(crate) fn build_hud_with_reticle(
             track_feedback: Default::default(),
             incoming_hits: Vec::new(),
             ammo: None,
+            modules: None,
             minimap: None,
             battle_outcome: None,
             battle_clock_remaining_s: None,
@@ -193,6 +199,9 @@ pub(crate) fn build_battle_hud(model: &BattleHudModel, aspect: f32) -> Vec<HudVe
     hit_direction::push_hit_direction(&mut vertices, &model.incoming_hits, aspect);
     if let Some(ammo) = &model.ammo {
         ammo_panel::push_ammo_panel(&mut vertices, ammo, aspect);
+    }
+    if let Some(modules) = &model.modules {
+        module_panel::push_module_panel(&mut vertices, modules, aspect);
     }
     if let Some(map) = &model.minimap {
         minimap::push_minimap(&mut vertices, map, aspect);

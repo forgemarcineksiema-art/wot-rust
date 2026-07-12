@@ -50,7 +50,7 @@ pub(crate) fn try_fire_shell(tank: &mut TankState, tick: u64) -> Option<ShellSta
     let direction = dispersed_gun_direction(tank, tick);
     let shell = tank.selected_shell();
     tank.ammo_counts[selected] -= 1;
-    tank.reload_remaining_s = tank.spec.gun.reload_seconds;
+    tank.reload_remaining_s = tank.full_reload_seconds();
     let shell_id = ShellId::from_shot(tank.id, tank.dispersion_shot_index);
     tank.dispersion_shot_index = tank.dispersion_shot_index.wrapping_add(1);
     apply_shot_bloom(tank);

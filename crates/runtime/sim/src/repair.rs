@@ -5,9 +5,12 @@
 //! patched after [`MODULE_PATCH_S`] to a fraction of its pool — running, but wounded (the
 //! partial-damage power/agility floors in `game_core` shape how wounded).
 //!
-//! Deliberately mobility-only: a knocked-out gun, turret ring or ammo rack stays knocked out.
-//! Losing your ability to FIGHT is an honest wound you play around; losing the ability to MOVE
-//! forever just parks the battle (bots included — see the seed-23 stall).
+//! The gun and ammo rack are field-patched the same way (after [`MODULE_PATCH_S`], to
+//! [`MODULE_PATCH_FRACTION`] of pool). A knocked-out gun was previously permanent — one frontal
+//! penetration and the hull could not fire for the rest of the match, with no feedback, which
+//! read as a bug. Now it comes back WOUNDED: functional but reloading slower (the gun-damage
+//! reload penalty in `game_core::gun_reload_multiplier`) — an honest wound you play around, not a
+//! silent lockout. The turret ring and radio are still left alone.
 
 use game_core::{ModuleSlot, TrackSeverity, TrackSide};
 use serde::{Deserialize, Serialize};
@@ -21,13 +24,19 @@ pub const TRACK_REGEN_INTERVAL_S: f32 = 3.5;
 /// HP the crew restores to a damaged pool each interval (capped at full). A half-drained pool
 /// climbs back over ~two intervals; a near-thrown one over the repair window's worth.
 pub const TRACK_REGEN_CHUNK: u8 = 20;
-/// Seconds the crew needs to field-patch a destroyed engine or suspension.
+/// Seconds the crew needs to field-patch a destroyed engine, suspension, gun or ammo rack.
 pub const MODULE_PATCH_S: f32 = 15.0;
 /// The field patch restores this fraction of the module's full pool — enough to run at the
 /// partial-damage floor, nowhere near shop condition.
 pub const MODULE_PATCH_FRACTION: f32 = 0.25;
 
-/// Per-tank crew repair clocks: seconds each mobility system has been down. Counts up while
+/// The module slots the crew field-patches when destroyed, and the clock order. Mobility first
+/// (engine/suspension), then the fighting modules (gun/ammo rack). Turret ring and radio are
+/// deliberately absent — they stay knocked out.
+const PATCHED_SLOTS: [ModuleSlot; 4] =
+    [ModuleSlot::Engine, ModuleSlot::Suspension, ModuleSlot::Gun, ModuleSlot::AmmoRack];
+
+/// Per-tank crew repair clocks: seconds each patchable system has been down. Counts up while
 /// broken, snaps to zero when whole (including when a fresh hit re-breaks a repaired system —
 /// the crew starts over). `serde(default)` keeps pre-repair fixtures loading unchanged.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -36,6 +45,10 @@ pub struct CrewRepair {
     right_track_s: f32,
     engine_s: f32,
     suspension_s: f32,
+    #[serde(default)]
+    gun_s: f32,
+    #[serde(default)]
+    ammo_rack_s: f32,
 }
 
 /// One fixed tick of crew repair for one living hull. Runs in the same per-tank pass as reload
@@ -71,10 +84,12 @@ pub(crate) fn step_crew_repair(tank: &mut TankState, dt: f32) {
             TrackSeverity::Healthy => *clock = 0.0,
         }
     }
-    for slot in [ModuleSlot::Engine, ModuleSlot::Suspension] {
+    for slot in PATCHED_SLOTS {
         let clock = match slot {
             ModuleSlot::Engine => &mut tank.repair.engine_s,
-            _ => &mut tank.repair.suspension_s,
+            ModuleSlot::Suspension => &mut tank.repair.suspension_s,
+            ModuleSlot::Gun => &mut tank.repair.gun_s,
+            _ => &mut tank.repair.ammo_rack_s,
         };
         if tank.modules.is_functional(slot) {
             *clock = 0.0;

@@ -299,7 +299,7 @@ impl SimulationState {
                     && slot != tank.selected_ammo
                 {
                     tank.selected_ammo = slot;
-                    tank.reload_remaining_s = tank.spec.gun.reload_seconds;
+                    tank.reload_remaining_s = tank.full_reload_seconds();
                     // A held click must not survive the switch: the reload it anticipated is gone.
                     tank.fire_buffered = false;
                 }

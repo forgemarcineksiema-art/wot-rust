@@ -103,6 +103,20 @@ impl ClientApp {
         self.player_spec().hit_points
     }
 
+    /// The module-condition row for the player's own hull: live module HP from the latest snapshot
+    /// against the spec's full pool, plus the worst-side track condition. `None` until the first
+    /// snapshot lands (nothing to report yet).
+    pub(super) fn player_module_hud(&self) -> Option<crate::hud::module_panel::ModulePanelModel> {
+        let snapshot = self.player_snapshot()?;
+        let full = self.player_spec().module_health.hit_points_by_slot();
+        let track = crate::hud::module_panel::track_condition(snapshot.track_hp);
+        Some(crate::hud::module_panel::ModulePanelModel::new(
+            snapshot.module_hit_points,
+            full,
+            track,
+        ))
+    }
+
     pub(super) fn player_speed_kmh(&self) -> f32 {
         self.predictor.speed_mps() * 3.6
     }

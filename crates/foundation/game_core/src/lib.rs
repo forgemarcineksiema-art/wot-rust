@@ -30,9 +30,10 @@ pub use damage::{DamageCause, DamageEvent, ImpactSurface, ShellImpact, TrackHit}
 pub use damage_layout::{DamageLayout, ModuleVolume};
 pub use ids::{ShellId, TankId, TeamId};
 pub use modules::{
-    EngineModule, GunModule, HullChassis, MODULE_SLOT_COUNT, ModuleError, ModuleHealth, ModuleSlot,
-    RadioModule, SuspensionModule, TurretModule, TurretTraverse, VehicleModules,
-    engine_power_fraction, suspension_agility_fraction,
+    EngineModule, GunModule, HullChassis, MODULE_SLOT_COUNT, ModuleCondition, ModuleError,
+    ModuleHealth, ModuleSlot, RadioModule, SuspensionModule, TurretModule, TurretTraverse,
+    VehicleModules, engine_power_fraction, gun_reload_multiplier, module_condition,
+    suspension_agility_fraction,
 };
 pub use mount::{MountFrame, MountFrames};
 pub use tank::{HitboxProfile, TankSpec};
