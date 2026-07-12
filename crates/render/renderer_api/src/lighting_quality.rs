@@ -23,6 +23,10 @@ pub struct LightingQuality {
     /// Bloom mip-chain depth in the central post pass: 0 disables the chain entirely, 3 is the
     /// integrated-GPU budget (half/quarter/eighth res), 5 the full dual-Kawase ladder.
     pub bloom_mips: u32,
+    /// Whether the water surface refracts the scene behind it (a mid-frame grab of the resolved
+    /// opaque HDR + a second transparent pass). It costs an extra full-frame resolve and pass, so
+    /// the weakest adapters keep the analytic water instead. Off on integrated/software.
+    pub refraction: bool,
 }
 
 impl LightingQuality {
@@ -38,6 +42,7 @@ impl LightingQuality {
                 ssao_scale: 0.5,
                 cloud_shadows: true,
                 bloom_mips: 3,
+                refraction: false,
             },
             GpuDeviceType::Cpu => Self {
                 shadow_resolution: 2048,
@@ -45,6 +50,7 @@ impl LightingQuality {
                 ssao_scale: 0.5,
                 cloud_shadows: false,
                 bloom_mips: 0,
+                refraction: false,
             },
             GpuDeviceType::DiscreteGpu | GpuDeviceType::VirtualGpu | GpuDeviceType::Other => Self {
                 shadow_resolution: 4096,
@@ -52,6 +58,7 @@ impl LightingQuality {
                 ssao_scale: 1.0,
                 cloud_shadows: true,
                 bloom_mips: 5,
+                refraction: true,
             },
         }
     }
@@ -74,10 +81,14 @@ mod tests {
         assert_eq!(discrete.shadow_cascades, 2);
         assert_eq!(discrete.ssao_scale, 1.0);
         assert!(discrete.cloud_shadows);
+        // Only discrete-class adapters refract the water; the laptop tiers keep analytic water.
+        assert!(discrete.refraction);
+        assert!(!integrated.refraction);
 
         // Software rasterizer: the one class that also drops the cloud-shadow ALU.
         let cpu = LightingQuality::for_device_type(GpuDeviceType::Cpu);
         assert_eq!(cpu.ssao_scale, 0.5);
         assert!(!cpu.cloud_shadows);
+        assert!(!cpu.refraction);
     }
 }

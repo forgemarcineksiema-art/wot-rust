@@ -86,8 +86,20 @@ fn water_shader_is_valid_wgsl_and_shares_the_scene_camera_slot() {
         .expect("water shader validates");
     assert!(report.entry_points.iter().any(|entry| entry == "vs_main"));
     assert!(report.entry_points.iter().any(|entry| entry == "fs_main"));
+    // The refraction variant (A6b) is a second fragment entry sampling the opaque grab; it must
+    // coexist with the analytic entry so the discrete tier can pick it without a second shader.
+    assert!(
+        report.entry_points.iter().any(|entry| entry == "fs_refract"),
+        "the refraction entry point must be present"
+    );
     // The water pass reuses the scene camera bind group - the ripple runs on its time uniform.
     assert!(report.has_uniform_binding("camera", 0, 0));
+    // The refraction params ride group 1 (the grab texture/sampler share the group); the analytic
+    // entry never touches group 1, so its pipeline layout stays camera-only.
+    assert!(
+        report.has_uniform_binding("refraction", 1, 2),
+        "refraction params must sit at group 1 binding 2"
+    );
 }
 
 #[test]

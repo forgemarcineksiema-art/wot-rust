@@ -72,6 +72,12 @@ pub struct SceneRenderer {
     /// World wetness 0..1 from the weather look (time_params.z).
     pub wetness: f32,
     water_pipeline: wgpu::RenderPipeline,
+    /// The discrete-tier refraction pipeline + grab resources; unused (bind group stays `None`)
+    /// when refraction is off or the frame is single-sampled.
+    water_refraction: crate::water_pipeline::WaterRefraction,
+    /// Whether this adapter/tier refracts the water (see `LightingQuality::refraction`). The draw
+    /// only takes the two-pass grab path when this AND `sample_count > 1` hold.
+    refraction: bool,
     /// The static river mesh (vertex, index); `None` on dry scenes — the draw is skipped.
     water_buffers: Option<(wgpu::Buffer, wgpu::Buffer)>,
     water_index_count: u32,
@@ -169,15 +175,24 @@ impl SceneRenderer {
             sample_count,
             &camera_bgl,
         );
+        let water_refraction = crate::water_pipeline::WaterRefraction::new(
+            device,
+            hdr_format,
+            sample_count,
+            &camera_bgl,
+        );
         let (vehicle_pipeline, vehicle_camera_bgl, vehicle_material_bgl) =
             build_vehicle_pipeline(device, hdr_format, sample_count, &shadow_bgl);
         // Adapter class + WOT_* env overrides become the frame's lighting quality in one place.
-        let lighting_quality = quality::resolve_lighting_quality_with_bloom(
-            ctx.adapter.get_info().device_type,
-            std::env::var("WOT_SHADOW_RES").ok().as_deref(),
-            std::env::var("WOT_SHADOW_CASCADES").ok().as_deref(),
-            std::env::var("WOT_SSAO").ok().as_deref(),
-            std::env::var("WOT_BLOOM").ok().as_deref(),
+        let lighting_quality = quality::apply_refraction_override(
+            quality::resolve_lighting_quality_with_bloom(
+                ctx.adapter.get_info().device_type,
+                std::env::var("WOT_SHADOW_RES").ok().as_deref(),
+                std::env::var("WOT_SHADOW_CASCADES").ok().as_deref(),
+                std::env::var("WOT_SSAO").ok().as_deref(),
+                std::env::var("WOT_BLOOM").ok().as_deref(),
+            ),
+            std::env::var("WOT_REFRACTION").ok().as_deref(),
         );
         let ssao = ssao::SsaoResources::new(device, &camera_bgl, lighting_quality.ssao_scale);
         let placeholder_ao = ssao_pipelines::placeholder_ao_view(device, &ctx.queue);
@@ -262,6 +277,8 @@ impl SceneRenderer {
             rain_intensity: 0.0,
             wetness: 0.0,
             water_pipeline,
+            water_refraction,
+            refraction: lighting_quality.refraction,
             water_buffers: None,
             water_index_count: 0,
             fx_pipeline,
