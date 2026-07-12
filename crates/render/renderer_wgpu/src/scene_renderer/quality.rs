@@ -47,6 +47,22 @@ pub(crate) fn resolve_lighting_quality_with_bloom(
     quality
 }
 
+/// Apply the `WOT_REFRACTION=on|off` (or `1|0`) override to a resolved quality — water refraction
+/// forced on (e.g. to preview it on an integrated adapter) or off (to profile without it). Kept
+/// separate from the main resolver so it composes over any tier without disturbing its callers.
+/// Garbage is ignored, leaving the tier default.
+pub(crate) fn apply_refraction_override(
+    mut quality: LightingQuality,
+    refraction_env: Option<&str>,
+) -> LightingQuality {
+    match refraction_env.map(str::trim) {
+        Some("on" | "1") => quality.refraction = true,
+        Some("off" | "0") => quality.refraction = false,
+        _ => {}
+    }
+    quality
+}
+
 #[cfg(test)]
 mod tests {
     use super::resolve_lighting_quality_with_bloom;
@@ -79,6 +95,35 @@ mod tests {
             resolve_lighting_quality_with_bloom(wgpu::DeviceType::Cpu, None, None, None, None);
         assert_eq!(cpu.shadow_resolution, 2048);
         assert_eq!(cpu.ssao_scale, 0.5);
+    }
+
+    #[test]
+    fn the_refraction_override_forces_the_flag_both_ways_and_ignores_garbage() {
+        use super::apply_refraction_override;
+        let discrete = resolve_lighting_quality_with_bloom(
+            wgpu::DeviceType::DiscreteGpu,
+            None,
+            None,
+            None,
+            None,
+        );
+        assert!(discrete.refraction, "premise: discrete refracts by default");
+        assert!(!apply_refraction_override(discrete, Some("off")).refraction);
+        assert!(!apply_refraction_override(discrete, Some("0")).refraction);
+
+        let integrated = resolve_lighting_quality_with_bloom(
+            wgpu::DeviceType::IntegratedGpu,
+            None,
+            None,
+            None,
+            None,
+        );
+        assert!(!integrated.refraction, "premise: integrated is analytic by default");
+        assert!(apply_refraction_override(integrated, Some("on")).refraction);
+        assert!(apply_refraction_override(integrated, Some("1")).refraction);
+        // Garbage leaves the tier default untouched.
+        assert!(!apply_refraction_override(integrated, Some("banana")).refraction);
+        assert!(!apply_refraction_override(integrated, None).refraction);
     }
 
     #[test]

@@ -38,6 +38,10 @@ pub(crate) struct HdrTargets {
     pub multisampled: bool,
     /// The resolved HDR texture, kept for the diagnostic readback.
     resolve_texture: wgpu::Texture,
+    /// Water-refraction grab: a single-sample HDR texture the opaque pass resolves into so the
+    /// water pass can sample the scene BEHIND it. `Some` only when refraction is active (discrete
+    /// tier + multisampled); `None` keeps the analytic single-pass water.
+    pub grab_view: Option<wgpu::TextureView>,
 }
 
 pub(crate) struct PostResources {
@@ -174,12 +178,17 @@ impl PostResources {
         width: u32,
         height: u32,
         sample_count: u32,
+        refraction: bool,
     ) -> bool {
+        // Refraction needs an MSAA-resolved grab of the opaque scene; single-sampled frames keep
+        // the analytic water, so a grab there would be dead memory.
+        let want_grab = refraction && sample_count > 1;
         let current = self.targets.borrow();
         if let Some(t) = current.as_ref()
             && t.width == width
             && t.height == height
             && t.sample_count == sample_count
+            && t.grab_view.is_some() == want_grab
         {
             return false;
         }
@@ -216,6 +225,21 @@ impl PostResources {
         } else {
             resolve_texture.create_view(&wgpu::TextureViewDescriptor::default())
         };
+        let grab_view = want_grab.then(|| {
+            device
+                .create_texture(&wgpu::TextureDescriptor {
+                    label: Some("hdr_refraction_grab"),
+                    size,
+                    mip_level_count: 1,
+                    sample_count: 1,
+                    dimension: wgpu::TextureDimension::D2,
+                    format: HDR_FORMAT,
+                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                        | wgpu::TextureUsages::TEXTURE_BINDING,
+                    view_formats: &[],
+                })
+                .create_view(&wgpu::TextureViewDescriptor::default())
+        });
         *self.targets.borrow_mut() = Some(HdrTargets {
             width,
             height,
@@ -224,6 +248,7 @@ impl PostResources {
             resolve_view,
             multisampled,
             resolve_texture,
+            grab_view,
         });
         true
     }

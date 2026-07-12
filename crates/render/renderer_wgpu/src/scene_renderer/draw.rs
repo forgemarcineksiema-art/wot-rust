@@ -90,8 +90,13 @@ impl super::SceneRenderer {
             let blur_view = &targets.as_ref().expect("ssao targets just created").blur_view;
             self.shadow.rebind_ao(&ctx.device, &self.shadow_bgl, blur_view);
         }
-        let hdr_recreated =
-            self.post.ensure_targets(&ctx.device, target.width, target.height, self.sample_count);
+        let hdr_recreated = self.post.ensure_targets(
+            &ctx.device,
+            target.width,
+            target.height,
+            self.sample_count,
+            self.refraction,
+        );
         {
             let targets = self.post.targets.borrow();
             let hdr = targets.as_ref().expect("post targets just ensured");
@@ -117,6 +122,20 @@ impl super::SceneRenderer {
             self.post.rebuild_bind_group(&ctx.device, &bloom_view);
         }
 
+        // Refraction takes the two-pass grab path only when the tier enables it AND the frame is
+        // multisampled (the grab is produced by the MSAA resolve). Rebind the water's group-1 grab
+        // whenever the HDR chain was recreated.
+        let refraction_active = self.refraction && self.sample_count > 1;
+        if refraction_active {
+            let targets = self.post.targets.borrow();
+            let hdr = targets.as_ref().expect("post targets just ensured");
+            if let Some(grab) = hdr.grab_view.as_ref()
+                && (hdr_recreated || self.water_refraction.bind_group.borrow().is_none())
+            {
+                self.water_refraction.rebuild_bind_group(&ctx.device, grab);
+            }
+        }
+
         let mut encoder =
             ctx.device.create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
         self.encode_shadow_pass(&mut encoder, &light_frustum);
@@ -129,7 +148,69 @@ impl super::SceneRenderer {
         // receives only the post pass's display-transformed picture (plus the HUD).
         let hdr = self.post.targets.borrow();
         let hdr = hdr.as_ref().expect("post targets just ensured");
-        {
+        if refraction_active {
+            // Refraction path (two passes). Pass 1 — the lit opaque world, RESOLVED into the grab
+            // texture so the water can read the scene behind it; the MSAA colour and depth are kept
+            // (Store) for pass 2 to load. Pass 2 — the water sampling that grab, then FX and rain,
+            // over the kept colour, resolving into the final HDR the post pass reads.
+            let grab_view = hdr.grab_view.as_ref().expect("grab present when refraction active");
+            {
+                let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("scene_opaque_pass"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: &hdr.color_view,
+                        resolve_target: Some(grab_view),
+                        depth_slice: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(self.sky),
+                            store: wgpu::StoreOp::Store,
+                        },
+                    })],
+                    depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                        view: target.depth_view,
+                        depth_ops: Some(wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(1.0),
+                            store: wgpu::StoreOp::Store,
+                        }),
+                        stencil_ops: None,
+                    }),
+                    timestamp_writes: None,
+                    occlusion_query_set: None,
+                    multiview_mask: None,
+                });
+                self.draw_world_opaque(&mut pass, &camera_frustum);
+            }
+            {
+                let grab_bg = self.water_refraction.bind_group.borrow();
+                let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("scene_water_pass"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: &hdr.color_view,
+                        resolve_target: Some(&hdr.resolve_view),
+                        depth_slice: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Load,
+                            store: wgpu::StoreOp::Discard,
+                        },
+                    })],
+                    depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                        view: target.depth_view,
+                        depth_ops: Some(wgpu::Operations {
+                            load: wgpu::LoadOp::Load,
+                            store: wgpu::StoreOp::Discard,
+                        }),
+                        stencil_ops: None,
+                    }),
+                    timestamp_writes: None,
+                    occlusion_query_set: None,
+                    multiview_mask: None,
+                });
+                self.draw_water_surface(&mut pass, grab_bg.as_ref());
+                self.draw_overlay_fx(&mut pass);
+            }
+        } else {
+            // Single-pass path (analytic water) — the integrated/software route, byte-for-byte the
+            // pre-refraction frame: opaque world, analytic water inline, then FX and rain.
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("scene_pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -157,119 +238,9 @@ impl super::SceneRenderer {
                 occlusion_query_set: None,
                 multiview_mask: None,
             });
-            // Gradient-sky background first (depth compare Always, no write), so the geometry drawn
-            // next overwrites it wherever it wins the depth test and the sky shows through elsewhere.
-            if self.draw_sky {
-                pass.set_pipeline(&self.sky_pipeline);
-                pass.set_bind_group(0, &self.camera_bind_group, &[]);
-                pass.draw(0..3, 0..1);
-            }
-            pass.set_pipeline(&self.pipeline);
-            pass.set_bind_group(0, &self.camera_bind_group, &[]);
-            pass.set_bind_group(2, &*self.shadow.bind_group.borrow(), &[]);
-            pass.set_vertex_buffer(1, self.identity_instance.slice(..));
-            if self.terrain_index_count > 0 {
-                pass.set_vertex_buffer(0, self.terrain_vertices.slice(..));
-                pass.set_index_buffer(self.terrain_indices.slice(..), wgpu::IndexFormat::Uint32);
-                self.draw_visible_terrain(&mut pass, &camera_frustum);
-            }
-            if self.dynamic_index_count > 0 {
-                pass.set_vertex_buffer(0, self.dynamic_vertices.slice(..));
-                pass.set_index_buffer(self.dynamic_indices.slice(..), wgpu::IndexFormat::Uint32);
-                pass.draw_indexed(0..self.dynamic_index_count, 0, 0..1);
-            }
-            if self.frame_instance_count > 0 {
-                pass.set_vertex_buffer(1, self.frame_instances.slice(..));
-                for draw in &self.frame_draws {
-                    let Some(mesh) = self.static_meshes.get(draw.mesh) else {
-                        self.skipped_mesh_draws
-                            .set(self.skipped_mesh_draws.get().saturating_add(1));
-                        debug_assert!(
-                            false,
-                            "render frame references unregistered mesh handle {}",
-                            draw.mesh.0
-                        );
-                        continue;
-                    };
-                    pass.set_vertex_buffer(0, mesh.vertices.slice(..));
-                    pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint32);
-                    pass.draw_indexed(
-                        0..mesh.index_count,
-                        0,
-                        draw.instance_start..draw.instance_start + draw.instance_count,
-                    );
-                }
-            }
-            // The battlefield ground: its own pipeline (splat layers + macro normals at
-            // group 1), the same camera/shadow groups, chunk-culled by the camera frustum.
-            // Drawn AFTER every scene-pipeline draw on purpose: the scene pipeline's layout
-            // carries a hole (None) at group 1, and leaving a foreign bind group parked in a
-            // hole corrupts the group-2 shadow sampling on some backends — the ground must
-            // never leave its material group behind for a holed layout to trip over.
-            if let Some(binding) = self.ground.binding.as_ref() {
-                pass.set_pipeline(&self.ground.pipeline);
-                pass.set_bind_group(0, &self.camera_bind_group, &[]);
-                pass.set_bind_group(1, &binding.bind_group, &[]);
-                pass.set_bind_group(2, &*self.shadow.bind_group.borrow(), &[]);
-                pass.set_vertex_buffer(1, self.identity_instance.slice(..));
-                self.draw_visible_ground(&mut pass, &camera_frustum);
-            }
-            if self.vehicle_instance_count > 0 {
-                pass.set_pipeline(&self.vehicle_pipeline);
-                pass.set_bind_group(0, &self.vehicle_camera_bind_group, &[]);
-                pass.set_bind_group(2, &*self.shadow.bind_group.borrow(), &[]);
-                pass.set_vertex_buffer(1, self.vehicle_instances.slice(..));
-                for draw in &self.vehicle_draws {
-                    pass.set_bind_group(1, self.vehicle_materials.bind_group(draw.material), &[]);
-                    let Some(mesh) = self.vehicle_meshes.get(draw.mesh) else {
-                        self.skipped_mesh_draws
-                            .set(self.skipped_mesh_draws.get().saturating_add(1));
-                        debug_assert!(
-                            false,
-                            "vehicle render frame references unregistered mesh handle {}",
-                            draw.mesh.0
-                        );
-                        continue;
-                    };
-                    pass.set_vertex_buffer(0, mesh.vertices.slice(..));
-                    pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint32);
-                    pass.draw_indexed(
-                        0..mesh.index_count,
-                        0,
-                        draw.instance_start..draw.instance_start + draw.instance_count,
-                    );
-                }
-            }
-            // The river surface after every lit opaque: depth-tested (banks and hulls above
-            // the waterline occlude it) but drawn over whatever sits below the plane — a
-            // wading hull's submerged running gear correctly reads through the water. Never
-            // writes depth, so the FX splashes drawn next still composite over the surface.
-            if self.water_index_count > 0
-                && let Some((water_vertices, water_indices)) = self.water_buffers.as_ref()
-            {
-                pass.set_pipeline(&self.water_pipeline);
-                pass.set_bind_group(0, &self.camera_bind_group, &[]);
-                pass.set_vertex_buffer(0, water_vertices.slice(..));
-                pass.set_index_buffer(water_indices.slice(..), wgpu::IndexFormat::Uint32);
-                pass.draw_indexed(0..self.water_index_count, 0, 0..1);
-            }
-            // Battle FX draw after every lit opaque (correct depth occlusion) and before the
-            // HUD overlay; the pipeline reuses the scene camera bind group for view_proj.
-            if self.fx_vertex_count > 0 {
-                pass.set_pipeline(&self.fx_pipeline);
-                pass.set_bind_group(0, &self.camera_bind_group, &[]);
-                pass.set_vertex_buffer(0, self.fx_vertices.slice(..));
-                pass.draw(0..self.fx_vertex_count, 0..1);
-            }
-            // Rain, closest to the lens: stateless streaks generated entirely in the vertex
-            // shader from (instance, time, camera); the CPU only scales the population.
-            let rain_streaks =
-                (crate::rain_pipeline::RAIN_MAX_STREAKS as f32 * self.rain_intensity) as u32;
-            if rain_streaks > 0 {
-                pass.set_pipeline(&self.rain_pipeline);
-                pass.set_bind_group(0, &self.camera_bind_group, &[]);
-                pass.draw(0..6, 0..rain_streaks);
-            }
+            self.draw_world_opaque(&mut pass, &camera_frustum);
+            self.draw_water_surface(&mut pass, None);
+            self.draw_overlay_fx(&mut pass);
         }
         // The bloom ladder blurs the resolved HDR frame down and back up before the post pass
         // composites it (rule 6); skipped entirely at weight 0 or bloom_mips 0.
@@ -315,5 +286,135 @@ impl super::SceneRenderer {
         }
         ctx.queue.submit(Some(encoder.finish()));
         Ok(())
+    }
+
+    /// The opaque world into the current pass: gradient sky, the scene pipeline (terrain, dynamic
+    /// props, static frame meshes), the battlefield ground, then vehicles. Shared by the single
+    /// pass (analytic water) and the refraction opaque pass.
+    fn draw_world_opaque(&self, pass: &mut wgpu::RenderPass<'_>, camera_frustum: &Frustum) {
+        // Gradient-sky background first (depth compare Always, no write), so the geometry drawn
+        // next overwrites it wherever it wins the depth test and the sky shows through elsewhere.
+        if self.draw_sky {
+            pass.set_pipeline(&self.sky_pipeline);
+            pass.set_bind_group(0, &self.camera_bind_group, &[]);
+            pass.draw(0..3, 0..1);
+        }
+        pass.set_pipeline(&self.pipeline);
+        pass.set_bind_group(0, &self.camera_bind_group, &[]);
+        pass.set_bind_group(2, &*self.shadow.bind_group.borrow(), &[]);
+        pass.set_vertex_buffer(1, self.identity_instance.slice(..));
+        if self.terrain_index_count > 0 {
+            pass.set_vertex_buffer(0, self.terrain_vertices.slice(..));
+            pass.set_index_buffer(self.terrain_indices.slice(..), wgpu::IndexFormat::Uint32);
+            self.draw_visible_terrain(pass, camera_frustum);
+        }
+        if self.dynamic_index_count > 0 {
+            pass.set_vertex_buffer(0, self.dynamic_vertices.slice(..));
+            pass.set_index_buffer(self.dynamic_indices.slice(..), wgpu::IndexFormat::Uint32);
+            pass.draw_indexed(0..self.dynamic_index_count, 0, 0..1);
+        }
+        if self.frame_instance_count > 0 {
+            pass.set_vertex_buffer(1, self.frame_instances.slice(..));
+            for draw in &self.frame_draws {
+                let Some(mesh) = self.static_meshes.get(draw.mesh) else {
+                    self.skipped_mesh_draws.set(self.skipped_mesh_draws.get().saturating_add(1));
+                    debug_assert!(
+                        false,
+                        "render frame references unregistered mesh handle {}",
+                        draw.mesh.0
+                    );
+                    continue;
+                };
+                pass.set_vertex_buffer(0, mesh.vertices.slice(..));
+                pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint32);
+                pass.draw_indexed(
+                    0..mesh.index_count,
+                    0,
+                    draw.instance_start..draw.instance_start + draw.instance_count,
+                );
+            }
+        }
+        // The battlefield ground: its own pipeline (splat layers + macro normals at group 1), the
+        // same camera/shadow groups, chunk-culled by the camera frustum. Drawn AFTER every
+        // scene-pipeline draw on purpose: the scene pipeline's layout carries a hole (None) at
+        // group 1, and leaving a foreign bind group parked in a hole corrupts the group-2 shadow
+        // sampling on some backends — the ground must never leave its material group behind for a
+        // holed layout to trip over.
+        if let Some(binding) = self.ground.binding.as_ref() {
+            pass.set_pipeline(&self.ground.pipeline);
+            pass.set_bind_group(0, &self.camera_bind_group, &[]);
+            pass.set_bind_group(1, &binding.bind_group, &[]);
+            pass.set_bind_group(2, &*self.shadow.bind_group.borrow(), &[]);
+            pass.set_vertex_buffer(1, self.identity_instance.slice(..));
+            self.draw_visible_ground(pass, camera_frustum);
+        }
+        if self.vehicle_instance_count > 0 {
+            pass.set_pipeline(&self.vehicle_pipeline);
+            pass.set_bind_group(0, &self.vehicle_camera_bind_group, &[]);
+            pass.set_bind_group(2, &*self.shadow.bind_group.borrow(), &[]);
+            pass.set_vertex_buffer(1, self.vehicle_instances.slice(..));
+            for draw in &self.vehicle_draws {
+                pass.set_bind_group(1, self.vehicle_materials.bind_group(draw.material), &[]);
+                let Some(mesh) = self.vehicle_meshes.get(draw.mesh) else {
+                    self.skipped_mesh_draws.set(self.skipped_mesh_draws.get().saturating_add(1));
+                    debug_assert!(
+                        false,
+                        "vehicle render frame references unregistered mesh handle {}",
+                        draw.mesh.0
+                    );
+                    continue;
+                };
+                pass.set_vertex_buffer(0, mesh.vertices.slice(..));
+                pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint32);
+                pass.draw_indexed(
+                    0..mesh.index_count,
+                    0,
+                    draw.instance_start..draw.instance_start + draw.instance_count,
+                );
+            }
+        }
+    }
+
+    /// The river surface into the current pass. `grab` supplied (refraction path) selects the
+    /// refraction pipeline sampling the opaque grab at group 1; `None` uses the analytic pipeline.
+    /// Depth-tested (banks and hulls above the waterline occlude it) but never depth-writing, so a
+    /// wading hull's submerged running gear reads through and the FX splashes composite over it.
+    fn draw_water_surface(&self, pass: &mut wgpu::RenderPass<'_>, grab: Option<&wgpu::BindGroup>) {
+        if self.water_index_count > 0
+            && let Some((water_vertices, water_indices)) = self.water_buffers.as_ref()
+        {
+            match grab {
+                Some(grab_bg) => {
+                    pass.set_pipeline(&self.water_refraction.pipeline);
+                    pass.set_bind_group(0, &self.camera_bind_group, &[]);
+                    pass.set_bind_group(1, grab_bg, &[]);
+                }
+                None => {
+                    pass.set_pipeline(&self.water_pipeline);
+                    pass.set_bind_group(0, &self.camera_bind_group, &[]);
+                }
+            }
+            pass.set_vertex_buffer(0, water_vertices.slice(..));
+            pass.set_index_buffer(water_indices.slice(..), wgpu::IndexFormat::Uint32);
+            pass.draw_indexed(0..self.water_index_count, 0, 0..1);
+        }
+    }
+
+    /// Battle FX then rain into the current pass, over the water and opaque world before the HUD:
+    /// FX reuse the scene camera group for view_proj; rain is stateless vertex-shader streaks.
+    fn draw_overlay_fx(&self, pass: &mut wgpu::RenderPass<'_>) {
+        if self.fx_vertex_count > 0 {
+            pass.set_pipeline(&self.fx_pipeline);
+            pass.set_bind_group(0, &self.camera_bind_group, &[]);
+            pass.set_vertex_buffer(0, self.fx_vertices.slice(..));
+            pass.draw(0..self.fx_vertex_count, 0..1);
+        }
+        let rain_streaks =
+            (crate::rain_pipeline::RAIN_MAX_STREAKS as f32 * self.rain_intensity) as u32;
+        if rain_streaks > 0 {
+            pass.set_pipeline(&self.rain_pipeline);
+            pass.set_bind_group(0, &self.camera_bind_group, &[]);
+            pass.draw(0..6, 0..rain_streaks);
+        }
     }
 }
