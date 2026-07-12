@@ -18,6 +18,9 @@ pub struct GearDynamics<'a> {
     /// a side toward ~0.5, braking toward ~1.5, and a THROWN track lets its side hang deep.
     pub left_sag_scale: f32,
     pub right_sag_scale: f32,
+    /// Normalized belt-path location of a real thrown-track gap.
+    pub left_break_t: Option<f32>,
+    pub right_break_t: Option<f32>,
 }
 
 impl GearDynamics<'_> {
@@ -44,11 +47,31 @@ pub fn running_gear_placements_dynamic(
     dynamics: GearDynamics<'_>,
 ) -> Vec<GearPlacement> {
     let mut placements = Vec::new();
-    for (side_sign, phase, travel, sag_scale) in [
-        (1.0_f32, right_phase_m, dynamics.right_travel, dynamics.right_sag_scale),
-        (-1.0_f32, left_phase_m, dynamics.left_travel, dynamics.left_sag_scale),
+    for (side_sign, phase, travel, sag_scale, break_t) in [
+        (
+            1.0_f32,
+            right_phase_m,
+            dynamics.right_travel,
+            dynamics.right_sag_scale,
+            dynamics.right_break_t,
+        ),
+        (
+            -1.0_f32,
+            left_phase_m,
+            dynamics.left_travel,
+            dynamics.left_sag_scale,
+            dynamics.left_break_t,
+        ),
     ] {
-        place_side(kin, side_sign, phase, travel, dynamics.sag(kin, sag_scale), &mut placements);
+        place_side(
+            kin,
+            side_sign,
+            phase,
+            travel,
+            dynamics.sag(kin, sag_scale),
+            break_t,
+            &mut placements,
+        );
     }
     placements
 }
@@ -90,6 +113,7 @@ fn place_side(
     phase: f32,
     travel: &[f32],
     sag: f32,
+    break_t: Option<f32>,
     out: &mut Vec<GearPlacement>,
 ) {
     let wheel_spin = phase / kin.wheel_radius.max(0.05);
@@ -142,6 +166,14 @@ fn place_side(
         let mut s = (link_phase + (i as f32 / count as f32) * length).rem_euclid(length);
         if s > length - 1.0e-4 {
             s = 0.0;
+        }
+        if let Some(gap) = break_t {
+            let t = s / length;
+            let d = (t - gap.rem_euclid(1.0)).abs();
+            let circular = d.min(1.0 - d);
+            if circular <= 2.5 / count as f32 {
+                continue;
+            }
         }
         let sample = path.sample(s);
         // The whole LOWER half of the loop conforms to the wheels riding over terrain — the

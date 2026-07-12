@@ -76,6 +76,8 @@ pub fn split_pbr_vehicle_render_frame_on_terrain(
             right_travel: &right_travel[..wheel_count],
             left_sag_scale: side_sag(damage.is_broken(game_core::TrackSide::Left)),
             right_sag_scale: side_sag(damage.is_broken(game_core::TrackSide::Right)),
+            left_break_t: tank.track_break_t[0],
+            right_break_t: tank.track_break_t[1],
         };
         let mut tank_objects = tank_vehicle_render_objects_posed(
             catalog,
@@ -179,6 +181,9 @@ pub(crate) fn render_snapshot(tank: &PresentationTank) -> TankSnapshot {
         ammo_counts: [0; game_core::MAX_AMMO_SLOTS],
         selected_ammo: 0,
         spotted_by_teams_mask: 0,
+        armor_breaches: tank.armor_breaches.clone(),
+        track_break_t: tank.track_break_t,
+        engine_fire: tank.engine_fire,
     }
 }
 
@@ -240,6 +245,9 @@ mod tests {
             spotted_by_teams_mask: 0,
             module_hit_points: [11, 22, 33, 44, 55, 66],
             track_damage_mask: 0,
+            track_break_t: [None, None],
+            engine_fire: false,
+            armor_breaches: Default::default(),
             track_left_m: 0.0,
             track_right_m: 0.0,
             attitude_pitch_rad: 0.0,

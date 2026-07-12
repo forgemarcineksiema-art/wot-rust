@@ -1,5 +1,7 @@
 use bevy_ecs::prelude::*;
-use game_core::{MODULE_SLOT_COUNT, TankId, TeamId, TrackDamageMask, TrackSide, VehicleKind};
+use game_core::{
+    ArmorBreachSet, MODULE_SLOT_COUNT, TankId, TeamId, TrackDamageMask, TrackSide, VehicleKind,
+};
 
 /// Render-side clock, advanced once per presented frame. Lives as an ECS resource so future
 /// presentation systems (animation, fade timers) read one shared time source.
@@ -61,8 +63,13 @@ pub struct Spotted(pub u8);
 pub struct ModuleHitPoints(pub [u32; MODULE_SLOT_COUNT]);
 
 /// Side-specific track damage bitmask replicated from the authoritative simulation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Component)]
-pub struct TrackDamage(pub u8);
+#[derive(Debug, Clone, PartialEq, Default, Component)]
+pub struct VehicleDamage {
+    pub mask: u8,
+    pub break_t: [Option<f32>; 2],
+    pub armor_breaches: ArmorBreachSet,
+    pub engine_fire: bool,
+}
 
 /// Per-side track distance travelled (metres), accumulated from the hull's frame-to-frame pose so
 /// the renderer can spin the wheels and scroll the track links. This is a render-only cue derived
@@ -147,7 +154,7 @@ impl GunRecoil {
 /// Flat view of a presentation entity handed to the renderer and HUD. The render path reads this
 /// instead of `net::TankSnapshot`, so the persistent ECS — not the raw snapshot buffer — is the
 /// presentation source of truth.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct PresentationTank {
     pub id: TankId,
     pub team: TeamId,
@@ -163,6 +170,9 @@ pub struct PresentationTank {
     /// Live module HP in `ModuleSlot::ALL` wire order (partial-damage presentation cues).
     pub module_hit_points: [u32; MODULE_SLOT_COUNT],
     pub track_damage_mask: u8,
+    pub track_break_t: [Option<f32>; 2],
+    pub engine_fire: bool,
+    pub armor_breaches: ArmorBreachSet,
     /// Per-side track distance (metres) for spinning wheels and scrolling track links.
     pub track_left_m: f32,
     pub track_right_m: f32,

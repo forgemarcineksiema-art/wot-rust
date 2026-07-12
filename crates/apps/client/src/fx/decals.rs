@@ -48,7 +48,11 @@ pub fn decal_from_damage_event(
 ) -> Option<HitDecal> {
     let pose = pose_of(target);
     let facing = event.armor_zone.facing();
-    let primary = frame_for_facing(facing);
+    let primary = if event.armor_zone == game_core::ArmorZone::Mantlet {
+        DecalFrame::Mantlet
+    } else {
+        frame_for_facing(facing)
+    };
 
     let seat = seat_on_visual_mesh(event, &pose, primary, contact)
         .unwrap_or_else(|| seat_by_fallback(event, &pose, primary, facing));
@@ -103,6 +107,7 @@ fn frame_basis(pose: &VehiclePose, frame: DecalFrame) -> (Vec3, Mat3) {
     match frame {
         DecalFrame::Hull => (pose.hull_translation(), pose.hull_basis()),
         DecalFrame::Turret => (pose.turret_translation(), pose.turret_basis()),
+        DecalFrame::Mantlet => (pose.gun_translation(), pose.gun_basis()),
     }
 }
 
@@ -110,6 +115,7 @@ fn frame_index(contact: &VehicleContactIndex, frame: DecalFrame) -> &MeshContact
     match frame {
         DecalFrame::Hull => &contact.hull,
         DecalFrame::Turret => &contact.turret,
+        DecalFrame::Mantlet => &contact.gun,
     }
 }
 
@@ -128,7 +134,7 @@ fn seat_on_visual_mesh(
     }
     let other = match primary {
         DecalFrame::Hull => DecalFrame::Turret,
-        DecalFrame::Turret => DecalFrame::Hull,
+        DecalFrame::Turret | DecalFrame::Mantlet => DecalFrame::Hull,
     };
     seat_in_frame(event, pose, primary, frame_index(contact, primary), direction)
         .or_else(|| seat_in_frame(event, pose, other, frame_index(contact, other), direction))
@@ -220,6 +226,7 @@ pub fn append_decal_quads(vertices: &mut Vec<FxVertex>, decals: &[HitDecal], tan
         let (origin, basis) = match decal.frame {
             DecalFrame::Hull => (pose.hull_translation(), pose.hull_basis()),
             DecalFrame::Turret => (pose.turret_translation(), pose.turret_basis()),
+            DecalFrame::Mantlet => (pose.gun_translation(), pose.gun_basis()),
         };
         let center = origin
             + basis * Vec3::from_array(decal.local_position)
@@ -402,6 +409,9 @@ mod tests {
             ammo_counts: game_core::AmmoLoadout::default().counts,
             selected_ammo: 0,
             spotted_by_teams_mask: 0,
+            armor_breaches: Default::default(),
+            track_break_t: [None, None],
+            engine_fire: false,
         }
     }
 

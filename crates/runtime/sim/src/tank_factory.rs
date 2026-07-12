@@ -42,5 +42,8 @@ pub(crate) fn fresh_tank(
         submerged_s: 0.0,
         repair: crate::repair::CrewRepair::default(),
         turret_detached: false,
+        armor_breaches: game_core::ArmorBreachSet::default(),
+        track_break_t: [None, None],
+        engine_fire: false,
     }
 }

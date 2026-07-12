@@ -7,8 +7,8 @@ use net::TankSnapshot;
 use crate::attitude::{HullAttitude, TankMotion};
 use crate::components::{
     DestroyedModules, GunPitch, GunRecoil, Health, ModuleHitPoints, PresentationTank,
-    RenderTransform, Spotted, TankEntity, Team, Time, TrackAnimation, TrackDamage, TurretYaw,
-    Vehicle,
+    RenderTransform, Spotted, TankEntity, Team, Time, TrackAnimation, TurretYaw, Vehicle,
+    VehicleDamage,
 };
 use crate::sync_cues::{attitude_sample, suspension_pool_fraction};
 
@@ -74,7 +74,12 @@ impl PresentationWorld {
                 DestroyedModules(tank.destroyed_modules_mask),
                 Spotted(tank.spotted_by_teams_mask),
                 ModuleHitPoints(tank.module_hit_points),
-                TrackDamage(tank.track_damage_mask),
+                VehicleDamage {
+                    mask: tank.track_damage_mask,
+                    break_t: tank.track_break_t,
+                    armor_breaches: tank.armor_breaches.clone(),
+                    engine_fire: tank.engine_fire,
+                },
             );
             // Track distance is accumulated from the pose *delta*, so it must be folded in before
             // the bundle overwrites the previous `RenderTransform`. Kept out of the bundle so it
@@ -157,7 +162,7 @@ impl PresentationWorld {
             &DestroyedModules,
             &Spotted,
             &ModuleHitPoints,
-            &TrackDamage,
+            &VehicleDamage,
             &TrackAnimation,
             &HullAttitude,
             &GunRecoil,
@@ -193,7 +198,10 @@ impl PresentationWorld {
                         destroyed_modules_mask: destroyed.0,
                         spotted_by_teams_mask: spotted.0,
                         module_hit_points: modules.0,
-                        track_damage_mask: damage.0,
+                        track_damage_mask: damage.mask,
+                        track_break_t: damage.break_t,
+                        engine_fire: damage.engine_fire,
+                        armor_breaches: damage.armor_breaches.clone(),
                         track_left_m: track.left_m,
                         track_right_m: track.right_m,
                         attitude_pitch_rad: attitude.pitch_rad,

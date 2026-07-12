@@ -50,6 +50,7 @@ Every phase preserves these; a phase that cannot is redesigned, not excused.
 | 4 | Turret pop-off | ammo-rack detonation kill detaches the turret: sim flag + trace exemption + `wreck_state` on the wire; client flies a deterministic ballistic arc | v20 | planned |
 | 5 | Wreck deformation | runtime `deform`-kernel dents on per-instance wreck meshes at death; ricochet spark streaks | — | planned |
 | 6 | Destructible cover | `CoverView` + `cover_states` (Intact/Rubble/Gone): HE and ramming destroy fences/tree-line segments and pound farm buildings into rubble; shell trace, movement, and spotting LOS all follow the state | v21 | planned |
+| 7 | Honest Steel T-54 | bounded persistent armor channels, multi-module interior path, pose-aware mantlet scars, engine fire and authored thrown-track gap | v25 | implemented |
 
 Sequencing: 0 → 1 → {2, 3 in either order} → 4 → {5, 6 in parallel}.
 
@@ -60,6 +61,19 @@ Sequencing: 0 → 1 → {2, 3 in either order} → 4 → {5, 6 in parallel}.
 | v19 | 1 | `DamageEvent` += `plate_normal`, `shell_direction` |
 | v20 | 4 | `TankSnapshot` += `wreck_state: u8`; shell trace skips a detached turret |
 | v21 | 6 | `Snapshot` += `cover_states`; destructible cover truth |
+| v25 | 7 | `TankSnapshot` += `armor_breaches`, `track_break_t`, `engine_fire`; `DamageEvent` += module hit/destroy masks |
+
+## Honest Steel T-54 contract
+
+- `ArmorBreachSet` is authoritative, replay-stable, capped at 12 merged channels, and exists only
+  on the individual tank state; the shared production mesh is never mutated.
+- A channel owns its semantic surface, armor material and `Hull` / `Turret` / `Mantlet` pose frame.
+  The client cuts a per-instance skin and builds the exposed steel tunnel; the server analytically
+  admits a later projectile only when its full physical radius clears the aperture.
+- T-54 module damage resolves along the complete internal segment, nearest first, consuming the
+  residual penetration budget. The former upper-glacis-to-gun shortcut is removed.
+- A freshly thrown track records its normalized belt-path location. Presentation omits five links
+  around it; crew re-seat clears the gap in the same tick that restores the track pool.
 
 Each bump follows the established procedure (`docs/testing-and-regression.md`): append-only
 fields, regenerated `crates/runtime/net/tests/snapshots/*_vNN.hex` fixtures, old-version

@@ -42,6 +42,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ammo_counts: game_core::AmmoLoadout::default().counts,
         selected_ammo: 0,
         spotted_by_teams_mask: 0,
+        armor_breaches: Default::default(),
+        track_break_t: [None, None],
+        engine_fire: false,
     };
     let _ = snapshot; // The tech tree view does not render the vehicle mesh; it's an overlay-only
     // screen over the dim hangar. Kept here so the example stays close to the

@@ -120,6 +120,9 @@ impl InterpolatedBattleState {
                 ammo_counts: tank.ammo_counts,
                 selected_ammo: tank.selected_ammo,
                 spotted_by_teams_mask: tank.spotted_by_teams_mask,
+                armor_breaches: tank.armor_breaches.clone(),
+                track_break_t: tank.track_break_t,
+                engine_fire: tank.engine_fire,
             },
             None => tank.clone(),
         }

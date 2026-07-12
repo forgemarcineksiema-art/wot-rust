@@ -1,5 +1,5 @@
 use game_core::math::HullPose;
-use game_core::{ModuleHealth, TankId, TankSpec, TeamId, TrackHealth};
+use game_core::{ArmorBreachSet, ModuleHealth, TankId, TankSpec, TeamId, TrackHealth};
 use glam::Vec3;
 use serde::{Deserialize, Serialize};
 
@@ -69,6 +69,15 @@ pub struct TankState {
     /// `serde(default)` keeps pre-v20 fixtures loading with the turret attached.
     #[serde(default)]
     pub turret_detached: bool,
+    /// Permanent, replay-stable armor perforations owned by this individual T-54.
+    #[serde(default)]
+    pub armor_breaches: ArmorBreachSet,
+    /// Normalized path position of a thrown belt, `[left, right]`; `None` means intact/no gap.
+    #[serde(default)]
+    pub track_break_t: [Option<f32>; 2],
+    /// Deterministic engine-deck fire caused by a penetrating engine kill.
+    #[serde(default)]
+    pub engine_fire: bool,
 }
 
 fn default_ammo_counts() -> [u16; game_core::MAX_AMMO_SLOTS] {

@@ -173,6 +173,9 @@ mod tests {
             submerged_s: 0.0,
             repair: sim::CrewRepair::default(),
             turret_detached: false,
+            armor_breaches: Default::default(),
+            track_break_t: [None, None],
+            engine_fire: false,
         }
     }
 

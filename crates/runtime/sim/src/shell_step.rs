@@ -2,6 +2,7 @@ use ::terrain::{HeightMap, StaticCoverObject};
 use game_core::math::integrate_shell_step;
 use game_core::{DamageEvent, ImpactSurface, ShellImpact};
 
+use crate::breach_space::admits_existing_channel;
 use crate::combat::{CombatTickContext, apply_shell_impact};
 use crate::shell_continuation::{
     continue_through_armor, deflect_shell, kinetic_penetration_continues,
@@ -56,6 +57,19 @@ pub(crate) fn step_shells(
                 plate_normal,
             }) => {
                 let distance_m = shells[index].traveled_m + hit_position.distance(previous);
+                let radius_m = shells[index].shell.collision_radius_m();
+                let through_open_channel =
+                    tanks.iter().find(|tank| tank.id == id).is_some_and(|tank| {
+                        admits_existing_channel(tank, zone, hit_position, radius_m)
+                    });
+                if through_open_channel {
+                    let direction = shells[index].velocity_mps.normalize_or_zero();
+                    shells[index].position = hit_position + direction * (radius_m + 0.42);
+                    shells[index].traveled_m = distance_m;
+                    shells[index].last_penetrated_target = Some(id);
+                    index += 1;
+                    continue;
+                }
                 let event = apply_shell_impact(
                     &shells[index],
                     tanks,

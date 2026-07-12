@@ -105,4 +105,10 @@ pub struct DamageEvent {
     /// = `None` keeps pre-v22 fixtures and every `..Default::default()` literal loading.
     #[serde(default)]
     pub track_hit: Option<TrackHit>,
+    /// Every module touched by this shell's internal path (protocol v25).
+    #[serde(default)]
+    pub damaged_modules_mask: u8,
+    /// Subset of `damaged_modules_mask` that crossed to zero on this impact (protocol v25).
+    #[serde(default)]
+    pub destroyed_modules_mask: u8,
 }

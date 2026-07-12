@@ -309,6 +309,9 @@ fn render_garage_preview_png() {
         ammo_counts: game_core::AmmoLoadout::default().counts,
         selected_ammo: 0,
         spotted_by_teams_mask: 0,
+        armor_breaches: Default::default(),
+        track_break_t: [None, None],
+        engine_fire: false,
     };
 
     let (terrain_vertices, terrain_indices) = hangar_scene_mesh();
@@ -388,6 +391,9 @@ fn snapshot_for_vehicle(
             ammo_counts: game_core::AmmoLoadout::default().counts,
             selected_ammo: 0,
             spotted_by_teams_mask: 0,
+            armor_breaches: Default::default(),
+            track_break_t: [None, None],
+            engine_fire: false,
         }],
         shells: Vec::new(),
         damage_events: Vec::new(),

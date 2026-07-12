@@ -1,7 +1,7 @@
 use bincode::Options;
 use game_core::{
-    DamageEvent, MODULE_SLOT_COUNT, ShellId, ShellImpact, ShellType, TRACK_HP_MAX, TankId, TeamId,
-    VehicleKind, WeatherVariant,
+    ArmorBreachSet, DamageEvent, MODULE_SLOT_COUNT, ShellId, ShellImpact, ShellType, TRACK_HP_MAX,
+    TankId, TeamId, VehicleKind, WeatherVariant,
 };
 use serde::{Deserialize, Serialize};
 use sim::{SimulationState, TankCommand, TankState};
@@ -15,6 +15,9 @@ mod snapshot_schedule;
 pub use frame::{FRAME_HEADER_LEN, FRAME_MAGIC, decode_frame, encode_frame};
 pub use snapshot_schedule::SnapshotSchedule;
 
+/// v25: `TankSnapshot` carries persistent armor breaches, engine fire, and per-side track break
+/// positions. `DamageEvent` carries all modules touched/destroyed by one internal through-flight.
+///
 /// v24: in-flight shells carry stable identity plus type, caliber, drag, and age so presentation
 /// preserves projectile identity and extrapolates with the authoritative flight physics.
 ///
@@ -44,7 +47,7 @@ pub use snapshot_schedule::SnapshotSchedule;
 /// v18: `ServerHello` names the match — `map_id` and `weather_variant` — so the client can
 /// deterministically rebuild the same battlefield the server simulates (the map itself is
 /// never sent) and dress it in the same sky. `ImpactSurface` gains `Water`.
-pub const PROTOCOL_VERSION: u16 = 24;
+pub const PROTOCOL_VERSION: u16 = 25;
 
 #[derive(Debug, Error)]
 pub enum NetError {
@@ -132,6 +135,15 @@ pub struct TankSnapshot {
     /// spotting pass (protocol v16). Local authoritative snapshots are filtered per viewer before
     /// they reach the client.
     pub spotted_by_teams_mask: u8,
+    /// Persistent per-instance perforations (protocol v25); late join and replay converge.
+    #[serde(default)]
+    pub armor_breaches: ArmorBreachSet,
+    /// Normalized thrown-belt gap position `[left, right]` (protocol v25).
+    #[serde(default)]
+    pub track_break_t: [Option<f32>; 2],
+    /// Engine compartment is visibly burning (protocol v25).
+    #[serde(default)]
+    pub engine_fire: bool,
 }
 
 impl TankSnapshot {
@@ -168,6 +180,9 @@ impl From<&TankState> for TankSnapshot {
             ammo_counts: tank.ammo_counts,
             selected_ammo: tank.selected_ammo,
             spotted_by_teams_mask: tank.spotted_mask,
+            armor_breaches: tank.armor_breaches.clone(),
+            track_break_t: tank.track_break_t,
+            engine_fire: tank.engine_fire,
         }
     }
 }

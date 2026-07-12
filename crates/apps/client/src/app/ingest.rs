@@ -7,6 +7,9 @@ use super::ClientApp;
 impl ClientApp {
     pub(super) fn accept_and_sync(&mut self, snapshot: net::Snapshot) {
         let player = snapshot.tanks.iter().find(|tank| tank.tank_id == self.player_tank).cloned();
+        for tank in &snapshot.tanks {
+            self.tank_scars.entry(tank.tank_id).or_default().sync_from_snapshot(tank);
+        }
         self.hit_indicator.ingest_damage_events(&snapshot.damage_events, self.player_tank);
         self.damage_log.ingest(&snapshot.damage_events, self.player_tank, &snapshot.tanks);
         self.track_feedback.ingest(&snapshot.damage_events, self.player_tank);

@@ -1,5 +1,6 @@
 mod aim_dispersion;
 mod aiming;
+mod breach_space;
 mod clock;
 mod combat;
 mod command;

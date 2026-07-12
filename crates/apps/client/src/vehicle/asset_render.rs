@@ -63,7 +63,11 @@ pub fn tank_vehicle_render_objects_with_tracks(
         track_left_m,
         track_right_m,
         [0.0; 3],
-        GearDynamics::default(),
+        GearDynamics {
+            left_break_t: snapshot.track_break_t[0],
+            right_break_t: snapshot.track_break_t[1],
+            ..Default::default()
+        },
     )
 }
 
@@ -204,6 +208,9 @@ mod tests {
             ammo_counts: game_core::AmmoLoadout::default().counts,
             selected_ammo: 0,
             spotted_by_teams_mask: 0,
+            armor_breaches: Default::default(),
+            track_break_t: [None, None],
+            engine_fire: false,
         }
     }
 

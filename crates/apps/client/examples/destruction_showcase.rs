@@ -224,11 +224,14 @@ fn tank_snapshot(
         aim_dispersion_mrad: 0.0,
         module_hit_points: spec.module_health.hit_points_by_slot(),
         destroyed_modules_mask,
-        track_damage_mask: 0,
-        track_hp: [game_core::TRACK_HP_MAX; 2],
+        track_damage_mask: game_core::TrackDamageMask::LEFT.bits(),
+        track_hp: [0, game_core::TRACK_HP_MAX],
         ammo_counts: game_core::AmmoLoadout::default().counts,
         selected_ammo: 0,
         spotted_by_teams_mask: 0,
+        armor_breaches: Default::default(),
+        track_break_t: [Some(0.62), None],
+        engine_fire: false,
     }
 }
 

@@ -10,6 +10,6 @@ mod world;
 pub use attitude::{AttitudeSample, HullAttitude, TankMotion};
 pub use components::{
     DestroyedModules, GunPitch, GunRecoil, Health, ModuleHitPoints, PresentationTank,
-    RenderTransform, TankEntity, Team, Time, TrackDamage, TurretYaw, Vehicle,
+    RenderTransform, TankEntity, Team, Time, TurretYaw, Vehicle, VehicleDamage,
 };
 pub use world::PresentationWorld;

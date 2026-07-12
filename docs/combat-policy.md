@@ -165,14 +165,16 @@ classic turret-roof skip into an engine deck is a real outcome. One skip per
 shell, ever. The reticle preview intentionally stops at the first impact; the
 skip is a server-side continuation.
 
-Penetrating hits subtract hull hit points, then resolve module damage from the
-armor zone and the hull-local hit point. The module map is deterministic and
-volume-biased: exposed track zones damage suspension, mantlet hits damage the
-gun, rear hull and rear-side engine-bay hits damage the engine, turret side/rear
-hits damage the ammo rack, and frontal armor hits damage the gun or turret
-assembly depending on the plate. Enclosed module volumes use replay-stable hit
-chances derived from the local hit point, so a penetrating shell may pass through
-without damaging a module; exposed running gear and mantlet hits remain direct.
+Penetrating hits subtract hull hit points and then resolve internal damage. Blueprint vehicles
+with an authored `DamageLayout` intersect the complete through-flight with physical module volumes;
+legacy vehicles retain the deterministic zone/local-hit fallback until separately migrated.
+Exposed running gear and non-penetrating HE remain direct suspension damage.
+
+For the T-54 benchmark, a penetrating AP/APCR hit also creates a permanent `ArmorBreach` in the
+struck `Hull`, `Turret`, or gun-pitched `Mantlet` frame. Later projectiles pass through that opening
+only when their complete swept-body radius clears its rim. The internal shell segment intersects
+the authored module volumes in distance order and can damage more than one module before its
+residual penetration is exhausted; no frontal-zone shortcut substitutes for that geometry.
 Non-penetrating AP/APCR or HEAT hits emit a bounce `DamageEvent` with zero damage
 and no module. HE surface hits emit non-penetrating damage and can throw tracks.
 
@@ -181,8 +183,8 @@ steel is removed from its penetration budget, velocity falls with the square roo
 energy fraction, and the shell exits forward while the just-perforated hull is ignored for the exit
 step. It can then hit another aligned vehicle with the residual penetration. HE detonates on its
 first surface and HEAT resolves its shaped-charge jet there; neither continues as a second flying
-projectile. This is the first internal-path slice: it models residual through-flight between hulls,
-but not yet internal bulkheads, spall fragments, crew rays, or a separately authored exit plate.
+projectile. T-54 additionally resolves its authored internal modules and permanent plate channel;
+crew rays, fluids and free-flying spall fragments remain future layers.
 
 ## Ramming
 

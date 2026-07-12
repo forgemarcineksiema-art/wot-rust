@@ -69,6 +69,11 @@ pub(crate) fn step_crew_repair(tank: &mut TankState, dt: f32) {
                 *clock += dt;
                 if *clock >= TRACK_REPAIR_S {
                     tank.tracks.reseat(side);
+                    let index = match side {
+                        TrackSide::Left => 0,
+                        TrackSide::Right => 1,
+                    };
+                    tank.track_break_t[index] = None;
                     *clock = 0.0;
                 }
             }
@@ -100,6 +105,9 @@ pub(crate) fn step_crew_repair(tank: &mut TankState, dt: f32) {
             let full = tank.spec.module_health.hit_points(slot);
             let patched = ((full as f32 * MODULE_PATCH_FRACTION) as u32).max(1);
             tank.modules.restore_to(slot, patched);
+            if slot == ModuleSlot::Engine {
+                tank.engine_fire = false;
+            }
             *clock = 0.0;
         }
     }

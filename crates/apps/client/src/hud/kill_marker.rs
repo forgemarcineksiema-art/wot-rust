@@ -117,6 +117,9 @@ mod tests {
                     ammo_counts: spec.ammo.counts,
                     selected_ammo: spec.ammo.initial_selected,
                     spotted_by_teams_mask: u8::MAX,
+                    armor_breaches: Default::default(),
+                    track_break_t: [None, None],
+                    engine_fire: false,
                 })
                 .collect(),
             damage_events: events

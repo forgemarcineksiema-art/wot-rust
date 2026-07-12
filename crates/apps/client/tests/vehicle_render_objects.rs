@@ -44,6 +44,9 @@ fn dynamic_and_instanced_paths_agree_on_world_space_vertices() {
             ammo_counts: game_core::AmmoLoadout::default().counts,
             selected_ammo: 0,
             spotted_by_teams_mask: 0,
+            armor_breaches: Default::default(),
+            track_break_t: [None, None],
+            engine_fire: false,
         };
 
         let (dynamic_vertices, _) = tank_scene_mesh(&snapshot);
@@ -99,6 +102,9 @@ fn t55a_render_objects_use_static_mesh_handles_for_hull_turret_and_gun() {
         ammo_counts: game_core::AmmoLoadout::default().counts,
         selected_ammo: 0,
         spotted_by_teams_mask: 0,
+        armor_breaches: Default::default(),
+        track_break_t: [None, None],
+        engine_fire: false,
     };
 
     let objects = tank_render_objects(&mut catalog, &snapshot, [0.30, 0.40, 0.28]);
@@ -219,6 +225,9 @@ fn vehicle_mesh_catalog_reports_new_gpu_mesh_uploads_once() {
         ammo_counts: game_core::AmmoLoadout::default().counts,
         selected_ammo: 0,
         spotted_by_teams_mask: 0,
+        armor_breaches: Default::default(),
+        track_break_t: [None, None],
+        engine_fire: false,
     };
 
     let objects = tank_render_objects(&mut catalog, &snapshot, [0.30, 0.40, 0.28]);
@@ -259,6 +268,9 @@ fn distinct_hull_colors_share_one_mesh_and_tint_per_object() {
         ammo_counts: game_core::AmmoLoadout::default().counts,
         selected_ammo: 0,
         spotted_by_teams_mask: 0,
+        armor_breaches: Default::default(),
+        track_break_t: [None, None],
+        engine_fire: false,
     };
 
     let green = [0.30, 0.40, 0.28];
@@ -310,6 +322,9 @@ fn destroyed_module_mask_darkens_the_matching_submesh_without_reuploading_meshes
         ammo_counts: game_core::AmmoLoadout::default().counts,
         selected_ammo: 0,
         spotted_by_teams_mask: 0,
+        armor_breaches: Default::default(),
+        track_break_t: [None, None],
+        engine_fire: false,
     };
     let base = [0.30, 0.40, 0.28];
     let healthy = tank_render_objects(&mut catalog, &snapshot, base);

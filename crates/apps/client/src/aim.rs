@@ -259,6 +259,9 @@ mod tests {
             ammo_counts: game_core::AmmoLoadout::default().counts,
             selected_ammo: 0,
             spotted_by_teams_mask: 0,
+            armor_breaches: Default::default(),
+            track_break_t: [None, None],
+            engine_fire: false,
         };
         let tanks = [tank];
         let eye_ground = heightmap.sample_height(500.0, 400.0).unwrap();

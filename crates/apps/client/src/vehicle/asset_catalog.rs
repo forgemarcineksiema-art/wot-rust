@@ -38,6 +38,7 @@ pub struct VehicleAssetCatalog {
 pub struct VehicleContactIndex {
     pub hull: MeshContactIndex,
     pub turret: MeshContactIndex,
+    pub gun: MeshContactIndex,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -97,6 +98,7 @@ impl VehicleAssetCatalog {
             Arc::new(VehicleContactIndex {
                 hull: MeshContactIndex::from_mesh(&hull.mesh, Vec3::ZERO),
                 turret: MeshContactIndex::from_mesh(&turret.mesh, turret_ring),
+                gun: MeshContactIndex::from_mesh(&gun.mesh, trunnion),
             })
         });
         let entry = VehicleAssetEntry {

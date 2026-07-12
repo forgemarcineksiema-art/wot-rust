@@ -43,6 +43,7 @@ pub enum DecalKind {
 pub enum DecalFrame {
     Hull,
     Turret,
+    Mantlet,
 }
 
 /// A single impact mark in its local frame; non-permanent kinds age toward [`DECAL_FADE_S`].

@@ -25,6 +25,9 @@ fn t55a_client_mesh_uses_rich_procedural_geometry() {
         ammo_counts: game_core::AmmoLoadout::default().counts,
         selected_ammo: 0,
         spotted_by_teams_mask: 0,
+        armor_breaches: Default::default(),
+        track_break_t: [None, None],
+        engine_fire: false,
     };
 
     let (vertices, indices) = tank_scene_mesh(&snapshot);

@@ -13,6 +13,14 @@ pub struct ModuleVolume {
     pub requires_penetration: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ModuleIntersection {
+    pub slot: ModuleSlot,
+    pub distance_t: f32,
+    pub path_length_m: f32,
+    pub priority: u8,
+}
+
 impl ModuleVolume {
     pub fn contains(self, point: Vec3) -> bool {
         const BOUNDARY_EPSILON_M: f32 = 1.0e-4;
@@ -38,26 +46,17 @@ impl DamageLayout {
     pub fn t54_1951() -> Self {
         Self {
             volumes: vec![
-                // The upper glacis is the legacy gameplay zone for a damaged gun: preserve that
-                // deterministic contract even though the physical mantlet sits farther aft.
                 ModuleVolume {
                     slot: ModuleSlot::Gun,
-                    min: Vec3::new(-1.20, -0.20, 2.30),
-                    max: Vec3::new(1.20, 0.65, 3.15),
-                    priority: 25,
-                    requires_penetration: true,
-                },
-                ModuleVolume {
-                    slot: ModuleSlot::Gun,
-                    min: Vec3::new(-0.46, 0.48, 0.70),
-                    max: Vec3::new(0.46, 1.10, 1.38),
+                    min: Vec3::new(-0.46, 0.42, 0.48),
+                    max: Vec3::new(0.46, 1.08, 1.28),
                     priority: 30,
                     requires_penetration: true,
                 },
                 ModuleVolume {
                     slot: ModuleSlot::AmmoRack,
-                    min: Vec3::new(-0.78, 0.18, -0.88),
-                    max: Vec3::new(0.78, 1.02, -0.18),
+                    min: Vec3::new(-0.92, -0.48, -0.92),
+                    max: Vec3::new(0.92, 0.58, 0.08),
                     priority: 20,
                     requires_penetration: true,
                 },
@@ -66,6 +65,13 @@ impl DamageLayout {
                     min: Vec3::new(-1.22, -0.55, -2.60),
                     max: Vec3::new(1.22, 0.64, -1.18),
                     priority: 20,
+                    requires_penetration: true,
+                },
+                ModuleVolume {
+                    slot: ModuleSlot::Radio,
+                    min: Vec3::new(-0.92, -0.15, 0.35),
+                    max: Vec3::new(-0.25, 0.58, 1.15),
+                    priority: 18,
                     requires_penetration: true,
                 },
                 ModuleVolume {
@@ -104,6 +110,37 @@ impl DamageLayout {
             .map(|volume| volume.slot)
     }
 
+    /// Intersect a complete through-flight with every authored module, nearest first.
+    pub fn intersections(
+        &self,
+        penetrated: bool,
+        start: Vec3,
+        end: Vec3,
+    ) -> Vec<ModuleIntersection> {
+        let delta = end - start;
+        let length = delta.length();
+        let mut hits: Vec<_> = self
+            .volumes
+            .iter()
+            .filter(|volume| !volume.requires_penetration || penetrated)
+            .filter_map(|volume| {
+                segment_aabb_interval(start, end, volume.min, volume.max).map(|(enter, exit)| {
+                    ModuleIntersection {
+                        slot: volume.slot,
+                        distance_t: enter,
+                        path_length_m: (exit - enter).max(0.0) * length,
+                        priority: volume.priority,
+                    }
+                })
+            })
+            .collect();
+        hits.sort_by(|a, b| {
+            a.distance_t.total_cmp(&b.distance_t).then_with(|| b.priority.cmp(&a.priority))
+        });
+        hits.dedup_by_key(|hit| hit.slot);
+        hits
+    }
+
     pub fn fits_within(&self, hitbox: HitboxProfile) -> bool {
         self.volumes.iter().all(|volume| {
             [volume.min, volume.max].into_iter().all(|p| {
@@ -113,4 +150,28 @@ impl DamageLayout {
             })
         })
     }
+}
+
+fn segment_aabb_interval(start: Vec3, end: Vec3, min: Vec3, max: Vec3) -> Option<(f32, f32)> {
+    let delta = end - start;
+    let mut enter = 0.0_f32;
+    let mut exit = 1.0_f32;
+    for axis in 0..3 {
+        let origin = start[axis];
+        let direction = delta[axis];
+        if direction.abs() < 1.0e-7 {
+            if origin < min[axis] || origin > max[axis] {
+                return None;
+            }
+            continue;
+        }
+        let a = (min[axis] - origin) / direction;
+        let b = (max[axis] - origin) / direction;
+        enter = enter.max(a.min(b));
+        exit = exit.min(a.max(b));
+        if enter > exit {
+            return None;
+        }
+    }
+    Some((enter, exit))
 }

@@ -50,6 +50,9 @@ fn snapshot() -> TankSnapshot {
         ammo_counts: game_core::AmmoLoadout::default().counts,
         selected_ammo: 0,
         spotted_by_teams_mask: 0,
+        armor_breaches: Default::default(),
+        track_break_t: [None, None],
+        engine_fire: false,
     }
 }
 

@@ -30,6 +30,9 @@ fn snapshot(id: u64, position: [f32; 3], hit_points: u32) -> TankSnapshot {
         ammo_counts: game_core::AmmoLoadout::default().counts,
         selected_ammo: 0,
         spotted_by_teams_mask: 0,
+        armor_breaches: Default::default(),
+        track_break_t: [None, None],
+        engine_fire: false,
     }
 }
 
@@ -240,7 +243,7 @@ fn firing_over_the_bow_pitches_the_hull_and_over_the_side_rolls_it() {
         for _ in 0..60 {
             world.advance_time(dt);
             world.sync_tanks(&[still(snapshot(1, [0.0, 0.0, 0.0], 900))]);
-            let tank = world.presentation_tanks()[0];
+            let tank = world.presentation_tanks()[0].clone();
             max_pitch = max_pitch.max(tank.attitude_pitch_rad.abs());
             max_roll = max_roll.max(tank.attitude_roll_rad.abs());
         }

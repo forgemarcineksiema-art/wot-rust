@@ -42,6 +42,9 @@ fn target_snapshot() -> TankSnapshot {
         ammo_counts: game_core::AmmoLoadout::default().counts,
         selected_ammo: 0,
         spotted_by_teams_mask: 0,
+        armor_breaches: Default::default(),
+        track_break_t: [None, None],
+        engine_fire: false,
     }
 }
 
@@ -50,9 +53,12 @@ fn contact_index() -> VehicleContactIndex {
     let turret_ring = baked.mounts().turret_ring.translation;
     let hull = baked.submesh(SubmeshKind::Hull).expect("hull submesh");
     let turret = baked.submesh(SubmeshKind::Turret).expect("turret submesh");
+    let gun = baked.submesh(SubmeshKind::Gun).expect("gun submesh");
+    let trunnion = baked.mounts().gun_trunnion.translation;
     VehicleContactIndex {
         hull: MeshContactIndex::from_mesh(&hull.mesh, Vec3::ZERO),
         turret: MeshContactIndex::from_mesh(&turret.mesh, turret_ring),
+        gun: MeshContactIndex::from_mesh(&gun.mesh, trunnion),
     }
 }
 
@@ -97,6 +103,7 @@ fn distance_to_visual_mesh(
     let index = match decal_frame {
         DecalFrame::Hull => &contact.hull,
         DecalFrame::Turret => &contact.turret,
+        DecalFrame::Mantlet => &contact.gun,
     };
     index
         .nearest_point(local, 1.0)

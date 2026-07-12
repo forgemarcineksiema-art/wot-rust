@@ -39,6 +39,31 @@ fn wheel_overlap_pulls_only_the_odd_row_inboard() {
 }
 
 #[test]
+fn thrown_t54_track_has_a_real_five_link_gap_on_one_side() {
+    let kin = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951).expect("T-54 gear");
+    let whole = vehicle_geometry::running_gear_placements_dynamic(
+        &kin,
+        0.0,
+        0.0,
+        vehicle_geometry::GearDynamics::default(),
+    );
+    let broken = vehicle_geometry::running_gear_placements_dynamic(
+        &kin,
+        0.0,
+        0.0,
+        vehicle_geometry::GearDynamics { left_break_t: Some(0.5), ..Default::default() },
+    );
+    let left_links = |set: &[vehicle_geometry::GearPlacement]| {
+        set.iter().filter(|p| p.part == GearPart::Link && p.transform.w_axis.x < 0.0).count()
+    };
+    let right_links = |set: &[vehicle_geometry::GearPlacement]| {
+        set.iter().filter(|p| p.part == GearPart::Link && p.transform.w_axis.x > 0.0).count()
+    };
+    assert_eq!(left_links(&whole) - left_links(&broken), 5);
+    assert_eq!(right_links(&whole), right_links(&broken));
+}
+
+#[test]
 fn wheel_travel_moves_wheels_and_the_ground_run_follows() {
     let kin = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951).expect("T-54 gear");
     let rest = running_gear_placements(&kin, 0.0, 0.0);
@@ -50,6 +75,8 @@ fn wheel_travel_moves_wheels_and_the_ground_run_follows() {
         right_travel: &travel,
         left_sag_scale: 1.0,
         right_sag_scale: 1.0,
+        left_break_t: None,
+        right_break_t: None,
     };
     let bumped = vehicle_geometry::running_gear_placements_dynamic(&kin, 0.0, 0.0, dynamics);
 
@@ -96,6 +123,8 @@ fn drive_tension_tightens_the_top_run_and_slack_deepens_it() {
             right_travel: &[],
             left_sag_scale: sag_scale,
             right_sag_scale: sag_scale,
+            left_break_t: None,
+            right_break_t: None,
         };
         vehicle_geometry::running_gear_placements_dynamic(&kin, 0.0, 0.0, dynamics)
             .iter()
@@ -137,6 +166,8 @@ fn a_thrown_track_hangs_its_side_deep_while_the_healthy_side_keeps_tension() {
             right_travel: &[],
             left_sag_scale: 2.2, // thrown: dead slack
             right_sag_scale: 1.0,
+            left_break_t: None,
+            right_break_t: None,
         },
     );
     let mid_top_y = |side: f32| {

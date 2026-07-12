@@ -1,4 +1,4 @@
-﻿//! Per-vehicle armor volumes baked from the [`crate::VehicleBlueprint`] — the same numbers the
+//! Per-vehicle armor volumes baked from the [`crate::VehicleBlueprint`] — the same numbers the
 //! visible plates are built from, so what you see is literally what you shoot. Migration is
 //! per-vehicle exactly like the blueprint itself: vehicles without a blueprint return `None`
 //! and keep the legacy hitbox-band model until they are migrated.
@@ -62,6 +62,7 @@ const TURRET_REAR_AZIMUTH_DEG: f32 = 120.0;
 /// Dome tessellation: one tagged plane per sector, so the impact normal sweeps around the
 /// casting instead of snapping between three flat faces.
 const TURRET_SECTORS: usize = 12;
+const T54_TURRET_SECTORS: usize = 24;
 /// The mantlet patch reaches slightly past the casting radius so the socket rim counts as
 /// mantlet, matching the visible ball's footprint.
 const MANTLET_PATCH_SCALE: f32 = 1.2;
@@ -204,9 +205,11 @@ fn turret_dome(blueprint: &VehicleBlueprint, cy: f32) -> ArmorVolume {
         center: Vec3::new(0.0, blueprint.gun.trunnion_y - cy, turret.mantlet_front_z),
         radius_m: turret.mantlet_radius * MANTLET_PATCH_SCALE,
     };
-    let mut planes = Vec::with_capacity(TURRET_SECTORS + 2);
-    for sector in 0..TURRET_SECTORS {
-        let azimuth = (sector as f32 + 0.5) / TURRET_SECTORS as f32 * std::f32::consts::TAU;
+    let sectors =
+        if blueprint.kind == VehicleKind::T54_1951 { T54_TURRET_SECTORS } else { TURRET_SECTORS };
+    let mut planes = Vec::with_capacity(sectors + 2);
+    for sector in 0..sectors {
+        let azimuth = (sector as f32 + 0.5) / sectors as f32 * std::f32::consts::TAU;
         let forward_off = crate::math::wrap_angle(azimuth).abs().to_degrees();
         let (zone, slope_deg) = if forward_off <= TURRET_FRONT_AZIMUTH_DEG {
             (ArmorZone::TurretFront, turret.front_slope_deg)
@@ -488,9 +491,15 @@ mod tests {
             .filter(|plane| plane.normal.y < 0.9 && plane.normal.y > -0.9)
             .map(|plane| plane.normal.x.atan2(plane.normal.z))
             .collect();
-        assert_eq!(headings.len(), TURRET_SECTORS);
+        assert_eq!(headings.len(), T54_TURRET_SECTORS);
         for pair in headings.windows(2) {
             assert!((pair[1] - pair[0]).abs() > 1.0e-3, "sector headings must differ");
         }
+    }
+
+    #[test]
+    fn t54_refinement_does_not_change_the_non_playable_t55_clone() {
+        let volumes = vehicle_armor_volumes(VehicleKind::T55A).expect("baked");
+        assert_eq!(volumes.turret.planes.len(), TURRET_SECTORS + 2);
     }
 }

@@ -1,5 +1,6 @@
 mod ammo;
 mod armor;
+mod armor_breach;
 mod contact_footprint;
 mod crew;
 mod damage;
@@ -24,10 +25,13 @@ pub use armor::{
     resolve_penetration_through_track, segment_volume_entry, segment_volume_entry_with_margin,
     vehicle_armor_volumes,
 };
+pub use armor_breach::{
+    ArmorBreach, ArmorBreachSet, ArmorFrame, ArmorMaterial, ArmorSurfaceId, MAX_ARMOR_BREACHES,
+};
 pub use contact_footprint::{ContactFootprint, MAX_CONTACT_STATIONS};
 pub use crew::{Crew, CrewRole};
 pub use damage::{DamageCause, DamageEvent, ImpactSurface, ShellImpact, TrackHit};
-pub use damage_layout::{DamageLayout, ModuleVolume};
+pub use damage_layout::{DamageLayout, ModuleIntersection, ModuleVolume};
 pub use ids::{ShellId, TankId, TeamId};
 pub use modules::{
     EngineModule, GunModule, HullChassis, MODULE_SLOT_COUNT, ModuleCondition, ModuleError,
