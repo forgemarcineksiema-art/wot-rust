@@ -21,6 +21,7 @@ pub(crate) struct ReticleTraceQuery<'a> {
     /// tilted hull previews the tilted arc the server will fire.
     pub gun_direction: Vec3,
     pub muzzle_velocity_mps: f32,
+    pub projectile_radius_m: f32,
     /// The previewed shell's linear drag â€” the preview must fly the same air as the server.
     pub drag_per_s: f32,
 }
@@ -32,6 +33,7 @@ pub(crate) fn reticle_trace(query: ReticleTraceQuery<'_>) -> TraceOutcome {
     let velocity = query.gun_direction.normalize_or_zero() * query.muzzle_velocity_mps;
     let sets = trace_sets(query.tanks, query.owner, query.owner_team);
     let world = ShellTraceWorld {
+        projectile_radius_m: query.projectile_radius_m,
         tanks: &sets.targets,
         blockers: &sets.blockers,
         heightmap: Some(query.heightmap),
@@ -150,6 +152,7 @@ mod tests {
             muzzle,
             gun_direction: Vec3::Z,
             muzzle_velocity_mps: 895.0,
+            projectile_radius_m: 0.05,
             drag_per_s: 0.09,
         });
 
@@ -178,6 +181,7 @@ mod tests {
             muzzle,
             gun_direction: Vec3::Z,
             muzzle_velocity_mps: 895.0,
+            projectile_radius_m: 0.05,
             drag_per_s: 0.09,
         });
 
@@ -186,6 +190,7 @@ mod tests {
         let velocity = gun_direction(0.0, 0.0) * 895.0;
         let sets = trace_sets(std::slice::from_ref(&target), TankId(1), TeamId(1));
         let world = ShellTraceWorld {
+            projectile_radius_m: 0.05,
             tanks: &sets.targets,
             blockers: &sets.blockers,
             heightmap: Some(&heightmap),

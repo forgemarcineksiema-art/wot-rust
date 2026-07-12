@@ -59,7 +59,7 @@ fn fire_and_settle(
     );
     for _ in 0..30 {
         state.apply_commands_on_battlefield(&[], step, terrain, cover);
-        if state.shells().is_empty() {
+        if state.shells().is_empty() || !state.damage_events().is_empty() {
             break;
         }
     }

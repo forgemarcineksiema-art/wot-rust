@@ -23,7 +23,9 @@ fn a_glance_off_the_side_keeps_the_shell_flying_blunted() {
     let tilt = 0.25_f32;
     let hitbox = TankSpec::t54_1951().hitbox;
     let target_x = -(hitbox.half_width_m * tilt.cos()) + 0.06;
-    let target = state.spawn_tank(TeamId(2), TankSpec::t54_1951(), Vec3::new(target_x, 0.0, 40.0));
+    // Lower the target slightly so the 100 mm projectile body's bottom clears the track-band roof
+    // and the intended grazing contact remains the hull side plate.
+    let target = state.spawn_tank(TeamId(2), TankSpec::t54_1951(), Vec3::new(target_x, -0.2, 40.0));
     state.tank_mut(target).expect("target").yaw_rad = PI + tilt;
     state.tank_mut(shooter).expect("shooter").gun_pitch_rad = -0.018;
     let muzzle_speed = TankSpec::t55a().gun.shell.muzzle_velocity_mps;

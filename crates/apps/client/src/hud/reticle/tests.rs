@@ -29,8 +29,14 @@ fn feedback_is_clear_when_current_gun_arc_lands_near_the_aim_point() {
 
     let feedback = reticle_feedback(query(&heightmap, &[], &[], muzzle, aim, 0.0, pitch));
 
-    assert_eq!(feedback.status, ReticleStatus::Clear);
-    assert!(feedback.actual_impact_world_point.distance(aim) < 4.0);
+    assert_eq!(
+        feedback.status,
+        ReticleStatus::Clear,
+        "aim={aim:?}, impact={:?}, distance={}",
+        feedback.actual_impact_world_point,
+        feedback.actual_impact_world_point.distance(aim)
+    );
+    assert!(feedback.actual_impact_world_point.distance(aim) < RETICLE_MATCH_TOLERANCE_M);
 }
 
 #[test]

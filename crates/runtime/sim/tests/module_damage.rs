@@ -58,7 +58,9 @@ fn turret_side_penetration_can_destroy_ammo_rack_module() {
 #[test]
 fn rear_side_penetration_hits_engine_volume_instead_of_generic_side_module() {
     let mut state = SimulationState::new();
-    let shooter = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::new(-55.0, -0.15, -2.4));
+    // Keep the projectile body's lower edge clear of the real track band: this test targets the
+    // engine-bay side plate, while the separate track tests own grazing running-gear behavior.
+    let shooter = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::new(-55.0, 0.0, -2.4));
     let target = state.spawn_tank(TeamId(2), TankSpec::t55a(), Vec3::ZERO);
     {
         let shooter = state.tank_mut(shooter).expect("shooter");
@@ -188,7 +190,7 @@ fn run_until_shell_resolved(state: &mut SimulationState, shooter: TankId) {
     state.apply_commands(&[(shooter, fire_command())], step);
     for _ in 0..30 {
         state.apply_commands(&[], step);
-        if state.shells().is_empty() && !state.damage_events().is_empty() {
+        if !state.damage_events().is_empty() {
             return;
         }
     }

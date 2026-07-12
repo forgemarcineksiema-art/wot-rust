@@ -60,8 +60,14 @@ fn contact_index() -> VehicleContactIndex {
 fn trace_event(from: Vec3, to: Vec3, spec: &TankSpec) -> Option<DamageEvent> {
     let tank = TraceTank::from_spec(TankId(9), Vec3::ZERO, HullPose::level(0.0), 0.0, spec);
     let tanks = [tank];
-    let world =
-        ShellTraceWorld { tanks: &tanks, blockers: &[], heightmap: None, cover: &[], water: None };
+    let world = ShellTraceWorld {
+        projectile_radius_m: 0.0,
+        tanks: &tanks,
+        blockers: &[],
+        heightmap: None,
+        cover: &[],
+        water: None,
+    };
     match segment_impact(from, to, to - from, &world) {
         Some(SegmentImpact::Tank { zone, hit_position, plate_normal, facing, .. }) => {
             Some(DamageEvent {

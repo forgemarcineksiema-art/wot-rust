@@ -59,13 +59,24 @@ pub struct ArmorVolume {
 /// the latest crossing into a front-facing half-space, the exit the earliest crossing out; a
 /// volume is hit only while entry precedes exit.
 pub fn segment_volume_entry(start: Vec3, end: Vec3, volume: &ArmorVolume) -> Option<(f32, usize)> {
+    segment_volume_entry_with_margin(start, end, volume, 0.0)
+}
+
+/// Exact sphere-vs-convex sweep via an outward margin on every unit-normal half-space.
+pub fn segment_volume_entry_with_margin(
+    start: Vec3,
+    end: Vec3,
+    volume: &ArmorVolume,
+    margin_m: f32,
+) -> Option<(f32, usize)> {
     let direction = end - start;
+    let margin_m = margin_m.max(0.0);
     let mut enter = f32::NEG_INFINITY;
     let mut exit = 1.0f32;
     let mut enter_plane: Option<usize> = None;
     for (index, plane) in volume.planes.iter().enumerate() {
         let denom = plane.normal.dot(direction);
-        let signed = plane.normal.dot(start) - plane.offset;
+        let signed = plane.normal.dot(start) - (plane.offset + margin_m);
         if denom.abs() < 1.0e-8 {
             if signed > 0.0 {
                 return None; // Parallel and outside this half-space: no intersection at all.
@@ -127,6 +138,23 @@ mod tests {
             segment_volume_entry(Vec3::new(0.0, 5.0, 0.0), Vec3::new(0.0, -5.0, 0.0), &volume)
                 .expect("plunging segment crosses the box");
         assert_eq!(volume.planes[roof].zone, ArmorZone::Roof);
+    }
+
+    #[test]
+    fn swept_sphere_enters_early_but_recovers_the_original_plate_contact() {
+        let volume = unit_box();
+        let start = Vec3::new(0.0, 0.0, 5.0);
+        let end = Vec3::new(0.0, 0.0, -5.0);
+        let radius = 0.08;
+        let (t, plane_index) =
+            segment_volume_entry_with_margin(start, end, &volume, radius).expect("sphere hits");
+        let plane = &volume.planes[plane_index];
+        let center = start.lerp(end, t);
+        let contact = center - plane.normal * radius;
+
+        assert!(t < 0.4, "sphere center reaches the expanded volume before a ray: {t}");
+        assert!((contact.z - 1.0).abs() < 1.0e-6, "contact remains on the real plate: {contact:?}");
+        assert_eq!(plane.zone, ArmorZone::UpperGlacis);
     }
 
     #[test]

@@ -21,6 +21,7 @@ fn depth_at(map: &terrain::BattlefieldMap, x: f32, z: f32) -> f32 {
 fn a_full_bystra_battle_drowns_no_bot_and_still_crosses_the_river() {
     let battlefield = MapId::BystraValley.battlefield();
     let river_x = terrain::bystra_river_center_x(500.0);
+    let east_bank_x = river_x + terrain::RIVER_CORRIDOR_HALF_WIDTH_M + 20.0;
     for seed in [5_u64, 23] {
         let mut server = LocalAuthoritativeServer::new_random_7v7(
             ServerTickConfig::default(),
@@ -49,14 +50,14 @@ fn a_full_bystra_battle_drowns_no_bot_and_still_crosses_the_river() {
                     tank.tank_id,
                     tank.position
                 );
-                if tank.position[0] > river_x + 60.0 {
+                if tank.position[0] > east_bank_x {
                     crossed_east = true;
                 }
             }
         }
         assert!(
             crossed_east,
-            "seed {seed}: nobody ever reached the east bank — the crossings are not being used"
+            "seed {seed}: nobody ever reached the east-bank shelf beyond the river corridor"
         );
         // The deepest wade should look like a ford crossing (momentum can carry a hull a
         // shade past the route brain's 1.2 m line before the escape reverse bites), never a

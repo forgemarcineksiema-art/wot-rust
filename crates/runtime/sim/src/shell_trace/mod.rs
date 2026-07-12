@@ -29,7 +29,8 @@ pub fn segment_impact(
     velocity: Vec3,
     world: &ShellTraceWorld<'_>,
 ) -> Option<SegmentImpact> {
-    let tank = tank::first_tank_impact(previous, current, velocity, world.tanks);
+    let radius_m = world.projectile_radius_m.max(0.0);
+    let tank = tank::first_tank_impact(previous, current, velocity, world.tanks, radius_m);
     let obstacle = nearest_obstacle(previous, current, velocity, world);
     match (tank, obstacle) {
         (Some(tank), Some((position, _))) => {
@@ -113,14 +114,16 @@ fn nearest_obstacle(
     velocity: Vec3,
     world: &ShellTraceWorld<'_>,
 ) -> Option<(Vec3, ImpactSurface)> {
-    let terrain = terrain::first_terrain_impact(previous, current, world.heightmap)
+    let radius_m = world.projectile_radius_m.max(0.0);
+    let terrain = terrain::first_terrain_impact(previous, current, world.heightmap, radius_m)
         .map(|point| (point, ImpactSurface::Terrain));
-    let cover = cover::first_cover_impact(previous, current, world.cover)
+    let cover = cover::first_cover_impact(previous, current, world.cover, radius_m)
         .map(|point| (point, ImpactSurface::Cover));
-    let hull = tank::first_tank_impact(previous, current, velocity, world.blockers)
+    let hull = tank::first_tank_impact(previous, current, velocity, world.blockers, radius_m)
         .map(|impact| (impact.point(), ImpactSurface::Hull));
-    let water = water::first_water_impact(previous, current, world.heightmap, world.water)
-        .map(|point| (point, ImpactSurface::Water));
+    let water =
+        water::first_water_impact(previous, current, world.heightmap, world.water, radius_m)
+            .map(|point| (point, ImpactSurface::Water));
     [terrain, cover, hull, water].into_iter().flatten().min_by(|(a, _), (b, _)| {
         a.distance_squared(previous).total_cmp(&b.distance_squared(previous))
     })

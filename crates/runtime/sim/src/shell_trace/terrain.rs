@@ -8,19 +8,22 @@ pub(super) fn first_terrain_impact(
     previous_position: Vec3,
     current_position: Vec3,
     heightmap: Option<&HeightMap>,
+    radius_m: f32,
 ) -> Option<Vec3> {
     let heightmap = heightmap?;
     let segment = current_position - previous_position;
     let steps = (segment.length() / TERRAIN_SWEEP_STEP_M).ceil().max(1.0) as u32;
     let mut previous = previous_position;
-    let mut previous_clearance = terrain_clearance(heightmap, previous);
+    let mut previous_clearance = terrain_clearance(heightmap, previous) - radius_m;
 
     for step in 1..=steps {
         let current = previous_position + segment * (step as f32 / steps as f32);
-        let current_clearance = terrain_clearance(heightmap, current);
+        let current_clearance = terrain_clearance(heightmap, current) - radius_m;
         if previous_clearance > 0.0 && current_clearance <= 0.0 {
             let t = previous_clearance / (previous_clearance - current_clearance);
-            return Some(previous.lerp(current, t.clamp(0.0, 1.0)));
+            let center = previous.lerp(current, t.clamp(0.0, 1.0));
+            let ground = heightmap.sample_height(center.x, center.z)?;
+            return Some(Vec3::new(center.x, ground, center.z));
         }
         previous = current;
         previous_clearance = current_clearance;

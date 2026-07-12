@@ -13,7 +13,9 @@ pub use resolve::{
     resolve_penetration_through_track,
 };
 pub use vehicle_volumes::{VehicleArmorVolumes, vehicle_armor_volumes};
-pub use volumes::{ArmorPatch, ArmorVolume, TaggedPlane, segment_volume_entry};
+pub use volumes::{
+    ArmorPatch, ArmorVolume, TaggedPlane, segment_volume_entry, segment_volume_entry_with_margin,
+};
 pub use zone::{ArmorZone, resolve_penetration_at_distance_on_zone};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]

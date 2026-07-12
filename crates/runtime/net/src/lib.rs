@@ -1,7 +1,7 @@
 use bincode::Options;
 use game_core::{
-    DamageEvent, MODULE_SLOT_COUNT, ShellImpact, TRACK_HP_MAX, TankId, TeamId, VehicleKind,
-    WeatherVariant,
+    DamageEvent, MODULE_SLOT_COUNT, ShellId, ShellImpact, ShellType, TRACK_HP_MAX, TankId, TeamId,
+    VehicleKind, WeatherVariant,
 };
 use serde::{Deserialize, Serialize};
 use sim::{SimulationState, TankCommand, TankState};
@@ -15,6 +15,9 @@ mod snapshot_schedule;
 pub use frame::{FRAME_HEADER_LEN, FRAME_MAGIC, decode_frame, encode_frame};
 pub use snapshot_schedule::SnapshotSchedule;
 
+/// v24: in-flight shells carry stable identity plus type, caliber, drag, and age so presentation
+/// preserves projectile identity and extrapolates with the authoritative flight physics.
+///
 /// v23: `WeatherVariant` gains `GoldenEvening` and `Overcast` (appended — the variant order is
 /// wire identity), the Prokhorovka time-of-day looks from the lighting 2.0 program. No message
 /// layout changes; only the value domain of an existing field grows.
@@ -41,7 +44,7 @@ pub use snapshot_schedule::SnapshotSchedule;
 /// v18: `ServerHello` names the match — `map_id` and `weather_variant` — so the client can
 /// deterministically rebuild the same battlefield the server simulates (the map itself is
 /// never sent) and dress it in the same sky. `ImpactSurface` gains `Water`.
-pub const PROTOCOL_VERSION: u16 = 23;
+pub const PROTOCOL_VERSION: u16 = 24;
 
 #[derive(Debug, Error)]
 pub enum NetError {
@@ -169,19 +172,29 @@ impl From<&TankState> for TankSnapshot {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Default)]
 pub struct ShellSnapshot {
+    pub shell_id: ShellId,
     pub owner: TankId,
     pub position: [f32; 3],
     pub velocity_mps: [f32; 3],
+    pub shell_type: ShellType,
+    pub caliber_mm: f32,
+    pub drag_per_s: f32,
+    pub age_seconds: f32,
 }
 
 impl From<&sim::ShellState> for ShellSnapshot {
     fn from(shell: &sim::ShellState) -> Self {
         Self {
+            shell_id: shell.id,
             owner: shell.owner,
             position: shell.position.to_array(),
             velocity_mps: shell.velocity_mps.to_array(),
+            shell_type: shell.shell.shell_type,
+            caliber_mm: shell.shell.caliber_mm,
+            drag_per_s: shell.shell.drag_per_s(),
+            age_seconds: shell.age_seconds,
         }
     }
 }

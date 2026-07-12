@@ -1,9 +1,11 @@
 use ::terrain::{HeightMap, StaticCoverObject};
 use game_core::math::integrate_shell_step;
 use game_core::{DamageEvent, ImpactSurface, ShellImpact};
-use glam::Vec3;
 
 use crate::combat::{CombatTickContext, apply_shell_impact};
+use crate::shell_continuation::{
+    continue_through_armor, deflect_shell, kinetic_penetration_continues,
+};
 use crate::shell_splash::burst_he_splash;
 use crate::shell_trace::{
     SegmentImpact, ShellTraceWorld, TraceTank, ground_contact, segment_impact,
@@ -37,6 +39,7 @@ pub(crate) fn step_shells(
 
         trace_split_into(&shells[index], tanks, &mut targets, &mut blockers);
         let world = ShellTraceWorld {
+            projectile_radius_m: shells[index].shell.collision_radius_m(),
             tanks: &targets,
             blockers: &blockers,
             heightmap,
@@ -65,6 +68,7 @@ pub(crate) fn step_shells(
                     distance_m,
                 );
                 let ricochet_continues = event.ricocheted && !shells[index].ricocheted_once;
+                let penetration_continues = kinetic_penetration_continues(&shells[index], &event);
                 let direct_target = event.target;
                 let splashes = !event.penetrated;
                 damage_events.push(event);
@@ -80,6 +84,9 @@ pub(crate) fn step_shells(
                 }
                 if ricochet_continues {
                     deflect_shell(&mut shells[index], hit_position, plate_normal, distance_m);
+                    index += 1;
+                } else if penetration_continues {
+                    continue_through_armor(&mut shells[index], &event, distance_m);
                     index += 1;
                 } else {
                     shells.swap_remove(index);
@@ -110,26 +117,6 @@ pub(crate) fn step_shells(
             }
         }
     }
-}
-
-/// A glance-off keeps the shell alive exactly once: the velocity mirrors about the struck plate
-/// (a real skip, not a despawn), bleeding speed, and the blunted round carries less penetration
-/// into whatever it finds next — the classic turret-roof skip into the engine deck.
-const RICOCHET_SPEED_RETENTION: f32 = 0.75;
-const RICOCHET_PENETRATION_RETENTION: f32 = 0.6;
-/// Lift off the struck plate so the reflected shell does not re-enter the same hitbox face.
-// 0.15 m: the old 5 cm sat inside the re-entry epsilon of a grazing hit on a convex dome,
-// so the deflected segment could clip straight back into the volume it just left.
-const RICOCHET_LIFT_M: f32 = 0.15;
-
-fn deflect_shell(shell: &mut ShellState, hit_position: Vec3, plate_normal: Vec3, distance_m: f32) {
-    let velocity = shell.velocity_mps;
-    let reflected = velocity - 2.0 * velocity.dot(plate_normal) * plate_normal;
-    shell.velocity_mps = reflected * RICOCHET_SPEED_RETENTION;
-    shell.position = hit_position + plate_normal * RICOCHET_LIFT_M;
-    shell.traveled_m = distance_m;
-    shell.shell.penetration_mm_at_100m *= RICOCHET_PENETRATION_RETENTION;
-    shell.ricocheted_once = true;
 }
 
 fn step_unhit_shell(
@@ -171,7 +158,7 @@ fn trace_split_into(
     blockers.clear();
     let owner_team = tanks.iter().find(|tank| tank.id == shell.owner).map(|tank| tank.team);
     for tank in tanks {
-        if tank.id == shell.owner {
+        if tank.id == shell.owner || Some(tank.id) == shell.last_penetrated_target {
             continue;
         }
         let mut trace = TraceTank::from_spec(

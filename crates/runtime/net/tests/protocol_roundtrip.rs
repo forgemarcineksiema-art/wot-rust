@@ -70,6 +70,7 @@ fn snapshot_round_trips_track_damage_mask() {
             owner: TankId(42),
             position: [0.0, 1.0, 2.0],
             velocity_mps: [0.0, 0.0, 900.0],
+            ..Default::default()
         }],
         damage_events: Vec::new(),
         shell_impacts: Vec::new(),
