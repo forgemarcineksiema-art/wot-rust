@@ -172,7 +172,11 @@ fn armor_interior_radiance(
         if (depth > 0.01) {
             let area = 3.14159265 * aperture.center_major.w * aperture.normal_minor.w;
             let solid_angle = clamp(area / (dot(to_hole, to_hole) + area), 0.0, 0.45);
-            radiance += camera.ambient_rgb * solid_angle * 2.2;
+            // A first diffuse bounce keeps a small opening readable after exposure without adding
+            // any light through intact armor. The sqrt term approximates nearby painted surfaces
+            // spreading sky energy beyond the aperture's direct projected solid angle.
+            let bounced_sky = solid_angle * 3.0 + sqrt(solid_angle) * 1.6;
+            radiance += camera.ambient_rgb * bounced_sky;
 
             let sun = normalize(camera.key_direction);
             let toward_outside = dot(sun, plate_normal);

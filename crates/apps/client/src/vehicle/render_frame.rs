@@ -281,6 +281,19 @@ mod tests {
     }
 
     #[test]
+    fn worst_case_7v7_battle_fits_the_grouped_aperture_budget() {
+        let per_tank = game_core::MAX_ARMOR_BREACHES
+            * game_core::MAX_BREACH_FRAGMENTS_PER_GROUP
+            * game_core::MAX_APERTURE_LOBES;
+        let battle_worst = 14 * per_tank;
+        assert!(
+            battle_worst <= renderer_wgpu::armor_damage_aperture_budget(),
+            "grouped damage can submit {battle_worst} contours but the renderer holds only {}",
+            renderer_wgpu::armor_damage_aperture_budget(),
+        );
+    }
+
+    #[test]
     fn render_snapshot_carries_every_pose_field_the_meshes_read() {
         let tank = PresentationTank {
             id: TankId(7),

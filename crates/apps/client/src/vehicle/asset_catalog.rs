@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
+use std::time::Instant;
 
 use game_core::VehicleKind;
 use glam::Vec3;
@@ -13,7 +14,9 @@ use vehicle_geometry::{
     road_wheel_unit_mesh, sprocket_unit_mesh, swing_arm_unit_mesh, track_link_unit_mesh,
 };
 
-use super::damage_worker::{DamageMeshJob, DamageMeshResult, DamageMeshWorker};
+use super::damage_worker::{
+    DamageMeshBudgetReport, DamageMeshJob, DamageMeshResult, DamageMeshTelemetry, DamageMeshWorker,
+};
 use super::pbr_mesh::vehicle_submesh_vertices;
 use super::running_gear_objects::GearMeshHandles;
 
@@ -32,6 +35,7 @@ pub struct VehicleAssetCatalog {
     pub(crate) pending_materials: Vec<(MaterialHandle, VehicleMaterialFamilies)>,
     damage_worker: DamageMeshWorker,
     damage_jobs: HashSet<String>,
+    damage_telemetry: DamageMeshTelemetry,
 }
 
 /// The hull and turret contact indices for one vehicle kind, each in its own decal-local frame
@@ -74,9 +78,18 @@ impl VehicleAssetCatalog {
     }
 
     fn integrate_damage_result(&mut self, result: DamageMeshResult) {
-        if let Some(mesh) = result.mesh {
-            self.register_named_mesh(result.label, &mesh, result.pivot);
+        let started = Instant::now();
+        let DamageMeshResult { label, asset, build_time } = result;
+        if let Some(asset) = asset {
+            self.register_named_asset(label, asset);
         }
+        self.damage_telemetry.record(build_time, started.elapsed());
+    }
+
+    /// Rolling p95 over the latest 128 completed bakes. This is presentation telemetry only; it
+    /// never changes whether an analytical aperture exists or whether a projectile is admitted.
+    pub fn damage_mesh_budget_report(&self) -> DamageMeshBudgetReport {
+        self.damage_telemetry.report()
     }
     pub fn take_pending_vehicle_meshes(&mut self) -> Vec<(MeshHandle, VehicleMeshAsset)> {
         std::mem::take(&mut self.pending_meshes)
@@ -213,6 +226,10 @@ impl VehicleAssetCatalog {
         pivot: Vec3,
     ) -> MeshHandle {
         let asset = vehicle_mesh_asset_from_geometry(mesh, pivot);
+        self.register_named_asset(label, asset)
+    }
+
+    fn register_named_asset(&mut self, label: String, asset: VehicleMeshAsset) -> MeshHandle {
         if let Some(handle) = self.mesh_labels.get(&label).copied() {
             if let Some((_, stored)) = self.meshes.get_mut(handle.0 as usize) {
                 *stored = asset.clone();
@@ -305,7 +322,10 @@ impl VehicleAssetCatalog {
     }
 }
 
-fn vehicle_mesh_asset_from_geometry(mesh: &GeometryMesh, pivot: Vec3) -> VehicleMeshAsset {
+pub(super) fn vehicle_mesh_asset_from_geometry(
+    mesh: &GeometryMesh,
+    pivot: Vec3,
+) -> VehicleMeshAsset {
     let (mut vertices, indices) = vehicle_submesh_vertices(mesh);
     for vertex in &mut vertices {
         let shifted = Vec3::from_array(vertex.position) - pivot;

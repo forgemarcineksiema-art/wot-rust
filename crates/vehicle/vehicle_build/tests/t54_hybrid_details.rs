@@ -327,6 +327,43 @@ fn t54_roof_fittings_root_into_the_curved_dome() {
 }
 
 #[test]
+fn t54_turret_has_a_nested_inward_facing_armor_skin() {
+    let desc = t54_description();
+    let outer = desc
+        .parts
+        .iter()
+        .find(|part| part.key.name == "turret_shell")
+        .expect("outer turret shell")
+        .mesh();
+    let inner = desc
+        .parts
+        .iter()
+        .find(|part| part.key.name == "turret_inner_skin")
+        .expect("inner turret skin")
+        .mesh();
+    let outer_bounds = outer.bounds().expect("outer bounds");
+    let inner_bounds = inner.bounds().expect("inner bounds");
+    assert!(inner_bounds.min.x > outer_bounds.min.x + 0.05);
+    assert!(inner_bounds.max.x < outer_bounds.max.x - 0.05);
+    assert!(inner.vertices().iter().all(|vertex| {
+        vertex.material == MaterialRole::InteriorPrimer && vertex.normal.is_finite()
+    }));
+
+    let side_normals: Vec<_> = inner
+        .vertices()
+        .iter()
+        .filter(|vertex| Vec3::new(vertex.position.x, 0.0, vertex.position.z).length() > 0.55)
+        .map(|vertex| {
+            vertex.normal.dot(Vec3::new(vertex.position.x, 0.0, vertex.position.z).normalize())
+        })
+        .collect();
+    assert!(
+        side_normals.iter().copied().sum::<f32>() / (side_normals.len() as f32) < -0.45,
+        "inner turret normals must face the fighting compartment"
+    );
+}
+
+#[test]
 fn t54_muzzle_ends_in_a_recessed_bore_not_a_capped_rod() {
     let baked = t54_description().build();
     let trunnion = MountFrames::for_vehicle(VehicleKind::T54_1951).gun_trunnion.translation;

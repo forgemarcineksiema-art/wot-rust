@@ -87,6 +87,13 @@ worker/upload budgets, the audited museum-reference detail pass, damaged/burning
 audio and the final showcase gate. T-55 receives only the fleet physics contract; it never inherits
 the T-54 mesh or interior.
 
+The bounded state now counts 12 physical perforation groups rather than 12 mesh fragments. One
+group may carry up to four independently posed ingress/egress fragments across Hull, Turret and
+Mantlet; each frame is baked and cached separately. The client records a rolling 128-sample p95 for
+worker build and main-thread integration, while integration remains capped at one completed damage
+mesh per rendered frame. The final performance gate still requires representative capture against
+the 8 ms / 0.5 ms targets rather than a synthetic timing assertion in CI.
+
 Each bump follows the established procedure (`docs/testing-and-regression.md`): append-only
 fields, regenerated `crates/runtime/net/tests/snapshots/*_vNN.hex` fixtures, old-version
 rejection tests kept.

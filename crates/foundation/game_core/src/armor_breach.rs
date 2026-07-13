@@ -5,6 +5,9 @@ use crate::{ArmorZone, ShellType};
 
 pub const MAX_ARMOR_BREACHES: usize = 12;
 pub const MAX_APERTURE_LOBES: usize = 4;
+/// One physical shot can split at a moving-frame seam and can also own a distinct egress fragment.
+/// The fragments share `breach_id`, but each remains in exactly one pose frame.
+pub const MAX_BREACH_FRAGMENTS_PER_GROUP: usize = 4;
 pub const MAX_ARMOR_SCARS: usize = 24;
 const CLEARANCE_SAMPLES: usize = 24;
 
@@ -274,13 +277,34 @@ impl ArmorBreachSet {
         &self.scars
     }
 
+    /// Number of reusable physical perforations. Ingress, egress and seam fragments created by the
+    /// same shot share one `breach_id` and therefore consume one of the twelve bounded slots.
+    pub fn aperture_group_count(&self) -> usize {
+        self.breaches
+            .iter()
+            .enumerate()
+            .filter(|(index, breach)| {
+                !self.breaches[..*index].iter().any(|earlier| earlier.breach_id == breach.breach_id)
+            })
+            .count()
+    }
+
+    /// All independently posed fragments belonging to one physical perforation.
+    pub fn group_fragments(&self, breach_id: u64) -> impl Iterator<Item = &ArmorBreach> {
+        self.breaches.iter().filter(move |breach| breach.breach_id == breach_id)
+    }
+
     pub fn add(&mut self, breach: ArmorBreach) -> ArmorBreachAdd {
         if let Some(existing) = self.breaches.iter_mut().find(|existing| existing.overlaps(&breach))
         {
             existing.merge(breach);
             return ArmorBreachAdd::Merged;
         }
-        if self.breaches.len() < MAX_ARMOR_BREACHES {
+        let fragments_in_group =
+            self.breaches.iter().filter(|existing| existing.breach_id == breach.breach_id).count();
+        let group_has_capacity =
+            fragments_in_group > 0 && fragments_in_group < MAX_BREACH_FRAGMENTS_PER_GROUP;
+        if group_has_capacity || self.aperture_group_count() < MAX_ARMOR_BREACHES {
             self.breaches.push(breach);
             return ArmorBreachAdd::Inserted;
         }
@@ -382,6 +406,14 @@ mod tests {
         )
     }
 
+    fn fragment(x: f32, radius: f32, id: u64, frame: ArmorFrame, zone: ArmorZone) -> ArmorBreach {
+        let mut breach = breach(x, radius, id);
+        breach.frame = frame;
+        breach.zone = zone;
+        breach.surface = ArmorSurfaceId::new(frame, zone);
+        breach
+    }
+
     #[test]
     fn full_projectile_cross_section_must_clear_irregular_contour() {
         let b = breach(0.0, 0.08, 7);
@@ -412,5 +444,36 @@ mod tests {
         assert_eq!(set.breaches().len(), MAX_ARMOR_BREACHES);
         assert_eq!(set.breaches()[0].breach_id, oldest);
         assert_eq!(set.scars().len(), 1);
+    }
+
+    #[test]
+    fn independently_posed_fragments_share_one_bounded_aperture_slot() {
+        let mut set = ArmorBreachSet::default();
+        let group_id = 77;
+        for (frame, zone) in [
+            (ArmorFrame::Hull, ArmorZone::UpperGlacis),
+            (ArmorFrame::Turret, ArmorZone::TurretFront),
+            (ArmorFrame::Mantlet, ArmorZone::Mantlet),
+            (ArmorFrame::Hull, ArmorZone::LowerPlate),
+        ] {
+            assert_eq!(
+                set.add(fragment(0.0, 0.05, group_id, frame, zone)),
+                ArmorBreachAdd::Inserted
+            );
+        }
+        assert_eq!(set.aperture_group_count(), 1);
+        assert_eq!(set.group_fragments(group_id).count(), 4);
+
+        for id in 1..MAX_ARMOR_BREACHES as u64 {
+            assert_eq!(set.add(breach(id as f32 * 2.0, 0.04, 100 + id)), ArmorBreachAdd::Inserted);
+        }
+        assert_eq!(set.aperture_group_count(), MAX_ARMOR_BREACHES);
+        assert_eq!(set.breaches().len(), MAX_ARMOR_BREACHES + 3);
+
+        assert_eq!(
+            set.add(breach(100.0, 0.04, 999)),
+            ArmorBreachAdd::ScarOnly,
+            "a thirteenth group must not evict any fragment of an existing perforation"
+        );
     }
 }

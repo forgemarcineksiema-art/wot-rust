@@ -119,6 +119,15 @@ fn vehicle_shots(
     let live = tank_snapshot(cx, ground, cz, 1000, 0);
     let _ = tank_vehicle_render_objects(catalog, &live, color);
     catalog.finish_damage_mesh_jobs();
+    let damage_budget = catalog.damage_mesh_budget_report();
+    if damage_budget.sample_count > 0 {
+        eprintln!(
+            "damage mesh samples={} worker_p95={:.3}ms integration_p95={:.3}ms",
+            damage_budget.sample_count,
+            damage_budget.worker_p95_ms,
+            damage_budget.integration_p95_ms,
+        );
+    }
     let live_objects = tank_vehicle_render_objects(catalog, &live, color);
     let live_damage: Vec<renderer_api::ArmorDamageInstance> =
         client::armor_damage_instance(&live).into_iter().collect();
@@ -156,7 +165,7 @@ fn vehicle_shots(
     }
 
     let close = [cx + 6.0, ground + 3.4, cz + 5.2];
-    let interior_close = [cx - 0.9, ground + 2.45, cz + 4.8];
+    let interior_close = [cx + 0.20, ground + 2.25, cz + 2.35];
     let wide = [cx + 7.5, ground + 3.6, cz + 6.5];
     draw_vehicle(
         ctx,
@@ -179,7 +188,7 @@ fn vehicle_shots(
         live_damage,
         &live_fx,
         interior_close,
-        [cx - 0.1, ground + 1.92, cz + 0.05],
+        [cx + 0.08, ground + 1.92, cz + 0.88],
         width,
         height,
     )?;
@@ -290,11 +299,12 @@ fn tank_snapshot(
 
 fn demo_breaches() -> game_core::ArmorBreachSet {
     let mut set = game_core::ArmorBreachSet::default();
-    for (id, frame, zone, entry, normal, direction, radii) in [
+    for (id, frame, zone, face, entry, normal, direction, radii) in [
         (
             1,
             game_core::ArmorFrame::Hull,
             ArmorZone::UpperGlacis,
+            game_core::BreachFace::Ingress,
             Vec3::new(0.15, 1.18, 2.70),
             Vec3::new(0.0, 0.5, 0.866).normalize(),
             Vec3::new(0.0, -0.5, -0.866).normalize(),
@@ -304,6 +314,7 @@ fn demo_breaches() -> game_core::ArmorBreachSet {
             2,
             game_core::ArmorFrame::Turret,
             ArmorZone::TurretFront,
+            game_core::BreachFace::Ingress,
             Vec3::new(-0.42, 1.86, 0.98),
             Vec3::new(0.0, 0.35, 0.94).normalize(),
             Vec3::new(0.0, -0.35, -0.94).normalize(),
@@ -313,19 +324,21 @@ fn demo_breaches() -> game_core::ArmorBreachSet {
             3,
             game_core::ArmorFrame::Hull,
             ArmorZone::HullSide,
+            game_core::BreachFace::Ingress,
             Vec3::new(-1.32, 1.12, 0.30),
             Vec3::NEG_X,
             Vec3::X,
-            (0.19, 0.145),
+            (0.072, 0.056),
         ),
         (
             4,
             game_core::ArmorFrame::Turret,
             ArmorZone::TurretSide,
+            game_core::BreachFace::Egress,
             Vec3::new(-0.88, 1.92, 0.08),
             Vec3::NEG_X,
             Vec3::X,
-            (0.205, 0.165),
+            (0.085, 0.065),
         ),
     ] {
         let thickness = 0.18;
@@ -346,7 +359,7 @@ fn demo_breaches() -> game_core::ArmorBreachSet {
             ),
             fracture_seed: seed,
         };
-        set.add(game_core::ArmorBreach::new(
+        let mut breach = game_core::ArmorBreach::new(
             game_core::ArmorBreachDescriptor {
                 breach_id: id,
                 surface: game_core::ArmorSurfaceId::new(frame, zone),
@@ -366,7 +379,11 @@ fn demo_breaches() -> game_core::ArmorBreachSet {
                 residual_penetration_mm: 90.0,
             },
             lobe,
-        ));
+        );
+        if face == game_core::BreachFace::Egress {
+            breach.reshape_as_egress();
+        }
+        set.add(breach);
     }
     set
 }

@@ -3,7 +3,8 @@
 //! drift into two different tanks.
 
 use game_core::{
-    DamageComponent, DamageComponentKind, DamageLayout, DamageMaterial, DamageShape, VehicleKind,
+    DamageComponent, DamageComponentKind, DamageLayout, DamageMaterial, DamageShape,
+    VehicleBlueprint, VehicleKind,
 };
 use glam::{Mat3, Mat4, Quat, Vec3};
 use vehicle_geometry::{GeometryMesh, GeometryVertex, MaterialRole, SmoothingGroup, SubmeshKind};
@@ -12,12 +13,26 @@ use crate::part::{GeneratorKind, PartKey, PartLod, PartShape, VehiclePart};
 
 pub(crate) fn t54_interior_parts() -> Vec<VehiclePart> {
     let spec = VehicleKind::T54_1951.spec();
+    let blueprint = VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("T-54 blueprint");
+    let visual = blueprint.hybrid().expect("T-54 hybrid visual");
     let center_y = spec.hitbox.center_y_m;
     let mut parts: Vec<_> = DamageLayout::t54_1951()
         .components()
         .iter()
         .map(|component| component_part(component, center_y))
         .collect();
+
+    parts.push(VehiclePart {
+        key: PartKey::new("turret_inner_skin"),
+        submesh: SubmeshKind::Turret,
+        material: MaterialRole::InteriorPrimer,
+        smoothing: SmoothingGroup(22),
+        shape: PartShape::Mesh(turret_inner_skin(&crate::t54_turret_loft::t54_turret_loft(
+            &visual.turret_loft,
+        ))),
+        lod: PartLod::Silhouette,
+        generator: GeneratorKind::CastLoft,
+    });
 
     // Inner painted envelope and the fighting/engine bulkhead. These thin shells sit inside the
     // real armor and are cut by the same analytic aperture depth as the exterior skin.
@@ -72,6 +87,37 @@ pub(crate) fn t54_interior_parts() -> Vec<VehiclePart> {
 
     parts.extend(crate::t54_interior_detail::t54_museum_detail_parts(center_y));
     parts
+}
+
+fn turret_inner_skin(outer: &GeometryMesh) -> GeometryMesh {
+    let vertices = outer
+        .vertices()
+        .iter()
+        .map(|vertex| {
+            let n = vertex.normal.normalize_or_zero();
+            let thickness = if n.y.abs() > 0.68 {
+                0.035
+            } else if n.z > 0.45 {
+                0.18
+            } else if n.z < -0.55 {
+                0.08
+            } else {
+                0.105
+            };
+            GeometryVertex {
+                position: vertex.position - n * thickness,
+                normal: -n,
+                material: MaterialRole::InteriorPrimer,
+                surface_shade: 0.72,
+                ..*vertex
+            }
+        })
+        .collect();
+    let mut indices = outer.indices().to_vec();
+    for triangle in indices.chunks_exact_mut(3) {
+        triangle.swap(1, 2);
+    }
+    GeometryMesh::new(vertices, indices)
 }
 
 fn component_part(component: &DamageComponent, center_y: f32) -> VehiclePart {

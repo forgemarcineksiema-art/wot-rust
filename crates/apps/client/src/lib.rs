@@ -41,6 +41,7 @@ pub use vehicle::asset_catalog::VehicleAssetCatalog;
 pub use vehicle::asset_render::{
     tank_vehicle_render_objects, tank_vehicle_render_objects_with_variation,
 };
+pub use vehicle::damage_worker::DamageMeshBudgetReport;
 pub use vehicle::equipment::{EquipmentAnchor, EquipmentPoint, equipment_points};
 pub use vehicle::mesh::{append_tank_mesh, tank_scene_mesh};
 pub use vehicle::pbr_mesh::{material_role_id, vehicle_submesh_vertices};

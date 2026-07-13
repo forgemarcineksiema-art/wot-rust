@@ -1,10 +1,13 @@
 //! Single bounded worker for per-instance armor topology. Gameplay and analytical clipping never
 //! wait for it; a completed result is integrated at most once per rendered frame.
 
+use std::collections::VecDeque;
 use std::sync::mpsc::{self, Receiver, Sender};
+use std::time::{Duration, Instant};
 
 use game_core::{ArmorBreachSet, ArmorFrame};
 use glam::Vec3;
+use renderer_api::VehicleMeshAsset;
 use vehicle_geometry::{GeometryMesh, remesh_aperture};
 
 #[derive(Debug)]
@@ -19,8 +22,38 @@ pub(crate) struct DamageMeshJob {
 #[derive(Debug)]
 pub(crate) struct DamageMeshResult {
     pub label: String,
-    pub mesh: Option<GeometryMesh>,
-    pub pivot: Vec3,
+    pub asset: Option<VehicleMeshAsset>,
+    pub build_time: Duration,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct DamageMeshBudgetReport {
+    pub sample_count: usize,
+    pub worker_p95_ms: f32,
+    pub integration_p95_ms: f32,
+}
+
+#[derive(Debug, Default)]
+pub(crate) struct DamageMeshTelemetry {
+    worker: VecDeque<Duration>,
+    integration: VecDeque<Duration>,
+}
+
+impl DamageMeshTelemetry {
+    const WINDOW: usize = 128;
+
+    pub fn record(&mut self, worker: Duration, integration: Duration) {
+        push_bounded(&mut self.worker, worker, Self::WINDOW);
+        push_bounded(&mut self.integration, integration, Self::WINDOW);
+    }
+
+    pub fn report(&self) -> DamageMeshBudgetReport {
+        DamageMeshBudgetReport {
+            sample_count: self.worker.len().min(self.integration.len()),
+            worker_p95_ms: percentile_95_ms(&self.worker),
+            integration_p95_ms: percentile_95_ms(&self.integration),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -37,9 +70,16 @@ impl Default for DamageMeshWorker {
             .name("damage-mesh-worker".into())
             .spawn(move || {
                 while let Ok(job) = job_rx.recv() {
-                    let result = build_damage_mesh(&job);
+                    let started = Instant::now();
+                    let asset = build_damage_mesh(&job).map(|mesh| {
+                        super::asset_catalog::vehicle_mesh_asset_from_geometry(&mesh, job.pivot)
+                    });
                     if result_tx
-                        .send(DamageMeshResult { label: job.label, mesh: result, pivot: job.pivot })
+                        .send(DamageMeshResult {
+                            label: job.label,
+                            asset,
+                            build_time: started.elapsed(),
+                        })
                         .is_err()
                     {
                         break;
@@ -49,6 +89,23 @@ impl Default for DamageMeshWorker {
             .expect("damage mesh worker thread");
         Self { jobs: job_tx, results: result_rx }
     }
+}
+
+fn push_bounded(samples: &mut VecDeque<Duration>, sample: Duration, capacity: usize) {
+    if samples.len() == capacity {
+        samples.pop_front();
+    }
+    samples.push_back(sample);
+}
+
+fn percentile_95_ms(samples: &VecDeque<Duration>) -> f32 {
+    if samples.is_empty() {
+        return 0.0;
+    }
+    let mut sorted: Vec<Duration> = samples.iter().copied().collect();
+    sorted.sort_unstable();
+    let index = (sorted.len() * 95).div_ceil(100) - 1;
+    sorted[index].as_secs_f32() * 1_000.0
 }
 
 impl DamageMeshWorker {
@@ -137,4 +194,26 @@ fn merge_geometry(base: &GeometryMesh, addition: &GeometryMesh) -> GeometryMesh 
     let mut indices = base.indices().to_vec();
     indices.extend(addition.indices().iter().map(|index| index + offset));
     GeometryMesh::new(vertices, indices)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn telemetry_reports_a_bounded_nearest_rank_p95() {
+        let mut telemetry = DamageMeshTelemetry::default();
+        for millis in 1..=100 {
+            telemetry.record(Duration::from_millis(millis), Duration::from_micros(millis * 10));
+        }
+        let report = telemetry.report();
+        assert_eq!(report.sample_count, 100);
+        assert_eq!(report.worker_p95_ms, 95.0);
+        assert!((report.integration_p95_ms - 0.95).abs() < 1.0e-4);
+
+        for millis in 101..=240 {
+            telemetry.record(Duration::from_millis(millis), Duration::ZERO);
+        }
+        assert_eq!(telemetry.report().sample_count, DamageMeshTelemetry::WINDOW);
+    }
 }

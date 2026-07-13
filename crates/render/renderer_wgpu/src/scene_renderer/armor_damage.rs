@@ -5,7 +5,13 @@ use renderer_api::ArmorDamageInstance;
 use crate::GpuContext;
 
 pub const MAX_DAMAGE_HEADERS: usize = 64;
-pub const MAX_DAMAGE_APERTURES: usize = 256;
+/// Fourteen visible tanks, each with 12 physical groups, four pose-frame fragments per group and
+/// four union lobes per fragment, plus headroom. The descriptor buffer is still below 192 KiB.
+pub const MAX_DAMAGE_APERTURES: usize = 3_072;
+
+pub const fn armor_damage_aperture_budget() -> usize {
+    MAX_DAMAGE_APERTURES
+}
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Default, bytemuck::Pod, bytemuck::Zeroable)]

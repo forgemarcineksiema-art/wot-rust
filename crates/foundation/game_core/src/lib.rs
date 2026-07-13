@@ -29,7 +29,7 @@ pub use armor_breach::surface_basis as armor_surface_basis;
 pub use armor_breach::{
     ApertureLobe, ArmorBreach, ArmorBreachAdd, ArmorBreachDescriptor, ArmorBreachSet, ArmorFrame,
     ArmorMaterial, ArmorScar, ArmorSurfaceId, BreachContour, BreachFace, MAX_APERTURE_LOBES,
-    MAX_ARMOR_BREACHES, MAX_ARMOR_SCARS,
+    MAX_ARMOR_BREACHES, MAX_ARMOR_SCARS, MAX_BREACH_FRAGMENTS_PER_GROUP,
 };
 pub use contact_footprint::{ContactFootprint, MAX_CONTACT_STATIONS};
 pub use crew::{Crew, CrewRole};
