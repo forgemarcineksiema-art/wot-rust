@@ -83,8 +83,11 @@ Sequencing: 0 → 1 → {2, 3 in either order} → 4 → {5, 6 in parallel}.
 Phase 8 is intentionally landing as reviewable slices. Fleet physics, v26 state, analytical
 clipping, detailed component traces, aperture-only interior light and the bounded remesh worker are
 implemented. The mandatory final slices remain the grouped cross-frame remesh cases, measured
-worker/upload budgets, the audited museum-reference detail pass, damaged/burning interior variants,
-audio and the final showcase gate. T-55 receives only the fleet physics contract; it never inherits
+worker/upload budgets, completion of the museum-reference detail pass, damaged/burning interior
+variants, audio and the final showcase gate. The first museum slice now replaces generic fighting-
+compartment blocks with T-54 D-10T/SG-43 equipment and the documented 1951 ammunition groups. Its
+layout is checked against period T-54 drawings and the official MiniArt 37007 configuration; T-55
+drawings are explicitly excluded. T-55 receives only the fleet physics contract; it never inherits
 the T-54 mesh or interior.
 
 The bounded state now counts 12 physical perforation groups rather than 12 mesh fragments. One

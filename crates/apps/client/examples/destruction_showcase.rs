@@ -188,7 +188,7 @@ fn vehicle_shots(
         live_damage,
         &live_fx,
         interior_close,
-        [cx + 0.08, ground + 1.92, cz + 0.88],
+        [cx + 0.42, ground + 1.92, cz + 0.88],
         width,
         height,
     )?;
@@ -335,10 +335,10 @@ fn demo_breaches() -> game_core::ArmorBreachSet {
             game_core::ArmorFrame::Turret,
             ArmorZone::TurretSide,
             game_core::BreachFace::Egress,
-            Vec3::new(-0.88, 1.92, 0.08),
+            Vec3::new(-0.88, 1.92, 0.42),
             Vec3::NEG_X,
             Vec3::X,
-            (0.085, 0.065),
+            (0.16, 0.12),
         ),
     ] {
         let thickness = 0.18;

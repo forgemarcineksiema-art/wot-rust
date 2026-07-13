@@ -19,6 +19,7 @@ pub(crate) fn t54_interior_parts() -> Vec<VehiclePart> {
     let mut parts: Vec<_> = DamageLayout::t54_1951()
         .components()
         .iter()
+        .filter(|component| component.kind == DamageComponentKind::FuelTank)
         .map(|component| component_part(component, center_y))
         .collect();
 
