@@ -2,24 +2,33 @@
 //! `DamageLayout`; this module adds the recognizable D-10T, SG-43 and crew-station construction
 //! around those volumes.
 
+use game_core::{DamageComponentKind, DamageLayout};
 use glam::Vec3;
 use vehicle_geometry::{MaterialRole, SubmeshKind};
 
 use crate::part::{PartKey, PartLod, VehiclePart};
 use crate::t54_interior::{box_part, drum_part};
 
-pub(super) fn add_fighting_parts(parts: &mut Vec<VehiclePart>, cy: f32) {
-    add_d10t(parts, cy);
+mod wall;
+
+pub(super) fn add_fighting_parts(
+    parts: &mut Vec<VehiclePart>,
+    damage_layout: &DamageLayout,
+    cy: f32,
+) {
+    add_d10t(parts, damage_layout, cy);
     add_coaxial_sg43(parts, cy);
     add_crew_stations(parts, cy);
-    add_wall_equipment(parts, cy);
+    wall::add_wall_equipment(parts, damage_layout, cy);
 }
 
-fn add_d10t(parts: &mut Vec<VehiclePart>, cy: f32) {
+fn add_d10t(parts: &mut Vec<VehiclePart>, damage_layout: &DamageLayout, cy: f32) {
+    let breech = super::obb_anchor(damage_layout, DamageComponentKind::Breech, cy);
+    let recoil = super::cylinder_anchors(damage_layout, DamageComponentKind::RecoilMechanism, cy);
     parts.push(box_part(
         PartKey::new("d10_breech_block"),
         SubmeshKind::Turret,
-        Vec3::new(0.0, cy + 0.82, 0.34),
+        breech.center - Vec3::Z * breech.half.z * 0.56,
         Vec3::new(0.24, 0.18, 0.10),
         MaterialRole::InteriorMachinery,
         PartLod::Detail,
@@ -27,7 +36,7 @@ fn add_d10t(parts: &mut Vec<VehiclePart>, cy: f32) {
     parts.push(drum_part(
         PartKey::new("d10_breech_ring"),
         SubmeshKind::Turret,
-        Vec3::new(0.0, cy + 0.83, 0.54),
+        breech.center - Vec3::Z * breech.half.z * 0.09,
         Vec3::Z,
         (0.11, 0.245),
         MaterialRole::InteriorMachinery,
@@ -51,13 +60,13 @@ fn add_d10t(parts: &mut Vec<VehiclePart>, cy: f32) {
             PartLod::Detail,
         ));
     }
-    for (index, x) in [-0.25_f32, 0.25].into_iter().enumerate() {
+    for (index, anchor) in recoil.into_iter().enumerate() {
         parts.push(drum_part(
             PartKey::indexed("d10_recoil_cylinder", index as u16),
             SubmeshKind::Turret,
-            Vec3::new(x, cy + 0.98, 0.42),
-            Vec3::Z,
-            (0.42, 0.095),
+            anchor.center,
+            anchor.axis,
+            (anchor.half_length, anchor.radius),
             MaterialRole::InteriorMachinery,
             PartLod::Detail,
         ));
@@ -175,38 +184,4 @@ fn add_crew_stations(parts: &mut Vec<VehiclePart>, cy: f32) {
         MaterialRole::InteriorMachinery,
         PartLod::Detail,
     ));
-}
-
-fn add_wall_equipment(parts: &mut Vec<VehiclePart>, cy: f32) {
-    parts.push(box_part(
-        PartKey::new("radio_control_face"),
-        SubmeshKind::Turret,
-        Vec3::new(-0.66, cy + 0.50, 0.98),
-        Vec3::new(0.29, 0.16, 0.025),
-        MaterialRole::InteriorPrimer,
-        PartLod::Detail,
-    ));
-    for (index, x) in [-0.80_f32, -0.66, -0.52].into_iter().enumerate() {
-        parts.push(drum_part(
-            PartKey::indexed("radio_control_dial", index as u16),
-            SubmeshKind::Turret,
-            Vec3::new(x, cy + 0.53, 1.012),
-            Vec3::Z,
-            (0.012, 0.035),
-            MaterialRole::InteriorMachinery,
-            PartLod::Detail,
-        ));
-    }
-
-    for (index, x) in [0.49_f32, 0.68].into_iter().enumerate() {
-        parts.push(drum_part(
-            PartKey::indexed("turret_extinguisher", index as u16),
-            SubmeshKind::Turret,
-            Vec3::new(x, cy + 0.48, -0.57),
-            Vec3::Y,
-            (0.20, 0.07),
-            MaterialRole::InteriorPrimer,
-            PartLod::Detail,
-        ));
-    }
 }

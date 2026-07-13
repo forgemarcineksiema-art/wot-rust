@@ -265,7 +265,15 @@ fn apply_internal_module_path(
         target.hull_pose().basis().transpose() * shell.velocity_mps.normalize_or_zero();
     let start = local_hit + local_direction * 0.01;
     let end = start + local_direction * 8.0;
-    let hits = target.spec.damage_layout.intersections(true, start, end);
+    let turret_pivot =
+        target.spec.mounts.turret_ring.translation - Vec3::Y * target.spec.hitbox.center_y_m;
+    let hits = target.spec.damage_layout.intersections_with_turret_pose(
+        true,
+        start,
+        end,
+        target.turret_yaw_rad,
+        turret_pivot,
+    );
     let mut first = None;
     let mut mask = 0_u8;
     let mut component_mask = 0_u16;
@@ -298,7 +306,13 @@ fn apply_internal_module_path(
             let Some(hit) = target
                 .spec
                 .damage_layout
-                .intersections(true, origin + spall_direction * 0.015, spall_end)
+                .intersections_with_turret_pose(
+                    true,
+                    origin + spall_direction * 0.015,
+                    spall_end,
+                    target.turret_yaw_rad,
+                    turret_pivot,
+                )
                 .into_iter()
                 .find(|hit| hit.component_id != source_id)
             else {

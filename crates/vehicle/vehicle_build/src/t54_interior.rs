@@ -3,7 +3,7 @@
 //! drift into two different tanks.
 
 use game_core::{
-    DamageComponent, DamageComponentKind, DamageLayout, DamageMaterial, DamageShape,
+    ArmorFrame, DamageComponent, DamageComponentKind, DamageLayout, DamageMaterial, DamageShape,
     VehicleBlueprint, VehicleKind,
 };
 use glam::{Mat3, Mat4, Quat, Vec3};
@@ -16,7 +16,8 @@ pub(crate) fn t54_interior_parts() -> Vec<VehiclePart> {
     let blueprint = VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("T-54 blueprint");
     let visual = blueprint.hybrid().expect("T-54 hybrid visual");
     let center_y = spec.hitbox.center_y_m;
-    let mut parts: Vec<_> = DamageLayout::t54_1951()
+    let damage_layout = DamageLayout::t54_1951();
+    let mut parts: Vec<_> = damage_layout
         .components()
         .iter()
         .filter(|component| component.kind == DamageComponentKind::FuelTank)
@@ -86,7 +87,7 @@ pub(crate) fn t54_interior_parts() -> Vec<VehiclePart> {
         ));
     }
 
-    parts.extend(crate::t54_interior_detail::t54_museum_detail_parts(center_y));
+    parts.extend(crate::t54_interior_detail::t54_museum_detail_parts(&damage_layout, center_y));
     parts
 }
 
@@ -122,12 +123,9 @@ fn turret_inner_skin(outer: &GeometryMesh) -> GeometryMesh {
 }
 
 fn component_part(component: &DamageComponent, center_y: f32) -> VehiclePart {
-    let submesh = match component.kind {
-        DamageComponentKind::Breech
-        | DamageComponentKind::RecoilMechanism
-        | DamageComponentKind::TurretDrive
-        | DamageComponentKind::Radio => SubmeshKind::Turret,
-        _ => SubmeshKind::Hull,
+    let submesh = match component.frame {
+        ArmorFrame::Hull => SubmeshKind::Hull,
+        ArmorFrame::Turret | ArmorFrame::Mantlet => SubmeshKind::Turret,
     };
     let material = match component.material {
         DamageMaterial::Ammunition => MaterialRole::Ammunition,

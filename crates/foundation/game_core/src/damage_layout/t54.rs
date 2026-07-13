@@ -6,7 +6,7 @@ use super::{
     DamageComponent, DamageComponentId, DamageComponentKind as K, DamageLayout,
     DamageMaterial as M, DamageShape,
 };
-use crate::ModuleSlot;
+use crate::{ArmorFrame, ModuleSlot};
 
 pub(super) fn layout() -> DamageLayout {
     let mut components = turret_components();
@@ -17,7 +17,7 @@ pub(super) fn layout() -> DamageLayout {
 
 fn turret_components() -> Vec<DamageComponent> {
     vec![
-        component(
+        turret_component(
             1,
             K::Breech,
             ModuleSlot::Gun,
@@ -26,7 +26,7 @@ fn turret_components() -> Vec<DamageComponent> {
             40,
             1.15,
         ),
-        component(
+        turret_component(
             2,
             K::RecoilMechanism,
             ModuleSlot::Gun,
@@ -35,7 +35,7 @@ fn turret_components() -> Vec<DamageComponent> {
             38,
             1.0,
         ),
-        component(
+        turret_component(
             3,
             K::RecoilMechanism,
             ModuleSlot::Gun,
@@ -44,7 +44,7 @@ fn turret_components() -> Vec<DamageComponent> {
             38,
             1.0,
         ),
-        component(
+        turret_component(
             4,
             K::TurretDrive,
             ModuleSlot::Turret,
@@ -53,7 +53,7 @@ fn turret_components() -> Vec<DamageComponent> {
             34,
             1.0,
         ),
-        component(
+        turret_component(
             7,
             K::Radio,
             ModuleSlot::Radio,
@@ -67,7 +67,7 @@ fn turret_components() -> Vec<DamageComponent> {
 
 fn hull_components() -> Vec<DamageComponent> {
     vec![
-        component(
+        hull_component(
             5,
             K::AmmunitionRack,
             ModuleSlot::AmmoRack,
@@ -76,7 +76,7 @@ fn hull_components() -> Vec<DamageComponent> {
             32,
             1.35,
         ),
-        component(
+        hull_component(
             6,
             K::AmmunitionRack,
             ModuleSlot::AmmoRack,
@@ -85,7 +85,7 @@ fn hull_components() -> Vec<DamageComponent> {
             32,
             1.35,
         ),
-        component(
+        hull_component(
             8,
             K::FuelTank,
             ModuleSlot::Engine,
@@ -94,7 +94,7 @@ fn hull_components() -> Vec<DamageComponent> {
             25,
             1.1,
         ),
-        component(
+        hull_component(
             9,
             K::FuelTank,
             ModuleSlot::Engine,
@@ -103,7 +103,7 @@ fn hull_components() -> Vec<DamageComponent> {
             25,
             1.1,
         ),
-        component(
+        hull_component(
             10,
             K::Engine,
             ModuleSlot::Engine,
@@ -112,7 +112,7 @@ fn hull_components() -> Vec<DamageComponent> {
             30,
             0.9,
         ),
-        component(
+        hull_component(
             11,
             K::Transmission,
             ModuleSlot::Engine,
@@ -121,7 +121,7 @@ fn hull_components() -> Vec<DamageComponent> {
             30,
             0.9,
         ),
-        component(
+        hull_component(
             12,
             K::FinalDrive,
             ModuleSlot::Suspension,
@@ -130,7 +130,7 @@ fn hull_components() -> Vec<DamageComponent> {
             28,
             1.0,
         ),
-        component(
+        hull_component(
             13,
             K::FinalDrive,
             ModuleSlot::Suspension,
@@ -145,6 +145,7 @@ fn hull_components() -> Vec<DamageComponent> {
 fn suspension_components() -> [DamageComponent; 2] {
     [-1.24, 1.24].map(|x| DamageComponent {
         id: DamageComponentId(if x < 0.0 { 14 } else { 15 }),
+        frame: ArmorFrame::Hull,
         kind: K::Suspension,
         slot: ModuleSlot::Suspension,
         material: M::SuspensionSteel,
@@ -159,8 +160,34 @@ fn suspension_components() -> [DamageComponent; 2] {
     })
 }
 
+fn turret_component(
+    id: u16,
+    kind: K,
+    slot: ModuleSlot,
+    material: M,
+    shape: DamageShape,
+    priority: u8,
+    vulnerability: f32,
+) -> DamageComponent {
+    component(id, ArmorFrame::Turret, kind, slot, material, shape, priority, vulnerability)
+}
+
+fn hull_component(
+    id: u16,
+    kind: K,
+    slot: ModuleSlot,
+    material: M,
+    shape: DamageShape,
+    priority: u8,
+    vulnerability: f32,
+) -> DamageComponent {
+    component(id, ArmorFrame::Hull, kind, slot, material, shape, priority, vulnerability)
+}
+
+#[allow(clippy::too_many_arguments)]
 fn component(
     id: u16,
+    frame: ArmorFrame,
     kind: K,
     slot: ModuleSlot,
     material: M,
@@ -170,6 +197,7 @@ fn component(
 ) -> DamageComponent {
     DamageComponent {
         id: DamageComponentId(id),
+        frame,
         kind,
         slot,
         material,

@@ -1,7 +1,7 @@
 use glam::Vec3;
 use serde::{Deserialize, Serialize};
 
-use crate::{HitboxProfile, ModuleSlot, VehicleKind};
+use crate::{ArmorFrame, HitboxProfile, ModuleSlot, VehicleKind};
 
 mod intersections;
 mod t54;
@@ -70,6 +70,10 @@ pub enum DamageShape {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DamageComponent {
     pub id: DamageComponentId,
+    /// Pose frame that owns this component. Turret components are authored in the neutral turret
+    /// frame and traced after the live turret pose has been removed from the shot segment.
+    #[serde(default)]
+    pub frame: ArmorFrame,
     pub kind: DamageComponentKind,
     pub slot: ModuleSlot,
     pub material: DamageMaterial,
@@ -137,13 +141,34 @@ impl DamageLayout {
         start: Vec3,
         end: Vec3,
     ) -> Vec<ModuleIntersection> {
+        self.intersections_with_turret_pose(penetrated, start, end, 0.0, Vec3::ZERO)
+    }
+
+    /// Intersect a through-flight while respecting the live turret pose. `start`, `end` and the
+    /// turret pivot use centered hull-local coordinates; individual component shapes remain in
+    /// their authored Hull, Turret or Mantlet frame.
+    pub fn intersections_with_turret_pose(
+        &self,
+        penetrated: bool,
+        start: Vec3,
+        end: Vec3,
+        turret_yaw_rad: f32,
+        turret_pivot: Vec3,
+    ) -> Vec<ModuleIntersection> {
         let length = (end - start).length();
         let mut hits: Vec<_> = self
             .components
             .iter()
             .filter(|component| !component.requires_penetration || penetrated)
             .filter_map(|component| {
-                component.shape.segment_interval(start, end).map(|(enter, exit)| {
+                let (frame_start, frame_end) = component_frame_segment(
+                    component.frame,
+                    start,
+                    end,
+                    turret_yaw_rad,
+                    turret_pivot,
+                );
+                component.shape.segment_interval(frame_start, frame_end).map(|(enter, exit)| {
                     ModuleIntersection {
                         component_id: component.id,
                         kind: component.kind,
@@ -173,5 +198,24 @@ impl DamageLayout {
                     && p.y.abs() <= hitbox.half_height_m + 1.0e-3
             })
         })
+    }
+}
+
+fn component_frame_segment(
+    frame: ArmorFrame,
+    start: Vec3,
+    end: Vec3,
+    turret_yaw_rad: f32,
+    turret_pivot: Vec3,
+) -> (Vec3, Vec3) {
+    match frame {
+        ArmorFrame::Hull => (start, end),
+        ArmorFrame::Turret | ArmorFrame::Mantlet => {
+            let inverse_pose = glam::Mat3::from_rotation_y(-turret_yaw_rad);
+            (
+                turret_pivot + inverse_pose * (start - turret_pivot),
+                turret_pivot + inverse_pose * (end - turret_pivot),
+            )
+        }
     }
 }

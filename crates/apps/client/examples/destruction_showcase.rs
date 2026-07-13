@@ -165,7 +165,10 @@ fn vehicle_shots(
     }
 
     let close = [cx + 6.0, ground + 3.4, cz + 5.2];
-    let interior_close = [cx + 0.20, ground + 2.25, cz + 2.35];
+    // Look through the side egress into the fighting compartment, not at the aperture plane. The
+    // small longitudinal offset makes the breech, recoil gear and turret drive read as separate
+    // volumes instead of collapsing into one dark rectangle.
+    let interior_close = [cx + 0.85, ground + 2.15, cz + 2.80];
     let wide = [cx + 7.5, ground + 3.6, cz + 6.5];
     draw_vehicle(
         ctx,
@@ -188,7 +191,7 @@ fn vehicle_shots(
         live_damage,
         &live_fx,
         interior_close,
-        [cx + 0.42, ground + 1.92, cz + 0.88],
+        [cx + 0.35, ground + 1.80, cz - 0.10],
         width,
         height,
     )?;

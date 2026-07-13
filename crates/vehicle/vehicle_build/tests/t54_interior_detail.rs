@@ -1,3 +1,5 @@
+use game_core::{DamageComponentId, DamageLayout, DamageShape, VehicleKind};
+use glam::Vec3;
 use vehicle_build::{VehicleDescription, t54_description};
 use vehicle_geometry::SubmeshKind;
 
@@ -61,12 +63,67 @@ fn t54_close_view_has_recognizable_fighting_compartment_assemblies() {
         "tsh2_sight_body",
         "tsh2_eyepiece",
         "radio_control_face",
+        "turret_drive_housing",
+        "turret_drive_gearbox",
         "turret_extinguisher",
     ] {
         let matches = parts_named(&description, name);
         assert!(!matches.is_empty(), "missing museum-detail assembly {name}");
         assert!(matches.iter().all(|part| part.submesh == SubmeshKind::Turret));
     }
+}
+
+#[test]
+fn visible_weapon_and_driveline_parts_share_damage_layout_anchors() {
+    let description = t54_description();
+    let layout = DamageLayout::t54_1951();
+    let center_y = VehicleKind::T54_1951.spec().hitbox.center_y_m;
+
+    let breech_center = part_center(parts_named(&description, "d10_breech_ring")[0]);
+    let (breech_min, breech_max) = component_obb_bounds(&layout, DamageComponentId(1), center_y);
+    assert!(point_within(breech_center, breech_min, breech_max));
+
+    let recoil_parts = parts_named(&description, "d10_recoil_cylinder");
+    for (id, part) in [DamageComponentId(2), DamageComponentId(3)].into_iter().zip(recoil_parts) {
+        let expected = component_center(&layout, id) + Vec3::Y * center_y;
+        assert!((part_center(part) - expected).length() < 1.0e-4);
+    }
+
+    let drive = parts_named(&description, "turret_drive_housing");
+    let expected = component_center(&layout, DamageComponentId(4)) + Vec3::Y * center_y;
+    assert!((part_center(drive[0]) - expected).length() < 1.0e-4);
+}
+
+fn part_center(part: &vehicle_build::VehiclePart) -> Vec3 {
+    let bounds = part.mesh().bounds().expect("part bounds");
+    (bounds.min + bounds.max) * 0.5
+}
+
+fn component_center(layout: &DamageLayout, id: DamageComponentId) -> Vec3 {
+    let component = layout.components().iter().find(|component| component.id == id).unwrap();
+    match &component.shape {
+        DamageShape::Obb { center, .. } | DamageShape::Cylinder { center, .. } => *center,
+        _ => panic!("component {id:?} does not expose a center"),
+    }
+}
+
+fn component_obb_bounds(
+    layout: &DamageLayout,
+    id: DamageComponentId,
+    center_y: f32,
+) -> (Vec3, Vec3) {
+    let component = layout.components().iter().find(|component| component.id == id).unwrap();
+    match &component.shape {
+        DamageShape::Obb { center, half_extents, .. } => {
+            let visual_center = *center + Vec3::Y * center_y;
+            (visual_center - *half_extents, visual_center + *half_extents)
+        }
+        _ => panic!("component {id:?} is not an OBB"),
+    }
+}
+
+fn point_within(point: Vec3, min: Vec3, max: Vec3) -> bool {
+    point.cmpge(min - Vec3::splat(1.0e-4)).all() && point.cmple(max + Vec3::splat(1.0e-4)).all()
 }
 
 #[test]

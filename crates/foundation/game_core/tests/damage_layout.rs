@@ -1,5 +1,5 @@
 use game_core::{DamageComponentKind, DamageLayout, ModuleSlot, VehicleKind};
-use glam::Vec3;
+use glam::{Mat3, Vec3};
 
 #[test]
 fn damage_layout_selects_the_highest_priority_matching_module() {
@@ -59,4 +59,39 @@ fn two_physical_components_may_feed_the_same_legacy_slot() {
 #[test]
 fn glacis_air_no_longer_magically_maps_to_the_gun() {
     assert_eq!(DamageLayout::t54_1951().impacted_module(true, Vec3::new(0.0, 0.2, 2.7)), None);
+}
+
+#[test]
+fn turret_components_follow_the_live_turret_yaw() {
+    let layout = DamageLayout::t54_1951();
+    let spec = VehicleKind::T54_1951.spec();
+    let pivot = spec.mounts.turret_ring.translation - Vec3::Y * spec.hitbox.center_y_m;
+    let neutral_start = Vec3::new(0.0, 0.82, 1.35);
+    let neutral_end = Vec3::new(0.0, 0.82, 0.05);
+
+    let neutral_hits =
+        layout.intersections_with_turret_pose(true, neutral_start, neutral_end, 0.0, pivot);
+    assert!(neutral_hits.iter().any(|hit| hit.kind == DamageComponentKind::Breech));
+
+    let quarter_turn = std::f32::consts::FRAC_PI_2;
+    let stale_hits = layout.intersections_with_turret_pose(
+        true,
+        neutral_start,
+        neutral_end,
+        quarter_turn,
+        pivot,
+    );
+    assert!(stale_hits.iter().all(|hit| hit.kind != DamageComponentKind::Breech));
+
+    let pose = Mat3::from_rotation_y(quarter_turn);
+    let rotated_start = pivot + pose * (neutral_start - pivot);
+    let rotated_end = pivot + pose * (neutral_end - pivot);
+    let rotated_hits = layout.intersections_with_turret_pose(
+        true,
+        rotated_start,
+        rotated_end,
+        quarter_turn,
+        pivot,
+    );
+    assert!(rotated_hits.iter().any(|hit| hit.kind == DamageComponentKind::Breech));
 }
