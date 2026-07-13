@@ -81,10 +81,16 @@ Sequencing: 0 → 1 → {2, 3 in either order} → 4 → {5, 6 in parallel}.
   around it; crew re-seat clears the gap in the same tick that restores the track pool.
 
 Phase 8 is intentionally landing as reviewable slices. Fleet physics, v26 state, analytical
-clipping, detailed component traces, aperture-only interior light and the bounded remesh worker are
-implemented. The mandatory final slices remain the grouped cross-frame remesh cases, measured
-worker/upload budgets, completion of the museum-reference detail pass, damaged/burning interior
-variants, audio and the final showcase gate. The first museum slice now replaces generic fighting-
+clipping, detailed component traces, aperture-only interior light, the bounded remesh worker and
+the grouped cross-frame remesh cases are implemented. The remesh contract is locked by tests on a
+weld bead, a cast cheek, an undercut fold and an off-axis mantlet (kernel), plus one split shot
+whose Hull/Turret/Mantlet fragments bake three independent per-frame skins on the production T-54
+(client): contour vertices are seated barycentrically on the real curved steel, no whole source
+triangle outside the patch may vanish, and `armor_surface_basis` keeps a true tangent basis for a
+square-on shot on a rotated plate (the f32 residue there used to collapse every projection built
+on it, including aperture clearance). The mandatory final slices remain measured worker/upload
+budgets, completion of the museum-reference detail pass, damaged/burning interior variants, audio
+and the final showcase gate. The first museum slice now replaces generic fighting-
 compartment blocks with T-54 D-10T/SG-43 equipment and the documented 1951 ammunition groups. Its
 layout is checked against period T-54 drawings and the official MiniArt 37007 configuration; T-55
 drawings are explicitly excluded. T-55 receives only the fleet physics contract; it never inherits

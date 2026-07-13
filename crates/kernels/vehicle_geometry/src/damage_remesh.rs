@@ -69,11 +69,15 @@ pub fn remesh_aperture(
     let hole_vertex_start = vertices.len() as u32;
     for point in &points[hole_start..] {
         let point = Vec2::from_array(*point);
-        vertices.push(GeometryVertex {
+        let flat = GeometryVertex {
             position: lobe.entry_local + u * point.x + v * point.y,
             normal,
             ..template
-        });
+        };
+        vertices.push(
+            lift_to_surface(source, &triangles, &selected, point, lobe.entry_local, u, v)
+                .unwrap_or(flat),
+        );
     }
     let map_index = |index: usize| -> u32 {
         if index < hole_start {
@@ -91,12 +95,78 @@ pub fn remesh_aperture(
     for tri in patch_indices.chunks_exact(3) {
         let mut mapped = [map_index(tri[0]), map_index(tri[1]), map_index(tri[2])];
         let [a, b, c] = mapped.map(|index| vertices[index as usize].position);
-        if (b - a).cross(c - a).dot(normal) < 0.0 {
+        let face = (b - a).cross(c - a);
+        // Earcut can pinch an ear of three near-collinear contour points into a sub-square-
+        // millimetre sliver. Steel that thin is invisible and only trips downstream quality
+        // gates, so the patch drops it; the authoritative contour is untouched.
+        if face.length_squared() <= 1.0e-10 {
+            continue;
+        }
+        if face.dot(normal) < 0.0 {
             mapped.swap(1, 2);
         }
         indices.extend_from_slice(&mapped);
     }
     Ok(GeometryMesh::new(vertices, indices))
+}
+
+/// Seat one contour point back on the real armor: find the selected source triangle containing it
+/// in the surface projection and interpolate the full vertex barycentrically. This is what keeps a
+/// hole on a weld bead, cast cheek or pitched mantlet on the curved steel instead of flattening it
+/// onto the tangent plane at the entry point. `None` when the point falls outside the patch (the
+/// caller keeps the tangent-plane fallback).
+fn lift_to_surface(
+    source: &GeometryMesh,
+    triangles: &[[u32; 3]],
+    selected: &[bool],
+    point: Vec2,
+    origin: Vec3,
+    u: Vec3,
+    v: Vec3,
+) -> Option<GeometryVertex> {
+    for tri in triangles.iter().zip(selected).filter_map(|(tri, selected)| selected.then_some(*tri))
+    {
+        let corners = tri.map(|index| source.vertices()[index as usize]);
+        let projected = corners
+            .map(|vertex| Vec2::from_array(project_to_surface(vertex.position, origin, u, v)));
+        let Some(weights) = barycentric_2d(point, projected) else {
+            continue;
+        };
+        if weights.iter().any(|weight| *weight < -1.0e-4) {
+            continue;
+        }
+        let blend = |extract: fn(&GeometryVertex) -> Vec3| {
+            corners
+                .iter()
+                .zip(weights)
+                .fold(Vec3::ZERO, |sum, (vertex, weight)| sum + extract(vertex) * weight)
+        };
+        return Some(GeometryVertex {
+            position: blend(|vertex| vertex.position),
+            normal: blend(|vertex| vertex.normal).normalize_or_zero(),
+            uv0: corners
+                .iter()
+                .zip(weights)
+                .fold(Vec2::ZERO, |sum, (vertex, weight)| sum + vertex.uv0 * weight),
+            surface_shade: corners
+                .iter()
+                .zip(weights)
+                .fold(0.0, |sum, (vertex, weight)| sum + vertex.surface_shade * weight),
+            ..corners[0]
+        });
+    }
+    None
+}
+
+/// Barycentric weights of `point` in the projected triangle, or `None` when it is degenerate.
+fn barycentric_2d(point: Vec2, tri: [Vec2; 3]) -> Option<[f32; 3]> {
+    let denom = (tri[1] - tri[0]).perp_dot(tri[2] - tri[0]);
+    if denom.abs() < 1.0e-10 {
+        return None;
+    }
+    let w1 = (tri[1] - point).perp_dot(tri[2] - point) / denom;
+    let w2 = (tri[2] - point).perp_dot(tri[0] - point) / denom;
+    Some([w1, w2, 1.0 - w1 - w2])
 }
 
 fn triangle_is_in_patch(

@@ -148,6 +148,11 @@ fn build_damage_mesh(job: &DamageMeshJob) -> Option<GeometryMesh> {
     Some(mesh)
 }
 
+/// Sanity gate on a rebuilt patch before it replaces the analytical clip. Only the NEW steel is
+/// bounded: contour vertices must hug the aperture, and every rebuilt triangle must be finite and
+/// face outward. Pre-existing source vertices are trusted wherever they sit — on production cast
+/// lofts the patch boundary ring legitimately reaches past any radius derived from the lobe alone,
+/// because its extent follows the source triangle size, not the hole size.
 fn patch_is_bounded(
     source: &GeometryMesh,
     candidate: &GeometryMesh,
@@ -162,29 +167,35 @@ fn patch_is_bounded(
     if normal == Vec3::ZERO || u == Vec3::ZERO || v == Vec3::ZERO {
         return false;
     }
-    candidate.indices().chunks_exact(3).all(|triangle| {
-        if !triangle.iter().any(|index| *index >= first_new) {
-            return true;
-        }
-        let points = [triangle[0], triangle[1], triangle[2]]
-            .map(|index| candidate.vertices()[index as usize].position);
-        let edges = [
-            points[0].distance(points[1]),
-            points[1].distance(points[2]),
-            points[2].distance(points[0]),
-        ];
-        let face = (points[1] - points[0]).cross(points[2] - points[0]);
-        let locally_bounded = points.into_iter().all(|point| {
-            let delta = point - lobe.entry_local;
-            Vec3::new(delta.dot(u), delta.dot(v), 0.0).length() <= max_projected
-                && delta.dot(normal).abs() <= 0.11
-        });
-        edges.into_iter().all(|edge| edge.is_finite() && edge <= max_edge)
-            && locally_bounded
-            && face.length_squared().is_finite()
-            && face.length_squared() > 1.0e-10
-            && face.normalize().dot(normal) > 0.12
-    })
+    let new_vertex_is_local = candidate.vertices()[first_new as usize..].iter().all(|vertex| {
+        let delta = vertex.position - lobe.entry_local;
+        let projected = Vec3::new(delta.dot(u), delta.dot(v), 0.0).length();
+        delta.is_finite() && projected <= max_projected && delta.dot(normal).abs() <= 0.11
+    });
+    new_vertex_is_local
+        && candidate.indices().chunks_exact(3).all(|triangle| {
+            if !triangle.iter().any(|index| *index >= first_new) {
+                return true;
+            }
+            let points = [triangle[0], triangle[1], triangle[2]]
+                .map(|index| candidate.vertices()[index as usize].position);
+            let contour_edges_bounded = [(0, 1), (1, 2), (2, 0)].into_iter().all(|(a, b)| {
+                if triangle[a] < first_new || triangle[b] < first_new {
+                    return true;
+                }
+                let edge = points[a].distance(points[b]);
+                edge.is_finite() && edge <= max_edge
+            });
+            let face = (points[1] - points[0]).cross(points[2] - points[0]);
+            // The kernel already orients every rebuilt triangle toward the entry normal; this
+            // backstop only rejects backfacing or collapsed output. On a rounded casting rim an
+            // honest patch triangle can lie nearly perpendicular to the entry normal, so the
+            // threshold is "positive with numerical margin", not a cone.
+            contour_edges_bounded
+                && face.length_squared().is_finite()
+                && face.length_squared() > 1.0e-10
+                && face.normalize().dot(normal) > 0.02
+        })
 }
 
 fn merge_geometry(base: &GeometryMesh, addition: &GeometryMesh) -> GeometryMesh {
