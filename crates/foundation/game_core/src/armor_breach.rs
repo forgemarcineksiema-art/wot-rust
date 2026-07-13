@@ -362,8 +362,13 @@ fn merge_into_nearest_lobe(lobes: &mut [ApertureLobe], incoming: ApertureLobe) {
 
 pub fn surface_basis(normal: Vec3, direction: Vec3) -> (Vec3, Vec3) {
     let n = normal.normalize_or_zero();
-    let projected = (direction - n * direction.dot(n)).normalize_or_zero();
-    let mut u = if projected != Vec3::ZERO { projected } else { n.cross(Vec3::Y) };
+    let d = direction.normalize_or_zero();
+    let projected = d - n * d.dot(n);
+    // A square-on shot projects to numerical noise ALONG the normal (f32 leaves a tiny parallel
+    // residue on rotated plates), and normalizing that noise would hand back a fake tangent axis
+    // that collapses every projection built on it. Demand a real in-plane component instead.
+    let mut u =
+        if projected.length_squared() > 1.0e-8 { projected.normalize() } else { n.cross(Vec3::Y) };
     if u.length_squared() < 1.0e-6 {
         u = n.cross(Vec3::X);
     }
@@ -412,6 +417,21 @@ mod tests {
         breach.zone = zone;
         breach.surface = ArmorSurfaceId::new(frame, zone);
         breach
+    }
+
+    #[test]
+    fn a_square_on_shot_still_gets_a_true_tangent_basis() {
+        // A shell arriving exactly along the plate normal used to leave only f32 noise after the
+        // tangent projection; on a rotated plate that noise points ALONG the normal and the old
+        // basis normalized it into u ≈ -n, collapsing every clearance/remesh projection built on
+        // it. The basis must stay orthonormal and in-plane no matter the approach.
+        let normal = Vec3::new(0.0, -25_f32.to_radians().sin(), 25_f32.to_radians().cos());
+        let (u, v) = surface_basis(normal, -normal);
+        for (axis, other) in [(u, v), (v, u)] {
+            assert!((axis.length() - 1.0).abs() < 1.0e-4, "tangent axis must be unit: {axis}");
+            assert!(axis.dot(normal).abs() < 1.0e-3, "tangent axis left the plate: {axis}");
+            assert!(axis.dot(other).abs() < 1.0e-3, "tangent axes must stay orthogonal");
+        }
     }
 
     #[test]
