@@ -7,6 +7,30 @@
 
 use glam::{Vec2, Vec3};
 
+/// One world-space analytical opening consumed by color, depth and shadow vehicle passes.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ArmorApertureRender {
+    pub center: [f32; 3],
+    pub normal: [f32; 3],
+    pub tangent: [f32; 3],
+    pub major_radius_m: f32,
+    pub minor_radius_m: f32,
+    pub rotation_rad: f32,
+    pub irregularity: f32,
+    pub phase_a: f32,
+    pub phase_b: f32,
+    /// Signed plane reach used to cut both outer and inner armor skins, never deep components.
+    pub half_depth_m: f32,
+}
+
+/// Per-tank damage descriptors. `tank_id` connects them to ordinary render objects without
+/// putting gameplay structs or GPU handles into the render API.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ArmorDamageInstance {
+    pub tank_id: game_core::TankId,
+    pub apertures: Vec<ArmorApertureRender>,
+}
+
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct VehicleVertex {

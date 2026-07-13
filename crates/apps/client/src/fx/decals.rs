@@ -240,9 +240,9 @@ pub fn append_decal_quads(vertices: &mut Vec<FxVertex>, decals: &[HitDecal], tan
         let v = normal.cross(u);
         let plate = Plate { center, u, v };
         match decal.kind {
-            DecalKind::Penetration => {
-                push_penetration(vertices, plate, decal, opacity, origin, basis)
-            }
+            // The real aperture is cut by the vehicle/depth/shadow shaders. A flat FX primitive
+            // here would close it again with exactly the black disk this system replaces.
+            DecalKind::Penetration => {}
             DecalKind::Scuff => push_scuff(vertices, plate, decal, opacity),
             DecalKind::Gouge => push_gouge(vertices, plate, decal, opacity),
         }
@@ -263,41 +263,6 @@ pub(super) struct Plate {
 /// signature look of a shaped hole in rolled armor, readable at battle range. When the decal
 /// carries a conformal patch (protocol phase 2) the hard hole is drawn WRAPPED to the casting
 /// instead of as a flat stamp; the soft halo and streaks stay flat (they read fine flat).
-fn push_penetration(
-    vertices: &mut Vec<FxVertex>,
-    plate: Plate,
-    decal: &HitDecal,
-    opacity: f32,
-    origin: Vec3,
-    basis: Mat3,
-) {
-    let r = decal.radius;
-    push_stamp(vertices, plate, r * 2.6, r * 2.6, 0.9, premul([0.05, 0.04, 0.035], 0.45 * opacity));
-    let hole = premul([0.012, 0.011, 0.010], 0.95 * opacity);
-    match &decal.patch {
-        Some(patch) if !patch.is_empty() => {
-            push_conformal_hole(vertices, patch, origin, basis, hole)
-        }
-        _ => push_stamp(vertices, plate, r, r, 6.0, hole),
-    }
-    for (angle, length) in splash_angles(decal.local_position) {
-        let direction = plate.u * angle.cos() + plate.v * angle.sin();
-        let streak = Plate {
-            center: plate.center + direction * (r * 0.7 + length * 0.5),
-            u: direction,
-            v: plate.v.cross(plate.u).cross(direction).normalize_or_zero(),
-        };
-        push_stamp(
-            vertices,
-            streak,
-            length * 0.5,
-            r * 0.14,
-            2.5,
-            premul([0.42, 0.41, 0.38], 0.55 * opacity),
-        );
-    }
-}
-
 /// A non-penetrating smack: a soft smudge of scorched paint around a smaller bared-metal core.
 fn push_scuff(vertices: &mut Vec<FxVertex>, plate: Plate, decal: &HitDecal, opacity: f32) {
     let r = decal.radius;
@@ -315,19 +280,6 @@ fn push_gouge(vertices: &mut Vec<FxVertex>, plate: Plate, decal: &HitDecal, opac
 /// Draw the hard entry hole as a conformal patch: the clipped mesh triangles (local frame) posed
 /// into the world, each vertex carrying its decal-plane UV so the FX pass does the same radial
 /// falloff a flat stamp would — but now wrapped to the casting instead of hovering across it.
-fn push_conformal_hole(
-    vertices: &mut Vec<FxVertex>,
-    patch: &DecalPatch,
-    origin: Vec3,
-    basis: Mat3,
-    color: [f32; 4],
-) {
-    for (local, uv) in patch.positions.iter().zip(&patch.uvs) {
-        let world = origin + basis * *local;
-        vertices.push(FxVertex::sharp(world.to_array(), [uv.x, uv.y], 6.0, color));
-    }
-}
-
 /// One oriented quad on the plate with half-extents along its axes and an edge sharpness.
 pub(super) fn push_stamp(
     vertices: &mut Vec<FxVertex>,
@@ -345,23 +297,6 @@ pub(super) fn push_stamp(
 
 /// Deterministic splash-streak fan for one hole: angles and lengths hashed from the decal's
 /// local position, so every hole looks individual yet renders identically every frame.
-fn splash_angles(local_position: [f32; 3]) -> [(f32, f32); 5] {
-    let mut seed = local_position.iter().fold(0x9E37_79B9_7F4A_7C15_u64, |acc, component| {
-        acc.wrapping_mul(31).wrapping_add(u64::from(component.to_bits()))
-    });
-    let mut next = || {
-        seed = (seed ^ (seed >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-        ((seed >> 40) as f32) / ((1u64 << 24) as f32)
-    };
-    let mut fan = [(0.0, 0.0); 5];
-    for (index, slot) in fan.iter_mut().enumerate() {
-        let angle = index as f32 / 5.0 * std::f32::consts::TAU + next() * 0.9;
-        let length = 0.14 + next() * 0.16;
-        *slot = (angle, length);
-    }
-    fan
-}
-
 pub(super) fn premul(tone: [f32; 3], alpha: f32) -> [f32; 4] {
     [tone[0] * alpha, tone[1] * alpha, tone[2] * alpha, alpha]
 }
@@ -430,7 +365,7 @@ mod tests {
     }
 
     #[test]
-    fn a_decal_round_trips_ingest_and_render_back_to_the_hit_point() {
+    fn a_penetration_decal_never_draws_a_fake_disk_or_starburst() {
         let tank = target(0.7, 0.0);
         let hit = Vec3::new(41.5, 2.8, 61.0);
         let decal =
@@ -439,21 +374,7 @@ mod tests {
 
         let mut vertices = Vec::new();
         append_decal_quads(&mut vertices, &[decal], &tank);
-        // A penetration is layered: scorch halo + hard hole + 5 splash streaks, 6 verts each.
-        assert_eq!(vertices.len(), 7 * 6);
-        // The HARD-EDGED hole stamp (the sharpest layer) must sit exactly on the hit point.
-        let hole: Vec<Vec3> = vertices
-            .iter()
-            .filter(|vertex| vertex.sharpness >= 5.0)
-            .map(|vertex| Vec3::from_array(vertex.position))
-            .collect();
-        assert_eq!(hole.len(), 6, "exactly one hard hole stamp");
-        let center: Vec3 = hole.iter().copied().sum::<Vec3>() / 6.0;
-        assert!(
-            center.distance(hit) < DECAL_LIFT_M + 0.02,
-            "the hole sits on the hit point (plus its z-fight lift), got {}",
-            center.distance(hit)
-        );
+        assert!(vertices.is_empty(), "the aperture and rim own penetration presentation");
     }
 
     #[test]

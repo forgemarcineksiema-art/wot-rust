@@ -51,6 +51,7 @@ Every phase preserves these; a phase that cannot is redesigned, not excused.
 | 5 | Wreck deformation | runtime `deform`-kernel dents on per-instance wreck meshes at death; ricochet spark streaks | — | planned |
 | 6 | Destructible cover | `CoverView` + `cover_states` (Intact/Rubble/Gone): HE and ramming destroy fences/tree-line segments and pound farm buildings into rubble; shell trace, movement, and spotting LOS all follow the state | v21 | planned |
 | 7 | Honest Steel T-54 | bounded persistent armor channels, multi-module interior path, pose-aware mantlet scars, engine fire and authored thrown-track gap | v25 | implemented |
+| 8 | Real perforations | fleet-wide reusable apertures, v26 contours, analytic color/depth/shadow cut, T-54 interior lighting and local CPU remesh | v26 | in progress |
 
 Sequencing: 0 → 1 → {2, 3 in either order} → 4 → {5, 6 in parallel}.
 
@@ -62,18 +63,29 @@ Sequencing: 0 → 1 → {2, 3 in either order} → 4 → {5, 6 in parallel}.
 | v20 | 4 | `TankSnapshot` += `wreck_state: u8`; shell trace skips a detached turret |
 | v21 | 6 | `Snapshot` += `cover_states`; destructible cover truth |
 | v25 | 7 | `TankSnapshot` += `armor_breaches`, `track_break_t`, `engine_fire`; `DamageEvent` += module hit/destroy masks |
+| v26 | 8 | Ammo-specific aperture contours, no-eviction merge policy, ingress/egress identity and deterministic thermal age |
 
 ## Honest Steel T-54 contract
 
-- `ArmorBreachSet` is authoritative, replay-stable, capped at 12 merged channels, and exists only
-  on the individual tank state; the shared production mesh is never mutated.
+- `ArmorBreachSet` is authoritative and replay-stable for every vehicle. Its 12 reusable aperture
+  groups never evict old steel; nearby hits union as lobes and distant overflow becomes a scar.
+  State exists only on the individual tank; shared production meshes are never mutated.
 - A channel owns its semantic surface, armor material and `Hull` / `Turret` / `Mantlet` pose frame.
-  The client cuts a per-instance skin and builds the exposed steel tunnel; the server analytically
-  admits a later projectile only when its full physical radius clears the aperture.
+  T-54 presentation cuts the same contour analytically in color, depth and shadow passes. Its
+  per-instance worker replaces the affected LOD0 patch and merges a paint-bearing torn lip plus a
+  dedicated exposed-steel section/tunnel into the damaged skin. The server admits a later
+  projectile only when its complete physical cross-section clears the irregular union.
 - T-54 module damage resolves along the complete internal segment, nearest first, consuming the
   residual penetration budget. The former upper-glacis-to-gun shortcut is removed.
 - A freshly thrown track records its normalized belt-path location. Presentation omits five links
   around it; crew re-seat clears the gap in the same tick that restores the track pool.
+
+Phase 8 is intentionally landing as reviewable slices. Fleet physics, v26 state, analytical
+clipping, detailed component traces, aperture-only interior light and the bounded remesh worker are
+implemented. The mandatory final slices remain the grouped cross-frame remesh cases, measured
+worker/upload budgets, the audited museum-reference detail pass, damaged/burning interior variants,
+audio and the final showcase gate. T-55 receives only the fleet physics contract; it never inherits
+the T-54 mesh or interior.
 
 Each bump follows the established procedure (`docs/testing-and-regression.md`): append-only
 fields, regenerated `crates/runtime/net/tests/snapshots/*_vNN.hex` fixtures, old-version
@@ -91,6 +103,8 @@ rejection tests kept.
   the worst-case vertex count of every capped FX pool (particles, terrain scars, tank
   decals). Phases that add stamps or raise caps must update the locked number in the same
   diff — the laptop target (integrated GPUs) is the reference machine.
+  Protocol v26 removes penetration-hole quads completely: analytical apertures plus exposed
+  rim geometry replace the black disk and streak fan, reducing the locked cap to 18,432.
 
 ## Known risks
 

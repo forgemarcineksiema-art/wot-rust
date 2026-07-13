@@ -201,7 +201,7 @@ impl SimulationState {
         cover: &[StaticCoverObject],
     ) {
         let dt = timestep.dt_seconds();
-        let context = CombatTickContext { dt_seconds: dt, water: self.water };
+        let context = CombatTickContext { dt_seconds: dt, tick: self.tick, water: self.water };
         self.damage_events.clear();
         self.shell_impacts.clear();
         // Keep the cover states aligned with the map's cover (rebuilt only when the count changes,

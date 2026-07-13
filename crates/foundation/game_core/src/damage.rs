@@ -111,4 +111,9 @@ pub struct DamageEvent {
     /// Subset of `damaged_modules_mask` that crossed to zero on this impact (protocol v25).
     #[serde(default)]
     pub destroyed_modules_mask: u8,
+    /// Stable physical components touched by the direct path or its deterministic spall cone
+    /// (protocol v26). Bit `n` represents `DamageComponentId(n + 1)`; legacy ModuleSlot masks
+    /// remain the HUD/repair compatibility layer.
+    #[serde(default)]
+    pub damaged_components_mask: u16,
 }

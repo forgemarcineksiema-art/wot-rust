@@ -32,7 +32,12 @@ fn t54_turret_has_the_flat_pancake_profile_of_the_1951_casting() {
     // The pancake profile is a property of the cast shell up to the roof — measure that band, not the
     // proud roof fittings (cupola, DShK pedestal, periscopes) that legitimately stand above it.
     let (mut min_x, mut max_x, mut min_y, mut max_y) = (f32::MAX, f32::MIN, f32::MAX, f32::MIN);
-    for v in turret.mesh.vertices().iter().filter(|v| v.position.y <= roof_y + 0.02) {
+    for v in turret
+        .mesh
+        .vertices()
+        .iter()
+        .filter(|v| v.material == MaterialRole::CastArmor && v.position.y <= roof_y + 0.02)
+    {
         min_x = min_x.min(v.position.x);
         max_x = max_x.max(v.position.x);
         min_y = min_y.min(v.position.y);

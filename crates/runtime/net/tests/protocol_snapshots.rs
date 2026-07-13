@@ -11,7 +11,7 @@ use sim::TankCommand;
 use terrain::MapId;
 
 #[test]
-fn input_command_wire_snapshot_v25_is_stable() {
+fn input_command_wire_snapshot_v26_is_stable() {
     let message = ProtocolMessage::Input(ClientInputCommand {
         client_tick: 7,
         tank_id: TankId(42),
@@ -28,13 +28,13 @@ fn input_command_wire_snapshot_v25_is_stable() {
 
     let bytes = encode_message(&message).expect("message should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 25);
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "input_command_v25"));
+    assert_eq!(PROTOCOL_VERSION, 26);
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "input_command_v26"));
     assert_eq!(decode_message(&bytes).expect("message should decode"), message);
 }
 
 #[test]
-fn vehicle_selection_wire_snapshot_v25_is_stable() {
+fn vehicle_selection_wire_snapshot_v26_is_stable() {
     let message = ProtocolMessage::VehicleSelection(ClientVehicleSelection {
         client_tick: 11,
         requested_vehicle: VehicleKind::PantherII,
@@ -42,36 +42,36 @@ fn vehicle_selection_wire_snapshot_v25_is_stable() {
 
     let bytes = encode_message(&message).expect("vehicle selection should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 25);
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "vehicle_selection_v25"));
+    assert_eq!(PROTOCOL_VERSION, 26);
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "vehicle_selection_v26"));
     assert_eq!(decode_message(&bytes).expect("message should decode"), message);
 }
 
 #[test]
-fn tank_snapshot_wire_v25_is_stable() {
+fn tank_snapshot_wire_v26_is_stable() {
     // Locks the v19 raw payload layout; transport framing is covered separately.
     let message = ProtocolMessage::Snapshot(tank_snapshot_message());
 
     let bytes = encode_message(&message).expect("snapshot should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 25);
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_tank_v25"));
+    assert_eq!(PROTOCOL_VERSION, 26);
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_tank_v26"));
     assert_eq!(decode_message(&bytes).expect("snapshot should decode"), message);
 }
 
 #[test]
-fn combat_snapshot_wire_v25_is_stable() {
+fn combat_snapshot_wire_v26_is_stable() {
     let message = ProtocolMessage::Snapshot(combat_snapshot_message());
 
     let bytes = encode_message(&message).expect("snapshot should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 25);
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_combat_v25"));
+    assert_eq!(PROTOCOL_VERSION, 26);
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_combat_v26"));
     assert_eq!(decode_message(&bytes).expect("snapshot should decode"), message);
 }
 
 #[test]
-fn server_hello_wire_snapshot_v25_is_stable() {
+fn server_hello_wire_snapshot_v26_is_stable() {
     let message = ProtocolMessage::ServerHello {
         protocol_version: PROTOCOL_VERSION,
         map_id: MapId::ProkhorovkaHill252_2,
@@ -82,8 +82,8 @@ fn server_hello_wire_snapshot_v25_is_stable() {
 
     let bytes = encode_message(&message).expect("server hello should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 25);
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "server_hello_v25"));
+    assert_eq!(PROTOCOL_VERSION, 26);
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "server_hello_v26"));
     assert_eq!(decode_message(&bytes).expect("server hello should decode"), message);
 }
 
@@ -150,7 +150,7 @@ pub fn combat_snapshot_message() -> Snapshot {
             ammo_counts: game_core::AmmoLoadout::default().counts,
             selected_ammo: 0,
             spotted_by_teams_mask: 0,
-            armor_breaches: Default::default(),
+            armor_breaches: sample_breach_set(),
             track_break_t: [None, None],
             engine_fire: false,
         }],
@@ -192,6 +192,41 @@ pub fn combat_snapshot_message() -> Snapshot {
         // v21: a rubble mound + a cleared object, so the new cover-state bytes are locked.
         cover_states: vec![1, 2],
     }
+}
+
+fn sample_breach_set() -> game_core::ArmorBreachSet {
+    let mut set = game_core::ArmorBreachSet::default();
+    let frame = game_core::ArmorFrame::Turret;
+    let zone = game_core::ArmorZone::TurretFront;
+    let lobe = game_core::ApertureLobe {
+        entry_local: Vec3::new(0.2, 1.8, 0.9),
+        exit_local: Vec3::new(0.2, 1.78, 0.68),
+        entry_normal_local: Vec3::new(0.0, 0.1, 0.995).normalize(),
+        exit_normal_local: Vec3::new(0.0, -0.1, -0.995).normalize(),
+        direction_local: Vec3::NEG_Z,
+        thickness_m: 0.22,
+        outer: game_core::BreachContour::new(0.07, 0.052, 0.4, 0.12),
+        inner: game_core::BreachContour::new(0.105, 0.08, 0.57, 0.16),
+        fracture_seed: 0x1234_5678_9abc_def0,
+    };
+    set.add(game_core::ArmorBreach::new(
+        game_core::ArmorBreachDescriptor {
+            breach_id: 0x1020_3040_5060_7080,
+            surface: game_core::ArmorSurfaceId::new(frame, zone),
+            frame,
+            zone,
+            material: game_core::ArmorMaterial::CastSteel,
+            face: game_core::BreachFace::Ingress,
+            shell_type: game_core::ShellType::Apcr,
+            created_tick: 321,
+            impact_angle_degrees: 28.0,
+            impact_energy_kj: 1_420.0,
+            projectile_diameter_m: 0.1,
+            residual_penetration_mm: 96.0,
+        },
+        lobe,
+    ));
+    set
 }
 
 /// The golden wire fixture for `name`. Set `REGEN_WIRE_FIXTURES=1` while running these tests to

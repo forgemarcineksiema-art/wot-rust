@@ -46,7 +46,7 @@ impl TerrainScars {
         let scar = TerrainScar {
             center,
             normal: terrain_normal(heightmap, impact.x, impact.z, ground_y),
-            radius_m: 0.5 + hash_unit(&mut seed) * 0.3,
+            radius_m: 0.5 + game_core::math::next_hash_unit(&mut seed) * 0.3,
             age_s: 0.0,
         };
         if self.scars.len() < MAX_TERRAIN_SCARS {
@@ -107,7 +107,7 @@ fn push_crater(vertices: &mut Vec<FxVertex>, scar: &TerrainScar, opacity: f32) {
     let v = normal.cross(u);
     // A hashed in-plane twist so a line of craters does not share one orientation.
     let mut seed = seed_from(scar.center);
-    let twist = hash_unit(&mut seed) * std::f32::consts::TAU;
+    let twist = game_core::math::next_hash_unit(&mut seed) * std::f32::consts::TAU;
     let (sin, cos) = twist.sin_cos();
     let plate = Plate {
         center: scar.center + normal * GROUND_LIFT_M,
@@ -125,8 +125,9 @@ fn push_crater(vertices: &mut Vec<FxVertex>, scar: &TerrainScar, opacity: f32) {
     );
     push_stamp(vertices, plate, r, r, 4.0, premul([0.040, 0.032, 0.022], 0.85 * opacity));
     for ray in 0..EJECTA_RAYS {
-        let angle = ray as f32 / EJECTA_RAYS as f32 * std::f32::consts::TAU + hash_unit(&mut seed);
-        let length = r * (1.1 + hash_unit(&mut seed) * 0.8);
+        let angle = ray as f32 / EJECTA_RAYS as f32 * std::f32::consts::TAU
+            + game_core::math::next_hash_unit(&mut seed);
+        let length = r * (1.1 + game_core::math::next_hash_unit(&mut seed) * 0.8);
         let direction = plate.u * angle.cos() + plate.v * angle.sin();
         let streak = Plate {
             center: plate.center + direction * (r * 0.8 + length * 0.5),
@@ -162,11 +163,6 @@ fn seed_from(position: Vec3) -> u64 {
 }
 
 /// One splitmix64 step mapped to `[0, 1)` — the FX family's shared generator.
-fn hash_unit(seed: &mut u64) -> f32 {
-    *seed = (*seed ^ (*seed >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-    ((*seed >> 40) as f32) / ((1u64 << 24) as f32)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

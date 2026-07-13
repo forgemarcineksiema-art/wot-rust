@@ -42,7 +42,7 @@ pub use rain_pipeline::rain_shader_source;
 pub use readback_queue::{GpuReadbackQueue, ReadbackRequest, ReadbackRequestId, ReadbackResult};
 pub use render_frame_batch::{RenderFrameBatchPlan, RenderObjectDraw};
 pub use renderer::WgpuRenderer;
-pub use scene_pipeline::scene_shader_source;
+pub use scene_pipeline::{build_camera_bind_group_layout, scene_shader_source};
 pub use scene_renderer::SceneRenderer;
 pub use scene_renderer::env_group::build_shadow_bind_group_layout;
 pub use scene_renderer::shadow::shadow_shader_source;

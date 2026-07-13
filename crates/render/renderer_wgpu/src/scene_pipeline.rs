@@ -112,19 +112,7 @@ pub(crate) fn build_scene_pipeline(
         label: Some("scene_shader"),
         source: wgpu::ShaderSource::Wgsl(scene_shader_source().into()),
     });
-    let camera_bgl = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-        label: Some("scene_camera_bgl"),
-        entries: &[wgpu::BindGroupLayoutEntry {
-            binding: 0,
-            visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-            ty: wgpu::BindingType::Buffer {
-                ty: wgpu::BufferBindingType::Uniform,
-                has_dynamic_offset: false,
-                min_binding_size: None,
-            },
-            count: None,
-        }],
-    });
+    let camera_bgl = build_camera_bind_group_layout(device);
     let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("scene_pipeline_layout"),
         // Group 1 is empty for the scene pipeline (no per-draw material); the shadow map sits at
@@ -180,4 +168,24 @@ pub(crate) fn build_scene_pipeline(
         cache: None,
     });
     (pipeline, camera_bgl)
+}
+
+pub fn build_camera_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
+    device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        label: Some("scene_camera_bgl"),
+        entries: &[
+            wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            },
+            crate::scene_renderer::armor_damage::storage_layout_entries()[0],
+            crate::scene_renderer::armor_damage::storage_layout_entries()[1],
+        ],
+    })
 }

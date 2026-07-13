@@ -11,27 +11,52 @@ struct VsIn {
     @location(7) model_1: vec4<f32>,
     @location(8) model_2: vec4<f32>,
     @location(9) model_3: vec4<f32>,
+    @location(13) damage_index: u32,
 };
 
+struct VsDepthOut {
+    @builtin(position) clip: vec4<f32>,
+    @location(0) world_pos: vec3<f32>,
+    @location(1) @interpolate(flat) damage_index: u32,
+};
+
+fn depth_out(clip: vec4<f32>, world_pos: vec3<f32>, damage_index: u32) -> VsDepthOut {
+    var out: VsDepthOut;
+    out.clip = clip;
+    out.world_pos = world_pos;
+    out.damage_index = damage_index;
+    return out;
+}
+
 @vertex
-fn vs_main(input: VsIn) -> @builtin(position) vec4<f32> {
+fn vs_main(input: VsIn) -> VsDepthOut {
     let model = mat4x4<f32>(input.model_0, input.model_1, input.model_2, input.model_3);
-    return camera.light_view_proj * model * vec4<f32>(input.position, 1.0);
+    let world = model * vec4<f32>(input.position, 1.0);
+    return depth_out(camera.light_view_proj * world, world.xyz, input.damage_index);
 }
 
 // The far-cascade occluder pass: same inputs, transformed by the far cascade's light matrix.
 // Only terrain and static/dynamic scene geometry run through it — at the far map's ~0.56 m
 // texels a vehicle's shadow does not resolve, so the fleet stays out of this pass.
 @vertex
-fn vs_far(input: VsIn) -> @builtin(position) vec4<f32> {
+fn vs_far(input: VsIn) -> VsDepthOut {
     let model = mat4x4<f32>(input.model_0, input.model_1, input.model_2, input.model_3);
-    return camera.light_view_proj_far * model * vec4<f32>(input.position, 1.0);
+    let world = model * vec4<f32>(input.position, 1.0);
+    return depth_out(camera.light_view_proj_far * world, world.xyz, input.damage_index);
 }
 
 // Camera depth prepass for SSAO: same inputs, but transformed by the CAMERA view-projection into
 // the screen-sized depth texture the SSAO pass reads.
 @vertex
-fn vs_prepass(input: VsIn) -> @builtin(position) vec4<f32> {
+fn vs_prepass(input: VsIn) -> VsDepthOut {
     let model = mat4x4<f32>(input.model_0, input.model_1, input.model_2, input.model_3);
-    return camera.view_proj * model * vec4<f32>(input.position, 1.0);
+    let world = model * vec4<f32>(input.position, 1.0);
+    return depth_out(camera.view_proj * world, world.xyz, input.damage_index);
+}
+
+@fragment
+fn fs_depth(input: VsDepthOut) {
+    if (armor_fragment_is_cut(input.world_pos, input.damage_index)) {
+        discard;
+    }
 }

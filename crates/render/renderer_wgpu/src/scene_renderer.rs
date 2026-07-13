@@ -1,3 +1,4 @@
+pub(crate) mod armor_damage;
 mod bloom;
 mod buffers;
 mod draw;
@@ -44,6 +45,7 @@ pub struct SceneRenderer {
     pipeline: wgpu::RenderPipeline,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
+    armor_damage: armor_damage::ArmorDamageBuffers,
     terrain_vertices: wgpu::Buffer,
     terrain_indices: wgpu::Buffer,
     terrain_index_count: u32,
@@ -181,8 +183,8 @@ impl SceneRenderer {
             sample_count,
             &camera_bgl,
         );
-        let (vehicle_pipeline, vehicle_camera_bgl, vehicle_material_bgl) =
-            build_vehicle_pipeline(device, hdr_format, sample_count, &shadow_bgl);
+        let (vehicle_pipeline, vehicle_material_bgl) =
+            build_vehicle_pipeline(device, hdr_format, sample_count, &shadow_bgl, &camera_bgl);
         // Adapter class + WOT_* env overrides become the frame's lighting quality in one place.
         let lighting_quality = quality::apply_refraction_override(
             quality::resolve_lighting_quality_with_bloom(
@@ -211,21 +213,36 @@ impl SceneRenderer {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
+        let armor_damage = armor_damage::ArmorDamageBuffers::new(device);
         let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("scene_camera_bg"),
             layout: &camera_bgl,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: camera_buffer.as_entire_binding(),
-            }],
+            entries: &[
+                wgpu::BindGroupEntry { binding: 0, resource: camera_buffer.as_entire_binding() },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: armor_damage.headers.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: armor_damage.apertures.as_entire_binding(),
+                },
+            ],
         });
         let vehicle_camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("vehicle_camera_bg"),
-            layout: &vehicle_camera_bgl,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: camera_buffer.as_entire_binding(),
-            }],
+            layout: &camera_bgl,
+            entries: &[
+                wgpu::BindGroupEntry { binding: 0, resource: camera_buffer.as_entire_binding() },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: armor_damage.headers.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: armor_damage.apertures.as_entire_binding(),
+                },
+            ],
         });
 
         let (chunked_indices, terrain_chunks) =
@@ -253,6 +270,7 @@ impl SceneRenderer {
             pipeline,
             camera_buffer,
             camera_bind_group,
+            armor_damage,
             terrain_vertices: buffers.terrain_vertices,
             terrain_indices: buffers.terrain_indices,
             terrain_index_count: chunked_indices.len() as u32,

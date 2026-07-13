@@ -53,6 +53,7 @@ fn scene_renderer_draws_registered_mesh_from_render_frame_transform() {
                 transform: identity(),
                 tint: [1.0, 1.0, 1.0],
             }],
+            armor_damage: Vec::new(),
         },
     );
     renderer

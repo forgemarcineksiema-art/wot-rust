@@ -5,7 +5,7 @@ use glam::Vec3;
 use sim::{FixedTimestep, SimulationState, TankCommand};
 
 #[test]
-fn penetrating_front_hit_follows_the_internal_path_instead_of_magic_gun_mapping() {
+fn penetrating_centerline_hit_passes_between_racks_and_reaches_the_engine() {
     let mut state = SimulationState::new();
     let shooter = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::ZERO);
     let target = state.spawn_tank(TeamId(2), TankSpec::t54_1951(), Vec3::new(0.0, 0.0, 55.0));
@@ -20,15 +20,17 @@ fn penetrating_front_hit_follows_the_internal_path_instead_of_magic_gun_mapping(
         shooter.spec.gun.dispersion_mrad = 0.0;
     }
     let ammo_hp_before = module_hp(&state, target, ModuleSlot::AmmoRack);
+    let engine_hp_before = module_hp(&state, target, ModuleSlot::Engine);
     let gun_hp_before = module_hp(&state, target, ModuleSlot::Gun);
 
     run_until_shell_resolved(&mut state, shooter);
 
     let event = state.damage_events().last().expect("penetrating hit event");
     assert!(event.penetrated);
-    assert_eq!(event.module, Some(ModuleSlot::AmmoRack));
+    assert_eq!(event.module, Some(ModuleSlot::Engine));
     assert_eq!(event.cause, DamageCause::Shell);
-    assert!(module_hp(&state, target, ModuleSlot::AmmoRack) < ammo_hp_before);
+    assert!(module_hp(&state, target, ModuleSlot::Engine) < engine_hp_before);
+    assert_eq!(module_hp(&state, target, ModuleSlot::AmmoRack), ammo_hp_before);
     assert_eq!(module_hp(&state, target, ModuleSlot::Gun), gun_hp_before);
 }
 

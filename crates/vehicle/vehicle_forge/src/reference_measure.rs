@@ -1,8 +1,8 @@
 use glam::Mat4;
 use vehicle_geometry::{
-    BakedVehicle, GearPart, GeometryMesh, MeshBounds, RunningGearKinematics, SubmeshKind,
-    idler_unit_mesh, road_wheel_unit_mesh, running_gear_placements, sprocket_unit_mesh,
-    track_link_unit_mesh,
+    BakedVehicle, GearPart, GeometryMesh, MaterialRole, MeshBounds, RunningGearKinematics,
+    SubmeshKind, idler_unit_mesh, road_wheel_unit_mesh, running_gear_placements,
+    sprocket_unit_mesh, track_link_unit_mesh,
 };
 
 use crate::{MeasuredRatio, RatioKind, RatioReport, ReferencePack};
@@ -41,7 +41,25 @@ fn measure(pack: &ReferencePack, kind: RatioKind, measured: f32) -> Option<Measu
 }
 
 fn submesh_bounds(vehicle: &BakedVehicle, kind: SubmeshKind) -> Option<MeshBounds> {
-    vehicle.submesh(kind)?.mesh.bounds()
+    exterior_bounds(&vehicle.submesh(kind)?.mesh)
+}
+
+fn exterior_bounds(mesh: &GeometryMesh) -> Option<MeshBounds> {
+    let mut bounds: Option<MeshBounds> = None;
+    for vertex in mesh.vertices().iter().filter(|vertex| is_exterior(vertex.material)) {
+        match &mut bounds {
+            Some(existing) => existing.include(vertex.position),
+            None => bounds = Some(MeshBounds::from_point(vertex.position)),
+        }
+    }
+    bounds
+}
+
+fn is_exterior(material: MaterialRole) -> bool {
+    !matches!(
+        material,
+        MaterialRole::InteriorPrimer | MaterialRole::InteriorMachinery | MaterialRole::Ammunition
+    )
 }
 
 fn visual_hull_bounds(vehicle: &BakedVehicle) -> Option<MeshBounds> {

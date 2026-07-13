@@ -71,6 +71,7 @@ impl super::SceneRenderer {
     /// See [`Self::set_render_frame`]: truncate-and-warn, never a silent whole-frame drop — that
     /// is exactly the failure that froze every tank on screen once a 7v7 exceeded the old budget.
     pub fn set_vehicle_render_frame(&mut self, ctx: &GpuContext, frame: &RenderFrame) {
+        self.armor_damage.upload(ctx, &frame.armor_damage);
         let (mut instances, mut draws) = frame_instances(frame);
         let capacity = buffer_instance_capacity(&self.vehicle_instances);
         if clip_instances_to_capacity(&mut instances, &mut draws, capacity) {

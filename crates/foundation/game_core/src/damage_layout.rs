@@ -3,36 +3,100 @@ use serde::{Deserialize, Serialize};
 
 use crate::{HitboxProfile, ModuleSlot, VehicleKind};
 
-/// A deterministic, vehicle-authored module volume in tank-local coordinates.
+mod intersections;
+mod t54;
+
+/// Stable identity of one physical component. It is intentionally separate from [`ModuleSlot`]:
+/// several real objects (two fuel tanks, recoil cylinders, final drives) may feed one existing
+/// HUD/repair slot without becoming one imaginary box.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct DamageComponentId(pub u16);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum DamageComponentKind {
+    Breech,
+    RecoilMechanism,
+    TurretDrive,
+    AmmunitionRack,
+    Radio,
+    FuelTank,
+    Engine,
+    Transmission,
+    FinalDrive,
+    Suspension,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DamageMaterial {
+    Machinery,
+    Ammunition,
+    Fuel,
+    Electronics,
+    Driveline,
+    SuspensionSteel,
+}
+
+impl DamageMaterial {
+    pub fn resistance_mm(self, path_length_m: f32) -> f32 {
+        let (base, per_meter) = match self {
+            Self::Machinery => (9.0, 30.0),
+            Self::Ammunition => (5.0, 18.0),
+            Self::Fuel => (2.0, 8.0),
+            Self::Electronics => (2.0, 10.0),
+            Self::Driveline => (12.0, 40.0),
+            Self::SuspensionSteel => (10.0, 34.0),
+        };
+        base + path_length_m.max(0.0) * per_meter
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-pub struct ModuleVolume {
+pub struct DamagePlane {
+    /// Interior is `normal.dot(point) <= offset`.
+    pub normal: Vec3,
+    pub offset: f32,
+}
+
+/// Authored primitive in centered tank-local coordinates. These are real narrow-phase shapes,
+/// not AABBs with nicer names.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum DamageShape {
+    Obb { center: Vec3, half_extents: Vec3, yaw_rad: f32 },
+    Cylinder { center: Vec3, axis: Vec3, half_length: f32, radius: f32 },
+    Capsule { a: Vec3, b: Vec3, radius: f32 },
+    Convex { planes: Vec<DamagePlane>, bounds_min: Vec3, bounds_max: Vec3 },
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DamageComponent {
+    pub id: DamageComponentId,
+    pub kind: DamageComponentKind,
     pub slot: ModuleSlot,
-    pub min: Vec3,
-    pub max: Vec3,
+    pub material: DamageMaterial,
+    pub shape: DamageShape,
     pub priority: u8,
     pub requires_penetration: bool,
+    /// Component-local damage multiplier; keeps a small radio distinct from the engine block.
+    pub vulnerability: f32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ModuleIntersection {
+    pub component_id: DamageComponentId,
+    pub kind: DamageComponentKind,
     pub slot: ModuleSlot,
+    pub material: DamageMaterial,
     pub distance_t: f32,
     pub path_length_m: f32,
     pub priority: u8,
+    pub vulnerability: f32,
 }
 
-impl ModuleVolume {
-    pub fn contains(self, point: Vec3) -> bool {
-        const BOUNDARY_EPSILON_M: f32 = 1.0e-4;
-        let epsilon = Vec3::splat(BOUNDARY_EPSILON_M);
-        point.cmpge(self.min - epsilon).all() && point.cmple(self.max + epsilon).all()
-    }
-}
-
-/// Gameplay-owned layout mapping local hit positions to installed vehicle modules.
+/// Gameplay-owned component layout. Visual interiors consume the same transforms through
+/// `components()`; Forge validates them but never invents gameplay placement.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct DamageLayout {
-    volumes: Vec<ModuleVolume>,
+    components: Vec<DamageComponent>,
 }
 
 impl DamageLayout {
@@ -44,92 +108,51 @@ impl DamageLayout {
     }
 
     pub fn t54_1951() -> Self {
-        Self {
-            volumes: vec![
-                ModuleVolume {
-                    slot: ModuleSlot::Gun,
-                    min: Vec3::new(-0.46, 0.42, 0.48),
-                    max: Vec3::new(0.46, 1.08, 1.28),
-                    priority: 30,
-                    requires_penetration: true,
-                },
-                ModuleVolume {
-                    slot: ModuleSlot::AmmoRack,
-                    min: Vec3::new(-0.92, -0.48, -0.92),
-                    max: Vec3::new(0.92, 0.58, 0.08),
-                    priority: 20,
-                    requires_penetration: true,
-                },
-                ModuleVolume {
-                    slot: ModuleSlot::Engine,
-                    min: Vec3::new(-1.22, -0.55, -2.60),
-                    max: Vec3::new(1.22, 0.64, -1.18),
-                    priority: 20,
-                    requires_penetration: true,
-                },
-                ModuleVolume {
-                    slot: ModuleSlot::Radio,
-                    min: Vec3::new(-0.92, -0.15, 0.35),
-                    max: Vec3::new(-0.25, 0.58, 1.15),
-                    priority: 18,
-                    requires_penetration: true,
-                },
-                ModuleVolume {
-                    slot: ModuleSlot::Suspension,
-                    min: Vec3::new(-1.75, -1.16, -3.15),
-                    max: Vec3::new(1.75, -0.38, 3.15),
-                    priority: 10,
-                    requires_penetration: false,
-                },
-                ModuleVolume {
-                    slot: ModuleSlot::Turret,
-                    min: Vec3::new(-1.00, 0.65, -1.01),
-                    max: Vec3::new(1.00, 1.10, 1.09),
-                    priority: 10,
-                    requires_penetration: true,
-                },
-            ],
-        }
+        t54::layout()
     }
 
-    pub fn volumes(&self) -> &[ModuleVolume] {
-        &self.volumes
+    pub fn components(&self) -> &[DamageComponent] {
+        &self.components
     }
 
     pub fn is_empty(&self) -> bool {
-        self.volumes.is_empty()
+        self.components.is_empty()
     }
 
     pub fn impacted_module(&self, penetrated: bool, local_hit: Vec3) -> Option<ModuleSlot> {
-        self.volumes
+        self.components
             .iter()
-            .filter(|volume| {
-                (!volume.requires_penetration || penetrated) && volume.contains(local_hit)
-            })
-            .max_by_key(|volume| volume.priority)
-            .map(|volume| volume.slot)
+            .filter(|component| !component.requires_penetration || penetrated)
+            .filter(|component| component.shape.contains(local_hit))
+            .max_by_key(|component| component.priority)
+            .map(|component| component.slot)
     }
 
-    /// Intersect a complete through-flight with every authored module, nearest first.
+    /// Intersect a complete through-flight with every authored component, nearest first. Hits are
+    /// deduplicated by physical id, never by ModuleSlot: a shell may cross two racks or both a
+    /// fuel tank and the engine even though the legacy HUD groups them.
     pub fn intersections(
         &self,
         penetrated: bool,
         start: Vec3,
         end: Vec3,
     ) -> Vec<ModuleIntersection> {
-        let delta = end - start;
-        let length = delta.length();
+        let length = (end - start).length();
         let mut hits: Vec<_> = self
-            .volumes
+            .components
             .iter()
-            .filter(|volume| !volume.requires_penetration || penetrated)
-            .filter_map(|volume| {
-                segment_aabb_interval(start, end, volume.min, volume.max).map(|(enter, exit)| {
+            .filter(|component| !component.requires_penetration || penetrated)
+            .filter_map(|component| {
+                component.shape.segment_interval(start, end).map(|(enter, exit)| {
                     ModuleIntersection {
-                        slot: volume.slot,
+                        component_id: component.id,
+                        kind: component.kind,
+                        slot: component.slot,
+                        material: component.material,
                         distance_t: enter,
                         path_length_m: (exit - enter).max(0.0) * length,
-                        priority: volume.priority,
+                        priority: component.priority,
+                        vulnerability: component.vulnerability,
                     }
                 })
             })
@@ -137,41 +160,18 @@ impl DamageLayout {
         hits.sort_by(|a, b| {
             a.distance_t.total_cmp(&b.distance_t).then_with(|| b.priority.cmp(&a.priority))
         });
-        hits.dedup_by_key(|hit| hit.slot);
+        hits.dedup_by_key(|hit| hit.component_id);
         hits
     }
 
     pub fn fits_within(&self, hitbox: HitboxProfile) -> bool {
-        self.volumes.iter().all(|volume| {
-            [volume.min, volume.max].into_iter().all(|p| {
-                p.x.abs() <= hitbox.half_width_m
-                    && p.z.abs() <= hitbox.half_length_m
-                    && p.y.abs() <= hitbox.half_height_m
+        self.components.iter().all(|component| {
+            let (min, max) = component.shape.bounds();
+            [min, max].into_iter().all(|p| {
+                p.x.abs() <= hitbox.half_width_m + 1.0e-3
+                    && p.z.abs() <= hitbox.half_length_m + 1.0e-3
+                    && p.y.abs() <= hitbox.half_height_m + 1.0e-3
             })
         })
     }
-}
-
-fn segment_aabb_interval(start: Vec3, end: Vec3, min: Vec3, max: Vec3) -> Option<(f32, f32)> {
-    let delta = end - start;
-    let mut enter = 0.0_f32;
-    let mut exit = 1.0_f32;
-    for axis in 0..3 {
-        let origin = start[axis];
-        let direction = delta[axis];
-        if direction.abs() < 1.0e-7 {
-            if origin < min[axis] || origin > max[axis] {
-                return None;
-            }
-            continue;
-        }
-        let a = (min[axis] - origin) / direction;
-        let b = (max[axis] - origin) / direction;
-        enter = enter.max(a.min(b));
-        exit = exit.min(a.max(b));
-        if enter > exit {
-            return None;
-        }
-    }
-    Some((enter, exit))
 }

@@ -52,6 +52,10 @@ pub fn material_role_id(material: MaterialRole) -> u32 {
         MaterialRole::BarrelSteel => 2,
         MaterialRole::TrackMetal => 3,
         MaterialRole::Rubber => 4,
+        MaterialRole::InteriorPrimer => 5,
+        MaterialRole::InteriorMachinery => 6,
+        MaterialRole::Ammunition => 7,
+        MaterialRole::ExposedSteel => 8,
     }
 }
 
@@ -60,7 +64,13 @@ pub fn material_role_id(material: MaterialRole) -> u32 {
 fn material_tint_mask(material: MaterialRole) -> f32 {
     match material {
         MaterialRole::RolledArmor | MaterialRole::CastArmor => 1.0,
-        MaterialRole::BarrelSteel | MaterialRole::TrackMetal | MaterialRole::Rubber => 0.0,
+        MaterialRole::BarrelSteel
+        | MaterialRole::TrackMetal
+        | MaterialRole::Rubber
+        | MaterialRole::InteriorPrimer
+        | MaterialRole::InteriorMachinery
+        | MaterialRole::Ammunition
+        | MaterialRole::ExposedSteel => 0.0,
     }
 }
 
@@ -87,7 +97,7 @@ mod tests {
             assert!((t.length() - 1.0).abs() < 1.0e-3, "tangent must be unit length");
             let n = glam::Vec3::from_array(vertex.normal);
             assert!(t.dot(n).abs() < 1.0e-2, "tangent must stay orthogonal to the normal");
-            assert!(vertex.material_id <= 4);
+            assert!(vertex.material_id <= 8);
             assert!((vertex.tangent[3].abs() - 1.0).abs() < 1.0e-5, "handedness is ±1");
         }
     }

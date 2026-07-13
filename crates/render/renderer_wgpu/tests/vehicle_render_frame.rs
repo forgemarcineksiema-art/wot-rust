@@ -1,8 +1,8 @@
 use game_core::TankId;
 use renderer_api::{
-    MaterialHandle, MeshHandle, RenderFrame, RenderObject, VehicleMaterialFamilies,
-    VehicleMaterialMaps, VehicleMeshAsset, VehicleTextureMap, VehicleVertex,
-    view_projection_matrix,
+    ArmorApertureRender, ArmorDamageInstance, MaterialHandle, MeshHandle, RenderFrame,
+    RenderObject, VehicleMaterialFamilies, VehicleMaterialMaps, VehicleMeshAsset,
+    VehicleTextureMap, VehicleVertex, view_projection_matrix,
 };
 use renderer_wgpu::{GpuContext, OffscreenTarget, SceneRenderer};
 
@@ -14,6 +14,69 @@ fn headless_context() -> Option<GpuContext> {
             None
         }
     }
+}
+
+#[test]
+fn analytical_aperture_opens_the_vehicle_in_color_and_depth() {
+    let Some(ctx) = headless_context() else {
+        return;
+    };
+    let mesh = MeshHandle(92);
+    let camera = renderer_api::Camera {
+        eye: [0.0, 0.0, 3.0],
+        target: [0.0, 0.0, 0.0],
+        vertical_fov_degrees: 55.0,
+    };
+    let render = |armor_damage| {
+        let target = OffscreenTarget::new(&ctx, 64, 64).expect("target");
+        let mut renderer = SceneRenderer::for_offscreen(&ctx, &[], &[]).expect("renderer");
+        renderer.register_vehicle_mesh(&ctx, mesh, &vehicle_triangle());
+        renderer.set_vehicle_render_frame(
+            &ctx,
+            &RenderFrame {
+                camera,
+                objects: vec![RenderObject {
+                    tank_id: Some(TankId(1)),
+                    mesh,
+                    material: MaterialHandle(0),
+                    transform: identity(),
+                    tint: [0.65, 0.85, 0.52],
+                }],
+                armor_damage,
+            },
+        );
+        renderer
+            .render(
+                &ctx,
+                target.render_target(),
+                view_projection_matrix(&camera, 1.0, 0.1, 20.0),
+                camera.eye,
+            )
+            .expect("render");
+        target.read_rgba8(&ctx).expect("readback")
+    };
+    let whole = render(Vec::new());
+    let cut = render(vec![ArmorDamageInstance {
+        tank_id: TankId(1),
+        apertures: vec![ArmorApertureRender {
+            center: [0.0, 0.0, 0.0],
+            normal: [0.0, 0.0, 1.0],
+            tangent: [1.0, 0.0, 0.0],
+            major_radius_m: 0.18,
+            minor_radius_m: 0.14,
+            rotation_rad: 0.2,
+            irregularity: 0.1,
+            phase_a: 0.7,
+            phase_b: 2.1,
+            half_depth_m: 0.2,
+        }],
+    }]);
+    let center = (32 * 64 + 32) * 4;
+    assert!(
+        luma(&whole[center..center + 4]) - luma(&cut[center..center + 4]) > 10.0
+            || whole[center..center + 4] != cut[center..center + 4],
+        "the aperture must reveal the background at the triangle center"
+    );
 }
 
 #[test]
@@ -43,6 +106,7 @@ fn scene_renderer_draws_registered_vehicle_mesh_with_vehicle_pipeline() {
                 transform: identity(),
                 tint: [0.65, 0.85, 0.52],
             }],
+            armor_damage: Vec::new(),
         },
     );
     renderer
@@ -82,6 +146,7 @@ fn registered_vehicle_material_overrides_the_neutral_fallback() {
             transform: identity(),
             tint: [1.0, 1.0, 1.0],
         }],
+        armor_damage: Vec::new(),
     };
     let view_proj = view_projection_matrix(&camera, 1.0, 0.1, 20.0);
 
@@ -155,6 +220,7 @@ fn both_surface_mapping_branches_render_lit_geometry() {
                     transform: identity(),
                     tint: [0.65, 0.85, 0.52],
                 }],
+                armor_damage: Vec::new(),
             },
         );
         renderer

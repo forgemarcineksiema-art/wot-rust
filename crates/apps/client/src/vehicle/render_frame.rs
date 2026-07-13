@@ -2,7 +2,7 @@ use engine::PresentationTank;
 use game_core::TankId;
 use glam::{Mat4, Vec3};
 use net::TankSnapshot;
-use renderer_api::{RenderFrame, RenderObject};
+use renderer_api::{ArmorApertureRender, ArmorDamageInstance, RenderFrame, RenderObject};
 use terrain::HeightMap;
 use vehicle_geometry::{GearDynamics, RunningGearKinematics};
 
@@ -13,6 +13,7 @@ use crate::{VehicleAssetCatalog, VehicleMeshCatalog, tank_render_objects};
 #[derive(Debug, Clone, PartialEq)]
 pub struct VehicleRenderFrame {
     pub objects: Vec<RenderObject>,
+    pub armor_damage: Vec<ArmorDamageInstance>,
 }
 
 pub fn split_vehicle_render_frame(
@@ -33,7 +34,7 @@ pub fn split_vehicle_render_frame(
         scale_player_gun(&mut tank_objects, is_player, player_gun_scale);
         objects.append(&mut tank_objects);
     }
-    VehicleRenderFrame { objects }
+    VehicleRenderFrame { objects, armor_damage: Vec::new() }
 }
 
 pub fn split_pbr_vehicle_render_frame(
@@ -56,10 +57,14 @@ pub fn split_pbr_vehicle_render_frame_on_terrain(
     terrain: Option<&HeightMap>,
 ) -> VehicleRenderFrame {
     let mut objects = Vec::new();
+    let mut armor_damage = Vec::new();
     for tank in tanks {
         let is_player = tank.id == player_tank;
         let hull_color = if is_player { [0.30, 0.40, 0.28] } else { [0.46, 0.29, 0.25] };
         let snapshot = render_snapshot(&tank);
+        if let Some(damage) = armor_damage_instance(&snapshot) {
+            armor_damage.push(damage);
+        }
         let variation = VehicleVariation::from_snapshot(&snapshot);
         let (left_travel, right_travel, wheel_count) = wheel_travel(&tank, terrain);
         // A driven track pulls its top run tight; braking or coasting lets it hang. The gain is
@@ -93,7 +98,52 @@ pub fn split_pbr_vehicle_render_frame_on_terrain(
         scale_player_gun(&mut tank_objects, is_player, player_gun_scale);
         objects.append(&mut tank_objects);
     }
-    VehicleRenderFrame { objects }
+    VehicleRenderFrame { objects, armor_damage }
+}
+
+pub fn armor_damage_instance(snapshot: &TankSnapshot) -> Option<ArmorDamageInstance> {
+    if snapshot.vehicle != game_core::VehicleKind::T54_1951 {
+        return None;
+    }
+    let pose = super::pose::VehiclePose::from_snapshot(snapshot);
+    let mut apertures = Vec::new();
+    for breach in snapshot.armor_breaches.breaches() {
+        for lobe in breach.lobes() {
+            let (point, basis) = match breach.frame {
+                game_core::ArmorFrame::Hull => {
+                    (pose.hull_point(lobe.entry_local), pose.hull_basis())
+                }
+                game_core::ArmorFrame::Turret => {
+                    (pose.turret_point(lobe.entry_local), pose.turret_basis())
+                }
+                game_core::ArmorFrame::Mantlet => {
+                    (pose.gun_point(lobe.entry_local), pose.gun_basis())
+                }
+            };
+            let (tangent, _) =
+                game_core::armor_surface_basis(lobe.entry_normal_local, lobe.direction_local);
+            let phase_a = hash_phase(lobe.fracture_seed);
+            let phase_b = hash_phase(lobe.fracture_seed.rotate_left(29));
+            apertures.push(ArmorApertureRender {
+                center: point.to_array(),
+                normal: (basis * lobe.entry_normal_local).normalize_or_zero().to_array(),
+                tangent: (basis * tangent).normalize_or_zero().to_array(),
+                major_radius_m: lobe.outer.major_radius_m,
+                minor_radius_m: lobe.outer.minor_radius_m,
+                rotation_rad: lobe.outer.rotation_rad,
+                irregularity: lobe.outer.irregularity,
+                phase_a,
+                phase_b,
+                half_depth_m: (lobe.thickness_m + 0.025).clamp(0.04, 0.45),
+            });
+        }
+    }
+    (!apertures.is_empty()).then_some(ArmorDamageInstance { tank_id: snapshot.tank_id, apertures })
+}
+
+fn hash_phase(seed: u64) -> f32 {
+    let mixed = game_core::math::splitmix64(seed);
+    ((mixed >> 40) as f32) / ((1_u64 << 24) as f32) * std::f32::consts::TAU
 }
 
 /// Slide the gun submesh back along its own barrel axis by the live recoil stroke. Applied

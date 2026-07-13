@@ -14,7 +14,8 @@ pub use resolve::{
 };
 pub use vehicle_volumes::{VehicleArmorVolumes, vehicle_armor_volumes};
 pub use volumes::{
-    ArmorPatch, ArmorVolume, TaggedPlane, segment_volume_entry, segment_volume_entry_with_margin,
+    ArmorPatch, ArmorVolume, TaggedPlane, VolumeInterval, segment_volume_entry,
+    segment_volume_entry_with_margin, segment_volume_interval_with_margin,
 };
 pub use zone::{ArmorZone, resolve_penetration_at_distance_on_zone};
 

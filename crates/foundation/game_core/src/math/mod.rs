@@ -170,6 +170,17 @@ pub fn splitmix64(value: u64) -> u64 {
     z ^ (z >> 31)
 }
 
+/// Deterministically map a seed to `[0, 1)` using the high 24 bits of the shared mixer.
+pub fn hash_unit(value: u64) -> f32 {
+    ((splitmix64(value) >> 40) as f32) / ((1_u64 << 24) as f32)
+}
+
+/// Advance a deterministic stream and return its next unit sample.
+pub fn next_hash_unit(state: &mut u64) -> f32 {
+    *state = splitmix64(*state);
+    ((*state >> 40) as f32) / ((1_u64 << 24) as f32)
+}
+
 /// Shortest-arc interpolation between two angles, so a wrap across +/-PI does not spin the long
 /// way round between the endpoints.
 pub fn lerp_angle(a: f32, b: f32, t: f32) -> f32 {

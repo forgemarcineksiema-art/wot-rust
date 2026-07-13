@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
 
 use game_core::VehicleKind;
@@ -13,6 +13,7 @@ use vehicle_geometry::{
     road_wheel_unit_mesh, sprocket_unit_mesh, swing_arm_unit_mesh, track_link_unit_mesh,
 };
 
+use super::damage_worker::{DamageMeshJob, DamageMeshResult, DamageMeshWorker};
 use super::pbr_mesh::vehicle_submesh_vertices;
 use super::running_gear_objects::GearMeshHandles;
 
@@ -29,6 +30,8 @@ pub struct VehicleAssetCatalog {
     contact_indices: HashMap<VehicleKind, Arc<VehicleContactIndex>>,
     pending_meshes: Vec<(MeshHandle, VehicleMeshAsset)>,
     pub(crate) pending_materials: Vec<(MaterialHandle, VehicleMaterialFamilies)>,
+    damage_worker: DamageMeshWorker,
+    damage_jobs: HashSet<String>,
 }
 
 /// The hull and turret contact indices for one vehicle kind, each in its own decal-local frame
@@ -53,6 +56,28 @@ pub(crate) struct VehicleAssetEntry {
 }
 
 impl VehicleAssetCatalog {
+    /// Integrate no more than one completed worker result. Called once at the start of vehicle
+    /// object construction, bounding main-thread work and GPU uploads per frame.
+    pub(crate) fn integrate_one_damage_mesh(&mut self) {
+        if let Some(result) = self.damage_worker.try_result() {
+            self.integrate_damage_result(result);
+        }
+    }
+
+    /// Offline/showcase helper: gameplay never calls this blocking drain.
+    pub fn finish_damage_mesh_jobs(&mut self) {
+        let outstanding = self.damage_jobs.len();
+        for _ in 0..outstanding {
+            let Some(result) = self.damage_worker.wait_result() else { break };
+            self.integrate_damage_result(result);
+        }
+    }
+
+    fn integrate_damage_result(&mut self, result: DamageMeshResult) {
+        if let Some(mesh) = result.mesh {
+            self.register_named_mesh(result.label, &mesh, result.pivot);
+        }
+    }
     pub fn take_pending_vehicle_meshes(&mut self) -> Vec<(MeshHandle, VehicleMeshAsset)> {
         std::mem::take(&mut self.pending_meshes)
     }
@@ -115,6 +140,50 @@ impl VehicleAssetCatalog {
         };
         self.vehicles.insert(kind, entry);
         Some(entry)
+    }
+
+    /// Deterministic per-instance LOD0 skin with true CPU-cut topology. Analytical clipping stays
+    /// active as the immediate/far-LOD fallback and guarantees the same contour if a difficult
+    /// cast patch refuses remeshing.
+    pub(crate) fn damaged_frame_mesh(
+        &mut self,
+        kind: VehicleKind,
+        tank_id: game_core::TankId,
+        frame: game_core::ArmorFrame,
+        breaches: &game_core::ArmorBreachSet,
+    ) -> Option<MeshHandle> {
+        if kind != VehicleKind::T54_1951
+            || !breaches.breaches().iter().any(|breach| breach.frame == frame)
+        {
+            return None;
+        }
+        let hash = crate::vehicle::aperture_rim::frame_hash(breaches, frame);
+        let label =
+            format!("{}_damage_skin_{}_{}_{hash:016x}", kind.slug(), tank_id.0, frame as u8);
+        if let Some(handle) = self.mesh_labels.get(&label) {
+            return Some(*handle);
+        }
+        let baked = authoritative_baked_vehicle(kind).ok()?;
+        let submesh = match frame {
+            game_core::ArmorFrame::Hull => SubmeshKind::Hull,
+            game_core::ArmorFrame::Turret => SubmeshKind::Turret,
+            game_core::ArmorFrame::Mantlet => SubmeshKind::Gun,
+        };
+        let pivot = match frame {
+            game_core::ArmorFrame::Hull => Vec3::ZERO,
+            game_core::ArmorFrame::Turret => baked.mounts().turret_ring.translation,
+            game_core::ArmorFrame::Mantlet => baked.mounts().gun_trunnion.translation,
+        };
+        if self.damage_jobs.insert(label.clone()) {
+            self.damage_worker.schedule(DamageMeshJob {
+                label,
+                source: baked.submesh(submesh)?.mesh.clone(),
+                breaches: breaches.clone(),
+                frame,
+                pivot,
+            });
+        }
+        None
     }
 
     /// Register a per-instance DENTED hull for a wreck: the base hull deformed at its penetration

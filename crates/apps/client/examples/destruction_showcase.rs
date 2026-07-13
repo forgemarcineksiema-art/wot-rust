@@ -4,6 +4,7 @@
 //!   `_cover_wrecked.png`  — the same town after HE: rubble mounds where buildings stood, a tree
 //!                            line cleared, its trees gone with it.
 //!   `_battle_damage.png`  — a live tank pocked with penetration holes seated on the armor.
+//!   `_interior_detail.png` — a close side perforation exposing physical internal assemblies.
 //!   `_wreck.png`          — a knocked-out hull: charred, gun drooped off the aim, scarred.
 //!   `_turret_popoff.png`  — an ammo-rack kill: the turret flung off and settled beside the hull.
 //!
@@ -116,12 +117,17 @@ fn vehicle_shots(
     // Build all three object sets up front — the first call registers the T-54's meshes in the
     // catalog, so one renderer (registered once, below) serves every shot.
     let live = tank_snapshot(cx, ground, cz, 1000, 0);
+    let _ = tank_vehicle_render_objects(catalog, &live, color);
+    catalog.finish_damage_mesh_jobs();
     let live_objects = tank_vehicle_render_objects(catalog, &live, color);
+    let live_damage: Vec<renderer_api::ArmorDamageInstance> =
+        client::armor_damage_instance(&live).into_iter().collect();
     let mut live_fx = Vec::new();
     append_decal_quads(&mut live_fx, &battle_decals(&live, cx, ground, cz), &live);
 
     let wreck = tank_snapshot(cx, ground, cz, 0, gun_dead);
     let wreck_objects = tank_vehicle_render_objects(catalog, &wreck, color);
+    let wreck_damage = client::armor_damage_instance(&wreck).into_iter().collect();
     let mut wreck_fx = Vec::new();
     append_decal_quads(&mut wreck_fx, &battle_decals(&wreck, cx, ground, cz), &wreck);
 
@@ -150,12 +156,59 @@ fn vehicle_shots(
     }
 
     let close = [cx + 6.0, ground + 3.4, cz + 5.2];
+    let interior_close = [cx - 0.9, ground + 2.45, cz + 4.8];
     let wide = [cx + 7.5, ground + 3.6, cz + 6.5];
-    draw_vehicle(ctx, target, &mut renderer, live_objects, &live_fx, close, tc, width, height)?;
+    draw_vehicle(
+        ctx,
+        target,
+        &mut renderer,
+        live_objects.clone(),
+        live_damage.clone(),
+        &live_fx,
+        close,
+        tc,
+        width,
+        height,
+    )?;
     write_png(ctx, target, width, height, &format!("{prefix}_battle_damage.png"))?;
-    draw_vehicle(ctx, target, &mut renderer, wreck_objects, &wreck_fx, close, tc, width, height)?;
+    draw_vehicle(
+        ctx,
+        target,
+        &mut renderer,
+        live_objects,
+        live_damage,
+        &live_fx,
+        interior_close,
+        [cx - 0.1, ground + 1.92, cz + 0.05],
+        width,
+        height,
+    )?;
+    write_png(ctx, target, width, height, &format!("{prefix}_interior_detail.png"))?;
+    draw_vehicle(
+        ctx,
+        target,
+        &mut renderer,
+        wreck_objects,
+        wreck_damage,
+        &wreck_fx,
+        close,
+        tc,
+        width,
+        height,
+    )?;
     write_png(ctx, target, width, height, &format!("{prefix}_wreck.png"))?;
-    draw_vehicle(ctx, target, &mut renderer, popoff_objects, &[], wide, tc, width, height)?;
+    draw_vehicle(
+        ctx,
+        target,
+        &mut renderer,
+        popoff_objects,
+        Vec::new(),
+        &[],
+        wide,
+        tc,
+        width,
+        height,
+    )?;
     write_png(ctx, target, width, height, &format!("{prefix}_turret_popoff.png"))?;
     Ok(())
 }
@@ -229,10 +282,93 @@ fn tank_snapshot(
         ammo_counts: game_core::AmmoLoadout::default().counts,
         selected_ammo: 0,
         spotted_by_teams_mask: 0,
-        armor_breaches: Default::default(),
+        armor_breaches: demo_breaches(),
         track_break_t: [Some(0.62), None],
         engine_fire: false,
     }
+}
+
+fn demo_breaches() -> game_core::ArmorBreachSet {
+    let mut set = game_core::ArmorBreachSet::default();
+    for (id, frame, zone, entry, normal, direction, radii) in [
+        (
+            1,
+            game_core::ArmorFrame::Hull,
+            ArmorZone::UpperGlacis,
+            Vec3::new(0.15, 1.18, 2.70),
+            Vec3::new(0.0, 0.5, 0.866).normalize(),
+            Vec3::new(0.0, -0.5, -0.866).normalize(),
+            (0.065, 0.052),
+        ),
+        (
+            2,
+            game_core::ArmorFrame::Turret,
+            ArmorZone::TurretFront,
+            Vec3::new(-0.42, 1.86, 0.98),
+            Vec3::new(0.0, 0.35, 0.94).normalize(),
+            Vec3::new(0.0, -0.35, -0.94).normalize(),
+            (0.075, 0.055),
+        ),
+        (
+            3,
+            game_core::ArmorFrame::Hull,
+            ArmorZone::HullSide,
+            Vec3::new(-1.32, 1.12, 0.30),
+            Vec3::NEG_X,
+            Vec3::X,
+            (0.19, 0.145),
+        ),
+        (
+            4,
+            game_core::ArmorFrame::Turret,
+            ArmorZone::TurretSide,
+            Vec3::new(-0.88, 1.92, 0.08),
+            Vec3::NEG_X,
+            Vec3::X,
+            (0.205, 0.165),
+        ),
+    ] {
+        let thickness = 0.18;
+        let seed = game_core::math::splitmix64(id);
+        let lobe = game_core::ApertureLobe {
+            entry_local: entry,
+            exit_local: entry + direction * thickness,
+            entry_normal_local: normal,
+            exit_normal_local: -normal,
+            direction_local: direction,
+            thickness_m: thickness,
+            outer: game_core::BreachContour::new(radii.0, radii.1, id as f32 * 0.37, 0.13),
+            inner: game_core::BreachContour::new(
+                radii.0 * 1.5,
+                radii.1 * 1.4,
+                id as f32 * 0.41,
+                0.17,
+            ),
+            fracture_seed: seed,
+        };
+        set.add(game_core::ArmorBreach::new(
+            game_core::ArmorBreachDescriptor {
+                breach_id: id,
+                surface: game_core::ArmorSurfaceId::new(frame, zone),
+                frame,
+                zone,
+                material: if frame == game_core::ArmorFrame::Hull {
+                    game_core::ArmorMaterial::RolledSteel
+                } else {
+                    game_core::ArmorMaterial::CastSteel
+                },
+                face: game_core::BreachFace::Ingress,
+                shell_type: game_core::ShellType::ArmorPiercing,
+                created_tick: 1,
+                impact_angle_degrees: 18.0,
+                impact_energy_kj: 1_200.0,
+                projectile_diameter_m: 0.1,
+                residual_penetration_mm: 90.0,
+            },
+            lobe,
+        ));
+    }
+    set
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -262,13 +398,15 @@ fn draw_vehicle(
     target: &OffscreenTarget,
     renderer: &mut SceneRenderer,
     objects: Vec<renderer_api::RenderObject>,
+    armor_damage: Vec<renderer_api::ArmorDamageInstance>,
     fx: &[FxVertex],
     eye: [f32; 3],
     look: [f32; 3],
     width: u32,
     height: u32,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let frame: RenderFrame = render_frame_from_objects(objects);
+    let mut frame: RenderFrame = render_frame_from_objects(objects);
+    frame.armor_damage = armor_damage;
     renderer.set_vehicle_render_frame(ctx, &frame);
     renderer.set_fx(ctx, fx);
     let camera = Camera { eye, target: look, vertical_fov_degrees: 34.0 };

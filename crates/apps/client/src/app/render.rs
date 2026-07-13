@@ -212,7 +212,11 @@ impl ClientApp {
         self.apply_turret_popoffs(&mut vehicles.objects);
         // A wreck also draws its dented hull instead of the pristine shared one.
         self.apply_wreck_deform(&mut vehicles.objects);
-        let vehicle_frame = RenderFrame { objects: vehicles.objects, ..RenderFrame::default() };
+        let vehicle_frame = RenderFrame {
+            objects: vehicles.objects,
+            armor_damage: vehicles.armor_damage,
+            ..RenderFrame::default()
+        };
         let (reload_remaining, reload_max) = self.player_reload();
         self.reload_ready_age_s = tick_ready_flash(
             self.reload_ready_age_s,

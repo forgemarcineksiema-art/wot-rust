@@ -6,7 +6,7 @@ use game_core::{
 use glam::Vec3;
 
 use crate::aim_dispersion::{apply_shot_bloom, dispersed_gun_direction};
-use crate::breach_space::{BreachImpact, make_breach};
+use crate::breach_space::{BreachImpact, find_egress_contact, make_breach, make_egress_breach};
 use crate::module_hit::{apply_track_damage_for_hit, impacted_module};
 use crate::shell_trace::SHELL_MAX_AGE_SECONDS;
 use crate::{ShellState, TankState};
@@ -14,6 +14,7 @@ use crate::{ShellState, TankState};
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct CombatTickContext {
     pub dt_seconds: f32,
+    pub tick: u64,
     /// The map's standing water: shells die in a splash at the surface (see `shell_trace`).
     pub water: Option<terrain::WaterBody>,
 }
@@ -85,6 +86,7 @@ pub(crate) fn apply_shell_impact(
     hit_position: Vec3,
     plate_normal: Vec3,
     distance_m: f32,
+    tick: u64,
 ) -> DamageEvent {
     let target =
         tanks.iter_mut().find(|tank| tank.id == target_id).expect("hit tank still present");
@@ -101,15 +103,16 @@ pub(crate) fn apply_shell_impact(
         target.hull_pose(),
     );
     let before_destroyed = target.modules.destroyed_mask();
-    let (module, damaged_modules_mask) = apply_internal_module_path(
-        target,
-        shell,
-        penetration.penetrated,
-        penetration.remaining_penetration_mm,
-        penetration.module_damage_hp,
-        zone,
-        local_hit,
-    );
+    let (module, damaged_modules_mask, damaged_components_mask, residual_after_modules_mm) =
+        apply_internal_module_path(
+            target,
+            shell,
+            penetration.penetrated,
+            penetration.remaining_penetration_mm,
+            penetration.module_damage_hp,
+            zone,
+            local_hit,
+        );
     let destroyed_modules_mask = target.modules.destroyed_mask() & !before_destroyed;
     // How hard this shell bit the track band: a clean, near-normal AP round throws it outright; an
     // oblique or ricocheting hit only degrades it; an HE burst chips it (see `track_hit_damage`).
@@ -142,21 +145,56 @@ pub(crate) fn apply_shell_impact(
         );
     }
 
-    if penetration.penetrated && target.spec.kind == game_core::VehicleKind::T54_1951 {
+    if penetration.penetrated {
         let direction = shell.velocity_mps.normalize_or_zero();
         let breach = make_breach(
             target,
             BreachImpact {
                 zone,
+                shell_id: shell.id,
+                shell_type: shell.shell.shell_type,
+                created_tick: tick,
                 hit_position,
                 plate_normal,
                 direction,
                 caliber_mm: shell.shell.caliber_mm,
+                impact_angle_degrees,
+                impact_speed_mps: shell.velocity_mps.length(),
                 effective_armor_mm: penetration.effective_armor_mm,
                 residual_penetration_mm: penetration.remaining_penetration_mm,
             },
         );
         target.armor_breaches.add(breach);
+        if let Some(exit) = find_egress_contact(target, zone, hit_position, direction) {
+            let exit_angle = direction.dot(exit.normal).abs().clamp(0.0, 1.0).acos().to_degrees();
+            let plate = target.spec.hull.plate(exit.zone);
+            let required_mm =
+                plate.nominal_thickness_mm / exit_angle.to_radians().cos().abs().max(0.18);
+            if residual_after_modules_mm > required_mm {
+                let egress = make_egress_breach(
+                    target,
+                    BreachImpact {
+                        zone: exit.zone,
+                        shell_id: shell.id,
+                        shell_type: shell.shell.shell_type,
+                        created_tick: tick,
+                        hit_position: exit.position,
+                        plate_normal: exit.normal,
+                        direction,
+                        caliber_mm: shell.shell.caliber_mm,
+                        impact_angle_degrees: exit_angle,
+                        impact_speed_mps: shell.velocity_mps.length()
+                            * (residual_after_modules_mm
+                                / penetration.remaining_penetration_mm.max(1.0))
+                            .sqrt()
+                            .clamp(0.25, 1.0),
+                        effective_armor_mm: required_mm,
+                        residual_penetration_mm: residual_after_modules_mm - required_mm,
+                    },
+                );
+                target.armor_breaches.add(egress);
+            }
+        }
     }
     if destroyed_modules_mask & ModuleSlot::Engine.destroyed_mask_bit() != 0
         && penetration.penetrated
@@ -197,6 +235,7 @@ pub(crate) fn apply_shell_impact(
         track_hit,
         damaged_modules_mask,
         destroyed_modules_mask,
+        damaged_components_mask,
     }
 }
 
@@ -209,7 +248,7 @@ fn apply_internal_module_path(
     base_damage_hp: u32,
     zone: ArmorZone,
     local_hit: Vec3,
-) -> (Option<ModuleSlot>, u8) {
+) -> (Option<ModuleSlot>, u8, u16, f32) {
     if !penetrated || target.spec.damage_layout.is_empty() {
         let module = if target.spec.damage_layout.is_empty() {
             impacted_module(shell.shell.shell_type, penetrated, zone, local_hit, target.spec.hitbox)
@@ -219,7 +258,7 @@ fn apply_internal_module_path(
         if let Some(slot) = module {
             target.modules.damage(slot, base_damage_hp);
         }
-        return (module, module.map_or(0, ModuleSlot::destroyed_mask_bit));
+        return (module, module.map_or(0, ModuleSlot::destroyed_mask_bit), 0, residual_mm);
     }
 
     let local_direction =
@@ -229,19 +268,70 @@ fn apply_internal_module_path(
     let hits = target.spec.damage_layout.intersections(true, start, end);
     let mut first = None;
     let mut mask = 0_u8;
+    let mut component_mask = 0_u16;
+    let mut spall_sources = Vec::new();
     for hit in hits {
-        let resistance_mm = 18.0 + hit.path_length_m * 55.0;
+        let resistance_mm = hit.material.resistance_mm(hit.path_length_m);
         if residual_mm < resistance_mm * 0.35 {
             break;
         }
         first.get_or_insert(hit.slot);
         mask |= hit.slot.destroyed_mask_bit();
+        component_mask |= component_bit(hit.component_id);
         let energy_fraction = (residual_mm / (residual_mm + resistance_mm)).clamp(0.25, 1.0);
-        let damage = ((base_damage_hp as f32 * energy_fraction).round() as u32).max(1);
+        let damage =
+            ((base_damage_hp as f32 * energy_fraction * hit.vulnerability).round() as u32).max(1);
         target.modules.damage(hit.slot, damage);
         residual_mm = (residual_mm - resistance_mm).max(0.0);
+        if residual_mm > 8.0 {
+            spall_sources
+                .push((hit.component_id, start + local_direction * (hit.distance_t * 8.0)));
+        }
     }
-    (first, mask)
+    for (source_id, origin) in spall_sources {
+        for (ray_index, spall_direction) in
+            deterministic_spall_directions(local_direction, shell.id.0 ^ u64::from(source_id.0))
+                .into_iter()
+                .enumerate()
+        {
+            let spall_end = origin + spall_direction * 3.5;
+            let Some(hit) = target
+                .spec
+                .damage_layout
+                .intersections(true, origin + spall_direction * 0.015, spall_end)
+                .into_iter()
+                .find(|hit| hit.component_id != source_id)
+            else {
+                continue;
+            };
+            component_mask |= component_bit(hit.component_id);
+            mask |= hit.slot.destroyed_mask_bit();
+            first.get_or_insert(hit.slot);
+            let falloff = [0.22_f32, 0.16, 0.12][ray_index];
+            let damage =
+                ((base_damage_hp as f32 * falloff * hit.vulnerability).round() as u32).max(1);
+            target.modules.damage(hit.slot, damage);
+        }
+    }
+    (first, mask, component_mask, residual_mm)
+}
+
+fn component_bit(id: game_core::DamageComponentId) -> u16 {
+    1_u16.checked_shl(u32::from(id.0.saturating_sub(1))).unwrap_or(0)
+}
+
+fn deterministic_spall_directions(direction: Vec3, seed: u64) -> [Vec3; 3] {
+    let forward = direction.normalize_or_zero();
+    let helper = if forward.y.abs() < 0.9 { Vec3::Y } else { Vec3::X };
+    let right = forward.cross(helper).normalize_or_zero();
+    let up = right.cross(forward).normalize_or_zero();
+    std::array::from_fn(|index| {
+        let mixed = game_core::math::splitmix64(seed ^ (index as u64).wrapping_mul(0x9E37_79B9));
+        let azimuth = ((mixed >> 40) as f32 / (1_u64 << 24) as f32) * std::f32::consts::TAU;
+        let angle = (5.0 + ((mixed >> 24) & 0xff) as f32 / 255.0 * 11.0).to_radians();
+        (forward * angle.cos() + (right * azimuth.cos() + up * azimuth.sin()) * angle.sin())
+            .normalize_or_zero()
+    })
 }
 
 /// The armor test for one resolved hit. Ordinary zones test their single plate; the track zones
@@ -309,7 +399,7 @@ fn resolve_impact_penetration(
 
 #[cfg(test)]
 mod tests {
-    use game_core::{ShellType, TankSpec, TeamId};
+    use game_core::{BreachFace, ShellType, TankSpec, TeamId, VehicleKind};
 
     use super::*;
     use crate::shell_trace::SHELL_MAX_AGE_SECONDS;
@@ -354,6 +444,7 @@ mod tests {
             Vec3::new(0.0, 1.5, 18.5),
             plate,
             18.5,
+            0,
         );
 
         assert!((event.plate_normal - plate).length() < 1.0e-3, "plate normal survives verbatim");
@@ -424,10 +515,73 @@ mod tests {
             Vec3::new(-1.05, 1.0, -1.8),
             Vec3::NEG_X,
             20.0,
+            0,
         );
         assert!(event.penetrated);
         assert_ne!(event.damaged_modules_mask, 0);
         assert_eq!(tanks[0].armor_breaches.breaches().len(), 1);
-        assert!(tanks[0].armor_breaches.breaches()[0].thickness_m > 0.0);
+        assert!(tanks[0].armor_breaches.breaches()[0].lobes()[0].thickness_m > 0.0);
+    }
+
+    #[test]
+    fn egress_exists_only_when_the_internal_path_retains_enough_energy() {
+        let spec = TankSpec::t54_1951();
+        let hit = |mut shell: ShellState| {
+            let mut tanks = vec![fresh_tank(TankId(2), TeamId(2), spec.clone(), Vec3::ZERO, 0.0)];
+            shell.id = ShellId(0xE6_12_34);
+            let event = apply_shell_impact(
+                &shell,
+                &mut tanks,
+                TankId(2),
+                ArmorFacing::HullSide,
+                ArmorZone::HullSide,
+                0.0,
+                Vec3::new(-1.05, 1.0, -1.8),
+                Vec3::NEG_X,
+                20.0,
+                44,
+            );
+            assert!(event.penetrated);
+            tanks.remove(0).armor_breaches
+        };
+
+        let ap =
+            shell_toward(TankId(1), Vec3::new(-5.0, 1.0, -1.8), Vec3::new(900.0, 0.0, 0.0), &spec);
+        let stopped = hit(ap);
+        assert_eq!(stopped.breaches().len(), 1, "stopped AP must not invent an exit");
+
+        let mut heat = ap;
+        heat.shell = spec.gun.special_shell.expect("D-10T HEAT round");
+        let through = hit(heat);
+        assert_eq!(through.breaches().len(), 2, "retained energy must open the opposite plate");
+        assert!(through.breaches().iter().any(|breach| breach.face == BreachFace::Egress));
+    }
+
+    #[test]
+    fn reusable_aperture_physics_is_not_gated_to_the_t54_asset() {
+        let firing_spec = TankSpec::t54_1951();
+        let target_spec = VehicleKind::TigerI.spec();
+        let mut tanks = vec![fresh_tank(TankId(2), TeamId(2), target_spec, Vec3::ZERO, 0.0)];
+        let mut shell = shell_toward(
+            TankId(1),
+            Vec3::new(-5.0, 1.0, 0.0),
+            Vec3::new(900.0, 0.0, 0.0),
+            &firing_spec,
+        );
+        shell.shell = firing_spec.gun.special_shell.expect("D-10T HEAT round");
+        let event = apply_shell_impact(
+            &shell,
+            &mut tanks,
+            TankId(2),
+            ArmorFacing::HullSide,
+            ArmorZone::HullSide,
+            0.0,
+            Vec3::new(-1.8, 1.0, 0.0),
+            Vec3::NEG_X,
+            20.0,
+            7,
+        );
+        assert!(event.penetrated);
+        assert!(!tanks[0].armor_breaches.breaches().is_empty());
     }
 }

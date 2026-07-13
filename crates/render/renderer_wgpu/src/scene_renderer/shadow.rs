@@ -22,8 +22,8 @@ pub fn shadow_shader_source() -> String {
 
 const SHADOW_VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 1] =
     wgpu::vertex_attr_array![0 => Float32x3];
-const SHADOW_INSTANCE_ATTRIBUTES: [wgpu::VertexAttribute; 4] =
-    wgpu::vertex_attr_array![6 => Float32x4, 7 => Float32x4, 8 => Float32x4, 9 => Float32x4];
+const SHADOW_INSTANCE_ATTRIBUTES: [wgpu::VertexAttribute; 6] = wgpu::vertex_attr_array![6 => Float32x4, 7 => Float32x4, 8 => Float32x4, 9 => Float32x4,
+        10 => Float32x4, 13 => Uint32];
 
 /// The focused sun shadow map: depth target, the group-2 environment bind group (shadow map +
 /// SSAO target), the depth-only occluder pipelines, and the tuning that drives the light matrix
@@ -262,7 +262,12 @@ fn build_shadow_pipeline(
             bias: wgpu::DepthBiasState { constant: 2, slope_scale: 2.5, clamp: 0.0 },
         }),
         multisample: wgpu::MultisampleState::default(),
-        fragment: None,
+        fragment: Some(wgpu::FragmentState {
+            module: &shader,
+            entry_point: Some("fs_depth"),
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+            targets: &[],
+        }),
         multiview_mask: None,
         cache: None,
     })

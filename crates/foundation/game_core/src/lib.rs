@@ -20,18 +20,24 @@ mod weather;
 pub use ammo::{AmmoLoadout, MAX_AMMO_SLOTS, default_ammo_capacity};
 pub use armor::{
     ArmorFacet, ArmorFacetProfile, ArmorFacing, ArmorPatch, ArmorProfile, ArmorVolume, ArmorZone,
-    PenetrationResult, TaggedPlane, VehicleArmorVolumes, resolve_penetration,
+    PenetrationResult, TaggedPlane, VehicleArmorVolumes, VolumeInterval, resolve_penetration,
     resolve_penetration_at_distance, resolve_penetration_at_distance_on_zone,
     resolve_penetration_through_track, segment_volume_entry, segment_volume_entry_with_margin,
-    vehicle_armor_volumes,
+    segment_volume_interval_with_margin, vehicle_armor_volumes,
 };
+pub use armor_breach::surface_basis as armor_surface_basis;
 pub use armor_breach::{
-    ArmorBreach, ArmorBreachSet, ArmorFrame, ArmorMaterial, ArmorSurfaceId, MAX_ARMOR_BREACHES,
+    ApertureLobe, ArmorBreach, ArmorBreachAdd, ArmorBreachDescriptor, ArmorBreachSet, ArmorFrame,
+    ArmorMaterial, ArmorScar, ArmorSurfaceId, BreachContour, BreachFace, MAX_APERTURE_LOBES,
+    MAX_ARMOR_BREACHES, MAX_ARMOR_SCARS,
 };
 pub use contact_footprint::{ContactFootprint, MAX_CONTACT_STATIONS};
 pub use crew::{Crew, CrewRole};
 pub use damage::{DamageCause, DamageEvent, ImpactSurface, ShellImpact, TrackHit};
-pub use damage_layout::{DamageLayout, ModuleIntersection, ModuleVolume};
+pub use damage_layout::{
+    DamageComponent, DamageComponentId, DamageComponentKind, DamageLayout, DamageMaterial,
+    DamagePlane, DamageShape, ModuleIntersection,
+};
 pub use ids::{ShellId, TankId, TeamId};
 pub use modules::{
     EngineModule, GunModule, HullChassis, MODULE_SLOT_COUNT, ModuleCondition, ModuleError,

@@ -1,9 +1,9 @@
 use renderer_api::{BindGroupRole, FxVertex, VehicleVertex, baseline_bind_group_layout};
 use renderer_wgpu::{
     CameraUniform, GpuContext, TankVertex, basic_tank_shader_source,
-    build_shadow_bind_group_layout, build_vehicle_pipeline, encode_camera_uniform,
-    fx_shader_source, scene_shader_source, shadow_shader_source, sky_shader_source,
-    tank_vertex_bytes, validate_wgsl_shader, vehicle_shader_source,
+    build_camera_bind_group_layout, build_shadow_bind_group_layout, build_vehicle_pipeline,
+    encode_camera_uniform, fx_shader_source, scene_shader_source, shadow_shader_source,
+    sky_shader_source, tank_vertex_bytes, validate_wgsl_shader, vehicle_shader_source,
 };
 
 #[test]
@@ -232,8 +232,14 @@ fn vehicle_pipeline_builds_on_a_real_device() {
     // Proves the shader compiles on the GPU and the VehicleVertex/instance layout binds without
     // validation errors — the pipeline is real, not just WGSL-parsed.
     let shadow_bgl = build_shadow_bind_group_layout(&ctx.device);
-    let (_, _, material_bgl) =
-        build_vehicle_pipeline(&ctx.device, wgpu::TextureFormat::Rgba8UnormSrgb, 1, &shadow_bgl);
+    let camera_bgl = build_camera_bind_group_layout(&ctx.device);
+    let (_, material_bgl) = build_vehicle_pipeline(
+        &ctx.device,
+        wgpu::TextureFormat::Rgba8UnormSrgb,
+        1,
+        &shadow_bgl,
+        &camera_bgl,
+    );
     let _ = &material_bgl;
     assert_eq!(core::mem::size_of::<VehicleVertex>(), 64);
 }

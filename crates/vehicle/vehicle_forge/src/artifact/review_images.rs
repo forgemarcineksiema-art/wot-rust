@@ -194,6 +194,10 @@ fn review_material_color(material: MaterialRole) -> [u8; 4] {
         MaterialRole::BarrelSteel => [58, 61, 60, 255],
         MaterialRole::TrackMetal => [42, 42, 39, 255],
         MaterialRole::Rubber => [20, 20, 22, 255],
+        MaterialRole::InteriorPrimer => [118, 133, 99, 255],
+        MaterialRole::InteriorMachinery => [46, 51, 43, 255],
+        MaterialRole::Ammunition => [110, 79, 33, 255],
+        MaterialRole::ExposedSteel => [92, 75, 57, 255],
     }
 }
 

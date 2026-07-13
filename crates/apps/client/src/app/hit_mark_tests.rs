@@ -42,16 +42,11 @@ fn a_shell_strike_records_a_scar_on_the_target_in_its_local_frame() {
         "the scar lives in the target's local frame, got {local}"
     );
 
-    // And it reaches the frame's FX batch as an on-hull quad near the world hit point.
+    // Penetration presentation belongs to analytical clipping plus the rim/remesh path. Recreating
+    // a flat FX quad here would put the black stamp back over the real opening.
     let mut vertices = Vec::new();
     app.append_scar_quads(&mut vertices);
-    assert!(!vertices.is_empty(), "scars render through the FX pass");
-    assert!(
-        vertices
-            .iter()
-            .any(|vertex| { (glam::Vec3::from_array(vertex.position) - hit).length() < 0.5 }),
-        "the scar quad sits on the hit point"
-    );
+    assert!(vertices.is_empty(), "penetrations must not emit a flat FX stamp over the aperture");
 }
 
 #[test]

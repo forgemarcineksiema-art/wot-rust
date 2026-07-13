@@ -151,6 +151,10 @@ fn material_appearance(material: MaterialRole) -> ([f32; 3], f32) {
         MaterialRole::BarrelSteel => (BARREL_STEEL, 0.0),
         MaterialRole::TrackMetal => (TRACK_METAL, 0.0),
         MaterialRole::Rubber => (RUBBER, 0.0),
+        MaterialRole::InteriorPrimer => ([0.48, 0.54, 0.42], 0.0),
+        MaterialRole::InteriorMachinery => ([0.18, 0.20, 0.17], 0.0),
+        MaterialRole::Ammunition => ([0.42, 0.31, 0.15], 0.0),
+        MaterialRole::ExposedSteel => ([0.34, 0.29, 0.23], 0.0),
     }
 }
 

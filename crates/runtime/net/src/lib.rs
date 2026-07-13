@@ -15,6 +15,10 @@ mod snapshot_schedule;
 pub use frame::{FRAME_HEADER_LEN, FRAME_MAGIC, decode_frame, encode_frame};
 pub use snapshot_schedule::SnapshotSchedule;
 
+/// v26: persistent breaches carry ammo-specific deterministic aperture contours, age, energy and
+/// ingress/egress identity. The same payload drives server clearance, first-frame clipping,
+/// late-join presentation and replay; damage-mesh revisions remain client-local.
+///
 /// v25: `TankSnapshot` carries persistent armor breaches, engine fire, and per-side track break
 /// positions. `DamageEvent` carries all modules touched/destroyed by one internal through-flight.
 ///
@@ -47,7 +51,7 @@ pub use snapshot_schedule::SnapshotSchedule;
 /// v18: `ServerHello` names the match — `map_id` and `weather_variant` — so the client can
 /// deterministically rebuild the same battlefield the server simulates (the map itself is
 /// never sent) and dress it in the same sky. `ImpactSurface` gains `Water`.
-pub const PROTOCOL_VERSION: u16 = 25;
+pub const PROTOCOL_VERSION: u16 = 26;
 
 #[derive(Debug, Error)]
 pub enum NetError {

@@ -41,8 +41,9 @@ pub(crate) fn build_vehicle_material_bind_group_layout(
 const VEHICLE_VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 8] = wgpu::vertex_attr_array![
     0 => Float32x3, 1 => Float32x3, 2 => Float32x4, 3 => Float32x2, 4 => Uint32, 5 => Float32,
     11 => Uint32, 12 => Float32];
-const VEHICLE_INSTANCE_ATTRIBUTES: [wgpu::VertexAttribute; 5] = wgpu::vertex_attr_array![
-    6 => Float32x4, 7 => Float32x4, 8 => Float32x4, 9 => Float32x4, 10 => Float32x4];
+const VEHICLE_INSTANCE_ATTRIBUTES: [wgpu::VertexAttribute; 6] = wgpu::vertex_attr_array![
+    6 => Float32x4, 7 => Float32x4, 8 => Float32x4, 9 => Float32x4, 10 => Float32x4,
+    13 => Uint32];
 
 /// Build the PBR-lite vehicle pipeline (camera uniform at group 0, depth-tested back-face-culled
 /// triangles) plus its camera bind-group layout. Mirrors the scene pipeline's rigging so the two
@@ -52,29 +53,17 @@ pub fn build_vehicle_pipeline(
     color_format: wgpu::TextureFormat,
     sample_count: u32,
     shadow_bgl: &wgpu::BindGroupLayout,
-) -> (wgpu::RenderPipeline, wgpu::BindGroupLayout, wgpu::BindGroupLayout) {
+    camera_bgl: &wgpu::BindGroupLayout,
+) -> (wgpu::RenderPipeline, wgpu::BindGroupLayout) {
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("vehicle_shader"),
         source: wgpu::ShaderSource::Wgsl(vehicle_shader_source().into()),
-    });
-    let camera_bgl = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-        label: Some("vehicle_camera_bgl"),
-        entries: &[wgpu::BindGroupLayoutEntry {
-            binding: 0,
-            visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-            ty: wgpu::BindingType::Buffer {
-                ty: wgpu::BufferBindingType::Uniform,
-                has_dynamic_offset: false,
-                min_binding_size: None,
-            },
-            count: None,
-        }],
     });
     let material_bgl = build_vehicle_material_bind_group_layout(device);
     let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("vehicle_pipeline_layout"),
         // Group 0 camera, group 1 per-draw material, group 2 the shared shadow map.
-        bind_group_layouts: &[Some(&camera_bgl), Some(&material_bgl), Some(shadow_bgl)],
+        bind_group_layouts: &[Some(camera_bgl), Some(&material_bgl), Some(shadow_bgl)],
         immediate_size: 0,
     });
     let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -124,7 +113,7 @@ pub fn build_vehicle_pipeline(
         multiview_mask: None,
         cache: None,
     });
-    (pipeline, camera_bgl, material_bgl)
+    (pipeline, material_bgl)
 }
 
 fn material_texture_entry(binding: u32) -> wgpu::BindGroupLayoutEntry {

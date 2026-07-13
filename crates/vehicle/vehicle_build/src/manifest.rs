@@ -113,6 +113,10 @@ fn gameplay_role(material: MaterialRole, lod: PartLod) -> GameplayRole {
                 GameplayRole::Armor
             }
         }
+        MaterialRole::InteriorPrimer
+        | MaterialRole::InteriorMachinery
+        | MaterialRole::Ammunition
+        | MaterialRole::ExposedSteel => GameplayRole::Fitting,
     }
 }
 

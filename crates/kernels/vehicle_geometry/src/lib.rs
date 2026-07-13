@@ -5,6 +5,7 @@ mod budgets;
 mod builder;
 mod cavity;
 mod contact;
+mod damage_remesh;
 mod lod;
 mod mesh;
 mod ops;
@@ -26,6 +27,7 @@ pub use budgets::{GOLDEN_BAKE_HASHES, VEHICLE_BUDGETS, VehicleBudgets, golden_ba
 pub use builder::MeshBuilder;
 pub use cavity::CavityBand;
 pub use contact::{DecalPatch, MeshContactIndex, SurfaceContact};
+pub use damage_remesh::{DamageRemeshError, remesh_aperture};
 pub use game_core::{MountFrame, MountFrames};
 pub use lod::{
     LodAuditError, LodLevel, PartImportance, audit_reduction, reduce_mesh, reduce_vehicle,

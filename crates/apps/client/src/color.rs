@@ -19,5 +19,9 @@ pub(crate) fn material_color(material: MaterialRole, hull_color: [f32; 3]) -> [f
         MaterialRole::BarrelSteel => BARREL_STEEL,
         MaterialRole::TrackMetal => TRACK_METAL,
         MaterialRole::Rubber => RUBBER,
+        MaterialRole::InteriorPrimer => [0.48, 0.54, 0.42],
+        MaterialRole::InteriorMachinery => [0.18, 0.20, 0.17],
+        MaterialRole::Ammunition => [0.42, 0.31, 0.15],
+        MaterialRole::ExposedSteel => [0.34, 0.29, 0.23],
     }
 }

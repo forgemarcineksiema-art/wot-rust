@@ -176,6 +176,9 @@ pub fn t54_from_modules(modules: &VehicleModules) -> VehicleDescription {
     parts.extend(crate::t54_chassis::t54_suspension_parts(bp.hull.lower_half_width));
     // Hull plate articulation: the glacis-to-roof weld seam and the rear transmission covers.
     parts.extend(crate::t54_chassis::t54_hull_plate_parts(v, bp.armor.hull_front.0));
+    // Damage-ready interior: major visible assemblies are generated from the authoritative
+    // DamageLayout, with close-view mechanical detail layered around those exact transforms.
+    parts.extend(crate::t54_interior::t54_interior_parts());
 
     // Bake-time ambient contact: darken the turret-ring seam, mantlet seat, running-gear recess and
     // glacis weld into `surface_shade` after merge (the cast turret and welded hull no longer read

@@ -49,7 +49,10 @@ pub use scene::{
 };
 pub use sun_shadow::{SunShadowParams, forward_shadow_focus, sun_light_view_projection};
 pub use terrain_material::{TERRAIN_LAYERS, TerrainGroundMaps, TerrainLayer, TerrainMaterialSet};
-pub use vehicle::{MAPPING_PARAMETRIC, MAPPING_TRIPLANAR, VehicleVertex, generate_tangents};
+pub use vehicle::{
+    ArmorApertureRender, ArmorDamageInstance, MAPPING_PARAMETRIC, MAPPING_TRIPLANAR, VehicleVertex,
+    generate_tangents,
+};
 pub use vehicle_asset::{
     VehicleMaterialDescriptor, VehicleMaterialFamilies, VehicleMaterialMaps, VehicleMeshAsset,
     VehicleTextureMap,
@@ -109,6 +112,8 @@ pub struct RenderObject {
 pub struct RenderFrame {
     pub camera: Camera,
     pub objects: Vec<RenderObject>,
+    /// Analytical armor openings keyed by tank id. Empty for scene/garage frames.
+    pub armor_damage: Vec<ArmorDamageInstance>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

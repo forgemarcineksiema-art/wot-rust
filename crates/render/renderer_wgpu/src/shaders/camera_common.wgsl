@@ -62,3 +62,66 @@ struct Camera {
 
 @group(0) @binding(0)
 var<uniform> camera: Camera;
+
+struct ArmorDamageHeader {
+    start: u32,
+    count: u32,
+    padding_0: u32,
+    padding_1: u32,
+};
+
+struct ArmorAperture {
+    center_major: vec4<f32>,
+    normal_minor: vec4<f32>,
+    tangent_rotation: vec4<f32>,
+    // x irregularity, yz deterministic phases, w plane half-depth.
+    shape: vec4<f32>,
+};
+
+@group(0) @binding(1)
+var<storage, read> armor_damage_headers: array<ArmorDamageHeader>;
+@group(0) @binding(2)
+var<storage, read> armor_apertures: array<ArmorAperture>;
+
+/// True only for fragments on the pierced plate and inside its deterministic irregular contour.
+/// Shared by color, camera-depth and shadow passes so no pass silently closes the opening.
+fn armor_fragment_is_cut(world_pos: vec3<f32>, damage_index: u32) -> bool {
+    if (damage_index == 0u) {
+        return false;
+    }
+    let header = armor_damage_headers[damage_index];
+    var slot = 0u;
+    loop {
+        if (slot >= header.count) {
+            break;
+        }
+        let aperture = armor_apertures[header.start + slot];
+        let normal = normalize(aperture.normal_minor.xyz);
+        let tangent = normalize(aperture.tangent_rotation.xyz);
+        let bitangent = normalize(cross(normal, tangent));
+        let delta = world_pos - aperture.center_major.xyz;
+        if (abs(dot(delta, normal)) <= aperture.shape.w) {
+            let local = vec2<f32>(dot(delta, tangent), dot(delta, bitangent));
+            let angle = atan2(local.y, local.x);
+            let rough = 1.0 + aperture.shape.x
+                * (sin(angle * 3.0 + aperture.shape.y) * 0.62
+                    + sin(angle * 5.0 + aperture.shape.z) * 0.38);
+            let rotation = aperture.tangent_rotation.w;
+            let sin_r = sin(rotation);
+            let cos_r = cos(rotation);
+            let rotated = vec2<f32>(
+                local.x * cos_r + local.y * sin_r,
+                -local.x * sin_r + local.y * cos_r,
+            );
+            let metric = vec2<f32>(
+                rotated.x / max(aperture.center_major.w * rough, 0.005),
+                rotated.y / max(aperture.normal_minor.w * rough, 0.005),
+            );
+            if (dot(metric, metric) <= 1.0) {
+                return true;
+            }
+        }
+        slot += 1u;
+    }
+    return false;
+}

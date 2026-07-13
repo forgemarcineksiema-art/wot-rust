@@ -91,6 +91,7 @@ fn the_sun_shadow_darkens_the_ground_under_an_occluder() {
             transform: identity(),
             tint: [0.6, 0.7, 0.5],
         }],
+        armor_damage: Vec::new(),
     };
 
     let render = |shadows: bool| {

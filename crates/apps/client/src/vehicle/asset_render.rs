@@ -84,7 +84,32 @@ pub fn tank_vehicle_render_objects_posed(
     attitude: [f32; 3],
     gear_dynamics: GearDynamics<'_>,
 ) -> Vec<RenderObject> {
+    catalog.integrate_one_damage_mesh();
     let entry = catalog.vehicle_entry(snapshot.vehicle).expect("vehicle must have baked geometry");
+    let hull_mesh = catalog
+        .damaged_frame_mesh(
+            snapshot.vehicle,
+            snapshot.tank_id,
+            game_core::ArmorFrame::Hull,
+            &snapshot.armor_breaches,
+        )
+        .unwrap_or(entry.hull);
+    let turret_mesh = catalog
+        .damaged_frame_mesh(
+            snapshot.vehicle,
+            snapshot.tank_id,
+            game_core::ArmorFrame::Turret,
+            &snapshot.armor_breaches,
+        )
+        .unwrap_or(entry.turret);
+    let gun_mesh = catalog
+        .damaged_frame_mesh(
+            snapshot.vehicle,
+            snapshot.tank_id,
+            game_core::ArmorFrame::Mantlet,
+            &snapshot.armor_breaches,
+        )
+        .unwrap_or(entry.gun);
     let pose = VehiclePose::new_with_attitude(
         snapshot.vehicle,
         glam::Vec3::from_array(snapshot.position),
@@ -115,15 +140,15 @@ pub fn tank_vehicle_render_objects_posed(
     };
 
     let mut objects = vec![
-        vehicle_render_object(snapshot.tank_id, entry.hull, entry.material, hull_transform, tint),
+        vehicle_render_object(snapshot.tank_id, hull_mesh, entry.material, hull_transform, tint),
         vehicle_render_object(
             snapshot.tank_id,
-            entry.turret,
+            turret_mesh,
             entry.material,
             turret_transform,
             tint,
         ),
-        vehicle_render_object(snapshot.tank_id, entry.gun, entry.material, gun_transform, tint),
+        vehicle_render_object(snapshot.tank_id, gun_mesh, entry.material, gun_transform, tint),
     ];
 
     // Running gear rides the hull and tints with the suspension; the wheels spin and the links

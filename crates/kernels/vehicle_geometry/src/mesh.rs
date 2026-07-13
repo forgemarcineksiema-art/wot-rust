@@ -12,6 +12,12 @@ pub enum MaterialRole {
     BarrelSteel,
     TrackMetal,
     Rubber,
+    InteriorPrimer,
+    InteriorMachinery,
+    Ammunition,
+    /// Freshly fractured armor section. Dynamic damage geometry uses this instead of borrowing
+    /// barrel steel, so the renderer can distinguish a rough, heat-stained cut from a gun tube.
+    ExposedSteel,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

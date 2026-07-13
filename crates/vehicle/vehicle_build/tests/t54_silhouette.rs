@@ -6,7 +6,7 @@
 
 use glam::{Vec2, Vec3};
 use vehicle_build::t54_description;
-use vehicle_geometry::{GeometryMesh, SubmeshKind};
+use vehicle_geometry::{GeometryMesh, MaterialRole, SubmeshKind};
 
 const GRID: usize = 64;
 
@@ -82,8 +82,13 @@ fn the_turret_silhouette_has_solid_coverage_from_every_canonical_view() {
 #[test]
 fn the_turret_silhouette_reads_as_a_low_wide_casting() {
     let mesh = turret();
-    let b = mesh.bounds().expect("bounds");
-    let (w, d, h) = (b.max.x - b.min.x, b.max.z - b.min.z, b.max.y - b.min.y);
+    let mut min = Vec3::splat(f32::MAX);
+    let mut max = Vec3::splat(f32::MIN);
+    for vertex in mesh.vertices().iter().filter(|v| v.material == MaterialRole::CastArmor) {
+        min = min.min(vertex.position);
+        max = max.max(vertex.position);
+    }
+    let (w, d, h) = (max.x - min.x, max.z - min.z, max.y - min.y);
     // From the front and side the turret is markedly wider/deeper than tall — the flat T-54 pancake.
     assert!(w > 1.6 * h, "front silhouette must read low and wide: w {w:.2} vs h {h:.2}");
     assert!(d > 1.6 * h, "side silhouette must read low and deep: d {d:.2} vs h {h:.2}");

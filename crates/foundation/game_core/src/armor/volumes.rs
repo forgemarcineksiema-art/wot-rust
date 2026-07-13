@@ -54,6 +54,22 @@ pub struct ArmorVolume {
     pub planes: Vec<TaggedPlane>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct VolumeInterval {
+    pub enter_t: f32,
+    pub exit_t: f32,
+    pub enter_plane: usize,
+    pub exit_plane: usize,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct ClippedSegment {
+    enter_t: f32,
+    exit_t: f32,
+    enter_plane: Option<usize>,
+    exit_plane: Option<usize>,
+}
+
 /// Entry of the segment `start -> end` into one convex volume: the parametric `t` and the index
 /// of the ENTERING plane — the plate the shell strikes. Generalized slab clipping: the entry is
 /// the latest crossing into a front-facing half-space, the exit the earliest crossing out; a
@@ -69,11 +85,41 @@ pub fn segment_volume_entry_with_margin(
     volume: &ArmorVolume,
     margin_m: f32,
 ) -> Option<(f32, usize)> {
+    let clipped = clip_segment(start, end, volume, margin_m)?;
+    let plane = clipped.enter_plane?;
+    (clipped.enter_t <= 1.0 && clipped.exit_t >= 0.0).then_some((clipped.enter_t.max(0.0), plane))
+}
+
+/// Complete segment interval through a convex armor volume, including both physical plate planes.
+pub fn segment_volume_interval_with_margin(
+    start: Vec3,
+    end: Vec3,
+    volume: &ArmorVolume,
+    margin_m: f32,
+) -> Option<VolumeInterval> {
+    let clipped = clip_segment(start, end, volume, margin_m)?;
+    let enter_plane = clipped.enter_plane?;
+    let exit_plane = clipped.exit_plane?;
+    (clipped.enter_t <= 1.0 && clipped.exit_t >= 0.0).then_some(VolumeInterval {
+        enter_t: clipped.enter_t.max(0.0),
+        exit_t: clipped.exit_t.min(1.0),
+        enter_plane,
+        exit_plane,
+    })
+}
+
+fn clip_segment(
+    start: Vec3,
+    end: Vec3,
+    volume: &ArmorVolume,
+    margin_m: f32,
+) -> Option<ClippedSegment> {
     let direction = end - start;
     let margin_m = margin_m.max(0.0);
     let mut enter = f32::NEG_INFINITY;
     let mut exit = 1.0f32;
     let mut enter_plane: Option<usize> = None;
+    let mut exit_plane: Option<usize> = None;
     for (index, plane) in volume.planes.iter().enumerate() {
         let denom = plane.normal.dot(direction);
         let signed = plane.normal.dot(start) - (plane.offset + margin_m);
@@ -94,17 +140,13 @@ pub fn segment_volume_entry_with_margin(
             }
         } else if t < exit {
             exit = t;
+            exit_plane = Some(index);
         }
         if enter > exit {
             return None;
         }
     }
-    // A segment starting inside the volume strikes immediately: point-blank, the muzzle already
-    // poked through a plate, and that latest-pierced plane (entry crossing behind the start) IS
-    // the plate the shell meets at t = 0. The exit >= 0 guard rejects segments that lie entirely
-    // past the volume.
-    let plane = enter_plane?;
-    (enter <= 1.0 && exit >= 0.0).then_some((enter.max(0.0), plane))
+    Some(ClippedSegment { enter_t: enter, exit_t: exit, enter_plane, exit_plane })
 }
 
 #[cfg(test)]
@@ -138,6 +180,15 @@ mod tests {
             segment_volume_entry(Vec3::new(0.0, 5.0, 0.0), Vec3::new(0.0, -5.0, 0.0), &volume)
                 .expect("plunging segment crosses the box");
         assert_eq!(volume.planes[roof].zone, ArmorZone::Roof);
+    }
+
+    #[test]
+    fn entry_may_end_inside_while_a_through_interval_requires_an_exit() {
+        let volume = unit_box();
+        let start = Vec3::new(0.0, 0.0, 5.0);
+        let inside = Vec3::ZERO;
+        assert!(segment_volume_entry(start, inside, &volume).is_some());
+        assert!(segment_volume_interval_with_margin(start, inside, &volume, 0.0).is_none());
     }
 
     #[test]

@@ -80,6 +80,7 @@ pub(crate) fn step_shells(
                     hit_position,
                     plate_normal,
                     distance_m,
+                    context.tick,
                 );
                 let ricochet_continues = event.ricocheted && !shells[index].ricocheted_once;
                 let penetration_continues = kinetic_penetration_continues(&shells[index], &event);

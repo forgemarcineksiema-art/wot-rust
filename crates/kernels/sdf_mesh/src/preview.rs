@@ -116,6 +116,10 @@ fn preview_material_color(material: MaterialRole) -> [u8; 3] {
         MaterialRole::BarrelSteel => [58, 61, 60],
         MaterialRole::TrackMetal => [46, 46, 42],
         MaterialRole::Rubber => [26, 26, 28],
+        MaterialRole::InteriorPrimer => [118, 133, 99],
+        MaterialRole::InteriorMachinery => [46, 51, 43],
+        MaterialRole::Ammunition => [110, 79, 33],
+        MaterialRole::ExposedSteel => [92, 75, 57],
     }
 }
 

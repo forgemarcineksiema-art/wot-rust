@@ -23,9 +23,9 @@ use crate::vehicle::variation::{
 /// The battle roster the budget is sized for: 7v7.
 const BATTLE_TANKS: usize = 14;
 
-/// The locked worst case: a full particle pool + a full crater pool + every tank on the field
-/// carrying its decal cap of penetration holes (the most vertex-hungry decal kind).
-const FX_FRAME_VERTEX_BUDGET: usize = 27_840;
+/// The locked worst case: a full particle pool + a full crater pool. Penetrations deliberately
+/// emit no FX quads; analytical clipping and rim meshes carry them without covering the opening.
+const FX_FRAME_VERTEX_BUDGET: usize = 18_432;
 
 fn snapshot() -> TankSnapshot {
     let spec = VehicleKind::T54_1951.spec();
@@ -72,7 +72,7 @@ fn puff(position: Vec3) -> Particle {
     }
 }
 
-/// A tank battered to its decal cap with the most expensive mark: permanent penetration holes.
+/// A tank battered to its penetration cap. The decal pass must still emit zero fake-hole vertices.
 fn battered_variation() -> VehicleVariation {
     let mut variation = VehicleVariation::default();
     for index in 0..MAX_HIT_DECALS {
@@ -83,8 +83,7 @@ fn battered_variation() -> VehicleVariation {
             age_s: 0.0,
             kind: DecalKind::Penetration,
             frame: DecalFrame::Hull,
-            // Flat stamp for the budget (no conformal patch): the worst case is the flat 7-stamp
-            // penetration; a conformal patch only replaces the hard hole, it does not add layers.
+            // Penetration state is retained for gameplay/persistence but not rendered as a decal.
             patch: None,
         });
     }

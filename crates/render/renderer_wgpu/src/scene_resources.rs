@@ -11,6 +11,9 @@ pub struct SceneInstance {
     pub model: [[f32; 4]; 4],
     /// Per-instance team tint (rgb + unused w for 16-byte alignment).
     pub tint: [f32; 4],
+    /// One-based index into the analytical armor-damage header buffer; zero means undamaged.
+    pub damage_index: u32,
+    pub _padding: [u32; 3],
 }
 
 impl SceneInstance {
@@ -23,6 +26,8 @@ impl SceneInstance {
                 [0.0, 0.0, 0.0, 1.0],
             ],
             tint: [1.0, 1.0, 1.0, 1.0],
+            damage_index: 0,
+            _padding: [0; 3],
         }
     }
 }
@@ -76,9 +81,23 @@ pub fn frame_instances(frame: &RenderFrame) -> (Vec<SceneInstance>, Vec<SceneObj
     // every frame. First-seen batch order is preserved, so draws come out identical.
     let mut batch_index =
         std::collections::HashMap::<(u32, u32), usize>::with_capacity(frame.objects.len().min(256));
+    let damage_indices: std::collections::HashMap<_, _> = frame
+        .armor_damage
+        .iter()
+        .take(crate::scene_renderer::armor_damage::MAX_DAMAGE_HEADERS - 1)
+        .enumerate()
+        .map(|(index, damage)| (damage.tank_id, index as u32 + 1))
+        .collect();
     for object in &frame.objects {
         let [r, g, b] = object.tint;
-        let instance = SceneInstance { model: object.transform, tint: [r, g, b, 1.0] };
+        let damage_index =
+            object.tank_id.and_then(|tank_id| damage_indices.get(&tank_id).copied()).unwrap_or(0);
+        let instance = SceneInstance {
+            model: object.transform,
+            tint: [r, g, b, 1.0],
+            damage_index,
+            _padding: [0; 3],
+        };
         let key = (object.mesh.0, object.material.0);
         match batch_index.get(&key) {
             Some(&index) => batches[index].instances.push(instance),
