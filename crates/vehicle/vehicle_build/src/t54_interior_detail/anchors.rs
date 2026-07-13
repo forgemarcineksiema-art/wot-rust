@@ -1,4 +1,4 @@
-use game_core::{DamageComponentKind, DamageLayout, DamageShape};
+use game_core::{DamageComponentId, DamageComponentKind, DamageLayout, DamageShape};
 use glam::Vec3;
 
 #[derive(Clone, Copy)]
@@ -36,6 +36,25 @@ pub(crate) fn obb_anchor(
             _ => None,
         })
         .unwrap_or_else(|| panic!("missing T-54 {kind:?} OBB anchor"))
+}
+
+/// Anchor for kinds that own several volumes (the three ammunition racks): the id picks the
+/// physical rack, so each visual group hangs off its own authoritative box.
+pub(super) fn obb_anchor_by_id(
+    layout: &DamageLayout,
+    id: DamageComponentId,
+    center_y: f32,
+) -> ObbAnchor {
+    layout
+        .components()
+        .iter()
+        .find_map(|component| match (&component.shape, component.id == id) {
+            (DamageShape::Obb { center, half_extents, .. }, true) => {
+                Some(ObbAnchor { center: *center + Vec3::Y * center_y, half: *half_extents })
+            }
+            _ => None,
+        })
+        .unwrap_or_else(|| panic!("missing T-54 component {id:?} OBB anchor"))
 }
 
 pub(crate) fn cylinder_anchors(

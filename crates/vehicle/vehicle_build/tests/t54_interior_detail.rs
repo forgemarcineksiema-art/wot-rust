@@ -94,6 +94,29 @@ fn visible_weapon_and_driveline_parts_share_damage_layout_anchors() {
     assert!((part_center(drive[0]) - expected).length() < 1.0e-4);
 }
 
+#[test]
+fn racked_ammunition_rounds_sit_inside_their_authoritative_rack_volumes() {
+    // Each racked group derives from its own AmmunitionRack component: bow skeleton rack (5),
+    // turret-rear ready rounds (6), loader's shin rounds (16). The loose wall/bulkhead singles
+    // are visual-only until the v26 component mask widens.
+    let description = t54_description();
+    let layout = DamageLayout::t54_1951();
+    let center_y = VehicleKind::T54_1951.spec().hitbox.center_y_m;
+
+    for (name, id) in [("bow_rack_round", 5), ("turret_rear_round", 6), ("loader_shin_round", 16)] {
+        let (min, max) = component_obb_bounds(&layout, DamageComponentId(id), center_y);
+        let rounds = parts_named(&description, name);
+        assert!(!rounds.is_empty(), "missing ammunition family {name}");
+        for part in rounds {
+            assert!(
+                point_within(part_center(part), min, max),
+                "{name} instance {} escaped rack volume {id}",
+                part.key.instance
+            );
+        }
+    }
+}
+
 fn part_center(part: &vehicle_build::VehiclePart) -> Vec3 {
     let bounds = part.mesh().bounds().expect("part bounds");
     (bounds.min + bounds.max) * 0.5

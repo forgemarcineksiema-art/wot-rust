@@ -23,7 +23,7 @@ pub(crate) fn t54_museum_detail_parts(
     add_v54(&mut parts, damage_layout, center_y);
     add_driveline_and_cooling(&mut parts, damage_layout, center_y);
     add_torsion_bars(&mut parts, damage_layout, center_y);
-    ammunition::add_ammunition_parts(&mut parts, center_y);
+    ammunition::add_ammunition_parts(&mut parts, damage_layout, center_y);
     fighting::add_fighting_parts(&mut parts, damage_layout, center_y);
     parts
 }

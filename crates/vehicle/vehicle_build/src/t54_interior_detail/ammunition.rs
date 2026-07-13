@@ -1,46 +1,50 @@
 //! Visible D-10T stowage for the T-54-3. The groups follow the period T-54 layout: the large
 //! front-hull skeleton rack, five crosswise turret-rear rounds, two loader-wall rounds, four
 //! shin-level hull rounds and the isolated bulkhead cartridge. T-55 wet racks are deliberately
-//! not used here.
+//! not used here. Each racked group hangs off its authoritative `AmmunitionRack` volume, so the
+//! rounds a shell can detonate and the rounds the eye sees through a breach cannot drift apart.
 
+use game_core::{DamageComponentId, DamageLayout};
 use glam::Vec3;
 use vehicle_geometry::{MaterialRole, SubmeshKind};
 
+use super::anchors::obb_anchor_by_id;
 use crate::part::{PartKey, PartLod, VehiclePart};
 use crate::t54_interior::{box_part, drum_part};
 
-pub(super) fn add_ammunition_parts(parts: &mut Vec<VehiclePart>, cy: f32) {
-    add_front_hull_rack(parts, cy);
-    add_turret_ready_racks(parts, cy);
-    add_hull_wall_rounds(parts, cy);
+pub(super) fn add_ammunition_parts(parts: &mut Vec<VehiclePart>, layout: &DamageLayout, cy: f32) {
+    add_front_hull_rack(parts, layout, cy);
+    add_turret_ready_racks(parts, layout, cy);
+    add_hull_wall_rounds(parts, layout, cy);
 }
 
-fn add_front_hull_rack(parts: &mut Vec<VehiclePart>, cy: f32) {
+fn add_front_hull_rack(parts: &mut Vec<VehiclePart>, layout: &DamageLayout, cy: f32) {
     // Twenty longitudinal rounds in a 4 x 5 skeleton frame, to the loader's side of the driver.
+    let rack = obb_anchor_by_id(layout, DamageComponentId(5), cy);
     for row in 0..5 {
         for column in 0..4 {
             let index = row * 4 + column;
-            let center =
-                Vec3::new(0.38 + column as f32 * 0.18, cy - 0.36 + row as f32 * 0.18, 1.20);
+            let center = rack.center
+                + Vec3::new(-0.27 + column as f32 * 0.18, -0.36 + row as f32 * 0.18, 0.0);
             push_round(parts, "bow_rack_round", index, SubmeshKind::Hull, center, Vec3::Z);
         }
     }
 
-    for (index, x) in [0.30_f32, 0.47, 0.65, 0.83, 1.00].into_iter().enumerate() {
+    for (index, dx) in [-0.35_f32, -0.18, 0.0, 0.18, 0.35].into_iter().enumerate() {
         parts.push(box_part(
             PartKey::indexed("bow_rack_upright", index as u16),
             SubmeshKind::Hull,
-            Vec3::new(x, cy, 0.86),
+            rack.center + Vec3::new(dx, 0.0, -0.34),
             Vec3::new(0.012, 0.48, 0.018),
             MaterialRole::InteriorMachinery,
             PartLod::Detail,
         ));
     }
-    for (index, y) in (0..6).map(|row| cy - 0.45 + row as f32 * 0.18).enumerate() {
+    for (index, dy) in (0..6).map(|row| -0.45 + row as f32 * 0.18).enumerate() {
         parts.push(box_part(
             PartKey::indexed("bow_rack_crossbar", index as u16),
             SubmeshKind::Hull,
-            Vec3::new(0.65, y, 0.86),
+            rack.center + Vec3::new(0.0, dy, -0.34),
             Vec3::new(0.36, 0.012, 0.018),
             MaterialRole::InteriorMachinery,
             PartLod::Detail,
@@ -48,8 +52,9 @@ fn add_front_hull_rack(parts: &mut Vec<VehiclePart>, cy: f32) {
     }
 }
 
-fn add_turret_ready_racks(parts: &mut Vec<VehiclePart>, cy: f32) {
+fn add_turret_ready_racks(parts: &mut Vec<VehiclePart>, layout: &DamageLayout, cy: f32) {
     // The 1951 egg-shaped turret gained five crosswise rounds in its rear, alternating tip-to-tail.
+    let ready = obb_anchor_by_id(layout, DamageComponentId(6), cy);
     for index in 0..5 {
         let direction = if index % 2 == 0 { Vec3::X } else { Vec3::NEG_X };
         push_round(
@@ -57,12 +62,13 @@ fn add_turret_ready_racks(parts: &mut Vec<VehiclePart>, cy: f32) {
             "turret_rear_round",
             index,
             SubmeshKind::Turret,
-            Vec3::new(0.0, cy + 0.40 + index as f32 * 0.15, -0.61),
+            ready.center + Vec3::Y * (-0.30 + index as f32 * 0.15),
             direction,
         );
     }
 
-    // Two forward-facing cartridges clipped to the loader's turret wall.
+    // Two forward-facing cartridges clipped to the loader's turret wall. Loose wall clips: no
+    // free id under the v26 u16 component mask, so they stay visual-only for now.
     for index in 0..2 {
         push_round(
             parts,
@@ -75,22 +81,19 @@ fn add_turret_ready_racks(parts: &mut Vec<VehiclePart>, cy: f32) {
     }
 }
 
-fn add_hull_wall_rounds(parts: &mut Vec<VehiclePart>, cy: f32) {
+fn add_hull_wall_rounds(parts: &mut Vec<VehiclePart>, layout: &DamageLayout, cy: f32) {
     // Four cartridges sit at shin level on the loader's hull wall.
+    let wall = obb_anchor_by_id(layout, DamageComponentId(16), cy);
     for row in 0..2 {
         for column in 0..2 {
             let index = row * 2 + column;
-            push_round(
-                parts,
-                "loader_shin_round",
-                index,
-                SubmeshKind::Hull,
-                Vec3::new(0.88, cy - 0.43 + row as f32 * 0.19, -0.34 + column as f32 * 0.68),
-                Vec3::Z,
-            );
+            let center = wall.center
+                + Vec3::new(0.0, -0.095 + row as f32 * 0.19, -0.34 + column as f32 * 0.68);
+            push_round(parts, "loader_shin_round", index, SubmeshKind::Hull, center, Vec3::Z);
         }
     }
 
+    // The isolated bulkhead cartridge is the other mask-starved loose round — visual-only.
     push_round(
         parts,
         "bulkhead_floor_round",

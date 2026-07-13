@@ -62,26 +62,44 @@ fn turret_components() -> Vec<DamageComponent> {
             28,
             1.4,
         ),
+        // Five ready rounds clipped crosswise into the 1951 turret rear. They are turret stowage,
+        // not hull stowage: the volume swings with the live turret yaw, so a rear-turret
+        // penetration meets ammunition exactly where the period loadout put it.
+        turret_component(
+            6,
+            K::AmmunitionRack,
+            ModuleSlot::AmmoRack,
+            M::Ammunition,
+            obb([0.0, 0.70, -0.61], [0.36, 0.39, 0.10], 0.0),
+            32,
+            1.35,
+        ),
     ]
 }
 
 fn hull_components() -> Vec<DamageComponent> {
     vec![
+        // The twenty-round 4x5 skeleton rack in the bow, to the loader's side of the driver.
+        // T-54 main stowage lives here, on the RIGHT — there is deliberately no rack on the
+        // left hull; that side holds the driver and the radio operator's legacy space.
         hull_component(
             5,
             K::AmmunitionRack,
             ModuleSlot::AmmoRack,
             M::Ammunition,
-            obb([-0.63, -0.04, 0.42], [0.23, 0.48, 0.72], -0.08),
+            obb([0.65, 0.0, 1.20], [0.37, 0.48, 0.36], 0.0),
             32,
             1.35,
         ),
+        // Four shin-level rounds clipped low along the loader's hull wall. The last free id under
+        // the v26 u16 component mask; the two loader-wall clips and the bulkhead round stay
+        // visual-only until the mask widens.
         hull_component(
-            6,
+            16,
             K::AmmunitionRack,
             ModuleSlot::AmmoRack,
             M::Ammunition,
-            obb([0.60, 0.18, -0.28], [0.24, 0.36, 0.56], 0.04),
+            obb([0.88, -0.335, 0.0], [0.10, 0.18, 0.69], 0.0),
             32,
             1.35,
         ),

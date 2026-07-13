@@ -21,24 +21,62 @@ fn t54_damage_layout_fits_the_current_blueprint_hitbox() {
 
 #[test]
 fn internal_path_hits_t54_modules_nearest_first() {
+    // Down the loader's side: bow skeleton rack, fuel cell, transmission — in that order.
     let hits = DamageLayout::t54_1951().intersections(
         true,
-        Vec3::new(-0.6, 0.2, 3.2),
-        Vec3::new(-0.6, 0.2, -3.2),
+        Vec3::new(0.65, 0.2, 3.2),
+        Vec3::new(0.65, 0.2, -3.2),
     );
     let kinds: Vec<_> = hits.iter().map(|hit| hit.kind).collect();
     assert_eq!(
         kinds,
         vec![
-            DamageComponentKind::Radio,
             DamageComponentKind::AmmunitionRack,
             DamageComponentKind::FuelTank,
-            DamageComponentKind::Engine,
             DamageComponentKind::Transmission,
         ]
     );
     assert!(hits.iter().all(|hit| hit.path_length_m > 0.0));
     assert!(hits.windows(2).all(|pair| pair[0].distance_t <= pair[1].distance_t));
+}
+
+#[test]
+fn the_drivers_side_of_the_hull_carries_no_ammunition() {
+    // The pre-reconstruction layout invented a big rack on the left hull. Period stowage puts
+    // the racked rounds to the loader's side; a full left-side run must meet none.
+    let hits = DamageLayout::t54_1951().intersections(
+        true,
+        Vec3::new(-0.6, 0.2, 3.2),
+        Vec3::new(-0.6, 0.2, -3.2),
+    );
+    assert!(hits.iter().all(|hit| hit.kind != DamageComponentKind::AmmunitionRack));
+    let kinds: Vec<_> = hits.iter().map(|hit| hit.kind).collect();
+    assert_eq!(
+        kinds,
+        vec![
+            DamageComponentKind::Radio,
+            DamageComponentKind::FuelTank,
+            DamageComponentKind::Engine,
+            DamageComponentKind::Transmission,
+        ]
+    );
+}
+
+#[test]
+fn turret_rear_ammunition_swings_with_the_turret() {
+    let layout = DamageLayout::t54_1951();
+    let spec = VehicleKind::T54_1951.spec();
+    let pivot = spec.mounts.turret_ring.translation - Vec3::Y * spec.hitbox.center_y_m;
+    // Crosswise through the turret rear at ready-rack height.
+    let start = Vec3::new(-1.5, 0.70, -0.61);
+    let end = Vec3::new(1.5, 0.70, -0.61);
+
+    let neutral = layout.intersections_with_turret_pose(true, start, end, 0.0, pivot);
+    assert!(neutral.iter().any(|hit| hit.kind == DamageComponentKind::AmmunitionRack));
+
+    let stale =
+        layout.intersections_with_turret_pose(true, start, end, std::f32::consts::FRAC_PI_2, pivot);
+    assert!(stale.iter().all(|hit| hit.kind != DamageComponentKind::AmmunitionRack));
 }
 
 #[test]
