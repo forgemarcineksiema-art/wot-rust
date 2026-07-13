@@ -6,6 +6,7 @@ pub(crate) mod aperture_rim;
 pub(crate) mod asset_catalog;
 pub(crate) mod asset_catalog_loader;
 pub(crate) mod asset_render;
+pub mod damage_budget;
 #[cfg(test)]
 mod damage_skin_tests;
 pub(crate) mod damage_worker;
