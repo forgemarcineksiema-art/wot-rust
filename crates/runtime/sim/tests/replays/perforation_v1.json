@@ -1,0 +1,63 @@
+{
+  "tick_rate_hz": 60,
+  "shooter": {
+    "team": 1,
+    "spec": "t55a",
+    "position": [0.0, 0.0, 0.0],
+    "yaw_rad": 0.0
+  },
+  "target": {
+    "team": 2,
+    "spec": "t54_1951",
+    "position": [0.0, 0.0, 55.0],
+    "yaw_rad": 3.1415927
+  },
+  "frames": [
+    {
+      "throttle": 0.0,
+      "steer": 0.0,
+      "turret_yaw_delta": 0.0,
+      "gun_pitch_delta": -1.0,
+      "fire": false
+    },
+    {
+      "throttle": 0.0,
+      "steer": 0.0,
+      "turret_yaw_delta": 0.0,
+      "gun_pitch_delta": 0.0,
+      "fire": true
+    },
+    {
+      "throttle": 0.0,
+      "steer": 0.0,
+      "turret_yaw_delta": 0.0,
+      "gun_pitch_delta": 0.0,
+      "fire": false
+    },
+    {
+      "throttle": 0.0,
+      "steer": 0.0,
+      "turret_yaw_delta": 0.0,
+      "gun_pitch_delta": 0.0,
+      "fire": false
+    },
+    {
+      "throttle": 0.0,
+      "steer": 0.0,
+      "turret_yaw_delta": 0.0,
+      "gun_pitch_delta": 0.0,
+      "fire": false
+    },
+    {
+      "throttle": 0.0,
+      "steer": 0.0,
+      "turret_yaw_delta": 0.0,
+      "gun_pitch_delta": 0.0,
+      "fire": false
+    }
+  ],
+  "expected": {
+    "target_hit_points_max": 1250,
+    "damage_events_min": 1
+  }
+}

@@ -164,10 +164,25 @@ impl LocalAuthoritativeServer {
         ));
         // The bots read LAST tick's damage events (cleared on the next sim step): the honest
         // "we just got hit" signal that lets a blind bot turn toward the fire.
+        //
+        // Their raycasts must see the cover the battle actually blocks with — otherwise a bot
+        // keeps hiding behind a flattened building and refuses to fire through the hole it just
+        // made. The pristine common case borrows the authored slice; only a battle that has
+        // damaged cover pays for building the live view.
+        let live_cover: std::borrow::Cow<'_, [terrain::StaticCoverObject]> =
+            if self.sim.cover_states().iter().all(|state| state.phase == sim::CoverPhase::Intact) {
+                std::borrow::Cow::Borrowed(&self.battlefield.static_cover)
+            } else {
+                std::borrow::Cow::Owned(sim::live_cover_for_blocking(
+                    &self.battlefield.static_cover,
+                    self.sim.cover_states(),
+                ))
+            };
         commands.extend(self.bots.commands(
             self.sim.tick(),
             self.sim.tanks(),
             &self.battlefield,
+            &live_cover,
             battle_over,
             self.sim.damage_events(),
         ));
