@@ -10,8 +10,9 @@ use renderer_api::{
 };
 use vehicle_forge::authoritative_baked_vehicle;
 use vehicle_geometry::{
-    GeometryMesh, MeshContactIndex, RunningGearKinematics, SubmeshKind, idler_unit_mesh,
-    road_wheel_unit_mesh, sprocket_unit_mesh, swing_arm_unit_mesh, track_link_unit_mesh,
+    BakedVehicle, GeometryMesh, MeshContactIndex, RunningGearKinematics, SubmeshKind,
+    idler_unit_mesh, road_wheel_unit_mesh, sprocket_unit_mesh, swing_arm_unit_mesh,
+    track_link_unit_mesh,
 };
 
 use super::damage_worker::{
@@ -36,6 +37,10 @@ pub struct VehicleAssetCatalog {
     damage_worker: DamageMeshWorker,
     damage_jobs: HashSet<String>,
     damage_telemetry: DamageMeshTelemetry,
+    /// The authoritative LOD0 bake per kind, forged once and shared. Damage-skin and wreck
+    /// requests must never re-run the full vehicle bake on the main thread — on the hybrid T-54
+    /// that is a visible frame hitch on every new hit.
+    baked_sources: HashMap<VehicleKind, Arc<BakedVehicle>>,
 }
 
 /// The hull and turret contact indices for one vehicle kind, each in its own decal-local frame
@@ -61,11 +66,14 @@ pub(crate) struct VehicleAssetEntry {
 
 impl VehicleAssetCatalog {
     /// Integrate no more than one completed worker result. Called once at the start of vehicle
-    /// object construction, bounding main-thread work and GPU uploads per frame.
-    pub(crate) fn integrate_one_damage_mesh(&mut self) {
+    /// object construction, bounding main-thread work and GPU uploads per frame. Returns whether
+    /// a result was integrated, so a budget capture can count completions.
+    pub(crate) fn integrate_one_damage_mesh(&mut self) -> bool {
         if let Some(result) = self.damage_worker.try_result() {
             self.integrate_damage_result(result);
+            return true;
         }
+        false
     }
 
     /// Offline/showcase helper: gameplay never calls this blocking drain.
@@ -120,11 +128,21 @@ impl VehicleAssetCatalog {
         self.material_handles.len()
     }
 
+    /// The shared authoritative bake for `kind`; forges at most once per catalog lifetime.
+    pub(crate) fn cached_bake(&mut self, kind: VehicleKind) -> Option<Arc<BakedVehicle>> {
+        if let Some(baked) = self.baked_sources.get(&kind) {
+            return Some(baked.clone());
+        }
+        let baked = Arc::new(authoritative_baked_vehicle(kind).ok()?);
+        self.baked_sources.insert(kind, baked.clone());
+        Some(baked)
+    }
+
     pub(crate) fn vehicle_entry(&mut self, kind: VehicleKind) -> Option<VehicleAssetEntry> {
         if let Some(entry) = self.vehicles.get(&kind) {
             return Some(*entry);
         }
-        let vehicle = authoritative_baked_vehicle(kind).ok()?;
+        let vehicle = self.cached_bake(kind)?;
         let turret_ring = vehicle.mounts().turret_ring.translation;
         let trunnion = vehicle.mounts().gun_trunnion.translation;
         let hull = vehicle.submesh(SubmeshKind::Hull)?;
@@ -176,7 +194,7 @@ impl VehicleAssetCatalog {
         if let Some(handle) = self.mesh_labels.get(&label) {
             return Some(*handle);
         }
-        let baked = authoritative_baked_vehicle(kind).ok()?;
+        let baked = self.cached_bake(kind)?;
         let submesh = match frame {
             game_core::ArmorFrame::Hull => SubmeshKind::Hull,
             game_core::ArmorFrame::Turret => SubmeshKind::Turret,
@@ -210,7 +228,7 @@ impl VehicleAssetCatalog {
         tank_id: game_core::TankId,
         penetrations_local: &[Vec3],
     ) -> Option<MeshHandle> {
-        let baked = authoritative_baked_vehicle(kind).ok()?;
+        let baked = self.cached_bake(kind)?;
         let hull = baked.submesh(SubmeshKind::Hull)?;
         let dented =
             crate::vehicle::wreck_deform::dented_hull(&hull.mesh, penetrations_local, tank_id.0)?;

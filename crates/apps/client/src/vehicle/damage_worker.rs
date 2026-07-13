@@ -98,7 +98,7 @@ fn push_bounded(samples: &mut VecDeque<Duration>, sample: Duration, capacity: us
     samples.push_back(sample);
 }
 
-fn percentile_95_ms(samples: &VecDeque<Duration>) -> f32 {
+pub(crate) fn percentile_95_ms(samples: &VecDeque<Duration>) -> f32 {
     if samples.is_empty() {
         return 0.0;
     }
