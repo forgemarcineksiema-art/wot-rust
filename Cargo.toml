@@ -59,6 +59,7 @@ sweep = { path = "crates/kernels/sweep" }
 terrain = { path = "crates/runtime/terrain" }
 vehicle_build = { path = "crates/vehicle/vehicle_build" }
 vehicle_forge = { path = "crates/vehicle/vehicle_forge" }
+world_forge = { path = "crates/world/world_forge" }
 vehicle_geometry = { path = "crates/kernels/vehicle_geometry" }
 experimental_geometry = { path = "crates/kernels/experimental_geometry" }
 
