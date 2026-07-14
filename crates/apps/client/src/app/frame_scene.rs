@@ -73,6 +73,7 @@ impl ClientApp {
     ) -> Vec<renderer_api::FxVertex> {
         let eye = glam::Vec3::from_array(eye);
         let mut fx_vertices = Vec::new();
+        self.track_marks.append_quads(&mut fx_vertices);
         self.terrain_scars.append_quads(&mut fx_vertices);
         fx_vertices.extend(self.fx.vertices(eye, glam::Vec3::from_array(target)));
         let shells = self.render_state.interpolated_shells(SNAPSHOT_INTERVAL_SECONDS);

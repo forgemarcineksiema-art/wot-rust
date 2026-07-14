@@ -25,6 +25,10 @@ pub(super) struct MotionFxState {
     primed: bool,
     dust_accum_s: [f32; 2],
     exhaust_accum_s: f32,
+    /// D5 rut writer per side: where the last stamped segment ended, and the track travel
+    /// accumulated since — the pen touches down at the first contact and lifts on a break.
+    rut_from: [Option<Vec3>; 2],
+    rut_travel_m: [f32; 2],
 }
 
 impl ClientApp {
@@ -34,6 +38,8 @@ impl ClientApp {
         if dt <= 0.0 {
             return;
         }
+        // Rain-softened ground takes a darker rut (D5); one judgment per frame for the field.
+        let wet = self.session.weather_variant() == game_core::WeatherVariant::RainSqualls;
         self.motion_fx.retain(|id, _| tanks.iter().any(|tank| tank.id == *id));
         for tank in tanks {
             if tank.hit_points == 0 {
@@ -57,9 +63,41 @@ impl ClientApp {
 
             let mut fastest = 0.0_f32;
             for (side, x_sign) in [(0_usize, -1.0_f32), (1, 1.0)] {
-                let speed = (tracks[side] - state.last_track_m[side]).max(0.0) / dt;
+                let signed_delta = tracks[side] - state.last_track_m[side];
+                let speed = signed_delta.max(0.0) / dt;
                 state.last_track_m[side] = tracks[side];
                 fastest = fastest.max(speed);
+
+                // D5: the track writes its rut — a segment every ~1.5 m of travel (reverse
+                // counts; the soil does not care which way the links roll). A broken track
+                // lifts the pen: the drivetrain's truth reaches the ground.
+                let contact =
+                    base + rotate(Vec3::new(x_sign * hitbox.half_width_m * 0.86, 0.0, 0.0));
+                if tank.track_break_t[side].is_some() {
+                    state.rut_from[side] = None;
+                    state.rut_travel_m[side] = 0.0;
+                } else {
+                    state.rut_travel_m[side] += signed_delta.abs();
+                    match state.rut_from[side] {
+                        None => {
+                            state.rut_from[side] = Some(contact);
+                            state.rut_travel_m[side] = 0.0;
+                        }
+                        Some(from)
+                            if state.rut_travel_m[side] >= crate::fx::TRACK_MARK_SPACING_M =>
+                        {
+                            self.track_marks.record_segment(
+                                from,
+                                contact,
+                                wet,
+                                &self.battlefield.heightmap,
+                            );
+                            state.rut_from[side] = Some(contact);
+                            state.rut_travel_m[side] = 0.0;
+                        }
+                        Some(_) => {}
+                    }
+                }
                 if speed < DUST_MIN_TRACK_SPEED {
                     state.dust_accum_s[side] = 0.0;
                     continue;
@@ -167,5 +205,54 @@ mod tests {
             app.tick_motion_fx(&[tank(2, step as f32 * 0.6, 0)], 0.1);
         }
         assert_eq!(app.fx.live_particles(), 0, "a wreck never stirs the ground");
+    }
+
+    /// D5's contract: rolling tracks press rut segments into the soil every ~1.5 m of travel,
+    /// a parked tank writes nothing, and a broken track lifts the pen while the healthy side
+    /// keeps writing.
+    #[test]
+    fn rolling_tracks_write_ruts_and_a_broken_track_stops() {
+        let mut app = ClientApp::new();
+
+        // Prime, then roll ~9 m — the hull actually travels (a rut is ground covered, not an
+        // odometer; a tank spinning its tracks on ice writes nothing).
+        let rolling_tank = |travel_m: f32| {
+            let mut t = tank(1, 100.0 + travel_m, 900);
+            t.translation = [10.0, 0.0, 20.0 + travel_m];
+            t
+        };
+        app.tick_motion_fx(&[rolling_tank(0.0)], 0.1);
+        for step in 1..=15 {
+            app.tick_motion_fx(&[rolling_tank(step as f32 * 0.6)], 0.1);
+        }
+        let rolling = app.track_marks.live_marks();
+        assert!(
+            (8..=14).contains(&rolling),
+            "9 m of travel writes ~1 segment per 1.5 m per side, got {rolling}"
+        );
+
+        // Parked: no new ruts.
+        for _ in 0..10 {
+            app.tick_motion_fx(&[rolling_tank(9.0)], 0.1);
+        }
+        assert_eq!(app.track_marks.live_marks(), rolling, "a parked tank writes no rut");
+
+        // Break the left track: only the right side keeps writing over the same distance.
+        let mut app = ClientApp::new();
+        let broken = |travel_m: f32| {
+            let mut t = tank(1, 100.0 + travel_m, 900);
+            t.translation = [10.0, 0.0, 20.0 + travel_m];
+            t.track_break_t = [Some(0.5), None];
+            t
+        };
+        app.tick_motion_fx(&[broken(0.0)], 0.1);
+        for step in 1..=15 {
+            app.tick_motion_fx(&[broken(step as f32 * 0.6)], 0.1);
+        }
+        let one_sided = app.track_marks.live_marks();
+        assert!(
+            one_sided > 0 && one_sided <= rolling / 2 + 1,
+            "a broken track lifts the pen — one side writes, got {one_sided} vs both-sides {rolling}"
+        );
     }
 }

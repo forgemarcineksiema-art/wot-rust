@@ -158,6 +158,7 @@ impl ClientApp {
             .filter(|age| *age < crate::hud::kill_marker::KILL_CONFIRM_TTL_S);
         self.fx.tick(frame_dt);
         self.terrain_scars.tick(frame_dt);
+        self.track_marks.tick(frame_dt);
         self.tick_battle_scars(frame_dt);
         // Cover that collapsed or cleared since the last frame: rebuild and re-upload the scene so
         // the rubble mounds and cleared foliage actually show.

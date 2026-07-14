@@ -161,6 +161,9 @@ pub(crate) struct ClientApp {
     /// Craters and scorch marks where shells struck the ground: a budgeted world-space pool
     /// stamped onto the terrain through the same FX pass as the on-tank decals.
     terrain_scars: crate::fx::TerrainScars,
+    /// Ruts the rolling tracks press into the soil (Inna Liga D5): same budgeted world-space
+    /// pool discipline as the craters, written from accumulated track travel.
+    track_marks: crate::fx::TrackMarks,
     /// Per-tank emission clock for the dead-engine smoke column (seconds since last puff).
     engine_smoke_accum_s: HashMap<game_core::TankId, f32>,
     motion_fx: HashMap<game_core::TankId, motion_fx::MotionFxState>,
@@ -336,6 +339,7 @@ impl ClientApp {
             tank_scars: HashMap::new(),
             turret_popoffs: HashMap::new(),
             terrain_scars: crate::fx::TerrainScars::default(),
+            track_marks: crate::fx::TrackMarks::default(),
             engine_smoke_accum_s: HashMap::new(),
             motion_fx: HashMap::new(),
             wreck_hull_meshes: HashMap::new(),
