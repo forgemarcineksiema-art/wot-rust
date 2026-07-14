@@ -130,13 +130,13 @@ fn vehicle_shots(
     }
     let live_objects = tank_vehicle_render_objects(catalog, &live, color);
     let live_damage: Vec<renderer_api::ArmorDamageInstance> =
-        client::armor_damage_instance(&live).into_iter().collect();
+        client::armor_damage_instance(&live, 30).into_iter().collect();
     let mut live_fx = Vec::new();
     append_decal_quads(&mut live_fx, &battle_decals(&live, cx, ground, cz), &live);
 
     let wreck = tank_snapshot(cx, ground, cz, 0, gun_dead);
     let wreck_objects = tank_vehicle_render_objects(catalog, &wreck, color);
-    let wreck_damage = client::armor_damage_instance(&wreck).into_iter().collect();
+    let wreck_damage = client::armor_damage_instance(&wreck, 30).into_iter().collect();
     let mut wreck_fx = Vec::new();
     append_decal_quads(&mut wreck_fx, &battle_decals(&wreck, cx, ground, cz), &wreck);
 

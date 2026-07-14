@@ -43,18 +43,28 @@ pub fn split_pbr_vehicle_render_frame(
     player_tank: TankId,
     player_gun_scale: f32,
 ) -> VehicleRenderFrame {
-    split_pbr_vehicle_render_frame_on_terrain(catalog, tanks, player_tank, player_gun_scale, None)
+    split_pbr_vehicle_render_frame_on_terrain(
+        catalog,
+        tanks,
+        player_tank,
+        player_gun_scale,
+        None,
+        0,
+    )
 }
 
 /// As [`split_pbr_vehicle_render_frame`], with the local heightmap so each tank's road wheels can
 /// ride the ground under them (per-wheel suspension travel) and its track tension can follow the
 /// hull's drive state.
+/// `now_tick` is the latest authoritative tick: fresh perforations cool their thermal glow
+/// against it. Callers without a battle clock pass 0 (glow reads as long cold).
 pub fn split_pbr_vehicle_render_frame_on_terrain(
     catalog: &mut VehicleAssetCatalog,
     tanks: Vec<PresentationTank>,
     player_tank: TankId,
     player_gun_scale: f32,
     terrain: Option<&HeightMap>,
+    now_tick: u64,
 ) -> VehicleRenderFrame {
     let mut objects = Vec::new();
     let mut armor_damage = Vec::new();
@@ -62,7 +72,7 @@ pub fn split_pbr_vehicle_render_frame_on_terrain(
         let is_player = tank.id == player_tank;
         let hull_color = if is_player { [0.30, 0.40, 0.28] } else { [0.46, 0.29, 0.25] };
         let snapshot = render_snapshot(&tank);
-        if let Some(damage) = armor_damage_instance(&snapshot) {
+        if let Some(damage) = armor_damage_instance(&snapshot, now_tick) {
             armor_damage.push(damage);
         }
         let variation = VehicleVariation::from_snapshot(&snapshot);
@@ -101,13 +111,19 @@ pub fn split_pbr_vehicle_render_frame_on_terrain(
     VehicleRenderFrame { objects, armor_damage }
 }
 
-pub fn armor_damage_instance(snapshot: &TankSnapshot) -> Option<ArmorDamageInstance> {
+pub fn armor_damage_instance(
+    snapshot: &TankSnapshot,
+    now_tick: u64,
+) -> Option<ArmorDamageInstance> {
     if snapshot.vehicle != game_core::VehicleKind::T54_1951 {
         return None;
     }
     let pose = super::pose::VehiclePose::from_snapshot(snapshot);
     let mut apertures = Vec::new();
     for breach in snapshot.armor_breaches.breaches() {
+        let age_s = now_tick.saturating_sub(breach.created_tick) as f32
+            / sim::DEFAULT_SIMULATION_TICK_HZ as f32;
+        let glow = breach_glow(breach.shell_type, age_s);
         for lobe in breach.lobes() {
             let (point, basis) = match breach.frame {
                 game_core::ArmorFrame::Hull => {
@@ -135,12 +151,34 @@ pub fn armor_damage_instance(snapshot: &TankSnapshot) -> Option<ArmorDamageInsta
                 phase_a,
                 phase_b,
                 half_depth_m: (lobe.thickness_m + 0.025).clamp(0.04, 0.45),
-                glow: 0.0,
-                glow_tightness: 1.0,
+                glow,
+                glow_tightness: breach_glow_tightness(breach.shell_type),
             });
         }
     }
     (!apertures.is_empty()).then_some(ArmorDamageInstance { tank_id: snapshot.tank_id, apertures })
+}
+
+/// Thermal rim intensity of a perforation `age_s` after impact. The glow is ENERGY speaking:
+/// kinetic AP/APCR bore heat runs short and modest, a HEAT jet's melt burns hottest and
+/// lingers, HE barely marks the plate. Pure exponential cooling — never a permanent edge.
+pub fn breach_glow(shell_type: game_core::ShellType, age_s: f32) -> f32 {
+    let (peak, tau_s) = match shell_type {
+        game_core::ShellType::ArmorPiercing => (0.55, 2.2),
+        game_core::ShellType::Apcr => (0.45, 1.6),
+        game_core::ShellType::Heat => (1.0, 4.5),
+        game_core::ShellType::HighExplosive => (0.22, 1.2),
+    };
+    peak * (-age_s.max(0.0) / tau_s).exp()
+}
+
+/// How tightly the glow hugs the contour: a HEAT jet's melt is a narrow bright ring, kinetic
+/// rounds heat a softer, wider rim.
+pub fn breach_glow_tightness(shell_type: game_core::ShellType) -> f32 {
+    match shell_type {
+        game_core::ShellType::Heat => 2.4,
+        _ => 1.0,
+    }
 }
 
 fn hash_phase(seed: u64) -> f32 {
@@ -245,6 +283,42 @@ pub fn render_frame_from_objects(objects: Vec<RenderObject>) -> RenderFrame {
 
 #[cfg(test)]
 mod tests {
+    use game_core::ShellType;
+
+    use super::{breach_glow, breach_glow_tightness};
+
+    /// The plan's acceptance line verbatim: glow follows ENERGY (short and weak for AP/APCR,
+    /// hotter and local for HEAT), cools monotonically, and never leaves a permanent edge.
+    #[test]
+    fn breach_glow_cools_by_energy_and_never_stays() {
+        for shell in
+            [ShellType::ArmorPiercing, ShellType::Apcr, ShellType::Heat, ShellType::HighExplosive]
+        {
+            let fresh = breach_glow(shell, 0.0);
+            assert!(fresh > 0.0 && fresh <= 1.0);
+            // Monotonic cooling.
+            let mut previous = fresh;
+            for step in 1..=30 {
+                let value = breach_glow(shell, step as f32 * 0.5);
+                assert!(value < previous, "{shell:?} must cool monotonically");
+                previous = value;
+            }
+            // No permanent white edges: effectively dark inside half a minute.
+            assert!(breach_glow(shell, 30.0) < 0.005, "{shell:?} must go cold");
+        }
+        // Energy speaks: HEAT burns hottest and longest, APCR shortest of the kinetics.
+        assert!(breach_glow(ShellType::Heat, 0.0) > breach_glow(ShellType::ArmorPiercing, 0.0));
+        assert!(breach_glow(ShellType::Heat, 6.0) > breach_glow(ShellType::ArmorPiercing, 6.0));
+        assert!(
+            breach_glow(ShellType::ArmorPiercing, 3.0) > breach_glow(ShellType::Apcr, 3.0),
+            "APCR bore heat dies before AP"
+        );
+        // HEAT hugs the contour in a narrower ring.
+        assert!(breach_glow_tightness(ShellType::Heat) > breach_glow_tightness(ShellType::Apcr));
+        // A clock-less caller (now_tick 0 with a future created_tick) clamps to fresh, not NaN.
+        assert!(breach_glow(ShellType::ArmorPiercing, -5.0).is_finite());
+    }
+
     use game_core::VehicleKind;
 
     use super::*;

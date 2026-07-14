@@ -374,6 +374,11 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
         * smoothness * smoothness * fresnel * ao * cavity * contact * screen
         * (1.0 - burnt * 0.85) * interior_env * fracture_env;
 
+    // Thermal rim of fresh perforations: energy speaking, cooling away CPU-side — deep orange
+    // heat, never a permanent white edge. Emission rides into fog like every other radiance.
+    let glow = armor_aperture_glow(input.world_pos, input.damage_index);
+    let glow_rgb = vec3<f32>(1.0, 0.30, 0.06) * glow * 2.2;
+
     // Linear HDR out: the display transform lives in the central post pass (rule 7).
-    return vec4<f32>(apply_fog(lit + spec_color + env, input.world_pos), 1.0);
+    return vec4<f32>(apply_fog(lit + spec_color + env + glow_rgb, input.world_pos), 1.0);
 }
