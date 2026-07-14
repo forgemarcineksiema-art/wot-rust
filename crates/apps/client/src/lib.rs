@@ -9,8 +9,6 @@ mod hud;
 mod loop_policy;
 mod predict;
 mod render_state;
-mod scene;
-mod tank_mesh;
 mod ui_strings;
 mod vehicle;
 
@@ -29,15 +27,15 @@ pub use loop_policy::{
     ClientLoopAction, ClientLoopEvent, ClientLoopPhase, FixedTickAccumulator, WinitLoopDriver,
 };
 pub use render_state::InterpolatedBattleState;
-pub use scene::battlefield::{
+pub use scene_build::battlefield::{
     battlefield_ground_and_statics_meshes, battlefield_scene_mesh,
     battlefield_scene_mesh_with_cover_states, battlefield_statics_mesh, terrain_scene_mesh,
 };
-pub use scene::grass::{GRASS_MESH_HANDLE, grass_frame_objects, grass_tuft_mesh};
-pub use scene::hangar::{TURNTABLE_TOP_M, hangar_camera_pivot, hangar_scene_mesh};
-pub use scene::review_views::{ReviewView, prokhorovka_review_views};
-pub use scene::terrain_maps::{bake_terrain_ground_maps, terrain_material_set_for};
-pub use scene::water::battlefield_water_mesh;
+pub use scene_build::grass::{GRASS_MESH_HANDLE, grass_frame_objects, grass_tuft_mesh};
+pub use scene_build::hangar::{TURNTABLE_TOP_M, hangar_camera_pivot, hangar_scene_mesh};
+pub use scene_build::review_views::{ReviewView, prokhorovka_review_views};
+pub use scene_build::terrain_maps::{bake_terrain_ground_maps, terrain_material_set_for};
+pub use scene_build::water::battlefield_water_mesh;
 pub use vehicle::asset_catalog::VehicleAssetCatalog;
 pub use vehicle::asset_render::{
     tank_vehicle_render_objects, tank_vehicle_render_objects_with_variation,

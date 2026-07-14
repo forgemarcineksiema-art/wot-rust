@@ -66,8 +66,7 @@ pub fn battlefield_statics_mesh(
     // The world beyond the border (render-only skirt + distant trees), then the dressing:
     // both baked into the same static upload.
     {
-        let (skirt_vertices, skirt_indices) =
-            crate::scene::backdrop::backdrop_scene_mesh(battlefield);
+        let (skirt_vertices, skirt_indices) = crate::backdrop::backdrop_scene_mesh(battlefield);
         let base = vertices.len() as u32;
         vertices.extend(skirt_vertices);
         indices.extend(skirt_indices.into_iter().map(|index| index + base));
@@ -79,7 +78,7 @@ pub fn battlefield_statics_mesh(
         if scenery_stands_in_cleared_cover(instance, &battlefield.static_cover, cover_states) {
             continue;
         }
-        crate::scene::foliage::push_scenery_instance(&mut vertices, &mut indices, instance);
+        crate::foliage::push_scenery_instance(&mut vertices, &mut indices, instance);
     }
     (vertices, indices)
 }

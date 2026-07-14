@@ -117,7 +117,7 @@ impl ClientApp {
         let (vertices, indices, water_vertices, water_indices): (&[_], &[u32], &[_], &[u32]) =
             match want {
                 SceneKind::Garage => {
-                    hangar_meshes = crate::scene::hangar::hangar_scene_mesh();
+                    hangar_meshes = scene_build::hangar::hangar_scene_mesh();
                     (&hangar_meshes.0, &hangar_meshes.1, &[], &[])
                 }
                 SceneKind::Battle => {
@@ -137,7 +137,7 @@ impl ClientApp {
             SceneKind::Battle => {
                 // The battle look is the MATCH's look: the server named the map and rolled the
                 // weather from the battle seed; the client dresses accordingly.
-                let look = crate::scene::weather::weather_look(
+                let look = scene_build::weather::weather_look(
                     self.session.map_id(),
                     self.session.weather_variant(),
                 );
@@ -155,9 +155,7 @@ impl ClientApp {
                         &meshes.ground_vertices,
                         &meshes.ground_indices,
                         &meshes.ground_maps,
-                        &crate::scene::terrain_maps::terrain_material_set_for(
-                            self.session.map_id(),
-                        ),
+                        &scene_build::terrain_maps::terrain_material_set_for(self.session.map_id()),
                     );
                 }
             }
@@ -175,7 +173,7 @@ impl ClientApp {
             // arms live here so neither scene inherits the other's focus.
             match want {
                 SceneKind::Garage => {
-                    renderer.set_shadow_focus(Some(crate::scene::hangar::hangar_shadow_focus()))
+                    renderer.set_shadow_focus(Some(scene_build::hangar::hangar_shadow_focus()))
                 }
                 SceneKind::Battle => renderer.set_shadow_focus(None),
             }
@@ -186,7 +184,7 @@ impl ClientApp {
     /// Dress the freshly created renderer in the CURRENT battle's weather (the renderer is
     /// born holding the generic battlefield defaults; the app is born in battle).
     pub(super) fn apply_match_weather(&mut self) {
-        let look = crate::scene::weather::weather_look(
+        let look = scene_build::weather::weather_look(
             self.session.map_id(),
             self.session.weather_variant(),
         );
@@ -216,7 +214,7 @@ fn garage_preview_snapshot(kind: VehicleKind) -> TankSnapshot {
         tank_id: TankId(0),
         team: TeamId(1),
         vehicle: kind,
-        position: [0.0, crate::scene::hangar::TURNTABLE_TOP_M, 0.0],
+        position: [0.0, scene_build::hangar::TURNTABLE_TOP_M, 0.0],
         yaw_rad: 0.6,
         hull_pitch_rad: 0.0,
         hull_roll_rad: 0.0,

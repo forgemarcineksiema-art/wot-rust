@@ -9,7 +9,7 @@ use renderer_api::Camera;
 
 use super::draft::FitSlot;
 use super::{GarageState, HERO_ORBIT_DISTANCE, HERO_ORBIT_PITCH, HERO_ORBIT_YAW};
-use crate::scene::hangar::hangar_camera_pivot;
+use scene_build::hangar::hangar_camera_pivot;
 
 const MIN_PITCH: f32 = -0.05;
 /// Capped so a full zoom-out never tips the eye up through the roof — with the boom range below and
@@ -217,8 +217,8 @@ mod tests {
         // The boom is a plain range (no wall clamp), so correctness is a geometry invariant: at the
         // widest pull-back and the steepest allowed tilt, from any yaw, the eye must still clear the
         // shell. If a constant drifts (hall shrinks, boom grows, pitch cap rises) this catches it.
-        let (half, height) = crate::scene::hangar::hangar_interior();
-        let pivot = crate::scene::hangar::hangar_camera_pivot();
+        let (half, height) = scene_build::hangar::hangar_interior();
+        let pivot = scene_build::hangar::hangar_camera_pivot();
         let margin = 0.4;
         for yaw_step in 0..24 {
             let yaw = yaw_step as f32 / 24.0 * std::f32::consts::TAU;

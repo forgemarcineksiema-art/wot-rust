@@ -17,7 +17,7 @@ pub fn battlefield_water_mesh(battlefield: &BattlefieldMap) -> (Vec<WaterVertex>
         None => (Vec::new(), Vec::new()),
     };
     // The river keeps flowing past the horizon: the backdrop strips render with this same mesh.
-    let (skirt_vertices, skirt_indices) = crate::scene::backdrop::backdrop_water_mesh(battlefield);
+    let (skirt_vertices, skirt_indices) = crate::backdrop::backdrop_water_mesh(battlefield);
     let base = vertices.len() as u32;
     vertices.extend(skirt_vertices);
     indices.extend(skirt_indices.into_iter().map(|index| index + base));

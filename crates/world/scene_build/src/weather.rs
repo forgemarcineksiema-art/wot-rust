@@ -10,7 +10,7 @@ use terrain::MapId;
 use game_core::WeatherVariant;
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct WeatherLook {
+pub struct WeatherLook {
     pub lighting: SceneLighting,
     /// The renderer's fallback clear colour behind the gradient sky (r, g, b).
     pub sky: (f64, f64, f64),
@@ -23,7 +23,7 @@ pub(crate) struct WeatherLook {
 /// Total over every (map, variant) pair: an unauthored combination falls back to the map's
 /// clear look instead of panicking — the server-side `supported_weather` table is what keeps
 /// unauthored variants out of real battles.
-pub(crate) fn weather_look(map: MapId, variant: WeatherVariant) -> WeatherLook {
+pub fn weather_look(map: MapId, variant: WeatherVariant) -> WeatherLook {
     match (map, variant) {
         (MapId::ProkhorovkaHill252_2, WeatherVariant::GoldenEvening) => WeatherLook {
             lighting: SceneLighting::prokhorovka_golden_evening(),
