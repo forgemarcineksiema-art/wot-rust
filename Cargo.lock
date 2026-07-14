@@ -771,6 +771,7 @@ dependencies = [
  "vehicle_forge",
  "vehicle_geometry",
  "winit",
+ "world_forge",
 ]
 
 [[package]]

@@ -106,7 +106,7 @@ pub fn backdrop_scene_mesh(battlefield: &BattlefieldMap) -> (Vec<SceneVertex>, V
         let kind =
             if backdrop_hash(&mut seed) > 0.35 { SceneryKind::Oak } else { SceneryKind::Poplar };
         let ground = bystra_backdrop_height(x, z);
-        crate::scene::foliage::push_scenery_instance(
+        crate::scene::foliage::push_scenery_instance_far(
             &mut vertices,
             &mut indices,
             &SceneryInstance {

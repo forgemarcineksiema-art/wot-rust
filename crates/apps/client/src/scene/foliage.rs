@@ -1,7 +1,9 @@
-//! Procedural foliage meshes — low-poly trees and rocks in the vehicle-forge spirit: no
-//! external assets, flat-shaded frusta with honest normals, colors doing the talking. Baked
-//! into the static scene mesh (uploaded once per scene swap), so a dressed valley costs the
-//! frame nothing. Wind sway arrives with the weather package as a shader effect.
+//! Procedural foliage meshes — trees 2.0 (B2): battlefield trees now come BAKED from
+//! `world_forge::tree` (species as a parameter set, painterly crown normals), colored here and
+//! folded into the static scene mesh, so a dressed valley still costs the frame nothing. The
+//! old flat-shaded frusta remain as the FAR representation (the backdrop ring uses them
+//! explicitly — at kilometers they read identically and cost almost nothing). Wind sway (D4)
+//! arrives with the weather package as a shader effect.
 
 use glam::{Mat3, Vec3};
 use renderer_api::SceneVertex;
@@ -10,6 +12,76 @@ use terrain::{SceneryInstance, SceneryKind};
 use crate::tank_mesh::push_oriented_box;
 
 pub fn push_scenery_instance(
+    vertices: &mut Vec<SceneVertex>,
+    indices: &mut Vec<u32>,
+    instance: &SceneryInstance,
+) {
+    // Battlefield trees are the baked species; rocks keep their mineral box below.
+    let species = match instance.kind {
+        SceneryKind::Oak => Some(world_forge::tree::TreeSpecies::Oak),
+        SceneryKind::Poplar => Some(world_forge::tree::TreeSpecies::Poplar),
+        SceneryKind::Willow => Some(world_forge::tree::TreeSpecies::Willow),
+        SceneryKind::FruitTree => Some(world_forge::tree::TreeSpecies::FruitTree),
+        SceneryKind::Bush => Some(world_forge::tree::TreeSpecies::Bush),
+        SceneryKind::Rock => None,
+    };
+    if let Some(species) = species {
+        push_baked_tree(vertices, indices, instance, species);
+        return;
+    }
+    push_scenery_instance_far(vertices, indices, instance);
+}
+
+/// The whole baked tree, transformed and colored into the static scene mesh. The seed comes
+/// from the instance's position bits, so a shelterbelt never repeats a tree yet every scene
+/// bake is identical.
+fn push_baked_tree(
+    vertices: &mut Vec<SceneVertex>,
+    indices: &mut Vec<u32>,
+    instance: &SceneryInstance,
+    species: world_forge::tree::TreeSpecies,
+) {
+    let base = Vec3::from_array(instance.position);
+    let seed =
+        instance.position[0].to_bits() as u64 ^ ((instance.position[2].to_bits() as u64) << 32);
+    let tree = world_forge::tree::bake_tree_lod(species, seed, world_forge::tree::TreeLod::Mid);
+    let rotation = Mat3::from_rotation_y(instance.yaw_rad);
+    let scale = instance.scale;
+    let canopy_color = canopy_color_for(species);
+    for (mesh, (color, gloss), lit_by_sky) in
+        [(&tree.trunk, TRUNK, false), (&tree.canopy, canopy_color, true)]
+    {
+        let start = vertices.len() as u32;
+        for vertex in mesh.vertices() {
+            let position = base + rotation * (vertex.position * scale);
+            let normal = (rotation * vertex.normal).normalize_or_zero();
+            // The painterly gradient: crown tops toward the light, undersides into shade.
+            let shade = if lit_by_sky { 0.82 + 0.18 * normal.y.max(0.0) } else { 1.0 };
+            vertices.push(SceneVertex::surfaced(
+                position.to_array(),
+                normal.to_array(),
+                [color[0] * shade, color[1] * shade, color[2] * shade],
+                gloss,
+            ));
+        }
+        indices.extend(mesh.indices().iter().map(|index| index + start));
+    }
+}
+
+fn canopy_color_for(species: world_forge::tree::TreeSpecies) -> ([f32; 3], f32) {
+    match species {
+        world_forge::tree::TreeSpecies::Oak => CANOPY_DARK,
+        world_forge::tree::TreeSpecies::Poplar => CANOPY,
+        world_forge::tree::TreeSpecies::Willow => CANOPY_PALE,
+        world_forge::tree::TreeSpecies::FruitTree => CANOPY_PALE,
+        world_forge::tree::TreeSpecies::Bush => CANOPY_DARK,
+    }
+}
+
+/// The far representation: the original flat-shaded frusta. The backdrop ring calls this
+/// directly — at its distances the baked crown and the painted cone are the same picture, and
+/// the ring has thousands of instances.
+pub fn push_scenery_instance_far(
     vertices: &mut Vec<SceneVertex>,
     indices: &mut Vec<u32>,
     instance: &SceneryInstance,
@@ -120,8 +192,9 @@ fn push_frustum(
 mod tests {
     use super::*;
 
-    /// Per-kind triangle budget guard.
-    const MAX_TRIS_PER_INSTANCE: usize = 160;
+    /// Per-kind triangle budget guard: a baked mid-LOD tree tops out at the world_forge LOD1
+    /// budget; rocks stay a box.
+    const MAX_TRIS_PER_INSTANCE: usize = world_forge::tree::TREE_LOD1_MAX_TRIS;
 
     #[test]
     fn every_kind_stays_inside_the_triangle_budget_with_sane_indices() {
@@ -151,5 +224,61 @@ mod tests {
             // Nothing floats far below its ground point (rocks legitimately embed a little).
             assert!(vertices.iter().all(|vertex| vertex.position[1] >= 3.0 - 1.0));
         }
+    }
+}
+
+#[cfg(test)]
+mod baked_tree_tests {
+    use super::*;
+
+    /// B2's on-screen contract: a battlefield tree is the BAKED species (hundreds of triangles,
+    /// canopy normals bent from the crown centroid), deterministic per position — the scene
+    /// bake is identical every time, yet no two shelterbelt oaks repeat.
+    #[test]
+    fn battlefield_trees_are_baked_species_deterministic_per_position() {
+        let instance = |x: f32| SceneryInstance {
+            kind: SceneryKind::Oak,
+            position: [x, 0.0, 4.0],
+            yaw_rad: 0.3,
+            scale: 1.0,
+        };
+        let build = |instance: &SceneryInstance| {
+            let mut vertices = Vec::new();
+            let mut indices = Vec::new();
+            push_scenery_instance(&mut vertices, &mut indices, instance);
+            (vertices, indices)
+        };
+        let (vertices_a, indices_a) = build(&instance(10.0));
+        let (vertices_b, _) = build(&instance(10.0));
+        assert_eq!(vertices_a.len(), vertices_b.len(), "the scene bake is deterministic");
+        assert!(
+            indices_a.len() / 3 > 60,
+            "a baked oak is real geometry, not a frustum stack: {} tris",
+            indices_a.len() / 3
+        );
+        let (vertices_c, _) = build(&instance(50.0));
+        assert_ne!(
+            vertices_a.iter().map(|v| u64::from(v.position[1].to_bits())).sum::<u64>(),
+            vertices_c.iter().map(|v| u64::from(v.position[1].to_bits())).sum::<u64>(),
+            "two oaks at different spots are different individuals"
+        );
+    }
+
+    /// The backdrop ring keeps the cheap painted frusta — thousands of instances at kilometers.
+    #[test]
+    fn the_far_path_stays_a_cheap_frustum_stack() {
+        let mut vertices = Vec::new();
+        let mut indices = Vec::new();
+        push_scenery_instance_far(
+            &mut vertices,
+            &mut indices,
+            &SceneryInstance {
+                kind: SceneryKind::Oak,
+                position: [0.0, 0.0, 0.0],
+                yaw_rad: 0.0,
+                scale: 1.0,
+            },
+        );
+        assert!(indices.len() / 3 <= 60, "the far oak stays ~50 tris: {}", indices.len() / 3);
     }
 }
