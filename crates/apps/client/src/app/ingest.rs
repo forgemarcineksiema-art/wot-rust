@@ -60,6 +60,21 @@ impl ClientApp {
             if impact.surface == game_core::ImpactSurface::Terrain {
                 self.terrain_scars.record(impact.position, &self.battlefield.heightmap);
             }
+            // The blast grammar (D2): a NEAR HE detonation reads through the rig even when it
+            // scratches nothing — the world shoves the camera away from the burst, scaled by
+            // proximity. Direct hits keep their own, stronger shudder; a far crump stays a
+            // picture. Sniper mode keeps only the vertical dip (damage_shudder's own rule).
+            if impact.shell_type == game_core::ShellType::HighExplosive
+                && let Some(player) = snapshot.tanks.iter().find(|t| t.tank_id == self.player_tank)
+            {
+                const BLAST_READ_RANGE_M: f32 = 30.0;
+                let away = glam::Vec3::from_array(player.position) - impact.position;
+                let distance = away.length();
+                if distance < BLAST_READ_RANGE_M && distance > 1.0e-3 {
+                    let proximity = 1.0 - distance / BLAST_READ_RANGE_M;
+                    self.camera_controller.damage_shudder(away, proximity * proximity * 0.8);
+                }
+            }
         }
         for event in &snapshot.damage_events {
             // Splash strikes (HE blast damage without the shell body) still detonate audibly.
@@ -248,5 +263,46 @@ impl ClientApp {
                 own_shot: event.tank_id == self.player_tank,
             });
         }
+    }
+}
+
+#[cfg(test)]
+mod blast_grammar_tests {
+    use super::super::ClientApp;
+
+    /// D2's contract: a NEAR high-explosive burst shoves the rig away from the detonation even
+    /// when it damages nothing; a far crump and a kinetic slap near you stay pictures.
+    #[test]
+    fn a_near_he_burst_shoves_the_camera_and_a_far_or_kinetic_one_does_not() {
+        let shove = |offset: [f32; 3], shell_type: game_core::ShellType| {
+            let mut app = ClientApp::new_seeded(11);
+            app.confirm_garage_selection();
+            app.run_fixed_ticks(6);
+            let mut snapshot =
+                app.render_state.latest_snapshot().cloned().expect("snapshot present");
+            snapshot.server_tick += 1;
+            let player = snapshot
+                .tanks
+                .iter()
+                .find(|tank| tank.tank_id == app.player_tank)
+                .expect("player present")
+                .position;
+            app.camera_controller.zero_motion_for_test();
+            snapshot.shell_impacts.push(game_core::ShellImpact {
+                owner: game_core::TankId(999),
+                position: glam::Vec3::from_array(player) + glam::Vec3::from_array(offset),
+                surface: game_core::ImpactSurface::Terrain,
+                shell_type,
+            });
+            app.accept_and_sync(snapshot);
+            app.camera_controller.anchor_speed_for_test()
+        };
+
+        let near_he = shove([6.0, 0.0, 3.0], game_core::ShellType::HighExplosive);
+        assert!(near_he > 0.3, "a 7 m HE burst must shove the rig, got {near_he}");
+        let far_he = shove([80.0, 0.0, 10.0], game_core::ShellType::HighExplosive);
+        assert!(far_he < 1.0e-3, "an 80 m crump is a picture, got {far_he}");
+        let near_ap = shove([6.0, 0.0, 3.0], game_core::ShellType::ArmorPiercing);
+        assert!(near_ap < 1.0e-3, "a kinetic slap into soil is not a blast, got {near_ap}");
     }
 }
