@@ -44,6 +44,6 @@ and every mask are even in `z − 500`, features are on-axis or mirrored pairs.
 
 ## Status
 
-Playable behind the opt-in gate: set `WOT_MAP=bystra-valley` before launching the client.
+DEFAULT battle map (the opt-in gate now selects AWAY from it); historical note: playable behind the opt-in gate: set `WOT_MAP=bystra-valley` before launching the client.
 The map enters the seeded rotation once the bots respect deep water (planned: bot water
 probes + reroute through `Crossing` strategic points).

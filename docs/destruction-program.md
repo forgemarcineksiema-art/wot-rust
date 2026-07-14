@@ -43,13 +43,13 @@ Every phase preserves these; a phase that cannot is redesigned, not excused.
 
 | # | Phase | Scope | Protocol | Status |
 |---|---|---|---|---|
-| 0 | Program doc + budgets | this doc, combat hot-path bench, FX vertex budget lock | — | in progress |
-| 1 | Contact-true impacts | `DamageEvent` carries plate normal + shell direction; client raycasts the visual mesh (BVH per `VehicleKind`) and anchors marks flush on the armor | v19 | planned |
-| 2 | Conformal decals | penetration holes as mesh-clipped triangle patches that wrap curved castings | — | planned |
-| 3 | Visible module damage | gun droop, thrown track + dropped wheels, engine-deck fire, wreck dressing — all from state already on the wire | — | planned |
-| 4 | Turret pop-off | ammo-rack detonation kill detaches the turret: sim flag + trace exemption + `wreck_state` on the wire; client flies a deterministic ballistic arc | v20 | planned |
-| 5 | Wreck deformation | runtime `deform`-kernel dents on per-instance wreck meshes at death; ricochet spark streaks | — | planned |
-| 6 | Destructible cover | `CoverView` + `cover_states` (Intact/Rubble/Gone): HE and ramming destroy fences/tree-line segments and pound farm buildings into rubble; shell trace, movement, and spotting LOS all follow the state | v21 | planned |
+| 0 | Program doc + budgets | this doc, combat hot-path bench, FX vertex budget lock | — | implemented |
+| 1 | Contact-true impacts | `DamageEvent` carries plate normal + shell direction; client raycasts the visual mesh (BVH per `VehicleKind`) and anchors marks flush on the armor | v19 | implemented |
+| 2 | Conformal decals | penetration holes as mesh-clipped triangle patches that wrap curved castings | — | implemented |
+| 3 | Visible module damage | gun droop, thrown track + dropped wheels, engine-deck fire, wreck dressing — all from state already on the wire | — | implemented |
+| 4 | Turret pop-off | ammo-rack detonation kill detaches the turret: sim flag + trace exemption + `wreck_state` on the wire; client flies a deterministic ballistic arc | v20 | implemented |
+| 5 | Wreck deformation | runtime `deform`-kernel dents on per-instance wreck meshes at death; ricochet spark streaks | — | implemented |
+| 6 | Destructible cover | `CoverView` + `cover_states` (Intact/Rubble/Gone): HE and ramming destroy fences/tree-line segments and pound farm buildings into rubble; shell trace, movement, and spotting LOS all follow the state | v21 | implemented |
 | 7 | Honest Steel T-54 | bounded persistent armor channels, multi-module interior path, pose-aware mantlet scars, engine fire and authored thrown-track gap | v25 | implemented |
 | 8 | Real perforations | fleet-wide reusable apertures, v26 contours, analytic color/depth/shadow cut, T-54 interior lighting and local CPU remesh | v26 | in progress |
 
@@ -60,7 +60,7 @@ Sequencing: 0 → 1 → {2, 3 in either order} → 4 → {5, 6 in parallel}.
 | Version | Phase | Change |
 |---|---|---|
 | v19 | 1 | `DamageEvent` += `plate_normal`, `shell_direction` |
-| v20 | 4 | `TankSnapshot` += `wreck_state: u8`; shell trace skips a detached turret |
+| v20 | 4 | `Snapshot` += `detached_turrets: Vec<TankId>` (the doc's earlier `wreck_state: u8` sketch); shell trace skips a detached turret |
 | v21 | 6 | `Snapshot` += `cover_states`; destructible cover truth |
 | v25 | 7 | `TankSnapshot` += `armor_breaches`, `track_break_t`, `engine_fire`; `DamageEvent` += module hit/destroy masks |
 | v26 | 8 | Ammo-specific aperture contours, no-eviction merge policy, ingress/egress identity and deterministic thermal age |
@@ -89,9 +89,11 @@ whose Hull/Turret/Mantlet fragments bake three independent per-frame skins on th
 (client): contour vertices are seated barycentrically on the real curved steel, no whole source
 triangle outside the patch may vanish, and `armor_surface_basis` keeps a true tangent basis for a
 square-on shot on a rotated plate (the f32 residue there used to collapse every projection built
-on it, including aperture clearance). The mandatory final slices remain completion of the
-museum-reference detail pass, damaged/burning interior variants, audio and the final showcase
-gate. The first museum slice now replaces generic fighting-
+on it, including aperture clearance). The museum-reference detail pass (driver's station, V-54 ancillaries — the engine and
+transmission bays were already dressed), the damaged/burning interior variants (per-instance
+charring keyed by module state), the fire audio (procedural crackle bed) and the fleet-wide
+visible breaches all landed in the W0 wave of the release program. What remains of phase 8 is
+the final showcase review against the acceptance close-ups. The first museum slice now replaces generic fighting-
 compartment blocks with T-54 D-10T/SG-43 equipment and the documented 1951 ammunition groups. Its
 layout is checked against period T-54 drawings and the official MiniArt 37007 configuration; T-55
 drawings are explicitly excluded. T-55 receives only the fleet physics contract; it never inherits
