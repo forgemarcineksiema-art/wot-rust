@@ -7,7 +7,7 @@ use crate::RandomBattleConfig;
 use crate::ServerTickConfig;
 use crate::battle::{BattleMode, BattleOutcome, DrawReason, RANDOM_BATTLE_TIME_LIMIT_S};
 use crate::bots::BotRoster;
-use crate::setup::{BattleSetup, practice_duel_setup, random_7v7_setup};
+use crate::setup::{BattleSetup, practice_duel_setup};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct AuthoritativeTick {
@@ -46,7 +46,37 @@ impl LocalAuthoritativeServer {
     }
 
     pub fn new_random_7v7(config: ServerTickConfig, battle: RandomBattleConfig) -> Self {
-        Self::from_setup(config, random_7v7_setup(battle))
+        Self::from_setup(config, crate::setup::random_7v7_setup(battle))
+    }
+
+    /// The dedicated server's constructor (N2): the first `humans` team-one tanks belong to
+    /// connected players (returned in slot order), bots drive the rest.
+    pub fn new_random_7v7_for_humans(
+        config: ServerTickConfig,
+        battle: RandomBattleConfig,
+        humans: usize,
+    ) -> (Self, Vec<TankId>) {
+        let (setup, human_tanks) = crate::setup::random_7v7_setup_for_humans(battle, humans);
+        (Self::from_setup(config, setup), human_tanks)
+    }
+
+    /// Per-target observer masks (bit = tank index) against the LIVE cover — the per-viewer
+    /// filter's second input beside the team masks already on the snapshot.
+    pub fn observer_masks(&self) -> Vec<u16> {
+        let live_cover: std::borrow::Cow<'_, [terrain::StaticCoverObject]> =
+            if self.sim.cover_states().iter().all(|state| state.phase == sim::CoverPhase::Intact) {
+                std::borrow::Cow::Borrowed(&self.battlefield.static_cover)
+            } else {
+                std::borrow::Cow::Owned(sim::live_cover_for_blocking(
+                    &self.battlefield.static_cover,
+                    self.sim.cover_states(),
+                ))
+            };
+        sim::compute_observer_masks(
+            self.sim.tanks(),
+            Some(&self.battlefield.heightmap),
+            &live_cover,
+        )
     }
 
     fn from_setup(config: ServerTickConfig, setup: BattleSetup) -> Self {

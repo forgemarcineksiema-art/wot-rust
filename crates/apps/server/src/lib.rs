@@ -8,6 +8,7 @@ mod bot_routes;
 mod bots;
 mod local;
 mod match_info;
+pub mod remote;
 mod setup;
 
 pub use battle::{

@@ -47,6 +47,16 @@ pub(crate) fn practice_duel_setup(player_vehicle: VehicleKind) -> BattleSetup {
 }
 
 pub(crate) fn random_7v7_setup(config: RandomBattleConfig) -> BattleSetup {
+    random_7v7_setup_for_humans(config, 1).0
+}
+
+/// The dedicated server's variant (N2): reserve the first `humans` team-one slots for connected
+/// players (returned in slot order); everything else is a bot. `humans == 1` is exactly the
+/// desktop battle.
+pub(crate) fn random_7v7_setup_for_humans(
+    config: RandomBattleConfig,
+    humans: usize,
+) -> (BattleSetup, Vec<TankId>) {
     let battlefield = config.map.battlefield();
     let mut sim = SimulationState::new();
     sim.set_water(battlefield.water);
@@ -54,40 +64,39 @@ pub(crate) fn random_7v7_setup(config: RandomBattleConfig) -> BattleSetup {
     let team_one = random_battle_spawn_zone(&battlefield, 1);
     let team_two = random_battle_spawn_zone(&battlefield, 2);
 
-    let player_tank = random_battle_spawn(
-        &mut sim,
-        &battlefield,
-        team_one,
-        0,
-        config.player_vehicle,
-        config.seed,
-    );
-    for slot in 1..7 {
-        let vehicle =
-            random_battle_bot_vehicle(config.seed, 10 + slot as u64, config.player_vehicle.era());
-        bot_ids.push(random_battle_spawn(
-            &mut sim,
-            &battlefield,
-            team_one,
-            slot,
-            vehicle,
-            config.seed,
-        ));
+    let humans = humans.clamp(1, 7);
+    let mut human_tanks = Vec::with_capacity(humans);
+    for slot in 0..7 {
+        let vehicle = if slot == 0 {
+            config.player_vehicle
+        } else {
+            random_battle_bot_vehicle(config.seed, 10 + slot as u64, config.player_vehicle.era())
+        };
+        let id = random_battle_spawn(&mut sim, &battlefield, team_one, slot, vehicle, config.seed);
+        if slot < humans {
+            human_tanks.push(id);
+        } else {
+            bot_ids.push(id);
+        }
     }
+    let player_tank = human_tanks[0];
     let target_tank =
         random_battle_spawn_enemy_team(&mut sim, &battlefield, team_two, config, &mut bot_ids);
     sim.refresh_spotting(Some(&battlefield.heightmap), &battlefield.static_cover);
 
-    BattleSetup {
-        mode: BattleMode::Random7v7,
-        sim,
-        map_id: config.map,
-        battlefield,
-        weather: pick_weather(config.map, config.seed),
-        player_tank,
-        target_tank,
-        bots: BotRoster::new(bot_ids, config.seed),
-    }
+    (
+        BattleSetup {
+            mode: BattleMode::Random7v7,
+            sim,
+            map_id: config.map,
+            battlefield,
+            weather: pick_weather(config.map, config.seed),
+            player_tank,
+            target_tank,
+            bots: BotRoster::new(bot_ids, config.seed),
+        },
+        human_tanks,
+    )
 }
 
 fn random_battle_spawn_enemy_team(
