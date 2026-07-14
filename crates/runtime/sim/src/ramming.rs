@@ -4,7 +4,9 @@ use physics::{TankObstacle, tank_footprints_touch};
 
 use crate::TankState;
 
-const RAM_MIN_CLOSING_SPEED_MPS: f32 = 2.5;
+/// Below this closing speed contact is PARKING, not ramming: a gentle nudge into a neighbour
+/// (bots crowding the spawn included) deals nothing at all. ~16 km/h.
+const RAM_MIN_CLOSING_SPEED_MPS: f32 = 4.5;
 const RAM_CONTACT_SLOP_M: f32 = 0.12;
 
 #[derive(Debug, Clone, Copy)]
@@ -42,6 +44,11 @@ pub(crate) fn apply_ramming_damage(
             if delta.length() <= f32::EPSILON {
                 continue;
             }
+            // Teammates never grind each other down: a friendly shove is physics, not damage
+            // (the collision itself still stops the hulls).
+            if tanks[left].team == tanks[right].team {
+                continue;
+            }
             let closing = closing_speed(left_before, right_before, delta);
             if closing < RAM_MIN_CLOSING_SPEED_MPS {
                 continue;
@@ -50,6 +57,9 @@ pub(crate) fn apply_ramming_damage(
                 continue;
             }
             let damage = ram_damage_hp(left_before.mass_kg, right_before.mass_kg, closing);
+            if damage == 0 {
+                continue;
+            }
             apply_pair_damage(left, right, damage, tanks, damage_events);
         }
     }
@@ -92,7 +102,9 @@ fn closing_speed(left: RammingSnapshot, right: RammingSnapshot, current_delta: V
 fn ram_damage_hp(left_mass: f32, right_mass: f32, closing_speed: f32) -> u32 {
     let reduced_mass = (left_mass * right_mass) / (left_mass + right_mass).max(1.0);
     let severity = closing_speed - RAM_MIN_CLOSING_SPEED_MPS;
-    ((severity * severity * reduced_mass) / 4_500.0).round().clamp(12.0, 360.0) as u32
+    // Scales from ZERO at the threshold — the old 12 HP floor meant the gentlest qualifying
+    // bump bruised hulls and (doubled) suspensions; a real charge still caps at 360.
+    ((severity * severity * reduced_mass) / 4_500.0).round().clamp(0.0, 360.0) as u32
 }
 
 fn apply_pair_damage(
@@ -114,7 +126,9 @@ fn apply_pair_damage(
 fn apply_single_damage(index: usize, damage: u32, tanks: &mut [TankState]) {
     let tank = &mut tanks[index];
     tank.hit_points = tank.hit_points.saturating_sub(damage);
-    tank.modules.damage(ModuleSlot::Suspension, damage.saturating_mul(2));
+    // The suspension takes what the hull takes — the old x2 turned every contact into a
+    // mobility kill long before the hull cared.
+    tank.modules.damage(ModuleSlot::Suspension, damage);
 }
 
 fn ram_event(source: TankId, target: TankId, hit_position: Vec3, damage_hp: u32) -> DamageEvent {

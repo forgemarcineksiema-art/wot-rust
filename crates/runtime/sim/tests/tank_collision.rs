@@ -9,7 +9,7 @@ fn driving_tank_stops_before_overlapping_stationary_tank() {
     let blocker = state.spawn_tank(TeamId(2), TankSpec::t55a(), Vec3::new(0.0, 0.0, 8.0));
     let step = FixedTimestep::from_hz(60);
 
-    for _ in 0..180 {
+    for _ in 0..600 {
         state.apply_commands(&[(mover, TankCommand::drive(1.0, 0.0))], step);
     }
 
@@ -33,16 +33,52 @@ fn driving_tank_stops_before_overlapping_stationary_tank() {
     );
 }
 
+/// The user's design, locked: LIGHT contact is parking, not ramming — a slow roll into a
+/// neighbour deals nothing to hull or suspension. And teammates NEVER grind each other:
+/// a friendly shove at any speed is physics only.
+#[test]
+fn a_gentle_bump_and_a_friendly_ram_deal_nothing() {
+    // Gentle: barely rolling into an enemy 7 m ahead — under the ram threshold at contact.
+    let mut state = SimulationState::new();
+    let mover = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::ZERO);
+    let target = state.spawn_tank(TeamId(2), TankSpec::t55a(), Vec3::new(0.0, 0.0, 7.0));
+    let step = FixedTimestep::from_hz(60);
+    let hp_before = state.tank(target).expect("target").hit_points;
+    for _ in 0..90 {
+        state.apply_commands(&[(mover, TankCommand::drive(0.25, 0.0))], step);
+    }
+    assert!(
+        !state.damage_events().iter().any(|event| event.cause == DamageCause::Ram),
+        "a parking nudge is not a ram"
+    );
+    assert_eq!(state.tank(target).expect("target").hit_points, hp_before);
+
+    // Friendly: a full-speed charge into a TEAMMATE still deals nothing.
+    let mut state = SimulationState::new();
+    let mover = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::ZERO);
+    let ally = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::new(0.0, 0.0, 30.0));
+    let ally_hp = state.tank(ally).expect("ally").hit_points;
+    for _ in 0..600 {
+        state.apply_commands(&[(mover, TankCommand::drive(1.0, 0.0))], step);
+    }
+    assert!(
+        !state.damage_events().iter().any(|event| event.cause == DamageCause::Ram),
+        "teammates never grind each other down"
+    );
+    assert_eq!(state.tank(ally).expect("ally").hit_points, ally_hp, "the ally is unhurt");
+}
+
 #[test]
 fn high_speed_ramming_damages_both_tanks_and_running_gear() {
     let mut state = SimulationState::new();
     let rammer = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::ZERO);
-    let target = state.spawn_tank(TeamId(2), TankSpec::t55a(), Vec3::new(0.0, 0.0, 8.0));
+    // A 30 m runway: the honest ram threshold (~16 km/h) needs a real charge, not a nudge.
+    let target = state.spawn_tank(TeamId(2), TankSpec::t55a(), Vec3::new(0.0, 0.0, 30.0));
     let step = FixedTimestep::from_hz(60);
     let rammer_hp = state.tank(rammer).expect("rammer").hit_points;
     let target_hp = state.tank(target).expect("target").hit_points;
 
-    for _ in 0..180 {
+    for _ in 0..600 {
         state.apply_commands(&[(rammer, TankCommand::drive(1.0, 0.0))], step);
         if state.damage_events().iter().any(|event| event.cause == DamageCause::Ram) {
             break;
