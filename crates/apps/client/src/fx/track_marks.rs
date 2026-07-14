@@ -17,6 +17,12 @@ pub(crate) const TRACK_MARK_SPACING_M: f32 = 1.5;
 /// A rut's full lifetime, and the tail of it spent fading back into the field.
 const LIFETIME_S: f32 = 40.0;
 const FADE_S: f32 = 12.0;
+/// Foam's much shorter story (D7): the river closes over a wake in seconds.
+const FOAM_LIFETIME_S: f32 = 6.0;
+const FOAM_FADE_S: f32 = 3.0;
+/// Churned white water, drawn additively bright over the dark river.
+const FOAM_TONE: [f32; 3] = [0.34, 0.38, 0.40];
+const FOAM_ALPHA: f32 = 0.5;
 /// Lift off the ground so the rut hugs the terrain without z-fighting its triangles; the
 /// craters sit higher (0.05) and correctly composite over fresh ruts.
 const GROUND_LIFT_M: f32 = 0.03;
@@ -33,6 +39,14 @@ pub(crate) struct TrackMarks {
     marks: Vec<TrackMark>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum MarkStyle {
+    /// Earth turned by the track; rain presses it darker.
+    Rut { wet: bool },
+    /// Churned white water in a fording tank's wake (D7) — same machinery, shorter story.
+    Foam,
+}
+
 #[derive(Debug, Clone, Copy)]
 struct TrackMark {
     center: Vec3,
@@ -40,8 +54,32 @@ struct TrackMark {
     u: Vec3,
     /// Across the rut, half-width baked in.
     v: Vec3,
-    wet: bool,
+    style: MarkStyle,
     age_s: f32,
+}
+
+impl TrackMark {
+    fn lifetime_s(&self) -> f32 {
+        match self.style {
+            MarkStyle::Rut { .. } => LIFETIME_S,
+            MarkStyle::Foam => FOAM_LIFETIME_S,
+        }
+    }
+
+    fn fade_s(&self) -> f32 {
+        match self.style {
+            MarkStyle::Rut { .. } => FADE_S,
+            MarkStyle::Foam => FOAM_FADE_S,
+        }
+    }
+
+    fn tone_alpha(&self) -> ([f32; 3], f32) {
+        match self.style {
+            MarkStyle::Rut { wet: false } => (DRY_TONE, DRY_ALPHA),
+            MarkStyle::Rut { wet: true } => (WET_TONE, WET_ALPHA),
+            MarkStyle::Foam => (FOAM_TONE, FOAM_ALPHA),
+        }
+    }
 }
 
 impl TrackMarks {
@@ -49,14 +87,26 @@ impl TrackMarks {
     /// to the sampled terrain (the hull's translation rides suspension and slopes; the rut must
     /// not float with it), and the quad lies in the plane of the local slope.
     pub fn record_segment(&mut self, from: Vec3, to: Vec3, wet: bool, heightmap: &HeightMap) {
-        let length = Vec3::new(to.x - from.x, 0.0, to.z - from.z).length();
-        if length < 1.0e-3 {
-            return;
-        }
         let from_y = heightmap.sample_height(from.x, from.z).unwrap_or(from.y);
         let to_y = heightmap.sample_height(to.x, to.z).unwrap_or(to.y);
         let a = Vec3::new(from.x, from_y, from.z);
         let b = Vec3::new(to.x, to_y, to.z);
+        self.record_mark(a, b, MarkStyle::Rut { wet }, HALF_WIDTH_M);
+    }
+
+    /// Lay one streak of churned foam on the still water surface (D7): the fording wake. Flat
+    /// by construction — the surface, not the riverbed, carries the story.
+    pub fn record_foam_segment(&mut self, from: Vec3, to: Vec3, surface_y: f32) {
+        let a = Vec3::new(from.x, surface_y, from.z);
+        let b = Vec3::new(to.x, surface_y, to.z);
+        self.record_mark(a, b, MarkStyle::Foam, HALF_WIDTH_M * 1.6);
+    }
+
+    fn record_mark(&mut self, a: Vec3, b: Vec3, style: MarkStyle, half_width_m: f32) {
+        let length = Vec3::new(b.x - a.x, 0.0, b.z - a.z).length();
+        if length < 1.0e-3 {
+            return;
+        }
         let along = (b - a).normalize_or_zero();
         let across = Vec3::Y.cross(along).normalize_or_zero();
         // The plane normal from the segment's own run and the flat across — the rut leans with
@@ -64,9 +114,9 @@ impl TrackMarks {
         let normal = along.cross(across).normalize_or(Vec3::Y);
         let mark = TrackMark {
             center: (a + b) * 0.5 + normal * GROUND_LIFT_M,
-            u: along * ((b - a).length() * 0.5 + HALF_WIDTH_M * 0.5),
-            v: across * HALF_WIDTH_M,
-            wet,
+            u: along * ((b - a).length() * 0.5 + half_width_m * 0.5),
+            v: across * half_width_m,
+            style,
             age_s: 0.0,
         };
         if self.marks.len() < MAX_TRACK_MARKS {
@@ -83,7 +133,7 @@ impl TrackMarks {
         let dt = dt.clamp(0.0, 0.1).max(0.0);
         self.marks.retain_mut(|mark| {
             mark.age_s += dt;
-            mark.age_s < LIFETIME_S
+            mark.age_s < mark.lifetime_s()
         });
     }
 
@@ -91,12 +141,11 @@ impl TrackMarks {
     /// death composites over the ruts it churned through.
     pub fn append_quads(&self, vertices: &mut Vec<FxVertex>) {
         for mark in &self.marks {
-            let opacity = ((LIFETIME_S - mark.age_s) / FADE_S).clamp(0.0, 1.0);
+            let opacity = ((mark.lifetime_s() - mark.age_s) / mark.fade_s()).clamp(0.0, 1.0);
             if opacity <= 0.0 {
                 continue;
             }
-            let (tone, alpha) =
-                if mark.wet { (WET_TONE, WET_ALPHA) } else { (DRY_TONE, DRY_ALPHA) };
+            let (tone, alpha) = mark.tone_alpha();
             let plate = Plate {
                 center: mark.center,
                 u: mark.u.normalize_or_zero(),
@@ -155,6 +204,38 @@ mod tests {
             wet_alpha > dry_alpha,
             "a squall's rut reads stronger: dry {dry_alpha} vs wet {wet_alpha}"
         );
+    }
+
+    /// D7's contract: foam lies flat ON the water surface (not the riverbed), reads wider and
+    /// brighter than a rut, and the river closes over it in seconds while a rut endures.
+    #[test]
+    fn foam_rides_the_surface_and_the_river_closes_over_it() {
+        let map = HeightMap::flat(65, 65, 1.0, 0.0).expect("valid map");
+        let mut marks = TrackMarks::default();
+        marks.record_segment(Vec3::new(5.0, 0.0, 5.0), Vec3::new(6.5, 0.0, 5.0), false, &map);
+        marks.record_foam_segment(Vec3::new(5.0, 0.4, 9.0), Vec3::new(6.5, 0.4, 9.0), 1.7);
+
+        let mut vertices = Vec::new();
+        marks.append_quads(&mut vertices);
+        assert_eq!(vertices.len(), 12, "one rut + one foam streak");
+        for vertex in &vertices[6..] {
+            assert!(
+                (vertex.position[1] - (1.7 + GROUND_LIFT_M)).abs() < 1.0e-3,
+                "foam lies on the water surface, got y {}",
+                vertex.position[1]
+            );
+        }
+        let brightness = |v: &renderer_api::FxVertex| v.color[0] + v.color[1] + v.color[2];
+        assert!(
+            brightness(&vertices[6]) > brightness(&vertices[0]),
+            "churned foam reads brighter than turned earth"
+        );
+
+        // 8 s on: the river has closed over the wake, the rut is still pressed in the field.
+        for _ in 0..80 {
+            marks.tick(0.1);
+        }
+        assert_eq!(marks.live_marks(), 1, "only the rut survives the river's patience");
     }
 
     #[test]

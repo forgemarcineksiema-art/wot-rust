@@ -18,6 +18,11 @@ const DUST_REFERENCE_SPEED: f32 = 6.0;
 /// Idle engines still breathe, but the plume only reads once the drive works.
 const EXHAUST_MIN_SPEED: f32 = 0.6;
 const EXHAUST_PERIOD_S: f32 = 0.34;
+/// Water deep enough to read as fording (D7): below this the field is merely damp.
+const WADING_DEPTH_M: f32 = 0.15;
+/// Bow-splash cadence at the reference speed; the spray keeps pace with the hull.
+const SPLASH_PERIOD_S: f32 = 0.12;
+const SPLASH_MIN_SPEED: f32 = 1.2;
 
 #[derive(Default)]
 pub(super) struct MotionFxState {
@@ -29,6 +34,7 @@ pub(super) struct MotionFxState {
     /// accumulated since — the pen touches down at the first contact and lifts on a break.
     rut_from: [Option<Vec3>; 2],
     rut_travel_m: [f32; 2],
+    splash_accum_s: f32,
 }
 
 impl ClientApp {
@@ -60,6 +66,16 @@ impl ClientApp {
             };
             let base = Vec3::from_array(tank.translation);
             let heading = rotate(Vec3::Z);
+            // The river is present (D7): a hull in deep-enough water swaps the ground grammar —
+            // foam instead of dust, wake instead of ruts, spray off the bow. One judgment per
+            // tank from the same `depth_over` rule that drives wading and drowning.
+            let ground_y =
+                self.battlefield.heightmap.sample_height(base.x, base.z).unwrap_or(base.y);
+            let water_surface = self
+                .battlefield
+                .water
+                .filter(|water| water.depth_over(ground_y) > WADING_DEPTH_M)
+                .map(|water| water.surface_level_m);
 
             let mut fastest = 0.0_f32;
             for (side, x_sign) in [(0_usize, -1.0_f32), (1, 1.0)] {
@@ -86,19 +102,26 @@ impl ClientApp {
                         Some(from)
                             if state.rut_travel_m[side] >= crate::fx::TRACK_MARK_SPACING_M =>
                         {
-                            self.track_marks.record_segment(
-                                from,
-                                contact,
-                                wet,
-                                &self.battlefield.heightmap,
-                            );
+                            // Fording writes its wake on the surface; dry ground takes a rut.
+                            match water_surface {
+                                Some(surface) => {
+                                    self.track_marks.record_foam_segment(from, contact, surface);
+                                }
+                                None => self.track_marks.record_segment(
+                                    from,
+                                    contact,
+                                    wet,
+                                    &self.battlefield.heightmap,
+                                ),
+                            }
                             state.rut_from[side] = Some(contact);
                             state.rut_travel_m[side] = 0.0;
                         }
                         Some(_) => {}
                     }
                 }
-                if speed < DUST_MIN_TRACK_SPEED {
+                // Dust and splash are mutually exclusive: wet soil does not rise.
+                if water_surface.is_some() || speed < DUST_MIN_TRACK_SPEED {
                     state.dust_accum_s[side] = 0.0;
                     continue;
                 }
@@ -113,6 +136,24 @@ impl ClientApp {
                         ));
                     self.fx.rolling_dust(ground, heading, (speed / 10.0).clamp(0.3, 1.0));
                 }
+            }
+
+            // The bow shoulders the river aside (D7): spray off the leading edge, paced with
+            // the hull. The wake foam above tells the story behind; this is the story ahead.
+            if let Some(surface) = water_surface {
+                if fastest > SPLASH_MIN_SPEED {
+                    state.splash_accum_s += dt * (fastest / DUST_REFERENCE_SPEED).clamp(0.5, 2.2);
+                    while state.splash_accum_s >= SPLASH_PERIOD_S {
+                        state.splash_accum_s -= SPLASH_PERIOD_S;
+                        let bow = base + rotate(Vec3::new(0.0, 0.0, hitbox.half_length_m * 0.9));
+                        let at_waterline = Vec3::new(bow.x, surface, bow.z);
+                        self.fx.bow_splash(at_waterline, heading, (fastest / 8.0).clamp(0.3, 1.0));
+                    }
+                } else {
+                    state.splash_accum_s = 0.0;
+                }
+            } else {
+                state.splash_accum_s = 0.0;
             }
 
             // The exhaust breathes with the drive: working tracks or a hard shove on the
@@ -254,5 +295,53 @@ mod tests {
             one_sided > 0 && one_sided <= rolling / 2 + 1,
             "a broken track lifts the pen — one side writes, got {one_sided} vs both-sides {rolling}"
         );
+    }
+
+    /// D7's contract: a fording hull swaps the ground grammar — spray and wake foam instead of
+    /// dust and ruts (mutually exclusive), and the river closes over the wake in seconds while
+    /// a dry run's ruts endure.
+    #[test]
+    fn a_fording_tank_sprays_and_wakes_instead_of_dusting_and_rutting() {
+        let rolling_tank = |travel_m: f32| {
+            let mut t = tank(1, 100.0 + travel_m, 900);
+            t.translation = [10.0, 0.0, 20.0 + travel_m];
+            t
+        };
+
+        // Dry baseline: dust rises and ruts outlive 8 s of ticking.
+        let mut dry = ClientApp::new();
+        dry.battlefield.water = None;
+        dry.fx = crate::fx::FxSystem::default();
+        dry.tick_motion_fx(&[rolling_tank(0.0)], 0.1);
+        for step in 1..=15 {
+            dry.tick_motion_fx(&[rolling_tank(step as f32 * 0.6)], 0.1);
+        }
+        assert!(dry.fx.live_particles() > 0, "dry ground dusts");
+        let dry_marks = dry.track_marks.live_marks();
+        for _ in 0..80 {
+            dry.track_marks.tick(0.1);
+        }
+        assert_eq!(dry.track_marks.live_marks(), dry_marks, "dry ruts endure 8 s easily");
+
+        // The same run through water over the hull's floor: no dust — spray instead — and the
+        // wake is foam the river closes over.
+        let mut fording = ClientApp::new();
+        // Flood the whole run: the surface sits half a meter over the path's highest ground.
+        let high_ground = (20..=30)
+            .filter_map(|z| fording.battlefield.heightmap.sample_height(10.0, z as f32))
+            .fold(0.0_f32, f32::max);
+        fording.battlefield.water = Some(terrain::WaterBody { surface_level_m: high_ground + 0.5 });
+        fording.fx = crate::fx::FxSystem::default();
+        fording.tick_motion_fx(&[rolling_tank(0.0)], 0.1);
+        for step in 1..=15 {
+            fording.tick_motion_fx(&[rolling_tank(step as f32 * 0.6)], 0.1);
+        }
+        assert!(fording.fx.live_particles() > 0, "the bow throws spray");
+        let wake = fording.track_marks.live_marks();
+        assert!(wake > 0, "the wake writes foam streaks");
+        for _ in 0..80 {
+            fording.track_marks.tick(0.1);
+        }
+        assert_eq!(fording.track_marks.live_marks(), 0, "the river closes over the wake");
     }
 }
