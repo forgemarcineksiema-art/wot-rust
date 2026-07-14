@@ -18,6 +18,7 @@ mod input_tests;
 mod lifecycle;
 mod loop_step;
 mod minimap_build;
+pub(crate) mod motion_fx;
 mod prediction;
 mod render;
 #[cfg(test)]
@@ -162,6 +163,7 @@ pub(crate) struct ClientApp {
     terrain_scars: crate::fx::TerrainScars,
     /// Per-tank emission clock for the dead-engine smoke column (seconds since last puff).
     engine_smoke_accum_s: HashMap<game_core::TankId, f32>,
+    motion_fx: HashMap<game_core::TankId, motion_fx::MotionFxState>,
     /// Flying-turret animation per decapitated wreck (ammo-rack detonation, protocol v20). Started
     /// when a tank first appears in `Snapshot.detached_turrets`; the turret and gun render objects
     /// of that wreck are then driven from this deterministic arc instead of the snapshot pose.
@@ -335,6 +337,7 @@ impl ClientApp {
             turret_popoffs: HashMap::new(),
             terrain_scars: crate::fx::TerrainScars::default(),
             engine_smoke_accum_s: HashMap::new(),
+            motion_fx: HashMap::new(),
             wreck_hull_meshes: HashMap::new(),
             cover_phase_bytes: Vec::new(),
             scene_cover_dirty: false,

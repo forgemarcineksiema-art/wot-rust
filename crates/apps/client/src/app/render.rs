@@ -188,6 +188,7 @@ impl ClientApp {
         // Project the interpolated (+ locally predicted) tanks into the persistent presentation
         // world, then drive the scene and HUD from the ECS — not from the snapshot vec directly.
         let presentation_tanks = self.project_render_tanks(alpha);
+        self.tick_motion_fx(&presentation_tanks, frame_dt);
         let enemy_bars = crate::hud::health_bar::enemy_health_bars(
             &presentation_tanks,
             self.player_tank,

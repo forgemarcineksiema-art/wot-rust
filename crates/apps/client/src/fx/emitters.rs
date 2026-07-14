@@ -113,6 +113,51 @@ impl FxSystem {
     /// A puff of dust kicked up behind a tank's tracks as it rolls — sandy, low, thrown backward
     /// and outward and settling quickly. Used by the garage drive-in; the caller paces the cadence
     /// by travelled distance. `ground` is the contact point at floor level behind the hull.
+    /// Continuous rolling dust (D1): ONE puff per call, streamed behind the moving hull along
+    /// its real heading — the caller owns the cadence per track side. Lighter and lower than
+    /// the event burst below; a column on the move reads as a drifting ribbon, not explosions.
+    pub fn rolling_dust(&mut self, ground: Vec3, heading: Vec3, intensity: f32) {
+        let spread = Vec3::new(self.rand_signed() * 0.5, 0.0, self.rand_signed() * 0.4);
+        let ttl = 0.9 + self.rand_unit() * 0.8;
+        let lift = 0.5 + 0.8 * self.rand_unit();
+        let alpha = 0.20 + 0.18 * intensity;
+        self.spawn(Particle {
+            position: ground + Vec3::Y * 0.08 + spread * 0.3,
+            velocity_mps: -heading * (1.0 + 2.4 * intensity) + Vec3::new(spread.x, lift, spread.z),
+            gravity_factor: 0.10,
+            drag_per_s: 2.6,
+            age_s: 0.0,
+            ttl_s: ttl,
+            size_begin_m: 0.35,
+            size_end_m: 1.5 + intensity,
+            color_begin: [0.44 * alpha, 0.39 * alpha, 0.29 * alpha, alpha],
+            color_end: [0.0, 0.0, 0.0, 0.0],
+            stretch_s: 0.0,
+        });
+    }
+
+    /// One breath of the working exhaust (D1): a small blue-grey puff off the port, denser
+    /// under load. Rises briefly, thins fast — an idling column smokes lightly, a charge reads.
+    pub fn exhaust_puff(&mut self, port: Vec3, load: f32) {
+        let ttl = 0.7 + self.rand_unit() * 0.5;
+        let jitter = Vec3::new(self.rand_signed() * 0.1, 0.0, self.rand_signed() * 0.1);
+        let sway = self.rand_signed() * 0.3;
+        let alpha = 0.16 + 0.22 * load;
+        self.spawn(Particle {
+            position: port + jitter,
+            velocity_mps: Vec3::new(sway, 1.1 + load, -0.4),
+            gravity_factor: -0.02,
+            drag_per_s: 1.8,
+            age_s: 0.0,
+            ttl_s: ttl,
+            size_begin_m: 0.22,
+            size_end_m: 0.9 + 0.5 * load,
+            color_begin: [0.16 * alpha, 0.17 * alpha, 0.19 * alpha, alpha],
+            color_end: [0.0, 0.0, 0.0, 0.0],
+            stretch_s: 0.0,
+        });
+    }
+
     pub fn track_dust(&mut self, ground: Vec3) {
         for _ in 0..4 {
             let spread = Vec3::new(self.rand_signed() * 1.4, 0.0, self.rand_signed() * 0.8);
