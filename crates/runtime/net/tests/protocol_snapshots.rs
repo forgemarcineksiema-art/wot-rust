@@ -11,7 +11,7 @@ use sim::TankCommand;
 use terrain::MapId;
 
 #[test]
-fn input_command_wire_snapshot_v27_is_stable() {
+fn input_command_wire_snapshot_v28_is_stable() {
     let message = ProtocolMessage::Input(ClientInputCommand {
         client_tick: 7,
         tank_id: TankId(42),
@@ -28,13 +28,13 @@ fn input_command_wire_snapshot_v27_is_stable() {
 
     let bytes = encode_message(&message).expect("message should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 27);
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "input_command_v27"));
+    assert_eq!(PROTOCOL_VERSION, 28);
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "input_command_v28"));
     assert_eq!(decode_message(&bytes).expect("message should decode"), message);
 }
 
 #[test]
-fn vehicle_selection_wire_snapshot_v27_is_stable() {
+fn vehicle_selection_wire_snapshot_v28_is_stable() {
     let message = ProtocolMessage::VehicleSelection(ClientVehicleSelection {
         client_tick: 11,
         requested_vehicle: VehicleKind::PantherII,
@@ -42,36 +42,36 @@ fn vehicle_selection_wire_snapshot_v27_is_stable() {
 
     let bytes = encode_message(&message).expect("vehicle selection should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 27);
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "vehicle_selection_v27"));
+    assert_eq!(PROTOCOL_VERSION, 28);
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "vehicle_selection_v28"));
     assert_eq!(decode_message(&bytes).expect("message should decode"), message);
 }
 
 #[test]
-fn tank_snapshot_wire_v27_is_stable() {
+fn tank_snapshot_wire_v28_is_stable() {
     // Locks the v19 raw payload layout; transport framing is covered separately.
     let message = ProtocolMessage::Snapshot(tank_snapshot_message());
 
     let bytes = encode_message(&message).expect("snapshot should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 27);
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_tank_v27"));
+    assert_eq!(PROTOCOL_VERSION, 28);
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_tank_v28"));
     assert_eq!(decode_message(&bytes).expect("snapshot should decode"), message);
 }
 
 #[test]
-fn combat_snapshot_wire_v27_is_stable() {
+fn combat_snapshot_wire_v28_is_stable() {
     let message = ProtocolMessage::Snapshot(combat_snapshot_message());
 
     let bytes = encode_message(&message).expect("snapshot should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 27);
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_combat_v27"));
+    assert_eq!(PROTOCOL_VERSION, 28);
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_combat_v28"));
     assert_eq!(decode_message(&bytes).expect("snapshot should decode"), message);
 }
 
 #[test]
-fn server_hello_wire_snapshot_v27_is_stable() {
+fn server_hello_wire_snapshot_v28_is_stable() {
     let message = ProtocolMessage::ServerHello {
         protocol_version: PROTOCOL_VERSION,
         map_id: MapId::ProkhorovkaHill252_2,
@@ -82,8 +82,8 @@ fn server_hello_wire_snapshot_v27_is_stable() {
 
     let bytes = encode_message(&message).expect("server hello should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 27);
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "server_hello_v27"));
+    assert_eq!(PROTOCOL_VERSION, 28);
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "server_hello_v28"));
     assert_eq!(decode_message(&bytes).expect("server hello should decode"), message);
 }
 
@@ -127,6 +127,58 @@ pub fn tank_snapshot_message() -> Snapshot {
 
 /// Non-empty combat snapshot used by the v18 fixture (and its generator): shells in flight, a
 /// damage event, and an absorbed-shell impact.
+#[test]
+fn input_batch_and_disconnect_wire_v28_are_stable() {
+    let batch = ProtocolMessage::InputBatch {
+        commands: vec![sample_input_command(), sample_input_command()],
+    };
+    let bytes = net::encode_frame(&batch).expect("encode");
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "input_batch_v28"));
+
+    let goodbye = ProtocolMessage::Disconnect { reason: net::DisconnectReason::Quit };
+    let bytes = net::encode_frame(&goodbye).expect("encode");
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "disconnect_v28"));
+}
+
+/// The transport ships a snapshot in datagrams; a battle-worn 14-tank snapshot (live breaches on
+/// every tank) must stay a HANDFUL of fragments. This is the size budget from the network plan:
+/// if it ever exceeds four fragments, delta compression / interest management graduates from
+/// plan B to a scheduled package.
+#[test]
+fn a_battle_worn_snapshot_fits_the_fragment_budget() {
+    let mut snapshot = combat_snapshot_message();
+    let worn = snapshot.tanks[0].clone();
+    while snapshot.tanks.len() < 14 {
+        let mut tank = worn.clone();
+        tank.tank_id = game_core::TankId(100 + snapshot.tanks.len() as u64);
+        snapshot.tanks.push(tank);
+    }
+    let bytes = net::encode_frame(&ProtocolMessage::Snapshot(snapshot)).expect("encode");
+    let fragments = net::transport::fragment_message(1, &bytes).expect("fits the hard cap");
+    assert!(
+        fragments.len() <= 4,
+        "a worn 14-tank snapshot must fit 4 fragments, took {} ({} bytes)",
+        fragments.len(),
+        bytes.len()
+    );
+}
+
+fn sample_input_command() -> ClientInputCommand {
+    ClientInputCommand {
+        client_tick: 9,
+        tank_id: TankId(42),
+        command: TankCommand {
+            throttle: 0.5,
+            steer: -0.25,
+            brake: 0.0,
+            turret_yaw_delta: 0.1,
+            gun_pitch_delta: 0.0,
+            fire: true,
+            select_ammo: None,
+        },
+    }
+}
+
 pub fn combat_snapshot_message() -> Snapshot {
     Snapshot {
         server_tick: 9,
