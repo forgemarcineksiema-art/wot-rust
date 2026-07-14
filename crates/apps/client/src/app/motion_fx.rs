@@ -4,9 +4,7 @@
 //! breathes with the drive. Presentation only; every particle rides the existing capped FX
 //! pool, so a 14-tank column costs what the pool already budgeted.
 
-use std::collections::HashMap;
-
-use game_core::{HitboxProfile, TankId};
+use game_core::HitboxProfile;
 use glam::Vec3;
 
 use super::ClientApp;
