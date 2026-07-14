@@ -87,13 +87,15 @@ fn render_alpha_reports_sub_tick_progress_for_interpolation() {
 fn variable_render_cadence_accumulates_to_fixed_simulation_ticks() {
     let mut driver = WinitLoopDriver::new(DEFAULT_SIMULATION_TICK_HZ);
 
+    // F1 pacing: the first two wake-ups sit inside one 60 Hz display beat (7+7 ms), so no
+    // redraw yet; the third crosses BOTH a sim tick and the presentation beat.
     assert_eq!(
         driver.handle_event(ClientLoopEvent::AboutToWait { elapsed: Duration::from_millis(7) }),
-        [ClientLoopAction::RequestRedraw]
+        []
     );
     assert_eq!(
         driver.handle_event(ClientLoopEvent::AboutToWait { elapsed: Duration::from_millis(7) }),
-        [ClientLoopAction::RequestRedraw]
+        []
     );
     assert_eq!(
         driver.handle_event(ClientLoopEvent::AboutToWait { elapsed: Duration::from_millis(3) }),
