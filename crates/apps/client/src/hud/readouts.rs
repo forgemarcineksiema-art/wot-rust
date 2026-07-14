@@ -8,6 +8,9 @@ use super::{BattleHudModel, health_color};
 
 /// Battle-clock color for the final minute — the same alert orange as a running reload.
 pub(crate) const CLOCK_CLOSING_COLOR: [f32; 4] = [0.86, 0.55, 0.20, 0.95];
+/// The dev-build badge's own tone — deliberately NOT the clock's alert orange, so the clock
+/// tests (which count their colour) never see the badge and vice versa.
+const DEV_BADGE_COLOR: [f32; 4] = [0.90, 0.30, 0.25, 0.9];
 
 pub(crate) fn push_battle_readouts(
     vertices: &mut Vec<HudVertex>,
@@ -65,6 +68,23 @@ pub(crate) fn push_battle_readouts(
             0.05,
             aspect,
             crate::hud::number::FPS_COLOR,
+        );
+    }
+    // A dev build announces itself next to the FPS counter (Płynność 2.0 / F8): every
+    // performance verdict ever given on a debug binary was measured against the wrong game —
+    // the profile is deliberately slower (opt-level 1) for compile speed. Unmissable, in the
+    // alert tone, only in non-release builds.
+    if cfg!(debug_assertions) {
+        let label = "DEV BUILD - uzyj --release";
+        let width = crate::hud::font::text_width(label, 0.035, aspect);
+        crate::hud::font::push_text(
+            vertices,
+            label,
+            0.97 - width,
+            0.90,
+            0.035,
+            aspect,
+            DEV_BADGE_COLOR,
         );
     }
 
