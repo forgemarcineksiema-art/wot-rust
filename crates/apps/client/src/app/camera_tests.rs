@@ -147,5 +147,6 @@ fn snapshot_with_aim(
         shell_impacts: Vec::new(),
         detached_turrets: Vec::new(),
         cover_states: Vec::new(),
+        craters: Vec::new(),
     }
 }

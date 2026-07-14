@@ -20,6 +20,7 @@ fn snapshot_filter_keeps_allies_wrecks_and_spotted_enemies_only() {
         shell_impacts: Vec::new(),
         detached_turrets: Vec::new(),
         cover_states: Vec::new(),
+        craters: Vec::new(),
     };
 
     let filtered = snapshot.filtered_for_viewer(TankId(1));
@@ -46,6 +47,7 @@ fn snapshot_filter_replicates_every_shell_and_impact_even_from_hidden_owners() {
         shell_impacts: vec![impact(1), impact(2), impact(3)],
         detached_turrets: Vec::new(),
         cover_states: Vec::new(),
+        craters: Vec::new(),
     };
 
     let filtered = snapshot.filtered_for_viewer(TankId(1));
@@ -83,6 +85,7 @@ fn snapshot_filter_keeps_visible_and_player_combat_events() {
         shell_impacts: Vec::new(),
         detached_turrets: Vec::new(),
         cover_states: Vec::new(),
+        craters: Vec::new(),
     };
 
     let filtered = snapshot.filtered_for_viewer(TankId(1));
@@ -110,6 +113,7 @@ fn snapshot_filter_keeps_detached_turret_wrecks_the_viewer_can_see() {
         // Both wrecks lost their turret; the viewer sees both (the hit_points == 0 rule).
         detached_turrets: vec![TankId(5), TankId(6)],
         cover_states: Vec::new(),
+        craters: Vec::new(),
     };
 
     let filtered = snapshot.filtered_for_viewer(TankId(1));

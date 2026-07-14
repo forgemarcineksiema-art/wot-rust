@@ -40,6 +40,11 @@ pub struct SimulationState {
     /// cover derived from it. `serde(default)` keeps pre-v21 fixtures loading with whole cover.
     #[serde(default)]
     cover_states: Vec<crate::cover_damage::CoverState>,
+    /// The battle's crater ledger (protocol v31): quantized records of every high-explosive
+    /// ground burst, appended by the shell step and folded into the heightmap overlay by the
+    /// battlefield owner. `serde(default)` keeps pre-v31 fixtures loading with virgin ground.
+    #[serde(default)]
+    craters: Vec<terrain::CraterRecord>,
 }
 
 /// Cover damage one absorbed shell deals by its type: a high-explosive round brings structures
@@ -72,7 +77,14 @@ impl SimulationState {
             spotting_memory: crate::spotting::SpottingMemory::default(),
             water: None,
             cover_states: Vec::new(),
+            craters: Vec::new(),
         }
+    }
+
+    /// The battle's replicated crater ledger (protocol v31). The battlefield owner folds it
+    /// into the heightmap via `HeightMap::set_craters`; the snapshot re-sends it whole.
+    pub fn craters(&self) -> &[terrain::CraterRecord] {
+        &self.craters
     }
 
     /// Live structural state of the static cover (protocol v21), index-aligned with the map's
@@ -348,6 +360,21 @@ impl SimulationState {
                     cover,
                     index,
                     cover_damage_hp(impact.shell_type),
+                );
+            }
+        }
+        // A high-explosive burst on OPEN GROUND excavates a real crater (protocol v31): the
+        // ledger is replicated state, and once the battlefield owner folds it into the
+        // heightmap overlay, physics, spotting, the predictor and the bots all stand in the
+        // same hole. Kinetic rounds plough a furrow (presentation) but do not move earth.
+        for impact in &self.shell_impacts {
+            if impact.surface == game_core::ImpactSurface::Terrain
+                && impact.shell_type == game_core::ShellType::HighExplosive
+            {
+                crate::crater_ledger::record_high_explosive_burst(
+                    &mut self.craters,
+                    impact.position,
+                    impact.caliber_mm,
                 );
             }
         }

@@ -6,6 +6,7 @@ mod bystra_layout;
 mod bystra_scenery;
 mod chunk;
 mod coordinates;
+mod craters;
 mod heightmap;
 mod map_build;
 mod map_id;
@@ -29,6 +30,10 @@ pub use bystra::{
 };
 pub use chunk::{DEFAULT_CHUNK_SIZE_M, TerrainChunk, TerrainChunkId};
 pub use coordinates::{CoordinatePrecision, LargeWorldStrategy, WorldCoordinatePolicy};
+pub use craters::{
+    CRATER_DEPTH_STEP_M, CRATER_INFLUENCE_FACTOR, CRATER_KIND_HIGH_EXPLOSIVE,
+    CRATER_POSITION_STEP_M, CRATER_RADIUS_STEP_M, CRATER_RIM_FRACTION, CraterField, CraterRecord,
+};
 pub use heightmap::{HeightMap, HeightMapStats, TerrainError};
 pub use map_id::MapId;
 pub use map_plan::{TerrainMapLayer, TerrainMapPlan};

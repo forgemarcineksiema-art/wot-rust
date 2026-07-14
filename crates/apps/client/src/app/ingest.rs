@@ -153,6 +153,10 @@ impl ClientApp {
         // Static cover that collapsed or was cleared this snapshot: burst dust at each newly
         // destroyed object and flag the scene for a rebuild (buildings -> rubble, foliage -> gone).
         self.sync_cover_destruction(&snapshot);
+        // The replicated crater ledger (protocol v31) folds into OUR heightmap's overlay, so
+        // the predictor, the camera ground probe and every local sample stand in the same
+        // holes the server does. Idempotent — an unchanged ledger costs one compare.
+        self.battlefield.heightmap.set_craters(&snapshot.craters);
         // Shots fired since the previous snapshot: diffed here, where both snapshots exist side
         // by side, then fanned out to every fire cue (muzzle FX, recoil, hull rock, camera kick).
         let fired = self.render_state.latest_snapshot().map_or_else(Vec::new, |previous| {

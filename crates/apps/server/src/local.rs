@@ -230,6 +230,9 @@ impl LocalAuthoritativeServer {
             &self.battlefield.heightmap,
             &self.battlefield.static_cover,
         );
+        // Fold this tick's crater ledger into the ground the NEXT tick stands on (protocol
+        // v31): an unchanged ledger is a cheap compare-and-return inside set_craters.
+        self.battlefield.heightmap.set_craters(self.sim.craters());
         if self.outcome.is_none() {
             self.outcome = BattleOutcome::from_tanks(self.sim.tanks());
         }

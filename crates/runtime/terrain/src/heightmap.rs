@@ -31,6 +31,12 @@ pub struct HeightMap {
     height: usize,
     cell_size_m: f32,
     samples: Vec<f32>,
+    /// The battle's crater overlay (protocol v31). The authored `samples` above NEVER mutate;
+    /// craters are transient battle state folded into `sample_height`, and `serde(skip)` keeps
+    /// them out of baked map assets. The battlefield owner (server loop / client ingest) syncs
+    /// this from the replicated ledger via [`Self::set_craters`].
+    #[serde(skip)]
+    craters: crate::craters::CraterField,
 }
 
 impl HeightMap {
@@ -41,7 +47,13 @@ impl HeightMap {
         samples: Vec<f32>,
     ) -> Result<Self, TerrainError> {
         validate_heightmap(width, height, cell_size_m, samples.len())?;
-        Ok(Self { width, height, cell_size_m, samples })
+        Ok(Self {
+            width,
+            height,
+            cell_size_m,
+            samples,
+            craters: crate::craters::CraterField::default(),
+        })
     }
 
     pub fn flat(
@@ -69,6 +81,10 @@ impl HeightMap {
         self.cell_size_m
     }
 
+    /// `inline` is measured, not decorative: the sim's hot loops (contact, shell ground trace,
+    /// spotting LOS) live across the crate boundary, and inlining the fast path buys back the
+    /// crater-overlay branch below with interest (see the combat_hot_path bench).
+    #[inline]
     pub fn sample_height(&self, x_m: f32, z_m: f32) -> Option<f32> {
         let grid_x = x_m / self.cell_size_m;
         let grid_z = z_m / self.cell_size_m;
@@ -91,7 +107,31 @@ impl HeightMap {
         let tz = grid_z - z0 as f32;
         let hx0 = lerp(self.sample_at_index(x0, z0), self.sample_at_index(x1, z0), tx);
         let hx1 = lerp(self.sample_at_index(x0, z1), self.sample_at_index(x1, z1), tx);
-        Some(lerp(hx0, hx1, tz))
+        let base = lerp(hx0, hx1, tz);
+        // The crater overlay (protocol v31). The empty-ledger check is a plain length load so
+        // virgin ground — the overwhelming majority of samples in the hot loops — pays one
+        // predictable branch; the deformed path is deliberately out-of-line (see `delta`).
+        if self.craters.is_empty() {
+            return Some(base);
+        }
+        Some(base + self.craters.delta(x_m, z_m))
+    }
+
+    /// Whether any crater has touched this battlefield yet.
+    pub fn has_craters(&self) -> bool {
+        !self.craters.is_empty()
+    }
+
+    /// Sync the crater overlay from the replicated ledger (idempotent — an unchanged ledger is
+    /// a cheap compare-and-return). This is the ONLY seam true deformation enters through:
+    /// every `sample_height` consumer — physics, spotting, predictor, bots — sees it at once.
+    pub fn set_craters(&mut self, records: &[crate::craters::CraterRecord]) {
+        let extent = self.extent_m();
+        self.craters.rebuild(records, extent);
+    }
+
+    pub fn crater_records(&self) -> &[crate::craters::CraterRecord] {
+        self.craters.records()
     }
 
     pub fn sample_at_index(&self, x: usize, z: usize) -> f32 {
