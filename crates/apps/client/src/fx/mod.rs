@@ -15,6 +15,7 @@ mod impacts;
 mod particle;
 mod terrain_scars;
 mod tracer;
+mod track_marks;
 
 use glam::Vec3;
 use renderer_api::FxVertex;
@@ -24,6 +25,7 @@ pub(crate) use fire::{FireEvent, detect_fired};
 pub(crate) use particle::{MAX_PARTICLES, Particle};
 pub(crate) use terrain_scars::TerrainScars;
 pub(crate) use tracer::append_shell_tracers;
+pub(crate) use track_marks::{TRACK_MARK_SPACING_M, TrackMarks};
 
 /// One frame's tracer batch for a bare shell list — the offscreen/screenshot path, which renders
 /// straight from a server snapshot without a `ClientApp`. The in-game path goes through
