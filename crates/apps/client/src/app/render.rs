@@ -144,6 +144,12 @@ impl ClientApp {
             &meshes.ground_maps,
             &crate::scene::terrain_maps::terrain_material_set_for(self.session.map_id()),
         );
+        // The near-field grass tuft (Materia Świata 1b): one registered unit mesh the battle
+        // frame instances around the eye every frame.
+        renderer.register_mesh(
+            crate::scene::grass::GRASS_MESH_HANDLE,
+            &crate::scene::grass::grass_tuft_mesh(),
+        );
         let atlas = crate::hud::font::atlas();
         renderer.set_hud_font_atlas(atlas.width(), atlas.height(), atlas.coverage());
         // The battle scene starts loaded, so its river (if the map has one) starts loaded too.
@@ -311,7 +317,17 @@ impl ClientApp {
         for (handle, maps) in self.vehicle_asset_catalog.take_pending_vehicle_materials() {
             renderer.register_vehicle_material(handle, &maps);
         }
-        renderer.set_render_frame(&RenderFrame::default());
+        // Near-field grass (Materia Swiata 1b): a deterministic tuft ring conjured around the
+        // eye each frame through the scene pipeline's instanced path. The only scale cue the
+        // ground has - and the far field pays nothing for it.
+        let grass = crate::scene::grass::grass_frame_objects(
+            &self.battlefield.heightmap,
+            self.battlefield.water,
+            &self.battle_scene_meshes.as_ref().expect("ensured above").ground_maps,
+            &crate::scene::terrain_maps::terrain_material_set_for(self.session.map_id()),
+            glam::Vec3::from_array(camera.eye),
+        );
+        renderer.set_render_frame(&RenderFrame { objects: grass, ..RenderFrame::default() });
         renderer.set_vehicle_render_frame(&vehicle_frame);
         // Battle no longer builds a per-frame dynamic mesh (hit marks became on-tank decals in
         // the FX pass); clear whatever the garage left behind.

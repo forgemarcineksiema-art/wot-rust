@@ -95,6 +95,13 @@ impl Default for Camera {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct MeshHandle(pub u32);
 
+/// Scene meshes registered at or above this handle are shadowless dressing (near-field grass
+/// and future ground clutter): they draw in the color pass but skip every depth-only pass —
+/// sun-shadow cascades and the SSAO prepass alike. Thin instanced blades in a 4-cascade
+/// shadow render are all cost and all shimmer; the ground under them already carries the
+/// darkness that matters.
+pub const SHADOWLESS_DRESSING_MESH_BASE: u32 = 0xFFFF_0000;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct MaterialHandle(pub u32);
 

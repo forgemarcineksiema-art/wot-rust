@@ -4,6 +4,7 @@
 pub(crate) mod backdrop;
 pub(crate) mod battlefield;
 pub(crate) mod foliage;
+pub(crate) mod grass;
 pub(crate) mod hangar;
 mod hangar_gallery;
 mod hangar_props;

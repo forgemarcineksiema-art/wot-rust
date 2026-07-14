@@ -33,6 +33,7 @@ pub use scene::battlefield::{
     battlefield_ground_and_statics_meshes, battlefield_scene_mesh,
     battlefield_scene_mesh_with_cover_states, battlefield_statics_mesh, terrain_scene_mesh,
 };
+pub use scene::grass::{GRASS_MESH_HANDLE, grass_frame_objects, grass_tuft_mesh};
 pub use scene::hangar::{TURNTABLE_TOP_M, hangar_camera_pivot, hangar_scene_mesh};
 pub use scene::review_views::{ReviewView, prokhorovka_review_views};
 pub use scene::terrain_maps::{bake_terrain_ground_maps, terrain_material_set_for};
