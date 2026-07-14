@@ -16,6 +16,11 @@ impl ClientApp {
     /// Without a device (headless, CI, no output hardware) the queue is dropped — gameplay code
     /// never behaves differently for lacking ears.
     pub(super) fn flush_audio(&mut self, eye: Option<[f32; 3]>, target: Option<[f32; 3]>) {
+        // The shells that missed speak first (D8): flybys are detected against the listener,
+        // so they queue here — where the ear is known — not in snapshot ingest.
+        if let Some(eye) = eye {
+            self.detect_shell_flybys(glam::Vec3::from_array(eye));
+        }
         let events = std::mem::take(&mut self.pending_audio);
         let Some(output) = &self.audio else {
             return;
@@ -111,6 +116,57 @@ impl ClientApp {
                 }
             })
             .collect()
+    }
+
+    /// A supersonic shell passing close to the ear cracks (D8): the N-wave at the closest
+    /// approach of the tick segment, once per shell (the crack happens once), never for the
+    /// player's own round (the muzzle owns that moment), and only for genuinely supersonic
+    /// flight — a lobbed HE arc whistles past subsonic and earns no snap.
+    pub(super) fn detect_shell_flybys(&mut self, eye: glam::Vec3) {
+        const FLYBY_MAX_MISS_M: f32 = 15.0;
+        const SPEED_OF_SOUND_MPS: f32 = 343.0;
+        let Some(latest) = self.render_state.latest_snapshot() else {
+            return;
+        };
+        let Some(previous) = self.render_state.previous_snapshot() else {
+            return;
+        };
+        let mut cracks = Vec::new();
+        for shell in &latest.shells {
+            if shell.owner == self.player_tank
+                || self.cracked_shells.contains(&shell.shell_id)
+                || glam::Vec3::from_array(shell.velocity_mps).length() < SPEED_OF_SOUND_MPS
+            {
+                continue;
+            }
+            let Some(before) = previous.shells.iter().find(|s| s.shell_id == shell.shell_id) else {
+                continue;
+            };
+            let a = glam::Vec3::from_array(before.position);
+            let b = glam::Vec3::from_array(shell.position);
+            let run = b - a;
+            let t = if run.length_squared() < 1.0e-6 {
+                0.0
+            } else {
+                ((eye - a).dot(run) / run.length_squared()).clamp(0.0, 1.0)
+            };
+            let closest = a + run * t;
+            let miss = closest.distance(eye);
+            if miss > FLYBY_MAX_MISS_M {
+                continue;
+            }
+            self.cracked_shells.insert(shell.shell_id);
+            cracks.push(audio::AudioEvent::ShellFlyby {
+                position: closest,
+                caliber_mm: shell.caliber_mm,
+                miss_distance_m: miss,
+            });
+        }
+        // A shell that left the world frees its dedupe slot (ids are never reused mid-battle).
+        self.cracked_shells.retain(|id| latest.shells.iter().any(|s| s.shell_id == *id));
+        for crack in cracks {
+            self.queue_audio(crack);
+        }
     }
 
     /// The player's turret drive as a 0..1 fraction of its top slew rate, from the authoritative
@@ -327,6 +383,67 @@ mod tests {
         tank.hit_points = 0;
         app.accept_and_sync(snapshot);
         assert_eq!(app.player_turret_slew_norm(), 0.0, "a dead tank's drive is off");
+    }
+
+    /// D8's contract: a supersonic enemy shell passing ≤15 m of the ear cracks exactly once;
+    /// the player's own round never cracks (the muzzle owns that moment), a wide miss stays
+    /// silent, and a subsonic lob earns no snap.
+    #[test]
+    fn a_near_supersonic_pass_cracks_once_and_only_for_enemy_rounds() {
+        let mut app = deployed_app();
+        app.run_fixed_ticks(6);
+        let eye = glam::Vec3::new(50.0, 2.0, 50.0);
+        let enemy = game_core::TankId(9999);
+        let shell =
+            |id: u64, owner: game_core::TankId, x: f32, z: f32, speed: f32| net::ShellSnapshot {
+                shell_id: game_core::ShellId(id),
+                owner,
+                position: [x, 2.0, z],
+                velocity_mps: [0.0, 0.0, speed],
+                shell_type: game_core::ShellType::ArmorPiercing,
+                caliber_mm: 100.0,
+                drag_per_s: 0.0,
+                age_seconds: 0.1,
+            };
+
+        // Tick one: four shells south of the listener. Tick two: all have crossed north —
+        // each segment straddles the ear's z, offset in x by its miss distance.
+        let mut snapshot = app.render_state.latest_snapshot().cloned().expect("snapshot");
+        snapshot.server_tick += 1;
+        snapshot.shells = vec![
+            shell(1, enemy, 58.0, 20.0, 800.0), // 8 m off the ear, enemy, supersonic
+            shell(2, app.player_tank, 58.0, 20.0, 800.0), // own round
+            shell(3, enemy, 58.0, 20.0, 120.0), // subsonic lob
+            shell(4, enemy, 300.0, 20.0, 800.0), // wide miss on the far flank
+        ];
+        app.accept_and_sync(snapshot);
+        let mut snapshot = app.render_state.latest_snapshot().cloned().expect("snapshot");
+        snapshot.server_tick += 1;
+        for s in snapshot.shells.iter_mut() {
+            s.position[2] = 90.0;
+        }
+        app.accept_and_sync(snapshot);
+
+        app.pending_audio.clear();
+        app.detect_shell_flybys(eye);
+        let cracks: Vec<_> = app
+            .pending_audio
+            .iter()
+            .filter_map(|e| match e {
+                audio::AudioEvent::ShellFlyby { miss_distance_m, .. } => Some(*miss_distance_m),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(cracks.len(), 1, "exactly the one enemy supersonic near-pass cracks");
+        assert!((cracks[0] - 8.0).abs() < 0.5, "the miss distance is honest, got {}", cracks[0]);
+
+        // The same shell never cracks twice.
+        app.pending_audio.clear();
+        app.detect_shell_flybys(eye);
+        assert!(
+            app.pending_audio.is_empty(),
+            "one shell, one crack — the dedupe holds while the shell flies"
+        );
     }
 
     /// A ridge between the ear and the source masks it; open ground does not. The player's own

@@ -22,6 +22,9 @@ pub enum AudioEvent {
     /// thrown track, a duller grind for a mere degrade — distinct from the plate clang, and heard
     /// even on a clean 0-HP track break.
     TrackSnapped { position: Vec3, broken: bool },
+    /// A supersonic shell passed close to the ear without hitting (D8): the N-wave crack at
+    /// its closest-approach point. `miss_distance_m` scales how loud death sounded going by.
+    ShellFlyby { position: Vec3, caliber_mm: f32, miss_distance_m: f32 },
     /// The player's target was destroyed (confirmation beat).
     KillConfirmed,
     /// A garage/UI interaction; `accent` marks commits over browsing clicks.

@@ -92,9 +92,11 @@ impl AudioEngine {
         self.wind.set_level(level);
     }
 
-    /// Weather rain amount: 1 in a squall, 0 under a clear sky.
+    /// Weather rain amount: 1 in a squall, 0 under a clear sky. The same knob soaks the ground
+    /// under the player's tracks — wet soil swallows the clatter's top (see [`EngineVoice`]).
     pub fn set_rain_level(&mut self, level: f32) {
         self.rain.set_level(level);
+        self.engine_bed.set_ground_wetness(level);
     }
 
     /// The player's own turret drive, as a 0..1 fraction of its top slew rate — the whine that
@@ -155,6 +157,16 @@ impl AudioEngine {
                     Box::new(GroundImpact::new(surface, self.sample_rate_hz, seed))
                 };
                 let gain = if high_explosive { 0.95 } else { 0.7 };
+                self.spawn_at(voice, position, gain, true, occlusion);
+            }
+            AudioEvent::ShellFlyby { position, caliber_mm, miss_distance_m } => {
+                let voice = Box::new(crate::voices::flyby::FlybyCrack::new(
+                    caliber_mm,
+                    self.sample_rate_hz,
+                    seed,
+                ));
+                // Closeness is the whole message: 2 m is a full-throat crack, 15 m a far snap.
+                let gain = (1.0 - miss_distance_m / 16.0).clamp(0.1, 1.0) * 1.1;
                 self.spawn_at(voice, position, gain, true, occlusion);
             }
             AudioEvent::GunReady => {

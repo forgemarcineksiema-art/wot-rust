@@ -7,6 +7,7 @@ pub mod blast;
 pub mod cannon;
 pub mod engine;
 pub mod fire;
+pub mod flyby;
 pub mod impact;
 pub mod track;
 pub mod traverse;

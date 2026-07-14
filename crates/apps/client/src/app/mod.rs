@@ -175,6 +175,8 @@ pub(crate) struct ClientApp {
     track_ribbons: Vec<crate::vehicle::track_ribbon::TrackRibbon>,
     /// Seconds since each wreck died — the burn-out epilogue's clock (flames, then smoke).
     wreck_age_s: HashMap<game_core::TankId, f32>,
+    /// Shells whose flyby crack already played (D8): one N-wave per shell, ever.
+    cracked_shells: std::collections::HashSet<game_core::ShellId>,
     /// Per-instance dented hull mesh for each wreck, built once from its recorded penetrations.
     /// The wreck's hull render object is swapped to this handle so a knocked-out tank reads beaten
     /// and dented, not pristine-but-tinted. Presentation only (see `vehicle::wreck_deform`).
@@ -344,6 +346,7 @@ impl ClientApp {
             turret_popoffs: HashMap::new(),
             track_ribbons: Vec::new(),
             wreck_age_s: HashMap::new(),
+            cracked_shells: std::collections::HashSet::new(),
             terrain_scars: crate::fx::TerrainScars::default(),
             track_marks: crate::fx::TrackMarks::default(),
             engine_smoke_accum_s: HashMap::new(),
