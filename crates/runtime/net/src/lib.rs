@@ -11,6 +11,7 @@ use thiserror::Error;
 mod frame;
 mod snapshot_filter;
 mod snapshot_schedule;
+pub mod transport;
 
 pub use frame::{FRAME_HEADER_LEN, FRAME_MAGIC, decode_frame, encode_frame};
 pub use snapshot_schedule::SnapshotSchedule;
