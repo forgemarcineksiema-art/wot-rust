@@ -21,6 +21,10 @@ pub struct ArmorApertureRender {
     pub phase_b: f32,
     /// Signed plane reach used to cut both outer and inner armor skins, never deep components.
     pub half_depth_m: f32,
+    /// Thermal rim emission RIGHT NOW (CPU-cooled from the breach's age; 0 = cold steel).
+    pub glow: f32,
+    /// How tightly the glow hugs the contour (1 = soft kinetic rim, >1 = narrow HEAT ring).
+    pub glow_tightness: f32,
 }
 
 /// Per-tank damage descriptors. `tank_id` connects them to ordinary render objects without

@@ -69,6 +69,8 @@ fn analytical_aperture_opens_the_vehicle_in_color_and_depth() {
             phase_a: 0.7,
             phase_b: 2.1,
             half_depth_m: 0.2,
+            glow: 0.0,
+            glow_tightness: 1.0,
         }],
     }]);
     let center = (32 * 64 + 32) * 4;

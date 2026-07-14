@@ -29,6 +29,8 @@ pub struct GpuAperture {
     pub tangent_rotation: [f32; 4],
     /// x irregularity, y/z deterministic wave phases, w plane half-depth.
     pub shape: [f32; 4],
+    /// x glow intensity now (CPU-cooled), y glow tightness, z/w reserved.
+    pub thermal: [f32; 4],
 }
 
 pub struct ArmorDamageBuffers {
@@ -85,6 +87,7 @@ impl ArmorDamageBuffers {
                         aperture.phase_b,
                         aperture.half_depth_m,
                     ],
+                    thermal: [aperture.glow, aperture.glow_tightness.max(0.25), 0.0, 0.0],
                 });
             }
             headers.push(GpuDamageHeader {

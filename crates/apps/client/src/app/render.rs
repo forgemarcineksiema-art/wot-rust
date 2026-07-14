@@ -206,6 +206,7 @@ impl ClientApp {
             self.player_tank,
             player_gun_scale,
             Some(&self.battlefield.heightmap),
+            self.render_state.latest_snapshot().map_or(0, |snapshot| snapshot.server_tick),
         );
         // A decapitated wreck flies its turret: replace that tank's turret and gun transforms with
         // the deterministic pop-off arc (the snapshot pose is ignored, freezing the turret yaw).

@@ -76,6 +76,8 @@ struct ArmorAperture {
     tangent_rotation: vec4<f32>,
     // x irregularity, yz deterministic phases, w plane half-depth.
     shape: vec4<f32>,
+    // x glow intensity now (CPU-cooled), y glow tightness, zw reserved.
+    thermal: vec4<f32>,
 };
 
 @group(0) @binding(1)
@@ -124,4 +126,55 @@ fn armor_fragment_is_cut(world_pos: vec3<f32>, damage_index: u32) -> bool {
         slot += 1u;
     }
     return false;
+}
+
+/// Thermal rim of fresh perforations: emissive intensity for fragments hugging a hot contour.
+/// The cooling happens CPU-side (thermal.x is the intensity RIGHT NOW); tightness (thermal.y)
+/// narrows a HEAT ring against the softer kinetic rim. Cold steel returns exactly zero.
+fn armor_aperture_glow(world_pos: vec3<f32>, damage_index: u32) -> f32 {
+    if (damage_index == 0u) {
+        return 0.0;
+    }
+    let header = armor_damage_headers[damage_index];
+    var glow = 0.0;
+    var slot = 0u;
+    loop {
+        if (slot >= header.count) {
+            break;
+        }
+        let aperture = armor_apertures[header.start + slot];
+        slot += 1u;
+        if (aperture.thermal.x <= 0.001) {
+            continue;
+        }
+        let normal = normalize(aperture.normal_minor.xyz);
+        let delta = world_pos - aperture.center_major.xyz;
+        if (abs(dot(delta, normal)) > aperture.shape.w) {
+            continue;
+        }
+        let tangent = normalize(aperture.tangent_rotation.xyz);
+        let bitangent = normalize(cross(normal, tangent));
+        let local = vec2<f32>(dot(delta, tangent), dot(delta, bitangent));
+        let angle = atan2(local.y, local.x);
+        let rough = 1.0 + aperture.shape.x
+            * (sin(angle * 3.0 + aperture.shape.y) * 0.62
+                + sin(angle * 5.0 + aperture.shape.z) * 0.38);
+        let rotation = aperture.tangent_rotation.w;
+        let sin_r = sin(rotation);
+        let cos_r = cos(rotation);
+        let rotated = vec2<f32>(
+            local.x * cos_r + local.y * sin_r,
+            -local.x * sin_r + local.y * cos_r,
+        );
+        let metric = vec2<f32>(
+            rotated.x / max(aperture.center_major.w * rough, 0.005),
+            rotated.y / max(aperture.normal_minor.w * rough, 0.005),
+        );
+        // 1.0 at the torn lip, fading over a contour-relative ring outside it.
+        let m = length(metric);
+        let ring_width = 0.55 / max(aperture.thermal.y, 0.25);
+        let ring = clamp(1.0 - (m - 1.0) / ring_width, 0.0, 1.0);
+        glow = max(glow, ring * aperture.thermal.x);
+    }
+    return glow;
 }
