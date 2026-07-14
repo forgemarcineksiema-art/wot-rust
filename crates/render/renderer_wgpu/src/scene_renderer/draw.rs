@@ -71,6 +71,7 @@ impl super::SceneRenderer {
                     1.0 / target.height.max(1) as f32,
                 ],
                 cloud_shadows_enabled: self.cloud_shadows_enabled,
+                full_shader_detail: self.full_shader_detail,
                 bloom_enabled: self.bloom.mips > 0,
                 time_s: self.scene_time_s,
                 rain_intensity: self.rain_intensity,
@@ -292,13 +293,6 @@ impl super::SceneRenderer {
     /// props, static frame meshes), the battlefield ground, then vehicles. Shared by the single
     /// pass (analytic water) and the refraction opaque pass.
     fn draw_world_opaque(&self, pass: &mut wgpu::RenderPass<'_>, camera_frustum: &Frustum) {
-        // Gradient-sky background first (depth compare Always, no write), so the geometry drawn
-        // next overwrites it wherever it wins the depth test and the sky shows through elsewhere.
-        if self.draw_sky {
-            pass.set_pipeline(&self.sky_pipeline);
-            pass.set_bind_group(0, &self.camera_bind_group, &[]);
-            pass.draw(0..3, 0..1);
-        }
         pass.set_pipeline(&self.pipeline);
         pass.set_bind_group(0, &self.camera_bind_group, &[]);
         pass.set_bind_group(2, &*self.shadow.bind_group.borrow(), &[]);
@@ -372,6 +366,16 @@ impl super::SceneRenderer {
                     draw.instance_start..draw.instance_start + draw.instance_count,
                 );
             }
+        }
+        // Gradient sky LAST, at the far plane behind a LessEqual depth test (F2): before this
+        // it was drawn FIRST with compare Always — the heaviest per-pixel shader in the frame
+        // (the FBM cloud sheet) paid for every pixel, including the ~half the terrain then
+        // overwrote. Drawn last, early-Z kills every covered pixel and the sky pays only for
+        // the visible dome.
+        if self.draw_sky {
+            pass.set_pipeline(&self.sky_pipeline);
+            pass.set_bind_group(0, &self.camera_bind_group, &[]);
+            pass.draw(0..3, 0..1);
         }
     }
 

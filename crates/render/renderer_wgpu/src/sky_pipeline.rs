@@ -48,7 +48,9 @@ pub(crate) fn build_sky_pipeline(
         depth_stencil: Some(wgpu::DepthStencilState {
             format: DEPTH_FORMAT,
             depth_write_enabled: Some(false),
-            depth_compare: Some(wgpu::CompareFunction::Always),
+            // LessEqual against the cleared far plane (the sky quad sits at z = w): only
+            // pixels no opaque draw claimed survive — see draw_world_opaque's ordering note.
+            depth_compare: Some(wgpu::CompareFunction::LessEqual),
             stencil: wgpu::StencilState::default(),
             bias: wgpu::DepthBiasState::default(),
         }),

@@ -27,6 +27,11 @@ pub struct LightingQuality {
     /// opaque HDR + a second transparent pass). It costs an extra full-frame resolve and pass, so
     /// the weakest adapters keep the analytic water instead. Off on integrated/software.
     pub refraction: bool,
+    /// Full per-pixel shader detail (Płynność 2.0 / F2). `false` folds the heaviest ALU work
+    /// down on weak adapters: fewer sky FBM octaves, 2×2 near-shadow PCF instead of 3×3, and
+    /// the terrain/scene noise drops its analytic normal-bend gradient. One flag, read by the
+    /// shaders from a spare camera-uniform lane — the LOOK's composition stays identical.
+    pub full_shader_detail: bool,
 }
 
 impl LightingQuality {
@@ -40,9 +45,13 @@ impl LightingQuality {
                 shadow_resolution: 2048,
                 shadow_cascades: 2,
                 ssao_scale: 0.5,
-                cloud_shadows: true,
-                bloom_mips: 3,
+                // F2: the audit found the integrated tier paying near-discrete per-pixel
+                // costs. Cloud shadows (~10 ALU/px on all lit fill), the bloom chain (5
+                // bandwidth passes on a shared-memory GPU) and full shader detail all fold.
+                cloud_shadows: false,
+                bloom_mips: 0,
                 refraction: false,
+                full_shader_detail: false,
             },
             GpuDeviceType::Cpu => Self {
                 shadow_resolution: 2048,
@@ -51,6 +60,7 @@ impl LightingQuality {
                 cloud_shadows: false,
                 bloom_mips: 0,
                 refraction: false,
+                full_shader_detail: false,
             },
             GpuDeviceType::DiscreteGpu | GpuDeviceType::VirtualGpu | GpuDeviceType::Other => Self {
                 shadow_resolution: 4096,
@@ -58,6 +68,7 @@ impl LightingQuality {
                 ssao_scale: 1.0,
                 cloud_shadows: true,
                 bloom_mips: 5,
+                full_shader_detail: true,
                 refraction: true,
             },
         }
@@ -74,18 +85,23 @@ mod tests {
         assert_eq!(integrated.shadow_resolution, 2048);
         assert_eq!(integrated.shadow_cascades, 2);
         assert_eq!(integrated.ssao_scale, 0.5);
-        assert!(integrated.cloud_shadows);
+        // F2: the integrated tier truly folds — no cloud-shadow ALU, no bloom bandwidth,
+        // reduced per-pixel shader detail (the audit found it paying near-discrete costs).
+        assert!(!integrated.cloud_shadows);
+        assert_eq!(integrated.bloom_mips, 0);
+        assert!(!integrated.full_shader_detail);
 
         let discrete = LightingQuality::for_device_type(GpuDeviceType::DiscreteGpu);
         assert_eq!(discrete.shadow_resolution, 4096);
         assert_eq!(discrete.shadow_cascades, 2);
         assert_eq!(discrete.ssao_scale, 1.0);
         assert!(discrete.cloud_shadows);
+        assert!(discrete.full_shader_detail);
         // Only discrete-class adapters refract the water; the laptop tiers keep analytic water.
         assert!(discrete.refraction);
         assert!(!integrated.refraction);
 
-        // Software rasterizer: the one class that also drops the cloud-shadow ALU.
+        // Software rasterizer folds exactly like the integrated tier.
         let cpu = LightingQuality::for_device_type(GpuDeviceType::Cpu);
         assert_eq!(cpu.ssao_scale, 0.5);
         assert!(!cpu.cloud_shadows);

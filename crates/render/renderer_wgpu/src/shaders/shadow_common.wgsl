@@ -49,8 +49,14 @@ fn sun_shadow(world_pos: vec3<f32>, n: vec3<f32>) -> f32 {
         let texel = camera.shadow_params.x;
         let reference = ndc.z - camera.shadow_params.y;
         var sum = 0.0;
-        for (var i = -1; i <= 1; i = i + 1) {
-            for (var j = -1; j <= 1; j = j + 1) {
+        // Full detail: 3×3 PCF. The reduced tier (time_params.w, F2) trims to the 2×2 core —
+        // four taps instead of nine; the far cascade below is 2×2 on every tier already.
+        var lo = -1;
+        if (camera.time_params.w < 0.5) {
+            lo = 0;
+        }
+        for (var i = lo; i <= 1; i = i + 1) {
+            for (var j = lo; j <= 1; j = j + 1) {
                 let off = vec2<f32>(f32(i), f32(j)) * texel;
                 sum = sum
                     + textureSampleCompareLevel(shadow_map, shadow_sampler, uv + off, reference);
