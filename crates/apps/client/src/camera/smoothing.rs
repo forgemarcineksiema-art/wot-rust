@@ -54,6 +54,17 @@ const FOLLOW_SUBSTEP_S: f32 = 1.0 / 60.0;
 const MAX_FRAME_S: f32 = 0.1;
 
 impl BattleCameraController {
+    /// Test hooks: still the rig, then read how hard something shoved it.
+    #[cfg(test)]
+    pub fn zero_motion_for_test(&mut self) {
+        self.smoothing.anchor_vel = Vec3::ZERO;
+    }
+
+    #[cfg(test)]
+    pub fn anchor_speed_for_test(&self) -> f32 {
+        self.smoothing.anchor_vel.length()
+    }
+
     /// Landing slam: inject downward velocity into the follow anchor; the critically damped
     /// spring turns it into a single dip-and-recover. Sniper mode stays rigid (aiming tolerates
     /// no camera theatrics), matching [`BattleCameraController::advance`].
