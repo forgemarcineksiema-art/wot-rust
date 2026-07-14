@@ -51,9 +51,10 @@ Every phase preserves these; a phase that cannot is redesigned, not excused.
 | 5 | Wreck deformation | runtime `deform`-kernel dents on per-instance wreck meshes at death; ricochet spark streaks | — | implemented |
 | 6 | Destructible cover | `CoverView` + `cover_states` (Intact/Rubble/Gone): HE and ramming destroy fences/tree-line segments and pound farm buildings into rubble; shell trace, movement, and spotting LOS all follow the state | v21 | implemented |
 | 7 | Honest Steel T-54 | bounded persistent armor channels, multi-module interior path, pose-aware mantlet scars, engine fire and authored thrown-track gap | v25 | implemented |
-| 8 | Real perforations | fleet-wide reusable apertures, v26 contours, analytic color/depth/shadow cut, T-54 interior lighting and local CPU remesh | v26 | in progress |
+| 8 | Real perforations | fleet-wide reusable apertures, v26 contours, analytic color/depth/shadow cut, T-54 interior lighting and local CPU remesh | v26 | implemented |
+| E | Wreck epilogue (Inna Liga D6) | thrown-track ribbon prop shed onto the field (unit link mesh, deterministic S-curve, budgeted pool), wreck burn-out (~20 s of flames, then smolder), ricochet sparks leave along the deflection from the wire's plate normal + shell direction | — | implemented |
 
-Sequencing: 0 → 1 → {2, 3 in either order} → 4 → {5, 6 in parallel}.
+Sequencing: 0 → 1 → {2, 3 in either order} → 4 → {5, 6 in parallel} → 7 → 8 → E.
 
 ## Protocol ledger
 

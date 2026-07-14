@@ -20,6 +20,7 @@ pub(crate) mod render_frame;
 pub(crate) mod render_objects;
 pub(crate) mod render_objects_draw;
 pub(crate) mod running_gear_objects;
+pub(crate) mod track_ribbon;
 pub(crate) mod turret_popoff;
 pub(crate) mod variation;
 pub(crate) mod wreck_deform;

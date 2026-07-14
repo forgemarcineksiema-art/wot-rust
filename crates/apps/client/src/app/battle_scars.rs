@@ -13,6 +13,9 @@ const ENGINE_SMOKE_PERIOD_S: f32 = 0.16;
 /// Flames per smoke period off a BURNING engine (`engine_fire` on the wire): the fire licks
 /// faster than the column puffs, so the deck reads as alight, not merely smoldering.
 const ENGINE_FIRE_FLAMES_PER_PUFF: usize = 3;
+/// The wreck's epilogue (D6): a fresh kill burns openly for this long, then only smolders —
+/// the fire eats what it can and the column of smoke carries the story on.
+const WRECK_FLAME_S: f32 = 20.0;
 
 impl ClientApp {
     /// Age every tank's scars and run the damage-driven emitters (engine smoke). Called once per
@@ -27,14 +30,23 @@ impl ClientApp {
         let tanks = self.render_state.interpolated_tanks();
         self.tank_scars.retain(|id, _| tanks.iter().any(|tank| tank.tank_id == *id));
         self.engine_smoke_accum_s.retain(|id, _| tanks.iter().any(|tank| tank.tank_id == *id));
+        self.wreck_age_s.retain(|id, _| tanks.iter().any(|tank| tank.tank_id == *id));
 
         for tank in tanks {
             let engine_dead =
                 tank.destroyed_modules_mask & ModuleSlot::Engine.destroyed_mask_bit() != 0;
-            // The authoritative fire flag burns; a dead-but-unlit engine only smokes. A wreck's
-            // burn-out belongs to the destruction epilogue, not the live-tank scars.
-            let burning = (tank.engine_fire || tank.fuel_fire) && tank.hit_points > 0;
-            let smoking = engine_dead && tank.hit_points > 0;
+            // The authoritative fire flag burns; a dead-but-unlit engine only smokes. A LIVE
+            // tank never burns without the flag — the wreck's burn-out below is the epilogue.
+            let mut burning = (tank.engine_fire || tank.fuel_fire) && tank.hit_points > 0;
+            let mut smoking = engine_dead && tank.hit_points > 0;
+            // The wreck's epilogue (D6): every fresh kill burns openly for ~20 s, then the
+            // flames die and the column of smoke smolders on. The player gets to SEE the kill.
+            if tank.hit_points == 0 {
+                let age = self.wreck_age_s.entry(tank.tank_id).or_insert(0.0);
+                *age += dt;
+                burning = *age < WRECK_FLAME_S;
+                smoking = true;
+            }
             if !burning && !smoking {
                 continue;
             }
@@ -113,7 +125,46 @@ mod tests {
         app.accept_and_sync(snapshot);
         app.fx = crate::fx::FxSystem::default();
         app.tick_battle_scars(1.0);
-        assert_eq!(app.fx.live_particles(), 0, "a wreck's engine no longer smokes");
+        assert!(
+            app.fx.live_particles() > 0,
+            "the kill hands over to the wreck epilogue - a fresh wreck burns"
+        );
+    }
+
+    /// The wreck's epilogue clock (D6): a fresh kill burns openly (flames + smoke), and after
+    /// ~20 s the flames die while the smolder column carries on - strictly fewer particles,
+    /// never zero.
+    #[test]
+    fn a_fresh_wreck_burns_and_an_old_wreck_only_smolders() {
+        let mut app = ClientApp::new();
+        app.confirm_garage_selection();
+        app.run_fixed_ticks(6);
+
+        let mut snapshot = app.render_state.latest_snapshot().cloned().expect("snapshot present");
+        snapshot.server_tick += 1;
+        let target =
+            snapshot.tanks.iter_mut().find(|tank| tank.tank_id != app.player_tank).expect("target");
+        target.hit_points = 0;
+        let target_id = target.tank_id;
+        app.accept_and_sync(snapshot);
+
+        app.fx = crate::fx::FxSystem::default();
+        app.tick_battle_scars(1.0);
+        let burning = app.fx.live_particles();
+        assert!(burning >= 15, "a fresh wreck is alight, got {burning}");
+
+        // Age the wreck past the flame window (0.1 s steps - the clock clamps like the pool).
+        for _ in 0..250 {
+            app.tick_battle_scars(0.1);
+        }
+        app.fx = crate::fx::FxSystem::default();
+        app.tick_battle_scars(1.0);
+        let smoldering = app.fx.live_particles();
+        assert!(
+            smoldering > 0 && smoldering < burning / 2,
+            "an old wreck only smolders: {smoldering} vs alight {burning}"
+        );
+        assert!(app.wreck_age_s.contains_key(&target_id), "the epilogue tracks the wreck's age");
     }
 
     /// The authoritative `engine_fire` flag (v25) must be SEEN: a burning live tank throws
@@ -157,7 +208,50 @@ mod tests {
         app.accept_and_sync(snapshot);
         app.fx = crate::fx::FxSystem::default();
         app.tick_battle_scars(1.0);
-        assert_eq!(app.fx.live_particles(), 0, "a wreck's fire is not this emitter's job");
+        assert!(
+            app.fx.live_particles() > 0,
+            "the death hands the fire to the wreck epilogue without a dark frame"
+        );
+    }
+
+    /// D6's negative lock: a LIVE tank with a knocked-out (but unlit) engine smokes and never
+    /// burns - flames need the authoritative fire flag or a wreck, nothing else.
+    #[test]
+    fn a_live_tank_with_a_dead_engine_never_burns() {
+        let mut app = ClientApp::new();
+        app.confirm_garage_selection();
+        app.run_fixed_ticks(6);
+
+        let mut snapshot = app.render_state.latest_snapshot().cloned().expect("snapshot present");
+        snapshot.server_tick += 1;
+        let target =
+            snapshot.tanks.iter_mut().find(|tank| tank.tank_id != app.player_tank).expect("target");
+        target.destroyed_modules_mask |= ModuleSlot::Engine.destroyed_mask_bit();
+        app.accept_and_sync(snapshot);
+
+        app.fx = crate::fx::FxSystem::default();
+        app.tick_battle_scars(1.0);
+        let smoke_only = app.fx.live_particles();
+        assert!(smoke_only >= 5, "the dead engine smokes, got {smoke_only}");
+
+        // Compare against the same tank actually burning: flames multiply the count. If the
+        // smoke-only column were secretly throwing flames these would be comparable.
+        let mut snapshot = app.render_state.latest_snapshot().cloned().expect("snapshot");
+        snapshot.server_tick += 1;
+        snapshot
+            .tanks
+            .iter_mut()
+            .find(|tank| tank.tank_id != app.player_tank)
+            .expect("target")
+            .engine_fire = true;
+        app.accept_and_sync(snapshot);
+        app.fx = crate::fx::FxSystem::default();
+        app.tick_battle_scars(1.0);
+        let burning = app.fx.live_particles();
+        assert!(
+            burning >= smoke_only * 2,
+            "flames must be a different order than smoke: {burning} vs {smoke_only}"
+        );
     }
 
     #[test]

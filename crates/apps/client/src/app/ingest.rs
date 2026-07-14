@@ -41,6 +41,29 @@ impl ClientApp {
                     broken: hit.broke,
                 });
             }
+            // A thrown track sheds its ribbon onto the field (D6): posed once, deterministic,
+            // budgeted — the oldest shed steel is recycled, and one side sheds only once.
+            if let Some(hit) = event.track_hit
+                && hit.broke
+                && let Some(target) = snapshot.tanks.iter().find(|t| t.tank_id == event.target)
+                && !self
+                    .track_ribbons
+                    .iter()
+                    .any(|r| r.tank_id == event.target && r.side == hit.side)
+            {
+                let ribbon = crate::vehicle::track_ribbon::TrackRibbon::shed(
+                    event.target,
+                    target.vehicle,
+                    hit.side,
+                    glam::Vec3::from_array(target.position),
+                    target.yaw_rad,
+                    Some(&self.battlefield.heightmap),
+                );
+                if self.track_ribbons.len() >= crate::vehicle::track_ribbon::MAX_TRACK_RIBBONS {
+                    self.track_ribbons.remove(0);
+                }
+                self.track_ribbons.push(ribbon);
+            }
         }
         // Every shell death gets its world-space burst: absorbed shells speak the surface they
         // died against, armor strikes answer with sparks (plus the penetration signature). A
@@ -89,7 +112,21 @@ impl ClientApp {
             if event.cause != game_core::DamageCause::Shell {
                 continue;
             }
-            self.fx.armor_hit(event.hit_position, event.penetrated, event.ricocheted);
+            // A ricochet's sparks leave ALONG the deflection — the wire has carried the
+            // plate normal and shell direction since v19; the fan finally reads them (D6).
+            let departure = if event.ricocheted {
+                let d = event.shell_direction;
+                let n = event.plate_normal;
+                Some(d - n * (2.0 * d.dot(n)))
+            } else {
+                None
+            };
+            self.fx.armor_hit_directed(
+                event.hit_position,
+                event.penetrated,
+                event.ricocheted,
+                departure,
+            );
             // And rings: the struck plate's clang (or the HE charge's own burst), with the
             // outcome (penetration thunk / ricochet whine) layered in by the voice itself.
             self.queue_audio(audio::AudioEvent::ArmorStruck {
@@ -263,6 +300,56 @@ impl ClientApp {
                 own_shot: event.tank_id == self.player_tank,
             });
         }
+    }
+}
+
+#[cfg(test)]
+mod track_ribbon_tests {
+    use super::super::ClientApp;
+
+    /// D6's contract: a thrown track sheds one ribbon of links onto the field - once per side,
+    /// deterministic, budgeted - and a mere damage tick (not a break) sheds nothing.
+    #[test]
+    fn a_thrown_track_sheds_a_ribbon_once_and_damage_alone_sheds_nothing() {
+        let mut app = ClientApp::new();
+        app.confirm_garage_selection();
+        app.run_fixed_ticks(6);
+
+        let break_event = |app: &ClientApp, broke: bool| {
+            let snapshot = app.render_state.latest_snapshot().cloned().expect("snapshot");
+            let target =
+                snapshot.tanks.iter().find(|tank| tank.tank_id != app.player_tank).expect("target");
+            let mut event = game_core::DamageEvent {
+                source: app.player_tank,
+                target: target.tank_id,
+                hit_position: glam::Vec3::from_array(target.position),
+                cause: game_core::DamageCause::Shell,
+                ..Default::default()
+            };
+            event.track_hit = Some(game_core::TrackHit { side: game_core::TrackSide::Left, broke });
+            (snapshot, event)
+        };
+
+        // Damage without a break: no steel on the ground.
+        let (mut snapshot, event) = break_event(&app, false);
+        snapshot.server_tick += 1;
+        snapshot.damage_events.push(event);
+        app.accept_and_sync(snapshot);
+        assert!(app.track_ribbons.is_empty(), "a bitten track sheds nothing");
+
+        // The break throws the ribbon.
+        let (mut snapshot, event) = break_event(&app, true);
+        snapshot.server_tick += 1;
+        snapshot.damage_events.push(event);
+        app.accept_and_sync(snapshot);
+        assert_eq!(app.track_ribbons.len(), 1, "the thrown track lies on the field");
+
+        // The same side reported broken again does not lay a second ribbon.
+        let (mut snapshot, event) = break_event(&app, true);
+        snapshot.server_tick += 1;
+        snapshot.damage_events.push(event);
+        app.accept_and_sync(snapshot);
+        assert_eq!(app.track_ribbons.len(), 1, "one side sheds once");
     }
 }
 

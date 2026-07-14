@@ -94,6 +94,32 @@ impl ClientApp {
         }
     }
 
+    /// Draw every shed track ribbon (D6): the same unit shoe-link mesh the live track scrolls,
+    /// instanced along the frozen S-curve where the throw laid it. Dark bare steel — shed links
+    /// stop wearing the vehicle's paint the moment they leave it.
+    pub(super) fn append_track_ribbons(&mut self, objects: &mut Vec<renderer_api::RenderObject>) {
+        const SHED_STEEL_TINT: [f32; 3] = [0.16, 0.15, 0.14];
+        let ribbons = std::mem::take(&mut self.track_ribbons);
+        for ribbon in &ribbons {
+            let Some(entry) = self.vehicle_asset_catalog.vehicle_entry(ribbon.vehicle) else {
+                continue;
+            };
+            let Some(gear) = entry.running_gear else {
+                continue;
+            };
+            objects.extend(ribbon.link_transforms().iter().map(|transform| {
+                renderer_api::RenderObject {
+                    tank_id: Some(ribbon.tank_id),
+                    mesh: gear.link,
+                    material: entry.material,
+                    transform: transform.to_cols_array_2d(),
+                    tint: SHED_STEEL_TINT,
+                }
+            }));
+        }
+        self.track_ribbons = ribbons;
+    }
+
     pub(super) fn create_renderer(
         &mut self,
         window: Arc<Window>,
@@ -215,6 +241,8 @@ impl ClientApp {
         self.apply_turret_popoffs(&mut vehicles.objects);
         // A wreck also draws its dented hull instead of the pristine shared one.
         self.apply_wreck_deform(&mut vehicles.objects);
+        // Thrown tracks lie where they were shed (D6), instanced from the shoe-link mesh.
+        self.append_track_ribbons(&mut vehicles.objects);
         let vehicle_frame = RenderFrame {
             objects: vehicles.objects,
             armor_damage: vehicles.armor_damage,
