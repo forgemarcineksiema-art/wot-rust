@@ -217,9 +217,7 @@ fn the_far_cascade_darkens_ground_200m_past_the_shadow_focus() {
             &ctx,
             &gv,
             &gi,
-            renderer_api::LightingQuality::for_device_type(
-                renderer_api::GpuDeviceType::DiscreteGpu,
-            ),
+            renderer_api::LightingQuality::rich(),
         )
         .expect("renderer");
         let mut lighting = SceneLighting::battlefield_default();

@@ -35,42 +35,40 @@ pub struct LightingQuality {
 }
 
 impl LightingQuality {
-    /// The calibrated tier table. Integrated/software adapters halve the shadow map and run SSAO
-    /// at half resolution — a 20-30 FPS laptop never resolves the detail either buys — while
-    /// discrete GPUs keep everything at full quality. Both classes keep both shadow cascades: the
-    /// far pass is terrain-only at half resolution and nearly free.
-    pub fn for_device_type(device_type: GpuDeviceType) -> Self {
-        match device_type {
-            GpuDeviceType::IntegratedGpu => Self {
-                shadow_resolution: 2048,
-                shadow_cascades: 2,
-                ssao_scale: 0.5,
-                // F2: the audit found the integrated tier paying near-discrete per-pixel
-                // costs. Cloud shadows (~10 ALU/px on all lit fill), the bloom chain (5
-                // bandwidth passes on a shared-memory GPU) and full shader detail all fold.
-                cloud_shadows: false,
-                bloom_mips: 0,
-                refraction: false,
-                full_shader_detail: false,
-            },
-            GpuDeviceType::Cpu => Self {
-                shadow_resolution: 2048,
-                shadow_cascades: 2,
-                ssao_scale: 0.5,
-                cloud_shadows: false,
-                bloom_mips: 0,
-                refraction: false,
-                full_shader_detail: false,
-            },
-            GpuDeviceType::DiscreteGpu | GpuDeviceType::VirtualGpu | GpuDeviceType::Other => Self {
-                shadow_resolution: 4096,
-                shadow_cascades: 2,
-                ssao_scale: 1.0,
-                cloud_shadows: true,
-                bloom_mips: 5,
-                full_shader_detail: true,
-                refraction: true,
-            },
+    /// One-look policy: every adapter class receives the same [`Self::canonical`] profile. The
+    /// signature survives so existing callers compile; the class is deliberately ignored.
+    pub fn for_device_type(_device_type: GpuDeviceType) -> Self {
+        Self::canonical()
+    }
+
+    /// THE game's one look (one-look policy, 2026-07-14): a single canonical profile for every
+    /// adapter — the game owns its performance instead of handing the player a settings menu.
+    /// Calibrated to hold 60 FPS on the minimum spec (GeForce MX330 / Iris Xe class); a
+    /// stronger GPU renders the IDENTICAL picture with headroom. Equal picture, equal game:
+    /// nothing that affects visibility may depend on hardware or options.
+    pub fn canonical() -> Self {
+        Self {
+            shadow_resolution: 2048,
+            shadow_cascades: 2,
+            ssao_scale: 0.5,
+            cloud_shadows: false,
+            bloom_mips: 0,
+            refraction: false,
+            full_shader_detail: false,
+        }
+    }
+
+    /// The rich profile — DEV ONLY (`WOT_QUALITY=high`): devlog captures, look-lock comparison
+    /// renders, portfolio shots. Never the shipped look.
+    pub fn rich() -> Self {
+        Self {
+            shadow_resolution: 4096,
+            shadow_cascades: 2,
+            ssao_scale: 1.0,
+            cloud_shadows: true,
+            bloom_mips: 5,
+            refraction: true,
+            full_shader_detail: true,
         }
     }
 }
@@ -79,32 +77,32 @@ impl LightingQuality {
 mod tests {
     use super::*;
 
+    /// The one-look policy's lock: every adapter class gets the identical canonical profile
+    /// (equal picture, equal game), and the rich profile stays a dev-only superset.
     #[test]
-    fn the_tier_table_is_locked() {
-        let integrated = LightingQuality::for_device_type(GpuDeviceType::IntegratedGpu);
-        assert_eq!(integrated.shadow_resolution, 2048);
-        assert_eq!(integrated.shadow_cascades, 2);
-        assert_eq!(integrated.ssao_scale, 0.5);
-        // F2: the integrated tier truly folds — no cloud-shadow ALU, no bloom bandwidth,
-        // reduced per-pixel shader detail (the audit found it paying near-discrete costs).
-        assert!(!integrated.cloud_shadows);
-        assert_eq!(integrated.bloom_mips, 0);
-        assert!(!integrated.full_shader_detail);
-
-        let discrete = LightingQuality::for_device_type(GpuDeviceType::DiscreteGpu);
-        assert_eq!(discrete.shadow_resolution, 4096);
-        assert_eq!(discrete.shadow_cascades, 2);
-        assert_eq!(discrete.ssao_scale, 1.0);
-        assert!(discrete.cloud_shadows);
-        assert!(discrete.full_shader_detail);
-        // Only discrete-class adapters refract the water; the laptop tiers keep analytic water.
-        assert!(discrete.refraction);
-        assert!(!integrated.refraction);
-
-        // Software rasterizer folds exactly like the integrated tier.
-        let cpu = LightingQuality::for_device_type(GpuDeviceType::Cpu);
-        assert_eq!(cpu.ssao_scale, 0.5);
-        assert!(!cpu.cloud_shadows);
-        assert!(!cpu.refraction);
+    fn every_adapter_gets_the_one_canonical_look() {
+        let canonical = LightingQuality::canonical();
+        for device in [
+            GpuDeviceType::IntegratedGpu,
+            GpuDeviceType::DiscreteGpu,
+            GpuDeviceType::Cpu,
+            GpuDeviceType::VirtualGpu,
+            GpuDeviceType::Other,
+        ] {
+            assert_eq!(
+                LightingQuality::for_device_type(device),
+                canonical,
+                "{device:?} must render the same picture as everyone else"
+            );
+        }
+        // The canonical numbers are the minimum-spec 60 FPS calibration — locked.
+        assert_eq!(canonical.shadow_resolution, 2048);
+        assert_eq!(canonical.shadow_cascades, 2);
+        assert_eq!(canonical.ssao_scale, 0.5);
+        assert!(!canonical.cloud_shadows && canonical.bloom_mips == 0 && !canonical.refraction);
+        assert!(!canonical.full_shader_detail);
+        // Dev-only rich profile is a strict superset for captures, never the shipped look.
+        let rich = LightingQuality::rich();
+        assert!(rich.full_shader_detail && rich.cloud_shadows && rich.bloom_mips > 0);
     }
 }

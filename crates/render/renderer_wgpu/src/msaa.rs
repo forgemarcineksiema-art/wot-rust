@@ -11,20 +11,16 @@ pub(crate) fn default_sample_count() -> u32 {
 /// HUD) pays `sample_count ×` fill bandwidth, and a shared-memory GPU is bandwidth-bound
 /// first — 4× MSAA is one of the largest slices of the 20-30 FPS laptop frame. `WOT_MSAA=1|2|4`
 /// overrides in both directions (force MSAA back on an iGPU, or drop it on a discrete card).
-pub(crate) fn resolve_msaa_samples(
-    requested: u8,
-    device_type: wgpu::DeviceType,
-    env_override: Option<&str>,
-) -> u32 {
+pub(crate) fn resolve_msaa_samples(requested: u8, rich: bool, env_override: Option<&str>) -> u32 {
     if let Some(value) = env_override.and_then(|value| value.trim().parse::<u32>().ok())
         && matches!(value, 1 | 2 | 4 | 8)
     {
         return value;
     }
-    match device_type {
-        wgpu::DeviceType::IntegratedGpu | wgpu::DeviceType::Cpu => 1,
-        _ => u32::from(requested),
-    }
+    // One-look policy: the canonical picture is 1× on EVERY adapter (the minimum spec cannot
+    // afford multisampling, so nobody ships it — equal picture, equal game). The dev-only
+    // rich profile (WOT_QUALITY=high) keeps the requested count for captures.
+    if rich { u32::from(requested) } else { 1 }
 }
 
 pub(crate) fn validate_msaa_support(
@@ -69,19 +65,15 @@ fn validate_sample_count(sample_count: u32) -> Result<(), RenderError> {
 mod tests {
     use super::resolve_msaa_samples;
 
+    /// One-look policy: the shipped picture is 1× on EVERY adapter; only the dev-only rich
+    /// profile keeps the requested count, and the env override wins over both.
     #[test]
-    fn integrated_adapters_drop_to_no_msaa_and_discrete_keep_the_request() {
-        assert_eq!(resolve_msaa_samples(4, wgpu::DeviceType::IntegratedGpu, None), 1);
-        assert_eq!(resolve_msaa_samples(4, wgpu::DeviceType::Cpu, None), 1);
-        assert_eq!(resolve_msaa_samples(4, wgpu::DeviceType::DiscreteGpu, None), 4);
-        assert_eq!(resolve_msaa_samples(4, wgpu::DeviceType::Other, None), 4);
-    }
-
-    #[test]
-    fn the_env_override_wins_both_ways_and_garbage_is_ignored() {
-        assert_eq!(resolve_msaa_samples(4, wgpu::DeviceType::IntegratedGpu, Some("4")), 4);
-        assert_eq!(resolve_msaa_samples(4, wgpu::DeviceType::DiscreteGpu, Some("1")), 1);
-        assert_eq!(resolve_msaa_samples(4, wgpu::DeviceType::DiscreteGpu, Some("3")), 4);
-        assert_eq!(resolve_msaa_samples(4, wgpu::DeviceType::IntegratedGpu, Some("abc")), 1);
+    fn everyone_ships_no_msaa_and_only_the_dev_rich_profile_keeps_the_request() {
+        assert_eq!(resolve_msaa_samples(4, false, None), 1, "canonical = 1x for all");
+        assert_eq!(resolve_msaa_samples(4, true, None), 4, "rich (dev) keeps the request");
+        assert_eq!(resolve_msaa_samples(4, false, Some("4")), 4, "env override wins");
+        assert_eq!(resolve_msaa_samples(4, true, Some("1")), 1, "env override wins both ways");
+        assert_eq!(resolve_msaa_samples(4, true, Some("3")), 4, "invalid counts fall through");
+        assert_eq!(resolve_msaa_samples(4, false, Some("abc")), 1, "garbage is ignored");
     }
 }

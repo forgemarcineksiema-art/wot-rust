@@ -31,7 +31,7 @@ fn render_with_bloom(ctx: &GpuContext, weight: f32) -> Vec<u8> {
         ctx,
         &vertices,
         &indices,
-        renderer_api::LightingQuality::for_device_type(renderer_api::GpuDeviceType::DiscreteGpu),
+        renderer_api::LightingQuality::rich(),
     )
     .expect("renderer");
     let mut lighting = SceneLighting::battlefield_default();
