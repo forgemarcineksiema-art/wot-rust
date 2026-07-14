@@ -281,6 +281,7 @@ pub(crate) fn render_snapshot(tank: &PresentationTank) -> TankSnapshot {
         armor_breaches: tank.armor_breaches.clone(),
         track_break_t: tank.track_break_t,
         engine_fire: tank.engine_fire,
+        fuel_fire: tank.fuel_fire,
     }
 }
 
@@ -355,6 +356,7 @@ mod tests {
             armor_breaches: breaches,
             track_break_t: [None, None],
             engine_fire: false,
+            fuel_fire: false,
         }
     }
 
@@ -475,6 +477,7 @@ mod tests {
             track_damage_mask: 0,
             track_break_t: [None, None],
             engine_fire: false,
+            fuel_fire: false,
             armor_breaches: Default::default(),
             track_left_m: 0.0,
             track_right_m: 0.0,

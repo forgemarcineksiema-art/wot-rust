@@ -175,6 +175,7 @@ fn snapshot_at(server_tick: u64, x: f32) -> Snapshot {
             armor_breaches: Default::default(),
             track_break_t: [None, None],
             engine_fire: false,
+            fuel_fire: false,
         }],
         shells: Vec::new(),
         damage_events: Vec::new(),

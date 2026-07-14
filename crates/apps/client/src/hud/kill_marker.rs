@@ -120,6 +120,7 @@ mod tests {
                     armor_breaches: Default::default(),
                     track_break_t: [None, None],
                     engine_fire: false,
+                    fuel_fire: false,
                 })
                 .collect(),
             damage_events: events

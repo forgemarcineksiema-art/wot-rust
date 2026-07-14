@@ -78,6 +78,9 @@ pub struct TankState {
     /// Deterministic engine-deck fire caused by a penetrating engine kill.
     #[serde(default)]
     pub engine_fire: bool,
+    /// A holed fuel tank burns as itself (v27) — independent of the engine's own fire.
+    #[serde(default)]
+    pub fuel_fire: bool,
 }
 
 fn default_ammo_counts() -> [u16; game_core::MAX_AMMO_SLOTS] {

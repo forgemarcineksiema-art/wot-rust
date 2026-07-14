@@ -51,7 +51,7 @@ pub use snapshot_schedule::SnapshotSchedule;
 /// v18: `ServerHello` names the match — `map_id` and `weather_variant` — so the client can
 /// deterministically rebuild the same battlefield the server simulates (the map itself is
 /// never sent) and dress it in the same sky. `ImpactSurface` gains `Water`.
-pub const PROTOCOL_VERSION: u16 = 26;
+pub const PROTOCOL_VERSION: u16 = 27;
 
 #[derive(Debug, Error)]
 pub enum NetError {
@@ -148,6 +148,9 @@ pub struct TankSnapshot {
     /// Engine compartment is visibly burning (protocol v25).
     #[serde(default)]
     pub engine_fire: bool,
+    /// v27: a holed fuel tank burns as itself, independent of the engine's fire.
+    #[serde(default)]
+    pub fuel_fire: bool,
 }
 
 impl TankSnapshot {
@@ -187,6 +190,7 @@ impl From<&TankState> for TankSnapshot {
             armor_breaches: tank.armor_breaches.clone(),
             track_break_t: tank.track_break_t,
             engine_fire: tank.engine_fire,
+            fuel_fire: tank.fuel_fire,
         }
     }
 }

@@ -65,6 +65,7 @@ fn snapshot_round_trips_track_damage_mask() {
         armor_breaches: Default::default(),
         track_break_t: [None, None],
         engine_fire: false,
+        fuel_fire: false,
     };
     let message = ProtocolMessage::Snapshot(Snapshot {
         server_tick: 99,

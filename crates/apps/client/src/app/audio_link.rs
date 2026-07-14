@@ -94,7 +94,7 @@ impl ClientApp {
                     position: glam::Vec3::from_array(tank.position),
                     speed_mps,
                     running: tank.hit_points > 0,
-                    burning: tank.engine_fire && tank.hit_points > 0,
+                    burning: (tank.engine_fire || tank.fuel_fire) && tank.hit_points > 0,
                 }
             })
             .collect()
@@ -108,7 +108,7 @@ impl ClientApp {
             .and_then(|snapshot| {
                 snapshot.tanks.iter().find(|tank| tank.tank_id == self.player_tank)
             })
-            .is_some_and(|tank| tank.engine_fire && tank.hit_points > 0)
+            .is_some_and(|tank| (tank.engine_fire || tank.fuel_fire) && tank.hit_points > 0)
     }
 
     /// The powerplant knobs for the engine bed: RPM follows the faster of actual ground speed

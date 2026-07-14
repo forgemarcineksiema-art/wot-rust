@@ -262,6 +262,7 @@ mod tests {
             armor_breaches: Default::default(),
             track_break_t: [None, None],
             engine_fire: false,
+            fuel_fire: false,
         };
         let tanks = [tank];
         let eye_ground = heightmap.sample_height(500.0, 400.0).unwrap();

@@ -32,6 +32,7 @@ fn snapshot_for_vehicle(vehicle: game_core::VehicleKind, position: [f32; 3]) -> 
         armor_breaches: Default::default(),
         track_break_t: [None, None],
         engine_fire: false,
+        fuel_fire: false,
     }
 }
 

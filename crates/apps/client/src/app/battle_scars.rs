@@ -33,7 +33,7 @@ impl ClientApp {
                 tank.destroyed_modules_mask & ModuleSlot::Engine.destroyed_mask_bit() != 0;
             // The authoritative fire flag burns; a dead-but-unlit engine only smokes. A wreck's
             // burn-out belongs to the destruction epilogue, not the live-tank scars.
-            let burning = tank.engine_fire && tank.hit_points > 0;
+            let burning = (tank.engine_fire || tank.fuel_fire) && tank.hit_points > 0;
             let smoking = engine_dead && tank.hit_points > 0;
             if !burning && !smoking {
                 continue;

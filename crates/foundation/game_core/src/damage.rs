@@ -115,5 +115,5 @@ pub struct DamageEvent {
     /// (protocol v26). Bit `n` represents `DamageComponentId(n + 1)`; legacy ModuleSlot masks
     /// remain the HUD/repair compatibility layer.
     #[serde(default)]
-    pub damaged_components_mask: u16,
+    pub damaged_components_mask: u32,
 }
