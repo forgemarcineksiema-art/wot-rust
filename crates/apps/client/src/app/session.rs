@@ -225,12 +225,8 @@ impl RemoteSession {
         // One quiet line every 2 s: the console net-HUD until the drawn one lands.
         if now_ms.saturating_sub(self.last_stats_log_ms) >= 2_000 {
             self.last_stats_log_ms = now_ms;
-            tracing::info!(
-                rtt_ms = self.rtt_ms,
-                snapshot_age_ms = now_ms.saturating_sub(self.last_snapshot_ms),
-                server_tick = self.latest_server_tick,
-                "net"
-            );
+            let (rtt_ms, snapshot_age_ms) = self.net_stats(now_ms);
+            tracing::info!(rtt_ms, snapshot_age_ms, server_tick = self.latest_server_tick, "net");
         }
     }
 
