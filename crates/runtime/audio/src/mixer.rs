@@ -7,16 +7,17 @@ use glam::Vec3;
 
 pub use crate::events::AudioEvent;
 
-use crate::dsp::soft_clip;
+use crate::dsp::{OnePoleLowPass, soft_clip};
 use crate::remote::{RemoteEngineState, RemoteEngines};
 use crate::spatial::{Listener, VoiceSlot};
 use crate::voice::Voice;
-use crate::voices::ambience::WindAmbience;
+use crate::voices::ambience::{RainAmbience, WindAmbience};
 use crate::voices::blast::HeBlast;
 use crate::voices::cannon::CannonShot;
 use crate::voices::engine::EngineVoice;
 use crate::voices::impact::{ArmorHit, GroundImpact};
 use crate::voices::track::TrackSnap;
+use crate::voices::traverse::TraverseVoice;
 use crate::voices::ui::{DoubleThud, MechanicalClick, RejectedThunk};
 
 /// Simultaneous one-shot voices; a 7v7 barrage peaks well under this.
@@ -33,6 +34,13 @@ pub struct AudioEngine {
     /// Every other tank's powerplant in earshot (see `remote`).
     remote_engines: RemoteEngines,
     wind: WindAmbience,
+    rain: RainAmbience,
+    turret_traverse: TraverseVoice,
+    /// Sniper-scope muffle: the world through optics and a closed hatch. 0 open .. 1 scoped;
+    /// eased so entering the scope is a breath, not a click.
+    muffle: f32,
+    muffle_target: f32,
+    muffle_lp: [OnePoleLowPass; 2],
     master_gain: f32,
     /// Mono scratch reused across voices; grows to the largest callback chunk and stays.
     scratch: Vec<f32>,
@@ -50,6 +58,14 @@ impl AudioEngine {
             player_fire: crate::voices::fire::FireVoice::new(sample_rate_hz, 0x00F1_4E01),
             remote_engines: RemoteEngines::default(),
             wind: WindAmbience::new(sample_rate_hz, 0x57A7_1CA1),
+            rain: RainAmbience::new(sample_rate_hz, 0x2A17_BED5),
+            turret_traverse: TraverseVoice::new(sample_rate_hz, 0x7124_7E25),
+            muffle: 0.0,
+            muffle_target: 0.0,
+            muffle_lp: [
+                OnePoleLowPass::new(950.0, sample_rate_hz),
+                OnePoleLowPass::new(950.0, sample_rate_hz),
+            ],
             master_gain: 0.85,
             scratch: Vec::new(),
             next_seed: 1,
@@ -74,6 +90,23 @@ impl AudioEngine {
     /// Scene wind amount: ~1 on the battlefield, ~0.25 inside the hangar.
     pub fn set_wind_level(&mut self, level: f32) {
         self.wind.set_level(level);
+    }
+
+    /// Weather rain amount: 1 in a squall, 0 under a clear sky.
+    pub fn set_rain_level(&mut self, level: f32) {
+        self.rain.set_level(level);
+    }
+
+    /// The player's own turret drive, as a 0..1 fraction of its top slew rate — the whine that
+    /// makes the turret's tons audible. See [`TraverseVoice`].
+    pub fn set_turret_slew(&mut self, slew_norm: f32) {
+        self.turret_traverse.set_slew(slew_norm);
+    }
+
+    /// Sniper optics: the whole world muffles behind the scope (low-passed master), the crew
+    /// compartment closing around the ear. Eased both ways.
+    pub fn set_scope_muffle(&mut self, scoped: bool) {
+        self.muffle_target = if scoped { 1.0 } else { 0.0 };
     }
 
     /// This frame's remote powerplants (every other tank the player might hear). The pool keeps
@@ -202,6 +235,7 @@ impl AudioEngine {
             return;
         }
         self.wind.render_add_stereo(out, 0.045);
+        self.rain.render_add_stereo(out, 0.055);
 
         // The player's engine bed: mono at the ears, added to both channels equally.
         if self.scratch.len() < frames {
@@ -210,6 +244,7 @@ impl AudioEngine {
         self.scratch[..frames].fill(0.0);
         self.engine_bed.render_add(&mut self.scratch[..frames], 0.16);
         self.player_fire.render_add(&mut self.scratch[..frames], 0.15);
+        self.turret_traverse.render_add(&mut self.scratch[..frames], 0.055);
         for (frame, engine) in out.chunks_exact_mut(2).zip(&self.scratch[..frames]) {
             frame[0] += engine;
             frame[1] += engine;
@@ -225,6 +260,17 @@ impl AudioEngine {
                 index += 1;
             } else {
                 self.slots.swap_remove(index);
+            }
+        }
+
+        // Sniper muffle: crossfade each channel toward its low-passed self. The filters run
+        // even when open so entering the scope never pops from stale filter state.
+        let muffle_glide = 1.0 - (-1.0 / (0.12 * self.sample_rate_hz)).exp();
+        for frame in out.chunks_exact_mut(2) {
+            self.muffle += (self.muffle_target - self.muffle) * muffle_glide;
+            for (channel, lp) in frame.iter_mut().zip(self.muffle_lp.iter_mut()) {
+                let closed = lp.process(*channel);
+                *channel += (closed - *channel) * self.muffle;
             }
         }
 
@@ -262,6 +308,50 @@ mod tests {
         let mut engine = AudioEngine::new(SR);
         let out = stereo_chunks(&mut engine, 0.5);
         assert!(rms(&out) < 1.0e-4, "no events, no engine, no wind level => silence");
+    }
+
+    #[test]
+    fn a_slewing_turret_is_heard_and_a_still_one_is_not() {
+        let mut engine = AudioEngine::new(SR);
+        let still = stereo_chunks(&mut engine, 0.5);
+        assert!(rms(&still) < 1.0e-4, "a still turret adds nothing");
+        engine.set_turret_slew(1.0);
+        let slewing = stereo_chunks(&mut engine, 1.0);
+        assert!(rms(&slewing[slewing.len() / 2..]) > 1.0e-3, "full slew must be audible");
+    }
+
+    #[test]
+    fn rain_reaches_the_master_bus() {
+        let mut engine = AudioEngine::new(SR);
+        engine.set_rain_level(1.0);
+        let out = stereo_chunks(&mut engine, 3.0);
+        assert!(rms(&out[out.len() / 2..]) > 1.0e-3, "a squall must be heard in the mix");
+    }
+
+    #[test]
+    fn the_scope_muffles_the_world_without_silencing_it() {
+        // Per-channel busyness: interleaved decorrelated L/R would mask the filter otherwise.
+        let busyness = |buf: &[f32]| {
+            let (left, _) = split(buf);
+            let diffs: Vec<f32> = left.windows(2).map(|w| w[1] - w[0]).collect();
+            rms(&diffs) / rms(&left).max(1.0e-9)
+        };
+        let render_rain = |scoped: bool| {
+            let mut engine = AudioEngine::new(SR);
+            engine.set_rain_level(1.0);
+            engine.set_scope_muffle(scoped);
+            let out = stereo_chunks(&mut engine, 3.0);
+            out[out.len() / 2..].to_vec()
+        };
+        let open = render_rain(false);
+        let scoped = render_rain(true);
+        assert!(rms(&scoped) > 1.0e-3, "the scope dims the world, it does not mute it");
+        assert!(
+            busyness(&scoped) < busyness(&open) * 0.6,
+            "scoped mix must lose its top end: open {} vs scoped {}",
+            busyness(&open),
+            busyness(&scoped)
+        );
     }
 
     #[test]

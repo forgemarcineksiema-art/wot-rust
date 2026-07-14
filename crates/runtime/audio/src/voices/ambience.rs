@@ -61,6 +61,63 @@ impl WindAmbience {
     }
 }
 
+/// The squall's air (Inna Liga D3): a bright, sizzling patter above the wind bed. Same
+/// decorrelated-stereo discipline as [`WindAmbience`], but the color lives higher and the
+/// modulation is a fast per-channel flutter — thousands of drops, not a breathing gust.
+pub struct RainAmbience {
+    sample_rate_hz: f32,
+    left_noise: Noise,
+    right_noise: Noise,
+    left_lp: OnePoleLowPass,
+    right_lp: OnePoleLowPass,
+    /// Slow flutter envelopes (low-passed noise) so the patter shimmers instead of hissing flat.
+    left_flutter: OnePoleLowPass,
+    right_flutter: OnePoleLowPass,
+    level: f32,
+    target_level: f32,
+}
+
+impl RainAmbience {
+    pub fn new(sample_rate_hz: f32, seed: u64) -> Self {
+        Self {
+            sample_rate_hz,
+            left_noise: Noise::new(seed),
+            right_noise: Noise::new(seed ^ 0x0DD0_5EED_2A17_BEDF),
+            left_lp: OnePoleLowPass::new(5_200.0, sample_rate_hz),
+            right_lp: OnePoleLowPass::new(5_200.0, sample_rate_hz),
+            left_flutter: OnePoleLowPass::new(9.0, sample_rate_hz),
+            right_flutter: OnePoleLowPass::new(9.0, sample_rate_hz),
+            level: 0.0,
+            target_level: 0.0,
+        }
+    }
+
+    /// Weather amount: 1.0 in a squall, 0.0 under a clear sky.
+    pub fn set_level(&mut self, level: f32) {
+        self.target_level = level.clamp(0.0, 1.0);
+    }
+
+    /// Render additively into an interleaved stereo buffer.
+    pub fn render_add_stereo(&mut self, out: &mut [f32], gain: f32) {
+        let glide = 1.0 - (-1.0 / (0.8 * self.sample_rate_hz)).exp();
+        for frame in out.chunks_exact_mut(2) {
+            self.level += (self.target_level - self.level) * glide;
+            if self.level < 1.0e-3 {
+                continue;
+            }
+            let left_raw = self.left_noise.signed();
+            let right_raw = self.right_noise.signed();
+            // Flutter in ~0.4..1.0 per channel: the patter's density wobbles independently.
+            let left_amt = 0.7 + 0.6 * self.left_flutter.process(left_raw * 8.0).clamp(-0.5, 0.5);
+            let right_amt =
+                0.7 + 0.6 * self.right_flutter.process(right_raw * 8.0).clamp(-0.5, 0.5);
+            let amount = self.level * gain;
+            frame[0] += self.left_lp.process(left_raw) * left_amt * amount;
+            frame[1] += self.right_lp.process(right_raw) * right_amt * amount;
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -101,6 +158,36 @@ mod tests {
             correlation.abs() < 0.2,
             "stereo wind must not be a panned mono source, correlation {correlation}"
         );
+    }
+
+    #[test]
+    fn rain_is_brighter_than_wind_and_dies_with_the_squall() {
+        let mut rain = RainAmbience::new(SR, 7);
+        rain.set_level(1.0);
+        let mut buffer = vec![0.0; (4.0 * SR) as usize * 2];
+        rain.render_add_stereo(&mut buffer, 1.0);
+        let settled = &buffer[buffer.len() / 2..];
+        assert!(rms(settled) > 0.01, "a squall must be audible");
+        // Spectral proxy: rain's sample-to-sample motion is far busier than the wind bed's.
+        let mut wind = WindAmbience::new(SR, 7);
+        wind.set_level(1.0);
+        let mut wind_buf = vec![0.0; (4.0 * SR) as usize * 2];
+        wind.render_add_stereo(&mut wind_buf, 1.0);
+        // Busyness must be measured per channel: interleaved L/R are decorrelated, and their
+        // sample-to-sample difference would swamp any spectral change.
+        let busyness = |buf: &[f32]| {
+            let left: Vec<f32> = buf.iter().step_by(2).copied().collect();
+            let diffs: Vec<f32> = left.windows(2).map(|w| w[1] - w[0]).collect();
+            rms(&diffs) / rms(&left).max(1.0e-9)
+        };
+        assert!(
+            busyness(settled) > busyness(&wind_buf[wind_buf.len() / 2..]) * 1.5,
+            "rain must sit above the wind in color, not double it"
+        );
+        rain.set_level(0.0);
+        let mut fade = vec![0.0; (6.0 * SR) as usize * 2];
+        rain.render_add_stereo(&mut fade, 1.0);
+        assert!(rms(&fade[fade.len() - 9_600..]) < 1.0e-3, "clear sky = no patter");
     }
 
     #[test]

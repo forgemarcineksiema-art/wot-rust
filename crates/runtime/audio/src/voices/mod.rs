@@ -9,4 +9,5 @@ pub mod engine;
 pub mod fire;
 pub mod impact;
 pub mod track;
+pub mod traverse;
 pub mod ui;

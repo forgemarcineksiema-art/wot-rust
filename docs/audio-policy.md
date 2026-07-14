@@ -34,6 +34,13 @@ camera eye/facing), the player powerplant state (RPM / load / ground speed)
 and the scene wind level (open field vs sheltered hangar). Headless, the
 queue drains to nowhere; gameplay behaves identically with and without ears.
 
+The same per-frame flush carries the weight beds (Inna Liga D3): the turret
+drive's whine fed from the authoritative `turret_yaw_velocity_rad_s` on the
+wire (normalized by the spec's top slew, off when dead), the rain patter bed
+keyed from the battle's `WeatherVariant` (never under the hangar roof), and
+the sniper-scope muffle — a low-passed crossfade on the master bus, eased both
+ways so entering the optics is a breath, not a click.
+
 ## Spatialization is honest physics
 
 - Loudness falls off as `1/r` against an 18 m reference distance.
