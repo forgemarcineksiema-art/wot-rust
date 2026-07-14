@@ -41,6 +41,13 @@ keyed from the battle's `WeatherVariant` (never under the hangar roof), and
 the sniper-scope muffle — a low-passed crossfade on the master bus, eased both
 ways so entering the optics is a breath, not a click.
 
+Weight II (Inna Liga D8): a supersonic enemy shell passing ≤15 m of the ear
+cracks as an N-wave at its closest-approach point — detected in `flush_audio`
+(segment-point against the listener over the tick's shell segments, deduped
+per `ShellId`, never the player's own round, never a subsonic lob). The rain
+knob also soaks the ground layer under the player's tracks: wet soil swallows
+the clatter's top end and damps the crawl squeal that lives at walking pace.
+
 ## Spatialization is honest physics
 
 - Loudness falls off as `1/r` against an 18 m reference distance.

@@ -29,10 +29,16 @@ pub struct EngineVoice {
     firing_phase: f32,
     lope_phase: f32,
     track_phase: f32,
+    /// Ground layer (D8): 0 = hard dry field, 1 = rain-soaked. Wet soil swallows the clatter's
+    /// top and damps the squeal — the same run sounds heavier in a squall.
+    target_wetness: f32,
+    wetness: f32,
+    squeal_phase: f32,
     noise: Noise,
     exhaust_lp: OnePoleLowPass,
     body_bp: Biquad,
     track_hp: Biquad,
+    track_ground_lp: OnePoleLowPass,
 }
 
 impl EngineVoice {
@@ -50,11 +56,21 @@ impl EngineVoice {
             firing_phase: 0.0,
             lope_phase: 0.0,
             track_phase: 0.0,
+            target_wetness: 0.0,
+            wetness: 0.0,
+            squeal_phase: 0.0,
             noise: Noise::new(seed),
             exhaust_lp: OnePoleLowPass::new(700.0, sample_rate_hz),
             body_bp: Biquad::band_pass(95.0, 1.4, sample_rate_hz),
             track_hp: Biquad::high_pass(1_400.0, 0.707, sample_rate_hz),
+            track_ground_lp: OnePoleLowPass::new(6_000.0, sample_rate_hz),
         }
+    }
+
+    /// The ground under the tracks (D8): 0 dry field, 1 rain-soaked. Wet soil swallows the
+    /// clatter's brightness and the metal-on-metal squeal.
+    pub fn set_ground_wetness(&mut self, wetness: f32) {
+        self.target_wetness = wetness.clamp(0.0, 1.0);
     }
 
     /// Per-frame control update from the game thread. `rpm_norm` 0..1 spans idle..governed,
@@ -104,15 +120,34 @@ impl EngineVoice {
             let exhaust = self.exhaust_lp.process(self.noise.signed()) * 0.12.lerp(0.42, self.load);
 
             // Tracks: clatter high-passed noise, amplitude-modulated at the link-passing rate,
-            // fading in above a slow walk.
+            // fading in above a slow walk. The ground answers (D8): wet soil swallows the top
+            // of the clatter and some of its level — the same run reads heavier in a squall.
+            self.wetness += (self.target_wetness - self.wetness) * glide;
             let link_hz = self.speed_mps / LINK_PITCH_M;
             self.track_phase += std::f32::consts::TAU * link_hz / self.sample_rate_hz;
-            let track_level = (self.speed_mps / 8.0).clamp(0.0, 1.0) * 0.3;
+            let track_level =
+                (self.speed_mps / 8.0).clamp(0.0, 1.0) * 0.3 * (1.0 - 0.35 * self.wetness);
             let modulation = 0.6 + 0.4 * self.track_phase.sin().powi(2);
-            let tracks = self.track_hp.process(self.noise.signed()) * track_level * modulation;
+            self.track_ground_lp
+                .set_cutoff(6_000.0.lerp(1_600.0, self.wetness), self.sample_rate_hz);
+            let clatter = self.track_hp.process(self.noise.signed());
+            let tracks = self.track_ground_lp.process(clatter) * track_level * modulation;
+
+            // The crawl squeal (D8): metal grinding at walking pace — a thin tone that lives
+            // only in the low-speed window and dies both at rest and at speed; rain damps it.
+            let squeal_window = ((self.speed_mps - 0.4) / 0.6).clamp(0.0, 1.0)
+                * ((3.0 - self.speed_mps) / 1.2).clamp(0.0, 1.0);
+            let squeal = if squeal_window > 0.0 {
+                let vibrato = 1.0 + 0.015 * self.track_phase.sin();
+                self.squeal_phase +=
+                    std::f32::consts::TAU * 2_600.0 * vibrato / self.sample_rate_hz;
+                self.squeal_phase.sin() * squeal_window * 0.10 * (1.0 - 0.6 * self.wetness)
+            } else {
+                0.0
+            };
 
             let idle_floor = 0.4.lerp(1.0, self.rpm_norm.max(self.load));
-            *sample += (body * lope + exhaust + tracks) * idle_floor * self.running * gain;
+            *sample += (body * lope + exhaust + tracks + squeal) * idle_floor * self.running * gain;
         }
     }
 }
@@ -128,6 +163,48 @@ mod tests {
         let mut out = vec![0.0; (seconds * SR) as usize];
         engine.render_add(&mut out, 1.0);
         out
+    }
+
+    /// D8's ground layer: rain-soaked soil swallows the clatter's top end (a duller spectrum
+    /// at speed) and damps the crawl squeal (quieter at walking pace). Same drive, same
+    /// speed — the ground is the only thing that changed.
+    #[test]
+    fn wet_ground_dulls_the_clatter_and_damps_the_crawl_squeal() {
+        let run = |speed: f32, wetness: f32| {
+            let mut engine = EngineVoice::new(SR, 5);
+            engine.set_state(0.6, 0.3, speed, true);
+            engine.set_ground_wetness(wetness);
+            let mut out = vec![0.0; (2.0 * SR) as usize];
+            engine.render_add(&mut out, 1.0);
+            out[out.len() / 2..].to_vec()
+        };
+
+        // At speed: the wet run's spectrum sits lower (duller clatter).
+        let dry_fast = run(9.0, 0.0);
+        let wet_fast = run(9.0, 1.0);
+        let dry_zcr = zero_crossing_rate_hz(&dry_fast, SR);
+        let wet_zcr = zero_crossing_rate_hz(&wet_fast, SR);
+        assert!(
+            wet_zcr < dry_zcr * 0.85,
+            "wet soil must swallow the clatter's top: dry {dry_zcr} Hz vs wet {wet_zcr} Hz"
+        );
+
+        // At a crawl: the squeal's 2.6 kHz tone lifts the spectrum on dry ground and rain
+        // damps it — the engine body swamps plain RMS, so the spectrum is the witness.
+        let dry_crawl = run(1.2, 0.0);
+        let wet_crawl = run(1.2, 1.0);
+        let dry_crawl_zcr = zero_crossing_rate_hz(&dry_crawl, SR);
+        let wet_crawl_zcr = zero_crossing_rate_hz(&wet_crawl, SR);
+        assert!(
+            dry_crawl_zcr > wet_crawl_zcr * 1.05,
+            "the crawl squeal must lose its voice in the rain: dry {dry_crawl_zcr} Hz vs wet {wet_crawl_zcr} Hz"
+        );
+        // And the squeal is a crawl phenomenon: a resting tank's spectrum sits far lower.
+        let dry_rest = run(0.0, 0.0);
+        assert!(
+            dry_crawl_zcr > zero_crossing_rate_hz(&dry_rest, SR) * 1.1,
+            "a crawling tank squeals over its idle"
+        );
     }
 
     #[test]
