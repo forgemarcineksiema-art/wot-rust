@@ -160,17 +160,22 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     let detail_factor = 1.0 + (detail_mix * 0.16 - 0.08) * amp;
 
     // The detail-noise gradient bent into the normal (the scene pass's grain-catches-light).
-    let e = 0.35;
-    let here = value_noise(input.world_pos.xz * 1.7);
-    let dx = value_noise((input.world_pos.xz + vec2<f32>(e, 0.0)) * 1.7) - here;
-    let dz = value_noise((input.world_pos.xz + vec2<f32>(0.0, e)) * 1.7) - here;
-    var bend = vec3<f32>(-dx, 0.0, -dz) * (0.12 / e) * clamp(1.0 - gloss, 0.35, 1.0);
+    // The reduced tier (time_params.w, F2) skips the three-sample gradient: the albedo grain
+    // stays, only its light-catching micro-relief folds.
+    var bend = vec3<f32>(0.0);
+    if (camera.time_params.w >= 0.5) {
+        let e = 0.35;
+        let here = value_noise(input.world_pos.xz * 1.7);
+        let dx = value_noise((input.world_pos.xz + vec2<f32>(e, 0.0)) * 1.7) - here;
+        let dz = value_noise((input.world_pos.xz + vec2<f32>(0.0, e)) * 1.7) - here;
+        bend = vec3<f32>(-dx, 0.0, -dz) * (0.12 / e) * clamp(1.0 - gloss, 0.35, 1.0);
+    }
 
     // Ziemia 2.0, pasmo mikro: a third, finer octave (~20 cm crumb) that lives only near the
     // eye - the far field pays nothing and the near field stops reading as one woven carpet.
     var micro_shade = 1.0;
     let eye_dist = length(camera.camera_pos - input.world_pos);
-    let near_amp = 1.0 - smoothstep(16.0, 42.0, eye_dist);
+    let near_amp = (1.0 - smoothstep(16.0, 42.0, eye_dist)) * step(0.5, camera.time_params.w);
     if (near_amp > 0.004) {
         let micro = value_noise(input.world_pos.xz * 5.0);
         micro_shade = 1.0 + (micro - 0.5) * 0.11 * near_amp * amp;

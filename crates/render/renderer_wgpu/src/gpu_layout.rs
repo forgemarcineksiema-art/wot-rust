@@ -202,6 +202,9 @@ pub struct FramePassParams {
     /// World wetness 0..1 (`time_params.z`): rain darkens albedo, sharpens finishes, pools
     /// sheen on level ground — in the scene and vehicle shaders alike.
     pub wetness: f32,
+    /// Full per-pixel shader detail (`time_params.w`, F2): 1.0 runs every octave and the 3×3
+    /// PCF; 0.0 folds the heaviest ALU on weak adapters (see `LightingQuality`).
+    pub full_shader_detail: bool,
 }
 
 impl Default for FramePassParams {
@@ -219,6 +222,7 @@ impl Default for FramePassParams {
             time_s: 0.0,
             rain_intensity: 0.0,
             wetness: 0.0,
+            full_shader_detail: true,
         }
     }
 }
@@ -259,7 +263,12 @@ impl CameraUniform {
                 passes.inv_render_size[0],
                 passes.inv_render_size[1],
             ]),
-            time_params: GpuVec4([passes.time_s, passes.rain_intensity, passes.wetness, 0.0]),
+            time_params: GpuVec4([
+                passes.time_s,
+                passes.rain_intensity,
+                passes.wetness,
+                if passes.full_shader_detail { 1.0 } else { 0.0 },
+            ]),
             grade_params: GpuVec4([
                 lighting.exposure,
                 lighting.black_point,

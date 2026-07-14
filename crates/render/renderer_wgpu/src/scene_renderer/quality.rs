@@ -63,8 +63,44 @@ pub(crate) fn apply_refraction_override(
     quality
 }
 
+/// Apply the `WOT_GPU_DETAIL=full|low` override — force the F2 shader-detail tier either way
+/// (preview the fold on a discrete adapter, or claw detail back on a strong iGPU). Garbage is
+/// ignored, leaving the tier default.
+pub(crate) fn apply_shader_detail_override(
+    mut quality: LightingQuality,
+    detail_env: Option<&str>,
+) -> LightingQuality {
+    match detail_env.map(str::trim) {
+        Some("full" | "1") => quality.full_shader_detail = true,
+        Some("low" | "0") => quality.full_shader_detail = false,
+        _ => {}
+    }
+    quality
+}
+
 #[cfg(test)]
 mod tests {
+    /// F2's contract: the integrated tier truly folds — no bloom chain, no cloud shadows, no
+    /// full shader detail — while discrete keeps everything; WOT_GPU_DETAIL overrides both ways.
+    #[test]
+    fn the_integrated_tier_folds_and_the_override_flips_it() {
+        use renderer_api::{GpuDeviceType, LightingQuality};
+        let integrated = LightingQuality::for_device_type(GpuDeviceType::IntegratedGpu);
+        assert!(!integrated.full_shader_detail, "iGPU folds the per-pixel detail");
+        assert_eq!(integrated.bloom_mips, 0, "iGPU skips the bloom bandwidth");
+        assert!(!integrated.cloud_shadows, "iGPU skips cloud shade ALU");
+        let discrete = LightingQuality::for_device_type(GpuDeviceType::DiscreteGpu);
+        assert!(discrete.full_shader_detail && discrete.cloud_shadows);
+        assert_eq!(discrete.bloom_mips, 5);
+
+        let forced = super::apply_shader_detail_override(integrated, Some("full"));
+        assert!(forced.full_shader_detail, "WOT_GPU_DETAIL=full claws detail back");
+        let folded = super::apply_shader_detail_override(discrete, Some("low"));
+        assert!(!folded.full_shader_detail, "WOT_GPU_DETAIL=low previews the fold");
+        let garbage = super::apply_shader_detail_override(discrete, Some("banana"));
+        assert!(garbage.full_shader_detail, "garbage leaves the tier default");
+    }
+
     use super::resolve_lighting_quality_with_bloom;
 
     #[test]

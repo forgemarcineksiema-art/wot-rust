@@ -113,6 +113,8 @@ pub struct SceneRenderer {
     bloom: bloom::BloomResources,
     /// Whether this adapter tier runs terrain cloud shadows (`LightingQuality::cloud_shadows`).
     cloud_shadows_enabled: bool,
+    /// Whether this adapter tier runs full per-pixel shader detail (F2).
+    full_shader_detail: bool,
     /// World point the focused sun-shadow box centres on (the player/subject). `None` falls back to
     /// the camera position, which still covers the near action.
     pub shadow_focus: Option<[f32; 3]>,
@@ -187,15 +189,18 @@ impl SceneRenderer {
         let (vehicle_pipeline, vehicle_material_bgl) =
             build_vehicle_pipeline(device, hdr_format, sample_count, &shadow_bgl, &camera_bgl);
         // Adapter class + WOT_* env overrides become the frame's lighting quality in one place.
-        let lighting_quality = quality::apply_refraction_override(
-            quality::resolve_lighting_quality_with_bloom(
-                ctx.adapter.get_info().device_type,
-                std::env::var("WOT_SHADOW_RES").ok().as_deref(),
-                std::env::var("WOT_SHADOW_CASCADES").ok().as_deref(),
-                std::env::var("WOT_SSAO").ok().as_deref(),
-                std::env::var("WOT_BLOOM").ok().as_deref(),
+        let lighting_quality = quality::apply_shader_detail_override(
+            quality::apply_refraction_override(
+                quality::resolve_lighting_quality_with_bloom(
+                    ctx.adapter.get_info().device_type,
+                    std::env::var("WOT_SHADOW_RES").ok().as_deref(),
+                    std::env::var("WOT_SHADOW_CASCADES").ok().as_deref(),
+                    std::env::var("WOT_SSAO").ok().as_deref(),
+                    std::env::var("WOT_BLOOM").ok().as_deref(),
+                ),
+                std::env::var("WOT_REFRACTION").ok().as_deref(),
             ),
-            std::env::var("WOT_REFRACTION").ok().as_deref(),
+            std::env::var("WOT_GPU_DETAIL").ok().as_deref(),
         );
         let ssao = ssao::SsaoResources::new(device, &camera_bgl, lighting_quality.ssao_scale);
         let placeholder_ao = ssao_pipelines::placeholder_ao_view(device, &ctx.queue);
@@ -322,6 +327,7 @@ impl SceneRenderer {
             post,
             bloom,
             cloud_shadows_enabled: lighting_quality.cloud_shadows,
+            full_shader_detail: lighting_quality.full_shader_detail,
             shadow_focus: None,
             scene_time_s: 0.0,
             skipped_mesh_draws: Cell::new(0),

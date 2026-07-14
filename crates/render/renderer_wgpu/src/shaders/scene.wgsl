@@ -151,8 +151,10 @@ fn cloud_shadow(world: vec3<f32>) -> f32 {
 // The albedo noise's analytic gradient bent into the normal, so the grain CATCHES LIGHT
 // instead of only darkening the paint. Glossier surfaces perturb less — polish is smooth.
 fn detail_normal(world: vec3<f32>, n: vec3<f32>, gloss: f32) -> vec3<f32> {
-    // Interiors: machined and painted surfaces stay true to their authored normal.
-    if (camera.fog_params.x <= 0.0) {
+    // Interiors: machined and painted surfaces stay true to their authored normal. The
+    // reduced tier (time_params.w, F2) also keeps the authored normal — the three-sample
+    // gradient is the priciest part of the material grain for the least visible return.
+    if (camera.fog_params.x <= 0.0 || camera.time_params.w < 0.5) {
         return n;
     }
     let e = 0.35;

@@ -48,7 +48,13 @@ fn cloud_fbm(p: vec2<f32>) -> f32 {
     var sum = 0.0;
     var amp = 0.5;
     var freq = 1.0;
-    for (var i = 0; i < 5; i = i + 1) {
+    // Full detail runs five octaves; the reduced tier (time_params.w, F2) folds to three —
+    // the two finest octaves shape sub-degree wisps a 20-30 FPS laptop never resolves.
+    var octaves = 5;
+    if (camera.time_params.w < 0.5) {
+        octaves = 3;
+    }
+    for (var i = 0; i < octaves; i = i + 1) {
         sum = sum + amp * cloud_noise(p * freq);
         freq = freq * 2.0;
         amp = amp * 0.5;
