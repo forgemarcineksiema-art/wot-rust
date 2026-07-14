@@ -48,13 +48,27 @@ pub struct SceneVertex {
     /// strength, sharpness, and the analytic-sky reflection weight — so grass, plaster,
     /// slate and steel finally answer light differently.
     pub gloss: f32,
+    /// The surface-role lane (Materia Świata 2): names WHICH procedural detail treatment the
+    /// scene shader gives this vertex — 0.0 is the legacy untreated look; the role table
+    /// (plaster, plank, slate, bark, ...) arrives with the world-materials pass. Mechanical
+    /// layout commit: the lane rides the wire to the GPU today, shaders opt in later.
+    pub surface: f32,
+    /// The wind lane (Inna Liga D4): how far this vertex may sway with the field's wind —
+    /// 0.0 is rigid masonry, 1.0 a free leaf tip. Same contract as `surface`: the layout
+    /// lands mechanically first, the vertex-shader sway opts in later.
+    pub sway: f32,
 }
+
+// The GPU vertex layout is data: 13 floats, 52 bytes. Grown ONLY by appending (locations 10
+// and 11 were the first growth) — every pipeline strides by `size_of`, so a silent field
+// reorder would corrupt all of them at once.
+const _: () = assert!(std::mem::size_of::<SceneVertex>() == 52);
 
 impl SceneVertex {
     /// An absolute-colored vertex (`tint_weight` 0.0): the per-instance tint never touches it.
     /// Matte by default — surfaces with a real finish use [`Self::surfaced`].
     pub const fn new(position: [f32; 3], normal: [f32; 3], color: [f32; 3]) -> Self {
-        Self { position, normal, color, tint_weight: 0.0, gloss: 0.0 }
+        Self { position, normal, color, tint_weight: 0.0, gloss: 0.0, surface: 0.0, sway: 0.0 }
     }
 
     /// A vertex with a material finish (see `gloss`).
@@ -64,7 +78,7 @@ impl SceneVertex {
         color: [f32; 3],
         gloss: f32,
     ) -> Self {
-        Self { position, normal, color, tint_weight: 0.0, gloss }
+        Self { position, normal, color, tint_weight: 0.0, gloss, surface: 0.0, sway: 0.0 }
     }
 
     /// A vertex that opts into the per-instance team tint by `tint_weight` (`1.0` = fully tinted).
@@ -74,7 +88,19 @@ impl SceneVertex {
         color: [f32; 3],
         tint_weight: f32,
     ) -> Self {
-        Self { position, normal, color, tint_weight, gloss: 0.0 }
+        Self { position, normal, color, tint_weight, gloss: 0.0, surface: 0.0, sway: 0.0 }
+    }
+
+    /// Name the surface-role lane (see `surface`).
+    pub const fn with_surface(mut self, surface: f32) -> Self {
+        self.surface = surface;
+        self
+    }
+
+    /// Name the wind lane (see `sway`).
+    pub const fn with_sway(mut self, sway: f32) -> Self {
+        self.sway = sway;
+        self
     }
 }
 

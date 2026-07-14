@@ -70,6 +70,8 @@ pub fn grass_tuft_mesh() -> MeshAsset {
                 color: tone,
                 tint_weight: 1.0,
                 gloss: 0.05,
+                surface: 0.0,
+                sway: 0.0,
             });
         }
         // Front and back faces: the pipeline culls, the blade must not vanish from behind.
