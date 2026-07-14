@@ -34,6 +34,13 @@ impl ApplicationHandler for ClientApp {
             event_loop.exit();
             return;
         }
+        // Pace the presentation to the actual display (F1). Fallback: 60 Hz.
+        let refresh_hz = window
+            .current_monitor()
+            .and_then(|monitor| monitor.refresh_rate_millihertz())
+            .map_or(60.0, |millihertz| f64::from(millihertz) / 1000.0);
+        self.loop_driver.set_present_hz(refresh_hz);
+        info!(refresh_hz, "frame pacing locked to the display");
         info!("client ready: WASD drive, mouse aim + camera, Space/left-click fire, Esc cursor");
         self.audio = crate::audio_out::AudioOutput::try_new();
         self.window = Some(window);
@@ -111,5 +118,10 @@ impl ApplicationHandler for ClientApp {
         self.last_loop_time = now;
         let actions = self.loop_driver.handle_event(ClientLoopEvent::AboutToWait { elapsed });
         self.handle_actions(event_loop, actions);
+        // Sleep until the next tick or presentation beat instead of spinning (F1): the pacer
+        // owns the cadence, input events still wake the loop immediately.
+        event_loop.set_control_flow(winit::event_loop::ControlFlow::WaitUntil(
+            Instant::now() + self.loop_driver.suggested_wait(),
+        ));
     }
 }
