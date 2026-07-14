@@ -6,6 +6,7 @@ pub mod ambience;
 pub mod blast;
 pub mod cannon;
 pub mod engine;
+pub mod fire;
 pub mod impact;
 pub mod track;
 pub mod ui;

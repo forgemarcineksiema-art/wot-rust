@@ -10,6 +10,9 @@ use super::ClientApp;
 
 /// Seconds between smoke puffs from a knocked-out engine: a steady column, not a wall.
 const ENGINE_SMOKE_PERIOD_S: f32 = 0.16;
+/// Flames per smoke period off a BURNING engine (`engine_fire` on the wire): the fire licks
+/// faster than the column puffs, so the deck reads as alight, not merely smoldering.
+const ENGINE_FIRE_FLAMES_PER_PUFF: usize = 3;
 
 impl ClientApp {
     /// Age every tank's scars and run the damage-driven emitters (engine smoke). Called once per
@@ -28,14 +31,26 @@ impl ClientApp {
         for tank in tanks {
             let engine_dead =
                 tank.destroyed_modules_mask & ModuleSlot::Engine.destroyed_mask_bit() != 0;
-            if !engine_dead || tank.hit_points == 0 {
+            // The authoritative fire flag burns; a dead-but-unlit engine only smokes. A wreck's
+            // burn-out belongs to the destruction epilogue, not the live-tank scars.
+            let burning = tank.engine_fire && tank.hit_points > 0;
+            let smoking = engine_dead && tank.hit_points > 0;
+            if !burning && !smoking {
                 continue;
             }
+            let deck = engine_deck_world(tank);
             let accum = self.engine_smoke_accum_s.entry(tank.tank_id).or_insert(0.0);
             *accum += dt;
             while *accum >= ENGINE_SMOKE_PERIOD_S {
                 *accum -= ENGINE_SMOKE_PERIOD_S;
-                self.fx.engine_smoke_puff(engine_deck_world(tank));
+                if smoking {
+                    self.fx.engine_smoke_puff(deck);
+                }
+                if burning {
+                    for _ in 0..ENGINE_FIRE_FLAMES_PER_PUFF {
+                        self.fx.engine_fire_flame(deck);
+                    }
+                }
             }
         }
     }
@@ -99,6 +114,50 @@ mod tests {
         app.fx = crate::fx::FxSystem::default();
         app.tick_battle_scars(1.0);
         assert_eq!(app.fx.live_particles(), 0, "a wreck's engine no longer smokes");
+    }
+
+    /// The authoritative `engine_fire` flag (v25) must be SEEN: a burning live tank throws
+    /// flames, a healthy one throws nothing, and a wreck's burn-out is the destruction
+    /// epilogue's job — not this emitter's. Before this lock the flag rode the wire into the
+    /// presentation state and no FX ever read it.
+    #[test]
+    fn a_burning_engine_throws_flames_and_a_healthy_or_dead_one_does_not() {
+        let mut app = ClientApp::new();
+        app.confirm_garage_selection();
+        app.run_fixed_ticks(6);
+
+        // Healthy target: no fire, no flames.
+        app.fx = crate::fx::FxSystem::default();
+        app.tick_battle_scars(1.0);
+        assert_eq!(app.fx.live_particles(), 0, "a healthy engine must not burn");
+
+        // Light the target's engine fire (live tank).
+        let mut snapshot = app.render_state.latest_snapshot().cloned().expect("snapshot present");
+        snapshot.server_tick += 1;
+        let target =
+            snapshot.tanks.iter_mut().find(|tank| tank.tank_id != app.player_tank).expect("target");
+        target.engine_fire = true;
+        let target_id = target.tank_id;
+        app.accept_and_sync(snapshot);
+
+        app.fx = crate::fx::FxSystem::default();
+        app.tick_battle_scars(1.0);
+        let flames = app.fx.live_particles();
+        assert!(flames >= 10, "a burning engine throws steady flames, got {flames}");
+
+        // The tank dies: the live-tank fire emitter stands down (epilogue owns the wreck).
+        let mut snapshot = app.render_state.latest_snapshot().cloned().expect("snapshot");
+        snapshot.server_tick += 1;
+        snapshot
+            .tanks
+            .iter_mut()
+            .find(|tank| tank.tank_id == target_id)
+            .expect("target")
+            .hit_points = 0;
+        app.accept_and_sync(snapshot);
+        app.fx = crate::fx::FxSystem::default();
+        app.tick_battle_scars(1.0);
+        assert_eq!(app.fx.live_particles(), 0, "a wreck's fire is not this emitter's job");
     }
 
     #[test]

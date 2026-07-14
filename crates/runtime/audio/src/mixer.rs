@@ -29,6 +29,7 @@ pub struct AudioEngine {
     listener: Listener,
     slots: Vec<VoiceSlot>,
     engine_bed: EngineVoice,
+    player_fire: crate::voices::fire::FireVoice,
     /// Every other tank's powerplant in earshot (see `remote`).
     remote_engines: RemoteEngines,
     wind: WindAmbience,
@@ -46,6 +47,7 @@ impl AudioEngine {
             listener: Listener::default(),
             slots: Vec::with_capacity(MAX_VOICES),
             engine_bed: EngineVoice::new(sample_rate_hz, 0x0E17_61E5),
+            player_fire: crate::voices::fire::FireVoice::new(sample_rate_hz, 0x00F1_4E01),
             remote_engines: RemoteEngines::default(),
             wind: WindAmbience::new(sample_rate_hz, 0x57A7_1CA1),
             master_gain: 0.85,
@@ -61,6 +63,12 @@ impl AudioEngine {
     /// Per-frame player powerplant state — see [`EngineVoice::set_state`].
     pub fn set_player_engine(&mut self, rpm_norm: f32, load: f32, speed_mps: f32, running: bool) {
         self.engine_bed.set_state(rpm_norm, load, speed_mps, running);
+    }
+
+    /// The player's own engine compartment is on fire: a crackle at the ear, no spatialization
+    /// (the deck is meters away). Spools in/out like the engine bed.
+    pub fn set_player_fire(&mut self, burning: bool) {
+        self.player_fire.set_burning(burning);
     }
 
     /// Scene wind amount: ~1 on the battlefield, ~0.25 inside the hangar.
@@ -201,6 +209,7 @@ impl AudioEngine {
         }
         self.scratch[..frames].fill(0.0);
         self.engine_bed.render_add(&mut self.scratch[..frames], 0.16);
+        self.player_fire.render_add(&mut self.scratch[..frames], 0.15);
         for (frame, engine) in out.chunks_exact_mut(2).zip(&self.scratch[..frames]) {
             frame[0] += engine;
             frame[1] += engine;

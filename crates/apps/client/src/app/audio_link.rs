@@ -32,6 +32,7 @@ impl ClientApp {
         // The hangar is sheltered: a breath of air, engine off. The field gets the full wind.
         let wind_level = if in_garage { 0.2 } else { 1.0 };
         let (rpm_norm, load, speed_mps, running) = self.player_engine_audio_state(in_garage);
+        let player_burning = !in_garage && self.player_engine_burning();
         let remote = if in_garage { Vec::new() } else { self.remote_engine_states() };
         // Terrain occlusion is the game's judgment (the audio crate knows no heightmap): each
         // world-positioned event is scored against the ridge line between ear and source.
@@ -53,6 +54,7 @@ impl ClientApp {
             }
             engine.set_wind_level(wind_level);
             engine.set_player_engine(rpm_norm, load, speed_mps, running);
+            engine.set_player_fire(player_burning);
             engine.set_remote_engines(&remote);
             for (event, occlusion) in occluded {
                 engine.push_event_occluded(event, occlusion);
@@ -92,9 +94,21 @@ impl ClientApp {
                     position: glam::Vec3::from_array(tank.position),
                     speed_mps,
                     running: tank.hit_points > 0,
+                    burning: tank.engine_fire && tank.hit_points > 0,
                 }
             })
             .collect()
+    }
+
+    /// The player's own engine compartment on fire (the authoritative v25 flag): the crackle at
+    /// the ear. A wreck's burn-out belongs to the destruction epilogue, not this bed.
+    fn player_engine_burning(&self) -> bool {
+        self.render_state
+            .latest_snapshot()
+            .and_then(|snapshot| {
+                snapshot.tanks.iter().find(|tank| tank.tank_id == self.player_tank)
+            })
+            .is_some_and(|tank| tank.engine_fire && tank.hit_points > 0)
     }
 
     /// The powerplant knobs for the engine bed: RPM follows the faster of actual ground speed

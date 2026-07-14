@@ -9,6 +9,7 @@ use glam::Vec3;
 use crate::dsp::OnePoleLowPass;
 use crate::spatial::Listener;
 use crate::voices::engine::EngineVoice;
+use crate::voices::fire::FireVoice;
 
 /// One remote vehicle's powerplant, reported by the game each frame.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -19,6 +20,8 @@ pub struct RemoteEngineState {
     pub speed_mps: f32,
     /// A dead tank's engine is off (the bed spools down, never cuts).
     pub running: bool,
+    /// The engine compartment is on fire (v25 `engine_fire`): the bed gains a crackle layer.
+    pub burning: bool,
 }
 
 /// Beds beyond this contribute nothing worth the mixing work.
@@ -34,6 +37,7 @@ const FLAT_OUT_MPS: f32 = 12.0;
 pub(crate) struct RemoteEngineSlot {
     key: u64,
     voice: EngineVoice,
+    fire: FireVoice,
     gain: f32,
     pan: f32,
     air: OnePoleLowPass,
@@ -89,6 +93,7 @@ impl RemoteEngines {
                         key: state.key,
                         // The key seeds the noise, so two idling tanks never phase-lock.
                         voice: EngineVoice::new(sample_rate_hz, state.key ^ 0x0E17_61E5),
+                        fire: FireVoice::new(sample_rate_hz, state.key ^ 0x00B0_12E5),
                         gain: 0.0,
                         pan: 0.0,
                         air: OnePoleLowPass::new(cutoff_hz, sample_rate_hz),
@@ -102,14 +107,16 @@ impl RemoteEngines {
             slot.pan = pan;
             slot.air.set_cutoff(cutoff_hz, sample_rate_hz);
             slot.voice.set_state(rpm_norm, rpm_norm, state.speed_mps, state.running);
+            slot.fire.set_burning(state.burning);
         }
         // Unreported beds spool down; once silent the slot is freed.
         for slot in &mut self.slots {
             if slot.absent {
                 slot.voice.set_state(0.0, 0.0, 0.0, false);
+                slot.fire.set_burning(false);
             }
         }
-        self.slots.retain(|slot| !(slot.absent && slot.voice.is_silent()));
+        self.slots.retain(|slot| !(slot.absent && slot.voice.is_silent() && slot.fire.is_silent()));
     }
 
     /// Mix every live bed into the interleaved stereo buffer. `scratch` must hold at least
@@ -119,6 +126,8 @@ impl RemoteEngines {
         for slot in &mut self.slots {
             scratch[..frames].fill(0.0);
             slot.voice.render_add(&mut scratch[..frames], gain * slot.gain);
+            // The fire crackle carries over the hum: same placement, its own presence.
+            slot.fire.render_add(&mut scratch[..frames], gain * slot.gain * 1.4);
             let angle = (slot.pan + 1.0) * std::f32::consts::FRAC_PI_4;
             let (left, right) = (angle.cos(), angle.sin());
             for (frame, sample) in out.chunks_exact_mut(2).zip(&scratch[..frames]) {
@@ -147,7 +156,7 @@ mod tests {
     }
 
     fn state(key: u64, position: Vec3, speed: f32) -> RemoteEngineState {
-        RemoteEngineState { key, position, speed_mps: speed, running: true }
+        RemoteEngineState { key, position, speed_mps: speed, running: true, burning: false }
     }
 
     fn render_stereo(engines: &mut RemoteEngines, seconds: f32) -> Vec<f32> {
