@@ -68,9 +68,11 @@ impl WindowRenderer {
         // frame of input latency — at a GPU-bound laptop's 25 FPS that is 40 ms more mush
         // between the stick and the screen, for no smoothness in return.
         config.desired_maximum_frame_latency = 1;
+        // One-look policy: MSAA follows the same canonical/rich split as the lighting profile.
+        let rich = std::env::var("WOT_QUALITY").ok().as_deref().map(str::trim) == Some("high");
         let sample_count = resolve_msaa_samples(
             settings.msaa_samples,
-            ctx.adapter.get_info().device_type,
+            rich,
             std::env::var("WOT_MSAA").ok().as_deref(),
         );
         validate_msaa_support(&ctx, config.format, DEPTH_FORMAT, sample_count)?;

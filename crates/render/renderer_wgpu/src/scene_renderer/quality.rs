@@ -14,14 +14,25 @@
 
 use renderer_api::LightingQuality;
 
+/// The base profile before the per-knob env overrides (one-look policy): everyone ships the
+/// canonical look; `WOT_QUALITY=high` is the DEV-ONLY rich profile for captures and look-lock
+/// comparison renders. There is no player-facing quality selection by design — the game owns
+/// its performance instead of handing the player a settings menu.
+pub(crate) fn resolve_base_profile(quality_env: Option<&str>) -> LightingQuality {
+    match quality_env.map(str::trim) {
+        Some("high") => LightingQuality::rich(),
+        _ => LightingQuality::canonical(),
+    }
+}
+
 pub(crate) fn resolve_lighting_quality_with_bloom(
-    device_type: wgpu::DeviceType,
+    base: LightingQuality,
     shadow_res_env: Option<&str>,
     cascades_env: Option<&str>,
     ssao_env: Option<&str>,
     bloom_env: Option<&str>,
 ) -> LightingQuality {
-    let mut quality = LightingQuality::for_device_type(crate::map_device_type(device_type));
+    let mut quality = base;
     if let Some(value) = shadow_res_env.and_then(|value| value.trim().parse::<u32>().ok())
         && matches!(value, 512 | 1024 | 2048 | 4096 | 8192)
     {
@@ -80,33 +91,35 @@ pub(crate) fn apply_shader_detail_override(
 
 #[cfg(test)]
 mod tests {
-    /// F2's contract: the integrated tier truly folds — no bloom chain, no cloud shadows, no
-    /// full shader detail — while discrete keeps everything; WOT_GPU_DETAIL overrides both ways.
-    #[test]
-    fn the_integrated_tier_folds_and_the_override_flips_it() {
-        use renderer_api::{GpuDeviceType, LightingQuality};
-        let integrated = LightingQuality::for_device_type(GpuDeviceType::IntegratedGpu);
-        assert!(!integrated.full_shader_detail, "iGPU folds the per-pixel detail");
-        assert_eq!(integrated.bloom_mips, 0, "iGPU skips the bloom bandwidth");
-        assert!(!integrated.cloud_shadows, "iGPU skips cloud shade ALU");
-        let discrete = LightingQuality::for_device_type(GpuDeviceType::DiscreteGpu);
-        assert!(discrete.full_shader_detail && discrete.cloud_shadows);
-        assert_eq!(discrete.bloom_mips, 5);
 
-        let forced = super::apply_shader_detail_override(integrated, Some("full"));
+    /// One-look policy over F2's folds: the canonical profile ships folded (no bloom, no
+    /// cloud shadows, reduced detail) for EVERY adapter, the dev-only rich profile keeps
+    /// everything, and WOT_GPU_DETAIL still flips the detail lane for profiling.
+    #[test]
+    fn the_canonical_look_folds_and_the_dev_overrides_flip_it() {
+        use renderer_api::LightingQuality;
+        let canonical = LightingQuality::canonical();
+        assert!(!canonical.full_shader_detail && !canonical.cloud_shadows);
+        assert_eq!(canonical.bloom_mips, 0);
+        let rich = LightingQuality::rich();
+        assert!(rich.full_shader_detail && rich.cloud_shadows && rich.bloom_mips == 5);
+
+        assert_eq!(super::resolve_base_profile(Some("high")), rich, "WOT_QUALITY=high = dev rich");
+        assert_eq!(super::resolve_base_profile(None), canonical);
+        assert_eq!(super::resolve_base_profile(Some("banana")), canonical, "garbage = canonical");
+
+        let forced = super::apply_shader_detail_override(canonical, Some("full"));
         assert!(forced.full_shader_detail, "WOT_GPU_DETAIL=full claws detail back");
-        let folded = super::apply_shader_detail_override(discrete, Some("low"));
+        let folded = super::apply_shader_detail_override(rich, Some("low"));
         assert!(!folded.full_shader_detail, "WOT_GPU_DETAIL=low previews the fold");
-        let garbage = super::apply_shader_detail_override(discrete, Some("banana"));
-        assert!(garbage.full_shader_detail, "garbage leaves the tier default");
     }
 
     use super::resolve_lighting_quality_with_bloom;
 
     #[test]
-    fn integrated_adapters_halve_the_shadow_map_and_ssao_and_discrete_keep_them() {
+    fn the_canonical_and_rich_profiles_flow_through_the_env_resolver() {
         let integrated = resolve_lighting_quality_with_bloom(
-            wgpu::DeviceType::IntegratedGpu,
+            renderer_api::LightingQuality::canonical(),
             None,
             None,
             None,
@@ -117,7 +130,7 @@ mod tests {
         assert_eq!(integrated.ssao_scale, 0.5);
 
         let discrete = resolve_lighting_quality_with_bloom(
-            wgpu::DeviceType::DiscreteGpu,
+            renderer_api::LightingQuality::rich(),
             None,
             None,
             None,
@@ -127,8 +140,13 @@ mod tests {
         assert_eq!(discrete.shadow_cascades, 2);
         assert_eq!(discrete.ssao_scale, 1.0);
 
-        let cpu =
-            resolve_lighting_quality_with_bloom(wgpu::DeviceType::Cpu, None, None, None, None);
+        let cpu = resolve_lighting_quality_with_bloom(
+            renderer_api::LightingQuality::canonical(),
+            None,
+            None,
+            None,
+            None,
+        );
         assert_eq!(cpu.shadow_resolution, 2048);
         assert_eq!(cpu.ssao_scale, 0.5);
     }
@@ -137,7 +155,7 @@ mod tests {
     fn the_refraction_override_forces_the_flag_both_ways_and_ignores_garbage() {
         use super::apply_refraction_override;
         let discrete = resolve_lighting_quality_with_bloom(
-            wgpu::DeviceType::DiscreteGpu,
+            renderer_api::LightingQuality::rich(),
             None,
             None,
             None,
@@ -148,7 +166,7 @@ mod tests {
         assert!(!apply_refraction_override(discrete, Some("0")).refraction);
 
         let integrated = resolve_lighting_quality_with_bloom(
-            wgpu::DeviceType::IntegratedGpu,
+            renderer_api::LightingQuality::canonical(),
             None,
             None,
             None,
@@ -165,7 +183,7 @@ mod tests {
     #[test]
     fn env_overrides_win_both_ways_and_garbage_is_ignored() {
         let up = resolve_lighting_quality_with_bloom(
-            wgpu::DeviceType::IntegratedGpu,
+            renderer_api::LightingQuality::canonical(),
             Some("4096"),
             Some("1"),
             Some("full"),
@@ -176,7 +194,7 @@ mod tests {
         assert_eq!(up.ssao_scale, 1.0);
 
         let down = resolve_lighting_quality_with_bloom(
-            wgpu::DeviceType::DiscreteGpu,
+            renderer_api::LightingQuality::rich(),
             Some("1024"),
             Some("2"),
             Some("half"),
@@ -186,7 +204,7 @@ mod tests {
         assert_eq!(down.ssao_scale, 0.5);
 
         let off = resolve_lighting_quality_with_bloom(
-            wgpu::DeviceType::DiscreteGpu,
+            renderer_api::LightingQuality::rich(),
             None,
             None,
             Some("off"),
@@ -195,7 +213,7 @@ mod tests {
         assert_eq!(off.ssao_scale, 0.0);
 
         let garbage = resolve_lighting_quality_with_bloom(
-            wgpu::DeviceType::IntegratedGpu,
+            renderer_api::LightingQuality::canonical(),
             Some("3000"),
             Some("7"),
             Some("x"),
@@ -212,8 +230,8 @@ mod tests {
         // plus the SSAO chain (a Depth32Float prepass + two R8 AO targets) at 1920×1080 scaled by
         // the tier's ssao_scale. Moving these numbers is a deliberate decision that belongs in
         // the same diff as the quality-table change.
-        let tier_bytes = |device_type: wgpu::DeviceType| {
-            let q = resolve_lighting_quality_with_bloom(device_type, None, None, None, None);
+        let tier_bytes = |profile: renderer_api::LightingQuality| {
+            let q = resolve_lighting_quality_with_bloom(profile, None, None, None, None);
             let near = u64::from(q.shadow_resolution);
             let far = u64::from(
                 (renderer_api::SunShadowParams {
@@ -229,9 +247,9 @@ mod tests {
             // 4 B prepass depth + 1 B raw AO + 1 B blurred AO per SSAO pixel.
             shadows + w * h * 6
         };
-        // Integrated: 20 MB of shadows + a half-res SSAO chain (960×540×6 ≈ 3 MB).
-        assert_eq!(tier_bytes(wgpu::DeviceType::IntegratedGpu), 24_081_920);
-        // Discrete: 80 MB of shadows + a full-res SSAO chain (1920×1080×6 ≈ 12.4 MB).
-        assert_eq!(tier_bytes(wgpu::DeviceType::DiscreteGpu), 96_327_680);
+        // The ONE shipped look: 20 MB of shadows + a half-res SSAO chain (960×540×6 ≈ 3 MB).
+        assert_eq!(tier_bytes(renderer_api::LightingQuality::canonical()), 24_081_920);
+        // The dev-only rich profile: 80 MB of shadows + full-res SSAO (capture rigs only).
+        assert_eq!(tier_bytes(renderer_api::LightingQuality::rich()), 96_327_680);
     }
 }

@@ -25,7 +25,15 @@ fn render_with_bloom(ctx: &GpuContext, weight: f32) -> Vec<u8> {
     ];
     let indices = vec![0u32, 2, 1, 0, 3, 2];
     let target = OffscreenTarget::new(ctx, 192, 108).expect("target");
-    let mut renderer = SceneRenderer::for_offscreen(ctx, &vertices, &indices).expect("renderer");
+    // Feature test: explicit discrete quality — the machine's own tier must not gut the chain
+    // under test (F3 folds the dev MX330 to the bloomless integrated diet).
+    let mut renderer = SceneRenderer::for_offscreen_with_quality(
+        ctx,
+        &vertices,
+        &indices,
+        renderer_api::LightingQuality::rich(),
+    )
+    .expect("renderer");
     let mut lighting = SceneLighting::battlefield_default();
     lighting.bloom_weight = weight;
     lighting.vignette = 0.0;
