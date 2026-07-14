@@ -116,7 +116,7 @@ impl ClientApp {
             &meshes.ground_vertices,
             &meshes.ground_indices,
             &meshes.ground_maps,
-            &crate::scene::terrain_maps::terrain_material_set_for(self.local_server.map_id()),
+            &crate::scene::terrain_maps::terrain_material_set_for(self.session.map_id()),
         );
         let atlas = crate::hud::font::atlas();
         renderer.set_hud_font_atlas(atlas.width(), atlas.height(), atlas.coverage());
@@ -260,7 +260,7 @@ impl ClientApp {
             modules: self.player_module_hud(),
             minimap,
             battle_outcome: self.battle_outcome,
-            battle_clock_remaining_s: self.local_server.battle_time_remaining_s(),
+            battle_clock_remaining_s: self.session.battle_time_remaining_s(),
             kill_confirm_age_s: self.kill_confirm_age_s,
             reload_ready_age_s: self.reload_ready_age_s,
             fire_denied_age_s: self.fire_denied_age_s,

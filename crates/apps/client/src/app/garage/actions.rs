@@ -196,11 +196,13 @@ impl ClientApp {
         // battle was a free heal: G mid-fight, confirm, and the hull came back factory-new while
         // everyone else stayed shot up. It also closes the loop after VICTORY/DEFEAT/DRAW — the
         // garage's Battle button IS the next battle.
-        if self.local_server.battle_mode() == server::BattleMode::Random7v7 {
-            self.local_server = server::LocalAuthoritativeServer::new_random_7v7(
-                server::ServerTickConfig::default(),
-                server::RandomBattleConfig::runtime_from_env(spec.kind),
-            );
+        if self.session.battle_mode() == server::BattleMode::Random7v7 {
+            self.session = crate::app::session::BattleSessionKind::Local(Box::new(
+                server::LocalAuthoritativeServer::new_random_7v7(
+                    server::ServerTickConfig::default(),
+                    server::RandomBattleConfig::runtime_from_env(spec.kind),
+                ),
+            ));
             self.client_tick = 0;
             self.damage_log = crate::hud::damage_log::DamageLog::default();
             self.incoming_hits = crate::hud::hit_direction::IncomingHitFeed::default();
@@ -210,8 +212,8 @@ impl ClientApp {
             self.terrain_scars = crate::fx::TerrainScars::default();
             self.engine_smoke_accum_s.clear();
         }
-        let snapshot = self.local_server.change_player_vehicle_with_spec_for_player(spec.clone());
-        self.player_tank = self.local_server.player_tank();
+        let snapshot = self.session.change_player_vehicle_with_spec_for_player(spec.clone());
+        self.player_tank = self.session.player_tank();
         self.predictor.reset_to_spec(&spec);
         self.render_state = crate::InterpolatedBattleState::default();
         self.input.fire_pending = false;
@@ -426,16 +428,16 @@ mod tests {
         let mut app = ClientApp::new();
         app.confirm_garage_selection();
         app.run_fixed_ticks(30);
-        assert!(app.local_server.authoritative_tick() >= 30, "the first battle is running");
+        assert!(app.session.authoritative_tick() >= 30, "the first battle is running");
 
         app.open_garage();
         app.confirm_garage_selection();
 
-        assert_eq!(app.local_server.authoritative_tick(), 0, "a FRESH battle, not a respawn");
-        assert_eq!(app.local_server.latest_snapshot().tanks.len(), 14, "full fresh roster");
-        assert_eq!(app.local_server.battle_outcome(), None);
+        assert_eq!(app.session.authoritative_tick(), 0, "a FRESH battle, not a respawn");
+        assert_eq!(app.session.latest_snapshot().tanks.len(), 14, "full fresh roster");
+        assert_eq!(app.session.battle_outcome(), None);
         assert_eq!(
-            app.local_server.battle_time_remaining_s(),
+            app.session.battle_time_remaining_s(),
             Some(server::RANDOM_BATTLE_TIME_LIMIT_S as f32),
             "the battle clock starts full again"
         );
@@ -448,7 +450,7 @@ mod tests {
 
         app.confirm_garage_selection();
 
-        let full_snapshot = app.local_server.latest_snapshot();
+        let full_snapshot = app.session.latest_snapshot();
         assert_eq!(full_snapshot.tanks.len(), 14);
         assert!(full_snapshot.tanks.iter().any(|tank| {
             tank.tank_id == app.player_tank

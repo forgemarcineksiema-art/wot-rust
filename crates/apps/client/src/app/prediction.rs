@@ -32,7 +32,7 @@ impl ClientApp {
     }
 
     fn tank_obstacles_for_prediction(&self) -> Vec<TankObstacle> {
-        self.local_server
+        self.session
             .current_snapshot()
             .tanks
             .iter()
@@ -192,7 +192,7 @@ mod tests {
         let app = ClientApp::new();
 
         let obstacles = app.tank_obstacles_for_prediction();
-        let full_roster = app.local_server.current_snapshot().tanks.len();
+        let full_roster = app.session.current_snapshot().tanks.len();
 
         assert_eq!(
             obstacles.len(),

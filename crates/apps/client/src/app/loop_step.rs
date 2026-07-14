@@ -68,7 +68,7 @@ impl ClientApp {
             };
             fire = false;
             self.step_prediction(&command);
-            let outcome = self.local_server.tick_with_player_input(ClientInputCommand {
+            let outcome = self.session.tick_with_player_input(ClientInputCommand {
                 client_tick: self.client_tick,
                 tank_id: self.player_tank,
                 command,
@@ -84,7 +84,7 @@ impl ClientApp {
 
     fn refresh_battle_outcome(&mut self) {
         self.battle_outcome =
-            self.local_server.battle_outcome().map(|outcome| match outcome.winning_team() {
+            self.session.battle_outcome().map(|outcome| match outcome.winning_team() {
                 Some(team) if team == self.player_team() => crate::hud::BattleHudOutcome::Victory,
                 Some(_) => crate::hud::BattleHudOutcome::Defeat,
                 None => crate::hud::BattleHudOutcome::Draw,

@@ -306,7 +306,7 @@ mod tests {
     fn high_explosive_hits_and_splash_strikes_queue_the_burst_not_the_clang() {
         let mut app = deployed_app();
         app.pending_audio.clear();
-        let mut snapshot = app.local_server.latest_snapshot_for_player();
+        let mut snapshot = app.session.latest_snapshot_for_player();
         snapshot.damage_events.push(game_core::DamageEvent {
             source: game_core::TankId(1),
             target: app.player_tank,
@@ -360,7 +360,7 @@ mod tests {
     fn incoming_armor_strikes_queue_spatial_impact_sounds() {
         let mut app = deployed_app();
         app.pending_audio.clear();
-        let mut snapshot = app.local_server.latest_snapshot_for_player();
+        let mut snapshot = app.session.latest_snapshot_for_player();
         snapshot.damage_events.push(game_core::DamageEvent {
             source: game_core::TankId(1),
             target: app.player_tank,
