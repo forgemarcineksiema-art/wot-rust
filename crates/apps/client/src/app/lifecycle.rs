@@ -45,6 +45,11 @@ impl ApplicationHandler for ClientApp {
         // the pacer exists to remove.
         let millisecond_timer = timer_resolution::request_millisecond_timer();
         info!(refresh_hz, millisecond_timer, "frame pacing locked to the display");
+        if cfg!(debug_assertions) {
+            tracing::warn!(
+                "DEV BUILD (opt-level 1): performance is NOT representative — use `cargo run --release -p client`"
+            );
+        }
         info!("client ready: WASD drive, mouse aim + camera, Space/left-click fire, Esc cursor");
         self.audio = crate::audio_out::AudioOutput::try_new();
         self.window = Some(window);
