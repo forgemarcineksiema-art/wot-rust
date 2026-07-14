@@ -18,6 +18,11 @@ pub mod transport;
 pub use frame::{FRAME_HEADER_LEN, FRAME_MAGIC, decode_frame, encode_frame};
 pub use snapshot_schedule::SnapshotSchedule;
 
+/// v31: `Snapshot` carries `craters` — the battle's quantized high-explosive crater ledger
+/// (true terrain deformation). Global world state, re-sent every snapshot (a late joiner
+/// converges); the battlefield owner folds it into the heightmap overlay, so physics, spotting,
+/// the predictor and the bots all read the same deformed ground. Appended, `serde(default)`.
+///
 /// v26: persistent breaches carry ammo-specific deterministic aperture contours, age, energy and
 /// ingress/egress identity. The same payload drives server clearance, first-frame clipping,
 /// late-join presentation and replay; damage-mesh revisions remain client-local.
@@ -54,7 +59,7 @@ pub use snapshot_schedule::SnapshotSchedule;
 /// v18: `ServerHello` names the match — `map_id` and `weather_variant` — so the client can
 /// deterministically rebuild the same battlefield the server simulates (the map itself is
 /// never sent) and dress it in the same sky. `ImpactSurface` gains `Water`.
-pub const PROTOCOL_VERSION: u16 = 30;
+pub const PROTOCOL_VERSION: u16 = 31;
 
 #[derive(Debug, Error)]
 pub enum NetError {
@@ -247,6 +252,11 @@ pub struct Snapshot {
     /// object by its phase. `serde(default)` keeps pre-v21 fixtures loading with whole cover.
     #[serde(default)]
     pub cover_states: Vec<u8>,
+    /// The battle's crater ledger (protocol v31), quantized and re-sent whole every snapshot so
+    /// a late joiner converges on the same deformed ground. `serde(default)` keeps pre-v31
+    /// fixtures loading with virgin terrain.
+    #[serde(default)]
+    pub craters: Vec<terrain::CraterRecord>,
 }
 
 impl From<&SimulationState> for Snapshot {
@@ -264,6 +274,7 @@ impl From<&SimulationState> for Snapshot {
                 .map(|tank| tank.id)
                 .collect(),
             cover_states: state.cover_states().iter().map(|state| state.phase.to_wire()).collect(),
+            craters: state.craters().to_vec(),
         }
     }
 }

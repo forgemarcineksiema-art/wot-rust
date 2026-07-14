@@ -4364,6 +4364,7 @@ dependencies = [
 name = "terrain"
 version = "0.1.0"
 dependencies = [
+ "bincode",
  "glam 0.30.10",
  "serde",
  "thiserror 2.0.18",
