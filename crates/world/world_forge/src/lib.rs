@@ -5,6 +5,7 @@
 //! is the multiplier for trees 2.0, the building generator and map dressing: content becomes a
 //! blueprint edit, not a code change.
 
+pub mod building;
 pub mod tree;
 
 use std::collections::BTreeMap;
@@ -157,7 +158,7 @@ pub fn authored_blueprints() -> Result<BTreeMap<String, WorldObjectBlueprint>, W
 pub const WORLD_GOLDEN_HASHES: [(&str, u64); 2] =
     [("farm_haystack", 0x9ff1_8779_12f3_44e6), ("wooden_fence_run", 0xbb42_24d4_bb8a_82f3)];
 
-fn world_box_mesh(center: Vec3, half: Vec3, material: MaterialRole) -> GeometryMesh {
+pub(crate) fn world_box_mesh(center: Vec3, half: Vec3, material: MaterialRole) -> GeometryMesh {
     let mut vertices = Vec::with_capacity(24);
     let mut indices = Vec::with_capacity(36);
     // Six faces, four welded-per-face vertices each, hard edges.
