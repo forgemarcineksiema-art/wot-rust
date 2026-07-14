@@ -147,11 +147,16 @@ impl BotRoster {
         Self { agents }
     }
 
+    /// `live_cover` is the cover the battle actually blocks with THIS tick (rubble lowered,
+    /// destroyed objects omitted) — the same slice every authoritative consumer uses. Bots must
+    /// never raycast the raw authored cover: a bot would keep "hiding" behind a building the
+    /// battle has already flattened, and would refuse to fire through the hole it just made.
     pub(crate) fn commands(
         &mut self,
         tick: u64,
         tanks: &[TankState],
         battlefield: &BattlefieldMap,
+        live_cover: &[terrain::StaticCoverObject],
         battle_over: bool,
         damage_events: &[DamageEvent],
     ) -> Vec<(TankId, TankCommand)> {
@@ -171,6 +176,7 @@ impl BotRoster {
                             tank,
                             tanks,
                             battlefield,
+                            live_cover,
                         )
                     }
                 },
@@ -204,6 +210,7 @@ fn bot_command_for_tank(
     tank: &TankState,
     tanks: &[TankState],
     battlefield: &BattlefieldMap,
+    live_cover: &[terrain::StaticCoverObject],
 ) -> TankCommand {
     // Survival preempts everything, combat included: a hull past the route brain's deep-water
     // line is heading for a flooded engine — back out the way it came before doing anything
@@ -226,7 +233,7 @@ fn bot_command_for_tank(
         agent.reposition_ticks -= 1;
     }
     if !repositioning
-        && let Some(target) = bot_current_target(agent, tick, tank, tanks, battlefield)
+        && let Some(target) = bot_current_target(agent, tick, tank, tanks, battlefield, live_cover)
     {
         // A duel that changes nothing is a parked bot: shells eating a crest or a bank while
         // combat preempts the route for the whole battle. When the target's hit points have
@@ -359,6 +366,7 @@ fn bot_current_target<'a>(
     tank: &TankState,
     tanks: &'a [TankState],
     battlefield: &BattlefieldMap,
+    live_cover: &[terrain::StaticCoverObject],
 ) -> Option<&'a TankState> {
     // The futile hold: this bot walked away from that duel — the held enemy is out of the
     // candidate pool entirely, so a second visible enemy can still be fought.
@@ -374,13 +382,7 @@ fn bot_current_target<'a>(
         had_target || cadence_due(tick, tank.id, ACQUIRE_INTERVAL_TICKS)
     };
     let target = if select_due {
-        bot_nearest_engageable_enemy(
-            tank,
-            tanks,
-            held,
-            Some(&battlefield.heightmap),
-            &battlefield.static_cover,
-        )
+        bot_nearest_engageable_enemy(tank, tanks, held, Some(&battlefield.heightmap), live_cover)
     } else {
         cached
     };
@@ -485,7 +487,15 @@ mod tests {
         let bot = tank(1, TeamId(1), Vec3::new(300.0, 0.0, 300.0), TeamId(1).spotting_bit());
         let mut roster = BotRoster::new(vec![bot.id], BattleSeed::fixed(7));
         let command = |roster: &mut BotRoster| {
-            roster.commands(0, std::slice::from_ref(&bot), &battlefield, false, &[])[0].1
+            roster.commands(
+                0,
+                std::slice::from_ref(&bot),
+                &battlefield,
+                &battlefield.static_cover,
+                false,
+                &[],
+            )[0]
+            .1
         };
 
         assert!(command(&mut roster).throttle > 0.0, "the route brain drives forward");
@@ -511,6 +521,47 @@ mod tests {
         assert!(resumed, "after backing out the bot resumes its route");
     }
 
+    /// The bots' own LOS raycasts must follow the battle's LIVE cover: a building the fight
+    /// has flattened no longer hides anyone, and a bot must engage straight through the gap it
+    /// (or anyone) just made. Before this lock the roster raycast the raw authored cover and
+    /// diverged from the authoritative spotting truth for the rest of the battle.
+    #[test]
+    fn a_bot_engages_through_cover_the_battle_has_destroyed() {
+        let battlefield = terrain::prokhorovka_hill_252_2();
+        let mask = TeamId(1).spotting_bit() | TeamId(2).spotting_bit();
+        let ground = |x: f32, z: f32| battlefield.heightmap.sample_height(x, z).unwrap_or(0.0);
+        let bot = tank(1, TeamId(1), Vec3::new(300.0, ground(300.0, 300.0), 300.0), mask);
+        let enemy = tank(2, TeamId(2), Vec3::new(300.0, ground(300.0, 360.0), 360.0), mask);
+        let tanks = [bot.clone(), enemy.clone()];
+        // A wall square across the only sight line, tall enough to ignore the terrain sample.
+        let wall = terrain::StaticCoverObject {
+            id: "wall".into(),
+            name: "wall".into(),
+            kind: terrain::StaticCoverKind::FarmBuilding,
+            center: [300.0, ground(300.0, 330.0) + 5.0, 330.0],
+            half_extents_m: [20.0, 10.0, 2.0],
+        };
+        let target_after = |live_cover: &[terrain::StaticCoverObject]| {
+            let mut roster = BotRoster::new(vec![bot.id], BattleSeed::fixed(7));
+            // Run past the cold-acquisition stagger so the selection cadence certainly fired.
+            for tick in 0..=ACQUIRE_INTERVAL_TICKS {
+                roster.commands(tick, &tanks, &battlefield, live_cover, false, &[]);
+            }
+            roster.agents[0].target
+        };
+
+        assert_eq!(
+            target_after(std::slice::from_ref(&wall)),
+            None,
+            "an intact wall on the sight line must block the bot's own acquisition"
+        );
+        assert_eq!(
+            target_after(&[]),
+            Some(enemy.id),
+            "with the wall destroyed (omitted from live cover) the bot must engage"
+        );
+    }
+
     /// Standing on station is not a stall. The unstuck brain fires on zero progress under a
     /// DRIVE command; an overwatch bot holding its shelf stands still on purpose, and before the
     /// movement-intent gate it bounced between hold and reverse every 1.5 s forever.
@@ -532,7 +583,14 @@ mod tests {
         );
 
         for tick in 0..STALL_TICKS_TO_REVERSE * 3 {
-            let commands = roster.commands(0, std::slice::from_ref(&bot), &battlefield, false, &[]);
+            let commands = roster.commands(
+                0,
+                std::slice::from_ref(&bot),
+                &battlefield,
+                &battlefield.static_cover,
+                false,
+                &[],
+            );
             let (_, command) =
                 *commands.iter().find(|(id, _)| *id == TankId(12)).expect("overwatch command");
             assert!(
@@ -562,14 +620,17 @@ mod tests {
         // Engage on a cadence tick (tick + id divisible by the reselect interval).
         let due_tick = TARGET_RESELECT_INTERVAL_TICKS - bot_id.0 % TARGET_RESELECT_INTERVAL_TICKS;
         let tanks = [bot.clone(), first.clone()];
-        let engaged = roster.commands(due_tick, &tanks, &battlefield, false, &[])[0].1;
+        let engaged =
+            roster.commands(due_tick, &tanks, &battlefield, &battlefield.static_cover, false, &[])
+                [0]
+            .1;
         assert!(engaged.brake > 0.0, "the bot stands to fight the spotted enemy");
         assert_eq!(roster.agents[0].target, Some(first.id));
 
         // A NEARER enemy appears off-cadence: the held target must not flick.
         let nearer = tank(3, TeamId(2), grounded(300.0, 340.0), mask);
         let tanks = [bot.clone(), first.clone(), nearer.clone()];
-        roster.commands(due_tick + 1, &tanks, &battlefield, false, &[]);
+        roster.commands(due_tick + 1, &tanks, &battlefield, &battlefield.static_cover, false, &[]);
         assert_eq!(
             roster.agents[0].target,
             Some(first.id),
@@ -581,6 +642,7 @@ mod tests {
             due_tick + TARGET_RESELECT_INTERVAL_TICKS,
             &tanks,
             &battlefield,
+            &battlefield.static_cover,
             false,
             &[],
         );
@@ -594,6 +656,7 @@ mod tests {
             due_tick + TARGET_RESELECT_INTERVAL_TICKS + 1,
             &tanks,
             &battlefield,
+            &battlefield.static_cover,
             false,
             &[],
         );
@@ -619,7 +682,15 @@ mod tests {
         );
 
         let mut roster = BotRoster::new(vec![bot.id], BattleSeed::fixed(7));
-        let command = roster.commands(0, std::slice::from_ref(&bot), &battlefield, false, &[])[0].1;
+        let command = roster.commands(
+            0,
+            std::slice::from_ref(&bot),
+            &battlefield,
+            &battlefield.static_cover,
+            false,
+            &[],
+        )[0]
+        .1;
         assert!(command.throttle < 0.0, "a drowning bot reverses out, got {command:?}");
     }
 
@@ -645,15 +716,15 @@ mod tests {
 
         // Tick 30: neither bot's acquire slice is due ((30+1)%3=1, (30+2)%3=2) — nobody
         // raycasts on the hypothetical recompute tick itself.
-        roster.commands(30, &world, &battlefield, false, &[]);
+        roster.commands(30, &world, &battlefield, &battlefield.static_cover, false, &[]);
         assert_eq!(roster.agents[0].target, None);
         assert_eq!(roster.agents[1].target, None);
 
         // Tick 31: bot 2's slice. Tick 32: bot 1's. Everyone is locked within the interval.
-        roster.commands(31, &world, &battlefield, false, &[]);
+        roster.commands(31, &world, &battlefield, &battlefield.static_cover, false, &[]);
         assert_eq!(roster.agents[0].target, None);
         assert_eq!(roster.agents[1].target, Some(enemy.id));
-        roster.commands(32, &world, &battlefield, false, &[]);
+        roster.commands(32, &world, &battlefield, &battlefield.static_cover, false, &[]);
         assert_eq!(roster.agents[0].target, Some(enemy.id));
         assert_eq!(roster.agents[1].target, Some(enemy.id));
     }
@@ -679,8 +750,15 @@ mod tests {
             ..Default::default()
         };
 
-        let command =
-            roster.commands(1, std::slice::from_ref(&bot), &battlefield, false, &[hit])[0].1;
+        let command = roster.commands(
+            1,
+            std::slice::from_ref(&bot),
+            &battlefield,
+            &battlefield.static_cover,
+            false,
+            &[hit],
+        )[0]
+        .1;
 
         assert_eq!(command.throttle, 0.0, "the bot stands to scan, got {command:?}");
         assert!(command.steer < -0.5, "the hull pivots toward the struck LEFT side");
@@ -704,7 +782,14 @@ mod tests {
             cause: DamageCause::Shell,
             ..Default::default()
         };
-        roster.commands(1, std::slice::from_ref(&bot), &battlefield, false, &[hit]);
+        roster.commands(
+            1,
+            std::slice::from_ref(&bot),
+            &battlefield,
+            &battlefield.static_cover,
+            false,
+            &[hit],
+        );
 
         let mut resumed_after = None;
         for tick in 0..THREAT_FACE_TICKS + 2 {
@@ -712,6 +797,7 @@ mod tests {
                 u64::from(tick) + 2,
                 std::slice::from_ref(&bot),
                 &battlefield,
+                &battlefield.static_cover,
                 false,
                 &[],
             )[0]
@@ -753,7 +839,15 @@ mod tests {
         };
 
         let tanks = [bot.clone(), enemy.clone()];
-        let command = roster.commands(due_tick, &tanks, &battlefield, false, &[rear_hit])[0].1;
+        let command = roster.commands(
+            due_tick,
+            &tanks,
+            &battlefield,
+            &battlefield.static_cover,
+            false,
+            &[rear_hit],
+        )[0]
+        .1;
 
         assert!(command.brake > 0.0, "the bot stands and fights its visible enemy");
         assert_eq!(command.steer, 0.0, "no threat pivot while engaged");
@@ -768,12 +862,26 @@ mod tests {
         let mut roster = BotRoster::new(vec![bot.id, TankId(99)], BattleSeed::fixed(7));
 
         // Battle over: even a live bot receives idle.
-        let over = roster.commands(0, std::slice::from_ref(&bot), &battlefield, true, &[]);
+        let over = roster.commands(
+            0,
+            std::slice::from_ref(&bot),
+            &battlefield,
+            &battlefield.static_cover,
+            true,
+            &[],
+        );
         assert!(over.iter().all(|(_, command)| *command == TankCommand::idle()));
 
         // A dead bot and a bot with no tank in the snapshot both idle.
         bot.hit_points = 0;
-        let commands = roster.commands(0, std::slice::from_ref(&bot), &battlefield, false, &[]);
+        let commands = roster.commands(
+            0,
+            std::slice::from_ref(&bot),
+            &battlefield,
+            &battlefield.static_cover,
+            false,
+            &[],
+        );
         assert!(commands.iter().all(|(_, command)| *command == TankCommand::idle()));
     }
 }
