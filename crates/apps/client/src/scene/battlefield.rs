@@ -228,8 +228,14 @@ fn append_building(
         seed ^= u64::from(byte);
         seed = seed.wrapping_mul(0x0100_0000_01b3);
     }
+    // Landmarks stand by NAME (B4 cz.2) — one church, one windmill per map; every other
+    // building keeps reading its style off the collision box's proportions.
     let elongation = half.x.max(half.z) / half.x.min(half.z).max(0.1);
-    let style = if elongation > 1.45 && half.y < 2.9 {
+    let style = if cover.id.contains("church") {
+        world_forge::building::BuildingStyle::Church
+    } else if cover.id.contains("windmill") {
+        world_forge::building::BuildingStyle::Windmill
+    } else if elongation > 1.45 && half.y < 2.9 {
         world_forge::building::BuildingStyle::Barn
     } else if half.y >= 2.9 {
         world_forge::building::BuildingStyle::Townhouse
@@ -277,6 +283,10 @@ fn append_building(
                 }
                 (false, vehicle_geometry::MaterialRole::InteriorPrimer) => {
                     (DOOR.0, DOOR.1, surface_role::PLANK)
+                }
+                (false, _) if style == world_forge::building::BuildingStyle::Windmill => {
+                    // A windmill is timber-clad: dark boards, not render.
+                    ([0.30, 0.25, 0.19], 0.06, surface_role::PLANK)
                 }
                 (false, _) => (wall, 0.10, surface_role::PLASTER),
             };
@@ -722,6 +732,39 @@ mod tests {
                 assert_eq!(vertex.surface, surface_role::LEGACY, "glass takes no treatment");
             }
         }
+    }
+
+    /// B4 cz.2: the named landmarks stand as themselves — the church's spire is the tallest
+    /// point in Kamienna (well above any townhouse ridge), and the windmill wears timber
+    /// boards where every rendered wall wears plaster.
+    #[test]
+    fn the_church_towers_over_town_and_the_windmill_wears_timber() {
+        use renderer_api::surface_role;
+        let map = terrain::bystra_valley();
+        let bake = |id: &str| {
+            let cover = map
+                .static_cover
+                .iter()
+                .find(|c| c.id.contains(id))
+                .unwrap_or_else(|| panic!("bystra has {id}"));
+            let mut vertices = Vec::new();
+            let mut indices = Vec::new();
+            append_cover_box(&mut vertices, &mut indices, cover);
+            (cover, vertices)
+        };
+
+        let (church_cover, church) = bake("church");
+        let church_top = church.iter().map(|v| v.position[1]).fold(f32::MIN, f32::max);
+        let cover_top = church_cover.center[1] + church_cover.half_extents_m[1];
+        assert!(
+            church_top > cover_top - 1.0,
+            "the spire fills its collision box: mesh top {church_top} vs box top {cover_top}"
+        );
+
+        let (_, windmill) = bake("windmill");
+        let planks =
+            windmill.iter().filter(|v| (v.surface - surface_role::PLANK).abs() < 0.01).count();
+        assert!(planks > windmill.len() / 3, "the windmill body is timber-clad");
     }
 
     /// The steppe roads are painted ground, not decals: a vertex on a dirt road reads as
