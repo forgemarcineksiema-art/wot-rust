@@ -17,6 +17,11 @@ pub(crate) struct DamageMeshJob {
     pub breaches: ArmorBreachSet,
     pub frame: ArmorFrame,
     pub pivot: Vec3,
+    pub kind: game_core::VehicleKind,
+    /// Module slots whose interior components render the Damaged variant (scorched paint).
+    pub damaged_modules: u8,
+    /// Module slots whose interior components render the Destroyed/Burning variant (charred).
+    pub destroyed_modules: u8,
 }
 
 #[derive(Debug)]
@@ -142,10 +147,102 @@ fn build_damage_mesh(job: &DamageMeshJob) -> Option<GeometryMesh> {
     if applied == 0 {
         return None;
     }
+    char_damaged_components(&mut mesh, job);
     if let Some(rim) = super::aperture_rim::build_rim_mesh(&job.breaches, job.frame) {
         mesh = merge_geometry(&mesh, &rim);
     }
     Some(mesh)
+}
+
+/// The interior's Damaged/Burning variants: components whose module the battle has hurt darken
+/// in the per-instance skin — scorched paint for a damaged module, charred black for a destroyed
+/// one. Vertex-level, driven by the authoritative hit volumes, and only ever on this tank's own
+/// baked copy (shared production meshes stay pristine, per the Honest Steel contract).
+fn char_damaged_components(mesh: &mut GeometryMesh, job: &DamageMeshJob) {
+    if job.damaged_modules == 0 && job.destroyed_modules == 0 {
+        return;
+    }
+    let layout = game_core::DamageLayout::for_vehicle(job.kind);
+    let center_y = job.kind.spec().hitbox.center_y_m;
+    let volumes: Vec<(&game_core::DamageShape, f32)> = layout
+        .components()
+        .iter()
+        .filter_map(|component| {
+            if component.frame != job.frame {
+                return None;
+            }
+            let bit = component.slot.destroyed_mask_bit();
+            let shade = if job.destroyed_modules & bit != 0 {
+                0.28
+            } else if job.damaged_modules & bit != 0 {
+                0.55
+            } else {
+                return None;
+            };
+            Some((&component.shape, shade))
+        })
+        .collect();
+    if volumes.is_empty() {
+        return;
+    }
+    let interior = |material: vehicle_geometry::MaterialRole| {
+        matches!(
+            material,
+            vehicle_geometry::MaterialRole::InteriorPrimer
+                | vehicle_geometry::MaterialRole::InteriorMachinery
+                | vehicle_geometry::MaterialRole::Ammunition
+        )
+    };
+    let mut vertices = mesh.vertices().to_vec();
+    let mut touched = false;
+    for vertex in &mut vertices {
+        if !interior(vertex.material) {
+            continue;
+        }
+        for (shape, shade) in &volumes {
+            if shape_contains(shape, vertex.position, center_y) {
+                vertex.surface_shade = vertex.surface_shade.min(*shade);
+                touched = true;
+                break;
+            }
+        }
+    }
+    if touched {
+        *mesh = GeometryMesh::new(vertices, mesh.indices().to_vec());
+    }
+}
+
+/// Point-in-volume for the layout shapes, padded a little so a component's dressing chars with
+/// it. Layout volumes live in the hitbox-center frame; the mesh is in vehicle coordinates.
+fn shape_contains(shape: &game_core::DamageShape, position: Vec3, center_y: f32) -> bool {
+    const PAD: f32 = 0.09;
+    let local = position - Vec3::Y * center_y;
+    match shape {
+        game_core::DamageShape::Obb { center, half_extents, yaw_rad } => {
+            let delta = local - *center;
+            let (sin, cos) = (-yaw_rad).sin_cos();
+            let rotated =
+                Vec3::new(delta.x * cos - delta.z * sin, delta.y, delta.x * sin + delta.z * cos);
+            rotated.x.abs() <= half_extents.x + PAD
+                && rotated.y.abs() <= half_extents.y + PAD
+                && rotated.z.abs() <= half_extents.z + PAD
+        }
+        game_core::DamageShape::Cylinder { center, axis, half_length, radius } => {
+            let delta = local - *center;
+            let along = delta.dot(*axis);
+            along.abs() <= *half_length + PAD && (delta - *axis * along).length() <= radius + PAD
+        }
+        game_core::DamageShape::Capsule { a, b, radius } => {
+            let ab = *b - *a;
+            let t = ((local - *a).dot(ab) / ab.length_squared()).clamp(0.0, 1.0);
+            (local - (*a + ab * t)).length() <= radius + PAD
+        }
+        game_core::DamageShape::Convex { planes, bounds_min, bounds_max } => {
+            local.cmpge(*bounds_min - Vec3::splat(PAD)).all()
+                && local.cmple(*bounds_max + Vec3::splat(PAD)).all()
+                && planes.iter().all(|plane| local.dot(plane.normal) <= plane.offset + PAD)
+        }
+    }
 }
 
 /// Sanity gate on a rebuilt patch before it replaces the analytical clip. Only the NEW steel is

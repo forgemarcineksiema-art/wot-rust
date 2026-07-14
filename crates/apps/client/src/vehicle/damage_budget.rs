@@ -152,7 +152,7 @@ pub fn capture_damage_mesh_budget() -> DamageBudgetCapture {
         set.add(fragment(hit as u64, frame, zone, contact.position, contact.normal.normalize()));
         if super::aperture_rim::frame_hash(set, frame) != before {
             scheduled += 1;
-            let _ = catalog.damaged_frame_mesh(KIND, tank, frame, set);
+            let _ = catalog.damaged_frame_mesh(KIND, tank, frame, set, 0, 0);
         }
         main_thread.push_back(frame_started.elapsed());
     }

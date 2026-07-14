@@ -182,6 +182,8 @@ impl VehicleAssetCatalog {
         tank_id: game_core::TankId,
         frame: game_core::ArmorFrame,
         breaches: &game_core::ArmorBreachSet,
+        damaged_modules: u8,
+        destroyed_modules: u8,
     ) -> Option<MeshHandle> {
         if kind != VehicleKind::T54_1951
             || !breaches.breaches().iter().any(|breach| breach.frame == frame)
@@ -189,8 +191,12 @@ impl VehicleAssetCatalog {
             return None;
         }
         let hash = crate::vehicle::aperture_rim::frame_hash(breaches, frame);
-        let label =
-            format!("{}_damage_skin_{}_{}_{hash:016x}", kind.slug(), tank_id.0, frame as u8);
+        let label = format!(
+            "{}_damage_skin_{}_{}_{hash:016x}_{damaged_modules:02x}{destroyed_modules:02x}",
+            kind.slug(),
+            tank_id.0,
+            frame as u8
+        );
         if let Some(handle) = self.mesh_labels.get(&label) {
             return Some(*handle);
         }
@@ -212,6 +218,9 @@ impl VehicleAssetCatalog {
                 breaches: breaches.clone(),
                 frame,
                 pivot,
+                kind,
+                damaged_modules,
+                destroyed_modules,
             });
         }
         None

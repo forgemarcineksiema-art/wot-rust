@@ -96,7 +96,7 @@ fn one_shot_split_across_frames_bakes_each_frame_from_its_own_fragment_only() {
     let frames = [ArmorFrame::Hull, ArmorFrame::Turret, ArmorFrame::Mantlet];
     for frame in frames {
         assert_eq!(
-            catalog.damaged_frame_mesh(KIND, tank, frame, &set),
+            catalog.damaged_frame_mesh(KIND, tank, frame, &set, 0, 0),
             None,
             "the first request schedules the worker instead of blocking the frame"
         );
@@ -105,7 +105,7 @@ fn one_shot_split_across_frames_bakes_each_frame_from_its_own_fragment_only() {
 
     let handles = frames.map(|frame| {
         catalog
-            .damaged_frame_mesh(KIND, tank, frame, &set)
+            .damaged_frame_mesh(KIND, tank, frame, &set, 0, 0)
             .unwrap_or_else(|| panic!("the {frame:?} fragment must remesh on the production bake"))
     });
     assert_ne!(handles[0], handles[1]);
@@ -136,10 +136,54 @@ fn one_shot_split_across_frames_bakes_each_frame_from_its_own_fragment_only() {
     assert_eq!(growth[1], growth[2], "the mantlet must bake exactly one fragment");
 
     // The bake is cached per frame: asking again returns the same handles without new uploads.
-    let again = frames.map(|frame| catalog.damaged_frame_mesh(KIND, tank, frame, &set));
+    let again = frames.map(|frame| catalog.damaged_frame_mesh(KIND, tank, frame, &set, 0, 0));
     assert_eq!(again, handles.map(Some));
     assert!(
         catalog.take_pending_vehicle_meshes().is_empty(),
         "a cache hit must not re-upload the damage skin"
+    );
+}
+
+/// W0.6: the interior's Damaged/Burning variants. A destroyed engine chars its bay — the same
+/// hull skin baked with the engine slot down carries visibly darker interior vertices than the
+/// healthy bake, under a DIFFERENT cache label (module state keys the skin). Shared production
+/// meshes never mutate; only this tank's own baked copy darkens.
+#[test]
+fn a_destroyed_engine_chars_its_bay_in_the_per_instance_skin() {
+    let set = cross_frame_group();
+    let engine_bit = game_core::ModuleSlot::Engine.destroyed_mask_bit();
+    let tank = TankId(11);
+    let mut catalog = VehicleAssetCatalog::default();
+
+    let bake = |catalog: &mut VehicleAssetCatalog, destroyed: u8| {
+        assert_eq!(
+            catalog.damaged_frame_mesh(KIND, tank, ArmorFrame::Hull, &set, 0, destroyed),
+            None
+        );
+        catalog.finish_damage_mesh_jobs();
+        let handle = catalog
+            .damaged_frame_mesh(KIND, tank, ArmorFrame::Hull, &set, 0, destroyed)
+            .expect("hull skin bakes");
+        let pending = catalog.take_pending_vehicle_meshes();
+        pending
+            .into_iter()
+            .find(|(pending_handle, _)| *pending_handle == handle)
+            .map(|(_, asset)| asset)
+            .expect("uploaded")
+    };
+
+    let healthy = bake(&mut catalog, 0);
+    let charred = bake(&mut catalog, engine_bit);
+    let min_shade = |asset: &renderer_api::VehicleMeshAsset| {
+        asset.vertices().iter().map(|v| v.shade).fold(f32::MAX, f32::min)
+    };
+    assert!(
+        min_shade(&charred) < 0.30,
+        "a destroyed engine must char its bay: min shade {}",
+        min_shade(&charred)
+    );
+    assert!(
+        min_shade(&healthy) > min_shade(&charred),
+        "the healthy bake stays brighter than the charred one"
     );
 }
