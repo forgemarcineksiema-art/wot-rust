@@ -11,6 +11,7 @@ use crate::t54_interior::{box_part, drum_part};
 
 mod ammunition;
 mod anchors;
+mod driver;
 mod fighting;
 
 pub(super) use anchors::{cylinder_anchors, obb_anchor};
@@ -21,11 +22,37 @@ pub(crate) fn t54_museum_detail_parts(
 ) -> Vec<VehiclePart> {
     let mut parts = Vec::new();
     add_v54(&mut parts, damage_layout, center_y);
+    add_v54_ancillaries(&mut parts, damage_layout, center_y);
     add_driveline_and_cooling(&mut parts, damage_layout, center_y);
     add_torsion_bars(&mut parts, damage_layout, center_y);
     ammunition::add_ammunition_parts(&mut parts, damage_layout, center_y);
     fighting::add_fighting_parts(&mut parts, damage_layout, center_y);
+    driver::add_driver_parts(&mut parts, center_y);
     parts
+}
+
+/// The V-54's ancillaries the museum eye looks for first: the flywheel fan drum on the gearbox
+/// side of the block and the air-cleaner canister on the right sponson.
+fn add_v54_ancillaries(parts: &mut Vec<VehiclePart>, damage_layout: &DamageLayout, cy: f32) {
+    let engine = obb_anchor(damage_layout, DamageComponentKind::Engine, cy);
+    parts.push(drum_part(
+        PartKey::new("v54_flywheel_fan"),
+        SubmeshKind::Hull,
+        Vec3::new(0.0, engine.center.y - 0.04, engine.center.z - engine.half.z - 0.10),
+        Vec3::Z,
+        (0.07, 0.34),
+        MaterialRole::InteriorMachinery,
+        PartLod::Detail,
+    ));
+    parts.push(drum_part(
+        PartKey::new("v54_air_cleaner"),
+        SubmeshKind::Hull,
+        engine.center + Vec3::new(engine.half.x + 0.14, 0.10, 0.12),
+        Vec3::Y,
+        (0.14, 0.115),
+        MaterialRole::InteriorMachinery,
+        PartLod::Detail,
+    ));
 }
 
 fn add_v54(parts: &mut Vec<VehiclePart>, damage_layout: &DamageLayout, cy: f32) {

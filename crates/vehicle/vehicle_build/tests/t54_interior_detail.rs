@@ -157,3 +157,62 @@ fn detailed_modules_do_not_leave_coarse_collision_boxes_in_the_picture() {
     assert_eq!(proxies[0].key.instance, 8);
     assert_eq!(proxies[1].key.instance, 9);
 }
+
+/// W0.5: the driver's station is a real workplace on the LEFT of the bow (the rack owns the
+/// right), and the V-54 gains the two ancillaries the museum eye looks for first. Positions are
+/// checked against the authoritative layout, not repeated constants.
+#[test]
+fn t54_driver_station_and_v54_ancillaries_read_as_the_manuals_describe() {
+    let description = t54_description();
+    for (name, expected) in [
+        ("driver_station_seat", 1),
+        ("driver_station_seat_back", 1),
+        ("driver_steering_lever", 2),
+        ("driver_pedal", 3),
+        ("driver_instrument_panel", 1),
+        ("driver_gear_selector", 1),
+        ("driver_periscope_housing", 1),
+        ("driver_air_bottle", 2),
+        ("v54_flywheel_fan", 1),
+        ("v54_air_cleaner", 1),
+    ] {
+        let parts = parts_named(&description, name);
+        assert_eq!(parts.len(), expected, "{name}");
+        assert!(
+            parts.iter().all(|part| part.submesh == SubmeshKind::Hull),
+            "{name} rides the hull"
+        );
+    }
+
+    // The station sits left of centerline; the instrument panel hugs the left sponson wall.
+    let seat = parts_named(&description, "driver_station_seat")[0].mesh();
+    let seat_bounds = seat.bounds().expect("seat bounds");
+    assert!(seat_bounds.max.x < 0.0, "the T-54 driver sits LEFT of the centerline");
+    let panel = parts_named(&description, "driver_instrument_panel")[0].mesh();
+    let panel_bounds = panel.bounds().expect("panel bounds");
+    assert!(
+        panel_bounds.max.x < seat_bounds.min.x,
+        "the instrument panel hangs on the sponson wall outboard of the seat"
+    );
+
+    // The flywheel fan hangs off the gearbox side of the engine block (further aft).
+    let layout = DamageLayout::for_vehicle(VehicleKind::T54_1951);
+    let engine_z = layout
+        .components()
+        .iter()
+        .find_map(|component| match &component.shape {
+            DamageShape::Obb { center, .. }
+                if component.kind == game_core::DamageComponentKind::Engine =>
+            {
+                Some(center.z)
+            }
+            _ => None,
+        })
+        .expect("engine volume");
+    let fan = parts_named(&description, "v54_flywheel_fan")[0].mesh();
+    let fan_bounds = fan.bounds().expect("fan bounds");
+    assert!(
+        (fan_bounds.min.z + fan_bounds.max.z) * 0.5 < engine_z,
+        "the flywheel fan sits aft of the block, toward the gearbox"
+    );
+}
