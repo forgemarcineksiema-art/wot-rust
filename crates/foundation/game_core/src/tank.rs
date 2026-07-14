@@ -141,6 +141,16 @@ pub struct TankSpec {
 }
 
 impl TankSpec {
+    /// How far this vehicle's commander spots (v29, per era): later optics see farther. The
+    /// number lives on the SPEC so the garage can show it and the sim reads one source.
+    pub fn view_range_m(&self) -> f32 {
+        match self.kind.era() {
+            crate::Era::EarlyWar => 360.0,
+            crate::Era::LateWar => 400.0,
+            crate::Era::ColdWar => 440.0,
+        }
+    }
+
     pub fn medium_test_tank() -> Self {
         VehicleKind::PrototypeMedium.spec()
     }

@@ -17,7 +17,8 @@ use terrain::{HeightMap, StaticCoverObject};
 
 use crate::TankState;
 
-/// How far a tank can be spotted, flat across eras in v1.
+/// Legacy flat view range. v29 spots per OBSERVER spec (`TankSpec::view_range_m`, per era);
+/// this constant remains as the mid-era reference for fog tuning and bot heuristics.
 pub const VIEW_RANGE_M: f32 = 400.0;
 /// Recompute cadence: every 6 ticks = 10 Hz at the 60 Hz simulation.
 pub const SPOTTING_INTERVAL_TICKS: u64 = 6;
@@ -177,8 +178,13 @@ pub(crate) fn apply_spotted_masks_with_hold(
 }
 
 /// Compute, for each tank (in `tanks` order), the bitmask of teams that can currently see it. A
-/// team sees a tank when any living member has LOS within `VIEW_RANGE_M`; a tank's own team always
-/// sees it, and a wreck is visible to everyone.
+/// team sees a tank when any living member has LOS within ITS OWN view range (per-era optics,
+/// `TankSpec::view_range_m`); a tank's own team always sees it, and a wreck is public.
+///
+/// The radio speaks here (v29): an observer with a DESTROYED radio no longer contributes to the
+/// team mask — its sightings stay its own. What it personally sees is tracked separately in
+/// [`compute_observer_masks`], so a radio-dead crew still fights everything in front of its own
+/// eyes; it just cannot light targets for the team, nor the team for it.
 pub fn compute_spotted_masks(
     tanks: &[TankState],
     heightmap: Option<&HeightMap>,
@@ -197,15 +203,52 @@ pub fn compute_spotted_masks(
             if observer.hit_points == 0
                 || observer.team == target.team
                 || masks[i] & observer.team.spotting_bit() != 0
+                || !observer.modules.is_functional(game_core::ModuleSlot::Radio)
             {
                 continue;
             }
             let eye = observer_eye(observer);
-            if eye.distance(target.position) > VIEW_RANGE_M {
+            if eye.distance(target.position) > observer.spec.view_range_m() {
                 continue;
             }
             if points.iter().any(|&p| line_of_sight(heightmap, cover, eye, p)) {
                 masks[i] |= observer.team.spotting_bit();
+            }
+        }
+    }
+    masks
+}
+
+/// Per-target mask of OBSERVER TANKS (bit = index in `tanks`, up to 16) with personal fresh
+/// line of sight. Radio state is irrelevant here — these are the observer's own eyes. The
+/// per-viewer snapshot filter unions this with the team mask so no enemy in plain sight ever
+/// vanishes off a radio-dead crew's screen.
+pub fn compute_observer_masks(
+    tanks: &[TankState],
+    heightmap: Option<&HeightMap>,
+    cover: &[StaticCoverObject],
+) -> Vec<u16> {
+    let mut masks = vec![0u16; tanks.len()];
+    for (i, target) in tanks.iter().enumerate() {
+        if target.hit_points == 0 {
+            masks[i] = u16::MAX;
+            continue;
+        }
+        let points = target_points(target);
+        for (observer_index, observer) in tanks.iter().enumerate().take(16) {
+            if observer.hit_points == 0 {
+                continue;
+            }
+            if observer.team == target.team {
+                masks[i] |= 1 << observer_index;
+                continue;
+            }
+            let eye = observer_eye(observer);
+            if eye.distance(target.position) > observer.spec.view_range_m() {
+                continue;
+            }
+            if points.iter().any(|&p| line_of_sight(heightmap, cover, eye, p)) {
+                masks[i] |= 1 << observer_index;
             }
         }
     }
