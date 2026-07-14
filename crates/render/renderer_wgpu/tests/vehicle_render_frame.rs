@@ -71,6 +71,7 @@ fn analytical_aperture_opens_the_vehicle_in_color_and_depth() {
             half_depth_m: 0.2,
             glow: 0.0,
             glow_tightness: 1.0,
+            cut: true,
         }],
     }]);
     let center = (32 * 64 + 32) * 4;
@@ -78,6 +79,82 @@ fn analytical_aperture_opens_the_vehicle_in_color_and_depth() {
         luma(&whole[center..center + 4]) - luma(&cut[center..center + 4]) > 10.0
             || whole[center..center + 4] != cut[center..center + 4],
         "the aperture must reveal the background at the triangle center"
+    );
+}
+
+/// A legacy hull without cut truth must never open — its perforation is a scorch mark: the
+/// fragment survives (no discard in color or depth) but reads visibly darker than pristine
+/// steel. This is the fleet-wide interim until the hybrid migration grants real holes.
+#[test]
+fn a_scorch_only_aperture_darkens_without_opening_the_mesh() {
+    let Some(ctx) = headless_context() else {
+        return;
+    };
+    let mesh = MeshHandle(93);
+    let camera = renderer_api::Camera {
+        eye: [0.0, 0.0, 3.0],
+        target: [0.0, 0.0, 0.0],
+        vertical_fov_degrees: 55.0,
+    };
+    let render = |armor_damage| {
+        let target = OffscreenTarget::new(&ctx, 64, 64).expect("target");
+        let mut renderer = SceneRenderer::for_offscreen(&ctx, &[], &[]).expect("renderer");
+        renderer.register_vehicle_mesh(&ctx, mesh, &vehicle_triangle());
+        renderer.set_vehicle_render_frame(
+            &ctx,
+            &RenderFrame {
+                camera,
+                objects: vec![RenderObject {
+                    tank_id: Some(TankId(1)),
+                    mesh,
+                    material: MaterialHandle(0),
+                    transform: identity(),
+                    tint: [0.65, 0.85, 0.52],
+                }],
+                armor_damage,
+            },
+        );
+        renderer
+            .render(
+                &ctx,
+                target.render_target(),
+                view_projection_matrix(&camera, 1.0, 0.1, 20.0),
+                camera.eye,
+            )
+            .expect("render");
+        target.read_rgba8(&ctx).expect("readback")
+    };
+    let aperture = |cut| ArmorApertureRender {
+        center: [0.0, 0.0, 0.0],
+        normal: [0.0, 0.0, 1.0],
+        tangent: [1.0, 0.0, 0.0],
+        major_radius_m: 0.18,
+        minor_radius_m: 0.14,
+        rotation_rad: 0.2,
+        irregularity: 0.1,
+        phase_a: 0.7,
+        phase_b: 2.1,
+        half_depth_m: 0.2,
+        glow: 0.0,
+        glow_tightness: 1.0,
+        cut,
+    };
+    let whole = render(Vec::new());
+    let cut =
+        render(vec![ArmorDamageInstance { tank_id: TankId(1), apertures: vec![aperture(true)] }]);
+    let scorched =
+        render(vec![ArmorDamageInstance { tank_id: TankId(1), apertures: vec![aperture(false)] }]);
+    let center = (32 * 64 + 32) * 4;
+    assert_ne!(
+        scorched[center..center + 4],
+        cut[center..center + 4],
+        "a scorch-only aperture must not open like a cut one"
+    );
+    assert!(
+        luma(&whole[center..center + 4]) - luma(&scorched[center..center + 4]) > 8.0,
+        "the scorch must read visibly darker than pristine steel: {} vs {}",
+        luma(&whole[center..center + 4]),
+        luma(&scorched[center..center + 4])
     );
 }
 

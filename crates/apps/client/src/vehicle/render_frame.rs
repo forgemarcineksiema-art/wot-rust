@@ -111,13 +111,19 @@ pub fn split_pbr_vehicle_render_frame_on_terrain(
     VehicleRenderFrame { objects, armor_damage }
 }
 
+/// Whether a vehicle's visual skin is truth-aligned with its armor volumes, so an aperture may
+/// really OPEN it (analytic discard + remeshed skin). True for the part-aware hybrid T-54 today;
+/// the rest of the fleet joins with its hybrid migration (W2c), and until then a hole into
+/// nothing would be dishonest — those hulls scorch instead.
+fn vehicle_has_cut_truth(kind: game_core::VehicleKind) -> bool {
+    kind == game_core::VehicleKind::T54_1951
+}
+
 pub fn armor_damage_instance(
     snapshot: &TankSnapshot,
     now_tick: u64,
 ) -> Option<ArmorDamageInstance> {
-    if snapshot.vehicle != game_core::VehicleKind::T54_1951 {
-        return None;
-    }
+    let cut = vehicle_has_cut_truth(snapshot.vehicle);
     let pose = super::pose::VehiclePose::from_snapshot(snapshot);
     let mut apertures = Vec::new();
     for breach in snapshot.armor_breaches.breaches() {
@@ -153,6 +159,7 @@ pub fn armor_damage_instance(
                 half_depth_m: (lobe.thickness_m + 0.025).clamp(0.04, 0.45),
                 glow,
                 glow_tightness: breach_glow_tightness(breach.shell_type),
+                cut,
             });
         }
     }
@@ -283,9 +290,93 @@ pub fn render_frame_from_objects(objects: Vec<RenderObject>) -> RenderFrame {
 
 #[cfg(test)]
 mod tests {
-    use game_core::ShellType;
+    use game_core::{
+        ApertureLobe, ArmorBreach, ArmorBreachDescriptor, ArmorFrame, ArmorMaterial,
+        ArmorSurfaceId, ArmorZone, BreachContour, BreachFace, ShellType, TankId, TeamId,
+        VehicleKind,
+    };
+    use glam::Vec3;
+    use net::TankSnapshot;
 
-    use super::{breach_glow, breach_glow_tightness};
+    use super::{armor_damage_instance, breach_glow, breach_glow_tightness};
+
+    fn breached_snapshot(kind: VehicleKind) -> TankSnapshot {
+        let entry = Vec3::new(0.1, 1.2, 1.5);
+        let normal = Vec3::new(0.0, 0.3, 0.954);
+        let mut breaches = game_core::ArmorBreachSet::default();
+        breaches.add(ArmorBreach::new(
+            ArmorBreachDescriptor {
+                breach_id: 5,
+                surface: ArmorSurfaceId::new(ArmorFrame::Hull, ArmorZone::UpperGlacis),
+                frame: ArmorFrame::Hull,
+                zone: ArmorZone::UpperGlacis,
+                material: ArmorMaterial::RolledSteel,
+                face: BreachFace::Ingress,
+                shell_type: ShellType::ArmorPiercing,
+                created_tick: 60,
+                impact_angle_degrees: 10.0,
+                impact_energy_kj: 900.0,
+                projectile_diameter_m: 0.1,
+                residual_penetration_mm: 40.0,
+            },
+            ApertureLobe {
+                entry_local: entry,
+                exit_local: entry - normal * 0.1,
+                entry_normal_local: normal,
+                exit_normal_local: -normal,
+                direction_local: -normal,
+                thickness_m: 0.1,
+                outer: BreachContour::new(0.06, 0.05, 0.2, 0.1),
+                inner: BreachContour::new(0.08, 0.07, 0.3, 0.12),
+                fracture_seed: 9,
+            },
+        ));
+        TankSnapshot {
+            tank_id: TankId(3),
+            team: TeamId(2),
+            vehicle: kind,
+            position: [4.0, 0.0, 9.0],
+            yaw_rad: 0.4,
+            hull_pitch_rad: 0.0,
+            hull_roll_rad: 0.0,
+            turret_yaw_rad: 0.1,
+            turret_yaw_velocity_rad_s: 0.0,
+            gun_pitch_rad: 0.0,
+            hit_points: 900,
+            reload_remaining_s: 0.0,
+            aim_dispersion_mrad: 1.0,
+            module_hit_points: [100; game_core::MODULE_SLOT_COUNT],
+            destroyed_modules_mask: 0,
+            track_damage_mask: 0,
+            track_hp: [game_core::TRACK_HP_MAX; 2],
+            ammo_counts: game_core::AmmoLoadout::default().counts,
+            selected_ammo: 0,
+            spotted_by_teams_mask: 0,
+            armor_breaches: breaches,
+            track_break_t: [None, None],
+            engine_fire: false,
+        }
+    }
+
+    /// Fleet honesty: EVERY vehicle's penetration is visible. The part-aware T-54 really opens
+    /// (cut); the rest of the fleet scorches without a hole into nothing until its hybrid
+    /// migration — but no vehicle silently swallows a perforation any more.
+    #[test]
+    fn every_vehicle_kind_shows_its_perforation() {
+        for kind in VehicleKind::ALL {
+            let instance = armor_damage_instance(&breached_snapshot(kind), 120)
+                .unwrap_or_else(|| panic!("{kind:?} must render its perforation"));
+            assert!(!instance.apertures.is_empty());
+            let expect_cut = kind == VehicleKind::T54_1951;
+            for aperture in &instance.apertures {
+                assert_eq!(
+                    aperture.cut, expect_cut,
+                    "{kind:?}: only cut-truth vehicles may open the mesh"
+                );
+                assert!(aperture.glow > 0.0, "a 1-second-old breach still glows");
+            }
+        }
+    }
 
     /// The plan's acceptance line verbatim: glow follows ENERGY (short and weak for AP/APCR,
     /// hotter and local for HEAT), cools monotonically, and never leaves a permanent edge.
@@ -318,8 +409,6 @@ mod tests {
         // A clock-less caller (now_tick 0 with a future created_tick) clamps to fresh, not NaN.
         assert!(breach_glow(ShellType::ArmorPiercing, -5.0).is_finite());
     }
-
-    use game_core::VehicleKind;
 
     use super::*;
 
