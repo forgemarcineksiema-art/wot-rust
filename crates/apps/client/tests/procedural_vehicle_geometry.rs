@@ -28,6 +28,7 @@ fn t55a_client_mesh_uses_rich_procedural_geometry() {
         armor_breaches: Default::default(),
         track_break_t: [None, None],
         engine_fire: false,
+        fuel_fire: false,
     };
 
     let (vertices, indices) = tank_scene_mesh(&snapshot);

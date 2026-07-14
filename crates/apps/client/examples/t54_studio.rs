@@ -54,6 +54,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         armor_breaches: Default::default(),
         track_break_t: [None, None],
         engine_fire: false,
+        fuel_fire: false,
     };
 
     // Load the baked Forge artifacts (textured materials) the garage uses; harmless if absent.

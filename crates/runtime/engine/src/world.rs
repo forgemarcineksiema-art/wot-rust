@@ -79,6 +79,7 @@ impl PresentationWorld {
                     break_t: tank.track_break_t,
                     armor_breaches: tank.armor_breaches.clone(),
                     engine_fire: tank.engine_fire,
+                    fuel_fire: tank.fuel_fire,
                 },
             );
             // Track distance is accumulated from the pose *delta*, so it must be folded in before
@@ -201,6 +202,7 @@ impl PresentationWorld {
                         track_damage_mask: damage.mask,
                         track_break_t: damage.break_t,
                         engine_fire: damage.engine_fire,
+                        fuel_fire: false,
                         armor_breaches: damage.armor_breaches.clone(),
                         track_left_m: track.left_m,
                         track_right_m: track.right_m,

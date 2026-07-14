@@ -100,6 +100,7 @@ mod tests {
             track_damage_mask: 0,
             track_break_t: [None, None],
             engine_fire: false,
+            fuel_fire: false,
             armor_breaches: Default::default(),
             track_left_m: 0.0,
             track_right_m: 0.0,

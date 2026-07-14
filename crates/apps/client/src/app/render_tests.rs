@@ -312,6 +312,7 @@ fn render_garage_preview_png() {
         armor_breaches: Default::default(),
         track_break_t: [None, None],
         engine_fire: false,
+        fuel_fire: false,
     };
 
     let (terrain_vertices, terrain_indices) = hangar_scene_mesh();
@@ -394,6 +395,7 @@ fn snapshot_for_vehicle(
             armor_breaches: Default::default(),
             track_break_t: [None, None],
             engine_fire: false,
+            fuel_fire: false,
         }],
         shells: Vec::new(),
         damage_events: Vec::new(),

@@ -45,5 +45,6 @@ pub(crate) fn fresh_tank(
         armor_breaches: game_core::ArmorBreachSet::default(),
         track_break_t: [None, None],
         engine_fire: false,
+        fuel_fire: false,
     }
 }

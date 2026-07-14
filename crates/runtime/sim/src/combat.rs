@@ -130,6 +130,7 @@ pub(crate) fn apply_shell_impact(
         shell.shell.shell_type,
         penetration.penetrated,
         track_chunk,
+        local_hit.x,
     );
     if let Some(hit) = track_hit
         && hit.broke
@@ -201,6 +202,21 @@ pub(crate) fn apply_shell_impact(
     {
         target.engine_fire = true;
     }
+    // Fuel burns as ITSELF (v27): a fuel-tank component holed by the internal path lights a
+    // fuel fire, distinct from the engine's own — the tank can blaze with a healthy engine.
+    if penetration.penetrated {
+        let fuel_bits: u32 = target
+            .spec
+            .damage_layout
+            .components()
+            .iter()
+            .filter(|component| component.kind == game_core::DamageComponentKind::FuelTank)
+            .map(|component| component_bit(component.id))
+            .fold(0, |bits, bit| bits | bit);
+        if damaged_components_mask & fuel_bits != 0 {
+            target.fuel_fire = true;
+        }
+    }
 
     // The jack-in-the-box: an ammo-rack detonation that kills the tank in this same resolution
     // blows the turret off. Deterministic — a pure consequence of the module damage above, no
@@ -248,7 +264,7 @@ fn apply_internal_module_path(
     base_damage_hp: u32,
     zone: ArmorZone,
     local_hit: Vec3,
-) -> (Option<ModuleSlot>, u8, u16, f32) {
+) -> (Option<ModuleSlot>, u8, u32, f32) {
     if !penetrated || target.spec.damage_layout.is_empty() {
         let module = if target.spec.damage_layout.is_empty() {
             impacted_module(shell.shell.shell_type, penetrated, zone, local_hit, target.spec.hitbox)
@@ -276,7 +292,7 @@ fn apply_internal_module_path(
     );
     let mut first = None;
     let mut mask = 0_u8;
-    let mut component_mask = 0_u16;
+    let mut component_mask = 0_u32;
     let mut spall_sources = Vec::new();
     for hit in hits {
         let resistance_mm = hit.material.resistance_mm(hit.path_length_m);
@@ -330,8 +346,8 @@ fn apply_internal_module_path(
     (first, mask, component_mask, residual_mm)
 }
 
-fn component_bit(id: game_core::DamageComponentId) -> u16 {
-    1_u16.checked_shl(u32::from(id.0.saturating_sub(1))).unwrap_or(0)
+fn component_bit(id: game_core::DamageComponentId) -> u32 {
+    1_u32.checked_shl(u32::from(id.0.saturating_sub(1))).unwrap_or(0)
 }
 
 fn deterministic_spall_directions(direction: Vec3, seed: u64) -> [Vec3; 3] {
@@ -597,5 +613,23 @@ mod tests {
         );
         assert!(event.penetrated);
         assert!(!tanks[0].armor_breaches.breaches().is_empty());
+    }
+}
+
+#[cfg(test)]
+mod w0_7_tests {
+    use super::component_bit;
+
+    /// v27: the component mask is u32. Ids 17+ were silently maskless on u16 — the loose rounds
+    /// and every future component now own a real bit.
+    #[test]
+    fn component_ids_beyond_sixteen_own_real_bits() {
+        let mut seen = 0_u32;
+        for id in 1..=32_u16 {
+            let bit = component_bit(game_core::DamageComponentId(id));
+            assert_ne!(bit, 0, "id {id} must own a bit on the widened mask");
+            assert_eq!(seen & bit, 0, "id {id} must not collide");
+            seen |= bit;
+        }
     }
 }

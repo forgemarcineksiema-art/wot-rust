@@ -143,6 +143,7 @@ fn tank(id: u64, team: u16, hit_points: u32, spotted_by_teams_mask: u8) -> TankS
         armor_breaches: Default::default(),
         track_break_t: [None, None],
         engine_fire: false,
+        fuel_fire: false,
     }
 }
 

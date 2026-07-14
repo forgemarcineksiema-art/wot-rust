@@ -69,6 +69,8 @@ pub struct VehicleDamage {
     pub break_t: [Option<f32>; 2],
     pub armor_breaches: ArmorBreachSet,
     pub engine_fire: bool,
+    /// A holed fuel tank burns as itself (v27) — independent of the engine's own fire.
+    pub fuel_fire: bool,
 }
 
 /// Per-side track distance travelled (metres), accumulated from the hull's frame-to-frame pose so
@@ -172,6 +174,8 @@ pub struct PresentationTank {
     pub track_damage_mask: u8,
     pub track_break_t: [Option<f32>; 2],
     pub engine_fire: bool,
+    /// A holed fuel tank burns as itself (v27) — independent of the engine's own fire.
+    pub fuel_fire: bool,
     pub armor_breaches: ArmorBreachSet,
     /// Per-side track distance (metres) for spinning wheels and scrolling track links.
     pub track_left_m: f32,

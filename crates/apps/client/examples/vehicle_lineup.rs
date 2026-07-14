@@ -66,6 +66,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             armor_breaches: Default::default(),
             track_break_t: [None, None],
             engine_fire: false,
+            fuel_fire: false,
         };
         render_objects.append(&mut tank_render_objects(&mut catalog, &snapshot, palette[index]));
     }

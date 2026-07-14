@@ -297,6 +297,7 @@ fn tank_snapshot(
         armor_breaches: demo_breaches(),
         track_break_t: [Some(0.62), None],
         engine_fire: false,
+        fuel_fire: false,
     }
 }
 

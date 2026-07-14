@@ -45,6 +45,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         armor_breaches: Default::default(),
         track_break_t: [None, None],
         engine_fire: false,
+        fuel_fire: false,
     };
     let _ = snapshot; // The tech tree view does not render the vehicle mesh; it's an overlay-only
     // screen over the dim hangar. Kept here so the example stays close to the

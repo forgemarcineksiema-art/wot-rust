@@ -5,8 +5,11 @@ use crate::TankState;
 
 /// Degrade the struck track band by `chunk` HP and report what happened (which side, and whether
 /// this hit was the one that threw it) so the client can call it out. A direct track-zone hit
-/// degrades that side; an HE burst or a suspension-module penetration degrades BOTH bands (the
-/// running gear takes it across the hull). `None` means the shell touched no track.
+/// degrades that side; an HE burst degrades BOTH bands (the blast takes the running gear across
+/// the hull); a suspension-module penetration degrades the SIDE it entered — the torsion bars
+/// and final drives are independent left/right assemblies, and a shell in the left bank must
+/// not cripple the right (W0.7 honesty fix; it used to degrade both). `None` means the shell
+/// touched no track.
 pub(crate) fn apply_track_damage_for_hit(
     target: &mut TankState,
     module: Option<ModuleSlot>,
@@ -14,6 +17,7 @@ pub(crate) fn apply_track_damage_for_hit(
     shell_type: ShellType,
     penetrated: bool,
     chunk: u8,
+    hit_local_x: f32,
 ) -> Option<TrackHit> {
     match zone {
         ArmorZone::LeftTrack => Some(degrade_side(target, TrackSide::Left, chunk)),
@@ -21,7 +25,10 @@ pub(crate) fn apply_track_damage_for_hit(
         _ if shell_type == ShellType::HighExplosive && !penetrated => {
             Some(degrade_both(target, chunk))
         }
-        _ if module == Some(ModuleSlot::Suspension) => Some(degrade_both(target, chunk)),
+        _ if module == Some(ModuleSlot::Suspension) => {
+            let side = if hit_local_x < 0.0 { TrackSide::Left } else { TrackSide::Right };
+            Some(degrade_side(target, side, chunk))
+        }
         _ => None,
     }
 }
@@ -152,9 +159,41 @@ mod tests {
             ShellType::ArmorPiercing,
             false,
             40,
+            0.6,
         );
         assert_eq!(hit, None, "a skirt hit reports no track feedback");
         assert_eq!(target.tracks, before, "and degrades no band");
+    }
+
+    /// W0.7: the suspension is an independent left/right assembly. A penetration into the
+    /// suspension module on one flank degrades THAT side's band only — it used to cripple both.
+    /// An HE burst still takes the running gear across the hull.
+    #[test]
+    fn a_suspension_penetration_degrades_only_the_struck_side() {
+        let mut target = crate::tank_factory::fresh_tank(
+            game_core::TankId(2),
+            game_core::TeamId(1),
+            game_core::VehicleKind::T54_1951.spec(),
+            Vec3::ZERO,
+            0.0,
+        );
+        let hit = apply_track_damage_for_hit(
+            &mut target,
+            Some(ModuleSlot::Suspension),
+            ArmorZone::HullSide,
+            ShellType::ArmorPiercing,
+            true,
+            40,
+            -0.9,
+        )
+        .expect("a suspension penetration reports the band");
+        assert_eq!(hit.side, TrackSide::Left, "the LEFT flank was struck");
+        assert!(target.tracks.hp(TrackSide::Left) < game_core::TRACK_HP_MAX);
+        assert_eq!(
+            target.tracks.hp(TrackSide::Right),
+            game_core::TRACK_HP_MAX,
+            "the right band must not share the left flank's wound"
+        );
     }
 
     #[test]

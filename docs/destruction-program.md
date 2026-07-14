@@ -64,6 +64,7 @@ Sequencing: 0 → 1 → {2, 3 in either order} → 4 → {5, 6 in parallel}.
 | v21 | 6 | `Snapshot` += `cover_states`; destructible cover truth |
 | v25 | 7 | `TankSnapshot` += `armor_breaches`, `track_break_t`, `engine_fire`; `DamageEvent` += module hit/destroy masks |
 | v26 | 8 | Ammo-specific aperture contours, no-eviction merge policy, ingress/egress identity and deterministic thermal age |
+| v27 | 8 | `TankSnapshot.fuel_fire` (a holed fuel tank burns as itself), component mask widened to u32; suspension penetrations degrade the struck side only (behavioral, no wire) |
 
 ## Honest Steel T-54 contract
 

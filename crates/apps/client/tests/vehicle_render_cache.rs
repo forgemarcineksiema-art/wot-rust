@@ -68,5 +68,6 @@ fn snapshot(vehicle: VehicleKind, turret_yaw_rad: f32) -> TankSnapshot {
         armor_breaches: Default::default(),
         track_break_t: [None, None],
         engine_fire: false,
+        fuel_fire: false,
     }
 }
