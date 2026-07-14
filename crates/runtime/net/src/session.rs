@@ -7,7 +7,7 @@
 
 use std::net::SocketAddr;
 
-use crate::transport::{Reassembler, Transport, TransportError, fragment_message};
+use crate::transport::{Reassembler, Transport, fragment_message};
 use crate::{NetError, ProtocolMessage, decode_frame, encode_frame};
 
 /// First resend after this long; doubles each attempt up to the cap.
