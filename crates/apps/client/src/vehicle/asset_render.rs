@@ -85,6 +85,17 @@ pub fn tank_vehicle_render_objects_posed(
     gear_dynamics: GearDynamics<'_>,
 ) -> Vec<RenderObject> {
     catalog.integrate_one_damage_mesh();
+    // The interior's Damaged/Burning variants key the per-instance skin: which module slots are
+    // hurt (scorched paint) or gone (charred black), straight from the replicated module state.
+    let full_hp = snapshot.vehicle.spec().module_health.hit_points_by_slot();
+    let mut damaged_modules = 0_u8;
+    for (index, live) in snapshot.module_hit_points.iter().enumerate() {
+        if game_core::module_condition(*live, full_hp[index]) == game_core::ModuleCondition::Damaged
+        {
+            damaged_modules |= 1 << index;
+        }
+    }
+    let destroyed_modules = snapshot.destroyed_modules_mask;
     let entry = catalog.vehicle_entry(snapshot.vehicle).expect("vehicle must have baked geometry");
     let hull_mesh = catalog
         .damaged_frame_mesh(
@@ -92,6 +103,8 @@ pub fn tank_vehicle_render_objects_posed(
             snapshot.tank_id,
             game_core::ArmorFrame::Hull,
             &snapshot.armor_breaches,
+            damaged_modules,
+            destroyed_modules,
         )
         .unwrap_or(entry.hull);
     let turret_mesh = catalog
@@ -100,6 +113,8 @@ pub fn tank_vehicle_render_objects_posed(
             snapshot.tank_id,
             game_core::ArmorFrame::Turret,
             &snapshot.armor_breaches,
+            damaged_modules,
+            destroyed_modules,
         )
         .unwrap_or(entry.turret);
     let gun_mesh = catalog
@@ -108,6 +123,8 @@ pub fn tank_vehicle_render_objects_posed(
             snapshot.tank_id,
             game_core::ArmorFrame::Mantlet,
             &snapshot.armor_breaches,
+            damaged_modules,
+            destroyed_modules,
         )
         .unwrap_or(entry.gun);
     let pose = VehiclePose::new_with_attitude(
