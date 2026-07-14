@@ -82,9 +82,9 @@ impl ClientApp {
         }
         let ((ground_vertices, ground_indices), (statics_vertices, statics_indices)) =
             crate::battlefield_ground_and_statics_meshes(&self.battlefield, &[]);
-        let ground_maps = crate::scene::terrain_maps::bake_terrain_ground_maps(&self.battlefield);
+        let ground_maps = scene_build::terrain_maps::bake_terrain_ground_maps(&self.battlefield);
         let (water_vertices, water_indices) =
-            crate::scene::water::battlefield_water_mesh(&self.battlefield);
+            scene_build::water::battlefield_water_mesh(&self.battlefield);
         self.battle_scene_meshes = Some(BattleSceneMeshes {
             ground_vertices,
             ground_indices,

@@ -760,6 +760,7 @@ dependencies = [
  "png",
  "renderer_api",
  "renderer_wgpu",
+ "scene_build",
  "serde",
  "serde_json",
  "server",
@@ -3942,6 +3943,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "93fc1dc3aaa9bfed95e02e6eadabb4baf7e3078b0bd1b4d7b6b0b68378900502"
 dependencies = [
  "winapi-util",
+]
+
+[[package]]
+name = "scene_build"
+version = "0.1.0"
+dependencies = [
+ "game_core",
+ "glam 0.30.10",
+ "renderer_api",
+ "sim",
+ "terrain",
+ "vehicle_geometry",
+ "world_forge",
 ]
 
 [[package]]

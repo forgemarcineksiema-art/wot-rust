@@ -68,9 +68,9 @@ pub fn hangar_shadow_focus() -> [f32; 3] {
     [0.0, TURNTABLE_TOP_M, 0.0]
 }
 
-/// Interior of the hangar shell as `(half_extent_xz, height)`. Used by the camera invariant test to
-/// prove the whole orbit range stays inside the room (the boom range and pitch cap are sized to it).
-#[cfg(test)]
+/// Interior of the hangar shell as `(half_extent_xz, height)`. Used by the CLIENT camera
+/// invariant test to prove the whole orbit range stays inside the room — cross-crate now, so
+/// it cannot hide behind cfg(test).
 pub fn hangar_interior() -> (f32, f32) {
     (HALF, WALL_HEIGHT)
 }
