@@ -27,6 +27,7 @@ terrain.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 vehicle_forge.workspace = true
+world_forge.workspace = true
 vehicle_geometry.workspace = true
 winit.workspace = true
 
