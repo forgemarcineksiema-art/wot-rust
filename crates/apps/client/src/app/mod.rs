@@ -192,6 +192,9 @@ pub(crate) struct ClientApp {
     scene_cover_dirty: bool,
     /// Smoothed frames-per-second for the HUD readout (EMA over instantaneous frame rate).
     fps_estimate: f32,
+    /// Last ~1.5 s of raw frame intervals (seconds) — the HUD's p95 readout turns "it drops
+    /// sometimes" into a number per scenario (F9).
+    frame_dt_history: std::collections::VecDeque<f32>,
     /// The minimap's static layers (terrain relief, water, roads, cover), computed once per
     /// battlefield instead of resampled every frame. Rebuild alongside `battlefield` if a
     /// future map rotation swaps it mid-session.
@@ -362,6 +365,7 @@ impl ClientApp {
             cover_phase_bytes: Vec::new(),
             scene_cover_dirty: false,
             fps_estimate: 0.0,
+            frame_dt_history: std::collections::VecDeque::with_capacity(96),
             minimap_static,
             battle_outcome: None,
             kill_confirm_age_s: None,

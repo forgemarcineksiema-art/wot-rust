@@ -10,7 +10,9 @@ pub fn rain_shader_source() -> String {
 }
 
 /// Streak population at intensity 1.0.
-pub(crate) const RAIN_MAX_STREAKS: u32 = 4000;
+/// (F9: trimmed 4000 → 2600 — a squall still reads as a squall; the minimum spec pays per
+/// blended streak and the rain battle was the user's measured drop.)
+pub(crate) const RAIN_MAX_STREAKS: u32 = 2600;
 
 /// Premultiplied blend, matching the FX pass — faint streaks composite softly over the world.
 const RAIN_BLEND: wgpu::BlendState = wgpu::BlendState {

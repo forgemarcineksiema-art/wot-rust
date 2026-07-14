@@ -25,7 +25,13 @@ fn render_with_rays(ctx: &GpuContext, strength: f32) -> Vec<u8> {
     ];
     let indices = vec![0u32, 2, 1, 0, 3, 2];
     let target = OffscreenTarget::new(ctx, 192, 108).expect("target");
-    let mut renderer = SceneRenderer::for_offscreen(ctx, &vertices, &indices).expect("renderer");
+    let mut renderer = SceneRenderer::for_offscreen_with_quality(
+        ctx,
+        &vertices,
+        &indices,
+        renderer_api::LightingQuality::rich(),
+    )
+    .expect("renderer");
     let mut lighting = SceneLighting::prokhorovka_golden_evening();
     lighting.god_ray_strength = strength;
     lighting.bloom_weight = 0.0;

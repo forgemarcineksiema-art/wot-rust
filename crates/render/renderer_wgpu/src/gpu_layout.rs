@@ -296,7 +296,9 @@ impl CameraUniform {
             haze_params: GpuVec4([
                 lighting.valley_haze_density,
                 lighting.valley_haze_height_m,
-                lighting.god_ray_strength,
+                // One-look: the 8-tap crepuscular march ships only in the dev rich profile —
+                // fullscreen taps the minimum spec cannot afford, so nobody ships them.
+                if passes.full_shader_detail { lighting.god_ray_strength } else { 0.0 },
                 0.0,
             ]),
             cloud2_params: GpuVec4([
