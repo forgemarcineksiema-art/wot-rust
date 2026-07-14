@@ -212,7 +212,16 @@ fn the_far_cascade_darkens_ground_200m_past_the_shadow_focus() {
 
     let render = |shadows: bool| {
         let target = OffscreenTarget::new(&ctx, 96, 96).expect("target");
-        let mut r = SceneRenderer::for_offscreen(&ctx, &gv, &gi).expect("renderer");
+        // Feature test: explicit discrete quality (F3 folds this machine's shadow maps).
+        let mut r = SceneRenderer::for_offscreen_with_quality(
+            &ctx,
+            &gv,
+            &gi,
+            renderer_api::LightingQuality::for_device_type(
+                renderer_api::GpuDeviceType::DiscreteGpu,
+            ),
+        )
+        .expect("renderer");
         let mut lighting = SceneLighting::battlefield_default();
         lighting.key_direction = [1.0, 0.6, 0.0];
         r.scene_lighting = lighting;

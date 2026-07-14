@@ -14,6 +14,47 @@
 
 use renderer_api::LightingQuality;
 
+/// The EFFECTIVE quality class for an adapter (Płynność 2.0 / F3): entry-class discrete
+/// laptop chips (GeForce MX, GT 7xx/1030, 9xxM) report `DiscreteGpu` to wgpu but perform in
+/// the integrated class — keying quality on the raw type handed them the full RTX diet
+/// (4096 shadows, 4×MSAA, full-res SSAO, bloom, refraction). `WOT_QUALITY=low|high` overrides
+/// the classification outright; garbage falls back to the heuristic.
+pub(crate) fn effective_device_class(
+    device_type: wgpu::DeviceType,
+    adapter_name: &str,
+    quality_env: Option<&str>,
+) -> wgpu::DeviceType {
+    match quality_env.map(str::trim) {
+        Some("low") => return wgpu::DeviceType::IntegratedGpu,
+        Some("high") => return wgpu::DeviceType::DiscreteGpu,
+        _ => {}
+    }
+    if device_type == wgpu::DeviceType::DiscreteGpu && is_entry_class_discrete(adapter_name) {
+        return wgpu::DeviceType::IntegratedGpu;
+    }
+    device_type
+}
+
+/// Name-based entry-discrete detection. Deliberately NARROW: only chip families that are
+/// unambiguously integrated-class performers — a miss costs nothing (the user keeps full
+/// quality and the WOT_QUALITY knob), while a false positive would silently degrade a real
+/// GPU.
+fn is_entry_class_discrete(adapter_name: &str) -> bool {
+    let name = adapter_name.to_ascii_lowercase();
+    // GeForce MX110..MX570: the whole MX line is GT-1030-class silicon.
+    let mx_series = name
+        .split(" mx")
+        .nth(1)
+        .is_some_and(|rest| rest.chars().next().is_some_and(|c| c.is_ascii_digit()));
+    if mx_series {
+        return true;
+    }
+    // The entry GT line and the old 9xxM mobile chips.
+    ["gt 1030", "gt 730", "gt 710", "gt 740", "920m", "930m", "940m"]
+        .iter()
+        .any(|token| name.contains(token))
+}
+
 pub(crate) fn resolve_lighting_quality_with_bloom(
     device_type: wgpu::DeviceType,
     shadow_res_env: Option<&str>,
@@ -80,6 +121,46 @@ pub(crate) fn apply_shader_detail_override(
 
 #[cfg(test)]
 mod tests {
+    /// F3's contract: an entry-class discrete chip (the GeForce MX line and friends) folds to
+    /// the integrated diet, a real discrete GPU keeps full quality, and WOT_QUALITY overrides
+    /// the classification in both directions.
+    #[test]
+    fn entry_class_discrete_folds_to_the_integrated_diet() {
+        use wgpu::DeviceType;
+        let class = |name: &str| super::effective_device_class(DeviceType::DiscreteGpu, name, None);
+        for entry in [
+            "NVIDIA GeForce MX150",
+            "NVIDIA GeForce MX450",
+            "GeForce MX330",
+            "NVIDIA GeForce GT 1030",
+            "NVIDIA GeForce 940MX",
+        ] {
+            assert_eq!(class(entry), DeviceType::IntegratedGpu, "{entry} performs integrated");
+        }
+        for real in [
+            "NVIDIA GeForce RTX 3060 Laptop GPU",
+            "NVIDIA GeForce GTX 1660 Ti",
+            "AMD Radeon RX 6700 XT",
+            "Intel Arc A770",
+        ] {
+            assert_eq!(class(real), DeviceType::DiscreteGpu, "{real} keeps full quality");
+        }
+        // The user's word beats the heuristic, both ways.
+        assert_eq!(
+            super::effective_device_class(DeviceType::DiscreteGpu, "RTX 4090", Some("low")),
+            DeviceType::IntegratedGpu
+        );
+        assert_eq!(
+            super::effective_device_class(DeviceType::IntegratedGpu, "Intel UHD", Some("high")),
+            DeviceType::DiscreteGpu
+        );
+        // An integrated adapter never accidentally promotes itself.
+        assert_eq!(
+            super::effective_device_class(DeviceType::IntegratedGpu, "Intel Iris Xe", None),
+            DeviceType::IntegratedGpu
+        );
+    }
+
     /// F2's contract: the integrated tier truly folds — no bloom chain, no cloud shadows, no
     /// full shader detail — while discrete keeps everything; WOT_GPU_DETAIL overrides both ways.
     #[test]

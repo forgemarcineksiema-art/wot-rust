@@ -7,7 +7,7 @@ pub(crate) mod env_group;
 pub(crate) mod ground;
 mod hud_atlas;
 pub(crate) mod post;
-mod quality;
+pub(crate) mod quality;
 mod resources;
 mod settings;
 pub(crate) mod shadow;
@@ -134,18 +134,49 @@ impl SceneRenderer {
         Self::new(ctx, wgpu::TextureFormat::Rgba8UnormSrgb, terrain_vertices, terrain_indices)
     }
 
+    /// As [`Self::for_offscreen`] with an EXPLICIT lighting quality, bypassing the adapter
+    /// classification and env overrides. For feature tests that measure a specific chain
+    /// (bloom halo, cloud shade, far cascade): the F3 fold keys quality on the machine the
+    /// test happens to run on — a folded dev laptop must not silently gut the feature under
+    /// test.
+    pub fn for_offscreen_with_quality(
+        ctx: &GpuContext,
+        terrain_vertices: &[SceneVertex],
+        terrain_indices: &[u32],
+        quality: renderer_api::LightingQuality,
+    ) -> Result<Self, RenderError> {
+        Self::new_with_quality(
+            ctx,
+            wgpu::TextureFormat::Rgba8UnormSrgb,
+            terrain_vertices,
+            terrain_indices,
+            Some(quality),
+        )
+    }
+
     pub fn new(
         ctx: &GpuContext,
         color_format: wgpu::TextureFormat,
         terrain_vertices: &[SceneVertex],
         terrain_indices: &[u32],
     ) -> Result<Self, RenderError> {
-        Self::new_with_sample_count(
+        Self::new_with_quality(ctx, color_format, terrain_vertices, terrain_indices, None)
+    }
+
+    fn new_with_quality(
+        ctx: &GpuContext,
+        color_format: wgpu::TextureFormat,
+        terrain_vertices: &[SceneVertex],
+        terrain_indices: &[u32],
+        quality_override: Option<renderer_api::LightingQuality>,
+    ) -> Result<Self, RenderError> {
+        Self::new_with_sample_count_and_quality(
             ctx,
             color_format,
             default_sample_count(),
             terrain_vertices,
             terrain_indices,
+            quality_override,
         )
     }
 
@@ -155,6 +186,24 @@ impl SceneRenderer {
         sample_count: u32,
         terrain_vertices: &[SceneVertex],
         terrain_indices: &[u32],
+    ) -> Result<Self, RenderError> {
+        Self::new_with_sample_count_and_quality(
+            ctx,
+            color_format,
+            sample_count,
+            terrain_vertices,
+            terrain_indices,
+            None,
+        )
+    }
+
+    fn new_with_sample_count_and_quality(
+        ctx: &GpuContext,
+        color_format: wgpu::TextureFormat,
+        sample_count: u32,
+        terrain_vertices: &[SceneVertex],
+        terrain_indices: &[u32],
+        quality_override: Option<renderer_api::LightingQuality>,
     ) -> Result<Self, RenderError> {
         validate_msaa_support(ctx, color_format, DEPTH_FORMAT, sample_count)?;
         let device = &ctx.device;
@@ -189,19 +238,36 @@ impl SceneRenderer {
         let (vehicle_pipeline, vehicle_material_bgl) =
             build_vehicle_pipeline(device, hdr_format, sample_count, &shadow_bgl, &camera_bgl);
         // Adapter class + WOT_* env overrides become the frame's lighting quality in one place.
-        let lighting_quality = quality::apply_shader_detail_override(
-            quality::apply_refraction_override(
-                quality::resolve_lighting_quality_with_bloom(
-                    ctx.adapter.get_info().device_type,
-                    std::env::var("WOT_SHADOW_RES").ok().as_deref(),
-                    std::env::var("WOT_SHADOW_CASCADES").ok().as_deref(),
-                    std::env::var("WOT_SSAO").ok().as_deref(),
-                    std::env::var("WOT_BLOOM").ok().as_deref(),
+        // F3: quality keys on the EFFECTIVE class (GeForce MX & friends fold to integrated),
+        // and the choice is spoken out loud — the one log line that explains every tier knob.
+        // A feature test hands an explicit quality instead and skips the whole resolution.
+        let adapter_info = ctx.adapter.get_info();
+        let lighting_quality = quality_override.unwrap_or_else(|| {
+            let effective_class = quality::effective_device_class(
+                adapter_info.device_type,
+                &adapter_info.name,
+                std::env::var("WOT_QUALITY").ok().as_deref(),
+            );
+            tracing::info!(
+                adapter = %adapter_info.name,
+                reported = ?adapter_info.device_type,
+                effective = ?effective_class,
+                "gpu quality class resolved (override: WOT_QUALITY=low|high)"
+            );
+            quality::apply_shader_detail_override(
+                quality::apply_refraction_override(
+                    quality::resolve_lighting_quality_with_bloom(
+                        effective_class,
+                        std::env::var("WOT_SHADOW_RES").ok().as_deref(),
+                        std::env::var("WOT_SHADOW_CASCADES").ok().as_deref(),
+                        std::env::var("WOT_SSAO").ok().as_deref(),
+                        std::env::var("WOT_BLOOM").ok().as_deref(),
+                    ),
+                    std::env::var("WOT_REFRACTION").ok().as_deref(),
                 ),
-                std::env::var("WOT_REFRACTION").ok().as_deref(),
-            ),
-            std::env::var("WOT_GPU_DETAIL").ok().as_deref(),
-        );
+                std::env::var("WOT_GPU_DETAIL").ok().as_deref(),
+            )
+        });
         let ssao = ssao::SsaoResources::new(device, &camera_bgl, lighting_quality.ssao_scale);
         let placeholder_ao = ssao_pipelines::placeholder_ao_view(device, &ctx.queue);
         let shadow = shadow::ShadowResources::new(

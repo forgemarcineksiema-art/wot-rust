@@ -108,8 +108,16 @@ fn cloud_shade_darkens_the_terrain_key_and_strength_zero_is_a_noop() {
 
     let render = |strength: f32| {
         let target = OffscreenTarget::new(&ctx, 96, 96).expect("target");
-        let mut renderer =
-            SceneRenderer::for_offscreen(&ctx, &vertices, &indices).expect("renderer");
+        // Feature test: explicit discrete quality (F3 folds this machine's tier otherwise).
+        let mut renderer = SceneRenderer::for_offscreen_with_quality(
+            &ctx,
+            &vertices,
+            &indices,
+            renderer_api::LightingQuality::for_device_type(
+                renderer_api::GpuDeviceType::DiscreteGpu,
+            ),
+        )
+        .expect("renderer");
         let mut lighting = SceneLighting::battlefield_default();
         lighting.cloud_coverage_bias = 1.0;
         lighting.cloud_shadow_strength = strength;
