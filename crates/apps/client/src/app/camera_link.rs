@@ -73,10 +73,34 @@ impl ClientApp {
         self.camera_controller.render_camera(&subject, &environment)
     }
 
+    /// Enter/leave the death spectate with the player's replicated health (D9). Entering hands
+    /// the orbit the current sight yaw, so the view starts where the player was looking and
+    /// drifts from there. Returns whether the player is dead this frame.
+    pub(super) fn tick_death_spectate(&mut self) -> bool {
+        let player_dead = self.player_hud_hit_points() == 0;
+        if player_dead && !self.camera_controller.death_spectate() {
+            self.camera_controller.set_orbit_yaw(self.desired_aim.yaw_rad());
+        }
+        self.camera_controller.set_death_orbit(player_dead);
+        player_dead
+    }
+
+    /// The map names its widest boom (D9): the open steppe earns a longer leash than the
+    /// closed river valley — one number per map, everything else stays the shared default.
+    pub(super) fn map_camera_settings(map: terrain::MapId) -> crate::BattleCameraSettings {
+        crate::BattleCameraSettings {
+            max_distance_m: match map {
+                terrain::MapId::ProkhorovkaHill252_2 => 23.0,
+                terrain::MapId::BystraValley => 20.0,
+            },
+            ..Default::default()
+        }
+    }
+
     pub(super) fn camera_subject_from_tank(&self, tank: TankSnapshot) -> CameraSubject {
         let gun_pitch = tank.gun_pitch_rad;
         let turret_view_yaw = tank.yaw_rad + tank.turret_yaw_rad;
-        let view_yaw = if self.input.free_look {
+        let view_yaw = if self.input.free_look || self.camera_controller.death_spectate() {
             self.camera_controller.orbit_yaw_rad()
         } else if self.camera_controller.mode() == crate::BattleCameraMode::ThirdPerson {
             self.desired_aim.yaw_rad()
