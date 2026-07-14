@@ -76,6 +76,8 @@ struct ArmorAperture {
     tangent_rotation: vec4<f32>,
     // x irregularity, yz deterministic phases, w plane half-depth.
     shape: vec4<f32>,
+    // x glow intensity now (CPU-cooled), y glow tightness, zw reserved.
+    thermal: vec4<f32>,
 };
 
 @group(0) @binding(1)

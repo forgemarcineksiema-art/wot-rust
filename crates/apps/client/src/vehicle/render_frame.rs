@@ -135,6 +135,8 @@ pub fn armor_damage_instance(snapshot: &TankSnapshot) -> Option<ArmorDamageInsta
                 phase_a,
                 phase_b,
                 half_depth_m: (lobe.thickness_m + 0.025).clamp(0.04, 0.45),
+                glow: 0.0,
+                glow_tightness: 1.0,
             });
         }
     }
