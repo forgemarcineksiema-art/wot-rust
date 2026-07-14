@@ -31,8 +31,18 @@ impl ClientApp {
         let in_garage = self.garage.is_open();
         // The hangar is sheltered: a breath of air, engine off. The field gets the full wind.
         let wind_level = if in_garage { 0.2 } else { 1.0 };
+        // The squall's patter belongs to the battlefield's weather, never the hangar roof.
+        let rain_level = if !in_garage
+            && self.session.weather_variant() == game_core::WeatherVariant::RainSqualls
+        {
+            1.0
+        } else {
+            0.0
+        };
         let (rpm_norm, load, speed_mps, running) = self.player_engine_audio_state(in_garage);
         let player_burning = !in_garage && self.player_engine_burning();
+        let turret_slew = if in_garage { 0.0 } else { self.player_turret_slew_norm() };
+        let scoped = !in_garage && self.camera_controller.mode() == crate::BattleCameraMode::Sniper;
         let remote = if in_garage { Vec::new() } else { self.remote_engine_states() };
         // Terrain occlusion is the game's judgment (the audio crate knows no heightmap): each
         // world-positioned event is scored against the ridge line between ear and source.
@@ -53,8 +63,11 @@ impl ClientApp {
                 engine.set_listener(listener);
             }
             engine.set_wind_level(wind_level);
+            engine.set_rain_level(rain_level);
             engine.set_player_engine(rpm_norm, load, speed_mps, running);
             engine.set_player_fire(player_burning);
+            engine.set_turret_slew(turret_slew);
+            engine.set_scope_muffle(scoped);
             engine.set_remote_engines(&remote);
             for (event, occlusion) in occluded {
                 engine.push_event_occluded(event, occlusion);
@@ -98,6 +111,23 @@ impl ClientApp {
                 }
             })
             .collect()
+    }
+
+    /// The player's turret drive as a 0..1 fraction of its top slew rate, from the authoritative
+    /// `turret_yaw_velocity_rad_s` already on the wire — the whine that gives the turret weight.
+    /// A dead tank's turret drive is off.
+    fn player_turret_slew_norm(&self) -> f32 {
+        self.render_state
+            .latest_snapshot()
+            .and_then(|snapshot| {
+                snapshot.tanks.iter().find(|tank| tank.tank_id == self.player_tank)
+            })
+            .filter(|tank| tank.hit_points > 0)
+            .map(|tank| {
+                let top = self.player_spec().turret_rotation_rad_s.max(1.0e-3);
+                (tank.turret_yaw_velocity_rad_s.abs() / top).clamp(0.0, 1.0)
+            })
+            .unwrap_or(0.0)
     }
 
     /// The player's own engine compartment on fire (the authoritative v25 flag): the crackle at
@@ -268,6 +298,35 @@ mod tests {
         keys.dedup();
         assert_eq!(keys.len(), states.len(), "one bed key per tank");
         assert!(states.iter().all(|s| s.speed_mps.is_finite() && s.speed_mps >= 0.0));
+    }
+
+    /// The turret drive's voice follows the authoritative slew on the wire: still turret =
+    /// silence, full slew = full whine, and a dead tank's drive is off no matter what the
+    /// last velocity said.
+    #[test]
+    fn turret_drive_reports_the_wire_slew_and_dies_with_the_tank() {
+        let mut app = deployed_app();
+        assert_eq!(app.player_turret_slew_norm(), 0.0, "a still turret drives nothing");
+
+        let mut snapshot = app.session.latest_snapshot_for_player();
+        snapshot.server_tick += 1;
+        let top = app.player_spec().turret_rotation_rad_s;
+        let player = app.player_tank;
+        let tank =
+            snapshot.tanks.iter_mut().find(|t| t.tank_id == player).expect("player replicated");
+        tank.turret_yaw_velocity_rad_s = top * 0.5;
+        app.accept_and_sync(snapshot);
+        let half = app.player_turret_slew_norm();
+        assert!((half - 0.5).abs() < 0.05, "half slew must read ~0.5, got {half}");
+
+        let mut snapshot = app.session.latest_snapshot_for_player();
+        snapshot.server_tick += 2;
+        let tank =
+            snapshot.tanks.iter_mut().find(|t| t.tank_id == player).expect("player replicated");
+        tank.turret_yaw_velocity_rad_s = top * 3.0;
+        tank.hit_points = 0;
+        app.accept_and_sync(snapshot);
+        assert_eq!(app.player_turret_slew_norm(), 0.0, "a dead tank's drive is off");
     }
 
     /// A ridge between the ear and the source masks it; open ground does not. The player's own
