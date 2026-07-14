@@ -175,6 +175,9 @@ pub(crate) struct ClientApp {
     track_ribbons: Vec<crate::vehicle::track_ribbon::TrackRibbon>,
     /// Seconds since each wreck died — the burn-out epilogue's clock (flames, then smoke).
     wreck_age_s: HashMap<game_core::TankId, f32>,
+    /// An in-flight background statics rebuild (F7): the 25 ms cover-collapse bake runs on a
+    /// worker thread; the render thread only harvests and uploads the result.
+    scene_rebuild_rx: Option<std::sync::mpsc::Receiver<(Vec<renderer_api::SceneVertex>, Vec<u32>)>>,
     /// Shells whose flyby crack already played (D8): one N-wave per shell, ever.
     cracked_shells: std::collections::HashSet<game_core::ShellId>,
     /// Per-instance dented hull mesh for each wreck, built once from its recorded penetrations.
@@ -349,6 +352,7 @@ impl ClientApp {
             turret_popoffs: HashMap::new(),
             track_ribbons: Vec::new(),
             wreck_age_s: HashMap::new(),
+            scene_rebuild_rx: None,
             cracked_shells: std::collections::HashSet::new(),
             terrain_scars: crate::fx::TerrainScars::default(),
             track_marks: crate::fx::TrackMarks::default(),
