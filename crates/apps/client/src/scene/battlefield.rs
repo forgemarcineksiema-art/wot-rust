@@ -209,10 +209,12 @@ fn push_surfaced_box(
     }
 }
 
-/// A building inside its box: a dark plinth course, plastered walls (palette varied per
-/// building id so the town is a town, not a barracks), and a gable roof whose ridge runs the
-/// long axis — eaves at the box's sides, ridge at the box's top, so the silhouette fills the
-/// collision volume exactly.
+/// A building inside its box — FORGED (B4): the world_forge generator picks a style from the
+/// box's proportions (a long low box is a barn, a tall one a townhouse, the rest cottages),
+/// seeds the joinery from the building id, and the bake is scaled per axis into the collision
+/// AABB — the generator's own honesty lock guarantees every vertex stays inside, so the rule
+/// "what blocks the shell blocks the eye" survives the swap. Palette stays per id: a town is a
+/// town, not a barracks.
 fn append_building(
     vertices: &mut Vec<SceneVertex>,
     indices: &mut Vec<u32>,
@@ -221,192 +223,69 @@ fn append_building(
     half: Vec3,
 ) {
     let (wall, roof, roof_gloss) = building_palette(&cover.id);
-    let base_y = center.y - half.y;
-    let eaves_y = base_y + half.y * 2.0 * 0.62;
-    let plinth_y = base_y + half.y * 2.0 * 0.10;
-    // The wall body recesses a few centimetres so windows and the door can sit proud of the
-    // PLASTER while every vertex stays inside the collision AABB — the honesty rule holds.
-    let wall_half = Vec3::new(half.x - WALL_RECESS_M, half.y, half.z - WALL_RECESS_M);
-
-    // Plinth course (dressed stone, slightly polished by weather), then plaster walls up to
-    // the eaves.
-    push_surfaced_box(
-        vertices,
-        indices,
-        Vec3::new(center.x, (base_y + plinth_y) * 0.5, center.z),
-        Vec3::new(half.x, (plinth_y - base_y) * 0.5, half.z),
-        [0.24, 0.22, 0.20],
-        0.15,
+    let mut seed = 0xcbf2_9ce4_8422_2325_u64;
+    for byte in cover.id.bytes() {
+        seed ^= u64::from(byte);
+        seed = seed.wrapping_mul(0x0100_0000_01b3);
+    }
+    let elongation = half.x.max(half.z) / half.x.min(half.z).max(0.1);
+    let style = if elongation > 1.45 && half.y < 2.9 {
+        world_forge::building::BuildingStyle::Barn
+    } else if half.y >= 2.9 {
+        world_forge::building::BuildingStyle::Townhouse
+    } else {
+        world_forge::building::BuildingStyle::Cottage
+    };
+    let baked = world_forge::building::bake_building(
+        style,
+        seed,
+        world_forge::building::StructureForm::Intact,
     );
-    push_surfaced_box(
-        vertices,
-        indices,
-        Vec3::new(center.x, (plinth_y + eaves_y) * 0.5, center.z),
-        Vec3::new(wall_half.x, (eaves_y - plinth_y) * 0.5, wall_half.z),
-        wall,
-        0.10,
-    );
-    append_joinery(vertices, indices, center, half, plinth_y, eaves_y);
-    push_gable_roof(
-        vertices,
-        indices,
-        center,
-        half,
-        eaves_y,
-        center.y + half.y,
-        (roof, roof_gloss),
-    );
+    // The generator's ridge runs +Z; run it down the box's LONG axis like the roofs always did.
+    let rotate = half.x > half.z;
+    let footprint = baked.footprint_half;
+    let ground = Vec3::new(center.x, center.y - half.y, center.z);
+    let scale = if rotate {
+        Vec3::new(half.z / footprint.x, half.y / footprint.y, half.x / footprint.z)
+    } else {
+        Vec3::new(half.x / footprint.x, half.y / footprint.y, half.z / footprint.z)
+    };
+    let plinth = ([0.24_f32, 0.22, 0.20], 0.15_f32);
+    for (mesh, is_roof) in [(&baked.walls, false), (&baked.roof, true)] {
+        let base = vertices.len() as u32;
+        for vertex in mesh.vertices() {
+            let scaled = vertex.position * scale;
+            // A true 90-degree rotation (det +1), never an axis swap: a swap is a REFLECTION
+            // and would wind every triangle inside-out.
+            let local = if rotate { Vec3::new(scaled.z, scaled.y, -scaled.x) } else { scaled };
+            let n = vertex.normal / scale;
+            let n = if rotate { Vec3::new(n.z, n.y, -n.x) } else { n };
+            let (color, gloss) = match (is_roof, vertex.material) {
+                (true, vehicle_geometry::MaterialRole::CastArmor) => (roof, roof_gloss),
+                (true, _) => (wall, 0.10),
+                (false, vehicle_geometry::MaterialRole::CastArmor) => plinth,
+                (false, vehicle_geometry::MaterialRole::InteriorMachinery) => WINDOW,
+                (false, vehicle_geometry::MaterialRole::InteriorPrimer) => DOOR,
+                (false, _) => (wall, 0.10),
+            };
+            let mut scene_vertex = SceneVertex::surfaced(
+                (ground + local).to_array(),
+                n.normalize_or_zero().to_array(),
+                color,
+                gloss,
+            );
+            let _ = &mut scene_vertex;
+            vertices.push(scene_vertex);
+        }
+        indices.extend(mesh.indices().iter().map(|index| index + base));
+    }
 }
 
-/// How far the plaster wall sits inside the collision box, making room for the joinery.
-const WALL_RECESS_M: f32 = 0.04;
 /// Window glass: near-black with a glazed sheen — the one thing on a wall that answers the sky.
 const WINDOW: ([f32; 3], f32) = ([0.07, 0.09, 0.11], 0.45);
 /// Plank door: dark weathered timber, matte.
 const DOOR: ([f32; 3], f32) = ([0.16, 0.11, 0.07], 0.06);
 
-/// Windows along both long walls and a door on one gable end — flat quads floating just
-/// outside the recessed wall (still inside the collision AABB), so a house reads as a house
-/// and not a plastered crate. The layout is pure geometry, identical for a given box.
-fn append_joinery(
-    vertices: &mut Vec<SceneVertex>,
-    indices: &mut Vec<u32>,
-    center: Vec3,
-    half: Vec3,
-    plinth_y: f32,
-    eaves_y: f32,
-) {
-    let along_x = half.x >= half.z;
-    let (long_axis, side_axis) = if along_x { (Vec3::X, Vec3::Z) } else { (Vec3::Z, Vec3::X) };
-    let long_half = if along_x { half.x } else { half.z };
-    let side_half = if along_x { half.z } else { half.x };
-    let face_offset = side_half - WALL_RECESS_M * 0.5;
-
-    // Windows: a metre-rhythm row under the eaves on both long faces.
-    let count = ((long_half * 2.0 - 1.6) / 2.4).floor().max(1.0) as i32;
-    let window_half_w = 0.42;
-    let window_half_h = ((eaves_y - plinth_y) * 0.22).clamp(0.25, 0.5);
-    let window_y = plinth_y + (eaves_y - plinth_y) * 0.58;
-    for sign in [-1.0_f32, 1.0] {
-        for index in 0..count {
-            let t = (index as f32 + 0.5) / count as f32 - 0.5;
-            let along = t * (long_half * 2.0 - 1.6);
-            let position = center + long_axis * along + side_axis * face_offset * sign
-                - Vec3::Y * (center.y - window_y);
-            push_face_quad(
-                vertices,
-                indices,
-                position,
-                long_axis * window_half_w,
-                Vec3::Y * window_half_h,
-                side_axis * sign,
-                WINDOW,
-            );
-        }
-    }
-
-    // The door: one gable end, grounded on the plinth.
-    let door_half_h = ((eaves_y - (center.y - half.y)) * 0.5 * 0.62).clamp(0.6, 1.05);
-    let door_face = long_half - WALL_RECESS_M * 0.5;
-    let position = center + long_axis * door_face - Vec3::Y * (half.y - door_half_h);
-    push_face_quad(
-        vertices,
-        indices,
-        position,
-        side_axis * 0.48,
-        Vec3::Y * door_half_h,
-        long_axis,
-        DOOR,
-    );
-}
-
-/// A flat rectangle on a wall plane: `center ± u ± v`, facing `normal` (unit axis), wound to it.
-fn push_face_quad(
-    vertices: &mut Vec<SceneVertex>,
-    indices: &mut Vec<u32>,
-    center: Vec3,
-    u: Vec3,
-    v: Vec3,
-    normal: Vec3,
-    (color, gloss): ([f32; 3], f32),
-) {
-    let start = vertices.len() as u32;
-    let corners = [center - u - v, center + u - v, center + u + v, center - u + v];
-    for corner in corners {
-        vertices.push(SceneVertex::surfaced(corner.to_array(), normal.to_array(), color, gloss));
-    }
-    push_winding(indices, start, &[0, 1, 2, 0, 2, 3], {
-        (corners[1] - corners[0]).cross(corners[2] - corners[0]).dot(normal) > 0.0
-    });
-}
-
-/// The gable: two sloped quads from the eaves rectangle to a ridge line along the long axis,
-/// plus the two triangular gable ends.
-fn push_gable_roof(
-    vertices: &mut Vec<SceneVertex>,
-    indices: &mut Vec<u32>,
-    center: Vec3,
-    half: Vec3,
-    eaves_y: f32,
-    ridge_y: f32,
-    (roof, roof_gloss): ([f32; 3], f32),
-) {
-    let along_x = half.x >= half.z;
-    let (long, short) = if along_x { (half.x, half.z) } else { (half.z, half.x) };
-    let axis = if along_x { Vec3::X } else { Vec3::Z };
-    let side = if along_x { Vec3::Z } else { Vec3::X };
-
-    let ridge_a = Vec3::new(center.x, ridge_y, center.z) + axis * long;
-    let ridge_b = Vec3::new(center.x, ridge_y, center.z) - axis * long;
-    for sign in [-1.0_f32, 1.0] {
-        // The slope on this side of the ridge.
-        let eave_a = Vec3::new(center.x, eaves_y, center.z) + axis * long + side * short * sign;
-        let eave_b = Vec3::new(center.x, eaves_y, center.z) - axis * long + side * short * sign;
-        let normal = (side * sign * (ridge_y - eaves_y) + Vec3::Y * short).normalize_or_zero();
-        let start = vertices.len() as u32;
-        for point in [eave_a, eave_b, ridge_b, ridge_a] {
-            vertices.push(SceneVertex::surfaced(
-                point.to_array(),
-                normal.to_array(),
-                roof,
-                roof_gloss,
-            ));
-        }
-        // Winding follows the outward normal instead of a per-side guess: swapping the ridge
-        // between the X and Z axis is a reflection, which flips any hand-picked order (the
-        // see-through-roof bug). Locked by `every_cover_triangle_winds_outward`.
-        push_winding(indices, start, &[0, 1, 2, 0, 2, 3], {
-            (eave_b - eave_a).cross(ridge_b - eave_a).dot(normal) > 0.0
-        });
-        // The gable-end triangle at this end of the ridge.
-        let (ridge_end, outward) = if sign > 0.0 { (ridge_a, axis) } else { (ridge_b, -axis) };
-        let g0 = Vec3::new(ridge_end.x, eaves_y, ridge_end.z) + side * short;
-        let g1 = Vec3::new(ridge_end.x, eaves_y, ridge_end.z) - side * short;
-        let gn = outward.to_array();
-        let gable = vertices.len() as u32;
-        for point in [g0, g1, ridge_end] {
-            vertices.push(SceneVertex::surfaced(point.to_array(), gn, roof, roof_gloss));
-        }
-        push_winding(indices, gable, &[0, 1, 2], {
-            (g1 - g0).cross(ridge_end - g0).dot(outward) > 0.0
-        });
-    }
-}
-
-/// Append triangles (`pattern` holds corner offsets from `start`, three per triangle) either
-/// as-is or with each triangle's last two corners swapped, so the front face points where the
-/// caller's normal test said it should.
-fn push_winding(indices: &mut Vec<u32>, start: u32, pattern: &[u32], keep: bool) {
-    for triangle in pattern.chunks(3) {
-        let (a, b, c) = (triangle[0], triangle[1], triangle[2]);
-        let (b, c) = if keep { (b, c) } else { (c, b) };
-        indices.extend_from_slice(&[start + a, start + b, start + c]);
-    }
-}
-
-/// Deterministic per-building palette from the cover id: plaster/brick walls under tile or
-/// slate roofs, each roof with its material's finish (slate shines, shingle barely). The same
-/// id always paints the same house.
 fn building_palette(id: &str) -> ([f32; 3], [f32; 3], f32) {
     let mut hash = 0xcbf2_9ce4_8422_2325_u64;
     for byte in id.bytes() {
@@ -800,7 +679,7 @@ mod tests {
         let windows = vertices.iter().filter(|v| v.color == WINDOW.0).count();
         let doors = vertices.iter().filter(|v| v.color == DOOR.0).count();
         assert!(windows >= 8, "a barn wall carries windows, got {windows} verts");
-        assert_eq!(doors, 4, "one door on a gable end");
+        assert!(doors >= 4, "a door stands proud of the plaster, got {doors} verts");
         // Glass answers the sky harder than the plaster around it.
         assert!(WINDOW.1 > 0.10, "window glaze outshines the wall");
     }
