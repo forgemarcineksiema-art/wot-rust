@@ -44,7 +44,7 @@ contact-shape approximation.
 
 ## Open — from the 2026-06-10 deep review
 
-- [ ] **Vehicle JSON assets are stale (all six)** — they predate facets/shell_type and nothing
+- [ ] **Vehicle JSON assets are stale (all eight now)** — they predate facets/shell_type and nothing directly loads them, BUT `vehicle_kind.rs` asset paths and the quality architecture rules reference the files, so dropping them is its own slice; they predate facets/shell_type and nothing
   loads them; add a regenerate-and-compare gate in `quality` or drop the files.
 - [x] **HUD vs aiming policy** — resolved by the hybrid honesty matrix in
   `docs/aiming-model-policy.md`: third person fully neutral (gun marker restored, no pen
@@ -55,7 +55,7 @@ contact-shape approximation.
   `RenderSettings::vsync`/`limit_profile`; MSAA 4x failure should fall back to 1x, not abort.
 - [ ] **Enemy health bars render through terrain** (no occlusion check) and show exact HP at any
   range — revisit together with spotting.
-- [ ] **Combat hot path has no benchmark** (`step_shells`/SAT/ramming at 30 tanks, 100 shells).
+- [x] **Combat hot path has no benchmark** — done: `crates/runtime/sim/benches/combat_hot_path.rs` (destruction-program phase 0, 2026-07-07 baseline).
 - [ ] **From the systems audit (2026-06-10), re-audited 2026-07-11:** most of this paragraph is
   stale after the fleet's blueprint-armour migration and protocol v14. Still open: **Tiger II's
   turret** may be pennable enough to invert the hull-down incentive — a blueprint *data* question
@@ -120,7 +120,7 @@ From the player-reported scroll wobble + barrel slide. Every fix landed with a l
 
 ## Open — from the 2026-06-12 camera audit
 
-- [ ] **No hull pitch/roll in `TankSnapshot`** — vehicles stay level on slopes, so camera, sniper
+- [x] (stale — hull pitch/roll has been on the wire since v14 and drives camera/sniper/meshes) **No hull pitch/roll in `TankSnapshot`** — vehicles stay level on slopes, so camera, sniper
   sight and meshes ignore terrain tilt; needs sim+net+render work (biggest remaining camera-feel
   gap on a hilly 1000 m map).
 - [ ] **No boom-length smoothing** — the slab/terrain cut is exact but instantaneous, so the eye
@@ -234,4 +234,4 @@ Resolved 2026-06-03:
 Still open (your call when relevant):
 - [?] **Neutral-steer**: should a stopped tank pivot in place? (`movement.rs` floor 0.18)
 - [?] **Casemate vs turret**: add `ArmorFacing::CasemateFront` / vehicle-class tag (Jagdtiger).
-- [?] **Projection**: build the real `[0,1]` perspective matrix now, or with the render step?
+- [x] (decided & built — `CameraProjectionPolicy::webgpu_default()`, see line above in this file) **Projection**: build the real `[0,1]` perspective matrix now, or with the render step?
