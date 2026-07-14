@@ -81,7 +81,13 @@ fn main() -> anyhow::Result<()> {
         ticks += 1;
 
         let elapsed = tick_start.elapsed();
-        if elapsed < tick_duration {
+        if elapsed > tick_duration {
+            tracing::warn!(
+                elapsed_ms = elapsed.as_secs_f32() * 1_000.0,
+                budget_ms = tick_duration.as_secs_f32() * 1_000.0,
+                "tick over budget"
+            );
+        } else {
             std::thread::sleep(tick_duration - elapsed);
         }
     }

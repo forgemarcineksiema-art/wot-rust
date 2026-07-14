@@ -9,6 +9,7 @@ use terrain::MapId;
 use thiserror::Error;
 
 mod frame;
+pub mod recording;
 pub mod session;
 mod snapshot_filter;
 mod snapshot_schedule;

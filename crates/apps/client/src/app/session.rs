@@ -133,6 +133,10 @@ pub struct RemoteSession {
     latest_server_tick: u64,
     outcome: Option<server::BattleOutcome>,
     recent: std::collections::VecDeque<ClientInputCommand>,
+    rtt_ms: Option<u32>,
+    last_snapshot_ms: u64,
+    last_stats_log_ms: u64,
+    recorder: Option<net::recording::FrameRecorder<std::io::BufWriter<std::fs::File>>>,
 }
 
 impl RemoteSession {
@@ -148,7 +152,22 @@ impl RemoteSession {
             latest_server_tick: 0,
             outcome: None,
             recent: std::collections::VecDeque::with_capacity(INPUT_REDUNDANCY),
+            rtt_ms: None,
+            last_snapshot_ms: 0,
+            last_stats_log_ms: 0,
+            // WOT_RECORD=path appends every accepted frame: the debug recorder today, the
+            // player replay's substrate tomorrow (W3/S7).
+            recorder: std::env::var("WOT_RECORD").ok().and_then(|path| {
+                std::fs::File::create(&path)
+                    .map(|file| net::recording::FrameRecorder::new(std::io::BufWriter::new(file)))
+                    .ok()
+            }),
         }
+    }
+
+    /// The connection at a glance: round trip and how stale the newest state is.
+    pub fn net_stats(&self, now_ms: u64) -> (Option<u32>, u64) {
+        (self.rtt_ms, now_ms.saturating_sub(self.last_snapshot_ms))
     }
 
     pub fn state(&self) -> &SessionState {
@@ -170,7 +189,13 @@ impl RemoteSession {
             return;
         };
         for message in inbox {
+            if let Some(recorder) = &mut self.recorder {
+                let _ = recorder.record(&message);
+            }
             match message {
+                ProtocolMessage::Pong { client_time_us, .. } => {
+                    self.rtt_ms = Some((now_ms.saturating_sub(client_time_us / 1_000)) as u32);
+                }
                 ProtocolMessage::StartBattle { assigned_tank, server_tick } => {
                     self.assigned_tank = Some(assigned_tank);
                     self.latest_server_tick = server_tick;
@@ -178,6 +203,7 @@ impl RemoteSession {
                 ProtocolMessage::Snapshot(snapshot) => {
                     self.latest_server_tick = snapshot.server_tick;
                     self.latest_snapshot = Some(snapshot);
+                    self.last_snapshot_ms = now_ms;
                 }
                 ProtocolMessage::BattleEnded { winning_team } => {
                     self.outcome = Some(match winning_team {
@@ -195,6 +221,12 @@ impl RemoteSession {
                 }
                 _ => {}
             }
+        }
+        // One quiet line every 2 s: the console net-HUD until the drawn one lands.
+        if now_ms.saturating_sub(self.last_stats_log_ms) >= 2_000 {
+            self.last_stats_log_ms = now_ms;
+            let (rtt_ms, snapshot_age_ms) = self.net_stats(now_ms);
+            tracing::info!(rtt_ms, snapshot_age_ms, server_tick = self.latest_server_tick, "net");
         }
     }
 
