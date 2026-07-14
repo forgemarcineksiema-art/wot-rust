@@ -133,6 +133,9 @@ rejection tests kept.
   diff — the laptop target (integrated GPUs) is the reference machine.
   Protocol v26 removes penetration-hole quads completely: analytical apertures plus exposed
   rim geometry replace the black disk and streak fan, reducing the locked cap to 18,432.
+  Fizyczny Świat P2 (v30) replaces the radial ground mark with the physically-true kinetic
+  furrow (elongated gouge + forward spoil, fewer stamps than the old crater), lowering the
+  locked cap again to 17,040.
 
 ## Known risks
 

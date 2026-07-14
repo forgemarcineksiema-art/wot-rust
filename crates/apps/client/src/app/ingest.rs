@@ -81,7 +81,7 @@ impl ClientApp {
                 high_explosive: impact.shell_type == game_core::ShellType::HighExplosive,
             });
             if impact.surface == game_core::ImpactSurface::Terrain {
-                self.terrain_scars.record(impact.position, &self.battlefield.heightmap);
+                self.terrain_scars.record(impact, &self.battlefield.heightmap);
             }
             // The blast grammar (D2): a NEAR HE detonation reads through the rig even when it
             // scratches nothing — the world shoves the camera away from the burst, scaled by

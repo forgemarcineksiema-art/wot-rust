@@ -33,21 +33,32 @@ struct TerrainScar {
     normal: Vec3,
     radius_m: f32,
     age_s: f32,
+    /// What died here (v30): a kinetic bolt PLOUGHS, a charge CRATERS — different marks.
+    shell_type: game_core::ShellType,
+    /// Ground-plane flight direction at death, ZERO on old snapshots (degrades to radial).
+    direction_xz: Vec3,
 }
 
 impl TerrainScars {
     /// Record one shell death on the ground. The mark snaps to the sampled terrain height and
     /// leans with the local slope — the replicated impact position may sit slightly above the
     /// surface (shell radius, tick quantization), the scar must not float with it.
-    pub fn record(&mut self, impact: Vec3, heightmap: &HeightMap) {
-        let ground_y = heightmap.sample_height(impact.x, impact.z).unwrap_or(impact.y);
-        let center = Vec3::new(impact.x, ground_y, impact.z);
+    pub fn record(&mut self, impact: &game_core::ShellImpact, heightmap: &HeightMap) {
+        let position = impact.position;
+        let ground_y = heightmap.sample_height(position.x, position.z).unwrap_or(position.y);
+        let center = Vec3::new(position.x, ground_y, position.z);
         let mut seed = seed_from(center);
+        // The mark's size is the projectile's size (v30): a 122 mm hole is not a 76 mm one.
+        // Old snapshots (caliber 0) fall back to the historical medium-calibre look.
+        let caliber_m = if impact.caliber_mm > 1.0 { impact.caliber_mm * 0.001 } else { 0.09 };
         let scar = TerrainScar {
             center,
-            normal: terrain_normal(heightmap, impact.x, impact.z, ground_y),
-            radius_m: 0.5 + game_core::math::next_hash_unit(&mut seed) * 0.3,
+            normal: terrain_normal(heightmap, position.x, position.z, ground_y),
+            radius_m: caliber_m * (4.5 + game_core::math::next_hash_unit(&mut seed) * 1.5),
             age_s: 0.0,
+            shell_type: impact.shell_type,
+            direction_xz: Vec3::new(impact.direction.x, 0.0, impact.direction.z)
+                .normalize_or_zero(),
         };
         if self.scars.len() < MAX_TERRAIN_SCARS {
             self.scars.push(scar);
@@ -76,7 +87,15 @@ impl TerrainScars {
             if opacity <= 0.0 {
                 continue;
             }
-            push_crater(vertices, scar, opacity);
+            let kinetic = matches!(
+                scar.shell_type,
+                game_core::ShellType::ArmorPiercing | game_core::ShellType::Apcr
+            );
+            if kinetic && scar.direction_xz.length_squared() > 0.5 {
+                push_furrow(vertices, scar, opacity);
+            } else {
+                push_crater(vertices, scar, opacity);
+            }
         }
     }
 
@@ -90,6 +109,57 @@ impl TerrainScar {
     /// Full strength for most of the lifetime, then a linear fade back into the field.
     fn opacity(&self) -> f32 {
         ((LIFETIME_S - self.age_s) / FADE_S).clamp(0.0, 1.0)
+    }
+}
+
+/// The kinetic mark (Fizyczny Świat P2): a full-calibre bolt arriving at 800+ m/s does NOT
+/// crater — it PLOUGHS. One elongated gouge along the flight track (dark turned soil), a
+/// narrow lighter border of disturbed earth, and the spoil thrown FORWARD along the track —
+/// never radially. Photo reference: an AP shot into a field leaves a metre-scale furrow
+/// pointing back at the gun.
+fn push_furrow(vertices: &mut Vec<FxVertex>, scar: &TerrainScar, opacity: f32) {
+    let along = scar.direction_xz;
+    let across = scar.normal.cross(along).normalize_or_zero();
+    let mut seed = seed_from(scar.center);
+    // Furrow length: the shallower the arrival, the longer the plough. The scar's radius is
+    // calibre-derived; the gouge runs several of those, jittered per impact.
+    let length = scar.radius_m * (2.6 + game_core::math::next_hash_unit(&mut seed) * 1.4);
+    let width = scar.radius_m * 0.55;
+    // The gouge is centred FORWARD of the strike point — the shell ploughed onward.
+    let plate = Plate {
+        center: scar.center + scar.normal * GROUND_LIFT_M + along * (length * 0.35),
+        u: along,
+        v: across,
+    };
+    // Dark turned soil, then the narrow disturbed border a touch wider and lighter.
+    push_stamp(vertices, plate, length, width, 2.4, premul([0.10, 0.078, 0.052], 0.65 * opacity));
+    push_stamp(
+        vertices,
+        plate,
+        length * 1.15,
+        width * 1.9,
+        1.1,
+        premul([0.20, 0.165, 0.11], 0.35 * opacity),
+    );
+    // Spoil thrown forward: two or three clods DOWNRANGE of the gouge, spreading slightly.
+    let clods = 2 + (game_core::math::next_hash_unit(&mut seed) * 1.99) as usize;
+    for _ in 0..clods {
+        let forward = length * (0.9 + game_core::math::next_hash_unit(&mut seed) * 0.9);
+        let side = (game_core::math::next_hash_unit(&mut seed) - 0.5) * width * 2.2;
+        let clod = Plate {
+            center: scar.center + scar.normal * GROUND_LIFT_M + along * forward + across * side,
+            u: along,
+            v: across,
+        };
+        let size = scar.radius_m * (0.25 + game_core::math::next_hash_unit(&mut seed) * 0.3);
+        push_stamp(
+            vertices,
+            clod,
+            size * 1.6,
+            size,
+            1.6,
+            premul([0.17, 0.14, 0.095], 0.4 * opacity),
+        );
     }
 }
 
@@ -169,6 +239,30 @@ fn seed_from(position: Vec3) -> u64 {
 mod tests {
     use super::*;
 
+    /// An HE impact at a position — the radial-crater branch (kinetic marks get furrows).
+    fn he_impact(position: Vec3) -> game_core::ShellImpact {
+        game_core::ShellImpact {
+            owner: game_core::TankId(1),
+            position,
+            surface: game_core::ImpactSurface::Terrain,
+            shell_type: game_core::ShellType::HighExplosive,
+            caliber_mm: 100.0,
+            ..Default::default()
+        }
+    }
+
+    /// A kinetic impact flying along +Z at the given calibre.
+    fn ap_impact(position: Vec3, caliber_mm: f32) -> game_core::ShellImpact {
+        game_core::ShellImpact {
+            owner: game_core::TankId(1),
+            position,
+            surface: game_core::ImpactSurface::Terrain,
+            shell_type: game_core::ShellType::ArmorPiercing,
+            direction: Vec3::new(0.0, -0.3, 0.95).normalize(),
+            caliber_mm,
+        }
+    }
+
     const QUADS_PER_CRATER: usize = 2 + EJECTA_RAYS;
 
     #[test]
@@ -176,7 +270,7 @@ mod tests {
         let map = HeightMap::flat(65, 65, 1.0, 3.0).expect("valid map");
         let mut scars = TerrainScars::default();
         // The replicated impact floats half a meter over the surface; the mark must not.
-        scars.record(Vec3::new(10.0, 7.5, 12.0), &map);
+        scars.record(&he_impact(Vec3::new(10.0, 7.5, 12.0)), &map);
 
         let mut vertices = Vec::new();
         scars.append_quads(&mut vertices);
@@ -196,7 +290,7 @@ mod tests {
         let samples: Vec<f32> = (0..65 * 65).map(|index| (index % 65) as f32).collect();
         let map = HeightMap::new(65, 65, 1.0, samples).expect("valid map");
         let mut scars = TerrainScars::default();
-        scars.record(Vec3::new(30.0, 31.0, 30.0), &map);
+        scars.record(&he_impact(Vec3::new(30.0, 31.0, 30.0)), &map);
 
         let normal = Vec3::new(-1.0, 1.0, 0.0).normalize();
         let plane_point = Vec3::new(30.0, 30.0, 30.0) + normal * GROUND_LIFT_M;
@@ -212,14 +306,73 @@ mod tests {
         }
     }
 
+    /// P2's contract: a kinetic bolt PLOUGHS — every furrow stamp lies along the flight
+    /// track, the spoil flies only DOWNRANGE, the mark scales with calibre, and an old
+    /// snapshot without a direction degrades to the radial mark instead of guessing.
+    #[test]
+    fn a_kinetic_round_ploughs_a_furrow_along_its_track() {
+        let map = HeightMap::flat(65, 65, 1.0, 0.0).expect("valid map");
+        let origin = Vec3::new(30.0, 0.0, 30.0);
+
+        let mut scars = TerrainScars::default();
+        scars.record(&ap_impact(origin, 100.0), &map);
+        let mut vertices = Vec::new();
+        scars.append_quads(&mut vertices);
+        assert!(!vertices.is_empty());
+        // Every stamp's centroid sits downrange (+Z) or on the strike point — never behind.
+        let count = vertices.len() / 6;
+        for stamp in 0..count {
+            let quad = &vertices[stamp * 6..stamp * 6 + 6];
+            let centroid_z = quad.iter().map(|v| v.position[2]).sum::<f32>() / quad.len() as f32;
+            assert!(
+                centroid_z >= origin.z - 0.3,
+                "spoil flies FORWARD along the track, got centroid z {centroid_z}"
+            );
+        }
+        // The gouge is elongated along +Z: the batch spans far more track than width.
+        let (mut min_x, mut max_x, mut min_z, mut max_z) = (f32::MAX, f32::MIN, f32::MAX, f32::MIN);
+        for vertex in &vertices {
+            min_x = min_x.min(vertex.position[0]);
+            max_x = max_x.max(vertex.position[0]);
+            min_z = min_z.min(vertex.position[2]);
+            max_z = max_z.max(vertex.position[2]);
+        }
+        assert!(
+            (max_z - min_z) > (max_x - min_x) * 1.3,
+            "the furrow runs along the track: dz {} vs dx {}",
+            max_z - min_z,
+            max_x - min_x
+        );
+
+        // Calibre scales the mark monotonically.
+        let span = |caliber: f32| {
+            let mut scars = TerrainScars::default();
+            scars.record(&ap_impact(origin, caliber), &map);
+            let mut v = Vec::new();
+            scars.append_quads(&mut v);
+            v.iter().map(|x| x.position[2]).fold(f32::MIN, f32::max)
+                - v.iter().map(|x| x.position[2]).fold(f32::MAX, f32::min)
+        };
+        assert!(span(122.0) > span(76.0), "a 122 mm furrow outsizes a 76 mm one");
+
+        // No direction on the wire (old snapshot) = the radial mark, not a guessed furrow.
+        let mut legacy = ap_impact(origin, 100.0);
+        legacy.direction = Vec3::ZERO;
+        let mut scars = TerrainScars::default();
+        scars.record(&legacy, &map);
+        let mut v = Vec::new();
+        scars.append_quads(&mut v);
+        assert!(!v.is_empty(), "a directionless kinetic impact still marks the ground");
+    }
+
     #[test]
     fn the_pool_is_budgeted_and_recycles_the_oldest_crater() {
         let map = HeightMap::flat(65, 65, 1.0, 0.0).expect("valid map");
         let mut scars = TerrainScars::default();
-        scars.record(Vec3::new(1.0, 0.0, 1.0), &map);
+        scars.record(&he_impact(Vec3::new(1.0, 0.0, 1.0)), &map);
         scars.tick(0.1); // the first crater is now the oldest
         for index in 0..MAX_TERRAIN_SCARS {
-            scars.record(Vec3::new(2.0 + index as f32 * 0.3, 0.0, 5.0), &map);
+            scars.record(&he_impact(Vec3::new(2.0 + index as f32 * 0.3, 0.0, 5.0)), &map);
         }
 
         assert_eq!(scars.live_scars(), MAX_TERRAIN_SCARS, "pool never exceeds the budget");
@@ -233,7 +386,7 @@ mod tests {
     fn a_crater_fades_out_and_dies() {
         let map = HeightMap::flat(65, 65, 1.0, 0.0).expect("valid map");
         let mut scars = TerrainScars::default();
-        scars.record(Vec3::new(10.0, 0.0, 10.0), &map);
+        scars.record(&he_impact(Vec3::new(10.0, 0.0, 10.0)), &map);
 
         let fresh_alpha = {
             let mut vertices = Vec::new();
