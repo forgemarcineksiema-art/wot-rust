@@ -23,6 +23,7 @@ mod render;
 #[cfg(test)]
 mod render_tests;
 mod reticle;
+pub(crate) mod session;
 mod vehicle_assets;
 
 use std::collections::HashMap;
@@ -124,7 +125,7 @@ pub(crate) struct ClientApp {
     renderer: Option<WindowRenderer>,
     loop_driver: WinitLoopDriver,
     last_loop_time: Instant,
-    local_server: LocalAuthoritativeServer,
+    session: session::BattleSessionKind,
     render_state: InterpolatedBattleState,
     camera_controller: BattleCameraController,
     camera_obstacles: Vec<CameraObstacle>,
@@ -219,7 +220,60 @@ impl ClientApp {
     }
 
     fn new_without_vehicle_artifacts() -> Self {
+        // N3: `WOT_CONNECT=host:port` joins a dedicated server instead of hosting the battle
+        // in-process. Env-var entry is the honest MVP; the garage UI field is a follow-up.
+        if let Ok(target) = std::env::var("WOT_CONNECT")
+            && let Some(app) = Self::from_remote_env(target.trim())
+        {
+            return app;
+        }
         Self::from_battle_config(RandomBattleConfig::runtime_from_env(VehicleKind::default()))
+    }
+
+    /// Connect, wait to be seated (the lobby may hold us until its deadline), then build the
+    /// app around the ASSIGNED tank and the SERVER's map. `None` falls back to a local battle
+    /// (bad address, no answer) — the game always starts.
+    fn from_remote_env(target: &str) -> Option<Self> {
+        let addr: std::net::SocketAddr = target.parse().ok()?;
+        let transport =
+            net::transport::UdpTransport::bind("0.0.0.0:0".parse().expect("addr")).ok()?;
+        let mut remote = session::RemoteSession::connect(addr, Box::new(transport));
+        // Pump until seated: the lobby deadline is the server's, so wait generously (session
+        // timeout aborts a silent server after 10 s regardless).
+        for _ in 0..0_u32.wrapping_add(60_000 / 10) {
+            remote.pump();
+            if remote.is_seated() {
+                break;
+            }
+            if matches!(remote.state(), net::session::SessionState::Failed(_)) {
+                tracing::warn!(target, "remote connect failed; falling back to a local battle");
+                return None;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        if !remote.is_seated() {
+            tracing::warn!(target, "the lobby never seated us; falling back to a local battle");
+            return None;
+        }
+        Some(Self::from_session(session::BattleSessionKind::Remote(Box::new(remote))))
+    }
+
+    fn from_session(session: session::BattleSessionKind) -> Self {
+        let mut app = Self::from_battle_config(RandomBattleConfig::new(
+            server::BattleSeed::fixed(1),
+            VehicleKind::default(),
+        ));
+        let player_tank = session.player_tank();
+        let battlefield = session.map_id().battlefield();
+        app.camera_obstacles =
+            battlefield.static_cover.iter().map(CameraObstacle::from_static_cover).collect();
+        app.minimap_static = crate::app::minimap_build::minimap_static_layers(&battlefield);
+        app.battlefield = battlefield;
+        app.player_tank = player_tank;
+        app.session = session;
+        app.render_state = InterpolatedBattleState::default();
+        app.render_state.accept_authoritative_snapshot(app.session.latest_snapshot_for_player());
+        app
     }
 
     /// A deterministic app for tests that drive real battle ticks: a runtime-seeded battle
@@ -234,8 +288,9 @@ impl ClientApp {
     }
 
     fn from_battle_config(config: RandomBattleConfig) -> Self {
-        let local_server =
-            LocalAuthoritativeServer::new_random_7v7(ServerTickConfig::default(), config);
+        let local_server = session::BattleSessionKind::Local(Box::new(
+            LocalAuthoritativeServer::new_random_7v7(ServerTickConfig::default(), config),
+        ));
         let player_tank = local_server.player_tank();
         let mut render_state = InterpolatedBattleState::default();
         render_state.accept_authoritative_snapshot(local_server.latest_snapshot_for_player());
@@ -256,7 +311,7 @@ impl ClientApp {
             renderer: None,
             loop_driver: WinitLoopDriver::new(DEFAULT_SIMULATION_TICK_HZ),
             last_loop_time: Instant::now(),
-            local_server,
+            session: local_server,
             render_state,
             camera_controller: BattleCameraController::default(),
             camera_obstacles,
@@ -343,7 +398,7 @@ mod tests {
     fn new_app_accepts_the_player_filtered_server_snapshot() {
         let app = ClientApp::new();
         let client_view = app.render_state.latest_snapshot().expect("initial client snapshot");
-        let server_view = app.local_server.latest_snapshot_for_player();
+        let server_view = app.session.latest_snapshot_for_player();
 
         assert_eq!(client_view, &server_view);
         assert!(client_view.tanks.iter().any(|tank| tank.tank_id == app.player_tank));
@@ -352,7 +407,7 @@ mod tests {
     #[test]
     fn new_app_uses_random_7v7_local_battle() {
         let app = ClientApp::new();
-        let full_snapshot = app.local_server.latest_snapshot();
+        let full_snapshot = app.session.latest_snapshot();
 
         assert_eq!(full_snapshot.tanks.len(), 14);
         assert_eq!(

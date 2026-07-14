@@ -138,8 +138,8 @@ impl ClientApp {
                 // The battle look is the MATCH's look: the server named the map and rolled the
                 // weather from the battle seed; the client dresses accordingly.
                 let look = crate::scene::weather::weather_look(
-                    self.local_server.map_id(),
-                    self.local_server.weather_variant(),
+                    self.session.map_id(),
+                    self.session.weather_variant(),
                 );
                 (look.sky, look.lighting, look.rain_intensity, look.wetness)
             }
@@ -156,7 +156,7 @@ impl ClientApp {
                         &meshes.ground_indices,
                         &meshes.ground_maps,
                         &crate::scene::terrain_maps::terrain_material_set_for(
-                            self.local_server.map_id(),
+                            self.session.map_id(),
                         ),
                     );
                 }
@@ -187,8 +187,8 @@ impl ClientApp {
     /// born holding the generic battlefield defaults; the app is born in battle).
     pub(super) fn apply_match_weather(&mut self) {
         let look = crate::scene::weather::weather_look(
-            self.local_server.map_id(),
-            self.local_server.weather_variant(),
+            self.session.map_id(),
+            self.session.weather_variant(),
         );
         if let Some(renderer) = self.renderer.as_mut() {
             renderer.set_outdoor_sky(look.sky.0, look.sky.1, look.sky.2);
