@@ -367,6 +367,8 @@ fn terrain_scene_mesh_full(
                 color,
                 tint_weight: vertex_color_dominance,
                 gloss,
+                surface: 0.0,
+                sway: 0.0,
             });
         }
     }
