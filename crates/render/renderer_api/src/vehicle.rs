@@ -25,6 +25,11 @@ pub struct ArmorApertureRender {
     pub glow: f32,
     /// How tightly the glow hugs the contour (1 = soft kinetic rim, >1 = narrow HEAT ring).
     pub glow_tightness: f32,
+    /// Whether this aperture really OPENS the mesh (analytic discard in color/depth/shadow).
+    /// True only for vehicles whose visual skin is truth-aligned with the armor volumes
+    /// (the part-aware T-54 today); legacy hulls keep a scorch ring instead of a hole into
+    /// nothing, until their hybrid migration lands.
+    pub cut: bool,
 }
 
 /// Per-tank damage descriptors. `tank_id` connects them to ordinary render objects without
