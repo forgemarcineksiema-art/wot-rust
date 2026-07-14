@@ -156,12 +156,19 @@ impl LocalAuthoritativeServer {
     }
 
     pub fn tick_with_input(&mut self, input: ClientInputCommand) -> AuthoritativeTick {
+        self.tick_with_inputs(&[(input.tank_id, input.command)])
+    }
+
+    /// The battle core's real heartbeat (N2): one authoritative tick fed by ANY number of human
+    /// commands — one for the local desktop game, up to seven from the dedicated server's client
+    /// table. Bots fill in for every roster tank not driven by a human this tick.
+    pub fn tick_with_inputs(&mut self, inputs: &[(TankId, sim::TankCommand)]) -> AuthoritativeTick {
         let battle_over = self.outcome.is_some();
-        let mut commands = Vec::with_capacity(1 + self.sim.tanks().len());
-        commands.push((
-            input.tank_id,
-            if battle_over { sim::TankCommand::idle() } else { input.command },
-        ));
+        let mut commands = Vec::with_capacity(inputs.len() + self.sim.tanks().len());
+        for (tank_id, command) in inputs {
+            commands
+                .push((*tank_id, if battle_over { sim::TankCommand::idle() } else { *command }));
+        }
         // The bots read LAST tick's damage events (cleared on the next sim step): the honest
         // "we just got hit" signal that lets a blind bot turn toward the fire.
         //
