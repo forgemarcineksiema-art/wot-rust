@@ -8,6 +8,7 @@ struct VsIn {
     @location(2) color: vec3<f32>,
     @location(3) tint_weight: f32,
     @location(9) gloss: f32,
+    @location(10) surface: f32,
     @location(4) model_0: vec4<f32>,
     @location(5) model_1: vec4<f32>,
     @location(6) model_2: vec4<f32>,
@@ -21,6 +22,7 @@ struct VsOut {
     @location(1) color: vec3<f32>,
     @location(2) world_pos: vec3<f32>,
     @location(3) gloss: f32,
+    @location(4) surface: f32,
 };
 
 @vertex
@@ -36,6 +38,7 @@ fn vs_main(input: VsIn) -> VsOut {
     let tint = mix(vec3<f32>(1.0, 1.0, 1.0), input.tint.rgb, input.tint_weight);
     out.color = input.color * tint;
     out.gloss = input.gloss;
+    out.surface = input.surface;
     return out;
 }
 
@@ -77,6 +80,53 @@ fn material_detail(world: vec3<f32>, n: vec3<f32>) -> f32 {
     let steep = clamp(1.0 - n.y, 0.0, 1.0);
     let detail = mix(ground, strata, steep * 0.7);
     return 0.92 + detail * 0.16;
+}
+
+// --- Surface-role treatments (Materia Swiata 3) ---------------------------------------------
+// The `surface` lane names WHICH procedural material a vertex wears (see renderer_api's
+// surface_role table). Everything is world-anchored arithmetic on the wall's own plane
+// coordinates - no UVs, no textures, nothing swims. Each treatment is multiplicative around
+// 1.0 so the authored palette and the lighting stay in charge.
+
+fn surface_treatment(role: f32, world: vec3<f32>, n: vec3<f32>) -> f32 {
+    // The wall-plane frame: h runs along the face, world.y climbs it.
+    let tangent = normalize(vec3<f32>(-n.z, 1.0e-4, n.x));
+    let h = dot(world, tangent);
+    if (role < 1.5) {
+        // Plaster: fine grain over half-metre trowel blotches.
+        let grain = value_noise(vec2<f32>(h, world.y) * 7.0);
+        let blotch = value_noise(vec2<f32>(h * 1.4, world.y * 1.1));
+        return 0.90 + grain * 0.08 + blotch * 0.08;
+    }
+    if (role < 2.5) {
+        // Planks: ~0.2 m boards, each with its own tone, split by dark joints, streaked
+        // with vertical grain.
+        let board = floor(h / 0.2);
+        let tone = detail_hash(vec2<f32>(board, board * 1.7)) * 0.18;
+        let f = fract(h / 0.2);
+        let edge_m = min(f, 1.0 - f) * 0.2;
+        let joint = smoothstep(0.0, 0.014, edge_m);
+        let grain = value_noise(vec2<f32>(h * 40.0, world.y * 1.3)) * 0.08;
+        return (0.86 + tone + grain) * (0.72 + 0.28 * joint);
+    }
+    if (role < 3.5) {
+        // Roof courses: rows climbing the slope, joints staggered every other row, one tone
+        // per tile.
+        let row = floor(world.y / 0.13);
+        let offset = fract(row * 0.5) * 0.26;
+        let col = floor((h + offset) / 0.26);
+        let tone = detail_hash(vec2<f32>(col * 2.3 + 5.0, row)) * 0.16;
+        let fy = fract(world.y / 0.13);
+        let row_edge = min(fy, 1.0 - fy) * 0.13;
+        let fx = fract((h + offset) / 0.26);
+        let col_edge = min(fx, 1.0 - fx) * 0.26;
+        let joint = smoothstep(0.0, 0.010, row_edge) * (0.85 + 0.15 * smoothstep(0.0, 0.012, col_edge));
+        return (0.88 + tone) * (0.70 + 0.30 * joint);
+    }
+    // Bark: vertical striations with deeper grooves riding them.
+    let striae = value_noise(vec2<f32>(h * 9.0, world.y * 0.7));
+    let groove = value_noise(vec2<f32>(h * 18.0, world.y * 2.4));
+    return 0.80 + striae * 0.24 + groove * 0.12;
 }
 
 // Cloud shade wandering the field: the terrain's sun is modulated by a 2-octave slice of the
@@ -132,7 +182,12 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     // specular below) without touching the ambient/fill.
     let shadow = sun_shadow(input.world_pos, geometric_n) * cloud_shadow(input.world_pos);
     let ao = screen_ao(input.clip);
-    var albedo = input.color * material_detail(input.world_pos, geometric_n);
+    // A named surface wears its own treatment; everything else keeps the generic detail.
+    var detail = material_detail(input.world_pos, geometric_n);
+    if (input.surface > 0.5) {
+        detail = surface_treatment(input.surface, input.world_pos, geometric_n);
+    }
+    var albedo = input.color * detail;
     albedo *= mix(1.0, 0.62, wet);
 
     // Screen AO rides inside light_radiance on the indirect terms only — a sunlit crease keeps
