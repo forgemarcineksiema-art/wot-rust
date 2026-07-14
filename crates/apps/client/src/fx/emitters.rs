@@ -139,6 +139,33 @@ impl FxSystem {
 
     /// One puff of the dead-engine column: darker and slower than gun smoke, rising off the
     /// deck and thinning as it climbs. The caller owns the emission cadence.
+    /// One tongue of open flame off a burning engine deck (the authoritative `engine_fire`
+    /// flag). Additive hot core that rises fast and dies young — the fire reads as licks of
+    /// flame, while the black column above it stays the smoke emitter's job.
+    pub fn engine_fire_flame(&mut self, deck: Vec3) {
+        let rise = Vec3::new(
+            self.rand_signed() * 0.5,
+            2.2 + self.rand_unit() * 1.2,
+            self.rand_signed() * 0.5,
+        );
+        let scatter = Vec3::new(self.rand_signed() * 0.5, 0.05, self.rand_signed() * 0.5);
+        let ttl = 0.35 + self.rand_unit() * 0.4;
+        self.spawn(Particle {
+            position: deck + scatter,
+            velocity_mps: rise,
+            gravity_factor: -0.10,
+            drag_per_s: 1.6,
+            age_s: 0.0,
+            ttl_s: ttl,
+            size_begin_m: 0.55,
+            size_end_m: 0.15,
+            // Premultiplied, alpha 0: purely additive heat. Orange core cooling to deep red.
+            color_begin: [1.0, 0.42, 0.10, 0.0],
+            color_end: [0.35, 0.05, 0.01, 0.0],
+            stretch_s: 0.04,
+        });
+    }
+
     pub fn engine_smoke_puff(&mut self, deck: Vec3) {
         let drift =
             Vec3::new(self.rand_signed() * 0.7, 1.4 + self.rand_unit(), self.rand_signed() * 0.7);
