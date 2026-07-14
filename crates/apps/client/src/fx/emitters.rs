@@ -136,6 +136,43 @@ impl FxSystem {
         });
     }
 
+    /// One throw of the bow spray (D7): white water shouldered up and forward off the leading
+    /// edge, falling back under real gravity, with a low mist that hangs a breath longer.
+    pub fn bow_splash(&mut self, waterline: Vec3, heading: Vec3, intensity: f32) {
+        let jitter = Vec3::new(self.rand_signed() * 0.6, 0.0, self.rand_signed() * 0.3);
+        let lift = 1.6 + 2.2 * self.rand_unit() * intensity;
+        let ttl = 0.45 + self.rand_unit() * 0.35;
+        let alpha = 0.30 + 0.25 * intensity;
+        self.spawn(Particle {
+            position: waterline + jitter * 0.4,
+            velocity_mps: heading * (1.2 + 2.0 * intensity) + jitter + Vec3::Y * lift,
+            gravity_factor: 0.9,
+            drag_per_s: 1.4,
+            age_s: 0.0,
+            ttl_s: ttl,
+            size_begin_m: 0.25,
+            size_end_m: 0.7,
+            color_begin: [0.30 * alpha, 0.34 * alpha, 0.36 * alpha, alpha],
+            color_end: [0.0, 0.0, 0.0, 0.0],
+            stretch_s: 0.03,
+        });
+        let mist_ttl = 0.8 + self.rand_unit() * 0.5;
+        let mist_alpha = 0.10 + 0.10 * intensity;
+        self.spawn(Particle {
+            position: waterline + Vec3::Y * 0.15,
+            velocity_mps: heading * 0.8 + Vec3::Y * 0.5,
+            gravity_factor: 0.05,
+            drag_per_s: 2.2,
+            age_s: 0.0,
+            ttl_s: mist_ttl,
+            size_begin_m: 0.5,
+            size_end_m: 1.6,
+            color_begin: [0.26 * mist_alpha, 0.30 * mist_alpha, 0.32 * mist_alpha, mist_alpha],
+            color_end: [0.0, 0.0, 0.0, 0.0],
+            stretch_s: 0.0,
+        });
+    }
+
     /// One breath of the working exhaust (D1): a small blue-grey puff off the port, denser
     /// under load. Rises briefly, thins fast — an idling column smokes lightly, a charge reads.
     pub fn exhaust_puff(&mut self, port: Vec3, load: f32) {
