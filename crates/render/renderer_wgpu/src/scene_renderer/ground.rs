@@ -28,7 +28,7 @@ fn terrain_shader_source() -> String {
 }
 
 /// The 6-vec4 uniform `terrain.wgsl` reads: 4x (albedo rgb + detail amp), per-layer gloss,
-/// params (extent.xy, macro strength, pad).
+/// params (extent.xy, macro strength, field-patch strength).
 fn encode_materials(set: &TerrainMaterialSet, extent_m: [f32; 2]) -> [[f32; 4]; 6] {
     let mut packed = [[0.0f32; 4]; 6];
     for (i, layer) in set.layers.iter().enumerate() {
@@ -36,7 +36,8 @@ fn encode_materials(set: &TerrainMaterialSet, extent_m: [f32; 2]) -> [[f32; 4]; 
     }
     packed[TERRAIN_LAYERS] =
         [set.layers[0].gloss, set.layers[1].gloss, set.layers[2].gloss, set.layers[3].gloss];
-    packed[TERRAIN_LAYERS + 1] = [extent_m[0], extent_m[1], set.macro_normal_strength, 0.0];
+    packed[TERRAIN_LAYERS + 1] =
+        [extent_m[0], extent_m[1], set.macro_normal_strength, set.field_patch_strength];
     packed
 }
 
