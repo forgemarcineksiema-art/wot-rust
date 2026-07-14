@@ -130,6 +130,9 @@ impl ClientApp {
         // bake lands in the app-lifetime cache, so later garage→battle swaps reuse it instead
         // of freezing their first battle frame on a rebake.
         self.ensure_battle_scene_meshes();
+        // F6: the roster's vehicle bakes and GPU registrations happen HERE, at deployment —
+        // never on first sight mid-battle.
+        self.preload_battle_vehicle_assets();
         let meshes = self.battle_scene_meshes.as_ref().expect("ensured above");
         let mut renderer = WindowRenderer::new(
             window,
