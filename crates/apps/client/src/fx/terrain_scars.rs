@@ -19,8 +19,6 @@ const FADE_S: f32 = 30.0;
 const GROUND_LIFT_M: f32 = 0.05;
 /// Central-difference step for the terrain normal, roughly one heightmap cell.
 const NORMAL_STEP_M: f32 = 0.75;
-/// Ejecta rays thrown out of one crater.
-const EJECTA_RAYS: usize = 6;
 
 #[derive(Debug, Default)]
 pub(crate) struct TerrainScars {
@@ -166,8 +164,14 @@ fn push_furrow(vertices: &mut Vec<FxVertex>, scar: &TerrainScar, opacity: f32) {
 /// One crater, three layers in the decal language: a wide SOFT ring of turned earth, the
 /// hard-edged dark core where the shell dug in, and a fan of ejecta rays — hashed from the
 /// impact point, so every crater looks individual yet renders identically every frame.
+/// The blast mark (Fizyczny Świat P3): high explosive CRATERS. Photo reference — a raised
+/// rim of fresh-turned, LIGHTER earth around a scorched dark bowl, with clods thrown metres
+/// out, biased DOWNRANGE at the shallow arrival angles of tank fire. No radial ray fan: real
+/// ejecta is clumped soil, not sun-rays.
 fn push_crater(vertices: &mut Vec<FxVertex>, scar: &TerrainScar, opacity: f32) {
-    let r = scar.radius_m;
+    // HE excavates wider than the projectile: the bowl runs well past the calibre-derived
+    // base radius the kinetic furrow uses.
+    let r = scar.radius_m * 1.6;
     let normal = scar.normal;
     let mut u = normal.cross(Vec3::X);
     if u.length_squared() < 1.0e-6 {
@@ -185,34 +189,37 @@ fn push_crater(vertices: &mut Vec<FxVertex>, scar: &TerrainScar, opacity: f32) {
         v: v * cos - u * sin,
     };
 
-    // Turned EARTH, not a hole in the world: the old near-black core (0.04 @ 0.85) read as
-    // a cartoon void on pale grass. Browner, softer, and the core no longer saturates.
-    push_stamp(
-        vertices,
-        plate,
-        r * 2.3,
-        r * 2.3,
-        0.9,
-        premul([0.16, 0.125, 0.085], 0.45 * opacity),
-    );
-    push_stamp(vertices, plate, r, r, 2.2, premul([0.11, 0.085, 0.058], 0.6 * opacity));
-    for ray in 0..EJECTA_RAYS {
-        let angle = ray as f32 / EJECTA_RAYS as f32 * std::f32::consts::TAU
-            + game_core::math::next_hash_unit(&mut seed);
-        let length = r * (1.1 + game_core::math::next_hash_unit(&mut seed) * 0.8);
-        let direction = plate.u * angle.cos() + plate.v * angle.sin();
-        let streak = Plate {
-            center: plate.center + direction * (r * 0.8 + length * 0.5),
-            u: direction,
-            v: normal.cross(direction).normalize_or_zero(),
+    // The rim: fresh subsoil thrown up and out — LIGHTER than the field it landed on.
+    push_stamp(vertices, plate, r * 1.7, r * 1.7, 1.0, premul([0.30, 0.25, 0.17], 0.5 * opacity));
+    // The bowl: scorched, dark — but earth-dark, never a void.
+    push_stamp(vertices, plate, r, r, 2.0, premul([0.085, 0.07, 0.05], 0.7 * opacity));
+
+    // Clods: lumps of soil metres out, biased DOWNRANGE when the wire knows the track
+    // (shallow tank-gun arrivals shovel most of the spoil forward); uniform on old snapshots.
+    let has_track = scar.direction_xz.length_squared() > 0.5;
+    let clods = 4 + (game_core::math::next_hash_unit(&mut seed) * 2.99) as usize;
+    for _ in 0..clods {
+        let spread = (game_core::math::next_hash_unit(&mut seed) - 0.5) * std::f32::consts::TAU;
+        let angle = if has_track {
+            // ~±70° cone around the flight direction for 3 of 4 clods.
+            if game_core::math::next_hash_unit(&mut seed) < 0.75 { spread * 0.4 } else { spread }
+        } else {
+            spread
         };
+        let base_dir = if has_track { scar.direction_xz } else { plate.u };
+        let across = normal.cross(base_dir).normalize_or_zero();
+        let (sa, ca) = angle.sin_cos();
+        let dir = (base_dir * ca + across * sa).normalize_or_zero();
+        let dist = r * (1.2 + game_core::math::next_hash_unit(&mut seed) * 1.6);
+        let size = r * (0.12 + game_core::math::next_hash_unit(&mut seed) * 0.14);
+        let clod = Plate { center: plate.center + dir * dist, u: dir, v: across };
         push_stamp(
             vertices,
-            streak,
-            length * 0.5,
-            r * 0.16,
-            1.7,
-            premul([0.16, 0.13, 0.088], 0.4 * opacity),
+            clod,
+            size * 1.5,
+            size,
+            1.6,
+            premul([0.24, 0.20, 0.135], 0.45 * opacity),
         );
     }
 }
@@ -263,7 +270,10 @@ mod tests {
         }
     }
 
-    const QUADS_PER_CRATER: usize = 2 + EJECTA_RAYS;
+    /// Rim + bowl + 4..=6 hashed clods (P3): the count varies per impact, so tests assert
+    /// the RANGE, not one number.
+    const MIN_QUADS_PER_CRATER: usize = 2 + 4;
+    const MAX_QUADS_PER_CRATER: usize = 2 + 6;
 
     #[test]
     fn a_scar_stamps_onto_the_sampled_ground_not_the_shell_height() {
@@ -274,7 +284,11 @@ mod tests {
 
         let mut vertices = Vec::new();
         scars.append_quads(&mut vertices);
-        assert_eq!(vertices.len(), QUADS_PER_CRATER * 6);
+        let quads = vertices.len() / 6;
+        assert!(
+            (MIN_QUADS_PER_CRATER..=MAX_QUADS_PER_CRATER).contains(&quads),
+            "rim + bowl + clods, got {quads} quads"
+        );
         for vertex in &vertices {
             assert!(
                 (vertex.position[1] - (3.0 + GROUND_LIFT_M)).abs() < 1.0e-3,
@@ -282,6 +296,37 @@ mod tests {
                 vertex.position[1]
             );
         }
+    }
+
+    /// P3's contract: the HE crater reads like the photographs — a LIGHTER fresh-earth rim
+    /// around a darker scorched bowl, and the clods fly with a downrange bias when the wire
+    /// knows the track.
+    #[test]
+    fn the_he_crater_has_a_light_rim_a_dark_bowl_and_downrange_clods() {
+        let map = HeightMap::flat(65, 65, 1.0, 0.0).expect("valid map");
+        let origin = Vec3::new(30.0, 0.0, 30.0);
+        let mut impact = he_impact(origin);
+        impact.direction = Vec3::new(0.0, -0.4, 0.92).normalize();
+        let mut scars = TerrainScars::default();
+        scars.record(&impact, &map);
+        let mut vertices = Vec::new();
+        scars.append_quads(&mut vertices);
+
+        // Stamp 0 = rim, stamp 1 = bowl: the rim must be visibly lighter.
+        let luma = |v: &renderer_api::FxVertex| v.color[0] + v.color[1] + v.color[2];
+        assert!(
+            luma(&vertices[0]) > luma(&vertices[6]) * 1.5,
+            "fresh-earth rim outshines the scorched bowl"
+        );
+
+        // Clods (stamps 2..): centroid of the clod field sits downrange (+Z of the strike).
+        let clods = &vertices[12..];
+        let centroid_z = clods.iter().map(|v| v.position[2]).sum::<f32>() / clods.len() as f32;
+        assert!(
+            centroid_z > origin.z,
+            "the spoil centroid flies downrange, got z {centroid_z} vs strike {}",
+            origin.z
+        );
     }
 
     #[test]
