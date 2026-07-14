@@ -5,6 +5,8 @@
 //! is the multiplier for trees 2.0, the building generator and map dressing: content becomes a
 //! blueprint edit, not a code change.
 
+pub mod tree;
+
 use std::collections::BTreeMap;
 
 use glam::Vec3;
@@ -131,7 +133,7 @@ impl BakedWorldObject {
     }
 }
 
-fn fnv(hash: &mut u64, word: u64) {
+pub(crate) fn fnv(hash: &mut u64, word: u64) {
     *hash ^= word;
     *hash = hash.wrapping_mul(0x100_0000_01b3);
 }
