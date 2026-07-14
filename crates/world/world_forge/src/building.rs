@@ -19,11 +19,23 @@ pub enum BuildingStyle {
     Barn,
     /// The small-town two-storey house: taller walls, regular window grid.
     Townhouse,
+    /// The Kamienna church (B4 cz.2): a steep-roofed nave with a west tower and pyramid
+    /// spire - the tallest silhouette in town, readable across the river.
+    Church,
+    /// The windmill (B4 cz.2): an eight-sided tapered body under a conical cap. No sails -
+    /// the honesty rule keeps every vertex inside the collision footprint, and the footprint
+    /// is the tower.
+    Windmill,
 }
 
 impl BuildingStyle {
-    pub const ALL: [BuildingStyle; 3] =
-        [BuildingStyle::Cottage, BuildingStyle::Barn, BuildingStyle::Townhouse];
+    pub const ALL: [BuildingStyle; 5] = [
+        BuildingStyle::Cottage,
+        BuildingStyle::Barn,
+        BuildingStyle::Townhouse,
+        BuildingStyle::Church,
+        BuildingStyle::Windmill,
+    ];
 
     fn params(self) -> StyleParams {
         match self {
@@ -56,6 +68,28 @@ impl BuildingStyle {
                 windows_per_side: 3,
                 window_size: (0.6, 0.85),
                 door_size: (0.7, 1.15),
+            },
+            // ridge_height is the SPIRE TOP: the footprint must contain the whole silhouette.
+            BuildingStyle::Church => StyleParams {
+                half_width: 3.6,
+                half_depth: 6.4,
+                eaves_height: 4.4,
+                ridge_height: 11.0,
+                plinth_height: 0.6,
+                windows_per_side: 3,
+                window_size: (0.5, 1.3),
+                door_size: (0.9, 1.7),
+            },
+            // ridge_height is the cap peak; the body tapers inside half_width.
+            BuildingStyle::Windmill => StyleParams {
+                half_width: 3.0,
+                half_depth: 3.0,
+                eaves_height: 6.2,
+                ridge_height: 8.6,
+                plinth_height: 0.5,
+                windows_per_side: 1,
+                window_size: (0.45, 0.6),
+                door_size: (0.8, 1.5),
             },
         }
     }
@@ -118,10 +152,12 @@ impl BakedBuilding {
 }
 
 /// Style goldens at seed 0, Intact form (rubble is derived; its own lock is the honesty test).
-pub const BUILDING_GOLDEN_HASHES: [(BuildingStyle, u64); 3] = [
+pub const BUILDING_GOLDEN_HASHES: [(BuildingStyle, u64); 5] = [
     (BuildingStyle::Cottage, 0x8156_06d3_7c04_2428),
     (BuildingStyle::Barn, 0x2a90_7451_e2cd_c380),
     (BuildingStyle::Townhouse, 0xc72d_90df_09d2_f880),
+    (BuildingStyle::Church, 0xe6b4_6a85_bda2_598b),
+    (BuildingStyle::Windmill, 0xeb28_4dff_02e0_1929),
 ];
 
 pub fn bake_building(style: BuildingStyle, seed: u64, form: StructureForm) -> BakedBuilding {
@@ -141,6 +177,11 @@ fn bake_intact(
     params: &StyleParams,
     footprint_half: Vec3,
 ) -> BakedBuilding {
+    match style {
+        BuildingStyle::Church => return bake_church(seed, params, footprint_half),
+        BuildingStyle::Windmill => return bake_windmill(seed, params, footprint_half),
+        _ => {}
+    }
     let mut rng = Rng(seed ^ 0xB11D_0000 ^ style as u64);
     let recess = 0.08;
     let mut walls = Vec::new();
@@ -210,6 +251,145 @@ fn bake_intact(
 
     BakedBuilding {
         style,
+        walls: GeometryMesh::new(walls, wall_indices),
+        roof: GeometryMesh::new(roof, roof_indices),
+        footprint_half,
+    }
+}
+
+/// The church (B4 cz.2): the nave reuses the cottage grammar (plinth, recessed body, tall
+/// windows), the tower rises at the -Z end past the nave ridge and closes with a pyramid
+/// spire. All inside the footprint; the spire tip IS the footprint ceiling.
+fn bake_church(seed: u64, params: &StyleParams, footprint_half: Vec3) -> BakedBuilding {
+    let mut rng = Rng(seed ^ 0xC44C_0000);
+    let recess = 0.08;
+    let mut walls = Vec::new();
+    let mut wall_indices = Vec::new();
+    let nave_ridge = params.eaves_height + 2.2;
+    push_box(
+        &mut walls,
+        &mut wall_indices,
+        Vec3::new(0.0, params.plinth_height * 0.5, 0.0),
+        Vec3::new(params.half_width, params.plinth_height * 0.5, params.half_depth),
+        MaterialRole::CastArmor,
+    );
+    let body_half_y = (params.eaves_height - params.plinth_height) * 0.5;
+    push_box(
+        &mut walls,
+        &mut wall_indices,
+        Vec3::new(0.0, params.plinth_height + body_half_y, 0.0),
+        Vec3::new(params.half_width - recess, body_half_y, params.half_depth - recess),
+        MaterialRole::RolledArmor,
+    );
+    let (window_w, window_h) = params.window_size;
+    let sill = params.plinth_height + 0.9;
+    for side in [-1.0_f32, 1.0] {
+        for slot in 0..params.windows_per_side {
+            let along = (slot as f32 + 0.5) / params.windows_per_side as f32 * 2.0 - 1.0;
+            let jitter = rng.signed() * 0.05;
+            push_box(
+                &mut walls,
+                &mut wall_indices,
+                Vec3::new(
+                    side * (params.half_width - recess * 0.5),
+                    sill + window_h * 0.5,
+                    (along + jitter) * (params.half_depth * 0.45) + params.half_depth * 0.25,
+                ),
+                Vec3::new(recess * 0.45, window_h * 0.5, window_w * 0.5),
+                MaterialRole::InteriorMachinery,
+            );
+        }
+    }
+    // The tower: square shaft at the -Z end, rising past the nave ridge.
+    let tower_half = (params.half_width - recess) * 0.62;
+    let tower_top = params.ridge_height - 2.4;
+    let tower_z = -params.half_depth + tower_half + recess;
+    push_box(
+        &mut walls,
+        &mut wall_indices,
+        Vec3::new(0.0, tower_top * 0.5, tower_z),
+        Vec3::new(tower_half, tower_top * 0.5, tower_half),
+        MaterialRole::RolledArmor,
+    );
+    let (door_w, door_h) = params.door_size;
+    push_box(
+        &mut walls,
+        &mut wall_indices,
+        Vec3::new(0.0, params.plinth_height + door_h * 0.5, tower_z - tower_half + 0.02),
+        Vec3::new(door_w * 0.5, door_h * 0.5, recess * 0.5),
+        MaterialRole::InteriorPrimer,
+    );
+
+    let mut roof = Vec::new();
+    let mut roof_indices = Vec::new();
+    push_gable(
+        &mut roof,
+        &mut roof_indices,
+        params.half_width,
+        params.half_depth,
+        params.eaves_height,
+        nave_ridge,
+    );
+    push_pyramid(
+        &mut roof,
+        &mut roof_indices,
+        Vec3::new(0.0, tower_top, tower_z),
+        tower_half,
+        params.ridge_height - tower_top,
+    );
+    BakedBuilding {
+        style: BuildingStyle::Church,
+        walls: GeometryMesh::new(walls, wall_indices),
+        roof: GeometryMesh::new(roof, roof_indices),
+        footprint_half,
+    }
+}
+
+/// The windmill (B4 cz.2): an eight-sided body tapering toward the cap, a door at the base,
+/// and a conical cap. Sails are deliberately absent - the collision box is the tower, and
+/// the honesty rule keeps the eye and the shell agreeing.
+fn bake_windmill(seed: u64, params: &StyleParams, footprint_half: Vec3) -> BakedBuilding {
+    let mut rng = Rng(seed ^ 0x3311_7700);
+    let mut walls = Vec::new();
+    let mut wall_indices = Vec::new();
+    push_box(
+        &mut walls,
+        &mut wall_indices,
+        Vec3::new(0.0, params.plinth_height * 0.5, 0.0),
+        Vec3::new(params.half_width, params.plinth_height * 0.5, params.half_depth),
+        MaterialRole::CastArmor,
+    );
+    let base_r = params.half_width - 0.15;
+    let top_r = base_r * 0.62;
+    push_taper(
+        &mut walls,
+        &mut wall_indices,
+        params.plinth_height,
+        params.eaves_height,
+        base_r,
+        top_r,
+        MaterialRole::RolledArmor,
+    );
+    let (door_w, door_h) = params.door_size;
+    let door_angle = rng.unit() * std::f32::consts::TAU;
+    let (dsin, dcos) = door_angle.sin_cos();
+    push_box(
+        &mut walls,
+        &mut wall_indices,
+        Vec3::new(
+            dcos * (base_r - 0.45),
+            params.plinth_height + door_h * 0.5,
+            dsin * (base_r - 0.45),
+        ),
+        Vec3::new(door_w * 0.5, door_h * 0.5, door_w * 0.5),
+        MaterialRole::InteriorPrimer,
+    );
+
+    let mut roof = Vec::new();
+    let mut roof_indices = Vec::new();
+    push_cone(&mut roof, &mut roof_indices, params.eaves_height, params.ridge_height, top_r + 0.18);
+    BakedBuilding {
+        style: BuildingStyle::Windmill,
         walls: GeometryMesh::new(walls, wall_indices),
         roof: GeometryMesh::new(roof, roof_indices),
         footprint_half,
@@ -356,6 +536,126 @@ fn push_gable(
             indices.extend_from_slice(&[base, base + 2, base + 1]);
         }
     }
+}
+
+/// A four-sided pyramid roof (the church spire): apex over the base centre.
+fn push_pyramid(
+    vertices: &mut Vec<GeometryVertex>,
+    indices: &mut Vec<u32>,
+    base_center: Vec3,
+    half: f32,
+    height: f32,
+) {
+    let apex = base_center + Vec3::new(0.0, height, 0.0);
+    let corners = [
+        base_center + Vec3::new(-half, 0.0, -half),
+        base_center + Vec3::new(half, 0.0, -half),
+        base_center + Vec3::new(half, 0.0, half),
+        base_center + Vec3::new(-half, 0.0, half),
+    ];
+    for face in 0..4 {
+        let a = corners[face];
+        let b = corners[(face + 1) % 4];
+        let normal = outward_normal((b - a).cross(apex - a), base_center, (a + b) * 0.5);
+        let base = vertices.len() as u32;
+        for corner in [a, b, apex] {
+            vertices.push(GeometryVertex::new(
+                corner,
+                normal,
+                MaterialRole::CastArmor,
+                SmoothingGroup::hard_edges(),
+            ));
+        }
+        if normal.dot((b - a).cross(apex - a)) >= 0.0 {
+            indices.extend_from_slice(&[base, base + 1, base + 2]);
+        } else {
+            indices.extend_from_slice(&[base, base + 2, base + 1]);
+        }
+    }
+}
+
+/// An eight-sided tapered drum (the windmill body), open top and bottom (the plinth and cap
+/// close them visually).
+fn push_taper(
+    vertices: &mut Vec<GeometryVertex>,
+    indices: &mut Vec<u32>,
+    bottom_y: f32,
+    top_y: f32,
+    bottom_r: f32,
+    top_r: f32,
+    material: MaterialRole,
+) {
+    const SIDES: usize = 8;
+    for side in 0..SIDES {
+        let a0 = side as f32 / SIDES as f32 * std::f32::consts::TAU;
+        let a1 = (side + 1) as f32 / SIDES as f32 * std::f32::consts::TAU;
+        let (s0, c0) = a0.sin_cos();
+        let (s1, c1) = a1.sin_cos();
+        let p00 = Vec3::new(c0 * bottom_r, bottom_y, s0 * bottom_r);
+        let p10 = Vec3::new(c1 * bottom_r, bottom_y, s1 * bottom_r);
+        let p11 = Vec3::new(c1 * top_r, top_y, s1 * top_r);
+        let p01 = Vec3::new(c0 * top_r, top_y, s0 * top_r);
+        let raw = (p10 - p00).cross(p01 - p00);
+        let normal = outward_normal(raw, Vec3::ZERO, (p00 + p10) * 0.5);
+        let base = vertices.len() as u32;
+        for corner in [p00, p10, p11, p01] {
+            vertices.push(GeometryVertex::new(
+                corner,
+                normal,
+                material,
+                SmoothingGroup::hard_edges(),
+            ));
+        }
+        if normal.dot(raw) >= 0.0 {
+            indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
+        } else {
+            indices.extend_from_slice(&[base, base + 2, base + 1, base, base + 3, base + 2]);
+        }
+    }
+}
+
+/// An eight-sided conical cap (the windmill roof).
+fn push_cone(
+    vertices: &mut Vec<GeometryVertex>,
+    indices: &mut Vec<u32>,
+    base_y: f32,
+    apex_y: f32,
+    radius: f32,
+) {
+    const SIDES: usize = 8;
+    let apex = Vec3::new(0.0, apex_y, 0.0);
+    for side in 0..SIDES {
+        let a0 = side as f32 / SIDES as f32 * std::f32::consts::TAU;
+        let a1 = (side + 1) as f32 / SIDES as f32 * std::f32::consts::TAU;
+        let (s0, c0) = a0.sin_cos();
+        let (s1, c1) = a1.sin_cos();
+        let p0 = Vec3::new(c0 * radius, base_y, s0 * radius);
+        let p1 = Vec3::new(c1 * radius, base_y, s1 * radius);
+        let raw = (p1 - p0).cross(apex - p0);
+        let normal = outward_normal(raw, Vec3::ZERO, (p0 + p1) * 0.5);
+        let base = vertices.len() as u32;
+        for corner in [p0, p1, apex] {
+            vertices.push(GeometryVertex::new(
+                corner,
+                normal,
+                MaterialRole::CastArmor,
+                SmoothingGroup::hard_edges(),
+            ));
+        }
+        if normal.dot(raw) >= 0.0 {
+            indices.extend_from_slice(&[base, base + 1, base + 2]);
+        } else {
+            indices.extend_from_slice(&[base, base + 2, base + 1]);
+        }
+    }
+}
+
+/// Flip a radial face normal to point AWAY from the body's axis: the winding conventions of
+/// the radial helpers are easier to keep honest by construction than by case analysis.
+fn outward_normal(raw: Vec3, center: Vec3, at: Vec3) -> Vec3 {
+    let normal = raw.normalize();
+    let outward = Vec3::new(at.x - center.x, 0.0, at.z - center.z);
+    if normal.dot(outward) < 0.0 { -normal } else { normal }
 }
 
 #[cfg(test)]
