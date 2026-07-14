@@ -25,7 +25,7 @@ const BATTLE_TANKS: usize = 14;
 
 /// The locked worst case: a full particle pool + a full crater pool. Penetrations deliberately
 /// emit no FX quads; analytical clipping and rim meshes carry them without covering the opening.
-const FX_FRAME_VERTEX_BUDGET: usize = 18_432;
+const FX_FRAME_VERTEX_BUDGET: usize = 17_040;
 
 fn snapshot() -> TankSnapshot {
     let spec = VehicleKind::T54_1951.spec();
@@ -104,7 +104,22 @@ fn the_fx_frame_vertex_budget_is_locked() {
     let map = HeightMap::flat(65, 65, 5.0, 0.0).expect("flat map");
     let mut scars = TerrainScars::default();
     for index in 0..MAX_TERRAIN_SCARS {
-        scars.record(Vec3::new(5.0 + index as f32 * 2.0, 0.0, 40.0), &map);
+        // Worst case alternates the two mark families (furrow stamps vs crater stamps).
+        scars.record(
+            &game_core::ShellImpact {
+                owner: game_core::TankId(1),
+                position: Vec3::new(5.0 + index as f32 * 2.0, 0.0, 40.0),
+                surface: game_core::ImpactSurface::Terrain,
+                shell_type: if index % 2 == 0 {
+                    game_core::ShellType::HighExplosive
+                } else {
+                    game_core::ShellType::ArmorPiercing
+                },
+                direction: Vec3::new(0.0, -0.4, 0.9),
+                caliber_mm: 122.0,
+            },
+            &map,
+        );
     }
     let mut scar_batch = Vec::new();
     scars.append_quads(&mut scar_batch);
