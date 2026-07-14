@@ -423,3 +423,43 @@ fn snapshot_with_aim(
     snapshot.tanks[0].gun_pitch_rad = gun_pitch_rad;
     snapshot
 }
+
+/// F7's contract: a cover collapse rebuilds the statics on a WORKER thread — the render
+/// thread only flags, harvests and uploads. The world keeps the pre-collapse mesh until the
+/// bake lands (a building settling a beat late is invisible; a 25 ms hitch is not).
+#[test]
+fn a_cover_collapse_rebuilds_the_statics_off_the_render_thread() {
+    let mut app = super::ClientApp::new();
+    app.confirm_garage_selection();
+    app.ensure_battle_scene_meshes();
+    let before = app.battle_scene_meshes.as_ref().expect("baked").statics_vertices.len();
+
+    // Collapse the first cover object and flag the scene dirty (what ingest does).
+    assert!(!app.battlefield.static_cover.is_empty(), "the map has cover");
+    app.cover_phase_bytes = vec![0u8; app.battlefield.static_cover.len()];
+    app.cover_phase_bytes[0] = 1; // rubble
+    app.scene_cover_dirty = true;
+
+    // First call SPAWNS the bake and returns immediately — the old mesh still stands.
+    app.rebuild_cover_scene_if_dirty();
+    assert!(!app.scene_cover_dirty, "the flag is consumed by the spawn");
+    assert!(app.scene_rebuild_rx.is_some(), "a worker bake is in flight");
+    assert_eq!(
+        app.battle_scene_meshes.as_ref().expect("baked").statics_vertices.len(),
+        before,
+        "the render thread keeps drawing the pre-collapse world while the worker bakes"
+    );
+
+    // Poll like the render loop does; the worker's result lands within a few seconds.
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    while app.scene_rebuild_rx.is_some() {
+        assert!(std::time::Instant::now() < deadline, "the worker bake must complete");
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        app.rebuild_cover_scene_if_dirty();
+    }
+    assert_ne!(
+        app.battle_scene_meshes.as_ref().expect("baked").statics_vertices.len(),
+        before,
+        "the collapsed building's rubble replaced the intact mesh"
+    );
+}

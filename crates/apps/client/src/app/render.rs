@@ -63,22 +63,45 @@ impl ClientApp {
     /// cached battle scene, so a garage round-trip re-uploads the current (damaged) world, not the
     /// pristine one. Runs only on the frame the states changed (`scene_cover_dirty`).
     pub(super) fn rebuild_cover_scene_if_dirty(&mut self) {
+        // Harvest a finished background rebuild first (F7): the upload is cheap; only the
+        // 25 ms CPU bake ever lived on the render thread, and that is what moved off it. The
+        // world keeps drawing the pre-collapse statics for the couple of frames the bake
+        // takes — a building settling one beat later is invisible; a hitch is not.
+        if let Some(receiver) = &self.scene_rebuild_rx {
+            match receiver.try_recv() {
+                Ok((vertices, indices)) => {
+                    self.scene_rebuild_rx = None;
+                    if let Some(renderer) = self.renderer.as_mut() {
+                        renderer.set_terrain(&vertices, &indices);
+                    }
+                    if let Some(meshes) = self.battle_scene_meshes.as_mut() {
+                        meshes.statics_vertices = vertices;
+                        meshes.statics_indices = indices;
+                    }
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => return,
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    // A panicked bake never uploads; fall through so a dirty flag can retry.
+                    self.scene_rebuild_rx = None;
+                }
+            }
+        }
         if !self.scene_cover_dirty {
             return;
         }
         self.scene_cover_dirty = false;
         // Cover phases only touch the STATICS slot: the ground mesh and its baked splat/macro
         // maps are invariant under destruction, so a collapsing building re-uploads a fraction
-        // of the world instead of forcing a 1024^2 rebake.
-        let (vertices, indices) =
-            crate::battlefield_statics_mesh(&self.battlefield, &self.cover_phase_bytes);
-        if let Some(renderer) = self.renderer.as_mut() {
-            renderer.set_terrain(&vertices, &indices);
-        }
-        if let Some(meshes) = self.battle_scene_meshes.as_mut() {
-            meshes.statics_vertices = vertices;
-            meshes.statics_indices = indices;
-        }
+        // of the world instead of forcing a 1024^2 rebake. The bake itself runs on a worker
+        // thread; a collapse arriving while one is in flight re-marks the flag and rebakes
+        // with the newest phases once the harvest above completes.
+        let (tx, rx) = std::sync::mpsc::channel();
+        self.scene_rebuild_rx = Some(rx);
+        let battlefield = self.battlefield.clone();
+        let phases = self.cover_phase_bytes.clone();
+        std::thread::spawn(move || {
+            let _ = tx.send(crate::battlefield_statics_mesh(&battlefield, &phases));
+        });
     }
 
     /// Swap each wreck's hull render object (the first object for that tank) to its dented
