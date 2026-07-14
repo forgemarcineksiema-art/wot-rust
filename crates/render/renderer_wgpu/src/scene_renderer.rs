@@ -238,26 +238,28 @@ impl SceneRenderer {
         let (vehicle_pipeline, vehicle_material_bgl) =
             build_vehicle_pipeline(device, hdr_format, sample_count, &shadow_bgl, &camera_bgl);
         // Adapter class + WOT_* env overrides become the frame's lighting quality in one place.
-        // F3: quality keys on the EFFECTIVE class (GeForce MX & friends fold to integrated),
-        // and the choice is spoken out loud — the one log line that explains every tier knob.
-        // A feature test hands an explicit quality instead and skips the whole resolution.
+        // One-look policy: every adapter renders the canonical profile; WOT_QUALITY=high is
+        // the dev-only rich profile for captures. The startup line names the adapter and the
+        // chosen profile — no guessing what the game picked. Feature tests hand an explicit
+        // quality instead and skip the resolution entirely.
         let adapter_info = ctx.adapter.get_info();
         let lighting_quality = quality_override.unwrap_or_else(|| {
-            let effective_class = quality::effective_device_class(
-                adapter_info.device_type,
-                &adapter_info.name,
-                std::env::var("WOT_QUALITY").ok().as_deref(),
-            );
+            let quality_env = std::env::var("WOT_QUALITY").ok();
+            let base = quality::resolve_base_profile(quality_env.as_deref());
             tracing::info!(
                 adapter = %adapter_info.name,
                 reported = ?adapter_info.device_type,
-                effective = ?effective_class,
-                "gpu quality class resolved (override: WOT_QUALITY=low|high)"
+                profile = if base == renderer_api::LightingQuality::rich() {
+                    "rich (dev)"
+                } else {
+                    "canonical"
+                },
+                "one-look profile resolved (dev override: WOT_QUALITY=high)"
             );
             quality::apply_shader_detail_override(
                 quality::apply_refraction_override(
                     quality::resolve_lighting_quality_with_bloom(
-                        effective_class,
+                        base,
                         std::env::var("WOT_SHADOW_RES").ok().as_deref(),
                         std::env::var("WOT_SHADOW_CASCADES").ok().as_deref(),
                         std::env::var("WOT_SSAO").ok().as_deref(),

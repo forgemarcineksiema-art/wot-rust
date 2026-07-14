@@ -113,9 +113,7 @@ fn cloud_shade_darkens_the_terrain_key_and_strength_zero_is_a_noop() {
             &ctx,
             &vertices,
             &indices,
-            renderer_api::LightingQuality::for_device_type(
-                renderer_api::GpuDeviceType::DiscreteGpu,
-            ),
+            renderer_api::LightingQuality::rich(),
         )
         .expect("renderer");
         let mut lighting = SceneLighting::battlefield_default();
