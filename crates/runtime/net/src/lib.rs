@@ -9,6 +9,7 @@ use terrain::MapId;
 use thiserror::Error;
 
 mod frame;
+pub mod session;
 mod snapshot_filter;
 mod snapshot_schedule;
 pub mod transport;
@@ -52,10 +53,12 @@ pub use snapshot_schedule::SnapshotSchedule;
 /// v18: `ServerHello` names the match — `map_id` and `weather_variant` — so the client can
 /// deterministically rebuild the same battlefield the server simulates (the map itself is
 /// never sent) and dress it in the same sky. `ImpactSurface` gains `Water`.
-pub const PROTOCOL_VERSION: u16 = 27;
+pub const PROTOCOL_VERSION: u16 = 28;
 
 #[derive(Debug, Error)]
 pub enum NetError {
+    #[error("transport: {0}")]
+    Transport(String),
     #[error("protocol codec failed: {0}")]
     Codec(#[from] Box<bincode::ErrorKind>),
     #[error("protocol frame is too short: {len} bytes")]
@@ -287,6 +290,28 @@ pub enum ProtocolMessage {
         map_id: MapId,
         weather_variant: WeatherVariant,
     },
+    /// v28: the client's per-tick send over a LOSSY wire — the latest few commands, newest
+    /// last. A dropped datagram costs nothing: the next batch re-carries the recent history
+    /// and the server consumes only commands for ticks it has not yet simulated.
+    InputBatch {
+        commands: Vec<ClientInputCommand>,
+    },
+    /// v28: an orderly goodbye, so a leaving client frees its lobby slot immediately instead
+    /// of aging out through the heartbeat timeout.
+    Disconnect {
+        reason: DisconnectReason,
+    },
+}
+
+/// Why a peer said goodbye (v28). Wire-stable: append only.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DisconnectReason {
+    /// The player quit deliberately.
+    Quit,
+    /// The client is out of protocol or otherwise refused by the server.
+    Refused,
+    /// The battle ended and the session is over.
+    BattleOver,
 }
 
 /// Wire codec for all protocol messages. Byte-compatible with bincode's standalone
