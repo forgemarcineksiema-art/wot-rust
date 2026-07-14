@@ -380,6 +380,7 @@ mod blast_grammar_tests {
                 position: glam::Vec3::from_array(player) + glam::Vec3::from_array(offset),
                 surface: game_core::ImpactSurface::Terrain,
                 shell_type,
+                ..Default::default()
             });
             app.accept_and_sync(snapshot);
             app.camera_controller.anchor_speed_for_test()

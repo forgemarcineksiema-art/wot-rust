@@ -113,6 +113,8 @@ pub(crate) fn step_shells(
                     position,
                     surface,
                     shell_type: shells[index].shell.shell_type,
+                    direction: shells[index].velocity_mps.normalize_or_zero(),
+                    caliber_mm: shells[index].shell.caliber_mm,
                 });
                 burst_he_splash(&shells[index], position, tanks, damage_events, None, heightmap);
                 shells.swap_remove(index);
@@ -150,6 +152,8 @@ fn step_unhit_shell(
             position,
             surface: ImpactSurface::Terrain,
             shell_type: shells[index].shell.shell_type,
+            direction: shells[index].velocity_mps.normalize_or_zero(),
+            caliber_mm: shells[index].shell.caliber_mm,
         });
         burst_he_splash(&shells[index], position, tanks, damage_events, None, heightmap);
         shells.swap_remove(index);
