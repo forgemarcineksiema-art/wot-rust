@@ -70,6 +70,19 @@ pub(crate) fn push_battle_readouts(
             crate::hud::number::FPS_COLOR,
         );
     }
+    // F9: the p95 frame interval under the FPS counter — "it drops sometimes" as a number.
+    // Green territory is <= 20 ms; the tone flips to the alert orange when the worst frames
+    // stretch past 25 ms (a visible stutter at 60 Hz).
+    if model.frame_p95_ms > 0.0 {
+        let label = format!("{:.0} ms", model.frame_p95_ms);
+        let color = if model.frame_p95_ms > 25.0 {
+            CLOCK_CLOSING_COLOR
+        } else {
+            crate::hud::number::UNIT_COLOR
+        };
+        let width = crate::hud::font::text_width(&label, 0.032, aspect);
+        crate::hud::font::push_text(vertices, &label, 0.97 - width, 0.935, 0.032, aspect, color);
+    }
     // A dev build announces itself next to the FPS counter (Płynność 2.0 / F8): every
     // performance verdict ever given on a debug binary was measured against the wrong game —
     // the profile is deliberately slower (opt-level 1) for compile speed. Unmissable, in the

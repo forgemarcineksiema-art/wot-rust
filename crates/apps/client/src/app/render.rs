@@ -204,6 +204,12 @@ impl ClientApp {
             let prior = self.fps_estimate; // EMA-smooth FPS for a steady HUD readout.
             let instant = 1.0 / frame_dt;
             self.fps_estimate = if prior <= 0.0 { instant } else { prior * 0.9 + instant * 0.1 };
+            // F9: the p95 window — raw intervals, ~1.5 s deep, for the HUD's worst-frame
+            // readout (an average hides exactly the drops being hunted).
+            if self.frame_dt_history.len() >= 96 {
+                self.frame_dt_history.pop_front();
+            }
+            self.frame_dt_history.push_back(raw_dt);
         }
         self.render_state.set_interpolation_alpha(self.remote_interpolation_alpha());
         self.hit_indicator.tick(frame_dt);
@@ -315,6 +321,11 @@ impl ClientApp {
             vitals,
             reticle: self.hud_reticle(&camera, view_proj, alpha),
             fps: self.fps_estimate,
+            frame_p95_ms: {
+                let mut sorted: Vec<f32> = self.frame_dt_history.iter().copied().collect();
+                sorted.sort_by(f32::total_cmp);
+                if sorted.is_empty() { 0.0 } else { sorted[(sorted.len() * 95) / 100] * 1000.0 }
+            },
             speed_kmh: self.player_speed_kmh(),
             zoom_factor: self.camera_controller.zoom_factor(),
             damage_log: self.damage_log.visible(),

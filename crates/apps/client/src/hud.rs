@@ -50,6 +50,8 @@ pub struct BattleHudModel {
     pub reticle: Option<HudReticle>,
     /// Draws the top-right frame-rate readout when positive; `0.0` omits it (offline examples).
     pub fps: f32,
+    /// 95th-percentile frame interval (ms) over the last ~1.5 s: the drops, as a number.
+    pub frame_p95_ms: f32,
     /// Draws the bottom-left speed readout when at least 0.5 km/h.
     pub speed_kmh: f32,
     /// Sniper magnification; `None` in third person (no readout).
@@ -90,6 +92,7 @@ pub fn build_hud(vitals: HudVitals, aspect: f32) -> Vec<HudVertex> {
             vitals,
             reticle: None,
             fps: 0.0,
+            frame_p95_ms: 0.0,
             speed_kmh: 0.0,
             zoom_factor: None,
             damage_log: Vec::new(),
@@ -125,6 +128,7 @@ pub(crate) fn build_hud_with_reticle(
             vitals,
             reticle,
             fps,
+            frame_p95_ms: 0.0,
             speed_kmh,
             zoom_factor,
             damage_log: Vec::new(),

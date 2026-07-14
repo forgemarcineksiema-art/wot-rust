@@ -46,6 +46,7 @@ pub fn demo_battle_hud(sniper: bool, aspect: f32) -> Vec<HudVertex> {
         },
         reticle: Some(reticle),
         fps: 60.0,
+        frame_p95_ms: 16.7,
         speed_kmh: 24.0,
         zoom_factor: sniper.then_some(6.9),
         damage_log: vec![
