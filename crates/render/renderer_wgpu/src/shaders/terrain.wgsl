@@ -96,6 +96,38 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     var w = textureSample(splat_map, ground_sampler, uv);
     w = w / max(w.r + w.g + w.b + w.a, 1.0e-4);
 
+    // Ziemia 2.0, pasmo makro: worked land is FIELDS, not one lawn. A low-frequency noise
+    // pair names a ~50-100 m plot, every plot holds its own tone (lusher, drier, lighter,
+    // darker) and the borders blend over a few metres like real headlands. Only the two
+    // vegetation layers move - dirt roads and rock cut through the quilt unchanged.
+    var field_light = 1.0;
+    let field_strength = materials.params.w;
+    if (field_strength > 0.001) {
+        let cells = value_noise(input.world_pos.xz / 90.0) * 4.0
+            + value_noise(input.world_pos.xz / 34.0 + vec2<f32>(17.3, 41.7)) * 0.6;
+        let cell = floor(cells);
+        let border = smoothstep(0.82, 1.0, fract(cells));
+        // Two independent lanes per plot: how DRY it stands and how LIGHT it reads — a dark
+        // dry stubble and a pale lush meadow are both real land.
+        let dry = mix(
+            detail_hash(vec2<f32>(cell, cell * 1.7)),
+            detail_hash(vec2<f32>(cell + 1.0, (cell + 1.0) * 1.7)),
+            border,
+        );
+        let light = mix(
+            detail_hash(vec2<f32>(cell * 3.1 + 7.0, cell)),
+            detail_hash(vec2<f32>((cell + 1.0) * 3.1 + 7.0, cell + 1.0)),
+            border,
+        );
+        // Some plots stand dry, some lush: redistribute grass <-> straw per plot...
+        let lean = (dry - 0.5) * field_strength;
+        let to_straw = max(lean, 0.0) * 0.9 * w.r;
+        let to_grass = max(-lean, 0.0) * 0.9 * w.g;
+        w = vec4<f32>(w.r - to_straw + to_grass, w.g + to_straw - to_grass, w.b, w.a);
+        // ...and drift the plot's lightness on the vegetation share only.
+        field_light = 1.0 + (light - 0.5) * 0.34 * field_strength * (w.r + w.g);
+    }
+
     // The baked macro normal (~1 m relief) leaned into by the profile's strength; the detail
     // octaves then bend it further exactly like the scene pass.
     let packed = textureSample(macro_normal_map, ground_sampler, uv).xyz;
@@ -132,14 +164,28 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     let here = value_noise(input.world_pos.xz * 1.7);
     let dx = value_noise((input.world_pos.xz + vec2<f32>(e, 0.0)) * 1.7) - here;
     let dz = value_noise((input.world_pos.xz + vec2<f32>(0.0, e)) * 1.7) - here;
-    let bend = vec3<f32>(-dx, 0.0, -dz) * (0.12 / e) * clamp(1.0 - gloss, 0.35, 1.0);
+    var bend = vec3<f32>(-dx, 0.0, -dz) * (0.12 / e) * clamp(1.0 - gloss, 0.35, 1.0);
+
+    // Ziemia 2.0, pasmo mikro: a third, finer octave (~20 cm crumb) that lives only near the
+    // eye - the far field pays nothing and the near field stops reading as one woven carpet.
+    var micro_shade = 1.0;
+    let eye_dist = length(camera.camera_pos - input.world_pos);
+    let near_amp = 1.0 - smoothstep(16.0, 42.0, eye_dist);
+    if (near_amp > 0.004) {
+        let micro = value_noise(input.world_pos.xz * 5.0);
+        micro_shade = 1.0 + (micro - 0.5) * 0.11 * near_amp * amp;
+        let me = 0.12;
+        let mdx = value_noise((input.world_pos.xz + vec2<f32>(me, 0.0)) * 5.0) - micro;
+        let mdz = value_noise((input.world_pos.xz + vec2<f32>(0.0, me)) * 5.0) - micro;
+        bend += vec3<f32>(-mdx, 0.0, -mdz) * (0.05 / me) * near_amp;
+    }
     let n = normalize(base_n + bend);
 
     var albedo = materials.layers[0].rgb * w.r
         + materials.layers[1].rgb * w.g
         + materials.layers[2].rgb * w.b
         + materials.layers[3].rgb * w.a;
-    albedo = albedo * detail_factor;
+    albedo = albedo * detail_factor * field_light * micro_shade;
     // The submerged riverbed: the baked depth tint wins by the vertex lane.
     albedo = mix(albedo, input.color, clamp(input.vertex_dominance, 0.0, 1.0));
     albedo = albedo * mix(1.0, 0.62, wet);

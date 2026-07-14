@@ -32,6 +32,11 @@ pub struct TerrainMaterialSet {
     /// 0..1: how far ground lighting leans from the vertex normal toward the baked macro
     /// normal. The macro map carries ~1 m relief the 5 m grid cannot; raking light reads it.
     pub macro_normal_strength: f32,
+    /// 0..1: the field-patch macro band (Ziemia 2.0). Worked land is FIELDS, not one lawn —
+    /// a low-frequency patch pattern gives every ~50–100 m plot its own tone (lusher, drier,
+    /// lighter, darker) with soft headland borders. Only the vegetation layers move; dirt
+    /// roads and rock cut through the pattern unchanged. 0 disables the band.
+    pub field_patch_strength: f32,
 }
 
 impl TerrainMaterialSet {
@@ -46,6 +51,8 @@ impl TerrainMaterialSet {
                 TerrainLayer { albedo: [0.52, 0.51, 0.47], detail: 0.9, gloss: 0.12 },
             ],
             macro_normal_strength: 0.65,
+            // The open steppe is a quilt of worked plots — the band runs at full strength.
+            field_patch_strength: 1.0,
         }
     }
 
@@ -60,6 +67,8 @@ impl TerrainMaterialSet {
                 TerrainLayer { albedo: [0.42, 0.40, 0.36], detail: 0.9, gloss: 0.14 },
             ],
             macro_normal_strength: 0.65,
+            // Valley meadows patch more softly than the steppe's worked plots.
+            field_patch_strength: 0.75,
         }
     }
 }
@@ -88,5 +97,38 @@ impl TerrainGroundMaps {
             && self.macro_normal.len() == texels
             && self.extent_m[0] > 0.0
             && self.extent_m[1] > 0.0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Ziemia 2.0's contract: every map runs the field-patch band (worked land is a quilt,
+    /// not a lawn), the steppe patches harder than the valley meadows, and the maximum
+    /// lightness drift the shader applies (±17% at strength 1) cannot push any vegetation
+    /// albedo out of the art-direction ground window (saturation ≤ 0.45, lightness sane).
+    #[test]
+    fn the_field_quilt_is_on_everywhere_and_stays_inside_the_ground_window() {
+        let steppe = TerrainMaterialSet::prokhorovka();
+        let valley = TerrainMaterialSet::bystra();
+        assert_eq!(steppe.field_patch_strength, 1.0);
+        assert_eq!(valley.field_patch_strength, 0.75);
+        assert!(steppe.field_patch_strength > valley.field_patch_strength);
+
+        for set in [steppe, valley] {
+            for layer in &set.layers[..2] {
+                // The shader's worst-case plot lightening: field_light = 1 + 0.5 * 0.34.
+                let lifted = layer.albedo.map(|c| c * 1.17);
+                let max = lifted.iter().copied().fold(0.0f32, f32::max);
+                let min = lifted.iter().copied().fold(1.0f32, f32::min);
+                assert!(max <= 0.62, "a lightened plot must stay soil, not neon: {lifted:?}");
+                let saturation = if max > 0.0 { (max - min) / max } else { 0.0 };
+                assert!(
+                    saturation <= 0.45 + 1.0e-3,
+                    "vegetation saturation must hold the policy window, got {saturation}"
+                );
+            }
+        }
     }
 }
