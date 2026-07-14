@@ -72,7 +72,23 @@ impl FxSystem {
     /// shallower (the shell skips away), and a penetration adds the entry flash and a column of
     /// dark smoke out of the hole.
     pub fn armor_hit(&mut self, position: Vec3, penetrated: bool, ricocheted: bool) {
-        self.spark_fan(position, if ricocheted { 14 } else { 10 });
+        self.armor_hit_directed(position, penetrated, ricocheted, None);
+    }
+
+    /// A hit with the deflection direction known (from the wire's plate normal + shell
+    /// direction): a ricochet's sparks leave ALONG the departure, not in an anonymous dome —
+    /// the glance is readable at range from where the steel sprays.
+    pub fn armor_hit_directed(
+        &mut self,
+        position: Vec3,
+        penetrated: bool,
+        ricocheted: bool,
+        departure: Option<Vec3>,
+    ) {
+        match departure.map(glam::Vec3::normalize_or_zero).filter(|d| d.length_squared() > 0.5) {
+            Some(direction) if ricocheted => self.spark_fan_directed(position, 14, direction),
+            _ => self.spark_fan(position, if ricocheted { 14 } else { 10 }),
+        }
         if penetrated {
             self.penetration_signature(position);
         }
@@ -142,22 +158,43 @@ impl FxSystem {
             let direction =
                 Vec3::new(self.rand_signed(), 0.3 + self.rand_unit() * 0.7, self.rand_signed())
                     .normalize_or_zero();
-            let speed = 9.0 + self.rand_unit() * 9.0;
-            let ttl = 0.15 + self.rand_unit() * 0.25;
-            self.spawn(Particle {
-                position,
-                velocity_mps: direction * speed,
-                gravity_factor: 0.5,
-                drag_per_s: 2.0,
-                age_s: 0.0,
-                ttl_s: ttl,
-                size_begin_m: 0.10,
-                size_end_m: 0.05,
-                color_begin: [1.0, 0.75, 0.35, 0.0],
-                color_end: [0.4, 0.12, 0.02, 0.0],
-                stretch_s: 0.04,
-            });
+            self.spark(position, direction);
         }
+    }
+
+    /// A fan biased along a departure direction: most sparks ride the deflection cone, a few
+    /// still scatter wide (steel chips every which way, but the ENERGY leaves one way).
+    fn spark_fan_directed(&mut self, position: Vec3, count: u32, departure: Vec3) {
+        for index in 0..count {
+            let scatter =
+                Vec3::new(self.rand_signed(), 0.3 + self.rand_unit() * 0.7, self.rand_signed())
+                    .normalize_or_zero();
+            let direction = if index % 4 == 0 {
+                scatter
+            } else {
+                (departure * 1.6 + scatter * 0.6).normalize_or_zero()
+            };
+            self.spark(position, direction);
+        }
+    }
+
+    /// One white-hot chip of steel on its way out.
+    fn spark(&mut self, position: Vec3, direction: Vec3) {
+        let speed = 9.0 + self.rand_unit() * 9.0;
+        let ttl = 0.15 + self.rand_unit() * 0.25;
+        self.spawn(Particle {
+            position,
+            velocity_mps: direction * speed,
+            gravity_factor: 0.5,
+            drag_per_s: 2.0,
+            age_s: 0.0,
+            ttl_s: ttl,
+            size_begin_m: 0.10,
+            size_end_m: 0.05,
+            color_begin: [1.0, 0.75, 0.35, 0.0],
+            color_end: [0.4, 0.12, 0.02, 0.0],
+            stretch_s: 0.04,
+        });
     }
 
     /// The penetration signature: one hard entry flash plus dark propellant/fuel smoke rolling
@@ -238,6 +275,36 @@ mod tests {
         assert!(bounce_vertices.iter().all(|vertex| vertex.color[3] == 0.0));
         let pen_vertices = pen.vertices(Vec3::new(0.0, 1.0, -8.0), Vec3::ZERO);
         assert!(pen_vertices.iter().any(|vertex| vertex.color[3] > 0.0));
+    }
+
+    /// D6's audit lock: with the deflection known (plate normal + shell direction ride the
+    /// wire since v19), a ricochet's sparks leave ALONG the departure - the energy has a
+    /// direction, not an anonymous dome.
+    #[test]
+    fn directed_ricochet_sparks_leave_along_the_departure() {
+        let departure = Vec3::X;
+        let mut fx = FxSystem::default();
+        fx.armor_hit_directed(Vec3::ZERO, false, true, Some(departure));
+        let mean: Vec3 =
+            fx.particles.iter().map(|p| p.velocity_mps.normalize_or_zero()).sum::<Vec3>()
+                / fx.particles.len() as f32;
+        assert!(
+            mean.dot(departure) > 0.45,
+            "the spark fan must lean along the deflection, mean alignment {}",
+            mean.dot(departure)
+        );
+
+        // Without the direction the fan stays the old anonymous dome.
+        let mut blind = FxSystem::default();
+        blind.armor_hit_directed(Vec3::ZERO, false, true, None);
+        let blind_mean: Vec3 =
+            blind.particles.iter().map(|p| p.velocity_mps.normalize_or_zero()).sum::<Vec3>()
+                / blind.particles.len() as f32;
+        assert!(
+            blind_mean.dot(departure).abs() < 0.35,
+            "an unknown deflection must not invent a lean, got {}",
+            blind_mean.dot(departure)
+        );
     }
 
     #[test]

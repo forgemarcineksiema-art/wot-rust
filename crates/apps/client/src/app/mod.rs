@@ -171,6 +171,10 @@ pub(crate) struct ClientApp {
     /// when a tank first appears in `Snapshot.detached_turrets`; the turret and gun render objects
     /// of that wreck are then driven from this deterministic arc instead of the snapshot pose.
     turret_popoffs: HashMap<game_core::TankId, crate::vehicle::turret_popoff::TurretPopoff>,
+    /// Thrown tracks lying on the field (D6): a budgeted list, oldest shed first out.
+    track_ribbons: Vec<crate::vehicle::track_ribbon::TrackRibbon>,
+    /// Seconds since each wreck died — the burn-out epilogue's clock (flames, then smoke).
+    wreck_age_s: HashMap<game_core::TankId, f32>,
     /// Per-instance dented hull mesh for each wreck, built once from its recorded penetrations.
     /// The wreck's hull render object is swapped to this handle so a knocked-out tank reads beaten
     /// and dented, not pristine-but-tinted. Presentation only (see `vehicle::wreck_deform`).
@@ -338,6 +342,8 @@ impl ClientApp {
             fx: FxSystem::default(),
             tank_scars: HashMap::new(),
             turret_popoffs: HashMap::new(),
+            track_ribbons: Vec::new(),
+            wreck_age_s: HashMap::new(),
             terrain_scars: crate::fx::TerrainScars::default(),
             track_marks: crate::fx::TrackMarks::default(),
             engine_smoke_accum_s: HashMap::new(),
