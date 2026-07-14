@@ -258,11 +258,6 @@ pub(super) struct Plate {
     pub(super) v: Vec3,
 }
 
-/// A penetration is three layers, not one blob: a wide SOFT scorch halo (burnt paint), the
-/// hard-edged near-black entry hole, and a fan of bright bare-metal splash streaks â€” the
-/// signature look of a shaped hole in rolled armor, readable at battle range. When the decal
-/// carries a conformal patch (protocol phase 2) the hard hole is drawn WRAPPED to the casting
-/// instead of as a flat stamp; the soft halo and streaks stay flat (they read fine flat).
 /// A non-penetrating smack: a soft smudge of scorched paint around a smaller bared-metal core.
 fn push_scuff(vertices: &mut Vec<FxVertex>, plate: Plate, decal: &HitDecal, opacity: f32) {
     let r = decal.radius;
