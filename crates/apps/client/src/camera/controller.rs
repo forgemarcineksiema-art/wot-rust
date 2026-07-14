@@ -8,6 +8,12 @@ use super::{
     CameraSubject, collision, zoom,
 };
 
+/// The death spectate (Inna Liga D9): the boom flows out to this multiple of the map's max...
+const DEATH_BOOM_FACTOR: f32 = 1.3;
+/// ...over this many seconds, while the view drifts in a slow orbit around the wreck.
+const DEATH_BOOM_FLOW_S: f32 = 2.0;
+const DEATH_ORBIT_RATE_RAD_S: f32 = 0.12;
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct BattleCameraController {
     settings: BattleCameraSettings,
@@ -16,6 +22,10 @@ pub struct BattleCameraController {
     pitch_rad: f32,
     distance_m: f32,
     sniper_fov_degrees: f32,
+    /// Seconds since the player's death took the screen, or `None` alive (D9). While set, the
+    /// boom flows wide and the view orbits — the player WATCHES the wreck epilogue instead of
+    /// staring through a frozen gunsight.
+    pub(super) death_orbit_s: Option<f32>,
     pub(super) smoothing: CameraSmoothing,
     pub(super) presented: super::present::PresentedCamera,
 }
@@ -29,8 +39,52 @@ impl BattleCameraController {
             pitch_rad: settings.third_person_pitch_rad,
             distance_m: settings.third_person_distance_m,
             sniper_fov_degrees: settings.sniper_fov_degrees,
+            death_orbit_s: None,
             smoothing: CameraSmoothing::default(),
             presented: super::present::PresentedCamera::default(),
+        }
+    }
+
+    /// Enter or leave the death spectate (D9). Entering leaves the scope (a dead gunner sights
+    /// nothing) and lifts the eye to a watching pitch; leaving hands the rig back untouched.
+    pub fn set_death_orbit(&mut self, dead: bool) {
+        match (dead, self.death_orbit_s) {
+            (true, None) => {
+                self.death_orbit_s = Some(0.0);
+                self.mode = BattleCameraMode::ThirdPerson;
+                self.pitch_rad = self
+                    .pitch_rad
+                    .max(0.30)
+                    .clamp(self.settings.min_pitch_rad, self.settings.max_pitch_rad);
+            }
+            (false, Some(_)) => self.death_orbit_s = None,
+            _ => {}
+        }
+    }
+
+    pub fn death_spectate(&self) -> bool {
+        self.death_orbit_s.is_some()
+    }
+
+    /// Advance the death orbit one presented frame: the age drives the boom flow and the view
+    /// drifts slowly around the wreck. Called from `present` with the frame dt.
+    pub(super) fn tick_death_orbit(&mut self, dt: f32) {
+        if let Some(age) = &mut self.death_orbit_s {
+            *age += dt;
+            self.orbit_yaw_rad = wrap_angle(self.orbit_yaw_rad + DEATH_ORBIT_RATE_RAD_S * dt);
+        }
+    }
+
+    /// The boom the rig actually flies: the dialed distance alive, flowing out to 1.3x the
+    /// map's ceiling over ~2 s once dead — far enough to take in the whole wreck epilogue.
+    fn effective_boom_m(&self) -> f32 {
+        match self.death_orbit_s {
+            None => self.distance_m,
+            Some(age) => {
+                let t = (age / DEATH_BOOM_FLOW_S).clamp(0.0, 1.0);
+                let wide = self.settings.max_distance_m * DEATH_BOOM_FACTOR;
+                self.distance_m + (wide - self.distance_m) * t
+            }
         }
     }
 
@@ -139,8 +193,9 @@ impl BattleCameraController {
             + Vec3::Y * self.settings.third_person_target_height_m
             + forward * self.settings.third_person_target_forward_offset_m
             + right * self.settings.third_person_lateral_offset_m;
-        let horizontal_distance = self.distance_m * self.pitch_rad.cos().max(0.1);
-        let vertical_offset = self.distance_m * self.pitch_rad.sin();
+        let boom = self.effective_boom_m();
+        let horizontal_distance = boom * self.pitch_rad.cos().max(0.1);
+        let vertical_offset = boom * self.pitch_rad.sin();
         let desired_eye = target - forward * horizontal_distance + Vec3::Y * vertical_offset;
         let collided_eye = collision::resolve_boom_collision(
             target,

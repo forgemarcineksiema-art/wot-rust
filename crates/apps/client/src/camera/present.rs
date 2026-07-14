@@ -41,6 +41,7 @@ impl BattleCameraController {
         dt: f32,
     ) -> Camera {
         let dt = dt.clamp(0.0, 0.1);
+        self.tick_death_orbit(dt);
         let mut camera = self.render_camera(subject, environment);
 
         if self.mode() == BattleCameraMode::ThirdPerson {

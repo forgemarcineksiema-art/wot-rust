@@ -125,7 +125,9 @@ From the player-reported scroll wobble + barrel slide. Every fix landed with a l
   gap on a hilly 1000 m map).
 - [ ] **No boom-length smoothing** — the slab/terrain cut is exact but instantaneous, so the eye
   still pops when an obstacle enters/leaves the line; add a critically-damped boom-length spring.
-- [ ] **TPP max boom 18 m** — likely too short for the 1000 m Prokhorovka; retune with the map.
+- [x] **TPP max boom 18 m** — retuned per map (Inna Liga D9): `ClientApp::map_camera_settings`
+  gives Prokhorovka 23 m and Bystra Valley 20 m; the same package added the death spectate
+  (boom flows to 1.3× the map ceiling over ~2 s, slow orbit, battle HUD cleared).
 
 ---
 

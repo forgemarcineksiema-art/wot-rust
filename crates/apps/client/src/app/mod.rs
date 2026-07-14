@@ -281,6 +281,8 @@ impl ClientApp {
         app.minimap_static = crate::app::minimap_build::minimap_static_layers(&battlefield);
         app.battlefield = battlefield;
         app.player_tank = player_tank;
+        app.camera_controller =
+            BattleCameraController::new(Self::map_camera_settings(session.map_id()));
         app.session = session;
         app.render_state = InterpolatedBattleState::default();
         app.render_state.accept_authoritative_snapshot(app.session.latest_snapshot_for_player());
@@ -312,6 +314,7 @@ impl ClientApp {
         // The authoritative server names the map; the client regenerates the identical
         // battlefield locally (the world never crosses the wire — see `terrain::MapId`).
         let battlefield = local_server.map_id().battlefield();
+        let camera_settings = Self::map_camera_settings(local_server.map_id());
         let camera_obstacles =
             battlefield.static_cover.iter().map(CameraObstacle::from_static_cover).collect();
         let mut predictor = LocalPredictor::new(&player_spec);
@@ -324,7 +327,7 @@ impl ClientApp {
             last_loop_time: Instant::now(),
             session: local_server,
             render_state,
-            camera_controller: BattleCameraController::default(),
+            camera_controller: BattleCameraController::new(camera_settings),
             camera_obstacles,
             desired_aim: DesiredAim::default(),
             garage: GarageState::default(),

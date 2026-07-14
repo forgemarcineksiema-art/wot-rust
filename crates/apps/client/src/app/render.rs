@@ -191,6 +191,8 @@ impl ClientApp {
         self.rebuild_cover_scene_if_dirty();
 
         let alpha = self.loop_driver.render_alpha();
+        // The death spectate (D9): the kill gets its audience.
+        let player_dead = self.tick_death_spectate();
         // A landing the predictor absorbed since the last frame slams the camera rig once.
         let landing_impact = self.predictor.take_landing_impact_mps();
         if landing_impact > 0.0 {
@@ -296,9 +298,15 @@ impl ClientApp {
             fire_denied_age_s: self.fire_denied_age_s,
             scope_fade: self.camera_controller.scope_dressing(),
         };
-        let mut hud = crate::hud::build_battle_hud(&hud_model, aspect);
-        hud.extend(enemy_bars);
-        hud.extend(self.hit_indicator.render_vertices(view_proj, aspect));
+        // The death spectate clears the stage (D9): no vitals, no reticle, no bars — the wreck
+        // epilogue IS the picture. The end-of-battle overlay still comes through when it lands.
+        let spectating = player_dead && self.battle_outcome.is_none();
+        let mut hud =
+            if spectating { Vec::new() } else { crate::hud::build_battle_hud(&hud_model, aspect) };
+        if !spectating {
+            hud.extend(enemy_bars);
+            hud.extend(self.hit_indicator.render_vertices(view_proj, aspect));
+        }
         let fx_vertices = self.fx_frame_vertices(camera.eye, camera.target);
         let scene_time_s = self.presented_time_s();
         self.ensure_scene(SceneKind::Battle);
