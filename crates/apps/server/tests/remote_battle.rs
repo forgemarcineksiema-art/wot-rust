@@ -120,3 +120,105 @@ fn a_silent_client_ages_out_and_the_battle_keeps_running() {
     }
     assert!(host.is_running(), "a dead client never stalls the battle");
 }
+
+/// N4: a crew that vanishes frees its seat, and a LATE JOINER claims it mid-battle — converging
+/// from the very first snapshot, because a snapshot IS the full battle state. The wire was
+/// designed for this; here it is proven end-to-end.
+#[test]
+fn a_late_joiner_claims_a_freed_seat_and_converges_immediately() {
+    let hub = MemoryHub::new();
+    let server_addr = "10.0.0.1:40000".parse().expect("addr");
+    let mut server_port = hub.port(server_addr);
+    let mut port_a = hub.port("10.0.0.2:5000".parse().expect("addr"));
+
+    let battle = RandomBattleConfig {
+        seed: BattleSeed::fixed(77),
+        player_vehicle: game_core::VehicleKind::T54_1951,
+        map: terrain::MapId::default(),
+    };
+    let mut host = RemoteBattleServer::new(ServerTickConfig::default(), battle, 200, 0);
+    let mut first = ClientSession::connect(server_addr, 0);
+    let mut first_tank = None;
+    for step in 0..60_u64 {
+        let now_ms = step * 16;
+        for message in first.tick(now_ms, &mut port_a).expect("tick") {
+            if let ProtocolMessage::StartBattle { assigned_tank, .. } = message {
+                first_tank = Some(assigned_tank);
+            }
+        }
+        host.pump(now_ms, &mut server_port);
+        host.tick(now_ms, &mut server_port);
+    }
+    let first_tank = first_tank.expect("seated");
+
+    // The first crew vanishes; the host runs on until the seat ages out.
+    for step in 60..800_u64 {
+        let now_ms = step * 16;
+        host.pump(now_ms, &mut server_port);
+        host.tick(now_ms, &mut server_port);
+    }
+
+    // A LATE joiner arrives mid-battle and must inherit the freed tank.
+    let mut port_b = hub.port("10.0.0.3:5000".parse().expect("addr"));
+    let mut late = ClientSession::connect(server_addr, 800 * 16);
+    let mut late_tank = None;
+    let mut late_snapshot = None;
+    for step in 800..1_000_u64 {
+        let now_ms = step * 16;
+        for message in late.tick(now_ms, &mut port_b).expect("tick") {
+            match message {
+                ProtocolMessage::StartBattle { assigned_tank, .. } => {
+                    late_tank = Some(assigned_tank);
+                }
+                ProtocolMessage::Snapshot(snapshot) if late_snapshot.is_none() => {
+                    late_snapshot = Some(snapshot);
+                }
+                _ => {}
+            }
+        }
+        host.pump(now_ms, &mut server_port);
+        host.tick(now_ms, &mut server_port);
+    }
+    assert_eq!(late_tank, Some(first_tank), "the late joiner inherits the freed seat");
+    let snapshot = late_snapshot.expect("the late joiner receives state immediately");
+    // Convergence: the FIRST snapshot after joining already carries the whole battle — the
+    // joiner's own hull with whatever the battle has done to it, and the global cover state.
+    assert!(snapshot.tanks.iter().any(|t| t.tank_id == first_tank));
+    assert!(!snapshot.cover_states.is_empty(), "cover state rides every snapshot");
+    assert!(snapshot.server_tick > 700, "this is a mid-battle join, not a fresh start");
+}
+
+/// N4 chaos: the whole join-and-play flow under 25% seeded datagram loss. Fragmented snapshots
+/// are abandoned and superseded by design; the session's hello resend and the redundant input
+/// batches carry the rest — the client must still seat and still receive snapshots.
+#[test]
+fn the_flow_survives_heavy_seeded_loss() {
+    let hub = MemoryHub::with_loss(4242, 25);
+    let server_addr = "10.0.0.1:40000".parse().expect("addr");
+    let mut server_port = hub.port(server_addr);
+    let mut port_a = hub.port("10.0.0.2:5000".parse().expect("addr"));
+
+    let battle = RandomBattleConfig {
+        seed: BattleSeed::fixed(5),
+        player_vehicle: game_core::VehicleKind::T54_1951,
+        map: terrain::MapId::default(),
+    };
+    let mut host = RemoteBattleServer::new(ServerTickConfig::default(), battle, 300, 0);
+    let mut client = ClientSession::connect(server_addr, 0);
+    let mut seated = false;
+    let mut snapshots = 0_usize;
+    for step in 0..1_200_u64 {
+        let now_ms = step * 16;
+        for message in client.tick(now_ms, &mut port_a).expect("tick") {
+            match message {
+                ProtocolMessage::StartBattle { .. } => seated = true,
+                ProtocolMessage::Snapshot(_) => snapshots += 1,
+                _ => {}
+            }
+        }
+        host.pump(now_ms, &mut server_port);
+        host.tick(now_ms, &mut server_port);
+    }
+    assert!(seated, "25% loss must not stop the handshake and seating");
+    assert!(snapshots >= 30, "snapshots keep flowing through the loss, got {snapshots}");
+}

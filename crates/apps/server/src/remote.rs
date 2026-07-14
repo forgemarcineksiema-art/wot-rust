@@ -27,6 +27,9 @@ const BATTLE_ENDED_REPEATS: u32 = 20;
 struct RemoteClient {
     endpoint: Endpoint,
     tank: Option<TankId>,
+    /// The first InputBatch is the implicit ack that the crew knows its seat; until then the
+    /// host re-sends StartBattle every tick (the wire is lossy and that one word must land).
+    acked_start: bool,
     last_command: sim::TankCommand,
     last_command_tick: u64,
     last_heard_ms: u64,
@@ -37,12 +40,19 @@ enum Phase {
     Running { core: Box<LocalAuthoritativeServer>, ended_repeats: u32 },
 }
 
+/// Seats whose crew vanished mid-battle: a reconnecting (or fresh) client claims one and the
+/// tank goes back under human control — the late joiner converges from the very first snapshot,
+/// because a snapshot IS the full battle state (breaches, cover, turrets and all).
+#[derive(Default)]
+struct FreeSeats(Vec<TankId>);
+
 /// The whole host. Drive [`RemoteBattleServer::pump`] as often as you like (it drains the wire)
 /// and [`RemoteBattleServer::tick`] at the simulation cadence.
 pub struct RemoteBattleServer {
     config: ServerTickConfig,
     battle: RandomBattleConfig,
     clients: HashMap<SocketAddr, RemoteClient>,
+    free_seats: FreeSeats,
     phase: Phase,
 }
 
@@ -57,6 +67,7 @@ impl RemoteBattleServer {
             config,
             battle,
             clients: HashMap::new(),
+            free_seats: FreeSeats::default(),
             phase: Phase::Lobby { deadline_ms: now_ms + lobby_wait_ms },
         }
     }
@@ -79,6 +90,7 @@ impl RemoteBattleServer {
             let client = self.clients.entry(from).or_insert_with(|| RemoteClient {
                 endpoint: Endpoint::new(from),
                 tank: None,
+                acked_start: false,
                 last_command: sim::TankCommand::idle(),
                 last_command_tick: 0,
                 last_heard_ms: now_ms,
@@ -99,8 +111,27 @@ impl RemoteBattleServer {
                         ),
                     };
                     let _ = client.endpoint.send(transport, &hello);
+                    // Mid-battle hello: a late joiner (or a reconnect) takes a freed seat, or is
+                    // refused honestly — never left hanging in a lobby that will not come.
+                    if let Phase::Running { core, .. } = &self.phase
+                        && client.tank.is_none()
+                    {
+                        if let Some(tank) = self.free_seats.0.pop() {
+                            client.tank = Some(tank);
+                            let start = ProtocolMessage::StartBattle {
+                                assigned_tank: tank,
+                                server_tick: core.authoritative_tick(),
+                            };
+                            let _ = client.endpoint.send(transport, &start);
+                        } else {
+                            let refuse =
+                                ProtocolMessage::Disconnect { reason: DisconnectReason::Refused };
+                            let _ = client.endpoint.send(transport, &refuse);
+                        }
+                    }
                 }
                 ProtocolMessage::InputBatch { commands } => {
+                    client.acked_start = true;
                     apply_input_batch(client, &commands);
                 }
                 ProtocolMessage::Input(input) => {
@@ -112,14 +143,25 @@ impl RemoteBattleServer {
                     let _ = client.endpoint.send(transport, &pong);
                 }
                 ProtocolMessage::Disconnect { .. } => {
-                    self.clients.remove(&from);
+                    if let Some(gone) = self.clients.remove(&from)
+                        && let Some(tank) = gone.tank
+                    {
+                        self.free_seats.0.push(tank);
+                    }
                 }
                 _ => {}
             }
         }
-        // Silent clients age out; their tank falls to the last-command hold, then idles.
-        self.clients
-            .retain(|_, client| now_ms.saturating_sub(client.last_heard_ms) < CLIENT_TIMEOUT_MS);
+        // Silent clients age out; their tank falls to the last-command hold, then idles until a
+        // late joiner claims the freed seat.
+        let free_seats = &mut self.free_seats;
+        self.clients.retain(|_, client| {
+            let alive = now_ms.saturating_sub(client.last_heard_ms) < CLIENT_TIMEOUT_MS;
+            if !alive && let Some(tank) = client.tank {
+                free_seats.0.push(tank);
+            }
+            alive
+        });
     }
 
     /// One authoritative step at the simulation cadence: run the lobby clock or the battle tick,
@@ -161,6 +203,21 @@ impl RemoteBattleServer {
                     })
                     .collect();
                 let result = core.tick_with_inputs(&inputs);
+
+                // Until the first InputBatch acks the seat, keep repeating the one word a
+                // crew cannot play without.
+                let acked_tick = core.authoritative_tick();
+                for client in self.clients.values_mut() {
+                    if let Some(tank) = client.tank
+                        && !client.acked_start
+                    {
+                        let start = ProtocolMessage::StartBattle {
+                            assigned_tank: tank,
+                            server_tick: acked_tick,
+                        };
+                        let _ = client.endpoint.send(transport, &start);
+                    }
+                }
 
                 if let Some(snapshot) = result.snapshot {
                     let observers = core.observer_masks();

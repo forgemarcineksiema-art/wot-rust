@@ -39,7 +39,8 @@ impl Snapshot {
         let Some(viewer_team) = self.viewer_team(viewer_tank) else {
             return Snapshot { server_tick: self.server_tick, ..Snapshot::default() };
         };
-        let visible_tanks = self.visible_tanks_for(viewer_tank, viewer_team, &admits);
+        let mut visible_tanks = self.visible_tanks_for(viewer_tank, viewer_team, &admits);
+        quantize_distant_enemy_hp(&mut visible_tanks, viewer_tank, viewer_team);
         let visible_ids = visible_tanks.iter().map(|tank| tank.tank_id).collect::<Vec<_>>();
 
         Snapshot {
@@ -102,5 +103,38 @@ impl Snapshot {
             })
             .map(|(_, tank)| tank.clone())
             .collect()
+    }
+}
+
+/// Beyond this range an enemy's EXACT hit points are intel the crew could not have — the HUD
+/// bar still moves, but only in coarse steps.
+const EXACT_HP_RANGE_M: f32 = 300.0;
+/// Quantization step as a fraction of the vehicle's full pool.
+const DISTANT_HP_STEP: f32 = 0.20;
+
+/// The old sin was "exact HP at any range" (backlog, 2026-06-10): a sniper across the map read
+/// 743/1500 like a medic. Enemies beyond [`EXACT_HP_RANGE_M`] now report their pool rounded UP
+/// to a 20% step — never lower than truth (a fake kill reading would be dishonest the other
+/// way), never exact. Teammates and wrecks stay exact; so does anyone close enough to SEE the
+/// damage.
+fn quantize_distant_enemy_hp(tanks: &mut [TankSnapshot], viewer_tank: TankId, viewer_team: TeamId) {
+    let Some(viewer_position) =
+        tanks.iter().find(|tank| tank.tank_id == viewer_tank).map(|tank| tank.position)
+    else {
+        return;
+    };
+    for tank in tanks.iter_mut() {
+        if tank.team == viewer_team || tank.hit_points == 0 {
+            continue;
+        }
+        let dx = tank.position[0] - viewer_position[0];
+        let dz = tank.position[2] - viewer_position[2];
+        if (dx * dx + dz * dz).sqrt() <= EXACT_HP_RANGE_M {
+            continue;
+        }
+        let full = tank.vehicle.spec().hit_points.max(1);
+        let step = ((full as f32) * DISTANT_HP_STEP).max(1.0);
+        let quantized = ((tank.hit_points as f32 / step).ceil() * step).round() as u32;
+        tank.hit_points = quantized.min(full);
     }
 }

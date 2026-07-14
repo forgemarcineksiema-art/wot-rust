@@ -180,3 +180,53 @@ fn event(source: u64, target: u64) -> DamageEvent {
 fn tank_ids(snapshot: &Snapshot) -> Vec<u64> {
     snapshot.tanks.iter().map(|tank| tank.tank_id.0).collect()
 }
+
+/// N4 fairness: beyond 300 m an enemy's EXACT pool is intel the crew could not have — the bar
+/// reports 20% steps, rounded UP (never a fake kill reading), while teammates, wrecks and
+/// close-range enemies stay exact.
+#[test]
+fn distant_enemy_hp_is_quantized_never_exact() {
+    let viewer = tank(1, 1, 1000, 0b01);
+    let mut close_enemy = tank(2, 2, 743, 0b01);
+    close_enemy.position = [100.0, 0.0, 0.0];
+    let mut far_enemy = tank(3, 2, 743, 0b01);
+    far_enemy.position = [500.0, 0.0, 0.0];
+    let mut ally = tank(4, 1, 743, 0b01);
+    ally.position = [500.0, 0.0, 0.0];
+    let snapshot = net::Snapshot {
+        server_tick: 9,
+        tanks: vec![viewer, close_enemy, far_enemy, ally],
+        ..Default::default()
+    };
+    let cut = snapshot.filtered_for_viewer(game_core::TankId(1));
+    let hp = |id: u64| cut.tanks.iter().find(|t| t.tank_id.0 == id).expect("visible").hit_points;
+    assert_eq!(hp(2), 743, "a close enemy shows its true pool");
+    assert_eq!(hp(4), 743, "an ally is always exact");
+    let full = cut.tanks[2].vehicle.spec().hit_points as f32;
+    let far = hp(3);
+    assert_ne!(far, 743, "a distant enemy's exact pool is hidden");
+    assert!(far >= 743, "quantization rounds UP, never toward a fake kill");
+    let step = (full * 0.20).max(1.0);
+    assert!(
+        (far as f32 / step).fract().abs() < 1.0e-3,
+        "the reading sits on a 20% step, got {far}"
+    );
+}
+
+/// N4: a dead viewer keeps its TEAM's vision — spectating your own side is not a wallhack, and
+/// the death screen must not blink the battle away.
+#[test]
+fn a_dead_viewer_keeps_team_vision() {
+    let mut viewer = tank(1, 1, 0, 0b11);
+    viewer.position = [0.0, 0.0, 0.0];
+    let spotted_enemy = tank(2, 2, 900, 0b01);
+    let hidden_enemy = tank(3, 2, 900, 0b10);
+    let snapshot = net::Snapshot {
+        server_tick: 9,
+        tanks: vec![viewer, spotted_enemy, hidden_enemy],
+        ..Default::default()
+    };
+    let cut = snapshot.filtered_for_viewer(game_core::TankId(1));
+    assert!(cut.tanks.iter().any(|t| t.tank_id.0 == 2), "team-spotted enemies stay visible");
+    assert!(!cut.tanks.iter().any(|t| t.tank_id.0 == 3), "unspotted enemies stay hidden");
+}
