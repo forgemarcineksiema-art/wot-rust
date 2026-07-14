@@ -57,12 +57,21 @@ fn push_baked_tree(
             let normal = (rotation * vertex.normal).normalize_or_zero();
             // The painterly gradient: crown tops toward the light, undersides into shade.
             let shade = if lit_by_sky { 0.82 + 0.18 * normal.y.max(0.0) } else { 1.0 };
-            vertices.push(SceneVertex::surfaced(
-                position.to_array(),
-                normal.to_array(),
-                [color[0] * shade, color[1] * shade, color[2] * shade],
-                gloss,
-            ));
+            // The trunk wears bark (Materia Świata 3); the canopy keeps its painterly fill.
+            let role = if lit_by_sky {
+                renderer_api::surface_role::LEGACY
+            } else {
+                renderer_api::surface_role::BARK
+            };
+            vertices.push(
+                SceneVertex::surfaced(
+                    position.to_array(),
+                    normal.to_array(),
+                    [color[0] * shade, color[1] * shade, color[2] * shade],
+                    gloss,
+                )
+                .with_surface(role),
+            );
         }
         indices.extend(mesh.indices().iter().map(|index| index + start));
     }
@@ -262,6 +271,13 @@ mod baked_tree_tests {
             vertices_c.iter().map(|v| u64::from(v.position[1].to_bits())).sum::<u64>(),
             "two oaks at different spots are different individuals"
         );
+        // Materia Świata 3: the trunk wears bark down the surface lane, the canopy does not.
+        let barked = vertices_a
+            .iter()
+            .filter(|v| (v.surface - renderer_api::surface_role::BARK).abs() < 0.01)
+            .count();
+        assert!(barked > 0, "the trunk names its bark");
+        assert!(barked < vertices_a.len(), "the canopy keeps its painterly fill");
     }
 
     /// The backdrop ring keeps the cheap painted frusta — thousands of instances at kilometers.

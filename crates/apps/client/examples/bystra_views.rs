@@ -66,6 +66,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             wetness: 0.0,
         },
         View {
+            name: "bystra_wall_close",
+            eye: at(706.0, 2.5, 498.0),
+            target: at(725.0, 3.0, 512.0),
+            lighting: SceneLighting::bystra_clear_afternoon(),
+            sky: (0.62, 0.66, 0.72),
+            rain: 0.0,
+            wetness: 0.0,
+        },
+        View {
             name: "bystra_town_rain",
             eye: at(680.0, 5.0, 470.0),
             target: at(760.0, 3.0, 510.0),

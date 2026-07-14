@@ -260,21 +260,33 @@ fn append_building(
             let local = if rotate { Vec3::new(scaled.z, scaled.y, -scaled.x) } else { scaled };
             let n = vertex.normal / scale;
             let n = if rotate { Vec3::new(n.z, n.y, -n.x) } else { n };
-            let (color, gloss) = match (is_roof, vertex.material) {
-                (true, vehicle_geometry::MaterialRole::CastArmor) => (roof, roof_gloss),
-                (true, _) => (wall, 0.10),
-                (false, vehicle_geometry::MaterialRole::CastArmor) => plinth,
-                (false, vehicle_geometry::MaterialRole::InteriorMachinery) => WINDOW,
-                (false, vehicle_geometry::MaterialRole::InteriorPrimer) => DOOR,
-                (false, _) => (wall, 0.10),
+            // Colour names the palette; the surface-role lane names the MATERIAL the scene
+            // shader dresses it in (Materia Świata 3): rendered walls, coursed roofs, plank
+            // doors. Glass and plinth stone keep the untreated look.
+            use renderer_api::surface_role;
+            let (color, gloss, role) = match (is_roof, vertex.material) {
+                (true, vehicle_geometry::MaterialRole::CastArmor) => {
+                    (roof, roof_gloss, surface_role::SLATE)
+                }
+                (true, _) => (wall, 0.10, surface_role::PLASTER),
+                (false, vehicle_geometry::MaterialRole::CastArmor) => {
+                    (plinth.0, plinth.1, surface_role::LEGACY)
+                }
+                (false, vehicle_geometry::MaterialRole::InteriorMachinery) => {
+                    (WINDOW.0, WINDOW.1, surface_role::LEGACY)
+                }
+                (false, vehicle_geometry::MaterialRole::InteriorPrimer) => {
+                    (DOOR.0, DOOR.1, surface_role::PLANK)
+                }
+                (false, _) => (wall, 0.10, surface_role::PLASTER),
             };
-            let mut scene_vertex = SceneVertex::surfaced(
+            let scene_vertex = SceneVertex::surfaced(
                 (ground + local).to_array(),
                 n.normalize_or_zero().to_array(),
                 color,
                 gloss,
-            );
-            let _ = &mut scene_vertex;
+            )
+            .with_surface(role);
             vertices.push(scene_vertex);
         }
         indices.extend(mesh.indices().iter().map(|index| index + base));
@@ -684,6 +696,32 @@ mod tests {
         assert!(doors >= 4, "a door stands proud of the plaster, got {doors} verts");
         // Glass answers the sky harder than the plaster around it.
         assert!(WINDOW.1 > 0.10, "window glaze outshines the wall");
+    }
+
+    /// Materia Świata 3: a building names its materials down the surface lane — rendered
+    /// walls, coursed roofs, a plank door — while glass keeps the untreated look. The lane
+    /// is what the scene shader dispatches its procedural detail on.
+    #[test]
+    fn buildings_name_their_surfaces_down_the_lane() {
+        use renderer_api::surface_role;
+        let map = prokhorovka_hill_252_2();
+        let barn = map
+            .static_cover
+            .iter()
+            .find(|c| c.kind == StaticCoverKind::FarmBuilding)
+            .expect("prokhorovka has barns");
+        let mut vertices = Vec::new();
+        let mut indices = Vec::new();
+        append_cover_box(&mut vertices, &mut indices, barn);
+        let count = |role: f32| vertices.iter().filter(|v| (v.surface - role).abs() < 0.01).count();
+        assert!(count(surface_role::PLASTER) > 0, "walls wear plaster");
+        assert!(count(surface_role::SLATE) > 0, "the roof runs in courses");
+        assert!(count(surface_role::PLANK) >= 4, "the door is sawn boards");
+        for vertex in &vertices {
+            if vertex.color == WINDOW.0 {
+                assert_eq!(vertex.surface, surface_role::LEGACY, "glass takes no treatment");
+            }
+        }
     }
 
     /// The steppe roads are painted ground, not decals: a vertex on a dirt road reads as

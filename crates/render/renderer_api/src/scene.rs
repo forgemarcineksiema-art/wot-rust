@@ -64,6 +64,22 @@ pub struct SceneVertex {
 // reorder would corrupt all of them at once.
 const _: () = assert!(std::mem::size_of::<SceneVertex>() == 52);
 
+/// The surface-role table (Materia Świata 3): the shared language between mesh producers and
+/// the scene shader's procedural detail treatments. Roles are floats because they ride a
+/// vertex lane; the shader dispatches on the quantized value. Append-only, like the layout.
+pub mod surface_role {
+    /// No treatment — the pre-materials look. Terrain, glass, plinth stone, metal.
+    pub const LEGACY: f32 = 0.0;
+    /// Rendered/limewashed masonry: fine grain plus half-metre blotches.
+    pub const PLASTER: f32 = 1.0;
+    /// Sawn boards: ~0.2 m planks with per-board tone, dark joints, vertical grain.
+    pub const PLANK: f32 = 2.0;
+    /// Roof courses (slate/tile/shingle): rows with staggered joints and per-tile tone.
+    pub const SLATE: f32 = 3.0;
+    /// Tree bark: vertical striations with deeper grooves.
+    pub const BARK: f32 = 4.0;
+}
+
 impl SceneVertex {
     /// An absolute-colored vertex (`tint_weight` 0.0): the per-instance tint never touches it.
     /// Matte by default — surfaces with a real finish use [`Self::surfaced`].
