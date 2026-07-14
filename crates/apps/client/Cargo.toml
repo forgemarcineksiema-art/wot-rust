@@ -19,6 +19,7 @@ physics.workspace = true
 png = "0.18"
 renderer_api.workspace = true
 scene_build.workspace = true
+timer_resolution.workspace = true
 renderer_wgpu.workspace = true
 serde.workspace = true
 serde_json.workspace = true

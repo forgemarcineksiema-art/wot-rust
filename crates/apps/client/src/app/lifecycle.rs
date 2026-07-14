@@ -40,7 +40,11 @@ impl ApplicationHandler for ClientApp {
             .and_then(|monitor| monitor.refresh_rate_millihertz())
             .map_or(60.0, |millihertz| f64::from(millihertz) / 1000.0);
         self.loop_driver.set_present_hz(refresh_hz);
-        info!(refresh_hz, "frame pacing locked to the display");
+        // F5: without 1 ms scheduler resolution, Windows quantizes the pacer's WaitUntil to
+        // ~15.6 ms ticks — frames land on 16/31/47 ms (60/30/20 FPS), the exact oscillation
+        // the pacer exists to remove.
+        let millisecond_timer = timer_resolution::request_millisecond_timer();
+        info!(refresh_hz, millisecond_timer, "frame pacing locked to the display");
         info!("client ready: WASD drive, mouse aim + camera, Space/left-click fire, Esc cursor");
         self.audio = crate::audio_out::AudioOutput::try_new();
         self.window = Some(window);

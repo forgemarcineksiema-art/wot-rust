@@ -1,0 +1,12 @@
+# The ONE crate allowed to hold an unsafe block (see src/lib.rs): a single Win32 FFI call the
+# frame pacer's sleep accuracy depends on. Deliberately NOT inheriting the workspace lints —
+# the workspace forbids unsafe_code, and this crate exists precisely to quarantine the one
+# exception behind a safe, documented API.
+[package]
+name = "timer_resolution"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.52", features = ["Win32_Media"] }
