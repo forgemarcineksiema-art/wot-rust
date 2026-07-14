@@ -54,6 +54,9 @@ impl super::SceneRenderer {
         if self.frame_instance_count > 0 {
             pass.set_vertex_buffer(1, self.frame_instances.slice(..));
             for draw in &self.frame_draws {
+                if draw.mesh.0 >= renderer_api::SHADOWLESS_DRESSING_MESH_BASE {
+                    continue;
+                }
                 let Some(mesh) = self.static_meshes.get(draw.mesh) else {
                     continue;
                 };
@@ -130,6 +133,9 @@ impl super::SceneRenderer {
         if self.frame_instance_count > 0 {
             pass.set_vertex_buffer(1, self.frame_instances.slice(..));
             for draw in &self.frame_draws {
+                if draw.mesh.0 >= renderer_api::SHADOWLESS_DRESSING_MESH_BASE {
+                    continue;
+                }
                 let Some(mesh) = self.static_meshes.get(draw.mesh) else {
                     continue;
                 };
@@ -182,6 +188,9 @@ impl super::SceneRenderer {
         if self.frame_instance_count > 0 {
             pass.set_vertex_buffer(1, self.frame_instances.slice(..));
             for draw in &self.frame_draws {
+                if draw.mesh.0 >= renderer_api::SHADOWLESS_DRESSING_MESH_BASE {
+                    continue;
+                }
                 let Some(mesh) = self.static_meshes.get(draw.mesh) else {
                     continue;
                 };

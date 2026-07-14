@@ -2,9 +2,10 @@ use std::fs::File;
 use std::io::BufWriter;
 
 use client::{
-    bake_terrain_ground_maps, battlefield_ground_and_statics_meshes, battlefield_water_mesh,
-    terrain_material_set_for,
+    GRASS_MESH_HANDLE, bake_terrain_ground_maps, battlefield_ground_and_statics_meshes,
+    battlefield_water_mesh, grass_frame_objects, grass_tuft_mesh, terrain_material_set_for,
 };
+use renderer_api::RenderFrame;
 use renderer_api::{Camera, CameraProjectionPolicy, SceneLighting, view_projection_matrix};
 use renderer_wgpu::{GpuContext, OffscreenTarget, SceneRenderer};
 use terrain::bystra_valley;
@@ -87,8 +88,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
     renderer.set_water(&ctx, &water_vertices, &water_indices);
     renderer.scene_time_s = 12.0;
+    renderer.register_mesh(&ctx, GRASS_MESH_HANDLE, &grass_tuft_mesh());
 
     for view in &views {
+        // The near-field grass ring the live client conjures around the camera each frame.
+        let grass = grass_frame_objects(
+            &battlefield.heightmap,
+            battlefield.water,
+            &ground_maps,
+            &terrain_material_set_for(terrain::MapId::BystraValley),
+            glam::Vec3::from_array(view.eye),
+        );
+        renderer.set_render_frame(&ctx, &RenderFrame { objects: grass, ..RenderFrame::default() });
         renderer.scene_lighting = view.lighting;
         renderer.set_outdoor_sky(view.sky.0, view.sky.1, view.sky.2);
         renderer.rain_intensity = view.rain;
