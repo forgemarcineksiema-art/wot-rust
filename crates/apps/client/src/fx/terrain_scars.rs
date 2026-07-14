@@ -115,15 +115,17 @@ fn push_crater(vertices: &mut Vec<FxVertex>, scar: &TerrainScar, opacity: f32) {
         v: v * cos - u * sin,
     };
 
+    // Turned EARTH, not a hole in the world: the old near-black core (0.04 @ 0.85) read as
+    // a cartoon void on pale grass. Browner, softer, and the core no longer saturates.
     push_stamp(
         vertices,
         plate,
         r * 2.3,
         r * 2.3,
         0.9,
-        premul([0.055, 0.045, 0.032], 0.5 * opacity),
+        premul([0.16, 0.125, 0.085], 0.45 * opacity),
     );
-    push_stamp(vertices, plate, r, r, 4.0, premul([0.040, 0.032, 0.022], 0.85 * opacity));
+    push_stamp(vertices, plate, r, r, 2.2, premul([0.11, 0.085, 0.058], 0.6 * opacity));
     for ray in 0..EJECTA_RAYS {
         let angle = ray as f32 / EJECTA_RAYS as f32 * std::f32::consts::TAU
             + game_core::math::next_hash_unit(&mut seed);

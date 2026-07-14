@@ -47,6 +47,16 @@ pub struct ShellImpact {
     /// layout stability; `serde(default)` keeps older fixtures deserializing in tests.
     #[serde(default)]
     pub shell_type: ShellType,
+    /// The shell's flight direction at death, normalized (protocol v30, Fizyczny Świat P1):
+    /// a full-calibre round hitting soil ploughs a FURROW along its track and throws earth
+    /// FORWARD — a directionless mark is physically wrong. `Vec3::ZERO` (old snapshots via
+    /// `serde(default)`) degrades the presentation to the directionless mark.
+    #[serde(default)]
+    pub direction: Vec3,
+    /// The shell's calibre (protocol v30): the mark's SIZE is the projectile's size — a
+    /// 122 mm crater is not an 76 mm one. `0.0` (old snapshots) falls back to a default.
+    #[serde(default)]
+    pub caliber_mm: f32,
 }
 
 /// What a shell did to a track band (protocol v22): which side it struck and whether that hit

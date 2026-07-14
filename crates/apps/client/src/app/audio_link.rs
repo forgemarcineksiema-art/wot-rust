@@ -507,6 +507,7 @@ mod tests {
             position: Vec3::new(40.0, 0.0, 44.0),
             surface: game_core::ImpactSurface::Terrain,
             shell_type: game_core::ShellType::HighExplosive,
+            ..Default::default()
         });
         app.accept_and_sync(snapshot);
 
