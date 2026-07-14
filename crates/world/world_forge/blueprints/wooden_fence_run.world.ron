@@ -1,0 +1,28 @@
+// One 4 m run of village fence: two posts and two rails. The scene builder instances runs along
+// authored lines; a shell snaps a run, not a whole "fence object".
+(
+    name: "wooden_fence_run",
+    kind: Structure,
+    parts: [
+        (
+            name: "post_left",
+            material: RolledArmor,
+            shape: Box(center: (-1.9, 0.6, 0.0), half: (0.06, 0.6, 0.06)),
+        ),
+        (
+            name: "post_right",
+            material: RolledArmor,
+            shape: Box(center: (1.9, 0.6, 0.0), half: (0.06, 0.6, 0.06)),
+        ),
+        (
+            name: "rail_top",
+            material: RolledArmor,
+            shape: Box(center: (0.0, 1.0, 0.0), half: (2.0, 0.05, 0.03)),
+        ),
+        (
+            name: "rail_bottom",
+            material: RolledArmor,
+            shape: Box(center: (0.0, 0.55, 0.0), half: (2.0, 0.05, 0.03)),
+        ),
+    ],
+)

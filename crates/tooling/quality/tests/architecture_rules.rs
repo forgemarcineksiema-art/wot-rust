@@ -36,6 +36,28 @@ fn core_architecture_docs_exist() {
 }
 
 #[test]
+fn world_forge_stays_renderer_free() {
+    let root = workspace_root();
+    let manifest = fs::read_to_string(root.join("crates/world/world_forge/Cargo.toml"))
+        .expect("world_forge manifest exists");
+    let mut offenders = Vec::new();
+    for dependency in ["renderer_api", "renderer_wgpu", "wgpu", "winit", "egui"] {
+        if manifest_has_dependency(&manifest, dependency) {
+            offenders.push(format!("world_forge manifest depends on {dependency}"));
+        }
+    }
+    for source in rust_files(&root.join("crates/world/world_forge/src")) {
+        let source_text = fs::read_to_string(&source).expect("world_forge source is readable");
+        for crate_name in ["renderer_api", "renderer_wgpu", "wgpu", "winit", "egui"] {
+            if source_uses_crate(&source_text, crate_name) {
+                offenders.push(format!("{} references {crate_name}", source.display()));
+            }
+        }
+    }
+    assert!(offenders.is_empty(), "world_forge must stay renderer-free: {offenders:?}");
+}
+
+#[test]
 fn vehicle_forge_stays_renderer_free() {
     let root = workspace_root();
     let manifest = fs::read_to_string(root.join("crates/vehicle/vehicle_forge/Cargo.toml"))

@@ -5802,6 +5802,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "beffa227304dbaea3ad6a06ac674f9bc83a3dec3b7f63eeb442de37e7cb6bb01"
 
 [[package]]
+name = "world_forge"
+version = "0.1.0"
+dependencies = [
+ "glam 0.30.10",
+ "ron",
+ "serde",
+ "thiserror 2.0.18",
+ "vehicle_geometry",
+]
+
+[[package]]
 name = "x11-dl"
 version = "2.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

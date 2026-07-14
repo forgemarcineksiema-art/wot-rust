@@ -5,7 +5,7 @@ use glam::{Vec2, Vec3};
 use crate::MeshBounds;
 use crate::weld::{WeldKey, weld_key};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum MaterialRole {
     RolledArmor,
     CastArmor,

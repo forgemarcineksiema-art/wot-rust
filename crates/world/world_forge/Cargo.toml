@@ -1,0 +1,16 @@
+[package]
+name = "world_forge"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[dependencies]
+glam.workspace = true
+ron.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+vehicle_geometry.workspace = true
+
+[lints]
+workspace = true
