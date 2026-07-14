@@ -7,7 +7,7 @@ use crate::RandomBattleConfig;
 use crate::ServerTickConfig;
 use crate::battle::{BattleMode, BattleOutcome, DrawReason, RANDOM_BATTLE_TIME_LIMIT_S};
 use crate::bots::BotRoster;
-use crate::setup::{BattleSetup, practice_duel_setup, random_7v7_setup};
+use crate::setup::{BattleSetup, practice_duel_setup};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct AuthoritativeTick {
@@ -46,7 +46,37 @@ impl LocalAuthoritativeServer {
     }
 
     pub fn new_random_7v7(config: ServerTickConfig, battle: RandomBattleConfig) -> Self {
-        Self::from_setup(config, random_7v7_setup(battle))
+        Self::from_setup(config, crate::setup::random_7v7_setup(battle))
+    }
+
+    /// The dedicated server's constructor (N2): the first `humans` team-one tanks belong to
+    /// connected players (returned in slot order), bots drive the rest.
+    pub fn new_random_7v7_for_humans(
+        config: ServerTickConfig,
+        battle: RandomBattleConfig,
+        humans: usize,
+    ) -> (Self, Vec<TankId>) {
+        let (setup, human_tanks) = crate::setup::random_7v7_setup_for_humans(battle, humans);
+        (Self::from_setup(config, setup), human_tanks)
+    }
+
+    /// Per-target observer masks (bit = tank index) against the LIVE cover — the per-viewer
+    /// filter's second input beside the team masks already on the snapshot.
+    pub fn observer_masks(&self) -> Vec<u16> {
+        let live_cover: std::borrow::Cow<'_, [terrain::StaticCoverObject]> =
+            if self.sim.cover_states().iter().all(|state| state.phase == sim::CoverPhase::Intact) {
+                std::borrow::Cow::Borrowed(&self.battlefield.static_cover)
+            } else {
+                std::borrow::Cow::Owned(sim::live_cover_for_blocking(
+                    &self.battlefield.static_cover,
+                    self.sim.cover_states(),
+                ))
+            };
+        sim::compute_observer_masks(
+            self.sim.tanks(),
+            Some(&self.battlefield.heightmap),
+            &live_cover,
+        )
     }
 
     fn from_setup(config: ServerTickConfig, setup: BattleSetup) -> Self {
@@ -156,12 +186,19 @@ impl LocalAuthoritativeServer {
     }
 
     pub fn tick_with_input(&mut self, input: ClientInputCommand) -> AuthoritativeTick {
+        self.tick_with_inputs(&[(input.tank_id, input.command)])
+    }
+
+    /// The battle core's real heartbeat (N2): one authoritative tick fed by ANY number of human
+    /// commands — one for the local desktop game, up to seven from the dedicated server's client
+    /// table. Bots fill in for every roster tank not driven by a human this tick.
+    pub fn tick_with_inputs(&mut self, inputs: &[(TankId, sim::TankCommand)]) -> AuthoritativeTick {
         let battle_over = self.outcome.is_some();
-        let mut commands = Vec::with_capacity(1 + self.sim.tanks().len());
-        commands.push((
-            input.tank_id,
-            if battle_over { sim::TankCommand::idle() } else { input.command },
-        ));
+        let mut commands = Vec::with_capacity(inputs.len() + self.sim.tanks().len());
+        for (tank_id, command) in inputs {
+            commands
+                .push((*tank_id, if battle_over { sim::TankCommand::idle() } else { *command }));
+        }
         // The bots read LAST tick's damage events (cleared on the next sim step): the honest
         // "we just got hit" signal that lets a blind bot turn toward the fire.
         //

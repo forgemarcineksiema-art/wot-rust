@@ -167,6 +167,70 @@ impl Transport for UdpTransport {
     }
 }
 
+/// In-memory multi-peer network for integration tests: one shared hub, one port per address,
+/// datagrams routed by destination. Deterministic (FIFO per port, optional seeded loss), so a
+/// "two clients join one server" test runs with zero sockets and zero flakes.
+#[derive(Default)]
+pub struct MemoryHub {
+    inner: std::rc::Rc<std::cell::RefCell<HubInner>>,
+}
+
+#[derive(Default)]
+struct HubInner {
+    queues: HashMap<SocketAddr, std::collections::VecDeque<(SocketAddr, Vec<u8>)>>,
+    seed: u64,
+    counter: u64,
+    drop_percent: u64,
+}
+
+impl MemoryHub {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_loss(seed: u64, drop_percent: u64) -> Self {
+        let hub = Self::default();
+        {
+            let mut inner = hub.inner.borrow_mut();
+            inner.seed = seed;
+            inner.drop_percent = drop_percent;
+        }
+        hub
+    }
+
+    pub fn port(&self, addr: SocketAddr) -> HubPort {
+        self.inner.borrow_mut().queues.entry(addr).or_default();
+        HubPort { inner: std::rc::Rc::clone(&self.inner), addr }
+    }
+}
+
+pub struct HubPort {
+    inner: std::rc::Rc<std::cell::RefCell<HubInner>>,
+    addr: SocketAddr,
+}
+
+impl Transport for HubPort {
+    fn send(&mut self, to: SocketAddr, datagram: &[u8]) -> Result<(), TransportError> {
+        let mut inner = self.inner.borrow_mut();
+        if inner.drop_percent > 0 {
+            inner.counter = inner.counter.wrapping_add(1);
+            let roll = game_core::math::splitmix64(
+                inner.seed ^ inner.counter.wrapping_mul(0x9E37_79B9_7F4A_7C15),
+            ) % 100;
+            if roll < inner.drop_percent {
+                return Ok(());
+            }
+        }
+        let from = self.addr;
+        inner.queues.entry(to).or_default().push_back((from, datagram.to_vec()));
+        Ok(())
+    }
+
+    fn recv(&mut self) -> Result<Option<(SocketAddr, Vec<u8>)>, TransportError> {
+        Ok(self.inner.borrow_mut().queues.get_mut(&self.addr).and_then(|q| q.pop_front()))
+    }
+}
+
 /// Deterministic hostile network for tests: drops, duplicates and reorders by a seeded hash —
 /// the same seed always misbehaves identically, so a chaos test is a regression test.
 pub struct LossyLoopback {

@@ -53,7 +53,7 @@ pub use snapshot_schedule::SnapshotSchedule;
 /// v18: `ServerHello` names the match — `map_id` and `weather_variant` — so the client can
 /// deterministically rebuild the same battlefield the server simulates (the map itself is
 /// never sent) and dress it in the same sky. `ImpactSurface` gains `Water`.
-pub const PROTOCOL_VERSION: u16 = 28;
+pub const PROTOCOL_VERSION: u16 = 29;
 
 #[derive(Debug, Error)]
 pub enum NetError {
@@ -301,6 +301,33 @@ pub enum ProtocolMessage {
     Disconnect {
         reason: DisconnectReason,
     },
+    /// v29: the waiting room — who is here, how many the battle wants, when it starts anyway.
+    LobbyState {
+        players: u8,
+        needed: u8,
+        countdown_ticks: u64,
+    },
+    /// v29: the battle begins; this client drives `assigned_tank`.
+    StartBattle {
+        assigned_tank: TankId,
+        server_tick: u64,
+    },
+    /// v29: the battle is over. `winning_team` is `None` for a draw.
+    BattleEnded {
+        winning_team: Option<u16>,
+    },
+}
+
+/// v29 lobby/battle lifecycle. Appended after the v28 messages, wire-stable.
+impl ProtocolMessage {
+    pub fn is_lifecycle(&self) -> bool {
+        matches!(
+            self,
+            ProtocolMessage::LobbyState { .. }
+                | ProtocolMessage::StartBattle { .. }
+                | ProtocolMessage::BattleEnded { .. }
+        )
+    }
 }
 
 /// Why a peer said goodbye (v28). Wire-stable: append only.

@@ -158,3 +158,64 @@ fn a_wreck_is_visible_to_every_team() {
     // The living observer is still only seen by its own team.
     assert_eq!(state.tank(a).unwrap().spotted_mask, TEAM_1_BIT);
 }
+
+/// v29: optics improved across the eras — a ColdWar commander (440 m) sees a target an EarlyWar
+/// crew (360 m) would drive past. The range belongs to the OBSERVER's spec, one source with the
+/// garage. (Both playable eras today sit at 400/440; the 360 EarlyWar band waits for its fleet.)
+#[test]
+fn view_range_follows_the_observers_era() {
+    let cold_war = VehicleKind::T54_1951.spec();
+    let late_war = VehicleKind::T34_85.spec();
+    assert_eq!(cold_war.view_range_m(), 440.0);
+    assert_eq!(late_war.view_range_m(), 400.0);
+
+    // A duel at 420 m: the ColdWar tank sees the LateWar tank; the LateWar optics fall short.
+    let mut state = SimulationState::new();
+    let cold = state.spawn_tank(TeamId(1), VehicleKind::T54_1951.spec(), Vec3::ZERO);
+    let late = state.spawn_tank(TeamId(2), VehicleKind::T34_85.spec(), Vec3::new(0.0, 0.0, 420.0));
+    state.apply_commands(&[], FixedTimestep::from_hz(60));
+    assert_eq!(
+        state.tank(late).unwrap().spotted_mask,
+        TEAM_1_BIT | TEAM_2_BIT,
+        "the 440 m ColdWar optics light the LateWar hull at 420 m"
+    );
+    assert_eq!(
+        state.tank(cold).unwrap().spotted_mask,
+        TEAM_1_BIT,
+        "the 400 m LateWar optics fall short at 420 m"
+    );
+}
+
+/// v29: a destroyed radio drops the crew out of team-share — its sightings no longer light the
+/// team mask. Its OWN eyes stay honest through the observer mask, so nothing in plain sight can
+/// vanish off its screen once the per-viewer filter unions both.
+#[test]
+fn a_dead_radio_stops_sharing_but_never_blinds_its_own_eyes() {
+    let mut state = SimulationState::new();
+    let scout = state.spawn_tank(TeamId(1), VehicleKind::T54_1951.spec(), Vec3::ZERO);
+    let _enemy =
+        state.spawn_tank(TeamId(2), VehicleKind::T54_1951.spec(), Vec3::new(0.0, 0.0, 80.0));
+    // Kill the scout's radio outright.
+    let radio_full = {
+        let tank = state.tank(scout).unwrap();
+        tank.spec.module_health.hit_points_by_slot()
+            [game_core::ModuleSlot::Radio.destroyed_mask_bit().trailing_zeros() as usize]
+    };
+    state.tank_mut(scout).unwrap().modules.damage(game_core::ModuleSlot::Radio, radio_full);
+    state.apply_commands(&[], FixedTimestep::from_hz(60));
+
+    let tanks: Vec<_> = state.tanks().to_vec();
+    let team_masks = sim::compute_spotted_masks(&tanks, None, &[]);
+    let observer_masks = sim::compute_observer_masks(&tanks, None, &[]);
+    // The enemy is index 1; the scout is index 0.
+    assert_eq!(
+        team_masks[1] & TEAM_1_BIT,
+        0,
+        "a radio-dead scout must not light targets for its team"
+    );
+    assert_ne!(
+        observer_masks[1] & 1,
+        0,
+        "the scout's own eyes still see the enemy in front of them"
+    );
+}
