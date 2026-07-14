@@ -12,7 +12,9 @@ use super::ClientApp;
 const ENGINE_SMOKE_PERIOD_S: f32 = 0.16;
 /// Flames per smoke period off a BURNING engine (`engine_fire` on the wire): the fire licks
 /// faster than the column puffs, so the deck reads as alight, not merely smoldering.
-const ENGINE_FIRE_FLAMES_PER_PUFF: usize = 3;
+/// (F6: trimmed 3 → 2 — the fire still licks faster than the smoke, for two thirds of the
+/// blended fill; the minimum spec pays per covered pixel.)
+const ENGINE_FIRE_FLAMES_PER_PUFF: usize = 2;
 /// The wreck's epilogue (D6): a fresh kill burns openly for this long, then only smolders —
 /// the fire eats what it can and the column of smoke carries the story on.
 const WRECK_FLAME_S: f32 = 20.0;

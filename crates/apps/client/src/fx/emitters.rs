@@ -251,7 +251,10 @@ impl FxSystem {
     pub fn engine_smoke_puff(&mut self, deck: Vec3) {
         let drift =
             Vec3::new(self.rand_signed() * 0.7, 1.4 + self.rand_unit(), self.rand_signed() * 0.7);
-        let ttl = 2.0 + self.rand_unit() * 1.5;
+        // F6 fill-rate diet: the burning ENGINE is the player's own deck — these quads sit
+        // meters from the eye and stack into near-fullscreen blended fill on the minimum
+        // spec. A tighter, shorter column reads the same story for a fraction of the fill.
+        let ttl = 1.6 + self.rand_unit() * 1.0;
         let shade = 0.07 + self.rand_unit() * 0.05;
         let scatter = Vec3::new(self.rand_signed() * 0.4, 0.1, self.rand_signed() * 0.4);
         let alpha = 0.55;
@@ -263,7 +266,7 @@ impl FxSystem {
             age_s: 0.0,
             ttl_s: ttl,
             size_begin_m: 0.8,
-            size_end_m: 3.2,
+            size_end_m: 2.3,
             color_begin: [shade * alpha, shade * alpha, shade * alpha, alpha],
             color_end: [0.0, 0.0, 0.0, 0.0],
             stretch_s: 0.0,

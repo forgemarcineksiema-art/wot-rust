@@ -7,6 +7,22 @@ use super::ClientApp;
 const FORGE_ASSET_DIR_ENV: &str = "WOT_FORGE_ASSET_DIR";
 
 impl ClientApp {
+    /// Bake and queue EVERY vehicle kind in the current battle roster (Płynność 2.0 / F6).
+    /// Before this, a vehicle's procedural bake + mesh/material GPU registration ran lazily on
+    /// FIRST SIGHT — an enemy cresting a ridge mid-battle cost a full bake on the render
+    /// thread, the exact "FPS drops when enemies appear" hitch. The roster is known from the
+    /// first snapshot; pay the whole bill during deployment, when a hitch is invisible.
+    pub(super) fn preload_battle_vehicle_assets(&mut self) {
+        let kinds: std::collections::HashSet<game_core::VehicleKind> = self
+            .render_state
+            .latest_snapshot()
+            .map(|snapshot| snapshot.tanks.iter().map(|tank| tank.vehicle).collect())
+            .unwrap_or_default();
+        for kind in kinds {
+            let _ = self.vehicle_asset_catalog.vehicle_entry(kind);
+        }
+    }
+
     pub(super) fn new_with_default_vehicle_artifacts() -> Self {
         let root = default_vehicle_artifact_root();
         Self::new_with_vehicle_artifact_root(root.as_deref())

@@ -223,6 +223,9 @@ impl ClientApp {
         self.reload_ready_age_s = None;
         self.prev_reload_remaining_s = 0.0;
         self.accept_and_sync(snapshot);
+        // F6: the fresh battle's roster bakes now, behind the garage curtain — not when the
+        // first enemy crests a ridge.
+        self.preload_battle_vehicle_assets();
         self.set_cursor_captured(true);
         if let Some(window) = &self.window {
             window.set_title(&format!("{} - {display_name}", crate::ui_strings::WINDOW_TITLE));
