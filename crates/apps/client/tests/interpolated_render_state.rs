@@ -183,6 +183,7 @@ fn snapshot_at(server_tick: u64, x: f32) -> Snapshot {
         detached_turrets: Vec::new(),
         cover_states: Vec::new(),
         craters: Vec::new(),
+        cover_scars: Vec::new(),
     }
 }
 

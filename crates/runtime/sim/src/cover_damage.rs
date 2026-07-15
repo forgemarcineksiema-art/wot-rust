@@ -166,6 +166,63 @@ pub fn hull_overlaps_cover_xz(
     dx <= object.half_extents_m[0] + hull_reach_m && dz <= object.half_extents_m[2] + hull_reach_m
 }
 
+/// Record the wound one absorbed shell leaves on a cover face (protocol v32): which face took
+/// the hit, where across it, how wide, and whether it is a kinetic inset or an HE bite. Purely
+/// visual state — blocking never reads it — but replicated, so every client and a late joiner
+/// dress the same wall with the same scars. Per-cover cap: the oldest wound weathers away.
+pub fn record_cover_scar(
+    ledger: &mut Vec<terrain::CoverScar>,
+    cover_index: usize,
+    object: &StaticCoverObject,
+    impact: &game_core::ShellImpact,
+) {
+    let local = [
+        impact.position.x - object.center[0],
+        impact.position.y - object.center[1],
+        impact.position.z - object.center[2],
+    ];
+    let normalized: Vec<f32> =
+        (0..3).map(|axis| local[axis] / object.half_extents_m[axis].max(0.05)).collect();
+    // The struck face is the axis the hit sits furthest along; roof hits map to +Y.
+    let (face, u_axis, v_axis) = {
+        let ax = normalized[0].abs();
+        let ay = normalized[1].abs();
+        let az = normalized[2].abs();
+        if ay >= ax && ay >= az {
+            (4u8, 0usize, 2usize)
+        } else if ax >= az {
+            (if normalized[0] >= 0.0 { 0u8 } else { 1u8 }, 2usize, 1usize)
+        } else {
+            (if normalized[2] >= 0.0 { 2u8 } else { 3u8 }, 0usize, 1usize)
+        }
+    };
+    let quantize = |n: f32| (((n + 1.0) * 0.5).clamp(0.0, 1.0) * 255.0).round() as u8;
+    let radius_m = if impact.shell_type == game_core::ShellType::HighExplosive {
+        (impact.caliber_mm * 0.008).clamp(0.3, 1.5)
+    } else {
+        (impact.caliber_mm * 0.0006).clamp(0.04, 0.15)
+    };
+    let scar = terrain::CoverScar {
+        cover: cover_index as u16,
+        face,
+        u_q: quantize(normalized[u_axis]),
+        v_q: quantize(normalized[v_axis]),
+        radius_q: ((radius_m / terrain::COVER_SCAR_RADIUS_STEP_M).round() as u8).max(1),
+        kind: if impact.shell_type == game_core::ShellType::HighExplosive {
+            terrain::COVER_SCAR_KIND_HIGH_EXPLOSIVE
+        } else {
+            terrain::COVER_SCAR_KIND_KINETIC
+        },
+    };
+    let on_this_cover = ledger.iter().filter(|s| s.cover == scar.cover).count();
+    if on_this_cover >= terrain::MAX_COVER_SCARS_PER_COVER
+        && let Some(oldest) = ledger.iter().position(|s| s.cover == scar.cover)
+    {
+        ledger.remove(oldest);
+    }
+    ledger.push(scar);
+}
+
 #[cfg(test)]
 mod tests {
     use terrain::StaticCoverKind;

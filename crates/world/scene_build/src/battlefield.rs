@@ -59,11 +59,28 @@ pub fn battlefield_statics_mesh(
     battlefield: &BattlefieldMap,
     cover_states: &[u8],
 ) -> (Vec<SceneVertex>, Vec<u32>) {
+    battlefield_statics_mesh_with_scars(battlefield, cover_states, &[])
+}
+
+/// As [`battlefield_statics_mesh`], dressing each still-standing cover face with its
+/// replicated shell wounds (protocol v32): a kinetic inset with its plaster burst, an HE bite
+/// with rubble spilled at the wall's foot. Rubble mounds and cleared objects drop their scars
+/// with the wall that carried them.
+pub fn battlefield_statics_mesh_with_scars(
+    battlefield: &BattlefieldMap,
+    cover_states: &[u8],
+    cover_scars: &[terrain::CoverScar],
+) -> (Vec<SceneVertex>, Vec<u32>) {
     let mut vertices = Vec::new();
     let mut indices = Vec::new();
     for (index, cover) in battlefield.static_cover.iter().enumerate() {
         match cover_states.get(index).copied().unwrap_or(0) {
-            0 => append_cover_box(&mut vertices, &mut indices, cover),
+            0 => {
+                append_cover_box(&mut vertices, &mut indices, cover);
+                for scar in cover_scars.iter().filter(|scar| scar.cover as usize == index) {
+                    append_cover_scar(&mut vertices, &mut indices, cover, scar);
+                }
+            }
             1 => append_rubble_mound(&mut vertices, &mut indices, cover),
             _ => {} // gone: the object is cleared, draw nothing
         }
@@ -171,6 +188,149 @@ fn append_rubble_mound(
 /// Every visual stays INSIDE the collision AABB — a building may look like walls and a roof,
 /// but nothing it shows can be shot through or hidden behind that the sim box does not honor
 /// (locked by `cover_visuals_never_leave_the_collision_box`).
+/// One shell wound on a standing cover face (protocol v32). Photo reference: a kinetic hit on
+/// masonry is a small dark inset inside a pale burst of shed plaster; an HE hit is a wide
+/// irregular bite with the spalled material heaped at the wall's foot below it.
+fn append_cover_scar(
+    vertices: &mut Vec<SceneVertex>,
+    indices: &mut Vec<u32>,
+    cover: &StaticCoverObject,
+    scar: &terrain::CoverScar,
+) {
+    let center = Vec3::from_array(cover.center);
+    let half = Vec3::from_array(cover.half_extents_m);
+    let (normal, u_axis, v_axis, half_u, half_v, half_n) = match scar.face {
+        0 => (Vec3::X, Vec3::Z, Vec3::Y, half.z, half.y, half.x),
+        1 => (-Vec3::X, Vec3::Z, Vec3::Y, half.z, half.y, half.x),
+        2 => (Vec3::Z, Vec3::X, Vec3::Y, half.x, half.y, half.z),
+        3 => (-Vec3::Z, Vec3::X, Vec3::Y, half.x, half.y, half.z),
+        _ => (Vec3::Y, Vec3::X, Vec3::Z, half.x, half.z, half.y),
+    };
+    let unpack = |q: u8| q as f32 / 255.0 * 2.0 - 1.0;
+    let mark = center
+        + normal * half_n
+        + u_axis * (unpack(scar.u_q) * half_u)
+        + v_axis * (unpack(scar.v_q) * half_v);
+    let r = scar.radius_m();
+    let mut seed = 0x9E37_79B9_u64
+        ^ (u64::from(scar.cover) << 24)
+        ^ (u64::from(scar.u_q) << 16)
+        ^ (u64::from(scar.v_q) << 8)
+        ^ u64::from(scar.face);
+    let mut next = move || {
+        seed ^= seed << 13;
+        seed ^= seed >> 7;
+        seed ^= seed << 17;
+        (seed >> 40) as f32 / ((1u64 << 24) - 1) as f32
+    };
+    if scar.kind == terrain::COVER_SCAR_KIND_KINETIC {
+        // The pale plaster burst first, then the dark calibre inset proud of it.
+        push_face_quad(
+            vertices,
+            indices,
+            FacePlate { center: mark + normal * 0.015, u: u_axis, v: v_axis, normal },
+            r * 2.6,
+            [0.52, 0.50, 0.45],
+        );
+        push_face_quad(
+            vertices,
+            indices,
+            FacePlate { center: mark + normal * 0.03, u: u_axis, v: v_axis, normal },
+            r,
+            [0.06, 0.055, 0.05],
+        );
+    } else {
+        // The HE bite: pale shed-render halo, then two overlapping rotated dark sheets — an
+        // irregular wound, not a stencil circle.
+        push_face_quad(
+            vertices,
+            indices,
+            FacePlate { center: mark + normal * 0.015, u: u_axis, v: v_axis, normal },
+            r * 1.8,
+            [0.50, 0.47, 0.42],
+        );
+        let angle = 0.5 + next() * 0.6;
+        let (sin, cos) = angle.sin_cos();
+        let ru = u_axis * cos + v_axis * sin;
+        let rv = v_axis * cos - u_axis * sin;
+        push_face_quad(
+            vertices,
+            indices,
+            FacePlate { center: mark + normal * 0.03, u: u_axis, v: v_axis, normal },
+            r * 0.9,
+            [0.09, 0.08, 0.07],
+        );
+        push_face_quad(
+            vertices,
+            indices,
+            FacePlate { center: mark + normal * 0.04, u: ru, v: rv, normal },
+            r * 0.75,
+            [0.07, 0.06, 0.055],
+        );
+        // Spalled masonry heaped at the wall's foot below the bite (wall faces only).
+        if scar.face <= 3 {
+            let ground_y = center.y - half.y;
+            let foot = Vec3::new(mark.x, 0.0, mark.z) + Vec3::new(normal.x, 0.0, normal.z) * 0.35;
+            let chunks = 2 + (next() * 1.99) as usize;
+            for _ in 0..chunks {
+                let size = r * (0.16 + next() * 0.16);
+                let chunk_half =
+                    Vec3::new(size * (0.8 + next() * 0.7), size, size * (0.8 + next() * 0.7));
+                let offset = u_axis * ((next() - 0.5) * r * 1.6)
+                    + Vec3::new(normal.x, 0.0, normal.z) * (next() * 0.4);
+                let chunk_center = Vec3::new(foot.x, ground_y + chunk_half.y, foot.z) + offset;
+                push_surfaced_box(
+                    vertices,
+                    indices,
+                    chunk_center,
+                    chunk_half,
+                    [0.44, 0.41, 0.36],
+                    0.08,
+                );
+            }
+        }
+    }
+}
+
+/// A wound's frame on a cover face: its center and the face's in-plane axes plus normal.
+#[derive(Clone, Copy)]
+struct FacePlate {
+    center: Vec3,
+    u: Vec3,
+    v: Vec3,
+    normal: Vec3,
+}
+
+/// One single-sided quad flush on a cover face: half-size `half_m` along both in-plane axes.
+fn push_face_quad(
+    vertices: &mut Vec<SceneVertex>,
+    indices: &mut Vec<u32>,
+    plate: FacePlate,
+    half_m: f32,
+    color: [f32; 3],
+) {
+    let FacePlate { center, u: u_axis, v: v_axis, normal } = plate;
+    let base = vertices.len() as u32;
+    for (su, sv) in [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)] {
+        let position = center + u_axis * (half_m * su) + v_axis * (half_m * sv);
+        vertices.push(SceneVertex {
+            position: position.to_array(),
+            normal: normal.to_array(),
+            color,
+            tint_weight: 0.0,
+            gloss: 0.03,
+            surface: 0.0,
+            sway: 0.0,
+        });
+    }
+    // Winding agrees with the face normal; the scene pipeline lights it like the wall it marks.
+    if (u_axis.cross(v_axis)).dot(normal) >= 0.0 {
+        indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
+    } else {
+        indices.extend_from_slice(&[base, base + 2, base + 1, base, base + 3, base + 2]);
+    }
+}
+
 fn append_cover_box(
     vertices: &mut Vec<SceneVertex>,
     indices: &mut Vec<u32>,
@@ -720,6 +880,54 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn a_wounded_wall_wears_its_scars_and_spills_rubble_at_its_foot() {
+        let map = prokhorovka_hill_252_2();
+        let building = map
+            .static_cover
+            .iter()
+            .position(|cover| cover.kind == StaticCoverKind::FarmBuilding)
+            .expect("map has a farm building");
+        let he_bite = terrain::CoverScar {
+            cover: building as u16,
+            face: 2,
+            u_q: 128,
+            v_q: 100,
+            radius_q: 20, // a metre-wide bite
+            kind: terrain::COVER_SCAR_KIND_HIGH_EXPLOSIVE,
+        };
+
+        let clean = battlefield_statics_mesh(&map, &[]);
+        let wounded = battlefield_statics_mesh_with_scars(&map, &[], &[he_bite]);
+        assert!(
+            wounded.0.len() > clean.0.len(),
+            "the wound adds geometry: {} vs {}",
+            wounded.0.len(),
+            clean.0.len()
+        );
+
+        // The spalled masonry lies at the wall's FOOT: rubble-toned vertices near ground
+        // level that the clean bake does not have (scars append inside the cover loop, so
+        // the tail of the buffer is backdrop — hunt by the chunk's tone instead).
+        let object = &map.static_cover[building];
+        let ground_y = object.center[1] - object.half_extents_m[1];
+        let rubble_tone = [0.44, 0.41, 0.36];
+        let count_rubble = |mesh: &[SceneVertex]| {
+            mesh.iter().filter(|v| v.color == rubble_tone && v.position[1] < ground_y + 0.8).count()
+        };
+        assert!(
+            count_rubble(&wounded.0) > count_rubble(&clean.0),
+            "rubble heaps at the foot of the wall"
+        );
+
+        // A collapsed wall drops its scars with it: rubble phase ignores the ledger.
+        let mut states = vec![0u8; map.static_cover.len()];
+        states[building] = 1;
+        let collapsed_clean = battlefield_statics_mesh(&map, &states);
+        let collapsed_scarred = battlefield_statics_mesh_with_scars(&map, &states, &[he_bite]);
+        assert_eq!(collapsed_clean.0.len(), collapsed_scarred.0.len());
     }
 
     #[test]

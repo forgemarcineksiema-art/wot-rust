@@ -99,8 +99,10 @@ impl ClientApp {
         self.scene_rebuild_rx = Some(rx);
         let battlefield = self.battlefield.clone();
         let phases = self.cover_phase_bytes.clone();
+        let scars = self.cover_scar_list.clone();
         std::thread::spawn(move || {
-            let _ = tx.send(crate::battlefield_statics_mesh(&battlefield, &phases));
+            let _ =
+                tx.send(crate::battlefield_statics_mesh_with_scars(&battlefield, &phases, &scars));
         });
     }
 

@@ -197,6 +197,8 @@ pub(crate) struct ClientApp {
     cover_phase_bytes: Vec<u8>,
     /// Set when `cover_phase_bytes` changed: the next frame rebuilds and re-uploads the scene.
     scene_cover_dirty: bool,
+    /// Replicated shell wounds on cover faces (protocol v32); a change re-dresses the statics.
+    cover_scar_list: Vec<terrain::CoverScar>,
     /// Smoothed frames-per-second for the HUD readout (EMA over instantaneous frame rate).
     fps_estimate: f32,
     /// Last ~1.5 s of raw frame intervals (seconds) — the HUD's p95 readout turns "it drops
@@ -363,6 +365,7 @@ impl ClientApp {
             track_ribbons: Vec::new(),
             wreck_age_s: HashMap::new(),
             scene_rebuild_rx: None,
+            cover_scar_list: Vec::new(),
             ground_rebuild_rx: None,
             ground_deform_dirty: false,
             cracked_shells: std::collections::HashSet::new(),

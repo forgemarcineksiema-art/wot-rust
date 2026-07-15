@@ -45,6 +45,10 @@ pub struct SimulationState {
     /// battlefield owner. `serde(default)` keeps pre-v31 fixtures loading with virgin ground.
     #[serde(default)]
     craters: Vec<terrain::CraterRecord>,
+    /// Shell wounds on static-cover faces (protocol v32): purely visual, replicated whole so a
+    /// late joiner dresses the same walls. Capped per cover by the append rule.
+    #[serde(default)]
+    cover_scars: Vec<terrain::CoverScar>,
 }
 
 /// Cover damage one absorbed shell deals by its type: a high-explosive round brings structures
@@ -78,6 +82,7 @@ impl SimulationState {
             water: None,
             cover_states: Vec::new(),
             craters: Vec::new(),
+            cover_scars: Vec::new(),
         }
     }
 
@@ -85,6 +90,11 @@ impl SimulationState {
     /// into the heightmap via `HeightMap::set_craters`; the snapshot re-sends it whole.
     pub fn craters(&self) -> &[terrain::CraterRecord] {
         &self.craters
+    }
+
+    /// Shell wounds on static-cover faces (protocol v32), replicated whole every snapshot.
+    pub fn cover_scars(&self) -> &[terrain::CoverScar] {
+        &self.cover_scars
     }
 
     /// Live structural state of the static cover (protocol v21), index-aligned with the map's
@@ -360,6 +370,14 @@ impl SimulationState {
                     cover,
                     index,
                     cover_damage_hp(impact.shell_type),
+                );
+                // And it leaves a WOUND where it died (protocol v32): a kinetic inset or an
+                // HE bite on that face, replicated so every client dresses the same wall.
+                crate::cover_damage::record_cover_scar(
+                    &mut self.cover_scars,
+                    index,
+                    &cover[index],
+                    impact,
                 );
             }
         }

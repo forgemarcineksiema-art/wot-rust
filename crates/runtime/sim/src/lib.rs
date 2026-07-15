@@ -34,7 +34,7 @@ pub use clock::{
 };
 pub use combat::FIRE_BUFFER_S;
 pub use command::TankCommand;
-pub use cover_damage::{CoverPhase, CoverState, live_cover_for_blocking};
+pub use cover_damage::{CoverPhase, CoverState, live_cover_for_blocking, record_cover_scar};
 pub use crater_ledger::{MAX_CRATERS, record_high_explosive_burst};
 pub use drive_modules::{DriveModuleStatus, TrackDriveStatus, TrackSideDrive};
 pub use drowning::{DROWN_DEPTH_M, DROWN_PULSE_INTERVAL_S, ENGINE_FLOOD_S};

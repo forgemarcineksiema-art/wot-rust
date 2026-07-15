@@ -81,6 +81,7 @@ fn snapshot_round_trips_track_damage_mask() {
         detached_turrets: Vec::new(),
         cover_states: Vec::new(),
         craters: Vec::new(),
+        cover_scars: Vec::new(),
     });
 
     let bytes = encode_message(&message).expect("snapshot should encode");
