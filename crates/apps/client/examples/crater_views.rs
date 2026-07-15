@@ -105,6 +105,43 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     shoot(&ctx, &target, &mut renderer, close_eye, close_look, width, height, "crater_close")?;
     shoot(&ctx, &target, &mut renderer, grazing_eye, close_look, width, height, "crater_grazing")?;
     shoot(&ctx, &target, &mut renderer, field_eye, field_look, width, height, "crater_field")?;
+
+    // The AP furrows, exactly as the battle shows them: kinetic rounds ploughed into grass,
+    // seen from a hull-height camera (the view the player actually judges them from).
+    let mut ap_scars = TerrainScars::default();
+    for index in 0..4 {
+        let x = SPOT[0] - 14.0 + index as f32 * 6.5;
+        let z = SPOT[1] - 18.0 - index as f32 * 2.0;
+        let y = ground_y(&battlefield, x, z);
+        ap_scars.record(
+            &ShellImpact {
+                owner: TankId(1),
+                position: Vec3::new(x, y, z),
+                surface: game_core::ImpactSurface::Terrain,
+                shell_type: ShellType::ArmorPiercing,
+                direction: Vec3::new(-0.35, -0.25, -0.9).normalize(),
+                caliber_mm: 100.0,
+            },
+            &battlefield.heightmap,
+        );
+    }
+    let mut ap_fx: Vec<FxVertex> = Vec::new();
+    ap_scars.append_quads(&mut ap_fx);
+    renderer.set_fx(&ctx, &ap_fx);
+    let f_y = ground_y(&battlefield, SPOT[0] - 8.0, SPOT[1] - 20.0);
+    let furrow_eye = [SPOT[0] + 2.0, f_y + 2.6, SPOT[1] - 6.0];
+    let furrow_look = [SPOT[0] - 8.0, f_y, SPOT[1] - 22.0];
+    shoot(&ctx, &target, &mut renderer, furrow_eye, furrow_look, width, height, "furrow_field")?;
+    // The same furrows under the warm evening grade — the light that exposed the pale-border
+    // sticker on a live screenshot. Turned earth must read dark under EVERY profile.
+    if let Some(view) = client::prokhorovka_review_views(&battlefield)
+        .into_iter()
+        .find(|view| view.name.contains("evening") || view.name.contains("golden"))
+    {
+        renderer.scene_lighting = view.lighting;
+        renderer.set_outdoor_sky(view.sky.0, view.sky.1, view.sky.2);
+    }
+    shoot(&ctx, &target, &mut renderer, furrow_eye, furrow_look, width, height, "furrow_evening")?;
     Ok(())
 }
 

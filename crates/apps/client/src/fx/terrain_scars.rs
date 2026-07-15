@@ -157,15 +157,25 @@ fn push_furrow(vertices: &mut Vec<FxVertex>, scar: &TerrainScar, opacity: f32) {
         u: along,
         v: across,
     };
-    // Dark turned soil, then the narrow disturbed border a touch wider and lighter.
-    push_stamp(vertices, plate, length, width, 2.4, premul([0.10, 0.078, 0.052], 0.65 * opacity));
+    // Dark turned soil first read: the gouge dominates the mark. The disturbed border is a
+    // NARROW, muted fringe — the first cut ran it 1.9x as wide at 0.35 alpha, and under a warm
+    // evening/overcast grade that pale sheet read as an orange sticker floating on the grass
+    // (caught on a live battle screenshot). Turned earth is dark in ANY light.
     push_stamp(
         vertices,
         plate,
-        length * 1.15,
-        width * 1.9,
-        1.1,
-        premul([0.20, 0.165, 0.11], 0.35 * opacity),
+        length,
+        width * 0.75,
+        2.4,
+        premul([0.085, 0.066, 0.045], 0.78 * opacity),
+    );
+    push_stamp(
+        vertices,
+        plate,
+        length * 1.1,
+        width * 1.25,
+        1.4,
+        premul([0.12, 0.098, 0.066], 0.30 * opacity),
     );
     // Spoil thrown forward: two or three clods DOWNRANGE of the gouge, spreading slightly.
     let clods = 2 + (game_core::math::next_hash_unit(&mut seed) * 1.99) as usize;
@@ -184,7 +194,7 @@ fn push_furrow(vertices: &mut Vec<FxVertex>, scar: &TerrainScar, opacity: f32) {
             size * 1.6,
             size,
             1.6,
-            premul([0.17, 0.14, 0.095], 0.4 * opacity),
+            premul([0.13, 0.105, 0.07], 0.42 * opacity),
         );
     }
 }
