@@ -78,8 +78,12 @@ pub(crate) fn make_breach(tank: &TankState, impact: BreachImpact) -> ArmorBreach
     let obliquity = impact.impact_angle_degrees.to_radians().cos().abs().max(0.38);
     let seed = game_core::math::splitmix64(impact.shell_id.0 ^ u64::from(surface.0));
     let rotation = ((seed >> 40) as f32 / ((1_u64 << 24) as f32)) * std::f32::consts::TAU;
+    // An oblique strike smears the hole along the plate, but a real perforation stays in the
+    // projectile's calibre class: photographs of sharply angled AP holes read as slightly
+    // OVAL, never as slots — the channel's major axis is capped at 1.5x the minor (the raw
+    // 1/cos with the 0.38 floor ran to 2.6x calibre, Fizyczny Świat P5).
     let outer = BreachContour::new(
-        (base_radius / obliquity).min(0.38),
+        (base_radius / obliquity).min(base_radius * 1.5).min(0.38),
         base_radius,
         rotation,
         shell_irregularity(impact.shell_type),
@@ -275,4 +279,76 @@ fn estimated_impact_energy_kj(shell_type: ShellType, caliber_m: f32, speed_mps: 
     let estimated_mass_kg =
         std::f32::consts::PI * (diameter * 0.5).powi(2) * (diameter * 4.0) * 7_850.0 * mass_scale;
     estimated_mass_kg * speed_mps.powi(2) * 0.0005
+}
+
+#[cfg(test)]
+mod tests {
+    use game_core::{ShellId, TankSpec, TeamId};
+
+    use super::*;
+    use crate::SimulationState;
+
+    fn breach_for(
+        angle_deg: f32,
+        shell_type: ShellType,
+        caliber_mm: f32,
+    ) -> game_core::ArmorBreach {
+        let mut state = SimulationState::new();
+        let id = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::ZERO);
+        let tank = state.tank(id).expect("spawned tank");
+        make_breach(
+            tank,
+            BreachImpact {
+                zone: ArmorZone::HullSide,
+                shell_id: ShellId::from_shot(game_core::TankId(1), 1),
+                shell_type,
+                created_tick: 1,
+                hit_position: Vec3::new(1.0, 1.0, 0.0),
+                plate_normal: Vec3::X,
+                direction: -Vec3::X,
+                caliber_mm,
+                impact_angle_degrees: angle_deg,
+                impact_speed_mps: 800.0,
+                effective_armor_mm: 100.0,
+                residual_penetration_mm: 40.0,
+            },
+        )
+    }
+
+    /// Fizyczny Świat P5: the numeric contract from the photographs. A 100 mm AP round
+    /// perpendicular through a plate leaves a hole of ITS OWN calibre class — a major radius
+    /// in the 4.5–6 cm band, round within rounding.
+    #[test]
+    fn a_perpendicular_100mm_ap_hole_is_calibre_sized() {
+        let breach = breach_for(0.0, ShellType::ArmorPiercing, 100.0);
+        let outer = breach.lobes()[0].outer;
+        assert!(
+            (0.045..=0.06).contains(&outer.major_radius_m),
+            "a 100 mm hole reads 100 mm: major {} m",
+            outer.major_radius_m
+        );
+        assert!(
+            (outer.major_radius_m - outer.minor_radius_m).abs() < 1.0e-4,
+            "perpendicular is round: {} vs {}",
+            outer.major_radius_m,
+            outer.minor_radius_m
+        );
+    }
+
+    /// Even sharply angled AP holes photograph as slightly OVAL, never as slots: the channel's
+    /// major axis is capped at 1.5x the minor at every obliquity (the raw 1/cos with its 0.38
+    /// floor ran to 2.6x calibre).
+    #[test]
+    fn an_oblique_hole_stays_a_slight_oval_never_a_slot() {
+        for angle in [0.0_f32, 30.0, 55.0, 65.0, 80.0] {
+            let outer = breach_for(angle, ShellType::ArmorPiercing, 100.0).lobes()[0].outer;
+            assert!(
+                outer.major_radius_m <= outer.minor_radius_m * 1.5 + 1.0e-6,
+                "at {angle} deg the hole stays calibre-class: major {} vs minor {}",
+                outer.major_radius_m,
+                outer.minor_radius_m
+            );
+            assert!(outer.major_radius_m >= outer.minor_radius_m - 1.0e-6);
+        }
+    }
 }

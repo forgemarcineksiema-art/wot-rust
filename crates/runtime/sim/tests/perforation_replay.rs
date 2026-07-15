@@ -75,8 +75,10 @@ fn a_penetration_carves_the_same_perforation_on_every_run() {
         "the entry point drifted: {:?}",
         lobe.entry_local
     );
+    // P5 (Fizyczny Świat): the oblique smear is capped at 1.5x the minor radius — on the
+    // sloped glacis this fixture shot now reads 7.5 cm, not the raw-1/cos 9.8 cm slot.
     assert!(
-        (lobe.outer.major_radius_m - 0.098439).abs() < 1.0e-4,
+        (lobe.outer.major_radius_m - 0.075).abs() < 1.0e-4,
         "the aperture size drifted: {}",
         lobe.outer.major_radius_m
     );
