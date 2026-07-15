@@ -163,24 +163,12 @@ impl ClientApp {
     /// instanced along the frozen S-curve where the throw laid it. Dark bare steel — shed links
     /// stop wearing the vehicle's paint the moment they leave it.
     pub(super) fn append_track_ribbons(&mut self, objects: &mut Vec<renderer_api::RenderObject>) {
-        const SHED_STEEL_TINT: [f32; 3] = [0.16, 0.15, 0.14];
         let ribbons = std::mem::take(&mut self.track_ribbons);
         for ribbon in &ribbons {
-            let Some(entry) = self.vehicle_asset_catalog.vehicle_entry(ribbon.vehicle) else {
-                continue;
-            };
-            let Some(gear) = entry.running_gear else {
-                continue;
-            };
-            objects.extend(ribbon.link_transforms().iter().map(|transform| {
-                renderer_api::RenderObject {
-                    tank_id: Some(ribbon.tank_id),
-                    mesh: gear.link,
-                    material: entry.material,
-                    transform: transform.to_cols_array_2d(),
-                    tint: SHED_STEEL_TINT,
-                }
-            }));
+            objects.extend(crate::vehicle::track_ribbon::ribbon_render_objects(
+                &mut self.vehicle_asset_catalog,
+                ribbon,
+            ));
         }
         self.track_ribbons = ribbons;
     }

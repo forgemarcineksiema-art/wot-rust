@@ -18,7 +18,10 @@ pub struct GearDynamics<'a> {
     /// a side toward ~0.5, braking toward ~1.5, and a THROWN track lets its side hang deep.
     pub left_sag_scale: f32,
     pub right_sag_scale: f32,
-    /// Normalized belt-path location of a real thrown-track gap.
+    /// `Some` when this side's track is THROWN. The value is the normalized belt-path location
+    /// of the break (kept for wire compatibility and future dangle work); presentation-wise a
+    /// thrown side draws NO belt at all — the loop is off the wheels, lying on the field as
+    /// the shed ribbon. Bare road wheels are the photograph of a de-tracked tank.
     pub left_break_t: Option<f32>,
     pub right_break_t: Option<f32>,
 }
@@ -155,6 +158,13 @@ fn place_side(
         });
     }
 
+    // A thrown track is OFF the wheels: the whole loop lies on the field (the shed ribbon),
+    // so the broken side draws no belt at all — bare road wheels, the way every photograph
+    // of a de-tracked tank reads. The first cut left a token 5-link gap that a glance never
+    // caught; a missing band cannot be missed.
+    if break_t.is_some() {
+        return;
+    }
     let path = BeltPath::with_sag(kin, sag);
     let count = kin.link_count();
     let length = path.length();
@@ -166,14 +176,6 @@ fn place_side(
         let mut s = (link_phase + (i as f32 / count as f32) * length).rem_euclid(length);
         if s > length - 1.0e-4 {
             s = 0.0;
-        }
-        if let Some(gap) = break_t {
-            let t = s / length;
-            let d = (t - gap.rem_euclid(1.0)).abs();
-            let circular = d.min(1.0 - d);
-            if circular <= 2.5 / count as f32 {
-                continue;
-            }
         }
         let sample = path.sample(s);
         // The whole LOWER half of the loop conforms to the wheels riding over terrain — the

@@ -18,8 +18,8 @@ use std::fs::File;
 use std::io::BufWriter;
 
 use client::{
-    HitDecal, TurretPopoff, VehicleAssetCatalog, append_decal_quads, battlefield_scene_mesh,
-    battlefield_scene_mesh_with_cover_states, render_frame_from_objects,
+    HitDecal, TrackRibbon, TurretPopoff, VehicleAssetCatalog, append_decal_quads,
+    battlefield_scene_mesh, battlefield_scene_mesh_with_cover_states, render_frame_from_objects,
     tank_vehicle_render_objects,
 };
 use game_core::{
@@ -195,6 +195,20 @@ fn vehicle_shots(
     let mut wreck_fx = Vec::new();
     append_decal_quads(&mut wreck_fx, &battle_decals(&wreck, cx, ground, cz), &wreck);
 
+    // The de-tracked flank (Fizyczny Świat): the live snapshot above already carries the
+    // thrown LEFT track, so its side renders bare wheels — and the loop itself lies beside
+    // the hull as the shed band, instanced from the same unit link mesh.
+    let mut thrown_objects = tank_vehicle_render_objects(catalog, &live, color);
+    let ribbon = TrackRibbon::shed(
+        TankId(1),
+        KIND,
+        game_core::TrackSide::Left,
+        Vec3::new(cx, ground, cz),
+        FRAC_PI_2,
+        Some(&battlefield.heightmap),
+    );
+    thrown_objects.extend(client::ribbon_render_objects(catalog, &ribbon));
+
     let mut popoff_objects = tank_vehicle_render_objects(catalog, &wreck, color);
     let ring_local = MountFrames::for_vehicle(KIND).turret_ring.translation;
     // yaw = FRAC_PI_2: nose +X, so authoring +Z maps to world +X, +X to world -Z.
@@ -218,6 +232,24 @@ fn vehicle_shots(
     for (handle, maps) in catalog.take_pending_vehicle_materials() {
         renderer.register_vehicle_material(ctx, handle, &maps);
     }
+
+    // The thrown-track shot: from the LEFT flank (nose +X, so the left side faces -Z... the
+    // left flank of a +X-facing hull is +Z world) — bare wheels and the band on the ground.
+    let thrown_eye = [cx - 7.5, ground + 2.6, cz + 7.5];
+    let thrown_look = [cx, ground + 0.8, cz];
+    draw_vehicle(
+        ctx,
+        target,
+        &mut renderer,
+        thrown_objects,
+        Vec::new(),
+        &[],
+        thrown_eye,
+        thrown_look,
+        width,
+        height,
+    )?;
+    write_png(ctx, target, width, height, &format!("{prefix}_thrown_track.png"))?;
 
     let close = [cx + 6.0, ground + 3.4, cz + 5.2];
     // Look through the side egress into the fighting compartment, not at the aperture plane. The

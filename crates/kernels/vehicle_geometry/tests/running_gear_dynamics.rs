@@ -39,7 +39,7 @@ fn wheel_overlap_pulls_only_the_odd_row_inboard() {
 }
 
 #[test]
-fn thrown_t54_track_has_a_real_five_link_gap_on_one_side() {
+fn a_thrown_track_leaves_its_side_bare() {
     let kin = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951).expect("T-54 gear");
     let whole = vehicle_geometry::running_gear_placements_dynamic(
         &kin,
@@ -59,7 +59,10 @@ fn thrown_t54_track_has_a_real_five_link_gap_on_one_side() {
     let right_links = |set: &[vehicle_geometry::GearPlacement]| {
         set.iter().filter(|p| p.part == GearPart::Link && p.transform.w_axis.x > 0.0).count()
     };
-    assert_eq!(left_links(&whole) - left_links(&broken), 5);
+    // Fizyczny Świat: the loop is OFF the wheels — the broken side draws no belt at all
+    // (the shed ribbon on the ground carries the steel), the healthy side is untouched.
+    assert!(left_links(&whole) > 0);
+    assert_eq!(left_links(&broken), 0, "a thrown side rides bare wheels");
     assert_eq!(right_links(&whole), right_links(&broken));
 }
 
