@@ -18,6 +18,7 @@ pub use camera::{
     BattleCameraController, BattleCameraEnvironment, BattleCameraInput, BattleCameraMode,
     BattleCameraSettings, CameraObstacle, CameraSubject,
 };
+pub use fx::TerrainScars;
 pub use fx::shell_tracer_vertices;
 pub use fx::{append_decal_quads, decal_from_damage_event};
 pub use hud::demo::demo_battle_hud;

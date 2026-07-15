@@ -135,7 +135,7 @@ rejection tests kept.
   rim geometry replace the black disk and streak fan, reducing the locked cap to 18,432.
   Fizyczny Świat P2 (v30) replaces the radial ground mark with the physically-true kinetic
   furrow (elongated gouge + forward spoil, fewer stamps than the old crater), lowering the
-  locked cap again to 17,040; P3 replaces the radial HE mark with rim+bowl+clods (16,638).
+  locked cap again to 17,040; P3 replaces the radial HE mark with rim+bowl+clods (16,638); P4c drapes the rim and bowl over the true deformation (25 cells each), raising the cap to 35,070 — the price of marks that line the bowl instead of sinking into it.
 
 ## Known risks
 

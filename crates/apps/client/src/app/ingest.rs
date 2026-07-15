@@ -6,6 +6,16 @@ use super::ClientApp;
 
 impl ClientApp {
     pub(super) fn accept_and_sync(&mut self, snapshot: net::Snapshot) {
+        // The replicated crater ledger (protocol v31) folds into OUR heightmap FIRST, before
+        // any consumer below reads the ground: the terrain scars of this very snapshot's
+        // impacts must drape onto the deformed field (a scorch floating over the bowl it
+        // belongs to reads as a bug), and the predictor, camera probe and ribbons all stand
+        // in the same holes the server does. Idempotent — an unchanged ledger costs one
+        // compare. A moved ledger also flags the ground re-mesh (P4b).
+        if self.battlefield.heightmap.crater_records() != snapshot.craters.as_slice() {
+            self.battlefield.heightmap.set_craters(&snapshot.craters);
+            self.ground_deform_dirty = true;
+        }
         let player = snapshot.tanks.iter().find(|tank| tank.tank_id == self.player_tank).cloned();
         for tank in &snapshot.tanks {
             self.tank_scars.entry(tank.tank_id).or_default().sync_from_snapshot(tank);
@@ -153,15 +163,6 @@ impl ClientApp {
         // Static cover that collapsed or was cleared this snapshot: burst dust at each newly
         // destroyed object and flag the scene for a rebuild (buildings -> rubble, foliage -> gone).
         self.sync_cover_destruction(&snapshot);
-        // The replicated crater ledger (protocol v31) folds into OUR heightmap's overlay, so
-        // the predictor, the camera ground probe and every local sample stand in the same
-        // holes the server does. Idempotent — an unchanged ledger costs one compare. A moved
-        // ledger also flags the ground re-mesh (P4b), so the eye sees the hole physics stands
-        // in a couple of frames later.
-        if self.battlefield.heightmap.crater_records() != snapshot.craters.as_slice() {
-            self.battlefield.heightmap.set_craters(&snapshot.craters);
-            self.ground_deform_dirty = true;
-        }
         // Shots fired since the previous snapshot: diffed here, where both snapshots exist side
         // by side, then fanned out to every fire cue (muzzle FX, recoil, hull rock, camera kick).
         let fired = self.render_state.latest_snapshot().map_or_else(Vec::new, |previous| {

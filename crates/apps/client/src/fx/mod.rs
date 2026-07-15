@@ -23,7 +23,7 @@ use renderer_api::FxVertex;
 pub use decals::{append_decal_quads, decal_from_damage_event};
 pub(crate) use fire::{FireEvent, detect_fired};
 pub(crate) use particle::{MAX_PARTICLES, Particle};
-pub(crate) use terrain_scars::TerrainScars;
+pub use terrain_scars::TerrainScars;
 pub(crate) use tracer::append_shell_tracers;
 pub(crate) use track_marks::{TRACK_MARK_SPACING_M, TrackMarks};
 

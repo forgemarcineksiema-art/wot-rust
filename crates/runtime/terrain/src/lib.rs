@@ -33,6 +33,7 @@ pub use coordinates::{CoordinatePrecision, LargeWorldStrategy, WorldCoordinatePo
 pub use craters::{
     CRATER_DEPTH_STEP_M, CRATER_INFLUENCE_FACTOR, CRATER_KIND_HIGH_EXPLOSIVE,
     CRATER_POSITION_STEP_M, CRATER_RADIUS_STEP_M, CRATER_RIM_FRACTION, CraterField, CraterRecord,
+    he_crater_depth_m, he_crater_radius_m,
 };
 pub use heightmap::{HeightMap, HeightMapStats, TerrainError};
 pub use map_id::MapId;
