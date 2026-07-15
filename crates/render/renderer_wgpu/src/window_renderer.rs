@@ -131,6 +131,16 @@ impl WindowRenderer {
         self.scene.set_battlefield_ground(&self.ctx, vertices, indices, maps, materials);
     }
 
+    /// Geometry-only ground swap (true deformation, protocol v31): craters re-mesh the
+    /// heightfield; the baked splat/macro maps stay bound.
+    pub fn update_battlefield_ground_geometry(
+        &mut self,
+        vertices: &[SceneVertex],
+        indices: &[u32],
+    ) {
+        self.scene.update_battlefield_ground_geometry(&self.ctx, vertices, indices);
+    }
+
     pub fn clear_battlefield_ground(&mut self) {
         self.scene.clear_battlefield_ground();
     }

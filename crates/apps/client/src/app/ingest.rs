@@ -155,8 +155,13 @@ impl ClientApp {
         self.sync_cover_destruction(&snapshot);
         // The replicated crater ledger (protocol v31) folds into OUR heightmap's overlay, so
         // the predictor, the camera ground probe and every local sample stand in the same
-        // holes the server does. Idempotent — an unchanged ledger costs one compare.
-        self.battlefield.heightmap.set_craters(&snapshot.craters);
+        // holes the server does. Idempotent — an unchanged ledger costs one compare. A moved
+        // ledger also flags the ground re-mesh (P4b), so the eye sees the hole physics stands
+        // in a couple of frames later.
+        if self.battlefield.heightmap.crater_records() != snapshot.craters.as_slice() {
+            self.battlefield.heightmap.set_craters(&snapshot.craters);
+            self.ground_deform_dirty = true;
+        }
         // Shots fired since the previous snapshot: diffed here, where both snapshots exist side
         // by side, then fanned out to every fire cue (muzzle FX, recoil, hull rock, camera kick).
         let fired = self.render_state.latest_snapshot().map_or_else(Vec::new, |previous| {

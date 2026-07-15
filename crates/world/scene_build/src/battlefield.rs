@@ -42,9 +42,14 @@ pub fn battlefield_ground_and_statics_meshes(
     battlefield: &BattlefieldMap,
     cover_states: &[u8],
 ) -> (SceneMeshData, SceneMeshData) {
-    let ground =
-        terrain_scene_mesh_full(&battlefield.heightmap, battlefield.water, &battlefield.roads);
-    (ground, battlefield_statics_mesh(battlefield, cover_states))
+    (battlefield_ground_mesh(battlefield), battlefield_statics_mesh(battlefield, cover_states))
+}
+
+/// The ground alone — what a crater-ledger change rebuilds (protocol v31). The heightmap's
+/// crater overlay is already folded into `sample_height`, so the re-mesh below simply reads the
+/// same deformed truth physics stands on; the baked splat/macro maps never depend on craters.
+pub fn battlefield_ground_mesh(battlefield: &BattlefieldMap) -> SceneMeshData {
+    terrain_scene_mesh_full(&battlefield.heightmap, battlefield.water, &battlefield.roads)
 }
 
 /// The statics alone (cover, backdrop skirt, scenery) — what a cover-state change rebuilds.
@@ -346,6 +351,12 @@ pub fn terrain_scene_mesh_with_water(
 
 /// The full terrain surface: height/slope base color, the grass patchwork, painted roads,
 /// then the water tint — later layers win where they overlap.
+///
+/// True deformation (protocol v31): cells inside a crater's influence are CUT from the base
+/// grid and re-meshed at sub-cell resolution from `sample_height` — the exact deformed truth
+/// physics stands on. On a cell edge the bilinear sample degenerates to the linear lerp the
+/// neighbouring base triangles draw, and the crater delta is zero at every cut boundary (an
+/// uncut cell is untouched by construction), so the patchwork is watertight with no stitching.
 fn terrain_scene_mesh_full(
     heightmap: &HeightMap,
     water: Option<WaterBody>,
@@ -356,54 +367,136 @@ fn terrain_scene_mesh_full(
     let cell = heightmap.cell_size_m();
     let stats = heightmap.stats();
 
+    let make_vertex = |wx: f32, wz: f32, y: f32, normal: Vec3| -> SceneVertex {
+        let mut color = terrain_color(y, stats.min_m, stats.max_m, normal.y, wx, wz);
+        // Grass is near-matte; exposed rock on steep faces takes a mineral sheen; the
+        // riverbed under water is permanently wet and reads glossiest of all.
+        let mut gloss = 0.03 + (1.0 - normal.y).clamp(0.0, 1.0) * 0.12;
+        if let Some((tone, road_gloss, blend)) = road_paint(roads, wx, wz) {
+            color = Vec3::from_array(color).lerp(tone, blend).to_array();
+            gloss = gloss + (road_gloss - gloss) * blend;
+        }
+        // The ground pipeline reads its albedo from the splat layers; the vertex colour
+        // wins only where the tint lane says so — the submerged riverbed, whose depth
+        // tint has no splat equivalent. Dry ground carries 0 (splat rules).
+        let mut vertex_color_dominance = 0.0;
+        if let Some(water) = water {
+            let depth = water.depth_over(y);
+            color = water_tint(color, depth);
+            if depth > 0.02 {
+                gloss = 0.35;
+                vertex_color_dominance = (depth / 0.35).clamp(0.35, 1.0);
+            }
+        }
+        SceneVertex {
+            position: [wx, y, wz],
+            normal: normal.to_array(),
+            color,
+            tint_weight: vertex_color_dominance,
+            gloss,
+            surface: 0.0,
+            sway: 0.0,
+        }
+    };
+
     let mut vertices = Vec::with_capacity(w * h);
     for z in 0..h {
         for x in 0..w {
             let y = heightmap.sample_at_index(x, z);
             let (wx, wz) = (x as f32 * cell, z as f32 * cell);
             let normal = vertex_normal(heightmap, x, z, cell);
-            let mut color = terrain_color(y, stats.min_m, stats.max_m, normal.y, wx, wz);
-            // Grass is near-matte; exposed rock on steep faces takes a mineral sheen; the
-            // riverbed under water is permanently wet and reads glossiest of all.
-            let mut gloss = 0.03 + (1.0 - normal.y).clamp(0.0, 1.0) * 0.12;
-            if let Some((tone, road_gloss, blend)) = road_paint(roads, wx, wz) {
-                color = Vec3::from_array(color).lerp(tone, blend).to_array();
-                gloss = gloss + (road_gloss - gloss) * blend;
-            }
-            // The ground pipeline reads its albedo from the splat layers; the vertex colour
-            // wins only where the tint lane says so — the submerged riverbed, whose depth
-            // tint has no splat equivalent. Dry ground carries 0 (splat rules).
-            let mut vertex_color_dominance = 0.0;
-            if let Some(water) = water {
-                let depth = water.depth_over(y);
-                color = water_tint(color, depth);
-                if depth > 0.02 {
-                    gloss = 0.35;
-                    vertex_color_dominance = (depth / 0.35).clamp(0.35, 1.0);
-                }
-            }
-            vertices.push(SceneVertex {
-                position: [wx, y, wz],
-                normal: normal.to_array(),
-                color,
-                tint_weight: vertex_color_dominance,
-                gloss,
-                surface: 0.0,
-                sway: 0.0,
-            });
+            vertices.push(make_vertex(wx, wz, y, normal));
         }
     }
 
+    let cut = cratered_cells(heightmap);
     let mut indices = Vec::with_capacity((w - 1) * (h - 1) * 6);
     for z in 0..h - 1 {
         for x in 0..w - 1 {
+            if cut.contains(&(x, z)) {
+                continue;
+            }
             let i = (z * w + x) as u32;
             let right = i + 1;
             let down = i + w as u32;
             indices.extend_from_slice(&[i, down, right, right, down, down + 1]);
         }
     }
+    for &(x, z) in &cut {
+        append_crater_cell(&mut vertices, &mut indices, heightmap, x, z, &make_vertex);
+    }
     (vertices, indices)
+}
+
+/// Sub-cell resolution of a crater patch: 8 subdivisions of the 5 m battlefield cell give a
+/// 0.625 m mesh step — fine enough for the smallest ledger crater (0.8 m radius bowl).
+const CRATER_CELL_SUBDIVISIONS: usize = 8;
+
+/// The base-grid cells whose ground any crater in the ledger touches (influence AABB overlap),
+/// in deterministic order. These are cut from the coarse grid and re-meshed finely.
+fn cratered_cells(heightmap: &HeightMap) -> std::collections::BTreeSet<(usize, usize)> {
+    let mut cut = std::collections::BTreeSet::new();
+    let cell = heightmap.cell_size_m();
+    let max_x = heightmap.width() - 2;
+    let max_z = heightmap.height() - 2;
+    for record in heightmap.crater_records() {
+        let reach = record.influence_radius_m();
+        let lo_x = (((record.x_m() - reach) / cell).floor().max(0.0) as usize).min(max_x);
+        let hi_x = (((record.x_m() + reach) / cell).floor().max(0.0) as usize).min(max_x);
+        let lo_z = (((record.z_m() - reach) / cell).floor().max(0.0) as usize).min(max_z);
+        let hi_z = (((record.z_m() + reach) / cell).floor().max(0.0) as usize).min(max_z);
+        for z in lo_z..=hi_z {
+            for x in lo_x..=hi_x {
+                cut.insert((x, z));
+            }
+        }
+    }
+    cut
+}
+
+/// Re-mesh ONE cut cell at sub-cell resolution, heights and normals read from `sample_height`
+/// — the same deformed ground the sim's physics, spotting and predictor stand on.
+fn append_crater_cell(
+    vertices: &mut Vec<SceneVertex>,
+    indices: &mut Vec<u32>,
+    heightmap: &HeightMap,
+    cell_x: usize,
+    cell_z: usize,
+    make_vertex: &impl Fn(f32, f32, f32, Vec3) -> SceneVertex,
+) {
+    let cell = heightmap.cell_size_m();
+    let sub = CRATER_CELL_SUBDIVISIONS;
+    let step = cell / sub as f32;
+    let base = vertices.len() as u32;
+    let sample = |wx: f32, wz: f32| -> f32 {
+        let [ex, ez] = heightmap.extent_m();
+        heightmap
+            .sample_height(wx.clamp(0.0, ex), wz.clamp(0.0, ez))
+            .expect("clamped sample stays in domain")
+    };
+    for sz in 0..=sub {
+        for sx in 0..=sub {
+            let wx = cell_x as f32 * cell + sx as f32 * step;
+            let wz = cell_z as f32 * cell + sz as f32 * step;
+            let y = sample(wx, wz);
+            let normal = Vec3::new(
+                sample(wx - step, wz) - sample(wx + step, wz),
+                2.0 * step,
+                sample(wx, wz - step) - sample(wx, wz + step),
+            )
+            .normalize();
+            vertices.push(make_vertex(wx, wz, y, normal));
+        }
+    }
+    let row = (sub + 1) as u32;
+    for sz in 0..sub as u32 {
+        for sx in 0..sub as u32 {
+            let i = base + sz * row + sx;
+            let right = i + 1;
+            let down = i + row;
+            indices.extend_from_slice(&[i, down, right, right, down, down + 1]);
+        }
+    }
 }
 
 fn sample_clamped(heightmap: &HeightMap, x: i32, z: i32) -> f32 {
@@ -555,6 +648,78 @@ mod tests {
         // And it sits on the ground, not floating.
         let bottom = vertices.iter().map(|v| v.position[1]).fold(f32::MAX, f32::min);
         assert!((bottom - 0.0).abs() < 1.0e-3, "the mound rests on the ground, got {bottom}");
+    }
+
+    #[test]
+    fn a_crater_re_meshes_the_ground_the_physics_stands_in() {
+        let mut flat = HeightMap::flat(64, 64, 5.0, 10.0).expect("flat map");
+        let crater = terrain::CraterRecord::from_world(
+            150.0,
+            150.0,
+            2.2,
+            0.8,
+            terrain::CRATER_KIND_HIGH_EXPLOSIVE,
+        );
+        flat.set_craters(&[crater]);
+
+        let (vertices, indices) = terrain_scene_mesh(&flat);
+
+        // The bowl floor is genuinely sunk in the render mesh — the eye sees the same hole
+        // the tracks stand in (sub-cell patch resolution, so the full depth is reached).
+        let lowest = vertices.iter().map(|v| v.position[1]).fold(f32::MAX, f32::min);
+        assert!(
+            (lowest - (10.0 - crater.depth_m())).abs() < 0.05,
+            "the mesh reaches the bowl floor: {lowest}"
+        );
+        // The spoil rim rises above grade.
+        let highest = vertices.iter().map(|v| v.position[1]).fold(f32::MIN, f32::max);
+        assert!(highest > 10.0 + crater.depth_m() * 0.15, "the rim shows: {highest}");
+        assert_eq!(indices.len() % 3, 0);
+    }
+
+    #[test]
+    fn virgin_ground_meshes_exactly_as_before_deformation_existed() {
+        let map = prokhorovka_hill_252_2();
+        let (vertices, indices) = terrain_scene_mesh(&map.heightmap);
+        let mut with_empty_ledger = map.heightmap.clone();
+        with_empty_ledger.set_craters(&[]);
+        let (twin_vertices, twin_indices) = terrain_scene_mesh(&with_empty_ledger);
+        assert!(vertices == twin_vertices && indices == twin_indices);
+    }
+
+    #[test]
+    fn the_crater_patchwork_is_watertight_at_its_seams() {
+        // A sloped field, so a seam mismatch cannot hide behind flatness: every fine-patch
+        // vertex on a cut-cell boundary must land exactly on the base grid's linear edge.
+        let cell = 5.0;
+        let samples: Vec<f32> =
+            (0..64 * 64).map(|i| (i % 64) as f32 * 0.35 + (i / 64) as f32 * 0.2).collect();
+        let mut sloped = HeightMap::new(64, 64, cell, samples).expect("sloped map");
+        let crater = terrain::CraterRecord::from_world(
+            150.0,
+            150.0,
+            2.2,
+            0.8,
+            terrain::CRATER_KIND_HIGH_EXPLOSIVE,
+        );
+        sloped.set_craters(&[crater]);
+
+        let (vertices, _) = terrain_scene_mesh(&sloped);
+        let reach = crater.influence_radius_m();
+        for vertex in &vertices {
+            let [wx, y, wz] = vertex.position;
+            let dx = wx - crater.x_m();
+            let dz = wz - crater.z_m();
+            if dx * dx + dz * dz >= reach * reach {
+                // Outside the crater's influence EVERY vertex — base or patch — sits on the
+                // authored bilinear surface; on cell edges that is the base triangle edge.
+                let expected = sloped.sample_height(wx, wz).expect("in domain");
+                assert!(
+                    (y - expected).abs() < 1.0e-4,
+                    "no lips or cracks at the patch boundary: {y} vs {expected} at ({wx},{wz})"
+                );
+            }
+        }
     }
 
     #[test]
