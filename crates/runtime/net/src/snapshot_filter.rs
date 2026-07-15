@@ -80,6 +80,8 @@ impl Snapshot {
             cover_states: self.cover_states.clone(),
             // So are craters (v31): the ground itself is deformed for everyone alike.
             craters: self.craters.clone(),
+            // And the wounds on the walls (v32) — world dressing, not intel.
+            cover_scars: self.cover_scars.clone(),
         }
     }
 

@@ -180,3 +180,57 @@ fn spotting_opens_once_the_hedge_between_is_shot_away() {
         "with the hedge gone the enemy is spotted"
     );
 }
+
+/// Fizyczny Świat P8 (protocol v32): the shell that chips a wall also WOUNDS it — a replicated
+/// scar on the struck face, so every client (and a late joiner) dresses the same wall alike.
+#[test]
+fn an_absorbed_shell_leaves_a_replicated_wound_on_the_struck_face() {
+    let terrain = flat_field();
+    let barn = [cover("barn", StaticCoverKind::FarmBuilding, [0.0, 1.5, 27.0], [4.0, 2.5, 1.5])];
+
+    let mut state = SimulationState::new();
+    let shooter = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::ZERO);
+    let _target =
+        state.spawn_tank_with_yaw(TeamId(2), TankSpec::t54_1951(), Vec3::new(0.0, 0.0, 55.0), PI);
+    {
+        let shooter = state.tank_mut(shooter).expect("shooter");
+        shooter.aim_dispersion_mrad = 0.0;
+        shooter.spec.gun.dispersion_mrad = 0.0;
+        shooter.selected_ammo = HE_SLOT;
+        shooter.ammo_counts[HE_SLOT as usize] = 5;
+    }
+    fire_once(&mut state, shooter, &terrain, &barn);
+
+    assert_eq!(state.cover_scars().len(), 1, "one absorbed shell, one wound");
+    let scar = state.cover_scars()[0];
+    assert_eq!(scar.cover, 0);
+    assert_eq!(scar.kind, terrain::COVER_SCAR_KIND_HIGH_EXPLOSIVE);
+    assert_eq!(scar.face, 3, "fired from -Z, the wound sits on the -Z face");
+    assert!(scar.radius_m() > 0.25, "an HE bite is decimetres wide: {}", scar.radius_m());
+}
+
+/// The per-cover cap: a wall shelled forever remembers its freshest eight wounds.
+#[test]
+fn a_wall_remembers_at_most_eight_wounds_and_recycles_the_oldest() {
+    let barn = cover("barn", StaticCoverKind::FarmBuilding, [0.0, 1.5, 27.0], [4.0, 2.5, 1.5]);
+    let mut ledger = Vec::new();
+    for index in 0..12 {
+        let impact = game_core::ShellImpact {
+            owner: game_core::TankId(1),
+            position: glam::Vec3::new(-3.0 + index as f32 * 0.5, 1.5, 25.5),
+            surface: game_core::ImpactSurface::Cover,
+            shell_type: game_core::ShellType::ArmorPiercing,
+            direction: glam::Vec3::Z,
+            caliber_mm: 100.0,
+        };
+        sim::record_cover_scar(&mut ledger, 0, &barn, &impact);
+    }
+    assert_eq!(ledger.len(), terrain::MAX_COVER_SCARS_PER_COVER);
+    // The freshest strike (furthest right) survived; the first (furthest left) weathered away.
+    assert!(ledger.iter().all(|scar| scar.u_q != ledger_first_u()), "oldest recycled");
+}
+
+fn ledger_first_u() -> u8 {
+    // The u of the very first strike above (x = -3.0 on an 8 m face): (-3/4+1)/2*255 = 32.
+    32
+}

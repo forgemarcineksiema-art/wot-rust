@@ -403,6 +403,7 @@ fn snapshot_for_vehicle(
         detached_turrets: Vec::new(),
         cover_states: Vec::new(),
         craters: Vec::new(),
+        cover_scars: Vec::new(),
     }
 }
 

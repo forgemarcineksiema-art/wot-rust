@@ -41,6 +41,36 @@ pub fn he_crater_depth_m(radius_m: f32) -> f32 {
     (radius_m * 0.35).min(1.2)
 }
 
+/// A shell wound on a static-cover face (protocol v32): purely visual, replicated so every
+/// client (and a late joiner) dresses the same wall with the same bites. 7 bytes, capped per
+/// cover by the sim's append rule.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CoverScar {
+    /// Index into the map's static cover (deterministic per map).
+    pub cover: u16,
+    /// Which box face took the hit: 0 +X, 1 -X, 2 +Z, 3 -Z, 4 +Y (roof).
+    pub face: u8,
+    /// Position across the face, quantized 0..=255 over its two in-plane axes.
+    pub u_q: u8,
+    pub v_q: u8,
+    /// Wound radius in 0.05 m steps.
+    pub radius_q: u8,
+    /// 0 = kinetic inset (calibre hole + plaster burst), 1 = high-explosive bite.
+    pub kind: u8,
+}
+
+pub const COVER_SCAR_RADIUS_STEP_M: f32 = 0.05;
+/// Wounds one cover object remembers; an older one is recycled past the cap.
+pub const MAX_COVER_SCARS_PER_COVER: usize = 8;
+pub const COVER_SCAR_KIND_KINETIC: u8 = 0;
+pub const COVER_SCAR_KIND_HIGH_EXPLOSIVE: u8 = 1;
+
+impl CoverScar {
+    pub fn radius_m(&self) -> f32 {
+        self.radius_q as f32 * COVER_SCAR_RADIUS_STEP_M
+    }
+}
+
 /// One replicated crater. Stored QUANTIZED — the sim quantizes at append time and both sides
 /// dequantize the same integers, so predictor↔server height parity is exact by construction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

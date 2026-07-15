@@ -11,7 +11,7 @@ use sim::TankCommand;
 use terrain::MapId;
 
 #[test]
-fn input_command_wire_snapshot_v31_is_stable() {
+fn input_command_wire_snapshot_v32_is_stable() {
     let message = ProtocolMessage::Input(ClientInputCommand {
         client_tick: 7,
         tank_id: TankId(42),
@@ -28,13 +28,13 @@ fn input_command_wire_snapshot_v31_is_stable() {
 
     let bytes = encode_message(&message).expect("message should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 31);
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "input_command_v31"));
+    assert_eq!(PROTOCOL_VERSION, 32);
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "input_command_v32"));
     assert_eq!(decode_message(&bytes).expect("message should decode"), message);
 }
 
 #[test]
-fn vehicle_selection_wire_snapshot_v31_is_stable() {
+fn vehicle_selection_wire_snapshot_v32_is_stable() {
     let message = ProtocolMessage::VehicleSelection(ClientVehicleSelection {
         client_tick: 11,
         requested_vehicle: VehicleKind::PantherII,
@@ -42,36 +42,36 @@ fn vehicle_selection_wire_snapshot_v31_is_stable() {
 
     let bytes = encode_message(&message).expect("vehicle selection should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 31);
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "vehicle_selection_v31"));
+    assert_eq!(PROTOCOL_VERSION, 32);
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "vehicle_selection_v32"));
     assert_eq!(decode_message(&bytes).expect("message should decode"), message);
 }
 
 #[test]
-fn tank_snapshot_wire_v31_is_stable() {
+fn tank_snapshot_wire_v32_is_stable() {
     // Locks the v19 raw payload layout; transport framing is covered separately.
     let message = ProtocolMessage::Snapshot(tank_snapshot_message());
 
     let bytes = encode_message(&message).expect("snapshot should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 31);
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_tank_v31"));
+    assert_eq!(PROTOCOL_VERSION, 32);
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_tank_v32"));
     assert_eq!(decode_message(&bytes).expect("snapshot should decode"), message);
 }
 
 #[test]
-fn combat_snapshot_wire_v31_is_stable() {
+fn combat_snapshot_wire_v32_is_stable() {
     let message = ProtocolMessage::Snapshot(combat_snapshot_message());
 
     let bytes = encode_message(&message).expect("snapshot should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 31);
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_combat_v31"));
+    assert_eq!(PROTOCOL_VERSION, 32);
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_combat_v32"));
     assert_eq!(decode_message(&bytes).expect("snapshot should decode"), message);
 }
 
 #[test]
-fn server_hello_wire_snapshot_v31_is_stable() {
+fn server_hello_wire_snapshot_v32_is_stable() {
     let message = ProtocolMessage::ServerHello {
         protocol_version: PROTOCOL_VERSION,
         map_id: MapId::ProkhorovkaHill252_2,
@@ -82,8 +82,8 @@ fn server_hello_wire_snapshot_v31_is_stable() {
 
     let bytes = encode_message(&message).expect("server hello should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 31);
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "server_hello_v31"));
+    assert_eq!(PROTOCOL_VERSION, 32);
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "server_hello_v32"));
     assert_eq!(decode_message(&bytes).expect("server hello should decode"), message);
 }
 
@@ -123,22 +123,23 @@ pub fn tank_snapshot_message() -> Snapshot {
         detached_turrets: Vec::new(),
         cover_states: Vec::new(),
         craters: Vec::new(),
+        cover_scars: Vec::new(),
     }
 }
 
 /// Non-empty combat snapshot used by the v18 fixture (and its generator): shells in flight, a
 /// damage event, and an absorbed-shell impact.
 #[test]
-fn input_batch_and_disconnect_wire_v31_are_stable() {
+fn input_batch_and_disconnect_wire_v32_are_stable() {
     let batch = ProtocolMessage::InputBatch {
         commands: vec![sample_input_command(), sample_input_command()],
     };
     let bytes = net::encode_frame(&batch).expect("encode");
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "input_batch_v31"));
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "input_batch_v32"));
 
     let goodbye = ProtocolMessage::Disconnect { reason: net::DisconnectReason::Quit };
     let bytes = net::encode_frame(&goodbye).expect("encode");
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "disconnect_v31"));
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "disconnect_v32"));
 }
 
 /// The transport ships a snapshot in datagrams; a battle-worn 14-tank snapshot (live breaches on
@@ -256,6 +257,15 @@ pub fn combat_snapshot_message() -> Snapshot {
             radius_q: 22,
             depth_q: 15,
             kind: terrain::CRATER_KIND_HIGH_EXPLOSIVE,
+        }],
+        // v32: one HE bite on a wall face, so the cover-wound layout is locked on the wire.
+        cover_scars: vec![terrain::CoverScar {
+            cover: 3,
+            face: 2,
+            u_q: 120,
+            v_q: 40,
+            radius_q: 20,
+            kind: terrain::COVER_SCAR_KIND_HIGH_EXPLOSIVE,
         }],
     }
 }

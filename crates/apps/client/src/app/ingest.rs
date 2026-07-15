@@ -261,6 +261,12 @@ impl ClientApp {
     /// silently; afterwards any object that stepped up in destruction (intact -> rubble/gone, or
     /// rubble -> gone) bursts dust and flags the scene for a rebuild so the collapse actually shows.
     fn sync_cover_destruction(&mut self, snapshot: &net::Snapshot) {
+        // Fresh wounds on the walls (protocol v32) re-dress the statics even when no phase
+        // stepped — the same rebuild the collapse takes, just with scars in the bake.
+        if snapshot.cover_scars != self.cover_scar_list {
+            self.cover_scar_list = snapshot.cover_scars.clone();
+            self.scene_cover_dirty = true;
+        }
         let states = &snapshot.cover_states;
         if states == &self.cover_phase_bytes {
             return;

@@ -1,6 +1,8 @@
 //! Visual showcase of the "Honest Steel" destruction program, rendered offscreen through the same
 //! PBR path the game uses. Writes:
 //!   `_cover_intact.png`   — a farm town, whole.
+//!   `_cover_wounded.png`  — the same building wounded but standing: a kinetic inset in its
+//!                            plaster burst, an HE bite with rubble at the wall's foot (v32).
 //!   `_cover_wrecked.png`  — the same town after HE: rubble mounds where buildings stood, a tree
 //!                            line cleared, its trees gone with it.
 //!   `_battle_damage.png`  — a live tank pocked with penetration holes seated on the armor.
@@ -82,6 +84,34 @@ fn cover_shots(
     let (verts, indices) = battlefield_scene_mesh(battlefield);
     render_scene(ctx, target, &verts, &indices, focus, eye, look, width, height)?;
     write_png(ctx, target, width, height, &format!("{prefix}_cover_intact.png"))?;
+
+    // Wounded but standing (protocol v32): a kinetic inset with its plaster burst and an HE
+    // bite with rubble at the wall's foot, on the face toward the camera.
+    let scars = [
+        terrain::CoverScar {
+            cover: building as u16,
+            face: 0,
+            u_q: 90,
+            v_q: 110,
+            radius_q: 3,
+            kind: terrain::COVER_SCAR_KIND_KINETIC,
+        },
+        terrain::CoverScar {
+            cover: building as u16,
+            face: 0,
+            u_q: 175,
+            v_q: 90,
+            radius_q: 18,
+            kind: terrain::COVER_SCAR_KIND_HIGH_EXPLOSIVE,
+        },
+    ];
+    let (mut verts, mut indices) = client::battlefield_ground_mesh(battlefield);
+    let (sv, si) = client::battlefield_statics_mesh_with_scars(battlefield, &[], &scars);
+    let base = verts.len() as u32;
+    verts.extend(sv);
+    indices.extend(si.into_iter().map(|index| index + base));
+    render_scene(ctx, target, &verts, &indices, focus, eye, look, width, height)?;
+    write_png(ctx, target, width, height, &format!("{prefix}_cover_wounded.png"))?;
 
     // Bring the whole town down: farm buildings -> rubble, tree lines -> gone.
     let mut states = vec![0u8; battlefield.static_cover.len()];

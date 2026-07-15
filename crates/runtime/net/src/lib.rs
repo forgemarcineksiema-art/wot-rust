@@ -18,6 +18,10 @@ pub mod transport;
 pub use frame::{FRAME_HEADER_LEN, FRAME_MAGIC, decode_frame, encode_frame};
 pub use snapshot_schedule::SnapshotSchedule;
 
+/// v32: `Snapshot` carries `cover_scars` — replicated shell wounds on static-cover faces
+/// (kinetic insets and HE bites), purely visual, re-sent whole so a late joiner dresses the
+/// same walls. Appended, `serde(default)`.
+///
 /// v31: `Snapshot` carries `craters` — the battle's quantized high-explosive crater ledger
 /// (true terrain deformation). Global world state, re-sent every snapshot (a late joiner
 /// converges); the battlefield owner folds it into the heightmap overlay, so physics, spotting,
@@ -59,7 +63,7 @@ pub use snapshot_schedule::SnapshotSchedule;
 /// v18: `ServerHello` names the match — `map_id` and `weather_variant` — so the client can
 /// deterministically rebuild the same battlefield the server simulates (the map itself is
 /// never sent) and dress it in the same sky. `ImpactSurface` gains `Water`.
-pub const PROTOCOL_VERSION: u16 = 31;
+pub const PROTOCOL_VERSION: u16 = 32;
 
 #[derive(Debug, Error)]
 pub enum NetError {
@@ -257,6 +261,10 @@ pub struct Snapshot {
     /// fixtures loading with virgin terrain.
     #[serde(default)]
     pub craters: Vec<terrain::CraterRecord>,
+    /// Shell wounds on static-cover faces (protocol v32): purely visual, re-sent whole every
+    /// snapshot (a late joiner converges). `serde(default)` keeps pre-v32 fixtures unwounded.
+    #[serde(default)]
+    pub cover_scars: Vec<terrain::CoverScar>,
 }
 
 impl From<&SimulationState> for Snapshot {
@@ -275,6 +283,7 @@ impl From<&SimulationState> for Snapshot {
                 .collect(),
             cover_states: state.cover_states().iter().map(|state| state.phase.to_wire()).collect(),
             craters: state.craters().to_vec(),
+            cover_scars: state.cover_scars().to_vec(),
         }
     }
 }
