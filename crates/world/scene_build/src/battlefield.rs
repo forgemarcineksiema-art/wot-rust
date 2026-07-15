@@ -82,7 +82,14 @@ pub fn battlefield_statics_mesh_with_scars(
                 }
             }
             1 => append_rubble_mound(&mut vertices, &mut indices, cover),
-            _ => {} // gone: the object is cleared, draw nothing
+            _ => {
+                // Gone. A cleared TREE LINE is not a vacuum (Fizyczny Świat P11): the crowns
+                // fell, but the crush leaves stumps where the trees stood and trunks lying
+                // along the run. Other kinds (fences, foliage mass) clear to nothing.
+                if cover.kind == StaticCoverKind::TreeLine {
+                    append_felled_tree_line(&mut vertices, &mut indices, battlefield, cover);
+                }
+            }
         }
     }
     // The world beyond the border (render-only skirt + distant trees), then the dressing:
@@ -103,6 +110,90 @@ pub fn battlefield_statics_mesh_with_scars(
         crate::foliage::push_scenery_instance(&mut vertices, &mut indices, instance);
     }
     (vertices, indices)
+}
+
+/// The wreckage of a crushed tree line (Fizyczny Świat P11), zero wire: a stump where each of
+/// its scenery trees stood (the tree fell, its root did not), and one or two trunks lying
+/// along the run, seeded from the cover id so the same hedge always falls the same way. All
+/// of it low, non-blocking dressing inside the old footprint — matter, not a vacuum.
+fn append_felled_tree_line(
+    vertices: &mut Vec<SceneVertex>,
+    indices: &mut Vec<u32>,
+    battlefield: &BattlefieldMap,
+    cover: &StaticCoverObject,
+) {
+    const BARK: [f32; 3] = [0.26, 0.20, 0.13];
+    const HEARTWOOD: [f32; 3] = [0.45, 0.36, 0.24];
+    let center = Vec3::from_array(cover.center);
+    let half = Vec3::from_array(cover.half_extents_m);
+    let ground_y = center.y - half.y;
+
+    // Stumps: one at the foot of every scenery tree the cleared box swallowed.
+    for instance in &battlefield.scenery {
+        let p = instance.position;
+        if (p[0] - cover.center[0]).abs() <= cover.half_extents_m[0]
+            && (p[2] - cover.center[2]).abs() <= cover.half_extents_m[2]
+        {
+            let stump_half = Vec3::new(0.13, 0.22, 0.13) * instance.scale.max(0.6);
+            push_surfaced_box(
+                vertices,
+                indices,
+                Vec3::new(p[0], ground_y + stump_half.y, p[2]),
+                stump_half,
+                BARK,
+                0.04,
+            );
+            // The sawn/torn top reads lighter — a thin heartwood cap.
+            push_surfaced_box(
+                vertices,
+                indices,
+                Vec3::new(p[0], ground_y + stump_half.y * 2.0 + 0.01, p[2]),
+                Vec3::new(stump_half.x * 0.9, 0.015, stump_half.z * 0.9),
+                HEARTWOOD,
+                0.06,
+            );
+        }
+    }
+
+    // Fallen trunks: one or two logs lying along the run, hashed from the cover id.
+    let mut hash = 0xcbf2_9ce4_8422_2325_u64;
+    for byte in cover.id.bytes() {
+        hash ^= u64::from(byte);
+        hash = hash.wrapping_mul(0x0100_0000_01b3);
+    }
+    let mut next = move || {
+        hash ^= hash << 13;
+        hash ^= hash >> 7;
+        hash ^= hash << 17;
+        (hash >> 40) as f32 / ((1u64 << 24) - 1) as f32
+    };
+    let along_x = half.x >= half.z;
+    let run = if along_x { half.x } else { half.z };
+    let logs = 1 + (next() * 1.99) as usize;
+    for _ in 0..logs {
+        let length = (run * (0.35 + next() * 0.3)).clamp(1.2, 6.0);
+        let radius = 0.14 + next() * 0.08;
+        let slide = (next() - 0.5) * (run - length).max(0.0) * 1.6;
+        let drift = (next() - 0.5) * (if along_x { half.z } else { half.x }) * 0.9;
+        let yaw = (next() - 0.5) * 0.5 + if along_x { 0.0 } else { std::f32::consts::FRAC_PI_2 };
+        let log_center = if along_x {
+            Vec3::new(center.x + slide, ground_y + radius, center.z + drift)
+        } else {
+            Vec3::new(center.x + drift, ground_y + radius, center.z + slide)
+        };
+        let start = vertices.len();
+        push_oriented_box(
+            vertices,
+            indices,
+            log_center,
+            Vec3::new(length, radius, radius),
+            Mat3::from_rotation_y(yaw),
+            BARK,
+        );
+        for vertex in &mut vertices[start..] {
+            vertex.gloss = 0.04;
+        }
+    }
 }
 
 /// Whether a scenery instance stands inside a cover box that has been cleared (phase gone), so it
@@ -997,6 +1088,42 @@ mod tests {
             cleared.0.len(),
             intact.0.len()
         );
+    }
+
+    /// Fizyczny Świat P11: a crushed tree line is wreckage, not a vacuum — stumps stand where
+    /// its trees stood and at least one trunk lies along the run, all of it low to the ground.
+    #[test]
+    fn a_crushed_tree_line_leaves_stumps_and_fallen_trunks() {
+        let map = prokhorovka_hill_252_2();
+        let tree_line = map
+            .static_cover
+            .iter()
+            .position(|cover| cover.kind == StaticCoverKind::TreeLine)
+            .expect("prokhorovka has a tree line");
+        let object = &map.static_cover[tree_line];
+        let mut states = vec![0u8; map.static_cover.len()];
+        states[tree_line] = 2; // gone (shelled clear or crushed under a hull — same phase)
+
+        let cleared = battlefield_scene_mesh_with_cover_states(&map, &states);
+        let bark = [0.26, 0.20, 0.13];
+        let ground_top = object.center[1] + object.half_extents_m[1];
+        let wreckage: Vec<_> = cleared
+            .0
+            .iter()
+            .filter(|v| {
+                v.color == bark
+                    && (v.position[0] - object.center[0]).abs() <= object.half_extents_m[0] + 1.0
+                    && (v.position[2] - object.center[2]).abs() <= object.half_extents_m[2] + 1.0
+            })
+            .collect();
+        assert!(!wreckage.is_empty(), "the crush leaves stumps and trunks behind");
+        for vertex in &wreckage {
+            assert!(
+                vertex.position[1] < ground_top,
+                "wreckage lies LOW — nothing pokes above the old canopy box: y {}",
+                vertex.position[1]
+            );
+        }
     }
 
     #[test]

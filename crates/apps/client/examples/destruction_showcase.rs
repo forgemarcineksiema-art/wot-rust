@@ -5,6 +5,7 @@
 //!                            plaster burst, an HE bite with rubble at the wall's foot (v32).
 //!   `_cover_wrecked.png`  — the same town after HE: rubble mounds where buildings stood, a tree
 //!                            line cleared, its trees gone with it.
+//!   `_cover_felled.png`   — the cleared tree line up close: stumps and fallen trunks (P11).
 //!   `_battle_damage.png`  — a live tank pocked with penetration holes seated on the armor.
 //!   `_interior_detail.png` — a close side perforation exposing physical internal assemblies.
 //!   `_wreck.png`          — a knocked-out hull: charred, gun drooped off the aim, scarred.
@@ -125,6 +126,30 @@ fn cover_shots(
     let (verts, indices) = battlefield_scene_mesh_with_cover_states(battlefield, &states);
     render_scene(ctx, target, &verts, &indices, focus, eye, look, width, height)?;
     write_png(ctx, target, width, height, &format!("{prefix}_cover_wrecked.png"))?;
+
+    // The felled tree line up close (P11): stumps where the trees stood, trunks along the run.
+    let tree_line = battlefield
+        .static_cover
+        .iter()
+        .position(|cover| cover.kind == StaticCoverKind::TreeLine)
+        .expect("map has a tree line");
+    let tl_center = Vec3::from_array(battlefield.static_cover[tree_line].center);
+    let tl_half = Vec3::from_array(battlefield.static_cover[tree_line].half_extents_m);
+    let tl_ground = tl_center.y - tl_half.y;
+    let tl_focus = Vec3::new(tl_center.x, tl_ground + 0.5, tl_center.z);
+    let tl_eye = [tl_center.x + 9.0, tl_ground + 4.5, tl_center.z + 11.0];
+    render_scene(
+        ctx,
+        target,
+        &verts,
+        &indices,
+        tl_focus,
+        tl_eye,
+        tl_focus.to_array(),
+        width,
+        height,
+    )?;
+    write_png(ctx, target, width, height, &format!("{prefix}_cover_felled.png"))?;
     Ok(())
 }
 
