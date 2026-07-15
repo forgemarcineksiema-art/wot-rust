@@ -261,6 +261,33 @@ impl SceneRenderer {
         });
     }
 
+    /// Replace only the ground GEOMETRY (true deformation, protocol v31): a fresh crater
+    /// re-meshes the heightfield while the baked splat/macro maps and material set stay bound —
+    /// the ground's dress never depends on the ledger, so a shell hole costs two buffers,
+    /// never a 1024^2 rebake. No-op with no ground bound (garage, interiors).
+    pub fn update_battlefield_ground_geometry(
+        &mut self,
+        ctx: &GpuContext,
+        vertices: &[SceneVertex],
+        indices: &[u32],
+    ) {
+        let Some(binding) = self.ground.binding.as_mut() else {
+            return;
+        };
+        let (reordered, chunks) = chunk_scene_indices(vertices, indices, TERRAIN_CHUNK_SIZE_M);
+        binding.vertices = ctx.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("terrain_ground_v"),
+            contents: bytemuck::cast_slice(vertices),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+        binding.indices = ctx.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("terrain_ground_i"),
+            contents: bytemuck::cast_slice(&reordered),
+            usage: wgpu::BufferUsages::INDEX,
+        });
+        binding.chunks = chunks;
+    }
+
     /// Drop the ground binding (scene swap to an interior).
     pub fn clear_battlefield_ground(&mut self) {
         self.ground.binding = None;

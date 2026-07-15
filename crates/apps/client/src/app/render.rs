@@ -104,6 +104,46 @@ impl ClientApp {
         });
     }
 
+    /// Re-mesh the ground for the current crater ledger (true deformation, protocol v31) — the
+    /// same F7 shape as the cover rebuild above: bake on a worker, harvest and swap here. The
+    /// baked splat/macro maps stay bound (geometry-only), and the cached battle meshes take the
+    /// deformed ground so a garage round-trip re-uploads the shelled field, not a pristine one.
+    /// Until the harvest lands, the eye keeps the old ground for the couple of frames physics
+    /// has already been standing in the hole — invisible at snapshot cadence.
+    pub(super) fn rebuild_ground_if_dirty(&mut self) {
+        if let Some(receiver) = &self.ground_rebuild_rx {
+            match receiver.try_recv() {
+                Ok((vertices, indices)) => {
+                    self.ground_rebuild_rx = None;
+                    if let Some(renderer) = self.renderer.as_mut() {
+                        renderer.update_battlefield_ground_geometry(&vertices, &indices);
+                    }
+                    if let Some(meshes) = self.battle_scene_meshes.as_mut() {
+                        meshes.ground_vertices = vertices;
+                        meshes.ground_indices = indices;
+                    }
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => return,
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    // A panicked bake never uploads; fall through so a dirty flag can retry.
+                    self.ground_rebuild_rx = None;
+                }
+            }
+        }
+        if !self.ground_deform_dirty {
+            return;
+        }
+        self.ground_deform_dirty = false;
+        let (tx, rx) = std::sync::mpsc::channel();
+        self.ground_rebuild_rx = Some(rx);
+        // The clone carries the heightmap's crater overlay — the bake reads sample_height,
+        // the exact deformed truth the sim and predictor stand on.
+        let battlefield = self.battlefield.clone();
+        std::thread::spawn(move || {
+            let _ = tx.send(crate::battlefield_ground_mesh(&battlefield));
+        });
+    }
+
     /// Swap each wreck's hull render object (the first object for that tank) to its dented
     /// per-instance mesh. Turret, gun, and gear keep the shared meshes.
     pub(super) fn apply_wreck_deform(&self, objects: &mut [renderer_api::RenderObject]) {
@@ -227,6 +267,9 @@ impl ClientApp {
         // Cover that collapsed or cleared since the last frame: rebuild and re-upload the scene so
         // the rubble mounds and cleared foliage actually show.
         self.rebuild_cover_scene_if_dirty();
+        // Fresh craters since the last snapshot (protocol v31): re-mesh and swap the ground so
+        // the hole physics already stands in actually shows.
+        self.rebuild_ground_if_dirty();
 
         let alpha = self.loop_driver.render_alpha();
         // The death spectate (D9): the kill gets its audience.
