@@ -457,17 +457,29 @@ impl ClientApp {
         for (handle, maps) in self.vehicle_asset_catalog.take_pending_vehicle_materials() {
             renderer.register_vehicle_material(handle, &maps);
         }
-        // Near-field grass (Materia Swiata 1b): a deterministic tuft ring conjured around the
-        // eye each frame through the scene pipeline's instanced path. The only scale cue the
-        // ground has - and the far field pays nothing for it.
-        let grass = scene_build::grass::grass_frame_objects(
-            &self.battlefield.heightmap,
-            self.battlefield.water,
-            &self.battle_scene_meshes.as_ref().expect("ensured above").ground_maps,
-            &scene_build::terrain_maps::terrain_material_set_for(self.session.map_id()),
-            glam::Vec3::from_array(camera.eye),
-        );
-        renderer.set_render_frame(&RenderFrame { objects: grass, ..RenderFrame::default() });
+        // Near-field grass (Materia Swiata 1b): a deterministic tuft field conjured around
+        // the eye through the scene pipeline's instanced path. Cached between frames — the
+        // scatter is a pure function of (eye cell, crater ledger), so it re-conjures only
+        // when the eye moves a real step or a fresh crater burns a patch out.
+        let eye = glam::Vec3::from_array(camera.eye);
+        let crater_count = self.battlefield.heightmap.crater_records().len();
+        let moved =
+            self.grass_cache_eye.is_none_or(|cached| cached.distance_squared(eye) > 1.5 * 1.5);
+        if moved || crater_count != self.grass_cache_crater_count {
+            self.grass_cache = scene_build::grass::grass_frame_objects(
+                &self.battlefield.heightmap,
+                self.battlefield.water,
+                &self.battle_scene_meshes.as_ref().expect("ensured above").ground_maps,
+                &scene_build::terrain_maps::terrain_material_set_for(self.session.map_id()),
+                eye,
+            );
+            self.grass_cache_eye = Some(eye);
+            self.grass_cache_crater_count = crater_count;
+        }
+        renderer.set_render_frame(&RenderFrame {
+            objects: self.grass_cache.clone(),
+            ..RenderFrame::default()
+        });
         renderer.set_vehicle_render_frame(&vehicle_frame);
         // Battle no longer builds a per-frame dynamic mesh (hit marks became on-tank decals in
         // the FX pass); clear whatever the garage left behind.

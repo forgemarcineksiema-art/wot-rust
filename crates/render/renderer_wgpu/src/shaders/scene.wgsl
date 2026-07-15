@@ -9,6 +9,7 @@ struct VsIn {
     @location(3) tint_weight: f32,
     @location(9) gloss: f32,
     @location(10) surface: f32,
+    @location(11) sway: f32,
     @location(4) model_0: vec4<f32>,
     @location(5) model_1: vec4<f32>,
     @location(6) model_2: vec4<f32>,
@@ -29,7 +30,21 @@ struct VsOut {
 fn vs_main(input: VsIn) -> VsOut {
     var out: VsOut;
     let model = mat4x4<f32>(input.model_0, input.model_1, input.model_2, input.model_3);
-    let world = model * vec4<f32>(input.position, 1.0);
+    var world = model * vec4<f32>(input.position, 1.0);
+    // The wind lane (D4, lit by the grass field): vertices that opted in — blade tips, leaf
+    // edges — ride the field's wind. Two drifting world-space waves, so neighbouring blades
+    // gust TOGETHER instead of jittering independently; roots carry sway 0 and stay planted.
+    if (input.sway > 0.0) {
+        let t = camera.time_params.x;
+        let gust = sin(dot(world.xz, vec2<f32>(0.31, 0.17)) + t * 1.6)
+            + 0.45 * sin(dot(world.xz, vec2<f32>(0.83, -0.51)) + t * 2.7);
+        world = vec4<f32>(
+            world.x + gust * input.sway * 0.24,
+            world.y - abs(gust) * input.sway * 0.05,
+            world.z + gust * input.sway * 0.15,
+            world.w,
+        );
+    }
     out.clip = camera.view_proj * world;
     out.world_pos = world.xyz;
     out.normal = (model * vec4<f32>(input.normal, 0.0)).xyz;
