@@ -234,3 +234,37 @@ fn ledger_first_u() -> u8 {
     // The u of the very first strike above (x = -3.0 on an 8 m face): (-3/4+1)/2*255 = 32.
     32
 }
+
+/// Fizyczny Świat P10: a wooden fence is MATTER, not an invisible wall — a hull at speed
+/// drives straight through it (the crush mechanism the hedgerow already uses), and a single
+/// shell sweeps the span away without leaving a blocking mound.
+#[test]
+fn a_hull_drives_through_a_wooden_fence_and_a_shell_sweeps_it() {
+    let terrain = flat_field();
+    let fence =
+        [cover("fence", StaticCoverKind::WoodenFence, [0.0, 0.65, 20.0], [8.0, 0.65, 0.25])];
+
+    // The drive-through.
+    let mut state = SimulationState::new();
+    let driver = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::ZERO);
+    let step = FixedTimestep::from_hz(60);
+    let full_ahead = TankCommand { throttle: 1.0, ..TankCommand::idle() };
+    for _ in 0..600 {
+        state.apply_commands_on_battlefield(&[(driver, full_ahead)], step, &terrain, &fence);
+    }
+    assert_eq!(state.cover_states()[0].phase, CoverPhase::Gone, "the fence is flattened");
+    let tank = state.tanks().iter().find(|tank| tank.id == driver).expect("driver");
+    assert!(tank.position.z > 20.5, "and the hull kept going: z {}", tank.position.z);
+
+    // The shell sweep: one AP round clears the span to GONE — a fence leaves no rubble mound.
+    let mut state = SimulationState::new();
+    let shooter = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::ZERO);
+    {
+        let shooter = state.tank_mut(shooter).expect("shooter");
+        shooter.aim_dispersion_mrad = 0.0;
+        shooter.spec.gun.dispersion_mrad = 0.0;
+        shooter.gun_pitch_rad = -0.05; // a fence is waist-high: nose the gun down onto it
+    }
+    fire_once(&mut state, shooter, &terrain, &fence);
+    assert_eq!(state.cover_states()[0].phase, CoverPhase::Gone, "one round sweeps the span");
+}

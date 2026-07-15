@@ -93,3 +93,29 @@ fn road_distance_measures_to_the_polyline() {
     assert!(ballast.distance_to(500.0, 500.0) < 0.01);
     assert!((ballast.distance_to(500.0, 480.0) - 20.0).abs() < 0.01);
 }
+
+/// Fizyczny Świat P10: the yard fences exist, are crushable matter, and — like everything on
+/// the steppe — stand in exact north/south mirror pairs so both teams drive the same yards.
+#[test]
+fn yard_fences_are_crushable_and_mirror_paired() {
+    let map = terrain::prokhorovka_hill_252_2();
+    let fences: Vec<_> = map
+        .static_cover
+        .iter()
+        .filter(|cover| cover.kind == terrain::StaticCoverKind::WoodenFence)
+        .collect();
+    assert!(fences.len() >= 4, "the farmyards are fenced: {}", fences.len());
+    for fence in &fences {
+        assert!(fence.kind.is_crushable(), "a hull drives through a fence");
+        assert!(fence.kind.max_health().unwrap_or(u32::MAX) <= 80, "one shell sweeps a span");
+        assert!(!fence.kind.leaves_rubble(), "a fence leaves no blocking mound");
+        let mirrored_z = MAP_SIZE_M - fence.center[2];
+        assert!(
+            fences.iter().any(|other| (other.center[0] - fence.center[0]).abs() < 0.01
+                && (other.center[2] - mirrored_z).abs() < 0.01
+                && other.half_extents_m == fence.half_extents_m),
+            "fence {} has no mirror twin",
+            fence.id
+        );
+    }
+}
