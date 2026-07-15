@@ -25,7 +25,7 @@ const BATTLE_TANKS: usize = 14;
 
 /// The locked worst case: a full particle pool + a full crater pool. Penetrations deliberately
 /// emit no FX quads; analytical clipping and rim meshes carry them without covering the opening.
-const FX_FRAME_VERTEX_BUDGET: usize = 16_638;
+const FX_FRAME_VERTEX_BUDGET: usize = 35_070;
 
 fn snapshot() -> TankSnapshot {
     let spec = VehicleKind::T54_1951.spec();

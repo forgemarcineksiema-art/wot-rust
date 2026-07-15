@@ -27,6 +27,20 @@ pub const CRATER_RIM_FRACTION: f32 = 0.25;
 /// A high-explosive ground burst (the only kind so far).
 pub const CRATER_KIND_HIGH_EXPLOSIVE: u8 = 0;
 
+/// Crater radius per shell caliber — the ONE derivation the sim's ledger and the client's
+/// ground marks both use, so the scorch always fills exactly the bowl that physics dug.
+/// A 122 mm HE round digs ~2.2 m of radius (the photographic reference), smaller guns
+/// proportionally less, floored so even a light charge leaves a real depression.
+pub fn he_crater_radius_m(caliber_mm: f32) -> f32 {
+    (caliber_mm / 1000.0 * 18.0).clamp(0.8, 4.0)
+}
+
+/// Bowl depth from radius, capped below any hull's escape-slope drama point: deep enough for
+/// hull-down in a fresh crater, never a pit a tank cannot climb out of.
+pub fn he_crater_depth_m(radius_m: f32) -> f32 {
+    (radius_m * 0.35).min(1.2)
+}
+
 /// One replicated crater. Stored QUANTIZED — the sim quantizes at append time and both sides
 /// dequantize the same integers, so predictor↔server height parity is exact by construction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

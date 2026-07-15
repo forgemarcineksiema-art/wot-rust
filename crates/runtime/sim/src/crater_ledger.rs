@@ -15,16 +15,7 @@ pub const MAX_CRATERS: usize = 64;
 /// of stacking a near-duplicate record.
 const MERGE_DISTANCE_FRACTION: f32 = 0.35;
 
-/// Crater radius per shell caliber: a 122 mm HE round digs a bowl ~2.2 m in radius (the
-/// photographic reference), smaller guns proportionally less, floored so even a light howitzer
-/// leaves a real depression.
-const RADIUS_PER_CALIBER: f32 = 18.0;
-const RADIUS_MIN_M: f32 = 0.8;
-const RADIUS_MAX_M: f32 = 4.0;
-
-/// Bowl depth as a fraction of radius, capped below any tank's hull clearance drama point —
-/// deep enough for hull-down in a fresh crater, never a pit a tank can't climb out of.
-const DEPTH_PER_RADIUS: f32 = 0.35;
+/// Deepening on a re-shelled spot never exceeds the shared depth cap.
 const DEPTH_MAX_M: f32 = 1.2;
 
 /// Record one high-explosive ground burst in the ledger: merge with a crater it re-excavates,
@@ -35,8 +26,8 @@ pub fn record_high_explosive_burst(
     position: Vec3,
     caliber_mm: f32,
 ) {
-    let radius_m = (caliber_mm / 1000.0 * RADIUS_PER_CALIBER).clamp(RADIUS_MIN_M, RADIUS_MAX_M);
-    let depth_m = (radius_m * DEPTH_PER_RADIUS).min(DEPTH_MAX_M);
+    let radius_m = terrain::he_crater_radius_m(caliber_mm);
+    let depth_m = terrain::he_crater_depth_m(radius_m);
     let record = CraterRecord::from_world(
         position.x,
         position.z,

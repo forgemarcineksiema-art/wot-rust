@@ -98,6 +98,43 @@ fn the_ledger_caps_and_the_oldest_crater_weathers_away() {
     assert!(ledger[0].x_m() > 50.0 + 7.0 * 9.0 - 1.0);
 }
 
+/// Gameplay sanity (P4c): a crater is cover, not a trap — the bowl's slope stays inside what
+/// a tank's drive climbs, so a hull that fell in can always drive back out.
+#[test]
+fn a_tank_can_climb_out_of_the_deepest_crater() {
+    let step = FixedTimestep::from_hz(60);
+    let spot = Vec3::new(190.0, 0.0, 150.0);
+    let mut shelled = flat_field();
+    let crater = terrain::CraterRecord::from_world(
+        spot.x,
+        spot.z,
+        4.0,
+        1.2, // the ledger's caps: the deepest, widest hole the wire can carry
+        terrain::CRATER_KIND_HIGH_EXPLOSIVE,
+    );
+    shelled.set_craters(&[crater]);
+
+    let mut state = SimulationState::new();
+    let id = state.spawn_tank(TeamId(1), TankSpec::t55a(), spot);
+    // Settle into the bowl first, then full throttle straight ahead.
+    for _ in 0..60 {
+        state.apply_commands_on_battlefield(&[(id, TankCommand::idle())], step, &shelled, &[]);
+    }
+    let full_ahead = TankCommand { throttle: 1.0, ..TankCommand::idle() };
+    for _ in 0..600 {
+        state.apply_commands_on_battlefield(&[(id, full_ahead)], step, &shelled, &[]);
+    }
+    let tank = state.tanks().iter().find(|tank| tank.id == id).expect("tank");
+    let escaped = (Vec3::new(tank.position.x, 0.0, tank.position.z)
+        - Vec3::new(spot.x, 0.0, spot.z))
+    .length();
+    assert!(
+        escaped > crater.influence_radius_m(),
+        "ten seconds of throttle clears the hole: {escaped} m from center"
+    );
+    assert!(tank.position.y > -0.05, "and the hull stands back on grade: y {}", tank.position.y);
+}
+
 /// The payoff of the single-seam architecture: fold the ledger into the heightmap the way the
 /// battlefield owner does, and a hull parked in the crater PHYSICALLY sits lower than one on
 /// virgin ground — hull-down in a fresh shell hole, with no dedicated code path anywhere.

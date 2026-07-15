@@ -21,11 +21,11 @@ const GROUND_LIFT_M: f32 = 0.05;
 const NORMAL_STEP_M: f32 = 0.75;
 
 #[derive(Debug, Default)]
-pub(crate) struct TerrainScars {
+pub struct TerrainScars {
     scars: Vec<TerrainScar>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct TerrainScar {
     center: Vec3,
     normal: Vec3,
@@ -35,6 +35,10 @@ struct TerrainScar {
     shell_type: game_core::ShellType,
     /// Ground-plane flight direction at death, ZERO on old snapshots (degrades to radial).
     direction_xz: Vec3,
+    /// The mark's geometry, built ONCE at record time against the ground of that moment —
+    /// DRAPED over the deformed surface (P4c), colors at full strength. `append_quads` only
+    /// scales by the current fade; a flat stamp would sink into the very bowl it marks.
+    stamps: Vec<FxVertex>,
 }
 
 impl TerrainScars {
@@ -49,15 +53,25 @@ impl TerrainScars {
         // The mark's size is the projectile's size (v30): a 122 mm hole is not a 76 mm one.
         // Old snapshots (caliber 0) fall back to the historical medium-calibre look.
         let caliber_m = if impact.caliber_mm > 1.0 { impact.caliber_mm * 0.001 } else { 0.09 };
-        let scar = TerrainScar {
+        // A high-explosive mark is sized by the SAME derivation the sim's crater ledger uses,
+        // so the scorch fills exactly the bowl physics dug; kinetic furrows keep the
+        // calibre-scale gouge (they move no earth).
+        let radius_m = if impact.shell_type == game_core::ShellType::HighExplosive {
+            terrain::he_crater_radius_m(impact.caliber_mm)
+        } else {
+            caliber_m * (4.5 + game_core::math::next_hash_unit(&mut seed) * 1.5)
+        };
+        let mut scar = TerrainScar {
             center,
             normal: terrain_normal(heightmap, position.x, position.z, ground_y),
-            radius_m: caliber_m * (4.5 + game_core::math::next_hash_unit(&mut seed) * 1.5),
+            radius_m,
             age_s: 0.0,
             shell_type: impact.shell_type,
             direction_xz: Vec3::new(impact.direction.x, 0.0, impact.direction.z)
                 .normalize_or_zero(),
+            stamps: Vec::new(),
         };
+        scar.build_stamps(heightmap);
         if self.scars.len() < MAX_TERRAIN_SCARS {
             self.scars.push(scar);
             return;
@@ -85,15 +99,14 @@ impl TerrainScars {
             if opacity <= 0.0 {
                 continue;
             }
-            let kinetic = matches!(
-                scar.shell_type,
-                game_core::ShellType::ArmorPiercing | game_core::ShellType::Apcr
-            );
-            if kinetic && scar.direction_xz.length_squared() > 0.5 {
-                push_furrow(vertices, scar, opacity);
-            } else {
-                push_crater(vertices, scar, opacity);
-            }
+            // Premultiplied colors: one uniform scale of all four lanes IS the fade.
+            vertices.extend(scar.stamps.iter().map(|vertex| {
+                let mut faded = *vertex;
+                for lane in &mut faded.color {
+                    *lane *= opacity;
+                }
+                faded
+            }));
         }
     }
 
@@ -107,6 +120,21 @@ impl TerrainScar {
     /// Full strength for most of the lifetime, then a linear fade back into the field.
     fn opacity(&self) -> f32 {
         ((LIFETIME_S - self.age_s) / FADE_S).clamp(0.0, 1.0)
+    }
+
+    /// Build the mark once, against the ground as it stands at record time.
+    fn build_stamps(&mut self, heightmap: &HeightMap) {
+        let kinetic = matches!(
+            self.shell_type,
+            game_core::ShellType::ArmorPiercing | game_core::ShellType::Apcr
+        );
+        let mut stamps = Vec::new();
+        if kinetic && self.direction_xz.length_squared() > 0.5 {
+            push_furrow(&mut stamps, self, 1.0);
+        } else {
+            push_crater(&mut stamps, self, 1.0, heightmap);
+        }
+        self.stamps = stamps;
     }
 }
 
@@ -161,17 +189,21 @@ fn push_furrow(vertices: &mut Vec<FxVertex>, scar: &TerrainScar, opacity: f32) {
     }
 }
 
-/// One crater, three layers in the decal language: a wide SOFT ring of turned earth, the
-/// hard-edged dark core where the shell dug in, and a fan of ejecta rays — hashed from the
-/// impact point, so every crater looks individual yet renders identically every frame.
-/// The blast mark (Fizyczny Świat P3): high explosive CRATERS. Photo reference — a raised
+/// The blast mark (Fizyczny Świat P3/P4c): high explosive CRATERS. Photo reference — a raised
 /// rim of fresh-turned, LIGHTER earth around a scorched dark bowl, with clods thrown metres
-/// out, biased DOWNRANGE at the shallow arrival angles of tank fire. No radial ray fan: real
-/// ejecta is clumped soil, not sun-rays.
-fn push_crater(vertices: &mut Vec<FxVertex>, scar: &TerrainScar, opacity: f32) {
-    // HE excavates wider than the projectile: the bowl runs well past the calibre-derived
-    // base radius the kinetic furrow uses.
-    let r = scar.radius_m * 1.6;
+/// out, biased DOWNRANGE at the shallow arrival angles of tank fire. Sized by the SAME
+/// derivation as the replicated deformation and DRAPED over it, so the scorch lines the bowl
+/// physics dug instead of hovering over it.
+fn push_crater(
+    vertices: &mut Vec<FxVertex>,
+    scar: &TerrainScar,
+    opacity: f32,
+    heightmap: &HeightMap,
+) {
+    // The scorch fills exactly the bowl the ledger dug; the spoil ring runs out to the
+    // deformation's influence edge. Both are DRAPED over the deformed surface — a flat quad
+    // would sink into the very bowl it marks and surface only at the deepest point.
+    let r = scar.radius_m;
     let normal = scar.normal;
     let mut u = normal.cross(Vec3::X);
     if u.length_squared() < 1.0e-6 {
@@ -183,16 +215,30 @@ fn push_crater(vertices: &mut Vec<FxVertex>, scar: &TerrainScar, opacity: f32) {
     let mut seed = seed_from(scar.center);
     let twist = game_core::math::next_hash_unit(&mut seed) * std::f32::consts::TAU;
     let (sin, cos) = twist.sin_cos();
-    let plate = Plate {
-        center: scar.center + normal * GROUND_LIFT_M,
-        u: u * cos + v * sin,
-        v: v * cos - u * sin,
-    };
+    let plate = Plate { center: scar.center, u: u * cos + v * sin, v: v * cos - u * sin };
 
-    // The rim: fresh subsoil thrown up and out — LIGHTER than the field it landed on.
-    push_stamp(vertices, plate, r * 1.7, r * 1.7, 1.0, premul([0.30, 0.25, 0.17], 0.5 * opacity));
+    // The rim: fresh subsoil thrown up and out — LIGHTER than the field it landed on. The
+    // bowl rides a hair higher than the rim where they overlap, so the two draped sheets
+    // never z-fight on the steep wall.
+    push_draped_stamp(
+        vertices,
+        heightmap,
+        plate,
+        r * 1.5,
+        1.0,
+        premul([0.32, 0.27, 0.185], 0.55 * opacity),
+        GROUND_LIFT_M,
+    );
     // The bowl: scorched, dark — but earth-dark, never a void.
-    push_stamp(vertices, plate, r, r, 2.0, premul([0.085, 0.07, 0.05], 0.7 * opacity));
+    push_draped_stamp(
+        vertices,
+        heightmap,
+        plate,
+        r,
+        2.0,
+        premul([0.085, 0.07, 0.05], 0.7 * opacity),
+        GROUND_LIFT_M * 1.6,
+    );
 
     // Clods: lumps of soil metres out, biased DOWNRANGE when the wire knows the track
     // (shallow tank-gun arrivals shovel most of the spoil forward); uniform on old snapshots.
@@ -212,7 +258,12 @@ fn push_crater(vertices: &mut Vec<FxVertex>, scar: &TerrainScar, opacity: f32) {
         let dir = (base_dir * ca + across * sa).normalize_or_zero();
         let dist = r * (1.2 + game_core::math::next_hash_unit(&mut seed) * 1.6);
         let size = r * (0.12 + game_core::math::next_hash_unit(&mut seed) * 0.14);
-        let clod = Plate { center: plate.center + dir * dist, u: dir, v: across };
+        let lift = scar.normal * GROUND_LIFT_M;
+        let clod = Plate {
+            center: ground_point(heightmap, plate.center + dir * dist) + lift,
+            u: dir,
+            v: across,
+        };
         push_stamp(
             vertices,
             clod,
@@ -222,6 +273,53 @@ fn push_crater(vertices: &mut Vec<FxVertex>, scar: &TerrainScar, opacity: f32) {
             premul([0.24, 0.20, 0.135], 0.45 * opacity),
         );
     }
+}
+
+/// A stamp draped over the ground: the same [-1,1]^2 falloff domain `push_stamp` draws, but
+/// subdivided, each vertex dropped onto the sampled surface (plus the anti-z-fight lift along
+/// the vertical, scaled so the offset measured along the slope normal stays constant).
+fn push_draped_stamp(
+    vertices: &mut Vec<FxVertex>,
+    heightmap: &HeightMap,
+    plate: Plate,
+    half_m: f32,
+    sharpness: f32,
+    color: [f32; 4],
+    lift_m: f32,
+) {
+    const DRAPE_SUBDIVISIONS: usize = 5;
+    let n = DRAPE_SUBDIVISIONS;
+    // Vertical lift sized so the offset measured along the slope normal stays `lift_m`.
+    let lift = lift_m / plate.u.cross(plate.v).y.abs().max(0.35);
+    let corner = |iu: usize, iv: usize| -> ([f32; 3], [f32; 2]) {
+        let uu = -1.0 + 2.0 * iu as f32 / n as f32;
+        let vv = -1.0 + 2.0 * iv as f32 / n as f32;
+        let flat = plate.center + plate.u * (half_m * uu) + plate.v * (half_m * vv);
+        let grounded = ground_point(heightmap, flat);
+        ([grounded.x, grounded.y + lift, grounded.z], [uu, vv])
+    };
+    for iv in 0..n {
+        for iu in 0..n {
+            let quad = [
+                (iu, iv),
+                (iu + 1, iv),
+                (iu + 1, iv + 1),
+                (iu, iv),
+                (iu + 1, iv + 1),
+                (iu, iv + 1),
+            ];
+            for (cu, cv) in quad {
+                let (position, uv) = corner(cu, cv);
+                vertices.push(FxVertex::sharp(position, uv, sharpness, color));
+            }
+        }
+    }
+}
+
+/// Project a point onto the sampled ground (deformed truth); off-map keeps its own height.
+fn ground_point(heightmap: &HeightMap, point: Vec3) -> Vec3 {
+    let y = heightmap.sample_height(point.x, point.z).unwrap_or(point.y);
+    Vec3::new(point.x, y, point.z)
 }
 
 /// Terrain normal from central height differences — the same bilinear field the tracks ride on,
@@ -270,10 +368,11 @@ mod tests {
         }
     }
 
-    /// Rim + bowl + 4..=6 hashed clods (P3): the count varies per impact, so tests assert
-    /// the RANGE, not one number.
-    const MIN_QUADS_PER_CRATER: usize = 2 + 4;
-    const MAX_QUADS_PER_CRATER: usize = 2 + 6;
+    /// Draped rim (25 cells) + draped bowl (25 cells) + 4..=6 hashed flat clods (P3/P4c):
+    /// the clod count varies per impact, so tests assert the RANGE, not one number.
+    const DRAPE_CELLS: usize = 5 * 5;
+    const MIN_QUADS_PER_CRATER: usize = 2 * DRAPE_CELLS + 4;
+    const MAX_QUADS_PER_CRATER: usize = 2 * DRAPE_CELLS + 6;
 
     #[test]
     fn a_scar_stamps_onto_the_sampled_ground_not_the_shell_height() {
@@ -290,9 +389,10 @@ mod tests {
             "rim + bowl + clods, got {quads} quads"
         );
         for vertex in &vertices {
+            let above = vertex.position[1] - 3.0;
             assert!(
-                (vertex.position[1] - (3.0 + GROUND_LIFT_M)).abs() < 1.0e-3,
-                "flat ground keeps every stamp at ground + lift, got y {}",
+                (GROUND_LIFT_M - 1.0e-3..=GROUND_LIFT_M * 1.6 + 1.0e-3).contains(&above),
+                "flat ground keeps every stamp in the anti-z-fight lift band, got y {}",
                 vertex.position[1]
             );
         }
@@ -312,15 +412,15 @@ mod tests {
         let mut vertices = Vec::new();
         scars.append_quads(&mut vertices);
 
-        // Stamp 0 = rim, stamp 1 = bowl: the rim must be visibly lighter.
+        // Rim cells first, bowl cells second: the rim must be visibly lighter.
         let luma = |v: &renderer_api::FxVertex| v.color[0] + v.color[1] + v.color[2];
         assert!(
-            luma(&vertices[0]) > luma(&vertices[6]) * 1.5,
+            luma(&vertices[0]) > luma(&vertices[DRAPE_CELLS * 6]) * 1.5,
             "fresh-earth rim outshines the scorched bowl"
         );
 
-        // Clods (stamps 2..): centroid of the clod field sits downrange (+Z of the strike).
-        let clods = &vertices[12..];
+        // Clods (after both draped stamps): the field's centroid sits downrange (+Z).
+        let clods = &vertices[2 * DRAPE_CELLS * 6..];
         let centroid_z = clods.iter().map(|v| v.position[2]).sum::<f32>() / clods.len() as f32;
         assert!(
             centroid_z > origin.z,
@@ -345,8 +445,8 @@ mod tests {
         for vertex in &vertices {
             let off_plane = (Vec3::from_array(vertex.position) - plane_point).dot(normal);
             assert!(
-                off_plane.abs() < 1.0e-2,
-                "every stamp lies in the slope's plane, got {off_plane}"
+                (-1.0e-2..=GROUND_LIFT_M * 0.6 + 1.0e-2).contains(&off_plane),
+                "every stamp hugs the slope's plane inside the lift band, got {off_plane}"
             );
         }
     }
