@@ -36,6 +36,23 @@ pub(crate) fn valley_cover_objects(heightmap: &HeightMap) -> Vec<StaticCoverObje
             [620.0, HALF_M + 22.0],
             [5.0, 3.5, 4.0],
         ),
+        // The mill-yard fences (Fizyczny Świat P10): a wooden run at each mill, mirror-paired.
+        grounded_cover(
+            heightmap,
+            "bystra_mill_fence_south",
+            "Bystra mill south yard fence",
+            StaticCoverKind::WoodenFence,
+            [611.0, HALF_M - 22.0],
+            [0.25, 0.65, 6.0],
+        ),
+        grounded_cover(
+            heightmap,
+            "bystra_mill_fence_north",
+            "Bystra mill north yard fence",
+            StaticCoverKind::WoodenFence,
+            [611.0, HALF_M + 22.0],
+            [0.25, 0.65, 6.0],
+        ),
         grounded_cover(
             heightmap,
             "windmill",

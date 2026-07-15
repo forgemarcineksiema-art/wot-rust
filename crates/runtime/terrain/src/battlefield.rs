@@ -57,6 +57,11 @@ pub enum StaticCoverKind {
     RailCover,
     TreeLine,
     Wreck,
+    /// A wooden farm fence: waist-high posts and rails. Flimsy — one shell clears a span, and
+    /// a hull simply drives THROUGH it (crushable), which is the entire point: the world
+    /// reacts like matter, not like invisible walls (Fizyczny Świat P10). Appended last so
+    /// baked map assets keep their discriminants.
+    WoodenFence,
 }
 
 impl StaticCoverKind {
@@ -66,6 +71,8 @@ impl StaticCoverKind {
         match self {
             StaticCoverKind::FarmBuilding => Some(600),
             StaticCoverKind::TreeLine => Some(120),
+            // Any shell sweeps a fence span away (the kinetic chip already deals 80).
+            StaticCoverKind::WoodenFence => Some(40),
             StaticCoverKind::RailCover | StaticCoverKind::Wreck => None,
         }
     }
@@ -73,7 +80,7 @@ impl StaticCoverKind {
     /// A hull driving through at speed flattens it (hedgerows/tree lines). Buildings and rail
     /// embankments do not crush — a shell has to bring them down.
     pub fn is_crushable(self) -> bool {
-        matches!(self, StaticCoverKind::TreeLine)
+        matches!(self, StaticCoverKind::TreeLine | StaticCoverKind::WoodenFence)
     }
 
     /// When destroyed, a building slumps into a rubble mound that still blocks hulls; foliage

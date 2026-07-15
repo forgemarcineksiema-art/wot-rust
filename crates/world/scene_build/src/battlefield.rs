@@ -292,6 +292,52 @@ fn append_cover_scar(
     }
 }
 
+/// A wooden farm fence inside its (thin, waist-high) collision box: posts every couple of
+/// metres along the long axis and two rails between them — matter the eye reads as exactly
+/// what a hull can crush and a shell can sweep away (Fizyczny Świat P10).
+fn append_wooden_fence(
+    vertices: &mut Vec<SceneVertex>,
+    indices: &mut Vec<u32>,
+    center: Vec3,
+    half: Vec3,
+) {
+    const WOOD: [f32; 3] = [0.30, 0.24, 0.17];
+    const POST_SPACING_M: f32 = 1.9;
+    let along_x = half.x >= half.z;
+    let run = if along_x { half.x } else { half.z };
+    let axis = if along_x { Vec3::X } else { Vec3::Z };
+    let ground_y = center.y - half.y;
+    // Posts stay INSIDE the collision box (the honesty lock: what blocks the shell blocks
+    // the eye) — the end posts pull in by their own half-thickness.
+    let post_run = run - 0.06;
+    let posts = ((post_run * 2.0 / POST_SPACING_M).ceil() as usize).max(2) + 1;
+    for index in 0..posts {
+        let t = -post_run + (index as f32 / (posts - 1) as f32) * post_run * 2.0;
+        let post_center = center + axis * t;
+        push_surfaced_box(
+            vertices,
+            indices,
+            Vec3::new(post_center.x, ground_y + half.y, post_center.z),
+            Vec3::new(0.06, half.y, 0.06),
+            WOOD,
+            0.04,
+        );
+    }
+    for rail_frac in [0.55_f32, 0.95] {
+        let rail_y = ground_y + half.y * 2.0 * rail_frac - 0.04;
+        let rail_half =
+            if along_x { Vec3::new(half.x, 0.045, 0.03) } else { Vec3::new(0.03, 0.045, half.z) };
+        push_surfaced_box(
+            vertices,
+            indices,
+            Vec3::new(center.x, rail_y, center.z),
+            rail_half,
+            WOOD,
+            0.04,
+        );
+    }
+}
+
 /// A wound's frame on a cover face: its center and the face's in-plane axes plus normal.
 #[derive(Clone, Copy)]
 struct FacePlate {
@@ -353,6 +399,7 @@ fn append_cover_box(
             // Burnt steel: the glossiest thing on the field short of water.
             push_surfaced_box(vertices, indices, center, half, [0.25, 0.20, 0.17], 0.30);
         }
+        StaticCoverKind::WoodenFence => append_wooden_fence(vertices, indices, center, half),
     }
 }
 
