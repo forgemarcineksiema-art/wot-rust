@@ -162,6 +162,58 @@ impl ClientApp {
     /// Draw every shed track ribbon (D6): the same unit shoe-link mesh the live track scrolls,
     /// instanced along the frozen S-curve where the throw laid it. Dark bare steel — shed links
     /// stop wearing the vehicle's paint the moment they leave it.
+    /// The freshly thrown band still hanging over the drive sprocket (phase 2): for the first
+    /// beats after a throw the last stretch of the loop stays draped over the front wrap, then
+    /// gravity wins and it slides off to join the band lying on the field. Hull-attached (it
+    /// rides the live pose), deterministic, and gone for good once slid — or the moment the
+    /// crew re-seats the track (the break heals on the wire).
+    pub(super) fn collect_track_remnants(
+        &mut self,
+        tanks: &[engine::PresentationTank],
+    ) -> Vec<renderer_api::RenderObject> {
+        const HANG_S: f32 = 7.0;
+        let mut objects = Vec::new();
+        let ribbons = std::mem::take(&mut self.track_ribbons);
+        for ribbon in &ribbons {
+            let side_index = match ribbon.side {
+                game_core::TrackSide::Left => 0,
+                game_core::TrackSide::Right => 1,
+            };
+            let Some(tank) = tanks.iter().find(|tank| tank.id == ribbon.tank_id) else {
+                continue;
+            };
+            if tank.track_break_t[side_index].is_none() {
+                continue; // re-seated: the remnant story is over
+            }
+            let slide_m = if ribbon.age_s <= HANG_S {
+                0.0
+            } else {
+                let falling = ribbon.age_s - HANG_S;
+                2.6 * falling * falling
+            };
+            let pose = crate::vehicle::pose::VehiclePose::new_with_attitude(
+                tank.vehicle,
+                glam::Vec3::from_array(tank.translation),
+                tank.hull_yaw_rad,
+                0.0,
+                0.0,
+                [tank.attitude_pitch_rad, tank.attitude_roll_rad, tank.attitude_heave_m],
+            );
+            let hull = glam::Mat4::from_translation(pose.hull_translation())
+                * glam::Mat4::from_mat3(pose.hull_basis());
+            objects.extend(crate::vehicle::track_ribbon::thrown_remnant_objects(
+                &mut self.vehicle_asset_catalog,
+                ribbon.tank_id,
+                ribbon.vehicle,
+                ribbon.side,
+                hull,
+                slide_m,
+            ));
+        }
+        self.track_ribbons = ribbons;
+        objects
+    }
+
     pub(super) fn append_track_ribbons(&mut self, objects: &mut Vec<renderer_api::RenderObject>) {
         let ribbons = std::mem::take(&mut self.track_ribbons);
         for ribbon in &ribbons {
@@ -253,6 +305,10 @@ impl ClientApp {
         self.fx.tick(frame_dt);
         self.terrain_scars.tick(frame_dt);
         self.track_marks.tick(frame_dt);
+        // Shed bands age: the freshly hung remnant over the sprocket slides off with time.
+        for ribbon in &mut self.track_ribbons {
+            ribbon.age_s += frame_dt;
+        }
         self.tick_battle_scars(frame_dt);
         // Cover that collapsed or cleared since the last frame: rebuild and re-upload the scene so
         // the rubble mounds and cleared foliage actually show.
@@ -299,6 +355,10 @@ impl ClientApp {
         let camera_forward_xz =
             [camera.target[0] - camera.eye[0], camera.target[2] - camera.eye[2]];
         let minimap = self.build_minimap(&presentation_tanks, camera_forward_xz);
+        // The hanging remnants ride the live poses, so collect them BEFORE the visibility
+        // pass consumes the presentation list (a handful of links; culling them is not worth
+        // losing the drape on a tank at the screen edge).
+        let remnant_objects = self.collect_track_remnants(&presentation_tanks);
         let visible_tanks = self.visible_render_tanks(presentation_tanks, view_proj, camera.eye);
         let player_gun_scale = self.player_barrel_scale();
         let mut vehicles = split_pbr_vehicle_render_frame_on_terrain(
@@ -316,6 +376,8 @@ impl ClientApp {
         self.apply_wreck_deform(&mut vehicles.objects);
         // Thrown tracks lie where they were shed (D6), instanced from the shoe-link mesh.
         self.append_track_ribbons(&mut vehicles.objects);
+        // And the freshly thrown band still hanging over the sprocket (phase 2).
+        vehicles.objects.extend(remnant_objects);
         let vehicle_frame = RenderFrame {
             objects: vehicles.objects,
             armor_damage: vehicles.armor_damage,

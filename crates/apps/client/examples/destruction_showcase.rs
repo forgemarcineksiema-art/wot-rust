@@ -25,7 +25,7 @@ use client::{
 use game_core::{
     ArmorZone, DamageCause, DamageEvent, ModuleSlot, MountFrames, TankId, TeamId, VehicleKind,
 };
-use glam::Vec3;
+use glam::{Mat4, Vec3};
 use net::TankSnapshot;
 use renderer_api::{
     Camera, CameraProjectionPolicy, FxVertex, RenderFrame, SceneLighting, view_projection_matrix,
@@ -208,6 +208,16 @@ fn vehicle_shots(
         Some(&battlefield.heightmap),
     );
     thrown_objects.extend(client::ribbon_render_objects(catalog, &ribbon));
+    // And the fresh remnant still hanging over the sprocket (phase 2), before it slides off.
+    let hull = Mat4::from_translation(Vec3::new(cx, ground, cz)) * Mat4::from_rotation_y(FRAC_PI_2);
+    thrown_objects.extend(client::thrown_remnant_objects(
+        catalog,
+        TankId(1),
+        KIND,
+        game_core::TrackSide::Left,
+        hull,
+        0.0,
+    ));
 
     let mut popoff_objects = tank_vehicle_render_objects(catalog, &wreck, color);
     let ring_local = MountFrames::for_vehicle(KIND).turret_ring.translation;
@@ -235,8 +245,8 @@ fn vehicle_shots(
 
     // The thrown-track shot: from the LEFT flank (nose +X, so the left side faces -Z... the
     // left flank of a +X-facing hull is +Z world) — bare wheels and the band on the ground.
-    let thrown_eye = [cx - 7.5, ground + 2.6, cz + 7.5];
-    let thrown_look = [cx, ground + 0.8, cz];
+    let thrown_eye = [cx - 5.2, ground + 2.1, cz + 4.6];
+    let thrown_look = [cx - 2.3, ground + 1.0, cz];
     draw_vehicle(
         ctx,
         target,
