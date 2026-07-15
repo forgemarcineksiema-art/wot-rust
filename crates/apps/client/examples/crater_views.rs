@@ -102,6 +102,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     scars.append_quads(&mut fx);
     renderer.set_fx(&ctx, &fx);
 
+    // The grass field around the crater: the kill zone must read as burned-bare ground.
+    {
+        let maps = client::bake_terrain_ground_maps(&battlefield);
+        let materials = client::terrain_material_set_for(terrain::MapId::ProkhorovkaHill252_2);
+        let grass = client::grass_frame_objects(
+            &battlefield.heightmap,
+            battlefield.water,
+            &maps,
+            &materials,
+            glam::Vec3::from_array(close_eye),
+        );
+        renderer.set_render_frame(
+            &ctx,
+            &renderer_api::RenderFrame { objects: grass, ..Default::default() },
+        );
+        renderer.register_mesh(&ctx, client::GRASS_MESH_HANDLE, &client::grass_tuft_mesh());
+    }
     shoot(&ctx, &target, &mut renderer, close_eye, close_look, width, height, "crater_close")?;
     shoot(&ctx, &target, &mut renderer, grazing_eye, close_look, width, height, "crater_grazing")?;
     shoot(&ctx, &target, &mut renderer, field_eye, field_look, width, height, "crater_field")?;

@@ -67,11 +67,13 @@ pub fn grass_tuft_mesh() -> MeshAsset {
         let tip_tone = [1.05, 1.05, 1.05];
         let normal = Vec3::new(cos * 0.3, 1.0, sin * 0.3).normalize().to_array();
         let base = vertices.len() as u32;
-        for (position, tone) in [
-            (root - across, base_tone),
-            (root + across, base_tone),
-            (tip + across * 0.3, tip_tone),
-            (tip - across * 0.3, tip_tone),
+        // Roots stay planted (sway 0); the tips ride the field's wind, taller blades harder.
+        let tip_sway = 0.35 + height * 0.8;
+        for (position, tone, sway) in [
+            (root - across, base_tone, 0.0),
+            (root + across, base_tone, 0.0),
+            (tip + across * 0.3, tip_tone, tip_sway),
+            (tip - across * 0.3, tip_tone, tip_sway),
         ] {
             vertices.push(SceneVertex {
                 position: position.to_array(),
@@ -80,7 +82,7 @@ pub fn grass_tuft_mesh() -> MeshAsset {
                 tint_weight: 1.0,
                 gloss: 0.05,
                 surface: 0.0,
-                sway: 0.0,
+                sway,
             });
         }
         // Front and back faces: the pipeline culls, the blade must not vanish from behind.
@@ -143,6 +145,14 @@ pub fn grass_frame_objects(
         }
     }
     cells.sort_by(|a, b| a.2.total_cmp(&b.2));
+    // A high-explosive burst burns and buries the grass it lands on: the replicated crater
+    // ledger (already folded into the heightmap) is a kill list — nothing grows inside a
+    // bowl or on its fresh spoil rim.
+    let craters: Vec<(f32, f32, f32)> = heightmap
+        .crater_records()
+        .iter()
+        .map(|crater| (crater.x_m(), crater.z_m(), crater.radius_m() * 1.45))
+        .collect();
     'cells: for (cx, cz, cell_dist) in cells {
         {
             let mut seed = (cx as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15)
@@ -162,6 +172,20 @@ pub fn grass_frame_objects(
             // index in the cell's deterministic sequence IS its reveal rank: the target count
             // rises as the eye approaches, always admitting the same tufts in the same order,
             // and each newborn scales in over its own reveal band far from the eye.
+            // Craters whose kill zone can touch this cell — usually none, so the per-tuft
+            // test costs nothing on virgin ground.
+            let center_x = (cx as f32 + 0.5) * CELL_M;
+            let center_z = (cz as f32 + 0.5) * CELL_M;
+            let cell_reach = CELL_M * 0.75;
+            let nearby_craters: Vec<(f32, f32, f32)> = craters
+                .iter()
+                .copied()
+                .filter(|&(x, z, kill)| {
+                    let dx = (x - center_x).abs() - cell_reach;
+                    let dz = (z - center_z).abs() - cell_reach;
+                    dx.max(0.0).hypot(dz.max(0.0)) <= kill
+                })
+                .collect();
             let cell_near = (cell_dist - CELL_M).max(1.0);
             let cell_ceiling = veg * CELL_TUFT_MAX as f32 * density_multiplier(cell_near) + 3.0;
             let count = (cell_ceiling as u32).min((CELL_TUFT_MAX as f32 * 2.2) as u32);
@@ -183,6 +207,9 @@ pub fn grass_frame_objects(
                 .clamp(0.0, 1.0);
                 if reveal <= 0.0 {
                     continue;
+                }
+                if nearby_craters.iter().any(|&(kx, kz, kill)| (x - kx).hypot(z - kz) < kill) {
+                    continue; // burned and buried where the shell landed
                 }
                 let Some(ground) = heightmap.sample_height(x, z) else {
                     continue;
@@ -282,6 +309,59 @@ mod tests {
         let flood = Some(WaterBody { surface_level_m: 2.0 });
         let drowned = grass_frame_objects(&ground, flood, &full_veg_maps(256.0), &materials, eye);
         assert!(drowned.is_empty(), "standing water drowns the tufts, got {}", drowned.len());
+    }
+
+    /// A shell hole is bare: no tuft stands inside a replicated crater's bowl or on its
+    /// fresh spoil — the burst burned and buried them (Fizyczny Świat tie-in).
+    #[test]
+    fn grass_refuses_to_grow_in_a_fresh_crater() {
+        let mut ground = flat_ground();
+        let materials = TerrainMaterialSet::prokhorovka();
+        let maps = full_veg_maps(260.0);
+        let eye = Vec3::new(100.0, 8.0, 100.0);
+
+        let crater = terrain::CraterRecord::from_world(
+            103.0,
+            100.0,
+            2.4,
+            0.8,
+            terrain::CRATER_KIND_HIGH_EXPLOSIVE,
+        );
+        ground.set_craters(&[crater]);
+        let after = grass_frame_objects(&ground, None, &maps, &materials, eye);
+
+        let kill = crater.radius_m() * 1.45;
+        let mut ring_neighbours = 0;
+        for tuft in &after {
+            let x = tuft.transform[3][0];
+            let z = tuft.transform[3][2];
+            let dist = (x - crater.x_m()).hypot(z - crater.z_m());
+            assert!(dist >= kill - 1.0e-3, "nothing grows in the bowl: tuft at ({x}, {z})");
+            if dist < kill + 3.0 {
+                ring_neighbours += 1;
+            }
+        }
+        // The field DID sample this ground: live grass stands right outside the kill zone,
+        // so the empty bowl is the burst's doing, not a hole in the scatter.
+        assert!(ring_neighbours > 5, "the field surrounds the bowl: {ring_neighbours}");
+    }
+
+    /// Blade tips opted into the wind lane, roots stayed planted — the shader sways only
+    /// what the mesh offered.
+    #[test]
+    fn blade_tips_ride_the_wind_and_roots_stay_planted() {
+        let mesh = grass_tuft_mesh();
+        let (mut tips, mut roots) = (0, 0);
+        for vertex in mesh.vertices() {
+            if vertex.position[1] > 0.05 {
+                assert!(vertex.sway > 0.3, "a tip rides the wind: sway {}", vertex.sway);
+                tips += 1;
+            } else {
+                assert_eq!(vertex.sway, 0.0, "a root stays planted");
+                roots += 1;
+            }
+        }
+        assert!(tips > 0 && roots > 0);
     }
 
     #[test]
