@@ -193,3 +193,56 @@ fn place_side(
         });
     }
 }
+
+/// Links of the freshly thrown band still hanging over the drive sprocket (Fizyczny Świat,
+/// thrown-track phase 2): when a track breaks, the last stretch of the band often stays draped
+/// over the front wrap for a few beats before it slides off. The chain follows the sprocket's
+/// wrap arc from the top, leaves it past the front, and hangs down against the hull's lower
+/// bow. `slide_m` pulls the whole chain along its own length (the slide-off animation); links
+/// that reach the ground line are gone — they have joined the band lying on the field.
+pub fn thrown_remnant_placements(
+    kin: &RunningGearKinematics,
+    side_sign: f32,
+    slide_m: f32,
+) -> Vec<GearPlacement> {
+    const REMNANT_LINKS: usize = 14;
+    /// How far around the front wrap the chain stays seated before it hangs free (radians
+    /// from the top of the sprocket, toward the front and under).
+    const WRAP_EXIT_RAD: f32 = 2.0;
+    let radius = crate::running_gear_belt::wrap_radius(kin);
+    let pitch = kin.belt_length() / kin.link_count().max(1) as f32;
+    let arc_len = radius * WRAP_EXIT_RAD;
+    // The band's bottom line: links that slide below it have reached the ground.
+    let ground_y = kin.cy - kin.wheel_radius + 0.03;
+    let mut placements = Vec::new();
+    for index in 0..REMNANT_LINKS {
+        let d = index as f32 * pitch + slide_m.max(0.0);
+        let (y, z, rot_x) = if d <= arc_len {
+            let phi = d / radius;
+            (
+                kin.end_cy + radius * phi.cos(),
+                -kin.end_cz - radius * phi.sin(),
+                phi.sin().atan2(-phi.cos()),
+            )
+        } else {
+            let overshoot = d - arc_len;
+            let (exit_sin, exit_cos) = WRAP_EXIT_RAD.sin_cos();
+            let y_dir = -exit_sin;
+            let z_dir = -exit_cos;
+            (
+                kin.end_cy + radius * exit_cos + y_dir * overshoot,
+                -kin.end_cz - radius * exit_sin + z_dir * overshoot,
+                (-y_dir).atan2(z_dir),
+            )
+        };
+        if y < ground_y {
+            continue; // this link has already joined the band on the field
+        }
+        placements.push(GearPlacement {
+            part: GearPart::Link,
+            transform: Mat4::from_translation(Vec3::new(side_sign * kin.link_x, y, z))
+                * Mat4::from_rotation_x(rot_x),
+        });
+    }
+    placements
+}

@@ -186,3 +186,30 @@ fn a_thrown_track_hangs_its_side_deep_while_the_healthy_side_keeps_tension() {
     let right = mid_top_y(1.0);
     assert!(left < right - 0.02, "thrown left must hang deeper: left {left}, right {right}");
 }
+
+/// Thrown-track phase 2: the fresh remnant drapes over the sprocket's wrap (top link seated at
+/// the wrap's crown), the chain is link-to-link continuous, and a full slide takes every link
+/// to the ground — the remnant is transient by construction.
+#[test]
+fn the_hanging_remnant_drapes_the_sprocket_and_slides_off() {
+    let kin = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951).expect("T-54 gear");
+    let fresh = vehicle_geometry::thrown_remnant_placements(&kin, -1.0, 0.0);
+    assert!(!fresh.is_empty(), "a fresh throw leaves a hanging remnant");
+    let pitch = kin.belt_length() / kin.link_count() as f32;
+    let positions: Vec<glam::Vec3> = fresh.iter().map(|p| p.transform.w_axis.truncate()).collect();
+    for pair in positions.windows(2) {
+        assert!(
+            (pair[1] - pair[0]).length() <= pitch * 1.1,
+            "the remnant is a chain, not scattered links"
+        );
+    }
+    // The top link sits at the crown of the front wrap.
+    let crown_y = positions.iter().map(|p| p.y).fold(f32::MIN, f32::max);
+    assert!(crown_y > kin.end_cy, "the chain drapes OVER the sprocket: crown y {crown_y}");
+    // Everything hangs on the requested side.
+    assert!(positions.iter().all(|p| p.x < 0.0), "a left remnant hangs on the left");
+
+    // A long slide takes the whole chain to the ground: nothing left to draw.
+    let slid = vehicle_geometry::thrown_remnant_placements(&kin, -1.0, 10.0);
+    assert!(slid.is_empty(), "the slid-off remnant has joined the band on the field");
+}

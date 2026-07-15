@@ -446,8 +446,9 @@ mod tests {
             .expect("playable roster is non-empty");
 
         // Shed track ribbons (D6) ride the same instance buffer, capped by their own pool.
+        // Bands on the field plus the 14-link remnant that may hang over each thrown sprocket.
         let ribbons = crate::vehicle::track_ribbon::MAX_TRACK_RIBBONS
-            * crate::vehicle::track_ribbon::MAX_RIBBON_LINKS;
+            * (crate::vehicle::track_ribbon::MAX_RIBBON_LINKS + 14);
         let battle_worst = 14 * per_tank_worst + ribbons;
         assert!(
             battle_worst <= renderer_wgpu::vehicle_instance_budget(),

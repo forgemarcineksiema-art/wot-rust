@@ -28,6 +28,8 @@ pub struct TrackRibbon {
     pub tank_id: TankId,
     pub vehicle: VehicleKind,
     pub side: TrackSide,
+    /// Seconds since the throw — drives the hanging remnant's slide-off (phase 2).
+    pub age_s: f32,
     links: Vec<Mat4>,
 }
 
@@ -109,7 +111,7 @@ impl TrackRibbon {
                 transform
             })
             .collect();
-        Self { tank_id, vehicle, side, links }
+        Self { tank_id, vehicle, side, age_s: 0.0, links }
     }
 
     pub fn link_transforms(&self) -> &[Mat4] {
@@ -119,6 +121,47 @@ impl TrackRibbon {
 
 /// Dark bare steel — shed links stop wearing the vehicle's paint the moment they leave it.
 pub(crate) const SHED_STEEL_TINT: [f32; 3] = [0.16, 0.15, 0.14];
+
+/// The hanging remnant as render objects (phase 2): the last stretch of the thrown band still
+/// draped over the drive sprocket, posed hull-local by the kernel and carried by the given
+/// hull transform. `slide_m` > 0 is the slide-off in progress; an empty result means the
+/// remnant has fully joined the band on the field.
+pub fn thrown_remnant_objects(
+    catalog: &mut crate::VehicleAssetCatalog,
+    tank_id: TankId,
+    vehicle: VehicleKind,
+    side: TrackSide,
+    hull_transform: Mat4,
+    slide_m: f32,
+) -> Vec<renderer_api::RenderObject> {
+    let Some(kin) = vehicle_geometry::RunningGearKinematics::for_vehicle(vehicle) else {
+        return Vec::new();
+    };
+    let side_sign = match side {
+        TrackSide::Left => -1.0,
+        TrackSide::Right => 1.0,
+    };
+    let placements = vehicle_geometry::thrown_remnant_placements(&kin, side_sign, slide_m);
+    if placements.is_empty() {
+        return Vec::new();
+    }
+    let Some(entry) = catalog.vehicle_entry(vehicle) else {
+        return Vec::new();
+    };
+    let Some(gear) = entry.running_gear else {
+        return Vec::new();
+    };
+    placements
+        .iter()
+        .map(|placement| renderer_api::RenderObject {
+            tank_id: Some(tank_id),
+            mesh: gear.link,
+            material: entry.material,
+            transform: (hull_transform * placement.transform).to_cols_array_2d(),
+            tint: SHED_STEEL_TINT,
+        })
+        .collect()
+}
 
 /// The shed band as render objects: the same unit link mesh the live track scrolls, instanced
 /// along the frozen curve. THE one production path — the battle frame and the review renders
