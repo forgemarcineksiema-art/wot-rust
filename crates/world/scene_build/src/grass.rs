@@ -20,15 +20,24 @@ pub const GRASS_MESH_HANDLE: MeshHandle = MeshHandle(0xFFFF_0001);
 // Compile-time lock: grass must skip the shadow cascades and the SSAO prepass.
 const _: () = assert!(GRASS_MESH_HANDLE.0 >= renderer_api::SHADOWLESS_DRESSING_MESH_BASE);
 
-/// The ring the grass lives in, and where its edge fade begins.
-pub const GRASS_RADIUS_M: f32 = 26.0;
-const FADE_START_M: f32 = 17.0;
+/// The field the grass lives in, and where its outer edge fade begins. Inside
+/// [`NEAR_FULL_M`] the cover is full; past it the density falls with the square of the
+/// distance — constant SCREEN density, so the field reads unbroken to the horizon of the
+/// ring while the cost grows only logarithmically with the radius.
+pub const GRASS_RADIUS_M: f32 = 60.0;
+const FADE_START_M: f32 = 44.0;
+/// Full-cover radius: every tuft the splat allows stands inside this.
+const NEAR_FULL_M: f32 = 22.0;
+/// Each tuft grows from nothing over this much approach past its own reveal distance, so a
+/// tuft is born far away and sub-pixel — never as a pop in the midfield.
+const REVEAL_BAND_M: f32 = 7.0;
 /// Scatter cell edge; tufts are conjured per cell from the cell's own hash.
 const CELL_M: f32 = 8.0;
 /// Tufts a fully-vegetated cell grows; the splat's vegetation weight scales it down.
 const CELL_TUFT_MAX: u32 = 110;
-/// The whole ring's worst case stays far inside the scene instance buffer (~3.2k).
-pub const MAX_GRASS_INSTANCES: usize = 2_600;
+/// The field's worst case (full-cover disc + the decaying band) inside the 6.5k scene
+/// instance buffer, with vehicle dressing headroom to spare.
+pub const MAX_GRASS_INSTANCES: usize = 4_800;
 /// Ground with less vegetation weight than this grows nothing (roads, rock, riverbed).
 const MIN_VEG_WEIGHT: f32 = 0.35;
 /// Standing water drowns the tufts.
@@ -79,6 +88,18 @@ pub fn grass_tuft_mesh() -> MeshAsset {
         indices.extend_from_slice(&[base + 2, base + 1, base, base + 3, base + 2, base]);
     }
     MeshAsset::new(vertices, indices)
+}
+
+/// Density multiplier of the grass field at planar distance `d` from the eye: a gentle boost
+/// right at the feet, full cover to [`NEAR_FULL_M`], then the inverse-square falloff that
+/// keeps the density constant on SCREEN out to the field's edge.
+fn density_multiplier(d: f32) -> f32 {
+    if d <= NEAR_FULL_M {
+        let near_t = ((d - 6.0) / (NEAR_FULL_M - 6.0)).clamp(0.0, 1.0);
+        2.2 - 1.2 * near_t * near_t * (3.0 - 2.0 * near_t)
+    } else {
+        (NEAR_FULL_M / d).powi(2)
+    }
 }
 
 /// The vegetation weight (grass + straw splat channels, 0..1) standing at a world position.
@@ -135,12 +156,16 @@ pub fn grass_frame_objects(
             if veg < MIN_VEG_WEIGHT {
                 continue;
             }
-            // Spend the budget where the eye is: the closest cells stand at full cover, the
-            // ring's rim at a scatter — the fade hides the thinning long before it reads.
-            let near_t = ((cell_dist - 6.0) / 18.0).clamp(0.0, 1.0);
-            let near_boost = 2.2 - 1.8 * near_t * near_t * (3.0 - 2.0 * near_t);
-            let count = (veg * CELL_TUFT_MAX as f32 * near_boost) as u32;
-            for _ in 0..count {
+            // Spend the budget where the eye is: full cover to NEAR_FULL_M (with a boost at
+            // the feet), then a 1/d^2 falloff — constant density on SCREEN, so the far field
+            // reads as unbroken grass while costing a fraction of the near field. Each tuft's
+            // index in the cell's deterministic sequence IS its reveal rank: the target count
+            // rises as the eye approaches, always admitting the same tufts in the same order,
+            // and each newborn scales in over its own reveal band far from the eye.
+            let cell_near = (cell_dist - CELL_M).max(1.0);
+            let cell_ceiling = veg * CELL_TUFT_MAX as f32 * density_multiplier(cell_near) + 3.0;
+            let count = (cell_ceiling as u32).min((CELL_TUFT_MAX as f32 * 2.2) as u32);
+            for index in 0..count {
                 let x = origin.x + game_core::math::next_hash_unit(&mut seed) * CELL_M;
                 let z = origin.z + game_core::math::next_hash_unit(&mut seed) * CELL_M;
                 let yaw = game_core::math::next_hash_unit(&mut seed) * std::f32::consts::TAU;
@@ -150,16 +175,25 @@ pub fn grass_frame_objects(
                 if flat > GRASS_RADIUS_M {
                     continue;
                 }
+                // This tuft's personal reveal: the local target count must have passed its
+                // index, and it grows in smoothly as the margin opens — born sub-pixel.
+                let target = veg * CELL_TUFT_MAX as f32 * density_multiplier(flat);
+                let reveal = ((target - index as f32)
+                    * (REVEAL_BAND_M / NEAR_FULL_M.max(1.0)).max(0.35))
+                .clamp(0.0, 1.0);
+                if reveal <= 0.0 {
+                    continue;
+                }
                 let Some(ground) = heightmap.sample_height(x, z) else {
                     continue;
                 };
                 if water.is_some_and(|w| w.depth_over(ground) > MAX_WATER_DEPTH_M) {
                     continue;
                 }
-                // The ring's edge shrinks the tuft to nothing — no boundary pop.
+                // The field's outer edge shrinks the tuft to nothing — no boundary pop.
                 let fade =
                     1.0 - ((flat - FADE_START_M) / (GRASS_RADIUS_M - FADE_START_M)).clamp(0.0, 1.0);
-                let scale = size * fade;
+                let scale = size * fade * reveal;
                 if scale < 0.05 {
                     continue;
                 }
