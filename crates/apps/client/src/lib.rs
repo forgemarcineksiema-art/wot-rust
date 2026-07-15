@@ -54,6 +54,7 @@ pub use vehicle::render_frame::{
 };
 pub use vehicle::render_objects::VehicleMeshCatalog;
 pub use vehicle::render_objects_draw::tank_render_objects;
+pub use vehicle::track_ribbon::{TrackRibbon, ribbon_render_objects};
 pub use vehicle::turret_popoff::TurretPopoff;
 pub use vehicle::variation::{
     CamoPattern, DECAL_FADE_S, DecalFrame, DecalKind, HitDecal, MAX_HIT_DECALS, VehicleVariation,
