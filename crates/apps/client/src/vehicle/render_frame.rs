@@ -169,12 +169,14 @@ pub fn armor_damage_instance(
 /// Thermal rim intensity of a perforation `age_s` after impact. The glow is ENERGY speaking:
 /// kinetic AP/APCR bore heat runs short and modest, a HEAT jet's melt burns hottest and
 /// lingers, HE barely marks the plate. Pure exponential cooling — never a permanent edge.
+/// The physics of the timescale (Fizyczny Świat P6): a torn steel lip is thin, and thin steel
+/// dumps its heat in a FRACTION of a second — what stays is the soot, not the light show.
 pub fn breach_glow(shell_type: game_core::ShellType, age_s: f32) -> f32 {
     let (peak, tau_s) = match shell_type {
-        game_core::ShellType::ArmorPiercing => (0.55, 2.2),
-        game_core::ShellType::Apcr => (0.45, 1.6),
-        game_core::ShellType::Heat => (1.0, 4.5),
-        game_core::ShellType::HighExplosive => (0.22, 1.2),
+        game_core::ShellType::ArmorPiercing => (0.55, 0.45),
+        game_core::ShellType::Apcr => (0.45, 0.35),
+        game_core::ShellType::Heat => (1.0, 1.2),
+        game_core::ShellType::HighExplosive => (0.22, 0.3),
     };
     peak * (-age_s.max(0.0) / tau_s).exp()
 }
@@ -398,6 +400,11 @@ mod tests {
             }
             // No permanent white edges: effectively dark inside half a minute.
             assert!(breach_glow(shell, 30.0) < 0.005, "{shell:?} must go cold");
+            // P6: torn steel is THIN — the light show is over in seconds; soot is what stays.
+            if shell != ShellType::Heat {
+                assert!(breach_glow(shell, 1.5) < 0.05, "{shell:?} kinetic lip cools in a blink");
+            }
+            assert!(breach_glow(shell, 4.0) < 0.05, "{shell:?} even the HEAT melt is dark by 4 s");
         }
         // Energy speaks: HEAT burns hottest and longest, APCR shortest of the kinetics.
         assert!(breach_glow(ShellType::Heat, 0.0) > breach_glow(ShellType::ArmorPiercing, 0.0));
