@@ -180,8 +180,12 @@ fn armor_aperture_thermal(world_pos: vec3<f32>, damage_index: u32) -> vec2<f32> 
         let ring_width = 0.55 / max(aperture.thermal.y, 0.25);
         let ring = clamp(1.0 - (m - 1.0) / ring_width, 0.0, 1.0);
         glow = max(glow, ring * aperture.thermal.x);
-        // Scorch: full inside the contour, fading out over a third of the radius beyond it.
-        scorch = max(scorch, clamp((1.35 - m) / 0.35, 0.0, 1.0));
+        // Soot (Fizyczny Świat P6): full inside the contour and dense at the torn lip, then
+        // the blast's smoke cone stains a WIDE halo — feathered out by ~2.6 radii, exactly
+        // like the black smoke ring around real penetrations. Permanent: soot never cools.
+        let lip = clamp((1.35 - m) / 0.35, 0.0, 1.0);
+        let halo = clamp((2.6 - m) / 1.6, 0.0, 1.0);
+        scorch = max(scorch, max(lip, halo * halo * 0.45));
     }
     return vec2<f32>(glow, min(scorch, 1.0));
 }
