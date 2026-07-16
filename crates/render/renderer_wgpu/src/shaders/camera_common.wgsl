@@ -87,6 +87,13 @@ var<storage, read> armor_apertures: array<ArmorAperture>;
 
 /// True only for fragments on the pierced plate and inside its deterministic irregular contour.
 /// Shared by color, camera-depth and shadow passes so no pass silently closes the opening.
+/// One bit of the shader-detail mask (Żywy Step P0): `time_params.w` carries the mask as a
+/// small float integer. Bits: 1 terrain normal-bend, 2 terrain micro octave, 4 scene detail
+/// normal, 8 sky five octaves, 16 wide PCF (god rays gate CPU-side).
+fn detail_bit(bit: u32) -> bool {
+    return (u32(camera.time_params.w + 0.5) & bit) != 0u;
+}
+
 fn armor_fragment_is_cut(world_pos: vec3<f32>, damage_index: u32) -> bool {
     if (damage_index == 0u) {
         return false;

@@ -163,7 +163,7 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     // The reduced tier (time_params.w, F2) skips the three-sample gradient: the albedo grain
     // stays, only its light-catching micro-relief folds.
     var bend = vec3<f32>(0.0);
-    if (camera.time_params.w >= 0.5) {
+    if (detail_bit(1u)) {
         let e = 0.35;
         let here = value_noise(input.world_pos.xz * 1.7);
         let dx = value_noise((input.world_pos.xz + vec2<f32>(e, 0.0)) * 1.7) - here;
@@ -175,7 +175,7 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     // eye - the far field pays nothing and the near field stops reading as one woven carpet.
     var micro_shade = 1.0;
     let eye_dist = length(camera.camera_pos - input.world_pos);
-    let near_amp = (1.0 - smoothstep(16.0, 42.0, eye_dist)) * step(0.5, camera.time_params.w);
+    let near_amp = (1.0 - smoothstep(16.0, 42.0, eye_dist)) * select(0.0, 1.0, detail_bit(2u));
     if (near_amp > 0.004) {
         let micro = value_noise(input.world_pos.xz * 5.0);
         micro_shade = 1.0 + (micro - 0.5) * 0.11 * near_amp * amp;

@@ -114,7 +114,7 @@ pub struct SceneRenderer {
     /// Whether this adapter tier runs terrain cloud shadows (`LightingQuality::cloud_shadows`).
     cloud_shadows_enabled: bool,
     /// Whether this adapter tier runs full per-pixel shader detail (F2).
-    full_shader_detail: bool,
+    shader_detail: renderer_api::ShaderDetailMask,
     /// World point the focused sun-shadow box centres on (the player/subject). `None` falls back to
     /// the camera position, which still covers the near action.
     pub shadow_focus: Option<[f32; 3]>,
@@ -395,7 +395,7 @@ impl SceneRenderer {
             post,
             bloom,
             cloud_shadows_enabled: lighting_quality.cloud_shadows,
-            full_shader_detail: lighting_quality.full_shader_detail,
+            shader_detail: lighting_quality.shader_detail,
             shadow_focus: None,
             scene_time_s: 0.0,
             skipped_mesh_draws: Cell::new(0),

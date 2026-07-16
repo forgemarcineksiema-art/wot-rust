@@ -202,9 +202,9 @@ pub struct FramePassParams {
     /// World wetness 0..1 (`time_params.z`): rain darkens albedo, sharpens finishes, pools
     /// sheen on level ground — in the scene and vehicle shaders alike.
     pub wetness: f32,
-    /// Full per-pixel shader detail (`time_params.w`, F2): 1.0 runs every octave and the 3×3
-    /// PCF; 0.0 folds the heaviest ALU on weak adapters (see `LightingQuality`).
-    pub full_shader_detail: bool,
+    /// Per-feature shader-detail mask (`time_params.w`, Żywy Step P0): the lane carries the
+    /// bits of `ShaderDetailMask` as a small float integer; shaders test bits independently.
+    pub shader_detail: renderer_api::ShaderDetailMask,
 }
 
 impl Default for FramePassParams {
@@ -222,7 +222,7 @@ impl Default for FramePassParams {
             time_s: 0.0,
             rain_intensity: 0.0,
             wetness: 0.0,
-            full_shader_detail: true,
+            shader_detail: renderer_api::ShaderDetailMask::FULL,
         }
     }
 }
@@ -267,7 +267,7 @@ impl CameraUniform {
                 passes.time_s,
                 passes.rain_intensity,
                 passes.wetness,
-                if passes.full_shader_detail { 1.0 } else { 0.0 },
+                passes.shader_detail.0 as f32,
             ]),
             grade_params: GpuVec4([
                 lighting.exposure,
@@ -298,7 +298,11 @@ impl CameraUniform {
                 lighting.valley_haze_height_m,
                 // One-look: the 8-tap crepuscular march ships only in the dev rich profile —
                 // fullscreen taps the minimum spec cannot afford, so nobody ships them.
-                if passes.full_shader_detail { lighting.god_ray_strength } else { 0.0 },
+                if passes.shader_detail.has(renderer_api::ShaderDetailMask::GOD_RAYS) {
+                    lighting.god_ray_strength
+                } else {
+                    0.0
+                },
                 0.0,
             ]),
             cloud2_params: GpuVec4([

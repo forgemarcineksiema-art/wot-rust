@@ -27,11 +27,38 @@ pub struct LightingQuality {
     /// opaque HDR + a second transparent pass). It costs an extra full-frame resolve and pass, so
     /// the weakest adapters keep the analytic water instead. Off on integrated/software.
     pub refraction: bool,
-    /// Full per-pixel shader detail (Płynność 2.0 / F2). `false` folds the heaviest ALU work
-    /// down on weak adapters: fewer sky FBM octaves, 2×2 near-shadow PCF instead of 3×3, and
-    /// the terrain/scene noise drops its analytic normal-bend gradient. One flag, read by the
-    /// shaders from a spare camera-uniform lane — the LOOK's composition stays identical.
-    pub full_shader_detail: bool,
+    /// Per-feature shader detail (Żywy Step P0). The old monolithic `full_shader_detail`
+    /// flag split into individually purchasable bits, so the buy-back program can measure
+    /// and enable each feature on the min-spec separately. Rides the same spare camera lane
+    /// (`time_params.w`) as a small integer; `NONE` and `FULL` reproduce the old off/on.
+    pub shader_detail: ShaderDetailMask,
+}
+
+/// Which per-pixel detail features run (see `LightingQuality::shader_detail`). Each bit is one
+/// feature the shaders test independently; the composition of the LOOK never depends on it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ShaderDetailMask(pub u32);
+
+impl ShaderDetailMask {
+    /// Terrain detail-noise normal bend (grain catches light).
+    pub const TERRAIN_NORMAL_BEND: u32 = 1 << 0;
+    /// Terrain third "micro" octave near the eye.
+    pub const TERRAIN_MICRO_OCTAVE: u32 = 1 << 1;
+    /// Statics' three-sample detail normal.
+    pub const SCENE_DETAIL_NORMAL: u32 = 1 << 2;
+    /// Sky cloud FBM at five octaves instead of three.
+    pub const SKY_FIVE_OCTAVES: u32 = 1 << 3;
+    /// 3x3 near-cascade PCF instead of the 2x2 core.
+    pub const PCF_WIDE: u32 = 1 << 4;
+    /// The crepuscular sun march (god rays).
+    pub const GOD_RAYS: u32 = 1 << 5;
+
+    pub const NONE: Self = Self(0);
+    pub const FULL: Self = Self(0b11_1111);
+
+    pub fn has(self, bit: u32) -> bool {
+        self.0 & bit != 0
+    }
 }
 
 impl LightingQuality {
@@ -54,7 +81,7 @@ impl LightingQuality {
             cloud_shadows: false,
             bloom_mips: 0,
             refraction: false,
-            full_shader_detail: false,
+            shader_detail: ShaderDetailMask::NONE,
         }
     }
 
@@ -68,7 +95,7 @@ impl LightingQuality {
             cloud_shadows: true,
             bloom_mips: 5,
             refraction: true,
-            full_shader_detail: true,
+            shader_detail: ShaderDetailMask::FULL,
         }
     }
 }
@@ -100,9 +127,41 @@ mod tests {
         assert_eq!(canonical.shadow_cascades, 2);
         assert_eq!(canonical.ssao_scale, 0.5);
         assert!(!canonical.cloud_shadows && canonical.bloom_mips == 0 && !canonical.refraction);
-        assert!(!canonical.full_shader_detail);
+        assert_eq!(canonical.shader_detail, ShaderDetailMask::NONE);
         // Dev-only rich profile is a strict superset for captures, never the shipped look.
         let rich = LightingQuality::rich();
-        assert!(rich.full_shader_detail && rich.cloud_shadows && rich.bloom_mips > 0);
+        assert_eq!(rich.shader_detail, ShaderDetailMask::FULL);
+        assert!(rich.cloud_shadows && rich.bloom_mips > 0);
+    }
+}
+
+#[cfg(test)]
+mod mask_tests {
+    use super::*;
+
+    /// The mask rides a float camera lane: every legal mask must survive the f32 round-trip
+    /// the shaders decode with `u32(w + 0.5)`.
+    #[test]
+    fn the_detail_mask_survives_the_float_lane() {
+        for mask in 0..=ShaderDetailMask::FULL.0 {
+            let lane = mask as f32;
+            assert_eq!((lane + 0.5) as u32, mask, "mask {mask} corrupted by the lane");
+        }
+    }
+
+    #[test]
+    fn full_covers_every_defined_bit_and_has_reads_them() {
+        let full = ShaderDetailMask::FULL;
+        for bit in [
+            ShaderDetailMask::TERRAIN_NORMAL_BEND,
+            ShaderDetailMask::TERRAIN_MICRO_OCTAVE,
+            ShaderDetailMask::SCENE_DETAIL_NORMAL,
+            ShaderDetailMask::SKY_FIVE_OCTAVES,
+            ShaderDetailMask::PCF_WIDE,
+            ShaderDetailMask::GOD_RAYS,
+        ] {
+            assert!(full.has(bit));
+            assert!(!ShaderDetailMask::NONE.has(bit));
+        }
     }
 }

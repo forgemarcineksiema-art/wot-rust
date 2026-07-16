@@ -169,7 +169,7 @@ fn detail_normal(world: vec3<f32>, n: vec3<f32>, gloss: f32) -> vec3<f32> {
     // Interiors: machined and painted surfaces stay true to their authored normal. The
     // reduced tier (time_params.w, F2) also keeps the authored normal — the three-sample
     // gradient is the priciest part of the material grain for the least visible return.
-    if (camera.fog_params.x <= 0.0 || camera.time_params.w < 0.5) {
+    if (camera.fog_params.x <= 0.0 || !detail_bit(4u)) {
         return n;
     }
     let e = 0.35;
