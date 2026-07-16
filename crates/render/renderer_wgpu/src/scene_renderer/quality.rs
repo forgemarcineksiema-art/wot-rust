@@ -82,8 +82,15 @@ pub(crate) fn apply_shader_detail_override(
     detail_env: Option<&str>,
 ) -> LightingQuality {
     match detail_env.map(str::trim) {
-        Some("full" | "1") => quality.full_shader_detail = true,
-        Some("low" | "0") => quality.full_shader_detail = false,
+        Some("full" | "1") => quality.shader_detail = renderer_api::ShaderDetailMask::FULL,
+        Some("low" | "0") => quality.shader_detail = renderer_api::ShaderDetailMask::NONE,
+        // A raw number is a bit mask (Żywy Step buy-back protocol): measure one feature at
+        // a time on the min-spec, e.g. WOT_GPU_DETAIL=3 = terrain bend + micro octave.
+        Some(mask) if mask.parse::<u32>().is_ok() => {
+            quality.shader_detail = renderer_api::ShaderDetailMask(
+                mask.parse::<u32>().unwrap_or(0) & renderer_api::ShaderDetailMask::FULL.0,
+            )
+        }
         _ => {}
     }
     quality
@@ -99,19 +106,34 @@ mod tests {
     fn the_canonical_look_folds_and_the_dev_overrides_flip_it() {
         use renderer_api::LightingQuality;
         let canonical = LightingQuality::canonical();
-        assert!(!canonical.full_shader_detail && !canonical.cloud_shadows);
+        assert!(
+            canonical.shader_detail == renderer_api::ShaderDetailMask::NONE
+                && !canonical.cloud_shadows
+        );
         assert_eq!(canonical.bloom_mips, 0);
         let rich = LightingQuality::rich();
-        assert!(rich.full_shader_detail && rich.cloud_shadows && rich.bloom_mips == 5);
+        assert!(
+            rich.shader_detail == renderer_api::ShaderDetailMask::FULL
+                && rich.cloud_shadows
+                && rich.bloom_mips == 5
+        );
 
         assert_eq!(super::resolve_base_profile(Some("high")), rich, "WOT_QUALITY=high = dev rich");
         assert_eq!(super::resolve_base_profile(None), canonical);
         assert_eq!(super::resolve_base_profile(Some("banana")), canonical, "garbage = canonical");
 
         let forced = super::apply_shader_detail_override(canonical, Some("full"));
-        assert!(forced.full_shader_detail, "WOT_GPU_DETAIL=full claws detail back");
+        assert_eq!(
+            forced.shader_detail,
+            renderer_api::ShaderDetailMask::FULL,
+            "WOT_GPU_DETAIL=full claws detail back"
+        );
         let folded = super::apply_shader_detail_override(rich, Some("low"));
-        assert!(!folded.full_shader_detail, "WOT_GPU_DETAIL=low previews the fold");
+        assert_eq!(
+            folded.shader_detail,
+            renderer_api::ShaderDetailMask::NONE,
+            "WOT_GPU_DETAIL=low previews the fold"
+        );
     }
 
     use super::resolve_lighting_quality_with_bloom;

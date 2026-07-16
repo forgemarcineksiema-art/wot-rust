@@ -51,7 +51,7 @@ fn cloud_fbm(p: vec2<f32>) -> f32 {
     // Full detail runs five octaves; the reduced tier (time_params.w, F2) folds to three —
     // the two finest octaves shape sub-degree wisps a 20-30 FPS laptop never resolves.
     var octaves = 5;
-    if (camera.time_params.w < 0.5) {
+    if (!detail_bit(8u)) {
         octaves = 3;
     }
     for (var i = 0; i < octaves; i = i + 1) {

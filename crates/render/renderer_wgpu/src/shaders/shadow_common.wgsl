@@ -52,7 +52,7 @@ fn sun_shadow(world_pos: vec3<f32>, n: vec3<f32>) -> f32 {
         // Full detail: 3×3 PCF. The reduced tier (time_params.w, F2) trims to the 2×2 core —
         // four taps instead of nine; the far cascade below is 2×2 on every tier already.
         var lo = -1;
-        if (camera.time_params.w < 0.5) {
+        if (!detail_bit(16u)) {
             lo = 0;
         }
         for (var i = lo; i <= 1; i = i + 1) {
