@@ -115,14 +115,20 @@ impl ClientApp {
     pub(super) fn rebuild_ground_if_dirty(&mut self) {
         if let Some(receiver) = &self.ground_rebuild_rx {
             match receiver.try_recv() {
-                Ok((vertices, indices)) => {
+                Ok(rebuilt) => {
                     self.ground_rebuild_rx = None;
+                    let ((vertices, indices), (dressing_v, dressing_i)) = rebuilt;
                     if let Some(renderer) = self.renderer.as_mut() {
                         renderer.update_battlefield_ground_geometry(&vertices, &indices);
+                        // The card meadow follows the same ledger: the burst that dug the
+                        // hole also mowed the cards around it (Żywy Step P2).
+                        renderer.set_dressing(&dressing_v, &dressing_i);
                     }
                     if let Some(meshes) = self.battle_scene_meshes.as_mut() {
                         meshes.ground_vertices = vertices;
                         meshes.ground_indices = indices;
+                        meshes.dressing_vertices = dressing_v;
+                        meshes.dressing_indices = dressing_i;
                     }
                 }
                 Err(std::sync::mpsc::TryRecvError::Empty) => return,
@@ -139,10 +145,25 @@ impl ClientApp {
         let (tx, rx) = std::sync::mpsc::channel();
         self.ground_rebuild_rx = Some(rx);
         // The clone carries the heightmap's crater overlay — the bake reads sample_height,
-        // the exact deformed truth the sim and predictor stand on.
+        // the exact deformed truth the sim and predictor stand on. The ground maps ride along
+        // (a few MB, cloned once per crater event) so the card meadow rebakes from the same
+        // splat the first bake used.
         let battlefield = self.battlefield.clone();
+        let ground_maps =
+            self.battle_scene_meshes.as_ref().map(|meshes| meshes.ground_maps.clone());
+        let materials = scene_build::terrain_maps::terrain_material_set_for(self.session.map_id());
         std::thread::spawn(move || {
-            let _ = tx.send(crate::battlefield_ground_mesh(&battlefield));
+            let ground = crate::battlefield_ground_mesh(&battlefield);
+            let dressing = ground_maps
+                .map(|maps| {
+                    scene_build::grass_cards::grass_card_dressing_mesh(
+                        &battlefield,
+                        &maps,
+                        &materials,
+                    )
+                })
+                .unwrap_or_default();
+            let _ = tx.send((ground, dressing));
         });
     }
 
@@ -262,6 +283,8 @@ impl ClientApp {
         renderer.set_hud_font_atlas(atlas.width(), atlas.height(), atlas.coverage());
         // The battle scene starts loaded, so its river (if the map has one) starts loaded too.
         renderer.set_water(&meshes.water_vertices, &meshes.water_indices);
+        // And its mid-field card meadow (Żywy Step P2) — the dressing slot.
+        renderer.set_dressing(&meshes.dressing_vertices, &meshes.dressing_indices);
         self.renderer = Some(renderer);
         // The renderer is born holding generic battlefield defaults; the app is born in battle,
         // so dress it in the actual match's weather right away.

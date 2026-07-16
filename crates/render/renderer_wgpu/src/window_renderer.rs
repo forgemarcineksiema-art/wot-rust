@@ -141,6 +141,12 @@ impl WindowRenderer {
         self.scene.update_battlefield_ground_geometry(&self.ctx, vertices, indices);
     }
 
+    /// The dressing slot (Żywy Step P2): mid-field grass cards, color-pass-only; empty
+    /// slices clear it (the garage has no meadow).
+    pub fn set_dressing(&mut self, vertices: &[SceneVertex], indices: &[u32]) {
+        self.scene.set_dressing(&self.ctx, vertices, indices);
+    }
+
     pub fn clear_battlefield_ground(&mut self) {
         self.scene.clear_battlefield_ground();
     }

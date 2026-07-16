@@ -66,6 +66,9 @@ pub(crate) struct BattleSceneMeshes {
     pub(crate) ground_indices: Vec<u32>,
     /// The baked ground maps (splat + macro normal) — cover changes never touch these.
     pub(crate) ground_maps: renderer_api::TerrainGroundMaps,
+    /// The mid-field card meadow (Żywy Step P2) — the renderer's dressing slot.
+    pub(crate) dressing_vertices: Vec<renderer_api::SceneVertex>,
+    pub(crate) dressing_indices: Vec<u32>,
     /// Cover, backdrop skirt and scenery — the generic scene pipeline's slot.
     pub(crate) statics_vertices: Vec<renderer_api::SceneVertex>,
     pub(crate) statics_indices: Vec<u32>,
@@ -85,10 +88,18 @@ impl ClientApp {
         let ground_maps = scene_build::terrain_maps::bake_terrain_ground_maps(&self.battlefield);
         let (water_vertices, water_indices) =
             scene_build::water::battlefield_water_mesh(&self.battlefield);
+        let (dressing_vertices, dressing_indices) =
+            scene_build::grass_cards::grass_card_dressing_mesh(
+                &self.battlefield,
+                &ground_maps,
+                &scene_build::terrain_maps::terrain_material_set_for(self.session.map_id()),
+            );
         self.battle_scene_meshes = Some(BattleSceneMeshes {
             ground_vertices,
             ground_indices,
             ground_maps,
+            dressing_vertices,
+            dressing_indices,
             statics_vertices,
             statics_indices,
             water_vertices,
@@ -181,8 +192,15 @@ pub(crate) struct ClientApp {
     /// An in-flight background GROUND re-mesh (true deformation, protocol v31): fresh craters
     /// re-mesh the heightfield on a worker thread; the render thread harvests and swaps the
     /// geometry under the still-bound splat/macro maps.
-    ground_rebuild_rx:
-        Option<std::sync::mpsc::Receiver<(Vec<renderer_api::SceneVertex>, Vec<u32>)>>,
+    /// The channel carries (ground mesh, dressing mesh): the burst that dug the hole also
+    /// mowed the card meadow around it, so both rebake from the same ledger in one worker.
+    #[allow(clippy::type_complexity)]
+    ground_rebuild_rx: Option<
+        std::sync::mpsc::Receiver<(
+            (Vec<renderer_api::SceneVertex>, Vec<u32>),
+            (Vec<renderer_api::SceneVertex>, Vec<u32>),
+        )>,
+    >,
     /// Set when the replicated crater ledger changed: the next frame kicks a ground re-mesh.
     ground_deform_dirty: bool,
     /// The conjured grass field, cached between frames: the scatter is deterministic per

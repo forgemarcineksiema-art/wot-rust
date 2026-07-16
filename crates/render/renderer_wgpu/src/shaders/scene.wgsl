@@ -31,13 +31,24 @@ fn vs_main(input: VsIn) -> VsOut {
     var out: VsOut;
     let model = mat4x4<f32>(input.model_0, input.model_1, input.model_2, input.model_3);
     var world = model * vec4<f32>(input.position, 1.0);
+    // A mid-field grass card (Żywy Step P2) STANDS only in its band: it grows in under the
+    // near blade ring (30-45 m) and folds back into the ground before its chunk culls
+    // (260-330 m) — both ends read as the meadow thinning, never as a pop. The sway lane
+    // doubles as the vertex's height over its root (sway = height * 0.3).
+    var stand = 1.0;
+    if (abs(input.surface - 5.0) < 0.5) {
+        let d = length(camera.camera_pos.xz - world.xz);
+        stand = smoothstep(30.0, 45.0, d) * (1.0 - smoothstep(260.0, 330.0, d));
+        world.y -= (input.sway / 0.3) * (1.0 - stand);
+    }
     // The wind lane (D4, lit by the grass field): vertices that opted in — blade tips, leaf
-    // edges — ride the field's wind. Two drifting world-space waves, so neighbouring blades
-    // gust TOGETHER instead of jittering independently; roots carry sway 0 and stay planted.
+    // edges, card tops — ride the field's wind. Two drifting world-space waves, so
+    // neighbouring blades gust TOGETHER instead of jittering independently; roots carry
+    // sway 0 and stay planted. A collapsed card stops feeling the wind with its stand.
     if (input.sway > 0.0) {
         let t = camera.time_params.x;
-        let gust = sin(dot(world.xz, vec2<f32>(0.31, 0.17)) + t * 1.6)
-            + 0.45 * sin(dot(world.xz, vec2<f32>(0.83, -0.51)) + t * 2.7);
+        let gust = (sin(dot(world.xz, vec2<f32>(0.31, 0.17)) + t * 1.6)
+            + 0.45 * sin(dot(world.xz, vec2<f32>(0.83, -0.51)) + t * 2.7)) * stand;
         world = vec4<f32>(
             world.x + gust * input.sway * 0.24,
             world.y - abs(gust) * input.sway * 0.05,

@@ -78,6 +78,10 @@ pub mod surface_role {
     pub const SLATE: f32 = 3.0;
     /// Tree bark: vertical striations with deeper grooves.
     pub const BARK: f32 = 4.0;
+    /// Mid-field grass clump card (Żywy Step P2): the vertex stage grows it in under the
+    /// near blade ring and collapses it into the ground before the dressing chunk culls —
+    /// the sway lane doubles as the vertex's height over the root (sway = height * 0.3).
+    pub const GRASS_CARD: f32 = 5.0;
 }
 
 impl SceneVertex {

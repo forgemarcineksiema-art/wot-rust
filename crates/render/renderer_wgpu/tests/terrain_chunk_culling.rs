@@ -100,3 +100,66 @@ fn the_chunked_terrain_renders_end_to_end_and_swaps_cleanly() {
     assert!(renderer.terrain_chunk_count() >= 1);
     renderer.render(&ctx, target.render_target(), view_proj, camera.eye).expect("render again");
 }
+
+/// Żywy Step P2: the dressing slot culls by frustum AND by distance — a chunk past the
+/// cards' collapse band (340 m) never draws even when the frustum sees it, and the slot
+/// clears with empty slices (the garage has no meadow).
+#[test]
+fn the_dressing_slot_distance_cuts_past_the_collapse_band() {
+    let Some(ctx) = headless_context() else {
+        return;
+    };
+    let (vertices, indices) = steppe_mesh(4, 40.0);
+    let mut renderer = SceneRenderer::for_offscreen(&ctx, &vertices, &indices).expect("renderer");
+    let (mut meadow_v, meadow_i) = steppe_mesh(100, 1000.0);
+    for vertex in &mut meadow_v {
+        vertex.surface = renderer_api::surface_role::GRASS_CARD;
+    }
+    renderer.set_dressing(&ctx, &meadow_v, &meadow_i);
+
+    let camera = Camera {
+        eye: [500.0, 12.0, 500.0],
+        target: [700.0, 2.0, 500.0],
+        vertical_fov_degrees: 55.0,
+    };
+    let view_proj = view_projection_matrix(&camera, 16.0 / 9.0, 0.1, 2000.0);
+    let near = renderer.visible_dressing_chunks(&view_proj, camera.eye);
+    assert!(near > 0, "the meadow ahead draws");
+
+    // The same wedge from the map corner: everything ahead lies past the cutoff.
+    let far_camera = Camera {
+        eye: [-400.0, 12.0, -400.0],
+        target: [700.0, 2.0, 700.0],
+        vertical_fov_degrees: 55.0,
+    };
+    let far_vp = view_projection_matrix(&far_camera, 16.0 / 9.0, 0.1, 4000.0);
+    let far = renderer.visible_dressing_chunks(&far_vp, far_camera.eye);
+    assert!(
+        far < near,
+        "distance cuts what the frustum alone would draw: far {far} vs near {near}"
+    );
+    for chunk_probe in [near, far] {
+        let _ = chunk_probe;
+    }
+    // Every chunk the cutoff admits sits within 340 m + a chunk diagonal of the eye.
+    // (The exact per-chunk assert lives in the visible count: with the eye at the map corner
+    // and the whole field 550+ m away, nothing may draw.)
+    let corner_camera = Camera {
+        eye: [-600.0, 12.0, 500.0],
+        target: [500.0, 2.0, 500.0],
+        vertical_fov_degrees: 55.0,
+    };
+    let corner_vp = view_projection_matrix(&corner_camera, 16.0 / 9.0, 0.1, 4000.0);
+    assert_eq!(
+        renderer.visible_dressing_chunks(&corner_vp, corner_camera.eye),
+        0,
+        "a meadow 550+ m away has fully collapsed — nothing draws"
+    );
+
+    renderer.set_dressing(&ctx, &[], &[]);
+    assert_eq!(
+        renderer.visible_dressing_chunks(&view_proj, camera.eye),
+        0,
+        "empty slices clear the slot"
+    );
+}

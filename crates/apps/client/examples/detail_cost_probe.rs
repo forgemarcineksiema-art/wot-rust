@@ -49,6 +49,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             &terrain_material_set_for(terrain::MapId::ProkhorovkaHill252_2),
         );
         renderer.set_water(&ctx, &water_v, &water_i);
+        {
+            let (dressing_v, dressing_i) = client::grass_card_dressing_mesh(
+                &battlefield,
+                &ground_maps,
+                &terrain_material_set_for(terrain::MapId::ProkhorovkaHill252_2),
+            );
+            renderer.set_dressing(&ctx, &dressing_v, &dressing_i);
+        }
         renderer.scene_lighting = view.lighting;
         renderer.set_outdoor_sky(view.sky.0, view.sky.1, view.sky.2);
         renderer.shadow_focus = Some(view.target);

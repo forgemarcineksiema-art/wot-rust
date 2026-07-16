@@ -105,7 +105,7 @@ fn density_multiplier(d: f32) -> f32 {
 }
 
 /// The vegetation weight (grass + straw splat channels, 0..1) standing at a world position.
-fn vegetation_weight(maps: &TerrainGroundMaps, x: f32, z: f32) -> f32 {
+pub(crate) fn vegetation_weight(maps: &TerrainGroundMaps, x: f32, z: f32) -> f32 {
     let size = maps.size as usize;
     let tx = ((x / maps.extent_m[0]) * maps.size as f32).clamp(0.0, maps.size as f32 - 1.0);
     let tz = ((z / maps.extent_m[1]) * maps.size as f32).clamp(0.0, maps.size as f32 - 1.0);
