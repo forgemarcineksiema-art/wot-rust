@@ -107,7 +107,11 @@ mod tests {
         use renderer_api::LightingQuality;
         let canonical = LightingQuality::canonical();
         assert!(
-            canonical.shader_detail == renderer_api::ShaderDetailMask::NONE
+            canonical.shader_detail
+                == renderer_api::ShaderDetailMask(
+                    renderer_api::ShaderDetailMask::TERRAIN_NORMAL_BEND
+                        | renderer_api::ShaderDetailMask::TERRAIN_MICRO_OCTAVE
+                )
                 && !canonical.cloud_shadows
         );
         assert_eq!(canonical.bloom_mips, 0);

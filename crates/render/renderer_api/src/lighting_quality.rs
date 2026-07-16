@@ -81,7 +81,12 @@ impl LightingQuality {
             cloud_shadows: false,
             bloom_mips: 0,
             refraction: false,
-            shader_detail: ShaderDetailMask::NONE,
+            // Żywy Step P1: the ground's micro-relief is bought back — pure per-pixel ALU
+            // (value noise, no texture taps), measured on the min-spec before shipping. The
+            // remaining bits stay in the buy-back pool.
+            shader_detail: ShaderDetailMask(
+                ShaderDetailMask::TERRAIN_NORMAL_BEND | ShaderDetailMask::TERRAIN_MICRO_OCTAVE,
+            ),
         }
     }
 
@@ -127,7 +132,12 @@ mod tests {
         assert_eq!(canonical.shadow_cascades, 2);
         assert_eq!(canonical.ssao_scale, 0.5);
         assert!(!canonical.cloud_shadows && canonical.bloom_mips == 0 && !canonical.refraction);
-        assert_eq!(canonical.shader_detail, ShaderDetailMask::NONE);
+        assert_eq!(
+            canonical.shader_detail,
+            ShaderDetailMask(
+                ShaderDetailMask::TERRAIN_NORMAL_BEND | ShaderDetailMask::TERRAIN_MICRO_OCTAVE
+            )
+        );
         // Dev-only rich profile is a strict superset for captures, never the shipped look.
         let rich = LightingQuality::rich();
         assert_eq!(rich.shader_detail, ShaderDetailMask::FULL);
