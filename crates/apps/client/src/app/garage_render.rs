@@ -148,7 +148,11 @@ impl ClientApp {
             renderer.set_terrain(vertices, indices);
             // The splat ground rides only the battle scene; the hangar floor is its own mesh.
             match want {
-                SceneKind::Garage => renderer.clear_battlefield_ground(),
+                SceneKind::Garage => {
+                    renderer.clear_battlefield_ground();
+                    // The hangar has no meadow: clear the dressing slot with the ground.
+                    renderer.set_dressing(&[], &[]);
+                }
                 SceneKind::Battle => {
                     let meshes = self.battle_scene_meshes.as_ref().expect("ensured above");
                     renderer.set_battlefield_ground(
@@ -157,6 +161,7 @@ impl ClientApp {
                         &meshes.ground_maps,
                         &scene_build::terrain_maps::terrain_material_set_for(self.session.map_id()),
                     );
+                    renderer.set_dressing(&meshes.dressing_vertices, &meshes.dressing_indices);
                 }
             }
             renderer.set_water(water_vertices, water_indices);

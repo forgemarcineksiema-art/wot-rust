@@ -3,6 +3,7 @@ mod bloom;
 mod buffers;
 mod draw;
 mod draw_depth;
+mod dressing;
 pub(crate) mod env_group;
 pub(crate) mod ground;
 mod hud_atlas;
@@ -53,6 +54,12 @@ pub struct SceneRenderer {
     /// Spatial draw ranges of the terrain slot (see `terrain.rs`): every pass draws only the
     /// chunks its frustum sees.
     terrain_chunks: Vec<renderer_api::SceneChunk>,
+    /// The dressing slot (Żywy Step P2): mid-field grass cards, color-pass-only (see
+    /// `dressing.rs`). Empty in the garage and on maps without a baked meadow.
+    dressing_vertices: wgpu::Buffer,
+    dressing_indices: wgpu::Buffer,
+    dressing_index_count: u32,
+    dressing_chunks: Vec<renderer_api::SceneChunk>,
     dynamic_vertices: wgpu::Buffer,
     dynamic_indices: wgpu::Buffer,
     dynamic_index_count: u32,
@@ -349,6 +356,10 @@ impl SceneRenderer {
             terrain_indices: buffers.terrain_indices,
             terrain_index_count: chunked_indices.len() as u32,
             terrain_chunks,
+            dressing_vertices: buffers.dressing_vertices,
+            dressing_indices: buffers.dressing_indices,
+            dressing_index_count: 0,
+            dressing_chunks: Vec::new(),
             dynamic_vertices: buffers.dynamic_vertices,
             dynamic_indices: buffers.dynamic_indices,
             dynamic_index_count: 0,

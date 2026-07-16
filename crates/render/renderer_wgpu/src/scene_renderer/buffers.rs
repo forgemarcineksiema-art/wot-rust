@@ -30,6 +30,8 @@ pub(super) struct GeometryBuffers {
     pub dynamic_vertices: wgpu::Buffer,
     pub dynamic_indices: wgpu::Buffer,
     pub identity_instance: wgpu::Buffer,
+    pub dressing_vertices: wgpu::Buffer,
+    pub dressing_indices: wgpu::Buffer,
     pub frame_instances: wgpu::Buffer,
     pub vehicle_instances: wgpu::Buffer,
     pub fx_vertices: wgpu::Buffer,
@@ -69,6 +71,20 @@ impl GeometryBuffers {
             contents: bytemuck::bytes_of(&SceneInstance::identity()),
             usage: wgpu::BufferUsages::VERTEX,
         });
+        // The dressing slot starts empty (index_count 0 gates the draw); tiny placeholders
+        // keep the struct simple until a battle uploads its meadow.
+        let dressing_vertices = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("scene_dressing_v"),
+            size: 16,
+            usage: wgpu::BufferUsages::VERTEX,
+            mapped_at_creation: false,
+        });
+        let dressing_indices = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("scene_dressing_i"),
+            size: 16,
+            usage: wgpu::BufferUsages::INDEX,
+            mapped_at_creation: false,
+        });
         let frame_instances = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("scene_frame_instances"),
             // 512 KiB (~6.5k instances at 80 B): the geometry-path lineup examples submit the
@@ -104,6 +120,8 @@ impl GeometryBuffers {
             dynamic_indices,
             identity_instance,
             frame_instances,
+            dressing_vertices,
+            dressing_indices,
             vehicle_instances,
             fx_vertices,
             hud_vertices,

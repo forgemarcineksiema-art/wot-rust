@@ -19,7 +19,7 @@ pub struct ReviewView {
 /// The Prokhorovka review set: the hill panorama in its three authored times of day plus a
 /// mid-field vantage in the golden evening — the strongest frame the engine produces and the
 /// reference look of the whole art direction ("steel under an evening sky").
-pub fn prokhorovka_review_views(battlefield: &BattlefieldMap) -> [ReviewView; 4] {
+pub fn prokhorovka_review_views(battlefield: &BattlefieldMap) -> [ReviewView; 5] {
     let ground = |x: f32, z: f32| battlefield.heightmap.sample_height(x, z).unwrap_or(5.0);
     let at = |x: f32, up: f32, z: f32| [x, ground(x, z) + up, z];
     [
@@ -50,6 +50,15 @@ pub fn prokhorovka_review_views(battlefield: &BattlefieldMap) -> [ReviewView; 4]
             target: at(620.0, 2.0, 520.0),
             lighting: SceneLighting::prokhorovka_golden_evening(),
             sky: (0.80, 0.62, 0.45),
+        },
+        // Żywy Step P2: a hull-height eye looking across 300 m of open field — the view that
+        // judges the card meadow's band (blades -> cards -> ground) and its seams.
+        ReviewView {
+            name: "prokhorovka_grass_midfield",
+            eye: at(430.0, 2.0, 380.0),
+            target: at(620.0, 1.0, 520.0),
+            lighting: SceneLighting::battlefield_default(),
+            sky: (0.62, 0.68, 0.75),
         },
     ]
 }

@@ -179,7 +179,7 @@ impl super::SceneRenderer {
                     occlusion_query_set: None,
                     multiview_mask: None,
                 });
-                self.draw_world_opaque(&mut pass, &camera_frustum);
+                self.draw_world_opaque(&mut pass, &camera_frustum, camera_pos);
             }
             {
                 let grab_bg = self.water_refraction.bind_group.borrow();
@@ -239,7 +239,7 @@ impl super::SceneRenderer {
                 occlusion_query_set: None,
                 multiview_mask: None,
             });
-            self.draw_world_opaque(&mut pass, &camera_frustum);
+            self.draw_world_opaque(&mut pass, &camera_frustum, camera_pos);
             self.draw_water_surface(&mut pass, None);
             self.draw_overlay_fx(&mut pass);
         }
@@ -292,7 +292,12 @@ impl super::SceneRenderer {
     /// The opaque world into the current pass: gradient sky, the scene pipeline (terrain, dynamic
     /// props, static frame meshes), the battlefield ground, then vehicles. Shared by the single
     /// pass (analytic water) and the refraction opaque pass.
-    fn draw_world_opaque(&self, pass: &mut wgpu::RenderPass<'_>, camera_frustum: &Frustum) {
+    fn draw_world_opaque(
+        &self,
+        pass: &mut wgpu::RenderPass<'_>,
+        camera_frustum: &Frustum,
+        eye: [f32; 3],
+    ) {
         pass.set_pipeline(&self.pipeline);
         pass.set_bind_group(0, &self.camera_bind_group, &[]);
         pass.set_bind_group(2, &*self.shadow.bind_group.borrow(), &[]);
@@ -302,6 +307,9 @@ impl super::SceneRenderer {
             pass.set_index_buffer(self.terrain_indices.slice(..), wgpu::IndexFormat::Uint32);
             self.draw_visible_terrain(pass, camera_frustum);
         }
+        // The dressing slot (Żywy Step P2): color pass ONLY — never the cascades, never the
+        // SSAO prepass — and distance-cut past its own collapse band.
+        self.draw_visible_dressing(pass, camera_frustum, eye);
         if self.dynamic_index_count > 0 {
             pass.set_vertex_buffer(0, self.dynamic_vertices.slice(..));
             pass.set_index_buffer(self.dynamic_indices.slice(..), wgpu::IndexFormat::Uint32);

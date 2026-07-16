@@ -38,6 +38,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         &terrain_material_set_for(terrain::MapId::ProkhorovkaHill252_2),
     );
     renderer.set_water(&ctx, &water_vertices, &water_indices);
+    {
+        let (dressing_v, dressing_i) = client::grass_card_dressing_mesh(
+            &battlefield,
+            &ground_maps,
+            &terrain_material_set_for(terrain::MapId::ProkhorovkaHill252_2),
+        );
+        renderer.set_dressing(&ctx, &dressing_v, &dressing_i);
+    }
     renderer.scene_time_s = 12.0;
     renderer.register_mesh(&ctx, GRASS_MESH_HANDLE, &grass_tuft_mesh());
 
