@@ -171,17 +171,18 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
         bend = vec3<f32>(-dx, 0.0, -dz) * (0.12 / e) * clamp(1.0 - gloss, 0.35, 1.0);
     }
 
-    // Ziemia 2.0, pasmo mikro: a third, finer octave (~20 cm crumb) that lives only near the
+    // Ziemia 2.0, pasmo mikro: a third, finer octave (~31 cm crumb — inside the art policy's
+    // micro window of 0.3-0.6 m; the first cut ran ~20 cm and violated rule 5) near the
     // eye - the far field pays nothing and the near field stops reading as one woven carpet.
     var micro_shade = 1.0;
     let eye_dist = length(camera.camera_pos - input.world_pos);
-    let near_amp = (1.0 - smoothstep(16.0, 42.0, eye_dist)) * select(0.0, 1.0, detail_bit(2u));
+    let near_amp = (1.0 - smoothstep(20.0, 55.0, eye_dist)) * select(0.0, 1.0, detail_bit(2u));
     if (near_amp > 0.004) {
-        let micro = value_noise(input.world_pos.xz * 5.0);
+        let micro = value_noise(input.world_pos.xz * 3.2);
         micro_shade = 1.0 + (micro - 0.5) * 0.11 * near_amp * amp;
         let me = 0.12;
-        let mdx = value_noise((input.world_pos.xz + vec2<f32>(me, 0.0)) * 5.0) - micro;
-        let mdz = value_noise((input.world_pos.xz + vec2<f32>(0.0, me)) * 5.0) - micro;
+        let mdx = value_noise((input.world_pos.xz + vec2<f32>(me, 0.0)) * 3.2) - micro;
+        let mdz = value_noise((input.world_pos.xz + vec2<f32>(0.0, me)) * 3.2) - micro;
         bend += vec3<f32>(-mdx, 0.0, -mdz) * (0.05 / me) * near_amp;
     }
     let n = normalize(base_n + bend);
