@@ -99,7 +99,7 @@ pub fn grass_card_dressing_mesh(
 /// The exact tone of the ground under a card: splat-weighted layer albedo with a small sky
 /// lift — blades catch more light than the soil they stand on, but stay the SAME color
 /// family, so the card field dissolves into the ground instead of contrasting with it.
-fn card_albedo(
+pub(crate) fn card_albedo(
     maps: &TerrainGroundMaps,
     materials: &TerrainMaterialSet,
     x: f32,

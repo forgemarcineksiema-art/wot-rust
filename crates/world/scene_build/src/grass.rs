@@ -24,8 +24,8 @@ const _: () = assert!(GRASS_MESH_HANDLE.0 >= renderer_api::SHADOWLESS_DRESSING_M
 /// [`NEAR_FULL_M`] the cover is full; past it the density falls with the square of the
 /// distance — constant SCREEN density, so the field reads unbroken to the horizon of the
 /// ring while the cost grows only logarithmically with the radius.
-pub const GRASS_RADIUS_M: f32 = 60.0;
-const FADE_START_M: f32 = 44.0;
+pub const GRASS_RADIUS_M: f32 = 48.0;
+const FADE_START_M: f32 = 34.0;
 /// Full-cover radius: every tuft the splat allows stands inside this.
 const NEAR_FULL_M: f32 = 22.0;
 /// Each tuft grows from nothing over this much approach past its own reveal distance, so a
@@ -131,8 +131,9 @@ pub fn grass_frame_objects(
     let max_cx = ((eye.x + GRASS_RADIUS_M) / CELL_M).floor() as i32;
     let min_cz = ((eye.z - GRASS_RADIUS_M) / CELL_M).floor() as i32;
     let max_cz = ((eye.z + GRASS_RADIUS_M) / CELL_M).floor() as i32;
-    let grass_albedo = Vec3::from_array(materials.layers[0].albedo);
-    let straw_albedo = Vec3::from_array(materials.layers[1].albedo);
+    // Tone-lock (Żywy Step P3): blades wear the SAME ground albedo the mid-field cards do,
+    // so the blade ring dissolves into the card band and the card band into the ground —
+    // the old straw lerp with its *1.3 lift read as brown tufts on a green map.
     // Nearest cells first: when the ring's worst case outruns the budget, the rim thins out
     // under its own fade — never the ground at the player's feet.
     let mut cells: Vec<(i32, i32, f32)> = Vec::new();
@@ -225,8 +226,16 @@ pub fn grass_frame_objects(
                     continue;
                 }
                 // A touch lighter than the soil it stands on: blades catch more sky.
-                let albedo = grass_albedo.lerp(straw_albedo, (cell_dry * 0.8 + tone * 0.2) * 0.7)
-                    * (1.0 + tone * 0.3);
+                let Some(albedo) = crate::grass_cards::card_albedo(
+                    maps,
+                    materials,
+                    x,
+                    z,
+                    cell_dry * 0.5 + tone * 0.5,
+                ) else {
+                    continue;
+                };
+                let albedo = Vec3::from_array(albedo);
                 let transform = Mat4::from_translation(Vec3::new(x, ground, z))
                     * Mat4::from_rotation_y(yaw)
                     * Mat4::from_scale(Vec3::new(scale, scale, scale));
@@ -344,6 +353,31 @@ mod tests {
         // The field DID sample this ground: live grass stands right outside the kill zone,
         // so the empty bowl is the burst's doing, not a hole in the scatter.
         assert!(ring_neighbours > 5, "the field surrounds the bowl: {ring_neighbours}");
+    }
+
+    /// Tone-lock (P3): a blade's tint IS the ground albedo under it (the shared calculator
+    /// the mid-field cards use) — never a contrasting straw lifted off a green map.
+    #[test]
+    fn blades_wear_the_same_ground_tone_as_the_cards() {
+        let ground = flat_ground();
+        let materials = TerrainMaterialSet::prokhorovka();
+        let maps = full_veg_maps(260.0);
+        let eye = Vec3::new(128.0, 3.0, 128.0);
+        let grown = grass_frame_objects(&ground, None, &maps, &materials, eye);
+        for tuft in grown.iter().step_by(97) {
+            let x = tuft.transform[3][0];
+            let z = tuft.transform[3][2];
+            let reference = crate::grass_cards::card_albedo(&maps, &materials, x, z, 0.5)
+                .expect("vegetated ground");
+            for lane in 0..3 {
+                assert!(
+                    (tuft.tint[lane] - reference[lane]).abs() < 0.12,
+                    "blade tint stays in the ground's family: {:?} vs {:?}",
+                    tuft.tint,
+                    reference
+                );
+            }
+        }
     }
 
     /// Blade tips opted into the wind lane, roots stayed planted — the shader sways only
