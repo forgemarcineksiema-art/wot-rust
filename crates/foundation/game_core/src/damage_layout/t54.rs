@@ -58,7 +58,11 @@ fn turret_components() -> Vec<DamageComponent> {
             K::Radio,
             ModuleSlot::Radio,
             M::Electronics,
-            obb([-0.64, 0.38, 0.98], [0.27, 0.22, 0.20], 0.0),
+            // Pulled 18 cm rearward (model-logic audit #13): at z 0.98 the set's forward face
+            // reached 1.18 — clear THROUGH the casting front at that azimuth (~1.05), so the
+            // museum radio panel with its three dials stood OUTSIDE the tank (the user's
+            // "plate with three holes"). The 10-RT lives against the turret wall, inside.
+            obb([-0.64, 0.38, 0.80], [0.27, 0.22, 0.20], 0.0),
             28,
             1.4,
         ),
