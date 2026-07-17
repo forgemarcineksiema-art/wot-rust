@@ -1,5 +1,16 @@
 # Vehicle Geometry Photo Analysis
 
+> **Status (2026-07-17, Genialna Flota PR-05):** the fleet-state claims below are a
+> HISTORICAL audit from before the blueprint migration. Since then: the whole playable
+> fleet is blueprint-born (RON in `game_core/blueprints/`), the T-55A clone was removed
+> outright (protocol v33), and the workshop this audit asked for exists — per-vehicle
+> `ReferencePack`s carry ratio targets *and* absolute `DimensionTarget` anchors (metres,
+> sourced), the Studio report prints measured|target|Δ%|source tables, and the fleet
+> gates enforce them (`vehicle_forge/tests/{reference_pack,dimension_gate}.rs`).
+> The per-vehicle Visual Findings remain valid observations and are the W1/W2 work list
+> of [vehicle-fidelity-masterplan.md](vehicle-fidelity-masterplan.md); new dossiers
+> follow [vehicles/_template.md](vehicles/_template.md).
+
 This audit ties the procedural vehicle recipes back to reference imagery and to the current
 rendering technology. The executable tests prove that the meshes are finite, deterministic, within
 budget, and honest against gameplay hitboxes. The photo pass covers the non-executable question:
@@ -116,7 +127,8 @@ path is important because it lets one shape description feed several consumers:
 - armor slopes and weakspot multipliers;
 - procedural visual geometry.
 
-At the time of this audit, only `T54_1951` has a blueprint. That makes T-54 the strongest example
+At the time of the ORIGINAL audit, only `T54_1951` had a blueprint (the whole fleet has one
+now — see the status banner). That made T-54 the strongest example
 of "what you see is what the simulation believes." The rest of the vehicles still use older
 hand-authored recipe constants for hull proportions, tracks, turrets/casemates, and guns.
 
@@ -234,7 +246,7 @@ Conclusion:
 The T-54 path is architecturally correct. The next work should refine ratios and wheel count, not
 replace the approach.
 
-### T-55A
+### T-55A (REMOVED 2026-07-17 — no clones in the roster; kept for history)
 
 Status: legacy-compatible, not a production Forge benchmark.
 
