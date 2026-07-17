@@ -95,13 +95,16 @@ pub(super) fn jagdtiger_blueprint() -> VehicleBlueprint {
         },
         gun: GunShape {
             // Fire line 2.25 mid-face; the PaK 44's muzzle reaches z = 6.75 (10.65 m overall,
-            // gun forward) — the longest reach in the lineup, with its double-baffle brake.
+            // gun forward) — the longest reach in the lineup, muzzle honestly plain.
             trunnion_y: 2.25,
             trunnion_z: 1.30,
             muzzle_z: 6.75,
             barrel_radius: 0.135,
             evacuator: None,
-            muzzle_brake: Some(0.22),
+            // None (dossier PR-JT.1): the Aberdeen reference and the bulk of service photos
+            // show the PaK 44 with a PLAIN muzzle — the fleet brake pass (#234) had fitted a
+            // double-baffle on spec alone. The recessed bore stays.
+            muzzle_brake: None,
             segments: 14,
         },
         armor: ArmorShape {

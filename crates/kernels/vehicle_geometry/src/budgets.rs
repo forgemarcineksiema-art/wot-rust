@@ -54,7 +54,7 @@ pub const GOLDEN_BAKE_HASHES: [(VehicleKind, u64); 9] = [
     // Re-recorded for the Jagdtiger blueprint migration: the researched 1:1 casemate
     // (7.80 m hull, superstructure flank continuing the hull's 25° plane, 15° 250 mm face,
     // periscope roof, 9 overlapped wheels, braked PaK 44) replaces the legacy box.
-    (VehicleKind::Jagdtiger, 8_277_703_138_621_040_032_u64),
+    (VehicleKind::Jagdtiger, 4_441_543_265_259_456_142_u64),
     // Re-recorded for the Panther II blueprint migration: the researched 1:1 wedge (6.87 m
     // hull, steepest German glacis at 55°, 29° leaned sides, narrow Schmalturm, 7 overlapped
     // steel wheels, braked KwK 42) replaces the last legacy German body.

@@ -441,6 +441,47 @@ pub(crate) fn jagdtiger_deck(bp: &VehicleBlueprint) -> GeometryMesh {
     b = headlight(b, Vec3::new(0.0, bp.hull.deck_y + 0.10, edge - 0.10), 0.085, false);
     b = tow_hooks(b, bp, &[bp.hull.half_len - 0.14, -bp.hull.half_len + 0.14]);
     b = german_exhaust_stacks(b, bp);
+    // Bow MG Kugelblende in the glacis right (dossier JT.2) — the ball's seat sits just
+    // ahead of the 50-degree plate, like the Tiger I's, scaled to the Jagdtiger's glacis.
+    let hull = &bp.hull;
+    let ball_y = 1.45;
+    let run = (ball_y - hull.belly_y - hull.nose_rise).max(0.0)
+        * hull.glacis_slope_deg.to_radians().tan();
+    let plate_z = hull.half_len - run;
+    b = b.capped_revolve_at(
+        Vec3::new(0.58, ball_y, 0.0),
+        RevolveSpec {
+            profile: vec![
+                ProfilePoint::new(0.13, plate_z - 0.05),
+                ProfilePoint::new(0.09, plate_z + 0.08),
+            ],
+            axis: crate::Axis::Z,
+            segments: 10,
+            material: MaterialRole::CastArmor,
+            smoothing: SG_HARD,
+        },
+    );
+    // Large FLAT bow guards over the front sprockets (photo comparison F3) — the Jagdtiger's
+    // read, unlike the Tiger II's drooping hinged flaps.
+    let band_half = ((bp.track.outer_x - bp.track.inner_x) * 0.5).max(0.05);
+    for sign in [-1.0_f32, 1.0] {
+        b = b
+            .plate_box(
+                Vec3::new(sign * bp.track.center_x, hull.sponson_y + 0.03, bp.track.end_z + 0.18),
+                Vec3::new(band_half * 0.96, 0.015, 0.42),
+                0.02,
+                MaterialRole::RolledArmor,
+                SG_HARD,
+            )
+            // Downturned front lip closing the guard's leading edge.
+            .plate_box(
+                Vec3::new(sign * bp.track.center_x, hull.sponson_y - 0.03, bp.track.end_z + 0.59),
+                Vec3::new(band_half * 0.92, 0.05, 0.015),
+                0.012,
+                MaterialRole::RolledArmor,
+                SG_HARD,
+            );
+    }
     engine_deck_german(b, bp)
 }
 
