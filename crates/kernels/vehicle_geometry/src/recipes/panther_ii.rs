@@ -8,7 +8,7 @@ use glam::{Vec2, Vec3};
 
 use super::{
     GunPlan, SG_HARD, add_cupola, add_mantlet_socket, add_turret_ring, assemble,
-    blueprint_deck_details, blueprint_prism_hull, blueprint_running_gear, build_gun, shade_hull,
+    blueprint_prism_hull, blueprint_running_gear, build_gun, shade_hull,
 };
 use crate::{
     Axis, BakedVehicle, GeometryMesh, LoftSection, LoftSpec, MaterialRole, MeshBuilder,
@@ -20,7 +20,7 @@ pub(crate) fn panther_ii(_hitbox: &HitboxProfile, mounts: &MountFrames) -> Baked
     let hull = shade_hull(
         blueprint_prism_hull(&bp.hull, bp.armor.hull_side.0)
             .append(&blueprint_running_gear(&bp.track))
-            .append(&blueprint_deck_details(&bp))
+            .append(&super::deck_details::panther_ii_deck(&bp))
             .append(&panther_hull_details(&bp.hull))
             .build(),
     );

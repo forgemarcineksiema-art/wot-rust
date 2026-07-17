@@ -16,9 +16,8 @@ use glam::Vec3;
 use super::{
     GunPlan, HullPlan, RunningGear, SG_CAST, add_broad_mantlet_socket, add_cupola,
     add_mantlet_socket, add_running_gear, add_t54_mantlet_socket, add_turret_ring, assemble,
-    blueprint_deck_details, blueprint_running_gear, blueprint_skirts, build_gun,
-    build_gun_with_mantlet_scale, cast_turret_shell, hull_body, shade_hull, t54_hull,
-    t54_turret_front,
+    blueprint_running_gear, blueprint_skirts, build_gun, build_gun_with_mantlet_scale,
+    cast_turret_shell, hull_body, shade_hull, t54_hull, t54_turret_front,
 };
 use crate::{BakedVehicle, GeometryMesh, MaterialRole, MeshBuilder};
 
@@ -85,7 +84,7 @@ pub(crate) fn t54_1951(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVe
     let hull = shade_hull(
         t54_hull(&bp.hull, &bp.track)
             .append(&blueprint_running_gear(&bp.track))
-            .append(&blueprint_deck_details(&bp))
+            .append(&super::deck_details::t54_family_deck(&bp))
             .append(&blueprint_skirts(&bp.hull, &bp.track))
             .build(),
     );

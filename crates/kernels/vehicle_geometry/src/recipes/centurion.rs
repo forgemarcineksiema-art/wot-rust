@@ -9,8 +9,8 @@ use glam::Vec3;
 
 use super::soviet::soviet_cast_turret_for;
 use super::{
-    GunPlan, SG_HARD, assemble, blueprint_deck_details, blueprint_prism_hull,
-    blueprint_running_gear, blueprint_skirts, build_gun, shade_hull,
+    GunPlan, SG_HARD, assemble, blueprint_prism_hull, blueprint_running_gear, blueprint_skirts,
+    build_gun, shade_hull,
 };
 use crate::{BakedVehicle, MaterialRole, MeshBuilder};
 
@@ -19,7 +19,7 @@ pub(crate) fn centurion(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedV
     let hull = shade_hull(
         blueprint_prism_hull(&bp.hull, bp.armor.hull_side.0)
             .append(&blueprint_running_gear(&bp.track))
-            .append(&blueprint_deck_details(&bp))
+            .append(&super::deck_details::centurion_deck(&bp))
             .append(&blueprint_skirts(&bp.hull, &bp.track))
             .build(),
     );
