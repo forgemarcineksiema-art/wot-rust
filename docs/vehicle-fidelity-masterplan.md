@@ -165,8 +165,8 @@ Updated as part of every PR's definition of done.
 
 | Vehicle | Dossier | Targets | Shape | Detail | Part table | Cage | Sealed |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Tiger I | ✓ PR-T1.1 | ✓ anchors+ratios | ✓ width + Schachtellaufwerk | partial | ✓ bespoke 15 parts | dense | **REOPENED** — fails the model-logic gate (see vehicle-model-logic-audit.md) |
-| Tiger II | — | — | — | — | — | — | — |
+| Tiger I | ✓ PR-T1.1 | ✓ anchors+ratios | ✓ width + Schachtellaufwerk | ✓ registry passes #233–#238 | ✓ bespoke 15 parts | dense | REOPENED items since fixed (bore, decks, tracks — registry clear #239); re-seal awaits user review |
+| Tiger II | ✓ PR-T2.1 (#240) | ✓ 5 dims + 7 ratios tightened | ✓ Turmblende + Schürzen + bow flaps (#241) | ✓ fleet passes #233–#238 (front drive, bore+brake, bow set, cupola, Kgs/steel-dish, exhausts) | — (shares blueprint part path) | ✓ 7 tests / ~35 asserts incl. W1 dressing lock | close-up reviewed (deck/bow/profile/contact sheet); NOT declared — user review pending |
 | Jagdtiger | — | — | — | — | — | — | — |
 | Panther II | — | — | — | — | — | — | — |
 | IS-3 | partial (`is-3.md`) | — | — | — | bespoke 17 | dense | — |
