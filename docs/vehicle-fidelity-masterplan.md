@@ -41,6 +41,12 @@ lives in two hand-maintained copies with no equality lock.
   Triangle budgets rise only per-vehicle, only with a `detail_cost_probe` measurement in
   the PR description, never as a fleet-wide envelope bump. LOD discipline
   (LOD1 ≤ 0.75·LOD0, LOD2 ≤ 0.45·LOD0) holds after every raise.
+- **The model must make mechanical sense at garage distance.** Every hatch passes a human,
+  every barrel has a bore, the engine breathes, tracks carry the wheels, nothing floats,
+  and no two vehicles share a fitting the real vehicles did not share. The close-up
+  functional review (docs/vehicle-model-logic-audit.md) IS the seal gate; number gates are
+  the floor, never the bar. Declaring success from green gates alone is the failure mode
+  this rule exists to kill.
 - **Team tint is sacred.** Any material/palette work applies nation identity under the
   team tint, never at its expense; a ΔE contrast test locks today's readability floor.
 
@@ -159,7 +165,7 @@ Updated as part of every PR's definition of done.
 
 | Vehicle | Dossier | Targets | Shape | Detail | Part table | Cage | Sealed |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Tiger I | ✓ PR-T1.1 | ✓ 5 anchors + 7 ratios, tight | ✓ honest width + 3-plane Schachtellaufwerk | ✓ late-E shields + bow links | ✓ bespoke 15 parts (T1.3) | dense + dossier asserts | ✓ SEALED (T1.3) |
+| Tiger I | ✓ PR-T1.1 | ✓ anchors+ratios | ✓ width + Schachtellaufwerk | partial | ✓ bespoke 15 parts | dense | **REOPENED** — fails the model-logic gate (see vehicle-model-logic-audit.md) |
 | Tiger II | — | — | — | — | — | — | — |
 | Jagdtiger | — | — | — | — | — | — | — |
 | Panther II | — | — | — | — | — | — | — |
