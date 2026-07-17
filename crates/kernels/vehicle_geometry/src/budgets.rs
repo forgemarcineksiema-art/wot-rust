@@ -40,10 +40,10 @@ pub const GOLDEN_BAKE_HASHES: [(VehicleKind, u64); 9] = [
     // 810 mm wheels, raised idler/sprocket, 2.25 m turret on the 1.75 m roof). The T-55A moves
     // only through the shared Soviet cupola cap; the German vehicles are untouched.
     (VehicleKind::T54_1951, 7_815_164_806_384_481_682_u64),
-    // Re-recorded for the Tiger I blueprint migration: the researched 1:1 slab (6.32 m hull,
-    // 3.7 m beam, 3.0 m tall, face-honest plates, horseshoe turret + Rommelkiste, interleaved
-    // eight-wheel gear, braked KwK 36) replaces the legacy hitbox-fraction body.
-    (VehicleKind::TigerI, 2_980_737_383_636_765_040_u64),
+    // Re-recorded for the W1 late-E detail pass: exhaust shields shroud the twin stacks and
+    // four spare track links rack on the lower bow (the Feifel cleaners stay deliberately
+    // absent — the modelled variant is a late Ausf. E, which dropped them).
+    (VehicleKind::TigerI, 14_511_216_810_673_588_532_u64),
     // Re-recorded for the Tiger II blueprint migration: the researched 1:1 sloped body
     // (7.38 m hull, fleet's longest glacis at 50°, 25° leaned upper sides, Henschel prism
     // with bustle, 9 overlapped wheels, braked KwK 43) replaces the legacy stretch.
