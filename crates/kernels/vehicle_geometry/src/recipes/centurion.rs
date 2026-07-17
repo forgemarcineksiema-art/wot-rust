@@ -7,7 +7,7 @@
 use game_core::{HitboxProfile, MountFrames, VehicleKind};
 use glam::Vec3;
 
-use super::soviet::soviet_cast_turret_for;
+use super::soviet::{CastRoof, soviet_cast_turret_for};
 use super::{
     GunPlan, SG_HARD, assemble, blueprint_prism_hull, blueprint_running_gear, blueprint_skirts,
     build_gun, shade_hull,
@@ -35,7 +35,7 @@ pub(crate) fn centurion(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedV
             MaterialRole::RolledArmor,
             SG_HARD,
         )
-        .append(&soviet_cast_turret_for(t, bp.gun.trunnion_y, mantlet, 20))
+        .append(&soviet_cast_turret_for(t, bp.gun.trunnion_y, mantlet, CastRoof::Centurion, 20))
         .build();
 
     let gun = build_gun(&GunPlan {

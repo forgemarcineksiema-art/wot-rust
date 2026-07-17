@@ -8,7 +8,7 @@ use game_core::{HitboxProfile, HullShape, MountFrames, TrackShape, VehicleKind};
 use glam::{Vec2, Vec3};
 
 use super::is3_hull::is3_pike_hull;
-use super::soviet::soviet_cast_turret_for;
+use super::soviet::{CastRoof, soviet_cast_turret_for};
 use super::{
     GunPlan, SG_HARD, assemble, blueprint_running_gear, blueprint_skirts, build_gun, shade_hull,
 };
@@ -31,7 +31,7 @@ pub(crate) fn is3(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVehicle
 
     let t = &bp.turret;
     let mantlet = Some((t.mantlet_radius, t.mantlet_back_z, t.mantlet_front_z));
-    let turret = soviet_cast_turret_for(t, bp.gun.trunnion_y, mantlet, 20);
+    let turret = soviet_cast_turret_for(t, bp.gun.trunnion_y, mantlet, CastRoof::Is3, 20);
 
     let gun = build_gun(&GunPlan {
         axis_y: bp.gun.trunnion_y,

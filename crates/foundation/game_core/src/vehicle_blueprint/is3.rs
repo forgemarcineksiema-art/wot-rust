@@ -82,7 +82,7 @@ pub(super) fn is3_blueprint() -> VehicleBlueprint {
             rear_slope_deg: 30.0,
             cupola_x: -0.35,
             cupola_z: -0.35,
-            cupola_radius: 0.25,
+            cupola_radius: 0.30,
             plan_half_width: 1.15,
             plan_half_length: 1.30,
             mantlet_radius: 0.35,
