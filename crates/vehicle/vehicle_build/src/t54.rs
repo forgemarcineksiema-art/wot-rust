@@ -179,6 +179,33 @@ pub fn t54_from_modules(modules: &VehicleModules) -> VehicleDescription {
     // Damage-ready interior: major visible assemblies are generated from the authoritative
     // DamageLayout, with close-view mechanical detail layered around those exact transforms.
     parts.extend(crate::t54_interior::t54_interior_parts());
+    // The turret-ring collar: a short cast drum sealing the slot between the dome's
+    // overhanging skirt and the hull roof. Without it the seat is OPEN air — from a low bow
+    // angle the rasterizer culls the skirt's underside and you look straight into the lit
+    // fighting compartment (the "plate with three holes": primer wall + D-10 round noses;
+    // model-logic audit #10). Turret group, so the seal holds at every traverse angle.
+    parts.push(VehiclePart {
+        key: PartKey::new("turret_ring_collar"),
+        submesh: SubmeshKind::Turret,
+        material: MaterialRole::CastArmor,
+        smoothing: SmoothingGroup::hard_edges(),
+        shape: PartShape::Mesh(revolve::drum(
+            // From the deck plane UP into the skirt only: dipping below ring_plane_y would
+            // inflate the turret submesh's height and with it the silhouette ratio gate.
+            Vec3::new(0.0, v.turret.ring_plane_y + 0.07, 0.0),
+            // Wide enough to fill the whole deck-aperture annulus under the skirt: with the
+            // narrow 0.93 collar a ring of open sky remained between it and the aperture
+            // edge, and a low bow camera looked past the dome silhouette straight into the
+            // lit basket (the "plate": primer wall + D-10 noses through the slot).
+            v.turret.ring_radius + 0.13,
+            0.07,
+            28,
+            MaterialRole::CastArmor,
+            SmoothingGroup::hard_edges(),
+        )),
+        lod: PartLod::Silhouette,
+        generator: GeneratorKind::Revolve,
+    });
 
     // Bake-time ambient contact: darken the turret-ring seam, mantlet seat, running-gear recess and
     // glacis weld into `surface_shade` after merge (the cast turret and welded hull no longer read

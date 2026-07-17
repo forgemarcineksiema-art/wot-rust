@@ -87,7 +87,11 @@ fn hull_components() -> Vec<DamageComponent> {
             K::AmmunitionRack,
             ModuleSlot::AmmoRack,
             M::Ammunition,
-            obb([0.65, 0.0, 1.20], [0.37, 0.48, 0.36], 0.0),
+            // Centre lowered 12 cm (model-logic audit #9): at 0.0 the rack topped out at a
+            // world 1.67 m — 9 cm PROUD of the 1.58 m foredeck, so the museum rounds hanging
+            // off it lay visibly on the glacis. The real 20-round rack stands on the hull
+            // floor and stops under the deck; -0.12 puts the top at 1.55, a plate under it.
+            obb([0.65, -0.12, 1.20], [0.37, 0.48, 0.36], 0.0),
             32,
             1.35,
         ),

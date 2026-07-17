@@ -152,8 +152,11 @@ pub(super) fn t54_hybrid() -> HybridVisual {
             exhaust_center: Vec3::new(-1.34, 1.25, -0.90),
             exhaust_half: Vec3::new(0.26, 0.11, 0.45),
             // Turret-roof periscopes root into the curved dome (tall heads, bases ~2.02).
-            periscope_center: Vec3::new(0.34, 2.14, 0.55),
-            periscope_half: Vec3::new(0.07, 0.12, 0.07),
+            // Model-logic audit #10: a Mk.4 head is a low fist-sized housing, not a chimney.
+            // The centre sits ON the dome surface so only ~7 cm of head stands proud; the old
+            // 0.24 m slab read as a floating plate with holes from the bow.
+            periscope_center: Vec3::new(0.34, 2.045, 0.55),
+            periscope_half: Vec3::new(0.055, 0.055, 0.055),
             // The pedestal drum centre; the DShK barrel rides near its top (+0.16).
             dshk_mount_center: Vec3::new(0.48, 2.20, -0.18),
             dshk_barrel_length: 0.62,
