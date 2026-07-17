@@ -43,8 +43,10 @@ pub(crate) fn t54_dshk_parts(v: &HybridVisual) -> Vec<VehiclePart> {
         PartKey::new("dshk_ammo_box"),
         SubmeshKind::Turret,
         MaterialRole::TrackMetal,
+        // The can HANGS on the receiver's left wall (audit #10: it used to float 7 mm off
+        // it in plain air over the dome cheek).
         solid::chamfered_box(
-            receiver + Vec3::new(-0.075, -0.005, -0.02),
+            receiver + Vec3::new(-0.071, -0.005, -0.02),
             Vec3::new(0.032, 0.03, 0.07),
             0.010,
         ),

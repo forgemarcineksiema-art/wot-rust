@@ -305,7 +305,9 @@ fn t54_roof_fittings_root_into_the_curved_dome() {
         ("cupola", 2.06, 2.30),
         ("loader_hatch", 2.06, 2.25),
         ("dshk_mount", 2.05, 2.30),
-        ("turret_periscope", 2.04, 2.20),
+        // Audit #10: a Mk.4 head stands ~6-8 cm proud of the casting, not the 20 cm chimney
+        // the old bound encoded — the slab read as a floating holed plate from the bow.
+        ("turret_periscope", 2.04, 2.09),
     ] {
         let part = desc
             .parts
