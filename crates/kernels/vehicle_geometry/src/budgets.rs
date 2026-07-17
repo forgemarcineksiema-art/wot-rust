@@ -42,23 +42,23 @@ pub const GOLDEN_BAKE_HASHES: [(VehicleKind, u64); 9] = [
     // Re-recorded for the T-54 1:1 blueprint reset (documented 6.04 × 3.27 × 2.40 m body,
     // 810 mm wheels, raised idler/sprocket, 2.25 m turret on the 1.75 m roof). The T-55A moves
     // only through the shared Soviet cupola cap; the German vehicles are untouched.
-    (VehicleKind::T54_1951, 7_859_738_572_524_633_166_u64),
+    (VehicleKind::T54_1951, 9_922_275_570_965_733_166_u64),
     // Re-recorded for the W1 late-E detail pass: exhaust shields shroud the twin stacks and
     // four spare track links rack on the lower bow (the Feifel cleaners stay deliberately
     // absent — the modelled variant is a late Ausf. E, which dropped them).
-    (VehicleKind::TigerI, 8_819_518_899_801_033_184_u64),
+    (VehicleKind::TigerI, 2_989_941_123_182_461_980_u64),
     // Re-recorded for the Tiger II blueprint migration: the researched 1:1 sloped body
     // (7.38 m hull, fleet's longest glacis at 50°, 25° leaned upper sides, Henschel prism
     // with bustle, 9 overlapped wheels, braked KwK 43) replaces the legacy stretch.
-    (VehicleKind::TigerII, 315_393_978_597_343_251_u64),
+    (VehicleKind::TigerII, 18_052_767_277_689_131_951_u64),
     // Re-recorded for the Jagdtiger blueprint migration: the researched 1:1 casemate
     // (7.80 m hull, superstructure flank continuing the hull's 25° plane, 15° 250 mm face,
     // periscope roof, 9 overlapped wheels, braked PaK 44) replaces the legacy box.
-    (VehicleKind::Jagdtiger, 17_562_049_942_077_193_629_u64),
+    (VehicleKind::Jagdtiger, 15_866_870_337_917_854_925_u64),
     // Re-recorded for the Panther II blueprint migration: the researched 1:1 wedge (6.87 m
     // hull, steepest German glacis at 55°, 29° leaned sides, narrow Schmalturm, 7 overlapped
     // steel wheels, braked KwK 42) replaces the last legacy German body.
-    (VehicleKind::PantherII, 11_092_866_859_855_898_196_u64),
+    (VehicleKind::PantherII, 9_970_351_831_178_483_140_u64),
     // Re-recorded for the IS-3 finish pass: the signature external fuel drums join the
     // rear fender shelves; the rest of the fleet is untouched.
     (VehicleKind::IS3, 4_352_280_947_845_927_727_u64),
@@ -68,7 +68,7 @@ pub const GOLDEN_BAKE_HASHES: [(VehicleKind, u64); 9] = [
     // Recorded at birth: the T-34-85 — the first vehicle authored through the Forge Studio
     // loop (60° glacis, raked sides, five bare Christie wheels with the open gap, low wide
     // -85 cast dome seated forward, clean ZiS-S-53).
-    (VehicleKind::T34_85, 1_348_095_332_300_694_523_u64),
+    (VehicleKind::T34_85, 5_992_637_831_922_477_363_u64),
 ];
 
 /// The golden hash recorded for `kind`, if any.
