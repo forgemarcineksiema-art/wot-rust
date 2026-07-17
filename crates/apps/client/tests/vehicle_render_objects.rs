@@ -170,7 +170,6 @@ fn turret_sits_on_top_of_hull_not_embedded() {
     let turret = vehicle.submesh(SubmeshKind::Turret).expect("turret submesh");
     let hull = vehicle.submesh(SubmeshKind::Hull).expect("hull submesh");
 
-    let turret_bounds = turret.mesh.bounds().expect("turret bounds");
     let turret_body_min_y = turret
         .mesh
         .vertices()
@@ -179,18 +178,18 @@ fn turret_sits_on_top_of_hull_not_embedded() {
         .map(|vertex| vertex.position.y)
         .fold(f32::INFINITY, f32::min);
 
-    // The hull surface *beneath the turret* (its xz footprint) â€” not the whole hull. Raised
-    // structures elsewhere, like the engine-deck panels behind the turret, legitimately rise above
-    // the deck; what must not happen is the turret sinking into the hull it sits on.
+    // The hull surface beneath the turret's RING SEAT (its plan footprint from the blueprint) —
+    // not the whole turret bounds: the mantlet overhangs the glacis, and bow furniture under it
+    // (the Tiger's central Bosch headlight) legitimately rises above the deck. What must not
+    // happen is the turret sinking into the hull it actually sits on.
+    let bp = game_core::VehicleBlueprint::for_vehicle(VehicleKind::TigerI).expect("blueprint");
     let hull_top_under_turret = hull
         .mesh
         .vertices()
         .iter()
         .filter(|vertex| {
-            vertex.position.x >= turret_bounds.min.x
-                && vertex.position.x <= turret_bounds.max.x
-                && vertex.position.z >= turret_bounds.min.z
-                && vertex.position.z <= turret_bounds.max.z
+            vertex.position.x.abs() <= bp.turret.plan_half_width
+                && (vertex.position.z - bp.turret.ring_z).abs() <= bp.turret.plan_half_length
         })
         .map(|vertex| vertex.position.y)
         .fold(f32::NEG_INFINITY, f32::max);

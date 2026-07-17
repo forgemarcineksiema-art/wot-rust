@@ -9,8 +9,7 @@ use game_core::{HitboxProfile, MountFrames, VehicleKind};
 
 use super::soviet::soviet_cast_turret_for;
 use super::{
-    GunPlan, assemble, blueprint_deck_details, blueprint_prism_hull, blueprint_running_gear,
-    build_gun, shade_hull,
+    GunPlan, assemble, blueprint_prism_hull, blueprint_running_gear, build_gun, shade_hull,
 };
 use crate::BakedVehicle;
 
@@ -19,7 +18,7 @@ pub(crate) fn t34_85(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVehi
     let hull = shade_hull(
         blueprint_prism_hull(&bp.hull, bp.armor.hull_side.0)
             .append(&blueprint_running_gear(&bp.track))
-            .append(&blueprint_deck_details(&bp))
+            .append(&super::deck_details::t34_85_deck(&bp))
             .build(),
     );
 
