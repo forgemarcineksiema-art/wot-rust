@@ -8,24 +8,49 @@ use game_core::VehicleKind;
 
 use crate::{RatioKind, RatioTarget, ReferencePack, ReferenceSource};
 
-/// Standard five-ratio silhouette gate shared by the migrated families. Targets are tuned to each
-/// vehicle's baked geometry and documented per family; tolerances are wide enough to survive LOD
-/// reduction but tight enough to catch a proportion regressing into the wrong class of tank.
-/// Shared with the Soviet heavy pack (`packs_is3`) — one gate, per-vehicle targets.
+/// Five-ratio silhouette gate builder: targets AND tolerances are per vehicle, so each pack
+/// owns how tightly its proportions are held (the old shared tolerances — up to 0.25 on
+/// turret height — caught almost nothing). W1 dossier PRs tighten these vehicle by vehicle.
+/// Shared with the Soviet heavy pack (`packs_is3`) — one shape of gate, per-vehicle numbers.
 pub(crate) fn silhouette_ratios(
-    hull_len_to_width: f32,
-    hull_height_to_len: f32,
-    turret_width: f32,
-    turret_height: f32,
-    gun_protrusion: f32,
+    hull_len_to_width: (f32, f32),
+    hull_height_to_len: (f32, f32),
+    turret_width: (f32, f32),
+    turret_height: (f32, f32),
+    gun_protrusion: (f32, f32),
     notes: [&str; 5],
 ) -> Vec<RatioTarget> {
     vec![
-        RatioTarget::new(RatioKind::HullLengthToWidth, hull_len_to_width, 0.18, notes[0]),
-        RatioTarget::new(RatioKind::HullHeightToLength, hull_height_to_len, 0.06, notes[1]),
-        RatioTarget::new(RatioKind::TurretWidthToHullWidth, turret_width, 0.14, notes[2]),
-        RatioTarget::new(RatioKind::TurretHeightToHullHeight, turret_height, 0.25, notes[3]),
-        RatioTarget::new(RatioKind::GunProtrusionToHullLength, gun_protrusion, 0.16, notes[4]),
+        RatioTarget::new(
+            RatioKind::HullLengthToWidth,
+            hull_len_to_width.0,
+            hull_len_to_width.1,
+            notes[0],
+        ),
+        RatioTarget::new(
+            RatioKind::HullHeightToLength,
+            hull_height_to_len.0,
+            hull_height_to_len.1,
+            notes[1],
+        ),
+        RatioTarget::new(
+            RatioKind::TurretWidthToHullWidth,
+            turret_width.0,
+            turret_width.1,
+            notes[2],
+        ),
+        RatioTarget::new(
+            RatioKind::TurretHeightToHullHeight,
+            turret_height.0,
+            turret_height.1,
+            notes[3],
+        ),
+        RatioTarget::new(
+            RatioKind::GunProtrusionToHullLength,
+            gun_protrusion.0,
+            gun_protrusion.1,
+            notes[4],
+        ),
     ]
 }
 
@@ -66,12 +91,13 @@ pub fn tiger_i_reference_pack() -> ReferencePack {
         // documented Tiger is a genuinely DEEP slab (hull-height/length ~0.33), and its broad
         // horseshoe turret is a low band on that tall superstructure — the old targets described
         // the squat legacy stretch.
+        // TODO(W1-tiger-i): zaciśnij tolerancje przy dossier (start = stare wspólne).
         silhouette_ratios(
-            1.66,
-            0.33,
-            0.52,
-            0.58,
-            0.34,
+            (1.66, 0.18),
+            (0.33, 0.06),
+            (0.52, 0.14),
+            (0.58, 0.25),
+            (0.34, 0.16),
             [
                 "Hull plan reads as a long heavy, not a medium.",
                 "Tall, slab-sided heavy hull — the deepest body in the German line.",
@@ -100,12 +126,13 @@ pub fn tiger_ii_reference_pack() -> ReferencePack {
         // still visibly flatter than the upright Tiger I (0.28 vs 0.33), and the long Henschel
         // turret is a low sloped band on the deck, not the near-hull-height tower the old
         // legacy-tuned target described.
+        // TODO(W1-tiger-ii): zaciśnij tolerancje przy dossier (start = stare wspólne).
         silhouette_ratios(
-            1.91,
-            0.28,
-            0.51,
-            0.62,
-            0.39,
+            (1.91, 0.18),
+            (0.28, 0.06),
+            (0.51, 0.14),
+            (0.62, 0.25),
+            (0.39, 0.16),
             [
                 "Very long sloped heavy hull.",
                 "Long sloped hull — flatter than the upright Tiger I.",
@@ -134,12 +161,13 @@ pub fn jagdtiger_reference_pack() -> ReferencePack {
         // casemate flank now CONTINUES the hull's 25° plane, so the "hull" band carries most of
         // the height and the superstructure reads as a low wide crown on it — the old targets
         // described the legacy tall-box-on-flat-hull construction.
+        // TODO(W1-jagdtiger): zaciśnij tolerancje przy dossier (start = stare wspólne).
         silhouette_ratios(
-            2.10,
-            0.26,
-            0.73,
-            0.53,
-            0.37,
+            (2.10, 0.18),
+            (0.26, 0.06),
+            (0.73, 0.14),
+            (0.53, 0.25),
+            (0.37, 0.16),
             [
                 "The longest hull in the German line, stretched from the Tiger II.",
                 "The unbroken flank makes the hull band deep; the casemate is welded INTO it.",
@@ -167,12 +195,14 @@ pub fn panther_ii_reference_pack() -> ReferencePack {
         // Re-tuned to the blueprint-born 1:1 body (6.87 m hull, 3.42 m beam, 2.99 m tall): the
         // wedge's ramp makes the hull band deeper than the legacy-tuned target, and the narrow
         // Schmalturm is a low crest, not a near-hull-height tower.
+        // TODO(W1-panther-ii): zaciśnij tolerancje przy dossier (start = stare wspólne);
+        // dossier przesądzi też konfigurację muzealną (kadłub Panther II + wieża G).
         silhouette_ratios(
-            1.97,
-            0.30,
-            0.49,
-            0.58,
-            0.32,
+            (1.97, 0.18),
+            (0.30, 0.06),
+            (0.49, 0.14),
+            (0.58, 0.25),
+            (0.32, 0.16),
             [
                 "Long sloped medium/heavy hull.",
                 "The 55° ramp carries the hull band deep in the Panther proportion.",

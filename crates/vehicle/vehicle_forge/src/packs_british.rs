@@ -35,12 +35,13 @@ pub fn centurion_reference_pack() -> ReferencePack {
         // Tuned to the blueprint-born 1:1 body (7.60 m hull, 3.34 m over the skirts, 2.99 m
         // tall): a long medium-heavy whose flank is one skirted band, with a broad low cast
         // turret and a clean medium gun.
+        // TODO(W2-centurion): zaciśnij tolerancje przy dossier (start = stare wspólne).
         silhouette_ratios(
-            2.22,
-            0.26,
-            0.62,
-            0.58,
-            0.29,
+            (2.22, 0.18),
+            (0.26, 0.06),
+            (0.62, 0.14),
+            (0.58, 0.25),
+            (0.29, 0.16),
             [
                 "A long hull for a medium — longer in plan than the Soviet park.",
                 "The skirted flank reads as one deep band from fender to wheel line.",

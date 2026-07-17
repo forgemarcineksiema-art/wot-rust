@@ -35,12 +35,13 @@ pub fn is3_reference_pack() -> ReferencePack {
                 "Gameplay translation and source summary.",
             ),
         ],
+        // TODO(W2-is3): zaciśnij tolerancje przy konwersji Shape locks na DimensionTargets.
         silhouette_ratios(
-            2.15,
-            0.239,
-            0.73,
-            0.48,
-            0.45,
+            (2.15, 0.18),
+            (0.239, 0.06),
+            (0.73, 0.14),
+            (0.48, 0.25),
+            (0.45, 0.16),
             [
                 "Hull plan reads long and wide — a heavy, but lower-slung than the Germans.",
                 "The LOW heavy: hull roof at 1.62 m on a 6.77 m hull.",

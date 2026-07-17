@@ -21,21 +21,33 @@ pub(crate) fn measure_baked_vehicle(
     let turret = submesh_bounds(vehicle, SubmeshKind::Turret)?;
     let gun = submesh_bounds(vehicle, SubmeshKind::Gun)?;
 
-    Some(RatioReport::new(
-        vehicle.kind(),
-        pack.clone(),
-        vec![
-            measure(pack, RatioKind::HullLengthToWidth, extent_z(hull) / extent_x(hull))?,
-            measure(pack, RatioKind::HullHeightToLength, extent_y(hull) / extent_z(hull))?,
-            measure(pack, RatioKind::TurretWidthToHullWidth, extent_x(turret) / extent_x(hull))?,
-            measure(pack, RatioKind::TurretHeightToHullHeight, extent_y(turret) / extent_y(hull))?,
-            measure(
-                pack,
-                RatioKind::GunProtrusionToHullLength,
-                (gun.max.z - hull.max.z).max(0.0) / extent_z(hull),
-            )?,
-        ],
-    ))
+    // Every authored target is measured — a pack declares any subset of the ratio family,
+    // so new kinds can arrive without forcing every pack to adopt them at once.
+    let value = |kind: RatioKind| -> f32 {
+        match kind {
+            RatioKind::HullLengthToWidth => extent_z(hull) / extent_x(hull),
+            RatioKind::HullHeightToLength => extent_y(hull) / extent_z(hull),
+            RatioKind::TurretWidthToHullWidth => extent_x(turret) / extent_x(hull),
+            RatioKind::TurretHeightToHullHeight => extent_y(turret) / extent_y(hull),
+            RatioKind::GunProtrusionToHullLength => {
+                (gun.max.z - hull.max.z).max(0.0) / extent_z(hull)
+            }
+            RatioKind::TurretLengthToWidth => extent_z(turret) / extent_x(turret).max(0.001),
+            RatioKind::TurretRingPositionOnHull => {
+                (vehicle.mounts().turret_ring.translation.z - hull.min.z) / extent_z(hull)
+            }
+            RatioKind::RoadWheelDiameterToHullLength => {
+                RunningGearKinematics::for_vehicle(vehicle.kind())
+                    .map_or(0.0, |kin| 2.0 * kin.wheel_radius / extent_z(hull))
+            }
+        }
+    };
+    let measurements = pack
+        .ratios()
+        .iter()
+        .map(|target| MeasuredRatio::new(target.clone(), value(target.kind())))
+        .collect();
+    Some(RatioReport::new(vehicle.kind(), pack.clone(), measurements))
 }
 
 /// Measure the pack's absolute anchors (metres) against the baked mesh. Local space puts the
@@ -65,11 +77,6 @@ pub(crate) fn measure_dimensions(
         measurements.push(MeasuredDimension::new(target.clone(), measured_m));
     }
     Some(DimensionReport::new(vehicle.kind(), measurements))
-}
-
-fn measure(pack: &ReferencePack, kind: RatioKind, measured: f32) -> Option<MeasuredRatio> {
-    let target = pack.ratio(kind)?.clone();
-    Some(MeasuredRatio::new(target, measured))
 }
 
 fn submesh_bounds(vehicle: &BakedVehicle, kind: SubmeshKind) -> Option<MeshBounds> {

@@ -11,6 +11,13 @@ pub enum RatioKind {
     TurretWidthToHullWidth,
     TurretHeightToHullHeight,
     GunProtrusionToHullLength,
+    /// Turret (or casemate) plan proportion: Z-extent over X-extent of the turret submesh.
+    TurretLengthToWidth,
+    /// Where the turret ring sits along the hull: `(ring_z - hull.min.z) / hull length`,
+    /// 0 = rear, 1 = bow. Catches a turret drifting fore/aft while every extent stays right.
+    TurretRingPositionOnHull,
+    /// Road-wheel diameter over hull length — the running gear's visual weight on the side view.
+    RoadWheelDiameterToHullLength,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
