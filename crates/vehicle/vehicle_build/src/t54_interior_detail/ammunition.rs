@@ -53,16 +53,24 @@ fn add_front_hull_rack(parts: &mut Vec<VehiclePart>, layout: &DamageLayout, cy: 
 }
 
 fn add_turret_ready_racks(parts: &mut Vec<VehiclePart>, layout: &DamageLayout, cy: f32) {
-    // The 1951 egg-shaped turret gained five crosswise rounds in its rear, alternating tip-to-tail.
+    // The 1951 egg-shaped turret gained five crosswise rounds in its rear, alternating
+    // tip-to-tail. Two staggered rows against the bustle wall (3 + 2) instead of the old
+    // 0.6 m vertical ladder, whose bottom rounds hung below the casting skirt and showed
+    // brass on the deck from raised rear views (model-logic audit follow-up).
     let ready = obb_anchor_by_id(layout, DamageComponentId(6), cy);
     for index in 0..5 {
         let direction = if index % 2 == 0 { Vec3::X } else { Vec3::NEG_X };
+        let (dy, dz) = if index < 3 {
+            (-0.15 + index as f32 * 0.15, 0.05)
+        } else {
+            (-0.075 + (index - 3) as f32 * 0.15, -0.05)
+        };
         push_round(
             parts,
             "turret_rear_round",
             index,
             SubmeshKind::Turret,
-            ready.center + Vec3::Y * (-0.30 + index as f32 * 0.15),
+            ready.center + Vec3::new(0.0, dy, dz),
             direction,
         );
     }

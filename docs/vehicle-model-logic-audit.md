@@ -77,6 +77,14 @@ Before any "sealed" claim:
 - Tiger I "SEALED" claim (PR #226): **REOPENED** — sealed on numbers, fails the new gate
   (closed muzzle, cloned deck fittings, taut tracks). The three named defects are since
   fixed (#4 bore, #1/#2 decks, #7 tracks) — the seal itself waits for the W1 dossier pass.
+- **Close-up hull/turret sweep (2026-07-18, closeup_probe: front-low / flank / turret ×8)**:
+  two fresh hitbox-blind leaks found NUMERICALLY and fixed — the T-54 turret ready-rack
+  ladder reached 0.23 m BELOW the ring plane (brass under the casting skirt; now a 3+2
+  clip row wholly inside the bustle) and the engine OBB + its derived interior parts
+  (V-54 intake spine, radiators) topped up to 12 cm PROUD of the 1.58 m deck. One false
+  alarm resolved by the material palette: an "orange sliver" on the T-54 deck was a poppy
+  card from the field dressing behind the tank, not vehicle geometry — check the palette
+  before cutting metal. Panther II bow furniture verified on the flat deck numerically.
 - **REGISTRY CLEAR (2026-07-17)**: every ledger row is fixed and render-verified except the
   parts explicitly deferred to dossier PRs — per-vehicle mantlet MASSES (rest of #6),
   per-vehicle headlight clusters on fender boxes/glacis (rest of #1/F4), and per-vehicle

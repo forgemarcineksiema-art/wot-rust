@@ -87,7 +87,7 @@ fn add_v54(parts: &mut Vec<VehiclePart>, damage_layout: &DamageLayout, cy: f32) 
     parts.push(box_part(
         PartKey::new("v54_intake_spine"),
         SubmeshKind::Hull,
-        engine.center + Vec3::Y * engine.half.y * 0.75,
+        engine.center + Vec3::Y * engine.half.y * 0.62,
         Vec3::new(0.13, 0.10, engine.half.z * 0.90),
         MaterialRole::InteriorPrimer,
         PartLod::Detail,
@@ -102,8 +102,8 @@ fn add_driveline_and_cooling(parts: &mut Vec<VehiclePart>, damage_layout: &Damag
         parts.push(box_part(
             PartKey::indexed("radiator_core", index as u16),
             SubmeshKind::Hull,
-            Vec3::new(x, engine.center.y + engine.half.y * 0.52, engine.center.z - 0.15),
-            Vec3::new(0.18, 0.24, engine.half.z * 0.97),
+            Vec3::new(x, engine.center.y + engine.half.y * 0.38, engine.center.z - 0.15),
+            Vec3::new(0.18, 0.22, engine.half.z * 0.97),
             MaterialRole::InteriorMachinery,
             PartLod::Detail,
         ));
@@ -113,10 +113,10 @@ fn add_driveline_and_cooling(parts: &mut Vec<VehiclePart>, damage_layout: &Damag
                 SubmeshKind::Hull,
                 Vec3::new(
                     x,
-                    engine.center.y + engine.half.y * 0.52,
+                    engine.center.y + engine.half.y * 0.38,
                     engine.center.z - engine.half.z + fin as f32 * engine.half.z * 0.24,
                 ),
-                Vec3::new(0.195, 0.255, 0.012),
+                Vec3::new(0.195, 0.235, 0.012),
                 MaterialRole::InteriorPrimer,
                 PartLod::Detail,
             ));
