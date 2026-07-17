@@ -63,6 +63,7 @@ pub(super) fn jagdtiger_blueprint() -> VehicleBlueprint {
             link_count: None,
             top_sag_m: 0.035,
             wheel_spokes: 6,
+            drive_front: true,
         },
         turret: TurretShape {
             // The fixed fighting compartment. Its side "plan" width is chosen so the casemate

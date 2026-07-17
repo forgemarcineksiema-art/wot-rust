@@ -65,6 +65,7 @@ pub(super) fn is3_blueprint() -> VehicleBlueprint {
             link_count: Some(104),
             top_sag_m: 0.012,
             wheel_spokes: 12,
+            drive_front: false,
         },
         turret: TurretShape {
             form: TurretForm::CastDome,

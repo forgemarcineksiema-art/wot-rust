@@ -90,6 +90,7 @@ fn t54() -> VehicleBlueprint {
             link_count: Some(90),
             top_sag_m: 0.05,
             wheel_spokes: 6,
+            drive_front: false,
         },
         turret: TurretShape {
             form: TurretForm::CastDome,

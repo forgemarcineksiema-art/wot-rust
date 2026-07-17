@@ -57,6 +57,9 @@ pub struct RunningGearKinematics {
     /// exactly this, so the outermost gear face sits AT the blueprint's `outer_x` — the
     /// documented "width over tracks" is honest (dimension-gate finding, W1 PR-T1.2).
     pub band_half_width: f32,
+    /// `true` = the toothed drive sprocket is the FRONT end wheel (the German line, audit
+    /// #16); `false` = rear drive (Soviets, T-34, Centurion).
+    pub drive_front: bool,
     /// Mid-run droop for the upper belt run. Soviet five-wheel layouts with no return rollers
     /// need a visible slack curve instead of a ruler-flat top run; rollered layouts stay taut.
     pub top_sag_m: f32,
@@ -125,6 +128,7 @@ impl RunningGearKinematics {
             wheel_radius: track.wheel_radius,
             wheel_x: (track.inner_x + track.outer_x) * 0.5,
             band_half_width: ((track.outer_x - track.inner_x) * 0.5).max(0.05),
+            drive_front: track.drive_front,
             wheel_overlap_dx: track.overlap_inner_dx,
             wheel_half_width,
             // The track shoes ride over the road wheels, centred on the wheel plane so the
