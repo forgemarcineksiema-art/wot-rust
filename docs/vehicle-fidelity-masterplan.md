@@ -159,7 +159,7 @@ Updated as part of every PR's definition of done.
 
 | Vehicle | Dossier | Targets | Shape | Detail | Part table | Cage | Sealed |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Tiger I | — | — | — | — | — | — | — |
+| Tiger I | ✓ PR-T1.1 (width source conflict resolved: 3.705 m combat tracks) | ✓ 5 anchors + 7 ratios, tightened | — (track links +5.5 cm/side, TODO W1-tiger-i-shape) | — | — | dense (28) | — |
 | Tiger II | — | — | — | — | — | — | — |
 | Jagdtiger | — | — | — | — | — | — | — |
 | Panther II | — | — | — | — | — | — | — |
