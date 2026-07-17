@@ -424,8 +424,12 @@ fn safe_inv(value: f32) -> f32 {
 }
 
 fn ray_hits_aabb(origin: Vec3, inv_dir: Vec3, aabb: Aabb, max_t: f32) -> bool {
-    let t0 = (aabb.min - origin) * inv_dir;
-    let t1 = (aabb.max - origin) * inv_dir;
+    // Pad the slabs a hair: a ray running exactly IN a box face (dir component 0, origin on
+    // the boundary) must still enter, or a grazing hit the triangle test accepts gets pruned
+    // here and the BVH disagrees with brute force on coplanar surfaces like fender tops.
+    let pad = Vec3::splat(1.0e-4);
+    let t0 = (aabb.min - pad - origin) * inv_dir;
+    let t1 = (aabb.max + pad - origin) * inv_dir;
     let enter = t0.min(t1).max_element().max(0.0);
     let exit = t0.max(t1).min_element();
     enter <= exit && enter <= max_t

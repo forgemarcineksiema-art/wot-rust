@@ -6,9 +6,7 @@ use game_core::{HullShape, SkirtShape, TrackShape};
 use glam::{Vec2, Vec3};
 
 use super::SG_HARD;
-use crate::{
-    Axis, GeometryMesh, LoftSection, LoftSpec, MaterialRole, MeshBuilder, ProfilePoint, RevolveSpec,
-};
+use crate::{Axis, GeometryMesh, LoftSection, LoftSpec, MaterialRole, MeshBuilder};
 
 /// The plane-honest prism hull: both body prisms lofted directly from the armor volumes' plane
 /// equations — the fold ridge at the sponson step, the glacis leaning `glacis_slope_deg` above
@@ -171,31 +169,55 @@ pub(crate) fn blueprint_deck_details(bp: &game_core::VehicleBlueprint) -> Geomet
 /// baked here; they are instanced and animated at render time from
 /// [`crate::running_gear::running_gear_placements`] so the wheels spin and the links scroll.
 pub(crate) fn blueprint_running_gear(track: &TrackShape) -> GeometryMesh {
-    let cy = (track.top_y + track.bottom_y) * 0.5;
-    let cz = (track.wheel_first_z + track.wheel_last_z) * 0.5;
-    let half_run = (track.wheel_last_z - track.wheel_first_z) * 0.5;
+    // The static band follows the SAME belt path the animated links ride (model-logic audit
+    // defect #7): flat ground run pressed under the wheels, tangent ramps onto the true
+    // idler/sprocket wraps, and a top run that drapes onto its carriers instead of the old
+    // taut straight boxes floating at `top_y`/`bottom_y`.
+    let kin = crate::running_gear::RunningGearKinematics::from_track(track);
+    let path = crate::running_gear_belt::BeltPath::new(&kin);
+    let half_w = kin.band_half_width;
+    // Plate thickness of the band: a whisker above the link centre line, more below it, so
+    // the instanced shoes read as the band's own surface rather than a second skin.
+    let up = 0.020;
+    let down = 0.038;
+    let ring = |y: f32| -> Vec<Vec2> {
+        vec![
+            Vec2::new(kin.link_x - half_w, y - down),
+            Vec2::new(kin.link_x + half_w, y - down),
+            Vec2::new(kin.link_x + half_w, y + up),
+            Vec2::new(kin.link_x - half_w, y + up),
+        ]
+    };
+    let band_loft = |builder: MeshBuilder, stations: Vec<(f32, f32)>| -> MeshBuilder {
+        let sections = stations.into_iter().map(|(z, y)| LoftSection::new(z, ring(y))).collect();
+        builder.loft(
+            Vec3::ZERO,
+            LoftSpec {
+                sections,
+                axis: Axis::Z,
+                material: MaterialRole::TrackMetal,
+                smoothing: SG_HARD,
+                cap_ends: true,
+            },
+        )
+    };
 
-    let run_len = half_run + track.end_radius * 0.5;
-    let run_half = Vec3::new(track.belt_half_thickness, 0.07, run_len);
-    MeshBuilder::new()
-        .chamfered_prism(
-            Vec3::new(track.center_x, track.top_y, cz),
-            run_half,
-            0.05,
-            MaterialRole::TrackMetal,
-            SG_HARD,
-        )
-        .chamfered_prism(
-            Vec3::new(track.center_x, track.bottom_y, cz),
-            run_half,
-            0.05,
-            MaterialRole::TrackMetal,
-            SG_HARD,
-        )
-        .capped_revolve_at(Vec3::new(0.0, cy, cz - half_run), track_end_wrap_profile(track))
-        .capped_revolve_at(Vec3::new(0.0, cy, cz + half_run), track_end_wrap_profile(track))
-        .mirror(Axis::X)
-        .build()
+    let bez = path.bottom_end_z();
+    let yb = path.y_bot();
+    let (rz, ry) = path.rear_ramp_end();
+    let mut builder = MeshBuilder::new();
+    // One loft for ramp -> ground run -> ramp (monotonic in Z), one for the draped top run.
+    let mut lower = vec![(-bez, yb), (bez, yb)];
+    if (rz - -bez).abs() > 1.0e-3 || (ry - yb).abs() > 1.0e-3 {
+        lower.insert(0, (rz, ry));
+        lower.push((-rz, ry));
+    }
+    builder = band_loft(builder, lower);
+    builder = band_loft(builder, path.top_polyline(3));
+    // No static wrap drums: the idler and sprocket are render-time instances, and the shoe
+    // links themselves ride the wrap arcs — a drum here just buries the real end wheels
+    // (the old band drew them at the wheel span on the axle line, nowhere near the ends).
+    builder.mirror(Axis::X).build()
 }
 
 /// The side skirts, mirrored to both sides: one thin plate run hung outside the track band at
@@ -218,17 +240,4 @@ pub(crate) fn blueprint_skirts(hull: &HullShape, track: &TrackShape) -> Geometry
         .chamfered_prism(Vec3::new(cx, cy, cz), half, 0.02, MaterialRole::RolledArmor, SG_HARD)
         .mirror(Axis::X)
         .build()
-}
-
-fn track_end_wrap_profile(track: &TrackShape) -> RevolveSpec {
-    RevolveSpec {
-        profile: vec![
-            ProfilePoint::new(track.end_radius, track.inner_x),
-            ProfilePoint::new(track.end_radius, track.outer_x),
-        ],
-        axis: Axis::X,
-        segments: track.segments.max(12),
-        material: MaterialRole::TrackMetal,
-        smoothing: SG_HARD,
-    }
 }
