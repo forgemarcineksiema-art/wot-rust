@@ -99,6 +99,7 @@ fn bundle_from_baked(
     let reference = (spec.reference_pack)();
     let ratio_report =
         reference.measure_baked_vehicle(&baked).ok_or(ArtifactError::RatioReportRejected(kind))?;
+    let dimension_report = reference.measure_dimensions(&baked);
 
     // Per-camera tiles, each annotated with the camera name in its top-left corner.
     let mut views = Vec::new();
@@ -122,7 +123,7 @@ fn bundle_from_baked(
     }
 
     let contact_sheet_png = bake_contact_sheet(&baked, &cameras)?;
-    let report_md = build_report(kind, &baked, &ratio_report);
+    let report_md = build_report(kind, &baked, &ratio_report, dimension_report.as_ref());
 
     Ok(StudioBundle { vehicle: kind, views, contact_sheet_png, report_md })
 }
@@ -176,6 +177,7 @@ fn build_report(
     kind: VehicleKind,
     baked: &BakedVehicle,
     ratio_report: &crate::RatioReport,
+    dimension_report: Option<&crate::DimensionReport>,
 ) -> String {
     let mut md = String::new();
     let _ = writeln!(md, "# Forge Studio — {}\n", kind.display_name());
@@ -206,9 +208,25 @@ fn build_report(
         }
     }
 
+    // Absolute anchors (metres) — ratios alone pass at the wrong scale; this table pins the
+    // bake to the dossier's tape measure. Present only once a vehicle's anchors are authored.
+    if let Some(report) = dimension_report.filter(|report| !report.is_empty()) {
+        let _ = writeln!(md, "\n## Reference dimensions (metres)\n");
+        let _ = writeln!(md, "{}", report.markdown_summary());
+    }
+
     // Reference ratios.
     let _ = writeln!(md, "\n## Reference ratios\n");
     let _ = writeln!(md, "{}", ratio_report.markdown_summary());
+
+    // Where the numbers come from — the same sources the dossier cites.
+    let sources = ratio_report.reference().sources();
+    if !sources.is_empty() {
+        let _ = writeln!(md, "\n## Sources\n");
+        for source in sources {
+            let _ = writeln!(md, "- **{}** ({}) — {}", source.label(), source.url(), source.note());
+        }
+    }
 
     // Budgets vs the shared envelope (the same source `vehicle_budgets.rs` enforces).
     let budgets = VEHICLE_BUDGETS;

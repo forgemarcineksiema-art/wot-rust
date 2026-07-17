@@ -6,7 +6,9 @@
 
 use game_core::VehicleKind;
 
-use crate::{RatioKind, RatioTarget, ReferencePack, ReferenceSource};
+use crate::{
+    DimensionKind, DimensionTarget, RatioKind, RatioTarget, ReferencePack, ReferenceSource,
+};
 
 pub fn t54_reference_pack() -> ReferencePack {
     ReferencePack::new(
@@ -70,4 +72,62 @@ pub fn t54_reference_pack() -> ReferencePack {
             ),
         ],
     )
+    // Absolute anchors (metres): the pilot of the dimension gate. Ratios pass at any scale;
+    // these pin the model to the documented tape measure. Tolerances cover the current
+    // authoritative hybrid (fender stowage widens the plan slightly past the bare hull).
+    .with_dimensions(vec![
+        DimensionTarget::new(
+            DimensionKind::HullLength,
+            6.04,
+            0.15,
+            ReferenceSource::new(
+                "Project T-54 vehicle notes",
+                "docs/vehicles/t-54.md",
+                "Documented 6.04 m hull; the baked mesh adds fender line and rear stowage.",
+            ),
+        ),
+        DimensionTarget::new(
+            DimensionKind::HullWidth,
+            3.27,
+            // TODO(W3-t54): docelowo ±0.10 — the instanced track links bake their outer faces
+            // ~7 cm proud per side (measured 3.411 m); the running-gear width is the W3
+            // reconciliation item this anchor now keeps visible in every Studio report.
+            0.15,
+            ReferenceSource::new(
+                "Project T-54 vehicle notes",
+                "docs/vehicles/t-54.md",
+                "3.27 m over the combat tracks.",
+            ),
+        ),
+        DimensionTarget::new(
+            DimensionKind::HeightToTurretRoof,
+            2.40,
+            0.05,
+            ReferenceSource::new(
+                "Project T-54 vehicle notes",
+                "docs/vehicles/t-54.md",
+                "2.40 m silhouette apex (cupola lid inside the hitbox top).",
+            ),
+        ),
+        DimensionTarget::new(
+            DimensionKind::OverallLengthWithGun,
+            9.00,
+            0.15,
+            ReferenceSource::new(
+                "Project T-54 vehicle notes",
+                "docs/vehicles/t-54.md",
+                "9.00 m overall with the D-10T forward.",
+            ),
+        ),
+        DimensionTarget::new(
+            DimensionKind::RoadWheelDiameter,
+            0.81,
+            0.01,
+            ReferenceSource::new(
+                "Project T-54 vehicle notes",
+                "docs/vehicles/t-54.md",
+                "810 mm starfish road wheels.",
+            ),
+        ),
+    ])
 }
