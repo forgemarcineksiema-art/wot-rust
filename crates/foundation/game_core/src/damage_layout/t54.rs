@@ -69,12 +69,17 @@ fn turret_components() -> Vec<DamageComponent> {
         // Five ready rounds clipped crosswise into the 1951 turret rear. They are turret stowage,
         // not hull stowage: the volume swings with the live turret yaw, so a rear-turret
         // penetration meets ammunition exactly where the period loadout put it.
+        // Raised and compacted (model-logic audit follow-up): the old 0.78 m ladder reached
+        // 0.23 m BELOW the ring plane — brass visibly poking out from under the casting skirt
+        // onto the deck in raised rear views (fits_within is hitbox-blind, the same class as
+        // the bow rack #9 and the radio #13). The clips sit against the bustle wall, wholly
+        // inside the casting between skirt and roof.
         turret_component(
             6,
             K::AmmunitionRack,
             ModuleSlot::AmmoRack,
             M::Ammunition,
-            obb([0.0, 0.70, -0.61], [0.36, 0.39, 0.10], 0.0),
+            obb([0.0, 0.86, -0.62], [0.36, 0.26, 0.12], 0.0),
             32,
             1.35,
         ),
@@ -134,7 +139,10 @@ fn hull_components() -> Vec<DamageComponent> {
             K::Engine,
             ModuleSlot::Engine,
             M::Machinery,
-            obb([0.0, 0.02, -1.90], [0.63, 0.48, 0.58], 0.0),
+            // Roof pulled under the deck plane (model-logic follow-up): at half-y 0.48 the
+            // block topped 7 cm PROUD of the 1.58 m deck, and the interior parts anchored to
+            // it (intake spine, radiators) poked visible primer through the louvres.
+            obb([0.0, -0.02, -1.90], [0.63, 0.42, 0.58], 0.0),
             30,
             0.9,
         ),
