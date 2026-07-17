@@ -2,7 +2,8 @@
 //! keep each vehicle's shape data reviewable on its own.
 
 use super::{
-    ArmorShape, GunShape, HullShape, TrackShape, TurretForm, TurretShape, VehicleBlueprint,
+    ArmorShape, GunShape, HullShape, ShoePattern, TrackShape, TurretForm, TurretShape,
+    VehicleBlueprint, WheelFace,
 };
 use crate::VehicleKind;
 
@@ -64,6 +65,8 @@ pub(super) fn jagdtiger_blueprint() -> VehicleBlueprint {
             top_sag_m: 0.035,
             wheel_spokes: 6,
             drive_front: true,
+            shoe_pattern: ShoePattern::Kgs,
+            wheel_face: WheelFace::SteelDish,
         },
         turret: TurretShape {
             // The fixed fighting compartment. Its side "plan" width is chosen so the casemate

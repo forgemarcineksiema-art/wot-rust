@@ -2,7 +2,8 @@
 //! `data.rs` to keep each vehicle's shape data reviewable on its own.
 
 use super::{
-    ArmorShape, GunShape, HullShape, TrackShape, TurretForm, TurretShape, VehicleBlueprint,
+    ArmorShape, GunShape, HullShape, ShoePattern, TrackShape, TurretForm, TurretShape,
+    VehicleBlueprint, WheelFace,
 };
 use crate::VehicleKind;
 
@@ -78,6 +79,8 @@ pub(super) fn tiger_i_blueprint() -> VehicleBlueprint {
             top_sag_m: 0.035,
             wheel_spokes: 6,
             drive_front: true,
+            shoe_pattern: ShoePattern::Kgs,
+            wheel_face: WheelFace::SteelDish,
         },
         turret: TurretShape {
             // The horseshoe: one bent side wall around a flat front plate, all of it VERTICAL —

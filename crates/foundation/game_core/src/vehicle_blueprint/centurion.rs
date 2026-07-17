@@ -2,8 +2,8 @@
 //! split out of `data.rs` to keep each vehicle's shape data reviewable on its own.
 
 use super::{
-    ArmorShape, GunShape, HullShape, SkirtShape, TrackShape, TurretForm, TurretShape,
-    VehicleBlueprint,
+    ArmorShape, GunShape, HullShape, ShoePattern, SkirtShape, TrackShape, TurretForm, TurretShape,
+    VehicleBlueprint, WheelFace,
 };
 use crate::VehicleKind;
 
@@ -77,6 +77,8 @@ pub(super) fn centurion_blueprint() -> VehicleBlueprint {
             link_count: None,
             top_sag_m: 0.035,
             wheel_spokes: 6,
+            shoe_pattern: ShoePattern::BritishCast,
+            wheel_face: WheelFace::RubberDish,
             drive_front: false,
         },
         turret: TurretShape {

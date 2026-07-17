@@ -61,6 +61,45 @@ pub struct TrackShape {
     /// the forward end wheel — photo-confirmed on all four (model-logic audit #16).
     #[serde(default)]
     pub drive_front: bool,
+    /// The track-shoe pattern the link unit mesh stamps — per FAMILY, from the photos (audit
+    /// #14: one shoe design used to run on every vehicle across three nations).
+    #[serde(default)]
+    pub shoe_pattern: ShoePattern,
+    /// The road-wheel FACE construction (the other half of audit #14): openwork spokes read
+    /// Soviet; the German line runs bolted steel-dish wheels; the Centurion a bolted dish
+    /// under a rubber tire.
+    #[serde(default)]
+    pub wheel_face: WheelFace,
+}
+
+/// Track-shoe families. The pitch/width still come from the numeric fields; this picks the
+/// PATTERN a shoe reads as up close.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+pub enum ShoePattern {
+    /// Soviet small-pitch OMSh (T-54 family, IS-3): flat plate, twin inner guide pads,
+    /// pin bars at the joints.
+    #[default]
+    Omsh,
+    /// German Kgs 63/725 double-pin (Tiger I/II, Jagdtiger, Panther II): wide plate with one
+    /// TALL centre guide horn riding between the interleaved wheels, transverse grousers.
+    Kgs,
+    /// The T-34's stamped "waffle" plate: ribbed outer face under a low broad horn.
+    Waffle,
+    /// The Centurion's cast shoe: TWIN spaced guide horns and a heavy transverse bar.
+    BritishCast,
+}
+
+/// Road-wheel face families.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+pub enum WheelFace {
+    /// Openwork spoke/rib casting over a recessed web (T-54 starfish, IS twelve-rib,
+    /// T-34 spoked) — arm count from `wheel_spokes`.
+    #[default]
+    Openwork,
+    /// German late-war steel-rimmed wheel: a bolted conical dish, steel tire band.
+    SteelDish,
+    /// Bolted dish under a rubber tire (Centurion).
+    RubberDish,
 }
 
 /// Deserialize `Option<Vec<f32>>` into the `Copy`-preserving `Option<&'static [f32]>` by

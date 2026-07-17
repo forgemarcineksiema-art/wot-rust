@@ -56,6 +56,8 @@ BlueprintFile(
         link_count: None,
         top_sag_m: 0.035,
         wheel_spokes: 6,
+        shoe_pattern: BritishCast,
+        wheel_face: RubberDish,
     ),
     turret: TurretShape(
         form: CastDome,
