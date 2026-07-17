@@ -95,7 +95,7 @@ pub(super) fn tiger_i_blueprint() -> VehicleBlueprint {
             // The drum cupola sits on the LEFT rear roof (the commander's side).
             cupola_x: -0.55,
             cupola_z: -0.45,
-            cupola_radius: 0.26,
+            cupola_radius: 0.40,
             plan_half_width: 1.00,
             // Reaches the Rommelkiste stowage bin's back face — the bin IS the rear armor plane.
             plan_half_length: 1.25,

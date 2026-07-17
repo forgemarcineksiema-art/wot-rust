@@ -40,6 +40,273 @@ pub(crate) fn add_cupola(
     )
 }
 
+/// The German cast commander's cupola (late Tiger I / Tiger II / Panther G): a drum a crewman
+/// actually fits through (real outer ⌀ ~0.78 m), SEVEN periscope hoods around the crown, and a
+/// swing-aside lid with hinge lug and grab handle — replaces the cloned bare drum that was far
+/// too small for a human (model-logic audit #3/#12).
+pub(crate) fn add_german_cast_cupola(
+    builder: MeshBuilder,
+    x: f32,
+    z: f32,
+    base_y: f32,
+    radius: f32,
+    height: f32,
+) -> MeshBuilder {
+    let drum_h = height * 0.78;
+    let origin = Vec3::new(x, 0.0, z);
+    let mut b = builder.capped_revolve_at(
+        origin,
+        RevolveSpec {
+            profile: vec![
+                ProfilePoint::new(radius, base_y),
+                ProfilePoint::new(radius, base_y + drum_h * 0.72),
+                ProfilePoint::new(radius * 0.90, base_y + drum_h),
+            ],
+            axis: Axis::Y,
+            segments: 12,
+            material: MaterialRole::CastArmor,
+            smoothing: SG_CUPOLA,
+        },
+    );
+    // Seven periscope hoods spaced around the crown — the cast cupola's signature.
+    for k in 0..7 {
+        let theta = (k as f32 / 7.0) * std::f32::consts::TAU;
+        let (sin, cos) = theta.sin_cos();
+        b = b.plate_box(
+            Vec3::new(x + sin * radius * 0.80, base_y + drum_h * 0.86, z + cos * radius * 0.80),
+            Vec3::new(0.05, 0.035, 0.05),
+            0.015,
+            MaterialRole::CastArmor,
+            SG_CUPOLA,
+        );
+    }
+    // Swing-aside lid: disc, hinge lug at the rim, grab handle.
+    let lid_y = base_y + drum_h;
+    b = b
+        .capped_revolve_at(
+            origin,
+            RevolveSpec {
+                profile: vec![
+                    ProfilePoint::new(radius * 0.58, lid_y),
+                    ProfilePoint::new(radius * 0.58, lid_y + height * 0.12),
+                ],
+                axis: Axis::Y,
+                segments: 12,
+                material: MaterialRole::CastArmor,
+                smoothing: SG_CUPOLA,
+            },
+        )
+        .plate_box(
+            Vec3::new(x + radius * 0.58, lid_y + height * 0.06, z),
+            Vec3::new(0.05, 0.02, 0.035),
+            0.008,
+            MaterialRole::BarrelSteel,
+            SG_CUPOLA,
+        )
+        .plate_box(
+            Vec3::new(x - radius * 0.30, lid_y + height * 0.16, z),
+            Vec3::new(0.05, 0.014, 0.016),
+            0.006,
+            MaterialRole::BarrelSteel,
+            SG_CUPOLA,
+        );
+    b
+}
+
+/// The T-34-85 commander's cupola: a ⌀0.6 m drum with a ring of VISION SLITS around the upper
+/// band and a SPLIT two-piece lid (centre seam, hinges both sides) — the MK-4-era Soviet read,
+/// distinct from the German periscope crown.
+pub(crate) fn add_soviet_slit_cupola(
+    builder: MeshBuilder,
+    x: f32,
+    z: f32,
+    base_y: f32,
+    radius: f32,
+) -> MeshBuilder {
+    let drum_h = 0.17;
+    let origin = Vec3::new(x, 0.0, z);
+    // Drum and split-lid cap in ONE revolve — the seam bar and hinge lugs carry the "split" read.
+    let mut b = builder.capped_revolve_at(
+        origin,
+        RevolveSpec {
+            profile: vec![
+                ProfilePoint::new(radius * 0.94, base_y),
+                ProfilePoint::new(radius, base_y + drum_h * 0.55),
+                ProfilePoint::new(radius * 0.92, base_y + drum_h),
+                ProfilePoint::new(radius * 0.60, base_y + drum_h + 0.035),
+            ],
+            axis: Axis::Y,
+            segments: 12,
+            material: MaterialRole::CastArmor,
+            smoothing: SG_CUPOLA,
+        },
+    );
+    // Five dark vision slits around the forward arc of the upper band — single proud quads on
+    // the drum surface (a slit is a marking, not a solid; 2 tris each keeps the budget honest).
+    let slit_y = base_y + drum_h * 0.62;
+    for k in 0..5 {
+        let theta = (k as f32 - 2.0) * 0.9;
+        let (sin, cos) = theta.sin_cos();
+        let c = Vec3::new(x + sin * radius * 1.01, slit_y, z + cos * radius * 1.01);
+        let t = Vec3::new(cos, 0.0, -sin) * 0.045;
+        let up = Vec3::new(0.0, 0.014, 0.0);
+        b.push_quad(
+            [c - t - up, c + t - up, c + t + up, c - t + up],
+            MaterialRole::TrackMetal,
+            SG_CUPOLA,
+        );
+    }
+    // Centre seam bar and a hinge lug either side sell the two-piece lid.
+    let lid_y = base_y + drum_h;
+    b = b.plate_box(
+        Vec3::new(x, lid_y + 0.030, z),
+        Vec3::new(0.014, 0.010, radius * 0.80),
+        0.006,
+        MaterialRole::BarrelSteel,
+        SG_CUPOLA,
+    );
+    for sign in [-1.0_f32, 1.0] {
+        b = b.plate_box(
+            Vec3::new(x + sign * radius * 0.88, lid_y + 0.012, z),
+            Vec3::new(0.035, 0.016, 0.03),
+            0.008,
+            MaterialRole::BarrelSteel,
+            SG_CUPOLA,
+        );
+    }
+    b
+}
+
+/// A flush round roof hatch: a low seating ring with a slightly domed lid, hinge lug, and grab
+/// handle. The IS-3's dome roof carries TWO of these instead of a raised cupola (the real IS-3
+/// has none) — also the family loader's hatch.
+pub(crate) fn add_flush_ring_hatch(
+    builder: MeshBuilder,
+    x: f32,
+    z: f32,
+    y: f32,
+    radius: f32,
+    hinge_sign_x: f32,
+) -> MeshBuilder {
+    let origin = Vec3::new(x, 0.0, z);
+    builder
+        .capped_revolve_at(
+            origin,
+            RevolveSpec {
+                profile: vec![
+                    ProfilePoint::new(radius, y),
+                    ProfilePoint::new(radius, y + 0.030),
+                    ProfilePoint::new(radius * 0.55, y + 0.055),
+                ],
+                axis: Axis::Y,
+                segments: 12,
+                material: MaterialRole::CastArmor,
+                smoothing: SG_CUPOLA,
+            },
+        )
+        .plate_box(
+            Vec3::new(x + hinge_sign_x * radius * 0.95, y + 0.022, z),
+            Vec3::new(0.04, 0.016, 0.03),
+            0.008,
+            MaterialRole::BarrelSteel,
+            SG_CUPOLA,
+        )
+        .plate_box(
+            Vec3::new(x - hinge_sign_x * radius * 0.45, y + 0.055, z),
+            Vec3::new(0.04, 0.012, 0.015),
+            0.006,
+            MaterialRole::BarrelSteel,
+            SG_CUPOLA,
+        )
+}
+
+/// A commander's periscope head (IS-3 TPK style): a small pedestal with an overhanging visor.
+pub(crate) fn add_commander_periscope(builder: MeshBuilder, x: f32, z: f32, y: f32) -> MeshBuilder {
+    builder
+        .plate_box(
+            Vec3::new(x, y + 0.045, z),
+            Vec3::new(0.055, 0.045, 0.055),
+            0.015,
+            MaterialRole::CastArmor,
+            SG_CUPOLA,
+        )
+        .plate_box(
+            Vec3::new(x, y + 0.10, z + 0.02),
+            Vec3::new(0.07, 0.022, 0.075),
+            0.010,
+            MaterialRole::BarrelSteel,
+            SG_CUPOLA,
+        )
+}
+
+/// The British commander's cupola (Centurion Mk 3): a wide drum (real outer ⌀ ~0.75 m) with a
+/// pair of forward sight hoods and a TWO-PIECE lid split fore/aft — its own nation's read.
+pub(crate) fn add_british_cupola(
+    builder: MeshBuilder,
+    x: f32,
+    z: f32,
+    base_y: f32,
+    radius: f32,
+) -> MeshBuilder {
+    let drum_h = 0.19;
+    let origin = Vec3::new(x, 0.0, z);
+    let mut b = builder.capped_revolve_at(
+        origin,
+        RevolveSpec {
+            profile: vec![
+                ProfilePoint::new(radius * 0.90, base_y),
+                ProfilePoint::new(radius, base_y + drum_h * 0.65),
+                ProfilePoint::new(radius * 0.96, base_y + drum_h),
+            ],
+            axis: Axis::Y,
+            segments: 12,
+            material: MaterialRole::CastArmor,
+            smoothing: SG_CUPOLA,
+        },
+    );
+    // Two forward sight hoods flanking the bore line of the commander's view.
+    for sign in [-1.0_f32, 1.0] {
+        b = b.plate_box(
+            Vec3::new(x + sign * radius * 0.45, base_y + drum_h + 0.015, z + radius * 0.62),
+            Vec3::new(0.06, 0.028, 0.06),
+            0.012,
+            MaterialRole::CastArmor,
+            SG_CUPOLA,
+        );
+    }
+    // Fore/aft split lid: shallow cap with a transverse seam bar and rear hinge lugs.
+    let lid_y = base_y + drum_h;
+    b = b
+        .capped_revolve_at(
+            origin,
+            RevolveSpec {
+                profile: vec![
+                    ProfilePoint::new(radius * 0.84, lid_y),
+                    ProfilePoint::new(radius * 0.52, lid_y + 0.030),
+                ],
+                axis: Axis::Y,
+                segments: 12,
+                material: MaterialRole::CastArmor,
+                smoothing: SG_CUPOLA,
+            },
+        )
+        .plate_box(
+            Vec3::new(x, lid_y + 0.026, z),
+            Vec3::new(radius * 0.76, 0.010, 0.014),
+            0.006,
+            MaterialRole::BarrelSteel,
+            SG_CUPOLA,
+        )
+        .plate_box(
+            Vec3::new(x, lid_y + 0.012, z - radius * 0.86),
+            Vec3::new(0.05, 0.016, 0.03),
+            0.008,
+            MaterialRole::BarrelSteel,
+            SG_CUPOLA,
+        );
+    b
+}
+
 /// Append a low visible collar around the turret ring so the rotating submesh reads as seated in
 /// the hull deck rather than merely touching it at a mathematical plane.
 pub(crate) fn add_turret_ring(

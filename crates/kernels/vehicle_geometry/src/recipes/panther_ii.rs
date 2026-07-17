@@ -7,7 +7,7 @@ use game_core::{HitboxProfile, HullShape, MountFrames, TurretShape, VehicleKind}
 use glam::{Vec2, Vec3};
 
 use super::{
-    GunPlan, SG_HARD, add_cupola, add_mantlet_socket, add_turret_ring, assemble,
+    GunPlan, SG_HARD, add_german_cast_cupola, add_mantlet_socket, add_turret_ring, assemble,
     blueprint_prism_hull, blueprint_running_gear, build_gun, shade_hull,
 };
 use crate::{
@@ -29,14 +29,13 @@ pub(crate) fn panther_ii(_hitbox: &HitboxProfile, mounts: &MountFrames) -> Baked
     let mantlet = Some((t.mantlet_radius, t.mantlet_back_z, t.mantlet_front_z));
     let turret = add_mantlet_socket(
         add_turret_ring(
-            add_cupola(
+            add_german_cast_cupola(
                 schmalturm(t),
                 t.cupola_x,
                 t.cupola_z,
                 t.roof_y,
                 t.cupola_radius,
                 bp.hull.hitbox_center_y + bp.hull.hitbox_half_height - t.roof_y,
-                true,
             ),
             t.ring_z,
             t.ring_y,

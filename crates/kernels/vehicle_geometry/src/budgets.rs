@@ -46,11 +46,11 @@ pub const GOLDEN_BAKE_HASHES: [(VehicleKind, u64); 9] = [
     // Re-recorded for the W1 late-E detail pass: exhaust shields shroud the twin stacks and
     // four spare track links rack on the lower bow (the Feifel cleaners stay deliberately
     // absent — the modelled variant is a late Ausf. E, which dropped them).
-    (VehicleKind::TigerI, 3_021_918_926_565_464_375_u64),
+    (VehicleKind::TigerI, 10_428_707_475_237_110_843_u64),
     // Re-recorded for the Tiger II blueprint migration: the researched 1:1 sloped body
     // (7.38 m hull, fleet's longest glacis at 50°, 25° leaned upper sides, Henschel prism
     // with bustle, 9 overlapped wheels, braked KwK 43) replaces the legacy stretch.
-    (VehicleKind::TigerII, 2_275_320_215_993_179_203_u64),
+    (VehicleKind::TigerII, 8_083_914_364_814_961_184_u64),
     // Re-recorded for the Jagdtiger blueprint migration: the researched 1:1 casemate
     // (7.80 m hull, superstructure flank continuing the hull's 25° plane, 15° 250 mm face,
     // periscope roof, 9 overlapped wheels, braked PaK 44) replaces the legacy box.
@@ -58,17 +58,17 @@ pub const GOLDEN_BAKE_HASHES: [(VehicleKind, u64); 9] = [
     // Re-recorded for the Panther II blueprint migration: the researched 1:1 wedge (6.87 m
     // hull, steepest German glacis at 55°, 29° leaned sides, narrow Schmalturm, 7 overlapped
     // steel wheels, braked KwK 42) replaces the last legacy German body.
-    (VehicleKind::PantherII, 16_355_403_364_216_964_623_u64),
+    (VehicleKind::PantherII, 5_471_805_857_148_606_241_u64),
     // Re-recorded for the IS-3 finish pass: the signature external fuel drums join the
     // rear fender shelves; the rest of the fleet is untouched.
-    (VehicleKind::IS3, 14_691_152_626_051_102_928_u64),
+    (VehicleKind::IS3, 2_475_953_306_707_196_260_u64),
     // Recorded at birth: the Centurion Mk 3 (skirted hull over Horstmann bogie pairs,
     // 57° glacis, cast Mk 3 dome with the bustle bin, clean 20-pounder).
-    (VehicleKind::Centurion, 5_837_580_918_550_652_731_u64),
+    (VehicleKind::Centurion, 8_107_578_472_505_692_146_u64),
     // Recorded at birth: the T-34-85 — the first vehicle authored through the Forge Studio
     // loop (60° glacis, raked sides, five bare Christie wheels with the open gap, low wide
     // -85 cast dome seated forward, clean ZiS-S-53).
-    (VehicleKind::T34_85, 14_378_401_308_748_658_762_u64),
+    (VehicleKind::T34_85, 12_950_144_665_891_848_980_u64),
 ];
 
 /// The golden hash recorded for `kind`, if any.

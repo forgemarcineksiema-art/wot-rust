@@ -8,7 +8,7 @@ use game_core::{HitboxProfile, HullShape, MountFrames, TurretShape, VehicleKind}
 use glam::{Vec2, Vec3};
 
 use super::{
-    GunPlan, SG_HARD, add_cupola, add_mantlet_socket, add_turret_ring, assemble,
+    GunPlan, SG_HARD, add_german_cast_cupola, add_mantlet_socket, add_turret_ring, assemble,
     blueprint_running_gear, build_gun, shade_hull,
 };
 use crate::{
@@ -30,14 +30,13 @@ pub(crate) fn tiger_i(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVeh
     let mantlet = Some((t.mantlet_radius, t.mantlet_back_z, t.mantlet_front_z));
     let turret = add_mantlet_socket(
         add_turret_ring(
-            add_cupola(
+            add_german_cast_cupola(
                 horseshoe_turret(t),
                 t.cupola_x,
                 t.cupola_z,
                 t.roof_y,
                 t.cupola_radius,
                 bp.hull.hitbox_center_y + bp.hull.hitbox_half_height - t.roof_y,
-                false,
             ),
             t.ring_z,
             t.ring_y,

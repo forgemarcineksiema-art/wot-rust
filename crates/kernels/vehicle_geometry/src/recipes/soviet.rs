@@ -14,21 +14,38 @@ use game_core::{HitboxProfile, MountFrames, TurretShape, VehicleKind};
 use glam::Vec3;
 
 use super::{
-    GunPlan, HullPlan, RunningGear, SG_CAST, add_broad_mantlet_socket, add_cupola,
-    add_mantlet_socket, add_running_gear, add_t54_mantlet_socket, add_turret_ring, assemble,
+    GunPlan, HullPlan, RunningGear, SG_CAST, add_british_cupola, add_broad_mantlet_socket,
+    add_commander_periscope, add_cupola, add_flush_ring_hatch, add_mantlet_socket,
+    add_running_gear, add_soviet_slit_cupola, add_t54_mantlet_socket, add_turret_ring, assemble,
     blueprint_running_gear, blueprint_skirts, build_gun, build_gun_with_mantlet_scale,
     cast_turret_shell, hull_body, shade_hull, t54_hull, t54_turret_front,
 };
 use crate::{BakedVehicle, GeometryMesh, MaterialRole, MeshBuilder};
 
-/// The shared Soviet cast turret: a low wide dome carrying a commander's cupola drum, a loader's
-/// hatch, the ring collar, and the mantlet seat. One helper keeps the family (T-54, IS-3)
-/// reading consistently and keeps the recipes short.
+/// What sits on the shared cast dome's roof — per VEHICLE, from the photos (audit #3: one
+/// cloned cupola drum used to top every cast turret across three nations).
+pub(super) enum CastRoof {
+    /// Legacy T-54 slot: drum cupola + loader hatch (the authoritative T-54 is the hybrid
+    /// bake; this roof is reconciled in W3).
+    T54,
+    /// T-34-85: slit-ring cupola with a split lid, loader's flush hatch.
+    T3485,
+    /// IS-3: NO cupola — the real dome roof carries two flush hatches and the commander's
+    /// TPK periscope.
+    Is3,
+    /// Centurion Mk 3: the wide British cupola with sight hoods, loader's flush hatch.
+    Centurion,
+}
+
+/// The shared Soviet cast turret: a low wide dome carrying its vehicle's roof furniture, the
+/// ring collar, and the mantlet seat. One helper keeps the family (T-54, IS-3, T-34-85, and
+/// the Centurion's Mk 3 casting) reading consistently and keeps the recipes short.
 fn soviet_cast_turret(
     t: &TurretShape,
     trunnion_y: f32,
     mantlet: Option<(f32, f32, f32)>,
     t54_socket: bool,
+    roof: CastRoof,
     shell_segments: usize,
 ) -> GeometryMesh {
     let mut shell = cast_turret_shell(
@@ -43,21 +60,85 @@ fn soviet_cast_turret(
     if t54_socket {
         shell = shell.append(&t54_turret_front(t, trunnion_y, mantlet));
     }
-    // Commander's cupola: a real drum standing proud of the roof (not a pimple), capped so its
-    // lid stays inside the hitbox top (the 2.40 m silhouette apex).
-    let with_cupola =
-        add_cupola(shell, t.cupola_x, t.cupola_z, t.roof_y - 0.08, t.cupola_radius, 0.21, true);
-    // Loader's hatch: a low flat round hatch on the opposite side of the roof.
-    let with_hatch = add_cupola(
-        with_cupola,
-        -t.cupola_x * 0.85,
-        t.cupola_z + 0.46,
-        t.roof_y - 0.05,
-        t.cupola_radius * 0.78,
-        0.09,
-        false,
-    );
-    let with_ring = add_turret_ring(with_hatch, t.ring_z, t.ring_y, t.ring_radius, 0.12, 16);
+    // Roof furniture is per vehicle — the one place the family members must NOT rhyme.
+    let with_roof = match roof {
+        CastRoof::T54 => {
+            // Legacy drum + loader hatch, capped so the lid stays inside the hitbox top.
+            let with_cupola = add_cupola(
+                shell,
+                t.cupola_x,
+                t.cupola_z,
+                t.roof_y - 0.08,
+                t.cupola_radius,
+                0.21,
+                true,
+            );
+            add_cupola(
+                with_cupola,
+                -t.cupola_x * 0.85,
+                t.cupola_z + 0.46,
+                t.roof_y - 0.05,
+                t.cupola_radius * 0.78,
+                0.09,
+                false,
+            )
+        }
+        CastRoof::T3485 => {
+            let with_cupola = add_soviet_slit_cupola(
+                shell,
+                t.cupola_x,
+                t.cupola_z,
+                t.roof_y - 0.06,
+                t.cupola_radius,
+            );
+            add_flush_ring_hatch(
+                with_cupola,
+                -t.cupola_x * 0.85,
+                t.cupola_z + 0.42,
+                t.roof_y - 0.04,
+                t.cupola_radius * 0.72,
+                -1.0,
+            )
+        }
+        CastRoof::Is3 => {
+            // Seated just proud of the flat cap of the dome so the rims read at garage distance
+            // (the real hatches are flush, but a buried ring reads as no hatch at all).
+            let hatches = add_flush_ring_hatch(
+                add_flush_ring_hatch(
+                    shell,
+                    t.cupola_x,
+                    t.cupola_z,
+                    t.roof_y - 0.02,
+                    t.cupola_radius,
+                    -1.0,
+                ),
+                -t.cupola_x,
+                t.cupola_z,
+                t.roof_y - 0.02,
+                t.cupola_radius,
+                1.0,
+            );
+            add_commander_periscope(
+                hatches,
+                t.cupola_x,
+                t.cupola_z + t.cupola_radius + 0.16,
+                t.roof_y - 0.02,
+            )
+        }
+        CastRoof::Centurion => {
+            let with_cupola =
+                add_british_cupola(shell, t.cupola_x, t.cupola_z, t.roof_y - 0.06, t.cupola_radius);
+            add_flush_ring_hatch(
+                with_cupola,
+                -t.cupola_x * 0.85,
+                t.cupola_z + 0.30,
+                t.roof_y - 0.04,
+                t.cupola_radius * 0.60,
+                -1.0,
+            )
+        }
+    };
+    let with_ring = add_turret_ring(with_roof, t.ring_z, t.ring_y, t.ring_radius, 0.12, 16);
     if t54_socket {
         add_t54_mantlet_socket(with_ring, trunnion_y, mantlet, 12)
     } else {
@@ -72,9 +153,10 @@ pub(super) fn soviet_cast_turret_for(
     t: &TurretShape,
     trunnion_y: f32,
     mantlet: Option<(f32, f32, f32)>,
+    roof: CastRoof,
     shell_segments: usize,
 ) -> GeometryMesh {
-    soviet_cast_turret(t, trunnion_y, mantlet, false, shell_segments)
+    soviet_cast_turret(t, trunnion_y, mantlet, false, roof, shell_segments)
 }
 
 pub(crate) fn t54_1951(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVehicle {
@@ -91,7 +173,7 @@ pub(crate) fn t54_1951(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVe
 
     let t = &bp.turret;
     let mantlet = Some((t.mantlet_radius, t.mantlet_back_z, t.mantlet_front_z));
-    let turret = soviet_cast_turret(t, bp.gun.trunnion_y, mantlet, true, 28);
+    let turret = soviet_cast_turret(t, bp.gun.trunnion_y, mantlet, true, CastRoof::T54, 28);
 
     let gun = build_gun_with_mantlet_scale(
         &GunPlan {
