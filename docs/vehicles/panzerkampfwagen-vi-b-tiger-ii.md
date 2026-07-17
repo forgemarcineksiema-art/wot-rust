@@ -15,7 +15,7 @@ is enforced by a `DimensionTarget` or `RatioTarget` in `packs_german.rs::tiger_i
 | Anchor | Value | Source | Confidence | Gate |
 | --- | --- | --- | --- | --- |
 | Hull length | 7.38 m | Panzerworld + OnWar agree | high | `HullLength` ±0.08 |
-| Width over combat tracks | 3.755 m | Panzerworld (800 mm Kgs 73/800); 3.27 m = rail-transport tracks, NOT the combat beam | high | `HullWidth` ±0.08 |
+| Width | 3.88 m over fitted Schuerzen (3.755 m bare tracks; 3.27 m = rail-transport tracks) | Panzerworld + skirt sheet | high | `HullWidth` ±0.08 |
 | Height to cupola | 3.09 m | Panzerworld/OnWar | high | `HeightToTurretRoof` ±0.05 |
 | Overall, gun forward | 10.286 m | KwK 43 L/71 datasheet | high | `OverallLengthWithGun` ±0.10 |
 | Road wheels | 9 × ⌀0.80 m overlapped, steel-rimmed | photo + spec | high | `RoadWheelDiameter` ±0.01 |
@@ -28,8 +28,12 @@ early Krupp turret (the 50-vehicle "Porsche" run, with its shot-trap); the produ
 **Serienturm** we model has a single FLAT 180 mm front plate at ~10° with the Turmblende
 mantlet band on it. Our faceted-wedge turret is therefore the right family — what it is
 missing is the TURMBLENDE MASS on the front plate (ledger #6 remainder), not a curved front.
-That is PR-T2.2 shape work, together with the F3 hinged bow fender flaps and the upper-run
-side skirts the photos show. Already landed fleet-wide and correct here: front drive (#233),
+That was PR-T2.2 shape work — DONE together with the F3 hinged bow fender flaps and the
+upper-run Schuerzen: the Turmblende is a wide oval band (~1.4 m) on the front plate riding
+with the gun; the skirts are honest in BOTH directions (they hide the upper run visually AND
+the armor volumes bake them as a spaced HEAT screen at 0.06 m standoff, like the Centurion's
+bazooka plates), which widened the hitbox 1.89 → 1.95 half-width (the skirt is hittable) and
+re-anchored the width dimension to 3.88 m over fitted skirts. Already landed fleet-wide and correct here: front drive (#233),
 open double-baffle brake (#234), two bow roof hatches + central Bosch light (#235), cast
 cupola ⌀0.78 (#236), Kgs 63/725 shoes + bolted steel-dish wheels (#237), twin open exhaust
 stacks (#238).

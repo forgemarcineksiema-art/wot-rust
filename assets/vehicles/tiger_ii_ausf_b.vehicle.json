@@ -85,7 +85,7 @@
     "radio": 50
   },
   "hitbox": {
-    "half_width_m": 1.89,
+    "half_width_m": 1.95,
     "half_height_m": 1.57,
     "half_length_m": 3.74,
     "center_y_m": 1.52,

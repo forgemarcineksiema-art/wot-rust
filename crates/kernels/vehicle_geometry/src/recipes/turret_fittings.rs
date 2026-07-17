@@ -360,6 +360,20 @@ pub(crate) fn add_t54_mantlet_socket(
     mantlet: Option<(f32, f32, f32)>,
     segments: usize,
 ) -> MeshBuilder {
+    add_oval_mantlet_socket(builder, axis_y, mantlet, 2.15, 0.82, segments)
+}
+
+/// A broad OVAL socket band on the turret face — shared construction for the wide mantlet
+/// masks (the T-54's cast mask, the Tiger II's Turmblende band); each vehicle passes its own
+/// width/height scales, so the family rhymes in build but not in shape (audit #6).
+pub(crate) fn add_oval_mantlet_socket(
+    builder: MeshBuilder,
+    axis_y: f32,
+    mantlet: Option<(f32, f32, f32)>,
+    x_scale: f32,
+    y_scale: f32,
+    segments: usize,
+) -> MeshBuilder {
     let Some((radius, back_z, front_z)) = mantlet else {
         return builder;
     };
@@ -371,8 +385,8 @@ pub(crate) fn add_t54_mantlet_socket(
         radius,
         socket_back,
         socket_front,
-        2.15,
-        0.82,
+        x_scale,
+        y_scale,
         segments,
     ))
 }

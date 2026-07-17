@@ -2,7 +2,7 @@
 //! to keep each vehicle's shape data reviewable on its own.
 
 use super::{
-    ArmorShape, GunShape, HullShape, ShoePattern, TrackShape, TurretForm, TurretShape,
+    ArmorShape, GunShape, HullShape, ShoePattern, SkirtShape, TrackShape, TurretForm, TurretShape,
     VehicleBlueprint, WheelFace,
 };
 use crate::VehicleKind;
@@ -34,8 +34,15 @@ pub(super) fn tiger_ii_blueprint() -> VehicleBlueprint {
             rear_slope_deg: 30.0,
             lower_half_width: 1.06,
             sponson_y: 0.95,
-            skirt: None,
-            hitbox_half_width: 1.89,
+            skirt: Some(SkirtShape {
+                top_y: 0.95,
+                bottom_y: 0.50,
+                front_z: 2.40,
+                rear_z: -2.60,
+                standoff_m: 0.06,
+                thickness_m: 0.006,
+            }),
+            hitbox_half_width: 1.95,
             // Realistic full height: top = center_y + half_height = 3.09 bounds the tank.
             hitbox_half_height: 1.57,
             hitbox_half_length: 3.74,

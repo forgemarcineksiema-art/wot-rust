@@ -182,7 +182,10 @@ fn the_hitbox_is_the_researched_body_not_the_legacy_stretch() {
     let bp = blueprint();
     let hitbox = game_core::HitboxProfile::for_vehicle(VehicleKind::TigerII);
     assert!((hitbox.half_length_m - 3.74).abs() < 1.0e-6);
-    assert!((hitbox.half_width_m - 1.89).abs() < 1.0e-6);
+    // 1.95: widened for the W1 Schürzen (PR-T2.2) — the skirt is a hittable spaced-armor
+    // layer (track outer 1.87 + 0.06 standoff + plate), so the box must contain it, exactly
+    // like the Centurion's. Real width over fitted skirts ~3.88 m.
+    assert!((hitbox.half_width_m - 1.95).abs() < 1.0e-6);
     assert!(((hitbox.center_y_m + hitbox.half_height_m) - 3.09).abs() < 1.0e-6, "3.09 m tall");
     assert!((bp.hull.half_len - 3.69).abs() < 1.0e-6, "the documented 7.38 m hull");
     assert!((bp.track.outer_x - 1.87).abs() < 1.0e-6, "3.75 m over the combat tracks");
