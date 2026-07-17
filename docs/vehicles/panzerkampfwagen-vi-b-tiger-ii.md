@@ -7,6 +7,33 @@
 This is the late-war German heavy tank usually called Tiger II or King Tiger. The game spec
 represents the production (Henschel) turret vehicle with the 8.8 cm KwK 43 L/71 gun.
 
+## Reference anatomy (W1 dossier, PR-T2.1 — 2026-07-17)
+
+Anchor numbers written BEFORE any further shape work, per the masterplan protocol. Every row
+is enforced by a `DimensionTarget` or `RatioTarget` in `packs_german.rs::tiger_ii_reference_pack`.
+
+| Anchor | Value | Source | Confidence | Gate |
+| --- | --- | --- | --- | --- |
+| Hull length | 7.38 m | Panzerworld + OnWar agree | high | `HullLength` ±0.08 |
+| Width over combat tracks | 3.755 m | Panzerworld (800 mm Kgs 73/800); 3.27 m = rail-transport tracks, NOT the combat beam | high | `HullWidth` ±0.08 |
+| Height to cupola | 3.09 m | Panzerworld/OnWar | high | `HeightToTurretRoof` ±0.05 |
+| Overall, gun forward | 10.286 m | KwK 43 L/71 datasheet | high | `OverallLengthWithGun` ±0.10 |
+| Road wheels | 9 × ⌀0.80 m overlapped, steel-rimmed | photo + spec | high | `RoadWheelDiameter` ±0.01 |
+| Turret plan | ~3.1 m long over ~1.96 m beam (Serienturm with bustle) | measured drawing cross-check | medium | `TurretLengthToWidth` 1.58 ±0.10 |
+| Silhouette ratios | 1.97 / 0.28 / 0.52 / 0.62 / 0.39 | verified 1:1 body (Studio) | high | five-ratio gate, ±0.02..0.06 |
+
+**Source conflict resolved — the turret front.** The photo-comparison note ("Henschel turret
+is LONG with curved Turmblende front") conflated two turrets: the CURVED front belongs to the
+early Krupp turret (the 50-vehicle "Porsche" run, with its shot-trap); the production
+**Serienturm** we model has a single FLAT 180 mm front plate at ~10° with the Turmblende
+mantlet band on it. Our faceted-wedge turret is therefore the right family — what it is
+missing is the TURMBLENDE MASS on the front plate (ledger #6 remainder), not a curved front.
+That is PR-T2.2 shape work, together with the F3 hinged bow fender flaps and the upper-run
+side skirts the photos show. Already landed fleet-wide and correct here: front drive (#233),
+open double-baffle brake (#234), two bow roof hatches + central Bosch light (#235), cast
+cupola ⌀0.78 (#236), Kgs 63/725 shoes + bolted steel-dish wheels (#237), twin open exhaust
+stacks (#238).
+
 ## Blueprint Migration (2026-07)
 
 The Tiger II is blueprint-born: `game_core::vehicle_blueprint::tiger_ii` is the single shape

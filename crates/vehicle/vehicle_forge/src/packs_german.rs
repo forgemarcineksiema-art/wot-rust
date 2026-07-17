@@ -199,22 +199,93 @@ pub fn tiger_ii_reference_pack() -> ReferencePack {
         // still visibly flatter than the upright Tiger I (0.28 vs 0.33), and the long Henschel
         // turret is a low sloped band on the deck, not the near-hull-height tower the old
         // legacy-tuned target described.
-        // TODO(W1-tiger-ii): zaciśnij tolerancje przy dossier (start = stare wspólne).
-        silhouette_ratios(
-            (1.91, 0.18),
-            (0.28, 0.06),
-            (0.51, 0.14),
-            (0.62, 0.25),
-            (0.39, 0.16),
-            [
-                "Very long sloped heavy hull.",
-                "Long sloped hull — flatter than the upright Tiger I.",
-                "Sloped Henschel turret is narrower than the broad hull.",
-                "Low faceted turret with a rear bustle rides the wide deck.",
-                "Long 8.8 cm KwK 43 reaches decisively past the sloped glacis.",
-            ],
-        ),
+        // W1 dossier PR-T2.1 (2026-07-17): tolerances tightened around the measured body
+        // (1.973 / 0.279 / 0.524 / 0.617 / 0.394 via Studio) — same ~3x-delta headroom rule
+        // as the Tiger I pack, so a proportion drifting into the wrong tank actually fails.
+        {
+            let mut ratios = silhouette_ratios(
+                (1.97, 0.06),
+                (0.28, 0.02),
+                (0.52, 0.05),
+                (0.62, 0.05),
+                (0.39, 0.03),
+                [
+                    "Very long sloped heavy hull.",
+                    "Long sloped hull — flatter than the upright Tiger I.",
+                    "Sloped Henschel turret is narrower than the broad hull.",
+                    "Low faceted turret with a rear bustle rides the wide deck.",
+                    "Long 8.8 cm KwK 43 reaches decisively past the sloped glacis.",
+                ],
+            );
+            ratios.push(RatioTarget::new(
+                RatioKind::TurretLengthToWidth,
+                1.58,
+                0.10,
+                "Serienturm is LONG: 3.10 m plan over the 1.96 m beam, bustle included.",
+            ));
+            ratios.push(RatioTarget::new(
+                RatioKind::RoadWheelDiameterToHullLength,
+                0.108,
+                0.008,
+                "800 mm overlapped wheels on the 7.38 m hull.",
+            ));
+            ratios
+        },
     )
+    // W1 dossier anchors (PR-T2.1) — sources and the Serienturm front-plate resolution live in
+    // docs/vehicles/panzerkampfwagen-vi-b-tiger-ii.md.
+    .with_dimensions(vec![
+        DimensionTarget::new(
+            DimensionKind::HullLength,
+            7.38,
+            0.08,
+            ReferenceSource::new(
+                "Tiger II dossier",
+                "docs/vehicles/panzerkampfwagen-vi-b-tiger-ii.md",
+                "7.38 m hull (Panzerworld/OnWar agree).",
+            ),
+        ),
+        DimensionTarget::new(
+            DimensionKind::HullWidth,
+            3.755,
+            0.08,
+            ReferenceSource::new(
+                "Tiger II dossier",
+                "docs/vehicles/panzerkampfwagen-vi-b-tiger-ii.md",
+                "3.755 m over the 800 mm combat tracks (3.27 m = rail-transport tracks).",
+            ),
+        ),
+        DimensionTarget::new(
+            DimensionKind::HeightToTurretRoof,
+            3.09,
+            0.05,
+            ReferenceSource::new(
+                "Tiger II dossier",
+                "docs/vehicles/panzerkampfwagen-vi-b-tiger-ii.md",
+                "3.09 m silhouette apex at the cupola.",
+            ),
+        ),
+        DimensionTarget::new(
+            DimensionKind::OverallLengthWithGun,
+            10.286,
+            0.10,
+            ReferenceSource::new(
+                "Tiger II dossier",
+                "docs/vehicles/panzerkampfwagen-vi-b-tiger-ii.md",
+                "10.286 m gun forward (KwK 43 L/71).",
+            ),
+        ),
+        DimensionTarget::new(
+            DimensionKind::RoadWheelDiameter,
+            0.80,
+            0.01,
+            ReferenceSource::new(
+                "Tiger II dossier",
+                "docs/vehicles/panzerkampfwagen-vi-b-tiger-ii.md",
+                "800 mm overlapped (not interleaved) steel-rimmed wheels.",
+            ),
+        ),
+    ])
 }
 
 pub fn jagdtiger_reference_pack() -> ReferencePack {
