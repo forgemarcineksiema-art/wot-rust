@@ -46,7 +46,9 @@ pub(crate) fn build_gun_with_mantlet_scale(
         RevolveSpec {
             profile: vec![
                 ProfilePoint::new(plan.radius, plan.breech_z),
-                ProfilePoint::new(plan.radius, plan.muzzle_z),
+                // 2 mm short of the muzzle: the bore insert forms the true tip (below), so the
+                // faces never fight and the derived muzzle mount stays EXACTLY at muzzle_z.
+                ProfilePoint::new(plan.radius, plan.muzzle_z - 0.002),
             ],
             axis: Axis::Z,
             segments: plan.segments,
@@ -108,12 +110,18 @@ pub(crate) fn build_gun_with_mantlet_scale(
         );
     }
     if let Some(brake_radius) = plan.muzzle_brake {
+        // A real double-baffle brake, not a closed sausage (model-logic audit #4/#6, shapes
+        // from the reference photos: KwK 36/43, KwK 42, D-25T all carry two baffle rings with
+        // OPEN chambers between them). An inner blast tube spans the brake; two outer rings
+        // sit on it with visible gaps — from the side the chambers read as real openings.
+        let tube_r = (plan.radius * 1.08).min(brake_radius * 0.62);
+        let back = plan.muzzle_z - 0.46;
         builder = builder.capped_revolve_at(
             origin,
             RevolveSpec {
                 profile: vec![
-                    ProfilePoint::new(brake_radius, plan.muzzle_z - 0.42),
-                    ProfilePoint::new(brake_radius, plan.muzzle_z - 0.04),
+                    ProfilePoint::new(tube_r, back),
+                    ProfilePoint::new(tube_r, plan.muzzle_z - 0.002),
                 ],
                 axis: Axis::Z,
                 segments: plan.segments,
@@ -121,7 +129,42 @@ pub(crate) fn build_gun_with_mantlet_scale(
                 smoothing: SG_BARREL,
             },
         );
+        for (ring_back, ring_front) in
+            [(back + 0.02, back + 0.15), (plan.muzzle_z - 0.15, plan.muzzle_z - 0.02)]
+        {
+            builder = builder.capped_revolve_at(
+                origin,
+                RevolveSpec {
+                    profile: vec![
+                        ProfilePoint::new(brake_radius * 0.86, ring_back),
+                        ProfilePoint::new(brake_radius, (ring_back + ring_front) * 0.5),
+                        ProfilePoint::new(brake_radius * 0.86, ring_front),
+                    ],
+                    axis: Axis::Z,
+                    segments: plan.segments,
+                    material: MaterialRole::BarrelSteel,
+                    smoothing: SG_BARREL,
+                },
+            );
+        }
     }
+    // The bore: every gun ends in a HOLE, not a plug (audit #4 — "którędy pocisk wyleci?").
+    // A recessed dark cylinder sits inside the muzzle face; braked guns fire through the
+    // blast tube, so the bore recesses into the tube's face instead of the bare barrel's.
+    let bore_r = plan.radius * 0.62;
+    builder = builder.capped_revolve_at(
+        origin,
+        RevolveSpec {
+            profile: vec![
+                ProfilePoint::new(bore_r, plan.muzzle_z - 0.055),
+                ProfilePoint::new(bore_r, plan.muzzle_z),
+            ],
+            axis: Axis::Z,
+            segments: plan.segments,
+            material: MaterialRole::TrackMetal,
+            smoothing: SG_BARREL,
+        },
+    );
     builder.build()
 }
 
