@@ -53,6 +53,10 @@ pub struct RunningGearKinematics {
     pub link_x: f32,
     /// Half-thickness of one shoe link along its axle.
     pub link_half_width: f32,
+    /// Half-width of the belt band itself: `(outer_x - inner_x) / 2`. The shoe plates span
+    /// exactly this, so the outermost gear face sits AT the blueprint's `outer_x` — the
+    /// documented "width over tracks" is honest (dimension-gate finding, W1 PR-T1.2).
+    pub band_half_width: f32,
     /// Mid-run droop for the upper belt run. Soviet five-wheel layouts with no return rollers
     /// need a visible slack curve instead of a ruler-flat top run; rollered layouts stay taut.
     pub top_sag_m: f32,
@@ -112,6 +116,7 @@ impl RunningGearKinematics {
             end_cy: track.end_y,
             wheel_radius: track.wheel_radius,
             wheel_x: (track.inner_x + track.outer_x) * 0.5,
+            band_half_width: ((track.outer_x - track.inner_x) * 0.5).max(0.05),
             wheel_overlap_dx: track.overlap_inner_dx,
             wheel_half_width,
             // The track shoes ride over the road wheels, centred on the wheel plane so the

@@ -120,11 +120,13 @@ fn seven_overlapped_steel_wheels_without_rollers() {
         .filter(|p| p.part == GearPart::RoadWheel && p.transform.w_axis.x > 0.0)
         .map(|p| p.transform.w_axis.x)
         .collect();
-    assert_eq!(wheels.len(), 7);
+    // The Schachtellaufwerk sandwich (W1 PR-T1.2): every outer-row axle carries a second
+    // deep-plane disc, so 7 axles render 11 discs per side in three planes.
+    assert_eq!(wheels.len(), 11);
     let mut rows = wheels.clone();
     rows.sort_by(f32::total_cmp);
     rows.dedup_by(|a, b| (*a - *b).abs() < 1.0e-4);
-    assert_eq!(rows.len(), 2, "two wheel rows, got {rows:?}");
+    assert_eq!(rows.len(), 3, "three interleaved wheel planes, got {rows:?}");
     assert!(bp.track.overlap_inner_dx >= 2.0 * kin.wheel_half_width, "discs must not merge");
 }
 

@@ -109,10 +109,7 @@ pub fn t54_reference_pack() -> ReferencePack {
         DimensionTarget::new(
             DimensionKind::HullWidth,
             3.27,
-            // TODO(W3-t54): docelowo ±0.10 — the instanced track links bake their outer faces
-            // ~7 cm proud per side (measured 3.411 m); the running-gear width is the W3
-            // reconciliation item this anchor now keeps visible in every Studio report.
-            0.15,
+            0.10,
             ReferenceSource::new(
                 "Project T-54 vehicle notes",
                 "docs/vehicles/t-54.md",

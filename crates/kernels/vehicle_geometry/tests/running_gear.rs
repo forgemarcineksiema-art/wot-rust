@@ -379,26 +379,34 @@ fn t54_sprocket_is_visibly_toothed_while_idler_is_smooth() {
         sprocket.triangle_count() > idler.triangle_count(),
         "rear drive sprocket should carry tooth geometry beyond the smooth front idler"
     );
-    // The tooth rings flank the shoes (the real T-54 layout): teeth MAY reach past the wheel
-    // radius — that is the interleaving read — but everything that does must sit outboard of
-    // the shoe plates, so the teeth pass BESIDE the belt and never through it.
+    // The honest-width contract (W1 PR-T1.2): the toothed rings live INSIDE the belt band —
+    // the sprocket's outermost face lands on the blueprint's `outer_x` (the documented width
+    // over tracks), never proud of it — and the teeth are radially capped under the shoe
+    // plates, so they show in the gaps between shoes instead of clipping through them.
     let bounds = sprocket.bounds().expect("sprocket bounds");
     assert!(
-        bounds.max.y > kin.end_radius + 0.02,
-        "the tooth rings must visibly stand past the wheel radius, got {}",
+        bounds.max.x <= kin.band_half_width + 1.0e-4,
+        "no sprocket vertex may stand proud of the belt band (outer_x), got {}",
+        bounds.max.x
+    );
+    assert!(
+        bounds.max.x >= kin.band_half_width - 0.06,
+        "the tooth rings should reach the band's outer face, got {}",
+        bounds.max.x
+    );
+    assert!(
+        bounds.max.y > kin.end_radius * 0.85,
+        "the teeth must still stand visibly proud of the carrier drum, got {}",
         bounds.max.y
     );
-    let plate_half_x = kin.link_half_width * 1.25;
     for vertex in sprocket.vertices() {
         let radial =
             (vertex.position.y * vertex.position.y + vertex.position.z * vertex.position.z).sqrt();
-        if radial > kin.end_radius + 0.010 {
-            assert!(
-                vertex.position.x.abs() > plate_half_x,
-                "a tooth vertex inside the belt band must sit beside the shoes: {:?}",
-                vertex.position
-            );
-        }
+        assert!(
+            radial <= kin.end_radius - 0.010 + 1.0e-4,
+            "a tooth must stay under the shoe plates riding the wrap: {:?}",
+            vertex.position
+        );
     }
     // The idler is a smooth wheel: its silhouette stays a round rim with no radial spikes, so the
     // front of the track is visibly plain against the rear sprocket's teeth.

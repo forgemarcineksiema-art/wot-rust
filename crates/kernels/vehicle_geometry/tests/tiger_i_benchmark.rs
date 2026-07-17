@@ -132,14 +132,16 @@ fn eight_interleaved_wheels_and_no_return_rollers() {
         .filter(|p| p.part == GearPart::RoadWheel && p.transform.w_axis.x > 0.0)
         .map(|p| p.transform.w_axis.x)
         .collect();
-    assert_eq!(wheels.len(), 8);
+    // The Schachtellaufwerk sandwich (W1 PR-T1.2): every outer-row axle carries a second
+    // deep-plane disc, so 8 axles render 12 discs per side in three planes.
+    assert_eq!(wheels.len(), 12);
     let rows: Vec<f32> = {
         let mut xs = wheels.clone();
         xs.sort_by(f32::total_cmp);
         xs.dedup_by(|a, b| (*a - *b).abs() < 1.0e-4);
         xs
     };
-    assert_eq!(rows.len(), 2, "two wheel rows, got {rows:?}");
+    assert_eq!(rows.len(), 3, "three interleaved wheel planes, got {rows:?}");
     assert!((rows[1] - rows[0] - bp.track.overlap_inner_dx).abs() < 1.0e-4);
     // The rows clear each other: the disc faces do not interpenetrate.
     assert!(bp.track.overlap_inner_dx >= 2.0 * kin.wheel_half_width, "discs must not merge");
