@@ -102,7 +102,7 @@
     "turret_center_z_m": -0.15
   },
   "damage_layout": {
-    "volumes": []
+    "components": []
   },
   "mounts": {
     "turret_ring": {

@@ -121,8 +121,8 @@ impl VehicleKind {
         VehicleKind::T34_85,
     ];
 
-    /// Asset slug stem; matches `assets/vehicles/<slug>.vehicle.json` for the six vehicles
-    /// that ship an asset file (the prototype medium is test-only and has none).
+    /// Asset slug stem; matches `assets/vehicles/<slug>.vehicle.json` for every playable
+    /// vehicle (the test-only prototype medium ships no asset file).
     pub fn slug(self) -> &'static str {
         match self {
             VehicleKind::PrototypeMedium => "prototype_medium",
