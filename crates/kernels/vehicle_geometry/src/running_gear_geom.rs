@@ -13,7 +13,10 @@ const SG_HARD: SmoothingGroup = SmoothingGroup::hard_edges();
 /// section lies in the Z/Y plane, so a rotation about X aligns it with the belt tangent.
 pub fn track_link_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
     let half_z = kin.link_half_length();
-    let plate_half_x = kin.link_half_width * 1.25;
+    // The shoe plate spans the full belt band, so its outer face sits AT the blueprint's
+    // `outer_x` — the documented "width over tracks". (It used to be `link_half_width * 1.25`,
+    // which left the band underfilled and pushed the sprocket rings proud of the real width.)
+    let plate_half_x = kin.band_half_width;
     let guide_half_x = (kin.link_half_width * 0.18).max(0.012);
     let pin_half_z = (half_z * 0.07).max(0.010);
 

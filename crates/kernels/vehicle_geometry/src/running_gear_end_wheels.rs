@@ -66,10 +66,15 @@ pub fn sprocket_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
     let seg = kin.segments.max(16);
     let r = kin.end_radius;
     let half_w = kin.wheel_half_width;
-    // The shoe plate spans link_half_width * 1.25 in the unit link mesh; the rings sit just
-    // outboard of that, one per side.
-    let ring_x = kin.link_half_width * 1.25 + 0.045;
+    // The toothed rings live INSIDE the belt band: their outer face lands exactly on the
+    // blueprint's `outer_x` (the documented width over tracks), and the teeth are radially
+    // capped under the shoe plates so they never clip them — they show in the gaps between
+    // shoes, which is where a real sprocket's teeth read anyway. (They used to flank the
+    // shoes OUTBOARD, baking every vehicle 5–8 cm wider per side than its dossier.)
+    let tooth_half = 0.028;
+    let ring_x = (kin.band_half_width - tooth_half).max(0.02);
     let wrap_r = crate::running_gear_belt::wrap_radius(kin);
+    let tooth_outer_r = (r * 1.10).min(wrap_r - 0.032);
     let pitch = (kin.belt_length() / kin.link_count().max(1) as f32).max(0.05);
     let teeth = ((std::f32::consts::TAU * wrap_r) / pitch).round().max(8.0) as usize;
 
@@ -88,7 +93,13 @@ pub fn sprocket_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
         ));
         for i in 0..teeth {
             let angle = (i as f32 / teeth as f32) * std::f32::consts::TAU;
-            builder = builder.append(&sprocket_tooth(center_x, angle, r * 0.66, r * 1.10, 0.028));
+            builder = builder.append(&sprocket_tooth(
+                center_x,
+                angle,
+                r * 0.66,
+                tooth_outer_r,
+                tooth_half,
+            ));
         }
     }
     builder.build()

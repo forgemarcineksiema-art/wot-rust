@@ -142,9 +142,7 @@ pub fn tiger_i_reference_pack() -> ReferencePack {
         DimensionTarget::new(
             DimensionKind::HullWidth,
             3.705,
-            // TODO(W1-tiger-i-shape): docelowo ±0.08 — the instanced track links bake their
-            // outer faces ~5.5 cm proud per side (measured 3.816 m); PR-T1.2 owns the fix.
-            0.12,
+            0.08,
             ReferenceSource::new(
                 "Tiger I dossier",
                 "docs/vehicles/panzerkampfwagen-vi-tiger.md",

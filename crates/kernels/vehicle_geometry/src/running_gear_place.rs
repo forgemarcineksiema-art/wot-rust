@@ -131,6 +131,18 @@ fn place_side(
             transform: Mat4::from_translation(Vec3::new(side_sign * wheel_x, y, z))
                 * Mat4::from_rotation_x(wheel_spin),
         });
+        // The interleaved gear is a SANDWICH, not two files: every outer-row axle carries a
+        // second disc on the deep plane (past the inner row), so the flank reads as the dense
+        // three-plane Schachtellaufwerk of the photographs instead of a dark slab with wheels
+        // (the 2026-07 photo audit's Tiger finding). Single-file layouts skip this entirely.
+        if kin.wheel_overlap_dx > 0.0 && index % 2 == 0 {
+            let deep_x = kin.wheel_x - 2.0 * kin.wheel_overlap_dx;
+            out.push(GearPlacement {
+                part: GearPart::RoadWheel,
+                transform: Mat4::from_translation(Vec3::new(side_sign * deep_x, y, z))
+                    * Mat4::from_rotation_x(wheel_spin),
+            });
+        }
         out.push(GearPlacement {
             part: GearPart::SwingArm,
             transform: crate::running_gear_arms::swing_arm_transform(kin, side_sign, z, lift),

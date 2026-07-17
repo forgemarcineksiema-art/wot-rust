@@ -28,14 +28,21 @@ fn wheel_overlap_pulls_only_the_odd_row_inboard() {
     };
     let before = wheel_xs(&single_file);
     let after = wheel_xs(&interleaved);
-    assert_eq!(before.len(), after.len());
     assert!(before.windows(2).all(|w| (w[0] - w[1]).abs() < 1.0e-6), "today: one file");
-    for (index, (b, a)) in before.iter().zip(&after).enumerate() {
-        if index % 2 == 1 {
-            assert!((a - (b - 0.20)).abs() < 1.0e-4, "odd wheel {index} rides the inner row");
-        } else {
-            assert!((a - b).abs() < 1.0e-6, "even wheel {index} stays on the outer row");
-        }
+    // The sandwich contract (W1 PR-T1.2): odd axles ride the inner row; every even axle
+    // carries BOTH an outer disc and a deep-plane disc, so the flank reads three planes.
+    let axles = before.len();
+    assert_eq!(after.len(), axles + axles.div_ceil(2));
+    let outer = before[0];
+    let has = |x: f32| after.iter().any(|a| (a - x).abs() < 1.0e-4);
+    assert!(has(outer), "outer row survives");
+    assert!(has(outer - 0.20), "odd axles ride the inner row");
+    assert!(has(outer - 0.40), "even axles carry the deep-plane disc");
+    for a in &after {
+        assert!(
+            [outer, outer - 0.20, outer - 0.40].iter().any(|x| (a - x).abs() < 1.0e-4),
+            "every disc sits on one of the three planes, got {a}"
+        );
     }
 }
 
