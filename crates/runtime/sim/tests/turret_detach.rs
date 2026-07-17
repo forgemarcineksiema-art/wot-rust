@@ -25,11 +25,13 @@ fn run_until_shell_resolved(state: &mut SimulationState, shooter: TankId) {
     panic!("the shell never resolved");
 }
 
-/// An ammo-rack side shot on a nearly-dead T-55 that finishes both the rack and the hull.
+/// An ammo-rack side shot on a nearly-dead tank that finishes both the rack and the hull.
+/// The target is a vehicle WITHOUT a narrow-phase damage layout (only the T-54 carries one),
+/// so the legacy deterministic zone-roll lands the killing hit on the rack.
 fn detonation_kill() -> (SimulationState, TankId) {
     let mut state = SimulationState::new();
-    let shooter = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::new(-55.0, 0.0, 0.0));
-    let target = state.spawn_tank(TeamId(2), TankSpec::t55a(), Vec3::ZERO);
+    let shooter = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::new(-55.0, 0.0, 0.0));
+    let target = state.spawn_tank(TeamId(2), game_core::VehicleKind::T34_85.spec(), Vec3::ZERO);
     {
         let shooter = state.tank_mut(shooter).expect("shooter");
         shooter.yaw_rad = PI / 2.0;
@@ -60,7 +62,7 @@ fn an_ammo_rack_detonation_kill_blows_the_turret_off() {
 fn a_non_detonation_kill_leaves_the_turret_attached() {
     // A frontal glacis kill: damages/kills through the hull front, never the ammo rack.
     let mut state = SimulationState::new();
-    let shooter = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::ZERO);
+    let shooter = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
     let target = state.spawn_tank(TeamId(2), TankSpec::t54_1951(), Vec3::new(0.0, 0.0, 55.0));
     {
         let shooter = state.tank_mut(shooter).expect("shooter");
@@ -82,7 +84,7 @@ fn a_non_detonation_kill_leaves_the_turret_attached() {
 /// decapitated one — the collision truth follows the picture.
 #[test]
 fn a_detached_turret_no_longer_blocks_a_turret_height_shot() {
-    let spec = TankSpec::t55a();
+    let spec = TankSpec::t54_1951();
     let dome_y = spec.mounts.gun_trunnion.translation.y;
     let from = Vec3::new(0.0, dome_y, 10.0);
     let to = Vec3::new(0.0, dome_y, -2.0);

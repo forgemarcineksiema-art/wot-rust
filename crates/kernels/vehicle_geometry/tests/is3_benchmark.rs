@@ -45,7 +45,7 @@ fn the_turtle_dome_overhangs_its_ring_and_out_slopes_every_dome() {
         bp.turret.base_radius,
         bp.turret.ring_radius
     );
-    for kind in [VehicleKind::T54_1951, VehicleKind::T55A] {
+    for kind in [VehicleKind::T54_1951, VehicleKind::T54_1951] {
         let other = VehicleBlueprint::for_vehicle(kind).expect("blueprint");
         assert!(
             bp.turret.front_slope_deg > other.turret.front_slope_deg + 10.0,

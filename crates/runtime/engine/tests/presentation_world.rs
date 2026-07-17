@@ -12,7 +12,7 @@ fn snapshot(id: u64, position: [f32; 3], hit_points: u32) -> TankSnapshot {
     TankSnapshot {
         tank_id: TankId(id),
         team: TeamId(1),
-        vehicle: VehicleKind::T55A,
+        vehicle: VehicleKind::T54_1951,
         position,
         yaw_rad: 0.1,
         hull_pitch_rad: 0.0,
@@ -23,7 +23,7 @@ fn snapshot(id: u64, position: [f32; 3], hit_points: u32) -> TankSnapshot {
         hit_points,
         reload_remaining_s: 0.0,
         aim_dispersion_mrad: 2.9,
-        module_hit_points: VehicleKind::T55A.spec().module_health.hit_points_by_slot(),
+        module_hit_points: VehicleKind::T54_1951.spec().module_health.hit_points_by_slot(),
         destroyed_modules_mask: 0,
         track_damage_mask: 0,
         track_hp: [game_core::TRACK_HP_MAX; 2],
@@ -94,7 +94,7 @@ fn posed(position: [f32; 3], yaw_rad: f32) -> TankSnapshot {
 }
 
 fn half_gauge() -> f32 {
-    game_core::HitboxProfile::for_vehicle(VehicleKind::T55A).half_width_m
+    game_core::HitboxProfile::for_vehicle(VehicleKind::T54_1951).half_width_m
 }
 
 #[test]

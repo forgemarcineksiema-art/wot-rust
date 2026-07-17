@@ -6,7 +6,7 @@ use terrain::HeightMap;
 #[test]
 fn shell_falls_under_gravity_after_firing() {
     let mut state = SimulationState::new();
-    let id = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::new(50.0, 0.0, 50.0));
+    let id = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::new(50.0, 0.0, 50.0));
     let terrain = HeightMap::flat(64, 64, 4.0, 0.0).expect("flat terrain");
     let step = FixedTimestep::from_hz(60);
 
@@ -31,7 +31,7 @@ fn shell_falls_under_gravity_after_firing() {
 #[test]
 fn shell_spawns_at_the_visible_muzzle_when_elevated() {
     let mut state = SimulationState::new();
-    let id = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::new(50.0, 0.0, 50.0));
+    let id = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::new(50.0, 0.0, 50.0));
     let terrain = HeightMap::flat(64, 64, 4.0, 0.0).expect("flat terrain");
     let step = FixedTimestep::from_hz(60);
 
@@ -56,7 +56,7 @@ fn shell_spawns_at_the_visible_muzzle_when_elevated() {
     assert!((shell.age_seconds - dt).abs() < 1.0e-6, "shell should be one tick old");
     let spawn = shell.position - shell.velocity_mps * dt;
 
-    let mounts = MountFrames::for_vehicle(VehicleKind::T55A);
+    let mounts = MountFrames::for_vehicle(VehicleKind::T54_1951);
     let ring = mounts.turret_ring.translation;
     let trunnion = mounts.gun_trunnion.translation;
     let barrel = mounts.muzzle.translation.z - trunnion.z;
@@ -90,7 +90,7 @@ fn shell_spawns_at_the_visible_muzzle_when_elevated() {
 #[test]
 fn gun_elevation_clamps_to_its_arc() {
     let mut state = SimulationState::new();
-    let id = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::ZERO);
+    let id = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
     let step = FixedTimestep::from_hz(60);
 
     for _ in 0..600 {

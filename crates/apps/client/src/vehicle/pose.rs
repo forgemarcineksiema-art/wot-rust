@@ -131,8 +131,9 @@ mod tests {
     /// The pivot chain must compose: a point on a pivot is carried rigidly by the stages above it.
     #[test]
     fn pivots_ride_their_parent_stages() {
-        let pose = VehiclePose::new(VehicleKind::T55A, Vec3::new(4.0, 0.0, -2.0), 0.7, 0.4, 0.12);
-        let mounts = MountFrames::for_vehicle(VehicleKind::T55A);
+        let pose =
+            VehiclePose::new(VehicleKind::T54_1951, Vec3::new(4.0, 0.0, -2.0), 0.7, 0.4, 0.12);
+        let mounts = MountFrames::for_vehicle(VehicleKind::T54_1951);
 
         // The ring point itself is unaffected by turret traverse.
         let ring_world = pose.turret_point(mounts.turret_ring.translation);

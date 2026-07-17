@@ -42,9 +42,9 @@ fn tiger_i_is_available_in_known_specs() {
 }
 
 #[test]
-fn tiger_kwk36_penetrates_t55a_front_when_flat() {
+fn tiger_kwk36_penetrates_t54_front_when_flat() {
     let tiger = TankSpec::tiger_i_ausf_e();
-    let target = TankSpec::t55a();
+    let target = TankSpec::t54_1951();
     let shell = ShellSpec::armor_piercing(
         tiger.gun.shell.caliber_mm,
         tiger.gun.shell.muzzle_velocity_mps,

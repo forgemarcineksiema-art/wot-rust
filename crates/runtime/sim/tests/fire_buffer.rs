@@ -41,7 +41,7 @@ fn run_reload_down_to(state: &mut SimulationState, id: game_core::TankId, target
 #[test]
 fn a_click_just_before_ready_fires_the_tick_the_breech_closes() {
     let mut state = SimulationState::new();
-    let shooter = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::ZERO);
+    let shooter = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
     let step = FixedTimestep::from_hz(60);
 
     let ammo0 = total_ammo(&state, shooter);
@@ -68,7 +68,7 @@ fn a_click_just_before_ready_fires_the_tick_the_breech_closes() {
 #[test]
 fn a_click_long_before_ready_still_refuses() {
     let mut state = SimulationState::new();
-    let shooter = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::ZERO);
+    let shooter = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
     let step = FixedTimestep::from_hz(60);
 
     let ammo0 = total_ammo(&state, shooter);
@@ -97,7 +97,7 @@ fn a_click_long_before_ready_still_refuses() {
 #[test]
 fn an_ammo_switch_drops_the_held_click() {
     let mut state = SimulationState::new();
-    let shooter = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::ZERO);
+    let shooter = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
     let step = FixedTimestep::from_hz(60);
 
     let ammo0 = total_ammo(&state, shooter);
@@ -124,7 +124,7 @@ fn an_ammo_switch_drops_the_held_click() {
 #[test]
 fn a_gun_that_dies_while_the_click_is_held_fires_nothing() {
     let mut state = SimulationState::new();
-    let shooter = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::ZERO);
+    let shooter = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
     let step = FixedTimestep::from_hz(60);
 
     let ammo0 = total_ammo(&state, shooter);

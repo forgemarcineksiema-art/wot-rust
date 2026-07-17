@@ -46,7 +46,7 @@ fn a_high_explosive_round_brings_a_building_down() {
     let barn = [cover("barn", StaticCoverKind::FarmBuilding, [0.0, 1.5, 27.0], [4.0, 2.5, 1.5])];
 
     let mut state = SimulationState::new();
-    let shooter = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::ZERO);
+    let shooter = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
     let _target =
         state.spawn_tank_with_yaw(TeamId(2), TankSpec::t54_1951(), Vec3::new(0.0, 0.0, 55.0), PI);
     {
@@ -73,7 +73,7 @@ fn a_hull_driving_through_a_hedgerow_flattens_it_and_takes_a_nick() {
     let hedge = [cover("hedge", StaticCoverKind::TreeLine, [0.0, 1.0, 20.0], [10.0, 1.0, 0.6])];
 
     let mut state = SimulationState::new();
-    let tank = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::new(0.0, 0.0, 10.0));
+    let tank = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::new(0.0, 0.0, 10.0));
     let full_hp = state.tank(tank).expect("tank").hit_points;
     let step = FixedTimestep::from_hz(60);
     for _ in 0..300 {
@@ -99,7 +99,7 @@ fn a_shell_flies_where_a_crushed_hedgerow_used_to_block_it() {
 
     // First: with the hedge intact, the shot is absorbed short of the target.
     let mut blocked = SimulationState::new();
-    let shooter = blocked.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::ZERO);
+    let shooter = blocked.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
     let _target =
         blocked.spawn_tank_with_yaw(TeamId(2), TankSpec::t54_1951(), Vec3::new(0.0, 0.0, 55.0), PI);
     blocked.tank_mut(shooter).unwrap().aim_dispersion_mrad = 0.0;
@@ -109,10 +109,10 @@ fn a_shell_flies_where_a_crushed_hedgerow_used_to_block_it() {
 
     // Now crush the hedge with a hull, then fire the same shot: it flies clean to the target.
     let mut open = SimulationState::new();
-    let shooter = open.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::ZERO);
+    let shooter = open.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
     let target =
         open.spawn_tank_with_yaw(TeamId(2), TankSpec::t54_1951(), Vec3::new(0.0, 0.0, 55.0), PI);
-    let crusher = open.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::new(0.0, 0.0, 20.0));
+    let crusher = open.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::new(0.0, 0.0, 20.0));
     open.tank_mut(shooter).unwrap().aim_dispersion_mrad = 0.0;
     open.tank_mut(shooter).unwrap().spec.gun.dispersion_mrad = 0.0;
     let step = FixedTimestep::from_hz(60);
@@ -189,7 +189,7 @@ fn an_absorbed_shell_leaves_a_replicated_wound_on_the_struck_face() {
     let barn = [cover("barn", StaticCoverKind::FarmBuilding, [0.0, 1.5, 27.0], [4.0, 2.5, 1.5])];
 
     let mut state = SimulationState::new();
-    let shooter = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::ZERO);
+    let shooter = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
     let _target =
         state.spawn_tank_with_yaw(TeamId(2), TankSpec::t54_1951(), Vec3::new(0.0, 0.0, 55.0), PI);
     {
@@ -246,7 +246,7 @@ fn a_hull_drives_through_a_wooden_fence_and_a_shell_sweeps_it() {
 
     // The drive-through.
     let mut state = SimulationState::new();
-    let driver = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::ZERO);
+    let driver = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
     let step = FixedTimestep::from_hz(60);
     let full_ahead = TankCommand { throttle: 1.0, ..TankCommand::idle() };
     for _ in 0..600 {
@@ -258,7 +258,7 @@ fn a_hull_drives_through_a_wooden_fence_and_a_shell_sweeps_it() {
 
     // The shell sweep: one AP round clears the span to GONE — a fence leaves no rubble mound.
     let mut state = SimulationState::new();
-    let shooter = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::ZERO);
+    let shooter = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
     {
         let shooter = state.tank_mut(shooter).expect("shooter");
         shooter.aim_dispersion_mrad = 0.0;

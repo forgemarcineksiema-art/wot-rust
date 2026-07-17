@@ -7,10 +7,6 @@ impl TankSpec {
         VehicleKind::T54_1951.spec()
     }
 
-    pub fn t55a() -> Self {
-        VehicleKind::T55A.spec()
-    }
-
     pub fn tiger_i_ausf_e() -> Self {
         VehicleKind::TigerI.spec()
     }

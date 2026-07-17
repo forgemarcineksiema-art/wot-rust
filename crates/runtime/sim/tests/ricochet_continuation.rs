@@ -15,7 +15,7 @@ fn fire_command() -> TankCommand {
 #[test]
 fn a_glance_off_the_side_keeps_the_shell_flying_blunted() {
     let mut state = SimulationState::new();
-    let shooter = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::ZERO);
+    let shooter = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
     // Target nearly parallel to the shot line, offset so the shell grazes its side plate at
     // ~75° — a guaranteed ricochet for a 100 mm round on an 80 mm plate. The lateral offset is
     // derived from the live hitbox so the side plane sits a few centimeters inside the shot
@@ -28,7 +28,7 @@ fn a_glance_off_the_side_keeps_the_shell_flying_blunted() {
     let target = state.spawn_tank(TeamId(2), TankSpec::t54_1951(), Vec3::new(target_x, -0.2, 40.0));
     state.tank_mut(target).expect("target").yaw_rad = PI + tilt;
     state.tank_mut(shooter).expect("shooter").gun_pitch_rad = -0.018;
-    let muzzle_speed = TankSpec::t55a().gun.shell.muzzle_velocity_mps;
+    let muzzle_speed = TankSpec::t54_1951().gun.shell.muzzle_velocity_mps;
     let step = FixedTimestep::from_hz(60);
 
     state.apply_commands(&[(shooter, fire_command())], step);
@@ -57,7 +57,7 @@ fn a_glance_off_the_side_keeps_the_shell_flying_blunted() {
     );
     assert!(
         shell.shell.penetration_mm_at_100m
-            < TankSpec::t55a().gun.shell.penetration_mm_at_100m * 0.7,
+            < TankSpec::t54_1951().gun.shell.penetration_mm_at_100m * 0.7,
         "the blunted round carries less penetration"
     );
 

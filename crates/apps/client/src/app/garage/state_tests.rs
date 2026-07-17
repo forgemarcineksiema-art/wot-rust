@@ -64,12 +64,12 @@ fn enabling_persistence_with_no_save_leaves_the_stock_garage() {
 }
 
 #[test]
-fn garage_roster_starts_on_t54_and_rejects_t55a_legacy_clone() {
+fn garage_roster_starts_on_t54_and_rejects_the_test_only_prototype() {
     let mut garage = GarageState::default();
     assert_eq!(garage.selected_vehicle(), VehicleKind::T54_1951);
-    assert!(!VehicleKind::PLAYABLE.contains(&VehicleKind::T55A));
+    assert!(!VehicleKind::PLAYABLE.contains(&VehicleKind::PrototypeMedium));
 
-    garage.select_vehicle(VehicleKind::T55A);
+    garage.select_vehicle(VehicleKind::PrototypeMedium);
 
     assert_eq!(garage.selected_vehicle(), VehicleKind::T54_1951);
 }

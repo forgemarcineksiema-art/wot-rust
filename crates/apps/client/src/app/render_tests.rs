@@ -109,7 +109,7 @@ fn player_spec_and_reload_follow_snapshot_vehicle() {
 
     assert_eq!(app.player_spec().kind, game_core::VehicleKind::TigerII);
     assert_eq!(reload_max, game_core::VehicleKind::TigerII.spec().gun.reload_seconds);
-    assert_ne!(reload_max, game_core::TankSpec::t55a().gun.reload_seconds);
+    assert_ne!(reload_max, game_core::TankSpec::t54_1951().gun.reload_seconds);
 }
 
 #[test]

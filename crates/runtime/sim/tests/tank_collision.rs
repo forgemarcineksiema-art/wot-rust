@@ -5,8 +5,8 @@ use sim::{FixedTimestep, SimulationState, TankCommand};
 #[test]
 fn driving_tank_stops_before_overlapping_stationary_tank() {
     let mut state = SimulationState::new();
-    let mover = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::ZERO);
-    let blocker = state.spawn_tank(TeamId(2), TankSpec::t55a(), Vec3::new(0.0, 0.0, 8.0));
+    let mover = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
+    let blocker = state.spawn_tank(TeamId(2), TankSpec::t54_1951(), Vec3::new(0.0, 0.0, 8.0));
     let step = FixedTimestep::from_hz(60);
 
     for _ in 0..600 {
@@ -21,14 +21,16 @@ fn driving_tank_stops_before_overlapping_stationary_tank() {
         mover_tank.position.z - blocker_tank.position.z,
     );
 
+    // Nose-to-tail contact distance: both hulls' half lengths, with a small settling margin.
+    let contact = 2.0 * mover_tank.spec.hitbox.half_length_m - 0.05;
     assert!(
-        horizontal_delta.length() >= 6.35,
+        horizontal_delta.length() >= contact,
         "tank hulls must stay separated, mover at {:?}, blocker at {:?}",
         mover_tank.position,
         blocker_tank.position
     );
     assert!(
-        mover_tank.position.z <= blocker_tank.position.z - 6.35,
+        mover_tank.position.z <= blocker_tank.position.z - contact,
         "mover must not pass through the blocking tank"
     );
 }
@@ -40,8 +42,8 @@ fn driving_tank_stops_before_overlapping_stationary_tank() {
 fn a_gentle_bump_and_a_friendly_ram_deal_nothing() {
     // Gentle: barely rolling into an enemy 7 m ahead — under the ram threshold at contact.
     let mut state = SimulationState::new();
-    let mover = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::ZERO);
-    let target = state.spawn_tank(TeamId(2), TankSpec::t55a(), Vec3::new(0.0, 0.0, 7.0));
+    let mover = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
+    let target = state.spawn_tank(TeamId(2), TankSpec::t54_1951(), Vec3::new(0.0, 0.0, 7.0));
     let step = FixedTimestep::from_hz(60);
     let hp_before = state.tank(target).expect("target").hit_points;
     for _ in 0..90 {
@@ -55,8 +57,8 @@ fn a_gentle_bump_and_a_friendly_ram_deal_nothing() {
 
     // Friendly: a full-speed charge into a TEAMMATE still deals nothing.
     let mut state = SimulationState::new();
-    let mover = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::ZERO);
-    let ally = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::new(0.0, 0.0, 30.0));
+    let mover = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
+    let ally = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::new(0.0, 0.0, 30.0));
     let ally_hp = state.tank(ally).expect("ally").hit_points;
     for _ in 0..600 {
         state.apply_commands(&[(mover, TankCommand::drive(1.0, 0.0))], step);
@@ -71,9 +73,9 @@ fn a_gentle_bump_and_a_friendly_ram_deal_nothing() {
 #[test]
 fn high_speed_ramming_damages_both_tanks_and_running_gear() {
     let mut state = SimulationState::new();
-    let rammer = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::ZERO);
+    let rammer = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
     // A 30 m runway: the honest ram threshold (~16 km/h) needs a real charge, not a nudge.
-    let target = state.spawn_tank(TeamId(2), TankSpec::t55a(), Vec3::new(0.0, 0.0, 30.0));
+    let target = state.spawn_tank(TeamId(2), TankSpec::t54_1951(), Vec3::new(0.0, 0.0, 30.0));
     let step = FixedTimestep::from_hz(60);
     let rammer_hp = state.tank(rammer).expect("rammer").hit_points;
     let target_hp = state.tank(target).expect("target").hit_points;

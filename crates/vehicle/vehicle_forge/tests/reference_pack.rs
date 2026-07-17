@@ -36,7 +36,6 @@ fn t54_reference_pack_is_discoverable_by_vehicle_kind() {
 
     assert_eq!(t54.family_slug(), "t54");
     assert_eq!(t54.road_wheel_count_per_side(), 5);
-    assert!(ReferencePack::for_vehicle(VehicleKind::T55A).is_none());
     // The German heavies are migrated too, each with their own family pack.
     assert_eq!(ReferencePack::for_vehicle(VehicleKind::TigerI).unwrap().family_slug(), "tiger_i");
     assert_eq!(
@@ -109,6 +108,6 @@ fn measured_ratio_reports_signed_percentage_difference() {
 }
 
 #[test]
-fn t55a_has_no_production_forge_reference_pack() {
-    assert!(ReferencePack::for_vehicle(VehicleKind::T55A).is_none());
+fn the_test_only_prototype_has_no_production_forge_reference_pack() {
+    assert!(ReferencePack::for_vehicle(VehicleKind::PrototypeMedium).is_none());
 }

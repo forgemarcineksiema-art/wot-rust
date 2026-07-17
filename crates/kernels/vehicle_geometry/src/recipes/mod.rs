@@ -74,8 +74,7 @@ mod turret_fittings;
 pub(crate) use armament::{GunPlan, build_gun, build_gun_with_mantlet_scale};
 pub(crate) use chassis::{HullPlan, RunningGear, add_running_gear, hull_body, shade_hull};
 pub(crate) use chassis_blueprint::{
-    blueprint_deck_details, blueprint_hull, blueprint_prism_hull, blueprint_running_gear,
-    blueprint_skirts,
+    blueprint_deck_details, blueprint_prism_hull, blueprint_running_gear, blueprint_skirts,
 };
 pub(crate) use t54::{t54_hull, t54_turret_front};
 
@@ -99,7 +98,6 @@ fn recipe(kind: VehicleKind, hitbox: &HitboxProfile, mounts: &MountFrames) -> Op
     Some(match kind {
         VehicleKind::PrototypeMedium => soviet::prototype_medium(hitbox, mounts),
         VehicleKind::T54_1951 => soviet::t54_1951(hitbox, mounts),
-        VehicleKind::T55A => soviet::t55a(hitbox, mounts),
         VehicleKind::TigerI => tiger_i::tiger_i(hitbox, mounts),
         VehicleKind::TigerII => tiger_ii::tiger_ii(hitbox, mounts),
         VehicleKind::Jagdtiger => jagdtiger::jagdtiger(hitbox, mounts),

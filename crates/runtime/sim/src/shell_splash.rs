@@ -145,14 +145,14 @@ mod tests {
     use crate::tank_factory::fresh_tank;
 
     fn he_shell(owner: TankId, at: Vec3) -> ShellState {
-        let spec = TankSpec::t55a();
+        let spec = TankSpec::t54_1951();
         let shell = spec
             .gun
             .ammo_options()
             .iter()
             .copied()
             .find(|s| s.shell_type == ShellType::HighExplosive)
-            .expect("t55a carries HE");
+            .expect("t54 carries HE");
         ShellState {
             id: game_core::ShellId::default(),
             owner,
@@ -169,8 +169,8 @@ mod tests {
 
     fn splash_damage_at(burst: Vec3, tank_pos: Vec3, heightmap: Option<&HeightMap>) -> u32 {
         let shooter =
-            fresh_tank(TankId(1), TeamId(1), TankSpec::t55a(), Vec3::new(500.0, 0.0, 0.0), 0.0);
-        let victim = fresh_tank(TankId(2), TeamId(2), TankSpec::t55a(), tank_pos, 0.0);
+            fresh_tank(TankId(1), TeamId(1), TankSpec::t54_1951(), Vec3::new(500.0, 0.0, 0.0), 0.0);
+        let victim = fresh_tank(TankId(2), TeamId(2), TankSpec::t54_1951(), tank_pos, 0.0);
         let hp_before = victim.hit_points;
         let mut tanks = vec![shooter, victim];
         let shell = he_shell(TankId(1), burst);
@@ -207,7 +207,7 @@ mod tests {
     #[test]
     fn the_blast_soaks_by_the_plate_that_faces_it() {
         let tank_pos = Vec3::new(50.0, 0.0, 50.0);
-        let spec = TankSpec::t55a();
+        let spec = TankSpec::t54_1951();
         let above = Vec3::new(50.0, spec.hitbox.center_y_m + spec.hitbox.half_height_m + 1.0, 50.0);
         let front = Vec3::new(50.0, spec.hitbox.center_y_m, 50.0 + spec.hitbox.half_length_m + 1.0);
         let deck_wound = splash_damage_at(above, tank_pos, None);

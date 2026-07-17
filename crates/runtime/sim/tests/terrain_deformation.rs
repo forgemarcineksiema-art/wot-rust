@@ -34,7 +34,7 @@ fn fire_into_the_ground(state: &mut SimulationState, terrain: &HeightMap) {
 }
 
 fn spawn_shooter_aiming_at_the_dirt(state: &mut SimulationState, ammo_slot: u8) {
-    let shooter = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::new(190.0, 0.0, 150.0));
+    let shooter = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::new(190.0, 0.0, 150.0));
     let tank = state.tank_mut(shooter).expect("shooter");
     tank.aim_dispersion_mrad = 0.0;
     tank.spec.gun.dispersion_mrad = 0.0;
@@ -115,7 +115,7 @@ fn a_tank_can_climb_out_of_the_deepest_crater() {
     shelled.set_craters(&[crater]);
 
     let mut state = SimulationState::new();
-    let id = state.spawn_tank(TeamId(1), TankSpec::t55a(), spot);
+    let id = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), spot);
     // Settle into the bowl first, then full throttle straight ahead.
     for _ in 0..60 {
         state.apply_commands_on_battlefield(&[(id, TankCommand::idle())], step, &shelled, &[]);
@@ -149,7 +149,7 @@ fn a_hull_in_the_crater_genuinely_sits_lower() {
 
     let settle = |terrain: &HeightMap| {
         let mut state = SimulationState::new();
-        let id = state.spawn_tank(TeamId(1), TankSpec::t55a(), spot);
+        let id = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), spot);
         for _ in 0..90 {
             // An idle command each tick: only commanded hulls run ground contact, and the tank
             // must genuinely settle onto (or into) the ground under it.

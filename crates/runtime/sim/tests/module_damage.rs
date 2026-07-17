@@ -7,7 +7,7 @@ use sim::{FixedTimestep, SimulationState, TankCommand};
 #[test]
 fn penetrating_centerline_hit_passes_between_racks_and_reaches_the_engine() {
     let mut state = SimulationState::new();
-    let shooter = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::ZERO);
+    let shooter = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
     let target = state.spawn_tank(TeamId(2), TankSpec::t54_1951(), Vec3::new(0.0, 0.0, 55.0));
     state.tank_mut(target).expect("target").yaw_rad = PI;
     // Depress onto the middle of the T-54's REAL glacis plate (the plane spans 1.0–1.58 m of
@@ -37,8 +37,10 @@ fn penetrating_centerline_hit_passes_between_racks_and_reaches_the_engine() {
 #[test]
 fn turret_side_penetration_can_destroy_ammo_rack_module() {
     let mut state = SimulationState::new();
-    let shooter = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::new(-55.0, 0.0, 0.0));
-    let target = state.spawn_tank(TeamId(2), TankSpec::t55a(), Vec3::ZERO);
+    let shooter = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::new(-55.0, 0.0, 0.0));
+    // A target WITHOUT a narrow-phase damage layout (only the T-54 carries one), so the
+    // legacy deterministic zone-roll owns module selection — the path this test locks.
+    let target = state.spawn_tank(TeamId(2), VehicleKind::T34_85.spec(), Vec3::ZERO);
     {
         let shooter = state.tank_mut(shooter).expect("shooter");
         shooter.yaw_rad = PI / 2.0;
@@ -63,8 +65,8 @@ fn rear_side_penetration_hits_engine_volume_instead_of_generic_side_module() {
     let mut state = SimulationState::new();
     // Keep the projectile body's lower edge clear of the real track band: this test targets the
     // engine-bay side plate, while the separate track tests own grazing running-gear behavior.
-    let shooter = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::new(-55.0, 0.0, -2.4));
-    let target = state.spawn_tank(TeamId(2), TankSpec::t55a(), Vec3::ZERO);
+    let shooter = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::new(-55.0, 0.0, -2.4));
+    let target = state.spawn_tank(TeamId(2), TankSpec::t54_1951(), Vec3::ZERO);
     {
         let shooter = state.tank_mut(shooter).expect("shooter");
         shooter.yaw_rad = PI / 2.0;
@@ -111,7 +113,7 @@ fn high_explosive_near_miss_on_armor_can_throw_tracks_without_full_penetration()
 #[test]
 fn destroyed_gun_prevents_firing() {
     let mut state = SimulationState::new();
-    let shooter = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::ZERO);
+    let shooter = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
     state.tank_mut(shooter).expect("shooter").modules.damage(ModuleSlot::Gun, u32::MAX);
 
     state.apply_commands(&[(shooter, fire_command())], FixedTimestep::from_hz(60));
@@ -124,7 +126,7 @@ fn destroyed_gun_prevents_firing() {
 #[test]
 fn knocked_out_tank_ignores_drive_aim_and_fire_commands() {
     let mut state = SimulationState::new();
-    let tank = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::new(8.0, 0.0, 8.0));
+    let tank = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::new(8.0, 0.0, 8.0));
     {
         let tank = state.tank_mut(tank).expect("tank");
         tank.hit_points = 0;
@@ -178,9 +180,9 @@ fn fixed_casemate_ignores_turret_yaw_commands() {
 
 #[test]
 fn spawned_tank_uses_module_health_from_assembled_loadout() {
-    let mut loadout = VehicleKind::T55A.default_loadout();
+    let mut loadout = VehicleKind::T54_1951.default_loadout();
     loadout.gun.hit_points = 1;
-    let spec = loadout.assemble(VehicleKind::T55A);
+    let spec = loadout.assemble(VehicleKind::T54_1951);
     let mut state = SimulationState::new();
 
     let tank = state.spawn_tank(TeamId(1), spec, Vec3::ZERO);

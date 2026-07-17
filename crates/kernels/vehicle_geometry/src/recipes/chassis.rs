@@ -8,7 +8,7 @@ use crate::{
 };
 
 // Shared lower-gear contact shading: darken low/occluded running gear without touching upper
-// armour. Pinned for T-55A by `t55a_surface_shading_darkens_lower_running_gear`.
+// armour. Pinned for the T-54 by `t54_surface_shading_darkens_lower_running_gear`.
 const SHADE_FLOOR_Y: f32 = -0.05;
 const SHADE_BRIGHT_Y: f32 = 1.05;
 const SHADE_LOW: f32 = 0.70;

@@ -86,7 +86,7 @@ mod tests {
         PresentationTank {
             id: TankId(id),
             team: TeamId(team),
-            vehicle: VehicleKind::T55A,
+            vehicle: VehicleKind::T54_1951,
             // Low enough that the floating bar lands inside the identity clip volume.
             translation: [0.0, -2.0, 0.0],
             hull_yaw_rad: 0.0,
@@ -96,7 +96,7 @@ mod tests {
             destroyed_modules_mask: 0,
             // Spotted by every team by default, so the visibility gate is not what these cases test.
             spotted_by_teams_mask: u8::MAX,
-            module_hit_points: VehicleKind::T55A.spec().module_health.hit_points_by_slot(),
+            module_hit_points: VehicleKind::T54_1951.spec().module_health.hit_points_by_slot(),
             track_damage_mask: 0,
             track_break_t: [None, None],
             engine_fire: false,

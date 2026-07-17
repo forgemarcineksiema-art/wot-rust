@@ -71,15 +71,10 @@ fn forge_lineup_cli_writes_benchmark_artifacts_and_index() {
     assert!(out.join("t54-1951").join("manifest.json").is_file());
     assert!(out.join("t54-1951").join("rolled_armor_albedo.png").is_file());
     assert!(out.join("t54-1951").join("review").join("front.png").is_file());
-    assert!(
-        !out.join("t55a").exists(),
-        "T-55A is legacy-compatible only and must not be emitted by forge-lineup"
-    );
 
     let index = std::fs::read_to_string(out.join("index.md")).expect("lineup index");
     assert!(index.contains("Armored Vehicle Forge lineup"));
     assert!(index.contains("t54-1951"));
-    assert!(!index.contains("t55a"));
 
     std::fs::remove_dir_all(out).expect("remove lineup");
 }

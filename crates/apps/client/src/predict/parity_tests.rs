@@ -10,7 +10,7 @@ use super::*;
 #[test]
 fn predictor_matches_the_server_pose_and_dispersion_tick_for_tick() {
     let flat = HeightMap::flat(64, 64, 4.0, 0.0).unwrap();
-    let spec = TankSpec::t55a();
+    let spec = TankSpec::t54_1951();
     let step = FixedTimestep::from_hz(60);
 
     let mut server = SimulationState::new();
@@ -69,7 +69,7 @@ fn predictor_matches_the_server_through_a_launch_flight_and_landing() {
         }
     }
     let map = HeightMap::new(61, 61, 1.0, samples).expect("test heightmap dimensions are fixed");
-    let spec = TankSpec::t55a();
+    let spec = TankSpec::t54_1951();
     let step = FixedTimestep::from_hz(60);
 
     let mut server = SimulationState::new();

@@ -70,7 +70,7 @@ Each vehicle recipe must declare:
 - gameplay fit rules against `HitboxProfile`.
 - triangle and vertex budgets.
 
-The first vertical slice used `T55A`, but the current Forge benchmark is `T54_1951`. It proves the hardest useful path for this style: low
+The first vertical slice used the since-removed `T55A`, but the current Forge benchmark is `T54_1951`. It proves the hardest useful path for this style: low
 hull, rounded cast turret, small cupola, long 100 mm gun, visible road wheels, and tracks that read
 as more than side boxes.
 
@@ -133,7 +133,7 @@ tests first, but no implementation phase is complete until the full gate passes.
 
 1. Document and enforce this policy.
 2. Add the `vehicle_geometry` crate with the kernel, neutral mesh types, and unit tests.
-3. Build the canonical `T54_1951` benchmark through the current baked render path; keep `T55A` as legacy compatibility only.
+3. Build the canonical `T54_1951` benchmark through the current baked render path. (`T55A` was later removed outright — the roster carries no clones.)
 4. Add smoothing groups and baked vertex-color surface treatment.
 5. Move rich vehicle geometry to mesh handles and instanced render objects before rolling out all
    vehicles.

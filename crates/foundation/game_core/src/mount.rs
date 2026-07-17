@@ -43,11 +43,6 @@ impl MountFrames {
                 gun_trunnion: MountFrame::new(Vec3::new(0.0, 1.80, 1.10)),
                 muzzle: MountFrame::new(Vec3::new(0.0, 1.80, 5.20)),
             },
-            VehicleKind::T55A => Self {
-                turret_ring: MountFrame::new(Vec3::new(0.0, 1.30, 0.05)),
-                gun_trunnion: MountFrame::new(Vec3::new(0.0, 1.78, 1.05)),
-                muzzle: MountFrame::new(Vec3::new(0.0, 1.78, 5.30)),
-            },
             // Blueprint-migrated: mounts come from `blueprint.mount_frames()` above, always.
             VehicleKind::T34_85
             | VehicleKind::IS3

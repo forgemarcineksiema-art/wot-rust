@@ -60,7 +60,6 @@ fn spawn_replay_tank(state: &mut SimulationState, tank: &ReplayTank) -> TankId {
 
 fn spec_by_name(name: &str) -> TankSpec {
     match name {
-        "t55a" => TankSpec::t55a(),
         "t54_1951" => TankSpec::t54_1951(),
         "tiger_ii" => TankSpec::tiger_ii_ausf_b(),
         other => panic!("unsupported replay tank spec: {other}"),

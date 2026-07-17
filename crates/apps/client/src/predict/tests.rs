@@ -3,7 +3,7 @@ use net::TankSnapshot;
 use super::*;
 
 fn snapshot_at(position: [f32; 3]) -> TankSnapshot {
-    snapshot_for_vehicle(game_core::VehicleKind::T55A, position)
+    snapshot_for_vehicle(game_core::VehicleKind::T54_1951, position)
 }
 
 fn snapshot_for_vehicle(vehicle: game_core::VehicleKind, position: [f32; 3]) -> TankSnapshot {
@@ -71,7 +71,7 @@ fn snapshot_with_gun_module_hp(gun_hp: u32) -> TankSnapshot {
 #[test]
 fn prediction_seeds_then_drives_the_hull_forward() {
     let flat = HeightMap::flat(8, 8, 4.0, 0.0).unwrap();
-    let mut predictor = LocalPredictor::new(&TankSpec::t55a());
+    let mut predictor = LocalPredictor::new(&TankSpec::t54_1951());
     assert!(!predictor.is_seeded());
 
     predictor.sync_to(&snapshot_at([10.0, 0.0, 10.0]));
@@ -91,7 +91,7 @@ fn prediction_seeds_then_drives_the_hull_forward() {
 #[test]
 fn prediction_tracks_turret_and_gun_pitch_from_local_commands() {
     let flat = HeightMap::flat(8, 8, 4.0, 0.0).unwrap();
-    let spec = TankSpec::t55a();
+    let spec = TankSpec::t54_1951();
     let mut predictor = LocalPredictor::new(&spec);
     predictor.sync_to(&snapshot_with_aim(0.10, -0.02));
 
@@ -141,7 +141,7 @@ fn prediction_zeros_fixed_casemate_yaw_from_snapshots_and_commands() {
 #[test]
 fn prediction_respects_authoritative_module_and_hull_damage() {
     let flat = HeightMap::flat(8, 8, 4.0, 0.0).unwrap();
-    let spec = TankSpec::t55a();
+    let spec = TankSpec::t54_1951();
     let mut predictor = LocalPredictor::new(&spec);
     let engine_destroyed = ModuleSlot::Engine.destroyed_mask_bit();
     let suspension_destroyed = ModuleSlot::Suspension.destroyed_mask_bit();
@@ -176,7 +176,7 @@ fn prediction_respects_authoritative_module_and_hull_damage() {
 #[test]
 fn prediction_blooms_dispersion_on_traverse_and_recovers_when_still() {
     let flat = HeightMap::flat(8, 8, 4.0, 0.0).unwrap();
-    let mut predictor = LocalPredictor::new(&TankSpec::t55a());
+    let mut predictor = LocalPredictor::new(&TankSpec::t54_1951());
     predictor.sync_to(&snapshot_at([10.0, 0.0, 10.0]));
     let settled = predictor.aim_dispersion_mrad();
 
@@ -207,7 +207,7 @@ fn prediction_blooms_dispersion_on_traverse_and_recovers_when_still() {
 #[test]
 fn prediction_recovers_dispersion_against_partial_gun_module_damage() {
     let flat = HeightMap::flat(8, 8, 4.0, 0.0).unwrap();
-    let spec = TankSpec::t55a();
+    let spec = TankSpec::t54_1951();
     let mut predictor = LocalPredictor::new(&spec);
     predictor
         .sync_to(&snapshot_with_gun_module_hp(spec.module_health.hit_points(ModuleSlot::Gun) / 2));

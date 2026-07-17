@@ -63,7 +63,11 @@ pub use snapshot_schedule::SnapshotSchedule;
 /// v18: `ServerHello` names the match — `map_id` and `weather_variant` — so the client can
 /// deterministically rebuild the same battlefield the server simulates (the map itself is
 /// never sent) and dress it in the same sky. `ImpactSurface` gains `Water`.
-pub const PROTOCOL_VERSION: u16 = 32;
+///
+/// v33: the T-55A clone leaves the roster and its `VehicleKind` variant is deleted outright,
+/// shifting every discriminant after it — a deliberate wire break (no live players yet;
+/// the roster rule is "no clones").
+pub const PROTOCOL_VERSION: u16 = 33;
 
 #[derive(Debug, Error)]
 pub enum NetError {

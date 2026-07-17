@@ -33,7 +33,7 @@ fn cover_off_to_the_side_does_not_block_a_clear_shot() {
 
 fn duel() -> (SimulationState, TankId, TankId) {
     let mut state = SimulationState::new();
-    let shooter = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::ZERO);
+    let shooter = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
     let target = state.spawn_tank(TeamId(2), TankSpec::t54_1951(), Vec3::new(0.0, 0.0, 55.0));
     {
         let shooter = state.tank_mut(shooter).expect("shooter");
@@ -93,7 +93,7 @@ fn static_cover_stops_a_tank_driving_into_it() {
     };
 
     let mut state = SimulationState::new();
-    let tank = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::new(10.0, 0.0, 10.0));
+    let tank = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::new(10.0, 0.0, 10.0));
     let step = FixedTimestep::from_hz(60);
     for _ in 0..240 {
         state.apply_commands_on_battlefield(

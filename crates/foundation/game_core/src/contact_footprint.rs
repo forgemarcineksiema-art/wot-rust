@@ -109,11 +109,14 @@ mod tests {
 
     #[test]
     fn an_even_spread_covers_first_to_last_wheel() {
-        let footprint = ContactFootprint::for_vehicle(VehicleKind::T55A);
+        // The hitbox-estimate path (no blueprint) spreads stations evenly across the run.
+        let footprint = ContactFootprint::for_vehicle(VehicleKind::PrototypeMedium);
+        let hitbox = HitboxProfile::for_vehicle(VehicleKind::PrototypeMedium);
         let stations = footprint.station_zs();
         assert_eq!(stations.len(), 5);
-        assert!((stations[0] + 2.12).abs() < 1.0e-6);
-        assert!((stations[4] - 2.12).abs() < 1.0e-6);
+        let half_run = hitbox.half_length_m * 0.78;
+        assert!((stations[0] + half_run).abs() < 1.0e-6);
+        assert!((stations[4] - half_run).abs() < 1.0e-6);
         // Even pitch between stations.
         let pitch = stations[1] - stations[0];
         for pair in stations.windows(2) {

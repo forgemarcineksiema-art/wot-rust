@@ -29,7 +29,6 @@ pub struct VehicleArmorVolumes {
 /// Baked once per process — the shell trace asks for these on every segment.
 pub fn vehicle_armor_volumes(kind: VehicleKind) -> Option<&'static VehicleArmorVolumes> {
     static T54: OnceLock<Option<VehicleArmorVolumes>> = OnceLock::new();
-    static T55A: OnceLock<Option<VehicleArmorVolumes>> = OnceLock::new();
     static IS3: OnceLock<Option<VehicleArmorVolumes>> = OnceLock::new();
     static TIGER_I: OnceLock<Option<VehicleArmorVolumes>> = OnceLock::new();
     static TIGER_II: OnceLock<Option<VehicleArmorVolumes>> = OnceLock::new();
@@ -39,7 +38,6 @@ pub fn vehicle_armor_volumes(kind: VehicleKind) -> Option<&'static VehicleArmorV
     static T34_85: OnceLock<Option<VehicleArmorVolumes>> = OnceLock::new();
     let cell = match kind {
         VehicleKind::T54_1951 => &T54,
-        VehicleKind::T55A => &T55A,
         VehicleKind::IS3 => &IS3,
         VehicleKind::TigerI => &TIGER_I,
         VehicleKind::TigerII => &TIGER_II,
@@ -495,11 +493,5 @@ mod tests {
         for pair in headings.windows(2) {
             assert!((pair[1] - pair[0]).abs() > 1.0e-3, "sector headings must differ");
         }
-    }
-
-    #[test]
-    fn t54_refinement_does_not_change_the_non_playable_t55_clone() {
-        let volumes = vehicle_armor_volumes(VehicleKind::T55A).expect("baked");
-        assert_eq!(volumes.turret.planes.len(), TURRET_SECTORS + 2);
     }
 }

@@ -26,7 +26,6 @@ impl VehicleKind {
         match self {
             VehicleKind::PrototypeMedium => default_ammo_capacity(),
             VehicleKind::T54_1951 => 34,
-            VehicleKind::T55A => 43,
             VehicleKind::TigerI => 92,
             VehicleKind::TigerII => 84,
             VehicleKind::Jagdtiger => 40,

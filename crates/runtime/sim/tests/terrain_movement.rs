@@ -20,7 +20,7 @@ fn authoritative_simulation_slows_tank_on_uphill_terrain() {
 #[test]
 fn braking_command_bleeds_forward_speed_before_reverse() {
     let mut state = SimulationState::new();
-    let tank_id = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::new(8.0, 0.0, 8.0));
+    let tank_id = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::new(8.0, 0.0, 8.0));
     let step = FixedTimestep::from_hz(60);
 
     for _ in 0..40 {
@@ -39,7 +39,7 @@ fn braking_command_bleeds_forward_speed_before_reverse() {
 
 fn drive_for_one_second(terrain: &HeightMap) -> sim::TankState {
     let mut state = SimulationState::new();
-    let tank_id = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::new(8.0, 0.0, 8.0));
+    let tank_id = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::new(8.0, 0.0, 8.0));
     let step = FixedTimestep::from_hz(60);
 
     for _ in 0..60 {

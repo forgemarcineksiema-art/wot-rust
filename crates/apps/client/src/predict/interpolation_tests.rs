@@ -49,7 +49,7 @@ fn snapshot_with_aim(turret_yaw_rad: f32, gun_pitch_rad: f32) -> TankSnapshot {
 #[test]
 fn interpolated_pose_blends_previous_tick_toward_current() {
     let flat = HeightMap::flat(8, 8, 4.0, 0.0).unwrap();
-    let mut predictor = LocalPredictor::new(&TankSpec::t55a());
+    let mut predictor = LocalPredictor::new(&TankSpec::t54_1951());
     predictor.sync_to(&snapshot_at([10.0, 0.0, 10.0]));
 
     // One tick of forward drive establishes a non-trivial previous -> current gap.
@@ -79,7 +79,7 @@ fn interpolated_pose_blends_previous_tick_toward_current() {
 #[test]
 fn motion_reports_the_rigid_bodys_tick_domain_speed_and_launch_accel() {
     let flat = HeightMap::flat(8, 8, 4.0, 0.0).unwrap();
-    let mut predictor = LocalPredictor::new(&TankSpec::t55a());
+    let mut predictor = LocalPredictor::new(&TankSpec::t54_1951());
     predictor.sync_to(&snapshot_at([10.0, 0.0, 10.0]));
 
     let dt = 1.0 / 60.0;
@@ -106,7 +106,7 @@ fn motion_reports_the_rigid_bodys_tick_domain_speed_and_launch_accel() {
 #[test]
 fn a_large_authoritative_correction_resets_the_motion_history_with_the_pose() {
     let flat = HeightMap::flat(8, 8, 4.0, 0.0).unwrap();
-    let mut predictor = LocalPredictor::new(&TankSpec::t55a());
+    let mut predictor = LocalPredictor::new(&TankSpec::t54_1951());
     predictor.sync_to(&snapshot_at([10.0, 0.0, 10.0]));
     predictor.step(TankCommand::drive(1.0, 0.0), &flat, &[], &[], 1.0 / 60.0);
 
@@ -120,7 +120,7 @@ fn a_large_authoritative_correction_resets_the_motion_history_with_the_pose() {
 
 #[test]
 fn seeding_anchors_previous_pose_so_the_first_frame_does_not_fly_in() {
-    let mut predictor = LocalPredictor::new(&TankSpec::t55a());
+    let mut predictor = LocalPredictor::new(&TankSpec::t54_1951());
     predictor.sync_to(&snapshot_at([10.0, 0.0, 10.0]));
 
     // Before any tick runs, every sub-tick blend must already sit on the seed pose -- a
@@ -134,7 +134,7 @@ fn seeding_anchors_previous_pose_so_the_first_frame_does_not_fly_in() {
 #[test]
 fn large_authoritative_correction_snaps_the_render_interpolation_anchor() {
     let flat = HeightMap::flat(8, 8, 4.0, 0.0).unwrap();
-    let mut predictor = LocalPredictor::new(&TankSpec::t55a());
+    let mut predictor = LocalPredictor::new(&TankSpec::t54_1951());
     predictor.sync_to(&snapshot_at([10.0, 0.0, 10.0]));
     predictor.step(TankCommand::drive(1.0, 0.0), &flat, &[], &[], 1.0 / 60.0);
 
@@ -153,7 +153,7 @@ fn large_authoritative_correction_snaps_the_render_interpolation_anchor() {
 #[test]
 fn interpolated_turret_takes_the_shortest_arc_across_the_pi_wrap() {
     let flat = HeightMap::flat(8, 8, 4.0, 0.0).unwrap();
-    let spec = TankSpec::t55a();
+    let spec = TankSpec::t54_1951();
     let mut predictor = LocalPredictor::new(&spec);
     // Previous turret just below +PI, current just past -PI after a wrap: a naive lerp would
     // sweep the long way around; shortest-arc must stay near the +/-PI seam.
@@ -184,7 +184,7 @@ fn predictor_stays_in_lockstep_with_the_authoritative_server_under_steering() {
         .into_iter()
         .find(|tank| tank.tank_id == player)
         .expect("player in seed snapshot");
-    let mut predictor = LocalPredictor::new(&TankSpec::t55a());
+    let mut predictor = LocalPredictor::new(&TankSpec::t54_1951());
     predictor.set_water(battlefield.water);
     predictor.sync_to(&seed);
 

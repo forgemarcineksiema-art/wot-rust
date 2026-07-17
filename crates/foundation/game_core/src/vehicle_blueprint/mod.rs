@@ -1,4 +1,4 @@
-﻿//! The single parametric source of truth for a vehicle's *shape*. One [`VehicleBlueprint`] drives,
+//! The single parametric source of truth for a vehicle's *shape*. One [`VehicleBlueprint`] drives,
 //! together, the collision hitbox, the mount frames, and the armour facet slopes — and (via
 //! `vehicle_geometry`, which reads the same blueprint) the visual mesh. Because all of these read
 //! one struct, the silhouette, what you hit, and what the armour model resolves cannot drift apart.
@@ -33,8 +33,6 @@ mod shape_track;
 mod source;
 mod t54_hybrid;
 mod t54_hybrid_turret;
-#[cfg(test)]
-mod t55a;
 #[cfg(test)]
 mod tiger_i;
 #[cfg(test)]
@@ -236,8 +234,6 @@ mod tests {
         let hybrid = t54.hybrid().expect("T-54 is the hybrid benchmark");
         assert_eq!(t54.track.wheel_count, 5, "five road wheels per side");
         assert!(hybrid.turret.budget > 0, "the cast turret meshes to a triangle budget");
-        let t55a = VehicleBlueprint::for_vehicle(VehicleKind::T55A).expect("blueprint");
-        assert!(t55a.hybrid().is_none(), "T-55A still bakes through the legacy path");
     }
 
     /// SSOT guard for the hybrid path: [`HybridVisual`] may *add* visual-only dimensions, but every
@@ -334,22 +330,6 @@ mod tests {
             d.grille_center.y + d.grille_half.y > deck_top + 0.01,
             "deck grille top {} must clear the engine-deck top {deck_top} to avoid z-fighting",
             d.grille_center.y + d.grille_half.y
-        );
-    }
-
-    /// The T-55A is now blueprint-backed too: its hitbox, mounts, and armour slopes all read the
-    /// one shape source, and it carries the family's historical five road wheels (not six).
-    #[test]
-    fn t55a_blueprint_is_the_single_source_for_hitbox_mounts_and_armor() {
-        let bp = VehicleBlueprint::for_vehicle(VehicleKind::T55A).expect("blueprint");
-        assert_eq!(bp.hitbox(), HitboxProfile::for_vehicle(VehicleKind::T55A));
-        assert_eq!(bp.mount_frames(), MountFrames::for_vehicle(VehicleKind::T55A));
-        assert_eq!(bp.track.wheel_count, 5, "T-55A shares the five-wheel family running gear");
-
-        let spec = VehicleKind::T55A.spec();
-        assert!(
-            (spec.hull.facets.hull_front.slope_degrees - bp.armor.hull_front.0).abs() < 1.0e-6,
-            "glacis armour slope must equal the blueprint glacis angle"
         );
     }
 }

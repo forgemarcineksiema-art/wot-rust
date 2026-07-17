@@ -57,7 +57,7 @@ pub(crate) fn forge_spec(kind: VehicleKind) -> Option<VehicleForgeSpec> {
             parts: PartStrategy::BakedGeometry,
             review_cameras: ReviewCameraSet::standard_vehicle_review,
         },
-        VehicleKind::T55A | VehicleKind::PrototypeMedium => return None,
+        VehicleKind::PrototypeMedium => return None,
     };
     Some(spec)
 }

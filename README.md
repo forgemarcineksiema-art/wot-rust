@@ -30,7 +30,6 @@ cargo run -p client             # dev build (opt-level 1): fine for quick checks
 cargo run -p tools -- make-flat-heightmap --output assets/generated/flat.heightmap.json
 cargo run -p tools -- generate-map --map prokhorovka-hill-252-2 --output assets/maps/prokhorovka_hill_252_2.terrain.json
 cargo run -p tools -- generate-vehicle --vehicle t54-1951 --output assets/vehicles/t54_1951.vehicle.json
-cargo run -p tools -- generate-vehicle --vehicle t55a --output assets/vehicles/t55a.vehicle.json
 cargo run -p tools -- generate-vehicle --vehicle tiger-i-ausf-e --output assets/vehicles/tiger_i_ausf_e.vehicle.json
 cargo run -p tools -- generate-vehicle --vehicle tiger-ii-ausf-b --output assets/vehicles/tiger_ii_ausf_b.vehicle.json
 cargo run -p tools -- generate-vehicle --vehicle jagdtiger --output assets/vehicles/jagdtiger.vehicle.json

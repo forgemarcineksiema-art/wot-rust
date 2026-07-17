@@ -9,13 +9,13 @@ use game_core::{ArmorFacing, ArmorZone, HitboxProfile, TankId, VehicleKind};
 use glam::Vec3;
 use sim::{SegmentImpact, ShellTraceWorld, TraceTank, segment_impact};
 
-fn t55a_at_origin(turret_yaw_rad: f32) -> TraceTank {
+fn t54_at_origin(turret_yaw_rad: f32) -> TraceTank {
     TraceTank::for_kind(
         TankId(1),
         Vec3::ZERO,
         HullPose::level(0.0),
         turret_yaw_rad,
-        VehicleKind::T55A,
+        VehicleKind::T54_1951,
     )
 }
 
@@ -34,8 +34,8 @@ fn world(tank: &TraceTank) -> ShellTraceWorld<'_> {
 /// the hull plan at turret height, but visually passes *beside* the turret. It must fly on.
 #[test]
 fn shot_beside_the_turret_at_turret_height_passes_over_the_hull() {
-    let tank = t55a_at_origin(0.0);
-    let hitbox = HitboxProfile::for_vehicle(VehicleKind::T55A);
+    let tank = t54_at_origin(0.0);
+    let hitbox = HitboxProfile::for_vehicle(VehicleKind::T54_1951);
     // Between the turret plan (0.95) and the hull plan (1.75), above the split (world y 1.80).
     let x = (hitbox.turret_half_width_m + hitbox.half_width_m) * 0.5;
     let outcome = segment_impact(
@@ -51,10 +51,12 @@ fn shot_beside_the_turret_at_turret_height_passes_over_the_hull() {
 /// The same lane below the split is still a hull-side hit — the slab did not shrink.
 #[test]
 fn shot_below_the_split_still_lands_on_the_hull_side() {
-    let tank = t55a_at_origin(0.0);
+    let tank = t54_at_origin(0.0);
+    // 1.3 m: above the T-54's sponson step (1.0 m) and its 810 mm wheels' track band, below
+    // the armor split — the bare upper hull side.
     let outcome = segment_impact(
-        Vec3::new(-10.0, 1.0, 0.0),
-        Vec3::new(10.0, 1.0, 0.0),
+        Vec3::new(-10.0, 1.3, 0.0),
+        Vec3::new(10.0, 1.3, 0.0),
         Vec3::new(300.0, 0.0, 0.0),
         &world(&tank),
     );
@@ -72,8 +74,8 @@ fn shot_below_the_split_still_lands_on_the_hull_side() {
 /// patch on the casting, not a width band), a cheek shot on plain turret front.
 #[test]
 fn turret_front_keeps_its_mantlet_and_front_bands() {
-    let tank = t55a_at_origin(0.0);
-    // The T-55A gun line: trunnion height 1.78 — the mantlet patch is centered on it.
+    let tank = t54_at_origin(0.0);
+    // The T-54 gun line: trunnion height 1.80 — the mantlet patch is centered on it.
     let center = segment_impact(
         Vec3::new(0.0, 1.78, 10.0),
         Vec3::new(0.0, 1.78, -10.0),
@@ -104,10 +106,12 @@ fn turret_front_keeps_its_mantlet_and_front_bands() {
 /// a full-thickness turret side.
 #[test]
 fn plunging_hit_on_the_deck_beside_the_turret_is_a_roof_hit() {
-    let tank = t55a_at_origin(0.0);
+    let tank = t54_at_origin(0.0);
+    // The T-54's ⌀2.25 dome overhangs its narrow 1.05 m hull laterally, so "beside the
+    // turret" lives along Z: drop the shot on the rear deck behind the dome's plan.
     let outcome = segment_impact(
-        Vec3::new(1.3, 5.0, 0.0),
-        Vec3::new(1.3, 1.0, 0.0),
+        Vec3::new(0.5, 5.0, -2.0),
+        Vec3::new(0.5, 1.0, -2.0),
         Vec3::new(0.0, -300.0, 0.0),
         &world(&tank),
     );
@@ -115,9 +119,9 @@ fn plunging_hit_on_the_deck_beside_the_turret_is_a_roof_hit() {
     match outcome {
         Some(SegmentImpact::Tank { zone, hit_position, .. }) => {
             assert_eq!(zone, ArmorZone::Roof);
-            // The deck is the REAL blueprint hull roof (1.30 m on the T-55A), not the hitbox
-            // split plane the old box model used.
-            let deck_y = game_core::VehicleBlueprint::for_vehicle(VehicleKind::T55A)
+            // The deck is the REAL blueprint hull roof, not the hitbox split plane the old
+            // box model used.
+            let deck_y = game_core::VehicleBlueprint::for_vehicle(VehicleKind::T54_1951)
                 .expect("blueprint")
                 .hull
                 .deck_y;

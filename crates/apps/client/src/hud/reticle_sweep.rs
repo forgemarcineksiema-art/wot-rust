@@ -98,7 +98,7 @@ mod tests {
         TankSnapshot {
             tank_id: TankId(id),
             team: TeamId(team),
-            vehicle: VehicleKind::T55A,
+            vehicle: VehicleKind::T54_1951,
             position,
             yaw_rad: std::f32::consts::PI,
             hull_pitch_rad: 0.0,
@@ -109,7 +109,7 @@ mod tests {
             hit_points,
             reload_remaining_s: 0.0,
             aim_dispersion_mrad: 2.9,
-            module_hit_points: VehicleKind::T55A.spec().module_health.hit_points_by_slot(),
+            module_hit_points: VehicleKind::T54_1951.spec().module_health.hit_points_by_slot(),
             destroyed_modules_mask: 0,
             track_damage_mask: 0,
             track_hp: [game_core::TRACK_HP_MAX; 2],

@@ -6,7 +6,7 @@ use net::TankSnapshot;
 #[test]
 fn vehicle_mesh_catalog_bakes_and_registers_material_once_per_vehicle() {
     let mut catalog = VehicleMeshCatalog::default();
-    let snapshot = snapshot(VehicleKind::T55A, 0.0);
+    let snapshot = snapshot(VehicleKind::T54_1951, 0.0);
 
     let _ = tank_render_objects(&mut catalog, &snapshot, [0.30, 0.40, 0.28]);
     let _ = tank_render_objects(&mut catalog, &snapshot, [0.46, 0.29, 0.25]);

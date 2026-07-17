@@ -11,7 +11,7 @@
 use game_core::{VehicleBlueprint, VehicleKind};
 use vehicle_geometry::{GeometryMesh, MaterialRole, MeshBounds, SubmeshKind, bake_vehicle};
 
-const SOVIET_LEGACY_PAIR: [VehicleKind; 2] = [VehicleKind::T54_1951, VehicleKind::T55A];
+const SOVIET_LEGACY_PAIR: [VehicleKind; 2] = [VehicleKind::T54_1951, VehicleKind::T54_1951];
 
 fn band_half_width(mesh: &GeometryMesh, y_lo: f32, y_hi: f32) -> f32 {
     mesh.vertices()

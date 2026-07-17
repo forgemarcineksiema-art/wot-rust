@@ -13,7 +13,7 @@ use sim::{
 #[test]
 fn reticle_trace_resolves_the_same_tank_impact_as_the_authoritative_step() {
     let mut state = SimulationState::new();
-    let shooter = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::ZERO);
+    let shooter = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
     let target = state.spawn_tank(TeamId(2), TankSpec::t54_1951(), Vec3::new(0.0, 0.0, 55.0));
     state.tank_mut(target).expect("target").yaw_rad = PI;
     let step = FixedTimestep::from_hz(60);

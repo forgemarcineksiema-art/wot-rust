@@ -6,9 +6,9 @@ use vehicle_geometry::{RunningGearKinematics, SmoothingGroup, SubmeshKind, bake_
 
 const SG_RING: SmoothingGroup = SmoothingGroup(7);
 
-/// Render objects for one T-55A: hull/turret/gun plus the animated running gear.
-fn t55_object_count() -> usize {
-    let kin = RunningGearKinematics::for_vehicle(VehicleKind::T55A).expect("T-55A gear");
+/// Render objects for one T-54: hull/turret/gun plus the animated running gear.
+fn t54_object_count() -> usize {
+    let kin = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951).expect("T-54 gear");
     3 + kin.wheel_zs.len() * 2 * 2 + 4 + kin.link_count() * 2
 }
 
@@ -22,7 +22,7 @@ const BLUEPRINT_MESH_COUNT: usize = 9;
 /// transform math again, this turns red.
 #[test]
 fn dynamic_and_instanced_paths_agree_on_world_space_vertices() {
-    for (kind, turret_yaw) in [(VehicleKind::T55A, 0.4), (VehicleKind::Jagdtiger, 1.2)] {
+    for (kind, turret_yaw) in [(VehicleKind::T54_1951, 0.4), (VehicleKind::Jagdtiger, 1.2)] {
         let snapshot = TankSnapshot {
             tank_id: TankId(7),
             team: TeamId(1),
@@ -80,12 +80,12 @@ fn dynamic_and_instanced_paths_agree_on_world_space_vertices() {
 }
 
 #[test]
-fn t55a_render_objects_use_static_mesh_handles_for_hull_turret_and_gun() {
+fn t54_render_objects_use_static_mesh_handles_for_hull_turret_and_gun() {
     let mut catalog = VehicleMeshCatalog::default();
     let snapshot = TankSnapshot {
         tank_id: TankId(7),
         team: TeamId(1),
-        vehicle: VehicleKind::T55A,
+        vehicle: VehicleKind::T54_1951,
         position: [10.0, 2.0, 30.0],
         yaw_rad: 0.0,
         hull_pitch_rad: 0.0,
@@ -95,8 +95,8 @@ fn t55a_render_objects_use_static_mesh_handles_for_hull_turret_and_gun() {
         gun_pitch_rad: 0.0,
         hit_points: 900,
         reload_remaining_s: 0.0,
-        aim_dispersion_mrad: VehicleKind::T55A.spec().gun.dispersion_mrad,
-        module_hit_points: VehicleKind::T55A.spec().module_health.hit_points_by_slot(),
+        aim_dispersion_mrad: VehicleKind::T54_1951.spec().gun.dispersion_mrad,
+        module_hit_points: VehicleKind::T54_1951.spec().module_health.hit_points_by_slot(),
         destroyed_modules_mask: 0,
         track_damage_mask: 0,
         track_hp: [game_core::TRACK_HP_MAX; 2],
@@ -111,7 +111,7 @@ fn t55a_render_objects_use_static_mesh_handles_for_hull_turret_and_gun() {
 
     let objects = tank_render_objects(&mut catalog, &snapshot, [0.30, 0.40, 0.28]);
 
-    assert_eq!(objects.len(), t55_object_count());
+    assert_eq!(objects.len(), t54_object_count());
     assert!(objects.iter().all(|object| object.tank_id == Some(TankId(7))));
     assert_ne!(objects[0].mesh, objects[1].mesh);
     assert_ne!(objects[1].mesh, objects[2].mesh);
@@ -129,7 +129,7 @@ fn t55a_render_objects_use_static_mesh_handles_for_hull_turret_and_gun() {
 
 #[test]
 fn gun_mantlet_clears_glacis_and_sits_at_turret_height() {
-    let vehicle = bake_vehicle(VehicleKind::T55A).expect("T-55A recipe");
+    let vehicle = bake_vehicle(VehicleKind::TigerI).expect("Tiger I recipe");
     let mounts = vehicle.mounts();
     let turret = vehicle.submesh(SubmeshKind::Turret).expect("turret submesh");
     let turret_bounds = turret.mesh.bounds().expect("turret bounds");
@@ -166,7 +166,7 @@ fn gun_mantlet_clears_glacis_and_sits_at_turret_height() {
 
 #[test]
 fn turret_sits_on_top_of_hull_not_embedded() {
-    let vehicle = bake_vehicle(VehicleKind::T55A).expect("T-55A recipe");
+    let vehicle = bake_vehicle(VehicleKind::TigerI).expect("Tiger I recipe");
     let turret = vehicle.submesh(SubmeshKind::Turret).expect("turret submesh");
     let hull = vehicle.submesh(SubmeshKind::Hull).expect("hull submesh");
 
@@ -209,7 +209,7 @@ fn vehicle_mesh_catalog_reports_new_gpu_mesh_uploads_once() {
     let snapshot = TankSnapshot {
         tank_id: TankId(7),
         team: TeamId(1),
-        vehicle: VehicleKind::T55A,
+        vehicle: VehicleKind::T54_1951,
         position: [0.0, 0.0, 0.0],
         yaw_rad: 0.0,
         hull_pitch_rad: 0.0,
@@ -219,8 +219,8 @@ fn vehicle_mesh_catalog_reports_new_gpu_mesh_uploads_once() {
         gun_pitch_rad: 0.0,
         hit_points: 900,
         reload_remaining_s: 0.0,
-        aim_dispersion_mrad: VehicleKind::T55A.spec().gun.dispersion_mrad,
-        module_hit_points: VehicleKind::T55A.spec().module_health.hit_points_by_slot(),
+        aim_dispersion_mrad: VehicleKind::T54_1951.spec().gun.dispersion_mrad,
+        module_hit_points: VehicleKind::T54_1951.spec().module_health.hit_points_by_slot(),
         destroyed_modules_mask: 0,
         track_damage_mask: 0,
         track_hp: [game_core::TRACK_HP_MAX; 2],
@@ -253,7 +253,7 @@ fn distinct_hull_colors_share_one_mesh_and_tint_per_object() {
     let snapshot = TankSnapshot {
         tank_id: TankId(7),
         team: TeamId(1),
-        vehicle: VehicleKind::T55A,
+        vehicle: VehicleKind::T54_1951,
         position: [0.0, 0.0, 0.0],
         yaw_rad: 0.0,
         hull_pitch_rad: 0.0,
@@ -263,8 +263,8 @@ fn distinct_hull_colors_share_one_mesh_and_tint_per_object() {
         gun_pitch_rad: 0.0,
         hit_points: 900,
         reload_remaining_s: 0.0,
-        aim_dispersion_mrad: VehicleKind::T55A.spec().gun.dispersion_mrad,
-        module_hit_points: VehicleKind::T55A.spec().module_health.hit_points_by_slot(),
+        aim_dispersion_mrad: VehicleKind::T54_1951.spec().gun.dispersion_mrad,
+        module_hit_points: VehicleKind::T54_1951.spec().module_health.hit_points_by_slot(),
         destroyed_modules_mask: 0,
         track_damage_mask: 0,
         track_hp: [game_core::TRACK_HP_MAX; 2],
@@ -308,7 +308,7 @@ fn destroyed_module_mask_darkens_the_matching_submesh_without_reuploading_meshes
     let mut snapshot = TankSnapshot {
         tank_id: TankId(7),
         team: TeamId(1),
-        vehicle: VehicleKind::T55A,
+        vehicle: VehicleKind::T54_1951,
         position: [0.0, 0.0, 0.0],
         yaw_rad: 0.0,
         hull_pitch_rad: 0.0,
@@ -318,8 +318,8 @@ fn destroyed_module_mask_darkens_the_matching_submesh_without_reuploading_meshes
         gun_pitch_rad: 0.0,
         hit_points: 900,
         reload_remaining_s: 0.0,
-        aim_dispersion_mrad: VehicleKind::T55A.spec().gun.dispersion_mrad,
-        module_hit_points: VehicleKind::T55A.spec().module_health.hit_points_by_slot(),
+        aim_dispersion_mrad: VehicleKind::T54_1951.spec().gun.dispersion_mrad,
+        module_hit_points: VehicleKind::T54_1951.spec().module_health.hit_points_by_slot(),
         destroyed_modules_mask: 0,
         track_damage_mask: 0,
         track_hp: [game_core::TRACK_HP_MAX; 2],

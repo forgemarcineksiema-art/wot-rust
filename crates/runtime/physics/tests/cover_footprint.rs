@@ -47,7 +47,7 @@ fn drive_into_wall(footprint: TankFootprint) -> (f32, f32) {
 #[test]
 fn hull_front_never_interpenetrates_cover_head_on() {
     for (name, footprint) in [
-        ("T-55A", TankFootprint { half_width_m: 1.75, half_length_m: 3.20 }),
+        ("T-54", TankFootprint { half_width_m: 1.75, half_length_m: 3.15 }),
         ("Jagdtiger", TankFootprint { half_width_m: 2.00, half_length_m: 4.10 }),
     ] {
         let (center_z, wall_face_z) = drive_into_wall(footprint);
