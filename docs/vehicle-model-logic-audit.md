@@ -40,7 +40,7 @@ the close-up functional review; numbers are necessary, never sufficient.
 | 10b | ~~DShK ammo can floating 7 mm off the receiver~~ **FIXED**: hangs on the receiver wall | T-54 | `t54_dshk.rs` | floater |
 | 10c | ~~Open turret-ring annulus~~ **FIXED**: ring collar drum (r=ring+0.13, Turret group) seals the deck aperture under the dome skirt | T-54 | `t54.rs` turret_ring_collar | floater |
 | 13 | ~~"Plate with three holes"~~ **FIXED** — and the seam diagnosis was WRONG: the loft shell is watertight; a full hit-walk on the window ray showed a FRONT-facing InteriorPrimer face AT z 1.095 IN FRONT of the casting (z 1.067). The "plate" was the **10-RT radio panel and its three dials poking through the turret front** (`radio_control_face` z 1.095, `radio_control_dial` ×3 z 1.114; the gameplay Radio OBB reached z 1.18 vs casting ~1.05 — `fits_within` is hitbox-blind, same class as the ammo rack). Radio pulled 18 cm rearward; verified gone in `t54_bow_probe`. | T-54 | `damage_layout/t54.rs` id 7 | floater |
-| 11 | Turrets sit in/on visually wrong seats (IS-3 dome rises from a rectangular cutout) | IS-3 (at least) | recipe hull top vs dome interface | logic |
+| 11 | ~~Turrets sit in/on visually wrong seats (IS-3 dome rises from a rectangular cutout)~~ **FIXED by accumulation, verified**: the rectangular frame was the CLONED deck-panel pair boxing the dome in — gone with de-clone part 1 (the engine bay now starts BEHIND the turret seat); the ring collar (`add_turret_ring`) seats the dome, and the profile + top renders (is3_studio, deck_probe) read a clean dome-on-collar interface. | IS-3 | deck de-clone + ring collar | logic |
 | 12 | ~~Hatches exist as flat plates only~~ **FIXED**: every deck/glacis hatch (part 1) AND every cupola lid/loader hatch (part 2) carries a hinge bar/lug and a grab handle — openings read as doors fleet-wide. | fleet | deck_details.rs + turret_fittings.rs | logic |
 
 | 14 | ~~One track-shoe design + one wheel generator for the whole fleet~~ **FIXED**: `TrackShape` carries `shoe_pattern` + `wheel_face` (serde defaults keep RONs small). Shoes per family: Soviet small-pitch **OMSh** (T-54/IS-3 — the original construction, now one of four), German **Kgs 63/725** (wide plate, ONE tall centre horn between the interleaved rows, twin grousers, pin tubes), the T-34's stamped **waffle** (three low ridges, broad low horn), the Centurion's **cast shoe** (TWIN spaced horns, heavy transverse bar). Wheels: openwork spokes stay Soviet; the German four run **bolted steel-dish** wheels with a steel tire band (no rubber); the Centurion a **bolted dish under rubber**. Verified in profile renders (tiger_i_studio / t34_85_probe / centurion_probe) | fleet | `running_gear_geom` (shoe), `running_gear_wheels` (wheel) | clone |
@@ -75,4 +75,10 @@ Before any "sealed" claim:
 ## Status
 
 - Tiger I "SEALED" claim (PR #226): **REOPENED** — sealed on numbers, fails the new gate
-  (closed muzzle, cloned deck fittings, taut tracks).
+  (closed muzzle, cloned deck fittings, taut tracks). The three named defects are since
+  fixed (#4 bore, #1/#2 decks, #7 tracks) — the seal itself waits for the W1 dossier pass.
+- **REGISTRY CLEAR (2026-07-17)**: every ledger row is fixed and render-verified except the
+  parts explicitly deferred to dossier PRs — per-vehicle mantlet MASSES (rest of #6),
+  per-vehicle headlight clusters on fender boxes/glacis (rest of #1/F4), and per-vehicle
+  vent refinements (#5 tail). Those belong to W1/W2 of the masterplan
+  (docs/vehicle-fidelity-masterplan.md), which resumes with the Tiger II dossier (PR-T2.1).
