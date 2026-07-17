@@ -198,3 +198,18 @@ fn the_hitbox_is_the_researched_body_not_the_legacy_stretch() {
     assert!((bp.hull.half_len - 3.16).abs() < 1.0e-6, "the documented 6.32 m hull");
     assert!((bp.track.outer_x - 1.84).abs() < 1.0e-6, "3.7 m over the combat tracks");
 }
+
+/// W1 dossier anchors beyond the box (docs/vehicles/panzerkampfwagen-vi-tiger.md): the
+/// documented 0.47 m ground clearance and the 2.17 m fire line (German records give the
+/// firing height as 2.195 m; the 2.5 cm difference is a recorded deviation, not drift).
+#[test]
+fn the_dossier_clearance_and_fire_line_hold() {
+    let bp = blueprint();
+    assert!((bp.hull.belly_y - 0.47).abs() < 1.0e-6, "0.47 m ground clearance (Wikipedia)");
+    assert!((bp.gun.trunnion_y - 2.17).abs() < 1.0e-6, "fire line 2.17 m (documented 2.195 m)");
+    let mounts = game_core::MountFrames::for_vehicle(VehicleKind::TigerI);
+    assert!(
+        (mounts.gun_trunnion.translation.y - bp.gun.trunnion_y).abs() < 1.0e-6,
+        "the mount chain carries the same fire line the blueprint authors"
+    );
+}

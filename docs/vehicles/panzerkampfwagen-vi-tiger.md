@@ -27,6 +27,13 @@ the full silhouette apex, so 3.00 m is the anchor and 2.885 m is a cage-level ch
 | Firing height | 2.195 m | Panzerworld; blueprint trunnion 2.17 | medium | cage (`trunnion_y`) |
 | Ground clearance | 0.47 m | Wikipedia | high | cage (`belly_y`) |
 
+### Known deviations (recorded, owned)
+
+- Turret roof plane: model 2.72 m vs 2.885 m in German records (the 3.00 m cupola apex IS
+  anchored) — candidate for a W-later shape pass; recorded so the Δ never reads as drift.
+- Fire line: model 2.17 m vs documented 2.195 m (2.5 cm; cage-locked as a deviation).
+- Width over tracks: model 3.68 m vs 3.705 m (2.5 cm under, inside the ±0.08 anchor).
+
 ## Blueprint Migration (2026-07)
 
 The Tiger I is blueprint-born: `game_core::vehicle_blueprint::tiger_i` is the single shape

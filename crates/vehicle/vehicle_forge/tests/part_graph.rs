@@ -222,9 +222,8 @@ fn the_test_only_prototype_has_no_production_part_graph() {
 
 #[test]
 fn german_line_has_geometry_derived_part_graphs() {
-    for kind in
-        [VehicleKind::TigerI, VehicleKind::TigerII, VehicleKind::Jagdtiger, VehicleKind::PantherII]
-    {
+    // The Tiger I left this coarse tier in W1 PR-T1.3 (bespoke table below).
+    for kind in [VehicleKind::TigerII, VehicleKind::Jagdtiger, VehicleKind::PantherII] {
         let graph = ForgePartGraph::for_vehicle(kind).unwrap_or_else(|| panic!("{kind:?} graph"));
         let pack = ReferencePack::for_vehicle(kind).expect("pack");
         assert_eq!(graph.road_wheel_count_per_side(), pack.road_wheel_count_per_side());
@@ -259,9 +258,8 @@ fn geometry_derived_vehicles_do_not_inherit_bespoke_t54_parts() {
     // Regression lock for the registry fix: the part-graph strategy is now registered per vehicle,
     // so a vehicle routed through the geometry-derived strategy must never carry the T-54's bespoke
     // fittings. Before the fix, any blueprint-backed vehicle silently ran the T-54 part table.
-    for kind in
-        [VehicleKind::TigerI, VehicleKind::TigerII, VehicleKind::Jagdtiger, VehicleKind::PantherII]
-    {
+    // (The Tiger I graduated to its own bespoke table in W1 PR-T1.3 and left this list.)
+    for kind in [VehicleKind::TigerII, VehicleKind::Jagdtiger, VehicleKind::PantherII] {
         let graph = ForgePartGraph::for_vehicle(kind).unwrap_or_else(|| panic!("{kind:?} graph"));
         for bespoke in [
             ForgePartKind::UpperGlacis,
@@ -277,6 +275,54 @@ fn geometry_derived_vehicles_do_not_inherit_bespoke_t54_parts() {
             );
         }
     }
+}
+
+/// The Tiger I's bespoke table (W1 PR-T1.3): face-honest slab, Schachtellaufwerk sandwich,
+/// horseshoe turret whose rear plane is the Rommelkiste, drum cupola, braked KwK 36 — every
+/// part sourced and non-degenerate, and the mount chain rebuilt from the parts reproduces
+/// the blueprint mounts exactly.
+#[test]
+fn tiger_i_part_graph_is_blueprint_born_with_its_signature_parts() {
+    let graph = ForgePartGraph::for_vehicle(VehicleKind::TigerI).expect("Tiger I part graph");
+    let bp = VehicleBlueprint::for_vehicle(VehicleKind::TigerI).expect("Tiger I blueprint");
+
+    for kind in [
+        ForgePartKind::Hull,
+        ForgePartKind::UpperGlacis,
+        ForgePartKind::LowerPlate,
+        ForgePartKind::TrackRun,
+        ForgePartKind::TrackBelt,
+        ForgePartKind::RoadWheels,
+        ForgePartKind::RoadWheelSet,
+        ForgePartKind::Idler,
+        ForgePartKind::DriveSprocket,
+        ForgePartKind::Turret,
+        ForgePartKind::StowageBin,
+        ForgePartKind::Mantlet,
+        ForgePartKind::Gun,
+        ForgePartKind::Cupola,
+        ForgePartKind::EngineDeck,
+    ] {
+        let part = graph.part(kind).unwrap_or_else(|| panic!("Tiger I graph missing {kind:?}"));
+        assert!(!part.source().trim().is_empty(), "{kind:?} must record its source");
+        let bounds = part.bounds();
+        assert!(
+            bounds.max.x > bounds.min.x
+                && bounds.max.y > bounds.min.y
+                && bounds.max.z > bounds.min.z,
+            "{kind:?} must be a non-degenerate volume"
+        );
+    }
+    // No return rollers and no pike on a Tiger.
+    assert!(graph.part(ForgePartKind::ReturnRollers).is_none());
+    assert!(graph.part(ForgePartKind::PikeBow).is_none());
+    // The track band's outer face is the documented 3.705 m width over tracks.
+    let band = graph.part(ForgePartKind::TrackRun).expect("track run").bounds();
+    assert!((band.max.x - bp.track.outer_x).abs() < 1.0e-6);
+    // The mount chain rebuilt from the parts reproduces the blueprint mounts exactly.
+    assert_eq!(graph.mount_frames(), bp.mount_frames());
+    assert_eq!(graph.road_wheel_count_per_side(), 8);
+    assert!(graph.turret_traverses());
 }
 
 /// The IS-3's bespoke table: pike bow, small-wheel rollered gear, overhanging dome, fuel
