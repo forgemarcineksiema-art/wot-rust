@@ -173,6 +173,12 @@ fn tiger_slab_hull(hull: &HullShape) -> MeshBuilder {
 /// Visual-only hull character inside the hitbox: the twin exhaust stacks standing proud on the
 /// rear plate (the Tiger's tail-end signature) and the driver's visor + bow MG ball on the
 /// near-vertical driver's plate.
+fn plate_z_for(hull: &HullShape, y: f32) -> f32 {
+    let run =
+        (y - hull.belly_y - hull.nose_rise).max(0.0) * hull.glacis_slope_deg.to_radians().tan();
+    hull.half_len - run
+}
+
 fn tiger_hull_details(hull: &HullShape) -> GeometryMesh {
     let mut builder = MeshBuilder::new();
     // Exhaust stacks: vertical cylinders flanking the engine plate.
@@ -186,6 +192,42 @@ fn tiger_hull_details(hull: &HullShape) -> GeometryMesh {
                 material: MaterialRole::RolledArmor,
                 smoothing: SG_HARD,
             },
+        );
+    }
+    // Late-E exhaust shields: three-sided sheet shrouds around each stack (the Feifel air
+    // cleaners are deliberately ABSENT — the modelled variant is a late Ausf. E, which
+    // dropped them; dossier identity in docs/vehicles/panzerkampfwagen-vi-tiger.md).
+    for x in [-0.62_f32, 0.62] {
+        let z = -hull.half_len + 0.12;
+        // Back plate (behind the stack) and two side cheeks, open toward the engine deck.
+        builder = builder.plate_box(
+            Vec3::new(x, 1.55, z - 0.16),
+            Vec3::new(0.17, 0.55, 0.012),
+            0.012,
+            MaterialRole::RolledArmor,
+            SG_HARD,
+        );
+        for side in [-1.0_f32, 1.0] {
+            builder = builder.plate_box(
+                Vec3::new(x + side * 0.17, 1.55, z - 0.02),
+                Vec3::new(0.012, 0.55, 0.15),
+                0.012,
+                MaterialRole::RolledArmor,
+                SG_HARD,
+            );
+        }
+    }
+    // Spare track links racked on the lower bow plate — the classic field-standard row.
+    // Fittings rule: their outermost face lies ON the driver's-plate armor plane, never
+    // proud of it, so nothing visible is un-hittable air.
+    for i in 0..4 {
+        let x = -0.72 + i as f32 * 0.48;
+        builder = builder.plate_box(
+            Vec3::new(x, 0.88, plate_z_for(hull, 0.88) - 0.065),
+            Vec3::new(0.20, 0.115, 0.045),
+            0.04,
+            MaterialRole::TrackMetal,
+            SG_HARD,
         );
     }
     // Driver's visor (left) and bow MG ball (right) riding the driver's plate. The plate stands

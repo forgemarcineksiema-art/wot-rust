@@ -159,7 +159,7 @@ Updated as part of every PR's definition of done.
 
 | Vehicle | Dossier | Targets | Shape | Detail | Part table | Cage | Sealed |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Tiger I | ✓ PR-T1.1 | ✓ 5 anchors + 7 ratios, tight | ✓ width honest (gear ≤ outer_x, fleet-wide) + Schachtellaufwerk 3-plane read | partial (Feifel/stowage pending) | — | dense (28) | — |
+| Tiger I | ✓ PR-T1.1 | ✓ 5 anchors + 7 ratios, tight | ✓ honest width + 3-plane Schachtellaufwerk | ✓ late-E: exhaust shields, bow spare links (Feifel deliberately absent) | — (T1.3) | dense (28) | — (T1.3) |
 | Tiger II | — | — | — | — | — | — | — |
 | Jagdtiger | — | — | — | — | — | — | — |
 | Panther II | — | — | — | — | — | — | — |
