@@ -12,11 +12,11 @@ const DT: f32 = 1.0 / 60.0;
 /// Drive full throttle straight ahead for `seconds` over flat ground flooded to `water`.
 fn run(water: Option<WaterBody>, seconds: f32) -> TankKinematicState {
     let heightmap = HeightMap::flat(60, 60, 5.0, 0.0).expect("flat map");
-    let settings = TankControllerSettings::from_spec(&TankSpec::t55a());
+    let settings = TankControllerSettings::from_spec(&TankSpec::t54_1951());
     let input = TankControlInput { throttle: 1.0, steer: 0.0, brake: 0.0 };
     let mut state =
         TankKinematicState { position: Vec3::new(30.0, 0.0, 20.0), ..Default::default() };
-    let footprint = TankFootprint::from_hitbox(TankSpec::t55a().hitbox);
+    let footprint = TankFootprint::from_hitbox(TankSpec::t54_1951().hitbox);
     let obstacles = TankWorldObstacles::new(&[], footprint, &[]).with_water(water);
     for _ in 0..(seconds / DT) as u32 {
         step_tank_on_world_with_tanks(

@@ -347,8 +347,8 @@ mod tests {
 
     #[test]
     fn for_vehicle_starts_from_the_stock_loadout() {
-        let draft = LoadoutDraft::for_vehicle(VehicleKind::T55A);
-        assert_eq!(draft.assembled_spec().gun.shell, VehicleKind::T55A.spec().gun.shell);
+        let draft = LoadoutDraft::for_vehicle(VehicleKind::T54_1951);
+        assert_eq!(draft.assembled_spec().gun.shell, VehicleKind::T54_1951.spec().gun.shell);
     }
 
     #[test]

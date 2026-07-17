@@ -5,8 +5,9 @@
 use game_core::VehicleKind;
 use vehicle_geometry::{GearPart, RunningGearKinematics, running_gear_placements};
 
-fn t55() -> RunningGearKinematics {
-    RunningGearKinematics::for_vehicle(VehicleKind::T55A).expect("T-55A has blueprint running gear")
+fn t54() -> RunningGearKinematics {
+    RunningGearKinematics::for_vehicle(VehicleKind::T54_1951)
+        .expect("T-54 has blueprint running gear")
 }
 
 #[test]
@@ -14,7 +15,7 @@ fn wheel_overlap_pulls_only_the_odd_row_inboard() {
     // Schachtellaufwerk plumbing: with an overlap authored, odd-indexed wheels ride an inner
     // row; even wheels and everything else stay put. Zero overlap is byte-for-byte today's
     // single file — the existing fleet's golden hashes never move.
-    let mut kin = t55();
+    let mut kin = t54();
     let single_file = running_gear_placements(&kin, 0.0, 0.0);
     kin.wheel_overlap_dx = 0.20;
     let interleaved = running_gear_placements(&kin, 0.0, 0.0);
@@ -148,7 +149,7 @@ fn drive_tension_tightens_the_top_run_and_slack_deepens_it() {
 fn rendered_wheels_and_physics_footprint_share_one_set_of_stations() {
     // The wheels the player sees must be the wheels the hull rides on: the rendered running
     // gear and the physics contact footprint both read TrackShape::wheel_stations.
-    for kind in [VehicleKind::T54_1951, VehicleKind::T55A] {
+    for kind in [VehicleKind::T54_1951, VehicleKind::T54_1951] {
         let kin = RunningGearKinematics::for_vehicle(kind).expect("blueprint running gear");
         let footprint = game_core::ContactFootprint::for_vehicle(kind);
         assert_eq!(kin.wheel_zs.as_slice(), footprint.station_zs(), "{kind:?} stations diverged");
@@ -159,7 +160,7 @@ fn rendered_wheels_and_physics_footprint_share_one_set_of_stations() {
 
 #[test]
 fn a_thrown_track_hangs_its_side_deep_while_the_healthy_side_keeps_tension() {
-    let kin = t55();
+    let kin = t54();
     let placements = vehicle_geometry::running_gear_placements_dynamic(
         &kin,
         0.0,

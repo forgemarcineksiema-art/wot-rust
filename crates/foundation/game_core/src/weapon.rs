@@ -216,25 +216,23 @@ mod tests {
         // HEAT round, not the derived APCR — and chemical penetration is flat with distance,
         // where the kinetic rounds bleed theirs (the armour model already prices the trade:
         // spaced screens kill the jet, extreme obliquity sheds it).
-        for kind in [VehicleKind::T54_1951, VehicleKind::T55A] {
-            let options = kind.spec().gun.ammo_options();
-            let special = options[1];
-            assert_eq!(special.shell_type, ShellType::Heat, "{kind:?} slot 1 is the BK-5");
-            assert_eq!(
-                special.penetration_mm_at_distance(50.0),
-                special.penetration_mm_at_distance(900.0),
-                "HEAT penetration must not care about range"
-            );
-            let stock = options[0];
-            assert!(
-                stock.penetration_mm_at_distance(900.0) < stock.penetration_mm_at_100m,
-                "the kinetic stock round still bleeds penetration downrange"
-            );
-            assert!(
-                special.penetration_mm_at_100m > stock.penetration_mm_at_100m,
-                "the BK-5 out-penetrates the AP round point blank too"
-            );
-        }
+        let options = VehicleKind::T54_1951.spec().gun.ammo_options();
+        let special = options[1];
+        assert_eq!(special.shell_type, ShellType::Heat, "the T-54's slot 1 is the BK-5");
+        assert_eq!(
+            special.penetration_mm_at_distance(50.0),
+            special.penetration_mm_at_distance(900.0),
+            "HEAT penetration must not care about range"
+        );
+        let stock = options[0];
+        assert!(
+            stock.penetration_mm_at_distance(900.0) < stock.penetration_mm_at_100m,
+            "the kinetic stock round still bleeds penetration downrange"
+        );
+        assert!(
+            special.penetration_mm_at_100m > stock.penetration_mm_at_100m,
+            "the BK-5 out-penetrates the AP round point blank too"
+        );
         // A gun with no authored special round keeps the derived APCR — nothing regresses.
         let tiger = VehicleKind::TigerII.spec().gun.ammo_options();
         assert_eq!(tiger[1].shell_type, ShellType::Apcr, "unauthored guns keep the APCR slot");

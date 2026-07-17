@@ -14,12 +14,12 @@ fn mesh_registry_assigns_stable_handles_to_static_meshes() {
         vec![0, 1, 2],
     );
 
-    let first = registry.register("t55a_hull", asset.clone());
-    let second = registry.register("t55a_hull", asset);
+    let first = registry.register("t54_hull_extra", asset.clone());
+    let second = registry.register("t54_hull_extra", asset);
 
     assert_eq!(first, second);
     assert_eq!(registry.mesh(first).expect("registered mesh").index_count(), 3);
-    assert_eq!(registry.mesh_label(first), Some("t55a_hull"));
+    assert_eq!(registry.mesh_label(first), Some("t54_hull_extra"));
 }
 
 #[test]

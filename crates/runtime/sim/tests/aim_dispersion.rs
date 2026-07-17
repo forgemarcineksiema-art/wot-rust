@@ -5,7 +5,7 @@ use sim::{FixedTimestep, SimulationState, TankCommand};
 #[test]
 fn movement_blooms_dispersion_and_aim_time_recovers_it() {
     let mut state = SimulationState::new();
-    let tank = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::ZERO);
+    let tank = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
     let step = FixedTimestep::from_hz(60);
     let base = state.tank(tank).expect("tank").aim_dispersion_mrad;
 
@@ -26,7 +26,7 @@ fn movement_blooms_dispersion_and_aim_time_recovers_it() {
 #[test]
 fn firing_applies_shot_bloom_and_uses_deterministic_dispersion() {
     let mut state = SimulationState::new();
-    let tank = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::ZERO);
+    let tank = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
     let step = FixedTimestep::from_hz(60);
     for _ in 0..20 {
         state.apply_commands(&[(tank, TankCommand::drive(1.0, 0.0))], step);
@@ -45,7 +45,7 @@ fn firing_applies_shot_bloom_and_uses_deterministic_dispersion() {
 #[test]
 fn damaged_gun_raises_minimum_dispersion_but_destroyed_gun_still_cannot_fire() {
     let mut state = SimulationState::new();
-    let tank = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::ZERO);
+    let tank = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
     let full_min = state.tank(tank).expect("tank").aim_dispersion_mrad;
     {
         let tank = state.tank_mut(tank).expect("tank");
@@ -65,9 +65,9 @@ fn damaged_gun_raises_minimum_dispersion_but_destroyed_gun_still_cannot_fire() {
 #[test]
 fn turret_traverse_uses_spec_rate_without_acceleration_ramp() {
     let mut state = SimulationState::new();
-    let tank = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::ZERO);
+    let tank = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
     let step = FixedTimestep::from_hz(60);
-    let full_rate_step = TankSpec::t55a().turret_rotation_rad_s * step.dt_seconds();
+    let full_rate_step = TankSpec::t54_1951().turret_rotation_rad_s * step.dt_seconds();
     let command = TankCommand { turret_yaw_delta: 1.0, ..TankCommand::idle() };
 
     state.apply_commands(&[(tank, command)], step);

@@ -146,7 +146,6 @@ mod golden_fixtures {
     use super::super::is3::is3_blueprint;
     use super::super::jagdtiger::jagdtiger_blueprint;
     use super::super::panther_ii::panther_ii_blueprint;
-    use super::super::t55a::t55a_blueprint;
     use super::super::tiger_i::tiger_i_blueprint;
     use super::super::tiger_ii::tiger_ii_blueprint;
     use super::*;
@@ -157,9 +156,8 @@ mod golden_fixtures {
     /// lived on RON long enough that the files are the undisputed source.
     #[test]
     fn parsed_ron_equals_rust_fixture() {
-        let fixtures: [(VehicleKind, VehicleBlueprint); 8] = [
+        let fixtures: [(VehicleKind, VehicleBlueprint); 7] = [
             (VehicleKind::T54_1951, super::t54()),
-            (VehicleKind::T55A, t55a_blueprint()),
             (VehicleKind::IS3, is3_blueprint()),
             (VehicleKind::TigerI, tiger_i_blueprint()),
             (VehicleKind::TigerII, tiger_ii_blueprint()),

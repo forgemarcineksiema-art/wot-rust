@@ -78,14 +78,13 @@ impl Era {
 /// snapshots would decode to the wrong vehicle.
 ///
 /// Variants intentionally mirror the snake-case `TankSpec` constructors and asset slugs
-/// (`t54_1951`, `t55a`, ...), so `non_camel_case_types` is allowed for this one type.
+/// (`t54_1951`, `tiger_i_ausf_e`, ...), so `non_camel_case_types` is allowed for this one type.
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 pub enum VehicleKind {
     #[default]
     PrototypeMedium,
     T54_1951,
-    T55A,
     TigerI,
     TigerII,
     Jagdtiger,
@@ -97,10 +96,9 @@ pub enum VehicleKind {
 
 impl VehicleKind {
     /// Every known vehicle, in declaration (wire) order.
-    pub const ALL: [VehicleKind; 10] = [
+    pub const ALL: [VehicleKind; 9] = [
         VehicleKind::PrototypeMedium,
         VehicleKind::T54_1951,
-        VehicleKind::T55A,
         VehicleKind::TigerI,
         VehicleKind::TigerII,
         VehicleKind::Jagdtiger,
@@ -129,7 +127,6 @@ impl VehicleKind {
         match self {
             VehicleKind::PrototypeMedium => "prototype_medium",
             VehicleKind::T54_1951 => "t54_1951",
-            VehicleKind::T55A => "t55a",
             VehicleKind::TigerI => "tiger_i_ausf_e",
             VehicleKind::TigerII => "tiger_ii_ausf_b",
             VehicleKind::Jagdtiger => "jagdtiger",
@@ -152,7 +149,6 @@ impl VehicleKind {
         match self {
             VehicleKind::PrototypeMedium => "Prototype Medium",
             VehicleKind::T54_1951 => "T-54-3 obr. 1951",
-            VehicleKind::T55A => "T-55A",
             VehicleKind::TigerI => "Panzerkampfwagen VI Tiger Ausf. E",
             VehicleKind::TigerII => "Panzerkampfwagen VI B Tiger II",
             VehicleKind::Jagdtiger => "Panzerjager Tiger Ausf. B Jagdtiger",
@@ -183,7 +179,6 @@ impl VehicleKind {
             | VehicleKind::PantherII => Era::LateWar,
             VehicleKind::PrototypeMedium
             | VehicleKind::T54_1951
-            | VehicleKind::T55A
             | VehicleKind::IS3
             | VehicleKind::Centurion => Era::ColdWar,
         }
@@ -195,7 +190,6 @@ impl VehicleKind {
             VehicleKind::PrototypeMedium
             | VehicleKind::T34_85
             | VehicleKind::T54_1951
-            | VehicleKind::T55A
             | VehicleKind::IS3 => Nation::Ussr,
             VehicleKind::TigerI
             | VehicleKind::TigerII
@@ -216,7 +210,7 @@ mod tests {
 
     #[test]
     fn all_is_complete_and_unique() {
-        assert_eq!(VehicleKind::ALL.len(), 10);
+        assert_eq!(VehicleKind::ALL.len(), 9);
         for (index, kind) in VehicleKind::ALL.iter().enumerate() {
             for other in &VehicleKind::ALL[index + 1..] {
                 assert_ne!(kind, other, "VehicleKind::ALL must not contain duplicates");
@@ -225,7 +219,9 @@ mod tests {
     }
 
     #[test]
-    fn playable_roster_exposes_production_vehicles_without_t55a_clone() {
+    fn playable_roster_exposes_every_production_vehicle() {
+        // The roster rule: no clones. Every non-test vehicle is playable; the only variant
+        // outside this list is the test-only prototype medium.
         assert_eq!(
             VehicleKind::PLAYABLE,
             [
@@ -240,7 +236,7 @@ mod tests {
             ]
         );
         assert!(!VehicleKind::PLAYABLE.contains(&VehicleKind::PrototypeMedium));
-        assert!(!VehicleKind::PLAYABLE.contains(&VehicleKind::T55A));
+        assert_eq!(VehicleKind::ALL.len(), VehicleKind::PLAYABLE.len() + 1);
     }
 
     #[test]
@@ -297,9 +293,7 @@ mod tests {
         ] {
             assert_eq!(kind.era(), Era::LateWar, "{kind:?}");
         }
-        for kind in
-            [VehicleKind::T54_1951, VehicleKind::T55A, VehicleKind::IS3, VehicleKind::Centurion]
-        {
+        for kind in [VehicleKind::T54_1951, VehicleKind::IS3, VehicleKind::Centurion] {
             assert_eq!(kind.era(), Era::ColdWar, "{kind:?}");
         }
     }
@@ -334,7 +328,6 @@ mod tests {
     fn nation_matches_historical_origin() {
         assert_eq!(VehicleKind::PrototypeMedium.nation(), Nation::Ussr);
         assert_eq!(VehicleKind::T54_1951.nation(), Nation::Ussr);
-        assert_eq!(VehicleKind::T55A.nation(), Nation::Ussr);
         assert_eq!(VehicleKind::TigerI.nation(), Nation::Germany);
         assert_eq!(VehicleKind::TigerII.nation(), Nation::Germany);
         assert_eq!(VehicleKind::Jagdtiger.nation(), Nation::Germany);

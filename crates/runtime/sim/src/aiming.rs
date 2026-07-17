@@ -48,7 +48,7 @@ mod tests {
 
     #[test]
     fn continuous_traverse_keeps_turret_yaw_wrapped() {
-        let spec = TankSpec::t55a();
+        let spec = TankSpec::t54_1951();
         let mut aiming = AimingState::default();
         let command = TankCommand { turret_yaw_delta: 1.0, ..TankCommand::idle() };
 

@@ -215,9 +215,9 @@ fn t54_part_report_explains_existence_role_and_source() {
 }
 
 #[test]
-fn t55a_stays_legacy_compatible_but_has_no_production_part_graph() {
-    assert!(VehicleBlueprint::for_vehicle(VehicleKind::T55A).is_some());
-    assert!(ForgePartGraph::for_vehicle(VehicleKind::T55A).is_none());
+fn the_test_only_prototype_has_no_production_part_graph() {
+    assert!(VehicleBlueprint::for_vehicle(VehicleKind::PrototypeMedium).is_none());
+    assert!(ForgePartGraph::for_vehicle(VehicleKind::PrototypeMedium).is_none());
 }
 
 #[test]
@@ -507,7 +507,7 @@ fn the_manifest_report_names_every_kernel_and_only_exists_for_migrated_vehicles(
         "static production manifest should leave full track belts to runtime running gear"
     );
     // Legacy / unmigrated vehicles have no executable manifest yet.
-    assert!(part_manifest_report(VehicleKind::T55A).is_none());
+    assert!(part_manifest_report(VehicleKind::PrototypeMedium).is_none());
     assert!(production_part_manifest(VehicleKind::TigerI).is_none());
 }
 

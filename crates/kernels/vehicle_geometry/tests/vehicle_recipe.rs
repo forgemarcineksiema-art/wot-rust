@@ -4,11 +4,11 @@ use vehicle_geometry::{
 };
 
 #[test]
-fn t55a_bake_has_mount_aware_submeshes_and_stable_output() {
-    let first = bake_vehicle(VehicleKind::T55A).expect("T-55A recipe should bake");
-    let second = bake_vehicle(VehicleKind::T55A).expect("T-55A recipe should bake repeatedly");
+fn t54_bake_has_mount_aware_submeshes_and_stable_output() {
+    let first = bake_vehicle(VehicleKind::T54_1951).expect("T-54 recipe should bake");
+    let second = bake_vehicle(VehicleKind::T54_1951).expect("T-54 recipe should bake repeatedly");
 
-    assert_eq!(first.kind(), VehicleKind::T55A);
+    assert_eq!(first.kind(), VehicleKind::T54_1951);
     assert_eq!(first.deterministic_hash(), second.deterministic_hash());
 
     let hull = first.submesh(SubmeshKind::Hull).expect("hull submesh");
@@ -19,8 +19,8 @@ fn t55a_bake_has_mount_aware_submeshes_and_stable_output() {
 
     // Road wheels are now animated running gear rather than baked into the hull. Their rubber
     // geometry and outboard placement are read from the kinematics the renderer instances from.
-    let kin = RunningGearKinematics::for_vehicle(VehicleKind::T55A).expect("T-55A running gear");
-    assert!(kin.wheel_zs.len() >= 5, "T-55A should carry its road-wheel line");
+    let kin = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951).expect("T-54 running gear");
+    assert!(kin.wheel_zs.len() >= 5, "T-54 should carry its road-wheel line");
     let wheel_rubber = road_wheel_unit_mesh(&kin)
         .vertices()
         .iter()
@@ -40,8 +40,8 @@ fn t55a_bake_has_mount_aware_submeshes_and_stable_output() {
 }
 
 #[test]
-fn t55a_surface_shading_darkens_lower_running_gear() {
-    let baked = bake_vehicle(VehicleKind::T55A).expect("T-55A recipe should bake");
+fn t54_surface_shading_darkens_lower_running_gear() {
+    let baked = bake_vehicle(VehicleKind::T54_1951).expect("T-54 recipe should bake");
     let hull = baked.submesh(SubmeshKind::Hull).expect("hull submesh");
 
     let lower_running_gear = hull
@@ -64,9 +64,9 @@ fn t55a_surface_shading_darkens_lower_running_gear() {
 }
 
 #[test]
-fn t55a_body_fits_and_fills_gameplay_hitbox_but_gun_can_protrude() {
-    let baked = bake_vehicle(VehicleKind::T55A).expect("T-55A recipe should bake");
-    let hitbox = HitboxProfile::for_vehicle(VehicleKind::T55A);
+fn t54_body_fits_and_fills_gameplay_hitbox_but_gun_can_protrude() {
+    let baked = bake_vehicle(VehicleKind::T54_1951).expect("T-54 recipe should bake");
+    let hitbox = HitboxProfile::for_vehicle(VehicleKind::T54_1951);
     let body = baked.body_bounds().expect("body bounds");
     let gun = baked.submesh(SubmeshKind::Gun).expect("gun submesh").mesh.bounds().unwrap();
 

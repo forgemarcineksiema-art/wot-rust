@@ -14,8 +14,8 @@ fn full_speed_side_pass_deals_no_ram_damage() {
     // Two enemy T-55As drive antiparallel with a 4.5 m lateral gap between centers: the hull
     // sides pass 1.0 m apart (half_width 1.75 each) and never touch.
     let mut state = SimulationState::new();
-    let a = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::new(0.0, 0.0, 0.0));
-    let b = state.spawn_tank(TeamId(2), TankSpec::t55a(), Vec3::new(4.5, 0.0, 90.0));
+    let a = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::new(0.0, 0.0, 0.0));
+    let b = state.spawn_tank(TeamId(2), TankSpec::t54_1951(), Vec3::new(4.5, 0.0, 90.0));
     state.tank_mut(b).expect("tank b").yaw_rad = PI;
     let step = FixedTimestep::from_hz(60);
 
@@ -32,7 +32,7 @@ fn full_speed_side_pass_deals_no_ram_damage() {
 
     for id in [a, b] {
         let tank = state.tank(id).expect("tank");
-        assert_eq!(tank.hit_points, TankSpec::t55a().hit_points, "no phantom hull damage");
+        assert_eq!(tank.hit_points, TankSpec::t54_1951().hit_points, "no phantom hull damage");
         assert!(
             tank.modules.is_functional(ModuleSlot::Suspension),
             "no phantom thrown tracks on a near miss"
@@ -49,8 +49,8 @@ fn tbone_ram_registers_only_when_hulls_actually_touch() {
     // half_length + half_width = 3.20 + 1.75 = 4.95 m between centers. The old length-circle
     // predicate fired at a 6.5 m center gap — 1.6 m of air before the hulls met.
     let mut state = SimulationState::new();
-    let rammer = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::ZERO);
-    let target = state.spawn_tank(TeamId(2), TankSpec::t55a(), Vec3::new(0.0, 0.0, 30.0));
+    let rammer = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
+    let target = state.spawn_tank(TeamId(2), TankSpec::t54_1951(), Vec3::new(0.0, 0.0, 30.0));
     state.tank_mut(target).expect("target").yaw_rad = FRAC_PI_2;
     let step = FixedTimestep::from_hz(60);
 

@@ -5,7 +5,7 @@ use sim::{FixedTimestep, SimulationState, TankCommand};
 #[test]
 fn replacing_tank_creates_new_vehicle_id_and_resets_live_state() {
     let mut state = SimulationState::new();
-    let old_id = state.spawn_tank(TeamId(7), TankSpec::t55a(), Vec3::new(12.0, 0.0, 34.0));
+    let old_id = state.spawn_tank(TeamId(7), TankSpec::t54_1951(), Vec3::new(12.0, 0.0, 34.0));
     {
         let tank = state.tank_mut(old_id).expect("old tank");
         tank.yaw_rad = 0.75;

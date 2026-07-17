@@ -8,7 +8,7 @@ use terrain::HeightMap;
 #[test]
 fn fire_command_spawns_shell_and_starts_reload() {
     let mut state = SimulationState::new();
-    let shooter = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::ZERO);
+    let shooter = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
     let step = FixedTimestep::from_hz(60);
 
     state.apply_commands(&[(shooter, fire_command())], step);
@@ -23,7 +23,7 @@ fn fire_command_spawns_shell_and_starts_reload() {
 #[test]
 fn shell_hit_penetrates_armor_and_applies_damage() {
     let mut state = SimulationState::new();
-    let shooter = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::ZERO);
+    let shooter = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
     let target = state.spawn_tank(TeamId(2), TankSpec::t54_1951(), Vec3::new(0.0, 0.0, 55.0));
     state.tank_mut(target).expect("target").yaw_rad = PI;
     // Depress the gun slightly so the round strikes the T-54's hull front: its low 1951 casting sits
@@ -49,7 +49,16 @@ fn kinetic_round_can_perforate_one_light_hull_and_damage_the_tank_behind_it() {
     use game_core::VehicleKind;
 
     let mut state = SimulationState::new();
-    let shooter = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::ZERO);
+    // The T-54 with its D-10T2S upgrade: the hotter round keeps enough residual energy past
+    // the first hull to matter behind it.
+    let mut loadout = VehicleKind::T54_1951.default_loadout();
+    let d10t2s = VehicleKind::T54_1951
+        .gun_options()
+        .into_iter()
+        .find(|gun| gun.spec.name == "100 mm D-10T2S")
+        .expect("the T-54 offers the D-10T2S");
+    loadout.try_install_gun(d10t2s).expect("the D-10T2S fits the T-54 turret");
+    let shooter = state.spawn_tank(TeamId(1), loadout.assemble(VehicleKind::T54_1951), Vec3::ZERO);
     let first = state.spawn_tank(TeamId(2), VehicleKind::T34_85.spec(), Vec3::new(0.0, 0.0, 35.0));
     let second = state.spawn_tank(TeamId(2), VehicleKind::T34_85.spec(), Vec3::new(0.0, 0.0, 50.0));
     state.tank_mut(first).expect("first").yaw_rad = PI;
@@ -78,7 +87,7 @@ fn heat_jet_resolves_on_the_first_hull_and_never_becomes_a_second_projectile() {
     use game_core::{ShellType, VehicleKind};
 
     let mut state = SimulationState::new();
-    let shooter = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::ZERO);
+    let shooter = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
     let first = state.spawn_tank(TeamId(2), VehicleKind::T34_85.spec(), Vec3::new(0.0, 0.0, 35.0));
     let second = state.spawn_tank(TeamId(2), VehicleKind::T34_85.spec(), Vec3::new(0.0, 0.0, 50.0));
     state.tank_mut(first).expect("first").yaw_rad = PI;
@@ -128,7 +137,7 @@ fn shell_hit_that_fails_penetration_reports_bounce_without_damage() {
 #[test]
 fn terrain_crossing_blocks_shell_before_target_hit() {
     let mut state = SimulationState::new();
-    let shooter = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::new(20.0, 0.0, 0.0));
+    let shooter = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::new(20.0, 0.0, 0.0));
     let target = state.spawn_tank(TeamId(2), TankSpec::t54_1951(), Vec3::new(20.0, 0.0, 18.0));
     state.tank_mut(target).expect("target").yaw_rad = PI;
     let terrain = ridge_heightmap();
@@ -149,7 +158,7 @@ fn terrain_crossing_blocks_shell_before_target_hit() {
 #[test]
 fn vehicle_specific_hitbox_width_is_used_for_shell_hits() {
     let mut state = SimulationState::new();
-    let shooter = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::new(1.8, 0.0, 0.0));
+    let shooter = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::new(1.8, 0.0, 0.0));
     let target =
         state.spawn_tank(TeamId(2), TankSpec::tiger_ii_ausf_b(), Vec3::new(0.0, 0.0, 55.0));
     {
@@ -172,8 +181,8 @@ fn vehicle_specific_hitbox_width_is_used_for_shell_hits() {
 #[test]
 fn high_side_hit_uses_turret_side_armor_not_hull_side_armor() {
     let mut state = SimulationState::new();
-    let shooter = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::new(-55.0, 0.0, 0.0));
-    let target = state.spawn_tank(TeamId(2), TankSpec::t55a(), Vec3::ZERO);
+    let shooter = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::new(-55.0, 0.0, 0.0));
+    let target = state.spawn_tank(TeamId(2), TankSpec::t54_1951(), Vec3::ZERO);
     {
         let shooter = state.tank_mut(shooter).expect("shooter");
         shooter.yaw_rad = PI / 2.0;
@@ -195,16 +204,14 @@ fn high_side_hit_uses_turret_side_armor_not_hull_side_armor() {
 #[test]
 fn off_center_side_hit_on_long_hull_still_uses_side_armor() {
     let mut state = SimulationState::new();
-    let shooter = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::new(-55.0, 0.0, 2.8));
-    let target = state.spawn_tank(TeamId(2), TankSpec::t55a(), Vec3::ZERO);
+    let shooter = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::new(-55.0, 0.0, 1.8));
+    let target = state.spawn_tank(TeamId(2), TankSpec::t54_1951(), Vec3::ZERO);
     {
         let shooter = state.tank_mut(shooter).expect("shooter");
         shooter.yaw_rad = PI / 2.0;
-        // Drop the shot to ~0.45 m — the lower tub side. This far forward (z = 2.8, near the
-        // bow) the glacis has already cut the upper hull away above the 0.55 m sponson fold,
-        // and the deck sits at only 1.30 m: a muzzle-height shell honestly clears the bow
-        // entirely (the old model's tall box caught it in air).
-        shooter.gun_pitch_rad = -0.028;
+        // Drop the shot to ~0.5 m — the lower tub side, well forward of centre (z = 1.8,
+        // inside the front road-wheel station) so a centre-sampled facing would read Front.
+        shooter.gun_pitch_rad = -0.026;
         shooter.aim_dispersion_mrad = 0.0;
         shooter.spec.gun.dispersion_mrad = 0.0;
     }
@@ -213,15 +220,18 @@ fn off_center_side_hit_on_long_hull_still_uses_side_armor() {
 
     let event = state.damage_events().last().expect("off-center side hit should resolve");
     assert_eq!(event.target, target);
+    // Off-center, the shot still resolves on the SIDE facing — never the front sample. At
+    // wheel height the honest first plate is the track band screen, and the suspension
+    // capsule under the front stations takes the hit.
     assert_eq!(event.armor_facing, ArmorFacing::HullSide);
-    assert_eq!(event.armor_zone, ArmorZone::HullSide);
+    assert_eq!(event.armor_zone, ArmorZone::LeftTrack);
     assert_eq!(event.module, Some(ModuleSlot::Suspension));
 }
 
 #[test]
 fn long_range_hit_uses_penetration_falloff() {
     let mut state = SimulationState::new();
-    let shooter = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::ZERO);
+    let shooter = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
     let target =
         state.spawn_tank(TeamId(2), TankSpec::tiger_i_ausf_e(), Vec3::new(0.0, 0.0, 900.0));
     {
@@ -258,7 +268,7 @@ fn long_range_hit_uses_penetration_falloff() {
 #[test]
 fn point_blank_muzzle_inside_the_enemy_still_strikes_it() {
     let mut state = SimulationState::new();
-    let shooter = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::ZERO);
+    let shooter = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
     let target = state.spawn_tank(TeamId(2), TankSpec::t54_1951(), Vec3::new(0.0, 0.0, 6.0));
     state.tank_mut(target).expect("target").yaw_rad = PI;
 

@@ -52,7 +52,7 @@ mod tests {
     /// Every unmigrated vehicle passes straight through to the procedural mesh, byte for byte.
     #[test]
     fn other_vehicles_pass_through_to_the_procedural_mesh() {
-        for kind in [VehicleKind::T55A, VehicleKind::TigerI, VehicleKind::PantherII] {
+        for kind in [VehicleKind::T34_85, VehicleKind::TigerI, VehicleKind::PantherII] {
             let seam = authoritative_baked_vehicle(kind).expect("vehicle bakes");
             let procedural = bake_vehicle(kind).expect("vehicle procedural bakes");
             assert_eq!(

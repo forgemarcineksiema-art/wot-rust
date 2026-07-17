@@ -12,8 +12,11 @@ use sim::{FixedTimestep, SimulationState, TankCommand};
 /// Fire from a T-55 into a T-54 dead ahead, facing back, and return the first shell damage event.
 fn front_hit_event() -> game_core::DamageEvent {
     let mut state = SimulationState::new();
-    let shooter =
-        state.spawn_tank(TeamId(1), game_core::VehicleKind::T55A.spec(), Vec3::new(0.0, 0.0, 0.0));
+    let shooter = state.spawn_tank(
+        TeamId(1),
+        game_core::VehicleKind::T54_1951.spec(),
+        Vec3::new(0.0, 0.0, 0.0),
+    );
     // Enemy 20 m ahead, hull yawed to face the shooter so its front armor takes the shot.
     let _target = state.spawn_tank_with_yaw(
         TeamId(2),

@@ -87,7 +87,7 @@ fn snapshots_carry_projectiles_and_damage_events_through_the_wire() {
 #[test]
 fn tank_snapshot_replicates_team_and_shell_impacts_from_sim_state() {
     let mut state = SimulationState::new();
-    state.spawn_tank(TeamId(7), TankSpec::t55a(), Vec3::ZERO);
+    state.spawn_tank(TeamId(7), TankSpec::t54_1951(), Vec3::ZERO);
 
     let snapshot = Snapshot::from(&state);
 
@@ -98,7 +98,7 @@ fn tank_snapshot_replicates_team_and_shell_impacts_from_sim_state() {
 #[test]
 fn shell_snapshot_carries_stable_identity_and_flight_parameters_from_sim() {
     let mut state = SimulationState::new();
-    let tank = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::ZERO);
+    let tank = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
     state.apply_commands(
         &[(tank, sim::TankCommand { fire: true, ..sim::TankCommand::idle() })],
         sim::FixedTimestep::from_hz(60),
@@ -133,13 +133,13 @@ fn tank_snapshot_replicates_destroyed_module_mask_from_sim_state() {
 #[test]
 fn tank_snapshot_replicates_live_module_hit_points_from_sim_state() {
     let mut state = SimulationState::new();
-    let tank = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::ZERO);
+    let tank = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
     let modules = &mut state.tank_mut(tank).expect("tank").modules;
     modules.damage(ModuleSlot::Gun, 17);
     modules.damage(ModuleSlot::AmmoRack, 31);
 
     let snapshot = Snapshot::from(&state);
-    let spec = TankSpec::t55a();
+    let spec = TankSpec::t54_1951();
 
     assert_eq!(
         snapshot.tanks[0].module_hit_points,
@@ -157,7 +157,7 @@ fn tank_snapshot_replicates_live_module_hit_points_from_sim_state() {
 #[test]
 fn tank_snapshot_replicates_authoritative_aim_dispersion() {
     let mut state = SimulationState::new();
-    let tank = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::ZERO);
+    let tank = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
     state.tank_mut(tank).expect("tank").aim_dispersion_mrad = 9.5;
 
     let snapshot = Snapshot::from(&state);
@@ -168,7 +168,7 @@ fn tank_snapshot_replicates_authoritative_aim_dispersion() {
 #[test]
 fn tank_snapshot_replicates_authoritative_turret_yaw_velocity() {
     let mut state = SimulationState::new();
-    let tank = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::ZERO);
+    let tank = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
     state.tank_mut(tank).expect("tank").turret_yaw_velocity_rad_s = 0.31;
 
     let snapshot = Snapshot::from(&state);

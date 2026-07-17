@@ -9,7 +9,7 @@ use super::catalog_misc::{
 };
 use super::catalog_soviet::{
     gun_d10t, gun_d10t2s, gun_d25t, is3_engine_v54k, is3_loadout, t34_85_loadout, t54_engine_v55,
-    t54_loadout, t55_loadout,
+    t54_loadout,
 };
 use super::{
     EngineModule, GunModule, HullChassis, RadioModule, SuspensionModule, TurretModule,
@@ -24,7 +24,6 @@ impl VehicleKind {
         match self {
             VehicleKind::PrototypeMedium => prototype_loadout(),
             VehicleKind::T54_1951 => t54_loadout(),
-            VehicleKind::T55A => t55_loadout(),
             VehicleKind::TigerI => tiger_i_loadout(),
             VehicleKind::TigerII => tiger_ii_loadout(),
             VehicleKind::Jagdtiger => jagdtiger_loadout(),
@@ -46,7 +45,6 @@ impl VehicleKind {
         match self {
             VehicleKind::PrototypeMedium => vec![gun_prototype()],
             VehicleKind::T54_1951 => vec![gun_d10t(), gun_d10t2s()],
-            VehicleKind::T55A => vec![gun_d10t2s(), gun_d10t()],
             VehicleKind::TigerI => vec![gun_kwk36()],
             VehicleKind::TigerII => vec![gun_kwk43()],
             // The actually-fielded "88 Jagdtiger": the long 88 as a DPM/handling trade against the

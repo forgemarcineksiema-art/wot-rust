@@ -16,7 +16,7 @@ fn fire_command() -> TankCommand {
 #[test]
 fn a_non_pen_he_burst_splashes_the_tank_beside_the_impact() {
     let mut state = SimulationState::new();
-    let shooter = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::ZERO);
+    let shooter = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
     // A big HE round: hopeless against the Tiger II's plate, generous 4 m blast.
     state.tank_mut(shooter).expect("shooter").spec.gun.shell =
         ShellSpec::high_explosive(122.0, 515.0, 38.0, 410, 4.0);

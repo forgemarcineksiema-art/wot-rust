@@ -294,7 +294,7 @@ mod tests {
         caliber_mm: f32,
     ) -> game_core::ArmorBreach {
         let mut state = SimulationState::new();
-        let id = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::ZERO);
+        let id = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
         let tank = state.tank(id).expect("spawned tank");
         make_breach(
             tank,

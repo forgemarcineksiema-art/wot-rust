@@ -3,11 +3,11 @@ use game_core::{TankId, VehicleKind};
 use net::TankSnapshot;
 
 #[test]
-fn t55a_client_mesh_uses_rich_procedural_geometry() {
+fn t54_client_mesh_uses_rich_procedural_geometry() {
     let snapshot = TankSnapshot {
         tank_id: TankId(1),
         team: game_core::TeamId(1),
-        vehicle: VehicleKind::T55A,
+        vehicle: VehicleKind::T54_1951,
         position: [0.0, 0.0, 0.0],
         yaw_rad: 0.0,
         hull_pitch_rad: 0.0,
@@ -17,8 +17,8 @@ fn t55a_client_mesh_uses_rich_procedural_geometry() {
         gun_pitch_rad: 0.08,
         hit_points: 1000,
         reload_remaining_s: 0.0,
-        aim_dispersion_mrad: VehicleKind::T55A.spec().gun.dispersion_mrad,
-        module_hit_points: VehicleKind::T55A.spec().module_health.hit_points_by_slot(),
+        aim_dispersion_mrad: VehicleKind::T54_1951.spec().gun.dispersion_mrad,
+        module_hit_points: VehicleKind::T54_1951.spec().module_health.hit_points_by_slot(),
         destroyed_modules_mask: 0,
         track_damage_mask: 0,
         track_hp: [game_core::TRACK_HP_MAX; 2],
@@ -37,6 +37,6 @@ fn t55a_client_mesh_uses_rich_procedural_geometry() {
     assert!(vertices.iter().all(|vertex| vertex.normal.iter().all(|value| value.is_finite())));
     assert!(
         indices.len() / 3 >= 170,
-        "T-55A should render through richer baked procedural geometry, not the old box stack"
+        "T-54 should render through richer baked procedural geometry, not the old box stack"
     );
 }

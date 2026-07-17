@@ -1,4 +1,4 @@
-﻿//! Locking tests for the planar rigid-body hull: angular inertia, neutral pivot, lateral grip vs
+//! Locking tests for the planar rigid-body hull: angular inertia, neutral pivot, lateral grip vs
 //! drift, slope slide, downhill behaviour, and numerical stability. These pin the *emergent*
 //! behaviour that replaced the old scalar kinematic model.
 
@@ -35,7 +35,7 @@ fn lateral_speed(state: &TankKinematicState) -> f32 {
 
 #[test]
 fn hull_rotation_carries_angular_inertia() {
-    let settings = TankControllerSettings::from_spec(&TankSpec::t55a());
+    let settings = TankControllerSettings::from_spec(&TankSpec::t54_1951());
     let mut state = TankKinematicState::default();
 
     // Build up a steady turn.
@@ -60,7 +60,7 @@ fn hull_rotation_carries_angular_inertia() {
 
 #[test]
 fn neutral_steer_pivots_in_place_without_throttle() {
-    let settings = TankControllerSettings::from_spec(&TankSpec::t55a());
+    let settings = TankControllerSettings::from_spec(&TankSpec::t54_1951());
     let mut state = TankKinematicState::default();
 
     // Steer with no throttle: the hull should rotate (counter-rotating tracks) but not translate.
@@ -76,7 +76,14 @@ fn neutral_steer_pivots_in_place_without_throttle() {
 
 #[test]
 fn hard_turn_at_speed_drifts_but_a_gentle_turn_grips() {
-    let settings = TankControllerSettings::from_spec(&TankSpec::t55a());
+    // This locks the MODEL's grip-break regime (full lock near the top of the speed/turn
+    // envelope), not any roster vehicle's tuning: since the T-55A clone left the roster no
+    // production hull tops the envelope, so the fixture pushes a fast hull just past it.
+    let mut settings = TankControllerSettings::from_spec(&game_core::VehicleKind::T34_85.spec());
+    settings.max_forward_speed_mps = 15.3;
+    settings.turn_rate_rad_s = 0.82;
+    settings.drag_quadratic =
+        (settings.drive_power_mps3 / 15.3 - settings.rolling_resist_mps2) / (15.3 * 15.3);
 
     let drift_for = |steer: f32| {
         let mut state = TankKinematicState::default();
@@ -98,7 +105,7 @@ fn hard_turn_at_speed_drifts_but_a_gentle_turn_grips() {
 
 #[test]
 fn steep_low_traction_slope_slides_but_gentle_slope_holds() {
-    let settings = TankControllerSettings::from_spec(&TankSpec::t55a());
+    let settings = TankControllerSettings::from_spec(&TankSpec::t54_1951());
 
     let drift_x = |side_slope: f32, roughness: f32| {
         // Traction falls off with side slope and roughness exactly as the heightmap sampler models.
@@ -126,7 +133,7 @@ fn steep_low_traction_slope_slides_but_gentle_slope_holds() {
 
 #[test]
 fn descending_a_grade_is_not_slower_than_flat() {
-    let settings = TankControllerSettings::from_spec(&TankSpec::t55a());
+    let settings = TankControllerSettings::from_spec(&TankSpec::t54_1951());
 
     let top_speed = |forward_slope: f32| {
         let contact = TerrainContact {
@@ -154,7 +161,7 @@ fn descending_a_grade_is_not_slower_than_flat() {
 
 #[test]
 fn full_lock_turn_stays_finite_and_bounded() {
-    let settings = TankControllerSettings::from_spec(&TankSpec::t55a());
+    let settings = TankControllerSettings::from_spec(&TankSpec::t54_1951());
     let mut state = TankKinematicState::default();
 
     drive(&mut state, &settings, 1.0, 1.0, TerrainContact::flat(0.0), 2000);

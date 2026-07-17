@@ -8,8 +8,9 @@ use vehicle_geometry::{
     road_wheel_unit_mesh, running_gear_placements, sprocket_unit_mesh, track_link_unit_mesh,
 };
 
-fn t55() -> RunningGearKinematics {
-    RunningGearKinematics::for_vehicle(VehicleKind::T55A).expect("T-55A has blueprint running gear")
+fn t54() -> RunningGearKinematics {
+    RunningGearKinematics::for_vehicle(VehicleKind::T54_1951)
+        .expect("T-54 has blueprint running gear")
 }
 
 fn count(placements: &[vehicle_geometry::GearPlacement], part: GearPart) -> usize {
@@ -68,7 +69,7 @@ fn the_whole_animated_fleet_rides_blueprint_gear() {
 
 #[test]
 fn placements_cover_both_sides_for_every_part() {
-    let kin = t55();
+    let kin = t54();
     let placements = running_gear_placements(&kin, 0.0, 0.0);
 
     // Two sides: road wheels = wheel_zs * 2, plus front idler and rear drive sprocket per side.
@@ -112,7 +113,7 @@ fn the_is3_top_run_rides_three_return_rollers_per_side() {
 
 #[test]
 fn a_full_wheel_circumference_of_travel_returns_the_wheel_to_its_pose() {
-    let kin = t55();
+    let kin = t54();
     let rest = running_gear_placements(&kin, 0.0, 0.0);
     let full_turn = 2.0 * std::f32::consts::PI * kin.wheel_radius;
     let rolled = running_gear_placements(&kin, full_turn, full_turn);
@@ -126,7 +127,7 @@ fn a_full_wheel_circumference_of_travel_returns_the_wheel_to_its_pose() {
 
 #[test]
 fn a_small_advance_moves_the_wheels() {
-    let kin = t55();
+    let kin = t54();
     let rest = running_gear_placements(&kin, 0.0, 0.0);
     let nudged = running_gear_placements(&kin, 0.1, 0.1);
 
@@ -140,7 +141,7 @@ fn a_small_advance_moves_the_wheels() {
 
 #[test]
 fn links_wrap_continuously_around_the_loop() {
-    let kin = t55();
+    let kin = t54();
     let rest = running_gear_placements(&kin, 0.0, 0.0);
     let looped = running_gear_placements(&kin, kin.belt_length(), kin.belt_length());
 
@@ -152,7 +153,7 @@ fn links_wrap_continuously_around_the_loop() {
 
 #[test]
 fn the_two_tracks_run_independently() {
-    let kin = t55();
+    let kin = t54();
     // Pivot in place: left runs back, right runs forward.
     let placements = running_gear_placements(&kin, -1.0, 1.0);
     let wheels: Vec<_> = placements.iter().filter(|p| p.part == GearPart::RoadWheel).collect();
@@ -165,13 +166,13 @@ fn the_two_tracks_run_independently() {
 
 #[test]
 fn placements_are_deterministic() {
-    let kin = t55();
+    let kin = t54();
     assert_eq!(running_gear_placements(&kin, 3.3, -1.7), running_gear_placements(&kin, 3.3, -1.7));
 }
 
 #[test]
 fn unit_meshes_are_finite_and_non_empty() {
-    let kin = t55();
+    let kin = t54();
     for mesh in [
         road_wheel_unit_mesh(&kin),
         idler_unit_mesh(&kin),

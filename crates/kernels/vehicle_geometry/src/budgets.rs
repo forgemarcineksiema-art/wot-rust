@@ -34,13 +34,12 @@ pub const VEHICLE_BUDGETS: VehicleBudgets = VehicleBudgets {
 /// its entry (the enforcement test prints the replacement array); anything else failing here is
 /// a regression. Kept beside the budgets so the studio report can say whether the current bake
 /// still matches its golden.
-pub const GOLDEN_BAKE_HASHES: [(VehicleKind, u64); 10] = [
+pub const GOLDEN_BAKE_HASHES: [(VehicleKind, u64); 9] = [
     (VehicleKind::PrototypeMedium, 14_793_728_532_433_154_327_u64),
     // Re-recorded for the T-54 1:1 blueprint reset (documented 6.04 × 3.27 × 2.40 m body,
     // 810 mm wheels, raised idler/sprocket, 2.25 m turret on the 1.75 m roof). The T-55A moves
     // only through the shared Soviet cupola cap; the German vehicles are untouched.
     (VehicleKind::T54_1951, 7_815_164_806_384_481_682_u64),
-    (VehicleKind::T55A, 16_890_726_547_446_279_575_u64),
     // Re-recorded for the Tiger I blueprint migration: the researched 1:1 slab (6.32 m hull,
     // 3.7 m beam, 3.0 m tall, face-honest plates, horseshoe turret + Rommelkiste, interleaved
     // eight-wheel gear, braked KwK 36) replaces the legacy hitbox-fraction body.

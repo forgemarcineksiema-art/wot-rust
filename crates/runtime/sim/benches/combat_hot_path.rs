@@ -42,7 +42,7 @@ fn combat_hot_path_benchmark(c: &mut Criterion) {
                 );
                 let defender = state.spawn_tank_with_yaw(
                     TeamId(2),
-                    VehicleKind::T55A.spec(),
+                    VehicleKind::T54_1951.spec(),
                     Vec3::new(x, 0.0, 260.0),
                     PI,
                 );

@@ -8,7 +8,6 @@ pub(crate) fn short_name(kind: VehicleKind) -> &'static str {
     match kind {
         VehicleKind::PrototypeMedium => "Proto",
         VehicleKind::T54_1951 => "T-54",
-        VehicleKind::T55A => "T-55A",
         VehicleKind::TigerI => "Tiger I",
         VehicleKind::TigerII => "Tiger II",
         VehicleKind::Jagdtiger => "Jagdtg",

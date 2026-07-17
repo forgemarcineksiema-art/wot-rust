@@ -331,7 +331,7 @@ mod tests {
     #[test]
     fn muzzle_world_position_pivots_about_the_trunnion_not_the_hull_centre() {
         use crate::VehicleKind;
-        let mounts = MountFrames::for_vehicle(VehicleKind::T55A);
+        let mounts = MountFrames::for_vehicle(VehicleKind::T54_1951);
         let trunnion = mounts.gun_trunnion.translation;
         let muzzle = mounts.muzzle.translation;
         let barrel = muzzle.z - trunnion.z;

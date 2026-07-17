@@ -10,7 +10,7 @@ fn flooded_sim() -> (SimulationState, HeightMap, game_core::TankId) {
     let heightmap = HeightMap::flat(60, 60, 5.0, 0.0).expect("flat map");
     let mut sim = SimulationState::new();
     sim.set_water(Some(WaterBody { surface_level_m: DROWN_DEPTH_M + 0.5 }));
-    let id = sim.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::new(30.0, 0.0, 30.0));
+    let id = sim.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::new(30.0, 0.0, 30.0));
     (sim, heightmap, id)
 }
 
@@ -84,7 +84,7 @@ fn leaving_deep_water_before_the_deadline_resets_the_clock() {
 fn a_dry_map_never_drowns_anyone() {
     let heightmap = HeightMap::flat(60, 60, 5.0, 0.0).expect("flat map");
     let mut sim = SimulationState::new(); // water: None
-    let id = sim.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::new(30.0, 0.0, 30.0));
+    let id = sim.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::new(30.0, 0.0, 30.0));
     tick(&mut sim, &heightmap, id, 600);
     let tank = sim.tank(id).unwrap();
     assert!(tank.modules.is_functional(ModuleSlot::Engine));

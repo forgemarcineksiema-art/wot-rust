@@ -29,41 +29,41 @@ fn every_stock_loadout_is_self_consistent() {
 
 #[test]
 fn assembled_mass_is_the_sum_of_modules() {
-    let modules = VehicleKind::T55A.default_loadout();
-    let spec = modules.assemble(VehicleKind::T55A);
+    let modules = VehicleKind::T54_1951.default_loadout();
+    let spec = modules.assemble(VehicleKind::T54_1951);
     assert_eq!(spec.mass_kg, modules.total_mass_kg());
     assert!((spec.mass_kg - 36_000.0).abs() < 1.0);
 }
 
 #[test]
 fn swapping_the_gun_changes_assembled_stats_and_weight() {
-    let mut modules = VehicleKind::T55A.default_loadout();
-    let stock = modules.assemble(VehicleKind::T55A);
-    assert_eq!(stock.gun.name, "100 mm D-10T2S");
+    let mut modules = VehicleKind::T54_1951.default_loadout();
+    let stock = modules.assemble(VehicleKind::T54_1951);
+    assert_eq!(stock.gun.name, "100 mm D-10T");
 
-    // The D-10T is an offered, compatible alternative (caliber 100 <= turret max 105).
-    let alt = VehicleKind::T55A
+    // The D-10T2S is an offered, compatible upgrade (caliber 100 <= turret max 105).
+    let alt = VehicleKind::T54_1951
         .gun_options()
         .into_iter()
-        .find(|gun| gun.spec.name == "100 mm D-10T")
-        .expect("D-10T is offered for the T-55A");
-    modules.try_install_gun(alt).expect("D-10T fits the T-55 turret");
-    let swapped = modules.assemble(VehicleKind::T55A);
+        .find(|gun| gun.spec.name == "100 mm D-10T2S")
+        .expect("D-10T2S is offered for the T-54");
+    modules.try_install_gun(alt).expect("D-10T2S fits the T-54 turret");
+    let swapped = modules.assemble(VehicleKind::T54_1951);
 
-    assert_eq!(swapped.gun.name, "100 mm D-10T");
+    assert_eq!(swapped.gun.name, "100 mm D-10T2S");
     assert_ne!(swapped.gun.reload_seconds, stock.gun.reload_seconds);
 }
 
 #[test]
 fn oversized_gun_is_rejected_by_the_turret() {
-    let mut modules = VehicleKind::T55A.default_loadout();
+    let mut modules = VehicleKind::T54_1951.default_loadout();
     let big_gun =
         VehicleKind::Jagdtiger.gun_options().into_iter().next().expect("Jagdtiger has a gun"); // 128 mm
 
     let result = modules.try_install_gun(big_gun);
 
     assert!(matches!(result, Err(ModuleError::GunTooLargeForTurret { .. })));
-    assert_eq!(modules.gun.spec.name, "100 mm D-10T2S", "loadout unchanged after a rejected swap");
+    assert_eq!(modules.gun.spec.name, "100 mm D-10T", "loadout unchanged after a rejected swap");
 }
 
 #[test]

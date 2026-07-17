@@ -2,11 +2,11 @@
 //!
 //! Family signature: a low, flat hull with a raked glacis and a rounded cast turret carried low on
 //! the deck. The 100 mm guns are slim and carry a mid-barrel bore evacuator rather than a muzzle
-//! brake. The cast-turret pair (T-54 and T-55A) ride the historical five road wheels per side; the
+//! brake. The cast-turret T-54 rides the historical five road wheels per side; the
 //! prototype medium is the odd one out — six wheels and a plain welded box turret — so it stays
-//! visually distinct from the pair.
+//! visually distinct.
 //!
-//! The T-54 and T-55A are blueprint-driven (hull, running gear, turret, and gun all read one
+//! The T-54 is blueprint-driven (hull, running gear, turret, and gun all read one
 //! [`game_core::VehicleBlueprint`]); the prototype still derives its hull from the hitbox fractions
 //! and mount frames.
 
@@ -16,15 +16,15 @@ use glam::Vec3;
 use super::{
     GunPlan, HullPlan, RunningGear, SG_CAST, add_broad_mantlet_socket, add_cupola,
     add_mantlet_socket, add_running_gear, add_t54_mantlet_socket, add_turret_ring, assemble,
-    blueprint_deck_details, blueprint_hull, blueprint_running_gear, blueprint_skirts, build_gun,
+    blueprint_deck_details, blueprint_running_gear, blueprint_skirts, build_gun,
     build_gun_with_mantlet_scale, cast_turret_shell, hull_body, shade_hull, t54_hull,
     t54_turret_front,
 };
 use crate::{BakedVehicle, GeometryMesh, MaterialRole, MeshBuilder};
 
 /// The shared Soviet cast turret: a low wide dome carrying a commander's cupola drum, a loader's
-/// hatch, the ring collar, and the mantlet seat. Building both T-54 and T-55A through one helper
-/// keeps the family reading consistently and keeps the recipes short.
+/// hatch, the ring collar, and the mantlet seat. One helper keeps the family (T-54, IS-3)
+/// reading consistently and keeps the recipes short.
 fn soviet_cast_turret(
     t: &TurretShape,
     trunnion_y: f32,
@@ -65,36 +65,6 @@ fn soviet_cast_turret(
         add_broad_mantlet_socket(with_ring, trunnion_y, mantlet, 12)
     }
     .build()
-}
-
-pub(crate) fn t55a(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVehicle {
-    // Migrated to the blueprint, reusing the same machinery as the T-54: hull, wrapped five-wheel
-    // running gear, cast turret, and the longer D-10 gun all read one shape source.
-    let bp = super::active_blueprint(VehicleKind::T55A).expect("T-55A has a blueprint");
-    let hull = shade_hull(
-        blueprint_hull(&bp.hull, MaterialRole::RolledArmor)
-            .append(&blueprint_running_gear(&bp.track))
-            .append(&blueprint_deck_details(&bp))
-            .append(&blueprint_skirts(&bp.hull, &bp.track))
-            .build(),
-    );
-
-    let t = &bp.turret;
-    let mantlet = Some((t.mantlet_radius, t.mantlet_back_z, t.mantlet_front_z));
-    let turret = soviet_cast_turret(t, bp.gun.trunnion_y, mantlet, false, 16);
-
-    let gun = build_gun(&GunPlan {
-        axis_y: bp.gun.trunnion_y,
-        breech_z: bp.gun.trunnion_z - 0.18,
-        muzzle_z: bp.gun.muzzle_z,
-        radius: bp.gun.barrel_radius,
-        segments: bp.gun.segments,
-        mantlet,
-        evacuator: bp.gun.evacuator,
-        muzzle_brake: bp.gun.muzzle_brake,
-    });
-
-    assemble(VehicleKind::T55A, hull, turret, gun, *mounts)
 }
 
 /// The shared Soviet cast-turret builder, exposed to the IS-3 recipe (`recipes::is3`) — the

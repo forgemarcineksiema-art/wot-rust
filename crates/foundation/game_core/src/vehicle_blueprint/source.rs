@@ -63,7 +63,6 @@ pub(super) fn blueprint_ron(kind: VehicleKind) -> Option<&'static str> {
     match kind {
         VehicleKind::PrototypeMedium => None,
         VehicleKind::T54_1951 => Some(include_str!("../../blueprints/t54_1951.blueprint.ron")),
-        VehicleKind::T55A => Some(include_str!("../../blueprints/t55a.blueprint.ron")),
         VehicleKind::TigerI => Some(include_str!("../../blueprints/tiger_i_ausf_e.blueprint.ron")),
         VehicleKind::TigerII => {
             Some(include_str!("../../blueprints/tiger_ii_ausf_b.blueprint.ron"))

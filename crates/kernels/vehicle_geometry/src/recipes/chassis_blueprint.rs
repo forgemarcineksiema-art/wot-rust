@@ -7,48 +7,8 @@ use glam::{Vec2, Vec3};
 
 use super::SG_HARD;
 use crate::{
-    Axis, ExtrudeSpec, GeometryMesh, LoftSection, LoftSpec, MaterialRole, MeshBuilder,
-    ProfilePoint, RevolveSpec,
+    Axis, GeometryMesh, LoftSection, LoftSpec, MaterialRole, MeshBuilder, ProfilePoint, RevolveSpec,
 };
-
-/// The hull body: a side silhouette whose glacis is built from `glacis_slope_deg` (so the visible
-/// plate is the same angle the armour model uses) plus a raked rear plate and a wider upper
-/// sponson over a narrower lower tub.
-pub(crate) fn blueprint_hull(hull: &HullShape, material: MaterialRole) -> MeshBuilder {
-    let height = (hull.deck_y - hull.belly_y - hull.nose_rise).max(0.1);
-    let glacis_run = height * hull.glacis_slope_deg.to_radians().tan();
-    let rear_run = (hull.deck_y - hull.belly_y).max(0.1) * hull.rear_slope_deg.to_radians().tan();
-    let rear_bottom = Vec2::new(-hull.half_len, hull.belly_y);
-    let front_bottom = Vec2::new(hull.half_len, hull.belly_y + hull.nose_rise);
-    let front_top = Vec2::new(hull.half_len - glacis_run, hull.deck_y);
-    let rear_top = Vec2::new(-hull.half_len + rear_run, hull.deck_y);
-    let front_step = point_at_y(front_bottom, front_top, hull.sponson_y);
-    let rear_step = point_at_y(rear_bottom, rear_top, hull.sponson_y);
-    let lower_section = vec![rear_bottom, front_bottom, front_step, rear_step];
-    let upper_section = vec![rear_step, front_step, front_top, rear_top];
-
-    MeshBuilder::new()
-        .extrude(
-            Vec3::ZERO,
-            ExtrudeSpec {
-                section: lower_section,
-                axis: Axis::X,
-                half_depth: hull.lower_half_width,
-                material,
-                smoothing: SG_HARD,
-            },
-        )
-        .extrude(
-            Vec3::ZERO,
-            ExtrudeSpec {
-                section: upper_section,
-                axis: Axis::X,
-                half_depth: hull.half_width,
-                material,
-                smoothing: SG_HARD,
-            },
-        )
-}
 
 /// The plane-honest prism hull: both body prisms lofted directly from the armor volumes' plane
 /// equations — the fold ridge at the sponson step, the glacis leaning `glacis_slope_deg` above
@@ -271,9 +231,4 @@ fn track_end_wrap_profile(track: &TrackShape) -> RevolveSpec {
         material: MaterialRole::TrackMetal,
         smoothing: SG_HARD,
     }
-}
-
-fn point_at_y(a: Vec2, b: Vec2, y: f32) -> Vec2 {
-    let t = ((y - a.y) / (b.y - a.y)).clamp(0.0, 1.0);
-    a + (b - a) * t
 }

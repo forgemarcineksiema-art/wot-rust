@@ -19,7 +19,7 @@ fn flat() -> HeightMap {
 /// Shooter at z=20 firing flat down +z with zeroed dispersion.
 fn shooter_state() -> (SimulationState, TankId) {
     let mut state = SimulationState::new();
-    let shooter = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::new(100.0, 0.0, 20.0));
+    let shooter = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::new(100.0, 0.0, 20.0));
     {
         let tank = state.tank_mut(shooter).expect("shooter");
         tank.aim_dispersion_mrad = 0.0;
@@ -47,8 +47,8 @@ fn fire_and_settle(state: &mut SimulationState, shooter: TankId) {
 #[test]
 fn friendly_hull_absorbs_the_shell_without_damage() {
     let (mut state, shooter) = shooter_state();
-    let ally = state.spawn_tank(TeamId(1), TankSpec::t55a(), Vec3::new(100.0, 0.0, 50.0));
-    let enemy = state.spawn_tank(TeamId(2), TankSpec::t55a(), Vec3::new(100.0, 0.0, 90.0));
+    let ally = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::new(100.0, 0.0, 50.0));
+    let enemy = state.spawn_tank(TeamId(2), TankSpec::t54_1951(), Vec3::new(100.0, 0.0, 90.0));
     state.tank_mut(enemy).expect("enemy").yaw_rad = PI;
     let ally_hp = state.tank(ally).expect("ally").hit_points;
     let enemy_hp = state.tank(enemy).expect("enemy").hit_points;
@@ -74,7 +74,7 @@ fn friendly_hull_absorbs_the_shell_without_damage() {
 fn wreck_blocks_the_shell_and_protects_the_target_behind_it() {
     let (mut state, shooter) = shooter_state();
     let wreck = state.spawn_tank(TeamId(2), TankSpec::t54_1951(), Vec3::new(100.0, 0.0, 50.0));
-    let enemy = state.spawn_tank(TeamId(2), TankSpec::t55a(), Vec3::new(100.0, 0.0, 90.0));
+    let enemy = state.spawn_tank(TeamId(2), TankSpec::t54_1951(), Vec3::new(100.0, 0.0, 90.0));
     state.tank_mut(wreck).expect("wreck").hit_points = 0;
     state.tank_mut(enemy).expect("enemy").yaw_rad = PI;
     let enemy_hp = state.tank(enemy).expect("enemy").hit_points;
@@ -91,7 +91,7 @@ fn wreck_blocks_the_shell_and_protects_the_target_behind_it() {
 #[test]
 fn clean_enemy_hit_emits_damage_and_no_impact_event() {
     let (mut state, shooter) = shooter_state();
-    let enemy = state.spawn_tank(TeamId(2), TankSpec::t55a(), Vec3::new(100.0, 0.0, 90.0));
+    let enemy = state.spawn_tank(TeamId(2), TankSpec::t54_1951(), Vec3::new(100.0, 0.0, 90.0));
     state.tank_mut(enemy).expect("enemy").yaw_rad = PI;
 
     fire_and_settle(&mut state, shooter);

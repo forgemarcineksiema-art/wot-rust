@@ -97,7 +97,7 @@ fn equipment_points_sit_on_the_baked_body() {
 #[test]
 fn variation_changes_rendered_tint_without_changing_geometry() {
     let mut catalog = VehicleAssetCatalog::default();
-    let snapshot = snapshot(VehicleKind::T55A);
+    let snapshot = snapshot(VehicleKind::T54_1951);
     let base = [0.30, 0.40, 0.28];
 
     let clean = tank_vehicle_render_objects(&mut catalog, &snapshot, base);

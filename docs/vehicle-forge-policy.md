@@ -14,8 +14,8 @@ this move the benchmark vehicle closer to the Forge quality target?*
 - **Model pipeline:** procedural source + baked assets + runtime variation. Not runtime full-tank
   generation, and not hand-authored DCC meshes.
 - **First quality benchmark:** the canonical **T-54-3 obr. 1951**. One excellent vehicle before
-  shallow upgrades to all vehicles. `T-55A` remains only as a legacy/wire-compatible vehicle kind
-  and is not a production roster or Forge benchmark entry.
+  shallow upgrades to all vehicles. `T-55A` was removed outright in the Genialna Flota program
+  (protocol v33) — the roster carries no clones.
 - **Renderer target:** PBR-lite with baked maps (albedo, normal, AO/roughness, optional cavity).
 - **Name:** *Armored Vehicle Forge*. The old flat `VehicleBlueprint` is a prototype stepping stone,
   not the destination model.

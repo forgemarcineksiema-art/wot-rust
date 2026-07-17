@@ -6,11 +6,11 @@ use physics::{
 
 #[test]
 fn tank_spec_power_to_weight_changes_acceleration_profile() {
-    let t55a = TankControllerSettings::from_spec(&TankSpec::t55a());
+    let t54 = TankControllerSettings::from_spec(&TankSpec::t54_1951());
     let tiger_ii = TankControllerSettings::from_spec(&TankSpec::tiger_ii_ausf_b());
 
-    assert!(t55a.drive_power_mps3 > tiger_ii.drive_power_mps3);
-    assert!(t55a.max_forward_speed_mps > tiger_ii.max_forward_speed_mps);
+    assert!(t54.drive_power_mps3 > tiger_ii.drive_power_mps3);
+    assert!(t54.max_forward_speed_mps > tiger_ii.max_forward_speed_mps);
 }
 
 #[test]
@@ -115,7 +115,7 @@ fn turning_at_speed_scrubs_forward_speed() {
 
 #[test]
 fn uphill_contact_reduces_acceleration() {
-    let settings = TankControllerSettings::from_spec(&TankSpec::t55a());
+    let settings = TankControllerSettings::from_spec(&TankSpec::t54_1951());
     let input = TankControlInput { throttle: 1.0, steer: 0.0, brake: 0.0 };
     let mut flat = TankKinematicState::default();
     let mut uphill = TankKinematicState::default();
@@ -186,7 +186,7 @@ fn rough_contact_limits_traction_and_keeps_tank_grounded() {
 
 #[test]
 fn braking_overrides_throttle_and_decelerates() {
-    let settings = TankControllerSettings::from_spec(&TankSpec::t55a());
+    let settings = TankControllerSettings::from_spec(&TankSpec::t54_1951());
     let mut state = TankKinematicState {
         velocity: glam::Vec3::new(0.0, 0.0, 8.0),
         ..TankKinematicState::default()
@@ -206,7 +206,7 @@ fn braking_overrides_throttle_and_decelerates() {
 
 #[test]
 fn reverse_steering_mirrors_forward_steering() {
-    let settings = TankControllerSettings::from_spec(&TankSpec::t55a());
+    let settings = TankControllerSettings::from_spec(&TankSpec::t54_1951());
     let mut forward = TankKinematicState::default();
     let mut reverse = TankKinematicState::default();
 
@@ -235,7 +235,7 @@ fn reverse_steering_mirrors_forward_steering() {
 
 #[test]
 fn slope_past_climb_limit_stalls_the_tank_but_gentle_slope_does_not() {
-    let settings = TankControllerSettings::from_spec(&TankSpec::t55a());
+    let settings = TankControllerSettings::from_spec(&TankSpec::t54_1951());
     let input = TankControlInput { throttle: 1.0, steer: 0.0, brake: 0.0 };
 
     let mut steep = TankKinematicState::default();
@@ -271,7 +271,7 @@ fn slope_past_climb_limit_stalls_the_tank_but_gentle_slope_does_not() {
 
 #[test]
 fn momentum_carries_the_hull_up_a_steep_hump_then_it_stalls() {
-    let settings = TankControllerSettings::from_spec(&TankSpec::t55a());
+    let settings = TankControllerSettings::from_spec(&TankSpec::t54_1951());
     // A steep-but-below-ceiling face (in the momentum-climb band): a committed run-up at 10 m/s
     // scrabbles the hull meaningfully up it, then bleeds off and stalls â€” momentum climbing, not a
     // wall, but no free crest either.
@@ -300,7 +300,7 @@ fn momentum_carries_the_hull_up_a_steep_hump_then_it_stalls() {
 
 #[test]
 fn a_face_past_the_ceiling_is_a_hard_wall_even_with_momentum() {
-    let settings = TankControllerSettings::from_spec(&TankSpec::t55a());
+    let settings = TankControllerSettings::from_spec(&TankSpec::t54_1951());
     // A cliff / railway embankment (past the momentum ceiling) stays a barrier: a 10 m/s charge is
     // arrested and cannot carry the hull up.
     let mut state = TankKinematicState {
@@ -331,7 +331,7 @@ fn a_face_past_the_ceiling_is_a_hard_wall_even_with_momentum() {
 
 #[test]
 fn a_parked_hull_holds_a_slope_it_used_to_creep_down() {
-    let settings = TankControllerSettings::from_spec(&TankSpec::t55a());
+    let settings = TankControllerSettings::from_spec(&TankSpec::t54_1951());
     // A 20Â° downhill (grade ~0.36) with the throttle released: the static track-lock must hold the
     // hull in place â€” the old kinetic-only model crept downhill on anything past ~8Â°.
     let grade = 0.36_f32;
