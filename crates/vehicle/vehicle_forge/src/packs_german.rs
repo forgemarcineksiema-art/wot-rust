@@ -199,14 +199,15 @@ pub fn tiger_ii_reference_pack() -> ReferencePack {
         // still visibly flatter than the upright Tiger I (0.28 vs 0.33), and the long Henschel
         // turret is a low sloped band on the deck, not the near-hull-height tower the old
         // legacy-tuned target described.
-        // W1 dossier PR-T2.1 (2026-07-17): tolerances tightened around the measured body
-        // (1.973 / 0.279 / 0.524 / 0.617 / 0.394 via Studio) — same ~3x-delta headroom rule
-        // as the Tiger I pack, so a proportion drifting into the wrong tank actually fails.
+        // W1 dossier PR-T2.1 (2026-07-17): tolerances tightened around the measured body —
+        // same ~3x-delta headroom rule as the Tiger I pack, so a proportion drifting into the
+        // wrong tank actually fails. PR-T2.2 re-measured with the Schuerzen fitted: the hull
+        // beam ratios now describe the SKIRTED envelope (1.906 / 0.506 via Studio).
         {
             let mut ratios = silhouette_ratios(
-                (1.97, 0.06),
+                (1.91, 0.06),
                 (0.28, 0.02),
-                (0.52, 0.05),
+                (0.51, 0.05),
                 (0.62, 0.05),
                 (0.39, 0.03),
                 [
@@ -247,12 +248,12 @@ pub fn tiger_ii_reference_pack() -> ReferencePack {
         ),
         DimensionTarget::new(
             DimensionKind::HullWidth,
-            3.755,
+            3.88,
             0.08,
             ReferenceSource::new(
                 "Tiger II dossier",
                 "docs/vehicles/panzerkampfwagen-vi-b-tiger-ii.md",
-                "3.755 m over the 800 mm combat tracks (3.27 m = rail-transport tracks).",
+                "3.88 m over the fitted Schuerzen (3.755 m bare tracks; 3.27 m = transport tracks).",
             ),
         ),
         DimensionTarget::new(

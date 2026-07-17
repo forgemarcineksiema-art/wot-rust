@@ -9,10 +9,10 @@
 //! opens reads as a door, not a sticker.
 
 use game_core::VehicleBlueprint;
-use glam::Vec3;
+use glam::{Vec2, Vec3};
 
 use super::SG_HARD;
-use crate::{GeometryMesh, MaterialRole, MeshBuilder, ProfilePoint, RevolveSpec};
+use crate::{ExtrudeSpec, GeometryMesh, MaterialRole, MeshBuilder, ProfilePoint, RevolveSpec};
 
 /// The engine bay's forward edge: never ahead of the turret seat (plan plus clearance) — the
 /// turret's base skirt drops below deck level, so a grille frame running under it would clash.
@@ -140,6 +140,45 @@ fn tow_hooks(mut builder: MeshBuilder, bp: &VehicleBlueprint, stations: &[f32]) 
                 SG_HARD,
             );
         }
+    }
+    builder
+}
+
+/// Hinged bow fender flaps over the drive sprockets (photo comparison F3): a slanted plate
+/// dropping forward from the sponson lip over each track's front wrap — the German line's
+/// bow signature. Built as an extruded parallelogram so the droop is real geometry.
+fn german_bow_flaps(mut builder: MeshBuilder, bp: &VehicleBlueprint) -> MeshBuilder {
+    let track = &bp.track;
+    let band_half = ((track.outer_x - track.inner_x) * 0.5).max(0.05);
+    let hinge_y = bp.hull.sponson_y + 0.02;
+    let hinge_z = track.end_z - 0.10;
+    let droop_dz = 0.55;
+    let droop_dy = 0.22;
+    for sign in [-1.0_f32, 1.0] {
+        builder = builder
+            .extrude(
+                Vec3::new(sign * track.center_x, hinge_y, hinge_z),
+                ExtrudeSpec {
+                    section: vec![
+                        Vec2::new(0.0, -0.018),
+                        Vec2::new(droop_dz, -droop_dy - 0.018),
+                        Vec2::new(droop_dz, -droop_dy),
+                        Vec2::new(0.0, 0.0),
+                    ],
+                    axis: crate::Axis::X,
+                    half_depth: band_half * 0.96,
+                    material: MaterialRole::RolledArmor,
+                    smoothing: SG_HARD,
+                },
+            )
+            // The hinge bar along the flap's root.
+            .plate_box(
+                Vec3::new(sign * track.center_x, hinge_y + 0.014, hinge_z),
+                Vec3::new(band_half * 0.80, 0.014, 0.024),
+                0.008,
+                MaterialRole::BarrelSteel,
+                SG_HARD,
+            );
     }
     builder
 }
@@ -375,6 +414,7 @@ pub(crate) fn tiger_ii_deck(bp: &VehicleBlueprint) -> GeometryMesh {
     let b = german_bow(MeshBuilder::new(), bp, 0.24);
     let b = tow_hooks(b, bp, &[bp.hull.half_len - 0.14, -bp.hull.half_len + 0.14]);
     let b = german_exhaust_stacks(b, bp);
+    let b = german_bow_flaps(b, bp);
     engine_deck_german(b, bp)
 }
 

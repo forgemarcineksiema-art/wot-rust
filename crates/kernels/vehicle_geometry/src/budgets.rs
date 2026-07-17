@@ -50,7 +50,7 @@ pub const GOLDEN_BAKE_HASHES: [(VehicleKind, u64); 9] = [
     // Re-recorded for the Tiger II blueprint migration: the researched 1:1 sloped body
     // (7.38 m hull, fleet's longest glacis at 50°, 25° leaned upper sides, Henschel prism
     // with bustle, 9 overlapped wheels, braked KwK 43) replaces the legacy stretch.
-    (VehicleKind::TigerII, 4_136_002_858_143_388_800_u64),
+    (VehicleKind::TigerII, 7_300_796_626_623_450_233_u64),
     // Re-recorded for the Jagdtiger blueprint migration: the researched 1:1 casemate
     // (7.80 m hull, superstructure flank continuing the hull's 25° plane, 15° 250 mm face,
     // periscope roof, 9 overlapped wheels, braked PaK 44) replaces the legacy box.

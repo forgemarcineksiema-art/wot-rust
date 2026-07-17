@@ -8,8 +8,8 @@ use game_core::{HitboxProfile, HullShape, MountFrames, TurretShape, VehicleKind}
 use glam::{Vec2, Vec3};
 
 use super::{
-    GunPlan, SG_HARD, add_german_cast_cupola, add_mantlet_socket, add_turret_ring, assemble,
-    blueprint_prism_hull, blueprint_running_gear, build_gun, shade_hull,
+    GunPlan, SG_HARD, add_german_cast_cupola, add_oval_mantlet_socket, add_turret_ring, assemble,
+    blueprint_prism_hull, blueprint_running_gear, build_gun_with_mantlet_scale, shade_hull,
 };
 use crate::{
     Axis, BakedVehicle, GeometryMesh, LoftSection, LoftSpec, MaterialRole, MeshBuilder,
@@ -23,12 +23,13 @@ pub(crate) fn tiger_ii(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVe
             .append(&blueprint_running_gear(&bp.track))
             .append(&super::deck_details::tiger_ii_deck(&bp))
             .append(&tiger_ii_hull_details(&bp.hull))
+            .append(&super::blueprint_skirts(&bp.hull, &bp.track))
             .build(),
     );
 
     let t = &bp.turret;
     let mantlet = Some((t.mantlet_radius, t.mantlet_back_z, t.mantlet_front_z));
-    let turret = add_mantlet_socket(
+    let turret = add_oval_mantlet_socket(
         add_turret_ring(
             add_german_cast_cupola(
                 henschel_turret(t),
@@ -46,20 +47,29 @@ pub(crate) fn tiger_ii(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVe
         ),
         bp.gun.trunnion_y,
         mantlet,
+        2.30,
+        0.95,
         12,
     )
     .build();
 
-    let gun = build_gun(&GunPlan {
-        axis_y: bp.gun.trunnion_y,
-        breech_z: bp.gun.trunnion_z - 0.35,
-        muzzle_z: bp.gun.muzzle_z,
-        radius: bp.gun.barrel_radius,
-        segments: bp.gun.segments,
-        mantlet,
-        evacuator: bp.gun.evacuator,
-        muzzle_brake: bp.gun.muzzle_brake,
-    });
+    // The Turmblende: the Serienturm's WIDE mantlet band spanning most of the flat 180 mm
+    // front plate (~1.4 m over the 0.6 m round collar the generic gun would wear) — the
+    // per-vehicle mantlet MASS from the dossier (audit #6).
+    let gun = build_gun_with_mantlet_scale(
+        &GunPlan {
+            axis_y: bp.gun.trunnion_y,
+            breech_z: bp.gun.trunnion_z - 0.35,
+            muzzle_z: bp.gun.muzzle_z,
+            radius: bp.gun.barrel_radius,
+            segments: bp.gun.segments,
+            mantlet,
+            evacuator: bp.gun.evacuator,
+            muzzle_brake: bp.gun.muzzle_brake,
+        },
+        2.30,
+        0.95,
+    );
 
     assemble(VehicleKind::TigerII, hull, turret, gun, *mounts)
 }
