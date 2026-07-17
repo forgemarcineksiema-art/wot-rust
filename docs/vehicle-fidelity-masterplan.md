@@ -59,6 +59,13 @@ W4  Fleet honesty (parallel with W2/W3):
 
 Critical path: PR-01 → PR-03 → PR-04 → W1. PR-02/PR-05 and W4 hang loose.
 
+**W0 status: COMPLETE (2026-07-17)** — PR #217 (this doc), #218 (T-55A out, protocol v33),
+#219 (asset↔catalog parity lock; snapshots were months stale and got regenerated),
+#220 (absolute-dimension gate; the T-54 pilot immediately caught the track width baking
++7 cm/side past the documented 3.27 m — TODO(W3-t54)), #221 (ratio family +3 kinds,
+per-vehicle tolerances; caught the T-54 dome plan being wider than long), #222 (docs v2 +
+dossier template). Next: W1 Tiger I dossier (PR-T1.1).
+
 ## The per-vehicle protocol
 
 Every vehicle passes steps (a)–(h), packed into 2–3 PRs:
