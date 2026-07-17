@@ -306,22 +306,93 @@ pub fn jagdtiger_reference_pack() -> ReferencePack {
         // casemate flank now CONTINUES the hull's 25° plane, so the "hull" band carries most of
         // the height and the superstructure reads as a low wide crown on it — the old targets
         // described the legacy tall-box-on-flat-hull construction.
-        // TODO(W1-jagdtiger): zaciśnij tolerancje przy dossier (start = stare wspólne).
-        silhouette_ratios(
-            (2.10, 0.18),
-            (0.26, 0.06),
-            (0.73, 0.14),
-            (0.53, 0.25),
-            (0.37, 0.16),
-            [
-                "The longest hull in the German line, stretched from the Tiger II.",
-                "The unbroken flank makes the hull band deep; the casemate is welded INTO it.",
-                "Wide fixed casemate fills most of the hull width.",
-                "A low wide fighting compartment crowns the deep hull, no cupola.",
-                "12.8 cm Pak reaches far past the nose.",
-            ],
-        ),
+        // W1 dossier PR-JT.1 (2026-07-18): tolerances tightened around the measured body
+        // (2.167 / 0.264 / 0.753 / 0.530 / 0.365 via Studio) — same ~3x-delta headroom rule
+        // as the Tiger I/II packs.
+        {
+            let mut ratios = silhouette_ratios(
+                (2.17, 0.06),
+                (0.26, 0.02),
+                (0.75, 0.05),
+                (0.53, 0.04),
+                (0.365, 0.03),
+                [
+                    "The longest hull in the German line, stretched from the Tiger II.",
+                    "The unbroken flank makes the hull band deep; the casemate is welded INTO it.",
+                    "Wide fixed casemate fills most of the hull width.",
+                    "A low wide fighting compartment crowns the deep hull, no cupola.",
+                    "12.8 cm Pak reaches far past the nose.",
+                ],
+            );
+            ratios.push(RatioTarget::new(
+                RatioKind::TurretLengthToWidth,
+                1.18,
+                0.08,
+                "The casemate plan is longer than wide (3.20 over 2.71, rear overhang included).",
+            ));
+            ratios.push(RatioTarget::new(
+                RatioKind::RoadWheelDiameterToHullLength,
+                0.103,
+                0.008,
+                "800 mm overlapped wheels on the German line's longest 7.80 m hull.",
+            ));
+            ratios
+        },
     )
+    // W1 dossier anchors (PR-JT.1) — sources and the PaK 44 muzzle decision live in
+    // docs/vehicles/jagdtiger.md.
+    .with_dimensions(vec![
+        DimensionTarget::new(
+            DimensionKind::HullLength,
+            7.80,
+            0.08,
+            ReferenceSource::new(
+                "Jagdtiger dossier",
+                "docs/vehicles/jagdtiger.md",
+                "7.80 m hull — the Tiger II chassis lengthened for the casemate.",
+            ),
+        ),
+        DimensionTarget::new(
+            DimensionKind::HullWidth,
+            3.625,
+            0.08,
+            ReferenceSource::new(
+                "Jagdtiger dossier",
+                "docs/vehicles/jagdtiger.md",
+                "3.625 m over the 800 mm combat tracks.",
+            ),
+        ),
+        DimensionTarget::new(
+            DimensionKind::HeightToTurretRoof,
+            2.945,
+            0.05,
+            ReferenceSource::new(
+                "Jagdtiger dossier",
+                "docs/vehicles/jagdtiger.md",
+                "2.945 m to the casemate roof.",
+            ),
+        ),
+        DimensionTarget::new(
+            DimensionKind::OverallLengthWithGun,
+            10.654,
+            0.10,
+            ReferenceSource::new(
+                "Jagdtiger dossier",
+                "docs/vehicles/jagdtiger.md",
+                "10.654 m gun forward (12.8 cm PaK 44 L/55).",
+            ),
+        ),
+        DimensionTarget::new(
+            DimensionKind::RoadWheelDiameter,
+            0.80,
+            0.01,
+            ReferenceSource::new(
+                "Jagdtiger dossier",
+                "docs/vehicles/jagdtiger.md",
+                "800 mm overlapped steel-rimmed wheels (production Henschel suspension).",
+            ),
+        ),
+    ])
 }
 
 pub fn panther_ii_reference_pack() -> ReferencePack {

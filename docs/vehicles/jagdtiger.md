@@ -7,6 +7,32 @@
 This is the late-war German heavy tank destroyer on a lengthened Tiger II chassis. The game
 spec models the 12.8 cm Pak 80 vehicle, not the late planned 8.8 cm Pak 43 substitute.
 
+## Reference anatomy (W1 dossier, PR-JT.1 — 2026-07-18)
+
+Anchor numbers written BEFORE further shape work, per the masterplan protocol. Every row is
+enforced by a `DimensionTarget` or `RatioTarget` in `packs_german.rs::jagdtiger_reference_pack`.
+
+| Anchor | Value | Source | Confidence | Gate |
+| --- | --- | --- | --- | --- |
+| Hull length | 7.80 m | tank-afv/Panzerworld (lengthened Tiger II chassis) | high | `HullLength` ±0.08 |
+| Width over combat tracks | 3.625 m | Panzerworld | high | `HullWidth` ±0.08 |
+| Height to casemate roof | 2.945 m | Panzerworld | high | `HeightToTurretRoof` ±0.05 |
+| Overall, gun forward | 10.654 m | 12.8 cm PaK 44 L/55 datasheet | high | `OverallLengthWithGun` ±0.10 |
+| Road wheels | 9 × ⌀0.80 m overlapped (production Henschel; the 8-wheel Porsche run NOT modelled) | photo + spec | high | `RoadWheelDiameter` ±0.01 |
+| Casemate plan | ~3.20 m over ~2.71 m (rear overhang included) | measured on the armor-plane prism | medium | `TurretLengthToWidth` 1.18 ±0.08 |
+| Silhouette ratios | 2.17 / 0.26 / 0.75 / 0.53 / 0.365 | verified 1:1 body (Studio) | high | five-ratio gate ±0.02..0.06 |
+
+**Muzzle decision (source conflict resolved).** Our reference specimen (Aberdeen) and the
+bulk of service photos show the PaK 44 with a PLAIN muzzle — the brake was proofed but not
+generally fitted in service. The fleet brake pass (#234) gave our gun a double-baffle;
+the dossier decides AGAINST it: **PR-JT.2 removes the brake** (the recessed bore stays).
+The gun keeps its documented 10.654 m reach.
+
+**PR-JT.2 shape list (from the photo comparison, in dossier order):**
+massive CAST COLLAR of the 12.8 cm at the casemate face (today's socket ring is too slight);
+spare-track hangers with shoe rows ON the casemate sides; large flat bow guards (F3);
+the bow MG Kugelblende in the glacis right; plain muzzle per the decision above.
+
 ## Blueprint Migration (2026-07)
 
 The Jagdtiger is blueprint-born — and the first CASEMATE on the blueprint path:
