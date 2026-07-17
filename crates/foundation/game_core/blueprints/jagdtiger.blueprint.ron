@@ -72,7 +72,7 @@ BlueprintFile(
         muzzle_z: 6.75,
         barrel_radius: 0.135,
         evacuator: None,
-        muzzle_brake: Some(0.22),
+        muzzle_brake: None,
         segments: 14,
     ),
     armor: ArmorShape(

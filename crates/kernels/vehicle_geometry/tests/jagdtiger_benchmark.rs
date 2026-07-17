@@ -120,7 +120,9 @@ fn no_cupola_tops_the_flat_casemate_roof() {
 #[test]
 fn the_pak44_overhang_is_the_longest_in_the_lineup() {
     let bp = blueprint();
-    assert!(bp.gun.muzzle_brake.is_some(), "the 12.8 cm wears its brake");
+    // Dossier PR-JT.1: the reference specimen (Aberdeen) and service photos run the PaK 44
+    // with a PLAIN muzzle — a brake reappearing here means someone re-fitted it on spec alone.
+    assert!(bp.gun.muzzle_brake.is_none(), "the 12.8 cm runs a plain muzzle (dossier decision)");
     let overhang = bp.gun.muzzle_z - bp.hull.half_len;
     assert!(overhang > 2.8, "almost three metres past the bow: {overhang}");
     let reach = bp.gun.muzzle_z - bp.gun.trunnion_z;
