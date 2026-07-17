@@ -32,7 +32,7 @@ the close-up functional review; numbers are necessary, never sufficient.
 | 4 | Muzzle is a CLOSED cap — no bore; "muzzle brake" is a fatter closed sausage, no baffles/ports | fleet | `armament.rs::build_gun` (capped revolve; brake = capped cylinder) | logic |
 | 5 | No engine ventilation anywhere: no intake louvres, no radiator grilles; exhaust exists only on Tiger I | fleet | recipes (missing feature) | logic |
 | 6 | Mantlet collar identical across guns (one bulge profile, scaled) | fleet | `build_gun` mantlet profile | clone |
-| 7 | Tracks are taut straight bands that do NOT touch the road wheels — wheels hang in air above the bottom run; no sag, no wrap contact | fleet | `running_gear_belt` (stadium path) + belt band y-placement | logic |
+| 7 | ~~Tracks are taut straight bands that do NOT touch the road wheels~~ **FIXED** (fleet): top run drapes onto its carriers (rests on wheels / hangs between rollers / lifted by proud wheels), v27 tension read preserved (driven lifts off, slack settles); static band follows the SAME path as the links, true wrap positions, redundant wrap drums removed | fleet | `running_gear_belt` support-polyline + drape; band loft in `chassis_blueprint` | logic |
 | 8 | IS-3: dark mudguard flaps reach BELOW the belt — the tank appears to stand on black pallets | IS-3 | `recipes/is3.rs` fender/mudguard extents | floater |
 | 9 | T-54: interior ammunition (gold rounds) visible OUTSIDE the hull, lying on the glacis | T-54 | interior parts vs hull occlusion (t54_interior placement/frame) | floater |
 | 10 | T-54: block floating in the air near the bow; 3-hole block on the glacis shoulder oddly attached | T-54 | `t54_kit.rs` fender boxes (hardcoded z vs fender span) / details | floater |

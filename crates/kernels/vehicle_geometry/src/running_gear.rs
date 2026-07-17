@@ -81,6 +81,14 @@ impl RunningGearKinematics {
     /// legacy hand-authored table is gone with the last legacy vehicle.
     pub fn for_vehicle(kind: VehicleKind) -> Option<Self> {
         let track = VehicleBlueprint::for_vehicle(kind).map(|blueprint| blueprint.track)?;
+        Some(Self::from_track(&track))
+    }
+
+    /// Build the kinematics straight from a [`TrackShape`] — the constructor the static belt
+    /// band shares with [`Self::for_vehicle`], so a Studio live-override bakes its band from
+    /// the SAME live track it bakes everything else from.
+    pub fn from_track(track: &game_core::TrackShape) -> Self {
+        let track = *track;
         let cy = (track.top_y + track.bottom_y) * 0.5;
         let cz = (track.wheel_first_z + track.wheel_last_z) * 0.5;
         let half_run = (track.wheel_last_z - track.wheel_first_z) * 0.5;
@@ -106,7 +114,7 @@ impl RunningGearKinematics {
                 cz - half_run * 0.72 + (half_run * 1.44) * t
             })
             .collect();
-        Some(Self {
+        Self {
             center_x: track.center_x,
             cy,
             cz,
@@ -131,7 +139,7 @@ impl RunningGearKinematics {
             roller_y: track.top_y - track.roller_radius,
             segments: track.segments.max(12),
             link_count,
-        })
+        }
     }
 
     /// Length of the closed belt loop (ground run, end wraps, sagging top run, and — where the
