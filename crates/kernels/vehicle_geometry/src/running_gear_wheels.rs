@@ -16,6 +16,16 @@ const SG_WHEEL: SmoothingGroup = SmoothingGroup(5);
 /// see-into depth between the arms is the starfish read), and a proud hub cap. The rubber shows
 /// only as the dark outer band; the earlier solid disc face read as a blank plate.
 pub fn road_wheel_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
+    match kin.wheel_face {
+        game_core::WheelFace::Openwork => openwork_wheel(kin),
+        game_core::WheelFace::SteelDish => dished_wheel(kin, false),
+        game_core::WheelFace::RubberDish => dished_wheel(kin, true),
+    }
+}
+
+/// The openwork Soviet family face: spokes/ribs over a recessed web (T-54 starfish, IS ribs,
+/// T-34 spoked) — the original construction, now ONE of the family reads (audit #14).
+fn openwork_wheel(kin: &RunningGearKinematics) -> GeometryMesh {
     let seg = kin.segments.max(22);
     let r = kin.wheel_radius;
     let half_w = kin.wheel_half_width;
@@ -42,6 +52,86 @@ pub fn road_wheel_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
     for i in 0..arms {
         let angle = (i as f32 / arms as f32) * std::f32::consts::TAU;
         builder = builder.append(&spoke_arm(angle, r * 0.16, r * 0.80, r, body_half * 0.94));
+    }
+    builder.build()
+}
+
+/// A bolted DISH wheel: a shallow cone face from hub to rim with a bolt ring — the German
+/// late-war steel-rimmed wheel (`rubber_tire == false`: the tire band itself is steel) and the
+/// Centurion's rubber-tired dish (`rubber_tire == true`). No openwork: the dish IS the face.
+fn dished_wheel(kin: &RunningGearKinematics, rubber_tire: bool) -> GeometryMesh {
+    let seg = kin.segments.max(22);
+    let r = kin.wheel_radius;
+    let half_w = kin.wheel_half_width;
+    let body_half = half_w * 0.92;
+
+    let mut builder = MeshBuilder::new()
+        // Closed conical dish: proud at the hub, falling to the rim seat on both faces.
+        .append(
+            &MeshBuilder::new()
+                .revolve(RevolveSpec {
+                    profile: vec![
+                        ProfilePoint::new(r * 0.16, body_half * 0.62),
+                        ProfilePoint::new(r * 0.88, body_half * 0.16),
+                        ProfilePoint::new(r * 0.88, -body_half * 0.16),
+                        ProfilePoint::new(r * 0.16, -body_half * 0.62),
+                    ],
+                    axis: Axis::X,
+                    segments: seg,
+                    material: MaterialRole::TrackMetal,
+                    smoothing: SG_WHEEL,
+                })
+                .build(),
+        )
+        // Proud hub cap.
+        .append(&wheel_disc_at(0.0, r * 0.20, half_w * 1.05, seg, MaterialRole::TrackMetal));
+    // The bolt ring on both faces: the dish read is the bolts.
+    let bolts = 8;
+    for i in 0..bolts {
+        let angle = (i as f32 / bolts as f32) * std::f32::consts::TAU;
+        let (sin, cos) = angle.sin_cos();
+        for side in [-1.0_f32, 1.0] {
+            builder = builder.append(
+                &MeshBuilder::new()
+                    .extrude(
+                        Vec3::new(side * body_half * 0.40, sin * r * 0.52, cos * r * 0.52),
+                        ExtrudeSpec {
+                            section: vec![
+                                Vec2::new(-0.018, -0.018),
+                                Vec2::new(0.018, -0.018),
+                                Vec2::new(0.018, 0.018),
+                                Vec2::new(-0.018, 0.018),
+                            ],
+                            axis: Axis::X,
+                            half_depth: 0.014,
+                            material: MaterialRole::TrackMetal,
+                            smoothing: SG_HARD,
+                        },
+                    )
+                    .build(),
+            );
+        }
+    }
+    if rubber_tire {
+        builder = builder.append(&dual_tire(r, half_w, seg));
+    } else {
+        // Steel tire band: same silhouette as the rubber, cut in steel (no groove).
+        builder = builder.append(
+            &MeshBuilder::new()
+                .revolve(RevolveSpec {
+                    profile: vec![
+                        ProfilePoint::new(r * 0.84, -half_w),
+                        ProfilePoint::new(r, -half_w * 0.75),
+                        ProfilePoint::new(r, half_w * 0.75),
+                        ProfilePoint::new(r * 0.84, half_w),
+                    ],
+                    axis: Axis::X,
+                    segments: seg,
+                    material: MaterialRole::TrackMetal,
+                    smoothing: SG_WHEEL,
+                })
+                .build(),
+        );
     }
     builder.build()
 }

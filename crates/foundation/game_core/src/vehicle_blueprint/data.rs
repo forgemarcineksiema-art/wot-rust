@@ -23,7 +23,10 @@ pub(super) fn blueprint(kind: VehicleKind) -> Option<VehicleBlueprint> {
 #[cfg(test)]
 fn t54() -> VehicleBlueprint {
     use super::t54_hybrid::t54_hybrid;
-    use super::{ArmorShape, GunShape, HullShape, TrackShape, TurretForm, TurretShape};
+    use super::{
+        ArmorShape, GunShape, HullShape, ShoePattern, TrackShape, TurretForm, TurretShape,
+        WheelFace,
+    };
     VehicleBlueprint {
         kind: VehicleKind::T54_1951,
         hull: HullShape {
@@ -91,6 +94,8 @@ fn t54() -> VehicleBlueprint {
             top_sag_m: 0.05,
             wheel_spokes: 6,
             drive_front: false,
+            shoe_pattern: ShoePattern::Omsh,
+            wheel_face: WheelFace::Openwork,
         },
         turret: TurretShape {
             form: TurretForm::CastDome,

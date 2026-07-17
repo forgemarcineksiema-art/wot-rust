@@ -55,6 +55,7 @@ BlueprintFile(
         link_count: None,
         top_sag_m: 0.05,
         wheel_spokes: 6,
+        shoe_pattern: Waffle,
     ),
     turret: TurretShape(
         form: CastDome,

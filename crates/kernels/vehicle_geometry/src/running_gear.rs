@@ -68,6 +68,12 @@ pub struct RunningGearKinematics {
     /// Radial spokes/ribs on a road wheel's face: the T-54's six-arm starfish, the IS family's
     /// twelve-rib casting.
     pub wheel_spokes: usize,
+    /// The track-shoe pattern the link unit mesh stamps (audit #14 — per family, not one
+    /// generator for three nations).
+    pub shoe: game_core::ShoePattern,
+    /// The road-wheel face construction (audit #14 — openwork Soviet spokes vs the German
+    /// bolted steel dish vs the Centurion's bolted dish under rubber).
+    pub wheel_face: game_core::WheelFace,
     /// Z of each return roller (empty when the top run rests on the road wheels).
     pub roller_zs: Vec<f32>,
     /// Radius of one return roller.
@@ -138,6 +144,8 @@ impl RunningGearKinematics {
             top_sag_m: track.top_sag_m,
             wheel_zs,
             wheel_spokes: track.wheel_spokes.max(3),
+            shoe: track.shoe_pattern,
+            wheel_face: track.wheel_face,
             roller_zs,
             roller_radius: track.roller_radius,
             roller_y: track.top_y - track.roller_radius,

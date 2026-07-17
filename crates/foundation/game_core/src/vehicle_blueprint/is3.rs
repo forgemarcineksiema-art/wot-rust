@@ -1,8 +1,9 @@
-﻿//! The IS-3 blueprint: the era's Soviet heavy, split out of `data.rs` to keep each vehicle's
+//! The IS-3 blueprint: the era's Soviet heavy, split out of `data.rs` to keep each vehicle's
 //! shape data reviewable on its own.
 
 use super::{
-    ArmorShape, GunShape, HullShape, TrackShape, TurretForm, TurretShape, VehicleBlueprint,
+    ArmorShape, GunShape, HullShape, ShoePattern, TrackShape, TurretForm, TurretShape,
+    VehicleBlueprint, WheelFace,
 };
 use crate::VehicleKind;
 
@@ -66,6 +67,8 @@ pub(super) fn is3_blueprint() -> VehicleBlueprint {
             top_sag_m: 0.012,
             wheel_spokes: 12,
             drive_front: false,
+            shoe_pattern: ShoePattern::Omsh,
+            wheel_face: WheelFace::Openwork,
         },
         turret: TurretShape {
             form: TurretForm::CastDome,
