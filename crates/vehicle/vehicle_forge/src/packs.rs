@@ -70,6 +70,26 @@ pub fn t54_reference_pack() -> ReferencePack {
                 0.08,
                 "The D-10T projects 2.96 m past the bow (9.00 m overall) — decisive but not a heavy-tank gun.",
             ),
+            // The PR-04 ratio family — the pilot authors all three so the fleet packs have a
+            // worked example to copy in their W1/W2 dossier PRs.
+            RatioTarget::new(
+                RatioKind::TurretLengthToWidth,
+                0.95,
+                0.06,
+                "The cast dome plan is nearly round, a touch wider than long (2.23 long over                  2.31 wide as baked — the mantlet cheeks carry the width).",
+            ),
+            RatioTarget::new(
+                RatioKind::TurretRingPositionOnHull,
+                0.51,
+                0.04,
+                "The ring sits amidships — the dome rides the hull centre, not a bow turret.",
+            ),
+            RatioTarget::new(
+                RatioKind::RoadWheelDiameterToHullLength,
+                0.132,
+                0.008,
+                "810 mm starfish wheels on the 6.04 m hull read heavy on the side view.",
+            ),
         ],
     )
     // Absolute anchors (metres): the pilot of the dimension gate. Ratios pass at any scale;

@@ -30,12 +30,13 @@ pub fn t34_85_reference_pack() -> ReferencePack {
                 "Technical and visual reference for dimensions, armament, and family cues.",
             ),
         ],
+        // TODO(W2-t34-85): zaciśnij tolerancje przy dossier (start = stare wspólne).
         silhouette_ratios(
-            2.05,
-            0.27,
-            0.74,
-            0.55,
-            0.33,
+            (2.05, 0.18),
+            (0.27, 0.06),
+            (0.74, 0.14),
+            (0.55, 0.25),
+            (0.33, 0.16),
             [
                 "A medium's plan: 6.10 m hull over a full 3.00 m beam.",
                 "Low hull for its length — the 1.56 m roof under the tall dome.",
