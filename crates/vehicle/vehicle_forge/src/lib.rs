@@ -46,5 +46,7 @@ pub use part_manifest::{
     part_manifest_report, production_part_manifest, validate_production_manifest,
 };
 pub use production_bake::bake_production_vehicle;
-pub use reference::{RatioKind, RatioTarget, ReferencePack, ReferenceSource};
-pub use report::{MeasuredRatio, RatioReport};
+pub use reference::{
+    DimensionKind, DimensionTarget, RatioKind, RatioTarget, ReferencePack, ReferenceSource,
+};
+pub use report::{DimensionReport, MeasuredDimension, MeasuredRatio, RatioReport};

@@ -5,7 +5,10 @@ use vehicle_geometry::{
     sprocket_unit_mesh, track_link_unit_mesh,
 };
 
-use crate::{MeasuredRatio, RatioKind, RatioReport, ReferencePack};
+use crate::{
+    DimensionKind, DimensionReport, MeasuredDimension, MeasuredRatio, RatioKind, RatioReport,
+    ReferencePack,
+};
 
 pub(crate) fn measure_baked_vehicle(
     pack: &ReferencePack,
@@ -33,6 +36,35 @@ pub(crate) fn measure_baked_vehicle(
             )?,
         ],
     ))
+}
+
+/// Measure the pack's absolute anchors (metres) against the baked mesh. Local space puts the
+/// origin on the ground plane, so `max.y` IS height above ground — no offset juggling.
+pub(crate) fn measure_dimensions(
+    pack: &ReferencePack,
+    vehicle: &BakedVehicle,
+) -> Option<DimensionReport> {
+    if !pack.vehicles().contains(&vehicle.kind()) {
+        return None;
+    }
+    let hull = visual_hull_bounds(vehicle)?;
+    let turret = submesh_bounds(vehicle, SubmeshKind::Turret)?;
+    let gun = submesh_bounds(vehicle, SubmeshKind::Gun)?;
+
+    let mut measurements = Vec::with_capacity(pack.dimensions().len());
+    for target in pack.dimensions() {
+        let measured_m = match target.kind() {
+            DimensionKind::HullLength => extent_z(hull),
+            DimensionKind::HullWidth => extent_x(hull),
+            DimensionKind::HeightToTurretRoof => hull.max.y.max(turret.max.y),
+            DimensionKind::OverallLengthWithGun => gun.max.z.max(hull.max.z) - hull.min.z,
+            DimensionKind::RoadWheelDiameter => {
+                2.0 * RunningGearKinematics::for_vehicle(vehicle.kind())?.wheel_radius
+            }
+        };
+        measurements.push(MeasuredDimension::new(target.clone(), measured_m));
+    }
+    Some(DimensionReport::new(vehicle.kind(), measurements))
 }
 
 fn measure(pack: &ReferencePack, kind: RatioKind, measured: f32) -> Option<MeasuredRatio> {

@@ -38,6 +38,78 @@ impl ReferenceSource {
     }
 }
 
+/// A measurable absolute dimension of the baked vehicle, in metres. Ratios alone pass at the
+/// wrong scale — these are the anchors that pin the model to the real tank's tape measure.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum DimensionKind {
+    /// Z-extent of the visual hull including the running gear (hull length over tracks).
+    HullLength,
+    /// X-extent of the visual hull including the running gear (width over tracks).
+    HullWidth,
+    /// Highest exterior point of hull or turret above the ground plane (height to turret roof;
+    /// cupolas and fittings count — they are part of the silhouette).
+    HeightToTurretRoof,
+    /// Muzzle to hull rear (overall length, gun forward).
+    OverallLengthWithGun,
+    /// Road-wheel diameter, straight from the running-gear kinematics.
+    RoadWheelDiameter,
+}
+
+impl DimensionKind {
+    pub fn label(self) -> &'static str {
+        match self {
+            DimensionKind::HullLength => "hull length (over tracks)",
+            DimensionKind::HullWidth => "width (over tracks)",
+            DimensionKind::HeightToTurretRoof => "height to turret roof",
+            DimensionKind::OverallLengthWithGun => "overall length (gun forward)",
+            DimensionKind::RoadWheelDiameter => "road wheel diameter",
+        }
+    }
+}
+
+/// One real-world dimension the baked model must honour, with the source that documents it.
+/// The tolerance is absolute (metres), never a percentage — a tape measure, not a vibe.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DimensionTarget {
+    kind: DimensionKind,
+    target_m: f32,
+    tolerance_m: f32,
+    source: ReferenceSource,
+}
+
+impl DimensionTarget {
+    pub fn new(
+        kind: DimensionKind,
+        target_m: f32,
+        tolerance_m: f32,
+        source: ReferenceSource,
+    ) -> Self {
+        assert!(target_m.is_finite() && target_m > 0.0);
+        assert!(tolerance_m.is_finite() && tolerance_m >= 0.0);
+        Self { kind, target_m, tolerance_m, source }
+    }
+
+    pub fn kind(&self) -> DimensionKind {
+        self.kind
+    }
+
+    pub fn target_m(&self) -> f32 {
+        self.target_m
+    }
+
+    pub fn tolerance_m(&self) -> f32 {
+        self.tolerance_m
+    }
+
+    pub fn source(&self) -> &ReferenceSource {
+        &self.source
+    }
+
+    pub(crate) fn passes(&self, measured_m: f32) -> bool {
+        measured_m.is_finite() && (measured_m - self.target_m).abs() <= self.tolerance_m
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RatioTarget {
     kind: RatioKind,
@@ -83,6 +155,10 @@ pub struct ReferencePack {
     road_wheel_count_per_side: usize,
     sources: Vec<ReferenceSource>,
     ratios: Vec<RatioTarget>,
+    /// Absolute anchors (metres). Optional per pack: the gate only fires for vehicles whose
+    /// dossier has been converted into targets, so the bar rises vehicle by vehicle.
+    #[serde(default)]
+    dimensions: Vec<DimensionTarget>,
 }
 
 impl ReferencePack {
@@ -106,7 +182,14 @@ impl ReferencePack {
             road_wheel_count_per_side,
             sources,
             ratios,
+            dimensions: Vec::new(),
         }
+    }
+
+    /// Attach absolute dimension anchors (the dossier's tape-measure numbers).
+    pub fn with_dimensions(mut self, dimensions: Vec<DimensionTarget>) -> Self {
+        self.dimensions = dimensions;
+        self
     }
 
     /// The reference pack for `kind`, resolved through the central forge registry so the pack, the
@@ -147,7 +230,17 @@ impl ReferencePack {
         &self.ratios
     }
 
+    pub fn dimensions(&self) -> &[DimensionTarget] {
+        &self.dimensions
+    }
+
     pub fn measure_baked_vehicle(&self, vehicle: &BakedVehicle) -> Option<RatioReport> {
         crate::reference_measure::measure_baked_vehicle(self, vehicle)
+    }
+
+    /// Measure this pack's absolute dimension anchors against the baked vehicle. `None` when the
+    /// vehicle is foreign to the pack; an empty report when the pack has no anchors yet.
+    pub fn measure_dimensions(&self, vehicle: &BakedVehicle) -> Option<crate::DimensionReport> {
+        crate::reference_measure::measure_dimensions(self, vehicle)
     }
 }
