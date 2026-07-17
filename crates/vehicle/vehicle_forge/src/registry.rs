@@ -34,7 +34,13 @@ pub(crate) fn forge_spec(kind: VehicleKind) -> Option<VehicleForgeSpec> {
             parts: PartStrategy::Blueprint(crate::part_data::t54_family_parts),
             review_cameras: ReviewCameraSet::t54_benchmark_review,
         },
-        VehicleKind::TigerI => german(crate::tiger_i_reference_pack),
+        // W1 PR-T1.3: the Tiger I graduates from the coarse baked-bounds graph to a bespoke
+        // blueprint part table (the IS-3/Centurion tier).
+        VehicleKind::TigerI => VehicleForgeSpec {
+            reference_pack: crate::tiger_i_reference_pack,
+            parts: PartStrategy::Blueprint(crate::part_data::tiger_i_parts),
+            review_cameras: ReviewCameraSet::standard_vehicle_review,
+        },
         VehicleKind::TigerII => german(crate::tiger_ii_reference_pack),
         VehicleKind::Jagdtiger => german(crate::jagdtiger_reference_pack),
         VehicleKind::PantherII => german(crate::panther_ii_reference_pack),

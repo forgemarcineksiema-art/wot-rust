@@ -3,10 +3,12 @@
 mod centurion;
 mod is3;
 mod t54;
+mod tiger_i;
 
 pub(crate) use centurion::centurion_parts;
 pub(crate) use is3::is3_parts;
 pub(crate) use t54::t54_family_parts;
+pub(crate) use tiger_i::tiger_i_parts;
 
 use game_core::MountFrames;
 use glam::Vec3;
