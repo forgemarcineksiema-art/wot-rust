@@ -162,7 +162,10 @@ fn place_side(
     // End wheels spin at the LINK line's radius (wheel radius + seat), so the sprocket's teeth
     // and the shoes they flank move together instead of creeping past each other.
     let end_spin = phase / crate::running_gear_belt::wrap_radius(kin);
-    for (part, z) in [(GearPart::Sprocket, -kin.end_cz), (GearPart::Idler, kin.end_cz)] {
+    // Which end drives is per-vehicle DATA (audit #16): the German line's transmission sits
+    // at the bow, so its toothed sprocket is the FRONT end wheel; everyone else drives rear.
+    let sprocket_z = if kin.drive_front { kin.end_cz } else { -kin.end_cz };
+    for (part, z) in [(GearPart::Sprocket, sprocket_z), (GearPart::Idler, -sprocket_z)] {
         out.push(GearPlacement {
             part,
             transform: Mat4::from_translation(Vec3::new(side_sign * kin.wheel_x, kin.end_cy, z))
@@ -222,6 +225,9 @@ pub fn thrown_remnant_placements(
     /// from the top of the sprocket, toward the front and under).
     const WRAP_EXIT_RAD: f32 = 2.0;
     let radius = crate::running_gear_belt::wrap_radius(kin);
+    // The remnant drapes over the DRIVE sprocket, whichever end that is (audit #16): the
+    // torque that threw the band lives there. `drive` flips the wrap and hang direction.
+    let drive = if kin.drive_front { 1.0_f32 } else { -1.0 };
     let pitch = kin.belt_length() / kin.link_count().max(1) as f32;
     let arc_len = radius * WRAP_EXIT_RAD;
     // The band's bottom line: links that slide below it have reached the ground.
@@ -233,17 +239,17 @@ pub fn thrown_remnant_placements(
             let phi = d / radius;
             (
                 kin.end_cy + radius * phi.cos(),
-                -kin.end_cz - radius * phi.sin(),
-                phi.sin().atan2(-phi.cos()),
+                drive * (kin.end_cz + radius * phi.sin()),
+                (drive * phi.sin()).atan2(-phi.cos()),
             )
         } else {
             let overshoot = d - arc_len;
             let (exit_sin, exit_cos) = WRAP_EXIT_RAD.sin_cos();
             let y_dir = -exit_sin;
-            let z_dir = -exit_cos;
+            let z_dir = drive * -exit_cos;
             (
                 kin.end_cy + radius * exit_cos + y_dir * overshoot,
-                -kin.end_cz - radius * exit_sin + z_dir * overshoot,
+                drive * (kin.end_cz + radius * exit_sin) + z_dir * overshoot,
                 (-y_dir).atan2(z_dir),
             )
         };

@@ -55,6 +55,12 @@ pub struct TrackShape {
     pub top_sag_m: f32,
     /// Spoke count of the road-wheel face (12 for the IS family's cast wheels, 6 typical).
     pub wheel_spokes: usize,
+    /// Which end the toothed drive sprocket lives at. `false` (default) = rear drive — the
+    /// Soviet family, the T-34 and the Centurion. `true` = FRONT drive: the whole German line
+    /// (Tiger I/II, Jagdtiger, Panther II) drives from the transmission at the bow, teeth on
+    /// the forward end wheel — photo-confirmed on all four (model-logic audit #16).
+    #[serde(default)]
+    pub drive_front: bool,
 }
 
 /// Deserialize `Option<Vec<f32>>` into the `Copy`-preserving `Option<&'static [f32]>` by

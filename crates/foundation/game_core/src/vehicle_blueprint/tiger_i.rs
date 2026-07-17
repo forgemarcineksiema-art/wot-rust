@@ -77,6 +77,7 @@ pub(super) fn tiger_i_blueprint() -> VehicleBlueprint {
             link_count: None,
             top_sag_m: 0.035,
             wheel_spokes: 6,
+            drive_front: true,
         },
         turret: TurretShape {
             // The horseshoe: one bent side wall around a flat front plate, all of it VERTICAL —

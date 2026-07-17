@@ -18,7 +18,8 @@ use terrain::prokhorovka_hill_252_2;
 /// if no artifact is present). Best for inspecting the running gear and turret close up.
 /// `cargo run -p client --example t54_profile_probe -- out.png`
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let path = std::env::args().nth(1).unwrap_or_else(|| "target/t54_profile_probe.png".to_string());
+    let path =
+        std::env::args().nth(1).unwrap_or_else(|| "target/t54_profile_probe.png".to_string());
     let width = 1280u32;
     let height = 720u32;
     let aspect = width as f32 / height as f32;

@@ -199,6 +199,27 @@ fn the_hitbox_is_the_researched_body_not_the_legacy_stretch() {
     assert!((bp.track.outer_x - 1.84).abs() < 1.0e-6, "3.7 m over the combat tracks");
 }
 
+/// Audit #16: the German line drives from the FRONT — the transmission sits at the bow and
+/// the toothed sprocket is the forward end wheel (photo-confirmed on all four Germans).
+#[test]
+fn the_drive_sprocket_sits_at_the_bow() {
+    let kin = vehicle_geometry::RunningGearKinematics::for_vehicle(VehicleKind::TigerI)
+        .expect("Tiger gear");
+    assert!(kin.drive_front, "the Tiger I is front-drive");
+    let placements = vehicle_geometry::running_gear_placements(&kin, 0.0, 0.0);
+    for p in placements {
+        match p.part {
+            vehicle_geometry::GearPart::Sprocket => {
+                assert!(p.transform.w_axis.z > 0.0, "sprocket at the bow")
+            }
+            vehicle_geometry::GearPart::Idler => {
+                assert!(p.transform.w_axis.z < 0.0, "idler at the stern")
+            }
+            _ => {}
+        }
+    }
+}
+
 /// W1 dossier anchors beyond the box (docs/vehicles/panzerkampfwagen-vi-tiger.md): the
 /// documented 0.47 m ground clearance and the 2.17 m fire line (German records give the
 /// firing height as 2.195 m; the 2.5 cm difference is a recorded deviation, not drift).
