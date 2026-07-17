@@ -144,6 +144,108 @@ fn tow_hooks(mut builder: MeshBuilder, bp: &VehicleBlueprint, stations: &[f32]) 
     builder
 }
 
+/// Twin vertical exhaust stacks on the rear plate — the German family's tail signature
+/// (audit #5: smoke needs somewhere to leave). The Tiger I keeps its bespoke shielded pair;
+/// this shared construction serves the rest of the four.
+fn german_exhaust_stacks(mut builder: MeshBuilder, bp: &VehicleBlueprint) -> MeshBuilder {
+    let hull = &bp.hull;
+    for x in [-hull.lower_half_width * 0.55, hull.lower_half_width * 0.55] {
+        builder = builder
+            .capped_revolve_at(
+                Vec3::new(x, 0.0, -hull.half_len + 0.10),
+                RevolveSpec {
+                    profile: vec![
+                        ProfilePoint::new(0.09, hull.deck_y - 0.85),
+                        ProfilePoint::new(0.09, hull.deck_y + 0.12),
+                    ],
+                    axis: crate::Axis::Y,
+                    segments: 10,
+                    material: MaterialRole::RolledArmor,
+                    smoothing: SG_HARD,
+                },
+            )
+            // Dark open mouth — the pipe is a pipe, not a capped rod.
+            .capped_revolve_at(
+                Vec3::new(x, 0.0, -hull.half_len + 0.10),
+                RevolveSpec {
+                    profile: vec![
+                        ProfilePoint::new(0.055, hull.deck_y + 0.121),
+                        ProfilePoint::new(0.055, hull.deck_y + 0.125),
+                    ],
+                    axis: crate::Axis::Y,
+                    segments: 10,
+                    material: MaterialRole::TrackMetal,
+                    smoothing: SG_HARD,
+                },
+            );
+    }
+    builder
+}
+
+/// The V-2 diesel's twin round exhaust ports low on the rear plate (T-34's read): short
+/// horizontal pipes with dark open mouths.
+fn soviet_exhaust_ports(mut builder: MeshBuilder, bp: &VehicleBlueprint, y: f32) -> MeshBuilder {
+    let hull = &bp.hull;
+    // Seat the ports ON the sloped rear plate (fold at the sponson step, like the hull ring),
+    // so they poke from the armour instead of hanging in the air behind it.
+    let rear = hull.rear_slope_deg.to_radians().tan();
+    let plate_z = -hull.half_len + (y - hull.sponson_y).abs() * rear;
+    for x in [-0.36_f32, 0.36] {
+        let c = Vec3::new(x, y, plate_z + 0.02);
+        builder = builder
+            .capped_revolve_at(
+                c,
+                RevolveSpec {
+                    profile: vec![ProfilePoint::new(0.085, -0.05), ProfilePoint::new(0.085, 0.06)],
+                    axis: crate::Axis::Z,
+                    segments: 10,
+                    material: MaterialRole::RolledArmor,
+                    smoothing: SG_HARD,
+                },
+            )
+            .capped_revolve_at(
+                c,
+                RevolveSpec {
+                    profile: vec![
+                        ProfilePoint::new(0.055, -0.055),
+                        ProfilePoint::new(0.055, -0.051),
+                    ],
+                    axis: crate::Axis::Z,
+                    segments: 10,
+                    material: MaterialRole::TrackMetal,
+                    smoothing: SG_HARD,
+                },
+            );
+    }
+    builder
+}
+
+/// Low armoured exhaust cowls on the rear deck flanks — the Meteor-engined Centurion's read.
+fn british_exhaust_cowls(mut builder: MeshBuilder, bp: &VehicleBlueprint) -> MeshBuilder {
+    let hull = &bp.hull;
+    let z = -hull.half_len + 0.55;
+    for sign in [-1.0_f32, 1.0] {
+        let x = sign * hull.lower_half_width * 0.62;
+        builder = builder
+            .plate_box(
+                Vec3::new(x, hull.deck_y + 0.055, z),
+                Vec3::new(0.14, 0.05, 0.30),
+                0.03,
+                MaterialRole::RolledArmor,
+                SG_HARD,
+            )
+            // Dark outlet slot facing rearward under the cowl lip.
+            .plate_box(
+                Vec3::new(x, hull.deck_y + 0.035, z - 0.30),
+                Vec3::new(0.10, 0.028, 0.012),
+                0.008,
+                MaterialRole::TrackMetal,
+                SG_HARD,
+            );
+    }
+    builder
+}
+
 /// German engine deck: central grille frame flanked by the family's TWO round cooling-fan
 /// armours — the Tiger/Panther rear-deck signature (photo comparison), replacing the cloned
 /// pair of raised rectangles every nation used to wear.
@@ -272,12 +374,14 @@ pub(crate) fn tiger_i_deck(bp: &VehicleBlueprint) -> GeometryMesh {
 pub(crate) fn tiger_ii_deck(bp: &VehicleBlueprint) -> GeometryMesh {
     let b = german_bow(MeshBuilder::new(), bp, 0.24);
     let b = tow_hooks(b, bp, &[bp.hull.half_len - 0.14, -bp.hull.half_len + 0.14]);
+    let b = german_exhaust_stacks(b, bp);
     engine_deck_german(b, bp)
 }
 
 pub(crate) fn panther_ii_deck(bp: &VehicleBlueprint) -> GeometryMesh {
     let b = german_bow(MeshBuilder::new(), bp, 0.23);
     let b = tow_hooks(b, bp, &[bp.hull.half_len - 0.14, -bp.hull.half_len + 0.14]);
+    let b = german_exhaust_stacks(b, bp);
     engine_deck_german(b, bp)
 }
 
@@ -296,6 +400,7 @@ pub(crate) fn jagdtiger_deck(bp: &VehicleBlueprint) -> GeometryMesh {
     }
     b = headlight(b, Vec3::new(0.0, bp.hull.deck_y + 0.10, edge - 0.10), 0.085, false);
     b = tow_hooks(b, bp, &[bp.hull.half_len - 0.14, -bp.hull.half_len + 0.14]);
+    b = german_exhaust_stacks(b, bp);
     engine_deck_german(b, bp)
 }
 
@@ -342,6 +447,7 @@ pub(crate) fn t34_85_deck(bp: &VehicleBlueprint) -> GeometryMesh {
     );
     b = headlight(b, on_glacis(-0.75, hull.deck_y - 0.10, 0.10), 0.075, false);
     b = tow_hooks(b, bp, &[bp.hull.half_len - 0.14, -bp.hull.half_len + 0.14]);
+    b = soviet_exhaust_ports(b, bp, hull.sponson_y + 0.42);
     engine_deck_soviet(b, bp)
 }
 
@@ -361,6 +467,7 @@ pub(crate) fn is3_deck(bp: &VehicleBlueprint) -> GeometryMesh {
     // poking through the armor plane. Dossier item with the F3 fender work.
     let _ = headlight;
     b = tow_hooks(b, bp, &[-bp.hull.half_len + 0.14]);
+    b = soviet_exhaust_ports(b, bp, bp.hull.deck_y - 0.35);
     engine_deck_soviet(b, bp)
 }
 
@@ -400,5 +507,6 @@ pub(crate) fn centurion_deck(bp: &VehicleBlueprint) -> GeometryMesh {
         );
     }
     b = tow_hooks(b, bp, &[bp.hull.half_len - 0.14, -bp.hull.half_len + 0.14]);
+    b = british_exhaust_cowls(b, bp);
     engine_deck_british(b, bp)
 }
