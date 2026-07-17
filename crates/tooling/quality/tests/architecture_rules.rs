@@ -167,6 +167,7 @@ fn workspace_has_protocol_snapshots_replays_and_benchmarks() {
         "assets/vehicles/jagdtiger.vehicle.json",
         "assets/vehicles/panther_ii.vehicle.json",
         "assets/vehicles/is3.vehicle.json",
+        "assets/vehicles/t34_85.vehicle.json",
         "docs/maps/prokhorovka-hill-252-2.md",
         "docs/vehicles/t-54-t-55.md",
         "docs/vehicles/panzerkampfwagen-vi-tiger.md",

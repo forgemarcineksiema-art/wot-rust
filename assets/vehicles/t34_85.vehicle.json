@@ -1,0 +1,178 @@
+{
+  "name": "T-34-85",
+  "kind": "T34_85",
+  "mass_kg": 32000.0,
+  "engine_power_kw": 368.0,
+  "max_forward_speed_mps": 15.0,
+  "max_reverse_speed_mps": 4.0,
+  "turn_rate_rad_s": 0.8,
+  "turret_rotation_rad_s": 0.44,
+  "hull": {
+    "hull_front_mm": 45.0,
+    "hull_side_mm": 45.0,
+    "hull_rear_mm": 45.0,
+    "turret_front_mm": 90.0,
+    "turret_side_mm": 75.0,
+    "turret_rear_mm": 52.0,
+    "facets": {
+      "hull_front": {
+        "nominal_thickness_mm": 45.0,
+        "slope_degrees": 60.0,
+        "weakspot_multiplier": 0.85
+      },
+      "hull_side": {
+        "nominal_thickness_mm": 45.0,
+        "slope_degrees": 40.0,
+        "weakspot_multiplier": 1.0
+      },
+      "hull_rear": {
+        "nominal_thickness_mm": 45.0,
+        "slope_degrees": 47.0,
+        "weakspot_multiplier": 1.0
+      },
+      "turret_front": {
+        "nominal_thickness_mm": 90.0,
+        "slope_degrees": 28.0,
+        "weakspot_multiplier": 0.9
+      },
+      "turret_side": {
+        "nominal_thickness_mm": 75.0,
+        "slope_degrees": 20.0,
+        "weakspot_multiplier": 1.0
+      },
+      "turret_rear": {
+        "nominal_thickness_mm": 52.0,
+        "slope_degrees": 12.0,
+        "weakspot_multiplier": 1.0
+      }
+    }
+  },
+  "gun": {
+    "name": "85 mm ZiS-S-53",
+    "reload_seconds": 7.4,
+    "dispersion_mrad": 3.0,
+    "aim_time_seconds": 2.3,
+    "movement_bloom_mrad": 4.6,
+    "shot_bloom_mrad": 3.8,
+    "max_dispersion_mrad": 17.0,
+    "barrel_length_m": 4.645,
+    "shell": {
+      "shell_type": "ArmorPiercing",
+      "caliber_mm": 85.0,
+      "muzzle_velocity_mps": 792.0,
+      "penetration_mm_at_100m": 145.0,
+      "damage_hp": 200,
+      "explosive_radius_m": 0.0
+    },
+    "special_shell": {
+      "shell_type": "Apcr",
+      "caliber_mm": 85.0,
+      "muzzle_velocity_mps": 1030.0,
+      "penetration_mm_at_100m": 170.0,
+      "damage_hp": 170,
+      "explosive_radius_m": 0.0
+    }
+  },
+  "ammo": {
+    "counts": [
+      34,
+      14,
+      8
+    ],
+    "initial_selected": 0
+  },
+  "ammo_capacity": 56,
+  "hit_points": 1300,
+  "module_health": {
+    "engine": 140,
+    "suspension": 140,
+    "turret": 220,
+    "gun": 140,
+    "ammo_rack": 250,
+    "radio": 50
+  },
+  "hitbox": {
+    "half_width_m": 1.5,
+    "half_height_m": 1.4,
+    "half_length_m": 3.2,
+    "center_y_m": 1.35,
+    "turret_min_y_m": 0.4,
+    "turret_half_width_m": 1.1,
+    "turret_half_length_m": 1.32,
+    "turret_center_z_m": 0.38
+  },
+  "damage_layout": {
+    "components": []
+  },
+  "mounts": {
+    "turret_ring": {
+      "translation": [
+        0.0,
+        1.56,
+        0.38
+      ],
+      "basis": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "gun_trunnion": {
+      "translation": [
+        0.0,
+        1.9,
+        1.25
+      ],
+      "basis": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "muzzle": {
+      "translation": [
+        0.0,
+        1.9,
+        5.05
+      ],
+      "basis": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    }
+  },
+  "contact": {
+    "stations": [
+      -1.9,
+      -0.98,
+      -0.06,
+      0.86,
+      1.9,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "station_count": 5,
+    "half_gauge_x": 1.24,
+    "wheel_radius": 0.415
+  }
+}
