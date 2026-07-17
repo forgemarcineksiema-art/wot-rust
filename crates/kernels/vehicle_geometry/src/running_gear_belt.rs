@@ -163,8 +163,13 @@ impl BeltPath {
                 .map(|_| carrier_y)
                 .fold(f32::NEG_INFINITY, f32::max);
             // Span sag: slack spread over the span, never past the tension reach, and never
-            // through a carrier riding under the span.
-            let desired = (top_sag * span / 1.8).min(reach).max(0.006);
+            // through a carrier riding under the span. SHORT spans stay dead straight: between
+            // closely-spaced carriers (the Tiger family's interleaved stations sit ~0.5 m
+            // apart, about one link pitch) a sinus dip aliases against the link spacing into
+            // a jagged, drunken top run — on the real vehicles tension flattens those spans
+            // completely, and the sag lives only in the long gaps (wrap→first wheel, the IS
+            // family's roller bays).
+            let desired = if span >= 0.85 { (top_sag * span / 1.8).min(reach) } else { 0.0 };
             let mid = 0.5 * (y0 + y1);
             let sag = if floor.is_finite() { desired.min((mid - floor).max(0.0)) } else { desired };
             top.push(TopSegment { z0, y0, z1, y1, len, sag, floor });

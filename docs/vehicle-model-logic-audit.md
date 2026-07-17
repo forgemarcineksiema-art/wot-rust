@@ -43,6 +43,9 @@ the close-up functional review; numbers are necessary, never sufficient.
 | 11 | Turrets sit in/on visually wrong seats (IS-3 dome rises from a rectangular cutout) | IS-3 (at least) | recipe hull top vs dome interface | logic |
 | 12 | Hatches exist as flat plates only; no hinges, no handles, no way to read them as openable | fleet | deck details / turret fittings | logic |
 
+| 14 | **User observation (confirmed): one track-shoe design for the whole fleet.** `track_link_unit_mesh` is a single generator (plate + centre guide horns + pins) parameterized only by dimensions — the Germans, Centurion and T-34-85 read as wearing the SAME track; the T-54 and IS-3 read "dedicated" only because their wheels (starfish / twelve-rib) and belt paths differ. Real vehicles: OMSh small-pitch (T-54/IS-3 family), Kgs 63/725 double-pin (Tiger), waffle plate (T-34), Centurion's own cast shoe. Per-vehicle shoe patterns belong to the de-clone program, sourced from each dossier. Same applies to the shared road-wheel generator for the non-Soviet fleet. | fleet | `running_gear_geom` (shoe), `running_gear_wheels` (wheel) | clone |
+| 15 | ~~Jagged "drunken" top run on short-span fleets~~ **FIXED** (fleet): a sinus dip per ~0.5 m span aliased against the ~0.5 m link pitch into a zigzag (Germans, Centurion; the T-54's ~0.92 m spans masked it). Spans under 0.85 m now run dead straight — on the real vehicles tension flattens them; sag lives in the long gaps (wrap→first wheel, roller bays). Verified: Tiger/T-34-85/Centurion profile renders. | fleet | `running_gear_belt` span sag threshold | logic |
+
 ## The new gate (applies to every vehicle PR from now on)
 
 Before any "sealed" claim:
