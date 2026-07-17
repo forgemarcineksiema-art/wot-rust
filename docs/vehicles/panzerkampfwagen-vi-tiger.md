@@ -7,6 +7,26 @@
 This is the Tiger I, not the later Tiger II. The game spec represents a late Tiger I Ausf. E
 with the Maybach HL230-class power output and the 8.8 cm KwK 36 L/56 gun.
 
+## Reference dossier (Genialna Flota W1, 2026-07-17)
+
+Per the data-first protocol (`docs/vehicles/_template.md`): anchors verified against external
+sources before any shape work. **Source discrepancy, resolved:** Wikipedia's infobox width
+"3.56 m" is the hull over sponsons; German records (Jentz/Doyle via Panzerworld) give
+**3.705 m over the 725 mm combat tracks** — the game models the combat configuration, so
+3.705 m is the anchor. Height splits the same way: **2.885 m to the turret roof** (German
+records), **3.00 m to the cupola top** (Wikipedia) — our `HeightToTurretRoof` gate measures
+the full silhouette apex, so 3.00 m is the anchor and 2.885 m is a cage-level check.
+
+| Dimension | Value | Source | Confidence | Encoded as |
+| --- | ---: | --- | --- | --- |
+| Hull length | 6.316 m | Wikipedia + Panzerworld agree | high | `DimensionKind::HullLength` |
+| Width (combat tracks) | 3.705 m | Panzerworld (German records); Wikipedia's 3.56 = sponsons | high | `DimensionKind::HullWidth` |
+| Height (cupola apex) | 3.00 m | Wikipedia; 2.885 m to turret roof per German records | high | `DimensionKind::HeightToTurretRoof` |
+| Overall with gun | 8.450 m | Wikipedia + Panzerworld agree | high | `DimensionKind::OverallLengthWithGun` |
+| Road wheel | ⌀0.800 m | Wikipedia (Schachtellaufwerk section) | high | `DimensionKind::RoadWheelDiameter` |
+| Firing height | 2.195 m | Panzerworld; blueprint trunnion 2.17 | medium | cage (`trunnion_y`) |
+| Ground clearance | 0.47 m | Wikipedia | high | cage (`belly_y`) |
+
 ## Blueprint Migration (2026-07)
 
 The Tiger I is blueprint-born: `game_core::vehicle_blueprint::tiger_i` is the single shape

@@ -6,7 +6,9 @@
 
 use game_core::VehicleKind;
 
-use crate::{RatioKind, RatioTarget, ReferencePack, ReferenceSource};
+use crate::{
+    DimensionKind, DimensionTarget, RatioKind, RatioTarget, ReferencePack, ReferenceSource,
+};
 
 /// Five-ratio silhouette gate builder: targets AND tolerances are per vehicle, so each pack
 /// owns how tightly its proportions are held (the old shared tolerances — up to 0.25 on
@@ -91,22 +93,95 @@ pub fn tiger_i_reference_pack() -> ReferencePack {
         // documented Tiger is a genuinely DEEP slab (hull-height/length ~0.33), and its broad
         // horseshoe turret is a low band on that tall superstructure — the old targets described
         // the squat legacy stretch.
-        // TODO(W1-tiger-i): zaciśnij tolerancje przy dossier (start = stare wspólne).
-        silhouette_ratios(
-            (1.66, 0.18),
-            (0.33, 0.06),
-            (0.52, 0.14),
-            (0.58, 0.25),
-            (0.34, 0.16),
-            [
-                "Hull plan reads as a long heavy, not a medium.",
-                "Tall, slab-sided heavy hull — the deepest body in the German line.",
-                "Horseshoe turret is broad but narrower than the full sponson beam.",
-                "The turret is a low broad band on the tall superstructure, cupola on the left.",
-                "8.8 cm KwK 36 projects well past the flat nose.",
-            ],
-        ),
+        // W1 dossier (2026-07-17): tolerances tightened around the verified body — every
+        // measured ratio sits within 2.3% of target, so these hold LOD headroom (~3x delta)
+        // while actually catching a proportion drifting into the wrong tank.
+        {
+            let mut ratios = silhouette_ratios(
+                (1.66, 0.08),
+                (0.33, 0.02),
+                (0.52, 0.05),
+                (0.58, 0.05),
+                (0.34, 0.03),
+                [
+                    "Hull plan reads as a long heavy, not a medium.",
+                    "Tall, slab-sided heavy hull — the deepest body in the German line.",
+                    "Horseshoe turret is broad but narrower than the full sponson beam.",
+                    "The turret is a low broad band on the tall superstructure, cupola on the left.",
+                    "8.8 cm KwK 36 projects well past the flat nose.",
+                ],
+            );
+            ratios.push(RatioTarget::new(
+                RatioKind::TurretLengthToWidth,
+                1.25,
+                0.08,
+                "Horseshoe plus the Rommelkiste: the turret plan is a long band (2.50 over 2.00).",
+            ));
+            ratios.push(RatioTarget::new(
+                RatioKind::RoadWheelDiameterToHullLength,
+                0.127,
+                0.008,
+                "800 mm interleaved wheels on the 6.32 m hull dominate the flank.",
+            ));
+            ratios
+        },
     )
+    // W1 dossier anchors — sources and the 3.56-vs-3.705 width resolution live in
+    // docs/vehicles/panzerkampfwagen-vi-tiger.md.
+    .with_dimensions(vec![
+        DimensionTarget::new(
+            DimensionKind::HullLength,
+            6.316,
+            0.08,
+            ReferenceSource::new(
+                "Tiger I dossier",
+                "docs/vehicles/panzerkampfwagen-vi-tiger.md",
+                "6.316 m hull (Wikipedia + Panzerworld agree).",
+            ),
+        ),
+        DimensionTarget::new(
+            DimensionKind::HullWidth,
+            3.705,
+            // TODO(W1-tiger-i-shape): docelowo ±0.08 — the instanced track links bake their
+            // outer faces ~5.5 cm proud per side (measured 3.816 m); PR-T1.2 owns the fix.
+            0.12,
+            ReferenceSource::new(
+                "Tiger I dossier",
+                "docs/vehicles/panzerkampfwagen-vi-tiger.md",
+                "3.705 m over the 725 mm combat tracks (German records; 3.56 m = sponsons).",
+            ),
+        ),
+        DimensionTarget::new(
+            DimensionKind::HeightToTurretRoof,
+            3.00,
+            0.05,
+            ReferenceSource::new(
+                "Tiger I dossier",
+                "docs/vehicles/panzerkampfwagen-vi-tiger.md",
+                "3.00 m silhouette apex at the drum cupola (2.885 m to the bare roof).",
+            ),
+        ),
+        DimensionTarget::new(
+            DimensionKind::OverallLengthWithGun,
+            8.45,
+            0.10,
+            ReferenceSource::new(
+                "Tiger I dossier",
+                "docs/vehicles/panzerkampfwagen-vi-tiger.md",
+                "8.450 m gun forward.",
+            ),
+        ),
+        DimensionTarget::new(
+            DimensionKind::RoadWheelDiameter,
+            0.80,
+            0.01,
+            ReferenceSource::new(
+                "Tiger I dossier",
+                "docs/vehicles/panzerkampfwagen-vi-tiger.md",
+                "800 mm Schachtellaufwerk wheels.",
+            ),
+        ),
+    ])
 }
 
 pub fn tiger_ii_reference_pack() -> ReferencePack {
