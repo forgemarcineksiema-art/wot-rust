@@ -74,8 +74,10 @@ pub(crate) fn blueprint_running_gear(track: &TrackShape) -> GeometryMesh {
     let half_w = kin.band_half_width;
     // Plate thickness of the band: a whisker above the link centre line, more below it, so
     // the instanced shoes read as the band's own surface rather than a second skin.
-    let up = 0.020;
-    let down = 0.038;
+    // v3: the band tucks DEEPER under the shoes (was +0.020 — near-coplanar with angled
+    // plates at kinks and wraps, shimmering in hangar light).
+    let up = 0.010;
+    let down = 0.044;
     let ring = |y: f32| -> Vec<Vec2> {
         vec![
             Vec2::new(kin.link_x - half_w, y - down),

@@ -172,8 +172,39 @@ impl BeltPath {
             let desired = if span >= 0.85 { (top_sag * span / 1.8).min(reach) } else { 0.0 };
             let mid = 0.5 * (y0 + y1);
             let sag = if floor.is_finite() { desired.min((mid - floor).max(0.0)) } else { desired };
-            top.push(TopSegment { z0, y0, z1, y1, len, sag, floor });
-            top_len += len;
+            // v3 (user report: the top run read as a jagged, per-link-tilted ladder): a
+            // sagging span becomes THREE dead-straight sub-chords through the hang curve's
+            // third-points instead of a continuous sinus — every shoe within a sub-chord is
+            // collinear, the macro drape (and the v27 tension read the dynamics tests lock)
+            // lives in the NODE geometry.
+            if sag > 1.0e-4 {
+                let hang = sag * (PI / 3.0).sin();
+                let nodes = [
+                    (z0, y0),
+                    (z0 + span / 3.0, y0 + (y1 - y0) / 3.0 - hang),
+                    (z0 + 2.0 * span / 3.0, y0 + 2.0 * (y1 - y0) / 3.0 - hang),
+                    (z1, y1),
+                ];
+                for pair in nodes.windows(2) {
+                    let (nz0, ny0) = pair[0];
+                    let (nz1, ny1) = pair[1];
+                    let nlen =
+                        ((nz1 - nz0) * (nz1 - nz0) + (ny1 - ny0) * (ny1 - ny0)).sqrt().max(1.0e-4);
+                    top.push(TopSegment {
+                        z0: nz0,
+                        y0: ny0,
+                        z1: nz1,
+                        y1: ny1,
+                        len: nlen,
+                        sag: 0.0,
+                        floor,
+                    });
+                    top_len += nlen;
+                }
+            } else {
+                top.push(TopSegment { z0, y0, z1, y1, len, sag: 0.0, floor });
+                top_len += len;
+            }
         }
 
         Self {
