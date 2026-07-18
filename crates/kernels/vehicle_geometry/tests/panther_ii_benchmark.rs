@@ -180,3 +180,67 @@ fn the_hitbox_is_the_researched_body_not_the_legacy_stretch() {
     assert!((bp.hull.half_len - 3.435).abs() < 1.0e-6, "the documented 6.87 m hull");
     assert!((bp.track.outer_x - 1.70).abs() < 1.0e-6, "3.4 m over the tracks");
 }
+
+/// The PII.3 hull dressing (dossier): the Kugelblende in the glacis right, the driver's twin
+/// periscope hoods at the roof edge left, ONE Bosch light standing on the glacis LEFT (not
+/// the family's central deck pod), and the curved three-segment fender sweeps over the front
+/// sprockets. Each cites the dossier; losing any of them un-Panthers the bow.
+#[test]
+fn the_pii3_bow_dressing_holds_ball_periscopes_light_and_sweeps() {
+    let bp = blueprint();
+    let baked = bake_vehicle(VehicleKind::PantherII).expect("Panther II bakes");
+    let hull = &baked.submesh(SubmeshKind::Hull).expect("hull submesh").mesh;
+
+    // Kugelblende: cast ball right of centre on the 55-degree plate.
+    let ball = hull
+        .vertices()
+        .iter()
+        .filter(|v| {
+            v.material == vehicle_geometry::MaterialRole::CastArmor
+                && (v.position.x - 0.60).abs() < 0.20
+                && (v.position.y - 1.42).abs() < 0.20
+                && v.position.z > 2.0
+        })
+        .count();
+    assert!(ball > 0, "the MG Kugelblende sits in the glacis right");
+
+    // Driver periscope hoods: LEFT of centre at the roof front edge.
+    let hoods = hull
+        .vertices()
+        .iter()
+        .filter(|v| {
+            v.position.x < -0.35
+                && v.position.x > -0.85
+                && v.position.y > bp.hull.deck_y + 0.01
+                && v.position.z > 2.0
+        })
+        .count();
+    assert!(hoods > 0, "the driver's periscope hoods sit at the roof edge left");
+
+    // ONE headlight, and it stands LEFT on the glacis (BarrelSteel drum, x < -0.7).
+    let light_left = hull
+        .vertices()
+        .iter()
+        .filter(|v| {
+            v.material == vehicle_geometry::MaterialRole::BarrelSteel
+                && v.position.x < -0.7
+                && v.position.y > 1.5
+                && v.position.z > 2.0
+        })
+        .count();
+    assert!(light_left > 0, "the Bosch light stands on the glacis left (F4)");
+
+    // Fender sweeps: hull geometry DROPPING ahead of the sprocket axle over each track band —
+    // the third segment reaches well below the sponson line (a flat guard would not).
+    let sweep_low = hull
+        .vertices()
+        .iter()
+        .filter(|v| {
+            (v.position.x.abs() - bp.track.center_x).abs() < 0.45
+                && v.position.z > bp.track.end_z + 0.5
+                && v.position.y < bp.hull.sponson_y - 0.25
+                && v.position.y > bp.hull.sponson_y - 0.55
+        })
+        .count();
+    assert!(sweep_low > 0, "the curved fender sweep drops over the sprocket (F3)");
+}
