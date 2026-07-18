@@ -79,6 +79,7 @@ pub(super) fn centurion_blueprint() -> VehicleBlueprint {
             wheel_spokes: 6,
             shoe_pattern: ShoePattern::BritishCast,
             wheel_face: WheelFace::RubberDish,
+            suspension: super::SuspensionKind::Horstmann,
             drive_front: false,
         },
         turret: TurretShape {

@@ -8,16 +8,13 @@
 use game_core::{HitboxProfile, MountFrames, VehicleKind};
 
 use super::soviet::{CastRoof, soviet_cast_turret_for};
-use super::{
-    GunPlan, assemble, blueprint_prism_hull, blueprint_running_gear, build_gun, shade_hull,
-};
+use super::{GunPlan, assemble, blueprint_prism_hull, build_gun, shade_hull};
 use crate::BakedVehicle;
 
 pub(crate) fn t34_85(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVehicle {
     let bp = super::active_blueprint(VehicleKind::T34_85).expect("T-34-85 has a blueprint");
     let hull = shade_hull(
         blueprint_prism_hull(&bp.hull, bp.armor.hull_side.0)
-            .append(&blueprint_running_gear(&bp.track))
             .append(&super::deck_details::t34_85_deck(&bp))
             .build(),
     );

@@ -2,7 +2,8 @@ use game_core::{VehicleBlueprint, VehicleKind};
 use vehicle_build::GeneratorKind;
 use vehicle_forge::{
     ForgePartGraph, ForgePartKind, GameplayRole, LodPolicy, PartAnchor, PartGroup, ReferencePack,
-    part_manifest_report, production_part_manifest, validate_production_manifest,
+    composed_visual_bounds, part_manifest_report, production_part_manifest,
+    validate_production_manifest,
 };
 use vehicle_geometry::{MaterialRole, MeshBounds, SubmeshKind, bake_vehicle};
 
@@ -154,20 +155,7 @@ fn t54_part_bounds_stay_inside_the_baked_vehicle() {
     let graph = ForgePartGraph::for_vehicle(VehicleKind::T54_1951).expect("T-54 part graph");
     let baked = bake_vehicle(VehicleKind::T54_1951).expect("T-54 bakes");
 
-    let mut vehicle = None::<vehicle_geometry::MeshBounds>;
-    for kind in [
-        vehicle_geometry::SubmeshKind::Hull,
-        vehicle_geometry::SubmeshKind::Turret,
-        vehicle_geometry::SubmeshKind::Gun,
-    ] {
-        if let Some(bounds) = baked.submesh(kind).and_then(|submesh| submesh.mesh.bounds()) {
-            vehicle = Some(match vehicle {
-                Some(acc) => acc.union(bounds),
-                None => bounds,
-            });
-        }
-    }
-    let vehicle = vehicle.expect("baked vehicle has bounds");
+    let vehicle = composed_visual_bounds(&baked).expect("composed vehicle has bounds");
     let eps = 0.12;
 
     for part in graph.parts() {
@@ -277,7 +265,7 @@ fn geometry_derived_vehicles_do_not_inherit_bespoke_t54_parts() {
     }
 }
 
-/// The Tiger I's bespoke table (W1 PR-T1.3): face-honest slab, Schachtellaufwerk sandwich,
+/// The Tiger I's bespoke table (W1 PR-T1.3): face-honest slab, Schachtellaufwerk stagger,
 /// horseshoe turret whose rear plane is the Rommelkiste, drum cupola, braked KwK 36 — every
 /// part sourced and non-degenerate, and the mount chain rebuilt from the parts reproduces
 /// the blueprint mounts exactly.
@@ -475,16 +463,7 @@ fn is3_and_centurion_parts_fit_the_hitbox_and_the_baked_vehicle() {
         }
 
         let baked = bake_vehicle(kind).expect("bakes");
-        let mut vehicle = None::<MeshBounds>;
-        for sub in [SubmeshKind::Hull, SubmeshKind::Turret, SubmeshKind::Gun] {
-            if let Some(bounds) = baked.submesh(sub).and_then(|submesh| submesh.mesh.bounds()) {
-                vehicle = Some(match vehicle {
-                    Some(acc) => acc.union(bounds),
-                    None => bounds,
-                });
-            }
-        }
-        let vehicle = vehicle.expect("baked bounds");
+        let vehicle = composed_visual_bounds(&baked).expect("composed visual bounds");
         let eps = 0.12;
         for part in graph.parts() {
             let b = part.bounds();

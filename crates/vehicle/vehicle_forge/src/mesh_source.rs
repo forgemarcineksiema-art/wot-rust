@@ -13,15 +13,28 @@
 use game_core::VehicleKind;
 use vehicle_geometry::{BakeError, BakedVehicle, bake_vehicle};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum MeshSourceKind {
+    Procedural,
+    Hybrid,
+}
+
+pub(crate) fn mesh_source_kind(kind: VehicleKind) -> MeshSourceKind {
+    match kind {
+        VehicleKind::T54_1951 => MeshSourceKind::Hybrid,
+        _ => MeshSourceKind::Procedural,
+    }
+}
+
 /// The full-detail (LOD0) baked geometry for `kind`, from whichever source owns that vehicle.
 ///
 /// The T-54 is the hybrid benchmark and bakes through [`vehicle_build`] at its default loadout
 /// (matching the loadout-independent procedural path); every other vehicle bakes through the
 /// procedural recipe unchanged.
 pub fn authoritative_baked_vehicle(kind: VehicleKind) -> Result<BakedVehicle, BakeError> {
-    match kind {
-        VehicleKind::T54_1951 => Ok(vehicle_build::t54_description().build()),
-        other => bake_vehicle(other),
+    match mesh_source_kind(kind) {
+        MeshSourceKind::Hybrid => Ok(vehicle_build::t54_description().build()),
+        MeshSourceKind::Procedural => bake_vehicle(kind),
     }
 }
 

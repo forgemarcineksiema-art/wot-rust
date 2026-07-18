@@ -152,10 +152,9 @@ fn the_hybrid_t54_silhouette_reads_right() {
     );
     let hull = &baked.submesh(SubmeshKind::Hull).unwrap().mesh;
     let has = |m: MaterialRole| hull.vertices().iter().any(|v| v.material == m);
-    assert!(has(MaterialRole::TrackMetal), "hull carries the static track belt, not a bare box");
     assert!(
         !has(MaterialRole::Rubber),
-        "rubber road wheels are runtime-animated gear, not static hull geometry"
+        "road wheels and the complete track belt are runtime-animated gear, not static hull geometry"
     );
     assert!(
         RunningGearKinematics::for_vehicle(VehicleKind::T54_1951).is_some(),

@@ -15,12 +15,27 @@ const SG_HARD: SmoothingGroup = SmoothingGroup::hard_edges();
 /// across three nations, so the Germans, the Centurion and the T-34 read as wearing the
 /// T-54's track. Negative Y is the wheel side (guide horns); positive Y the ground face.
 pub fn track_link_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
-    match kin.shoe {
+    let shoe = match kin.shoe {
         game_core::ShoePattern::Omsh => omsh_link(kin),
         game_core::ShoePattern::Kgs => kgs_link(kin),
         game_core::ShoePattern::Waffle => waffle_link(kin),
         game_core::ShoePattern::BritishCast => british_link(kin),
-    }
+    };
+    // The continuous belt skin must move and break with the links, not live in the static hull.
+    // This thin wheel-side backing overlaps its neighbours slightly, closing the triangular gaps
+    // that rectangular shoe faces otherwise expose around an idler/sprocket wrap. Because it is
+    // part of the instanced link, live sag, terrain travel, and a thrown track all affect the same
+    // geometry instead of revealing an immovable ghost band underneath.
+    let pitch = kin.belt_length() / kin.link_count().max(1) as f32;
+    MeshBuilder::new()
+        .append(&box_prism(
+            Vec3::new(0.0, -0.038, 0.0),
+            kin.band_half_width * 0.96,
+            0.012,
+            pitch * 0.56,
+        ))
+        .append(&shoe)
+        .build()
 }
 
 /// Soviet small-pitch OMSh (T-54 family, IS-3): flat plate, twin inner guide pads, pin bars

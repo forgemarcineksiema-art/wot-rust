@@ -70,6 +70,19 @@ pub struct TrackShape {
     /// under a rubber tire.
     #[serde(default)]
     pub wheel_face: WheelFace,
+    /// The visible suspension architecture behind the road wheels. This is not decoration:
+    /// Horstmann places one bogie per wheel pair, Christie uses an internal-spring crank, and
+    /// torsion-bar vehicles expose one trailing arm per axle.
+    #[serde(default)]
+    pub suspension: SuspensionKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+pub enum SuspensionKind {
+    #[default]
+    TorsionBar,
+    Christie,
+    Horstmann,
 }
 
 /// Track-shoe families. The pitch/width still come from the numeric fields; this picks the

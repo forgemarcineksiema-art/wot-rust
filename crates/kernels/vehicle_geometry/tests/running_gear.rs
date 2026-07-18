@@ -4,9 +4,94 @@
 use game_core::VehicleKind;
 use glam::{Mat4, Vec3};
 use vehicle_geometry::{
-    GearPart, GeometryMesh, MaterialRole, RunningGearKinematics, idler_unit_mesh,
-    road_wheel_unit_mesh, running_gear_placements, sprocket_unit_mesh, track_link_unit_mesh,
+    GearPart, GeometryMesh, MaterialRole, RunningGearKinematics, SmoothingGroup, idler_unit_mesh,
+    road_wheel_unit_mesh, running_gear_placements, sprocket_unit_mesh, swing_arm_unit_mesh,
+    track_link_unit_mesh,
 };
+
+#[test]
+fn tiger_ii_dish_face_normals_stay_axial_across_the_whole_plate() {
+    let kin = RunningGearKinematics::for_vehicle(VehicleKind::TigerII).expect("Tiger II gear");
+    let wheel = road_wheel_unit_mesh(&kin);
+    let body_half = kin.wheel_half_width * 0.92;
+    let face: Vec<_> = wheel
+        .vertices()
+        .iter()
+        .filter(|vertex| vertex.smoothing == SmoothingGroup(5))
+        .filter(|vertex| {
+            let radius = (vertex.position.y * vertex.position.y
+                + vertex.position.z * vertex.position.z)
+                .sqrt();
+            radius >= kin.wheel_radius * 0.15 && radius <= kin.wheel_radius * 0.89
+        })
+        .filter(|vertex| vertex.position.x > 0.0 && vertex.position.x <= body_half * 1.05)
+        .collect();
+
+    assert!(face.len() >= kin.segments, "test must cover the visible conical dish");
+    let axial = face.iter().filter(|vertex| vertex.normal.x > 0.90).count();
+    assert!(
+        axial >= kin.segments.max(22) * 2,
+        "both rings of the shallow front dish must stay plate-like; got {axial} axial normals"
+    );
+}
+
+#[test]
+fn road_wheel_tires_have_an_inner_wall_instead_of_an_open_hollow_ring() {
+    for (kind, material, inner_radius_ratio) in [
+        (VehicleKind::TigerII, MaterialRole::TrackMetal, 0.86_f32),
+        (VehicleKind::Centurion, MaterialRole::Rubber, 0.86_f32),
+        (VehicleKind::T54_1951, MaterialRole::Rubber, 0.86_f32),
+    ] {
+        let kin = RunningGearKinematics::for_vehicle(kind).expect("vehicle has running gear");
+        let wheel = road_wheel_unit_mesh(&kin);
+        let expected_radius = kin.wheel_radius * inner_radius_ratio;
+        let closes_hollow_ring = wheel.indices().chunks_exact(3).any(|triangle| {
+            let vertices: Vec<_> =
+                triangle.iter().map(|&index| &wheel.vertices()[index as usize]).collect();
+            let all_on_inner_wall = vertices.iter().all(|vertex| {
+                let radius = vertex.position.y.hypot(vertex.position.z);
+                vertex.material == material && (radius - expected_radius).abs() <= 1.0e-4
+            });
+            let min_x =
+                vertices.iter().map(|vertex| vertex.position.x).fold(f32::INFINITY, f32::min);
+            let max_x =
+                vertices.iter().map(|vertex| vertex.position.x).fold(f32::NEG_INFINITY, f32::max);
+            all_on_inner_wall
+                && min_x <= -kin.wheel_half_width * 0.90
+                && max_x >= kin.wheel_half_width * 0.90
+        });
+
+        assert!(
+            closes_hollow_ring,
+            "{kind:?} tire must have an inner cylindrical wall; an open revolve ring exposes its hollow interior"
+        );
+    }
+}
+
+#[test]
+fn dished_wheel_faces_meet_the_tire_lip_instead_of_floating_deep_inside_it() {
+    for kind in [VehicleKind::TigerII, VehicleKind::Centurion] {
+        let kin = RunningGearKinematics::for_vehicle(kind).expect("vehicle has running gear");
+        let wheel = road_wheel_unit_mesh(&kin);
+        let rim_radius = kin.wheel_radius * 0.88;
+        let front_rim_x = wheel
+            .vertices()
+            .iter()
+            .filter(|vertex| vertex.smoothing == SmoothingGroup(5))
+            .filter(|vertex| {
+                let radius = vertex.position.y.hypot(vertex.position.z);
+                (radius - rim_radius).abs() <= 1.0e-4
+            })
+            .map(|vertex| vertex.position.x)
+            .fold(f32::NEG_INFINITY, f32::max);
+
+        assert!(
+            front_rim_x >= kin.wheel_half_width * 0.85,
+            "{kind:?} dish rim x={front_rim_x:.3} sits too deep behind tire lip x={:.3}",
+            kin.wheel_half_width
+        );
+    }
+}
 
 fn t54() -> RunningGearKinematics {
     RunningGearKinematics::for_vehicle(VehicleKind::T54_1951)
@@ -277,6 +362,44 @@ fn t54_track_link_mesh_has_omsh_plate_horns_and_pin_cues() {
         bounds.max.y < 0.08,
         "bottom run should stay flattened instead of becoming a round rubber tube"
     );
+}
+
+#[test]
+fn centurion_uses_three_horstmann_bogies_per_side() {
+    let kin = RunningGearKinematics::for_vehicle(VehicleKind::Centurion).expect("Centurion gear");
+    assert_eq!(kin.suspension, game_core::SuspensionKind::Horstmann);
+    let placements = running_gear_placements(&kin, 0.0, 0.0);
+    assert_eq!(count(&placements, GearPart::SwingArm), 6, "three paired bogies per side");
+
+    let bounds = swing_arm_unit_mesh(&kin).bounds().expect("Horstmann bounds");
+    assert!(bounds.max.z - bounds.min.z > 0.5, "bogie rocker spans a wheel pair");
+    assert!(bounds.max.y - bounds.min.y > 0.3, "bogie carries a visible spring housing");
+}
+
+#[test]
+fn t34_uses_one_christie_crank_per_wheel() {
+    let kin = RunningGearKinematics::for_vehicle(VehicleKind::T34_85).expect("T-34 gear");
+    assert_eq!(kin.suspension, game_core::SuspensionKind::Christie);
+    let placements = running_gear_placements(&kin, 0.0, 0.0);
+    assert_eq!(count(&placements, GearPart::SwingArm), 10, "five Christie cranks per side");
+
+    let bounds = swing_arm_unit_mesh(&kin).bounds().expect("Christie bounds");
+    assert!(bounds.max.y - bounds.min.y > 0.2, "crank rises steeply into the hull side");
+    assert!(bounds.max.z - bounds.min.z < 0.4, "crank is not a long paired bogie beam");
+}
+
+#[test]
+fn every_animated_track_link_carries_an_overlapping_backing_skin() {
+    for kind in VehicleKind::PLAYABLE {
+        let kin = RunningGearKinematics::for_vehicle(kind).expect("playable vehicle gear");
+        let bounds = track_link_unit_mesh(&kin).bounds().expect("link bounds");
+        let pitch = kin.belt_length() / kin.link_count() as f32;
+        assert!(
+            bounds.max.z - bounds.min.z > pitch,
+            "{kind:?} backing must overlap neighbouring links around wraps: span {:.3}, pitch {pitch:.3}",
+            bounds.max.z - bounds.min.z,
+        );
+    }
 }
 
 #[test]

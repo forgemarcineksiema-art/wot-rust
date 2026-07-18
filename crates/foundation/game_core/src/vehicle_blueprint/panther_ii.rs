@@ -69,6 +69,7 @@ pub(super) fn panther_ii_blueprint() -> VehicleBlueprint {
             drive_front: true,
             shoe_pattern: ShoePattern::Kgs,
             wheel_face: WheelFace::SteelDish,
+            suspension: super::SuspensionKind::TorsionBar,
         },
         turret: TurretShape {
             // The Schmalturm: deliberately NARROW — a small 20° face behind the cone mantlet,

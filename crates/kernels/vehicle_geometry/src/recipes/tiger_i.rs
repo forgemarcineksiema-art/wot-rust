@@ -9,7 +9,7 @@ use glam::{Vec2, Vec3};
 
 use super::{
     GunPlan, SG_HARD, add_german_cast_cupola, add_mantlet_socket, add_turret_ring, assemble,
-    blueprint_running_gear, build_gun, shade_hull,
+    build_gun, shade_hull,
 };
 use crate::{
     Axis, BakedVehicle, ExtrudeSpec, GeometryMesh, LoftSection, LoftSpec, MaterialRole,
@@ -20,7 +20,6 @@ pub(crate) fn tiger_i(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVeh
     let bp = super::active_blueprint(VehicleKind::TigerI).expect("Tiger I has a blueprint");
     let hull = shade_hull(
         tiger_slab_hull(&bp.hull)
-            .append(&blueprint_running_gear(&bp.track))
             .append(&super::deck_details::tiger_i_deck(&bp))
             .append(&tiger_hull_details(&bp.hull))
             .build(),

@@ -32,6 +32,12 @@ Inside crates, modules stay narrow. For example, `sim` is split into:
 - `state`: simulation state and stepping.
 - `replay`: replay fixture types and regression runner.
 
+Vehicle running gear has one dynamic ownership path. `game_core::TrackShape` owns wheel stations,
+shoe/wheel families, and suspension architecture; `vehicle_geometry` derives unit meshes and live
+placements; the client instances them on the hull pose. Track backing is part of each animated link,
+never fused into the hull, so terrain travel, drive tension, and thrown-track state cannot reveal a
+stale second belt. Forge Studio composes those same rest-pose instances into its review images.
+
 ## Direction
 
 The current scaffold intentionally keeps the renderer surface/device setup, real UDP transport, asset binary packing, terrain LOD, and full hit detection behind narrow crate boundaries. That keeps the first project state buildable while leaving clear places to expand within armored vehicle battles.

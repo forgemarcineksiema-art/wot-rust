@@ -37,6 +37,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         (VehicleKind::T54_1951, "t54"),
         (VehicleKind::TigerI, "tiger_i"),
         (VehicleKind::TigerII, "tiger_ii"),
+        (VehicleKind::Jagdtiger, "jagdtiger"),
         (VehicleKind::PantherII, "panther_ii"),
         (VehicleKind::IS3, "is3"),
         (VehicleKind::Centurion, "centurion"),
@@ -112,8 +113,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 [cx + track_x + 2.2, ground + 0.45, cz + 0.3],
                 [cx + track_x - 0.3, ground + 0.35, cz - 0.4],
             ),
+            // Extreme garage-light close-up of the centre road-wheel face: catches bad profile
+            // normals that can hide in a full-vehicle side view.
+            ("wheel", [cx + track_x + 1.35, ground + 0.50, cz], [cx + track_x, ground + 0.45, cz]),
         ];
         for (view, eye, look) in views {
+            renderer.scene_lighting = if view == "wheel" {
+                SceneLighting::garage_hero()
+            } else {
+                SceneLighting::garage_studio()
+            };
             let camera = Camera { eye, target: look, vertical_fov_degrees: 38.0 };
             let view_proj = view_projection_matrix(
                 &camera,

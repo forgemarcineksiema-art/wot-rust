@@ -1,4 +1,4 @@
-﻿//! Armored Vehicle Forge foundation.
+//! Armored Vehicle Forge foundation.
 //!
 //! This crate owns the source-of-truth layer above low-level procedural geometry: reference packs,
 //! semantic targets, bake reports, and eventually Forge artifacts. It may consume
@@ -49,4 +49,5 @@ pub use production_bake::bake_production_vehicle;
 pub use reference::{
     DimensionKind, DimensionTarget, RatioKind, RatioTarget, ReferencePack, ReferenceSource,
 };
+pub use reference_measure::composed_visual_bounds;
 pub use report::{DimensionReport, MeasuredDimension, MeasuredRatio, RatioReport};

@@ -6,23 +6,15 @@ use engine::PresentationTank;
 use game_core::{ModuleSlot, TankId, TrackDamageMask, VehicleKind};
 use vehicle_geometry::RunningGearKinematics;
 
-/// Base submeshes (hull, turret, gun) plus the animated running-gear instances every blueprint
-/// vehicle adds (road wheels and their swing arms both sides, the interleaved layouts' extra
-/// deep-plane discs on even axles, two end wheels per side, the return rollers where the
-/// layout carries them, and the belt links).
+/// Base submeshes plus the authoritative placement pass. Counting the placements themselves keeps
+/// this contract honest when a suspension family changes cardinality (for example, Centurion's
+/// three paired Horstmann bogies instead of six independent arms per side).
 fn expected_object_count() -> usize {
     VehicleKind::ALL
         .iter()
         .map(|kind| {
-            3 + RunningGearKinematics::for_vehicle(*kind).map_or(0, |kin| {
-                let deep_discs =
-                    if kin.wheel_overlap_dx > 0.0 { kin.wheel_zs.len().div_ceil(2) } else { 0 };
-                (kin.wheel_zs.len() + deep_discs) * 2
-                    + kin.wheel_zs.len() * 2
-                    + 4
-                    + kin.roller_zs.len() * 2
-                    + kin.link_count() * 2
-            })
+            3 + RunningGearKinematics::for_vehicle(*kind)
+                .map_or(0, |kin| vehicle_geometry::running_gear_placements(&kin, 0.0, 0.0).len())
         })
         .sum()
 }

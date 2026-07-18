@@ -1,6 +1,7 @@
 use game_core::{VehicleBlueprint, VehicleKind};
 use vehicle_geometry::{
-    MaterialRole, RunningGearKinematics, SmoothingGroup, SubmeshKind, bake_vehicle,
+    GearPart, RunningGearKinematics, SmoothingGroup, SubmeshKind, bake_vehicle,
+    running_gear_placements,
 };
 
 const SG_CAST: SmoothingGroup = SmoothingGroup(2);
@@ -15,45 +16,35 @@ fn t54_1951_d10t_has_no_bore_evacuator() {
 
 #[test]
 fn t54_running_gear_has_no_return_rollers() {
-    let bp = VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("T-54 blueprint");
-    let vehicle = bake_vehicle(VehicleKind::T54_1951).expect("T-54 bakes");
-    let hull = vehicle.submesh(SubmeshKind::Hull).expect("hull submesh");
+    let gear = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951)
+        .expect("T-54 has runtime running gear");
 
-    let rubber_above_track = hull
-        .mesh
-        .vertices()
-        .iter()
-        .filter(|v| v.material == MaterialRole::Rubber)
-        .filter(|v| v.position.y > bp.track.top_y + 0.03)
-        .count();
-
-    assert_eq!(
-        rubber_above_track, 0,
-        "T-54 running gear should not add return rollers above the road-wheel/track band"
-    );
+    assert!(gear.roller_zs.is_empty(), "T-54 running gear must not instance return rollers");
 }
 
 #[test]
 fn t54_track_belt_wraps_the_ends_instead_of_two_straight_slabs() {
     let bp = VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("T-54 blueprint");
-    let vehicle = bake_vehicle(VehicleKind::T54_1951).expect("T-54 bakes");
-    let hull = vehicle.submesh(SubmeshKind::Hull).expect("hull submesh");
+    let gear = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951)
+        .expect("T-54 has runtime running gear");
     let mid_y_min = bp.track.bottom_y + 0.22;
     let mid_y_max = bp.track.top_y - 0.22;
     let end_z = bp.track.wheel_last_z - 0.10;
 
-    let wrapped_end_vertices = hull
-        .mesh
-        .vertices()
+    let wrapped_end_links = running_gear_placements(&gear, 0.0, 0.0)
         .iter()
-        .filter(|v| v.material == MaterialRole::TrackMetal)
-        .filter(|v| v.position.y >= mid_y_min && v.position.y <= mid_y_max)
-        .filter(|v| v.position.z.abs() >= end_z)
+        .filter(|placement| placement.part == GearPart::Link)
+        .filter(|placement| {
+            let y = placement.transform.w_axis.y;
+            y >= mid_y_min && y <= mid_y_max
+        })
+        .filter(|placement| placement.transform.w_axis.z.abs() >= end_z)
         .count();
 
     assert!(
-        wrapped_end_vertices >= 24,
-        "track metal needs mid-height vertices around idler/sprocket ends, not only top/bottom slabs"
+        wrapped_end_links >= 4,
+        "runtime track links need mid-height placements around idler/sprocket ends, not only \
+         top/bottom runs"
     );
 }
 

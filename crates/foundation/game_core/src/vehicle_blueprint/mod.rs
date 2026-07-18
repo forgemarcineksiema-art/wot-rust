@@ -43,7 +43,7 @@ pub use hybrid::{
     BoxVisual, FenderVisual, GunVisual, HullPlatesVisual, HullVisual, HybridVisual, LoftStation,
     TurretLoftVisual, TurretVisual,
 };
-pub use shape_track::{ShoePattern, TrackShape, WheelFace};
+pub use shape_track::{ShoePattern, SuspensionKind, TrackShape, WheelFace};
 pub use source::{BlueprintFile, parse_blueprint};
 
 /// How the turret/superstructure reads, for both the mesh recipe and the fit tests.

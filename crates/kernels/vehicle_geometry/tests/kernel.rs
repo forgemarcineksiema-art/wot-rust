@@ -33,6 +33,39 @@ fn revolve_creates_finite_indexed_geometry_with_unit_normals() {
 }
 
 #[test]
+fn sloped_revolve_profile_normals_follow_the_surface_not_just_the_radius() {
+    // A road-wheel dish is a shallow cone around X. Its outward normal must carry a strong
+    // +X component; a purely radial normal makes the face light as alternating bright/dark
+    // sectors even though it is aimed toward the viewer.
+    let mesh = MeshBuilder::new()
+        .revolve(RevolveSpec {
+            profile: vec![ProfilePoint::new(0.20, 0.50), ProfilePoint::new(1.00, 0.10)],
+            axis: Axis::X,
+            segments: 24,
+            material: MaterialRole::TrackMetal,
+            smoothing: SmoothingGroup(5),
+        })
+        .build();
+
+    assert!(
+        mesh.vertices().iter().all(|vertex| vertex.normal.x > 0.35),
+        "a forward-facing dish needs profile-aware normals with a positive axial component"
+    );
+    for tri in mesh.indices().chunks_exact(3) {
+        let [a, b, c] = [tri[0] as usize, tri[1] as usize, tri[2] as usize];
+        let face = (mesh.vertices()[b].position - mesh.vertices()[a].position)
+            .cross(mesh.vertices()[c].position - mesh.vertices()[a].position)
+            .normalize_or_zero();
+        for index in [a, b, c] {
+            assert!(
+                mesh.vertices()[index].normal.dot(face) > 0.95,
+                "revolve vertex normal must agree with its geometric face"
+            );
+        }
+    }
+}
+
+#[test]
 fn y_axis_revolve_winds_all_faces_outward() {
     let mesh = MeshBuilder::new()
         .capped_revolve_at(

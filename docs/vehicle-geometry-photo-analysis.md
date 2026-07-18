@@ -137,9 +137,13 @@ hand-authored recipe constants for hull proportions, tracks, turrets/casemates, 
 `vehicle_geometry` is a renderer-neutral bake step. It outputs `BakedVehicle` values split into
 three submeshes:
 
-- hull: body, tracks, wheels, fenders, fixed casemate body when applicable;
+- hull: static body, fenders, and fixed casemate body when applicable;
 - turret: rotating turret or fixed casemate superstructure;
 - gun: barrel, mantlet/mask, muzzle brake or bore evacuator.
+
+Road wheels, suspension units, end wheels, and track links are runtime instances derived from the
+same blueprint `TrackShape`. Forge Studio adds those instances to review renders without folding
+them back into the deterministic hull bake.
 
 The kernel builds low/mid-poly forms with operations such as extrude, revolve, chamfered prisms,
 mirroring, arrays, smoothing groups, and deterministic vertex-color shading. This is intentionally

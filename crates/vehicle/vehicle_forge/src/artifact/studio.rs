@@ -16,6 +16,7 @@ use vehicle_geometry::{
 };
 
 use crate::authoritative_baked_vehicle;
+use crate::mesh_source::{MeshSourceKind, mesh_source_kind};
 
 use super::{ArtifactError, review_images, review_text};
 
@@ -76,7 +77,7 @@ impl StudioBundle {
 /// Bake `kind` through its authoritative mesh path and assemble the review bundle.
 pub fn bake_studio_bundle(kind: VehicleKind) -> Result<StudioBundle, ArtifactError> {
     let baked = authoritative_baked_vehicle(kind)?;
-    bundle_from_baked(kind, baked)
+    bundle_from_baked(kind, baked, mesh_source_kind(kind))
 }
 
 /// The fast loop: assemble the bundle from a LIVE blueprint (an edited RON parsed from disk,
@@ -86,12 +87,13 @@ pub fn bake_studio_bundle_from_blueprint(
     blueprint: &game_core::VehicleBlueprint,
 ) -> Result<StudioBundle, ArtifactError> {
     let baked = vehicle_geometry::bake_vehicle_from_blueprint(blueprint)?;
-    bundle_from_baked(blueprint.kind, baked)
+    bundle_from_baked(blueprint.kind, baked, MeshSourceKind::Procedural)
 }
 
 fn bundle_from_baked(
     kind: VehicleKind,
     baked: BakedVehicle,
+    source: MeshSourceKind,
 ) -> Result<StudioBundle, ArtifactError> {
     let spec =
         crate::registry::forge_spec(kind).ok_or(ArtifactError::MissingReferencePack(kind))?;
@@ -104,8 +106,13 @@ fn bundle_from_baked(
     // Per-camera tiles, each annotated with the camera name in its top-left corner.
     let mut views = Vec::new();
     for camera in cameras.cameras() {
-        let mut pixels =
-            review_images::render_camera_sized(&baked, camera, TILE_WIDTH, TILE_HEIGHT);
+        let mut pixels = review_images::render_camera_sized_with_running_gear(
+            kind,
+            &baked,
+            camera,
+            TILE_WIDTH,
+            TILE_HEIGHT,
+        );
         review_text::draw_text(
             &mut pixels,
             TILE_WIDTH,
@@ -122,8 +129,8 @@ fn bundle_from_baked(
         });
     }
 
-    let contact_sheet_png = bake_contact_sheet(&baked, &cameras)?;
-    let report_md = build_report(kind, &baked, &ratio_report, dimension_report.as_ref());
+    let contact_sheet_png = bake_contact_sheet(kind, &baked, &cameras)?;
+    let report_md = build_report(kind, source, &baked, &ratio_report, dimension_report.as_ref());
 
     Ok(StudioBundle { vehicle: kind, views, contact_sheet_png, report_md })
 }
@@ -134,6 +141,7 @@ fn trim_view_name(file_name: &str) -> &str {
 
 /// Compose every camera into one grid image with an annotation strip under each tile.
 fn bake_contact_sheet(
+    kind: VehicleKind,
     baked: &BakedVehicle,
     cameras: &super::ReviewCameraSet,
 ) -> Result<Vec<u8>, ArtifactError> {
@@ -148,7 +156,13 @@ fn bake_contact_sheet(
     }
 
     for (index, camera) in cameras.cameras().iter().enumerate() {
-        let tile = review_images::render_camera_sized(baked, camera, TILE_WIDTH, TILE_HEIGHT);
+        let tile = review_images::render_camera_sized_with_running_gear(
+            kind,
+            baked,
+            camera,
+            TILE_WIDTH,
+            TILE_HEIGHT,
+        );
         let (col, row) = (index as u32 % columns, index as u32 / columns);
         let (x0, y0) = (col * TILE_WIDTH, row * cell_h);
         for y in 0..TILE_HEIGHT {
@@ -175,6 +189,7 @@ fn bake_contact_sheet(
 /// sources the gates read.
 fn build_report(
     kind: VehicleKind,
+    source: MeshSourceKind,
     baked: &BakedVehicle,
     ratio_report: &crate::RatioReport,
     dimension_report: Option<&crate::DimensionReport>,
@@ -228,35 +243,45 @@ fn build_report(
         }
     }
 
-    // Budgets vs the shared envelope (the same source `vehicle_budgets.rs` enforces).
-    let budgets = VEHICLE_BUDGETS;
+    // Budgets vs the contract owned by the selected production mesh source.
     let tris = |sub| baked.submesh(sub).map_or(0, |s| s.mesh.triangle_count());
     let verts = |sub| baked.submesh(sub).map_or(0, |s| s.mesh.vertex_count());
     let total_tris = tris(SubmeshKind::Hull) + tris(SubmeshKind::Turret) + tris(SubmeshKind::Gun);
     let total_verts =
         verts(SubmeshKind::Hull) + verts(SubmeshKind::Turret) + verts(SubmeshKind::Gun);
     let _ = writeln!(md, "## Budgets\n");
-    let _ = writeln!(md, "| Meter | Value | Envelope | Status |");
-    let _ = writeln!(md, "| --- | ---: | --- | --- |");
-    for (label, value, (min, max)) in [
-        ("hull tris", tris(SubmeshKind::Hull), budgets.hull_tri),
-        ("turret tris", tris(SubmeshKind::Turret), budgets.turret_tri),
-        ("gun tris", tris(SubmeshKind::Gun), budgets.gun_tri),
-        ("vehicle tris", total_tris, budgets.vehicle_tri),
-    ] {
-        let ok = (min..=max).contains(&value);
+    if source == MeshSourceKind::Hybrid {
+        let max = vehicle_build::MEDIUM_LOD0_TRI_BUDGET;
         let _ = writeln!(
             md,
-            "| {label} | {value} | {min}..={max} | {} |",
-            if ok { "OK" } else { "OUT OF BUDGET" }
+            "- hybrid production mesh: {total_tris} / {max} LOD0 triangles ({})",
+            if total_tris <= max { "OK" } else { "OUT OF BUDGET" }
+        );
+        let _ = writeln!(md, "- procedural fleet envelope does not apply to this hybrid source.");
+    } else {
+        let budgets = VEHICLE_BUDGETS;
+        let _ = writeln!(md, "| Meter | Value | Envelope | Status |");
+        let _ = writeln!(md, "| --- | ---: | --- | --- |");
+        for (label, value, (min, max)) in [
+            ("hull tris", tris(SubmeshKind::Hull), budgets.hull_tri),
+            ("turret tris", tris(SubmeshKind::Turret), budgets.turret_tri),
+            ("gun tris", tris(SubmeshKind::Gun), budgets.gun_tri),
+            ("vehicle tris", total_tris, budgets.vehicle_tri),
+        ] {
+            let ok = (min..=max).contains(&value);
+            let _ = writeln!(
+                md,
+                "| {label} | {value} | {min}..={max} | {} |",
+                if ok { "OK" } else { "OUT OF BUDGET" }
+            );
+        }
+        let _ = writeln!(
+            md,
+            "| vehicle verts | {total_verts} | <= {} | {} |",
+            budgets.vehicle_vert_max,
+            if total_verts <= budgets.vehicle_vert_max { "OK" } else { "OUT OF BUDGET" }
         );
     }
-    let _ = writeln!(
-        md,
-        "| vehicle verts | {total_verts} | <= {} | {} |",
-        budgets.vehicle_vert_max,
-        if total_verts <= budgets.vehicle_vert_max { "OK" } else { "OUT OF BUDGET" }
-    );
 
     // Mesh quality per submesh.
     let _ = writeln!(md, "\n## Mesh quality (spec: open-or-closed manifold)\n");
@@ -285,18 +310,24 @@ fn build_report(
     // Golden hash status.
     let hash = baked.deterministic_hash();
     let _ = writeln!(md, "\n## Determinism\n");
-    match golden_bake_hash(kind) {
-        Some(golden) if golden == hash => {
+    match (source, golden_bake_hash(kind)) {
+        (MeshSourceKind::Hybrid, _) => {
+            let _ = writeln!(
+                md,
+                "- production bake hash `{hash}` (hybrid source; procedural fleet golden does not apply)."
+            );
+        }
+        (MeshSourceKind::Procedural, Some(golden)) if golden == hash => {
             let _ = writeln!(md, "- bake hash `{hash}` MATCHES the recorded golden.");
         }
-        Some(golden) => {
+        (MeshSourceKind::Procedural, Some(golden)) => {
             let _ = writeln!(
                 md,
                 "- bake hash `{hash}` DIFFERS from golden `{golden}` — the geometry changed. \
                  If intentional, re-record in `vehicle_geometry/src/budgets.rs`."
             );
         }
-        None => {
+        (MeshSourceKind::Procedural, None) => {
             let _ = writeln!(md, "- bake hash `{hash}` (no golden recorded for this kind).");
         }
     }

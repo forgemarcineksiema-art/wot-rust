@@ -9,7 +9,9 @@
 //! These tests catch the worst measurable sins so the benchmark stops rubber-stamping rough blobs.
 
 use game_core::{VehicleBlueprint, VehicleKind};
-use vehicle_geometry::{GeometryMesh, MaterialRole, MeshBounds, SubmeshKind, bake_vehicle};
+use vehicle_geometry::{
+    GeometryMesh, MaterialRole, MeshBounds, RunningGearKinematics, SubmeshKind, bake_vehicle,
+};
 
 const SOVIET_LEGACY_PAIR: [VehicleKind; 2] = [VehicleKind::T54_1951, VehicleKind::T54_1951];
 
@@ -112,14 +114,11 @@ fn soviet_running_gear_fills_the_lower_hull_side() {
         let hull = &baked.submesh(SubmeshKind::Hull).unwrap().mesh;
         let hull_bounds = hull.bounds().unwrap();
         let hull_height = hull_bounds.max.y - hull_bounds.min.y;
-        let gear: Vec<f32> = hull
-            .vertices()
-            .iter()
-            .filter(|v| matches!(v.material, MaterialRole::TrackMetal | MaterialRole::Rubber))
-            .map(|v| v.position.y)
-            .collect();
-        let lo = gear.iter().copied().fold(f32::INFINITY, f32::min);
-        let hi = gear.iter().copied().fold(f32::NEG_INFINITY, f32::max);
+        // Running gear is renderer-composed animation geometry, not a fused hull material.
+        // Measure the same rest-pose wheel/end-wheel envelope the runtime will instance.
+        let kin = RunningGearKinematics::for_vehicle(kind).expect("vehicle has running gear");
+        let lo = (kin.cy - kin.wheel_radius).min(kin.end_cy - kin.end_radius);
+        let hi = (kin.cy + kin.wheel_radius).max(kin.end_cy + kin.end_radius);
         let coverage = (hi - lo) / hull_height.max(0.01);
         // On the documented 1:1 proportions the track band spans ~0.95 of the 1.75 hull side
         // (≈0.54); anything much thinner reads as a hull floating on toy tracks.

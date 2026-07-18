@@ -1,12 +1,12 @@
 //! Animatable running gear: the moving parts of a tracked vehicle (road wheels, drive sprocket,
-//! idler, and the shoe links riding the belt loop) separated from the static belt band so the
+//! idler, and the shoe links riding the belt loop) separated from the static hull so the
 //! renderer can spin the wheels and scroll the links from a per-side track distance.
 //!
 //! This module is renderer-free and deterministic. It exposes three things the client composes:
 //! the per-vehicle [`RunningGearKinematics`] (derived from the blueprint), the unit meshes for one
 //! wheel / one shoe link, and [`running_gear_placements`] — the list of `(part, transform)` for a
-//! given per-side phase. The static belt runs and end wraps stay baked in the hull
-//! (`recipes::chassis_blueprint`); only the parts that visibly move live here.
+//! given per-side phase. The belt's overlap skin belongs to each link, so every visible running
+//! gear part moves, tensions, and disappears with the track it represents.
 
 use std::f32::consts::PI;
 
@@ -74,6 +74,8 @@ pub struct RunningGearKinematics {
     /// The road-wheel face construction (audit #14 — openwork Soviet spokes vs the German
     /// bolted steel dish vs the Centurion's bolted dish under rubber).
     pub wheel_face: game_core::WheelFace,
+    /// Visible suspension architecture: torsion arm, Christie crank, or paired Horstmann bogie.
+    pub suspension: game_core::SuspensionKind,
     /// Z of each return roller (empty when the top run rests on the road wheels).
     pub roller_zs: Vec<f32>,
     /// Radius of one return roller.
@@ -146,6 +148,7 @@ impl RunningGearKinematics {
             wheel_spokes: track.wheel_spokes.max(3),
             shoe: track.shoe_pattern,
             wheel_face: track.wheel_face,
+            suspension: track.suspension,
             roller_zs,
             roller_radius: track.roller_radius,
             roller_y: track.top_y - track.roller_radius,
@@ -180,7 +183,7 @@ pub enum GearPart {
     Idler,
     Sprocket,
     Link,
-    /// Trailing torsion-bar swing arm — one per road wheel, rotating with its travel.
+    /// Visible suspension unit: one per axle for torsion/Christie, one per pair for Horstmann.
     SwingArm,
     /// Small top-run carrier roller (IS family); spins with the belt like everything it touches.
     ReturnRoller,

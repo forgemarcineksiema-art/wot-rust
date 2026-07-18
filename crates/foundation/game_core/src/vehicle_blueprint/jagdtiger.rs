@@ -67,6 +67,7 @@ pub(super) fn jagdtiger_blueprint() -> VehicleBlueprint {
             drive_front: true,
             shoe_pattern: ShoePattern::Kgs,
             wheel_face: WheelFace::SteelDish,
+            suspension: super::SuspensionKind::TorsionBar,
         },
         turret: TurretShape {
             // The fixed fighting compartment. Its side "plan" width is chosen so the casemate

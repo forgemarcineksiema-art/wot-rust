@@ -1,7 +1,4 @@
-//! The fleet's cost contract as DATA: per-submesh/per-vehicle triangle and vertex budgets, and
-//! the golden deterministic bake hash per vehicle. One source read by both the enforcement
-//! tests (`tests/vehicle_budgets.rs`) and the Forge Studio report — the tool an author reads
-//! must quote the same numbers the gate enforces, or the loop teaches the wrong limits.
+//! Fleet cost and deterministic-output contracts shared by tests and Forge Studio.
 
 use game_core::VehicleKind;
 
@@ -16,11 +13,9 @@ pub struct VehicleBudgets {
     pub vehicle_vert_max: usize,
 }
 
-/// The lineup-wide budget envelope (min, max) every baked vehicle must sit inside.
-// Hull ceiling raised 2400 -> 2750 (2026-07-18, measured): the belt's wrap ARCS now carry
-// static band skin (four Z-monotonic half-arc lofts per vehicle, ~320 tris) — without it the
-// floor showed straight through the wedge gaps between angled shoes around the sprocket and
-// idler (user report). A fleet-wide loop skin, not per-vehicle detail creep.
+/// The lineup-wide procedural bake envelope. Runtime running gear is excluded: wheels,
+/// suspension, end wheels, and links are animated instances. The continuous backing skin belongs
+/// to each moving link rather than the static hull, so a thrown track leaves no frozen ghost belt.
 pub const VEHICLE_BUDGETS: VehicleBudgets = VehicleBudgets {
     hull_tri: (120, 2750),
     turret_tri: (24, 900),
@@ -29,53 +24,21 @@ pub const VEHICLE_BUDGETS: VehicleBudgets = VehicleBudgets {
     vehicle_vert_max: 11_000,
 };
 
-/// The recorded golden bake hash per vehicle. Re-recorded for the fleet fittings pass — driver hatches, headlights, tow hooks and antenna
-/// pots in the shared deck details, with turret clearance measured to the FITTING EDGE (a T-55A
-/// hatch corner grazing the turret seat failed the client embed gate) — on top of Program C: the
-/// generic blueprint contact-cavity bake (`recipes::blueprint_cavity`) writes surface_shade
-/// into every blueprint vehicle's vertices — an intentional, fleet-wide shading change; the
-/// prototype (no blueprint) is byte-identical. A geometry change that is INTENTIONAL re-records
-/// its entry (the enforcement test prints the replacement array); anything else failing here is
-/// a regression. Kept beside the budgets so the studio report can say whether the current bake
-/// still matches its golden.
-// Fleet re-record (model-logic audit, defect #7): the static belt band now follows the SAME
-// belt path the links ride — ground run pressed under the wheels, true wrap positions, and a
-// top run that drapes onto its carriers with the v27 tension read — replacing the taut boxes.
+/// Golden procedural bake hashes. Re-record only after an intentional geometry change and visual
+/// review. The 2026-07-18 fleet re-record removes the fused track band from every blueprint hull;
+/// its overlap skin now rides in the animated link mesh and therefore does not affect these hashes.
 pub const GOLDEN_BAKE_HASHES: [(VehicleKind, u64); 9] = [
     (VehicleKind::PrototypeMedium, 5_209_003_704_901_676_167_u64),
-    // Re-recorded for the T-54 1:1 blueprint reset (documented 6.04 × 3.27 × 2.40 m body,
-    // 810 mm wheels, raised idler/sprocket, 2.25 m turret on the 1.75 m roof). The T-55A moves
-    // only through the shared Soviet cupola cap; the German vehicles are untouched.
-    (VehicleKind::T54_1951, 7_171_457_316_330_083_060_u64),
-    // Re-recorded for the W1 late-E detail pass: exhaust shields shroud the twin stacks and
-    // four spare track links rack on the lower bow (the Feifel cleaners stay deliberately
-    // absent — the modelled variant is a late Ausf. E, which dropped them).
-    (VehicleKind::TigerI, 9_395_186_549_819_494_053_u64),
-    // Re-recorded for the Tiger II blueprint migration: the researched 1:1 sloped body
-    // (7.38 m hull, fleet's longest glacis at 50°, 25° leaned upper sides, Henschel prism
-    // with bustle, 9 overlapped wheels, braked KwK 43) replaces the legacy stretch.
-    (VehicleKind::TigerII, 14_267_616_262_472_546_658_u64),
-    // Re-recorded for the Jagdtiger blueprint migration: the researched 1:1 casemate
-    // (7.80 m hull, superstructure flank continuing the hull's 25° plane, 15° 250 mm face,
-    // periscope roof, 9 overlapped wheels, braked PaK 44) replaces the legacy box.
-    (VehicleKind::Jagdtiger, 8_752_701_303_796_339_670_u64),
-    // Re-recorded for the Panther II blueprint migration: the researched 1:1 wedge (6.87 m
-    // hull, steepest German glacis at 55°, 29° leaned sides, narrow Schmalturm, 7 overlapped
-    // steel wheels, braked KwK 42) replaces the last legacy German body.
-    (VehicleKind::PantherII, 16_051_614_947_818_571_956_u64),
-    // Re-recorded for the IS-3 finish pass: the signature external fuel drums join the
-    // rear fender shelves; the rest of the fleet is untouched.
-    (VehicleKind::IS3, 5_893_221_769_746_262_729_u64),
-    // Recorded at birth: the Centurion Mk 3 (skirted hull over Horstmann bogie pairs,
-    // 57° glacis, cast Mk 3 dome with the bustle bin, clean 20-pounder).
-    (VehicleKind::Centurion, 5_726_699_543_052_835_079_u64),
-    // Recorded at birth: the T-34-85 — the first vehicle authored through the Forge Studio
-    // loop (60° glacis, raked sides, five bare Christie wheels with the open gap, low wide
-    // -85 cast dome seated forward, clean ZiS-S-53).
-    (VehicleKind::T34_85, 15_834_053_627_957_387_721_u64),
+    (VehicleKind::T54_1951, 7_946_555_521_149_600_740_u64),
+    (VehicleKind::TigerI, 14_348_569_545_994_162_257_u64),
+    (VehicleKind::TigerII, 12_544_834_639_457_414_026_u64),
+    (VehicleKind::Jagdtiger, 5_179_577_790_178_323_578_u64),
+    (VehicleKind::PantherII, 9_168_003_294_476_122_692_u64),
+    (VehicleKind::IS3, 5_050_614_938_041_723_061_u64),
+    (VehicleKind::Centurion, 15_577_022_592_979_033_199_u64),
+    (VehicleKind::T34_85, 8_651_410_882_145_847_605_u64),
 ];
 
-/// The golden hash recorded for `kind`, if any.
 pub fn golden_bake_hash(kind: VehicleKind) -> Option<u64> {
     GOLDEN_BAKE_HASHES.iter().find(|(k, _)| *k == kind).map(|(_, hash)| *hash)
 }

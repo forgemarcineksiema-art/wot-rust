@@ -58,6 +58,7 @@ BlueprintFile(
         wheel_spokes: 6,
         shoe_pattern: BritishCast,
         wheel_face: RubberDish,
+        suspension: Horstmann,
     ),
     turret: TurretShape(
         form: CastDome,

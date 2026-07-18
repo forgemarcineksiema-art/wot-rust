@@ -76,7 +76,7 @@ pub fn split_pbr_vehicle_render_frame_on_terrain(
             armor_damage.push(damage);
         }
         let variation = VehicleVariation::from_snapshot(&snapshot);
-        let (left_travel, right_travel, wheel_count) = wheel_travel(&tank, terrain);
+        let (left_travel, right_travel) = wheel_travel(&tank, terrain);
         // A driven track pulls its top run tight; braking or coasting lets it hang. The gain is
         // gentle: the P/v launch hits ~8 m/sÂ˛, and a sag that slams to its clamp on a throttle
         // tap reads as the track convulsing rather than tensioning. A hard landing (the sprung
@@ -87,8 +87,8 @@ pub fn split_pbr_vehicle_render_frame_on_terrain(
         let damage = game_core::TrackDamageMask::from_bits(tank.track_damage_mask);
         let side_sag = |broken: bool| if broken { 2.2 } else { sag_scale };
         let dynamics = GearDynamics {
-            left_travel: &left_travel[..wheel_count],
-            right_travel: &right_travel[..wheel_count],
+            left_travel: &left_travel,
+            right_travel: &right_travel,
             left_sag_scale: side_sag(damage.is_broken(game_core::TrackSide::Left)),
             right_sag_scale: side_sag(damage.is_broken(game_core::TrackSide::Right)),
             left_break_t: tank.track_break_t[0],
@@ -208,26 +208,20 @@ fn recoil_gun(objects: &mut [RenderObject], recoil_m: f32) {
     }
 }
 
-const MAX_ROAD_WHEELS: usize = 8;
-
 /// Per-wheel vertical travel from the terrain under each road wheel: the residual between the
 /// ground height at the wheel and the sprung hull's ground plane there. Wheels drop into dips and
 /// ride over bumps the hull attitude has already averaged out.
-fn wheel_travel(
-    tank: &PresentationTank,
-    terrain: Option<&HeightMap>,
-) -> ([f32; MAX_ROAD_WHEELS], [f32; MAX_ROAD_WHEELS], usize) {
-    let mut left = [0.0; MAX_ROAD_WHEELS];
-    let mut right = [0.0; MAX_ROAD_WHEELS];
+fn wheel_travel(tank: &PresentationTank, terrain: Option<&HeightMap>) -> (Vec<f32>, Vec<f32>) {
     let (Some(map), Some(kin)) = (terrain, RunningGearKinematics::for_vehicle(tank.vehicle)) else {
-        return (left, right, 0);
+        return (Vec::new(), Vec::new());
     };
-    let count = kin.wheel_zs.len().min(MAX_ROAD_WHEELS);
+    let mut left = vec![0.0; kin.wheel_zs.len()];
+    let mut right = vec![0.0; kin.wheel_zs.len()];
     let (sin, cos) = tank.hull_yaw_rad.sin_cos();
     let (bx, bz) = (tank.translation[0], tank.translation[2]);
     let hull_y = tank.translation[1];
     let (pitch, roll) = (tank.attitude_pitch_rad, tank.attitude_roll_rad);
-    for (index, &wz) in kin.wheel_zs.iter().take(count).enumerate() {
+    for (index, &wz) in kin.wheel_zs.iter().enumerate() {
         for (lane, side) in [(&mut left, -1.0_f32), (&mut right, 1.0)] {
             let lx = side * kin.wheel_x;
             // Hull-local (lx, wz) into the world; the sprung ground plane tilts with the attitude.
@@ -238,7 +232,7 @@ fn wheel_travel(
             lane[index] = (ground - plane).clamp(-0.08, 0.20);
         }
     }
-    (left, right, count)
+    (left, right)
 }
 
 fn scale_player_gun(objects: &mut [RenderObject], is_player: bool, player_gun_scale: f32) {
@@ -510,5 +504,44 @@ mod tests {
         assert_eq!(snapshot.destroyed_modules_mask, 0b101);
         // Live module HP rides through so partial damage can drive mesh-side cues.
         assert_eq!(snapshot.module_hit_points, [11, 22, 33, 44, 55, 66]);
+    }
+
+    #[test]
+    fn terrain_travel_samples_all_nine_tiger_family_wheels() {
+        let terrain = HeightMap::flat(64, 64, 1.0, 0.15).expect("valid test terrain");
+        for vehicle in [VehicleKind::TigerII, VehicleKind::Jagdtiger] {
+            let tank = PresentationTank {
+                id: TankId(7),
+                team: TeamId(1),
+                vehicle,
+                translation: [30.0, 0.0, 30.0],
+                hull_yaw_rad: 0.0,
+                turret_yaw_rad: 0.0,
+                gun_pitch_rad: 0.0,
+                hit_points: 1,
+                destroyed_modules_mask: 0,
+                spotted_by_teams_mask: 0,
+                module_hit_points: [1; game_core::MODULE_SLOT_COUNT],
+                track_damage_mask: 0,
+                track_break_t: [None, None],
+                engine_fire: false,
+                fuel_fire: false,
+                armor_breaches: Default::default(),
+                track_left_m: 0.0,
+                track_right_m: 0.0,
+                attitude_pitch_rad: 0.0,
+                attitude_roll_rad: 0.0,
+                attitude_heave_m: 0.0,
+                accel_long_mps2: 0.0,
+                gun_recoil_m: 0.0,
+            };
+
+            let (left, right) = wheel_travel(&tank, Some(&terrain));
+
+            assert_eq!(left.len(), 9, "{vehicle:?} must sample every road-wheel station");
+            assert_eq!(right.len(), 9, "{vehicle:?} must sample every road-wheel station");
+            assert!((left[8] - 0.15).abs() < 1.0e-5, "{vehicle:?} left rear wheel");
+            assert!((right[8] - 0.15).abs() < 1.0e-5, "{vehicle:?} right rear wheel");
+        }
     }
 }

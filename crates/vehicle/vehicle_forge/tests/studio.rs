@@ -51,6 +51,17 @@ fn the_report_quotes_every_gate_the_fleet_is_held_to() {
     assert!(bundle.views().iter().all(|view| !view.png.is_empty()));
 }
 
+#[test]
+fn hybrid_t54_report_uses_its_production_contract() {
+    let bundle = bake_studio_bundle(game_core::VehicleKind::T54_1951).expect("T-54 bakes");
+    let report = bundle.report_md();
+
+    assert!(report.contains("hybrid production mesh"));
+    assert!(report.contains("hybrid source; procedural fleet golden does not apply"));
+    assert!(!report.contains("DIFFERS from golden"));
+    assert!(!report.contains("OUT OF BUDGET"));
+}
+
 /// Program C's un-T-54'd compiler: a NON-benchmark vehicle compiles with a swapped gun module,
 /// and the module genuinely reshapes the geometry — the Jagdtiger's alternate 8.8 cm reaches a
 /// different muzzle than the stock 12.8 cm, in the baked mesh and the mount frames alike.

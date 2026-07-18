@@ -1,7 +1,12 @@
 use std::io;
 
-use glam::{Vec2, Vec3};
-use vehicle_geometry::{BakedVehicle, GeometryVertex, MaterialRole};
+use game_core::VehicleKind;
+use glam::{Mat4, Vec2, Vec3};
+use vehicle_geometry::{
+    BakedVehicle, GearPart, GeometryMesh, MaterialRole, RunningGearKinematics, idler_unit_mesh,
+    return_roller_unit_mesh, road_wheel_unit_mesh, running_gear_placements, sprocket_unit_mesh,
+    swing_arm_unit_mesh, track_link_unit_mesh,
+};
 
 use super::review_raster::{draw_triangle_edges, fill_triangle};
 use super::{ReviewCameraSet, ReviewCameraSpec};
@@ -49,13 +54,17 @@ pub fn bake_review_images(
 
 /// Render one review camera at an arbitrary resolution — the Forge Studio's tile renderer.
 /// The artifact path above stays on the fixed 256x160 so artifact bytes do not move.
-pub(super) fn render_camera_sized(
+/// Studio-only production review: the baked hull plus the same rest-pose instanced running gear
+/// used by the client. Artifact bytes remain unchanged, while authors finally see the wheels,
+/// suspension, sprockets, and moving track that they are actually judging.
+pub(super) fn render_camera_sized_with_running_gear(
+    kind: VehicleKind,
     vehicle: &BakedVehicle,
     camera: &ReviewCameraSpec,
     width: u32,
     height: u32,
 ) -> Vec<u8> {
-    render_camera_at(vehicle, camera, width, height)
+    render_camera_at_with_gear(kind, vehicle, camera, width, height)
 }
 
 pub(super) fn encode_png_sized(width: u32, height: u32, rgba: &[u8]) -> Result<Vec<u8>, io::Error> {
@@ -86,7 +95,47 @@ fn render_camera_at(
     height: u32,
 ) -> Vec<u8> {
     let basis = camera_basis(camera);
+    let tris = projected_tris(vehicle, &basis);
+    rasterize_projected(tris, camera, width, height)
+}
+
+fn render_camera_at_with_gear(
+    kind: VehicleKind,
+    vehicle: &BakedVehicle,
+    camera: &ReviewCameraSpec,
+    width: u32,
+    height: u32,
+) -> Vec<u8> {
+    let basis = camera_basis(camera);
     let mut tris = projected_tris(vehicle, &basis);
+    if let Some(kin) = RunningGearKinematics::for_vehicle(kind) {
+        let road_wheel = road_wheel_unit_mesh(&kin);
+        let idler = idler_unit_mesh(&kin);
+        let sprocket = sprocket_unit_mesh(&kin);
+        let link = track_link_unit_mesh(&kin);
+        let swing_arm = swing_arm_unit_mesh(&kin);
+        let return_roller = return_roller_unit_mesh(&kin);
+        for placement in running_gear_placements(&kin, 0.0, 0.0) {
+            let mesh = match placement.part {
+                GearPart::RoadWheel => &road_wheel,
+                GearPart::Idler => &idler,
+                GearPart::Sprocket => &sprocket,
+                GearPart::Link => &link,
+                GearPart::SwingArm => &swing_arm,
+                GearPart::ReturnRoller => &return_roller,
+            };
+            tris.extend(projected_mesh_tris(mesh, placement.transform, &basis));
+        }
+    }
+    rasterize_projected(tris, camera, width, height)
+}
+
+fn rasterize_projected(
+    mut tris: Vec<ProjectedTri>,
+    camera: &ReviewCameraSpec,
+    width: u32,
+    height: u32,
+) -> Vec<u8> {
     tris.sort_by(|a, b| a.depth.total_cmp(&b.depth));
 
     let (min, max) = projected_bounds(&tris);
@@ -112,23 +161,36 @@ fn render_camera_at(
 fn projected_tris(vehicle: &BakedVehicle, basis: &CameraBasis) -> Vec<ProjectedTri> {
     let mut tris = Vec::new();
     for submesh in vehicle.submeshes() {
-        let vertices = submesh.mesh.vertices();
-        for indices in submesh.mesh.indices().chunks_exact(3) {
+        tris.extend(projected_mesh_tris(&submesh.mesh, Mat4::IDENTITY, basis));
+    }
+    tris
+}
+
+fn projected_mesh_tris(
+    mesh: &GeometryMesh,
+    transform: Mat4,
+    basis: &CameraBasis,
+) -> Vec<ProjectedTri> {
+    let vertices = mesh.vertices();
+    mesh.indices()
+        .chunks_exact(3)
+        .map(|indices| {
             let a = &vertices[indices[0] as usize];
             let b = &vertices[indices[1] as usize];
             let c = &vertices[indices[2] as usize];
-            tris.push(ProjectedTri {
-                p: [
-                    project(a.position, basis),
-                    project(b.position, basis),
-                    project(c.position, basis),
-                ],
-                depth: (a.position + b.position + c.position).dot(basis.forward) / 3.0,
-                color: shaded_material(a, b, c, basis),
-            });
-        }
-    }
-    tris
+            let positions = [a, b, c].map(|vertex| transform.transform_point3(vertex.position));
+            let normal = [a, b, c]
+                .into_iter()
+                .map(|vertex| transform.transform_vector3(vertex.normal))
+                .sum::<Vec3>()
+                .normalize_or_zero();
+            ProjectedTri {
+                p: positions.map(|position| project(position, basis)),
+                depth: positions.into_iter().sum::<Vec3>().dot(basis.forward) / 3.0,
+                color: shaded_material(normal, a.material, basis),
+            }
+        })
+        .collect()
 }
 
 fn camera_basis(camera: &ReviewCameraSpec) -> CameraBasis {
@@ -170,15 +232,9 @@ fn to_screen(point: Vec2, centre: Vec2, scale: f32, width: u32, height: u32) -> 
     Vec2::new(width as f32 * 0.5 + p.x, height as f32 * 0.5 - p.y)
 }
 
-fn shaded_material(
-    a: &GeometryVertex,
-    b: &GeometryVertex,
-    c: &GeometryVertex,
-    basis: &CameraBasis,
-) -> [u8; 4] {
-    let normal = (a.normal + b.normal + c.normal).normalize_or_zero();
+fn shaded_material(normal: Vec3, material: MaterialRole, basis: &CameraBasis) -> [u8; 4] {
     let light = (0.55 + 0.45 * normal.dot(-basis.forward).abs()).clamp(0.35, 1.0);
-    let base = review_material_color(a.material);
+    let base = review_material_color(material);
     [
         (f32::from(base[0]) * light) as u8,
         (f32::from(base[1]) * light) as u8,

@@ -36,6 +36,7 @@ impl MeshBuilder {
         }
 
         let profile_len = spec.profile.len() as u32;
+        let surface_index_start = self.indices.len();
         for segment in 0..spec.segments as u32 {
             let next = (segment + 1) % spec.segments as u32;
             for row in 0..profile_len - 1 {
@@ -56,6 +57,13 @@ impl MeshBuilder {
                 self.push_quad_indices_outward([a, b, c, d], face_center - axis_point);
             }
         }
+        let surface_index_end = self.indices.len();
+        self.rebuild_surface_normals(
+            base,
+            spec.segments * spec.profile.len(),
+            surface_index_start,
+            surface_index_end,
+        );
         if cap_ends {
             self.push_revolve_cap(origin, &spec, base, 0, -axis_vector(spec.axis));
             self.push_revolve_cap(
@@ -67,6 +75,34 @@ impl MeshBuilder {
             );
         }
         self
+    }
+
+    fn rebuild_surface_normals(
+        &mut self,
+        base: u32,
+        vertex_count: usize,
+        index_start: usize,
+        index_end: usize,
+    ) {
+        let mut sums = vec![Vec3::ZERO; vertex_count];
+        for tri in self.indices[index_start..index_end].chunks_exact(3) {
+            let [a, b, c] = [tri[0] as usize, tri[1] as usize, tri[2] as usize];
+            let normal = triangle_normal(
+                self.vertices[a].position,
+                self.vertices[b].position,
+                self.vertices[c].position,
+            )
+            .normalize_or_zero();
+            for &index in tri {
+                sums[(index - base) as usize] += normal;
+            }
+        }
+        for (offset, sum) in sums.into_iter().enumerate() {
+            let normal = sum.normalize_or_zero();
+            if normal != Vec3::ZERO {
+                self.vertices[base as usize + offset].normal = normal;
+            }
+        }
     }
 
     fn push_quad_indices_outward(&mut self, indices: [u32; 4], outward: Vec3) {

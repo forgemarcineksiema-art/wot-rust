@@ -1,5 +1,34 @@
 use game_core::{HitboxProfile, VehicleBlueprint, VehicleKind};
-use vehicle_geometry::{MaterialRole, SmoothingGroup, SubmeshKind, bake_vehicle};
+use vehicle_geometry::{
+    GearPart, MaterialRole, RunningGearKinematics, SmoothingGroup, SubmeshKind, bake_vehicle,
+    running_gear_placements,
+};
+
+#[test]
+fn road_wheel_rows_stay_outside_the_lower_hull_tub() {
+    for kind in VehicleKind::ALL {
+        let Some(blueprint) = VehicleBlueprint::for_vehicle(kind) else {
+            continue;
+        };
+        let Some(kin) = RunningGearKinematics::for_vehicle(kind) else {
+            continue;
+        };
+        let innermost_center = running_gear_placements(&kin, 0.0, 0.0)
+            .iter()
+            .filter(|placement| {
+                placement.part == GearPart::RoadWheel && placement.transform.w_axis.x > 0.0
+            })
+            .map(|placement| placement.transform.w_axis.x)
+            .fold(f32::INFINITY, f32::min);
+        let inner_face = innermost_center - kin.wheel_half_width;
+
+        assert!(
+            inner_face >= blueprint.hull.lower_half_width - 1.0e-4,
+            "{kind:?} innermost wheel face x={inner_face:.3} penetrates lower hull side x={:.3}",
+            blueprint.hull.lower_half_width
+        );
+    }
+}
 
 /// The migrated T-54's visible body (hull + turret, tracks included) must sit inside the collision
 /// box the blueprint derives — what you see is what you hit. The gun barrel is excluded by design
@@ -50,13 +79,10 @@ fn t54_blueprint_hull_is_a_narrow_box_beside_exposed_tracks() {
         })
         .map(|vertex| vertex.position.x.abs())
         .fold(0.0_f32, f32::max);
-    let gear_side_x = hull
-        .mesh
-        .vertices()
-        .iter()
-        .filter(|vertex| matches!(vertex.material, MaterialRole::TrackMetal | MaterialRole::Rubber))
-        .map(|vertex| vertex.position.x.abs())
-        .fold(0.0_f32, f32::max);
+    // The belt and wheels are runtime-composed instances rather than fused hull vertices.
+    let gear = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951)
+        .expect("T-54 has runtime running gear");
+    let gear_side_x = gear.link_x.abs() + gear.band_half_width;
 
     assert!(
         body_side_x <= blueprint.hull.half_width + 0.03,

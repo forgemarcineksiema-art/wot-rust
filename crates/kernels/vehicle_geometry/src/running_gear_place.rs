@@ -131,22 +131,13 @@ fn place_side(
             transform: Mat4::from_translation(Vec3::new(side_sign * wheel_x, y, z))
                 * Mat4::from_rotation_x(wheel_spin),
         });
-        // The interleaved gear is a SANDWICH, not two files: every outer-row axle carries a
-        // second disc on the deep plane (past the inner row), so the flank reads as the dense
-        // three-plane Schachtellaufwerk of the photographs instead of a dark slab with wheels
-        // (the 2026-07 photo audit's Tiger finding). Single-file layouts skip this entirely.
-        if kin.wheel_overlap_dx > 0.0 && index % 2 == 0 {
-            let deep_x = kin.wheel_x - 2.0 * kin.wheel_overlap_dx;
-            out.push(GearPlacement {
-                part: GearPart::RoadWheel,
-                transform: Mat4::from_translation(Vec3::new(side_sign * deep_x, y, z))
-                    * Mat4::from_rotation_x(wheel_spin),
-            });
-        }
-        out.push(GearPlacement {
-            part: GearPart::SwingArm,
-            transform: crate::running_gear_arms::swing_arm_transform(kin, side_sign, z, lift),
-        });
+        // One authored axle produces one visible wheel unit. Alternating axles form the two
+        // overlapping planes. A previous presentation-only duplicate put every even axle on a
+        // THIRD, deeper plane; that invented row crossed the blueprint's lower hull side on the
+        // Tiger II, Jagdtiger and Panther II and visibly disappeared into the tub.
+    }
+    for transform in crate::running_gear_arms::suspension_transforms(kin, side_sign, travel) {
+        out.push(GearPlacement { part: GearPart::SwingArm, transform });
     }
 
     // Return rollers carry the taut top run and spin with the belt passing over them.

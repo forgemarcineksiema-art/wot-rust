@@ -222,53 +222,6 @@ impl BeltPath {
         }
     }
 
-    pub(crate) fn y_bot(&self) -> f32 {
-        self.y_bot
-    }
-
-    /// Wrap-arc geometry for the static band: `(radius, end_cy, end_cz, theta_start)`. The
-    /// rear wrap spans `theta_start .. -3PI/2` (tangent point -> rear-most -> top); the front
-    /// wrap is its Z-mirror.
-    pub(crate) fn wrap_arc(&self) -> (f32, f32, f32, f32) {
-        (self.r, self.end_cy, self.end_cz, self.theta_start)
-    }
-
-    pub(crate) fn bottom_end_z(&self) -> f32 {
-        self.bottom_end_z
-    }
-
-    /// Rear ramp endpoint on the wrap side, `(z, y)`; the front ramp is its Z-mirror.
-    pub(crate) fn rear_ramp_end(&self) -> (f32, f32) {
-        (
-            -self.bottom_end_z + self.ramp_dir.0 * self.ramp_len,
-            self.y_bot + self.ramp_dir.1 * self.ramp_len,
-        )
-    }
-
-    /// The top run sampled as a dense polyline `(z, y)` (rear→front), `subdiv` points per
-    /// segment — the static band extrudes these very chords, so band and links agree.
-    pub(crate) fn top_polyline(&self, subdiv: usize) -> Vec<(f32, f32)> {
-        let subdiv = subdiv.max(1);
-        let mut out = Vec::with_capacity(self.top.len() * subdiv + 1);
-        if let Some(first) = self.top.first() {
-            out.push((first.z0, first.y0));
-        }
-        for seg in self.top.iter() {
-            for k in 1..=subdiv {
-                let u = k as f32 / subdiv as f32;
-                let chord_y = seg.y0 + (seg.y1 - seg.y0) * u;
-                let hang = seg.sag * (std::f32::consts::PI * u).sin();
-                let y = if seg.floor.is_finite() {
-                    (chord_y - hang).max(seg.floor)
-                } else {
-                    chord_y - hang
-                };
-                out.push((seg.z0 + (seg.z1 - seg.z0) * u, y));
-            }
-        }
-        out
-    }
-
     /// Length of the closed loop (bottom run, two ramps, two end wraps, top run).
     pub(crate) fn length(&self) -> f32 {
         2.0 * self.bottom_end_z + 2.0 * (self.ramp_len + self.arc_len) + self.top_len

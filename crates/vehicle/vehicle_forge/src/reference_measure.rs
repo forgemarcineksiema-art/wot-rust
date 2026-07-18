@@ -109,6 +109,30 @@ fn visual_hull_bounds(vehicle: &BakedVehicle) -> Option<MeshBounds> {
     Some(bounds)
 }
 
+/// Bounds of what a production review actually draws: all baked submeshes plus the rest-pose
+/// runtime running gear. Semantic part bounds for tracks and wheels must be checked against this
+/// composed envelope, not against the static hull bake alone.
+pub fn composed_visual_bounds(vehicle: &BakedVehicle) -> Option<MeshBounds> {
+    let mut bounds: Option<MeshBounds> = None;
+    for submesh in vehicle.submeshes() {
+        if let Some(submesh_bounds) = submesh.mesh.bounds() {
+            bounds = Some(match bounds {
+                Some(existing) => existing.union(submesh_bounds),
+                None => submesh_bounds,
+            });
+        }
+    }
+    if let Some(kin) = RunningGearKinematics::for_vehicle(vehicle.kind())
+        && let Some(gear_bounds) = running_gear_bounds(&kin)
+    {
+        bounds = Some(match bounds {
+            Some(existing) => existing.union(gear_bounds),
+            None => gear_bounds,
+        });
+    }
+    bounds
+}
+
 fn running_gear_bounds(kin: &RunningGearKinematics) -> Option<MeshBounds> {
     let road_wheel = road_wheel_unit_mesh(kin);
     let idler = idler_unit_mesh(kin);

@@ -92,8 +92,8 @@ pub(crate) fn tiger_i_parts(bp: &VehicleBlueprint) -> Vec<ForgePart> {
             Vec3::new(0.0, track_mid_y, 0.0),
             Vec3::new(-t.outer_x, wheel_bottom, t.wheel_first_z - t.wheel_radius),
             Vec3::new(t.outer_x, wheel_top, t.wheel_last_z + t.wheel_radius),
-            "Schachtellaufwerk sandwich: even axles carry outer AND deep-plane discs, odd axles \
-             ride the inner row — three visual planes, no return rollers.",
+            "Schachtellaufwerk stagger: even axles ride the outer row and odd axles the inner \
+             row — two visual planes, one wheel unit per axle, no return rollers.",
         ),
         part(
             ForgePartKind::Idler,

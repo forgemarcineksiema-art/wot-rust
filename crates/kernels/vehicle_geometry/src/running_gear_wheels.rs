@@ -66,23 +66,10 @@ fn dished_wheel(kin: &RunningGearKinematics, rubber_tire: bool) -> GeometryMesh 
     let body_half = half_w * 0.92;
 
     let mut builder = MeshBuilder::new()
-        // Closed conical dish: proud at the hub, falling to the rim seat on both faces.
-        .append(
-            &MeshBuilder::new()
-                .revolve(RevolveSpec {
-                    profile: vec![
-                        ProfilePoint::new(r * 0.16, body_half * 0.62),
-                        ProfilePoint::new(r * 0.88, body_half * 0.16),
-                        ProfilePoint::new(r * 0.88, -body_half * 0.16),
-                        ProfilePoint::new(r * 0.16, -body_half * 0.62),
-                    ],
-                    axis: Axis::X,
-                    segments: seg,
-                    material: MaterialRole::TrackMetal,
-                    smoothing: SG_WHEEL,
-                })
-                .build(),
-        )
+        // Closed conical dish with separate front, rim and rear bands. Keeping the profile corners
+        // split prevents the shallow face normal from smoothing into the radial rim normal and
+        // turning the whole plate into a dark hemisphere under directional light.
+        .append(&dish_shell(r, body_half, seg))
         // Proud hub cap.
         .append(&wheel_disc_at(0.0, r * 0.20, half_w * 1.05, seg, MaterialRole::TrackMetal));
     // The bolt ring on both faces: the dish read is the bolts.
@@ -94,7 +81,7 @@ fn dished_wheel(kin: &RunningGearKinematics, rubber_tire: bool) -> GeometryMesh 
             builder = builder.append(
                 &MeshBuilder::new()
                     .extrude(
-                        Vec3::new(side * body_half * 0.40, sin * r * 0.52, cos * r * 0.52),
+                        Vec3::new(side * body_half * 1.02, sin * r * 0.52, cos * r * 0.52),
                         ExtrudeSpec {
                             section: vec![
                                 Vec2::new(-0.018, -0.018),
@@ -120,10 +107,14 @@ fn dished_wheel(kin: &RunningGearKinematics, rubber_tire: bool) -> GeometryMesh 
             &MeshBuilder::new()
                 .revolve(RevolveSpec {
                     profile: vec![
-                        ProfilePoint::new(r * 0.84, -half_w),
+                        ProfilePoint::new(r * 0.86, -half_w),
                         ProfilePoint::new(r, -half_w * 0.75),
                         ProfilePoint::new(r, half_w * 0.75),
-                        ProfilePoint::new(r * 0.84, half_w),
+                        ProfilePoint::new(r * 0.86, half_w),
+                        // Close the ring on its INNER circumference. Without this wall the
+                        // steel band is a hollow open tube; an oblique camera can see straight
+                        // through it behind the recessed dish face.
+                        ProfilePoint::new(r * 0.86, -half_w),
                     ],
                     axis: Axis::X,
                     segments: seg,
@@ -134,6 +125,34 @@ fn dished_wheel(kin: &RunningGearKinematics, rubber_tire: bool) -> GeometryMesh 
         );
     }
     builder.build()
+}
+
+fn dish_shell(r: f32, body_half: f32, segments: usize) -> GeometryMesh {
+    let band = |profile| {
+        MeshBuilder::new()
+            .revolve(RevolveSpec {
+                profile,
+                axis: Axis::X,
+                segments,
+                material: MaterialRole::TrackMetal,
+                smoothing: SG_WHEEL,
+            })
+            .build()
+    };
+    MeshBuilder::new()
+        .append(&band(vec![
+            ProfilePoint::new(r * 0.16, body_half * 1.04),
+            ProfilePoint::new(r * 0.88, body_half),
+        ]))
+        .append(&band(vec![
+            ProfilePoint::new(r * 0.88, body_half),
+            ProfilePoint::new(r * 0.88, -body_half),
+        ]))
+        .append(&band(vec![
+            ProfilePoint::new(r * 0.88, -body_half),
+            ProfilePoint::new(r * 0.16, -body_half * 1.04),
+        ]))
+        .build()
 }
 
 /// One return roller: a small rubber-rimmed carrier wheel for the top run (IS family), centred
@@ -158,6 +177,7 @@ fn rubber_band(r: f32, half_w: f32, segments: usize) -> GeometryMesh {
                 ProfilePoint::new(r, -half_w * 0.8),
                 ProfilePoint::new(r, half_w * 0.8),
                 ProfilePoint::new(r * 0.70, half_w),
+                ProfilePoint::new(r * 0.70, -half_w),
             ],
             axis: Axis::X,
             segments,
@@ -220,7 +240,7 @@ fn spoke_arm(
 }
 
 /// A single centred rubber tire whose tread dips to a groove in the middle, giving the T-54 dual-tire
-/// read as *one* concentric piece. Built as an uncapped surface of revolution so it rings the rim
+/// read as *one* concentric piece. Built as a closed annular surface of revolution so it rings the rim
 /// without a disc cap that would cover the steel face. Its side lips run inward to 0.86 r —
 /// radially UNDER the steel ring's outer wall (0.895 r) on a wider plane — so no annular window
 /// opens between tire and ring (an open ring flickers as the spokes sweep behind it).
@@ -239,6 +259,9 @@ fn dual_tire(r: f32, half_w: f32, segments: usize) -> GeometryMesh {
                 ProfilePoint::new(r, half_w * 0.80),
                 ProfilePoint::new(r * 0.91, half_w),
                 ProfilePoint::new(r * 0.86, half_w),
+                // Inner cylindrical wall: closes the tire rather than exposing a hollow
+                // annulus between the proud side lip and the recessed steel wheel face.
+                ProfilePoint::new(r * 0.86, -half_w),
             ],
             axis: Axis::X,
             segments,

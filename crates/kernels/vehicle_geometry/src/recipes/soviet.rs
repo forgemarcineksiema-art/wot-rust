@@ -17,8 +17,8 @@ use super::{
     GunPlan, HullPlan, RunningGear, SG_CAST, add_british_cupola, add_broad_mantlet_socket,
     add_commander_periscope, add_cupola, add_flush_ring_hatch, add_mantlet_socket,
     add_running_gear, add_soviet_slit_cupola, add_t54_mantlet_socket, add_turret_ring, assemble,
-    blueprint_running_gear, blueprint_skirts, build_gun, build_gun_with_mantlet_scale,
-    cast_turret_shell, hull_body, shade_hull, t54_hull, t54_turret_front,
+    blueprint_skirts, build_gun, build_gun_with_mantlet_scale, cast_turret_shell, hull_body,
+    shade_hull, t54_hull, t54_turret_front,
 };
 use crate::{BakedVehicle, GeometryMesh, MaterialRole, MeshBuilder};
 
@@ -165,7 +165,6 @@ pub(crate) fn t54_1951(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVe
     let bp = super::active_blueprint(VehicleKind::T54_1951).expect("T-54 has a blueprint");
     let hull = shade_hull(
         t54_hull(&bp.hull, &bp.track)
-            .append(&blueprint_running_gear(&bp.track))
             .append(&super::deck_details::t54_family_deck(&bp))
             .append(&blueprint_skirts(&bp.hull, &bp.track))
             .build(),

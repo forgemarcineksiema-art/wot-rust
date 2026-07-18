@@ -74,9 +74,7 @@ mod turret_fittings;
 
 pub(crate) use armament::{GunPlan, build_gun, build_gun_with_mantlet_scale};
 pub(crate) use chassis::{HullPlan, RunningGear, add_running_gear, hull_body, shade_hull};
-pub(crate) use chassis_blueprint::{
-    blueprint_prism_hull, blueprint_running_gear, blueprint_skirts,
-};
+pub(crate) use chassis_blueprint::{blueprint_prism_hull, blueprint_skirts};
 pub(crate) use t54::{t54_hull, t54_turret_front};
 
 pub(crate) use turret_fittings::{
