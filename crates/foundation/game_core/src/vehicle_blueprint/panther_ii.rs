@@ -86,7 +86,7 @@ pub(super) fn panther_ii_blueprint() -> VehicleBlueprint {
             // The low cupola sits close to the centreline — the converged roof is narrow.
             cupola_x: -0.22,
             cupola_z: -0.55,
-            cupola_radius: 0.36,
+            cupola_radius: 0.31,
             plan_half_width: 1.02,
             plan_half_length: 1.15,
             mantlet_radius: 0.30,

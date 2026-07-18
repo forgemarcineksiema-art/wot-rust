@@ -243,3 +243,62 @@ fn t54_mantlet_socket_visibly_seats_the_moving_mask() {
         "T-54 socket radius {socket_radius:.2} should visibly frame moving mantlet radius {moving_mantlet_radius:.2}"
     );
 }
+
+/// Track-autopsy locks (2026-07-18, user report): bow furniture must CLEAR the belt's wrap
+/// circles, and a cupola's footprint must sit INSIDE its turret roof plan. The Tiger II's
+/// fender flap used to slice through the climbing shoes, and its cupola hung 15 cm past the
+/// Henschel roof edge — both placed by eye instead of by clearance math.
+#[test]
+fn bow_furniture_clears_the_wrap_and_cupolas_sit_on_their_roofs() {
+    for kind in VehicleKind::ALL {
+        let Some(bp) = VehicleBlueprint::for_vehicle(kind) else {
+            continue;
+        };
+        let vehicle = bake_vehicle(kind).unwrap_or_else(|e| panic!("{kind:?} should bake: {e}"));
+        let hull = vehicle.submesh(SubmeshKind::Hull).expect("hull submesh");
+
+        // (1) No hull-submesh vertex inside either wrap circle (belt outer envelope) within
+        // the band's x range. The static band itself lives in the hull submesh ON that
+        // circle, so the test allows the band's own shell and flags anything DEEPER.
+        let wrap_outer = bp.track.end_radius + 0.02 + 0.055;
+        let band_mid = (bp.track.inner_x + bp.track.outer_x) * 0.5;
+        let band_half = (bp.track.outer_x - bp.track.inner_x) * 0.5;
+        for end_sign in [-1.0_f32, 1.0] {
+            let (cy, cz) = (bp.track.end_y, end_sign * bp.track.end_z);
+            let intruder = hull.mesh.vertices().iter().find(|v| {
+                // Strictly INTERIOR to the band: fittings touching the band's inner/outer
+                // planes (the hull tub wall runs right beside the belt) are honest neighbours.
+                let in_band = (v.position.x.abs() - band_mid).abs() < band_half - 0.02;
+                if !in_band {
+                    return false;
+                }
+                let dy = v.position.y - cy;
+                let dz = v.position.z - cz;
+                // Strictly inside the belt envelope, past the band's own shell thickness.
+                (dy * dy + dz * dz).sqrt() < wrap_outer - 0.09
+            });
+            assert!(
+                intruder.is_none(),
+                "{kind:?}: hull fitting at {:?} intrudes into the {} wrap circle",
+                intruder.map(|v| v.position),
+                if end_sign > 0.0 { "front" } else { "rear" }
+            );
+        }
+
+        // (2) The cupola footprint stays inside the roof plan: reach = |cupola_x| + radius
+        // must not pass the roof's half-width at the cupola's station (walls lean
+        // side_slope_deg between ring and roof). Skipped for the casemate (no cupola) and
+        // the cast domes (their roof cap is measured by the crown test instead).
+        if matches!(kind, VehicleKind::TigerI | VehicleKind::TigerII | VehicleKind::PantherII) {
+            let t = &bp.turret;
+            let side_in = (t.roof_y - t.ring_y) * t.side_slope_deg.to_radians().tan();
+            let roof_half = t.plan_half_width - side_in;
+            let reach = t.cupola_x.abs() + t.cupola_radius;
+            assert!(
+                reach <= roof_half + 0.01,
+                "{kind:?}: cupola reaches {reach:.3} past the {roof_half:.3} roof half-width \
+                 — the drum hangs over the sloped wall in air"
+            );
+        }
+    }
+}

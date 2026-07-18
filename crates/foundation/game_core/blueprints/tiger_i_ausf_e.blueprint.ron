@@ -59,7 +59,7 @@ BlueprintFile(
         rear_slope_deg: 0.0,
         cupola_x: -0.55,
         cupola_z: -0.45,
-        cupola_radius: 0.40,
+        cupola_radius: 0.33,
         plan_half_width: 1.0,
         plan_half_length: 1.25,
         mantlet_radius: 0.34,
