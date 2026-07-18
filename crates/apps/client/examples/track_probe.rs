@@ -90,7 +90,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         renderer.set_vehicle_render_frame(&ctx, &render_frame);
 
         // World-space: vehicle yaw 0, so hull +z is world +z; track plane at x = cx + track_x.
+        let axle_y = ground + 0.45;
         let views = [
+            // Dead side-on at axle height, long lens — the user's review angle.
+            ("side", [cx + track_x + 9.0, axle_y + 0.25, cz], [cx + track_x, axle_y + 0.15, cz]),
             // The driven end wrap, seen from just outside and slightly ahead.
             (
                 "wrap",
