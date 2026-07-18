@@ -150,9 +150,14 @@ fn tow_hooks(mut builder: MeshBuilder, bp: &VehicleBlueprint, stations: &[f32]) 
 fn german_bow_flaps(mut builder: MeshBuilder, bp: &VehicleBlueprint) -> MeshBuilder {
     let track = &bp.track;
     let band_half = ((track.outer_x - track.inner_x) * 0.5).max(0.05);
-    let hinge_y = bp.hull.sponson_y + 0.02;
-    let hinge_z = track.end_z - 0.10;
-    let droop_dz = 0.55;
+    // Clearance math (track autopsy): the belt wraps the driven end on a circle of radius
+    // wrap_r + plate + pins around (end_y, end_z). The flap hinges ABOVE that circle's top
+    // and droops AHEAD of its front edge — the first version hinged at end_z - 0.10 and cut
+    // straight through the climbing shoes.
+    let wrap_outer = track.end_radius + 0.02 + 0.055;
+    let hinge_y = (track.end_y + wrap_outer + 0.03).max(bp.hull.sponson_y + 0.02);
+    let hinge_z = track.end_z + 0.12;
+    let droop_dz = 0.45;
     let droop_dy = 0.22;
     for sign in [-1.0_f32, 1.0] {
         builder = builder
@@ -405,13 +410,13 @@ fn german_bow(mut builder: MeshBuilder, bp: &VehicleBlueprint, hatch_r: f32) -> 
 }
 
 pub(crate) fn tiger_i_deck(bp: &VehicleBlueprint) -> GeometryMesh {
-    let b = german_bow(MeshBuilder::new(), bp, 0.24);
+    let b = german_bow(MeshBuilder::new(), bp, 0.21);
     let b = tow_hooks(b, bp, &[bp.hull.half_len - 0.14, -bp.hull.half_len + 0.14]);
     engine_deck_german(b, bp)
 }
 
 pub(crate) fn tiger_ii_deck(bp: &VehicleBlueprint) -> GeometryMesh {
-    let b = german_bow(MeshBuilder::new(), bp, 0.24);
+    let b = german_bow(MeshBuilder::new(), bp, 0.21);
     let b = tow_hooks(b, bp, &[bp.hull.half_len - 0.14, -bp.hull.half_len + 0.14]);
     let b = german_exhaust_stacks(b, bp);
     let b = german_bow_flaps(b, bp);
@@ -437,7 +442,7 @@ pub(crate) fn panther_ii_deck(bp: &VehicleBlueprint) -> GeometryMesh {
     let mut b = MeshBuilder::new();
     // Two round roof hatches (driver left, radio operator right) with hinge and handle.
     let hatch_z = edge - 0.42;
-    if !turret_covers(bp, hatch_z, 0.23) {
+    if !turret_covers(bp, hatch_z, 0.21) {
         for sign in [-1.0_f32, 1.0] {
             b = round_hatch(
                 b,
@@ -485,26 +490,17 @@ pub(crate) fn panther_ii_deck(bp: &VehicleBlueprint) -> GeometryMesh {
     // Curved front fender sweeps over the sprockets: three chained slanted segments per side
     // approximating the Panther's quarter-round mudguard.
     let band_half = ((bp.track.outer_x - bp.track.inner_x) * 0.5).max(0.05);
+    // Clearance math (track autopsy): the chain rides ABOVE the wrap circle's top and only
+    // drops once past the circle's front edge (end_z + wrap_outer) — the first chain started
+    // behind the sprocket axle and read as slamming into the climbing shoes.
+    let wrap_outer = bp.track.end_radius + 0.02 + 0.055;
+    let crown_y = (bp.track.end_y + wrap_outer + 0.03).max(hull.sponson_y + 0.04);
+    let front = bp.track.end_z + wrap_outer;
     let sweep = [
         // (z0, y0, z1, y1) segment chain, hull-local, front positive.
-        (
-            bp.track.end_z - 0.25,
-            hull.sponson_y + 0.06,
-            bp.track.end_z + 0.30,
-            hull.sponson_y + 0.04,
-        ),
-        (
-            bp.track.end_z + 0.30,
-            hull.sponson_y + 0.04,
-            bp.track.end_z + 0.58,
-            hull.sponson_y - 0.14,
-        ),
-        (
-            bp.track.end_z + 0.58,
-            hull.sponson_y - 0.14,
-            bp.track.end_z + 0.70,
-            hull.sponson_y - 0.40,
-        ),
+        (bp.track.end_z - 0.10, crown_y, front + 0.02, crown_y - 0.02),
+        (front + 0.02, crown_y - 0.02, front + 0.26, crown_y - 0.20),
+        (front + 0.26, crown_y - 0.20, front + 0.38, crown_y - 0.46),
     ];
     for sign in [-1.0_f32, 1.0] {
         for &(z0, y0, z1, y1) in &sweep {
@@ -540,7 +536,7 @@ pub(crate) fn jagdtiger_deck(bp: &VehicleBlueprint) -> GeometryMesh {
         b = round_hatch(
             b,
             Vec3::new(sign * bp.hull.lower_half_width * 0.48, bp.hull.deck_y + 0.002, hatch_z),
-            0.23,
+            0.21,
             sign,
         );
     }

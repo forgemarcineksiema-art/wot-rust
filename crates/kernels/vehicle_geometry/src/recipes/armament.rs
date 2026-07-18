@@ -149,15 +149,32 @@ pub(crate) fn build_gun_with_mantlet_scale(
         }
     }
     // The bore: every gun ends in a HOLE, not a plug (audit #4 — "którędy pocisk wyleci?").
-    // A recessed dark cylinder sits inside the muzzle face; braked guns fire through the
-    // blast tube, so the bore recesses into the tube's face instead of the bare barrel's.
+    // v2 (user report: the flush dark disc still read as a painted circle): the muzzle face
+    // is an ANNULUS at exactly muzzle_z (the derived muzzle mount stays honest) and the bore
+    // is a dark FUNNEL receding 11 cm into the tube — the taper self-shades, so the opening
+    // reads as depth from any angle instead of a flat cap.
+    let face_r = plan.muzzle_brake.map_or(plan.radius, |b| (plan.radius * 1.08).min(b * 0.62));
     let bore_r = plan.radius * 0.62;
     builder = builder.capped_revolve_at(
         origin,
         RevolveSpec {
             profile: vec![
-                ProfilePoint::new(bore_r, plan.muzzle_z - 0.055),
+                ProfilePoint::new(face_r, plan.muzzle_z - 0.001),
+                ProfilePoint::new(face_r, plan.muzzle_z),
                 ProfilePoint::new(bore_r, plan.muzzle_z),
+            ],
+            axis: Axis::Z,
+            segments: plan.segments,
+            material: MaterialRole::BarrelSteel,
+            smoothing: SG_BARREL,
+        },
+    );
+    builder = builder.capped_revolve_at(
+        origin,
+        RevolveSpec {
+            profile: vec![
+                ProfilePoint::new(bore_r, plan.muzzle_z - 0.004),
+                ProfilePoint::new(bore_r * 0.45, plan.muzzle_z - 0.11),
             ],
             axis: Axis::Z,
             segments: plan.segments,
