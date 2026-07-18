@@ -418,8 +418,114 @@ pub(crate) fn tiger_ii_deck(bp: &VehicleBlueprint) -> GeometryMesh {
     engine_deck_german(b, bp)
 }
 
+/// Panther II (dossier PII.1/PII.3, Fort Benning): two round roof hatches like the family,
+/// but the BOW furniture is the Panther's own — the MG Kugelblende in the glacis right, the
+/// driver's twin periscope hoods at the roof front edge left, ONE Bosch headlight standing
+/// ON the glacis left (F4 — not the family's central deck light), and the CURVED front
+/// fender sweeps over the sprockets (F3 — three chained slanted segments, not the Tiger II's
+/// single drooping flap).
 pub(crate) fn panther_ii_deck(bp: &VehicleBlueprint) -> GeometryMesh {
-    let b = german_bow(MeshBuilder::new(), bp, 0.23);
+    let hull = &bp.hull;
+    let edge = deck_front_edge(bp);
+    let glacis = hull.glacis_slope_deg.to_radians();
+    // A point on the glacis plane at height `y` (the prism folds at the sponson step),
+    // pushed `standoff` along the plate normal.
+    let on_glacis = |x: f32, y: f32, standoff: f32| -> Vec3 {
+        let run = (y - hull.sponson_y).max(0.0) * glacis.tan();
+        Vec3::new(x, y, hull.half_len - run) + Vec3::new(0.0, glacis.cos(), glacis.sin()) * standoff
+    };
+    let mut b = MeshBuilder::new();
+    // Two round roof hatches (driver left, radio operator right) with hinge and handle.
+    let hatch_z = edge - 0.42;
+    if !turret_covers(bp, hatch_z, 0.23) {
+        for sign in [-1.0_f32, 1.0] {
+            b = round_hatch(
+                b,
+                Vec3::new(sign * hull.lower_half_width * 0.5, hull.deck_y + 0.002, hatch_z),
+                0.23,
+                sign,
+            );
+        }
+    }
+    // Driver's twin periscope hoods at the roof front edge, left side.
+    for x in [-0.72_f32, -0.46] {
+        b = b.plate_box(
+            Vec3::new(x, hull.deck_y + 0.035, edge - 0.10),
+            Vec3::new(0.055, 0.035, 0.055),
+            0.015,
+            MaterialRole::RolledArmor,
+            SG_HARD,
+        );
+    }
+    // The MG Kugelblende in the glacis right — a cast ball seated in the 55-degree plate.
+    let ball = on_glacis(0.60, 1.42, 0.0);
+    b = b.capped_revolve_at(
+        Vec3::new(ball.x, ball.y, 0.0),
+        RevolveSpec {
+            profile: vec![
+                ProfilePoint::new(0.13, ball.z - 0.05),
+                ProfilePoint::new(0.09, ball.z + 0.08),
+            ],
+            axis: crate::Axis::Z,
+            segments: 10,
+            material: MaterialRole::CastArmor,
+            smoothing: SG_HARD,
+        },
+    );
+    // ONE Bosch headlight standing on the glacis LEFT on a short bracket (F4).
+    let light = on_glacis(-0.95, 1.70, 0.10);
+    b = b.plate_box(
+        on_glacis(-0.95, 1.70, 0.05),
+        Vec3::new(0.03, 0.03, 0.05),
+        0.01,
+        MaterialRole::BarrelSteel,
+        SG_HARD,
+    );
+    b = headlight(b, light, 0.075, false);
+    // Curved front fender sweeps over the sprockets: three chained slanted segments per side
+    // approximating the Panther's quarter-round mudguard.
+    let band_half = ((bp.track.outer_x - bp.track.inner_x) * 0.5).max(0.05);
+    let sweep = [
+        // (z0, y0, z1, y1) segment chain, hull-local, front positive.
+        (
+            bp.track.end_z - 0.25,
+            hull.sponson_y + 0.06,
+            bp.track.end_z + 0.30,
+            hull.sponson_y + 0.04,
+        ),
+        (
+            bp.track.end_z + 0.30,
+            hull.sponson_y + 0.04,
+            bp.track.end_z + 0.58,
+            hull.sponson_y - 0.14,
+        ),
+        (
+            bp.track.end_z + 0.58,
+            hull.sponson_y - 0.14,
+            bp.track.end_z + 0.70,
+            hull.sponson_y - 0.40,
+        ),
+    ];
+    for sign in [-1.0_f32, 1.0] {
+        for &(z0, y0, z1, y1) in &sweep {
+            let mid_z = (z0 + z1) * 0.5;
+            b = b.extrude(
+                Vec3::new(sign * bp.track.center_x, 0.0, mid_z),
+                ExtrudeSpec {
+                    section: vec![
+                        Vec2::new(z0 - mid_z, y0 - 0.020),
+                        Vec2::new(z1 - mid_z, y1 - 0.020),
+                        Vec2::new(z1 - mid_z, y1),
+                        Vec2::new(z0 - mid_z, y0),
+                    ],
+                    axis: crate::Axis::X,
+                    half_depth: band_half * 0.96,
+                    material: MaterialRole::RolledArmor,
+                    smoothing: SG_HARD,
+                },
+            );
+        }
+    }
     let b = tow_hooks(b, bp, &[bp.hull.half_len - 0.14, -bp.hull.half_len + 0.14]);
     let b = german_exhaust_stacks(b, bp);
     engine_deck_german(b, bp)
