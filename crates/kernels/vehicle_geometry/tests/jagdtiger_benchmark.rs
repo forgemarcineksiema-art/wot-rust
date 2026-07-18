@@ -169,3 +169,81 @@ fn the_hitbox_is_the_researched_body_not_the_legacy_stretch() {
     assert!(((hitbox.center_y_m + hitbox.half_height_m) - 2.95).abs() < 1.0e-6);
     assert!((bp.hull.half_len - 3.90).abs() < 1.0e-6, "the documented 7.80 m hull");
 }
+
+/// The JT.2 dressing locks (dossier PR-JT.1/JT.2): the massive cast collar at the casemate
+/// face, spare-shoe rows LYING ON the 25-degree side walls, flat bow guards over the front
+/// sprockets, and the glacis Kugelblende. Each cites a dossier number; the plain-muzzle
+/// decision is locked in `the_pak44_reaches_past_the_bow` above.
+#[test]
+fn the_jt2_dressing_holds_collar_racks_guards_and_ball() {
+    let bp = blueprint();
+    let baked = bake_vehicle(VehicleKind::Jagdtiger).expect("Jagdtiger bakes");
+    let casemate = &baked.submesh(SubmeshKind::Turret).expect("casemate submesh").mesh;
+    let hull = &baked.submesh(SubmeshKind::Hull).expect("hull submesh").mesh;
+
+    // Cast collar: the SG_MANTLET band spans over a metre — the slight shared ring reads
+    // as a Panther-class mantlet, not the 12.8 cm casting.
+    let mantlet_sg = vehicle_geometry::SmoothingGroup(6);
+    let collar_x: Vec<f32> = casemate
+        .vertices()
+        .iter()
+        .filter(|v| v.smoothing == mantlet_sg)
+        .map(|v| v.position.x)
+        .collect();
+    assert!(!collar_x.is_empty(), "the casemate face carries a cast collar");
+    let collar_w = collar_x.iter().copied().fold(f32::MIN, f32::max)
+        - collar_x.iter().copied().fold(f32::MAX, f32::min);
+    assert!(collar_w > 1.0, "cast collar spans {collar_w:.2} m — the photo shows over a metre");
+
+    // Side racks: TrackMetal shoes on the flank, and every shoe vertex stays AT or UNDER the
+    // leaning armor plane (plus the shoe's own proud thickness) — the fittings rule that
+    // keeps nothing floating in un-hittable air.
+    let lean = bp.turret.side_slope_deg.to_radians().tan();
+    let shoe_z: Vec<f32> = casemate
+        .vertices()
+        .iter()
+        .filter(|v| {
+            v.material == vehicle_geometry::MaterialRole::TrackMetal && v.position.x.abs() > 0.9
+        })
+        .map(|v| {
+            let wall = bp.turret.plan_half_width - (v.position.y - bp.turret.ring_y) * lean;
+            assert!(
+                v.position.x.abs() <= wall + 0.078,
+                "shoe vertex x {:.3} floats {:.3} proud of the leaning wall {:.3}",
+                v.position.x.abs(),
+                v.position.x.abs() - wall,
+                wall
+            );
+            v.position.z
+        })
+        .collect();
+    assert!(!shoe_z.is_empty(), "the casemate flank carries spare-shoe rows");
+    let shoe_run = shoe_z.iter().copied().fold(f32::MIN, f32::max)
+        - shoe_z.iter().copied().fold(f32::MAX, f32::min);
+    assert!(shoe_run > 1.5, "the shoe row runs {shoe_run:.2} m along the flank (4 shoes)");
+
+    // Flat bow guards: hull plate riding just above the sponson ahead of the front sprocket.
+    let guard_vertices = hull
+        .vertices()
+        .iter()
+        .filter(|v| {
+            v.position.z > bp.track.end_z
+                && (v.position.x.abs() - bp.track.center_x).abs() < 0.45
+                && (v.position.y - (bp.hull.sponson_y + 0.03)).abs() < 0.10
+        })
+        .count();
+    assert!(guard_vertices > 0, "flat bow guards cover the front sprockets (F3)");
+
+    // Kugelblende: a cast ball seated in the glacis right of centre.
+    let ball_vertices = hull
+        .vertices()
+        .iter()
+        .filter(|v| {
+            v.material == vehicle_geometry::MaterialRole::CastArmor
+                && (v.position.x - 0.58).abs() < 0.20
+                && (v.position.y - 1.45).abs() < 0.20
+                && v.position.z > 2.0
+        })
+        .count();
+    assert!(ball_vertices > 0, "the bow MG Kugelblende sits in the glacis right");
+}
