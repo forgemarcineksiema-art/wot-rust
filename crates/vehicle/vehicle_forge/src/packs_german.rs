@@ -407,21 +407,16 @@ pub fn panther_ii_reference_pack() -> ReferencePack {
             "https://tank-afv.com/ww2/germany/Panther-II.php",
             "docs/vehicles/panzerkampfwagen-v-panther-ii.md",
         ),
-        // W1 dossier PR-PII.1 (2026-07-18): HULL rows tightened around the measured 1:1 body
-        // (2.021 / 0.298 via Studio — the hull already matches the specimen). The TURRET rows
-        // are authored at the PANTHER G targets the current narrow wedge does NOT meet: their
-        // tolerances are TEMPORARILY widened so this dossier PR stays green while the GOAL
-        // gate is on record before any RON moves (protocol rule).
-        // TODO(W1-panther-ii): PII.2 swaps the wedge for the G turret, then tighten
-        // TurretWidthToHullWidth to ±0.05, TurretLengthToWidth to ±0.08, and
-        // GunProtrusionToHullLength to ±0.03.
+        // W1 dossier PR-PII.1 (2026-07-18): HULL rows tightened around the measured 1:1 body.
+        // PR-PII.2 landed the G turret ON the goal targets (0.600 / 1.127 / 0.290 measured)
+        // and the tolerances closed to their final values — a wedge drifting back fails here.
         {
             let mut ratios = silhouette_ratios(
                 (2.02, 0.06),
                 (0.30, 0.02),
-                (0.60, 0.12),
+                (0.60, 0.05),
                 (0.58, 0.05),
-                (0.29, 0.05),
+                (0.29, 0.03),
                 [
                     "Long sloped Panther hull, longest-legged medium of the German line.",
                     "The Panther silhouette is low for its length.",
@@ -433,8 +428,8 @@ pub fn panther_ii_reference_pack() -> ReferencePack {
             ratios.push(RatioTarget::new(
                 RatioKind::TurretLengthToWidth,
                 1.15,
-                0.35,
-                "G turret plan target ~2.4 over ~2.1 (temp tolerance until PII.2 lands it).",
+                0.08,
+                "G turret plan: 2.30 over the 2.04 beam, bustle included.",
             ));
             ratios.push(RatioTarget::new(
                 RatioKind::RoadWheelDiameterToHullLength,
@@ -481,9 +476,7 @@ pub fn panther_ii_reference_pack() -> ReferencePack {
         DimensionTarget::new(
             DimensionKind::OverallLengthWithGun,
             8.86,
-            // TODO(W1-panther-ii): docelowo +/-0.10 — the current gun reaches 9.03 m; PII.2
-            // pulls the KwK 42 muzzle to the documented 8.86 m with the G turret swap.
-            0.20,
+            0.10,
             ReferenceSource::new(
                 "Panther II dossier",
                 "docs/vehicles/panzerkampfwagen-v-panther-ii.md",

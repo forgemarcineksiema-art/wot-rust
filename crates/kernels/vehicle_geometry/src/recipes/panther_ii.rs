@@ -7,8 +7,8 @@ use game_core::{HitboxProfile, HullShape, MountFrames, TurretShape, VehicleKind}
 use glam::{Vec2, Vec3};
 
 use super::{
-    GunPlan, SG_HARD, add_german_cast_cupola, add_mantlet_socket, add_turret_ring, assemble,
-    blueprint_prism_hull, blueprint_running_gear, build_gun, shade_hull,
+    GunPlan, SG_HARD, add_german_cast_cupola, add_oval_mantlet_socket, add_turret_ring, assemble,
+    blueprint_prism_hull, blueprint_running_gear, build_gun_with_mantlet_scale, shade_hull,
 };
 use crate::{
     Axis, BakedVehicle, GeometryMesh, LoftSection, LoftSpec, MaterialRole, MeshBuilder,
@@ -27,10 +27,12 @@ pub(crate) fn panther_ii(_hitbox: &HitboxProfile, mounts: &MountFrames) -> Baked
 
     let t = &bp.turret;
     let mantlet = Some((t.mantlet_radius, t.mantlet_back_z, t.mantlet_front_z));
-    let turret = add_mantlet_socket(
+    // The G-blende: the curved cast mantlet band spanning the narrow front plate — the same
+    // oval construction as the T-54 mask / Tiger II Turmblende, Panther G's own scales.
+    let turret = add_oval_mantlet_socket(
         add_turret_ring(
             add_german_cast_cupola(
-                schmalturm(t),
+                panther_g_turret(t),
                 t.cupola_x,
                 t.cupola_z,
                 t.roof_y,
@@ -45,28 +47,35 @@ pub(crate) fn panther_ii(_hitbox: &HitboxProfile, mounts: &MountFrames) -> Baked
         ),
         bp.gun.trunnion_y,
         mantlet,
+        2.00,
+        1.10,
         12,
     )
     .build();
 
-    let gun = build_gun(&GunPlan {
-        axis_y: bp.gun.trunnion_y,
-        breech_z: bp.gun.trunnion_z - 0.28,
-        muzzle_z: bp.gun.muzzle_z,
-        radius: bp.gun.barrel_radius,
-        segments: bp.gun.segments,
-        mantlet,
-        evacuator: bp.gun.evacuator,
-        muzzle_brake: bp.gun.muzzle_brake,
-    });
+    let gun = build_gun_with_mantlet_scale(
+        &GunPlan {
+            axis_y: bp.gun.trunnion_y,
+            breech_z: bp.gun.trunnion_z - 0.28,
+            muzzle_z: bp.gun.muzzle_z,
+            radius: bp.gun.barrel_radius,
+            segments: bp.gun.segments,
+            mantlet,
+            evacuator: bp.gun.evacuator,
+            muzzle_brake: bp.gun.muzzle_brake,
+        },
+        2.00,
+        1.10,
+    );
 
     assemble(VehicleKind::PantherII, hull, turret, gun, *mounts)
 }
 
-/// The Schmalturm: a deliberately narrow prism — a small leaned front plate barely wider than
-/// the Saukopf, cheeks opening to the modest beam and converging hard (25°) to a slim roof,
-/// the walls standing ON the armor prism planes at the ring seat.
-fn schmalturm(t: &TurretShape) -> MeshBuilder {
+/// The Panther Ausf. G turret (dossier PII.1, Fort Benning specimen): a NARROW leaned front
+/// plate whose cheeks SPLAY outward in plan all the way to the full beam at the rear third,
+/// closed by a wide flat rear wall with the bustle — the opposite read of the old Schmalturm
+/// wedge, whose cheeks converged rearward. Walls stand ON the armor prism planes at the seat.
+fn panther_g_turret(t: &TurretShape) -> MeshBuilder {
     let front_z = t.ring_z + t.plan_half_length;
     let rear_z = t.ring_z - t.plan_half_length;
     let height = t.roof_y - t.ring_y;
@@ -75,26 +84,29 @@ fn schmalturm(t: &TurretShape) -> MeshBuilder {
         height * t.side_slope_deg.to_radians().tan(),
         height * t.rear_slope_deg.to_radians().tan(),
     );
+    // Front plate half-width ~0.60 (the G plate behind the Blende), full beam from the rear
+    // third back, slight corner chamfers at the rear wall.
     let ring_plan = vec![
-        Vec2::new(0.46, front_z),
-        Vec2::new(t.plan_half_width, front_z - 0.85),
-        Vec2::new(t.plan_half_width, t.ring_z - 0.55),
-        Vec2::new(0.62, rear_z),
-        Vec2::new(-0.62, rear_z),
-        Vec2::new(-t.plan_half_width, t.ring_z - 0.55),
-        Vec2::new(-t.plan_half_width, front_z - 0.85),
-        Vec2::new(-0.46, front_z),
+        Vec2::new(0.60, front_z),
+        Vec2::new(t.plan_half_width, t.ring_z - 0.35),
+        Vec2::new(t.plan_half_width, rear_z + 0.22),
+        Vec2::new(t.plan_half_width - 0.12, rear_z),
+        Vec2::new(-(t.plan_half_width - 0.12), rear_z),
+        Vec2::new(-t.plan_half_width, rear_z + 0.22),
+        Vec2::new(-t.plan_half_width, t.ring_z - 0.35),
+        Vec2::new(-0.60, front_z),
     ];
     let side_roof = t.plan_half_width - side_in;
+    let roof_rear = rear_z + rear_in;
     let roof_plan = vec![
-        Vec2::new(0.36, front_z - front_in),
-        Vec2::new(side_roof, front_z - 0.85),
-        Vec2::new(side_roof, t.ring_z - 0.55),
-        Vec2::new(side_roof - 0.03, rear_z + rear_in),
-        Vec2::new(-(side_roof - 0.03), rear_z + rear_in),
-        Vec2::new(-side_roof, t.ring_z - 0.55),
-        Vec2::new(-side_roof, front_z - 0.85),
-        Vec2::new(-0.36, front_z - front_in),
+        Vec2::new(0.50, front_z - front_in),
+        Vec2::new(side_roof, t.ring_z - 0.35),
+        Vec2::new(side_roof, roof_rear + 0.22),
+        Vec2::new(side_roof - 0.10, roof_rear),
+        Vec2::new(-(side_roof - 0.10), roof_rear),
+        Vec2::new(-side_roof, roof_rear + 0.22),
+        Vec2::new(-side_roof, t.ring_z - 0.35),
+        Vec2::new(-0.50, front_z - front_in),
     ];
     MeshBuilder::new().loft(
         Vec3::ZERO,

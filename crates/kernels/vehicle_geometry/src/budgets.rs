@@ -58,7 +58,7 @@ pub const GOLDEN_BAKE_HASHES: [(VehicleKind, u64); 9] = [
     // Re-recorded for the Panther II blueprint migration: the researched 1:1 wedge (6.87 m
     // hull, steepest German glacis at 55°, 29° leaned sides, narrow Schmalturm, 7 overlapped
     // steel wheels, braked KwK 42) replaces the last legacy German body.
-    (VehicleKind::PantherII, 14_599_770_750_230_314_690_u64),
+    (VehicleKind::PantherII, 4_359_921_945_830_430_743_u64),
     // Re-recorded for the IS-3 finish pass: the signature external fuel drums join the
     // rear fender shelves; the rest of the fleet is untouched.
     (VehicleKind::IS3, 12_611_102_630_333_700_388_u64),
