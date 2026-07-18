@@ -17,12 +17,16 @@ pub struct VehicleBudgets {
 }
 
 /// The lineup-wide budget envelope (min, max) every baked vehicle must sit inside.
+// Hull ceiling raised 2400 -> 2750 (2026-07-18, measured): the belt's wrap ARCS now carry
+// static band skin (four Z-monotonic half-arc lofts per vehicle, ~320 tris) — without it the
+// floor showed straight through the wedge gaps between angled shoes around the sprocket and
+// idler (user report). A fleet-wide loop skin, not per-vehicle detail creep.
 pub const VEHICLE_BUDGETS: VehicleBudgets = VehicleBudgets {
-    hull_tri: (120, 2400),
+    hull_tri: (120, 2750),
     turret_tri: (24, 900),
     gun_tri: (24, 500),
-    vehicle_tri: (250, 3600),
-    vehicle_vert_max: 10_000,
+    vehicle_tri: (250, 3950),
+    vehicle_vert_max: 11_000,
 };
 
 /// The recorded golden bake hash per vehicle. Re-recorded for the fleet fittings pass — driver hatches, headlights, tow hooks and antenna
@@ -42,33 +46,33 @@ pub const GOLDEN_BAKE_HASHES: [(VehicleKind, u64); 9] = [
     // Re-recorded for the T-54 1:1 blueprint reset (documented 6.04 × 3.27 × 2.40 m body,
     // 810 mm wheels, raised idler/sprocket, 2.25 m turret on the 1.75 m roof). The T-55A moves
     // only through the shared Soviet cupola cap; the German vehicles are untouched.
-    (VehicleKind::T54_1951, 8_264_348_529_454_861_916_u64),
+    (VehicleKind::T54_1951, 7_171_457_316_330_083_060_u64),
     // Re-recorded for the W1 late-E detail pass: exhaust shields shroud the twin stacks and
     // four spare track links rack on the lower bow (the Feifel cleaners stay deliberately
     // absent — the modelled variant is a late Ausf. E, which dropped them).
-    (VehicleKind::TigerI, 6_075_188_139_637_256_381_u64),
+    (VehicleKind::TigerI, 9_395_186_549_819_494_053_u64),
     // Re-recorded for the Tiger II blueprint migration: the researched 1:1 sloped body
     // (7.38 m hull, fleet's longest glacis at 50°, 25° leaned upper sides, Henschel prism
     // with bustle, 9 overlapped wheels, braked KwK 43) replaces the legacy stretch.
-    (VehicleKind::TigerII, 12_146_369_799_286_154_238_u64),
+    (VehicleKind::TigerII, 14_267_616_262_472_546_658_u64),
     // Re-recorded for the Jagdtiger blueprint migration: the researched 1:1 casemate
     // (7.80 m hull, superstructure flank continuing the hull's 25° plane, 15° 250 mm face,
     // periscope roof, 9 overlapped wheels, braked PaK 44) replaces the legacy box.
-    (VehicleKind::Jagdtiger, 6_908_463_449_587_764_482_u64),
+    (VehicleKind::Jagdtiger, 8_752_701_303_796_339_670_u64),
     // Re-recorded for the Panther II blueprint migration: the researched 1:1 wedge (6.87 m
     // hull, steepest German glacis at 55°, 29° leaned sides, narrow Schmalturm, 7 overlapped
     // steel wheels, braked KwK 42) replaces the last legacy German body.
-    (VehicleKind::PantherII, 17_597_156_557_597_853_488_u64),
+    (VehicleKind::PantherII, 16_051_614_947_818_571_956_u64),
     // Re-recorded for the IS-3 finish pass: the signature external fuel drums join the
     // rear fender shelves; the rest of the fleet is untouched.
-    (VehicleKind::IS3, 11_862_615_725_462_005_477_u64),
+    (VehicleKind::IS3, 5_893_221_769_746_262_729_u64),
     // Recorded at birth: the Centurion Mk 3 (skirted hull over Horstmann bogie pairs,
     // 57° glacis, cast Mk 3 dome with the bustle bin, clean 20-pounder).
-    (VehicleKind::Centurion, 14_544_434_177_577_601_599_u64),
+    (VehicleKind::Centurion, 5_726_699_543_052_835_079_u64),
     // Recorded at birth: the T-34-85 — the first vehicle authored through the Forge Studio
     // loop (60° glacis, raked sides, five bare Christie wheels with the open gap, low wide
     // -85 cast dome seated forward, clean ZiS-S-53).
-    (VehicleKind::T34_85, 5_863_589_296_684_669_109_u64),
+    (VehicleKind::T34_85, 15_834_053_627_957_387_721_u64),
 ];
 
 /// The golden hash recorded for `kind`, if any.

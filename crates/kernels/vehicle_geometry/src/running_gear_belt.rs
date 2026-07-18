@@ -226,6 +226,13 @@ impl BeltPath {
         self.y_bot
     }
 
+    /// Wrap-arc geometry for the static band: `(radius, end_cy, end_cz, theta_start)`. The
+    /// rear wrap spans `theta_start .. -3PI/2` (tangent point -> rear-most -> top); the front
+    /// wrap is its Z-mirror.
+    pub(crate) fn wrap_arc(&self) -> (f32, f32, f32, f32) {
+        (self.r, self.end_cy, self.end_cz, self.theta_start)
+    }
+
     pub(crate) fn bottom_end_z(&self) -> f32 {
         self.bottom_end_z
     }

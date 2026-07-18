@@ -112,9 +112,27 @@ pub(crate) fn blueprint_running_gear(track: &TrackShape) -> GeometryMesh {
     }
     builder = band_loft(builder, lower);
     builder = band_loft(builder, path.top_polyline(3));
-    // No static wrap drums: the idler and sprocket are render-time instances, and the shoe
-    // links themselves ride the wrap arcs — a drum here just buries the real end wheels
-    // (the old band drew them at the wheel span on the axle line, nowhere near the ends).
+    // The wrap ARCS carry band too (user report: the floor showed straight through the
+    // wedge gaps between angled shoe plates around the sprocket/idler — the loop had no
+    // skin there). Each arc splits at its outermost point into two Z-monotonic halves so
+    // the same band loft covers it; the links still read as the surface, the band only
+    // blocks the see-through.
+    let (wr, wcy, wcz, theta_start) = path.wrap_arc();
+    let arc_stations = |theta_a: f32, theta_b: f32, cz: f32, flip: f32| -> Vec<(f32, f32)> {
+        let steps = 8;
+        (0..=steps)
+            .map(|i| {
+                let t = theta_a + (theta_b - theta_a) * (i as f32 / steps as f32);
+                (flip * (cz + wr * t.cos()), wcy + wr * t.sin())
+            })
+            .collect()
+    };
+    use std::f32::consts::PI;
+    for flip in [-1.0_f32, 1.0] {
+        // Tangent point -> rear-most (z monotonic toward the end), then rear-most -> top.
+        builder = band_loft(builder, arc_stations(theta_start, -PI, -wcz, flip));
+        builder = band_loft(builder, arc_stations(-PI, -1.5 * PI, -wcz, flip));
+    }
     builder.mirror(Axis::X).build()
 }
 

@@ -10,7 +10,8 @@ const EPS: f32 = 1.0e-3;
 // Absolute triangle budgets, tuned to the current lean procedural base. The plan's nominal
 // 8k/4k/1k figures assumed a denser authoring pass; we keep the base cheap (many tanks on screen)
 // and gate the real ladder instead of inflating triangle counts artificially.
-const LOD0_TRI_RANGE: std::ops::RangeInclusive<usize> = 250..=3600;
+// Ceiling follows VEHICLE_BUDGETS.vehicle_tri (raised for the wrap-arc band skin, 2026-07-18).
+const LOD0_TRI_RANGE: std::ops::RangeInclusive<usize> = 250..=3950;
 const LOD1_TRI_RANGE: std::ops::RangeInclusive<usize> = 200..=2000;
 // LOD2 floor lowered 100 -> 80 with the legacy-fleet moving gear: wheels and shoe links left
 // the German hull bakes for render-time instancing, so the slab-sided Jagdtiger legitimately
