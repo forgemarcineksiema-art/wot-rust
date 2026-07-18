@@ -400,32 +400,105 @@ pub fn panther_ii_reference_pack() -> ReferencePack {
         "panther_ii",
         "Panther II",
         vec![VehicleKind::PantherII],
-        "Armored Vehicle Forge reference for the Panther II (prototype/planned variant): the long \
-         sloped Panther hull with seven overlapped steel wheels and the narrow Schmalturm.",
+        "Armored Vehicle Forge reference for the Panther II as the Fort Benning museum specimen:          the up-armoured Panther II hull on Tiger II-commonality steel wheels, carrying the          Panther Ausf. G turret with the 7.5 cm KwK 42 L/70.",
         7,
         heavy_sources(
-            "https://commons.wikimedia.org/wiki/Panther_tank",
-            "https://tank-afv.com/ww2/germany/Panther.php",
+            "https://commons.wikimedia.org/wiki/Category:Panther_II",
+            "https://tank-afv.com/ww2/germany/Panther-II.php",
             "docs/vehicles/panzerkampfwagen-v-panther-ii.md",
         ),
-        // Re-tuned to the blueprint-born 1:1 body (6.87 m hull, 3.42 m beam, 2.99 m tall): the
-        // wedge's ramp makes the hull band deeper than the legacy-tuned target, and the narrow
-        // Schmalturm is a low crest, not a near-hull-height tower.
-        // TODO(W1-panther-ii): zaciśnij tolerancje przy dossier (start = stare wspólne);
-        // dossier przesądzi też konfigurację muzealną (kadłub Panther II + wieża G).
-        silhouette_ratios(
-            (1.97, 0.18),
-            (0.30, 0.06),
-            (0.49, 0.14),
-            (0.58, 0.25),
-            (0.32, 0.16),
-            [
-                "Long sloped medium/heavy hull.",
-                "The 55° ramp carries the hull band deep in the Panther proportion.",
-                "The Schmalturm is the narrowest turret in the German line.",
-                "A low converging turret crest on the wedge, cupola near the centreline.",
-                "Long 7.5 cm reaches well past the sloped glacis.",
-            ],
-        ),
+        // W1 dossier PR-PII.1 (2026-07-18): HULL rows tightened around the measured 1:1 body
+        // (2.021 / 0.298 via Studio — the hull already matches the specimen). The TURRET rows
+        // are authored at the PANTHER G targets the current narrow wedge does NOT meet: their
+        // tolerances are TEMPORARILY widened so this dossier PR stays green while the GOAL
+        // gate is on record before any RON moves (protocol rule).
+        // TODO(W1-panther-ii): PII.2 swaps the wedge for the G turret, then tighten
+        // TurretWidthToHullWidth to ±0.05, TurretLengthToWidth to ±0.08, and
+        // GunProtrusionToHullLength to ±0.03.
+        {
+            let mut ratios = silhouette_ratios(
+                (2.02, 0.06),
+                (0.30, 0.02),
+                (0.60, 0.12),
+                (0.58, 0.05),
+                (0.29, 0.05),
+                [
+                    "Long sloped Panther hull, longest-legged medium of the German line.",
+                    "The Panther silhouette is low for its length.",
+                    "G turret target: wider rounded plan than the wedge (temp tolerance).",
+                    "G turret carries Panther proportions on the deck.",
+                    "KwK 42 L/70 reach at the documented 8.86 m overall (temp tolerance).",
+                ],
+            );
+            ratios.push(RatioTarget::new(
+                RatioKind::TurretLengthToWidth,
+                1.15,
+                0.35,
+                "G turret plan target ~2.4 over ~2.1 (temp tolerance until PII.2 lands it).",
+            ));
+            ratios.push(RatioTarget::new(
+                RatioKind::RoadWheelDiameterToHullLength,
+                0.116,
+                0.008,
+                "800 mm Tiger II-commonality steel wheels on the 6.87 m hull.",
+            ));
+            ratios
+        },
     )
+    // W1 dossier anchors (PR-PII.1) — sources and the museum-specimen configuration live in
+    // docs/vehicles/panzerkampfwagen-v-panther-ii.md.
+    .with_dimensions(vec![
+        DimensionTarget::new(
+            DimensionKind::HullLength,
+            6.87,
+            0.08,
+            ReferenceSource::new(
+                "Panther II dossier",
+                "docs/vehicles/panzerkampfwagen-v-panther-ii.md",
+                "6.87 m hull (Panther-dimensioned prototype hull, thicker plates).",
+            ),
+        ),
+        DimensionTarget::new(
+            DimensionKind::HullWidth,
+            3.42,
+            0.10,
+            ReferenceSource::new(
+                "Panther II dossier",
+                "docs/vehicles/panzerkampfwagen-v-panther-ii.md",
+                "3.42 m over the 660 mm Tiger II-commonality tracks (Spielberger).",
+            ),
+        ),
+        DimensionTarget::new(
+            DimensionKind::HeightToTurretRoof,
+            2.99,
+            0.06,
+            ReferenceSource::new(
+                "Panther II dossier",
+                "docs/vehicles/panzerkampfwagen-v-panther-ii.md",
+                "2.99 m to the G-turret cupola on the specimen.",
+            ),
+        ),
+        DimensionTarget::new(
+            DimensionKind::OverallLengthWithGun,
+            8.86,
+            // TODO(W1-panther-ii): docelowo +/-0.10 — the current gun reaches 9.03 m; PII.2
+            // pulls the KwK 42 muzzle to the documented 8.86 m with the G turret swap.
+            0.20,
+            ReferenceSource::new(
+                "Panther II dossier",
+                "docs/vehicles/panzerkampfwagen-v-panther-ii.md",
+                "8.86 m gun forward (7.5 cm KwK 42 L/70, G-turret specimen).",
+            ),
+        ),
+        DimensionTarget::new(
+            DimensionKind::RoadWheelDiameter,
+            0.80,
+            0.01,
+            ReferenceSource::new(
+                "Panther II dossier",
+                "docs/vehicles/panzerkampfwagen-v-panther-ii.md",
+                "800 mm steel-rimmed wheels (Tiger II commonality programme).",
+            ),
+        ),
+    ])
 }

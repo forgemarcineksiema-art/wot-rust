@@ -9,6 +9,38 @@ component commonality goals. The game spec models the historically grounded Pant
 prototype direction, not the popular later-game fantasy of a Panther II with the Tiger II
 8.8 cm KwK 43.
 
+## Reference anatomy (W1 dossier, PR-PII.1 — 2026-07-18)
+
+**Configuration (masterplan decision, re-confirmed here):** we model the **Fort Benning /
+Patton Museum specimen** — the only Panther II that exists: the up-armoured Panther II hull
+on Tiger II-commonality 800 mm steel wheels, fitted with a **Panther Ausf. G turret** and the
+7.5 cm KwK 42 L/70. Happy alignment: the game spec already arms the Panther II with the
+KwK 42, exactly what the specimen's G turret carries — no gameplay change needed.
+
+Anchor numbers written BEFORE the turret swap, per protocol. HULL rows are tight (the hull
+already measures 1:1); TURRET rows are authored at the **G-turret goals the current narrow
+wedge does not meet**, with temporarily widened tolerances — the goal gate is on record
+before any RON moves.
+
+| Anchor | Value | Source | Confidence | Gate |
+| --- | --- | --- | --- | --- |
+| Hull length | 6.87 m | Panther-dimensioned prototype hull | high | `HullLength` ±0.08 |
+| Width over tracks | 3.42 m | Spielberger (660 mm commonality tracks) | medium | `HullWidth` ±0.10 |
+| Height to cupola | 2.99 m | specimen with G turret | medium | `HeightToTurretRoof` ±0.06 |
+| Overall, gun forward | 8.86 m | KwK 42 L/70 on the G turret | high | `OverallLengthWithGun` ±0.20 TEMP → ±0.10 after PII.2 (model today: 9.03) |
+| Road wheels | 7 × ⌀0.80 m overlapped steel | Tiger II commonality programme | high | `RoadWheelDiameter` ±0.01 |
+| G-turret plan | ~2.4 m over ~2.1 m, rounded, bustled | Benning photo + Panther G drawings | medium | `TurretLengthToWidth` 1.15 ±0.35 TEMP → ±0.08 (model today: 1.448) |
+| G-turret beam | ~0.60 of hull width | Benning photo | medium | `TurretWidthToHullWidth` 0.60 ±0.12 TEMP → ±0.05 (model today: 0.508) |
+
+**Measured wrongness of the current wedge (the PII.2 work list, in gate numbers):**
+turret beam −15.4% under the G target, plan proportion +25.9% over (too long and narrow —
+a Schmalturm read), gun reach +2.0% (9.03 m vs the documented 8.86). PII.2 replaces the
+wedge with the G turret: wider rounded plan with the rear bustle, the **curved cast
+G-blende mantlet band across the front** (add_oval_mantlet_socket family, its own scales),
+muzzle pulled to 8.86 m, cupola staying left. With it come the hull's photo items:
+**Kugelblende** in the glacis right, driver periscopes on the glacis top, curved fender
+sweeps and the ONE glacis headlight (F3/F4).
+
 ## Blueprint Migration (2026-07)
 
 The Panther II is blueprint-born — and the LAST German off the legacy path, which retires the
