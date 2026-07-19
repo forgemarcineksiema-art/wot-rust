@@ -205,12 +205,11 @@ pub(crate) struct ClientApp {
     >,
     /// Set when the replicated crater ledger changed: the next frame kicks a ground re-mesh.
     ground_deform_dirty: bool,
-    /// The conjured grass field, cached between frames: the scatter is deterministic per
-    /// cell, so it only needs re-conjuring when the eye has moved a real step (or a fresh
-    /// crater burned a patch out). Saves ~0.5 ms of render-thread CPU on most frames.
+    /// The world-anchored grass population, cached with an invisible margin around the shader's
+    /// visible ring. It rebuilds after a four-metre planar step or any crater-ledger mutation.
     grass_cache: Vec<renderer_api::RenderObject>,
     grass_cache_eye: Option<glam::Vec3>,
-    grass_cache_crater_count: usize,
+    grass_cache_crater_fingerprint: u64,
     /// Shells whose flyby crack already played (D8): one N-wave per shell, ever.
     cracked_shells: std::collections::HashSet<game_core::ShellId>,
     /// Per-instance dented hull mesh for each wreck, built once from its recorded penetrations.
@@ -410,7 +409,7 @@ impl ClientApp {
             ground_deform_dirty: false,
             grass_cache: Vec::new(),
             grass_cache_eye: None,
-            grass_cache_crater_count: 0,
+            grass_cache_crater_fingerprint: 0,
             cracked_shells: std::collections::HashSet::new(),
             terrain_scars: crate::fx::TerrainScars::default(),
             track_marks: crate::fx::TrackMarks::default(),

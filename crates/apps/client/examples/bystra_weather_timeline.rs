@@ -3,7 +3,8 @@ use std::io::BufWriter;
 
 use client::{
     GRASS_MESH_HANDLE, bake_terrain_ground_maps, battlefield_ground_and_statics_meshes,
-    battlefield_water_mesh, grass_frame_objects, grass_tuft_mesh, terrain_material_set_for,
+    battlefield_water_mesh, grass_card_dressing_mesh, grass_frame_objects, grass_tuft_mesh,
+    terrain_material_set_for,
 };
 use game_core::{MatchWeather, WeatherVariant};
 use renderer_api::{Camera, CameraProjectionPolicy, RenderFrame, view_projection_matrix};
@@ -44,6 +45,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         &materials,
     );
     renderer.set_water(&ctx, &water_vertices, &water_indices);
+    let (dressing_v, dressing_i) = grass_card_dressing_mesh(&battlefield, &ground_maps, &materials);
+    renderer.set_dressing(&ctx, &dressing_v, &dressing_i);
     renderer.register_mesh(&ctx, GRASS_MESH_HANDLE, &grass_tuft_mesh());
 
     for (name, eye, look) in views {

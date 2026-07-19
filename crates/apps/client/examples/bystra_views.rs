@@ -3,7 +3,8 @@ use std::io::BufWriter;
 
 use client::{
     GRASS_MESH_HANDLE, bake_terrain_ground_maps, battlefield_ground_and_statics_meshes,
-    battlefield_water_mesh, grass_frame_objects, grass_tuft_mesh, terrain_material_set_for,
+    battlefield_water_mesh, grass_card_dressing_mesh, grass_frame_objects, grass_tuft_mesh,
+    terrain_material_set_for,
 };
 use renderer_api::RenderFrame;
 use renderer_api::{Camera, CameraProjectionPolicy, SceneLighting, view_projection_matrix};
@@ -22,6 +23,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let ((ground_vertices, ground_indices), (vertices, indices)) =
         battlefield_ground_and_statics_meshes(&battlefield, &[]);
     let ground_maps = bake_terrain_ground_maps(&battlefield);
+    let materials = terrain_material_set_for(terrain::MapId::BystraValley);
     let (water_vertices, water_indices) = battlefield_water_mesh(&battlefield);
     let ground =
         |x: f32, z: f32| -> f32 { battlefield.heightmap.sample_height(x, z).unwrap_or(5.0) };
@@ -93,9 +95,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         &ground_vertices,
         &ground_indices,
         &ground_maps,
-        &terrain_material_set_for(terrain::MapId::BystraValley),
+        &materials,
     );
     renderer.set_water(&ctx, &water_vertices, &water_indices);
+    let (dressing_v, dressing_i) = grass_card_dressing_mesh(&battlefield, &ground_maps, &materials);
+    renderer.set_dressing(&ctx, &dressing_v, &dressing_i);
     renderer.scene_time_s = 12.0;
     renderer.register_mesh(&ctx, GRASS_MESH_HANDLE, &grass_tuft_mesh());
 
@@ -105,7 +109,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             &battlefield.heightmap,
             battlefield.water,
             &ground_maps,
-            &terrain_material_set_for(terrain::MapId::BystraValley),
+            &materials,
             glam::Vec3::from_array(view.eye),
         );
         renderer.set_render_frame(&ctx, &RenderFrame { objects: grass, ..RenderFrame::default() });

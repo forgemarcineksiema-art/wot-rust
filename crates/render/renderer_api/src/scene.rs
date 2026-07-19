@@ -82,6 +82,11 @@ pub mod surface_role {
     /// near blade ring and collapses it into the ground before the dressing chunk culls —
     /// the sway lane doubles as the vertex's height over the root (sway = height * 0.3).
     pub const GRASS_CARD: f32 = 5.0;
+    /// Near-field grass tuft: the scene vertex stage keeps the deterministic population
+    /// full-sized through the playable ring, then folds the whole tuft into its root over
+    /// the shared 34-48 m outer fade. The wind lane remains a normalized bend allowance;
+    /// the shader converts it to metres with the instance's model scale.
+    pub const GRASS_BLADE: f32 = 6.0;
 }
 
 impl SceneVertex {

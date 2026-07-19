@@ -16,8 +16,9 @@ use std::fs::File;
 use std::io::BufWriter;
 
 use client::{
-    TerrainScars, bake_terrain_ground_maps, battlefield_ground_and_statics_meshes,
-    battlefield_water_mesh, terrain_material_set_for,
+    GRASS_MESH_HANDLE, TerrainScars, bake_terrain_ground_maps,
+    battlefield_ground_and_statics_meshes, battlefield_water_mesh, grass_card_dressing_mesh,
+    grass_frame_objects, grass_tuft_mesh, terrain_material_set_for,
 };
 use game_core::{ShellImpact, ShellType, TankId};
 use glam::Vec3;
@@ -71,6 +72,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut renderer = SceneRenderer::for_offscreen(&ctx, &statics_v, &statics_i)?;
     renderer.set_battlefield_ground(&ctx, &ground_v, &ground_i, &ground_maps, &materials);
     renderer.set_water(&ctx, &water_vertices, &water_indices);
+    let (dressing_v, dressing_i) = grass_card_dressing_mesh(&battlefield, &ground_maps, &materials);
+    renderer.set_dressing(&ctx, &dressing_v, &dressing_i);
+    renderer.register_mesh(&ctx, GRASS_MESH_HANDLE, &grass_tuft_mesh());
+    set_crater_view_grass(&ctx, &mut renderer, &battlefield, &ground_maps, &materials, close_eye);
     renderer.scene_lighting = SceneLighting::battlefield_default();
     renderer.scene_time_s = 12.0;
     renderer.shadow_focus = Some([SPOT[0], focus_y, SPOT[1]]);
@@ -80,6 +85,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     battlefield.heightmap.set_craters(&ledger);
     let ((ground_v, ground_i), _) = battlefield_ground_and_statics_meshes(&battlefield, &[]);
     renderer.update_battlefield_ground_geometry(&ctx, &ground_v, &ground_i);
+    let (dressing_v, dressing_i) = grass_card_dressing_mesh(&battlefield, &ground_maps, &materials);
+    renderer.set_dressing(&ctx, &dressing_v, &dressing_i);
 
     // The presentation stamps, recorded onto the DEFORMED ground (the ingest order): a shallow
     // incoming track from the south-west, like tank fire arrives.
@@ -102,25 +109,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     scars.append_quads(&mut fx);
     renderer.set_fx(&ctx, &fx);
 
-    // The grass field around the crater: the kill zone must read as burned-bare ground.
-    {
-        let maps = client::bake_terrain_ground_maps(&battlefield);
-        let materials = client::terrain_material_set_for(terrain::MapId::ProkhorovkaHill252_2);
-        let grass = client::grass_frame_objects(
-            &battlefield.heightmap,
-            battlefield.water,
-            &maps,
-            &materials,
-            glam::Vec3::from_array(close_eye),
-        );
-        renderer.set_render_frame(
-            &ctx,
-            &renderer_api::RenderFrame { objects: grass, ..Default::default() },
-        );
-        renderer.register_mesh(&ctx, client::GRASS_MESH_HANDLE, &client::grass_tuft_mesh());
-    }
+    // The grass field follows each review camera exactly like the live client's cached ring;
+    // the crater ledger makes the shell's kill zone read as burned-bare ground.
+    set_crater_view_grass(&ctx, &mut renderer, &battlefield, &ground_maps, &materials, close_eye);
     shoot(&ctx, &target, &mut renderer, close_eye, close_look, width, height, "crater_close")?;
+    set_crater_view_grass(&ctx, &mut renderer, &battlefield, &ground_maps, &materials, grazing_eye);
     shoot(&ctx, &target, &mut renderer, grazing_eye, close_look, width, height, "crater_grazing")?;
+    set_crater_view_grass(&ctx, &mut renderer, &battlefield, &ground_maps, &materials, field_eye);
     shoot(&ctx, &target, &mut renderer, field_eye, field_look, width, height, "crater_field")?;
 
     // The AP furrows, exactly as the battle shows them: kinetic rounds ploughed into grass,
@@ -148,6 +143,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let f_y = ground_y(&battlefield, SPOT[0] - 8.0, SPOT[1] - 20.0);
     let furrow_eye = [SPOT[0] + 2.0, f_y + 2.6, SPOT[1] - 6.0];
     let furrow_look = [SPOT[0] - 8.0, f_y, SPOT[1] - 22.0];
+    set_crater_view_grass(&ctx, &mut renderer, &battlefield, &ground_maps, &materials, furrow_eye);
     shoot(&ctx, &target, &mut renderer, furrow_eye, furrow_look, width, height, "furrow_field")?;
     // The same furrows under the warm evening grade — the light that exposed the pale-border
     // sticker on a live screenshot. Turned earth must read dark under EVERY profile.
@@ -160,6 +156,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     shoot(&ctx, &target, &mut renderer, furrow_eye, furrow_look, width, height, "furrow_evening")?;
     Ok(())
+}
+
+fn set_crater_view_grass(
+    ctx: &GpuContext,
+    renderer: &mut SceneRenderer,
+    battlefield: &terrain::BattlefieldMap,
+    maps: &renderer_api::TerrainGroundMaps,
+    materials: &renderer_api::TerrainMaterialSet,
+    eye: [f32; 3],
+) {
+    let grass = grass_frame_objects(
+        &battlefield.heightmap,
+        battlefield.water,
+        maps,
+        materials,
+        glam::Vec3::from_array(eye),
+    );
+    renderer
+        .set_render_frame(ctx, &renderer_api::RenderFrame { objects: grass, ..Default::default() });
 }
 
 #[allow(clippy::too_many_arguments)]

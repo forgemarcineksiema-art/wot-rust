@@ -31,6 +31,8 @@ fn vs_main(input: VsIn) -> VsOut {
     var out: VsOut;
     let model = mat4x4<f32>(input.model_0, input.model_1, input.model_2, input.model_3);
     var world = model * vec4<f32>(input.position, 1.0);
+    let root = model[3].xyz;
+    let model_scale = length(model[1].xyz);
     // A mid-field grass card (Żywy Step P2) STANDS only in its band: it grows in under the
     // near blade ring (30-45 m) and folds back into the ground before its chunk culls
     // (260-330 m) — both ends read as the meadow thinning, never as a pop. The sway lane
@@ -41,6 +43,15 @@ fn vs_main(input: VsIn) -> VsOut {
         stand = smoothstep(30.0, 45.0, d) * (1.0 - smoothstep(260.0, 330.0, d));
         world.y -= (input.sway / 0.3) * (1.0 - stand);
     }
+    // Near blades are a stable, deterministic population. Only the OUTER presentation edge
+    // depends on the camera: fold every vertex (including roots) into the instance root over
+    // a broad 34-48 m band. There is no camera-driven birth/reveal inside the playable ring,
+    // so driving cannot make individual tufts load in around the tank.
+    if (abs(input.surface - 6.0) < 0.5) {
+        let d = length(camera.camera_pos.xz - root.xz);
+        stand = 1.0 - smoothstep(34.0, 48.0, d);
+        world = vec4<f32>(root + (world.xyz - root) * stand, world.w);
+    }
     // The wind lane (D4, lit by the grass field): vertices that opted in — blade tips, leaf
     // edges, card tops — ride the field's wind. Two drifting world-space waves, so
     // neighbouring blades gust TOGETHER instead of jittering independently; roots carry
@@ -48,11 +59,15 @@ fn vs_main(input: VsIn) -> VsOut {
     if (input.sway > 0.0) {
         let t = camera.time_params.x;
         let gust = (sin(dot(world.xz, vec2<f32>(0.31, 0.17)) + t * 1.6)
-            + 0.45 * sin(dot(world.xz, vec2<f32>(0.83, -0.51)) + t * 2.7)) * stand;
+            + 0.45 * sin(dot(world.xz, vec2<f32>(0.83, -0.51)) + t * 2.7));
+        // `sway` is mesh-local. Convert it to world metres with the instance scale, then
+        // suppress it as the card/tuft folds down. Without this conversion a tiny faded tuft
+        // could still move by the full-size displacement and flash as a long needle.
+        let scaled_sway = input.sway * model_scale * stand;
         world = vec4<f32>(
-            world.x + gust * input.sway * 0.24,
-            world.y - abs(gust) * input.sway * 0.05,
-            world.z + gust * input.sway * 0.15,
+            world.x + gust * scaled_sway * 0.24,
+            world.y - abs(gust) * scaled_sway * 0.05,
+            world.z + gust * scaled_sway * 0.15,
             world.w,
         );
     }
@@ -134,6 +149,13 @@ fn material_detail(world: vec3<f32>, n: vec3<f32>) -> f32 {
 // 1.0 so the authored palette and the lighting stay in charge.
 
 fn surface_treatment(role: f32, world: vec3<f32>, n: vec3<f32>) -> f32 {
+    // Grass roles are geometry categories, not woody materials. One cheap world-space octave
+    // keeps the meadow coherent without paying the generic three-octave ground treatment on
+    // tens of thousands of card fragments. The old catch-all painted bark striations across
+    // every card and blade and made the field read noisy at driving distance.
+    if (role > 4.5) {
+        return 0.94 + value_noise(world.xz * 1.7) * 0.12;
+    }
     // The wall-plane frame: h runs along the face, world.y climbs it.
     let tangent = normalize(vec3<f32>(-n.z, 1.0e-4, n.x));
     let h = dot(world, tangent);
