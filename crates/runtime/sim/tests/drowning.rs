@@ -60,12 +60,19 @@ fn deep_water_floods_the_engine_then_drains_the_hull_to_zero() {
 
 #[test]
 fn leaving_deep_water_before_the_deadline_resets_the_clock() {
-    let (mut sim, heightmap, id) = flooded_sim();
+    let (mut sim, _flat, id) = flooded_sim();
 
-    // 1.8 s under — then the hull climbs out (teleported onto a dry shelf for the test).
+    // 1.8 s under — then the hull climbs out onto a dry shelf INSIDE the map (the old
+    // "teleport beyond the map" trick is closed off by the red line clamping hulls inside).
+    let mut samples = vec![0.0; 60 * 60];
+    for z in 50..60 {
+        for x in 50..60 {
+            samples[z * 60 + x] = DROWN_DEPTH_M + 2.0;
+        }
+    }
+    let heightmap = HeightMap::new(60, 60, 5.0, samples).expect("basin with a dry shelf");
     tick(&mut sim, &heightmap, id, 108);
-    let dry = Vec3::new(500.0, 0.0, 500.0); // outside the 300 m flooded grid = no water sample
-    sim.tank_mut(id).unwrap().position = dry;
+    sim.tank_mut(id).unwrap().position = Vec3::new(280.0, DROWN_DEPTH_M + 2.0, 280.0);
     tick(&mut sim, &heightmap, id, 10);
     // Back in: the clock must have reset, so another 1.8 s still does not flood it.
     sim.tank_mut(id).unwrap().position = Vec3::new(30.0, 0.0, 30.0);

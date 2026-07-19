@@ -10,7 +10,7 @@ fn static_cover_absorbs_a_shell_before_it_reaches_the_target() {
     let (mut state, shooter, target) = duel();
     let target_hp = state.tank(target).expect("target").hit_points;
 
-    fire_and_settle(&mut state, shooter, &flat_field(), &[wall_at(0.0)]);
+    fire_and_settle(&mut state, shooter, &flat_field(), &[wall_at(10.0)]);
 
     assert!(state.damage_events().is_empty(), "cover should absorb the shell, no hit");
     assert_eq!(state.tank(target).expect("target").hit_points, target_hp);
@@ -24,7 +24,7 @@ fn cover_off_to_the_side_does_not_block_a_clear_shot() {
     // it meets the turret — the exposed rear plate guarantees the clear shot also penetrates.
     state.tank_mut(target).expect("target").yaw_rad = 0.0;
 
-    fire_and_settle(&mut state, shooter, &flat_field(), &[wall_at(20.0)]);
+    fire_and_settle(&mut state, shooter, &flat_field(), &[wall_at(30.0)]);
 
     let event = state.damage_events().last().expect("a clear shot should resolve on the target");
     assert_eq!(event.target, target);
@@ -33,8 +33,10 @@ fn cover_off_to_the_side_does_not_block_a_clear_shot() {
 
 fn duel() -> (SimulationState, TankId, TankId) {
     let mut state = SimulationState::new();
-    let shooter = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
-    let target = state.spawn_tank(TeamId(2), TankSpec::t54_1951(), Vec3::new(0.0, 0.0, 55.0));
+    // Staged inside the red-line margin (the border clamp would shift a hull spawned at the
+    // origin and change the 55 m firing solution this test is tuned around).
+    let shooter = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::new(10.0, 0.0, 10.0));
+    let target = state.spawn_tank(TeamId(2), TankSpec::t54_1951(), Vec3::new(10.0, 0.0, 65.0));
     {
         let shooter = state.tank_mut(shooter).expect("shooter");
         shooter.aim_dispersion_mrad = 0.0;
@@ -69,14 +71,15 @@ fn flat_field() -> HeightMap {
     HeightMap::flat(64, 64, 2.0, 0.0).expect("flat terrain")
 }
 
-/// A wall straddling the shell's path height at z = 27 (between shooter at 0 and target at 55),
-/// centered at the given x so it can be placed in the line of fire or off to the side.
+/// A wall straddling the shell's path height at z = 37 (between shooter at 10 and target at
+/// 65), centered at the given x so it can be placed in the line of fire (x = 10) or off to
+/// the side.
 fn wall_at(x: f32) -> StaticCoverObject {
     StaticCoverObject {
         id: "test_wall".to_string(),
         name: "test wall".to_string(),
         kind: StaticCoverKind::FarmBuilding,
-        center: [x, 1.5, 27.0],
+        center: [x, 1.5, 37.0],
         half_extents_m: [4.0, 2.5, 1.5],
     }
 }

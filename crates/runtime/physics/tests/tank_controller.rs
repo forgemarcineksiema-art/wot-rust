@@ -70,6 +70,60 @@ fn tank_controller_can_drive_over_historical_heightmap() {
 }
 
 #[test]
+fn the_red_line_holds_a_tank_inside_the_map_and_lets_it_slide_along() {
+    let map = prokhorovka_hill_252_2();
+    let settings = TankControllerSettings::arcade_default();
+    let [_, extent_z] = map.heightmap.extent_m();
+    let line = extent_z - physics::MAP_BORDER_MARGIN_M;
+
+    // Full throttle straight at the northern border for 20 s. Before the red line the stepper
+    // fell into terrain-free mode past the heightmap and the tank drove off the world onto the
+    // render-only backdrop.
+    let mut state = TankKinematicState {
+        position: glam::Vec3::new(220.0, 0.0, extent_z - 40.0),
+        ..TankKinematicState::default()
+    };
+    let head_on = TankControlInput { throttle: 1.0, steer: 0.0, brake: 0.0 };
+    for _ in 0..1200 {
+        step_tank_on_heightmap(&mut state, head_on, &settings, &map.heightmap, 1.0 / 60.0);
+    }
+    assert!(
+        state.position.z <= line + 1.0e-3,
+        "the hull must hold at the red line, got z={}",
+        state.position.z
+    );
+    assert!(
+        map.heightmap.sample_height(state.position.x, state.position.z).is_some(),
+        "the hull must never leave the heightmap"
+    );
+    assert!(
+        state.velocity.z.abs() < 0.25,
+        "speed into the wall must die at the line, got {} m/s",
+        state.velocity.z
+    );
+
+    // Held against the wall at a shallow angle (heading mostly ALONG the line, leaning into
+    // it), the along-wall drive keeps working: the line is a wall to drive along, not glue.
+    // A hull pointed near-square INTO the wall grinds instead — the lateral grip scrubs
+    // sideways slip exactly as it does everywhere else, which is the correct track feel.
+    let mut slider = TankKinematicState {
+        position: glam::Vec3::new(220.0, 0.0, line),
+        yaw_rad: 1.2,
+        ..TankKinematicState::default()
+    };
+    let start_x = slider.position.x;
+    for _ in 0..600 {
+        step_tank_on_heightmap(&mut slider, head_on, &settings, &map.heightmap, 1.0 / 60.0);
+    }
+    assert!(
+        (slider.position.x - start_x).abs() > 30.0,
+        "a shallow-angle hull must keep sliding along the line, moved {} m",
+        (slider.position.x - start_x).abs()
+    );
+    assert!(slider.position.z <= line + 1.0e-3, "sliding must not cross the line");
+}
+
+#[test]
 fn embankment_blocks_movement_except_at_crossings() {
     let map = prokhorovka_hill_252_2();
     let settings = TankControllerSettings::arcade_default();
@@ -148,9 +202,10 @@ fn cover_collision_blocks_head_on_and_keeps_the_unblocked_axis() {
 fn cover_collision_cancels_forward_speed_when_hull_is_fully_blocked() {
     let heightmap = terrain::HeightMap::flat(32, 32, 1.0, 0.0).expect("flat terrain");
     let settings = TankControllerSettings::arcade_default();
-    let cover = vec![cover_box([0.0, 1.0, 8.0], [5.0, 2.0, 1.0])];
+    // Staged inside the red-line margin: the scenario tests cover blocking, not the border.
+    let cover = vec![cover_box([15.0, 1.0, 12.0], [5.0, 2.0, 1.0])];
     let mut state = TankKinematicState {
-        position: glam::Vec3::new(0.0, 0.0, 5.3),
+        position: glam::Vec3::new(15.0, 0.0, 9.3),
         yaw_rad: 0.0,
         // Charging the cover head-on at 12 m/s (+z is forward at yaw 0).
         velocity: glam::Vec3::new(0.0, 0.0, 12.0),
@@ -166,7 +221,7 @@ fn cover_collision_cancels_forward_speed_when_hull_is_fully_blocked() {
         1.0 / 60.0,
     );
 
-    assert_eq!(state.position, glam::Vec3::new(0.0, 0.0, 5.3));
+    assert_eq!(state.position, glam::Vec3::new(15.0, 0.0, 9.3));
     assert!(
         state.forward_speed().abs() < 0.01,
         "blocked hull must not keep phantom forward speed, got {}",

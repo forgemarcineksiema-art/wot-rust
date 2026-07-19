@@ -33,7 +33,9 @@ pub use policy::{CustomPhysicsRole, PhysicsOwner, PhysicsOwnershipPolicy, Rapier
 pub use tank_resolve::{resolve_tank_collision, resolve_tank_collision_with_velocity};
 pub use track_contact::{SupportContact, sample_support, support_height};
 pub use vertical::{GroundStep, is_grounded, resolve_vertical};
-pub use world::{step_tank_on_heightmap, step_tank_on_world, step_tank_on_world_with_tanks};
+pub use world::{
+    MAP_BORDER_MARGIN_M, step_tank_on_heightmap, step_tank_on_world, step_tank_on_world_with_tanks,
+};
 
 pub type RapierBroadPhase = BroadPhaseBvh;
 pub type RapierQueryPipeline<'a> = QueryPipeline<'a>;

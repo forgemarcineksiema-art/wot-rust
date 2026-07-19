@@ -39,6 +39,6 @@ pub use craters::{
 pub use heightmap::{HeightMap, HeightMapStats, TerrainError};
 pub use map_id::MapId;
 pub use map_plan::{TerrainMapLayer, TerrainMapPlan};
-pub use prokhorovka::prokhorovka_hill_252_2;
+pub use prokhorovka::{prokhorovka_beyond_height, prokhorovka_hill_252_2};
 pub use scenery::{SceneryInstance, SceneryKind};
 pub use water::WaterBody;

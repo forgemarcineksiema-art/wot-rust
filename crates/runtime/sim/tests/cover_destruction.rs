@@ -94,14 +94,20 @@ fn a_hull_driving_through_a_hedgerow_flattens_it_and_takes_a_nick() {
 #[test]
 fn a_shell_flies_where_a_crushed_hedgerow_used_to_block_it() {
     let terrain = flat_field();
-    // A hedge straddling the shot line at z = 27, blocking a duel between 0 and 55.
-    let hedge = [cover("hedge", StaticCoverKind::TreeLine, [0.0, 1.5, 27.0], [6.0, 1.5, 0.6])];
+    // Staged inside the red-line margin (the border clamp would shift a hull spawned at the
+    // origin and change the 55 m firing solution): a hedge straddling the shot line at
+    // z = 37, blocking a duel between z = 10 and z = 65.
+    let hedge = [cover("hedge", StaticCoverKind::TreeLine, [10.0, 1.5, 37.0], [6.0, 1.5, 0.6])];
 
     // First: with the hedge intact, the shot is absorbed short of the target.
     let mut blocked = SimulationState::new();
-    let shooter = blocked.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
-    let _target =
-        blocked.spawn_tank_with_yaw(TeamId(2), TankSpec::t54_1951(), Vec3::new(0.0, 0.0, 55.0), PI);
+    let shooter = blocked.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::new(10.0, 0.0, 10.0));
+    let _target = blocked.spawn_tank_with_yaw(
+        TeamId(2),
+        TankSpec::t54_1951(),
+        Vec3::new(10.0, 0.0, 65.0),
+        PI,
+    );
     blocked.tank_mut(shooter).unwrap().aim_dispersion_mrad = 0.0;
     blocked.tank_mut(shooter).unwrap().spec.gun.dispersion_mrad = 0.0;
     fire_once(&mut blocked, shooter, &terrain, &hedge);
@@ -109,10 +115,10 @@ fn a_shell_flies_where_a_crushed_hedgerow_used_to_block_it() {
 
     // Now crush the hedge with a hull, then fire the same shot: it flies clean to the target.
     let mut open = SimulationState::new();
-    let shooter = open.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
+    let shooter = open.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::new(10.0, 0.0, 10.0));
     let target =
-        open.spawn_tank_with_yaw(TeamId(2), TankSpec::t54_1951(), Vec3::new(0.0, 0.0, 55.0), PI);
-    let crusher = open.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::new(0.0, 0.0, 20.0));
+        open.spawn_tank_with_yaw(TeamId(2), TankSpec::t54_1951(), Vec3::new(10.0, 0.0, 65.0), PI);
+    let crusher = open.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::new(10.0, 0.0, 30.0));
     open.tank_mut(shooter).unwrap().aim_dispersion_mrad = 0.0;
     open.tank_mut(shooter).unwrap().spec.gun.dispersion_mrad = 0.0;
     let step = FixedTimestep::from_hz(60);
