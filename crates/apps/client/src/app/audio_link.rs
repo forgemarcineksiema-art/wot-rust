@@ -37,13 +37,7 @@ impl ClientApp {
         // The hangar is sheltered: a breath of air, engine off. The field gets the full wind.
         let wind_level = if in_garage { 0.2 } else { 1.0 };
         // The squall's patter belongs to the battlefield's weather, never the hangar roof.
-        let rain_level = if !in_garage
-            && self.session.weather_variant() == game_core::WeatherVariant::RainSqualls
-        {
-            1.0
-        } else {
-            0.0
-        };
+        let rain_level = if in_garage { 0.0 } else { self.weather_frame.rain_intensity };
         let (rpm_norm, load, speed_mps, running) = self.player_engine_audio_state(in_garage);
         let player_burning = !in_garage && self.player_engine_burning();
         let turret_slew = if in_garage { 0.0 } else { self.player_turret_slew_norm() };

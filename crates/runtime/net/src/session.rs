@@ -198,7 +198,7 @@ mod tests {
                 let hello = ProtocolMessage::ServerHello {
                     protocol_version: crate::PROTOCOL_VERSION,
                     map_id: Default::default(),
-                    weather_variant: Default::default(),
+                    weather: Default::default(),
                 };
                 endpoint.send(wire, &hello).expect("send");
             }

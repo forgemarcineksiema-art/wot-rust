@@ -3,7 +3,8 @@ use renderer_wgpu::{
     CameraUniform, GpuContext, TankVertex, basic_tank_shader_source,
     build_camera_bind_group_layout, build_shadow_bind_group_layout, build_vehicle_pipeline,
     encode_camera_uniform, fx_shader_source, scene_shader_source, shadow_shader_source,
-    sky_shader_source, tank_vertex_bytes, validate_wgsl_shader, vehicle_shader_source,
+    sky_shader_source, tank_vertex_bytes, terrain_shader_source, validate_wgsl_shader,
+    vehicle_shader_source,
 };
 
 #[test]
@@ -22,8 +23,8 @@ fn camera_uniform_is_encoded_with_wgsl_uniform_layout() {
     // The profile sky adds cloud_params + sky_params (2 vec4, 32): 528 + 32 = 560. The local
     // fill pools add light_pos_radius + light_rgb_intensity (2 x array<vec4, 6>, 192):
     // 560 + 192 = 752. The two-layer air + second cloud layer append haze_params +
-    // cloud2_params (2 vec4, 32): 752 + 32 = 784.
-    assert_eq!(bytes.len(), 784);
+    // cloud2_params (2 vec4, 32): 752 + 32 = 784. Dynamic weather appends one vec4: 800.
+    assert_eq!(bytes.len(), 800);
     assert_eq!(bytes.len() % 16, 0);
 }
 
@@ -40,6 +41,15 @@ fn basic_tank_shader_is_valid_wgsl() {
 fn scene_shader_is_valid_wgsl_with_tint_inputs() {
     let report =
         validate_wgsl_shader("scene", &scene_shader_source()).expect("scene shader validates");
+
+    assert!(report.entry_points.iter().any(|entry| entry == "vs_main"));
+    assert!(report.entry_points.iter().any(|entry| entry == "fs_main"));
+}
+
+#[test]
+fn terrain_shader_is_valid_wgsl() {
+    let report = validate_wgsl_shader("terrain", &terrain_shader_source())
+        .expect("terrain shader validates");
 
     assert!(report.entry_points.iter().any(|entry| entry == "vs_main"));
     assert!(report.entry_points.iter().any(|entry| entry == "fs_main"));
@@ -117,6 +127,39 @@ fn shadow_shader_is_valid_wgsl() {
     let report =
         validate_wgsl_shader("shadow", &shadow_shader_source()).expect("shadow shader validates");
     assert!(report.entry_points.iter().any(|entry| entry == "vs_main"));
+}
+
+#[test]
+fn reduced_near_shadow_pcf_normalizes_its_four_samples() {
+    let source = scene_shader_source();
+
+    assert!(source.contains("var tap_count = 9.0;"), "wide 3x3 PCF must normalize nine taps");
+    assert!(source.contains("tap_count = 4.0;"), "reduced 2x2 PCF must normalize four taps");
+    assert!(
+        source.contains("sum / tap_count"),
+        "near shadow visibility must use the active PCF tap count"
+    );
+    assert!(
+        !source.contains("sum / 9.0"),
+        "the reduced path must never divide four samples by nine"
+    );
+}
+
+#[test]
+fn dynamic_weather_uses_one_seeded_phase_and_separate_puddle_fill() {
+    let scene = scene_shader_source();
+    let terrain = terrain_shader_source();
+    let sky = sky_shader_source();
+    let rain = renderer_wgpu::rain_shader_source();
+
+    for source in [&scene, &terrain, &sky] {
+        assert!(source.contains("camera.weather_params.xy"), "cloud phase must be shared");
+    }
+    for source in [&scene, &terrain] {
+        assert!(source.contains("camera.weather_params.z"), "puddles need standing-water fill");
+        assert!(source.contains("mix(0.80, 0.54"), "fill must expand continuous basins");
+    }
+    assert!(rain.contains("camera.weather_params.w"), "rain needs its seeded time phase");
 }
 
 #[test]

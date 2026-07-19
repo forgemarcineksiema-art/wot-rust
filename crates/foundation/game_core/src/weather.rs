@@ -28,3 +28,18 @@ impl WeatherVariant {
         WeatherVariant::Overcast,
     ];
 }
+
+/// Complete deterministic weather identity for one match. `seed` varies authored phase timings,
+/// cloud placement and rain-particle phase while `variant` selects the map-supported program.
+/// Weather remains presentation-only: the simulation never reads this value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct MatchWeather {
+    pub variant: WeatherVariant,
+    pub seed: u64,
+}
+
+impl MatchWeather {
+    pub const fn new(variant: WeatherVariant, seed: u64) -> Self {
+        Self { variant, seed }
+    }
+}

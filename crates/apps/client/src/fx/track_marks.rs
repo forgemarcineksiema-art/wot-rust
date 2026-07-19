@@ -42,7 +42,7 @@ pub(crate) struct TrackMarks {
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum MarkStyle {
     /// Earth turned by the track; rain presses it darker.
-    Rut { wet: bool },
+    Rut { wetness: f32 },
     /// Churned white water in a fording tank's wake (D7) — same machinery, shorter story.
     Foam,
 }
@@ -75,8 +75,15 @@ impl TrackMark {
 
     fn tone_alpha(&self) -> ([f32; 3], f32) {
         match self.style {
-            MarkStyle::Rut { wet: false } => (DRY_TONE, DRY_ALPHA),
-            MarkStyle::Rut { wet: true } => (WET_TONE, WET_ALPHA),
+            MarkStyle::Rut { wetness } => {
+                let t = wetness.clamp(0.0, 1.0);
+                (
+                    std::array::from_fn(|channel| {
+                        DRY_TONE[channel] + (WET_TONE[channel] - DRY_TONE[channel]) * t
+                    }),
+                    DRY_ALPHA + (WET_ALPHA - DRY_ALPHA) * t,
+                )
+            }
             MarkStyle::Foam => (FOAM_TONE, FOAM_ALPHA),
         }
     }
@@ -86,12 +93,12 @@ impl TrackMarks {
     /// Press one rut segment between two ground points the track just covered. Both ends snap
     /// to the sampled terrain (the hull's translation rides suspension and slopes; the rut must
     /// not float with it), and the quad lies in the plane of the local slope.
-    pub fn record_segment(&mut self, from: Vec3, to: Vec3, wet: bool, heightmap: &HeightMap) {
+    pub fn record_segment(&mut self, from: Vec3, to: Vec3, wetness: f32, heightmap: &HeightMap) {
         let from_y = heightmap.sample_height(from.x, from.z).unwrap_or(from.y);
         let to_y = heightmap.sample_height(to.x, to.z).unwrap_or(to.y);
         let a = Vec3::new(from.x, from_y, from.z);
         let b = Vec3::new(to.x, to_y, to.z);
-        self.record_mark(a, b, MarkStyle::Rut { wet }, HALF_WIDTH_M);
+        self.record_mark(a, b, MarkStyle::Rut { wetness: wetness.clamp(0.0, 1.0) }, HALF_WIDTH_M);
     }
 
     /// Lay one streak of churned foam on the still water surface (D7): the fording wake. Flat
@@ -177,7 +184,7 @@ mod tests {
         let map = HeightMap::flat(65, 65, 1.0, 2.0).expect("valid map");
         let mut marks = TrackMarks::default();
         // The hull rides suspension half a meter over the surface; the rut must not.
-        marks.record_segment(Vec3::new(10.0, 4.5, 12.0), Vec3::new(11.5, 4.5, 12.0), false, &map);
+        marks.record_segment(Vec3::new(10.0, 4.5, 12.0), Vec3::new(11.5, 4.5, 12.0), 0.0, &map);
         let mut vertices = Vec::new();
         marks.append_quads(&mut vertices);
         assert_eq!(vertices.len(), 6, "one rut segment is one stamp");
@@ -194,8 +201,8 @@ mod tests {
     fn rain_presses_a_darker_rut_than_dry_ground() {
         let map = HeightMap::flat(65, 65, 1.0, 0.0).expect("valid map");
         let mut marks = TrackMarks::default();
-        marks.record_segment(Vec3::new(5.0, 0.0, 5.0), Vec3::new(6.5, 0.0, 5.0), false, &map);
-        marks.record_segment(Vec3::new(5.0, 0.0, 9.0), Vec3::new(6.5, 0.0, 9.0), true, &map);
+        marks.record_segment(Vec3::new(5.0, 0.0, 5.0), Vec3::new(6.5, 0.0, 5.0), 0.0, &map);
+        marks.record_segment(Vec3::new(5.0, 0.0, 9.0), Vec3::new(6.5, 0.0, 9.0), 1.0, &map);
         let mut vertices = Vec::new();
         marks.append_quads(&mut vertices);
         let dry_alpha = vertices[0].color[3];
@@ -212,7 +219,7 @@ mod tests {
     fn foam_rides_the_surface_and_the_river_closes_over_it() {
         let map = HeightMap::flat(65, 65, 1.0, 0.0).expect("valid map");
         let mut marks = TrackMarks::default();
-        marks.record_segment(Vec3::new(5.0, 0.0, 5.0), Vec3::new(6.5, 0.0, 5.0), false, &map);
+        marks.record_segment(Vec3::new(5.0, 0.0, 5.0), Vec3::new(6.5, 0.0, 5.0), 0.0, &map);
         marks.record_foam_segment(Vec3::new(5.0, 0.4, 9.0), Vec3::new(6.5, 0.4, 9.0), 1.7);
 
         let mut vertices = Vec::new();
@@ -242,11 +249,11 @@ mod tests {
     fn the_pool_is_budgeted_and_recycles_the_oldest_rut() {
         let map = HeightMap::flat(65, 65, 1.0, 0.0).expect("valid map");
         let mut marks = TrackMarks::default();
-        marks.record_segment(Vec3::new(1.0, 0.0, 1.0), Vec3::new(2.5, 0.0, 1.0), false, &map);
+        marks.record_segment(Vec3::new(1.0, 0.0, 1.0), Vec3::new(2.5, 0.0, 1.0), 0.0, &map);
         marks.tick(0.1); // the first rut is now the oldest
         for index in 0..MAX_TRACK_MARKS {
             let z = 3.0 + index as f32 * 0.1;
-            marks.record_segment(Vec3::new(2.0, 0.0, z), Vec3::new(3.5, 0.0, z), false, &map);
+            marks.record_segment(Vec3::new(2.0, 0.0, z), Vec3::new(3.5, 0.0, z), 0.0, &map);
         }
         assert_eq!(marks.live_marks(), MAX_TRACK_MARKS, "pool never exceeds the budget");
     }
@@ -255,7 +262,7 @@ mod tests {
     fn a_rut_fades_out_and_dies() {
         let map = HeightMap::flat(65, 65, 1.0, 0.0).expect("valid map");
         let mut marks = TrackMarks::default();
-        marks.record_segment(Vec3::new(10.0, 0.0, 10.0), Vec3::new(11.5, 0.0, 10.0), false, &map);
+        marks.record_segment(Vec3::new(10.0, 0.0, 10.0), Vec3::new(11.5, 0.0, 10.0), 0.0, &map);
         let fresh = {
             let mut vertices = Vec::new();
             marks.append_quads(&mut vertices);
@@ -278,7 +285,7 @@ mod tests {
     fn a_zero_length_step_writes_nothing() {
         let map = HeightMap::flat(65, 65, 1.0, 0.0).expect("valid map");
         let mut marks = TrackMarks::default();
-        marks.record_segment(Vec3::new(4.0, 0.0, 4.0), Vec3::new(4.0, 0.0, 4.0), false, &map);
+        marks.record_segment(Vec3::new(4.0, 0.0, 4.0), Vec3::new(4.0, 0.0, 4.0), 0.0, &map);
         assert_eq!(marks.live_marks(), 0, "a parked tank writes no rut");
     }
 }

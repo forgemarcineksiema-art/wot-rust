@@ -76,6 +76,12 @@ impl super::SceneRenderer {
                 time_s: self.scene_time_s,
                 rain_intensity: self.rain_intensity,
                 wetness: self.wetness,
+                weather_params: [
+                    self.cloud_offset[0],
+                    self.cloud_offset[1],
+                    self.puddle_fill,
+                    self.rain_phase_s,
+                ],
             },
         );
         ctx.queue.write_buffer(&self.camera_buffer, 0, &encode_camera_uniform(&camera)?);

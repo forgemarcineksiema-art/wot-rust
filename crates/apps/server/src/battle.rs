@@ -36,6 +36,10 @@ impl BattleSeed {
         (self.random_battle_mix(salt) as usize) % len.max(1)
     }
 
+    pub(crate) fn random_battle_u64(self, salt: u64) -> u64 {
+        self.random_battle_mix(salt)
+    }
+
     pub(crate) fn random_battle_unit(self, salt: u64) -> f32 {
         let bits = self.random_battle_mix(salt) >> 40;
         bits as f32 / ((1u64 << 24) - 1) as f32

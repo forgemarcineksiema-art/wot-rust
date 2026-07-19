@@ -88,7 +88,8 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     // each look owns its sky: the rain profile biases the same FBM into an overcast lid, dawn
     // thins it to high sheets.
     let drift = camera.time_params.x * camera.cloud_params.w;
-    let uv = dir.xz / (dir.y + 0.45) * 0.8 * camera.cloud_params.y + vec2<f32>(drift, drift * 0.6);
+    let uv = dir.xz / (dir.y + 0.45) * 0.8 * camera.cloud_params.y
+        + vec2<f32>(drift, drift * 0.6) + camera.weather_params.xy;
     let warp = vec2<f32>(cloud_fbm(uv * 0.5), cloud_fbm(uv * 0.5 + vec2<f32>(5.2, 1.3)));
     // Cumulus body: the warped FBM plus a RIDGED octave pair — 1-|2n-1| billows the tops into
     // rounded heads instead of soft mush (clouds 2.0). The storm front (cloud2_params.zw)
@@ -127,7 +128,7 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     let sheet_opacity = camera.cloud2_params.x;
     if (sheet_opacity > 0.0) {
         let sheet_uv = dir.xz / (dir.y + 0.55) * 1.6 * camera.cloud2_params.y
-            + vec2<f32>(drift * 0.35, drift * 0.2);
+            + vec2<f32>(drift * 0.35, drift * 0.2) + camera.weather_params.xy * 0.7;
         let sheet = smoothstep(0.52, 0.78, cloud_fbm(sheet_uv))
             * smoothstep(0.08, 0.4, dir.y) * (1.0 - cloud);
         let sheet_col = mix(color, cloud_lit * 0.9 + vec3<f32>(0.1), 0.85);

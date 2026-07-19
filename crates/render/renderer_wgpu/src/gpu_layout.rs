@@ -173,6 +173,9 @@ pub struct CameraUniform {
     /// Cloud layer 2 (appended): x = high-sheet opacity, y = high-sheet scale, z = storm-front
     /// heading (radians, world XZ), w = storm-front strength (0 disables).
     pub cloud2_params: GpuVec4,
+    /// Dynamic match-weather lanes: xy = seeded cloud UV offset, z = standing-water fill,
+    /// w = seeded rain time phase. Appended so all established uniform offsets remain stable.
+    pub weather_params: GpuVec4,
 }
 
 /// The per-frame pass parameters that ride the camera uniform beside the view matrices and
@@ -202,6 +205,7 @@ pub struct FramePassParams {
     /// World wetness 0..1 (`time_params.z`): rain darkens albedo, sharpens finishes, pools
     /// sheen on level ground — in the scene and vehicle shaders alike.
     pub wetness: f32,
+    pub weather_params: [f32; 4],
     /// Per-feature shader-detail mask (`time_params.w`, Żywy Step P0): the lane carries the
     /// bits of `ShaderDetailMask` as a small float integer; shaders test bits independently.
     pub shader_detail: renderer_api::ShaderDetailMask,
@@ -222,6 +226,7 @@ impl Default for FramePassParams {
             time_s: 0.0,
             rain_intensity: 0.0,
             wetness: 0.0,
+            weather_params: [0.0; 4],
             shader_detail: renderer_api::ShaderDetailMask::FULL,
         }
     }
@@ -311,6 +316,7 @@ impl CameraUniform {
                 lighting.storm_front_dir_rad,
                 lighting.storm_front_strength,
             ]),
+            weather_params: GpuVec4(passes.weather_params),
         }
     }
 

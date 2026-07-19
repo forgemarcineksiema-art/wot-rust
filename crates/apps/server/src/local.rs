@@ -1,4 +1,4 @@
-use game_core::{DamageEvent, ShellImpact, TankId, TankSpec, VehicleKind, WeatherVariant};
+use game_core::{DamageEvent, MatchWeather, ShellImpact, TankId, TankSpec, VehicleKind};
 use net::{ClientInputCommand, Snapshot};
 use sim::SimulationState;
 use terrain::{BattlefieldMap, MapId};
@@ -21,7 +21,7 @@ pub struct LocalAuthoritativeServer {
     sim: SimulationState,
     map_id: MapId,
     battlefield: BattlefieldMap,
-    weather: WeatherVariant,
+    weather: MatchWeather,
     mode: BattleMode,
     player_tank: TankId,
     target_tank: TankId,
@@ -148,7 +148,7 @@ impl LocalAuthoritativeServer {
     }
 
     /// The match's presentation weather, rolled once from the battle seed at setup.
-    pub fn weather_variant(&self) -> WeatherVariant {
+    pub fn weather(&self) -> MatchWeather {
         self.weather
     }
 

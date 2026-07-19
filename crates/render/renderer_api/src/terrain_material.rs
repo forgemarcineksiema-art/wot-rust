@@ -75,14 +75,15 @@ impl TerrainMaterialSet {
 
 /// The baked per-map ground textures the terrain pipeline samples: a splat map (four layer
 /// weights, RGBA8, normalized per texel) and a macro normal map (world-space normal packed
-/// `0.5 * n + 0.5` into RGB), both square and spanning the map's ground extent exactly.
+/// `0.5 * n + 0.5` into RGB, smooth rain-pooling propensity in alpha), both square and spanning
+/// the map's ground extent exactly.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TerrainGroundMaps {
     /// Texture edge in texels (square).
     pub size: u32,
     /// RGBA8 layer weights, row-major, `size * size * 4` bytes.
     pub splat: Vec<u8>,
-    /// RGBA8 packed world-space normals, row-major, `size * size * 4` bytes.
+    /// RGBA8 packed world-space normals plus pooling propensity, row-major, `size * size * 4`.
     pub macro_normal: Vec<u8>,
     /// World-space ground extent the textures span: UV = world.xz / extent.
     pub extent_m: [f32; 2],

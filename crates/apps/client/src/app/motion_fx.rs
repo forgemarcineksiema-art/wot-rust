@@ -45,7 +45,8 @@ impl ClientApp {
             return;
         }
         // Rain-softened ground takes a darker rut (D5); one judgment per frame for the field.
-        let wet = self.session.weather_variant() == game_core::WeatherVariant::RainSqualls;
+        let wetness = self.weather_frame.surface_wetness;
+        let dust_dryness = 1.0 - wetness;
         self.motion_fx.retain(|id, _| tanks.iter().any(|tank| tank.id == *id));
         for tank in tanks {
             if tank.hit_points == 0 {
@@ -110,7 +111,7 @@ impl ClientApp {
                                 None => self.track_marks.record_segment(
                                     from,
                                     contact,
-                                    wet,
+                                    wetness,
                                     &self.battlefield.heightmap,
                                 ),
                             }
@@ -121,11 +122,12 @@ impl ClientApp {
                     }
                 }
                 // Dust and splash are mutually exclusive: wet soil does not rise.
-                if water_surface.is_some() || speed < DUST_MIN_TRACK_SPEED {
+                if water_surface.is_some() || speed < DUST_MIN_TRACK_SPEED || dust_dryness < 0.15 {
                     state.dust_accum_s[side] = 0.0;
                     continue;
                 }
-                state.dust_accum_s[side] += dt * (speed / DUST_REFERENCE_SPEED).clamp(0.5, 2.2);
+                state.dust_accum_s[side] +=
+                    dt * (speed / DUST_REFERENCE_SPEED).clamp(0.5, 2.2) * dust_dryness;
                 while state.dust_accum_s[side] >= DUST_PERIOD_S {
                     state.dust_accum_s[side] -= DUST_PERIOD_S;
                     let ground = base
@@ -134,7 +136,11 @@ impl ClientApp {
                             0.0,
                             -hitbox.half_length_m * 0.72,
                         ));
-                    self.fx.rolling_dust(ground, heading, (speed / 10.0).clamp(0.3, 1.0));
+                    self.fx.rolling_dust(
+                        ground,
+                        heading,
+                        (speed / 10.0).clamp(0.3, 1.0) * dust_dryness,
+                    );
                 }
             }
 

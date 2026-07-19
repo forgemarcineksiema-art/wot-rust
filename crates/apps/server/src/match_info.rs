@@ -1,4 +1,4 @@
-use game_core::WeatherVariant;
+use game_core::{MatchWeather, WeatherVariant};
 use terrain::MapId;
 
 use crate::battle::BattleSeed;
@@ -6,6 +6,7 @@ use crate::battle::BattleSeed;
 /// Salt for the weather roll, so the pick decorrelates from every other seeded decision
 /// (spawn jitter, bot vehicles, routes) made from the same battle seed.
 const WEATHER_SALT: u64 = 0x57EA_7AB1_E000_0001;
+const WEATHER_PROGRAM_SALT: u64 = 0x57EA_7AB1_E000_0002;
 
 /// The weather a map can be dressed in. Hand-tuned looks only — a variant appears here once
 /// its full presentation (lighting, fog, particles, ambience) ships for that map, never
@@ -29,9 +30,12 @@ pub fn supported_weather(map: MapId) -> &'static [WeatherVariant] {
 
 /// Roll the match weather from the battle seed: deterministic, so replaying a seed replays
 /// the sky, and both ends of the wire agree without negotiation.
-pub fn pick_weather(map: MapId, seed: BattleSeed) -> WeatherVariant {
+pub fn pick_weather(map: MapId, seed: BattleSeed) -> MatchWeather {
     let options = supported_weather(map);
-    options[seed.random_battle_index(WEATHER_SALT, options.len())]
+    MatchWeather::new(
+        options[seed.random_battle_index(WEATHER_SALT, options.len())],
+        seed.random_battle_u64(WEATHER_PROGRAM_SALT),
+    )
 }
 
 #[cfg(test)]
@@ -53,7 +57,12 @@ mod tests {
         for &map in MapId::ALL {
             let first = pick_weather(map, BattleSeed::fixed(42));
             assert_eq!(first, pick_weather(map, BattleSeed::fixed(42)));
-            assert!(supported_weather(map).contains(&first));
+            assert!(supported_weather(map).contains(&first.variant));
+            assert_ne!(first.seed, 0);
         }
+        assert_ne!(
+            pick_weather(MapId::BystraValley, BattleSeed::fixed(42)).seed,
+            pick_weather(MapId::BystraValley, BattleSeed::fixed(43)).seed,
+        );
     }
 }

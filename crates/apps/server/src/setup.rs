@@ -1,4 +1,4 @@
-use game_core::{TankId, TeamId, VehicleKind, WeatherVariant};
+use game_core::{MatchWeather, TankId, TeamId, VehicleKind};
 use glam::Vec3;
 use sim::SimulationState;
 use terrain::{BattlefieldMap, MapId, SpawnZone};
@@ -12,7 +12,7 @@ pub(crate) struct BattleSetup {
     pub sim: SimulationState,
     pub map_id: MapId,
     pub battlefield: BattlefieldMap,
-    pub weather: WeatherVariant,
+    pub weather: MatchWeather,
     pub player_tank: TankId,
     pub target_tank: TankId,
     pub bots: BotRoster,
@@ -39,7 +39,7 @@ pub(crate) fn practice_duel_setup(player_vehicle: VehicleKind) -> BattleSetup {
         sim,
         map_id,
         battlefield,
-        weather: WeatherVariant::default(),
+        weather: MatchWeather::default(),
         player_tank,
         target_tank,
         bots: BotRoster::empty(),

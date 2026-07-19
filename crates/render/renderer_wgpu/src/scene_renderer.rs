@@ -81,6 +81,10 @@ pub struct SceneRenderer {
     pub rain_intensity: f32,
     /// World wetness 0..1 from the weather look (time_params.z).
     pub wetness: f32,
+    /// Dynamic match-weather lanes separate from material wetness.
+    pub puddle_fill: f32,
+    pub cloud_offset: [f32; 2],
+    pub rain_phase_s: f32,
     water_pipeline: wgpu::RenderPipeline,
     /// The discrete-tier refraction pipeline + grab resources; unused (bind group stays `None`)
     /// when refraction is off or the frame is single-sampled.
@@ -379,6 +383,9 @@ impl SceneRenderer {
             rain_pipeline,
             rain_intensity: 0.0,
             wetness: 0.0,
+            puddle_fill: 0.0,
+            cloud_offset: [0.0; 2],
+            rain_phase_s: 0.0,
             water_pipeline,
             water_refraction,
             refraction: lighting_quality.refraction,

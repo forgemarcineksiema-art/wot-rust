@@ -18,7 +18,7 @@ use crate::shader_library::{
     CAMERA_COMMON_WGSL, LIGHTING_COMMON_WGSL, SHADOW_COMMON_WGSL, compose_shader,
 };
 
-fn terrain_shader_source() -> String {
+pub fn terrain_shader_source() -> String {
     compose_shader(&[
         CAMERA_COMMON_WGSL,
         LIGHTING_COMMON_WGSL,

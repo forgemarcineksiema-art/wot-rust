@@ -102,7 +102,11 @@ fn with_ambient_on_the_crease_still_darkens() {
     }) else {
         return;
     };
-    let lighting = SceneLighting::battlefield_default();
+    // Isolate the indirect lane this test owns. The correctly normalized near-shadow PCF leaves
+    // the full key contribution alive; allowing that unrelated direct term to dominate would make
+    // this assertion depend on shadow quality instead of whether SSAO still reaches the ambient.
+    let mut lighting = SceneLighting::battlefield_default();
+    lighting.key_rgb = [0.0; 3];
     let without = render_crease(&ctx, lighting, false);
     let with = render_crease(&ctx, lighting, true);
     let darkened = without

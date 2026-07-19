@@ -4,6 +4,7 @@ mod culling;
 mod debug_tools;
 mod feature_plan;
 mod lighting;
+mod lighting_blend;
 mod lighting_quality;
 mod limits;
 mod pipeline;

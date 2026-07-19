@@ -21,6 +21,45 @@ const ROCK_CREST_START: f32 = 0.72;
 /// Ground within this height above the waterline reads as worn wet earth (mud lives in the
 /// dirt layer, darkened by the existing water tint and wetness at render time).
 const WATER_MARGIN_M: f32 = 0.45;
+/// Smooth pooling suitability across more than one 5 m heightfield cell. This prevents the wet
+/// sheen from exposing the simulation grid when a grazing camera catches the reflected sky.
+const PUDDLE_BLUR_RADIUS_TEXELS: usize = 6;
+
+fn pooling_smoothstep(edge0: f32, edge1: f32, value: f32) -> f32 {
+    let t = ((value - edge0) / (edge1 - edge0)).clamp(0.0, 1.0);
+    t * t * (3.0 - 2.0 * t)
+}
+
+fn blur_square_mask(mask: &[f32], size: usize, radius: usize) -> Vec<f32> {
+    let mut horizontal = vec![0.0; mask.len()];
+    let mut result = vec![0.0; mask.len()];
+    let mut prefix = vec![0.0; size + 1];
+
+    for z in 0..size {
+        prefix[0] = 0.0;
+        for x in 0..size {
+            prefix[x + 1] = prefix[x] + mask[z * size + x];
+        }
+        for x in 0..size {
+            let lo = x.saturating_sub(radius);
+            let hi = (x + radius + 1).min(size);
+            horizontal[z * size + x] = (prefix[hi] - prefix[lo]) / (hi - lo) as f32;
+        }
+    }
+
+    for x in 0..size {
+        prefix[0] = 0.0;
+        for z in 0..size {
+            prefix[z + 1] = prefix[z] + horizontal[z * size + x];
+        }
+        for z in 0..size {
+            let lo = z.saturating_sub(radius);
+            let hi = (z + radius + 1).min(size);
+            result[z * size + x] = (prefix[hi] - prefix[lo]) / (hi - lo) as f32;
+        }
+    }
+    result
+}
 
 /// Bake the splat + macro-normal maps for a battlefield. UV spans the heightmap's ground
 /// extent exactly: `uv = world.xz / extent`.
@@ -34,6 +73,7 @@ pub fn bake_terrain_ground_maps(battlefield: &BattlefieldMap) -> TerrainGroundMa
     let size = MAP_SIZE as usize;
     let mut splat = Vec::with_capacity(size * size * 4);
     let mut macro_normal = Vec::with_capacity(size * size * 4);
+    let mut puddle_propensity = Vec::with_capacity(size * size);
     // Finite-difference step for the macro normal: half a texel, well under the 5 m grid.
     let step = (extent_x / MAP_SIZE as f32) * 0.5;
 
@@ -56,11 +96,23 @@ pub fn bake_terrain_ground_maps(battlefield: &BattlefieldMap) -> TerrainGroundMa
             let inv_len =
                 1.0 / (dx * dx + (2.0 * step) * (2.0 * step) + dz * dz).sqrt().max(1.0e-6);
             let n = [-dx * inv_len, 2.0 * step * inv_len, -dz * inv_len];
+            // Pooling is broad terrain truth, not a per-fragment normal threshold. A wide
+            // flatness ramp plus a weak local-depression preference is blurred below before
+            // entering alpha, so neither the 5 m height grid nor its triangle diagonal survives.
+            let flatness = pooling_smoothstep(0.94, 0.997, n[1]);
+            let basin_radius_m = 8.0;
+            let neighbour_mean = (height_at(wx - basin_radius_m, wz)
+                + height_at(wx + basin_radius_m, wz)
+                + height_at(wx, wz - basin_radius_m)
+                + height_at(wx, wz + basin_radius_m))
+                * 0.25;
+            let basin = pooling_smoothstep(-0.12, 0.18, neighbour_mean - y);
+            puddle_propensity.push(flatness * (0.82 + basin * 0.18));
             macro_normal.extend([
                 ((n[0] * 0.5 + 0.5) * 255.0).round() as u8,
                 ((n[1] * 0.5 + 0.5) * 255.0).round() as u8,
                 ((n[2] * 0.5 + 0.5) * 255.0).round() as u8,
-                255,
+                0,
             ]);
 
             // Layer weights. Rock breaks through on steep faces and high crests; roads wear
@@ -93,6 +145,11 @@ pub fn bake_terrain_ground_maps(battlefield: &BattlefieldMap) -> TerrainGroundMa
             let quantize = |w: f32| ((w / total) * 255.0).round().clamp(0.0, 255.0) as u8;
             splat.extend([quantize(grass), quantize(straw), quantize(dirt), quantize(rock)]);
         }
+    }
+
+    let puddle_propensity = blur_square_mask(&puddle_propensity, size, PUDDLE_BLUR_RADIUS_TEXELS);
+    for (texel, propensity) in macro_normal.chunks_exact_mut(4).zip(puddle_propensity) {
+        texel[3] = (propensity * 255.0).round().clamp(0.0, 255.0) as u8;
     }
 
     TerrainGroundMaps { size: MAP_SIZE, splat, macro_normal, extent_m: [extent_x, extent_z] }

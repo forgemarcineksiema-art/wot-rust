@@ -1,6 +1,6 @@
-﻿use game_core::{
-    DamageCause, DamageEvent, ImpactSurface, ModuleSlot, ShellImpact, TankId, TeamId, VehicleKind,
-    WeatherVariant,
+use game_core::{
+    DamageCause, DamageEvent, ImpactSurface, MatchWeather, ModuleSlot, ShellImpact, TankId, TeamId,
+    VehicleKind, WeatherVariant,
 };
 use glam::Vec3;
 use net::{
@@ -11,7 +11,7 @@ use sim::TankCommand;
 use terrain::MapId;
 
 #[test]
-fn input_command_wire_snapshot_v33_is_stable() {
+fn input_command_wire_snapshot_v34_is_stable() {
     let message = ProtocolMessage::Input(ClientInputCommand {
         client_tick: 7,
         tank_id: TankId(42),
@@ -28,13 +28,13 @@ fn input_command_wire_snapshot_v33_is_stable() {
 
     let bytes = encode_message(&message).expect("message should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 33);
+    assert_eq!(PROTOCOL_VERSION, 34);
     assert_eq!(hex(&bytes), wire_fixture(&bytes, "input_command_v33"));
     assert_eq!(decode_message(&bytes).expect("message should decode"), message);
 }
 
 #[test]
-fn vehicle_selection_wire_snapshot_v33_is_stable() {
+fn vehicle_selection_wire_snapshot_v34_is_stable() {
     let message = ProtocolMessage::VehicleSelection(ClientVehicleSelection {
         client_tick: 11,
         requested_vehicle: VehicleKind::PantherII,
@@ -42,48 +42,48 @@ fn vehicle_selection_wire_snapshot_v33_is_stable() {
 
     let bytes = encode_message(&message).expect("vehicle selection should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 33);
+    assert_eq!(PROTOCOL_VERSION, 34);
     assert_eq!(hex(&bytes), wire_fixture(&bytes, "vehicle_selection_v33"));
     assert_eq!(decode_message(&bytes).expect("message should decode"), message);
 }
 
 #[test]
-fn tank_snapshot_wire_v33_is_stable() {
+fn tank_snapshot_wire_v34_is_stable() {
     // Locks the v19 raw payload layout; transport framing is covered separately.
     let message = ProtocolMessage::Snapshot(tank_snapshot_message());
 
     let bytes = encode_message(&message).expect("snapshot should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 33);
+    assert_eq!(PROTOCOL_VERSION, 34);
     assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_tank_v33"));
     assert_eq!(decode_message(&bytes).expect("snapshot should decode"), message);
 }
 
 #[test]
-fn combat_snapshot_wire_v33_is_stable() {
+fn combat_snapshot_wire_v34_is_stable() {
     let message = ProtocolMessage::Snapshot(combat_snapshot_message());
 
     let bytes = encode_message(&message).expect("snapshot should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 33);
+    assert_eq!(PROTOCOL_VERSION, 34);
     assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_combat_v33"));
     assert_eq!(decode_message(&bytes).expect("snapshot should decode"), message);
 }
 
 #[test]
-fn server_hello_wire_snapshot_v33_is_stable() {
+fn server_hello_wire_snapshot_v34_is_stable() {
     let message = ProtocolMessage::ServerHello {
         protocol_version: PROTOCOL_VERSION,
         map_id: MapId::ProkhorovkaHill252_2,
         // v23: lock one of the appended time-of-day variants into the fixture, so the new
         // discriminants cannot silently shift on the wire.
-        weather_variant: WeatherVariant::GoldenEvening,
+        weather: MatchWeather::new(WeatherVariant::GoldenEvening, 0x0123_4567_89AB_CDEF),
     };
 
     let bytes = encode_message(&message).expect("server hello should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 33);
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "server_hello_v33"));
+    assert_eq!(PROTOCOL_VERSION, 34);
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "server_hello_v34"));
     assert_eq!(decode_message(&bytes).expect("server hello should decode"), message);
 }
 
@@ -130,16 +130,16 @@ pub fn tank_snapshot_message() -> Snapshot {
 /// Non-empty combat snapshot used by the v18 fixture (and its generator): shells in flight, a
 /// damage event, and an absorbed-shell impact.
 #[test]
-fn input_batch_and_disconnect_wire_v33_are_stable() {
+fn input_batch_and_disconnect_wire_v34_are_stable() {
     let batch = ProtocolMessage::InputBatch {
         commands: vec![sample_input_command(), sample_input_command()],
     };
     let bytes = net::encode_frame(&batch).expect("encode");
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "input_batch_v33"));
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "input_batch_v34"));
 
     let goodbye = ProtocolMessage::Disconnect { reason: net::DisconnectReason::Quit };
     let bytes = net::encode_frame(&goodbye).expect("encode");
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "disconnect_v33"));
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "disconnect_v34"));
 }
 
 /// The transport ships a snapshot in datagrams; a battle-worn 14-tank snapshot (live breaches on

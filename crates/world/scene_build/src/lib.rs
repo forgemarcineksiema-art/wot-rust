@@ -16,3 +16,4 @@ pub mod tank_mesh;
 pub mod terrain_maps;
 pub mod water;
 pub mod weather;
+pub mod weather_timeline;

@@ -68,4 +68,15 @@ impl super::WindowRenderer {
     pub fn set_wetness(&mut self, wetness: f32) {
         self.scene.wetness = wetness.clamp(0.0, 1.0);
     }
+
+    pub fn set_weather_dynamics(
+        &mut self,
+        puddle_fill: f32,
+        cloud_offset: [f32; 2],
+        rain_phase_s: f32,
+    ) {
+        self.scene.puddle_fill = puddle_fill.clamp(0.0, 1.0);
+        self.scene.cloud_offset = cloud_offset;
+        self.scene.rain_phase_s = rain_phase_s;
+    }
 }

@@ -47,9 +47,9 @@ impl BattleSessionKind {
         }
     }
 
-    pub fn weather_variant(&self) -> game_core::WeatherVariant {
+    pub fn weather(&self) -> game_core::MatchWeather {
         match self {
-            Self::Local(server) => server.weather_variant(),
+            Self::Local(server) => server.weather(),
             Self::Remote(session) => session.weather,
         }
     }
@@ -79,7 +79,6 @@ impl BattleSessionKind {
 
     /// Test-facing observability (battle-flow tests read the clock and the FULL roster);
     /// live code consumes only the per-viewer cut.
-    #[cfg(test)]
     pub fn authoritative_tick(&self) -> u64 {
         match self {
             Self::Local(server) => server.authoritative_tick(),
@@ -128,7 +127,7 @@ pub struct RemoteSession {
     started: Instant,
     pub assigned_tank: Option<TankId>,
     pub map_id: MapId,
-    weather: game_core::WeatherVariant,
+    weather: game_core::MatchWeather,
     latest_snapshot: Option<Snapshot>,
     latest_server_tick: u64,
     outcome: Option<server::BattleOutcome>,
@@ -147,7 +146,7 @@ impl RemoteSession {
             started: Instant::now(),
             assigned_tank: None,
             map_id: MapId::default(),
-            weather: game_core::WeatherVariant::default(),
+            weather: game_core::MatchWeather::default(),
             latest_snapshot: None,
             latest_server_tick: 0,
             outcome: None,
@@ -215,9 +214,9 @@ impl RemoteSession {
                         }
                     });
                 }
-                ProtocolMessage::ServerHello { map_id, weather_variant, .. } => {
+                ProtocolMessage::ServerHello { map_id, weather, .. } => {
                     self.map_id = map_id;
-                    self.weather = weather_variant;
+                    self.weather = weather;
                 }
                 _ => {}
             }
@@ -321,6 +320,13 @@ mod tests {
             }
         }
         assert!(compared >= 5, "the runs must actually overlap, compared {compared}");
+        assert_eq!(remote.weather(), local.weather(), "wire and local match weather identity");
+        let elapsed_s = remote.authoritative_tick() as f32 / sim::DEFAULT_SIMULATION_TICK_HZ as f32;
+        let local_weather =
+            scene_build::weather_timeline::WeatherTimeline::new(local.map_id(), local.weather());
+        let remote_weather =
+            scene_build::weather_timeline::WeatherTimeline::new(remote.map_id(), remote.weather());
+        assert_eq!(local_weather.sample(elapsed_s), remote_weather.sample(elapsed_s));
         assert!(host.is_running());
     }
 }

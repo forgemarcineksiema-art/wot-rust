@@ -45,6 +45,7 @@ pub use renderer::WgpuRenderer;
 pub use scene_pipeline::{build_camera_bind_group_layout, scene_shader_source};
 pub use scene_renderer::SceneRenderer;
 pub use scene_renderer::env_group::build_shadow_bind_group_layout;
+pub use scene_renderer::ground::terrain_shader_source;
 pub use scene_renderer::shadow::shadow_shader_source;
 pub use scene_renderer::ssao::ssao_shader_source;
 pub use scene_renderer::{

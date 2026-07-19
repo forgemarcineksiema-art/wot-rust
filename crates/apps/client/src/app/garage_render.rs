@@ -135,13 +135,8 @@ impl ClientApp {
             // on the turntable) over a dim, near-neutral shop interior.
             SceneKind::Garage => ((0.05, 0.05, 0.06), SceneLighting::garage_hero(), 0.0, 0.0),
             SceneKind::Battle => {
-                // The battle look is the MATCH's look: the server named the map and rolled the
-                // weather from the battle seed; the client dresses accordingly.
-                let look = scene_build::weather::weather_look(
-                    self.session.map_id(),
-                    self.session.weather_variant(),
-                );
-                (look.sky, look.lighting, look.rain_intensity, look.wetness)
+                let frame = self.weather_frame;
+                (frame.sky, frame.lighting, frame.rain_intensity, frame.surface_wetness)
             }
         };
         if let Some(renderer) = self.renderer.as_mut() {
@@ -173,6 +168,16 @@ impl ClientApp {
             renderer.set_scene_lighting(lighting);
             renderer.set_rain_intensity(rain_intensity);
             renderer.set_wetness(wetness);
+            if want == SceneKind::Battle {
+                let frame = self.weather_frame;
+                renderer.set_weather_dynamics(
+                    frame.puddle_fill,
+                    frame.cloud_offset,
+                    frame.rain_phase_s,
+                );
+            } else {
+                renderer.set_weather_dynamics(0.0, [0.0; 2], 0.0);
+            }
             // The garage pins the shadow boxes to the turntable (the orbit camera's "forward"
             // swings a full circle); battle restores the forward chase-camera heuristic. Both
             // arms live here so neither scene inherits the other's focus.
@@ -189,15 +194,13 @@ impl ClientApp {
     /// Dress the freshly created renderer in the CURRENT battle's weather (the renderer is
     /// born holding the generic battlefield defaults; the app is born in battle).
     pub(super) fn apply_match_weather(&mut self) {
-        let look = scene_build::weather::weather_look(
-            self.session.map_id(),
-            self.session.weather_variant(),
-        );
+        let look = self.weather_frame;
         if let Some(renderer) = self.renderer.as_mut() {
             renderer.set_outdoor_sky(look.sky.0, look.sky.1, look.sky.2);
             renderer.set_scene_lighting(look.lighting);
             renderer.set_rain_intensity(look.rain_intensity);
-            renderer.set_wetness(look.wetness);
+            renderer.set_wetness(look.surface_wetness);
+            renderer.set_weather_dynamics(look.puddle_fill, look.cloud_offset, look.rain_phase_s);
         }
     }
 

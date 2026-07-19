@@ -203,6 +203,11 @@ impl ClientApp {
                     server::RandomBattleConfig::runtime_from_env(spec.kind),
                 ),
             ));
+            self.weather_timeline = scene_build::weather_timeline::WeatherTimeline::new(
+                self.session.map_id(),
+                self.session.weather(),
+            );
+            self.weather_frame = self.weather_timeline.sample(0.0);
             self.client_tick = 0;
             self.damage_log = crate::hud::damage_log::DamageLog::default();
             self.incoming_hits = crate::hud::hit_direction::IncomingHitFeed::default();

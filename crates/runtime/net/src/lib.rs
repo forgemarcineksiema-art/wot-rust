@@ -1,7 +1,7 @@
 use bincode::Options;
 use game_core::{
-    ArmorBreachSet, DamageEvent, MODULE_SLOT_COUNT, ShellId, ShellImpact, ShellType, TRACK_HP_MAX,
-    TankId, TeamId, VehicleKind, WeatherVariant,
+    ArmorBreachSet, DamageEvent, MODULE_SLOT_COUNT, MatchWeather, ShellId, ShellImpact, ShellType,
+    TRACK_HP_MAX, TankId, TeamId, VehicleKind,
 };
 use serde::{Deserialize, Serialize};
 use sim::{SimulationState, TankCommand, TankState};
@@ -18,6 +18,9 @@ pub mod transport;
 pub use frame::{FRAME_HEADER_LEN, FRAME_MAGIC, decode_frame, encode_frame};
 pub use snapshot_schedule::SnapshotSchedule;
 
+/// v34: `ServerHello` carries `MatchWeather` (program plus deterministic seed), so every client
+/// and late joiner evaluates the same presentation timeline from authoritative battle tick time.
+///
 /// v32: `Snapshot` carries `cover_scars` — replicated shell wounds on static-cover faces
 /// (kinetic insets and HE bites), purely visual, re-sent whole so a late joiner dresses the
 /// same walls. Appended, `serde(default)`.
@@ -67,7 +70,7 @@ pub use snapshot_schedule::SnapshotSchedule;
 /// v33: the T-55A clone leaves the roster and its `VehicleKind` variant is deleted outright,
 /// shifting every discriminant after it — a deliberate wire break (no live players yet;
 /// the roster rule is "no clones").
-pub const PROTOCOL_VERSION: u16 = 33;
+pub const PROTOCOL_VERSION: u16 = 34;
 
 #[derive(Debug, Error)]
 pub enum NetError {
@@ -313,7 +316,7 @@ pub enum ProtocolMessage {
     ServerHello {
         protocol_version: u16,
         map_id: MapId,
-        weather_variant: WeatherVariant,
+        weather: MatchWeather,
     },
     /// v28: the client's per-tick send over a LOSSY wire — the latest few commands, newest
     /// last. A dropped datagram costs nothing: the next batch re-carries the recent history

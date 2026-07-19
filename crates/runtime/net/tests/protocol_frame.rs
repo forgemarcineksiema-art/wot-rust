@@ -43,7 +43,7 @@ fn hello_messages_advertise_current_protocol_version() {
     let server = ProtocolMessage::ServerHello {
         protocol_version: PROTOCOL_VERSION,
         map_id: terrain::MapId::ProkhorovkaHill252_2,
-        weather_variant: game_core::WeatherVariant::ClearAfternoon,
+        weather: game_core::MatchWeather::default(),
     };
 
     assert_eq!(decode_frame(&encode_frame(&client).unwrap()).unwrap(), client);

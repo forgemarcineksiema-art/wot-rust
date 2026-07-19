@@ -138,6 +138,8 @@ pub(crate) struct ClientApp {
     loop_driver: WinitLoopDriver,
     last_loop_time: Instant,
     session: session::BattleSessionKind,
+    weather_timeline: scene_build::weather_timeline::WeatherTimeline,
+    weather_frame: scene_build::weather_timeline::WeatherFrame,
     render_state: InterpolatedBattleState,
     camera_controller: BattleCameraController,
     camera_obstacles: Vec<CameraObstacle>,
@@ -309,6 +311,11 @@ impl ClientApp {
     }
 
     fn from_session(session: session::BattleSessionKind) -> Self {
+        let weather_timeline = scene_build::weather_timeline::WeatherTimeline::new(
+            session.map_id(),
+            session.weather(),
+        );
+        let weather_frame = weather_timeline.sample(0.0);
         let mut app = Self::from_battle_config(RandomBattleConfig::new(
             server::BattleSeed::fixed(1),
             VehicleKind::default(),
@@ -323,6 +330,8 @@ impl ClientApp {
         app.camera_controller =
             BattleCameraController::new(Self::map_camera_settings(session.map_id()));
         app.session = session;
+        app.weather_timeline = weather_timeline;
+        app.weather_frame = weather_frame;
         app.render_state = InterpolatedBattleState::default();
         app.render_state.accept_authoritative_snapshot(app.session.latest_snapshot_for_player());
         app
@@ -359,12 +368,19 @@ impl ClientApp {
         let mut predictor = LocalPredictor::new(&player_spec);
         predictor.set_water(battlefield.water);
         let minimap_static = crate::app::minimap_build::minimap_static_layers(&battlefield);
+        let weather_timeline = scene_build::weather_timeline::WeatherTimeline::new(
+            local_server.map_id(),
+            local_server.weather(),
+        );
+        let weather_frame = weather_timeline.sample(0.0);
         Self {
             window: None,
             renderer: None,
             loop_driver: WinitLoopDriver::new(DEFAULT_SIMULATION_TICK_HZ),
             last_loop_time: Instant::now(),
             session: local_server,
+            weather_timeline,
+            weather_frame,
             render_state,
             camera_controller: BattleCameraController::new(camera_settings),
             camera_obstacles,

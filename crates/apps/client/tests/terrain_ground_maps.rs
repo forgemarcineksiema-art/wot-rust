@@ -113,6 +113,30 @@ fn macro_normals_decode_to_unit_up_facing_vectors() {
 }
 
 #[test]
+fn puddle_propensity_is_smooth_varied_and_never_a_binary_grid_gate() {
+    let maps = bake_terrain_ground_maps(&bystra_valley());
+    let size = maps.size as usize;
+    let alpha: Vec<u8> = maps.macro_normal.chunks_exact(4).map(|texel| texel[3]).collect();
+    let unique: std::collections::BTreeSet<u8> = alpha.iter().copied().collect();
+    let mut max_neighbour_jump = 0u8;
+    for z in 0..size - 1 {
+        for x in 0..size - 1 {
+            let here = alpha[z * size + x];
+            max_neighbour_jump = max_neighbour_jump.max(here.abs_diff(alpha[z * size + x + 1]));
+            max_neighbour_jump = max_neighbour_jump.max(here.abs_diff(alpha[(z + 1) * size + x]));
+        }
+    }
+
+    assert!(unique.len() > 128, "pooling mask must retain a broad smooth range");
+    assert!(alpha.iter().any(|&value| value < 64), "steep ground must reject pooling");
+    assert!(alpha.iter().any(|&value| value > 192), "flat ground must admit pooling");
+    assert!(
+        max_neighbour_jump <= 24,
+        "blurred pooling must not reveal heightfield cell edges: jump {max_neighbour_jump}"
+    );
+}
+
+#[test]
 fn each_map_owns_a_policy_conformant_material_set() {
     // The selector is total over MapId and both palettes pass the bible's envelope (locked in
     // renderer_api); here we lock the mapping itself.

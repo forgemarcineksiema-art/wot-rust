@@ -89,6 +89,25 @@ fn value_noise(p: vec2<f32>) -> f32 {
     return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
 }
 
+// Break the square lattice of value_noise before thresholding it into rain pools. Two rotated
+// scales keep the broad patches coherent while the finer scale erodes their grid-aligned edges.
+fn puddle_pool(world_xz: vec2<f32>, fill: f32) -> f32 {
+    let edge_p = vec2(
+        world_xz.x * 0.197 + world_xz.y * -0.151,
+        world_xz.x * 0.151 + world_xz.y * 0.197,
+    ) + vec2<f32>(19.7, 43.1);
+    let edge = value_noise(edge_p);
+    let warp = (edge - 0.5) * 5.5;
+    let warped = world_xz + vec2<f32>(warp, warp * -0.73);
+    let broad_p = vec2(
+        warped.x * 0.110 + warped.y * 0.071,
+        warped.x * -0.071 + warped.y * 0.110,
+    );
+    let basin = value_noise(broad_p) * 0.72 + edge * 0.28;
+    let threshold = mix(0.80, 0.54, clamp(fill, 0.0, 1.0));
+    return smoothstep(threshold, threshold + 0.16, basin);
+}
+
 fn material_detail(world: vec3<f32>, n: vec3<f32>) -> f32 {
     // Interior looks (fog density 0 — the hangar; see `fog_params` docs) keep a near-flat
     // finish: painted panels and cast concrete carry no strata, and the outdoor patch noise
@@ -168,8 +187,18 @@ fn cloud_shadow(world: vec3<f32>) -> f32 {
         return 1.0;
     }
     let drift = camera.time_params.x * camera.cloud_params.w;
-    let uv = world.xz * (0.8 / 400.0) * camera.cloud_params.y + vec2<f32>(drift, drift * 0.6);
-    let coverage = (value_noise(uv) * 0.6 + value_noise(uv * 2.0) * 0.4) + camera.cloud_params.x;
+    let base_uv = world.xz * (0.8 / 400.0) * camera.cloud_params.y
+        + vec2<f32>(drift, drift * 0.6) + camera.weather_params.xy;
+    // Keep the terrain and generic-ground paths bit-identical: a warped, rotated field avoids
+    // showing value-noise interpolation cells as giant rectangles from elevated cameras.
+    let warp = vec2<f32>(
+        value_noise(base_uv * 0.73 + vec2<f32>(5.2, 1.3)),
+        value_noise(base_uv * 0.73 + vec2<f32>(1.7, 8.6)),
+    ) - vec2<f32>(0.5);
+    let uv = base_uv + warp * 0.72;
+    let rotated = vec2<f32>(uv.x * 0.83 - uv.y * 0.56, uv.x * 0.56 + uv.y * 0.83);
+    let coverage = value_noise(uv) * 0.46 + value_noise(rotated * 1.9) * 0.34
+        + value_noise(uv * 4.1 + vec2<f32>(11.4, 3.8)) * 0.2 + camera.cloud_params.x;
     let cloud = smoothstep(0.40, 0.72, coverage);
     return 1.0 - cloud * strength;
 }
@@ -197,12 +226,13 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     // Wetness (camera.time_params.z): rain darkens every material, sharpens its finish, and
     // pools mirror-flat sheen on level ground. Presentation only — set by the weather look.
     let wet = clamp(camera.time_params.z, 0.0, 1.0);
+    let fill = clamp(camera.weather_params.z, 0.0, 1.0);
     // Rain sheen lives in the puddles, and puddles are PATCHES pooled in the noise's hollows
     // — not a sheet mirror over every flat metre (the old broad gloss painted the whole
     // ground with the overcast sky and read as a mint wash). Soaked ground between them is
     // simply dark.
-    let pool = smoothstep(0.58, 0.82, value_noise(input.world_pos.xz * 0.16));
-    let puddle = smoothstep(0.985, 0.999, geometric_n.y) * wet * pool * 0.5;
+    let pool = puddle_pool(input.world_pos.xz, fill);
+    let puddle = smoothstep(0.94, 0.997, geometric_n.y) * fill * pool * 0.38;
     let gloss = clamp(input.gloss + wet * 0.08 + puddle, 0.0, 1.0);
 
     let n = detail_normal(input.world_pos, geometric_n, gloss);

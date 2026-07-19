@@ -28,7 +28,7 @@ fn vs_main(@builtin(vertex_index) vertex: u32, @builtin(instance_index) instance
     let h1 = hash11(seed + 0.13);
     let h2 = hash11(seed + 7.77);
     let h3 = hash11(seed + 31.3);
-    let time = camera.time_params.x;
+    let time = camera.time_params.x + camera.weather_params.w;
 
     // Cylinder placement around the camera, denser near the lens (sqrt keeps it uniform by
     // area; the near bias comes from perspective alone).

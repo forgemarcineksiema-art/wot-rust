@@ -35,6 +35,11 @@ impl ClientApp {
         ((self.client_tick as f64 + f64::from(self.loop_driver.render_alpha()))
             / f64::from(sim::DEFAULT_SIMULATION_TICK_HZ)) as f32
     }
+
+    fn weather_elapsed_s(&self) -> f32 {
+        (self.session.authoritative_tick() as f32 + self.loop_driver.render_alpha())
+            / sim::DEFAULT_SIMULATION_TICK_HZ as f32
+    }
     /// Drive each decapitated wreck's turret and gun render objects from its deterministic pop-off
     /// arc. Per tank the objects are laid out `[hull, turret, gun, ...gear]` contiguously, so the
     /// two objects after the hull are the turret and gun; anything else (a legacy vehicle whose
@@ -303,6 +308,7 @@ impl ClientApp {
         // Route the frame clock through the presentation world so `engine::Time` is the single
         // render-side time source the rest of the frame reads from.
         self.presentation.advance_time(raw_dt);
+        self.weather_frame = self.weather_timeline.sample(self.weather_elapsed_s());
         let frame_dt = self.presentation.time().delta_seconds;
         self.apply_mouse_look();
         if frame_dt > 0.0 {
@@ -471,9 +477,19 @@ impl ClientApp {
         let fx_vertices = self.fx_frame_vertices(camera.eye, camera.target);
         let scene_time_s = self.presented_time_s();
         self.ensure_scene(SceneKind::Battle);
+        let weather = self.weather_frame;
         let Some(renderer) = self.renderer.as_mut() else {
             return;
         };
+        renderer.set_outdoor_sky(weather.sky.0, weather.sky.1, weather.sky.2);
+        renderer.set_scene_lighting(weather.lighting);
+        renderer.set_rain_intensity(weather.rain_intensity);
+        renderer.set_wetness(weather.surface_wetness);
+        renderer.set_weather_dynamics(
+            weather.puddle_fill,
+            weather.cloud_offset,
+            weather.rain_phase_s,
+        );
         for (handle, mesh) in self.vehicle_asset_catalog.take_pending_vehicle_meshes() {
             renderer.register_vehicle_mesh(handle, &mesh);
         }

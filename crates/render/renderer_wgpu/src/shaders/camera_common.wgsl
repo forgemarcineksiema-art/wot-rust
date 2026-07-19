@@ -58,6 +58,8 @@ struct Camera {
     // Cloud layer 2: x = high-sheet opacity, y = high-sheet scale, z = storm-front heading
     // (radians), w = storm-front strength (0 disables).
     cloud2_params: vec4<f32>,
+    // xy = seeded cloud UV offset, z = standing-water fill, w = seeded rain time phase.
+    weather_params: vec4<f32>,
 };
 
 @group(0) @binding(0)

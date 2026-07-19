@@ -95,8 +95,12 @@ linear colour/intensity. `ground_ambient_rgb` is the only new profile field for 
   shadow passes. The camera+lighting uniform stays the single shared group-0 binding for both the
   scene and vehicle pipelines; its field order is mirrored in both WGSL `Camera` structs and locked
   by `wgsl_layout`.
-- No atmosphere rule depends on simulation state, wire snapshots, or window events. Time-of-day and
-  weather are render-side profiles; they never touch armour truth, hitboxes, or replay state.
+- Dynamic weather is identified by the server-owned `MatchWeather` (program + seed) and evaluated
+  from authoritative battle tick time. The descriptor is presentation metadata, not simulation
+  state: weather never changes armour truth, hitboxes, traction, ballistics, spotting, or replay
+  outcomes. A late joiner reconstructs the same visual phase without replicating per-frame weather.
+- Surface wetness and standing-water fill are separate presentation lanes. Natural basins are map
+  truth; the timeline only fills and drains them, never creates collision water or gameplay depth.
 - Surface narrative (edge wear, cavity dirt, weld beads — the "Surface Field" system) is a **separate
   policy**. Atmosphere lights the surface; it does not author it. The two meet at the vehicle vertex,
   which gains an ambient-occlusion channel so per-vehicle contact AO reaches the lit shader.

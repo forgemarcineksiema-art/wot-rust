@@ -60,4 +60,4 @@ pub use vehicle_blueprint::{
 pub use vehicle_kind::{Era, Nation, VehicleKind};
 pub use vehicles::known_tank_specs;
 pub use weapon::{GunSpec, ShellSpec, ShellType};
-pub use weather::WeatherVariant;
+pub use weather::{MatchWeather, WeatherVariant};
