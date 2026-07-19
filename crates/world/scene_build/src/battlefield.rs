@@ -48,8 +48,33 @@ pub fn battlefield_ground_and_statics_meshes(
 /// The ground alone — what a crater-ledger change rebuilds (protocol v31). The heightmap's
 /// crater overlay is already folded into `sample_height`, so the re-mesh below simply reads the
 /// same deformed truth physics stands on; the baked splat/macro maps never depend on craters.
+/// Includes the border apron: the same ground pipeline continued beyond the red line, so the
+/// world past the border is more steppe melting into the haze, not a different game.
 pub fn battlefield_ground_mesh(battlefield: &BattlefieldMap) -> SceneMeshData {
-    terrain_scene_mesh_full(&battlefield.heightmap, battlefield.water, &battlefield.roads)
+    let beyond = beyond_border_height(battlefield);
+    terrain_scene_mesh_full(
+        &battlefield.heightmap,
+        battlefield.water,
+        &battlefield.roads,
+        Some(beyond.as_ref()),
+    )
+}
+
+/// The analytic ground continuation the border apron stands on, per map. The authored maps
+/// expose the very surface their heightmaps sample, so the apron is exact at the border by
+/// construction; anything else falls back to clamped edge heights (a flat continuation).
+fn beyond_border_height(battlefield: &BattlefieldMap) -> Box<dyn Fn(f32, f32) -> f32 + '_> {
+    match battlefield.id.as_str() {
+        "bystra_valley" => Box::new(terrain::bystra_backdrop_height),
+        "prokhorovka_hill_252_2" => Box::new(terrain::prokhorovka_beyond_height),
+        _ => Box::new(|x, z| {
+            let [extent_x, extent_z] = battlefield.heightmap.extent_m();
+            battlefield
+                .heightmap
+                .sample_height(x.clamp(0.0, extent_x), z.clamp(0.0, extent_z))
+                .unwrap_or(0.0)
+        }),
+    }
 }
 
 /// The statics alone (cover, backdrop skirt, scenery) — what a cover-state change rebuilds.
@@ -644,7 +669,7 @@ pub fn terrain_scene_mesh_with_water(
     heightmap: &HeightMap,
     water: Option<WaterBody>,
 ) -> (Vec<SceneVertex>, Vec<u32>) {
-    terrain_scene_mesh_full(heightmap, water, &[])
+    terrain_scene_mesh_full(heightmap, water, &[], None)
 }
 
 /// The full terrain surface: height/slope base color, the grass patchwork, painted roads,
@@ -659,6 +684,7 @@ fn terrain_scene_mesh_full(
     heightmap: &HeightMap,
     water: Option<WaterBody>,
     roads: &[Road],
+    beyond: Option<&dyn Fn(f32, f32) -> f32>,
 ) -> (Vec<SceneVertex>, Vec<u32>) {
     let w = heightmap.width();
     let h = heightmap.height();
@@ -723,7 +749,98 @@ fn terrain_scene_mesh_full(
     for &(x, z) in &cut {
         append_crater_cell(&mut vertices, &mut indices, heightmap, x, z, &make_vertex);
     }
+    if let Some(beyond) = beyond {
+        append_border_apron(&mut vertices, &mut indices, heightmap, beyond, &make_vertex);
+    }
     (vertices, indices)
+}
+
+/// Border apron: the seam ring runs fine enough to stand next to, the far ring coarsens
+/// toward the haze. See [`append_border_apron`].
+const APRON_NEAR_OUT_M: f32 = 240.0;
+const APRON_NEAR_CELL_M: f32 = 12.0;
+const APRON_FAR_OUT_M: f32 = 1500.0;
+const APRON_FAR_CELL_M: f32 = 48.0;
+/// Seam overlap depth: a finer surface's territory is entered a little below it, so any
+/// T-junction between the grids shows ground behind it, never a slit of sky (the backdrop
+/// skirt's proven trick).
+const APRON_TUCK_M: f32 = 0.4;
+
+/// The ground pipeline continued beyond the red line — two rings of quads around the
+/// playfield, heights from the map's analytic continuation, coloured through the same
+/// `make_vertex` as the playfield (water depth tint and all). The splat/macro samplers clamp
+/// at the border so the last meadow's material carries outward, while the shader's
+/// procedural work — field quilt, detail grain, micro octave — is world-space and simply
+/// keeps going. The result: the world past the border is more of the same land melting into
+/// the aerial haze, not a different game. Render-only; the red line keeps physics inside.
+fn append_border_apron(
+    vertices: &mut Vec<SceneVertex>,
+    indices: &mut Vec<u32>,
+    heightmap: &HeightMap,
+    beyond: &dyn Fn(f32, f32) -> f32,
+    make_vertex: &impl Fn(f32, f32, f32, Vec3) -> SceneVertex,
+) {
+    let [extent_x, extent_z] = heightmap.extent_m();
+    // (outer reach, cell size, hole reach): each pass emits the frame between its own outer
+    // square and a hole one cell INSIDE the finer surface it must overlap-under. The near
+    // pass tucks under the playfield; the far pass tucks under the near ring.
+    let passes = [
+        (APRON_NEAR_OUT_M, APRON_NEAR_CELL_M, 0.0),
+        (APRON_FAR_OUT_M, APRON_FAR_CELL_M, APRON_NEAR_OUT_M),
+    ];
+    for (out_m, cell_m, hole_out_m) in passes {
+        let inside_frame = |x: f32, z: f32, reach: f32| -> bool {
+            x > -reach && x < extent_x + reach && z > -reach && z < extent_z + reach
+        };
+        let n = (((extent_x.max(extent_z) + 2.0 * out_m) / cell_m).ceil() as usize) + 1;
+        let position_of = |i: usize| -> f32 { -out_m + i as f32 * cell_m };
+        let mut vertex_index = vec![u32::MAX; n * n];
+        let corner = |vertices: &mut Vec<SceneVertex>,
+                      vertex_index: &mut Vec<u32>,
+                      ix: usize,
+                      iz: usize|
+         -> u32 {
+            let slot = iz * n + ix;
+            if vertex_index[slot] == u32::MAX {
+                let (x, z) = (position_of(ix), position_of(iz));
+                let mut y = beyond(x, z);
+                if inside_frame(x, z, hole_out_m) {
+                    y -= APRON_TUCK_M;
+                }
+                let step = cell_m * 0.5;
+                let normal = Vec3::new(
+                    beyond(x - step, z) - beyond(x + step, z),
+                    2.0 * step,
+                    beyond(x, z - step) - beyond(x, z + step),
+                )
+                .normalize();
+                vertex_index[slot] = vertices.len() as u32;
+                vertices.push(make_vertex(x, z, y, normal));
+            }
+            vertex_index[slot]
+        };
+        for iz in 0..n - 1 {
+            for ix in 0..n - 1 {
+                let (x0, z0) = (position_of(ix), position_of(iz));
+                let (x1, z1) = (position_of(ix + 1), position_of(iz + 1));
+                // Skip cells fully inside the hole (buried under the finer surface, minus the
+                // one-cell overlap band) and cells fully outside this pass's outer square.
+                if inside_frame(x0, z0, hole_out_m - cell_m)
+                    && inside_frame(x1, z1, hole_out_m - cell_m)
+                {
+                    continue;
+                }
+                if !inside_frame(x0, z0, out_m) && !inside_frame(x1, z1, out_m) {
+                    continue;
+                }
+                let i00 = corner(vertices, &mut vertex_index, ix, iz);
+                let i10 = corner(vertices, &mut vertex_index, ix + 1, iz);
+                let i01 = corner(vertices, &mut vertex_index, ix, iz + 1);
+                let i11 = corner(vertices, &mut vertex_index, ix + 1, iz + 1);
+                indices.extend_from_slice(&[i00, i01, i10, i10, i01, i11]);
+            }
+        }
+    }
 }
 
 /// Sub-cell resolution of a crater patch: 8 subdivisions of the 5 m battlefield cell give a
@@ -915,6 +1032,67 @@ mod tests {
     use terrain::prokhorovka_hill_252_2;
 
     use super::*;
+
+    #[test]
+    fn the_border_apron_continues_the_ground_to_the_haze_on_every_authored_map() {
+        for map in [prokhorovka_hill_252_2(), terrain::bystra_valley()] {
+            let [extent_x, extent_z] = map.heightmap.extent_m();
+            let (vertices, indices) = battlefield_ground_mesh(&map);
+            let (mut min_x, mut max_x, mut min_z, mut max_z) =
+                (f32::MAX, f32::MIN, f32::MAX, f32::MIN);
+            for vertex in &vertices {
+                min_x = min_x.min(vertex.position[0]);
+                max_x = max_x.max(vertex.position[0]);
+                min_z = min_z.min(vertex.position[2]);
+                max_z = max_z.max(vertex.position[2]);
+            }
+            assert!(
+                min_x < -1400.0
+                    && max_x > extent_x + 1400.0
+                    && min_z < -1400.0
+                    && max_z > extent_z + 1400.0,
+                "{}: the apron must reach the haze on all four sides",
+                map.id
+            );
+            // Budget: the apron is two chunk-culled rings, not a second map's worth of mesh.
+            let playfield_vertices = map.heightmap.width() * map.heightmap.height();
+            assert!(
+                vertices.len() > playfield_vertices && vertices.len() < playfield_vertices + 40_000,
+                "{}: apron adds a bounded ring, got {} vertices over {playfield_vertices}",
+                map.id,
+                vertices.len()
+            );
+            assert!(indices.iter().all(|&index| (index as usize) < vertices.len()));
+            // Determinism: craters aside, the same map builds the same ground.
+            assert_eq!(vertices.len(), battlefield_ground_mesh(&map).0.len());
+        }
+    }
+
+    #[test]
+    fn the_beyond_surface_is_exact_at_the_border_nodes() {
+        // The apron stands on each map's analytic continuation; at the border the continuation
+        // IS the surface the heightmap sampled, so the seam matches by construction. This
+        // locks that contract — a map whose beyond-function drifts from its own heightmap
+        // would open a visible step along the red line.
+        for map in [prokhorovka_hill_252_2(), terrain::bystra_valley()] {
+            let beyond = beyond_border_height(&map);
+            let [extent_x, extent_z] = map.heightmap.extent_m();
+            let cell = map.heightmap.cell_size_m();
+            for i in 0..map.heightmap.width() {
+                let t = i as f32 * cell;
+                for (x, z) in [(0.0, t), (extent_x, t), (t, 0.0), (t, extent_z)] {
+                    let sampled =
+                        map.heightmap.sample_height(x, z).expect("border node is in the map");
+                    assert!(
+                        (beyond(x, z) - sampled).abs() < 0.01,
+                        "{}: beyond surface must meet the heightmap at ({x}, {z}): {} vs {sampled}",
+                        map.id,
+                        beyond(x, z)
+                    );
+                }
+            }
+        }
+    }
 
     #[test]
     fn a_collapsed_building_slumps_below_its_intact_height() {

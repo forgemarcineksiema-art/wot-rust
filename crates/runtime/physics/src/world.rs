@@ -14,6 +14,11 @@ use crate::tank_resolve::{footprint_blocked_by_tanks, resolve_tank_collision_wit
 use crate::track_contact::{sample_support, support_height};
 use crate::vertical::{GroundStep, is_grounded, resolve_vertical};
 
+/// How far inside the heightmap the arena's red line stands. Chosen just past the ground
+/// probe reach (`ground_probe_length_m` = 3.0) so a hull held at the line still reads real
+/// terrain under every probe — the contact model never degrades against the wall.
+pub const MAP_BORDER_MARGIN_M: f32 = 3.5;
+
 /// Advance one tick on terrain only. Kept for callers without a cover set.
 pub fn step_tank_on_heightmap(
     state: &mut TankKinematicState,
@@ -135,6 +140,30 @@ pub fn step_tank_on_world_with_tanks(
     );
     state.position = position;
     state.velocity = velocity;
+
+    // The arena's red line: the map ends where the heightmap ends. Without this the stepper
+    // fell into terrain-free mode beyond the border and a tank could drive off the world onto
+    // the render-only backdrop. Same contract as a cover wall — the position holds, the
+    // velocity component INTO the wall dies, sliding along it survives. Server and client
+    // predictor share this step, so prediction stays in lockstep at the line.
+    if let Some(heightmap) = heightmap {
+        let [extent_x, extent_z] = heightmap.extent_m();
+        let margin = MAP_BORDER_MARGIN_M;
+        if state.position.x < margin {
+            state.position.x = margin;
+            state.velocity.x = state.velocity.x.max(0.0);
+        } else if state.position.x > extent_x - margin {
+            state.position.x = extent_x - margin;
+            state.velocity.x = state.velocity.x.min(0.0);
+        }
+        if state.position.z < margin {
+            state.position.z = margin;
+            state.velocity.z = state.velocity.z.max(0.0);
+        } else if state.position.z > extent_z - margin {
+            state.position.z = extent_z - margin;
+            state.velocity.z = state.velocity.z.min(0.0);
+        }
+    }
 
     // Vertical resolution against the post-collision ground: the terrain either carries the
     // hull (the kinematic follow) or lets it fly and later catches it (see `vertical`). A

@@ -120,6 +120,15 @@ fn steppe_roads() -> Vec<Road> {
     roads
 }
 
+/// The steppe continued beyond the playable border — the same analytic surface the heightmap
+/// samples, evaluable at any world point (every component is sines and gaussians). The
+/// render-only border apron reads it to melt the map edge into the aerial haze with true
+/// steppe — the railway embankment runs on toward the horizon — instead of ending the world
+/// at a cliff. Physics never reads this: the red line holds the hulls inside the heightmap.
+pub fn prokhorovka_beyond_height(x: f32, z: f32) -> f32 {
+    height_at(x, z)
+}
+
 /// Terrain height at a world point, mirror-symmetric across the central east-west axis
 /// (`z = HALF_M`). Every component is symmetric about that axis -- an on-axis ridge or a
 /// north/south mirror pair -- so `height_at(x, z) == height_at(x, MAP_SIZE_M - z)` holds by
