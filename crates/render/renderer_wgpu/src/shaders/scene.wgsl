@@ -187,7 +187,7 @@ fn cloud_shadow(world: vec3<f32>) -> f32 {
         return 1.0;
     }
     let drift = camera.time_params.x * camera.cloud_params.w;
-    let base_uv = world.xz * (0.8 / 400.0) * camera.cloud_params.y
+    let base_uv = world.xz * (1.35 / 400.0) * camera.cloud_params.y
         + vec2<f32>(drift, drift * 0.6) + camera.weather_params.xy;
     // Keep the terrain and generic-ground paths bit-identical: a warped, rotated field avoids
     // showing value-noise interpolation cells as giant rectangles from elevated cameras.
