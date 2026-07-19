@@ -163,6 +163,40 @@ fn dynamic_weather_uses_one_seeded_phase_and_separate_puddle_fill() {
 }
 
 #[test]
+fn sky_sun_disc_is_cloud_occluded_and_reads_profile_softness() {
+    let sky = sky_shader_source();
+
+    // The disc must be modulated by the cloud cover at its pixel — purely additive sun energy
+    // burns through a solid overcast lid the moment a profile carries a hot key.
+    assert!(
+        sky.contains("let sun_cover = cloud * camera.cloud_params.z;"),
+        "the sun pass must sample the cloud cover it sits behind"
+    );
+    assert!(sky.contains("disc * (1.0 - sun_cover)"), "the disc must die behind a full lid");
+    // Softness is profile data (haze_params.w), never re-derived from the fog density — that
+    // coupling made the fairness fog knob silently retune the sun's look.
+    assert!(sky.contains("camera.haze_params.w"), "sun softness rides haze_params.w");
+    assert!(
+        !sky.contains("fog_params.x * 700.0"),
+        "the disc's softness must not be derived from the fog density"
+    );
+}
+
+#[test]
+fn sky_cloud_projections_guard_their_horizon_singularity() {
+    let sky = sky_shader_source();
+
+    // dir.xz / (dir.y + c) blows up to inf at dir.y = -c, and fbm(inf) can return NaN — which
+    // the band's zero does NOT stop (NaN * 0.0 = NaN). Both cloud layers clamp the denominator.
+    assert!(sky.contains("max(dir.y + 0.45,"), "the cumulus projection must clamp its divisor");
+    assert!(sky.contains("max(dir.y + 0.55,"), "the sheet projection must clamp its divisor");
+    assert!(
+        !sky.contains("/ (dir.y + 0.45)") && !sky.contains("/ (dir.y + 0.55)"),
+        "no cloud projection may divide by an unclamped horizon-crossing term"
+    );
+}
+
+#[test]
 fn tank_vertex_is_plain_old_data_for_vertex_buffers() {
     let vertices = [TankVertex::new([1.0, 2.0, 3.0], [0.0, 1.0, 0.0])];
     let bytes = tank_vertex_bytes(&vertices);

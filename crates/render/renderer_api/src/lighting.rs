@@ -104,6 +104,11 @@ pub struct SceneLighting {
     /// warms toward the key colour instead of the flat horizon grey. Colour only — the fog
     /// density/height model (and its 400 m fairness bound) is untouched by this.
     pub fog_sun_scatter: f32,
+    /// How milky the sun disc reads (0 = a hard crisp disc, 1 = a fat soft glow). Explicit
+    /// profile data: the sky pass used to derive this from `fog_density`, which coupled the
+    /// disc's hardness to the spotting-fairness fog tuning — retuning the air silently retuned
+    /// the sun. Now the fairness knob and the look knob are separate.
+    pub sun_softness: f32,
     /// Low-lying valley haze: a SECOND fog layer pooled below `valley_haze_height_m`, its
     /// density fading quadratically to zero at that height. Dawn mist finally sits IN the
     /// valley floor instead of everywhere. The 400 m spotting-fairness sweep covers the SUM of
@@ -221,6 +226,8 @@ impl SceneLighting {
             cloud_drift: 0.004,
             cloud_shadow_strength: 0.25,
             fog_sun_scatter: 0.5,
+            // Matches the old fog-derived value (0.00013 * 700) so the clear-day disc is unchanged.
+            sun_softness: 0.09,
             valley_haze_density: 0.0,
             valley_haze_height_m: 0.0,
             god_ray_strength: 0.0,
@@ -264,6 +271,7 @@ impl SceneLighting {
             cloud_drift: 0.004,
             cloud_shadow_strength: 0.3,
             fog_sun_scatter: 0.65,
+            sun_softness: 0.1,
             valley_haze_density: 5e-05,
             valley_haze_height_m: 8.0,
             god_ray_strength: 0.0,
@@ -308,6 +316,8 @@ impl SceneLighting {
             cloud_drift: 0.006,
             cloud_shadow_strength: 0.0,
             fog_sun_scatter: 0.15,
+            // A rain sky holds no hard disc: the softest sun of the outdoor set.
+            sun_softness: 0.63,
             valley_haze_density: 0.0001,
             valley_haze_height_m: 10.0,
             god_ray_strength: 0.0,
@@ -354,6 +364,8 @@ impl SceneLighting {
             cloud_drift: 0.003,
             cloud_shadow_strength: 0.1,
             fog_sun_scatter: 0.8,
+            // Dawn mist: a milky low sun carrying through the fog.
+            sun_softness: 0.56,
             valley_haze_density: 0.00022,
             valley_haze_height_m: 12.0,
             god_ray_strength: 0.12,
@@ -396,6 +408,7 @@ impl SceneLighting {
             cloud_drift: 0.004,
             cloud_shadow_strength: 0.3,
             fog_sun_scatter: 0.85,
+            sun_softness: 0.13,
             valley_haze_density: 0.0,
             valley_haze_height_m: 0.0,
             god_ray_strength: 0.15,
@@ -436,6 +449,7 @@ impl SceneLighting {
             cloud_drift: 0.005,
             cloud_shadow_strength: 0.0,
             fog_sun_scatter: 0.1,
+            sun_softness: 0.35,
             valley_haze_density: 0.0,
             valley_haze_height_m: 0.0,
             god_ray_strength: 0.0,
@@ -481,6 +495,7 @@ impl SceneLighting {
             cloud_drift: 0.0,
             cloud_shadow_strength: 0.0,
             fog_sun_scatter: 0.0,
+            sun_softness: 0.0,
             valley_haze_density: 0.0,
             valley_haze_height_m: 0.0,
             god_ray_strength: 0.0,
@@ -529,6 +544,7 @@ impl SceneLighting {
             cloud_drift: 0.0,
             cloud_shadow_strength: 0.0,
             fog_sun_scatter: 0.0,
+            sun_softness: 0.0,
             valley_haze_density: 0.0,
             valley_haze_height_m: 0.0,
             god_ray_strength: 0.0,
@@ -588,6 +604,7 @@ impl SceneLighting {
             cloud_drift: 0.0,
             cloud_shadow_strength: 0.0,
             fog_sun_scatter: 0.0,
+            sun_softness: 0.0,
             // The worklight rig. Positions coincide with the lamp housings the hangar mesh
             // hangs (`hangar_gallery::push_high_bay_lamps`) — the light pools where the lamp
             // is, or the room reads as haunted. Two warm high-bays over the turntable, a

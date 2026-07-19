@@ -88,7 +88,11 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     // each look owns its sky: the rain profile biases the same FBM into an overcast lid, dawn
     // thins it to high sheets.
     let drift = camera.time_params.x * camera.cloud_params.w;
-    let uv = dir.xz / (dir.y + 0.45) * 0.8 * camera.cloud_params.y
+    // The projection denominator is clamped: at dir.y ~= -0.45 the raw division blows up to
+    // inf, and fbm(inf) can return NaN — which `* band` (0 down there) does NOT stop, because
+    // NaN * 0.0 = NaN and it rides the mix into the pixel. Below the band the uv only has to
+    // stay finite, never look right.
+    let uv = dir.xz / max(dir.y + 0.45, 0.03) * 0.8 * camera.cloud_params.y
         + vec2<f32>(drift, drift * 0.6) + camera.weather_params.xy;
     let warp = vec2<f32>(cloud_fbm(uv * 0.5), cloud_fbm(uv * 0.5 + vec2<f32>(5.2, 1.3)));
     // Cumulus body: the warped FBM plus a RIDGED octave pair — 1-|2n-1| billows the tops into
@@ -127,7 +131,9 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     // opacity BEHIND the cumulus (its colour never darkens; high ice stays bright).
     let sheet_opacity = camera.cloud2_params.x;
     if (sheet_opacity > 0.0) {
-        let sheet_uv = dir.xz / (dir.y + 0.55) * 1.6 * camera.cloud2_params.y
+        // Clamped like the cumulus projection above: NaN from a horizon-grazing ray must not
+        // ride the (band-zeroed) sheet term into the pixel.
+        let sheet_uv = dir.xz / max(dir.y + 0.55, 0.03) * 1.6 * camera.cloud2_params.y
             + vec2<f32>(drift * 0.35, drift * 0.2) + camera.weather_params.xy * 0.7;
         let sheet = smoothstep(0.52, 0.78, cloud_fbm(sheet_uv))
             * smoothstep(0.08, 0.4, dir.y) * (1.0 - cloud);
@@ -141,13 +147,18 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     color = mix(color, camera.sky_horizon_rgb * 1.06, horizon_band * 0.5);
 
     // Sun: a tight bright disc plus a soft surrounding haze, along the key light direction. The
-    // haze of the profile fattens and softens the disc (a hazy day has a milky sun); drawn after
-    // the clouds and only above the horizon, so a low sun does not bleed a second glow into the
-    // ground band and the disc burns through thin cloud.
-    let hazy = clamp(camera.fog_params.x * 700.0, 0.0, 1.0);
+    // profile's sun_softness fattens and softens the disc (a hazy day has a milky sun) — its own
+    // knob, no longer derived from the fog density, so retuning the air for spotting fairness
+    // cannot silently retune the sun. Drawn only above the horizon, and OCCLUDED by the cloud
+    // cover at this pixel: the disc burns through thin banks and gaps but dies behind a lid
+    // (before this, an overcast profile relied on a weak grey key to hide it — one hot key away
+    // from a sun blazing through solid overcast). The halo keeps a floor: wide-angle scatter in
+    // the air below the clouds still glows faintly around a hidden sun.
+    let hazy = clamp(camera.haze_params.w, 0.0, 1.0);
+    let sun_cover = cloud * camera.cloud_params.z;
     let disc = pow(d, mix(900.0, 350.0, hazy)) * mix(6.0, 3.5, hazy);
     let halo = pow(d, mix(9.0, 6.0, hazy)) * mix(0.20, 0.30, hazy);
-    color += camera.key_rgb * (disc + halo) * above;
+    color += camera.key_rgb * (disc * (1.0 - sun_cover) + halo * (1.0 - 0.7 * sun_cover)) * above;
 
     // Linear HDR out: the sun disc stays hot past 1.0 so the post pass (and later bloom)
     // receives real energy instead of a clipped white.

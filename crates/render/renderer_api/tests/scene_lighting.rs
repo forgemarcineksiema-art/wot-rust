@@ -342,6 +342,37 @@ fn sun_scatter_and_clouds_never_touch_the_fog_amount() {
 }
 
 #[test]
+fn sun_softness_is_explicit_profile_data_not_a_fog_side_effect() {
+    // The sky pass used to derive the disc's hardness from fog_density * 700 — retuning the air
+    // for the 400 m spotting-fairness bound silently retuned the sun. Now every profile owns an
+    // explicit softness, and the fog knob must leave it untouched.
+    for (name, l) in all_profiles() {
+        assert!(
+            (0.0..=1.0).contains(&l.sun_softness),
+            "{name}: sun_softness is a 0..1 mix factor, got {}",
+            l.sun_softness
+        );
+    }
+    let mut retuned = SceneLighting::bystra_rain();
+    retuned.fog_density *= 3.0;
+    assert_eq!(
+        retuned.sun_softness,
+        SceneLighting::bystra_rain().sun_softness,
+        "retuning the fog for fairness must not move the sun's softness"
+    );
+    // The looks stay distinct poles: a lead rain sky holds a milkier sun than the clear noon,
+    // and interiors (no sky pass worth the name) carry none.
+    assert!(
+        SceneLighting::bystra_rain().sun_softness
+            > SceneLighting::battlefield_default().sun_softness + 0.3,
+        "rain must read markedly softer than the clear noon"
+    );
+    for interior in [SceneLighting::garage_studio(), SceneLighting::garage_workshop()] {
+        assert_eq!(interior.sun_softness, 0.0);
+    }
+}
+
+#[test]
 fn garage_hero_lifts_the_subject_off_the_workshop_silhouette() {
     // The hero preset exists to fix a real bug: under `garage_workshop` the parked vehicle rendered
     // near-black because the camera-facing flanks got ambient only. This locks the three intent
