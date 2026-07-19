@@ -168,7 +168,8 @@ pub struct CameraUniform {
     pub light_rgb_intensity: [GpuVec4; 6],
     /// Two-layer air (appended at the END so no existing offset moves): x = valley haze
     /// density, y = valley haze fade-out height (m, 0 disables), z = crepuscular-ray strength
-    /// in the post pass (0 skips the march), w reserved.
+    /// in the post pass (0 skips the march), w = sun-disc softness (profile data — the sky pass
+    /// no longer derives it from the fog density).
     pub haze_params: GpuVec4,
     /// Cloud layer 2 (appended): x = high-sheet opacity, y = high-sheet scale, z = storm-front
     /// heading (radians, world XZ), w = storm-front strength (0 disables).
@@ -308,7 +309,7 @@ impl CameraUniform {
                 } else {
                     0.0
                 },
-                0.0,
+                lighting.sun_softness,
             ]),
             cloud2_params: GpuVec4([
                 lighting.cloud_sheet_opacity,

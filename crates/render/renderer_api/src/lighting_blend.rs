@@ -64,6 +64,7 @@ impl SceneLighting {
                 t,
             ),
             fog_sun_scatter: scalar(self.fog_sun_scatter, other.fog_sun_scatter, t),
+            sun_softness: scalar(self.sun_softness, other.sun_softness, t),
             valley_haze_density: scalar(self.valley_haze_density, other.valley_haze_density, t),
             valley_haze_height_m: scalar(self.valley_haze_height_m, other.valley_haze_height_m, t),
             god_ray_strength: scalar(self.god_ray_strength, other.god_ray_strength, t),
