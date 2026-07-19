@@ -183,6 +183,51 @@ fn sky_sun_disc_is_cloud_occluded_and_reads_profile_softness() {
 }
 
 #[test]
+fn sky_cloud_field_is_lattice_decorrelated() {
+    let sky = sky_shader_source();
+
+    // The square-sky artefact had three roots, each locked here. The sin hash collapsed to
+    // flat hard-edged plates once the octave chain pushed its argument past the GPU sin's
+    // accurate range; the sky hash must stay sin-free.
+    assert!(
+        !sky.contains("fract(sin(dot"),
+        "the sky lattice hash must not run its coordinates through sin"
+    );
+    // Axis-aligned octaves all reinforced ONE square lattice, and the dome projection blew a
+    // single base cell up to tens of degrees of sky: the octave chain must rotate.
+    assert!(
+        sky.contains("mat2x2<f32>(1.6, 1.2, -1.2, 1.6)"),
+        "fbm octaves must rotate off the shared lattice"
+    );
+    // The high sheet thresholded RAW fbm — the cleanest cell display in the dome — and the
+    // ridged crease painted closed-curve rings into the open blue between banks.
+    assert!(
+        sky.contains("cloud_fbm(sheet_uv + sheet_warp"),
+        "the high sheet must be warped and rotated, not raw fbm"
+    );
+    assert!(
+        sky.contains("* smoothstep(0.42, 0.62, body)"),
+        "the ridged term must be gated by the bank body"
+    );
+}
+
+#[test]
+fn ground_cloud_shade_scale_matches_the_dome() {
+    // The terrain's wandering cloud shade promises coherence "in motion and scale" with the
+    // dome (scene.wgsl); the dome's base pattern scale and the ground field's world-metres
+    // mapping must carry the SAME factor or the shade stops matching the banks overhead.
+    let sky = sky_shader_source();
+    assert!(sky.contains("* 1.35 * camera.cloud_params.y"), "dome base scale factor");
+    for (label, source) in [("scene", scene_shader_source()), ("terrain", terrain_shader_source())]
+    {
+        assert!(
+            source.contains("(1.35 / 400.0) * camera.cloud_params.y"),
+            "{label}: ground cloud shade must keep the dome's pattern scale"
+        );
+    }
+}
+
+#[test]
 fn sky_cloud_projections_guard_their_horizon_singularity() {
     let sky = sky_shader_source();
 

@@ -29,8 +29,15 @@ fn vs_main(@builtin(vertex_index) index: u32) -> VsOut {
 // noise is anchored to the ray direction (world-stable — it does not swim as the camera turns) and
 // crawls only by the presentation clock, so a still frame is still and a moving one drifts slowly.
 
+// Sin-free lattice hash (Hoskins hash12). The old fract(sin(big) * 43758) collapsed once the
+// dot product left the GPU sin's accurate range (~1e4 radians here): neighbouring lattice
+// points started sharing values and whole cells rendered as flat, hard-edged plates. fract
+// keeps every intermediate in [0, 1), so the hash stays sound at any coordinate the octave
+// chain reaches.
 fn cloud_hash(p: vec2<f32>) -> f32 {
-    return fract(sin(dot(p, vec2<f32>(127.1, 311.7))) * 43758.5453);
+    var p3 = fract(vec3<f32>(p.x, p.y, p.x) * 0.1031);
+    p3 = p3 + dot(p3, p3.yzx + vec3<f32>(33.33, 33.33, 33.33));
+    return fract((p3.x + p3.y) * p3.z);
 }
 
 fn cloud_noise(p: vec2<f32>) -> f32 {
@@ -47,7 +54,7 @@ fn cloud_noise(p: vec2<f32>) -> f32 {
 fn cloud_fbm(p: vec2<f32>) -> f32 {
     var sum = 0.0;
     var amp = 0.5;
-    var freq = 1.0;
+    var q = p;
     // Full detail runs five octaves; the reduced tier (time_params.w, F2) folds to three —
     // the two finest octaves shape sub-degree wisps a 20-30 FPS laptop never resolves.
     var octaves = 5;
@@ -55,11 +62,21 @@ fn cloud_fbm(p: vec2<f32>) -> f32 {
         octaves = 3;
     }
     for (var i = 0; i < octaves; i = i + 1) {
-        sum = sum + amp * cloud_noise(p * freq);
-        freq = freq * 2.0;
+        sum = sum + amp * cloud_noise(q);
+        // Rotate ~37° and shift while doubling the frequency: aligned octaves all break along
+        // the SAME square lattice lines, and the dome projection blows one base cell up to
+        // tens of degrees of sky — the reinforced cell edges read as giant squares. Rotated,
+        // no two octaves share an axis and the lattice stops being a visible direction.
+        q = mat2x2<f32>(1.6, 1.2, -1.2, 1.6) * q + vec2<f32>(17.3, 9.1);
         amp = amp * 0.5;
     }
     return sum;
+}
+
+// A fixed ~34° rotation for decorrelating a single noise sample from the fbm's base lattice
+// (the same trick the terrain's cloud_shadow uses against its own square-cell artefact).
+fn rot_lattice(p: vec2<f32>) -> vec2<f32> {
+    return vec2<f32>(p.x * 0.83 - p.y * 0.56, p.x * 0.56 + p.y * 0.83);
 }
 
 @fragment
@@ -92,15 +109,32 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     // inf, and fbm(inf) can return NaN — which `* band` (0 down there) does NOT stop, because
     // NaN * 0.0 = NaN and it rides the mix into the pixel. Below the band the uv only has to
     // stay finite, never look right.
-    let uv = dir.xz / max(dir.y + 0.45, 0.03) * 0.8 * camera.cloud_params.y
+    // 1.35: the dome projection squeezes the whole zenith cap into a fraction of one noise
+    // cell at the old 0.8 — the cap rendered as one featureless wash. Finer base cells give
+    // the top of the dome real bank structure; the horizon-side crowding lands in the band
+    // fade below.
+    let uv = dir.xz / max(dir.y + 0.45, 0.03) * 1.35 * camera.cloud_params.y
         + vec2<f32>(drift, drift * 0.6) + camera.weather_params.xy;
-    let warp = vec2<f32>(cloud_fbm(uv * 0.5), cloud_fbm(uv * 0.5 + vec2<f32>(5.2, 1.3)));
+    // The warp is CENTRED (zero-mean) and sampled above the base frequency: the old uv * 0.5
+    // field was even slower than the coverage itself, so over the zenith cap — which the dome
+    // projection squeezes into a fraction of one noise cell — it degenerated to one constant
+    // offset that translated the lattice instead of bending it, leaving the cells square
+    // exactly where they render largest.
+    // Frequency and amplitude are balanced so the warp's slope stays under 1: any steeper and
+    // uv + warp folds over itself, and the fold creases read as hard-edged shards.
+    let warp = vec2<f32>(cloud_fbm(uv * 0.9), cloud_fbm(uv * 0.9 + vec2<f32>(5.2, 1.3)))
+        - vec2<f32>(0.48, 0.48);
     // Cumulus body: the warped FBM plus a RIDGED octave pair — 1-|2n-1| billows the tops into
-    // rounded heads instead of soft mush (clouds 2.0). The storm front (cloud2_params.zw)
+    // rounded heads instead of soft mush (clouds 2.0). The ridged sample runs on the rotated
+    // lattice so its creases do not retrace the base grid. The storm front (cloud2_params.zw)
     // closes coverage along its heading: a dark wall advancing from one horizon, pure profile
     // data (the rain squalls carry one; a clear day carries none).
-    let ridged = 1.0 - abs(2.0 * cloud_noise(uv * 3.1 + warp) - 1.0);
-    var coverage = cloud_fbm(uv + warp * 0.7) + ridged * 0.18 + camera.cloud_params.x;
+    let body = cloud_fbm(uv + warp * 0.7);
+    let ridged = 1.0 - abs(2.0 * cloud_noise(rot_lattice(uv) * 3.1 + warp) - 1.0);
+    // The ridged term is GATED by the bank body: its crease iso-line is a closed curve, and
+    // ungated it painted glowing rings into the open blue between banks. Inside a bank it
+    // billows the tops; where there is no bank it must contribute nothing.
+    var coverage = body + ridged * 0.22 * smoothstep(0.42, 0.62, body) + camera.cloud_params.x;
     let front_strength = camera.cloud2_params.w;
     var front = 0.0;
     if (front_strength > 0.0) {
@@ -133,9 +167,17 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     if (sheet_opacity > 0.0) {
         // Clamped like the cumulus projection above: NaN from a horizon-grazing ray must not
         // ride the (band-zeroed) sheet term into the pixel.
-        let sheet_uv = dir.xz / max(dir.y + 0.55, 0.03) * 1.6 * camera.cloud2_params.y
+        let sheet_p = dir.xz / max(dir.y + 0.55, 0.03) * 1.6 * camera.cloud2_params.y
             + vec2<f32>(drift * 0.35, drift * 0.2) + camera.weather_params.xy * 0.7;
-        let sheet = smoothstep(0.52, 0.78, cloud_fbm(sheet_uv))
+        // The sheet used to threshold RAW fbm — no warp, no rotation — which made it the
+        // cleanest square-cell display in the dome. Rotate it off the cumulus lattice and
+        // bend it with a cheap two-tap warp (streaks may stay streaky; cells may not).
+        let sheet_uv = rot_lattice(sheet_p);
+        let sheet_warp = vec2<f32>(
+            cloud_noise(sheet_uv * 0.9),
+            cloud_noise(sheet_uv * 0.9 + vec2<f32>(7.7, 2.9)),
+        ) - vec2<f32>(0.5, 0.5);
+        let sheet = smoothstep(0.52, 0.78, cloud_fbm(sheet_uv + sheet_warp * 0.35))
             * smoothstep(0.08, 0.4, dir.y) * (1.0 - cloud);
         let sheet_col = mix(color, cloud_lit * 0.9 + vec3<f32>(0.1), 0.85);
         color = mix(color, sheet_col, sheet * sheet_opacity);
