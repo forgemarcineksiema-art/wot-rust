@@ -2,6 +2,7 @@
 .worktrees/
 .agents/
 .codex/
+.claude/settings.local.json
 **/*.rs.bk
 *.pdb
 *.ilk

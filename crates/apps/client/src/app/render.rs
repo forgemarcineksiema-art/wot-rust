@@ -11,6 +11,11 @@ use super::{ClientApp, SceneKind};
 use crate::hud::HudVitals;
 use crate::split_pbr_vehicle_render_frame_on_terrain;
 
+/// The CPU population carries a six-metre invisible margin, so a normal four-metre planar
+/// cache step cannot stream a tuft that the shader could currently show.
+const GRASS_CACHE_REBUILD_M: f32 = 4.0;
+const _: () = assert!(GRASS_CACHE_REBUILD_M < scene_build::grass::GRASS_CACHE_MARGIN_M);
+
 impl ClientApp {
     /// Remote interpolation phase: how far the fixed-tick clock has advanced from the latest
     /// ingested snapshot toward the next one (`ticks since + sub-tick remainder, over the
@@ -496,15 +501,18 @@ impl ClientApp {
         for (handle, maps) in self.vehicle_asset_catalog.take_pending_vehicle_materials() {
             renderer.register_vehicle_material(handle, &maps);
         }
-        // Near-field grass (Materia Swiata 1b): a deterministic tuft field conjured around
-        // the eye through the scene pipeline's instanced path. Cached between frames — the
-        // scatter is a pure function of (eye cell, crater ledger), so it re-conjures only
-        // when the eye moves a real step or a fresh crater burns a patch out.
+        // Near-field grass (Materia Świata 1b): a fixed world population cached through the
+        // scene instancing path. The shader fades it continuously at 34–48 m; CPU population
+        // reaches 54 m, so a four-metre planar cache step only streams invisible margin.
         let eye = glam::Vec3::from_array(camera.eye);
-        let crater_count = self.battlefield.heightmap.crater_records().len();
-        let moved =
-            self.grass_cache_eye.is_none_or(|cached| cached.distance_squared(eye) > 1.5 * 1.5);
-        if moved || crater_count != self.grass_cache_crater_count {
+        let crater_fingerprint =
+            crater_ledger_fingerprint(self.battlefield.heightmap.crater_records());
+        let moved = self.grass_cache_eye.is_none_or(|cached| {
+            let dx = cached.x - eye.x;
+            let dz = cached.z - eye.z;
+            dx * dx + dz * dz > GRASS_CACHE_REBUILD_M * GRASS_CACHE_REBUILD_M
+        });
+        if moved || crater_fingerprint != self.grass_cache_crater_fingerprint {
             self.grass_cache = scene_build::grass::grass_frame_objects(
                 &self.battlefield.heightmap,
                 self.battlefield.water,
@@ -513,12 +521,17 @@ impl ClientApp {
                 eye,
             );
             self.grass_cache_eye = Some(eye);
-            self.grass_cache_crater_count = crater_count;
+            self.grass_cache_crater_fingerprint = crater_fingerprint;
         }
-        renderer.set_render_frame(&RenderFrame {
-            objects: self.grass_cache.clone(),
+        // `set_render_frame` reads the objects only synchronously. Move the allocation into
+        // the temporary frame and recover it afterwards instead of cloning hundreds of KiB on
+        // every presented frame.
+        let mut grass_frame = RenderFrame {
+            objects: std::mem::take(&mut self.grass_cache),
             ..RenderFrame::default()
-        });
+        };
+        renderer.set_render_frame(&grass_frame);
+        self.grass_cache = std::mem::take(&mut grass_frame.objects);
         renderer.set_vehicle_render_frame(&vehicle_frame);
         // Battle no longer builds a per-frame dynamic mesh (hit marks became on-tank decals in
         // the FX pass); clear whatever the garage left behind.
@@ -530,6 +543,20 @@ impl ClientApp {
             error!(%error, "frame render failed");
         }
     }
+}
+
+/// Order-sensitive fingerprint of the replicated crater ledger. Length alone is insufficient:
+/// re-shelling can widen/deepen an existing record, and the capped ledger replaces its oldest
+/// record without changing length.
+fn crater_ledger_fingerprint(records: &[terrain::CraterRecord]) -> u64 {
+    records.iter().enumerate().fold(0, |state, (index, record)| {
+        let packed = u64::from(record.x_q)
+            | (u64::from(record.z_q) << 16)
+            | (u64::from(record.radius_q) << 32)
+            | (u64::from(record.depth_q) << 40)
+            | (u64::from(record.kind) << 48);
+        game_core::math::splitmix64(state ^ packed ^ (index as u64).wrapping_mul(0x9E37_79B9))
+    })
 }
 
 /// Advance the gun-ready flash clock: the beat starts the frame the reload crosses to ready,
@@ -549,7 +576,7 @@ fn tick_ready_flash(
 
 #[cfg(test)]
 mod ready_flash_tests {
-    use super::tick_ready_flash;
+    use super::{crater_ledger_fingerprint, tick_ready_flash};
 
     #[test]
     fn the_flash_fires_on_the_ready_crossing_ages_and_expires() {
@@ -565,5 +592,29 @@ mod ready_flash_tests {
         let expired =
             tick_ready_flash(Some(crate::hud::reticle_marks::READY_FLASH_TTL_S), 0.0, 0.0, 0.016);
         assert_eq!(expired, None);
+    }
+
+    #[test]
+    fn crater_fingerprint_changes_when_same_length_ledger_changes() {
+        let first = terrain::CraterRecord::from_world(
+            10.0,
+            20.0,
+            2.0,
+            0.5,
+            terrain::CRATER_KIND_HIGH_EXPLOSIVE,
+        );
+        let deeper = terrain::CraterRecord::from_world(
+            10.0,
+            20.0,
+            2.0,
+            0.8,
+            terrain::CRATER_KIND_HIGH_EXPLOSIVE,
+        );
+        assert_ne!(crater_ledger_fingerprint(&[first]), crater_ledger_fingerprint(&[deeper]));
+        assert_ne!(
+            crater_ledger_fingerprint(&[first, deeper]),
+            crater_ledger_fingerprint(&[deeper, first]),
+            "ledger eviction/reordering must invalidate the cache"
+        );
     }
 }

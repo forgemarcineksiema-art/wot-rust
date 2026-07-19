@@ -1,4 +1,6 @@
-use renderer_api::{BindGroupRole, FxVertex, VehicleVertex, baseline_bind_group_layout};
+use renderer_api::{
+    BindGroupRole, FxVertex, VehicleVertex, baseline_bind_group_layout, surface_role,
+};
 use renderer_wgpu::{
     CameraUniform, GpuContext, TankVertex, basic_tank_shader_source,
     build_camera_bind_group_layout, build_shadow_bind_group_layout, build_vehicle_pipeline,
@@ -44,6 +46,32 @@ fn scene_shader_is_valid_wgsl_with_tint_inputs() {
 
     assert!(report.entry_points.iter().any(|entry| entry == "vs_main"));
     assert!(report.entry_points.iter().any(|entry| entry == "fs_main"));
+}
+
+#[test]
+fn grass_blade_shader_contract_fades_the_tuft_and_scales_its_wind() {
+    let source = scene_shader_source();
+
+    // The role value is an append-only CPU/GPU protocol, so lock both ends together.
+    assert_eq!(surface_role::GRASS_CARD, 5.0);
+    assert_eq!(surface_role::GRASS_BLADE, 6.0);
+    assert!(source.contains("abs(input.surface - 6.0) < 0.5"));
+
+    // Only the outer edge is camera-relative: every vertex folds toward one instance root.
+    assert!(source.contains("stand = 1.0 - smoothstep(34.0, 48.0, d);"));
+    assert!(source.contains("root + (world.xyz - root) * stand"));
+
+    // Wind displacement is mesh-local, scaled into world metres, and dies with the tuft.
+    assert!(source.contains("let model_scale = length(model[1].xyz);"));
+    assert!(source.contains("let scaled_sway = input.sway * model_scale * stand;"));
+    assert!(
+        !source.contains("gust * input.sway"),
+        "raw sway would turn a small faded tuft into a long wind-blown needle"
+    );
+
+    // Grass geometry roles must not fall through to bark or the costlier generic ground path.
+    assert!(source.contains("if (role > 4.5)"));
+    assert!(source.contains("return 0.94 + value_noise(world.xz * 1.7) * 0.12;"));
 }
 
 #[test]

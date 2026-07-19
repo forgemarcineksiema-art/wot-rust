@@ -1,10 +1,8 @@
-//! Near-field grass (Materia Świata 1b): the one thing that tells the eye how big the world
-//! is. A deterministic scatter of blade tufts rides the camera in an ~26 m ring through the
-//! scene pipeline's per-frame instanced path (`frame_draws`) — the far field pays nothing,
-//! nothing is stored, and every client conjures the same tufts from the same cell hashes.
-//! Density and colour come from the baked splat (grass stands where the vegetation layers
-//! do — dirt roads, rock and the riverbed stay bare), and the ring's edge shrinks tufts to
-//! zero so the boundary never pops.
+//! Near-field grass (Materia Świata 1b): a deterministic, world-anchored population of blade
+//! tufts cached around the camera. A six-metre population margin surrounds the visible ring,
+//! so crossing a cache boundary only streams already-invisible tufts; the shader owns the
+//! continuous camera-distance fade. Density and colour come from the baked splat at each tuft,
+//! so narrow roads, rock and the riverbed remain bare instead of inheriting a cell-centre label.
 
 use glam::{Mat4, Vec3};
 use renderer_api::{
@@ -20,30 +18,27 @@ pub const GRASS_MESH_HANDLE: MeshHandle = MeshHandle(0xFFFF_0001);
 // Compile-time lock: grass must skip the shadow cascades and the SSAO prepass.
 const _: () = assert!(GRASS_MESH_HANDLE.0 >= renderer_api::SHADOWLESS_DRESSING_MESH_BASE);
 
-/// The field the grass lives in, and where its outer edge fade begins. Inside
-/// [`NEAR_FULL_M`] the cover is full; past it the density falls with the square of the
-/// distance — constant SCREEN density, so the field reads unbroken to the horizon of the
-/// ring while the cost grows only logarithmically with the radius.
+/// End of the shader-visible blade ring. CPU population extends past this by
+/// [`GRASS_CACHE_MARGIN_M`], so cache rebuilds never stream visible tufts.
 pub const GRASS_RADIUS_M: f32 = 48.0;
-const FADE_START_M: f32 = 34.0;
-/// Full-cover radius: every tuft the splat allows stands inside this.
-const NEAR_FULL_M: f32 = 22.0;
-/// Each tuft grows from nothing over this much approach past its own reveal distance, so a
-/// tuft is born far away and sub-pixel — never as a pop in the midfield.
-const REVEAL_BAND_M: f32 = 7.0;
+/// Extra invisible population kept around the visible ring. This is larger than one normal
+/// four-metre cache step, leaving headroom for a render frame that overshoots the threshold.
+pub const GRASS_CACHE_MARGIN_M: f32 = 6.0;
+pub const GRASS_CACHE_RADIUS_M: f32 = GRASS_RADIUS_M + GRASS_CACHE_MARGIN_M;
 /// Scatter cell edge; tufts are conjured per cell from the cell's own hash.
 const CELL_M: f32 = 8.0;
-/// Tufts a fully-vegetated cell grows; the splat's vegetation weight scales it down.
-const CELL_TUFT_MAX: u32 = 110;
-/// The field's worst case (full-cover disc + the decaying band) inside the 6.5k scene
-/// instance buffer, with vehicle dressing headroom to spare.
+/// Fixed world population ceiling per 8 m cell. Vegetation acceptance can only remove from
+/// this deterministic candidate sequence; camera movement never changes a cell's population.
+const CELL_TUFT_CANDIDATES: u32 = 28;
+/// Full-vegetation population budget for the 54 m cache disc. This is a verification guard,
+/// not a runtime crop: hard truncation would reintroduce a moving wall at the cache boundary.
 pub const MAX_GRASS_INSTANCES: usize = 4_800;
 /// Ground with less vegetation weight than this grows nothing (roads, rock, riverbed).
 const MIN_VEG_WEIGHT: f32 = 0.35;
 /// Standing water drowns the tufts.
 const MAX_WATER_DEPTH_M: f32 = 0.05;
 
-/// One tuft: five blades leaning outward from a common root, each a bent two-triangle card,
+/// One tuft: twelve blades leaning outward from a common root, each a bent two-triangle card,
 /// both faces wound (the scene pipeline culls back faces; a blade must read from anywhere).
 /// Vertices carry a white-to-dusk gradient with `tint_weight` 1.0 — the INSTANCE tint is the
 /// actual grass colour, so one mesh serves every plot tone on the map.
@@ -81,7 +76,7 @@ pub fn grass_tuft_mesh() -> MeshAsset {
                 color: tone,
                 tint_weight: 1.0,
                 gloss: 0.05,
-                surface: 0.0,
+                surface: renderer_api::surface_role::GRASS_BLADE,
                 sway,
             });
         }
@@ -90,18 +85,6 @@ pub fn grass_tuft_mesh() -> MeshAsset {
         indices.extend_from_slice(&[base + 2, base + 1, base, base + 3, base + 2, base]);
     }
     MeshAsset::new(vertices, indices)
-}
-
-/// Density multiplier of the grass field at planar distance `d` from the eye: a gentle boost
-/// right at the feet, full cover to [`NEAR_FULL_M`], then the inverse-square falloff that
-/// keeps the density constant on SCREEN out to the field's edge.
-fn density_multiplier(d: f32) -> f32 {
-    if d <= NEAR_FULL_M {
-        let near_t = ((d - 6.0) / (NEAR_FULL_M - 6.0)).clamp(0.0, 1.0);
-        2.2 - 1.2 * near_t * near_t * (3.0 - 2.0 * near_t)
-    } else {
-        (NEAR_FULL_M / d).powi(2)
-    }
 }
 
 /// The vegetation weight (grass + straw splat channels, 0..1) standing at a world position.
@@ -117,8 +100,10 @@ pub(crate) fn vegetation_weight(maps: &TerrainGroundMaps, x: f32, z: f32) -> f32
     (u32::from(maps.splat[index]) + u32::from(maps.splat[index + 1])) as f32 / total as f32
 }
 
-/// Conjure this frame's grass ring around the eye. Deterministic per cell — no storage, no
-/// churn: the same eye position always grows the same field.
+/// Build the stable grass population cached around `eye`. Every cell owns exactly one candidate
+/// sequence; local splat acceptance, terrain, water and craters may remove candidates, but the
+/// eye never changes their rank, size or transform. The shader performs the visible 34–48 m
+/// fade every frame, while this CPU population extends to [`GRASS_CACHE_RADIUS_M`].
 pub fn grass_frame_objects(
     heightmap: &HeightMap,
     water: Option<WaterBody>,
@@ -126,26 +111,11 @@ pub fn grass_frame_objects(
     materials: &TerrainMaterialSet,
     eye: Vec3,
 ) -> Vec<RenderObject> {
-    let mut objects = Vec::new();
-    let min_cx = ((eye.x - GRASS_RADIUS_M) / CELL_M).floor() as i32;
-    let max_cx = ((eye.x + GRASS_RADIUS_M) / CELL_M).floor() as i32;
-    let min_cz = ((eye.z - GRASS_RADIUS_M) / CELL_M).floor() as i32;
-    let max_cz = ((eye.z + GRASS_RADIUS_M) / CELL_M).floor() as i32;
-    // Tone-lock (Żywy Step P3): blades wear the SAME ground albedo the mid-field cards do,
-    // so the blade ring dissolves into the card band and the card band into the ground —
-    // the old straw lerp with its *1.3 lift read as brown tufts on a green map.
-    // Nearest cells first: when the ring's worst case outruns the budget, the rim thins out
-    // under its own fade — never the ground at the player's feet.
-    let mut cells: Vec<(i32, i32, f32)> = Vec::new();
-    for cz in min_cz..=max_cz {
-        for cx in min_cx..=max_cx {
-            let center_x = (cx as f32 + 0.5) * CELL_M;
-            let center_z = (cz as f32 + 0.5) * CELL_M;
-            let dist = Vec3::new(center_x - eye.x, 0.0, center_z - eye.z).length();
-            cells.push((cx, cz, dist));
-        }
-    }
-    cells.sort_by(|a, b| a.2.total_cmp(&b.2));
+    let mut objects = Vec::with_capacity(MAX_GRASS_INSTANCES);
+    let min_cx = ((eye.x - GRASS_CACHE_RADIUS_M) / CELL_M).floor() as i32;
+    let max_cx = ((eye.x + GRASS_CACHE_RADIUS_M) / CELL_M).floor() as i32;
+    let min_cz = ((eye.z - GRASS_CACHE_RADIUS_M) / CELL_M).floor() as i32;
+    let max_cz = ((eye.z + GRASS_CACHE_RADIUS_M) / CELL_M).floor() as i32;
     // A high-explosive burst burns and buries the grass it lands on: the replicated crater
     // ledger (already folded into the heightmap) is a kill list — nothing grows inside a
     // bowl or on its fresh spoil rim.
@@ -154,8 +124,8 @@ pub fn grass_frame_objects(
         .iter()
         .map(|crater| (crater.x_m(), crater.z_m(), crater.radius_m() * 1.45))
         .collect();
-    'cells: for (cx, cz, cell_dist) in cells {
-        {
+    for cz in min_cz..=max_cz {
+        for cx in min_cx..=max_cx {
             let mut seed = (cx as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15)
                 ^ (cz as u64).wrapping_mul(0xC2B2_AE3D_27D4_EB4F)
                 ^ 0x6265_7472_6177_6121;
@@ -163,16 +133,6 @@ pub fn grass_frame_objects(
             // shader's field quilt without resampling it.
             let cell_dry = game_core::math::next_hash_unit(&mut seed);
             let origin = Vec3::new(cx as f32 * CELL_M, 0.0, cz as f32 * CELL_M);
-            let veg = vegetation_weight(maps, origin.x + CELL_M * 0.5, origin.z + CELL_M * 0.5);
-            if veg < MIN_VEG_WEIGHT {
-                continue;
-            }
-            // Spend the budget where the eye is: full cover to NEAR_FULL_M (with a boost at
-            // the feet), then a 1/d^2 falloff — constant density on SCREEN, so the far field
-            // reads as unbroken grass while costing a fraction of the near field. Each tuft's
-            // index in the cell's deterministic sequence IS its reveal rank: the target count
-            // rises as the eye approaches, always admitting the same tufts in the same order,
-            // and each newborn scales in over its own reveal band far from the eye.
             // Craters whose kill zone can touch this cell — usually none, so the per-tuft
             // test costs nothing on virgin ground.
             let center_x = (cx as f32 + 0.5) * CELL_M;
@@ -187,26 +147,22 @@ pub fn grass_frame_objects(
                     dx.max(0.0).hypot(dz.max(0.0)) <= kill
                 })
                 .collect();
-            let cell_near = (cell_dist - CELL_M).max(1.0);
-            let cell_ceiling = veg * CELL_TUFT_MAX as f32 * density_multiplier(cell_near) + 3.0;
-            let count = (cell_ceiling as u32).min((CELL_TUFT_MAX as f32 * 2.2) as u32);
-            for index in 0..count {
+            for _ in 0..CELL_TUFT_CANDIDATES {
                 let x = origin.x + game_core::math::next_hash_unit(&mut seed) * CELL_M;
                 let z = origin.z + game_core::math::next_hash_unit(&mut seed) * CELL_M;
                 let yaw = game_core::math::next_hash_unit(&mut seed) * std::f32::consts::TAU;
                 let size = 1.0 + game_core::math::next_hash_unit(&mut seed) * 0.6;
                 let tone = game_core::math::next_hash_unit(&mut seed);
+                let vegetation_lane = game_core::math::next_hash_unit(&mut seed);
                 let flat = Vec3::new(x - eye.x, 0.0, z - eye.z).length();
-                if flat > GRASS_RADIUS_M {
+                if flat > GRASS_CACHE_RADIUS_M {
                     continue;
                 }
-                // This tuft's personal reveal: the local target count must have passed its
-                // index, and it grows in smoothly as the margin opens — born sub-pixel.
-                let target = veg * CELL_TUFT_MAX as f32 * density_multiplier(flat);
-                let reveal = ((target - index as f32)
-                    * (REVEAL_BAND_M / NEAR_FULL_M.max(1.0)).max(0.35))
-                .clamp(0.0, 1.0);
-                if reveal <= 0.0 {
+                // Vegetation is sampled at the candidate, not at the 8 m cell centre. The
+                // extra hash lane makes partial splat weights a stable acceptance probability:
+                // a road can cut through a cell without inheriting grass from either side.
+                let veg = vegetation_weight(maps, x, z);
+                if veg < MIN_VEG_WEIGHT || vegetation_lane >= veg {
                     continue;
                 }
                 if nearby_craters.iter().any(|&(kx, kz, kill)| (x - kx).hypot(z - kz) < kill) {
@@ -216,13 +172,6 @@ pub fn grass_frame_objects(
                     continue;
                 };
                 if water.is_some_and(|w| w.depth_over(ground) > MAX_WATER_DEPTH_M) {
-                    continue;
-                }
-                // The field's outer edge shrinks the tuft to nothing — no boundary pop.
-                let fade =
-                    1.0 - ((flat - FADE_START_M) / (GRASS_RADIUS_M - FADE_START_M)).clamp(0.0, 1.0);
-                let scale = size * fade * reveal;
-                if scale < 0.05 {
                     continue;
                 }
                 // A touch lighter than the soil it stands on: blades catch more sky.
@@ -238,7 +187,7 @@ pub fn grass_frame_objects(
                 let albedo = Vec3::from_array(albedo);
                 let transform = Mat4::from_translation(Vec3::new(x, ground, z))
                     * Mat4::from_rotation_y(yaw)
-                    * Mat4::from_scale(Vec3::new(scale, scale, scale));
+                    * Mat4::from_scale(Vec3::splat(size));
                 objects.push(RenderObject {
                     tank_id: None,
                     mesh: GRASS_MESH_HANDLE,
@@ -246,9 +195,6 @@ pub fn grass_frame_objects(
                     transform: transform.to_cols_array_2d(),
                     tint: albedo.to_array(),
                 });
-                if objects.len() >= MAX_GRASS_INSTANCES {
-                    break 'cells;
-                }
             }
         }
     }
@@ -286,6 +232,35 @@ mod tests {
         }
     }
 
+    fn maps_with_dirt_strip(extent: f32, strip_min_x: f32, strip_max_x: f32) -> TerrainGroundMaps {
+        const SIZE: usize = 256;
+        let mut splat = Vec::with_capacity(SIZE * SIZE * 4);
+        for _tz in 0..SIZE {
+            for tx in 0..SIZE {
+                let texel_center_x = (tx as f32 + 0.5) * extent / SIZE as f32;
+                if (strip_min_x..strip_max_x).contains(&texel_center_x) {
+                    splat.extend_from_slice(&[0, 0, 255, 0]);
+                } else {
+                    splat.extend_from_slice(&[255, 0, 0, 0]);
+                }
+            }
+        }
+        TerrainGroundMaps {
+            size: SIZE as u32,
+            splat,
+            macro_normal: vec![128; SIZE * SIZE * 4],
+            extent_m: [extent, extent],
+        }
+    }
+
+    fn tuft_key(object: &RenderObject) -> (u32, u32) {
+        (object.transform[3][0].to_bits(), object.transform[3][2].to_bits())
+    }
+
+    fn tuft_flat_distance(object: &RenderObject, eye: Vec3) -> f32 {
+        (object.transform[3][0] - eye.x).hypot(object.transform[3][2] - eye.z)
+    }
+
     fn flat_ground() -> HeightMap {
         HeightMap::flat(65, 65, 4.0, 1.0).expect("flat map")
     }
@@ -305,7 +280,10 @@ mod tests {
         for tuft in &grown {
             let position = Vec3::new(tuft.transform[3][0], 0.0, tuft.transform[3][2]);
             let flat = (position - Vec3::new(eye.x, 0.0, eye.z)).length();
-            assert!(flat <= GRASS_RADIUS_M + 1.0e-3, "no tuft outside the ring, got {flat}");
+            assert!(
+                flat <= GRASS_CACHE_RADIUS_M + 1.0e-3,
+                "no tuft outside the cache population, got {flat}"
+            );
             assert!(
                 (tuft.transform[3][1] - 1.0).abs() < 1.0e-3,
                 "every tuft roots on the sampled ground"
@@ -318,6 +296,40 @@ mod tests {
         let flood = Some(WaterBody { surface_level_m: 2.0 });
         let drowned = grass_frame_objects(&ground, flood, &full_veg_maps(256.0), &materials, eye);
         assert!(drowned.is_empty(), "standing water drowns the tufts, got {}", drowned.len());
+    }
+
+    #[test]
+    fn local_dirt_strip_stays_bare_inside_grassy_cells() {
+        // The strip straddles the x=128 cell boundary but misses both adjacent 8 m cell
+        // centres (124 and 132). A cell-centre vegetation gate therefore cannot pass this
+        // test by accident: only per-tuft sampling can mow the narrow road correctly.
+        const STRIP_MIN_X: f32 = 125.0;
+        const STRIP_MAX_X: f32 = 131.0;
+        let ground = flat_ground();
+        let materials = TerrainMaterialSet::bystra();
+        let maps = maps_with_dirt_strip(256.0, STRIP_MIN_X, STRIP_MAX_X);
+        let eye = Vec3::new(128.0, 3.0, 128.0);
+        assert!(vegetation_weight(&maps, 124.0, eye.z) > 0.99);
+        assert!(vegetation_weight(&maps, 132.0, eye.z) > 0.99);
+        let grown = grass_frame_objects(&ground, None, &maps, &materials, eye);
+
+        let mut left = 0;
+        let mut right = 0;
+        for tuft in &grown {
+            let x = tuft.transform[3][0];
+            let z = tuft.transform[3][2];
+            assert!(
+                !(STRIP_MIN_X..STRIP_MAX_X).contains(&x),
+                "per-tuft splat acceptance keeps the dirt strip bare, got ({x}, {z})"
+            );
+            if (112.0..STRIP_MIN_X).contains(&x) && (z - eye.z).abs() < 20.0 {
+                left += 1;
+            }
+            if (STRIP_MAX_X..144.0).contains(&x) && (z - eye.z).abs() < 20.0 {
+                right += 1;
+            }
+        }
+        assert!(left > 30 && right > 30, "grass brackets the local dirt strip: {left}/{right}");
     }
 
     /// A shell hole is bare: no tuft stands inside a replicated crater's bowl or on its
@@ -398,6 +410,85 @@ mod tests {
         assert!(tips > 0 && roots > 0);
     }
 
+    /// THE anti-streaming contract: a normal cache rebuild may change only the invisible
+    /// six-metre population margin. Every tuft that either eye can show remains in both caches
+    /// with a bit-identical natural transform; the shader alone changes its distance fade.
+    #[test]
+    fn rebuild_and_cell_crossing_keep_the_visible_population_stable() {
+        let ground = flat_ground();
+        let materials = TerrainMaterialSet::prokhorovka();
+        let maps = full_veg_maps(256.0);
+        let eye_a = Vec3::new(127.75, 3.0, 128.0);
+        let eye_b = eye_a + Vec3::new(4.25, 0.0, 0.0);
+        let a = grass_frame_objects(&ground, None, &maps, &materials, eye_a);
+        let b = grass_frame_objects(&ground, None, &maps, &materials, eye_b);
+        let a_by_key: std::collections::HashMap<_, _> =
+            a.iter().map(|tuft| (tuft_key(tuft), tuft)).collect();
+        let b_by_key: std::collections::HashMap<_, _> =
+            b.iter().map(|tuft| (tuft_key(tuft), tuft)).collect();
+
+        let mut shared = 0usize;
+        for (key, tuft_a) in &a_by_key {
+            if let Some(tuft_b) = b_by_key.get(key) {
+                shared += 1;
+                assert_eq!(
+                    *tuft_a, *tuft_b,
+                    "shared world tuft keeps its natural transform and tone across a rebuild"
+                );
+            } else {
+                assert!(
+                    tuft_flat_distance(tuft_a, eye_a) > GRASS_RADIUS_M
+                        && tuft_flat_distance(tuft_a, eye_b) > GRASS_RADIUS_M,
+                    "a removed cache-margin tuft must be shader-invisible to both eyes"
+                );
+            }
+        }
+        for (key, tuft_b) in &b_by_key {
+            if !a_by_key.contains_key(key) {
+                assert!(
+                    tuft_flat_distance(tuft_b, eye_a) > GRASS_RADIUS_M
+                        && tuft_flat_distance(tuft_b, eye_b) > GRASS_RADIUS_M,
+                    "a newly streamed cache-margin tuft must be shader-invisible to both eyes"
+                );
+            }
+        }
+        assert!(shared > 3_000, "the caches overlap massively across one rebuild: {shared}");
+    }
+
+    /// The fixed 28-candidate population is the budget. Sweep every half-metre sub-cell phase
+    /// on the lushest possible ground: no phase may need runtime truncation, and every cache
+    /// retains candidates throughout the invisible margin outside the 48 m shader ring.
+    #[test]
+    fn full_vegetation_cache_sweep_fits_without_hard_truncation() {
+        let ground = flat_ground();
+        let materials = TerrainMaterialSet::prokhorovka();
+        let maps = full_veg_maps(256.0);
+        let mut peak = 0usize;
+        let mut floor = usize::MAX;
+        for z_phase in 0..16 {
+            for x_phase in 0..16 {
+                let eye = Vec3::new(96.0 + x_phase as f32 * 0.5, 3.0, 96.0 + z_phase as f32 * 0.5);
+                let grown = grass_frame_objects(&ground, None, &maps, &materials, eye);
+                peak = peak.max(grown.len());
+                floor = floor.min(grown.len());
+                assert!(
+                    grown.len() < MAX_GRASS_INSTANCES,
+                    "fixed population must fit without touching the runtime guard: {}",
+                    grown.len()
+                );
+                assert!(
+                    grown.iter().any(|tuft| {
+                        let d = tuft_flat_distance(tuft, eye);
+                        d > GRASS_RADIUS_M + 4.0 && d <= GRASS_CACHE_RADIUS_M
+                    }),
+                    "the cache must populate its invisible outer margin at phase {x_phase}/{z_phase}"
+                );
+            }
+        }
+        assert!(floor > 3_800, "lush cache stays visually dense at every phase: {floor}");
+        assert!(peak < MAX_GRASS_INSTANCES, "lush cache keeps explicit headroom: {peak}");
+    }
+
     #[test]
     fn the_ring_is_deterministic_and_rides_the_eye() {
         let ground = flat_ground();
@@ -435,6 +526,11 @@ mod tests {
         assert_eq!(mesh.indices().len() % 6, 0, "blades are two-triangle cards, both faces");
         for vertex in mesh.vertices() {
             assert_eq!(vertex.tint_weight, 1.0, "the instance tint IS the grass colour");
+            assert_eq!(
+                vertex.surface,
+                renderer_api::surface_role::GRASS_BLADE,
+                "the shader must recognize every near blade for its camera-distance fade"
+            );
             assert!(vertex.position[1] >= 0.0 && vertex.position[1] <= 0.4);
         }
     }

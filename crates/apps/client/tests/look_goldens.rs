@@ -16,10 +16,11 @@ use std::io::{BufReader, BufWriter};
 use std::path::PathBuf;
 
 use client::{
-    ReviewView, bake_terrain_ground_maps, battlefield_ground_and_statics_meshes,
-    battlefield_water_mesh, prokhorovka_review_views, terrain_material_set_for,
+    GRASS_MESH_HANDLE, ReviewView, bake_terrain_ground_maps, battlefield_ground_and_statics_meshes,
+    battlefield_water_mesh, grass_frame_objects, grass_tuft_mesh, prokhorovka_review_views,
+    terrain_material_set_for,
 };
-use renderer_api::{Camera, CameraProjectionPolicy, view_projection_matrix};
+use renderer_api::{Camera, CameraProjectionPolicy, RenderFrame, view_projection_matrix};
 use renderer_wgpu::{GpuContext, OffscreenTarget, SceneRenderer};
 use terrain::prokhorovka_hill_252_2;
 
@@ -39,6 +40,7 @@ fn render_views(views: &[ReviewView]) -> Vec<Vec<u8>> {
     let ((ground_vertices, ground_indices), (statics_vertices, statics_indices)) =
         battlefield_ground_and_statics_meshes(&battlefield, &[]);
     let ground_maps = bake_terrain_ground_maps(&battlefield);
+    let materials = terrain_material_set_for(terrain::MapId::ProkhorovkaHill252_2);
     let (water_vertices, water_indices) = battlefield_water_mesh(&battlefield);
 
     let ctx = GpuContext::headless().expect("headless GPU context");
@@ -50,7 +52,7 @@ fn render_views(views: &[ReviewView]) -> Vec<Vec<u8>> {
         &ground_vertices,
         &ground_indices,
         &ground_maps,
-        &terrain_material_set_for(terrain::MapId::ProkhorovkaHill252_2),
+        &materials,
     );
     renderer.set_water(&ctx, &water_vertices, &water_indices);
     {
@@ -62,10 +64,20 @@ fn render_views(views: &[ReviewView]) -> Vec<Vec<u8>> {
         renderer.set_dressing(&ctx, &dressing_v, &dressing_i);
     }
     renderer.scene_time_s = 12.0;
+    renderer.register_mesh(&ctx, GRASS_MESH_HANDLE, &grass_tuft_mesh());
 
     views
         .iter()
         .map(|view| {
+            let grass = grass_frame_objects(
+                &battlefield.heightmap,
+                battlefield.water,
+                &ground_maps,
+                &materials,
+                glam::Vec3::from_array(view.eye),
+            );
+            renderer
+                .set_render_frame(&ctx, &RenderFrame { objects: grass, ..RenderFrame::default() });
             renderer.scene_lighting = view.lighting;
             renderer.set_outdoor_sky(view.sky.0, view.sky.1, view.sky.2);
             renderer.shadow_focus = Some(view.target);
