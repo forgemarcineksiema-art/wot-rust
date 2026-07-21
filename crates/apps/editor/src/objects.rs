@@ -33,10 +33,11 @@ pub enum PaletteEntry {
     FruitTree,
     Rock,
     Bush,
+    Pine,
 }
 
 impl PaletteEntry {
-    pub const CYCLE: [PaletteEntry; 14] = [
+    pub const CYCLE: [PaletteEntry; 15] = [
         PaletteEntry::Cottage,
         PaletteEntry::Barn,
         PaletteEntry::Townhouse,
@@ -51,6 +52,7 @@ impl PaletteEntry {
         PaletteEntry::FruitTree,
         PaletteEntry::Rock,
         PaletteEntry::Bush,
+        PaletteEntry::Pine,
     ];
 
     pub fn label(self) -> &'static str {
@@ -69,6 +71,7 @@ impl PaletteEntry {
             PaletteEntry::FruitTree => "fruit tree",
             PaletteEntry::Rock => "rock",
             PaletteEntry::Bush => "bush",
+            PaletteEntry::Pine => "pine",
         }
     }
 
@@ -97,6 +100,7 @@ impl PaletteEntry {
             PaletteEntry::FruitTree => Some(SceneryKind::FruitTree),
             PaletteEntry::Rock => Some(SceneryKind::Rock),
             PaletteEntry::Bush => Some(SceneryKind::Bush),
+            PaletteEntry::Pine => Some(SceneryKind::Pine),
             _ => None,
         }
     }

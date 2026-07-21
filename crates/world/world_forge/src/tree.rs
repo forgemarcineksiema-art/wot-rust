@@ -19,15 +19,17 @@ pub enum TreeSpecies {
     Willow,
     FruitTree,
     Bush,
+    Pine,
 }
 
 impl TreeSpecies {
-    pub const ALL: [TreeSpecies; 5] = [
+    pub const ALL: [TreeSpecies; 6] = [
         TreeSpecies::Oak,
         TreeSpecies::Poplar,
         TreeSpecies::Willow,
         TreeSpecies::FruitTree,
         TreeSpecies::Bush,
+        TreeSpecies::Pine,
     ];
 
     fn params(self) -> SpeciesParams {
@@ -45,6 +47,8 @@ impl TreeSpecies {
                 crown_height: 5.9,
                 crown_spread: 1.7,
                 fbm_amplitude: 0.34,
+                crown_stack_height: 0.0,
+                crown_tip_frac: 1.0,
             },
             // A column: minimal limbs, stacked narrow lobes.
             TreeSpecies::Poplar => SpeciesParams {
@@ -59,6 +63,8 @@ impl TreeSpecies {
                 crown_height: 7.4,
                 crown_spread: 0.45,
                 fbm_amplitude: 0.22,
+                crown_stack_height: 0.0,
+                crown_tip_frac: 1.0,
             },
             // Weeping: a short trunk, long drooping limbs, a low wide crown.
             TreeSpecies::Willow => SpeciesParams {
@@ -73,6 +79,8 @@ impl TreeSpecies {
                 crown_height: 4.1,
                 crown_spread: 1.9,
                 fbm_amplitude: 0.42,
+                crown_stack_height: 0.0,
+                crown_tip_frac: 1.0,
             },
             // Orchard scale: short and round.
             TreeSpecies::FruitTree => SpeciesParams {
@@ -87,6 +95,8 @@ impl TreeSpecies {
                 crown_height: 3.1,
                 crown_spread: 0.8,
                 fbm_amplitude: 0.30,
+                crown_stack_height: 0.0,
+                crown_tip_frac: 1.0,
             },
             // No trunk to speak of: the honest concealment bush stays a soft blob cluster.
             TreeSpecies::Bush => SpeciesParams {
@@ -101,6 +111,25 @@ impl TreeSpecies {
                 crown_height: 1.1,
                 crown_spread: 0.9,
                 fbm_amplitude: 0.38,
+                crown_stack_height: 0.0,
+                crown_tip_frac: 1.0,
+            },
+            // The conifer: a bare lower trunk, then lobes STACKED up the axis with radii
+            // tapering toward a tip — a cone by construction, not by scatter luck.
+            TreeSpecies::Pine => SpeciesParams {
+                trunk_height: 7.2,
+                trunk_radius: 0.26,
+                taper: 0.4,
+                limbs: 0,
+                limb_length: 0.0,
+                limb_pitch: 0.0,
+                lobes: 6,
+                lobe_radius: 1.5,
+                crown_height: 2.4,
+                crown_spread: 0.1,
+                fbm_amplitude: 0.22,
+                crown_stack_height: 4.6,
+                crown_tip_frac: 0.32,
             },
         }
     }
@@ -121,6 +150,11 @@ struct SpeciesParams {
     /// How far lobe centers scatter from the crown axis.
     crown_spread: f32,
     fbm_amplitude: f32,
+    /// When positive, the crown becomes a STACK: lobes climb this span up the axis from
+    /// `crown_height` instead of scattering around it — the conifer silhouette.
+    crown_stack_height: f32,
+    /// Stacked crowns only: the top lobe's radius as a fraction of `lobe_radius`.
+    crown_tip_frac: f32,
 }
 
 /// A baked tree: trunk (bark) and canopy, separate meshes so the scene builder colors each.
@@ -159,12 +193,13 @@ pub const TREE_LOD0_TRIS: std::ops::RangeInclusive<usize> = 180..=1_200;
 pub const TREE_LOD1_MAX_TRIS: usize = 260;
 
 /// The review gate for the whole species table at seed 0 (goldens; bless deliberately).
-pub const TREE_GOLDEN_HASHES: [(TreeSpecies, u64); 5] = [
+pub const TREE_GOLDEN_HASHES: [(TreeSpecies, u64); 6] = [
     (TreeSpecies::Oak, 0x0e88_3970_b14c_9477),
     (TreeSpecies::Poplar, 0x5a9a_fc2b_4554_b887),
     (TreeSpecies::Willow, 0xd92e_1100_8379_9c62),
     (TreeSpecies::FruitTree, 0xbca2_9510_33bc_79f2),
     (TreeSpecies::Bush, 0x9706_2456_e825_0149),
+    (TreeSpecies::Pine, 0x8095_eea7_4698_b97a),
 ];
 
 /// Bake one tree. `seed` varies the individual (limb headings, lobe scatter, FBM phases) —
@@ -217,15 +252,28 @@ pub fn bake_tree_lod(species: TreeSpecies, seed: u64, lod: TreeLod) -> BakedTree
     let mut canopy_indices: Vec<u32> = Vec::new();
     let mut lobe_centers = Vec::new();
     for lobe in 0..params.lobes {
-        let angle = lobe as f32 / params.lobes as f32 * std::f32::consts::TAU + rng.unit();
-        let scatter = if params.lobes == 1 { 0.0 } else { params.crown_spread };
-        let center = Vec3::new(
-            angle.cos() * scatter * (0.6 + rng.unit() * 0.4),
-            params.crown_height + rng.signed() * 0.35 * params.lobe_radius,
-            angle.sin() * scatter * (0.6 + rng.unit() * 0.4),
-        );
+        let (center, radius) = if params.crown_stack_height > 0.0 {
+            // Stacked (conifer) crown: lobe `t` of the way up the stack, radius tapering to
+            // the tip fraction — the cone is the construction, the FBM only roughs its skirt.
+            let t = lobe as f32 / (params.lobes - 1).max(1) as f32;
+            let center = Vec3::new(
+                rng.signed() * params.crown_spread,
+                params.crown_height + t * params.crown_stack_height,
+                rng.signed() * params.crown_spread,
+            );
+            let taper = 1.0 - (1.0 - params.crown_tip_frac) * t;
+            (center, params.lobe_radius * taper * (0.85 + rng.unit() * 0.3))
+        } else {
+            let angle = lobe as f32 / params.lobes as f32 * std::f32::consts::TAU + rng.unit();
+            let scatter = if params.lobes == 1 { 0.0 } else { params.crown_spread };
+            let center = Vec3::new(
+                angle.cos() * scatter * (0.6 + rng.unit() * 0.4),
+                params.crown_height + rng.signed() * 0.35 * params.lobe_radius,
+                angle.sin() * scatter * (0.6 + rng.unit() * 0.4),
+            );
+            (center, params.lobe_radius * (0.75 + rng.unit() * 0.4))
+        };
         lobe_centers.push(center);
-        let radius = params.lobe_radius * (0.75 + rng.unit() * 0.4);
         let phase = rng.next() as u32 as f32 * 1.0e-6;
         let base = canopy_vertices.len() as u32;
         let (positions, indices) = icosphere(lobe_subdiv);
