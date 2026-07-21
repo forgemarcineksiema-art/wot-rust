@@ -33,36 +33,98 @@ structural terrain ops, and the WoT map anatomy (`TerrainMapPlan`'s 12 layers).
   - PREREQUISITE: `compile` never panics on author input — river-relative ops / `RiverCenter`
     on a riverless map become report Errors (today `ops.rs`/`compile.rs` `expect`, which is
     fine for the shipped catalog but would kill a live editor session).
+  - PREREQUISITE: decisions D1–D3 below are settled — the shell hardens all three.
   - winit window (event-loop policy), 3D viewport through the client's own render path
-    (`scene_build` + `renderer_wgpu`), egui painted by a custom WGSL painter (no new deps),
-    free camera, layer panel (12 `TerrainMapLayer`, stubs owned), open/save blueprint,
-    op-stack undo/redo.
+    (`scene_build` + `renderer_wgpu`), UI toolkit per D3, free camera, layer panel
+    (12 `TerrainMapLayer`, stubs owned), open/save blueprint, op-stack undo/redo.
+  - **Playtest button from day one** (pulled forward from M7): save the document, launch the
+    client on it through the D2 dev path. The whole value of the editor is the loop
+    "move the hill → drive it → feel it"; it must exist before brushes do.
+  - **Edit-loop strategy: full recompile per edit, no incremental dirty-tracking.** 40401
+    samples × ops + the report is single-digit milliseconds; declare a <50 ms budget with a
+    lock test and the editor never shows anything the game would not.
+  - Goldens move from a Rust const to data (`blueprints/goldens.ron`) so the editor can
+    bless a deliberate map change without editing code; the diff review stays.
 - [ ] **M4 — terrain brushes**
-  - Raise/Lower/Flatten/Smooth + structural Channel/Ramp/Deck; quantized `BrushStamp` ops;
-    live preview decal; mirror stamping when `symmetry` is declared.
+  - Raise/Lower/Flatten + structural Channel/Ramp/Deck as quantized ops, per D1;
+    Smooth only in the form D1 admits. Live preview decal; mirror stamping when `symmetry`
+    is declared — a stamp stores dz-relative coordinates so the mirror is by construction,
+    never a second stamp that can drift.
 - [ ] **M5 — objects**
   - Palette (5 building styles, cover kinds, flora, world_forge props, wrecks), click
     placement with grounding, yaw/scale, inspector, gizmos; buildings emit their cover box
     automatically (one truth: mesh + footprint + rubble form).
+  - "Delete THIS tree": scatters stay procedural — a single-instance removal is an
+    exclusion-circle op added to the scatter (generalize `spawn_circles` to authored
+    `exclusion_circles`), never a materialized instance list.
 - [ ] **M6 — roads & water**
   - Polyline road tool with preview ribbon; water panel with live depth tint
     (fordable/drowning) and the corridor contract.
-- [ ] **M7 — gameplay layers & playtest**
+  - Known limit, kept deliberately: `WaterSpec` is ONE global level — a pond above the
+    valley floor does not exist yet. A future map that needs one turns `water` into a list
+    of bodies (schema change → `meta.version` bump), not a hack.
+- [ ] **M7 — gameplay layers & playtest polish**
   - Spawns/strategic points/capture zones (zones as data first, `serde(default)`);
-    contract dashboard (jump-to-problem camera), live minimap preview, playtest button
-    (`WOT_MAP`), `ServerHello.map_content_hash` (protocol bump) so mismatched clients fail
-    loud, not desync; bot water probes generalized to `BattlefieldMap.river`.
+    contract dashboard (jump-to-problem camera), live minimap preview,
+    `ServerHello.map_content_hash` (protocol bump) so mismatched clients fail loud, not
+    desync; bot water probes generalized to `BattlefieldMap.river`.
+  - **Playability checks in the report** — geometry checks exist, gameplay checks do not,
+    and it is gameplay that kills a new map: coarse reachability (BFS over the 5 m grid
+    with climb-wall + water cost: every spawn reaches every strategic point), a river map
+    owns `Crossing` points that cover its sills and decks, mirrored maps own mirrored
+    point sets, and a minimum nav-skeleton density (the bots' route planner starves below
+    ~10 points — today that lives only in Bystra's own test).
+  - **Visibility overlay**: from the cursor at hull vs turret eye height, shade what can
+    see it / what it sees (the `sight_clear` math the map tests already use, as a brush).
+    Hull-down shelves, crossfires and safe rotations are designed with THIS, not with the
+    height brush.
 - [ ] **M8 — docs & gates**
   - `docs/architecture.md`, `docs/terrain-large-world-policy.md`, README; remaining gates.
     Already landed with M1: `map_forge_stays_renderer_free` (quality), every shipped
     blueprint compiles clean, deterministic and on its golden (`tests/goldens.rs`).
+
+## Decisions before M3
+
+The shell hardens these three; deciding them late means rewriting compile/backdrop or the
+editor's whole input model.
+
+- **D1 — the brush model vs pointwise purity.** Everything today assumes terrain is a pure
+  function `h(x, z)`: the compiler folds ops per sample, and `backdrop_height` evaluates
+  the SAME program beyond the border, so the apron seam holds by construction. Raise/Lower/
+  Flatten fit that model; **Smooth does not** — it reads neighboring state, so one Smooth op
+  breaks per-sample evaluation and the analytic backdrop with it. Candidate resolutions:
+  (a) no Smooth, pointwise brushes only; (b) split the program into a pointwise part + grid
+  passes, backdrop samples only the pointwise part (seam risk at the border); (c) a
+  `sculpt_delta` layer — one quantized grid of height deltas as a single data blob in the
+  document, edited by brushes, clamped to zero toward the border (seam by construction
+  again). **Recommended: (c).** It bends hard rule 3 knowingly: strokes live in the
+  editor's undo stack, the document holds the consolidated layer — the diff shows "the
+  sculpt layer changed" plus the golden, which is still a deliberate, reviewed change.
+- **D2 — playtesting a map that is not in the registry.** `MapId` is an append-only wire
+  enum and `battlefield()` only serves the catalog; an editor document has no id, and
+  `cached_blueprint_by_id` returning `None` silently drops the backdrop. The dev path
+  needs designing WITH open/save (M3), not at M7: e.g. a reserved `MapId::Scratch` variant
+  that carries no content — server and client load the document from a path handed
+  out-of-band (`WOT_MAP=path/to.map.ron`) and the `map_content_hash` handshake (M7's
+  protocol bump) is what makes the pairing safe instead of the registry.
+- **D3 — the editor's UI toolkit.** "egui through a custom WGSL painter" hides a
+  mini-project (font atlas, clipping, sRGB — 1–2k lines) inside one bullet. The garage and
+  HUD already have an in-house UI in the military-instrument art direction; building the
+  editor's panels on THAT costs no painter, adds no dependency and makes the editor look
+  like the game. Decide deliberately between: in-house toolkit (consistency, no new
+  surface), egui + hand-written painter (immediate-mode productivity, the hidden cost), or
+  egui-wgpu (productivity, but a new renderer dependency the render-boundary policy has to
+  bless). Default leaning: in-house first; adopt egui only if tool velocity measurably
+  suffers.
 
 ## Hard rules
 
 1. Blueprint is the source of truth; code holds the op vocabulary, never a map's content.
 2. Compilation is pure and deterministic; the map never crosses the wire (`MapId` +
    content hash only); `MapId` variants are append-only.
-3. Every brush stroke is a quantized op in the document — no hidden editor state.
+3. Every brush stroke is a quantized op in the document — no hidden editor state. (If D1
+   lands on the `sculpt_delta` layer, the rule reads: the DOCUMENT always holds the full
+   terrain truth; only stroke-by-stroke history may live in the editor session.)
 4. A broken map is a build-time bug: the contract report blocks shipping (Error), and the
    golden hash makes every map change a reviewed change.
 5. The editor reuses the game's render path and render-only/runtime split: presentation
