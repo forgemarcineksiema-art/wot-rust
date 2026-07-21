@@ -216,6 +216,37 @@ pub enum TerrainOp {
     },
     /// Final floor clamp (from `grid.min_height_m`; explicit so the document reads in order).
     ClampMin(f32),
+    /// A drawn terrain line (Ręce do terenu W1): a fitted polyline with a cross-profile swept
+    /// along it — `band_mask(distance_to_polyline) → profile`. Points are stored ALREADY
+    /// smoothed, resampled and quantized by the authoring tool; the document is the fitted
+    /// curve and evaluation stays dumb and pure (the stamp philosophy).
+    Stroke(StrokeSpec),
+}
+
+/// One drawn stroke: the centerline plus the cross-profile band around it. The band's
+/// support ends EXACTLY at `half_width_m + falloff_m` (the `band_mask` contract), so the
+/// compiler may cull samples outside that rectangle with bitwise-identical results.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct StrokeSpec {
+    /// Centerline in world XZ, walked in order. Authoring quantum 0.5 m; 2..=64 points
+    /// (the report refuses more — the edit-loop budget is a contract, not a hope).
+    pub points: Vec<[f32; 2]>,
+    pub profile: StrokeProfile,
+    /// Full-strength band half-width (authoring quantum 0.5 m).
+    pub half_width_m: f32,
+    /// Smoothstep skirt beyond the band (authoring quantum 0.5 m).
+    pub falloff_m: f32,
+}
+
+/// What the band does to the ground under it.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub enum StrokeProfile {
+    /// `h += amp · mask` — a crest line.
+    Ridge { amp_m: f32 },
+    /// `h −= depth · mask` — a draw, a sunken lane.
+    Valley { depth_m: f32 },
+    /// `lerp(h, target, mask)` — a bench carved along the line (FlattenToGauss's sibling).
+    Plateau { target_m: f32 },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

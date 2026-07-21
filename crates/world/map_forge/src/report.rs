@@ -76,6 +76,7 @@ pub fn validate_map(blueprint: &MapBlueprint, map: &BattlefieldMap) -> MapReport
     let mut report = MapReport::default();
     check_grid(blueprint, &mut report);
     check_sculpt(blueprint, &mut report);
+    check_strokes(blueprint, map, &mut report);
     check_river_dependencies(blueprint, &mut report);
     check_presentation(blueprint, &mut report);
     check_heightmap_sane(blueprint, map, &mut report);
@@ -341,6 +342,80 @@ fn check_sculpt(blueprint: &MapBlueprint, report: &mut MapReport) {
                 );
                 break;
             }
+        }
+    }
+}
+
+/// A drawn stroke's contract (Ręce do terenu W1): a line, not a dot; the point budget the
+/// edit loop is priced for; band widths inside the sane envelope. Degenerate wiggles and
+/// off-map points are Warnings — evaluation is total and the backdrop continues the program
+/// past the border, but they almost always mean a slipped gesture.
+fn check_strokes(blueprint: &MapBlueprint, map: &BattlefieldMap, report: &mut MapReport) {
+    let [w, d] = blueprint.grid.size_m;
+    for (index, op) in blueprint.terrain.ops.iter().enumerate() {
+        let TerrainOp::Stroke(spec) = op else { continue };
+        let at = spec.points.first().map(|[x, z]| {
+            let h = map.heightmap.sample_height(*x, *z).unwrap_or(0.0);
+            [*x, h, *z]
+        });
+        if spec.points.len() < 2 {
+            report.push(
+                "stroke",
+                Severity::Error,
+                format!("terrain op {index}: a stroke is a line, not a dot ({} point)", {
+                    spec.points.len()
+                }),
+                at,
+            );
+            continue;
+        }
+        if spec.points.len() > 64 {
+            report.push(
+                "stroke",
+                Severity::Error,
+                format!(
+                    "terrain op {index}: {} points leave the 64-point budget the edit loop \
+                     is priced for",
+                    spec.points.len()
+                ),
+                at,
+            );
+        }
+        for (name, value) in [("half_width_m", spec.half_width_m), ("falloff_m", spec.falloff_m)] {
+            if !(0.5..=80.0).contains(&value) {
+                report.push(
+                    "stroke",
+                    Severity::Error,
+                    format!("terrain op {index}: {name} {value} leaves the 0.5..=80 band"),
+                    at,
+                );
+            }
+        }
+        for pair in spec.points.windows(2) {
+            let (a, b) = (pair[0], pair[1]);
+            let length = ((b[0] - a[0]).powi(2) + (b[1] - a[1]).powi(2)).sqrt();
+            if length < 1.0 {
+                report.push(
+                    "stroke",
+                    Severity::Warning,
+                    format!("terrain op {index}: a segment shorter than 1 m is a wiggle"),
+                    at,
+                );
+                break;
+            }
+        }
+        if let Some(&[x, z]) =
+            spec.points.iter().find(|[x, z]| *x < 0.0 || *x > w || *z < 0.0 || *z > d)
+        {
+            report.push(
+                "stroke",
+                Severity::Warning,
+                format!(
+                    "terrain op {index}: point ({x:.0}, {z:.0}) lies outside the map — legal \
+                     (the backdrop continues it) but almost certainly a slipped gesture"
+                ),
+                at,
+            );
         }
     }
 }

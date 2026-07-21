@@ -4,9 +4,11 @@
 //! reproduces a legacy map bit for bit; that is what lets the baked assets, the replay
 //! fixtures and the two ends of the wire keep agreeing after the migration to data.
 
-use terrain::{RiverSpec, band_mask, gaussian1, gaussian2, lerp, smoothstep01};
+use terrain::{RiverSpec, band_mask, gaussian1, gaussian2, lerp, polyline_distance, smoothstep01};
 
-use crate::blueprint::{BaseSpec, DampMask, MapAxis, RectBand, ReliefTerm, TerrainOp};
+use crate::blueprint::{
+    BaseSpec, DampMask, MapAxis, RectBand, ReliefTerm, StrokeProfile, TerrainOp,
+};
 
 /// Everything an op needs beyond the sample point: the river line (for river-relative ops)
 /// and the map's symmetry axis (every `dz` is measured from it).
@@ -158,7 +160,39 @@ impl TerrainOp {
                 lerp(h, deck_m.max(h), mask)
             }
             TerrainOp::ClampMin(min) => h.max(*min),
+            TerrainOp::Stroke(spec) => {
+                let mask = band_mask(
+                    polyline_distance(&spec.points, x, z),
+                    spec.half_width_m,
+                    spec.falloff_m,
+                );
+                match spec.profile {
+                    StrokeProfile::Ridge { amp_m } => h + amp_m * mask,
+                    StrokeProfile::Valley { depth_m } => h - depth_m * mask,
+                    StrokeProfile::Plateau { target_m } => lerp(h, target_m, mask),
+                }
+            }
         }
+    }
+
+    /// The rectangle outside which this op provably does nothing — `None` means "never
+    /// cull". Only strokes claim one: `band_mask`'s support ends EXACTLY at
+    /// `half_width + falloff` (its own locked contract), so skipping samples beyond the
+    /// expanded point bbox is bitwise identical to full evaluation.
+    pub(crate) fn influence_bounds(&self) -> Option<[f32; 4]> {
+        let TerrainOp::Stroke(spec) = self else { return None };
+        let reach = spec.half_width_m + spec.falloff_m;
+        let mut min_x = f32::MAX;
+        let mut min_z = f32::MAX;
+        let mut max_x = f32::MIN;
+        let mut max_z = f32::MIN;
+        for [x, z] in &spec.points {
+            min_x = min_x.min(*x);
+            min_z = min_z.min(*z);
+            max_x = max_x.max(*x);
+            max_z = max_z.max(*z);
+        }
+        Some([min_x - reach, min_z - reach, max_x + reach, max_z + reach])
     }
 }
 

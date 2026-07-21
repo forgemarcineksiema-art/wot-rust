@@ -38,5 +38,5 @@ pub use river::{RIVER_CORRIDOR_HALF_WIDTH_M, RiverSpec, bystra_river_center_x};
 pub use scenery::{
     ScatterRegion, SceneryInstance, SceneryKind, inside_any_cover, scatter_mirrored,
 };
-pub use sculpt::{band_mask, lerp, smoothstep01};
+pub use sculpt::{band_mask, lerp, polyline_distance, smoothstep01};
 pub use water::WaterBody;

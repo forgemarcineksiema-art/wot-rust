@@ -130,23 +130,10 @@ pub struct Road {
 }
 
 impl Road {
-    /// Distance from `(x, z)` to the nearest point on the polyline.
+    /// Distance from `(x, z)` to the nearest point on the polyline (the shared
+    /// [`crate::polyline_distance`] walk — behavior-identical to the historical inline math).
     pub fn distance_to(&self, x: f32, z: f32) -> f32 {
-        let mut best_sq = f32::MAX;
-        for pair in self.points.windows(2) {
-            let (a, b) = (pair[0], pair[1]);
-            let (abx, abz) = (b[0] - a[0], b[1] - a[1]);
-            let (apx, apz) = (x - a[0], z - a[1]);
-            let len_sq = abx * abx + abz * abz;
-            let t = if len_sq <= f32::EPSILON {
-                0.0
-            } else {
-                ((apx * abx + apz * abz) / len_sq).clamp(0.0, 1.0)
-            };
-            let (dx, dz) = (apx - abx * t, apz - abz * t);
-            best_sq = best_sq.min(dx * dx + dz * dz);
-        }
-        best_sq.sqrt()
+        crate::sculpt::polyline_distance(&self.points, x, z)
     }
 }
 
