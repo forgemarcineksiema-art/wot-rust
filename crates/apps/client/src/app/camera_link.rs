@@ -94,6 +94,9 @@ impl ClientApp {
                 terrain::MapId::BystraValley => 20.0,
                 // A scratch playtest map has no authored leash — the valley default is safe.
                 terrain::MapId::Scratch => 20.0,
+                // Tall crests earn a longer leash than the valley, the defile keeps it
+                // under the steppe's.
+                terrain::MapId::OrlinyPereval => 21.0,
             },
             ..Default::default()
         }
