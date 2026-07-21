@@ -50,6 +50,14 @@ Ops are structural — they carry guarantees by construction, like `sculpt.rs` a
   `CarveChannel` (bed = `water − depth(z)`; the depth profile IS the design — drowning-deep
   everywhere except the ford sills), `Deck` (raised after the carve so it always clears),
   `ClampMin`.
+- `Stroke` (Ręce do terenu W1): a DRAWN line — a fitted polyline with a cross-profile band
+  swept along it (`band_mask(distance_to_polyline)` → Ridge / Valley / Plateau). The
+  document stores the fitted curve (smoothed, resampled, 0.5 m-quantized by the authoring
+  tool; 2..=64 points — a report contract); evaluation stays dumb and pure, and the shared
+  `terrain::polyline_distance` walk keeps road paint and stroke terrain from ever
+  drifting apart. Because `band_mask`'s support ends exactly at `half_width + falloff`,
+  the compiler culls samples outside a stroke's rectangle with bitwise-identical results
+  (test-locked); the backdrop skirt evaluates ops directly and stays in agreement.
 
 The editor's brushes write these ops (quantized), so an edited map stays deterministic and
 diff-readable. Undo is popping an op; the document never hides state.

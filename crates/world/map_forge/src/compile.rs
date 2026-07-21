@@ -43,10 +43,20 @@ pub fn compile(blueprint: &MapBlueprint) -> (BattlefieldMap, MapReport) {
     let samples = blueprint.grid.samples_per_side();
     let cell = blueprint.grid.cell_m;
     let axis_z = blueprint.grid.axis_z();
+    // Per-op cull rectangles: exact compact support (strokes), `None` = never cull. The
+    // skip is bitwise invisible — outside its support an op is the identity — so the
+    // backdrop skirt, which evaluates ops directly without this table, stays in agreement.
+    let culls: Vec<Option<[f32; 4]>> =
+        blueprint.terrain.ops.iter().map(|op| op.influence_bounds()).collect();
     let heightmap = heightmap_from_fn(samples, cell, |x, z| {
         let ctx = EvalContext { river: blueprint.river.as_ref(), axis_z };
         let mut h = blueprint.terrain.base.eval(x);
-        for op in &blueprint.terrain.ops {
+        for (op, cull) in blueprint.terrain.ops.iter().zip(&culls) {
+            if let Some([x0, z0, x1, z1]) = cull
+                && (x < *x0 || x > *x1 || z < *z0 || z > *z1)
+            {
+                continue;
+            }
             h = op.apply(&ctx, x, z, h);
         }
         // The sculpt layer (D1): a pointwise per-sample delta over the program, then the
