@@ -24,6 +24,8 @@ pub enum SceneryKind {
     Rock,
     /// Low steppe shrub: a squat leafy mound, the open field's only vertical accent.
     Bush,
+    /// Conifer: a bare lower trunk under a stacked conical crown — the alpine tree.
+    Pine,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]

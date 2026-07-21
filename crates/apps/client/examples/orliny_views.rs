@@ -71,6 +71,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             sky: clear_sky,
         },
         View {
+            name: "orliny_pine_belt",
+            eye: at(430.0, 3.0, 395.0),
+            target: at(560.0, 12.0, 445.0),
+            lighting: SceneLighting::bystra_clear_afternoon(),
+            sky: clear_sky,
+        },
+        View {
             name: "orliny_summit_alpenglow",
             eye: at(680.0, 5.0, 500.0),
             target: at(340.0, 12.0, 500.0),

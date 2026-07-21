@@ -23,6 +23,7 @@ pub fn push_scenery_instance(
         SceneryKind::Willow => Some(world_forge::tree::TreeSpecies::Willow),
         SceneryKind::FruitTree => Some(world_forge::tree::TreeSpecies::FruitTree),
         SceneryKind::Bush => Some(world_forge::tree::TreeSpecies::Bush),
+        SceneryKind::Pine => Some(world_forge::tree::TreeSpecies::Pine),
         SceneryKind::Rock => None,
     };
     if let Some(species) = species {
@@ -84,6 +85,7 @@ fn canopy_color_for(species: world_forge::tree::TreeSpecies) -> ([f32; 3], f32) 
         world_forge::tree::TreeSpecies::Willow => CANOPY_PALE,
         world_forge::tree::TreeSpecies::FruitTree => CANOPY_PALE,
         world_forge::tree::TreeSpecies::Bush => CANOPY_DARK,
+        world_forge::tree::TreeSpecies::Pine => CANOPY_PINE,
     }
 }
 
@@ -131,6 +133,15 @@ pub fn push_scenery_instance_far(
             let top = base + Vec3::Y * 0.5 * s;
             push_frustum(vertices, indices, top, 0.8 * s, 0.22 * s, 0.5 * s, CANOPY);
         }
+        SceneryKind::Pine => {
+            // The conifer cone: a bare trunk under two stacked needle frusta tapering to a
+            // near-point tip — unmistakably not a broadleaf, even at backdrop range.
+            push_frustum(vertices, indices, base, 0.24 * s, 0.16 * s, 2.3 * s, TRUNK);
+            let skirt = base + Vec3::Y * 2.0 * s;
+            push_frustum(vertices, indices, skirt, 1.9 * s, 1.0 * s, 2.6 * s, CANOPY_PINE);
+            let tip = skirt + Vec3::Y * 2.6 * s;
+            push_frustum(vertices, indices, tip, 1.1 * s, 0.04 * s, 2.9 * s, CANOPY_PINE);
+        }
         SceneryKind::Rock => {
             // Bare mineral faces catch the sky harder than anything vegetal around them.
             let start = vertices.len();
@@ -155,6 +166,7 @@ const TRUNK: ([f32; 3], f32) = ([0.30, 0.22, 0.14], 0.04);
 const CANOPY: ([f32; 3], f32) = ([0.18, 0.34, 0.15], 0.07);
 const CANOPY_DARK: ([f32; 3], f32) = ([0.13, 0.27, 0.12], 0.06);
 const CANOPY_PALE: ([f32; 3], f32) = ([0.24, 0.38, 0.19], 0.08);
+const CANOPY_PINE: ([f32; 3], f32) = ([0.10, 0.22, 0.13], 0.05);
 
 /// A flat-shaded n-gon frustum standing on `base`: `r0` at the bottom, `r1` at the top,
 /// closed with a top fan. Six segments keep a tree ~50 tris.
@@ -214,6 +226,7 @@ mod tests {
             SceneryKind::FruitTree,
             SceneryKind::Rock,
             SceneryKind::Bush,
+            SceneryKind::Pine,
         ] {
             let mut vertices = Vec::new();
             let mut indices = Vec::new();

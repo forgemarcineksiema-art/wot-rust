@@ -322,6 +322,45 @@ MapBlueprint(
             ),
         ),
         Scatter(
+            seed: 7811011,
+            kind: Pine,
+            pairs: 20,
+            region: ScatterRect(
+                x: (300.0, 760.0),
+                z: (310.0, 452.0),
+            ),
+            exclude: Exclusion(
+                road_margin_m: Some(3.0),
+                cover_margin_m: Some(2.5),
+            ),
+        ),
+        Scatter(
+            seed: 7811012,
+            kind: Pine,
+            pairs: 10,
+            region: ScatterRect(
+                x: (40.0, 150.0),
+                z: (120.0, 470.0),
+            ),
+            exclude: Exclusion(
+                road_margin_m: Some(3.0),
+                cover_margin_m: Some(2.5),
+            ),
+        ),
+        Scatter(
+            seed: 7811013,
+            kind: Pine,
+            pairs: 10,
+            region: ScatterRect(
+                x: (870.0, 975.0),
+                z: (120.0, 470.0),
+            ),
+            exclude: Exclusion(
+                road_margin_m: Some(3.0),
+                cover_margin_m: Some(2.5),
+            ),
+        ),
+        Scatter(
             seed: 7811008,
             kind: Rock,
             pairs: 10,
@@ -394,6 +433,15 @@ MapBlueprint(
             ],
             yaw_rad: 0.3,
             scale: 0.95,
+        ),
+        Fixed(
+            kind: Pine,
+            spots: [
+                (352.0, 468.0),
+                (668.0, 466.0),
+            ],
+            yaw_rad: 0.2,
+            scale: 1.1,
         ),
     ],
     roads: [
