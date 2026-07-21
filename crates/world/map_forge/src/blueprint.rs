@@ -28,6 +28,11 @@ pub struct MapBlueprint {
     #[serde(default)]
     pub horizon: Option<HorizonSpec>,
     pub terrain: TerrainProgram,
+    /// The freeform sculpt layer (map-editor D1): brush strokes consolidated into ONE
+    /// quantized delta grid over the terrain program. The document holds the full terrain
+    /// truth; stroke-by-stroke history lives only in the editor session.
+    #[serde(default)]
+    pub sculpt: Option<SculptSpec>,
     #[serde(default)]
     pub water: Option<WaterSpec>,
     /// The ground's material palette (render-only). `None` falls back to the neutral
@@ -266,6 +271,36 @@ pub struct Gauss1Term {
     pub center: f32,
     pub sigma: f32,
     pub amp: f32,
+}
+
+// --- Sculpt layer (map-editor D1) --------------------------------------------------------
+
+/// Brush-sculpted height deltas over the terrain program: sparse, quantized, canonical.
+/// Applied AFTER every terrain op and re-clamped to `grid.min_height_m`; evaluation stays
+/// pointwise (the delta is a per-sample lookup), so compile purity holds. The BORDER ring
+/// must stay zero — that is what keeps the analytic backdrop/apron seam exact even though
+/// the skirt never reads the sculpt (a report Error enforces it). On a mirror-symmetric
+/// map the layer must mirror sample-for-sample (report Error; the editor stamps both
+/// halves by construction).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SculptSpec {
+    /// Metres per quantum — brush edits snap to this, so a stroke is deterministic data,
+    /// never an accumulation of float noise.
+    pub step_m: f32,
+    /// Non-zero samples only, as `(row-major heightmap index, quanta)`, sorted by index
+    /// with no duplicates (the canonical form; a report Error otherwise). Small strokes
+    /// stay a readable diff — a contiguous block of indices in one region.
+    pub samples: Vec<(u32, i16)>,
+}
+
+impl SculptSpec {
+    /// The delta in metres at a sample index (0 where unsculpted).
+    pub fn delta_m_at(&self, index: u32) -> f32 {
+        match self.samples.binary_search_by_key(&index, |(sample, _)| *sample) {
+            Ok(found) => f32::from(self.samples[found].1) * self.step_m,
+            Err(_) => 0.0,
+        }
+    }
 }
 
 // --- Ground materials (render-only) ------------------------------------------------------

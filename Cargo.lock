@@ -1201,6 +1201,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "client",
+ "game_core",
  "glam 0.30.10",
  "map_forge",
  "png",

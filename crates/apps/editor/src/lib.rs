@@ -6,6 +6,7 @@
 //! ride on top of this same `apply_edit` door).
 
 pub mod app;
+pub mod brush;
 pub mod markers;
 pub mod overlay;
 pub mod pick;

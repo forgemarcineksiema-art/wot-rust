@@ -75,6 +75,7 @@ impl Default for WaterThresholds {
 pub fn validate_map(blueprint: &MapBlueprint, map: &BattlefieldMap) -> MapReport {
     let mut report = MapReport::default();
     check_grid(blueprint, &mut report);
+    check_sculpt(blueprint, &mut report);
     check_river_dependencies(blueprint, &mut report);
     check_presentation(blueprint, &mut report);
     check_heightmap_sane(blueprint, map, &mut report);
@@ -122,6 +123,58 @@ fn check_grid(blueprint: &MapBlueprint, report: &mut MapReport) {
             ),
             None,
         );
+    }
+}
+
+/// The sculpt layer's contract (map-editor D1): canonical form (sorted, no duplicates,
+/// in range), a sane quantum, a ZERO border ring (that is what keeps the analytic
+/// backdrop/apron seam exact — the skirt never reads the sculpt), and on a mirrored map a
+/// sample-for-sample mirror (the editor stamps both halves by construction; a hand edit
+/// that breaks it is refused here, not silently shipped).
+fn check_sculpt(blueprint: &MapBlueprint, report: &mut MapReport) {
+    let Some(sculpt) = &blueprint.sculpt else { return };
+    let mut push = |message: String| report.push("sculpt", Severity::Error, message, None);
+    if !(0.01..=0.5).contains(&sculpt.step_m) {
+        push(format!("step_m {} leaves the sane 0.01..0.5 quantum band", sculpt.step_m));
+    }
+    let side = blueprint.grid.samples_per_side() as u32;
+    let total = side * side;
+    let mut previous: Option<u32> = None;
+    for &(index, quanta) in &sculpt.samples {
+        if index >= total {
+            push(format!("sample index {index} is outside the {side}x{side} grid"));
+            break;
+        }
+        if previous.is_some_and(|previous| previous >= index) {
+            push(format!("samples are not sorted-unique at index {index} (canonical form)"));
+            break;
+        }
+        previous = Some(index);
+        let (xi, zi) = (index % side, index / side);
+        if quanta != 0 && (xi == 0 || zi == 0 || xi == side - 1 || zi == side - 1) {
+            push(format!(
+                "sample {index} sculpts the border ring — the apron seam must stay exact"
+            ));
+            break;
+        }
+    }
+    if blueprint.symmetry.is_some() {
+        for &(index, quanta) in &sculpt.samples {
+            let (xi, zi) = (index % side, index / side);
+            let mirrored = (side - 1 - zi) * side + xi;
+            if sculpt.delta_m_at(mirrored) != f32::from(quanta) * sculpt.step_m {
+                report.push(
+                    "sculpt",
+                    Severity::Error,
+                    format!(
+                        "sample {index} has no mirror twin at {mirrored} — the fairness \
+                         contract covers brush strokes too"
+                    ),
+                    None,
+                );
+                break;
+            }
+        }
     }
 }
 

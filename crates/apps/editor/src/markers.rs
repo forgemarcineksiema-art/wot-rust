@@ -51,7 +51,7 @@ pub fn map_markers(
         push_ground_ring(
             &mut vertices,
             &mut indices,
-            map,
+            &map.heightmap,
             [zone.center[0], zone.center[2]],
             zone.radius_m,
             1.4,
@@ -69,7 +69,7 @@ pub fn map_markers(
         push_ground_ring(
             &mut vertices,
             &mut indices,
-            map,
+            &map.heightmap,
             [point.position[0], point.position[2]],
             point.radius_m,
             0.35,
@@ -102,17 +102,40 @@ pub fn probe_marker(
 
 /// A flat ribbon ring seated on the terrain (each segment samples its own ground height, so
 /// the ring drapes over slopes instead of clipping into them).
+/// The brush cursor: a mode-tinted ring draped over the (possibly mid-stroke) ground.
+pub fn brush_ring(
+    vertices: &mut Vec<SceneVertex>,
+    indices: &mut Vec<u32>,
+    heightmap: &terrain::HeightMap,
+    center: [f32; 2],
+    radius_m: f32,
+    color: [f32; 3],
+) {
+    push_ground_ring(vertices, indices, heightmap, center, radius_m, 0.6, color);
+}
+
+/// What each brush paints, as its ring color: raise amber, lower steel, flatten chalk,
+/// smooth sage — read the tool at a glance, matte like everything else in the world.
+pub fn brush_color(label: &str) -> [f32; 3] {
+    match label {
+        "lower" => [0.42, 0.55, 0.72],
+        "flatten" => [0.85, 0.84, 0.78],
+        "smooth" => [0.55, 0.70, 0.48],
+        _ => PROBE_AMBER,
+    }
+}
+
 fn push_ground_ring(
     vertices: &mut Vec<SceneVertex>,
     indices: &mut Vec<u32>,
-    map: &BattlefieldMap,
+    heightmap: &terrain::HeightMap,
     center: [f32; 2],
     radius_m: f32,
     width_m: f32,
     color: [f32; 3],
 ) {
     const SEGMENTS: u32 = 40;
-    let ground = |x: f32, z: f32| map.heightmap.sample_height(x, z).unwrap_or(0.0) + 0.25;
+    let ground = |x: f32, z: f32| heightmap.sample_height(x, z).unwrap_or(0.0) + 0.25;
     let base = vertices.len() as u32;
     for segment in 0..SEGMENTS {
         let angle = segment as f32 / SEGMENTS as f32 * std::f32::consts::TAU;

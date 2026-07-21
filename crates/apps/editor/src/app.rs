@@ -23,6 +23,7 @@ use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{CursorGrabMode, Window, WindowId};
 
+use crate::brush::{BrushMode, BrushSettings, Stroke};
 use crate::overlay::{OverlayModel, overlay};
 use crate::{CompiledMap, EditorDocument, markers, pick};
 
@@ -45,7 +46,7 @@ pub fn run(path: Option<PathBuf>) -> anyhow::Result<()> {
 const FRAME_INTERVAL: Duration = Duration::from_millis(12);
 
 const HELP_LINE: &str =
-    "F1 overview   F5 recompile   N problem   Ctrl+S save   Ctrl+Z/Y undo   Ctrl+P playtest";
+    "B brush   [ ] radius   LMB paint   F1 overview   N problem   Ctrl+S save   Ctrl+P playtest";
 
 /// Free-fly viewport camera: yaw/pitch look (hold RMB), WASD + QE move, Shift sprints,
 /// wheel sets the pace.
@@ -126,6 +127,12 @@ struct EditorApp {
     viewport_px: [f32; 2],
     probe: Option<Vec3>,
     map_markers: (Vec<SceneVertex>, Vec<u32>),
+    brush: Option<BrushSettings>,
+    stroke: Option<Stroke>,
+    working: Option<terrain::HeightMap>,
+    painting: bool,
+    last_paint: Instant,
+    last_mesh_swap: Instant,
     problem_positions: Vec<[f32; 3]>,
     selected_problem: Option<usize>,
     show_overview: bool,
@@ -151,6 +158,12 @@ impl EditorApp {
             viewport_px: [1280.0, 720.0],
             probe: None,
             map_markers: (Vec::new(), Vec::new()),
+            brush: None,
+            stroke: None,
+            working: None,
+            painting: false,
+            last_paint: Instant::now(),
+            last_mesh_swap: Instant::now(),
             problem_positions: Vec::new(),
             selected_problem: None,
             show_overview: true,
@@ -179,6 +192,9 @@ impl EditorApp {
     /// battle path uploads (ground + statics + water + dressing + lighting) plus the
     /// editor's annotation mesh.
     fn reload_scene(&mut self) {
+        self.stroke = None;
+        self.working = None;
+        self.painting = false;
         self.compiled = self.document.recompile();
         self.problem_positions = markers::problem_positions(&self.compiled.report)
             .into_iter()
@@ -367,6 +383,11 @@ impl EditorApp {
             KeyCode::F1 if pressed => self.show_overview = !self.show_overview,
             KeyCode::F5 if pressed => self.reload_scene(),
             KeyCode::KeyN if pressed => self.jump_to_problem(self.input.shift),
+            KeyCode::KeyB if pressed => self.cycle_brush(),
+            KeyCode::BracketLeft if pressed => self.resize_brush(1.0 / 1.25),
+            KeyCode::BracketRight if pressed => self.resize_brush(1.25),
+            KeyCode::Minus if pressed => self.retune_brush(1.0 / 1.25),
+            KeyCode::Equal if pressed => self.retune_brush(1.25),
             _ => {}
         }
         if pressed && self.input.moving() {
@@ -441,7 +462,95 @@ impl EditorApp {
         let camera = self.camera.camera();
         let aspect = (self.viewport_px[0] / self.viewport_px[1]).max(0.01);
         let (origin, direction) = pick::cursor_ray(&camera, aspect, ndc);
-        self.probe = pick::ground_hit(&self.compiled.battlefield.heightmap, origin, direction);
+        let heightmap = self.working.as_ref().unwrap_or(&self.compiled.battlefield.heightmap);
+        self.probe = pick::ground_hit(heightmap, origin, direction);
+    }
+
+    fn cycle_brush(&mut self) {
+        let next = match self.brush.map(|brush| brush.mode) {
+            None => Some(BrushMode::CYCLE[0]),
+            Some(mode) => {
+                let position =
+                    BrushMode::CYCLE.iter().position(|&cycle| cycle == mode).unwrap_or(0);
+                BrushMode::CYCLE.get(position + 1).copied()
+            }
+        };
+        self.brush = next.map(|mode| BrushSettings {
+            mode,
+            radius_m: self.brush.map_or(12.0, |brush| brush.radius_m),
+            rate_m_s: 6.0,
+        });
+        self.status = match &self.brush {
+            Some(brush) => brush_status(brush),
+            None => format!("brush off - {HELP_LINE}"),
+        };
+    }
+
+    fn resize_brush(&mut self, factor: f32) {
+        if let Some(brush) = &mut self.brush {
+            brush.radius_m = (brush.radius_m * factor).clamp(4.0, 80.0);
+            self.status = brush_status(brush);
+        }
+    }
+
+    fn retune_brush(&mut self, factor: f32) {
+        if let Some(brush) = &mut self.brush {
+            brush.rate_m_s = (brush.rate_m_s * factor).clamp(1.5, 24.0);
+            self.status = brush_status(brush);
+        }
+    }
+
+    fn begin_stroke(&mut self) {
+        if self.brush.is_none() || self.probe.is_none() {
+            return;
+        }
+        self.stroke =
+            Some(Stroke::begin(self.document.blueprint(), &self.compiled.battlefield.heightmap));
+        self.painting = true;
+        self.last_paint = Instant::now();
+    }
+
+    /// One painting frame: dab under the cursor, rebuild the working ground and swap ONLY
+    /// its geometry (the baked splat/macro maps stay bound) - the full recompile waits for
+    /// the stroke to end.
+    fn paint_frame(&mut self) {
+        let dt = self.last_paint.elapsed().as_secs_f32().min(0.1);
+        self.last_paint = Instant::now();
+        let (Some(brush), Some(stroke), Some(hit)) = (self.brush, self.stroke.as_mut(), self.probe)
+        else {
+            return;
+        };
+        stroke.dab([hit.x, hit.z], &brush, dt);
+        // The full ground remesh is throttled to ~30 ms — the stroke still reads live, the
+        // laptop never chokes on a per-frame rebuild (one-look policy).
+        if self.last_mesh_swap.elapsed() < Duration::from_millis(30) {
+            return;
+        }
+        self.last_mesh_swap = Instant::now();
+        let working = stroke.working_heightmap();
+        if let Some(renderer) = self.renderer.as_mut() {
+            let (vertices, indices) = scene_build::battlefield::terrain_scene_mesh_with_water(
+                &working,
+                self.compiled.battlefield.water,
+            );
+            renderer.update_battlefield_ground_geometry(&vertices, &indices);
+        }
+        self.working = Some(working);
+    }
+
+    /// Fold the stroke into the document through the single `apply_edit` door - one
+    /// stroke, one undo step - then the full recompile the edit-loop contract demands.
+    fn end_stroke(&mut self) {
+        self.painting = false;
+        let Some(stroke) = self.stroke.take() else { return };
+        if !stroke.touched() {
+            self.working = None;
+            return;
+        }
+        self.document.apply_edit(|blueprint| {
+            blueprint.sculpt = stroke.committed(blueprint.sculpt.as_ref());
+        });
+        self.reload_scene();
     }
 
     fn overlay_model(&self) -> OverlayModel {
@@ -452,14 +561,16 @@ impl EditorApp {
             .probe
             .map(|hit| format!("cursor {:.0}, {:.0}  h {:.1}", hit.x, hit.z, hit.y))
             .unwrap_or_default();
+        let brush_line = self.brush.as_ref().map(brush_status).unwrap_or_default();
         OverlayModel {
+            brush_line,
             document_label: self.document_label(),
             dirty: self.document.dirty(),
             compile_ms: self.compiled.compile_time.as_secs_f32() * 1000.0,
             problems,
             selected_problem: self.selected_problem,
             map_size_m: self.compiled.battlefield.size_m[0],
-            layer_lines: layer_lines(&self.compiled),
+            layer_lines: layer_lines(self.document.blueprint(), &self.compiled),
             show_overview: self.show_overview,
             camera_line,
             probe_line,
@@ -469,6 +580,9 @@ impl EditorApp {
 
     fn render_now(&mut self) {
         self.refresh_probe();
+        if self.painting {
+            self.paint_frame();
+        }
         let model = self.overlay_model();
         let Some(renderer) = self.renderer.as_mut() else { return };
         let camera = self.camera.camera();
@@ -491,10 +605,41 @@ impl EditorApp {
             objects: Vec::new(),
             armor_damage: Vec::new(),
         });
-        // Annotations: the cached map markers plus the live probe disc.
+        // Annotations: the cached map markers plus the live cursor - a probe disc when
+        // navigating, the brush ring when a brush is armed.
         let (mut vertices, mut indices) = (self.map_markers.0.clone(), self.map_markers.1.clone());
         if let Some(hit) = self.probe {
-            markers::probe_marker(&mut vertices, &mut indices, hit, 1.5);
+            match self.brush {
+                Some(brush) => {
+                    let heightmap =
+                        self.working.as_ref().unwrap_or(&self.compiled.battlefield.heightmap);
+                    let color = markers::brush_color(brush.mode.label());
+                    markers::brush_ring(
+                        &mut vertices,
+                        &mut indices,
+                        heightmap,
+                        [hit.x, hit.z],
+                        brush.radius_m,
+                        color,
+                    );
+                    // On a fair map the twin ring shows WHERE the mirror stamp lands.
+                    if self.document.blueprint().symmetry.is_some() {
+                        let axis_z = self.compiled.battlefield.size_m[1] * 0.5;
+                        let mirrored_z = axis_z * 2.0 - hit.z;
+                        if (mirrored_z - hit.z).abs() > 0.5 {
+                            markers::brush_ring(
+                                &mut vertices,
+                                &mut indices,
+                                heightmap,
+                                [hit.x, mirrored_z],
+                                brush.radius_m,
+                                color.map(|c| c * 0.55),
+                            );
+                        }
+                    }
+                }
+                None => markers::probe_marker(&mut vertices, &mut indices, hit, 1.5),
+            }
         }
         renderer.set_dynamic_mesh(&vertices, &indices);
         renderer.set_hud(&overlay(&model, aspect));
@@ -586,6 +731,13 @@ impl ApplicationHandler for EditorApp {
             WindowEvent::MouseInput { state, button: MouseButton::Right, .. } => {
                 self.set_look_capture(state == ElementState::Pressed);
             }
+            WindowEvent::MouseInput { state, button: MouseButton::Left, .. } => {
+                if state == ElementState::Pressed {
+                    self.begin_stroke();
+                } else {
+                    self.end_stroke();
+                }
+            }
             WindowEvent::MouseWheel { delta, .. } => {
                 let steps = match delta {
                     winit::event::MouseScrollDelta::LineDelta(_, y) => y,
@@ -623,7 +775,10 @@ impl ApplicationHandler for EditorApp {
 
 /// The document overview lines: every `TerrainMapLayer` with its LIVE count (or an honest
 /// "- (M7)" for layers whose tools have not shipped), plus the document's water/river vitals.
-pub fn layer_lines(compiled: &CompiledMap) -> Vec<(String, String)> {
+pub fn layer_lines(
+    blueprint: &map_forge::blueprint::MapBlueprint,
+    compiled: &CompiledMap,
+) -> Vec<(String, String)> {
     use terrain::TerrainMapLayer as Layer;
     let map = &compiled.battlefield;
     let heightmap = &map.heightmap;
@@ -654,6 +809,13 @@ pub fn layer_lines(compiled: &CompiledMap) -> Vec<(String, String)> {
         lines.push((label.to_string(), value));
     }
     lines.push((
+        "sculpt".to_string(),
+        blueprint
+            .sculpt
+            .as_ref()
+            .map_or("-".to_string(), |sculpt| format!("{} samples", sculpt.samples.len())),
+    ));
+    lines.push((
         "water".to_string(),
         map.water.map_or("-".to_string(), |w| format!("{:.1} m", w.surface_level_m)),
     ));
@@ -667,6 +829,15 @@ pub fn layer_lines(compiled: &CompiledMap) -> Vec<(String, String)> {
 /// Where a pathless document lands for save/playtest: one well-known scratch file.
 fn scratch_path() -> PathBuf {
     std::env::temp_dir().join("wot_editor_scratch.map.ron")
+}
+
+fn brush_status(brush: &BrushSettings) -> String {
+    format!(
+        "brush: {}  r {:.0} m  rate {:.1} m/s",
+        brush.mode.label(),
+        brush.radius_m,
+        brush.rate_m_s
+    )
 }
 
 /// The client to playtest in: the sibling binary when it exists (instant), `cargo run`
