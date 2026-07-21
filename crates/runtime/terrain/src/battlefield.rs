@@ -14,6 +14,16 @@ pub enum StrategicRole {
     FlankRoute,
 }
 
+/// A capture zone: data first (map-editor M7) — the sim's capture rules arrive with their
+/// own program; until then the zone is authored truth the editor, minimap and report see.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CaptureZone {
+    pub id: String,
+    /// World position, grounded on the heightmap at authoring time.
+    pub center: [f32; 3],
+    pub radius_m: f32,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct StrategicPoint {
     pub id: String,
@@ -168,6 +178,9 @@ pub struct BattlefieldMap {
     #[serde(default)]
     pub river: Option<RiverSpec>,
     pub spawn_zones: Vec<SpawnZone>,
+    /// Authored capture zones (`serde(default)` keeps pre-M7 baked assets deserializing).
+    #[serde(default)]
+    pub capture_zones: Vec<CaptureZone>,
     pub strategic_points: Vec<StrategicPoint>,
     pub features: Vec<MapFeature>,
     pub static_cover: Vec<StaticCoverObject>,

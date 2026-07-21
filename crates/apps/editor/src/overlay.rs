@@ -217,8 +217,9 @@ pub fn overlay(model: &OverlayModel, aspect: f32) -> Vec<HudVertex> {
     if !model.stamp_lines.is_empty() {
         let rows = model.stamp_lines.len();
         let content_h = (rows - 1) as f32 * LINE + TEXT_H;
-        let top = -0.52;
-        let bottom = top - content_h - 0.026 - 0.05;
+        // Anchored by the BOTTOM just above the footer; tall inspectors grow upward.
+        let bottom = -0.895;
+        let top = bottom + content_h + 0.026 + 0.05;
         push_panel(
             &mut vertices,
             [0.735, (top + bottom) * 0.5],

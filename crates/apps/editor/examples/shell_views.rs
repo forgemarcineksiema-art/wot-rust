@@ -13,6 +13,7 @@ use editor::overlay::{OverlayModel, overlay};
 use editor::roads::{self, PendingRoad};
 use editor::stamp::{self, StampKind};
 use editor::{EditorDocument, markers};
+use editor::{gameplay, visibility};
 use glam::Vec3;
 use renderer_api::{Camera, CameraProjectionPolicy, RenderFrame, view_projection_matrix};
 use renderer_wgpu::{GpuContext, OffscreenTarget, SceneRenderer};
@@ -180,6 +181,40 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
     }
 
+    // View 7: the gameplay layer (M7) - moved spawns, nav points with roles, a capture
+    // zone, and the turret-eye viewshed from a stamped hill (amber = a turret there works
+    // a hull-height target).
+    let mut battle = EditorDocument::new_scratch();
+    {
+        let blueprint = battle.blueprint().clone();
+        let (hill, _) = stamp::build_stamp(
+            StampKind::Hill,
+            &StampKind::Hill.parameters(),
+            &blueprint,
+            [150.0, 150.0],
+            [185.0, 150.0],
+        )
+        .expect("the hill lands");
+        battle.apply_edit(|blueprint| {
+            stamp::insert(blueprint, hill);
+            gameplay::move_spawn(blueprint, 1, [150.0, 50.0]);
+            gameplay::move_spawn(blueprint, 2, [150.0, 250.0]);
+            gameplay::add_point(blueprint, terrain::StrategicRole::HullDown, [150.0, 120.0]);
+            gameplay::add_point(blueprint, terrain::StrategicRole::FlankRoute, [60.0, 150.0]);
+            gameplay::add_zone(blueprint, [150.0, 150.0]);
+            blueprint.environment = Some(map_forge::blueprint::EnvironmentSpec {
+                looks: vec![map_forge::blueprint::LookSpec {
+                    variant: game_core::WeatherVariant::GoldenEvening,
+                    preset: map_forge::blueprint::LightingPreset::GoldenEvening,
+                    sky_rgb: [0.8, 0.62, 0.45],
+                    rain_intensity: 0.0,
+                    wetness: 0.0,
+                    overrides: Default::default(),
+                }],
+            });
+        });
+    }
+
     let ctx = GpuContext::headless()?;
     let target = OffscreenTarget::new(&ctx, width, height)?;
 
@@ -250,6 +285,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             None,
             "editor_shell_water",
         ),
+        (
+            &battle,
+            Camera {
+                eye: [70.0, 75.0, 55.0],
+                target: [150.0, 10.0, 155.0],
+                vertical_fov_degrees: 55.0,
+            },
+            Some(Vec3::new(150.0, 5.0, 85.0)),
+            None,
+            "editor_shell_gameplay",
+        ),
     ] {
         let compiled = document.recompile();
         let battlefield = &compiled.battlefield;
@@ -290,6 +336,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let stamp_armed = name == "editor_shell_stamps";
         let farmyard_view = name == "editor_shell_objects";
         let water_view = name == "editor_shell_water";
+        let gameplay_view = name == "editor_shell_gameplay";
         if let Some(at) = probe {
             let ground_h = battlefield.heightmap.sample_height(at.x, at.z).unwrap_or(at.y);
             if brush_armed {
@@ -309,6 +356,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     1.5,
                 );
             }
+        }
+        if gameplay_view {
+            // The observer stands LOW on the southern approach: the stamped hill throws
+            // its dead-ground shadow north - exactly what a hull-down defender exploits.
+            let (shed_vertices, shed_indices) =
+                visibility::viewshed_mesh(&battlefield.heightmap, [150.0, 85.0], 400.0);
+            let base = marker_vertices.len() as u32;
+            marker_vertices.extend_from_slice(&shed_vertices);
+            marker_indices.extend(shed_indices.iter().map(|index| index + base));
         }
         if water_view && let Some(water) = battlefield.water {
             let (tint_vertices, tint_indices) = roads::depth_tint_mesh(
@@ -341,14 +397,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .unwrap_or_default();
         let model = OverlayModel {
             brush_line: if brush_armed { "brush flatten  r 16 m".to_string() } else { String::new() },
-            inspector_title: if water_view {
+            inspector_title: if gameplay_view {
+                "GAMEPLAY".to_string()
+            } else if water_view {
                 "WATER".to_string()
             } else if farmyard_view {
                 "OBJECT".to_string()
             } else {
                 "STAMP".to_string()
             },
-            stamp_lines: if water_view {
+            stamp_lines: if gameplay_view {
+                vec![
+                    ("nav point - LMB places".to_string(), false),
+                    ("HighGround".to_string(), false),
+                    ("Crossing".to_string(), false),
+                    ("Observation".to_string(), false),
+                    ("HullDown".to_string(), true),
+                    ("FlankRoute".to_string(), false),
+                    ("Tab cycles the role".to_string(), false),
+                ]
+            } else if water_view {
                 vec![
                     ("level: 3.00 m".to_string(), true),
                     ("green: ford  amber: marginal".to_string(), false),

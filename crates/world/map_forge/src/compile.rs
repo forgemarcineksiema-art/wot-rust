@@ -64,6 +64,16 @@ pub fn compile(blueprint: &MapBlueprint) -> (BattlefieldMap, MapReport) {
     let roads = expand_roads(blueprint);
     let scenery = expand_scenery(blueprint, &heightmap, &static_cover, &roads);
     let (spawn_zones, strategic_points, features) = expand_gameplay(blueprint, &heightmap);
+    let capture_zones = blueprint
+        .gameplay
+        .capture_zones
+        .iter()
+        .map(|zone| terrain::CaptureZone {
+            id: zone.id.clone(),
+            center: ground_position(&heightmap, zone.at[0], zone.at[1]),
+            radius_m: zone.radius_m,
+        })
+        .collect();
 
     let map = BattlefieldMap {
         id: blueprint.meta.id.clone(),
@@ -75,6 +85,7 @@ pub fn compile(blueprint: &MapBlueprint) -> (BattlefieldMap, MapReport) {
         water,
         river: blueprint.river,
         spawn_zones,
+        capture_zones,
         strategic_points,
         features,
         static_cover,

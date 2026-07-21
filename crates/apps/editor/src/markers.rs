@@ -58,6 +58,17 @@ pub fn map_markers(
             color,
         );
     }
+    for zone in &map.capture_zones {
+        push_ground_ring(
+            &mut vertices,
+            &mut indices,
+            &map.heightmap,
+            [zone.center[0], zone.center[2]],
+            zone.radius_m,
+            1.6,
+            PROBE_AMBER.map(|c| c * 0.8),
+        );
+    }
     for point in &map.strategic_points {
         push_marker_box(
             &mut vertices,

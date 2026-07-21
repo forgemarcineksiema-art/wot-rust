@@ -199,6 +199,7 @@ mod tests {
                     protocol_version: crate::PROTOCOL_VERSION,
                     map_id: Default::default(),
                     weather: Default::default(),
+                    map_content_hash: 0,
                 };
                 endpoint.send(wire, &hello).expect("send");
             }
