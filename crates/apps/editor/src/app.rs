@@ -26,6 +26,7 @@ use winit::window::{CursorGrabMode, Window, WindowId};
 use crate::brush::{BrushMode, BrushSettings, Stroke};
 use crate::objects::{PaletteEntry, Selection};
 use crate::overlay::{OverlayModel, overlay};
+use crate::roads::PendingRoad;
 use crate::stamp::{Parameter, StampKind};
 use crate::{CompiledMap, EditorDocument, markers, pick};
 
@@ -47,7 +48,8 @@ pub fn run(path: Option<PathBuf>) -> anyhow::Result<()> {
 /// the event loop hot (one-look policy: frames are the app's job, never the laptop's).
 const FRAME_INTERVAL: Duration = Duration::from_millis(12);
 
-const HELP_LINE: &str = "B brush   T stamp   O object   LMB select   F1 overview   N problem   Ctrl+S save   Ctrl+P playtest";
+const HELP_LINE: &str =
+    "B brush   T stamp   O object   L road   F3 water   LMB select   F1 overview   Ctrl+P playtest";
 
 /// Free-fly viewport camera: yaw/pitch look (hold RMB), WASD + QE move, Shift sprints,
 /// wheel sets the pace.
@@ -131,6 +133,9 @@ struct EditorApp {
     brush: Option<BrushSettings>,
     stamp: Option<StampState>,
     palette: Option<PaletteEntry>,
+    road: Option<PendingRoad>,
+    show_water: bool,
+    water_tint: (Vec<SceneVertex>, Vec<u32>),
     selection: Option<Selection>,
     selection_knob: usize,
     stroke: Option<Stroke>,
@@ -166,6 +171,9 @@ impl EditorApp {
             brush: None,
             stamp: None,
             palette: None,
+            road: None,
+            show_water: false,
+            water_tint: (Vec::new(), Vec::new()),
             selection: None,
             selection_knob: 0,
             stroke: None,
@@ -396,8 +404,23 @@ impl EditorApp {
             KeyCode::KeyB if pressed => self.cycle_brush(),
             KeyCode::KeyT if pressed => self.cycle_stamp(),
             KeyCode::KeyO if pressed => self.cycle_palette(),
+            KeyCode::KeyL if pressed => self.toggle_road(),
+            KeyCode::F3 if pressed => self.toggle_water_panel(),
+            KeyCode::Enter if pressed => self.commit_road(),
+            KeyCode::Backspace if pressed => {
+                if let Some(road) = &mut self.road {
+                    road.pop_point();
+                }
+            }
             KeyCode::Delete if pressed => self.delete_selection(),
             KeyCode::KeyR if pressed => self.rotate_selection(),
+            KeyCode::KeyX if pressed && self.show_water => {
+                if self.document.blueprint().water.is_some() {
+                    self.document.apply_edit(|blueprint| blueprint.water = None);
+                    self.reload_scene();
+                    self.status = "standing water removed".into();
+                }
+            }
             KeyCode::Tab if pressed => self.cycle_stamp_parameter(),
             KeyCode::Escape if pressed => self.cancel_stamp_anchor(),
             KeyCode::BracketLeft if pressed => self.resize_brush(1.0 / 1.25),
@@ -485,6 +508,7 @@ impl EditorApp {
     fn cycle_brush(&mut self) {
         self.stamp = None;
         self.palette = None;
+        self.road = None;
         let next = match self.brush.map(|brush| brush.mode) {
             None => Some(BrushMode::CYCLE[0]),
             Some(mode) => {
@@ -512,6 +536,22 @@ impl EditorApp {
     }
 
     fn adjust_knob(&mut self, steps: f32) {
+        if let Some(road) = &mut self.road {
+            road.adjust_width(steps);
+            self.status = format!("road width {:.1} m (Tab surface, Enter commits)", road.width_m);
+            return;
+        }
+        if self.show_water && self.stamp.is_none() && self.selection.is_none() {
+            let level = self.document.blueprint().water.map_or(4.0, |water| water.surface_level_m)
+                + steps * 0.25;
+            let mut summary = String::new();
+            self.document.apply_edit(|blueprint| {
+                summary = crate::roads::set_water_level(blueprint, level);
+            });
+            self.reload_scene();
+            self.status = summary;
+            return;
+        }
         if self.stamp.is_none()
             && self.brush.is_none()
             && let Some(selection) = self.selection.clone()
@@ -551,6 +591,7 @@ impl EditorApp {
     fn cycle_stamp(&mut self) {
         self.brush = None;
         self.palette = None;
+        self.road = None;
         self.restore_compiled_ground();
         let next = match self.stamp.as_ref().map(|stamp| stamp.kind) {
             None => Some(StampKind::CYCLE[0]),
@@ -573,6 +614,11 @@ impl EditorApp {
     }
 
     fn cycle_stamp_parameter(&mut self) {
+        if let Some(road) = &mut self.road {
+            road.cycle_surface();
+            self.status = format!("road surface {:?} (Enter commits)", road.surface);
+            return;
+        }
         if let Some(stamp) = &mut self.stamp {
             stamp.active = (stamp.active + 1) % stamp.parameters.len().max(1);
             self.status = stamp_status(stamp);
@@ -731,6 +777,7 @@ impl EditorApp {
     fn cycle_palette(&mut self) {
         self.brush = None;
         self.stamp = None;
+        self.road = None;
         self.restore_compiled_ground();
         let next = match self.palette {
             None => Some(PaletteEntry::CYCLE[0]),
@@ -826,6 +873,68 @@ impl EditorApp {
         }
     }
 
+    fn toggle_road(&mut self) {
+        self.brush = None;
+        self.stamp = None;
+        self.palette = None;
+        self.road = match self.road {
+            Some(_) => None,
+            None => Some(PendingRoad::default()),
+        };
+        self.status = match &self.road {
+            Some(_) => {
+                "road: LMB adds points, Backspace pops, Tab surface, -/= width, Enter commits"
+                    .into()
+            }
+            None => format!("road off - {HELP_LINE}"),
+        };
+    }
+
+    fn toggle_water_panel(&mut self) {
+        self.show_water = !self.show_water;
+        self.rebuild_water_tint();
+        self.status = if self.show_water {
+            "water: -/= level, X removes (the tint speaks the gameplay thresholds)".into()
+        } else {
+            HELP_LINE.into()
+        };
+    }
+
+    fn rebuild_water_tint(&mut self) {
+        self.water_tint = match (self.show_water, self.compiled.battlefield.water) {
+            (true, Some(water)) => crate::roads::depth_tint_mesh(
+                &self.compiled.battlefield.heightmap,
+                water.surface_level_m,
+                &map_forge::WaterThresholds::default(),
+            ),
+            _ => (Vec::new(), Vec::new()),
+        };
+    }
+
+    /// LMB with the road tool armed: append a waypoint at the probe.
+    fn road_click(&mut self) -> bool {
+        let Some(road) = &mut self.road else { return false };
+        if let Some(hit) = self.probe {
+            road.add_point([hit.x, hit.z]);
+            self.status =
+                format!("road: {} points (Enter commits, Backspace pops)", road.points.len());
+        }
+        true
+    }
+
+    fn commit_road(&mut self) {
+        let Some(road) = &self.road else { return };
+        match road.committed(self.document.blueprint()) {
+            Some((spec, summary)) => {
+                self.document.apply_edit(|blueprint| blueprint.roads.push(spec));
+                self.road = Some(PendingRoad::default());
+                self.reload_scene();
+                self.status = format!("committed: {summary}");
+            }
+            None => self.status = "a road needs at least two points".into(),
+        }
+    }
+
     fn overlay_model(&self) -> OverlayModel {
         let problems = crate::overlay::problem_rows(&self.compiled.report);
         let eye = self.camera.eye;
@@ -839,7 +948,31 @@ impl EditorApp {
             (None, Some(brush)) => brush_status(brush),
             _ => String::new(),
         };
-        let (inspector_title, stamp_lines) = if let Some(selection) = &self.selection {
+        let (inspector_title, stamp_lines) = if let Some(road) = &self.road {
+            (
+                "ROAD".to_string(),
+                vec![
+                    (format!("{} points", road.points.len()), false),
+                    (format!("surface: {:?} (Tab)", road.surface), false),
+                    (format!("width: {:.1} m", road.width_m), true),
+                    ("Enter commits   Backspace pops".to_string(), false),
+                ],
+            )
+        } else if self.show_water {
+            let level =
+                self.document.blueprint().water.map_or("- (press = to add)".to_string(), |water| {
+                    format!("{:.2} m", water.surface_level_m)
+                });
+            (
+                "WATER".to_string(),
+                vec![
+                    (format!("level: {level}"), true),
+                    ("green: ford  amber: marginal".to_string(), false),
+                    ("red: the current drowns".to_string(), false),
+                    ("X removes standing water".to_string(), false),
+                ],
+            )
+        } else if let Some(selection) = &self.selection {
             (
                 "OBJECT".to_string(),
                 crate::objects::inspector_lines(
@@ -1003,6 +1136,19 @@ impl EditorApp {
                 }
             }
         }
+        if let Some(road) = &self.road {
+            let heightmap = self.working.as_ref().unwrap_or(&self.compiled.battlefield.heightmap);
+            let mut preview = road.clone();
+            if let Some(hit) = self.probe {
+                preview.add_point([hit.x, hit.z]);
+            }
+            crate::roads::ribbon_mesh(&mut vertices, &mut indices, heightmap, &preview);
+        }
+        if self.show_water {
+            let base = vertices.len() as u32;
+            vertices.extend_from_slice(&self.water_tint.0);
+            indices.extend(self.water_tint.1.iter().map(|index| index + base));
+        }
         if let Some(selection) = &self.selection {
             match selection {
                 Selection::Cover { .. } | Selection::TownGridMember { .. } => {
@@ -1117,7 +1263,7 @@ impl ApplicationHandler for EditorApp {
             }
             WindowEvent::MouseInput { state, button: MouseButton::Left, .. } => {
                 if state == ElementState::Pressed {
-                    if !self.palette_click() && !self.stamp_click() {
+                    if !self.road_click() && !self.palette_click() && !self.stamp_click() {
                         if self.brush.is_some() {
                             self.begin_stroke();
                         } else {

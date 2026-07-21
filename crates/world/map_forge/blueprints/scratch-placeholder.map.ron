@@ -16,6 +16,11 @@ MapBlueprint(
     ),
     terrain: TerrainProgram(
         base: Constant(5.0),
+        ops: [
+            // The floor clamp stays last; editor stamps insert BEFORE it, so a deep bowl
+            // lands on the declared floor instead of tripping the heightmap-sane Error.
+            ClampMin(0.2),
+        ],
     ),
     gameplay: GameplaySpec(
         spawns: [

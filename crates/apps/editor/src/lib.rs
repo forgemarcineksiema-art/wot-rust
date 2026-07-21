@@ -11,6 +11,7 @@ pub mod markers;
 pub mod objects;
 pub mod overlay;
 pub mod pick;
+pub mod roads;
 pub mod stamp;
 
 use std::path::{Path, PathBuf};
