@@ -32,6 +32,7 @@ pub fn blueprint_for(map: MapId) -> MapBlueprint {
             include_str!("../blueprints/prokhorovka-hill-252-2.map.ron")
         }
         MapId::BystraValley => include_str!("../blueprints/bystra-valley.map.ron"),
+        MapId::OrlinyPereval => include_str!("../blueprints/orliny-pereval.map.ron"),
         MapId::Scratch => SCRATCH_SOURCE
             .get()
             .map(String::as_str)
