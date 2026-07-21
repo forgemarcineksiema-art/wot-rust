@@ -20,6 +20,9 @@ use std::path::{Path, PathBuf};
 pub const DUPLICATE_FREE_FN_ALLOWLIST: &[&str] = &[
     // Binary entry point — one per bin crate by definition.
     "main",
+    // App-shell entry point (`client::run`, `editor::app::run`) — the windowed-app twin of
+    // `main`: one per app by design, nothing shareable behind the name.
+    "run",
     // The ratchet is empty: every pre-existing duplicate has been hoisted into a shared home —
     // `rotate_around` / `armor_normal` / `world_to_tank_local` into `game_core::math`, and the
     // shell-collision helpers (`terrain_crossing`, `first_cover_impact`, the tank ray-AABB) into

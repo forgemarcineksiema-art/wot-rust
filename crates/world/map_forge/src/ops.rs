@@ -16,8 +16,16 @@ pub(crate) struct EvalContext<'a> {
 }
 
 impl EvalContext<'_> {
-    fn river_d(&self, x: f32, z: f32) -> f32 {
-        x - self.river.expect("river-relative op on a riverless map").center_x(z)
+    /// Lateral distance to the river centerline — `None` on a riverless map, which makes
+    /// every river-relative mask vanish (the op is a no-op). The REPORT carries the Error
+    /// (`check_river_dependencies`); evaluation itself never panics on author input.
+    fn river_d(&self, x: f32, z: f32) -> Option<f32> {
+        self.river.map(|river| x - river.center_x(z))
+    }
+
+    /// The river band mask, or 0 (no effect) on a riverless map.
+    fn river_band(&self, x: f32, z: f32, half_width: f32, falloff: f32) -> f32 {
+        self.river_d(x, z).map_or(0.0, |d| band_mask(d, half_width, falloff))
     }
 }
 
@@ -61,7 +69,7 @@ impl TerrainOp {
                             1.0 - strength * rect_mask(rect, x, dz)
                         }
                         DampMask::RiverBand { half_width_m, falloff_m, strength } => {
-                            1.0 - strength * band_mask(ctx.river_d(x, z), half_width_m, falloff_m)
+                            1.0 - strength * ctx.river_band(x, z, half_width_m, falloff_m)
                         }
                     };
                 }
@@ -117,7 +125,7 @@ impl TerrainOp {
                 lerp(h, *target_m, gaussian2(x, z, *gx, *gz, *sx, *sz, 1.0))
             }
             TerrainOp::RiverBandAdd { half_width_m, falloff_m, delta_m } => {
-                h + delta_m * band_mask(ctx.river_d(x, z), *half_width_m, *falloff_m)
+                h + delta_m * ctx.river_band(x, z, *half_width_m, *falloff_m)
             }
             TerrainOp::CarveChannel {
                 half_width_m,
@@ -134,7 +142,7 @@ impl TerrainOp {
                 let ford = ford.min(1.0);
                 let depth = channel_depth_m - (channel_depth_m - sill_depth_m) * ford;
                 let bed = water_level_m - depth;
-                lerp(h, bed, band_mask(ctx.river_d(x, z), *half_width_m, *falloff_m))
+                lerp(h, bed, ctx.river_band(x, z, *half_width_m, *falloff_m))
             }
             TerrainOp::Deck {
                 dz_m,
@@ -145,7 +153,7 @@ impl TerrainOp {
                 length_falloff_m,
             } => {
                 let mask = band_mask(dz - dz_m, *half_width_m, *width_falloff_m)
-                    * band_mask(ctx.river_d(x, z), *half_length_m, *length_falloff_m);
+                    * ctx.river_band(x, z, *half_length_m, *length_falloff_m);
                 // Only ever raise: the deck bridges the channel but never trenches the bank.
                 lerp(h, deck_m.max(h), mask)
             }

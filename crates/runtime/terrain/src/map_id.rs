@@ -15,9 +15,17 @@ pub enum MapId {
     ProkhorovkaHill252_2,
     #[default]
     BystraValley,
+    /// The dev-only playtest map (map editor D2): it carries NO content of its own — the
+    /// process loads a blueprint document from a path handed out-of-band (`WOT_MAP` set to
+    /// a `.map.ron` path) before any battle uses it. Deliberately NOT in [`Self::ALL`]:
+    /// the shipped catalog, the rotation, goldens and baked assets never see it. Appended
+    /// last — the variant order is wire identity.
+    Scratch,
 }
 
 impl MapId {
+    /// Every SHIPPED map — the catalog the rotation, goldens and baked assets cover.
+    /// `Scratch` is deliberately absent (a dev vessel, not a shipped map).
     pub const ALL: &'static [MapId] = &[MapId::ProkhorovkaHill252_2, MapId::BystraValley];
 
     /// CLI/asset slug: `generate-map --map <slug>` and the `assets/maps/` filename stem
@@ -26,6 +34,7 @@ impl MapId {
         match self {
             Self::ProkhorovkaHill252_2 => "prokhorovka-hill-252-2",
             Self::BystraValley => "bystra-valley",
+            Self::Scratch => "scratch",
         }
     }
 

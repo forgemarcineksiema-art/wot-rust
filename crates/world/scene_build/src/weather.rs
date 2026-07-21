@@ -42,7 +42,7 @@ pub fn weather_look(map: MapId, variant: WeatherVariant) -> WeatherLook {
 
 /// The look a map without an authored environment wears (and the guard for an empty list,
 /// which the map report refuses on shipped maps anyway).
-fn hazy_noon_fallback() -> WeatherLook {
+pub fn hazy_noon_fallback() -> WeatherLook {
     WeatherLook {
         lighting: SceneLighting::battlefield_default(),
         sky: (0.55, 0.69, 0.87),
@@ -53,7 +53,8 @@ fn hazy_noon_fallback() -> WeatherLook {
 
 /// Bind one authored look to the renderer: named preset → `SceneLighting`, then the sparse
 /// overrides — the blueprint stays renderer-free, THIS is where names get their meaning.
-fn realize_look(look: &map_forge::blueprint::LookSpec) -> WeatherLook {
+/// Public: the map editor lights documents that are not (yet) any `MapId`.
+pub fn realize_look(look: &map_forge::blueprint::LookSpec) -> WeatherLook {
     let mut lighting = preset_lighting(look.preset);
     let overrides = &look.overrides;
     if let Some(value) = overrides.fog_density {

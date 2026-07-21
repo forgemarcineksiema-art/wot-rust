@@ -124,6 +124,52 @@ fn a_twice_authored_weather_variant_is_refused() {
     );
 }
 
+/// The M3 prerequisite: author input never panics the compiler. A river-relative op on a
+/// riverless map compiles (the mask vanishes) and the REPORT carries the Error — a live
+/// editor session survives every keystroke.
+#[test]
+fn river_ops_on_a_riverless_map_compile_and_error_instead_of_panicking() {
+    let mut blueprint = flat_square();
+    blueprint.terrain.ops.push(TerrainOp::CarveChannel {
+        half_width_m: 10.0,
+        falloff_m: 8.0,
+        water_level_m: 3.0,
+        channel_depth_m: 2.0,
+        sill_depth_m: 0.6,
+        sills: vec![],
+    });
+    let (map, report) = compile(&blueprint);
+    // The op is a no-op without a river: the ground stays the flat base.
+    assert_eq!(map.heightmap.sample_height(150.0, 150.0), Some(5.0));
+    let errors: Vec<String> =
+        report.errors().map(|entry| format!("{}: {}", entry.check, entry.message)).collect();
+    assert!(
+        errors.iter().any(|message| message.starts_with("river:")),
+        "a riverless CarveChannel must be a report error, got: {errors:?}"
+    );
+}
+
+/// Same rule for coordinates: `RiverCenter` without a river (or in the z slot) resolves to
+/// the map's centre and errors in the report — never a panic.
+#[test]
+fn river_center_coordinates_on_a_riverless_map_error_instead_of_panicking() {
+    let mut blueprint = flat_square();
+    blueprint.objects.push(map_forge::blueprint::ObjectSpec::Cover {
+        id: "adrift".into(),
+        name: "A cover with no river to ride".into(),
+        kind: terrain::StaticCoverKind::WoodenFence,
+        at: [map_forge::blueprint::XCoord::RiverCenter, map_forge::blueprint::XCoord::Fixed(150.0)],
+        half_extents_m: [1.0, 0.6, 1.0],
+    });
+    let (map, report) = compile(&blueprint);
+    let cover = map.static_cover.iter().find(|cover| cover.id == "adrift").expect("compiled");
+    assert_eq!(cover.center[0], 150.0, "the fallback is the map centre");
+    assert!(
+        report.errors().any(|entry| entry.check == "river"),
+        "a riverless RiverCenter must be a report error"
+    );
+}
+
 /// The gentle-approach rule holds on DRY maps too — a cliff at the spawn must not hide
 /// behind the absence of water (it did once: the probe lived inside the water branch).
 #[test]

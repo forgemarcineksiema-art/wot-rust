@@ -6,12 +6,7 @@ use renderer_api::HudVertex;
 
 use super::theme;
 
-pub(crate) fn push_quad(
-    vertices: &mut Vec<HudVertex>,
-    center: [f32; 2],
-    half: [f32; 2],
-    color: [f32; 4],
-) {
+pub fn push_quad(vertices: &mut Vec<HudVertex>, center: [f32; 2], half: [f32; 2], color: [f32; 4]) {
     let (left, right) = (center[0] - half[0], center[0] + half[0]);
     let (bottom, top) = (center[1] - half[1], center[1] + half[1]);
     for position in
@@ -23,7 +18,7 @@ pub(crate) fn push_quad(
 
 /// A left-aligned bar: a dark background plus a colored fill of `frac` width.
 /// `left` is the bar's left edge; `half` is the full-bar half-extent.
-pub(crate) fn push_bar(
+pub fn push_bar(
     vertices: &mut Vec<HudVertex>,
     left: [f32; 2],
     half: [f32; 2],
@@ -39,7 +34,7 @@ pub(crate) fn push_bar(
 /// direction (`hud/theme.rs`). `chamfer` is the corner cut in clip-y units; the x cut is divided
 /// by `aspect` so the angle stays 45 degrees on screen. Emits a 6-triangle fan (18 vertices);
 /// degenerate chamfers collapse gracefully toward a plain quad.
-pub(crate) fn push_panel(
+pub fn push_panel(
     vertices: &mut Vec<HudVertex>,
     center: [f32; 2],
     half: [f32; 2],
@@ -69,7 +64,7 @@ pub(crate) fn push_panel(
 }
 
 /// A thin quad between two clip-space points (arc segments, marker arms).
-pub(crate) fn push_segment(
+pub fn push_segment(
     vertices: &mut Vec<HudVertex>,
     a: [f32; 2],
     b: [f32; 2],
@@ -95,7 +90,7 @@ pub(crate) fn push_segment(
 /// An arc of short segments around `center`, radius in clip-y units (x aspect-corrected so the
 /// arc stays circular on screen).
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn push_arc(
+pub fn push_arc(
     vertices: &mut Vec<HudVertex>,
     center: [f32; 2],
     radius: f32,
@@ -116,7 +111,7 @@ pub(crate) fn push_arc(
 
 /// A thin horizontal hairline rule from `left_x` to `right_x` centred on `y` — the instrument
 /// panel's engraved divider (`theme::HAIRLINE_THICKNESS` thick).
-pub(crate) fn push_hairline(
+pub fn push_hairline(
     vertices: &mut Vec<HudVertex>,
     left_x: f32,
     right_x: f32,

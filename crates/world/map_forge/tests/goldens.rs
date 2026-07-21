@@ -1,19 +1,20 @@
 //! The review gate: every shipped map compiles clean, deterministic, and on its golden
 //! hash. A change here is a deliberate map change — bless it consciously, never by accident.
 
-use map_forge::{MAP_GOLDEN_HASHES, battlefield, battlefield_hash, blueprint_for, compile};
+use map_forge::{battlefield, battlefield_hash, blueprint_for, compile, map_golden_hashes};
 use terrain::MapId;
 
 #[test]
 fn every_shipped_map_compiles_clean_deterministic_and_on_its_golden() {
-    assert_eq!(MapId::ALL.len(), MAP_GOLDEN_HASHES.len(), "every map owns a golden");
+    let goldens = map_golden_hashes();
+    assert_eq!(MapId::ALL.len(), goldens.len(), "every shipped map owns a golden");
     // The game PLAYS the valley by default, and the compiled default proves it.
     assert_eq!(battlefield(MapId::default()).id, "bystra_valley");
-    for &(name, golden) in &MAP_GOLDEN_HASHES {
+    for (name, golden) in goldens {
         let id = MapId::ALL
             .iter()
             .copied()
-            .find(|id| blueprint_for(*id).meta.id == name)
+            .find(|id| blueprint_for(*id).meta.id == name.as_str())
             .unwrap_or_else(|| panic!("{name} is shipped"));
         let blueprint = blueprint_for(id);
         let (first, report) = compile(&blueprint);

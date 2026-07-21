@@ -7,7 +7,7 @@
 
 use terrain::{BattlefieldMap, StaticCoverObject};
 
-use crate::blueprint::{MapBlueprint, TerrainOp};
+use crate::blueprint::{MapBlueprint, TerrainOp, XCoord};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Severity {
@@ -75,6 +75,7 @@ impl Default for WaterThresholds {
 pub fn validate_map(blueprint: &MapBlueprint, map: &BattlefieldMap) -> MapReport {
     let mut report = MapReport::default();
     check_grid(blueprint, &mut report);
+    check_river_dependencies(blueprint, &mut report);
     check_presentation(blueprint, &mut report);
     check_heightmap_sane(blueprint, map, &mut report);
     check_in_bounds(map, &mut report);
@@ -121,6 +122,75 @@ fn check_grid(blueprint: &MapBlueprint, report: &mut MapReport) {
             ),
             None,
         );
+    }
+}
+
+/// Everything river-relative needs a river. Evaluation is total either way (the masks
+/// vanish, `RiverCenter` falls back to the map's centre — an editor session survives every
+/// keystroke), so THIS is where the mistake becomes visible: each offender is an Error.
+/// `RiverCenter` in the z slot is a schema misuse and errors regardless of the river.
+fn check_river_dependencies(blueprint: &MapBlueprint, report: &mut MapReport) {
+    let mut offend = |what: String| {
+        report.push("river", Severity::Error, what, None);
+    };
+    let riverless = blueprint.river.is_none();
+    if riverless {
+        for (index, op) in blueprint.terrain.ops.iter().enumerate() {
+            match op {
+                TerrainOp::RiverBandAdd { .. }
+                | TerrainOp::CarveChannel { .. }
+                | TerrainOp::Deck { .. } => {
+                    offend(format!("terrain op {index} ({op:?}) needs a river"));
+                }
+                TerrainOp::Relief { dampen, .. } => {
+                    if dampen
+                        .iter()
+                        .any(|mask| matches!(mask, crate::blueprint::DampMask::RiverBand { .. }))
+                    {
+                        offend(format!("terrain op {index}: RiverBand damping needs a river"));
+                    }
+                }
+                _ => {}
+            }
+        }
+        for op in &blueprint.scenery {
+            if let crate::blueprint::SceneryOp::Scatter { exclude, .. } = op
+                && (exclude.river_margin_m.is_some()
+                    || exclude.river_max_m.is_some()
+                    || exclude.crossing_lanes.is_some())
+            {
+                offend("a scatter's river exclusion rules need a river".to_string());
+            }
+        }
+    }
+    let mut check_at = |what: &str, at: [XCoord; 2]| {
+        if matches!(at[1], XCoord::RiverCenter | XCoord::RiverCenterAt(_)) {
+            report.push(
+                "river",
+                Severity::Error,
+                format!("{what}: RiverCenter is an x coordinate, not a z coordinate"),
+                None,
+            );
+        }
+        if riverless && matches!(at[0], XCoord::RiverCenter | XCoord::RiverCenterAt(_)) {
+            report.push(
+                "river",
+                Severity::Error,
+                format!("{what} rides the river centerline, but the map has no river"),
+                None,
+            );
+        }
+    };
+    for object in &blueprint.objects {
+        if let crate::blueprint::ObjectSpec::Cover { id, at, .. } = object {
+            check_at(&format!("cover '{id}'"), *at);
+        }
+    }
+    for point in &blueprint.gameplay.strategic_points {
+        check_at(&format!("strategic point '{}'", point.id), point.at);
+    }
+    for feature in &blueprint.gameplay.features {
+        check_at(&format!("feature '{}'", feature.name), feature.at);
     }
 }
 

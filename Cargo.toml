@@ -49,6 +49,7 @@ map_forge = { path = "crates/world/map_forge" }
 net = { path = "crates/runtime/net" }
 physics = { path = "crates/runtime/physics" }
 renderer_api = { path = "crates/render/renderer_api" }
+client = { path = "crates/apps/client" }
 renderer_wgpu = { path = "crates/render/renderer_wgpu" }
 revolve = { path = "crates/kernels/revolve" }
 sdf = { path = "crates/kernels/sdf" }

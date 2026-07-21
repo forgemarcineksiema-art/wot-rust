@@ -92,6 +92,8 @@ impl ClientApp {
             max_distance_m: match map {
                 terrain::MapId::ProkhorovkaHill252_2 => 23.0,
                 terrain::MapId::BystraValley => 20.0,
+                // A scratch playtest map has no authored leash — the valley default is safe.
+                terrain::MapId::Scratch => 20.0,
             },
             ..Default::default()
         }

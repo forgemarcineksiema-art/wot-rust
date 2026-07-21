@@ -40,22 +40,27 @@ structural terrain ops, and the WoT map anatomy (`TerrainMapPlan`'s 12 layers).
     from a consumer style-heuristic into the bake itself. Wetness needs no new lane: the
     scene shader's weather wet-darken/gloss-sharpen already treats statics exactly like
     vehicles, keyed off the gloss the roughness feeds.
-- [ ] **M3 — editor shell** (`crates/apps/editor`, lib + bin)
-  - PREREQUISITE: `compile` never panics on author input — river-relative ops / `RiverCenter`
-    on a riverless map become report Errors (today `ops.rs`/`compile.rs` `expect`, which is
-    fine for the shipped catalog but would kill a live editor session).
-  - PREREQUISITE: decisions D1–D3 below are settled — the shell hardens all three.
-  - winit window (event-loop policy), 3D viewport through the client's own render path
-    (`scene_build` + `renderer_wgpu`), UI toolkit per D3, free camera, layer panel
-    (12 `TerrainMapLayer`, stubs owned), open/save blueprint, op-stack undo/redo.
-  - **Playtest button from day one** (pulled forward from M7): save the document, launch the
-    client on it through the D2 dev path. The whole value of the editor is the loop
-    "move the hill → drive it → feel it"; it must exist before brushes do.
-  - **Edit-loop strategy: full recompile per edit, no incremental dirty-tracking.** 40401
-    samples × ops + the report is single-digit milliseconds; declare a <50 ms budget with a
-    lock test and the editor never shows anything the game would not.
-  - Goldens move from a Rust const to data (`blueprints/goldens.ron`) so the editor can
-    bless a deliberate map change without editing code; the diff review stays.
+- [x] **M3 — editor shell** (`crates/apps/editor`, lib + bin) *(done)*
+  - Compile never panics on author input: river-relative ops/masks vanish on a riverless
+    map, `RiverCenter` falls back to the map centre — each offender is a report Error
+    (`check_river_dependencies`), locked in `report_contracts.rs`.
+  - winit window per the event-loop policy, 3D viewport through the client's own render
+    path (`WindowRenderer` + the full `scene_build` upload sequence), free-fly camera
+    (RMB look, WASD/QE, wheel = speed), panels/text drawn with the client's OWN UI toolkit
+    (D3 — `push_panel`/`push_text` promoted to the client's public surface), F1 layer
+    checklist (12 `TerrainMapLayer` stubs owned), open/save (canonical RON), undo/redo.
+  - Undo/redo ships as a document SNAPSHOT stack behind the single `apply_edit` door —
+    M4's quantized brush ops ride on top of this same door (the op stack refines it, the
+    editor contract does not change).
+  - Playtest from day one: Ctrl+P saves and launches the client with `WOT_MAP=<file>`;
+    the D2 dev path (`MapId::Scratch` + `set_scratch_source`, install-once per process)
+    compiles the same document on both ends of the local server. Refused while the report
+    has Errors — a broken map is a build-time bug.
+  - Edit loop = full recompile per edit, measured every time (`CompiledMap.compile_time`,
+    shown in the header). Budget locked: <50 ms release intent, asserted at 250 ms in the
+    debug test on the heaviest shipped document.
+  - Goldens are data (`blueprints/goldens.ron`, hex) — the editor can bless a deliberate
+    map change without editing code; the diff review stays.
 - [ ] **M4 — terrain brushes**
   - Raise/Lower/Flatten + structural Channel/Ramp/Deck as quantized ops, per D1;
     Smooth only in the form D1 admits. Live preview decal; mirror stamping when `symmetry`

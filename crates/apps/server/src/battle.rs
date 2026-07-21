@@ -68,13 +68,27 @@ impl RandomBattleConfig {
         Self::new(BattleSeed::runtime(), player_vehicle)
     }
 
-    /// Runtime config honoring the `WOT_MAP` env override (a map slug, e.g. "bystra-valley").
-    /// This is the opt-in gate for maps not yet in the rotation: unset or unknown values keep
-    /// the default map, so nothing changes for anyone who has not asked.
+    /// Runtime config honoring the `WOT_MAP` env override: a map slug (e.g. "bystra-valley")
+    /// — or, for the editor's playtest loop (map-editor D2), a path to a `.map.ron`
+    /// blueprint, which installs the document as `MapId::Scratch` for this process. This is
+    /// the opt-in gate for maps not in the rotation: unset, unknown or unreadable values
+    /// keep the default map, so nothing changes for anyone who has not asked.
     pub fn runtime_from_env(player_vehicle: VehicleKind) -> Self {
         let map = std::env::var("WOT_MAP")
             .ok()
-            .and_then(|slug| MapId::from_slug(slug.trim()))
+            .and_then(|value| {
+                let value = value.trim();
+                if value.ends_with(".map.ron") {
+                    let source = std::fs::read_to_string(value)
+                        .map_err(|error| eprintln!("WOT_MAP: cannot read {value}: {error}"))
+                        .ok()?;
+                    map_forge::set_scratch_source(source)
+                        .map_err(|error| eprintln!("WOT_MAP: {value}: {error}"))
+                        .ok()?;
+                    return Some(MapId::Scratch);
+                }
+                MapId::from_slug(value)
+            })
             .unwrap_or_default();
         Self::runtime(player_vehicle).on_map(map)
     }

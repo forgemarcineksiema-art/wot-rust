@@ -14,7 +14,7 @@ use std::sync::OnceLock;
 use crate::hud::icons::HudIcon;
 
 mod bake;
-mod layout;
+pub mod layout;
 
 pub(crate) use layout::{push_icon, push_text, push_text_right, text_width};
 

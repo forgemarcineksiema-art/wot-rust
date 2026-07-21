@@ -1,0 +1,7 @@
+// The golden compile hash per shipped map (hex, u64) — DATA, so the editor can bless a
+// deliberate map change without editing code. The diff review stays: a changed line here IS
+// the deliberate-change record.
+[
+    ("bystra_valley", "adcf074064d57eb4"),
+    ("prokhorovka_hill_252_2", "3a318d914e56128b"),
+]
