@@ -205,7 +205,9 @@ pub fn insert(blueprint: &mut MapBlueprint, ops: Vec<TerrainOp>) {
     }
 }
 
-fn quantize_m(value: f32, step: f32) -> f32 {
+/// Snap a metre value to its quantum — the shared discipline of every gesture tool
+/// (stamps and strokes alike): committed data is readable, never float soup.
+pub(crate) fn quantize_m(value: f32, step: f32) -> f32 {
     (value / step).round() * step
 }
 
