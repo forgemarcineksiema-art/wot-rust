@@ -65,8 +65,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         },
         View {
             name: "orliny_defile",
-            eye: at(840.0, 3.5, 330.0),
-            target: at(845.0, 4.0, 500.0),
+            eye: at(848.0, 3.5, 368.0),
+            target: at(838.0, 6.0, 500.0),
             lighting: SceneLighting::bystra_clear_afternoon(),
             sky: clear_sky,
         },

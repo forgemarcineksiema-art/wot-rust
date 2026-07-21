@@ -47,7 +47,9 @@ decide the mid-game").
 - Terrain program: `SlopeEases` base, damped `Relief`, a broad `Gauss1` massif swell,
   **`RidgeGated`** (amp 34, σ 30 — the wall; gates at x = 200/500/840), two on-axis `Gauss2`
   summits (+16 each), a saddle fill, two `CrestShelf` hull-down lines, mirrored rim knolls,
-  a `FlattenToGauss` hamlet bench (target 31 m), `ClampMin`.
+  rocky knuckles over the defile (tight `Gauss2` pairs that push the combined slope past the
+  splat's rock break, so the slot reads as the stone gate it plays as), a `FlattenToGauss`
+  hamlet bench (target 31 m), `ClampMin`.
 - Backdrop: `HorizonSpec` with `hills_base_m` 60 (vs Bystra's 27) — a true mountain
   enclosure; no river gap.
 - Looks: ClearAfternoon (default), GoldenEvening (alpenglow on the rock), Overcast
@@ -88,6 +90,12 @@ Locked by `crates/world/map_forge/tests/orliny_pereval.rs`:
   turret clears (> 0.4 m), scanned as a line, not one tuned point.
 - `the_summits_are_the_roof_of_the_map` — Oryol crowns the map; the massif carries real
   vertical drama (> 60 m).
+
+And in `crates/apps/server/tests/orliny_battle.rs`:
+
+- `the_bots_march_on_the_pass_instead_of_grinding_the_wall` — the wall has no bot probe the
+  way water does, so this locks that after 30 s of battle most of the fleet has left its
+  spawn apron instead of grinding the massif.
 
 Plus the shared gates every shipped map passes: the map report (symmetry, spawns, in-bounds,
 playability BFS from every spawn to every point), the goldens review gate
