@@ -70,7 +70,7 @@ pub use snapshot_schedule::SnapshotSchedule;
 /// v33: the T-55A clone leaves the roster and its `VehicleKind` variant is deleted outright,
 /// shifting every discriminant after it — a deliberate wire break (no live players yet;
 /// the roster rule is "no clones").
-pub const PROTOCOL_VERSION: u16 = 34;
+pub const PROTOCOL_VERSION: u16 = 35;
 
 #[derive(Debug, Error)]
 pub enum NetError {
@@ -317,6 +317,11 @@ pub enum ProtocolMessage {
         protocol_version: u16,
         map_id: MapId,
         weather: MatchWeather,
+        /// v35: the golden compile hash of the map the server is PLAYING
+        /// (`map_forge::battlefield_hash`). The client compiles the same document and
+        /// compares - a mismatched world fails LOUD at the door instead of desyncing a
+        /// battle (the map never crosses the wire; this hash is the pairing's proof).
+        map_content_hash: u64,
     },
     /// v28: the client's per-tick send over a LOSSY wire — the latest few commands, newest
     /// last. A dropped datagram costs nothing: the next batch re-carries the recent history

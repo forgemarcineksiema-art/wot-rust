@@ -106,6 +106,9 @@ impl RemoteBattleServer {
                         protocol_version: net::PROTOCOL_VERSION,
                         map_id: self.battle.map,
                         weather: crate::match_info::pick_weather(self.battle.map, self.battle.seed),
+                        map_content_hash: map_forge::battlefield_hash(&map_forge::battlefield(
+                            self.battle.map,
+                        )),
                     };
                     let _ = client.endpoint.send(transport, &hello);
                     // Mid-battle hello: a late joiner (or a reconnect) takes a freed seat, or is

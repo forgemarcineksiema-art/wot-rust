@@ -138,21 +138,28 @@ structural terrain ops, and the WoT map anatomy (`TerrainMapPlan`'s 12 layers).
   - Known limit, kept deliberately: `WaterSpec` is ONE global level — a pond above the
     valley floor does not exist yet. A future map that needs one turns `water` into a list
     of bodies (schema change → `meta.version` bump), not a hack.
-- [ ] **M7 — gameplay layers & playtest polish**
-  - Spawns/strategic points/capture zones (zones as data first, `serde(default)`);
-    contract dashboard (jump-to-problem camera), live minimap preview,
-    `ServerHello.map_content_hash` (protocol bump) so mismatched clients fail loud, not
-    desync; bot water probes generalized to `BattlefieldMap.river`.
-  - **Playability checks in the report** — geometry checks exist, gameplay checks do not,
-    and it is gameplay that kills a new map: coarse reachability (BFS over the 5 m grid
-    with climb-wall + water cost: every spawn reaches every strategic point), a river map
-    owns `Crossing` points that cover its sills and decks, mirrored maps own mirrored
-    point sets, and a minimum nav-skeleton density (the bots' route planner starves below
-    ~10 points — today that lives only in Bystra's own test).
-  - **Visibility overlay**: from the cursor at hull vs turret eye height, shade what can
-    see it / what it sees (the `sight_clear` math the map tests already use, as a brush).
-    Hull-down shelves, crossfires and safe rotations are designed with THIS, not with the
-    height brush.
+- [x] **M7 — gameplay layers & playability** *(done)*
+  - Capture zones as DATA (`CaptureZoneSpec` → `BattlefieldMap.capture_zones`,
+    `serde(default)` everywhere, goldens extended additively — the sim's capture rules
+    arrive with their own program). The gameplay tools (G cycles): move spawn 1/2 (on a
+    fair map the OTHER team mirrors — equivalent ground IS the contract), place nav
+    points (Tab cycles the role) and zones — every gesture lands with its twin, locked
+    against the symmetry Error.
+  - **Playability checks in the report**: a coarse drive graph (8-neighbour BFS, grade ≤
+    0.55, water below drowning, outside cover) must connect every spawn to every point
+    and zone (Error with a jump-to position); a river map's sills and decks must be NAMED
+    by Crossing points (the bots route by points, not water); a big map with < 8 points
+    warns that the route planner starves. Both shipped maps pass unmodified.
+  - **Visibility overlay (V)**: the turret-eye viewshed from the cursor, tinting DEAD
+    ground dark — the shadow a designer actually reads (hull-downs live in it, flanks
+    sneak through it); the same stepped-segment rule as the sim's spotting raycast.
+  - **`ServerHello.map_content_hash` (protocol v35)**: the server sends its compiled
+    map's golden hash; the client compiles the same document and compares — a mismatched
+    world fails LOUD at the door instead of desyncing mid-battle.
+  - Bot water probes: already generalized in substance — the route planner reads Crossing
+    POINTS (data); the river shim survives only in Bystra's own contract tests.
+  - Deferred deliberately: the live minimap preview (Ctrl+P shows the real one in-game;
+    an editor-side preview needs the client's minimap bake exposed — a small follow-up).
 - [ ] **M8 — docs & gates**
   - `docs/architecture.md`, `docs/terrain-large-world-policy.md`, README; remaining gates.
     Already landed with M1: `map_forge_stays_renderer_free` (quality), every shipped

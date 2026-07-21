@@ -44,6 +44,7 @@ fn hello_messages_advertise_current_protocol_version() {
         protocol_version: PROTOCOL_VERSION,
         map_id: terrain::MapId::ProkhorovkaHill252_2,
         weather: game_core::MatchWeather::default(),
+        map_content_hash: 0xDEAD_BEEF_0000_0001,
     };
 
     assert_eq!(decode_frame(&encode_frame(&client).unwrap()).unwrap(), client);

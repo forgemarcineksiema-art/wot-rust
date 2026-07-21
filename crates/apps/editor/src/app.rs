@@ -24,6 +24,7 @@ use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{CursorGrabMode, Window, WindowId};
 
 use crate::brush::{BrushMode, BrushSettings, Stroke};
+use crate::gameplay::GameplayTool;
 use crate::objects::{PaletteEntry, Selection};
 use crate::overlay::{OverlayModel, overlay};
 use crate::roads::PendingRoad;
@@ -48,8 +49,7 @@ pub fn run(path: Option<PathBuf>) -> anyhow::Result<()> {
 /// the event loop hot (one-look policy: frames are the app's job, never the laptop's).
 const FRAME_INTERVAL: Duration = Duration::from_millis(12);
 
-const HELP_LINE: &str =
-    "B brush   T stamp   O object   L road   F3 water   LMB select   F1 overview   Ctrl+P playtest";
+const HELP_LINE: &str = "B brush  T stamp  O object  L road  G gameplay  V viewshed  F3 water  F1 overview  Ctrl+P playtest";
 
 /// Free-fly viewport camera: yaw/pitch look (hold RMB), WASD + QE move, Shift sprints,
 /// wheel sets the pace.
@@ -134,6 +134,8 @@ struct EditorApp {
     stamp: Option<StampState>,
     palette: Option<PaletteEntry>,
     road: Option<PendingRoad>,
+    gameplay: Option<(GameplayTool, usize)>,
+    viewshed: Option<(Vec<SceneVertex>, Vec<u32>)>,
     show_water: bool,
     water_tint: (Vec<SceneVertex>, Vec<u32>),
     selection: Option<Selection>,
@@ -172,6 +174,8 @@ impl EditorApp {
             stamp: None,
             palette: None,
             road: None,
+            gameplay: None,
+            viewshed: None,
             show_water: false,
             water_tint: (Vec::new(), Vec::new()),
             selection: None,
@@ -209,6 +213,7 @@ impl EditorApp {
     /// battle path uploads (ground + statics + water + dressing + lighting) plus the
     /// editor's annotation mesh.
     fn reload_scene(&mut self) {
+        self.viewshed = None;
         self.stroke = None;
         self.selection_knob = self.selection_knob.min(2);
         self.working = None;
@@ -405,6 +410,8 @@ impl EditorApp {
             KeyCode::KeyT if pressed => self.cycle_stamp(),
             KeyCode::KeyO if pressed => self.cycle_palette(),
             KeyCode::KeyL if pressed => self.toggle_road(),
+            KeyCode::KeyG if pressed => self.cycle_gameplay(),
+            KeyCode::KeyV if pressed => self.toggle_viewshed(),
             KeyCode::F3 if pressed => self.toggle_water_panel(),
             KeyCode::Enter if pressed => self.commit_road(),
             KeyCode::Backspace if pressed => {
@@ -506,6 +513,7 @@ impl EditorApp {
     }
 
     fn cycle_brush(&mut self) {
+        self.gameplay = None;
         self.stamp = None;
         self.palette = None;
         self.road = None;
@@ -589,6 +597,7 @@ impl EditorApp {
     }
 
     fn cycle_stamp(&mut self) {
+        self.gameplay = None;
         self.brush = None;
         self.palette = None;
         self.road = None;
@@ -614,6 +623,14 @@ impl EditorApp {
     }
 
     fn cycle_stamp_parameter(&mut self) {
+        if let Some((GameplayTool::NavPoint, role_index)) = &mut self.gameplay {
+            *role_index = (*role_index + 1) % crate::gameplay::ROLES.len();
+            self.status = format!(
+                "gameplay: nav point - role {:?} (Tab cycles)",
+                crate::gameplay::ROLES[*role_index]
+            );
+            return;
+        }
         if let Some(road) = &mut self.road {
             road.cycle_surface();
             self.status = format!("road surface {:?} (Enter commits)", road.surface);
@@ -775,6 +792,7 @@ impl EditorApp {
     }
 
     fn cycle_palette(&mut self) {
+        self.gameplay = None;
         self.brush = None;
         self.stamp = None;
         self.road = None;
@@ -874,6 +892,7 @@ impl EditorApp {
     }
 
     fn toggle_road(&mut self) {
+        self.gameplay = None;
         self.brush = None;
         self.stamp = None;
         self.palette = None;
@@ -935,6 +954,68 @@ impl EditorApp {
         }
     }
 
+    fn cycle_gameplay(&mut self) {
+        self.brush = None;
+        self.stamp = None;
+        self.palette = None;
+        self.road = None;
+        let next = match self.gameplay {
+            None => Some(GameplayTool::CYCLE[0]),
+            Some((tool, _)) => {
+                let position =
+                    GameplayTool::CYCLE.iter().position(|&cycle| cycle == tool).unwrap_or(0);
+                GameplayTool::CYCLE.get(position + 1).copied()
+            }
+        };
+        self.gameplay = next.map(|tool| (tool, 0));
+        self.status = match self.gameplay {
+            Some((tool, _)) => format!("gameplay: {} - LMB places", tool.label()),
+            None => format!("gameplay off - {HELP_LINE}"),
+        };
+    }
+
+    /// LMB with a gameplay tool armed. Every gesture is fair by construction.
+    fn gameplay_click(&mut self) -> bool {
+        let Some((tool, role_index)) = self.gameplay else { return false };
+        let Some(hit) = self.probe else { return true };
+        let at = [hit.x, hit.z];
+        let mut summary = String::new();
+        self.document.apply_edit(|blueprint| {
+            summary = match tool {
+                GameplayTool::MoveSpawn1 => crate::gameplay::move_spawn(blueprint, 1, at),
+                GameplayTool::MoveSpawn2 => crate::gameplay::move_spawn(blueprint, 2, at),
+                GameplayTool::NavPoint => {
+                    crate::gameplay::add_point(blueprint, crate::gameplay::ROLES[role_index], at)
+                }
+                GameplayTool::Zone => crate::gameplay::add_zone(blueprint, at),
+            };
+        });
+        self.reload_scene();
+        self.status = summary;
+        true
+    }
+
+    /// V computes the turret-eye viewshed from the cursor; V again (or a reload) clears.
+    fn toggle_viewshed(&mut self) {
+        if self.viewshed.take().is_some() {
+            self.status = "viewshed cleared".into();
+            return;
+        }
+        let Some(hit) = self.probe else {
+            self.status = "viewshed: point the cursor at the ground first".into();
+            return;
+        };
+        self.viewshed = Some(crate::visibility::viewshed_mesh(
+            &self.compiled.battlefield.heightmap,
+            [hit.x, hit.z],
+            400.0,
+        ));
+        self.status = format!(
+            "viewshed from {:.0}, {:.0}: dark = DEAD ground for a turret there (V clears)",
+            hit.x, hit.z
+        );
+    }
+
     fn overlay_model(&self) -> OverlayModel {
         let problems = crate::overlay::problem_rows(&self.compiled.report);
         let eye = self.camera.eye;
@@ -948,7 +1029,16 @@ impl EditorApp {
             (None, Some(brush)) => brush_status(brush),
             _ => String::new(),
         };
-        let (inspector_title, stamp_lines) = if let Some(road) = &self.road {
+        let (inspector_title, stamp_lines) = if let Some((tool, role_index)) = self.gameplay {
+            let mut lines = vec![(format!("{} - LMB places", tool.label()), false)];
+            if tool == GameplayTool::NavPoint {
+                for (index, role) in crate::gameplay::ROLES.iter().enumerate() {
+                    lines.push((format!("{role:?}"), index == role_index));
+                }
+                lines.push(("Tab cycles the role".to_string(), false));
+            }
+            ("GAMEPLAY".to_string(), lines)
+        } else if let Some(road) = &self.road {
             (
                 "ROAD".to_string(),
                 vec![
@@ -1149,6 +1239,11 @@ impl EditorApp {
             vertices.extend_from_slice(&self.water_tint.0);
             indices.extend(self.water_tint.1.iter().map(|index| index + base));
         }
+        if let Some((shed_vertices, shed_indices)) = &self.viewshed {
+            let base = vertices.len() as u32;
+            vertices.extend_from_slice(shed_vertices);
+            indices.extend(shed_indices.iter().map(|index| index + base));
+        }
         if let Some(selection) = &self.selection {
             match selection {
                 Selection::Cover { .. } | Selection::TownGridMember { .. } => {
@@ -1263,7 +1358,11 @@ impl ApplicationHandler for EditorApp {
             }
             WindowEvent::MouseInput { state, button: MouseButton::Left, .. } => {
                 if state == ElementState::Pressed {
-                    if !self.road_click() && !self.palette_click() && !self.stamp_click() {
+                    if !self.gameplay_click()
+                        && !self.road_click()
+                        && !self.palette_click()
+                        && !self.stamp_click()
+                    {
                         if self.brush.is_some() {
                             self.begin_stroke();
                         } else {
@@ -1337,9 +1436,9 @@ pub fn layer_lines(
             Layer::Decorations => ("scenery", map.scenery.len().to_string()),
             Layer::CoverObjects => ("cover", map.static_cover.len().to_string()),
             Layer::SpawnPoints => ("spawns", map.spawn_zones.len().to_string()),
-            Layer::CaptureZones => ("zones", "- (M7)".to_string()),
+            Layer::CaptureZones => ("zones", map.capture_zones.len().to_string()),
             Layer::BotNavigation => ("nav points", map.strategic_points.len().to_string()),
-            Layer::VisibilitySectors => ("visibility", "- (M7)".to_string()),
+            Layer::VisibilitySectors => ("visibility", "V viewshed".to_string()),
             Layer::MinimapData => ("minimap", "- (M7)".to_string()),
         };
         lines.push((label.to_string(), value));

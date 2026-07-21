@@ -7,12 +7,14 @@
 
 pub mod app;
 pub mod brush;
+pub mod gameplay;
 pub mod markers;
 pub mod objects;
 pub mod overlay;
 pub mod pick;
 pub mod roads;
 pub mod stamp;
+pub mod visibility;
 
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};

@@ -91,6 +91,13 @@ pub fn battlefield_hash(map: &BattlefieldMap) -> u64 {
         f32_bits(&mut hash, instance.yaw_rad);
         f32_bits(&mut hash, instance.scale);
     }
+    for zone in &map.capture_zones {
+        str_bytes(&mut hash, &zone.id);
+        for value in zone.center {
+            f32_bits(&mut hash, value);
+        }
+        f32_bits(&mut hash, zone.radius_m);
+    }
     for road in &map.roads {
         str_bytes(&mut hash, &road.id);
         word(&mut hash, road.surface as u64);

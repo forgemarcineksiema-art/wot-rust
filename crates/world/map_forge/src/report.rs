@@ -90,7 +90,174 @@ pub fn validate_map(blueprint: &MapBlueprint, map: &BattlefieldMap) -> MapReport
     if map.water.is_some() && map.river.is_some() {
         check_water_contract(blueprint, map, &WaterThresholds::default(), &mut report);
     }
+    check_playability(blueprint, map, &WaterThresholds::default(), &mut report);
     report
+}
+
+/// The grade an average hull still climbs, per horizontal metre - the drive graph's wall.
+/// The road and crossing checks use 0.5 as "drivable-ish"; the graph allows a touch more
+/// (a determined climb) so the report flags genuine walls, not spirited slopes.
+const CLIMB_GRADE: f32 = 0.55;
+
+/// M7: geometry was never the point - PLAYABILITY is. A coarse drive graph over the
+/// heightfield (8-neighbour steps, grade within the climb wall, water shallower than
+/// drowning, outside cover boxes) must connect EVERY spawn to every strategic point and
+/// capture zone. A river map's crossing windows (sills and decks) must be NAMED by
+/// Crossing points - the bots' route planner reads them, not the water. A big map with a
+/// starved nav skeleton warns before the bots read as lobotomized.
+fn check_playability(
+    blueprint: &MapBlueprint,
+    map: &BattlefieldMap,
+    thresholds: &WaterThresholds,
+    report: &mut MapReport,
+) {
+    let heightmap = &map.heightmap;
+    let (width, height) = (heightmap.width(), heightmap.height());
+    let cell = heightmap.cell_size_m();
+    let passable: Vec<bool> = (0..width * height)
+        .map(|index| {
+            let (xi, zi) = (index % width, index / width);
+            let ground = heightmap.sample_at_index(xi, zi);
+            if let Some(water) = map.water
+                && water.surface_level_m - ground >= thresholds.drown_depth_m
+            {
+                return false;
+            }
+            let (x, z) = (xi as f32 * cell, zi as f32 * cell);
+            !terrain::inside_any_cover(&map.static_cover, x, z, 0.3)
+        })
+        .collect();
+
+    let cell_of = |position: [f32; 3]| -> usize {
+        let xi = (position[0] / cell).round().clamp(0.0, (width - 1) as f32) as usize;
+        let zi = (position[2] / cell).round().clamp(0.0, (height - 1) as f32) as usize;
+        zi * width + xi
+    };
+    // A start may sit on a cell inside cover (a point on a bridge parapet) - walk to the
+    // nearest passable cell within a short leash before declaring anyone boxed in.
+    let start_cell = |position: [f32; 3]| -> Option<usize> {
+        let origin = cell_of(position);
+        let (oxi, ozi) = ((origin % width) as isize, (origin / width) as isize);
+        for radius in 0..3_isize {
+            for dz in -radius..=radius {
+                for dx in -radius..=radius {
+                    let (xi, zi) = (oxi + dx, ozi + dz);
+                    if xi >= 0 && zi >= 0 && (xi as usize) < width && (zi as usize) < height {
+                        let index = zi as usize * width + xi as usize;
+                        if passable[index] {
+                            return Some(index);
+                        }
+                    }
+                }
+            }
+        }
+        None
+    };
+
+    for spawn in &map.spawn_zones {
+        let Some(start) = start_cell(spawn.center) else {
+            report.push(
+                "playability",
+                Severity::Error,
+                format!("spawn team {} is boxed in - no passable ground around it", spawn.team),
+                Some(spawn.center),
+            );
+            continue;
+        };
+        let mut reached = vec![false; passable.len()];
+        let mut queue = std::collections::VecDeque::from([start]);
+        reached[start] = true;
+        while let Some(index) = queue.pop_front() {
+            let (xi, zi) = ((index % width) as isize, (index / width) as isize);
+            let here = heightmap.sample_at_index(index % width, index / width);
+            for (dx, dz) in [(1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (1, -1), (-1, 1), (-1, -1)] {
+                let (nx, nz) = (xi + dx, zi + dz);
+                if nx < 0 || nz < 0 || nx as usize >= width || nz as usize >= height {
+                    continue;
+                }
+                let next = nz as usize * width + nx as usize;
+                if reached[next] || !passable[next] {
+                    continue;
+                }
+                let there = heightmap.sample_at_index(nx as usize, nz as usize);
+                let distance = cell * ((dx * dx + dz * dz) as f32).sqrt();
+                if ((there - here) / distance).abs() > CLIMB_GRADE {
+                    continue;
+                }
+                reached[next] = true;
+                queue.push_back(next);
+            }
+        }
+        let mut assert_reaches = |what: String, position: [f32; 3]| {
+            let target = start_cell(position);
+            if target.is_none_or(|target| !reached[target]) {
+                report.push(
+                    "playability",
+                    Severity::Error,
+                    format!("{what} is unreachable from spawn team {}", spawn.team),
+                    Some(position),
+                );
+            }
+        };
+        for point in &map.strategic_points {
+            assert_reaches(format!("strategic point '{}'", point.id), point.position);
+        }
+        for zone in &map.capture_zones {
+            assert_reaches(format!("capture zone '{}'", zone.id), zone.center);
+        }
+    }
+
+    // River maps: every crossing window (ford sill, deck) is NAMED by a Crossing point.
+    if let Some(river) = &map.river
+        && map.water.is_some()
+    {
+        let axis_z = blueprint.grid.axis_z();
+        let mut windows: Vec<(f32, &'static str)> = Vec::new();
+        for op in &blueprint.terrain.ops {
+            match op {
+                TerrainOp::CarveChannel { sills, .. } => {
+                    windows.extend(sills.iter().map(|[z, _]| (*z, "ford sill")));
+                }
+                TerrainOp::Deck { dz_m, .. } => windows.push((axis_z + dz_m, "deck")),
+                _ => {}
+            }
+        }
+        for (window_z, what) in windows {
+            let x = river.center_x(window_z);
+            let named = map.strategic_points.iter().any(|point| {
+                point.role == terrain::StrategicRole::Crossing
+                    && (point.position[0] - x).powi(2) + (point.position[2] - window_z).powi(2)
+                        < 40.0 * 40.0
+            });
+            if !named {
+                let ground = map.heightmap.sample_height(x, window_z).unwrap_or(0.0);
+                report.push(
+                    "playability",
+                    Severity::Error,
+                    format!(
+                        "the {what} at z {window_z:.0} has no Crossing point - the bots route \
+                         by POINTS, not by water"
+                    ),
+                    Some([x, ground, window_z]),
+                );
+            }
+        }
+    }
+
+    // Nav-skeleton density: below ~8 points on a real battle map the route planner starves.
+    if map.size_m[0] >= 500.0 && map.strategic_points.len() < 8 {
+        report.push(
+            "playability",
+            Severity::Warning,
+            format!(
+                "only {} strategic points on a {:.0} m map - the bots' route planner starves \
+                 below ~8",
+                map.strategic_points.len(),
+                map.size_m[0]
+            ),
+            None,
+        );
+    }
 }
 
 /// The compiler samples a SQUARE grid (`samples_per_side` reads `size_m[0]`) and the mirror
@@ -425,6 +592,16 @@ fn check_in_bounds(map: &BattlefieldMap, report: &mut MapReport) {
             );
         }
     }
+    for zone in &map.capture_zones {
+        if !inside(zone.center[0], zone.center[2]) {
+            report.push(
+                "in_bounds",
+                Severity::Error,
+                format!("capture zone '{}' outside the map", zone.id),
+                Some(zone.center),
+            );
+        }
+    }
     for zone in &map.spawn_zones {
         if !inside(zone.center[0], zone.center[2]) {
             report.push(
@@ -642,6 +819,23 @@ fn check_symmetry(blueprint: &MapBlueprint, map: &BattlefieldMap, report: &mut M
                 Severity::Error,
                 format!("strategic point '{}' has no mirror twin", point.id),
                 Some(point.position),
+            );
+        }
+    }
+    for zone in &map.capture_zones {
+        if (zone.center[2] - axis_z).abs() < 1.0 {
+            continue;
+        }
+        let twin = map.capture_zones.iter().any(|other| {
+            (other.center[0] - zone.center[0]).abs() < 1.0
+                && (other.center[2] - symmetry.mirror_z(zone.center[2], axis_z)).abs() < 1.0
+        });
+        if !twin {
+            report.push(
+                "symmetry",
+                Severity::Error,
+                format!("capture zone '{}' has no mirror twin", zone.id),
+                Some(zone.center),
             );
         }
     }

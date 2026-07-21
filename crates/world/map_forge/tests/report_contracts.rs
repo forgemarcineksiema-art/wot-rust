@@ -38,6 +38,7 @@ fn flat_square() -> MapBlueprint {
                 SpawnSpec { team: 2, at: [150.0, 40.0], facing_yaw_rad: 0.0, radius_m: None },
             ],
             strategic_points: Vec::new(),
+            capture_zones: Vec::new(),
             features: Vec::new(),
         },
     }
@@ -241,5 +242,76 @@ fn the_sculpt_layer_applies_and_its_contract_bites() {
     assert!(
         report.errors().any(|entry| entry.check == "sculpt" && entry.message.contains("mirror")),
         "a one-sided stroke on a fair map must be refused"
+    );
+}
+
+/// M7 playability: a strategic point walled off by cover is an Error with a position; a
+/// starved nav skeleton on a big map warns; a crossing window stripped of its Crossing
+/// point is refused on the shipped valley itself.
+#[test]
+fn playability_bites_walls_starvation_and_unnamed_crossings() {
+    use map_forge::blueprint::{ObjectSpec, StrategicPointSpec, XCoord};
+
+    // A courtyard of cover with a point inside: unreachable from the spawns outside.
+    let mut walled = flat_square();
+    let wall = |id: &str, x: f32, z: f32, half: [f32; 3]| ObjectSpec::Cover {
+        id: id.into(),
+        name: "wall".into(),
+        kind: terrain::StaticCoverKind::FarmBuilding,
+        at: [XCoord::Fixed(x), XCoord::Fixed(z)],
+        half_extents_m: half,
+    };
+    walled.objects.push(wall("wall_n", 150.0, 130.0, [20.0, 3.0, 2.0]));
+    walled.objects.push(wall("wall_s", 150.0, 170.0, [20.0, 3.0, 2.0]));
+    walled.objects.push(wall("wall_w", 130.0, 150.0, [2.0, 3.0, 20.0]));
+    walled.objects.push(wall("wall_e", 170.0, 150.0, [2.0, 3.0, 20.0]));
+    walled.gameplay.strategic_points.push(StrategicPointSpec {
+        id: "courtyard".into(),
+        name: "the walled yard".into(),
+        role: terrain::StrategicRole::Observation,
+        at: [XCoord::Fixed(150.0), XCoord::Fixed(150.0)],
+        radius_m: 10.0,
+    });
+    let (_, report) = compile(&walled);
+    let unreachable: Vec<_> = report
+        .errors()
+        .filter(|entry| entry.check == "playability" && entry.message.contains("unreachable"))
+        .collect();
+    assert!(!unreachable.is_empty(), "a walled-off point must be a playability Error");
+    assert!(unreachable[0].at.is_some(), "the Error carries a jump-to position");
+
+    // Starvation: a big empty map warns that the route planner will starve.
+    let mut starved = flat_square();
+    starved.grid.size_m = [600.0, 600.0];
+    starved.gameplay.spawns[0].at = [300.0, 80.0];
+    starved.gameplay.spawns[1].at = [300.0, 520.0];
+    let (_, report) = compile(&starved);
+    assert!(
+        report
+            .warnings()
+            .any(|entry| entry.check == "playability" && entry.message.contains("starves")),
+        "a starved nav skeleton must warn"
+    );
+
+    // The shipped valley with one Crossing point stripped: the window loses its name.
+    let mut valley = map_forge::blueprint_for(terrain::MapId::BystraValley);
+    let before = valley.gameplay.strategic_points.len();
+    valley.gameplay.strategic_points.retain(|point| point.id != "bridge_crossing");
+    if valley.gameplay.strategic_points.len() == before {
+        // The id drifted - drop the first Crossing-role point instead.
+        let index = valley
+            .gameplay
+            .strategic_points
+            .iter()
+            .position(|point| point.role == terrain::StrategicRole::Crossing)
+            .expect("the valley names its crossings");
+        valley.gameplay.strategic_points.remove(index);
+    }
+    let (_, report) = compile(&valley);
+    assert!(
+        report
+            .errors()
+            .any(|entry| entry.check == "playability" && entry.message.contains("Crossing")),
+        "an unnamed crossing window must be refused"
     );
 }

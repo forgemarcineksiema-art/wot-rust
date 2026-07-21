@@ -214,7 +214,18 @@ impl RemoteSession {
                         }
                     });
                 }
-                ProtocolMessage::ServerHello { map_id, weather, .. } => {
+                ProtocolMessage::ServerHello { map_id, weather, map_content_hash, .. } => {
+                    // The pairing's proof (v35): both ends compile the SAME document or
+                    // nobody plays. A mismatch here means diverged content (a stale build,
+                    // an edited blueprint) - failing loud at the door beats a silent
+                    // desync twenty ticks into a battle.
+                    let ours = map_forge::battlefield_hash(&map_forge::battlefield(map_id));
+                    assert!(
+                        ours == map_content_hash,
+                        "map content mismatch for {map_id:?}: server 0x{map_content_hash:016x}, \
+                         client 0x{ours:016x} - update your build (the world never crosses \
+                         the wire, so agreement is the ONLY safety)"
+                    );
                     self.map_id = map_id;
                     self.weather = weather;
                 }

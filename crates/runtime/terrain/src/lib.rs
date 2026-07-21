@@ -13,8 +13,8 @@ mod sculpt;
 mod water;
 
 pub use battlefield::{
-    BattlefieldMap, MapFeature, MapFeatureKind, Road, RoadSurface, SpawnZone, StaticCoverKind,
-    StaticCoverObject, StrategicPoint, StrategicRole,
+    BattlefieldMap, CaptureZone, MapFeature, MapFeatureKind, Road, RoadSurface, SpawnZone,
+    StaticCoverKind, StaticCoverObject, StrategicPoint, StrategicRole,
 };
 pub use chunk::{DEFAULT_CHUNK_SIZE_M, TerrainChunk, TerrainChunkId};
 pub use coordinates::{CoordinatePrecision, LargeWorldStrategy, WorldCoordinatePolicy};

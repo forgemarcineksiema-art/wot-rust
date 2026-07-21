@@ -529,8 +529,19 @@ pub struct GameplaySpec {
     pub spawns: Vec<SpawnSpec>,
     #[serde(default)]
     pub strategic_points: Vec<StrategicPointSpec>,
+    /// Capture zones as DATA first (M7): the sim's capture rules arrive with their own
+    /// program; the editor, report and minimap already speak them.
+    #[serde(default)]
+    pub capture_zones: Vec<CaptureZoneSpec>,
     #[serde(default)]
     pub features: Vec<FeatureSpec>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CaptureZoneSpec {
+    pub id: String,
+    pub at: [f32; 2],
+    pub radius_m: f32,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
