@@ -99,13 +99,12 @@ pub fn water_surface_mesh(heightmap: &HeightMap, water: WaterBody) -> (Vec<Water
 
 #[cfg(test)]
 mod tests {
-    use terrain::{bystra_valley, prokhorovka_hill_252_2};
 
     use super::*;
 
     #[test]
     fn the_baked_current_flows_downstream_along_the_channel() {
-        let map = bystra_valley();
+        let map = map_forge::battlefield(terrain::MapId::BystraValley);
         let water = map.water.expect("the Bystra is the map");
         let (vertices, _) = water_surface_mesh(&map.heightmap, water);
 
@@ -136,13 +135,14 @@ mod tests {
 
     #[test]
     fn a_dry_map_builds_no_water_mesh() {
-        let (vertices, indices) = battlefield_water_mesh(&prokhorovka_hill_252_2());
+        let (vertices, indices) =
+            battlefield_water_mesh(&map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2));
         assert!(vertices.is_empty() && indices.is_empty());
     }
 
     #[test]
     fn the_bystra_mesh_covers_the_river_and_only_the_river() {
-        let map = bystra_valley();
+        let map = map_forge::battlefield(terrain::MapId::BystraValley);
         let water = map.water.expect("the Bystra is the map");
         // The corridor contract is about the PLAYFIELD surface; the backdrop continuations
         // are covered by scene::backdrop tests.

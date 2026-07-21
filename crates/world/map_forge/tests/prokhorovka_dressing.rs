@@ -3,21 +3,22 @@
 //! map's readability rules (bare killzone, bare railbed, clear spawn circles, no growth
 //! through cover or across a road).
 
-use terrain::{RoadSurface, SceneryKind, prokhorovka_hill_252_2};
+use map_forge::battlefield;
+use terrain::{MapId, RoadSurface, SceneryKind};
 
 const MAP_SIZE_M: f32 = 1000.0;
 const HALF_M: f32 = MAP_SIZE_M * 0.5;
 
 #[test]
 fn the_steppe_is_dressed_with_bushes() {
-    let map = prokhorovka_hill_252_2();
+    let map = battlefield(MapId::ProkhorovkaHill252_2);
     let bushes = map.scenery.iter().filter(|s| s.kind == SceneryKind::Bush).count();
     assert!(bushes >= 80, "the steppe reads as a field, not a lawn: {bushes} bushes");
 }
 
 #[test]
 fn scenery_is_mirror_paired() {
-    let map = prokhorovka_hill_252_2();
+    let map = battlefield(MapId::ProkhorovkaHill252_2);
     assert!(!map.scenery.is_empty());
     for instance in &map.scenery {
         let [x, _, z] = instance.position;
@@ -33,7 +34,7 @@ fn scenery_is_mirror_paired() {
 
 #[test]
 fn the_western_killzone_stays_nearly_bare() {
-    let map = prokhorovka_hill_252_2();
+    let map = battlefield(MapId::ProkhorovkaHill252_2);
     // The Psel field (x < 240) is designed as a coverless killzone: the dressing must not
     // suggest concealment that is not there. The treeline in-fill oaks are the exception —
     // they stand inside real TreeLine cover.
@@ -44,7 +45,7 @@ fn the_western_killzone_stays_nearly_bare() {
 
 #[test]
 fn nothing_grows_on_the_railbed_or_roads() {
-    let map = prokhorovka_hill_252_2();
+    let map = battlefield(MapId::ProkhorovkaHill252_2);
     for instance in &map.scenery {
         let [x, _, z] = instance.position;
         assert!(
@@ -65,7 +66,7 @@ fn nothing_grows_on_the_railbed_or_roads() {
 
 #[test]
 fn roads_are_mirror_fair() {
-    let map = prokhorovka_hill_252_2();
+    let map = battlefield(MapId::ProkhorovkaHill252_2);
     assert!(map.roads.len() >= 3, "the steppe has its railway and dirt roads");
     assert!(map.roads.iter().any(|road| road.surface == RoadSurface::Ballast));
     for road in &map.roads {
@@ -88,7 +89,7 @@ fn roads_are_mirror_fair() {
 
 #[test]
 fn road_distance_measures_to_the_polyline() {
-    let map = prokhorovka_hill_252_2();
+    let map = battlefield(MapId::ProkhorovkaHill252_2);
     let ballast = map.roads.iter().find(|road| road.surface == RoadSurface::Ballast).unwrap();
     assert!(ballast.distance_to(500.0, 500.0) < 0.01);
     assert!((ballast.distance_to(500.0, 480.0) - 20.0).abs() < 0.01);
@@ -98,7 +99,7 @@ fn road_distance_measures_to_the_polyline() {
 /// the steppe — stand in exact north/south mirror pairs so both teams drive the same yards.
 #[test]
 fn yard_fences_are_crushable_and_mirror_paired() {
-    let map = terrain::prokhorovka_hill_252_2();
+    let map = battlefield(MapId::ProkhorovkaHill252_2);
     let fences: Vec<_> = map
         .static_cover
         .iter()

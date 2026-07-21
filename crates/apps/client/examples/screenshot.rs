@@ -10,7 +10,6 @@ use renderer_api::view_projection_matrix;
 use renderer_wgpu::{GpuContext, OffscreenTarget, SceneRenderer};
 use server::{LocalAuthoritativeServer, ServerTickConfig};
 use sim::TankCommand;
-use terrain::prokhorovka_hill_252_2;
 
 /// Drive the authoritative server, then render the resulting battle offscreen and save a
 /// PNG. This exercises the real, playable systems (terrain-following driving + a fired
@@ -20,7 +19,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let width = 1280u32;
     let height = 720u32;
 
-    let battlefield = prokhorovka_hill_252_2();
+    let battlefield = map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2);
     let (terrain_vertices, terrain_indices) = battlefield_scene_mesh(&battlefield);
 
     let mut server = LocalAuthoritativeServer::new(ServerTickConfig::default());

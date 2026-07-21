@@ -365,7 +365,7 @@ mod tests {
     use super::*;
 
     fn battlefield() -> BattlefieldMap {
-        terrain::prokhorovka_hill_252_2()
+        map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2)
     }
 
     fn point_ids(team: TeamId, map: &BattlefieldMap) -> Vec<&str> {
@@ -487,7 +487,7 @@ mod tests {
     /// through an authored Crossing instead of driving into the drowning channel.
     #[test]
     fn a_bot_bound_across_the_river_detours_through_a_crossing() {
-        let map = terrain::bystra_valley();
+        let map = map_forge::battlefield(terrain::MapId::BystraValley);
         // z=420 runs between the crossings (bridge z=500, ford z=320): open channel only.
         // Tank id 2: lane offset 0, so waypoints compare exactly.
         let west = crate::bots::test_support::tank_at(2, TeamId(1), Vec3::new(430.0, 8.0, 420.0));

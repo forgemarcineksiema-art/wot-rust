@@ -9,7 +9,6 @@ use client::{
 use renderer_api::RenderFrame;
 use renderer_api::{Camera, CameraProjectionPolicy, SceneLighting, view_projection_matrix};
 use renderer_wgpu::{GpuContext, OffscreenTarget, SceneRenderer};
-use terrain::bystra_valley;
 
 /// Render the Bystra valley offscreen from its landmark viewpoints — the stone bridge over
 /// the river, a town lane under the gable roofs, the valley panorama from the Mill Hill —
@@ -19,7 +18,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let width = 1280u32;
     let height = 720u32;
 
-    let battlefield = bystra_valley();
+    let battlefield = map_forge::battlefield(terrain::MapId::BystraValley);
     let ((ground_vertices, ground_indices), (vertices, indices)) =
         battlefield_ground_and_statics_meshes(&battlefield, &[]);
     let ground_maps = bake_terrain_ground_maps(&battlefield);

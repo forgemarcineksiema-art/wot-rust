@@ -4,7 +4,7 @@
 //! faces break to rock, and the steppe splits between lush grass and dry straw. Pure CPU.
 
 use client::{bake_terrain_ground_maps, terrain_material_set_for};
-use terrain::{MapId, bystra_valley, prokhorovka_hill_252_2};
+use terrain::MapId;
 
 fn splitmix_hash(bytes: &[u8]) -> u64 {
     let mut h = 0xcbf2_9ce4_8422_2325u64;
@@ -17,7 +17,7 @@ fn splitmix_hash(bytes: &[u8]) -> u64 {
 
 #[test]
 fn the_bake_is_deterministic_and_well_formed() {
-    let battlefield = prokhorovka_hill_252_2();
+    let battlefield = map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2);
     let a = bake_terrain_ground_maps(&battlefield);
     let b = bake_terrain_ground_maps(&battlefield);
     assert!(a.is_well_formed());
@@ -32,7 +32,8 @@ fn the_bake_is_deterministic_and_well_formed() {
 
 #[test]
 fn every_texel_weighs_its_layers_to_one() {
-    let maps = bake_terrain_ground_maps(&prokhorovka_hill_252_2());
+    let maps =
+        bake_terrain_ground_maps(&map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2));
     for texel in maps.splat.chunks_exact(4) {
         let sum: u32 = texel.iter().map(|&w| w as u32).sum();
         assert!(
@@ -55,7 +56,7 @@ fn splat_at(maps: &renderer_api::TerrainGroundMaps, wx: f32, wz: f32) -> [u8; 4]
 fn the_splat_reads_the_maps_own_truth() {
     // Prokhorovka: a point on a road polyline wears dirt-dominant, and every layer owns real
     // ground somewhere on the map (grass, straw, road dirt, chalk break on the massif).
-    let steppe = prokhorovka_hill_252_2();
+    let steppe = map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2);
     let maps = bake_terrain_ground_maps(&steppe);
     let road = &steppe.roads[0];
     let mid = road.points[road.points.len() / 2];
@@ -77,7 +78,7 @@ fn the_splat_reads_the_maps_own_truth() {
     assert_eq!(layer_seen, [true; 4], "every layer must own real ground somewhere");
 
     // Bystra: the river margins read worn wet earth (the dirt layer claims them).
-    let bystra = bystra_valley();
+    let bystra = map_forge::battlefield(terrain::MapId::BystraValley);
     let bystra_maps = bake_terrain_ground_maps(&bystra);
     let dirt_heavy = bystra_maps.splat.chunks_exact(4).filter(|t| t[2] >= 128).count();
     assert!(
@@ -86,7 +87,8 @@ fn the_splat_reads_the_maps_own_truth() {
     );
 
     // Prokhorovka is a dry steppe: grass + straw dominate almost everywhere.
-    let steppe_maps = bake_terrain_ground_maps(&prokhorovka_hill_252_2());
+    let steppe_maps =
+        bake_terrain_ground_maps(&map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2));
     let grassy =
         steppe_maps.splat.chunks_exact(4).filter(|t| (t[0] as u32 + t[1] as u32) >= 128).count();
     let total = (steppe_maps.size * steppe_maps.size) as usize;
@@ -99,7 +101,8 @@ fn the_splat_reads_the_maps_own_truth() {
 
 #[test]
 fn macro_normals_decode_to_unit_up_facing_vectors() {
-    let maps = bake_terrain_ground_maps(&prokhorovka_hill_252_2());
+    let maps =
+        bake_terrain_ground_maps(&map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2));
     for texel in maps.macro_normal.chunks_exact(4).step_by(1097) {
         let n = [
             texel[0] as f32 / 255.0 * 2.0 - 1.0,
@@ -114,7 +117,7 @@ fn macro_normals_decode_to_unit_up_facing_vectors() {
 
 #[test]
 fn puddle_propensity_is_smooth_varied_and_never_a_binary_grid_gate() {
-    let maps = bake_terrain_ground_maps(&bystra_valley());
+    let maps = bake_terrain_ground_maps(&map_forge::battlefield(terrain::MapId::BystraValley));
     let size = maps.size as usize;
     let alpha: Vec<u8> = maps.macro_normal.chunks_exact(4).map(|texel| texel[3]).collect();
     let unique: std::collections::BTreeSet<u8> = alpha.iter().copied().collect();

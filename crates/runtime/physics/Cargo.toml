@@ -13,5 +13,8 @@ rapier3d.workspace = true
 serde.workspace = true
 terrain.workspace = true
 
+[dev-dependencies]
+map_forge.workspace = true
+
 [lints]
 workspace = true

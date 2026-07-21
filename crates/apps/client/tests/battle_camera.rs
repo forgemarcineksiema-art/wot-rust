@@ -6,7 +6,7 @@ use client::{
 };
 use game_core::TankId;
 use net::TankSnapshot;
-use terrain::{HeightMap, prokhorovka_hill_252_2};
+use terrain::{HeightMap, MapId};
 
 #[test]
 fn third_person_camera_follows_tank_and_stays_above_terrain() {
@@ -185,7 +185,7 @@ fn sniper_eye_does_not_translate_while_the_turret_traverses() {
 
 #[test]
 fn camera_environment_imports_static_cover_from_battlefield_map() {
-    let map = prokhorovka_hill_252_2();
+    let map = map_forge::battlefield(MapId::ProkhorovkaHill252_2);
     let environment = BattleCameraEnvironment::for_battlefield(&map);
 
     assert_eq!(environment.obstacles.len(), map.static_cover.len());

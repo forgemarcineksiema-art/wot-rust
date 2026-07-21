@@ -79,7 +79,7 @@ fn random_7v7_uses_map_spawn_zones_and_facing_yaw() {
     );
     // The zones must come from the map the server actually spawned on (MapId::default()),
     // not a hardcoded one — this assertion went red the day the default flipped to Bystra.
-    let map = server.map_id().battlefield();
+    let map = map_forge::battlefield(server.map_id());
     let snapshot = server.latest_snapshot();
 
     for tank in &snapshot.tanks {

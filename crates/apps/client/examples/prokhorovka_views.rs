@@ -8,7 +8,6 @@ use client::{
 };
 use renderer_api::{Camera, CameraProjectionPolicy, RenderFrame, view_projection_matrix};
 use renderer_wgpu::{GpuContext, OffscreenTarget, SceneRenderer};
-use terrain::prokhorovka_hill_252_2;
 
 /// Render the Prokhorovka steppe offscreen in its three times of day — the hazy noon, the
 /// golden evening whose low western sun the shadow cascades rake long, and the dry lead
@@ -20,7 +19,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let width = 1280u32;
     let height = 720u32;
 
-    let battlefield = prokhorovka_hill_252_2();
+    let battlefield = map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2);
     let ((ground_vertices, ground_indices), (statics_vertices, statics_indices)) =
         battlefield_ground_and_statics_meshes(&battlefield, &[]);
     let ground_maps = bake_terrain_ground_maps(&battlefield);

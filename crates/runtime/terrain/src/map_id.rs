@@ -1,14 +1,11 @@
 use serde::{Deserialize, Serialize};
 
-use crate::battlefield::BattlefieldMap;
-use crate::bystra::bystra_valley;
-use crate::prokhorovka::prokhorovka_hill_252_2;
-
 /// Stable identity of a playable map — the registry both ends of the wire call.
 ///
-/// The battlefield itself is never networked: server and client each run the same
-/// deterministic generator, so agreeing on a `MapId` is what keeps their worlds identical.
-/// The variant order is wire identity (bincode discriminants) — append, never reorder.
+/// The battlefield itself is never networked: server and client each compile the same
+/// blueprint document (`map_forge::battlefield`), so agreeing on a `MapId` is what keeps
+/// their worlds identical. The variant order is wire identity (bincode discriminants) —
+/// append, never reorder.
 ///
 /// The default is the map the game PLAYS. Prokhorovka stays in the registry as the test
 /// substrate (replay fixtures and contract tests were recorded on it — determinism proof),
@@ -34,13 +31,5 @@ impl MapId {
 
     pub fn from_slug(slug: &str) -> Option<Self> {
         Self::ALL.iter().copied().find(|id| id.slug() == slug)
-    }
-
-    /// Build this map. Deterministic: every call, on any machine, yields the same battlefield.
-    pub fn battlefield(self) -> BattlefieldMap {
-        match self {
-            Self::ProkhorovkaHill252_2 => prokhorovka_hill_252_2(),
-            Self::BystraValley => bystra_valley(),
-        }
     }
 }

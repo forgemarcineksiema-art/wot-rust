@@ -47,7 +47,7 @@ pub fn dispatch(command: Command) -> anyhow::Result<()> {
             write_json(output, &HeightMap::flat(width, height, cell_size, height_m)?)?
         }
         Command::GenerateMap { output, map } => match MapId::from_slug(&map) {
-            Some(id) => write_json(output, &id.battlefield())?,
+            Some(id) => write_json(output, &map_forge::battlefield(id))?,
             None => {
                 let known: Vec<&str> = MapId::ALL.iter().map(|id| id.slug()).collect();
                 anyhow::bail!("unknown map profile: {map} (known: {})", known.join(", "))

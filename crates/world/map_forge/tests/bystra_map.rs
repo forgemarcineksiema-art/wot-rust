@@ -1,4 +1,5 @@
-use terrain::{StrategicRole, bystra_river_center_x, bystra_valley};
+use map_forge::{backdrop_height, battlefield, cached_blueprint_by_id};
+use terrain::{MapId, StrategicRole, bystra_river_center_x};
 
 const MAP_M: f32 = 1000.0;
 const HALF_M: f32 = 500.0;
@@ -8,7 +9,7 @@ const HALF_M: f32 = 500.0;
 /// construction — and stays held.
 #[test]
 fn bystra_heightmap_is_mirror_symmetric_across_the_central_axis() {
-    let map = bystra_valley();
+    let map = battlefield(MapId::BystraValley);
     let mut max_delta = 0.0_f32;
     for zi in 0..=50 {
         for xi in 0..=50 {
@@ -25,7 +26,7 @@ fn bystra_heightmap_is_mirror_symmetric_across_the_central_axis() {
 /// Layout fairness: spawns, strategic points and cover are on-axis or mirrored pairs.
 #[test]
 fn bystra_layout_is_mirrored_or_on_axis() {
-    let map = bystra_valley();
+    let map = battlefield(MapId::BystraValley);
 
     assert_eq!(map.spawn_zones.len(), 2);
     let south = &map.spawn_zones[0];
@@ -63,7 +64,7 @@ fn bystra_layout_is_mirrored_or_on_axis() {
 
 #[test]
 fn bystra_scale_water_and_anatomy_are_declared() {
-    let map = bystra_valley();
+    let map = battlefield(MapId::BystraValley);
     assert_eq!(map.id, "bystra_valley");
     assert_eq!(map.size_m, [MAP_M, MAP_M]);
     let water = map.water.expect("the Bystra is the map");
@@ -83,7 +84,7 @@ fn bystra_scale_water_and_anatomy_are_declared() {
 /// bridge's deck across the floodplain.
 #[test]
 fn windmill_hill_overwatches_the_stone_bridge() {
-    let map = bystra_valley();
+    let map = battlefield(MapId::BystraValley);
     let bridge_x = bystra_river_center_x(HALF_M);
     let hill = eye(&map, 250.0, HALF_M, 2.2);
     let deck = eye(&map, bridge_x, HALF_M, 1.0);
@@ -94,7 +95,7 @@ fn windmill_hill_overwatches_the_stone_bridge() {
 /// ground at hull height is masked by the crest, while a turret above it is exposed.
 #[test]
 fn windmill_shelf_masks_a_hull_from_the_bridge_but_fires_over_the_crest() {
-    let map = bystra_valley();
+    let map = battlefield(MapId::BystraValley);
     let bridge_x = bystra_river_center_x(HALF_M);
     let bridge = eye(&map, bridge_x, HALF_M, 2.0);
     let shelf_hull = eye(&map, 340.0, HALF_M - 90.0, 0.9);
@@ -112,7 +113,7 @@ fn windmill_shelf_masks_a_hull_from_the_bridge_but_fires_over_the_crest() {
 /// Spawns are dry, gentle ground — nobody deploys into the river or onto a cliff.
 #[test]
 fn spawns_sit_on_dry_gentle_ground() {
-    let map = bystra_valley();
+    let map = battlefield(MapId::BystraValley);
     let water = map.water.unwrap();
     for zone in &map.spawn_zones {
         for (dx, dz) in [(0.0, 0.0), (-25.0, -25.0), (25.0, -25.0), (-25.0, 25.0), (25.0, 25.0)] {
@@ -130,7 +131,7 @@ fn spawns_sit_on_dry_gentle_ground() {
 /// on grade, so houses sit clean and hulls drive streets, not moguls.
 #[test]
 fn kamienna_streets_hold_the_bench_ramp() {
-    let map = bystra_valley();
+    let map = battlefield(MapId::BystraValley);
     let street_x = 753.0; // between block columns 732 and 774
     let expected = map.heightmap.sample_height(street_x, HALF_M).unwrap();
     let mut dz = -150.0_f32;
@@ -143,6 +144,11 @@ fn kamienna_streets_hold_the_bench_ramp() {
 
 fn eye(map: &terrain::BattlefieldMap, x: f32, z: f32, above_m: f32) -> [f32; 3] {
     [x, map.heightmap.sample_height(x, z).unwrap() + above_m, z]
+}
+
+/// The backdrop skirt of THIS map's blueprint (the horizon enclosure lives in the document).
+fn skirt_at(x: f32, z: f32) -> f32 {
+    backdrop_height(cached_blueprint_by_id("bystra_valley").expect("bystra is shipped"), x, z)
 }
 
 /// Same rule as the sim's spotting raycast: stepping the segment every 2 m, the ground must
@@ -170,7 +176,7 @@ fn sight_clear(map: &terrain::BattlefieldMap, from: [f32; 3], to: [f32; 3]) -> b
 /// total stays inside the render budget.
 #[test]
 fn bystra_scenery_is_mirrored_excluded_and_budgeted() {
-    let map = bystra_valley();
+    let map = battlefield(MapId::BystraValley);
     assert!(map.scenery.len() >= 100, "the valley is dressed, got {}", map.scenery.len());
     assert!(map.scenery.len() <= 1200, "instance budget breached: {}", map.scenery.len());
     assert!(map.scenery.len().is_multiple_of(2), "mirrored pairs come in twos");
@@ -197,7 +203,7 @@ fn bystra_scenery_is_mirrored_excluded_and_budgeted() {
     }
 
     // Determinism: the same map builds the same forest, twig for twig.
-    assert_eq!(map.scenery, bystra_valley().scenery);
+    assert_eq!(map.scenery, battlefield(MapId::BystraValley).scenery);
 }
 
 /// The backdrop skirt is the SAME analytic surface as the playfield: at every heightmap grid
@@ -206,12 +212,12 @@ fn bystra_scenery_is_mirrored_excluded_and_budgeted() {
 /// Bystra visibly continues.
 #[test]
 fn the_backdrop_meets_the_map_exactly_and_closes_the_valley() {
-    let map = bystra_valley();
+    let map = battlefield(MapId::BystraValley);
     let mut probe = 0.0_f32;
     while probe <= MAP_M {
         for (x, z) in [(probe, 0.0), (probe, MAP_M), (0.0, probe), (MAP_M, probe)] {
             let edge = map.heightmap.sample_height(x, z).unwrap();
-            let skirt = terrain::bystra_backdrop_height(x, z);
+            let skirt = skirt_at(x, z);
             assert!(
                 (edge - skirt).abs() < 1.0e-3,
                 "seam at ({x}, {z}): heightmap {edge} vs backdrop {skirt}"
@@ -221,13 +227,13 @@ fn the_backdrop_meets_the_map_exactly_and_closes_the_valley() {
     }
 
     // Far outside, the hills close the view on the dry sides...
-    assert!(terrain::bystra_backdrop_height(-400.0, 500.0) > 16.0);
-    assert!(terrain::bystra_backdrop_height(1400.0, 500.0) > 16.0);
+    assert!(skirt_at(-400.0, 500.0) > 16.0);
+    assert!(skirt_at(1400.0, 500.0) > 16.0);
     // ...and the river gap stays below the water level so the Bystra flows out.
     let far_river_x = bystra_river_center_x(-400.0);
-    assert!(terrain::bystra_backdrop_height(far_river_x, -400.0) < 5.0);
+    assert!(skirt_at(far_river_x, -400.0) < 5.0);
     let far_river_x = bystra_river_center_x(1400.0);
-    assert!(terrain::bystra_backdrop_height(far_river_x, 1400.0) < 5.0);
+    assert!(skirt_at(far_river_x, 1400.0) < 5.0);
     // Physics never follows the eye out there.
     assert!(map.heightmap.sample_height(-10.0, 500.0).is_none());
 }

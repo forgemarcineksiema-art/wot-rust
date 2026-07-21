@@ -5,7 +5,7 @@
 use std::time::Instant;
 
 fn main() {
-    let battlefield = terrain::bystra_valley();
+    let battlefield = map_forge::battlefield(terrain::MapId::BystraValley);
 
     let t = Instant::now();
     let ((gv, gi), (sv, si)) = client::battlefield_ground_and_statics_meshes(&battlefield, &[]);

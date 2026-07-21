@@ -1,9 +1,4 @@
 mod battlefield;
-mod bystra;
-mod bystra_cover;
-mod bystra_features;
-mod bystra_layout;
-mod bystra_scenery;
 mod chunk;
 mod coordinates;
 mod craters;
@@ -12,11 +7,7 @@ mod map_build;
 mod map_id;
 mod map_plan;
 mod math;
-mod prokhorovka;
-mod prokhorovka_cover;
-mod prokhorovka_features;
-mod prokhorovka_layout;
-mod prokhorovka_scenery;
+mod river;
 mod scenery;
 mod sculpt;
 mod water;
@@ -24,9 +15,6 @@ mod water;
 pub use battlefield::{
     BattlefieldMap, MapFeature, MapFeatureKind, Road, RoadSurface, SpawnZone, StaticCoverKind,
     StaticCoverObject, StrategicPoint, StrategicRole,
-};
-pub use bystra::{
-    RIVER_CORRIDOR_HALF_WIDTH_M, bystra_backdrop_height, bystra_river_center_x, bystra_valley,
 };
 pub use chunk::{DEFAULT_CHUNK_SIZE_M, TerrainChunk, TerrainChunkId};
 pub use coordinates::{CoordinatePrecision, LargeWorldStrategy, WorldCoordinatePolicy};
@@ -37,8 +25,18 @@ pub use craters::{
     CraterRecord, MAX_COVER_SCARS_PER_COVER, he_crater_depth_m, he_crater_radius_m,
 };
 pub use heightmap::{HeightMap, HeightMapStats, TerrainError};
+// The map compiler (`map_forge`) builds battlefields from blueprints through the SAME shared
+// helpers — one grounding/grounding-math implementation, no forked copies.
+pub use map_build::{
+    ground_position, grounded_cover, grounded_feature, grounded_point, grounded_spawn_zone,
+    heightmap_from_fn,
+};
 pub use map_id::MapId;
 pub use map_plan::{TerrainMapLayer, TerrainMapPlan};
-pub use prokhorovka::{prokhorovka_beyond_height, prokhorovka_hill_252_2};
-pub use scenery::{SceneryInstance, SceneryKind};
+pub use math::{gaussian1, gaussian2};
+pub use river::{RIVER_CORRIDOR_HALF_WIDTH_M, RiverSpec, bystra_river_center_x};
+pub use scenery::{
+    ScatterRegion, SceneryInstance, SceneryKind, inside_any_cover, scatter_mirrored,
+};
+pub use sculpt::{band_mask, lerp, smoothstep01};
 pub use water::WaterBody;

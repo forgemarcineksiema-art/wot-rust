@@ -1,11 +1,12 @@
-use terrain::{HeightMap, prokhorovka_hill_252_2};
+use map_forge::battlefield;
+use terrain::{HeightMap, MapId};
 
 /// A tank hull-down on the eastern hill must mask its hull behind the crest while its turret
 /// fires over it, seen from an attacker pushing the centre. Scans the reverse shelf for such a
 /// spot so the test locks the *existence* of a usable hull-down line, not one tuned point.
 #[test]
 fn eastern_hill_offers_a_hull_down_firing_line_toward_the_centre() {
-    let map = prokhorovka_hill_252_2();
+    let map = battlefield(MapId::ProkhorovkaHill252_2);
     let hm = &map.heightmap;
 
     let enemy = ground(hm, 640.0, 350.0);
@@ -40,7 +41,7 @@ fn eastern_hill_offers_a_hull_down_firing_line_toward_the_centre() {
 
 #[test]
 fn hill_has_a_crest_with_a_reverse_slope() {
-    let map = prokhorovka_hill_252_2();
+    let map = battlefield(MapId::ProkhorovkaHill252_2);
     let hm = &map.heightmap;
 
     // The crest must be a local ridge: ground rises to it from the centre, then drops onto the

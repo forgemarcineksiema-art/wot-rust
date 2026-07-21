@@ -20,7 +20,7 @@ pub(crate) struct BattleSetup {
 
 pub(crate) fn practice_duel_setup(player_vehicle: VehicleKind) -> BattleSetup {
     let map_id = MapId::default();
-    let battlefield = map_id.battlefield();
+    let battlefield = map_forge::battlefield(map_id);
     let mut sim = SimulationState::new();
     sim.set_water(battlefield.water);
     let player_pos = random_battle_ground_position(&battlefield, 340.0, 300.0);
@@ -57,7 +57,7 @@ pub(crate) fn random_7v7_setup_for_humans(
     config: RandomBattleConfig,
     humans: usize,
 ) -> (BattleSetup, Vec<TankId>) {
-    let battlefield = config.map.battlefield();
+    let battlefield = map_forge::battlefield(config.map);
     let mut sim = SimulationState::new();
     sim.set_water(battlefield.water);
     let mut bot_ids = Vec::new();

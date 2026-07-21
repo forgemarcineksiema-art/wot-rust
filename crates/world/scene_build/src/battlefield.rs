@@ -60,21 +60,21 @@ pub fn battlefield_ground_mesh(battlefield: &BattlefieldMap) -> SceneMeshData {
     )
 }
 
-/// The analytic ground continuation the border apron stands on, per map. The authored maps
-/// expose the very surface their heightmaps sample, so the apron is exact at the border by
-/// construction; anything else falls back to clamped edge heights (a flat continuation).
+/// The analytic ground continuation the border apron stands on: a shipped (catalog) map
+/// exposes the very terrain program its heightmap samples plus its horizon enclosure, so the
+/// apron is exact at the border by construction; anything else falls back to clamped edge
+/// heights (a flat continuation).
 fn beyond_border_height(battlefield: &BattlefieldMap) -> Box<dyn Fn(f32, f32) -> f32 + '_> {
-    match battlefield.id.as_str() {
-        "bystra_valley" => Box::new(terrain::bystra_backdrop_height),
-        "prokhorovka_hill_252_2" => Box::new(terrain::prokhorovka_beyond_height),
-        _ => Box::new(|x, z| {
-            let [extent_x, extent_z] = battlefield.heightmap.extent_m();
-            battlefield
-                .heightmap
-                .sample_height(x.clamp(0.0, extent_x), z.clamp(0.0, extent_z))
-                .unwrap_or(0.0)
-        }),
+    if let Some(blueprint) = map_forge::cached_blueprint_by_id(&battlefield.id) {
+        return Box::new(move |x, z| map_forge::backdrop_height(blueprint, x, z));
     }
+    Box::new(|x, z| {
+        let [extent_x, extent_z] = battlefield.heightmap.extent_m();
+        battlefield
+            .heightmap
+            .sample_height(x.clamp(0.0, extent_x), z.clamp(0.0, extent_z))
+            .unwrap_or(0.0)
+    })
 }
 
 /// The statics alone (cover, backdrop skirt, scenery) — what a cover-state change rebuilds.
@@ -1029,13 +1029,15 @@ fn road_paint(roads: &[Road], wx: f32, wz: f32) -> Option<(Vec3, f32, f32)> {
 
 #[cfg(test)]
 mod tests {
-    use terrain::prokhorovka_hill_252_2;
 
     use super::*;
 
     #[test]
     fn the_border_apron_continues_the_ground_to_the_haze_on_every_authored_map() {
-        for map in [prokhorovka_hill_252_2(), terrain::bystra_valley()] {
+        for map in [
+            map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2),
+            map_forge::battlefield(terrain::MapId::BystraValley),
+        ] {
             let [extent_x, extent_z] = map.heightmap.extent_m();
             let (vertices, indices) = battlefield_ground_mesh(&map);
             let (mut min_x, mut max_x, mut min_z, mut max_z) =
@@ -1074,7 +1076,10 @@ mod tests {
         // IS the surface the heightmap sampled, so the seam matches by construction. This
         // locks that contract — a map whose beyond-function drifts from its own heightmap
         // would open a visible step along the red line.
-        for map in [prokhorovka_hill_252_2(), terrain::bystra_valley()] {
+        for map in [
+            map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2),
+            map_forge::battlefield(terrain::MapId::BystraValley),
+        ] {
             let beyond = beyond_border_height(&map);
             let [extent_x, extent_z] = map.heightmap.extent_m();
             let cell = map.heightmap.cell_size_m();
@@ -1155,7 +1160,7 @@ mod tests {
 
     #[test]
     fn virgin_ground_meshes_exactly_as_before_deformation_existed() {
-        let map = prokhorovka_hill_252_2();
+        let map = map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2);
         let (vertices, indices) = terrain_scene_mesh(&map.heightmap);
         let mut with_empty_ledger = map.heightmap.clone();
         with_empty_ledger.set_craters(&[]);
@@ -1200,7 +1205,7 @@ mod tests {
 
     #[test]
     fn a_wounded_wall_wears_its_scars_and_spills_rubble_at_its_foot() {
-        let map = prokhorovka_hill_252_2();
+        let map = map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2);
         let building = map
             .static_cover
             .iter()
@@ -1248,7 +1253,7 @@ mod tests {
 
     #[test]
     fn a_cleared_tree_line_removes_its_box_and_the_trees_standing_in_it() {
-        let map = prokhorovka_hill_252_2();
+        let map = map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2);
         let tree_line = map
             .static_cover
             .iter()
@@ -1272,7 +1277,7 @@ mod tests {
     /// its trees stood and at least one trunk lies along the run, all of it low to the ground.
     #[test]
     fn a_crushed_tree_line_leaves_stumps_and_fallen_trunks() {
-        let map = prokhorovka_hill_252_2();
+        let map = map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2);
         let tree_line = map
             .static_cover
             .iter()
@@ -1332,7 +1337,10 @@ mod tests {
     /// through or hidden behind that the sim box does not honor.
     #[test]
     fn cover_visuals_never_leave_the_collision_box() {
-        for map in [prokhorovka_hill_252_2(), terrain::bystra_valley()] {
+        for map in [
+            map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2),
+            map_forge::battlefield(terrain::MapId::BystraValley),
+        ] {
             for cover in &map.static_cover {
                 let mut vertices = Vec::new();
                 let mut indices = Vec::new();
@@ -1359,7 +1367,10 @@ mod tests {
     /// slopes wound inward, so streets saw through the roof into its underside).
     #[test]
     fn every_cover_triangle_winds_outward() {
-        for map in [prokhorovka_hill_252_2(), terrain::bystra_valley()] {
+        for map in [
+            map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2),
+            map_forge::battlefield(terrain::MapId::BystraValley),
+        ] {
             for cover in &map.static_cover {
                 let mut vertices = Vec::new();
                 let mut indices = Vec::new();
@@ -1387,7 +1398,7 @@ mod tests {
     /// plaster wall under it. If everything collapses back to one gloss, materials v2 is off.
     #[test]
     fn material_lane_separates_grass_rock_water_and_roofs() {
-        let battlefield = terrain::bystra_valley();
+        let battlefield = map_forge::battlefield(terrain::MapId::BystraValley);
         let (vertices, _) =
             terrain_scene_mesh_with_water(&battlefield.heightmap, battlefield.water);
         let water = battlefield.water.expect("bystra has a river");
@@ -1415,7 +1426,7 @@ mod tests {
     /// a plank door, all inside the collision AABB (the walls recess to make the room).
     #[test]
     fn buildings_wear_windows_and_a_door() {
-        let map = prokhorovka_hill_252_2();
+        let map = map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2);
         let barn = map
             .static_cover
             .iter()
@@ -1438,7 +1449,7 @@ mod tests {
     #[test]
     fn buildings_name_their_surfaces_down_the_lane() {
         use renderer_api::surface_role;
-        let map = prokhorovka_hill_252_2();
+        let map = map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2);
         let barn = map
             .static_cover
             .iter()
@@ -1464,7 +1475,7 @@ mod tests {
     #[test]
     fn the_church_towers_over_town_and_the_windmill_wears_timber() {
         use renderer_api::surface_role;
-        let map = terrain::bystra_valley();
+        let map = map_forge::battlefield(terrain::MapId::BystraValley);
         let bake = |id: &str| {
             let cover = map
                 .static_cover
@@ -1496,7 +1507,7 @@ mod tests {
     /// and neither breaks the near-matte bound the material lane promises for dry ground.
     #[test]
     fn roads_paint_worn_earth_into_the_grass() {
-        let map = prokhorovka_hill_252_2();
+        let map = map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2);
         let dirt = map
             .static_cover
             .iter()
@@ -1542,7 +1553,7 @@ mod tests {
     /// visible drifts, deterministically — the same map builds the same field every time.
     #[test]
     fn grass_patchwork_varies_and_is_deterministic() {
-        let map = prokhorovka_hill_252_2();
+        let map = map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2);
         let (first, _) = terrain_scene_mesh(&map.heightmap);
         let (second, _) = terrain_scene_mesh(&map.heightmap);
         assert_eq!(first.len(), second.len());
@@ -1570,7 +1581,7 @@ mod tests {
     /// invisible wall. Locks that the battlefield mesh draws every static cover object.
     #[test]
     fn battlefield_mesh_renders_every_static_cover_object() {
-        let battlefield = prokhorovka_hill_252_2();
+        let battlefield = map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2);
         assert!(!battlefield.static_cover.is_empty(), "map should carry static cover");
 
         let (terrain_vertices, _) = terrain_scene_mesh(&battlefield.heightmap);

@@ -5,7 +5,7 @@
 
 use physics::water::FORD_MAX_DEPTH_M;
 use sim::DROWN_DEPTH_M;
-use terrain::{RIVER_CORRIDOR_HALF_WIDTH_M, bystra_river_center_x, bystra_valley};
+use terrain::{MapId, RIVER_CORRIDOR_HALF_WIDTH_M, bystra_river_center_x};
 
 const HALF_M: f32 = 500.0;
 const FORD_OFFSET_M: f32 = 180.0;
@@ -19,9 +19,20 @@ fn in_crossing_window(z: f32) -> bool {
         || (dz.abs() - PLANK_OFFSET_M).abs() < 22.0 // plank decks
 }
 
+/// The map compiler's report checks the water contract against ITS OWN copy of these
+/// thresholds (`map_forge` stays a world-layer crate, so it cannot import them). This is the
+/// lock that keeps the copy honest: change `DROWN_DEPTH_M` or `FORD_MAX_DEPTH_M` and the
+/// editor's early warning must change with it, deliberately.
+#[test]
+fn the_map_forge_report_thresholds_mirror_the_live_gameplay_constants() {
+    let thresholds = map_forge::WaterThresholds::default();
+    assert_eq!(thresholds.drown_depth_m, DROWN_DEPTH_M);
+    assert_eq!(thresholds.ford_max_depth_m, FORD_MAX_DEPTH_M);
+}
+
 #[test]
 fn the_current_is_a_drowning_decision_everywhere_between_crossings() {
-    let map = bystra_valley();
+    let map = map_forge::battlefield(MapId::BystraValley);
     let water = map.water.expect("the Bystra is the map");
     let mut z = 30.0_f32;
     let mut checked = 0;
@@ -42,7 +53,7 @@ fn the_current_is_a_drowning_decision_everywhere_between_crossings() {
 
 #[test]
 fn ford_sills_sit_inside_the_honest_wading_band() {
-    let map = bystra_valley();
+    let map = map_forge::battlefield(MapId::BystraValley);
     let water = map.water.unwrap();
     for z in [HALF_M - FORD_OFFSET_M, HALF_M + FORD_OFFSET_M] {
         let x = bystra_river_center_x(z);
@@ -56,7 +67,7 @@ fn ford_sills_sit_inside_the_honest_wading_band() {
 
 #[test]
 fn crossing_decks_stand_clear_of_the_water() {
-    let map = bystra_valley();
+    let map = map_forge::battlefield(MapId::BystraValley);
     let water = map.water.unwrap();
     // The stone bridge: a full metre of freeboard across the whole channel span.
     let bridge_x = bystra_river_center_x(HALF_M);
@@ -83,7 +94,7 @@ fn crossing_decks_stand_clear_of_the_water() {
 
 #[test]
 fn no_water_exists_outside_the_river_corridor() {
-    let map = bystra_valley();
+    let map = map_forge::battlefield(MapId::BystraValley);
     let water = map.water.unwrap();
     let cell = map.heightmap.cell_size_m();
     for zi in 0..map.heightmap.height() {
@@ -107,7 +118,7 @@ fn no_water_exists_outside_the_river_corridor() {
 /// the climb the drive model can hold.
 #[test]
 fn crossing_approaches_stay_under_the_climb_wall() {
-    let map = bystra_valley();
+    let map = map_forge::battlefield(MapId::BystraValley);
     let crossings: [(f32, f32); 5] = [
         (HALF_M, 0.0),
         (HALF_M - FORD_OFFSET_M, 0.0),

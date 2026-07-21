@@ -52,7 +52,7 @@ fn unit(state: &mut u64) -> f32 {
 /// A rectangular scatter region on the SOUTHERN half (z ≤ half axis); every accepted point is
 /// emitted together with its northern mirror twin.
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct ScatterRegion {
+pub struct ScatterRegion {
     pub x: (f32, f32),
     pub z: (f32, f32),
 }
@@ -61,7 +61,7 @@ pub(crate) struct ScatterRegion {
 /// `exclude` rule refuses (bounded attempts, so a mostly-excluded region under-fills rather
 /// than spinning). Mirroring: `z → axis*2 − z`, `yaw → −yaw`.
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn scatter_mirrored(
+pub fn scatter_mirrored(
     seed: u64,
     kind: SceneryKind,
     pairs: usize,
@@ -103,7 +103,7 @@ pub(crate) fn scatter_mirrored(
 
 /// True when `(x, z)` lands inside any cover footprint inflated by `margin_m` — trees do not
 /// grow through barns, parapets or wrecks.
-pub(crate) fn inside_any_cover(cover: &[StaticCoverObject], x: f32, z: f32, margin_m: f32) -> bool {
+pub fn inside_any_cover(cover: &[StaticCoverObject], x: f32, z: f32, margin_m: f32) -> bool {
     cover.iter().any(|object| {
         (x - object.center[0]).abs() <= object.half_extents_m[0] + margin_m
             && (z - object.center[2]).abs() <= object.half_extents_m[2] + margin_m

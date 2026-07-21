@@ -14,19 +14,19 @@
 /// Plain linear blend — the same `lerp` the heightmap's bilinear sampler uses. Masks from
 /// [`band_mask`]/[`smoothstep01`] are already in `[0, 1]`, so carving/flattening callers never
 /// need a clamp here.
-pub(crate) fn lerp(a: f32, b: f32, t: f32) -> f32 {
+pub fn lerp(a: f32, b: f32, t: f32) -> f32 {
     a + (b - a) * t
 }
 
 /// Hermite smoothstep of `t` clamped to `[0, 1]`: 0 at 0, 1 at 1, flat at both ends.
-pub(crate) fn smoothstep01(t: f32) -> f32 {
+pub fn smoothstep01(t: f32) -> f32 {
     let t = t.clamp(0.0, 1.0);
     t * t * (3.0 - 2.0 * t)
 }
 
 /// 1.0 within `half_width` of the center distance, easing smoothly to 0.0 over `falloff`.
 /// `distance` is an absolute lateral distance (e.g. to a river centerline or a road axis).
-pub(crate) fn band_mask(distance: f32, half_width: f32, falloff: f32) -> f32 {
+pub fn band_mask(distance: f32, half_width: f32, falloff: f32) -> f32 {
     smoothstep01((half_width + falloff - distance.abs()) / falloff.max(1.0e-3))
 }
 

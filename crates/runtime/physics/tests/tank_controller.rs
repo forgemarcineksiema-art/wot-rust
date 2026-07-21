@@ -3,7 +3,7 @@ use physics::{
     make_tank_hull_collider, make_terrain_heightfield_collider, resolve_tank_collision,
     step_custom_tank_controller, step_tank_on_heightmap, step_tank_on_world,
 };
-use terrain::prokhorovka_hill_252_2;
+use terrain::MapId;
 
 #[test]
 fn custom_tank_controller_accelerates_and_turns() {
@@ -28,7 +28,7 @@ fn rapier_hull_collider_can_be_created_for_tank_dimensions() {
 
 #[test]
 fn historical_map_heightfield_collider_spans_full_world_extent() {
-    let map = prokhorovka_hill_252_2();
+    let map = map_forge::battlefield(MapId::ProkhorovkaHill252_2);
     let [extent_x, extent_z] = map.heightmap.extent_m();
     assert!(extent_x > 900.0 && extent_z > 900.0, "sanity: Prokhorovka is ~1000m");
 
@@ -47,7 +47,7 @@ fn historical_map_heightfield_collider_spans_full_world_extent() {
 
 #[test]
 fn tank_controller_can_drive_over_historical_heightmap() {
-    let map = prokhorovka_hill_252_2();
+    let map = map_forge::battlefield(MapId::ProkhorovkaHill252_2);
     let settings = TankControllerSettings::arcade_default();
     let mut state = TankKinematicState {
         position: glam::Vec3::new(115.0, 0.0, 120.0),
@@ -71,7 +71,7 @@ fn tank_controller_can_drive_over_historical_heightmap() {
 
 #[test]
 fn the_red_line_holds_a_tank_inside_the_map_and_lets_it_slide_along() {
-    let map = prokhorovka_hill_252_2();
+    let map = map_forge::battlefield(MapId::ProkhorovkaHill252_2);
     let settings = TankControllerSettings::arcade_default();
     let [_, extent_z] = map.heightmap.extent_m();
     let line = extent_z - physics::MAP_BORDER_MARGIN_M;
@@ -125,7 +125,7 @@ fn the_red_line_holds_a_tank_inside_the_map_and_lets_it_slide_along() {
 
 #[test]
 fn embankment_blocks_movement_except_at_crossings() {
-    let map = prokhorovka_hill_252_2();
+    let map = map_forge::battlefield(MapId::ProkhorovkaHill252_2);
     let settings = TankControllerSettings::arcade_default();
 
     // Drive north from south of the central axis, straight at the embankment. Off a crossing

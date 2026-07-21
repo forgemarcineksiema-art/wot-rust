@@ -176,7 +176,7 @@ fn predictor_stays_in_lockstep_with_the_authoritative_server_under_steering() {
     let player = server.player_tank();
     // The predictor must walk the SAME battlefield the server simulates — map and water both.
     // (This test hardcoded Prokhorovka and drifted 9 m the day MapId::default() became Bystra.)
-    let battlefield = server.map_id().battlefield();
+    let battlefield = map_forge::battlefield(server.map_id());
 
     let seed = server
         .latest_snapshot()

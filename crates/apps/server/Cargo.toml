@@ -10,6 +10,7 @@ anyhow.workspace = true
 clap.workspace = true
 game_core.workspace = true
 glam.workspace = true
+map_forge.workspace = true
 net.workspace = true
 sim.workspace = true
 terrain.workspace = true
