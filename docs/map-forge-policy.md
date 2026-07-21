@@ -77,21 +77,29 @@ crossings, fordable sills, clear decks, no puddles outside the corridor, drivabl
 approaches) against the gameplay thresholds. `map_forge::battlefield` refuses a map with
 errors — a broken map is a build-time bug, never a runtime surprise.
 
-## Environment, Materials, Weather (planned — M2)
+## Environment, Materials, Weather
 
-The map's presentation moves into the blueprint the same way its truth did:
+The map's presentation lives in the blueprint the same way its truth does:
 
 - `materials`: the four ground layers (albedo/detail/gloss) + macro-normal and field-patch
-  strengths; the splat bake and procedural grass already key off map data, and the
-  art-direction saturation window becomes a report check.
-- `environment`: a default look plus weather variants, each a **named lighting preset +
-  sparse overrides** (exposure, fog, sun, clouds, rain, wetness) — never 30 raw knobs.
-  `map_forge` stays renderer-free; `scene_build` binds the data to `SceneLighting`. The
-  fog-fairness bound at the 400 m view range becomes a report check: no sky may hide a
-  legitimately spotted target.
-- World objects get their own `WorldMaterial` (albedo + roughness, PBR-lite) in
-  `world_forge` instead of borrowing vehicle `MaterialRole`; buildings keep the honesty
-  rule (mesh ⊆ collision footprint, rubble form from the same numbers).
+  strengths. `scene_build::terrain_material_set_for` binds the palette to the renderer;
+  the art-direction ground envelope (vegetation saturation ≤ 0.45, worst-case field-patch
+  lift ≤ 0.62, albedo/detail/gloss lanes, straw-over-grass and rock-over-dirt value order)
+  is a report Error. A blueprint without the section wears the neutral fallback set.
+- `environment`: one look per shipped weather variant, each a **named lighting preset +
+  sparse overrides** (fog, exposure, clouds, saturation; sky/rain/wetness per look) —
+  never 30 raw knobs. `map_forge` stays renderer-free: `LightingPreset` names are the
+  vocabulary, `scene_build` binds them to the hand-tuned `SceneLighting` profiles. The
+  FIRST look is the default and the fallback; the server's `supported_weather` reads the
+  list in authored order (the order feeds the seeded weather roll). Look coherence
+  (non-empty, one look per variant, rain/wetness in 0..1) is a report Error; the
+  fog-fairness bound at the 400 m view range stays a `scene_build` lock over the blueprint
+  looks (it needs the renderer's fog math): no sky may hide a legitimately spotted target.
+- `meta.version` marks the schema: additive sections stay `serde(default)`, a breaking
+  document change bumps the version so the editor knows what to migrate.
+- Planned (M2b): world objects get their own `WorldMaterial` (albedo + roughness,
+  PBR-lite) in `world_forge` instead of borrowing vehicle `MaterialRole`; buildings keep
+  the honesty rule (mesh ⊆ collision footprint, rubble form from the same numbers).
 
 ## The Editor (planned — M3+)
 

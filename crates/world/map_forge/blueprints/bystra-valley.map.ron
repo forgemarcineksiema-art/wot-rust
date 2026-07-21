@@ -1,5 +1,6 @@
 MapBlueprint(
     meta: MetaSpec(
+        version: 1,
         id: "bystra_valley",
         name: "Dolina Bystrej",
         historical_basis: "Fictional: a Central-European river valley composed for balanced crossing combat — no historical engagement is depicted.",
@@ -120,6 +121,41 @@ MapBlueprint(
     ),
     water: Some(WaterSpec(
         surface_level_m: 5.0,
+    )),
+    materials: Some(GroundMaterialsSpec(
+        // Damper greens, darker river-worn earth, and grey field stone in place of chalk.
+        layers: (
+            GroundLayerSpec(albedo: (0.26, 0.33, 0.21), detail: 1.0, gloss: 0.03),
+            GroundLayerSpec(albedo: (0.41, 0.38, 0.26), detail: 1.0, gloss: 0.03),
+            GroundLayerSpec(albedo: (0.3, 0.26, 0.2), detail: 0.8, gloss: 0.06),
+            GroundLayerSpec(albedo: (0.42, 0.4, 0.36), detail: 0.9, gloss: 0.14),
+        ),
+        macro_normal_strength: 0.65,
+        // Valley meadows patch more softly than the steppe's worked plots.
+        field_patch_strength: 0.75,
+    )),
+    environment: Some(EnvironmentSpec(
+        // First look = the default and the fallback; list order feeds the seeded roll.
+        looks: [
+            LookSpec(
+                variant: ClearAfternoon,
+                preset: ClearAfternoon,
+                sky_rgb: (0.62, 0.66, 0.72),
+            ),
+            LookSpec(
+                variant: RainSqualls,
+                preset: RainSqualls,
+                sky_rgb: (0.42, 0.46, 0.5),
+                rain_intensity: 1.0,
+                wetness: 1.0,
+            ),
+            LookSpec(
+                variant: DawnFog,
+                preset: DawnFog,
+                sky_rgb: (0.66, 0.64, 0.64),
+                wetness: 0.2,
+            ),
+        ],
     )),
     objects: [
         Cover(

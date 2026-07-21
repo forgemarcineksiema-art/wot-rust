@@ -161,16 +161,15 @@ fn outdoor_grades_lift_saturation_gently_and_never_tint_grey() {
     }
 }
 
-/// RULE 2, the content side: the ACTUAL terrain layer palettes (Terrain Material 2.0) obey the
-/// ground-saturation window — the swatch discipline stopped being advisory the day the ground
-/// started rendering from these. Grass is grey-green here, never lawn-green.
+/// RULE 2, the content side: the ground palette envelope — saturation window, albedo range,
+/// detail/gloss lanes, and the value separation (straw over grass, rock over dirt). The
+/// SHIPPED palettes live in the map blueprints now and the map report enforces this same
+/// envelope as compile Errors (`map_forge::report`); what renderer_api still owns is the
+/// neutral fallback set, held to the identical discipline here.
 #[test]
 fn terrain_material_sets_stay_inside_the_saturation_window() {
     use renderer_api::TerrainMaterialSet;
-    for (name, set) in [
-        ("prokhorovka", TerrainMaterialSet::prokhorovka()),
-        ("bystra", TerrainMaterialSet::bystra()),
-    ] {
+    for (name, set) in [("default", TerrainMaterialSet::default())] {
         for (i, layer) in set.layers.iter().enumerate() {
             let sat = saturation(layer.albedo);
             assert!(
