@@ -79,6 +79,13 @@ MapBlueprint(
                 apply: Add,
                 terms: [Gauss2Term(x: 90.0, z: 210.0, sx: 32.0, sz: 40.0, amp: 5.0), Gauss2Term(x: 90.0, z: 790.0, sx: 32.0, sz: 40.0, amp: 5.0), Gauss2Term(x: 930.0, z: 220.0, sx: 35.0, sz: 45.0, amp: 6.0), Gauss2Term(x: 930.0, z: 780.0, sx: 35.0, sz: 45.0, amp: 6.0)],
             ),
+            // Rocky knuckles over the defile: tight bumps stacked on the wall flanks push the
+            // combined slope past the splat's rock break, so the slot reads as the stone gate
+            // it plays as. Mirrored pairs; the slot centre (x 840) stays untouched.
+            Gauss2(
+                apply: Add,
+                terms: [Gauss2Term(x: 792.0, z: 470.0, sx: 16.0, sz: 14.0, amp: 10.0), Gauss2Term(x: 792.0, z: 530.0, sx: 16.0, sz: 14.0, amp: 10.0), Gauss2Term(x: 888.0, z: 468.0, sx: 15.0, sz: 14.0, amp: 10.0), Gauss2Term(x: 888.0, z: 532.0, sx: 15.0, sz: 14.0, amp: 10.0)],
+            ),
             FlattenToGauss(
                 target_m: 31.0,
                 x: 500.0,
@@ -307,6 +314,46 @@ MapBlueprint(
             region: ScatterRect(
                 x: (700.0, 880.0),
                 z: (80.0, 460.0),
+            ),
+            exclude: Exclusion(
+                exclusion_circles: [(500.0, 140.0, 80.0), (500.0, 860.0, 80.0)],
+                road_margin_m: Some(3.0),
+                cover_margin_m: Some(2.5),
+            ),
+        ),
+        Scatter(
+            seed: 7811008,
+            kind: Rock,
+            pairs: 10,
+            region: ScatterRect(
+                x: (760.0, 825.0),
+                z: (360.0, 470.0),
+            ),
+            exclude: Exclusion(
+                road_margin_m: Some(3.0),
+                cover_margin_m: Some(2.5),
+            ),
+        ),
+        Scatter(
+            seed: 7811009,
+            kind: Rock,
+            pairs: 10,
+            region: ScatterRect(
+                x: (855.0, 920.0),
+                z: (360.0, 470.0),
+            ),
+            exclude: Exclusion(
+                road_margin_m: Some(3.0),
+                cover_margin_m: Some(2.5),
+            ),
+        ),
+        Scatter(
+            seed: 7811010,
+            kind: Bush,
+            pairs: 14,
+            region: ScatterRect(
+                x: (770.0, 910.0),
+                z: (180.0, 360.0),
             ),
             exclude: Exclusion(
                 exclusion_circles: [(500.0, 140.0, 80.0), (500.0, 860.0, 80.0)],
