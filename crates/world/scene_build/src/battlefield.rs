@@ -584,7 +584,7 @@ fn append_building(
         Vec3::new(half.x / footprint.x, half.y / footprint.y, half.z / footprint.z)
     };
     let plinth = ([0.24_f32, 0.22, 0.20], 0.15_f32);
-    for (mesh, is_roof) in [(&baked.walls, false), (&baked.roof, true)] {
+    for mesh in [&baked.walls, &baked.roof] {
         let base = vertices.len() as u32;
         for vertex in mesh.vertices() {
             let scaled = vertex.position * scale;
@@ -595,27 +595,21 @@ fn append_building(
             let n = if rotate { Vec3::new(n.z, n.y, -n.x) } else { n };
             // Colour names the palette; the surface-role lane names the MATERIAL the scene
             // shader dresses it in (Materia Świata 3): rendered walls, coursed roofs, plank
-            // doors. Glass and plinth stone keep the untreated look.
+            // doors. Glass and plinth stone keep the untreated look. The vertex tag decodes
+            // to the world's OWN vocabulary (M2b) — no vehicle roles, no style heuristics;
+            // walls and roofs keep the per-building palette, the joinery wears the
+            // material's PBR-lite defaults.
             use renderer_api::surface_role;
-            let (color, gloss, role) = match (is_roof, vertex.material) {
-                (true, vehicle_geometry::MaterialRole::CastArmor) => {
-                    (roof, roof_gloss, surface_role::SLATE)
+            use world_forge::WorldMaterial;
+            let (color, gloss, role) = match WorldMaterial::from_carrier(vertex.material) {
+                WorldMaterial::Roof => (roof, roof_gloss, surface_role::SLATE),
+                WorldMaterial::PlinthStone => (plinth.0, plinth.1, surface_role::LEGACY),
+                WorldMaterial::WindowGlass => (WINDOW.0, WINDOW.1, surface_role::LEGACY),
+                WorldMaterial::PlankDoor => (DOOR.0, DOOR.1, surface_role::PLANK),
+                material @ WorldMaterial::Timber => {
+                    (material.albedo(), 1.0 - material.roughness(), surface_role::PLANK)
                 }
-                (true, _) => (wall, 0.10, surface_role::PLASTER),
-                (false, vehicle_geometry::MaterialRole::CastArmor) => {
-                    (plinth.0, plinth.1, surface_role::LEGACY)
-                }
-                (false, vehicle_geometry::MaterialRole::InteriorMachinery) => {
-                    (WINDOW.0, WINDOW.1, surface_role::LEGACY)
-                }
-                (false, vehicle_geometry::MaterialRole::InteriorPrimer) => {
-                    (DOOR.0, DOOR.1, surface_role::PLANK)
-                }
-                (false, _) if style == world_forge::building::BuildingStyle::Windmill => {
-                    // A windmill is timber-clad: dark boards, not render.
-                    ([0.30, 0.25, 0.19], 0.06, surface_role::PLANK)
-                }
-                (false, _) => (wall, 0.10, surface_role::PLASTER),
+                _ => (wall, 0.10, surface_role::PLASTER),
             };
             let scene_vertex = SceneVertex::surfaced(
                 (ground + local).to_array(),

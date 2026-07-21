@@ -31,9 +31,15 @@ structural terrain ops, and the WoT map anatomy (`TerrainMapPlan`'s 12 layers).
     list (in order — it feeds the seeded roll); look coherence is a report Error.
     Fog-fairness at 400 m stays a `scene_build` test over the blueprint looks (it needs the
     renderer's fog math, which the renderer-free report cannot evaluate).
-- [ ] **M2b — world materials for statics**
-  - `WorldMaterial` (albedo + roughness, PBR-lite) in `world_forge`; buildings/props/scenery
-    off the borrowed vehicle `MaterialRole`; wetness lane like the vehicles'.
+- [x] **M2b — world materials for statics** *(done)*
+  - `WorldMaterial` (9 semantic surfaces, PBR-lite albedo + roughness defaults) in
+    `world_forge`; buildings, props and trees author it directly — the vehicle
+    `MaterialRole` survives only as a carrier encoding inside `GeometryVertex`, hidden
+    behind a bijection locked by test. The scene builder decodes semantics
+    (`WorldMaterial::from_carrier`), never vehicle roles; the windmill's timber look moved
+    from a consumer style-heuristic into the bake itself. Wetness needs no new lane: the
+    scene shader's weather wet-darken/gloss-sharpen already treats statics exactly like
+    vehicles, keyed off the gloss the roughness feeds.
 - [ ] **M3 — editor shell** (`crates/apps/editor`, lib + bin)
   - PREREQUISITE: `compile` never panics on author input — river-relative ops / `RiverCenter`
     on a riverless map become report Errors (today `ops.rs`/`compile.rs` `expect`, which is

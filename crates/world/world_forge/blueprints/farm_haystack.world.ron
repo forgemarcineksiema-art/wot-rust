@@ -6,12 +6,12 @@
     parts: [
         (
             name: "stack_body",
-            material: RolledArmor,
+            material: Straw,
             shape: Drum(center: (0.0, 1.1, 0.0), radius: 1.6, half_height: 1.1, segments: 10),
         ),
         (
             name: "stack_cap",
-            material: RolledArmor,
+            material: Straw,
             shape: Box(center: (0.0, 2.45, 0.0), half: (1.1, 0.35, 1.1)),
         ),
     ],

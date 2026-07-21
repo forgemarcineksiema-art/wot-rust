@@ -97,9 +97,13 @@ The map's presentation lives in the blueprint the same way its truth does:
   looks (it needs the renderer's fog math): no sky may hide a legitimately spotted target.
 - `meta.version` marks the schema: additive sections stay `serde(default)`, a breaking
   document change bumps the version so the editor knows what to migrate.
-- Planned (M2b): world objects get their own `WorldMaterial` (albedo + roughness,
-  PBR-lite) in `world_forge` instead of borrowing vehicle `MaterialRole`; buildings keep
-  the honesty rule (mesh ⊆ collision footprint, rubble form from the same numbers).
+- World objects own their surface vocabulary: `world_forge::WorldMaterial` (9 semantic
+  surfaces with PBR-lite albedo + roughness defaults) — walls, roofs, plinth stone, glass,
+  joinery, timber, straw, bark, canopy. The vehicle `MaterialRole` survives only as a
+  carrier encoding inside the shared `GeometryVertex`, behind a test-locked bijection;
+  consumers decode semantics, never vehicle roles. Buildings keep the honesty rule (mesh ⊆
+  collision footprint, rubble form from the same numbers) and their per-instance palettes;
+  statics take weather wetness through the same scene-shader lane as vehicles.
 
 ## The Editor (planned — M3+)
 

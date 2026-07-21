@@ -7,7 +7,9 @@
 //! `rubble_height_frac`), so the single source of truth never forks.
 
 use glam::Vec3;
-use vehicle_geometry::{GeometryMesh, GeometryVertex, MaterialRole, SmoothingGroup};
+use vehicle_geometry::{GeometryMesh, GeometryVertex, SmoothingGroup};
+
+use crate::WorldMaterial;
 
 /// The authored styles. Kamienna's street fronts, the farmyards and the mill all compose from
 /// these three; the church tower joins with map dressing (B4).
@@ -192,7 +194,7 @@ fn bake_intact(
         &mut wall_indices,
         Vec3::new(0.0, params.plinth_height * 0.5, 0.0),
         Vec3::new(params.half_width, params.plinth_height * 0.5, params.half_depth),
-        MaterialRole::CastArmor,
+        WorldMaterial::PlinthStone,
     );
     let body_half_y = (params.eaves_height - params.plinth_height) * 0.5;
     push_box(
@@ -200,7 +202,7 @@ fn bake_intact(
         &mut wall_indices,
         Vec3::new(0.0, params.plinth_height + body_half_y, 0.0),
         Vec3::new(params.half_width - recess, body_half_y, params.half_depth - recess),
-        MaterialRole::RolledArmor,
+        WorldMaterial::Wall,
     );
     // Joinery sits PROUD of the recessed plaster yet inside the footprint: the door on one long
     // side, the window rhythm on both.
@@ -219,7 +221,7 @@ fn bake_intact(
                     (along + jitter) * (params.half_depth * 0.62),
                 ),
                 Vec3::new(recess * 0.45, window_h * 0.5, window_w * 0.5),
-                MaterialRole::InteriorMachinery,
+                WorldMaterial::WindowGlass,
             );
         }
     }
@@ -234,7 +236,7 @@ fn bake_intact(
             door_along,
         ),
         Vec3::new(recess * 0.5, door_h * 0.5, door_w * 0.5),
-        MaterialRole::InteriorPrimer,
+        WorldMaterial::PlankDoor,
     );
 
     // The gable roof: two pitched planes and two gable triangles, ridge along Z.
@@ -271,7 +273,7 @@ fn bake_church(seed: u64, params: &StyleParams, footprint_half: Vec3) -> BakedBu
         &mut wall_indices,
         Vec3::new(0.0, params.plinth_height * 0.5, 0.0),
         Vec3::new(params.half_width, params.plinth_height * 0.5, params.half_depth),
-        MaterialRole::CastArmor,
+        WorldMaterial::PlinthStone,
     );
     let body_half_y = (params.eaves_height - params.plinth_height) * 0.5;
     push_box(
@@ -279,7 +281,7 @@ fn bake_church(seed: u64, params: &StyleParams, footprint_half: Vec3) -> BakedBu
         &mut wall_indices,
         Vec3::new(0.0, params.plinth_height + body_half_y, 0.0),
         Vec3::new(params.half_width - recess, body_half_y, params.half_depth - recess),
-        MaterialRole::RolledArmor,
+        WorldMaterial::Wall,
     );
     let (window_w, window_h) = params.window_size;
     let sill = params.plinth_height + 0.9;
@@ -296,7 +298,7 @@ fn bake_church(seed: u64, params: &StyleParams, footprint_half: Vec3) -> BakedBu
                     (along + jitter) * (params.half_depth * 0.45) + params.half_depth * 0.25,
                 ),
                 Vec3::new(recess * 0.45, window_h * 0.5, window_w * 0.5),
-                MaterialRole::InteriorMachinery,
+                WorldMaterial::WindowGlass,
             );
         }
     }
@@ -309,7 +311,7 @@ fn bake_church(seed: u64, params: &StyleParams, footprint_half: Vec3) -> BakedBu
         &mut wall_indices,
         Vec3::new(0.0, tower_top * 0.5, tower_z),
         Vec3::new(tower_half, tower_top * 0.5, tower_half),
-        MaterialRole::RolledArmor,
+        WorldMaterial::Wall,
     );
     let (door_w, door_h) = params.door_size;
     push_box(
@@ -317,7 +319,7 @@ fn bake_church(seed: u64, params: &StyleParams, footprint_half: Vec3) -> BakedBu
         &mut wall_indices,
         Vec3::new(0.0, params.plinth_height + door_h * 0.5, tower_z - tower_half + 0.02),
         Vec3::new(door_w * 0.5, door_h * 0.5, recess * 0.5),
-        MaterialRole::InteriorPrimer,
+        WorldMaterial::PlankDoor,
     );
 
     let mut roof = Vec::new();
@@ -357,7 +359,7 @@ fn bake_windmill(seed: u64, params: &StyleParams, footprint_half: Vec3) -> Baked
         &mut wall_indices,
         Vec3::new(0.0, params.plinth_height * 0.5, 0.0),
         Vec3::new(params.half_width, params.plinth_height * 0.5, params.half_depth),
-        MaterialRole::CastArmor,
+        WorldMaterial::PlinthStone,
     );
     let base_r = params.half_width - 0.15;
     let top_r = base_r * 0.62;
@@ -368,7 +370,8 @@ fn bake_windmill(seed: u64, params: &StyleParams, footprint_half: Vec3) -> Baked
         params.eaves_height,
         base_r,
         top_r,
-        MaterialRole::RolledArmor,
+        // The windmill body is timber-clad — dark boards, not render.
+        WorldMaterial::Timber,
     );
     let (door_w, door_h) = params.door_size;
     let door_angle = rng.unit() * std::f32::consts::TAU;
@@ -382,7 +385,7 @@ fn bake_windmill(seed: u64, params: &StyleParams, footprint_half: Vec3) -> Baked
             dsin * (base_r - 0.45),
         ),
         Vec3::new(door_w * 0.5, door_h * 0.5, door_w * 0.5),
-        MaterialRole::InteriorPrimer,
+        WorldMaterial::PlankDoor,
     );
 
     let mut roof = Vec::new();
@@ -422,7 +425,7 @@ fn bake_rubble(
             (half.y + rng.unit() * (ceiling - 2.0 * half.y).max(0.0)).min(ceiling - half.y),
             rng.signed() * (params.half_depth - half.z).max(0.0),
         );
-        push_box(&mut walls, &mut wall_indices, center, half, MaterialRole::RolledArmor);
+        push_box(&mut walls, &mut wall_indices, center, half, WorldMaterial::Wall);
     }
     // A few fallen roof shards keep the material story readable in the heap.
     let mut roof = Vec::new();
@@ -434,7 +437,7 @@ fn bake_rubble(
             (ceiling * (0.4 + rng.unit() * 0.5)).clamp(half.y, ceiling - half.y),
             rng.signed() * (params.half_depth - half.z).max(0.0),
         );
-        push_box(&mut roof, &mut roof_indices, center, half, MaterialRole::CastArmor);
+        push_box(&mut roof, &mut roof_indices, center, half, WorldMaterial::Roof);
     }
     BakedBuilding {
         style,
@@ -469,7 +472,7 @@ fn push_box(
     indices: &mut Vec<u32>,
     center: Vec3,
     half: Vec3,
-    material: MaterialRole,
+    material: WorldMaterial,
 ) {
     let mesh = super::world_box_mesh(center, half, material);
     let offset = vertices.len() as u32;
@@ -494,7 +497,7 @@ fn push_gable(
             vertices.push(GeometryVertex::new(
                 corner,
                 normal,
-                MaterialRole::CastArmor,
+                WorldMaterial::Roof.carrier(),
                 SmoothingGroup::hard_edges(),
             ));
         }
@@ -526,7 +529,7 @@ fn push_gable(
             vertices.push(GeometryVertex::new(
                 corner,
                 normal,
-                MaterialRole::RolledArmor,
+                WorldMaterial::Wall.carrier(),
                 SmoothingGroup::hard_edges(),
             ));
         }
@@ -562,7 +565,7 @@ fn push_pyramid(
             vertices.push(GeometryVertex::new(
                 corner,
                 normal,
-                MaterialRole::CastArmor,
+                WorldMaterial::Roof.carrier(),
                 SmoothingGroup::hard_edges(),
             ));
         }
@@ -583,8 +586,9 @@ fn push_taper(
     top_y: f32,
     bottom_r: f32,
     top_r: f32,
-    material: MaterialRole,
+    material: WorldMaterial,
 ) {
+    let material = material.carrier();
     const SIDES: usize = 8;
     for side in 0..SIDES {
         let a0 = side as f32 / SIDES as f32 * std::f32::consts::TAU;
@@ -638,7 +642,7 @@ fn push_cone(
             vertices.push(GeometryVertex::new(
                 corner,
                 normal,
-                MaterialRole::CastArmor,
+                WorldMaterial::Roof.carrier(),
                 SmoothingGroup::hard_edges(),
             ));
         }
