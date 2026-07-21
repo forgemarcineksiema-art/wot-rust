@@ -7,7 +7,7 @@ use client::{
 };
 use renderer_api::{Camera, CameraProjectionPolicy, SceneLighting, view_projection_matrix};
 use renderer_wgpu::{GpuContext, OffscreenTarget, SceneRenderer};
-use terrain::{BattlefieldMap, MapId, bystra_valley, prokhorovka_hill_252_2};
+use terrain::{BattlefieldMap, MapId};
 
 /// Render the map border from a tank's point of view — standing at the red line looking out,
 /// and elevated along the line — on both authored maps. The review tool for the border
@@ -19,8 +19,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let height = 720u32;
 
     let maps: [(&str, BattlefieldMap, MapId); 2] = [
-        ("prokhorovka", prokhorovka_hill_252_2(), MapId::ProkhorovkaHill252_2),
-        ("bystra", bystra_valley(), MapId::BystraValley),
+        (
+            "prokhorovka",
+            map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2),
+            MapId::ProkhorovkaHill252_2,
+        ),
+        ("bystra", map_forge::battlefield(terrain::MapId::BystraValley), MapId::BystraValley),
     ];
 
     let ctx = GpuContext::headless()?;

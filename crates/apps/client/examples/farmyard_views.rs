@@ -11,11 +11,10 @@ use client::{
 };
 use renderer_api::{Camera, CameraProjectionPolicy, SceneLighting, view_projection_matrix};
 use renderer_wgpu::{GpuContext, OffscreenTarget, SceneRenderer};
-use terrain::prokhorovka_hill_252_2;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (width, height) = (1280u32, 720u32);
-    let battlefield = prokhorovka_hill_252_2();
+    let battlefield = map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2);
     let ((ground_v, ground_i), (statics_v, statics_i)) =
         battlefield_ground_and_statics_meshes(&battlefield, &[]);
     let ground_maps = bake_terrain_ground_maps(&battlefield);

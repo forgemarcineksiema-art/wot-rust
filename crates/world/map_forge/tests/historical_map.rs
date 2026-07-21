@@ -1,8 +1,9 @@
-use terrain::{MapFeatureKind, prokhorovka_hill_252_2};
+use map_forge::battlefield;
+use terrain::{MapFeatureKind, MapId};
 
 #[test]
 fn prokhorovka_map_is_historical_open_and_roughly_1000m_square() {
-    let map = prokhorovka_hill_252_2();
+    let map = battlefield(MapId::ProkhorovkaHill252_2);
 
     assert_eq!(map.id, "prokhorovka_hill_252_2");
     assert_eq!(map.size_m, [1000.0, 1000.0]);
@@ -15,7 +16,7 @@ fn prokhorovka_map_is_historical_open_and_roughly_1000m_square() {
 
 #[test]
 fn prokhorovka_heightmap_has_hills_ditch_and_embankment() {
-    let map = prokhorovka_hill_252_2();
+    let map = battlefield(MapId::ProkhorovkaHill252_2);
     let stats = map.heightmap.stats();
 
     assert!(stats.range_m() > 20.0, "map must not be flat: {stats:?}");
@@ -27,7 +28,7 @@ fn prokhorovka_heightmap_has_hills_ditch_and_embankment() {
 
 #[test]
 fn prokhorovka_static_cover_has_runtime_collision_bounds() {
-    let map = prokhorovka_hill_252_2();
+    let map = battlefield(MapId::ProkhorovkaHill252_2);
     let farm_cover = map
         .static_cover
         .iter()
@@ -48,7 +49,7 @@ fn prokhorovka_heightmap_is_mirror_symmetric_across_central_axis() {
     // The railway embankment sits on the central east-west axis, so the two halves must be
     // identical: height_at(x, z) == height_at(x, extent - z). Sampling a dense grid locks
     // the symmetry that keeps both teams' starting ground equivalent (competitive balance).
-    let map = prokhorovka_hill_252_2();
+    let map = battlefield(MapId::ProkhorovkaHill252_2);
     let hm = &map.heightmap;
     let [extent_x, extent_z] = hm.extent_m();
 

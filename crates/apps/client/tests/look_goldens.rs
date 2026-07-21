@@ -22,7 +22,6 @@ use client::{
 };
 use renderer_api::{Camera, CameraProjectionPolicy, RenderFrame, view_projection_matrix};
 use renderer_wgpu::{GpuContext, OffscreenTarget, SceneRenderer};
-use terrain::prokhorovka_hill_252_2;
 
 const WIDTH: u32 = 960;
 const HEIGHT: u32 = 540;
@@ -36,7 +35,7 @@ fn golden_path(name: &str) -> PathBuf {
 }
 
 fn render_views(views: &[ReviewView]) -> Vec<Vec<u8>> {
-    let battlefield = prokhorovka_hill_252_2();
+    let battlefield = map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2);
     let ((ground_vertices, ground_indices), (statics_vertices, statics_indices)) =
         battlefield_ground_and_statics_meshes(&battlefield, &[]);
     let ground_maps = bake_terrain_ground_maps(&battlefield);
@@ -132,7 +131,7 @@ fn look_goldens_match_their_recordings() {
     }
     let update = std::env::var("WOT_UPDATE_GOLDENS").as_deref() == Ok("1");
 
-    let battlefield = prokhorovka_hill_252_2();
+    let battlefield = map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2);
     let views = prokhorovka_review_views(&battlefield);
     let frames = render_views(&views);
 
@@ -205,7 +204,7 @@ fn frame_stats(pixels: &[u8]) -> FrameStats {
 /// deliberate re-record ships a picture that lost its three value planes, this fails the gate.
 #[test]
 fn recorded_goldens_hold_the_value_structure() {
-    let battlefield = prokhorovka_hill_252_2();
+    let battlefield = map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2);
     let views = prokhorovka_review_views(&battlefield);
 
     let mut warmth_by_name = std::collections::HashMap::new();

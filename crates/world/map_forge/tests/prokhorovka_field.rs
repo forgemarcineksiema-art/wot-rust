@@ -1,8 +1,9 @@
-use terrain::{HeightMap, prokhorovka_hill_252_2};
+use map_forge::battlefield;
+use terrain::{HeightMap, MapId};
 
 #[test]
 fn western_field_is_flat_open_ground_unlike_the_rolling_steppe() {
-    let map = prokhorovka_hill_252_2();
+    let map = battlefield(MapId::ProkhorovkaHill252_2);
     let hm = &map.heightmap;
 
     // Local relief (max-min over ~35 m windows) measures folds a tank could hide behind.
@@ -24,7 +25,7 @@ fn western_field_is_flat_open_ground_unlike_the_rolling_steppe() {
 
 #[test]
 fn overwatch_knoll_holds_high_ground_and_sees_across_the_open_field() {
-    let map = prokhorovka_hill_252_2();
+    let map = battlefield(MapId::ProkhorovkaHill252_2);
     let hm = &map.heightmap;
 
     // South overwatch knoll vs a tank out in the open field at the same z.

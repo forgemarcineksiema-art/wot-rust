@@ -14,7 +14,7 @@ fn a_7v7_sets_up_and_ticks_on_bystra_valley() {
     let mut server = LocalAuthoritativeServer::new_random_7v7(ServerTickConfig::default(), config);
 
     assert_eq!(server.map_id(), MapId::BystraValley);
-    let battlefield = server.map_id().battlefield();
+    let battlefield = map_forge::battlefield(server.map_id());
     let water = battlefield.water.expect("the Bystra is the map");
 
     // Everyone spawned on dry, real ground.

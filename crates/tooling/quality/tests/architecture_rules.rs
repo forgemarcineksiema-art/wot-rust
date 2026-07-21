@@ -20,6 +20,7 @@ fn core_architecture_docs_exist() {
         "docs/server-first-policy.md",
         "docs/simulation-render-separation.md",
         "docs/testing-and-regression.md",
+        "docs/map-forge-policy.md",
         "docs/terrain-large-world-policy.md",
         "docs/vehicle-forge-policy.md",
         "docs/vehicle-geometry-policy.md",
@@ -55,6 +56,28 @@ fn world_forge_stays_renderer_free() {
         }
     }
     assert!(offenders.is_empty(), "world_forge must stay renderer-free: {offenders:?}");
+}
+
+#[test]
+fn map_forge_stays_renderer_free() {
+    let root = workspace_root();
+    let manifest = fs::read_to_string(root.join("crates/world/map_forge/Cargo.toml"))
+        .expect("map_forge manifest exists");
+    let mut offenders = Vec::new();
+    for dependency in ["renderer_api", "renderer_wgpu", "wgpu", "winit", "egui"] {
+        if manifest_has_dependency(&manifest, dependency) {
+            offenders.push(format!("map_forge manifest depends on {dependency}"));
+        }
+    }
+    for source in rust_files(&root.join("crates/world/map_forge/src")) {
+        let source_text = fs::read_to_string(&source).expect("map_forge source is readable");
+        for crate_name in ["renderer_api", "renderer_wgpu", "wgpu", "winit", "egui"] {
+            if source_uses_crate(&source_text, crate_name) {
+                offenders.push(format!("{} references {crate_name}", source.display()));
+            }
+        }
+    }
+    assert!(offenders.is_empty(), "map_forge must stay renderer-free: {offenders:?}");
 }
 
 #[test]

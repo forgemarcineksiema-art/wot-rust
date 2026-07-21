@@ -8,7 +8,7 @@ use crate::{
 };
 
 /// Build a square heightmap by sampling an analytic height function on the cell grid.
-pub(crate) fn heightmap_from_fn(
+pub fn heightmap_from_fn(
     samples_per_side: usize,
     cell_size_m: f32,
     height_at: impl Fn(f32, f32) -> f32,
@@ -24,11 +24,11 @@ pub(crate) fn heightmap_from_fn(
 }
 
 /// A world position snapped to the terrain surface.
-pub(crate) fn ground_position(heightmap: &HeightMap, x: f32, z: f32) -> [f32; 3] {
+pub fn ground_position(heightmap: &HeightMap, x: f32, z: f32) -> [f32; 3] {
     [x, heightmap.sample_height(x, z).unwrap_or(0.0), z]
 }
 
-pub(crate) fn grounded_spawn_zone(
+pub fn grounded_spawn_zone(
     heightmap: &HeightMap,
     team: u16,
     x: f32,
@@ -38,7 +38,7 @@ pub(crate) fn grounded_spawn_zone(
     SpawnZone { team, center: ground_position(heightmap, x, z), radius_m: 55.0, facing_yaw_rad }
 }
 
-pub(crate) fn grounded_point(
+pub fn grounded_point(
     heightmap: &HeightMap,
     id: &str,
     name: &str,
@@ -57,7 +57,7 @@ pub(crate) fn grounded_point(
 }
 
 /// A cover box seated on the terrain: `center.y = ground + half_height`.
-pub(crate) fn grounded_cover(
+pub fn grounded_cover(
     heightmap: &HeightMap,
     id: &str,
     name: &str,
@@ -76,7 +76,7 @@ pub(crate) fn grounded_cover(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn grounded_feature(
+pub fn grounded_feature(
     heightmap: &HeightMap,
     kind: MapFeatureKind,
     name: &str,

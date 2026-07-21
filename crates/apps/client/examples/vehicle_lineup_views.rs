@@ -10,7 +10,6 @@ use game_core::{TankId, VehicleKind};
 use net::TankSnapshot;
 use renderer_api::{Camera, view_projection_matrix};
 use renderer_wgpu::{GpuContext, OffscreenTarget, SceneRenderer};
-use terrain::prokhorovka_hill_252_2;
 
 const WIDTH: u32 = 1800;
 const HEIGHT: u32 = 720;
@@ -38,7 +37,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or_else(|| PathBuf::from("target/vehicle_geometry_views"));
     create_dir_all(&out_dir)?;
 
-    let battlefield = prokhorovka_hill_252_2();
+    let battlefield = map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2);
     let (terrain_vertices, terrain_indices) = battlefield_scene_mesh(&battlefield);
     let base = battlefield.heightmap.sample_height(CENTER_X, CENTER_Z).unwrap_or(0.0);
 

@@ -484,7 +484,7 @@ mod tests {
     /// reverse arc, and after the back-out it resumes its route.
     #[test]
     fn a_blocked_bot_backs_out_instead_of_pushing_forever() {
-        let battlefield = terrain::prokhorovka_hill_252_2();
+        let battlefield = map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2);
         let bot = tank(1, TeamId(1), Vec3::new(300.0, 0.0, 300.0), TeamId(1).spotting_bit());
         let mut roster = BotRoster::new(vec![bot.id], BattleSeed::fixed(7));
         let command = |roster: &mut BotRoster| {
@@ -528,7 +528,7 @@ mod tests {
     /// diverged from the authoritative spotting truth for the rest of the battle.
     #[test]
     fn a_bot_engages_through_cover_the_battle_has_destroyed() {
-        let battlefield = terrain::prokhorovka_hill_252_2();
+        let battlefield = map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2);
         let mask = TeamId(1).spotting_bit() | TeamId(2).spotting_bit();
         let ground = |x: f32, z: f32| battlefield.heightmap.sample_height(x, z).unwrap_or(0.0);
         let bot = tank(1, TeamId(1), Vec3::new(300.0, ground(300.0, 300.0), 300.0), mask);
@@ -568,7 +568,7 @@ mod tests {
     /// movement-intent gate it bounced between hold and reverse every 1.5 s forever.
     #[test]
     fn an_overwatch_bot_holding_station_never_reads_as_stuck() {
-        let battlefield = terrain::prokhorovka_hill_252_2();
+        let battlefield = map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2);
         let shelf = battlefield
             .strategic_points
             .iter()
@@ -608,7 +608,7 @@ mod tests {
     /// dies is dropped the same tick regardless of cadence.
     #[test]
     fn an_engaged_target_is_held_between_reselect_ticks_and_dropped_when_dead() {
-        let battlefield = terrain::prokhorovka_hill_252_2();
+        let battlefield = map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2);
         let grounded = |x: f32, z: f32| {
             Vec3::new(x, battlefield.heightmap.sample_height(x, z).expect("inside the map"), z)
         };
@@ -672,7 +672,7 @@ mod tests {
     /// it does not stand and fight, and it does not wait out the stall counter while flooding.
     #[test]
     fn a_bot_in_deep_water_backs_out_before_anything_else() {
-        let battlefield = terrain::bystra_valley();
+        let battlefield = map_forge::battlefield(terrain::MapId::BystraValley);
         // Mid-channel, away from every crossing window (bridge z=500±45, fords z=500±180±40).
         let x = terrain::bystra_river_center_x(400.0);
         let ground = battlefield.heightmap.sample_height(x, 400.0).expect("in the map");
@@ -702,7 +702,7 @@ mod tests {
     /// swaps hot, same tick.
     #[test]
     fn first_contact_acquisition_spreads_across_ticks() {
-        let battlefield = terrain::prokhorovka_hill_252_2();
+        let battlefield = map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2);
         let grounded = |x: f32, z: f32| {
             Vec3::new(x, battlefield.heightmap.sample_height(x, z).expect("inside the map"), z)
         };
@@ -736,7 +736,7 @@ mod tests {
     /// to look up; the bearing comes from the strike point on the bot's own armor.
     #[test]
     fn a_bot_shot_by_an_unseen_gun_turns_toward_the_struck_side() {
-        let battlefield = terrain::prokhorovka_hill_252_2();
+        let battlefield = map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2);
         let bot = tank(1, TeamId(1), Vec3::new(300.0, 0.0, 300.0), TeamId(1).spotting_bit());
         let mut roster = BotRoster::new(vec![bot.id], BattleSeed::fixed(7));
         // A round into the LEFT flank (-X), slightly forward, from a shooter that exists
@@ -771,7 +771,7 @@ mod tests {
     /// route resumes — a single hit must not park a bot for the rest of the battle.
     #[test]
     fn threat_facing_expires_back_into_the_route() {
-        let battlefield = terrain::prokhorovka_hill_252_2();
+        let battlefield = map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2);
         let bot = tank(1, TeamId(1), Vec3::new(300.0, 0.0, 300.0), TeamId(1).spotting_bit());
         let mut roster = BotRoster::new(vec![bot.id], BattleSeed::fixed(7));
         let hit = game_core::DamageEvent {
@@ -819,7 +819,7 @@ mod tests {
     /// not spin away because a second, unseen gun clipped its rear.
     #[test]
     fn an_engaged_bot_ignores_hit_bearings_and_keeps_fighting() {
-        let battlefield = terrain::prokhorovka_hill_252_2();
+        let battlefield = map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2);
         let grounded = |x: f32, z: f32| {
             Vec3::new(x, battlefield.heightmap.sample_height(x, z).expect("inside the map"), z)
         };
@@ -858,7 +858,7 @@ mod tests {
 
     #[test]
     fn dead_or_absent_tanks_idle_and_a_finished_battle_idles_everyone() {
-        let battlefield = terrain::prokhorovka_hill_252_2();
+        let battlefield = map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2);
         let mut bot = tank(1, TeamId(1), Vec3::new(300.0, 0.0, 300.0), TeamId(1).spotting_bit());
         let mut roster = BotRoster::new(vec![bot.id, TankId(99)], BattleSeed::fixed(7));
 

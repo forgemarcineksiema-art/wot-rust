@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::HeightMap;
+use crate::river::RiverSpec;
 use crate::scenery::SceneryInstance;
 use crate::water::WaterBody;
 
@@ -161,6 +162,11 @@ pub struct BattlefieldMap {
     /// pre-water baked assets deserializing.
     #[serde(default)]
     pub water: Option<WaterBody>,
+    /// The map's river centerline as data, if any (see [`RiverSpec`]): the carve, the water
+    /// mesh, the minimap, bot water probes and the backdrop skirt all follow the same line.
+    /// `serde(default)` keeps pre-river baked assets deserializing.
+    #[serde(default)]
+    pub river: Option<RiverSpec>,
     pub spawn_zones: Vec<SpawnZone>,
     pub strategic_points: Vec<StrategicPoint>,
     pub features: Vec<MapFeature>,

@@ -755,6 +755,7 @@ dependencies = [
  "engine",
  "game_core",
  "glam 0.30.10",
+ "map_forge",
  "net",
  "physics",
  "png",
@@ -2534,6 +2535,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "map_forge"
+version = "0.1.0"
+dependencies = [
+ "ron",
+ "serde",
+ "terrain",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "matchers"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3297,6 +3308,7 @@ version = "0.1.0"
 dependencies = [
  "game_core",
  "glam 0.30.10",
+ "map_forge",
  "parry3d",
  "rapier3d",
  "serde",
@@ -3952,6 +3964,7 @@ version = "0.1.0"
 dependencies = [
  "game_core",
  "glam 0.30.10",
+ "map_forge",
  "renderer_api",
  "sim",
  "terrain",
@@ -4069,6 +4082,7 @@ dependencies = [
  "criterion",
  "game_core",
  "glam 0.30.10",
+ "map_forge",
  "net",
  "sim",
  "terrain",
@@ -4107,6 +4121,7 @@ dependencies = [
  "criterion",
  "game_core",
  "glam 0.30.10",
+ "map_forge",
  "physics",
  "serde",
  "serde_json",
@@ -4535,6 +4550,7 @@ dependencies = [
  "clap",
  "game_core",
  "gltf",
+ "map_forge",
  "ron",
  "serde",
  "serde_json",

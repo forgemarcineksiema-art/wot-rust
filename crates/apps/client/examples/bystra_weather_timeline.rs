@@ -16,7 +16,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     const HEIGHT: u32 = 720;
     const TIMES: [u32; 5] = [0, 150, 300, 450, 600];
 
-    let battlefield = terrain::bystra_valley();
+    let battlefield = map_forge::battlefield(terrain::MapId::BystraValley);
     let ((ground_vertices, ground_indices), (vertices, indices)) =
         battlefield_ground_and_statics_meshes(&battlefield, &[]);
     let ground_maps = bake_terrain_ground_maps(&battlefield);

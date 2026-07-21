@@ -234,7 +234,7 @@ mod tests {
     /// for the open-sky miss.
     #[test]
     fn the_single_segment_sweep_matches_the_stepped_oracle() {
-        let battlefield = terrain::prokhorovka_hill_252_2();
+        let battlefield = map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2);
         let heightmap = &battlefield.heightmap;
         let cover = &battlefield.static_cover;
         let spec = game_core::VehicleKind::T54_1951.spec();

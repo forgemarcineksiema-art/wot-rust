@@ -9,7 +9,6 @@ use game_core::{TankId, TeamId, VehicleKind};
 use net::TankSnapshot;
 use renderer_api::{Camera, CameraProjectionPolicy, SceneLighting, view_projection_matrix};
 use renderer_wgpu::{GpuContext, OffscreenTarget, SceneRenderer};
-use terrain::prokhorovka_hill_252_2;
 
 /// The model-logic gate's close-up sweep: low front, close flank, and close turret shots for
 /// every fleet vehicle — the angles where floaters, interpenetrations, closed openings, and
@@ -22,7 +21,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let height = 720u32;
     let aspect = width as f32 / height as f32;
 
-    let battlefield = prokhorovka_hill_252_2();
+    let battlefield = map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2);
     let (terrain_vertices, terrain_indices) = battlefield_scene_mesh(&battlefield);
     let cx = 340.0_f32;
     let cz = 300.0_f32;

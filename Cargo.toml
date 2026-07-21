@@ -45,6 +45,7 @@ deform = { path = "crates/kernels/deform" }
 detail = { path = "crates/kernels/detail" }
 engine = { path = "crates/runtime/engine" }
 game_core = { path = "crates/foundation/game_core" }
+map_forge = { path = "crates/world/map_forge" }
 net = { path = "crates/runtime/net" }
 physics = { path = "crates/runtime/physics" }
 renderer_api = { path = "crates/render/renderer_api" }

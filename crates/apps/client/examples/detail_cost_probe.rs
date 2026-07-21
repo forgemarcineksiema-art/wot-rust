@@ -10,13 +10,12 @@ use client::{
 };
 use renderer_api::{Camera, CameraProjectionPolicy, view_projection_matrix};
 use renderer_wgpu::{GpuContext, OffscreenTarget, SceneRenderer};
-use terrain::prokhorovka_hill_252_2;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mask = std::env::var("WOT_GPU_DETAIL").unwrap_or_else(|_| "unset".to_string());
     let (width, height) = (1920u32, 1080u32);
 
-    let battlefield = prokhorovka_hill_252_2();
+    let battlefield = map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2);
     let ((ground_v, ground_i), (statics_v, statics_i)) =
         battlefield_ground_and_statics_meshes(&battlefield, &[]);
     let ground_maps = bake_terrain_ground_maps(&battlefield);

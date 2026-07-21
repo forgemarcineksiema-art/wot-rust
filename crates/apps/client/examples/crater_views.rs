@@ -26,14 +26,13 @@ use renderer_api::{
     Camera, CameraProjectionPolicy, FxVertex, SceneLighting, view_projection_matrix,
 };
 use renderer_wgpu::{GpuContext, OffscreenTarget, SceneRenderer};
-use terrain::prokhorovka_hill_252_2;
 
 /// The open mid-field spot the destruction showcase already uses — flat enough to read shape.
 const SPOT: [f32; 2] = [340.0, 300.0];
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (width, height) = (1280u32, 720u32);
-    let mut battlefield = prokhorovka_hill_252_2();
+    let mut battlefield = map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2);
     let ground_y =
         |bf: &terrain::BattlefieldMap, x: f32, z: f32| bf.heightmap.sample_height(x, z).unwrap();
 

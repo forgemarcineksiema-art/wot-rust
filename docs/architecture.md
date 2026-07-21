@@ -12,7 +12,8 @@ on large terrain maps, not a general-purpose engine.
 - `renderer_api`: abstract render API with camera, frame, mesh/material handles, and backend trait.
 - `renderer_wgpu`: WebGPU/wgpu backend shell, adapter capability probing, and WGSL shader ownership.
 - `physics`: Rapier collision primitives, heightfield terrain collider creation, and custom tank controller.
-- `terrain`: heightmap sampling, signed chunk ids, terrain chunk data, and historical battlefield map profiles.
+- `terrain`: heightmap sampling, signed chunk ids, terrain chunk data, and the runtime map truth types (`BattlefieldMap`, `RiverSpec`, `WaterBody`, cover/scenery/road data) plus the shared grounding helpers.
+- `map_forge`: map authoring as data — the RON blueprint schema, structural terrain op vocabulary, deterministic blueprint→battlefield compiler, contract report, shipped-map catalog, backdrop evaluation, and golden compile hashes. Renderer-free by rule.
 - `vehicle_geometry`: deterministic procedural vehicle mesh kernel, recipes, mount frames, and hitbox-fit validation data.
 - `client`: `winit` desktop application loop wired to input, local/remote server flow, interpolation state, and renderer.
 - `server`: headless authoritative simulation library and binary.
@@ -47,7 +48,11 @@ The project optimizes for terrain, LOD, shadows, spotting, shell physics, and ne
 Terrain and large-world policy is fixed early: maps are heightmap/chunk based,
 with collision terrain, render LOD, splat maps, roads, cover, spawn/capture
 data, navigation, visibility sectors, and minimap data tracked as first-class
-systems. Normal battle maps use `f32`; maps beyond the configured threshold use
+systems. Maps are authored as DATA: a RON blueprint per map compiles
+deterministically into the `BattlefieldMap` both ends of the wire agree on
+(`map_forge`; the map itself never crosses the network — `MapId` identity and a
+content hash do). The authoring rules live in `docs/map-forge-policy.md`.
+Normal battle maps use `f32`; maps beyond the configured threshold use
 origin rebasing instead of leaking `f64` everywhere. Renderer projections follow
 WebGPU depth range `[0, 1]`. Details live in `docs/terrain-large-world-policy.md`.
 

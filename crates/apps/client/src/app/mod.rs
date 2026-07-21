@@ -320,7 +320,7 @@ impl ClientApp {
             VehicleKind::default(),
         ));
         let player_tank = session.player_tank();
-        let battlefield = session.map_id().battlefield();
+        let battlefield = map_forge::battlefield(session.map_id());
         app.camera_obstacles =
             battlefield.static_cover.iter().map(CameraObstacle::from_static_cover).collect();
         app.minimap_static = crate::app::minimap_build::minimap_static_layers(&battlefield);
@@ -360,7 +360,7 @@ impl ClientApp {
             .map_or_else(|| VehicleKind::default().spec(), |tank| tank.vehicle.spec());
         // The authoritative server names the map; the client regenerates the identical
         // battlefield locally (the world never crosses the wire — see `terrain::MapId`).
-        let battlefield = local_server.map_id().battlefield();
+        let battlefield = map_forge::battlefield(local_server.map_id());
         let camera_settings = Self::map_camera_settings(local_server.map_id());
         let camera_obstacles =
             battlefield.static_cover.iter().map(CameraObstacle::from_static_cover).collect();

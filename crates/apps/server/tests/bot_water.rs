@@ -19,7 +19,7 @@ fn depth_at(map: &terrain::BattlefieldMap, x: f32, z: f32) -> f32 {
 
 #[test]
 fn a_full_bystra_battle_drowns_no_bot_and_still_crosses_the_river() {
-    let battlefield = MapId::BystraValley.battlefield();
+    let battlefield = map_forge::battlefield(MapId::BystraValley);
     let river_x = terrain::bystra_river_center_x(500.0);
     let east_bank_x = river_x + terrain::RIVER_CORRIDOR_HALF_WIDTH_M + 20.0;
     for seed in [5_u64, 23] {

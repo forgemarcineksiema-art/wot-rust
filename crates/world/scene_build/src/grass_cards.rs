@@ -165,10 +165,9 @@ fn push_card(
 mod tests {
     use super::*;
     use crate::terrain_maps::{bake_terrain_ground_maps, terrain_material_set_for};
-    use terrain::prokhorovka_hill_252_2;
 
     fn baked() -> (Vec<SceneVertex>, Vec<u32>) {
-        let map = prokhorovka_hill_252_2();
+        let map = map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2);
         let maps = bake_terrain_ground_maps(&map);
         let materials = terrain_material_set_for(terrain::MapId::ProkhorovkaHill252_2);
         grass_card_dressing_mesh(&map, &maps, &materials)
@@ -188,7 +187,7 @@ mod tests {
             "the whole-map meadow is tens of thousands of cards: {cards}"
         );
         // Mirror-fair: a card's root at z has a twin at extent-z with the same x.
-        let map = prokhorovka_hill_252_2();
+        let map = map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2);
         let extent_z = map.heightmap.extent_m()[1];
         for probe in (0..cards).step_by(cards / 37) {
             let root = vertices[probe * 8].position;
@@ -224,7 +223,7 @@ mod tests {
 
     #[test]
     fn a_fresh_crater_mows_its_patch_out_of_the_card_meadow() {
-        let mut map = prokhorovka_hill_252_2();
+        let mut map = map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2);
         let maps = bake_terrain_ground_maps(&map);
         let materials = terrain_material_set_for(terrain::MapId::ProkhorovkaHill252_2);
         let crater = terrain::CraterRecord::from_world(

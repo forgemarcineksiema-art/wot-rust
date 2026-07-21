@@ -8,7 +8,6 @@ use game_core::{TankId, VehicleKind};
 use net::TankSnapshot;
 use renderer_api::{Camera, view_projection_matrix};
 use renderer_wgpu::{GpuContext, OffscreenTarget, SceneRenderer};
-use terrain::prokhorovka_hill_252_2;
 
 /// Render every production vehicle side by side offscreen through the baked [`RenderFrame`] path.
 /// `cargo run -p client --example vehicle_lineup -- out.png`
@@ -17,7 +16,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let width = 1800u32;
     let height = 620u32;
 
-    let battlefield = prokhorovka_hill_252_2();
+    let battlefield = map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2);
     let (terrain_vertices, terrain_indices) = battlefield_scene_mesh(&battlefield);
 
     // A roughly level patch of the map; tanks are spread across it on the X axis.

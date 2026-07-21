@@ -6,27 +6,29 @@
 //! static battle upload and nothing samples it but the eye.
 
 use renderer_api::{SceneVertex, WaterVertex};
-use terrain::{BattlefieldMap, SceneryInstance, SceneryKind, bystra_backdrop_height};
+use terrain::{BattlefieldMap, SceneryInstance, SceneryKind};
 
 /// The far river strips still march the skirt's old extents at its coarse step.
 const SKIRT_MIN_M: f32 = -1500.0;
 const SKIRT_MAX_M: f32 = 2500.0;
 const SKIRT_CELL_M: f32 = 40.0;
 
-/// True only for the map the backdrop is authored for. Other maps keep their bare (apron)
-/// horizon until they get their own enclosure.
-fn has_backdrop(battlefield: &BattlefieldMap) -> bool {
-    battlefield.id == "bystra_valley"
+/// True for maps whose blueprint authors a horizon enclosure (the distant tree bands stand
+/// on it). Maps without one keep their bare (apron) horizon.
+fn backdrop_blueprint(
+    battlefield: &BattlefieldMap,
+) -> Option<&'static map_forge::blueprint::MapBlueprint> {
+    map_forge::cached_blueprint_by_id(&battlefield.id).filter(|bp| bp.horizon.is_some())
 }
 
 /// Distant trees on the enclosing hills: deterministic bands just past the border, dark
 /// silhouettes for the fog to work with. Reuses the foliage kit; the aerial perspective does
-/// the desaturation. They stand on `bystra_backdrop_height` — the same surface the border
-/// apron meshes — so the trunks root in the visible ground.
+/// the desaturation. They stand on the blueprint's backdrop height — the same surface the
+/// border apron meshes — so the trunks root in the visible ground.
 pub fn backdrop_scene_mesh(battlefield: &BattlefieldMap) -> (Vec<SceneVertex>, Vec<u32>) {
-    if !has_backdrop(battlefield) {
+    let Some(blueprint) = backdrop_blueprint(battlefield) else {
         return (Vec::new(), Vec::new());
-    }
+    };
     let map = battlefield.heightmap.extent_m();
     let mut vertices: Vec<SceneVertex> = Vec::new();
     let mut indices: Vec<u32> = Vec::new();
@@ -45,12 +47,14 @@ pub fn backdrop_scene_mesh(battlefield: &BattlefieldMap) -> (Vec<SceneVertex>, V
             _ => (map[0] + out, along),
         };
         // Keep the river's exit corridor clear of trunks.
-        if (x - terrain::bystra_river_center_x(z)).abs() < 60.0 {
+        if let Some(river) = blueprint.river
+            && (x - river.center_x(z)).abs() < 60.0
+        {
             continue;
         }
         let kind =
             if backdrop_hash(&mut seed) > 0.35 { SceneryKind::Oak } else { SceneryKind::Poplar };
-        let ground = bystra_backdrop_height(x, z);
+        let ground = map_forge::backdrop_height(blueprint, x, z);
         crate::foliage::push_scenery_instance_far(
             &mut vertices,
             &mut indices,
@@ -68,7 +72,10 @@ pub fn backdrop_scene_mesh(battlefield: &BattlefieldMap) -> (Vec<SceneVertex>, V
 /// The river's continuation: flat water strips along the extended centerline beyond both
 /// borders, rendered by the same water pipeline as the playfield's surface.
 pub fn backdrop_water_mesh(battlefield: &BattlefieldMap) -> (Vec<WaterVertex>, Vec<u32>) {
-    let Some(water) = battlefield.water.filter(|_| has_backdrop(battlefield)) else {
+    let Some(blueprint) = backdrop_blueprint(battlefield) else {
+        return (Vec::new(), Vec::new());
+    };
+    let (Some(water), Some(river)) = (battlefield.water, blueprint.river) else {
         return (Vec::new(), Vec::new());
     };
     let mut vertices: Vec<WaterVertex> = Vec::new();
@@ -80,11 +87,10 @@ pub fn backdrop_water_mesh(battlefield: &BattlefieldMap) -> (Vec<WaterVertex>, V
             let z_next = (z + SKIRT_CELL_M).min(z_to);
             let start = vertices.len() as u32;
             for (zz, half) in [(z, 26.0_f32), (z_next, 26.0)] {
-                let center = terrain::bystra_river_center_x(zz);
+                let center = river.center_x(zz);
                 // Downstream tangent of the meander center line (biased +Z, the flow direction).
                 let eps = 2.0;
-                let dcx = terrain::bystra_river_center_x(zz + eps)
-                    - terrain::bystra_river_center_x(zz - eps);
+                let dcx = river.center_x(zz + eps) - river.center_x(zz - eps);
                 let flow = glam::Vec2::new(dcx, 2.0 * eps).normalize();
                 for x in [center - half, center + half] {
                     vertices.push(WaterVertex::flowing(
@@ -118,21 +124,23 @@ fn backdrop_hash(state: &mut u64) -> f32 {
 
 #[cfg(test)]
 mod tests {
-    use terrain::{bystra_valley, prokhorovka_hill_252_2};
+    use terrain::MapId;
 
     use super::*;
 
     #[test]
     fn only_the_authored_map_gets_a_skirt() {
-        let (vertices, indices) = backdrop_scene_mesh(&prokhorovka_hill_252_2());
+        let (vertices, indices) =
+            backdrop_scene_mesh(&map_forge::battlefield(MapId::ProkhorovkaHill252_2));
         assert!(vertices.is_empty() && indices.is_empty());
-        let (water_vertices, _) = backdrop_water_mesh(&prokhorovka_hill_252_2());
+        let (water_vertices, _) =
+            backdrop_water_mesh(&map_forge::battlefield(MapId::ProkhorovkaHill252_2));
         assert!(water_vertices.is_empty());
     }
 
     #[test]
     fn the_backdrop_is_trees_only_and_stays_under_budget() {
-        let map = bystra_valley();
+        let map = map_forge::battlefield(MapId::BystraValley);
         let (vertices, indices) = backdrop_scene_mesh(&map);
         assert!(!indices.is_empty());
         assert!(indices.len().is_multiple_of(3));
@@ -150,7 +158,7 @@ mod tests {
 
     #[test]
     fn the_river_flows_in_from_beyond_both_borders() {
-        let map = bystra_valley();
+        let map = map_forge::battlefield(MapId::BystraValley);
         let (vertices, indices) = backdrop_water_mesh(&map);
         assert!(!vertices.is_empty() && indices.len().is_multiple_of(3));
         let level = map.water.expect("bystra carries its river").surface_level_m;

@@ -31,7 +31,7 @@ use renderer_api::{
     Camera, CameraProjectionPolicy, FxVertex, RenderFrame, SceneLighting, view_projection_matrix,
 };
 use renderer_wgpu::{GpuContext, OffscreenTarget, SceneRenderer};
-use terrain::{BattlefieldMap, StaticCoverKind, prokhorovka_hill_252_2};
+use terrain::{BattlefieldMap, StaticCoverKind};
 
 const KIND: VehicleKind = VehicleKind::T54_1951;
 
@@ -46,7 +46,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let ctx = GpuContext::headless()?;
     let target = OffscreenTarget::new(&ctx, width, height)?;
-    let battlefield = prokhorovka_hill_252_2();
+    let battlefield = map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2);
 
     // ---- Cover: a farm town before and after HE ----------------------------------------------
     cover_shots(&ctx, &target, &battlefield, width, height, &prefix)?;
