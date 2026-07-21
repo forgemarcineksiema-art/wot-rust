@@ -16,5 +16,8 @@ scene_build.workspace = true
 terrain.workspace = true
 winit.workspace = true
 
+[dev-dependencies]
+png = "0.18"
+
 [lints]
 workspace = true

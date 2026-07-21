@@ -1,27 +1,30 @@
 //! The editor window shell: winit `ApplicationHandler` (event-loop policy), a 3D viewport
 //! through the game's OWN render path (`scene_build` meshes into `renderer_wgpu`'s
-//! `WindowRenderer`), a free-fly camera, and panels drawn with the client's in-house UI
-//! toolkit (map-editor D3) — the editor looks like the game because it IS the game's eyes.
+//! `WindowRenderer`), a free-fly camera with a cursor-to-ground probe, 3D annotations
+//! (problem pylons, spawn rings, point posts), and panels drawn with the client's in-house
+//! UI toolkit (map-editor D3) — the editor looks like the game because it IS the game's
+//! eyes.
 //!
 //! Every viewport reload is a full document recompile ([`EditorDocument::recompile`]): the
 //! editor can never show a world the game would not build.
 
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use glam::Vec3;
 use renderer_api::{
-    Camera, CameraProjectionPolicy, HudVertex, RenderFrame, view_projection_matrix,
+    Camera, CameraProjectionPolicy, RenderFrame, SceneVertex, view_projection_matrix,
 };
 use renderer_wgpu::WindowRenderer;
 use winit::application::ApplicationHandler;
 use winit::event::{DeviceEvent, DeviceId, ElementState, MouseButton, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::keyboard::{KeyCode, PhysicalKey};
-use winit::window::{Window, WindowId};
+use winit::window::{CursorGrabMode, Window, WindowId};
 
-use crate::{CompiledMap, EditorDocument};
+use crate::overlay::{OverlayModel, overlay};
+use crate::{CompiledMap, EditorDocument, markers, pick};
 
 /// Run the editor shell. `path` opens an existing document; `None` starts from the scratch
 /// placeholder (File → New).
@@ -37,7 +40,15 @@ pub fn run(path: Option<PathBuf>) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Free-fly viewport camera: yaw/pitch look (hold RMB), WASD + QE move, Shift sprints.
+/// The frame cadence: the editor has no simulation, so it paces itself instead of spinning
+/// the event loop hot (one-look policy: frames are the app's job, never the laptop's).
+const FRAME_INTERVAL: Duration = Duration::from_millis(12);
+
+const HELP_LINE: &str =
+    "F1 overview   F5 recompile   N problem   Ctrl+S save   Ctrl+Z/Y undo   Ctrl+P playtest";
+
+/// Free-fly viewport camera: yaw/pitch look (hold RMB), WASD + QE move, Shift sprints,
+/// wheel sets the pace.
 struct FlyCamera {
     eye: Vec3,
     yaw_rad: f32,
@@ -62,10 +73,23 @@ impl FlyCamera {
         Vec3::new(sin_yaw * cos_pitch, sin_pitch, cos_yaw * cos_pitch)
     }
 
+    fn look_at(&mut self, target: Vec3) {
+        let direction = (target - self.eye).normalize_or_zero();
+        self.yaw_rad = direction.x.atan2(direction.z);
+        self.pitch_rad = direction.y.clamp(-1.0, 1.0).asin();
+    }
+
     fn camera(&self) -> Camera {
         let target = self.eye + self.forward();
         Camera { eye: self.eye.to_array(), target: target.to_array(), vertical_fov_degrees: 55.0 }
     }
+}
+
+/// A smooth camera flight to a problem: exponential approach, aimed at the target the
+/// whole way — a glide, never a teleport. Any movement input hands the stick back.
+struct Glide {
+    eye_target: Vec3,
+    look_at: Vec3,
 }
 
 #[derive(Default)]
@@ -78,9 +102,16 @@ struct InputState {
     down: bool,
     sprint: bool,
     ctrl: bool,
+    shift: bool,
     looking: bool,
     mouse_dx: f32,
     mouse_dy: f32,
+}
+
+impl InputState {
+    fn moving(&self) -> bool {
+        self.forward || self.back || self.left || self.right || self.up || self.down
+    }
 }
 
 struct EditorApp {
@@ -89,8 +120,16 @@ struct EditorApp {
     document: EditorDocument,
     compiled: CompiledMap,
     camera: FlyCamera,
+    glide: Option<Glide>,
     input: InputState,
-    show_layers: bool,
+    cursor_px: Option<[f32; 2]>,
+    viewport_px: [f32; 2],
+    probe: Option<Vec3>,
+    map_markers: (Vec<SceneVertex>, Vec<u32>),
+    problem_positions: Vec<[f32; 3]>,
+    selected_problem: Option<usize>,
+    show_overview: bool,
+    close_armed: bool,
     status: String,
     started: Instant,
     last_tick: Instant,
@@ -106,20 +145,51 @@ impl EditorApp {
             document,
             compiled,
             camera,
+            glide: None,
             input: InputState::default(),
-            show_layers: false,
-            status: String::from(
-                "F1 layers  F5 recompile  Ctrl+S save  Ctrl+Z/Y undo/redo  Ctrl+P playtest",
-            ),
+            cursor_px: None,
+            viewport_px: [1280.0, 720.0],
+            probe: None,
+            map_markers: (Vec::new(), Vec::new()),
+            problem_positions: Vec::new(),
+            selected_problem: None,
+            show_overview: true,
+            close_armed: false,
+            status: HELP_LINE.into(),
             started: Instant::now(),
             last_tick: Instant::now(),
         }
     }
 
+    fn document_label(&self) -> String {
+        self.document.path().map_or_else(
+            || format!("{} (unsaved)", self.document.blueprint().meta.id),
+            |path| path.display().to_string(),
+        )
+    }
+
+    fn refresh_title(&self) {
+        if let Some(window) = &self.window {
+            let dirty = if self.document.dirty() { " *" } else { "" };
+            window.set_title(&format!("{}{dirty} — WOT map editor", self.document_label()));
+        }
+    }
+
     /// Full document → viewport reload: recompile, then re-upload every scene slot the
-    /// battle path uploads (ground + statics + water + dressing + lighting).
+    /// battle path uploads (ground + statics + water + dressing + lighting) plus the
+    /// editor's annotation mesh.
     fn reload_scene(&mut self) {
         self.compiled = self.document.recompile();
+        self.problem_positions = markers::problem_positions(&self.compiled.report)
+            .into_iter()
+            .map(|(at, _)| at)
+            .collect();
+        if self.selected_problem.is_some_and(|index| index >= self.problem_positions.len()) {
+            self.selected_problem = None;
+        }
+        self.refresh_markers();
+        self.refresh_title();
+
         let Some(renderer) = self.renderer.as_mut() else { return };
         let battlefield = &self.compiled.battlefield;
         let blueprint = self.document.blueprint();
@@ -150,10 +220,20 @@ impl EditorApp {
         renderer.set_rain_intensity(look.rain_intensity);
         renderer.set_wetness(look.wetness);
 
-        let (errors, warnings) = report_counts(&self.compiled);
+        let errors = self.compiled.report.errors().count();
+        let warnings = self.compiled.report.warnings().count();
         self.status = format!(
             "compiled in {:.1} ms — {errors} errors, {warnings} warnings",
             self.compiled.compile_time.as_secs_f32() * 1000.0
+        );
+    }
+
+    /// Rebuild only the annotations (selection moved — the world did not change).
+    fn refresh_markers(&mut self) {
+        self.map_markers = markers::map_markers(
+            &self.compiled.battlefield,
+            &self.compiled.report,
+            self.selected_problem,
         );
     }
 
@@ -166,6 +246,8 @@ impl EditorApp {
             Ok(()) => format!("saved {}", self.document.path().unwrap().display()),
             Err(error) => format!("save failed: {error}"),
         };
+        self.close_armed = false;
+        self.refresh_title();
     }
 
     /// The playtest loop (map-editor D2): save the document, then launch the client with
@@ -174,19 +256,69 @@ impl EditorApp {
     fn playtest(&mut self) {
         if self.compiled.report.has_errors() {
             self.status =
-                "playtest refused: the report has errors (a broken map is a build-time bug)".into();
+                "playtest refused: fix the report errors first (a broken map is a build-time bug)"
+                    .into();
             return;
         }
         self.save();
         let Some(path) = self.document.path().map(std::path::Path::to_path_buf) else { return };
-        let launched = std::process::Command::new("cargo")
-            .args(["run", "--release", "-p", "client"])
-            .env("WOT_MAP", &path)
-            .spawn();
+        let (mut command, via_cargo) = client_command();
+        let launched = command.env("WOT_MAP", &path).spawn();
         self.status = match launched {
+            Ok(_) if via_cargo => format!(
+                "playtest launched via cargo (first build takes a while) — {}",
+                path.display()
+            ),
             Ok(_) => format!("playtest launched on {}", path.display()),
             Err(error) => format!("playtest failed to launch: {error}"),
         };
+    }
+
+    /// Cycle the jump-to-problem cursor and glide the camera to it — the report promised
+    /// "jump the camera straight to the problem"; this is that promise kept.
+    fn jump_to_problem(&mut self, backwards: bool) {
+        if self.problem_positions.is_empty() {
+            self.status = "no positioned problems — the report is quiet".into();
+            return;
+        }
+        let count = self.problem_positions.len();
+        let next = match self.selected_problem {
+            None if backwards => count - 1,
+            None => 0,
+            Some(index) if backwards => (index + count - 1) % count,
+            Some(index) => (index + 1) % count,
+        };
+        self.selected_problem = Some(next);
+        self.refresh_markers();
+        let at = Vec3::from_array(self.problem_positions[next]);
+        let ground = self.compiled.battlefield.heightmap.sample_height(at.x, at.z).unwrap_or(at.y);
+        let target = Vec3::new(at.x, ground, at.z);
+        // Approach from where the camera already is: back off along the flat line of sight.
+        let mut away = self.camera.eye - target;
+        away.y = 0.0;
+        let away = if away.length() > 1.0 {
+            away.normalize()
+        } else {
+            Vec3::new(-1.0, 0.0, -1.0).normalize()
+        };
+        self.glide =
+            Some(Glide { eye_target: target + away * 30.0 + Vec3::Y * 20.0, look_at: target });
+        self.status = format!("problem {}/{count}", next + 1);
+    }
+
+    fn set_look_capture(&mut self, looking: bool) {
+        self.input.looking = looking;
+        if let Some(window) = &self.window {
+            if looking {
+                let _ = window
+                    .set_cursor_grab(CursorGrabMode::Confined)
+                    .or_else(|_| window.set_cursor_grab(CursorGrabMode::Locked));
+                window.set_cursor_visible(false);
+            } else {
+                let _ = window.set_cursor_grab(CursorGrabMode::None);
+                window.set_cursor_visible(true);
+            }
+        }
     }
 
     fn on_key(&mut self, code: KeyCode, pressed: bool) {
@@ -227,11 +359,19 @@ impl EditorApp {
             KeyCode::KeyD | KeyCode::ArrowRight => self.input.right = pressed,
             KeyCode::KeyE => self.input.up = pressed,
             KeyCode::KeyQ => self.input.down = pressed,
-            KeyCode::ShiftLeft | KeyCode::ShiftRight => self.input.sprint = pressed,
+            KeyCode::ShiftLeft | KeyCode::ShiftRight => {
+                self.input.sprint = pressed;
+                self.input.shift = pressed;
+            }
             KeyCode::ControlLeft | KeyCode::ControlRight => self.input.ctrl = pressed,
-            KeyCode::F1 if pressed => self.show_layers = !self.show_layers,
+            KeyCode::F1 if pressed => self.show_overview = !self.show_overview,
             KeyCode::F5 if pressed => self.reload_scene(),
+            KeyCode::KeyN if pressed => self.jump_to_problem(self.input.shift),
             _ => {}
+        }
+        if pressed && self.input.moving() {
+            // The stick is back in the author's hand.
+            self.glide = None;
         }
     }
 
@@ -244,9 +384,22 @@ impl EditorApp {
             self.camera.yaw_rad -= self.input.mouse_dx * 0.003;
             self.camera.pitch_rad =
                 (self.camera.pitch_rad - self.input.mouse_dy * 0.003).clamp(-1.5, 1.5);
+            self.glide = None;
         }
         self.input.mouse_dx = 0.0;
         self.input.mouse_dy = 0.0;
+
+        if let Some(glide) = &self.glide {
+            let approach = 1.0 - (-6.0 * elapsed).exp();
+            self.camera.eye += (glide.eye_target - self.camera.eye) * approach;
+            let look_at = glide.look_at;
+            let arrived = (glide.eye_target - self.camera.eye).length() < 0.6;
+            self.camera.look_at(look_at);
+            if arrived {
+                self.glide = None;
+            }
+            return;
+        }
 
         let forward = self.camera.forward();
         let flat_forward = Vec3::new(forward.x, 0.0, forward.z).normalize_or_zero();
@@ -274,7 +427,49 @@ impl EditorApp {
         self.camera.eye += motion.normalize_or_zero() * speed * elapsed;
     }
 
+    /// The cursor's ground probe, refreshed per frame (it is the seed of the M4 brushes).
+    fn refresh_probe(&mut self) {
+        self.probe = None;
+        let Some(cursor) = self.cursor_px else { return };
+        if self.input.looking {
+            return; // while orbiting, the hidden cursor names nothing
+        }
+        let ndc = [
+            cursor[0] / self.viewport_px[0] * 2.0 - 1.0,
+            1.0 - cursor[1] / self.viewport_px[1] * 2.0,
+        ];
+        let camera = self.camera.camera();
+        let aspect = (self.viewport_px[0] / self.viewport_px[1]).max(0.01);
+        let (origin, direction) = pick::cursor_ray(&camera, aspect, ndc);
+        self.probe = pick::ground_hit(&self.compiled.battlefield.heightmap, origin, direction);
+    }
+
+    fn overlay_model(&self) -> OverlayModel {
+        let problems = crate::overlay::problem_rows(&self.compiled.report);
+        let eye = self.camera.eye;
+        let camera_line = format!("cam {:.0} {:.0}  h {:.0}", eye.x, eye.z, eye.y);
+        let probe_line = self
+            .probe
+            .map(|hit| format!("cursor {:.0}, {:.0}  h {:.1}", hit.x, hit.z, hit.y))
+            .unwrap_or_default();
+        OverlayModel {
+            document_label: self.document_label(),
+            dirty: self.document.dirty(),
+            compile_ms: self.compiled.compile_time.as_secs_f32() * 1000.0,
+            problems,
+            selected_problem: self.selected_problem,
+            map_size_m: self.compiled.battlefield.size_m[0],
+            layer_lines: layer_lines(&self.compiled),
+            show_overview: self.show_overview,
+            camera_line,
+            probe_line,
+            status: self.status.clone(),
+        }
+    }
+
     fn render_now(&mut self) {
+        self.refresh_probe();
+        let model = self.overlay_model();
         let Some(renderer) = self.renderer.as_mut() else { return };
         let camera = self.camera.camera();
         let aspect = renderer.aspect_ratio();
@@ -286,13 +481,23 @@ impl EditorApp {
             projection.far_plane_m(),
         );
         renderer.set_scene_time_s(self.started.elapsed().as_secs_f32());
+        // The shadow cascades follow the camera's gaze — without a focus the sun casts
+        // nothing and the whole viewport reads flat.
+        let focus =
+            self.probe.unwrap_or(Vec3::from_array(camera.eye) + self.camera.forward() * 45.0);
+        renderer.set_shadow_focus(Some(focus.to_array()));
         renderer.set_render_frame(&RenderFrame {
             camera,
             objects: Vec::new(),
             armor_damage: Vec::new(),
         });
-        let hud = overlay(&self.document, &self.compiled, &self.status, self.show_layers, aspect);
-        renderer.set_hud(&hud);
+        // Annotations: the cached map markers plus the live probe disc.
+        let (mut vertices, mut indices) = (self.map_markers.0.clone(), self.map_markers.1.clone());
+        if let Some(hit) = self.probe {
+            markers::probe_marker(&mut vertices, &mut indices, hit, 1.5);
+        }
+        renderer.set_dynamic_mesh(&vertices, &indices);
+        renderer.set_hud(&overlay(&model, aspect));
         if renderer.render(view_proj, self.camera.eye.to_array()).is_err() {
             // A lost surface reconfigures itself on the next frame; nothing to do here.
         }
@@ -317,6 +522,7 @@ impl ApplicationHandler for EditorApp {
             }
         };
         let size = window.inner_size();
+        self.viewport_px = [size.width.max(1) as f32, size.height.max(1) as f32];
         // The initial terrain slot is the statics mesh, exactly like the client boot path;
         // reload_scene immediately re-uploads every slot from the document.
         let (_, statics) = scene_build::battlefield::battlefield_ground_and_statics_meshes(
@@ -352,8 +558,17 @@ impl ApplicationHandler for EditorApp {
         event: WindowEvent,
     ) {
         match event {
-            WindowEvent::CloseRequested => event_loop.exit(),
+            WindowEvent::CloseRequested => {
+                if self.document.dirty() && !self.close_armed {
+                    self.close_armed = true;
+                    self.status =
+                        "unsaved changes — Ctrl+S to keep them, close again to discard".into();
+                } else {
+                    event_loop.exit();
+                }
+            }
             WindowEvent::Resized(size) => {
+                self.viewport_px = [size.width.max(1) as f32, size.height.max(1) as f32];
                 if let Some(renderer) = self.renderer.as_mut() {
                     renderer.resize(size.width.max(1), size.height.max(1));
                 }
@@ -364,8 +579,12 @@ impl ApplicationHandler for EditorApp {
                     self.on_key(code, event.state == ElementState::Pressed);
                 }
             }
+            WindowEvent::CursorMoved { position, .. } => {
+                self.cursor_px = Some([position.x as f32, position.y as f32]);
+            }
+            WindowEvent::CursorLeft { .. } => self.cursor_px = None,
             WindowEvent::MouseInput { state, button: MouseButton::Right, .. } => {
-                self.input.looking = state == ElementState::Pressed;
+                self.set_look_capture(state == ElementState::Pressed);
             }
             WindowEvent::MouseWheel { delta, .. } => {
                 let steps = match delta {
@@ -393,16 +612,56 @@ impl ApplicationHandler for EditorApp {
         }
     }
 
-    fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
+    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         self.tick_camera();
         if let Some(window) = &self.window {
             window.request_redraw();
         }
+        event_loop.set_control_flow(ControlFlow::WaitUntil(Instant::now() + FRAME_INTERVAL));
     }
 }
 
-fn report_counts(compiled: &CompiledMap) -> (usize, usize) {
-    (compiled.report.errors().count(), compiled.report.warnings().count())
+/// The document overview lines: every `TerrainMapLayer` with its LIVE count (or an honest
+/// "- (M7)" for layers whose tools have not shipped), plus the document's water/river vitals.
+pub fn layer_lines(compiled: &CompiledMap) -> Vec<(String, String)> {
+    use terrain::TerrainMapLayer as Layer;
+    let map = &compiled.battlefield;
+    let heightmap = &map.heightmap;
+    let mut lines: Vec<(String, String)> = Vec::new();
+    for layer in terrain::TerrainMapPlan::wot_like().required_layers() {
+        let (label, value) = match layer {
+            Layer::HeightmapChunks => (
+                "heightmap",
+                format!(
+                    "{}x{} @ {:.0} m",
+                    heightmap.width(),
+                    heightmap.height(),
+                    heightmap.cell_size_m()
+                ),
+            ),
+            Layer::CollisionTerrain => ("collision", "shared heightfield".to_string()),
+            Layer::RenderLod => ("render", "ground + statics".to_string()),
+            Layer::SplatMaps => ("splat", "baked 1024".to_string()),
+            Layer::Roads => ("roads", map.roads.len().to_string()),
+            Layer::Decorations => ("scenery", map.scenery.len().to_string()),
+            Layer::CoverObjects => ("cover", map.static_cover.len().to_string()),
+            Layer::SpawnPoints => ("spawns", map.spawn_zones.len().to_string()),
+            Layer::CaptureZones => ("zones", "- (M7)".to_string()),
+            Layer::BotNavigation => ("nav points", map.strategic_points.len().to_string()),
+            Layer::VisibilitySectors => ("visibility", "- (M7)".to_string()),
+            Layer::MinimapData => ("minimap", "- (M7)".to_string()),
+        };
+        lines.push((label.to_string(), value));
+    }
+    lines.push((
+        "water".to_string(),
+        map.water.map_or("-".to_string(), |w| format!("{:.1} m", w.surface_level_m)),
+    ));
+    lines.push((
+        "river".to_string(),
+        if map.river.is_some() { "yes".to_string() } else { "-".to_string() },
+    ));
+    lines
 }
 
 /// Where a pathless document lands for save/playtest: one well-known scratch file.
@@ -410,111 +669,18 @@ fn scratch_path() -> PathBuf {
     std::env::temp_dir().join("wot_editor_scratch.map.ron")
 }
 
-/// The editor overlay, drawn with the client's own UI toolkit: a status header, the
-/// contract report (the editor's early warning), and the F1 layer checklist.
-fn overlay(
-    document: &EditorDocument,
-    compiled: &CompiledMap,
-    status: &str,
-    show_layers: bool,
-    aspect: f32,
-) -> Vec<HudVertex> {
-    const INK: [f32; 4] = [0.86, 0.88, 0.84, 0.95];
-    const DIM: [f32; 4] = [0.62, 0.66, 0.62, 0.85];
-    const ERROR: [f32; 4] = [0.95, 0.42, 0.34, 0.95];
-    const WARNING: [f32; 4] = [0.92, 0.78, 0.35, 0.95];
-    const TEXT_H: f32 = 0.042;
-    let mut vertices = Vec::new();
-
-    let name = document.path().map_or_else(
-        || format!("{} (unsaved)", document.blueprint().meta.id),
-        |path| path.display().to_string(),
-    );
-    let dirty = if document.dirty() { " *" } else { "" };
-    let (errors, warnings) = report_counts(compiled);
-    client::push_panel(
-        &mut vertices,
-        [0.0, 0.93],
-        [0.995, 0.062],
-        0.02,
-        aspect,
-        [0.05, 0.06, 0.05, 0.72],
-    );
-    client::push_text(
-        &mut vertices,
-        &format!(
-            "{name}{dirty}   {:.0} m   compile {:.1} ms   E:{errors} W:{warnings}",
-            compiled.battlefield.size_m[0],
-            compiled.compile_time.as_secs_f32() * 1000.0
-        ),
-        -0.98,
-        0.975,
-        TEXT_H,
-        aspect,
-        INK,
-    );
-
-    // The report: jump-to-problem comes later (M7 dashboard); the shell already SHOWS the
-    // problems, worst first.
-    let mut y = 0.86;
-    for entry in compiled.report.errors().take(8) {
-        client::push_text(
-            &mut vertices,
-            &format!("E {}: {}", entry.check, entry.message),
-            -0.98,
-            y,
-            TEXT_H,
-            aspect,
-            ERROR,
-        );
-        y -= 0.055;
-    }
-    for entry in compiled.report.warnings().take(4) {
-        client::push_text(
-            &mut vertices,
-            &format!("W {}: {}", entry.check, entry.message),
-            -0.98,
-            y,
-            TEXT_H,
-            aspect,
-            WARNING,
-        );
-        y -= 0.055;
-    }
-
-    if show_layers {
-        client::push_panel(
-            &mut vertices,
-            [0.78, 0.28],
-            [0.215, 0.56],
-            0.02,
-            aspect,
-            [0.05, 0.06, 0.05, 0.72],
-        );
-        client::push_text(
-            &mut vertices,
-            "layers (M4+ own the tools)",
-            0.575,
-            0.80,
-            TEXT_H,
-            aspect,
-            INK,
-        );
-        let mut layer_y = 0.73;
-        for layer in terrain::TerrainMapPlan::wot_like().required_layers() {
-            client::push_text(
-                &mut vertices,
-                &format!("- {layer:?}"),
-                0.575,
-                layer_y,
-                TEXT_H,
-                aspect,
-                DIM,
-            );
-            layer_y -= 0.055;
+/// The client to playtest in: the sibling binary when it exists (instant), `cargo run`
+/// otherwise (honest about the wait).
+fn client_command() -> (std::process::Command, bool) {
+    if let Ok(exe) = std::env::current_exe()
+        && let Some(directory) = exe.parent()
+    {
+        let sibling = directory.join(if cfg!(windows) { "client.exe" } else { "client" });
+        if sibling.exists() {
+            return (std::process::Command::new(sibling), false);
         }
     }
-
-    client::push_text(&mut vertices, status, -0.98, -0.93, TEXT_H, aspect, DIM);
-    vertices
+    let mut cargo = std::process::Command::new("cargo");
+    cargo.args(["run", "--release", "-p", "client"]);
+    (cargo, true)
 }

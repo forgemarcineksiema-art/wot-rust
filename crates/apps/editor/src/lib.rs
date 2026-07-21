@@ -6,6 +6,9 @@
 //! ride on top of this same `apply_edit` door).
 
 pub mod app;
+pub mod markers;
+pub mod overlay;
+pub mod pick;
 
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};

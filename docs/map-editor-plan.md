@@ -61,6 +61,14 @@ structural terrain ops, and the WoT map anatomy (`TerrainMapPlan`'s 12 layers).
     debug test on the heaviest shipped document.
   - Goldens are data (`blueprints/goldens.ron`, hex) — the editor can bless a deliberate
     map change without editing code; the diff review stays.
+  - Shell polish (feel pass): cursor→ground probe (raycast + amber disc + world readout —
+    the M4 brush cursor's seed), 3D annotations through the dynamic-mesh slot (problem
+    pylons, team spawn rings, nav posts), N/Shift+N jump-to-problem with a camera glide,
+    grouped report rows (identical messages collapse to one `xN` line), the instrument
+    theme everywhere (client `theme` tokens are public now), cursor capture during RMB
+    look, paced frames (no hot spin), window title with the dirty star, an unsaved-changes
+    close guard, playtest through the built client binary when present. Proof-of-look:
+    `cargo run -p editor --example shell_views` renders the shell offscreen to PNGs.
 - [ ] **M4 — terrain brushes**
   - Raise/Lower/Flatten + structural Channel/Ramp/Deck as quantized ops, per D1;
     Smooth only in the form D1 admits. Live preview decal; mirror stamping when `symmetry`

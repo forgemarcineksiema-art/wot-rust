@@ -8,20 +8,20 @@
 
 /// Corner cut of a full-size panel, in clip-y units (`push_panel` aspect-corrects x so the cut
 /// stays 45 degrees on screen).
-pub(crate) const CHAMFER_PANEL: f32 = 0.022;
+pub const CHAMFER_PANEL: f32 = 0.022;
 /// Corner cut of a small interactive slot/button.
-pub(crate) const CHAMFER_SLOT: f32 = 0.012;
+pub const CHAMFER_SLOT: f32 = 0.012;
 /// Thickness of a hairline rule, clip-y units.
-pub(crate) const HAIRLINE_THICKNESS: f32 = 0.0022;
+pub const HAIRLINE_THICKNESS: f32 = 0.0022;
 
 /// A token's RGB with a caller-chosen alpha. The HUD test suite tags features by exact
 /// vertex-color equality, so two features that share a token must still differ in bytes —
 /// the alpha is that tag.
-pub(crate) const fn tagged(base: [f32; 4], alpha: f32) -> [f32; 4] {
+pub const fn tagged(base: [f32; 4], alpha: f32) -> [f32; 4] {
     [base[0], base[1], base[2], alpha]
 }
 
-pub(crate) mod color {
+pub mod color {
     /// Flat graphite panel fill.
     pub const PANEL: [f32; 4] = [0.085, 0.090, 0.095, 0.86];
     /// Hairline rule separating panel zones (under headers, between groups).
