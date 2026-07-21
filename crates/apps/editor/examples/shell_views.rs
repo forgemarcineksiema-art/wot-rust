@@ -7,6 +7,7 @@ use std::fs::File;
 use std::io::BufWriter;
 
 use editor::app::layer_lines;
+use editor::brush::{BrushMode, BrushSettings, Stroke};
 use editor::overlay::{OverlayModel, overlay};
 use editor::{EditorDocument, markers};
 use glam::Vec3;
@@ -38,6 +39,46 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
     });
 
+    // View 3: a document sculpted with the M4 brushes - a raised ridge and a flattened
+    // pad painted programmatically through the same Stroke API the live window drives,
+    // committed into the sculpt layer and compiled like any other data.
+    let mut sculpted = EditorDocument::new_scratch();
+    {
+        // Stroke 1: the ridge. Stroke 2 (a NEW stroke, like every LMB press) carves a
+        // hull-down notch into its flank — strokes stack on the committed layer.
+        let compiled = sculpted.recompile();
+        let mut stroke = Stroke::begin(sculpted.blueprint(), &compiled.battlefield.heightmap);
+        let raise = BrushSettings { mode: BrushMode::Raise, radius_m: 22.0, rate_m_s: 6.0 };
+        for step in 0..18 {
+            let t = step as f32 / 17.0;
+            stroke.dab([90.0 + t * 120.0, 130.0 + (t * 6.3).sin() * 18.0], &raise, 0.4);
+        }
+        let ridge = stroke.committed(None).expect("the ridge sculpts");
+        sculpted.apply_edit(|blueprint| blueprint.sculpt = Some(ridge));
+        let compiled = sculpted.recompile();
+        let mut stroke = Stroke::begin(sculpted.blueprint(), &compiled.battlefield.heightmap);
+        let lower = BrushSettings { mode: BrushMode::Lower, radius_m: 14.0, rate_m_s: 6.0 };
+        for _ in 0..10 {
+            stroke.dab([150.0, 158.0], &lower, 0.14);
+        }
+        let committed =
+            stroke.committed(sculpted.blueprint().sculpt.as_ref()).expect("the notch sculpts");
+        sculpted.apply_edit(|blueprint| {
+            blueprint.sculpt = Some(committed);
+            // A raking golden-evening look so the sculpted relief reads in the proof shot.
+            blueprint.environment = Some(map_forge::blueprint::EnvironmentSpec {
+                looks: vec![map_forge::blueprint::LookSpec {
+                    variant: game_core::WeatherVariant::GoldenEvening,
+                    preset: map_forge::blueprint::LightingPreset::GoldenEvening,
+                    sky_rgb: [0.8, 0.62, 0.45],
+                    rain_intensity: 0.0,
+                    wetness: 0.0,
+                    overrides: Default::default(),
+                }],
+            });
+        });
+    }
+
     let ctx = GpuContext::headless()?;
     let target = OffscreenTarget::new(&ctx, width, height)?;
 
@@ -63,6 +104,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Some(Vec3::new(150.0, 5.0, 120.0)),
             Some(0),
             "editor_shell_problems",
+        ),
+        (
+            &sculpted,
+            Camera {
+                eye: [150.0, 70.0, 40.0],
+                target: [150.0, 8.0, 160.0],
+                vertical_fov_degrees: 55.0,
+            },
+            Some(Vec3::new(150.0, 5.0, 200.0)),
+            None,
+            "editor_shell_sculpt",
         ),
     ] {
         let compiled = document.recompile();
@@ -100,14 +152,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let (mut marker_vertices, mut marker_indices) =
             markers::map_markers(battlefield, &compiled.report, selected);
+        let brush_armed = name == "editor_shell_sculpt";
         if let Some(at) = probe {
             let ground_h = battlefield.heightmap.sample_height(at.x, at.z).unwrap_or(at.y);
-            markers::probe_marker(
-                &mut marker_vertices,
-                &mut marker_indices,
-                Vec3::new(at.x, ground_h, at.z),
-                1.5,
-            );
+            if brush_armed {
+                markers::brush_ring(
+                    &mut marker_vertices,
+                    &mut marker_indices,
+                    &battlefield.heightmap,
+                    [at.x, at.z],
+                    16.0,
+                    markers::brush_color("flatten"),
+                );
+            } else {
+                markers::probe_marker(
+                    &mut marker_vertices,
+                    &mut marker_indices,
+                    Vec3::new(at.x, ground_h, at.z),
+                    1.5,
+                );
+            }
         }
         renderer.set_dynamic_mesh(&ctx, &marker_vertices, &marker_indices);
         renderer.set_render_frame(&ctx, &RenderFrame { camera, ..RenderFrame::default() });
@@ -117,6 +181,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .map(|at| format!("cursor {:.0}, {:.0}  h {:.1}", at.x, at.z, at.y))
             .unwrap_or_default();
         let model = OverlayModel {
+            brush_line: if brush_armed { "brush flatten  r 16 m".to_string() } else { String::new() },
             document_label: document
                 .path()
                 .map_or_else(|| document.blueprint().meta.id.clone(), |p| p.display().to_string()),
@@ -125,7 +190,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             problems,
             selected_problem: selected,
             map_size_m: battlefield.size_m[0],
-            layer_lines: layer_lines(&compiled),
+            layer_lines: layer_lines(document.blueprint(), &compiled),
             show_overview: true,
             camera_line: format!(
                 "cam {:.0} {:.0}  h {:.0}",

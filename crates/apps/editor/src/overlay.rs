@@ -14,6 +14,8 @@ const LINE: f32 = 0.052;
 
 /// Everything the overlay draws, gathered by the app once per frame.
 pub struct OverlayModel {
+    /// The armed brush readout for the footer (empty when navigating).
+    pub brush_line: String,
     pub document_label: String,
     pub dirty: bool,
     pub compile_ms: f32,
@@ -217,6 +219,9 @@ pub fn overlay(model: &OverlayModel, aspect: f32) -> Vec<HudVertex> {
     );
     push_hairline(&mut vertices, -1.0, 1.0, -0.914, color::HAIRLINE);
     push_text(&mut vertices, &model.status, -0.985, -0.925, TEXT_H, aspect, color::TEXT_DIM);
+    if !model.brush_line.is_empty() {
+        push_text(&mut vertices, &model.brush_line, 0.30, -0.925, TEXT_H, aspect, color::ACCENT);
+    }
     push_text_right(&mut vertices, &model.probe_line, 0.985, -0.925, TEXT_H, aspect, color::ACCENT);
     push_text_right(&mut vertices, &model.camera_line, 0.70, -0.925, TEXT_H, aspect, color::VALUE);
 
@@ -242,6 +247,7 @@ mod tests {
     #[test]
     fn the_overlay_builds_and_scales_with_its_content() {
         let mut model = OverlayModel {
+            brush_line: "brush raise  r 12 m".into(),
             document_label: "bystra-valley.map.ron".into(),
             dirty: true,
             compile_ms: 12.5,

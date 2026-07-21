@@ -49,6 +49,13 @@ pub fn compile(blueprint: &MapBlueprint) -> (BattlefieldMap, MapReport) {
         for op in &blueprint.terrain.ops {
             h = op.apply(&ctx, x, z, h);
         }
+        // The sculpt layer (D1): a pointwise per-sample delta over the program, then the
+        // floor clamp again — a brush must not dig below the declared minimum.
+        if let Some(sculpt) = &blueprint.sculpt {
+            let xi = (x / cell).round() as u32;
+            let zi = (z / cell).round() as u32;
+            h = (h + sculpt.delta_m_at(zi * samples as u32 + xi)).max(blueprint.grid.min_height_m);
+        }
         h
     });
 

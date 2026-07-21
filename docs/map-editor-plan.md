@@ -69,11 +69,30 @@ structural terrain ops, and the WoT map anatomy (`TerrainMapPlan`'s 12 layers).
     look, paced frames (no hot spin), window title with the dirty star, an unsaved-changes
     close guard, playtest through the built client binary when present. Proof-of-look:
     `cargo run -p editor --example shell_views` renders the shell offscreen to PNGs.
-- [ ] **M4 — terrain brushes**
-  - Raise/Lower/Flatten + structural Channel/Ramp/Deck as quantized ops, per D1;
-    Smooth only in the form D1 admits. Live preview decal; mirror stamping when `symmetry`
-    is declared — a stamp stores dz-relative coordinates so the mirror is by construction,
-    never a second stamp that can drift.
+- [x] **M4a — sculpt brushes** *(done)*
+  - The D1 `sculpt` layer in the blueprint: sparse quantized `(index, quanta)` deltas over
+    the terrain program, applied pointwise after every op and re-clamped to the floor.
+    Contract as report Errors: canonical sorted form, sane quantum, a ZERO border ring
+    (the analytic apron seam stays exact — the skirt never reads the sculpt), and a
+    sample-for-sample mirror on fair maps.
+  - Brushes: Raise/Lower/Flatten/Smooth (B cycles, [ ] radius, LMB paints under the
+    probe). Mirror stamping is BY CONSTRUCTION: every dab lands with its mirrored twin and
+    base-dependent modes read heights through the canonical south-half sample, so both
+    halves get bit-identical deltas. Smooth is D1-admissible: it reads current state but
+    WRITES plain delta data — compile purity holds.
+  - Live preview: during a stroke only the ground GEOMETRY swaps per frame
+    (`update_battlefield_ground_geometry`; splat/macro maps stay bound); the stroke commits
+    through the document's single `apply_edit` door — one stroke, one undo step — and the
+    full recompile follows. Feel pass: dabs are SPACED along the drag path (a fast stroke
+    is continuous, never dots), the ground remesh is throttled to ~30 ms, `-`/`=` tune the
+    rate, the ring is mode-tinted (raise amber / lower steel / flatten chalk / smooth
+    sage) and on a fair map the TWIN ring shows where the mirror stamp lands; the document
+    panel counts the layer's samples. Proof shot: `editor_shell_sculpt.png` (a ridge with
+    a hull-down notch, two stacked strokes).
+- [ ] **M4b — structural op stamps**
+  - Channel/Ramp/Deck (and their kin) placed as QUANTIZED `TerrainOp`s in the program —
+    two-click gestures + a parameter inspector; this is where the in-house UI grows its
+    first input widgets.
 - [ ] **M5 — objects**
   - Palette (5 building styles, cover kinds, flora, world_forge props, wrecks), click
     placement with grounding, yaw/scale, inspector, gizmos; buildings emit their cover box

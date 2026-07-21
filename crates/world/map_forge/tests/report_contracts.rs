@@ -25,6 +25,7 @@ fn flat_square() -> MapBlueprint {
         river: None,
         horizon: None,
         terrain: TerrainProgram { base: BaseSpec::Constant(5.0), ops: Vec::new() },
+        sculpt: None,
         water: None,
         materials: None,
         environment: None,
@@ -189,5 +190,56 @@ fn a_steep_spawn_approach_warns_even_on_a_dry_map() {
     assert!(
         warnings.iter().any(|message| message.contains("steep")),
         "a cliff at a dry spawn must warn, got: {warnings:?}"
+    );
+}
+
+/// The D1 sculpt layer: the delta lands in the compiled heightmap (re-clamped to the
+/// floor), and the contract refuses a sculpted border, a non-canonical list, and a broken
+/// mirror on a fair map.
+#[test]
+fn the_sculpt_layer_applies_and_its_contract_bites() {
+    use map_forge::blueprint::SculptSpec;
+    let side = 61_u32; // 300 m / 5 m + 1
+    let index = |xi: u32, zi: u32| zi * side + xi;
+
+    let mut blueprint = flat_square();
+    blueprint.sculpt = Some(SculptSpec {
+        step_m: 0.05,
+        samples: vec![(index(30, 30), 40), (index(31, 30), -200)],
+    });
+    let (map, report) = compile(&blueprint);
+    assert!(!report.errors().any(|entry| entry.check == "sculpt"), "a clean layer passes");
+    let h = |xi: u32, zi: u32| map.heightmap.sample_at_index(xi as usize, zi as usize);
+    assert!((h(30, 30) - 7.0).abs() < 1.0e-4, "raise: 5 + 40*0.05, got {}", h(30, 30));
+    assert!((h(31, 30) - 0.2).abs() < 1.0e-4, "a dig clamps to the floor, got {}", h(31, 30));
+    assert_eq!(h(10, 10), 5.0, "unsculpted ground is untouched");
+
+    let refused = |sculpt: SculptSpec, why: &str| {
+        let mut blueprint = flat_square();
+        blueprint.sculpt = Some(sculpt);
+        let (_, report) = compile(&blueprint);
+        assert!(
+            report.errors().any(|entry| entry.check == "sculpt"),
+            "{why} must be a sculpt error"
+        );
+    };
+    refused(SculptSpec { step_m: 0.05, samples: vec![(index(0, 12), 10)] }, "a sculpted border");
+    refused(
+        SculptSpec { step_m: 0.05, samples: vec![(index(31, 30), 1), (index(30, 30), 1)] },
+        "an unsorted list",
+    );
+    refused(SculptSpec { step_m: 5.0, samples: vec![] }, "a wild quantum");
+    refused(
+        SculptSpec { step_m: 0.05, samples: vec![(side * side + 7, 1)] },
+        "an index off the grid",
+    );
+
+    let mut fair = flat_square();
+    fair.symmetry = Some(SymmetrySpec::MirrorZ);
+    fair.sculpt = Some(SculptSpec { step_m: 0.05, samples: vec![(index(30, 20), 10)] });
+    let (_, report) = compile(&fair);
+    assert!(
+        report.errors().any(|entry| entry.check == "sculpt" && entry.message.contains("mirror")),
+        "a one-sided stroke on a fair map must be refused"
     );
 }
