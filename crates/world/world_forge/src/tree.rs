@@ -6,7 +6,9 @@
 //! separate meshes so the consumer colors them without any material-enum churn.
 
 use glam::Vec3;
-use vehicle_geometry::{GeometryMesh, GeometryVertex, MaterialRole, SmoothingGroup};
+use vehicle_geometry::{GeometryMesh, GeometryVertex, SmoothingGroup};
+
+use crate::WorldMaterial;
 
 /// The authored species. Numbers live in [`TreeSpecies::params`] — one table, review-gated by
 /// the goldens below.
@@ -235,7 +237,7 @@ pub fn bake_tree_lod(species: TreeSpecies, seed: u64, lod: TreeLod) -> BakedTree
             canopy_vertices.push(GeometryVertex::new(
                 center + *unit * radius * wobble,
                 *unit,
-                MaterialRole::RolledArmor, // placeholder tag; canopy color is the consumer's
+                WorldMaterial::Canopy.carrier(),
                 SmoothingGroup(1),
             ));
         }
@@ -308,7 +310,7 @@ fn tapered_tube(a: Vec3, b: Vec3, radius_a: f32, radius_b: f32, sides: u32) -> G
             vertices.push(GeometryVertex::new(
                 corner,
                 normal,
-                MaterialRole::RolledArmor, // placeholder tag; bark color is the consumer's
+                WorldMaterial::Bark.carrier(),
                 SmoothingGroup::hard_edges(),
             ));
         }

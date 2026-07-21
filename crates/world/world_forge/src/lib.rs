@@ -35,6 +35,115 @@ pub enum WorldObjectKind {
     Prop,
 }
 
+/// The world's own surface vocabulary (M2b): what a static surface IS — never a borrowed
+/// vehicle `MaterialRole`. Each material carries its PBR-lite defaults (albedo + roughness);
+/// the scene builder may still override color per instance (building palettes), but the
+/// SEMANTIC is authored here. Wetness needs no lane of its own: the scene shader's weather
+/// wet-darken/gloss-sharpen treats statics exactly like vehicles, keyed off the gloss this
+/// roughness feeds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum WorldMaterial {
+    /// Rendered/limewashed masonry — wall bodies, towers, gable triangles, rubble slabs.
+    Wall,
+    /// Roof cladding courses (slate/tile/shingle), spires, cones, fallen shards.
+    Roof,
+    /// Untreated fieldstone plinth.
+    PlinthStone,
+    /// Window glass: the one thing on a wall that answers the sky.
+    WindowGlass,
+    /// Plank door: dark weathered joinery.
+    PlankDoor,
+    /// Sawn structural timber — fence runs, the windmill's cladding.
+    Timber,
+    /// Piled straw — haystacks, thatch.
+    Straw,
+    /// Tree bark.
+    Bark,
+    /// Tree canopy (species picks the tone; this is the fallback).
+    Canopy,
+}
+
+impl WorldMaterial {
+    /// PBR-lite default albedo (linear). Consumers with authored palettes (building walls
+    /// and roofs vary per instance) override the color and keep the semantic.
+    pub fn albedo(self) -> [f32; 3] {
+        match self {
+            WorldMaterial::Wall => [0.58, 0.52, 0.48],
+            WorldMaterial::Roof => [0.36, 0.30, 0.22],
+            WorldMaterial::PlinthStone => [0.24, 0.22, 0.20],
+            WorldMaterial::WindowGlass => [0.07, 0.09, 0.11],
+            WorldMaterial::PlankDoor => [0.16, 0.11, 0.07],
+            WorldMaterial::Timber => [0.30, 0.25, 0.19],
+            WorldMaterial::Straw => [0.45, 0.38, 0.20],
+            WorldMaterial::Bark => [0.23, 0.18, 0.13],
+            WorldMaterial::Canopy => [0.22, 0.30, 0.14],
+        }
+    }
+
+    /// PBR-lite roughness (1 = fully matte). The scene gloss lane is `1 − roughness`.
+    pub fn roughness(self) -> f32 {
+        match self {
+            WorldMaterial::Wall => 0.90,
+            WorldMaterial::Roof => 0.72,
+            WorldMaterial::PlinthStone => 0.85,
+            WorldMaterial::WindowGlass => 0.55,
+            WorldMaterial::PlankDoor => 0.94,
+            WorldMaterial::Timber => 0.94,
+            WorldMaterial::Straw => 0.97,
+            WorldMaterial::Bark => 0.96,
+            WorldMaterial::Canopy => 0.95,
+        }
+    }
+
+    /// The carrier tag inside `GeometryVertex` — the shared mesh contract is the VEHICLE
+    /// kernel's vertex format, so world materials ride its role channel through a private
+    /// bijection. This is an ENCODING, not semantics: nothing outside this pair of
+    /// functions may interpret a world vertex's `MaterialRole`.
+    pub(crate) fn carrier(self) -> MaterialRole {
+        match self {
+            WorldMaterial::Wall => MaterialRole::RolledArmor,
+            WorldMaterial::Roof => MaterialRole::CastArmor,
+            WorldMaterial::PlinthStone => MaterialRole::BarrelSteel,
+            WorldMaterial::WindowGlass => MaterialRole::InteriorMachinery,
+            WorldMaterial::PlankDoor => MaterialRole::InteriorPrimer,
+            WorldMaterial::Timber => MaterialRole::TrackMetal,
+            WorldMaterial::Straw => MaterialRole::Rubber,
+            WorldMaterial::Bark => MaterialRole::Ammunition,
+            WorldMaterial::Canopy => MaterialRole::ExposedSteel,
+        }
+    }
+
+    /// Decode a world vertex's carrier tag back to its material. Total — the bijection is
+    /// locked by test, so every role a world bake can emit maps back to exactly one
+    /// material.
+    pub fn from_carrier(role: MaterialRole) -> Self {
+        match role {
+            MaterialRole::RolledArmor => WorldMaterial::Wall,
+            MaterialRole::CastArmor => WorldMaterial::Roof,
+            MaterialRole::BarrelSteel => WorldMaterial::PlinthStone,
+            MaterialRole::InteriorMachinery => WorldMaterial::WindowGlass,
+            MaterialRole::InteriorPrimer => WorldMaterial::PlankDoor,
+            MaterialRole::TrackMetal => WorldMaterial::Timber,
+            MaterialRole::Rubber => WorldMaterial::Straw,
+            MaterialRole::Ammunition => WorldMaterial::Bark,
+            MaterialRole::ExposedSteel => WorldMaterial::Canopy,
+        }
+    }
+
+    /// Every material, for exhaustive tests.
+    pub const ALL: [WorldMaterial; 9] = [
+        WorldMaterial::Wall,
+        WorldMaterial::Roof,
+        WorldMaterial::PlinthStone,
+        WorldMaterial::WindowGlass,
+        WorldMaterial::PlankDoor,
+        WorldMaterial::Timber,
+        WorldMaterial::Straw,
+        WorldMaterial::Bark,
+        WorldMaterial::Canopy,
+    ];
+}
+
 /// One authored world object: a named list of parts in object-local meters, +Y up, the origin
 /// on the ground plane. Deliberately the same shape-vocabulary philosophy as the vehicle
 /// blueprints: a few honest primitives, composed, never free-form soup.
@@ -48,7 +157,7 @@ pub struct WorldObjectBlueprint {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorldPart {
     pub name: String,
-    pub material: MaterialRole,
+    pub material: WorldMaterial,
     pub shape: WorldShape,
 }
 
@@ -156,9 +265,10 @@ pub fn authored_blueprints() -> Result<BTreeMap<String, WorldObjectBlueprint>, W
 /// The review gate, as DATA (same philosophy as `VEHICLE_BUDGETS`): the golden bake hash per
 /// authored object. A change here is a deliberate look change, reviewed, never an accident.
 pub const WORLD_GOLDEN_HASHES: [(&str, u64); 2] =
-    [("farm_haystack", 0x9ff1_8779_12f3_44e6), ("wooden_fence_run", 0xbb42_24d4_bb8a_82f3)];
+    [("farm_haystack", 0x055c_e95d_f794_9cc6), ("wooden_fence_run", 0x0cce_21e8_6885_d143)];
 
-pub(crate) fn world_box_mesh(center: Vec3, half: Vec3, material: MaterialRole) -> GeometryMesh {
+pub(crate) fn world_box_mesh(center: Vec3, half: Vec3, material: WorldMaterial) -> GeometryMesh {
+    let material = material.carrier();
     let mut vertices = Vec::with_capacity(24);
     let mut indices = Vec::with_capacity(36);
     // Six faces, four welded-per-face vertices each, hard edges.
@@ -198,8 +308,9 @@ fn world_drum_mesh(
     radius: f32,
     half_height: f32,
     segments: u32,
-    material: MaterialRole,
+    material: WorldMaterial,
 ) -> GeometryMesh {
+    let material = material.carrier();
     let mut vertices = Vec::new();
     let mut indices = Vec::new();
     let ring = |angle: f32| Vec3::new(angle.cos() * radius, 0.0, angle.sin() * radius);
@@ -268,6 +379,32 @@ mod tests {
                 first.deterministic_hash()
             );
             assert!(first.mesh.triangle_count() >= 12, "{name} has real geometry");
+        }
+    }
+
+    /// The carrier encoding is a BIJECTION: every world material rides a distinct vehicle
+    /// role and decodes back to itself. This is what lets `GeometryVertex` stay the shared
+    /// mesh contract while nothing outside world_forge ever interprets a vehicle role on a
+    /// world surface again.
+    #[test]
+    fn the_carrier_encoding_is_a_bijection() {
+        let mut seen = std::collections::BTreeSet::new();
+        for material in WorldMaterial::ALL {
+            assert_eq!(WorldMaterial::from_carrier(material.carrier()), material);
+            assert!(seen.insert(material.carrier() as u8), "{material:?} shares a carrier");
+        }
+    }
+
+    /// PBR-lite discipline: every world material's defaults stay inside the art bible's
+    /// world envelope — matte-leaning roughness, albedo that is paint on a real thing.
+    #[test]
+    fn world_materials_hold_the_pbr_lite_envelope() {
+        for material in WorldMaterial::ALL {
+            let roughness = material.roughness();
+            assert!((0.5..=1.0).contains(&roughness), "{material:?} roughness {roughness}");
+            for channel in material.albedo() {
+                assert!((0.02..=0.75).contains(&channel), "{material:?} albedo {channel}");
+            }
         }
     }
 
