@@ -20,50 +20,76 @@ pub struct WeatherLook {
     pub wetness: f32,
 }
 
-/// Total over every (map, variant) pair: an unauthored combination falls back to the map's
-/// clear look instead of panicking — the server-side `supported_weather` table is what keeps
-/// unauthored variants out of real battles.
+/// Total over every (map, variant) pair, straight from the map's BLUEPRINT (`environment`
+/// section): an unauthored variant falls back to the map's first (default) look instead of
+/// panicking — the server-side `supported_weather` (which reads the same list) is what keeps
+/// unauthored variants out of real battles. A map without an environment section wears the
+/// hazy-noon default.
 pub fn weather_look(map: MapId, variant: WeatherVariant) -> WeatherLook {
-    match (map, variant) {
-        (MapId::ProkhorovkaHill252_2, WeatherVariant::GoldenEvening) => WeatherLook {
-            lighting: SceneLighting::prokhorovka_golden_evening(),
-            sky: (0.80, 0.62, 0.45),
-            rain_intensity: 0.0,
-            wetness: 0.0,
-        },
-        (MapId::ProkhorovkaHill252_2, WeatherVariant::Overcast) => WeatherLook {
-            lighting: SceneLighting::prokhorovka_overcast(),
-            sky: (0.48, 0.51, 0.55),
-            rain_intensity: 0.0,
-            wetness: 0.0,
-        },
-        // The hazy-noon default, and the fallback for variants the steppe does not author.
-        (MapId::ProkhorovkaHill252_2, _) => WeatherLook {
-            lighting: SceneLighting::battlefield_default(),
-            sky: (0.55, 0.69, 0.87),
-            rain_intensity: 0.0,
-            wetness: 0.0,
-        },
-        (MapId::BystraValley, WeatherVariant::RainSqualls) => WeatherLook {
-            lighting: SceneLighting::bystra_rain(),
-            sky: (0.42, 0.46, 0.50),
-            rain_intensity: 1.0,
-            wetness: 1.0,
-        },
-        (MapId::BystraValley, WeatherVariant::DawnFog) => WeatherLook {
-            lighting: SceneLighting::bystra_dawn_fog(),
-            sky: (0.66, 0.64, 0.64),
-            rain_intensity: 0.0,
-            wetness: 0.2,
-        },
-        // The clear afternoon, and the fallback for variants the valley does not author
-        // (the server-side supported_weather table keeps those out of real battles).
-        (MapId::BystraValley, _) => WeatherLook {
-            lighting: SceneLighting::bystra_clear_afternoon(),
-            sky: (0.62, 0.66, 0.72),
-            rain_intensity: 0.0,
-            wetness: 0.0,
-        },
+    let Some(environment) = &map_forge::cached_blueprint(map).environment else {
+        return hazy_noon_fallback();
+    };
+    match environment
+        .looks
+        .iter()
+        .find(|look| look.variant == variant)
+        .or_else(|| environment.looks.first())
+    {
+        Some(look) => realize_look(look),
+        None => hazy_noon_fallback(),
+    }
+}
+
+/// The look a map without an authored environment wears (and the guard for an empty list,
+/// which the map report refuses on shipped maps anyway).
+fn hazy_noon_fallback() -> WeatherLook {
+    WeatherLook {
+        lighting: SceneLighting::battlefield_default(),
+        sky: (0.55, 0.69, 0.87),
+        rain_intensity: 0.0,
+        wetness: 0.0,
+    }
+}
+
+/// Bind one authored look to the renderer: named preset → `SceneLighting`, then the sparse
+/// overrides — the blueprint stays renderer-free, THIS is where names get their meaning.
+fn realize_look(look: &map_forge::blueprint::LookSpec) -> WeatherLook {
+    let mut lighting = preset_lighting(look.preset);
+    let overrides = &look.overrides;
+    if let Some(value) = overrides.fog_density {
+        lighting.fog_density = value;
+    }
+    if let Some(value) = overrides.exposure {
+        lighting.exposure = value;
+    }
+    if let Some(value) = overrides.cloud_coverage_bias {
+        lighting.cloud_coverage_bias = value;
+    }
+    if let Some(value) = overrides.cloud_opacity {
+        lighting.cloud_opacity = value;
+    }
+    if let Some(value) = overrides.saturation {
+        lighting.saturation = value;
+    }
+    WeatherLook {
+        lighting,
+        sky: (look.sky_rgb[0], look.sky_rgb[1], look.sky_rgb[2]),
+        rain_intensity: look.rain_intensity,
+        wetness: look.wetness,
+    }
+}
+
+/// What each preset NAME means: the hand-tuned `SceneLighting` profiles stay code (they are
+/// the vocabulary, like terrain ops); blueprints only pick them by name.
+fn preset_lighting(preset: map_forge::blueprint::LightingPreset) -> SceneLighting {
+    use map_forge::blueprint::LightingPreset;
+    match preset {
+        LightingPreset::HazyNoon => SceneLighting::battlefield_default(),
+        LightingPreset::ClearAfternoon => SceneLighting::bystra_clear_afternoon(),
+        LightingPreset::GoldenEvening => SceneLighting::prokhorovka_golden_evening(),
+        LightingPreset::LeadOvercast => SceneLighting::prokhorovka_overcast(),
+        LightingPreset::RainSqualls => SceneLighting::bystra_rain(),
+        LightingPreset::DawnFog => SceneLighting::bystra_dawn_fog(),
     }
 }
 
@@ -93,6 +119,50 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// The migration lock: the blueprint-authored looks reproduce the hand-tuned table
+    /// exactly — preset + sky + rain + wetness per authored (map, variant) pair, and an
+    /// unauthored variant falls back to the map's default look, as it always did.
+    #[test]
+    fn blueprint_looks_reproduce_the_hand_tuned_table() {
+        let steppe = MapId::ProkhorovkaHill252_2;
+        assert_eq!(
+            weather_look(steppe, WeatherVariant::ClearAfternoon).lighting,
+            SceneLighting::battlefield_default()
+        );
+        assert_eq!(
+            weather_look(steppe, WeatherVariant::GoldenEvening).lighting,
+            SceneLighting::prokhorovka_golden_evening()
+        );
+        assert_eq!(
+            weather_look(steppe, WeatherVariant::Overcast).lighting,
+            SceneLighting::prokhorovka_overcast()
+        );
+        assert_eq!(weather_look(steppe, WeatherVariant::GoldenEvening).sky, (0.80, 0.62, 0.45));
+
+        let valley = MapId::BystraValley;
+        assert_eq!(
+            weather_look(valley, WeatherVariant::ClearAfternoon).lighting,
+            SceneLighting::bystra_clear_afternoon()
+        );
+        assert_eq!(
+            weather_look(valley, WeatherVariant::RainSqualls).lighting,
+            SceneLighting::bystra_rain()
+        );
+        assert_eq!(
+            weather_look(valley, WeatherVariant::DawnFog).lighting,
+            SceneLighting::bystra_dawn_fog()
+        );
+        // Unauthored variants fall back to the map's FIRST (default) look.
+        assert_eq!(
+            weather_look(valley, WeatherVariant::GoldenEvening).lighting,
+            SceneLighting::bystra_clear_afternoon()
+        );
+        assert_eq!(
+            weather_look(steppe, WeatherVariant::RainSqualls).lighting,
+            SceneLighting::battlefield_default()
+        );
     }
 
     /// The table is total and each authored Bystra variant is a genuinely different sky.

@@ -2538,6 +2538,7 @@ dependencies = [
 name = "map_forge"
 version = "0.1.0"
 dependencies = [
+ "game_core",
  "ron",
  "serde",
  "terrain",

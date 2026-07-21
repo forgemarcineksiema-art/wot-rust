@@ -8,23 +8,15 @@ use crate::battle::BattleSeed;
 const WEATHER_SALT: u64 = 0x57EA_7AB1_E000_0001;
 const WEATHER_PROGRAM_SALT: u64 = 0x57EA_7AB1_E000_0002;
 
-/// The weather a map can be dressed in. Hand-tuned looks only — a variant appears here once
-/// its full presentation (lighting, fog, particles, ambience) ships for that map, never
-/// before. Weather is presentation-only by contract; the sim never reads it.
-pub fn supported_weather(map: MapId) -> &'static [WeatherVariant] {
-    match map {
-        // The steppe ships three times of day (lighting 2.0 program): the hazy noon, a golden
-        // evening the shadow cascades rake long, and a dry lead overcast.
-        MapId::ProkhorovkaHill252_2 => &[
-            WeatherVariant::ClearAfternoon,
-            WeatherVariant::GoldenEvening,
-            WeatherVariant::Overcast,
-        ],
-        // All three hand-tuned looks ship for the valley (client scene::weather + the
-        // fog-fairness lock): the battle seed decides which sky a match gets.
-        MapId::BystraValley => {
-            &[WeatherVariant::ClearAfternoon, WeatherVariant::RainSqualls, WeatherVariant::DawnFog]
-        }
+/// The weather a map can be dressed in, straight from its BLUEPRINT (`environment` looks,
+/// in authored order — the order feeds the seeded roll). A variant appears there once its
+/// full presentation (lighting, fog, particles, ambience) ships for that map, never before.
+/// Weather is presentation-only by contract; the sim never reads it. A map without an
+/// authored environment plays its single hazy-noon default.
+pub fn supported_weather(map: MapId) -> Vec<WeatherVariant> {
+    match &map_forge::cached_blueprint(map).environment {
+        Some(environment) => environment.looks.iter().map(|look| look.variant).collect(),
+        None => vec![WeatherVariant::ClearAfternoon],
     }
 }
 
@@ -50,6 +42,29 @@ mod tests {
                 "map {map:?} has no weather to dress the battle in"
             );
         }
+    }
+
+    /// The migration lock: the blueprint-authored rotations reproduce the hand-tuned table
+    /// IN ORDER — the list order feeds the seeded roll, so reordering a blueprint's looks
+    /// would silently reshuffle which sky every replayed seed gets.
+    #[test]
+    fn the_blueprint_rotation_reproduces_the_hand_tuned_table() {
+        assert_eq!(
+            supported_weather(MapId::ProkhorovkaHill252_2),
+            vec![
+                WeatherVariant::ClearAfternoon,
+                WeatherVariant::GoldenEvening,
+                WeatherVariant::Overcast
+            ]
+        );
+        assert_eq!(
+            supported_weather(MapId::BystraValley),
+            vec![
+                WeatherVariant::ClearAfternoon,
+                WeatherVariant::RainSqualls,
+                WeatherVariant::DawnFog
+            ]
+        );
     }
 
     #[test]

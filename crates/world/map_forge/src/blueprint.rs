@@ -8,6 +8,7 @@
 //! - `dz` values inside ops are relative to the map's symmetry axis (`size_m[1] / 2`);
 //! - op ORDER is the design ("decks applied last" is visible in the document, not a comment).
 
+use game_core::WeatherVariant;
 use serde::{Deserialize, Serialize};
 use terrain::{MapFeatureKind, RoadSurface, SceneryKind, StaticCoverKind, StrategicRole};
 
@@ -29,6 +30,15 @@ pub struct MapBlueprint {
     pub terrain: TerrainProgram,
     #[serde(default)]
     pub water: Option<WaterSpec>,
+    /// The ground's material palette (render-only). `None` falls back to the neutral
+    /// steppe set — a map that cares authors its own.
+    #[serde(default)]
+    pub materials: Option<GroundMaterialsSpec>,
+    /// The map's looks: which weather variants it ships and what each one means for the
+    /// eyes (render-only; the server reads only the variant list). `None` means the single
+    /// hazy-noon default.
+    #[serde(default)]
+    pub environment: Option<EnvironmentSpec>,
     #[serde(default)]
     pub objects: Vec<ObjectSpec>,
     #[serde(default)]
@@ -40,11 +50,23 @@ pub struct MapBlueprint {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MetaSpec {
+    /// Blueprint schema version. Additive sections stay `serde(default)`; this bumps only
+    /// on a BREAKING document change, so the editor knows when a file needs migrating.
+    #[serde(default = "default_blueprint_version")]
+    pub version: u32,
     pub id: String,
     pub name: String,
     pub historical_basis: String,
     #[serde(default)]
     pub design_notes: Vec<String>,
+}
+
+/// The current blueprint schema version (and the default for documents that predate the
+/// field).
+pub const BLUEPRINT_VERSION: u32 = 1;
+
+fn default_blueprint_version() -> u32 {
+    BLUEPRINT_VERSION
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -244,6 +266,97 @@ pub struct Gauss1Term {
     pub center: f32,
     pub sigma: f32,
     pub amp: f32,
+}
+
+// --- Ground materials (render-only) ------------------------------------------------------
+
+/// The map's ground palette: the four splat layers plus the two macro strengths. Plain data
+/// (`map_forge` is renderer-free); `scene_build` binds it to `renderer_api`'s
+/// `TerrainMaterialSet`. The art-direction ground window (vegetation saturation ≤ 0.45,
+/// worst-case field-patch lift ≤ 0.62) is a report check.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct GroundMaterialsSpec {
+    /// Splat channel order: R = lush grass, G = dry straw, B = worn dirt, A = rock/chalk.
+    pub layers: [GroundLayerSpec; 4],
+    /// 0..1: how far ground lighting leans from the vertex normal toward the baked macro
+    /// normal.
+    pub macro_normal_strength: f32,
+    /// 0..1: the field-patch macro band — worked land is a quilt of plots, not one lawn.
+    pub field_patch_strength: f32,
+}
+
+/// One ground layer: linear albedo inside the art-direction window, detail-octave
+/// amplitude, and the specular lane.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct GroundLayerSpec {
+    pub albedo: [f32; 3],
+    pub detail: f32,
+    pub gloss: f32,
+}
+
+// --- Environment (render-only) -----------------------------------------------------------
+
+/// The looks a map ships: one entry per supported weather variant, each a **named lighting
+/// preset plus sparse overrides** — never thirty raw knobs. The FIRST look is the map's
+/// default and the fallback for any unauthored variant; the server's `supported_weather`
+/// reads exactly this list (in order — the order feeds the seeded weather roll).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct EnvironmentSpec {
+    pub looks: Vec<LookSpec>,
+}
+
+/// What one weather variant means for the eyes on this map.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct LookSpec {
+    pub variant: WeatherVariant,
+    /// The base lighting profile, by name; `scene_build` owns what each name looks like.
+    pub preset: LightingPreset,
+    /// The renderer's clear colour behind the gradient sky (f64: it feeds the surface clear
+    /// colour directly, so the document's literals survive bit-exact).
+    pub sky_rgb: [f64; 3],
+    /// Rain streak density 0..1; 0 disables the rain pass.
+    #[serde(default)]
+    pub rain_intensity: f32,
+    /// World wetness 0..1: darkens albedo, sharpens finishes, pools sheen on flat ground.
+    #[serde(default)]
+    pub wetness: f32,
+    /// Sparse overrides on top of the preset — the authored exceptions, not a knob farm.
+    #[serde(default)]
+    pub overrides: LightingOverrides,
+}
+
+/// The named lighting presets — the VOCABULARY (code owns what a name means, the blueprint
+/// owns which map wears it; same split as the terrain ops).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum LightingPreset {
+    /// The hazy high-noon battlefield default.
+    HazyNoon,
+    /// A clear afternoon with honest shadows.
+    ClearAfternoon,
+    /// A low western sun raking long shadows — the golden hour.
+    GoldenEvening,
+    /// A dry lead-grey lid: flat light, no sun disc worth the name.
+    LeadOvercast,
+    /// Squall lines: dark, wet, rain-streaked.
+    RainSqualls,
+    /// Ground fog in first light.
+    DawnFog,
+}
+
+/// Sparse per-look overrides on the preset's `SceneLighting`. `None` keeps the preset's
+/// value; the report bounds what IS set.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
+pub struct LightingOverrides {
+    #[serde(default)]
+    pub fog_density: Option<f32>,
+    #[serde(default)]
+    pub exposure: Option<f32>,
+    #[serde(default)]
+    pub cloud_coverage_bias: Option<f32>,
+    #[serde(default)]
+    pub cloud_opacity: Option<f32>,
+    #[serde(default)]
+    pub saturation: Option<f32>,
 }
 
 // --- Objects ----------------------------------------------------------------------------

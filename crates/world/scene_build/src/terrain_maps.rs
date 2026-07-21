@@ -155,11 +155,52 @@ pub fn bake_terrain_ground_maps(battlefield: &BattlefieldMap) -> TerrainGroundMa
     TerrainGroundMaps { size: MAP_SIZE, splat, macro_normal, extent_m: [extent_x, extent_z] }
 }
 
-/// Each map's ground material set — the palette half of Terrain Material 2.0, envelope-locked
-/// in `renderer_api` against the art-direction ground swatches.
+/// Each map's ground material set — the palette half of Terrain Material 2.0, read from the
+/// map's BLUEPRINT (`materials` section; the art-direction ground window is a map-report
+/// check). A blueprint without one wears the neutral steppe default.
 pub fn terrain_material_set_for(map: MapId) -> TerrainMaterialSet {
-    match map {
-        MapId::ProkhorovkaHill252_2 => TerrainMaterialSet::prokhorovka(),
-        MapId::BystraValley => TerrainMaterialSet::bystra(),
+    match &map_forge::cached_blueprint(map).materials {
+        Some(spec) => material_set_from(spec),
+        None => TerrainMaterialSet::default(),
+    }
+}
+
+/// Bind the renderer-free blueprint palette to the renderer's material set.
+fn material_set_from(spec: &map_forge::blueprint::GroundMaterialsSpec) -> TerrainMaterialSet {
+    TerrainMaterialSet {
+        layers: spec.layers.map(|layer| renderer_api::TerrainLayer {
+            albedo: layer.albedo,
+            detail: layer.detail,
+            gloss: layer.gloss,
+        }),
+        macro_normal_strength: spec.macro_normal_strength,
+        field_patch_strength: spec.field_patch_strength,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The migration lock: the blueprint palettes reproduce the hand-tuned sets exactly, and
+    /// the maps keep their authored character — the worked steppe patches harder than the
+    /// valley meadows, the valley's river-worn earth reads darker than the steppe's road dirt.
+    #[test]
+    fn blueprint_palettes_reproduce_the_hand_tuned_sets() {
+        let steppe = terrain_material_set_for(MapId::ProkhorovkaHill252_2);
+        let valley = terrain_material_set_for(MapId::BystraValley);
+
+        assert_eq!(steppe.layers[0].albedo, [0.28, 0.33, 0.20]);
+        assert_eq!(steppe.layers[3].albedo, [0.52, 0.51, 0.47]);
+        assert_eq!(steppe.field_patch_strength, 1.0);
+
+        assert_eq!(valley.layers[0].albedo, [0.26, 0.33, 0.21]);
+        assert_eq!(valley.layers[2].albedo, [0.30, 0.26, 0.20]);
+        assert_eq!(valley.field_patch_strength, 0.75);
+
+        assert!(steppe.field_patch_strength > valley.field_patch_strength);
+        assert!(valley.layers[2].albedo[0] < steppe.layers[2].albedo[0]);
+        assert_eq!(steppe.macro_normal_strength, 0.65);
+        assert_eq!(valley.macro_normal_strength, 0.65);
     }
 }

@@ -141,14 +141,15 @@ fn puddle_propensity_is_smooth_varied_and_never_a_binary_grid_gate() {
 
 #[test]
 fn each_map_owns_a_policy_conformant_material_set() {
-    // The selector is total over MapId and both palettes pass the bible's envelope (locked in
-    // renderer_api); here we lock the mapping itself.
-    assert_eq!(
-        terrain_material_set_for(MapId::ProkhorovkaHill252_2),
-        renderer_api::TerrainMaterialSet::prokhorovka()
-    );
-    assert_eq!(
-        terrain_material_set_for(MapId::BystraValley),
-        renderer_api::TerrainMaterialSet::bystra()
+    // The selector is total over MapId; each map's palette now comes from its BLUEPRINT
+    // (`materials` section, envelope-enforced by the map report), and the two maps keep
+    // distinct authored characters instead of sharing the fallback.
+    let steppe = terrain_material_set_for(MapId::ProkhorovkaHill252_2);
+    let valley = terrain_material_set_for(MapId::BystraValley);
+    assert_ne!(steppe, valley, "each map authors its own ground palette");
+    assert_ne!(
+        valley,
+        renderer_api::TerrainMaterialSet::default(),
+        "an authored palette is not the fallback"
     );
 }

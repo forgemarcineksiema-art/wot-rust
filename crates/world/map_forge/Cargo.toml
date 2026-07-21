@@ -6,6 +6,7 @@ license.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+game_core.workspace = true
 ron.workspace = true
 serde.workspace = true
 terrain.workspace = true

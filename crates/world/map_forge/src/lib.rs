@@ -13,7 +13,7 @@ mod ops;
 mod report;
 
 pub use backdrop::{backdrop_height, cached_blueprint_by_id};
-pub use catalog::{battlefield, blueprint_for};
+pub use catalog::{battlefield, blueprint_for, cached_blueprint};
 pub use compile::{ForgeError, compile};
 pub use golden::{MAP_GOLDEN_HASHES, battlefield_hash};
 pub use report::{MapReport, ReportEntry, Severity, WaterThresholds};

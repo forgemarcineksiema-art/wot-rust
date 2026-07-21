@@ -3,6 +3,8 @@
 //! of the wire compile the SAME document — the world never crosses the network, only the
 //! agreement on which blueprint to compile does (`terrain::MapId`).
 
+use std::sync::OnceLock;
+
 use terrain::{BattlefieldMap, MapId};
 
 use crate::blueprint::MapBlueprint;
@@ -17,6 +19,16 @@ pub fn blueprint_for(map: MapId) -> MapBlueprint {
         MapId::BystraValley => include_str!("../blueprints/bystra-valley.map.ron"),
     };
     MapBlueprint::from_ron(source).expect("shipped blueprints parse")
+}
+
+/// The shipped blueprint, parsed once per process. For the consumers that read blueprint
+/// DATA at scene/battle setup (ground palette, environment looks, the server's weather
+/// table) — reparsing the document per call would be wasteful, per-frame use stays wrong.
+pub fn cached_blueprint(map: MapId) -> &'static MapBlueprint {
+    static ALL: OnceLock<Vec<MapBlueprint>> = OnceLock::new();
+    let all = ALL.get_or_init(|| MapId::ALL.iter().map(|id| blueprint_for(*id)).collect());
+    let index = MapId::ALL.iter().position(|id| *id == map).expect("every MapId is registered");
+    &all[index]
 }
 
 /// Compile the shipped map. Deterministic: every call, on any machine, yields the same

@@ -1,5 +1,6 @@
 MapBlueprint(
     meta: MetaSpec(
+        version: 1,
         id: "prokhorovka_hill_252_2",
         name: "Prokhorovka - Hill 252.2 Sector",
         historical_basis: "Prokhorovka, 12 July 1943: Hill 252.2, Oktyabrskiy State Farm, the Psel corridor, anti-tank ditch, and railway embankment.",
@@ -58,6 +59,39 @@ MapBlueprint(
         ],
     ),
     water: None,
+    materials: Some(GroundMaterialsSpec(
+        // Grey-green grass drifting to sun-dried straw, dirt roads, and the chalk that
+        // breaks through Kursk crests. Albedos are the policy swatches.
+        layers: (
+            GroundLayerSpec(albedo: (0.28, 0.33, 0.2), detail: 1.0, gloss: 0.03),
+            GroundLayerSpec(albedo: (0.45, 0.4, 0.26), detail: 1.0, gloss: 0.03),
+            GroundLayerSpec(albedo: (0.36, 0.3, 0.22), detail: 0.8, gloss: 0.05),
+            GroundLayerSpec(albedo: (0.52, 0.51, 0.47), detail: 0.9, gloss: 0.12),
+        ),
+        macro_normal_strength: 0.65,
+        // The open steppe is a quilt of worked plots — the band runs at full strength.
+        field_patch_strength: 1.0,
+    )),
+    environment: Some(EnvironmentSpec(
+        // First look = the default and the fallback; list order feeds the seeded roll.
+        looks: [
+            LookSpec(
+                variant: ClearAfternoon,
+                preset: HazyNoon,
+                sky_rgb: (0.55, 0.69, 0.87),
+            ),
+            LookSpec(
+                variant: GoldenEvening,
+                preset: GoldenEvening,
+                sky_rgb: (0.8, 0.62, 0.45),
+            ),
+            LookSpec(
+                variant: Overcast,
+                preset: LeadOvercast,
+                sky_rgb: (0.48, 0.51, 0.55),
+            ),
+        ],
+    )),
     objects: [
         Cover(
             id: "oktyabrskiy_barn_south",

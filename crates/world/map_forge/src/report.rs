@@ -75,6 +75,7 @@ impl Default for WaterThresholds {
 pub fn validate_map(blueprint: &MapBlueprint, map: &BattlefieldMap) -> MapReport {
     let mut report = MapReport::default();
     check_grid(blueprint, &mut report);
+    check_presentation(blueprint, &mut report);
     check_heightmap_sane(blueprint, map, &mut report);
     check_in_bounds(map, &mut report);
     check_cover_overlap(map, &mut report);
@@ -120,6 +121,131 @@ fn check_grid(blueprint: &MapBlueprint, report: &mut MapReport) {
             ),
             None,
         );
+    }
+}
+
+/// The presentation sections hold the art-direction discipline as data contracts: ground
+/// albedos stay inside the policy window (vegetation saturation ≤ 0.45, and the field-patch
+/// band's worst-case +17% lift keeps soil looking like soil, ≤ 0.62), strengths stay 0..1,
+/// and the look list is coherent (non-empty, one look per variant, rain/wetness in 0..1).
+fn check_presentation(blueprint: &MapBlueprint, report: &mut MapReport) {
+    if let Some(materials) = &blueprint.materials {
+        let saturation = |rgb: [f32; 3]| {
+            let max = rgb[0].max(rgb[1]).max(rgb[2]);
+            let min = rgb[0].min(rgb[1]).min(rgb[2]);
+            if max <= 0.0 { 0.0 } else { (max - min) / max }
+        };
+        let luminance = |rgb: [f32; 3]| 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2];
+        for (index, layer) in materials.layers.iter().enumerate() {
+            if saturation(layer.albedo) > 0.45 + 1.0e-3 {
+                report.push(
+                    "materials",
+                    Severity::Error,
+                    format!(
+                        "ground layer {index} saturation {:.3} leaves the policy window (≤ 0.45)",
+                        saturation(layer.albedo)
+                    ),
+                    None,
+                );
+            }
+            if layer.albedo.iter().any(|c| !(0.05..=0.7).contains(c)) {
+                report.push(
+                    "materials",
+                    Severity::Error,
+                    format!("ground layer {index} albedo {:?} leaves 0.05..0.7", layer.albedo),
+                    None,
+                );
+            }
+            // Vegetation layers (R grass, G straw) ride the field-patch band's worst-case
+            // +17% plot lift; earth layers (B dirt, A rock) cut through it unchanged.
+            if index < 2 {
+                let lifted_max = layer.albedo.iter().map(|c| c * 1.17).fold(0.0_f32, f32::max);
+                if lifted_max > 0.62 {
+                    report.push(
+                        "materials",
+                        Severity::Error,
+                        format!(
+                            "ground layer {index} lifts to {lifted_max:.3} — a plot must stay soil, not neon"
+                        ),
+                        None,
+                    );
+                }
+            }
+            if !(0.0..=1.2).contains(&layer.detail) || !(0.0..=0.3).contains(&layer.gloss) {
+                report.push(
+                    "materials",
+                    Severity::Error,
+                    format!(
+                        "ground layer {index} detail {} / gloss {} leave the ground envelope",
+                        layer.detail, layer.gloss
+                    ),
+                    None,
+                );
+            }
+        }
+        // Value separation, not just hue: straw out-lumes grass, broken rock out-lumes dirt.
+        let luma = |index: usize| luminance(materials.layers[index].albedo);
+        if luma(1) <= luma(0) {
+            report.push(
+                "materials",
+                Severity::Error,
+                "dry straw must read lighter than lush grass".to_string(),
+                None,
+            );
+        }
+        if luma(3) <= luma(2) {
+            report.push(
+                "materials",
+                Severity::Error,
+                "broken rock must read lighter than worn dirt".to_string(),
+                None,
+            );
+        }
+        for (name, value) in [
+            ("macro_normal_strength", materials.macro_normal_strength),
+            ("field_patch_strength", materials.field_patch_strength),
+        ] {
+            if !(0.0..=1.0).contains(&value) {
+                report.push(
+                    "materials",
+                    Severity::Error,
+                    format!("{name} {value} is outside 0..1"),
+                    None,
+                );
+            }
+        }
+    }
+    if let Some(environment) = &blueprint.environment {
+        if environment.looks.is_empty() {
+            report.push(
+                "environment",
+                Severity::Error,
+                "an authored environment must ship at least its default look".to_string(),
+                None,
+            );
+        }
+        for (index, look) in environment.looks.iter().enumerate() {
+            if environment.looks[..index].iter().any(|other| other.variant == look.variant) {
+                report.push(
+                    "environment",
+                    Severity::Error,
+                    format!("variant {:?} is authored twice", look.variant),
+                    None,
+                );
+            }
+            for (name, value) in
+                [("rain_intensity", look.rain_intensity), ("wetness", look.wetness)]
+            {
+                if !(0.0..=1.0).contains(&value) {
+                    report.push(
+                        "environment",
+                        Severity::Error,
+                        format!("{:?} {name} {value} is outside 0..1", look.variant),
+                        None,
+                    );
+                }
+            }
+        }
     }
 }
 

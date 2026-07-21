@@ -268,7 +268,7 @@ mod tests {
     #[test]
     fn grass_grows_on_vegetation_and_refuses_roads_water_and_the_far_field() {
         let ground = flat_ground();
-        let materials = TerrainMaterialSet::bystra();
+        let materials = crate::terrain_maps::terrain_material_set_for(terrain::MapId::BystraValley);
         let eye = Vec3::new(128.0, 3.0, 128.0);
 
         let grown = grass_frame_objects(&ground, None, &full_veg_maps(256.0), &materials, eye);
@@ -306,7 +306,7 @@ mod tests {
         const STRIP_MIN_X: f32 = 125.0;
         const STRIP_MAX_X: f32 = 131.0;
         let ground = flat_ground();
-        let materials = TerrainMaterialSet::bystra();
+        let materials = crate::terrain_maps::terrain_material_set_for(terrain::MapId::BystraValley);
         let maps = maps_with_dirt_strip(256.0, STRIP_MIN_X, STRIP_MAX_X);
         let eye = Vec3::new(128.0, 3.0, 128.0);
         assert!(vegetation_weight(&maps, 124.0, eye.z) > 0.99);
@@ -337,7 +337,8 @@ mod tests {
     #[test]
     fn grass_refuses_to_grow_in_a_fresh_crater() {
         let mut ground = flat_ground();
-        let materials = TerrainMaterialSet::prokhorovka();
+        let materials =
+            crate::terrain_maps::terrain_material_set_for(terrain::MapId::ProkhorovkaHill252_2);
         let maps = full_veg_maps(260.0);
         let eye = Vec3::new(100.0, 8.0, 100.0);
 
@@ -372,7 +373,8 @@ mod tests {
     #[test]
     fn blades_wear_the_same_ground_tone_as_the_cards() {
         let ground = flat_ground();
-        let materials = TerrainMaterialSet::prokhorovka();
+        let materials =
+            crate::terrain_maps::terrain_material_set_for(terrain::MapId::ProkhorovkaHill252_2);
         let maps = full_veg_maps(260.0);
         let eye = Vec3::new(128.0, 3.0, 128.0);
         let grown = grass_frame_objects(&ground, None, &maps, &materials, eye);
@@ -416,7 +418,8 @@ mod tests {
     #[test]
     fn rebuild_and_cell_crossing_keep_the_visible_population_stable() {
         let ground = flat_ground();
-        let materials = TerrainMaterialSet::prokhorovka();
+        let materials =
+            crate::terrain_maps::terrain_material_set_for(terrain::MapId::ProkhorovkaHill252_2);
         let maps = full_veg_maps(256.0);
         let eye_a = Vec3::new(127.75, 3.0, 128.0);
         let eye_b = eye_a + Vec3::new(4.25, 0.0, 0.0);
@@ -461,7 +464,8 @@ mod tests {
     #[test]
     fn full_vegetation_cache_sweep_fits_without_hard_truncation() {
         let ground = flat_ground();
-        let materials = TerrainMaterialSet::prokhorovka();
+        let materials =
+            crate::terrain_maps::terrain_material_set_for(terrain::MapId::ProkhorovkaHill252_2);
         let maps = full_veg_maps(256.0);
         let mut peak = 0usize;
         let mut floor = usize::MAX;
@@ -492,7 +496,8 @@ mod tests {
     #[test]
     fn the_ring_is_deterministic_and_rides_the_eye() {
         let ground = flat_ground();
-        let materials = TerrainMaterialSet::prokhorovka();
+        let materials =
+            crate::terrain_maps::terrain_material_set_for(terrain::MapId::ProkhorovkaHill252_2);
         let maps = full_veg_maps(256.0);
         let eye = Vec3::new(100.0, 3.0, 100.0);
         let a = grass_frame_objects(&ground, None, &maps, &materials, eye);
