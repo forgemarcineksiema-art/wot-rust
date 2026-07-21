@@ -83,10 +83,12 @@ structural terrain ops, and the WoT map anatomy (`TerrainMapPlan`'s 12 layers).
     Already landed with M1: `map_forge_stays_renderer_free` (quality), every shipped
     blueprint compiles clean, deterministic and on its golden (`tests/goldens.rs`).
 
-## Decisions before M3
+## Decisions before M3 — SETTLED (approved 2026-07-21)
 
 The shell hardens these three; deciding them late means rewriting compile/backdrop or the
-editor's whole input model.
+editor's whole input model. All three are decided on their recommended options: **D1 =
+`sculpt_delta` layer, D2 = `MapId::Scratch` + file + content-hash handshake, D3 =
+in-house toolkit first.** The rationale stays below.
 
 - **D1 — the brush model vs pointwise purity.** Everything today assumes terrain is a pure
   function `h(x, z)`: the compiler folds ops per sample, and `backdrop_height` evaluates
