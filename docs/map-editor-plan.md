@@ -104,13 +104,24 @@ structural terrain ops, and the WoT map anatomy (`TerrainMapPlan`'s 12 layers).
     knobs as selectable rows (Tab points, `-`/`=` turns, the active row wears the amber
     accent). `FlattenToRamp`/`RidgeGated` stay RON-authored deliberately: their masks are
     axis-coupled by the fairness design. Proof shot: `editor_shell_stamps.png`.
-- [ ] **M5 — objects**
-  - Palette (5 building styles, cover kinds, flora, world_forge props, wrecks), click
-    placement with grounding, yaw/scale, inspector, gizmos; buildings emit their cover box
-    automatically (one truth: mesh + footprint + rubble form).
-  - "Delete THIS tree": scatters stay procedural — a single-instance removal is an
-    exclusion-circle op added to the scatter (generalize `spawn_circles` to authored
-    `exclusion_circles`), never a materialized instance list.
+- [x] **M5 — objects** *(done)*
+  - Palette (O cycles): the 5 building styles (extents + id drive the derived style — the
+    palette speaks those rules), fence runs, tree lines, wrecks, and the 6 flora kinds as
+    `Fixed` scenery (the vocabulary mirrors every planted tree — fairness is not
+    optional, the twin is placed and shown). Click places through `apply_edit`; grounding
+    happens in the compiler like everywhere else; a building's cover box IS the object
+    (one truth: mesh + footprint + rubble form).
+  - Selection by ray (navigate LMB): nearest cover AABB, then scenery. The amber
+    wireframe outline + the OBJECT inspector (Tab/-/= knobs on half-extents, R rotates by
+    swapping x/z — the boxes are axis-aligned by the collision contract, so rotation IS
+    the swap), Del deletes. Town-grid members select but refuse per-member edits honestly
+    (a grid is authored as ONE op).
+  - "Delete THIS tree": scatters stay procedural — deleting a scatter-born instance adds
+    a 2.5 m circle to its op's `exclusion_circles` (renamed from `spawn_circles`, serde
+    alias keeps old documents parsing); a Fixed spot deletes BOTH twins through either.
+    Locked end-to-end: the excluded spot stays empty after recompile.
+  - Proof shot: `editor_shell_objects.png` — a placed farmyard, the barn selected, and
+    the report catching a REAL spawn-reaches-cover Error live.
 - [ ] **M6 — roads & water**
   - Polyline road tool with preview ribbon; water panel with live depth tint
     (fordable/drowning) and the corridor contract.

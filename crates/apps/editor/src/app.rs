@@ -24,6 +24,7 @@ use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{CursorGrabMode, Window, WindowId};
 
 use crate::brush::{BrushMode, BrushSettings, Stroke};
+use crate::objects::{PaletteEntry, Selection};
 use crate::overlay::{OverlayModel, overlay};
 use crate::stamp::{Parameter, StampKind};
 use crate::{CompiledMap, EditorDocument, markers, pick};
@@ -46,8 +47,7 @@ pub fn run(path: Option<PathBuf>) -> anyhow::Result<()> {
 /// the event loop hot (one-look policy: frames are the app's job, never the laptop's).
 const FRAME_INTERVAL: Duration = Duration::from_millis(12);
 
-const HELP_LINE: &str =
-    "B brush   T stamp   F1 overview   N problem   Ctrl+S save   Ctrl+Z undo   Ctrl+P playtest";
+const HELP_LINE: &str = "B brush   T stamp   O object   LMB select   F1 overview   N problem   Ctrl+S save   Ctrl+P playtest";
 
 /// Free-fly viewport camera: yaw/pitch look (hold RMB), WASD + QE move, Shift sprints,
 /// wheel sets the pace.
@@ -130,6 +130,9 @@ struct EditorApp {
     map_markers: (Vec<SceneVertex>, Vec<u32>),
     brush: Option<BrushSettings>,
     stamp: Option<StampState>,
+    palette: Option<PaletteEntry>,
+    selection: Option<Selection>,
+    selection_knob: usize,
     stroke: Option<Stroke>,
     working: Option<terrain::HeightMap>,
     painting: bool,
@@ -162,6 +165,9 @@ impl EditorApp {
             map_markers: (Vec::new(), Vec::new()),
             brush: None,
             stamp: None,
+            palette: None,
+            selection: None,
+            selection_knob: 0,
             stroke: None,
             working: None,
             painting: false,
@@ -196,6 +202,7 @@ impl EditorApp {
     /// editor's annotation mesh.
     fn reload_scene(&mut self) {
         self.stroke = None;
+        self.selection_knob = self.selection_knob.min(2);
         self.working = None;
         self.painting = false;
         self.compiled = self.document.recompile();
@@ -388,6 +395,9 @@ impl EditorApp {
             KeyCode::KeyN if pressed => self.jump_to_problem(self.input.shift),
             KeyCode::KeyB if pressed => self.cycle_brush(),
             KeyCode::KeyT if pressed => self.cycle_stamp(),
+            KeyCode::KeyO if pressed => self.cycle_palette(),
+            KeyCode::Delete if pressed => self.delete_selection(),
+            KeyCode::KeyR if pressed => self.rotate_selection(),
             KeyCode::Tab if pressed => self.cycle_stamp_parameter(),
             KeyCode::Escape if pressed => self.cancel_stamp_anchor(),
             KeyCode::BracketLeft if pressed => self.resize_brush(1.0 / 1.25),
@@ -474,6 +484,7 @@ impl EditorApp {
 
     fn cycle_brush(&mut self) {
         self.stamp = None;
+        self.palette = None;
         let next = match self.brush.map(|brush| brush.mode) {
             None => Some(BrushMode::CYCLE[0]),
             Some(mode) => {
@@ -501,6 +512,28 @@ impl EditorApp {
     }
 
     fn adjust_knob(&mut self, steps: f32) {
+        if self.stamp.is_none()
+            && self.brush.is_none()
+            && let Some(selection) = self.selection.clone()
+        {
+            let knob = self.selection_knob;
+            let mut message = None;
+            self.document.apply_edit(|blueprint| {
+                message = crate::objects::adjust_cover(blueprint, &selection, knob, steps);
+            });
+            match message {
+                Some(message) => {
+                    self.status = message;
+                    self.reload_scene();
+                    self.selection = Some(selection);
+                }
+                None => {
+                    // Nothing adjustable on this selection: drop the no-op undo entry.
+                    self.document.undo();
+                }
+            }
+            return;
+        }
         if let Some(stamp) = &mut self.stamp {
             if let Some(parameter) = stamp.parameters.get_mut(stamp.active) {
                 parameter.adjust(steps);
@@ -517,6 +550,7 @@ impl EditorApp {
 
     fn cycle_stamp(&mut self) {
         self.brush = None;
+        self.palette = None;
         self.restore_compiled_ground();
         let next = match self.stamp.as_ref().map(|stamp| stamp.kind) {
             None => Some(StampKind::CYCLE[0]),
@@ -542,6 +576,8 @@ impl EditorApp {
         if let Some(stamp) = &mut self.stamp {
             stamp.active = (stamp.active + 1) % stamp.parameters.len().max(1);
             self.status = stamp_status(stamp);
+        } else if self.selection.is_some() {
+            self.selection_knob = (self.selection_knob + 1) % 3;
         }
     }
 
@@ -552,6 +588,8 @@ impl EditorApp {
             stamp.anchor = None;
             self.restore_compiled_ground();
             self.status = "stamp anchor cancelled".into();
+        } else if self.selection.take().is_some() {
+            self.status = HELP_LINE.into();
         }
     }
 
@@ -690,6 +728,104 @@ impl EditorApp {
         self.reload_scene();
     }
 
+    fn cycle_palette(&mut self) {
+        self.brush = None;
+        self.stamp = None;
+        self.restore_compiled_ground();
+        let next = match self.palette {
+            None => Some(PaletteEntry::CYCLE[0]),
+            Some(entry) => {
+                let position =
+                    PaletteEntry::CYCLE.iter().position(|&cycle| cycle == entry).unwrap_or(0);
+                PaletteEntry::CYCLE.get(position + 1).copied()
+            }
+        };
+        self.palette = next;
+        self.status = match self.palette {
+            Some(entry) => format!("object: {} - LMB places", entry.label()),
+            None => format!("object off - {HELP_LINE}"),
+        };
+    }
+
+    /// LMB with a palette armed: place at the probe. Returns whether the click was ours.
+    fn palette_click(&mut self) -> bool {
+        let Some(entry) = self.palette else { return false };
+        let Some(hit) = self.probe else { return true };
+        let mut summary = String::new();
+        self.document.apply_edit(|blueprint| {
+            summary = crate::objects::place_entry(blueprint, entry, [hit.x, hit.z]);
+        });
+        self.reload_scene();
+        self.status = summary;
+        true
+    }
+
+    /// LMB in navigate mode: select what the cursor ray touches.
+    fn select_click(&mut self) {
+        let Some(cursor) = self.cursor_px else { return };
+        let ndc = [
+            cursor[0] / self.viewport_px[0] * 2.0 - 1.0,
+            1.0 - cursor[1] / self.viewport_px[1] * 2.0,
+        ];
+        let camera = self.camera.camera();
+        let aspect = (self.viewport_px[0] / self.viewport_px[1]).max(0.01);
+        let (origin, direction) = pick::cursor_ray(&camera, aspect, ndc);
+        self.selection = crate::objects::pick(
+            self.document.blueprint(),
+            &self.compiled.battlefield,
+            origin,
+            direction,
+        );
+        self.selection_knob = 0;
+        self.status = match &self.selection {
+            Some(Selection::Cover { id, .. }) => format!("selected {id}"),
+            Some(Selection::TownGridMember { .. }) => "selected a town-grid member".into(),
+            Some(Selection::FixedScenery { kind, .. }) => format!("selected a {kind:?} (fixed)"),
+            Some(Selection::ScatterInstance { kind, .. }) => {
+                format!("selected a {kind:?} (scatter-born)")
+            }
+            None => HELP_LINE.into(),
+        };
+    }
+
+    fn delete_selection(&mut self) {
+        let Some(selection) = self.selection.take() else { return };
+        let map = self.compiled.battlefield.clone();
+        let mut outcome: Result<String, &'static str> = Err("nothing selected");
+        self.document.apply_edit(|blueprint| {
+            outcome = crate::objects::delete(blueprint, &map, &selection);
+        });
+        match outcome {
+            Ok(summary) => {
+                self.status = summary;
+                self.reload_scene();
+            }
+            Err(reason) => {
+                self.document.undo();
+                self.selection = Some(selection);
+                self.status = format!("delete refused: {reason}");
+            }
+        }
+    }
+
+    fn rotate_selection(&mut self) {
+        let Some(selection) = self.selection.clone() else { return };
+        let mut message = None;
+        self.document.apply_edit(|blueprint| {
+            message = crate::objects::rotate_cover(blueprint, &selection);
+        });
+        match message {
+            Some(message) => {
+                self.status = message;
+                self.reload_scene();
+                self.selection = Some(selection);
+            }
+            None => {
+                self.document.undo();
+            }
+        }
+    }
+
     fn overlay_model(&self) -> OverlayModel {
         let problems = crate::overlay::problem_rows(&self.compiled.report);
         let eye = self.camera.eye;
@@ -703,32 +839,48 @@ impl EditorApp {
             (None, Some(brush)) => brush_status(brush),
             _ => String::new(),
         };
-        let stamp_lines = self
-            .stamp
-            .as_ref()
-            .map(|stamp| {
-                let mut lines = vec![(
-                    format!("{} - {}", stamp.kind.label(), stamp.kind.gesture_hint()),
-                    false,
-                )];
-                for (index, parameter) in stamp.parameters.iter().enumerate() {
-                    lines.push((
-                        format!("{}: {:.1} m", parameter.name, parameter.value_m),
-                        index == stamp.active,
-                    ));
-                }
-                lines.push((
-                    match stamp.anchor {
-                        Some(anchor) => format!("anchor {:.0}, {:.0}", anchor[0], anchor[1]),
-                        None => "anchor: click LMB".to_string(),
-                    },
-                    false,
-                ));
-                lines
-            })
-            .unwrap_or_default();
+        let (inspector_title, stamp_lines) = if let Some(selection) = &self.selection {
+            (
+                "OBJECT".to_string(),
+                crate::objects::inspector_lines(
+                    self.document.blueprint(),
+                    selection,
+                    self.selection_knob,
+                ),
+            )
+        } else {
+            (
+                "STAMP".to_string(),
+                self.stamp
+                    .as_ref()
+                    .map(|stamp| {
+                        let mut lines = vec![(
+                            format!("{} - {}", stamp.kind.label(), stamp.kind.gesture_hint()),
+                            false,
+                        )];
+                        for (index, parameter) in stamp.parameters.iter().enumerate() {
+                            lines.push((
+                                format!("{}: {:.1} m", parameter.name, parameter.value_m),
+                                index == stamp.active,
+                            ));
+                        }
+                        lines.push((
+                            match stamp.anchor {
+                                Some(anchor) => {
+                                    format!("anchor {:.0}, {:.0}", anchor[0], anchor[1])
+                                }
+                                None => "anchor: click LMB".to_string(),
+                            },
+                            false,
+                        ));
+                        lines
+                    })
+                    .unwrap_or_default(),
+            )
+        };
         OverlayModel {
             brush_line,
+            inspector_title,
             stamp_lines,
             document_label: self.document_label(),
             dirty: self.document.dirty(),
@@ -777,7 +929,27 @@ impl EditorApp {
         // navigating, the brush ring when a brush is armed.
         let (mut vertices, mut indices) = (self.map_markers.0.clone(), self.map_markers.1.clone());
         if let Some(hit) = self.probe {
-            if let Some(stamp) = &self.stamp {
+            if let Some(entry) = self.palette {
+                let heightmap =
+                    self.working.as_ref().unwrap_or(&self.compiled.battlefield.heightmap);
+                let ground = heightmap.sample_height(hit.x, hit.z).unwrap_or(hit.y);
+                if let Some((_, half)) = entry.cover() {
+                    markers::aabb_outline(
+                        &mut vertices,
+                        &mut indices,
+                        Vec3::new(hit.x, ground + half[1], hit.z),
+                        Vec3::from_array(half),
+                        markers::brush_color("flatten"),
+                    );
+                } else {
+                    markers::probe_marker(
+                        &mut vertices,
+                        &mut indices,
+                        Vec3::new(hit.x, ground, hit.z),
+                        1.2,
+                    );
+                }
+            } else if let Some(stamp) = &self.stamp {
                 let heightmap =
                     self.working.as_ref().unwrap_or(&self.compiled.battlefield.heightmap);
                 if let Some(anchor) = stamp.anchor {
@@ -829,6 +1001,28 @@ impl EditorApp {
                     }
                     None => markers::probe_marker(&mut vertices, &mut indices, hit, 1.5),
                 }
+            }
+        }
+        if let Some(selection) = &self.selection {
+            match selection {
+                Selection::Cover { .. } | Selection::TownGridMember { .. } => {
+                    if let Some(cover) = self.compiled.battlefield.static_cover.iter().find(
+                        |cover| match selection {
+                            Selection::Cover { id, .. } => cover.id == *id,
+                            Selection::TownGridMember { .. } => false,
+                            _ => false,
+                        },
+                    ) {
+                        markers::aabb_outline(
+                            &mut vertices,
+                            &mut indices,
+                            Vec3::from_array(cover.center),
+                            Vec3::from_array(cover.half_extents_m),
+                            [0.95, 0.65, 0.15],
+                        );
+                    }
+                }
+                Selection::FixedScenery { .. } | Selection::ScatterInstance { .. } => {}
             }
         }
         renderer.set_dynamic_mesh(&vertices, &indices);
@@ -923,8 +1117,12 @@ impl ApplicationHandler for EditorApp {
             }
             WindowEvent::MouseInput { state, button: MouseButton::Left, .. } => {
                 if state == ElementState::Pressed {
-                    if !self.stamp_click() {
-                        self.begin_stroke();
+                    if !self.palette_click() && !self.stamp_click() {
+                        if self.brush.is_some() {
+                            self.begin_stroke();
+                        } else {
+                            self.select_click();
+                        }
                     }
                 } else {
                     self.end_stroke();

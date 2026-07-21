@@ -16,7 +16,9 @@ const LINE: f32 = 0.052;
 pub struct OverlayModel {
     /// The armed brush readout for the footer (empty when navigating).
     pub brush_line: String,
-    /// The armed stamp inspector: `(line, active)` rows; empty when no stamp is armed.
+    /// The tool inspector (stamp knobs, a selected object): a title plus `(line, active)`
+    /// rows; empty rows hide the panel.
+    pub inspector_title: String,
     pub stamp_lines: Vec<(String, bool)>,
     pub document_label: String,
     pub dirty: bool,
@@ -225,7 +227,15 @@ pub fn overlay(model: &OverlayModel, aspect: f32) -> Vec<HudVertex> {
             aspect,
             color::PANEL,
         );
-        push_text(&mut vertices, "STAMP", 0.49, top - 0.005, TEXT_H, aspect, color::TEXT);
+        push_text(
+            &mut vertices,
+            &model.inspector_title,
+            0.49,
+            top - 0.005,
+            TEXT_H,
+            aspect,
+            color::TEXT,
+        );
         push_hairline(&mut vertices, 0.49, 0.985, top - 0.052, color::HAIRLINE);
         let mut y = top - 0.068;
         for (line, active) in &model.stamp_lines {
@@ -276,6 +286,7 @@ mod tests {
     fn the_overlay_builds_and_scales_with_its_content() {
         let mut model = OverlayModel {
             brush_line: "brush raise  r 12 m".into(),
+            inspector_title: "STAMP".into(),
             stamp_lines: vec![
                 ("hill - click 1: centre".into(), false),
                 ("height: 6.0 m".into(), true),

@@ -451,9 +451,12 @@ pub struct Exclusion {
     /// Reject a band around the symmetry axis (a railbed and its shoulders stay bare).
     #[serde(default)]
     pub axis_band_m: Option<f32>,
-    /// Spawn circles `(x, z, radius)` stay clear.
-    #[serde(default)]
-    pub spawn_circles: Vec<[f32; 3]>,
+    /// Authored keep-clear circles `(x, z, radius)`: spawn rings — and the editor's
+    /// "delete THIS tree" (a removed scatter instance becomes a small circle here; the
+    /// scatter stays procedural, never a materialized list). `spawn_circles` is the
+    /// pre-M5 name, kept parsing via the serde alias.
+    #[serde(default, alias = "spawn_circles")]
+    pub exclusion_circles: Vec<[f32; 3]>,
     /// Reject within `road.width/2 + margin` of any road.
     #[serde(default)]
     pub road_margin_m: Option<f32>,

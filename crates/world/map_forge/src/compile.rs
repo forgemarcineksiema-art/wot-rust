@@ -338,7 +338,7 @@ impl crate::blueprint::Exclusion {
         {
             return true;
         }
-        for [cx, cz, radius] in &self.spawn_circles {
+        for [cx, cz, radius] in &self.exclusion_circles {
             if (x - cx).powi(2) + (z - cz).powi(2) < radius * radius {
                 return true;
             }

@@ -8,6 +8,7 @@ use std::io::BufWriter;
 
 use editor::app::layer_lines;
 use editor::brush::{BrushMode, BrushSettings, Stroke};
+use editor::objects::{self, PaletteEntry};
 use editor::overlay::{OverlayModel, overlay};
 use editor::stamp::{self, StampKind};
 use editor::{EditorDocument, markers};
@@ -117,6 +118,28 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
     }
 
+    // View 5: the object palette (M5) - a farmyard placed by clicks, the barn selected
+    // (outline + OBJECT inspector), an oak planted with its mirror twin.
+    let mut farmyard = EditorDocument::new_scratch();
+    farmyard.apply_edit(|blueprint| {
+        objects::place_entry(blueprint, PaletteEntry::Cottage, [138.0, 128.0]);
+        objects::place_entry(blueprint, PaletteEntry::Barn, [162.0, 118.0]);
+        objects::place_entry(blueprint, PaletteEntry::FenceRun, [148.0, 136.0]);
+        objects::place_entry(blueprint, PaletteEntry::Wreck, [128.0, 106.0]);
+        objects::place_entry(blueprint, PaletteEntry::Oak, [176.0, 132.0]);
+        objects::place_entry(blueprint, PaletteEntry::Bush, [132.0, 118.0]);
+        blueprint.environment = Some(map_forge::blueprint::EnvironmentSpec {
+            looks: vec![map_forge::blueprint::LookSpec {
+                variant: game_core::WeatherVariant::GoldenEvening,
+                preset: map_forge::blueprint::LightingPreset::GoldenEvening,
+                sky_rgb: [0.8, 0.62, 0.45],
+                rain_intensity: 0.0,
+                wetness: 0.0,
+                overrides: Default::default(),
+            }],
+        });
+    });
+
     let ctx = GpuContext::headless()?;
     let target = OffscreenTarget::new(&ctx, width, height)?;
 
@@ -165,6 +188,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             None,
             "editor_shell_stamps",
         ),
+        (
+            &farmyard,
+            Camera {
+                eye: [120.0, 32.0, 78.0],
+                target: [155.0, 8.0, 125.0],
+                vertical_fov_degrees: 55.0,
+            },
+            Some(Vec3::new(148.0, 5.0, 136.0)),
+            None,
+            "editor_shell_objects",
+        ),
     ] {
         let compiled = document.recompile();
         let battlefield = &compiled.battlefield;
@@ -203,6 +237,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             markers::map_markers(battlefield, &compiled.report, selected);
         let brush_armed = name == "editor_shell_sculpt";
         let stamp_armed = name == "editor_shell_stamps";
+        let farmyard_view = name == "editor_shell_objects";
         if let Some(at) = probe {
             let ground_h = battlefield.heightmap.sample_height(at.x, at.z).unwrap_or(at.y);
             if brush_armed {
@@ -223,6 +258,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 );
             }
         }
+        if farmyard_view
+            && let Some(barn) =
+                battlefield.static_cover.iter().find(|cover| cover.id.starts_with("barn"))
+        {
+            markers::aabb_outline(
+                &mut marker_vertices,
+                &mut marker_indices,
+                Vec3::from_array(barn.center),
+                Vec3::from_array(barn.half_extents_m),
+                [0.95, 0.65, 0.15],
+            );
+        }
         renderer.set_dynamic_mesh(&ctx, &marker_vertices, &marker_indices);
         renderer.set_render_frame(&ctx, &RenderFrame { camera, ..RenderFrame::default() });
 
@@ -232,7 +279,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .unwrap_or_default();
         let model = OverlayModel {
             brush_line: if brush_armed { "brush flatten  r 16 m".to_string() } else { String::new() },
-            stamp_lines: if stamp_armed {
+            inspector_title: if farmyard_view { "OBJECT".to_string() } else { "STAMP".to_string() },
+            stamp_lines: if farmyard_view {
+                objects::inspector_lines(
+                    document.blueprint(),
+                    &editor::objects::Selection::Cover { object_index: 1, id: "barn_1".into() },
+                    0,
+                )
+            } else if stamp_armed {
                 vec![
                     ("crest - click 1: crest, click 2: shelf side + window".to_string(), false),
                     ("crest h: 1.5 m".to_string(), true),
