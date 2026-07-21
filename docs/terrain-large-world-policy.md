@@ -5,26 +5,31 @@ single glTF mesh dropped into a scene.
 
 ## Required Map Systems
 
-Every production map plan must account for:
+Every production map plan must account for the 12 systems below. Since the Map
+Forge program (M1-M7) each one has explicit ownership; a map is ONE RON
+blueprint (`map_forge`) compiled deterministically into the runtime truth, and
+the editor (`crates/apps/editor`) authors every layer through the same document:
 
-- heightmap / terrain chunks,
-- collision terrain,
-- render terrain LOD,
-- splat maps,
-- roads,
-- decorations,
-- cover objects,
-- spawn points,
-- capture zones,
-- navmesh / bot navigation,
-- occlusion/visibility sectors,
-- minimap data.
+- heightmap / terrain chunks — the blueprint's terrain program + the D1 sculpt
+  layer; compiled by `map_forge`, sampled by `terrain::HeightMap`,
+- collision terrain — the same heightfield (one grounding truth),
+- render terrain LOD — `scene_build` ground + statics meshes,
+- splat maps — baked from map truth + the blueprint's `materials` palette,
+- roads — blueprint polylines painted into the splat (editor `L` tool),
+- decorations — seeded mirrored scatters + fixed spots (editor palette),
+- cover objects — blueprint cover boxes; a building's box IS the object,
+- spawn points — blueprint spawns (editor `G`; fair maps mirror by construction),
+- capture zones — blueprint data since M7 (sim capture rules arrive separately),
+- navmesh / bot navigation — `StrategicPoint`s as the deterministic scaffold;
+  the report's playability checks (drive-graph reachability, named crossings,
+  skeleton density) guard it; full navmesh remains a later milestone,
+- occlusion/visibility sectors — the editor's turret-eye viewshed is the
+  authoring instrument; runtime sectors remain a later milestone,
+- minimap data — built from the compiled map by the client.
 
-These systems may start as data stubs, but they must have explicit ownership in
-the terrain/server/client/render pipeline before map content grows.
-The first local 7v7 bot battle intentionally uses the existing `SpawnZone` and
-`StrategicPoint` data as a deterministic navigation scaffold; full navmesh
-ownership remains a later terrain milestone, not a client-side shortcut.
+The contract report blocks shipping on Errors, golden hashes make every map
+change a reviewed change, and `ServerHello.map_content_hash` (protocol v35)
+makes both ends of the wire PROVE they compiled the same world.
 
 ## Coordinate Precision
 
