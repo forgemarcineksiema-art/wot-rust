@@ -18,7 +18,7 @@ on large terrain maps, not a general-purpose engine.
 - `client`: `winit` desktop application loop wired to input, local/remote server flow, interpolation state, and renderer.
 - `server`: headless authoritative simulation library and binary.
 - `tools`: Rust CLI tools for glTF conversion and map data generation.
-- `editor`: first internal editor shell, ready to grow into egui-based tooling.
+- `editor`: the map editor — a blueprint authoring shell on the game's own render path (viewport via `scene_build` + `renderer_wgpu`, panels via the client's instrument UI toolkit); sculpt brushes, structural op stamps, object/road/water/gameplay tools, the contract report with jump-to-problem, and one-click playtest through `MapId::Scratch`.
 - `quality`: test-only architecture gate crate that enforces project structure rules.
 
 ## Module Boundaries

@@ -10,6 +10,11 @@ structural terrain ops, and the WoT map anatomy (`TerrainMapPlan`'s 12 layers).
 
 ## Status
 
+**The program is COMPLETE (M1—M8, PRs #258—#268, one day of 2026-07-21).** A map is one
+RON document; the editor authors every layer of it through one undo door; the compiler,
+the report, the goldens and the v35 content handshake keep both ends of the wire honest.
+What grows next grows as new ops and new report checks — never as code owning content.
+
 - [x] **M1 — map_forge + full migration** *(done, verify.ps1 green)*
   - `map_forge` crate: blueprint schema, structural ops, deterministic compiler, contract
     report, catalog, backdrop evaluation, golden hashes. Renderer-free.
@@ -160,10 +165,17 @@ structural terrain ops, and the WoT map anatomy (`TerrainMapPlan`'s 12 layers).
     POINTS (data); the river shim survives only in Bystra's own contract tests.
   - Deferred deliberately: the live minimap preview (Ctrl+P shows the real one in-game;
     an editor-side preview needs the client's minimap bake exposed — a small follow-up).
-- [ ] **M8 — docs & gates**
-  - `docs/architecture.md`, `docs/terrain-large-world-policy.md`, README; remaining gates.
-    Already landed with M1: `map_forge_stays_renderer_free` (quality), every shipped
-    blueprint compiles clean, deterministic and on its golden (`tests/goldens.rs`).
+- [x] **M8 — docs & gates** *(done — the program is complete)*
+  - `docs/architecture.md` names the editor honestly (a full authoring shell, in-house UI
+    per D3 — the egui note is gone); `docs/terrain-large-world-policy.md` maps all 12
+    required systems to their real owners; `docs/map-forge-policy.md` is present-tense
+    through M7 (sculpt layer, stamps, tools, playability, the v35 content handshake);
+    `crates/apps/editor/README.md` is the tool manual (camera, tools, contracts, proofs).
+  - Gates audit: `map_forge_stays_renderer_free` + the required-docs list (quality),
+    goldens-as-data (`tests/goldens.rs`), the sculpt/playability/presentation contracts
+    (`tests/report_contracts.rs`), wire fixtures at v35, the edit-loop budget lock, and
+    `docs/maps/*.md` pages exist for both shipped maps. Nothing declared, everything
+    enforced.
 
 ## Decisions before M3 — SETTLED (approved 2026-07-21)
 

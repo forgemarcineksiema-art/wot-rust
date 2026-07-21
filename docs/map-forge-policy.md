@@ -59,22 +59,41 @@ diff-readable. Undo is popping an op; the document never hides state.
 - `compile(blueprint)` is pure: same document → same map on any machine. The migration gate
   proved both shipped maps bit-identical to the historical generators (40401 height samples
   plus every list entry, per map) before the generators were deleted.
-- `MAP_GOLDEN_HASHES` locks every shipped map's compile hash (FNV over the whole
-  `BattlefieldMap`). A change here is a deliberate map change — blessed, never an accident.
+- `blueprints/goldens.ron` locks every shipped map's compile hash (FNV over the whole
+  `BattlefieldMap`) — DATA since M3, so the editor can bless a deliberate map change
+  without editing code; the diff review stays. `ServerHello.map_content_hash` (protocol
+  v35) carries the same hash to the wire: both ends prove they compiled the same world or
+  nobody plays.
 - Baked assets (`assets/maps/*.terrain.json`) regenerate from the catalog; the migration
   regenerated them with zero differing height samples. (The regenerated files also gained
   the new `river` field and cover entries the committed assets predated — map content added
   after their last bake — so the asset diff is additions only, never a changed sample.)
 
+## The Sculpt Layer, Stamps And Tools (M4—M7)
+
+- The `sculpt` section (map-editor D1) holds brush strokes as ONE sparse quantized delta
+  grid over the terrain program — pointwise, floor-clamped, zero on the border ring (the
+  apron seam stays exact by construction), mirrored sample-for-sample on fair maps.
+- Structural stamps place quantized `TerrainOp`s (Hill/Bowl, the hull-down Crest, the
+  river Deck) into the program; `FlattenToRamp`/`RidgeGated` stay RON-authored — their
+  masks are axis-coupled by the fairness design.
+- Objects, roads, water and the gameplay layer (spawns, strategic points, capture zones)
+  are all document edits; every editor gesture on a fair map lands with its mirror twin
+  BY CONSTRUCTION, so the symmetry Error can never fire on a gesture.
+
 ## The Contract Report
 
 Compilation always returns a `MapReport` next to the map. Entries carry check name,
 severity (Error blocks shipping / Warning is deliberate), a message, and a world position
-so the editor can jump the camera to the problem. Checks: heightmap sanity, bounds, cover
-overlap, spawns (dry, gentle, balanced, clear of cover), roads (bounds, grade), scenery
-(grounded, out of cover), mirror symmetry, and the water contract (drowning channel between
-crossings, fordable sills, clear decks, no puddles outside the corridor, drivable
-approaches) against the gameplay thresholds. `map_forge::battlefield` refuses a map with
+so the editor can jump the camera to the problem (N cycles, the camera glides). Checks:
+grid/sculpt/river coherence, heightmap sanity, bounds, cover overlap, spawns (dry,
+gentle, balanced, clear of cover), roads (bounds, grade), scenery (grounded, out of
+cover), mirror symmetry, the water contract (drowning channel between crossings, fordable
+sills, clear decks, no puddles outside the corridor, drivable approaches) against the
+gameplay thresholds, the presentation envelope (ground-albedo window, look coherence) —
+and since M7 PLAYABILITY: a coarse drive graph must connect every spawn to every
+strategic point and capture zone, a river's sills and decks must be NAMED by Crossing
+points, and a starved nav skeleton warns. `map_forge::battlefield` refuses a map with
 errors — a broken map is a build-time bug, never a runtime surprise.
 
 ## Environment, Materials, Weather
@@ -105,11 +124,14 @@ The map's presentation lives in the blueprint the same way its truth does:
   collision footprint, rubble form from the same numbers) and their per-instance palettes;
   statics take weather wetness through the same scene-shader lane as vehicles.
 
-## The Editor (planned — M3+)
+## The Editor
 
-The interactive editor (`crates/apps/editor`, winit + wgpu viewport + egui through a custom
-WGSL painter — no new dependencies) is a blueprint authoring surface: everything it does
-writes ops into the document. Live 3D preview through the same render path the client
-uses, the layer checklist from `TerrainMapPlan`, undo/redo as an op stack, the contract
-report as a jump-to-problem dashboard, and one-click playtest. Details and milestones live
-in `docs/map-editor-plan.md`.
+The interactive editor (`crates/apps/editor`) is a blueprint authoring surface:
+everything it does edits the document through one door (`apply_edit` — one gesture, one
+undo step) and every viewport reload is a full recompile, so the editor can never show a
+world the game would not build. The viewport is the game's own render path; the panels
+are the client's instrument UI toolkit (D3 — one look, one implementation). Playtest
+(Ctrl+P) saves the document and launches the client on it through `MapId::Scratch` +
+`WOT_MAP=<file>.map.ron` — one local process, one document, and the v35 content hash
+guards the remote case. The tool manual lives in `crates/apps/editor/README.md`;
+milestones and decisions in `docs/map-editor-plan.md`.
