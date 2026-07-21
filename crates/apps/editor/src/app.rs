@@ -29,6 +29,7 @@ use crate::objects::{PaletteEntry, Selection};
 use crate::overlay::{OverlayModel, overlay};
 use crate::roads::PendingRoad;
 use crate::stamp::{Parameter, StampKind};
+use crate::stroke::{PendingStroke, StrokeKind};
 use crate::{CompiledMap, EditorDocument, markers, pick};
 
 /// Run the editor shell. `path` opens an existing document; `None` starts from the scratch
@@ -49,7 +50,7 @@ pub fn run(path: Option<PathBuf>) -> anyhow::Result<()> {
 /// the event loop hot (one-look policy: frames are the app's job, never the laptop's).
 const FRAME_INTERVAL: Duration = Duration::from_millis(12);
 
-const HELP_LINE: &str = "B brush  T stamp  O object  L road  G gameplay  V viewshed  F3 water  F1 overview  Ctrl+P playtest";
+const HELP_LINE: &str = "B brush  T stamp  C stroke  O object  L road  G gameplay  V viewshed  F3 water  F1 overview  Ctrl+P playtest";
 
 /// Free-fly viewport camera: yaw/pitch look (hold RMB), WASD + QE move, Shift sprints,
 /// wheel sets the pace.
@@ -134,6 +135,7 @@ struct EditorApp {
     stamp: Option<StampState>,
     palette: Option<PaletteEntry>,
     road: Option<PendingRoad>,
+    stroke_tool: Option<PendingStroke>,
     gameplay: Option<(GameplayTool, usize)>,
     viewshed: Option<(Vec<SceneVertex>, Vec<u32>)>,
     show_water: bool,
@@ -174,6 +176,7 @@ impl EditorApp {
             stamp: None,
             palette: None,
             road: None,
+            stroke_tool: None,
             gameplay: None,
             viewshed: None,
             show_water: false,
@@ -408,15 +411,25 @@ impl EditorApp {
             KeyCode::KeyN if pressed => self.jump_to_problem(self.input.shift),
             KeyCode::KeyB if pressed => self.cycle_brush(),
             KeyCode::KeyT if pressed => self.cycle_stamp(),
+            KeyCode::KeyC if pressed => self.cycle_stroke_tool(),
             KeyCode::KeyO if pressed => self.cycle_palette(),
             KeyCode::KeyL if pressed => self.toggle_road(),
             KeyCode::KeyG if pressed => self.cycle_gameplay(),
             KeyCode::KeyV if pressed => self.toggle_viewshed(),
             KeyCode::F3 if pressed => self.toggle_water_panel(),
-            KeyCode::Enter if pressed => self.commit_road(),
+            KeyCode::Enter if pressed => {
+                // Only one pending tool is ever armed; each commit no-ops without its own.
+                self.commit_road();
+                self.commit_stroke();
+            }
             KeyCode::Backspace if pressed => {
                 if let Some(road) = &mut self.road {
                     road.pop_point();
+                } else if let Some(pending) = &mut self.stroke_tool {
+                    pending.pop_point();
+                    if pending.raw.is_empty() {
+                        self.restore_compiled_ground();
+                    }
                 }
             }
             KeyCode::Delete if pressed => self.delete_selection(),
@@ -517,6 +530,7 @@ impl EditorApp {
         self.stamp = None;
         self.palette = None;
         self.road = None;
+        self.stroke_tool = None;
         let next = match self.brush.map(|brush| brush.mode) {
             None => Some(BrushMode::CYCLE[0]),
             Some(mode) => {
@@ -537,6 +551,11 @@ impl EditorApp {
     }
 
     fn resize_brush(&mut self, factor: f32) {
+        if let Some(pending) = &mut self.stroke_tool {
+            pending.adjust_width(factor);
+            self.status = stroke_status(pending);
+            return;
+        }
         if let Some(brush) = &mut self.brush {
             brush.radius_m = (brush.radius_m * factor).clamp(4.0, 80.0);
             self.status = brush_status(brush);
@@ -547,6 +566,11 @@ impl EditorApp {
         if let Some(road) = &mut self.road {
             road.adjust_width(steps);
             self.status = format!("road width {:.1} m (Tab surface, Enter commits)", road.width_m);
+            return;
+        }
+        if let Some(pending) = &mut self.stroke_tool {
+            pending.parameter.adjust(steps);
+            self.status = stroke_status(pending);
             return;
         }
         if self.show_water && self.stamp.is_none() && self.selection.is_none() {
@@ -601,6 +625,7 @@ impl EditorApp {
         self.brush = None;
         self.palette = None;
         self.road = None;
+        self.stroke_tool = None;
         self.restore_compiled_ground();
         let next = match self.stamp.as_ref().map(|stamp| stamp.kind) {
             None => Some(StampKind::CYCLE[0]),
@@ -651,6 +676,12 @@ impl EditorApp {
             stamp.anchor = None;
             self.restore_compiled_ground();
             self.status = "stamp anchor cancelled".into();
+        } else if self.stroke_tool.as_ref().is_some_and(|pending| !pending.raw.is_empty()) {
+            if let Some(pending) = &mut self.stroke_tool {
+                pending.raw.clear();
+            }
+            self.restore_compiled_ground();
+            self.status = "stroke cleared".into();
         } else if self.selection.take().is_some() {
             self.status = HELP_LINE.into();
         }
@@ -791,11 +822,106 @@ impl EditorApp {
         self.reload_scene();
     }
 
+    /// C cycles the stroke tool: ridge → valley → plateau → off. Drawing replaces
+    /// parametrizing — the fit happens on commit, the hand only clicks the line.
+    fn cycle_stroke_tool(&mut self) {
+        self.gameplay = None;
+        self.brush = None;
+        self.stamp = None;
+        self.palette = None;
+        self.road = None;
+        self.restore_compiled_ground();
+        let width = self.stroke_tool.as_ref().map(|pending| pending.half_width_m);
+        let next = match self.stroke_tool.as_ref().map(|pending| pending.kind) {
+            None => Some(StrokeKind::CYCLE[0]),
+            Some(kind) => {
+                let position =
+                    StrokeKind::CYCLE.iter().position(|&cycle| cycle == kind).unwrap_or(0);
+                StrokeKind::CYCLE.get(position + 1).copied()
+            }
+        };
+        self.stroke_tool = next.map(|kind| {
+            let mut pending = PendingStroke::new(kind);
+            if let Some(width) = width {
+                pending.half_width_m = width;
+            }
+            pending
+        });
+        self.status = match &self.stroke_tool {
+            Some(pending) => stroke_status(pending),
+            None => format!("stroke off - {HELP_LINE}"),
+        };
+    }
+
+    /// LMB with the stroke tool armed: append a waypoint at the probe.
+    fn stroke_click(&mut self) -> bool {
+        let Some(pending) = &mut self.stroke_tool else { return false };
+        if let Some(hit) = self.probe {
+            pending.add_point([hit.x, hit.z], hit.y);
+            self.status = format!(
+                "stroke: {} points (Enter commits, Backspace pops, Esc clears)",
+                pending.raw.len()
+            );
+        }
+        true
+    }
+
+    /// Fold the drawn line into the document: fit, insert, ONE `apply_edit` — then re-arm
+    /// the same profile so the hand keeps drawing.
+    fn commit_stroke(&mut self) {
+        let Some(pending) = &self.stroke_tool else { return };
+        match crate::stroke::fit_stroke(pending, self.document.blueprint()) {
+            Some((ops, summary)) => {
+                self.document.apply_edit(|blueprint| crate::stamp::insert(blueprint, ops));
+                let (kind, width) = (pending.kind, pending.half_width_m);
+                self.stroke_tool = Some({
+                    let mut next = PendingStroke::new(kind);
+                    next.half_width_m = width;
+                    next
+                });
+                self.reload_scene();
+                self.status = format!("committed: {summary}");
+            }
+            None => self.status = "a stroke needs two points (LMB adds them)".into(),
+        }
+    }
+
+    /// The stroke ghost: with waypoints down, the viewport previews the terrain the commit
+    /// WOULD build with the cursor as the provisional next point — the stamp's discipline.
+    fn preview_stroke(&mut self) {
+        let Some(hit) = self.probe else { return };
+        let Some(pending) = &self.stroke_tool else { return };
+        if pending.raw.is_empty() {
+            return;
+        }
+        if self.last_mesh_swap.elapsed() < Duration::from_millis(50) {
+            return;
+        }
+        self.last_mesh_swap = Instant::now();
+        let mut preview = pending.clone();
+        preview.add_point([hit.x, hit.z], hit.y);
+        let Some((ops, _)) = crate::stroke::fit_stroke(&preview, self.document.blueprint()) else {
+            return;
+        };
+        let mut ghost = self.document.blueprint().clone();
+        crate::stamp::insert(&mut ghost, ops);
+        let (battlefield, _) = map_forge::compile(&ghost);
+        if let Some(renderer) = self.renderer.as_mut() {
+            let (vertices, indices) = scene_build::battlefield::terrain_scene_mesh_with_water(
+                &battlefield.heightmap,
+                battlefield.water,
+            );
+            renderer.update_battlefield_ground_geometry(&vertices, &indices);
+        }
+        self.working = Some(battlefield.heightmap);
+    }
+
     fn cycle_palette(&mut self) {
         self.gameplay = None;
         self.brush = None;
         self.stamp = None;
         self.road = None;
+        self.stroke_tool = None;
         self.restore_compiled_ground();
         let next = match self.palette {
             None => Some(PaletteEntry::CYCLE[0]),
@@ -896,6 +1022,7 @@ impl EditorApp {
         self.brush = None;
         self.stamp = None;
         self.palette = None;
+        self.stroke_tool = None;
         self.road = match self.road {
             Some(_) => None,
             None => Some(PendingRoad::default()),
@@ -959,6 +1086,7 @@ impl EditorApp {
         self.stamp = None;
         self.palette = None;
         self.road = None;
+        self.stroke_tool = None;
         let next = match self.gameplay {
             None => Some(GameplayTool::CYCLE[0]),
             Some((tool, _)) => {
@@ -1048,6 +1176,20 @@ impl EditorApp {
                     ("Enter commits   Backspace pops".to_string(), false),
                 ],
             )
+        } else if let Some(pending) = &self.stroke_tool {
+            (
+                "STROKE".to_string(),
+                vec![
+                    (format!("{} - LMB draws the line", pending.kind.label()), false),
+                    (
+                        format!("{}: {:.1} m", pending.parameter.name, pending.parameter.value_m),
+                        true,
+                    ),
+                    (format!("width: {:.1} m", pending.half_width_m), false),
+                    (format!("{} points", pending.raw.len()), false),
+                    ("Enter commits   Backspace pops   Esc clears".to_string(), false),
+                ],
+            )
         } else if self.show_water {
             let level =
                 self.document.blueprint().water.map_or("- (press = to add)".to_string(), |water| {
@@ -1125,6 +1267,7 @@ impl EditorApp {
             self.paint_frame();
         } else {
             self.preview_stamp();
+            self.preview_stroke();
         }
         let model = self.overlay_model();
         let Some(renderer) = self.renderer.as_mut() else { return };
@@ -1233,6 +1376,20 @@ impl EditorApp {
                 preview.add_point([hit.x, hit.z]);
             }
             crate::roads::ribbon_mesh(&mut vertices, &mut indices, heightmap, &preview);
+        }
+        if let Some(pending) = &self.stroke_tool {
+            let heightmap = self.working.as_ref().unwrap_or(&self.compiled.battlefield.heightmap);
+            let mut points = pending.raw.clone();
+            if let Some(hit) = self.probe {
+                points.push([hit.x, hit.z]);
+            }
+            crate::stroke::chalk_mesh(
+                &mut vertices,
+                &mut indices,
+                heightmap,
+                &points,
+                pending.half_width_m,
+            );
         }
         if self.show_water {
             let base = vertices.len() as u32;
@@ -1360,6 +1517,7 @@ impl ApplicationHandler for EditorApp {
                 if state == ElementState::Pressed {
                     if !self.gameplay_click()
                         && !self.road_click()
+                        && !self.stroke_click()
                         && !self.palette_click()
                         && !self.stamp_click()
                     {
@@ -1482,6 +1640,16 @@ fn stamp_status(stamp: &StampState) -> String {
         stamp.kind.label(),
         parameter.name,
         parameter.value_m
+    )
+}
+
+fn stroke_status(pending: &PendingStroke) -> String {
+    format!(
+        "stroke: {}  {}: {:.1} m  w {:.1} m ([/] width, -/= value, Enter commits)",
+        pending.kind.label(),
+        pending.parameter.name,
+        pending.parameter.value_m,
+        pending.half_width_m
     )
 }
 
