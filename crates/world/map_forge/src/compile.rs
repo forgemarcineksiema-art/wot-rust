@@ -78,20 +78,19 @@ pub fn compile(blueprint: &MapBlueprint) -> (BattlefieldMap, MapReport) {
     (map, report)
 }
 
-/// Resolve an authored x coordinate: fixed, or riding the river centerline.
-fn resolve_x(at: [XCoord; 2], river: Option<&RiverSpec>) -> [f32; 2] {
+/// Resolve an authored coordinate pair: fixed, or riding the river centerline. Author
+/// mistakes never panic — `RiverCenter` in the z slot or on a riverless map falls back to
+/// the map's centre, and the REPORT carries the Error (`check_river_dependencies`); a live
+/// editor session must survive every keystroke.
+fn resolve_x(at: [XCoord; 2], river: Option<&RiverSpec>, fallback: [f32; 2]) -> [f32; 2] {
     let z = match at[1] {
         XCoord::Fixed(z) => z,
-        XCoord::RiverCenter | XCoord::RiverCenterAt(_) => {
-            panic!("RiverCenter is an x coordinate, not a z coordinate")
-        }
+        XCoord::RiverCenter | XCoord::RiverCenterAt(_) => fallback[1],
     };
     let x = match at[0] {
         XCoord::Fixed(x) => x,
-        XCoord::RiverCenter => river.expect("RiverCenter used on a riverless map").center_x(z),
-        XCoord::RiverCenterAt(at_z) => {
-            river.expect("RiverCenterAt used on a riverless map").center_x(at_z)
-        }
+        XCoord::RiverCenter => river.map_or(fallback[0], |river| river.center_x(z)),
+        XCoord::RiverCenterAt(at_z) => river.map_or(fallback[0], |river| river.center_x(at_z)),
     };
     [x, z]
 }
@@ -99,6 +98,7 @@ fn resolve_x(at: [XCoord; 2], river: Option<&RiverSpec>) -> [f32; 2] {
 fn expand_objects(blueprint: &MapBlueprint, heightmap: &HeightMap) -> Vec<StaticCoverObject> {
     let river = blueprint.river.as_ref();
     let axis_z = blueprint.grid.axis_z();
+    let fallback = [blueprint.grid.size_m[0] * 0.5, axis_z];
     let mut out = Vec::new();
     for object in &blueprint.objects {
         match object {
@@ -108,7 +108,7 @@ fn expand_objects(blueprint: &MapBlueprint, heightmap: &HeightMap) -> Vec<Static
                     id,
                     name,
                     *kind,
-                    resolve_x(*at, river),
+                    resolve_x(*at, river, fallback),
                     *half_extents_m,
                 ));
             }
@@ -242,6 +242,7 @@ fn expand_gameplay(
     heightmap: &HeightMap,
 ) -> (Vec<SpawnZone>, Vec<StrategicPoint>, Vec<MapFeature>) {
     let river = blueprint.river.as_ref();
+    let fallback = [blueprint.grid.size_m[0] * 0.5, blueprint.grid.axis_z()];
     let gameplay: &GameplaySpec = &blueprint.gameplay;
     let spawns = gameplay
         .spawns
@@ -266,7 +267,7 @@ fn expand_gameplay(
         .strategic_points
         .iter()
         .map(|point| {
-            let [x, z] = resolve_x(point.at, river);
+            let [x, z] = resolve_x(point.at, river, fallback);
             grounded_point(heightmap, &point.id, &point.name, point.role, x, z, point.radius_m)
         })
         .collect();
@@ -274,7 +275,7 @@ fn expand_gameplay(
         .features
         .iter()
         .map(|feature| {
-            let [x, z] = resolve_x(feature.at, river);
+            let [x, z] = resolve_x(feature.at, river, fallback);
             grounded_feature(
                 heightmap,
                 feature.kind,

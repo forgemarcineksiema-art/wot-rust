@@ -4,9 +4,21 @@
 
 use terrain::BattlefieldMap;
 
-/// The golden compile hash per shipped map.
-pub const MAP_GOLDEN_HASHES: [(&str, u64); 2] =
-    [("bystra_valley", 0xadcf_0740_64d5_7eb4), ("prokhorovka_hill_252_2", 0x3a31_8d91_4e56_128b)];
+/// The golden compile hash per shipped map — DATA (`blueprints/goldens.ron`, hex strings),
+/// so the editor can bless a deliberate map change by rewriting one data file instead of
+/// editing code. The diff review stays exactly as strong.
+pub fn map_golden_hashes() -> Vec<(String, u64)> {
+    let entries: Vec<(String, String)> =
+        ron::from_str(include_str!("../blueprints/goldens.ron")).expect("goldens.ron parses");
+    entries
+        .into_iter()
+        .map(|(name, hex)| {
+            let hash = u64::from_str_radix(&hex, 16)
+                .unwrap_or_else(|_| panic!("golden for {name} is not a hex u64: {hex}"));
+            (name, hash)
+        })
+        .collect()
+}
 
 pub fn battlefield_hash(map: &BattlefieldMap) -> u64 {
     let mut hash = 0xcbf2_9ce4_8422_2325_u64;

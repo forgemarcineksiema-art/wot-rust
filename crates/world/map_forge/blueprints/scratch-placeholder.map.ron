@@ -1,0 +1,26 @@
+// The placeholder behind MapId::Scratch when no document has been installed: a flat, clean
+// test square that compiles without report errors. The REAL scratch content arrives via
+// `map_forge::set_scratch_source` (WOT_MAP pointed at a .map.ron path) — this file only
+// keeps the dev vessel total.
+MapBlueprint(
+    meta: MetaSpec(
+        version: 1,
+        id: "scratch",
+        name: "Scratch",
+        historical_basis: "Dev playtest vessel — no document installed.",
+    ),
+    grid: GridSpec(
+        size_m: (300.0, 300.0),
+        cell_m: 5.0,
+        min_height_m: 0.2,
+    ),
+    terrain: TerrainProgram(
+        base: Constant(5.0),
+    ),
+    gameplay: GameplaySpec(
+        spawns: [
+            SpawnSpec(team: 1, at: (150.0, 60.0), facing_yaw_rad: 0.0),
+            SpawnSpec(team: 2, at: (150.0, 240.0), facing_yaw_rad: 3.14159265),
+        ],
+    ),
+)

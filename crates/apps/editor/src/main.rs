@@ -1,14 +1,7 @@
-use tracing::info;
+//! The map editor binary: `cargo run -p editor [-- path/to.map.ron]`. Without a path the
+//! shell opens a fresh scratch document (File → New); with one it opens the blueprint.
 
 fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-        .try_init()
-        .ok();
-
-    let egui_context = egui::Context::default();
-    let _ = egui_context;
-    info!("editor dev shell initialized");
-    println!("WOT editor dev shell ready. Next step: map and vehicle inspectors on top of egui.");
-    Ok(())
+    let path = std::env::args().nth(1).map(std::path::PathBuf::from);
+    editor::app::run(path)
 }

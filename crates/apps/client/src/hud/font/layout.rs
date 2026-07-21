@@ -7,7 +7,7 @@ use crate::hud::icons::HudIcon;
 
 /// Clip-space advance width of `text` drawn at em-height `height`. `aspect` squishes x so glyphs
 /// stay square on wide viewports — matching `push_text`.
-pub(crate) fn text_width(text: &str, height: f32, aspect: f32) -> f32 {
+pub fn text_width(text: &str, height: f32, aspect: f32) -> f32 {
     let font = atlas();
     let clip_per_px = height / font.raster_px;
     let advance: f32 = text
@@ -22,7 +22,7 @@ pub(crate) fn text_width(text: &str, height: f32, aspect: f32) -> f32 {
 /// units, tinted `color`. Each visible glyph becomes two textured `HudVertex` quads: a dark
 /// drop-shadow copy offset down-right, then the glyph itself — the shadow is what keeps a
 /// stencil marking legible when the field behind it is sunlit grass instead of a dark panel.
-pub(crate) fn push_text(
+pub fn push_text(
     vertices: &mut Vec<HudVertex>,
     text: &str,
     left_x: f32,
@@ -82,7 +82,7 @@ fn push_text_pass(
 }
 
 /// Draw `text` right-aligned so its advance ends at `right_x`.
-pub(crate) fn push_text_right(
+pub fn push_text_right(
     vertices: &mut Vec<HudVertex>,
     text: &str,
     right_x: f32,
@@ -97,7 +97,7 @@ pub(crate) fn push_text_right(
 
 /// Draw `icon` as a `size`-tall square (x compressed by `aspect` to stay square), top-left at
 /// (`left_x`, `top_y`), tinted `color`. Samples the icon's mask baked into the shared atlas.
-pub(crate) fn push_icon(
+pub fn push_icon(
     vertices: &mut Vec<HudVertex>,
     icon: HudIcon,
     left_x: f32,

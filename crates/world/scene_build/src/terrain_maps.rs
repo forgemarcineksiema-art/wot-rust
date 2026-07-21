@@ -165,8 +165,9 @@ pub fn terrain_material_set_for(map: MapId) -> TerrainMaterialSet {
     }
 }
 
-/// Bind the renderer-free blueprint palette to the renderer's material set.
-fn material_set_from(spec: &map_forge::blueprint::GroundMaterialsSpec) -> TerrainMaterialSet {
+/// Bind the renderer-free blueprint palette to the renderer's material set. Public:
+/// the map editor renders documents that are not (yet) any `MapId`.
+pub fn material_set_from(spec: &map_forge::blueprint::GroundMaterialsSpec) -> TerrainMaterialSet {
     TerrainMaterialSet {
         layers: spec.layers.map(|layer| renderer_api::TerrainLayer {
             albedo: layer.albedo,
