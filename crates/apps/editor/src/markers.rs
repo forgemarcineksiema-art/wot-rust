@@ -153,6 +153,38 @@ fn push_ground_ring(
     }
 }
 
+/// A wireframe AABB outline (12 thin edge boxes) — the selection highlight and the
+/// placement ghost. Reads as a surveyor's frame, not a game-engine gizmo.
+pub fn aabb_outline(
+    vertices: &mut Vec<SceneVertex>,
+    indices: &mut Vec<u32>,
+    center: Vec3,
+    half: Vec3,
+    color: [f32; 3],
+) {
+    const EDGE: f32 = 0.09;
+    let (x, y, z) = (half.x, half.y, half.z);
+    for (offset, edge_half) in [
+        // Four edges along X.
+        (Vec3::new(0.0, -y, -z), Vec3::new(x, EDGE, EDGE)),
+        (Vec3::new(0.0, -y, z), Vec3::new(x, EDGE, EDGE)),
+        (Vec3::new(0.0, y, -z), Vec3::new(x, EDGE, EDGE)),
+        (Vec3::new(0.0, y, z), Vec3::new(x, EDGE, EDGE)),
+        // Four along Z.
+        (Vec3::new(-x, -y, 0.0), Vec3::new(EDGE, EDGE, z)),
+        (Vec3::new(x, -y, 0.0), Vec3::new(EDGE, EDGE, z)),
+        (Vec3::new(-x, y, 0.0), Vec3::new(EDGE, EDGE, z)),
+        (Vec3::new(x, y, 0.0), Vec3::new(EDGE, EDGE, z)),
+        // Four uprights.
+        (Vec3::new(-x, 0.0, -z), Vec3::new(EDGE, y, EDGE)),
+        (Vec3::new(x, 0.0, -z), Vec3::new(EDGE, y, EDGE)),
+        (Vec3::new(-x, 0.0, z), Vec3::new(EDGE, y, EDGE)),
+        (Vec3::new(x, 0.0, z), Vec3::new(EDGE, y, EDGE)),
+    ] {
+        push_marker_box(vertices, indices, center + offset, edge_half, color);
+    }
+}
+
 /// An axis-aligned matte box with per-face normals (the painterly read of world objects).
 fn push_marker_box(
     vertices: &mut Vec<SceneVertex>,
