@@ -9,6 +9,7 @@ use std::io::BufWriter;
 use editor::app::layer_lines;
 use editor::brush::{BrushMode, BrushSettings, Stroke};
 use editor::overlay::{OverlayModel, overlay};
+use editor::stamp::{self, StampKind};
 use editor::{EditorDocument, markers};
 use glam::Vec3;
 use renderer_api::{Camera, CameraProjectionPolicy, RenderFrame, view_projection_matrix};
@@ -79,6 +80,43 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
     }
 
+    // View 4: structural stamps (M4b) - a two-click hill and a hull-down crest placed as
+    // quantized TerrainOps through the same build/insert path the live gestures drive.
+    let mut stamped = EditorDocument::new_scratch();
+    {
+        let blueprint = stamped.blueprint().clone();
+        let (hill, _) = stamp::build_stamp(
+            StampKind::Hill,
+            &StampKind::Hill.parameters(),
+            &blueprint,
+            [110.0, 170.0],
+            [150.0, 170.0],
+        )
+        .expect("the hill lands");
+        let (crest, _) = stamp::build_stamp(
+            StampKind::Crest,
+            &StampKind::Crest.parameters(),
+            &blueprint,
+            [190.0, 120.0],
+            [165.0, 150.0],
+        )
+        .expect("the crest lands");
+        stamped.apply_edit(|blueprint| {
+            stamp::insert(blueprint, hill);
+            stamp::insert(blueprint, crest);
+            blueprint.environment = Some(map_forge::blueprint::EnvironmentSpec {
+                looks: vec![map_forge::blueprint::LookSpec {
+                    variant: game_core::WeatherVariant::GoldenEvening,
+                    preset: map_forge::blueprint::LightingPreset::GoldenEvening,
+                    sky_rgb: [0.8, 0.62, 0.45],
+                    rain_intensity: 0.0,
+                    wetness: 0.0,
+                    overrides: Default::default(),
+                }],
+            });
+        });
+    }
+
     let ctx = GpuContext::headless()?;
     let target = OffscreenTarget::new(&ctx, width, height)?;
 
@@ -115,6 +153,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Some(Vec3::new(150.0, 5.0, 200.0)),
             None,
             "editor_shell_sculpt",
+        ),
+        (
+            &stamped,
+            Camera {
+                eye: [120.0, 55.0, 40.0],
+                target: [170.0, 8.0, 150.0],
+                vertical_fov_degrees: 55.0,
+            },
+            Some(Vec3::new(190.0, 5.0, 120.0)),
+            None,
+            "editor_shell_stamps",
         ),
     ] {
         let compiled = document.recompile();
@@ -153,6 +202,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let (mut marker_vertices, mut marker_indices) =
             markers::map_markers(battlefield, &compiled.report, selected);
         let brush_armed = name == "editor_shell_sculpt";
+        let stamp_armed = name == "editor_shell_stamps";
         if let Some(at) = probe {
             let ground_h = battlefield.heightmap.sample_height(at.x, at.z).unwrap_or(at.y);
             if brush_armed {
@@ -182,6 +232,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .unwrap_or_default();
         let model = OverlayModel {
             brush_line: if brush_armed { "brush flatten  r 16 m".to_string() } else { String::new() },
+            stamp_lines: if stamp_armed {
+                vec![
+                    ("crest - click 1: crest, click 2: shelf side + window".to_string(), false),
+                    ("crest h: 1.5 m".to_string(), true),
+                    ("shelf cut: 1.0 m".to_string(), false),
+                    ("sigma x: 9.0 m".to_string(), false),
+                    ("anchor: click LMB".to_string(), false),
+                ]
+            } else {
+                Vec::new()
+            },
             document_label: document
                 .path()
                 .map_or_else(|| document.blueprint().meta.id.clone(), |p| p.display().to_string()),

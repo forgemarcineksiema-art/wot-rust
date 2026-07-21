@@ -10,6 +10,7 @@ pub mod brush;
 pub mod markers;
 pub mod overlay;
 pub mod pick;
+pub mod stamp;
 
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};

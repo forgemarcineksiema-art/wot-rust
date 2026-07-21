@@ -25,6 +25,7 @@ use winit::window::{CursorGrabMode, Window, WindowId};
 
 use crate::brush::{BrushMode, BrushSettings, Stroke};
 use crate::overlay::{OverlayModel, overlay};
+use crate::stamp::{Parameter, StampKind};
 use crate::{CompiledMap, EditorDocument, markers, pick};
 
 /// Run the editor shell. `path` opens an existing document; `None` starts from the scratch
@@ -46,7 +47,7 @@ pub fn run(path: Option<PathBuf>) -> anyhow::Result<()> {
 const FRAME_INTERVAL: Duration = Duration::from_millis(12);
 
 const HELP_LINE: &str =
-    "B brush   [ ] radius   LMB paint   F1 overview   N problem   Ctrl+S save   Ctrl+P playtest";
+    "B brush   T stamp   F1 overview   N problem   Ctrl+S save   Ctrl+Z undo   Ctrl+P playtest";
 
 /// Free-fly viewport camera: yaw/pitch look (hold RMB), WASD + QE move, Shift sprints,
 /// wheel sets the pace.
@@ -128,6 +129,7 @@ struct EditorApp {
     probe: Option<Vec3>,
     map_markers: (Vec<SceneVertex>, Vec<u32>),
     brush: Option<BrushSettings>,
+    stamp: Option<StampState>,
     stroke: Option<Stroke>,
     working: Option<terrain::HeightMap>,
     painting: bool,
@@ -159,6 +161,7 @@ impl EditorApp {
             probe: None,
             map_markers: (Vec::new(), Vec::new()),
             brush: None,
+            stamp: None,
             stroke: None,
             working: None,
             painting: false,
@@ -384,10 +387,13 @@ impl EditorApp {
             KeyCode::F5 if pressed => self.reload_scene(),
             KeyCode::KeyN if pressed => self.jump_to_problem(self.input.shift),
             KeyCode::KeyB if pressed => self.cycle_brush(),
+            KeyCode::KeyT if pressed => self.cycle_stamp(),
+            KeyCode::Tab if pressed => self.cycle_stamp_parameter(),
+            KeyCode::Escape if pressed => self.cancel_stamp_anchor(),
             KeyCode::BracketLeft if pressed => self.resize_brush(1.0 / 1.25),
             KeyCode::BracketRight if pressed => self.resize_brush(1.25),
-            KeyCode::Minus if pressed => self.retune_brush(1.0 / 1.25),
-            KeyCode::Equal if pressed => self.retune_brush(1.25),
+            KeyCode::Minus if pressed => self.adjust_knob(-1.0),
+            KeyCode::Equal if pressed => self.adjust_knob(1.0),
             _ => {}
         }
         if pressed && self.input.moving() {
@@ -467,6 +473,7 @@ impl EditorApp {
     }
 
     fn cycle_brush(&mut self) {
+        self.stamp = None;
         let next = match self.brush.map(|brush| brush.mode) {
             None => Some(BrushMode::CYCLE[0]),
             Some(mode) => {
@@ -493,11 +500,141 @@ impl EditorApp {
         }
     }
 
-    fn retune_brush(&mut self, factor: f32) {
+    fn adjust_knob(&mut self, steps: f32) {
+        if let Some(stamp) = &mut self.stamp {
+            if let Some(parameter) = stamp.parameters.get_mut(stamp.active) {
+                parameter.adjust(steps);
+            }
+            self.status = stamp_status(stamp);
+            return;
+        }
         if let Some(brush) = &mut self.brush {
+            let factor = if steps > 0.0 { 1.25 } else { 1.0 / 1.25 };
             brush.rate_m_s = (brush.rate_m_s * factor).clamp(1.5, 24.0);
             self.status = brush_status(brush);
         }
+    }
+
+    fn cycle_stamp(&mut self) {
+        self.brush = None;
+        self.restore_compiled_ground();
+        let next = match self.stamp.as_ref().map(|stamp| stamp.kind) {
+            None => Some(StampKind::CYCLE[0]),
+            Some(kind) => {
+                let position =
+                    StampKind::CYCLE.iter().position(|&cycle| cycle == kind).unwrap_or(0);
+                StampKind::CYCLE.get(position + 1).copied()
+            }
+        };
+        self.stamp = next.map(|kind| StampState {
+            kind,
+            parameters: kind.parameters(),
+            active: 0,
+            anchor: None,
+        });
+        self.status = match &self.stamp {
+            Some(stamp) => stamp_status(stamp),
+            None => format!("stamp off - {HELP_LINE}"),
+        };
+    }
+
+    fn cycle_stamp_parameter(&mut self) {
+        if let Some(stamp) = &mut self.stamp {
+            stamp.active = (stamp.active + 1) % stamp.parameters.len().max(1);
+            self.status = stamp_status(stamp);
+        }
+    }
+
+    fn cancel_stamp_anchor(&mut self) {
+        if let Some(stamp) = &mut self.stamp
+            && stamp.anchor.is_some()
+        {
+            stamp.anchor = None;
+            self.restore_compiled_ground();
+            self.status = "stamp anchor cancelled".into();
+        }
+    }
+
+    /// Put the COMPILED ground back on screen (a ghost preview or a cancelled gesture
+    /// must never leave a phantom hill in the viewport).
+    fn restore_compiled_ground(&mut self) {
+        if self.working.take().is_some()
+            && let Some(renderer) = self.renderer.as_mut()
+        {
+            let (vertices, indices) = scene_build::battlefield::terrain_scene_mesh_with_water(
+                &self.compiled.battlefield.heightmap,
+                self.compiled.battlefield.water,
+            );
+            renderer.update_battlefield_ground_geometry(&vertices, &indices);
+        }
+    }
+
+    /// The stamp gesture: first click anchors, second click places the quantized op(s)
+    /// through the document's single `apply_edit` door — one gesture, one undo step.
+    fn stamp_click(&mut self) -> bool {
+        let Some(hit) = self.probe else { return self.stamp.is_some() };
+        let Some(stamp) = &mut self.stamp else { return false };
+        match stamp.anchor {
+            None => {
+                stamp.anchor = Some([hit.x, hit.z]);
+                self.status = format!("{} - {}", stamp.kind.label(), stamp.kind.gesture_hint());
+            }
+            Some(anchor) => {
+                let placed = crate::stamp::build_stamp(
+                    stamp.kind,
+                    &stamp.parameters,
+                    self.document.blueprint(),
+                    anchor,
+                    [hit.x, hit.z],
+                );
+                match placed {
+                    Some((ops, summary)) => {
+                        self.document.apply_edit(|blueprint| crate::stamp::insert(blueprint, ops));
+                        self.reload_scene();
+                        self.status = format!("stamped: {summary}");
+                    }
+                    None => {
+                        let why = crate::stamp::refusal(stamp.kind, self.document.blueprint());
+                        stamp.anchor = None;
+                        self.restore_compiled_ground();
+                        self.status = format!("stamp refused: {why}");
+                    }
+                }
+            }
+        }
+        true
+    }
+
+    /// The ghost: with an anchor down, the viewport previews the op the second click
+    /// WOULD place at the cursor — same throttle discipline as the sculpt stroke.
+    fn preview_stamp(&mut self) {
+        let Some(hit) = self.probe else { return };
+        let Some(stamp) = &self.stamp else { return };
+        let Some(anchor) = stamp.anchor else { return };
+        if self.last_mesh_swap.elapsed() < Duration::from_millis(50) {
+            return;
+        }
+        self.last_mesh_swap = Instant::now();
+        let Some((ops, _)) = crate::stamp::build_stamp(
+            stamp.kind,
+            &stamp.parameters,
+            self.document.blueprint(),
+            anchor,
+            [hit.x, hit.z],
+        ) else {
+            return;
+        };
+        let mut ghost = self.document.blueprint().clone();
+        crate::stamp::insert(&mut ghost, ops);
+        let (battlefield, _) = map_forge::compile(&ghost);
+        if let Some(renderer) = self.renderer.as_mut() {
+            let (vertices, indices) = scene_build::battlefield::terrain_scene_mesh_with_water(
+                &battlefield.heightmap,
+                battlefield.water,
+            );
+            renderer.update_battlefield_ground_geometry(&vertices, &indices);
+        }
+        self.working = Some(battlefield.heightmap);
     }
 
     fn begin_stroke(&mut self) {
@@ -561,9 +698,38 @@ impl EditorApp {
             .probe
             .map(|hit| format!("cursor {:.0}, {:.0}  h {:.1}", hit.x, hit.z, hit.y))
             .unwrap_or_default();
-        let brush_line = self.brush.as_ref().map(brush_status).unwrap_or_default();
+        let brush_line = match (&self.stamp, &self.brush) {
+            (Some(stamp), _) => stamp_status(stamp),
+            (None, Some(brush)) => brush_status(brush),
+            _ => String::new(),
+        };
+        let stamp_lines = self
+            .stamp
+            .as_ref()
+            .map(|stamp| {
+                let mut lines = vec![(
+                    format!("{} - {}", stamp.kind.label(), stamp.kind.gesture_hint()),
+                    false,
+                )];
+                for (index, parameter) in stamp.parameters.iter().enumerate() {
+                    lines.push((
+                        format!("{}: {:.1} m", parameter.name, parameter.value_m),
+                        index == stamp.active,
+                    ));
+                }
+                lines.push((
+                    match stamp.anchor {
+                        Some(anchor) => format!("anchor {:.0}, {:.0}", anchor[0], anchor[1]),
+                        None => "anchor: click LMB".to_string(),
+                    },
+                    false,
+                ));
+                lines
+            })
+            .unwrap_or_default();
         OverlayModel {
             brush_line,
+            stamp_lines,
             document_label: self.document_label(),
             dirty: self.document.dirty(),
             compile_ms: self.compiled.compile_time.as_secs_f32() * 1000.0,
@@ -582,6 +748,8 @@ impl EditorApp {
         self.refresh_probe();
         if self.painting {
             self.paint_frame();
+        } else {
+            self.preview_stamp();
         }
         let model = self.overlay_model();
         let Some(renderer) = self.renderer.as_mut() else { return };
@@ -609,36 +777,58 @@ impl EditorApp {
         // navigating, the brush ring when a brush is armed.
         let (mut vertices, mut indices) = (self.map_markers.0.clone(), self.map_markers.1.clone());
         if let Some(hit) = self.probe {
-            match self.brush {
-                Some(brush) => {
-                    let heightmap =
-                        self.working.as_ref().unwrap_or(&self.compiled.battlefield.heightmap);
-                    let color = markers::brush_color(brush.mode.label());
-                    markers::brush_ring(
+            if let Some(stamp) = &self.stamp {
+                let heightmap =
+                    self.working.as_ref().unwrap_or(&self.compiled.battlefield.heightmap);
+                if let Some(anchor) = stamp.anchor {
+                    let ground = heightmap.sample_height(anchor[0], anchor[1]).unwrap_or(hit.y);
+                    markers::probe_marker(
                         &mut vertices,
                         &mut indices,
-                        heightmap,
-                        [hit.x, hit.z],
-                        brush.radius_m,
-                        color,
+                        Vec3::new(anchor[0], ground, anchor[1]),
+                        1.2,
                     );
-                    // On a fair map the twin ring shows WHERE the mirror stamp lands.
-                    if self.document.blueprint().symmetry.is_some() {
-                        let axis_z = self.compiled.battlefield.size_m[1] * 0.5;
-                        let mirrored_z = axis_z * 2.0 - hit.z;
-                        if (mirrored_z - hit.z).abs() > 0.5 {
-                            markers::brush_ring(
-                                &mut vertices,
-                                &mut indices,
-                                heightmap,
-                                [hit.x, mirrored_z],
-                                brush.radius_m,
-                                color.map(|c| c * 0.55),
-                            );
+                }
+                markers::brush_ring(
+                    &mut vertices,
+                    &mut indices,
+                    heightmap,
+                    [hit.x, hit.z],
+                    6.0,
+                    markers::brush_color("flatten"),
+                );
+            } else {
+                match self.brush {
+                    Some(brush) => {
+                        let heightmap =
+                            self.working.as_ref().unwrap_or(&self.compiled.battlefield.heightmap);
+                        let color = markers::brush_color(brush.mode.label());
+                        markers::brush_ring(
+                            &mut vertices,
+                            &mut indices,
+                            heightmap,
+                            [hit.x, hit.z],
+                            brush.radius_m,
+                            color,
+                        );
+                        // On a fair map the twin ring shows WHERE the mirror stamp lands.
+                        if self.document.blueprint().symmetry.is_some() {
+                            let axis_z = self.compiled.battlefield.size_m[1] * 0.5;
+                            let mirrored_z = axis_z * 2.0 - hit.z;
+                            if (mirrored_z - hit.z).abs() > 0.5 {
+                                markers::brush_ring(
+                                    &mut vertices,
+                                    &mut indices,
+                                    heightmap,
+                                    [hit.x, mirrored_z],
+                                    brush.radius_m,
+                                    color.map(|c| c * 0.55),
+                                );
+                            }
                         }
                     }
+                    None => markers::probe_marker(&mut vertices, &mut indices, hit, 1.5),
                 }
-                None => markers::probe_marker(&mut vertices, &mut indices, hit, 1.5),
             }
         }
         renderer.set_dynamic_mesh(&vertices, &indices);
@@ -733,7 +923,9 @@ impl ApplicationHandler for EditorApp {
             }
             WindowEvent::MouseInput { state, button: MouseButton::Left, .. } => {
                 if state == ElementState::Pressed {
-                    self.begin_stroke();
+                    if !self.stamp_click() {
+                        self.begin_stroke();
+                    }
                 } else {
                     self.end_stroke();
                 }
@@ -829,6 +1021,25 @@ pub fn layer_lines(
 /// Where a pathless document lands for save/playtest: one well-known scratch file.
 fn scratch_path() -> PathBuf {
     std::env::temp_dir().join("wot_editor_scratch.map.ron")
+}
+
+/// The armed stamp tool: its kind, the inspector knobs, which knob Tab points at, and
+/// the pending first click.
+struct StampState {
+    kind: StampKind,
+    parameters: Vec<Parameter>,
+    active: usize,
+    anchor: Option<[f32; 2]>,
+}
+
+fn stamp_status(stamp: &StampState) -> String {
+    let parameter = &stamp.parameters[stamp.active.min(stamp.parameters.len() - 1)];
+    format!(
+        "stamp: {}  {}: {:.1} m (Tab next, -/= adjust)",
+        stamp.kind.label(),
+        parameter.name,
+        parameter.value_m
+    )
 }
 
 fn brush_status(brush: &BrushSettings) -> String {

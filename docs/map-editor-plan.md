@@ -89,10 +89,21 @@ structural terrain ops, and the WoT map anatomy (`TerrainMapPlan`'s 12 layers).
     sage) and on a fair map the TWIN ring shows where the mirror stamp lands; the document
     panel counts the layer's samples. Proof shot: `editor_shell_sculpt.png` (a ridge with
     a hull-down notch, two stacked strokes).
-- [ ] **M4b — structural op stamps**
-  - Channel/Ramp/Deck (and their kin) placed as QUANTIZED `TerrainOp`s in the program —
-    two-click gestures + a parameter inspector; this is where the in-house UI grows its
-    first input widgets.
+- [x] **M4b — structural op stamps** *(done)*
+  - Two-click gestures place QUANTIZED `TerrainOp`s into the program (positions snap to
+    the cell, amplitudes to their quantum): **Hill/Bowl** (`Gauss2`), the hull-down
+    **Crest** (`CrestShelf` window) and the river **Deck** (refused, with a reason, on a
+    riverless document). T cycles the tool, LMB anchors then places (one gesture, one undo
+    step; ops insert BEFORE a trailing floor clamp), Esc cancels, and between the clicks
+    the viewport shows a live GHOST of the op under the cursor (same throttled
+    geometry-swap as the brushes).
+  - On a fair map every stamp lands with its twin BY CONSTRUCTION — a mirrored `Gauss2`
+    term, a mirrored `CrestShelf` window, a mirrored `Deck` op — locked end-to-end against
+    the symmetry Error.
+  - The first input widget of the in-house UI: the STAMP inspector panel — the tool's
+    knobs as selectable rows (Tab points, `-`/`=` turns, the active row wears the amber
+    accent). `FlattenToRamp`/`RidgeGated` stay RON-authored deliberately: their masks are
+    axis-coupled by the fairness design. Proof shot: `editor_shell_stamps.png`.
 - [ ] **M5 — objects**
   - Palette (5 building styles, cover kinds, flora, world_forge props, wrecks), click
     placement with grounding, yaw/scale, inspector, gizmos; buildings emit their cover box
