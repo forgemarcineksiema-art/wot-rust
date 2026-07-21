@@ -28,6 +28,7 @@ pub use hud::{HudVitals, build_hud};
 // with the SAME primitives the battle HUD and garage use — one look, one implementation.
 pub use hud::font::layout::{push_text, push_text_right, text_width};
 pub use hud::primitives::{push_arc, push_bar, push_hairline, push_panel, push_quad, push_segment};
+pub use hud::theme;
 pub use loop_policy::{
     ClientLoopAction, ClientLoopEvent, ClientLoopPhase, FixedTickAccumulator, WinitLoopDriver,
 };

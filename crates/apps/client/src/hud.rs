@@ -23,7 +23,7 @@ pub(crate) mod reticle_overlay;
 pub(crate) mod reticle_readouts;
 pub(crate) mod reticle_sweep;
 pub(crate) mod scope_overlay;
-pub(crate) mod theme;
+pub mod theme;
 pub(crate) mod track_callout;
 
 pub(crate) use health::health_color;

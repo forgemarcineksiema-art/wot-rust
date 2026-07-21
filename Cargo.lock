@@ -1203,6 +1203,7 @@ dependencies = [
  "client",
  "glam 0.30.10",
  "map_forge",
+ "png",
  "renderer_api",
  "renderer_wgpu",
  "scene_build",
