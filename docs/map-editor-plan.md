@@ -122,9 +122,19 @@ structural terrain ops, and the WoT map anatomy (`TerrainMapPlan`'s 12 layers).
     Locked end-to-end: the excluded spot stays empty after recompile.
   - Proof shot: `editor_shell_objects.png` — a placed farmyard, the barn selected, and
     the report catching a REAL spawn-reaches-cover Error live.
-- [ ] **M6 — roads & water**
-  - Polyline road tool with preview ribbon; water panel with live depth tint
-    (fordable/drowning) and the corridor contract.
+- [x] **M6 — roads & water** *(done)*
+  - The road tool (L): LMB collects waypoints (snapped to the metre), a draped RIBBON
+    previews the line live (the surveyor's chalk; the real paint arrives with the
+    commit's splat rebake), Backspace pops, Tab cycles the surface, `-`/`=` width, Enter
+    commits ONE `RoadSpec` — a `MirroredPair` on fair maps (the twin is the contract).
+  - The water panel (F3): the single standing level in quarter-metre quanta (`-`/`=`,
+    X removes), and the viewport tints every wet cell by its GAMEPLAY class — ford green,
+    marginal amber, drowning red — against the same `WaterThresholds` the report checks.
+    This is how a ford is placed: sculpt the sill until the crossing band turns green.
+  - The proof shot caught a real paper cut: the scratch placeholder lacked a floor clamp,
+    so a deep stamped bowl tripped `heightmap_sane` — the placeholder now ends with
+    `ClampMin` (stamps insert before it). Proof: `editor_shell_water.png` (a flooded
+    bowl with the ford ring, a committed dirt road painted into the splat).
   - Known limit, kept deliberately: `WaterSpec` is ONE global level — a pond above the
     valley floor does not exist yet. A future map that needs one turns `water` into a list
     of bodies (schema change → `meta.version` bump), not a hack.

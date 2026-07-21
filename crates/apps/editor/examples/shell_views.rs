@@ -10,6 +10,7 @@ use editor::app::layer_lines;
 use editor::brush::{BrushMode, BrushSettings, Stroke};
 use editor::objects::{self, PaletteEntry};
 use editor::overlay::{OverlayModel, overlay};
+use editor::roads::{self, PendingRoad};
 use editor::stamp::{self, StampKind};
 use editor::{EditorDocument, markers};
 use glam::Vec3;
@@ -140,6 +141,45 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
     });
 
+    // View 6: roads & water (M6) - a stamped bowl flooded into a lake, the depth tint
+    // speaking the gameplay thresholds (ford green / marginal amber / drowning red), and a
+    // committed dirt road painted into the splat by the recompile.
+    let mut lakeside = EditorDocument::new_scratch();
+    {
+        let blueprint = lakeside.blueprint().clone();
+        let mut bowl_params = StampKind::Bowl.parameters();
+        bowl_params[0].adjust(2.0); // 7 m deep
+        let (bowl, _) = stamp::build_stamp(
+            StampKind::Bowl,
+            &bowl_params,
+            &blueprint,
+            [150.0, 150.0],
+            [190.0, 150.0],
+        )
+        .expect("the bowl lands");
+        let mut road = PendingRoad::default();
+        for point in [[60.0, 96.0], [110.0, 104.0], [150.0, 96.0], [205.0, 118.0], [235.0, 150.0]] {
+            road.add_point(point);
+        }
+        lakeside.apply_edit(|blueprint| {
+            stamp::insert(blueprint, bowl);
+            roads::set_water_level(blueprint, 3.0);
+            if let Some((spec, _)) = road.committed(blueprint) {
+                blueprint.roads.push(spec);
+            }
+            blueprint.environment = Some(map_forge::blueprint::EnvironmentSpec {
+                looks: vec![map_forge::blueprint::LookSpec {
+                    variant: game_core::WeatherVariant::GoldenEvening,
+                    preset: map_forge::blueprint::LightingPreset::GoldenEvening,
+                    sky_rgb: [0.8, 0.62, 0.45],
+                    rain_intensity: 0.0,
+                    wetness: 0.0,
+                    overrides: Default::default(),
+                }],
+            });
+        });
+    }
+
     let ctx = GpuContext::headless()?;
     let target = OffscreenTarget::new(&ctx, width, height)?;
 
@@ -199,6 +239,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             None,
             "editor_shell_objects",
         ),
+        (
+            &lakeside,
+            Camera {
+                eye: [110.0, 60.0, 60.0],
+                target: [160.0, 2.0, 150.0],
+                vertical_fov_degrees: 55.0,
+            },
+            Some(Vec3::new(172.0, 2.0, 150.0)),
+            None,
+            "editor_shell_water",
+        ),
     ] {
         let compiled = document.recompile();
         let battlefield = &compiled.battlefield;
@@ -238,6 +289,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let brush_armed = name == "editor_shell_sculpt";
         let stamp_armed = name == "editor_shell_stamps";
         let farmyard_view = name == "editor_shell_objects";
+        let water_view = name == "editor_shell_water";
         if let Some(at) = probe {
             let ground_h = battlefield.heightmap.sample_height(at.x, at.z).unwrap_or(at.y);
             if brush_armed {
@@ -257,6 +309,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     1.5,
                 );
             }
+        }
+        if water_view && let Some(water) = battlefield.water {
+            let (tint_vertices, tint_indices) = roads::depth_tint_mesh(
+                &battlefield.heightmap,
+                water.surface_level_m,
+                &map_forge::WaterThresholds::default(),
+            );
+            let base = marker_vertices.len() as u32;
+            marker_vertices.extend_from_slice(&tint_vertices);
+            marker_indices.extend(tint_indices.iter().map(|index| index + base));
         }
         if farmyard_view
             && let Some(barn) =
@@ -279,8 +341,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .unwrap_or_default();
         let model = OverlayModel {
             brush_line: if brush_armed { "brush flatten  r 16 m".to_string() } else { String::new() },
-            inspector_title: if farmyard_view { "OBJECT".to_string() } else { "STAMP".to_string() },
-            stamp_lines: if farmyard_view {
+            inspector_title: if water_view {
+                "WATER".to_string()
+            } else if farmyard_view {
+                "OBJECT".to_string()
+            } else {
+                "STAMP".to_string()
+            },
+            stamp_lines: if water_view {
+                vec![
+                    ("level: 3.00 m".to_string(), true),
+                    ("green: ford  amber: marginal".to_string(), false),
+                    ("red: the current drowns".to_string(), false),
+                    ("X removes standing water".to_string(), false),
+                ]
+            } else if farmyard_view {
                 objects::inspector_lines(
                     document.blueprint(),
                     &editor::objects::Selection::Cover { object_index: 1, id: "barn_1".into() },
