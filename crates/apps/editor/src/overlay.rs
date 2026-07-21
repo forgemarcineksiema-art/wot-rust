@@ -16,6 +16,8 @@ const LINE: f32 = 0.052;
 pub struct OverlayModel {
     /// The armed brush readout for the footer (empty when navigating).
     pub brush_line: String,
+    /// The armed stamp inspector: `(line, active)` rows; empty when no stamp is armed.
+    pub stamp_lines: Vec<(String, bool)>,
     pub document_label: String,
     pub dirty: bool,
     pub compile_ms: f32,
@@ -208,6 +210,32 @@ pub fn overlay(model: &OverlayModel, aspect: f32) -> Vec<HudVertex> {
         }
     }
 
+    // The stamp inspector (bottom right, above the footer): the armed tool's knobs, the
+    // amber row being the one Tab points at.
+    if !model.stamp_lines.is_empty() {
+        let rows = model.stamp_lines.len();
+        let content_h = (rows - 1) as f32 * LINE + TEXT_H;
+        let top = -0.52;
+        let bottom = top - content_h - 0.026 - 0.05;
+        push_panel(
+            &mut vertices,
+            [0.735, (top + bottom) * 0.5],
+            [0.26, (top - bottom) * 0.5],
+            theme::CHAMFER_PANEL,
+            aspect,
+            color::PANEL,
+        );
+        push_text(&mut vertices, "STAMP", 0.49, top - 0.005, TEXT_H, aspect, color::TEXT);
+        push_hairline(&mut vertices, 0.49, 0.985, top - 0.052, color::HAIRLINE);
+        let mut y = top - 0.068;
+        for (line, active) in &model.stamp_lines {
+            let ink = if *active { color::ACCENT } else { color::TEXT_DIM };
+            let prefix = if *active { "> " } else { "  " };
+            push_text(&mut vertices, &format!("{prefix}{line}"), 0.49, y, TEXT_H, aspect, ink);
+            y -= LINE;
+        }
+    }
+
     // Footer: help left, camera + probe readouts right — the instrument's needle values.
     push_panel(
         &mut vertices,
@@ -248,6 +276,10 @@ mod tests {
     fn the_overlay_builds_and_scales_with_its_content() {
         let mut model = OverlayModel {
             brush_line: "brush raise  r 12 m".into(),
+            stamp_lines: vec![
+                ("hill - click 1: centre".into(), false),
+                ("height: 6.0 m".into(), true),
+            ],
             document_label: "bystra-valley.map.ron".into(),
             dirty: true,
             compile_ms: 12.5,
