@@ -660,20 +660,7 @@ fn append_building(
         seed ^= u64::from(byte);
         seed = seed.wrapping_mul(0x0100_0000_01b3);
     }
-    // Landmarks stand by NAME (B4 cz.2) — one church, one windmill per map; every other
-    // building keeps reading its style off the collision box's proportions.
-    let elongation = half.x.max(half.z) / half.x.min(half.z).max(0.1);
-    let style = if cover.id.contains("church") {
-        world_forge::building::BuildingStyle::Church
-    } else if cover.id.contains("windmill") {
-        world_forge::building::BuildingStyle::Windmill
-    } else if elongation > 1.45 && half.y < 2.9 {
-        world_forge::building::BuildingStyle::Barn
-    } else if half.y >= 2.9 {
-        world_forge::building::BuildingStyle::Townhouse
-    } else {
-        world_forge::building::BuildingStyle::Cottage
-    };
+    let style = derived_building_style(&cover.id, half);
     let baked = world_forge::building::bake_building(
         style,
         seed,
@@ -733,6 +720,33 @@ fn append_building(
 const WINDOW: ([f32; 3], f32) = ([0.07, 0.09, 0.11], 0.45);
 /// Plank door: dark weathered timber, matte.
 const DOOR: ([f32; 3], f32) = ([0.16, 0.11, 0.07], 0.06);
+
+/// The ONE style-derivation table (B4 + urban-map PR-08). Landmarks and the urban block
+/// stand by NAME — explicit id substrings are the primary mechanism (`church`, `windmill`,
+/// `tenement`); the proportion heuristic remains the fallback: a box too tall for a
+/// townhouse (half-height >= 5 m) IS three storeys of masonry, elongated-and-low reads barn,
+/// tall reads townhouse, the rest cottages.
+pub(crate) fn derived_building_style(id: &str, half: Vec3) -> world_forge::building::BuildingStyle {
+    use world_forge::building::BuildingStyle;
+    let elongation = half.x.max(half.z) / half.x.min(half.z).max(0.1);
+    if id.contains("church") {
+        BuildingStyle::Church
+    } else if id.contains("windmill") {
+        BuildingStyle::Windmill
+    } else if id.contains("factory") {
+        // Halls stand by NAME only (PR-09): no box proportion ever invents an industrial
+        // span — a map says "factory" or it gets civic masonry.
+        BuildingStyle::FactoryHall
+    } else if id.contains("tenement") || half.y >= 5.0 {
+        BuildingStyle::Tenement
+    } else if elongation > 1.45 && half.y < 2.9 {
+        BuildingStyle::Barn
+    } else if half.y >= 2.9 {
+        BuildingStyle::Townhouse
+    } else {
+        BuildingStyle::Cottage
+    }
+}
 
 fn building_palette(id: &str) -> ([f32; 3], [f32; 3], f32) {
     let mut hash = 0xcbf2_9ce4_8422_2325_u64;
@@ -1673,6 +1687,28 @@ mod tests {
             "setts carry the faint worn sheen"
         );
         assert!(cobble_gloss <= 0.15, "a street is stone, not a mirror");
+    }
+
+    /// The style-derivation table (urban-map PR-08): explicit names beat proportions, the
+    /// tenement is reachable both ways, and every legacy rule still lands where it always
+    /// did — a new style must never silently re-dress an old map.
+    #[test]
+    fn the_style_table_names_the_tenement_and_keeps_the_legacy_rules() {
+        use world_forge::building::BuildingStyle;
+        let by = |id: &str, half: [f32; 3]| derived_building_style(id, Vec3::from_array(half));
+        assert_eq!(by("ostrogorsk_church", [5.0, 7.0, 6.5]), BuildingStyle::Church);
+        assert_eq!(by("old_windmill", [4.0, 6.0, 4.0]), BuildingStyle::Windmill);
+        assert_eq!(by("tenement_row_a", [9.0, 4.0, 5.0]), BuildingStyle::Tenement);
+        assert_eq!(by("elevator_south", [6.0, 9.5, 6.0]), BuildingStyle::Tenement);
+        assert_eq!(by("mill_factory_south", [14.0, 6.0, 9.0]), BuildingStyle::FactoryHall);
+        assert_eq!(
+            by("long_low_hall", [14.0, 2.7, 9.0]),
+            BuildingStyle::Barn,
+            "no proportion ever invents a factory - halls stand by name"
+        );
+        assert_eq!(by("barn_2", [7.0, 2.7, 4.2]), BuildingStyle::Barn);
+        assert_eq!(by("town_house_c1", [4.5, 3.4, 4.5]), BuildingStyle::Townhouse);
+        assert_eq!(by("cottage_9", [4.0, 2.6, 3.2]), BuildingStyle::Cottage);
     }
 
     /// The grass is a patchwork, not a lawn: across the open steppe the green varies by
