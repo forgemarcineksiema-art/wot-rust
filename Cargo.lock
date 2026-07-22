@@ -4378,10 +4378,13 @@ name = "tools"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bytemuck",
  "clap",
  "game_core",
+ "glam 0.30.10",
  "gltf",
  "map_forge",
+ "meshopt",
  "png",
  "ron",
  "serde",

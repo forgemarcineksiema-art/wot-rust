@@ -107,7 +107,23 @@ fn import_flora(
     let mut uvs: Vec<[f32; 2]> = Vec::new();
     let mut indices: Vec<u32> = Vec::new();
     let mut texture_image: Option<usize> = None;
-    for mesh in document.meshes() {
+    // Walk the SCENE, not the raw mesh list: authored node transforms (Quaternius models
+    // carry real scales) are part of the geometry's truth — reading bare accessors imports
+    // a 2 cm bush.
+    let mut stack: Vec<(gltf::Node, glam::Mat4)> = document
+        .scenes()
+        .flat_map(|scene| scene.nodes())
+        .map(|node| (node, glam::Mat4::IDENTITY))
+        .collect();
+    while let Some((node, parent)) = stack.pop() {
+        let world = parent * glam::Mat4::from_cols_array_2d(&node.transform().matrix());
+        for child in node.children() {
+            stack.push((child, world));
+        }
+        let Some(mesh) = node.mesh() else {
+            continue;
+        };
+        let normal_matrix = glam::Mat3::from_mat4(world).inverse().transpose();
         for primitive in mesh.primitives() {
             anyhow::ensure!(
                 primitive.mode() == gltf::mesh::Mode::Triangles,
@@ -116,28 +132,30 @@ fn import_flora(
             );
             let reader = primitive.reader(|buffer| buffers.get(buffer.index()).map(|b| &b.0[..]));
             let base = positions.len() as u32;
-            let prim_positions: Vec<[f32; 3]> = reader
+            let prim_positions = reader
                 .read_positions()
-                .ok_or_else(|| anyhow::anyhow!("primitive without POSITION"))?
-                .collect();
-            let prim_normals: Vec<[f32; 3]> = reader
-                .read_normals()
-                .ok_or_else(|| anyhow::anyhow!("primitive without NORMAL"))?
-                .collect();
+                .ok_or_else(|| anyhow::anyhow!("primitive without POSITION"))?;
+            for p in prim_positions {
+                positions.push(world.transform_point3(glam::Vec3::from_array(p)).to_array());
+            }
+            let prim_normals =
+                reader.read_normals().ok_or_else(|| anyhow::anyhow!("primitive without NORMAL"))?;
+            for n in prim_normals {
+                normals.push(
+                    (normal_matrix * glam::Vec3::from_array(n)).normalize_or_zero().to_array(),
+                );
+            }
             let prim_uvs: Vec<[f32; 2]> = reader
                 .read_tex_coords(0)
                 .ok_or_else(|| anyhow::anyhow!("primitive without TEXCOORD_0"))?
                 .into_f32()
                 .collect();
-            let prim_indices: Vec<u32> = reader
+            uvs.extend(prim_uvs);
+            let prim_indices = reader
                 .read_indices()
                 .ok_or_else(|| anyhow::anyhow!("primitive without indices"))?
-                .into_u32()
-                .collect();
-            positions.extend(prim_positions);
-            normals.extend(prim_normals);
-            uvs.extend(prim_uvs);
-            indices.extend(prim_indices.into_iter().map(|index| index + base));
+                .into_u32();
+            indices.extend(prim_indices.map(|index| index + base));
             if texture_image.is_none() {
                 texture_image = primitive
                     .material()
@@ -153,6 +171,64 @@ fn import_flora(
         .get(image_index)
         .ok_or_else(|| anyhow::anyhow!("texture image {image_index} missing"))?;
     let rgba = image_to_rgba8(image)?;
+
+    // Over-budget sources get DECIMATED here, loudly — the validate gate's "decimate the
+    // source" is a step of this pipeline, never a raised ceiling. meshopt preserves the
+    // silhouette as far as the budget allows; how it looks is the FL-4 look gate's verdict.
+    let source_tris = indices.len() / 3;
+    if source_tris > world_forge::flora::FLORA_MAX_TRIS {
+        let vertex_bytes: &[u8] = bytemuck::cast_slice(&positions);
+        let adapter =
+            meshopt::VertexDataAdapter::new(vertex_bytes, std::mem::size_of::<[f32; 3]>(), 0)
+                .map_err(|error| anyhow::anyhow!("meshopt adapter: {error}"))?;
+        // Loosen the error bound until the budget is met: a stylized canopy often needs a
+        // coarser pass than the default tolerance allows. The LAST resort is refusal, and
+        // the look gate judges whatever survives.
+        let mut simplified = Vec::new();
+        for target_error in [0.05_f32, 0.15, 0.3, 0.6, 1.0] {
+            simplified = meshopt::simplify(
+                &indices,
+                &adapter,
+                world_forge::flora::FLORA_MAX_TRIS * 3,
+                target_error,
+                meshopt::SimplifyOptions::None,
+                None,
+            );
+            if simplified.len() / 3 <= world_forge::flora::FLORA_MAX_TRIS {
+                break;
+            }
+        }
+        anyhow::ensure!(
+            !simplified.is_empty() && simplified.len().is_multiple_of(3),
+            "simplification collapsed the mesh"
+        );
+        // Compact: keep only the vertices the simplified index stream still references.
+        let mut remap = vec![u32::MAX; positions.len()];
+        let (mut new_positions, mut new_normals, mut new_uvs) =
+            (Vec::new(), Vec::new(), Vec::new());
+        let mut new_indices = Vec::with_capacity(simplified.len());
+        for &index in &simplified {
+            let slot = &mut remap[index as usize];
+            if *slot == u32::MAX {
+                *slot = new_positions.len() as u32;
+                new_positions.push(positions[index as usize]);
+                new_normals.push(normals[index as usize]);
+                new_uvs.push(uvs[index as usize]);
+            }
+            new_indices.push(*slot);
+        }
+        println!(
+            "decimated {}: {source_tris} -> {} tris ({} -> {} vertices)",
+            manifest.name,
+            new_indices.len() / 3,
+            positions.len(),
+            new_positions.len()
+        );
+        positions = new_positions;
+        normals = new_normals;
+        uvs = new_uvs;
+        indices = new_indices;
+    }
 
     // Normalize: recentre in XZ, ground the lowest vertex at y = 0.
     let (mut min, mut max) = ([f32::INFINITY; 3], [f32::NEG_INFINITY; 3]);

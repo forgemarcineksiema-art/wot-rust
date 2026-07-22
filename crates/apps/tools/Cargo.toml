@@ -7,10 +7,13 @@ rust-version.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+bytemuck.workspace = true
 clap.workspace = true
 game_core.workspace = true
+glam.workspace = true
 gltf.workspace = true
 map_forge.workspace = true
+meshopt.workspace = true
 png = "0.18"
 ron.workspace = true
 serde.workspace = true
