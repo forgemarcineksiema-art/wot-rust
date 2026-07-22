@@ -1663,6 +1663,10 @@ impl ApplicationHandler for EditorApp {
             Ok(mut renderer) => {
                 let (width, height, coverage) = client::hud_font_atlas();
                 renderer.set_hud_font_atlas(width, height, coverage);
+                // The imported-flora atlas (FL-4): the editor previews the same textured
+                // foliage the battle draws.
+                let flora = scene_build::flora_pack::flora_catalog();
+                renderer.set_foliage_atlas(&flora.atlas_rgba, flora.atlas_size, flora.atlas_size);
                 self.renderer = Some(renderer);
             }
             Err(error) => {

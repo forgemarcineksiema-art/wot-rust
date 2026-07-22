@@ -25,12 +25,61 @@ pub fn push_scenery_instance(
         SceneryKind::Bush => Some(world_forge::tree::TreeSpecies::Bush),
         SceneryKind::Pine => Some(world_forge::tree::TreeSpecies::Pine),
         SceneryKind::Rock | SceneryKind::Lamppost | SceneryKind::DebrisHeap => None,
+        SceneryKind::FloraTree | SceneryKind::FloraPine | SceneryKind::FloraBush => None,
     };
+    if let Some(name) = imported_flora_name(instance.kind) {
+        push_imported_flora(vertices, indices, instance, name);
+        return;
+    }
     if let Some(species) = species {
         push_baked_tree(vertices, indices, instance, species);
         return;
     }
     push_scenery_instance_far(vertices, indices, instance);
+}
+
+/// Which shipped `assets/flora` asset a scenery kind names, if any.
+fn imported_flora_name(kind: SceneryKind) -> Option<&'static str> {
+    match kind {
+        SceneryKind::FloraTree => Some("stylized-tree"),
+        SceneryKind::FloraPine => Some("stylized-pine"),
+        SceneryKind::FloraBush => Some("stylized-bush"),
+        _ => None,
+    }
+}
+
+/// An imported CC0 asset, transformed into the static scene mesh with its UVs remapped into
+/// the packed atlas region (Flora 2.0, FL-4). Vertex color carries the baked material tint
+/// (base_color_factor from the source) and the FL-2 fragment path multiplies the sampled
+/// texel in — the product reconstructs the authored look; gloss keeps the leaf-wax sheen.
+/// No procedural surface treatment: the texture carries the detail.
+fn push_imported_flora(
+    vertices: &mut Vec<SceneVertex>,
+    indices: &mut Vec<u32>,
+    instance: &SceneryInstance,
+    name: &str,
+) {
+    let Some((asset, region)) = crate::flora_pack::flora_catalog().get(name) else {
+        // A kind naming a missing asset is a build error caught by the catalog tests; at
+        // runtime we draw nothing rather than lie with a placeholder.
+        return;
+    };
+    let base = Vec3::from_array(instance.position);
+    let rotation = Mat3::from_rotation_y(instance.yaw_rad);
+    let start = vertices.len() as u32;
+    for (index, position) in asset.positions.iter().enumerate() {
+        let world = base + rotation * (Vec3::from_array(*position) * instance.scale);
+        let normal = (rotation * Vec3::from_array(asset.normals[index])).normalize_or_zero();
+        let uv = asset.uvs[index];
+        vertices.push(
+            SceneVertex::surfaced(world.to_array(), normal.to_array(), asset.colors[index], 0.07)
+                .with_uv([
+                    region.u_offset + uv[0] * region.u_scale,
+                    region.v_offset + uv[1] * region.v_scale,
+                ]),
+        );
+    }
+    indices.extend(asset.indices.iter().map(|index| index + start));
 }
 
 /// The whole baked tree, transformed and colored into the static scene mesh. The seed comes
@@ -194,6 +243,28 @@ pub fn push_scenery_instance_far(
                 vertex.gloss = RUBBLE.1;
             }
         }
+        // Imported kinds at BACKDROP range: the painted frusta ARE the far representation
+        // (FL-4 LOD contract) — at kilometres a textured canopy and a cone read identically,
+        // and the ring carries thousands of instances.
+        SceneryKind::FloraTree => {
+            push_frustum(vertices, indices, base, 0.26 * s, 0.18 * s, 2.4 * s, TRUNK);
+            let crown = base + Vec3::Y * 2.1 * s;
+            push_frustum(vertices, indices, crown, 2.2 * s, 1.2 * s, 2.4 * s, CANOPY_DARK);
+            let top = crown + Vec3::Y * 2.4 * s;
+            push_frustum(vertices, indices, top, 1.2 * s, 0.3 * s, 1.6 * s, CANOPY);
+        }
+        SceneryKind::FloraPine => {
+            push_frustum(vertices, indices, base, 0.24 * s, 0.16 * s, 2.3 * s, TRUNK);
+            let skirt = base + Vec3::Y * 2.0 * s;
+            push_frustum(vertices, indices, skirt, 1.8 * s, 0.9 * s, 2.7 * s, CANOPY_PINE);
+            let tip = skirt + Vec3::Y * 2.7 * s;
+            push_frustum(vertices, indices, tip, 1.0 * s, 0.05 * s, 2.6 * s, CANOPY_PINE);
+        }
+        SceneryKind::FloraBush => {
+            push_frustum(vertices, indices, base, 1.1 * s, 0.8 * s, 0.6 * s, CANOPY_DARK);
+            let top = base + Vec3::Y * 0.55 * s;
+            push_frustum(vertices, indices, top, 0.75 * s, 0.2 * s, 0.55 * s, CANOPY);
+        }
         SceneryKind::Rock => {
             // Bare mineral faces catch the sky harder than anything vegetal around them.
             let start = vertices.len();
@@ -275,16 +346,22 @@ mod tests {
 
     #[test]
     fn every_kind_stays_inside_the_triangle_budget_with_sane_indices() {
-        for kind in [
-            SceneryKind::Oak,
-            SceneryKind::Poplar,
-            SceneryKind::Willow,
-            SceneryKind::FruitTree,
-            SceneryKind::Rock,
-            SceneryKind::Bush,
-            SceneryKind::Pine,
-            SceneryKind::Lamppost,
-            SceneryKind::DebrisHeap,
+        // Imported kinds (Flora 2.0) carry their own DELIBERATE ceiling: the whole program
+        // exists to spend more triangles on close-range foliage, and the import gate already
+        // enforces it per asset — the raise is per-kind, never a fleet-wide envelope bump.
+        for (kind, ceiling) in [
+            (SceneryKind::Oak, MAX_TRIS_PER_INSTANCE),
+            (SceneryKind::Poplar, MAX_TRIS_PER_INSTANCE),
+            (SceneryKind::Willow, MAX_TRIS_PER_INSTANCE),
+            (SceneryKind::FruitTree, MAX_TRIS_PER_INSTANCE),
+            (SceneryKind::Rock, MAX_TRIS_PER_INSTANCE),
+            (SceneryKind::Bush, MAX_TRIS_PER_INSTANCE),
+            (SceneryKind::Pine, MAX_TRIS_PER_INSTANCE),
+            (SceneryKind::Lamppost, MAX_TRIS_PER_INSTANCE),
+            (SceneryKind::DebrisHeap, MAX_TRIS_PER_INSTANCE),
+            (SceneryKind::FloraTree, world_forge::flora::FLORA_MAX_TRIS),
+            (SceneryKind::FloraPine, world_forge::flora::FLORA_MAX_TRIS),
+            (SceneryKind::FloraBush, world_forge::flora::FLORA_MAX_TRIS),
         ] {
             let mut vertices = Vec::new();
             let mut indices = Vec::new();
@@ -293,7 +370,7 @@ mod tests {
                 &mut indices,
                 &SceneryInstance { kind, position: [10.0, 3.0, 10.0], yaw_rad: 0.7, scale: 1.3 },
             );
-            assert!(!indices.is_empty());
+            assert!(!indices.is_empty(), "{kind:?} must draw something");
             assert!(indices.len().is_multiple_of(3));
             if kind == SceneryKind::DebrisHeap {
                 let top = vertices.iter().map(|v| v.position[1] - 3.0).fold(f32::MIN, f32::max);
@@ -303,7 +380,7 @@ mod tests {
                 );
             }
             assert!(
-                indices.len() / 3 <= MAX_TRIS_PER_INSTANCE,
+                indices.len() / 3 <= ceiling,
                 "{kind:?} broke the per-instance triangle budget: {}",
                 indices.len() / 3
             );
@@ -311,6 +388,39 @@ mod tests {
             // Nothing floats far below its ground point (rocks legitimately embed a little).
             assert!(vertices.iter().all(|vertex| vertex.position[1] >= 3.0 - 1.0));
         }
+    }
+
+    /// The imported kinds carry REMAPPED atlas UVs (never the whole page, never outside it)
+    /// on white vertices — the texture is the palette, exactly the FL-2 contract.
+    #[test]
+    fn imported_kinds_carry_remapped_atlas_uvs() {
+        let mut vertices = Vec::new();
+        let mut indices = Vec::new();
+        push_scenery_instance(
+            &mut vertices,
+            &mut indices,
+            &SceneryInstance {
+                kind: SceneryKind::FloraPine,
+                position: [0.0, 0.0, 0.0],
+                yaw_rad: 0.0,
+                scale: 1.0,
+            },
+        );
+        assert!(!vertices.is_empty());
+        let (region_area, page_area) = {
+            let (_, region) =
+                crate::flora_pack::flora_catalog().get("stylized-pine").expect("shipped");
+            (region.u_scale * region.v_scale, 1.0)
+        };
+        assert!(region_area < page_area, "the pine owns a region, not the page");
+        assert!(
+            vertices.iter().all(|v| {
+                (0.0..=1.0).contains(&v.uv[0])
+                    && (0.0..=1.0).contains(&v.uv[1])
+                    && v.color.iter().all(|channel| (0.0..=1.0).contains(channel))
+            }),
+            "in-page UVs with bounded material tints - factor x texel is the palette"
+        );
     }
 }
 

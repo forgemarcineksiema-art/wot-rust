@@ -32,6 +32,13 @@ pub enum SceneryKind {
     /// A knee-high masonry debris pile — street dressing for a fought-over city. Low enough
     /// that it can never read as the cover it honestly is not.
     DebrisHeap,
+    /// Imported flora (Flora 2.0, FL-4): the CC0 broadleaf tree from `assets/flora`. Render
+    /// only, like all scenery — and textured through the FL-2 atlas, unlike everything else.
+    FloraTree,
+    /// Imported flora: the CC0 pine.
+    FloraPine,
+    /// Imported flora: the CC0 bush.
+    FloraBush,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
