@@ -14,7 +14,8 @@ mod water;
 
 pub use battlefield::{
     BattlefieldMap, CaptureZone, MapFeature, MapFeatureKind, Road, RoadSurface, SpawnZone,
-    StaticCoverKind, StaticCoverObject, StrategicPoint, StrategicRole,
+    StaticCoverKind, StaticCoverObject, StrategicPoint, StrategicRole, born_cover_phase_byte,
+    initial_cover_phase_bytes,
 };
 pub use chunk::{DEFAULT_CHUNK_SIZE_M, TerrainChunk, TerrainChunkId};
 pub use coordinates::{CoordinatePrecision, LargeWorldStrategy, WorldCoordinatePolicy};

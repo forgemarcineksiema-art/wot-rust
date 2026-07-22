@@ -126,6 +126,24 @@ impl StaticCoverKind {
     }
 }
 
+/// The phase byte a cover object is BORN in (urban-map program PR-07, doctrine decision 4):
+/// an id containing `"ruin"` spawns already collapsed — rubble (1) if its kind leaves rubble,
+/// gone (2) otherwise — while indestructible kinds ignore the tag (a "ruined" decorative
+/// wreck is still just a wreck). The bytes speak the shared phase encoding every consumer
+/// already reads (0 intact / 1 rubble / 2 gone), so the rule lives HERE, below both the sim
+/// and every renderer-side baker, and all of them agree at birth.
+pub fn born_cover_phase_byte(object: &StaticCoverObject) -> u8 {
+    if !object.id.contains("ruin") || object.kind.max_health().is_none() {
+        return 0;
+    }
+    if object.kind.leaves_rubble() { 1 } else { 2 }
+}
+
+/// One born-phase byte per cover object, index-aligned — what a pristine battle starts from.
+pub fn initial_cover_phase_bytes(cover: &[StaticCoverObject]) -> Vec<u8> {
+    cover.iter().map(born_cover_phase_byte).collect()
+}
+
 /// What a road is paved with — picks the painted tone and finish on the terrain mesh.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RoadSurface {
@@ -203,5 +221,44 @@ pub struct BattlefieldMap {
 impl BattlefieldMap {
     pub fn feature(&self, kind: MapFeatureKind, name: &str) -> Option<&MapFeature> {
         self.features.iter().find(|feature| feature.kind == kind && feature.name.contains(name))
+    }
+}
+
+#[cfg(test)]
+mod born_phase_tests {
+    use super::*;
+
+    fn object(id: &str, kind: StaticCoverKind) -> StaticCoverObject {
+        StaticCoverObject {
+            id: id.to_string(),
+            name: id.to_string(),
+            kind,
+            center: [0.0, 2.0, 0.0],
+            half_extents_m: [4.0, 2.0, 3.0],
+        }
+    }
+
+    /// The birth rule (urban-map PR-07): "ruin" in the id collapses a destructible object at
+    /// birth - to rubble if its kind leaves rubble, to gone otherwise - and indestructible
+    /// kinds ignore the tag entirely.
+    #[test]
+    fn ruin_ids_are_born_collapsed_by_their_kind() {
+        assert_eq!(
+            born_cover_phase_byte(&object("tenement_ruin_a", StaticCoverKind::CityBuilding)),
+            1
+        );
+        assert_eq!(born_cover_phase_byte(&object("ruined_barn", StaticCoverKind::FarmBuilding)), 1);
+        assert_eq!(born_cover_phase_byte(&object("yard_wall_ruin", StaticCoverKind::StoneWall)), 2);
+        assert_eq!(born_cover_phase_byte(&object("ruined_hedge", StaticCoverKind::TreeLine)), 2);
+        assert_eq!(born_cover_phase_byte(&object("ruined_wreck", StaticCoverKind::Wreck)), 0);
+        assert_eq!(born_cover_phase_byte(&object("ruin_wall", StaticCoverKind::RailCover)), 0);
+        assert_eq!(born_cover_phase_byte(&object("tenement_a", StaticCoverKind::CityBuilding)), 0);
+        assert_eq!(
+            initial_cover_phase_bytes(&[
+                object("tenement_a", StaticCoverKind::CityBuilding),
+                object("tenement_ruin_b", StaticCoverKind::CityBuilding),
+            ]),
+            vec![0, 1]
+        );
     }
 }

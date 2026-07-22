@@ -64,6 +64,21 @@ pub fn cover_states_for(cover: &[StaticCoverObject]) -> Vec<CoverState> {
     cover.iter().map(CoverState::fresh).collect()
 }
 
+/// The states a battle STARTS from (urban-map program PR-07): fresh everywhere, except that
+/// born-ruins (`terrain::born_cover_phase_byte`) begin already collapsed at zero health. The
+/// server's lazy init and the client's pre-snapshot bake both read the same birth rule, so a
+/// battle opens on the same ruined skyline everywhere — and snapshots re-send whole states,
+/// so convergence stays free.
+pub fn initial_cover_states(cover: &[StaticCoverObject]) -> Vec<CoverState> {
+    cover
+        .iter()
+        .map(|object| match terrain::born_cover_phase_byte(object) {
+            0 => CoverState::fresh(object),
+            byte => CoverState { health: 0, phase: CoverPhase::from_wire(byte) },
+        })
+        .collect()
+}
+
 /// The cover the world actually collides against this tick: intact objects as-authored, rubble as
 /// a lowered box, and destroyed objects omitted entirely. Every blocking consumer (shell trace,
 /// movement, spotting LOS) takes this in place of the raw static cover, so cover destruction
@@ -356,6 +371,40 @@ mod tests {
         let decoded: Vec<CoverPhase> =
             bytes.iter().map(|&byte| CoverPhase::from_wire(byte)).collect();
         assert_eq!(decoded, vec![CoverPhase::Rubble, CoverPhase::Gone]);
+    }
+
+    /// Born-ruins (urban-map PR-07): a "ruin" id starts at zero health in its collapsed
+    /// phase, the sim's lazy state init picks that up, and the live-blocking slice serves
+    /// the mound (or the clear door) from tick zero — no shell ever fired.
+    #[test]
+    fn born_ruins_start_collapsed_in_the_sim_and_on_the_wire() {
+        let cover = vec![
+            object("tenement_a", StaticCoverKind::CityBuilding, [0.0, 5.5, 0.0], [9.0, 5.5, 5.0]),
+            object(
+                "tenement_ruin",
+                StaticCoverKind::CityBuilding,
+                [30.0, 5.5, 0.0],
+                [9.0, 5.5, 5.0],
+            ),
+            object("wall_ruin", StaticCoverKind::StoneWall, [60.0, 1.1, 0.0], [0.4, 1.1, 7.0]),
+        ];
+        let states = initial_cover_states(&cover);
+        assert_eq!(states[0].phase, CoverPhase::Intact);
+        assert_eq!((states[1].phase, states[1].health), (CoverPhase::Rubble, 0));
+        assert_eq!((states[2].phase, states[2].health), (CoverPhase::Gone, 0));
+
+        // The sim's lazy init reads the same birth rule.
+        let mut state = crate::SimulationState::new();
+        state.refresh_spotting(None, &cover);
+        assert_eq!(state.cover_states()[1].phase, CoverPhase::Rubble);
+
+        // And the wire bytes carry the ruin to every client and late joiner.
+        let bytes: Vec<u8> = states.iter().map(|s| s.phase.to_wire()).collect();
+        assert_eq!(bytes, vec![0, 1, 2]);
+
+        let live = live_cover_for_blocking(&cover, &states);
+        assert_eq!(live.len(), 2, "the ruined wall is a clear door from tick zero");
+        assert!(live[1].half_extents_m[1] < 5.5 * 0.5, "the born mound is already low");
     }
 
     #[test]

@@ -62,9 +62,9 @@ fn cover_damage_hp(shell_type: game_core::ShellType) -> u32 {
 
 /// A hull must be moving at least this fast to flatten a hedgerow it drives into.
 const COVER_CRUSH_MIN_SPEED_MPS: f32 = 2.5;
-/// The nick a hull takes for bulldozing through cover — small, but not free.
+/// The nick a hull takes for bulldozing through cover â€” small, but not free.
 const COVER_CRUSH_SELF_HP: u32 = 8;
-/// Reach ahead of the hull's own footprint at which a fast approach bowls a hedge over — the hull
+/// Reach ahead of the hull's own footprint at which a fast approach bowls a hedge over â€” the hull
 /// flattens it just before contact, so the same tick's movement drives through instead of being
 /// stopped by the (still-blocking) intact hedge and losing the speed the crush needs.
 const COVER_CRUSH_APPROACH_M: f32 = 0.8;
@@ -135,7 +135,7 @@ impl SimulationState {
 
     pub fn refresh_spotting(&mut self, heightmap: Option<&HeightMap>, cover: &[StaticCoverObject]) {
         if self.cover_states.len() != cover.len() {
-            self.cover_states = crate::cover_damage::cover_states_for(cover);
+            self.cover_states = crate::cover_damage::initial_cover_states(cover);
         }
         let live_cover = crate::cover_damage::live_cover_for_blocking(cover, &self.cover_states);
         crate::spotting::apply_spotted_masks_with_hold(
@@ -229,7 +229,7 @@ impl SimulationState {
         // Keep the cover states aligned with the map's cover (rebuilt only when the count changes,
         // i.e. at battle setup). A dry `apply_commands` passes no cover and clears the states.
         if self.cover_states.len() != cover.len() {
-            self.cover_states = crate::cover_damage::cover_states_for(cover);
+            self.cover_states = crate::cover_damage::initial_cover_states(cover);
         }
         // A hull driving into a hedgerow flattens it (and takes a nick), BEFORE the live cover is
         // resolved, so this tick's movement already drives through the gap it just opened.
@@ -262,7 +262,7 @@ impl SimulationState {
             recover_aim_dispersion(tank, dt);
             crate::repair::step_crew_repair(tank, dt);
         }
-        // Release buffered fire clicks the tick their reload completes — one attempt, then the
+        // Release buffered fire clicks the tick their reload completes â€” one attempt, then the
         // intent drops (if the gun died in the meantime, nothing fires and nothing lingers).
         for index in 0..self.tanks.len() {
             let tank = &mut self.tanks[index];
@@ -276,7 +276,7 @@ impl SimulationState {
 
         // Tank-vs-tank obstacles in lockstep with the sequential update: built once from the
         // start-of-tick hulls and refreshed per moved hull, so a later command collides against
-        // exactly the positions the old per-command rebuild saw — bit-identical (replay-locked)
+        // exactly the positions the old per-command rebuild saw â€” bit-identical (replay-locked)
         // at a fraction of the rebuilds and without a fresh Vec per command.
         let mut all_obstacles: Vec<TankObstacle> = self
             .tanks
@@ -314,7 +314,7 @@ impl SimulationState {
                 all_obstacles[index] =
                     TankObstacle::from_hitbox(tank.position, tank.yaw_rad, tank.spec.hitbox);
                 apply_landing_impact(tank, ground.landing_impact_mps, &mut self.damage_events);
-                // Ammo switch before the fire check: the honest rule is simple — any real switch
+                // Ammo switch before the fire check: the honest rule is simple â€” any real switch
                 // restarts the full reload (the loader swaps the round out of the breech).
                 if let Some(slot) = command.select_ammo
                     && (slot as usize) < game_core::MAX_AMMO_SLOTS
@@ -336,7 +336,7 @@ impl SimulationState {
         }
 
         apply_ramming_damage(&ramming_before, &mut self.tanks, &mut self.damage_events, dt);
-        // Drowning runs for EVERY living hull, commanded or not — a dead-engine tank in the
+        // Drowning runs for EVERY living hull, commanded or not â€” a dead-engine tank in the
         // river keeps flooding.
         crate::drowning::step_drowning(
             &mut self.tanks,

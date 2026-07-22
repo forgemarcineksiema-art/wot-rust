@@ -83,8 +83,11 @@ impl ClientApp {
         if self.battle_scene_meshes.is_some() {
             return;
         }
+        // Born-ruins (PR-07): the pre-snapshot bake reads the same birth rule the server's
+        // states start from, so a ruined block is a mound from the very first frame.
+        let born_phases = terrain::initial_cover_phase_bytes(&self.battlefield.static_cover);
         let ((ground_vertices, ground_indices), (statics_vertices, statics_indices)) =
-            crate::battlefield_ground_and_statics_meshes(&self.battlefield, &[]);
+            crate::battlefield_ground_and_statics_meshes(&self.battlefield, &born_phases);
         let ground_maps = scene_build::terrain_maps::bake_terrain_ground_maps(&self.battlefield);
         let (water_vertices, water_indices) =
             scene_build::water::battlefield_water_mesh(&self.battlefield);
