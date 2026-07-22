@@ -18,6 +18,13 @@ pub(crate) const DRESSING_CUTOFF_M: f32 = 340.0;
 impl SceneRenderer {
     /// Replace the baked dressing geometry (empty slices clear the slot — the garage has no
     /// meadow). Recreated on scene swaps and on crater rebakes, never per frame.
+    /// Replace the foliage atlas (Imported Flora 2.0): tight RGBA8 sRGB data, sampled by the
+    /// scene color pass AND the shadow/SSAO depth passes — a leaf's shadow is its mask. The
+    /// startup default is one opaque-white texel (a bit-exact no-op for procedural content).
+    pub fn set_foliage_atlas(&mut self, ctx: &GpuContext, rgba: &[u8], width: u32, height: u32) {
+        self.foliage_atlas.set(&ctx.device, &ctx.queue, &self.foliage_bgl, rgba, width, height);
+    }
+
     pub fn set_dressing(&mut self, ctx: &GpuContext, vertices: &[SceneVertex], indices: &[u32]) {
         if vertices.is_empty() || indices.is_empty() {
             self.dressing_index_count = 0;

@@ -306,6 +306,7 @@ impl super::SceneRenderer {
     ) {
         pass.set_pipeline(&self.pipeline);
         pass.set_bind_group(0, &self.camera_bind_group, &[]);
+        pass.set_bind_group(1, &self.foliage_atlas.bind_group, &[]);
         pass.set_bind_group(2, &*self.shadow.bind_group.borrow(), &[]);
         pass.set_vertex_buffer(1, self.identity_instance.slice(..));
         if self.terrain_index_count > 0 {

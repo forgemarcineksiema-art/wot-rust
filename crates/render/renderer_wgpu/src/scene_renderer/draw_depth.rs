@@ -39,6 +39,7 @@ impl super::SceneRenderer {
         // instance transforms — exactly the caster set the SSAO prepass walks.
         pass.set_pipeline(&self.shadow.pipeline_scene);
         pass.set_bind_group(0, &self.camera_bind_group, &[]);
+        pass.set_bind_group(1, &self.foliage_atlas.bind_group, &[]);
         pass.set_vertex_buffer(1, self.identity_instance.slice(..));
         self.draw_visible_ground(&mut pass, light_frustum);
         if self.terrain_index_count > 0 {
@@ -118,6 +119,7 @@ impl super::SceneRenderer {
         }
         pass.set_pipeline(&self.shadow.pipeline_scene_far);
         pass.set_bind_group(0, &self.camera_bind_group, &[]);
+        pass.set_bind_group(1, &self.foliage_atlas.bind_group, &[]);
         pass.set_vertex_buffer(1, self.identity_instance.slice(..));
         self.draw_visible_ground(&mut pass, light_frustum);
         if self.terrain_index_count > 0 {
@@ -178,6 +180,7 @@ impl super::SceneRenderer {
         });
         pass.set_pipeline(&self.ssao.prepass_scene_pipeline);
         pass.set_bind_group(0, &self.camera_bind_group, &[]);
+        pass.set_bind_group(1, &self.foliage_atlas.bind_group, &[]);
         pass.set_vertex_buffer(1, self.identity_instance.slice(..));
         self.draw_visible_ground(&mut pass, camera_frustum);
         if self.terrain_index_count > 0 {

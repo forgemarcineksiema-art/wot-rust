@@ -56,21 +56,36 @@ pub(crate) fn texture_bgl(
 
 pub(crate) const PREPASS_VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 1] =
     wgpu::vertex_attr_array![0 => Float32x3];
+/// The SCENE prepass reads the UV lane too (Flora 2.0, FL-2): the AO depth of a leaf is its
+/// mask, not its quad. Explicit offsets — uv sits at byte 52 of SceneVertex.
+pub(crate) const PREPASS_SCENE_VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 2] = [
+    wgpu::VertexAttribute { format: wgpu::VertexFormat::Float32x3, offset: 0, shader_location: 0 },
+    wgpu::VertexAttribute {
+        format: wgpu::VertexFormat::Float32x2,
+        offset: 52,
+        shader_location: 12,
+    },
+];
 const PREPASS_INSTANCE_ATTRIBUTES: [wgpu::VertexAttribute; 6] = wgpu::vertex_attr_array![6 => Float32x4, 7 => Float32x4, 8 => Float32x4, 9 => Float32x4,
         10 => Float32x4, 13 => Uint32];
 
 /// A depth-only camera prepass pipeline over a position-first vertex layout of the given stride
-/// (the vehicle and scene formats both lead with `position`).
+/// (the vehicle and scene formats both lead with `position`). The scene variant reads the UV
+/// lane and cuts foliage to its alpha mask; the vehicle variant keeps the plain path.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn build_prepass_pipeline(
     device: &wgpu::Device,
     shader: &wgpu::ShaderModule,
     camera_bgl: &wgpu::BindGroupLayout,
+    foliage_bgl: Option<&wgpu::BindGroupLayout>,
     vertex_stride: u64,
+    vertex_attributes: &'static [wgpu::VertexAttribute],
+    entries: (&str, &str),
     label: &str,
 ) -> wgpu::RenderPipeline {
     let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some(label),
-        bind_group_layouts: &[Some(camera_bgl)],
+        bind_group_layouts: &[Some(camera_bgl), foliage_bgl],
         immediate_size: 0,
     });
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -78,13 +93,13 @@ pub(crate) fn build_prepass_pipeline(
         layout: Some(&layout),
         vertex: wgpu::VertexState {
             module: shader,
-            entry_point: Some("vs_prepass"),
+            entry_point: Some(entries.0),
             compilation_options: wgpu::PipelineCompilationOptions::default(),
             buffers: &[
                 wgpu::VertexBufferLayout {
                     array_stride: vertex_stride,
                     step_mode: wgpu::VertexStepMode::Vertex,
-                    attributes: &PREPASS_VERTEX_ATTRIBUTES,
+                    attributes: vertex_attributes,
                 },
                 wgpu::VertexBufferLayout {
                     array_stride: std::mem::size_of::<SceneInstance>() as u64,
@@ -109,7 +124,7 @@ pub(crate) fn build_prepass_pipeline(
         multisample: wgpu::MultisampleState::default(),
         fragment: Some(wgpu::FragmentState {
             module: shader,
-            entry_point: Some("fs_depth"),
+            entry_point: Some(entries.1),
             compilation_options: wgpu::PipelineCompilationOptions::default(),
             targets: &[],
         }),

@@ -110,6 +110,7 @@ pub(crate) fn build_scene_pipeline(
     color_format: wgpu::TextureFormat,
     sample_count: u32,
     shadow_bgl: &wgpu::BindGroupLayout,
+    foliage_bgl: &wgpu::BindGroupLayout,
 ) -> (wgpu::RenderPipeline, wgpu::BindGroupLayout) {
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("scene_shader"),
@@ -118,9 +119,9 @@ pub(crate) fn build_scene_pipeline(
     let camera_bgl = build_camera_bind_group_layout(device);
     let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("scene_pipeline_layout"),
-        // Group 1 is empty for the scene pipeline (no per-draw material); the shadow map sits at
-        // group 2 so both the scene and vehicle shaders sample it at the same index.
-        bind_group_layouts: &[Some(&camera_bgl), None, Some(shadow_bgl)],
+        // Group 1 carries the foliage atlas (Flora 2.0, FL-2); the shadow map sits at group 2
+        // so both the scene and vehicle shaders sample it at the same index.
+        bind_group_layouts: &[Some(&camera_bgl), Some(foliage_bgl), Some(shadow_bgl)],
         immediate_size: 0,
     });
     let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
