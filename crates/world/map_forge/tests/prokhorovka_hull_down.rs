@@ -39,6 +39,36 @@ fn eastern_hill_offers_a_hull_down_firing_line_toward_the_centre() {
     );
 }
 
+/// The SECOND hull-down system (the rebuild's drawn ridge): a tank on the hill top masks
+/// its hull behind the axis-facing ridge line against an enemy at the saddle — the
+/// north-south standoff geometry the west-facing shelf never covered.
+#[test]
+fn hill_top_ridge_offers_a_hull_down_line_facing_the_axis() {
+    let map = battlefield(MapId::ProkhorovkaHill252_2);
+    let hm = &map.heightmap;
+
+    let enemy = ground(hm, 780.0, 470.0);
+    let enemy_eye = (enemy.0, enemy.1 + 2.3, enemy.2);
+
+    let mut found = false;
+    let mut bz = 352.0;
+    while bz <= 368.0 {
+        let g = ground(hm, 780.0, bz);
+        let hull = (g.0, g.1 + 0.9, g.2);
+        let turret = (g.0, g.1 + 2.4, g.2);
+        if blockage(hm, enemy_eye, hull) > 0.4 && clearance(hm, enemy_eye, turret) > 0.4 {
+            found = true;
+            break;
+        }
+        bz += 2.0;
+    }
+    assert!(
+        found,
+        "the hill-top ridge must offer a hull-down spot against the saddle (hull masked, \
+         turret over)"
+    );
+}
+
 #[test]
 fn hill_has_a_crest_with_a_reverse_slope() {
     let map = battlefield(MapId::ProkhorovkaHill252_2);
