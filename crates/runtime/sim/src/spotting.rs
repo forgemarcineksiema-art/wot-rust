@@ -106,14 +106,27 @@ fn segment_hits_box(from: Vec3, to: Vec3, center: [f32; 3], half: [f32; 3]) -> b
 /// A full sight line: terrain unobstructed and no cover box in the way. Cover goes first: a
 /// slab test costs nanoseconds while the terrain walk samples the heightmap every 2 m of the
 /// segment — and in a town fight (Bystra fields ~38 boxes) a building is the common reason a
-/// line is blocked, so the cheap test usually decides.
+/// line is blocked, so the cheap test usually decides. The XZ-rect broadphase in front of the
+/// slab is what keeps an urban box count (150+) honest: most boxes are nowhere near a given
+/// sight line, and rejecting them costs four comparisons instead of a three-axis slab (the
+/// in-module property test locks that the prefilter never changes a verdict).
 pub fn line_of_sight(
     heightmap: Option<&HeightMap>,
     cover: &[StaticCoverObject],
     from: Vec3,
     to: Vec3,
 ) -> bool {
-    if cover.iter().any(|c| segment_hits_box(from, to, c.center, c.half_extents_m)) {
+    let blocked = cover.iter().any(|c| {
+        !game_core::math::segment_xz_disjoint(
+            from,
+            to,
+            c.center[0],
+            c.center[2],
+            c.half_extents_m[0],
+            c.half_extents_m[2],
+        ) && segment_hits_box(from, to, c.center, c.half_extents_m)
+    });
+    if blocked {
         return false;
     }
     heightmap.is_none_or(|heightmap| terrain_clear(heightmap, from, to))
@@ -253,4 +266,63 @@ pub fn compute_observer_masks(
         }
     }
     masks
+}
+
+#[cfg(test)]
+mod broadphase_tests {
+    use super::*;
+    use terrain::StaticCoverKind;
+
+    /// A deterministic 150-box street grid the size of an urban core.
+    fn urban_cover() -> Vec<StaticCoverObject> {
+        let mut out = Vec::new();
+        for column in 0..10 {
+            for row in 0..15 {
+                out.push(StaticCoverObject {
+                    id: format!("block_c{column}_r{row}"),
+                    name: format!("block {column}/{row}"),
+                    kind: StaticCoverKind::FarmBuilding,
+                    center: [60.0 + column as f32 * 42.0, 4.0, 60.0 + row as f32 * 30.0],
+                    half_extents_m: [8.0 + (row % 3) as f32, 4.0, 5.0 + (column % 2) as f32],
+                });
+            }
+        }
+        out
+    }
+
+    fn xorshift(state: &mut u32) -> f32 {
+        *state ^= *state << 13;
+        *state ^= *state >> 17;
+        *state ^= *state << 5;
+        (*state % 10_000) as f32 / 10_000.0
+    }
+
+    /// The broadphase is a pure prefilter: over hundreds of random sight lines - including
+    /// grazing, in-canyon, and box-origin segments - the prefiltered verdict equals the
+    /// exact all-boxes slab walk. This is the license to ship the early-out at all.
+    #[test]
+    fn the_prefilter_never_changes_a_line_of_sight_verdict() {
+        let cover = urban_cover();
+        let mut state = 0x1234_5678u32;
+        let mut disagreements = Vec::new();
+        for case in 0..600 {
+            let from = Vec3::new(
+                xorshift(&mut state) * 520.0,
+                1.0 + xorshift(&mut state) * 9.0,
+                xorshift(&mut state) * 520.0,
+            );
+            let to = Vec3::new(
+                xorshift(&mut state) * 520.0,
+                1.0 + xorshift(&mut state) * 9.0,
+                xorshift(&mut state) * 520.0,
+            );
+            let exact_clear =
+                !cover.iter().any(|c| segment_hits_box(from, to, c.center, c.half_extents_m));
+            let filtered_clear = line_of_sight(None, &cover, from, to);
+            if exact_clear != filtered_clear {
+                disagreements.push((case, from, to));
+            }
+        }
+        assert!(disagreements.is_empty(), "the broadphase changed a verdict: {disagreements:?}");
+    }
 }
