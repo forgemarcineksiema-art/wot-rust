@@ -1,53 +1,67 @@
-# WOT Rust Prototype
+# WOT Rust — the honest tank game
 
-Native Rust workspace for armored vehicle battles on large terrain maps.
+A native-Rust, from-scratch armored battle game: 7v7 on 1000 m maps, WWII-era vehicles in
+three eras, and a design creed of **honesty** — no ±25% damage RNG, sub-milliradian
+dispersion, no premium ammo, armor resolved against real 3D plates, and a world where what
+blocks the shell is exactly what blocks the eye. Not a general-purpose engine: everything is
+biased toward outdoor terrain, vehicles, spotting, shell physics, destruction and a headless
+authoritative server.
 
-This is not a general-purpose engine. The foundation is intentionally biased
-toward outdoor terrain, vehicles, effects, spotting, shell physics, LOD,
-shadows, networking, and a headless authoritative server.
+**Contributing (human or AI): read `CLAUDE.md` first** — the working contract (locking
+tests, the local verify gate, one-look budgets, append-only enums) — then
+`docs/urban-map-program.md` for the current program status.
 
-## Stack
+## What exists today
 
-- Rust workspace with separate gameplay, simulation, renderer API, renderer backend, physics, networking, terrain, client, server, tools, and editor crates.
-- `winit` for the client window/input loop.
-- `wgpu` backend crate with WGSL shader entrypoint.
-- `bevy_ecs` inside the local engine layer.
-- Rapier integration types plus a custom tank controller.
-- glTF import tooling that emits a first custom `.wotasset` JSON manifest.
-- Headless authoritative server binary from day one.
+- **Four battle maps**, authored as RON blueprints and compiled by Map Forge
+  (`crates/world/map_forge`): Prokhorovka (steppe, 1943), Bystra Valley (river + town),
+  Orliny Pereval (mountain pass, 1942) and **Ostrogorsk** (railway city, 1943 — dense
+  masonry core, breachable walls, born ruins, a rail berm with three gates). A full in-game
+  map editor (`cargo run -p editor`): sculpt brushes, stamps, terrain strokes, grab handles,
+  object/road/gameplay tools, viewshed instrument, Ctrl+P playtest.
+- **A blueprint-born fleet** (T-54, IS-3, Centurion Mk 3, Tiger I/II, Jagdtiger, Panther II,
+  T-34-85): one RON source feeds hitbox, armor volumes, mounts and the visual mesh.
+- **Honest Steel destruction**: buildings pound to rubble, walls breach, fences crush,
+  tracks take staged damage — gameplay on volumes, presentation contact-true, all replicated.
+- **A real renderer** (wgpu): cascaded sun shadows, SSAO, HDR + bloom, weather looks with a
+  fairness lock, chunked/culled statics, grass, battle FX, procedural building/tree
+  generators — plus a **CC0 flora import pipeline** (glTF → validated assets → one runtime
+  atlas with alpha-cutout foliage whose shadows are their masks).
+- **Deterministic sim + netcode**: fixed-tick authoritative server, protocol snapshots,
+  replay regression fixtures, per-era spotting, bots with route planning.
 
-## Commands
+## Daily commands
 
 ```powershell
-cargo test --workspace --all-targets
-cargo clippy --workspace --all-targets -- -D warnings
-cargo fmt --all -- --check
-cargo bench --workspace --no-run
-./scripts/verify.ps1
-cargo run -p server -- --max-ticks 10
-cargo run --release -p client   # play in release: a 14-tank battle needs the optimized build
-cargo run -p client             # dev build (opt-level 1): fine for quick checks
-cargo run -p tools -- make-flat-heightmap --output assets/generated/flat.heightmap.json
-cargo run -p tools -- generate-map --map prokhorovka-hill-252-2 --output assets/maps/prokhorovka_hill_252_2.terrain.json
-cargo run -p tools -- generate-vehicle --vehicle t54-1951 --output assets/vehicles/t54_1951.vehicle.json
-cargo run -p tools -- generate-vehicle --vehicle tiger-i-ausf-e --output assets/vehicles/tiger_i_ausf_e.vehicle.json
-cargo run -p tools -- generate-vehicle --vehicle tiger-ii-ausf-b --output assets/vehicles/tiger_ii_ausf_b.vehicle.json
-cargo run -p tools -- generate-vehicle --vehicle jagdtiger --output assets/vehicles/jagdtiger.vehicle.json
-cargo run -p tools -- generate-vehicle --vehicle panther-ii --output assets/vehicles/panther_ii.vehicle.json
-cargo run -p tools -- convert-gltf --input path/to/your-model.gltf --output assets/generated/tank.wotasset.json
-cargo run -p editor
-cargo run -p client --example screenshot -- target/scene.png
+./scripts/verify.ps1                  # THE merge gate: fmt + clippy -D warnings + all tests
+cargo run --release -p client         # play (release; a 14-tank battle needs the optimized build)
+$env:WOT_MAP = "ostrogorsk"           # pick a map (prokhorovka-hill-252-2 | bystra-valley | orliny-pereval | ostrogorsk)
+cargo run -p editor                   # the map editor (or pass a blueprint path)
+cargo run -p server -- --max-ticks 10 # headless authoritative server
 ```
 
-The repo pins a dated nightly (`nightly-2026-02-12`) in `rust-toolchain.toml` for reproducible builds and stable f32/replay-regression fixtures. Bump the date deliberately and re-run `./scripts/verify.ps1` so any fixture drift is a reviewed change, not a surprise from a toolchain auto-update.
+Review/QA artifacts:
+
+```powershell
+cargo run -p client --release --example perf_capture      # the one-look FPS numbers
+cargo run -p client --example flora_probe                 # imported vs procedural trees
+cargo run -p client --example ostrogorsk_views            # city review renders
+cargo run -p tools -- import-flora --input model.glb --manifest model.manifest.ron
+cargo run -p tools -- generate-map --map ostrogorsk --output assets/maps/ostrogorsk.terrain.json
+```
+
+The repo pins a dated nightly (`rust-toolchain.toml`) for reproducible builds and stable
+replay fixtures — bump deliberately and re-run `./scripts/verify.ps1`.
 
 ## Controls
 
-`cargo run -p client` opens the battle window: **WASD** drives the hull, the **mouse** aims the
-turret, **Space** fires, the **scroll wheel** zooms, and **1**/**2** switch between the
-third-person and sniper cameras. For a headless preview, `--example screenshot` renders the
-battle offscreen to a PNG.
+**WASD** drives the hull, **mouse** aims, **Space** fires, **1/2/3** select ammo, scroll
+zooms, **Shift** holds the sniper scope. `--example screenshot` renders offscreen to PNG.
 
-## Rules
+## Rules and doctrine
 
-Hard project rules are documented in `docs/engineering-rules.md`. Test, protocol snapshot, replay regression, and benchmark workflows are documented in `docs/testing-and-regression.md`.
+- `CLAUDE.md` — the working contract for any contributor or AI tool.
+- `docs/engineering-rules.md`, `docs/testing-and-regression.md` — hard project rules.
+- `docs/urban-map-program.md` — current program status; `docs/maps/*.md` — per-map dossiers.
+- `docs/map-forge-policy.md`, `docs/destruction-program.md`, `docs/shadow-policy.md`,
+  `docs/vehicle-fidelity-masterplan.md` — the standing doctrines.
