@@ -7,7 +7,9 @@ stage** (program PR-12): a 93-box city — a 48-block `CityBuilding` tenement gr
 street canyons plus boulevard-front and back-street ranks, mirrored factory compounds
 behind breachable `StoneWall` yards with east gates, three mirrored born-ruin pairs opening
 cross-block sightlines, garden walls screening the boulevard seam, lamps and debris through
-the core. Outskirts polish (elevator dressing, orchards, berm detail) follows in PR-13.
+the core. The outskirts are polished (PR-13): crossing parapets high on the berm fill,
+complete elevator compounds (head house + silo tower + receiving shed), a far windbreak
+pair, the elevator orchard and berm-foot brush.
 
 ## Historical Basis
 

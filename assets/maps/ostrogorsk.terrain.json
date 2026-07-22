@@ -41303,6 +41303,126 @@
       ]
     },
     {
+      "id": "elevator_silo_south",
+      "name": "elevator silo tower (south)",
+      "kind": "RailCover",
+      "center": [
+        929.0,
+        12.474312,
+        245.0
+      ],
+      "half_extents_m": [
+        2.2,
+        5.5,
+        2.2
+      ]
+    },
+    {
+      "id": "elevator_silo_north",
+      "name": "elevator silo tower (north)",
+      "kind": "RailCover",
+      "center": [
+        929.0,
+        12.474312,
+        755.0
+      ],
+      "half_extents_m": [
+        2.2,
+        5.5,
+        2.2
+      ]
+    },
+    {
+      "id": "elevator_shed_south",
+      "name": "receiving shed (south)",
+      "kind": "FarmBuilding",
+      "center": [
+        901.0,
+        9.057637,
+        263.0
+      ],
+      "half_extents_m": [
+        4.0,
+        2.4,
+        3.0
+      ]
+    },
+    {
+      "id": "elevator_shed_north",
+      "name": "receiving shed (north)",
+      "kind": "FarmBuilding",
+      "center": [
+        901.0,
+        9.057637,
+        737.0
+      ],
+      "half_extents_m": [
+        4.0,
+        2.4,
+        3.0
+      ]
+    },
+    {
+      "id": "crossing_parapet_south",
+      "name": "berm parapet (south of the crossing)",
+      "kind": "RailCover",
+      "center": [
+        825.0,
+        14.438526,
+        440.0
+      ],
+      "half_extents_m": [
+        1.4,
+        0.9,
+        12.0
+      ]
+    },
+    {
+      "id": "crossing_parapet_north",
+      "name": "berm parapet (north of the crossing)",
+      "kind": "RailCover",
+      "center": [
+        825.0,
+        14.438526,
+        560.0
+      ],
+      "half_extents_m": [
+        1.4,
+        0.9,
+        12.0
+      ]
+    },
+    {
+      "id": "field_screen_far_south",
+      "name": "far field windbreak (south)",
+      "kind": "TreeLine",
+      "center": [
+        560.0,
+        16.786587,
+        175.0
+      ],
+      "half_extents_m": [
+        16.0,
+        4.2,
+        2.8
+      ]
+    },
+    {
+      "id": "field_screen_far_north",
+      "name": "far field windbreak (north)",
+      "kind": "TreeLine",
+      "center": [
+        560.0,
+        16.786587,
+        825.0
+      ],
+      "half_extents_m": [
+        16.0,
+        4.2,
+        2.8
+      ]
+    },
+    {
       "id": "field_screen_south",
       "name": "field windbreak (south)",
       "kind": "TreeLine",
@@ -43033,6 +43153,366 @@
       ],
       "yaw_rad": -3.9026012,
       "scale": 1.1370219
+    },
+    {
+      "kind": "FruitTree",
+      "position": [
+        887.9074,
+        7.044194,
+        182.30057
+      ],
+      "yaw_rad": 5.8284965,
+      "scale": 0.95579374
+    },
+    {
+      "kind": "FruitTree",
+      "position": [
+        887.9074,
+        7.044194,
+        817.69946
+      ],
+      "yaw_rad": -5.8284965,
+      "scale": 0.95579374
+    },
+    {
+      "kind": "FruitTree",
+      "position": [
+        912.2322,
+        7.2042418,
+        209.10031
+      ],
+      "yaw_rad": 1.7202923,
+      "scale": 0.9256487
+    },
+    {
+      "kind": "FruitTree",
+      "position": [
+        912.2322,
+        7.2042413,
+        790.89966
+      ],
+      "yaw_rad": -1.7202923,
+      "scale": 0.9256487
+    },
+    {
+      "kind": "FruitTree",
+      "position": [
+        909.6459,
+        7.1879287,
+        204.37079
+      ],
+      "yaw_rad": 5.267042,
+      "scale": 1.0277686
+    },
+    {
+      "kind": "FruitTree",
+      "position": [
+        909.6459,
+        7.187928,
+        795.6292
+      ],
+      "yaw_rad": -5.267042,
+      "scale": 1.0277686
+    },
+    {
+      "kind": "FruitTree",
+      "position": [
+        899.1177,
+        6.693919,
+        286.48846
+      ],
+      "yaw_rad": 1.4130286,
+      "scale": 1.0656149
+    },
+    {
+      "kind": "FruitTree",
+      "position": [
+        899.1177,
+        6.693919,
+        713.51154
+      ],
+      "yaw_rad": -1.4130286,
+      "scale": 1.0656149
+    },
+    {
+      "kind": "FruitTree",
+      "position": [
+        940.66174,
+        7.047486,
+        246.19339
+      ],
+      "yaw_rad": 2.808318,
+      "scale": 1.1708424
+    },
+    {
+      "kind": "FruitTree",
+      "position": [
+        940.66174,
+        7.047486,
+        753.80664
+      ],
+      "yaw_rad": -2.808318,
+      "scale": 1.1708424
+    },
+    {
+      "kind": "FruitTree",
+      "position": [
+        907.9321,
+        7.086232,
+        209.82227
+      ],
+      "yaw_rad": 3.5364692,
+      "scale": 0.93323183
+    },
+    {
+      "kind": "FruitTree",
+      "position": [
+        907.9321,
+        7.0862327,
+        790.17773
+      ],
+      "yaw_rad": -3.5364692,
+      "scale": 0.93323183
+    },
+    {
+      "kind": "FruitTree",
+      "position": [
+        954.4752,
+        6.9423943,
+        255.52858
+      ],
+      "yaw_rad": 3.5715516,
+      "scale": 1.259615
+    },
+    {
+      "kind": "FruitTree",
+      "position": [
+        954.4752,
+        6.9423947,
+        744.47144
+      ],
+      "yaw_rad": -3.5715516,
+      "scale": 1.259615
+    },
+    {
+      "kind": "FruitTree",
+      "position": [
+        936.5833,
+        7.8494015,
+        191.53987
+      ],
+      "yaw_rad": 5.9113727,
+      "scale": 1.2649587
+    },
+    {
+      "kind": "FruitTree",
+      "position": [
+        936.5833,
+        7.849402,
+        808.46014
+      ],
+      "yaw_rad": -5.9113727,
+      "scale": 1.2649587
+    },
+    {
+      "kind": "Bush",
+      "position": [
+        792.0707,
+        8.854958,
+        253.21196
+      ],
+      "yaw_rad": 2.6452708,
+      "scale": 0.99853426
+    },
+    {
+      "kind": "Bush",
+      "position": [
+        792.0707,
+        8.854958,
+        746.788
+      ],
+      "yaw_rad": -2.6452708,
+      "scale": 0.99853426
+    },
+    {
+      "kind": "Bush",
+      "position": [
+        794.27124,
+        9.832363,
+        391.03116
+      ],
+      "yaw_rad": 0.4472034,
+      "scale": 1.1745985
+    },
+    {
+      "kind": "Bush",
+      "position": [
+        794.27124,
+        9.832363,
+        608.9689
+      ],
+      "yaw_rad": -0.4472034,
+      "scale": 1.1745985
+    },
+    {
+      "kind": "Bush",
+      "position": [
+        770.07043,
+        11.171392,
+        339.11536
+      ],
+      "yaw_rad": 1.7573467,
+      "scale": 1.2693945
+    },
+    {
+      "kind": "Bush",
+      "position": [
+        770.07043,
+        11.171392,
+        660.88464
+      ],
+      "yaw_rad": -1.7573467,
+      "scale": 1.2693945
+    },
+    {
+      "kind": "Bush",
+      "position": [
+        791.6413,
+        9.685857,
+        448.4642
+      ],
+      "yaw_rad": 5.894596,
+      "scale": 1.087652
+    },
+    {
+      "kind": "Bush",
+      "position": [
+        791.6413,
+        9.685857,
+        551.53577
+      ],
+      "yaw_rad": -5.894596,
+      "scale": 1.087652
+    },
+    {
+      "kind": "Bush",
+      "position": [
+        806.1466,
+        8.977948,
+        152.5954
+      ],
+      "yaw_rad": 4.8014164,
+      "scale": 1.1513345
+    },
+    {
+      "kind": "Bush",
+      "position": [
+        806.1466,
+        8.977948,
+        847.4046
+      ],
+      "yaw_rad": -4.8014164,
+      "scale": 1.1513345
+    },
+    {
+      "kind": "Bush",
+      "position": [
+        773.7011,
+        9.78197,
+        206.54738
+      ],
+      "yaw_rad": 0.8467646,
+      "scale": 1.1032022
+    },
+    {
+      "kind": "Bush",
+      "position": [
+        773.7011,
+        9.78197,
+        793.45264
+      ],
+      "yaw_rad": -0.8467646,
+      "scale": 1.1032022
+    },
+    {
+      "kind": "Bush",
+      "position": [
+        803.2261,
+        8.123203,
+        300.18005
+      ],
+      "yaw_rad": 2.2535155,
+      "scale": 1.1910043
+    },
+    {
+      "kind": "Bush",
+      "position": [
+        803.2261,
+        8.123203,
+        699.81995
+      ],
+      "yaw_rad": -2.2535155,
+      "scale": 1.1910043
+    },
+    {
+      "kind": "Bush",
+      "position": [
+        789.1968,
+        9.828251,
+        441.76263
+      ],
+      "yaw_rad": 5.88015,
+      "scale": 0.8598922
+    },
+    {
+      "kind": "Bush",
+      "position": [
+        789.1968,
+        9.828251,
+        558.23737
+      ],
+      "yaw_rad": -5.88015,
+      "scale": 0.8598922
+    },
+    {
+      "kind": "Bush",
+      "position": [
+        790.6397,
+        9.481576,
+        150.01387
+      ],
+      "yaw_rad": 4.434869,
+      "scale": 0.87881035
+    },
+    {
+      "kind": "Bush",
+      "position": [
+        790.6397,
+        9.481576,
+        849.98615
+      ],
+      "yaw_rad": -4.434869,
+      "scale": 0.87881035
+    },
+    {
+      "kind": "Bush",
+      "position": [
+        782.1651,
+        9.862371,
+        317.90845
+      ],
+      "yaw_rad": 1.1551465,
+      "scale": 1.051865
+    },
+    {
+      "kind": "Bush",
+      "position": [
+        782.1651,
+        9.862372,
+        682.09155
+      ],
+      "yaw_rad": -1.1551465,
+      "scale": 1.051865
     },
     {
       "kind": "Lamppost",
