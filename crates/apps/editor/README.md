@@ -31,6 +31,7 @@ last disarms. `LMB` with no tool armed SELECTS (cover, scenery, points).
 | B | sculpt brush (raise/lower/flatten/smooth) | LMB paints under the ring; `[` `]` radius, `-` `=` rate; one stroke = one undo step |
 | T | structural stamp (hill/bowl/crest/deck) | click 1 anchors, click 2 places; a live ghost previews between clicks; Tab + `-`/`=` tune the inspector knobs; Esc cancels |
 | C | terrain stroke (ridge/valley/plateau) | LMB draws the line (chalk + live ghost), Backspace pops, `[` `]` width, `-`/`=` height/depth/target, Enter commits the FITTED curve as a `Stroke` op (mirror twin by construction), Esc clears |
+| H | grab (hills, strokes, benches as handles) | LMB holds the nearest form; drag moves (1 m snap, BOTH twins), Shift+drag lifts (0.25 m), `[` `]` width; release sets (one undo step), Esc lets go; no numbers — the ghost is the truth |
 | O | object palette (buildings, cover, flora) | LMB places (ghost outline rides the cursor); flora always brings its mirror twin |
 | L | road polyline | LMB adds waypoints (ribbon preview), Backspace pops, Tab surface, `-`/`=` width, Enter commits |
 | G | gameplay (move spawns, nav points, zones) | LMB places; Tab cycles the nav-point role; fair maps mirror every gesture |
