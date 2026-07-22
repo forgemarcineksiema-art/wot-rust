@@ -75,6 +75,20 @@ pub enum Command {
         #[arg(long)]
         out: PathBuf,
     },
+    /// Import a CC0 foliage model (Imported Flora 2.0, FL-3): glTF/GLB in, a validated
+    /// `.flora.json` + `.flora.png` pair out. Refuses without a manifest naming a CC0
+    /// license — provenance is part of the asset.
+    ImportFlora {
+        /// The source .gltf/.glb file.
+        #[arg(long)]
+        input: PathBuf,
+        /// The RON license manifest (name, author, source_url, spdx = "CC0-1.0").
+        #[arg(long)]
+        manifest: PathBuf,
+        /// Output directory (typically assets/flora).
+        #[arg(long, default_value = "assets/flora")]
+        out: PathBuf,
+    },
     /// Bake one vehicle and write the AI review bundle: a multi-view contact sheet, per-view
     /// tiles, and a report.md with ratios, budgets, mesh quality and blueprint lint.
     Studio {

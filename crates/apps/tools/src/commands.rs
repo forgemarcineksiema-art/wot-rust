@@ -65,12 +65,251 @@ pub fn dispatch(command: Command) -> anyhow::Result<()> {
         Command::CompileTank { vehicle, gun, profile, out } => {
             compile_tank_command(&vehicle, gun.as_deref(), profile.parse()?, out)?
         }
+        Command::ImportFlora { input, manifest, out } => import_flora(&input, &manifest, &out)?,
         Command::ExportBlueprints { out } => export_blueprints(out)?,
         Command::Studio { vehicle, out, blueprint_file } => {
             studio_command(&vehicle, out, blueprint_file)?
         }
     }
     Ok(())
+}
+
+/// The RON manifest the importer requires next to every source model: provenance is part of
+/// the asset (Flora 2.0, doctrine decision 10).
+#[derive(Debug, serde::Deserialize)]
+struct FloraManifest {
+    name: String,
+    spdx: String,
+    author: String,
+    source_url: String,
+}
+
+/// Import a CC0 foliage model (FL-3): read the glTF/GLB, merge its triangle primitives,
+/// normalize (recentre XZ, ground min-y to 0), pull the base-color texture, validate through
+/// `world_forge::flora`, and write the `<name>.flora.json` + `<name>.flora.png` pair. Every
+/// refusal is a named error — a downloaded model either passes whole or explains itself.
+fn import_flora(
+    input: &std::path::Path,
+    manifest_path: &std::path::Path,
+    out_dir: &std::path::Path,
+) -> anyhow::Result<()> {
+    let manifest: FloraManifest = ron::from_str(
+        &std::fs::read_to_string(manifest_path)
+            .with_context(|| format!("failed to read manifest {}", manifest_path.display()))?,
+    )
+    .with_context(|| format!("failed to parse manifest {}", manifest_path.display()))?;
+
+    let (document, buffers, images) = gltf::import(input)
+        .with_context(|| format!("failed to import glTF {}", input.display()))?;
+
+    let mut positions: Vec<[f32; 3]> = Vec::new();
+    let mut normals: Vec<[f32; 3]> = Vec::new();
+    let mut uvs: Vec<[f32; 2]> = Vec::new();
+    let mut indices: Vec<u32> = Vec::new();
+    let mut texture_image: Option<usize> = None;
+    // Walk the SCENE, not the raw mesh list: authored node transforms (Quaternius models
+    // carry real scales) are part of the geometry's truth — reading bare accessors imports
+    // a 2 cm bush.
+    let mut stack: Vec<(gltf::Node, glam::Mat4)> = document
+        .scenes()
+        .flat_map(|scene| scene.nodes())
+        .map(|node| (node, glam::Mat4::IDENTITY))
+        .collect();
+    while let Some((node, parent)) = stack.pop() {
+        let world = parent * glam::Mat4::from_cols_array_2d(&node.transform().matrix());
+        for child in node.children() {
+            stack.push((child, world));
+        }
+        let Some(mesh) = node.mesh() else {
+            continue;
+        };
+        let normal_matrix = glam::Mat3::from_mat4(world).inverse().transpose();
+        for primitive in mesh.primitives() {
+            anyhow::ensure!(
+                primitive.mode() == gltf::mesh::Mode::Triangles,
+                "primitive mode {:?} unsupported: the pipeline takes triangles only",
+                primitive.mode()
+            );
+            let reader = primitive.reader(|buffer| buffers.get(buffer.index()).map(|b| &b.0[..]));
+            let base = positions.len() as u32;
+            let prim_positions = reader
+                .read_positions()
+                .ok_or_else(|| anyhow::anyhow!("primitive without POSITION"))?;
+            for p in prim_positions {
+                positions.push(world.transform_point3(glam::Vec3::from_array(p)).to_array());
+            }
+            let prim_normals =
+                reader.read_normals().ok_or_else(|| anyhow::anyhow!("primitive without NORMAL"))?;
+            for n in prim_normals {
+                normals.push(
+                    (normal_matrix * glam::Vec3::from_array(n)).normalize_or_zero().to_array(),
+                );
+            }
+            let prim_uvs: Vec<[f32; 2]> = reader
+                .read_tex_coords(0)
+                .ok_or_else(|| anyhow::anyhow!("primitive without TEXCOORD_0"))?
+                .into_f32()
+                .collect();
+            uvs.extend(prim_uvs);
+            let prim_indices = reader
+                .read_indices()
+                .ok_or_else(|| anyhow::anyhow!("primitive without indices"))?
+                .into_u32();
+            indices.extend(prim_indices.map(|index| index + base));
+            if texture_image.is_none() {
+                texture_image = primitive
+                    .material()
+                    .pbr_metallic_roughness()
+                    .base_color_texture()
+                    .map(|info| info.texture().source().index());
+            }
+        }
+    }
+    let image_index =
+        texture_image.ok_or_else(|| anyhow::anyhow!("no base-color texture in the source"))?;
+    let image = images
+        .get(image_index)
+        .ok_or_else(|| anyhow::anyhow!("texture image {image_index} missing"))?;
+    let rgba = image_to_rgba8(image)?;
+
+    // Over-budget sources get DECIMATED here, loudly — the validate gate's "decimate the
+    // source" is a step of this pipeline, never a raised ceiling. meshopt preserves the
+    // silhouette as far as the budget allows; how it looks is the FL-4 look gate's verdict.
+    let source_tris = indices.len() / 3;
+    if source_tris > world_forge::flora::FLORA_MAX_TRIS {
+        let vertex_bytes: &[u8] = bytemuck::cast_slice(&positions);
+        let adapter =
+            meshopt::VertexDataAdapter::new(vertex_bytes, std::mem::size_of::<[f32; 3]>(), 0)
+                .map_err(|error| anyhow::anyhow!("meshopt adapter: {error}"))?;
+        // Loosen the error bound until the budget is met: a stylized canopy often needs a
+        // coarser pass than the default tolerance allows. The LAST resort is refusal, and
+        // the look gate judges whatever survives.
+        let mut simplified = Vec::new();
+        for target_error in [0.05_f32, 0.15, 0.3, 0.6, 1.0] {
+            simplified = meshopt::simplify(
+                &indices,
+                &adapter,
+                world_forge::flora::FLORA_MAX_TRIS * 3,
+                target_error,
+                meshopt::SimplifyOptions::None,
+                None,
+            );
+            if simplified.len() / 3 <= world_forge::flora::FLORA_MAX_TRIS {
+                break;
+            }
+        }
+        anyhow::ensure!(
+            !simplified.is_empty() && simplified.len().is_multiple_of(3),
+            "simplification collapsed the mesh"
+        );
+        // Compact: keep only the vertices the simplified index stream still references.
+        let mut remap = vec![u32::MAX; positions.len()];
+        let (mut new_positions, mut new_normals, mut new_uvs) =
+            (Vec::new(), Vec::new(), Vec::new());
+        let mut new_indices = Vec::with_capacity(simplified.len());
+        for &index in &simplified {
+            let slot = &mut remap[index as usize];
+            if *slot == u32::MAX {
+                *slot = new_positions.len() as u32;
+                new_positions.push(positions[index as usize]);
+                new_normals.push(normals[index as usize]);
+                new_uvs.push(uvs[index as usize]);
+            }
+            new_indices.push(*slot);
+        }
+        println!(
+            "decimated {}: {source_tris} -> {} tris ({} -> {} vertices)",
+            manifest.name,
+            new_indices.len() / 3,
+            positions.len(),
+            new_positions.len()
+        );
+        positions = new_positions;
+        normals = new_normals;
+        uvs = new_uvs;
+        indices = new_indices;
+    }
+
+    // Normalize: recentre in XZ, ground the lowest vertex at y = 0.
+    let (mut min, mut max) = ([f32::INFINITY; 3], [f32::NEG_INFINITY; 3]);
+    for p in &positions {
+        for axis in 0..3 {
+            min[axis] = min[axis].min(p[axis]);
+            max[axis] = max[axis].max(p[axis]);
+        }
+    }
+    let centre_x = (min[0] + max[0]) * 0.5;
+    let centre_z = (min[2] + max[2]) * 0.5;
+    for p in &mut positions {
+        p[0] -= centre_x;
+        p[1] -= min[1];
+        p[2] -= centre_z;
+    }
+    // Clamp epsilon-out-of-range UVs (a common exporter artifact); real wrapping still fails
+    // validation loudly.
+    for uv in &mut uvs {
+        uv[0] = uv[0].clamp(-0.001, 1.001).clamp(0.0, 1.0);
+        uv[1] = uv[1].clamp(-0.001, 1.001).clamp(0.0, 1.0);
+    }
+
+    let texture_file = format!("{}.flora.png", manifest.name);
+    let asset = world_forge::flora::FloraAsset {
+        name: manifest.name.clone(),
+        license: world_forge::flora::FloraLicense {
+            spdx: manifest.spdx,
+            author: manifest.author,
+            source_url: manifest.source_url,
+        },
+        texture_file: texture_file.clone(),
+        texture_width: image.width,
+        texture_height: image.height,
+        height_m: max[1] - min[1],
+        positions,
+        normals,
+        uvs,
+        indices,
+    };
+    asset.validate().map_err(|reason| anyhow::anyhow!("{} refused: {reason}", input.display()))?;
+
+    std::fs::create_dir_all(out_dir)?;
+    let png_path = out_dir.join(&texture_file);
+    let file = std::fs::File::create(&png_path)
+        .with_context(|| format!("failed to create {}", png_path.display()))?;
+    let mut encoder = png::Encoder::new(std::io::BufWriter::new(file), image.width, image.height);
+    encoder.set_color(png::ColorType::Rgba);
+    encoder.set_depth(png::BitDepth::Eight);
+    encoder.write_header()?.write_image_data(&rgba)?;
+    let json_path = out_dir.join(format!("{}.flora.json", asset.name));
+    write_json(json_path.clone(), &asset)?;
+    println!(
+        "imported {}: {} tris, {}x{} texture, {:.2} m tall -> {}",
+        asset.name,
+        asset.triangle_count(),
+        asset.texture_width,
+        asset.texture_height,
+        asset.height_m,
+        json_path.display()
+    );
+    Ok(())
+}
+
+/// Convert a decoded glTF image to tight RGBA8 (the only wire format the atlas takes).
+fn image_to_rgba8(image: &gltf::image::Data) -> anyhow::Result<Vec<u8>> {
+    use gltf::image::Format;
+    let pixel_count = (image.width * image.height) as usize;
+    Ok(match image.format {
+        Format::R8G8B8A8 => image.pixels.clone(),
+        Format::R8G8B8 => {
+            let mut out = Vec::with_capacity(pixel_count * 4);
+            for rgb in image.pixels.chunks_exact(3) {
+                out.extend_from_slice(&[rgb[0], rgb[1], rgb[2], 255]);
+            }
+            out
+        }
+        other => anyhow::bail!(
+            "texture format {other:?} unsupported: export the source as 8-bit RGB/RGBA"
+        ),
+    })
 }
 
 /// Serialize every blueprint-backed vehicle to `<out>/<slug>.blueprint.ron` — the migration
