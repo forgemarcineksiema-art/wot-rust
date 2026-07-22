@@ -145,6 +145,39 @@ fn the_core_is_dense_masonry_with_born_ruins_inside_the_envelope() {
     assert_eq!(ruins, 6, "three mirrored born-ruin pairs open the cross-block sightlines");
 }
 
+/// The outskirts polish (urban-map PR-13): the crossing parapets stand high on the berm
+/// fill (cover for the crossing fight, not fences in a field), and the elevator compounds
+/// are complete mirrored ensembles — head house, silo tower, receiving shed.
+#[test]
+fn the_parapets_ride_the_fill_and_the_elevator_compounds_are_whole() {
+    let map = map();
+    for parapet in ["crossing_parapet_south", "crossing_parapet_north"] {
+        let object = map
+            .static_cover
+            .iter()
+            .find(|c| c.id == parapet)
+            .unwrap_or_else(|| panic!("{parapet} must exist"));
+        let ground = map
+            .heightmap
+            .sample_height(object.center[0], object.center[2])
+            .expect("parapet inside map");
+        assert!(ground > 11.0, "{parapet} must stand on the berm fill, got ground {ground:.1} m");
+    }
+    for id in [
+        "elevator_south",
+        "elevator_north",
+        "elevator_silo_south",
+        "elevator_silo_north",
+        "elevator_shed_south",
+        "elevator_shed_north",
+    ] {
+        assert!(
+            map.static_cover.iter().any(|c| c.id == id),
+            "the elevator ensemble must include {id}"
+        );
+    }
+}
+
 /// Scans `shelf_from..shelf_to` at `z` for a spot where the hull is masked (> 0.4 m) and the
 /// turret clears (> 0.4 m) against an attacker eye at `enemy` — the existence of a usable
 /// hull-down line, not one tuned point.

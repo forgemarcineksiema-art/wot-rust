@@ -421,8 +421,9 @@ MapBlueprint(
             at: (Fixed(842.0), Fixed(538.0)),
             half_extents_m: (3.4, 1.6, 6.2),
         ),
-        // Grain elevators east of the berm: the tallest silhouettes of the fields, and the
-        // far-flank observation anchors.
+        // Grain elevator compounds east of the berm (PR-13): the tall head house, the bare
+        // masonry silo tower beside it, and the low receiving shed — the far-flank
+        // observation anchors composed from the existing vocabulary.
         Cover(
             id: "elevator_south",
             name: "grain elevator (south)",
@@ -436,6 +437,66 @@ MapBlueprint(
             kind: FarmBuilding,
             at: (Fixed(915.0), Fixed(770.0)),
             half_extents_m: (6.0, 9.5, 6.0),
+        ),
+        Cover(
+            id: "elevator_silo_south",
+            name: "elevator silo tower (south)",
+            kind: RailCover,
+            at: (Fixed(929.0), Fixed(245.0)),
+            half_extents_m: (2.2, 5.5, 2.2),
+        ),
+        Cover(
+            id: "elevator_silo_north",
+            name: "elevator silo tower (north)",
+            kind: RailCover,
+            at: (Fixed(929.0), Fixed(755.0)),
+            half_extents_m: (2.2, 5.5, 2.2),
+        ),
+        Cover(
+            id: "elevator_shed_south",
+            name: "receiving shed (south)",
+            kind: FarmBuilding,
+            at: (Fixed(901.0), Fixed(263.0)),
+            half_extents_m: (4.0, 2.4, 3.0),
+        ),
+        Cover(
+            id: "elevator_shed_north",
+            name: "receiving shed (north)",
+            kind: FarmBuilding,
+            at: (Fixed(901.0), Fixed(737.0)),
+            half_extents_m: (4.0, 2.4, 3.0),
+        ),
+        // Parapet walls on the berm crest flanking the level crossing (PR-13): masonry
+        // cover for the crossing fight, grounded high on the fill.
+        Cover(
+            id: "crossing_parapet_south",
+            name: "berm parapet (south of the crossing)",
+            kind: RailCover,
+            at: (Fixed(825.0), Fixed(440.0)),
+            half_extents_m: (1.4, 0.9, 12.0),
+        ),
+        Cover(
+            id: "crossing_parapet_north",
+            name: "berm parapet (north of the crossing)",
+            kind: RailCover,
+            at: (Fixed(825.0), Fixed(560.0)),
+            half_extents_m: (1.4, 0.9, 12.0),
+        ),
+        // A second windbreak pair deeper on the open flank: more texture for the fields run
+        // without touching the spawn aprons.
+        Cover(
+            id: "field_screen_far_south",
+            name: "far field windbreak (south)",
+            kind: TreeLine,
+            at: (Fixed(560.0), Fixed(175.0)),
+            half_extents_m: (16.0, 4.2, 2.8),
+        ),
+        Cover(
+            id: "field_screen_far_north",
+            name: "far field windbreak (north)",
+            kind: TreeLine,
+            at: (Fixed(560.0), Fixed(825.0)),
+            half_extents_m: (16.0, 4.2, 2.8),
         ),
         // Field screens between the rises and the boulevard: honest LOS blocks for the
         // open-flank run.
@@ -530,6 +591,34 @@ MapBlueprint(
             region: ScatterRect(
                 x: (855.0, 960.0),
                 z: (140.0, 460.0),
+            ),
+            exclude: Exclusion(
+                road_margin_m: Some(3.0),
+                cover_margin_m: Some(2.5),
+            ),
+        ),
+        // The elevator orchard (PR-13): fruit rows behind the compounds, and brush along
+        // the berm's west foot so the fields run has soft texture up to the wall.
+        Scatter(
+            seed: 4310006,
+            kind: FruitTree,
+            pairs: 8,
+            region: ScatterRect(
+                x: (880.0, 960.0),
+                z: (180.0, 300.0),
+            ),
+            exclude: Exclusion(
+                road_margin_m: Some(3.0),
+                cover_margin_m: Some(2.5),
+            ),
+        ),
+        Scatter(
+            seed: 4310007,
+            kind: Bush,
+            pairs: 10,
+            region: ScatterRect(
+                x: (770.0, 812.0),
+                z: (150.0, 460.0),
             ),
             exclude: Exclusion(
                 road_margin_m: Some(3.0),
