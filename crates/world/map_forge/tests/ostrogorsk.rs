@@ -67,8 +67,9 @@ fn the_gates_and_the_streets_stay_drivable() {
         ("north underpass", (770.0, 730.0), (890.0, 730.0)),
         ("boulevard west", (80.0, 500.0), (470.0, 500.0)),
         ("boulevard east", (470.0, 500.0), (770.0, 500.0)),
-        ("high street south", (430.0, 180.0), (430.0, 495.0)),
-        ("market lane south", (125.0, 440.0), (425.0, 440.0)),
+        ("high street south", (430.0, 245.0), (430.0, 495.0)),
+        ("market lane south", (125.0, 446.0), (425.0, 446.0)),
+        ("forge lane south", (195.0, 358.0), (425.0, 358.0)),
         ("rail line over the south gate", (830.0, 220.0), (830.0, 320.0)),
     ];
     for (name, from, to) in lanes {
@@ -118,6 +119,30 @@ fn the_gameplay_layer_mirrors() {
         assert!(has_twin, "strategic point {} needs an axis seat or a mirror twin", point.id);
     }
     assert_eq!(map.strategic_points.len(), 13, "the skeleton ships its full 13-point layer");
+}
+
+/// The dense core (urban-map PR-12): the city carries a real box count inside the proven
+/// bench envelope, its masonry speaks the urban kinds, and the born-ruin pairs are present
+/// — punched into the street fabric, mirrored, and named for the birth rule.
+#[test]
+fn the_core_is_dense_masonry_with_born_ruins_inside_the_envelope() {
+    let map = map();
+    let total = map.static_cover.len();
+    assert!(
+        (90..=160).contains(&total),
+        "the dense core targets the proven bench envelope (urban_150), got {total} boxes"
+    );
+    let city_blocks = map
+        .static_cover
+        .iter()
+        .filter(|c| c.kind == terrain::StaticCoverKind::CityBuilding)
+        .count();
+    assert!(city_blocks >= 50, "the core is masonry, got {city_blocks} CityBuilding boxes");
+    let walls =
+        map.static_cover.iter().filter(|c| c.kind == terrain::StaticCoverKind::StoneWall).count();
+    assert!(walls >= 10, "the yards and the seam are walled, got {walls} StoneWall runs");
+    let ruins = map.static_cover.iter().filter(|c| c.id.contains("ruin")).count();
+    assert_eq!(ruins, 6, "three mirrored born-ruin pairs open the cross-block sightlines");
 }
 
 /// Scans `shelf_from..shelf_to` at `z` for a spot where the hull is masked (> 0.4 m) and the

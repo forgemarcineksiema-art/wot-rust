@@ -2,11 +2,12 @@
 
 The fourth battle map — the urban-map program's city (docs/urban-map-program.md), authored
 as a Map Forge blueprint, compiled by `map_forge::compile`, gated by the map report, and
-locked by its golden hash. Status: **opt-in** via `WOT_MAP=ostrogorsk`, and **skeleton
-stage** (program PR-02): the layout, terrain, gates and gameplay layer are final-intent,
-while the town grid and mill compounds are placeholders from the existing vocabulary until
-the dense `CityBuilding` core, `StoneWall` perimeters, cobbles and born-ruins land with
-waves F+U of the program.
+locked by its golden hash. Status: **opt-in** via `WOT_MAP=ostrogorsk`, and **dense-core
+stage** (program PR-12): a 93-box city — a 48-block `CityBuilding` tenement grid in cobbled
+street canyons plus boulevard-front and back-street ranks, mirrored factory compounds
+behind breachable `StoneWall` yards with east gates, three mirrored born-ruin pairs opening
+cross-block sightlines, garden walls screening the boulevard seam, lamps and debris through
+the core. Outskirts polish (elevator dressing, orchards, berm detail) follows in PR-13.
 
 ## Historical Basis
 
@@ -64,11 +65,17 @@ the wreck-marked level crossing is the axis door both teams can pre-sight.
   crossing (Crossing, axis), underpass pair (Crossing), mill yard pair (FlankRoute),
   outskirts rise pair (HighGround), rise shoulder hull-down pair (HullDown), grain
   elevator pair (Observation).
-- Cover (skeleton): the 30-house `TownGrid`, the on-axis church, mirrored mill halls +
-  yard walls, the crossing wreck pair, mirrored field windbreaks, the elevators.
-- Roads (render-only): the boulevard (axis, Dirt until Cobble), the high street pair, two
-  row-street pairs through the grid corridors, the ballast mainline on the berm crest, the
-  underpass lane pair.
+- Cover (dense core, 93 boxes): the 48-block `CityBuilding` tenement `TownGrid` (four
+  columns, six mirrored rows), boulevard-front rank (x 415) and back-street rank (x 130),
+  three mirrored born-`ruin` pairs punched into the row lines, the on-axis church, factory
+  compounds (`CityBuilding` halls + `StoneWall` yards with east gates + yard wrecks),
+  garden-wall runs on the boulevard seam, the crossing wreck pair, field windbreaks, the
+  elevators.
+- Roads (render-only): the cobbled boulevard (axis), the cobbled high street pair, four
+  cobbled row-street pairs through the canyon corridors, the ballast mainline on the berm
+  crest, the dirt underpass lane pair.
+- Street furniture: a lamppost row on the high street's east walk, debris heaps scattered
+  through the core (render-only scenery).
 
 ## Contracts
 
