@@ -298,6 +298,66 @@ mod tests {
         assert_eq!(states[1].phase, CoverPhase::Intact);
     }
 
+    /// Urban-map doctrine decision 2, as tests: a CityBuilding soaks 1500 HP and collapses
+    /// to the standard rubble mound (hull blocked, turret-height shot clears); a StoneWall
+    /// opens at 150 HP and goes fully GONE — a breached wall is a door, never a mound.
+    #[test]
+    fn a_city_building_is_masonry_and_a_stone_wall_breaches_clean() {
+        let cover = vec![
+            object("tenement_a", StaticCoverKind::CityBuilding, [0.0, 5.5, 0.0], [9.0, 5.5, 5.0]),
+            object("yard_wall", StaticCoverKind::StoneWall, [30.0, 1.1, 0.0], [0.4, 1.1, 7.0]),
+        ];
+        let mut states = cover_states_for(&cover);
+
+        damage_cover(&mut states, &cover, 0, 1499);
+        assert_eq!(states[0].phase, CoverPhase::Intact, "1499 HP does not fell masonry");
+        damage_cover(&mut states, &cover, 0, 1);
+        assert_eq!(states[0].phase, CoverPhase::Rubble, "the block collapses at 1500");
+
+        damage_cover(&mut states, &cover, 1, 150);
+        assert_eq!(states[1].phase, CoverPhase::Gone, "a breached wall leaves no mound");
+
+        let live = live_cover_for_blocking(&cover, &states);
+        assert_eq!(live.len(), 1, "the wall is a clear door; the rubble still stands");
+        assert!(
+            live[0].half_extents_m[1] < 5.5 * 0.5,
+            "the mound is low enough for a turret-height shot"
+        );
+    }
+
+    /// A 30 t hull breaches a brick garden wall by driving through it; a city building
+    /// stops the hull like any building.
+    #[test]
+    fn a_hull_crushes_a_stone_wall_but_not_a_city_building() {
+        let cover = vec![
+            object("yard_wall", StaticCoverKind::StoneWall, [0.0, 1.1, 0.0], [0.4, 1.1, 7.0]),
+            object("tenement", StaticCoverKind::CityBuilding, [30.0, 5.5, 0.0], [9.0, 5.5, 5.0]),
+        ];
+        let mut states = cover_states_for(&cover);
+        assert!(crush_cover(&mut states, &cover[0], 0), "the wall crushes under the hull");
+        assert_eq!(states[0].phase, CoverPhase::Gone);
+        assert!(!crush_cover(&mut states, &cover[1], 1), "masonry blocks do not crush");
+    }
+
+    /// The recorded no-protocol-bump proof (urban-map doctrine decision 1): cover phases ride
+    /// the wire as kind-AGNOSTIC bytes, so states on the new urban kinds round-trip through
+    /// the same encoding untouched — appending kinds cannot shift a single wire byte.
+    #[test]
+    fn new_urban_kinds_ride_the_same_phase_bytes() {
+        let cover = vec![
+            object("tenement", StaticCoverKind::CityBuilding, [0.0, 5.5, 0.0], [9.0, 5.5, 5.0]),
+            object("yard_wall", StaticCoverKind::StoneWall, [30.0, 1.1, 0.0], [0.4, 1.1, 7.0]),
+        ];
+        let mut states = cover_states_for(&cover);
+        damage_cover(&mut states, &cover, 0, u32::MAX);
+        damage_cover(&mut states, &cover, 1, u32::MAX);
+        let bytes: Vec<u8> = states.iter().map(|state| state.phase.to_wire()).collect();
+        assert_eq!(bytes, vec![1, 2], "Rubble/Gone use the same bytes every kind uses");
+        let decoded: Vec<CoverPhase> =
+            bytes.iter().map(|&byte| CoverPhase::from_wire(byte)).collect();
+        assert_eq!(decoded, vec![CoverPhase::Rubble, CoverPhase::Gone]);
+    }
+
     #[test]
     fn a_shell_hit_maps_to_the_cover_it_struck() {
         let cover = vec![
