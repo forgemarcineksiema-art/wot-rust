@@ -48,7 +48,12 @@ pub(crate) struct SsaoResources {
 }
 
 impl SsaoResources {
-    pub fn new(device: &wgpu::Device, camera_bgl: &wgpu::BindGroupLayout, scale: f32) -> Self {
+    pub fn new(
+        device: &wgpu::Device,
+        camera_bgl: &wgpu::BindGroupLayout,
+        foliage_bgl: &wgpu::BindGroupLayout,
+        scale: f32,
+    ) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("ssao_shader"),
             source: wgpu::ShaderSource::Wgsl(ssao_shader_source().into()),
@@ -85,14 +90,20 @@ impl SsaoResources {
                 device,
                 &prepass_shader,
                 camera_bgl,
+                None,
                 std::mem::size_of::<renderer_api::VehicleVertex>() as u64,
+                &super::ssao_pipelines::PREPASS_VERTEX_ATTRIBUTES,
+                ("vs_prepass", "fs_depth"),
                 "ssao_prepass_vehicle",
             ),
             prepass_scene_pipeline: build_prepass_pipeline(
                 device,
                 &prepass_shader,
                 camera_bgl,
+                Some(foliage_bgl),
                 std::mem::size_of::<renderer_api::SceneVertex>() as u64,
+                &super::ssao_pipelines::PREPASS_SCENE_VERTEX_ATTRIBUTES,
+                ("vs_prepass_cutout", "fs_depth_cutout"),
                 "ssao_prepass_scene",
             ),
             ssao_pipeline: fullscreen_pipeline(device, &shader, &ssao_layout, "fs_ssao"),

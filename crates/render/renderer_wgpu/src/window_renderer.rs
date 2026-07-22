@@ -151,6 +151,12 @@ impl WindowRenderer {
         self.scene.clear_battlefield_ground();
     }
 
+    /// Replace the foliage atlas (Imported Flora 2.0, FL-2) — see
+    /// [`crate::SceneRenderer::set_foliage_atlas`].
+    pub fn set_foliage_atlas(&mut self, rgba: &[u8], width: u32, height: u32) {
+        self.scene.set_foliage_atlas(&self.ctx, rgba, width, height);
+    }
+
     pub fn set_terrain(&mut self, vertices: &[SceneVertex], indices: &[u32]) {
         self.scene.set_terrain(&self.ctx, vertices, indices);
     }
