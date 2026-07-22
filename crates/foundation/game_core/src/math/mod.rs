@@ -225,6 +225,28 @@ pub fn segment_box_entry(p0: Vec3, p1: Vec3, min: Vec3, max: Vec3) -> Option<f32
     Some(enter)
 }
 
+/// Broadphase reject for segment-vs-AABB queries: whether the segment's XZ bounding rectangle
+/// and the box's XZ footprint are disjoint. When they are, no exact slab test can hit — the
+/// slab's t-interval is already empty on that axis — so callers walking MANY boxes (an urban
+/// map carries 100+) may skip the exact test without changing any result. Four comparisons,
+/// no divisions.
+#[inline]
+pub fn segment_xz_disjoint(
+    p0: Vec3,
+    p1: Vec3,
+    center_x: f32,
+    center_z: f32,
+    half_x: f32,
+    half_z: f32,
+) -> bool {
+    let (min_x, max_x) = if p0.x <= p1.x { (p0.x, p1.x) } else { (p1.x, p0.x) };
+    if center_x - half_x > max_x || center_x + half_x < min_x {
+        return true;
+    }
+    let (min_z, max_z) = if p0.z <= p1.z { (p0.z, p1.z) } else { (p1.z, p0.z) };
+    center_z - half_z > max_z || center_z + half_z < min_z
+}
+
 #[cfg(test)]
 mod tests {
     use std::f32::consts::{FRAC_PI_2, PI, TAU};
