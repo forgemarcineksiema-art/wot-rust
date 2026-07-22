@@ -7,7 +7,7 @@ MapBlueprint(
         design_notes: [
             "city + open outskirts hybrid: a dense masonry city on the west bench, open field patchwork and a north-south rail embankment on the east, the boulevard square between them - every playstyle gets its flank",
             "the berm is the east wall: 7 m of fill exceeding the climb grade everywhere except three gates (the level crossing on the axis, two mirrored underpass cuts) - the eastern routes ARE the gates",
-            "SKELETON stage (urban-map program PR-02): town grid and factory placeholders use the existing vocabulary (FarmBuilding/RailCover); the dense CityBuilding core, StoneWall perimeters, cobbles and born-ruins land with waves F+U of docs/urban-map-program.md",
+            "DENSE CORE stage (urban-map program PR-12): 48-block CityBuilding tenement grid in cobbled street canyons, mirrored factory compounds behind breachable StoneWall yards, born-ruin pairs opening cross-block sightlines, garden walls screening the boulevard seam - outskirts polish follows in PR-13",
         ],
     ),
     grid: GridSpec(
@@ -129,37 +129,281 @@ MapBlueprint(
             at: (Fixed(250.0), Fixed(500.0)),
             half_extents_m: (5.0, 7.0, 6.5),
         ),
-        // Mirrored mill compounds behind the city: the deep-west flank anchors. Placeholder
-        // FarmBuilding halls until FactoryHall (wave U) replaces them.
+        // Mirrored factory compounds on the deep-west flank (PR-12): masonry halls behind
+        // breachable stone-wall yards with an east gate — the FlankRoute anchors.
         Cover(
-            id: "mill_hall_south",
-            name: "old mill hall (south)",
-            kind: FarmBuilding,
+            id: "ostrogorsk_factory_south",
+            name: "factory hall (south)",
+            kind: CityBuilding,
             at: (Fixed(140.0), Fixed(350.0)),
             half_extents_m: (14.0, 6.0, 9.0),
         ),
         Cover(
-            id: "mill_hall_north",
-            name: "old mill hall (north)",
-            kind: FarmBuilding,
+            id: "ostrogorsk_factory_north",
+            name: "factory hall (north)",
+            kind: CityBuilding,
             at: (Fixed(140.0), Fixed(650.0)),
             half_extents_m: (14.0, 6.0, 9.0),
         ),
-        // Mill yard walls: masonry runs east of the halls. RailCover placeholder until the
-        // breachable StoneWall kind lands (wave F).
         Cover(
-            id: "mill_wall_south",
-            name: "mill yard wall (south)",
-            kind: RailCover,
-            at: (Fixed(168.0), Fixed(335.0)),
-            half_extents_m: (0.6, 1.2, 14.0),
+            id: "factory_yard_wall_e1_south",
+            name: "factory yard wall, east run south of the gate",
+            kind: StoneWall,
+            at: (Fixed(180.0), Fixed(333.0)),
+            half_extents_m: (0.4, 1.1, 13.0),
         ),
         Cover(
-            id: "mill_wall_north",
-            name: "mill yard wall (north)",
-            kind: RailCover,
-            at: (Fixed(168.0), Fixed(665.0)),
-            half_extents_m: (0.6, 1.2, 14.0),
+            id: "factory_yard_wall_e2_south",
+            name: "factory yard wall, east run north of the gate",
+            kind: StoneWall,
+            at: (Fixed(180.0), Fixed(367.0)),
+            half_extents_m: (0.4, 1.1, 13.0),
+        ),
+        Cover(
+            id: "factory_yard_wall_n_south",
+            name: "factory yard wall, north run (south compound)",
+            kind: StoneWall,
+            at: (Fixed(152.0), Fixed(380.0)),
+            half_extents_m: (26.0, 1.1, 0.4),
+        ),
+        Cover(
+            id: "factory_yard_wall_s_south",
+            name: "factory yard wall, south run (south compound)",
+            kind: StoneWall,
+            at: (Fixed(152.0), Fixed(320.0)),
+            half_extents_m: (26.0, 1.1, 0.4),
+        ),
+        Cover(
+            id: "factory_yard_wall_e1_north",
+            name: "factory yard wall, east run north of the gate (north)",
+            kind: StoneWall,
+            at: (Fixed(180.0), Fixed(667.0)),
+            half_extents_m: (0.4, 1.1, 13.0),
+        ),
+        Cover(
+            id: "factory_yard_wall_e2_north",
+            name: "factory yard wall, east run south of the gate (north)",
+            kind: StoneWall,
+            at: (Fixed(180.0), Fixed(633.0)),
+            half_extents_m: (0.4, 1.1, 13.0),
+        ),
+        Cover(
+            id: "factory_yard_wall_n_north",
+            name: "factory yard wall, south run (north compound)",
+            kind: StoneWall,
+            at: (Fixed(152.0), Fixed(620.0)),
+            half_extents_m: (26.0, 1.1, 0.4),
+        ),
+        Cover(
+            id: "factory_yard_wall_s_north",
+            name: "factory yard wall, north run (north compound)",
+            kind: StoneWall,
+            at: (Fixed(152.0), Fixed(680.0)),
+            half_extents_m: (26.0, 1.1, 0.4),
+        ),
+        // A burned-out hull in each factory yard: the flank route is pre-marked as fought
+        // ground, and the yard fight has hard cover inside the walls.
+        Cover(
+            id: "factory_wreck_south",
+            name: "burned-out hull in the factory yard (south)",
+            kind: Wreck,
+            at: (Fixed(168.0), Fixed(332.0)),
+            half_extents_m: (3.2, 1.5, 1.6),
+        ),
+        Cover(
+            id: "factory_wreck_north",
+            name: "burned-out hull in the factory yard (north)",
+            kind: Wreck,
+            at: (Fixed(168.0), Fixed(668.0)),
+            half_extents_m: (3.2, 1.5, 1.6),
+        ),
+        // Born-ruin tenements (PR-07/PR-12): ~15% of the core spawns already collapsed,
+        // opening cross-block sightlines through the street fabric from tick zero.
+        Cover(
+            id: "tenement_ruin_a_south",
+            name: "ruined tenement (south, west block)",
+            kind: CityBuilding,
+            at: (Fixed(220.0), Fixed(468.0)),
+            half_extents_m: (8.0, 5.5, 5.5),
+        ),
+        Cover(
+            id: "tenement_ruin_a_north",
+            name: "ruined tenement (north, west block)",
+            kind: CityBuilding,
+            at: (Fixed(220.0), Fixed(532.0)),
+            half_extents_m: (8.0, 5.5, 5.5),
+        ),
+        Cover(
+            id: "tenement_ruin_b_south",
+            name: "ruined tenement (south, mid block)",
+            kind: CityBuilding,
+            at: (Fixed(280.0), Fixed(380.0)),
+            half_extents_m: (8.0, 5.5, 5.5),
+        ),
+        Cover(
+            id: "tenement_ruin_b_north",
+            name: "ruined tenement (north, mid block)",
+            kind: CityBuilding,
+            at: (Fixed(280.0), Fixed(620.0)),
+            half_extents_m: (8.0, 5.5, 5.5),
+        ),
+        Cover(
+            id: "tenement_ruin_c_south",
+            name: "ruined tenement (south, east block)",
+            kind: CityBuilding,
+            at: (Fixed(340.0), Fixed(424.0)),
+            half_extents_m: (8.0, 5.5, 5.5),
+        ),
+        Cover(
+            id: "tenement_ruin_c_north",
+            name: "ruined tenement (north, east block)",
+            kind: CityBuilding,
+            at: (Fixed(340.0), Fixed(576.0)),
+            half_extents_m: (8.0, 5.5, 5.5),
+        ),
+        // The boulevard front: an explicit tenement rank facing the seam (x 415), and the
+        // back street rank (x 130) filling the west edge outside the factory zone.
+        Cover(
+            id: "tenement_front_a_south",
+            name: "boulevard-front tenement (south, far)",
+            kind: CityBuilding,
+            at: (Fixed(415.0), Fixed(292.0)),
+            half_extents_m: (8.0, 5.5, 5.5),
+        ),
+        Cover(
+            id: "tenement_front_b_south",
+            name: "boulevard-front tenement (south, mid)",
+            kind: CityBuilding,
+            at: (Fixed(415.0), Fixed(380.0)),
+            half_extents_m: (8.0, 5.5, 5.5),
+        ),
+        Cover(
+            id: "tenement_front_c_south",
+            name: "boulevard-front tenement (south, near)",
+            kind: CityBuilding,
+            at: (Fixed(415.0), Fixed(468.0)),
+            half_extents_m: (8.0, 5.5, 5.5),
+        ),
+        Cover(
+            id: "tenement_front_a_north",
+            name: "boulevard-front tenement (north, far)",
+            kind: CityBuilding,
+            at: (Fixed(415.0), Fixed(708.0)),
+            half_extents_m: (8.0, 5.5, 5.5),
+        ),
+        Cover(
+            id: "tenement_front_b_north",
+            name: "boulevard-front tenement (north, mid)",
+            kind: CityBuilding,
+            at: (Fixed(415.0), Fixed(620.0)),
+            half_extents_m: (8.0, 5.5, 5.5),
+        ),
+        Cover(
+            id: "tenement_front_c_north",
+            name: "boulevard-front tenement (north, near)",
+            kind: CityBuilding,
+            at: (Fixed(415.0), Fixed(532.0)),
+            half_extents_m: (8.0, 5.5, 5.5),
+        ),
+        Cover(
+            id: "tenement_back_a_south",
+            name: "back-street tenement (south, deep)",
+            kind: CityBuilding,
+            at: (Fixed(130.0), Fixed(248.0)),
+            half_extents_m: (7.0, 5.5, 5.0),
+        ),
+        Cover(
+            id: "tenement_back_b_south",
+            name: "back-street tenement (south, outer)",
+            kind: CityBuilding,
+            at: (Fixed(130.0), Fixed(292.0)),
+            half_extents_m: (7.0, 5.5, 5.0),
+        ),
+        Cover(
+            id: "tenement_back_c_south",
+            name: "back-street tenement (south, inner)",
+            kind: CityBuilding,
+            at: (Fixed(130.0), Fixed(424.0)),
+            half_extents_m: (7.0, 5.5, 5.0),
+        ),
+        Cover(
+            id: "tenement_back_d_south",
+            name: "back-street tenement (south, near)",
+            kind: CityBuilding,
+            at: (Fixed(130.0), Fixed(468.0)),
+            half_extents_m: (7.0, 5.5, 5.0),
+        ),
+        Cover(
+            id: "tenement_back_a_north",
+            name: "back-street tenement (north, deep)",
+            kind: CityBuilding,
+            at: (Fixed(130.0), Fixed(752.0)),
+            half_extents_m: (7.0, 5.5, 5.0),
+        ),
+        Cover(
+            id: "tenement_back_b_north",
+            name: "back-street tenement (north, outer)",
+            kind: CityBuilding,
+            at: (Fixed(130.0), Fixed(708.0)),
+            half_extents_m: (7.0, 5.5, 5.0),
+        ),
+        Cover(
+            id: "tenement_back_c_north",
+            name: "back-street tenement (north, inner)",
+            kind: CityBuilding,
+            at: (Fixed(130.0), Fixed(576.0)),
+            half_extents_m: (7.0, 5.5, 5.0),
+        ),
+        Cover(
+            id: "tenement_back_d_north",
+            name: "back-street tenement (north, near)",
+            kind: CityBuilding,
+            at: (Fixed(130.0), Fixed(532.0)),
+            half_extents_m: (7.0, 5.5, 5.0),
+        ),
+        // Garden walls screening the boulevard edge of the city: breachable cover on the
+        // seam, with deliberate gaps so every street corridor stays open.
+        Cover(
+            id: "garden_wall_a_south",
+            name: "boulevard garden wall (south, far)",
+            kind: StoneWall,
+            at: (Fixed(452.0), Fixed(300.0)),
+            half_extents_m: (0.4, 1.1, 12.0),
+        ),
+        Cover(
+            id: "garden_wall_b_south",
+            name: "boulevard garden wall (south, mid)",
+            kind: StoneWall,
+            at: (Fixed(452.0), Fixed(380.0)),
+            half_extents_m: (0.4, 1.1, 12.0),
+        ),
+        Cover(
+            id: "garden_wall_c_south",
+            name: "boulevard garden wall (south, near)",
+            kind: StoneWall,
+            at: (Fixed(452.0), Fixed(460.0)),
+            half_extents_m: (0.4, 1.1, 12.0),
+        ),
+        Cover(
+            id: "garden_wall_a_north",
+            name: "boulevard garden wall (north, far)",
+            kind: StoneWall,
+            at: (Fixed(452.0), Fixed(700.0)),
+            half_extents_m: (0.4, 1.1, 12.0),
+        ),
+        Cover(
+            id: "garden_wall_b_north",
+            name: "boulevard garden wall (north, mid)",
+            kind: StoneWall,
+            at: (Fixed(452.0), Fixed(620.0)),
+            half_extents_m: (0.4, 1.1, 12.0),
+        ),
+        Cover(
+            id: "garden_wall_c_north",
+            name: "boulevard garden wall (north, near)",
+            kind: StoneWall,
+            at: (Fixed(452.0), Fixed(540.0)),
+            half_extents_m: (0.4, 1.1, 12.0),
         ),
         // Burned-out hulls flanking the level crossing: the axis gate is pre-marked as the
         // fought-over door it will be.
@@ -209,26 +453,28 @@ MapBlueprint(
             at: (Fixed(600.0), Fixed(750.0)),
             half_extents_m: (20.0, 4.5, 3.0),
         ),
-        // The skeleton town: five column streets, three row streets, 30 houses. The dense
-        // CityBuilding core replaces this grid in wave M.
+        // The dense core (PR-12): four tenement columns, six mirrored rows — 48 masonry
+        // blocks in street canyons, with the born-ruin pairs punched into the gaps above.
         TownGrid(
-            id_prefix: "ostrogorsk_house",
-            name_prefix: "Ostrogorsk house",
-            kind: FarmBuilding,
+            id_prefix: "ostrogorsk_tenement",
+            name_prefix: "Ostrogorsk tenement",
+            kind: CityBuilding,
             columns_x_m: [
-                150.0,
-                215.0,
-                280.0,
-                345.0,
-                410.0,
+                190.0,
+                250.0,
+                310.0,
+                370.0,
             ],
             row_offsets_m: [
-                35.0,
-                80.0,
-                125.0,
+                32.0,
+                76.0,
+                120.0,
+                164.0,
+                208.0,
+                252.0,
             ],
-            wide_half_m: (6.5, 3.4, 4.5),
-            narrow_half_m: (5.5, 3.0, 4.0),
+            wide_half_m: (8.0, 5.5, 5.5),
+            narrow_half_m: (6.5, 5.5, 5.0),
         ),
     ],
     scenery: [
@@ -290,6 +536,33 @@ MapBlueprint(
                 cover_margin_m: Some(2.5),
             ),
         ),
+        // Street furniture (PR-12): cast-iron lamps lining the high street's east walk, and
+        // masonry debris spilled through the fought-over core.
+        Row(
+            kind: Lamppost,
+            xs: [
+                438.0,
+            ],
+            z_start_m: 270.0,
+            z_step_m: 42.0,
+            count: 12,
+            yaw_rad: 4.71,
+            scale: 1.0,
+        ),
+        Scatter(
+            seed: 4310005,
+            kind: DebrisHeap,
+            pairs: 12,
+            region: ScatterRect(
+                x: (120.0, 440.0),
+                z: (260.0, 470.0),
+            ),
+            exclude: Exclusion(
+                exclusion_circles: [(500.0, 110.0, 80.0), (500.0, 890.0, 80.0)],
+                road_margin_m: Some(2.5),
+                cover_margin_m: Some(1.5),
+            ),
+        ),
         // The boulevard avenue: poplar rows flanking the north-south promenade, with a
         // deliberate gap where the boulevard road crosses the axis.
         Row(
@@ -316,10 +589,10 @@ MapBlueprint(
     ],
     roads: [
         // The east-west boulevard: city square, level crossing, out to the fields. On the
-        // axis, so it mirrors onto itself. Dirt until Cobble lands (wave F).
+        // axis, so it mirrors onto itself. Cobbled through the city (PR-12).
         Road(
             id: "boulevard",
-            surface: Dirt,
+            surface: Cobble,
             points: [
                 (70.0, 500.0),
                 (470.0, 500.0),
@@ -331,29 +604,47 @@ MapBlueprint(
         // The city high street along the town-grid front.
         MirroredPair(
             id_base: "high_street",
-            surface: Dirt,
+            surface: Cobble,
             south_points: [
-                (430.0, 175.0),
+                (430.0, 240.0),
                 (430.0, 496.0),
             ],
             width_m: 6.0,
         ),
-        // Two east-west row streets through the grid corridors.
+        // Four cobbled east-west row streets through the canyon corridors.
         MirroredPair(
             id_base: "market_lane",
-            surface: Dirt,
+            surface: Cobble,
             south_points: [
-                (120.0, 440.0),
-                (430.0, 440.0),
+                (120.0, 446.0),
+                (430.0, 446.0),
             ],
             width_m: 5.5,
         ),
         MirroredPair(
             id_base: "yard_lane",
-            surface: Dirt,
+            surface: Cobble,
             south_points: [
-                (120.0, 398.0),
-                (430.0, 398.0),
+                (120.0, 402.0),
+                (430.0, 402.0),
+            ],
+            width_m: 5.5,
+        ),
+        MirroredPair(
+            id_base: "forge_lane",
+            surface: Cobble,
+            south_points: [
+                (190.0, 358.0),
+                (430.0, 358.0),
+            ],
+            width_m: 5.5,
+        ),
+        MirroredPair(
+            id_base: "depot_lane",
+            surface: Cobble,
+            south_points: [
+                (120.0, 314.0),
+                (430.0, 314.0),
             ],
             width_m: 5.5,
         ),

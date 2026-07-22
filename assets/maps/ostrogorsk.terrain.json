@@ -9,7 +9,7 @@
   "design_notes": [
     "city + open outskirts hybrid: a dense masonry city on the west bench, open field patchwork and a north-south rail embankment on the east, the boulevard square between them - every playstyle gets its flank",
     "the berm is the east wall: 7 m of fill exceeding the climb grade everywhere except three gates (the level crossing on the axis, two mirrored underpass cuts) - the eastern routes ARE the gates",
-    "SKELETON stage (urban-map program PR-02): town grid and factory placeholders use the existing vocabulary (FarmBuilding/RailCover); the dense CityBuilding core, StoneWall perimeters, cobbles and born-ruins land with waves F+U of docs/urban-map-program.md"
+    "DENSE CORE stage (urban-map program PR-12): 48-block CityBuilding tenement grid in cobbled street canyons, mirrored factory compounds behind breachable StoneWall yards, born-ruin pairs opening cross-block sightlines, garden walls screening the boulevard seam - outskirts polish follows in PR-13"
   ],
   "heightmap": {
     "width": 201,
@@ -40673,9 +40673,9 @@
       ]
     },
     {
-      "id": "mill_hall_south",
-      "name": "old mill hall (south)",
-      "kind": "FarmBuilding",
+      "id": "ostrogorsk_factory_south",
+      "name": "factory hall (south)",
+      "kind": "CityBuilding",
       "center": [
         140.0,
         19.734764,
@@ -40688,9 +40688,9 @@
       ]
     },
     {
-      "id": "mill_hall_north",
-      "name": "old mill hall (north)",
-      "kind": "FarmBuilding",
+      "id": "ostrogorsk_factory_north",
+      "name": "factory hall (north)",
+      "kind": "CityBuilding",
       "center": [
         140.0,
         19.734764,
@@ -40703,33 +40703,543 @@
       ]
     },
     {
-      "id": "mill_wall_south",
-      "name": "mill yard wall (south)",
-      "kind": "RailCover",
+      "id": "factory_yard_wall_e1_south",
+      "name": "factory yard wall, east run south of the gate",
+      "kind": "StoneWall",
       "center": [
-        168.0,
-        14.809542,
-        335.0
+        180.0,
+        14.6547985,
+        333.0
       ],
       "half_extents_m": [
-        0.6,
-        1.2,
-        14.0
+        0.4,
+        1.1,
+        13.0
       ]
     },
     {
-      "id": "mill_wall_north",
-      "name": "mill yard wall (north)",
-      "kind": "RailCover",
+      "id": "factory_yard_wall_e2_south",
+      "name": "factory yard wall, east run north of the gate",
+      "kind": "StoneWall",
       "center": [
-        168.0,
-        14.809542,
-        665.0
+        180.0,
+        14.65134,
+        367.0
       ],
       "half_extents_m": [
-        0.6,
-        1.2,
-        14.0
+        0.4,
+        1.1,
+        13.0
+      ]
+    },
+    {
+      "id": "factory_yard_wall_n_south",
+      "name": "factory yard wall, north run (south compound)",
+      "kind": "StoneWall",
+      "center": [
+        152.0,
+        14.781479,
+        380.0
+      ],
+      "half_extents_m": [
+        26.0,
+        1.1,
+        0.4
+      ]
+    },
+    {
+      "id": "factory_yard_wall_s_south",
+      "name": "factory yard wall, south run (south compound)",
+      "kind": "StoneWall",
+      "center": [
+        152.0,
+        14.780982,
+        320.0
+      ],
+      "half_extents_m": [
+        26.0,
+        1.1,
+        0.4
+      ]
+    },
+    {
+      "id": "factory_yard_wall_e1_north",
+      "name": "factory yard wall, east run north of the gate (north)",
+      "kind": "StoneWall",
+      "center": [
+        180.0,
+        14.6547985,
+        667.0
+      ],
+      "half_extents_m": [
+        0.4,
+        1.1,
+        13.0
+      ]
+    },
+    {
+      "id": "factory_yard_wall_e2_north",
+      "name": "factory yard wall, east run south of the gate (north)",
+      "kind": "StoneWall",
+      "center": [
+        180.0,
+        14.65134,
+        633.0
+      ],
+      "half_extents_m": [
+        0.4,
+        1.1,
+        13.0
+      ]
+    },
+    {
+      "id": "factory_yard_wall_n_north",
+      "name": "factory yard wall, south run (north compound)",
+      "kind": "StoneWall",
+      "center": [
+        152.0,
+        14.781479,
+        620.0
+      ],
+      "half_extents_m": [
+        26.0,
+        1.1,
+        0.4
+      ]
+    },
+    {
+      "id": "factory_yard_wall_s_north",
+      "name": "factory yard wall, north run (north compound)",
+      "kind": "StoneWall",
+      "center": [
+        152.0,
+        14.780982,
+        680.0
+      ],
+      "half_extents_m": [
+        26.0,
+        1.1,
+        0.4
+      ]
+    },
+    {
+      "id": "factory_wreck_south",
+      "name": "burned-out hull in the factory yard (south)",
+      "kind": "Wreck",
+      "center": [
+        168.0,
+        15.109829,
+        332.0
+      ],
+      "half_extents_m": [
+        3.2,
+        1.5,
+        1.6
+      ]
+    },
+    {
+      "id": "factory_wreck_north",
+      "name": "burned-out hull in the factory yard (north)",
+      "kind": "Wreck",
+      "center": [
+        168.0,
+        15.109829,
+        668.0
+      ],
+      "half_extents_m": [
+        3.2,
+        1.5,
+        1.6
+      ]
+    },
+    {
+      "id": "tenement_ruin_a_south",
+      "name": "ruined tenement (south, west block)",
+      "kind": "CityBuilding",
+      "center": [
+        220.0,
+        18.882048,
+        468.0
+      ],
+      "half_extents_m": [
+        8.0,
+        5.5,
+        5.5
+      ]
+    },
+    {
+      "id": "tenement_ruin_a_north",
+      "name": "ruined tenement (north, west block)",
+      "kind": "CityBuilding",
+      "center": [
+        220.0,
+        18.882048,
+        532.0
+      ],
+      "half_extents_m": [
+        8.0,
+        5.5,
+        5.5
+      ]
+    },
+    {
+      "id": "tenement_ruin_b_south",
+      "name": "ruined tenement (south, mid block)",
+      "kind": "CityBuilding",
+      "center": [
+        280.0,
+        18.592743,
+        380.0
+      ],
+      "half_extents_m": [
+        8.0,
+        5.5,
+        5.5
+      ]
+    },
+    {
+      "id": "tenement_ruin_b_north",
+      "name": "ruined tenement (north, mid block)",
+      "kind": "CityBuilding",
+      "center": [
+        280.0,
+        18.592743,
+        620.0
+      ],
+      "half_extents_m": [
+        8.0,
+        5.5,
+        5.5
+      ]
+    },
+    {
+      "id": "tenement_ruin_c_south",
+      "name": "ruined tenement (south, east block)",
+      "kind": "CityBuilding",
+      "center": [
+        340.0,
+        18.32111,
+        424.0
+      ],
+      "half_extents_m": [
+        8.0,
+        5.5,
+        5.5
+      ]
+    },
+    {
+      "id": "tenement_ruin_c_north",
+      "name": "ruined tenement (north, east block)",
+      "kind": "CityBuilding",
+      "center": [
+        340.0,
+        18.32111,
+        576.0
+      ],
+      "half_extents_m": [
+        8.0,
+        5.5,
+        5.5
+      ]
+    },
+    {
+      "id": "tenement_front_a_south",
+      "name": "boulevard-front tenement (south, far)",
+      "kind": "CityBuilding",
+      "center": [
+        415.0,
+        17.970406,
+        292.0
+      ],
+      "half_extents_m": [
+        8.0,
+        5.5,
+        5.5
+      ]
+    },
+    {
+      "id": "tenement_front_b_south",
+      "name": "boulevard-front tenement (south, mid)",
+      "kind": "CityBuilding",
+      "center": [
+        415.0,
+        17.980183,
+        380.0
+      ],
+      "half_extents_m": [
+        8.0,
+        5.5,
+        5.5
+      ]
+    },
+    {
+      "id": "tenement_front_c_south",
+      "name": "boulevard-front tenement (south, near)",
+      "kind": "CityBuilding",
+      "center": [
+        415.0,
+        17.990408,
+        468.0
+      ],
+      "half_extents_m": [
+        8.0,
+        5.5,
+        5.5
+      ]
+    },
+    {
+      "id": "tenement_front_a_north",
+      "name": "boulevard-front tenement (north, far)",
+      "kind": "CityBuilding",
+      "center": [
+        415.0,
+        17.970406,
+        708.0
+      ],
+      "half_extents_m": [
+        8.0,
+        5.5,
+        5.5
+      ]
+    },
+    {
+      "id": "tenement_front_b_north",
+      "name": "boulevard-front tenement (north, mid)",
+      "kind": "CityBuilding",
+      "center": [
+        415.0,
+        17.980183,
+        620.0
+      ],
+      "half_extents_m": [
+        8.0,
+        5.5,
+        5.5
+      ]
+    },
+    {
+      "id": "tenement_front_c_north",
+      "name": "boulevard-front tenement (north, near)",
+      "kind": "CityBuilding",
+      "center": [
+        415.0,
+        17.990408,
+        532.0
+      ],
+      "half_extents_m": [
+        8.0,
+        5.5,
+        5.5
+      ]
+    },
+    {
+      "id": "tenement_back_a_south",
+      "name": "back-street tenement (south, deep)",
+      "kind": "CityBuilding",
+      "center": [
+        130.0,
+        19.279856,
+        248.0
+      ],
+      "half_extents_m": [
+        7.0,
+        5.5,
+        5.0
+      ]
+    },
+    {
+      "id": "tenement_back_b_south",
+      "name": "back-street tenement (south, outer)",
+      "kind": "CityBuilding",
+      "center": [
+        130.0,
+        19.273584,
+        292.0
+      ],
+      "half_extents_m": [
+        7.0,
+        5.5,
+        5.0
+      ]
+    },
+    {
+      "id": "tenement_back_c_south",
+      "name": "back-street tenement (south, inner)",
+      "kind": "CityBuilding",
+      "center": [
+        130.0,
+        19.293468,
+        424.0
+      ],
+      "half_extents_m": [
+        7.0,
+        5.5,
+        5.0
+      ]
+    },
+    {
+      "id": "tenement_back_d_south",
+      "name": "back-street tenement (south, near)",
+      "kind": "CityBuilding",
+      "center": [
+        130.0,
+        19.294598,
+        468.0
+      ],
+      "half_extents_m": [
+        7.0,
+        5.5,
+        5.0
+      ]
+    },
+    {
+      "id": "tenement_back_a_north",
+      "name": "back-street tenement (north, deep)",
+      "kind": "CityBuilding",
+      "center": [
+        130.0,
+        19.279856,
+        752.0
+      ],
+      "half_extents_m": [
+        7.0,
+        5.5,
+        5.0
+      ]
+    },
+    {
+      "id": "tenement_back_b_north",
+      "name": "back-street tenement (north, outer)",
+      "kind": "CityBuilding",
+      "center": [
+        130.0,
+        19.273584,
+        708.0
+      ],
+      "half_extents_m": [
+        7.0,
+        5.5,
+        5.0
+      ]
+    },
+    {
+      "id": "tenement_back_c_north",
+      "name": "back-street tenement (north, inner)",
+      "kind": "CityBuilding",
+      "center": [
+        130.0,
+        19.293468,
+        576.0
+      ],
+      "half_extents_m": [
+        7.0,
+        5.5,
+        5.0
+      ]
+    },
+    {
+      "id": "tenement_back_d_north",
+      "name": "back-street tenement (north, near)",
+      "kind": "CityBuilding",
+      "center": [
+        130.0,
+        19.294598,
+        532.0
+      ],
+      "half_extents_m": [
+        7.0,
+        5.5,
+        5.0
+      ]
+    },
+    {
+      "id": "garden_wall_a_south",
+      "name": "boulevard garden wall (south, far)",
+      "kind": "StoneWall",
+      "center": [
+        452.0,
+        13.419514,
+        300.0
+      ],
+      "half_extents_m": [
+        0.4,
+        1.1,
+        12.0
+      ]
+    },
+    {
+      "id": "garden_wall_b_south",
+      "name": "boulevard garden wall (south, mid)",
+      "kind": "StoneWall",
+      "center": [
+        452.0,
+        13.413051,
+        380.0
+      ],
+      "half_extents_m": [
+        0.4,
+        1.1,
+        12.0
+      ]
+    },
+    {
+      "id": "garden_wall_c_south",
+      "name": "boulevard garden wall (south, near)",
+      "kind": "StoneWall",
+      "center": [
+        452.0,
+        13.429759,
+        460.0
+      ],
+      "half_extents_m": [
+        0.4,
+        1.1,
+        12.0
+      ]
+    },
+    {
+      "id": "garden_wall_a_north",
+      "name": "boulevard garden wall (north, far)",
+      "kind": "StoneWall",
+      "center": [
+        452.0,
+        13.419514,
+        700.0
+      ],
+      "half_extents_m": [
+        0.4,
+        1.1,
+        12.0
+      ]
+    },
+    {
+      "id": "garden_wall_b_north",
+      "name": "boulevard garden wall (north, mid)",
+      "kind": "StoneWall",
+      "center": [
+        452.0,
+        13.413051,
+        620.0
+      ],
+      "half_extents_m": [
+        0.4,
+        1.1,
+        12.0
+      ]
+    },
+    {
+      "id": "garden_wall_c_north",
+      "name": "boulevard garden wall (north, near)",
+      "kind": "StoneWall",
+      "center": [
+        452.0,
+        13.429759,
+        540.0
+      ],
+      "half_extents_m": [
+        0.4,
+        1.1,
+        12.0
       ]
     },
     {
@@ -40823,453 +41333,723 @@
       ]
     },
     {
-      "id": "ostrogorsk_house_c0_r0_south",
-      "name": "Ostrogorsk house (column 0, row 0, south)",
-      "kind": "FarmBuilding",
+      "id": "ostrogorsk_tenement_c0_r0_south",
+      "name": "Ostrogorsk tenement (column 0, row 0, south)",
+      "kind": "CityBuilding",
       "center": [
-        150.0,
-        17.106934,
-        465.0
+        190.0,
+        19.025555,
+        468.0
       ],
       "half_extents_m": [
-        6.5,
-        3.4,
-        4.5
-      ]
-    },
-    {
-      "id": "ostrogorsk_house_c0_r0_north",
-      "name": "Ostrogorsk house (column 0, row 0, north)",
-      "kind": "FarmBuilding",
-      "center": [
-        150.0,
-        17.106934,
-        535.0
-      ],
-      "half_extents_m": [
-        6.5,
-        3.4,
-        4.5
-      ]
-    },
-    {
-      "id": "ostrogorsk_house_c0_r1_south",
-      "name": "Ostrogorsk house (column 0, row 1, south)",
-      "kind": "FarmBuilding",
-      "center": [
-        150.0,
-        16.69713,
-        420.0
-      ],
-      "half_extents_m": [
+        8.0,
         5.5,
-        3.0,
-        4.0
+        5.5
       ]
     },
     {
-      "id": "ostrogorsk_house_c0_r1_north",
-      "name": "Ostrogorsk house (column 0, row 1, north)",
-      "kind": "FarmBuilding",
+      "id": "ostrogorsk_tenement_c0_r0_north",
+      "name": "Ostrogorsk tenement (column 0, row 0, north)",
+      "kind": "CityBuilding",
       "center": [
-        150.0,
-        16.69713,
-        580.0
+        190.0,
+        19.025555,
+        532.0
       ],
       "half_extents_m": [
+        8.0,
         5.5,
-        3.0,
-        4.0
+        5.5
       ]
     },
     {
-      "id": "ostrogorsk_house_c0_r2_south",
-      "name": "Ostrogorsk house (column 0, row 2, south)",
-      "kind": "FarmBuilding",
+      "id": "ostrogorsk_tenement_c0_r1_south",
+      "name": "Ostrogorsk tenement (column 0, row 1, south)",
+      "kind": "CityBuilding",
       "center": [
-        150.0,
-        17.09062,
-        375.0
+        190.0,
+        19.01307,
+        424.0
       ],
       "half_extents_m": [
         6.5,
-        3.4,
-        4.5
-      ]
-    },
-    {
-      "id": "ostrogorsk_house_c0_r2_north",
-      "name": "Ostrogorsk house (column 0, row 2, north)",
-      "kind": "FarmBuilding",
-      "center": [
-        150.0,
-        17.09062,
-        625.0
-      ],
-      "half_extents_m": [
-        6.5,
-        3.4,
-        4.5
-      ]
-    },
-    {
-      "id": "ostrogorsk_house_c1_r0_south",
-      "name": "Ostrogorsk house (column 1, row 0, south)",
-      "kind": "FarmBuilding",
-      "center": [
-        215.0,
-        16.405968,
-        465.0
-      ],
-      "half_extents_m": [
         5.5,
-        3.0,
-        4.0
+        5.0
       ]
     },
     {
-      "id": "ostrogorsk_house_c1_r0_north",
-      "name": "Ostrogorsk house (column 1, row 0, north)",
-      "kind": "FarmBuilding",
+      "id": "ostrogorsk_tenement_c0_r1_north",
+      "name": "Ostrogorsk tenement (column 0, row 1, north)",
+      "kind": "CityBuilding",
       "center": [
-        215.0,
-        16.405968,
-        535.0
+        190.0,
+        19.01307,
+        576.0
       ],
       "half_extents_m": [
+        6.5,
         5.5,
-        3.0,
-        4.0
+        5.0
       ]
     },
     {
-      "id": "ostrogorsk_house_c1_r1_south",
-      "name": "Ostrogorsk house (column 1, row 1, south)",
-      "kind": "FarmBuilding",
+      "id": "ostrogorsk_tenement_c0_r2_south",
+      "name": "Ostrogorsk tenement (column 0, row 2, south)",
+      "kind": "CityBuilding",
       "center": [
-        215.0,
-        16.802816,
-        420.0
+        190.0,
+        19.006062,
+        380.0
       ],
       "half_extents_m": [
-        6.5,
-        3.4,
-        4.5
-      ]
-    },
-    {
-      "id": "ostrogorsk_house_c1_r1_north",
-      "name": "Ostrogorsk house (column 1, row 1, north)",
-      "kind": "FarmBuilding",
-      "center": [
-        215.0,
-        16.802816,
-        580.0
-      ],
-      "half_extents_m": [
-        6.5,
-        3.4,
-        4.5
-      ]
-    },
-    {
-      "id": "ostrogorsk_house_c1_r2_south",
-      "name": "Ostrogorsk house (column 1, row 2, south)",
-      "kind": "FarmBuilding",
-      "center": [
-        215.0,
-        16.395355,
-        375.0
-      ],
-      "half_extents_m": [
+        8.0,
         5.5,
-        3.0,
-        4.0
+        5.5
       ]
     },
     {
-      "id": "ostrogorsk_house_c1_r2_north",
-      "name": "Ostrogorsk house (column 1, row 2, north)",
-      "kind": "FarmBuilding",
+      "id": "ostrogorsk_tenement_c0_r2_north",
+      "name": "Ostrogorsk tenement (column 0, row 2, north)",
+      "kind": "CityBuilding",
       "center": [
-        215.0,
-        16.395355,
-        625.0
+        190.0,
+        19.006062,
+        620.0
       ],
       "half_extents_m": [
+        8.0,
         5.5,
-        3.0,
-        4.0
+        5.5
       ]
     },
     {
-      "id": "ostrogorsk_house_c2_r0_south",
-      "name": "Ostrogorsk house (column 2, row 0, south)",
-      "kind": "FarmBuilding",
+      "id": "ostrogorsk_tenement_c0_r3_south",
+      "name": "Ostrogorsk tenement (column 0, row 3, south)",
+      "kind": "CityBuilding",
       "center": [
-        280.0,
-        16.504915,
-        465.0
+        190.0,
+        19.007706,
+        336.0
       ],
       "half_extents_m": [
         6.5,
-        3.4,
-        4.5
-      ]
-    },
-    {
-      "id": "ostrogorsk_house_c2_r0_north",
-      "name": "Ostrogorsk house (column 2, row 0, north)",
-      "kind": "FarmBuilding",
-      "center": [
-        280.0,
-        16.504915,
-        535.0
-      ],
-      "half_extents_m": [
-        6.5,
-        3.4,
-        4.5
-      ]
-    },
-    {
-      "id": "ostrogorsk_house_c2_r1_south",
-      "name": "Ostrogorsk house (column 2, row 1, south)",
-      "kind": "FarmBuilding",
-      "center": [
-        280.0,
-        16.099083,
-        420.0
-      ],
-      "half_extents_m": [
         5.5,
-        3.0,
-        4.0
+        5.0
       ]
     },
     {
-      "id": "ostrogorsk_house_c2_r1_north",
-      "name": "Ostrogorsk house (column 2, row 1, north)",
-      "kind": "FarmBuilding",
+      "id": "ostrogorsk_tenement_c0_r3_north",
+      "name": "Ostrogorsk tenement (column 0, row 3, north)",
+      "kind": "CityBuilding",
       "center": [
-        280.0,
-        16.099083,
-        580.0
+        190.0,
+        19.007706,
+        664.0
       ],
       "half_extents_m": [
+        6.5,
         5.5,
-        3.0,
-        4.0
+        5.0
       ]
     },
     {
-      "id": "ostrogorsk_house_c2_r2_south",
-      "name": "Ostrogorsk house (column 2, row 2, south)",
-      "kind": "FarmBuilding",
+      "id": "ostrogorsk_tenement_c0_r4_south",
+      "name": "Ostrogorsk tenement (column 0, row 4, south)",
+      "kind": "CityBuilding",
       "center": [
-        280.0,
-        16.492002,
-        375.0
+        190.0,
+        19.008194,
+        292.0
       ],
       "half_extents_m": [
-        6.5,
-        3.4,
-        4.5
-      ]
-    },
-    {
-      "id": "ostrogorsk_house_c2_r2_north",
-      "name": "Ostrogorsk house (column 2, row 2, north)",
-      "kind": "FarmBuilding",
-      "center": [
-        280.0,
-        16.492002,
-        625.0
-      ],
-      "half_extents_m": [
-        6.5,
-        3.4,
-        4.5
-      ]
-    },
-    {
-      "id": "ostrogorsk_house_c3_r0_south",
-      "name": "Ostrogorsk house (column 3, row 0, south)",
-      "kind": "FarmBuilding",
-      "center": [
-        345.0,
-        15.806056,
-        465.0
-      ],
-      "half_extents_m": [
+        8.0,
         5.5,
-        3.0,
-        4.0
+        5.5
       ]
     },
     {
-      "id": "ostrogorsk_house_c3_r0_north",
-      "name": "Ostrogorsk house (column 3, row 0, north)",
-      "kind": "FarmBuilding",
+      "id": "ostrogorsk_tenement_c0_r4_north",
+      "name": "Ostrogorsk tenement (column 0, row 4, north)",
+      "kind": "CityBuilding",
       "center": [
-        345.0,
-        15.806056,
-        535.0
+        190.0,
+        19.008194,
+        708.0
       ],
       "half_extents_m": [
+        8.0,
         5.5,
-        3.0,
-        4.0
+        5.5
       ]
     },
     {
-      "id": "ostrogorsk_house_c3_r1_south",
-      "name": "Ostrogorsk house (column 3, row 1, south)",
-      "kind": "FarmBuilding",
+      "id": "ostrogorsk_tenement_c0_r5_south",
+      "name": "Ostrogorsk tenement (column 0, row 5, south)",
+      "kind": "CityBuilding",
       "center": [
-        345.0,
-        16.198809,
-        420.0
+        190.0,
+        19.004347,
+        248.0
       ],
       "half_extents_m": [
         6.5,
-        3.4,
-        4.5
-      ]
-    },
-    {
-      "id": "ostrogorsk_house_c3_r1_north",
-      "name": "Ostrogorsk house (column 3, row 1, north)",
-      "kind": "FarmBuilding",
-      "center": [
-        345.0,
-        16.198809,
-        580.0
-      ],
-      "half_extents_m": [
-        6.5,
-        3.4,
-        4.5
-      ]
-    },
-    {
-      "id": "ostrogorsk_house_c3_r2_south",
-      "name": "Ostrogorsk house (column 3, row 2, south)",
-      "kind": "FarmBuilding",
-      "center": [
-        345.0,
-        15.791933,
-        375.0
-      ],
-      "half_extents_m": [
         5.5,
-        3.0,
-        4.0
+        5.0
       ]
     },
     {
-      "id": "ostrogorsk_house_c3_r2_north",
-      "name": "Ostrogorsk house (column 3, row 2, north)",
-      "kind": "FarmBuilding",
+      "id": "ostrogorsk_tenement_c0_r5_north",
+      "name": "Ostrogorsk tenement (column 0, row 5, north)",
+      "kind": "CityBuilding",
       "center": [
-        345.0,
-        15.791933,
-        625.0
+        190.0,
+        19.004347,
+        752.0
       ],
       "half_extents_m": [
+        6.5,
         5.5,
-        3.0,
-        4.0
+        5.0
       ]
     },
     {
-      "id": "ostrogorsk_house_c4_r0_south",
-      "name": "Ostrogorsk house (column 4, row 0, south)",
-      "kind": "FarmBuilding",
+      "id": "ostrogorsk_tenement_c1_r0_south",
+      "name": "Ostrogorsk tenement (column 1, row 0, south)",
+      "kind": "CityBuilding",
       "center": [
-        410.0,
-        15.9117565,
-        465.0
+        250.0,
+        18.740683,
+        468.0
       ],
       "half_extents_m": [
         6.5,
-        3.4,
-        4.5
-      ]
-    },
-    {
-      "id": "ostrogorsk_house_c4_r0_north",
-      "name": "Ostrogorsk house (column 4, row 0, north)",
-      "kind": "FarmBuilding",
-      "center": [
-        410.0,
-        15.9117565,
-        535.0
-      ],
-      "half_extents_m": [
-        6.5,
-        3.4,
-        4.5
-      ]
-    },
-    {
-      "id": "ostrogorsk_house_c4_r1_south",
-      "name": "Ostrogorsk house (column 4, row 1, south)",
-      "kind": "FarmBuilding",
-      "center": [
-        410.0,
-        15.5099945,
-        420.0
-      ],
-      "half_extents_m": [
         5.5,
-        3.0,
-        4.0
+        5.0
       ]
     },
     {
-      "id": "ostrogorsk_house_c4_r1_north",
-      "name": "Ostrogorsk house (column 4, row 1, north)",
-      "kind": "FarmBuilding",
+      "id": "ostrogorsk_tenement_c1_r0_north",
+      "name": "Ostrogorsk tenement (column 1, row 0, north)",
+      "kind": "CityBuilding",
       "center": [
-        410.0,
-        15.5099945,
-        580.0
+        250.0,
+        18.740683,
+        532.0
       ],
       "half_extents_m": [
+        6.5,
         5.5,
-        3.0,
-        4.0
+        5.0
       ]
     },
     {
-      "id": "ostrogorsk_house_c4_r2_south",
-      "name": "Ostrogorsk house (column 4, row 2, south)",
-      "kind": "FarmBuilding",
+      "id": "ostrogorsk_tenement_c1_r1_south",
+      "name": "Ostrogorsk tenement (column 1, row 1, south)",
+      "kind": "CityBuilding",
       "center": [
-        410.0,
-        15.902452,
-        375.0
+        250.0,
+        18.744797,
+        424.0
       ],
       "half_extents_m": [
-        6.5,
-        3.4,
-        4.5
+        8.0,
+        5.5,
+        5.5
       ]
     },
     {
-      "id": "ostrogorsk_house_c4_r2_north",
-      "name": "Ostrogorsk house (column 4, row 2, north)",
-      "kind": "FarmBuilding",
+      "id": "ostrogorsk_tenement_c1_r1_north",
+      "name": "Ostrogorsk tenement (column 1, row 1, north)",
+      "kind": "CityBuilding",
       "center": [
-        410.0,
-        15.902452,
-        625.0
+        250.0,
+        18.744797,
+        576.0
+      ],
+      "half_extents_m": [
+        8.0,
+        5.5,
+        5.5
+      ]
+    },
+    {
+      "id": "ostrogorsk_tenement_c1_r2_south",
+      "name": "Ostrogorsk tenement (column 1, row 2, south)",
+      "kind": "CityBuilding",
+      "center": [
+        250.0,
+        18.737904,
+        380.0
       ],
       "half_extents_m": [
         6.5,
-        3.4,
-        4.5
+        5.5,
+        5.0
+      ]
+    },
+    {
+      "id": "ostrogorsk_tenement_c1_r2_north",
+      "name": "Ostrogorsk tenement (column 1, row 2, north)",
+      "kind": "CityBuilding",
+      "center": [
+        250.0,
+        18.737904,
+        620.0
+      ],
+      "half_extents_m": [
+        6.5,
+        5.5,
+        5.0
+      ]
+    },
+    {
+      "id": "ostrogorsk_tenement_c1_r3_south",
+      "name": "Ostrogorsk tenement (column 1, row 3, south)",
+      "kind": "CityBuilding",
+      "center": [
+        250.0,
+        18.72295,
+        336.0
+      ],
+      "half_extents_m": [
+        8.0,
+        5.5,
+        5.5
+      ]
+    },
+    {
+      "id": "ostrogorsk_tenement_c1_r3_north",
+      "name": "Ostrogorsk tenement (column 1, row 3, north)",
+      "kind": "CityBuilding",
+      "center": [
+        250.0,
+        18.72295,
+        664.0
+      ],
+      "half_extents_m": [
+        8.0,
+        5.5,
+        5.5
+      ]
+    },
+    {
+      "id": "ostrogorsk_tenement_c1_r4_south",
+      "name": "Ostrogorsk tenement (column 1, row 4, south)",
+      "kind": "CityBuilding",
+      "center": [
+        250.0,
+        18.717985,
+        292.0
+      ],
+      "half_extents_m": [
+        6.5,
+        5.5,
+        5.0
+      ]
+    },
+    {
+      "id": "ostrogorsk_tenement_c1_r4_north",
+      "name": "Ostrogorsk tenement (column 1, row 4, north)",
+      "kind": "CityBuilding",
+      "center": [
+        250.0,
+        18.717985,
+        708.0
+      ],
+      "half_extents_m": [
+        6.5,
+        5.5,
+        5.0
+      ]
+    },
+    {
+      "id": "ostrogorsk_tenement_c1_r5_south",
+      "name": "Ostrogorsk tenement (column 1, row 5, south)",
+      "kind": "CityBuilding",
+      "center": [
+        250.0,
+        18.728926,
+        248.0
+      ],
+      "half_extents_m": [
+        8.0,
+        5.5,
+        5.5
+      ]
+    },
+    {
+      "id": "ostrogorsk_tenement_c1_r5_north",
+      "name": "Ostrogorsk tenement (column 1, row 5, north)",
+      "kind": "CityBuilding",
+      "center": [
+        250.0,
+        18.728926,
+        752.0
+      ],
+      "half_extents_m": [
+        8.0,
+        5.5,
+        5.5
+      ]
+    },
+    {
+      "id": "ostrogorsk_tenement_c2_r0_south",
+      "name": "Ostrogorsk tenement (column 2, row 0, south)",
+      "kind": "CityBuilding",
+      "center": [
+        310.0,
+        18.470034,
+        468.0
+      ],
+      "half_extents_m": [
+        8.0,
+        5.5,
+        5.5
+      ]
+    },
+    {
+      "id": "ostrogorsk_tenement_c2_r0_north",
+      "name": "Ostrogorsk tenement (column 2, row 0, north)",
+      "kind": "CityBuilding",
+      "center": [
+        310.0,
+        18.470034,
+        532.0
+      ],
+      "half_extents_m": [
+        8.0,
+        5.5,
+        5.5
+      ]
+    },
+    {
+      "id": "ostrogorsk_tenement_c2_r1_south",
+      "name": "Ostrogorsk tenement (column 2, row 1, south)",
+      "kind": "CityBuilding",
+      "center": [
+        310.0,
+        18.45549,
+        424.0
+      ],
+      "half_extents_m": [
+        6.5,
+        5.5,
+        5.0
+      ]
+    },
+    {
+      "id": "ostrogorsk_tenement_c2_r1_north",
+      "name": "Ostrogorsk tenement (column 2, row 1, north)",
+      "kind": "CityBuilding",
+      "center": [
+        310.0,
+        18.45549,
+        576.0
+      ],
+      "half_extents_m": [
+        6.5,
+        5.5,
+        5.0
+      ]
+    },
+    {
+      "id": "ostrogorsk_tenement_c2_r2_south",
+      "name": "Ostrogorsk tenement (column 2, row 2, south)",
+      "kind": "CityBuilding",
+      "center": [
+        310.0,
+        18.448467,
+        380.0
+      ],
+      "half_extents_m": [
+        8.0,
+        5.5,
+        5.5
+      ]
+    },
+    {
+      "id": "ostrogorsk_tenement_c2_r2_north",
+      "name": "Ostrogorsk tenement (column 2, row 2, north)",
+      "kind": "CityBuilding",
+      "center": [
+        310.0,
+        18.448467,
+        620.0
+      ],
+      "half_extents_m": [
+        8.0,
+        5.5,
+        5.5
+      ]
+    },
+    {
+      "id": "ostrogorsk_tenement_c2_r3_south",
+      "name": "Ostrogorsk tenement (column 2, row 3, south)",
+      "kind": "CityBuilding",
+      "center": [
+        310.0,
+        18.45217,
+        336.0
+      ],
+      "half_extents_m": [
+        6.5,
+        5.5,
+        5.0
+      ]
+    },
+    {
+      "id": "ostrogorsk_tenement_c2_r3_north",
+      "name": "Ostrogorsk tenement (column 2, row 3, north)",
+      "kind": "CityBuilding",
+      "center": [
+        310.0,
+        18.45217,
+        664.0
+      ],
+      "half_extents_m": [
+        6.5,
+        5.5,
+        5.0
+      ]
+    },
+    {
+      "id": "ostrogorsk_tenement_c2_r4_south",
+      "name": "Ostrogorsk tenement (column 2, row 4, south)",
+      "kind": "CityBuilding",
+      "center": [
+        310.0,
+        18.453335,
+        292.0
+      ],
+      "half_extents_m": [
+        8.0,
+        5.5,
+        5.5
+      ]
+    },
+    {
+      "id": "ostrogorsk_tenement_c2_r4_north",
+      "name": "Ostrogorsk tenement (column 2, row 4, north)",
+      "kind": "CityBuilding",
+      "center": [
+        310.0,
+        18.453335,
+        708.0
+      ],
+      "half_extents_m": [
+        8.0,
+        5.5,
+        5.5
+      ]
+    },
+    {
+      "id": "ostrogorsk_tenement_c2_r5_south",
+      "name": "Ostrogorsk tenement (column 2, row 5, south)",
+      "kind": "CityBuilding",
+      "center": [
+        310.0,
+        18.447655,
+        248.0
+      ],
+      "half_extents_m": [
+        6.5,
+        5.5,
+        5.0
+      ]
+    },
+    {
+      "id": "ostrogorsk_tenement_c2_r5_north",
+      "name": "Ostrogorsk tenement (column 2, row 5, north)",
+      "kind": "CityBuilding",
+      "center": [
+        310.0,
+        18.447655,
+        752.0
+      ],
+      "half_extents_m": [
+        6.5,
+        5.5,
+        5.0
+      ]
+    },
+    {
+      "id": "ostrogorsk_tenement_c3_r0_south",
+      "name": "Ostrogorsk tenement (column 3, row 0, south)",
+      "kind": "CityBuilding",
+      "center": [
+        370.0,
+        18.189148,
+        468.0
+      ],
+      "half_extents_m": [
+        6.5,
+        5.5,
+        5.0
+      ]
+    },
+    {
+      "id": "ostrogorsk_tenement_c3_r0_north",
+      "name": "Ostrogorsk tenement (column 3, row 0, north)",
+      "kind": "CityBuilding",
+      "center": [
+        370.0,
+        18.189148,
+        532.0
+      ],
+      "half_extents_m": [
+        6.5,
+        5.5,
+        5.0
+      ]
+    },
+    {
+      "id": "ostrogorsk_tenement_c3_r1_south",
+      "name": "Ostrogorsk tenement (column 3, row 1, south)",
+      "kind": "CityBuilding",
+      "center": [
+        370.0,
+        18.191742,
+        424.0
+      ],
+      "half_extents_m": [
+        8.0,
+        5.5,
+        5.5
+      ]
+    },
+    {
+      "id": "ostrogorsk_tenement_c3_r1_north",
+      "name": "Ostrogorsk tenement (column 3, row 1, north)",
+      "kind": "CityBuilding",
+      "center": [
+        370.0,
+        18.191742,
+        576.0
+      ],
+      "half_extents_m": [
+        8.0,
+        5.5,
+        5.5
+      ]
+    },
+    {
+      "id": "ostrogorsk_tenement_c3_r2_south",
+      "name": "Ostrogorsk tenement (column 3, row 2, south)",
+      "kind": "CityBuilding",
+      "center": [
+        370.0,
+        18.184841,
+        380.0
+      ],
+      "half_extents_m": [
+        6.5,
+        5.5,
+        5.0
+      ]
+    },
+    {
+      "id": "ostrogorsk_tenement_c3_r2_north",
+      "name": "Ostrogorsk tenement (column 3, row 2, north)",
+      "kind": "CityBuilding",
+      "center": [
+        370.0,
+        18.184841,
+        620.0
+      ],
+      "half_extents_m": [
+        6.5,
+        5.5,
+        5.0
+      ]
+    },
+    {
+      "id": "ostrogorsk_tenement_c3_r3_south",
+      "name": "Ostrogorsk tenement (column 3, row 3, south)",
+      "kind": "CityBuilding",
+      "center": [
+        370.0,
+        18.171415,
+        336.0
+      ],
+      "half_extents_m": [
+        8.0,
+        5.5,
+        5.5
+      ]
+    },
+    {
+      "id": "ostrogorsk_tenement_c3_r3_north",
+      "name": "Ostrogorsk tenement (column 3, row 3, north)",
+      "kind": "CityBuilding",
+      "center": [
+        370.0,
+        18.171415,
+        664.0
+      ],
+      "half_extents_m": [
+        8.0,
+        5.5,
+        5.5
+      ]
+    },
+    {
+      "id": "ostrogorsk_tenement_c3_r4_south",
+      "name": "Ostrogorsk tenement (column 3, row 4, south)",
+      "kind": "CityBuilding",
+      "center": [
+        370.0,
+        18.166946,
+        292.0
+      ],
+      "half_extents_m": [
+        6.5,
+        5.5,
+        5.0
+      ]
+    },
+    {
+      "id": "ostrogorsk_tenement_c3_r4_north",
+      "name": "Ostrogorsk tenement (column 3, row 4, north)",
+      "kind": "CityBuilding",
+      "center": [
+        370.0,
+        18.166946,
+        708.0
+      ],
+      "half_extents_m": [
+        6.5,
+        5.5,
+        5.0
+      ]
+    },
+    {
+      "id": "ostrogorsk_tenement_c3_r5_south",
+      "name": "Ostrogorsk tenement (column 3, row 5, south)",
+      "kind": "CityBuilding",
+      "center": [
+        370.0,
+        18.176527,
+        248.0
+      ],
+      "half_extents_m": [
+        8.0,
+        5.5,
+        5.5
+      ]
+    },
+    {
+      "id": "ostrogorsk_tenement_c3_r5_north",
+      "name": "Ostrogorsk tenement (column 3, row 5, north)",
+      "kind": "CityBuilding",
+      "center": [
+        370.0,
+        18.176527,
+        752.0
+      ],
+      "half_extents_m": [
+        8.0,
+        5.5,
+        5.5
       ]
     }
   ],
@@ -42255,6 +43035,486 @@
       "scale": 1.1370219
     },
     {
+      "kind": "Lamppost",
+      "position": [
+        438.0,
+        12.374191,
+        270.0
+      ],
+      "yaw_rad": 4.71,
+      "scale": 1.0
+    },
+    {
+      "kind": "Lamppost",
+      "position": [
+        438.0,
+        12.374191,
+        730.0
+      ],
+      "yaw_rad": -4.71,
+      "scale": 1.0
+    },
+    {
+      "kind": "Lamppost",
+      "position": [
+        438.0,
+        12.377263,
+        312.0
+      ],
+      "yaw_rad": 4.71,
+      "scale": 1.0
+    },
+    {
+      "kind": "Lamppost",
+      "position": [
+        438.0,
+        12.377263,
+        688.0
+      ],
+      "yaw_rad": -4.71,
+      "scale": 1.0
+    },
+    {
+      "kind": "Lamppost",
+      "position": [
+        438.0,
+        12.375126,
+        354.0
+      ],
+      "yaw_rad": 4.71,
+      "scale": 1.0
+    },
+    {
+      "kind": "Lamppost",
+      "position": [
+        438.0,
+        12.375126,
+        646.0
+      ],
+      "yaw_rad": -4.71,
+      "scale": 1.0
+    },
+    {
+      "kind": "Lamppost",
+      "position": [
+        438.0,
+        12.375225,
+        396.0
+      ],
+      "yaw_rad": 4.71,
+      "scale": 1.0
+    },
+    {
+      "kind": "Lamppost",
+      "position": [
+        438.0,
+        12.375225,
+        604.0
+      ],
+      "yaw_rad": -4.71,
+      "scale": 1.0
+    },
+    {
+      "kind": "Lamppost",
+      "position": [
+        438.0,
+        12.38431,
+        438.0
+      ],
+      "yaw_rad": 4.71,
+      "scale": 1.0
+    },
+    {
+      "kind": "Lamppost",
+      "position": [
+        438.0,
+        12.38431,
+        562.0
+      ],
+      "yaw_rad": -4.71,
+      "scale": 1.0
+    },
+    {
+      "kind": "Lamppost",
+      "position": [
+        438.0,
+        12.394889,
+        480.0
+      ],
+      "yaw_rad": 4.71,
+      "scale": 1.0
+    },
+    {
+      "kind": "Lamppost",
+      "position": [
+        438.0,
+        12.394889,
+        520.0
+      ],
+      "yaw_rad": -4.71,
+      "scale": 1.0
+    },
+    {
+      "kind": "Lamppost",
+      "position": [
+        438.0,
+        12.394544,
+        522.0
+      ],
+      "yaw_rad": 4.71,
+      "scale": 1.0
+    },
+    {
+      "kind": "Lamppost",
+      "position": [
+        438.0,
+        12.394544,
+        478.0
+      ],
+      "yaw_rad": -4.71,
+      "scale": 1.0
+    },
+    {
+      "kind": "Lamppost",
+      "position": [
+        438.0,
+        12.383731,
+        564.0
+      ],
+      "yaw_rad": 4.71,
+      "scale": 1.0
+    },
+    {
+      "kind": "Lamppost",
+      "position": [
+        438.0,
+        12.383731,
+        436.0
+      ],
+      "yaw_rad": -4.71,
+      "scale": 1.0
+    },
+    {
+      "kind": "Lamppost",
+      "position": [
+        438.0,
+        12.37502,
+        606.0
+      ],
+      "yaw_rad": 4.71,
+      "scale": 1.0
+    },
+    {
+      "kind": "Lamppost",
+      "position": [
+        438.0,
+        12.37502,
+        394.0
+      ],
+      "yaw_rad": -4.71,
+      "scale": 1.0
+    },
+    {
+      "kind": "Lamppost",
+      "position": [
+        438.0,
+        12.375269,
+        648.0
+      ],
+      "yaw_rad": 4.71,
+      "scale": 1.0
+    },
+    {
+      "kind": "Lamppost",
+      "position": [
+        438.0,
+        12.375269,
+        352.0
+      ],
+      "yaw_rad": -4.71,
+      "scale": 1.0
+    },
+    {
+      "kind": "Lamppost",
+      "position": [
+        438.0,
+        12.377258,
+        690.0
+      ],
+      "yaw_rad": 4.71,
+      "scale": 1.0
+    },
+    {
+      "kind": "Lamppost",
+      "position": [
+        438.0,
+        12.377258,
+        310.0
+      ],
+      "yaw_rad": -4.71,
+      "scale": 1.0
+    },
+    {
+      "kind": "Lamppost",
+      "position": [
+        438.0,
+        12.373956,
+        732.0
+      ],
+      "yaw_rad": 4.71,
+      "scale": 1.0
+    },
+    {
+      "kind": "Lamppost",
+      "position": [
+        438.0,
+        12.373956,
+        268.0
+      ],
+      "yaw_rad": -4.71,
+      "scale": 1.0
+    },
+    {
+      "kind": "DebrisHeap",
+      "position": [
+        173.32831,
+        13.583808,
+        347.80872
+      ],
+      "yaw_rad": 0.7085891,
+      "scale": 1.2079008
+    },
+    {
+      "kind": "DebrisHeap",
+      "position": [
+        173.32831,
+        13.583808,
+        652.1913
+      ],
+      "yaw_rad": -0.7085891,
+      "scale": 1.2079008
+    },
+    {
+      "kind": "DebrisHeap",
+      "position": [
+        390.4183,
+        12.57495,
+        285.6281
+      ],
+      "yaw_rad": 6.2105803,
+      "scale": 1.0092019
+    },
+    {
+      "kind": "DebrisHeap",
+      "position": [
+        390.4183,
+        12.57495,
+        714.3719
+      ],
+      "yaw_rad": -6.2105803,
+      "scale": 1.0092019
+    },
+    {
+      "kind": "DebrisHeap",
+      "position": [
+        148.41206,
+        13.695354,
+        270.84616
+      ],
+      "yaw_rad": 1.1989447,
+      "scale": 0.8911402
+    },
+    {
+      "kind": "DebrisHeap",
+      "position": [
+        148.41206,
+        13.695354,
+        729.1538
+      ],
+      "yaw_rad": -1.1989447,
+      "scale": 0.8911402
+    },
+    {
+      "kind": "DebrisHeap",
+      "position": [
+        277.59845,
+        13.102553,
+        368.08688
+      ],
+      "yaw_rad": 1.5242995,
+      "scale": 1.1833687
+    },
+    {
+      "kind": "DebrisHeap",
+      "position": [
+        277.59845,
+        13.102553,
+        631.9131
+      ],
+      "yaw_rad": -1.5242995,
+      "scale": 1.1833687
+    },
+    {
+      "kind": "DebrisHeap",
+      "position": [
+        135.55304,
+        13.752535,
+        334.99426
+      ],
+      "yaw_rad": 2.7596564,
+      "scale": 1.2803528
+    },
+    {
+      "kind": "DebrisHeap",
+      "position": [
+        135.55304,
+        13.752535,
+        665.00574
+      ],
+      "yaw_rad": -2.7596564,
+      "scale": 1.2803528
+    },
+    {
+      "kind": "DebrisHeap",
+      "position": [
+        133.59663,
+        13.778512,
+        453.60974
+      ],
+      "yaw_rad": 0.43915224,
+      "scale": 1.0300963
+    },
+    {
+      "kind": "DebrisHeap",
+      "position": [
+        133.59663,
+        13.778512,
+        546.39026
+      ],
+      "yaw_rad": -0.43915224,
+      "scale": 1.0300963
+    },
+    {
+      "kind": "DebrisHeap",
+      "position": [
+        168.64699,
+        13.604923,
+        268.5797
+      ],
+      "yaw_rad": 0.89022243,
+      "scale": 1.1525671
+    },
+    {
+      "kind": "DebrisHeap",
+      "position": [
+        168.64699,
+        13.604923,
+        731.4203
+      ],
+      "yaw_rad": -0.89022243,
+      "scale": 1.1525671
+    },
+    {
+      "kind": "DebrisHeap",
+      "position": [
+        273.89813,
+        13.121099,
+        372.1338
+      ],
+      "yaw_rad": 5.51838,
+      "scale": 0.9439691
+    },
+    {
+      "kind": "DebrisHeap",
+      "position": [
+        273.89813,
+        13.121099,
+        627.8662
+      ],
+      "yaw_rad": -5.51838,
+      "scale": 0.9439691
+    },
+    {
+      "kind": "DebrisHeap",
+      "position": [
+        220.89523,
+        13.36842,
+        371.7648
+      ],
+      "yaw_rad": 2.670933,
+      "scale": 0.8917902
+    },
+    {
+      "kind": "DebrisHeap",
+      "position": [
+        220.89523,
+        13.36842,
+        628.2352
+      ],
+      "yaw_rad": -2.670933,
+      "scale": 0.8917902
+    },
+    {
+      "kind": "DebrisHeap",
+      "position": [
+        128.55943,
+        13.795271,
+        388.86865
+      ],
+      "yaw_rad": 4.538197,
+      "scale": 1.1024265
+    },
+    {
+      "kind": "DebrisHeap",
+      "position": [
+        128.55943,
+        13.795271,
+        611.13135
+      ],
+      "yaw_rad": -4.538197,
+      "scale": 1.1024265
+    },
+    {
+      "kind": "DebrisHeap",
+      "position": [
+        266.1802,
+        13.166992,
+        420.76678
+      ],
+      "yaw_rad": 6.0616484,
+      "scale": 1.0632488
+    },
+    {
+      "kind": "DebrisHeap",
+      "position": [
+        266.1802,
+        13.166992,
+        579.2332
+      ],
+      "yaw_rad": -6.0616484,
+      "scale": 1.0632488
+    },
+    {
+      "kind": "DebrisHeap",
+      "position": [
+        185.73978,
+        13.528307,
+        328.65726
+      ],
+      "yaw_rad": 0.70492643,
+      "scale": 1.1605116
+    },
+    {
+      "kind": "DebrisHeap",
+      "position": [
+        185.73978,
+        13.528307,
+        671.3428
+      ],
+      "yaw_rad": -0.70492643,
+      "scale": 1.1605116
+    },
+    {
       "kind": "Poplar",
       "position": [
         448.0,
@@ -42938,7 +44198,7 @@
   "roads": [
     {
       "id": "boulevard",
-      "surface": "Dirt",
+      "surface": "Cobble",
       "points": [
         [
           70.0,
@@ -42961,11 +44221,11 @@
     },
     {
       "id": "high_street_south",
-      "surface": "Dirt",
+      "surface": "Cobble",
       "points": [
         [
           430.0,
-          175.0
+          240.0
         ],
         [
           430.0,
@@ -42976,11 +44236,11 @@
     },
     {
       "id": "high_street_north",
-      "surface": "Dirt",
+      "surface": "Cobble",
       "points": [
         [
           430.0,
-          825.0
+          760.0
         ],
         [
           430.0,
@@ -42991,60 +44251,120 @@
     },
     {
       "id": "market_lane_south",
-      "surface": "Dirt",
+      "surface": "Cobble",
       "points": [
         [
           120.0,
-          440.0
+          446.0
         ],
         [
           430.0,
-          440.0
+          446.0
         ]
       ],
       "width_m": 5.5
     },
     {
       "id": "market_lane_north",
-      "surface": "Dirt",
+      "surface": "Cobble",
       "points": [
         [
           120.0,
-          560.0
+          554.0
         ],
         [
           430.0,
-          560.0
+          554.0
         ]
       ],
       "width_m": 5.5
     },
     {
       "id": "yard_lane_south",
-      "surface": "Dirt",
+      "surface": "Cobble",
       "points": [
         [
           120.0,
-          398.0
+          402.0
         ],
         [
           430.0,
-          398.0
+          402.0
         ]
       ],
       "width_m": 5.5
     },
     {
       "id": "yard_lane_north",
-      "surface": "Dirt",
+      "surface": "Cobble",
       "points": [
         [
           120.0,
-          602.0
+          598.0
         ],
         [
           430.0,
-          602.0
+          598.0
+        ]
+      ],
+      "width_m": 5.5
+    },
+    {
+      "id": "forge_lane_south",
+      "surface": "Cobble",
+      "points": [
+        [
+          190.0,
+          358.0
+        ],
+        [
+          430.0,
+          358.0
+        ]
+      ],
+      "width_m": 5.5
+    },
+    {
+      "id": "forge_lane_north",
+      "surface": "Cobble",
+      "points": [
+        [
+          190.0,
+          642.0
+        ],
+        [
+          430.0,
+          642.0
+        ]
+      ],
+      "width_m": 5.5
+    },
+    {
+      "id": "depot_lane_south",
+      "surface": "Cobble",
+      "points": [
+        [
+          120.0,
+          314.0
+        ],
+        [
+          430.0,
+          314.0
+        ]
+      ],
+      "width_m": 5.5
+    },
+    {
+      "id": "depot_lane_north",
+      "surface": "Cobble",
+      "points": [
+        [
+          120.0,
+          686.0
+        ],
+        [
+          430.0,
+          686.0
         ]
       ],
       "width_m": 5.5
