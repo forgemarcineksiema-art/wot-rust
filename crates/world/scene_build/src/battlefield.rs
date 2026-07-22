@@ -96,9 +96,82 @@ pub fn battlefield_statics_mesh_with_scars(
     cover_states: &[u8],
     cover_scars: &[terrain::CoverScar],
 ) -> (Vec<SceneVertex>, Vec<u32>) {
+    assemble_statics_mesh(&battlefield_statics_buckets(battlefield, cover_states, cover_scars))
+}
+
+/// The statics bake is partitioned into an XZ grid of BUCKETS plus one backdrop bucket, so a
+/// cover-phase change re-bakes one map cell instead of the whole statics mesh (urban-map
+/// program PR-04: an urban core carries 110-140 boxes, and the full bake is the ~25 ms the
+/// F7 worker exists to hide). The renderer re-chunks whatever it is handed at 80 m and
+/// frustum-culls per chunk in every pass, so bucketing is purely a CPU-bake concern: the
+/// assembled mesh is the same set of triangles the monolithic bake produced.
+pub const STATICS_BUCKET_GRID: usize = 4;
+/// Grid cells + the backdrop bucket (skirt + distant trees — never dirtied by gameplay).
+pub const STATICS_BUCKET_COUNT: usize = STATICS_BUCKET_GRID * STATICS_BUCKET_GRID + 1;
+/// The backdrop's bucket index (the last one).
+pub const STATICS_BACKDROP_BUCKET: usize = STATICS_BUCKET_COUNT - 1;
+
+/// The grid bucket owning an XZ position: positions are clamped into the map, so cover or
+/// scenery standing exactly on the far border still lands in the last cell.
+pub fn statics_bucket_of_position(battlefield: &BattlefieldMap, x: f32, z: f32) -> usize {
+    let [extent_x, extent_z] = battlefield.heightmap.extent_m();
+    let grid = STATICS_BUCKET_GRID as f32;
+    let column = ((x / extent_x.max(1.0)) * grid).clamp(0.0, grid - 1.0) as usize;
+    let row = ((z / extent_z.max(1.0)) * grid).clamp(0.0, grid - 1.0) as usize;
+    row * STATICS_BUCKET_GRID + column
+}
+
+/// Every grid bucket a cover object's footprint touches. A phase change must re-bake the
+/// bucket holding the object's geometry (its center cell) AND any cell its box overlaps:
+/// scenery near a cell edge can stand inside a cover box whose center lives next door, and
+/// its disappearance belongs to the scenery's own bucket.
+pub fn statics_buckets_touched_by_cover(
+    battlefield: &BattlefieldMap,
+    cover: &StaticCoverObject,
+) -> impl Iterator<Item = usize> {
+    let min_bucket = statics_bucket_of_position(
+        battlefield,
+        cover.center[0] - cover.half_extents_m[0],
+        cover.center[2] - cover.half_extents_m[2],
+    );
+    let max_bucket = statics_bucket_of_position(
+        battlefield,
+        cover.center[0] + cover.half_extents_m[0],
+        cover.center[2] + cover.half_extents_m[2],
+    );
+    let (min_row, min_column) =
+        (min_bucket / STATICS_BUCKET_GRID, min_bucket % STATICS_BUCKET_GRID);
+    let (max_row, max_column) =
+        (max_bucket / STATICS_BUCKET_GRID, max_bucket % STATICS_BUCKET_GRID);
+    (min_row..=max_row).flat_map(move |row| {
+        (min_column..=max_column).map(move |column| row * STATICS_BUCKET_GRID + column)
+    })
+}
+
+/// Bake ONE statics bucket: the cover objects whose centers fall in its cell (as-authored,
+/// scarred, rubble or felled by phase) plus the scenery standing in it; the backdrop bucket
+/// carries the border skirt and distant trees. Deterministic per (battlefield, states, scars).
+pub fn battlefield_statics_bucket_mesh(
+    battlefield: &BattlefieldMap,
+    cover_states: &[u8],
+    cover_scars: &[terrain::CoverScar],
+    bucket: usize,
+) -> SceneMeshData {
     let mut vertices = Vec::new();
     let mut indices = Vec::new();
+    if bucket == STATICS_BACKDROP_BUCKET {
+        // The world beyond the border (render-only skirt + distant trees). Gameplay never
+        // dirties it, so it bakes once and survives every partial rebuild.
+        let (skirt_vertices, skirt_indices) = crate::backdrop::backdrop_scene_mesh(battlefield);
+        let base = vertices.len() as u32;
+        vertices.extend(skirt_vertices);
+        indices.extend(skirt_indices.into_iter().map(|index| index + base));
+        return (vertices, indices);
+    }
     for (index, cover) in battlefield.static_cover.iter().enumerate() {
+        if statics_bucket_of_position(battlefield, cover.center[0], cover.center[2]) != bucket {
+            continue;
+        }
         match cover_states.get(index).copied().unwrap_or(0) {
             0 => {
                 append_cover_box(&mut vertices, &mut indices, cover);
@@ -117,22 +190,46 @@ pub fn battlefield_statics_mesh_with_scars(
             }
         }
     }
-    // The world beyond the border (render-only skirt + distant trees), then the dressing:
-    // both baked into the same static upload.
-    {
-        let (skirt_vertices, skirt_indices) = crate::backdrop::backdrop_scene_mesh(battlefield);
-        let base = vertices.len() as u32;
-        vertices.extend(skirt_vertices);
-        indices.extend(skirt_indices.into_iter().map(|index| index + base));
-    }
     // Render-only dressing: trees and rocks baked into the same static upload — a dressed
     // valley costs the frame nothing (see scene::foliage). A tree standing inside a cleared
     // cover box fell with it, so it is left out of the rebuilt scene.
     for instance in &battlefield.scenery {
+        if statics_bucket_of_position(battlefield, instance.position[0], instance.position[2])
+            != bucket
+        {
+            continue;
+        }
         if scenery_stands_in_cleared_cover(instance, &battlefield.static_cover, cover_states) {
             continue;
         }
         crate::foliage::push_scenery_instance(&mut vertices, &mut indices, instance);
+    }
+    (vertices, indices)
+}
+
+/// All statics buckets, in assembly order.
+pub fn battlefield_statics_buckets(
+    battlefield: &BattlefieldMap,
+    cover_states: &[u8],
+    cover_scars: &[terrain::CoverScar],
+) -> Vec<SceneMeshData> {
+    (0..STATICS_BUCKET_COUNT)
+        .map(|bucket| {
+            battlefield_statics_bucket_mesh(battlefield, cover_states, cover_scars, bucket)
+        })
+        .collect()
+}
+
+/// Concatenate bucket fragments into the one statics buffer the renderer's slot takes. The
+/// output is a pure function of the fragments, so replacing one dirty bucket and reassembling
+/// equals a full fresh bake bit for bit (the partial-rebake lock below).
+pub fn assemble_statics_mesh(buckets: &[SceneMeshData]) -> SceneMeshData {
+    let mut vertices = Vec::new();
+    let mut indices = Vec::new();
+    for (bucket_vertices, bucket_indices) in buckets {
+        let base = vertices.len() as u32;
+        vertices.extend_from_slice(bucket_vertices);
+        indices.extend(bucket_indices.iter().map(|index| index + base));
     }
     (vertices, indices)
 }
@@ -1593,6 +1690,74 @@ mod tests {
                     && delta.z <= half.z + 1.0e-3
             });
             assert!(rendered, "static cover {} must be part of the battlefield mesh", cover.id);
+        }
+    }
+
+    /// THE partial-rebake lock (urban-map program PR-04): collapse one building, re-bake ONLY
+    /// the buckets its footprint touches, reassemble — and the result equals a full fresh bake
+    /// bit for bit. This is what licenses the client to skip 16/17 of the bake on a phase
+    /// change.
+    #[test]
+    fn replacing_only_the_dirty_buckets_equals_a_full_fresh_bake() {
+        let battlefield = map_forge::battlefield(terrain::MapId::BystraValley);
+        let intact = vec![0u8; battlefield.static_cover.len()];
+        let mut buckets = battlefield_statics_buckets(&battlefield, &intact, &[]);
+
+        let collapsed_index = battlefield
+            .static_cover
+            .iter()
+            .position(|cover| cover.kind == StaticCoverKind::FarmBuilding)
+            .expect("Bystra carries buildings");
+        let mut states = intact.clone();
+        states[collapsed_index] = 1;
+
+        let dirty: Vec<usize> = statics_buckets_touched_by_cover(
+            &battlefield,
+            &battlefield.static_cover[collapsed_index],
+        )
+        .collect();
+        assert!(!dirty.is_empty(), "a cover box must touch at least its own bucket");
+        assert!(
+            dirty.iter().all(|&bucket| bucket != STATICS_BACKDROP_BUCKET),
+            "gameplay must never dirty the backdrop bucket"
+        );
+        for &bucket in &dirty {
+            buckets[bucket] = battlefield_statics_bucket_mesh(&battlefield, &states, &[], bucket);
+        }
+
+        let partial = assemble_statics_mesh(&buckets);
+        let full = battlefield_statics_mesh_with_scars(&battlefield, &states, &[]);
+        assert_eq!(partial.0.len(), full.0.len(), "vertex counts must agree");
+        assert_eq!(partial.1, full.1, "index streams must agree");
+        assert!(
+            partial
+                .0
+                .iter()
+                .zip(&full.0)
+                .all(|(a, b)| a.position == b.position && a.color == b.color),
+            "vertex streams must agree"
+        );
+    }
+
+    /// The bucket partition never loses an object: every cover box still contributes geometry
+    /// to exactly the bucket its center owns, and the assembled mesh carries them all.
+    #[test]
+    fn every_bucket_object_survives_partitioning() {
+        let battlefield = map_forge::battlefield(terrain::MapId::BystraValley);
+        let states = vec![0u8; battlefield.static_cover.len()];
+        let buckets = battlefield_statics_buckets(&battlefield, &states, &[]);
+        assert_eq!(buckets.len(), STATICS_BUCKET_COUNT);
+        let (vertices, _) = assemble_statics_mesh(&buckets);
+        for cover in &battlefield.static_cover {
+            let center = Vec3::from_array(cover.center);
+            let half = Vec3::from_array(cover.half_extents_m);
+            let rendered = vertices.iter().any(|vertex| {
+                let delta = (Vec3::from_array(vertex.position) - center).abs();
+                delta.x <= half.x + 1.0e-3
+                    && delta.y <= half.y + 1.0e-3
+                    && delta.z <= half.z + 1.0e-3
+            });
+            assert!(rendered, "cover {} must survive the bucket partition", cover.id);
         }
     }
 }

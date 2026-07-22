@@ -79,14 +79,21 @@ impl ClientApp {
         // takes — a building settling one beat later is invisible; a hitch is not.
         if let Some(receiver) = &self.scene_rebuild_rx {
             match receiver.try_recv() {
-                Ok((vertices, indices)) => {
+                Ok(rebuild) => {
                     self.scene_rebuild_rx = None;
-                    if let Some(renderer) = self.renderer.as_mut() {
-                        renderer.set_terrain(&vertices, &indices);
-                    }
                     if let Some(meshes) = self.battle_scene_meshes.as_mut() {
+                        for (bucket, fragment) in rebuild.buckets {
+                            meshes.statics_buckets[bucket] = fragment;
+                        }
+                        let (vertices, indices) =
+                            crate::assemble_statics_mesh(&meshes.statics_buckets);
+                        if let Some(renderer) = self.renderer.as_mut() {
+                            renderer.set_terrain(&vertices, &indices);
+                        }
                         meshes.statics_vertices = vertices;
                         meshes.statics_indices = indices;
+                        meshes.statics_baked_phases = rebuild.phases;
+                        meshes.statics_baked_scars = rebuild.scars;
                     }
                 }
                 Err(std::sync::mpsc::TryRecvError::Empty) => return,
@@ -102,17 +109,61 @@ impl ClientApp {
         self.scene_cover_dirty = false;
         // Cover phases only touch the STATICS slot: the ground mesh and its baked splat/macro
         // maps are invariant under destruction, so a collapsing building re-uploads a fraction
-        // of the world instead of forcing a 1024^2 rebake. The bake itself runs on a worker
-        // thread; a collapse arriving while one is in flight re-marks the flag and rebakes
-        // with the newest phases once the harvest above completes.
+        // of the world instead of forcing a 1024^2 rebake. The bake goes further (PR-04): the
+        // baseline diff below names the DIRTY BUCKETS, and the worker re-bakes only those —
+        // one collapsed building costs one map cell, not the whole statics mesh. A collapse
+        // arriving while a bake is in flight re-marks the flag and diffs against the baseline
+        // the harvest above just landed.
+        let Some(meshes) = self.battle_scene_meshes.as_ref() else {
+            return;
+        };
+        let phases = self.cover_phase_bytes.clone();
+        let scars = self.cover_scar_list.clone();
+        let mut dirty = [false; crate::STATICS_BUCKET_COUNT];
+        for (index, cover) in self.battlefield.static_cover.iter().enumerate() {
+            let now = phases.get(index).copied().unwrap_or(0);
+            let then = meshes.statics_baked_phases.get(index).copied().unwrap_or(0);
+            if now != then {
+                for bucket in crate::statics_buckets_touched_by_cover(&self.battlefield, cover) {
+                    dirty[bucket] = true;
+                }
+            }
+        }
+        for scar in scars
+            .iter()
+            .filter(|scar| !meshes.statics_baked_scars.contains(scar))
+            .chain(meshes.statics_baked_scars.iter().filter(|scar| !scars.contains(scar)))
+        {
+            if let Some(cover) = self.battlefield.static_cover.get(scar.cover as usize) {
+                for bucket in crate::statics_buckets_touched_by_cover(&self.battlefield, cover) {
+                    dirty[bucket] = true;
+                }
+            }
+        }
+        let dirty_buckets: Vec<usize> =
+            (0..crate::STATICS_BUCKET_COUNT).filter(|&bucket| dirty[bucket]).collect();
+        if dirty_buckets.is_empty() {
+            return;
+        }
         let (tx, rx) = std::sync::mpsc::channel();
         self.scene_rebuild_rx = Some(rx);
         let battlefield = self.battlefield.clone();
-        let phases = self.cover_phase_bytes.clone();
-        let scars = self.cover_scar_list.clone();
         std::thread::spawn(move || {
-            let _ =
-                tx.send(crate::battlefield_statics_mesh_with_scars(&battlefield, &phases, &scars));
+            let buckets = dirty_buckets
+                .into_iter()
+                .map(|bucket| {
+                    (
+                        bucket,
+                        crate::battlefield_statics_bucket_mesh(
+                            &battlefield,
+                            &phases,
+                            &scars,
+                            bucket,
+                        ),
+                    )
+                })
+                .collect();
+            let _ = tx.send(super::StaticsRebuild { phases, scars, buckets });
         });
     }
 
