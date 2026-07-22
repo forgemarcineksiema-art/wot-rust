@@ -78,6 +78,7 @@ pub fn grass_tuft_mesh() -> MeshAsset {
                 gloss: 0.05,
                 surface: renderer_api::surface_role::GRASS_BLADE,
                 sway,
+                uv: [0.0, 0.0],
             });
         }
         // Front and back faces: the pipeline culls, the blade must not vanish from behind.

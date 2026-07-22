@@ -57,12 +57,17 @@ pub struct SceneVertex {
     /// 0.0 is rigid masonry, 1.0 a free leaf tip. Same contract as `surface`: the layout
     /// lands mechanically first, the vertex-shader sway opts in later.
     pub sway: f32,
+    /// The UV lane (Imported Flora 2.0, FL-1): texture coordinates for the alpha-cutout
+    /// foliage pass. Same contract as `surface` and `sway`: the layout lands mechanically
+    /// first ([0, 0] everywhere — procedural content never samples), the textured fragment
+    /// path opts in with FL-2. Location 12.
+    pub uv: [f32; 2],
 }
 
-// The GPU vertex layout is data: 13 floats, 52 bytes. Grown ONLY by appending (locations 10
-// and 11 were the first growth) — every pipeline strides by `size_of`, so a silent field
-// reorder would corrupt all of them at once.
-const _: () = assert!(std::mem::size_of::<SceneVertex>() == 52);
+// The GPU vertex layout is data: 15 floats, 60 bytes. Grown ONLY by appending (locations 10
+// and 11 were the first growth, 12 the second) — every pipeline strides by `size_of`, so a
+// silent field reorder would corrupt all of them at once.
+const _: () = assert!(std::mem::size_of::<SceneVertex>() == 60);
 
 /// The surface-role table (Materia Świata 3): the shared language between mesh producers and
 /// the scene shader's procedural detail treatments. Roles are floats because they ride a
@@ -93,7 +98,16 @@ impl SceneVertex {
     /// An absolute-colored vertex (`tint_weight` 0.0): the per-instance tint never touches it.
     /// Matte by default — surfaces with a real finish use [`Self::surfaced`].
     pub const fn new(position: [f32; 3], normal: [f32; 3], color: [f32; 3]) -> Self {
-        Self { position, normal, color, tint_weight: 0.0, gloss: 0.0, surface: 0.0, sway: 0.0 }
+        Self {
+            position,
+            normal,
+            color,
+            tint_weight: 0.0,
+            gloss: 0.0,
+            surface: 0.0,
+            sway: 0.0,
+            uv: [0.0, 0.0],
+        }
     }
 
     /// A vertex with a material finish (see `gloss`).
@@ -103,7 +117,16 @@ impl SceneVertex {
         color: [f32; 3],
         gloss: f32,
     ) -> Self {
-        Self { position, normal, color, tint_weight: 0.0, gloss, surface: 0.0, sway: 0.0 }
+        Self {
+            position,
+            normal,
+            color,
+            tint_weight: 0.0,
+            gloss,
+            surface: 0.0,
+            sway: 0.0,
+            uv: [0.0, 0.0],
+        }
     }
 
     /// A vertex that opts into the per-instance team tint by `tint_weight` (`1.0` = fully tinted).
@@ -113,7 +136,16 @@ impl SceneVertex {
         color: [f32; 3],
         tint_weight: f32,
     ) -> Self {
-        Self { position, normal, color, tint_weight, gloss: 0.0, surface: 0.0, sway: 0.0 }
+        Self {
+            position,
+            normal,
+            color,
+            tint_weight,
+            gloss: 0.0,
+            surface: 0.0,
+            sway: 0.0,
+            uv: [0.0, 0.0],
+        }
     }
 
     /// Name the surface-role lane (see `surface`).
@@ -125,6 +157,13 @@ impl SceneVertex {
     /// Name the wind lane (see `sway`).
     pub const fn with_sway(mut self, sway: f32) -> Self {
         self.sway = sway;
+        self
+    }
+
+    /// Name the UV lane (see `uv`) — the textured-foliage path (FL-2) reads it; everything
+    /// else leaves the default [0, 0] and renders exactly as before.
+    pub const fn with_uv(mut self, uv: [f32; 2]) -> Self {
+        self.uv = uv;
         self
     }
 }

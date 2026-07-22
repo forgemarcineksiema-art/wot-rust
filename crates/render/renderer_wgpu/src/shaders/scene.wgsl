@@ -10,6 +10,9 @@ struct VsIn {
     @location(9) gloss: f32,
     @location(10) surface: f32,
     @location(11) sway: f32,
+    // The UV lane (Imported Flora 2.0, FL-1): rides mechanically at [0, 0] for all
+    // procedural content; the textured foliage fragment path opts in with FL-2.
+    @location(12) uv: vec2<f32>,
     @location(4) model_0: vec4<f32>,
     @location(5) model_1: vec4<f32>,
     @location(6) model_2: vec4<f32>,
