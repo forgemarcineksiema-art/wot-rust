@@ -9,7 +9,9 @@ authoritative server.
 
 **Contributing (human or AI): read `CLAUDE.md` first** — the working contract (locking
 tests, the local verify gate, one-look budgets, append-only enums) — then
-`docs/urban-map-program.md` for the current program status.
+**`docs/ROADMAP.md`** for the whole picture: systems inventory, the honest gap list toward
+release, and where the center of gravity should go next. Individual program docs (urban
+map, destruction, fleet…) are execution details under `docs/`.
 
 ## What exists today
 
