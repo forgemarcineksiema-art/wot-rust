@@ -13,19 +13,21 @@ test-locked, not marketing.
 
 ## Systems inventory
 
-**DONE and test-locked** (each with its doctrine doc and regression suite):
+**DONE and test-locked** — meaning: the MECHANICS work and their promises sit in regression
+tests. It does not mean final art polish; where finish varies, the partial list says so.
 - **Combat**: 3D armor volumes from blueprints, ricochet/normalization, spaced armor & HEAT
   honesty, swept-shell kinetics (v24), HE splash, module/crew damage, fire feel + feedback.
 - **Movement**: planar rigid-body hull (velocity + yaw inertia, drift), per-wheel suspension
   with sprung attitude, hull-down that actually works, track damage in two tiers.
 - **Destruction (Honest Steel)**: buildings→rubble, breachable walls, crushable fences and
-  tree lines, terrain craters, wall scars, interiors behind breaches — replicated, honest.
+  tree lines, terrain craters, wall scars — replicated, honest.
 - **Spotting**: per-era optics, radio-dead isolation, LOS through real cover, minimap +
   spotted gates, fog-fairness lock across all weather looks.
 - **Maps**: 4 shipped (steppe / river town / mountain pass / city), all data-driven with a
   full in-repo editor, playability BFS gates and golden hashes.
-- **Fleet**: 8 blueprint-born vehicles across 3 eras and 3 nations; museum-grade review
-  workshop (Studio, dossiers, ratio/dimension gates); no clones.
+- **Fleet**: 8 blueprint-born vehicles across 3 eras and 3 nations, one RON source feeding
+  hitbox/armor/visuals; a review workshop with measurable gates (Studio, dossiers, ratios);
+  no clones. Finish is UNEVEN — the T-54 is the benchmark, others trail it.
 - **Presentation**: wgpu renderer (cascaded shadows, SSAO, HDR+bloom, weather + timeline,
   water, grass, battle FX, procedural buildings/trees + CC0 textured-flora pipeline),
   procedural audio (DSP, speed-of-sound delay), garage with workshop UX, full battle HUD.
@@ -35,6 +37,9 @@ test-locked, not marketing.
 **PARTIAL** (works, known debt):
 - Flora on maps (pipeline done; scatters/retrofit = FL-5), foliage sourcing (bush, birch),
   alpha-preserving mips.
+- Breach interiors: cross-frame remesh merged, but museum detail, interior variants and
+  interior audio are open.
+- Fleet finish: per-vehicle polish passes outstanding outside the benchmark vehicles.
 - Map rotation & per-map bot battle tests (only Orliny has one).
 - Human playtesting: the maps have never met a second human.
 
