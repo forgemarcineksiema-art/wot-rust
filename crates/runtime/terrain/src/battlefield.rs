@@ -114,6 +114,9 @@ pub enum RoadSurface {
     Dirt,
     /// Railway ballast: the crushed-stone bed under the rails.
     Ballast,
+    /// Granite setts: the paved city street (urban-map program PR-05). Append-only, like
+    /// every content enum — the variant order never changes.
+    Cobble,
 }
 
 /// A render-only road: a polyline in world XZ painted onto the terrain vertices as worn

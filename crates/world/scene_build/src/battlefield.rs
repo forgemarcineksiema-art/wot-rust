@@ -997,6 +997,17 @@ fn value_noise(x: f32, z: f32) -> f32 {
     top + (bottom - top) * sz
 }
 
+/// The painted albedo + finish for a road surface. Dirt and ballast stay near-matte earth
+/// and crushed stone; cobble reads as grey granite setts with a faint sheen — still inside
+/// the presentation gate's saturation window, distinct from both by tone alone.
+pub(crate) fn road_surface_tone(surface: RoadSurface) -> (Vec3, f32) {
+    match surface {
+        RoadSurface::Dirt => (Vec3::new(0.40, 0.34, 0.24), 0.05),
+        RoadSurface::Ballast => (Vec3::new(0.34, 0.31, 0.28), 0.08),
+        RoadSurface::Cobble => (Vec3::new(0.31, 0.31, 0.33), 0.12),
+    }
+}
+
 /// The road tone at a world point, if any road reaches it: `(tone, gloss, blend)` with the
 /// blend feathering from full paint over the core to nothing at the authored edge.
 fn road_paint(roads: &[Road], wx: f32, wz: f32) -> Option<(Vec3, f32, f32)> {
@@ -1010,10 +1021,7 @@ fn road_paint(roads: &[Road], wx: f32, wz: f32) -> Option<(Vec3, f32, f32)> {
         // Full tone over the inner core, feathered out to the grass at the edge.
         let fade = ((half - distance) / (half * 0.45)).clamp(0.0, 1.0);
         let blend = fade * fade * (3.0 - 2.0 * fade);
-        let (tone, gloss) = match road.surface {
-            RoadSurface::Dirt => (Vec3::new(0.40, 0.34, 0.24), 0.05),
-            RoadSurface::Ballast => (Vec3::new(0.34, 0.31, 0.28), 0.08),
-        };
+        let (tone, gloss) = road_surface_tone(road.surface);
         if best.map(|(_, _, b)| blend > b).unwrap_or(true) {
             best = Some((tone, gloss, blend));
         }
@@ -1541,6 +1549,25 @@ mod tests {
             off_road.color
         );
         assert!(on_road.gloss < 0.1, "a dirt road stays matte, got {}", on_road.gloss);
+    }
+
+    /// Cobble (urban-map program PR-05) reads as grey granite setts: even channels with a
+    /// cool bias, a faint sheen above dirt and ballast but still far from a mirror, and a
+    /// tone distinct from both by color alone.
+    #[test]
+    fn cobble_reads_grey_setts_distinct_from_dirt_and_ballast() {
+        let (dirt, dirt_gloss) = road_surface_tone(RoadSurface::Dirt);
+        let (ballast, ballast_gloss) = road_surface_tone(RoadSurface::Ballast);
+        let (cobble, cobble_gloss) = road_surface_tone(RoadSurface::Cobble);
+        assert!((cobble.x - cobble.y).abs() < 0.03, "setts are grey, not tinted earth");
+        assert!(cobble.z >= cobble.x, "the grey leans cool, never warm like dirt");
+        assert!(cobble.distance(dirt) > 0.08, "cobble must not read as dirt");
+        assert!(cobble.distance(ballast) > 0.04, "cobble must not read as ballast");
+        assert!(
+            cobble_gloss > ballast_gloss && cobble_gloss > dirt_gloss,
+            "setts carry the faint worn sheen"
+        );
+        assert!(cobble_gloss <= 0.15, "a street is stone, not a mirror");
     }
 
     /// The grass is a patchwork, not a lawn: across the open steppe the green varies by
