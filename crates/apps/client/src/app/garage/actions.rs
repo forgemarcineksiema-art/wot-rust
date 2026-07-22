@@ -94,6 +94,7 @@ impl ClientApp {
             }
             GarageHit::CrewProf(dir) => self.garage.adjust_proficiency(dir),
             GarageHit::Battle => self.confirm_garage_selection(),
+            GarageHit::MapCycle(dir) => self.garage.cycle_map(dir),
             GarageHit::OpenTechTree => self.garage.open_tech_tree(),
             GarageHit::CloseTechTree => self.garage.close_tech_tree(),
             GarageHit::Scene => self.garage.begin_drag(),
@@ -165,6 +166,7 @@ impl ClientApp {
             PhysicalKey::Code(KeyCode::KeyC) => self.garage.set_ammo(2),
             PhysicalKey::Code(KeyCode::Minus) => self.garage.adjust_proficiency(-1),
             PhysicalKey::Code(KeyCode::Equal) => self.garage.adjust_proficiency(1),
+            PhysicalKey::Code(KeyCode::KeyM) => self.garage.cycle_map(1),
             PhysicalKey::Code(KeyCode::KeyT) => match self.garage.view() {
                 super::GarageView::Hangar => self.garage.open_tech_tree(),
                 super::GarageView::TechTree => self.garage.close_tech_tree(),
@@ -197,10 +199,16 @@ impl ClientApp {
         // everyone else stayed shot up. It also closes the loop after VICTORY/DEFEAT/DRAW — the
         // garage's Battle button IS the next battle.
         if self.session.battle_mode() == server::BattleMode::Random7v7 {
+            // The garage map row overrides the env/default resolution; AUTO (`None`) keeps
+            // `runtime_from_env` intact — including the editor's Ctrl+P `.map.ron` playtest path.
+            let mut battle_config = server::RandomBattleConfig::runtime_from_env(spec.kind);
+            if let Some(map) = self.garage.selected_map() {
+                battle_config.map = map;
+            }
             self.session = crate::app::session::BattleSessionKind::Local(Box::new(
                 server::LocalAuthoritativeServer::new_random_7v7(
                     server::ServerTickConfig::default(),
-                    server::RandomBattleConfig::runtime_from_env(spec.kind),
+                    battle_config,
                 ),
             ));
             self.weather_timeline = scene_build::weather_timeline::WeatherTimeline::new(
@@ -490,6 +498,33 @@ mod tests {
         // A key the garage DOES bind still reports handled (sanity that the swallow didn't mask real
         // bindings): Enter commits to battle.
         assert!(app.garage_keyboard(PhysicalKey::Code(KeyCode::BracketRight)));
+    }
+
+    /// The map row is the pre-battle map choice: AUTO keeps whatever
+    /// `RandomBattleConfig::runtime_from_env` resolves (the editor's Ctrl+P playtest path
+    /// included), an explicit pick deploys the fresh battle on that map.
+    #[test]
+    fn the_garage_map_row_picks_the_battle_map_and_auto_keeps_the_env_resolution() {
+        let mut app = ClientApp::new();
+        app.confirm_garage_selection();
+        let auto = server::RandomBattleConfig::runtime_from_env(app.garage.selected_vehicle()).map;
+        assert_eq!(app.session.map_id(), auto, "AUTO keeps the env/default resolution");
+
+        // Click the map row until Ostrogorsk is set, then commit: the fresh battle runs there.
+        app.open_garage();
+        app.garage.set_cursor(crate::app::garage::layout::MAP_PICK_CENTER);
+        while app.garage.selected_map() != Some(terrain::MapId::Ostrogorsk) {
+            app.garage_primary_press();
+        }
+        app.confirm_garage_selection();
+        assert_eq!(app.session.map_id(), terrain::MapId::Ostrogorsk);
+
+        // Cycling back to AUTO restores the original resolution for the next battle.
+        while app.garage.selected_map().is_some() {
+            app.garage.cycle_map(1);
+        }
+        app.confirm_garage_selection();
+        assert_eq!(app.session.map_id(), auto);
     }
 
     #[test]
