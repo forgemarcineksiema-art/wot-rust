@@ -1,5 +1,36 @@
 # Urban Map Program ("Ostrogorsk") + Imported Flora 2.0
 
+## STATUS (2026-07-22) — read this first if you are picking the work up
+
+**Program A (the map): COMPLETE and merged.** PR-01..PR-15 all landed on master in one day
+(#280-#294): the map plays via `WOT_MAP=ostrogorsk` — 101-box dense core, born ruins,
+breachable walls, cobbles, battle invariants test-locked (`sim/tests/ostrogorsk_urban.rs`),
+perf signed off in `docs/maps/ostrogorsk.md`. What remains is HUMAN work: the playtest loop
+in the Map Forge editor (Ctrl+P; re-bless the golden per sculpt iteration). First recorded
+sculpt candidate: the berm reads gently from deep east.
+
+**Program B (flora): FL-1..FL-4 COMPLETE and merged** (#295-#298): UV lane, foliage atlas +
+alpha cutout honest in color/shadow/SSAO, the CC0 importer (`tools import-flora`, license
+gate + loud decimation + multi-texture compositing), runtime catalog + `FloraTree`/
+`FloraPine` scenery kinds. Look gate verdict (see `flora_probe` example): tree ACCEPTED,
+pine ACCEPTED, bush REJECTED (bad source model — do not author `FloraBush` on maps).
+
+**Remaining, in order:**
+1. **FL-5** — author `FloraTree`/`FloraPine` scatters on maps (Ostrogorsk orchards/park
+   first, then retrofit), re-bless map goldens, run `perf_capture` at full scatter, keep the
+   weather-fairness test green (bushes still never block LOS).
+2. **Sourcing** — a real CC0 bush and a TEXTURED birch (first candidates refused by the
+   import gate: no TEXCOORD_0). Poly Pizza serves Quaternius GLBs at
+   `https://static.poly.pizza/<uuid>.glb` (uuid is in the model page HTML).
+3. **Alpha-preserving mip generation** for the runtime atlas (single-mip today).
+4. Doctrine follow-ups: map rotation, an Ostrogorsk bot battle test à la `orliny_battle.rs`.
+
+House rules that bit us (do not relearn them): local `scripts/verify.ps1` is the merge gate
+(CI billing is blocked) and long verifies need staging (fmt/clippy/test separately);
+clippy demands test modules LAST in a file; PowerShell 5.1 mangles UTF-8 via
+`Get-Content -Raw` (use the Edit tooling or `[IO.File]::ReadAllText/WriteAllText` with
+UTF-8) and its here-strings break on embedded double quotes (commit via `git commit -F`).
+
 This document is the live plan for the game's fourth map — **Ostrogorsk**, an urban/outskirts
 hybrid — and for the parallel **Imported Flora 2.0** track that replaces close-range
 procedural trees with curated CC0 assets. It extends
