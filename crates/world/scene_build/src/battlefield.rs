@@ -183,9 +183,13 @@ pub fn battlefield_statics_bucket_mesh(
             _ => {
                 // Gone. A cleared TREE LINE is not a vacuum (Fizyczny Świat P11): the crowns
                 // fell, but the crush leaves stumps where the trees stood and trunks lying
-                // along the run. Other kinds (fences, foliage mass) clear to nothing.
+                // along the run. A breached STONE WALL (PR-10) leaves its toppled course —
+                // knee-high, non-blocking, a door with bricks at its feet. Other kinds
+                // (fences, foliage mass) clear to nothing.
                 if cover.kind == StaticCoverKind::TreeLine {
                     append_felled_tree_line(&mut vertices, &mut indices, battlefield, cover);
+                } else if cover.kind == StaticCoverKind::StoneWall {
+                    append_toppled_wall(&mut vertices, &mut indices, cover);
                 }
             }
         }
@@ -615,12 +619,120 @@ fn append_cover_box(
         StaticCoverKind::WoodenFence => append_wooden_fence(vertices, indices, center, half),
         // PROVISIONAL look (urban-map PR-06): the city building rides the same forged
         // building bake (its tall box derives Townhouse until the Tenement style lands,
-        // wave U); the wall is a plain masonry run until its coursed look + breach
-        // dressing arrive (PR-10). Semantics are final; only the dressing is interim.
+        // wave U). Semantics are final; only the dressing is interim.
         StaticCoverKind::CityBuilding => append_building(vertices, indices, cover, center, half),
-        StaticCoverKind::StoneWall => {
-            push_surfaced_box(vertices, indices, center, half, [0.42, 0.37, 0.32], 0.10);
-        }
+        StaticCoverKind::StoneWall => append_stone_wall(vertices, indices, center, half),
+    }
+}
+
+/// The coursed masonry wall (urban-map PR-10): the brick body, a lighter COPING course
+/// crowning the run, and piers every few metres standing slightly proud — the mechanical
+/// story of a real compound wall (piers carry it, the coping sheds rain). Every box stays
+/// inside the collision footprint: proud means toward the wall's own faces, never past them.
+fn append_stone_wall(
+    vertices: &mut Vec<SceneVertex>,
+    indices: &mut Vec<u32>,
+    center: Vec3,
+    half: Vec3,
+) {
+    const BRICK: ([f32; 3], f32) = ([0.42, 0.36, 0.30], 0.08);
+    const COPING: ([f32; 3], f32) = ([0.52, 0.50, 0.46], 0.14);
+    let along_x = half.x >= half.z;
+    let (run_half, thick_half) = if along_x { (half.x, half.z) } else { (half.z, half.x) };
+    let coping_half_y = (half.y * 0.12).clamp(0.04, 0.12);
+    // The body: the wall run, slightly recessed in thickness so the piers read proud.
+    let body_thick = (thick_half - 0.05).max(thick_half * 0.7);
+    let body_half_y = half.y - coping_half_y;
+    let body = if along_x {
+        Vec3::new(run_half, body_half_y, body_thick)
+    } else {
+        Vec3::new(body_thick, body_half_y, run_half)
+    };
+    push_surfaced_box(
+        vertices,
+        indices,
+        Vec3::new(center.x, center.y - coping_half_y, center.z),
+        body,
+        BRICK.0,
+        BRICK.1,
+    );
+    // The coping: full thickness, the lighter stone cap along the whole run.
+    let coping = if along_x {
+        Vec3::new(run_half, coping_half_y, thick_half)
+    } else {
+        Vec3::new(thick_half, coping_half_y, run_half)
+    };
+    push_surfaced_box(
+        vertices,
+        indices,
+        Vec3::new(center.x, center.y + half.y - coping_half_y, center.z),
+        coping,
+        COPING.0,
+        COPING.1,
+    );
+    // Piers every ~3.2 m, full thickness and a touch of extra presence under the coping.
+    let pier_count = ((run_half * 2.0 / 3.2).round() as u32).clamp(2, 8);
+    for pier in 0..pier_count {
+        let t =
+            if pier_count == 1 { 0.0 } else { (pier as f32 / (pier_count - 1) as f32) * 2.0 - 1.0 };
+        let along = t * (run_half - 0.35);
+        let pier_half = if along_x {
+            Vec3::new(0.22, body_half_y, thick_half)
+        } else {
+            Vec3::new(thick_half, body_half_y, 0.22)
+        };
+        let position = if along_x {
+            Vec3::new(center.x + along, center.y - coping_half_y, center.z)
+        } else {
+            Vec3::new(center.x, center.y - coping_half_y, center.z + along)
+        };
+        push_surfaced_box(vertices, indices, position, pier_half, COPING.0, BRICK.1);
+    }
+}
+
+/// The breach (urban-map PR-10), zero wire: a destroyed or crushed wall goes GONE for the
+/// sim — a clear door — and the eye gets its toppled course: a knee-high run of tumbled
+/// brick slabs seeded from the cover id, all inside the old footprint and far below any
+/// height that could read as cover. The felled-tree-line pattern, in masonry.
+fn append_toppled_wall(
+    vertices: &mut Vec<SceneVertex>,
+    indices: &mut Vec<u32>,
+    cover: &StaticCoverObject,
+) {
+    const TUMBLE: ([f32; 3], f32) = ([0.45, 0.40, 0.34], 0.07);
+    let mut seed = 0xcbf2_9ce4_8422_2325_u64;
+    for byte in cover.id.bytes() {
+        seed ^= u64::from(byte);
+        seed = seed.wrapping_mul(0x0100_0000_01b3);
+    }
+    let center = Vec3::from_array(cover.center);
+    let half = Vec3::from_array(cover.half_extents_m);
+    let ground_y = center.y - half.y;
+    let along_x = half.x >= half.z;
+    let run_half = if along_x { half.x } else { half.z };
+    let thick_half = if along_x { half.z } else { half.x };
+    let slabs = ((run_half * 2.0 / 1.1).round() as u32).clamp(3, 14);
+    for slab in 0..slabs {
+        seed ^= seed << 13;
+        seed ^= seed >> 7;
+        seed ^= seed << 17;
+        let unit = |shift: u32| ((seed >> shift) & 0xFFFF) as f32 / 65535.0;
+        let t = (slab as f32 + 0.5) / slabs as f32 * 2.0 - 1.0;
+        let along = t * (run_half - 0.6).max(0.0);
+        let slab_height = 0.10 + unit(0) * 0.14;
+        let slab_run = 0.32 + unit(16) * 0.22;
+        let sideways = (unit(32) - 0.5) * thick_half.max(0.2);
+        let slab_half = if along_x {
+            Vec3::new(slab_run, slab_height, (thick_half * 0.8).clamp(0.1, 0.5))
+        } else {
+            Vec3::new((thick_half * 0.8).clamp(0.1, 0.5), slab_height, slab_run)
+        };
+        let position = if along_x {
+            Vec3::new(center.x + along, ground_y + slab_height, center.z + sideways * 0.4)
+        } else {
+            Vec3::new(center.x + sideways * 0.4, ground_y + slab_height, center.z + along)
+        };
+        push_surfaced_box(vertices, indices, position, slab_half, TUMBLE.0, TUMBLE.1);
     }
 }
 
@@ -1709,6 +1821,73 @@ mod tests {
         assert_eq!(by("barn_2", [7.0, 2.7, 4.2]), BuildingStyle::Barn);
         assert_eq!(by("town_house_c1", [4.5, 3.4, 4.5]), BuildingStyle::Townhouse);
         assert_eq!(by("cottage_9", [4.0, 2.6, 3.2]), BuildingStyle::Cottage);
+    }
+
+    /// The coursed wall (urban-map PR-10): every box inside the collision footprint, a
+    /// lighter coping crowning the run, and piers adding real geometry beyond one plain box.
+    #[test]
+    fn the_stone_wall_wears_courses_inside_its_box() {
+        let wall = StaticCoverObject {
+            id: "yard_wall_probe".into(),
+            name: "yard wall".into(),
+            kind: StaticCoverKind::StoneWall,
+            center: [0.0, 1.1, 0.0],
+            half_extents_m: [0.4, 1.1, 7.0],
+        };
+        let mut vertices = Vec::new();
+        let mut indices = Vec::new();
+        append_cover_box(&mut vertices, &mut indices, &wall);
+        assert!(vertices.len() > 24, "coping + piers add geometry beyond one box");
+        for vertex in &vertices {
+            assert!(
+                vertex.position[0].abs() <= 0.4 + 1.0e-3
+                    && vertex.position[2].abs() <= 7.0 + 1.0e-3
+                    && vertex.position[1] <= 2.2 + 1.0e-3
+                    && vertex.position[1] >= -1.0e-3,
+                "wall geometry must stay inside the footprint, got {:?}",
+                vertex.position
+            );
+        }
+        let coping_lit =
+            vertices.iter().any(|v| v.position[1] > 2.0 && v.color[0] > 0.48 && v.color[1] > 0.46);
+        assert!(coping_lit, "the crown of the run wears the lighter coping stone");
+    }
+
+    /// The breach (urban-map PR-10): a Gone wall leaves a knee-high toppled course — inside
+    /// the old footprint, far below cover height, deterministic per id, and absent while the
+    /// wall stands.
+    #[test]
+    fn a_breached_wall_leaves_a_knee_high_toppled_course() {
+        let wall = StaticCoverObject {
+            id: "yard_wall_probe".into(),
+            name: "yard wall".into(),
+            kind: StaticCoverKind::StoneWall,
+            center: [10.0, 1.1, 5.0],
+            half_extents_m: [0.4, 1.1, 7.0],
+        };
+        let mut first = (Vec::new(), Vec::new());
+        append_toppled_wall(&mut first.0, &mut first.1, &wall);
+        assert!(!first.0.is_empty(), "a breach is bricks at your feet, not a vacuum");
+        for vertex in &first.0 {
+            assert!(
+                (vertex.position[0] - 10.0).abs() <= 0.4 + 1.0e-3
+                    && (vertex.position[2] - 5.0).abs() <= 7.0 + 1.0e-3,
+                "tumbled slabs stay inside the old footprint, got {:?}",
+                vertex.position
+            );
+            assert!(
+                vertex.position[1] <= 0.5,
+                "the toppled course stays knee-high (honest-blockers rule), got {:?}",
+                vertex.position
+            );
+        }
+        let mut second = (Vec::new(), Vec::new());
+        append_toppled_wall(&mut second.0, &mut second.1, &wall);
+        assert_eq!(
+            first.0.len(),
+            second.0.len(),
+            "the same wall always falls the same way (deterministic per id)"
+        );
     }
 
     /// The grass is a patchwork, not a lawn: across the open steppe the green varies by
