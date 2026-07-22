@@ -32,6 +32,36 @@ fn main() {
     let _ = client::battlefield_statics_mesh(&battlefield, &states);
     println!("statics rebuild (cover collapse): {:.1} ms", t.elapsed().as_secs_f64() * 1000.0);
 
+    // The PARTIAL rebuild (urban-map program PR-04): one collapsed building re-bakes only the
+    // buckets its footprint touches, plus the assembly concat. This is the worker's real cost
+    // per collapse on a dense map.
+    let intact = vec![0u8; battlefield.static_cover.len()];
+    let mut buckets = client::battlefield_statics_buckets(&battlefield, &intact, &[]);
+    let collapsed = battlefield
+        .static_cover
+        .iter()
+        .position(|cover| cover.kind == terrain::StaticCoverKind::FarmBuilding)
+        .unwrap_or(0);
+    let mut one_down = intact.clone();
+    one_down[collapsed] = 1;
+    let t = Instant::now();
+    let dirty: Vec<usize> = client::statics_buckets_touched_by_cover(
+        &battlefield,
+        &battlefield.static_cover[collapsed],
+    )
+    .collect();
+    for &bucket in &dirty {
+        buckets[bucket] =
+            client::battlefield_statics_bucket_mesh(&battlefield, &one_down, &[], bucket);
+    }
+    let (av, _ai) = client::assemble_statics_mesh(&buckets);
+    println!(
+        "statics rebuild (single collapse, {} dirty bucket(s) + assembly): {:.2} ms ({} v)",
+        dirty.len(),
+        t.elapsed().as_secs_f64() * 1000.0,
+        av.len()
+    );
+
     // Grass: the real per-frame cost, averaged hot.
     let materials = client::terrain_material_set_for(terrain::MapId::BystraValley);
     let eye = glam::Vec3::new(500.0, 8.0, 470.0);
