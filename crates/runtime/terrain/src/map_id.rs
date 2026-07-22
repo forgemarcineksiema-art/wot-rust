@@ -26,13 +26,22 @@ pub enum MapId {
     /// with three gates for lanes, summits reachable only through the pass col. The first
     /// map born entirely in Map Forge. Plays opt-in via `WOT_MAP=orliny-pereval`.
     OrlinyPereval,
+    /// The railway city (Voronezh axis, 1943): a dense masonry bench on the west flank,
+    /// open fields walled off by an impassable rail berm with three gates on the east —
+    /// the urban-map program's map (docs/urban-map-program.md). Plays opt-in via
+    /// `WOT_MAP=ostrogorsk`.
+    Ostrogorsk,
 }
 
 impl MapId {
     /// Every SHIPPED map — the catalog the rotation, goldens and baked assets cover.
     /// `Scratch` is deliberately absent (a dev vessel, not a shipped map).
-    pub const ALL: &'static [MapId] =
-        &[MapId::ProkhorovkaHill252_2, MapId::BystraValley, MapId::OrlinyPereval];
+    pub const ALL: &'static [MapId] = &[
+        MapId::ProkhorovkaHill252_2,
+        MapId::BystraValley,
+        MapId::OrlinyPereval,
+        MapId::Ostrogorsk,
+    ];
 
     /// CLI/asset slug: `generate-map --map <slug>` and the `assets/maps/` filename stem
     /// (with `-` mapped to `_`).
@@ -42,6 +51,7 @@ impl MapId {
             Self::BystraValley => "bystra-valley",
             Self::Scratch => "scratch",
             Self::OrlinyPereval => "orliny-pereval",
+            Self::Ostrogorsk => "ostrogorsk",
         }
     }
 

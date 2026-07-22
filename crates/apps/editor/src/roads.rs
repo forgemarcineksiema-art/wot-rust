@@ -37,7 +37,8 @@ impl PendingRoad {
     pub fn cycle_surface(&mut self) {
         self.surface = match self.surface {
             RoadSurface::Dirt => RoadSurface::Ballast,
-            RoadSurface::Ballast => RoadSurface::Dirt,
+            RoadSurface::Ballast => RoadSurface::Cobble,
+            RoadSurface::Cobble => RoadSurface::Dirt,
         };
     }
 
@@ -246,6 +247,26 @@ mod tests {
         let mut dot = PendingRoad::default();
         dot.add_point([50.0, 50.0]);
         assert!(dot.committed(document.blueprint()).is_none(), "a road is a line, not a dot");
+    }
+
+    /// The surface cycle walks every authored surface exactly once and returns home — a new
+    /// `RoadSurface` variant that forgets the editor shows up here, not in a playtest.
+    #[test]
+    fn the_surface_cycle_visits_every_surface_and_returns() {
+        let mut pending = PendingRoad::default();
+        let start = pending.surface;
+        let mut seen = vec![start];
+        loop {
+            pending.cycle_surface();
+            if pending.surface == start {
+                break;
+            }
+            assert!(!seen.contains(&pending.surface), "the cycle must not trap a subset");
+            seen.push(pending.surface);
+            assert!(seen.len() <= 8, "the cycle must return to the start");
+        }
+        assert!(seen.contains(&RoadSurface::Cobble), "the city street surface is reachable");
+        assert!(seen.contains(&RoadSurface::Ballast));
     }
 
     #[test]

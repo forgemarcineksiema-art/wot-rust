@@ -97,6 +97,9 @@ impl ClientApp {
                 // Tall crests earn a longer leash than the valley, the defile keeps it
                 // under the steppe's.
                 terrain::MapId::OrlinyPereval => 21.0,
+                // Street canyons want the valley leash; the open east flank never needs
+                // more than the steppe grants.
+                terrain::MapId::Ostrogorsk => 21.0,
             },
             ..Default::default()
         }

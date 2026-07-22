@@ -96,9 +96,82 @@ pub fn battlefield_statics_mesh_with_scars(
     cover_states: &[u8],
     cover_scars: &[terrain::CoverScar],
 ) -> (Vec<SceneVertex>, Vec<u32>) {
+    assemble_statics_mesh(&battlefield_statics_buckets(battlefield, cover_states, cover_scars))
+}
+
+/// The statics bake is partitioned into an XZ grid of BUCKETS plus one backdrop bucket, so a
+/// cover-phase change re-bakes one map cell instead of the whole statics mesh (urban-map
+/// program PR-04: an urban core carries 110-140 boxes, and the full bake is the ~25 ms the
+/// F7 worker exists to hide). The renderer re-chunks whatever it is handed at 80 m and
+/// frustum-culls per chunk in every pass, so bucketing is purely a CPU-bake concern: the
+/// assembled mesh is the same set of triangles the monolithic bake produced.
+pub const STATICS_BUCKET_GRID: usize = 4;
+/// Grid cells + the backdrop bucket (skirt + distant trees — never dirtied by gameplay).
+pub const STATICS_BUCKET_COUNT: usize = STATICS_BUCKET_GRID * STATICS_BUCKET_GRID + 1;
+/// The backdrop's bucket index (the last one).
+pub const STATICS_BACKDROP_BUCKET: usize = STATICS_BUCKET_COUNT - 1;
+
+/// The grid bucket owning an XZ position: positions are clamped into the map, so cover or
+/// scenery standing exactly on the far border still lands in the last cell.
+pub fn statics_bucket_of_position(battlefield: &BattlefieldMap, x: f32, z: f32) -> usize {
+    let [extent_x, extent_z] = battlefield.heightmap.extent_m();
+    let grid = STATICS_BUCKET_GRID as f32;
+    let column = ((x / extent_x.max(1.0)) * grid).clamp(0.0, grid - 1.0) as usize;
+    let row = ((z / extent_z.max(1.0)) * grid).clamp(0.0, grid - 1.0) as usize;
+    row * STATICS_BUCKET_GRID + column
+}
+
+/// Every grid bucket a cover object's footprint touches. A phase change must re-bake the
+/// bucket holding the object's geometry (its center cell) AND any cell its box overlaps:
+/// scenery near a cell edge can stand inside a cover box whose center lives next door, and
+/// its disappearance belongs to the scenery's own bucket.
+pub fn statics_buckets_touched_by_cover(
+    battlefield: &BattlefieldMap,
+    cover: &StaticCoverObject,
+) -> impl Iterator<Item = usize> {
+    let min_bucket = statics_bucket_of_position(
+        battlefield,
+        cover.center[0] - cover.half_extents_m[0],
+        cover.center[2] - cover.half_extents_m[2],
+    );
+    let max_bucket = statics_bucket_of_position(
+        battlefield,
+        cover.center[0] + cover.half_extents_m[0],
+        cover.center[2] + cover.half_extents_m[2],
+    );
+    let (min_row, min_column) =
+        (min_bucket / STATICS_BUCKET_GRID, min_bucket % STATICS_BUCKET_GRID);
+    let (max_row, max_column) =
+        (max_bucket / STATICS_BUCKET_GRID, max_bucket % STATICS_BUCKET_GRID);
+    (min_row..=max_row).flat_map(move |row| {
+        (min_column..=max_column).map(move |column| row * STATICS_BUCKET_GRID + column)
+    })
+}
+
+/// Bake ONE statics bucket: the cover objects whose centers fall in its cell (as-authored,
+/// scarred, rubble or felled by phase) plus the scenery standing in it; the backdrop bucket
+/// carries the border skirt and distant trees. Deterministic per (battlefield, states, scars).
+pub fn battlefield_statics_bucket_mesh(
+    battlefield: &BattlefieldMap,
+    cover_states: &[u8],
+    cover_scars: &[terrain::CoverScar],
+    bucket: usize,
+) -> SceneMeshData {
     let mut vertices = Vec::new();
     let mut indices = Vec::new();
+    if bucket == STATICS_BACKDROP_BUCKET {
+        // The world beyond the border (render-only skirt + distant trees). Gameplay never
+        // dirties it, so it bakes once and survives every partial rebuild.
+        let (skirt_vertices, skirt_indices) = crate::backdrop::backdrop_scene_mesh(battlefield);
+        let base = vertices.len() as u32;
+        vertices.extend(skirt_vertices);
+        indices.extend(skirt_indices.into_iter().map(|index| index + base));
+        return (vertices, indices);
+    }
     for (index, cover) in battlefield.static_cover.iter().enumerate() {
+        if statics_bucket_of_position(battlefield, cover.center[0], cover.center[2]) != bucket {
+            continue;
+        }
         match cover_states.get(index).copied().unwrap_or(0) {
             0 => {
                 append_cover_box(&mut vertices, &mut indices, cover);
@@ -110,29 +183,57 @@ pub fn battlefield_statics_mesh_with_scars(
             _ => {
                 // Gone. A cleared TREE LINE is not a vacuum (Fizyczny Świat P11): the crowns
                 // fell, but the crush leaves stumps where the trees stood and trunks lying
-                // along the run. Other kinds (fences, foliage mass) clear to nothing.
+                // along the run. A breached STONE WALL (PR-10) leaves its toppled course —
+                // knee-high, non-blocking, a door with bricks at its feet. Other kinds
+                // (fences, foliage mass) clear to nothing.
                 if cover.kind == StaticCoverKind::TreeLine {
                     append_felled_tree_line(&mut vertices, &mut indices, battlefield, cover);
+                } else if cover.kind == StaticCoverKind::StoneWall {
+                    append_toppled_wall(&mut vertices, &mut indices, cover);
                 }
             }
         }
-    }
-    // The world beyond the border (render-only skirt + distant trees), then the dressing:
-    // both baked into the same static upload.
-    {
-        let (skirt_vertices, skirt_indices) = crate::backdrop::backdrop_scene_mesh(battlefield);
-        let base = vertices.len() as u32;
-        vertices.extend(skirt_vertices);
-        indices.extend(skirt_indices.into_iter().map(|index| index + base));
     }
     // Render-only dressing: trees and rocks baked into the same static upload — a dressed
     // valley costs the frame nothing (see scene::foliage). A tree standing inside a cleared
     // cover box fell with it, so it is left out of the rebuilt scene.
     for instance in &battlefield.scenery {
+        if statics_bucket_of_position(battlefield, instance.position[0], instance.position[2])
+            != bucket
+        {
+            continue;
+        }
         if scenery_stands_in_cleared_cover(instance, &battlefield.static_cover, cover_states) {
             continue;
         }
         crate::foliage::push_scenery_instance(&mut vertices, &mut indices, instance);
+    }
+    (vertices, indices)
+}
+
+/// All statics buckets, in assembly order.
+pub fn battlefield_statics_buckets(
+    battlefield: &BattlefieldMap,
+    cover_states: &[u8],
+    cover_scars: &[terrain::CoverScar],
+) -> Vec<SceneMeshData> {
+    (0..STATICS_BUCKET_COUNT)
+        .map(|bucket| {
+            battlefield_statics_bucket_mesh(battlefield, cover_states, cover_scars, bucket)
+        })
+        .collect()
+}
+
+/// Concatenate bucket fragments into the one statics buffer the renderer's slot takes. The
+/// output is a pure function of the fragments, so replacing one dirty bucket and reassembling
+/// equals a full fresh bake bit for bit (the partial-rebake lock below).
+pub fn assemble_statics_mesh(buckets: &[SceneMeshData]) -> SceneMeshData {
+    let mut vertices = Vec::new();
+    let mut indices = Vec::new();
+    for (bucket_vertices, bucket_indices) in buckets {
+        let base = vertices.len() as u32;
+        vertices.extend_from_slice(bucket_vertices);
+        indices.extend(bucket_indices.iter().map(|index| index + base));
     }
     (vertices, indices)
 }
@@ -516,6 +617,122 @@ fn append_cover_box(
             push_surfaced_box(vertices, indices, center, half, [0.25, 0.20, 0.17], 0.30);
         }
         StaticCoverKind::WoodenFence => append_wooden_fence(vertices, indices, center, half),
+        // PROVISIONAL look (urban-map PR-06): the city building rides the same forged
+        // building bake (its tall box derives Townhouse until the Tenement style lands,
+        // wave U). Semantics are final; only the dressing is interim.
+        StaticCoverKind::CityBuilding => append_building(vertices, indices, cover, center, half),
+        StaticCoverKind::StoneWall => append_stone_wall(vertices, indices, center, half),
+    }
+}
+
+/// The coursed masonry wall (urban-map PR-10): the brick body, a lighter COPING course
+/// crowning the run, and piers every few metres standing slightly proud — the mechanical
+/// story of a real compound wall (piers carry it, the coping sheds rain). Every box stays
+/// inside the collision footprint: proud means toward the wall's own faces, never past them.
+fn append_stone_wall(
+    vertices: &mut Vec<SceneVertex>,
+    indices: &mut Vec<u32>,
+    center: Vec3,
+    half: Vec3,
+) {
+    const BRICK: ([f32; 3], f32) = ([0.42, 0.36, 0.30], 0.08);
+    const COPING: ([f32; 3], f32) = ([0.52, 0.50, 0.46], 0.14);
+    let along_x = half.x >= half.z;
+    let (run_half, thick_half) = if along_x { (half.x, half.z) } else { (half.z, half.x) };
+    let coping_half_y = (half.y * 0.12).clamp(0.04, 0.12);
+    // The body: the wall run, slightly recessed in thickness so the piers read proud.
+    let body_thick = (thick_half - 0.05).max(thick_half * 0.7);
+    let body_half_y = half.y - coping_half_y;
+    let body = if along_x {
+        Vec3::new(run_half, body_half_y, body_thick)
+    } else {
+        Vec3::new(body_thick, body_half_y, run_half)
+    };
+    push_surfaced_box(
+        vertices,
+        indices,
+        Vec3::new(center.x, center.y - coping_half_y, center.z),
+        body,
+        BRICK.0,
+        BRICK.1,
+    );
+    // The coping: full thickness, the lighter stone cap along the whole run.
+    let coping = if along_x {
+        Vec3::new(run_half, coping_half_y, thick_half)
+    } else {
+        Vec3::new(thick_half, coping_half_y, run_half)
+    };
+    push_surfaced_box(
+        vertices,
+        indices,
+        Vec3::new(center.x, center.y + half.y - coping_half_y, center.z),
+        coping,
+        COPING.0,
+        COPING.1,
+    );
+    // Piers every ~3.2 m, full thickness and a touch of extra presence under the coping.
+    let pier_count = ((run_half * 2.0 / 3.2).round() as u32).clamp(2, 8);
+    for pier in 0..pier_count {
+        let t =
+            if pier_count == 1 { 0.0 } else { (pier as f32 / (pier_count - 1) as f32) * 2.0 - 1.0 };
+        let along = t * (run_half - 0.35);
+        let pier_half = if along_x {
+            Vec3::new(0.22, body_half_y, thick_half)
+        } else {
+            Vec3::new(thick_half, body_half_y, 0.22)
+        };
+        let position = if along_x {
+            Vec3::new(center.x + along, center.y - coping_half_y, center.z)
+        } else {
+            Vec3::new(center.x, center.y - coping_half_y, center.z + along)
+        };
+        push_surfaced_box(vertices, indices, position, pier_half, COPING.0, BRICK.1);
+    }
+}
+
+/// The breach (urban-map PR-10), zero wire: a destroyed or crushed wall goes GONE for the
+/// sim — a clear door — and the eye gets its toppled course: a knee-high run of tumbled
+/// brick slabs seeded from the cover id, all inside the old footprint and far below any
+/// height that could read as cover. The felled-tree-line pattern, in masonry.
+fn append_toppled_wall(
+    vertices: &mut Vec<SceneVertex>,
+    indices: &mut Vec<u32>,
+    cover: &StaticCoverObject,
+) {
+    const TUMBLE: ([f32; 3], f32) = ([0.45, 0.40, 0.34], 0.07);
+    let mut seed = 0xcbf2_9ce4_8422_2325_u64;
+    for byte in cover.id.bytes() {
+        seed ^= u64::from(byte);
+        seed = seed.wrapping_mul(0x0100_0000_01b3);
+    }
+    let center = Vec3::from_array(cover.center);
+    let half = Vec3::from_array(cover.half_extents_m);
+    let ground_y = center.y - half.y;
+    let along_x = half.x >= half.z;
+    let run_half = if along_x { half.x } else { half.z };
+    let thick_half = if along_x { half.z } else { half.x };
+    let slabs = ((run_half * 2.0 / 1.1).round() as u32).clamp(3, 14);
+    for slab in 0..slabs {
+        seed ^= seed << 13;
+        seed ^= seed >> 7;
+        seed ^= seed << 17;
+        let unit = |shift: u32| ((seed >> shift) & 0xFFFF) as f32 / 65535.0;
+        let t = (slab as f32 + 0.5) / slabs as f32 * 2.0 - 1.0;
+        let along = t * (run_half - 0.6).max(0.0);
+        let slab_height = 0.10 + unit(0) * 0.14;
+        let slab_run = 0.32 + unit(16) * 0.22;
+        let sideways = (unit(32) - 0.5) * thick_half.max(0.2);
+        let slab_half = if along_x {
+            Vec3::new(slab_run, slab_height, (thick_half * 0.8).clamp(0.1, 0.5))
+        } else {
+            Vec3::new((thick_half * 0.8).clamp(0.1, 0.5), slab_height, slab_run)
+        };
+        let position = if along_x {
+            Vec3::new(center.x + along, ground_y + slab_height, center.z + sideways * 0.4)
+        } else {
+            Vec3::new(center.x + sideways * 0.4, ground_y + slab_height, center.z + along)
+        };
+        push_surfaced_box(vertices, indices, position, slab_half, TUMBLE.0, TUMBLE.1);
     }
 }
 
@@ -555,20 +772,7 @@ fn append_building(
         seed ^= u64::from(byte);
         seed = seed.wrapping_mul(0x0100_0000_01b3);
     }
-    // Landmarks stand by NAME (B4 cz.2) — one church, one windmill per map; every other
-    // building keeps reading its style off the collision box's proportions.
-    let elongation = half.x.max(half.z) / half.x.min(half.z).max(0.1);
-    let style = if cover.id.contains("church") {
-        world_forge::building::BuildingStyle::Church
-    } else if cover.id.contains("windmill") {
-        world_forge::building::BuildingStyle::Windmill
-    } else if elongation > 1.45 && half.y < 2.9 {
-        world_forge::building::BuildingStyle::Barn
-    } else if half.y >= 2.9 {
-        world_forge::building::BuildingStyle::Townhouse
-    } else {
-        world_forge::building::BuildingStyle::Cottage
-    };
+    let style = derived_building_style(&cover.id, half);
     let baked = world_forge::building::bake_building(
         style,
         seed,
@@ -628,6 +832,33 @@ fn append_building(
 const WINDOW: ([f32; 3], f32) = ([0.07, 0.09, 0.11], 0.45);
 /// Plank door: dark weathered timber, matte.
 const DOOR: ([f32; 3], f32) = ([0.16, 0.11, 0.07], 0.06);
+
+/// The ONE style-derivation table (B4 + urban-map PR-08). Landmarks and the urban block
+/// stand by NAME — explicit id substrings are the primary mechanism (`church`, `windmill`,
+/// `tenement`); the proportion heuristic remains the fallback: a box too tall for a
+/// townhouse (half-height >= 5 m) IS three storeys of masonry, elongated-and-low reads barn,
+/// tall reads townhouse, the rest cottages.
+pub(crate) fn derived_building_style(id: &str, half: Vec3) -> world_forge::building::BuildingStyle {
+    use world_forge::building::BuildingStyle;
+    let elongation = half.x.max(half.z) / half.x.min(half.z).max(0.1);
+    if id.contains("church") {
+        BuildingStyle::Church
+    } else if id.contains("windmill") {
+        BuildingStyle::Windmill
+    } else if id.contains("factory") {
+        // Halls stand by NAME only (PR-09): no box proportion ever invents an industrial
+        // span — a map says "factory" or it gets civic masonry.
+        BuildingStyle::FactoryHall
+    } else if id.contains("tenement") || half.y >= 5.0 {
+        BuildingStyle::Tenement
+    } else if elongation > 1.45 && half.y < 2.9 {
+        BuildingStyle::Barn
+    } else if half.y >= 2.9 {
+        BuildingStyle::Townhouse
+    } else {
+        BuildingStyle::Cottage
+    }
+}
 
 fn building_palette(id: &str) -> ([f32; 3], [f32; 3], f32) {
     let mut hash = 0xcbf2_9ce4_8422_2325_u64;
@@ -997,6 +1228,17 @@ fn value_noise(x: f32, z: f32) -> f32 {
     top + (bottom - top) * sz
 }
 
+/// The painted albedo + finish for a road surface. Dirt and ballast stay near-matte earth
+/// and crushed stone; cobble reads as grey granite setts with a faint sheen — still inside
+/// the presentation gate's saturation window, distinct from both by tone alone.
+pub(crate) fn road_surface_tone(surface: RoadSurface) -> (Vec3, f32) {
+    match surface {
+        RoadSurface::Dirt => (Vec3::new(0.40, 0.34, 0.24), 0.05),
+        RoadSurface::Ballast => (Vec3::new(0.34, 0.31, 0.28), 0.08),
+        RoadSurface::Cobble => (Vec3::new(0.31, 0.31, 0.33), 0.12),
+    }
+}
+
 /// The road tone at a world point, if any road reaches it: `(tone, gloss, blend)` with the
 /// blend feathering from full paint over the core to nothing at the authored edge.
 fn road_paint(roads: &[Road], wx: f32, wz: f32) -> Option<(Vec3, f32, f32)> {
@@ -1010,10 +1252,7 @@ fn road_paint(roads: &[Road], wx: f32, wz: f32) -> Option<(Vec3, f32, f32)> {
         // Full tone over the inner core, feathered out to the grass at the edge.
         let fade = ((half - distance) / (half * 0.45)).clamp(0.0, 1.0);
         let blend = fade * fade * (3.0 - 2.0 * fade);
-        let (tone, gloss) = match road.surface {
-            RoadSurface::Dirt => (Vec3::new(0.40, 0.34, 0.24), 0.05),
-            RoadSurface::Ballast => (Vec3::new(0.34, 0.31, 0.28), 0.08),
-        };
+        let (tone, gloss) = road_surface_tone(road.surface);
         if best.map(|(_, _, b)| blend > b).unwrap_or(true) {
             best = Some((tone, gloss, blend));
         }
@@ -1543,6 +1782,114 @@ mod tests {
         assert!(on_road.gloss < 0.1, "a dirt road stays matte, got {}", on_road.gloss);
     }
 
+    /// Cobble (urban-map program PR-05) reads as grey granite setts: even channels with a
+    /// cool bias, a faint sheen above dirt and ballast but still far from a mirror, and a
+    /// tone distinct from both by color alone.
+    #[test]
+    fn cobble_reads_grey_setts_distinct_from_dirt_and_ballast() {
+        let (dirt, dirt_gloss) = road_surface_tone(RoadSurface::Dirt);
+        let (ballast, ballast_gloss) = road_surface_tone(RoadSurface::Ballast);
+        let (cobble, cobble_gloss) = road_surface_tone(RoadSurface::Cobble);
+        assert!((cobble.x - cobble.y).abs() < 0.03, "setts are grey, not tinted earth");
+        assert!(cobble.z >= cobble.x, "the grey leans cool, never warm like dirt");
+        assert!(cobble.distance(dirt) > 0.08, "cobble must not read as dirt");
+        assert!(cobble.distance(ballast) > 0.04, "cobble must not read as ballast");
+        assert!(
+            cobble_gloss > ballast_gloss && cobble_gloss > dirt_gloss,
+            "setts carry the faint worn sheen"
+        );
+        assert!(cobble_gloss <= 0.15, "a street is stone, not a mirror");
+    }
+
+    /// The style-derivation table (urban-map PR-08): explicit names beat proportions, the
+    /// tenement is reachable both ways, and every legacy rule still lands where it always
+    /// did — a new style must never silently re-dress an old map.
+    #[test]
+    fn the_style_table_names_the_tenement_and_keeps_the_legacy_rules() {
+        use world_forge::building::BuildingStyle;
+        let by = |id: &str, half: [f32; 3]| derived_building_style(id, Vec3::from_array(half));
+        assert_eq!(by("ostrogorsk_church", [5.0, 7.0, 6.5]), BuildingStyle::Church);
+        assert_eq!(by("old_windmill", [4.0, 6.0, 4.0]), BuildingStyle::Windmill);
+        assert_eq!(by("tenement_row_a", [9.0, 4.0, 5.0]), BuildingStyle::Tenement);
+        assert_eq!(by("elevator_south", [6.0, 9.5, 6.0]), BuildingStyle::Tenement);
+        assert_eq!(by("mill_factory_south", [14.0, 6.0, 9.0]), BuildingStyle::FactoryHall);
+        assert_eq!(
+            by("long_low_hall", [14.0, 2.7, 9.0]),
+            BuildingStyle::Barn,
+            "no proportion ever invents a factory - halls stand by name"
+        );
+        assert_eq!(by("barn_2", [7.0, 2.7, 4.2]), BuildingStyle::Barn);
+        assert_eq!(by("town_house_c1", [4.5, 3.4, 4.5]), BuildingStyle::Townhouse);
+        assert_eq!(by("cottage_9", [4.0, 2.6, 3.2]), BuildingStyle::Cottage);
+    }
+
+    /// The coursed wall (urban-map PR-10): every box inside the collision footprint, a
+    /// lighter coping crowning the run, and piers adding real geometry beyond one plain box.
+    #[test]
+    fn the_stone_wall_wears_courses_inside_its_box() {
+        let wall = StaticCoverObject {
+            id: "yard_wall_probe".into(),
+            name: "yard wall".into(),
+            kind: StaticCoverKind::StoneWall,
+            center: [0.0, 1.1, 0.0],
+            half_extents_m: [0.4, 1.1, 7.0],
+        };
+        let mut vertices = Vec::new();
+        let mut indices = Vec::new();
+        append_cover_box(&mut vertices, &mut indices, &wall);
+        assert!(vertices.len() > 24, "coping + piers add geometry beyond one box");
+        for vertex in &vertices {
+            assert!(
+                vertex.position[0].abs() <= 0.4 + 1.0e-3
+                    && vertex.position[2].abs() <= 7.0 + 1.0e-3
+                    && vertex.position[1] <= 2.2 + 1.0e-3
+                    && vertex.position[1] >= -1.0e-3,
+                "wall geometry must stay inside the footprint, got {:?}",
+                vertex.position
+            );
+        }
+        let coping_lit =
+            vertices.iter().any(|v| v.position[1] > 2.0 && v.color[0] > 0.48 && v.color[1] > 0.46);
+        assert!(coping_lit, "the crown of the run wears the lighter coping stone");
+    }
+
+    /// The breach (urban-map PR-10): a Gone wall leaves a knee-high toppled course — inside
+    /// the old footprint, far below cover height, deterministic per id, and absent while the
+    /// wall stands.
+    #[test]
+    fn a_breached_wall_leaves_a_knee_high_toppled_course() {
+        let wall = StaticCoverObject {
+            id: "yard_wall_probe".into(),
+            name: "yard wall".into(),
+            kind: StaticCoverKind::StoneWall,
+            center: [10.0, 1.1, 5.0],
+            half_extents_m: [0.4, 1.1, 7.0],
+        };
+        let mut first = (Vec::new(), Vec::new());
+        append_toppled_wall(&mut first.0, &mut first.1, &wall);
+        assert!(!first.0.is_empty(), "a breach is bricks at your feet, not a vacuum");
+        for vertex in &first.0 {
+            assert!(
+                (vertex.position[0] - 10.0).abs() <= 0.4 + 1.0e-3
+                    && (vertex.position[2] - 5.0).abs() <= 7.0 + 1.0e-3,
+                "tumbled slabs stay inside the old footprint, got {:?}",
+                vertex.position
+            );
+            assert!(
+                vertex.position[1] <= 0.5,
+                "the toppled course stays knee-high (honest-blockers rule), got {:?}",
+                vertex.position
+            );
+        }
+        let mut second = (Vec::new(), Vec::new());
+        append_toppled_wall(&mut second.0, &mut second.1, &wall);
+        assert_eq!(
+            first.0.len(),
+            second.0.len(),
+            "the same wall always falls the same way (deterministic per id)"
+        );
+    }
+
     /// The grass is a patchwork, not a lawn: across the open steppe the green varies by
     /// visible drifts, deterministically — the same map builds the same field every time.
     #[test]
@@ -1593,6 +1940,74 @@ mod tests {
                     && delta.z <= half.z + 1.0e-3
             });
             assert!(rendered, "static cover {} must be part of the battlefield mesh", cover.id);
+        }
+    }
+
+    /// THE partial-rebake lock (urban-map program PR-04): collapse one building, re-bake ONLY
+    /// the buckets its footprint touches, reassemble — and the result equals a full fresh bake
+    /// bit for bit. This is what licenses the client to skip 16/17 of the bake on a phase
+    /// change.
+    #[test]
+    fn replacing_only_the_dirty_buckets_equals_a_full_fresh_bake() {
+        let battlefield = map_forge::battlefield(terrain::MapId::BystraValley);
+        let intact = vec![0u8; battlefield.static_cover.len()];
+        let mut buckets = battlefield_statics_buckets(&battlefield, &intact, &[]);
+
+        let collapsed_index = battlefield
+            .static_cover
+            .iter()
+            .position(|cover| cover.kind == StaticCoverKind::FarmBuilding)
+            .expect("Bystra carries buildings");
+        let mut states = intact.clone();
+        states[collapsed_index] = 1;
+
+        let dirty: Vec<usize> = statics_buckets_touched_by_cover(
+            &battlefield,
+            &battlefield.static_cover[collapsed_index],
+        )
+        .collect();
+        assert!(!dirty.is_empty(), "a cover box must touch at least its own bucket");
+        assert!(
+            dirty.iter().all(|&bucket| bucket != STATICS_BACKDROP_BUCKET),
+            "gameplay must never dirty the backdrop bucket"
+        );
+        for &bucket in &dirty {
+            buckets[bucket] = battlefield_statics_bucket_mesh(&battlefield, &states, &[], bucket);
+        }
+
+        let partial = assemble_statics_mesh(&buckets);
+        let full = battlefield_statics_mesh_with_scars(&battlefield, &states, &[]);
+        assert_eq!(partial.0.len(), full.0.len(), "vertex counts must agree");
+        assert_eq!(partial.1, full.1, "index streams must agree");
+        assert!(
+            partial
+                .0
+                .iter()
+                .zip(&full.0)
+                .all(|(a, b)| a.position == b.position && a.color == b.color),
+            "vertex streams must agree"
+        );
+    }
+
+    /// The bucket partition never loses an object: every cover box still contributes geometry
+    /// to exactly the bucket its center owns, and the assembled mesh carries them all.
+    #[test]
+    fn every_bucket_object_survives_partitioning() {
+        let battlefield = map_forge::battlefield(terrain::MapId::BystraValley);
+        let states = vec![0u8; battlefield.static_cover.len()];
+        let buckets = battlefield_statics_buckets(&battlefield, &states, &[]);
+        assert_eq!(buckets.len(), STATICS_BUCKET_COUNT);
+        let (vertices, _) = assemble_statics_mesh(&buckets);
+        for cover in &battlefield.static_cover {
+            let center = Vec3::from_array(cover.center);
+            let half = Vec3::from_array(cover.half_extents_m);
+            let rendered = vertices.iter().any(|vertex| {
+                let delta = (Vec3::from_array(vertex.position) - center).abs();
+                delta.x <= half.x + 1.0e-3
+                    && delta.y <= half.y + 1.0e-3
+                    && delta.z <= half.z + 1.0e-3
+            });
+            assert!(rendered, "cover {} must survive the bucket partition", cover.id);
         }
     }
 }

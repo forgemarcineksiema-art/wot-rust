@@ -26,6 +26,12 @@ pub enum SceneryKind {
     Bush,
     /// Conifer: a bare lower trunk under a stacked conical crown — the alpine tree.
     Pine,
+    /// Street furniture (urban-map PR-11): a cast-iron lamp column with its arm and head.
+    /// Render-only like all scenery — it never blocks anything.
+    Lamppost,
+    /// A knee-high masonry debris pile — street dressing for a fought-over city. Low enough
+    /// that it can never read as the cover it honestly is not.
+    DebrisHeap,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]

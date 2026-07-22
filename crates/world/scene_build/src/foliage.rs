@@ -24,7 +24,7 @@ pub fn push_scenery_instance(
         SceneryKind::FruitTree => Some(world_forge::tree::TreeSpecies::FruitTree),
         SceneryKind::Bush => Some(world_forge::tree::TreeSpecies::Bush),
         SceneryKind::Pine => Some(world_forge::tree::TreeSpecies::Pine),
-        SceneryKind::Rock => None,
+        SceneryKind::Rock | SceneryKind::Lamppost | SceneryKind::DebrisHeap => None,
     };
     if let Some(species) = species {
         push_baked_tree(vertices, indices, instance, species);
@@ -142,6 +142,58 @@ pub fn push_scenery_instance_far(
             let tip = skirt + Vec3::Y * 2.6 * s;
             push_frustum(vertices, indices, tip, 1.1 * s, 0.04 * s, 2.9 * s, CANOPY_PINE);
         }
+        SceneryKind::Lamppost => {
+            // Cast iron (urban-map PR-11): the tapering column, the short arm reaching over
+            // the roadway along the instance yaw, and the warm glass head under it.
+            push_frustum(vertices, indices, base, 0.09 * s, 0.055 * s, 4.0 * s, IRON);
+            let reach = Vec3::new(yaw.sin(), 0.0, yaw.cos());
+            let arm_root = base + Vec3::Y * 4.0 * s;
+            let start = vertices.len();
+            push_oriented_box(
+                vertices,
+                indices,
+                arm_root + reach * 0.35 * s + Vec3::Y * 0.06 * s,
+                Vec3::new(0.045 * s, 0.045 * s, 0.42 * s),
+                Mat3::from_rotation_y(yaw),
+                IRON.0,
+            );
+            push_oriented_box(
+                vertices,
+                indices,
+                arm_root + reach * 0.72 * s - Vec3::Y * 0.12 * s,
+                Vec3::new(0.11 * s, 0.16 * s, 0.11 * s),
+                Mat3::from_rotation_y(yaw),
+                LAMP_GLASS.0,
+            );
+            for vertex in &mut vertices[start..] {
+                vertex.gloss = if vertex.color == LAMP_GLASS.0 { LAMP_GLASS.1 } else { IRON.1 };
+            }
+        }
+        SceneryKind::DebrisHeap => {
+            // A knee-high masonry spill (urban-map PR-11): a low mound with two tumbled
+            // slabs. Deliberately under bush height — dressing, never implied cover.
+            push_frustum(vertices, indices, base, 0.95 * s, 0.3 * s, 0.42 * s, RUBBLE);
+            let start = vertices.len();
+            push_oriented_box(
+                vertices,
+                indices,
+                base + Vec3::new(0.45 * s, 0.14 * s, -0.2 * s),
+                Vec3::new(0.3 * s, 0.12 * s, 0.2 * s),
+                Mat3::from_rotation_y(yaw + 0.5),
+                RUBBLE.0,
+            );
+            push_oriented_box(
+                vertices,
+                indices,
+                base + Vec3::new(-0.4 * s, 0.1 * s, 0.3 * s),
+                Vec3::new(0.24 * s, 0.09 * s, 0.17 * s),
+                Mat3::from_rotation_y(yaw - 0.8),
+                RUBBLE.0,
+            );
+            for vertex in &mut vertices[start..] {
+                vertex.gloss = RUBBLE.1;
+            }
+        }
         SceneryKind::Rock => {
             // Bare mineral faces catch the sky harder than anything vegetal around them.
             let start = vertices.len();
@@ -167,6 +219,10 @@ const CANOPY: ([f32; 3], f32) = ([0.18, 0.34, 0.15], 0.07);
 const CANOPY_DARK: ([f32; 3], f32) = ([0.13, 0.27, 0.12], 0.06);
 const CANOPY_PALE: ([f32; 3], f32) = ([0.24, 0.38, 0.19], 0.08);
 const CANOPY_PINE: ([f32; 3], f32) = ([0.10, 0.22, 0.13], 0.05);
+/// Cast iron and its warm glass head (urban-map PR-11); masonry spill for the debris heap.
+const IRON: ([f32; 3], f32) = ([0.16, 0.17, 0.18], 0.25);
+const LAMP_GLASS: ([f32; 3], f32) = ([0.75, 0.68, 0.45], 0.5);
+const RUBBLE: ([f32; 3], f32) = ([0.44, 0.40, 0.35], 0.07);
 
 /// A flat-shaded n-gon frustum standing on `base`: `r0` at the bottom, `r1` at the top,
 /// closed with a top fan. Six segments keep a tree ~50 tris.
@@ -227,6 +283,8 @@ mod tests {
             SceneryKind::Rock,
             SceneryKind::Bush,
             SceneryKind::Pine,
+            SceneryKind::Lamppost,
+            SceneryKind::DebrisHeap,
         ] {
             let mut vertices = Vec::new();
             let mut indices = Vec::new();
@@ -237,6 +295,13 @@ mod tests {
             );
             assert!(!indices.is_empty());
             assert!(indices.len().is_multiple_of(3));
+            if kind == SceneryKind::DebrisHeap {
+                let top = vertices.iter().map(|v| v.position[1] - 3.0).fold(f32::MIN, f32::max);
+                assert!(
+                    top <= 0.7 * 1.3,
+                    "a debris heap stays knee-high (honest-blockers rule), got {top}"
+                );
+            }
             assert!(
                 indices.len() / 3 <= MAX_TRIS_PER_INSTANCE,
                 "{kind:?} broke the per-instance triangle budget: {}",

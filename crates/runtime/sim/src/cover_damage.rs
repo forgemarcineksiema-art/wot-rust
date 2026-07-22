@@ -64,6 +64,21 @@ pub fn cover_states_for(cover: &[StaticCoverObject]) -> Vec<CoverState> {
     cover.iter().map(CoverState::fresh).collect()
 }
 
+/// The states a battle STARTS from (urban-map program PR-07): fresh everywhere, except that
+/// born-ruins (`terrain::born_cover_phase_byte`) begin already collapsed at zero health. The
+/// server's lazy init and the client's pre-snapshot bake both read the same birth rule, so a
+/// battle opens on the same ruined skyline everywhere — and snapshots re-send whole states,
+/// so convergence stays free.
+pub fn initial_cover_states(cover: &[StaticCoverObject]) -> Vec<CoverState> {
+    cover
+        .iter()
+        .map(|object| match terrain::born_cover_phase_byte(object) {
+            0 => CoverState::fresh(object),
+            byte => CoverState { health: 0, phase: CoverPhase::from_wire(byte) },
+        })
+        .collect()
+}
+
 /// The cover the world actually collides against this tick: intact objects as-authored, rubble as
 /// a lowered box, and destroyed objects omitted entirely. Every blocking consumer (shell trace,
 /// movement, spotting LOS) takes this in place of the raw static cover, so cover destruction
@@ -296,6 +311,100 @@ mod tests {
         assert!(!crush_cover(&mut states, &cover[1], 1), "the barn is not crushable");
         assert_eq!(states[0].phase, CoverPhase::Gone);
         assert_eq!(states[1].phase, CoverPhase::Intact);
+    }
+
+    /// Urban-map doctrine decision 2, as tests: a CityBuilding soaks 1500 HP and collapses
+    /// to the standard rubble mound (hull blocked, turret-height shot clears); a StoneWall
+    /// opens at 150 HP and goes fully GONE — a breached wall is a door, never a mound.
+    #[test]
+    fn a_city_building_is_masonry_and_a_stone_wall_breaches_clean() {
+        let cover = vec![
+            object("tenement_a", StaticCoverKind::CityBuilding, [0.0, 5.5, 0.0], [9.0, 5.5, 5.0]),
+            object("yard_wall", StaticCoverKind::StoneWall, [30.0, 1.1, 0.0], [0.4, 1.1, 7.0]),
+        ];
+        let mut states = cover_states_for(&cover);
+
+        damage_cover(&mut states, &cover, 0, 1499);
+        assert_eq!(states[0].phase, CoverPhase::Intact, "1499 HP does not fell masonry");
+        damage_cover(&mut states, &cover, 0, 1);
+        assert_eq!(states[0].phase, CoverPhase::Rubble, "the block collapses at 1500");
+
+        damage_cover(&mut states, &cover, 1, 150);
+        assert_eq!(states[1].phase, CoverPhase::Gone, "a breached wall leaves no mound");
+
+        let live = live_cover_for_blocking(&cover, &states);
+        assert_eq!(live.len(), 1, "the wall is a clear door; the rubble still stands");
+        assert!(
+            live[0].half_extents_m[1] < 5.5 * 0.5,
+            "the mound is low enough for a turret-height shot"
+        );
+    }
+
+    /// A 30 t hull breaches a brick garden wall by driving through it; a city building
+    /// stops the hull like any building.
+    #[test]
+    fn a_hull_crushes_a_stone_wall_but_not_a_city_building() {
+        let cover = vec![
+            object("yard_wall", StaticCoverKind::StoneWall, [0.0, 1.1, 0.0], [0.4, 1.1, 7.0]),
+            object("tenement", StaticCoverKind::CityBuilding, [30.0, 5.5, 0.0], [9.0, 5.5, 5.0]),
+        ];
+        let mut states = cover_states_for(&cover);
+        assert!(crush_cover(&mut states, &cover[0], 0), "the wall crushes under the hull");
+        assert_eq!(states[0].phase, CoverPhase::Gone);
+        assert!(!crush_cover(&mut states, &cover[1], 1), "masonry blocks do not crush");
+    }
+
+    /// The recorded no-protocol-bump proof (urban-map doctrine decision 1): cover phases ride
+    /// the wire as kind-AGNOSTIC bytes, so states on the new urban kinds round-trip through
+    /// the same encoding untouched — appending kinds cannot shift a single wire byte.
+    #[test]
+    fn new_urban_kinds_ride_the_same_phase_bytes() {
+        let cover = vec![
+            object("tenement", StaticCoverKind::CityBuilding, [0.0, 5.5, 0.0], [9.0, 5.5, 5.0]),
+            object("yard_wall", StaticCoverKind::StoneWall, [30.0, 1.1, 0.0], [0.4, 1.1, 7.0]),
+        ];
+        let mut states = cover_states_for(&cover);
+        damage_cover(&mut states, &cover, 0, u32::MAX);
+        damage_cover(&mut states, &cover, 1, u32::MAX);
+        let bytes: Vec<u8> = states.iter().map(|state| state.phase.to_wire()).collect();
+        assert_eq!(bytes, vec![1, 2], "Rubble/Gone use the same bytes every kind uses");
+        let decoded: Vec<CoverPhase> =
+            bytes.iter().map(|&byte| CoverPhase::from_wire(byte)).collect();
+        assert_eq!(decoded, vec![CoverPhase::Rubble, CoverPhase::Gone]);
+    }
+
+    /// Born-ruins (urban-map PR-07): a "ruin" id starts at zero health in its collapsed
+    /// phase, the sim's lazy state init picks that up, and the live-blocking slice serves
+    /// the mound (or the clear door) from tick zero — no shell ever fired.
+    #[test]
+    fn born_ruins_start_collapsed_in_the_sim_and_on_the_wire() {
+        let cover = vec![
+            object("tenement_a", StaticCoverKind::CityBuilding, [0.0, 5.5, 0.0], [9.0, 5.5, 5.0]),
+            object(
+                "tenement_ruin",
+                StaticCoverKind::CityBuilding,
+                [30.0, 5.5, 0.0],
+                [9.0, 5.5, 5.0],
+            ),
+            object("wall_ruin", StaticCoverKind::StoneWall, [60.0, 1.1, 0.0], [0.4, 1.1, 7.0]),
+        ];
+        let states = initial_cover_states(&cover);
+        assert_eq!(states[0].phase, CoverPhase::Intact);
+        assert_eq!((states[1].phase, states[1].health), (CoverPhase::Rubble, 0));
+        assert_eq!((states[2].phase, states[2].health), (CoverPhase::Gone, 0));
+
+        // The sim's lazy init reads the same birth rule.
+        let mut state = crate::SimulationState::new();
+        state.refresh_spotting(None, &cover);
+        assert_eq!(state.cover_states()[1].phase, CoverPhase::Rubble);
+
+        // And the wire bytes carry the ruin to every client and late joiner.
+        let bytes: Vec<u8> = states.iter().map(|s| s.phase.to_wire()).collect();
+        assert_eq!(bytes, vec![0, 1, 2]);
+
+        let live = live_cover_for_blocking(&cover, &states);
+        assert_eq!(live.len(), 2, "the ruined wall is a clear door from tick zero");
+        assert!(live[1].half_extents_m[1] < 5.5 * 0.5, "the born mound is already low");
     }
 
     #[test]

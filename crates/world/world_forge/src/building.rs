@@ -28,15 +28,25 @@ pub enum BuildingStyle {
     /// the honesty rule keeps every vertex inside the collision footprint, and the footprint
     /// is the tower.
     Windmill,
+    /// The city tenement (urban-map program PR-08): a three-storey masonry block — tall
+    /// plinth, string courses marking the floors, a regular window grid on both street
+    /// fronts, a paired entrance, and a shallow-pitched roof. The urban core's brick.
+    Tenement,
+    /// The factory hall (urban-map program PR-09): a long tall brick hall — sparse high
+    /// windows over a working wall, a big gable-end doorway under a stone lintel, and a
+    /// glazed clerestory band riding the ridge under its flat industrial cap.
+    FactoryHall,
 }
 
 impl BuildingStyle {
-    pub const ALL: [BuildingStyle; 5] = [
+    pub const ALL: [BuildingStyle; 7] = [
         BuildingStyle::Cottage,
         BuildingStyle::Barn,
         BuildingStyle::Townhouse,
         BuildingStyle::Church,
         BuildingStyle::Windmill,
+        BuildingStyle::Tenement,
+        BuildingStyle::FactoryHall,
     ];
 
     fn params(self) -> StyleParams {
@@ -92,6 +102,30 @@ impl BuildingStyle {
                 windows_per_side: 1,
                 window_size: (0.45, 0.6),
                 door_size: (0.8, 1.5),
+            },
+            // Three storeys of masonry under a shallow roof: eaves ~10.4 m puts each floor
+            // near the civic 3.2 m, and the low ridge keeps the skyline a wall, not a barn.
+            BuildingStyle::Tenement => StyleParams {
+                half_width: 4.6,
+                half_depth: 6.0,
+                eaves_height: 10.4,
+                ridge_height: 12.0,
+                plinth_height: 0.7,
+                windows_per_side: 4,
+                window_size: (0.65, 1.0),
+                door_size: (0.85, 1.3),
+            },
+            // A working span, not a house: one tall volume, high sills so machines line the
+            // walls, and a door a loaded wagon clears. ridge_height caps the clerestory.
+            BuildingStyle::FactoryHall => StyleParams {
+                half_width: 6.5,
+                half_depth: 11.0,
+                eaves_height: 7.2,
+                ridge_height: 9.0,
+                plinth_height: 0.6,
+                windows_per_side: 5,
+                window_size: (0.8, 1.4),
+                door_size: (2.6, 3.4),
             },
         }
     }
@@ -154,12 +188,14 @@ impl BakedBuilding {
 }
 
 /// Style goldens at seed 0, Intact form (rubble is derived; its own lock is the honesty test).
-pub const BUILDING_GOLDEN_HASHES: [(BuildingStyle, u64); 5] = [
+pub const BUILDING_GOLDEN_HASHES: [(BuildingStyle, u64); 7] = [
     (BuildingStyle::Cottage, 0x8156_06d3_7c04_2428),
     (BuildingStyle::Barn, 0x2a90_7451_e2cd_c380),
     (BuildingStyle::Townhouse, 0xc72d_90df_09d2_f880),
     (BuildingStyle::Church, 0xe6b4_6a85_bda2_598b),
     (BuildingStyle::Windmill, 0xeb28_4dff_02e0_1929),
+    (BuildingStyle::Tenement, 0x5cb8_be3a_8953_2a48),
+    (BuildingStyle::FactoryHall, 0x71cb_9750_5e35_0fe4),
 ];
 
 pub fn bake_building(style: BuildingStyle, seed: u64, form: StructureForm) -> BakedBuilding {
@@ -182,6 +218,8 @@ fn bake_intact(
     match style {
         BuildingStyle::Church => return bake_church(seed, params, footprint_half),
         BuildingStyle::Windmill => return bake_windmill(seed, params, footprint_half),
+        BuildingStyle::Tenement => return bake_tenement(seed, params, footprint_half),
+        BuildingStyle::FactoryHall => return bake_factory_hall(seed, params, footprint_half),
         _ => {}
     }
     let mut rng = Rng(seed ^ 0xB11D_0000 ^ style as u64);
@@ -341,6 +379,213 @@ fn bake_church(seed: u64, params: &StyleParams, footprint_half: Vec3) -> BakedBu
     );
     BakedBuilding {
         style: BuildingStyle::Church,
+        walls: GeometryMesh::new(walls, wall_indices),
+        roof: GeometryMesh::new(roof, roof_indices),
+        footprint_half,
+    }
+}
+
+/// The tenement (urban-map PR-08): three storeys of masonry read as FLOORS — the plinth,
+/// then a window row per storey between string courses, under a shallow roof. The mechanical
+/// logic is civic, not rural: floors land near 3.2 m, windows align in a grid (the per-slot
+/// jitter is a hand-set tolerance, not a scatter), the entrance is a pair, and the courses
+/// carry the masonry story across the whole street front.
+fn bake_tenement(seed: u64, params: &StyleParams, footprint_half: Vec3) -> BakedBuilding {
+    let mut rng = Rng(seed ^ 0x7E4E_0000);
+    let recess = 0.1;
+    let mut walls = Vec::new();
+    let mut wall_indices = Vec::new();
+    // Tall stone plinth, then the recessed masonry body up to the eaves.
+    push_box(
+        &mut walls,
+        &mut wall_indices,
+        Vec3::new(0.0, params.plinth_height * 0.5, 0.0),
+        Vec3::new(params.half_width, params.plinth_height * 0.5, params.half_depth),
+        WorldMaterial::PlinthStone,
+    );
+    let body_half_y = (params.eaves_height - params.plinth_height) * 0.5;
+    push_box(
+        &mut walls,
+        &mut wall_indices,
+        Vec3::new(0.0, params.plinth_height + body_half_y, 0.0),
+        Vec3::new(params.half_width - recess, body_half_y, params.half_depth - recess),
+        WorldMaterial::Wall,
+    );
+    // Three storeys between plinth and eaves; a stone string course marks each floor line.
+    const STOREYS: u32 = 3;
+    let storey_h = (params.eaves_height - params.plinth_height) / STOREYS as f32;
+    for course in 1..STOREYS {
+        push_box(
+            &mut walls,
+            &mut wall_indices,
+            Vec3::new(0.0, params.plinth_height + storey_h * course as f32, 0.0),
+            Vec3::new(params.half_width - recess * 0.3, 0.07, params.half_depth - recess * 0.3),
+            WorldMaterial::PlinthStone,
+        );
+    }
+    // The window grid: one row per storey on BOTH street fronts, aligned in slots with a
+    // hand-set jitter per pane. Glass sits proud of the recessed render, inside the footprint.
+    let (window_w, window_h) = params.window_size;
+    for storey in 0..STOREYS {
+        let sill = params.plinth_height + storey_h * storey as f32 + 0.85;
+        for side in [-1.0_f32, 1.0] {
+            for slot in 0..params.windows_per_side {
+                let along = (slot as f32 + 0.5) / params.windows_per_side as f32 * 2.0 - 1.0;
+                let jitter = rng.signed() * 0.05;
+                push_box(
+                    &mut walls,
+                    &mut wall_indices,
+                    Vec3::new(
+                        side * (params.half_width - recess * 0.5),
+                        sill + window_h * 0.5,
+                        (along + jitter) * (params.half_depth * 0.7),
+                    ),
+                    Vec3::new(recess * 0.45, window_h * 0.5, window_w * 0.5),
+                    WorldMaterial::WindowGlass,
+                );
+            }
+        }
+    }
+    // The paired entrance on the +X street front: two doors flanking the middle bay.
+    let (door_w, door_h) = params.door_size;
+    for door_side in [-1.0_f32, 1.0] {
+        push_box(
+            &mut walls,
+            &mut wall_indices,
+            Vec3::new(
+                params.half_width - recess * 0.5,
+                params.plinth_height + door_h * 0.5,
+                door_side * params.half_depth * 0.35,
+            ),
+            Vec3::new(recess * 0.5, door_h * 0.5, door_w * 0.5),
+            WorldMaterial::PlankDoor,
+        );
+    }
+
+    // The shallow-pitched roof: the skyline stays a masonry wall, not a barn.
+    let mut roof = Vec::new();
+    let mut roof_indices = Vec::new();
+    push_gable(
+        &mut roof,
+        &mut roof_indices,
+        params.half_width,
+        params.half_depth,
+        params.eaves_height,
+        params.ridge_height,
+    );
+    BakedBuilding {
+        style: BuildingStyle::Tenement,
+        walls: GeometryMesh::new(walls, wall_indices),
+        roof: GeometryMesh::new(roof, roof_indices),
+        footprint_half,
+    }
+}
+
+/// The factory hall (urban-map PR-09): one working span. The mechanical story — high sills
+/// because machine lines own the walls below, a gable-end doorway a loaded wagon clears
+/// under its stone lintel, and the glazed clerestory band riding the ridge (the hall's real
+/// daylight) under a flat industrial cap. Halls stand by NAME (`factory` in the id): the
+/// proportion heuristic never invents one.
+fn bake_factory_hall(seed: u64, params: &StyleParams, footprint_half: Vec3) -> BakedBuilding {
+    let mut rng = Rng(seed ^ 0xFAC7_0000);
+    let recess = 0.1;
+    let mut walls = Vec::new();
+    let mut wall_indices = Vec::new();
+    push_box(
+        &mut walls,
+        &mut wall_indices,
+        Vec3::new(0.0, params.plinth_height * 0.5, 0.0),
+        Vec3::new(params.half_width, params.plinth_height * 0.5, params.half_depth),
+        WorldMaterial::PlinthStone,
+    );
+    let body_half_y = (params.eaves_height - params.plinth_height) * 0.5;
+    push_box(
+        &mut walls,
+        &mut wall_indices,
+        Vec3::new(0.0, params.plinth_height + body_half_y, 0.0),
+        Vec3::new(params.half_width - recess, body_half_y, params.half_depth - recess),
+        WorldMaterial::Wall,
+    );
+    // Sparse HIGH windows on both long walls: the machine lines own the wall below the
+    // sills, so the glass starts at shoulder-of-the-hall height.
+    let (window_w, window_h) = params.window_size;
+    let sill = params.eaves_height - window_h - 1.1;
+    for side in [-1.0_f32, 1.0] {
+        for slot in 0..params.windows_per_side {
+            let along = (slot as f32 + 0.5) / params.windows_per_side as f32 * 2.0 - 1.0;
+            let jitter = rng.signed() * 0.05;
+            push_box(
+                &mut walls,
+                &mut wall_indices,
+                Vec3::new(
+                    side * (params.half_width - recess * 0.5),
+                    sill + window_h * 0.5,
+                    (along + jitter) * (params.half_depth * 0.78),
+                ),
+                Vec3::new(recess * 0.45, window_h * 0.5, window_w * 0.5),
+                WorldMaterial::WindowGlass,
+            );
+        }
+    }
+    // The wagon door on the +Z gable end, under a stone lintel band; a worker door on the
+    // +X long wall near the corner.
+    let (door_w, door_h) = params.door_size;
+    push_box(
+        &mut walls,
+        &mut wall_indices,
+        Vec3::new(0.0, params.plinth_height + door_h * 0.5, params.half_depth - recess * 0.5),
+        Vec3::new(door_w * 0.5, door_h * 0.5, recess * 0.5),
+        WorldMaterial::PlankDoor,
+    );
+    push_box(
+        &mut walls,
+        &mut wall_indices,
+        Vec3::new(0.0, params.plinth_height + door_h + 0.25, params.half_depth - recess * 0.5),
+        Vec3::new(door_w * 0.5 + 0.35, 0.25, recess * 0.5),
+        WorldMaterial::PlinthStone,
+    );
+    push_box(
+        &mut walls,
+        &mut wall_indices,
+        Vec3::new(
+            params.half_width - recess * 0.5,
+            params.plinth_height + 1.05,
+            -params.half_depth * 0.72,
+        ),
+        Vec3::new(recess * 0.5, 1.05, 0.55),
+        WorldMaterial::PlankDoor,
+    );
+
+    // The roof story: the main gable stops short of the ridge cap, the glazed clerestory
+    // band rides the ridge line, and a flat slab caps it — industrial, not domestic.
+    let gable_top = params.ridge_height - 1.0;
+    let mut roof = Vec::new();
+    let mut roof_indices = Vec::new();
+    push_gable(
+        &mut roof,
+        &mut roof_indices,
+        params.half_width,
+        params.half_depth,
+        params.eaves_height,
+        gable_top,
+    );
+    let clerestory_half = Vec3::new(1.9, 0.45, params.half_depth * 0.72);
+    push_box(
+        &mut walls,
+        &mut wall_indices,
+        Vec3::new(0.0, gable_top - 0.1 + clerestory_half.y, 0.0),
+        clerestory_half,
+        WorldMaterial::WindowGlass,
+    );
+    push_box(
+        &mut roof,
+        &mut roof_indices,
+        Vec3::new(0.0, gable_top - 0.1 + clerestory_half.y * 2.0 + 0.09, 0.0),
+        Vec3::new(clerestory_half.x + 0.25, 0.1, clerestory_half.z + 0.25),
+        WorldMaterial::Roof,
+    );
+    BakedBuilding {
+        style: BuildingStyle::FactoryHall,
         walls: GeometryMesh::new(walls, wall_indices),
         roof: GeometryMesh::new(roof, roof_indices),
         footprint_half,

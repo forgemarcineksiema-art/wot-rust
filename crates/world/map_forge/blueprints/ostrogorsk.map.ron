@@ -1,0 +1,534 @@
+MapBlueprint(
+    meta: MetaSpec(
+        version: 1,
+        id: "ostrogorsk",
+        name: "Ostrogorsk",
+        historical_basis: "Voronezh axis, late summer 1943: a small railway city behind the Ostrogozhsk-Rossosh line - a fictional city composed for mirror fairness; no specific engagement is depicted.",
+        design_notes: [
+            "city + open outskirts hybrid: a dense masonry city on the west bench, open field patchwork and a north-south rail embankment on the east, the boulevard square between them - every playstyle gets its flank",
+            "the berm is the east wall: 7 m of fill exceeding the climb grade everywhere except three gates (the level crossing on the axis, two mirrored underpass cuts) - the eastern routes ARE the gates",
+            "SKELETON stage (urban-map program PR-02): town grid and factory placeholders use the existing vocabulary (FarmBuilding/RailCover); the dense CityBuilding core, StoneWall perimeters, cobbles and born-ruins land with waves F+U of docs/urban-map-program.md",
+        ],
+    ),
+    grid: GridSpec(
+        size_m: (1000.0, 1000.0),
+        cell_m: 5.0,
+        min_height_m: 0.2,
+    ),
+    symmetry: Some(MirrorZ),
+    horizon: Some(HorizonSpec(
+        hills_base_m: 24.0,
+        swell: (5.5, 0.008, 0.006, 1.8),
+        x_roll: (3.5, 0.012),
+        z_roll: (3.0, 0.01),
+        closure_start_m: 30.0,
+        closure_span_m: 280.0,
+        river_gap_half_m: 0.0,
+        river_gap_falloff_m: 1.0,
+    )),
+    terrain: TerrainProgram(
+        base: SlopeEases(
+            base: 14.0,
+            eases: [
+                (470.0, 140.0, -3.0),
+                (700.0, 180.0, -3.0),
+            ],
+        ),
+        ops: [
+            Relief(
+                terms: [SinX(amp: 0.8, wave: 80.0), CosDz(amp: 0.7, wave: 65.0), SinXCosDz(amp: 0.5, x_freq: 0.045, dz_freq: 0.032)],
+                dampen: [TownRect(rect: RectBand(x_center_m: 255.0, x_half_m: 215.0, x_falloff_m: 45.0, dz_half_m: 330.0, dz_falloff_m: 45.0), strength: 0.85)],
+            ),
+            // The city bench: one honest grade under every street, falling gently from the
+            // west edge toward the boulevard so the town drains east without a single step.
+            FlattenToRamp(
+                mask: RectBand(x_center_m: 255.0, x_half_m: 215.0, x_falloff_m: 45.0, dz_half_m: 330.0, dz_falloff_m: 45.0),
+                ramp_base_m: 14.2,
+                ramp_from_x_m: 40.0,
+                ramp_slope: -0.005,
+                strength: 0.9,
+            ),
+            // Mirrored outskirts rises between the boulevard and the berm: the open-flank
+            // high ground, with a sculpted hull-down line on their west shoulders.
+            Gauss2(
+                apply: Add,
+                terms: [Gauss2Term(x: 680.0, z: 330.0, sx: 60.0, sz: 50.0, amp: 6.0), Gauss2Term(x: 680.0, z: 670.0, sx: 60.0, sz: 50.0, amp: 6.0)],
+            ),
+            CrestShelf(
+                crest_x: 615.0,
+                shelf_x: 640.0,
+                sigma_x: 9.0,
+                crest_h: 1.8,
+                shelf_cut: 1.2,
+                windows: [(330.0, 60.0), (670.0, 60.0)],
+            ),
+            // The mainline embankment: a north-south fill at x 830 whose 5 m-step grade
+            // exceeds the 0.55 climb wall - impassable by design except at the gates.
+            Gauss1(
+                axis: X,
+                apply: Add,
+                terms: [Gauss1Term(center: 830.0, sigma: 6.0, amp: 7.0)],
+            ),
+            // The three gates: the level crossing on the axis and two mirrored underpass
+            // cuts. Wider gaussians than the berm, so each gate reads as a real cutting
+            // with sunken approaches instead of a knife slot.
+            Gauss2(
+                apply: Subtract,
+                terms: [Gauss2Term(x: 830.0, z: 500.0, sx: 12.0, sz: 14.0, amp: 7.0), Gauss2Term(x: 830.0, z: 270.0, sx: 12.0, sz: 10.0, amp: 7.0), Gauss2Term(x: 830.0, z: 730.0, sx: 12.0, sz: 10.0, amp: 7.0)],
+            ),
+            ClampMin(0.2),
+        ],
+    ),
+    materials: Some(GroundMaterialsSpec(
+        // Dusty late-summer city palette: worn green verges, sun-cured stubble, packed
+        // earth lanes, and grey rubble-stone where the grades break.
+        layers: (
+            GroundLayerSpec(albedo: (0.3, 0.33, 0.24), detail: 1.0, gloss: 0.03),
+            GroundLayerSpec(albedo: (0.45, 0.41, 0.28), detail: 1.0, gloss: 0.03),
+            GroundLayerSpec(albedo: (0.33, 0.29, 0.23), detail: 0.85, gloss: 0.05),
+            GroundLayerSpec(albedo: (0.46, 0.46, 0.44), detail: 1.0, gloss: 0.12),
+        ),
+        macro_normal_strength: 0.7,
+        // The east flank is worked farmland right up to the berm - the patchwork reads.
+        field_patch_strength: 0.85,
+    )),
+    environment: Some(EnvironmentSpec(
+        // First look = the default and the fallback; list order feeds the seeded roll.
+        looks: [
+            LookSpec(
+                variant: ClearAfternoon,
+                preset: HazyNoon,
+                sky_rgb: (0.62, 0.66, 0.72),
+            ),
+            LookSpec(
+                variant: GoldenEvening,
+                preset: GoldenEvening,
+                sky_rgb: (0.82, 0.6, 0.42),
+            ),
+            LookSpec(
+                variant: Overcast,
+                preset: LeadOvercast,
+                sky_rgb: (0.46, 0.49, 0.53),
+            ),
+            LookSpec(
+                variant: RainSqualls,
+                preset: RainSqualls,
+                sky_rgb: (0.42, 0.46, 0.5),
+                rain_intensity: 1.0,
+                wetness: 1.0,
+            ),
+        ],
+    )),
+    objects: [
+        // The church on the mirror axis: the tall silhouette of the square, contested
+        // equally. The id substring picks the Church bake.
+        Cover(
+            id: "ostrogorsk_church",
+            name: "Ostrogorsk church",
+            kind: FarmBuilding,
+            at: (Fixed(250.0), Fixed(500.0)),
+            half_extents_m: (5.0, 7.0, 6.5),
+        ),
+        // Mirrored mill compounds behind the city: the deep-west flank anchors. Placeholder
+        // FarmBuilding halls until FactoryHall (wave U) replaces them.
+        Cover(
+            id: "mill_hall_south",
+            name: "old mill hall (south)",
+            kind: FarmBuilding,
+            at: (Fixed(140.0), Fixed(350.0)),
+            half_extents_m: (14.0, 6.0, 9.0),
+        ),
+        Cover(
+            id: "mill_hall_north",
+            name: "old mill hall (north)",
+            kind: FarmBuilding,
+            at: (Fixed(140.0), Fixed(650.0)),
+            half_extents_m: (14.0, 6.0, 9.0),
+        ),
+        // Mill yard walls: masonry runs east of the halls. RailCover placeholder until the
+        // breachable StoneWall kind lands (wave F).
+        Cover(
+            id: "mill_wall_south",
+            name: "mill yard wall (south)",
+            kind: RailCover,
+            at: (Fixed(168.0), Fixed(335.0)),
+            half_extents_m: (0.6, 1.2, 14.0),
+        ),
+        Cover(
+            id: "mill_wall_north",
+            name: "mill yard wall (north)",
+            kind: RailCover,
+            at: (Fixed(168.0), Fixed(665.0)),
+            half_extents_m: (0.6, 1.2, 14.0),
+        ),
+        // Burned-out hulls flanking the level crossing: the axis gate is pre-marked as the
+        // fought-over door it will be.
+        Cover(
+            id: "crossing_wreck_south",
+            name: "burned-out hull at the level crossing (south)",
+            kind: Wreck,
+            at: (Fixed(842.0), Fixed(462.0)),
+            half_extents_m: (3.4, 1.6, 6.2),
+        ),
+        Cover(
+            id: "crossing_wreck_north",
+            name: "burned-out hull at the level crossing (north)",
+            kind: Wreck,
+            at: (Fixed(842.0), Fixed(538.0)),
+            half_extents_m: (3.4, 1.6, 6.2),
+        ),
+        // Grain elevators east of the berm: the tallest silhouettes of the fields, and the
+        // far-flank observation anchors.
+        Cover(
+            id: "elevator_south",
+            name: "grain elevator (south)",
+            kind: FarmBuilding,
+            at: (Fixed(915.0), Fixed(230.0)),
+            half_extents_m: (6.0, 9.5, 6.0),
+        ),
+        Cover(
+            id: "elevator_north",
+            name: "grain elevator (north)",
+            kind: FarmBuilding,
+            at: (Fixed(915.0), Fixed(770.0)),
+            half_extents_m: (6.0, 9.5, 6.0),
+        ),
+        // Field screens between the rises and the boulevard: honest LOS blocks for the
+        // open-flank run.
+        Cover(
+            id: "field_screen_south",
+            name: "field windbreak (south)",
+            kind: TreeLine,
+            at: (Fixed(600.0), Fixed(250.0)),
+            half_extents_m: (20.0, 4.5, 3.0),
+        ),
+        Cover(
+            id: "field_screen_north",
+            name: "field windbreak (north)",
+            kind: TreeLine,
+            at: (Fixed(600.0), Fixed(750.0)),
+            half_extents_m: (20.0, 4.5, 3.0),
+        ),
+        // The skeleton town: five column streets, three row streets, 30 houses. The dense
+        // CityBuilding core replaces this grid in wave M.
+        TownGrid(
+            id_prefix: "ostrogorsk_house",
+            name_prefix: "Ostrogorsk house",
+            kind: FarmBuilding,
+            columns_x_m: [
+                150.0,
+                215.0,
+                280.0,
+                345.0,
+                410.0,
+            ],
+            row_offsets_m: [
+                35.0,
+                80.0,
+                125.0,
+            ],
+            wide_half_m: (6.5, 3.4, 4.5),
+            narrow_half_m: (5.5, 3.0, 4.0),
+        ),
+    ],
+    scenery: [
+        // Orchards behind the west edge of the city.
+        Scatter(
+            seed: 4310001,
+            kind: FruitTree,
+            pairs: 10,
+            region: ScatterRect(
+                x: (55.0, 115.0),
+                z: (250.0, 460.0),
+            ),
+            exclude: Exclusion(
+                exclusion_circles: [(500.0, 110.0, 80.0), (500.0, 890.0, 80.0)],
+                road_margin_m: Some(3.0),
+                cover_margin_m: Some(2.5),
+            ),
+        ),
+        Scatter(
+            seed: 4310002,
+            kind: Oak,
+            pairs: 7,
+            region: ScatterRect(
+                x: (60.0, 130.0),
+                z: (140.0, 300.0),
+            ),
+            exclude: Exclusion(
+                exclusion_circles: [(500.0, 110.0, 80.0), (500.0, 890.0, 80.0)],
+                road_margin_m: Some(3.0),
+                cover_margin_m: Some(2.5),
+            ),
+        ),
+        // Field brush between the boulevard and the berm.
+        Scatter(
+            seed: 4310003,
+            kind: Bush,
+            pairs: 22,
+            region: ScatterRect(
+                x: (540.0, 800.0),
+                z: (120.0, 460.0),
+            ),
+            exclude: Exclusion(
+                exclusion_circles: [(500.0, 110.0, 80.0), (500.0, 890.0, 80.0)],
+                road_margin_m: Some(3.0),
+                cover_margin_m: Some(2.5),
+            ),
+        ),
+        // Sparse brush on the far side of the berm.
+        Scatter(
+            seed: 4310004,
+            kind: Bush,
+            pairs: 10,
+            region: ScatterRect(
+                x: (855.0, 960.0),
+                z: (140.0, 460.0),
+            ),
+            exclude: Exclusion(
+                road_margin_m: Some(3.0),
+                cover_margin_m: Some(2.5),
+            ),
+        ),
+        // The boulevard avenue: poplar rows flanking the north-south promenade, with a
+        // deliberate gap where the boulevard road crosses the axis.
+        Row(
+            kind: Poplar,
+            xs: [
+                448.0,
+                472.0,
+            ],
+            z_start_m: 258.0,
+            z_step_m: 32.0,
+            count: 16,
+            yaw_rad: 0.3,
+            scale: 1.0,
+        ),
+        Fixed(
+            kind: Pine,
+            spots: [
+                (900.0, 215.0),
+                (930.0, 250.0),
+            ],
+            yaw_rad: 0.2,
+            scale: 1.05,
+        ),
+    ],
+    roads: [
+        // The east-west boulevard: city square, level crossing, out to the fields. On the
+        // axis, so it mirrors onto itself. Dirt until Cobble lands (wave F).
+        Road(
+            id: "boulevard",
+            surface: Dirt,
+            points: [
+                (70.0, 500.0),
+                (470.0, 500.0),
+                (830.0, 500.0),
+                (955.0, 500.0),
+            ],
+            width_m: 7.0,
+        ),
+        // The city high street along the town-grid front.
+        MirroredPair(
+            id_base: "high_street",
+            surface: Dirt,
+            south_points: [
+                (430.0, 175.0),
+                (430.0, 496.0),
+            ],
+            width_m: 6.0,
+        ),
+        // Two east-west row streets through the grid corridors.
+        MirroredPair(
+            id_base: "market_lane",
+            surface: Dirt,
+            south_points: [
+                (120.0, 440.0),
+                (430.0, 440.0),
+            ],
+            width_m: 5.5,
+        ),
+        MirroredPair(
+            id_base: "yard_lane",
+            surface: Dirt,
+            south_points: [
+                (120.0, 398.0),
+                (430.0, 398.0),
+            ],
+            width_m: 5.5,
+        ),
+        // The mainline on the berm crest.
+        Road(
+            id: "rail_line",
+            surface: Ballast,
+            points: [
+                (830.0, 65.0),
+                (830.0, 935.0),
+            ],
+            width_m: 4.0,
+        ),
+        // The underpass lanes through the mirrored berm cuts.
+        MirroredPair(
+            id_base: "underpass_lane",
+            surface: Dirt,
+            south_points: [
+                (640.0, 270.0),
+                (950.0, 270.0),
+            ],
+            width_m: 5.0,
+        ),
+    ],
+    gameplay: GameplaySpec(
+        spawns: [
+            SpawnSpec(
+                team: 1,
+                at: (500.0, 110.0),
+                facing_yaw_rad: 0.0,
+                radius_m: None,
+            ),
+            SpawnSpec(
+                team: 2,
+                at: (500.0, 890.0),
+                facing_yaw_rad: 3.1415927,
+                radius_m: None,
+            ),
+        ],
+        strategic_points: [
+            StrategicPointSpec(
+                id: "church_square",
+                name: "church square",
+                role: Observation,
+                at: (Fixed(272.0), Fixed(500.0)),
+                radius_m: 45.0,
+            ),
+            StrategicPointSpec(
+                id: "boulevard_square",
+                name: "boulevard square",
+                role: Crossing,
+                at: (Fixed(470.0), Fixed(500.0)),
+                radius_m: 40.0,
+            ),
+            StrategicPointSpec(
+                id: "rail_crossing",
+                name: "the level crossing",
+                role: Crossing,
+                at: (Fixed(830.0), Fixed(500.0)),
+                radius_m: 40.0,
+            ),
+            StrategicPointSpec(
+                id: "underpass_south",
+                name: "berm underpass (south)",
+                role: Crossing,
+                at: (Fixed(830.0), Fixed(270.0)),
+                radius_m: 35.0,
+            ),
+            StrategicPointSpec(
+                id: "underpass_north",
+                name: "berm underpass (north)",
+                role: Crossing,
+                at: (Fixed(830.0), Fixed(730.0)),
+                radius_m: 35.0,
+            ),
+            StrategicPointSpec(
+                id: "mill_yard_south",
+                name: "mill yard (south)",
+                role: FlankRoute,
+                at: (Fixed(160.0), Fixed(350.0)),
+                radius_m: 40.0,
+            ),
+            StrategicPointSpec(
+                id: "mill_yard_north",
+                name: "mill yard (north)",
+                role: FlankRoute,
+                at: (Fixed(160.0), Fixed(650.0)),
+                radius_m: 40.0,
+            ),
+            StrategicPointSpec(
+                id: "outskirts_rise_south",
+                name: "outskirts rise (south)",
+                role: HighGround,
+                at: (Fixed(680.0), Fixed(330.0)),
+                radius_m: 45.0,
+            ),
+            StrategicPointSpec(
+                id: "outskirts_rise_north",
+                name: "outskirts rise (north)",
+                role: HighGround,
+                at: (Fixed(680.0), Fixed(670.0)),
+                radius_m: 45.0,
+            ),
+            StrategicPointSpec(
+                id: "berm_shadow_south",
+                name: "rise shoulder hull-down (south)",
+                role: HullDown,
+                at: (Fixed(640.0), Fixed(330.0)),
+                radius_m: 30.0,
+            ),
+            StrategicPointSpec(
+                id: "berm_shadow_north",
+                name: "rise shoulder hull-down (north)",
+                role: HullDown,
+                at: (Fixed(640.0), Fixed(670.0)),
+                radius_m: 30.0,
+            ),
+            StrategicPointSpec(
+                id: "elevator_south",
+                name: "grain elevator (south)",
+                role: Observation,
+                at: (Fixed(895.0), Fixed(250.0)),
+                radius_m: 40.0,
+            ),
+            StrategicPointSpec(
+                id: "elevator_north",
+                name: "grain elevator (north)",
+                role: Observation,
+                at: (Fixed(895.0), Fixed(750.0)),
+                radius_m: 40.0,
+            ),
+        ],
+        capture_zones: [
+            CaptureZoneSpec(
+                id: "town_square",
+                at: (470.0, 500.0),
+                radius_m: 30.0,
+            ),
+        ],
+        features: [
+            FeatureSpec(
+                kind: Farm,
+                name: "city of Ostrogorsk",
+                at: (Fixed(255.0), Fixed(500.0)),
+                radius_m: 230.0,
+                note: "the west bench carries the whole city: street canyons, the church square, the mill compounds - the close-quarters flank",
+            ),
+            FeatureSpec(
+                kind: RailEmbankment,
+                name: "the mainline berm",
+                at: (Fixed(830.0), Fixed(500.0)),
+                radius_m: 450.0,
+                note: "7 m of fill above the climb grade: the east wall of the map - passable only at the level crossing and the two underpass cuts",
+            ),
+            FeatureSpec(
+                kind: Crossing,
+                name: "the level crossing",
+                at: (Fixed(830.0), Fixed(500.0)),
+                radius_m: 45.0,
+                note: "the axis gate through the berm, pre-marked by the wreck pair - the long-range door to the far fields",
+            ),
+            FeatureSpec(
+                kind: Crossing,
+                name: "boulevard square",
+                at: (Fixed(470.0), Fixed(500.0)),
+                radius_m: 40.0,
+                note: "where the city meets the open flank: the capture zone and the hinge every rotation passes through",
+            ),
+            FeatureSpec(
+                kind: Lowland,
+                name: "east fields",
+                at: (Fixed(660.0), Fixed(500.0)),
+                radius_m: 260.0,
+                note: "worked patchwork between the boulevard and the berm: the open flank, overwatched from the rises and the elevators",
+            ),
+        ],
+    ),
+)

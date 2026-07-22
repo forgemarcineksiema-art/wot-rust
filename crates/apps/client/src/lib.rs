@@ -34,9 +34,11 @@ pub use loop_policy::{
 };
 pub use render_state::InterpolatedBattleState;
 pub use scene_build::battlefield::{
+    STATICS_BACKDROP_BUCKET, STATICS_BUCKET_COUNT, assemble_statics_mesh,
     battlefield_ground_and_statics_meshes, battlefield_ground_mesh, battlefield_scene_mesh,
-    battlefield_scene_mesh_with_cover_states, battlefield_statics_mesh,
-    battlefield_statics_mesh_with_scars, terrain_scene_mesh,
+    battlefield_scene_mesh_with_cover_states, battlefield_statics_bucket_mesh,
+    battlefield_statics_buckets, battlefield_statics_mesh, battlefield_statics_mesh_with_scars,
+    statics_buckets_touched_by_cover, terrain_scene_mesh,
 };
 pub use scene_build::grass::{GRASS_MESH_HANDLE, grass_frame_objects, grass_tuft_mesh};
 pub use scene_build::grass_cards::grass_card_dressing_mesh;

@@ -59,6 +59,14 @@ pub(crate) enum SceneKind {
     Battle,
 }
 
+/// A finished background statics rebuild: the re-baked dirty buckets plus the phase/scar
+/// baseline they were baked against (urban-map program PR-04).
+pub(crate) struct StaticsRebuild {
+    pub(crate) phases: Vec<u8>,
+    pub(crate) scars: Vec<terrain::CoverScar>,
+    pub(crate) buckets: Vec<(usize, scene_build::battlefield::SceneMeshData)>,
+}
+
 /// The battle scene's baked CPU meshes — see `ClientApp::battle_scene_meshes`.
 pub(crate) struct BattleSceneMeshes {
     /// The heightfield the terrain pipeline shades (splat layers + macro normals).
@@ -69,9 +77,17 @@ pub(crate) struct BattleSceneMeshes {
     /// The mid-field card meadow (Żywy Step P2) — the renderer's dressing slot.
     pub(crate) dressing_vertices: Vec<renderer_api::SceneVertex>,
     pub(crate) dressing_indices: Vec<u32>,
-    /// Cover, backdrop skirt and scenery — the generic scene pipeline's slot.
+    /// Cover, backdrop skirt and scenery — the generic scene pipeline's slot, assembled from
+    /// the per-bucket fragments below.
     pub(crate) statics_vertices: Vec<renderer_api::SceneVertex>,
     pub(crate) statics_indices: Vec<u32>,
+    /// The statics bake partitioned into XZ buckets (+ backdrop) — a cover-phase change
+    /// re-bakes only the dirty buckets and reassembles (urban-map program PR-04).
+    pub(crate) statics_buckets: Vec<scene_build::battlefield::SceneMeshData>,
+    /// The cover phases and scars the current `statics_buckets` were baked against — the
+    /// baseline the next rebuild diffs to find its dirty buckets.
+    pub(crate) statics_baked_phases: Vec<u8>,
+    pub(crate) statics_baked_scars: Vec<terrain::CoverScar>,
     pub(crate) water_vertices: Vec<renderer_api::WaterVertex>,
     pub(crate) water_indices: Vec<u32>,
 }
@@ -83,8 +99,14 @@ impl ClientApp {
         if self.battle_scene_meshes.is_some() {
             return;
         }
-        let ((ground_vertices, ground_indices), (statics_vertices, statics_indices)) =
-            crate::battlefield_ground_and_statics_meshes(&self.battlefield, &[]);
+        // Born-ruins (PR-07): the pre-snapshot bake reads the same birth rule the server's
+        // states start from, so a ruined block is a mound from the very first frame — baked
+        // per bucket (PR-04), with the birth phases as the dirty-diff baseline below.
+        let born_phases = terrain::initial_cover_phase_bytes(&self.battlefield.static_cover);
+        let (ground_vertices, ground_indices) = crate::battlefield_ground_mesh(&self.battlefield);
+        let statics_buckets =
+            crate::battlefield_statics_buckets(&self.battlefield, &born_phases, &[]);
+        let (statics_vertices, statics_indices) = crate::assemble_statics_mesh(&statics_buckets);
         let ground_maps = scene_build::terrain_maps::bake_terrain_ground_maps(&self.battlefield);
         let (water_vertices, water_indices) =
             scene_build::water::battlefield_water_mesh(&self.battlefield);
@@ -94,6 +116,7 @@ impl ClientApp {
                 &ground_maps,
                 &scene_build::terrain_maps::terrain_material_set_for(self.session.map_id()),
             );
+        let statics_baked_phases = born_phases;
         self.battle_scene_meshes = Some(BattleSceneMeshes {
             ground_vertices,
             ground_indices,
@@ -102,6 +125,9 @@ impl ClientApp {
             dressing_indices,
             statics_vertices,
             statics_indices,
+            statics_buckets,
+            statics_baked_phases,
+            statics_baked_scars: Vec::new(),
             water_vertices,
             water_indices,
         });
@@ -188,9 +214,11 @@ pub(crate) struct ClientApp {
     track_ribbons: Vec<crate::vehicle::track_ribbon::TrackRibbon>,
     /// Seconds since each wreck died — the burn-out epilogue's clock (flames, then smoke).
     wreck_age_s: HashMap<game_core::TankId, f32>,
-    /// An in-flight background statics rebuild (F7): the 25 ms cover-collapse bake runs on a
-    /// worker thread; the render thread only harvests and uploads the result.
-    scene_rebuild_rx: Option<std::sync::mpsc::Receiver<(Vec<renderer_api::SceneVertex>, Vec<u32>)>>,
+    /// An in-flight background statics rebuild (F7): the cover-collapse bake runs on a worker
+    /// thread; the render thread only harvests, reassembles and uploads. The worker bakes ONLY
+    /// the dirty buckets (urban-map program PR-04) and reports the phase/scar baseline it baked
+    /// against, so the next diff starts from the truth that actually landed.
+    scene_rebuild_rx: Option<std::sync::mpsc::Receiver<StaticsRebuild>>,
     /// An in-flight background GROUND re-mesh (true deformation, protocol v31): fresh craters
     /// re-mesh the heightfield on a worker thread; the render thread harvests and swaps the
     /// geometry under the still-bound splat/macro maps.
