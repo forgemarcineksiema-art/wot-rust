@@ -73,6 +73,15 @@ pub enum StaticCoverKind {
     /// reacts like matter, not like invisible walls (Fizyczny Świat P10). Appended last so
     /// baked map assets keep their discriminants.
     WoodenFence,
+    /// A masonry city building (urban-map program PR-06): brick and plaster over a metre of
+    /// wall, far tougher than a timber farm building, and it collapses into the same honest
+    /// rubble mound. Durability is stated by the KIND in the map document, never inferred
+    /// from box proportions. Appended after WoodenFence — the order is frozen.
+    CityBuilding,
+    /// A brick garden/compound wall: a shell breaches it, and a 30 t hull drives THROUGH it
+    /// (crushable). Destroyed or crushed it goes fully clear — never a hull-blocking mound;
+    /// the breach dressing is presentation, not collision.
+    StoneWall,
 }
 
 impl StaticCoverKind {
@@ -81,23 +90,33 @@ impl StaticCoverKind {
     pub fn max_health(self) -> Option<u32> {
         match self {
             StaticCoverKind::FarmBuilding => Some(600),
+            // Masonry over timber: a city block soaks 2.5 farm buildings' worth of shellfire
+            // before it comes down (urban-map doctrine decision 2).
+            StaticCoverKind::CityBuilding => Some(1500),
             StaticCoverKind::TreeLine => Some(120),
+            // A garden wall is bricks, not a bunker: a couple of shells open it.
+            StaticCoverKind::StoneWall => Some(150),
             // Any shell sweeps a fence span away (the kinetic chip already deals 80).
             StaticCoverKind::WoodenFence => Some(40),
             StaticCoverKind::RailCover | StaticCoverKind::Wreck => None,
         }
     }
 
-    /// A hull driving through at speed flattens it (hedgerows/tree lines). Buildings and rail
-    /// embankments do not crush — a shell has to bring them down.
+    /// A hull driving through at speed flattens it (hedgerows/tree lines, fences — and a
+    /// brick garden wall under 30 t of tank). Buildings and rail embankments do not crush —
+    /// a shell has to bring them down.
     pub fn is_crushable(self) -> bool {
-        matches!(self, StaticCoverKind::TreeLine | StaticCoverKind::WoodenFence)
+        matches!(
+            self,
+            StaticCoverKind::TreeLine | StaticCoverKind::WoodenFence | StaticCoverKind::StoneWall
+        )
     }
 
     /// When destroyed, a building slumps into a rubble mound that still blocks hulls; foliage
     /// simply vanishes. `true` = leaves a (lowered) blocking mound, `false` = goes fully clear.
+    /// A StoneWall deliberately leaves NO mound: a breached wall is a door, not a speed bump.
     pub fn leaves_rubble(self) -> bool {
-        matches!(self, StaticCoverKind::FarmBuilding)
+        matches!(self, StaticCoverKind::FarmBuilding | StaticCoverKind::CityBuilding)
     }
 
     /// The fraction of its original height a rubble mound keeps: low enough that a turret-height
@@ -105,6 +124,24 @@ impl StaticCoverKind {
     pub fn rubble_height_frac(self) -> f32 {
         0.4
     }
+}
+
+/// The phase byte a cover object is BORN in (urban-map program PR-07, doctrine decision 4):
+/// an id containing `"ruin"` spawns already collapsed — rubble (1) if its kind leaves rubble,
+/// gone (2) otherwise — while indestructible kinds ignore the tag (a "ruined" decorative
+/// wreck is still just a wreck). The bytes speak the shared phase encoding every consumer
+/// already reads (0 intact / 1 rubble / 2 gone), so the rule lives HERE, below both the sim
+/// and every renderer-side baker, and all of them agree at birth.
+pub fn born_cover_phase_byte(object: &StaticCoverObject) -> u8 {
+    if !object.id.contains("ruin") || object.kind.max_health().is_none() {
+        return 0;
+    }
+    if object.kind.leaves_rubble() { 1 } else { 2 }
+}
+
+/// One born-phase byte per cover object, index-aligned — what a pristine battle starts from.
+pub fn initial_cover_phase_bytes(cover: &[StaticCoverObject]) -> Vec<u8> {
+    cover.iter().map(born_cover_phase_byte).collect()
 }
 
 /// What a road is paved with — picks the painted tone and finish on the terrain mesh.
@@ -187,5 +224,44 @@ pub struct BattlefieldMap {
 impl BattlefieldMap {
     pub fn feature(&self, kind: MapFeatureKind, name: &str) -> Option<&MapFeature> {
         self.features.iter().find(|feature| feature.kind == kind && feature.name.contains(name))
+    }
+}
+
+#[cfg(test)]
+mod born_phase_tests {
+    use super::*;
+
+    fn object(id: &str, kind: StaticCoverKind) -> StaticCoverObject {
+        StaticCoverObject {
+            id: id.to_string(),
+            name: id.to_string(),
+            kind,
+            center: [0.0, 2.0, 0.0],
+            half_extents_m: [4.0, 2.0, 3.0],
+        }
+    }
+
+    /// The birth rule (urban-map PR-07): "ruin" in the id collapses a destructible object at
+    /// birth - to rubble if its kind leaves rubble, to gone otherwise - and indestructible
+    /// kinds ignore the tag entirely.
+    #[test]
+    fn ruin_ids_are_born_collapsed_by_their_kind() {
+        assert_eq!(
+            born_cover_phase_byte(&object("tenement_ruin_a", StaticCoverKind::CityBuilding)),
+            1
+        );
+        assert_eq!(born_cover_phase_byte(&object("ruined_barn", StaticCoverKind::FarmBuilding)), 1);
+        assert_eq!(born_cover_phase_byte(&object("yard_wall_ruin", StaticCoverKind::StoneWall)), 2);
+        assert_eq!(born_cover_phase_byte(&object("ruined_hedge", StaticCoverKind::TreeLine)), 2);
+        assert_eq!(born_cover_phase_byte(&object("ruined_wreck", StaticCoverKind::Wreck)), 0);
+        assert_eq!(born_cover_phase_byte(&object("ruin_wall", StaticCoverKind::RailCover)), 0);
+        assert_eq!(born_cover_phase_byte(&object("tenement_a", StaticCoverKind::CityBuilding)), 0);
+        assert_eq!(
+            initial_cover_phase_bytes(&[
+                object("tenement_a", StaticCoverKind::CityBuilding),
+                object("tenement_ruin_b", StaticCoverKind::CityBuilding),
+            ]),
+            vec![0, 1]
+        );
     }
 }

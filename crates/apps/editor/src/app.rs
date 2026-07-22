@@ -241,8 +241,13 @@ impl EditorApp {
         let battlefield = &self.compiled.battlefield;
         let blueprint = self.document.blueprint();
 
-        let (ground, statics) =
-            scene_build::battlefield::battlefield_ground_and_statics_meshes(battlefield, &[]);
+        // Born-ruins preview (PR-07): the editor shows a "ruin"-tagged box as the mound the
+        // battle will actually open on, not the intact building it never is.
+        let born_phases = terrain::initial_cover_phase_bytes(&battlefield.static_cover);
+        let (ground, statics) = scene_build::battlefield::battlefield_ground_and_statics_meshes(
+            battlefield,
+            &born_phases,
+        );
         let maps = scene_build::terrain_maps::bake_terrain_ground_maps(battlefield);
         let materials = match &blueprint.materials {
             Some(spec) => scene_build::terrain_maps::material_set_from(spec),
@@ -1642,9 +1647,11 @@ impl ApplicationHandler for EditorApp {
         self.viewport_px = [size.width.max(1) as f32, size.height.max(1) as f32];
         // The initial terrain slot is the statics mesh, exactly like the client boot path;
         // reload_scene immediately re-uploads every slot from the document.
+        let born_phases =
+            terrain::initial_cover_phase_bytes(&self.compiled.battlefield.static_cover);
         let (_, statics) = scene_build::battlefield::battlefield_ground_and_statics_meshes(
             &self.compiled.battlefield,
-            &[],
+            &born_phases,
         );
         match WindowRenderer::new(
             window.clone(),

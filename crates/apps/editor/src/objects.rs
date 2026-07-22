@@ -24,6 +24,11 @@ pub enum PaletteEntry {
     Townhouse,
     Church,
     Windmill,
+    /// A masonry city block (`StaticCoverKind::CityBuilding`, 1500 HP): the urban core's
+    /// brick. Until the Tenement style lands its tall box derives the Townhouse bake.
+    CityBlock,
+    /// A breachable brick garden/compound wall run (`StaticCoverKind::StoneWall`).
+    StoneWallRun,
     // Bare cover.
     FenceRun,
     TreeLine,
@@ -39,12 +44,14 @@ pub enum PaletteEntry {
 }
 
 impl PaletteEntry {
-    pub const CYCLE: [PaletteEntry; 15] = [
+    pub const CYCLE: [PaletteEntry; 17] = [
         PaletteEntry::Cottage,
         PaletteEntry::Barn,
         PaletteEntry::Townhouse,
         PaletteEntry::Church,
         PaletteEntry::Windmill,
+        PaletteEntry::CityBlock,
+        PaletteEntry::StoneWallRun,
         PaletteEntry::FenceRun,
         PaletteEntry::TreeLine,
         PaletteEntry::Wreck,
@@ -64,6 +71,8 @@ impl PaletteEntry {
             PaletteEntry::Townhouse => "townhouse",
             PaletteEntry::Church => "church",
             PaletteEntry::Windmill => "windmill",
+            PaletteEntry::CityBlock => "city block",
+            PaletteEntry::StoneWallRun => "stone wall",
             PaletteEntry::FenceRun => "fence run",
             PaletteEntry::TreeLine => "tree line",
             PaletteEntry::Wreck => "wreck",
@@ -87,6 +96,8 @@ impl PaletteEntry {
             PaletteEntry::Townhouse => Some((StaticCoverKind::FarmBuilding, [4.5, 3.4, 4.5])),
             PaletteEntry::Church => Some((StaticCoverKind::FarmBuilding, [7.0, 6.0, 10.0])),
             PaletteEntry::Windmill => Some((StaticCoverKind::FarmBuilding, [4.0, 6.0, 4.0])),
+            PaletteEntry::CityBlock => Some((StaticCoverKind::CityBuilding, [9.0, 5.5, 5.0])),
+            PaletteEntry::StoneWallRun => Some((StaticCoverKind::StoneWall, [0.4, 1.1, 7.0])),
             PaletteEntry::FenceRun => Some((StaticCoverKind::WoodenFence, [0.25, 0.65, 6.0])),
             PaletteEntry::TreeLine => Some((StaticCoverKind::TreeLine, [2.5, 3.5, 14.0])),
             PaletteEntry::Wreck => Some((StaticCoverKind::Wreck, [3.4, 1.4, 1.6])),

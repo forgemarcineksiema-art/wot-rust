@@ -613,6 +613,14 @@ fn append_cover_box(
             push_surfaced_box(vertices, indices, center, half, [0.25, 0.20, 0.17], 0.30);
         }
         StaticCoverKind::WoodenFence => append_wooden_fence(vertices, indices, center, half),
+        // PROVISIONAL look (urban-map PR-06): the city building rides the same forged
+        // building bake (its tall box derives Townhouse until the Tenement style lands,
+        // wave U); the wall is a plain masonry run until its coursed look + breach
+        // dressing arrive (PR-10). Semantics are final; only the dressing is interim.
+        StaticCoverKind::CityBuilding => append_building(vertices, indices, cover, center, half),
+        StaticCoverKind::StoneWall => {
+            push_surfaced_box(vertices, indices, center, half, [0.42, 0.37, 0.32], 0.10);
+        }
     }
 }
 
