@@ -41,6 +41,9 @@ pub enum PaletteEntry {
     Rock,
     Bush,
     Pine,
+    /// Street furniture (urban-map PR-11) — render-only, like all flora.
+    Lamppost,
+    DebrisHeap,
 }
 
 impl PaletteEntry {
@@ -62,6 +65,8 @@ impl PaletteEntry {
         PaletteEntry::Rock,
         PaletteEntry::Bush,
         PaletteEntry::Pine,
+        PaletteEntry::Lamppost,
+        PaletteEntry::DebrisHeap,
     ];
 
     pub fn label(self) -> &'static str {
@@ -83,6 +88,8 @@ impl PaletteEntry {
             PaletteEntry::Rock => "rock",
             PaletteEntry::Bush => "bush",
             PaletteEntry::Pine => "pine",
+            PaletteEntry::Lamppost => "lamppost",
+            PaletteEntry::DebrisHeap => "debris heap",
         }
     }
 
@@ -114,6 +121,8 @@ impl PaletteEntry {
             PaletteEntry::Rock => Some(SceneryKind::Rock),
             PaletteEntry::Bush => Some(SceneryKind::Bush),
             PaletteEntry::Pine => Some(SceneryKind::Pine),
+            PaletteEntry::Lamppost => Some(SceneryKind::Lamppost),
+            PaletteEntry::DebrisHeap => Some(SceneryKind::DebrisHeap),
             _ => None,
         }
     }
