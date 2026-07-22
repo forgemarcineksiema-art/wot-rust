@@ -182,8 +182,9 @@ fn resample(points: &[[f32; 2]]) -> Vec<[f32; 2]> {
         }
         walked += length;
     }
-    // The hand's endpoint always survives the resample.
-    if segment_length(*out.last().expect("seeded"), points[points.len() - 1]) > 0.25 {
+    // The hand's endpoint always survives the resample — appended when a full metre of
+    // line remains (the report's wiggle floor), fused into the last sample otherwise.
+    if segment_length(*out.last().expect("seeded"), points[points.len() - 1]) > 1.0 {
         out.push(points[points.len() - 1]);
     } else {
         *out.last_mut().expect("seeded") = points[points.len() - 1];

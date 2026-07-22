@@ -223,5 +223,39 @@ in-house toolkit first.** The rationale stays below.
    terrain truth; only stroke-by-stroke history may live in the editor session.)
 4. A broken map is a build-time bug: the contract report blocks shipping (Error), and the
    golden hash makes every map change a reviewed change.
+
+## Ręce do terenu — gestural terrain authoring (W1–W5, complete 2026-07-22)
+
+The program that retired "hand-RON or knob panels" as the way terrain gets authored. One
+stack, three hands on the same clay — each is honest data through the same doors the
+shell already trusted (`apply_edit`, quantized emission, twins by construction, ghost
+preview via clone-compile):
+
+- **The stroke creates (C, W1+W2).** A drawn polyline becomes `TerrainOp::Stroke` — the
+  document stores the FITTED curve (dedupe → Chaikin ×2 → arc-length resample capped at
+  the 64-point report budget → 0.5 m quantize); compile stays dumb, evaluation is
+  `band_mask(polyline_distance)` (the same walk road paint uses — one implementation, no
+  drift). Because `band_mask`'s support ends exactly at `half_width + falloff`, the
+  compiler culls samples outside each stroke's rectangle with bitwise-identical results.
+  The fair-map twin carries the REFLECTED fitted points — bit-exact on the 0.5 m lattice.
+- **The grab adjusts (H, W3).** Existing forms — `Gauss2` terms, strokes,
+  `FlattenToGauss` benches — are handles: drag moves (1 m snap, BOTH twins, dz mirrored),
+  Shift+drag lifts (0.25 m), `[` `]` widens (re-quantized). The twin is resolved
+  STRUCTURALLY at pick time (params match under the reflection; never stored, cannot
+  drift). No numbers in the UI: the ghost previews exactly what release commits, through
+  the one shared snapped-transform door. `RidgeGated`/`CrestShelf`/`Deck`/`FlattenToRamp`
+  stay deliberately ungrabbable — their axis-coupled masks ARE the fairness design.
+- **The brush finishes (B, W4).** Three macro modes join the dab pipeline on the sculpt
+  layer: Ridge (anisotropic crest along the drag tangent), Terrace (flatten to multiples
+  of a Tab-cycled step), Erode (wide-ring relaxation, peaks shed 1.15/0.85 faster than
+  pits fill). Both halves of a mirrored dab are STAGED against the same pre-dab state and
+  committed together — the fix that made base-dependent modes (including the original
+  Flatten/Smooth) bit-exact across the axis, caught by the CYCLE-driven mirror lock.
+
+Proof: `cargo run -p editor --example shell_views` — `editor_shell_hands.png` is one
+document worked by all three hands (a drawn ridge eroded soft, a grabbed hill terraced,
+a valley stroke mid-gesture in chalk). Deferred from v1: control-point editing of
+committed strokes, twin-aware edit-both, grabbing the axis-coupled ops, stroke-driven
+splat painting, dirty-region recompile.
 5. The editor reuses the game's render path and render-only/runtime split: presentation
    (scenery, roads, weather) never changes gameplay truth; cover/spawns do — hence goldens.

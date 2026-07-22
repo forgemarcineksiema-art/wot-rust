@@ -12,7 +12,8 @@ use editor::objects::{self, PaletteEntry};
 use editor::overlay::{OverlayModel, overlay};
 use editor::roads::{self, PendingRoad};
 use editor::stamp::{self, StampKind};
-use editor::{EditorDocument, markers};
+use editor::stroke::{self, PendingStroke, StrokeKind};
+use editor::{EditorDocument, grab, markers};
 use editor::{gameplay, visibility};
 use glam::Vec3;
 use renderer_api::{Camera, CameraProjectionPolicy, RenderFrame, view_projection_matrix};
@@ -225,6 +226,79 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
     }
 
+    // View 8: Rece do terenu (W1-W4) - one document worked by all three hands. A ridge
+    // DRAWN as a fitted stroke op, a stamped hill GRABBED (moved + raised through the
+    // same snapped transform the live drag commits), and the macro brushes finishing the
+    // ground: a terrace pass on the hill's flank and an erode pass over the crest.
+    let mut hands = EditorDocument::new_scratch();
+    {
+        let blueprint = hands.blueprint().clone();
+        let (hill, _) = stamp::build_stamp(
+            StampKind::Hill,
+            &StampKind::Hill.parameters(),
+            &blueprint,
+            [190.0, 120.0],
+            [220.0, 120.0],
+        )
+        .expect("the hill lands");
+        let mut drawn = PendingStroke::new(StrokeKind::Ridge);
+        for at in [[70.0, 200.0], [110.0, 175.0], [150.0, 168.0], [200.0, 180.0], [235.0, 205.0]] {
+            drawn.add_point(at, 5.0);
+        }
+        let (ridge_ops, _) = stroke::fit_stroke(&drawn, &blueprint).expect("the ridge fits");
+        hands.apply_edit(|blueprint| {
+            stamp::insert(blueprint, hill);
+            stamp::insert(blueprint, ridge_ops);
+        });
+        // Grab the hill and set it: 14 m east, 6 m north, 1.5 m taller - the exact door
+        // the live release walks through.
+        let compiled = hands.recompile();
+        let forms = grab::enumerate_forms(hands.blueprint(), &compiled.battlefield.heightmap);
+        let held = forms.iter().find(|form| form.label == "hill").expect("the hill is a handle");
+        let transform = grab::Transform { move_m: [14.0, 6.0], raise_m: 1.5, widen: 1.0 };
+        let held_form = held.clone();
+        hands.apply_edit(|blueprint| {
+            grab::apply_transform(blueprint, &held_form, &transform);
+        });
+        // The macro brushes finish the ground: terraces up the hill flank, erosion over
+        // the drawn crest - committed into the sculpt layer like any hand stroke.
+        let compiled = hands.recompile();
+        let mut finish = Stroke::begin(hands.blueprint(), &compiled.battlefield.heightmap);
+        let terrace = BrushSettings {
+            mode: BrushMode::Terrace,
+            radius_m: 18.0,
+            rate_m_s: 6.0,
+            terrace_step_m: 2.0,
+        };
+        for _ in 0..24 {
+            finish.dab([190.0, 132.0], &terrace, 0.2);
+        }
+        let erode = BrushSettings {
+            mode: BrushMode::Erode,
+            radius_m: 16.0,
+            rate_m_s: 6.0,
+            terrace_step_m: 2.0,
+        };
+        for step in 0..14 {
+            let t = step as f32 / 13.0;
+            finish.dab([90.0 + t * 120.0, 190.0 - (t * 3.1).sin() * 14.0], &erode, 0.2);
+        }
+        let sculpted = finish.committed(None).expect("the finish sculpts");
+        hands.apply_edit(|blueprint| {
+            blueprint.sculpt = Some(sculpted);
+            blueprint.environment = Some(map_forge::blueprint::EnvironmentSpec {
+                looks: vec![map_forge::blueprint::LookSpec {
+                    variant: game_core::WeatherVariant::GoldenEvening,
+                    preset: map_forge::blueprint::LightingPreset::GoldenEvening,
+                    sky_rgb: [0.8, 0.62, 0.45],
+                    rain_intensity: 0.0,
+                    wetness: 0.0,
+                    overrides: Default::default(),
+                }],
+            });
+        });
+    }
+
     let ctx = GpuContext::headless()?;
     let target = OffscreenTarget::new(&ctx, width, height)?;
 
@@ -306,6 +380,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             None,
             "editor_shell_gameplay",
         ),
+        (
+            &hands,
+            Camera {
+                eye: [110.0, 70.0, 70.0],
+                target: [170.0, 8.0, 175.0],
+                vertical_fov_degrees: 55.0,
+            },
+            Some(Vec3::new(150.0, 5.0, 230.0)),
+            None,
+            "editor_shell_hands",
+        ),
     ] {
         let compiled = document.recompile();
         let battlefield = &compiled.battlefield;
@@ -347,6 +432,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let farmyard_view = name == "editor_shell_objects";
         let water_view = name == "editor_shell_water";
         let gameplay_view = name == "editor_shell_gameplay";
+        let hands_view = name == "editor_shell_hands";
         if let Some(at) = probe {
             let ground_h = battlefield.heightmap.sample_height(at.x, at.z).unwrap_or(at.y);
             if brush_armed {
@@ -386,6 +472,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             marker_vertices.extend_from_slice(&tint_vertices);
             marker_indices.extend(tint_indices.iter().map(|index| index + base));
         }
+        if hands_view {
+            // A valley stroke MID-GESTURE: the chalk ribbon rides the clicked waypoints
+            // toward the cursor, exactly as the C tool draws it live.
+            let pending_valley = [[110.0, 240.0], [140.0, 232.0], [150.0, 230.0]];
+            stroke::chalk_mesh(
+                &mut marker_vertices,
+                &mut marker_indices,
+                &battlefield.heightmap,
+                &pending_valley,
+                5.0,
+            );
+            // The grabbed hill's amber foot ring - the H tool's handle marker.
+            let forms = grab::enumerate_forms(document.blueprint(), &battlefield.heightmap);
+            if let Some(held) = forms.iter().find(|form| form.label == "hill") {
+                markers::brush_ring(
+                    &mut marker_vertices,
+                    &mut marker_indices,
+                    &battlefield.heightmap,
+                    [held.center.x, held.center.z],
+                    held.footprint_m,
+                    [0.95, 0.65, 0.15],
+                );
+            }
+        }
         if farmyard_view
             && let Some(barn) =
                 battlefield.static_cover.iter().find(|cover| cover.id.starts_with("barn"))
@@ -413,10 +523,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 "WATER".to_string()
             } else if farmyard_view {
                 "OBJECT".to_string()
+            } else if hands_view {
+                "STROKE".to_string()
             } else {
                 "STAMP".to_string()
             },
-            stamp_lines: if gameplay_view {
+            stamp_lines: if hands_view {
+                vec![
+                    ("valley - LMB draws the line".to_string(), false),
+                    ("depth: 4.0 m".to_string(), true),
+                    ("width: 5.0 m".to_string(), false),
+                    ("3 points".to_string(), false),
+                    ("Enter commits   Backspace pops   Esc clears".to_string(), false),
+                ]
+            } else if gameplay_view {
                 vec![
                     ("nav point - LMB places".to_string(), false),
                     ("HighGround".to_string(), false),
