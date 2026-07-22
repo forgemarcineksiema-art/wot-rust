@@ -23,11 +23,27 @@ pub enum BrushMode {
     Lower,
     Flatten,
     Smooth,
+    /// Macro (Rece do terenu W4): an anisotropic crest along the DRAG direction — the
+    /// hand's line, not a blob trail. The first dab (no tangent yet) raises isotropically.
+    Ridge,
+    /// Macro: flatten toward the nearest multiple of `terrace_step_m` — risers emerge
+    /// naturally where the rounding flips.
+    Terrace,
+    /// Macro: wide-kernel relaxation with a peak bias — peaks shed faster than hollows
+    /// fill (the thermal-erosion read, with slight honest mass loss).
+    Erode,
 }
 
 impl BrushMode {
-    pub const CYCLE: [BrushMode; 4] =
-        [BrushMode::Raise, BrushMode::Lower, BrushMode::Flatten, BrushMode::Smooth];
+    pub const CYCLE: [BrushMode; 7] = [
+        BrushMode::Raise,
+        BrushMode::Lower,
+        BrushMode::Flatten,
+        BrushMode::Smooth,
+        BrushMode::Ridge,
+        BrushMode::Terrace,
+        BrushMode::Erode,
+    ];
 
     pub fn label(self) -> &'static str {
         match self {
@@ -35,6 +51,9 @@ impl BrushMode {
             BrushMode::Lower => "lower",
             BrushMode::Flatten => "flatten",
             BrushMode::Smooth => "smooth",
+            BrushMode::Ridge => "ridge",
+            BrushMode::Terrace => "terrace",
+            BrushMode::Erode => "erode",
         }
     }
 }
@@ -45,6 +64,8 @@ pub struct BrushSettings {
     pub radius_m: f32,
     /// Full-strength vertical rate at the brush centre, metres per second.
     pub rate_m_s: f32,
+    /// The terrace riser height (Terrace mode only; Tab cycles 1 / 2 / 4 m).
+    pub terrace_step_m: f32,
 }
 
 /// One live stroke: the working delta (metres, unquantized) over the stroke's base
@@ -60,6 +81,9 @@ pub struct Stroke {
     flatten_target_m: Option<f32>,
     touched: bool,
     last_dab: Option<[f32; 2]>,
+    /// The drag's unit direction, updated when the hand actually moves — a stationary
+    /// Ridge hold keeps building the crest it was drawing, not a blob.
+    tangent: Option<[f32; 2]>,
 }
 
 impl Stroke {
@@ -76,6 +100,7 @@ impl Stroke {
             flatten_target_m: None,
             touched: false,
             last_dab: None,
+            tangent: None,
         }
     }
 
@@ -106,6 +131,9 @@ impl Stroke {
                 let dx = center[0] - last[0];
                 let dz = center[1] - last[1];
                 let path = (dx * dx + dz * dz).sqrt();
+                if path > self.cell_m * 0.25 {
+                    self.tangent = Some([dx / path, dz / path]);
+                }
                 if path <= spacing {
                     vec![center]
                 } else {
@@ -127,20 +155,44 @@ impl Stroke {
         }
     }
 
-    /// The dab and — on a mirrored map — its twin, both from the same canonical reads, so
-    /// the mirror is exact by construction.
+    /// The dab and — on a mirrored map — its twin. BOTH halves are STAGED against the same
+    /// pre-dab state and committed together: a base-dependent mode (Flatten, Smooth,
+    /// Terrace, Erode) must never see the south half's fresh writes through its canonical
+    /// reads, or the twins' deltas drift apart. The twin's drag tangent mirrors with it
+    /// (dz negated), so a Ridge crest and its twin bend the same way about the axis.
     fn mirrored_dab(&mut self, center: [f32; 2], settings: &BrushSettings, dt_s: f32) {
-        self.apply_dab(center, settings, dt_s);
+        let tangent = self.tangent;
+        let mut staged: Vec<(usize, f32)> = Vec::new();
+        self.stage_dab(center, settings, dt_s, tangent, &mut staged);
         if self.mirrored {
             let axis_z = (self.side - 1) as f32 * self.cell_m * 0.5;
             let mirrored_z = axis_z * 2.0 - center[1];
             if (mirrored_z - center[1]).abs() > f32::EPSILON {
-                self.apply_dab([center[0], mirrored_z], settings, dt_s);
+                let mirrored_tangent = tangent.map(|[tx, tz]| [tx, -tz]);
+                self.stage_dab(
+                    [center[0], mirrored_z],
+                    settings,
+                    dt_s,
+                    mirrored_tangent,
+                    &mut staged,
+                );
             }
+        }
+        for (index, change) in staged {
+            self.delta_m[index] += change;
+            self.touched = true;
         }
     }
 
-    fn apply_dab(&mut self, center: [f32; 2], settings: &BrushSettings, dt_s: f32) {
+    /// Stage one dab's contributions (no writes): every read sees the pre-dab state.
+    fn stage_dab(
+        &mut self,
+        center: [f32; 2],
+        settings: &BrushSettings,
+        dt_s: f32,
+        tangent: Option<[f32; 2]>,
+        staged: &mut Vec<(usize, f32)>,
+    ) {
         let radius_cells = (settings.radius_m / self.cell_m).ceil() as isize;
         let cx = (center[0] / self.cell_m).round() as isize;
         let cz = (center[1] / self.cell_m).round() as isize;
@@ -160,7 +212,17 @@ impl Stroke {
                 if distance > settings.radius_m {
                     continue;
                 }
-                let falloff = smoothstep01(1.0 - distance / settings.radius_m);
+                // Ridge with a drag tangent swaps the radial falloff for an anisotropic
+                // crest weight: tight across the line (0.35 r), full along it.
+                let falloff = match (settings.mode, tangent) {
+                    (BrushMode::Ridge, Some([tx, tz])) => {
+                        let along = (dx * tx + dz * tz).abs();
+                        let across = (dx * tz - dz * tx).abs();
+                        smoothstep01(1.0 - across / (settings.radius_m * 0.35))
+                            * smoothstep01(1.0 - along / settings.radius_m)
+                    }
+                    _ => smoothstep01(1.0 - distance / settings.radius_m),
+                };
                 let border = self.border_fade(xi, zi);
                 if border <= 0.0 || falloff <= 0.0 {
                     continue;
@@ -168,7 +230,7 @@ impl Stroke {
                 let index = zi * self.side + xi;
                 let canonical = self.canonical(xi, zi);
                 let change = match settings.mode {
-                    BrushMode::Raise => settings.rate_m_s * dt_s,
+                    BrushMode::Raise | BrushMode::Ridge => settings.rate_m_s * dt_s,
                     BrushMode::Lower => -settings.rate_m_s * dt_s,
                     BrushMode::Flatten => {
                         let target = self.flatten_target_m.unwrap_or(self.base[canonical]);
@@ -179,9 +241,19 @@ impl Stroke {
                         (self.neighbour_mean(canonical) - self.effective(canonical))
                             * (settings.rate_m_s * dt_s * 0.5).min(1.0)
                     }
+                    BrushMode::Terrace => {
+                        let step = settings.terrace_step_m.max(0.5);
+                        let current = self.effective(canonical);
+                        let target = (current / step).round() * step;
+                        (target - current) * (settings.rate_m_s * dt_s * 0.5).min(1.0)
+                    }
+                    BrushMode::Erode => {
+                        let diff = self.wide_mean(canonical) - self.effective(canonical);
+                        let bias = if diff < 0.0 { 1.15 } else { 0.85 };
+                        diff * (settings.rate_m_s * dt_s * 0.5).min(1.0) * bias
+                    }
                 };
-                self.delta_m[index] += change * falloff * border;
-                self.touched = true;
+                staged.push((index, change * falloff * border));
             }
         }
     }
@@ -196,6 +268,22 @@ impl Stroke {
         {
             if nx < self.side && nz < self.side {
                 sum += self.effective(self.canonical(nx, nz));
+                count += 1.0;
+            }
+        }
+        if count > 0.0 { sum / count } else { self.effective(index) }
+    }
+
+    /// The erosion kernel: the mean over the 8 offsets at a 2-cell ring — wide enough to
+    /// see past a crest, canonical reads so both halves relax identically.
+    fn wide_mean(&self, index: usize) -> f32 {
+        let (xi, zi) = ((index % self.side) as isize, (index / self.side) as isize);
+        let mut sum = 0.0;
+        let mut count = 0.0;
+        for (ox, oz) in [(-2, -2), (-2, 0), (-2, 2), (0, -2), (0, 2), (2, -2), (2, 0), (2, 2)] {
+            let (nx, nz) = (xi + ox, zi + oz);
+            if nx >= 0 && nz >= 0 && (nx as usize) < self.side && (nz as usize) < self.side {
+                sum += self.effective(self.canonical(nx as usize, nz as usize));
                 count += 1.0;
             }
         }
@@ -266,7 +354,7 @@ mod tests {
     }
 
     fn settings(mode: BrushMode) -> BrushSettings {
-        BrushSettings { mode, radius_m: 12.0, rate_m_s: 6.0 }
+        BrushSettings { mode, radius_m: 12.0, rate_m_s: 6.0, terrace_step_m: 2.0 }
     }
 
     #[test]
@@ -326,7 +414,12 @@ mod tests {
     fn a_fast_drag_leaves_a_continuous_stroke_not_dots() {
         let (blueprint, heightmap) = scratch();
         let mut stroke = Stroke::begin(&blueprint, &heightmap);
-        let raise = BrushSettings { mode: BrushMode::Raise, radius_m: 8.0, rate_m_s: 6.0 };
+        let raise = BrushSettings {
+            mode: BrushMode::Raise,
+            radius_m: 8.0,
+            rate_m_s: 6.0,
+            terrace_step_m: 2.0,
+        };
         // Two frames, 90 m apart — far beyond the radius. Spacing must fill the gap.
         stroke.dab([60.0, 150.0], &raise, 0.05);
         stroke.dab([150.0, 150.0], &raise, 0.05);
@@ -340,6 +433,89 @@ mod tests {
                 "gap at column {xi} — the drag stitched dots instead of a stroke"
             );
         }
+    }
+
+    #[test]
+    fn a_ridge_drag_builds_a_crest_along_the_drag_not_a_blob_trail() {
+        let (blueprint, heightmap) = scratch();
+        let mut stroke = Stroke::begin(&blueprint, &heightmap);
+        let ridge = settings(BrushMode::Ridge);
+        // Drag east along z = 150: the second dab carries the tangent.
+        stroke.dab([90.0, 150.0], &ridge, 0.3);
+        stroke.dab([150.0, 150.0], &ridge, 0.3);
+        let sculpt = stroke.committed(None).expect("commits");
+        let side = 61_u32;
+        let quanta_at = |xi: u32, zi: u32| {
+            sculpt
+                .samples
+                .iter()
+                .find(|(index, _)| *index == zi * side + xi)
+                .map_or(0, |(_, quanta)| *quanta)
+        };
+        // On the drag line the crest stands; 10 m across it there is nothing — the
+        // anisotropic weight (0.35 r across) is what separates a line from a blob trail.
+        assert!(quanta_at(24, 30) > 0, "the crest rises on the drag line");
+        assert!(
+            quanta_at(24, 32) == 0,
+            "10 m across the line the ridge weight is zero, got {}",
+            quanta_at(24, 32)
+        );
+    }
+
+    #[test]
+    fn terrace_pulls_ground_onto_quantized_levels_with_honest_risers() {
+        // A sloping base so neighbouring cells round to DIFFERENT levels (risers emerge).
+        let (mut blueprint, _) = scratch();
+        blueprint.terrain.ops.push(map_forge::blueprint::TerrainOp::Gauss2 {
+            apply: map_forge::blueprint::Apply::Add,
+            terms: vec![map_forge::blueprint::Gauss2Term {
+                x: 150.0,
+                z: 150.0,
+                sx: 40.0,
+                sz: 40.0,
+                amp: 5.0,
+            }],
+        });
+        let compiled = map_forge::compile(&blueprint).0;
+        let mut stroke = Stroke::begin(&blueprint, &compiled.heightmap);
+        let terrace = settings(BrushMode::Terrace);
+        for _ in 0..60 {
+            stroke.dab([150.0, 150.0], &terrace, 0.2);
+        }
+        // The held centre converges onto a multiple of the step.
+        let index = (30 * 61 + 30) as usize;
+        let level = stroke.effective(index) / terrace.terrace_step_m;
+        assert!(
+            (level - level.round()).abs() < 0.1,
+            "the centre sits on a terrace level, got height {}",
+            stroke.effective(index)
+        );
+    }
+
+    #[test]
+    fn erode_relaxes_peaks_faster_than_pits() {
+        let (blueprint, heightmap) = scratch();
+        let index = (30 * 61 + 30) as usize;
+
+        // A raised bump, then one erosion pass at its crest.
+        let mut peak = Stroke::begin(&blueprint, &heightmap);
+        peak.dab([150.0, 150.0], &settings(BrushMode::Raise), 1.0);
+        let before = peak.effective(index);
+        peak.dab([150.0, 150.0], &settings(BrushMode::Erode), 0.3);
+        let shed = before - peak.effective(index);
+        assert!(shed > 0.0, "a peak sheds");
+
+        // The same magnitude pit, same erosion pass.
+        let mut pit = Stroke::begin(&blueprint, &heightmap);
+        pit.dab([150.0, 150.0], &settings(BrushMode::Lower), 1.0);
+        let before = pit.effective(index);
+        pit.dab([150.0, 150.0], &settings(BrushMode::Erode), 0.3);
+        let filled = pit.effective(index) - before;
+        assert!(filled > 0.0, "a pit fills");
+        assert!(
+            shed > filled * 1.2,
+            "peaks shed faster than pits fill (the 1.15/0.85 bias): shed {shed}, filled {filled}"
+        );
     }
 
     #[test]

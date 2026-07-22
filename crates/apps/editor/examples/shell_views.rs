@@ -52,7 +52,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // hull-down notch into its flank — strokes stack on the committed layer.
         let compiled = sculpted.recompile();
         let mut stroke = Stroke::begin(sculpted.blueprint(), &compiled.battlefield.heightmap);
-        let raise = BrushSettings { mode: BrushMode::Raise, radius_m: 22.0, rate_m_s: 6.0 };
+        let raise = BrushSettings {
+            mode: BrushMode::Raise,
+            radius_m: 22.0,
+            rate_m_s: 6.0,
+            terrace_step_m: 2.0,
+        };
         for step in 0..18 {
             let t = step as f32 / 17.0;
             stroke.dab([90.0 + t * 120.0, 130.0 + (t * 6.3).sin() * 18.0], &raise, 0.4);
@@ -61,7 +66,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         sculpted.apply_edit(|blueprint| blueprint.sculpt = Some(ridge));
         let compiled = sculpted.recompile();
         let mut stroke = Stroke::begin(sculpted.blueprint(), &compiled.battlefield.heightmap);
-        let lower = BrushSettings { mode: BrushMode::Lower, radius_m: 14.0, rate_m_s: 6.0 };
+        let lower = BrushSettings {
+            mode: BrushMode::Lower,
+            radius_m: 14.0,
+            rate_m_s: 6.0,
+            terrace_step_m: 2.0,
+        };
         for _ in 0..10 {
             stroke.dab([150.0, 158.0], &lower, 0.14);
         }

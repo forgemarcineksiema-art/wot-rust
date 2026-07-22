@@ -550,6 +550,7 @@ impl EditorApp {
             mode,
             radius_m: self.brush.map_or(12.0, |brush| brush.radius_m),
             rate_m_s: 6.0,
+            terrace_step_m: self.brush.map_or(2.0, |brush| brush.terrace_step_m),
         });
         self.status = match &self.brush {
             Some(brush) => brush_status(brush),
@@ -673,6 +674,17 @@ impl EditorApp {
         if let Some(road) = &mut self.road {
             road.cycle_surface();
             self.status = format!("road surface {:?} (Enter commits)", road.surface);
+            return;
+        }
+        if let Some(brush) = &mut self.brush
+            && brush.mode == BrushMode::Terrace
+        {
+            brush.terrace_step_m = match brush.terrace_step_m {
+                step if step < 1.5 => 2.0,
+                step if step < 3.0 => 4.0,
+                _ => 1.0,
+            };
+            self.status = brush_status(brush);
             return;
         }
         if let Some(stamp) = &mut self.stamp {
@@ -1843,8 +1855,12 @@ fn stroke_status(pending: &PendingStroke) -> String {
 }
 
 fn brush_status(brush: &BrushSettings) -> String {
+    let step = match brush.mode {
+        BrushMode::Terrace => format!("  step {:.0} m (Tab)", brush.terrace_step_m),
+        _ => String::new(),
+    };
     format!(
-        "brush: {}  r {:.0} m  rate {:.1} m/s",
+        "brush: {}  r {:.0} m  rate {:.1} m/s{step}",
         brush.mode.label(),
         brush.radius_m,
         brush.rate_m_s
