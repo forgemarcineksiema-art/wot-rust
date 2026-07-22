@@ -29,6 +29,22 @@ pub(super) const BATTLE_HALF: [f32; 2] = [0.13, 0.052];
 /// Hit-test rect for the clickable TECH TREE tab.
 pub(super) const TECH_TREE_TAB_CENTER: [f32; 2] = [0.22, 0.815];
 pub(super) const TECH_TREE_TAB_HALF: [f32; 2] = [0.10, 0.03];
+/// The map row right of the Battle button: click cycles the pre-battle map choice.
+pub(super) const MAP_PICK_CENTER: [f32; 2] = [0.34, 0.90];
+pub(super) const MAP_PICK_HALF: [f32; 2] = [0.15, 0.036];
+
+/// Label for the map row. `None` is AUTO — the env/default resolution, not a map name.
+pub(super) fn map_pick_label(map: Option<terrain::MapId>) -> &'static str {
+    use terrain::MapId;
+    match map {
+        None => "MAP: AUTO",
+        Some(MapId::ProkhorovkaHill252_2) => "MAP: PROKHOROVKA",
+        Some(MapId::BystraValley) => "MAP: BYSTRA VALLEY",
+        Some(MapId::OrlinyPereval) => "MAP: ORLINY PEREVAL",
+        Some(MapId::Ostrogorsk) => "MAP: OSTROGORSK",
+        Some(MapId::Scratch) => "MAP: SCRATCH",
+    }
+}
 
 // Left crew column.
 pub(super) const CREW_X: f32 = -0.80;

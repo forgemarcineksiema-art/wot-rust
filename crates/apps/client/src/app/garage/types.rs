@@ -22,6 +22,9 @@ pub(in crate::app) enum GarageHit {
     CrewProf(isize),
     /// The "Battle" button.
     Battle,
+    /// The map row next to the Battle button: cycle the pre-battle map choice by `dir`
+    /// (+1 plain click, -1 shift-click — the module-slot convention).
+    MapCycle(i8),
     /// Open the browse-only tech tree view.
     OpenTechTree,
     /// Close the tech tree view and return to the hangar.

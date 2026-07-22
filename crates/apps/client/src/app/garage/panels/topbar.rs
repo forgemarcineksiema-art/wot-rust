@@ -26,6 +26,22 @@ pub(in crate::app::garage) fn draw(v: &mut Vec<HudVertex>, state: &GarageState, 
         TEXT,
     );
 
+    // The map row: which world the Battle button deploys into. AUTO (the default resolution)
+    // reads dim; an explicit choice reads as a set value.
+    push_panel(v, MAP_PICK_CENTER, MAP_PICK_HALF, CHAMFER_SLOT, aspect, SLOT);
+    let map_label = map_pick_label(state.selected_map());
+    let map_color = if state.selected_map().is_some() { VALUE } else { TEXT_DIM };
+    let map_w = text_width(map_label, 0.028, aspect);
+    push_text(
+        v,
+        map_label,
+        MAP_PICK_CENTER[0] - map_w / 2.0,
+        MAP_PICK_CENTER[1] + 0.014,
+        0.028,
+        aspect,
+        map_color,
+    );
+
     // Screen tabs: the active view's tab reads bright. GARAGE sits left-aligned; TECH TREE is
     // centred on its clickable rect.
     let garage_color = if state.view() == GarageView::Hangar { TEXT } else { TEXT_DIM };

@@ -71,6 +71,7 @@ fn build_tech_tree(state: &GarageState, aspect: f32) -> Vec<HudVertex> {
 fn hover_rect(state: &GarageState, hit: &GarageHit) -> Option<([f32; 2], [f32; 2])> {
     match hit {
         GarageHit::Battle => Some((BATTLE_CENTER, BATTLE_HALF)),
+        GarageHit::MapCycle(_) => Some((MAP_PICK_CENTER, MAP_PICK_HALF)),
         GarageHit::ModuleCycle(slot, _) => Some((module_slot_center(slot.index()), SLOT_HALF)),
         GarageHit::OptionRow(slot, i) => {
             Some((option_row_center(slot.index(), *i), OPTION_ROW_HALF))
@@ -132,6 +133,11 @@ pub(super) fn hit_test(state: &GarageState, shift: bool) -> GarageHit {
             GarageView::Hangar => GarageHit::OpenTechTree,
             GarageView::TechTree => GarageHit::CloseTechTree,
         };
+    }
+
+    // The map row lives on the top bar like the tab, so it cycles in both views too.
+    if in_rect(p, MAP_PICK_CENTER, MAP_PICK_HALF) {
+        return GarageHit::MapCycle(if shift { -1 } else { 1 });
     }
 
     match state.view() {
@@ -289,6 +295,19 @@ mod tests {
         let mut g = GarageState::default();
         g.set_cursor([0.0, 0.0]);
         assert_eq!(hover_rect(&g, &g.hit_test(false)), None);
+    }
+
+    #[test]
+    fn cursor_hits_the_map_row_and_shift_cycles_backward() {
+        let mut g = GarageState::default();
+        assert_eq!(at(&mut g, MAP_PICK_CENTER), GarageHit::MapCycle(1));
+        assert_eq!(at_shift(&mut g, MAP_PICK_CENTER), GarageHit::MapCycle(-1));
+        // The hover highlight lands on the row.
+        g.set_cursor(MAP_PICK_CENTER);
+        assert_eq!(hover_rect(&g, &g.hit_test(false)), Some((MAP_PICK_CENTER, MAP_PICK_HALF)));
+        // The row lives on the top bar like the TECH TREE tab, so it stays clickable there too.
+        g.open_tech_tree();
+        assert_eq!(at(&mut g, MAP_PICK_CENTER), GarageHit::MapCycle(1));
     }
 
     #[test]
