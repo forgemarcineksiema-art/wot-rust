@@ -105,8 +105,12 @@ fn import_flora(
     let mut positions: Vec<[f32; 3]> = Vec::new();
     let mut normals: Vec<[f32; 3]> = Vec::new();
     let mut uvs: Vec<[f32; 2]> = Vec::new();
+    let mut colors: Vec<[f32; 3]> = Vec::new();
     let mut indices: Vec<u32> = Vec::new();
-    let mut texture_image: Option<usize> = None;
+    // Which glTF image each vertex run samples: real models split bark and leaves across
+    // MATERIALS — taking only the first texture dresses the canopy in bark (the red-pine
+    // lesson). Every primitive's texture is composited into ONE per-asset sheet below.
+    let mut vertex_runs: Vec<(usize, usize, usize)> = Vec::new();
     // Walk the SCENE, not the raw mesh list: authored node transforms (Quaternius models
     // carry real scales) are part of the geometry's truth — reading bare accessors imports
     // a 2 cm bush.
@@ -150,27 +154,96 @@ fn import_flora(
                 .ok_or_else(|| anyhow::anyhow!("primitive without TEXCOORD_0"))?
                 .into_f32()
                 .collect();
+            let uv_count = prim_uvs.len();
             uvs.extend(prim_uvs);
+            // The material's base_color_factor is half the palette in these packs: a shared
+            // gradient texture times a PER-PRIMITIVE factor makes leaves green and bark
+            // brown. Bake the factor into vertex colors — the runtime multiplies
+            // vertex color x texel, so the product reconstructs the authored look
+            // (the red-pine lesson, FL-4 look gate).
+            let factor = primitive.material().pbr_metallic_roughness().base_color_factor();
+            colors.extend(std::iter::repeat_n([factor[0], factor[1], factor[2]], uv_count));
             let prim_indices = reader
                 .read_indices()
                 .ok_or_else(|| anyhow::anyhow!("primitive without indices"))?
                 .into_u32();
             indices.extend(prim_indices.map(|index| index + base));
-            if texture_image.is_none() {
-                texture_image = primitive
-                    .material()
-                    .pbr_metallic_roughness()
-                    .base_color_texture()
-                    .map(|info| info.texture().source().index());
-            }
+            let texture = primitive
+                .material()
+                .pbr_metallic_roughness()
+                .base_color_texture()
+                .map(|info| info.texture().source().index())
+                .ok_or_else(|| anyhow::anyhow!("primitive without a base-color texture"))?;
+            vertex_runs.push((base as usize, uv_count, texture));
         }
     }
-    let image_index =
-        texture_image.ok_or_else(|| anyhow::anyhow!("no base-color texture in the source"))?;
-    let image = images
-        .get(image_index)
-        .ok_or_else(|| anyhow::anyhow!("texture image {image_index} missing"))?;
-    let rgba = image_to_rgba8(image)?;
+    // Composite every referenced texture into one vertical sheet and remap each run's UVs
+    // into its texture's band. Downstream (validation, the runtime atlas packer) stays
+    // single-texture per asset.
+    let mut used: Vec<usize> = vertex_runs.iter().map(|run| run.2).collect();
+    used.sort_unstable();
+    used.dedup();
+    anyhow::ensure!(!used.is_empty(), "no textured primitives in the source");
+    let mut decoded: Vec<(usize, Vec<u8>, u32, u32)> = Vec::new();
+    for &index in &used {
+        let image =
+            images.get(index).ok_or_else(|| anyhow::anyhow!("texture image {index} missing"))?;
+        decoded.push((index, image_to_rgba8(image)?, image.width, image.height));
+    }
+    let sheet_width = decoded.iter().map(|(_, _, w, _)| *w).max().unwrap_or(1);
+    let sheet_height: u32 = decoded.iter().map(|(_, _, _, h)| *h).sum();
+    let mut rgba = vec![0u8; (sheet_width * sheet_height * 4) as usize];
+    // Per source image: [v_offset, v_scale, u_scale] of its band in the sheet.
+    let mut bands: Vec<(usize, [f32; 3])> = Vec::new();
+    let mut cursor_y = 0u32;
+    for (index, pixels, w, h) in &decoded {
+        for row in 0..*h as usize {
+            let src = row * *w as usize * 4;
+            let dst = ((cursor_y as usize + row) * sheet_width as usize) * 4;
+            rgba[dst..dst + *w as usize * 4].copy_from_slice(&pixels[src..src + *w as usize * 4]);
+        }
+        bands.push((
+            *index,
+            [
+                cursor_y as f32 / sheet_height as f32,
+                *h as f32 / sheet_height as f32,
+                *w as f32 / sheet_width as f32,
+            ],
+        ));
+        cursor_y += h;
+    }
+    for (start, count, texture) in &vertex_runs {
+        let [v_offset, v_scale, u_scale] =
+            bands.iter().find(|(index, _)| index == texture).expect("band exists").1;
+        for uv in &mut uvs[*start..*start + *count] {
+            uv[0] = (uv[0].clamp(0.0, 1.0)) * u_scale;
+            uv[1] = v_offset + (uv[1].clamp(0.0, 1.0)) * v_scale;
+        }
+    }
+    // Halve the sheet until it fits a sane per-asset footprint: many assets share ONE 2048
+    // runtime atlas page (min-spec VRAM is the budget), and a stylized texture loses nothing
+    // a battle camera can see at 512-1024. UVs are normalized, so they never change.
+    let (mut sheet_width, mut sheet_height, mut rgba) = (sheet_width, sheet_height, rgba);
+    while sheet_width.max(sheet_height) > 1024 {
+        let (half_w, half_h) = (sheet_width / 2, sheet_height / 2);
+        let mut halved = vec![0u8; (half_w * half_h * 4) as usize];
+        for y in 0..half_h as usize {
+            for x in 0..half_w as usize {
+                for channel in 0..4 {
+                    let mut sum = 0u32;
+                    for (dy, dx) in [(0, 0), (0, 1), (1, 0), (1, 1)] {
+                        let src =
+                            ((y * 2 + dy) * sheet_width as usize + (x * 2 + dx)) * 4 + channel;
+                        sum += u32::from(rgba[src]);
+                    }
+                    halved[(y * half_w as usize + x) * 4 + channel] = (sum / 4) as u8;
+                }
+            }
+        }
+        sheet_width = half_w;
+        sheet_height = half_h;
+        rgba = halved;
+    }
 
     // Over-budget sources get DECIMATED here, loudly — the validate gate's "decimate the
     // source" is a step of this pipeline, never a raised ceiling. meshopt preserves the
@@ -204,8 +277,8 @@ fn import_flora(
         );
         // Compact: keep only the vertices the simplified index stream still references.
         let mut remap = vec![u32::MAX; positions.len()];
-        let (mut new_positions, mut new_normals, mut new_uvs) =
-            (Vec::new(), Vec::new(), Vec::new());
+        let (mut new_positions, mut new_normals, mut new_uvs, mut new_colors) =
+            (Vec::new(), Vec::new(), Vec::new(), Vec::new());
         let mut new_indices = Vec::with_capacity(simplified.len());
         for &index in &simplified {
             let slot = &mut remap[index as usize];
@@ -214,6 +287,7 @@ fn import_flora(
                 new_positions.push(positions[index as usize]);
                 new_normals.push(normals[index as usize]);
                 new_uvs.push(uvs[index as usize]);
+                new_colors.push(colors[index as usize]);
             }
             new_indices.push(*slot);
         }
@@ -227,7 +301,15 @@ fn import_flora(
         positions = new_positions;
         normals = new_normals;
         uvs = new_uvs;
+        colors = new_colors;
         indices = new_indices;
+    }
+    // Factors are spec-bounded [0, 1]; clamp exporter drift so validation never trips on
+    // a 1.0000001.
+    for color in &mut colors {
+        for channel in color.iter_mut() {
+            *channel = channel.clamp(0.0, 1.0);
+        }
     }
 
     // Normalize: recentre in XZ, ground the lowest vertex at y = 0.
@@ -261,12 +343,13 @@ fn import_flora(
             source_url: manifest.source_url,
         },
         texture_file: texture_file.clone(),
-        texture_width: image.width,
-        texture_height: image.height,
+        texture_width: sheet_width,
+        texture_height: sheet_height,
         height_m: max[1] - min[1],
         positions,
         normals,
         uvs,
+        colors,
         indices,
     };
     asset.validate().map_err(|reason| anyhow::anyhow!("{} refused: {reason}", input.display()))?;
@@ -275,7 +358,7 @@ fn import_flora(
     let png_path = out_dir.join(&texture_file);
     let file = std::fs::File::create(&png_path)
         .with_context(|| format!("failed to create {}", png_path.display()))?;
-    let mut encoder = png::Encoder::new(std::io::BufWriter::new(file), image.width, image.height);
+    let mut encoder = png::Encoder::new(std::io::BufWriter::new(file), sheet_width, sheet_height);
     encoder.set_color(png::ColorType::Rgba);
     encoder.set_depth(png::BitDepth::Eight);
     encoder.write_header()?.write_image_data(&rgba)?;

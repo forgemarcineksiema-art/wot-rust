@@ -41,6 +41,10 @@ pub struct FloraAsset {
     pub positions: Vec<[f32; 3]>,
     pub normals: Vec<[f32; 3]>,
     pub uvs: Vec<[f32; 2]>,
+    /// Per-vertex tint baked from the source materials' base_color_factor: these packs paint
+    /// with factor × shared gradient texture, and the runtime reconstructs exactly that
+    /// (vertex color × sampled texel).
+    pub colors: Vec<[f32; 3]>,
     pub indices: Vec<u32>,
     /// Canopy top over the ground plane, metres.
     pub height_m: f32,
@@ -72,13 +76,22 @@ impl FloraAsset {
         if vertex_count == 0 || self.indices.len() < 3 || !self.indices.len().is_multiple_of(3) {
             return Err("the mesh must carry whole triangles".to_string());
         }
-        if self.normals.len() != vertex_count || self.uvs.len() != vertex_count {
+        if self.normals.len() != vertex_count
+            || self.uvs.len() != vertex_count
+            || self.colors.len() != vertex_count
+        {
             return Err(format!(
-                "attribute streams disagree: {} positions, {} normals, {} uvs",
+                "attribute streams disagree: {} positions, {} normals, {} uvs, {} colors",
                 vertex_count,
                 self.normals.len(),
-                self.uvs.len()
+                self.uvs.len(),
+                self.colors.len()
             ));
+        }
+        for color in &self.colors {
+            if color.iter().any(|channel| !(0.0..=1.0).contains(channel)) {
+                return Err(format!("vertex tint {color:?} outside [0, 1]"));
+            }
         }
         if self.triangle_count() > FLORA_MAX_TRIS {
             return Err(format!(
@@ -135,6 +148,7 @@ mod tests {
             positions: vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.5, 1.2, 0.0]],
             normals: vec![[0.0, 0.0, 1.0]; 3],
             uvs: vec![[0.0, 1.0], [1.0, 1.0], [0.5, 0.0]],
+            colors: vec![[0.4, 0.7, 0.3]; 3],
             indices: vec![0, 1, 2],
             height_m: 1.2,
         }
