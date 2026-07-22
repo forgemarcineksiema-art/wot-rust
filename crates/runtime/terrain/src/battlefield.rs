@@ -120,9 +120,16 @@ impl StaticCoverKind {
     }
 
     /// The fraction of its original height a rubble mound keeps: low enough that a turret-height
-    /// shot clears it, tall enough to still stop a hull.
+    /// shot clears it, tall enough to still stop a hull. The fraction is PER KIND because the
+    /// promise is absolute, not proportional: 0.4 of a farm building is a 2.4 m pile a turret
+    /// works over, but 0.4 of an 11 m tenement would be a 4.4 m wall that buries the
+    /// destruction-opens-the-map promise — so masonry blocks keep their mound under turret
+    /// eyes (urban-map PR-14, locked by `tests/ostrogorsk_urban.rs`).
     pub fn rubble_height_frac(self) -> f32 {
-        0.4
+        match self {
+            StaticCoverKind::CityBuilding => 0.18,
+            _ => 0.4,
+        }
     }
 }
 
