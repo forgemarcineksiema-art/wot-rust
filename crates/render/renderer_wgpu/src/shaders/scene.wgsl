@@ -27,7 +27,15 @@ struct VsOut {
     @location(2) world_pos: vec3<f32>,
     @location(3) gloss: f32,
     @location(4) surface: f32,
+    @location(5) uv: vec2<f32>,
 };
+
+// The foliage atlas (Imported Flora 2.0, FL-2): every scene fragment samples it at the UV
+// lane. Procedural content carries uv (0, 0), where the atlas is opaque white — multiply by
+// 1.0 and alpha 1.0, a bit-exact no-op — while imported foliage texels colour the leaf and
+// cut its silhouette.
+@group(1) @binding(0) var foliage_atlas: texture_2d<f32>;
+@group(1) @binding(1) var foliage_sampler: sampler;
 
 @vertex
 fn vs_main(input: VsIn) -> VsOut {
@@ -83,6 +91,7 @@ fn vs_main(input: VsIn) -> VsOut {
     out.color = input.color * tint;
     out.gloss = input.gloss;
     out.surface = input.surface;
+    out.uv = input.uv;
     return out;
 }
 
@@ -247,6 +256,12 @@ fn detail_normal(world: vec3<f32>, n: vec3<f32>, gloss: f32) -> vec3<f32> {
 
 @fragment
 fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
+    // The foliage cutout (FL-2): sample first so a cut texel skips the whole shade. On the
+    // default one-texel white atlas this is a cached fetch, alpha 1.0, colour 1.0 — no-op.
+    let foliage = textureSample(foliage_atlas, foliage_sampler, input.uv);
+    if (foliage.a < 0.5) {
+        discard;
+    }
     let geometric_n = normalize(input.normal);
     // Wetness (camera.time_params.z): rain darkens every material, sharpens its finish, and
     // pools mirror-flat sheen on level ground. Presentation only — set by the weather look.
@@ -270,7 +285,7 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     if (input.surface > 0.5) {
         detail = surface_treatment(input.surface, input.world_pos, geometric_n);
     }
-    var albedo = input.color * detail;
+    var albedo = input.color * detail * foliage.rgb;
     albedo *= mix(1.0, 0.62, wet);
 
     // Screen AO rides inside light_radiance on the indirect terms only — a sunlit crease keeps

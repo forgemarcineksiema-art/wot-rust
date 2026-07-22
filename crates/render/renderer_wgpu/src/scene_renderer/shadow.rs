@@ -22,6 +22,18 @@ pub fn shadow_shader_source() -> String {
 
 const SHADOW_VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 1] =
     wgpu::vertex_attr_array![0 => Float32x3];
+/// The SCENE caster reads position AND the UV lane (Flora 2.0, FL-2), so the depth fragment
+/// can cut a leaf's shadow to its mask. Explicit offsets: uv sits at byte 52 of SceneVertex
+/// (pinned by `renderer_api/tests/scene_vertex_lanes.rs`) — `vertex_attr_array!` would pack
+/// it right after position and read garbage.
+const SHADOW_SCENE_VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 2] = [
+    wgpu::VertexAttribute { format: wgpu::VertexFormat::Float32x3, offset: 0, shader_location: 0 },
+    wgpu::VertexAttribute {
+        format: wgpu::VertexFormat::Float32x2,
+        offset: 52,
+        shader_location: 12,
+    },
+];
 const SHADOW_INSTANCE_ATTRIBUTES: [wgpu::VertexAttribute; 6] = wgpu::vertex_attr_array![6 => Float32x4, 7 => Float32x4, 8 => Float32x4, 9 => Float32x4,
         10 => Float32x4, 13 => Uint32];
 
@@ -59,6 +71,7 @@ impl ShadowResources {
         device: &wgpu::Device,
         shadow_bgl: &wgpu::BindGroupLayout,
         camera_bgl: &wgpu::BindGroupLayout,
+        foliage_bgl: &wgpu::BindGroupLayout,
         initial_ao_view: &wgpu::TextureView,
         resolution: u32,
         cascade_count: u32,
@@ -119,25 +132,37 @@ impl ShadowResources {
             initial_ao_view,
             &ao_sampler,
         );
+        // Scene casters go through the CUTOUT entries (position + uv, atlas at group 1) so a
+        // leaf's shadow is its mask; the fleet keeps the plain depth path — vehicle vertices
+        // carry no UV lane and tanks are not made of leaves.
         let pipeline_scene = build_shadow_pipeline(
             device,
             camera_bgl,
+            Some(foliage_bgl),
             std::mem::size_of::<renderer_api::SceneVertex>() as u64,
-            "vs_main",
+            &SHADOW_SCENE_VERTEX_ATTRIBUTES,
+            "vs_main_cutout",
+            "fs_depth_cutout",
             "shadow_pipeline_scene",
         );
         let pipeline_vehicle = build_shadow_pipeline(
             device,
             camera_bgl,
+            None,
             std::mem::size_of::<renderer_api::VehicleVertex>() as u64,
+            &SHADOW_VERTEX_ATTRIBUTES,
             "vs_main",
+            "fs_depth",
             "shadow_pipeline_vehicle",
         );
         let pipeline_scene_far = build_shadow_pipeline(
             device,
             camera_bgl,
+            Some(foliage_bgl),
             std::mem::size_of::<renderer_api::SceneVertex>() as u64,
-            "vs_far",
+            &SHADOW_SCENE_VERTEX_ATTRIBUTES,
+            "vs_far_cutout",
+            "fs_depth_cutout",
             "shadow_pipeline_scene_far",
         );
         // A small constant depth bias plus a normal offset scaled to the texel footprint kills acne
@@ -204,11 +229,15 @@ impl ShadowResources {
 /// depth. `vertex_stride` selects the caster format (scene vs vehicle); both lead with `position`,
 /// so the one vertex shader serves both. Single-sampled (the shadow map is 1x), camera uniform at
 /// group 0.
+#[allow(clippy::too_many_arguments)]
 fn build_shadow_pipeline(
     device: &wgpu::Device,
     camera_bgl: &wgpu::BindGroupLayout,
+    foliage_bgl: Option<&wgpu::BindGroupLayout>,
     vertex_stride: u64,
+    vertex_attributes: &'static [wgpu::VertexAttribute],
     entry_point: &str,
+    fragment_entry: &str,
     label: &str,
 ) -> wgpu::RenderPipeline {
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -217,7 +246,7 @@ fn build_shadow_pipeline(
     });
     let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("shadow_pipeline_layout"),
-        bind_group_layouts: &[Some(camera_bgl)],
+        bind_group_layouts: &[Some(camera_bgl), foliage_bgl],
         immediate_size: 0,
     });
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -231,7 +260,7 @@ fn build_shadow_pipeline(
                 wgpu::VertexBufferLayout {
                     array_stride: vertex_stride,
                     step_mode: wgpu::VertexStepMode::Vertex,
-                    attributes: &SHADOW_VERTEX_ATTRIBUTES,
+                    attributes: vertex_attributes,
                 },
                 wgpu::VertexBufferLayout {
                     array_stride: std::mem::size_of::<SceneInstance>() as u64,
@@ -264,7 +293,7 @@ fn build_shadow_pipeline(
         multisample: wgpu::MultisampleState::default(),
         fragment: Some(wgpu::FragmentState {
             module: &shader,
-            entry_point: Some("fs_depth"),
+            entry_point: Some(fragment_entry),
             compilation_options: wgpu::PipelineCompilationOptions::default(),
             targets: &[],
         }),

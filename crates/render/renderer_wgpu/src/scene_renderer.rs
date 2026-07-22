@@ -5,6 +5,7 @@ mod draw;
 mod draw_depth;
 mod dressing;
 pub(crate) mod env_group;
+mod foliage_atlas;
 pub(crate) mod ground;
 mod hud_atlas;
 pub(crate) mod post;
@@ -114,6 +115,9 @@ pub struct SceneRenderer {
     pub scene_lighting: SceneLighting,
     shadow: shadow::ShadowResources,
     shadow_bgl: wgpu::BindGroupLayout,
+    /// The foliage atlas + sampler at group 1 of the scene/shadow/prepass pipelines (FL-2).
+    foliage_atlas: foliage_atlas::FoliageAtlas,
+    foliage_bgl: wgpu::BindGroupLayout,
     ssao: ssao::SsaoResources,
     /// The Terrain Material 2.0 ground slot (battlefield heightfield + splat/macro maps).
     ground: ground::GroundResources,
@@ -222,8 +226,10 @@ impl SceneRenderer {
         // Every world pipeline renders linear HDR into the internal Rgba16Float target; only the
         // post pass (display transform) and the HUD write the caller's output format.
         let hdr_format = post::HDR_FORMAT;
+        let foliage_bgl = foliage_atlas::build_foliage_bind_group_layout(device);
+        let foliage_atlas = foliage_atlas::FoliageAtlas::new(device, &ctx.queue, &foliage_bgl);
         let (pipeline, camera_bgl) =
-            build_scene_pipeline(device, hdr_format, sample_count, &shadow_bgl);
+            build_scene_pipeline(device, hdr_format, sample_count, &shadow_bgl, &foliage_bgl);
         let fx_pipeline =
             crate::fx_pipeline::build_fx_pipeline(device, hdr_format, sample_count, &camera_bgl);
         let sky_pipeline =
@@ -281,12 +287,18 @@ impl SceneRenderer {
                 std::env::var("WOT_GPU_DETAIL").ok().as_deref(),
             )
         });
-        let ssao = ssao::SsaoResources::new(device, &camera_bgl, lighting_quality.ssao_scale);
+        let ssao = ssao::SsaoResources::new(
+            device,
+            &camera_bgl,
+            &foliage_bgl,
+            lighting_quality.ssao_scale,
+        );
         let placeholder_ao = ssao_pipelines::placeholder_ao_view(device, &ctx.queue);
         let shadow = shadow::ShadowResources::new(
             device,
             &shadow_bgl,
             &camera_bgl,
+            &foliage_bgl,
             &placeholder_ao,
             lighting_quality.shadow_resolution,
             lighting_quality.shadow_cascades,
@@ -408,6 +420,8 @@ impl SceneRenderer {
             scene_lighting: SceneLighting::battlefield_default(),
             shadow,
             shadow_bgl,
+            foliage_atlas,
+            foliage_bgl,
             ssao,
             ground,
             post,

@@ -60,3 +60,69 @@ fn fs_depth(input: VsDepthOut) {
         discard;
     }
 }
+
+// --- The cutout depth path (Imported Flora 2.0, FL-2) --------------------------------------
+// SCENE casters carry the UV lane, and their depth fragments sample the foliage atlas: texels
+// under the cutout threshold cast NO depth — a leaf's shadow (and its AO) is exactly its
+// mask. Procedural content carries uv (0, 0), where the atlas is opaque white, so it costs
+// one cached texel fetch and never discards.
+
+@group(1) @binding(0) var foliage_atlas: texture_2d<f32>;
+@group(1) @binding(1) var foliage_sampler: sampler;
+
+struct VsInCutout {
+    @location(0) position: vec3<f32>,
+    @location(12) uv: vec2<f32>,
+    @location(6) model_0: vec4<f32>,
+    @location(7) model_1: vec4<f32>,
+    @location(8) model_2: vec4<f32>,
+    @location(9) model_3: vec4<f32>,
+    @location(13) damage_index: u32,
+};
+
+struct VsDepthOutCutout {
+    @builtin(position) clip: vec4<f32>,
+    @location(0) world_pos: vec3<f32>,
+    @location(1) @interpolate(flat) damage_index: u32,
+    @location(2) uv: vec2<f32>,
+};
+
+fn depth_out_cutout(clip: vec4<f32>, world_pos: vec3<f32>, damage_index: u32, uv: vec2<f32>) -> VsDepthOutCutout {
+    var out: VsDepthOutCutout;
+    out.clip = clip;
+    out.world_pos = world_pos;
+    out.damage_index = damage_index;
+    out.uv = uv;
+    return out;
+}
+
+@vertex
+fn vs_main_cutout(input: VsInCutout) -> VsDepthOutCutout {
+    let model = mat4x4<f32>(input.model_0, input.model_1, input.model_2, input.model_3);
+    let world = model * vec4<f32>(input.position, 1.0);
+    return depth_out_cutout(camera.light_view_proj * world, world.xyz, input.damage_index, input.uv);
+}
+
+@vertex
+fn vs_far_cutout(input: VsInCutout) -> VsDepthOutCutout {
+    let model = mat4x4<f32>(input.model_0, input.model_1, input.model_2, input.model_3);
+    let world = model * vec4<f32>(input.position, 1.0);
+    return depth_out_cutout(camera.light_view_proj_far * world, world.xyz, input.damage_index, input.uv);
+}
+
+@vertex
+fn vs_prepass_cutout(input: VsInCutout) -> VsDepthOutCutout {
+    let model = mat4x4<f32>(input.model_0, input.model_1, input.model_2, input.model_3);
+    let world = model * vec4<f32>(input.position, 1.0);
+    return depth_out_cutout(camera.view_proj * world, world.xyz, input.damage_index, input.uv);
+}
+
+@fragment
+fn fs_depth_cutout(input: VsDepthOutCutout) {
+    if (armor_fragment_is_cut(input.world_pos, input.damage_index)) {
+        discard;
+    }
+    if (textureSampleLevel(foliage_atlas, foliage_sampler, input.uv, 0.0).a < 0.5) {
+        discard;
+    }
+}
