@@ -628,6 +628,10 @@ pub(crate) fn derived_building_style(id: &str, half: Vec3) -> world_forge::build
         BuildingStyle::Church
     } else if id.contains("windmill") {
         BuildingStyle::Windmill
+    } else if id.contains("factory") {
+        // Halls stand by NAME only (PR-09): no box proportion ever invents an industrial
+        // span — a map says "factory" or it gets civic masonry.
+        BuildingStyle::FactoryHall
     } else if id.contains("tenement") || half.y >= 5.0 {
         BuildingStyle::Tenement
     } else if elongation > 1.45 && half.y < 2.9 {
@@ -1564,6 +1568,12 @@ mod tests {
         assert_eq!(by("old_windmill", [4.0, 6.0, 4.0]), BuildingStyle::Windmill);
         assert_eq!(by("tenement_row_a", [9.0, 4.0, 5.0]), BuildingStyle::Tenement);
         assert_eq!(by("elevator_south", [6.0, 9.5, 6.0]), BuildingStyle::Tenement);
+        assert_eq!(by("mill_factory_south", [14.0, 6.0, 9.0]), BuildingStyle::FactoryHall);
+        assert_eq!(
+            by("long_low_hall", [14.0, 2.7, 9.0]),
+            BuildingStyle::Barn,
+            "no proportion ever invents a factory - halls stand by name"
+        );
         assert_eq!(by("barn_2", [7.0, 2.7, 4.2]), BuildingStyle::Barn);
         assert_eq!(by("town_house_c1", [4.5, 3.4, 4.5]), BuildingStyle::Townhouse);
         assert_eq!(by("cottage_9", [4.0, 2.6, 3.2]), BuildingStyle::Cottage);
