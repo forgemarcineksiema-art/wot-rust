@@ -8,6 +8,7 @@
 pub mod app;
 pub mod brush;
 pub mod gameplay;
+pub mod grab;
 pub mod markers;
 pub mod objects;
 pub mod overlay;

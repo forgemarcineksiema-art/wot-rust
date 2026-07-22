@@ -25,6 +25,7 @@ use winit::window::{CursorGrabMode, Window, WindowId};
 
 use crate::brush::{BrushMode, BrushSettings, Stroke};
 use crate::gameplay::GameplayTool;
+use crate::grab::{Form, Transform};
 use crate::objects::{PaletteEntry, Selection};
 use crate::overlay::{OverlayModel, overlay};
 use crate::roads::PendingRoad;
@@ -50,7 +51,7 @@ pub fn run(path: Option<PathBuf>) -> anyhow::Result<()> {
 /// the event loop hot (one-look policy: frames are the app's job, never the laptop's).
 const FRAME_INTERVAL: Duration = Duration::from_millis(12);
 
-const HELP_LINE: &str = "B brush  T stamp  C stroke  O object  L road  G gameplay  V viewshed  F3 water  F1 overview  Ctrl+P playtest";
+const HELP_LINE: &str = "B brush  T stamp  C stroke  H grab  O object  L road  G gameplay  V viewshed  F3 water  F1 overview  Ctrl+P playtest";
 
 /// Free-fly viewport camera: yaw/pitch look (hold RMB), WASD + QE move, Shift sprints,
 /// wheel sets the pace.
@@ -136,6 +137,8 @@ struct EditorApp {
     palette: Option<PaletteEntry>,
     road: Option<PendingRoad>,
     stroke_tool: Option<PendingStroke>,
+    grab_armed: bool,
+    grab_drag: Option<GrabDrag>,
     gameplay: Option<(GameplayTool, usize)>,
     viewshed: Option<(Vec<SceneVertex>, Vec<u32>)>,
     show_water: bool,
@@ -177,6 +180,8 @@ impl EditorApp {
             palette: None,
             road: None,
             stroke_tool: None,
+            grab_armed: false,
+            grab_drag: None,
             gameplay: None,
             viewshed: None,
             show_water: false,
@@ -412,6 +417,7 @@ impl EditorApp {
             KeyCode::KeyB if pressed => self.cycle_brush(),
             KeyCode::KeyT if pressed => self.cycle_stamp(),
             KeyCode::KeyC if pressed => self.cycle_stroke_tool(),
+            KeyCode::KeyH if pressed => self.toggle_grab(),
             KeyCode::KeyO if pressed => self.cycle_palette(),
             KeyCode::KeyL if pressed => self.toggle_road(),
             KeyCode::KeyG if pressed => self.cycle_gameplay(),
@@ -531,6 +537,7 @@ impl EditorApp {
         self.palette = None;
         self.road = None;
         self.stroke_tool = None;
+        self.disarm_grab();
         let next = match self.brush.map(|brush| brush.mode) {
             None => Some(BrushMode::CYCLE[0]),
             Some(mode) => {
@@ -551,6 +558,12 @@ impl EditorApp {
     }
 
     fn resize_brush(&mut self, factor: f32) {
+        if let Some(drag) = &mut self.grab_drag {
+            drag.transform.widen *= factor;
+            let wider = if drag.transform.widen > 1.0 { "wider" } else { "narrower" };
+            self.status = format!("grab: {} - {wider} (release sets)", drag.form.label);
+            return;
+        }
         if let Some(pending) = &mut self.stroke_tool {
             pending.adjust_width(factor);
             self.status = stroke_status(pending);
@@ -626,6 +639,7 @@ impl EditorApp {
         self.palette = None;
         self.road = None;
         self.stroke_tool = None;
+        self.disarm_grab();
         self.restore_compiled_ground();
         let next = match self.stamp.as_ref().map(|stamp| stamp.kind) {
             None => Some(StampKind::CYCLE[0]),
@@ -676,6 +690,9 @@ impl EditorApp {
             stamp.anchor = None;
             self.restore_compiled_ground();
             self.status = "stamp anchor cancelled".into();
+        } else if let Some(drag) = self.grab_drag.take() {
+            self.restore_compiled_ground();
+            self.status = format!("grab: {} - let go", drag.form.label);
         } else if self.stroke_tool.as_ref().is_some_and(|pending| !pending.raw.is_empty()) {
             if let Some(pending) = &mut self.stroke_tool {
                 pending.raw.clear();
@@ -830,6 +847,7 @@ impl EditorApp {
         self.stamp = None;
         self.palette = None;
         self.road = None;
+        self.disarm_grab();
         self.restore_compiled_ground();
         let width = self.stroke_tool.as_ref().map(|pending| pending.half_width_m);
         let next = match self.stroke_tool.as_ref().map(|pending| pending.kind) {
@@ -851,6 +869,124 @@ impl EditorApp {
             Some(pending) => stroke_status(pending),
             None => format!("stroke off - {HELP_LINE}"),
         };
+    }
+
+    /// H toggles the grab tool: existing forms (hills, strokes, benches) become handles.
+    fn toggle_grab(&mut self) {
+        self.gameplay = None;
+        self.brush = None;
+        self.stamp = None;
+        self.palette = None;
+        self.road = None;
+        self.stroke_tool = None;
+        self.restore_compiled_ground();
+        self.grab_armed = !self.grab_armed;
+        self.grab_drag = None;
+        self.status = if self.grab_armed {
+            "grab: LMB holds a form (hills, strokes, benches) - drag moves, Shift lifts, [/] width"
+                .into()
+        } else {
+            format!("grab off - {HELP_LINE}")
+        };
+    }
+
+    fn disarm_grab(&mut self) {
+        self.grab_armed = false;
+        self.grab_drag = None;
+    }
+
+    /// LMB with the grab tool armed: hold the nearest form under the cursor ray.
+    fn grab_click(&mut self) -> bool {
+        if !self.grab_armed {
+            return false;
+        }
+        let Some(cursor) = self.cursor_px else { return true };
+        let ndc = [
+            cursor[0] / self.viewport_px[0] * 2.0 - 1.0,
+            1.0 - cursor[1] / self.viewport_px[1] * 2.0,
+        ];
+        let camera = self.camera.camera();
+        let aspect = (self.viewport_px[0] / self.viewport_px[1]).max(0.01);
+        let (origin, direction) = pick::cursor_ray(&camera, aspect, ndc);
+        let forms = crate::grab::enumerate_forms(
+            self.document.blueprint(),
+            &self.compiled.battlefield.heightmap,
+        );
+        let mut best: Option<(f32, Form)> = None;
+        for form in forms {
+            if let Some(t) = pick::ray_aabb(origin, direction, form.center, form.half)
+                && best.as_ref().is_none_or(|(closest, _)| t < *closest)
+            {
+                best = Some((t, form));
+            }
+        }
+        match best {
+            Some((_, form)) => {
+                let start = self.probe.map_or([form.center.x, form.center.z], |hit| [hit.x, hit.z]);
+                self.status = format!("grab: {} - drag moves, Shift lifts, [/] width", form.label);
+                self.grab_drag = Some(GrabDrag {
+                    form,
+                    start,
+                    last_cursor_y: cursor[1],
+                    transform: Transform::default(),
+                });
+            }
+            None => self.status = "grab: nothing under the cursor".into(),
+        }
+        true
+    }
+
+    /// One held frame: the drag feeds the transform (ground = move, Shift = lift), and the
+    /// ghost previews EXACTLY what release would set — same snapped door, same truth.
+    fn grab_frame(&mut self) {
+        let (shift, probe, cursor_y) =
+            (self.input.shift, self.probe, self.cursor_px.map(|cursor| cursor[1]));
+        let Some(drag) = &mut self.grab_drag else { return };
+        if shift {
+            if let Some(y) = cursor_y {
+                drag.transform.raise_m -= (y - drag.last_cursor_y) * (0.25 / 12.0);
+            }
+        } else if let Some(hit) = probe {
+            drag.transform.move_m = [hit.x - drag.start[0], hit.z - drag.start[1]];
+        }
+        if let Some(y) = cursor_y {
+            drag.last_cursor_y = y;
+        }
+        let (form, transform) = (drag.form.clone(), drag.transform);
+        if self.last_mesh_swap.elapsed() < Duration::from_millis(50) {
+            return;
+        }
+        self.last_mesh_swap = Instant::now();
+        let mut ghost = self.document.blueprint().clone();
+        let spoken = crate::grab::apply_transform(&mut ghost, &form, &transform);
+        self.status = format!("grab: {spoken} (release sets, Esc lets go)");
+        let (battlefield, _) = map_forge::compile(&ghost);
+        if let Some(renderer) = self.renderer.as_mut() {
+            let (vertices, indices) = scene_build::battlefield::terrain_scene_mesh_with_water(
+                &battlefield.heightmap,
+                battlefield.water,
+            );
+            renderer.update_battlefield_ground_geometry(&vertices, &indices);
+        }
+        self.working = Some(battlefield.heightmap);
+    }
+
+    /// Release sets: replay the snapped transform onto the document through ONE
+    /// `apply_edit`. A sub-snap drag leaves the document untouched.
+    fn end_grab(&mut self) {
+        let Some(drag) = self.grab_drag.take() else { return };
+        if !drag.transform.is_meaningful() {
+            self.restore_compiled_ground();
+            self.status = format!("grab: {} - untouched", drag.form.label);
+            return;
+        }
+        let (form, transform) = (drag.form, drag.transform);
+        let mut spoken = String::new();
+        self.document.apply_edit(|blueprint| {
+            spoken = crate::grab::apply_transform(blueprint, &form, &transform);
+        });
+        self.reload_scene();
+        self.status = format!("set: {spoken}");
     }
 
     /// LMB with the stroke tool armed: append a waypoint at the probe.
@@ -922,6 +1058,7 @@ impl EditorApp {
         self.stamp = None;
         self.road = None;
         self.stroke_tool = None;
+        self.disarm_grab();
         self.restore_compiled_ground();
         let next = match self.palette {
             None => Some(PaletteEntry::CYCLE[0]),
@@ -1023,6 +1160,7 @@ impl EditorApp {
         self.stamp = None;
         self.palette = None;
         self.stroke_tool = None;
+        self.disarm_grab();
         self.road = match self.road {
             Some(_) => None,
             None => Some(PendingRoad::default()),
@@ -1087,6 +1225,7 @@ impl EditorApp {
         self.palette = None;
         self.road = None;
         self.stroke_tool = None;
+        self.disarm_grab();
         let next = match self.gameplay {
             None => Some(GameplayTool::CYCLE[0]),
             Some((tool, _)) => {
@@ -1190,6 +1329,16 @@ impl EditorApp {
                     ("Enter commits   Backspace pops   Esc clears".to_string(), false),
                 ],
             )
+        } else if self.grab_armed {
+            (
+                "GRAB".to_string(),
+                vec![
+                    ("LMB holds a form: hills, strokes, benches".to_string(), false),
+                    ("drag moves (1 m)   Shift+drag lifts (0.25 m)".to_string(), false),
+                    ("[ ] narrower / wider".to_string(), false),
+                    ("release sets   Esc lets go".to_string(), false),
+                ],
+            )
         } else if self.show_water {
             let level =
                 self.document.blueprint().water.map_or("- (press = to add)".to_string(), |water| {
@@ -1268,6 +1417,7 @@ impl EditorApp {
         } else {
             self.preview_stamp();
             self.preview_stroke();
+            self.grab_frame();
         }
         let model = self.overlay_model();
         let Some(renderer) = self.renderer.as_mut() else { return };
@@ -1390,6 +1540,34 @@ impl EditorApp {
                 &points,
                 pending.half_width_m,
             );
+        }
+        if let Some(drag) = &self.grab_drag {
+            // The held form's foot ring (amber), riding the drag; the twin's ring dimmer.
+            let heightmap = self.working.as_ref().unwrap_or(&self.compiled.battlefield.heightmap);
+            let at = [
+                drag.form.center.x + drag.transform.move_m[0],
+                drag.form.center.z + drag.transform.move_m[1],
+            ];
+            markers::brush_ring(
+                &mut vertices,
+                &mut indices,
+                heightmap,
+                at,
+                drag.form.footprint_m,
+                [0.95, 0.65, 0.15],
+            );
+            if drag.form.twin.is_some() {
+                let axis_z = self.compiled.battlefield.size_m[1] * 0.5;
+                let twin_z = axis_z * 2.0 - drag.form.center.z - drag.transform.move_m[1];
+                markers::brush_ring(
+                    &mut vertices,
+                    &mut indices,
+                    heightmap,
+                    [at[0], twin_z],
+                    drag.form.footprint_m,
+                    [0.52, 0.36, 0.08],
+                );
+            }
         }
         if self.show_water {
             let base = vertices.len() as u32;
@@ -1518,6 +1696,7 @@ impl ApplicationHandler for EditorApp {
                     if !self.gameplay_click()
                         && !self.road_click()
                         && !self.stroke_click()
+                        && !self.grab_click()
                         && !self.palette_click()
                         && !self.stamp_click()
                     {
@@ -1528,6 +1707,7 @@ impl ApplicationHandler for EditorApp {
                         }
                     }
                 } else {
+                    self.end_grab();
                     self.end_stroke();
                 }
             }
@@ -1622,6 +1802,15 @@ pub fn layer_lines(
 /// Where a pathless document lands for save/playtest: one well-known scratch file.
 fn scratch_path() -> PathBuf {
     std::env::temp_dir().join("wot_editor_scratch.map.ron")
+}
+
+/// A form held by the grab tool: what is held, where the hand started on the ground, the
+/// last cursor height (Shift-lift reads screen motion), and the accumulated transform.
+struct GrabDrag {
+    form: Form,
+    start: [f32; 2],
+    last_cursor_y: f32,
+    transform: Transform,
 }
 
 /// The armed stamp tool: its kind, the inspector knobs, which knob Tab points at, and

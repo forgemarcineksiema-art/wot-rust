@@ -12,6 +12,8 @@ use glam::Vec3;
 use map_forge::blueprint::{MapBlueprint, ObjectSpec, SceneryOp, XCoord};
 use terrain::{BattlefieldMap, SceneryKind, StaticCoverKind};
 
+use crate::pick::ray_aabb;
+
 /// One palette entry: what a click places.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PaletteEntry {
@@ -382,18 +384,6 @@ pub fn adjust_cover(
         return Some(format!("{id}: extents {half_extents_m:?}"));
     }
     None
-}
-
-/// Ray/AABB slab test: distance along the ray to the box, when it hits.
-fn ray_aabb(origin: Vec3, direction: Vec3, center: Vec3, half: Vec3) -> Option<f32> {
-    let inv = direction.recip();
-    let t1 = (center - half - origin) * inv;
-    let t2 = (center + half - origin) * inv;
-    let near = t1.min(t2);
-    let far = t1.max(t2);
-    let enter = near.x.max(near.y).max(near.z);
-    let exit = far.x.min(far.y).min(far.z);
-    (enter <= exit && exit >= 0.0).then_some(enter.max(0.0))
 }
 
 #[cfg(test)]

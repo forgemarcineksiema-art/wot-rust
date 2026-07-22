@@ -20,6 +20,20 @@ pub fn cursor_ray(camera: &Camera, aspect: f32, ndc: [f32; 2]) -> (Vec3, Vec3) {
     (eye, direction)
 }
 
+/// Slab test of a ray against an axis-aligned box: the entry distance when it hits (0 when
+/// the origin already sits inside). The shared pick primitive — cover selection and the
+/// grab tool's form handles use the SAME math, so what the eye clicks is what both mean.
+pub fn ray_aabb(origin: Vec3, direction: Vec3, center: Vec3, half: Vec3) -> Option<f32> {
+    let inv = direction.recip();
+    let t1 = (center - half - origin) * inv;
+    let t2 = (center + half - origin) * inv;
+    let near = t1.min(t2);
+    let far = t1.max(t2);
+    let enter = near.x.max(near.y).max(near.z);
+    let exit = far.x.min(far.y).min(far.z);
+    (enter <= exit && exit >= 0.0).then_some(enter.max(0.0))
+}
+
 /// March the ray against the heightmap: coarse 2 m steps to the first ground crossing, then
 /// a short bisection for a centimetre-honest hit. `None` when the ray leaves the map or
 /// never comes down (sky).
