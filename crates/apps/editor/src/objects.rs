@@ -47,7 +47,7 @@ pub enum PaletteEntry {
 }
 
 impl PaletteEntry {
-    pub const CYCLE: [PaletteEntry; 17] = [
+    pub const CYCLE: [PaletteEntry; 19] = [
         PaletteEntry::Cottage,
         PaletteEntry::Barn,
         PaletteEntry::Townhouse,
