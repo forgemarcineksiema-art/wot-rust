@@ -6,6 +6,7 @@
 //! blueprint edit, not a code change.
 
 pub mod building;
+pub mod flora;
 pub mod tree;
 
 use std::collections::BTreeMap;

@@ -11,12 +11,14 @@ clap.workspace = true
 game_core.workspace = true
 gltf.workspace = true
 map_forge.workspace = true
+png = "0.18"
 ron.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 terrain.workspace = true
 vehicle_forge.workspace = true
 vehicle_geometry.workspace = true
+world_forge.workspace = true
 
 [lints]
 workspace = true

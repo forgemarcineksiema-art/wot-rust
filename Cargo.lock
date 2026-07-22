@@ -4382,12 +4382,14 @@ dependencies = [
  "game_core",
  "gltf",
  "map_forge",
+ "png",
  "ron",
  "serde",
  "serde_json",
  "terrain",
  "vehicle_forge",
  "vehicle_geometry",
+ "world_forge",
 ]
 
 [[package]]
@@ -5653,6 +5655,7 @@ dependencies = [
  "glam 0.30.10",
  "ron",
  "serde",
+ "serde_json",
  "thiserror 2.0.18",
  "vehicle_geometry",
 ]

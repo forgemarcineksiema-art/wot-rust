@@ -65,12 +65,175 @@ pub fn dispatch(command: Command) -> anyhow::Result<()> {
         Command::CompileTank { vehicle, gun, profile, out } => {
             compile_tank_command(&vehicle, gun.as_deref(), profile.parse()?, out)?
         }
+        Command::ImportFlora { input, manifest, out } => import_flora(&input, &manifest, &out)?,
         Command::ExportBlueprints { out } => export_blueprints(out)?,
         Command::Studio { vehicle, out, blueprint_file } => {
             studio_command(&vehicle, out, blueprint_file)?
         }
     }
     Ok(())
+}
+
+/// The RON manifest the importer requires next to every source model: provenance is part of
+/// the asset (Flora 2.0, doctrine decision 10).
+#[derive(Debug, serde::Deserialize)]
+struct FloraManifest {
+    name: String,
+    spdx: String,
+    author: String,
+    source_url: String,
+}
+
+/// Import a CC0 foliage model (FL-3): read the glTF/GLB, merge its triangle primitives,
+/// normalize (recentre XZ, ground min-y to 0), pull the base-color texture, validate through
+/// `world_forge::flora`, and write the `<name>.flora.json` + `<name>.flora.png` pair. Every
+/// refusal is a named error — a downloaded model either passes whole or explains itself.
+fn import_flora(
+    input: &std::path::Path,
+    manifest_path: &std::path::Path,
+    out_dir: &std::path::Path,
+) -> anyhow::Result<()> {
+    let manifest: FloraManifest = ron::from_str(
+        &std::fs::read_to_string(manifest_path)
+            .with_context(|| format!("failed to read manifest {}", manifest_path.display()))?,
+    )
+    .with_context(|| format!("failed to parse manifest {}", manifest_path.display()))?;
+
+    let (document, buffers, images) = gltf::import(input)
+        .with_context(|| format!("failed to import glTF {}", input.display()))?;
+
+    let mut positions: Vec<[f32; 3]> = Vec::new();
+    let mut normals: Vec<[f32; 3]> = Vec::new();
+    let mut uvs: Vec<[f32; 2]> = Vec::new();
+    let mut indices: Vec<u32> = Vec::new();
+    let mut texture_image: Option<usize> = None;
+    for mesh in document.meshes() {
+        for primitive in mesh.primitives() {
+            anyhow::ensure!(
+                primitive.mode() == gltf::mesh::Mode::Triangles,
+                "primitive mode {:?} unsupported: the pipeline takes triangles only",
+                primitive.mode()
+            );
+            let reader = primitive.reader(|buffer| buffers.get(buffer.index()).map(|b| &b.0[..]));
+            let base = positions.len() as u32;
+            let prim_positions: Vec<[f32; 3]> = reader
+                .read_positions()
+                .ok_or_else(|| anyhow::anyhow!("primitive without POSITION"))?
+                .collect();
+            let prim_normals: Vec<[f32; 3]> = reader
+                .read_normals()
+                .ok_or_else(|| anyhow::anyhow!("primitive without NORMAL"))?
+                .collect();
+            let prim_uvs: Vec<[f32; 2]> = reader
+                .read_tex_coords(0)
+                .ok_or_else(|| anyhow::anyhow!("primitive without TEXCOORD_0"))?
+                .into_f32()
+                .collect();
+            let prim_indices: Vec<u32> = reader
+                .read_indices()
+                .ok_or_else(|| anyhow::anyhow!("primitive without indices"))?
+                .into_u32()
+                .collect();
+            positions.extend(prim_positions);
+            normals.extend(prim_normals);
+            uvs.extend(prim_uvs);
+            indices.extend(prim_indices.into_iter().map(|index| index + base));
+            if texture_image.is_none() {
+                texture_image = primitive
+                    .material()
+                    .pbr_metallic_roughness()
+                    .base_color_texture()
+                    .map(|info| info.texture().source().index());
+            }
+        }
+    }
+    let image_index =
+        texture_image.ok_or_else(|| anyhow::anyhow!("no base-color texture in the source"))?;
+    let image = images
+        .get(image_index)
+        .ok_or_else(|| anyhow::anyhow!("texture image {image_index} missing"))?;
+    let rgba = image_to_rgba8(image)?;
+
+    // Normalize: recentre in XZ, ground the lowest vertex at y = 0.
+    let (mut min, mut max) = ([f32::INFINITY; 3], [f32::NEG_INFINITY; 3]);
+    for p in &positions {
+        for axis in 0..3 {
+            min[axis] = min[axis].min(p[axis]);
+            max[axis] = max[axis].max(p[axis]);
+        }
+    }
+    let centre_x = (min[0] + max[0]) * 0.5;
+    let centre_z = (min[2] + max[2]) * 0.5;
+    for p in &mut positions {
+        p[0] -= centre_x;
+        p[1] -= min[1];
+        p[2] -= centre_z;
+    }
+    // Clamp epsilon-out-of-range UVs (a common exporter artifact); real wrapping still fails
+    // validation loudly.
+    for uv in &mut uvs {
+        uv[0] = uv[0].clamp(-0.001, 1.001).clamp(0.0, 1.0);
+        uv[1] = uv[1].clamp(-0.001, 1.001).clamp(0.0, 1.0);
+    }
+
+    let texture_file = format!("{}.flora.png", manifest.name);
+    let asset = world_forge::flora::FloraAsset {
+        name: manifest.name.clone(),
+        license: world_forge::flora::FloraLicense {
+            spdx: manifest.spdx,
+            author: manifest.author,
+            source_url: manifest.source_url,
+        },
+        texture_file: texture_file.clone(),
+        texture_width: image.width,
+        texture_height: image.height,
+        height_m: max[1] - min[1],
+        positions,
+        normals,
+        uvs,
+        indices,
+    };
+    asset.validate().map_err(|reason| anyhow::anyhow!("{} refused: {reason}", input.display()))?;
+
+    std::fs::create_dir_all(out_dir)?;
+    let png_path = out_dir.join(&texture_file);
+    let file = std::fs::File::create(&png_path)
+        .with_context(|| format!("failed to create {}", png_path.display()))?;
+    let mut encoder = png::Encoder::new(std::io::BufWriter::new(file), image.width, image.height);
+    encoder.set_color(png::ColorType::Rgba);
+    encoder.set_depth(png::BitDepth::Eight);
+    encoder.write_header()?.write_image_data(&rgba)?;
+    let json_path = out_dir.join(format!("{}.flora.json", asset.name));
+    write_json(json_path.clone(), &asset)?;
+    println!(
+        "imported {}: {} tris, {}x{} texture, {:.2} m tall -> {}",
+        asset.name,
+        asset.triangle_count(),
+        asset.texture_width,
+        asset.texture_height,
+        asset.height_m,
+        json_path.display()
+    );
+    Ok(())
+}
+
+/// Convert a decoded glTF image to tight RGBA8 (the only wire format the atlas takes).
+fn image_to_rgba8(image: &gltf::image::Data) -> anyhow::Result<Vec<u8>> {
+    use gltf::image::Format;
+    let pixel_count = (image.width * image.height) as usize;
+    Ok(match image.format {
+        Format::R8G8B8A8 => image.pixels.clone(),
+        Format::R8G8B8 => {
+            let mut out = Vec::with_capacity(pixel_count * 4);
+            for rgb in image.pixels.chunks_exact(3) {
+                out.extend_from_slice(&[rgb[0], rgb[1], rgb[2], 255]);
+            }
+            out
+        }
+        other => anyhow::bail!(
+            "texture format {other:?} unsupported: export the source as 8-bit RGB/RGBA"
+        ),
+    })
 }
 
 /// Serialize every blueprint-backed vehicle to `<out>/<slug>.blueprint.ron` — the migration
