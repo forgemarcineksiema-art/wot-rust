@@ -62,6 +62,50 @@ fn main() {
         av.len()
     );
 
+    // The URBAN map (urban-map program PR-15): the dense-core numbers - the one-look FPS
+    // sign-off is measured, not promised.
+    let city = map_forge::battlefield(terrain::MapId::Ostrogorsk);
+    let born = terrain::initial_cover_phase_bytes(&city.static_cover);
+    let t = Instant::now();
+    let mut city_buckets = client::battlefield_statics_buckets(&city, &born, &[]);
+    let (cv, ci) = client::assemble_statics_mesh(&city_buckets);
+    println!(
+        "ostrogorsk statics bake ({} boxes): {:.1} ms ({} v / {} i)",
+        city.static_cover.len(),
+        t.elapsed().as_secs_f64() * 1000.0,
+        cv.len(),
+        ci.len()
+    );
+    let all_rubble = vec![1u8; city.static_cover.len()];
+    let t = Instant::now();
+    let _ = client::battlefield_statics_mesh(&city, &all_rubble);
+    println!(
+        "ostrogorsk statics rebuild (all-rubble): {:.1} ms",
+        t.elapsed().as_secs_f64() * 1000.0
+    );
+    let city_collapsed = city
+        .static_cover
+        .iter()
+        .position(|cover| cover.kind == terrain::StaticCoverKind::CityBuilding)
+        .unwrap_or(0);
+    let mut one_down_city = born.clone();
+    one_down_city[city_collapsed] = 1;
+    let t = Instant::now();
+    let dirty: Vec<usize> =
+        client::statics_buckets_touched_by_cover(&city, &city.static_cover[city_collapsed])
+            .collect();
+    for &bucket in &dirty {
+        city_buckets[bucket] =
+            client::battlefield_statics_bucket_mesh(&city, &one_down_city, &[], bucket);
+    }
+    let (av2, _) = client::assemble_statics_mesh(&city_buckets);
+    println!(
+        "ostrogorsk statics rebuild (single collapse, {} dirty bucket(s) + assembly): {:.2} ms ({} v)",
+        dirty.len(),
+        t.elapsed().as_secs_f64() * 1000.0,
+        av2.len()
+    );
+
     // Grass: the real per-frame cost, averaged hot.
     let materials = client::terrain_material_set_for(terrain::MapId::BystraValley);
     let eye = glam::Vec3::new(500.0, 8.0, 470.0);

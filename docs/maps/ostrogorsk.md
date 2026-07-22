@@ -96,10 +96,35 @@ Locked by `crates/world/map_forge/tests/ostrogorsk.rs`:
 - `the_gameplay_layer_mirrors` — every strategic point sits on the axis or carries its
   mirror twin, and the full 13-point layer ships.
 
+And by `crates/runtime/sim/tests/ostrogorsk_urban.rs` (the battle invariants, on the
+compiled shipped map):
+
+- `a_tenement_row_blocks_until_it_collapses_and_the_street_always_carries` — a standing row
+  blocks the cross-block sightline, the street canyon carries the eye, and a scripted
+  collapse opens the TURRET line over the mound while the hull line stays covered
+  (destruction changes the map — as a test; the per-kind rubble fraction keeps a felled
+  11 m block under turret eyes).
+- `the_born_ruins_open_the_city_from_tick_zero` — the three mirrored ruin pairs are rubble
+  in the initial states and on the wire.
+
 Plus the shared gates every shipped map passes: the map report (symmetry, spawns,
 in-bounds, playability BFS from every spawn to every point and the capture zone), the
 goldens review gate (`blueprints/goldens.ron`), determinism, and the weather fog-fairness
 test across `MapId::ALL`.
+
+## Performance sign-off (min-spec laptop, release, PR-15)
+
+```text
+ostrogorsk statics bake (101 boxes):                    10.2 ms  (88886 v / 153342 i, one-off)
+ostrogorsk statics rebuild (all-rubble):                 5.0 ms  (worst case, on the F7 worker)
+ostrogorsk statics rebuild (single collapse, 1 bucket):  3.39 ms (the real per-collapse cost)
+```
+
+Numbers from `cargo run -p client --release --example perf_capture`. The sim side is locked
+by the `urban_150` bench fixture in `combat_hot_path` (150 boxes > the shipped 101). Review
+renders: `cargo run -p client --example ostrogorsk_views` (street canyon at tank-eye level,
+church square, the berm from the fields). Known playtest candidate: the berm reads gently
+from deep east — a sculpt-session candidate after the first human playtest.
 
 ## Asset
 
