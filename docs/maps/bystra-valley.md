@@ -53,5 +53,8 @@ and every mask are even in `z − 500`, features are on-axis or mirrored pairs.
 ## Status
 
 DEFAULT battle map (the opt-in gate now selects AWAY from it); historical note: playable behind the opt-in gate: set `WOT_MAP=bystra-valley` before launching the client.
-The map enters the seeded rotation once the bots respect deep water (planned: bot water
-probes + reroute through `Crossing` strategic points).
+
+The bots respect deep water: the route brain probes its drive line and detours through
+`Crossing` points, and the per-tick survival check escapes a hull that is in the channel — or
+carries too much momentum to stop short of it. Locked by `server/tests/bot_water.rs`. What is
+still open here is HUMAN playtesting; the map has never met a second player.
