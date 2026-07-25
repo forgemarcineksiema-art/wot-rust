@@ -4,18 +4,37 @@ Artykuł-primer dla właściciela projektu: jak działa multiplayer w grach akcj
 JUŻ jest w tym repo, jakie decyzje otwiera program W1 i co rekomendować. Doktryny
 wykonawcze pozostają po angielsku; to jest tekst do rozumienia, nie do maszyn.
 
+> **STATUS (2026-07-25).** Ten primer powstał PRZED pierwszą falą W1, więc części §3, §6, §7
+> i §8 opisują rzeczy, które już weszły (protokół v36-v38, PR #300). Co jest zrobione:
+> koperta `SnapshotDelivery` z ACK wejść i autorytatywnym ruchem kadłuba do rekoncyliacji
+> predykcji; `session_id` w każdej wiadomości, więc szybki reconnect na tym samym gnieździe
+> jest nową tożsamością i spóźnione pakiety ze starej sesji nic nie psują; lekkie `InputAck`
+> między dostawami snapshotów; osobny NIEZAWODNY kanał osobistej prawdy bojowej
+> (`CombatEventBatch` powtarzany do `CombatEventAck`, dedup przed dźwiękiem/FX/HUD, twarde
+> zerwanie sesji przy dziurze w sekwencji zamiast cichego zgubienia trafienia); filtr
+> per-klient na snapshotach po obu stronach (lokalnej i `RemoteBattleServer`); bramka
+> terminalna zamiast „zombie klienta". Co NIE jest zrobione: publiczna sesja
+> (discovery/relay), uwierzytelnianie graczy, lag compensation zwalidowana na ludziach,
+> postawa antycheatowa, operacje dedyka — i zdjęcie tożsamości właściciela z cudzych
+> pocisków/trafień (patrz `docs/spotting-policy.md`). Sekcje poniżej zostają jako zapis
+> rozumowania, nie jako opis stanu.
+
 ## 1. Model, który już mamy: serwer autorytatywny
 
 Istnieje jedna prawda o bitwie: symulacja na serwerze (deterministyczny fixed tick 60 Hz,
 `SimulationState`). Klient NIE wysyła „gdzie jest mój czołg" — wysyła WEJŚCIA
 (`TankCommand`: gaz, skręt, wieża, ogień). Serwer aplikuje wejścia, liczy fizykę, trafienia
-i spotting, i rozsyła SNAPSHOTY pełnego stanu (protokół v35+: pozycje, HP, fazy coverów,
+i spotting, i rozsyła SNAPSHOTY pełnego stanu (protokół v38: pozycje, HP, fazy coverów,
 blizny, pogoda). Konsekwencje:
 
 - **Oszust nie może kłamać o stanie** — może najwyżej wysyłać dziwne wejścia; fizyka i tak
   liczy się u nas.
-- **Late join jest darmowy** — każdy snapshot niesie CAŁY stan, więc spóźniony klient
-  synchronizuje się pierwszą paczką (to była świadoma decyzja, nie przypadek).
+- **Late join jest darmowy** — każdy snapshot niesie CAŁY stan (od v38: cały stan, który
+  temu klientowi wolno widzieć — filtr spottingu działa przed wysyłką), więc spóźniony
+  klient synchronizuje się pierwszą paczką (to była świadoma decyzja, nie przypadek).
+- **Nie wszystko jest snapshotem** — od v38 osobista prawda bojowa (twoje trafienia, twoje
+  obrażenia) jedzie osobnym niezawodnym kanałem z ACK, bo zgubiony strzał to nie „za 50 ms
+  będzie nowszy": tej informacji nie da się odtworzyć z późniejszego stanu.
 - **Determinizm się opłaca** — klient przewiduje własny czołg tą samą matematyką co serwer
   (`LocalPredictor`), więc korekty po snapshotach są niemal zerowe; cudze czołgi rysujemy
   ~100 ms w przeszłości, interpolując między snapshotami (płynność mimo 20 paczek/s).

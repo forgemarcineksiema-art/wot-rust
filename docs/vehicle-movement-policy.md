@@ -91,6 +91,15 @@ slick) it never grabs and the kinetic model below lets it slide. Static grip is 
 kinetic grips (`mu_s > mu_k`), so the hull "sticks" then breaks loose. A neutral-steer pivot still
 turns a parked hull in place — only the linear drift is locked.
 
+Changing direction is not free. Track brakes hold a *starting* hull — creep against the commanded
+direction, the gravity rollback the hold above is for — but established momentum is a different
+thing: a hull already rolling bleeds its speed through the force model before it can reverse.
+Tapping S at 8 m/s does not erase 8 m/s in one tick; it commits the crew to a deceleration. The
+consequence reaches past feel: anything that plans around stopping must read a braking DISTANCE
+rather than assume an instant reversal. The bots' deep-water escape is the worked example — see
+`server/src/bot_routes.rs` and the `server/tests/bot_water.rs` soak, which is the test that
+catches a drive-model change from the gameplay side.
+
 Laterally (while moving), friction saturates at `mu * g * traction`: below it the hull tracks its
 nose, above it (a hard turn at speed, or a steep low-traction face) it slides. The lateral friction
 impulse only ever cancels sideways velocity, never reverses it, so the step stays stable at 60 Hz.
