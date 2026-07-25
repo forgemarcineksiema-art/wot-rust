@@ -1,5 +1,6 @@
 mod asset;
 mod bake_profile;
+mod default_materials;
 mod load;
 mod manifest;
 mod material_synthesis;
@@ -16,6 +17,9 @@ mod texture_maps;
 
 pub use asset::ForgeArtifact;
 pub use bake_profile::BakeProfile;
+pub use default_materials::{
+    DEFAULT_MATERIAL_MAP_SIZE, DefaultMaterialFamily, DefaultMaterialMap, default_material_families,
+};
 pub use manifest::{ArtifactError, ForgeArtifactManifest, ForgeSubmeshManifest};
 pub use review::{ReviewCamera, ReviewCameraSet, ReviewCameraSpec};
 pub use slug::forge_vehicle_slug;

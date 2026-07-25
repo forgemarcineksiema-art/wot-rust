@@ -1,8 +1,10 @@
 use net::{FRAME_MAGIC, NetError, PROTOCOL_VERSION, ProtocolMessage, decode_frame, encode_frame};
 
+const SESSION_ID: u64 = 0x1020_3040_5060_7080;
+
 #[test]
 fn frame_round_trips_message_with_protocol_version_header() {
-    let message = ProtocolMessage::Ping { client_time_us: 42 };
+    let message = ProtocolMessage::Ping { session_id: SESSION_ID, client_time_us: 42 };
 
     let bytes = encode_frame(&message).expect("frame should encode");
 
@@ -14,7 +16,8 @@ fn frame_round_trips_message_with_protocol_version_header() {
 #[test]
 fn frame_rejects_mismatched_protocol_version_before_payload_decode() {
     let mut bytes =
-        encode_frame(&ProtocolMessage::Ping { client_time_us: 7 }).expect("frame should encode");
+        encode_frame(&ProtocolMessage::Ping { session_id: SESSION_ID, client_time_us: 7 })
+            .expect("frame should encode");
     let mismatched = PROTOCOL_VERSION + 1;
     bytes[4..6].copy_from_slice(&mismatched.to_le_bytes());
 
@@ -30,7 +33,8 @@ fn frame_rejects_mismatched_protocol_version_before_payload_decode() {
 #[test]
 fn frame_rejects_bad_magic_and_short_headers() {
     let mut bytes =
-        encode_frame(&ProtocolMessage::Ping { client_time_us: 7 }).expect("frame should encode");
+        encode_frame(&ProtocolMessage::Ping { session_id: SESSION_ID, client_time_us: 7 })
+            .expect("frame should encode");
     bytes[0] ^= 0xFF;
 
     assert!(matches!(decode_frame(&bytes), Err(NetError::InvalidFrameMagic)));
@@ -39,8 +43,10 @@ fn frame_rejects_bad_magic_and_short_headers() {
 
 #[test]
 fn hello_messages_advertise_current_protocol_version() {
-    let client = ProtocolMessage::ClientHello { protocol_version: PROTOCOL_VERSION };
+    let client =
+        ProtocolMessage::ClientHello { session_id: SESSION_ID, protocol_version: PROTOCOL_VERSION };
     let server = ProtocolMessage::ServerHello {
+        session_id: SESSION_ID,
         protocol_version: PROTOCOL_VERSION,
         map_id: terrain::MapId::ProkhorovkaHill252_2,
         weather: game_core::MatchWeather::default(),

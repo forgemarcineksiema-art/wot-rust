@@ -119,6 +119,31 @@ fn a_large_authoritative_correction_resets_the_motion_history_with_the_pose() {
 }
 
 #[test]
+fn terminal_freeze_stops_motion_and_anchors_the_presented_pose() {
+    let flat = HeightMap::flat(8, 8, 4.0, 0.0).unwrap();
+    let mut predictor = LocalPredictor::new(&TankSpec::t54_1951());
+    predictor.sync_to(&snapshot_at([10.0, 0.0, 10.0]));
+    for _ in 0..90 {
+        predictor.step(TankCommand::drive(1.0, 0.4), &flat, &[], &[], 1.0 / 60.0);
+    }
+    assert!(predictor.speed_mps() > 1.0, "precondition: the local hull is moving");
+
+    let stopped_at = predictor.position();
+    predictor.freeze_motion();
+
+    assert_eq!(predictor.speed_mps(), 0.0);
+    assert_eq!(predictor.motion(0.0), engine::TankMotion::default());
+    assert_eq!(predictor.motion(1.0), engine::TankMotion::default());
+    for alpha in [0.0, 0.5, 1.0] {
+        assert_eq!(
+            predictor.interpolated_pose(alpha).position,
+            stopped_at,
+            "a terminal frame cannot coast through the last interpolation interval"
+        );
+    }
+}
+
+#[test]
 fn seeding_anchors_previous_pose_so_the_first_frame_does_not_fly_in() {
     let mut predictor = LocalPredictor::new(&TankSpec::t54_1951());
     predictor.sync_to(&snapshot_at([10.0, 0.0, 10.0]));

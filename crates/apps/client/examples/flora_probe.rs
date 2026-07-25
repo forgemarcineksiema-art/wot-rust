@@ -44,7 +44,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let target = OffscreenTarget::new(&ctx, width, height)?;
     let mut renderer = SceneRenderer::for_offscreen(&ctx, &statics_v, &statics_i)?;
     let flora = scene_build::flora_pack::flora_catalog();
-    renderer.set_foliage_atlas(&ctx, &flora.atlas_rgba, flora.atlas_size, flora.atlas_size);
+    renderer.set_foliage_atlas(&ctx, &flora.atlas_mips);
     renderer.set_battlefield_ground(
         &ctx,
         &ground_v,

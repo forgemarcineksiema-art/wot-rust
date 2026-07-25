@@ -9,6 +9,8 @@ mod bots;
 mod local;
 mod match_info;
 pub mod remote;
+pub(crate) mod remote_events;
+mod remote_input;
 mod setup;
 
 pub use battle::{

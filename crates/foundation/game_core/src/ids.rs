@@ -19,6 +19,17 @@ impl ShellId {
     }
 }
 
+/// Stable identity of one authoritative battle event.
+///
+/// Zero means "unstamped legacy/local event"; the authoritative simulation assigns positive ids
+/// from one monotonically increasing space shared by damage and shell impacts. The ordering traits
+/// let replication retain and merge bounded event tails without guessing from snapshot arrival
+/// order.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Default,
+)]
+pub struct BattleEventId(pub u64);
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct TeamId(pub u16);
 

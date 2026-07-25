@@ -5,6 +5,8 @@ use net::{
 };
 use sim::TankCommand;
 
+const SESSION_ID: u64 = 0x1020_3040_5060_7080;
+
 #[test]
 fn input_command_round_trips_through_binary_protocol() {
     let message = ProtocolMessage::Input(ClientInputCommand {
@@ -21,7 +23,9 @@ fn input_command_round_trips_through_binary_protocol() {
 
 #[test]
 fn decode_rejects_trailing_bytes() {
-    let mut bytes = encode_message(&ProtocolMessage::Ping { client_time_us: 7 }).unwrap();
+    let mut bytes =
+        encode_message(&ProtocolMessage::Ping { session_id: SESSION_ID, client_time_us: 7 })
+            .unwrap();
     bytes.push(0xAB);
 
     assert!(decode_message(&bytes).is_err(), "a trailing byte must not be silently dropped");
@@ -29,12 +33,75 @@ fn decode_rejects_trailing_bytes() {
 
 #[test]
 fn decode_rejects_truncated_and_garbage_input() {
-    let bytes = encode_message(&ProtocolMessage::Ping { client_time_us: 7 }).unwrap();
+    let bytes =
+        encode_message(&ProtocolMessage::Ping { session_id: SESSION_ID, client_time_us: 7 })
+            .unwrap();
     assert!(decode_message(&bytes[..bytes.len() - 1]).is_err(), "truncated input must error");
 
     // Out-of-range enum discriminant / empty input must error, never panic.
     assert!(decode_message(&[0xFF, 0xFF, 0xFF, 0xFF]).is_err());
     assert!(decode_message(&[]).is_err());
+}
+
+#[test]
+fn session_id_covers_remote_messages_and_excludes_legacy_payloads() {
+    let tagged = [
+        ProtocolMessage::Ping { session_id: SESSION_ID, client_time_us: 1 },
+        ProtocolMessage::Pong { session_id: SESSION_ID, client_time_us: 1, server_time_us: 2 },
+        ProtocolMessage::ClientHello {
+            session_id: SESSION_ID,
+            protocol_version: net::PROTOCOL_VERSION,
+        },
+        ProtocolMessage::ServerHello {
+            session_id: SESSION_ID,
+            protocol_version: net::PROTOCOL_VERSION,
+            map_id: Default::default(),
+            weather: Default::default(),
+            map_content_hash: 0,
+        },
+        ProtocolMessage::InputBatch { session_id: SESSION_ID, commands: Vec::new() },
+        ProtocolMessage::Disconnect { session_id: SESSION_ID, reason: net::DisconnectReason::Quit },
+        ProtocolMessage::LobbyState {
+            session_id: SESSION_ID,
+            players: 1,
+            needed: 1,
+            countdown_ticks: 0,
+        },
+        ProtocolMessage::StartBattle {
+            session_id: SESSION_ID,
+            assigned_tank: TankId(1),
+            server_tick: 0,
+        },
+        ProtocolMessage::BattleEnded { session_id: SESSION_ID, winning_team: None },
+        ProtocolMessage::SnapshotDelivery(net::SnapshotDelivery {
+            session_id: SESSION_ID,
+            ..Default::default()
+        }),
+        ProtocolMessage::InputAck { session_id: SESSION_ID, last_processed_input_seq: 0 },
+        ProtocolMessage::CombatEventBatch {
+            session_id: SESSION_ID,
+            events: vec![net::SequencedCombatEvent {
+                delivery_seq: 0,
+                event: net::CombatEvent::Damage(game_core::DamageEvent::default()),
+            }],
+        },
+        ProtocolMessage::CombatEventAck { session_id: SESSION_ID, last_received_seq: 0 },
+    ];
+    assert!(tagged.iter().all(|message| message.session_id() == Some(SESSION_ID)));
+
+    let legacy = [
+        ProtocolMessage::Input(ClientInputCommand {
+            client_tick: 0,
+            tank_id: TankId(1),
+            command: TankCommand::idle(),
+        }),
+        ProtocolMessage::VehicleSelection(net::ClientVehicleSelection {
+            client_tick: 0,
+            requested_vehicle: VehicleKind::T54_1951,
+        }),
+        ProtocolMessage::Snapshot(Snapshot::default()),
+    ];
+    assert!(legacy.iter().all(|message| message.session_id().is_none()));
 }
 
 #[test]

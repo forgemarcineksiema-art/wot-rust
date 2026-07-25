@@ -12,8 +12,9 @@
 
 Protocol snapshot fixtures live in `crates/runtime/net/tests/snapshots`. They cover input
 commands, vehicle selection, baseline tank snapshots, and a non-empty combat snapshot with shells
-and damage events. These fixtures exercise `encode_message` / `decode_message`, the raw bincode
-payload used inside transport frames.
+and damage events. Protocol v38 fixtures additionally lock `SnapshotDelivery`, `InputAck`,
+`CombatEventBatch`, `CombatEventAck`, and the append-only combat-event truth fields. These fixtures
+exercise `encode_message` / `decode_message`, the raw bincode payload used inside transport frames.
 
 Transport framing is covered separately by `crates/runtime/net/tests/protocol_frame.rs`.
 `encode_frame` prefixes every payload with the `WOT1` magic and the current
@@ -26,15 +27,16 @@ When changing protocol encoding intentionally:
 1. Run `cargo test -p net --test protocol_snapshots`.
 2. Confirm the diff is a deliberate protocol version change.
 3. Bump `PROTOCOL_VERSION` in `crates/runtime/net/src/lib.rs`.
-4. Update the snapshot fixture.
-5. Document the compatibility impact before merging.
+4. Set `REGEN_WIRE_FIXTURES=1` for one deliberate test run to rewrite the named fixtures.
+5. Remove that variable and rerun the same test clean.
+6. Document the compatibility impact before merging.
 
-Current compatibility note: protocol v16 adds LOS spotting masks to `TankSnapshot`; local
-authoritative snapshots are now filtered per viewer before they reach the client. Older notable
-payload breaks include v12 adding `team` to `TankSnapshot` and
-`shell_impacts: Vec<ShellImpact>` to `Snapshot`, v14 adding hull pitch/roll, and v15 adding ammo
-state. The transport frame also carries `PROTOCOL_VERSION = 16` on the wire; a peer with a
-different version must fail the frame before payload decode.
+Current compatibility note: protocol v38 adds a per-session reliable personal-combat lane and
+authoritative event identity/tick/shell/lethal truth. v37 introduced lightweight input ACKs and
+snapshot-aligned prediction replay; v16 introduced LOS spotting masks. Older notable payload
+breaks include v12 adding `team` to `TankSnapshot`, `shell_impacts: Vec<ShellImpact>` to
+`Snapshot`, v14 adding hull pitch/roll, and v15 adding ammo state. The transport frame carries
+`PROTOCOL_VERSION = 38`; a peer with a different version fails the frame before payload decode.
 
 ## Replays
 

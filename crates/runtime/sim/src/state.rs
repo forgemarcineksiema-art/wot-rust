@@ -1,4 +1,4 @@
-use game_core::{DamageEvent, ShellImpact, TankId, TankSpec, TeamId, TrackSide};
+use game_core::{BattleEventId, DamageEvent, ShellImpact, TankId, TankSpec, TeamId, TrackSide};
 use glam::Vec3;
 use physics::TankObstacle;
 use serde::{Deserialize, Serialize};
@@ -6,6 +6,7 @@ use terrain::{HeightMap, StaticCoverObject, WaterBody};
 
 use crate::aim_dispersion::recover_aim_dispersion;
 use crate::combat::{CombatTickContext, fire_click_buffers, try_fire_shell};
+use crate::event_stamp::{BattleEventOutput, BattleEventStamp};
 use crate::landing::apply_landing_impact;
 use crate::ramming::{apply_ramming_damage, capture_ramming_snapshots};
 use crate::shell::ShellState;
@@ -49,6 +50,10 @@ pub struct SimulationState {
     /// late joiner dresses the same walls. Capped per cover by the append rule.
     #[serde(default)]
     cover_scars: Vec<terrain::CoverScar>,
+    /// Last id assigned in the battle's one authoritative event stream. Zero means that no event
+    /// has been emitted yet, including old serialized states that predate this field.
+    #[serde(default)]
+    last_battle_event_id: BattleEventId,
 }
 
 /// Cover damage one absorbed shell deals by its type: a high-explosive round brings structures
@@ -83,6 +88,7 @@ impl SimulationState {
             cover_states: Vec::new(),
             craters: Vec::new(),
             cover_scars: Vec::new(),
+            last_battle_event_id: BattleEventId::default(),
         }
     }
 
@@ -226,6 +232,7 @@ impl SimulationState {
         let context = CombatTickContext { dt_seconds: dt, tick: self.tick, water: self.water };
         self.damage_events.clear();
         self.shell_impacts.clear();
+        let mut event_stamp = BattleEventStamp::new(self.last_battle_event_id, self.tick);
         // Keep the cover states aligned with the map's cover (rebuilt only when the count changes,
         // i.e. at battle setup). A dry `apply_commands` passes no cover and clears the states.
         if self.cover_states.len() != cover.len() {
@@ -313,7 +320,12 @@ impl SimulationState {
                 );
                 all_obstacles[index] =
                     TankObstacle::from_hitbox(tank.position, tank.yaw_rad, tank.spec.hitbox);
-                apply_landing_impact(tank, ground.landing_impact_mps, &mut self.damage_events);
+                apply_landing_impact(
+                    tank,
+                    ground.landing_impact_mps,
+                    &mut self.damage_events,
+                    &mut event_stamp,
+                );
                 // Ammo switch before the fire check: the honest rule is simple â€” any real switch
                 // restarts the full reload (the loader swaps the round out of the breech).
                 if let Some(slot) = command.select_ammo
@@ -335,7 +347,13 @@ impl SimulationState {
             }
         }
 
-        apply_ramming_damage(&ramming_before, &mut self.tanks, &mut self.damage_events, dt);
+        apply_ramming_damage(
+            &ramming_before,
+            &mut self.tanks,
+            &mut self.damage_events,
+            &mut event_stamp,
+            dt,
+        );
         // Drowning runs for EVERY living hull, commanded or not â€” a dead-engine tank in the
         // river keeps flooding.
         crate::drowning::step_drowning(
@@ -344,16 +362,23 @@ impl SimulationState {
             self.water,
             dt,
             &mut self.damage_events,
+            &mut event_stamp,
         );
-        step_shells(
-            &mut self.shells,
-            &mut self.tanks,
-            &mut self.damage_events,
-            &mut self.shell_impacts,
-            context,
-            heightmap,
-            &live_cover,
-        );
+        {
+            let mut events = BattleEventOutput::new(
+                &mut self.damage_events,
+                &mut self.shell_impacts,
+                &mut event_stamp,
+            );
+            step_shells(
+                &mut self.shells,
+                &mut self.tanks,
+                &mut events,
+                context,
+                heightmap,
+                &live_cover,
+            );
+        }
         // Shells absorbed by cover this tick bring it down: an HE round to rubble/clear, a kinetic
         // round chips it. The impact already carries where it died and what died there.
         for impact in &self.shell_impacts {
@@ -403,6 +428,10 @@ impl SimulationState {
             heightmap,
             &live_cover,
         );
+        self.last_battle_event_id = event_stamp.last_event_id();
         self.tick += 1;
     }
 }
+
+#[cfg(test)]
+mod event_truth_tests;

@@ -1,0 +1,409 @@
+use std::io::BufWriter;
+
+use net::session::Endpoint;
+use net::transport::MemoryHub;
+use net::{AuthoritativeMotion, ProtocolMessage, Snapshot, SnapshotDelivery};
+use server::remote::RemoteBattleServer;
+use server::{BattleSeed, RandomBattleConfig, ServerTickConfig};
+
+use super::*;
+
+fn contract_battle() -> RandomBattleConfig {
+    RandomBattleConfig {
+        seed: BattleSeed::fixed(51),
+        player_vehicle: game_core::VehicleKind::T54_1951,
+        map: MapId::default(),
+    }
+}
+
+fn contract_input(command: sim::TankCommand) -> ClientInputCommand {
+    ClientInputCommand { client_tick: u64::MAX, tank_id: TankId(u64::MAX), command }
+}
+
+#[test]
+fn seeded_loss_retries_one_fire_edge_until_it_is_applied_once() {
+    let hub = MemoryHub::with_loss(12_345, 30);
+    let server_addr: SocketAddr = "10.20.0.1:40000".parse().expect("server addr");
+    let mut server_port = hub.port(server_addr);
+    let client_port = hub.port("10.20.0.2:5000".parse().expect("client addr"));
+    let mut host = RemoteBattleServer::new(ServerTickConfig::new(60, 1), contract_battle(), 100, 0);
+    let mut remote = RemoteSession::connect(server_addr, Box::new(client_port));
+    let spec = game_core::VehicleKind::T54_1951.spec();
+    let slot = spec.ammo.initial_selected as usize;
+    let initial_rounds = spec.ammo.counts[slot];
+    let mut fire_queued = false;
+    let mut minimum_rounds = initial_rounds;
+    let mut own_snapshots = 0_usize;
+
+    for step in 0..2_400_u64 {
+        let now_ms = step * 17;
+        let fire = remote.is_seated() && remote.inputs.next_sequence() >= 20 && !fire_queued;
+        fire_queued |= fire;
+        let command = sim::TankCommand { fire, ..sim::TankCommand::idle() };
+        let outcome = remote.tick_with_player_input_at(contract_input(command), now_ms);
+        host.pump(now_ms, &mut server_port);
+        host.tick(now_ms, &mut server_port);
+        if let (Some(tank), Some(snapshot)) = (remote.assigned_tank, outcome.snapshot)
+            && let Some(own) = snapshot.tanks.iter().find(|candidate| candidate.tank_id == tank)
+        {
+            own_snapshots += 1;
+            minimum_rounds = minimum_rounds.min(own.ammo_counts[slot]);
+        }
+    }
+
+    assert!(fire_queued, "lossy handshake must still seat the remote player");
+    assert!(own_snapshots >= 10, "the assertion needs real authoritative samples");
+    assert_eq!(
+        minimum_rounds,
+        initial_rounds - 1,
+        "the true edge is retried through loss, while all later false commands prevent repeats"
+    );
+    assert!(
+        remote.inputs.len() <= ReplicationConfig::default().max_prediction_ticks as usize,
+        "snapshot ACKs must keep prediction history bounded"
+    );
+}
+
+#[test]
+fn stale_delivery_is_rejected_before_ack_recording_and_snapshot_side_effects() {
+    let hub = MemoryHub::new();
+    let server_addr: SocketAddr = "10.21.0.1:40000".parse().expect("server addr");
+    let client_addr: SocketAddr = "10.21.0.2:5000".parse().expect("client addr");
+    let mut server_port = hub.port(server_addr);
+    let client_port = hub.port(client_addr);
+    let mut server = Endpoint::new(client_addr);
+    let mut remote = RemoteSession::connect(server_addr, Box::new(client_port));
+    assert!(remote.inputs.enqueue(TankId(7), sim::TankCommand::idle()));
+    assert!(remote.inputs.enqueue(TankId(7), sim::TankCommand::idle()));
+
+    let path = std::env::temp_dir().join(format!(
+        "wot-stale-delivery-{}-{}.wotrec",
+        std::process::id(),
+        remote.started.elapsed().as_nanos()
+    ));
+    let file = std::fs::File::create(&path).expect("recording file");
+    remote.recorder = Some(net::recording::FrameRecorder::new(BufWriter::new(file)));
+
+    let accepted = ProtocolMessage::SnapshotDelivery(SnapshotDelivery {
+        session_id: remote.session.session_id(),
+        snapshot: Snapshot { server_tick: 10, ..Snapshot::default() },
+        last_processed_input_seq: Some(0),
+        local_motion: AuthoritativeMotion::default(),
+    });
+    server.send(&mut server_port, &accepted).expect("accepted delivery");
+    remote.pump_at(100);
+    assert_eq!(remote.latest_snapshot.as_ref().map(|snapshot| snapshot.server_tick), Some(10));
+    assert_eq!(remote.inputs.len(), 1);
+    assert_eq!(remote.recorder.as_ref().map(net::recording::FrameRecorder::frames), Some(1));
+    remote.delivery_ready = false;
+    remote.pending_reconciliation = None;
+
+    let stale = ProtocolMessage::SnapshotDelivery(SnapshotDelivery {
+        session_id: remote.session.session_id(),
+        snapshot: Snapshot { server_tick: 9, ..Snapshot::default() },
+        last_processed_input_seq: Some(1),
+        local_motion: AuthoritativeMotion {
+            velocity_mps: [99.0, 0.0, 0.0],
+            hull_yaw_velocity_rad_s: 99.0,
+        },
+    });
+    server.send(&mut server_port, &stale).expect("stale delivery");
+    remote.pump_at(900);
+
+    assert_eq!(remote.latest_snapshot.as_ref().map(|snapshot| snapshot.server_tick), Some(10));
+    assert_eq!(remote.inputs.len(), 1, "a stale ACK cannot prune prediction history");
+    assert_eq!(remote.last_snapshot_ms, 100, "stale state cannot renew snapshot freshness");
+    assert!(!remote.delivery_ready, "stale state cannot become ingest-ready");
+    assert!(remote.pending_reconciliation.is_none());
+    assert_eq!(
+        remote.recorder.as_ref().map(net::recording::FrameRecorder::frames),
+        Some(1),
+        "stale delivery must be dropped before replay recording"
+    );
+    drop(remote);
+    std::fs::remove_file(path).expect("remove test recording");
+}
+
+#[test]
+fn timeout_is_terminal_and_cannot_grow_the_input_history() {
+    let hub = MemoryHub::new();
+    let server_addr: SocketAddr = "10.22.0.1:40000".parse().expect("server addr");
+    let client_port = hub.port("10.22.0.2:5000".parse().expect("client addr"));
+    let mut remote = RemoteSession::connect(server_addr, Box::new(client_port));
+    remote.assigned_tank = Some(TankId(7));
+    for _ in 0..12 {
+        assert!(remote.inputs.enqueue(TankId(7), sim::TankCommand::drive(1.0, 0.0)));
+    }
+    let next_sequence = remote.inputs.next_sequence();
+
+    remote.pump_at(net::session::TIMEOUT_MS);
+
+    assert_eq!(remote.terminal_reason, Some(RemoteTerminalReason::TimedOut));
+    assert!(!remote.accepts_player_prediction());
+    assert_eq!(remote.inputs.len(), 0, "terminal transition releases every pending command");
+
+    for step in 1..=30 {
+        let outcome = remote.tick_with_player_input_at(
+            contract_input(sim::TankCommand {
+                fire: true,
+                select_ammo: Some(2),
+                ..sim::TankCommand::drive(1.0, 1.0)
+            }),
+            net::session::TIMEOUT_MS + step,
+        );
+        assert!(outcome.snapshot.is_none());
+    }
+    assert_eq!(
+        remote.inputs.next_sequence(),
+        next_sequence,
+        "held controls and one-shot edges cannot enter a terminal session"
+    );
+    assert_eq!(remote.inputs.len(), 0);
+}
+
+#[test]
+fn battle_result_survives_the_orderly_battle_over_disconnect() {
+    let hub = MemoryHub::new();
+    let server_addr: SocketAddr = "10.23.0.1:40000".parse().expect("server addr");
+    let client_addr: SocketAddr = "10.23.0.2:5000".parse().expect("client addr");
+    let mut server_port = hub.port(server_addr);
+    let client_port = hub.port(client_addr);
+    let mut server = Endpoint::new(client_addr);
+    let mut remote = RemoteSession::connect(server_addr, Box::new(client_port));
+    let session_id = remote.session.session_id();
+    let map_id = MapId::default();
+
+    server
+        .send(
+            &mut server_port,
+            &ProtocolMessage::ServerHello {
+                session_id,
+                protocol_version: net::PROTOCOL_VERSION,
+                map_id,
+                weather: Default::default(),
+                map_content_hash: map_forge::battlefield_hash(&map_forge::battlefield(map_id)),
+            },
+        )
+        .expect("hello");
+    server
+        .send(
+            &mut server_port,
+            &ProtocolMessage::StartBattle { session_id, assigned_tank: TankId(7), server_tick: 10 },
+        )
+        .expect("start");
+    server
+        .send(&mut server_port, &ProtocolMessage::BattleEnded { session_id, winning_team: Some(1) })
+        .expect("result");
+    server
+        .send(
+            &mut server_port,
+            &ProtocolMessage::Disconnect { session_id, reason: net::DisconnectReason::BattleOver },
+        )
+        .expect("goodbye");
+
+    remote.pump_at(100);
+
+    assert_eq!(
+        remote.outcome,
+        Some(server::BattleOutcome::TeamEliminated { winning_team: game_core::TeamId(1) })
+    );
+    assert_eq!(remote.terminal_reason, Some(RemoteTerminalReason::BattleOver));
+    assert!(
+        !remote.accepts_player_prediction(),
+        "an outcome and its orderly close both stop controls"
+    );
+}
+
+#[test]
+fn repeated_combat_batch_is_acked_repeatedly_but_presented_exactly_once() {
+    let hub = MemoryHub::new();
+    let server_addr: SocketAddr = "10.25.0.1:40000".parse().expect("server addr");
+    let client_addr: SocketAddr = "10.25.0.2:5000".parse().expect("client addr");
+    let mut server_port = hub.port(server_addr);
+    let client_port = hub.port(client_addr);
+    let mut server = Endpoint::new(client_addr);
+    let mut remote = RemoteSession::connect(server_addr, Box::new(client_port));
+    let session_id = remote.session.session_id();
+    let event = net::SequencedCombatEvent {
+        delivery_seq: 0,
+        event: net::CombatEvent::Damage(game_core::DamageEvent {
+            source: TankId(7),
+            target: TankId(8),
+            damage_hp: 377,
+            ..Default::default()
+        }),
+    };
+    let batch = ProtocolMessage::CombatEventBatch { session_id, events: vec![event.clone()] };
+    server.send(&mut server_port, &batch).expect("first batch");
+    server.send(&mut server_port, &batch).expect("retransmit");
+
+    remote.pump_at(10);
+
+    assert_eq!(remote.combat_events.last_received_seq(), Some(0));
+    assert_eq!(
+        remote.pending_combat_events.len(),
+        1,
+        "wire retransmit must enter presentation once"
+    );
+    let mut ack_count = 0;
+    while let Some((_, datagram)) = server_port.recv().expect("server receive") {
+        if let Ok(Some(ProtocolMessage::CombatEventAck { last_received_seq: 0, .. })) =
+            server.accept(&datagram)
+        {
+            ack_count += 1;
+        }
+    }
+    assert_eq!(ack_count, 2, "a lost ACK is repaired by acknowledging every retransmit");
+
+    server
+        .send(
+            &mut server_port,
+            &ProtocolMessage::SnapshotDelivery(SnapshotDelivery {
+                session_id,
+                snapshot: Snapshot { server_tick: 10, ..Default::default() },
+                ..Default::default()
+            }),
+        )
+        .expect("world delivery");
+    remote.pump_at(20);
+    let first = remote.take_pending_tick().snapshot.expect("delivery");
+    assert_eq!(first.damage_events.len(), 1);
+    assert_eq!(first.damage_events[0].damage_hp, 377);
+
+    server.send(&mut server_port, &batch).expect("late duplicate");
+    server
+        .send(
+            &mut server_port,
+            &ProtocolMessage::SnapshotDelivery(SnapshotDelivery {
+                session_id,
+                snapshot: Snapshot { server_tick: 12, ..Default::default() },
+                ..Default::default()
+            }),
+        )
+        .expect("newer world delivery");
+    remote.pump_at(30);
+    let second = remote.take_pending_tick().snapshot.expect("newer delivery");
+    assert!(
+        second.damage_events.is_empty(),
+        "a late batch duplicate cannot replay HUD, audio, scars or FX"
+    );
+}
+
+#[test]
+fn seeded_thirty_percent_loss_retries_combat_event_without_duplicate_presentation() {
+    let hub = MemoryHub::with_loss(0xC0BA_7038, 30);
+    let server_addr: SocketAddr = "10.27.0.1:40000".parse().expect("server addr");
+    let client_addr: SocketAddr = "10.27.0.2:5000".parse().expect("client addr");
+    let mut server_port = hub.port(server_addr);
+    let client_port = hub.port(client_addr);
+    let mut server = Endpoint::new(client_addr);
+    let mut remote = RemoteSession::connect(server_addr, Box::new(client_port));
+    let session_id = remote.session.session_id();
+    let map_id = MapId::default();
+    let hello = ProtocolMessage::ServerHello {
+        session_id,
+        protocol_version: net::PROTOCOL_VERSION,
+        map_id,
+        weather: Default::default(),
+        map_content_hash: map_forge::battlefield_hash(&map_forge::battlefield(map_id)),
+    };
+
+    for step in 0..64_u64 {
+        server.send(&mut server_port, &hello).expect("hello retry");
+        remote.pump_at(step * 10);
+        while let Some((_, datagram)) = server_port.recv().expect("server receive") {
+            let _ = server.accept(&datagram);
+        }
+        if *remote.state() == net::session::SessionState::Connected {
+            break;
+        }
+    }
+    assert_eq!(*remote.state(), net::session::SessionState::Connected);
+
+    let batch = ProtocolMessage::CombatEventBatch {
+        session_id,
+        events: vec![net::SequencedCombatEvent {
+            delivery_seq: 0,
+            event: net::CombatEvent::Damage(game_core::DamageEvent {
+                source: TankId(7),
+                target: TankId(8),
+                damage_hp: 377,
+                ..Default::default()
+            }),
+        }],
+    };
+    let mut attempts = 0_usize;
+    let mut received_acks = 0_usize;
+    let mut delivered_snapshots = 0_usize;
+    let mut presentations = 0_usize;
+
+    for attempt in 0..96_u64 {
+        attempts += 1;
+        server.send(&mut server_port, &batch).expect("combat event retry");
+        server
+            .send(
+                &mut server_port,
+                &ProtocolMessage::SnapshotDelivery(SnapshotDelivery {
+                    session_id,
+                    snapshot: Snapshot { server_tick: 100 + attempt, ..Default::default() },
+                    ..Default::default()
+                }),
+            )
+            .expect("world delivery");
+
+        remote.pump_at(1_000 + attempt * 17);
+        if let Some(snapshot) = remote.take_pending_tick().snapshot {
+            delivered_snapshots += 1;
+            presentations +=
+                snapshot.damage_events.iter().filter(|event| event.damage_hp == 377).count();
+        }
+        while let Some((_, datagram)) = server_port.recv().expect("server receive") {
+            if let Ok(Some(ProtocolMessage::CombatEventAck { last_received_seq: 0, .. })) =
+                server.accept(&datagram)
+            {
+                received_acks += 1;
+            }
+        }
+        if received_acks >= 4 && delivered_snapshots >= 4 {
+            break;
+        }
+    }
+
+    assert!(
+        received_acks >= 4,
+        "multiple retransmits and their ACKs must survive the seeded lossy route"
+    );
+    assert!(
+        attempts > received_acks,
+        "the deterministic 30% route must actually lose a combat batch or its ACK"
+    );
+    assert!(delivered_snapshots >= 4, "world delivery must also survive the same lossy route");
+    assert_eq!(presentations, 1, "retries and repeated ACKs cannot replay HUD, audio, scars or FX");
+    assert_eq!(remote.combat_events.last_received_seq(), Some(0));
+    assert_eq!(remote.terminal_reason, None);
+}
+
+#[test]
+fn combat_event_sequence_gap_is_terminal_without_partial_presentation() {
+    let hub = MemoryHub::new();
+    let server_addr: SocketAddr = "10.26.0.1:40000".parse().expect("server addr");
+    let client_addr: SocketAddr = "10.26.0.2:5000".parse().expect("client addr");
+    let mut server_port = hub.port(server_addr);
+    let client_port = hub.port(client_addr);
+    let mut server = Endpoint::new(client_addr);
+    let mut remote = RemoteSession::connect(server_addr, Box::new(client_port));
+    let batch = ProtocolMessage::CombatEventBatch {
+        session_id: remote.session.session_id(),
+        events: vec![net::SequencedCombatEvent {
+            delivery_seq: 1,
+            event: net::CombatEvent::Damage(Default::default()),
+        }],
+    };
+    server.send(&mut server_port, &batch).expect("gapped batch");
+
+    remote.pump_at(10);
+
+    assert_eq!(remote.terminal_reason, Some(RemoteTerminalReason::CombatEventGap));
+    assert!(remote.pending_combat_events.is_empty());
+    assert_eq!(remote.combat_events.last_received_seq(), None);
+}

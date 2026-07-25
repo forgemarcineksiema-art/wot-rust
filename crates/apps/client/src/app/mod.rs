@@ -16,10 +16,16 @@ mod input_state;
 #[cfg(test)]
 mod input_tests;
 mod lifecycle;
+mod live_cover;
+#[cfg(test)]
+mod live_cover_tests;
 mod loop_step;
 mod minimap_build;
 pub(crate) mod motion_fx;
 mod prediction;
+mod reconcile;
+mod remote_events;
+mod remote_input;
 mod render;
 #[cfg(test)]
 mod render_tests;
@@ -47,8 +53,7 @@ use crate::fx::FxSystem;
 use crate::hit_indicator::HitIndicator;
 use crate::predict::LocalPredictor;
 use crate::{
-    BattleCameraController, CameraObstacle, InterpolatedBattleState, VehicleAssetCatalog,
-    WinitLoopDriver,
+    BattleCameraController, InterpolatedBattleState, VehicleAssetCatalog, WinitLoopDriver,
 };
 
 /// Which static scene the renderer currently holds. The garage and the battlefield share one
@@ -102,10 +107,10 @@ impl ClientApp {
         // Born-ruins (PR-07): the pre-snapshot bake reads the same birth rule the server's
         // states start from, so a ruined block is a mound from the very first frame — baked
         // per bucket (PR-04), with the birth phases as the dirty-diff baseline below.
-        let born_phases = terrain::initial_cover_phase_bytes(&self.battlefield.static_cover);
+        let cover_phases = self.live_cover.phase_bytes().to_vec();
         let (ground_vertices, ground_indices) = crate::battlefield_ground_mesh(&self.battlefield);
         let statics_buckets =
-            crate::battlefield_statics_buckets(&self.battlefield, &born_phases, &[]);
+            crate::battlefield_statics_buckets(&self.battlefield, &cover_phases, &[]);
         let (statics_vertices, statics_indices) = crate::assemble_statics_mesh(&statics_buckets);
         let ground_maps = scene_build::terrain_maps::bake_terrain_ground_maps(&self.battlefield);
         let (water_vertices, water_indices) =
@@ -116,7 +121,7 @@ impl ClientApp {
                 &ground_maps,
                 &scene_build::terrain_maps::terrain_material_set_for(self.session.map_id()),
             );
-        let statics_baked_phases = born_phases;
+        let statics_baked_phases = cover_phases;
         self.battle_scene_meshes = Some(BattleSceneMeshes {
             ground_vertices,
             ground_indices,
@@ -168,7 +173,9 @@ pub(crate) struct ClientApp {
     weather_frame: scene_build::weather_timeline::WeatherFrame,
     render_state: InterpolatedBattleState,
     camera_controller: BattleCameraController,
-    camera_obstacles: Vec<CameraObstacle>,
+    /// Phase-consistent blocking geometry for prediction, sight, and camera. The authored
+    /// battlefield slice remains untouched and index-stable for scene rebuilds and scars.
+    live_cover: live_cover::LiveCoverCache,
     desired_aim: DesiredAim,
     garage: GarageState,
     battlefield: BattlefieldMap,
@@ -244,11 +251,8 @@ pub(crate) struct ClientApp {
     /// The wreck's hull render object is swapped to this handle so a knocked-out tank reads beaten
     /// and dented, not pristine-but-tinted. Presentation only (see `vehicle::wreck_deform`).
     wreck_hull_meshes: HashMap<game_core::TankId, renderer_api::MeshHandle>,
-    /// Last-seen static-cover phase bytes (protocol v21). When a snapshot's cover states differ,
-    /// the battle scene is rebuilt (collapsed buildings become rubble, cleared foliage vanishes)
-    /// and re-uploaded, and a dust burst fires at each freshly-destroyed object.
-    cover_phase_bytes: Vec<u8>,
-    /// Set when `cover_phase_bytes` changed: the next frame rebuilds and re-uploads the scene.
+    /// Set when the live-cover phase bytes changed: the next frame rebuilds and re-uploads the
+    /// indexed authored scene.
     scene_cover_dirty: bool,
     /// Replicated shell wounds on cover faces (protocol v32); a change re-dresses the statics.
     cover_scar_list: Vec<terrain::CoverScar>,
@@ -324,7 +328,9 @@ impl ClientApp {
             if remote.is_seated() {
                 break;
             }
-            if matches!(remote.state(), net::session::SessionState::Failed(_)) {
+            if remote.is_terminal()
+                || matches!(remote.state(), net::session::SessionState::Failed(_))
+            {
                 tracing::warn!(target, "remote connect failed; falling back to a local battle");
                 return None;
             }
@@ -349,10 +355,15 @@ impl ClientApp {
         ));
         let player_tank = session.player_tank();
         let battlefield = map_forge::battlefield(session.map_id());
-        app.camera_obstacles =
-            battlefield.static_cover.iter().map(CameraObstacle::from_static_cover).collect();
+        let opening_snapshot = session.latest_snapshot_for_player();
+        let live_cover = live_cover::LiveCoverCache::from_replicated(
+            &battlefield.static_cover,
+            &opening_snapshot.cover_states,
+        )
+        .unwrap_or_else(|| live_cover::LiveCoverCache::from_born_phases(&battlefield.static_cover));
         app.minimap_static = crate::app::minimap_build::minimap_static_layers(&battlefield);
         app.battlefield = battlefield;
+        app.live_cover = live_cover;
         app.player_tank = player_tank;
         app.camera_controller =
             BattleCameraController::new(Self::map_camera_settings(session.map_id()));
@@ -360,7 +371,7 @@ impl ClientApp {
         app.weather_timeline = weather_timeline;
         app.weather_frame = weather_frame;
         app.render_state = InterpolatedBattleState::default();
-        app.render_state.accept_authoritative_snapshot(app.session.latest_snapshot_for_player());
+        app.render_state.accept_authoritative_snapshot(opening_snapshot);
         app
     }
 
@@ -380,8 +391,10 @@ impl ClientApp {
             LocalAuthoritativeServer::new_random_7v7(ServerTickConfig::default(), config),
         ));
         let player_tank = local_server.player_tank();
+        let opening_snapshot = local_server.latest_snapshot_for_player();
+        let opening_cover_phases = opening_snapshot.cover_states.clone();
         let mut render_state = InterpolatedBattleState::default();
-        render_state.accept_authoritative_snapshot(local_server.latest_snapshot_for_player());
+        render_state.accept_authoritative_snapshot(opening_snapshot);
         let player_spec = render_state
             .latest_snapshot()
             .and_then(|snapshot| snapshot.tanks.iter().find(|tank| tank.tank_id == player_tank))
@@ -390,8 +403,11 @@ impl ClientApp {
         // battlefield locally (the world never crosses the wire — see `terrain::MapId`).
         let battlefield = map_forge::battlefield(local_server.map_id());
         let camera_settings = Self::map_camera_settings(local_server.map_id());
-        let camera_obstacles =
-            battlefield.static_cover.iter().map(CameraObstacle::from_static_cover).collect();
+        let live_cover = live_cover::LiveCoverCache::from_replicated(
+            &battlefield.static_cover,
+            &opening_cover_phases,
+        )
+        .unwrap_or_else(|| live_cover::LiveCoverCache::from_born_phases(&battlefield.static_cover));
         let mut predictor = LocalPredictor::new(&player_spec);
         predictor.set_water(battlefield.water);
         let minimap_static = crate::app::minimap_build::minimap_static_layers(&battlefield);
@@ -410,7 +426,7 @@ impl ClientApp {
             weather_frame,
             render_state,
             camera_controller: BattleCameraController::new(camera_settings),
-            camera_obstacles,
+            live_cover,
             desired_aim: DesiredAim::default(),
             garage: GarageState::default(),
             battlefield,
@@ -444,7 +460,6 @@ impl ClientApp {
             engine_smoke_accum_s: HashMap::new(),
             motion_fx: HashMap::new(),
             wreck_hull_meshes: HashMap::new(),
-            cover_phase_bytes: Vec::new(),
             scene_cover_dirty: false,
             fps_estimate: 0.0,
             frame_dt_history: std::collections::VecDeque::with_capacity(96),

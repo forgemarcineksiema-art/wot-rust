@@ -192,6 +192,28 @@ impl LocalPredictor {
         self.drive.kinematic.speed()
     }
 
+    /// Freeze the locally presented hull when authority is no longer accepting commands.
+    ///
+    /// Merely skipping future prediction is not enough: the last predicted velocity would keep
+    /// engine audio, suspension lean and the speedometer alive over a frozen world. Anchor both
+    /// interpolation endpoints on the current pose and retire every motion derivative.
+    pub fn freeze_motion(&mut self) {
+        self.drive.kinematic.velocity = Vec3::ZERO;
+        self.drive.kinematic.yaw_rate_rad_s = 0.0;
+        self.drive.aiming.turret_yaw_velocity_rad_s = 0.0;
+        self.previous = self.current_pose();
+        self.previous_forward_speed_mps = 0.0;
+        self.tick_accel_long_mps2 = 0.0;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn authoritative_motion(&self) -> net::AuthoritativeMotion {
+        net::AuthoritativeMotion {
+            velocity_mps: self.drive.kinematic.velocity.to_array(),
+            hull_yaw_velocity_rad_s: self.drive.kinematic.yaw_rate_rad_s,
+        }
+    }
+
     /// Tick-domain hull motion for the presentation cues (sprung attitude, camera feel), with
     /// the forward speed blended `alpha` into the current tick alongside `interpolated_pose`.
     /// This is the motion source of truth for the local tank: the rigid body knows its velocity,

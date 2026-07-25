@@ -36,9 +36,10 @@ impl MapKind {
     }
 }
 
-/// Per-role synthesis parameters. These encode the plan's material character: cast armour gets a
-/// low-frequency undulation with muted cavity, rolled armour a finer plate grain, steel a smoother
-/// (lower-roughness) surface, track metal a dark high-cavity finish, rubber very dark and rough.
+/// Per-role synthesis parameters. Albedo is a near-neutral detail multiplier, not a second absolute
+/// base colour: the shader already owns each role's physical base albedo. Keeping these values near
+/// white prevents accidental albedo-squared black surfaces while grain, normals, roughness and
+/// cavity still distinguish cast armour, plate, painted barrel steel, tracks and rubber.
 pub(super) struct Profile {
     albedo: [u8; 3],
     fine_grain: u8,
@@ -53,54 +54,54 @@ pub(super) struct Profile {
 pub(super) fn profile(family: MaterialFamily) -> Profile {
     match family {
         MaterialFamily::RolledArmor => Profile {
-            albedo: [108, 114, 119],
-            fine_grain: 7,
-            undulation: 3,
-            roughness: 140,
-            metalness: 230,
-            cavity_base: 236,
-            cavity_amp: 8,
-            normal_jitter: 4,
+            albedo: [244, 245, 246],
+            fine_grain: 3,
+            undulation: 2,
+            roughness: 145,
+            metalness: 10,
+            cavity_base: 246,
+            cavity_amp: 6,
+            normal_jitter: 3,
         },
         MaterialFamily::CastArmor => Profile {
-            albedo: [116, 119, 122],
-            fine_grain: 4,
-            undulation: 14,
-            roughness: 184,
-            metalness: 228,
-            cavity_base: 246,
+            albedo: [240, 242, 243],
+            fine_grain: 2,
+            undulation: 7,
+            roughness: 170,
+            metalness: 8,
+            cavity_base: 248,
             cavity_amp: 3,
-            normal_jitter: 7,
+            normal_jitter: 5,
         },
         MaterialFamily::BarrelSteel => Profile {
-            albedo: [40, 42, 45],
-            fine_grain: 3,
+            albedo: [232, 234, 236],
+            fine_grain: 2,
             undulation: 1,
-            roughness: 78,
-            metalness: 255,
+            roughness: 175,
+            metalness: 12,
             cavity_base: 248,
             cavity_amp: 3,
             normal_jitter: 2,
         },
         MaterialFamily::TrackMetal => Profile {
-            albedo: [30, 30, 33],
-            fine_grain: 9,
-            undulation: 6,
-            roughness: 216,
-            metalness: 200,
-            cavity_base: 196,
-            cavity_amp: 34,
-            normal_jitter: 9,
+            albedo: [224, 222, 218],
+            fine_grain: 5,
+            undulation: 3,
+            roughness: 200,
+            metalness: 128,
+            cavity_base: 230,
+            cavity_amp: 16,
+            normal_jitter: 6,
         },
         MaterialFamily::Rubber => Profile {
-            albedo: [15, 15, 17],
-            fine_grain: 5,
-            undulation: 2,
-            roughness: 244,
+            albedo: [228, 228, 230],
+            fine_grain: 3,
+            undulation: 1,
+            roughness: 225,
             metalness: 0,
-            cavity_base: 232,
-            cavity_amp: 9,
-            normal_jitter: 3,
+            cavity_base: 238,
+            cavity_amp: 8,
+            normal_jitter: 2,
         },
     }
 }

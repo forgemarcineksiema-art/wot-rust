@@ -76,7 +76,16 @@ fn pbr_vehicle_render_frame_uses_vehicle_assets_for_every_vehicle() {
 
     assert_eq!(frame.objects.len(), expected_object_count());
     assert_eq!(catalog.take_pending_vehicle_meshes().len(), expected_mesh_count());
-    assert_eq!(catalog.material_count(), VehicleKind::ALL.len());
+    assert_eq!(catalog.material_count(), 1);
+    assert_eq!(
+        catalog.take_pending_vehicle_materials().len(),
+        1,
+        "all fallback vehicles share one material upload"
+    );
+    assert!(
+        frame.objects.iter().all(|object| object.material == frame.objects[0].material),
+        "all fallback vehicles share one texture-array handle"
+    );
     let player_gun = &frame.objects[2];
     let gun_forward = glam::Mat4::from_cols_array_2d(&player_gun.transform)
         .transform_vector3(glam::Vec3::Z)

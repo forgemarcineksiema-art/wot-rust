@@ -63,6 +63,9 @@ WOT_CONNECT=<VPS_IP>:40000 cargo run --release -p client
   report — it replays through the same ingest the live game uses.
 - The `net` log line (every 2 s) is the console net-HUD: `rtt_ms`, `snapshot_age_ms`,
   `server_tick`. RTT under ~60 ms on regional hosting is the design point.
+- In battle, ten seconds without a fresh world snapshot is terminal even if pongs still arrive:
+  prediction freezes and the HUD shows `CONNECTION LOST` instead of letting the local hull ghost
+  through a stale world.
 
 ## Smoke checklist (2–4 players, ~15 minutes)
 
@@ -77,7 +80,8 @@ WOT_CONNECT=<VPS_IP>:40000 cargo run --release -p client
    idles after ~half a second of held commands. Restart that client with the same
    `WOT_CONNECT` — it must inherit the freed seat mid-battle and converge instantly.
 5. **Finish**: play to elimination or the 10-minute clock; every client gets the same outcome
-   screen (`BattleEnded` repeats; a lost datagram may delay it a snapshot or two).
+   screen (`BattleEnded` repeats twenty times). The one-battle server exits after that repeat
+   window so systemd can re-arm a fresh lobby.
 6. **Collect**: `journalctl -u wot-server`, every client's `net` lines and any `WOT_RECORD`
    files. Network bugs become `LossyLoopback` fixtures — that is the pipeline.
 

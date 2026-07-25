@@ -122,7 +122,7 @@ fn fs_depth_cutout(input: VsDepthOutCutout) {
     if (armor_fragment_is_cut(input.world_pos, input.damage_index)) {
         discard;
     }
-    if (textureSampleLevel(foliage_atlas, foliage_sampler, input.uv, 0.0).a < 0.5) {
+    if (textureSample(foliage_atlas, foliage_sampler, input.uv).a < 0.5) {
         discard;
     }
 }

@@ -32,11 +32,15 @@ tests. It does not mean final art polish; where finish varies, the partial list 
   water, grass, battle FX, procedural buildings/trees + CC0 textured-flora pipeline),
   procedural audio (DSP, speed-of-sound delay), garage with workshop UX, full battle HUD.
 - **Sim/net foundation**: deterministic fixed tick, authoritative headless server, protocol
-  snapshots (v35+), replay regression, bots with routes/fire discipline, 7v7 mode.
+  snapshots (v38), replay regression, bots with routes/fire discipline, 7v7 mode. Remote input
+  has epoch-safe reconnect, lightweight ACKs, snapshot-aligned prediction replay, and a terminal
+  gameplay gate that freezes prediction on outcome/timeout/stalled world state instead of
+  permitting a zombie client. Personal hit, damage, absorbed-impact, and lethal truth has its own
+  ordered retransmit/ACK lane with exactly-once presentation instead of depending on snapshot loss.
 
 **PARTIAL** (works, known debt):
-- Flora on maps (pipeline done; scatters/retrofit = FL-5), foliage sourcing (bush, birch),
-  alpha-preserving mips.
+- Flora sourcing (a replacement CC0 bush and textured birch). Alpha-preserving atlas mips,
+  the accepted tree/pine pipeline and the four-map scatter retrofit are complete (FL-5).
 - Breach interiors: cross-frame remesh merged, but museum detail, interior variants and
   interior audio are open.
 - Fleet finish: per-vehicle polish passes outstanding outside the benchmark vehicles.
@@ -44,8 +48,10 @@ tests. It does not mean final art polish; where finish varies, the partial list 
 - Human playtesting: the maps have never met a second human.
 
 **MISSING toward release** (the honest gap list — the master plan's waves W1-W5):
-1. **Real networking hardening (W1)**: internet transport (today: local/loopback authority),
-   connection lifecycle, lag compensation policy, cheating posture, dedicated server ops.
+1. **Production networking hardening (W1)**: the dedicated UDP path, lossy lifecycle,
+   epoch-safe reconnect and client prediction work today. Still missing are public-session
+   discovery/relay, player authentication, beta-validated lag compensation, cheating posture
+   and dedicated-server operations.
 2. **Meta & matchmaking (W3)**: OpenSkill-based MM, sessions/lobbies, player identity,
    progression that respects the no-grind creed, garage economy (module unlocks without
    pay-to-win), stats.

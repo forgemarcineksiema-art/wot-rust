@@ -70,6 +70,15 @@ mod tests {
     fn prebake_covers_every_playable_vehicle() {
         let mut app = ClientApp::new_without_vehicle_artifacts();
         assert_eq!(app.vehicle_asset_catalog.cached_vehicle_count(), 0);
+        let missing_root =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/missing-forge-root");
+        assert!(!missing_root.exists(), "fixture must model a clean checkout");
+        assert_eq!(
+            app.vehicle_asset_catalog
+                .load_forge_artifact_tree(&missing_root)
+                .expect("a missing optional Forge root is not an error"),
+            0
+        );
 
         app.prebake_playable_vehicle_assets();
 
@@ -78,5 +87,30 @@ mod tests {
             game_core::VehicleKind::PLAYABLE.len(),
             "every playable vehicle must have baked render assets before the battle starts"
         );
+        assert_eq!(
+            app.vehicle_asset_catalog.material_count(),
+            1,
+            "the fallback fleet must share one GPU material handle"
+        );
+        let pending = app.vehicle_asset_catalog.take_pending_vehicle_materials();
+        assert_eq!(pending.len(), 1, "the fallback fleet queues one material upload");
+        let families = &pending[0].1;
+        assert_eq!(families.families().len(), 5);
+        assert_ne!(
+            families.layer(0).albedo().rgba(),
+            families.layer(1).albedo().rgba(),
+            "rolled and cast armour must not use duplicate albedo"
+        );
+        assert_ne!(
+            families.layer(0).normal().rgba(),
+            families.layer(1).normal().rgba(),
+            "rolled and cast armour must not use duplicate normals"
+        );
+        assert_ne!(
+            families.layer(0).albedo().rgba(),
+            families.layer(0).normal().rgba(),
+            "different map semantics must not collapse to one bitmap"
+        );
+        assert!(app.vehicle_asset_catalog.take_pending_vehicle_materials().is_empty());
     }
 }

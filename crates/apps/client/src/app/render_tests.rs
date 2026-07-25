@@ -438,8 +438,11 @@ fn a_cover_collapse_rebuilds_the_statics_off_the_render_thread() {
 
     // Collapse the first cover object and flag the scene dirty (what ingest does).
     assert!(!app.battlefield.static_cover.is_empty(), "the map has cover");
-    app.cover_phase_bytes = vec![0u8; app.battlefield.static_cover.len()];
-    app.cover_phase_bytes[0] = 1; // rubble
+    let mut phases = vec![0u8; app.battlefield.static_cover.len()];
+    phases[0] = 1; // rubble
+    app.live_cover =
+        super::live_cover::LiveCoverCache::from_replicated(&app.battlefield.static_cover, &phases)
+            .expect("one complete phase per authored object");
     app.scene_cover_dirty = true;
 
     // First call SPAWNS the bake and returns immediately — the old mesh still stands.

@@ -63,14 +63,25 @@ fn main() {
     );
 
     // The URBAN map (urban-map program PR-15): the dense-core numbers - the one-look FPS
-    // sign-off is measured, not promised.
+    // sign-off is measured, not promised. FL-5 deliberately runs this with every accepted
+    // imported-flora instance present, so the capture cannot silently benchmark the old trees.
     let city = map_forge::battlefield(terrain::MapId::Ostrogorsk);
+    let imported_flora = city
+        .scenery
+        .iter()
+        .filter(|instance| {
+            matches!(
+                instance.kind,
+                terrain::SceneryKind::FloraTree | terrain::SceneryKind::FloraPine
+            )
+        })
+        .count();
     let born = terrain::initial_cover_phase_bytes(&city.static_cover);
     let t = Instant::now();
     let mut city_buckets = client::battlefield_statics_buckets(&city, &born, &[]);
     let (cv, ci) = client::assemble_statics_mesh(&city_buckets);
     println!(
-        "ostrogorsk statics bake ({} boxes): {:.1} ms ({} v / {} i)",
+        "ostrogorsk statics bake ({} boxes, {imported_flora} imported flora): {:.1} ms ({} v / {} i)",
         city.static_cover.len(),
         t.elapsed().as_secs_f64() * 1000.0,
         cv.len(),

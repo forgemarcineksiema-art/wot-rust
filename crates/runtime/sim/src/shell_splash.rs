@@ -10,6 +10,7 @@ use game_core::{
 use glam::Vec3;
 use terrain::HeightMap;
 
+use crate::event_stamp::BattleEventOutput;
 use crate::{ShellState, TankState};
 
 const SPLASH_DAMAGE_FACTOR: f32 = 0.5;
@@ -30,7 +31,7 @@ pub(crate) fn burst_he_splash(
     shell: &ShellState,
     burst_point: Vec3,
     tanks: &mut [TankState],
-    damage_events: &mut Vec<DamageEvent>,
+    events: &mut BattleEventOutput<'_>,
     direct_target: Option<TankId>,
     heightmap: Option<&HeightMap>,
 ) {
@@ -63,8 +64,9 @@ pub(crate) fn burst_he_splash(
             continue;
         }
         let damage = damage as u32;
+        let target_was_alive = tank.hit_points > 0;
         tank.hit_points = tank.hit_points.saturating_sub(damage);
-        damage_events.push(DamageEvent {
+        events.push_damage(DamageEvent {
             source: shell.owner,
             target: tank.id,
             hit_position: burst_point,
@@ -72,6 +74,8 @@ pub(crate) fn burst_he_splash(
             penetrated: false,
             cause: DamageCause::Splash,
             shell_type: shell.shell.shell_type,
+            shell_id: Some(shell.id),
+            target_destroyed: target_was_alive && tank.hit_points == 0,
             ..Default::default()
         });
     }
@@ -175,7 +179,10 @@ mod tests {
         let mut tanks = vec![shooter, victim];
         let shell = he_shell(TankId(1), burst);
         let mut events = Vec::new();
-        burst_he_splash(&shell, burst, &mut tanks, &mut events, None, heightmap);
+        let mut impacts = Vec::new();
+        let mut event_stamp = crate::event_stamp::BattleEventStamp::new(Default::default(), 0);
+        let mut output = BattleEventOutput::new(&mut events, &mut impacts, &mut event_stamp);
+        burst_he_splash(&shell, burst, &mut tanks, &mut output, None, heightmap);
         hp_before - tanks[1].hit_points
     }
 

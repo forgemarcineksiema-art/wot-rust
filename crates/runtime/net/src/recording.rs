@@ -63,20 +63,32 @@ pub fn read_recording<R: Read>(mut source: R) -> Result<Vec<ProtocolMessage>, Ne
 mod tests {
     use super::*;
 
+    const SESSION_ID: u64 = 0x1020_3040_5060_7080;
+
     #[test]
     fn a_recording_roundtrips_and_a_torn_tail_is_dropped_not_fatal() {
         let mut buffer = Vec::new();
         {
             let mut recorder = FrameRecorder::new(&mut buffer);
-            recorder.record(&ProtocolMessage::Ping { client_time_us: 7 }).expect("record");
             recorder
-                .record(&ProtocolMessage::LobbyState { players: 2, needed: 7, countdown_ticks: 9 })
+                .record(&ProtocolMessage::Ping { session_id: SESSION_ID, client_time_us: 7 })
+                .expect("record");
+            recorder
+                .record(&ProtocolMessage::LobbyState {
+                    session_id: SESSION_ID,
+                    players: 2,
+                    needed: 7,
+                    countdown_ticks: 9,
+                })
                 .expect("record");
             assert_eq!(recorder.frames(), 2);
         }
         let full = read_recording(&buffer[..]).expect("read");
         assert_eq!(full.len(), 2);
-        assert!(matches!(full[0], ProtocolMessage::Ping { client_time_us: 7 }));
+        assert!(matches!(
+            full[0],
+            ProtocolMessage::Ping { session_id: SESSION_ID, client_time_us: 7 }
+        ));
 
         // Kill the game mid-write: the torn tail vanishes, everything before it survives.
         let torn = &buffer[..buffer.len() - 3];

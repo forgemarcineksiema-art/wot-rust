@@ -3,6 +3,7 @@ use glam::Vec3;
 use physics::{TankObstacle, tank_footprints_touch};
 
 use crate::TankState;
+use crate::event_stamp::BattleEventStamp;
 
 /// Below this closing speed contact is PARKING, not ramming: a gentle nudge into a neighbour
 /// (bots crowding the spawn included) deals nothing at all. ~16 km/h.
@@ -31,6 +32,7 @@ pub(crate) fn apply_ramming_damage(
     before: &[RammingSnapshot],
     tanks: &mut [TankState],
     damage_events: &mut Vec<DamageEvent>,
+    event_stamp: &mut BattleEventStamp,
     dt_seconds: f32,
 ) {
     for left in 0..tanks.len() {
@@ -60,7 +62,7 @@ pub(crate) fn apply_ramming_damage(
             if damage == 0 {
                 continue;
             }
-            apply_pair_damage(left, right, damage, tanks, damage_events);
+            apply_pair_damage(left, right, damage, tanks, damage_events, event_stamp);
         }
     }
 }
@@ -113,25 +115,40 @@ fn apply_pair_damage(
     damage: u32,
     tanks: &mut [TankState],
     damage_events: &mut Vec<DamageEvent>,
+    event_stamp: &mut BattleEventStamp,
 ) {
     let hit_position = (tanks[left_index].position + tanks[right_index].position) * 0.5;
     let left_id = tanks[left_index].id;
     let right_id = tanks[right_index].id;
-    apply_single_damage(right_index, damage, tanks);
-    apply_single_damage(left_index, damage / 2, tanks);
-    damage_events.push(ram_event(left_id, right_id, hit_position, damage));
-    damage_events.push(ram_event(right_id, left_id, hit_position, damage / 2));
+    let right_destroyed = apply_single_damage(right_index, damage, tanks);
+    let left_destroyed = apply_single_damage(left_index, damage / 2, tanks);
+    event_stamp.push_damage(
+        damage_events,
+        ram_event(left_id, right_id, hit_position, damage, right_destroyed),
+    );
+    event_stamp.push_damage(
+        damage_events,
+        ram_event(right_id, left_id, hit_position, damage / 2, left_destroyed),
+    );
 }
 
-fn apply_single_damage(index: usize, damage: u32, tanks: &mut [TankState]) {
+fn apply_single_damage(index: usize, damage: u32, tanks: &mut [TankState]) -> bool {
     let tank = &mut tanks[index];
+    let target_was_alive = tank.hit_points > 0;
     tank.hit_points = tank.hit_points.saturating_sub(damage);
     // The suspension takes what the hull takes — the old x2 turned every contact into a
     // mobility kill long before the hull cared.
     tank.modules.damage(ModuleSlot::Suspension, damage);
+    target_was_alive && tank.hit_points == 0
 }
 
-fn ram_event(source: TankId, target: TankId, hit_position: Vec3, damage_hp: u32) -> DamageEvent {
+fn ram_event(
+    source: TankId,
+    target: TankId,
+    hit_position: Vec3,
+    damage_hp: u32,
+    target_destroyed: bool,
+) -> DamageEvent {
     DamageEvent {
         source,
         target,
@@ -140,6 +157,7 @@ fn ram_event(source: TankId, target: TankId, hit_position: Vec3, damage_hp: u32)
         penetrated: false,
         cause: DamageCause::Ram,
         module: Some(ModuleSlot::Suspension),
+        target_destroyed,
         ..Default::default()
     }
 }

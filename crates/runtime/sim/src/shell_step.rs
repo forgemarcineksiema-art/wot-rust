@@ -1,9 +1,10 @@
 use ::terrain::{HeightMap, StaticCoverObject};
 use game_core::math::integrate_shell_step;
-use game_core::{DamageEvent, ImpactSurface, ShellImpact};
+use game_core::{ImpactSurface, ShellImpact};
 
 use crate::breach_space::admits_existing_channel;
 use crate::combat::{CombatTickContext, apply_shell_impact};
+use crate::event_stamp::BattleEventOutput;
 use crate::shell_continuation::{
     continue_through_armor, deflect_shell, kinetic_penetration_continues,
 };
@@ -16,8 +17,7 @@ use crate::{ShellState, TankState};
 pub(crate) fn step_shells(
     shells: &mut Vec<ShellState>,
     tanks: &mut [TankState],
-    damage_events: &mut Vec<DamageEvent>,
-    shell_impacts: &mut Vec<ShellImpact>,
+    events: &mut BattleEventOutput<'_>,
     context: CombatTickContext,
     heightmap: Option<&HeightMap>,
     cover: &[StaticCoverObject],
@@ -86,13 +86,13 @@ pub(crate) fn step_shells(
                 let penetration_continues = kinetic_penetration_continues(&shells[index], &event);
                 let direct_target = event.target;
                 let splashes = !event.penetrated;
-                damage_events.push(event);
+                events.push_damage(event);
                 if splashes {
                     burst_he_splash(
                         &shells[index],
                         hit_position,
                         tanks,
-                        damage_events,
+                        events,
                         Some(direct_target),
                         heightmap,
                     );
@@ -108,27 +108,21 @@ pub(crate) fn step_shells(
                 }
             }
             Some(SegmentImpact::Obstacle { position, surface }) => {
-                shell_impacts.push(ShellImpact {
+                events.push_impact(ShellImpact {
                     owner: shells[index].owner,
                     position,
                     surface,
                     shell_type: shells[index].shell.shell_type,
                     direction: shells[index].velocity_mps.normalize_or_zero(),
                     caliber_mm: shells[index].shell.caliber_mm,
+                    shell_id: shells[index].id,
+                    ..Default::default()
                 });
-                burst_he_splash(&shells[index], position, tanks, damage_events, None, heightmap);
+                burst_he_splash(&shells[index], position, tanks, events, None, heightmap);
                 shells.swap_remove(index);
             }
             None => {
-                if step_unhit_shell(
-                    shells,
-                    tanks,
-                    damage_events,
-                    shell_impacts,
-                    index,
-                    segment_distance,
-                    heightmap,
-                ) {
+                if step_unhit_shell(shells, tanks, events, index, segment_distance, heightmap) {
                     index += 1;
                 }
             }
@@ -139,23 +133,24 @@ pub(crate) fn step_shells(
 fn step_unhit_shell(
     shells: &mut Vec<ShellState>,
     tanks: &mut [TankState],
-    damage_events: &mut Vec<DamageEvent>,
-    shell_impacts: &mut Vec<ShellImpact>,
+    events: &mut BattleEventOutput<'_>,
     index: usize,
     segment_distance: f32,
     heightmap: Option<&HeightMap>,
 ) -> bool {
     if ground_contact(shells[index].position, heightmap) {
         let position = shells[index].position;
-        shell_impacts.push(ShellImpact {
+        events.push_impact(ShellImpact {
             owner: shells[index].owner,
             position,
             surface: ImpactSurface::Terrain,
             shell_type: shells[index].shell.shell_type,
             direction: shells[index].velocity_mps.normalize_or_zero(),
             caliber_mm: shells[index].shell.caliber_mm,
+            shell_id: shells[index].id,
+            ..Default::default()
         });
-        burst_he_splash(&shells[index], position, tanks, damage_events, None, heightmap);
+        burst_he_splash(&shells[index], position, tanks, events, None, heightmap);
         shells.swap_remove(index);
         false
     } else if shells[index].age_seconds >= shells[index].max_age_seconds {

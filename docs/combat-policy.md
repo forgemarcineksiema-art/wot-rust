@@ -198,16 +198,26 @@ immobilize the target or the attacker.
 ## Networking And Regression
 
 Authoritative snapshots carry tanks (with team identity), projectiles, current
-aim dispersion, live module hit points, destroyed module masks, damage events,
-and absorbed-shell impacts. Damage events carry cause, armor zone, hit position,
-and module data so the client can distinguish shell penetration, HE track crits,
-bounces, ramming, and exact impact feedback. Protocol snapshot tests cover
+aim dispersion, live module hit points, destroyed module masks, and best-effort
+third-party combat events. Every emitted damage/impact event has one monotonic
+`BattleEventId`, its authoritative tick, and the responsible `ShellId` where one
+exists. `DamageEvent::target_destroyed` is stamped at resolution time for shell,
+splash, ramming, landing, and drowning damage, so kill confirmation never guesses
+from adjacent snapshots or credits a prior wound. Damage events also carry cause,
+armor zone, hit position, and module data so the client can distinguish shell
+penetration, HE track crits, bounces, ramming, and exact impact feedback. Protocol snapshot tests cover
 command wire format; protocol v24 gives each projectile a stable `ShellId` and
 replicates its type, caliber, drag, and age beside position and velocity. The
 client extrapolates tracers with the shared ballistic integrator and gives AP,
-APCR, HEAT, and HE distinct caliber-scaled silhouettes. The server buffers damage events
-and shell impacts until the next emitted snapshot so cadence does not drop
-feedback. Combat tests and
+APCR, HEAT, and HE distinct caliber-scaled silhouettes.
+
+Protocol v38 gives each remote player a reliable personal combat-event tail.
+Damage for which that player is source or target, plus the terminal impact of
+that player's absorbed shell, repeats in sequence until acknowledged and is
+deduplicated before any presentation side effect. Those personal events are
+removed from that player's snapshots to prevent double playback; visible
+third-party events remain best-effort snapshot feedback. Queue exhaustion or a
+sequence gap is terminal, never an invisible loss. Combat tests and
 replay regression fixtures cover fire, projectile travel, penetration, ricochet,
 overmatch, HE surface damage, module damage, ramming, and damage as the system
 grows. A parity test locks that the shared shell trace resolves the same tank

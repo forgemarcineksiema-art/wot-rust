@@ -4,6 +4,7 @@
 
 use game_core::{DamageCause, DamageEvent, ModuleSlot};
 
+use crate::event_stamp::BattleEventStamp;
 use crate::tank_state::TankState;
 
 /// Downward speed a landing absorbs for free (≈ a 1.5 m drop). Harder slams hurt.
@@ -20,6 +21,7 @@ pub(crate) fn apply_landing_impact(
     tank: &mut TankState,
     impact_mps: f32,
     damage_events: &mut Vec<DamageEvent>,
+    event_stamp: &mut BattleEventStamp,
 ) {
     if impact_mps <= SAFE_LANDING_MPS {
         return;
@@ -28,16 +30,21 @@ pub(crate) fn apply_landing_impact(
     let damage = (severity * severity * LANDING_DAMAGE_FACTOR)
         .round()
         .clamp(1.0, LANDING_DAMAGE_MAX_HP) as u32;
+    let target_was_alive = tank.hit_points > 0;
     tank.hit_points = tank.hit_points.saturating_sub(damage);
     tank.modules.damage(ModuleSlot::Suspension, damage.saturating_mul(2));
-    damage_events.push(DamageEvent {
-        source: tank.id,
-        target: tank.id,
-        hit_position: tank.position,
-        damage_hp: damage,
-        penetrated: false,
-        cause: DamageCause::Impact,
-        module: Some(ModuleSlot::Suspension),
-        ..Default::default()
-    });
+    event_stamp.push_damage(
+        damage_events,
+        DamageEvent {
+            source: tank.id,
+            target: tank.id,
+            hit_position: tank.position,
+            damage_hp: damage,
+            penetrated: false,
+            cause: DamageCause::Impact,
+            module: Some(ModuleSlot::Suspension),
+            target_destroyed: target_was_alive && tank.hit_points == 0,
+            ..Default::default()
+        },
+    );
 }

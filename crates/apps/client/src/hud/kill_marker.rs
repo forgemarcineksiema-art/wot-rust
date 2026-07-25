@@ -4,7 +4,6 @@
 //! the wreck itself (smoke, tint) carries the long-term record.
 
 use game_core::TankId;
-use net::Snapshot;
 use renderer_api::HudVertex;
 
 use super::primitives::push_segment;
@@ -17,30 +16,14 @@ const FLARE_S: f32 = 0.45;
 /// Fade-out tail of the text at the end of the TTL.
 const TEXT_FADE_S: f32 = 0.4;
 
-/// Whether this snapshot contains the player finishing a vehicle off: a damage event from the
-/// player whose target is a wreck NOW but was alive in the previous snapshot (a target first seen
-/// already dead — absent from `previous` — still counts: the event and the fresh wreck arrived
-/// together, so the kill is the player's).
-pub(crate) fn player_scored_kill(
-    previous: Option<&Snapshot>,
-    snapshot: &Snapshot,
-    player: TankId,
-) -> bool {
-    snapshot.damage_events.iter().any(|event| {
-        event.source == player
-            && event.target != player
-            && snapshot
-                .tanks
-                .iter()
-                .any(|tank| tank.tank_id == event.target && tank.hit_points == 0)
-            && previous.is_none_or(|previous| {
-                previous
-                    .tanks
-                    .iter()
-                    .find(|tank| tank.tank_id == event.target)
-                    .is_none_or(|tank| tank.hit_points > 0)
-            })
-    })
+/// Whether authoritative combat truth says the player dealt the lethal hit.
+///
+/// The server stamps `target_destroyed` at resolution time. This avoids crediting a player who
+/// merely wounded the target shortly before somebody else's lethal hit.
+pub(crate) fn player_scored_kill(events: &[game_core::DamageEvent], player: TankId) -> bool {
+    events
+        .iter()
+        .any(|event| event.source == player && event.target != player && event.target_destroyed)
 }
 
 /// Draw the confirmation for a kill `age_s` old. Nothing draws outside the TTL.
@@ -85,90 +68,46 @@ pub(crate) fn push_kill_confirm(vertices: &mut Vec<HudVertex>, age_s: f32, aspec
 
 #[cfg(test)]
 mod tests {
-    use game_core::{DamageCause, DamageEvent, TeamId};
-    use net::TankSnapshot;
+    use game_core::{DamageCause, DamageEvent};
 
     use super::*;
 
-    fn snapshot(tanks: Vec<(u64, u32)>, events: Vec<(u64, u64)>) -> Snapshot {
-        let spec = game_core::VehicleKind::T54_1951.spec();
-        Snapshot {
-            server_tick: 1,
-            tanks: tanks
-                .into_iter()
-                .map(|(id, hit_points)| TankSnapshot {
-                    tank_id: TankId(id),
-                    team: TeamId(if id == 1 { 1 } else { 2 }),
-                    vehicle: spec.kind,
-                    position: [id as f32, 0.0, 0.0],
-                    yaw_rad: 0.0,
-                    hull_pitch_rad: 0.0,
-                    hull_roll_rad: 0.0,
-                    turret_yaw_rad: 0.0,
-                    turret_yaw_velocity_rad_s: 0.0,
-                    gun_pitch_rad: 0.0,
-                    hit_points,
-                    reload_remaining_s: 0.0,
-                    aim_dispersion_mrad: spec.gun.dispersion_mrad,
-                    module_hit_points: spec.module_health.hit_points_by_slot(),
-                    destroyed_modules_mask: 0,
-                    track_damage_mask: 0,
-                    track_hp: [game_core::TRACK_HP_MAX; 2],
-                    ammo_counts: spec.ammo.counts,
-                    selected_ammo: spec.ammo.initial_selected,
-                    spotted_by_teams_mask: u8::MAX,
-                    armor_breaches: Default::default(),
-                    track_break_t: [None, None],
-                    engine_fire: false,
-                    fuel_fire: false,
-                })
-                .collect(),
-            damage_events: events
-                .into_iter()
-                .map(|(source, target)| DamageEvent {
-                    source: TankId(source),
-                    target: TankId(target),
-                    damage_hp: 120,
-                    penetrated: true,
-                    cause: DamageCause::Shell,
-                    ..DamageEvent::default()
-                })
-                .collect(),
-            ..Snapshot::default()
-        }
+    fn events(items: &[(u64, u64, bool)]) -> Vec<DamageEvent> {
+        items
+            .iter()
+            .map(|&(source, target, target_destroyed)| DamageEvent {
+                source: TankId(source),
+                target: TankId(target),
+                damage_hp: 120,
+                penetrated: true,
+                cause: DamageCause::Shell,
+                target_destroyed,
+                ..DamageEvent::default()
+            })
+            .collect()
     }
 
     #[test]
-    fn a_target_the_player_just_wrecked_scores_a_kill() {
-        let previous = snapshot(vec![(1, 1000), (2, 120)], vec![]);
-        let current = snapshot(vec![(1, 1000), (2, 0)], vec![(1, 2)]);
-        assert!(player_scored_kill(Some(&previous), &current, TankId(1)));
+    fn the_players_authoritative_lethal_hit_scores_a_kill() {
+        assert!(player_scored_kill(&events(&[(1, 2, true)]), TankId(1)));
     }
 
     #[test]
-    fn hitting_an_already_dead_wreck_is_not_a_kill() {
-        let previous = snapshot(vec![(1, 1000), (2, 0)], vec![]);
-        let current = snapshot(vec![(1, 1000), (2, 0)], vec![(1, 2)]);
-        assert!(!player_scored_kill(Some(&previous), &current, TankId(1)));
+    fn a_nonlethal_hit_is_not_a_kill() {
+        assert!(!player_scored_kill(&events(&[(1, 2, false)]), TankId(1)));
     }
 
     #[test]
     fn someone_elses_kill_or_no_event_is_not_the_players() {
-        let previous = snapshot(vec![(1, 1000), (2, 120), (3, 500)], vec![]);
-        let killed_by_other = snapshot(vec![(1, 1000), (2, 0), (3, 500)], vec![(3, 2)]);
-        assert!(!player_scored_kill(Some(&previous), &killed_by_other, TankId(1)));
-
-        let no_events = snapshot(vec![(1, 1000), (2, 0), (3, 500)], vec![]);
-        assert!(!player_scored_kill(Some(&previous), &no_events, TankId(1)));
+        assert!(!player_scored_kill(&events(&[(3, 2, true)]), TankId(1)));
+        assert!(!player_scored_kill(&[], TankId(1)));
     }
 
     #[test]
-    fn a_first_sighted_wreck_with_the_players_event_still_counts() {
-        // The target was never in a previous snapshot (unspotted until the killing blow).
-        let current = snapshot(vec![(1, 1000), (2, 0)], vec![(1, 2)]);
-        assert!(player_scored_kill(None, &current, TankId(1)));
-        let previous_without_target = snapshot(vec![(1, 1000)], vec![]);
-        assert!(player_scored_kill(Some(&previous_without_target), &current, TankId(1)));
+    fn a_prior_wound_does_not_steal_someone_elses_lethal_hit() {
+        let same_delivery_window = events(&[(1, 2, false), (3, 2, true)]);
+        assert!(!player_scored_kill(&same_delivery_window, TankId(1)));
+        assert!(player_scored_kill(&same_delivery_window, TankId(3)));
     }
 
     #[test]

@@ -90,7 +90,7 @@ impl ClientApp {
         let report =
             crate::hud::reticle::reticle_report(crate::hud::reticle::ReticleFeedbackQuery {
                 heightmap: &self.battlefield.heightmap,
-                cover: &self.battlefield.static_cover,
+                cover: self.live_cover.blocking(),
                 water: self.battlefield.water,
                 tanks,
                 player_spec: &player_spec,
@@ -145,7 +145,7 @@ impl ClientApp {
         (forward != Vec3::ZERO).then(|| {
             crate::aim::aim_point_with_sweep(
                 &self.battlefield.heightmap,
-                &self.battlefield.static_cover,
+                self.live_cover.blocking(),
                 self.battlefield.water,
                 self.render_state.interpolated_tanks(),
                 self.player_tank,
@@ -285,7 +285,7 @@ mod tests {
             &subject,
             &crate::BattleCameraEnvironment::with_obstacles(
                 &app.battlefield.heightmap,
-                &app.camera_obstacles,
+                app.live_cover.camera_obstacles(),
             ),
         );
 

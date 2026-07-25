@@ -6,6 +6,22 @@ use super::ClientApp;
 
 impl ClientApp {
     pub(super) fn accept_and_sync(&mut self, snapshot: net::Snapshot) {
+        self.accept_and_sync_with(snapshot, None);
+    }
+
+    pub(super) fn accept_remote_and_sync(
+        &mut self,
+        snapshot: net::Snapshot,
+        reconciliation: super::session::RemoteReconciliation,
+    ) {
+        self.accept_and_sync_with(snapshot, Some(reconciliation));
+    }
+
+    fn accept_and_sync_with(
+        &mut self,
+        snapshot: net::Snapshot,
+        reconciliation: Option<super::session::RemoteReconciliation>,
+    ) {
         // The replicated crater ledger (protocol v31) folds into OUR heightmap FIRST, before
         // any consumer below reads the ground: the terrain scars of this very snapshot's
         // impacts must drape onto the deformed field (a scorch floating over the bowl it
@@ -177,11 +193,7 @@ impl ClientApp {
         // once, with a burst at the ring, and forget wrecks that have despawned.
         self.sync_turret_popoffs(&snapshot);
         // The payoff beat: a vehicle the player damaged died in this snapshot.
-        if crate::hud::kill_marker::player_scored_kill(
-            self.render_state.latest_snapshot(),
-            &snapshot,
-            self.player_tank,
-        ) {
+        if crate::hud::kill_marker::player_scored_kill(&snapshot.damage_events, self.player_tank) {
             self.kill_confirm_age_s = Some(0.0);
             self.queue_audio(audio::AudioEvent::KillConfirmed);
         }
@@ -190,7 +202,11 @@ impl ClientApp {
         self.ticks_since_snapshot = 0;
         self.apply_fire_events(&fired);
         if let Some(tank) = player {
-            self.predictor.sync_to(&tank);
+            if let Some(reconciliation) = reconciliation {
+                self.reconcile_remote_prediction(&tank, reconciliation);
+            } else {
+                self.predictor.sync_to(&tank);
+            }
         }
     }
 
@@ -267,16 +283,24 @@ impl ClientApp {
             self.cover_scar_list = snapshot.cover_scars.clone();
             self.scene_cover_dirty = true;
         }
-        let states = &snapshot.cover_states;
-        if states == &self.cover_phase_bytes {
+        let Some(next_live_cover) = super::live_cover::LiveCoverCache::from_replicated(
+            &self.battlefield.static_cover,
+            &snapshot.cover_states,
+        ) else {
+            // An incomplete/default snapshot cannot turn a born ruin back into a full building.
+            return;
+        };
+        if next_live_cover.phase_bytes() == self.live_cover.phase_bytes() {
+            // Record that the born-phase bootstrap has now been confirmed by the authority.
+            self.live_cover = next_live_cover;
             return;
         }
-        // Seed silently on the first sight (or a mid-battle map swap changing the count): no phantom
-        // collapses of cover that was already down when we joined.
-        let seeding = self.cover_phase_bytes.len() != states.len();
+        // Seed silently on the first complete sight: no phantom collapses for a late join whose
+        // opening snapshot already contains rubble.
+        let seeding = !self.live_cover.is_replicated();
         if !seeding {
-            for (index, &phase) in states.iter().enumerate() {
-                let was = self.cover_phase_bytes.get(index).copied().unwrap_or(0);
+            for (index, &phase) in next_live_cover.phase_bytes().iter().enumerate() {
+                let was = self.live_cover.phase_bytes().get(index).copied().unwrap_or(0);
                 if phase > was
                     && let Some(object) = self.battlefield.static_cover.get(index)
                 {
@@ -287,7 +311,8 @@ impl ClientApp {
                 }
             }
         }
-        self.cover_phase_bytes = states.clone();
+        // One replacement publishes phases, blocking boxes, and camera obstacles together.
+        self.live_cover = next_live_cover;
         self.scene_cover_dirty = true;
     }
 

@@ -539,10 +539,10 @@ MapBlueprint(
         ),
     ],
     scenery: [
-        // Orchards behind the west edge of the city.
+        // Imported broadleaf orchard and park behind the west edge of the city.
         Scatter(
             seed: 4310001,
-            kind: FruitTree,
+            kind: FloraTree,
             pairs: 10,
             region: ScatterRect(
                 x: (55.0, 115.0),
@@ -556,7 +556,7 @@ MapBlueprint(
         ),
         Scatter(
             seed: 4310002,
-            kind: Oak,
+            kind: FloraTree,
             pairs: 7,
             region: ScatterRect(
                 x: (60.0, 130.0),
@@ -601,7 +601,7 @@ MapBlueprint(
         // the berm's west foot so the fields run has soft texture up to the wall.
         Scatter(
             seed: 4310006,
-            kind: FruitTree,
+            kind: FloraTree,
             pairs: 8,
             region: ScatterRect(
                 x: (880.0, 960.0),
@@ -652,10 +652,10 @@ MapBlueprint(
                 cover_margin_m: Some(1.5),
             ),
         ),
-        // The boulevard avenue: poplar rows flanking the north-south promenade, with a
-        // deliberate gap where the boulevard road crosses the axis.
+        // The boulevard avenue: imported broadleaf rows flanking the north-south promenade,
+        // with a deliberate gap where the boulevard road crosses the axis.
         Row(
-            kind: Poplar,
+            kind: FloraTree,
             xs: [
                 448.0,
                 472.0,
@@ -667,7 +667,7 @@ MapBlueprint(
             scale: 1.0,
         ),
         Fixed(
-            kind: Pine,
+            kind: FloraPine,
             spots: [
                 (900.0, 215.0),
                 (930.0, 250.0),

@@ -28,12 +28,18 @@ allies, public wrecks, and live enemies spotted by the viewer's team; unspotted
 live enemies are removed immediately rather than kept as last-known ghosts.
 
 The same filter removes shells and absorbed-shell impact feedback from hidden
-owners. Combat events are kept when both parties are visible, and player-owned
-feedback remains visible: shots fired by the player and damage taken by the
-player are preserved even when the other tank is currently hidden. That is a
-deliberate first-slice gameplay compromise: blind-hit confirmation feels better,
-but it is weaker than a fully redacted anti-wallhack model.
+owners. Protocol v38 fixes the audience of reliable personal events at their
+authoritative emission tick: the source and target receive their damage truth,
+and only the owner receives an absorbed-shell terminal. Retransmission never
+re-evaluates later spotting, so changing visibility cannot widen that audience.
+Those personal events are stripped from the recipient's snapshot to avoid
+duplicate presentation.
 
-Real network transport must apply this same per-client filter at send time
-before serialising a snapshot for each connected client. Until that transport
-exists, the in-process local server is the enforced path.
+Visible third-party combat events and projectiles remain best-effort snapshot
+feedback. Player-owned blind-hit confirmation is a deliberate gameplay
+compromise: it feels honest to the shot but is weaker than a fully redacted
+anti-wallhack model. Removing owner identity from third-party shell/impact
+replication remains a production-networking task.
+
+Both the local authoritative path and `RemoteBattleServer` apply the same
+per-client filter before a snapshot reaches the client or wire.

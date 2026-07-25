@@ -7,6 +7,7 @@
 use game_core::{DamageCause, DamageEvent, ModuleSlot};
 use terrain::{HeightMap, WaterBody};
 
+use crate::event_stamp::BattleEventStamp;
 use crate::tank_state::TankState;
 
 /// Water over the hull deep enough to flood the engine intake and drown the vehicle.
@@ -27,6 +28,7 @@ pub(crate) fn step_drowning(
     water: Option<WaterBody>,
     dt: f32,
     damage_events: &mut Vec<DamageEvent>,
+    event_stamp: &mut BattleEventStamp,
 ) {
     let (Some(heightmap), Some(water)) = (heightmap, water) else {
         return;
@@ -51,16 +53,19 @@ pub(crate) fn step_drowning(
             && tank.modules.is_functional(ModuleSlot::Engine)
         {
             tank.modules.damage(ModuleSlot::Engine, u32::MAX);
-            damage_events.push(DamageEvent {
-                source: tank.id,
-                target: tank.id,
-                hit_position: tank.position,
-                damage_hp: 0,
-                penetrated: false,
-                cause: DamageCause::Drowning,
-                module: Some(ModuleSlot::Engine),
-                ..Default::default()
-            });
+            event_stamp.push_damage(
+                damage_events,
+                DamageEvent {
+                    source: tank.id,
+                    target: tank.id,
+                    hit_position: tank.position,
+                    damage_hp: 0,
+                    penetrated: false,
+                    cause: DamageCause::Drowning,
+                    module: Some(ModuleSlot::Engine),
+                    ..Default::default()
+                },
+            );
         }
 
         // Past the flood, the hull drains in pulses: one per interval boundary crossed.
@@ -70,17 +75,22 @@ pub(crate) fn step_drowning(
             let pulse = ((tank.spec.hit_points as f32 * DROWN_PULSE_HP_FRACTION).round() as u32)
                 .max(1)
                 .min(tank.hit_points);
+            let target_was_alive = tank.hit_points > 0;
             tank.hit_points -= pulse;
-            damage_events.push(DamageEvent {
-                source: tank.id,
-                target: tank.id,
-                hit_position: tank.position,
-                damage_hp: pulse,
-                penetrated: false,
-                cause: DamageCause::Drowning,
-                module: None,
-                ..Default::default()
-            });
+            event_stamp.push_damage(
+                damage_events,
+                DamageEvent {
+                    source: tank.id,
+                    target: tank.id,
+                    hit_position: tank.position,
+                    damage_hp: pulse,
+                    penetrated: false,
+                    cause: DamageCause::Drowning,
+                    module: None,
+                    target_destroyed: target_was_alive && tank.hit_points == 0,
+                    ..Default::default()
+                },
+            );
             if tank.hit_points == 0 {
                 break;
             }

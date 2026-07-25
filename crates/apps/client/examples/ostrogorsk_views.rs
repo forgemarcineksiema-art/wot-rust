@@ -2,6 +2,7 @@
 //!   `target/ostrogorsk_canyon.png`  — a street canyon at tank-eye level, down market lane.
 //!   `target/ostrogorsk_square.png`  — the church square from the boulevard approach.
 //!   `target/ostrogorsk_berm.png`    — the rail berm and the level crossing from the fields.
+//!   `target/ostrogorsk_avenue.png`  — the imported broadleaf rows from inside the boulevard.
 //! `cargo run -p client --example ostrogorsk_views`
 
 use std::fs::File;
@@ -31,6 +32,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         &ground_maps,
         &terrain_material_set_for(terrain::MapId::Ostrogorsk),
     );
+    let flora = scene_build::flora_pack::flora_catalog();
+    renderer.set_foliage_atlas(&ctx, &flora.atlas_mips);
     renderer.scene_lighting = SceneLighting::battlefield_default();
     renderer.scene_time_s = 12.0;
 
@@ -53,6 +56,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "berm",
             [920.0, ground(920.0, 430.0) + 6.0, 430.0],
             [830.0, ground(830.0, 500.0) + 5.0, 500.0],
+        ),
+        // Down the boulevard's imported broadleaf rows: this frame is the FL-5 look gate and
+        // deliberately starts before the first pair so the authored spacing reads at tank height.
+        (
+            "avenue",
+            [460.0, ground(460.0, 230.0) + 3.0, 230.0],
+            [460.0, ground(460.0, 500.0) + 2.5, 500.0],
         ),
     ];
     for (label, eye, look) in views {

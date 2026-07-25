@@ -96,7 +96,8 @@ fn material_params(id: u32) -> Material {
         m.roughness = 0.72;
     } else if (id == 2u) {
         m.albedo = vec3<f32>(0.14, 0.15, 0.16);
-        m.roughness = 0.30;
+        // The exterior gun tube is painted service steel, not polished bare metal.
+        m.roughness = 0.45;
     } else if (id == 3u) {
         // Worn track steel: a stop lighter than raw plate — link faces, guide horns and pad
         // wear must read as shapes, not merge into one black band under the fenders.
@@ -366,7 +367,10 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     // the sky along the reflected view ray — strongest at grazing angles (Fresnel), dampened in
     // baked cavities so recesses don't glow. Rain cuts roughness, so a soaked tank reflects.
     let smoothness = 1.0 - roughness;
-    let fresnel = 0.25 + 0.75 * pow(1.0 - max(dot(world_n, view_dir), 0.0), 5.0);
+    // Painted vehicle surfaces are dielectric at normal incidence. Starting Fresnel at 0.25 made
+    // a dark barrel mostly mirror the blue sky; the physical ~0.04 F0 keeps the reflection as a
+    // readable grazing highlight instead of replacing the material colour.
+    let fresnel = 0.04 + 0.96 * pow(1.0 - max(dot(world_n, view_dir), 0.0), 5.0);
     // The sky reflection is indirect light, so it takes the screen AO the key terms skip.
     let interior_env = select(1.0, 0.10, input.material_id >= 5u && input.material_id <= 7u);
     let fracture_env = select(1.0, 0.32, fractured_steel);

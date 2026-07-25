@@ -69,8 +69,10 @@ impl VehicleAssetCatalog {
 
     fn material_from_artifact(&mut self, artifact: &ForgeArtifact) -> Result<MaterialHandle> {
         let kind = artifact.manifest().vehicle();
-        if let Some(handle) = self.material_handles.get(&kind) {
-            return Ok(*handle);
+        if let Some(handle) = self.material_handles.get(&kind).copied()
+            && !super::default_material::is_default_handle(self, handle)
+        {
+            return Ok(handle);
         }
         // Decode every role family in material_id layer order; a missing cavity layer simply leaves
         // that role on the renderer's neutral cavity. The descriptor records the representative
@@ -154,4 +156,38 @@ fn artifact_child_dirs(root: &Path) -> Result<Vec<PathBuf>> {
         }
     }
     Ok(dirs)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use vehicle_forge::BakeProfile;
+
+    #[test]
+    fn current_forge_artifact_replaces_only_its_shared_fallback_mapping() {
+        let kind = game_core::VehicleKind::T54_1951;
+        let mut catalog = VehicleAssetCatalog::default();
+        let fallback = crate::vehicle::default_material::material_for(&mut catalog, kind);
+        assert_eq!(catalog.take_pending_vehicle_materials().len(), 1);
+
+        let artifact = ForgeArtifact::bake(kind, BakeProfile::Lod0).expect("T-54 artifact");
+        let out = std::env::temp_dir()
+            .join(format!("wot_client_late_material_override_test_{}", std::process::id()));
+        if out.exists() {
+            std::fs::remove_dir_all(&out).expect("remove stale override fixture");
+        }
+        artifact.write_to_dir(&out).expect("write artifact");
+
+        assert!(catalog.load_forge_artifact_dir(&out).expect("load current artifact"));
+        let override_handle = catalog.material_handles[&kind];
+        assert_ne!(override_handle, fallback);
+        assert_eq!(catalog.material_count(), 2, "shared fallback plus one per-kind override");
+        assert_eq!(
+            catalog.take_pending_vehicle_materials().len(),
+            1,
+            "the fresh artifact queues exactly one replacement material"
+        );
+
+        std::fs::remove_dir_all(out).expect("remove override fixture");
+    }
 }

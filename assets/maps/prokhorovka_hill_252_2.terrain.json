@@ -42987,7 +42987,7 @@
       "scale": 1.2285885
     },
     {
-      "kind": "Oak",
+      "kind": "FloraTree",
       "position": [
         489.04022,
         9.463311,
@@ -42997,7 +42997,7 @@
       "scale": 1.244829
     },
     {
-      "kind": "Oak",
+      "kind": "FloraTree",
       "position": [
         489.04022,
         9.463311,
@@ -43007,7 +43007,7 @@
       "scale": 1.244829
     },
     {
-      "kind": "Oak",
+      "kind": "FloraTree",
       "position": [
         518.8063,
         11.184728,
@@ -43017,7 +43017,7 @@
       "scale": 1.0397433
     },
     {
-      "kind": "Oak",
+      "kind": "FloraTree",
       "position": [
         518.8063,
         11.184729,
@@ -43027,7 +43027,7 @@
       "scale": 1.0397433
     },
     {
-      "kind": "Oak",
+      "kind": "FloraTree",
       "position": [
         485.34573,
         9.271564,
@@ -43037,7 +43037,7 @@
       "scale": 0.91834474
     },
     {
-      "kind": "Oak",
+      "kind": "FloraTree",
       "position": [
         485.34573,
         9.271564,
@@ -43047,7 +43047,7 @@
       "scale": 0.91834474
     },
     {
-      "kind": "Oak",
+      "kind": "FloraTree",
       "position": [
         465.89807,
         8.816554,
@@ -43057,7 +43057,7 @@
       "scale": 1.0680168
     },
     {
-      "kind": "Oak",
+      "kind": "FloraTree",
       "position": [
         465.89807,
         8.816554,
@@ -43067,7 +43067,7 @@
       "scale": 1.0680168
     },
     {
-      "kind": "Oak",
+      "kind": "FloraTree",
       "position": [
         495.6191,
         10.491724,
@@ -43077,7 +43077,7 @@
       "scale": 0.90622115
     },
     {
-      "kind": "Oak",
+      "kind": "FloraTree",
       "position": [
         495.6191,
         10.491724,
@@ -43087,7 +43087,7 @@
       "scale": 0.90622115
     },
     {
-      "kind": "Oak",
+      "kind": "FloraTree",
       "position": [
         132.33981,
         5.5296235,
@@ -43097,7 +43097,7 @@
       "scale": 0.81542444
     },
     {
-      "kind": "Oak",
+      "kind": "FloraTree",
       "position": [
         132.33981,
         5.5296235,
@@ -43107,7 +43107,7 @@
       "scale": 0.81542444
     },
     {
-      "kind": "Oak",
+      "kind": "FloraTree",
       "position": [
         116.62348,
         5.238175,
@@ -43117,7 +43117,7 @@
       "scale": 1.0682695
     },
     {
-      "kind": "Oak",
+      "kind": "FloraTree",
       "position": [
         116.62348,
         5.238175,
@@ -43127,7 +43127,7 @@
       "scale": 1.0682695
     },
     {
-      "kind": "Oak",
+      "kind": "FloraTree",
       "position": [
         124.38108,
         5.3815823,
@@ -43137,7 +43137,7 @@
       "scale": 1.1630558
     },
     {
-      "kind": "Oak",
+      "kind": "FloraTree",
       "position": [
         124.38108,
         5.3815827,
@@ -43147,7 +43147,7 @@
       "scale": 1.1630558
     },
     {
-      "kind": "Oak",
+      "kind": "FloraTree",
       "position": [
         147.69632,
         5.8063607,
@@ -43157,7 +43157,7 @@
       "scale": 0.8548083
     },
     {
-      "kind": "Oak",
+      "kind": "FloraTree",
       "position": [
         147.69632,
         5.8063607,
@@ -43167,7 +43167,7 @@
       "scale": 0.8548083
     },
     {
-      "kind": "Oak",
+      "kind": "FloraTree",
       "position": [
         144.79173,
         5.7534113,
@@ -43177,7 +43177,7 @@
       "scale": 1.012175
     },
     {
-      "kind": "Oak",
+      "kind": "FloraTree",
       "position": [
         144.79173,
         5.7534113,
@@ -43187,7 +43187,7 @@
       "scale": 1.012175
     },
     {
-      "kind": "Oak",
+      "kind": "FloraTree",
       "position": [
         145.4326,
         5.765128,
@@ -43197,7 +43197,7 @@
       "scale": 1.0159229
     },
     {
-      "kind": "Oak",
+      "kind": "FloraTree",
       "position": [
         145.4326,
         5.765128,
@@ -43207,7 +43207,7 @@
       "scale": 1.0159229
     },
     {
-      "kind": "Oak",
+      "kind": "FloraTree",
       "position": [
         141.84784,
         5.700467,
@@ -43217,7 +43217,7 @@
       "scale": 1.2937515
     },
     {
-      "kind": "Oak",
+      "kind": "FloraTree",
       "position": [
         141.84784,
         5.700467,
@@ -43627,7 +43627,7 @@
       "scale": 0.8499052
     },
     {
-      "kind": "FruitTree",
+      "kind": "FloraTree",
       "position": [
         446.43216,
         9.112737,
@@ -43637,7 +43637,7 @@
       "scale": 0.80448425
     },
     {
-      "kind": "FruitTree",
+      "kind": "FloraTree",
       "position": [
         446.43216,
         9.112737,
@@ -43647,7 +43647,7 @@
       "scale": 0.80448425
     },
     {
-      "kind": "FruitTree",
+      "kind": "FloraTree",
       "position": [
         470.5313,
         8.781301,
@@ -43657,7 +43657,7 @@
       "scale": 1.1908406
     },
     {
-      "kind": "FruitTree",
+      "kind": "FloraTree",
       "position": [
         470.5313,
         8.781301,
@@ -43667,7 +43667,7 @@
       "scale": 1.1908406
     },
     {
-      "kind": "FruitTree",
+      "kind": "FloraTree",
       "position": [
         530.05554,
         11.340481,
@@ -43677,7 +43677,7 @@
       "scale": 0.83085585
     },
     {
-      "kind": "FruitTree",
+      "kind": "FloraTree",
       "position": [
         530.05554,
         11.340484,
@@ -43687,7 +43687,7 @@
       "scale": 0.83085585
     },
     {
-      "kind": "FruitTree",
+      "kind": "FloraTree",
       "position": [
         492.69757,
         9.734614,
@@ -43697,7 +43697,7 @@
       "scale": 1.1665692
     },
     {
-      "kind": "FruitTree",
+      "kind": "FloraTree",
       "position": [
         492.69757,
         9.734614,
@@ -43707,7 +43707,7 @@
       "scale": 1.1665692
     },
     {
-      "kind": "FruitTree",
+      "kind": "FloraTree",
       "position": [
         529.5446,
         11.89537,
@@ -43717,7 +43717,7 @@
       "scale": 1.1742985
     },
     {
-      "kind": "FruitTree",
+      "kind": "FloraTree",
       "position": [
         529.5446,
         11.89537,
@@ -43727,7 +43727,7 @@
       "scale": 1.1742985
     },
     {
-      "kind": "FruitTree",
+      "kind": "FloraTree",
       "position": [
         465.85425,
         8.854952,
@@ -43737,7 +43737,7 @@
       "scale": 1.137116
     },
     {
-      "kind": "FruitTree",
+      "kind": "FloraTree",
       "position": [
         465.85425,
         8.854952,

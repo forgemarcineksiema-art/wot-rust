@@ -4,11 +4,14 @@ use game_core::{
 };
 use glam::Vec3;
 use net::{
-    ClientInputCommand, ClientVehicleSelection, PROTOCOL_VERSION, ProtocolMessage, ShellSnapshot,
-    Snapshot, TankSnapshot, decode_message, encode_message,
+    AuthoritativeMotion, ClientInputCommand, ClientVehicleSelection, PROTOCOL_VERSION,
+    ProtocolMessage, ShellSnapshot, Snapshot, SnapshotDelivery, TankSnapshot, decode_message,
+    encode_message,
 };
 use sim::TankCommand;
 use terrain::MapId;
+
+const SESSION_ID: u64 = 0x1020_3040_5060_7080;
 
 #[test]
 fn input_command_wire_snapshot_v34_is_stable() {
@@ -28,7 +31,7 @@ fn input_command_wire_snapshot_v34_is_stable() {
 
     let bytes = encode_message(&message).expect("message should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 35);
+    assert_eq!(PROTOCOL_VERSION, 38);
     assert_eq!(hex(&bytes), wire_fixture(&bytes, "input_command_v33"));
     assert_eq!(decode_message(&bytes).expect("message should decode"), message);
 }
@@ -42,7 +45,7 @@ fn vehicle_selection_wire_snapshot_v34_is_stable() {
 
     let bytes = encode_message(&message).expect("vehicle selection should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 35);
+    assert_eq!(PROTOCOL_VERSION, 38);
     assert_eq!(hex(&bytes), wire_fixture(&bytes, "vehicle_selection_v33"));
     assert_eq!(decode_message(&bytes).expect("message should decode"), message);
 }
@@ -54,7 +57,7 @@ fn tank_snapshot_wire_v34_is_stable() {
 
     let bytes = encode_message(&message).expect("snapshot should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 35);
+    assert_eq!(PROTOCOL_VERSION, 38);
     assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_tank_v33"));
     assert_eq!(decode_message(&bytes).expect("snapshot should decode"), message);
 }
@@ -65,14 +68,15 @@ fn combat_snapshot_wire_v34_is_stable() {
 
     let bytes = encode_message(&message).expect("snapshot should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 35);
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_combat_v33"));
+    assert_eq!(PROTOCOL_VERSION, 38);
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_combat_v38"));
     assert_eq!(decode_message(&bytes).expect("snapshot should decode"), message);
 }
 
 #[test]
-fn server_hello_wire_snapshot_v35_is_stable() {
+fn server_hello_wire_snapshot_v38_is_stable() {
     let message = ProtocolMessage::ServerHello {
+        session_id: SESSION_ID,
         protocol_version: PROTOCOL_VERSION,
         map_id: MapId::ProkhorovkaHill252_2,
         // v23: lock one of the appended time-of-day variants into the fixture, so the new
@@ -83,8 +87,8 @@ fn server_hello_wire_snapshot_v35_is_stable() {
 
     let bytes = encode_message(&message).expect("server hello should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 35);
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "server_hello_v35"));
+    assert_eq!(PROTOCOL_VERSION, 38);
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "server_hello_v38"));
     assert_eq!(decode_message(&bytes).expect("server hello should decode"), message);
 }
 
@@ -131,16 +135,64 @@ pub fn tank_snapshot_message() -> Snapshot {
 /// Non-empty combat snapshot used by the v18 fixture (and its generator): shells in flight, a
 /// damage event, and an absorbed-shell impact.
 #[test]
-fn input_batch_and_disconnect_wire_v35_are_stable() {
+fn input_batch_disconnect_and_ack_wire_v38_are_stable() {
     let batch = ProtocolMessage::InputBatch {
+        session_id: SESSION_ID,
         commands: vec![sample_input_command(), sample_input_command()],
     };
     let bytes = net::encode_frame(&batch).expect("encode");
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "input_batch_v35"));
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "input_batch_v38"));
 
-    let goodbye = ProtocolMessage::Disconnect { reason: net::DisconnectReason::Quit };
+    let goodbye =
+        ProtocolMessage::Disconnect { session_id: SESSION_ID, reason: net::DisconnectReason::Quit };
     let bytes = net::encode_frame(&goodbye).expect("encode");
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "disconnect_v35"));
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "disconnect_v38"));
+
+    let ack = ProtocolMessage::InputAck { session_id: SESSION_ID, last_processed_input_seq: 41 };
+    let bytes = net::encode_frame(&ack).expect("encode");
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "input_ack_v38"));
+}
+
+#[test]
+fn snapshot_delivery_wire_v38_is_stable() {
+    let delivery = SnapshotDelivery {
+        session_id: SESSION_ID,
+        snapshot: combat_snapshot_message(),
+        last_processed_input_seq: Some(41),
+        local_motion: AuthoritativeMotion {
+            velocity_mps: [1.0, -0.5, 7.25],
+            hull_yaw_velocity_rad_s: 0.33,
+        },
+    };
+    let message = ProtocolMessage::SnapshotDelivery(delivery);
+    let bytes = net::encode_frame(&message).expect("encode");
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_delivery_v38"));
+    assert_eq!(net::decode_frame(&bytes).expect("decode"), message);
+}
+
+#[test]
+fn reliable_combat_event_lane_wire_v38_is_stable() {
+    let batch = ProtocolMessage::CombatEventBatch {
+        session_id: SESSION_ID,
+        events: vec![
+            net::SequencedCombatEvent {
+                delivery_seq: 12,
+                event: net::CombatEvent::Damage(combat_snapshot_message().damage_events[0]),
+            },
+            net::SequencedCombatEvent {
+                delivery_seq: 13,
+                event: net::CombatEvent::ShellImpact(combat_snapshot_message().shell_impacts[0]),
+            },
+        ],
+    };
+    let bytes = net::encode_frame(&batch).expect("encode");
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "combat_event_batch_v38"));
+    assert_eq!(net::decode_frame(&bytes).expect("decode"), batch);
+
+    let ack = ProtocolMessage::CombatEventAck { session_id: SESSION_ID, last_received_seq: 13 };
+    let bytes = net::encode_frame(&ack).expect("encode");
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "combat_event_ack_v38"));
+    assert_eq!(net::decode_frame(&bytes).expect("decode"), ack);
 }
 
 /// The transport ships a snapshot in datagrams; a battle-worn 14-tank snapshot (live breaches on
@@ -156,7 +208,13 @@ fn a_battle_worn_snapshot_fits_the_fragment_budget() {
         tank.tank_id = game_core::TankId(100 + snapshot.tanks.len() as u64);
         snapshot.tanks.push(tank);
     }
-    let bytes = net::encode_frame(&ProtocolMessage::Snapshot(snapshot)).expect("encode");
+    let delivery = SnapshotDelivery {
+        session_id: SESSION_ID,
+        snapshot,
+        last_processed_input_seq: Some(99),
+        local_motion: AuthoritativeMotion::default(),
+    };
+    let bytes = net::encode_frame(&ProtocolMessage::SnapshotDelivery(delivery)).expect("encode");
     let fragments = net::transport::fragment_message(1, &bytes).expect("fits the hard cap");
     assert!(
         fragments.len() <= 4,
@@ -222,8 +280,12 @@ pub fn combat_snapshot_message() -> Snapshot {
             age_seconds: 0.35,
         }],
         damage_events: vec![DamageEvent {
+            event_id: game_core::BattleEventId(42),
+            occurred_tick: 8,
             source: TankId(7),
             target: TankId(8),
+            shell_id: Some(game_core::ShellId::from_shot(TankId(7), 3)),
+            target_destroyed: true,
             hit_position: Vec3::new(0.0, 1.2, 55.0),
             damage_hp: 320,
             penetrated: true,
@@ -238,6 +300,9 @@ pub fn combat_snapshot_message() -> Snapshot {
             ..Default::default()
         }],
         shell_impacts: vec![ShellImpact {
+            event_id: game_core::BattleEventId(43),
+            occurred_tick: 8,
+            shell_id: game_core::ShellId::from_shot(TankId(7), 3),
             owner: TankId(7),
             position: Vec3::new(2.0, 0.1, 80.0),
             surface: ImpactSurface::Hull,

@@ -54,9 +54,10 @@ the wreck-marked level crossing is the axis door both teams can pre-sight.
 - Materials: dusty late-summer palette — worn verge green, sun-cured stubble, packed
   earth, grey rubble-stone; `field_patch_strength` 0.85 (the east flank is worked right up
   to the berm).
-- Flora: orchards and oaks behind the west edge, field brush on both sides of the berm,
-  the poplar **boulevard avenue** (mirrored rows with a deliberate gap at the axis road),
-  a fixed pine pair at the south elevator.
+- Flora (FL-5): imported broadleaf trees in the orchard/park behind the west edge and the
+  **boulevard avenue** (mirrored rows with a deliberate gap at the axis road), imported
+  pines at the south elevator, and procedural field brush on both sides of the berm. The
+  rejected imported bush is not authored.
 
 ## Gameplay Layer
 
@@ -123,8 +124,38 @@ ostrogorsk statics rebuild (single collapse, 1 bucket):  3.39 ms (the real per-c
 Numbers from `cargo run -p client --release --example perf_capture`. The sim side is locked
 by the `urban_150` bench fixture in `combat_hot_path` (150 boxes > the shipped 101). Review
 renders: `cargo run -p client --example ostrogorsk_views` (street canyon at tank-eye level,
-church square, the berm from the fields). Known playtest candidate: the berm reads gently
-from deep east — a sculpt-session candidate after the first human playtest.
+church square, the berm from the fields, and the imported-tree boulevard with the runtime
+foliage atlas bound). Known playtest candidate: the berm reads gently from deep east — a
+sculpt-session candidate after the first human playtest.
+
+FL-5's full-scatter release capture (2026-07-23, warm median of three runs after the release
+build) explicitly counted **118 imported flora instances** in the Ostrogorsk bake:
+
+```text
+ostrogorsk statics bake (101 boxes, 118 imported flora): 46.3 ms (438552 v / 660150 i)
+ostrogorsk statics rebuild (all-rubble):                 49.0 ms
+ostrogorsk statics rebuild (single collapse, 1 bucket):  30.31 ms
+```
+
+These are one-off/worker CPU costs, not per-frame work; bucket culling remains the runtime
+draw strategy. The same capture keeps the full scatter present instead of benchmarking a
+special reduced flora fixture.
+
+The runtime frame gate is separate from those CPU bakes:
+
+```text
+NVIDIA GeForce MX330, Vulkan, release, 1920x1080, avenue view, hot 120-frame batches
+without imported flora (82,398 statics vertices):  9.483-10.467 ms/frame median
+full 118-instance scatter (438,552 vertices):      13.281-14.545 ms/frame median
+imported-flora delta:                              +3.798 to +4.077 ms/frame
+60 FPS budget:                                     PASS (16.667 ms/frame)
+```
+
+Two consecutive runs of
+`cargo run -p client --release --example flora_frame_probe` produced those medians. The probe
+warms both renderers, alternates baseline/full order and drains the GPU queue after each batch;
+it measures hot frame throughput, while `perf_capture` continues to own the CPU bake/rebuild
+numbers above.
 
 ## Asset
 

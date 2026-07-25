@@ -383,6 +383,8 @@ mod tests {
         app.run_fixed_ticks(6);
         let cover_count = app.battlefield.static_cover.len();
         assert!(cover_count > 0, "the battle map has cover to destroy");
+        let authored = app.battlefield.static_cover.clone();
+        let first_id = authored[0].id.clone();
 
         // First snapshot seeds the baseline (all intact) — no phantom collapse, no dust.
         let mut snapshot = app.render_state.latest_snapshot().cloned().expect("snapshot present");
@@ -401,7 +403,37 @@ mod tests {
 
         assert!(app.scene_cover_dirty, "a collapse flags the scene for a rebuild");
         assert!(app.fx.live_particles() > 0, "the collapse throws dust");
-        assert_eq!(app.cover_phase_bytes[0], 1, "the new phase is remembered");
+        assert_eq!(app.live_cover.phase_bytes()[0], 1, "the new phase is remembered");
+        assert_eq!(
+            app.battlefield.static_cover, authored,
+            "render/scar indices keep the authored cover untouched"
+        );
+        let rubble_index = app
+            .live_cover
+            .blocking()
+            .iter()
+            .position(|cover| cover.id == first_id)
+            .expect("rubble remains blocking");
+        let rubble = &app.live_cover.blocking()[rubble_index];
+        let camera = &app.live_cover.camera_obstacles()[rubble_index];
+        assert!(rubble.half_extents_m[1] < authored[0].half_extents_m[1]);
+        assert_eq!(camera.center, rubble.center);
+        assert_eq!(camera.half_extents, rubble.half_extents_m);
+
+        // A later Gone phase removes the same index from every blocking consumer in one ingest,
+        // while the authored slice stays available for indexed rendering and scar lookup.
+        app.scene_cover_dirty = false;
+        let mut snapshot = app.render_state.latest_snapshot().cloned().expect("snapshot");
+        snapshot.server_tick += 1;
+        snapshot.cover_states = vec![0u8; cover_count];
+        snapshot.cover_states[0] = 2;
+        app.accept_and_sync(snapshot);
+
+        assert!(app.scene_cover_dirty);
+        assert_eq!(app.live_cover.phase_bytes()[0], 2);
+        assert!(!app.live_cover.blocking().iter().any(|cover| cover.id == first_id));
+        assert_eq!(app.live_cover.camera_obstacles().len(), app.live_cover.blocking().len());
+        assert_eq!(app.battlefield.static_cover, authored);
     }
 
     #[test]

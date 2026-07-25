@@ -13,6 +13,10 @@ use crate::setup::{BattleSetup, practice_duel_setup};
 pub struct AuthoritativeTick {
     pub server_tick: u64,
     pub snapshot: Option<Snapshot>,
+    /// This tick's one-shot consequences, exposed independently of snapshot cadence so the
+    /// remote host can feed its reliable per-recipient combat lane.
+    pub damage_events: Vec<DamageEvent>,
+    pub shell_impacts: Vec<ShellImpact>,
 }
 
 #[derive(Debug, Clone)]
@@ -181,6 +185,14 @@ impl LocalAuthoritativeServer {
         Snapshot::from(&self.sim)
     }
 
+    pub fn authoritative_motion(&self, tank_id: TankId) -> Option<net::AuthoritativeMotion> {
+        let tank = self.sim.tank(tank_id)?;
+        Some(net::AuthoritativeMotion {
+            velocity_mps: tank.velocity_mps.to_array(),
+            hull_yaw_velocity_rad_s: tank.hull_yaw_velocity_rad_s,
+        })
+    }
+
     pub fn latest_snapshot_for_player(&self) -> Snapshot {
         self.latest_snapshot.filtered_for_viewer(self.player_tank)
     }
@@ -244,6 +256,8 @@ impl LocalAuthoritativeServer {
         }
         self.pending_damage_events.extend_from_slice(self.sim.damage_events());
         self.pending_shell_impacts.extend_from_slice(self.sim.shell_impacts());
+        let damage_events = self.sim.damage_events().to_vec();
+        let shell_impacts = self.sim.shell_impacts().to_vec();
 
         let snapshot = if self.config.snapshot_schedule().should_emit(self.sim.tick()) {
             let mut snapshot = Snapshot::from(&self.sim);
@@ -255,7 +269,7 @@ impl LocalAuthoritativeServer {
             None
         };
 
-        AuthoritativeTick { server_tick: self.sim.tick(), snapshot }
+        AuthoritativeTick { server_tick: self.sim.tick(), snapshot, damage_events, shell_impacts }
     }
 
     pub fn tick_with_player_input(&mut self, input: ClientInputCommand) -> AuthoritativeTick {
@@ -264,6 +278,8 @@ impl LocalAuthoritativeServer {
         AuthoritativeTick {
             server_tick: tick.server_tick,
             snapshot: tick.snapshot.map(|snapshot| snapshot.filtered_for_viewer(viewer)),
+            damage_events: tick.damage_events,
+            shell_impacts: tick.shell_impacts,
         }
     }
 }

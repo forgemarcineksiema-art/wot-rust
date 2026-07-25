@@ -1,7 +1,8 @@
 # WOT Rust — the honest tank game
 
-A native-Rust, from-scratch armored battle game: 7v7 on 1000 m maps, WWII-era vehicles in
-three eras, and a design creed of **honesty** — no ±25% damage RNG, sub-milliradian
+A native-Rust game of armored vehicle battles on large terrain maps: 7v7 on
+1000 m fields, WWII-era vehicles in three eras, and a design creed of **honesty** — no ±25%
+damage RNG, sub-milliradian
 dispersion, no premium ammo, armor resolved against real 3D plates, and a world where what
 blocks the shell is exactly what blocks the eye. Not a general-purpose engine: everything is
 biased toward outdoor terrain, vehicles, spotting, shell physics, destruction and a headless

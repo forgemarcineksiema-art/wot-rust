@@ -375,6 +375,7 @@ mod tests {
             shell_type: game_core::ShellType::ArmorPiercing,
             direction: Vec3::new(0.0, -0.3, 0.95).normalize(),
             caliber_mm,
+            ..Default::default()
         }
     }
 

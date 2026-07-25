@@ -58,9 +58,10 @@ decide the mid-game").
 - Materials: alpine palette — cool meadow green, sun-cured straw, worn dirt, grey granite;
   steep faces auto-break to the rock channel in the splat. `field_patch_strength` 0.55 (no
   worked plots this high).
-- Flora zonation: oaks stay on the Dolina floor, `Pine` belts (the conifer species born for
-  this map — bare trunk, stacked conical crown) climb the massif flanks and both rims, with
-  a fixed mirrored pair marking the crest walk shoulders.
+- Flora zonation (FL-5): imported textured broadleaf trees stay on the Dolina floor and
+  imported `FloraPine` belts climb the massif flanks and both rims, with an imported fixed
+  mirrored pair marking the crest-walk shoulders. Procedural bushes remain render-only;
+  the rejected imported bush is not authored.
 
 ## Gameplay Layer
 
