@@ -10,6 +10,31 @@ impl LocalPredictor {
     /// Snap the predicted hull to an authoritative snapshot. In lockstep this matches the
     /// prediction, but it also seeds the first frame and corrects rare divergence.
     pub fn sync_to(&mut self, authoritative: &TankSnapshot) {
+        self.sync_inner(authoritative, None, false);
+    }
+
+    pub fn sync_to_with_motion(
+        &mut self,
+        authoritative: &TankSnapshot,
+        motion: net::AuthoritativeMotion,
+    ) {
+        self.sync_inner(authoritative, Some(motion), false);
+    }
+
+    pub fn snap_to_with_motion(
+        &mut self,
+        authoritative: &TankSnapshot,
+        motion: net::AuthoritativeMotion,
+    ) {
+        self.sync_inner(authoritative, Some(motion), true);
+    }
+
+    fn sync_inner(
+        &mut self,
+        authoritative: &TankSnapshot,
+        motion: Option<net::AuthoritativeMotion>,
+        force_anchor: bool,
+    ) {
         let was_seeded = self.seeded;
         let correction_m =
             (self.drive.kinematic.position - Vec3::from_array(authoritative.position)).length();
@@ -31,8 +56,12 @@ impl LocalPredictor {
         self.destroyed_modules_mask = authoritative.destroyed_modules_mask;
         self.tracks = game_core::TrackHealth::from_hp_pair(authoritative.track_hp);
         self.selected_ammo = authoritative.selected_ammo;
+        if let Some(motion) = motion {
+            self.drive.kinematic.velocity = Vec3::from_array(motion.velocity_mps);
+            self.drive.kinematic.yaw_rate_rad_s = motion.hull_yaw_velocity_rad_s;
+        }
 
-        if !was_seeded || correction_m > MAX_SMOOTH_AUTHORITATIVE_CORRECTION_M {
+        if force_anchor || !was_seeded || correction_m > MAX_SMOOTH_AUTHORITATIVE_CORRECTION_M {
             self.previous = self.current_pose();
             // The motion history snaps with the pose: blending speed across a teleport-sized
             // correction would fake a violent acceleration into the attitude cue.

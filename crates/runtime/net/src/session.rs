@@ -6,6 +6,8 @@
 //! path is a deterministic test.
 
 use std::net::SocketAddr;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::transport::{Reassembler, Transport, fragment_message};
 use crate::{NetError, ProtocolMessage, decode_frame, encode_frame};
@@ -17,6 +19,7 @@ const RESEND_CAP_MS: u64 = 2_000;
 pub const TIMEOUT_MS: u64 = 10_000;
 /// Idle ping cadence once connected.
 const HEARTBEAT_MS: u64 = 1_000;
+static SESSION_NONCE: AtomicU64 = AtomicU64::new(1);
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum SessionState {
@@ -30,6 +33,11 @@ pub enum SessionState {
 pub enum SessionFailure {
     TimedOut,
     Refused,
+    /// The host closed an already-finished battle. Kept distinct from refusal so the live
+    /// client never calls an orderly match shutdown a broken connection.
+    BattleOver,
+    /// Reliable personal combat feedback could no longer be retained for this peer.
+    CombatEventOverflow,
 }
 
 /// One peer's sequenced, fragmenting endpoint: every outgoing message gets a fresh sequence and
@@ -86,6 +94,7 @@ impl Endpoint {
 /// arrives, then keep the line warm with pings and watch for silence.
 pub struct ClientSession {
     pub endpoint: Endpoint,
+    session_id: u64,
     state: SessionState,
     hello: ProtocolMessage,
     next_resend_ms: u64,
@@ -97,16 +106,30 @@ pub struct ClientSession {
 
 impl ClientSession {
     pub fn connect(server: SocketAddr, now_ms: u64) -> Self {
+        Self::connect_with_session_id(server, now_ms, generate_session_id(now_ms))
+    }
+
+    /// Deterministic constructor for tests and callers that persist their own connection
+    /// incarnation. Production callers normally use [`Self::connect`].
+    pub fn connect_with_session_id(server: SocketAddr, now_ms: u64, session_id: u64) -> Self {
         Self {
             endpoint: Endpoint::new(server),
+            session_id,
             state: SessionState::Connecting,
-            hello: ProtocolMessage::ClientHello { protocol_version: crate::PROTOCOL_VERSION },
+            hello: ProtocolMessage::ClientHello {
+                session_id,
+                protocol_version: crate::PROTOCOL_VERSION,
+            },
             next_resend_ms: now_ms,
             resend_interval_ms: RESEND_BASE_MS,
             started_ms: now_ms,
             last_heard_ms: now_ms,
             next_ping_ms: now_ms + HEARTBEAT_MS,
         }
+    }
+
+    pub fn session_id(&self) -> u64 {
+        self.session_id
     }
 
     pub fn state(&self) -> &SessionState {
@@ -129,6 +152,9 @@ impl ClientSession {
             }
             match self.endpoint.accept(&datagram) {
                 Ok(Some(message)) => {
+                    if message.session_id() != Some(self.session_id) {
+                        continue;
+                    }
                     self.last_heard_ms = now_ms;
                     match message {
                         ProtocolMessage::ServerHello { .. } => {
@@ -137,8 +163,15 @@ impl ClientSession {
                             }
                             inbox.push(message);
                         }
-                        ProtocolMessage::Disconnect { .. } => {
-                            self.state = SessionState::Failed(SessionFailure::Refused);
+                        ProtocolMessage::Disconnect { reason, .. } => {
+                            self.state = SessionState::Failed(match reason {
+                                crate::DisconnectReason::BattleOver => SessionFailure::BattleOver,
+                                crate::DisconnectReason::CombatEventOverflow => {
+                                    SessionFailure::CombatEventOverflow
+                                }
+                                crate::DisconnectReason::Quit
+                                | crate::DisconnectReason::Refused => SessionFailure::Refused,
+                            });
                             inbox.push(message);
                         }
                         other => inbox.push(other),
@@ -165,7 +198,10 @@ impl ClientSession {
                 if now_ms.saturating_sub(self.last_heard_ms) >= TIMEOUT_MS {
                     self.state = SessionState::Failed(SessionFailure::TimedOut);
                 } else if now_ms >= self.next_ping_ms {
-                    let ping = ProtocolMessage::Ping { client_time_us: now_ms * 1_000 };
+                    let ping = ProtocolMessage::Ping {
+                        session_id: self.session_id,
+                        client_time_us: now_ms * 1_000,
+                    };
                     self.endpoint.send(transport, &ping)?;
                     self.next_ping_ms = now_ms + HEARTBEAT_MS;
                 }
@@ -174,6 +210,19 @@ impl ClientSession {
         }
         Ok(inbox)
     }
+}
+
+fn generate_session_id(now_ms: u64) -> u64 {
+    let wall_clock = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_nanos();
+    let folded_time = wall_clock as u64 ^ (wall_clock >> 64) as u64;
+    let process = u64::from(std::process::id());
+    let nonce = SESSION_NONCE.fetch_add(1, Ordering::Relaxed);
+    game_core::math::splitmix64(
+        folded_time
+            ^ now_ms.rotate_left(17)
+            ^ process.rotate_left(32)
+            ^ nonce.wrapping_mul(0x9E37_79B9_7F4A_7C15),
+    )
 }
 
 #[cfg(test)]
@@ -194,8 +243,9 @@ mod tests {
             }
         }
         for message in pending {
-            if matches!(message, ProtocolMessage::ClientHello { .. }) {
+            if let ProtocolMessage::ClientHello { session_id, .. } = message {
                 let hello = ProtocolMessage::ServerHello {
+                    session_id,
                     protocol_version: crate::PROTOCOL_VERSION,
                     map_id: Default::default(),
                     weather: Default::default(),
@@ -264,10 +314,50 @@ mod tests {
         server_answers(&mut wire, &mut server_side);
         client.tick(10, &mut wire).expect("tick");
 
-        let goodbye = ProtocolMessage::Disconnect { reason: crate::DisconnectReason::BattleOver };
+        let goodbye = ProtocolMessage::Disconnect {
+            session_id: client.session_id(),
+            reason: crate::DisconnectReason::BattleOver,
+        };
         server_side.send(&mut wire, &goodbye).expect("send");
         let inbox = client.tick(20, &mut wire).expect("tick");
         assert!(inbox.iter().any(|m| matches!(m, ProtocolMessage::Disconnect { .. })));
-        assert_eq!(*client.state(), SessionState::Failed(SessionFailure::Refused));
+        assert_eq!(*client.state(), SessionState::Failed(SessionFailure::BattleOver));
+    }
+
+    #[test]
+    fn stale_session_packets_are_rejected_before_liveness_or_state_changes() {
+        let mut wire = LossyLoopback::new(13);
+        let session_id = 0xCAFE_BABE_1234_5678;
+        let mut client = ClientSession::connect_with_session_id(server_addr(), 0, session_id);
+        let mut server_side = Endpoint::new(server_addr());
+        client.tick(0, &mut wire).expect("tick");
+        server_answers(&mut wire, &mut server_side);
+        client.tick(10, &mut wire).expect("tick");
+        assert_eq!(*client.state(), SessionState::Connected);
+
+        let stale_goodbye = ProtocolMessage::Disconnect {
+            session_id: session_id.wrapping_sub(1),
+            reason: crate::DisconnectReason::Refused,
+        };
+        server_side.send(&mut wire, &stale_goodbye).expect("send");
+        let inbox = client.tick(TIMEOUT_MS - 1, &mut wire).expect("tick");
+        assert!(inbox.is_empty(), "old-incarnation traffic must not escape to the app");
+        assert_eq!(*client.state(), SessionState::Connected);
+        while wire.recv().expect("drain outgoing heartbeat").is_some() {}
+
+        client.tick(TIMEOUT_MS + 10, &mut wire).expect("tick");
+        assert_eq!(
+            *client.state(),
+            SessionState::Failed(SessionFailure::TimedOut),
+            "the rejected packet must not refresh last_heard"
+        );
+    }
+
+    #[test]
+    fn deterministic_constructor_exposes_the_selected_session_id() {
+        let session_id = 0x1020_3040_5060_7080;
+        let client = ClientSession::connect_with_session_id(server_addr(), 7, session_id);
+        assert_eq!(client.session_id(), session_id);
+        assert_eq!(client.hello.session_id(), Some(session_id));
     }
 }

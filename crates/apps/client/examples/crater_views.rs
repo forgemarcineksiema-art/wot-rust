@@ -100,6 +100,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 shell_type: ShellType::HighExplosive,
                 direction: Vec3::new(0.42, -0.30, 0.55).normalize(),
                 caliber_mm: caliber,
+                ..Default::default()
             },
             &battlefield.heightmap,
         );
@@ -132,6 +133,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 shell_type: ShellType::ArmorPiercing,
                 direction: Vec3::new(-0.35, -0.25, -0.9).normalize(),
                 caliber_mm: 100.0,
+                ..Default::default()
             },
             &battlefield.heightmap,
         );

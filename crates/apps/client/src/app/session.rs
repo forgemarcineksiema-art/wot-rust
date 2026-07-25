@@ -1,7 +1,7 @@
 //! The battle session seam (N3): the app drives ONE surface whether the authoritative battle
 //! lives in-process (practice, the desktop game so far) or across a wire. `Local` wraps the
-//! same `LocalAuthoritativeServer` as always; `Remote` speaks the v29 protocol to a dedicated
-//! host — hello/heartbeat via `net::session`, redundant `InputBatch` every tick, snapshots
+//! same `LocalAuthoritativeServer` as always; `Remote` speaks the v38 protocol to a dedicated
+//! host — epoch-tagged hello/heartbeat, acknowledged `InputBatch` every tick, snapshots
 //! arriving ALREADY filtered per viewer by the server. An enum, not a trait object: the two
 //! variants are the whole design space, and practice-only operations (changing vehicles in the
 //! garage) stay honest by matching instead of pretending the server would allow them.
@@ -10,15 +10,38 @@ use std::net::SocketAddr;
 use std::time::Instant;
 
 use game_core::{TankId, TankSpec};
-use net::session::{ClientSession, SessionState};
+use net::session::{ClientSession, SessionFailure, SessionState, TIMEOUT_MS};
 use net::transport::Transport;
-use net::{ClientInputCommand, ProtocolMessage, Snapshot};
-use server::{AuthoritativeTick, BattleMode, LocalAuthoritativeServer};
+use net::{AuthoritativeMotion, ClientInputCommand, ProtocolMessage, ReplicationConfig, Snapshot};
+use server::{BattleMode, LocalAuthoritativeServer};
 use terrain::MapId;
 
-/// How many recent commands each InputBatch re-carries: a lost datagram costs nothing because
-/// the next batch repeats the history the server has not yet consumed.
-const INPUT_REDUNDANCY: usize = 3;
+use super::remote_events::RemoteCombatEventInbox;
+use super::remote_input::RemoteInputHistory;
+
+const MAX_BUFFERED_COMBAT_EVENTS: usize = 256;
+
+pub(super) struct RemoteReconciliation {
+    pub(super) motion: AuthoritativeMotion,
+    pub(super) replay_inputs: Option<Vec<ClientInputCommand>>,
+}
+
+pub(super) struct BattleSessionTick {
+    pub(super) snapshot: Option<Snapshot>,
+    pub(super) reconciliation: Option<RemoteReconciliation>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum RemoteTerminalReason {
+    TimedOut,
+    Refused,
+    BattleOver,
+    CombatEventOverflow,
+    CombatEventGap,
+    Transport,
+    SnapshotStalled,
+    InputBacklog,
+}
 
 pub(crate) enum BattleSessionKind {
     Local(Box<LocalAuthoritativeServer>),
@@ -26,9 +49,44 @@ pub(crate) enum BattleSessionKind {
 }
 
 impl BattleSessionKind {
-    pub fn tick_with_player_input(&mut self, input: ClientInputCommand) -> AuthoritativeTick {
+    /// Pump remote liveness before local prediction is allowed to advance. This is the gameplay
+    /// gate: an ended local battle, an ended remote battle, or a terminal connection freezes the
+    /// owned hull while the app keeps rendering and listening for late lifecycle words.
+    pub(super) fn prepare_player_tick(&mut self) -> bool {
         match self {
-            Self::Local(server) => server.tick_with_player_input(input),
+            Self::Local(server) => server.battle_outcome().is_none(),
+            Self::Remote(session) => {
+                session.pump();
+                session.accepts_player_prediction()
+            }
+        }
+    }
+
+    /// Drain a world delivery already accepted by `prepare_player_tick`. Terminal remote sessions
+    /// still receive final state/lifecycle traffic; they simply may not predict or send input.
+    pub(super) fn take_pending_remote_tick(&mut self) -> BattleSessionTick {
+        match self {
+            Self::Local(_) => BattleSessionTick { snapshot: None, reconciliation: None },
+            Self::Remote(session) => session.take_pending_tick(),
+        }
+    }
+
+    pub(super) fn remote_terminal_reason(&self) -> Option<RemoteTerminalReason> {
+        match self {
+            Self::Local(_) => None,
+            Self::Remote(session) => session.terminal_reason,
+        }
+    }
+
+    pub(super) fn tick_with_player_input(
+        &mut self,
+        input: ClientInputCommand,
+    ) -> BattleSessionTick {
+        match self {
+            Self::Local(server) => {
+                let tick = server.tick_with_player_input(input);
+                BattleSessionTick { snapshot: tick.snapshot, reconciliation: None }
+            }
             Self::Remote(session) => session.tick_with_player_input(input),
         }
     }
@@ -131,7 +189,13 @@ pub struct RemoteSession {
     latest_snapshot: Option<Snapshot>,
     latest_server_tick: u64,
     outcome: Option<server::BattleOutcome>,
-    recent: std::collections::VecDeque<ClientInputCommand>,
+    inputs: RemoteInputHistory,
+    combat_events: RemoteCombatEventInbox,
+    pending_combat_events: Vec<net::CombatEvent>,
+    pending_reconciliation: Option<RemoteReconciliation>,
+    delivery_ready: bool,
+    terminal_reason: Option<RemoteTerminalReason>,
+    seat_started_ms: Option<u64>,
     rtt_ms: Option<u32>,
     last_snapshot_ms: u64,
     last_stats_log_ms: u64,
@@ -150,7 +214,13 @@ impl RemoteSession {
             latest_snapshot: None,
             latest_server_tick: 0,
             outcome: None,
-            recent: std::collections::VecDeque::with_capacity(INPUT_REDUNDANCY),
+            inputs: RemoteInputHistory::default(),
+            combat_events: RemoteCombatEventInbox::default(),
+            pending_combat_events: Vec::new(),
+            pending_reconciliation: None,
+            delivery_ready: false,
+            terminal_reason: None,
+            seat_started_ms: None,
             rtt_ms: None,
             last_snapshot_ms: 0,
             last_stats_log_ms: 0,
@@ -177,6 +247,17 @@ impl RemoteSession {
         self.assigned_tank.is_some()
     }
 
+    pub(super) fn is_terminal(&self) -> bool {
+        self.terminal_reason.is_some()
+    }
+
+    fn accepts_player_prediction(&self) -> bool {
+        self.assigned_tank.is_some()
+            && self.outcome.is_none()
+            && self.terminal_reason.is_none()
+            && *self.session.state() == SessionState::Connected
+    }
+
     /// Drive the wire until the lobby seats us (called from the connecting screen).
     pub fn pump(&mut self) {
         let now_ms = self.started.elapsed().as_millis() as u64;
@@ -184,10 +265,56 @@ impl RemoteSession {
     }
 
     fn pump_at(&mut self, now_ms: u64) {
-        let Ok(inbox) = self.session.tick(now_ms, self.transport.as_mut()) else {
-            return;
+        let inbox = match self.session.tick(now_ms, self.transport.as_mut()) {
+            Ok(inbox) => inbox,
+            Err(error) => {
+                tracing::error!(%error, "remote transport failed");
+                self.enter_terminal(RemoteTerminalReason::Transport);
+                return;
+            }
         };
         for message in inbox {
+            if let ProtocolMessage::SnapshotDelivery(delivery) = &message
+                && self
+                    .latest_snapshot
+                    .as_ref()
+                    .is_some_and(|latest| delivery.snapshot.server_tick <= latest.server_tick)
+            {
+                continue;
+            }
+            if let ProtocolMessage::CombatEventBatch { events, .. } = &message {
+                let (accepted, ack) = match self.combat_events.accept_batch(events) {
+                    Ok(accepted) => accepted,
+                    Err(error) => {
+                        tracing::error!(?error, "remote combat event stream has a sequence gap");
+                        self.enter_terminal(RemoteTerminalReason::CombatEventGap);
+                        continue;
+                    }
+                };
+                if self.pending_combat_events.len().saturating_add(accepted.len())
+                    > MAX_BUFFERED_COMBAT_EVENTS
+                {
+                    tracing::error!("remote combat event presentation buffer reached its limit");
+                    self.enter_terminal(RemoteTerminalReason::CombatEventOverflow);
+                    continue;
+                }
+                if let Some(last_received_seq) = ack {
+                    let ack = ProtocolMessage::CombatEventAck {
+                        session_id: self.session.session_id(),
+                        last_received_seq,
+                    };
+                    if let Err(error) = self.session.endpoint.send(self.transport.as_mut(), &ack) {
+                        tracing::error!(%error, "remote combat event ACK failed");
+                        self.enter_terminal(RemoteTerminalReason::Transport);
+                        continue;
+                    }
+                }
+                // A retransmit is acknowledged again but never reaches recording or presentation.
+                if accepted.is_empty() {
+                    continue;
+                }
+                self.pending_combat_events.extend(accepted);
+            }
             if let Some(recorder) = &mut self.recorder {
                 let _ = recorder.record(&message);
             }
@@ -195,16 +322,34 @@ impl RemoteSession {
                 ProtocolMessage::Pong { client_time_us, .. } => {
                     self.rtt_ms = Some((now_ms.saturating_sub(client_time_us / 1_000)) as u32);
                 }
-                ProtocolMessage::StartBattle { assigned_tank, server_tick } => {
-                    self.assigned_tank = Some(assigned_tank);
-                    self.latest_server_tick = server_tick;
+                ProtocolMessage::StartBattle { assigned_tank, server_tick, .. } => {
+                    match self.assigned_tank {
+                        None => self.assigned_tank = Some(assigned_tank),
+                        Some(current) if current == assigned_tank => {}
+                        Some(_) => continue,
+                    }
+                    self.seat_started_ms.get_or_insert(now_ms);
+                    self.latest_server_tick = self.latest_server_tick.max(server_tick);
                 }
-                ProtocolMessage::Snapshot(snapshot) => {
-                    self.latest_server_tick = snapshot.server_tick;
-                    self.latest_snapshot = Some(snapshot);
+                ProtocolMessage::SnapshotDelivery(delivery) => {
+                    self.inputs.acknowledge_wire(delivery.last_processed_input_seq);
+                    self.latest_server_tick =
+                        self.latest_server_tick.max(delivery.snapshot.server_tick);
+                    self.pending_reconciliation = Some(RemoteReconciliation {
+                        motion: delivery.local_motion,
+                        replay_inputs: self.inputs.prediction_replay_after(
+                            delivery.last_processed_input_seq,
+                            ReplicationConfig::default().max_prediction_ticks as usize,
+                        ),
+                    });
+                    self.latest_snapshot = Some(delivery.snapshot);
+                    self.delivery_ready = true;
                     self.last_snapshot_ms = now_ms;
                 }
-                ProtocolMessage::BattleEnded { winning_team } => {
+                ProtocolMessage::InputAck { last_processed_input_seq, .. } => {
+                    self.inputs.acknowledge_wire(Some(last_processed_input_seq));
+                }
+                ProtocolMessage::BattleEnded { winning_team, .. } => {
                     self.outcome = Some(match winning_team {
                         Some(team) => server::BattleOutcome::TeamEliminated {
                             winning_team: game_core::TeamId(team),
@@ -232,6 +377,43 @@ impl RemoteSession {
                 _ => {}
             }
         }
+        if self.terminal_reason.is_none() {
+            let session_terminal = match self.session.state() {
+                SessionState::Failed(SessionFailure::TimedOut) => {
+                    Some(RemoteTerminalReason::TimedOut)
+                }
+                SessionState::Failed(SessionFailure::Refused) => {
+                    Some(RemoteTerminalReason::Refused)
+                }
+                SessionState::Failed(SessionFailure::BattleOver) => {
+                    Some(RemoteTerminalReason::BattleOver)
+                }
+                SessionState::Failed(SessionFailure::CombatEventOverflow) => {
+                    Some(RemoteTerminalReason::CombatEventOverflow)
+                }
+                SessionState::Connecting | SessionState::Connected => None,
+            };
+            if let Some(reason) = session_terminal {
+                self.enter_terminal(reason);
+            }
+        }
+        // Heartbeats and tiny input ACKs can survive while every fragmented world snapshot is
+        // being lost. They prove a socket exists, not that the battle is playable. Once seated,
+        // ten seconds without fresh world truth is a terminal stalled control path.
+        if self.terminal_reason.is_none()
+            && self.outcome.is_none()
+            && *self.session.state() == SessionState::Connected
+            && let Some(seated_ms) = self.seat_started_ms
+        {
+            let newest_world_ms =
+                if self.latest_snapshot.is_some() { self.last_snapshot_ms } else { seated_ms };
+            if now_ms.saturating_sub(newest_world_ms) >= TIMEOUT_MS {
+                self.enter_terminal(RemoteTerminalReason::SnapshotStalled);
+            }
+        }
+        if self.outcome.is_some() {
+            self.retire_control();
+        }
         // One quiet line every 2 s: the console net-HUD until the drawn one lands.
         if now_ms.saturating_sub(self.last_stats_log_ms) >= 2_000 {
             self.last_stats_log_ms = now_ms;
@@ -240,27 +422,71 @@ impl RemoteSession {
         }
     }
 
-    fn tick_with_player_input(&mut self, input: ClientInputCommand) -> AuthoritativeTick {
-        if self.recent.len() == INPUT_REDUNDANCY {
-            self.recent.pop_front();
-        }
-        self.recent.push_back(input);
-        if self.assigned_tank.is_some() && *self.session.state() == SessionState::Connected {
-            let batch =
-                ProtocolMessage::InputBatch { commands: self.recent.iter().cloned().collect() };
-            let _ = self.session.endpoint.send(self.transport.as_mut(), &batch);
-        }
-        let before = self.latest_server_tick;
+    fn tick_with_player_input(&mut self, input: ClientInputCommand) -> BattleSessionTick {
         let now_ms = self.started.elapsed().as_millis() as u64;
+        self.tick_with_player_input_at(input, now_ms)
+    }
+
+    fn tick_with_player_input_at(
+        &mut self,
+        input: ClientInputCommand,
+        now_ms: u64,
+    ) -> BattleSessionTick {
+        // Liveness is resolved BEFORE accepting another command. A peer that crossed its timeout
+        // during this tick never grows the backlog or transmits a post-terminal edge.
         self.pump_at(now_ms);
-        AuthoritativeTick {
-            server_tick: self.latest_server_tick,
-            snapshot: (self.latest_server_tick != before)
-                .then(|| self.latest_snapshot.clone())
-                .flatten(),
+        if self.accepts_player_prediction()
+            && let Some(tank) = self.assigned_tank
+        {
+            if !self.inputs.enqueue(tank, input.command) {
+                tracing::error!("remote input backlog reached its hard limit");
+                self.enter_terminal(RemoteTerminalReason::InputBacklog);
+            } else {
+                let commands = self.inputs.wire_batch();
+                if !commands.is_empty() {
+                    let batch = ProtocolMessage::InputBatch {
+                        session_id: self.session.session_id(),
+                        commands,
+                    };
+                    let _ = self.session.endpoint.send(self.transport.as_mut(), &batch);
+                }
+            }
+        }
+        self.take_pending_tick()
+    }
+
+    fn enter_terminal(&mut self, reason: RemoteTerminalReason) {
+        if self.terminal_reason.is_none() {
+            self.terminal_reason = Some(reason);
+            self.retire_control();
         }
     }
+
+    fn retire_control(&mut self) {
+        self.inputs.clear_pending();
+        self.pending_reconciliation = None;
+    }
+
+    fn take_pending_tick(&mut self) -> BattleSessionTick {
+        let mut snapshot = std::mem::take(&mut self.delivery_ready)
+            .then(|| self.latest_snapshot.clone())
+            .flatten();
+        if let Some(snapshot) = &mut snapshot {
+            for event in self.pending_combat_events.drain(..) {
+                match event {
+                    net::CombatEvent::Damage(event) => snapshot.damage_events.push(event),
+                    net::CombatEvent::ShellImpact(event) => snapshot.shell_impacts.push(event),
+                }
+            }
+        }
+        let reconciliation = snapshot.as_ref().and_then(|_| self.pending_reconciliation.take());
+        BattleSessionTick { snapshot, reconciliation }
+    }
 }
+
+#[cfg(test)]
+#[path = "session_contract_tests.rs"]
+mod contract_tests;
 
 #[cfg(test)]
 mod tests {
@@ -278,11 +504,15 @@ mod tests {
         }
     }
 
-    fn idle_input(tick: u64, tank: TankId) -> ClientInputCommand {
-        ClientInputCommand { client_tick: tick, tank_id: tank, command: sim::TankCommand::idle() }
+    fn session_parity_input(
+        tick: u64,
+        tank: TankId,
+        command: sim::TankCommand,
+    ) -> ClientInputCommand {
+        ClientInputCommand { client_tick: tick, tank_id: tank, command }
     }
 
-    /// THE parity lock from the network plan: the same seed, the same idle player, once through
+    /// THE parity lock from the network plan: the same seed and non-idle steering, once through
     /// the in-process session and once across the wire — every snapshot the remote client
     /// receives must be BYTE-IDENTICAL to the local session's snapshot at the same server tick.
     /// Local and Remote are one game, not two.
@@ -295,7 +525,10 @@ mod tests {
         let player = local.player_tank();
         let mut local_by_tick = std::collections::HashMap::new();
         for step in 0..600_u64 {
-            let outcome = local.tick_with_player_input(idle_input(step, player));
+            // The lobby transition delivers the assigned seat before the host's first running
+            // tick, so sequence zero can drive authoritative tick one without a hidden idle step.
+            let command = sim::TankCommand::drive(0.7, 0.2);
+            let outcome = local.tick_with_player_input(session_parity_input(step, player, command));
             if let Some(snapshot) = outcome.snapshot {
                 local_by_tick.insert(snapshot.server_tick, snapshot);
             }
@@ -316,7 +549,11 @@ mod tests {
         for step in 0..700_u64 {
             let now_ms = step * 17;
             let tank = remote.player_tank();
-            let outcome = remote.tick_with_player_input(idle_input(step, tank));
+            let outcome = remote.tick_with_player_input(session_parity_input(
+                step,
+                tank,
+                sim::TankCommand::drive(0.7, 0.2),
+            ));
             host.pump(now_ms, &mut server_port);
             host.tick(now_ms, &mut server_port);
             if let Some(snapshot) = outcome.snapshot

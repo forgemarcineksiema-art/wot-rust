@@ -125,7 +125,7 @@ impl VehicleAssetCatalog {
     }
 
     pub fn material_count(&self) -> usize {
-        self.material_handles.len()
+        self.materials.len()
     }
 
     /// The shared authoritative bake for `kind`; forges at most once per catalog lifetime.
@@ -335,17 +335,7 @@ impl VehicleAssetCatalog {
     }
 
     fn material(&mut self, kind: VehicleKind) -> MaterialHandle {
-        *self.material_handles.entry(kind).or_insert_with(|| {
-            let handle = MaterialHandle(self.materials.len() as u32);
-            self.materials.push(VehicleMaterialDescriptor::pbr_lite(
-                kind.slug(),
-                "albedo.png",
-                "normal.png",
-                "ao_roughness.png",
-                Some("cavity.png"),
-            ));
-            handle
-        })
+        super::default_material::material_for(self, kind)
     }
 }
 

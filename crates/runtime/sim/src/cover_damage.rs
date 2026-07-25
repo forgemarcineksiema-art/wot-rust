@@ -107,6 +107,19 @@ pub fn live_cover_for_blocking(
     live
 }
 
+/// Resolve replicated phase bytes into the exact blocking geometry used by the authoritative
+/// simulation. Health stays server-only; `Intact`, `Rubble`, and `Gone` geometry does not.
+pub fn live_cover_for_phase_bytes(
+    cover: &[StaticCoverObject],
+    phase_bytes: &[u8],
+) -> Vec<StaticCoverObject> {
+    let states: Vec<CoverState> = phase_bytes
+        .iter()
+        .map(|&byte| CoverState { health: 0, phase: CoverPhase::from_wire(byte) })
+        .collect();
+    live_cover_for_blocking(cover, &states)
+}
+
 /// The index of the still-standing (non-Gone) cover object whose box contains `point`, if any —
 /// how a shell absorbed by cover finds which object to damage. Tests against the phase-adjusted
 /// box (rubble is lower) with a small skin so a surface hit still lands inside.
@@ -371,6 +384,32 @@ mod tests {
         let decoded: Vec<CoverPhase> =
             bytes.iter().map(|&byte| CoverPhase::from_wire(byte)).collect();
         assert_eq!(decoded, vec![CoverPhase::Rubble, CoverPhase::Gone]);
+    }
+
+    #[test]
+    fn replicated_phase_bytes_resolve_through_the_authoritative_live_cover_rule() {
+        let cover = vec![
+            object("whole", StaticCoverKind::CityBuilding, [0.0, 5.5, 0.0], [9.0, 5.5, 5.0]),
+            object("rubble", StaticCoverKind::CityBuilding, [30.0, 5.5, 0.0], [9.0, 5.5, 5.0]),
+            object("gone", StaticCoverKind::StoneWall, [60.0, 1.1, 0.0], [0.4, 1.1, 7.0]),
+        ];
+        let states = [
+            CoverState { health: 1500, phase: CoverPhase::Intact },
+            CoverState { health: 0, phase: CoverPhase::Rubble },
+            CoverState { health: 0, phase: CoverPhase::Gone },
+        ];
+
+        let from_bytes = live_cover_for_phase_bytes(&cover, &[0, 1, 2]);
+        assert_eq!(
+            from_bytes,
+            live_cover_for_blocking(&cover, &states),
+            "client phase bytes must use the sim's exact Intact/Rubble/Gone geometry"
+        );
+        assert_eq!(
+            from_bytes.iter().map(|object| object.id.as_str()).collect::<Vec<_>>(),
+            ["whole", "rubble"]
+        );
+        assert!(from_bytes[1].half_extents_m[1] < cover[1].half_extents_m[1]);
     }
 
     /// Born-ruins (urban-map PR-07): a "ruin" id starts at zero health in its collapsed

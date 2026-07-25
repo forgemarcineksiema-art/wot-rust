@@ -17,6 +17,10 @@ splitting the map into two flanks with different games; five crossings decide th
 | 650–840 | **town of Kamienna**: 4×3 mirrored block grid on a flattened bench ramp, church + market square on-axis | the brawl; streets hold a constant honest grade |
 | 860–1000 | quarry ridge (+9 m), mirrored perches (`x≈915, z=500±160`), quarry bowl on-axis | eastern overwatch and the sheltered rotation |
 
+FL-5 replaces the broadleaf and orchard scatters (plus Kamienna's fixed orchard trees) with
+the accepted imported textured tree. Procedural willows and poplar rows stay species-specific;
+the rejected imported bush is not authored.
+
 ## Crossings (all heightmap features, not cover boxes)
 
 | Crossing | Where | Numbers |
@@ -41,6 +45,10 @@ and every mask are even in `z − 500`, features are on-axis or mirrored pairs.
   freeboard, no puddles outside the corridor, drivable approaches) —
   `sim/tests/bystra_river_contract.rs`
 - 7v7 sets up dry and ticks — `server/tests/bystra_battle.rs`
+- three minutes of seeded 7v7 drowns nobody AND still uses the crossings —
+  `server/tests/bot_water.rs`. This is the lock that catches a DRIVE-model change from the bot
+  side: the escape reads the hull's braking distance, so anything that changes how a hull sheds
+  speed changes who drowns. Bot water behaviour lives in `server/src/bot_routes.rs`.
 
 ## Status
 

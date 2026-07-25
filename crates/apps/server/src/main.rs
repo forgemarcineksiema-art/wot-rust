@@ -79,6 +79,10 @@ fn main() -> anyhow::Result<()> {
         host.pump(now_ms, &mut transport);
         host.tick(now_ms, &mut transport);
         ticks += 1;
+        if host.is_finished() {
+            info!(ticks, "battle lifecycle delivered; dedicated server exiting");
+            break;
+        }
 
         let elapsed = tick_start.elapsed();
         if elapsed > tick_duration {

@@ -10,10 +10,8 @@ use std::io;
 
 use serde::{Deserialize, Serialize};
 
-use super::material_synthesis::{MapKind, pixel, profile};
-
-/// Edge of every baked map. Kept modest so the full 5×4 family set stays cheap and artifact-contained.
-const SIZE: u32 = 256;
+use super::default_materials::default_material_family;
+use super::material_synthesis::MapKind;
 
 /// A material role family. The discriminant **is** the renderer's `material_id` / texture-array
 /// layer, so order here is load-bearing and must match `material_role_id` in the client.
@@ -117,14 +115,8 @@ pub fn bake_default_set() -> Result<Vec<BakedTextureMap>, io::Error> {
 }
 
 fn bake_family_map(family: MaterialFamily, kind: MapKind) -> Result<BakedTextureMap, io::Error> {
-    let p = profile(family);
-    let mut rgba = Vec::with_capacity((SIZE * SIZE * 4) as usize);
-    for y in 0..SIZE {
-        for x in 0..SIZE {
-            rgba.extend_from_slice(&pixel(&p, kind, x, y));
-        }
-    }
-    let bytes = encode_png(SIZE, SIZE, &rgba)?;
+    let map = default_material_family(family).map(kind);
+    let bytes = encode_png(map.width(), map.height(), map.rgba())?;
     let manifest = ForgeTextureManifest {
         file: format!("{}_{}.png", family.slug(), kind.semantic()),
         role: family.slug().to_string(),
@@ -192,10 +184,14 @@ mod tests {
         let maps = bake_default_set().expect("maps bake");
         let albedo =
             |f: MaterialFamily| mean_luma(&map_of(&maps, &format!("{}_albedo.png", f.slug())));
-        // Armour is mid-grey; barrel/track/rubber are progressively darker — they are not one texture.
-        assert!(albedo(MaterialFamily::RolledArmor) > albedo(MaterialFamily::BarrelSteel));
-        assert!(albedo(MaterialFamily::BarrelSteel) > albedo(MaterialFamily::Rubber));
-        assert!(albedo(MaterialFamily::Rubber) < 60.0, "rubber is very dark");
+        // Albedo is a near-white detail multiplier; role identity stays subtle here and is carried
+        // more strongly by the normal, roughness and cavity maps.
+        assert!(albedo(MaterialFamily::RolledArmor) > albedo(MaterialFamily::TrackMetal));
+        assert!(albedo(MaterialFamily::TrackMetal) > 210.0, "track multiplier stays readable");
+        assert!(
+            albedo(MaterialFamily::RolledArmor) - albedo(MaterialFamily::TrackMetal) < 35.0,
+            "role multipliers must remain subtle"
+        );
     }
 
     #[test]

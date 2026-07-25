@@ -117,6 +117,7 @@ fn the_fx_frame_vertex_budget_is_locked() {
                 },
                 direction: Vec3::new(0.0, -0.4, 0.9),
                 caliber_mm: 122.0,
+                ..Default::default()
             },
             &map,
         );

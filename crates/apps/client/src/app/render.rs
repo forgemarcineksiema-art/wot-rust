@@ -117,7 +117,7 @@ impl ClientApp {
         let Some(meshes) = self.battle_scene_meshes.as_ref() else {
             return;
         };
-        let phases = self.cover_phase_bytes.clone();
+        let phases = self.live_cover.phase_bytes().to_vec();
         let scars = self.cover_scar_list.clone();
         let mut dirty = [false; crate::STATICS_BUCKET_COUNT];
         for (index, cover) in self.battlefield.static_cover.iter().enumerate() {
@@ -331,7 +331,7 @@ impl ClientApp {
         // The imported-flora atlas (Flora 2.0, FL-4): packed once per process, uploaded once
         // per renderer — the FL-2 group-1 slot leaves its white-texel no-op default here.
         let flora = scene_build::flora_pack::flora_catalog();
-        renderer.set_foliage_atlas(&flora.atlas_rgba, flora.atlas_size, flora.atlas_size);
+        renderer.set_foliage_atlas(&flora.atlas_mips);
         renderer.set_battlefield_ground(
             &meshes.ground_vertices,
             &meshes.ground_indices,

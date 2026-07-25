@@ -8,6 +8,7 @@ mod cover_damage;
 mod crater_ledger;
 mod drive_modules;
 mod drowning;
+mod event_stamp;
 mod landing;
 mod module_hit;
 mod ramming;
@@ -36,7 +37,7 @@ pub use combat::FIRE_BUFFER_S;
 pub use command::TankCommand;
 pub use cover_damage::{
     CoverPhase, CoverState, cover_states_for, damage_cover, initial_cover_states,
-    live_cover_for_blocking, record_cover_scar,
+    live_cover_for_blocking, live_cover_for_phase_bytes, record_cover_scar,
 };
 pub use crater_ledger::{MAX_CRATERS, record_high_explosive_burst};
 pub use drive_modules::{DriveModuleStatus, TrackDriveStatus, TrackSideDrive};

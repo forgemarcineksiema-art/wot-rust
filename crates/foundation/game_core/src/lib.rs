@@ -38,7 +38,7 @@ pub use damage_layout::{
     DamageComponent, DamageComponentId, DamageComponentKind, DamageLayout, DamageMaterial,
     DamagePlane, DamageShape, ModuleIntersection,
 };
-pub use ids::{ShellId, TankId, TeamId};
+pub use ids::{BattleEventId, ShellId, TankId, TeamId};
 pub use modules::{
     EngineModule, GunModule, HullChassis, MODULE_SLOT_COUNT, ModuleCondition, ModuleError,
     ModuleHealth, ModuleSlot, RadioModule, SuspensionModule, TurretModule, TurretTraverse,

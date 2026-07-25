@@ -46,6 +46,10 @@ pub(crate) mod battle {
     pub const DEFEAT: &str = "DEFEAT";
     /// Center banner after a mutual wipe or the battle clock running out.
     pub const DRAW: &str = "DRAW";
+    /// Center banner when the remote authority becomes unreachable during a live battle.
+    pub const CONNECTION_LOST: &str = "CONNECTION LOST";
+    /// The host closed an ended match, but its result word did not arrive.
+    pub const BATTLE_OVER: &str = "BATTLE OVER";
     /// Kill confirmation line under the reticle.
     pub const TARGET_DESTROYED: &str = "TARGET DESTROYED";
     /// Way-out hint under the battle-outcome banner (G opens the garage; Battle deploys fresh).
@@ -80,6 +84,8 @@ mod tests {
             super::battle::VICTORY,
             super::battle::DEFEAT,
             super::battle::DRAW,
+            super::battle::CONNECTION_LOST,
+            super::battle::BATTLE_OVER,
             super::battle::TARGET_DESTROYED,
             super::battle::RETURN_TO_GARAGE_HINT,
             super::WINDOW_TITLE,

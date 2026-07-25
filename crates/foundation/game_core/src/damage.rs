@@ -1,7 +1,9 @@
 use glam::Vec3;
 use serde::{Deserialize, Serialize};
 
-use crate::{ArmorFacing, ArmorZone, ModuleSlot, ShellType, TankId, TrackSide};
+use crate::{
+    ArmorFacing, ArmorZone, BattleEventId, ModuleSlot, ShellId, ShellType, TankId, TrackSide,
+};
 
 /// Like [`crate::VehicleKind`], the variant order is wire identity (bincode discriminants) —
 /// append, never reorder.
@@ -57,6 +59,16 @@ pub struct ShellImpact {
     /// 122 mm crater is not an 76 mm one. `0.0` (old snapshots) falls back to a default.
     #[serde(default)]
     pub caliber_mm: f32,
+    /// Stable identity in the authoritative battle-event stream. Zero is an unstamped legacy or
+    /// presentation-only event.
+    #[serde(default)]
+    pub event_id: BattleEventId,
+    /// Simulation tick at which the impact occurred.
+    #[serde(default)]
+    pub occurred_tick: u64,
+    /// Stable identity of the projectile whose flight ended here.
+    #[serde(default)]
+    pub shell_id: ShellId,
 }
 
 /// What a shell did to a track band (protocol v22): which side it struck and whether that hit
@@ -126,4 +138,17 @@ pub struct DamageEvent {
     /// remain the HUD/repair compatibility layer.
     #[serde(default)]
     pub damaged_components_mask: u32,
+    /// Stable identity in the authoritative battle-event stream. Zero is an unstamped legacy or
+    /// presentation-only event.
+    #[serde(default)]
+    pub event_id: BattleEventId,
+    /// Simulation tick at which this damage resolved.
+    #[serde(default)]
+    pub occurred_tick: u64,
+    /// Projectile attribution for direct and blast damage; absent for ram, fall and drowning.
+    #[serde(default)]
+    pub shell_id: Option<ShellId>,
+    /// True only on the event that transitioned this target from alive to dead.
+    #[serde(default)]
+    pub target_destroyed: bool,
 }

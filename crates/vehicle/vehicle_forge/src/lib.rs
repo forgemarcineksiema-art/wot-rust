@@ -22,10 +22,11 @@ mod registry;
 mod report;
 
 pub use artifact::{
-    ArtifactError, BakeProfile, ForgeArtifact, ForgeArtifactManifest, ForgeSubmeshManifest,
+    ArtifactError, BakeProfile, DEFAULT_MATERIAL_MAP_SIZE, DefaultMaterialFamily,
+    DefaultMaterialMap, ForgeArtifact, ForgeArtifactManifest, ForgeSubmeshManifest,
     ForgeTextureManifest, MaterialFamily, ReviewCamera, ReviewCameraSet, ReviewCameraSpec,
     StudioBundle, SurfaceBakeManifest, bake_studio_bundle, bake_studio_bundle_from_blueprint,
-    forge_vehicle_slug,
+    default_material_families, forge_vehicle_slug,
 };
 pub use compiler::{
     CompiledTank, TankCompileError, TankCompileRequest, TankValidationError, compile_tank,

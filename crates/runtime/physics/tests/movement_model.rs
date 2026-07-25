@@ -205,6 +205,100 @@ fn braking_overrides_throttle_and_decelerates() {
 }
 
 #[test]
+fn opposite_throttle_does_not_erase_cruise_speed_in_one_tick() {
+    let settings = TankControllerSettings::from_spec(&TankSpec::t54_1951());
+    let mut state = TankKinematicState {
+        velocity: glam::Vec3::new(0.0, 0.0, 8.0),
+        ..TankKinematicState::default()
+    };
+
+    step_custom_tank_controller_on_contact(
+        &mut state,
+        TankControlInput { throttle: -1.0, steer: 0.0, brake: 0.0 },
+        &settings,
+        TerrainContact::flat(0.0),
+        1.0 / 60.0,
+    );
+
+    assert!(
+        (7.5..8.0).contains(&state.forward_speed()),
+        "one reverse tick must start decelerating 8 m/s, not erase it: {}",
+        state.forward_speed()
+    );
+    assert!(state.position.z > 0.1, "the hull still carries its forward momentum");
+}
+
+#[test]
+fn opposite_throttle_decelerates_monotonically_before_reversing() {
+    let settings = TankControllerSettings::from_spec(&TankSpec::t54_1951());
+    let reverse = TankControlInput { throttle: -1.0, steer: 0.0, brake: 0.0 };
+    let contact = TerrainContact::flat(0.0);
+    let dt = 1.0 / 60.0;
+    let mut state = TankKinematicState {
+        velocity: glam::Vec3::new(0.0, 0.0, 8.0),
+        ..TankKinematicState::default()
+    };
+    let mut previous = state.forward_speed();
+    let mut crossing = None;
+
+    for tick in 1..=(8 * 60) {
+        step_custom_tank_controller_on_contact(&mut state, reverse, &settings, contact, dt);
+        let speed = state.forward_speed();
+        assert!(
+            speed <= previous + 1.0e-6,
+            "held reverse must reduce forward speed monotonically: {previous} -> {speed}"
+        );
+        if speed <= 0.0 {
+            crossing = Some((tick, previous, speed));
+            break;
+        }
+        previous = speed;
+    }
+
+    let (crossing_tick, before, after) =
+        crossing.expect("full reverse eventually reverses the hull");
+    assert!(
+        crossing_tick > 30,
+        "8 m/s must take physical time to bleed away, crossed after {crossing_tick} ticks"
+    );
+    assert!(
+        before < 0.2 && after > -0.2,
+        "the force step must pass near zero instead of snapping across it: {before} -> {after}"
+    );
+}
+
+#[test]
+fn drive_holds_startup_creep_on_an_unclimbable_grade() {
+    let settings = TankControllerSettings::from_spec(&TankSpec::t54_1951());
+    let drive = TankControlInput { throttle: 1.0, steer: 0.0, brake: 0.0 };
+    let grade = (settings.max_climb_grade + settings.momentum_climb_ceiling) * 0.5;
+    let contact = contact_with_slope(grade);
+    let dt = 1.0 / 60.0;
+
+    let mut stalled = TankKinematicState::default();
+    for _ in 0..120 {
+        step_custom_tank_controller_on_contact(&mut stalled, drive, &settings, contact, dt);
+        assert_eq!(
+            stalled.forward_speed(),
+            0.0,
+            "full forward at a stalled start must not oscillate into rollback"
+        );
+    }
+    assert_eq!(stalled.position.z, 0.0, "the held hull must not creep down the grade");
+
+    let mut tiny_rollback = TankKinematicState {
+        velocity: glam::Vec3::new(0.0, 0.0, -0.02),
+        ..TankKinematicState::default()
+    };
+    step_custom_tank_controller_on_contact(&mut tiny_rollback, drive, &settings, contact, dt);
+    assert_eq!(
+        tiny_rollback.forward_speed(),
+        0.0,
+        "sub-epsilon rollback is startup creep and must still be caught"
+    );
+}
+
+#[test]
 fn reverse_steering_mirrors_forward_steering() {
     let settings = TankControllerSettings::from_spec(&TankSpec::t54_1951());
     let mut forward = TankKinematicState::default();

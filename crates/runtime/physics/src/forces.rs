@@ -8,6 +8,10 @@ use glam::Vec3;
 use crate::contact::TerrainContact;
 use crate::controller_settings::TankControllerSettings;
 
+/// Below this speed an opposing drift is start-up creep, not established momentum. The drive may
+/// lock that creep against a slope; a hull already moving faster must decelerate through zero.
+const DRIVE_DIRECTION_EPS_MPS: f32 = 0.05;
+
 /// Resolve one grounded tick's forces into a new world-frame velocity. `v_f`/`v_r` are the hull's
 /// forward/right speeds (world velocity decomposed into the current heading), `yaw_rate` drives the
 /// skid-steer scrub. Returns `Vec3::ZERO` when the static hold locks the hull.
@@ -33,6 +37,11 @@ pub(crate) fn resolve_ground_velocity(
     let slope_f = -g * contact.forward_slope * inv; // +forward_slope = uphill ahead -> resists
     let slope_r = -g * contact.side_slope * inv; // +side_slope = right is higher -> pulls left
 
+    // Remember whether the driver is deliberately reversing established momentum. The start-up
+    // anti-rollback below may lock slope creep, but it must never turn an 8 m/s direction change
+    // into a one-tick stop.
+    let carrying_opposing_momentum = v_f.abs() > DRIVE_DIRECTION_EPS_MPS && v_f * throttle < 0.0;
+
     // Static hold: a stopped, undriven hull locks its tracks (the park brake). The slope demand
     // g*grade*inv is met by static friction mu_s*g*traction*inv — the cos(theta) cancels, so the
     // hold is simply `grade <= mu_s * traction`. Within it the hull neither creeps nor side-slides;
@@ -49,7 +58,7 @@ pub(crate) fn resolve_ground_velocity(
     // Tracks slip progressively on faces past the steady gradeability: steady climbing stalls at
     // `max_climb_grade`, but the slip only *weakens* drive (it does not zero it), so momentum can
     // carry the hull a bounded way up a steep hump before it bleeds off.
-    let drive_dir = if v_f.abs() > 0.05 {
+    let drive_dir = if v_f.abs() > DRIVE_DIRECTION_EPS_MPS {
         v_f.signum()
     } else if throttle.abs() > 0.01 {
         throttle.signum()
@@ -99,8 +108,12 @@ pub(crate) fn resolve_ground_velocity(
     let scrub = settings.turn_scrub * yaw_rate.abs() * v_f.abs(); // skid-steer bleed
     v_f = move_towards(v_f, 0.0, scrub * dt);
     v_f += slope_f * dt;
-    // Track brakes hold a throttled hull instead of letting gravity creep it backwards.
-    if (throttle > 0.01 && v_f < 0.0) || (throttle < -0.01 && v_f > 0.0) {
+    // Track brakes hold a starting/stalled hull instead of letting gravity creep it against the
+    // commanded direction. Established opposing momentum is different: changing W <-> S must
+    // bleed it through the force model before the hull can reverse.
+    if !carrying_opposing_momentum
+        && ((throttle > 0.01 && v_f < 0.0) || (throttle < -0.01 && v_f > 0.0))
+    {
         v_f = 0.0;
     }
     // Governor: bleed any overspeed (a long downhill) back toward the track limit.

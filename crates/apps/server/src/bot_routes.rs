@@ -117,30 +117,135 @@ const WATER_PROBE_STEP_M: f32 = 12.0;
 /// 30-40 m river, so the bot commits across the deck instead of stalling mid-crossing.
 const CROSSING_EXIT_M: f32 = 45.0;
 
-/// Wading past the ford ceiling arms the momentum check below: every authored ford stays at
-/// or under `physics::water::FORD_MAX_DEPTH_M` (0.9), so a hull deeper than this is already
-/// OFF every legitimate crossing line.
-const WADE_ALERT_M: f32 = 0.95;
-/// How far ahead of the hull the armed momentum check probes, in seconds of current velocity.
-/// Momentum is what carries a wading hull past the 1.2 m line toward the 1.5 m drowning line
-/// before a reactive escape bites — a heavy, slow-reversing hull (the Centurion) overshot to
-/// 1.52 m with a purely positional check. The check only arms past `WADE_ALERT_M`, so dry
-/// approaches to bridges and honest ford runs never trip it.
-const DEEP_WATER_LOOKAHEAD_S: f32 = 0.8;
+/// The escape is a reversal, and a reversal is no longer free: the drive model stopped erasing
+/// opposing momentum in one tick (see `physics::forces` — changing direction now bleeds through
+/// the force model), so a hull that meets the deep-water line at speed ploughs on for metres
+/// before the reverse bites. A purely positional check, or a fixed slice of lookahead time, is
+/// therefore blind exactly when the hull is fastest. The probe reaches the hull's own STOPPING
+/// DISTANCE ahead instead: reaction room plus braking room, both growing with speed.
+const WATER_REACTION_S: f32 = 0.25;
+/// Hull deceleration to assume when reversing out of an approach. Measured off the Bystra soak:
+/// a hull entering the west channel at 6.7 m/s needed ~7.5 m to stop, i.e. ~3 m/s². The assumed
+/// figure is deliberately pessimistic — probing too far only makes a bot turn away from a
+/// channel it was never going to enter, while probing too short drowns it.
+const WATER_BRAKE_DECEL_MPS2: f32 = 2.5;
+/// Sampling step along the approach probe — finer than the narrowest authored channel, so a
+/// probe cannot straddle deep water and miss it.
+const WATER_APPROACH_STEP_M: f32 = 2.5;
+/// Below this the hull is not carrying meaningful momentum, so position alone decides.
+const WATER_APPROACH_MIN_SPEED_MPS: f32 = 0.5;
 
-/// True when the hull stands past the route brain's deep-water line — or is already wading
-/// off every crossing line with momentum still carrying it deeper — the survival check
-/// `bots.rs` runs before anything else.
+/// True when the hull stands past the route brain's deep-water line — or is driving at it with
+/// less room to stop than it needs — the survival check `bots.rs` runs before anything else.
+///
+/// Fords are never caught by this: every authored ford stays at or under
+/// `physics::water::FORD_MAX_DEPTH_M` (0.9), well under the 1.2 m the probe looks for, and a
+/// crossing deck stands clear of the water entirely.
 pub(crate) fn bot_in_deep_water(tank: &TankState, battlefield: &BattlefieldMap) -> bool {
     let here = water_depth_at(battlefield, tank.position.x, tank.position.z);
     if here > BOT_DEEP_WATER_M {
         return true;
     }
-    if here <= WADE_ALERT_M {
+    if battlefield.water.is_none() {
         return false;
     }
-    let ahead = tank.position + tank.velocity_mps * DEEP_WATER_LOOKAHEAD_S;
-    water_depth_at(battlefield, ahead.x, ahead.z) > here
+    let heading = Vec3::new(tank.velocity_mps.x, 0.0, tank.velocity_mps.z);
+    let speed = heading.length();
+    if speed < WATER_APPROACH_MIN_SPEED_MPS {
+        return false;
+    }
+    let reach = braking_reach_m(speed);
+    let step = heading / speed * reach;
+    let steps = (reach / WATER_APPROACH_STEP_M).ceil().max(1.0) as usize;
+    (1..=steps).any(|probe| {
+        let point = tank.position + step * (probe as f32 / steps as f32);
+        water_depth_at(battlefield, point.x, point.z) > BOT_DEEP_WATER_M
+    })
+}
+
+/// Reaction room plus braking room for a hull travelling at `speed` — the distance the escape
+/// has to work with before the water decides the outcome.
+fn braking_reach_m(speed: f32) -> f32 {
+    speed * WATER_REACTION_S + speed * speed / (2.0 * WATER_BRAKE_DECEL_MPS2)
+}
+
+/// How far out the escape looks when picking its way to dry ground.
+const WATER_ESCAPE_PROBE_M: f32 = 20.0;
+/// Bearings sampled around the hull when choosing the way out — every 22.5°.
+const WATER_ESCAPE_BEARINGS: usize = 16;
+/// Samples taken along each candidate bearing, so a way out that crosses a deeper trench first
+/// loses to one that climbs straight to the bank.
+const WATER_ESCAPE_SAMPLES: usize = 5;
+
+/// The way OUT of the water — in the order the physics allows it.
+///
+/// Two failures shaped this, both seen on the Bystra soak:
+///
+/// 1. **Momentum first.** A hull crossing the bank at 8 m/s cannot steer out of the channel; a
+///    command that drives it "toward the shallow side" merely feeds the plunge. While the hull's
+///    own velocity is still carrying it deeper, the ONLY useful command is the one that opposes
+///    that velocity. Only once the plunge is arrested does a direction matter.
+/// 2. **Then the shallowest way, not the way back.** Backing straight up escapes a hull that
+///    drove in nose-first, but a hull that slid in at an angle reverses ALONG the channel and
+///    wades until the engine floods — it drowns slowly instead of quickly. So the escape picks
+///    the shallowest bearing around the hull and takes it whichever way is quicker: forward when
+///    the way out is roughly ahead, reverse when it is behind. A flooding hull must not spend
+///    the escape performing a U-turn.
+pub(crate) fn water_escape_command(tank: &TankState, battlefield: &BattlefieldMap) -> TankCommand {
+    let here = water_depth_at(battlefield, tank.position.x, tank.position.z);
+    let drift = Vec3::new(tank.velocity_mps.x, 0.0, tank.velocity_mps.z);
+    let speed = drift.length();
+    if speed >= WATER_APPROACH_MIN_SPEED_MPS {
+        let ahead = tank.position + drift / speed * braking_reach_m(speed);
+        if water_depth_at(battlefield, ahead.x, ahead.z) > here {
+            // Kill the plunge along the hull's axis and nothing else: scrubbing sideways at the
+            // same time only lengthens the stop, and the hull is not going anywhere useful until
+            // the momentum is gone.
+            let forward_speed = drift.dot(Vec3::new(tank.yaw_rad.sin(), 0.0, tank.yaw_rad.cos()));
+            return TankCommand {
+                throttle: if forward_speed >= 0.0 { -1.0 } else { 1.0 },
+                ..TankCommand::idle()
+            };
+        }
+    }
+    let escape_yaw = (0..WATER_ESCAPE_BEARINGS)
+        .map(|bearing| {
+            let yaw = std::f32::consts::TAU * bearing as f32 / WATER_ESCAPE_BEARINGS as f32;
+            let direction = Vec3::new(yaw.sin(), 0.0, yaw.cos());
+            // Score the whole ray, not its endpoint: the worst water on the way out is what
+            // actually drowns the hull.
+            let mut worst = 0.0_f32;
+            let mut arrival = 0.0_f32;
+            for sample in 1..=WATER_ESCAPE_SAMPLES {
+                let reach = WATER_ESCAPE_PROBE_M * sample as f32 / WATER_ESCAPE_SAMPLES as f32;
+                let point = tank.position + direction * reach;
+                arrival = water_depth_at(battlefield, point.x, point.z);
+                worst = worst.max(arrival);
+            }
+            (yaw, worst, arrival)
+        })
+        .min_by(|a, b| a.1.total_cmp(&b.1).then(a.2.total_cmp(&b.2)))
+        .map(|(yaw, _, _)| yaw)
+        .unwrap_or(tank.yaw_rad);
+
+    let ahead_error = wrap_angle(escape_yaw - tank.yaw_rad);
+    if ahead_error.abs() <= std::f32::consts::FRAC_PI_2 {
+        return TankCommand {
+            throttle: 0.7,
+            steer: (ahead_error * 1.8).clamp(-1.0, 1.0),
+            ..TankCommand::idle()
+        };
+    }
+    // The way out is behind: reverse toward it. The hull's stern bears at `yaw + PI`, and steer
+    // is inverted under reverse (`physics::movement` scales the yaw rate by the sign of forward
+    // speed, like any real hull backing up), so the correction is negated to swing the STERN
+    // onto the bearing instead of the bow away from it.
+    let astern_error = wrap_angle(escape_yaw - tank.yaw_rad - std::f32::consts::PI);
+    TankCommand {
+        throttle: -0.7,
+        steer: (-astern_error * 1.8).clamp(-1.0, 1.0),
+        ..TankCommand::idle()
+    }
 }
 
 /// Standing-water depth under a world point; 0 on dry maps, off-map, or above the waterline.
@@ -523,6 +628,90 @@ mod tests {
         assert!(
             water_depth_at(&map, exit.x, exit.z) <= BOT_DEEP_WATER_M,
             "the exit waypoint must be drivable"
+        );
+    }
+
+    /// A hull parked on the dry west bank at z=420 — open channel, between the crossings
+    /// (bridge z=500, ford z=320). The bank is found by probing rather than assumed, so a
+    /// re-sculpted river moves the test with it instead of silently invalidating its premise.
+    fn on_the_bystra_west_bank(map: &BattlefieldMap) -> TankState {
+        let center_x = terrain::bystra_river_center_x(420.0);
+        let bank_x = (1..=80)
+            .map(|step| center_x - step as f32)
+            .find(|x| water_depth_at(map, *x, 420.0) <= 0.0)
+            .expect("the Bystra has a dry west bank at z=420");
+        let ground = map.heightmap.sample_height(bank_x, 420.0).expect("in the map");
+        crate::bots::test_support::tank_at(2, TeamId(1), Vec3::new(bank_x, ground, 420.0))
+    }
+
+    /// The drive model stopped erasing opposing momentum in one tick, so the deep-water check
+    /// cannot be positional: a hull is "in deep water" once it no longer has the room to stop
+    /// short of it. The same spot read from a standing hull is not an emergency.
+    #[test]
+    fn the_deep_water_check_reads_the_hulls_room_to_stop_not_just_its_feet() {
+        let map = map_forge::battlefield(terrain::MapId::BystraValley);
+        let mut parked = on_the_bystra_west_bank(&map);
+        parked.velocity_mps = Vec3::ZERO;
+        assert!(
+            !bot_in_deep_water(&parked, &map),
+            "a standing hull on the bank is not drowning — it can simply drive away"
+        );
+
+        let mut charging = parked.clone();
+        charging.velocity_mps = Vec3::new(9.0, 0.0, 0.0); // straight at the channel
+        assert!(
+            bot_in_deep_water(&charging, &map),
+            "at 9 m/s the channel is inside the braking distance — that IS the emergency"
+        );
+    }
+
+    /// Momentum outranks direction. A hull crossing the bank at speed cannot steer out of the
+    /// channel, so the escape must first oppose the velocity that is drowning it; a command that
+    /// drives "toward the shallow side" at 8 m/s only feeds the plunge.
+    #[test]
+    fn the_escape_kills_the_plunge_before_it_picks_a_direction() {
+        let map = map_forge::battlefield(terrain::MapId::BystraValley);
+        let mut diving = on_the_bystra_west_bank(&map);
+        // Bow and velocity both point east, into the channel.
+        diving.yaw_rad = std::f32::consts::FRAC_PI_2;
+        diving.velocity_mps = Vec3::new(9.0, 0.0, 0.0);
+        assert!(bot_in_deep_water(&diving, &map), "the dive must be an emergency (test premise)");
+
+        let command = water_escape_command(&diving, &map);
+        assert!(
+            command.throttle < 0.0,
+            "a hull diving at the channel must reverse against its own momentum, got {command:?}"
+        );
+    }
+
+    /// Backing out along the hull's own axis only saves a hull that drove in nose-first. One that
+    /// slid in along the channel would reverse ALONG it and wade until the engine floods, so the
+    /// escape takes the shallowest bearing around the hull instead.
+    #[test]
+    fn a_stalled_hull_takes_the_shallowest_way_out_not_its_own_axis() {
+        let map = map_forge::battlefield(terrain::MapId::BystraValley);
+        let x = terrain::bystra_river_center_x(420.0);
+        let ground = map.heightmap.sample_height(x, 420.0).expect("in the map");
+        let mut stalled =
+            crate::bots::test_support::tank_at(2, TeamId(1), Vec3::new(x, ground, 420.0));
+        // Lying ALONG the channel (bow north) with the plunge already spent.
+        stalled.yaw_rad = 0.0;
+        stalled.velocity_mps = Vec3::ZERO;
+        let here = water_depth_at(&map, x, 420.0);
+        assert!(here > BOT_DEEP_WATER_M, "mid-channel must read as deep (test premise)");
+
+        let command = water_escape_command(&stalled, &map);
+        // The bearing the hull will actually travel: astern when reversing, ahead otherwise.
+        let travel = if command.throttle < 0.0 {
+            stalled.yaw_rad + std::f32::consts::PI
+        } else {
+            stalled.yaw_rad
+        };
+        let landing =
+            stalled.position + Vec3::new(travel.sin(), 0.0, travel.cos()) * WATER_ESCAPE_PROBE_M;
+        assert!(
+            water_depth_at(&map, landing.x, landing.z) < here,
+            "the escape must lead OUT of the water, not along it: {command:?}"
         );
     }
 

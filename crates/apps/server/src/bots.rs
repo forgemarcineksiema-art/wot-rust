@@ -213,13 +213,14 @@ fn bot_command_for_tank(
     live_cover: &[terrain::StaticCoverObject],
 ) -> TankCommand {
     // Survival preempts everything, combat included: a hull past the route brain's deep-water
-    // line is heading for a flooded engine — back out the way it came before doing anything
-    // else. Fords (<= 0.9 m) never trip this; the escape resets the stall counter so the slow
-    // wade out is not misread as being stuck.
+    // line — or driving at it with no room to stop — is heading for a flooded engine. It takes
+    // the shortest way back to shallow water before doing anything else. Fords (<= 0.9 m) never
+    // trip this; the escape resets the stall counter so the slow wade out is not misread as
+    // being stuck.
     if crate::bot_routes::bot_in_deep_water(tank, battlefield) {
         agent.stall_ticks = 0;
         agent.last_position = Some(tank.position);
-        return bot_reverse_command(agent.escape_left);
+        return crate::bot_routes::water_escape_command(tank, battlefield);
     }
     // The futile-target hold runs down whether fighting or driving.
     if let Some((_, ticks)) = &mut agent.futile_hold {

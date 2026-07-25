@@ -25,7 +25,7 @@ impl ClientApp {
         self.predictor.step(
             *command,
             &self.battlefield.heightmap,
-            &self.battlefield.static_cover,
+            self.live_cover.blocking(),
             &tank_obstacles,
             TICK_DT,
         );

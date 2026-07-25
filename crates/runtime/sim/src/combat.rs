@@ -90,6 +90,7 @@ pub(crate) fn apply_shell_impact(
 ) -> DamageEvent {
     let target =
         tanks.iter_mut().find(|tank| tank.id == target_id).expect("hit tank still present");
+    let target_was_alive = target.hit_points > 0;
     let penetration =
         resolve_impact_penetration(shell, target, zone, impact_angle_degrees, distance_m);
     if penetration.damage_hp > 0 {
@@ -252,6 +253,10 @@ pub(crate) fn apply_shell_impact(
         damaged_modules_mask,
         destroyed_modules_mask,
         damaged_components_mask,
+        event_id: Default::default(),
+        occurred_tick: 0,
+        shell_id: Some(shell.id),
+        target_destroyed: target_was_alive && target.hit_points == 0,
     }
 }
 

@@ -18,6 +18,20 @@ pub mod transport;
 pub use frame::{FRAME_HEADER_LEN, FRAME_MAGIC, decode_frame, encode_frame};
 pub use snapshot_schedule::SnapshotSchedule;
 
+/// v38: transient personal combat feedback has a small sequenced lane independent of fragmented
+/// world snapshots. `CombatEventBatch` repeats until `CombatEventAck`; delivery sequence is
+/// per-recipient so server-side spotting/audience filtering creates no gaps for the client.
+///
+/// v37: every remote-session and lifecycle message carries a `session_id`. A reconnect from the
+/// same socket is therefore a new wire identity: delayed packets from the previous incarnation
+/// cannot refresh liveness, advance state, apply input, or end the new battle. `InputAck` provides
+/// an ACK-only path between snapshot deliveries while the delivery envelope remains
+/// snapshot-aligned.
+///
+/// v36: remote snapshots travel in a per-client `SnapshotDelivery` envelope. The neutral
+/// `Snapshot` remains reusable by local play/replays; the envelope carries the last input sequence
+/// consumed for this crew plus authoritative hull motion for prediction reconciliation.
+///
 /// v34: `ServerHello` carries `MatchWeather` (program plus deterministic seed), so every client
 /// and late joiner evaluates the same presentation timeline from authoritative battle tick time.
 ///
@@ -70,7 +84,7 @@ pub use snapshot_schedule::SnapshotSchedule;
 /// v33: the T-55A clone leaves the roster and its `VehicleKind` variant is deleted outright,
 /// shifting every discriminant after it — a deliberate wire break (no live players yet;
 /// the roster rule is "no clones").
-pub const PROTOCOL_VERSION: u16 = 35;
+pub const PROTOCOL_VERSION: u16 = 38;
 
 #[derive(Debug, Error)]
 pub enum NetError {
@@ -295,25 +309,64 @@ impl From<&SimulationState> for Snapshot {
     }
 }
 
+/// Authoritative motion omitted from the neutral world snapshot but required when the owning
+/// client rewinds its predictor and replays inputs that the server has not acknowledged yet.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
+pub struct AuthoritativeMotion {
+    pub velocity_mps: [f32; 3],
+    pub hull_yaw_velocity_rad_s: f32,
+}
+
+/// Per-recipient delivery metadata. ACK state belongs to a connection, not to the battle world,
+/// so it deliberately wraps rather than pollutes [`Snapshot`].
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct SnapshotDelivery {
+    pub session_id: u64,
+    pub snapshot: Snapshot,
+    pub last_processed_input_seq: Option<u64>,
+    pub local_motion: AuthoritativeMotion,
+}
+
+/// The first reliable combat-feedback payloads. World state remains newest-wins snapshots; this
+/// lane exists only for one-shot consequences whose audio/FX/HUD meaning cannot be reconstructed
+/// after a lost packet.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum CombatEvent {
+    Damage(DamageEvent),
+    ShellImpact(ShellImpact),
+}
+
+/// One per-recipient stream item. `delivery_seq` is continuous for this session even though the
+/// underlying battle event ids may have gaps after audience filtering.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SequencedCombatEvent {
+    pub delivery_seq: u64,
+    pub event: CombatEvent,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ProtocolMessage {
     Input(ClientInputCommand),
     VehicleSelection(ClientVehicleSelection),
     Snapshot(Snapshot),
     Ping {
+        session_id: u64,
         client_time_us: u64,
     },
     Pong {
+        session_id: u64,
         client_time_us: u64,
         server_time_us: u64,
     },
     ClientHello {
+        session_id: u64,
         protocol_version: u16,
     },
     /// The server's opening word (protocol v18): which map to generate locally and which
     /// weather to dress it in. Both sides run the same deterministic map generator, so these
     /// two ids are all it takes to agree on a world.
     ServerHello {
+        session_id: u64,
         protocol_version: u16,
         map_id: MapId,
         weather: MatchWeather,
@@ -323,31 +376,54 @@ pub enum ProtocolMessage {
         /// battle (the map never crosses the wire; this hash is the pairing's proof).
         map_content_hash: u64,
     },
-    /// v28: the client's per-tick send over a LOSSY wire — the latest few commands, newest
-    /// last. A dropped datagram costs nothing: the next batch re-carries the recent history
-    /// and the server consumes only commands for ticks it has not yet simulated.
+    /// The client's per-tick send over a LOSSY wire. v37 carries the oldest unacknowledged
+    /// window until the lightweight `InputAck` advances it; the server consumes each sequence
+    /// once and holds only continuous axes across a gap.
     InputBatch {
+        session_id: u64,
         commands: Vec<ClientInputCommand>,
     },
     /// v28: an orderly goodbye, so a leaving client frees its lobby slot immediately instead
     /// of aging out through the heartbeat timeout.
     Disconnect {
+        session_id: u64,
         reason: DisconnectReason,
     },
     /// v29: the waiting room — who is here, how many the battle wants, when it starts anyway.
     LobbyState {
+        session_id: u64,
         players: u8,
         needed: u8,
         countdown_ticks: u64,
     },
     /// v29: the battle begins; this client drives `assigned_tank`.
     StartBattle {
+        session_id: u64,
         assigned_tank: TankId,
         server_tick: u64,
     },
     /// v29: the battle is over. `winning_team` is `None` for a draw.
     BattleEnded {
+        session_id: u64,
         winning_team: Option<u16>,
+    },
+    /// v36: newest-wins world state plus this recipient's input ACK/reconciliation motion.
+    SnapshotDelivery(SnapshotDelivery),
+    /// v37: lightweight progress between snapshot deliveries. Snapshot delivery keeps carrying
+    /// the reconciliation-aligned ACK as well.
+    InputAck {
+        session_id: u64,
+        last_processed_input_seq: u64,
+    },
+    /// v38: oldest-unacknowledged personal combat events, sized by the sender to one datagram.
+    CombatEventBatch {
+        session_id: u64,
+        events: Vec<SequencedCombatEvent>,
+    },
+    /// v38: highest contiguous combat-event delivery sequence accepted by the client.
+    CombatEventAck {
+        session_id: u64,
+        last_received_seq: u64,
     },
 }
 
@@ -361,6 +437,29 @@ impl ProtocolMessage {
                 | ProtocolMessage::BattleEnded { .. }
         )
     }
+
+    /// The remote connection incarnation this message belongs to. The three legacy/local-play
+    /// payloads intentionally remain untagged and must not be accepted as remote-session traffic.
+    pub fn session_id(&self) -> Option<u64> {
+        match self {
+            ProtocolMessage::Ping { session_id, .. }
+            | ProtocolMessage::Pong { session_id, .. }
+            | ProtocolMessage::ClientHello { session_id, .. }
+            | ProtocolMessage::ServerHello { session_id, .. }
+            | ProtocolMessage::InputBatch { session_id, .. }
+            | ProtocolMessage::Disconnect { session_id, .. }
+            | ProtocolMessage::LobbyState { session_id, .. }
+            | ProtocolMessage::StartBattle { session_id, .. }
+            | ProtocolMessage::BattleEnded { session_id, .. }
+            | ProtocolMessage::InputAck { session_id, .. }
+            | ProtocolMessage::CombatEventBatch { session_id, .. }
+            | ProtocolMessage::CombatEventAck { session_id, .. } => Some(*session_id),
+            ProtocolMessage::SnapshotDelivery(delivery) => Some(delivery.session_id),
+            ProtocolMessage::Input(_)
+            | ProtocolMessage::VehicleSelection(_)
+            | ProtocolMessage::Snapshot(_) => None,
+        }
+    }
 }
 
 /// Why a peer said goodbye (v28). Wire-stable: append only.
@@ -372,6 +471,9 @@ pub enum DisconnectReason {
     Refused,
     /// The battle ended and the session is over.
     BattleOver,
+    /// The client stopped acknowledging its reliable personal combat stream. Dropping events
+    /// silently would lie about hits/kills, so the session fails loud instead.
+    CombatEventOverflow,
 }
 
 /// Wire codec for all protocol messages. Byte-compatible with bincode's standalone

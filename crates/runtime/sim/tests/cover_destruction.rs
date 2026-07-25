@@ -228,6 +228,7 @@ fn a_wall_remembers_at_most_eight_wounds_and_recycles_the_oldest() {
             shell_type: game_core::ShellType::ArmorPiercing,
             direction: glam::Vec3::Z,
             caliber_mm: 100.0,
+            ..Default::default()
         };
         sim::record_cover_scar(&mut ledger, 0, &barn, &impact);
     }

@@ -59,7 +59,7 @@ impl ClientApp {
         let subject = self.camera_subject_from_tank(tank);
         let environment = BattleCameraEnvironment::with_obstacles(
             &self.battlefield.heightmap,
-            &self.camera_obstacles,
+            self.live_cover.camera_obstacles(),
         );
         Some(self.camera_controller.present(&subject, &environment, dt))
     }
@@ -68,7 +68,7 @@ impl ClientApp {
         let subject = self.camera_subject_from_tank(tank);
         let environment = BattleCameraEnvironment::with_obstacles(
             &self.battlefield.heightmap,
-            &self.camera_obstacles,
+            self.live_cover.camera_obstacles(),
         );
         self.camera_controller.render_camera(&subject, &environment)
     }
