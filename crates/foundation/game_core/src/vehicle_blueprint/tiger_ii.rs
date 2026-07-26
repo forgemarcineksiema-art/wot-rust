@@ -100,6 +100,7 @@ pub(super) fn tiger_ii_blueprint() -> VehicleBlueprint {
             cupola_x: -0.28,
             cupola_z: -0.55,
             cupola_radius: 0.32,
+            cupola_height: None,
             plan_half_width: 0.98,
             plan_half_length: 1.55,
             mantlet_radius: 0.30,

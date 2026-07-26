@@ -35,7 +35,7 @@ pub(crate) fn tiger_i(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVeh
                 t.cupola_z,
                 t.roof_y,
                 t.cupola_radius,
-                bp.hull.hitbox_center_y + bp.hull.hitbox_half_height - t.roof_y,
+                t.cupola_proud_m(&bp.hull),
             ),
             t.ring_z,
             t.ring_y,

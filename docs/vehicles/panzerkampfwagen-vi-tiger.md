@@ -29,10 +29,22 @@ the full silhouette apex, so 3.00 m is the anchor and 2.885 m is a cage-level ch
 
 ### Known deviations (recorded, owned)
 
-- Turret roof plane: model 2.72 m vs 2.885 m in German records (the 3.00 m cupola apex IS
-  anchored) — candidate for a W-later shape pass; recorded so the Δ never reads as drift.
 - Fire line: model 2.17 m vs documented 2.195 m (2.5 cm; cage-locked as a deviation).
-- Width over tracks: model 3.68 m vs 3.705 m (2.5 cm under, inside the ±0.08 anchor).
+
+Closed by the model-logic pass (2026-07-26):
+
+- Turret roof plane: was 2.72 m vs 2.885 m. The 16.5 cm deficit was invisible to the cage
+  because the drum cupola's height was DERIVED as "whatever reaches the hitbox apex" — the
+  roof error simply grew the drum (0.29 m against the 0.115 m the records imply) and the
+  3.00 m apex lock still passed. Roof and drum are now authored separately
+  (`roof_y 2.885`, `cupola_height Some(0.115)`) and locked separately.
+- Width over tracks: was 3.68 m, and it was the HULL that measured 3.70 — the sponsons carried
+  the beam anchor while the belts hid 1 cm inside them, which is also why the tank had no
+  fender line at all. The two documented widths now sit on the two parts that own them:
+  3.56 m over the sponsons, 3.705 m over the combat tracks, with the guards in between.
+- Cupola diameter: was ⌀0.66 m against the ⌀0.78 m the cast-cupola helper documents as its
+  own reference (audit #3's number). Now ⌀0.78, pulled slightly inboard so the honest drum
+  still lands inside the bent rear wall.
 
 ## Blueprint Migration (2026-07)
 
@@ -48,11 +60,13 @@ correction documented here and locked by `tiger_i_benchmark.rs`.
 | Anchor | Value | In the blueprint |
 | --- | --- | --- |
 | Hull length | 6.316 m | `half_len 3.16` |
-| Width over combat tracks | 3.705 m | `track.outer_x 1.84`, sponsons at `half_width 1.85` |
-| Height to cupola top | 3.00 m | `deck_y 1.90`, `roof_y 2.72`, drum cupola to 3.01 |
+| Width over combat tracks | 3.705 m | `track.outer_x 1.8525` |
+| Width over sponsons | 3.56 m | `half_width 1.78` (the belts stand 7.25 cm proud per side) |
+| Height to turret roof | 2.885 m | `roof_y 2.885` |
+| Height to cupola top | 3.00 m | `roof_y 2.885` + `cupola_height 0.115` |
 | Ground clearance | 0.47 m | `belly_y 0.47` |
 | Road wheels | 8 × ⌀0.80 m interleaved | `wheel_count 8`, `overlap_inner_dx 0.22` |
-| Track width | 725 mm | `inner_x 1.13 .. outer_x 1.84` |
+| Track width | 725 mm | `inner_x 1.1275 .. outer_x 1.8525` |
 | Contact run | ~3.6 m | `wheel_first_z/last_z ±1.80` |
 | Overall with gun | 8.45 m | `muzzle_z 5.29` |
 | Fire line | ~2.17 m | `trunnion_y 2.17` |

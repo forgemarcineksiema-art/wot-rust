@@ -23,12 +23,16 @@ pub(super) fn tiger_i_blueprint() -> VehicleBlueprint {
         kind: VehicleKind::TigerI,
         hull: HullShape {
             half_len: 3.16,
-            // The superstructure spreads over the tracks to the FULL 3.705 m beam — the Tiger's
-            // signature sponson overhang — while the lower hull tub rides between the belts.
-            half_width: 1.85,
+            // 3.56 m over the SPONSONS: the superstructure overhangs the wheels but stops short
+            // of the belts, so the documented 3.705 m width over tracks is carried by the TRACKS
+            // (see `TrackShape::outer_x`) — the 7.25 cm of belt standing proud of each hull side
+            // is what the guards cover and what spaced-armour hits resolve against. Authoring the
+            // beam on the hull instead (the migration's shortcut) buried the fender line and made
+            // the belts hide inside the sponson line.
+            half_width: 1.78,
             belly_y: 0.47,
             // The tall slab: superstructure roof at 1.90, the turret walls carrying the
-            // silhouette to 2.72 and the drum cupola topping out the documented 3.00 m.
+            // silhouette to the documented 2.885 m and the drum cupola topping out at 3.00 m.
             deck_y: 1.90,
             // Nearly vertical: the driver's plate stands at ~9° from vertical. The Tiger's
             // protection is raw thickness, not slope — angling the hull is the crew's job.
@@ -48,10 +52,10 @@ pub(super) fn tiger_i_blueprint() -> VehicleBlueprint {
             hitbox_turret_min_y: 0.42,
         },
         track: TrackShape {
-            // The 725 mm combat band: outer face at the 3.705 m beam (1.84 with a hair of fender
-            // lip), inner face at the tub side. Eight 800 mm interleaved road wheels per side on
-            // the documented 3.6 m contact run; sprocket and idler wrap inside the hull ends.
-            center_x: 1.485,
+            // The 725 mm combat band, exactly: outer face AT the documented 3.705 m beam, inner
+            // face at the tub side (1.8525 - 0.725). Eight 800 mm interleaved road wheels per
+            // side on the documented 3.6 m contact run; sprocket and idler wrap inside the ends.
+            center_x: 1.49,
             belt_half_thickness: 0.16,
             top_y: 0.86,
             bottom_y: 0.03,
@@ -64,8 +68,8 @@ pub(super) fn tiger_i_blueprint() -> VehicleBlueprint {
             // Wrap top (end_y + end_radius) = 0.86 = the belt's top line: one height, the top
             // run resting on the big interleaved wheels — no return rollers on a Tiger.
             end_y: 0.56,
-            inner_x: 1.13,
-            outer_x: 1.84,
+            inner_x: 1.1275,
+            outer_x: 1.8525,
             segments: 14,
             wheel_stations: None,
             return_rollers: 0,
@@ -92,14 +96,20 @@ pub(super) fn tiger_i_blueprint() -> VehicleBlueprint {
             ring_radius: 0.915,
             base_radius: 1.00,
             roof_radius: 0.40,
-            roof_y: 2.72,
+            // The bare roof at the documented 2.885 m; the drum tops the 3.00 m silhouette from
+            // there. Authored independently of the cupola so neither can cover for the other.
+            roof_y: 2.885,
             front_slope_deg: 8.0,
             side_slope_deg: 0.0,
             rear_slope_deg: 0.0,
-            // The drum cupola sits on the LEFT rear roof (the commander's side).
-            cupola_x: -0.55,
-            cupola_z: -0.45,
-            cupola_radius: 0.33,
+            // The drum cupola sits on the LEFT rear roof (the commander's side), at the ⌀0.78 m
+            // a crewman actually climbs through — pulled slightly inboard/forward of the old
+            // ⌀0.66 station so the honest drum still lands inside the bent rear wall.
+            cupola_x: -0.50,
+            cupola_z: -0.35,
+            cupola_radius: 0.39,
+            // 3.00 m to the cupola top over the 2.885 m roof — straight from the dossier.
+            cupola_height: Some(0.115),
             plan_half_width: 1.00,
             // Reaches the Rommelkiste stowage bin's back face — the bin IS the rear armor plane.
             plan_half_length: 1.25,

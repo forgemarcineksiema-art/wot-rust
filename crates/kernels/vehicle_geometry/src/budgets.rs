@@ -30,7 +30,7 @@ pub const VEHICLE_BUDGETS: VehicleBudgets = VehicleBudgets {
 pub const GOLDEN_BAKE_HASHES: [(VehicleKind, u64); 9] = [
     (VehicleKind::PrototypeMedium, 5_209_003_704_901_676_167_u64),
     (VehicleKind::T54_1951, 7_946_555_521_149_600_740_u64),
-    (VehicleKind::TigerI, 14_348_569_545_994_162_257_u64),
+    (VehicleKind::TigerI, 1_060_720_982_856_620_601_u64),
     (VehicleKind::TigerII, 12_544_834_639_457_414_026_u64),
     (VehicleKind::Jagdtiger, 5_179_577_790_178_323_578_u64),
     (VehicleKind::PantherII, 9_168_003_294_476_122_692_u64),

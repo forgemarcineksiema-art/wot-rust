@@ -116,6 +116,7 @@ fn t54() -> VehicleBlueprint {
             cupola_x: -0.34,
             cupola_z: -0.10,
             cupola_radius: 0.24,
+            cupola_height: None,
             plan_half_width: 1.125,
             plan_half_length: 1.17,
             mantlet_radius: 0.32,

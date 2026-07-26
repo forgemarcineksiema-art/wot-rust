@@ -88,6 +88,7 @@ pub(super) fn jagdtiger_blueprint() -> VehicleBlueprint {
             cupola_x: 0.45,
             cupola_z: -0.90,
             cupola_radius: 0.14,
+            cupola_height: None,
             plan_half_width: 1.356,
             plan_half_length: 1.60,
             mantlet_radius: 0.36,

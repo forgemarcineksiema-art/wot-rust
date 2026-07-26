@@ -90,3 +90,56 @@ Before any "sealed" claim:
   per-vehicle headlight clusters on fender boxes/glacis (rest of #1/F4), and per-vehicle
   vent refinements (#5 tail). Those belong to W1/W2 of the masterplan
   (docs/vehicle-fidelity-masterplan.md), which resumes with the Tiger II dossier (PR-T2.1).
+
+## Tiger I model-logic pass (2026-07-26)
+
+Close review of the Tiger I against its own dossier, the blueprint, the mesh recipe, the part
+table and the gates. What the tank got right is the slab itself: every visible front/side/rear
+plate lies ON the armor plane it is shot against, the Schachtellaufwerk topology is honest
+(8 axles, two rows, no return rollers, top run on the wheels), and the length/clearance/gun
+anchors hold. Five defects, and the reason none of them fired a gate:
+
+1. **The beam was authored on the wrong part.** Hull 3.70 m, tracks 3.68 m — so the sponsons
+   carried the documented 3.705 m width and the belts hid 1 cm inside them. The dimension gate
+   measures COMPOSED bounds, so it cannot tell which part carries a width. Consequence beyond
+   the number: with no belt standing proud there was nowhere to hang a fender, and the Tiger
+   ran with no track guards at all. Fixed: 3.56 m sponsons / 3.705 m tracks + guards and
+   hinged flaps at both ends. Locked by `the_tracks_carry_the_width_anchor_...` and
+   `the_exposed_track_run_wears_its_fender_line`.
+2. **The turret roof deficit was laundered into the cupola.** Roof stood at 2.72 m against the
+   documented 2.885 m, and the drum's height was DERIVED as `hitbox apex - roof_y` — so the
+   16.5 cm error grew a 0.29 m drum (the records imply 0.115 m) and the 3.00 m silhouette lock
+   passed anyway. A derived dimension can never fail the thing it is derived from. Fixed:
+   `TurretShape::cupola_height` is authored; `cupola_proud_m()` is the one place recipes and
+   part tables ask. Locked by `the_roof_and_the_cupola_are_locked_independently`.
+3. **Cupola ⌀0.66 vs the ⌀0.78 its own helper documents** as the size a crewman fits through
+   (audit #3's number, applied to Tiger II and Panther but not here). Fixed and locked.
+4. **The part table named the wrong end wheels.** `drive_front: true`, the mesh drives from the
+   bow, audit #16 fixed the German line — but the Tiger's Forge table still listed a front
+   idler and a rear drive sprocket, i.e. the Soviet layout. The graph tests only asked for
+   non-degenerate bounds and a non-empty source. Fixed, and locked FLEET-WIDE by
+   `every_part_table_puts_the_sprocket_where_the_model_drives`.
+5. **The fender line was missing entirely** — a consequence of (1), listed separately because
+   it is what a reviewer actually sees.
+
+### Open, not fixed here
+
+- **The ratio gates are self-calibrated.** `packs_german.rs` says it plainly: tolerances were
+  re-tuned until "every measured ratio sits within 2.3% of target". Those gates catch
+  regression, never a wrong proportion. Re-deriving the targets from records rather than from
+  the model is a doctrine-level job, not a Tiger-sized one.
+- **Turret width 2.00 m is the geometric minimum** the 1.83 m ring allows (ring + 2×80 mm
+  wall). Real turrets stand proud of their ring by more than the wall thickness. Needs a
+  source before it is moved.
+- **The Studio golden gate does not run**: `studio_tiles_match_their_goldens` is opt-in behind
+  `WOT_STUDIO_GOLDENS=1`, so tile drift is never noticed. Promoting it is a tooling PR.
+- **The Studio rasterizer has no z-buffer** (triangles sorted by centroid depth), so its tiles
+  cannot be trusted for occlusion questions — close-up review needs `closeup_probe`/the client.
+- **Late-Ausf.-E furniture still absent**: turret-side pistol port/escape hatch, loader's roof
+  hatch and ventilator, turret-side spare-track racks, hull-side tools and jack, antenna.
+  Budget headroom exists.
+- **The barrel is a constant-radius tube** with no taper, and barrel radii across the fleet do
+  not scale consistently with calibre.
+- **The Rommelkiste is inside the armor prism** (0.21 m of the turret's rear plane is a
+  sheet-metal bin). Deliberate — but it belongs in the dossier's deviations, not only in a
+  code comment.

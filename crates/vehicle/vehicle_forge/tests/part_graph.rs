@@ -560,3 +560,36 @@ fn the_executable_manifest_does_not_drift_from_the_baked_geometry() {
         assert!((union.max - baked_bounds.max).abs().max_element() < eps, "{group:?} max drift");
     }
 }
+
+/// The labelled end wheels must name the ends the MODEL drives from. The Tiger I's table
+/// carried the Soviet arrangement — "front idler", "rear drive sprocket" — while its blueprint
+/// declared front drive and the mesh put the teeth at the bow, so every part-level consumer
+/// (review sheets, LOD policy, damage attribution) named the wrong wheel. Nothing caught it:
+/// the per-vehicle graph tests only ask for non-degenerate bounds and a non-empty source.
+#[test]
+fn every_part_table_puts_the_sprocket_where_the_model_drives() {
+    for kind in VehicleKind::PLAYABLE {
+        let Some(graph) = ForgePartGraph::for_vehicle(kind) else { continue };
+        let Some(kin) = vehicle_geometry::RunningGearKinematics::for_vehicle(kind) else {
+            continue;
+        };
+        let placements = vehicle_geometry::running_gear_placements(&kin, 0.0, 0.0);
+        for (part_kind, gear) in [
+            (ForgePartKind::DriveSprocket, vehicle_geometry::GearPart::Sprocket),
+            (ForgePartKind::Idler, vehicle_geometry::GearPart::Idler),
+        ] {
+            let Some(part) = graph.part(part_kind) else { continue };
+            let placed_z = placements
+                .iter()
+                .find(|p| p.part == gear)
+                .map(|p| p.transform.w_axis.z)
+                .unwrap_or_else(|| panic!("{kind:?}: the model places no {gear:?}"));
+            let table_z = part.frame().translation.z;
+            assert!(
+                table_z * placed_z > 0.0,
+                "{kind:?}: the table puts {part_kind:?} at z = {table_z} but the model draws \
+                 it at z = {placed_z} — the part names the wrong end wheel"
+            );
+        }
+    }
+}
