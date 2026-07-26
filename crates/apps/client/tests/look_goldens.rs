@@ -8,10 +8,14 @@
 //! - `look_goldens_match_their_recordings` — OPT-IN via `WOT_LOOK_GOLDENS=1` (needs a GPU;
 //!   byte-exact per machine, like the studio goldens). Re-record with `WOT_UPDATE_GOLDENS=1`
 //!   after a deliberate look change.
-//! - `recorded_goldens_hold_the_value_structure` — always-on and CPU-only: decodes the
-//!   committed golden PNGs and asserts the art-direction value statistics (rule 1: three
-//!   value planes; rule 3: the evening reads warmer than the overcast). Catches a policy
-//!   violation in any committed look without needing a GPU.
+//! - the rest — always-on and CPU-only: they decode the committed golden PNGs, so they catch a
+//!   policy violation in any committed look on a machine with no GPU at all.
+//!   `recorded_goldens_hold_the_value_structure` is rule 1 (three value planes) and rule 3 (the
+//!   evening out-warms the overcast, per map). `no_recorded_frame_flattens_into_a_wash` and
+//!   `no_recorded_frame_runs_away_with_chroma` are regression guards on detail and chroma.
+//!   `the_measured_baseline_of_every_recorded_frame` asserts almost nothing — it PRINTS the
+//!   table that `docs/art-direction-program.md` carries, because a number nobody wrote down is
+//!   a number nobody can be held to.
 
 use std::fs::File;
 use std::io::{BufReader, BufWriter};
@@ -134,17 +138,51 @@ fn srgb_to_linear(byte: u8) -> f32 {
     if c <= 0.04045 { c / 12.92 } else { ((c + 0.055) / 1.055).powf(2.4) }
 }
 
+/// What one recorded frame measures. Plane shares answer rule 1's "three separated planes";
+/// the percentiles and their spread answer the question the shares cannot — *how far apart* the
+/// planes are, which is the difference between a picture with structure and a wash that happens
+/// to straddle two thresholds. `band_separation` is rule 1's sky-above-field ordering read off
+/// the pixels; `local_contrast` is rule 5's anti-flat clause.
 struct FrameStats {
     dark: f32,
     mid: f32,
     bright: f32,
     mean_warmth: f32,
+    p05: f32,
+    p50: f32,
+    p95: f32,
+    /// p95 − p05. A wash has a small one no matter where its planes land.
+    spread: f32,
+    /// Mean per-pixel saturation (max−min over max). A chroma regression measure, NOT rule 2's
+    /// albedo bound — see `no_recorded_frame_runs_away_with_chroma`.
+    saturation: f32,
+    /// Mean absolute luminance step between horizontally adjacent pixels. Detail, not noise:
+    /// a flat wash tends to zero, a shimmering surface runs high.
+    local_contrast: f32,
+    /// Median luminance of the top 15% of rows minus the bottom 40%. On an outdoor frame at
+    /// hull height that is sky-band minus near-field, so rule 1's "the sky out-lumes the field"
+    /// becomes a number. Meaningless indoors, where the top of the frame is roof.
+    band_separation: f32,
+}
+
+fn percentile(sorted: &[f32], q: f32) -> f32 {
+    if sorted.is_empty() {
+        return 0.0;
+    }
+    let index = ((sorted.len() - 1) as f32 * q).round() as usize;
+    sorted[index]
+}
+
+fn median_of(values: &mut [f32]) -> f32 {
+    values.sort_by(|a, b| a.partial_cmp(b).expect("luma is finite"));
+    percentile(values, 0.5)
 }
 
 fn frame_stats(pixels: &[u8]) -> FrameStats {
     let (mut dark, mut mid, mut bright) = (0u32, 0u32, 0u32);
-    let (mut sum_r, mut sum_b) = (0.0f64, 0.0f64);
-    let mut count = 0u32;
+    let (mut sum_r, mut sum_b, mut sum_sat) = (0.0f64, 0.0f64, 0.0f64);
+    let mut lumas = Vec::with_capacity((WIDTH * HEIGHT) as usize);
+
     for px in pixels.chunks_exact(4) {
         let r = srgb_to_linear(px[0]);
         let g = srgb_to_linear(px[1]);
@@ -159,14 +197,48 @@ fn frame_stats(pixels: &[u8]) -> FrameStats {
         }
         sum_r += r as f64;
         sum_b += b as f64;
-        count += 1;
+        let max = r.max(g).max(b);
+        let min = r.min(g).min(b);
+        sum_sat += if max > 1.0e-6 { ((max - min) / max) as f64 } else { 0.0 };
+        lumas.push(luma);
     }
-    let n = count as f32;
+
+    // Local contrast along rows only: a horizontal step is the cheapest honest probe of whether
+    // the surface carries detail, and it needs no second pass over the image.
+    let mut contrast_sum = 0.0f64;
+    let mut contrast_count = 0u32;
+    for row in lumas.chunks_exact(WIDTH as usize) {
+        for pair in row.windows(2) {
+            contrast_sum += (pair[1] - pair[0]).abs() as f64;
+            contrast_count += 1;
+        }
+    }
+
+    let rows = HEIGHT as usize;
+    let top_rows = (rows * 15) / 100;
+    let bottom_start = rows - (rows * 40) / 100;
+    let mut top: Vec<f32> = lumas[..top_rows * WIDTH as usize].to_vec();
+    let mut bottom: Vec<f32> = lumas[bottom_start * WIDTH as usize..].to_vec();
+    let band_separation = median_of(&mut top) - median_of(&mut bottom);
+
+    let n = lumas.len() as f32;
+    let mut sorted = lumas;
+    sorted.sort_by(|a, b| a.partial_cmp(b).expect("luma is finite"));
+    let p05 = percentile(&sorted, 0.05);
+    let p95 = percentile(&sorted, 0.95);
+
     FrameStats {
         dark: dark as f32 / n,
         mid: mid as f32 / n,
         bright: bright as f32 / n,
         mean_warmth: (sum_r / sum_b.max(1.0e-9)) as f32,
+        p05,
+        p50: percentile(&sorted, 0.50),
+        p95,
+        spread: p95 - p05,
+        saturation: (sum_sat / n as f64) as f32,
+        local_contrast: (contrast_sum / contrast_count.max(1) as f64) as f32,
+        band_separation,
     }
 }
 
@@ -283,6 +355,94 @@ fn recorded_goldens_hold_the_value_structure() {
         compared += 1;
     }
     assert!(compared > 0, "no map authored both a golden evening and an overcast to compare");
+}
+
+/// Every recorded frame, measured. Not a pass/fail gate — the BASELINE, printed as the markdown
+/// table `docs/art-direction-program.md` carries. The waves that follow move these numbers, and a
+/// number nobody wrote down is a number nobody can be held to.
+///
+/// Run it with output: `cargo test -p client --test look_goldens -- --nocapture measured_baseline`
+#[test]
+fn the_measured_baseline_of_every_recorded_frame() {
+    println!("\n| frame | dark | mid | bright | p05 | p50 | p95 | spread | sat | local | band |");
+    println!("|---|---|---|---|---|---|---|---|---|---|---|");
+
+    let mut rows = Vec::new();
+    for map in REVIEWED_MAPS {
+        let battlefield = map_forge::battlefield(map);
+        for view in review_views_for(map, &battlefield) {
+            rows.push((view.name.clone(), frame_stats(&read_png(&golden_path(&view.name)))));
+        }
+    }
+    for view in client::hangar_review_views() {
+        rows.push((view.name.clone(), frame_stats(&read_png(&golden_path(&view.name)))));
+    }
+
+    for (name, s) in &rows {
+        println!(
+            "| `{name}` | {:.1}% | {:.1}% | {:.1}% | {:.3} | {:.3} | {:.3} | {:.3} | {:.3} | {:.4} | {:+.3} |",
+            s.dark * 100.0,
+            s.mid * 100.0,
+            s.bright * 100.0,
+            s.p05,
+            s.p50,
+            s.p95,
+            s.spread,
+            s.saturation,
+            s.local_contrast,
+            s.band_separation
+        );
+    }
+
+    // The one thing this test DOES assert: every frame was measurable. A view whose golden is
+    // missing or truncated must not slip through as a silently absent row.
+    assert_eq!(
+        rows.len(),
+        std::fs::read_dir(goldens_dir()).expect("goldens dir").count(),
+        "the baseline table and the golden directory disagree — an orphaned or missing PNG"
+    );
+}
+
+/// A chroma regression guard, NOT rule 2 restated. Rule 2 bounds the *albedo swatches* at
+/// saturation 0.45 and the *profile grade* at 1.30; a graded frame's mean per-pixel saturation
+/// is a third quantity and does not answer to either number — the recorded evening frames run
+/// to 0.52 and are correct. What this locks is that no change makes the picture gaudy: the
+/// ceiling sits above the recorded worst with headroom, and moving it is a deliberate diff.
+#[test]
+fn no_recorded_frame_runs_away_with_chroma() {
+    const CHROMA_CEILING: f32 = 0.60;
+    for map in REVIEWED_MAPS {
+        let battlefield = map_forge::battlefield(map);
+        for view in review_views_for(map, &battlefield) {
+            let stats = frame_stats(&read_png(&golden_path(&view.name)));
+            assert!(
+                stats.saturation <= CHROMA_CEILING,
+                "{}: mean frame saturation {:.3} passed the recorded ceiling {CHROMA_CEILING:.2}",
+                view.name,
+                stats.saturation
+            );
+        }
+    }
+}
+
+/// Rule 5 on the pixels: nothing is clean, nothing is noisy. A frame whose local contrast has
+/// collapsed is a wash — the "flat reads as cheap" failure the two detail octaves exist to
+/// prevent. The floor is the recorded worst; it exists so a change cannot quietly smooth the
+/// world out.
+#[test]
+fn no_recorded_frame_flattens_into_a_wash() {
+    for map in REVIEWED_MAPS {
+        let battlefield = map_forge::battlefield(map);
+        for view in review_views_for(map, &battlefield) {
+            let stats = frame_stats(&read_png(&golden_path(&view.name)));
+            assert!(
+                stats.local_contrast >= 0.0015,
+                "{}: local contrast {:.5} — the surface flattened into a wash",
+                view.name,
+                stats.local_contrast
+            );
+        }
+    }
 }
 
 /// Mirrors `scene_build::review_views`'s naming so the warmth lookup above can address a map's
