@@ -98,6 +98,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
     let (dressing_v, dressing_i) = grass_card_dressing_mesh(&battlefield, &ground_maps, &materials);
     renderer.set_dressing(&ctx, &dressing_v, &dressing_i);
+    // Imported flora samples this atlas; without it every leaf and trunk renders as the 1x1
+    // white default — which is exactly what this example was shipping.
+    renderer.set_foliage_atlas(&ctx, &scene_build::flora_pack::flora_catalog().atlas_mips);
     renderer.scene_time_s = 12.0;
     renderer.register_mesh(&ctx, GRASS_MESH_HANDLE, &grass_tuft_mesh());
 

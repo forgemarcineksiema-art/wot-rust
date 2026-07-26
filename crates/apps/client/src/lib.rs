@@ -6,6 +6,7 @@ mod color;
 mod fx;
 mod hit_indicator;
 mod hud;
+mod look_harness;
 mod loop_policy;
 mod predict;
 mod render_state;
@@ -29,6 +30,7 @@ pub use hud::{HudVitals, build_hud};
 pub use hud::font::layout::{push_text, push_text_right, text_width};
 pub use hud::primitives::{push_arc, push_bar, push_hairline, push_panel, push_quad, push_segment};
 pub use hud::theme;
+pub use look_harness::{LookHarnessError, render_review_views};
 pub use loop_policy::{
     ClientLoopAction, ClientLoopEvent, ClientLoopPhase, FixedTickAccumulator, WinitLoopDriver,
 };

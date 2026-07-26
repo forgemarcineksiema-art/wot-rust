@@ -15,13 +15,7 @@ use std::fs::File;
 use std::io::{BufReader, BufWriter};
 use std::path::PathBuf;
 
-use client::{
-    GRASS_MESH_HANDLE, ReviewView, bake_terrain_ground_maps, battlefield_ground_and_statics_meshes,
-    battlefield_water_mesh, grass_frame_objects, grass_tuft_mesh, prokhorovka_review_views,
-    terrain_material_set_for,
-};
-use renderer_api::{Camera, CameraProjectionPolicy, RenderFrame, view_projection_matrix};
-use renderer_wgpu::{GpuContext, OffscreenTarget, SceneRenderer};
+use client::{ReviewView, prokhorovka_review_views};
 
 const WIDTH: u32 = 960;
 const HEIGHT: u32 = 540;
@@ -34,64 +28,12 @@ fn golden_path(name: &str) -> PathBuf {
     goldens_dir().join(format!("{name}.png"))
 }
 
+/// The harness renders through `client::render_review_views` — the SAME entry the
+/// `prokhorovka_views` example draws with. The two used to hand-roll this setup separately, which
+/// is exactly how both of them lost the foliage-atlas bind and started locking white trees.
 fn render_views(views: &[ReviewView]) -> Vec<Vec<u8>> {
-    let battlefield = map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2);
-    let ((ground_vertices, ground_indices), (statics_vertices, statics_indices)) =
-        battlefield_ground_and_statics_meshes(&battlefield, &[]);
-    let ground_maps = bake_terrain_ground_maps(&battlefield);
-    let materials = terrain_material_set_for(terrain::MapId::ProkhorovkaHill252_2);
-    let (water_vertices, water_indices) = battlefield_water_mesh(&battlefield);
-
-    let ctx = GpuContext::headless().expect("headless GPU context");
-    let target = OffscreenTarget::new(&ctx, WIDTH, HEIGHT).expect("offscreen target");
-    let mut renderer = SceneRenderer::for_offscreen(&ctx, &statics_vertices, &statics_indices)
-        .expect("scene renderer");
-    renderer.set_battlefield_ground(
-        &ctx,
-        &ground_vertices,
-        &ground_indices,
-        &ground_maps,
-        &materials,
-    );
-    renderer.set_water(&ctx, &water_vertices, &water_indices);
-    {
-        let (dressing_v, dressing_i) = client::grass_card_dressing_mesh(
-            &battlefield,
-            &ground_maps,
-            &terrain_material_set_for(terrain::MapId::ProkhorovkaHill252_2),
-        );
-        renderer.set_dressing(&ctx, &dressing_v, &dressing_i);
-    }
-    renderer.scene_time_s = 12.0;
-    renderer.register_mesh(&ctx, GRASS_MESH_HANDLE, &grass_tuft_mesh());
-
-    views
-        .iter()
-        .map(|view| {
-            let grass = grass_frame_objects(
-                &battlefield.heightmap,
-                battlefield.water,
-                &ground_maps,
-                &materials,
-                glam::Vec3::from_array(view.eye),
-            );
-            renderer
-                .set_render_frame(&ctx, &RenderFrame { objects: grass, ..RenderFrame::default() });
-            renderer.scene_lighting = view.lighting;
-            renderer.set_outdoor_sky(view.sky.0, view.sky.1, view.sky.2);
-            renderer.shadow_focus = Some(view.target);
-            let camera = Camera { eye: view.eye, target: view.target, vertical_fov_degrees: 55.0 };
-            let projection = CameraProjectionPolicy::webgpu_default();
-            let view_proj = view_projection_matrix(
-                &camera,
-                WIDTH as f32 / HEIGHT as f32,
-                projection.near_plane_m(),
-                projection.far_plane_m(),
-            );
-            renderer.render(&ctx, target.render_target(), view_proj, camera.eye).expect("render");
-            target.read_rgba8(&ctx).expect("readback")
-        })
-        .collect()
+    client::render_review_views(terrain::MapId::ProkhorovkaHill252_2, views, WIDTH, HEIGHT)
+        .expect("review render")
 }
 
 fn write_png(path: &PathBuf, pixels: &[u8]) {
