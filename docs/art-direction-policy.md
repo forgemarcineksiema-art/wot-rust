@@ -40,7 +40,10 @@ sky. Measured on graded display luma with the reference mid albedo `[0.28, 0.27,
   every clear-sky profile. An overcast lid compresses the range but never re-orders it.
 
 On the golden frames: every canonical view keeps all three planes alive and no plane
-swallows more than 90% of the picture.
+swallows more than **75%** of the picture (the outdoor set clears this today, so the
+bound bites rather than records). Read off the pixels rather than off the profile, the
+**sky band must out-lume the near field** — a profile can order its planes correctly and
+still render a frame whose sky and ground meet in the same milk.
 
 The dark plane is where this policy sits furthest from the shipped picture, and that
 distance is now recorded rather than excused. Each value bound is a **`FLOOR` / `TARGET`

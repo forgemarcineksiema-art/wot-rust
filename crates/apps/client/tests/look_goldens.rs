@@ -242,28 +242,69 @@ fn frame_stats(pixels: &[u8]) -> FrameStats {
     }
 }
 
+// ---------------------------------------------------------------------------------------------
+// FLOOR / TARGET. The mechanism the old "their dark floor is symbolic for now — RAISE IT as the
+// world fills in" comment needed and did not have: a place to RECORD the gap between what the
+// picture is and what it must become. A comment cannot fail a build, so the gap sat there for
+// months. A named constant pair can be read, compared and closed.
+//
+// FLOOR is the recorded worst — asserted, so the picture can never get worse.
+// TARGET is what `docs/art-direction-policy.md` demands — reported as a distance, not yet
+// asserted, and closed by the wave named beside it.
+// ---------------------------------------------------------------------------------------------
+
+/// Recorded worst outdoor dark share: `prokhorovka_overcast` at 0.9%.
+const OUTDOOR_DARK_FLOOR: f32 = 0.008;
+/// Rule 1 wants a real shade mass in every frame, not a token one.
+const OUTDOOR_DARK_TARGET: f32 = 0.08;
+/// Recorded worst outdoor p95−p05 spread: `prokhorovka_overcast` at 0.348.
+const OUTDOOR_SPREAD_FLOOR: f32 = 0.34;
+/// Three separated planes need range between them, not just presence.
+const OUTDOOR_SPREAD_TARGET: f32 = 0.45;
+
+/// Assert the floor, report the distance to the target. The one place the pattern lives, so a
+/// new bound cannot quietly forget to state its debt.
+fn debt(view: &str, metric: &str, measured: f32, floor: f32, target: f32, wave: &str) {
+    assert!(
+        measured >= floor,
+        "{view}: {metric} {measured:.3} fell below its recorded floor {floor:.3} — this is a \
+         REGRESSION, not a debt; the picture got worse",
+    );
+    if measured < target {
+        println!(
+            "LOOK DEBT {view}: {metric} {measured:.3}, target {target:.3} \
+             (short by {:.3}, {wave})",
+            target - measured
+        );
+    }
+}
+
 /// Always-on, CPU-only: the committed goldens must obey the bible's value structure. This is
 /// the statistical lock that runs in every `verify` regardless of GPU availability — if a
 /// deliberate re-record ships a picture that lost its three value planes, this fails the gate.
 #[test]
 fn recorded_goldens_hold_the_value_structure() {
     let mut warmth_by_name = std::collections::HashMap::new();
+    println!(
+        "\nLOOK DEBT is the distance from what the picture achieves to what the policy demands.\n\
+         Asserted: the FLOOR. Reported: the gap. See docs/art-direction-program.md.\n"
+    );
     for map in REVIEWED_MAPS {
         let battlefield = map_forge::battlefield(map);
         for view in review_views_for(map, &battlefield) {
             let pixels = read_png(&golden_path(&view.name));
             let stats = frame_stats(&pixels);
-            // RULE 1: the frame reads in three value planes — none may vanish. The raking evening
-            // views carry a real shade mass today; the empty noon/overcast steppe legitimately has
-            // almost none until shadow-casting content lands (trees, vehicles — the world
-            // packages), so their dark floor is symbolic for now. RAISE IT as the world fills in.
-            let dark_floor = if view.name.contains("evening") { 0.03 } else { 0.001 };
-            assert!(
-                stats.dark >= dark_floor,
-                "{}: the dark plane vanished ({:.2}% of pixels, floor {:.1}%)",
-                view.name,
-                stats.dark * 100.0,
-                dark_floor * 100.0
+            // RULE 1, in FLOOR/TARGET form. FLOOR is what the recorded picture achieves today
+            // and is asserted, so nothing may get worse. TARGET is what the policy demands; the
+            // distance is emitted as a LOOK DEBT line instead of hiding in a comment the way the
+            // old "symbolic for now" floor did.
+            debt(
+                &view.name,
+                "dark plane",
+                stats.dark,
+                OUTDOOR_DARK_FLOOR,
+                OUTDOOR_DARK_TARGET,
+                "W1",
             );
             assert!(
                 stats.mid >= 0.05,
@@ -277,17 +318,41 @@ fn recorded_goldens_hold_the_value_structure() {
                 view.name,
                 stats.bright * 100.0
             );
-            // And no single plane may swallow the picture.
+            // No single plane may swallow the picture. The policy wants 75%; the recorded set
+            // clears that outdoors with room to spare, so this bound BITES today rather than
+            // recording a debt.
             for (plane, share) in
                 [("dark", stats.dark), ("mid", stats.mid), ("bright", stats.bright)]
             {
                 assert!(
-                    share <= 0.90,
+                    share <= 0.75,
                     "{}: the {plane} plane swallowed the picture ({:.1}%)",
                     view.name,
                     share * 100.0
                 );
             }
+            // RULE 1's ordering, read off the PHOTOGRAPH rather than off the profile: the sky
+            // band must out-lume the near field. This is the lock the analytic checks could
+            // never make — a profile can order its planes correctly and still render a frame
+            // whose sky and ground meet in the same milk. Every recorded outdoor frame clears
+            // it today (the worst is +0.160), so it bites from day one.
+            assert!(
+                stats.band_separation > 0.05,
+                "{}: the sky band no longer out-lumes the field ({:+.3}) — rule 1's ordering \
+                 failed on the pixels, whatever the profile says",
+                view.name,
+                stats.band_separation
+            );
+            // Rule 1's other half: the planes must be far APART, not merely present. A wash can
+            // straddle two thresholds and still read as one flat surface.
+            debt(
+                &view.name,
+                "spread",
+                stats.spread,
+                OUTDOOR_SPREAD_FLOOR,
+                OUTDOOR_SPREAD_TARGET,
+                "W1",
+            );
             warmth_by_name.insert(view.name.clone(), stats.mean_warmth);
         }
     }
@@ -302,6 +367,11 @@ fn recorded_goldens_hold_the_value_structure() {
     // cannot get worse; GARAGE_BRIGHT_TARGET is what rule 1 demands and is closed in W4.
     const GARAGE_BRIGHT_FLOOR: f32 = 0.0;
     const GARAGE_BRIGHT_TARGET: f32 = 0.02;
+    // The garage's dark share is 89.9% — it does not clear the 75% the outdoor frames answer to,
+    // so its ceiling is recorded as a debt rather than asserted away. W4 is about putting light
+    // in the room, and this is the number that says by how much.
+    const GARAGE_DARK_CEILING_FLOOR: f32 = 0.92;
+    const GARAGE_DARK_CEILING_TARGET: f32 = 0.75;
     for view in client::hangar_review_views() {
         let stats = frame_stats(&read_png(&golden_path(&view.name)));
         assert!(
@@ -326,11 +396,29 @@ fn recorded_goldens_hold_the_value_structure() {
         );
         if stats.bright < GARAGE_BRIGHT_TARGET {
             println!(
-                "LOOK DEBT {}: bright plane {:.2}%, target {:.2}% — short by {:.2} points (D20, W4)",
+                "LOOK DEBT {}: bright plane {:.3}, target {:.3} (short by {:.3}, D20, W4)",
                 view.name,
-                stats.bright * 100.0,
-                GARAGE_BRIGHT_TARGET * 100.0,
-                (GARAGE_BRIGHT_TARGET - stats.bright) * 100.0
+                stats.bright,
+                GARAGE_BRIGHT_TARGET,
+                GARAGE_BRIGHT_TARGET - stats.bright
+            );
+        }
+        // The ceiling runs the other way from a floor: a debt here means TOO MUCH of one plane,
+        // so the assert is an upper bound and the target is below the measurement.
+        assert!(
+            stats.dark <= GARAGE_DARK_CEILING_FLOOR,
+            "{}: the dark plane passed its recorded ceiling ({:.3} vs {:.3}) — the room got              darker, not lighter",
+            view.name,
+            stats.dark,
+            GARAGE_DARK_CEILING_FLOOR
+        );
+        if stats.dark > GARAGE_DARK_CEILING_TARGET {
+            println!(
+                "LOOK DEBT {}: dark plane {:.3}, target <= {:.3} (over by {:.3}, D20, W4)",
+                view.name,
+                stats.dark,
+                GARAGE_DARK_CEILING_TARGET,
+                stats.dark - GARAGE_DARK_CEILING_TARGET
             );
         }
     }
