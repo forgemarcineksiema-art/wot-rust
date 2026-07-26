@@ -13,6 +13,8 @@ use renderer_wgpu::{GpuContext, OffscreenTarget, SceneRenderer};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mask = std::env::var("WOT_GPU_DETAIL").unwrap_or_else(|_| "unset".to_string());
+    // Reported too, so a buy-back measurement carries the knob it was measured under.
+    let clouds = std::env::var("WOT_CLOUD_SHADOWS").unwrap_or_else(|_| "tier-default".to_string());
     let (width, height) = (1920u32, 1080u32);
 
     let battlefield = map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2);
@@ -73,7 +75,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let _ = target.read_rgba8(&ctx)?;
         let elapsed = start.elapsed();
         println!(
-            "mask {mask}: {:7.3} ms/frame ({} frames, {:?} total)",
+            "mask {mask} / cloud_shadows {clouds}: {:7.3} ms/frame ({} frames, {:?} total)",
             elapsed.as_secs_f64() * 1000.0 / frames as f64,
             frames,
             elapsed,

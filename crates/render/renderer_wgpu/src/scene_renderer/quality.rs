@@ -11,6 +11,9 @@
 //!   shared-memory GPU's frame, which is why integrated adapters default to 2048.
 //! - `WOT_SHADOW_CASCADES=1|2` — 1 drops back to the single near box.
 //! - `WOT_SSAO=off|half|full` — SSAO render scale (off = strength 0, the capability fallback).
+//! - `WOT_CLOUD_SHADOWS=on|off` — the terrain's cloud-shade slice. Its own knob so the buy-back
+//!   can be measured as ONE variable on the min-spec: `WOT_QUALITY=high` moves five things at
+//!   once and answers nothing about this one.
 
 use renderer_api::LightingQuality;
 
@@ -69,6 +72,21 @@ pub(crate) fn apply_refraction_override(
     match refraction_env.map(str::trim) {
         Some("on" | "1") => quality.refraction = true,
         Some("off" | "0") => quality.refraction = false,
+        _ => {}
+    }
+    quality
+}
+
+/// Apply the `WOT_CLOUD_SHADOWS=on|off` (or `1|0`) override. Cloud shade is off in the shipped
+/// canonical tier, so this is how its cost is measured against the min-spec budget before any
+/// buy-back — one variable at a time, per the Żywy Step protocol. Garbage is ignored.
+pub(crate) fn apply_cloud_shadow_override(
+    mut quality: LightingQuality,
+    cloud_env: Option<&str>,
+) -> LightingQuality {
+    match cloud_env.map(str::trim) {
+        Some("on" | "1") => quality.cloud_shadows = true,
+        Some("off" | "0") => quality.cloud_shadows = false,
         _ => {}
     }
     quality
@@ -175,6 +193,28 @@ mod tests {
         );
         assert_eq!(cpu.shadow_resolution, 2048);
         assert_eq!(cpu.ssao_scale, 0.5);
+    }
+
+    /// The knob exists so a buy-back can be measured as ONE variable. If it stopped forcing the
+    /// flag both ways, a measurement would silently report the tier default and "we measured it"
+    /// would become a lie — which is worse than not measuring.
+    #[test]
+    fn the_cloud_shadow_override_forces_the_flag_both_ways_and_ignores_garbage() {
+        use super::apply_cloud_shadow_override;
+        let shipped = renderer_api::LightingQuality::canonical();
+        assert!(!shipped.cloud_shadows, "premise: the shipped tier runs no cloud shade");
+        assert!(apply_cloud_shadow_override(shipped, Some("on")).cloud_shadows);
+        assert!(apply_cloud_shadow_override(shipped, Some("1")).cloud_shadows);
+
+        let rich = renderer_api::LightingQuality::rich();
+        assert!(rich.cloud_shadows, "premise: the dev profile runs cloud shade");
+        assert!(!apply_cloud_shadow_override(rich, Some("off")).cloud_shadows);
+        assert!(!apply_cloud_shadow_override(rich, Some("0")).cloud_shadows);
+
+        // Garbage leaves the tier default untouched, in both directions.
+        assert!(!apply_cloud_shadow_override(shipped, Some("banana")).cloud_shadows);
+        assert!(!apply_cloud_shadow_override(shipped, None).cloud_shadows);
+        assert!(apply_cloud_shadow_override(rich, Some("banana")).cloud_shadows);
     }
 
     #[test]

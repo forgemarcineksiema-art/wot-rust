@@ -274,15 +274,18 @@ impl SceneRenderer {
                 "one-look profile resolved (dev override: WOT_QUALITY=high)"
             );
             quality::apply_shader_detail_override(
-                quality::apply_refraction_override(
-                    quality::resolve_lighting_quality_with_bloom(
-                        base,
-                        std::env::var("WOT_SHADOW_RES").ok().as_deref(),
-                        std::env::var("WOT_SHADOW_CASCADES").ok().as_deref(),
-                        std::env::var("WOT_SSAO").ok().as_deref(),
-                        std::env::var("WOT_BLOOM").ok().as_deref(),
+                quality::apply_cloud_shadow_override(
+                    quality::apply_refraction_override(
+                        quality::resolve_lighting_quality_with_bloom(
+                            base,
+                            std::env::var("WOT_SHADOW_RES").ok().as_deref(),
+                            std::env::var("WOT_SHADOW_CASCADES").ok().as_deref(),
+                            std::env::var("WOT_SSAO").ok().as_deref(),
+                            std::env::var("WOT_BLOOM").ok().as_deref(),
+                        ),
+                        std::env::var("WOT_REFRACTION").ok().as_deref(),
                     ),
-                    std::env::var("WOT_REFRACTION").ok().as_deref(),
+                    std::env::var("WOT_CLOUD_SHADOWS").ok().as_deref(),
                 ),
                 std::env::var("WOT_GPU_DETAIL").ok().as_deref(),
             )
