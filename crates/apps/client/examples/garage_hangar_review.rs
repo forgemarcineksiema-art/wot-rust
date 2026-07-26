@@ -36,7 +36,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         team: TeamId(1),
         vehicle,
         position: [0.0, client::TURNTABLE_TOP_M, 0.0],
-        yaw_rad: 0.6,
+        yaw_rad: scene_build::hangar::HERO_PARK_YAW,
         hull_pitch_rad: 0.0,
         hull_roll_rad: 0.0,
         turret_yaw_rad: 0.0,
@@ -65,18 +65,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let objects = tank_vehicle_render_objects(&mut catalog, &snapshot, [0.72, 0.76, 0.62]);
     let render_frame = render_frame_from_objects(objects);
 
-    // Hero orbit framing — the same numbers the garage opens with.
+    // Hero orbit framing, READ from `scene_build::hangar` rather than copied out of it. This file
+    // used to hard-code (0.60, 0.28, 14.0) and a 32 deg lens beside the constants that were moved
+    // into one place precisely so a reframing could not miss a caller — which meant the frame a
+    // human reviewed here would silently keep the OLD framing after any change to the shared
+    // numbers, while the golden moved. That is the same drift that cost the review set its
+    // foliage atlas; the fix is to have no second copy to forget.
     let pivot = hangar_camera_pivot();
-    let (orbit_yaw, orbit_pitch, orbit_distance) = (0.60_f32, 0.28_f32, 14.0_f32);
-    let horizontal = orbit_distance * orbit_pitch.cos();
-    let eye = pivot
-        + glam::Vec3::new(
-            horizontal * orbit_yaw.sin(),
-            orbit_distance * orbit_pitch.sin(),
-            horizontal * orbit_yaw.cos(),
-        );
-    let camera =
-        Camera { eye: eye.to_array(), target: pivot.to_array(), vertical_fov_degrees: 32.0 };
+    let eye = scene_build::hangar::hero_orbit_eye();
+    let camera = Camera {
+        eye: eye.to_array(),
+        target: pivot.to_array(),
+        vertical_fov_degrees: scene_build::hangar::HERO_FOV_DEGREES,
+    };
     let projection = CameraProjectionPolicy::webgpu_default();
     let view_proj = view_projection_matrix(
         &camera,

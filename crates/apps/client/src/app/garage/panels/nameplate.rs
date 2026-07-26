@@ -10,7 +10,7 @@ use crate::hud::font::{push_text, text_width};
 use crate::hud::push_panel;
 
 pub(in crate::app::garage) const NAMEPLATE_CENTER: [f32; 2] = [0.0, 0.70];
-const NAMEPLATE_HALF: [f32; 2] = [0.30, 0.047];
+pub(in crate::app::garage) const NAMEPLATE_HALF: [f32; 2] = [0.30, 0.047];
 
 pub(in crate::app::garage) fn draw(v: &mut Vec<HudVertex>, state: &GarageState, aspect: f32) {
     let kind = state.selected_vehicle();

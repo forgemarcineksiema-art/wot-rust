@@ -30,6 +30,9 @@ pub(crate) mod garage {
     pub const UNIT_DEGREES_PER_S: &str = "d/s";
     pub const UNIT_MILLIMETERS: &str = "mm";
     pub const UNIT_SECONDS: &str = "s";
+    /// Milliradians — the unit the whole aiming promise is written in (no +-25% roll, a gun that
+    /// groups where it is pointed). It belongs on the screen where the gun is chosen.
+    pub const UNIT_MRAD: &str = "mrad";
 }
 
 /// Battle HUD copy.
@@ -85,6 +88,7 @@ mod tests {
             super::garage::UNIT_DEGREES_PER_S,
             super::garage::UNIT_MILLIMETERS,
             super::garage::UNIT_SECONDS,
+            super::garage::UNIT_MRAD,
             super::battle::SPEED_UNIT,
             super::battle::DISTANCE_UNIT,
             super::battle::ZOOM_PREFIX,

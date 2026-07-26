@@ -38,14 +38,17 @@ is documented here with a reason and a status.
 - **Decision:** the prototype has no tier system and no matchmaking. The tech
   tree view groups vehicles by **nation** (USSR / Germany), not by tier.
 
-### Carousel does not scale (fixed row, no pagination)
+### Carousel scrolls a fixed window (no pagination)
 
-- **Status:** known limitation.
+- **Status:** implemented (`layout.rs::carousel_window` / `clamp_carousel_scroll`).
 - **Beta reference:** "endless" tank storage (`garage-beta-reference.md` line 31).
-- **Decision:** the carousel is a single centered row sized for the current
-  5-vehicle roster. Above ~7–8 vehicles the geometry would overflow; scroll /
-  pagination is deferred. The tech tree view is the answer to browsing a larger
-  roster without carousel geometry breaking.
+- **Decision:** the carousel is a single centered row of at most `CAR_VISIBLE`
+  cells; a larger roster slides a window through it with arrows at either end.
+  The tech tree view stays the answer to *browsing* a large roster.
+- **Watch this:** `CAR_VISIBLE` is **8** and `VehicleKind::PLAYABLE` is **8**.
+  The roster is exactly at capacity, so the scrolling path — window, clamp and
+  both arrows — has never been seen in a review render. The ninth vehicle is the
+  first one to exercise it; look at the carousel when it lands.
 
 ### Backward module cycle (Shift+click, right-click, `Q`)
 
@@ -80,8 +83,6 @@ is documented here with a reason and a status.
   unlock gating, no XP, no credits** — every `VehicleKind::PLAYABLE` vehicle
   is selectable. The tree is an organisational view, not a progression system.
 
-## Decisions
-
 ### Per-vehicle persistent loadouts (behaviour change)
 
 - **Status:** implemented (`garage/persistence.rs`, `garage/mod.rs`,
@@ -103,16 +104,42 @@ is documented here with a reason and a status.
   renders); the real client opts in via `ClientApp::enable_garage_persistence()`
   at startup.
 
+### The VEHICLE column carries the aiming promise
+
+- **Status:** implemented (`panels/stats.rs::rows`).
+- **What changed:** the column printed six numbers — HP, kW, km/h, °/s, mm of
+  penetration, seconds of reload — and stopped. It is now nine, grouped as *what
+  keeps the hull alive* (HP, hull/turret front armour), *what moves it* (power,
+  speed, traverse) and *what it kills with* (penetration, dispersion, aim time,
+  reload).
+- **Why:** the pitch of this game is a gun with no ±25% roll that groups at
+  0.1–0.3 mrad. `dispersion_mrad` and `aim_time_seconds` are that promise written
+  as numbers, and neither of them was on the screen where the player picks a gun
+  and presses Battle. Armour was the same omission on the receiving end.
+- **The plate is derived, not measured against the rows.** `layout::stat_panel()`
+  computes the panel from `STAT_ROWS`, because the six-row plate was hand-sized
+  beside its rows and the seventh would have printed onto the hangar floor.
+
+### Both screen tabs are tabs
+
+- **Status:** implemented (`panels/topbar.rs`, `layout::GARAGE_TAB_*`).
+- **What changed:** the top-bar plate stopped at y = 0.86 while the tab row
+  hit-tested 0.785–0.845, so `GARAGE` and `TECH TREE` rendered as dim grey text
+  on the hangar wall with no plate behind them. The bar now reaches down to 0.78
+  and closes on a hairline, and `GARAGE` — previously drawn as a tab that
+  answered to no click at all — returns to the hangar from the tech tree.
+- **Lock:** `the_top_bar_plate_carries_every_control_that_sits_on_it` asserts
+  every top-bar rect is inside the plate, so a control cannot hang off it again.
+
 ## Known limitations (deferred deliberately)
 
-- **Per-slot ammo counts are not edited yet.** The rack carries the default
-  fill with the garage-chosen slot pre-loaded; editing how many of each round
-  fill the rack is a follow-up.
 - **Orbit camera `MIN_PITCH = -0.05`.** The inspection camera cannot look up
   at the tank from below; it is clamped just below horizon. Acceptable for
   turntable inspection; revisit if under-hull viewing becomes a goal.
 - **Per-frame overlay allocations.** `overlay::build` re-allocates the HUD
   vertex buffer and calls `format!` per slot per frame. Fine at garage scale;
   not worth caching until profiling shows it.
-- **Cosmetic tabs.** `DEPOT`, `STORE`, `BARRACKS` tabs in the top bar are
-  decorative; only `GARAGE` and `TECH TREE` are hit-testable.
+- **The crew column is five words and a slider.** Flattening crew to one scalar
+  is the decision above, but the panel still spends the whole left third of the
+  screen restating five role names that never change. Worth revisiting when crew
+  gains anything per-role to say.

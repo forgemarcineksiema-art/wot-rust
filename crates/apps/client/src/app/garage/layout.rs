@@ -23,12 +23,24 @@ pub(super) const HAIRLINE: [f32; 4] = theme::color::HAIRLINE;
 pub(super) const CHAMFER_PANEL: f32 = theme::CHAMFER_PANEL;
 pub(super) const CHAMFER_SLOT: f32 = theme::CHAMFER_SLOT;
 
-// Top bar.
+// Top bar. The plate has to reach DOWN far enough to carry the tab row: it used to stop at 0.86
+// while the tabs sat at 0.785..0.845, so the only screen switch in the game rendered as dim grey
+// text floating on the hangar wall with no plate behind it. Locked by
+// `the_top_bar_plate_carries_every_control_that_sits_on_it`.
+pub(super) const TOP_BAR_CENTER: [f32; 2] = [0.0, 0.89];
+pub(super) const TOP_BAR_HALF: [f32; 2] = [1.0, 0.11];
+/// The bar's lower edge, where its closing hairline runs.
+pub(super) const TOP_BAR_BOTTOM: f32 = TOP_BAR_CENTER[1] - TOP_BAR_HALF[1];
 pub(super) const BATTLE_CENTER: [f32; 2] = [0.0, 0.90];
 pub(super) const BATTLE_HALF: [f32; 2] = [0.13, 0.052];
 /// Hit-test rect for the clickable TECH TREE tab.
 pub(super) const TECH_TREE_TAB_CENTER: [f32; 2] = [0.22, 0.815];
 pub(super) const TECH_TREE_TAB_HALF: [f32; 2] = [0.10, 0.03];
+/// The GARAGE tab. It used to be drawn left-aligned and was not hit-testable at all — the pair
+/// read as two tabs but only one of them answered a click. It is now drawn centred on this rect,
+/// like TECH TREE, so the highlight and the hit-test cannot disagree.
+pub(super) const GARAGE_TAB_CENTER: [f32; 2] = [-0.38, 0.815];
+pub(super) const GARAGE_TAB_HALF: [f32; 2] = [0.10, 0.03];
 /// The map row right of the Battle button: click cycles the pre-battle map choice.
 pub(super) const MAP_PICK_CENTER: [f32; 2] = [0.34, 0.90];
 pub(super) const MAP_PICK_HALF: [f32; 2] = [0.15, 0.036];
@@ -65,7 +77,23 @@ pub(super) const STAT_HALF_X: f32 = 0.20;
 // Matches `CREW_TOP`: the row-0 icon top is `STAT_TOP + 0.03`, which must clear the header hairline
 // at 0.755 (see `first_row_clears_the_header_hairline`).
 pub(super) const STAT_TOP: f32 = 0.71;
-pub(super) const STAT_PITCH: f32 = 0.105;
+// Nine rows at the old 0.105 pitch would run off the bottom of the screen. Tightened to 0.095,
+// which still leaves 0.055 of air between a 0.04 value and the next row's icon.
+pub(super) const STAT_PITCH: f32 = 0.095;
+/// Rows in the VEHICLE column. The panel is sized FROM this (`stat_panel`), so adding a stat can
+/// never leave its row hanging outside the plate — the failure the six-row panel was one row from.
+pub(super) const STAT_ROWS: usize = 9;
+/// Top edge of both side panels, and the baseline their header prints from.
+pub(super) const PANEL_TOP: f32 = 0.80;
+/// Air under the last row's glyphs before the plate ends.
+const STAT_PANEL_PAD: f32 = 0.07;
+
+/// The VEHICLE plate, derived from the rows it has to hold rather than hand-tuned beside them.
+pub(super) fn stat_panel() -> ([f32; 2], [f32; 2]) {
+    let bottom = STAT_TOP - (STAT_ROWS as f32 - 1.0) * STAT_PITCH - STAT_PANEL_PAD;
+    let half_y = (PANEL_TOP - bottom) / 2.0;
+    ([STAT_X, bottom + half_y], [STAT_HALF_X + 0.02, half_y])
+}
 
 // Bottom loadout strip: six module slots, a gap, then three ammo slots.
 pub(super) const LOADOUT_Y: f32 = -0.64;
