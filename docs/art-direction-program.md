@@ -174,6 +174,40 @@ the set (0.235) and the lowest local contrast (0.0033). Its dark share also sits
 90% "one plane swallowed the picture" bound** — a second debt beside D20, and the reason W4 is
 about light in the room rather than paint on the hero.
 
+## The debt
+
+Emitted by `cargo test -p client --test look_goldens -- --nocapture recorded_goldens`. Each line
+is a frame that clears its FLOOR (so it cannot get worse) but has not reached its TARGET. **This
+list is W1's and W4's work order.**
+
+```
+prokhorovka_clear_afternoon: dark plane 0.010, target 0.080 (short by 0.070, W1)
+prokhorovka_clear_afternoon: spread     0.437, target 0.450 (short by 0.013, W1)
+prokhorovka_overcast:        dark plane 0.009, target 0.080 (short by 0.071, W1)
+prokhorovka_overcast:        spread     0.348, target 0.450 (short by 0.102, W1)
+bystra_clear_afternoon:      dark plane 0.046, target 0.080 (short by 0.034, W1)
+bystra_rain:                 dark plane 0.074, target 0.080 (short by 0.006, W1)
+orliny_clear_afternoon:      dark plane 0.036, target 0.080 (short by 0.044, W1)
+orliny_overcast:             dark plane 0.021, target 0.080 (short by 0.059, W1)
+orliny_overcast:             spread     0.393, target 0.450 (short by 0.057, W1)
+orliny_pine_belt:            dark plane 0.062, target 0.080 (short by 0.018, W1)
+ostrogorsk_clear_afternoon:  dark plane 0.044, target 0.080 (short by 0.036, W1)
+ostrogorsk_overcast:         dark plane 0.077, target 0.080 (short by 0.003, W1)
+ostrogorsk_rain:             dark plane 0.075, target 0.080 (short by 0.005, W1)
+ostrogorsk_canyon:           dark plane 0.048, target 0.080 (short by 0.032, W1)
+garage_hero:                 bright     0.000, target 0.020 (short by 0.020, D20, W4)
+garage_hero:                 dark plane 0.899, target ≤ 0.750 (over by 0.149, D20, W4)
+```
+
+**Which frames are absent is the point.** Every golden-evening frame, the tank-at-contact frame,
+the grass band, the dawn fog and the town lane are already at target on every metric. The debt is
+concentrated in the clear and overcast days — and it is a *shade* debt, not a colour one: eleven
+of the sixteen lines are the dark plane.
+
+The two worst offenders are the two flattest pictures in the set, and they are the same two the
+baseline named: `prokhorovka_overcast` (short 0.071 dark and 0.102 spread) and
+`prokhorovka_clear_afternoon` (short 0.070 dark). Fixing those two moves the whole programme.
+
 ## Wave plan
 
 **W0 — Instrument** (the approved scope of the first program). One shared review-render path so
