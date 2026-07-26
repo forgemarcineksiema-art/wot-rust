@@ -43,6 +43,8 @@ pub(super) fn is3_blueprint() -> VehicleBlueprint {
             belt_half_thickness: 0.12,
             top_y: 0.78,
             bottom_y: 0.03,
+            // The road wheels carry the top run, so the axle IS the belt mid-height.
+            axle_y: None,
             wheel_radius: 0.275,
             wheel_count: 6,
             wheel_first_z: -2.30,

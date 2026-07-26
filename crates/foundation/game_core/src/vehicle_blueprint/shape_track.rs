@@ -7,6 +7,15 @@ pub struct TrackShape {
     pub belt_half_thickness: f32,
     pub top_y: f32,
     pub bottom_y: f32,
+    /// Hull-local Y of the road-wheel axle line, when it is NOT the belt's mid-height. `None`
+    /// takes the midpoint of `top_y..bottom_y`, which is only true where the road wheels
+    /// themselves carry the top run (the T-54 family, the German line): there the belt is
+    /// wrapped by the wheels, so its centre IS the axle. A rollered layout carries its top run
+    /// on return rollers mounted well above the wheel tops, so the belt's mid-height sits above
+    /// the axle — inferring one from the other lifts the wheels off the ground run and forces
+    /// the wheel diameter to fill a gap the rollers already span (Centurion bogie defect).
+    #[serde(default)]
+    pub axle_y: Option<f32>,
     pub wheel_radius: f32,
     pub wheel_count: usize,
     pub wheel_first_z: f32,
@@ -127,6 +136,13 @@ where
 }
 
 impl TrackShape {
+    /// Hull-local Y of the road-wheel axle line: the authored value, or the belt's mid-height
+    /// for the wheel-carried layouts where the two coincide. Every consumer that needs to know
+    /// where the wheels actually hang reads this rather than averaging the belt.
+    pub fn axle_y(&self) -> f32 {
+        self.axle_y.unwrap_or((self.top_y + self.bottom_y) * 0.5)
+    }
+
     /// Hull-local Z of each road-wheel axle, front positive: the explicit stations when authored,
     /// otherwise an even spread between the first and last wheel.
     pub fn wheel_stations(&self) -> Vec<f32> {

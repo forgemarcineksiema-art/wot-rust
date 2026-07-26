@@ -57,6 +57,8 @@ pub(super) fn tiger_ii_blueprint() -> VehicleBlueprint {
             belt_half_thickness: 0.16,
             top_y: 0.86,
             bottom_y: 0.03,
+            // The road wheels carry the top run, so the axle IS the belt mid-height.
+            axle_y: None,
             wheel_radius: 0.40,
             wheel_count: 9,
             wheel_first_z: -2.06,

@@ -35,13 +35,16 @@ fn the_bazooka_plates_are_the_armor_screen_and_hide_the_wheel_tops() {
         hull_mesh.vertices().iter().filter(|v| (v.position.x - outer_x).abs() < 1.0e-3).count();
     assert!(on_plane >= 4, "the visible plate stands on the screen plane: {on_plane}");
 
-    // And it genuinely hides the upper half of the wheels: skirt bottom at or below the axle.
-    assert!(skirt.bottom_y <= bp.track.bottom_y + bp.track.wheel_radius + 1.0e-6);
-    assert!(skirt.top_y > bp.track.bottom_y + 2.0 * bp.track.wheel_radius - 0.05);
+    // And it genuinely hides the upper half of the wheels: skirt bottom at or below the axle,
+    // skirt top above the wheel tops.
+    assert!(skirt.bottom_y <= bp.track.axle_y() + 1.0e-6);
+    assert!(skirt.top_y > bp.track.axle_y() + bp.track.wheel_radius);
 }
 
 /// Horstmann: six wheels in three bogie PAIRS — tight inside a bogie, a real gap between
-/// bogies — with three return rollers carrying the top run.
+/// bogies — with three return rollers carrying the top run. Tight is not MERGED: the two wheels
+/// of a bogie stand a hand's width apart, because a ⌀0.61 wheel on a 0.60 pitch is a wheel sunk
+/// a quarter of its diameter into its own pair (the defect this layout was born with).
 #[test]
 fn three_horstmann_bogie_pairs_with_return_rollers() {
     let bp = blueprint();
@@ -53,6 +56,16 @@ fn three_horstmann_bogie_pairs_with_return_rollers() {
         bogie_gap > pair_gap * 1.5,
         "the gap between bogies must dwarf the in-pair pitch: {bogie_gap} vs {pair_gap}"
     );
+    let daylight = pair_gap - 2.0 * bp.track.wheel_radius;
+    assert!(
+        (0.02..0.12).contains(&daylight),
+        "a bogie's wheels run close but clear: {daylight} m of daylight between the tyres"
+    );
+    // The wheels hang on the authored axle, and the rim lands on the belt bottom the blueprint
+    // documents — the tank rides on its tracks, not above them.
+    assert!((bp.track.axle_y() - 0.355).abs() < 1.0e-6, "the authored Horstmann axle line");
+    let rim = bp.track.axle_y() - bp.track.wheel_radius;
+    assert!((rim - bp.track.bottom_y).abs() < 0.03, "wheel rim {rim} vs belt bottom");
     assert_eq!(bp.track.return_rollers, 3);
     let kin = RunningGearKinematics::for_vehicle(VehicleKind::Centurion).expect("blueprint gear");
     let placements = running_gear_placements(&kin, 0.0, 0.0);
