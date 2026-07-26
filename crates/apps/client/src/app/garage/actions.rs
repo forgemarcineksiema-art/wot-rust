@@ -94,7 +94,7 @@ impl ClientApp {
             }
             GarageHit::CrewProf(dir) => self.garage.adjust_proficiency(dir),
             GarageHit::Battle => self.confirm_garage_selection(),
-            GarageHit::MapCycle(dir) => self.garage.cycle_map(dir),
+            GarageHit::MapCycle(dir) => self.cycle_battle_map(dir),
             GarageHit::OpenTechTree => self.garage.open_tech_tree(),
             GarageHit::CloseTechTree => self.garage.close_tech_tree(),
             GarageHit::Scene => self.garage.begin_drag(),
@@ -103,6 +103,14 @@ impl ClientApp {
 
     pub(in crate::app) fn garage_primary_release(&mut self) {
         self.garage.end_drag();
+    }
+
+    /// Move the pre-battle map choice. The world it names starts baking on the next garage
+    /// frame (see `poll_map_prebake`), so the player's travel to the Battle button is the
+    /// budget the bake spends and the press itself costs a GPU upload.
+    pub(in crate::app) fn cycle_battle_map(&mut self, dir: i8) {
+        self.garage.cycle_map(dir);
+        self.poll_map_prebake();
     }
 
     /// Route a right-button press in the garage. Only module slots act on it (cycling backward);
@@ -205,12 +213,19 @@ impl ClientApp {
             if let Some(map) = self.garage.selected_map() {
                 battle_config.map = map;
             }
+            let previous_map = self.session.map_id();
             self.session = crate::app::session::BattleSessionKind::Local(Box::new(
                 server::LocalAuthoritativeServer::new_random_7v7(
                     server::ServerTickConfig::default(),
                     battle_config,
                 ),
             ));
+            // A different map means a different WORLD, and the client owns its copy of it: the
+            // battlefield, the cover, the minimap, the camera leash and the baked scene all have
+            // to move with the session or the eye and the predictor stay on the old map.
+            if self.session.map_id() != previous_map {
+                self.adopt_session_map();
+            }
             self.weather_timeline = scene_build::weather_timeline::WeatherTimeline::new(
                 self.session.map_id(),
                 self.session.weather(),
@@ -224,6 +239,18 @@ impl ClientApp {
             self.tank_scars.clear();
             self.terrain_scars = crate::fx::TerrainScars::default();
             self.engine_smoke_accum_s.clear();
+            // The per-tank presentation carry-overs die with the battle they belong to. Their
+            // own upkeep drops entries whose tank left the snapshot — but a fresh roster REUSES
+            // tank ids, so last battle's blown-off turret kept flying over the healthy tank that
+            // inherited its id, wrecks kept their dented hulls, and shed track bands stayed
+            // lying on a field they were never thrown onto.
+            self.turret_popoffs.clear();
+            self.wreck_hull_meshes.clear();
+            self.track_ribbons.clear();
+            self.wreck_age_s.clear();
+            self.motion_fx.clear();
+            self.cracked_shells.clear();
+            self.track_marks = crate::fx::TrackMarks::default();
         }
         let snapshot = self.session.change_player_vehicle_with_spec_for_player(spec.clone());
         self.player_tank = self.session.player_tank();
@@ -525,6 +552,180 @@ mod tests {
         }
         app.confirm_garage_selection();
         assert_eq!(app.session.map_id(), auto);
+    }
+
+    /// A map pick must move the WHOLE client world, not just the session's id. The battlefield
+    /// the eye draws, the cover a shell stops on, and the heightmap the local predictor stands
+    /// on all have to BE the map the server is simulating. When they lagged behind, three
+    /// symptoms shipped together: every map looked identical (stale scene bake), remote tanks
+    /// floated at server heights over the previous map's ground, and the player's own hull
+    /// fought every correction because prediction and authority disagreed about the terrain.
+    #[test]
+    fn the_garage_map_pick_rebuilds_the_client_world_the_server_simulates() {
+        let target = terrain::MapId::Ostrogorsk;
+        let mut app = ClientApp::new();
+        assert_ne!(app.session.map_id(), target, "the pick has to actually change the map");
+        // The first battle's scene is baked and cached, exactly as a real deployment leaves it.
+        app.ensure_battle_scene_meshes();
+
+        app.open_garage();
+        while app.garage.selected_map() != Some(target) {
+            app.cycle_battle_map(1);
+        }
+        app.confirm_garage_selection();
+        app.ensure_battle_scene_meshes();
+
+        let expected = map_forge::battlefield(target);
+        assert_eq!(app.session.map_id(), target);
+        assert_eq!(
+            map_forge::battlefield_hash(&app.battlefield),
+            map_forge::battlefield_hash(&expected),
+            "the client battlefield must be the map the server simulates"
+        );
+        assert_eq!(
+            app.live_cover.blocking().len().min(1),
+            expected.static_cover.len().min(1),
+            "the blocking cover the predictor pushes against belongs to the new map"
+        );
+        assert_eq!(
+            app.live_cover.phase_bytes().len(),
+            expected.static_cover.len(),
+            "a stale phase ledger makes every replicated cover state land on the wrong object"
+        );
+        let (ground_vertices, _) = crate::battlefield_ground_mesh(&expected);
+        assert_eq!(
+            app.battle_scene_meshes.as_ref().expect("ensured above").ground_vertices.len(),
+            ground_vertices.len(),
+            "the cached scene bake must be invalidated by a map change, not reused"
+        );
+        assert_eq!(
+            app.minimap_static.relief.len(),
+            crate::app::minimap_build::minimap_static_layers(&expected).relief.len(),
+            "the minimap draws the map being played"
+        );
+    }
+
+    /// Deploying from the garage starts a NEW battle, and last battle's wounds do not come with
+    /// it. The per-tank presentation caches prune themselves by "is this id still in the
+    /// snapshot" — a rule a fresh roster defeats, because it hands the same tank ids to healthy
+    /// tanks. The blown-off turret then kept flying over its heir, the wreck kept its dented
+    /// hull, and the thrown track band kept lying on a field it was never shed onto.
+    #[test]
+    fn a_fresh_battle_inherits_no_wreckage_from_the_one_it_replaces() {
+        let mut app = ClientApp::new();
+        // A BOT's id: tank ids restart at 1 with every battle, so the fresh roster hands this
+        // very id to a different, healthy tank. (The player's own id is the one case that did
+        // self-clean — deploying replaces the player's tank, which retires the old id.)
+        let id = app
+            .session
+            .current_snapshot()
+            .tanks
+            .iter()
+            .map(|tank| tank.tank_id)
+            .find(|&id| id != app.player_tank)
+            .expect("a 7v7 roster has bots");
+        let mut popoff = crate::vehicle::turret_popoff::TurretPopoff::launch(
+            id,
+            VehicleKind::T54_1951,
+            glam::Vec3::new(0.0, 2.0, 0.0),
+            None,
+        );
+        popoff.tick(0.2);
+        app.turret_popoffs.insert(id, popoff);
+        app.wreck_hull_meshes.insert(id, renderer_api::MeshHandle(9_999));
+        app.track_ribbons.push(crate::vehicle::track_ribbon::TrackRibbon::shed(
+            id,
+            VehicleKind::T54_1951,
+            game_core::TrackSide::Left,
+            glam::Vec3::new(400.0, 0.0, 400.0),
+            0.0,
+            None,
+        ));
+
+        app.open_garage();
+        app.confirm_garage_selection();
+
+        assert!(
+            app.turret_popoffs.is_empty(),
+            "no turret from the last battle flies over this one"
+        );
+        assert!(app.wreck_hull_meshes.is_empty(), "the fresh roster is not born dented");
+        assert!(app.track_ribbons.is_empty(), "shed track bands do not survive the battle");
+        assert!(app.wreck_age_s.is_empty(), "nobody deploys mid burn-out");
+        assert!(app.motion_fx.is_empty(), "motion state belongs to the hull that earned it");
+    }
+
+    /// Stand in for the garage rendering at 60 FPS: `poll_map_prebake` is frame-driven, so a
+    /// test that never draws a frame never lets the pick settle or the worker be harvested.
+    fn run_garage_frames(app: &mut ClientApp, frames: usize) {
+        for _ in 0..frames {
+            app.poll_map_prebake();
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+    }
+
+    /// A settled map pick starts the world baking on a worker; the Battle press then CLAIMS that
+    /// result instead of baking a second time. This is what turns a ~300 ms stall on the press
+    /// into a GPU upload, and it has to stay wired — the fallback (bake in place) is silent, so
+    /// only a test notices when the speculation stops being claimed.
+    #[test]
+    fn the_battle_press_claims_the_bake_the_settled_map_pick_started() {
+        let target = terrain::MapId::Ostrogorsk;
+        let mut app = ClientApp::new();
+        app.open_garage();
+        while app.garage.selected_map() != Some(target) {
+            app.cycle_battle_map(1);
+        }
+        run_garage_frames(&mut app, 20);
+        assert_eq!(
+            app.map_prebake.as_ref().map(|prebake| prebake.map),
+            Some(target),
+            "a pick left standing must be baking"
+        );
+
+        app.confirm_garage_selection();
+
+        assert!(app.map_prebake.is_none(), "the press consumes the bake it asked for");
+        assert_eq!(
+            map_forge::battlefield_hash(&app.battlefield),
+            map_forge::battlefield_hash(&map_forge::battlefield(target)),
+            "the claimed bake is the map that was picked"
+        );
+        assert!(
+            app.battle_scene_meshes.is_some(),
+            "the claimed bake arrives already meshed — nothing left to do on the press"
+        );
+    }
+
+    /// Cycling the ring passes THROUGH maps on the way to the wanted one. Baking each stop
+    /// would spend a core-second per click and hitch the garage that is drawing at that very
+    /// moment, so a fly-past must schedule nothing at all.
+    #[test]
+    fn a_fly_past_through_the_map_ring_bakes_none_of_the_maps_it_crosses() {
+        let mut app = ClientApp::new();
+        app.open_garage();
+        for _ in 0..terrain::MapId::ALL.len() {
+            app.cycle_battle_map(1);
+        }
+        assert!(app.map_prebake.is_none(), "no stop crossed at click speed earns a bake");
+    }
+
+    /// The world already loaded is never speculated on: `adopt_session_map` does not even run
+    /// for an unchanged map, so a bake for it would be pure waste on the cores the garage is
+    /// using to draw.
+    #[test]
+    fn the_map_already_loaded_is_never_speculatively_baked() {
+        let mut app = ClientApp::new();
+        let loaded = app.session.map_id();
+        app.open_garage();
+        while app.garage.selected_map() != Some(loaded) {
+            app.cycle_battle_map(1);
+        }
+        run_garage_frames(&mut app, 20);
+        assert!(
+            app.map_prebake.as_ref().is_none_or(|prebake| prebake.map != loaded),
+            "the world already loaded must never be baked again"
+        );
     }
 
     #[test]
