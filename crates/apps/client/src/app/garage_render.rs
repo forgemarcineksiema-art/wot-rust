@@ -32,6 +32,9 @@ impl ClientApp {
         // The hangar has ears too: UI clicks flush here, the engine bed idles down, the wind
         // drops to a sheltered breath. No listener update — the orbit camera is not a battle ear.
         self.flush_audio(None, None);
+        // Keep the speculative map bake tracking the pick while the player is still in here —
+        // this frame's spare cores are the ones the Battle press will not have to spend.
+        self.poll_map_prebake();
         self.ensure_scene(SceneKind::Garage);
         let aspect = self.renderer.as_ref().map_or(16.0 / 9.0, WindowRenderer::aspect_ratio);
         let camera = self.garage.orbit_camera();
@@ -104,7 +107,10 @@ impl ClientApp {
     /// app-lifetime cache, so the swap costs the GPU upload alone (rebaking the full 1000 m
     /// battlefield inside the transition frame froze it for hundreds of ms on iGPU laptops).
     pub(super) fn ensure_scene(&mut self, want: SceneKind) {
-        if self.current_scene == want {
+        // `scene_upload_dirty` is the second reason to upload: the scene KIND did not change but
+        // the world behind it did (a garage map pick rebuilt the battlefield), so the slots hold
+        // the previous map and the identity check alone would keep it on screen forever.
+        if self.current_scene == want && !self.scene_upload_dirty {
             return;
         }
         if want == SceneKind::Battle {
@@ -188,6 +194,7 @@ impl ClientApp {
                 SceneKind::Battle => renderer.set_shadow_focus(None),
             }
             self.current_scene = want;
+            self.scene_upload_dirty = false;
         }
     }
 

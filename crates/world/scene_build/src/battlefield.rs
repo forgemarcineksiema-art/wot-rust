@@ -99,6 +99,20 @@ pub fn battlefield_statics_mesh_with_scars(
     assemble_statics_mesh(&battlefield_statics_buckets(battlefield, cover_states, cover_scars))
 }
 
+/// How many worker lanes a scene bake may spread `items` of work across.
+///
+/// One core is deliberately left to whoever asked for the bake: these bakes run while the
+/// garage is drawing a live 3D scene, and taking every core to shorten a background job by a
+/// few percent buys the stall back as dropped frames on the screen the player is looking at.
+pub(crate) fn bake_lane_count(items: usize) -> usize {
+    /// Past a handful of lanes the bake stops being the bottleneck and starts competing.
+    const MAX_BAKE_LANES: usize = 8;
+    std::thread::available_parallelism()
+        .map_or(1, |cores| cores.get().saturating_sub(1))
+        .clamp(1, MAX_BAKE_LANES)
+        .min(items.max(1))
+}
+
 /// The statics bake is partitioned into an XZ grid of BUCKETS plus one backdrop bucket, so a
 /// cover-phase change re-bakes one map cell instead of the whole statics mesh (urban-map
 /// program PR-04: an urban core carries 110-140 boxes, and the full bake is the ~25 ms the
@@ -212,16 +226,34 @@ pub fn battlefield_statics_bucket_mesh(
 }
 
 /// All statics buckets, in assembly order.
+///
+/// Buckets are independent by construction (each bakes the cover and scenery whose centres fall
+/// in its own cell), so a full bake spreads them across cores and collects them back in bucket
+/// order — the assembly order the renderer's slot depends on. Measured 185 ms of a 517 ms map
+/// swap before the split (release, Ostrogorsk). Partial rebuilds keep calling
+/// [`battlefield_statics_bucket_mesh`] directly: one dirty bucket does not want a thread pool.
 pub fn battlefield_statics_buckets(
     battlefield: &BattlefieldMap,
     cover_states: &[u8],
     cover_scars: &[terrain::CoverScar],
 ) -> Vec<SceneMeshData> {
-    (0..STATICS_BUCKET_COUNT)
-        .map(|bucket| {
-            battlefield_statics_bucket_mesh(battlefield, cover_states, cover_scars, bucket)
-        })
-        .collect()
+    let bake =
+        |bucket| battlefield_statics_bucket_mesh(battlefield, cover_states, cover_scars, bucket);
+    let lanes = bake_lane_count(STATICS_BUCKET_COUNT);
+    if lanes < 2 {
+        return (0..STATICS_BUCKET_COUNT).map(bake).collect();
+    }
+    let per_lane = STATICS_BUCKET_COUNT.div_ceil(lanes);
+    std::thread::scope(|scope| {
+        let handles: Vec<_> = (0..STATICS_BUCKET_COUNT)
+            .step_by(per_lane)
+            .map(|start| {
+                let end = (start + per_lane).min(STATICS_BUCKET_COUNT);
+                scope.spawn(move || (start..end).map(bake).collect::<Vec<_>>())
+            })
+            .collect();
+        handles.into_iter().flat_map(|handle| handle.join().expect("statics bucket bake")).collect()
+    })
 }
 
 /// Concatenate bucket fragments into the one statics buffer the renderer's slot takes. The
