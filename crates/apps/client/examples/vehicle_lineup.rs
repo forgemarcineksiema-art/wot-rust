@@ -89,6 +89,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let ctx = GpuContext::headless()?;
     let target = OffscreenTarget::new(&ctx, width, height)?;
     let mut renderer = SceneRenderer::for_offscreen(&ctx, &terrain_vertices, &terrain_indices)?;
+    // Imported flora samples this atlas; without it the trees behind the lineup render as the
+    // 1x1 white default.
+    renderer.set_foliage_atlas(&ctx, &scene_build::flora_pack::flora_catalog().atlas_mips);
     for (handle, mesh) in catalog.take_pending_meshes() {
         renderer.register_mesh(&ctx, handle, &mesh);
     }
