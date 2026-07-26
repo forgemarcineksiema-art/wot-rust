@@ -209,6 +209,34 @@ The two worst offenders are the two flattest pictures in the set, and they are t
 baseline named: `prokhorovka_overcast` (short 0.071 dark and 0.102 spread) and
 `prokhorovka_clear_afternoon` (short 0.070 dark). Fixing those two moves the whole programme.
 
+## The cloud-shadow buy-back: measured, and REFUSED at this cost
+
+D21 says cloud shadows never run in the shipped tier, and the arithmetic says D4 cannot close
+without them. So the buy-back was measured rather than argued, one variable at a time via the new
+`WOT_CLOUD_SHADOWS=on|off` knob, on the stated min spec (**NVIDIA GeForce MX330**, Vulkan):
+
+| probe | shadows off | shadows on | delta |
+|---|---|---|---|
+| `detail_cost_probe`, empty midfield, 1080p | 7.785 ms | 8.660 ms | +0.875 ms |
+| `flora_frame_probe`, Ostrogorsk full scatter, 1080p | **11.279 ms** | **16.116 ms** | **+4.837 ms** |
+
+The release-gate probe is the one that decides, and it lands at **96.7% of the 16.667 ms frame**.
+Its own gate prints PASS — and PASS is misleading here, because that probe draws **no vehicles, no
+FX, no HUD**. Roughly 0.55 ms is left for everything a real battle adds on top.
+
+**Refused at this cost.** Under a policy that calls a dropped frame a game bug, this is not a
+buy-back; it is a loan. The knob and these numbers ship anyway, because the next person to ask
+"why is the steppe flat?" should find the measurement instead of repeating it.
+
+The cost is concentrated where it would be: `cloud_shadow()` in `terrain.wgsl` runs a domain warp
+plus five `value_noise` evaluations **per terrain fragment**, which is why an open map with heavy
+scatter pays 5 ms while an empty midfield pays 0.9. That shape is the opening: the same coverage
+baked into a small scrolling R8 texture is one sample instead of eight ALU-heavy taps. Making it
+cheap is the work, not arguing the budget — tracked as W1's next item.
+
+Until then, D4's dark mass must come from levers that are already free: the grade (black point,
+contrast), the ambient/key balance, and the shadow-casting content W2 adds.
+
 ## Wave plan
 
 **W0 — Instrument** (the approved scope of the first program). One shared review-render path so
