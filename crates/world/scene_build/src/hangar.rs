@@ -61,6 +61,26 @@ pub fn hangar_camera_pivot() -> Vec3 {
     Vec3::new(0.0, TURNTABLE_TOP_M + 1.3, 0.0)
 }
 
+/// The garage's rest framing — the numbers the hangar opens with, and the ONE place they live.
+/// The live orbit camera, the review golden and the human-review example all read these, so a
+/// reframing moves the played picture and the locked picture together.
+pub const HERO_ORBIT_YAW: f32 = 0.60;
+pub const HERO_ORBIT_PITCH: f32 = 0.28;
+pub const HERO_ORBIT_DISTANCE: f32 = 14.0;
+/// A long lens: the hangar is a studio, and a studio does not read at a battle FOV.
+pub const HERO_FOV_DEGREES: f32 = 32.0;
+
+/// Direction from the pivot to the eye for an orbit yaw/pitch. Shared so the live camera and
+/// every offscreen review of it cannot disagree about where the camera is.
+pub fn orbit_direction(yaw: f32, pitch: f32) -> Vec3 {
+    Vec3::new(pitch.cos() * yaw.sin(), pitch.sin(), pitch.cos() * yaw.cos())
+}
+
+/// The eye the garage rests at: the hero framing applied to the turntable pivot.
+pub fn hero_orbit_eye() -> Vec3 {
+    hangar_camera_pivot() + orbit_direction(HERO_ORBIT_YAW, HERO_ORBIT_PITCH) * HERO_ORBIT_DISTANCE
+}
+
 /// The world point the garage pins the sun-shadow boxes to: the turntable the hero stands on.
 /// The orbit camera's "forward" sweeps a full circle, so the battle path's forward-offset
 /// shadow-focus heuristic would walk the boxes off the subject.

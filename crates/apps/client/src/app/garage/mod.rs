@@ -12,6 +12,14 @@ mod state_tests;
 mod types;
 
 use std::collections::HashMap;
+
+// The rest framing lives in `scene_build::hangar` so the live camera, the review golden and the
+// human-review example cannot disagree about where the hero shot is taken from. Standard framing
+// in the 5-17 m boom: the roomy maintenance-hall look with headroom to scroll both ways. The
+// 9.5 m repair-bay framing was tried and REJECTED as too close to the hero — locked by
+// `the_hero_framing_is_the_roomy_cathedral_shot`. (The hall is sized so this range never reaches
+// the walls — see camera.rs.)
+use scene_build::hangar::{HERO_ORBIT_DISTANCE, HERO_ORBIT_PITCH, HERO_ORBIT_YAW};
 use std::path::PathBuf;
 
 use game_core::{TankSpec, VehicleKind};
@@ -58,14 +66,6 @@ pub(super) struct GarageState {
     /// battle's map with a shipped catalog entry.
     selected_map: Option<terrain::MapId>,
 }
-
-const HERO_ORBIT_YAW: f32 = 0.60;
-const HERO_ORBIT_PITCH: f32 = 0.28;
-// Standard framing in the 5–17 m boom: the roomy maintenance-hall look with headroom to scroll
-// both ways. The 9.5 m repair-bay framing was tried and REJECTED as too close to the hero —
-// locked by `the_hero_framing_is_the_roomy_cathedral_shot`. (The hall is sized so this range
-// never reaches the walls — see camera.rs.)
-const HERO_ORBIT_DISTANCE: f32 = 14.0;
 
 impl Default for GarageState {
     fn default() -> Self {

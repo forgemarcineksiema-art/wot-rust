@@ -97,6 +97,27 @@ fn look_goldens_match_their_recordings() {
         }
     }
 
+    // The garage: an interior studio with its own light rig and its own lens, but the same
+    // display transform and the same locks. It had no golden at all before this.
+    let hangar_views = client::hangar_review_views();
+    let hangar_frames = client::render_hangar_review_views(&hangar_views, WIDTH, HEIGHT)
+        .expect("hangar review render");
+    for (view, pixels) in hangar_views.iter().zip(&hangar_frames) {
+        let path = golden_path(&view.name);
+        if update {
+            write_png(&path, pixels);
+            eprintln!("recorded {}", path.display());
+            continue;
+        }
+        let golden = read_png(&path);
+        assert_eq!(
+            &golden, pixels,
+            "{} drifted from its golden — if the look change is deliberate, re-record with \
+             WOT_UPDATE_GOLDENS=1 and say why in the PR",
+            view.name
+        );
+    }
+
     // The byte-exact contract this harness rests on: the same view renders identically twice
     // on one machine (the render is a pure function of scene + profile + the fixed clock).
     let map = REVIEWED_MAPS[0];
@@ -196,6 +217,49 @@ fn recorded_goldens_hold_the_value_structure() {
                 );
             }
             warmth_by_name.insert(view.name.clone(), stats.mean_warmth);
+        }
+    }
+
+    // The garage under the same value structure. A lit hangar is ALLOWED — required, even — to
+    // hold real shade, so its dark floor is the interior one rather than the empty-steppe one.
+    //
+    // Its BRIGHT plane is the program's first measured FLOOR/TARGET debt (D20). The hero frame
+    // holds 0.00% of pixels above the bright threshold: the room's own skylights and lamp faces
+    // are emissive, but the hero framing points at a wall where none of them are in shot, so the
+    // picture is entirely mid and shade. FLOOR is what it achieves today and is asserted so it
+    // cannot get worse; GARAGE_BRIGHT_TARGET is what rule 1 demands and is closed in W4.
+    const GARAGE_BRIGHT_FLOOR: f32 = 0.0;
+    const GARAGE_BRIGHT_TARGET: f32 = 0.02;
+    for view in client::hangar_review_views() {
+        let stats = frame_stats(&read_png(&golden_path(&view.name)));
+        assert!(
+            stats.dark >= 0.03,
+            "{}: the garage lost its shade ({:.2}% of pixels) — a studio without a dark side is \
+             a lightbox, not a hangar",
+            view.name,
+            stats.dark * 100.0
+        );
+        assert!(
+            stats.mid >= 0.05,
+            "{}: the garage lost its mid plane ({:.1}% of pixels)",
+            view.name,
+            stats.mid * 100.0
+        );
+        assert!(
+            stats.bright >= GARAGE_BRIGHT_FLOOR,
+            "{}: the bright plane fell below its recorded floor ({:.2}% vs {:.2}%)",
+            view.name,
+            stats.bright * 100.0,
+            GARAGE_BRIGHT_FLOOR * 100.0
+        );
+        if stats.bright < GARAGE_BRIGHT_TARGET {
+            println!(
+                "LOOK DEBT {}: bright plane {:.2}%, target {:.2}% — short by {:.2} points (D20, W4)",
+                view.name,
+                stats.bright * 100.0,
+                GARAGE_BRIGHT_TARGET * 100.0,
+                (GARAGE_BRIGHT_TARGET - stats.bright) * 100.0
+            );
         }
     }
 

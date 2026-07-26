@@ -30,7 +30,7 @@ pub use hud::{HudVitals, build_hud};
 pub use hud::font::layout::{push_text, push_text_right, text_width};
 pub use hud::primitives::{push_arc, push_bar, push_hairline, push_panel, push_quad, push_segment};
 pub use hud::theme;
-pub use look_harness::{LookHarnessError, render_review_views};
+pub use look_harness::{LookHarnessError, render_hangar_review_views, render_review_views};
 pub use loop_policy::{
     ClientLoopAction, ClientLoopEvent, ClientLoopPhase, FixedTickAccumulator, WinitLoopDriver,
 };
@@ -45,7 +45,9 @@ pub use scene_build::battlefield::{
 pub use scene_build::grass::{GRASS_MESH_HANDLE, grass_frame_objects, grass_tuft_mesh};
 pub use scene_build::grass_cards::grass_card_dressing_mesh;
 pub use scene_build::hangar::{TURNTABLE_TOP_M, hangar_camera_pivot, hangar_scene_mesh};
-pub use scene_build::review_views::{REVIEWED_MAPS, ReviewView, review_views_for};
+pub use scene_build::review_views::{
+    HangarReviewView, REVIEWED_MAPS, ReviewView, hangar_review_views, review_views_for,
+};
 pub use scene_build::terrain_maps::{bake_terrain_ground_maps, terrain_material_set_for};
 pub use scene_build::water::battlefield_water_mesh;
 pub use vehicle::asset_catalog::VehicleAssetCatalog;

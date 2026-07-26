@@ -80,6 +80,7 @@ it closes.
 | D16 | The garage room's content — catwalk, crane, workbench, stores, six worklamps, skylights — is built and sits **entirely outside** the hero framing, which points at the emptiest wall. The hero does not separate in value from its background | `garage_render.rs:142`, `hangar_gallery.rs`, `hangar_props.rs` | W4 |
 | D17 | The fleet showcase renders vehicles in pastels (powder blue, lavender, pink, cream) — the canonical "no clones" render does not show paint | `target/vehicle_lineup.png` | W3 |
 | D18 | **Orliny Pereval has no light of its own.** Its blueprint's `ClearAfternoon` preset resolves to `bystra_clear_afternoon` — the mountain pass wears the river valley's afternoon. The borrowed look is now locked, so the day it gets its own is visible in the diff | `blueprints/orliny-pereval.map.ron:114-119`, `weather.rs::preset_lighting` | W5 |
+| D20 | **The garage has no bright plane at all** — 0.00% of the hero frame sits above the bright threshold. The room's skylights and lamp faces ARE emissive, but the hero framing points at a wall where none of them are in shot, so the picture is entirely mid and shade. The program's first recorded FLOOR/TARGET debt | `goldens/look/garage_hero.png`, `look_goldens.rs` `GARAGE_BRIGHT_TARGET` | W4 |
 | D19 | Grass scatters **onto the city street**: the Ostrogorsk canyon reads as a meadow between tenements, and `RoadSurface::Cobble` reads as a dirt path rather than granite setts. Tenement facades are flat boxes with painted window rectangles over a hard black plinth | `goldens/look/ostrogorsk_canyon.png`, `grass.rs::vegetation_weight` | W2 |
 
 ## What the instrument found first
@@ -111,12 +112,15 @@ hid in prose, and prose does not fail a build.
 From this program on, every value-structure bound is a pair:
 
 - **`FLOOR`** — what today's picture actually achieves. Asserted, so it can never regress.
-- **`TARGET`** — what the policy demands. Not asserted yet; **printed on every run** as a distance.
+- **`TARGET`** — what the policy demands. Not asserted yet; emitted as a `LOOK DEBT` line with
+  the remaining distance.
 
-`verify` therefore states the debt out loud on every invocation instead of burying it in a
-comment, and a wave is done when its `FLOOR` has been raised to meet its `TARGET`. A PR that moves
-a bound re-blesses it in the same diff and says, in its description, **what changed about the
-PICTURE** — not only what changed about the code.
+Both live in the test as named constants, so the gap is a value in code rather than a sentence in
+a comment. The debt lines surface under `cargo test -- --nocapture` (cargo swallows a passing
+test's stdout, so they are not on every `verify` run); the standing record is the debt table in
+this document, refreshed whenever a wave moves a bound. A wave is done when its `FLOOR` has been
+raised to meet its `TARGET`. A PR that moves a bound re-blesses it in the same diff and says, in
+its description, **what changed about the PICTURE** — not only what changed about the code.
 
 ## Wave plan
 
