@@ -336,12 +336,29 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     // terms only, so a sunlit hull keeps its full key.
     let contact = clamp(input.shade, 0.0, 1.0);
     let screen = screen_ao(input.clip);
-    var lit =
-        albedo * light_radiance(input.world_pos, world_n, shadow, screen) * ao * cavity * contact;
+
+    // THREE ESTIMATES OF ONE QUANTITY, so the most occluded wins instead of all three
+    // multiplying. `ao` (material bake), `cavity` (material bake) and `contact` (geometry
+    // bake) each answer the same physical question — how enclosed is this point — from a
+    // different source. Multiplying them compounded the same occlusion three times over.
+    //
+    // Measured on `prokhorovka_contact_backlit`, the locked frame for the side the sun never
+    // touches: neutralising any ONE of them moved the subject median by +0.003 to +0.008 (and
+    // screen AO by +0.017), while neutralising all of them together moved it from 0.002 to
+    // 0.030 — fifteenfold. The compounding, not any single term, was what left the hull flank,
+    // tracks and road wheels as one black mass with no readable form.
+    //
+    // `min` rather than an average: a seam that any bake calls enclosed IS enclosed, so the
+    // cavities the artists authored keep their full depth. What disappears is only the
+    // accidental product of three independent bakes agreeing.
+    let surface_occlusion = min(ao, min(cavity, contact));
+    var lit = albedo
+        * light_radiance(input.world_pos, world_n, shadow, screen)
+        * surface_occlusion;
     if (input.material_id >= 5u) {
         lit += albedo
             * armor_interior_radiance(input.world_pos, world_n, input.damage_index)
-            * ao * cavity * contact;
+            * surface_occlusion;
     }
 
     // Roughness-driven specular off the key light, evaluated against the real world-space view
@@ -375,7 +392,7 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     let interior_env = select(1.0, 0.10, input.material_id >= 5u && input.material_id <= 7u);
     let fracture_env = select(1.0, 0.32, fractured_steel);
     let env = env_sky(reflect(-view_dir, world_n))
-        * smoothness * smoothness * fresnel * ao * cavity * contact * screen
+        * smoothness * smoothness * fresnel * surface_occlusion * screen
         * (1.0 - burnt * 0.85) * interior_env * fracture_env;
 
     // Perforation marks. Scorch is the permanent soot (the whole visible penetration on a
