@@ -6,7 +6,7 @@
 
 use client::{
     bake_terrain_ground_maps, battlefield_ground_and_statics_meshes, battlefield_water_mesh,
-    prokhorovka_review_views, terrain_material_set_for,
+    review_views_for, terrain_material_set_for,
 };
 use renderer_api::{Camera, CameraProjectionPolicy, view_projection_matrix};
 use renderer_wgpu::{GpuContext, OffscreenTarget, SceneRenderer};
@@ -20,7 +20,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         battlefield_ground_and_statics_meshes(&battlefield, &[]);
     let ground_maps = bake_terrain_ground_maps(&battlefield);
     let (water_v, water_i) = battlefield_water_mesh(&battlefield);
-    let view = prokhorovka_review_views(&battlefield)
+    let view = review_views_for(terrain::MapId::ProkhorovkaHill252_2, &battlefield)
         .into_iter()
         .find(|view| view.name.contains("midfield"))
         .expect("midfield review view");
