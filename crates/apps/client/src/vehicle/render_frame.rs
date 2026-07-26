@@ -1,5 +1,5 @@
 use engine::PresentationTank;
-use game_core::TankId;
+use game_core::{TankId, TeamId};
 use glam::{Mat4, Vec3};
 use net::TankSnapshot;
 use renderer_api::{ArmorApertureRender, ArmorDamageInstance, RenderFrame, RenderObject};
@@ -16,6 +16,37 @@ pub struct VehicleRenderFrame {
     pub armor_damage: Vec<ArmorDamageInstance>,
 }
 
+/// The player's own paint, and the enemy's. Named once so the two render paths cannot drift.
+const FRIENDLY_HULL: [f32; 3] = [0.30, 0.40, 0.28];
+const ENEMY_HULL: [f32; 3] = [0.46, 0.29, 0.25];
+
+/// The team the player is fighting for, read off the presentation list.
+///
+/// `None` only if the player's own tank is absent from the frame, in which case there is no team
+/// to be friendly TO and the caller falls back to the identity rule.
+fn player_team_of(tanks: &[PresentationTank], player_tank: TankId) -> Option<TeamId> {
+    tanks.iter().find(|tank| tank.id == player_tank).map(|tank| tank.team)
+}
+
+/// Friend or foe paint — keyed on TEAM.
+///
+/// It used to key on `tank.id == player_tank`, which meant the player was the only vehicle in the
+/// world wearing friendly green and **every ally rendered in the enemy's red-brown**. In a 7v7
+/// that is six of the thirteen other tanks on the field mis-identified, and no amount of looking
+/// at the picture fixes a player shooting at the wrong colour. `PresentationTank` has carried
+/// `team` all along.
+fn hull_color(
+    tank: &PresentationTank,
+    player_tank: TankId,
+    player_team: Option<TeamId>,
+) -> [f32; 3] {
+    let friendly = match player_team {
+        Some(team) => tank.team == team,
+        None => tank.id == player_tank,
+    };
+    if friendly { FRIENDLY_HULL } else { ENEMY_HULL }
+}
+
 pub fn split_vehicle_render_frame(
     catalog: &mut VehicleMeshCatalog,
     tanks: Vec<PresentationTank>,
@@ -23,9 +54,10 @@ pub fn split_vehicle_render_frame(
     player_gun_scale: f32,
 ) -> VehicleRenderFrame {
     let mut objects = Vec::new();
+    let player_team = player_team_of(&tanks, player_tank);
     for tank in tanks {
         let is_player = tank.id == player_tank;
-        let hull_color = if is_player { [0.30, 0.40, 0.28] } else { [0.46, 0.29, 0.25] };
+        let hull_color = hull_color(&tank, player_tank, player_team);
         let snapshot = render_snapshot(&tank);
         let mut tank_objects = tank_render_objects(catalog, &snapshot, hull_color);
         // The player's installed gun may have a longer/shorter barrel than the baked stock mesh;
@@ -68,9 +100,12 @@ pub fn split_pbr_vehicle_render_frame_on_terrain(
 ) -> VehicleRenderFrame {
     let mut objects = Vec::new();
     let mut armor_damage = Vec::new();
+    let player_team = player_team_of(&tanks, player_tank);
     for tank in tanks {
+        // Identity still decides the GUN: only the player's installed barrel may differ from the
+        // baked stock mesh. Paint is the team's business; the barrel is this tank's.
         let is_player = tank.id == player_tank;
-        let hull_color = if is_player { [0.30, 0.40, 0.28] } else { [0.46, 0.29, 0.25] };
+        let hull_color = hull_color(&tank, player_tank, player_team);
         let snapshot = render_snapshot(&tank);
         if let Some(damage) = armor_damage_instance(&snapshot, now_tick) {
             armor_damage.push(damage);
@@ -295,7 +330,64 @@ mod tests {
     use glam::Vec3;
     use net::TankSnapshot;
 
-    use super::{armor_damage_instance, breach_glow, breach_glow_tightness};
+    use super::{
+        ENEMY_HULL, FRIENDLY_HULL, armor_damage_instance, breach_glow, breach_glow_tightness,
+        hull_color, player_team_of,
+    };
+
+    fn presentation_tank(id: u64, team: u16) -> engine::PresentationTank {
+        engine::PresentationTank {
+            id: TankId(id),
+            team: TeamId(team),
+            vehicle: VehicleKind::T54_1951,
+            translation: [0.0, 0.0, 0.0],
+            hull_yaw_rad: 0.0,
+            turret_yaw_rad: 0.0,
+            gun_pitch_rad: 0.0,
+            hit_points: 1000,
+            destroyed_modules_mask: 0,
+            spotted_by_teams_mask: 0,
+            module_hit_points: [1; game_core::MODULE_SLOT_COUNT],
+            track_damage_mask: 0,
+            track_break_t: [None, None],
+            engine_fire: false,
+            fuel_fire: false,
+            armor_breaches: Default::default(),
+            track_left_m: 0.0,
+            track_right_m: 0.0,
+            attitude_pitch_rad: 0.0,
+            attitude_roll_rad: 0.0,
+            attitude_heave_m: 0.0,
+            accel_long_mps2: 0.0,
+            gun_recoil_m: 0.0,
+        }
+    }
+
+    /// Friend or foe is a TEAM question. Keying it on the player's own id painted every ally in
+    /// the enemy's red-brown — six of the thirteen other tanks on a 7v7 field mis-identified,
+    /// which is a readability bug, not a look one.
+    #[test]
+    fn allies_wear_the_players_paint_and_only_the_other_team_wears_the_enemys() {
+        let player = TankId(7);
+        let tanks = vec![presentation_tank(7, 1), presentation_tank(3, 1), presentation_tank(9, 2)];
+        let team = player_team_of(&tanks, player);
+        assert_eq!(team, Some(TeamId(1)), "the player's team is read off the frame");
+
+        assert_eq!(hull_color(&tanks[0], player, team), FRIENDLY_HULL, "the player");
+        assert_eq!(hull_color(&tanks[1], player, team), FRIENDLY_HULL, "an ALLY, not the player");
+        assert_eq!(hull_color(&tanks[2], player, team), ENEMY_HULL, "the other team");
+    }
+
+    /// With no player tank in the frame there is no team to be friendly to, so the rule falls
+    /// back to identity rather than inventing an allegiance and painting the field wrong.
+    #[test]
+    fn a_frame_without_the_player_falls_back_to_identity() {
+        let player = TankId(7);
+        let tanks = vec![presentation_tank(3, 1), presentation_tank(9, 2)];
+        assert_eq!(player_team_of(&tanks, player), None);
+        assert_eq!(hull_color(&tanks[0], player, None), ENEMY_HULL);
+        assert_eq!(hull_color(&tanks[1], player, None), ENEMY_HULL);
+    }
 
     fn breached_snapshot(kind: VehicleKind) -> TankSnapshot {
         let entry = Vec3::new(0.1, 1.2, 1.5);
