@@ -237,6 +237,37 @@ cheap is the work, not arguing the budget — tracked as W1's next item.
 Until then, D4's dark mass must come from levers that are already free: the grade (black point,
 contrast), the ambient/key balance, and the shadow-casting content W2 adds.
 
+## Why the vehicle's shaded half is dark: four levers, measured, all insufficient
+
+`prokhorovka_contact_backlit` locks the failure — subject median **0.002**, void **71.5%** — and
+the obvious explanations were each tested in isolation rather than argued. Every row is one
+variable changed against the shipped build, measured on the same frame:
+
+| lever tried | subject median | verdict |
+|---|---|---|
+| shipped build | 0.002 | the failure |
+| `ground_ambient_rgb` doubled | 0.010 | **rejected by `scene_lighting`'s hemispheric invariant** — "a grounded look needs the ground darker than the sky". The lock is right. |
+| screen-space AO forced fully off | 0.019 | biggest single contributor, still less than half the 0.045 target |
+| AO split so it occludes the sky half only, not the ground bounce | 0.002 | no measurable change: the split can only matter once the ground bounce is meaningful, and the invariant caps it |
+| baked cavity `contact` forced to 1.0 | 0.005 | not the cause either |
+
+**There is no single lighting lever that reaches this.** Even removing *all* screen-space
+occlusion leaves the median at less than half of target. The base signal is simply small: on a
+face the sun never touches the key contributes nothing by construction (and the shadow map
+correctly reports the hull occluding its own flank, so a wrap term on the key cannot rescue it
+either), leaving ambient and fill — small numbers — landing on running-gear materials that are
+very dark to begin with.
+
+That reframes the problem. It is not a world-lighting bug to be tuned in W1; it is that **dark
+materials under ambient-only light have nothing to show**, which is a vehicle-surface question:
+
+- **D9 is the strongest candidate.** `VehicleVariation`'s dirt lane exists and is never populated
+  in battle. Dusty running gear is far lighter than clean track steel and would read.
+- Edge/rim treatment describing the silhouette, and the curvature term D15 wants, are the others.
+
+So the readability debt moves to **W3**, and W1 keeps the lock that measures it. The lock stays
+where it is precisely so a W3 change has to answer a number.
+
 ## Wave plan
 
 **W0 — Instrument** (the approved scope of the first program). One shared review-render path so
