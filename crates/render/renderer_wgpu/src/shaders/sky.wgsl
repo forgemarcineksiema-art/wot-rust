@@ -145,9 +145,12 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
             * (1.0 - smoothstep(0.3, 0.6, dir.y));
         coverage += front * 0.5;
     }
-    // Fade the sheet out at the horizon (where it would alias into a busy band); a broad, soft
-    // mid-sky belt of cloud so the dome stops reading as one flat pale wash.
-    let band = smoothstep(0.04, 0.32, dir.y);
+    // The band the PLAYER sees. A chase camera at hull height reads dir.y ~ 0..0.25, so a belt
+    // that only opened at 0.04 and did not reach full weight until 0.32 put every cloud bank
+    // above the played frame: the sky the game actually shows was the bare horizon wash, which
+    // is why it read as milk. Open the belt just off the ground line and reach full weight
+    // inside the played band instead.
+    let band = smoothstep(0.005, 0.16, dir.y);
     let cloud = smoothstep(0.40, 0.72, coverage) * band;
     // Lit toward the sun, shaded on the far side — both DERIVED from the profile's key and
     // ambient instead of hardcoded constants, so a golden-hour sun paints the banks warm and an
@@ -186,7 +189,7 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     // Horizon treatment: a pale distance band where the air thickens against the ground line,
     // so the dome never meets the terrain as a clean gradient cut (rule 4 — one atmosphere).
     let horizon_band = (1.0 - smoothstep(0.0, 0.12, dir.y)) * smoothstep(-0.05, 0.0, dir.y);
-    color = mix(color, camera.sky_horizon_rgb * 1.06, horizon_band * 0.5);
+    color = mix(color, camera.sky_horizon_rgb * 1.06, horizon_band * 0.3);
 
     // Sun: a tight bright disc plus a soft surrounding haze, along the key light direction. The
     // profile's sun_softness fattens and softens the disc (a hazy day has a milky sun) — its own
