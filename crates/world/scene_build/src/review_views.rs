@@ -53,6 +53,47 @@ pub struct ReviewView {
 pub const CHASE_EYE_HEIGHT_M: f32 = 4.9;
 const CHASE_DISTANCE_M: f32 = 12.0;
 
+/// One canonical review of the GARAGE. The hangar is an interior studio, not a battlefield: no
+/// sky dome, no fog, its own light rig and its own long lens — so it needs its own view type
+/// rather than a battlefield view with the outdoor half left empty.
+///
+/// It belongs under the same locks all the same. The garage is the first thirty seconds of
+/// contact with the game, it grades through the same display transform (policy rule 7), and it
+/// had **no golden and no review view at all** before this.
+pub struct HangarReviewView {
+    pub name: String,
+    pub eye: [f32; 3],
+    pub target: [f32; 3],
+    pub lighting: SceneLighting,
+    /// The flat interior clear colour that stands in for a sky the hangar does not have.
+    pub background: (f64, f64, f64),
+    /// The hero on the turntable. A garage review with no vehicle reviews an empty room.
+    pub vehicle: ReviewVehicle,
+}
+
+/// The garage review set: the hero shot the garage actually opens with. The framing comes from
+/// `hangar::HERO_ORBIT_*` — the same constants the live orbit camera rests at — so a reframing
+/// moves the played picture and the locked picture together.
+pub fn hangar_review_views() -> Vec<HangarReviewView> {
+    vec![HangarReviewView {
+        name: "garage_hero".to_string(),
+        eye: crate::hangar::hero_orbit_eye().to_array(),
+        target: crate::hangar::hangar_camera_pivot().to_array(),
+        lighting: SceneLighting::garage_hero(),
+        // Matches `garage_render::ensure_scene`'s interior background.
+        background: (0.05, 0.05, 0.06),
+        vehicle: ReviewVehicle {
+            kind: VehicleKind::T54_1951,
+            position: [0.0, crate::hangar::TURNTABLE_TOP_M, 0.0],
+            // Three-quarter to the camera, as `garage_preview_snapshot` parks it.
+            yaw_rad: 0.6,
+            turret_yaw_rad: 0.0,
+            // The garage's own showroom tint, not the battle green.
+            hull_color: [0.72, 0.76, 0.62],
+        },
+    }]
+}
+
 /// The maps whose looks are locked. A map missing from here ships unreviewed, so the coverage
 /// test reads this list rather than trusting anyone to remember.
 pub const REVIEWED_MAPS: [MapId; 4] =

@@ -14,7 +14,7 @@ use game_core::{TankId, TeamId};
 use net::TankSnapshot;
 use renderer_api::{Camera, CameraProjectionPolicy, RenderFrame, view_projection_matrix};
 use renderer_wgpu::{GpuContext, OffscreenTarget, SceneRenderer};
-use scene_build::review_views::{ReviewVehicle, ReviewView};
+use scene_build::review_views::{HangarReviewView, ReviewVehicle, ReviewView};
 use terrain::MapId;
 
 /// Anything that can go wrong while standing a review frame up.
@@ -114,6 +114,70 @@ pub fn render_review_views(
 
         let camera =
             Camera { eye: view.eye, target: view.target, vertical_fov_degrees: REVIEW_FOV_DEGREES };
+        let view_proj = view_projection_matrix(
+            &camera,
+            width as f32 / height as f32,
+            projection.near_plane_m(),
+            projection.far_plane_m(),
+        );
+        renderer.render(&ctx, target.render_target(), view_proj, camera.eye)?;
+        frames.push(target.read_rgba8(&ctx)?);
+    }
+    Ok(frames)
+}
+
+/// Render the garage review views. Separate from the battlefield path on purpose: the hangar has
+/// no terrain, no water, no grass, no sky dome and no fog — it is a lit interior with one
+/// subject, and pretending otherwise would mean a review that quietly exercises passes the
+/// garage never runs.
+pub fn render_hangar_review_views(
+    views: &[HangarReviewView],
+    width: u32,
+    height: u32,
+) -> Result<Vec<Vec<u8>>, LookHarnessError> {
+    let (hangar_vertices, hangar_indices) = scene_build::hangar::hangar_scene_mesh();
+
+    let ctx = GpuContext::headless()?;
+    let target = OffscreenTarget::new(&ctx, width, height)?;
+    // The hangar shell rides the statics slot, exactly as `garage_render::ensure_scene` uploads
+    // it — same buffer, same shader, same lighting path as the live garage.
+    let mut renderer = SceneRenderer::for_offscreen(&ctx, &hangar_vertices, &hangar_indices)?;
+    renderer.scene_time_s = REVIEW_SCENE_TIME_S;
+    // The orbit camera sweeps a full circle, so the battle path's forward-offset shadow heuristic
+    // would walk the boxes off the subject. Pin them to the turntable, as the garage does.
+    renderer.shadow_focus = Some(scene_build::hangar::hangar_shadow_focus());
+
+    let mut catalog = crate::VehicleAssetCatalog::default();
+    if let Err(error) = catalog.load_forge_artifact_tree("target/forge") {
+        eprintln!(
+            "note: no Forge artifacts loaded ({error}); review vehicles use the neutral material"
+        );
+    }
+
+    let projection = CameraProjectionPolicy::webgpu_default();
+    let mut frames = Vec::with_capacity(views.len());
+    for view in views {
+        let objects = crate::tank_vehicle_render_objects(
+            &mut catalog,
+            &review_snapshot(&view.vehicle),
+            view.vehicle.hull_color,
+        );
+        for (handle, mesh) in catalog.take_pending_vehicle_meshes() {
+            renderer.register_vehicle_mesh(&ctx, handle, &mesh);
+        }
+        for (handle, maps) in catalog.take_pending_vehicle_materials() {
+            renderer.register_vehicle_material(&ctx, handle, &maps);
+        }
+        renderer.set_vehicle_render_frame(&ctx, &crate::render_frame_from_objects(objects));
+        renderer.scene_lighting = view.lighting;
+        // Interior: the gradient-sky pass is off and a flat clear colour stands behind the room.
+        renderer.set_interior_background(view.background.0, view.background.1, view.background.2);
+
+        let camera = Camera {
+            eye: view.eye,
+            target: view.target,
+            vertical_fov_degrees: scene_build::hangar::HERO_FOV_DEGREES,
+        };
         let view_proj = view_projection_matrix(
             &camera,
             width as f32 / height as f32,

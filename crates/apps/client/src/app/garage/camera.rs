@@ -91,10 +91,6 @@ impl CameraTarget {
 }
 
 /// The unit eye direction (pivot -> eye) for the given orbit angles.
-fn orbit_direction(yaw: f32, pitch: f32) -> Vec3 {
-    Vec3::new(pitch.cos() * yaw.sin(), pitch.sin(), pitch.cos() * yaw.cos())
-}
-
 /// Shortest signed difference `to - from` for an angle, so the yaw spring takes the near way round.
 fn angle_delta(from: f32, to: f32) -> f32 {
     let mut d = to - from;
@@ -110,8 +106,14 @@ fn angle_delta(from: f32, to: f32) -> f32 {
 impl GarageState {
     pub(in crate::app) fn orbit_camera(&self) -> Camera {
         let pivot = hangar_camera_pivot() + self.pivot_offset;
-        let eye = pivot + orbit_direction(self.orbit_yaw, self.orbit_pitch) * self.orbit_distance;
-        Camera { eye: eye.to_array(), target: pivot.to_array(), vertical_fov_degrees: 32.0 }
+        let eye = pivot
+            + scene_build::hangar::orbit_direction(self.orbit_yaw, self.orbit_pitch)
+                * self.orbit_distance;
+        Camera {
+            eye: eye.to_array(),
+            target: pivot.to_array(),
+            vertical_fov_degrees: scene_build::hangar::HERO_FOV_DEGREES,
+        }
     }
 
     pub(in crate::app) fn apply_drag(&mut self, dx: f32, dy: f32) {
@@ -223,7 +225,7 @@ mod tests {
         for yaw_step in 0..24 {
             let yaw = yaw_step as f32 / 24.0 * std::f32::consts::TAU;
             for &pitch in &[MIN_PITCH, 0.3, MAX_PITCH] {
-                let eye = pivot + orbit_direction(yaw, pitch) * MAX_DISTANCE;
+                let eye = pivot + scene_build::hangar::orbit_direction(yaw, pitch) * MAX_DISTANCE;
                 assert!(eye.x.abs() < half - margin, "eye clips x at yaw {yaw}, pitch {pitch}");
                 assert!(eye.z.abs() < half - margin, "eye clips z at yaw {yaw}, pitch {pitch}");
                 assert!(eye.y > margin, "eye clips the floor at yaw {yaw}, pitch {pitch}");
