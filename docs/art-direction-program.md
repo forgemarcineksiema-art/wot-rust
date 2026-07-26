@@ -268,6 +268,42 @@ materials under ambient-only light have nothing to show**, which is a vehicle-su
 So the readability debt moves to **W3**, and W1 keeps the lock that measures it. The lock stays
 where it is precisely so a W3 change has to answer a number.
 
+## The cast shadow is not soft because of the shadow map
+
+`examples/shadow_probe` measures the thing directly: it collapses an authored ground box to a
+column profile (grass cards are alpha-cutout, so their edges are the hardest thing in any outdoor
+frame and a raw max-gradient just reports a blade — measured, and it did) and reports the 10-90%
+transition width of the lit-to-shaded crossing. `WOT_SHADOW_FOCUS` was added beside the existing
+`WOT_SHADOW_RES` so the two knobs that both change `texel_world_size = 2 * focus / resolution`
+can be moved one at a time.
+
+Swept on `prokhorovka_contact_backlit`:
+
+| near-cascade resolution | focus half-box | texel | edge width |
+|---|---|---|---|
+| 1024 | 64 m | 12.5 cm | 168 px |
+| 2048 | 64 m | 6.25 cm | 164 px |
+| 8192 | 64 m | 1.56 cm | 155 px |
+| 2048 | 16 m | 1.56 cm | **155 px** |
+
+Two things fall out.
+
+**The model is confirmed and my earlier reading of it was wrong.** Settings with equal texel size
+give identical numbers — 2048/16 m matches 8192/64 m exactly. Resolution and box size are fully
+interchangeable, exactly as `texel_world_size` says. An earlier attempt concluded "box size does
+not matter" by comparing two renders *by eye*; that conclusion was an artefact of looking, not a
+property of the renderer.
+
+**And the shadow map is not what makes the edge soft.** An **eightfold** finer texel narrows the
+transition by **8%**. Raising shadow resolution — the expensive option — buys almost nothing here.
+The ~155 px transition is dominated by the grazing camera angle: a shadow boundary on the ground
+seen nearly edge-on is stretched across many pixels by perspective, which is geometry, not blur.
+
+So "the shadow cast on the terrain is poor quality" is not a resolution problem and must not be
+answered with one. What is left to investigate is the shadow's SHAPE fidelity and its contrast
+against the lit ground, not its sharpness — and any future attempt now has an instrument and a
+baseline to argue against instead of an impression.
+
 ## Wave plan
 
 **W0 — Instrument** (the approved scope of the first program). One shared review-render path so
