@@ -178,10 +178,22 @@ fn median_of(values: &mut [f32]) -> f32 {
     percentile(values, 0.5)
 }
 
+/// The whole recorded frame.
 fn frame_stats(pixels: &[u8]) -> FrameStats {
+    frame_stats_sized(pixels, WIDTH as usize, HEIGHT as usize)
+}
+
+/// A crop of one. Row width has to be passed in, because local contrast walks rows and band
+/// separation splits them — running either against the full frame's stride on a crop would
+/// silently measure nonsense.
+fn frame_stats_of(pixels: &[u8], width: usize, height: usize) -> FrameStats {
+    frame_stats_sized(pixels, width, height)
+}
+
+fn frame_stats_sized(pixels: &[u8], width: usize, height: usize) -> FrameStats {
     let (mut dark, mut mid, mut bright) = (0u32, 0u32, 0u32);
     let (mut sum_r, mut sum_b, mut sum_sat) = (0.0f64, 0.0f64, 0.0f64);
-    let mut lumas = Vec::with_capacity((WIDTH * HEIGHT) as usize);
+    let mut lumas = Vec::with_capacity(width * height);
 
     for px in pixels.chunks_exact(4) {
         let r = srgb_to_linear(px[0]);
@@ -207,19 +219,23 @@ fn frame_stats(pixels: &[u8]) -> FrameStats {
     // the surface carries detail, and it needs no second pass over the image.
     let mut contrast_sum = 0.0f64;
     let mut contrast_count = 0u32;
-    for row in lumas.chunks_exact(WIDTH as usize) {
+    for row in lumas.chunks_exact(width) {
         for pair in row.windows(2) {
             contrast_sum += (pair[1] - pair[0]).abs() as f64;
             contrast_count += 1;
         }
     }
 
-    let rows = HEIGHT as usize;
-    let top_rows = (rows * 15) / 100;
-    let bottom_start = rows - (rows * 40) / 100;
-    let mut top: Vec<f32> = lumas[..top_rows * WIDTH as usize].to_vec();
-    let mut bottom: Vec<f32> = lumas[bottom_start * WIDTH as usize..].to_vec();
-    let band_separation = median_of(&mut top) - median_of(&mut bottom);
+    let top_rows = (height * 15) / 100;
+    let bottom_start = height - (height * 40) / 100;
+    let band_separation = if top_rows == 0 || bottom_start >= height {
+        // A crop can be too short to have bands. Report no separation rather than a lie.
+        0.0
+    } else {
+        let mut top: Vec<f32> = lumas[..top_rows * width].to_vec();
+        let mut bottom: Vec<f32> = lumas[bottom_start * width..].to_vec();
+        median_of(&mut top) - median_of(&mut bottom)
+    };
 
     let n = lumas.len() as f32;
     let mut sorted = lumas;
@@ -531,6 +547,94 @@ fn no_recorded_frame_flattens_into_a_wash() {
             );
         }
     }
+}
+
+/// Crop a decoded RGBA frame to a normalized `[x0, y0, x1, y1]` box.
+fn crop(pixels: &[u8], box_n: [f32; 4]) -> (Vec<u8>, usize, usize) {
+    let x0 = (box_n[0] * WIDTH as f32) as usize;
+    let y0 = (box_n[1] * HEIGHT as f32) as usize;
+    let x1 = ((box_n[2] * WIDTH as f32) as usize).min(WIDTH as usize);
+    let y1 = ((box_n[3] * HEIGHT as f32) as usize).min(HEIGHT as usize);
+    let mut out = Vec::with_capacity((x1 - x0) * (y1 - y0) * 4);
+    for y in y0..y1 {
+        let row = y * WIDTH as usize * 4;
+        out.extend_from_slice(&pixels[row + x0 * 4..row + x1 * 4]);
+    }
+    (out, x1 - x0, y1 - y0)
+}
+
+/// THE VEHICLE MUST STAY READABLE. Nothing about the light may harm looking at the tank — it is
+/// the one object a player stares at for a whole battle, and the frame-wide statistics are blind
+/// to it: a tank is a small share of a wide frame, so the picture can lose its entire subject and
+/// still report three healthy value planes.
+///
+/// The failing case is the side the sun never touches. With `dot(n, key) <= 0` the key contributes
+/// nothing and the hemispheric ambient alone left hull, tracks and road wheels as one black
+/// silhouette — "you cannot see half the tank". This measures INSIDE the authored subject box, so
+/// that sentence is a red test rather than a remark on a screenshot.
+///
+/// Two numbers, because a silhouette fails both ways: `p95` says the brightest part of the
+/// vehicle is not crushed, `local_contrast` says the shape still has internal form rather than
+/// being one flat mass.
+#[test]
+fn the_vehicle_stays_readable_on_the_side_the_sun_never_touches() {
+    // The metrics are chosen from what the measurement actually showed, not from what sounded
+    // reasonable. The recorded backlit frame reads p95 0.588 — the turret top catches plenty of
+    // light — while its MEDIAN pixel is 0.000 and 78.4% of the subject is dark. So the brightest
+    // part of the vehicle was never the problem; the half that is void is. Median and dark share
+    // are the two numbers that say "you cannot see half the tank".
+    const SUBJECT_MEDIAN_FLOOR: f32 = 0.0;
+    const SUBJECT_MEDIAN_TARGET: f32 = 0.045;
+    /// A ceiling, so the debt runs the other way: too MUCH of the subject is void.
+    const SUBJECT_DARK_CEILING_FLOOR: f32 = 0.82;
+    const SUBJECT_DARK_CEILING_TARGET: f32 = 0.45;
+
+    let mut judged = 0;
+    for map in REVIEWED_MAPS {
+        let battlefield = map_forge::battlefield(map);
+        for view in review_views_for(map, &battlefield) {
+            let Some(box_n) = view.subject_box else { continue };
+            let (cropped, w, h) = crop(&read_png(&golden_path(&view.name)), box_n);
+            let stats = frame_stats_of(&cropped, w, h);
+            // Always reported, not only when short: the subject's numbers belong in the baseline
+            // the same way the frame's do.
+            println!(
+                "SUBJECT {} ({w}x{h}px): p05 {:.3} p50 {:.3} p95 {:.3} dark {:.1}% form {:.4}",
+                view.name,
+                stats.p05,
+                stats.p50,
+                stats.p95,
+                stats.dark * 100.0,
+                stats.local_contrast
+            );
+            debt(
+                &view.name,
+                "subject median",
+                stats.p50,
+                SUBJECT_MEDIAN_FLOOR,
+                SUBJECT_MEDIAN_TARGET,
+                "W1",
+            );
+            assert!(
+                stats.dark <= SUBJECT_DARK_CEILING_FLOOR,
+                "{}: {:.1}% of the vehicle is void, past its recorded ceiling {:.1}% — the light                  got WORSE at reading the tank",
+                view.name,
+                stats.dark * 100.0,
+                SUBJECT_DARK_CEILING_FLOOR * 100.0
+            );
+            if stats.dark > SUBJECT_DARK_CEILING_TARGET {
+                println!(
+                    "LOOK DEBT {}: subject void {:.3}, target <= {:.3} (over by {:.3}, W1)",
+                    view.name,
+                    stats.dark,
+                    SUBJECT_DARK_CEILING_TARGET,
+                    stats.dark - SUBJECT_DARK_CEILING_TARGET
+                );
+            }
+            judged += 1;
+        }
+    }
+    assert!(judged > 0, "no review view frames a subject — the vehicle is unwatched again");
 }
 
 /// Mirrors `scene_build::review_views`'s naming so the warmth lookup above can address a map's
