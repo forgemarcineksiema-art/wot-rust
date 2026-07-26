@@ -32,7 +32,10 @@ pub const GOLDEN_BAKE_HASHES: [(VehicleKind, u64); 9] = [
     (VehicleKind::T54_1951, 7_946_555_521_149_600_740_u64),
     (VehicleKind::TigerI, 14_348_569_545_994_162_257_u64),
     (VehicleKind::TigerII, 12_544_834_639_457_414_026_u64),
-    (VehicleKind::Jagdtiger, 5_179_577_790_178_323_578_u64),
+    // Re-recorded 2026-07-26 for dossier JT.3: proud cast collar, full-width casemate face,
+    // crewed roof, six-shoe racks and hull-flank stowage. Jagdtiger only — the rest of the fleet
+    // is byte-identical, which is the check that `plan_front_pad` defaults to no-op.
+    (VehicleKind::Jagdtiger, 11_913_250_302_945_068_675_u64),
     (VehicleKind::PantherII, 9_168_003_294_476_122_692_u64),
     (VehicleKind::IS3, 5_050_614_938_041_723_061_u64),
     (VehicleKind::Centurion, 15_577_022_592_979_033_199_u64),

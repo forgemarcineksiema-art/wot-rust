@@ -125,6 +125,13 @@ pub struct TurretShape {
     pub cupola_radius: f32,
     pub plan_half_width: f32,
     pub plan_half_length: f32,
+    /// Extra gameplay length AHEAD of the plan, for armor that stands proud of the turret face —
+    /// a cast collar around the gun is 250 mm of steel a shell must go through, so the hit volume
+    /// has to reach it (honesty doctrine: the collision box IS the visual footprint). It extends
+    /// the hitbox only; the lofted shape still ends at `plan_half_length`. Zero on a vehicle whose
+    /// face carries nothing proud.
+    #[serde(default)]
+    pub plan_front_pad: f32,
     /// Mantlet radius and its back/front Z on the barrel axis (shared with the gun).
     pub mantlet_radius: f32,
     pub mantlet_back_z: f32,
@@ -185,8 +192,10 @@ impl VehicleBlueprint {
         )
         .with_turret_plan(
             self.turret.plan_half_width,
-            self.turret.plan_half_length,
-            self.turret.ring_z,
+            // The pad grows the plan forward ONLY: half the pad on the length, half on the
+            // centre, so the rear face stays exactly where the shape puts it.
+            self.turret.plan_half_length + self.turret.plan_front_pad * 0.5,
+            self.turret.ring_z + self.turret.plan_front_pad * 0.5,
         )
     }
 

@@ -85,6 +85,18 @@ Before any "sealed" claim:
   alarm resolved by the material palette: an "orange sliver" on the T-54 deck was a poppy
   card from the field dressing behind the tank, not vehicle geometry — check the palette
   before cutting metal. Panther II bow furniture verified on the flat deck numerically.
+- **A LOCK THAT MEASURED THE WRONG QUANTITY (Jagdtiger JT.3, 2026-07-26)**: the JT.2 cage
+  asserted the cast collar "spans over a metre" and passed — on a collar that was buried. The
+  socket was a Z-aligned revolve on a face leaning 15°, so it sank 275 mm INTO the plate at the
+  bottom and cleared it by 52 mm at the top: a dark cave around the barrel, over a metre wide.
+  Width was never the property in question; RELIEF was. The new lock measures stand-off from the
+  armour plane (root on the plane, casting ≥0.18 m proud), and re-cutting the collar so every
+  ring seats against the leaning face immediately tripped `all_vehicles` — the casting stood
+  outside the casemate's hit volume, which is exactly the honesty doctrine doing its job. Hence
+  `TurretShape::plan_front_pad`: armour that stands proud of a face extends the hit volume that
+  reaches it. **Lesson: when a lock and a photo disagree, check whether the lock measures the
+  quantity the photo is about.** Same shape: the casemate face was chamfered to 1.80 m on a
+  2.71 m deck and no test named the width, so the front read as a small box on a wide barge.
 - **REGISTRY CLEAR (2026-07-17)**: every ledger row is fixed and render-verified except the
   parts explicitly deferred to dossier PRs — per-vehicle mantlet MASSES (rest of #6),
   per-vehicle headlight clusters on fender boxes/glacis (rest of #1/F4), and per-vehicle

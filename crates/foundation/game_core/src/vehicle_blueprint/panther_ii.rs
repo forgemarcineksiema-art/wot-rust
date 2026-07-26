@@ -90,6 +90,7 @@ pub(super) fn panther_ii_blueprint() -> VehicleBlueprint {
             cupola_radius: 0.31,
             plan_half_width: 1.02,
             plan_half_length: 1.15,
+            plan_front_pad: 0.0,
             mantlet_radius: 0.30,
             mantlet_back_z: 0.92,
             mantlet_front_z: 1.22,

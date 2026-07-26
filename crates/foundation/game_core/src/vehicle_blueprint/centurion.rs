@@ -100,6 +100,7 @@ pub(super) fn centurion_blueprint() -> VehicleBlueprint {
             cupola_radius: 0.33,
             plan_half_width: 1.10,
             plan_half_length: 1.45,
+            plan_front_pad: 0.0,
             mantlet_radius: 0.30,
             mantlet_back_z: 1.02,
             mantlet_front_z: 1.32,
