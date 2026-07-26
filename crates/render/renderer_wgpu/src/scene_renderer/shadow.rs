@@ -79,8 +79,18 @@ impl ShadowResources {
         // The caller resolved the resolution per adapter (`quality::resolve_lighting_quality`);
         // clamp to the device limit last so a capped device gets a smaller map â€” with the
         // texel-derived PCF step and normal offset shrinking with it â€” never a failed texture.
+        // `WOT_SHADOW_FOCUS=<metres>` — the near box's half-size. A DEV knob, and the reason it
+        // exists: resolution and box size both change the world size of a shadow texel, so
+        // measuring shadow sharpness needs each of them movable ALONE. Eyeballing two renders
+        // that differ in both is how a wrong conclusion gets drawn (it already did once).
+        let focus_radius_m = std::env::var("WOT_SHADOW_FOCUS")
+            .ok()
+            .and_then(|value| value.trim().parse::<f32>().ok())
+            .filter(|value| (4.0..=256.0).contains(value))
+            .unwrap_or(SunShadowParams::default().focus_radius_m);
         let params = SunShadowParams {
             resolution: resolution.min(device.limits().max_texture_dimension_2d),
+            focus_radius_m,
             ..SunShadowParams::default()
         };
         let far_params = params.far_cascade();
