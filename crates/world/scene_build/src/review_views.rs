@@ -44,6 +44,12 @@ pub struct ReviewView {
     /// The subject, when this view has one. A landscape-only review set cannot catch a hero that
     /// fails to separate from its ground, and the subject of this game is a tank.
     pub vehicle: Option<ReviewVehicle>,
+    /// Normalized `[x0, y0, x1, y1]` crop framing the subject, when the view exists to judge it.
+    /// The frame-wide value statistics cannot see a vehicle crushed to a black silhouette — a
+    /// tank is a small share of a wide frame, so a picture can lose its whole subject and still
+    /// read as three healthy value planes. Measuring INSIDE this box is what makes "you cannot
+    /// see half the tank" a failing test instead of a remark on a screenshot.
+    pub subject_box: Option<[f32; 4]>,
 }
 
 /// The player's own eye, derived from the battle chase camera rather than guessed: 12 m back at
@@ -117,6 +123,7 @@ pub fn review_views_for(map: MapId, battlefield: &BattlefieldMap) -> Vec<ReviewV
                 lighting: look.lighting,
                 sky: look.sky,
                 vehicle: None,
+                subject_box: None,
             }
         })
         .collect();
@@ -189,6 +196,7 @@ fn identity_views(
         lighting: default_look.lighting,
         sky: default_look.sky,
         vehicle: None,
+        subject_box: None,
     };
 
     match map {
@@ -236,6 +244,7 @@ fn prokhorovka_identity_views(
             lighting: evening.lighting,
             sky: evening.sky,
             vehicle: None,
+            subject_box: None,
         },
         // Żywy Step P2: a hull-height eye across 300 m of open field — the view that judges the
         // card meadow's band (blades -> cards -> ground) and its seams.
@@ -246,6 +255,34 @@ fn prokhorovka_identity_views(
             lighting: noon.lighting,
             sky: noon.sky,
             vehicle: None,
+            subject_box: None,
+        },
+        // THE READABILITY FRAME. `battlefield_default`'s key points toward +X/+Z, so a camera
+        // placed on the -X/-Z side sees the faces the sun never touches — the exact situation a
+        // player meets constantly and the one that was failing: with `dot(n, key) <= 0` the key
+        // contributes nothing, and the hemispheric ambient alone left the hull, tracks and road
+        // wheels as one black silhouette. Nothing about the light may harm reading the vehicle,
+        // so the worst case gets a locked frame of its own rather than a note on a screenshot.
+        ReviewView {
+            name: "prokhorovka_contact_backlit".to_string(),
+            // Close, like `closeup_probe`: this frame judges a SURFACE, and at chase distance
+            // the hull is too few pixels for its median to mean anything.
+            eye: [tank_x - 7.0, tank_ground + 2.3, tank_z - 4.6],
+            target: [tank_x + 0.2, tank_ground + 1.05, tank_z + 0.2],
+            lighting: noon.lighting,
+            sky: noon.sky,
+            vehicle: Some(ReviewVehicle {
+                kind: VehicleKind::T54_1951,
+                position: [tank_x, tank_ground, tank_z],
+                yaw_rad: 0.45,
+                turret_yaw_rad: 0.0,
+                hull_color: [0.30, 0.40, 0.28],
+            }),
+            // Frames the hull flank and running gear ONLY. Authored against the rendered frame
+            // and deliberately kept off the ground: the void UNDER a tank is black correctly, and
+            // a box that swallowed it would measure the cast shadow while claiming to measure the
+            // vehicle.
+            subject_box: Some([0.28, 0.46, 0.78, 0.72]),
         },
         // The subject, from the seat the player actually occupies.
         ReviewView {
@@ -267,6 +304,7 @@ fn prokhorovka_identity_views(
                 // for a whole battle.
                 hull_color: [0.30, 0.40, 0.28],
             }),
+            subject_box: None,
         },
     ]
 }
