@@ -45,7 +45,7 @@ pub use scene_build::battlefield::{
 pub use scene_build::grass::{GRASS_MESH_HANDLE, grass_frame_objects, grass_tuft_mesh};
 pub use scene_build::grass_cards::grass_card_dressing_mesh;
 pub use scene_build::hangar::{TURNTABLE_TOP_M, hangar_camera_pivot, hangar_scene_mesh};
-pub use scene_build::review_views::{ReviewView, prokhorovka_review_views};
+pub use scene_build::review_views::{REVIEWED_MAPS, ReviewView, review_views_for};
 pub use scene_build::terrain_maps::{bake_terrain_ground_maps, terrain_material_set_for};
 pub use scene_build::water::battlefield_water_mesh;
 pub use vehicle::asset_catalog::VehicleAssetCatalog;

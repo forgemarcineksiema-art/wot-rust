@@ -1,6 +1,8 @@
 //! The GPU half of the look harness (`docs/art-direction-policy.md`): renders the canonical
-//! review views (`client::prokhorovka_review_views` — the same table the human-review example
-//! draws) and locks them.
+//! review views (`client::review_views_for` — the same table the human-review examples draw)
+//! for EVERY shipped map and locks them. The weather roll is random per battle, so every look a
+//! blueprint declares is locked here; a look this file skips is a look the player meets
+//! unreviewed.
 //!
 //! Two layers:
 //! - `look_goldens_match_their_recordings` — OPT-IN via `WOT_LOOK_GOLDENS=1` (needs a GPU;
@@ -15,7 +17,8 @@ use std::fs::File;
 use std::io::{BufReader, BufWriter};
 use std::path::PathBuf;
 
-use client::{ReviewView, prokhorovka_review_views};
+use client::{REVIEWED_MAPS, ReviewView, review_views_for};
+use terrain::MapId;
 
 const WIDTH: u32 = 960;
 const HEIGHT: u32 = 540;
@@ -28,12 +31,11 @@ fn golden_path(name: &str) -> PathBuf {
     goldens_dir().join(format!("{name}.png"))
 }
 
-/// The harness renders through `client::render_review_views` — the SAME entry the
-/// `prokhorovka_views` example draws with. The two used to hand-roll this setup separately, which
-/// is exactly how both of them lost the foliage-atlas bind and started locking white trees.
-fn render_views(views: &[ReviewView]) -> Vec<Vec<u8>> {
-    client::render_review_views(terrain::MapId::ProkhorovkaHill252_2, views, WIDTH, HEIGHT)
-        .expect("review render")
+/// The harness renders through `client::render_review_views` — the SAME entry the `*_views`
+/// examples draw with. They used to hand-roll this setup separately, which is exactly how both
+/// of them lost the foliage-atlas bind and started locking white trees.
+fn render_views(map: MapId, views: &[ReviewView]) -> Vec<Vec<u8>> {
+    client::render_review_views(map, views, WIDTH, HEIGHT).expect("review render")
 }
 
 fn write_png(path: &PathBuf, pixels: &[u8]) {
@@ -73,30 +75,36 @@ fn look_goldens_match_their_recordings() {
     }
     let update = std::env::var("WOT_UPDATE_GOLDENS").as_deref() == Ok("1");
 
-    let battlefield = map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2);
-    let views = prokhorovka_review_views(&battlefield);
-    let frames = render_views(&views);
+    for map in REVIEWED_MAPS {
+        let battlefield = map_forge::battlefield(map);
+        let views = review_views_for(map, &battlefield);
+        let frames = render_views(map, &views);
 
-    for (view, pixels) in views.iter().zip(&frames) {
-        let path = golden_path(view.name);
-        if update {
-            write_png(&path, pixels);
-            eprintln!("recorded {}", path.display());
-            continue;
+        for (view, pixels) in views.iter().zip(&frames) {
+            let path = golden_path(&view.name);
+            if update {
+                write_png(&path, pixels);
+                eprintln!("recorded {}", path.display());
+                continue;
+            }
+            let golden = read_png(&path);
+            assert_eq!(
+                &golden, pixels,
+                "{} drifted from its golden — if the look change is deliberate, re-record with \
+                 WOT_UPDATE_GOLDENS=1 and say why in the PR",
+                view.name
+            );
         }
-        let golden = read_png(&path);
-        assert_eq!(
-            &golden, pixels,
-            "{} drifted from its golden — if the look change is deliberate, re-record with \
-             WOT_UPDATE_GOLDENS=1 and say why in the PR",
-            view.name
-        );
     }
 
     // The byte-exact contract this harness rests on: the same view renders identically twice
     // on one machine (the render is a pure function of scene + profile + the fixed clock).
-    let again = render_views(&views[..1]);
-    assert_eq!(frames[0], again[0], "the render must be deterministic on one machine");
+    let map = REVIEWED_MAPS[0];
+    let battlefield = map_forge::battlefield(map);
+    let views = review_views_for(map, &battlefield);
+    let once = render_views(map, &views[..1]);
+    let again = render_views(map, &views[..1]);
+    assert_eq!(once[0], again[0], "the render must be deterministic on one machine");
 }
 
 /// sRGB byte -> display-linear channel.
@@ -146,55 +154,82 @@ fn frame_stats(pixels: &[u8]) -> FrameStats {
 /// deliberate re-record ships a picture that lost its three value planes, this fails the gate.
 #[test]
 fn recorded_goldens_hold_the_value_structure() {
-    let battlefield = map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2);
-    let views = prokhorovka_review_views(&battlefield);
-
     let mut warmth_by_name = std::collections::HashMap::new();
-    for view in &views {
-        let pixels = read_png(&golden_path(view.name));
-        let stats = frame_stats(&pixels);
-        // RULE 1: the frame reads in three value planes — none may vanish. The raking evening
-        // views carry a real shade mass today; the empty noon/overcast steppe legitimately has
-        // almost none until shadow-casting content lands (trees, vehicles — the world packages),
-        // so their dark floor is symbolic for now. RAISE IT as the world fills in.
-        let dark_floor = if view.name.contains("evening") { 0.03 } else { 0.001 };
-        assert!(
-            stats.dark >= dark_floor,
-            "{}: the dark plane vanished ({:.2}% of pixels, floor {:.1}%)",
-            view.name,
-            stats.dark * 100.0,
-            dark_floor * 100.0
-        );
-        assert!(
-            stats.mid >= 0.05,
-            "{}: the mid plane vanished ({:.1}% of pixels)",
-            view.name,
-            stats.mid * 100.0
-        );
-        assert!(
-            stats.bright >= 0.03,
-            "{}: the bright plane vanished ({:.1}% of pixels)",
-            view.name,
-            stats.bright * 100.0
-        );
-        // And no single plane may swallow the picture.
-        for (plane, share) in [("dark", stats.dark), ("mid", stats.mid), ("bright", stats.bright)] {
+    for map in REVIEWED_MAPS {
+        let battlefield = map_forge::battlefield(map);
+        for view in review_views_for(map, &battlefield) {
+            let pixels = read_png(&golden_path(&view.name));
+            let stats = frame_stats(&pixels);
+            // RULE 1: the frame reads in three value planes — none may vanish. The raking evening
+            // views carry a real shade mass today; the empty noon/overcast steppe legitimately has
+            // almost none until shadow-casting content lands (trees, vehicles — the world
+            // packages), so their dark floor is symbolic for now. RAISE IT as the world fills in.
+            let dark_floor = if view.name.contains("evening") { 0.03 } else { 0.001 };
             assert!(
-                share <= 0.90,
-                "{}: the {plane} plane swallowed the picture ({:.1}%)",
+                stats.dark >= dark_floor,
+                "{}: the dark plane vanished ({:.2}% of pixels, floor {:.1}%)",
                 view.name,
-                share * 100.0
+                stats.dark * 100.0,
+                dark_floor * 100.0
             );
+            assert!(
+                stats.mid >= 0.05,
+                "{}: the mid plane vanished ({:.1}% of pixels)",
+                view.name,
+                stats.mid * 100.0
+            );
+            assert!(
+                stats.bright >= 0.03,
+                "{}: the bright plane vanished ({:.1}% of pixels)",
+                view.name,
+                stats.bright * 100.0
+            );
+            // And no single plane may swallow the picture.
+            for (plane, share) in
+                [("dark", stats.dark), ("mid", stats.mid), ("bright", stats.bright)]
+            {
+                assert!(
+                    share <= 0.90,
+                    "{}: the {plane} plane swallowed the picture ({:.1}%)",
+                    view.name,
+                    share * 100.0
+                );
+            }
+            warmth_by_name.insert(view.name.clone(), stats.mean_warmth);
         }
-        warmth_by_name.insert(view.name, stats.mean_warmth);
     }
 
-    // RULE 3, holistically: the golden evening is a genuinely warmer picture than the lead
-    // overcast — the light axis survives all the way to the final pixels.
-    let evening = warmth_by_name["prokhorovka_golden_evening"];
-    let overcast = warmth_by_name["prokhorovka_overcast"];
-    assert!(
-        evening > overcast * 1.10,
-        "the golden evening must out-warm the overcast day: evening {evening:.3} vs overcast {overcast:.3}"
-    );
+    // RULE 3, holistically and now on EVERY map that authors both: the golden evening is a
+    // genuinely warmer picture than the lead overcast. The light axis has to survive all the way
+    // to the final pixels, per map — a warm profile that greys out on one map is a broken look
+    // there, whatever the numbers say elsewhere.
+    let mut compared = 0;
+    for map in REVIEWED_MAPS {
+        let (Some(evening), Some(overcast)) = (
+            warmth_by_name.get(&format!("{}_golden_evening", map_key(map))),
+            warmth_by_name.get(&format!("{}_overcast", map_key(map))),
+        ) else {
+            continue;
+        };
+        assert!(
+            *evening > *overcast * 1.10,
+            "{map:?}: the golden evening must out-warm the overcast day: \
+             evening {evening:.3} vs overcast {overcast:.3}"
+        );
+        compared += 1;
+    }
+    assert!(compared > 0, "no map authored both a golden evening and an overcast to compare");
+}
+
+/// Mirrors `scene_build::review_views`'s naming so the warmth lookup above can address a map's
+/// frames. Kept here rather than exported: the golden filename convention is this harness's
+/// business, and a second copy that drifts would fail loudly on the first missing key.
+fn map_key(map: MapId) -> &'static str {
+    match map {
+        MapId::ProkhorovkaHill252_2 => "prokhorovka",
+        MapId::BystraValley => "bystra",
+        MapId::OrlinyPereval => "orliny",
+        MapId::Ostrogorsk => "ostrogorsk",
+        _ => "scratch",
+    }
 }

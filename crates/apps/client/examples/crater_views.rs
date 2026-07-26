@@ -148,7 +148,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     shoot(&ctx, &target, &mut renderer, furrow_eye, furrow_look, width, height, "furrow_field")?;
     // The same furrows under the warm evening grade — the light that exposed the pale-border
     // sticker on a live screenshot. Turned earth must read dark under EVERY profile.
-    if let Some(view) = client::prokhorovka_review_views(&battlefield)
+    if let Some(view) = client::review_views_for(terrain::MapId::ProkhorovkaHill252_2, &battlefield)
         .into_iter()
         .find(|view| view.name.contains("evening") || view.name.contains("golden"))
     {
