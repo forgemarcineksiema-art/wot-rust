@@ -20,7 +20,9 @@ Rust tank game ("honest tank": no ±25% RNG, 7v7, three eras). Workspace of crat
 - 1 branch = 1 PR from master; commits end with the Co-Authored-By line of the tool used.
 
 ## Where things are decided
-- `docs/urban-map-program.md` — **current program STATUS + remaining work, start here.**
+- `docs/art-direction-program.md` — **current program STATUS + defect register, start here.**
+- `docs/art-direction-policy.md` — the target look, its 7 rules and their locks.
+- `docs/urban-map-program.md` — previous program (complete); still doctrine for maps + flora.
 - `docs/map-forge-policy.md`, `docs/maps/*.md` — map authoring; editor: `cargo run -p editor`.
 - `docs/destruction-program.md`, `docs/shadow-policy.md`, `docs/vehicle-fidelity-masterplan.md`.
 - Review renders: `cargo run -p client --example <tenement|factory|flora|ostrogorsk_views>_probe`.

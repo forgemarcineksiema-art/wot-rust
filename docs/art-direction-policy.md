@@ -40,10 +40,15 @@ sky. Measured on graded display luma with the reference mid albedo `[0.28, 0.27,
   every clear-sky profile. An overcast lid compresses the range but never re-orders it.
 
 On the golden frames: every canonical view keeps all three planes alive and no plane
-swallows more than 90% of the picture. The evening views must hold a real dark mass
-(≥ 3% of pixels) today; the empty noon/overcast steppe has almost none until
-shadow-casting content lands (trees, buildings, vehicles), so their dark floor is symbolic
-for now — RAISE IT as the world fills in (tracked in the `look_goldens` test).
+swallows more than 90% of the picture.
+
+The dark plane is where this policy sits furthest from the shipped picture, and that
+distance is now recorded rather than excused. Each value bound is a **`FLOOR` / `TARGET`
+pair**: `FLOOR` is what today's frames actually achieve and is asserted so it cannot
+regress; `TARGET` is what this rule demands and is **printed on every run** as a remaining
+distance. A wave is finished when its `FLOOR` has been raised to meet its `TARGET`. The
+campaign that closes the gap — and the evidence that the gap is real — is
+[art-direction-program.md](art-direction-program.md).
 
 Silhouette readability at combat range is the second half of this rule and is already
 locked map-wide: no weather look may fog away more than 35% of a spotted target's contrast
@@ -116,8 +121,47 @@ constant hides in a shader.
 `client::prokhorovka_review_views` — the hill panorama under the hazy noon, the golden
 evening and the dry overcast, plus a golden-evening mid-field vantage. Render them with
 `cargo run -p client --example prokhorovka_views`; the goldens live in
-`crates/apps/client/tests/goldens/look/`. Grow this set deliberately (a Bystra set is the
-natural next step); every view added is a view locked.
+`crates/apps/client/tests/goldens/look/`. Every view added is a view locked.
+
+What the set must cover, because a look this policy cannot see is a look it cannot govern:
+
+- **every shipped map**, not one of them. A per-map identity that no frame locks is a wish.
+- **every weather variant the map declares.** `pick_weather` rolls at random, so a variant
+  the review set skips is a variant the player meets unreviewed.
+- **a vehicle in frame.** The subject of this game is a tank; a landscape-only review set
+  cannot catch a hero that fails to separate from its ground.
+- **the player's own eye height.** A panorama shot from above the chase camera judges a
+  frame nobody plays.
+- **the garage.** It is the first thirty seconds of contact with the game and grades through
+  the same display transform as rule 7 demands; it belongs under the same locks.
+
+**One render path.** The reviewed frame and the locked frame must be produced by the same
+code, not by two hand-rolled copies of the same setup. They were once two copies, they
+drifted, and both silently stopped binding the foliage atlas — so the committed goldens
+render imported flora as untextured white. A shared harness is the structural form of the
+promise; the convention was not enough.
+
+## The garage is the same picture
+
+Rule 7 says every pass grades through one display transform, and the garage obeys it — but
+the garage is not merely "the battle look indoors". It is a **studio**, and the studio's job
+is the opposite of the battlefield's: the field hides a tank, the hangar sells one.
+
+- **The hero is the brightest, most contrasted, most detailed thing in frame.** If the room
+  out-reads the vehicle, the shot has failed no matter how well lit the room is. The parked
+  hull must separate in value from the wall behind it.
+- **Light that is authored must be light that is seen.** The room hangs its own lamps and
+  skylights, and the profile's local pools are placed to coincide with those housings. Pools
+  the camera never frames are pools that do not exist.
+- **The framing is part of the look.** A hero framing that points at the emptiest wall makes
+  a furnished workshop read as a grey box. The camera is authored with the same care as the
+  palette.
+- **The UI is instrument, not decoration.** `hud/theme.rs` — flat graphite, chamfered
+  corners, hairline rules, one amber signal accent, no gradients or glow. It grades through
+  nothing: HUD is drawn after the display transform and answers to the theme locks alone.
+
+Garage profiles obey the same envelope ceilings as the outdoor looks (rule 6), and the
+hangar view belongs in the canonical review set above.
 
 ## How a look change lands
 
