@@ -13,6 +13,18 @@ impl InputState {
         self.shift = shift;
     }
 
+    /// Drop every held drive key. Used when a modal takes over the keyboard: the keys the player
+    /// was holding will never send their release to the battle, so latching them would drive the
+    /// hull for as long as the menu is up.
+    pub(super) fn release_driving(&mut self) {
+        self.forward = false;
+        self.back = false;
+        self.left = false;
+        self.right = false;
+        self.brake = false;
+        self.fire_pending = false;
+    }
+
     pub(super) fn throttle(&self) -> f32 {
         axis(self.forward, self.back)
     }
