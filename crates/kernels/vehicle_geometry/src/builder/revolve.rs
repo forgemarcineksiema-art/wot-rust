@@ -65,14 +65,20 @@ impl MeshBuilder {
             surface_index_end,
         );
         if cap_ends {
-            self.push_revolve_cap(origin, &spec, base, 0, -axis_vector(spec.axis));
-            self.push_revolve_cap(
-                origin,
-                &spec,
-                base,
-                spec.profile.len() as u32 - 1,
-                axis_vector(spec.axis),
-            );
+            // Which way the profile actually TRAVELS along the axis, not which way we hope it
+            // does. A profile may run backwards — the gun's bore funnel recedes from the muzzle
+            // face INTO the tube — and a cap normal taken from the axis alone then points into
+            // the solid at both ends. Both fans then wind inward (back-facing, so the pipeline's
+            // `cull_mode: Back` drops them), and once `weld_and_smooth` fuses their rims with the
+            // wall — a smooth group leaves the normal out of the weld key — every rim edge is
+            // traversed twice the same way. That shipped on seven of eight guns while every
+            // ratio, budget and silhouette gate stayed green.
+            let first = spec.profile[0].offset;
+            let last = spec.profile[spec.profile.len() - 1].offset;
+            let forward = if last >= first { 1.0 } else { -1.0 };
+            let axial = axis_vector(spec.axis) * forward;
+            self.push_revolve_cap(origin, &spec, base, 0, -axial);
+            self.push_revolve_cap(origin, &spec, base, spec.profile.len() as u32 - 1, axial);
         }
         self
     }

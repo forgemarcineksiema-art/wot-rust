@@ -100,6 +100,24 @@ Every Forge phase lands with executable checks alongside the prose:
 - the renderer loads vehicle textures and falls back cleanly when a debug texture is missing.
 - the review screenshot set contains all required camera views.
 - non-Forge vehicles keep rendering through the fallback path until migrated.
+- **the mesh-quality contract runs over the fleet, not only over test shapes.**
+  `vehicle_geometry/tests/fleet_mesh_quality.rs` audits every submesh of every procedural bake and
+  `vehicle_forge/tests/shipped_mesh_quality.rs` audits whatever `authoritative_baked_vehicle`
+  resolves to, so the hybrid benchmark is covered too. Invalid indices, non-finite vertices,
+  non-manifold edges, zero-area triangles and non-unit normals are hard failures at any count;
+  inconsistent winding carries a recorded per-vehicle CEILING that can only shrink.
+
+  This gate exists because it was missing. `quality.rs` had defined a valid mesh since the kernel
+  pivot and `mesh_quality.rs` proved the audit correct — on tetrahedra and quads. Nothing ran it on
+  a tank, and **seven of eight guns shipped with 24–28 inconsistently wound edges** while every
+  ratio, budget, silhouette and determinism gate stayed green and the Studio report printed
+  `DEFECTS` to nobody. A contract nobody runs on the real thing is a document, not a gate.
+
+  Recorded debt: **IS-3 hull, 2 edges.** The sponson underside fans two windows from the pike fold
+  (`recipes/is3_hull.rs`) that land on the same side of the `fold -> under_anchor` edge, so the two
+  triangles overlap. Unpicking it means choosing the boundary order at the pike/tub-step junction —
+  a decision about the vehicle's shape, not a mechanical repair — so it is booked rather than
+  guessed at.
 
 The canonical gate remains `./scripts/verify.ps1`. Focused crate tests (`cargo test -p
 vehicle_forge`, `-p vehicle_geometry`, `-p renderer_wgpu`) are fine for tight loops, but no phase is
