@@ -19,6 +19,11 @@ is GEOMETRY first — the bow and the turret both defeat shells by shape, not by
 - Running gear: six 550 mm road wheels per side (the IS family's small-wheel look), drive
   sprocket rear, tracks 650 mm wide, and the top run carried on THREE small return rollers per
   side — the heavy's look against the wheel-riding T-54 family.
+- **86 OMSh shoes per side**, the real count, which puts the shoe pitch at ~157 mm against the
+  historical 162 mm. This is a cost lock as much as an anatomy one: running gear is ~95% of what
+  this tank costs to draw and every shoe is its own draw call, so an invented link count is paid
+  for in frame time on every IS-3 on the field. It shipped at 104 (130 mm pitch, a fifth too fine)
+  and that cost 36 extra draws and 4 800 triangles per tank — 67 200 per 7v7 — buying nothing.
 - Low silhouette for a heavy: hull roof at 1.62 m, the stepped-down engine deck and the dome
   carrying the rest — over half a metre SHORTER than every German heavy in the lineup.
 - Tail-end signature: two external cylindrical fuel drums lying along the rear fender shelves
@@ -32,9 +37,13 @@ cage the German fleet carries:
 - `is3_pike.rs::the_visible_pike_bow_is_the_armor_pike` — the visible bow plates lie ON the
   armor volume planes (the original honesty lock, the pattern the whole fleet copied).
 - `is3_benchmark.rs` — the ±38° plan sweep is symmetric about the ridge; the dome overhangs
-  its ring and out-slopes every other dome; the D-25T wears its brake and no evacuator; three
-  return rollers per side over six 550 mm wheels; the rear fuel drums stand proud of the
-  fenders; and the 2.44 m heavy stays over 0.4 m lower than every German heavy.
+  its ring and out-slopes every other dome in the fleet; the D-25T wears its brake and no
+  evacuator; three return rollers per side over six 550 mm wheels; the OMSh belt carries its real
+  86 shoes at a historical pitch; the rear fuel drums stand proud of the fenders; and the 2.44 m
+  heavy stays over 0.4 m lower than every German heavy.
+- `is3_hull.rs` — the pike step line runs straight through the tub corner. The fold and both step
+  corners are collinear by construction, which is what forces the boundary order of the sponson
+  underside; get it wrong and the hull winds against itself (it did, for 2 edges).
 
 ## Gameplay shape
 

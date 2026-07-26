@@ -13,17 +13,11 @@ use game_core::VehicleKind;
 use vehicle_forge::authoritative_baked_vehicle;
 use vehicle_geometry::OPEN_OR_CLOSED_MESH;
 
-/// Winding debt on the shipped meshes, recorded as a CEILING so it can only shrink. Mirrors
-/// `vehicle_geometry::tests::fleet_mesh_quality::RECORDED_WINDING_CEILING` — the IS-3's sponson
-/// underside fans two overlapping windows from the pike fold, and unpicking that overlap is a
-/// decision about the pike/tub-step junction rather than a mechanical repair.
-fn winding_ceiling(kind: VehicleKind) -> usize {
-    match kind {
-        VehicleKind::IS3 => 2,
-        _ => 0,
-    }
-}
-
+/// No winding debt survives on the shipped meshes. This mirrored
+/// `vehicle_geometry::tests::fleet_mesh_quality::RECORDED_WINDING_CEILING`, whose last entry was
+/// the IS-3 hull's overlapping sponson-underside windows; that overlap turned out to be forced
+/// geometry rather than a shape decision and went to zero. Debt gets booked in THAT list, with
+/// its reason — here the bar is simply zero, on the meshes the game actually draws.
 #[test]
 fn every_shipped_vehicle_mesh_obeys_the_quality_contract() {
     for kind in VehicleKind::PLAYABLE {
@@ -40,16 +34,11 @@ fn every_shipped_vehicle_mesh_obeys_the_quality_contract() {
             assert_eq!(report.non_unit_normals, 0, "{where_}: normals are not unit length");
             winding += report.inconsistent_winding_edges;
         }
-        let allowed = winding_ceiling(kind);
-        assert!(
-            winding <= allowed,
-            "shipped {kind:?}: {winding} inconsistently wound edges across its submeshes, past \
-             its recorded ceiling {allowed} — those faces light backwards or vanish under \
-             backface culling"
+        assert_eq!(
+            winding, 0,
+            "shipped {kind:?}: {winding} inconsistently wound edges across its submeshes — those \
+             faces light backwards or vanish under backface culling"
         );
-        if winding > 0 {
-            println!("MESH DEBT shipped {kind:?}: {winding} inconsistently wound edges (target 0)");
-        }
     }
 }
 

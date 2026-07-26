@@ -481,6 +481,50 @@ fn is3_and_centurion_parts_fit_the_hitbox_and_the_baked_vehicle() {
     }
 }
 
+/// EVERY DECLARED PART MUST BE MADE OF SOMETHING.
+///
+/// The part graph is a vehicle's semantic model — the report, the manifest and the Studio all read
+/// it — and the containment gate above proves parts do not escape the vehicle. Nothing proved the
+/// other direction: that a declared part answers to geometry that EXISTS. Containment cannot,
+/// because an empty box inside the vehicle's bounds passes it exactly like a full one.
+///
+/// So the Jagdtiger shipped a commander's cupola declared on the empty LEFT flank of its roof
+/// while the casting stood on the right — the derived table placed every cupola at
+/// `turret.min.x * 0.4`, a bounding-box fraction that is always negative, instead of reading the
+/// `cupola_x` the blueprint had already authored. Every gate stayed green.
+///
+/// Running gear is excluded: its geometry is instanced per shoe and wheel at draw time and is
+/// deliberately absent from the baked submeshes.
+#[test]
+fn every_declared_part_answers_to_real_geometry() {
+    for kind in VehicleKind::PLAYABLE {
+        let Some(graph) = ForgePartGraph::for_vehicle(kind) else { continue };
+        let baked = vehicle_forge::authoritative_baked_vehicle(kind).expect("shipped bake");
+        let positions: Vec<glam::Vec3> = baked
+            .submeshes()
+            .iter()
+            .flat_map(|s| s.mesh.vertices().iter().map(|v| v.position))
+            .collect();
+
+        for part in graph.parts() {
+            if part.kind().gameplay_role() == GameplayRole::RunningGear {
+                continue;
+            }
+            let b = part.bounds();
+            let inside =
+                positions.iter().filter(|p| p.cmpge(b.min).all() && p.cmple(b.max).all()).count();
+            assert!(
+                inside > 0,
+                "{kind:?} declares {:?} in a box that holds NO geometry ({:?} .. {:?}) — the part \
+                 graph describes a vehicle that is not the one being drawn",
+                part.kind(),
+                b.min,
+                b.max,
+            );
+        }
+    }
+}
+
 #[test]
 fn jagdtiger_part_graph_reads_as_a_fixed_casemate() {
     let graph = ForgePartGraph::for_vehicle(VehicleKind::Jagdtiger).expect("Jagdtiger graph");

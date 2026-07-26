@@ -45,11 +45,14 @@ fn the_turtle_dome_overhangs_its_ring_and_out_slopes_every_dome() {
         bp.turret.base_radius,
         bp.turret.ring_radius
     );
-    for kind in [VehicleKind::T54_1951, VehicleKind::T54_1951] {
-        let other = VehicleBlueprint::for_vehicle(kind).expect("blueprint");
+    // "Every dome" means every dome: this listed the T-54 twice and checked nothing else.
+    for kind in VehicleKind::PLAYABLE.into_iter().filter(|k| *k != VehicleKind::IS3) {
+        let Some(other) = VehicleBlueprint::for_vehicle(kind) else { continue };
         assert!(
             bp.turret.front_slope_deg > other.turret.front_slope_deg + 10.0,
-            "{kind:?} must not out-slope the IS-3 dome face"
+            "{kind:?} must not out-slope the IS-3 dome face: {} vs {}",
+            other.turret.front_slope_deg,
+            bp.turret.front_slope_deg
         );
     }
 }
@@ -78,6 +81,35 @@ fn three_return_rollers_carry_the_top_run_over_six_small_wheels() {
         .filter(|p| p.part == GearPart::ReturnRoller)
         .count();
     assert_eq!(rollers, 6, "three rollers per side");
+}
+
+/// The OMSh belt carries the IS family's real 86 shoes per side, which puts the shoe pitch on
+/// the historical 162 mm rather than a fifth under it.
+///
+/// This is a cost lock as much as an anatomy one. Running gear is 95% of what this tank costs to
+/// draw — every shoe is its own draw — so an invented link count is paid for in frame time on
+/// every IS-3 on the field, at min spec, forever. The T-54 next door authors its real 90; the
+/// IS-3 shipped 104 against a real 86, which is 36 extra draws per tank buying nothing.
+#[test]
+fn the_omsh_belt_carries_its_real_86_shoes_at_a_historical_pitch() {
+    let bp = blueprint();
+    assert_eq!(bp.track.link_count, Some(86), "the IS family's real shoe count, per side");
+
+    let kin = RunningGearKinematics::for_vehicle(VehicleKind::IS3).expect("blueprint gear");
+    assert_eq!(kin.link_count(), 86);
+    let pitch_mm = kin.belt_length() / kin.link_count() as f32 * 1000.0;
+    assert!(
+        (pitch_mm - 162.0).abs() < 12.0,
+        "OMSh shoe pitch must read historical (162 mm): measured {pitch_mm:.1} mm"
+    );
+
+    // And the belt is still dense enough to read as a segmented band, not a chain of boxes.
+    let placements = running_gear_placements(&kin, 0.0, 0.0);
+    assert_eq!(
+        placements.iter().filter(|p| p.part == GearPart::Link).count(),
+        86 * 2,
+        "86 shoes per side, both sides drawn"
+    );
 }
 
 /// The rear fuel drums: one cylindrical tank lying along each rear fender — visible stowage

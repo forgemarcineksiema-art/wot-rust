@@ -17,6 +17,7 @@ use vehicle_geometry::{MaterialRole, MeshBounds};
 use crate::part_graph::{ForgePart, ForgePartKind, PartAnchor, part};
 
 /// Build a coarse part graph from baked submesh bounds plus the reference running-gear count.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn geometry_derived_parts(
     wheel_count: usize,
     traverses: bool,
@@ -24,14 +25,19 @@ pub(crate) fn geometry_derived_parts(
     turret: MeshBounds,
     gun: MeshBounds,
     mounts: &MountFrames,
+    turret_shape: &game_core::TurretShape,
 ) -> Vec<ForgePart> {
     let lower_top = hull.min.y + 0.45 * (hull.max.y - hull.min.y);
     let lower_mid = 0.5 * (hull.min.y + lower_top);
     let inset = 0.92;
     let trun = mounts.gun_trunnion.translation;
     let m = 0.30;
-    let cx = turret.min.x * 0.4;
-    let cz = turret.min.z * 0.3;
+    // The commander's station comes from the blueprint that placed it. This used to be
+    // `turret.min.x * 0.4` / `turret.min.z * 0.3` — invented from the bounding box, and since
+    // `turret.min.x` is always negative it declared EVERY cupola on the left side of the roof.
+    // The Jagdtiger's sits at x = +0.45, so its part box was empty air on the wrong flank.
+    let (cx, cz) = (turret_shape.cupola_x, turret_shape.cupola_z);
+    let cr = turret_shape.cupola_radius.max(0.10);
 
     vec![
         part(
@@ -97,9 +103,9 @@ pub(crate) fn geometry_derived_parts(
             PartAnchor::TurretRing,
             MaterialRole::RolledArmor,
             Vec3::new(cx, turret.max.y, cz),
-            Vec3::new(cx - 0.18, turret.max.y - 0.12, cz - 0.18),
-            Vec3::new(cx + 0.18, turret.max.y + 0.12, cz + 0.18),
-            "Derived from baked bounds: commander's cupola on the turret/casemate roof.",
+            Vec3::new(cx - cr, turret.max.y - 0.12, cz - cr),
+            Vec3::new(cx + cr, turret.max.y + 0.12, cz + cr),
+            "Blueprint commander's station on the turret/casemate roof, at its authored radius.",
         ),
     ]
 }

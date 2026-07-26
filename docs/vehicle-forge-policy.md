@@ -113,11 +113,27 @@ Every Forge phase lands with executable checks alongside the prose:
   ratio, budget, silhouette and determinism gate stayed green and the Studio report printed
   `DEFECTS` to nobody. A contract nobody runs on the real thing is a document, not a gate.
 
-  Recorded debt: **IS-3 hull, 2 edges.** The sponson underside fans two windows from the pike fold
-  (`recipes/is3_hull.rs`) that land on the same side of the `fold -> under_anchor` edge, so the two
-  triangles overlap. Unpicking it means choosing the boundary order at the pike/tub-step junction —
-  a decision about the vehicle's shape, not a mechanical repair — so it is booked rather than
-  guessed at.
+  Recorded debt: **none — the whole fleet winds consistently.** The last entry was the IS-3 hull's
+  2 edges, booked as a shape decision at the pike/tub-step junction. It was not one. Both pike
+  planes pass through the fold and carry the same plan sweep, so at the fold's own height their
+  plan traces have the identical slope `-tan(sweep)` — the glacis and lower slopes cancel — which
+  makes the fold, the tub step corner and the step corner **exactly collinear for any slopes,
+  sweep or widths**. Fanning across that line swallows the middle window whole; walking the
+  boundary through it tiles the region once. The boundary order was forced by the geometry, not
+  chosen. `recipes/is3_hull.rs` now locks the collinearity, so the walk stays derivable if the
+  hull's proportions ever move.
+
+  The lesson generalises: before booking debt as a shape decision, check whether the shape already
+  decided. The ceiling mechanism stays for debt that is genuinely a choice.
+
+- **every declared semantic part must answer to geometry that exists.**
+  `vehicle_forge/tests/part_graph.rs::every_declared_part_answers_to_real_geometry` requires each
+  non-running-gear part's bounds to contain at least one baked vertex. Containment gates only prove
+  parts do not escape the vehicle; they pass an EMPTY box exactly like a full one. The Jagdtiger
+  shipped a commander's cupola declared on the empty left flank of its roof while the casting stood
+  on the right, because the derived part table placed every cupola at `turret.min.x * 0.4` — a
+  bounding-box fraction that is always negative — instead of reading the `cupola_x` the blueprint
+  had already authored. Derived parts read the blueprint now.
 
 The canonical gate remains `./scripts/verify.ps1`. Focused crate tests (`cargo test -p
 vehicle_forge`, `-p vehicle_geometry`, `-p renderer_wgpu`) are fine for tight loops, but no phase is

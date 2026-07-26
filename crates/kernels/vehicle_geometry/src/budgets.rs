@@ -34,6 +34,11 @@ pub const VEHICLE_BUDGETS: VehicleBudgets = VehicleBudgets {
 /// vehicle pipeline's `cull_mode: Back` — and their welded rims left 24–28 inconsistently wound
 /// edges per gun. Vertex POSITIONS are untouched: only the cap index order and the welded rim
 /// normals move, so silhouette, ratios and budgets are unchanged.
+///
+/// The 2026-07-26 IS-3-only re-record walks the sponson-underside boundary through the tub step
+/// corner instead of fanning across it (`recipes/is3_hull.rs`), clearing the fleet's last 2
+/// inconsistently wound edges. One triangle's corner moves along a line it was already on, so the
+/// silhouette is identical; no other vehicle's hash moves.
 pub const GOLDEN_BAKE_HASHES: [(VehicleKind, u64); 9] = [
     (VehicleKind::PrototypeMedium, 17_689_896_064_511_691_746_u64),
     (VehicleKind::T54_1951, 1_352_245_318_290_454_355_u64),
@@ -41,7 +46,7 @@ pub const GOLDEN_BAKE_HASHES: [(VehicleKind, u64); 9] = [
     (VehicleKind::TigerII, 7_566_020_042_162_252_338_u64),
     (VehicleKind::Jagdtiger, 12_913_696_618_745_343_377_u64),
     (VehicleKind::PantherII, 2_837_722_706_443_665_062_u64),
-    (VehicleKind::IS3, 14_582_427_114_490_901_924_u64),
+    (VehicleKind::IS3, 764_441_410_926_956_128_u64),
     (VehicleKind::Centurion, 7_860_412_385_872_908_373_u64),
     (VehicleKind::T34_85, 10_310_688_321_347_204_439_u64),
 ];

@@ -18,13 +18,15 @@ use vehicle_geometry::{
 /// FLOOR/TARGET form the art-direction programme uses: the count is a CEILING, so the defect can
 /// only ever shrink, and it is printed on every run so it cannot be forgotten.
 ///
-/// The IS-3's sponson underside fans two windows from the pike fold
-/// (`recipes/is3_hull.rs`) that land on the SAME side of the `fold -> under_anchor` edge, so the
-/// two triangles overlap. Removing the overlap means deciding the boundary order at the
-/// pike/tub-step junction — a shape decision on the vehicle, not a mechanical repair, so it is
-/// booked here instead of being guessed at.
-const RECORDED_WINDING_CEILING: &[(VehicleKind, SubmeshKind, usize)] =
-    &[(VehicleKind::IS3, SubmeshKind::Hull, 2)];
+/// **The list is EMPTY: the whole fleet winds consistently.** The last entry was the IS-3 hull's
+/// 2 edges, booked as a shape decision at the pike/tub-step junction. It was not one — the fold,
+/// the tub step corner and the step corner are exactly collinear (both pike planes pass through
+/// the fold and share the plan sweep), so the underside boundary order is forced by the geometry.
+/// Walking that boundary instead of fanning across it tiles the region once and the debt went to
+/// zero; `is3_hull.rs` locks the collinearity so the walk stays derivable.
+///
+/// Keep the mechanism, not the entry. The next real debt gets booked here with its reason.
+const RECORDED_WINDING_CEILING: &[(VehicleKind, SubmeshKind, usize)] = &[];
 
 fn ceiling(kind: VehicleKind, sub: SubmeshKind) -> usize {
     RECORDED_WINDING_CEILING

@@ -63,7 +63,11 @@ pub(super) fn is3_blueprint() -> VehicleBlueprint {
             overlap_inner_dx: 0.0,
             wheel_half_width: 0.14,
             link_half_width: 0.26,
-            link_count: Some(104),
+            // 86 OMSh shoes per side — the IS family's real count, the same way the T-54 carries
+            // its real 90. At this belt length that lands the shoe pitch at ~157 mm against the
+            // historical 162 mm; the old 104 was 130 mm, a fifth too fine, and paid for the
+            // difference in 36 extra draws per tank.
+            link_count: Some(86),
             top_sag_m: 0.012,
             wheel_spokes: 12,
             drive_front: false,
