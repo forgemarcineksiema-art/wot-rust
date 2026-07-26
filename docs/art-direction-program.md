@@ -122,6 +122,58 @@ this document, refreshed whenever a wave moves a bound. A wave is done when its 
 raised to meet its `TARGET`. A PR that moves a bound re-blesses it in the same diff and says, in
 its description, **what changed about the PICTURE** — not only what changed about the code.
 
+## The baseline
+
+Every recorded frame, measured. Produced by
+`cargo test -p client --test look_goldens -- --nocapture measured_baseline`; refresh it whenever
+a wave moves a number. Luminance is display-linear, so `dark < 0.25` is roughly "below mid-grey
+on screen". `band` is the top 15% of rows minus the bottom 40% — sky-band minus near-field on an
+outdoor frame, and meaningless indoors.
+
+| frame | dark | mid | bright | p05 | p50 | p95 | spread | sat | local | band |
+|---|---|---|---|---|---|---|---|---|---|---|
+| `prokhorovka_clear_afternoon` | 1.0% | 40.1% | 58.9% | 0.452 | 0.623 | 0.889 | 0.437 | 0.300 | 0.0077 | +0.160 |
+| `prokhorovka_golden_evening` | 18.1% | 47.3% | 34.6% | 0.143 | 0.497 | 0.702 | 0.559 | 0.426 | 0.0104 | +0.294 |
+| `prokhorovka_overcast` | 0.9% | 49.4% | 49.7% | 0.365 | 0.570 | 0.713 | 0.348 | 0.176 | 0.0049 | +0.205 |
+| `prokhorovka_evening_midfield` | 26.6% | 38.1% | 35.3% | 0.110 | 0.358 | 0.697 | 0.587 | 0.451 | 0.0105 | +0.361 |
+| `prokhorovka_grass_midfield` | 8.1% | 49.1% | 42.8% | 0.070 | 0.574 | 0.873 | 0.803 | 0.315 | 0.0087 | +0.213 |
+| `prokhorovka_evening_contact` | 34.6% | 40.6% | 24.8% | 0.064 | 0.302 | 0.681 | 0.617 | 0.516 | 0.0122 | +0.347 |
+| `bystra_clear_afternoon` | 4.6% | 50.9% | 44.5% | 0.267 | 0.494 | 0.761 | 0.494 | 0.303 | 0.0086 | +0.311 |
+| `bystra_rain` | 7.4% | 58.8% | 33.8% | 0.147 | 0.433 | 0.676 | 0.529 | 0.221 | 0.0052 | +0.276 |
+| `bystra_dawn_fog` | 25.1% | 28.8% | 46.1% | 0.100 | 0.377 | 0.779 | 0.679 | 0.234 | 0.0075 | +0.463 |
+| `bystra_town_lane` | 10.6% | 44.6% | 44.8% | 0.079 | 0.473 | 0.762 | 0.683 | 0.302 | 0.0076 | +0.274 |
+| `orliny_clear_afternoon` | 3.6% | 55.2% | 41.1% | 0.272 | 0.417 | 0.827 | 0.556 | 0.296 | 0.0108 | +0.435 |
+| `orliny_golden_evening` | 49.2% | 15.2% | 35.6% | 0.087 | 0.254 | 0.815 | 0.728 | 0.407 | 0.0130 | +0.591 |
+| `orliny_overcast` | 2.1% | 54.2% | 43.7% | 0.327 | 0.425 | 0.720 | 0.393 | 0.209 | 0.0062 | +0.328 |
+| `orliny_pine_belt` | 6.2% | 48.3% | 45.5% | 0.156 | 0.487 | 0.777 | 0.621 | 0.292 | 0.0107 | +0.283 |
+| `ostrogorsk_clear_afternoon` | 4.4% | 50.9% | 44.7% | 0.286 | 0.534 | 0.847 | 0.561 | 0.270 | 0.0106 | +0.301 |
+| `ostrogorsk_golden_evening` | 43.2% | 19.4% | 37.4% | 0.059 | 0.276 | 0.800 | 0.741 | 0.379 | 0.0110 | +0.555 |
+| `ostrogorsk_overcast` | 7.7% | 48.8% | 43.5% | 0.190 | 0.430 | 0.713 | 0.523 | 0.159 | 0.0065 | +0.306 |
+| `ostrogorsk_rain` | 7.5% | 57.7% | 34.8% | 0.181 | 0.397 | 0.676 | 0.495 | 0.173 | 0.0061 | +0.302 |
+| `ostrogorsk_canyon` | 4.8% | 62.8% | 32.4% | 0.256 | 0.526 | 0.880 | 0.624 | 0.259 | 0.0079 | +0.228 |
+| `garage_hero` | 89.9% | 10.1% | 0.0% | 0.029 | 0.163 | 0.264 | 0.235 | 0.195 | 0.0033 | −0.122 |
+
+### What the baseline says
+
+**The evening looks are not the problem.** `prokhorovka_evening_contact` (34.6% dark, spread
+0.617), `orliny_golden_evening` (49.2%, 0.728) and `ostrogorsk_golden_evening` (43.2%, 0.741) all
+carry a real dark mass and a wide range. The reference look works.
+
+**The clear/overcast days are the problem, and the numbers name it exactly.**
+`prokhorovka_clear_afternoon` holds **1.0% dark against 58.9% bright**, with p05 at **0.452** —
+even the darkest twentieth of the frame is mid-grey. `prokhorovka_overcast` is the flattest
+picture in the set at spread 0.348. That is the milk, quantified: not a colour problem, a
+*missing shade mass* problem. It is W1's whole job (D3, D4).
+
+**Two looks are thin in the middle.** `orliny_golden_evening` (15.2% mid) and
+`ostrogorsk_golden_evening` (19.4%) read bimodal — lit or black, with little in between. Watch
+this when W1 retunes exposure; deepening the shade further would make it worse.
+
+**The garage is the outlier on every axis.** 89.9% dark, **0.0% bright**, the narrowest spread in
+the set (0.235) and the lowest local contrast (0.0033). Its dark share also sits **just under the
+90% "one plane swallowed the picture" bound** — a second debt beside D20, and the reason W4 is
+about light in the room rather than paint on the hero.
+
 ## Wave plan
 
 **W0 — Instrument** (the approved scope of the first program). One shared review-render path so
