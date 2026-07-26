@@ -80,6 +80,26 @@ it closes.
 | D16 | The garage room's content — catwalk, crane, workbench, stores, six worklamps, skylights — is built and sits **entirely outside** the hero framing, which points at the emptiest wall. The hero does not separate in value from its background | `garage_render.rs:142`, `hangar_gallery.rs`, `hangar_props.rs` | W4 |
 | D17 | The fleet showcase renders vehicles in pastels (powder blue, lavender, pink, cream) — the canonical "no clones" render does not show paint | `target/vehicle_lineup.png` | W3 |
 
+## What the instrument found first
+
+Recorded here because it changes how W1 should be read.
+
+**The reference look was not as broken as the reference frames said — it was being judged from
+a vantage that destroyed it.** Dropping the panoramas from 14 m to the player's own 4.9 m and
+putting a T-54 in frame produced `prokhorovka_evening_contact`, and that frame *is* golden: warm
+raking light, a hull that grounds on a real cast shadow and separates from the field, a ridge
+raking into shade. It is the first frame in this program that looks like the policy.
+
+Two consequences:
+
+1. **W1's job is smaller than the goldens implied, and differently shaped.** The evening profile
+   largely works at hull height with a subject in it. What fails is the empty long-range
+   panorama, where the visible sky band is fog-coloured milk (D3) and nothing casts (D4). Tune
+   for the frame the player occupies, not for the vantage that flattered nothing.
+2. **A review vantage is an art-direction decision, not a convenience.** The panoramas had to
+   move sideways as well as down: at 4.9 m on the map's axis the camera sits on the road crown
+   and a third of the frame becomes embankment. Height alone was not the fix.
+
 ## The FLOOR / TARGET mechanism
 
 The reason the dark-plane floor sat at `0.001` behind an apologetic comment is that there was
