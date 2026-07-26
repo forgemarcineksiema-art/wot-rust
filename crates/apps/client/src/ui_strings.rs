@@ -54,6 +54,13 @@ pub(crate) mod battle {
     pub const TARGET_DESTROYED: &str = "TARGET DESTROYED";
     /// Way-out hint under the battle-outcome banner (G opens the garage; Battle deploys fresh).
     pub const RETURN_TO_GARAGE_HINT: &str = "G - RETURN TO GARAGE";
+    /// Header of the ESC modal. Phrased as the question being asked, so neither button has to
+    /// repeat the stakes.
+    pub const PAUSE_TITLE: &str = "LEAVE BATTLE?";
+    /// The ESC modal's destructive choice.
+    pub const PAUSE_EXIT_TO_GARAGE: &str = "EXIT TO GARAGE";
+    /// The ESC modal's dismiss choice; names what happens, not the key that does it.
+    pub const PAUSE_STAY: &str = "STAY IN BATTLE";
 }
 
 /// OS window title; the selected vehicle's display name is appended after a dash.
@@ -88,6 +95,9 @@ mod tests {
             super::battle::BATTLE_OVER,
             super::battle::TARGET_DESTROYED,
             super::battle::RETURN_TO_GARAGE_HINT,
+            super::battle::PAUSE_TITLE,
+            super::battle::PAUSE_EXIT_TO_GARAGE,
+            super::battle::PAUSE_STAY,
             super::WINDOW_TITLE,
         ];
         for s in all {

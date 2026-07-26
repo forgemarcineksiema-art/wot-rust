@@ -365,3 +365,135 @@ fn garage_mouse_delta_is_discarded_before_battle_control_starts() {
     assert_eq!(app.camera_controller.orbit_yaw_rad(), 0.0);
     assert_eq!(app.desired_aim.yaw_rad(), 0.0);
 }
+
+// --- The ESC leave-battle modal -----------------------------------------------------------
+
+use crate::hud::pause_menu::{EXIT_CENTER, PauseMenuButton, STAY_CENTER};
+use winit::keyboard::{KeyCode, PhysicalKey};
+
+fn in_battle() -> ClientApp {
+    let mut app = ClientApp::new();
+    app.confirm_garage_selection();
+    app.run_fixed_ticks(5);
+    app
+}
+
+/// ESC in a live battle asks the question instead of silently dropping the cursor, and ESC again
+/// answers "stay" — the modal must never be a one-way door the player has to click out of.
+#[test]
+fn escape_raises_the_leave_battle_modal_and_escape_again_dismisses_it() {
+    let mut app = in_battle();
+    assert!(app.pause_menu.is_none(), "a fresh battle has no modal up");
+
+    app.on_battle_keyboard(PhysicalKey::Code(KeyCode::Escape), true);
+    assert!(app.pause_menu.is_some(), "ESC in battle raises the modal");
+
+    app.on_battle_keyboard(PhysicalKey::Code(KeyCode::Escape), true);
+    assert!(app.pause_menu.is_none(), "ESC again dismisses it");
+    assert!(app.garage.has_started() && !app.garage.is_open(), "dismissing returns to the battle");
+}
+
+/// Nothing is pre-lit when the modal opens: a still cursor must not leave the destructive choice
+/// sitting hot, where a reflexive click would leave the battle the player meant to stay in.
+#[test]
+fn the_modal_opens_with_neither_choice_under_the_cursor() {
+    let mut app = in_battle();
+    app.open_pause_menu();
+
+    let menu = app.pause_menu.expect("modal open");
+    assert_eq!(menu.hovered(), None);
+}
+
+/// The battle does NOT pause, so a hull whose driver is reading a menu must stop rather than
+/// drive on blind. Opening the modal releases the held drive keys, and no key press reaches the
+/// tank while it is up.
+#[test]
+fn the_open_modal_stops_the_hull_and_swallows_every_driving_key() {
+    let mut app = in_battle();
+    app.input.forward = true;
+    app.input.brake = true;
+    app.input.fire_pending = true;
+
+    app.open_pause_menu();
+    assert_eq!(app.input.throttle(), 0.0, "the held throttle is released, not latched");
+    assert_eq!(app.input.brake_value(), 0.0);
+    assert!(!app.input.fire_pending, "a pending shot is dropped, not queued for the dismissal");
+
+    for key in [KeyCode::KeyW, KeyCode::KeyS, KeyCode::KeyA, KeyCode::KeyD, KeyCode::Space] {
+        app.on_battle_keyboard(PhysicalKey::Code(key), true);
+    }
+    assert_eq!(app.input.throttle(), 0.0, "driving keys never reach the tank behind the modal");
+    assert_eq!(app.input.steer(), 0.0);
+    assert!(!app.input.fire_pending, "and neither does the trigger");
+
+    // A release arriving after the modal opened still lands: swallowing it would strand the key.
+    app.on_battle_keyboard(PhysicalKey::Code(KeyCode::KeyW), false);
+    assert_eq!(app.input.throttle(), 0.0);
+}
+
+/// The mouse answers the modal, not the gun: motion collected over the buttons is discarded
+/// instead of being spent as a look delta when the menu closes.
+#[test]
+fn the_modal_swallows_mouse_look_instead_of_swinging_the_turret() {
+    let mut app = in_battle();
+    app.camera_controller.set_orbit_yaw(0.0);
+    app.desired_aim = crate::aim::DesiredAim::new(0.0, 0.0);
+    app.open_pause_menu();
+
+    app.input.mouse_dx = 240.0;
+    app.apply_mouse_look();
+    assert_eq!(app.input.mouse_dx, 0.0, "the delta is consumed, not banked");
+    assert_eq!(app.desired_aim.yaw_rad(), 0.0, "and it never reached the aim");
+
+    app.input.mouse_dx = 240.0;
+    app.close_pause_menu();
+    assert_eq!(app.input.mouse_dx, 0.0, "closing clears what was collected over the buttons");
+}
+
+/// EXIT TO GARAGE leaves for the garage; STAY IN BATTLE returns to driving. Both are driven
+/// through the cursor, so this locks the hit test and the actions together.
+#[test]
+fn clicking_exit_opens_the_garage_and_clicking_stay_returns_to_the_battle() {
+    let mut app = in_battle();
+
+    app.open_pause_menu();
+    app.pause_menu.as_mut().expect("open").cursor_clip = STAY_CENTER;
+    assert_eq!(app.pause_menu.expect("open").hovered(), Some(PauseMenuButton::Stay));
+    app.pause_menu_primary_press();
+    assert!(app.pause_menu.is_none(), "STAY dismisses the modal");
+    assert!(!app.garage.is_open(), "and does NOT leave the battle");
+
+    app.open_pause_menu();
+    app.pause_menu.as_mut().expect("open").cursor_clip = EXIT_CENTER;
+    assert_eq!(app.pause_menu.expect("open").hovered(), Some(PauseMenuButton::ExitToGarage));
+    app.pause_menu_primary_press();
+    assert!(app.pause_menu.is_none(), "the modal closes behind the choice");
+    assert!(app.garage.is_open(), "EXIT TO GARAGE opens the garage over the battle");
+}
+
+/// A click that lands between the buttons must do nothing at all. A modal that dismissed on a
+/// stray click would drop the player back into the battle without an answer.
+#[test]
+fn a_click_off_both_buttons_leaves_the_modal_up() {
+    let mut app = in_battle();
+    app.open_pause_menu();
+    app.pause_menu.as_mut().expect("open").cursor_clip =
+        [0.0, (EXIT_CENTER[1] + STAY_CENTER[1]) * 0.5];
+
+    app.pause_menu_primary_press();
+
+    assert!(app.pause_menu.is_some(), "the question stands until it is answered");
+    assert!(!app.garage.is_open());
+}
+
+/// Before a battle exists (the player has never left the garage) ESC keeps its plain meaning:
+/// hand the cursor back. Raising a "leave battle?" modal over the garage would be nonsense.
+#[test]
+fn escape_before_the_first_battle_raises_no_modal() {
+    let mut app = ClientApp::new();
+    assert!(!app.garage.has_started());
+
+    app.on_battle_keyboard(PhysicalKey::Code(KeyCode::Escape), true);
+
+    assert!(app.pause_menu.is_none());
+}

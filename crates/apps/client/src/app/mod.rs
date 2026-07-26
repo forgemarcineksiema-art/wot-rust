@@ -163,6 +163,26 @@ pub(crate) struct InputState {
     sniper_hold_return: Option<crate::BattleCameraMode>,
 }
 
+/// The ESC modal's live state. Only the cursor is stored: which button is hot is DERIVED from it
+/// through the same hit test the click uses, so the lit button and the activated button cannot
+/// drift apart.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct PauseMenuState {
+    cursor_clip: [f32; 2],
+}
+
+impl PauseMenuState {
+    /// Opens with the cursor parked outside clip space, so nothing is pre-lit until the player
+    /// actually moves the mouse — the destructive choice must never sit hot under a still cursor.
+    fn opened() -> Self {
+        Self { cursor_clip: [f32::MAX, f32::MAX] }
+    }
+
+    fn hovered(&self) -> Option<crate::hud::pause_menu::PauseMenuButton> {
+        crate::hud::pause_menu::button_at(self.cursor_clip)
+    }
+}
+
 pub(crate) struct ClientApp {
     window: Option<Arc<Window>>,
     renderer: Option<WindowRenderer>,
@@ -267,6 +287,9 @@ pub(crate) struct ClientApp {
     minimap_static: crate::app::minimap_build::MinimapStaticLayers,
     /// Local battle result banner state, derived from the authoritative server outcome.
     battle_outcome: Option<crate::hud::BattleHudOutcome>,
+    /// The ESC modal while it is up; `None` is closed. The battle behind it keeps running
+    /// (see `hud/pause_menu.rs`).
+    pause_menu: Option<PauseMenuState>,
     /// Seconds since the player's latest kill, driving the reticle confirmation; `None` when the
     /// confirmation has played out (see `hud/kill_marker.rs`).
     kill_confirm_age_s: Option<f32>,
@@ -465,6 +488,7 @@ impl ClientApp {
             frame_dt_history: std::collections::VecDeque::with_capacity(96),
             minimap_static,
             battle_outcome: None,
+            pause_menu: None,
             kill_confirm_age_s: None,
             prev_reload_remaining_s: 0.0,
             reload_ready_age_s: None,

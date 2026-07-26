@@ -81,7 +81,13 @@ impl ApplicationHandler for ClientApp {
                 Vec::new()
             }
             WindowEvent::MouseInput { state, button, .. } => {
-                if self.garage.is_open() {
+                if self.pause_menu.is_some() {
+                    // The ESC modal owns the pointer: a click answers it, and must not recapture
+                    // the cursor or reach the trigger underneath.
+                    if button == MouseButton::Left && state == ElementState::Pressed {
+                        self.pause_menu_primary_press();
+                    }
+                } else if self.garage.is_open() {
                     // Garage menu: left click drives selection / Battle / orbit, cursor stays free.
                     // Right click cycles a module slot backward (no other hit acts on it).
                     if button == MouseButton::Left {
@@ -105,8 +111,11 @@ impl ApplicationHandler for ClientApp {
                 Vec::new()
             }
             WindowEvent::Focused(focused) => {
-                // Keep the cursor free in the garage menu; only the battle view captures it.
-                self.set_cursor_captured(focused && !self.garage.is_open());
+                // Keep the cursor free in the garage menu and under the ESC modal; only the live
+                // battle view captures it.
+                self.set_cursor_captured(
+                    focused && !self.garage.is_open() && self.pause_menu.is_none(),
+                );
                 Vec::new()
             }
             _ => Vec::new(),

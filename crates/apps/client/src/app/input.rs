@@ -14,11 +14,48 @@ impl ClientApp {
         if pressed && self.garage.is_open() && self.garage_keyboard(event.physical_key) {
             return;
         }
-        self.on_driving_keyboard(event, pressed);
+        self.on_battle_keyboard(event.physical_key, pressed);
     }
 
-    fn on_driving_keyboard(&mut self, event: &KeyEvent, pressed: bool) {
-        match event.physical_key {
+    /// Battle-side key dispatch, taken below the winit boundary so tests can drive it — a winit
+    /// `KeyEvent` cannot be constructed outside winit, the same reason `garage_keyboard` takes a
+    /// bare `PhysicalKey`.
+    ///
+    /// The ESC modal is modal: while it is up the only PRESS it answers is ESC, which dismisses
+    /// it. Every other press is swallowed, so a player reading the menu cannot drive or fire by
+    /// leaning on the keyboard. Releases still fall through — swallowing those would strand a key
+    /// that was already held when the menu opened.
+    pub(in crate::app) fn on_battle_keyboard(&mut self, key: PhysicalKey, pressed: bool) {
+        if pressed && self.pause_menu.is_some() {
+            if matches!(key, PhysicalKey::Code(KeyCode::Escape)) {
+                self.close_pause_menu();
+            }
+            return;
+        }
+        self.on_driving_keyboard(key, pressed);
+    }
+
+    /// ESC in a live battle raises the leave-or-stay modal. The cursor is freed so the player can
+    /// answer it, which also preserves what ESC always did here: give the mouse back.
+    pub(in crate::app) fn open_pause_menu(&mut self) {
+        self.pause_menu = Some(super::PauseMenuState::opened());
+        // Release the driving keys rather than leaving them latched: the battle does NOT pause,
+        // and a hull driving on by itself while its commander reads a menu is exactly the kind of
+        // hidden consequence this game refuses. It coasts to a stop, in the open, visibly.
+        self.input.release_driving();
+        self.set_cursor_captured(false);
+    }
+
+    pub(in crate::app) fn close_pause_menu(&mut self) {
+        self.pause_menu = None;
+        // Mouse motion accumulated while the menu was up must not be spent as a look delta the
+        // moment it closes, or the turret jumps to wherever the player was pointing at a button.
+        self.input.clear_mouse_look();
+        self.set_cursor_captured(true);
+    }
+
+    fn on_driving_keyboard(&mut self, key: PhysicalKey, pressed: bool) {
+        match key {
             PhysicalKey::Code(KeyCode::KeyW | KeyCode::ArrowUp) => self.input.forward = pressed,
             PhysicalKey::Code(KeyCode::KeyS | KeyCode::ArrowDown) => self.input.back = pressed,
             PhysicalKey::Code(KeyCode::KeyA | KeyCode::ArrowLeft) => self.input.left = pressed,
@@ -50,7 +87,15 @@ impl ClientApp {
             PhysicalKey::Code(KeyCode::Digit2) if pressed => self.request_ammo_slot(1),
             PhysicalKey::Code(KeyCode::Digit3) if pressed => self.request_ammo_slot(2),
             PhysicalKey::Code(KeyCode::KeyV) if pressed => self.toggle_camera_mode(),
-            PhysicalKey::Code(KeyCode::Escape) if pressed => self.set_cursor_captured(false),
+            // In a live battle ESC asks the question; before one exists (garage never left) it
+            // keeps its plain meaning of handing the cursor back.
+            PhysicalKey::Code(KeyCode::Escape) if pressed => {
+                if self.garage.has_started() && !self.garage.is_open() {
+                    self.open_pause_menu();
+                } else {
+                    self.set_cursor_captured(false);
+                }
+            }
             _ => {}
         }
     }
@@ -60,6 +105,10 @@ impl ClientApp {
             MouseScrollDelta::LineDelta(_, y) => y,
             MouseScrollDelta::PixelDelta(position) => position.y as f32 / 60.0,
         };
+        if self.pause_menu.is_some() {
+            // No camera dolly behind an open modal — the view stays where the player left it.
+            return;
+        }
         if self.garage.is_open() {
             // Over the carousel the wheel scrolls the roster; anywhere else it zooms the camera.
             if self.garage.cursor_over_carousel() {
@@ -175,6 +224,11 @@ impl ClientApp {
     }
 
     pub(super) fn apply_mouse_look(&mut self) {
+        if self.pause_menu.is_some() {
+            // The cursor is answering the modal, not aiming the gun.
+            self.input.clear_mouse_look();
+            return;
+        }
         if self.garage.is_open() {
             // In the garage, mouse motion orbits the inspection camera (only while dragging).
             let (dx, dy) = (self.input.mouse_dx, self.input.mouse_dy);
@@ -220,15 +274,39 @@ impl ClientApp {
         self.desired_aim.set_yaw(self.camera_controller.orbit_yaw_rad());
     }
 
-    /// Map a window-pixel cursor position into clip space for the garage UI hit test.
+    /// Map a window-pixel cursor position into clip space for the garage UI and the ESC modal.
     pub(super) fn on_cursor_moved(&mut self, x: f32, y: f32) {
-        if !self.garage.is_open() {
+        if !self.garage.is_open() && self.pause_menu.is_none() {
             return;
         }
         let (w, h) = self.viewport;
         let clip_x = (x / w as f32) * 2.0 - 1.0;
         let clip_y = 1.0 - (y / h as f32) * 2.0;
+        if let Some(menu) = &mut self.pause_menu {
+            menu.cursor_clip = [clip_x, clip_y];
+            return;
+        }
         self.garage.set_cursor([clip_x, clip_y]);
+    }
+
+    /// A left click while the ESC modal is up. Off both buttons it does nothing: a modal that
+    /// closed on a stray click would drop the player back into the battle without an answer.
+    pub(in crate::app) fn pause_menu_primary_press(&mut self) {
+        let Some(menu) = &self.pause_menu else {
+            return;
+        };
+        match menu.hovered() {
+            Some(crate::hud::pause_menu::PauseMenuButton::ExitToGarage) => {
+                self.queue_audio(audio::AudioEvent::UiClick { accent: true });
+                self.pause_menu = None;
+                self.open_garage();
+            }
+            Some(crate::hud::pause_menu::PauseMenuButton::Stay) => {
+                self.queue_audio(audio::AudioEvent::UiClick { accent: false });
+                self.close_pause_menu();
+            }
+            None => {}
+        }
     }
 
     pub(super) fn set_cursor_captured(&self, captured: bool) {

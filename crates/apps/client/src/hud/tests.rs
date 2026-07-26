@@ -197,6 +197,7 @@ fn the_positional_wrapper_and_the_model_build_identical_huds() {
         reload_ready_age_s: None,
         fire_denied_age_s: None,
         scope_fade: 0.0,
+        pause_menu: None,
     };
     let from_model = build_battle_hud(&model, 16.0 / 9.0);
     let from_wrapper =
@@ -229,6 +230,7 @@ fn the_scope_surround_is_fade_driven_not_mode_driven() {
         reload_ready_age_s: None,
         fire_denied_age_s: None,
         scope_fade: 0.0,
+        pause_menu: None,
     };
     let housing = |hud: &[HudVertex]| {
         let [r, g, b, _] = super::scope_overlay::VIGNETTE_COLOR;
@@ -269,6 +271,7 @@ fn battle_outcome_banner_draws_only_when_the_battle_has_ended() {
         reload_ready_age_s: None,
         fire_denied_age_s: None,
         scope_fade: 0.0,
+        pause_menu: None,
     };
     let victory =
         BattleHudModel { battle_outcome: Some(BattleHudOutcome::Victory), ..running.clone() };
@@ -331,6 +334,7 @@ fn battle_clock_draws_only_when_timed_and_warms_in_the_last_minute() {
         reload_ready_age_s: None,
         fire_denied_age_s: None,
         scope_fade: 0.0,
+        pause_menu: None,
     };
     let timed = BattleHudModel { battle_clock_remaining_s: Some(474.0), ..untimed.clone() };
     let closing = BattleHudModel { battle_clock_remaining_s: Some(42.0), ..untimed.clone() };
@@ -373,6 +377,7 @@ fn the_module_panel_draws_only_when_present_and_a_dead_module_reads_red() {
         reload_ready_age_s: None,
         fire_denied_age_s: None,
         scope_fade: 0.0,
+        pause_menu: None,
     };
     let red =
         |hud: &[HudVertex]| hud.iter().any(|v| v.color == super::module_panel::MODULE_DESTROYED);

@@ -524,6 +524,10 @@ impl ClientApp {
             reload_ready_age_s: self.reload_ready_age_s,
             fire_denied_age_s: self.fire_denied_age_s,
             scope_fade: self.camera_controller.scope_dressing(),
+            pause_menu: self
+                .pause_menu
+                .as_ref()
+                .map(|menu| crate::hud::pause_menu::PauseMenuModel { hovered: menu.hovered() }),
         };
         // The death spectate clears the stage (D9): no vitals, no reticle, no bars — the wreck
         // epilogue IS the picture. The end-of-battle overlay still comes through when it lands.

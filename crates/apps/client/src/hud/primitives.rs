@@ -6,6 +6,13 @@ use renderer_api::HudVertex;
 
 use super::theme;
 
+/// Is a clip-space point inside a centre/half-extent rect? The counterpart of the panel and quad
+/// helpers below: every clickable surface in this crate is drawn as one of those rects, so its hit
+/// test is this one function — the picture and the click target cannot drift apart per screen.
+pub fn in_rect(point: [f32; 2], center: [f32; 2], half: [f32; 2]) -> bool {
+    (point[0] - center[0]).abs() <= half[0] && (point[1] - center[1]).abs() <= half[1]
+}
+
 pub fn push_quad(vertices: &mut Vec<HudVertex>, center: [f32; 2], half: [f32; 2], color: [f32; 4]) {
     let (left, right) = (center[0] - half[0], center[0] + half[0]);
     let (bottom, top) = (center[1] - half[1], center[1] + half[1]);

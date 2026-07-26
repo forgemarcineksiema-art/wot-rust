@@ -15,6 +15,7 @@ pub(crate) mod minimap;
 pub(crate) mod module_panel;
 pub(crate) mod number;
 pub(crate) mod outcome;
+pub(crate) mod pause_menu;
 pub mod primitives;
 pub(crate) mod readouts;
 pub(crate) mod reticle;
@@ -82,6 +83,8 @@ pub struct BattleHudModel {
     /// camera's mode-blend clock, so the optics iris in/out WITH the view instead of hard-cutting
     /// (see `camera::present::scope_dressing`).
     pub scope_fade: f32,
+    /// The ESC modal when it is up; `None` is a closed menu (`hud/pause_menu.rs`).
+    pub pause_menu: Option<pause_menu::PauseMenuModel>,
 }
 
 /// Build the 2D HUD overlay (center crosshair, top-left health bar, bottom-center reload
@@ -107,6 +110,7 @@ pub fn build_hud(vitals: HudVitals, aspect: f32) -> Vec<HudVertex> {
             reload_ready_age_s: None,
             fire_denied_age_s: None,
             scope_fade: 0.0,
+            pause_menu: None,
         },
         aspect,
     )
@@ -148,6 +152,7 @@ pub(crate) fn build_hud_with_reticle(
             } else {
                 0.0
             },
+            pause_menu: None,
         },
         aspect,
     )
@@ -215,6 +220,11 @@ pub(crate) fn build_battle_hud(model: &BattleHudModel, aspect: f32) -> Vec<HudVe
     }
     if let Some(age_s) = model.kill_confirm_age_s {
         kill_marker::push_kill_confirm(&mut vertices, age_s, aspect);
+    }
+    // Last, so the modal sits over every battle marker — including the outcome banner, which a
+    // player can be reading when they reach for ESC.
+    if let Some(menu) = &model.pause_menu {
+        pause_menu::push_pause_menu(&mut vertices, menu, aspect);
     }
 
     vertices

@@ -172,9 +172,9 @@ pub(super) fn crew_prof_arrows() -> ([f32; 2], [f32; 2]) {
     ([PROF_LEFT_X, PROF_Y], [PROF_RIGHT_X, PROF_Y])
 }
 
-pub(super) fn in_rect(point: [f32; 2], center: [f32; 2], half: [f32; 2]) -> bool {
-    (point[0] - center[0]).abs() <= half[0] && (point[1] - center[1]).abs() <= half[1]
-}
+/// The garage's rects are the HUD's rects — one hit test for every clickable surface in the
+/// client, beside the primitives that draw them.
+pub(super) use crate::hud::primitives::in_rect;
 
 pub(super) use crate::vehicle::display::short_name;
 
