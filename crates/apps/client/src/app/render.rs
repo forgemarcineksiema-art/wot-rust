@@ -362,6 +362,24 @@ impl ClientApp {
         Ok(())
     }
 
+    /// The HUD's worst-frame readout (F9): the 95th percentile of the raw frame intervals.
+    ///
+    /// It runs on every presented frame, so it does not get to allocate a `Vec` and fully sort
+    /// it there — a frame-drop meter that costs a slice of the frame is its own subject. The
+    /// scratch buffer is reused, and `select_nth_unstable` finds the percentile in one linear
+    /// pass instead of ordering the other ninety-five samples nobody reads.
+    fn frame_p95_ms(&mut self) -> f32 {
+        if self.frame_dt_history.is_empty() {
+            return 0.0;
+        }
+        let scratch = &mut self.frame_p95_scratch;
+        scratch.clear();
+        scratch.extend(self.frame_dt_history.iter().copied());
+        let index = (scratch.len() * 95) / 100;
+        let (_, p95, _) = scratch.select_nth_unstable_by(index, f32::total_cmp);
+        *p95 * 1000.0
+    }
+
     pub(super) fn render_now(&mut self) {
         if self.garage.is_open() {
             self.render_garage();
@@ -500,6 +518,7 @@ impl ClientApp {
         }
         self.prev_camera_mode = Some(camera_mode);
         self.flush_audio(Some(camera.eye), Some(camera.target));
+        let frame_p95_ms = self.frame_p95_ms();
         let vitals = HudVitals {
             hit_points: self.player_hud_hit_points(),
             max_hit_points: self.player_max_hit_points(),
@@ -510,11 +529,7 @@ impl ClientApp {
             vitals,
             reticle: self.hud_reticle(&camera, view_proj, alpha),
             fps: self.fps_estimate,
-            frame_p95_ms: {
-                let mut sorted: Vec<f32> = self.frame_dt_history.iter().copied().collect();
-                sorted.sort_by(f32::total_cmp);
-                if sorted.is_empty() { 0.0 } else { sorted[(sorted.len() * 95) / 100] * 1000.0 }
-            },
+            frame_p95_ms,
             speed_kmh: self.player_speed_kmh(),
             zoom_factor: self.camera_controller.zoom_factor(),
             damage_log: self.damage_log.visible(),

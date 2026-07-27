@@ -127,6 +127,13 @@ impl SimulationState {
         &self.tanks
     }
 
+    /// Entries in the spotting hold-memory — bounded by the live roster (see
+    /// `spotting::SpottingMemory::forget_departed`).
+    #[cfg(test)]
+    pub(crate) fn spotting_memory_len(&self) -> usize {
+        self.spotting_memory.len()
+    }
+
     pub fn shells(&self) -> &[ShellState] {
         &self.shells
     }

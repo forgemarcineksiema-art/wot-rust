@@ -497,6 +497,8 @@ pub(crate) struct ClientApp {
     /// Last ~1.5 s of raw frame intervals (seconds) — the HUD's p95 readout turns "it drops
     /// sometimes" into a number per scenario (F9).
     frame_dt_history: std::collections::VecDeque<f32>,
+    /// Reused scratch for the p95 selection — see `ClientApp::frame_p95_ms`.
+    frame_p95_scratch: Vec<f32>,
     /// The minimap's static layers (terrain relief, water, roads, cover), computed once per
     /// battlefield instead of resampled every frame. Rebuild alongside `battlefield` if a
     /// future map rotation swaps it mid-session.
@@ -711,6 +713,7 @@ impl ClientApp {
             scene_cover_dirty: false,
             fps_estimate: 0.0,
             frame_dt_history: std::collections::VecDeque::with_capacity(96),
+            frame_p95_scratch: Vec::with_capacity(96),
             minimap_static,
             battle_outcome: None,
             pause_menu: None,
