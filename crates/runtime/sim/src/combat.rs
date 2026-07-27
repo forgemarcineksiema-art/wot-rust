@@ -9,6 +9,7 @@ use glam::Vec3;
 use crate::aim_dispersion::{apply_shot_bloom, dispersed_gun_direction};
 use crate::breach_space::{BreachImpact, find_egress_contact, make_breach, make_egress_breach};
 use crate::module_hit::{apply_track_damage_for_hit, impacted_module};
+use crate::shell_continuation::ShellExit;
 use crate::shell_trace::SHELL_MAX_AGE_SECONDS;
 use crate::{ShellState, TankState};
 
@@ -88,7 +89,7 @@ pub(crate) fn apply_shell_impact(
     plate_normal: Vec3,
     distance_m: f32,
     tick: u64,
-) -> DamageEvent {
+) -> (DamageEvent, Option<ShellExit>) {
     let target =
         tanks.iter_mut().find(|tank| tank.id == target_id).expect("hit tank still present");
     let target_was_alive = target.hit_points > 0;
@@ -148,6 +149,8 @@ pub(crate) fn apply_shell_impact(
         );
     }
 
+    // What the shell had left when it came out the far side, if it came out at all.
+    let mut exit = None;
     if penetration.penetrated {
         let direction = shell.velocity_mps.normalize_or_zero();
         let breach = make_breach(
@@ -168,34 +171,45 @@ pub(crate) fn apply_shell_impact(
             },
         );
         target.armor_breaches.add(breach);
-        if let Some(exit) = find_egress_contact(target, zone, hit_position, direction) {
-            let exit_angle = direction.dot(exit.normal).abs().clamp(0.0, 1.0).acos().to_degrees();
-            let plate = target.spec.hull.plate(exit.zone);
+        if let Some(contact) = find_egress_contact(target, zone, hit_position, direction) {
+            let exit_angle =
+                direction.dot(contact.normal).abs().clamp(0.0, 1.0).acos().to_degrees();
+            let plate = target.spec.hull.plate(contact.zone);
             let required_mm =
                 plate.nominal_thickness_mm / exit_angle.to_radians().cos().abs().max(0.18);
+            // ONE test decides both halves of leaving: whether the far plate opens, and whether
+            // the projectile is still a projectile on the other side of it. They used to be
+            // decided from different budgets — the hole from what survived the internal path,
+            // the flight from the entry plate alone — so a round that spent itself on the
+            // engine still sailed out through steel the game had (correctly) left whole.
             if residual_after_modules_mm > required_mm {
+                let speed_scale = (residual_after_modules_mm
+                    / penetration.remaining_penetration_mm.max(1.0))
+                .sqrt()
+                .clamp(0.25, 1.0);
                 let egress = make_egress_breach(
                     target,
                     BreachImpact {
-                        zone: exit.zone,
+                        zone: contact.zone,
                         shell_id: shell.id,
                         shell_type: shell.shell.shell_type,
                         created_tick: tick,
-                        hit_position: exit.position,
-                        plate_normal: exit.normal,
+                        hit_position: contact.position,
+                        plate_normal: contact.normal,
                         direction,
                         caliber_mm: shell.shell.caliber_mm,
                         impact_angle_degrees: exit_angle,
-                        impact_speed_mps: shell.velocity_mps.length()
-                            * (residual_after_modules_mm
-                                / penetration.remaining_penetration_mm.max(1.0))
-                            .sqrt()
-                            .clamp(0.25, 1.0),
+                        impact_speed_mps: shell.velocity_mps.length() * speed_scale,
                         effective_armor_mm: required_mm,
                         residual_penetration_mm: residual_after_modules_mm - required_mm,
                     },
                 );
                 target.armor_breaches.add(egress);
+                exit = Some(ShellExit {
+                    position: contact.position,
+                    residual_penetration_mm: residual_after_modules_mm - required_mm,
+                    speed_scale,
+                });
             }
         }
     }
@@ -230,7 +244,7 @@ pub(crate) fn apply_shell_impact(
         target.turret_detached = true;
     }
 
-    DamageEvent {
+    let event = DamageEvent {
         source: shell.owner,
         target: target.id,
         hit_position,
@@ -258,7 +272,8 @@ pub(crate) fn apply_shell_impact(
         occurred_tick: 0,
         shell_id: Some(shell.id),
         target_destroyed: target_was_alive && target.hit_points == 0,
-    }
+    };
+    (event, exit)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -480,7 +495,7 @@ mod tests {
         // A representative reclined-glacis normal: outward, up-and-back toward the shooter.
         let plate = Vec3::new(0.0, 0.5, -0.866).normalize();
 
-        let event = apply_shell_impact(
+        let (event, _) = apply_shell_impact(
             &shell,
             &mut tanks,
             TankId(2),
@@ -613,7 +628,7 @@ mod tests {
         let mut tanks = vec![fresh_tank(TankId(2), TeamId(2), spec.clone(), Vec3::ZERO, 0.0)];
         let shell =
             shell_toward(TankId(1), Vec3::new(-5.0, 1.0, -1.8), Vec3::new(900.0, 0.0, 0.0), &spec);
-        let event = apply_shell_impact(
+        let (event, _) = apply_shell_impact(
             &shell,
             &mut tanks,
             TankId(2),
@@ -637,7 +652,7 @@ mod tests {
         let hit = |mut shell: ShellState| {
             let mut tanks = vec![fresh_tank(TankId(2), TeamId(2), spec.clone(), Vec3::ZERO, 0.0)];
             shell.id = ShellId(0xE6_12_34);
-            let event = apply_shell_impact(
+            let (event, _) = apply_shell_impact(
                 &shell,
                 &mut tanks,
                 TankId(2),
@@ -677,7 +692,7 @@ mod tests {
             &firing_spec,
         );
         shell.shell = firing_spec.gun.special_shell.expect("D-10T HEAT round");
-        let event = apply_shell_impact(
+        let (event, _) = apply_shell_impact(
             &shell,
             &mut tanks,
             TankId(2),

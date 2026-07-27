@@ -70,7 +70,7 @@ pub(crate) fn step_shells(
                     index += 1;
                     continue;
                 }
-                let event = apply_shell_impact(
+                let (event, exit) = apply_shell_impact(
                     &shells[index],
                     tanks,
                     id,
@@ -83,7 +83,8 @@ pub(crate) fn step_shells(
                     context.tick,
                 );
                 let ricochet_continues = event.ricocheted && !shells[index].ricocheted_once;
-                let penetration_continues = kinetic_penetration_continues(&shells[index], &event);
+                // The round flies on only through a hole the armour model actually opened.
+                let exit = exit.filter(|exit| kinetic_penetration_continues(&shells[index], exit));
                 let direct_target = event.target;
                 let splashes = !event.penetrated;
                 events.push_damage(event);
@@ -100,8 +101,8 @@ pub(crate) fn step_shells(
                 if ricochet_continues {
                     deflect_shell(&mut shells[index], hit_position, plate_normal, distance_m);
                     index += 1;
-                } else if penetration_continues {
-                    continue_through_armor(&mut shells[index], &event, distance_m);
+                } else if let Some(exit) = exit {
+                    continue_through_armor(&mut shells[index], &exit, direct_target, distance_m);
                     index += 1;
                 } else {
                     shells.swap_remove(index);
