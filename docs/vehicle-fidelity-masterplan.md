@@ -158,6 +158,8 @@ lineup renders.
 | Thickness single-source codegen (JSON→Rust) | optional follow-up after PR-02 |
 | Chamfer/fillet kernel | only if two consecutive vehicles need it |
 | T-54 vs fleet detail parity | decide after W2 from lineup renders |
+| KV-1 1942 fights in Era II, not Era I | **DECIDED 2026-07-27** (user): Era I is empty and a one-vehicle era is forbidden; cast-turret KV-1s fought into 1943 against Tigers. Era I stays reserved for a wave that opens it with two vehicles. |
+| KV-1 turret: bespoke slab shell, NOT `soviet_cast_turret` | **DECIDED 2026-07-27**: `cast_turret_shell` hard-codes its dome profile (station table, 0.66 roof scale) and ignores the slope fields, so no blueprint value can flatten it. Reusing it would make the KV a fifth member of the dome family and break "no clones". |
 
 ## Fleet status
 
@@ -172,6 +174,7 @@ Updated as part of every PR's definition of done.
 | IS-3 | partial (`is-3.md`) | — | — | — | bespoke 17 | dense | — |
 | Centurion | — | — | — | — | bespoke 17 | dense | — |
 | T-34-85 | — | — | — | — | — | — | — |
+| KV-1 1942 | ✓ PR-KV.1 (`kv-1.md`) | pending PR-KV.2/3 | — | — | — (shares blueprint part path) | — | — |
 | T-54 1951 | rich (`t-54.md`) | pilot (PR-03) | benchmark | benchmark | bespoke 18 | dense | budget exception |
 
 ## Verification

@@ -196,6 +196,7 @@ fn workspace_has_protocol_snapshots_replays_and_benchmarks() {
         "docs/vehicles/jagdtiger.md",
         "docs/vehicles/panzerkampfwagen-v-panther-ii.md",
         "docs/vehicles/is-3.md",
+        "docs/vehicles/kv-1.md",
         "scripts/verify.ps1",
         ".github/workflows/ci.yml",
     ] {
