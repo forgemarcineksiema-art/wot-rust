@@ -377,9 +377,22 @@ impl RemoteBattleServer {
                             last_processed_input_seq: client.inputs.last_processed(),
                             local_motion: core.authoritative_motion(tank).unwrap_or_default(),
                         };
-                        let _ = client
+                        // NEVER `let _ =` here. A snapshot too large for the transport's
+                        // fragment budget (see `net::transport::MAX_FRAGMENTS`) fails on send,
+                        // and swallowing that error stops world state for this crew for the
+                        // rest of the battle WITHOUT closing the session: input ACKs and the
+                        // reliable combat lane keep flowing, so the client shows a frozen
+                        // world rather than a lost connection. Loud is the minimum.
+                        if let Err(error) = client
                             .endpoint
-                            .send(transport, &ProtocolMessage::SnapshotDelivery(delivery));
+                            .send(transport, &ProtocolMessage::SnapshotDelivery(delivery))
+                        {
+                            tracing::error!(
+                                %error,
+                                tank = tank.0,
+                                "snapshot delivery failed — this crew is receiving no world state"
+                            );
+                        }
                     }
                 }
 
