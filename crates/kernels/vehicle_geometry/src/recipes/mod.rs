@@ -80,8 +80,9 @@ pub(crate) use t54::{t54_hull, t54_turret_front};
 
 pub(crate) use turret_fittings::{
     add_british_cupola, add_broad_mantlet_socket, add_commander_periscope, add_cupola,
-    add_flush_ring_hatch, add_german_cast_cupola, add_mantlet_socket, add_oval_mantlet_socket,
-    add_soviet_slit_cupola, add_t54_mantlet_socket, add_turret_ring, cast_turret_shell,
+    add_flush_ring_hatch, add_german_cast_cupola, add_kv1_mantlet_socket, add_mantlet_socket,
+    add_oval_mantlet_socket, add_soviet_slit_cupola, add_t54_mantlet_socket, add_turret_ring,
+    cast_turret_shell,
 };
 
 /// Bake the procedural geometry for `kind`.

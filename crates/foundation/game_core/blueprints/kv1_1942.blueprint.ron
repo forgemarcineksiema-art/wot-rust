@@ -99,7 +99,11 @@ BlueprintFile(
         // 2.64 long x 1.96 wide: a loaf, L/W 1.35 -- the highest turret plan ratio in the fleet.
         plan_half_width: 0.98,
         plan_half_length: 1.32,
-        mantlet_radius: 0.24,
+        // A MASS, not a collar: the ZiS-5's cast mask reads at 300 m. The socket and the moving
+        // mask both stretch it 1.10 wide x 1.40 tall, so it covers the vertical aperture the gun
+        // elevates through. This radius also drives the ballistic mantlet patch in
+        // `armor/vehicle_volumes.rs` -- what you see is what you shoot.
+        mantlet_radius: 0.30,
         mantlet_back_z: 1.06,
         mantlet_front_z: 1.34,
     ),

@@ -115,6 +115,47 @@ fn the_zis5_is_a_clean_short_tube_that_barely_clears_the_bow() {
     );
 }
 
+/// The ZiS-5's cast MASK, not the collar every other gun in the fleet wears (audit defect #6).
+/// The KV's mask is the opposite proportion to the T-54's wide flat oval: taller than it is wide,
+/// covering the vertical aperture the gun elevates through. Measured on the moving mantlet by its
+/// smoothing group — the Jagdtiger's trick, and the only clean way to isolate a mask from a barrel.
+#[test]
+fn the_zis5_wears_a_cast_mask_taller_than_it_is_wide() {
+    let bp = blueprint();
+    let baked = bake_vehicle(VehicleKind::KV1_1942).expect("bakes");
+    let gun = &baked.submesh(SubmeshKind::Gun).expect("gun submesh").mesh;
+
+    let mask: Vec<_> = gun
+        .vertices()
+        .iter()
+        .filter(|v| v.smoothing == vehicle_geometry::SmoothingGroup(6))
+        .collect();
+    assert!(!mask.is_empty(), "the gun carries no mantlet mass at all");
+
+    let (mut min_x, mut max_x) = (f32::INFINITY, f32::NEG_INFINITY);
+    let (mut min_y, mut max_y) = (f32::INFINITY, f32::NEG_INFINITY);
+    for v in &mask {
+        min_x = min_x.min(v.position.x);
+        max_x = max_x.max(v.position.x);
+        min_y = min_y.min(v.position.y);
+        max_y = max_y.max(v.position.y);
+    }
+    let width = max_x - min_x;
+    let height = max_y - min_y;
+
+    assert!(
+        height > width,
+        "the KV's mask is TALLER than wide ({height:.2} vs {width:.2}) — a round collar is the \
+         clone this test exists to catch"
+    );
+    // And it is a mass: several times the barrel it surrounds, not a lip on it.
+    assert!(
+        width > bp.gun.barrel_radius * 6.0,
+        "the mask spans {width:.2} m around a {:.3} m barrel — that is a collar, not a mask",
+        bp.gun.barrel_radius
+    );
+}
+
 /// Form rules 2, 3 and 4: six small wheels at an EVEN pitch on torsion bars, a top run carried
 /// taut on three return rollers, and the toothed wheel at the tail.
 #[test]

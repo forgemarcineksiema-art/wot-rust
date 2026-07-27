@@ -12,8 +12,9 @@ use game_core::{HitboxProfile, HullShape, MountFrames, TrackShape, TurretShape, 
 use glam::{Vec2, Vec3};
 
 use super::{
-    GunPlan, SG_CAST, SG_HARD, add_broad_mantlet_socket, add_commander_periscope,
-    add_flush_ring_hatch, add_turret_ring, assemble, blueprint_prism_hull, build_gun, shade_hull,
+    GunPlan, SG_CAST, SG_HARD, add_commander_periscope, add_flush_ring_hatch,
+    add_kv1_mantlet_socket, add_turret_ring, assemble, blueprint_prism_hull,
+    build_gun_with_mantlet_scale, shade_hull,
 };
 use crate::{
     Axis, BakedVehicle, LoftSection, LoftSpec, MaterialRole, MeshBuilder, ProfilePoint, RevolveSpec,
@@ -32,7 +33,7 @@ pub(crate) fn kv1_1942(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVe
     let mantlet = Some((t.mantlet_radius, t.mantlet_back_z, t.mantlet_front_z));
     // Roof furniture: twin flush hatches at the rear of the long casting and the commander's
     // periscope between them. NO drum cupola — that arrived with the KV-1S.
-    let turret = add_broad_mantlet_socket(
+    let turret = add_kv1_mantlet_socket(
         add_turret_ring(
             add_commander_periscope(
                 add_flush_ring_hatch(
@@ -66,16 +67,22 @@ pub(crate) fn kv1_1942(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVe
     )
     .build();
 
-    let gun = build_gun(&GunPlan {
-        axis_y: bp.gun.trunnion_y,
-        breech_z: bp.gun.trunnion_z - 0.22,
-        muzzle_z: bp.gun.muzzle_z,
-        radius: bp.gun.barrel_radius,
-        segments: bp.gun.segments,
-        mantlet,
-        evacuator: bp.gun.evacuator,
-        muzzle_brake: bp.gun.muzzle_brake,
-    });
+    // The MOVING mask carries the same tall-narrow proportion as the fixed socket it sits in —
+    // if the two disagree, the mask walks off its seat the moment the gun elevates.
+    let gun = build_gun_with_mantlet_scale(
+        &GunPlan {
+            axis_y: bp.gun.trunnion_y,
+            breech_z: bp.gun.trunnion_z - 0.22,
+            muzzle_z: bp.gun.muzzle_z,
+            radius: bp.gun.barrel_radius,
+            segments: bp.gun.segments,
+            mantlet,
+            evacuator: bp.gun.evacuator,
+            muzzle_brake: bp.gun.muzzle_brake,
+        },
+        1.10,
+        1.40,
+    );
 
     assemble(VehicleKind::KV1_1942, hull, turret, gun, *mounts)
 }

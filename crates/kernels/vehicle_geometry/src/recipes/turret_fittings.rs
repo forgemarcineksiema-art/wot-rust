@@ -363,6 +363,18 @@ pub(crate) fn add_t54_mantlet_socket(
     add_oval_mantlet_socket(builder, axis_y, mantlet, 2.15, 0.82, segments)
 }
 
+/// The KV-1's ZiS-5 mask: the OPPOSITE proportion to the T-54's wide flat oval — a mask taller
+/// than it is wide, covering the vertical aperture the gun elevates through. Authored so the KV
+/// stops wearing the generic collar every other gun in the fleet wears (audit #6).
+pub(crate) fn add_kv1_mantlet_socket(
+    builder: MeshBuilder,
+    axis_y: f32,
+    mantlet: Option<(f32, f32, f32)>,
+    segments: usize,
+) -> MeshBuilder {
+    add_oval_mantlet_socket(builder, axis_y, mantlet, 1.10, 1.40, segments)
+}
+
 /// A broad OVAL socket band on the turret face — shared construction for the wide mantlet
 /// masks (the T-54's cast mask, the Tiger II's Turmblende band); each vehicle passes its own
 /// width/height scales, so the family rhymes in build but not in shape (audit #6).
