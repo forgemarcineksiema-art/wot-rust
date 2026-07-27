@@ -72,6 +72,8 @@ BlueprintFile(
         // The heavy cast shoe, not the T-54 family's small-pitch Omsh.
         shoe_pattern: KvCast,
         wheel_face: Openwork,
+        // The idler is a webbed casting like the road wheels, not the fleet's smooth drum.
+        idler_face: Openwork,
         suspension: TorsionBar,
     ),
     turret: TurretShape(

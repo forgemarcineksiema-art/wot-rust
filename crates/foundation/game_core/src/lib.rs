@@ -53,8 +53,8 @@ pub use track::{
 };
 pub use vehicle_blueprint::{
     ArmorShape, BlueprintFile, BoxVisual, DetailVisual, FenderVisual, FittingsVisual, GunShape,
-    GunVisual, HullPlatesVisual, HullShape, HullVisual, HybridVisual, LoftStation, ShoePattern,
-    SkirtShape, SuspensionKind, TrackShape, TurretForm, TurretLoftVisual, TurretShape,
+    GunVisual, HullPlatesVisual, HullShape, HullVisual, HybridVisual, IdlerFace, LoftStation,
+    ShoePattern, SkirtShape, SuspensionKind, TrackShape, TurretForm, TurretLoftVisual, TurretShape,
     TurretVisual, VehicleBlueprint, WheelFace, lint, parse_blueprint,
 };
 pub use vehicle_kind::{Era, Nation, VehicleKind};

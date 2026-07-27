@@ -20,6 +20,15 @@ const ARM_REACH_M: f32 = 0.26;
 const ARM_RISE_M: f32 = 0.13;
 /// Arm plate half-thickness along the axle.
 const ARM_HALF_X: f32 = 0.045;
+/// The three constants above were authored against the T-54's 810 mm road wheel. A torsion arm
+/// belongs to the wheel it carries, so every torsion-bar vehicle scales them by its own wheel:
+/// the KV's 600 mm gear and the IS-3's 550 mm gear were wearing arms sized for a T-54 and looked
+/// it. The division is exact for the reference vehicle, so the T-54 stays bit-identical.
+const REF_WHEEL_RADIUS_M: f32 = 0.405;
+
+fn arm_scale(kin: &RunningGearKinematics) -> f32 {
+    kin.wheel_radius / REF_WHEEL_RADIUS_M
+}
 const CHRISTIE_REACH_M: f32 = 0.14;
 const CHRISTIE_RISE_M: f32 = 0.22;
 
@@ -36,24 +45,31 @@ pub fn swing_arm_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
 
 fn torsion_arm_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
     let seg = kin.segments.max(12);
-    let tip = Vec2::new(-ARM_RISE_M, -ARM_REACH_M);
+    let scale = arm_scale(kin);
+    let half_x = ARM_HALF_X * scale;
+    let tip = Vec2::new(-ARM_RISE_M * scale, -ARM_REACH_M * scale);
     let along = tip.normalize_or_zero();
     let across = Vec2::new(-along.y, along.x);
     // Tapered arm plate in the (y, z) plane: wide at the boss, narrower at the axle.
-    let section = vec![-across * 0.055, across * 0.055, tip + across * 0.040, tip - across * 0.040];
+    let section = vec![
+        -across * 0.055 * scale,
+        across * 0.055 * scale,
+        tip + across * 0.040 * scale,
+        tip - across * 0.040 * scale,
+    ];
     MeshBuilder::new()
         .extrude(
             Vec3::ZERO,
             ExtrudeSpec {
                 section,
                 axis: Axis::X,
-                half_depth: ARM_HALF_X,
+                half_depth: half_x,
                 material: MaterialRole::TrackMetal,
                 smoothing: SG_HARD,
             },
         )
-        .append(&stub(Vec3::ZERO, 0.075, ARM_HALF_X * 1.5, seg))
-        .append(&stub(Vec3::new(0.0, tip.x, tip.y), 0.055, ARM_HALF_X * 2.4, seg))
+        .append(&stub(Vec3::ZERO, 0.075 * scale, half_x * 1.5, seg))
+        .append(&stub(Vec3::new(0.0, tip.x, tip.y), 0.055 * scale, half_x * 2.4, seg))
         .build()
 }
 
@@ -155,9 +171,11 @@ fn torsion_arm_transform(
     wheel_z: f32,
     travel: f32,
 ) -> Mat4 {
-    let arm_x = side_sign * (kin.wheel_x - kin.wheel_half_width - ARM_HALF_X);
-    let pivot = Vec3::new(arm_x, kin.cy + ARM_RISE_M, wheel_z + ARM_REACH_M);
-    let swing = (travel / ARM_REACH_M).clamp(-1.0, 1.0).asin();
+    let scale = arm_scale(kin);
+    let (reach, rise) = (ARM_REACH_M * scale, ARM_RISE_M * scale);
+    let arm_x = side_sign * (kin.wheel_x - kin.wheel_half_width - ARM_HALF_X * scale);
+    let pivot = Vec3::new(arm_x, kin.cy + rise, wheel_z + reach);
+    let swing = (travel / reach).clamp(-1.0, 1.0).asin();
     Mat4::from_translation(pivot) * Mat4::from_rotation_x(swing)
 }
 

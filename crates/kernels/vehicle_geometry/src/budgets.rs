@@ -37,7 +37,7 @@ pub const GOLDEN_BAKE_HASHES: [(VehicleKind, u64); 10] = [
     (VehicleKind::IS3, 5_050_614_938_041_723_061_u64),
     (VehicleKind::Centurion, 15_577_022_592_979_033_199_u64),
     (VehicleKind::T34_85, 8_651_410_882_145_847_605_u64),
-    (VehicleKind::KV1_1942, 6_358_481_206_559_334_753_u64),
+    (VehicleKind::KV1_1942, 13_587_167_026_611_242_515_u64),
 ];
 
 pub fn golden_bake_hash(kind: VehicleKind) -> Option<u64> {

@@ -158,6 +158,33 @@ fn the_zis5_wears_a_cast_mask_taller_than_it_is_wide() {
     );
 }
 
+/// The running gear wears the vehicle's OWN parts: six torsion arms a side sized to the KV's own
+/// 600 mm wheels (the constants were authored against the T-54's 810 mm gear), and an idler that
+/// is a spoked casting like the road wheels rather than the fleet's shared smooth drum. This is
+/// also the fleet's first torsion-bar arm-count lock — `running_gear.rs` had Horstmann and
+/// Christie cases but never this one.
+#[test]
+fn the_torsion_gear_is_sized_to_its_own_wheels() {
+    let bp = blueprint();
+    assert_eq!(bp.track.idler_face, game_core::IdlerFace::Openwork, "a spoked idler, not a drum");
+
+    let kin = RunningGearKinematics::for_vehicle(VehicleKind::KV1_1942).expect("KV-1 has gear");
+    let placements = running_gear_placements(&kin, 0.0, 0.0);
+    let arms = placements.iter().filter(|p| p.part == vehicle_geometry::GearPart::SwingArm).count();
+    assert_eq!(arms, 12, "one torsion arm per axle, both sides");
+
+    // The arm reaches back from its pivot in proportion to the wheel it carries. A T-54-sized
+    // arm on a 600 mm wheel is the defect this catches.
+    let arm_mesh = vehicle_geometry::swing_arm_unit_mesh(&kin);
+    let reach =
+        arm_mesh.bounds().expect("arm bounds").max.z - arm_mesh.bounds().expect("arm bounds").min.z;
+    assert!(
+        reach < bp.track.wheel_radius * 1.2,
+        "the arm reaches {reach:.2} m on a {:.2} m wheel — that is the T-54's arm",
+        bp.track.wheel_radius
+    );
+}
+
 /// The dressing (art-direction defect D15 for this vehicle): spare track racked across the bow,
 /// tow cable along both fender shelves, grab rails with brackets at each end, pistol ports through
 /// the turret walls and lifting lugs on the casting's roof. Each is a thing a crew touched; losing

@@ -23,6 +23,13 @@ pub fn end_wheel_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
 /// wheel with a rubber tire rim and a proud hub — a *smooth* sibling of the road wheel, so the front
 /// of the track reads as a plain wheel against the toothed drive sprocket at the rear.
 pub fn idler_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
+    match kin.idler_face {
+        game_core::IdlerFace::Smooth => smooth_idler(kin),
+        game_core::IdlerFace::Openwork => openwork_idler(kin),
+    }
+}
+
+fn smooth_idler(kin: &RunningGearKinematics) -> GeometryMesh {
     let seg = kin.segments.max(20);
     let r = kin.end_radius;
     let half_w = kin.wheel_half_width;
@@ -31,6 +38,33 @@ pub fn idler_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
         .append(&tread_band(0.0, r, half_w * 0.9, seg))
         .append(&wheel_disc_at(0.0, r * 0.28, half_w * 1.12, seg, MaterialRole::TrackMetal))
         .build()
+}
+
+/// A spoked idler casting: the same read as the vehicle's openwork road wheels, at the end
+/// wheel's own radius. The KV-1's idler is a webbed casting, and a smooth drum beside six spoked
+/// road wheels is the kind of mismatch the close-up review exists to catch.
+fn openwork_idler(kin: &RunningGearKinematics) -> GeometryMesh {
+    let seg = kin.segments.max(20);
+    let r = kin.end_radius;
+    let half_w = kin.wheel_half_width;
+    // Recessed web the spokes read against, plus the hub and the tread band the track rides.
+    let mut builder = MeshBuilder::new()
+        .append(&wheel_disc_at(0.0, r * 0.74, half_w * 0.30, seg, MaterialRole::TrackMetal))
+        .append(&tread_band(0.0, r, half_w * 0.9, seg))
+        .append(&wheel_disc_at(0.0, r * 0.26, half_w * 1.12, seg, MaterialRole::TrackMetal));
+    // Radial arms bridging hub to rim, proud of the web and buried at both ends so no tip floats.
+    let arms = kin.wheel_spokes.max(3);
+    for i in 0..arms {
+        let angle = (i as f32 / arms as f32) * std::f32::consts::TAU;
+        builder = builder.append(&crate::running_gear_wheels::spoke_arm(
+            angle,
+            r * 0.18,
+            r * 0.80,
+            r,
+            half_w * 0.62,
+        ));
+    }
+    builder.build()
 }
 
 /// A rubber tire tread ring at `radius`, spanning `center_x ± half_width` along the axle, with

@@ -133,7 +133,10 @@ fn kv1_loaf_turret(t: &TurretShape) -> MeshBuilder {
             ],
             axis: Axis::Y,
             material: MaterialRole::CastArmor,
-            smoothing: SG_CAST,
+            // HARD, not SG_CAST: the loaf's straight side runs are flat WALLS and blending them
+            // into the rounded caps was what made the casting read as a soft blob. Hard seams
+            // cost nothing in triangles — the only currency the turret has left.
+            smoothing: SG_HARD,
             cap_ends: true,
         },
     );

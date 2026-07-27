@@ -69,6 +69,7 @@ pub(super) fn is3_blueprint() -> VehicleBlueprint {
             drive_front: false,
             shoe_pattern: ShoePattern::Omsh,
             wheel_face: WheelFace::Openwork,
+            idler_face: super::IdlerFace::Smooth,
             suspension: super::SuspensionKind::TorsionBar,
         },
         turret: TurretShape {

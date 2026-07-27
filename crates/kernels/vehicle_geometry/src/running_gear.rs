@@ -74,6 +74,8 @@ pub struct RunningGearKinematics {
     /// The road-wheel face construction (audit #14 — openwork Soviet spokes vs the German
     /// bolted steel dish vs the Centurion's bolted dish under rubber).
     pub wheel_face: game_core::WheelFace,
+    /// The front idler's face; defaults to the fleet's shared smooth drum.
+    pub idler_face: game_core::IdlerFace,
     /// Visible suspension architecture: torsion arm, Christie crank, or paired Horstmann bogie.
     pub suspension: game_core::SuspensionKind,
     /// Z of each return roller (empty when the top run rests on the road wheels).
@@ -148,6 +150,7 @@ impl RunningGearKinematics {
             wheel_spokes: track.wheel_spokes.max(3),
             shoe: track.shoe_pattern,
             wheel_face: track.wheel_face,
+            idler_face: track.idler_face,
             suspension: track.suspension,
             roller_zs,
             roller_radius: track.roller_radius,

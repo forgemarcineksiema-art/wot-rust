@@ -208,7 +208,7 @@ fn steel_ring(r_in: f32, r_out: f32, half_width: f32, segments: usize) -> Geomet
 
 /// One radial starfish arm: a tapered prism from the hub seat out to the rim, spanning the full
 /// body width so it stands proud of the recessed web behind it.
-fn spoke_arm(
+pub(crate) fn spoke_arm(
     angle: f32,
     inner_r: f32,
     outer_r: f32,

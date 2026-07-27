@@ -70,6 +70,10 @@ pub struct TrackShape {
     /// under a rubber tire.
     #[serde(default)]
     pub wheel_face: WheelFace,
+    /// The FRONT IDLER's face. Defaults to the fleet's shared smooth drum, so adding this field
+    /// changed nothing for the eight vehicles that shipped before it.
+    #[serde(default)]
+    pub idler_face: IdlerFace,
     /// The visible suspension architecture behind the road wheels. This is not decoration:
     /// Horstmann places one bogie per wheel pair, Christie uses an internal-spring crank, and
     /// torsion-bar vehicles expose one trailing arm per axle.
@@ -118,6 +122,19 @@ pub enum WheelFace {
     SteelDish,
     /// Bolted dish under a rubber tire (Centurion).
     RubberDish,
+}
+
+/// Front-idler faces. PR #237 de-cloned the shoes and the road wheels but stopped at the end
+/// wheels, so every vehicle in the fleet shares one smooth drum. `Smooth` is the default so that
+/// stays true for anyone who does not opt out; a vehicle whose idler is visibly a spoked casting
+/// (the KV-1) says so.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+pub enum IdlerFace {
+    /// A plain steel drum under a tire band — the fleet's shared front wheel.
+    #[default]
+    Smooth,
+    /// A spoked/webbed casting, matching the vehicle's own openwork road wheels.
+    Openwork,
 }
 
 /// Deserialize `Option<Vec<f32>>` into the `Copy`-preserving `Option<&'static [f32]>` by

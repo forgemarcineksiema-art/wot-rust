@@ -81,6 +81,7 @@ pub(super) fn tiger_ii_blueprint() -> VehicleBlueprint {
             drive_front: true,
             shoe_pattern: ShoePattern::Kgs,
             wheel_face: WheelFace::SteelDish,
+            idler_face: super::IdlerFace::Smooth,
             suspension: super::SuspensionKind::TorsionBar,
         },
         turret: TurretShape {
