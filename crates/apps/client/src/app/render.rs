@@ -147,7 +147,8 @@ impl ClientApp {
         }
         let (tx, rx) = std::sync::mpsc::channel();
         self.scene_rebuild_rx = Some(rx);
-        let battlefield = self.battlefield.clone();
+        // An `Arc` handle: the worker only reads the map (see `ClientApp::battlefield`).
+        let battlefield = std::sync::Arc::clone(&self.battlefield);
         std::thread::spawn(move || {
             let buckets = dirty_buckets
                 .into_iter()
@@ -205,13 +206,17 @@ impl ClientApp {
         self.ground_deform_dirty = false;
         let (tx, rx) = std::sync::mpsc::channel();
         self.ground_rebuild_rx = Some(rx);
-        // The clone carries the heightmap's crater overlay — the bake reads sample_height,
-        // the exact deformed truth the sim and predictor stand on. The ground maps ride along
-        // (a few MB, cloned once per crater event) so the card meadow rebakes from the same
-        // splat the first bake used.
-        let battlefield = self.battlefield.clone();
-        let ground_maps =
-            self.battle_scene_meshes.as_ref().map(|meshes| meshes.ground_maps.clone());
+        // Both handles are `Arc` clones — pointer bumps, not copies. The battlefield carries the
+        // heightmap's crater overlay (the bake reads `sample_height`, the exact deformed truth
+        // the sim and predictor stand on) and the ground maps ride along so the card meadow
+        // rebakes from the same splat the first bake used. Deep-copying them here used to put a
+        // ~12 MB memcpy on the RENDER thread in the very frame an HE round landed — the bake
+        // was moved off this thread precisely so the frame would not pay for the crater.
+        let battlefield = std::sync::Arc::clone(&self.battlefield);
+        let ground_maps = self
+            .battle_scene_meshes
+            .as_ref()
+            .map(|meshes| std::sync::Arc::clone(&meshes.ground_maps));
         let materials = scene_build::terrain_maps::terrain_material_set_for(self.session.map_id());
         std::thread::spawn(move || {
             let ground = crate::battlefield_ground_mesh(&battlefield);

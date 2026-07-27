@@ -29,7 +29,14 @@ impl ClientApp {
         // in the same holes the server does. Idempotent — an unchanged ledger costs one
         // compare. A moved ledger also flags the ground re-mesh (P4b).
         if self.battlefield.heightmap.crater_records() != snapshot.craters.as_slice() {
-            self.battlefield.heightmap.set_craters(&snapshot.craters);
+            // Copy-on-write: with no bake in flight this is an in-place mutation of a uniquely
+            // held map (the common case, and cheaper than the unconditional deep clone the
+            // worker handoff used to pay). While a bake IS running it forks once, and that
+            // worker finishes against the ledger it was handed — the dirty flag re-fires for
+            // the newer one, exactly as it did before.
+            std::sync::Arc::make_mut(&mut self.battlefield)
+                .heightmap
+                .set_craters(&snapshot.craters);
             self.ground_deform_dirty = true;
         }
         let player = snapshot.tanks.iter().find(|tank| tank.tank_id == self.player_tank).cloned();

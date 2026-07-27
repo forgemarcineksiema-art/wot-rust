@@ -78,7 +78,12 @@ pub(crate) struct BattleSceneMeshes {
     pub(crate) ground_vertices: Vec<renderer_api::SceneVertex>,
     pub(crate) ground_indices: Vec<u32>,
     /// The baked ground maps (splat + macro normal) — cover changes never touch these.
-    pub(crate) ground_maps: renderer_api::TerrainGroundMaps,
+    ///
+    /// Behind an `Arc` because the crater re-mesh hands them to a worker thread: at 1024² they
+    /// are ~12 MB (splat + macro normal + puddle propensity), and deep-copying that on the
+    /// RENDER thread — which is where the handoff happens — cost a visible hitch in the frame
+    /// an HE round landed. A worker only ever reads them.
+    pub(crate) ground_maps: std::sync::Arc<renderer_api::TerrainGroundMaps>,
     /// The mid-field card meadow (Żywy Step P2) — the renderer's dressing slot.
     pub(crate) dressing_vertices: Vec<renderer_api::SceneVertex>,
     pub(crate) dressing_indices: Vec<u32>,
@@ -101,7 +106,7 @@ pub(crate) struct BattleSceneMeshes {
 /// asked for it. Everything here is a pure function of the [`terrain::MapId`], which is what
 /// makes the speculative bake safe: if the pick changes, the result is simply dropped.
 pub(crate) struct PrebakedWorld {
-    battlefield: BattlefieldMap,
+    battlefield: std::sync::Arc<BattlefieldMap>,
     meshes: BattleSceneMeshes,
     minimap: crate::app::minimap_build::MinimapStaticLayers,
 }
@@ -150,7 +155,7 @@ impl MapPrebake {
 /// battle's replicated states start; a battle that somehow disagrees repairs itself through the
 /// ordinary dirty-bucket path (see `adopt_session_map`).
 fn bake_world_for(map: terrain::MapId) -> PrebakedWorld {
-    let battlefield = map_forge::battlefield(map);
+    let battlefield = std::sync::Arc::new(map_forge::battlefield(map));
     let phases = live_cover::LiveCoverCache::from_born_phases(&battlefield.static_cover);
     let meshes = bake_battle_scene_meshes(&battlefield, map, phases.phase_bytes());
     let minimap = crate::app::minimap_build::minimap_static_layers(&battlefield);
@@ -168,7 +173,8 @@ fn bake_battle_scene_meshes(
     let (ground_vertices, ground_indices) = crate::battlefield_ground_mesh(battlefield);
     let statics_buckets = crate::battlefield_statics_buckets(battlefield, &cover_phases, &[]);
     let (statics_vertices, statics_indices) = crate::assemble_statics_mesh(&statics_buckets);
-    let ground_maps = scene_build::terrain_maps::bake_terrain_ground_maps(battlefield);
+    let ground_maps =
+        std::sync::Arc::new(scene_build::terrain_maps::bake_terrain_ground_maps(battlefield));
     let (water_vertices, water_indices) = scene_build::water::battlefield_water_mesh(battlefield);
     let (dressing_vertices, dressing_indices) = scene_build::grass_cards::grass_card_dressing_mesh(
         battlefield,
@@ -284,7 +290,7 @@ impl ClientApp {
         let (battlefield, meshes, minimap) = match prebaked {
             Some(world) => (world.battlefield, Some(world.meshes), world.minimap),
             None => {
-                let battlefield = map_forge::battlefield(map);
+                let battlefield = std::sync::Arc::new(map_forge::battlefield(map));
                 let minimap = crate::app::minimap_build::minimap_static_layers(&battlefield);
                 (battlefield, None, minimap)
             }
@@ -405,7 +411,10 @@ pub(crate) struct ClientApp {
     live_cover: live_cover::LiveCoverCache,
     desired_aim: DesiredAim,
     garage: GarageState,
-    battlefield: BattlefieldMap,
+    /// Behind an `Arc` because background bakes (statics rebuild, crater re-mesh) take a handle
+    /// to it. The map carries a 201² heightfield plus every cover/scenery record; deep-copying
+    /// it per crater on the RENDER thread was pure hitch, and the workers only read it.
+    battlefield: std::sync::Arc<BattlefieldMap>,
     player_tank: TankId,
     client_tick: u64,
     /// Fixed ticks run since the last ingested snapshot. Together with the sub-tick remainder it
@@ -593,7 +602,7 @@ impl ClientApp {
             VehicleKind::default(),
         ));
         let player_tank = session.player_tank();
-        let battlefield = map_forge::battlefield(session.map_id());
+        let battlefield = std::sync::Arc::new(map_forge::battlefield(session.map_id()));
         let opening_snapshot = session.latest_snapshot_for_player();
         let live_cover = live_cover::LiveCoverCache::from_replicated(
             &battlefield.static_cover,
@@ -640,7 +649,7 @@ impl ClientApp {
             .map_or_else(|| VehicleKind::default().spec(), |tank| tank.vehicle.spec());
         // The authoritative server names the map; the client regenerates the identical
         // battlefield locally (the world never crosses the wire — see `terrain::MapId`).
-        let battlefield = map_forge::battlefield(local_server.map_id());
+        let battlefield = std::sync::Arc::new(map_forge::battlefield(local_server.map_id()));
         let camera_settings = Self::map_camera_settings(local_server.map_id());
         let live_cover = live_cover::LiveCoverCache::from_replicated(
             &battlefield.static_cover,
