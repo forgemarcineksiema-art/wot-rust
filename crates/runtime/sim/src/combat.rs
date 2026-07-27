@@ -1,7 +1,8 @@
 use game_core::math::{plate_normal, world_to_tank_local};
 use game_core::{
     ArmorFacing, ArmorZone, DamageCause, DamageEvent, ModuleSlot, PenetrationResult, ShellId,
-    TankId, resolve_penetration_at_distance_on_zone, resolve_penetration_through_track,
+    TankId, TrackSide, resolve_penetration_at_distance_on_zone,
+    resolve_penetration_through_screens,
 };
 use glam::Vec3;
 
@@ -389,43 +390,53 @@ fn resolve_impact_penetration(
             distance_m,
         );
     }
-    // A BROKEN track is not there any more: the thrown belt lies on the ground beside the
-    // hull, so the shot meets the bare side plate with no spaced screen. The sim stops
-    // charging armor for steel the eye can see is missing.
-    let broken_side = match zone {
-        ArmorZone::LeftTrack => target.tracks.hp(game_core::TrackSide::Left) == 0,
-        ArmorZone::RightTrack => target.tracks.hp(game_core::TrackSide::Right) == 0,
-        _ => false,
-    };
-    let side_sign = match zone {
-        ArmorZone::LeftTrack => -1.0,
-        ArmorZone::RightTrack => 1.0,
-        // The skirt pair shares one zone; the struck plate is whichever side faces the shell's
-        // approach, resolved in the hull frame.
+    // Which flank the shell met. The track zones say so outright; the skirt pair shares one
+    // zone, so the struck plate is whichever side faces the shell's approach, resolved in the
+    // hull frame.
+    let struck_side = match zone {
+        ArmorZone::LeftTrack => TrackSide::Left,
+        ArmorZone::RightTrack => TrackSide::Right,
         _ => {
             let local =
                 target.hull_pose().basis().transpose() * shell.velocity_mps.normalize_or_zero();
-            if local.x < 0.0 { 1.0 } else { -1.0 }
+            if local.x < 0.0 { TrackSide::Right } else { TrackSide::Left }
         }
+    };
+    let side_sign = match struck_side {
+        TrackSide::Left => -1.0,
+        TrackSide::Right => 1.0,
     };
     let side_slope = target.spec.hull.facet(ArmorFacing::HullSide).slope_degrees;
     let side_normal =
         plate_normal(target.hull_pose(), 0.0, ArmorZone::HullSide, side_sign, side_slope);
     let direction = shell.velocity_mps.normalize_or_zero();
     let side_angle_degrees = (-direction).dot(side_normal).clamp(-1.0, 1.0).acos().to_degrees();
-    if broken_side {
-        return resolve_penetration_at_distance_on_zone(
-            &shell.shell,
-            &target.spec.hull,
-            ArmorZone::HullSide,
-            side_angle_degrees,
-            distance_m,
-        );
+
+    // The spaced stack standing off this flank, OUTERMOST FIRST — the honest geometry of what
+    // the shell actually crosses:
+    //   * a skirt hangs outside the belt, so a skirt hit still has the belt behind it;
+    //   * a BROKEN track is not there any more (the thrown belt lies on the ground beside the
+    //     hull), so it stops screening — the sim never charges armour for steel the eye can
+    //     see is missing;
+    //   * an empty stack is a bare side plate.
+    let belt_zone = match struck_side {
+        TrackSide::Left => ArmorZone::LeftTrack,
+        TrackSide::Right => ArmorZone::RightTrack,
+    };
+    let mut screens = [ArmorZone::Skirt; 2];
+    let mut screen_count = 0;
+    if zone == ArmorZone::Skirt {
+        screens[screen_count] = ArmorZone::Skirt;
+        screen_count += 1;
     }
-    resolve_penetration_through_track(
+    if target.tracks.hp(struck_side) > 0 {
+        screens[screen_count] = belt_zone;
+        screen_count += 1;
+    }
+    resolve_penetration_through_screens(
         &shell.shell,
         &target.spec.hull,
-        zone,
+        &screens[..screen_count],
         impact_angle_degrees,
         side_angle_degrees,
         distance_m,
@@ -520,6 +531,68 @@ mod tests {
             "a broken track must drop the effective armour (screen gone): broken {} vs healthy {}",
             broken.effective_armor_mm,
             healthy.effective_armor_mm
+        );
+    }
+
+    /// The integration half of the spaced-armour rule (the resolver's own half is
+    /// `game_core/tests/spaced_armor.rs`): THIS is where the stack is built, so this is where a
+    /// skirt that forgot the belt behind it would show up. Same tank, same shell, same flank —
+    /// the only difference is which layer the trace resolved on, and the skirt is strictly extra
+    /// steel in front of the same belt, so it can only cost the shell more.
+    #[test]
+    fn a_skirt_hit_costs_more_than_the_belt_it_hangs_over() {
+        for kind in [VehicleKind::Centurion, VehicleKind::TigerII] {
+            let spec = kind.spec();
+            let tank = fresh_tank(TankId(2), TeamId(2), spec.clone(), Vec3::ZERO, 0.0);
+            // Moving -x: the shell meets this hull's RIGHT flank head-on, whichever layer the
+            // trace resolved on.
+            let mut shell = shell_toward(
+                TankId(1),
+                Vec3::new(5.0, 0.9, 0.0),
+                Vec3::new(-900.0, 0.0, 0.0),
+                &spec,
+            );
+            for shell_type in [ShellType::ArmorPiercing, ShellType::Heat] {
+                shell.shell = match shell_type {
+                    ShellType::Heat => game_core::ShellSpec::heat(100.0, 900.0, 300.0, 320),
+                    _ => game_core::ShellSpec::armor_piercing(100.0, 900.0, 200.0, 320),
+                };
+                let skirt = resolve_impact_penetration(&shell, &tank, ArmorZone::Skirt, 0.0, 100.0);
+                let belt =
+                    resolve_impact_penetration(&shell, &tank, ArmorZone::RightTrack, 0.0, 100.0);
+                assert!(
+                    skirt.effective_armor_mm > belt.effective_armor_mm,
+                    "{kind:?} vs {shell_type:?}: a skirt hit must cost MORE than the bare belt \
+                     it hangs over — skirt {:.1} mm vs belt {:.1} mm. The screen stack in \
+                     `resolve_impact_penetration` must carry the belt behind the skirt.",
+                    skirt.effective_armor_mm,
+                    belt.effective_armor_mm
+                );
+            }
+        }
+    }
+
+    /// ...and a thrown belt drops OUT of that stack, skirt or no skirt: the sheet is still
+    /// bolted on, the running gear behind it is on the ground.
+    #[test]
+    fn a_thrown_belt_stops_screening_even_under_an_intact_skirt() {
+        let spec = VehicleKind::Centurion.spec();
+        let make = |broken: bool| {
+            let mut tank = fresh_tank(TankId(2), TeamId(2), spec.clone(), Vec3::ZERO, 0.0);
+            if broken {
+                tank.tracks.break_side(game_core::TrackSide::Right);
+            }
+            tank
+        };
+        let shell =
+            shell_toward(TankId(1), Vec3::new(5.0, 0.9, 0.0), Vec3::new(-900.0, 0.0, 0.0), &spec);
+        let whole = resolve_impact_penetration(&shell, &make(false), ArmorZone::Skirt, 0.0, 100.0);
+        let thrown = resolve_impact_penetration(&shell, &make(true), ArmorZone::Skirt, 0.0, 100.0);
+        assert!(
+            thrown.effective_armor_mm < whole.effective_armor_mm,
+            "a thrown belt must stop screening: {:.1} mm vs {:.1} mm",
+            thrown.effective_armor_mm,
+            whole.effective_armor_mm
         );
     }
 

@@ -17,10 +17,13 @@ pub enum ArmorZone {
     Roof,
     LeftTrack,
     RightTrack,
-    /// A thin side skirt hung outside the track: a spaced standoff SCREEN, resolved like the
-    /// track band (it strips its LOS off the shell — a multiple for HEAT — before the hull side
-    /// plate behind it), but it is sheet metal, NOT running gear: a skirt hit never degrades the
-    /// track. Appended last — the zone rides the wire inside damage events.
+    /// A thin side skirt hung OUTSIDE the track band: the outermost layer of a spaced stack,
+    /// never a replacement for what stands behind it. A shell resolved on this zone crosses the
+    /// skirt, then the belt, then the hull side plate — see
+    /// [`resolve_penetration_through_screens`](super::resolve_penetration_through_screens).
+    /// Charging the skirt ALONE made bolting Schürzen onto a hull reduce its flank armour, and
+    /// left the skirted vehicles unable to lose a module to a flank shot at all.
+    /// Appended last — the zone rides the wire inside damage events.
     Skirt,
 }
 

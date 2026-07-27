@@ -22,8 +22,8 @@ pub use armor::{
     ArmorFacet, ArmorFacetProfile, ArmorFacing, ArmorPatch, ArmorProfile, ArmorVolume, ArmorZone,
     PenetrationResult, TaggedPlane, VehicleArmorVolumes, VolumeInterval, resolve_penetration,
     resolve_penetration_at_distance, resolve_penetration_at_distance_on_zone,
-    resolve_penetration_through_track, segment_volume_entry, segment_volume_entry_with_margin,
-    segment_volume_interval_with_margin, vehicle_armor_volumes,
+    resolve_penetration_through_screens, resolve_penetration_through_track, segment_volume_entry,
+    segment_volume_entry_with_margin, segment_volume_interval_with_margin, vehicle_armor_volumes,
 };
 pub use armor_breach::surface_basis as armor_surface_basis;
 pub use armor_breach::{
