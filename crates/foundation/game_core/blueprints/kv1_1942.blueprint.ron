@@ -11,7 +11,11 @@ BlueprintFile(
     kind: KV1_1942,
     hull: HullShape(
         half_len: 3.375,
-        half_width: 1.62,
+        // The armoured superstructure is NARROWER than the 3.32 m width over tracks: the 75 mm
+        // side plate stands at 1.42 and the squared fender shelves bridge outward over the
+        // running gear to the track face. Setting this flush with `outer_x` would bury the
+        // fenders inside the hull and leave the return rollers unreadable from the flank.
+        half_width: 1.42,
         belly_y: 0.43,
         // The TALL Soviet heavy hull: a flat deck at 1.75 leaving 0.96 m of turret above it.
         deck_y: 1.75,

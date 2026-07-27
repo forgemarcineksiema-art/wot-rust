@@ -42,6 +42,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         (VehicleKind::IS3, "is3"),
         (VehicleKind::Centurion, "centurion"),
         (VehicleKind::T34_85, "t34_85"),
+        (VehicleKind::KV1_1942, "kv1"),
     ];
 
     for (kind, slug) in fleet {

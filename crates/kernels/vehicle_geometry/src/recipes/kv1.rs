@@ -177,7 +177,9 @@ fn kv1_loaf_turret(t: &TurretShape) -> MeshBuilder {
 /// stay inside the track band's outer face so nothing visible hangs over un-hittable air.
 fn kv1_fenders(hull: &HullShape, track: &TrackShape) -> MeshBuilder {
     let mut builder = MeshBuilder::new();
-    let inner = track.inner_x;
+    // From the hull's side plate outward to the track face: the shelf bridges the gap the
+    // narrower superstructure leaves, and the sponson covers the run inboard of it.
+    let inner = hull.half_width;
     let outer = track.outer_x - 0.01;
     let half_x = (outer - inner) * 0.5;
     let center_x = inner + half_x;

@@ -178,6 +178,33 @@ What reaches `TankSpec` and where the model deviates:
    and a TODO; tighten them once source [2]'s Tankograd reference is obtained.
 4. **The selective 110–120 mm turret reinforcement is not modelled** as distinct patches — see the
    table above.
-5. **Not sealed.** Per `vehicle-fidelity-masterplan.md`, this dossier is the floor. The vehicle is
-   not done until the close-up functional review has been run and looked at by a human, and until
-   the gun's deliberate weakness has been felt in a live battle.
+5. **The superstructure is narrower than the width over tracks** (1.42 m half-width against a
+   1.66 m track face). This is correct for the KV — the fenders bridge outward over the running
+   gear — and it is recorded because the first cut got it wrong: see the review findings below.
+
+## Close-up review (2026-07-27, `closeup_probe`)
+
+Run and looked at, per the model-logic gate. What it caught and what it left:
+
+**Fixed as a result of the review:**
+
+- **The fenders were buried in the hull.** The first cut set the hull half-width flush with the
+  track face, so the shelves protruded by 3 cm and the three return rollers were unreadable from
+  the flank — on a vehicle whose rollers are one of its ten form rules. The superstructure is now
+  1.42 m half-width and the fenders bridge outward; the rollers read at flank distance.
+
+**Seen, accepted, and NOT fixed — these are open, not done:**
+
+- The turret reads as a soft rounded casting rather than a crisply slab-sided one. The mod-1942
+  turret genuinely was a rounded casting and the silhouette is right (a tall loaf, decisively not
+  the low wide dome of the T-34-85/IS-3), but the flat-wall character is muted by the cast
+  smoothing group. Worth a look when the fleet's edge/curvature shading is revisited.
+- The mantlet is a small bump; the real one is a more prominent cast mask.
+- The idler is a plain smooth drum where the road wheels are spoked. Shared fleet behaviour.
+- The hull sides are unbroken plate — no weld seams, grab handles, tow cable or spare track.
+  That is fleet-wide defect **D15** in `art-direction-program.md`, not a KV-specific miss, and it
+  closes with the W3 vehicle wave.
+
+**NOT sealed.** Per `vehicle-fidelity-masterplan.md` this dossier and these renders are the floor,
+not the bar. The vehicle is not done until a human has looked at it and until the gun's deliberate
+weakness has been felt in a live battle. Green gates are not a seal.
