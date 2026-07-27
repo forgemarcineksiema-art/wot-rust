@@ -341,7 +341,7 @@ impl ClientApp {
                 .and_then(|snapshot| {
                     snapshot.tanks.iter().find(|tank| tank.tank_id == event.tank_id)
                 })
-                .map_or(100.0, |tank| tank.vehicle.spec().gun.shell.caliber_mm);
+                .map_or(100.0, |tank| tank.vehicle.spec_ref().gun.shell.caliber_mm);
             self.queue_audio(audio::AudioEvent::CannonFired {
                 position: event.muzzle,
                 caliber_mm,

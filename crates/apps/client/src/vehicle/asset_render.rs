@@ -87,7 +87,8 @@ pub fn tank_vehicle_render_objects_posed(
     catalog.integrate_one_damage_mesh();
     // The interior's Damaged/Burning variants key the per-instance skin: which module slots are
     // hurt (scorched paint) or gone (charred black), straight from the replicated module state.
-    let full_hp = snapshot.vehicle.spec().module_health.hit_points_by_slot();
+    // `spec_ref`: this runs per tank per FRAME, and it reads one array.
+    let full_hp = snapshot.vehicle.spec_ref().module_health.hit_points_by_slot();
     let mut damaged_modules = 0_u8;
     for (index, live) in snapshot.module_hit_points.iter().enumerate() {
         if game_core::module_condition(*live, full_hp[index]) == game_core::ModuleCondition::Damaged
@@ -260,7 +261,7 @@ mod tests {
     /// World height of the muzzle end of the posed gun submesh (index 2). The gun mesh is authored
     /// around the trunnion, so a point a couple of metres down its local +Z axis rides the barrel.
     fn muzzle_height(objects: &[RenderObject]) -> f32 {
-        let gun = Mat4::from_cols_array_2d(&objects[2].transform);
+        let gun = Mat4::from_cols_array_2d(&objects[crate::VEHICLE_GUN_OBJECT].transform);
         gun.transform_point3(Vec3::new(0.0, 0.0, 2.5)).y
     }
 

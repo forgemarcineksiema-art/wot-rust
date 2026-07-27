@@ -20,6 +20,19 @@ pub struct VehicleRenderFrame {
 const FRIENDLY_HULL: [f32; 3] = [0.30, 0.40, 0.28];
 const ENEMY_HULL: [f32; 3] = [0.46, 0.29, 0.25];
 
+/// A vehicle's render objects are laid out `[hull, turret, gun, ...running gear]`, contiguous
+/// per tank.
+///
+/// Five passes reach straight into that layout — the recoil stroke, the player's barrel scale,
+/// the garage's gun stretch, the wreck's turret pop-off and the battle-scar override — and each
+/// used to spell the position as a bare `2`. That is a convention, and this repository has
+/// already written down what happens to conventions. Naming the slots does not make the layout
+/// safe on its own, which is why `every_vehicle_lays_its_objects_out_hull_turret_gun` checks the
+/// roster against the catalog's own named handles.
+pub const VEHICLE_HULL_OBJECT: usize = 0;
+pub const VEHICLE_TURRET_OBJECT: usize = 1;
+pub const VEHICLE_GUN_OBJECT: usize = 2;
+
 /// The team the player is fighting for, read off the presentation list.
 ///
 /// `None` only if the player's own tank is absent from the frame, in which case there is no team
@@ -235,7 +248,7 @@ fn hash_phase(seed: u64) -> f32 {
 /// same distance as its stock sibling, it does not stretch the recoil with the mesh.
 fn recoil_gun(objects: &mut [RenderObject], recoil_m: f32) {
     if recoil_m > 1.0e-4
-        && let Some(gun) = objects.get_mut(2)
+        && let Some(gun) = objects.get_mut(VEHICLE_GUN_OBJECT)
     {
         let recoiled = Mat4::from_cols_array_2d(&gun.transform)
             * Mat4::from_translation(Vec3::new(0.0, 0.0, -recoil_m));
@@ -273,7 +286,7 @@ fn wheel_travel(tank: &PresentationTank, terrain: Option<&HeightMap>) -> (Vec<f3
 fn scale_player_gun(objects: &mut [RenderObject], is_player: bool, player_gun_scale: f32) {
     if is_player
         && (player_gun_scale - 1.0).abs() > 1.0e-3
-        && let Some(gun) = objects.get_mut(2)
+        && let Some(gun) = objects.get_mut(VEHICLE_GUN_OBJECT)
     {
         let scaled = Mat4::from_cols_array_2d(&gun.transform)
             * Mat4::from_scale(Vec3::new(1.0, 1.0, player_gun_scale));
@@ -465,6 +478,31 @@ mod tests {
                 );
                 assert!(aperture.glow > 0.0, "a 1-second-old breach still glows");
             }
+        }
+    }
+
+    /// `[hull, turret, gun, ...gear]` stops being a convention here.
+    ///
+    /// Five passes index straight into that layout — the recoil stroke, the player's barrel
+    /// scale, the garage's gun stretch, the wreck's turret pop-off and the battle-scar override.
+    /// A vehicle whose bake emitted its submeshes in another order would silently recoil its
+    /// turret and stretch its hull, on that vehicle only, with nothing failing. So every vehicle
+    /// the player can field is checked against the catalog's OWN named handles.
+    #[test]
+    fn every_vehicle_lays_its_objects_out_hull_turret_gun() {
+        let mut catalog = VehicleMeshCatalog::default();
+        for kind in game_core::VehicleKind::PLAYABLE {
+            let entry = catalog.vehicle_entry(kind).expect("a playable vehicle bakes geometry");
+            let objects =
+                tank_render_objects(&mut catalog, &breached_snapshot(kind), FRIENDLY_HULL);
+            assert!(
+                objects.len() > VEHICLE_GUN_OBJECT,
+                "{kind:?} emitted only {} objects",
+                objects.len()
+            );
+            assert_eq!(objects[VEHICLE_HULL_OBJECT].mesh, entry.hull, "{kind:?}: hull slot");
+            assert_eq!(objects[VEHICLE_TURRET_OBJECT].mesh, entry.turret, "{kind:?}: turret slot");
+            assert_eq!(objects[VEHICLE_GUN_OBJECT].mesh, entry.gun, "{kind:?}: gun slot");
         }
     }
 
