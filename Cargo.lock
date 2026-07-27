@@ -3654,6 +3654,7 @@ dependencies = [
  "bytemuck",
  "encase",
  "game_core",
+ "glam 0.30.10",
  "naga",
  "png",
  "pollster",

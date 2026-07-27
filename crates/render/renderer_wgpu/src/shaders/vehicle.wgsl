@@ -125,27 +125,12 @@ fn material_params(id: u32) -> Material {
     return m;
 }
 
+/// Whether a world point on the plate plane lies inside the aperture — the sun-admission test
+/// for interior lighting. Shares the ONE contour evaluation (`aperture_contour_metric`) with
+/// the mesh cut and the soot/glow marks, so light enters exactly the hole that is drawn and
+/// that collision samples.
 fn aperture_contains_world(aperture: ArmorAperture, world_pos: vec3<f32>) -> bool {
-    let normal = normalize(aperture.normal_minor.xyz);
-    let tangent = normalize(aperture.tangent_rotation.xyz);
-    let bitangent = normalize(cross(normal, tangent));
-    let delta = world_pos - aperture.center_major.xyz;
-    let local = vec2<f32>(dot(delta, tangent), dot(delta, bitangent));
-    let angle = atan2(local.y, local.x);
-    let rough = 1.0 + aperture.shape.x
-        * (sin(angle * 3.0 + aperture.shape.y) * 0.62
-            + sin(angle * 5.0 + aperture.shape.z) * 0.38);
-    let rotation = aperture.tangent_rotation.w;
-    let sin_r = sin(rotation);
-    let cos_r = cos(rotation);
-    let rotated = vec2<f32>(
-        local.x * cos_r + local.y * sin_r,
-        -local.x * sin_r + local.y * cos_r,
-    );
-    let metric = vec2<f32>(
-        rotated.x / max(aperture.center_major.w * rough, 0.005),
-        rotated.y / max(aperture.normal_minor.w * rough, 0.005),
-    );
+    let metric = aperture_contour_metric(aperture, aperture_plane_local(aperture, world_pos));
     return dot(metric, metric) <= 1.0;
 }
 
