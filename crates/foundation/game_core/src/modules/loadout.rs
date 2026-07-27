@@ -118,6 +118,7 @@ fn armor_profile_for(kind: VehicleKind, modules: &VehicleModules) -> ArmorProfil
     match kind {
         // Blueprint-migrated: facets come from `bp.armor` above, always.
         VehicleKind::T34_85
+        | VehicleKind::KV1_1942
         | VehicleKind::IS3
         | VehicleKind::TigerI
         | VehicleKind::TigerII

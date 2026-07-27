@@ -189,7 +189,8 @@ pub(crate) fn part(
 
 pub(crate) fn turret_material(form: TurretForm) -> MaterialRole {
     match form {
-        TurretForm::CastDome => MaterialRole::CastArmor,
+        // A slab-sided casting is still a casting: flat walls, cast steel.
+        TurretForm::CastDome | TurretForm::CastSlab => MaterialRole::CastArmor,
         TurretForm::WeldedBox | TurretForm::Casemate => MaterialRole::RolledArmor,
     }
 }

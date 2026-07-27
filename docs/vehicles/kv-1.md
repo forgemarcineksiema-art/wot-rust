@@ -42,8 +42,9 @@ medium rows enter with a widened tolerance and a TODO, per the masterplan.
 | --- | ---: | --- | --- | --- |
 | Hull length | 6.75 m | [1] | high | `DimensionKind::HullLength`, `hull.half_len` |
 | Width over tracks | 3.32 m | [1] | high | `DimensionKind::HullWidth`, `track.outer_x` |
-| Height to turret roof | 2.71 m | [1] | high | `DimensionKind::HeightToTurretRoof`, `turret.roof_y` |
-| Overall length, gun forward | ≈ hull length | [1][3] | high | `DimensionKind::OverallLengthWithGun` |
+| Overall height | 2.71 m | [1] | high | `DimensionKind::HeightToTurretRoof` |
+| — of which turret roof | 2.62 m | derived | medium | `turret.roof_y` (the periscope on it reaches 2.71) |
+| Overall length, gun forward | ≈ hull length (modelled 7.20 m — see deviations) | [1] | high | `DimensionKind::OverallLengthWithGun` |
 | Combat weight | 47.0 t (range 45–52 t across variants) | [1][2] | medium | Σ module `mass_kg` |
 | Crew | 5 | [1] | high | — |
 | Hull armour, front | 90 mm | [1] | high | `HullChassis::front_mm` |
@@ -140,8 +141,9 @@ and the ammunition stowage. Tankograd's Vollert volume (cited by [2]) is the obv
 
 ## Gameplay translation
 
-**Design intent — the anvil that cannot answer.** The slowest and worst-steering vehicle in the
-game, protected from every angle, carrying a gun that cannot hurt what it most wants to kill. It
+**Design intent — the anvil that cannot answer.** The slowest vehicle in the game and the
+clumsiest-steering turreted one (only the casemate Jagdtiger turns worse, and it steers to aim),
+protected from every angle, carrying a gun that cannot hurt what it most wants to kill. It
 plays corners, flanks and city blocks, and it dies in the open. That is a role, not a handicap:
 nothing else in Era II can bully a T-34-85 or a flanking Panther the way it can.
 
@@ -164,9 +166,14 @@ What reaches `TankSpec` and where the model deviates:
    exactly one bow plane above the sponson fold and one below, so the third plate is folded into an
    averaged upper-glacis angle. Extending the shared armour kernel to three bow plates is out of
    scope for this vehicle's wave. **This is the headline deviation — a reviewer will look for it.**
-2. **`trunnion_z` is set slightly forward of its true position** to satisfy the shared mount
-   invariant `muzzle_z > trunnion_z + 2.5` (`mount.rs:82`), which the ZiS-5's short tube otherwise
-   fails. The margin is ~0.2 m and is asserted in the cage so a later nudge names its cause.
+2. **The gun overhangs the bow by 0.45 m; the real one barely reaches it.** Sources quote the
+   KV's overall length as its hull length, so the honest figure would be ~0 m of protrusion. Two
+   engine invariants forbid that: every barrel must clear its hitbox (`all_vehicles.rs`) and the
+   mount frame requires 2.5 m of tube ahead of the trunnion (`mount.rs:82`), while the trunnion
+   itself must sit under the mantlet for the shared socket contract (`vehicle_fittings.rs`). The
+   modelled overall length is therefore 7.20 m rather than 6.75 m. Even so the KV overhangs about
+   a fifth as much as the next-shortest gun in the fleet, so the silhouette identity survives; the
+   cage asserts both margins so a later nudge to the hull or trunnion names its own cause.
 3. **Low-confidence anchors** (road wheel diameter, turret plan) ship with widened ratio tolerances
    and a TODO; tighten them once source [2]'s Tankograd reference is obtained.
 4. **The selective 110–120 mm turret reinforcement is not modelled** as distinct patches — see the

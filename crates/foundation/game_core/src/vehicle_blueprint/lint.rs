@@ -107,7 +107,10 @@ pub fn validate_blueprint(bp: &VehicleBlueprint) -> Vec<BlueprintIssue> {
     }
 
     // --- Turret -------------------------------------------------------------------------
-    if turret.form == TurretForm::CastDome && turret.ring_radius >= turret.base_radius {
+    // Every CASTING overhangs its ring race, whatever its plan — a dome and a slab alike.
+    if matches!(turret.form, TurretForm::CastDome | TurretForm::CastSlab)
+        && turret.ring_radius >= turret.base_radius
+    {
         issue(
             &mut issues,
             e,

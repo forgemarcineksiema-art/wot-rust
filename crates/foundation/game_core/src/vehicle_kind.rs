@@ -92,11 +92,12 @@ pub enum VehicleKind {
     IS3,
     Centurion,
     T34_85,
+    KV1_1942,
 }
 
 impl VehicleKind {
     /// Every known vehicle, in declaration (wire) order.
-    pub const ALL: [VehicleKind; 9] = [
+    pub const ALL: [VehicleKind; 10] = [
         VehicleKind::PrototypeMedium,
         VehicleKind::T54_1951,
         VehicleKind::TigerI,
@@ -106,11 +107,12 @@ impl VehicleKind {
         VehicleKind::IS3,
         VehicleKind::Centurion,
         VehicleKind::T34_85,
+        VehicleKind::KV1_1942,
     ];
 
     /// Player-facing production roster. Legacy/test-only vehicles remain in [`Self::ALL`] for
     /// stable wire identity, but garage and review surfaces should use this list.
-    pub const PLAYABLE: [VehicleKind; 8] = [
+    pub const PLAYABLE: [VehicleKind; 9] = [
         VehicleKind::T54_1951,
         VehicleKind::TigerI,
         VehicleKind::TigerII,
@@ -119,6 +121,7 @@ impl VehicleKind {
         VehicleKind::IS3,
         VehicleKind::Centurion,
         VehicleKind::T34_85,
+        VehicleKind::KV1_1942,
     ];
 
     /// Asset slug stem; matches `assets/vehicles/<slug>.vehicle.json` for every playable
@@ -134,6 +137,7 @@ impl VehicleKind {
             VehicleKind::IS3 => "is3",
             VehicleKind::Centurion => "centurion_mk3",
             VehicleKind::T34_85 => "t34_85",
+            VehicleKind::KV1_1942 => "kv1_1942",
         }
     }
 
@@ -156,6 +160,7 @@ impl VehicleKind {
             VehicleKind::IS3 => "IS-3",
             VehicleKind::Centurion => "Centurion Mk 3",
             VehicleKind::T34_85 => "T-34-85",
+            VehicleKind::KV1_1942 => "KV-1 obr. 1942",
         }
     }
 
@@ -172,7 +177,11 @@ impl VehicleKind {
     /// prototype medium is a T-55-shaped stand-in, so it sits with the Cold War park.
     pub fn era(self) -> Era {
         match self {
+            // The KV-1 is a 1942 design, but Era I is empty and a one-vehicle era is forbidden;
+            // cast-turret KV-1s fought on into 1943 against the very Tigers in this bracket.
+            // Era I stays reserved for a wave that opens it with at least two vehicles.
             VehicleKind::T34_85
+            | VehicleKind::KV1_1942
             | VehicleKind::TigerI
             | VehicleKind::TigerII
             | VehicleKind::Jagdtiger
@@ -189,6 +198,7 @@ impl VehicleKind {
         match self {
             VehicleKind::PrototypeMedium
             | VehicleKind::T34_85
+            | VehicleKind::KV1_1942
             | VehicleKind::T54_1951
             | VehicleKind::IS3 => Nation::Ussr,
             VehicleKind::TigerI
@@ -210,7 +220,7 @@ mod tests {
 
     #[test]
     fn all_is_complete_and_unique() {
-        assert_eq!(VehicleKind::ALL.len(), 9);
+        assert_eq!(VehicleKind::ALL.len(), 10);
         for (index, kind) in VehicleKind::ALL.iter().enumerate() {
             for other in &VehicleKind::ALL[index + 1..] {
                 assert_ne!(kind, other, "VehicleKind::ALL must not contain duplicates");
@@ -233,6 +243,7 @@ mod tests {
                 VehicleKind::IS3,
                 VehicleKind::Centurion,
                 VehicleKind::T34_85,
+                VehicleKind::KV1_1942,
             ]
         );
         assert!(!VehicleKind::PLAYABLE.contains(&VehicleKind::PrototypeMedium));
@@ -285,11 +296,13 @@ mod tests {
     #[test]
     fn eras_split_the_park_along_the_historical_generation_gap() {
         // The whole Tiger/Panther family fights in Era II; the postwar Soviet park in Era III.
+        // The KV-1 joins Era II as its Soviet heavy — see the note on `era()`.
         for kind in [
             VehicleKind::TigerI,
             VehicleKind::TigerII,
             VehicleKind::Jagdtiger,
             VehicleKind::PantherII,
+            VehicleKind::KV1_1942,
         ] {
             assert_eq!(kind.era(), Era::LateWar, "{kind:?}");
         }
@@ -334,6 +347,7 @@ mod tests {
         assert_eq!(VehicleKind::PantherII.nation(), Nation::Germany);
         assert_eq!(VehicleKind::IS3.nation(), Nation::Ussr);
         assert_eq!(VehicleKind::Centurion.nation(), Nation::Britain);
+        assert_eq!(VehicleKind::KV1_1942.nation(), Nation::Ussr);
     }
 
     #[test]

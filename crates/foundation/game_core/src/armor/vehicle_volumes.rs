@@ -36,6 +36,7 @@ pub fn vehicle_armor_volumes(kind: VehicleKind) -> Option<&'static VehicleArmorV
     static PANTHER_II: OnceLock<Option<VehicleArmorVolumes>> = OnceLock::new();
     static CENTURION: OnceLock<Option<VehicleArmorVolumes>> = OnceLock::new();
     static T34_85: OnceLock<Option<VehicleArmorVolumes>> = OnceLock::new();
+    static KV1_1942: OnceLock<Option<VehicleArmorVolumes>> = OnceLock::new();
     let cell = match kind {
         VehicleKind::T54_1951 => &T54,
         VehicleKind::IS3 => &IS3,
@@ -45,6 +46,7 @@ pub fn vehicle_armor_volumes(kind: VehicleKind) -> Option<&'static VehicleArmorV
         VehicleKind::PantherII => &PANTHER_II,
         VehicleKind::Centurion => &CENTURION,
         VehicleKind::T34_85 => &T34_85,
+        VehicleKind::KV1_1942 => &KV1_1942,
         _ => return None,
     };
     cell.get_or_init(|| VehicleBlueprint::for_vehicle(kind).map(bake_vehicle_armor)).as_ref()
@@ -81,7 +83,11 @@ fn bake_vehicle_armor(blueprint: VehicleBlueprint) -> VehicleArmorVolumes {
     // around the casting; a welded box or fixed casemate is a faceted plate prism.
     let turret = match blueprint.turret.form {
         TurretForm::CastDome => turret_dome(&blueprint, cy),
-        TurretForm::WeldedBox | TurretForm::Casemate => turret_prism(&blueprint, cy),
+        // A cast SLAB is a casting the eye reads as one, but its walls are flat and its plan is a
+        // stadium — the prism is what the shell must meet, not a circular sector sweep.
+        TurretForm::WeldedBox | TurretForm::Casemate | TurretForm::CastSlab => {
+            turret_prism(&blueprint, cy)
+        }
     };
     VehicleArmorVolumes { hull, turret, turret_ring_z: blueprint.turret.ring_z }
 }

@@ -55,6 +55,13 @@ pub enum TurretForm {
     WeldedBox,
     /// A fixed casemate superstructure (tank destroyers); never traverses.
     Casemate,
+    /// A CASTING with flat walls: a long slab-sided loaf with near-vertical sides and a broad
+    /// flat roof (the KV-1's mod. 1942 turret). It is cast steel — so it reads and shades like a
+    /// casting — but its plan is a stadium, not a circle, so the armour must bake it as a PRISM.
+    /// A dome's sector sweep runs on a circle of `base_radius`, which on a plan a third longer
+    /// than it is wide would put the front and rear planes a third of a metre inside the visible
+    /// metal: a shot at the turret nose would resolve against air.
+    CastSlab,
 }
 
 /// A thin side skirt hung outside the track band (Schürzen, the Centurion's full-length

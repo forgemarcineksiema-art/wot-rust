@@ -64,6 +64,7 @@ mod deck_details;
 mod is3;
 mod is3_hull;
 mod jagdtiger;
+mod kv1;
 mod panther_ii;
 mod soviet;
 mod t34_85;
@@ -105,6 +106,7 @@ fn recipe(kind: VehicleKind, hitbox: &HitboxProfile, mounts: &MountFrames) -> Op
         VehicleKind::IS3 => is3::is3(hitbox, mounts),
         VehicleKind::Centurion => centurion::centurion(hitbox, mounts),
         VehicleKind::T34_85 => t34_85::t34_85(hitbox, mounts),
+        VehicleKind::KV1_1942 => kv1::kv1_1942(hitbox, mounts),
     })
 }
 

@@ -201,7 +201,8 @@ fn open_tech_tree_cancels_drag() {
 #[test]
 fn the_current_roster_fits_so_the_carousel_never_scrolls_or_shows_arrows() {
     let mut garage = GarageState::default();
-    // Six vehicles fit inside the window, so scrolling is a no-op and the arrows are inert.
+    // The nine playable vehicles fit inside the window, so scrolling is a no-op and the arrows
+    // are inert. This is the lock that fires when a tenth vehicle joins the roster.
     garage.scroll_carousel(1);
     assert_eq!(garage.carousel_scroll(), 0, "a roster that fits never scrolls");
 

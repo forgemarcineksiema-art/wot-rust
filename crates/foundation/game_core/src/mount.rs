@@ -45,6 +45,7 @@ impl MountFrames {
             },
             // Blueprint-migrated: mounts come from `blueprint.mount_frames()` above, always.
             VehicleKind::T34_85
+            | VehicleKind::KV1_1942
             | VehicleKind::IS3
             | VehicleKind::TigerI
             | VehicleKind::TigerII

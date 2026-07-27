@@ -1,0 +1,178 @@
+{
+  "name": "KV-1 obr. 1942",
+  "kind": "KV1_1942",
+  "mass_kg": 47000.0,
+  "engine_power_kw": 441.0,
+  "max_forward_speed_mps": 7.8,
+  "max_reverse_speed_mps": 2.8,
+  "turn_rate_rad_s": 0.42,
+  "turret_rotation_rad_s": 0.3,
+  "hull": {
+    "hull_front_mm": 90.0,
+    "hull_side_mm": 75.0,
+    "hull_rear_mm": 70.0,
+    "turret_front_mm": 100.0,
+    "turret_side_mm": 100.0,
+    "turret_rear_mm": 90.0,
+    "facets": {
+      "hull_front": {
+        "nominal_thickness_mm": 90.0,
+        "slope_degrees": 52.0,
+        "weakspot_multiplier": 0.92
+      },
+      "hull_side": {
+        "nominal_thickness_mm": 75.0,
+        "slope_degrees": 0.0,
+        "weakspot_multiplier": 1.0
+      },
+      "hull_rear": {
+        "nominal_thickness_mm": 70.0,
+        "slope_degrees": 20.0,
+        "weakspot_multiplier": 1.0
+      },
+      "turret_front": {
+        "nominal_thickness_mm": 100.0,
+        "slope_degrees": 14.0,
+        "weakspot_multiplier": 0.9
+      },
+      "turret_side": {
+        "nominal_thickness_mm": 100.0,
+        "slope_degrees": 6.0,
+        "weakspot_multiplier": 1.0
+      },
+      "turret_rear": {
+        "nominal_thickness_mm": 90.0,
+        "slope_degrees": 8.0,
+        "weakspot_multiplier": 1.0
+      }
+    }
+  },
+  "gun": {
+    "name": "76 mm ZiS-5",
+    "reload_seconds": 6.2,
+    "dispersion_mrad": 3.2,
+    "aim_time_seconds": 2.1,
+    "movement_bloom_mrad": 4.4,
+    "shot_bloom_mrad": 3.2,
+    "max_dispersion_mrad": 17.0,
+    "barrel_length_m": 3.16,
+    "shell": {
+      "shell_type": "ArmorPiercing",
+      "caliber_mm": 76.2,
+      "muzzle_velocity_mps": 680.0,
+      "penetration_mm_at_100m": 86.0,
+      "damage_hp": 160,
+      "explosive_radius_m": 0.0
+    },
+    "special_shell": {
+      "shell_type": "Apcr",
+      "caliber_mm": 76.2,
+      "muzzle_velocity_mps": 950.0,
+      "penetration_mm_at_100m": 102.0,
+      "damage_hp": 140,
+      "explosive_radius_m": 0.0
+    }
+  },
+  "ammo": {
+    "counts": [
+      69,
+      28,
+      17
+    ],
+    "initial_selected": 0
+  },
+  "ammo_capacity": 114,
+  "hit_points": 1750,
+  "module_health": {
+    "engine": 155,
+    "suspension": 190,
+    "turret": 260,
+    "gun": 120,
+    "ammo_rack": 250,
+    "radio": 50
+  },
+  "hitbox": {
+    "half_width_m": 1.66,
+    "half_height_m": 1.41,
+    "half_length_m": 3.42,
+    "center_y_m": 1.36,
+    "turret_min_y_m": 0.39,
+    "turret_half_width_m": 0.98,
+    "turret_half_length_m": 1.32,
+    "turret_center_z_m": 0.05
+  },
+  "damage_layout": {
+    "components": []
+  },
+  "mounts": {
+    "turret_ring": {
+      "translation": [
+        0.0,
+        1.75,
+        0.05
+      ],
+      "basis": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "gun_trunnion": {
+      "translation": [
+        0.0,
+        2.05,
+        1.28
+      ],
+      "basis": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "muzzle": {
+      "translation": [
+        0.0,
+        2.05,
+        3.82
+      ],
+      "basis": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    }
+  },
+  "contact": {
+    "stations": [
+      -2.05,
+      -1.23,
+      -0.40999997,
+      0.4100001,
+      1.23,
+      2.05,
+      0.0,
+      0.0
+    ],
+    "station_count": 6,
+    "half_gauge_x": 1.31,
+    "wheel_radius": 0.3
+  }
+}

@@ -83,12 +83,16 @@ const CAR_STEP: f32 = 0.13;
 // superscript over the vehicle name (the atlas master is 64px, so size — not resolution — was the
 // bottleneck). The label y is lifted to match (`carousel.rs`) so it stays clear of the name row.
 pub(super) const NATION_TEXT_SIZE: f32 = 0.028;
-/// Most cells shown at once; the roster scrolls through this window when larger. Eight cells
-/// at the 0.13 step span ±0.52 clip — inside the frame with the arrow rects still clear.
-pub(super) const CAR_VISIBLE: usize = 8;
-/// Scroll-arrow hit rects, just outside the widest window (drawn only when the roster overflows).
+/// Most cells shown at once; the roster scrolls through this window when larger. Nine cells at
+/// the 0.13 step put the outer cell edges at ±0.578, and the panel behind them auto-sizes to
+/// `visible * 0.065 + 0.02` = ±0.605 (`panels/carousel.rs`), so the row still reads as one frame.
+/// Widened 8 → 9 when the KV-1 joined the roster; the carousel cannot widen forever, and the
+/// tenth vehicle should take the scroll arrows rather than another step outward.
+pub(super) const CAR_VISIBLE: usize = 9;
+/// Scroll-arrow hit rects, just outside the widest window (drawn only when the roster overflows),
+/// i.e. clear of the ±0.605 panel a full window draws.
 pub(super) const CAR_ARROW_HALF: [f32; 2] = [0.028, 0.072];
-const CAR_ARROW_X: f32 = 0.52;
+const CAR_ARROW_X: f32 = 0.64;
 
 pub(super) fn module_slot_center(i: usize) -> [f32; 2] {
     [MODULE_START_X + i as f32 * SLOT_STEP, LOADOUT_Y]

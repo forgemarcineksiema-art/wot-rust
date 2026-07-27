@@ -34,6 +34,9 @@ impl VehicleKind {
             VehicleKind::Centurion => 65,
             // The documented 55-60 round stowage (floor bins + sponson racks).
             VehicleKind::T34_85 => 56,
+            // The deepest rack in the game: a huge hull carrying small 76 mm rounds. The
+            // honest-ammo economy's compensation for a gun that needs several hits per kill.
+            VehicleKind::KV1_1942 => 114,
         }
     }
 }

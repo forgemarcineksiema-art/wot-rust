@@ -124,6 +124,97 @@ pub(crate) fn gun_zis_s53() -> GunModule {
     }
 }
 
+/// The KV-1 mod. 1942 (reinforced cast turret): Era II's anvil. 47 t of thick plate with almost
+/// no slope anywhere — a 90 mm bow, 75 mm sides standing dead vertical, and a cast turret that is
+/// 100 mm on the face AND on both cheeks. That turret flank is the thickest in Era II, which is
+/// the vehicle's real armour identity: there is no cheap angle on it. It pays for that with the
+/// slowest hull in the game, the worst optics, the clumsiest steering of any TURRETED vehicle
+/// (only the casemate Jagdtiger turns worse), and a 76 mm that cannot open a Tiger from the
+/// front. Dossier: docs/vehicles/kv-1.md.
+pub(crate) fn kv1_loadout() -> VehicleModules {
+    VehicleModules {
+        hull: HullChassis {
+            name: "KV-1 mod. 1942 hull".to_string(),
+            mass_kg: 28_100.0,
+            hit_points: 1_750,
+            front_mm: 90.0,
+            // 75 mm VERTICAL. Angling this hull buys nothing — and costs nothing either.
+            side_mm: 75.0,
+            rear_mm: 70.0,
+            // The mod. 1941 did 35 km/h at 45 t; hanging the heavy cast turret on the same V-2K
+            // cost that speed, and recovering it is precisely why the lightened KV-1S exists.
+            max_forward_speed_mps: 7.8,
+            max_reverse_speed_mps: 2.8,
+        },
+        engine: EngineModule {
+            name: "V-2K".to_string(),
+            // 600 hp.
+            power_kw: 441.0,
+            mass_kg: 1_550.0,
+            hit_points: 155,
+            // Diesel: well under the German petrol engines' 0.20.
+            fire_chance: 0.12,
+        },
+        suspension: SuspensionModule {
+            name: "KV torsion-bar gear".to_string(),
+            // Six stations of torsion bar under the heavy 700 mm track.
+            mass_kg: 5_000.0,
+            hit_points: 190,
+            // Clutch-and-brake steering under 47 t: it turns worse than a Tiger II.
+            turn_rate_rad_s: 0.42,
+            max_load_kg: 52_000.0,
+        },
+        turret: TurretModule {
+            name: "KV-1 cast turret (1942)".to_string(),
+            mass_kg: 11_000.0,
+            hit_points: 260,
+            // One casting all the way round. The base thickness, NOT the selective 110-120 mm
+            // patches the real turret carried at its weak areas — those were local reinforcement,
+            // and modelling them as a uniform face would overstate the tank.
+            front_mm: 100.0,
+            side_mm: 100.0,
+            // The rear carries the DT ball and its armoured collar.
+            rear_mm: 90.0,
+            traverse: TurretTraverse::Rotating { rate_rad_s: 0.30 },
+            // 1942 Soviet optics: the worst in the fleet.
+            view_range_m: 330.0,
+            max_gun_caliber_mm: 85.0,
+        },
+        gun: gun_zis5(),
+        radio: RadioModule {
+            name: "10R".to_string(),
+            mass_kg: 100.0,
+            hit_points: 50,
+            signal_range_m: 500.0,
+        },
+    }
+}
+
+/// The 76 mm ZiS-5: honest about its limits. Quick to load and quick to settle, and it simply does
+/// not have the penetration to open German heavy armour from the front — BR-350A's 86 mm against
+/// a Tiger's sloped 100 mm plate is not a bad roll, it is arithmetic. The scarce BR-350P arrowhead
+/// buys enough to punch a Tiger's bow at close range and never enough for a Tiger II's. Against
+/// everything's flanks it works exactly as it should.
+pub(crate) fn gun_zis5() -> GunModule {
+    GunModule {
+        spec: GunSpec {
+            name: "76 mm ZiS-5".to_string(),
+            reload_seconds: 6.2,
+            dispersion_mrad: 3.2,
+            aim_time_seconds: 2.1,
+            movement_bloom_mrad: 4.4,
+            shot_bloom_mrad: 3.2,
+            max_dispersion_mrad: 17.0,
+            // L/41.5.
+            barrel_length_m: 3.16,
+            shell: ShellSpec::armor_piercing(76.2, 680.0, 86.0, 160),
+            special_shell: Some(ShellSpec::apcr(76.2, 950.0, 102.0, 140)),
+        },
+        mass_kg: 1_250.0,
+        hit_points: 120,
+    }
+}
+
 pub(crate) fn is3_loadout() -> VehicleModules {
     VehicleModules {
         hull: HullChassis {

@@ -89,6 +89,7 @@ impl HitboxProfile {
             }
             // Blueprint-migrated: the hitbox comes from `blueprint.hitbox()` above, always.
             VehicleKind::T34_85
+            | VehicleKind::KV1_1942
             | VehicleKind::IS3
             | VehicleKind::TigerI
             | VehicleKind::TigerII

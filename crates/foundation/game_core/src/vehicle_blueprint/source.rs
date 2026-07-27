@@ -74,6 +74,7 @@ pub(super) fn blueprint_ron(kind: VehicleKind) -> Option<&'static str> {
             Some(include_str!("../../blueprints/centurion_mk3.blueprint.ron"))
         }
         VehicleKind::T34_85 => Some(include_str!("../../blueprints/t34_85.blueprint.ron")),
+        VehicleKind::KV1_1942 => Some(include_str!("../../blueprints/kv1_1942.blueprint.ron")),
     }
 }
 

@@ -63,6 +63,13 @@ pub(crate) fn forge_spec(kind: VehicleKind) -> Option<VehicleForgeSpec> {
             parts: PartStrategy::BakedGeometry,
             review_cameras: ReviewCameraSet::standard_vehicle_review,
         },
+        // Studio-born, same tier as the T-34-85: standard cameras and a geometry-derived part
+        // graph until a bespoke table earns its keep.
+        VehicleKind::KV1_1942 => VehicleForgeSpec {
+            reference_pack: crate::kv1_reference_pack,
+            parts: PartStrategy::BakedGeometry,
+            review_cameras: ReviewCameraSet::standard_vehicle_review,
+        },
         VehicleKind::PrototypeMedium => return None,
     };
     Some(spec)

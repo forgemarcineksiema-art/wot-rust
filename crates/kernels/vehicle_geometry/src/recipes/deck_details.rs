@@ -634,6 +634,46 @@ pub(crate) fn t34_85_deck(bp: &VehicleBlueprint) -> GeometryMesh {
     engine_deck_soviet(b, bp)
 }
 
+/// KV-1 mod. 1942: the driver's business is on the FRONT PLATE, not the roof — a vision port on
+/// the centreline with the radio operator's DT ball beside it, both seated ON the bow plane so
+/// nothing visible is un-hittable air. A guarded Soviet headlight (the KV carried its light in an
+/// armoured cage), tow hooks at both ends, and the transverse-louvre Soviet engine deck. The
+/// arrangement is the KV's own: no glacis hatch (the T-34's), no central roof hatch (the IS-3's).
+pub(crate) fn kv1_deck(bp: &VehicleBlueprint) -> GeometryMesh {
+    let hull = &bp.hull;
+    let glacis = hull.glacis_slope_deg.to_radians();
+    // A point on the bow plane at height `y`, pushed `standoff` along the plate normal.
+    let on_bow = |x: f32, y: f32, standoff: f32| -> Vec3 {
+        let run = (y - hull.sponson_y).max(0.0) * glacis.tan();
+        Vec3::new(x, y, hull.half_len - run) + Vec3::new(0.0, glacis.cos(), glacis.sin()) * standoff
+    };
+    let mut b = MeshBuilder::new();
+    // Driver's vision port: a narrow armoured slit box low on the bow, left of centre.
+    b = b.plate_box(
+        on_bow(-0.30, hull.sponson_y + 0.45, 0.02),
+        Vec3::new(0.19, 0.09, 0.04),
+        0.03,
+        MaterialRole::RolledArmor,
+        SG_HARD,
+    );
+    // The radio operator's DT ball, right of the driver — a ball in the plate, not a stub on it.
+    b = b.capped_revolve_at(
+        on_bow(0.42, hull.sponson_y + 0.42, 0.0),
+        RevolveSpec {
+            profile: vec![ProfilePoint::new(0.13, -0.03), ProfilePoint::new(0.085, 0.12)],
+            axis: crate::Axis::Z,
+            segments: 12,
+            material: MaterialRole::CastArmor,
+            smoothing: SG_HARD,
+        },
+    );
+    // The armoured headlight cage on the upper bow, left side.
+    b = headlight(b, on_bow(-0.62, hull.deck_y - 0.14, 0.10), 0.075, true);
+    b = tow_hooks(b, bp, &[bp.hull.half_len - 0.14, -bp.hull.half_len + 0.14]);
+    b = soviet_exhaust_ports(b, bp, hull.deck_y - 0.30);
+    engine_deck_soviet(b, bp)
+}
+
 /// IS-3: central round driver's hatch just behind the pike point, guarded headlight beside
 /// it on the centreline (photo); front tow hooks skipped — the pike carries none.
 pub(crate) fn is3_deck(bp: &VehicleBlueprint) -> GeometryMesh {
