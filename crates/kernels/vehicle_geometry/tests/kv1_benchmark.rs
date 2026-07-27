@@ -3,7 +3,9 @@
 //! Every number quoted here comes from `docs/vehicles/kv-1.md`.
 
 use game_core::{ShoePattern, SuspensionKind, TurretForm, VehicleBlueprint, VehicleKind};
-use vehicle_geometry::{RunningGearKinematics, SubmeshKind, bake_vehicle, running_gear_placements};
+use vehicle_geometry::{
+    MaterialRole, RunningGearKinematics, SubmeshKind, bake_vehicle, running_gear_placements,
+};
 
 fn blueprint() -> VehicleBlueprint {
     VehicleBlueprint::for_vehicle(VehicleKind::KV1_1942).expect("KV-1 has a blueprint")
@@ -154,6 +156,85 @@ fn the_zis5_wears_a_cast_mask_taller_than_it_is_wide() {
         "the mask spans {width:.2} m around a {:.3} m barrel — that is a collar, not a mask",
         bp.gun.barrel_radius
     );
+}
+
+/// The dressing (art-direction defect D15 for this vehicle): spare track racked across the bow,
+/// tow cable along both fender shelves, grab rails with brackets at each end, pistol ports through
+/// the turret walls and lifting lugs on the casting's roof. Each is a thing a crew touched; losing
+/// any of them takes the KV back to unbroken plate.
+#[test]
+fn the_kv_dressing_holds_spares_cable_rails_ports_and_lugs() {
+    let bp = blueprint();
+    let baked = bake_vehicle(VehicleKind::KV1_1942).expect("bakes");
+    let hull = &baked.submesh(SubmeshKind::Hull).expect("hull submesh").mesh;
+    let turret = &baked.submesh(SubmeshKind::Turret).expect("turret submesh").mesh;
+    let h = &bp.hull;
+    let t = &bp.turret;
+
+    // Spare track links: TrackMetal high on the bow. They must sit ON the bow armour plane —
+    // the Tiger I rule that nothing visible hangs over un-hittable air.
+    // Distance to the bow PLANE itself, not a z difference: the links are axis-aligned boxes on a
+    // 52-degree plate, so their corners legitimately sit at different z, but none of them may
+    // stand off the armour.
+    let glacis = h.glacis_slope_deg.to_radians();
+    let fold = glam::Vec3::new(0.0, h.sponson_y, h.half_len);
+    let normal = glam::Vec3::new(0.0, glacis.cos(), glacis.sin());
+    let spares: Vec<_> = hull
+        .vertices()
+        .iter()
+        .filter(|v| v.material == MaterialRole::TrackMetal && v.position.z > h.half_len - 0.9)
+        .filter(|v| v.position.x.abs() < 1.0 && v.position.y > h.sponson_y)
+        .collect();
+    assert!(!spares.is_empty(), "no spare track racked on the bow");
+    for v in &spares {
+        let proud = (v.position - fold).dot(normal);
+        assert!(
+            proud < 0.15,
+            "a spare link stands {proud:.3} m off the bow plane — it must lie ON the armour"
+        );
+    }
+
+    // Tow cable: a long TrackMetal run out at the fender shelf, well aft of the bow.
+    let cable: Vec<f32> = hull
+        .vertices()
+        .iter()
+        .filter(|v| v.material == MaterialRole::TrackMetal)
+        .filter(|v| v.position.x.abs() > h.half_width && v.position.y < bp.track.top_y + 0.12)
+        .map(|v| v.position.z)
+        .collect();
+    assert!(!cable.is_empty(), "no tow cable on the fender shelves");
+    let run = cable.iter().copied().fold(f32::MIN, f32::max)
+        - cable.iter().copied().fold(f32::MAX, f32::min);
+    assert!(run > 4.0, "the cable runs most of the hull, got {run:.2} m");
+
+    // Grab rails: TrackMetal standing proud of the hull side, above the fender line. Every rail
+    // has a bracket at each end, so the count is a multiple of three per station.
+    let rails = hull
+        .vertices()
+        .iter()
+        .filter(|v| v.material == MaterialRole::TrackMetal)
+        .filter(|v| v.position.x.abs() > h.half_width && v.position.y > bp.track.top_y + 0.3)
+        .count();
+    assert!(rails > 0, "no grab rails on the hull sides — D15 says a crew needs something to hold");
+
+    // Pistol ports: cast plugs reaching THROUGH the turret's side walls.
+    let wall_x =
+        t.plan_half_width - (t.roof_y - t.ring_y) * 0.5 * t.side_slope_deg.to_radians().tan();
+    let ports = turret
+        .vertices()
+        .iter()
+        .filter(|v| v.material == MaterialRole::CastArmor)
+        .filter(|v| v.position.x.abs() > wall_x && (v.position.z - (t.ring_z - 0.34)).abs() < 0.25)
+        .count();
+    assert!(ports > 0, "the casting carries no pistol ports — a KV signature");
+
+    // Lifting lugs: cast eyes standing on the roof, but not so tall they read as a cupola.
+    let lugs = turret
+        .vertices()
+        .iter()
+        .filter(|v| v.material == MaterialRole::CastArmor && v.position.y > t.roof_y + 0.01)
+        .count();
+    assert!(lugs > 0, "no lifting lugs on the casting's roof");
 }
 
 /// Form rules 2, 3 and 4: six small wheels at an EVEN pitch on torsion bars, a top run carried

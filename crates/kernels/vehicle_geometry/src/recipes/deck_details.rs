@@ -669,6 +669,22 @@ pub(crate) fn kv1_deck(bp: &VehicleBlueprint) -> GeometryMesh {
     );
     // The armoured headlight cage on the upper bow, left side.
     b = headlight(b, on_bow(-0.62, hull.deck_y - 0.14, 0.10), 0.075, true);
+    // Spare track links racked across the bow — the field-standard Soviet heavy fit, and the
+    // KV's own KvCast shoe rather than a generic plate. Their outer face lies ON the bow armour
+    // plane, never proud of it, so nothing visible is un-hittable air (the Tiger I rule).
+    let link_half_x = bp.track.link_half_width * 0.5;
+    // Low on the bow, under the driver's vision port and clear of the deck edge at `deck_y`.
+    let link_y = hull.sponson_y + 0.18;
+    for slot in -1..=1 {
+        let x = slot as f32 * (link_half_x * 2.0 + 0.05);
+        b = b.plate_box(
+            on_bow(x, link_y, 0.030),
+            Vec3::new(link_half_x, 0.048, 0.042),
+            0.015,
+            MaterialRole::TrackMetal,
+            SG_HARD,
+        );
+    }
     b = tow_hooks(b, bp, &[bp.hull.half_len - 0.14, -bp.hull.half_len + 0.14]);
     b = soviet_exhaust_ports(b, bp, hull.deck_y - 0.30);
     engine_deck_soviet(b, bp)

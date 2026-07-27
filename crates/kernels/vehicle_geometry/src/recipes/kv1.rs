@@ -26,46 +26,24 @@ pub(crate) fn kv1_1942(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVe
         blueprint_prism_hull(&bp.hull, bp.armor.hull_side.0)
             .append(&super::deck_details::kv1_deck(&bp))
             .append(&kv1_fenders(&bp.hull, &bp.track).build())
+            .append(&kv1_hull_rails(&bp.hull).build())
             .build(),
     );
 
     let t = &bp.turret;
     let mantlet = Some((t.mantlet_radius, t.mantlet_back_z, t.mantlet_front_z));
-    // Roof furniture: twin flush hatches at the rear of the long casting and the commander's
-    // periscope between them. NO drum cupola — that arrived with the KV-1S.
-    let turret = add_kv1_mantlet_socket(
-        add_turret_ring(
-            add_commander_periscope(
-                add_flush_ring_hatch(
-                    add_flush_ring_hatch(
-                        kv1_loaf_turret(t),
-                        t.cupola_x,
-                        t.cupola_z,
-                        t.roof_y,
-                        t.cupola_radius,
-                        -1.0,
-                    ),
-                    -t.cupola_x,
-                    t.cupola_z,
-                    t.roof_y,
-                    t.cupola_radius,
-                    1.0,
-                ),
-                0.0,
-                t.cupola_z + 0.40,
-                t.roof_y,
-            ),
-            t.ring_z,
-            t.ring_y,
-            t.ring_radius,
-            0.12,
-            16,
-        ),
-        bp.gun.trunnion_y,
-        mantlet,
-        12,
-    )
-    .build();
+    let mut turret = kv1_loaf_turret(t);
+    // Twin flush hatches at the rear of the long casting, with the commander's periscope between
+    // them. NO drum cupola — that arrived with the KV-1S, which this vehicle is not.
+    turret = add_flush_ring_hatch(turret, t.cupola_x, t.cupola_z, t.roof_y, t.cupola_radius, -1.0);
+    turret = add_flush_ring_hatch(turret, -t.cupola_x, t.cupola_z, t.roof_y, t.cupola_radius, 1.0);
+    turret = add_commander_periscope(turret, 0.0, t.cupola_z + 0.40, t.roof_y);
+    // 14 segments, not 16: the collar is half-buried in the deck shadow and the two saved
+    // triangles a segment bought the pistol ports instead.
+    turret = add_turret_ring(turret, t.ring_z, t.ring_y, t.ring_radius, 0.12, 14);
+    turret = add_kv1_mantlet_socket(turret, bp.gun.trunnion_y, mantlet, 12);
+    turret = kv1_turret_dressing(turret, t);
+    let turret = turret.build();
 
     // The MOVING mask carries the same tall-narrow proportion as the fixed socket it sits in —
     // if the two disagree, the mask walks off its seat the moment the gun elevates.
@@ -97,8 +75,10 @@ fn stadium_plan(
     cap_front: f32,
     cap_rear: f32,
 ) -> Vec<Vec2> {
-    // Quarter-ellipse steps from the nose out to the shoulder (and mirrored at the tail).
-    const STEPS: usize = 4;
+    // Quarter-ellipse steps from the nose out to the shoulder (and mirrored at the tail). Three
+    // steps, not four: the extra ring cost more than it showed on a casting this flat-walled, and
+    // the triangles bought the pistol ports.
+    const STEPS: usize = 3;
     let mut plan = Vec::with_capacity(4 * STEPS + 2);
     let cap = |t: f32, depth: f32, z: f32, sign: f32| {
         let angle = t * std::f32::consts::FRAC_PI_2;
@@ -172,7 +152,7 @@ fn kv1_loaf_turret(t: &TurretShape) -> MeshBuilder {
                 ProfilePoint::new(0.115, wall_z - 0.07),
             ],
             axis: Axis::Z,
-            segments: 12,
+            segments: 10,
             material: MaterialRole::CastArmor,
             smoothing: SG_CAST,
         },
@@ -190,14 +170,118 @@ fn kv1_fenders(hull: &HullShape, track: &TrackShape) -> MeshBuilder {
     let outer = track.outer_x - 0.01;
     let half_x = (outer - inner) * 0.5;
     let center_x = inner + half_x;
+    let shelf_y = track.top_y + 0.04;
     for side in [-1.0_f32, 1.0] {
         builder = builder.plate_box(
-            Vec3::new(side * center_x, track.top_y + 0.04, 0.0),
+            Vec3::new(side * center_x, shelf_y, 0.0),
             Vec3::new(half_x, 0.018, hull.half_len),
             0.012,
             MaterialRole::RolledArmor,
             SG_HARD,
         );
+        // Two stowage boxes per shelf, standing on it between the sponson and the track face.
+        for (z, half_z) in [(1.55_f32, 0.42_f32), (-1.30, 0.55)] {
+            builder = builder.plate_box(
+                Vec3::new(side * center_x, shelf_y + 0.13, z),
+                Vec3::new(half_x * 0.86, 0.11, half_z),
+                0.02,
+                MaterialRole::RolledArmor,
+                SG_HARD,
+            );
+        }
+        // The tow cable, lying along the shelf outboard of the boxes: three rod segments with a
+        // slight sag between them so it reads as cable rather than pipe.
+        for (z_a, z_b, dip) in
+            [(-2.70_f32, -0.90_f32, 0.012_f32), (-0.90, 0.90, 0.020), (0.90, 2.70, 0.012)]
+        {
+            builder = builder.capped_revolve_at(
+                Vec3::new(side * (center_x + half_x * 0.62), shelf_y + 0.035 - dip, 0.0),
+                RevolveSpec {
+                    profile: vec![ProfilePoint::new(0.022, z_a), ProfilePoint::new(0.022, z_b)],
+                    axis: Axis::Z,
+                    segments: 6,
+                    material: MaterialRole::TrackMetal,
+                    smoothing: SG_HARD,
+                },
+            );
+        }
     }
     builder
+}
+
+/// Turret dressing: the pistol ports, lifting lugs and grab rails that give the casting something
+/// to read at garage distance. The ports are a KV signature — nothing else in the fleet has them.
+/// The turret keeps the two fittings that are CAST INTO it and cannot live anywhere else: the
+/// pistol ports and the lifting lugs. The grab rails went to the hull — see `kv1_hull_rails` —
+/// because the turret submesh has 176 tris of headroom under the fleet's 900 ceiling and the
+/// one-look policy forbids raising that fleet-wide. Real KV-1s carried hull rails too, so this
+/// is a budget decision that costs the model nothing.
+fn kv1_turret_dressing(builder: MeshBuilder, t: &TurretShape) -> MeshBuilder {
+    let mut b = builder;
+    let rise = t.roof_y - t.ring_y;
+    // Pistol ports: round armoured plugs through the straight side walls, aft of the mantlet.
+    // Nothing else in the fleet wears them.
+    let port_y = t.ring_y + rise * 0.50;
+    let wall_x = t.plan_half_width - rise * 0.50 * t.side_slope_deg.to_radians().tan();
+    for side in [-1.0_f32, 1.0] {
+        b = b.capped_revolve_at(
+            Vec3::new(0.0, port_y, t.ring_z - 0.34),
+            RevolveSpec {
+                profile: vec![
+                    ProfilePoint::new(0.085, side * (wall_x - 0.04)),
+                    ProfilePoint::new(0.062, side * (wall_x + 0.045)),
+                ],
+                axis: Axis::X,
+                segments: 6,
+                material: MaterialRole::CastArmor,
+                smoothing: SG_HARD,
+            },
+        );
+    }
+    // Lifting lugs: cast eyes at the roof edge, one pair forward and one aft — the lugs a crane
+    // picks the casting up by.
+    for (z, x_frac) in [
+        (t.ring_z + t.plan_half_length * 0.62, 0.62_f32),
+        (t.ring_z - t.plan_half_length * 0.68, 0.55),
+    ] {
+        for side in [-1.0_f32, 1.0] {
+            b = b.chamfered_prism(
+                Vec3::new(side * wall_x * x_frac, t.roof_y + 0.030, z),
+                Vec3::new(0.055, 0.034, 0.028),
+                0.012,
+                MaterialRole::CastArmor,
+                SG_HARD,
+            );
+        }
+    }
+    b
+}
+
+/// Grab rails on the hull sides: a stub-bar-stub run, the shape a crewman actually holds, with a
+/// bracket at each end so nothing floats. On the hull rather than the turret purely for budget —
+/// the hull ceiling is 2750 against the turret's 900.
+fn kv1_hull_rails(hull: &HullShape) -> MeshBuilder {
+    let mut b = MeshBuilder::new();
+    let rail_y = hull.sponson_y + 0.52;
+    for side in [-1.0_f32, 1.0] {
+        for z in [1.45_f32, -0.30, -2.05] {
+            for stub_dz in [-0.15_f32, 0.15] {
+                b = b.chamfered_prism(
+                    Vec3::new(side * (hull.half_width + 0.030), rail_y, z + stub_dz),
+                    Vec3::new(0.030, 0.015, 0.015),
+                    0.006,
+                    MaterialRole::TrackMetal,
+                    SG_HARD,
+                );
+            }
+            b = b.chamfered_prism(
+                Vec3::new(side * (hull.half_width + 0.055), rail_y, z),
+                Vec3::new(0.013, 0.015, 0.165),
+                0.006,
+                MaterialRole::TrackMetal,
+                SG_HARD,
+            );
+        }
+    }
+    b
 }
