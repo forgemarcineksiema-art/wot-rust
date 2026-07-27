@@ -22,7 +22,11 @@ fn turret_components() -> Vec<DamageComponent> {
             K::Breech,
             ModuleSlot::Gun,
             M::Machinery,
-            obb([0.0, 0.82, 0.58], [0.34, 0.27, 0.43], 0.0),
+            // ON the bore axis (model-logic audit #17). `trunnion_y` is 1.78 world = 0.63 local,
+            // and the breech was riding at 0.82 — 19 cm ABOVE the barrel it is supposed to close.
+            // Everything the museum gun line hangs off this volume, so the whole cradle/sight/
+            // coax train was lifted through the casting roof with it.
+            obb([0.0, 0.59, 0.58], [0.34, 0.27, 0.43], 0.0),
             40,
             1.15,
         ),
@@ -31,7 +35,8 @@ fn turret_components() -> Vec<DamageComponent> {
             K::RecoilMechanism,
             ModuleSlot::Gun,
             M::Machinery,
-            cylinder_shape([-0.25, 0.98, 0.42], Vec3::Z, 0.42, 0.095),
+            // The recoil cylinders flank the barrel just above it, not 35 cm over it (audit #17).
+            cylinder_shape([-0.25, 0.70, 0.42], Vec3::Z, 0.42, 0.095),
             38,
             1.0,
         ),
@@ -40,7 +45,7 @@ fn turret_components() -> Vec<DamageComponent> {
             K::RecoilMechanism,
             ModuleSlot::Gun,
             M::Machinery,
-            cylinder_shape([0.25, 0.98, 0.42], Vec3::Z, 0.42, 0.095),
+            cylinder_shape([0.25, 0.70, 0.42], Vec3::Z, 0.42, 0.095),
             38,
             1.0,
         ),
@@ -79,7 +84,10 @@ fn turret_components() -> Vec<DamageComponent> {
             K::AmmunitionRack,
             ModuleSlot::AmmoRack,
             M::Ammunition,
-            obb([0.0, 0.86, -0.62], [0.36, 0.26, 0.12], 0.0),
+            // Lowered again to 0.75 (model-logic audit #17): raised to 0.86 by the #9 follow-up,
+            // the five ready rounds topped 2.27 m world against a 2.20 m bustle roof, so two
+            // D-10T cases and their noses lay ON the casting. 0.75 seats the clips under it.
+            obb([0.0, 0.75, -0.62], [0.36, 0.26, 0.12], 0.0),
             32,
             1.35,
         ),
@@ -121,7 +129,9 @@ fn hull_components() -> Vec<DamageComponent> {
             K::FuelTank,
             ModuleSlot::Engine,
             M::Fuel,
-            obb([-0.79, 0.03, -1.43], [0.25, 0.43, 0.65], 0.0),
+            // Dropped to the floor (model-logic audit #17): at 0.03 the rear cells stood 7 cm
+            // proud of the engine deck, fuel visibly sitting on top of the tank.
+            obb([-0.79, -0.07, -1.43], [0.25, 0.43, 0.65], 0.0),
             25,
             1.1,
         ),
@@ -130,7 +140,7 @@ fn hull_components() -> Vec<DamageComponent> {
             K::FuelTank,
             ModuleSlot::Engine,
             M::Fuel,
-            obb([0.79, 0.03, -1.43], [0.25, 0.43, 0.65], 0.0),
+            obb([0.79, -0.07, -1.43], [0.25, 0.43, 0.65], 0.0),
             25,
             1.1,
         ),

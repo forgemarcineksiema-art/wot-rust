@@ -39,10 +39,14 @@ pub(crate) fn t54_interior_parts() -> Vec<VehiclePart> {
     // Inner painted envelope and the fighting/engine bulkhead. These thin shells sit inside the
     // real armor and are cut by the same analytic aperture depth as the exterior skin.
     for (index, (center, half)) in [
-        (Vec3::new(0.0, center_y - 0.63, 0.0), Vec3::new(0.98, 0.025, 2.20)),
-        (Vec3::new(-1.12, center_y - 0.18, 0.0), Vec3::new(0.025, 0.42, 2.20)),
-        (Vec3::new(1.12, center_y - 0.18, 0.0), Vec3::new(0.025, 0.42, 2.20)),
-        (Vec3::new(0.0, center_y - 0.18, 2.22), Vec3::new(0.98, 0.42, 0.025)),
+        // The liner walls stood at x 1.12 — 9 cm OUTSIDE a 1.05 m flank, a painted stripe down
+        // both sides of the tank (model-logic audit #17) — and the forward bulkhead at z 2.22
+        // reached past the glacis fold. Pulled inside the armour: ±1.015 and z 2.05, with the
+        // floor and walls shortened to match.
+        (Vec3::new(0.0, center_y - 0.63, 0.0), Vec3::new(0.98, 0.025, 2.12)),
+        (Vec3::new(-1.015, center_y - 0.18, 0.0), Vec3::new(0.025, 0.42, 2.12)),
+        (Vec3::new(1.015, center_y - 0.18, 0.0), Vec3::new(0.025, 0.42, 2.12)),
+        (Vec3::new(0.0, center_y - 0.18, 2.05), Vec3::new(0.98, 0.42, 0.025)),
         (Vec3::new(0.0, center_y - 0.18, -1.02), Vec3::new(0.98, 0.42, 0.035)),
     ]
     .into_iter()

@@ -55,7 +55,9 @@ pub(super) fn add_driver_parts(parts: &mut Vec<VehiclePart>, cy: f32) {
     parts.push(box_part(
         PartKey::new("driver_instrument_panel"),
         SubmeshKind::Hull,
-        station + Vec3::new(-0.34, 0.22, 0.24),
+        // Lowered 3 cm (model-logic audit #17): the panel's top edge reached 1.550 where the
+        // foredeck skin is 1.543, so the dials stood through the plate.
+        station + Vec3::new(-0.34, 0.19, 0.24),
         Vec3::new(0.035, 0.14, 0.22),
         MaterialRole::InteriorMachinery,
         PartLod::Detail,
@@ -74,7 +76,10 @@ pub(super) fn add_driver_parts(parts: &mut Vec<VehiclePart>, cy: f32) {
     parts.push(box_part(
         PartKey::new("driver_periscope_housing"),
         SubmeshKind::Hull,
-        station + Vec3::new(0.0, 0.52, 0.42),
+        // Reseated UNDER the deck (model-logic audit #17): at +0.52 the housing topped 1.650
+        // where the glacis fold's skin is 1.520 — the night periscope floated over the plate
+        // instead of hanging beneath the driver's hatch.
+        station + Vec3::new(0.0, 0.24, 0.42),
         Vec3::new(0.11, 0.06, 0.08),
         MaterialRole::InteriorMachinery,
         PartLod::Detail,

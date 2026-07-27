@@ -48,6 +48,8 @@ the close-up functional review; numbers are necessary, never sufficient.
 
 | 16 | ~~German line drives from the WRONG END~~ **FIXED**: `TrackShape::drive_front` (German four = true), sprocket/idler swap in placements, thrown-track remnant drapes over whichever end drives, Tiger cage asserts bow sprocket; verified in `tiger_i_studio` render (teeth at the bow). Original finding: Tiger I/II, Jagdtiger, Panther II all have FRONT drive sprockets (photo-confirmed on all four); our shared placement puts the toothed wheel at the rear fleet-wide (correct only for Soviets, T-34, Centurion). Needs `TrackShape::drive_front` + placements/band/cages. Full photo comparison: docs/vehicle-photo-comparison-2026-07.md (also enriches #1 headlights, #3 hatches, #4/#6 muzzle furniture shapes, and adds fleet-wide bow mudguards). | German line | `running_gear_place` end-wheel assignment + blueprint | logic |
 
+| 17 | ~~Interior seen from OUTSIDE the T-54, five places at once~~ **FIXED + LOCKED**: the garage eye caught brass on the bustle roof; a full containment sweep of every interior part found the class was everywhere. (a) the five ready rounds — raised to 0.86 by the #9 follow-up — topped **2.27 m against a 2.20 m bustle roof**, so two D-10T cases and their noses lay on the casting (rack 6 → 0.75); (b) the whole gun line hung 23–39 cm ABOVE the bore: breech 1 at 0.82 and recoil gear 2/3 at 0.98 against a `trunnion_y` of 1.78 world, pushing cradle rails, TSh-2 sight, coax barrel, recoil cylinders and breech ring through the roof and the front — the museum gun line now hangs off the breech volume, which sits ON the axis, so the whole train follows the barrel wherever the layout puts it; (c) rear fuel cells 8/9 stood 7 cm proud of the engine deck; (d) the inner liner walls stood at x 1.12 — **9 cm outside a 1.05 m flank**, a painted stripe down both sides; (e) the driver's TVN housing floated over the glacis fold, and the instrument panel's dials stood through the foredeck. Locked by `vehicle_build/tests/t54_interior_containment.rs`: signed-distance containment inside the turret casting + under-the-deck-skin for the hull, 5 mm bar. | T-54 | `damage_layout/t54.rs` ids 1/2/3/6/8/9, `t54_interior*.rs` | floater |
+
 ## The new gate (applies to every vehicle PR from now on)
 
 Before any "sealed" claim:
@@ -58,6 +60,9 @@ Before any "sealed" claim:
    every attached thing has a bracket/support; nothing shares its exact shape with another
    vehicle unless the real vehicles shared it.
 3. Numbers gates (dimensions/ratios/budgets) stay — as the floor, not the bar.
+4. **Interior containment is now a test, not an eye**: `t54_interior_containment` proves no
+   interior part pierces the casting or the deck skin. The T-54 is the only vehicle with an
+   interior today; any vehicle that grows one inherits that gate with it.
 
 ## Fix order (root cause first)
 

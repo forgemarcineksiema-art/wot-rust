@@ -284,6 +284,29 @@ fn prokhorovka_identity_views(
             // vehicle.
             subject_box: Some([0.28, 0.46, 0.78, 0.72]),
         },
+        // THE SHADE FRAME. The backlit view above judges a hull the key misses by ANGLE; this one
+        // judges a hull the terrain itself puts in shadow — parked in a balka at golden evening,
+        // when the key is low enough for a rise to take it away entirely. Cast shadow is the one
+        // condition that removes the key without removing the sky, so it is the frame where the
+        // ambient term alone has to keep the tank readable. A vehicle that dissolves here is
+        // unreadable in every hollow on the map.
+        ReviewView {
+            name: "prokhorovka_evening_in_shadow".to_string(),
+            eye: [tank_x - 8.0, tank_ground + 2.6, tank_z + 5.2],
+            target: [tank_x + 0.2, tank_ground + 1.05, tank_z + 0.2],
+            lighting: evening.lighting,
+            sky: evening.sky,
+            vehicle: Some(ReviewVehicle {
+                kind: VehicleKind::T54_1951,
+                position: [tank_x, tank_ground, tank_z],
+                yaw_rad: 2.35,
+                turret_yaw_rad: 0.0,
+                hull_color: [0.30, 0.40, 0.28],
+            }),
+            // Hull flank and running gear only, off the ground for the same reason as the
+            // backlit frame: the void under a tank is black correctly.
+            subject_box: Some([0.28, 0.46, 0.78, 0.72]),
+        },
         // The subject, from the seat the player actually occupies.
         ReviewView {
             name: "prokhorovka_evening_contact".to_string(),
