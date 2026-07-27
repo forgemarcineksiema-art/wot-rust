@@ -46,19 +46,24 @@ pub fn kv1_reference_pack() -> ReferencePack {
                  track links of 700 mm width per side.",
             ),
         ],
-        // TODO(kv1): zaciśnij tolerancje po PR 3 (fendery i deck zmienią mierzone bryły).
+        // Tolerances tightened onto the measured bake (`tools forge-report --vehicle kv1-1942`)
+        // now that the dressing, fenders and cast mask are in and the shape has stopped moving.
+        // The turret-height target was the one real miss — 0.55 estimated against 0.681 measured,
+        // because the ratio takes the baked hull bounds and not `deck_y`.
         silhouette_ratios(
-            (2.03, 0.20),
-            (0.26, 0.07),
-            (0.59, 0.14),
-            (0.55, 0.25),
-            (0.07, 0.06),
+            (2.033, 0.040),
+            (0.249, 0.030),
+            (0.590, 0.050),
+            (0.681, 0.060),
+            (0.066, 0.020),
             [
                 "A heavy's plan: 6.75 m hull over a 3.32 m beam.",
-                "A TALL hull for its length — the 1.75 m deck is over half the silhouette.",
-                "The loaf is NARROW for a heavy: 1.96 m of turret on a 3.32 m beam.",
-                "The casting carries a third of the silhouette above an already tall hull.",
-                "The ZiS-5 barely overhangs: a fifth of the next-shortest gun in the fleet.",
+                "A LONG hull for its height — the KV is mass spread out, not stacked up.",
+                "The loaf is NARROW for a heavy: 1.96 m of turret on a 3.32 m beam. Anti-clone \
+                 lock — every other heavy in the fleet fills far more of its beam.",
+                "The casting carries two thirds of the hull's own height above it.",
+                "The ZiS-5 barely overhangs. Anti-clone lock, and the tightest band in the pack: \
+                 the T-34-85 sits at 0.33 and the IS-3 at 0.45, five to seven times this.",
             ],
         ),
     )

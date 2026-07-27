@@ -63,11 +63,12 @@ pub(crate) fn forge_spec(kind: VehicleKind) -> Option<VehicleForgeSpec> {
             parts: PartStrategy::BakedGeometry,
             review_cameras: ReviewCameraSet::standard_vehicle_review,
         },
-        // Studio-born, same tier as the T-34-85: standard cameras and a geometry-derived part
-        // graph until a bespoke table earns its keep.
+        // Graduated to a bespoke blueprint part table (the IS-3/Centurion tier): the loaf turret,
+        // the narrow superstructure under bridging fenders and the even six-station run are all
+        // things coarse baked bounds cannot say.
         VehicleKind::KV1_1942 => VehicleForgeSpec {
             reference_pack: crate::kv1_reference_pack,
-            parts: PartStrategy::BakedGeometry,
+            parts: PartStrategy::Blueprint(crate::part_data::kv1_parts),
             review_cameras: ReviewCameraSet::standard_vehicle_review,
         },
         VehicleKind::PrototypeMedium => return None,

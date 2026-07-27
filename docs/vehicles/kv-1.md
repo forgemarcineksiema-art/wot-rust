@@ -193,17 +193,30 @@ Run and looked at, per the model-logic gate. What it caught and what it left:
   the flank — on a vehicle whose rollers are one of its ten form rules. The superstructure is now
   1.42 m half-width and the fenders bridge outward; the rollers read at flank distance.
 
-**Seen, accepted, and NOT fixed — these are open, not done:**
+**All four review findings have since been fixed** (audit #18):
 
-- The turret reads as a soft rounded casting rather than a crisply slab-sided one. The mod-1942
-  turret genuinely was a rounded casting and the silhouette is right (a tall loaf, decisively not
-  the low wide dome of the T-34-85/IS-3), but the flat-wall character is muted by the cast
-  smoothing group. Worth a look when the fleet's edge/curvature shading is revisited.
-- The mantlet is a small bump; the real one is a more prominent cast mask.
-- The idler is a plain smooth drum where the road wheels are spoked. Shared fleet behaviour.
-- The hull sides are unbroken plate — no weld seams, grab handles, tow cable or spare track.
-  That is fleet-wide defect **D15** in `art-direction-program.md`, not a KV-specific miss, and it
-  closes with the W3 vehicle wave.
+- **The mantlet** is now an authored cast mask, taller than it is wide — the opposite proportion
+  to the T-54's flat oval, and the second authored mantlet mass in the fleet. Note this moved the
+  *ballistic* mask too: `mantlet_radius` drives the armour patch in `armor/vehicle_volumes.rs`,
+  so what you see and what you shoot grew together.
+- **The turret walls** read flat. The loaf's straight side runs were being blended into its
+  rounded caps by the cast smoothing group; hard seams cost zero triangles, which was the only
+  currency left at 860 of a 900 ceiling.
+- **The idler** is a spoked casting matching the road wheels. This was never a KV bug — the whole
+  fleet shared one smooth drum — so the fix added an opt-in `IdlerFace` with a `Smooth` default
+  and the other eight vehicles were untouched.
+- **The plate is no longer bare** (defect **D15** for this vehicle): pistol ports and lifting lugs
+  cast into the turret, spare track racked on the bow armour plane, a tow cable and two stowage
+  boxes per fender shelf, three grab rails a side with a bracket at each end.
+
+**Still open:**
+
+- The remaining half of D15 is fleet-wide, not KV-specific: hull and turret still read as two
+  different paints (the cast/rolled split is too far apart) and the running gear is a dark void
+  with little contact shading. That closes with the W3 vehicle wave, for everyone at once.
+- The Forge Studio tile gate is stale **fleet-wide** — an opt-in run drifts on vehicles this
+  program never touched, including the T-54's hybrid bake. The KV's own tiles are recorded and
+  hold; re-recording the rest is a separate PR and a separate review.
 
 **NOT sealed.** Per `vehicle-fidelity-masterplan.md` this dossier and these renders are the floor,
 not the bar. The vehicle is not done until a human has looked at it and until the gun's deliberate

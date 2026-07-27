@@ -174,7 +174,7 @@ Updated as part of every PR's definition of done.
 | IS-3 | partial (`is-3.md`) | — | — | — | bespoke 17 | dense | — |
 | Centurion | — | — | — | — | bespoke 17 | dense | — |
 | T-34-85 | — | — | — | — | — | — | — |
-| KV-1 1942 | ✓ PR-KV.1 (`kv-1.md`) | ✓ 3 dims (high-confidence rows only) + 5 ratios | ✓ blueprint-born: loaf turret (bespoke shell), stepped bow, 6+3 gear | ✓ own deck, fenders, rear DT ball, `KvCast` shoe | — (shares blueprint part path) | ✓ 9 bars incl. the anti-dome roof-band lock | close-up reviewed (flank/bow/turret); buried fenders FIXED; NOT declared — user review pending |
+| KV-1 1942 | ✓ PR-KV.1 (`kv-1.md`) | ✓ 3 dims + 5 ratios tightened onto the measured bake | ✓ blueprint-born: loaf turret (bespoke shell), stepped bow, 6+3 gear, cast ZiS-5 mask | ✓ own deck, fenders, rear DT ball, `KvCast` shoe, pistol ports, lugs, spares, cable, rails, spoked idler | ✓ bespoke 17 parts | ✓ 12 bars incl. the anti-dome roof-band lock and a dressing lock | close-up reviewed twice; all four review findings FIXED (audit #18); studio tiles recorded; NOT declared — user review pending |
 | T-54 1951 | rich (`t-54.md`) | pilot (PR-03) | benchmark | benchmark | bespoke 18 | dense | budget exception |
 
 ## Verification
