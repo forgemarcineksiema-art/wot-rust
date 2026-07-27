@@ -8,20 +8,23 @@
 //! member of the T-54/T-34-85/IS-3/Centurion dome family, and the loaf is the one thing this tank
 //! is recognised by at 300 m. Dossier: docs/vehicles/kv-1.md.
 
-use game_core::{HitboxProfile, MountFrames, TurretShape, VehicleKind};
+use game_core::{HitboxProfile, HullShape, MountFrames, TrackShape, TurretShape, VehicleKind};
 use glam::{Vec2, Vec3};
 
 use super::{
-    GunPlan, SG_CAST, add_broad_mantlet_socket, add_commander_periscope, add_flush_ring_hatch,
-    add_turret_ring, assemble, blueprint_prism_hull, build_gun, shade_hull,
+    GunPlan, SG_CAST, SG_HARD, add_broad_mantlet_socket, add_commander_periscope,
+    add_flush_ring_hatch, add_turret_ring, assemble, blueprint_prism_hull, build_gun, shade_hull,
 };
-use crate::{Axis, BakedVehicle, LoftSection, LoftSpec, MaterialRole, MeshBuilder};
+use crate::{
+    Axis, BakedVehicle, LoftSection, LoftSpec, MaterialRole, MeshBuilder, ProfilePoint, RevolveSpec,
+};
 
 pub(crate) fn kv1_1942(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVehicle {
     let bp = super::active_blueprint(VehicleKind::KV1_1942).expect("KV-1 has a blueprint");
     let hull = shade_hull(
         blueprint_prism_hull(&bp.hull, bp.armor.hull_side.0)
             .append(&super::deck_details::kv1_deck(&bp))
+            .append(&kv1_fenders(&bp.hull, &bp.track).build())
             .build(),
     );
 
@@ -133,7 +136,7 @@ fn kv1_loaf_turret(t: &TurretShape) -> MeshBuilder {
         )
     };
 
-    MeshBuilder::new().loft(
+    let shell = MeshBuilder::new().loft(
         Vec3::ZERO,
         LoftSpec {
             sections: vec![
@@ -146,5 +149,46 @@ fn kv1_loaf_turret(t: &TurretShape) -> MeshBuilder {
             smoothing: SG_CAST,
             cap_ends: true,
         },
+    );
+
+    // The rear DT ball in its armoured collar — the mod-1942 casting's signature, and the one
+    // fitting no other vehicle in the fleet wears. A ball seated IN the rear wall, not a stub
+    // stuck on it: the collar starts inside the casting and the ball emerges from it.
+    let ball_fraction = 0.45;
+    let ball_y = t.ring_y + rise * ball_fraction;
+    let wall_z = rear_z + rise * ball_fraction * t.rear_slope_deg.to_radians().tan();
+    shell.capped_revolve_at(
+        Vec3::new(0.0, ball_y, 0.0),
+        RevolveSpec {
+            profile: vec![
+                ProfilePoint::new(0.16, wall_z + 0.06),
+                ProfilePoint::new(0.115, wall_z - 0.07),
+            ],
+            axis: Axis::Z,
+            segments: 12,
+            material: MaterialRole::CastArmor,
+            smoothing: SG_CAST,
+        },
     )
+}
+
+/// The full-length squared track guards. Flat wide shelves running the whole hull just clear of
+/// the top run — square-ended, not the T-34's stepped fender or the Centurion's hung skirt. They
+/// stay inside the track band's outer face so nothing visible hangs over un-hittable air.
+fn kv1_fenders(hull: &HullShape, track: &TrackShape) -> MeshBuilder {
+    let mut builder = MeshBuilder::new();
+    let inner = track.inner_x;
+    let outer = track.outer_x - 0.01;
+    let half_x = (outer - inner) * 0.5;
+    let center_x = inner + half_x;
+    for side in [-1.0_f32, 1.0] {
+        builder = builder.plate_box(
+            Vec3::new(side * center_x, track.top_y + 0.04, 0.0),
+            Vec3::new(half_x, 0.018, hull.half_len),
+            0.012,
+            MaterialRole::RolledArmor,
+            SG_HARD,
+        );
+    }
+    builder
 }

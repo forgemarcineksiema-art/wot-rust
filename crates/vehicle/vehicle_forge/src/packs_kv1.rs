@@ -6,7 +6,11 @@
 use game_core::VehicleKind;
 
 use crate::packs_german::silhouette_ratios;
-use crate::{ReferencePack, ReferenceSource};
+use crate::{DimensionKind, DimensionTarget, ReferencePack, ReferenceSource};
+
+fn dossier(note: &str) -> ReferenceSource {
+    ReferenceSource::new("KV-1 dossier", "docs/vehicles/kv-1.md", note)
+}
 
 pub fn kv1_reference_pack() -> ReferencePack {
     ReferencePack::new(
@@ -58,4 +62,29 @@ pub fn kv1_reference_pack() -> ReferencePack {
             ],
         ),
     )
+    // Only the dossier's HIGH-confidence rows anchor here. The road wheel diameter and the
+    // turret plan are photo-derived estimates and are deliberately left out until a drawing or a
+    // measured specimen settles them; `OverallLengthWithGun` is out because the modelled muzzle
+    // deliberately deviates (see the dossier's deviation 2), and anchoring a deviation would
+    // dress it up as a reference.
+    .with_dimensions(vec![
+        DimensionTarget::new(
+            DimensionKind::HullLength,
+            6.75,
+            0.08,
+            dossier("6.75 m hull over the tracks (Wikipedia specification table)."),
+        ),
+        DimensionTarget::new(
+            DimensionKind::HullWidth,
+            3.32,
+            0.08,
+            dossier("3.32 m over the 700 mm tracks (Wikipedia specification table)."),
+        ),
+        DimensionTarget::new(
+            DimensionKind::HeightToTurretRoof,
+            2.71,
+            0.08,
+            dossier("2.71 m OVERALL height: the 2.62 m roof plus the periscope standing on it."),
+        ),
+    ])
 }

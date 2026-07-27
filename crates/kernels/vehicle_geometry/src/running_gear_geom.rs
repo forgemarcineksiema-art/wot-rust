@@ -20,6 +20,7 @@ pub fn track_link_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
         game_core::ShoePattern::Kgs => kgs_link(kin),
         game_core::ShoePattern::Waffle => waffle_link(kin),
         game_core::ShoePattern::BritishCast => british_link(kin),
+        game_core::ShoePattern::KvCast => kv_link(kin),
     };
     // The continuous belt skin must move and break with the links, not live in the static hull.
     // This thin wheel-side backing overlaps its neighbours slightly, closing the triangular gaps
@@ -35,6 +36,25 @@ pub fn track_link_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
             pitch * 0.56,
         ))
         .append(&shoe)
+        .build()
+}
+
+/// The KV's 700 mm cast shoe: a broad heavy plate carrying ONE stout central guide horn on the
+/// wheel side and a deep transverse grouser rib across the ground face. Coarse where the Omsh is
+/// fine — this is the widest track in the game and it should read that way at track level.
+fn kv_link(kin: &RunningGearKinematics) -> GeometryMesh {
+    let half_z = kin.link_half_length();
+    let plate_half_x = kin.band_half_width;
+    // One horn, and a broad one: roughly a third of the band, against the Omsh's two thin pads.
+    let horn_half_x = (kin.link_half_width * 0.16).max(0.014);
+
+    MeshBuilder::new()
+        // The plate itself, thicker than the Omsh's — a casting, not a stamping.
+        .append(&box_prism(Vec3::new(0.0, -0.004, 0.0), plate_half_x, 0.030, half_z))
+        // The single central guide horn, standing proud on the wheel side.
+        .append(&box_prism(Vec3::new(0.0, -0.048, 0.0), horn_half_x, 0.020, half_z * 0.34))
+        // The transverse grouser rib on the ground face — the KV's bite in mud.
+        .append(&box_prism(Vec3::new(0.0, 0.028, 0.0), plate_half_x * 0.92, 0.012, half_z * 0.20))
         .build()
 }
 

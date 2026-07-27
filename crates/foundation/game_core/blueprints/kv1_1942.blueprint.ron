@@ -65,6 +65,8 @@ BlueprintFile(
         top_sag_m: 0.012,
         wheel_spokes: 8,
         drive_front: false,
+        // The heavy cast shoe, not the T-54 family's small-pitch Omsh.
+        shoe_pattern: KvCast,
         wheel_face: Openwork,
         suspension: TorsionBar,
     ),

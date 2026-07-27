@@ -100,6 +100,11 @@ pub enum ShoePattern {
     Waffle,
     /// The Centurion's cast shoe: TWIN spaced guide horns and a heavy transverse bar.
     BritishCast,
+    /// The KV's heavy 700 mm cast shoe: ONE stout central guide horn on a broad plate, with a
+    /// deep transverse grouser rib across the ground face. Wider and coarser than the small-pitch
+    /// Omsh the T-54 family wears — a KV in Omsh shoes is exactly the clone-factory defect the
+    /// per-family patterns exist to prevent.
+    KvCast,
 }
 
 /// Road-wheel face families.
