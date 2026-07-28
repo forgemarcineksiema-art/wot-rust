@@ -121,6 +121,15 @@ rejection tests kept.
 
 ## Budgets
 
+- **Measured 2026-07-28** (dev laptop, release, interleaved A/B against master, 3 rounds — the
+  bench has a ~9% run-to-run spread on this machine, so single readings prove nothing): the
+  14-tank battle is unchanged at ~8.5 ms / 128 ticks (~66 µs/tick), and `urban_150` improves from
+  ~13.1 ms to ~11.2 ms (~102 → ~88 µs/tick). The improvement is the live-cover `Cow` plus
+  `LiveCover` resolving both views in one pass. Getting there took two corrections the bench
+  caught and review would not have: resolving the movement and sight slices separately paid the
+  whole 150-object rebuild twice, and the cover-crush fix had replaced a four-float-compare
+  predicate with a full four-axis SAT run against every box on the map for every moving hull
+  (~+18 µs/tick until it got the same circumradius broadphase the blocking test already had).
 - **Combat hot path**: `crates/runtime/sim/benches/combat_hot_path.rs` — a 14-tank battle
   with live shells and cover, 128 ticks at 60 Hz through
   `SimulationState::apply_commands_on_battlefield`. The bench is the measurement; the
