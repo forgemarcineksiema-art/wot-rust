@@ -25,5 +25,9 @@ harness = false
 name = "combat_hot_path"
 harness = false
 
+[[bench]]
+name = "contact_pileup"
+harness = false
+
 [lints]
 workspace = true

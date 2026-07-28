@@ -53,6 +53,8 @@ fn driven_for(tracks: TrackDriveStatus) -> TankDriveState {
         tank_obstacles: &[],
         footprint: None,
         water: None,
+        rubble: &[],
+        ground: None,
     };
     let command = TankCommand::drive(1.0, 0.0);
 

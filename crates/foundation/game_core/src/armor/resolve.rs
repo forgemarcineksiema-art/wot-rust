@@ -70,15 +70,35 @@ pub(crate) fn resolve_penetration_at_distance_on_facet(
     }
 }
 
+/// The armour "test" for a round that arrives through a hole an earlier shell already opened.
+///
+/// There is no steel across its path, so there is nothing to resolve: the round is simply INSIDE,
+/// carrying everything it still has at this range, and what it meets there is the interior. It is
+/// a function rather than a literal at the call site so that the damage a perforation deals stays
+/// ONE rule — a round that threads an open channel hurts exactly as much as one that had to earn
+/// its way in, because by the time either is in the fighting compartment nothing about them
+/// differs. The caller is responsible for having checked that the projectile's full cross-section
+/// actually clears the aperture ([`crate::ArmorBreachSet::passage_at`]).
+pub fn resolve_penetration_through_open_channel(
+    shell: &ShellSpec,
+    distance_m: f32,
+) -> PenetrationResult {
+    PenetrationResult {
+        penetrated: true,
+        ricocheted: false,
+        effective_armor_mm: 0.0,
+        remaining_penetration_mm: shell.penetration_mm_at_distance(distance_m),
+        damage_hp: shell_damage_hp(shell, true, false),
+        module_damage_hp: module_damage_hp(shell, true, false),
+    }
+}
+
 /// How much harder a spaced screen is on a shaped charge: the standoff detonates the jet early,
 /// so the track band eats it at a multiple of its line-of-sight steel.
 const HEAT_SCREEN_FACTOR: f32 = 2.0;
 
-/// A track hit is a SPACED-ARMOR test, not a hull plate. The track band strips its own
-/// line-of-sight thickness off the shell (a multiple for HEAT — the screen kills the jet's
-/// standoff), and only the remainder challenges the hull side plate behind it. HE fuzes on the
-/// first surface it touches, so it bursts on the track and never reaches the plate at all.
-/// Both angles are TRUE angles of incidence against each layer's own 3D normal.
+/// A track hit is a SPACED-ARMOR test, not a hull plate — the single-screen case of
+/// [`resolve_penetration_through_screens`].
 pub fn resolve_penetration_through_track(
     shell: &ShellSpec,
     armor: &ArmorProfile,
@@ -87,26 +107,73 @@ pub fn resolve_penetration_through_track(
     side_angle_degrees: f32,
     distance_m: f32,
 ) -> PenetrationResult {
-    let track = armor.plate(track_zone);
-    let track_los = layer_los_mm(shell, track, track_angle_degrees);
+    resolve_penetration_through_screens(
+        shell,
+        armor,
+        &[track_zone],
+        track_angle_degrees,
+        side_angle_degrees,
+        distance_m,
+    )
+}
+
+/// A flank hit through every SPACED layer standing off the hull side, outermost first.
+///
+/// Each screen strips its own line-of-sight thickness off the shell (the whole stack a multiple
+/// for HEAT — the standoff kills the jet), and only the remainder challenges the hull side plate
+/// behind them. HE fuzes on the first surface it touches, so it bursts on the outermost screen
+/// and never reaches the plate at all. An EMPTY screen list is a bare side plate (a thrown track
+/// is not there any more) and resolves as an ordinary hull-side hit.
+///
+/// The list is what keeps the doctrine honest in the one place it used to invert it: a side
+/// skirt hangs OUTSIDE the track band, so a shell that met the skirt still has the belt to
+/// cross. Resolving the skirt alone made bolting Schürzen onto a hull *reduce* its flank armour
+/// — the opposite of what spaced plate is for, and visible in the fleet (Centurion, Tiger II).
+///
+/// Angles are TRUE angles of incidence against each layer's own 3D normal; the screens share
+/// `screen_angle_degrees` because they are parallel plates a track-width apart.
+pub fn resolve_penetration_through_screens(
+    shell: &ShellSpec,
+    armor: &ArmorProfile,
+    screens: &[ArmorZone],
+    screen_angle_degrees: f32,
+    side_angle_degrees: f32,
+    distance_m: f32,
+) -> PenetrationResult {
+    let Some(&outermost) = screens.first() else {
+        // Nothing standing off the hull: the bare side plate on its own terms.
+        return resolve_penetration_at_distance_on_facet(
+            shell,
+            armor.facet(ArmorFacing::HullSide),
+            side_angle_degrees,
+            distance_m,
+        );
+    };
+    let outer_plate = armor.plate(outermost);
+    let outer_los = layer_los_mm(shell, outer_plate, screen_angle_degrees);
 
     if shell.shell_type == ShellType::HighExplosive {
-        // Surface burst on the running gear: external HE chip damage, never an interior hit.
+        // Surface burst on the outermost layer: external HE chip damage, never an interior hit.
         return PenetrationResult {
             penetrated: false,
             ricocheted: false,
-            effective_armor_mm: track_los,
-            remaining_penetration_mm: shell.penetration_mm_at_distance(distance_m) - track_los,
+            effective_armor_mm: outer_los,
+            remaining_penetration_mm: shell.penetration_mm_at_distance(distance_m) - outer_los,
             damage_hp: shell_damage_hp(shell, false, false),
             module_damage_hp: module_damage_hp(shell, false, false),
         };
     }
 
-    let ricocheted = ricochets(shell, &track, track_angle_degrees);
+    // Only the OUTERMOST layer can deflect: past it the shell is already inside the stack.
+    let ricocheted = ricochets(shell, &outer_plate, screen_angle_degrees);
+    let stack_los: f32 = screens
+        .iter()
+        .map(|&zone| layer_los_mm(shell, armor.plate(zone), screen_angle_degrees))
+        .sum();
     let screen_mm = if shell.shell_type == ShellType::Heat {
-        track_los * HEAT_SCREEN_FACTOR
+        stack_los * HEAT_SCREEN_FACTOR
     } else {
-        track_los
+        stack_los
     };
     let side = armor.facet(ArmorFacing::HullSide);
     let side_los = layer_los_mm(shell, side, side_angle_degrees);

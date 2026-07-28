@@ -115,6 +115,7 @@ pub(super) fn tiger_i_blueprint() -> VehicleBlueprint {
             plan_half_length: 1.25,
             mantlet_radius: 0.34,
             mantlet_back_z: 0.92,
+            sector_count: super::DEFAULT_TURRET_SECTORS,
             mantlet_front_z: 1.22,
         },
         gun: GunShape {

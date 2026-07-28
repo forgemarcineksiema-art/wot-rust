@@ -63,6 +63,41 @@ partial gun damage to aim dispersion between snapshots instead of approximating 
 modules from a destroyed bit. A parity test locks that the predictor matches the server's pose and
 dispersion tick-for-tick.
 
+## Contact Carries Momentum
+
+A tick runs in the rigid-body order, and the order is the point:
+
+1. every hull decides a velocity, and **nobody moves**;
+2. hull-to-hull contacts are solved against where those velocities *would* put them;
+3. the surviving velocities are spent and resolved against the world;
+4. anything still overlapping is eased apart.
+
+`physics::advance_tank_on_world` and `settle_tank_on_world` are steps 1 and 3;
+`step_tank_on_world_with_tanks` is still their composition, which is what the client predictor
+calls (it simulates one hull against neighbours it treats as static).
+
+Contact is an **impulse**, not a veto. Touching hulls exchange normal momentum, an off-centre
+contact exchanges angular momentum too (a t-bone slews its victim), and Coulomb friction bounded
+by the normal impulse resists sliding across the contact. Restitution is zero: armour plate does
+not bounce, it shoves. The solve is Jacobi — gathered against one shared state and applied
+together — so the outcome cannot depend on where a tank sits in the roster.
+
+Ram damage reads the **resolved impulse**, not a closing speed of its own. Two answers to "did
+these tanks collide" is one answer too many.
+
+**The invariant this bought, stated so it is not lost again: nothing may DELETE momentum; it may
+only resist it.** Three places broke that rule, and all three were invisible for as long as a
+hull's own drive was the only thing that could put velocity into a hull:
+
+- the static track-lock zeroed any undriven hull under its grab threshold, whatever momentum was
+  there. It now removes only what `mu_s * g * traction * cos(theta) * dt` could actually arrest;
+- a thrown track forced the velocity to zero every tick. It now removes the **drive** — no thrust,
+  no steering, the shed belts dragging through the brake channel — and leaves the momentum. (A ram
+  throws the victim's track on the first hit, so the old rule made a shoved hull unpushable the
+  instant it was hit, and froze a hull thrown in mid-air.)
+- contact had no tangential friction at all, so hulls pressed together slid along each other for
+  free and a queue squirted sideways.
+
 ## Terrain Contact
 
 Terrain contact comes from heightmap sampling. The controller samples ahead, behind, and to the
@@ -107,6 +142,21 @@ impulse only ever cancels sideways velocity, never reverses it, so the step stay
 Static cover (buildings, treelines, wrecks) is a hard obstacle as well: the shared drive step
 keeps the hull out of cover footprints, sliding along a face rather than sticking, so the
 predicted hull stops exactly where the server stops it (see Shared Drive Step).
+
+Collapsed buildings are part of that ground. A `CoverPhase::Rubble` object leaves the movement
+collision entirely and enters the support envelope as `terrain::RubbleMound` — a truncated pyramid
+with flanks at the angle of repose of broken masonry. Both the resting line and the drive's slope
+probe read `max(terrain, debris)`, so the hull rides the pile AND pays it: the crossing tilts the
+hull and bleeds speed through the same force model every slope uses. Intact cover is unchanged —
+it blocks in plan at any height, so nothing ends up on a roof. See `docs/destruction-program.md`,
+"Rubble is terrain".
+
+A hull that stops being a tank does not stop being an object. The drive step is skipped for dead
+hulls — a wreck neither drives nor steers nor slides — but its VERTICAL is still resolved, every
+tick, commanded or not (`sim::wreck::settle_wrecks`), against the same support envelope a live
+hull reads. Without it a hull killed in mid-flight hung at the altitude it died at for the rest of
+the battle, and a wreck standing where a later crater opened floated over the hole. A wreck already
+resting on its support is a bit-identical no-op, so replays are unaffected.
 
 Rapier remains useful for broadphase, world collision, raycasts, and simple
 bodies. Tank movement truth stays in the custom controller so replays and server

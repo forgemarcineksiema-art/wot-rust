@@ -17,6 +17,9 @@ pub struct AuthoritativeTick {
     /// remote host can feed its reliable per-recipient combat lane.
     pub damage_events: Vec<DamageEvent>,
     pub shell_impacts: Vec<ShellImpact>,
+    /// Perforations carved this tick (protocol v39). Permanent per-hull state, replicated as a
+    /// stream of additions on the same reliable lane instead of riding every snapshot.
+    pub armor_breaches: Vec<sim::event_stamp::ArmorBreachRecord>,
 }
 
 #[derive(Debug, Clone)]
@@ -64,18 +67,20 @@ impl LocalAuthoritativeServer {
         (Self::from_setup(config, setup), human_tanks)
     }
 
+    /// Every hull's complete perforation set (protocol v39). A crew joining mid-battle gets this
+    /// once, before the stream of additions; without it the stream has no baseline to apply to
+    /// and a late joiner would see undamaged steel forever.
+    pub fn armor_breach_state(&self) -> Vec<sim::event_stamp::ArmorBreachRecord> {
+        self.sim.armor_breach_state()
+    }
+
     /// Per-target observer masks (bit = tank index) against the LIVE cover — the per-viewer
     /// filter's second input beside the team masks already on the snapshot.
     pub fn observer_masks(&self) -> Vec<u16> {
-        let live_cover: std::borrow::Cow<'_, [terrain::StaticCoverObject]> =
-            if self.sim.cover_states().iter().all(|state| state.phase == sim::CoverPhase::Intact) {
-                std::borrow::Cow::Borrowed(&self.battlefield.static_cover)
-            } else {
-                std::borrow::Cow::Owned(sim::live_cover_for_blocking(
-                    &self.battlefield.static_cover,
-                    self.sim.cover_states(),
-                ))
-            };
+        let live_cover = sim::live_cover_for_sight_and_shells(
+            &self.battlefield.static_cover,
+            self.sim.cover_states(),
+        );
         sim::compute_observer_masks(
             self.sim.tanks(),
             Some(&self.battlefield.heightmap),
@@ -218,19 +223,15 @@ impl LocalAuthoritativeServer {
         // keeps hiding behind a flattened building and refuses to fire through the hole it just
         // made. The pristine common case borrows the authored slice; only a battle that has
         // damaged cover pays for building the live view.
-        let live_cover: std::borrow::Cow<'_, [terrain::StaticCoverObject]> =
-            if self.sim.cover_states().iter().all(|state| state.phase == sim::CoverPhase::Intact) {
-                std::borrow::Cow::Borrowed(&self.battlefield.static_cover)
-            } else {
-                std::borrow::Cow::Owned(sim::live_cover_for_blocking(
-                    &self.battlefield.static_cover,
-                    self.sim.cover_states(),
-                ))
-            };
+        let live_cover = sim::live_cover_for_sight_and_shells(
+            &self.battlefield.static_cover,
+            self.sim.cover_states(),
+        );
         commands.extend(self.bots.commands(
             self.sim.tick(),
             self.sim.tanks(),
             &self.battlefield,
+            self.sim.ground(),
             &live_cover,
             battle_over,
             self.sim.damage_events(),
@@ -258,6 +259,7 @@ impl LocalAuthoritativeServer {
         self.pending_shell_impacts.extend_from_slice(self.sim.shell_impacts());
         let damage_events = self.sim.damage_events().to_vec();
         let shell_impacts = self.sim.shell_impacts().to_vec();
+        let armor_breaches = self.sim.armor_breach_events().to_vec();
 
         let snapshot = if self.config.snapshot_schedule().should_emit(self.sim.tick()) {
             let mut snapshot = Snapshot::from(&self.sim);
@@ -269,7 +271,13 @@ impl LocalAuthoritativeServer {
             None
         };
 
-        AuthoritativeTick { server_tick: self.sim.tick(), snapshot, damage_events, shell_impacts }
+        AuthoritativeTick {
+            server_tick: self.sim.tick(),
+            snapshot,
+            damage_events,
+            shell_impacts,
+            armor_breaches,
+        }
     }
 
     pub fn tick_with_player_input(&mut self, input: ClientInputCommand) -> AuthoritativeTick {
@@ -280,6 +288,7 @@ impl LocalAuthoritativeServer {
             snapshot: tick.snapshot.map(|snapshot| snapshot.filtered_for_viewer(viewer)),
             damage_events: tick.damage_events,
             shell_impacts: tick.shell_impacts,
+            armor_breaches: tick.armor_breaches,
         }
     }
 }

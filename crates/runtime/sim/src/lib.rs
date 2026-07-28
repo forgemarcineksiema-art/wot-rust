@@ -8,7 +8,7 @@ mod cover_damage;
 mod crater_ledger;
 mod drive_modules;
 mod drowning;
-mod event_stamp;
+pub mod event_stamp;
 mod landing;
 mod module_hit;
 mod ramming;
@@ -25,6 +25,7 @@ mod tank_drive;
 mod tank_factory;
 mod tank_state;
 mod timestep;
+mod wreck;
 
 pub use aim_dispersion::recover_dispersion;
 pub use aiming::{
@@ -36,8 +37,9 @@ pub use clock::{
 pub use combat::FIRE_BUFFER_S;
 pub use command::TankCommand;
 pub use cover_damage::{
-    CoverPhase, CoverState, cover_states_for, damage_cover, initial_cover_states,
-    live_cover_for_blocking, live_cover_for_phase_bytes, record_cover_scar,
+    CoverPhase, CoverState, LiveCover, cover_states_for, damage_cover, initial_cover_states,
+    live_cover_for_movement, live_cover_for_sight_and_shells, movement_cover_for_phase_bytes,
+    record_cover_scar, rubble_mounds, rubble_mounds_for_phase_bytes, sight_cover_for_phase_bytes,
 };
 pub use crater_ledger::{MAX_CRATERS, record_high_explosive_burst};
 pub use drive_modules::{DriveModuleStatus, TrackDriveStatus, TrackSideDrive};
@@ -58,6 +60,6 @@ pub use spotting::{
     compute_spotted_masks, line_of_sight, tank_line_of_sight,
 };
 pub use state::SimulationState;
-pub use tank_drive::{TankDriveState, TankDriveWorld, step_tank_drive};
+pub use tank_drive::{TankDriveState, TankDriveWorld, braking_deceleration_mps2, step_tank_drive};
 pub use tank_state::TankState;
 pub use timestep::FixedTimestep;

@@ -22,7 +22,7 @@ pub(crate) struct FireEvent {
 /// Reload can only jump UP by (nearly) the full reload on a shot; module repairs and HUD noise
 /// move it by far less. Half the spec reload splits the two cleanly.
 fn fired_between(previous: &TankSnapshot, latest: &TankSnapshot) -> bool {
-    let reload_s = latest.vehicle.spec().gun.reload_seconds;
+    let reload_s = latest.vehicle.spec_ref().gun.reload_seconds;
     latest.hit_points > 0
         && latest.vehicle == previous.vehicle
         && latest.reload_remaining_s - previous.reload_remaining_s > reload_s * 0.5

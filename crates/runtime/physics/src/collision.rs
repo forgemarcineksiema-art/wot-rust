@@ -45,6 +45,13 @@ pub struct TankWorldObstacles<'a> {
     /// depth of water over the terrain contact (see [`crate::water`]). `None` keeps the dry
     /// path bit-identical (replay-locked).
     pub water: Option<terrain::WaterBody>,
+    /// Collapsed buildings, as GROUND (see [`terrain::RubbleMound`]). Empty on a battlefield
+    /// nothing has knocked down yet, which keeps the untouched path bit-identical.
+    pub rubble: &'a [terrain::RubbleMound],
+    /// The map's ground rule (see [`terrain::GroundClassifier`]) — what the surface under the
+    /// tracks IS. `None` is bare grass everywhere, which is exactly the model before material
+    /// existed, so terrain-free modes and old fixtures stay bit-identical.
+    pub ground: Option<&'a terrain::GroundClassifier>,
 }
 
 impl<'a> TankWorldObstacles<'a> {
@@ -53,11 +60,21 @@ impl<'a> TankWorldObstacles<'a> {
         tank_footprint: TankFootprint,
         tanks: &'a [TankObstacle],
     ) -> Self {
-        Self { cover, tank_footprint, tanks, water: None }
+        Self { cover, tank_footprint, tanks, water: None, rubble: &[], ground: None }
     }
 
     pub fn with_water(mut self, water: Option<terrain::WaterBody>) -> Self {
         self.water = water;
+        self
+    }
+
+    pub fn with_rubble(mut self, rubble: &'a [terrain::RubbleMound]) -> Self {
+        self.rubble = rubble;
+        self
+    }
+
+    pub fn with_ground(mut self, ground: Option<&'a terrain::GroundClassifier>) -> Self {
+        self.ground = ground;
         self
     }
 }
@@ -107,27 +124,126 @@ fn axis_blocked(previous: f32, attempted: f32, resolved: f32) -> bool {
     (attempted - previous).abs() > 1.0e-6 && (resolved - previous).abs() <= 1.0e-5
 }
 
-/// XZ-plane separating-axis overlap between two oriented hull footprints.
-pub(crate) fn obstacles_overlap(a: &TankObstacle, b: &TankObstacle) -> bool {
+/// How two overlapping footprints are into each other: the axis of LEAST penetration (the
+/// minimum translation vector of the same SAT), pointing from `a` toward `b`, and the depth along
+/// it. Separating them means moving `a` back along `normal` and `b` forward along it.
+///
+/// This is what turns a collision from a veto into a physical event. A blocking test only ever
+/// needed "do these touch"; an impulse needs to know along WHICH direction the contact acts,
+/// and a positional correction needs to know by how much.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct FootprintContact {
+    /// Unit contact normal in the XZ plane, from `a` toward `b`.
+    pub normal: Vec2,
+    /// Penetration depth along `normal`, always positive.
+    pub depth_m: f32,
+}
+
+/// XZ-plane separating-axis test between two oriented hull footprints, reporting the contact when
+/// they overlap. [`obstacles_overlap`] is this test's yes/no answer and stays bit-identical to it:
+/// the separation threshold is the same, so no blocking verdict anywhere moves.
+pub(crate) fn obstacles_contact(a: &TankObstacle, b: &TankObstacle) -> Option<FootprintContact> {
     let center_a = Vec2::new(a.center.x, a.center.z);
     let center_b = Vec2::new(b.center.x, b.center.z);
     let [right_a, forward_a] = footprint_axes(a.yaw_rad);
     let [right_b, forward_b] = footprint_axes(b.yaw_rad);
     let delta = center_b - center_a;
+    let mut shallowest: Option<FootprintContact> = None;
     for axis in [right_a, forward_a, right_b, forward_b] {
         let radius_a = a.footprint.half_width_m * axis.dot(right_a).abs()
             + a.footprint.half_length_m * axis.dot(forward_a).abs();
         let radius_b = b.footprint.half_width_m * axis.dot(right_b).abs()
             + b.footprint.half_length_m * axis.dot(forward_b).abs();
-        if delta.dot(axis).abs() >= radius_a + radius_b - 1.0e-5 {
-            return false;
+        let separation = delta.dot(axis);
+        let depth_m = radius_a + radius_b - separation.abs();
+        if depth_m <= 1.0e-5 {
+            return None;
+        }
+        if shallowest.is_none_or(|contact| depth_m < contact.depth_m) {
+            // Orient the axis from `a` toward `b`, so the normal always says which way `b` lies.
+            let normal = if separation < 0.0 { -axis } else { axis };
+            shallowest = Some(FootprintContact { normal, depth_m });
         }
     }
-    true
+    shallowest
+}
+
+/// XZ-plane separating-axis overlap between two oriented hull footprints.
+pub(crate) fn obstacles_overlap(a: &TankObstacle, b: &TankObstacle) -> bool {
+    obstacles_contact(a, b).is_some()
 }
 
 fn footprint_axes(yaw_rad: f32) -> [Vec2; 2] {
     let forward = Vec2::new(yaw_rad.sin(), yaw_rad.cos());
     let right = Vec2::new(forward.y, -forward.x);
     [right, forward]
+}
+
+#[cfg(test)]
+mod contact_tests {
+    use super::*;
+
+    fn hull(x: f32, z: f32, yaw_rad: f32) -> TankObstacle {
+        TankObstacle::new(
+            Vec3::new(x, 0.0, z),
+            yaw_rad,
+            TankFootprint { half_width_m: 1.75, half_length_m: 3.2 },
+        )
+    }
+
+    /// The contact must be the MINIMUM translation: pushing the pair apart by exactly `depth_m`
+    /// along `normal` has to separate them, and no less would have. This is the property the
+    /// positional correction leans on, so it is the property worth locking rather than any
+    /// particular number.
+    #[test]
+    fn the_reported_contact_is_the_shallowest_way_out() {
+        let mut state = 0x0c0f_feeeu32;
+        let xorshift = |state: &mut u32| {
+            *state ^= *state << 13;
+            *state ^= *state >> 17;
+            *state ^= *state << 5;
+            (*state % 10_000) as f32 / 10_000.0
+        };
+        let mut seen = 0;
+        for _ in 0..600 {
+            let a = hull(0.0, 0.0, xorshift(&mut state) * std::f32::consts::TAU);
+            let b = hull(
+                (xorshift(&mut state) - 0.5) * 12.0,
+                (xorshift(&mut state) - 0.5) * 12.0,
+                xorshift(&mut state) * std::f32::consts::TAU,
+            );
+            let Some(contact) = obstacles_contact(&a, &b) else {
+                assert!(!obstacles_overlap(&a, &b), "no contact must mean no overlap");
+                continue;
+            };
+            seen += 1;
+            assert!(contact.depth_m > 0.0);
+            assert!((contact.normal.length() - 1.0).abs() < 1.0e-4, "the normal must be unit");
+
+            // Separating by the full depth (plus a hair for the 1e-5 threshold) must clear it.
+            let push = contact.normal * (contact.depth_m + 1.0e-3);
+            let moved = TankObstacle { center: b.center + Vec3::new(push.x, 0.0, push.y), ..b };
+            assert!(!obstacles_overlap(&a, &moved), "the MTV must actually separate the pair");
+
+            // ...and separating by appreciably LESS must not: it is the minimum, not merely a way.
+            let short = contact.normal * (contact.depth_m * 0.5);
+            let barely = TankObstacle { center: b.center + Vec3::new(short.x, 0.0, short.y), ..b };
+            assert!(obstacles_overlap(&a, &barely), "half the depth cannot already be clear");
+        }
+        assert!(seen > 30, "the sampling must actually produce contacts, saw {seen}");
+    }
+
+    /// The normal says which way `b` lies from `a`, which is what lets the solver push the pair
+    /// apart rather than through each other.
+    #[test]
+    fn the_normal_points_from_a_toward_b() {
+        let a = hull(0.0, 0.0, 0.0);
+        let b = hull(2.0, 0.0, 0.0); // overlapping to +x (half_width 1.75 each)
+        let contact = obstacles_contact(&a, &b).expect("these overlap");
+        assert!(contact.normal.x > 0.9, "b lies to +x, got {:?}", contact.normal);
+
+        let behind = hull(-2.0, 0.0, 0.0);
+        let contact = obstacles_contact(&a, &behind).expect("these overlap");
+        assert!(contact.normal.x < -0.9, "b lies to -x, got {:?}", contact.normal);
+    }
 }

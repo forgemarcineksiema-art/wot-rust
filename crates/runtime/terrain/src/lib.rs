@@ -2,12 +2,14 @@ mod battlefield;
 mod chunk;
 mod coordinates;
 mod craters;
+mod ground;
 mod heightmap;
 mod map_build;
 mod map_id;
 mod map_plan;
 mod math;
 mod river;
+mod rubble;
 mod scenery;
 mod sculpt;
 mod water;
@@ -25,6 +27,10 @@ pub use craters::{
     CRATER_POSITION_STEP_M, CRATER_RADIUS_STEP_M, CRATER_RIM_FRACTION, CoverScar, CraterField,
     CraterRecord, MAX_COVER_SCARS_PER_COVER, he_crater_depth_m, he_crater_radius_m,
 };
+pub use ground::{
+    GroundClassifier, GroundMaterial, GroundProperties, grass_patchwork_noise, road_blend,
+    road_blend_at, value_noise,
+};
 pub use heightmap::{HeightMap, HeightMapStats, TerrainError};
 // The map compiler (`map_forge`) builds battlefields from blueprints through the SAME shared
 // helpers — one grounding/grounding-math implementation, no forked copies.
@@ -36,6 +42,7 @@ pub use map_id::MapId;
 pub use map_plan::{TerrainMapLayer, TerrainMapPlan};
 pub use math::{gaussian1, gaussian2};
 pub use river::{RIVER_CORRIDOR_HALF_WIDTH_M, RiverSpec, bystra_river_center_x};
+pub use rubble::{RUBBLE_REPOSE_GRADE, RubbleMound, ground_with_rubble, rubble_height_at};
 pub use scenery::{
     ScatterRegion, SceneryInstance, SceneryKind, inside_any_cover, scatter_mirrored,
 };

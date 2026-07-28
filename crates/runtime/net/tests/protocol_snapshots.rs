@@ -31,7 +31,7 @@ fn input_command_wire_snapshot_v34_is_stable() {
 
     let bytes = encode_message(&message).expect("message should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 38);
+    assert_eq!(PROTOCOL_VERSION, 39);
     assert_eq!(hex(&bytes), wire_fixture(&bytes, "input_command_v33"));
     assert_eq!(decode_message(&bytes).expect("message should decode"), message);
 }
@@ -45,7 +45,7 @@ fn vehicle_selection_wire_snapshot_v34_is_stable() {
 
     let bytes = encode_message(&message).expect("vehicle selection should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 38);
+    assert_eq!(PROTOCOL_VERSION, 39);
     assert_eq!(hex(&bytes), wire_fixture(&bytes, "vehicle_selection_v33"));
     assert_eq!(decode_message(&bytes).expect("message should decode"), message);
 }
@@ -57,9 +57,49 @@ fn tank_snapshot_wire_v34_is_stable() {
 
     let bytes = encode_message(&message).expect("snapshot should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 38);
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_tank_v33"));
+    assert_eq!(PROTOCOL_VERSION, 39);
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_tank_v39"));
     assert_eq!(decode_message(&bytes).expect("snapshot should decode"), message);
+}
+
+/// v39's whole point, stated as a wire property rather than a size.
+///
+/// Perforations were re-sent in full for every tank in every snapshot, which grew a battle's
+/// payload monotonically with the shooting until the snapshot no longer fit one transport
+/// message. They are permanent, append-only state, so they moved to the reliable lane. This
+/// locks the two halves of that: a populated `armor_breaches` costs the snapshot NOTHING, and it
+/// does not come back out — a client that expects the wire to carry it gets an empty set, which
+/// is the loudest way to say "fill this from the lane".
+#[test]
+fn armor_breaches_are_client_local_and_never_cross_the_wire() {
+    let bare = ProtocolMessage::Snapshot(combat_snapshot_message());
+    let mut dressed = combat_snapshot_message();
+    for tank in &mut dressed.tanks {
+        tank.armor_breaches = sample_breach_set();
+    }
+    assert!(
+        !sample_breach_set().breaches().is_empty(),
+        "the fixture must actually carry perforations"
+    );
+
+    let bare_bytes = encode_message(&bare).expect("bare snapshot encodes");
+    let dressed_bytes =
+        encode_message(&ProtocolMessage::Snapshot(dressed)).expect("dressed snapshot encodes");
+
+    assert_eq!(bare_bytes, dressed_bytes, "perforations must add no bytes to a snapshot");
+
+    let ProtocolMessage::Snapshot(decoded) =
+        decode_message(&dressed_bytes).expect("snapshot decodes")
+    else {
+        panic!("expected a snapshot");
+    };
+    for tank in &decoded.tanks {
+        assert_eq!(
+            tank.armor_breaches,
+            Default::default(),
+            "the wire hands back an empty set; the reliable lane fills it"
+        );
+    }
 }
 
 #[test]
@@ -68,8 +108,8 @@ fn combat_snapshot_wire_v34_is_stable() {
 
     let bytes = encode_message(&message).expect("snapshot should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 38);
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_combat_v38"));
+    assert_eq!(PROTOCOL_VERSION, 39);
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_combat_v39"));
     assert_eq!(decode_message(&bytes).expect("snapshot should decode"), message);
 }
 
@@ -87,8 +127,8 @@ fn server_hello_wire_snapshot_v38_is_stable() {
 
     let bytes = encode_message(&message).expect("server hello should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 38);
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "server_hello_v38"));
+    assert_eq!(PROTOCOL_VERSION, 39);
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "server_hello_v39"));
     assert_eq!(decode_message(&bytes).expect("server hello should decode"), message);
 }
 
@@ -141,16 +181,16 @@ fn input_batch_disconnect_and_ack_wire_v38_are_stable() {
         commands: vec![sample_input_command(), sample_input_command()],
     };
     let bytes = net::encode_frame(&batch).expect("encode");
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "input_batch_v38"));
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "input_batch_v39"));
 
     let goodbye =
         ProtocolMessage::Disconnect { session_id: SESSION_ID, reason: net::DisconnectReason::Quit };
     let bytes = net::encode_frame(&goodbye).expect("encode");
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "disconnect_v38"));
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "disconnect_v39"));
 
     let ack = ProtocolMessage::InputAck { session_id: SESSION_ID, last_processed_input_seq: 41 };
     let bytes = net::encode_frame(&ack).expect("encode");
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "input_ack_v38"));
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "input_ack_v39"));
 }
 
 #[test]
@@ -166,7 +206,7 @@ fn snapshot_delivery_wire_v38_is_stable() {
     };
     let message = ProtocolMessage::SnapshotDelivery(delivery);
     let bytes = net::encode_frame(&message).expect("encode");
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_delivery_v38"));
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_delivery_v39"));
     assert_eq!(net::decode_frame(&bytes).expect("decode"), message);
 }
 
@@ -186,12 +226,12 @@ fn reliable_combat_event_lane_wire_v38_is_stable() {
         ],
     };
     let bytes = net::encode_frame(&batch).expect("encode");
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "combat_event_batch_v38"));
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "combat_event_batch_v39"));
     assert_eq!(net::decode_frame(&bytes).expect("decode"), batch);
 
     let ack = ProtocolMessage::CombatEventAck { session_id: SESSION_ID, last_received_seq: 13 };
     let bytes = net::encode_frame(&ack).expect("encode");
-    assert_eq!(hex(&bytes), wire_fixture(&bytes, "combat_event_ack_v38"));
+    assert_eq!(hex(&bytes), wire_fixture(&bytes, "combat_event_ack_v39"));
     assert_eq!(net::decode_frame(&bytes).expect("decode"), ack);
 }
 
@@ -264,7 +304,10 @@ pub fn combat_snapshot_message() -> Snapshot {
             ammo_counts: game_core::AmmoLoadout::default().counts,
             selected_ammo: 0,
             spotted_by_teams_mask: 0,
-            armor_breaches: sample_breach_set(),
+            // v39: client-local presentation state, deliberately absent from the wire. A
+            // populated value here would not survive the round trip — which is exactly what
+            // `armor_breaches_are_client_local_and_never_cross_the_wire` locks below.
+            armor_breaches: Default::default(),
             track_break_t: [None, None],
             engine_fire: false,
             fuel_fire: false,

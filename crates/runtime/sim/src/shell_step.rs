@@ -3,7 +3,7 @@ use game_core::math::integrate_shell_step;
 use game_core::{ImpactSurface, ShellImpact};
 
 use crate::breach_space::admits_existing_channel;
-use crate::combat::{CombatTickContext, apply_shell_impact};
+use crate::combat::{ArmorEntry, CombatTickContext, apply_shell_impact};
 use crate::event_stamp::BattleEventOutput;
 use crate::shell_continuation::{
     continue_through_armor, deflect_shell, kinetic_penetration_continues,
@@ -58,19 +58,21 @@ pub(crate) fn step_shells(
             }) => {
                 let distance_m = shells[index].traveled_m + hit_position.distance(previous);
                 let radius_m = shells[index].shell.collision_radius_m();
-                let through_open_channel =
-                    tanks.iter().find(|tank| tank.id == id).is_some_and(|tank| {
-                        admits_existing_channel(tank, zone, hit_position, radius_m)
-                    });
-                if through_open_channel {
-                    let direction = shells[index].velocity_mps.normalize_or_zero();
-                    shells[index].position = hit_position + direction * (radius_m + 0.42);
-                    shells[index].traveled_m = distance_m;
-                    shells[index].last_penetrated_target = Some(id);
-                    index += 1;
-                    continue;
-                }
-                let event = apply_shell_impact(
+                // A hole an earlier round opened wide enough to pass this whole projectile costs
+                // it no steel — but it does NOT make the target's interior stop existing. The
+                // round that goes through the hole is inside the fighting compartment, and it
+                // resolves there like any other perforation: modules, damage, egress. It used to
+                // be teleported past the hull with `last_penetrated_target` set, so it dealt
+                // nothing, touched nothing and emitted no event at all — a shot that vanished
+                // into the target with no feedback to the crew that fired it.
+                let entry = match tanks.iter().find(|tank| tank.id == id) {
+                    Some(tank) if admits_existing_channel(tank, zone, hit_position, radius_m) => {
+                        ArmorEntry::OpenChannel
+                    }
+                    _ => ArmorEntry::Plate,
+                };
+                let mut carved = Vec::new();
+                let (event, exit) = apply_shell_impact(
                     &shells[index],
                     tanks,
                     id,
@@ -81,9 +83,15 @@ pub(crate) fn step_shells(
                     plate_normal,
                     distance_m,
                     context.tick,
+                    entry,
+                    &mut carved,
                 );
+                for record in carved {
+                    events.push_armor_breach(record.tank, record.breach);
+                }
                 let ricochet_continues = event.ricocheted && !shells[index].ricocheted_once;
-                let penetration_continues = kinetic_penetration_continues(&shells[index], &event);
+                // The round flies on only through a hole the armour model actually opened.
+                let exit = exit.filter(|exit| kinetic_penetration_continues(&shells[index], exit));
                 let direct_target = event.target;
                 let splashes = !event.penetrated;
                 events.push_damage(event);
@@ -100,8 +108,8 @@ pub(crate) fn step_shells(
                 if ricochet_continues {
                     deflect_shell(&mut shells[index], hit_position, plate_normal, distance_m);
                     index += 1;
-                } else if penetration_continues {
-                    continue_through_armor(&mut shells[index], &event, distance_m);
+                } else if let Some(exit) = exit {
+                    continue_through_armor(&mut shells[index], &exit, direct_target, distance_m);
                     index += 1;
                 } else {
                     shells.swap_remove(index);

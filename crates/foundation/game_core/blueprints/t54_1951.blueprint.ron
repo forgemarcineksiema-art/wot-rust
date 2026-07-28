@@ -67,6 +67,9 @@ BlueprintFile(
         plan_half_length: 1.17,
         mantlet_radius: 0.32,
         mantlet_back_z: 0.88,
+        // Twice the default: this low hemispherical casting IS the T-54's armour argument,
+        // so the normal a shell meets must sweep, not step.
+        sector_count: 24,
         mantlet_front_z: 1.16,
     ),
     gun: GunShape(

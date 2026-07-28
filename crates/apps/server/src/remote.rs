@@ -194,6 +194,12 @@ impl RemoteBattleServer {
                                 server_tick: core.authoritative_tick(),
                             };
                             let _ = client.endpoint.send(transport, &start);
+                            // v39: the world's EXISTING perforations, once, before the stream of
+                            // additions. `begin_session` resets the lane, so a reconnect is
+                            // seeded exactly like a fresh joiner — and without this baseline the
+                            // additions have nothing to apply to and the crew would see
+                            // undamaged steel for the rest of the battle.
+                            queue_armor_breaches(client, &core.armor_breach_state());
                         }
                     }
                 }
@@ -293,6 +299,10 @@ impl RemoteBattleServer {
                         &result.damage_events,
                         &result.shell_impacts,
                     );
+                    // Perforations are NOT personal (v39): a hull invisible to this crew now may
+                    // be visible later, and a viewer that missed its perforations could never
+                    // dress it correctly again. Everyone gets every breach, once, in order.
+                    queue_armor_breaches(client, &result.armor_breaches);
                 }
 
                 // A tiny independent ACK keeps input progress moving even when a fragmented
@@ -377,9 +387,22 @@ impl RemoteBattleServer {
                             last_processed_input_seq: client.inputs.last_processed(),
                             local_motion: core.authoritative_motion(tank).unwrap_or_default(),
                         };
-                        let _ = client
+                        // NEVER `let _ =` here. A snapshot too large for the transport's
+                        // fragment budget (see `net::transport::MAX_FRAGMENTS`) fails on send,
+                        // and swallowing that error stops world state for this crew for the
+                        // rest of the battle WITHOUT closing the session: input ACKs and the
+                        // reliable combat lane keep flowing, so the client shows a frozen
+                        // world rather than a lost connection. Loud is the minimum.
+                        if let Err(error) = client
                             .endpoint
-                            .send(transport, &ProtocolMessage::SnapshotDelivery(delivery));
+                            .send(transport, &ProtocolMessage::SnapshotDelivery(delivery))
+                        {
+                            tracing::error!(
+                                %error,
+                                tank = tank.0,
+                                "snapshot delivery failed — this crew is receiving no world state"
+                            );
+                        }
                     }
                 }
 
@@ -437,6 +460,30 @@ impl RemoteBattleServer {
             let _ = client.endpoint.send(transport, &start);
         }
         self.phase = Phase::Running { core: Box::new(core), ended_repeats: 0 };
+    }
+}
+
+/// Queue this tick's perforations for one crew. Unlike the personal events beside them these go
+/// to everyone — see the call site.
+fn queue_armor_breaches(
+    client: &mut RemoteClient,
+    breaches: &[sim::event_stamp::ArmorBreachRecord],
+) {
+    if client.tank.is_none() {
+        return;
+    }
+    for record in breaches {
+        if client
+            .events
+            .enqueue(CombatEvent::ArmorBreach(net::ArmorBreachDelta {
+                tank: record.tank,
+                breach: record.breach.clone(),
+            }))
+            .is_err()
+        {
+            client.event_overflowed = true;
+            return;
+        }
     }
 }
 

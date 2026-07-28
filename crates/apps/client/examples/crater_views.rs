@@ -47,7 +47,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut ledger = Vec::new();
     for &(x, z, caliber) in &bursts {
         let y = ground_y(&battlefield, x, z);
-        sim::record_high_explosive_burst(&mut ledger, Vec3::new(x, y, z), caliber);
+        sim::record_high_explosive_burst(&mut ledger, Vec3::new(x, y, z), caliber, &[]);
     }
 
     // Bake the splat/macro maps once — the ground's dress never depends on the ledger.

@@ -1,13 +1,15 @@
 use game_core::math::{plate_normal, world_to_tank_local};
 use game_core::{
     ArmorFacing, ArmorZone, DamageCause, DamageEvent, ModuleSlot, PenetrationResult, ShellId,
-    TankId, resolve_penetration_at_distance_on_zone, resolve_penetration_through_track,
+    TankId, TrackSide, resolve_penetration_at_distance_on_zone,
+    resolve_penetration_through_screens,
 };
 use glam::Vec3;
 
 use crate::aim_dispersion::{apply_shot_bloom, dispersed_gun_direction};
 use crate::breach_space::{BreachImpact, find_egress_contact, make_breach, make_egress_breach};
 use crate::module_hit::{apply_track_damage_for_hit, impacted_module};
+use crate::shell_continuation::ShellExit;
 use crate::shell_trace::SHELL_MAX_AGE_SECONDS;
 use crate::{ShellState, TankState};
 
@@ -17,6 +19,18 @@ pub(crate) struct CombatTickContext {
     pub tick: u64,
     /// The map's standing water: shells die in a splash at the surface (see `shell_trace`).
     pub water: Option<terrain::WaterBody>,
+}
+
+/// How the round got past the target's outer skin at this contact.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ArmorEntry {
+    /// Through the plate: the armour model decides whether it gets in at all, and a round that
+    /// does cuts its own ingress wound.
+    Plate,
+    /// Through a hole an earlier round already opened, wide enough to pass the whole projectile
+    /// ([`admits_existing_channel`]). There is no steel to beat and no NEW ingress wound to carve
+    /// — but the round IS inside the hull, and everything inside is still there.
+    OpenChannel,
 }
 
 /// How early a fire click may land before the reload completes and still count: the input
@@ -87,12 +101,20 @@ pub(crate) fn apply_shell_impact(
     plate_normal: Vec3,
     distance_m: f32,
     tick: u64,
-) -> DamageEvent {
+    entry: ArmorEntry,
+    breaches_out: &mut Vec<crate::event_stamp::ArmorBreachRecord>,
+) -> (DamageEvent, Option<ShellExit>) {
     let target =
         tanks.iter_mut().find(|tank| tank.id == target_id).expect("hit tank still present");
     let target_was_alive = target.hit_points > 0;
-    let penetration =
-        resolve_impact_penetration(shell, target, zone, impact_angle_degrees, distance_m);
+    let penetration = match entry {
+        ArmorEntry::Plate => {
+            resolve_impact_penetration(shell, target, zone, impact_angle_degrees, distance_m)
+        }
+        ArmorEntry::OpenChannel => {
+            game_core::resolve_penetration_through_open_channel(&shell.shell, distance_m)
+        }
+    };
     if penetration.damage_hp > 0 {
         target.hit_points = target.hit_points.saturating_sub(penetration.damage_hp);
     }
@@ -147,54 +169,82 @@ pub(crate) fn apply_shell_impact(
         );
     }
 
+    // What the shell had left when it came out the far side, if it came out at all.
+    let mut exit = None;
     if penetration.penetrated {
         let direction = shell.velocity_mps.normalize_or_zero();
-        let breach = make_breach(
-            target,
-            BreachImpact {
-                zone,
-                shell_id: shell.id,
-                shell_type: shell.shell.shell_type,
-                created_tick: tick,
-                hit_position,
-                plate_normal,
-                direction,
-                caliber_mm: shell.shell.caliber_mm,
-                impact_angle_degrees,
-                impact_speed_mps: shell.velocity_mps.length(),
-                effective_armor_mm: penetration.effective_armor_mm,
-                residual_penetration_mm: penetration.remaining_penetration_mm,
-            },
-        );
-        target.armor_breaches.add(breach);
-        if let Some(exit) = find_egress_contact(target, zone, hit_position, direction) {
-            let exit_angle = direction.dot(exit.normal).abs().clamp(0.0, 1.0).acos().to_degrees();
-            let plate = target.spec.hull.plate(exit.zone);
+        // A round that threaded an OPEN CHANNEL cuts no fresh ingress wound — it went through the
+        // one that is already there, which is exactly why it paid no steel for the entry. It still
+        // has to open the far plate on its own to get out.
+        if entry == ArmorEntry::Plate {
+            let breach = make_breach(
+                target,
+                BreachImpact {
+                    zone,
+                    shell_id: shell.id,
+                    shell_type: shell.shell.shell_type,
+                    created_tick: tick,
+                    hit_position,
+                    plate_normal,
+                    direction,
+                    caliber_mm: shell.shell.caliber_mm,
+                    impact_angle_degrees,
+                    impact_speed_mps: shell.velocity_mps.length(),
+                    effective_armor_mm: penetration.effective_armor_mm,
+                    residual_penetration_mm: penetration.remaining_penetration_mm,
+                },
+            );
+            // Replication replays exactly what the authoritative set was GIVEN, in this order —
+            // the client's own `add` then reaches the same merge and capacity decisions.
+            breaches_out.push(crate::event_stamp::ArmorBreachRecord {
+                tank: target.id,
+                breach: breach.clone(),
+            });
+            target.armor_breaches.add(breach);
+        }
+        if let Some(contact) = find_egress_contact(target, zone, hit_position, direction) {
+            let exit_angle =
+                direction.dot(contact.normal).abs().clamp(0.0, 1.0).acos().to_degrees();
+            let plate = target.spec.hull.plate(contact.zone);
             let required_mm =
                 plate.nominal_thickness_mm / exit_angle.to_radians().cos().abs().max(0.18);
+            // ONE test decides both halves of leaving: whether the far plate opens, and whether
+            // the projectile is still a projectile on the other side of it. They used to be
+            // decided from different budgets — the hole from what survived the internal path,
+            // the flight from the entry plate alone — so a round that spent itself on the
+            // engine still sailed out through steel the game had (correctly) left whole.
             if residual_after_modules_mm > required_mm {
+                let speed_scale = (residual_after_modules_mm
+                    / penetration.remaining_penetration_mm.max(1.0))
+                .sqrt()
+                .clamp(0.25, 1.0);
                 let egress = make_egress_breach(
                     target,
                     BreachImpact {
-                        zone: exit.zone,
+                        zone: contact.zone,
                         shell_id: shell.id,
                         shell_type: shell.shell.shell_type,
                         created_tick: tick,
-                        hit_position: exit.position,
-                        plate_normal: exit.normal,
+                        hit_position: contact.position,
+                        plate_normal: contact.normal,
                         direction,
                         caliber_mm: shell.shell.caliber_mm,
                         impact_angle_degrees: exit_angle,
-                        impact_speed_mps: shell.velocity_mps.length()
-                            * (residual_after_modules_mm
-                                / penetration.remaining_penetration_mm.max(1.0))
-                            .sqrt()
-                            .clamp(0.25, 1.0),
+                        impact_speed_mps: shell.velocity_mps.length() * speed_scale,
                         effective_armor_mm: required_mm,
                         residual_penetration_mm: residual_after_modules_mm - required_mm,
                     },
                 );
+                breaches_out.push(crate::event_stamp::ArmorBreachRecord {
+                    tank: target.id,
+                    breach: egress.clone(),
+                });
                 target.armor_breaches.add(egress);
+                exit = Some(ShellExit {
+                    position: contact.position,
+                    residual_penetration_mm: residual_after_modules_mm - required_mm,
+                    speed_scale,
+                });
             }
         }
     }
@@ -229,7 +279,7 @@ pub(crate) fn apply_shell_impact(
         target.turret_detached = true;
     }
 
-    DamageEvent {
+    let event = DamageEvent {
         source: shell.owner,
         target: target.id,
         hit_position,
@@ -257,7 +307,8 @@ pub(crate) fn apply_shell_impact(
         occurred_tick: 0,
         shell_id: Some(shell.id),
         target_destroyed: target_was_alive && target.hit_points == 0,
-    }
+    };
+    (event, exit)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -389,43 +440,53 @@ fn resolve_impact_penetration(
             distance_m,
         );
     }
-    // A BROKEN track is not there any more: the thrown belt lies on the ground beside the
-    // hull, so the shot meets the bare side plate with no spaced screen. The sim stops
-    // charging armor for steel the eye can see is missing.
-    let broken_side = match zone {
-        ArmorZone::LeftTrack => target.tracks.hp(game_core::TrackSide::Left) == 0,
-        ArmorZone::RightTrack => target.tracks.hp(game_core::TrackSide::Right) == 0,
-        _ => false,
-    };
-    let side_sign = match zone {
-        ArmorZone::LeftTrack => -1.0,
-        ArmorZone::RightTrack => 1.0,
-        // The skirt pair shares one zone; the struck plate is whichever side faces the shell's
-        // approach, resolved in the hull frame.
+    // Which flank the shell met. The track zones say so outright; the skirt pair shares one
+    // zone, so the struck plate is whichever side faces the shell's approach, resolved in the
+    // hull frame.
+    let struck_side = match zone {
+        ArmorZone::LeftTrack => TrackSide::Left,
+        ArmorZone::RightTrack => TrackSide::Right,
         _ => {
             let local =
                 target.hull_pose().basis().transpose() * shell.velocity_mps.normalize_or_zero();
-            if local.x < 0.0 { 1.0 } else { -1.0 }
+            if local.x < 0.0 { TrackSide::Right } else { TrackSide::Left }
         }
+    };
+    let side_sign = match struck_side {
+        TrackSide::Left => -1.0,
+        TrackSide::Right => 1.0,
     };
     let side_slope = target.spec.hull.facet(ArmorFacing::HullSide).slope_degrees;
     let side_normal =
         plate_normal(target.hull_pose(), 0.0, ArmorZone::HullSide, side_sign, side_slope);
     let direction = shell.velocity_mps.normalize_or_zero();
     let side_angle_degrees = (-direction).dot(side_normal).clamp(-1.0, 1.0).acos().to_degrees();
-    if broken_side {
-        return resolve_penetration_at_distance_on_zone(
-            &shell.shell,
-            &target.spec.hull,
-            ArmorZone::HullSide,
-            side_angle_degrees,
-            distance_m,
-        );
+
+    // The spaced stack standing off this flank, OUTERMOST FIRST — the honest geometry of what
+    // the shell actually crosses:
+    //   * a skirt hangs outside the belt, so a skirt hit still has the belt behind it;
+    //   * a BROKEN track is not there any more (the thrown belt lies on the ground beside the
+    //     hull), so it stops screening — the sim never charges armour for steel the eye can
+    //     see is missing;
+    //   * an empty stack is a bare side plate.
+    let belt_zone = match struck_side {
+        TrackSide::Left => ArmorZone::LeftTrack,
+        TrackSide::Right => ArmorZone::RightTrack,
+    };
+    let mut screens = [ArmorZone::Skirt; 2];
+    let mut screen_count = 0;
+    if zone == ArmorZone::Skirt {
+        screens[screen_count] = ArmorZone::Skirt;
+        screen_count += 1;
     }
-    resolve_penetration_through_track(
+    if target.tracks.hp(struck_side) > 0 {
+        screens[screen_count] = belt_zone;
+        screen_count += 1;
+    }
+    resolve_penetration_through_screens(
         &shell.shell,
         &target.spec.hull,
-        zone,
+        &screens[..screen_count],
         impact_angle_degrees,
         side_angle_degrees,
         distance_m,
@@ -469,7 +530,7 @@ mod tests {
         // A representative reclined-glacis normal: outward, up-and-back toward the shooter.
         let plate = Vec3::new(0.0, 0.5, -0.866).normalize();
 
-        let event = apply_shell_impact(
+        let (event, _) = apply_shell_impact(
             &shell,
             &mut tanks,
             TankId(2),
@@ -480,6 +541,8 @@ mod tests {
             plate,
             18.5,
             0,
+            ArmorEntry::Plate,
+            &mut Vec::new(),
         );
 
         assert!((event.plate_normal - plate).length() < 1.0e-3, "plate normal survives verbatim");
@@ -523,6 +586,68 @@ mod tests {
         );
     }
 
+    /// The integration half of the spaced-armour rule (the resolver's own half is
+    /// `game_core/tests/spaced_armor.rs`): THIS is where the stack is built, so this is where a
+    /// skirt that forgot the belt behind it would show up. Same tank, same shell, same flank —
+    /// the only difference is which layer the trace resolved on, and the skirt is strictly extra
+    /// steel in front of the same belt, so it can only cost the shell more.
+    #[test]
+    fn a_skirt_hit_costs_more_than_the_belt_it_hangs_over() {
+        for kind in [VehicleKind::Centurion, VehicleKind::TigerII] {
+            let spec = kind.spec();
+            let tank = fresh_tank(TankId(2), TeamId(2), spec.clone(), Vec3::ZERO, 0.0);
+            // Moving -x: the shell meets this hull's RIGHT flank head-on, whichever layer the
+            // trace resolved on.
+            let mut shell = shell_toward(
+                TankId(1),
+                Vec3::new(5.0, 0.9, 0.0),
+                Vec3::new(-900.0, 0.0, 0.0),
+                &spec,
+            );
+            for shell_type in [ShellType::ArmorPiercing, ShellType::Heat] {
+                shell.shell = match shell_type {
+                    ShellType::Heat => game_core::ShellSpec::heat(100.0, 900.0, 300.0, 320),
+                    _ => game_core::ShellSpec::armor_piercing(100.0, 900.0, 200.0, 320),
+                };
+                let skirt = resolve_impact_penetration(&shell, &tank, ArmorZone::Skirt, 0.0, 100.0);
+                let belt =
+                    resolve_impact_penetration(&shell, &tank, ArmorZone::RightTrack, 0.0, 100.0);
+                assert!(
+                    skirt.effective_armor_mm > belt.effective_armor_mm,
+                    "{kind:?} vs {shell_type:?}: a skirt hit must cost MORE than the bare belt \
+                     it hangs over — skirt {:.1} mm vs belt {:.1} mm. The screen stack in \
+                     `resolve_impact_penetration` must carry the belt behind the skirt.",
+                    skirt.effective_armor_mm,
+                    belt.effective_armor_mm
+                );
+            }
+        }
+    }
+
+    /// ...and a thrown belt drops OUT of that stack, skirt or no skirt: the sheet is still
+    /// bolted on, the running gear behind it is on the ground.
+    #[test]
+    fn a_thrown_belt_stops_screening_even_under_an_intact_skirt() {
+        let spec = VehicleKind::Centurion.spec();
+        let make = |broken: bool| {
+            let mut tank = fresh_tank(TankId(2), TeamId(2), spec.clone(), Vec3::ZERO, 0.0);
+            if broken {
+                tank.tracks.break_side(game_core::TrackSide::Right);
+            }
+            tank
+        };
+        let shell =
+            shell_toward(TankId(1), Vec3::new(5.0, 0.9, 0.0), Vec3::new(-900.0, 0.0, 0.0), &spec);
+        let whole = resolve_impact_penetration(&shell, &make(false), ArmorZone::Skirt, 0.0, 100.0);
+        let thrown = resolve_impact_penetration(&shell, &make(true), ArmorZone::Skirt, 0.0, 100.0);
+        assert!(
+            thrown.effective_armor_mm < whole.effective_armor_mm,
+            "a thrown belt must stop screening: {:.1} mm vs {:.1} mm",
+            thrown.effective_armor_mm,
+            whole.effective_armor_mm
+        );
+    }
+
     /// Non-shell damage has no struck plate: the default must be a zero vector, which the client
     /// reads as "no normal, fall back". Locks the guarantee the splash/ram/landing paths lean on
     /// via `..Default::default()`.
@@ -540,7 +665,7 @@ mod tests {
         let mut tanks = vec![fresh_tank(TankId(2), TeamId(2), spec.clone(), Vec3::ZERO, 0.0)];
         let shell =
             shell_toward(TankId(1), Vec3::new(-5.0, 1.0, -1.8), Vec3::new(900.0, 0.0, 0.0), &spec);
-        let event = apply_shell_impact(
+        let (event, _) = apply_shell_impact(
             &shell,
             &mut tanks,
             TankId(2),
@@ -551,11 +676,78 @@ mod tests {
             Vec3::NEG_X,
             20.0,
             0,
+            ArmorEntry::Plate,
+            &mut Vec::new(),
         );
         assert!(event.penetrated);
         assert_ne!(event.damaged_modules_mask, 0);
         assert_eq!(tanks[0].armor_breaches.breaches().len(), 1);
         assert!(tanks[0].armor_breaches.breaches()[0].lobes()[0].thickness_m > 0.0);
+    }
+
+    /// A round that threads a hole an earlier shell opened is INSIDE the tank, and the tank's
+    /// interior is still in there with it.
+    ///
+    /// It used to be teleported past the hull with `last_penetrated_target` set: no damage, no
+    /// module touched, no `DamageEvent` and no `ShellImpact` — a shot that vanished into the
+    /// target with nothing to show for it, which is both dishonest and (for the crew that fired
+    /// it) indistinguishable from a bug. What an open channel buys the round is the ENTRY STEEL,
+    /// and nothing else: it pays no armour, cuts no second entry wound, and hurts exactly as much
+    /// as a round that had to earn its way in.
+    #[test]
+    fn a_round_through_an_open_channel_wrecks_the_interior_and_cuts_no_second_entry_wound() {
+        let spec = TankSpec::t54_1951();
+        let shell =
+            shell_toward(TankId(1), Vec3::new(-5.0, 1.0, -1.8), Vec3::new(900.0, 0.0, 0.0), &spec);
+        let resolve = |entry: ArmorEntry| {
+            let mut tanks = vec![fresh_tank(TankId(2), TeamId(2), spec.clone(), Vec3::ZERO, 0.0)];
+            let (event, _) = apply_shell_impact(
+                &shell,
+                &mut tanks,
+                TankId(2),
+                ArmorFacing::HullSide,
+                ArmorZone::HullSide,
+                0.0,
+                Vec3::new(-1.05, 1.0, -1.8),
+                Vec3::NEG_X,
+                20.0,
+                0,
+                entry,
+                &mut Vec::new(),
+            );
+            let entry_wounds = tanks[0]
+                .armor_breaches
+                .breaches()
+                .iter()
+                .filter(|breach| breach.face == BreachFace::Ingress)
+                .count();
+            (event, entry_wounds)
+        };
+
+        let (through_plate, plate_wounds) = resolve(ArmorEntry::Plate);
+        let (through_hole, hole_wounds) = resolve(ArmorEntry::OpenChannel);
+
+        assert!(through_hole.penetrated, "an open channel is a way in, not a miss");
+        assert_eq!(
+            through_hole.damage_hp, through_plate.damage_hp,
+            "once inside the hull, how the round got in changes nothing about what it does"
+        );
+        assert!(through_hole.damage_hp > 0);
+        assert_ne!(
+            through_hole.damaged_modules_mask, 0,
+            "the internal path must run: the modules did not move because the plate has a hole"
+        );
+        assert_eq!(
+            through_hole.effective_armor_mm, 0.0,
+            "an open channel is the one thing that charges no steel"
+        );
+        assert!(
+            through_plate.effective_armor_mm > 0.0,
+            "...whereas the plate beside the hole still costs its line-of-sight steel: {} mm",
+            through_plate.effective_armor_mm
+        );
+        assert_eq!(plate_wounds, 1, "a plate hit cuts its own entry wound");
+        assert_eq!(hole_wounds, 0, "a round using an existing hole cuts no second one");
     }
 
     #[test]
@@ -564,7 +756,7 @@ mod tests {
         let hit = |mut shell: ShellState| {
             let mut tanks = vec![fresh_tank(TankId(2), TeamId(2), spec.clone(), Vec3::ZERO, 0.0)];
             shell.id = ShellId(0xE6_12_34);
-            let event = apply_shell_impact(
+            let (event, _) = apply_shell_impact(
                 &shell,
                 &mut tanks,
                 TankId(2),
@@ -575,6 +767,8 @@ mod tests {
                 Vec3::NEG_X,
                 20.0,
                 44,
+                ArmorEntry::Plate,
+                &mut Vec::new(),
             );
             assert!(event.penetrated);
             tanks.remove(0).armor_breaches
@@ -604,7 +798,7 @@ mod tests {
             &firing_spec,
         );
         shell.shell = firing_spec.gun.special_shell.expect("D-10T HEAT round");
-        let event = apply_shell_impact(
+        let (event, _) = apply_shell_impact(
             &shell,
             &mut tanks,
             TankId(2),
@@ -615,6 +809,8 @@ mod tests {
             Vec3::NEG_X,
             20.0,
             7,
+            ArmorEntry::Plate,
+            &mut Vec::new(),
         );
         assert!(event.penetrated);
         assert!(!tanks[0].armor_breaches.breaches().is_empty());

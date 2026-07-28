@@ -77,13 +77,15 @@ pub fn step_custom_tank_controller(
     );
 }
 
-/// Advance the hull one tick as a planar rigid body. The model is deterministic and runs
-/// identically on the server and the client predictor.
+/// Decide the hull's velocity and heading for one tick, WITHOUT moving it.
 ///
+/// The model is deterministic and runs identically on the server and the client predictor.
 /// Order matters: rotate the hull first (angular inertia), then resolve forces in the *new* hull
 /// frame so the world-frame velocity that survives a heading change reappears as lateral velocity
 /// — that is the mechanism behind momentum-through-turns and drift.
-pub fn step_custom_tank_controller_on_contact(
+///
+/// Pair it with [`integrate_hull_position`]; [`step_custom_tank_controller`] is the two together.
+pub fn advance_hull_drive(
     state: &mut TankKinematicState,
     input: TankControlInput,
     settings: &TankControllerSettings,
@@ -100,8 +102,6 @@ pub fn step_custom_tank_controller_on_contact(
     // it left the ground with; the world step resolves the vertical against the terrain.
     if !is_grounded(state.position.y, contact.height_m) {
         state.yaw_rad = wrap_angle(state.yaw_rad + state.yaw_rate_rad_s * dt);
-        state.position.x += state.velocity.x * dt;
-        state.position.z += state.velocity.z * dt;
         return;
     }
 
@@ -118,7 +118,10 @@ pub fn step_custom_tank_controller_on_contact(
         // steer / counter-rotating tracks), decoupled from the throttle.
         1.0
     };
-    let turn_grip = (contact.traction - contact.roughness * 0.2).clamp(0.25, 1.0);
+    // Turn grip reads the material too, or a hull would slide on cobble but still pivot on it
+    // like grass. Same scale the force model uses; grass is exactly 1.0.
+    let turn_grip =
+        (contact.traction * contact.ground.grip - contact.roughness * 0.2).clamp(0.25, 1.0);
     let target_yaw_rate = steer * steering_direction * settings.turn_rate_rad_s * turn_grip;
     state.yaw_rate_rad_s =
         move_towards(state.yaw_rate_rad_s, target_yaw_rate, settings.yaw_accel_rad_s2 * dt);
@@ -144,7 +147,34 @@ pub fn step_custom_tank_controller_on_contact(
         right,
         dt,
     );
-    // The height is NOT touched here: the world step resolves it against the terrain
-    // (`vertical::resolve_vertical`), which lets a hull leave the ground instead of teleporting.
-    state.position += state.velocity * dt;
+}
+
+/// One tick of the drive with the movement included: [`advance_hull_drive`] then
+/// [`integrate_hull_position`]. This is the shape every caller that does NOT interleave a
+/// hull-to-hull contact solve wants — the client predictor included, since it simulates one hull
+/// against neighbours it treats as static.
+pub fn step_custom_tank_controller_on_contact(
+    state: &mut TankKinematicState,
+    input: TankControlInput,
+    settings: &TankControllerSettings,
+    contact: TerrainContact,
+    dt_seconds: f32,
+) {
+    advance_hull_drive(state, input, settings, contact, dt_seconds);
+    integrate_hull_position(state, dt_seconds);
+}
+
+/// Move the hull by whatever velocity it ends the tick with.
+///
+/// Split out of the drive step so the roster can solve hull-to-hull contacts BETWEEN deciding a
+/// velocity and spending it. That ordering is the whole ballgame: a contact resolved after the
+/// move can only correct the velocity for next tick, so a crowd pressing together creeps forward
+/// a little every tick — which at a river ford means creeping into the water. Resolved before the
+/// move, an approach that would overlap is simply never taken.
+///
+/// Only the horizontal axes are integrated. The height belongs to `vertical::resolve_vertical`,
+/// which is what lets a hull leave the ground instead of teleporting down a cliff.
+pub fn integrate_hull_position(state: &mut TankKinematicState, dt_seconds: f32) {
+    state.position.x += state.velocity.x * dt_seconds;
+    state.position.z += state.velocity.z * dt_seconds;
 }

@@ -38,7 +38,8 @@ pub(crate) fn enemy_health_bars(
             continue;
         };
 
-        let max_hp = tank.vehicle.spec().hit_points.max(1) as f32;
+        // `spec_ref`, not `spec`: this runs per drawn enemy per FRAME, and it reads one number.
+        let max_hp = tank.vehicle.spec_ref().hit_points.max(1) as f32;
         let hp_frac = (tank.hit_points as f32 / max_hp).clamp(0.0, 1.0);
         let color = hud::health_color(hp_frac);
 

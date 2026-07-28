@@ -29,6 +29,12 @@ pub(crate) fn resolve_ground_velocity(
     dt: f32,
 ) -> Vec3 {
     let g = GRAVITY_MPS2;
+    // What the ground IS, folded into what the ground DOES. `traction` has always carried the
+    // shape of the ground (slope, side slope, roughness); `ground.grip` carries its MATERIAL, from
+    // the same rule the picture's splat is baked from — so cobble bites, a ploughed field slips,
+    // and both do it because of what you can see under the track. Grass is exactly 1.0, which is
+    // what keeps a grass map bit-identical to the model before material existed.
+    let traction = (contact.traction * contact.ground.grip).clamp(0.05, 1.5);
 
     // Gravity along the terrain plane (single source of slope behaviour). grade = |gradient|;
     // `inv` is cos(theta). One projection gives uphill resistance, downhill accel, and side pull.
@@ -50,7 +56,14 @@ pub(crate) fn resolve_ground_velocity(
     let planar_speed = (v_f * v_f + v_r * v_r).sqrt();
     if throttle.abs() < 0.01
         && planar_speed < settings.static_hold_speed_mps
-        && grade <= settings.static_grip_mu * contact.traction
+        && grade <= settings.static_grip_mu * traction
+        // ...and only over momentum the lock could actually arrest. A park brake is friction, not
+        // an anchor: it can remove at most `mu_s * g * traction * cos(theta)` of speed in a tick.
+        // Returning ZERO regardless used to erase anything below the grab threshold outright,
+        // which was invisible while a hull's own drive was the only thing that could put velocity
+        // there — and became a real hole the moment CONTACT could. A shoved hull was re-zeroed by
+        // its own handbrake on the very next tick, so a push could never accumulate into a shove.
+        && planar_speed <= settings.static_grip_mu * g * traction * inv * dt
     {
         return Vec3::ZERO;
     }
@@ -77,7 +90,7 @@ pub(crate) fn resolve_ground_velocity(
         settings.max_reverse_speed_mps
     };
     // Track thrust cap: mu * g * traction * cos(theta), weakened by the climb slip on steep faces.
-    let grip_long = settings.longitudinal_grip_mu * g * contact.traction * inv * climb_slip;
+    let grip_long = settings.longitudinal_grip_mu * g * traction * inv * climb_slip;
     if brake > 0.0 {
         v_f = move_towards(v_f, 0.0, settings.brake_deceleration_mps2 * brake * dt);
     } else if throttle.abs() > 0.01 {
@@ -95,8 +108,9 @@ pub(crate) fn resolve_ground_velocity(
         v_f = move_towards(v_f, 0.0, settings.idle_drag_mps2 * dt);
     }
     // Rolling + quadratic resistance (every state) put the top-speed equilibrium at the spec vmax.
-    let resistance = settings.rolling_resist_mps2 * contact.traction.max(0.5)
-        + settings.drag_quadratic * v_f * v_f;
+    let resistance =
+        settings.rolling_resist_mps2 * traction.max(0.5) * contact.ground.rolling_resist
+            + settings.drag_quadratic * v_f * v_f;
     v_f = move_towards(v_f, 0.0, resistance * dt);
     // Wading: past the splash depth the hull pushes a bow wave and the bed sucks at the tracks
     // (see `water`). Exactly zero on dry ground, so waterless maps stay bit-identical.
@@ -131,7 +145,7 @@ pub(crate) fn resolve_ground_velocity(
     // Lateral: gravity pulls sideways, kinetic friction cancels it up to the grip cap; the residual
     // above the cap (a hard turn at speed, or a steep/low-traction face) is the slide.
     v_r += slope_r * dt;
-    let lat_cap = settings.lateral_grip_mu * g * contact.traction;
+    let lat_cap = settings.lateral_grip_mu * g * traction;
     v_r -= v_r.signum() * v_r.abs().min(lat_cap * dt);
 
     forward * v_f + right * v_r

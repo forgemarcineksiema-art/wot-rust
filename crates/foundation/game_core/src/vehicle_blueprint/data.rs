@@ -121,6 +121,7 @@ fn t54() -> VehicleBlueprint {
             plan_half_length: 1.17,
             mantlet_radius: 0.32,
             mantlet_back_z: 0.88,
+            sector_count: 24,
             mantlet_front_z: 1.16,
         },
         gun: GunShape {

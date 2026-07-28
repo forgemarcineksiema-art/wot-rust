@@ -138,6 +138,7 @@ fn uphill_contact_reduces_acceleration() {
             roughness: 0.0,
             traction: 1.0,
             water_depth_m: 0.0,
+            ground: physics::GroundScales::grass(),
         },
         1.0,
     );
@@ -171,6 +172,7 @@ fn rough_contact_limits_traction_and_keeps_tank_grounded() {
             roughness: 0.65,
             traction: 0.55,
             water_depth_m: 0.0,
+            ground: physics::GroundScales::grass(),
         },
         0.5,
     );
@@ -437,6 +439,7 @@ fn a_parked_hull_holds_a_slope_it_used_to_creep_down() {
         roughness: 0.0,
         traction: 1.0,
         water_depth_m: 0.0,
+        ground: physics::GroundScales::grass(),
     };
     let idle = TankControlInput { throttle: 0.0, steer: 0.0, brake: 0.0 };
     let mut state = TankKinematicState::default();
@@ -472,5 +475,65 @@ fn contact_with_slope(forward_slope: f32) -> TerrainContact {
         roughness: 0.0,
         traction: 1.0,
         water_depth_m: 0.0,
+        ground: physics::GroundScales::grass(),
     }
+}
+
+/// The ground is a MATERIAL, not only a shape.
+///
+/// `traction` used to be pure geometry — slope, side slope, roughness — so a cobbled street, a
+/// ploughed field and a wet river bank all drove identically. The surface now comes from
+/// `terrain::GroundClassifier`, the same rule the picture's splat is baked from, which is the
+/// honest version of the promise: what you see under the track is what you feel under it.
+#[test]
+fn the_surface_under_the_tracks_changes_how_the_hull_drives() {
+    let spec = TankSpec::t54_1951();
+    let settings = TankControllerSettings::from_spec(&spec);
+    let dt = 1.0 / 60.0;
+    let run = |ground: physics::GroundScales| {
+        let contact = TerrainContact { ground, ..TerrainContact::flat(0.0) };
+        let mut state = TankKinematicState::default();
+        for _ in 0..600 {
+            step_custom_tank_controller_on_contact(
+                &mut state,
+                TankControlInput { throttle: 1.0, steer: 0.0, brake: 0.0 },
+                &settings,
+                contact,
+                dt,
+            );
+        }
+        state.position.length()
+    };
+
+    let grass = run(physics::GroundScales::grass());
+    // Worn earth: the same bite, but real drag.
+    let dirt = run(physics::GroundScales { grip: 0.95, rolling_resist: 1.35 });
+    let rock = run(physics::GroundScales { grip: 1.04, rolling_resist: 0.9 });
+
+    assert!(grass > 90.0, "the control run must actually cover ground, got {grass} m");
+    assert!(dirt < grass - 1.0, "worn earth must cost real distance: {dirt} m vs {grass} m");
+    assert!(rock > grass + 0.5, "rock must roll easier than grass: {rock} m vs {grass} m");
+}
+
+/// ...and grass is exactly the old model. Every scale is measured against it, so a map with no
+/// material data drives bit-identically to the model before the ground had any — which is what
+/// makes the change safe to land under every replay fixture that predates it.
+#[test]
+fn grass_is_bit_identical_to_the_model_before_ground_material() {
+    let spec = TankSpec::t54_1951();
+    let settings = TankControllerSettings::from_spec(&spec);
+    let dt = 1.0 / 60.0;
+    let mut with_material = TankKinematicState::default();
+    let mut without = TankKinematicState::default();
+    let grass =
+        TerrainContact { ground: physics::GroundScales::grass(), ..TerrainContact::flat(0.0) };
+    // `TerrainContact::flat` already defaults to grass; this is the same contact by construction,
+    // and the assertion is that saying so explicitly changes not one bit.
+    let default_contact = TerrainContact::flat(0.0);
+    for _ in 0..600 {
+        let input = TankControlInput { throttle: 1.0, steer: 0.35, brake: 0.0 };
+        step_custom_tank_controller_on_contact(&mut with_material, input, &settings, grass, dt);
+        step_custom_tank_controller_on_contact(&mut without, input, &settings, default_contact, dt);
+    }
+    assert_eq!(with_material, without);
 }

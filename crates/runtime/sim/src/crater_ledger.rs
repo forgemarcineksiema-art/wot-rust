@@ -18,13 +18,26 @@ const MERGE_DISTANCE_FRACTION: f32 = 0.35;
 /// Deepening on a re-shelled spot never exceeds the shared depth cap.
 const DEPTH_MAX_M: f32 = 1.2;
 
+/// How far past a crater's rim a hull still counts as standing IN it. Roughly a hull half-length,
+/// so a tank whose running gear reaches into the hole is protected from having that hole filled
+/// in under it.
+const HULL_IN_CRATER_REACH_M: f32 = 3.5;
+
 /// Record one high-explosive ground burst in the ledger: merge with a crater it re-excavates,
 /// otherwise append, evicting the oldest past the cap. Deterministic — same bursts in the same
 /// order produce the same ledger on every machine.
+///
+/// `hull_positions` is every hull the ground under which must not move. Eviction takes the oldest
+/// crater NOBODY is standing in, and if every crater is occupied the burst simply leaves no
+/// record. Weathering away a hole with a tank in it un-deforms the heightmap under that tank, and
+/// `resolve_vertical`'s rule that rising ground always carries the hull turns that into a snap of
+/// up to the full [`DEPTH_MAX_M`] in one tick — a teleport, out of nowhere, on the far side of the
+/// map from whatever fired the 65th shell.
 pub fn record_high_explosive_burst(
     ledger: &mut Vec<CraterRecord>,
     position: Vec3,
     caliber_mm: f32,
+    hull_positions: &[Vec3],
 ) {
     let radius_m = terrain::he_crater_radius_m(caliber_mm);
     let depth_m = terrain::he_crater_depth_m(radius_m);
@@ -57,7 +70,24 @@ pub fn record_high_explosive_burst(
     }
 
     if ledger.len() >= MAX_CRATERS {
-        ledger.remove(0);
+        let Some(evictable) =
+            ledger.iter().position(|crater| !hull_stands_in(crater, hull_positions))
+        else {
+            // Every hole on the field has someone in it. The ground stays as it is: a burst that
+            // leaves no crater is a far smaller lie than a hull popped a metre into the air.
+            return;
+        };
+        ledger.remove(evictable);
     }
     ledger.push(record);
+}
+
+/// Whether any hull is standing in this crater — i.e. whether filling it back in would move one.
+fn hull_stands_in(crater: &CraterRecord, hull_positions: &[Vec3]) -> bool {
+    let reach = crater.radius_m() + HULL_IN_CRATER_REACH_M;
+    hull_positions.iter().any(|hull| {
+        let dx = hull.x - crater.x_m();
+        let dz = hull.z - crater.z_m();
+        dx * dx + dz * dz <= reach * reach
+    })
 }

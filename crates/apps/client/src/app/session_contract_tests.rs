@@ -407,3 +407,45 @@ fn combat_event_sequence_gap_is_terminal_without_partial_presentation() {
     assert!(remote.pending_combat_events.is_empty());
     assert_eq!(remote.combat_events.last_received_seq(), None);
 }
+
+/// A shove the player did not ask for has to reach the predictor as MOTION.
+///
+/// The predictor simulates the local hull with the same code the server runs and reconciles
+/// against snapshots. That is exact for velocity the hull gave ITSELF — the predictor computed the
+/// same number from the same command. It breaks the moment something EXTERNAL can set a velocity,
+/// which is what hull contact carrying momentum introduced: the server shoves the hull, the
+/// predictor knows nothing, and the next snapshot lands as a position the predictor disagrees
+/// with. That reads as a rubber-band, not as being pushed.
+///
+/// `SnapshotDelivery::local_motion` already carried this for the networked path.
+/// LOCAL play passed `reconciliation: None` and dropped it on the floor, which is the regression
+/// locked here: a local session must hand up the authoritative motion of a moving hull.
+#[test]
+fn local_play_hands_the_predictor_the_authoritative_motion() {
+    let server =
+        LocalAuthoritativeServer::new_random_7v7(ServerTickConfig::default(), contract_battle());
+    let player = server.player_tank();
+    let mut session = BattleSessionKind::Local(Box::new(server));
+
+    let mut moving_ticks = 0;
+    for tick in 0..240 {
+        let input = ClientInputCommand {
+            client_tick: tick,
+            tank_id: player,
+            command: sim::TankCommand::drive(1.0, 0.0),
+        };
+        let result = session.tick_with_player_input(input);
+        let Some(reconciliation) = result.reconciliation else {
+            panic!("local play must reconcile every tick, or the motion never arrives");
+        };
+        let speed = glam::Vec3::from_array(reconciliation.motion.velocity_mps).length();
+        if speed > 1.0 {
+            moving_ticks += 1;
+        }
+    }
+
+    assert!(
+        moving_ticks > 60,
+        "a hull under full throttle must report real authoritative motion, saw {moving_ticks} ticks"
+    );
+}

@@ -26,9 +26,14 @@ pub(super) struct RemoteReconciliation {
     pub(super) replay_inputs: Option<Vec<ClientInputCommand>>,
 }
 
+#[derive(Default)]
 pub(super) struct BattleSessionTick {
     pub(super) snapshot: Option<Snapshot>,
     pub(super) reconciliation: Option<RemoteReconciliation>,
+    /// Perforations carved since the last tick (protocol v39). Permanent per-hull state, so it
+    /// arrives as a stream of additions on the reliable lane rather than in every snapshot;
+    /// the app folds them into its own ArmorBreachSet per tank.
+    pub(super) armor_breaches: Vec<net::ArmorBreachDelta>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -66,7 +71,7 @@ impl BattleSessionKind {
     /// still receive final state/lifecycle traffic; they simply may not predict or send input.
     pub(super) fn take_pending_remote_tick(&mut self) -> BattleSessionTick {
         match self {
-            Self::Local(_) => BattleSessionTick { snapshot: None, reconciliation: None },
+            Self::Local(_) => BattleSessionTick::default(),
             Self::Remote(session) => session.take_pending_tick(),
         }
     }
@@ -84,8 +89,29 @@ impl BattleSessionKind {
     ) -> BattleSessionTick {
         match self {
             Self::Local(server) => {
+                let player = server.player_tank();
                 let tick = server.tick_with_player_input(input);
-                BattleSessionTick { snapshot: tick.snapshot, reconciliation: None }
+                BattleSessionTick {
+                    snapshot: tick.snapshot,
+                    // Local play has no wire and nothing to replay, but it DOES need the
+                    // authoritative motion. Without it the predictor is reconciled by position
+                    // only, and any velocity the hull did not give itself is silently dropped —
+                    // which was invisible while the drive was the only thing that could set one,
+                    // and is not any more: a contact now shoves. A shove reaching the predictor as
+                    // a position correction reads as a rubber-band, not as being pushed.
+                    reconciliation: server.authoritative_motion(player).map(|motion| {
+                        RemoteReconciliation { motion, replay_inputs: Some(Vec::new()) }
+                    }),
+                    // Local play has no wire, so the sim's per-tick stream IS the delivery.
+                    armor_breaches: tick
+                        .armor_breaches
+                        .into_iter()
+                        .map(|record| net::ArmorBreachDelta {
+                            tank: record.tank,
+                            breach: record.breach,
+                        })
+                        .collect(),
+                }
             }
             Self::Remote(session) => session.tick_with_player_input(input),
         }
@@ -471,16 +497,36 @@ impl RemoteSession {
         let mut snapshot = std::mem::take(&mut self.delivery_ready)
             .then(|| self.latest_snapshot.clone())
             .flatten();
-        if let Some(snapshot) = &mut snapshot {
-            for event in self.pending_combat_events.drain(..) {
-                match event {
-                    net::CombatEvent::Damage(event) => snapshot.damage_events.push(event),
-                    net::CombatEvent::ShellImpact(event) => snapshot.shell_impacts.push(event),
-                }
+        // Perforations leave the lane whether or not a snapshot is due this tick: they are
+        // permanent state and hold no play-once cue, so gating them on snapshot cadence would
+        // only delay the dressing. The personal events keep riding a snapshot, as they always
+        // have — the HUD, the damage log and the FX all read them off one.
+        let mut armor_breaches = Vec::new();
+        let mut personal = Vec::new();
+        for event in self.pending_combat_events.drain(..) {
+            match event {
+                net::CombatEvent::ArmorBreach(delta) => armor_breaches.push(delta),
+                other => personal.push(other),
             }
         }
+        match &mut snapshot {
+            Some(snapshot) => {
+                for event in personal {
+                    match event {
+                        net::CombatEvent::Damage(event) => snapshot.damage_events.push(event),
+                        net::CombatEvent::ShellImpact(event) => snapshot.shell_impacts.push(event),
+                        net::CombatEvent::ArmorBreach(_) => {
+                            unreachable!("breaches were split out above")
+                        }
+                    }
+                }
+            }
+            // Nothing to carry them on: hold the personal events for the next delivery rather
+            // than dropping consequences the lane went to the trouble of making reliable.
+            None => self.pending_combat_events = personal,
+        }
         let reconciliation = snapshot.as_ref().and_then(|_| self.pending_reconciliation.take());
-        BattleSessionTick { snapshot, reconciliation }
+        BattleSessionTick { snapshot, reconciliation, armor_breaches }
     }
 }
 

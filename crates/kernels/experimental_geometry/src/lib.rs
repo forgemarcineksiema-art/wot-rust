@@ -1,25 +1,24 @@
 //! Offline-only geometry experiments.
 //!
-//! This crate may try CSG, SDF, and CAD kernels, but stabilized output must be converted to
-//! `vehicle_geometry::GeometryMesh` before anything reaches runtime or client crates.
+//! This crate is the sanctioned place to try a CSG, SDF or CAD kernel against the fleet without
+//! letting it near the runtime: stabilized output must be converted to
+//! `vehicle_geometry::GeometryMesh` before anything reaches a runtime or client crate.
+//!
+//! **A backend lives here only while it is being tried.** Declaring an optional dependency that
+//! does not build breaks `--all-features` for the whole workspace — third-party compile errors
+//! in a standard invocation, on code nobody asked for. To open a trial, add the pair back:
+//!
+//! ```toml
+//! [features]
+//! sdf-fidget = ["dep:fidget"]
+//! [dependencies]
+//! fidget = { version = "...", optional = true }
+//! ```
+//!
+//! …and take both out again when the trial ends, whichever way it went.
 
 use vehicle_geometry::{GeometryMesh, MeshBuilder};
 
 pub fn empty_geometry_mesh() -> GeometryMesh {
     MeshBuilder::new().build()
-}
-
-#[cfg(feature = "csg-csgrs")]
-pub mod csg {
-    pub const BACKEND: &str = "csgrs";
-}
-
-#[cfg(feature = "sdf-fidget")]
-pub mod sdf {
-    pub const BACKEND: &str = "fidget";
-}
-
-#[cfg(feature = "cad-truck")]
-pub mod cad {
-    pub const BACKEND: &str = "truck-modeling";
 }

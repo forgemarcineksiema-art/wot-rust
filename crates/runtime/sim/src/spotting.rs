@@ -42,6 +42,13 @@ pub struct SpottingMemory {
 }
 
 impl SpottingMemory {
+    /// How many tanks this memory still holds a hold-clock for. Bounded by the live roster —
+    /// see [`Self::forget_departed`], which is what this exists to lock.
+    #[cfg(test)]
+    pub(crate) fn len(&self) -> usize {
+        self.last_fresh_tick.len()
+    }
+
     /// Record this recompute's fresh sightings and return the mask with held bits added.
     fn hold(&mut self, tank: TankId, fresh_mask: u8, tick: u64) -> u8 {
         let entry = self.last_fresh_tick.entry(tank).or_insert([NEVER_SEEN; MAX_SPOTTING_TEAMS]);
@@ -57,6 +64,17 @@ impl SpottingMemory {
             }
         }
         mask
+    }
+
+    /// Forget tanks that are no longer in the battle. Ids are never reused — `spawn_tank` and
+    /// `replace_tank_with_spec` both mint fresh ones — so without this the map grows for the
+    /// life of the `SimulationState`, one dead entry per vehicle swap. The length guard keeps
+    /// the ordinary tick (nothing left) free.
+    fn forget_departed(&mut self, tanks: &[crate::TankState]) {
+        if self.last_fresh_tick.len() <= tanks.len() {
+            return;
+        }
+        self.last_fresh_tick.retain(|id, _| tanks.iter().any(|tank| tank.id == *id));
     }
 }
 
@@ -188,6 +206,7 @@ pub(crate) fn apply_spotted_masks_with_hold(
     for (tank, fresh_mask) in tanks.iter_mut().zip(masks) {
         tank.spotted_mask = memory.hold(tank.id, fresh_mask, tick);
     }
+    memory.forget_departed(tanks);
 }
 
 /// Compute, for each tank (in `tanks` order), the bitmask of teams that can currently see it. A
@@ -266,6 +285,37 @@ pub fn compute_observer_masks(
         }
     }
     masks
+}
+
+#[cfg(test)]
+mod memory_tests {
+    use game_core::{TankSpec, TeamId};
+    use glam::Vec3;
+
+    use crate::SimulationState;
+
+    /// Tank ids are never reused, so a battle that swaps vehicles used to leave one dead entry
+    /// per swap in the spotting memory for the life of the `SimulationState`. The live roster is
+    /// the bound.
+    #[test]
+    fn the_spotting_memory_does_not_outgrow_the_live_roster() {
+        let mut state = SimulationState::new();
+        let mut tank = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
+        state.spawn_tank(TeamId(2), TankSpec::t54_1951(), Vec3::new(0.0, 0.0, 60.0));
+        for _ in 0..40 {
+            state.refresh_spotting(None, &[]);
+            tank = state
+                .replace_tank_with_spec(tank, TankSpec::tiger_i_ausf_e())
+                .expect("the seat is replaced");
+        }
+        state.refresh_spotting(None, &[]);
+        assert!(
+            state.spotting_memory_len() <= state.tanks().len(),
+            "spotting memory holds {} entries for {} live tanks",
+            state.spotting_memory_len(),
+            state.tanks().len()
+        );
+    }
 }
 
 #[cfg(test)]

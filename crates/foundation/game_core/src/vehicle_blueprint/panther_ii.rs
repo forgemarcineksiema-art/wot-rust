@@ -93,6 +93,7 @@ pub(super) fn panther_ii_blueprint() -> VehicleBlueprint {
             plan_half_length: 1.15,
             mantlet_radius: 0.30,
             mantlet_back_z: 0.92,
+            sector_count: super::DEFAULT_TURRET_SECTORS,
             mantlet_front_z: 1.22,
         },
         gun: GunShape {

@@ -180,8 +180,10 @@ mod tests {
         let shell = he_shell(TankId(1), burst);
         let mut events = Vec::new();
         let mut impacts = Vec::new();
+        let mut breaches = Vec::new();
         let mut event_stamp = crate::event_stamp::BattleEventStamp::new(Default::default(), 0);
-        let mut output = BattleEventOutput::new(&mut events, &mut impacts, &mut event_stamp);
+        let mut output =
+            BattleEventOutput::new(&mut events, &mut impacts, &mut breaches, &mut event_stamp);
         burst_he_splash(&shell, burst, &mut tanks, &mut output, None, heightmap);
         hp_before - tanks[1].hit_points
     }
