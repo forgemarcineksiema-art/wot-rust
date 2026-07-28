@@ -227,7 +227,11 @@ pub(crate) fn gun_d10t() -> GunModule {
             movement_bloom_mrad: 5.0,
             shot_bloom_mrad: 4.0,
             max_dispersion_mrad: 18.0,
-            barrel_length_m: 5.0,
+            // The D-10 family is ONE physical tube: 5350 mm monobloc (L/53.5), 5608 mm with
+            // the breech. The D-10T and the later D-10T2S differ in the breech, the stabilizer
+            // and the fume extractor — not in barrel length. The old 5.0 vs 5.9 split made the
+            // upgrade visibly stretch the silhouette, which no photograph supports.
+            barrel_length_m: 5.35,
             shell: ShellSpec::armor_piercing(100.0, 895.0, 185.0, 320),
             // The D-10 family's fielded chemical round: penetration that ignores range, paid for
             // with the HEAT weaknesses the armour model enforces (spaced screens kill the jet,
@@ -249,7 +253,8 @@ pub(crate) fn gun_d10t2s() -> GunModule {
             movement_bloom_mrad: 4.8,
             shot_bloom_mrad: 3.8,
             max_dispersion_mrad: 17.0,
-            barrel_length_m: 5.9,
+            // Same tube as the D-10T — see the note there.
+            barrel_length_m: 5.35,
             // Sidegrade vs the D-10T: faster, flatter, more penetration, but lower per-shot alpha
             // (320 -> 300) — a DPM/accuracy gun rather than a strict upgrade.
             shell: ShellSpec::armor_piercing(100.0, 895.0, 195.0, 300),

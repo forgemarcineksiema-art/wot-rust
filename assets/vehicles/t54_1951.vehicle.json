@@ -55,7 +55,7 @@
     "movement_bloom_mrad": 5.0,
     "shot_bloom_mrad": 4.0,
     "max_dispersion_mrad": 18.0,
-    "barrel_length_m": 5.0,
+    "barrel_length_m": 5.35,
     "shell": {
       "shell_type": "ArmorPiercing",
       "caliber_mm": 100.0,

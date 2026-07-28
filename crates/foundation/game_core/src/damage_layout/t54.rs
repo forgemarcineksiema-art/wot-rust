@@ -104,9 +104,10 @@ fn hull_components() -> Vec<DamageComponent> {
             32,
             1.35,
         ),
-        // Four shin-level rounds clipped low along the loader's hull wall. The last free id under
-        // the v26 u16 component mask; the two loader-wall clips and the bulkhead round stay
-        // visual-only until the mask widens.
+        // Four shin-level rounds clipped low along the loader's hull wall. (The mask that once
+        // capped this at id 16 is a u32 as of protocol v27 — ids 17+ own real bits now, so the
+        // remaining loader-wall clips and the bulkhead round are free to become damage
+        // components whenever the interior program wants them.)
         hull_component(
             16,
             K::AmmunitionRack,

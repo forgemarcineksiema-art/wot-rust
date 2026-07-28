@@ -98,7 +98,9 @@ pub(crate) fn t54_family_parts(bp: &VehicleBlueprint) -> Vec<ForgePart> {
         part(
             ForgePartKind::Idler,
             PartAnchor::Hull,
-            MaterialRole::Rubber,
+            // Cast steel with STEEL tyres on the T-54 (unlike the rubber-tyred road wheels) —
+            // the semantic part table said rubber, which is a material lie in the review data.
+            MaterialRole::TrackMetal,
             Vec3::new(0.0, track_mid_y, t.wheel_last_z),
             Vec3::new(-t.outer_x, track_mid_y - t.end_radius, t.wheel_last_z - t.end_radius),
             Vec3::new(t.outer_x, track_mid_y + t.end_radius, t.wheel_last_z + t.end_radius),
@@ -107,7 +109,8 @@ pub(crate) fn t54_family_parts(bp: &VehicleBlueprint) -> Vec<ForgePart> {
         part(
             ForgePartKind::DriveSprocket,
             PartAnchor::Hull,
-            MaterialRole::Rubber,
+            // Hadfield-steel tooth rings bolted to a steel disc — never rubber.
+            MaterialRole::TrackMetal,
             Vec3::new(0.0, track_mid_y, t.wheel_first_z),
             Vec3::new(-t.outer_x, track_mid_y - t.end_radius, t.wheel_first_z - t.end_radius),
             Vec3::new(t.outer_x, track_mid_y + t.end_radius, t.wheel_first_z + t.end_radius),

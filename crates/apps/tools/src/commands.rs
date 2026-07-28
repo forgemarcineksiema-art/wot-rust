@@ -8,7 +8,6 @@ use vehicle_forge::{
     BakeProfile, ForgeArtifact, ReferencePack, TankCompileRequest, bake_production_vehicle,
     compile_tank, export_obj,
 };
-use vehicle_geometry::bake_vehicle;
 
 use crate::cli::Command;
 
@@ -511,7 +510,9 @@ fn forge_report(vehicle: &str, out: PathBuf) -> anyhow::Result<()> {
     let kind = parse_vehicle_kind(vehicle)?;
     let report = ReferencePack::for_vehicle(kind)
         .with_context(|| format!("no Forge ReferencePack for {vehicle}"))?
-        .measure_baked_vehicle(&bake_vehicle(kind)?)
+        // The AUTHORITATIVE bake, not the raw procedural recipe: for the T-54 those are
+        // different meshes, and a report about a mesh nobody ships is worse than no report.
+        .measure_baked_vehicle(&bake_production_vehicle(kind, BakeProfile::Lod0)?)
         .with_context(|| format!("Forge ReferencePack rejected {vehicle}"))?;
     write_text(out, &report.markdown_summary())
 }

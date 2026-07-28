@@ -11,7 +11,7 @@ use net::TankSnapshot;
 use renderer_api::{Camera, CameraProjectionPolicy, SceneLighting, view_projection_matrix};
 use renderer_wgpu::{GpuContext, OffscreenTarget, SceneRenderer};
 
-/// A tight, single-vehicle right-profile studio render of the Tiger I through the PBR catalog path —
+/// A tight, single-vehicle right-profile studio render of the T-54 through the PBR catalog path —
 /// the same path the garage uses, with the baked Forge artifacts in `target/forge` loaded so the
 /// shot shows the real textured material (falling back to the live hybrid bake + neutral material
 /// if no artifact is present). Best for inspecting the running gear and turret close up.

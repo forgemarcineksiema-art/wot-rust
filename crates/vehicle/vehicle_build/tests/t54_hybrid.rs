@@ -233,8 +233,11 @@ fn higher_lods_drop_detail_parts_but_keep_silhouette_and_mounts() {
 }
 
 #[test]
-fn swapping_the_gun_module_changes_the_barrel_geometry() {
-    // Visual modularity: a different gun module rebuilds a different barrel, end to end.
+fn both_d10_barrels_are_the_same_tube_and_the_mechanism_still_rebuilds_them() {
+    // Honesty, not modularity theatre: the D-10T and D-10T2S are ONE physical tube (5350 mm
+    // monobloc, L/53.5). They differ in the breech, the stabilizer and the fume extractor —
+    // things this silhouette does not carry — so a T-54 must NOT grow a longer gun when the
+    // upgrade is installed. This test used to assert the opposite (5.0 vs 5.9 m).
     let kind = VehicleKind::T54_1951;
     let muzzle_z = |gun: game_core::GunModule| {
         let mut loadout = kind.default_loadout();
@@ -250,16 +253,22 @@ fn swapping_the_gun_module_changes_the_barrel_geometry() {
             .z
     };
     let opts = kind.gun_options();
-    let short = opts
-        .iter()
-        .cloned()
-        .reduce(|a, b| if a.barrel_length_m() <= b.barrel_length_m() { a } else { b })
-        .unwrap();
-    let long = opts
-        .iter()
-        .cloned()
-        .reduce(|a, b| if a.barrel_length_m() >= b.barrel_length_m() { a } else { b })
-        .unwrap();
-    assert!(long.barrel_length_m() > short.barrel_length_m(), "the T-54 has two gun lengths");
-    assert!(muzzle_z(long) > muzzle_z(short), "the longer gun module makes a longer barrel");
+    assert!(opts.len() >= 2, "the T-54 fields both D-10 variants");
+    let lengths: Vec<f32> = opts.iter().map(|gun| gun.barrel_length_m()).collect();
+    for length in &lengths {
+        assert!(
+            (length - 5.35).abs() < 0.01,
+            "every D-10 variant carries the documented 5.35 m tube, got {length}"
+        );
+    }
+    // The barrel is still REBUILT from the installed module (not a post-bake scale): same
+    // length in, same muzzle out, to the millimetre.
+    let reach: Vec<f32> = opts.iter().cloned().map(muzzle_z).collect();
+    for pair in reach.windows(2) {
+        assert!(
+            (pair[0] - pair[1]).abs() < 0.001,
+            "equal tubes must reach the same muzzle: {:?}",
+            reach
+        );
+    }
 }

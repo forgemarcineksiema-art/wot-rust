@@ -18,8 +18,12 @@ fn compiling_t54_loadout_keeps_combat_shape_and_artifact_in_sync() {
     assert_eq!(compiled.spec.mounts, compiled.mounts);
 }
 
+/// The T-54's two guns share one tube (see `both_d10_barrels_are_the_same_tube...`), so their
+/// SILHOUETTES are identical by design — what must still differ is the gameplay spec. A vehicle
+/// whose alternates genuinely reshape the mesh is covered by
+/// `a_swapped_gun_module_reshapes_a_non_t54_vehicle` (the Jagdtiger's 8.8 vs 12.8 cm).
 #[test]
-fn changing_t54_gun_changes_the_compiled_gun_mesh() {
+fn changing_the_t54_gun_changes_the_spec_but_not_the_shared_tube() {
     let kind = VehicleKind::T54_1951;
     let stock = kind.default_loadout();
     let mut alternate = stock.clone();
@@ -37,8 +41,11 @@ fn changing_t54_gun_changes_the_compiled_gun_mesh() {
     })
     .unwrap();
 
-    assert_ne!(stock.spec.gun, alternate.spec.gun);
-    assert_ne!(stock.source_hash, alternate.source_hash);
+    assert_ne!(stock.spec.gun, alternate.spec.gun, "the installed gun module differs");
+    assert_eq!(
+        stock.mounts.muzzle.translation, alternate.mounts.muzzle.translation,
+        "the D-10 variants share one physical tube — the muzzle must not move"
+    );
 }
 
 #[test]
