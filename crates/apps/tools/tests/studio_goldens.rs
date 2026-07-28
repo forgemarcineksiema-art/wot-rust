@@ -75,8 +75,7 @@ fn studio_tiles_match_their_goldens() {
             };
             compared += 1;
             if golden != view.png {
-                let out =
-                    write_diff(&diff_dir().join(kind.slug()), view.name, &golden, &view.png);
+                let out = write_diff(&diff_dir().join(kind.slug()), view.name, &golden, &view.png);
                 drifted.push(format!(
                     "{} / {}: recorded {} vs fresh {} ({} vs {} bytes) — see {}",
                     kind.slug(),

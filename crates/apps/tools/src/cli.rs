@@ -101,4 +101,18 @@ pub enum Command {
         #[arg(long)]
         blueprint_file: Option<PathBuf>,
     },
+    /// Export a baked vehicle as Wavefront OBJ (+ MTL) for external inspection — the
+    /// master-reference loop (orbit, section, measure, overlay on a scale drawing). Geometry
+    /// leaves for inspection; only NUMBERS come back into the blueprint.
+    ExportMesh {
+        #[arg(long)]
+        vehicle: String,
+        /// Output .obj path; the .mtl is written beside it. Defaults to
+        /// `target/export/<slug>.obj`.
+        #[arg(long)]
+        out: Option<PathBuf>,
+        /// LOD profile to export (lod0 by default) — inspect what the battle actually draws.
+        #[arg(long, default_value = "lod0")]
+        profile: String,
+    },
 }
