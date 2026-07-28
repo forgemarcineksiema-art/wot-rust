@@ -89,10 +89,19 @@ impl BattleSessionKind {
     ) -> BattleSessionTick {
         match self {
             Self::Local(server) => {
+                let player = server.player_tank();
                 let tick = server.tick_with_player_input(input);
                 BattleSessionTick {
                     snapshot: tick.snapshot,
-                    reconciliation: None,
+                    // Local play has no wire and nothing to replay, but it DOES need the
+                    // authoritative motion. Without it the predictor is reconciled by position
+                    // only, and any velocity the hull did not give itself is silently dropped —
+                    // which was invisible while the drive was the only thing that could set one,
+                    // and is not any more: a contact now shoves. A shove reaching the predictor as
+                    // a position correction reads as a rubber-band, not as being pushed.
+                    reconciliation: server.authoritative_motion(player).map(|motion| {
+                        RemoteReconciliation { motion, replay_inputs: Some(Vec::new()) }
+                    }),
                     // Local play has no wire, so the sim's per-tick stream IS the delivery.
                     armor_breaches: tick
                         .armor_breaches
