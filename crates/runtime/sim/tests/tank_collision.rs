@@ -109,3 +109,40 @@ fn high_speed_ramming_damages_both_tanks_and_running_gear() {
     assert!(state.tank(rammer).expect("rammer").hit_points < rammer_hp);
     assert!(state.tank(target).expect("target").hit_points < target_hp);
 }
+
+/// A charging hull SHOVES the one it runs into. Before this the collision was a veto — the
+/// charger's move was refused, its momentum deleted, and the hull it ran into never learned it had
+/// been hit.
+///
+/// Both hulls are commanded, exactly as the live server does it: bots fill in for every roster
+/// tank no human is driving, and position integration lives in the drive step.
+#[test]
+fn a_charging_hull_shoves_the_one_it_runs_into() {
+    let mut state = SimulationState::new();
+    let charger = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
+    let parked = state.spawn_tank(TeamId(2), TankSpec::t54_1951(), Vec3::new(0.0, 0.0, 30.0));
+    let parked_start = state.tank(parked).expect("parked").position.z;
+    let step = FixedTimestep::from_hz(60);
+
+    for _ in 0..900 {
+        state.apply_commands(
+            &[(charger, TankCommand::drive(1.0, 0.0)), (parked, TankCommand::idle())],
+            step,
+        );
+    }
+
+    let pushed = state.tank(parked).expect("parked").position.z - parked_start;
+    assert!(pushed > 0.05, "the impact must move the hull it lands on, got {pushed} m");
+    // The charger stays behind it: this is a push, not a pass-through.
+    let gap = state.tank(parked).expect("parked").position.z
+        - state.tank(charger).expect("charger").position.z;
+    assert!(gap > 5.5, "the hulls must not end up inside each other, gap {gap} m");
+}
+
+// What this test does NOT yet lock, and why: SUSTAINED bulldozing. The impact transfers momentum
+// correctly (measured: 9.56 m/s equalising to 4.79 m/s across the pair, exactly inelastic), and
+// then the victim stops being pushable — because the ram throws its track, and a thrown-track hull
+// has its velocity forced to ZERO every tick in `tank_drive::advance_tank_drive`. That is the same
+// class of bug as the park brake fixed in `physics::forces` on this branch: momentum DELETED
+// rather than resisted, invisible for as long as a hull's own drive was the only thing that could
+// put velocity there. A thrown track must remove the DRIVE, not the momentum.

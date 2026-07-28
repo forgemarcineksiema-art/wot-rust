@@ -8,7 +8,7 @@ use crate::controller_settings::TankControllerSettings;
 use crate::cover::{footprint_blocked_by_cover, resolve_cover_collision_with_velocity};
 use crate::hull_attitude::advance_hull_attitude;
 use crate::movement::{
-    TankControlInput, TankKinematicState, step_custom_tank_controller_on_contact,
+    TankControlInput, TankKinematicState, advance_hull_drive, integrate_hull_position,
 };
 use crate::tank_resolve::{footprint_blocked_by_tanks, resolve_tank_collision_with_velocity};
 use crate::track_contact::{sample_support, support_height};
@@ -94,6 +94,35 @@ pub fn step_tank_on_world_with_tanks(
     footprint: Option<&ContactFootprint>,
     dt_seconds: f32,
 ) -> GroundStep {
+    let contact =
+        advance_tank_on_world(state, input, settings, heightmap, obstacles, footprint, dt_seconds);
+    settle_tank_on_world(state, settings, contact, heightmap, obstacles, footprint, dt_seconds)
+}
+
+/// What the hull's ground looks like this tick, carried from the drive phase to the settle phase
+/// so the terrain is sampled once.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct TankStepContact {
+    contact: TerrainContact,
+    was_grounded: bool,
+    previous: Vec3,
+    previous_yaw_rad: f32,
+    drive_velocity: Vec3,
+}
+
+/// PHASE 1 of a tick: sample the ground, decide the hull's velocity and heading — and do not move
+/// it. Pair with [`settle_tank_on_world`]; between the two a caller with a whole roster in hand
+/// can solve hull-to-hull contacts, which is the only place that solve does any good.
+#[allow(clippy::too_many_arguments)]
+pub fn advance_tank_on_world(
+    state: &mut TankKinematicState,
+    input: TankControlInput,
+    settings: &TankControllerSettings,
+    heightmap: Option<&HeightMap>,
+    obstacles: TankWorldObstacles<'_>,
+    footprint: Option<&ContactFootprint>,
+    dt_seconds: f32,
+) -> TankStepContact {
     let previous = state.position;
     let ride_height = |position: Vec3, yaw_rad: f32| -> Option<f32> {
         let heightmap = heightmap?;
@@ -127,11 +156,36 @@ pub fn step_tank_on_world_with_tanks(
     }
     let was_grounded = is_grounded(state.position.y, contact.height_m);
 
-    let previous_yaw = state.yaw_rad;
-    step_custom_tank_controller_on_contact(state, input, settings, contact, dt_seconds);
-    // Captured before ANY resolver touches it: this is what the drive asked for, and it is the
-    // only honest input to a contact solver that runs after the constraints have had their say.
-    let drive_velocity = state.velocity;
+    let previous_yaw_rad = state.yaw_rad;
+    advance_hull_drive(state, input, settings, contact, dt_seconds);
+    TankStepContact {
+        contact,
+        was_grounded,
+        previous,
+        previous_yaw_rad,
+        drive_velocity: state.velocity,
+    }
+}
+
+/// PHASE 3 of a tick: spend the velocity the hull ended up with and resolve it against the world.
+#[allow(clippy::too_many_arguments)]
+pub fn settle_tank_on_world(
+    state: &mut TankKinematicState,
+    settings: &TankControllerSettings,
+    step: TankStepContact,
+    heightmap: Option<&HeightMap>,
+    obstacles: TankWorldObstacles<'_>,
+    footprint: Option<&ContactFootprint>,
+    dt_seconds: f32,
+) -> GroundStep {
+    let TankStepContact {
+        was_grounded,
+        previous,
+        previous_yaw_rad: previous_yaw,
+        drive_velocity,
+        ..
+    } = step;
+    integrate_hull_position(state, dt_seconds);
     // Rotation is collision-resolved like translation: a pivot that would grind the hull's
     // corners INTO a wall or a neighbour is refused (yaw reverts, the rotation rate dies),
     // exactly as a blocked move holds its position. Tested at the PREVIOUS position so pure

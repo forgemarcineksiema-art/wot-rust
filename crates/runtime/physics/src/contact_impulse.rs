@@ -24,6 +24,43 @@ use crate::collision::{TankFootprint, TankObstacle, obstacles_contact};
 /// Coefficient of restitution for steel on steel. Zero: armour plate does not bounce, it shoves.
 const RESTITUTION: f32 = 0.0;
 
+/// Radius of the circle circumscribing a footprint, grown by the contact skin. Two hulls further
+/// apart than the sum of theirs cannot touch under ANY heading, which skips almost every pair on a
+/// 14-hull roster before the four-axis SAT is ever projected — the same broadphase the cover tests
+/// carry, and worth the same here: this loop runs over every pair, four iterations deep, twice a
+/// tick.
+fn contact_reach(body: &ContactBody) -> f32 {
+    let half_width = body.footprint.half_width_m + CONTACT_SKIN_M;
+    let half_length = body.footprint.half_length_m + CONTACT_SKIN_M;
+    (half_width * half_width + half_length * half_length).sqrt()
+}
+
+/// Whether two hulls are close enough to be worth a full contact test, allowing for the ground
+/// each may cover this tick.
+fn worth_testing(a: &ContactBody, b: &ContactBody, dt: f32) -> bool {
+    let travel = (a.velocity.length() + b.velocity.length()) * dt;
+    let reach = contact_reach(a) + contact_reach(b) + travel;
+    let dx = a.position.x - b.position.x;
+    let dz = a.position.z - b.position.z;
+    dx * dx + dz * dz <= reach * reach
+}
+
+/// Where a hull will BE at the end of this tick if nothing stops it.
+///
+/// Contacts are solved against these, not against where the hulls stand now, and that is the
+/// difference between a collision that is prevented and one that is merely repaired. Solved on
+/// current positions, two hulls a hand apart are "not touching", both move, they end the tick
+/// overlapped, and the correction only reaches their velocity in time for the NEXT tick — so a
+/// crowd pressing together gains ground every tick. Solved on predicted positions, the approach
+/// that would overlap is refused before it is taken.
+fn predicted(body: &ContactBody, velocity: Vec3, dt: f32) -> TankObstacle {
+    TankObstacle::new(
+        body.position + Vec3::new(velocity.x, 0.0, velocity.z) * dt,
+        body.yaw_rad,
+        body.footprint,
+    )
+}
+
 /// How close counts as touching.
 ///
 /// This is load-bearing, and its absence was the first thing to go wrong here: the movement
@@ -33,7 +70,16 @@ const RESTITUTION: f32 = 0.0;
 /// which is the same trick `ramming.rs` uses to catch a genuine hull-to-hull touch.
 const CONTACT_SKIN_M: f32 = 0.12;
 
-/// Penetration this deep is left alone, so hulls resting against each other do not jitter.
+/// Coulomb friction at a steel-on-steel contact, as a fraction of the normal impulse.
+///
+/// Without it a contact resists only along its normal, and hulls pressed together slide along each
+/// other for free. A queue of tanks leaning on one another then squirts sideways like wet soap —
+/// which at a river ford means squirting into the channel, and is exactly what the Bystra bot soak
+/// caught. Armour plate grinding on armour plate does not slide freely, and the model should not
+/// let it.
+const CONTACT_FRICTION_MU: f32 = 0.7;
+
+/// Overlap this deep is left alone, so hulls resting against each other do not jitter.
 const POSITION_SLOP_M: f32 = 0.02;
 
 /// Fraction of the remaining overlap removed per iteration. Below 1 so a crowd converges instead
@@ -64,9 +110,9 @@ impl ContactBody {
     }
 
     /// The hull grown by the contact skin, so "resting against" registers as touching.
-    fn skinned(&self) -> TankObstacle {
+    fn skinned_at(&self, position: Vec3) -> TankObstacle {
         TankObstacle::new(
-            self.position,
+            position,
             self.yaw_rad,
             TankFootprint {
                 half_width_m: self.footprint.half_width_m + CONTACT_SKIN_M,
@@ -120,7 +166,7 @@ impl ContactImpulse {
 
 /// Solve every hull-to-hull contact in the roster and report what each hull took. `bodies` is left
 /// untouched; the caller applies the deltas, because the caller owns the authoritative state.
-pub fn resolve_contacts(bodies: &[ContactBody]) -> Vec<ContactImpulse> {
+pub fn resolve_contacts(bodies: &[ContactBody], dt: f32) -> Vec<ContactImpulse> {
     let mut out = vec![ContactImpulse::default(); bodies.len()];
     if bodies.len() < 2 {
         return out;
@@ -135,7 +181,16 @@ pub fn resolve_contacts(bodies: &[ContactBody]) -> Vec<ContactImpulse> {
         let mut delta_w = vec![0.0_f32; bodies.len()];
         for a in 0..bodies.len() {
             for b in a + 1..bodies.len() {
-                let Some(contact) = obstacles_contact(&bodies[a].skinned(), &bodies[b].obstacle())
+                if !worth_testing(&bodies[a], &bodies[b], dt) {
+                    continue;
+                }
+                // Where each hull is HEADING this tick, with the velocity the solve has reached
+                // so far. Re-predicted every iteration, so the pass converges on a set of
+                // velocities under which nobody ends the tick inside anybody.
+                let ahead_a = predicted(&bodies[a], velocity[a], dt);
+                let ahead_b = predicted(&bodies[b], velocity[b], dt);
+                let Some(contact) =
+                    obstacles_contact(&bodies[a].skinned_at(ahead_a.center), &ahead_b)
                 else {
                     continue;
                 };
@@ -152,8 +207,8 @@ pub fn resolve_contacts(bodies: &[ContactBody]) -> Vec<ContactImpulse> {
                 // order-independence test caught it.) Clamped to each hull's own reach so a deep
                 // overlap cannot invent a lever longer than the vehicle.
                 let delta = Vec2::new(
-                    bodies[b].position.x - bodies[a].position.x,
-                    bodies[b].position.z - bodies[a].position.z,
+                    ahead_b.center.x - ahead_a.center.x,
+                    ahead_b.center.z - ahead_a.center.z,
                 );
                 let offset = delta.dot(tangent) * 0.5;
                 let reach_a = bodies[a].reach_along(tangent);
@@ -185,6 +240,19 @@ pub fn resolve_contacts(bodies: &[ContactBody]) -> Vec<ContactImpulse> {
                 delta_v[b] += Vec3::new(impulse.x, 0.0, impulse.y) * inv_mb;
                 delta_w[a] += lever_a * magnitude * inv_ia;
                 delta_w[b] -= lever_b * magnitude * inv_ib;
+
+                // Coulomb friction ACROSS the contact, bounded by what the normal impulse can
+                // hold. This is what stops a pressed-together queue from sliding along itself.
+                let sliding = relative.dot(tangent);
+                let linear = inv_ma + inv_mb;
+                if sliding.abs() > 1.0e-4 && linear > f32::EPSILON {
+                    let wanted = -sliding / linear;
+                    let cap = CONTACT_FRICTION_MU * magnitude;
+                    let friction = wanted.clamp(-cap, cap);
+                    let along = tangent * friction;
+                    delta_v[a] -= Vec3::new(along.x, 0.0, along.y) * inv_ma;
+                    delta_v[b] += Vec3::new(along.x, 0.0, along.y) * inv_mb;
+                }
 
                 out[a].normal_impulse_ns += magnitude;
                 out[b].normal_impulse_ns += magnitude;
@@ -224,6 +292,9 @@ pub fn separate_overlaps(bodies: &[ContactBody]) -> Vec<Vec3> {
         let mut any = false;
         for a in 0..bodies.len() {
             for b in a + 1..bodies.len() {
+                if !worth_testing(&bodies[a], &bodies[b], 0.0) {
+                    continue;
+                }
                 let moved_a = ContactBody { position: position[a], ..bodies[a] };
                 let moved_b = ContactBody { position: position[b], ..bodies[b] };
                 let Some(contact) = obstacles_contact(&moved_a.obstacle(), &moved_b.obstacle())
@@ -262,6 +333,8 @@ pub fn separate_overlaps(bodies: &[ContactBody]) -> Vec<Vec3> {
 mod tests {
     use super::*;
 
+    const DT: f32 = 1.0 / 60.0;
+
     fn hull(x: f32, z: f32, yaw_rad: f32, velocity: Vec3, mass_kg: f32) -> ContactBody {
         ContactBody {
             position: Vec3::new(x, 0.0, z),
@@ -280,7 +353,7 @@ mod tests {
     fn a_charging_hull_pushes_a_parked_one_and_pays_for_it() {
         let charger = hull(0.0, 0.0, 0.0, Vec3::new(0.0, 0.0, 12.0), 36_000.0);
         let parked = hull(0.0, 6.0, 0.0, Vec3::ZERO, 36_000.0);
-        let impulses = resolve_contacts(&[charger, parked]);
+        let impulses = resolve_contacts(&[charger, parked], DT);
 
         assert!(impulses[1].delta_velocity.z > 0.5, "the parked hull must be shoved forward");
         assert!(impulses[0].delta_velocity.z < -0.5, "and the charger must lose that momentum");
@@ -293,7 +366,7 @@ mod tests {
     fn the_pair_conserves_momentum() {
         let light = hull(0.0, 0.0, 0.0, Vec3::new(0.0, 0.0, 14.0), 20_000.0);
         let heavy = hull(0.0, 6.0, 0.0, Vec3::ZERO, 60_000.0);
-        let impulses = resolve_contacts(&[light, heavy]);
+        let impulses = resolve_contacts(&[light, heavy], DT);
 
         let gained = impulses[1].delta_velocity.z * 60_000.0;
         let lost = -impulses[0].delta_velocity.z * 20_000.0;
@@ -312,10 +385,10 @@ mod tests {
         // Victim broadside across the charger's path, struck near its nose.
         let charger = hull(0.0, 0.0, 0.0, Vec3::new(0.0, 0.0, 14.0), 36_000.0);
         let offset = hull(-2.6, 4.4, std::f32::consts::FRAC_PI_2, Vec3::ZERO, 36_000.0);
-        let spun = resolve_contacts(&[charger, offset])[1].delta_yaw_rate_rad_s.abs();
+        let spun = resolve_contacts(&[charger, offset], DT)[1].delta_yaw_rate_rad_s.abs();
 
         let centred = hull(0.0, 4.4, std::f32::consts::FRAC_PI_2, Vec3::ZERO, 36_000.0);
-        let square = resolve_contacts(&[charger, centred])[1].delta_yaw_rate_rad_s.abs();
+        let square = resolve_contacts(&[charger, centred], DT)[1].delta_yaw_rate_rad_s.abs();
 
         assert!(spun > 0.05, "a nose-on t-bone must slew the victim, got {spun} rad/s");
         assert!(square < spun * 0.25, "a centred hit must barely spin it: {square} vs {spun}");
@@ -328,8 +401,8 @@ mod tests {
         let a = hull(0.0, 0.0, 0.3, Vec3::new(1.0, 0.0, 11.0), 34_000.0);
         let b = hull(0.6, 5.8, 1.1, Vec3::new(0.0, 0.0, -2.0), 48_000.0);
 
-        let forward = resolve_contacts(&[a, b]);
-        let reversed = resolve_contacts(&[b, a]);
+        let forward = resolve_contacts(&[a, b], DT);
+        let reversed = resolve_contacts(&[b, a], DT);
 
         assert_eq!(forward[0], reversed[1], "the same hull must take the same impulse");
         assert_eq!(forward[1], reversed[0]);
@@ -341,7 +414,7 @@ mod tests {
     fn separating_hulls_are_left_alone() {
         let a = hull(0.0, 0.0, 0.0, Vec3::new(0.0, 0.0, -6.0), 36_000.0);
         let b = hull(0.0, 5.5, 0.0, Vec3::new(0.0, 0.0, 6.0), 36_000.0);
-        let impulses = resolve_contacts(&[a, b]);
+        let impulses = resolve_contacts(&[a, b], DT);
         assert_eq!(impulses[0].normal_impulse_ns, 0.0);
         assert_eq!(impulses[1].normal_impulse_ns, 0.0);
         assert_eq!(impulses[0].delta_velocity, Vec3::ZERO);
@@ -382,7 +455,7 @@ mod tests {
         wreck.movable = false;
         let charger = hull(0.0, 0.0, 0.0, Vec3::new(0.0, 0.0, 12.0), 36_000.0);
 
-        let impulses = resolve_contacts(&[charger, wreck]);
+        let impulses = resolve_contacts(&[charger, wreck], DT);
         assert_eq!(impulses[1].delta_velocity, Vec3::ZERO, "a wreck is not shoved");
         assert!(impulses[0].delta_velocity.z < -0.5, "and the charger is stopped by it");
 
@@ -395,7 +468,7 @@ mod tests {
     #[test]
     fn a_lone_hull_takes_nothing() {
         let impulses =
-            resolve_contacts(&[hull(0.0, 0.0, 0.0, Vec3::new(0.0, 0.0, 12.0), 36_000.0)]);
+            resolve_contacts(&[hull(0.0, 0.0, 0.0, Vec3::new(0.0, 0.0, 12.0), 36_000.0)], DT);
         assert!(impulses[0].is_empty());
         assert_eq!(impulses[0].delta_velocity, Vec3::ZERO);
     }

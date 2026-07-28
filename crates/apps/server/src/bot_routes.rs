@@ -110,7 +110,14 @@ fn planned_drive_target(
 /// contract ceiling (`physics::water::FORD_MAX_DEPTH_M` = 0.9 — bots MUST still take fords)
 /// and the drowning line (`sim::DROWN_DEPTH_M` = 1.5); the Bystra channel is >= 2.2 m outside
 /// the crossings, so any value in between separates cleanly.
-const BOT_DEEP_WATER_M: f32 = 1.2;
+///
+/// Tightened from 1.2 when hull contact started carrying momentum. A bot's own driving is no
+/// longer the only thing deciding where it ends up: a queue crowding a ford now rubs and shoves,
+/// and at a ford the give is sideways — downhill into the channel. The brain needs a hand of
+/// margin for displacement it never asked for, and the headroom above the ford ceiling is exactly
+/// where that margin comes from. (Contact friction does most of the work — without it the same
+/// soak read 1.45 m — but the last centimetre is this.)
+const BOT_DEEP_WATER_M: f32 = 1.1;
 /// Sampling step when checking the drive line for deep water (finer than any crossing's deck).
 const WATER_PROBE_STEP_M: f32 = 12.0;
 /// How far past a crossing's centre the exit waypoint sits — beyond the far bank of a

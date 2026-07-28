@@ -51,6 +51,13 @@ pub(crate) fn resolve_ground_velocity(
     if throttle.abs() < 0.01
         && planar_speed < settings.static_hold_speed_mps
         && grade <= settings.static_grip_mu * contact.traction
+        // ...and only over momentum the lock could actually arrest. A park brake is friction, not
+        // an anchor: it can remove at most `mu_s * g * traction * cos(theta)` of speed in a tick.
+        // Returning ZERO regardless used to erase anything below the grab threshold outright,
+        // which was invisible while a hull's own drive was the only thing that could put velocity
+        // there — and became a real hole the moment CONTACT could. A shoved hull was re-zeroed by
+        // its own handbrake on the very next tick, so a push could never accumulate into a shove.
+        && planar_speed <= settings.static_grip_mu * g * contact.traction * inv * dt
     {
         return Vec3::ZERO;
     }

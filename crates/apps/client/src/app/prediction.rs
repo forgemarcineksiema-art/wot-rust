@@ -209,7 +209,11 @@ mod tests {
     fn turret_converges_gun_onto_the_sight_point_not_parallel_to_camera() {
         // Fixed seed: with a runtime roster an unlucky bot can reach (and hit) the player
         // inside the 300-tick settle window and wiggle the sight point under the assert.
-        let mut app = ClientApp::new_seeded(42);
+        // Re-picked from 42 when hull contact started carrying momentum: bots now shove and rub
+        // past each other instead of stopping dead, so the roster covers more ground in 300 ticks
+        // and seed 42 grew a neighbour that reaches the player. Seeds 7, 99 and 1234 all settle;
+        // this is the fragility the note above already describes, not a new one.
+        let mut app = ClientApp::new_seeded(7);
         app.confirm_garage_selection();
         app.seed_prediction();
 
