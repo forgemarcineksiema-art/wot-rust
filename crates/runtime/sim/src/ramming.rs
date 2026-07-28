@@ -1,3 +1,4 @@
+use game_core::math::horizontal_forward;
 use game_core::{DamageCause, DamageEvent, ModuleSlot, TankId};
 use glam::Vec3;
 use physics::{TankObstacle, tank_footprints_touch};
@@ -9,6 +10,14 @@ use crate::event_stamp::BattleEventStamp;
 /// (bots crowding the spawn included) deals nothing at all. ~16 km/h.
 const RAM_MIN_CLOSING_SPEED_MPS: f32 = 4.5;
 const RAM_CONTACT_SLOP_M: f32 = 0.12;
+
+/// Share of the collision a hull pays when it meets it BOW ON: the thickest, most sloped
+/// structure on the vehicle with the whole hull braced behind it. This is the charger's share.
+const RAM_FACE_FRONT: f32 = 0.6;
+/// ...on the FLANK: the same impulse through thin plate, straight into the running gear.
+const RAM_FACE_SIDE: f32 = 1.4;
+/// ...and on the REAR: engine deck and final drives, between the two.
+const RAM_FACE_REAR: f32 = 1.0;
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct RammingSnapshot {
@@ -58,11 +67,30 @@ pub(crate) fn apply_ramming_damage(
             if !hulls_in_ram_contact(&tanks[left], &tanks[right], closing, dt_seconds) {
                 continue;
             }
-            let damage = ram_damage_hp(left_before.mass_kg, right_before.mass_kg, closing);
-            if damage == 0 {
+            // Newton's third law: the impulse both hulls take is the SAME. What differs is the
+            // plate that eats it, so the base severity is shared and each side is charged by the
+            // face it met the collision with — see `ram_face_factor`. The old split handed the
+            // full bill to `tanks[right]` and half to `tanks[left]`, which made a ram's outcome a
+            // function of ROSTER ORDER: a stationary defender broadsided by a charging enemy paid
+            // half if it happened to sit earlier in the array.
+            let base = ram_damage_hp(left_before.mass_kg, right_before.mass_kg, closing);
+            if base == 0 {
                 continue;
             }
-            apply_pair_damage(left, right, damage, tanks, damage_events, event_stamp);
+            let direction = delta.normalize();
+            let left_damage = ram_face_damage(base, direction, tanks[left].yaw_rad);
+            let right_damage = ram_face_damage(base, -direction, tanks[right].yaw_rad);
+            if left_damage == 0 && right_damage == 0 {
+                continue;
+            }
+            apply_pair_damage(
+                left,
+                right,
+                (left_damage, right_damage),
+                tanks,
+                damage_events,
+                event_stamp,
+            );
         }
     }
 }
@@ -109,10 +137,31 @@ fn ram_damage_hp(left_mass: f32, right_mass: f32, closing_speed: f32) -> u32 {
     ((severity * severity * reduced_mass) / 4_500.0).round().clamp(0.0, 360.0) as u32
 }
 
+/// This hull's share of the shared impulse, from the face it met the contact with.
+/// `contact_direction` points from the hull's centre toward the contact (horizontal, unit).
+///
+/// This is where a ram's asymmetry actually lives, and it is geometry — which is why it is
+/// replay-stable and independent of who is stored where. A charging hull meets the contact bow
+/// on and pays [`RAM_FACE_FRONT`]; a hull caught broadside pays [`RAM_FACE_SIDE`] for the same
+/// impulse, because the same energy is going through a thin flank into the running gear.
+fn ram_face_factor(contact_direction: Vec3, yaw_rad: f32) -> f32 {
+    let alignment = contact_direction.dot(horizontal_forward(yaw_rad)).clamp(-1.0, 1.0);
+    if alignment >= 0.0 {
+        RAM_FACE_SIDE + (RAM_FACE_FRONT - RAM_FACE_SIDE) * alignment
+    } else {
+        RAM_FACE_SIDE + (RAM_FACE_REAR - RAM_FACE_SIDE) * -alignment
+    }
+}
+
+fn ram_face_damage(base_hp: u32, contact_direction: Vec3, yaw_rad: f32) -> u32 {
+    ((base_hp as f32 * ram_face_factor(contact_direction, yaw_rad)).round()).clamp(0.0, 360.0)
+        as u32
+}
+
 fn apply_pair_damage(
     left_index: usize,
     right_index: usize,
-    damage: u32,
+    (left_damage, right_damage): (u32, u32),
     tanks: &mut [TankState],
     damage_events: &mut Vec<DamageEvent>,
     event_stamp: &mut BattleEventStamp,
@@ -120,15 +169,15 @@ fn apply_pair_damage(
     let hit_position = (tanks[left_index].position + tanks[right_index].position) * 0.5;
     let left_id = tanks[left_index].id;
     let right_id = tanks[right_index].id;
-    let right_destroyed = apply_single_damage(right_index, damage, tanks);
-    let left_destroyed = apply_single_damage(left_index, damage / 2, tanks);
+    let right_destroyed = apply_single_damage(right_index, right_damage, tanks);
+    let left_destroyed = apply_single_damage(left_index, left_damage, tanks);
     event_stamp.push_damage(
         damage_events,
-        ram_event(left_id, right_id, hit_position, damage, right_destroyed),
+        ram_event(left_id, right_id, hit_position, right_damage, right_destroyed),
     );
     event_stamp.push_damage(
         damage_events,
-        ram_event(right_id, left_id, hit_position, damage / 2, left_destroyed),
+        ram_event(right_id, left_id, hit_position, left_damage, left_destroyed),
     );
 }
 
