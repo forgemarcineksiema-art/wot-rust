@@ -83,6 +83,37 @@ fn y_axis_revolve_winds_all_faces_outward() {
     assert!(all_faces_point_outward(&mesh), "Axis::Y revolve must be outward-wound");
 }
 
+/// A profile is allowed to run BACKWARDS along its axis, and the caps must follow it. The gun's
+/// bore funnel does exactly this — it recedes from the muzzle face into the tube — and a cap
+/// normal taken from the axis alone then faces into the solid at both ends. Both fans wind
+/// inward; `weld_and_smooth` then fuses their rims with the wall (a smooth group leaves the
+/// normal out of the weld key) and every rim edge is traversed twice the same way. That shipped
+/// on seven of eight guns, so the descending profile gets a lock of its own here, at the kernel,
+/// rather than only at the fleet gate that caught it.
+#[test]
+fn a_revolve_profile_that_runs_backwards_still_caps_outward() {
+    let descending = MeshBuilder::new()
+        .capped_revolve_at(
+            Vec3::ZERO,
+            RevolveSpec {
+                profile: vec![ProfilePoint::new(0.40, 1.00), ProfilePoint::new(0.18, 0.20)],
+                axis: Axis::Z,
+                segments: 16,
+                material: MaterialRole::BarrelSteel,
+                smoothing: SmoothingGroup(3),
+            },
+        )
+        .build()
+        .weld_and_smooth();
+
+    let report = descending.quality_report(OPEN_OR_CLOSED_MESH);
+    assert_eq!(
+        report.inconsistent_winding_edges, 0,
+        "a descending profile must cap the same way an ascending one does"
+    );
+    assert!(all_faces_point_outward(&descending), "descending revolve must be outward-wound");
+}
+
 #[test]
 fn chamfered_prism_keeps_bounds_while_adding_shape_detail() {
     let mesh = MeshBuilder::new()

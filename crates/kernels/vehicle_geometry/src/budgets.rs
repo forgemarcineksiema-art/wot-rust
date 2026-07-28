@@ -27,16 +27,23 @@ pub const VEHICLE_BUDGETS: VehicleBudgets = VehicleBudgets {
 /// Golden procedural bake hashes. Re-record only after an intentional geometry change and visual
 /// review. The 2026-07-18 fleet re-record removes the fused track band from every blueprint hull;
 /// its overlap skin now rides in the animated link mesh and therefore does not affect these hashes.
+///
+/// The 2026-07-26 re-record fixes the revolve caps on a profile that runs BACKWARDS along its
+/// axis (`builder/revolve.rs`). Every gun's bore funnel recedes from the muzzle face into the
+/// tube, so both its end caps were wound INWARD — back-facing, and therefore dropped by the
+/// vehicle pipeline's `cull_mode: Back` — and their welded rims left 24–28 inconsistently wound
+/// edges per gun. Vertex POSITIONS are untouched: only the cap index order and the welded rim
+/// normals move, so silhouette, ratios and budgets are unchanged.
 pub const GOLDEN_BAKE_HASHES: [(VehicleKind, u64); 9] = [
-    (VehicleKind::PrototypeMedium, 5_209_003_704_901_676_167_u64),
-    (VehicleKind::T54_1951, 7_946_555_521_149_600_740_u64),
-    (VehicleKind::TigerI, 14_348_569_545_994_162_257_u64),
-    (VehicleKind::TigerII, 12_544_834_639_457_414_026_u64),
-    (VehicleKind::Jagdtiger, 5_179_577_790_178_323_578_u64),
-    (VehicleKind::PantherII, 9_168_003_294_476_122_692_u64),
-    (VehicleKind::IS3, 5_050_614_938_041_723_061_u64),
-    (VehicleKind::Centurion, 15_577_022_592_979_033_199_u64),
-    (VehicleKind::T34_85, 8_651_410_882_145_847_605_u64),
+    (VehicleKind::PrototypeMedium, 17_689_896_064_511_691_746_u64),
+    (VehicleKind::T54_1951, 1_352_245_318_290_454_355_u64),
+    (VehicleKind::TigerI, 2_528_636_824_404_053_672_u64),
+    (VehicleKind::TigerII, 7_566_020_042_162_252_338_u64),
+    (VehicleKind::Jagdtiger, 12_913_696_618_745_343_377_u64),
+    (VehicleKind::PantherII, 2_837_722_706_443_665_062_u64),
+    (VehicleKind::IS3, 14_582_427_114_490_901_924_u64),
+    (VehicleKind::Centurion, 7_860_412_385_872_908_373_u64),
+    (VehicleKind::T34_85, 10_310_688_321_347_204_439_u64),
 ];
 
 pub fn golden_bake_hash(kind: VehicleKind) -> Option<u64> {
