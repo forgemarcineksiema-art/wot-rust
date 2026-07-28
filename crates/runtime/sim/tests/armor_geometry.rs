@@ -203,13 +203,16 @@ fn the_is3_pike_rewards_head_on_and_punishes_angling() {
 }
 
 #[test]
-fn a_shell_dropping_on_the_deck_lands_on_the_roof_measured_against_up() {
+fn a_shell_dropping_on_the_deck_lands_on_the_hull_deck_measured_against_up() {
     // Straight down onto the rear deck, behind the turret: the deck is the hull slab's top face.
     let (zone, angle) = hit(
         Vec3::new(0.6, 12.0, -2.6),
         Vec3::new(0.6, 0.5, -2.6),
         t54_at_origin(HullPose::level(0.0)),
     );
-    assert_eq!(zone, ArmorZone::Roof, "the deck is roof plate, not a phantom side");
-    assert!(angle < 1.0, "a vertical drop is square-on to the roof (angle vs UP), got {angle}");
+    // `HullDeck`, not `Roof`: they used to share one zone, so a deck hit reported the TURRET
+    // front on the wire and both plates resolved against one derived thickness. The deck is
+    // 20 mm of engine cover; the turret roof is 30 mm of casting.
+    assert_eq!(zone, ArmorZone::HullDeck, "the deck is hull plate, not the turret roof");
+    assert!(angle < 1.0, "a vertical drop is square-on to the deck (angle vs UP), got {angle}");
 }

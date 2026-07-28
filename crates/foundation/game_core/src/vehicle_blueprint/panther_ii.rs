@@ -119,6 +119,7 @@ pub(super) fn panther_ii_blueprint() -> VehicleBlueprint {
             turret_front: (20.0, 0.9),
             turret_side: (25.0, 1.0),
             turret_rear: (20.0, 1.0),
+            turret_side_taper: None,
         },
         hybrid: None,
     }

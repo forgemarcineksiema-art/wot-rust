@@ -35,7 +35,7 @@ pub fn plate_normal(
         ArmorZone::HullSide | ArmorZone::LeftTrack | ArmorZone::RightTrack | ArmorZone::Skirt => {
             Vec3::new(side * cos, sin, 0.0)
         }
-        ArmorZone::Roof => Vec3::Y,
+        ArmorZone::Roof | ArmorZone::HullDeck => Vec3::Y,
         ArmorZone::TurretFront | ArmorZone::Mantlet => turret * Vec3::new(0.0, sin, cos),
         ArmorZone::TurretSide => turret * Vec3::new(side * cos, sin, 0.0),
         ArmorZone::TurretRear => turret * Vec3::new(0.0, sin, -cos),

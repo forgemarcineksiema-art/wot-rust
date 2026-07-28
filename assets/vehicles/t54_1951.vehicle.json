@@ -12,8 +12,9 @@
     "hull_side_mm": 80.0,
     "hull_rear_mm": 45.0,
     "turret_front_mm": 200.0,
-    "turret_side_mm": 90.0,
+    "turret_side_mm": 160.0,
     "turret_rear_mm": 65.0,
+    "turret_roof_mm": 30.0,
     "facets": {
       "hull_front": {
         "nominal_thickness_mm": 100.0,
@@ -36,7 +37,7 @@
         "weakspot_multiplier": 0.9
       },
       "turret_side": {
-        "nominal_thickness_mm": 90.0,
+        "nominal_thickness_mm": 160.0,
         "slope_degrees": 25.0,
         "weakspot_multiplier": 1.0
       },

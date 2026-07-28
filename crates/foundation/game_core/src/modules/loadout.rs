@@ -106,7 +106,8 @@ fn armor_profile_for(kind: VehicleKind, modules: &VehicleModules) -> ArmorProfil
     // visible plates are built from); thicknesses still come from the installed modules.
     if let Some(bp) = crate::VehicleBlueprint::for_vehicle(kind) {
         let a = &bp.armor;
-        return ArmorProfile::new_with_facets(
+        let authored_roof = t.roof_mm;
+        let profile = ArmorProfile::new_with_facets(
             ArmorFacet::new(h.front_mm, a.hull_front.0, a.hull_front.1),
             ArmorFacet::new(h.side_mm, a.hull_side.0, a.hull_side.1),
             ArmorFacet::new(h.rear_mm, a.hull_rear.0, a.hull_rear.1),
@@ -114,6 +115,12 @@ fn armor_profile_for(kind: VehicleKind, modules: &VehicleModules) -> ArmorProfil
             ArmorFacet::new(t.side_mm, a.turret_side.0, a.turret_side.1),
             ArmorFacet::new(t.rear_mm, a.turret_rear.0, a.turret_rear.1),
         );
+        // An authored roof beats the fleet formula: the T-54's documents say 30 mm where the
+        // derivation off the front plate produced 24.
+        return match authored_roof {
+            Some(roof_mm) => profile.with_turret_roof_mm(roof_mm),
+            None => profile,
+        };
     }
     match kind {
         // Blueprint-migrated: facets come from `bp.armor` above, always.

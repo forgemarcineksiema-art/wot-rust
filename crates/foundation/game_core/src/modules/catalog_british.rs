@@ -44,6 +44,7 @@ pub(crate) fn centurion_loadout() -> VehicleModules {
             front_mm: 152.0,
             side_mm: 112.0,
             rear_mm: 90.0,
+            roof_mm: None,
             traverse: TurretTraverse::Rotating { rate_rad_s: 0.44 },
             // British optics: the best view range in the Cold War park.
             view_range_m: 390.0,

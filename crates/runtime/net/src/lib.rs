@@ -101,7 +101,16 @@ pub use snapshot_schedule::SnapshotSchedule;
 /// v33: the T-55A clone leaves the roster and its `VehicleKind` variant is deleted outright,
 /// shifting every discriminant after it — a deliberate wire break (no live players yet;
 /// the roster rule is "no clones").
-pub const PROTOCOL_VERSION: u16 = 39;
+///
+/// v40: `ArmorZone::HullDeck` is appended (after `Skirt`, same rule) — the hull deck was
+/// sharing the turret roof's zone, so a deck hit reported `TurretFront` on the wire and both
+/// plates resolved against one derived thickness. The zone rides `DamageEvent.armor_zone` and
+/// `ArmorBreach`, so the append is a wire change even though the layout is unchanged: an old
+/// client would decode a deck hit as whatever variant now sits at that discriminant.
+/// The armour VALUES that move with it (a cast turret's wall tapering aft, the T-54's
+/// documented 200/160→65 and its 30 mm roof) are geometry, not wire — the deterministic bake
+/// resolves them identically on both sides.
+pub const PROTOCOL_VERSION: u16 = 40;
 
 #[derive(Debug, Error)]
 pub enum NetError {

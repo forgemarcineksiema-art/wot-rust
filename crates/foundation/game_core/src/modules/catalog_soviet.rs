@@ -34,9 +34,14 @@ pub(crate) fn t54_loadout() -> VehicleModules {
             name: "T-54 turret".to_string(),
             mass_kg: 8_500.0,
             hit_points: 240,
+            // The documented casting: 200 mm face, a side wall that starts at 160 mm behind the
+            // cheeks and thins to the 65 mm rear, 30 mm roof. The single 90 mm "side" this used
+            // to quote was an average of a wall that is nowhere 90: it made the T-54's cheeks
+            // paper and its rear over-armoured at the same time.
             front_mm: 200.0,
-            side_mm: 90.0,
+            side_mm: 160.0,
             rear_mm: 65.0,
+            roof_mm: Some(30.0),
             traverse: TurretTraverse::Rotating { rate_rad_s: 0.42 },
             view_range_m: 370.0,
             max_gun_caliber_mm: 105.0,
@@ -88,6 +93,7 @@ pub(crate) fn t34_85_loadout() -> VehicleModules {
             front_mm: 90.0,
             side_mm: 75.0,
             rear_mm: 52.0,
+            roof_mm: None,
             traverse: TurretTraverse::Rotating { rate_rad_s: 0.44 },
             view_range_m: 350.0,
             max_gun_caliber_mm: 85.0,
@@ -157,6 +163,7 @@ pub(crate) fn is3_loadout() -> VehicleModules {
             front_mm: 250.0,
             side_mm: 160.0,
             rear_mm: 110.0,
+            roof_mm: None,
             traverse: TurretTraverse::Rotating { rate_rad_s: 0.36 },
             view_range_m: 350.0,
             max_gun_caliber_mm: 130.0,

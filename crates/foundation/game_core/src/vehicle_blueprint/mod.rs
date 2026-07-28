@@ -196,6 +196,17 @@ pub struct ArmorShape {
     pub turret_front: (f32, f32),
     pub turret_side: (f32, f32),
     pub turret_rear: (f32, f32),
+    /// How much of the side wall survives to the rear of the casting (1.0 = a constant wall).
+    ///
+    /// A cast turret is not a box: the T-54's wall is 160 mm behind the cheeks and 65 mm at the
+    /// rear quarter, so its taper is 65/160 ≈ 0.41. It lives here, on the SHAPE, because it is a
+    /// property of the casting rather than of the steel budget — fit a thicker turret module and
+    /// the whole wall scales, taper included.
+    ///
+    /// `None` = a constant side, which is what a welded box turret is and what every vehicle
+    /// without a documented taper keeps.
+    #[serde(default)]
+    pub turret_side_taper: Option<f32>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

@@ -103,5 +103,6 @@ BlueprintFile(
         turret_front: (28.0, 0.9),
         turret_side: (20.0, 1.0),
         turret_rear: (12.0, 1.0),
+        turret_side_taper: None,
     ),
 )

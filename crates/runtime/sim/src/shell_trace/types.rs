@@ -95,6 +95,11 @@ pub enum SegmentImpact {
         /// World-space outward normal of the struck plate (slope + hull attitude + turret yaw
         /// folded in) — the reflection plane for a ricochet continuation.
         plate_normal: Vec3,
+        /// The struck plate's share of its zone's thickness (1.0 = exactly the zone's facet).
+        /// A cast turret's wall tapers, so WHERE on the flank a shell lands decides how much
+        /// steel is actually there; without this the whole flank would resolve against one
+        /// averaged number that is right nowhere.
+        thickness_scale: f32,
     },
     Obstacle {
         position: Vec3,

@@ -147,6 +147,9 @@ fn t54() -> VehicleBlueprint {
             turret_front: (35.0, 0.9),
             turret_side: (25.0, 1.0),
             turret_rear: (10.0, 1.0),
+            // 65 mm rear over the 160 mm side wall: the documented taper of the
+            // obr. 1951 casting.
+            turret_side_taper: Some(0.41),
         },
         hybrid: None,
     };

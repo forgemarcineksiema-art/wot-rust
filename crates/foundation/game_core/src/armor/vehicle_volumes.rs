@@ -101,7 +101,7 @@ fn upper_hull(blueprint: &VehicleBlueprint, cy: f32) -> ArmorVolume {
         planes.push(TaggedPlane::new(normal, fold, ArmorZone::UpperGlacis));
     }
     planes.extend([
-        TaggedPlane::new(Vec3::Y, Vec3::new(0.0, hull.deck_y - cy, 0.0), ArmorZone::Roof),
+        TaggedPlane::new(Vec3::Y, Vec3::new(0.0, hull.deck_y - cy, 0.0), ArmorZone::HullDeck),
         TaggedPlane::new(
             Vec3::new(side_slope.cos(), side_slope.sin(), 0.0),
             Vec3::new(hull.half_width, step_y, 0.0),
@@ -212,10 +212,25 @@ fn turret_dome(blueprint: &VehicleBlueprint, cy: f32) -> ArmorVolume {
         } else {
             (ArmorZone::TurretSide, turret.side_slope_deg)
         };
+        // A cast wall thins as it runs aft. Where the blueprint documents that taper, each side
+        // sector carries its own share of the wall instead of the whole flank quoting one
+        // number that is right nowhere: at the cheek boundary the sector is the full side, at
+        // the rear boundary it has thinned to the taper.
+        let thickness_scale = (zone == ArmorZone::TurretSide)
+            .then_some(blueprint.armor.turret_side_taper)
+            .flatten()
+            .map(|taper| {
+                let span = TURRET_REAR_AZIMUTH_DEG - TURRET_FRONT_AZIMUTH_DEG;
+                let t = ((forward_off - TURRET_FRONT_AZIMUTH_DEG) / span).clamp(0.0, 1.0);
+                1.0 + (taper - 1.0) * t
+            });
         let (slope_sin, slope_cos) = slope_deg.to_radians().sin_cos();
         let direction = Vec3::new(azimuth.sin(), 0.0, azimuth.cos());
         let normal = Vec3::new(direction.x * slope_cos, slope_sin, direction.z * slope_cos);
         let mut plane = TaggedPlane::new(normal, center + direction * turret.base_radius, zone);
+        if let Some(scale) = thickness_scale {
+            plane = plane.with_thickness_scale(scale);
+        }
         if zone == ArmorZone::TurretFront {
             // The patch center is the gun-axis point PROJECTED onto this sector plane, so a
             // shot down the gun line always lands inside the mantlet, whatever the sector tilt.

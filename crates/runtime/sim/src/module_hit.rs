@@ -93,6 +93,9 @@ fn module_volume_at_hit(
         ArmorZone::LeftTrack | ArmorZone::RightTrack => (ModuleSlot::Suspension, 1.0),
         ArmorZone::Mantlet => (ModuleSlot::Gun, 1.0),
         ArmorZone::TurretFront | ArmorZone::Roof => (ModuleSlot::Turret, 0.80),
+        // The hull deck is over the engine bay and the fighting compartment, not over the
+        // turret race: a deck penetration meets the engine, as a plunging hit should.
+        ArmorZone::HullDeck => (ModuleSlot::Engine, 0.85),
         ArmorZone::TurretSide | ArmorZone::TurretRear => (ModuleSlot::AmmoRack, 0.85),
         ArmorZone::HullRear => (ModuleSlot::Engine, 0.90),
         // A skirt is sheet metal over air, but the SIDE PLATE is behind that air: a shell the
@@ -140,6 +143,7 @@ fn zone_band_offset(zone: ArmorZone) -> f32 {
         ArmorZone::TurretSide => 0.43,
         ArmorZone::TurretRear => 0.47,
         ArmorZone::Roof => 0.53,
+        ArmorZone::HullDeck => 0.57,
         ArmorZone::LeftTrack => 0.59,
         ArmorZone::RightTrack => 0.61,
         ArmorZone::Skirt => 0.67,
