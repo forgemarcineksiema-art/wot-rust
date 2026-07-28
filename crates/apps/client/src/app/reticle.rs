@@ -33,6 +33,8 @@ impl ClientApp {
         // The ballistic solution flies the round the player actually has loaded (optimistic on
         // an ammo switch, reconciled from snapshots) — not the spec's stock shell.
         let shell = self.predictor.selected_shell();
+        // The sight may not promise an elevation this gun cannot reach.
+        let (min_pitch, max_pitch) = self.player_spec().gun_pitch_limits_rad();
         let world_pitch = crate::aim::gun_pitch_to_hit(
             muzzle,
             aim,
@@ -41,7 +43,7 @@ impl ClientApp {
         );
         let delta = aim - muzzle;
         if delta.x.abs() <= 1.0e-4 && delta.z.abs() <= 1.0e-4 {
-            let pitch_rad = world_pitch.clamp(sim::MIN_GUN_PITCH_RAD, sim::MAX_GUN_PITCH_RAD);
+            let pitch_rad = world_pitch.clamp(min_pitch, max_pitch);
             return Some(SightSolution { pitch_rad, turret_yaw_rad: None });
         }
         // World arc (azimuth muzzle->aim, solved ballistic elevation) -> hull-relative targets.
@@ -49,7 +51,7 @@ impl ClientApp {
         let (turret_yaw, gun_pitch) =
             game_core::math::world_direction_to_turret(hull, world_direction);
         Some(SightSolution {
-            pitch_rad: gun_pitch.clamp(sim::MIN_GUN_PITCH_RAD, sim::MAX_GUN_PITCH_RAD),
+            pitch_rad: gun_pitch.clamp(min_pitch, max_pitch),
             turret_yaw_rad: Some(turret_yaw),
         })
     }
@@ -92,6 +94,7 @@ impl ClientApp {
                 heightmap: &self.battlefield.heightmap,
                 cover: self.live_cover.blocking(),
                 water: self.battlefield.water,
+                gun_pitch_limits_rad: player_spec.gun_pitch_limits_rad(),
                 tanks,
                 player_spec: &player_spec,
                 owner: self.player_tank,

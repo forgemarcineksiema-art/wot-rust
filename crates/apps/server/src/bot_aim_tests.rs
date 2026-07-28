@@ -84,8 +84,9 @@ fn zero_velocity_preserves_the_stationary_lay() {
     let local =
         shooter.hull_pose().basis().transpose() * gun_direction(delta.x.atan2(delta.z), lay.pitch);
     let expected_turret = local.x.atan2(local.z);
-    let expected_pitch =
-        local.y.clamp(-1.0, 1.0).asin().clamp(MIN_GUN_PITCH_RAD, MAX_GUN_PITCH_RAD);
+    // The shooter's OWN arc — the fleet constant is gone.
+    let (min_pitch, max_pitch) = shooter.spec.gun_pitch_limits_rad();
+    let expected_pitch = local.y.clamp(-1.0, 1.0).asin().clamp(min_pitch, max_pitch);
     let errors = solution.errors(&shooter);
 
     assert_eq!(solution.aim_point_world(), center);

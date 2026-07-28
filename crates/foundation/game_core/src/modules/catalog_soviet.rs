@@ -122,6 +122,8 @@ pub(crate) fn gun_zis_s53() -> GunModule {
             shot_bloom_mrad: 3.8,
             max_dispersion_mrad: 17.0,
             barrel_length_m: 4.645,
+            depression_deg: 8.0,
+            elevation_deg: 20.1,
             shell: ShellSpec::armor_piercing(85.0, 792.0, 145.0, 200),
             special_shell: Some(ShellSpec::apcr(85.0, 1_030.0, 170.0, 170)),
         },
@@ -192,6 +194,8 @@ pub(crate) fn gun_d25t() -> GunModule {
             shot_bloom_mrad: 4.8,
             max_dispersion_mrad: 20.0,
             barrel_length_m: 5.5,
+            depression_deg: 8.0,
+            elevation_deg: 20.1,
             shell: ShellSpec::armor_piercing(122.0, 795.0, 175.0, 390),
             special_shell: None,
         },
@@ -239,6 +243,12 @@ pub(crate) fn gun_d10t() -> GunModule {
             // and the fume extractor — not in barrel length. The old 5.0 vs 5.9 split made the
             // upgrade visibly stretch the silhouette, which no photograph supports.
             barrel_length_m: 5.35,
+            // -5 / +18: the documented arc of the D-10 in the T-54's low turret, and one of
+            // the tank's defining weaknesses. The low cast dome that makes it hard to hit is
+            // exactly what leaves the breech no room to drop — a Soviet medium cannot play the
+            // ridge like a Centurion, and now it cannot in the game either.
+            depression_deg: 5.0,
+            elevation_deg: 18.0,
             shell: ShellSpec::armor_piercing(100.0, 895.0, 185.0, 320),
             // The D-10 family's fielded chemical round: penetration that ignores range, paid for
             // with the HEAT weaknesses the armour model enforces (spaced screens kill the jet,
@@ -262,6 +272,12 @@ pub(crate) fn gun_d10t2s() -> GunModule {
             max_dispersion_mrad: 17.0,
             // Same tube as the D-10T — see the note there.
             barrel_length_m: 5.35,
+            // -5 / +18: the documented arc of the D-10 in the T-54's low turret, and one of
+            // the tank's defining weaknesses. The low cast dome that makes it hard to hit is
+            // exactly what leaves the breech no room to drop — a Soviet medium cannot play the
+            // ridge like a Centurion, and now it cannot in the game either.
+            depression_deg: 5.0,
+            elevation_deg: 18.0,
             // Sidegrade vs the D-10T: faster, flatter, more penetration, but lower per-shot alpha
             // (320 -> 300) — a DPM/accuracy gun rather than a strict upgrade.
             shell: ShellSpec::armor_piercing(100.0, 895.0, 195.0, 300),

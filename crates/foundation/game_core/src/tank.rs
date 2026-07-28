@@ -134,6 +134,16 @@ pub struct TankSpec {
 }
 
 impl TankSpec {
+    /// The gun's arc in radians, as the sim clamps it: `(min_pitch, max_pitch)`, negative down.
+    ///
+    /// Per VEHICLE, from the installed gun: depression is a mount property (how much room the
+    /// breech has under the roof), and it is one of the sharpest balance levers a tank has. The
+    /// fleet used to share one hard-coded -8/+20 pair, which handed the T-54 — a tank whose -5
+    /// is famous — a ridge-fighting ability it never had.
+    pub fn gun_pitch_limits_rad(&self) -> (f32, f32) {
+        (-self.gun.depression_deg.to_radians(), self.gun.elevation_deg.to_radians())
+    }
+
     /// How far this vehicle's commander spots (v29, per era): later optics see farther. The
     /// number lives on the SPEC so the garage can show it and the sim reads one source.
     pub fn view_range_m(&self) -> f32 {

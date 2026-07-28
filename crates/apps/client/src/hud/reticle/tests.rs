@@ -200,6 +200,7 @@ fn query<'a>(
     gun_pitch_rad: f32,
 ) -> ReticleFeedbackQuery<'a> {
     ReticleFeedbackQuery {
+        gun_pitch_limits_rad: (sim::MIN_GUN_PITCH_RAD, sim::MAX_GUN_PITCH_RAD),
         heightmap,
         cover,
         water: None,
