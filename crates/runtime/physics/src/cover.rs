@@ -70,6 +70,20 @@ pub fn footprint_blocked_by_cover(
     })
 }
 
+/// Whether the hull footprint at `position`/`yaw_rad` overlaps ONE cover box — the single-object
+/// half of [`footprint_blocked_by_cover`], for callers that must know WHICH box the hull is on
+/// top of rather than merely whether anything blocks. Cover crushing is the caller: what a hull
+/// flattens has to be what its real oriented footprint reaches, or the hull bulldozes hedgerows
+/// it drove cleanly past.
+pub fn footprint_overlaps_cover_object(
+    position: Vec3,
+    yaw_rad: f32,
+    footprint: TankFootprint,
+    object: &StaticCoverObject,
+) -> bool {
+    obstacles_overlap(&TankObstacle::new(position, yaw_rad, footprint), &cover_obstacle(object))
+}
+
 /// Radius of the circle circumscribing a `half_x` × `half_z` footprint.
 #[inline]
 fn circumradius(half_x: f32, half_z: f32) -> f32 {

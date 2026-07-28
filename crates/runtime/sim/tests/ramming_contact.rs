@@ -70,3 +70,63 @@ fn tbone_ram_registers_only_when_hulls_actually_touch() {
     let gap = contact_gap.expect("a genuine t-bone must still register ramming damage");
     assert!(gap <= 5.45, "ram must fire at real hull contact, got center gap {gap}");
 }
+
+/// Drive one hull bow-first into the broadside of a stationary enemy and report what the ram
+/// cost each of them, in hit points. `charger_first` only changes the order the two hulls are
+/// spawned in — i.e. their index in the roster — and must change nothing else.
+fn tbone_losses(charger_first: bool) -> (u32, u32) {
+    let mut state = SimulationState::new();
+    let charger_at = Vec3::ZERO;
+    let target_at = Vec3::new(0.0, 0.0, 30.0);
+    let (charger, target) = if charger_first {
+        let charger = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), charger_at);
+        (charger, state.spawn_tank(TeamId(2), TankSpec::t54_1951(), target_at))
+    } else {
+        let target = state.spawn_tank(TeamId(2), TankSpec::t54_1951(), target_at);
+        (state.spawn_tank(TeamId(1), TankSpec::t54_1951(), charger_at), target)
+    };
+    state.tank_mut(target).expect("target").yaw_rad = FRAC_PI_2;
+    let step = FixedTimestep::from_hz(60);
+
+    for _ in 0..600 {
+        state.apply_commands(&[(charger, TankCommand::drive(1.0, 0.0))], step);
+        if state.damage_events().iter().any(|event| event.cause == DamageCause::Ram) {
+            break;
+        }
+    }
+    let full = TankSpec::t54_1951().hit_points;
+    (
+        full - state.tank(charger).expect("charger").hit_points,
+        full - state.tank(target).expect("target").hit_points,
+    )
+}
+
+/// A ram's outcome is GEOMETRY, not roster order.
+///
+/// The split used to be positional — `tanks[right]` paid the full bill and `tanks[left]` half —
+/// so the very same t-bone charged the stationary defender HALF if it happened to be spawned
+/// first, and full if it was spawned second. In a game with no ±25% dice, an outcome that turns
+/// on an array index is the least honest thing in the collision.
+#[test]
+fn a_ram_charges_the_same_bill_whichever_hull_spawned_first() {
+    assert_eq!(
+        tbone_losses(true),
+        tbone_losses(false),
+        "the same collision must cost the same, whatever order the roster holds the hulls in"
+    );
+}
+
+/// ...and the asymmetry that DOES survive is the honest one: the impulse is shared (Newton's
+/// third law), but the hull that meets it bow-on braces the whole vehicle behind its thickest,
+/// most sloped plate, while the broadsided hull takes the same energy through a thin flank and
+/// its running gear.
+#[test]
+fn a_broadsided_hull_pays_more_than_the_bow_that_charged_it() {
+    let (charger_loss, target_loss) = tbone_losses(true);
+    assert!(charger_loss > 0, "the charger feels its own ram: {charger_loss} HP");
+    assert!(
+        target_loss > charger_loss,
+        "the broadside must cost more than the bow: target {target_loss} HP vs charger \
+         {charger_loss} HP"
+    );
+}

@@ -22,7 +22,9 @@ use terrain::HeightMap;
 pub use collision::{TankFootprint, TankObstacle, TankWorldObstacles, tank_footprints_touch};
 pub use contact::{TerrainContact, sample_tank_terrain_contact};
 pub use controller_settings::TankControllerSettings;
-pub use cover::{resolve_cover_collision, resolve_cover_collision_with_velocity};
+pub use cover::{
+    footprint_overlaps_cover_object, resolve_cover_collision, resolve_cover_collision_with_velocity,
+};
 pub use hull_attitude::{HULL_ATTITUDE_RATE_RAD_S, MAX_HULL_TILT_RAD, advance_hull_attitude};
 pub use movement::{
     TankControlInput, TankKinematicState, step_custom_tank_controller,

@@ -10,7 +10,8 @@ pub use facet::{ArmorFacet, ArmorFacetProfile};
 pub(crate) use resolve::resolve_penetration_at_distance_on_facet;
 pub use resolve::{
     PenetrationResult, resolve_penetration, resolve_penetration_at_distance,
-    resolve_penetration_through_screens, resolve_penetration_through_track,
+    resolve_penetration_through_open_channel, resolve_penetration_through_screens,
+    resolve_penetration_through_track,
 };
 pub use vehicle_volumes::{VehicleArmorVolumes, vehicle_armor_volumes};
 pub use volumes::{

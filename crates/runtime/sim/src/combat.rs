@@ -21,6 +21,18 @@ pub(crate) struct CombatTickContext {
     pub water: Option<terrain::WaterBody>,
 }
 
+/// How the round got past the target's outer skin at this contact.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ArmorEntry {
+    /// Through the plate: the armour model decides whether it gets in at all, and a round that
+    /// does cuts its own ingress wound.
+    Plate,
+    /// Through a hole an earlier round already opened, wide enough to pass the whole projectile
+    /// ([`admits_existing_channel`]). There is no steel to beat and no NEW ingress wound to carve
+    /// — but the round IS inside the hull, and everything inside is still there.
+    OpenChannel,
+}
+
 /// How early a fire click may land before the reload completes and still count: the input
 /// buffer window. Inside it the shot is HELD and released the tick the breech closes; earlier
 /// clicks are genuine misfires and refuse as before. Sized to human anticipation timing (the
@@ -89,13 +101,20 @@ pub(crate) fn apply_shell_impact(
     plate_normal: Vec3,
     distance_m: f32,
     tick: u64,
+    entry: ArmorEntry,
     breaches_out: &mut Vec<crate::event_stamp::ArmorBreachRecord>,
 ) -> (DamageEvent, Option<ShellExit>) {
     let target =
         tanks.iter_mut().find(|tank| tank.id == target_id).expect("hit tank still present");
     let target_was_alive = target.hit_points > 0;
-    let penetration =
-        resolve_impact_penetration(shell, target, zone, impact_angle_degrees, distance_m);
+    let penetration = match entry {
+        ArmorEntry::Plate => {
+            resolve_impact_penetration(shell, target, zone, impact_angle_degrees, distance_m)
+        }
+        ArmorEntry::OpenChannel => {
+            game_core::resolve_penetration_through_open_channel(&shell.shell, distance_m)
+        }
+    };
     if penetration.damage_hp > 0 {
         target.hit_points = target.hit_points.saturating_sub(penetration.damage_hp);
     }
@@ -154,30 +173,35 @@ pub(crate) fn apply_shell_impact(
     let mut exit = None;
     if penetration.penetrated {
         let direction = shell.velocity_mps.normalize_or_zero();
-        let breach = make_breach(
-            target,
-            BreachImpact {
-                zone,
-                shell_id: shell.id,
-                shell_type: shell.shell.shell_type,
-                created_tick: tick,
-                hit_position,
-                plate_normal,
-                direction,
-                caliber_mm: shell.shell.caliber_mm,
-                impact_angle_degrees,
-                impact_speed_mps: shell.velocity_mps.length(),
-                effective_armor_mm: penetration.effective_armor_mm,
-                residual_penetration_mm: penetration.remaining_penetration_mm,
-            },
-        );
-        // Replication replays exactly what the authoritative set was GIVEN, in this order — the
-        // client's own `add` then reaches the same merge and capacity decisions.
-        breaches_out.push(crate::event_stamp::ArmorBreachRecord {
-            tank: target.id,
-            breach: breach.clone(),
-        });
-        target.armor_breaches.add(breach);
+        // A round that threaded an OPEN CHANNEL cuts no fresh ingress wound — it went through the
+        // one that is already there, which is exactly why it paid no steel for the entry. It still
+        // has to open the far plate on its own to get out.
+        if entry == ArmorEntry::Plate {
+            let breach = make_breach(
+                target,
+                BreachImpact {
+                    zone,
+                    shell_id: shell.id,
+                    shell_type: shell.shell.shell_type,
+                    created_tick: tick,
+                    hit_position,
+                    plate_normal,
+                    direction,
+                    caliber_mm: shell.shell.caliber_mm,
+                    impact_angle_degrees,
+                    impact_speed_mps: shell.velocity_mps.length(),
+                    effective_armor_mm: penetration.effective_armor_mm,
+                    residual_penetration_mm: penetration.remaining_penetration_mm,
+                },
+            );
+            // Replication replays exactly what the authoritative set was GIVEN, in this order —
+            // the client's own `add` then reaches the same merge and capacity decisions.
+            breaches_out.push(crate::event_stamp::ArmorBreachRecord {
+                tank: target.id,
+                breach: breach.clone(),
+            });
+            target.armor_breaches.add(breach);
+        }
         if let Some(contact) = find_egress_contact(target, zone, hit_position, direction) {
             let exit_angle =
                 direction.dot(contact.normal).abs().clamp(0.0, 1.0).acos().to_degrees();
@@ -517,6 +541,7 @@ mod tests {
             plate,
             18.5,
             0,
+            ArmorEntry::Plate,
             &mut Vec::new(),
         );
 
@@ -651,12 +676,78 @@ mod tests {
             Vec3::NEG_X,
             20.0,
             0,
+            ArmorEntry::Plate,
             &mut Vec::new(),
         );
         assert!(event.penetrated);
         assert_ne!(event.damaged_modules_mask, 0);
         assert_eq!(tanks[0].armor_breaches.breaches().len(), 1);
         assert!(tanks[0].armor_breaches.breaches()[0].lobes()[0].thickness_m > 0.0);
+    }
+
+    /// A round that threads a hole an earlier shell opened is INSIDE the tank, and the tank's
+    /// interior is still in there with it.
+    ///
+    /// It used to be teleported past the hull with `last_penetrated_target` set: no damage, no
+    /// module touched, no `DamageEvent` and no `ShellImpact` — a shot that vanished into the
+    /// target with nothing to show for it, which is both dishonest and (for the crew that fired
+    /// it) indistinguishable from a bug. What an open channel buys the round is the ENTRY STEEL,
+    /// and nothing else: it pays no armour, cuts no second entry wound, and hurts exactly as much
+    /// as a round that had to earn its way in.
+    #[test]
+    fn a_round_through_an_open_channel_wrecks_the_interior_and_cuts_no_second_entry_wound() {
+        let spec = TankSpec::t54_1951();
+        let shell =
+            shell_toward(TankId(1), Vec3::new(-5.0, 1.0, -1.8), Vec3::new(900.0, 0.0, 0.0), &spec);
+        let resolve = |entry: ArmorEntry| {
+            let mut tanks = vec![fresh_tank(TankId(2), TeamId(2), spec.clone(), Vec3::ZERO, 0.0)];
+            let (event, _) = apply_shell_impact(
+                &shell,
+                &mut tanks,
+                TankId(2),
+                ArmorFacing::HullSide,
+                ArmorZone::HullSide,
+                0.0,
+                Vec3::new(-1.05, 1.0, -1.8),
+                Vec3::NEG_X,
+                20.0,
+                0,
+                entry,
+                &mut Vec::new(),
+            );
+            let entry_wounds = tanks[0]
+                .armor_breaches
+                .breaches()
+                .iter()
+                .filter(|breach| breach.face == BreachFace::Ingress)
+                .count();
+            (event, entry_wounds)
+        };
+
+        let (through_plate, plate_wounds) = resolve(ArmorEntry::Plate);
+        let (through_hole, hole_wounds) = resolve(ArmorEntry::OpenChannel);
+
+        assert!(through_hole.penetrated, "an open channel is a way in, not a miss");
+        assert_eq!(
+            through_hole.damage_hp, through_plate.damage_hp,
+            "once inside the hull, how the round got in changes nothing about what it does"
+        );
+        assert!(through_hole.damage_hp > 0);
+        assert_ne!(
+            through_hole.damaged_modules_mask, 0,
+            "the internal path must run: the modules did not move because the plate has a hole"
+        );
+        assert_eq!(
+            through_hole.effective_armor_mm, 0.0,
+            "an open channel is the one thing that charges no steel"
+        );
+        assert!(
+            through_plate.effective_armor_mm > 0.0,
+            "...whereas the plate beside the hole still costs its line-of-sight steel: {} mm",
+            through_plate.effective_armor_mm
+        );
+        assert_eq!(plate_wounds, 1, "a plate hit cuts its own entry wound");
+        assert_eq!(hole_wounds, 0, "a round using an existing hole cuts no second one");
     }
 
     #[test]
@@ -676,6 +767,7 @@ mod tests {
                 Vec3::NEG_X,
                 20.0,
                 44,
+                ArmorEntry::Plate,
                 &mut Vec::new(),
             );
             assert!(event.penetrated);
@@ -717,6 +809,7 @@ mod tests {
             Vec3::NEG_X,
             20.0,
             7,
+            ArmorEntry::Plate,
             &mut Vec::new(),
         );
         assert!(event.penetrated);
