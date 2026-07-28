@@ -101,3 +101,62 @@ fn lint_teaches_the_dome_overhang_rule() {
         dome.message
     );
 }
+
+/// The honesty rule with teeth: a plate may not LOOK one way and RESOLVE another.
+///
+/// Five angles are authored twice — once on the shape (the mesh) and once on the armour (the
+/// shell). Three had already drifted before this lint existed: the T-54's rear plate (8 vs 5
+/// deg) and the Panther II's turret face and rear (11 vs 20, 25 vs 20). Nothing compared them,
+/// so a shell could ricochet off an angle no player could see.
+#[test]
+fn lint_refuses_a_plate_that_looks_one_way_and_resolves_another() {
+    for (field, perturb) in [
+        ("hull.glacis_slope_deg", 0usize),
+        ("hull.rear_slope_deg", 1),
+        ("turret.front_slope_deg", 2),
+        ("turret.side_slope_deg", 3),
+        ("turret.rear_slope_deg", 4),
+    ] {
+        let mut blueprint =
+            VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("T-54 loads");
+        match perturb {
+            0 => blueprint.hull.glacis_slope_deg += 7.0,
+            1 => blueprint.hull.rear_slope_deg += 7.0,
+            2 => blueprint.turret.front_slope_deg += 7.0,
+            3 => blueprint.turret.side_slope_deg += 7.0,
+            _ => blueprint.turret.rear_slope_deg += 7.0,
+        }
+        let issues = lint::validate_blueprint(&blueprint);
+        let drift = issues
+            .iter()
+            .find(|issue| issue.field == field)
+            .unwrap_or_else(|| panic!("{field} drift must be flagged"));
+        assert_eq!(drift.severity, lint::Severity::Error, "{field}: drift blocks the load");
+        assert!(
+            drift.message.contains("RESOLVES") && drift.message.contains("dossier"),
+            "the message must teach the rule and name the tiebreaker, got: {}",
+            drift.message
+        );
+    }
+}
+
+/// And the fleet as shipped satisfies it — the three reconciliations (T-54 rear to 5 deg,
+/// Panther II turret face and rear to 20 deg) are locked here, not just in the RON.
+#[test]
+fn every_shipped_blueprint_states_each_slope_exactly_once() {
+    for kind in VehicleKind::PLAYABLE {
+        let Some(bp) = VehicleBlueprint::for_vehicle(kind) else { continue };
+        for (name, shape, armor) in [
+            ("glacis", bp.hull.glacis_slope_deg, bp.armor.hull_front.0),
+            ("hull rear", bp.hull.rear_slope_deg, bp.armor.hull_rear.0),
+            ("turret front", bp.turret.front_slope_deg, bp.armor.turret_front.0),
+            ("turret side", bp.turret.side_slope_deg, bp.armor.turret_side.0),
+            ("turret rear", bp.turret.rear_slope_deg, bp.armor.turret_rear.0),
+        ] {
+            assert!(
+                (shape - armor).abs() < 1.0e-6,
+                "{kind:?} {name}: shape {shape} vs armour {armor}"
+            );
+        }
+    }
+}

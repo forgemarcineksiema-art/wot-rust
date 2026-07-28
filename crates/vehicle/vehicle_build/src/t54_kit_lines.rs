@@ -10,10 +10,10 @@ use crate::part::{GeneratorKind, PartKey, PartLod, PartShape, VehiclePart};
 use crate::t54_details::detail_plate;
 
 /// Every line-work part: splash board, turret handrails, tow cables, unditching beam, travel lock.
-pub(crate) fn t54_line_kit_parts(v: &HybridVisual) -> Vec<VehiclePart> {
-    let mut parts = vec![splash_board(v), unditching_beam()];
+pub(crate) fn t54_line_kit_parts(v: &HybridVisual, glacis_deg: f32) -> Vec<VehiclePart> {
+    let mut parts = vec![splash_board(v, glacis_deg), unditching_beam()];
     parts.extend(turret_rails(&v.turret_loft));
-    parts.extend(tow_cables(v));
+    parts.extend(tow_cables(v, glacis_deg));
     parts.extend(travel_lock(v));
     parts
 }
@@ -72,10 +72,10 @@ fn travel_lock(v: &HybridVisual) -> Vec<VehiclePart> {
 
 /// The V-shaped splash board across the upper glacis: a raised bead standing just proud of the
 /// plate, vertex low on the centreline, arms rising outward — every front view shows it.
-fn splash_board(v: &HybridVisual) -> VehiclePart {
+fn splash_board(v: &HybridVisual, glacis_deg: f32) -> VehiclePart {
     let path: Vec<Vec3> = [(-0.85_f32, 1.42_f32), (0.0, 1.26), (0.85, 1.42)]
         .iter()
-        .map(|&(x, y)| glacis_point(v, x, y, 0.03))
+        .map(|&(x, y)| glacis_point(v, glacis_deg, x, y, 0.03))
         .collect();
     VehiclePart {
         key: PartKey::new("splash_board"),
@@ -90,8 +90,11 @@ fn splash_board(v: &HybridVisual) -> VehiclePart {
 
 /// A point on the 60° glacis plate at hull-local `(x, y)`, pushed `standoff` along the plate
 /// normal. Derived from the blueprint's glacis plane, so it tracks the armour rake.
-fn glacis_point(v: &HybridVisual, x: f32, y: f32, standoff: f32) -> Vec3 {
-    let (sin, cos) = 60.0_f32.to_radians().sin_cos();
+fn glacis_point(v: &HybridVisual, glacis_deg: f32, x: f32, y: f32, standoff: f32) -> Vec3 {
+    // The rake comes from the blueprint (`armor.hull_front.0`) — the same number the plate is
+    // built at. It used to be a literal 60.0 while the doc comment claimed otherwise, so any
+    // future change to the glacis angle would have left this line work floating off the plate.
+    let (sin, cos) = glacis_deg.to_radians().sin_cos();
     let z = (v.hull.glacis_offset - sin * y) / cos;
     Vec3::new(x, y, z) + Vec3::new(0.0, sin, cos) * standoff
 }
@@ -147,12 +150,12 @@ fn loft_ring_point(loft: &TurretLoftVisual, y: f32, phi: f32, standoff: f32) -> 
 
 /// The stowed tow cables: one running diagonally across the glacis (the top view's signature
 /// diagonal), one draped across the hull rear plate.
-fn tow_cables(v: &HybridVisual) -> Vec<VehiclePart> {
+fn tow_cables(v: &HybridVisual, glacis_deg: f32) -> Vec<VehiclePart> {
     // The diagonal stays in the LOWER half of the plate, under the splash board's V, so the two
     // never cross into an X.
     let glacis: Vec<Vec3> = [(0.95_f32, 1.02_f32), (0.35, 1.10), (-0.35, 1.20), (-0.95, 1.30)]
         .iter()
-        .map(|&(x, y)| glacis_point(v, x, y, 0.04))
+        .map(|&(x, y)| glacis_point(v, glacis_deg, x, y, 0.04))
         .collect();
     let rear = vec![
         Vec3::new(-0.65, 1.22, -3.02),

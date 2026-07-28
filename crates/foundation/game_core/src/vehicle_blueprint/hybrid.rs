@@ -42,8 +42,6 @@ pub struct HullPlatesVisual {
     pub glacis_base_z: f32,
     /// Z of the lower nose plate at the belly: tucked back behind the fold, so the nose rakes under.
     pub nose_base_z: f32,
-    /// Chamfer on the deck's front edge where it meets the glacis, so the lip reads as plate.
-    pub deck_bevel: f32,
 }
 
 /// The cast turret as a Surface-Nets SDF: two offset spheres for the flattened dome, a seating ring,

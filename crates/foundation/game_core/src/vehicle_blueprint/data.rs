@@ -27,7 +27,7 @@ fn t54() -> VehicleBlueprint {
         ArmorShape, GunShape, HullShape, ShoePattern, TrackShape, TurretForm, TurretShape,
         WheelFace,
     };
-    VehicleBlueprint {
+    let mut shape = VehicleBlueprint {
         kind: VehicleKind::T54_1951,
         hull: HullShape {
             half_len: 3.00,
@@ -46,7 +46,7 @@ fn t54() -> VehicleBlueprint {
             glacis_slope_deg: 60.0,
             pike_sweep_deg: 0.0,
             nose_rise: 0.06,
-            rear_slope_deg: 8.0,
+            rear_slope_deg: 5.0,
             // One box: the "tub" and the plate above the fold share the same vertical side plane.
             lower_half_width: 1.05,
             sponson_y: 1.00,
@@ -148,8 +148,11 @@ fn t54() -> VehicleBlueprint {
             turret_side: (25.0, 1.0),
             turret_rear: (10.0, 1.0),
         },
-        hybrid: Some(t54_hybrid()),
-    }
+        hybrid: None,
+    };
+    // Derived from the shapes this very fixture declares — the hybrid tree may not restate them.
+    shape.hybrid = Some(t54_hybrid(&shape.hull, &shape.armor));
+    shape
 }
 
 #[cfg(test)]

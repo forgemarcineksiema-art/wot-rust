@@ -185,8 +185,14 @@ fn the_hybrid_bake_is_deterministic() {
 /// picture to look at is a rubber stamp.
 #[test]
 fn the_shipped_hybrid_matches_its_recorded_golden() {
-    // Recorded 2026-07-28 (PR-03): LOD0 15,096 tris, the mirror-fixed studio bless.
-    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0x6a7f_a521_f563_65e8;
+    // Recorded 2026-07-29 (PR-06, one truth per number). Three sub-centimetre corrections, each
+    // a number that used to exist twice: the glacis fold is now DERIVED from the blueprint
+    // instead of frozen at 2 dp beside it (front plates ~1 mm along their normal; the weld seam,
+    // splash board and bow cable that hang off them ~2 mm in z), the splash board and bow cable
+    // read the blueprint rake instead of a hard-coded 60 deg, and the embrasure moved onto the
+    // gun axis (1.80 -> 1.78, the trunnion). LOD0 15,096 tris, unchanged.
+    // Previous: 0x6a7f_a521_f563_65e8 (PR-03, the mirror-fixed bless).
+    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0x375d_cc51_9a6b_c34a;
     let baked = t54_description().build();
     assert_eq!(
         baked.deterministic_hash(),

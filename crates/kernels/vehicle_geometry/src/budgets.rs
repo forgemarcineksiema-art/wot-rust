@@ -46,7 +46,11 @@ pub const VEHICLE_BUDGETS: VehicleBudgets = VehicleBudgets {
 /// and the running gear itself is instanced, so no other row changes.
 pub const GOLDEN_BAKE_HASHES: [(VehicleKind, u64); 9] = [
     (VehicleKind::PrototypeMedium, 17_689_896_064_511_691_746_u64),
-    (VehicleKind::T54_1951, 1_352_245_318_290_454_355_u64),
+    // Re-recorded 2026-07-29 (PR-06, one-slope-one-truth): the T-54's `hull.rear_slope_deg`
+    // was 8 deg while the armour resolved 5 deg, and the SHIPPING hybrid builds its rear plate
+    // from the armour value — so this legacy-recipe row is the only place the ghost angle was
+    // still visible. T-54 only.
+    (VehicleKind::T54_1951, 3_638_672_634_192_500_695_u64),
     // Re-recorded 2026-07-26 for the Tiger I model-logic review: the 3.705 m beam moves onto the
     // 725 mm combat tracks (the sponsons were carrying it, with the belts hiding inside them), the
     // turret roof returns to its documented 2.885 m with an authored drum, the cupola opens to
@@ -57,7 +61,11 @@ pub const GOLDEN_BAKE_HASHES: [(VehicleKind, u64); 9] = [
     // crewed roof, six-shoe racks and hull-flank stowage. Jagdtiger only — the rest of the fleet
     // is byte-identical, which is the check that `plan_front_pad` defaults to no-op.
     (VehicleKind::Jagdtiger, 5_983_034_482_053_846_612_u64),
-    (VehicleKind::PantherII, 2_837_722_706_443_665_062_u64),
+    // Re-recorded 2026-07-29 (PR-06): the Panther II turret face and rear carried two angles
+    // each (11 vs 20, 25 vs 20). The dossier states 20 deg for both, three times over, so the
+    // SHAPE moves onto the armour's numbers — a real silhouette change (roof plan narrows) and
+    // a real gameplay change (9 deg more slope on the face, 5 less at the rear). Panther II only.
+    (VehicleKind::PantherII, 7_506_679_536_634_783_988_u64),
     (VehicleKind::IS3, 764_441_410_926_956_128_u64),
     (VehicleKind::Centurion, 15_818_076_589_286_630_709_u64),
     (VehicleKind::T34_85, 10_310_688_321_347_204_439_u64),

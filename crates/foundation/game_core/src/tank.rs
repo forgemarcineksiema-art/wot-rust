@@ -83,12 +83,9 @@ impl HitboxProfile {
             VehicleKind::PrototypeMedium => {
                 Self::new(1.70, 1.20, 3.20, 1.15, 0.65).with_turret_plan(0.82, 1.00, 0.0)
             }
-            // height 2.40 m, split at world y 1.80
-            VehicleKind::T54_1951 => {
-                Self::new(1.75, 1.20, 3.15, 1.15, 0.65).with_turret_plan(1.00, 1.04, 0.03)
-            }
             // Blueprint-migrated: the hitbox comes from `blueprint.hitbox()` above, always.
-            VehicleKind::T34_85
+            VehicleKind::T54_1951
+            | VehicleKind::T34_85
             | VehicleKind::IS3
             | VehicleKind::TigerI
             | VehicleKind::TigerII

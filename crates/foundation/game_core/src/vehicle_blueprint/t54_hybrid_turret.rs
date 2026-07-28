@@ -73,7 +73,9 @@ pub(super) fn turret_loft() -> TurretLoftVisual {
         cheek_az_width: 0.50,
         cheek_y_width: 0.24,
         embrasure_amount: -0.12,
-        embrasure_y: 1.80,
+        // ON the gun axis (`gun.trunnion_y`). It used to sit 20 mm above it — a drift nothing
+        // measured, in the one feature whose whole job is to be centred on the barrel.
+        embrasure_y: 1.78,
         embrasure_az_width: 0.48,
         embrasure_y_width: 0.22,
         // Rooted deep into the curved dome (base ~2.02, under the local shell surface) so the

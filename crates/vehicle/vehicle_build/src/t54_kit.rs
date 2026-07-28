@@ -12,7 +12,7 @@ use crate::part::{GeneratorKind, PartKey, PartLod, PartShape, VehiclePart};
 use crate::t54_details::detail_plate;
 
 /// Every kit part: fender stowage, sloping fender ends, splash board, turret rails, tow cables.
-pub fn t54_kit_parts(v: &HybridVisual) -> Vec<VehiclePart> {
+pub fn t54_kit_parts(v: &HybridVisual, glacis_deg: f32) -> Vec<VehiclePart> {
     let mut parts = Vec::new();
     parts.extend(fender_stowage(&v.fender));
     for (i, side) in [v.fender.side_x, -v.fender.side_x].into_iter().enumerate() {
@@ -26,7 +26,7 @@ pub fn t54_kit_parts(v: &HybridVisual) -> Vec<VehiclePart> {
         }
     }
     // Line-work: splash board, turret rails, tow cables, the unditching beam, the travel lock.
-    parts.extend(crate::t54_kit_lines::t54_line_kit_parts(v));
+    parts.extend(crate::t54_kit_lines::t54_line_kit_parts(v, glacis_deg));
     parts
 }
 

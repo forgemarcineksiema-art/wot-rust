@@ -8,7 +8,7 @@ BlueprintFile(
         glacis_slope_deg: 60.0,
         pike_sweep_deg: 0.0,
         nose_rise: 0.06,
-        rear_slope_deg: 8.0,
+        rear_slope_deg: 5.0,
         lower_half_width: 1.05,
         sponson_y: 1.0,
         skirt: None,

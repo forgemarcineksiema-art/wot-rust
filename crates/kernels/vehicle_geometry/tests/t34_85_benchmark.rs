@@ -21,10 +21,9 @@ fn the_glacis_is_the_sixty_degree_bet() {
         "the upper sides are RAKED ({}°) — a vertical-sided T-34 is not a T-34",
         bp.armor.hull_side.0
     );
-    assert!(
-        (bp.armor.hull_front.0 - bp.hull.glacis_slope_deg).abs() < 1.0e-6,
-        "what you see is what you shoot: the armour facet carries the visible glacis angle"
-    );
+    // ("what you see is what you shoot" — the shape/armour slope agreement this used to
+    // assert for the T-34 alone is now a FLEET lint in game_core, enforced at load time:
+    // `lint_refuses_a_plate_that_looks_one_way_and_resolves_another`.)
 }
 
 /// Five big bare Christie wheels with the signature open gap behind the first station, no

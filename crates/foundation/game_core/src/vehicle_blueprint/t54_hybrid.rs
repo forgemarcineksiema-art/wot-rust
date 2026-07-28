@@ -11,11 +11,32 @@
 use glam::Vec3;
 
 use super::{
-    BoxVisual, DetailVisual, FenderVisual, FittingsVisual, GunVisual, HullPlatesVisual, HullVisual,
-    HybridVisual, TurretVisual,
+    ArmorShape, BoxVisual, DetailVisual, FenderVisual, FittingsVisual, GunVisual, HullPlatesVisual,
+    HullShape, HullVisual, HybridVisual, TurretVisual,
 };
 
-pub(super) fn t54_hybrid() -> HybridVisual {
+/// Where the glacis meets the deck, and where the lower nose meets the belly. These two are
+/// AUTHORED (the fold positions are a design decision, not a consequence); everything else about
+/// the front plates is derived from them below.
+const GLACIS_BASE_Z: f32 = 2.95;
+const NOSE_BASE_Z: f32 = 2.52;
+
+pub(super) fn t54_hybrid(hull: &HullShape, armor: &ArmorShape) -> HybridVisual {
+    // The glacis plane and the lower-nose plane used to be FROZEN NUMBERS beside the blueprint
+    // they are functions of (2.34 / (0,-0.75,1) / 2.20, rounded to 2 dp). Nothing recomputed
+    // them, so every part hung off them — the glacis/roof weld seam, the splash board, the bow
+    // tow cable — sat ~2 mm behind the plate it claims to lie on, and the moment anyone edited
+    // `half_len` or the glacis angle the drift would have become visible instead of merely
+    // measurable. They are derived here, from the same armour rake the plate is built at.
+    let (sin_rake, cos_rake) = armor.hull_front.0.to_radians().sin_cos();
+    let glacis_offset = sin_rake * hull.sponson_y + cos_rake * GLACIS_BASE_Z;
+    // The lower nose runs from the fold down to the belly front; its normal is the perpendicular
+    // of that run, so the plate follows the fold and the belly rather than a memorised slope.
+    let run_z = NOSE_BASE_Z - GLACIS_BASE_Z;
+    let run_y = hull.belly_y - hull.sponson_y;
+    let nose_normal = Vec3::new(0.0, -run_z / run_y, 1.0);
+    let nose_offset = nose_normal.dot(Vec3::new(0.0, hull.sponson_y, GLACIS_BASE_Z));
+
     HybridVisual {
         hull: HullVisual {
             // The narrow ~2.1 m box between fully exposed tracks — no overhanging sponsons.
@@ -23,13 +44,11 @@ pub(super) fn t54_hybrid() -> HybridVisual {
             belly_y: 0.43,
             roof_y: 1.58,
             half_len: 3.00,
-            // Plane through the glacis fold (y 1.00, z 2.95) at the 60° armour rake.
-            glacis_offset: 2.34,
-            // Lower nose plate: from the fold (1.00, 2.95) down to the belly front (0.43, 2.52).
-            nose_normal: Vec3::new(0.0, -0.75, 1.0),
-            nose_offset: 2.20,
+            glacis_offset,
+            nose_normal,
+            nose_offset,
         },
-        hull_plates: HullPlatesVisual { glacis_base_z: 2.95, nose_base_z: 2.52, deck_bevel: 0.10 },
+        hull_plates: HullPlatesVisual { glacis_base_z: GLACIS_BASE_Z, nose_base_z: NOSE_BASE_Z },
         turret: TurretVisual {
             // The cast dome bulges LOW and wide: the sphere centre sits just above the ring (not high
             // in the band), so the widest cross-section overhangs the ring and the casting necks back
