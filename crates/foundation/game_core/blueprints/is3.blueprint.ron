@@ -39,7 +39,7 @@ BlueprintFile(
         overlap_inner_dx: 0.0,
         wheel_half_width: 0.14,
         link_half_width: 0.26,
-        link_count: Some(104),
+        link_count: Some(86),
         top_sag_m: 0.012,
         wheel_spokes: 12,
     ),

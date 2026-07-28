@@ -41,9 +41,13 @@ configuration (already decided in the masterplan; this photo is the shape source
 ball double-baffle brake (F2); classic long-glacis bow with big curved fender sweeps and
 ONE glacis headlight (F3/F4); front-drive (F1).
 
-**IS-3** (museum): D-25T brake chambers are OPEN and huge (F2); spare links BOLTED on the
-pike cheeks; turret handrails all around the dome (part table has rails — the render read
-is faint); guarded headlight (F4). Fenders/mudguards ✓ already good; drums ✓.
+**IS-3** (museum): spare links BOLTED on the pike cheeks; turret handrails all around the dome —
+**absent entirely, not faint**: there is no handrail geometry anywhere and no rail variant in
+`ForgePartKind`, so the earlier note claiming "the part table has rails" was wrong; guarded
+headlight (F4, deliberately deferred — it needs a standoff off the pike plane). D-25T brake
+chambers ✓ already a real open-chambered double-baffle with a receding bore funnel (F2 satisfied
+for this gun). Fenders/mudguards ✓; drums ✓; flush roof hatches + TPK periscope ✓ (the IS-3
+correctly carries NO raised cupola).
 
 **T-54 family** (T-55 museum shot as family silhouette): big curved BOW MUDGUARDS over
 the idlers are the missing bow signature (F3) — everything else on the bow (splash board,

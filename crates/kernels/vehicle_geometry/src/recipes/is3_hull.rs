@@ -150,17 +150,20 @@ pub(super) fn is3_pike_hull(hull: &HullShape) -> MeshBuilder {
             ],
         );
         // Sponson underside over the pike zone: a flat fan at the step height, facing down.
-        // (Each window is pushed as [0, 2, 1], which authors the plane CW from above.)
+        // The boundary is WALKED, then fanned from `under_anchor`, so the region is tiled once
+        // and only once. The step edge runs fold -> tub step -> step corner because those three
+        // are exactly collinear: both pike planes pass through the fold and carry the same plan
+        // sweep, so at the fold's own height their traces are the SAME line (see the test below).
+        // Fanning straight from the fold to the step corner instead swallows the tub corner's
+        // window whole — that overlap was this hull's recorded winding debt.
+        // (Each window is pushed as [boundary, anchor, next], which faces the plane down.)
         let under_anchor = Vec3::new(hull.lower_half_width, hull.sponson_y, pike.belly_corner.z);
         let under_inner = Vec3::new(hull.lower_half_width, hull.sponson_y, pike.deck_corner.z);
         let under_outer = Vec3::new(hull.half_width, hull.sponson_y, pike.deck_corner.z);
-        for window in [
-            [pike.fold, pike.step_corner, under_anchor],
-            [pike.step_corner, under_outer, under_anchor],
-            [pike.fold, pike.tub_step_corner, under_anchor],
-            [under_inner, under_anchor, under_outer],
-        ] {
-            tri(&mut builder, [window[0], window[2], window[1]]);
+        let boundary =
+            [pike.fold, pike.tub_step_corner, pike.step_corner, under_outer, under_inner];
+        for pair in boundary.windows(2) {
+            tri(&mut builder, [pair[0], under_anchor, pair[1]]);
         }
     }
 
@@ -186,4 +189,53 @@ pub(super) fn is3_pike_hull(hull: &HullShape) -> MeshBuilder {
     );
 
     builder
+}
+
+#[cfg(test)]
+mod tests {
+    use game_core::{VehicleBlueprint, VehicleKind};
+
+    use super::*;
+
+    /// The fact the sponson-underside fan is built on, and the reason its boundary order is
+    /// FORCED rather than chosen: at the fold's own height, both pike planes trace the same line.
+    ///
+    /// Each plane passes through the fold and is swept by the same `pike_sweep_deg` about the
+    /// vertical, so each trace at `y = sponson_y` has slope `dz/dx = -tan(sweep)` — the glacis
+    /// and lower slopes cancel out entirely. So the fold, the tub step corner and the step corner
+    /// are collinear for ANY combination of slopes, sweep and widths. Fan across that line and
+    /// the middle point's window is swallowed by its neighbour; walk through it and the region
+    /// tiles exactly once.
+    #[test]
+    fn the_pike_step_line_runs_straight_through_the_tub_corner() {
+        let hull = VehicleBlueprint::for_vehicle(VehicleKind::IS3).expect("blueprint").hull;
+        let pike = pike_frame(&hull);
+
+        for point in [pike.fold, pike.tub_step_corner, pike.step_corner] {
+            assert!(
+                (point.y - hull.sponson_y).abs() < 1.0e-6,
+                "the step line lives at the sponson step: {point:?}"
+            );
+        }
+
+        // Cross product of the two in-plan spans: zero area means one line.
+        let a = pike.tub_step_corner - pike.fold;
+        let b = pike.step_corner - pike.fold;
+        let area2 = (a.x * b.z - a.z * b.x).abs();
+        assert!(
+            area2 < 1.0e-5,
+            "fold {:?}, tub step {:?} and step corner {:?} must be collinear (2*area {area2}) — \
+             if a shape change ever breaks this, the underside fan must be re-walked, not just \
+             re-wound",
+            pike.fold,
+            pike.tub_step_corner,
+            pike.step_corner
+        );
+
+        // And the walk is monotone outboard, so fanning it cannot double back on itself.
+        assert!(
+            pike.fold.x < pike.tub_step_corner.x && pike.tub_step_corner.x < pike.step_corner.x,
+            "the boundary walk must step outboard through the tub corner"
+        );
+    }
 }

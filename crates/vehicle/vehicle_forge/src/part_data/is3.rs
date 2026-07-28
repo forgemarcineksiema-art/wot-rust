@@ -187,13 +187,24 @@ pub(crate) fn is3_parts(bp: &VehicleBlueprint) -> Vec<ForgePart> {
             PartAnchor::TurretRing,
             turret_material(tu.form),
             Vec3::new(tu.cupola_x, tu.roof_y, tu.cupola_z),
-            Vec3::new(tu.cupola_x - tu.cupola_radius, tu.roof_y, tu.cupola_z - tu.cupola_radius),
+            Vec3::new(
+                tu.cupola_x - tu.cupola_radius,
+                tu.roof_y - 0.03,
+                tu.cupola_z - tu.cupola_radius,
+            ),
             Vec3::new(
                 tu.cupola_x + tu.cupola_radius,
-                tu.roof_y + 0.4 * tu.cupola_radius,
-                tu.cupola_z + tu.cupola_radius,
+                tu.roof_y + 0.12,
+                // Forward to the TPK periscope, which stands ahead of the hatch ring — the same
+                // offset `recipes/soviet.rs` builds it at, so the box cannot drift off it.
+                tu.cupola_z + tu.cupola_radius + 0.16 + 0.07,
             ),
-            "Blueprint commander's cupola, low on the flattened dome roof.",
+            // The IS-3 has NO commander's cupola: the real dome roof carries two FLUSH ring
+            // hatches and the commander's TPK periscope, which is what `CastRoof::Is3` builds
+            // (model-logic audit #3 removed the fake cupola). This part is that station's
+            // envelope, not a casting standing proud of the roof.
+            "Blueprint commander's station: two flush ring hatches plus the TPK periscope on the \
+             flattened dome roof — the IS-3 carries no raised cupola.",
         ),
         part(
             ForgePartKind::EngineDeck,

@@ -54,9 +54,12 @@ impl ForgePartGraph {
 
     /// Derive a coarse part graph from a vehicle's baked submesh bounds plus its reference pack.
     /// This carries no new magic values: every extent comes from the geometry the recipes already
-    /// produce, and the running-gear count comes from the reference pack.
+    /// produce, the running-gear count comes from the reference pack, and the commander's station
+    /// comes from the blueprint that PLACED it — bounding-box fractions cannot tell you which side
+    /// of the roof a cupola sits on, and guessing put the Jagdtiger's on the wrong one.
     fn from_baked_geometry(kind: VehicleKind, pack: &ReferencePack) -> Option<Self> {
         let baked = bake_vehicle(kind).ok()?;
+        let blueprint = VehicleBlueprint::for_vehicle(kind)?;
         let bounds = |sub| baked.submesh(sub).and_then(|s| s.mesh.bounds());
         let hull = bounds(SubmeshKind::Hull)?;
         let turret = bounds(SubmeshKind::Turret)?;
@@ -74,6 +77,7 @@ impl ForgePartGraph {
                 turret,
                 gun,
                 baked.mounts(),
+                &blueprint.turret,
             ),
         })
     }
