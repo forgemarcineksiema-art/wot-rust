@@ -70,6 +70,7 @@ pub(crate) fn step_shells(
                     index += 1;
                     continue;
                 }
+                let mut carved = Vec::new();
                 let (event, exit) = apply_shell_impact(
                     &shells[index],
                     tanks,
@@ -81,7 +82,11 @@ pub(crate) fn step_shells(
                     plate_normal,
                     distance_m,
                     context.tick,
+                    &mut carved,
                 );
+                for record in carved {
+                    events.push_armor_breach(record.tank, record.breach);
+                }
                 let ricochet_continues = event.ricocheted && !shells[index].ricocheted_once;
                 // The round flies on only through a hole the armour model actually opened.
                 let exit = exit.filter(|exit| kinetic_penetration_continues(&shells[index], exit));

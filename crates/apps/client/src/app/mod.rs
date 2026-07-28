@@ -496,6 +496,9 @@ pub(crate) struct ClientApp {
     fps_estimate: f32,
     /// Last ~1.5 s of raw frame intervals (seconds) — the HUD's p95 readout turns "it drops
     /// sometimes" into a number per scenario (F9).
+    /// Every hull's perforations, accumulated from the reliable lane (protocol v39): they no
+    /// longer ride the snapshot, so this is the client's own copy of that permanent state.
+    armor_breaches: engine::ArmorBreachStore,
     frame_dt_history: std::collections::VecDeque<f32>,
     /// Reused scratch for the p95 selection — see `ClientApp::frame_p95_ms`.
     frame_p95_scratch: Vec<f32>,
@@ -712,6 +715,7 @@ impl ClientApp {
             wreck_hull_meshes: HashMap::new(),
             scene_cover_dirty: false,
             fps_estimate: 0.0,
+            armor_breaches: engine::ArmorBreachStore::default(),
             frame_dt_history: std::collections::VecDeque::with_capacity(96),
             frame_p95_scratch: Vec::with_capacity(96),
             minimap_static,

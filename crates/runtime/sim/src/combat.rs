@@ -89,6 +89,7 @@ pub(crate) fn apply_shell_impact(
     plate_normal: Vec3,
     distance_m: f32,
     tick: u64,
+    breaches_out: &mut Vec<crate::event_stamp::ArmorBreachRecord>,
 ) -> (DamageEvent, Option<ShellExit>) {
     let target =
         tanks.iter_mut().find(|tank| tank.id == target_id).expect("hit tank still present");
@@ -170,6 +171,12 @@ pub(crate) fn apply_shell_impact(
                 residual_penetration_mm: penetration.remaining_penetration_mm,
             },
         );
+        // Replication replays exactly what the authoritative set was GIVEN, in this order — the
+        // client's own `add` then reaches the same merge and capacity decisions.
+        breaches_out.push(crate::event_stamp::ArmorBreachRecord {
+            tank: target.id,
+            breach: breach.clone(),
+        });
         target.armor_breaches.add(breach);
         if let Some(contact) = find_egress_contact(target, zone, hit_position, direction) {
             let exit_angle =
@@ -204,6 +211,10 @@ pub(crate) fn apply_shell_impact(
                         residual_penetration_mm: residual_after_modules_mm - required_mm,
                     },
                 );
+                breaches_out.push(crate::event_stamp::ArmorBreachRecord {
+                    tank: target.id,
+                    breach: egress.clone(),
+                });
                 target.armor_breaches.add(egress);
                 exit = Some(ShellExit {
                     position: contact.position,
@@ -506,6 +517,7 @@ mod tests {
             plate,
             18.5,
             0,
+            &mut Vec::new(),
         );
 
         assert!((event.plate_normal - plate).length() < 1.0e-3, "plate normal survives verbatim");
@@ -639,6 +651,7 @@ mod tests {
             Vec3::NEG_X,
             20.0,
             0,
+            &mut Vec::new(),
         );
         assert!(event.penetrated);
         assert_ne!(event.damaged_modules_mask, 0);
@@ -663,6 +676,7 @@ mod tests {
                 Vec3::NEG_X,
                 20.0,
                 44,
+                &mut Vec::new(),
             );
             assert!(event.penetrated);
             tanks.remove(0).armor_breaches
@@ -703,6 +717,7 @@ mod tests {
             Vec3::NEG_X,
             20.0,
             7,
+            &mut Vec::new(),
         );
         assert!(event.penetrated);
         assert!(!tanks[0].armor_breaches.breaches().is_empty());

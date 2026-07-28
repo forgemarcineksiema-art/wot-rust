@@ -1,19 +1,22 @@
 //! The snapshot's WIRE budget.
 //!
 //! `transport` caps one protocol message at `MAX_DATAGRAM_PAYLOAD * MAX_FRAGMENTS` bytes and
-//! refuses anything larger — it never truncates. That refusal reaches the host as a `send`
-//! error, and a host that drops it leaves a crew with no world state at all while its input
-//! ACKs and reliable combat events keep arriving, so the battle looks frozen rather than
-//! disconnected. Nothing measured how close a real battle sits to that ceiling.
+//! refuses anything larger — it never truncates. That refusal reaches the host as a `send` error,
+//! and a crew past the ceiling loses world state while its input ACKs and reliable combat lane
+//! keep flowing: the battle looks frozen rather than disconnected.
 //!
-//! The dominant term is per-tank `ArmorBreachSet`: persistent perforations are re-sent WHOLE in
-//! every snapshot, so the payload grows monotonically with the shooting. These tests put the
-//! ceiling in code as a ratchet — raising it is progress, lowering it is a regression that costs
-//! a player their world.
+//! The snapshot used to grow monotonically with the shooting, because every tank's whole
+//! `ArmorBreachSet` rode in every one. Measured at the sim's own `MAX_ARMOR_BREACHES`: 31 695 B
+//! of a 32 200 B message, and the reachable case (one shot owning both an ingress and an egress
+//! fragment) was 87 471 B — 2.7x a message the transport can carry at all.
+//!
+//! Protocol v39 moved perforations to the reliable lane, so what these tests lock is no longer a
+//! ceiling to creep up on but a much stronger property: **a snapshot's size does not depend on
+//! how much shooting has happened.**
 
 use game_core::{
     ApertureLobe, ArmorBreach, ArmorBreachDescriptor, ArmorBreachSet, ArmorFrame, ArmorMaterial,
-    ArmorSurfaceId, ArmorZone, BreachContour, BreachFace, MAX_APERTURE_LOBES, MAX_ARMOR_BREACHES,
+    ArmorSurfaceId, ArmorZone, BreachContour, BreachFace, MAX_ARMOR_BREACHES,
     MAX_BREACH_FRAGMENTS_PER_GROUP, ShellType, TRACK_HP_MAX, TankId, TeamId, VehicleKind,
 };
 use glam::Vec3;
@@ -22,15 +25,6 @@ use net::{ProtocolMessage, ShellSnapshot, Snapshot, SnapshotDelivery, TankSnapsh
 
 /// A full 7v7.
 const BATTLE_TANKS: u64 = 14;
-
-/// How many single-fragment breach groups per tank a full 7v7 snapshot must still carry inside
-/// one transport message, with the rest of a late-battle world (crater ledger, shells in flight,
-/// third-party events, an urban cover list) riding along.
-///
-/// FLOOR, measured: 12 — which is exactly `MAX_ARMOR_BREACHES`, so the wire holds the sim's
-/// group cap only while every group stays a SINGLE fragment with a SINGLE lobe. See the debt
-/// recorded by `the_wire_cannot_carry_the_simulations_true_worst_case` below.
-const MIN_BREACH_GROUPS_ON_THE_WIRE: u64 = 12;
 
 fn lobe(index: u64, seed: u64) -> ApertureLobe {
     let entry = Vec3::new(index as f32 * 0.31 - 1.5, 0.9, 1.2);
@@ -69,7 +63,6 @@ fn breach(group: u64, fragment: u64) -> ArmorBreach {
             projectile_diameter_m: 0.1,
             residual_penetration_mm: 55.0,
         },
-        // Groups are spread far apart so none of them merges into a neighbour.
         lobe(group * 4 + fragment, 0xA5C0 + group * 8 + fragment),
     )
 }
@@ -113,9 +106,9 @@ fn tank(id: u64, breaches: ArmorBreachSet) -> TankSnapshot {
     }
 }
 
-/// A late-battle 7v7 delivery: every tank carries `groups x fragments x lobes` perforations, and
-/// the world around them carries the full crater ledger, shells in the air, third-party combat
-/// feedback and an urban-scale cover list.
+/// A late-battle 7v7 delivery, dressed with `groups x fragments` perforations per tank plus the
+/// world around them: the full crater ledger, shells in the air, third-party combat feedback and
+/// an urban-scale cover list.
 fn late_battle_delivery(groups: u64, fragments_per_group: u64) -> Vec<u8> {
     let snapshot = Snapshot {
         server_tick: 180_000,
@@ -152,93 +145,62 @@ fn late_battle_delivery(groups: u64, fragments_per_group: u64) -> Vec<u8> {
     .expect("a snapshot always encodes")
 }
 
-fn fits_one_message(frame: &[u8]) -> bool {
-    fragment_message(1, frame).is_ok()
+/// The v39 property, and the reason the ceiling stopped being something to creep up on: how much
+/// a battle has been shot at does not change what a snapshot costs.
+#[test]
+fn a_snapshots_size_does_not_depend_on_how_much_shooting_has_happened() {
+    let pristine = late_battle_delivery(0, 0).len();
+    let saturated =
+        late_battle_delivery(MAX_ARMOR_BREACHES as u64, MAX_BREACH_FRAGMENTS_PER_GROUP as u64)
+            .len();
+    assert_eq!(
+        pristine, saturated,
+        "perforations are back on the snapshot: a pristine battle encodes to {pristine} B but a \
+         saturated one to {saturated} B. They belong on the reliable lane — permanent, \
+         append-only state must not be re-sent at snapshot cadence."
+    );
 }
 
-/// The ratchet. Lowering the number of perforations a battle can replicate is not a cosmetic
-/// regression: past the ceiling the host's snapshot send FAILS and that crew stops receiving
-/// the world while everything else about its session keeps working.
+/// And the absolute bound, with the headroom stated so the next person to add a field can see
+/// what they are spending.
 #[test]
-fn a_full_7v7_snapshot_carries_the_simulations_breach_group_cap() {
-    let frame = late_battle_delivery(MIN_BREACH_GROUPS_ON_THE_WIRE, 1);
-    let fragments = frame.len().div_ceil(MAX_DATAGRAM_PAYLOAD);
+fn a_full_7v7_snapshot_fits_one_transport_message_with_room_to_spare() {
+    let frame =
+        late_battle_delivery(MAX_ARMOR_BREACHES as u64, MAX_BREACH_FRAGMENTS_PER_GROUP as u64);
     let capacity = MAX_DATAGRAM_PAYLOAD * MAX_FRAGMENTS;
-    assert!(
-        fits_one_message(&frame),
-        "a {BATTLE_TANKS}-tank battle with {MIN_BREACH_GROUPS_ON_THE_WIRE} perforations per tank \
-         encodes to {} B ({fragments}/{MAX_FRAGMENTS} fragments) but the transport holds only \
-         {capacity} B. The host's `SnapshotDelivery` send now FAILS for every crew: the battle \
-         freezes without disconnecting. Shrink the snapshot (the per-tank `ArmorBreachSet` is \
-         the dominant term and is re-sent whole every tick) rather than raising MAX_FRAGMENTS — \
-         at 20 Hz this payload is already {:.0} KiB/s per client.",
+    let fragments = frame.len().div_ceil(MAX_DATAGRAM_PAYLOAD);
+    println!(
+        "WIRE BUDGET: a saturated {BATTLE_TANKS}-tank snapshot is {} B of {capacity} B \
+         ({fragments}/{MAX_FRAGMENTS} fragments, {} B spare, {:.0} KiB/s per client at 20 Hz)",
         frame.len(),
+        capacity - frame.len(),
         frame.len() as f32 * 20.0 / 1024.0
     );
-}
-
-/// Where the ceiling actually is, and how little room is left under it. Sweeping rather than
-/// asserting one size keeps the number honest and prints it for the next person to change the
-/// protocol.
-#[test]
-fn the_snapshot_ceiling_is_measured_not_assumed() {
-    let mut ceiling = 0;
-    for groups in 0..=MAX_ARMOR_BREACHES as u64 {
-        if fits_one_message(&late_battle_delivery(groups, 1)) {
-            ceiling = groups;
-        } else {
-            break;
-        }
-    }
-    let at_ceiling = late_battle_delivery(ceiling, 1);
-    let capacity = MAX_DATAGRAM_PAYLOAD * MAX_FRAGMENTS;
-    println!(
-        "WIRE BUDGET: {ceiling} single-fragment perforations per tank fit a {BATTLE_TANKS}-tank \
-         snapshot ({} B of {capacity} B, {} B spare, {:.0} KiB/s per client at 20 Hz)",
-        at_ceiling.len(),
-        capacity - at_ceiling.len(),
-        at_ceiling.len() as f32 * 20.0 / 1024.0
-    );
     assert!(
-        ceiling >= MIN_BREACH_GROUPS_ON_THE_WIRE,
-        "the wire now carries only {ceiling} perforations per tank, below the locked floor of \
-         {MIN_BREACH_GROUPS_ON_THE_WIRE}; something added to the snapshot without paying for it"
+        fragment_message(1, &frame).is_ok(),
+        "a saturated {BATTLE_TANKS}-tank snapshot is {} B ({fragments}/{MAX_FRAGMENTS} \
+         fragments) but the transport holds {capacity} B; past this the host's send FAILS and \
+         those crews stop receiving the world without the session ending.",
+        frame.len()
+    );
+    // Three quarters of the message stays free. That is the standing budget: a new field is a
+    // decision someone makes on purpose, not a surprise the transport reports for them.
+    assert!(
+        frame.len() * 4 <= capacity,
+        "the snapshot now fills {} B of {capacity} B — over a quarter, which is where the old \
+         growth-with-shooting problem started",
+        frame.len()
     );
 }
 
-/// The recorded DEBT, in the shape the art-direction program uses: what today achieves, against
-/// what the simulation can actually produce. `sim::breach_space` creates ingress AND egress
-/// fragments for one shot, and merges nearby hits into extra lobes, so the true worst case is
-/// `MAX_ARMOR_BREACHES x MAX_BREACH_FRAGMENTS_PER_GROUP x MAX_APERTURE_LOBES` per tank — far
-/// above what one message holds.
-///
-/// This test does NOT assert the worst case fits (it does not). It asserts the failure is LOUD:
-/// the transport must refuse an oversized message rather than truncate it, because a truncated
+/// The transport must still REFUSE an oversized message rather than truncate it: a truncated
 /// snapshot would decode as a plausible smaller world instead of an error the host can log.
 #[test]
-fn the_wire_cannot_carry_the_simulations_true_worst_case() {
-    let worst = late_battle_delivery(MAX_ARMOR_BREACHES as u64, 3);
+fn an_oversized_message_is_refused_not_silently_truncated() {
     let capacity = MAX_DATAGRAM_PAYLOAD * MAX_FRAGMENTS;
-    let fragments = worst.len().div_ceil(MAX_DATAGRAM_PAYLOAD);
-    println!(
-        "WIRE DEBT: the sim's reachable worst case ({MAX_ARMOR_BREACHES} groups x 3 fragments) \
-         encodes to {} B = {fragments}/{MAX_FRAGMENTS} fragments, {:.1}x the {capacity} B \
-         transport message. Full cap is {MAX_ARMOR_BREACHES}x{MAX_BREACH_FRAGMENTS_PER_GROUP}x\
-         {MAX_APERTURE_LOBES} lobes per tank. Closing it means taking persistent breaches off \
-         the newest-wins snapshot (they are append-only per tank — the v38 reliable lane already \
-         carries exactly that shape of state).",
-        worst.len(),
-        worst.len() as f32 / capacity as f32
-    );
-    match fragment_message(1, &worst) {
-        Ok(datagrams) => {
-            // If a future change makes it fit, that is progress — but it must really fit.
-            let rebuilt: usize = datagrams.iter().map(|d| d.len() - 8).sum();
-            assert_eq!(rebuilt, worst.len(), "fragmentation must never lose bytes");
-        }
-        Err(error) => assert!(
-            matches!(error, net::transport::TransportError::TooLarge { .. }),
-            "an oversized snapshot must be REFUSED, never silently truncated: {error}"
-        ),
-    }
+    let oversized = vec![0_u8; capacity + 1];
+    assert!(matches!(
+        fragment_message(1, &oversized),
+        Err(net::transport::TransportError::TooLarge { .. })
+    ));
 }

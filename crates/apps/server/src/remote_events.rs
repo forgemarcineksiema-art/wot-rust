@@ -4,7 +4,14 @@ use std::fmt;
 
 use net::{CombatEvent, ProtocolMessage, SequencedCombatEvent};
 
-pub(crate) const MAX_PENDING_COMBAT_EVENTS: usize = 256;
+/// Deepest the per-recipient lane may get before the session fails loud.
+///
+/// Sized by the v39 JOIN SEED, which is the largest burst this queue ever sees: a crew arriving
+/// mid-battle is handed every hull's existing perforations at once, bounded by
+/// `MAX_ARMOR_BREACHES * MAX_BREACH_FRAGMENTS_PER_GROUP` per tank across a full 7v7 — 672. The
+/// ordinary combat trickle is a handful of events a second, so the headroom above that costs
+/// nothing in practice and refusing a legitimate late joiner would cost a player their battle.
+pub const MAX_PENDING_COMBAT_EVENTS: usize = 1_024;
 
 #[derive(Debug)]
 pub(crate) enum RemoteEventQueueError {
@@ -218,7 +225,11 @@ mod tests {
         let batch = queue.batch(SESSION_ID).expect("send prefix");
         let last_sent = batch_events(&batch).last().expect("non-empty").delivery_seq;
         assert!(queue.acknowledge(last_sent));
-        assert_eq!(queue.enqueue(damage(1_000)).expect("room after ack"), 256);
+        assert_eq!(
+            queue.enqueue(damage(1_000)).expect("room after ack"),
+            MAX_PENDING_COMBAT_EVENTS as u64,
+            "the sequence continues past the capacity it just cleared"
+        );
     }
 
     #[test]

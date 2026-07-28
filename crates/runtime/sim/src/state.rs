@@ -27,6 +27,11 @@ pub struct SimulationState {
     /// hull), so the firing client gets impact feedback instead of a silently vanished shot.
     #[serde(default)]
     shell_impacts: Vec<ShellImpact>,
+    /// Perforations carved THIS tick, in the order the targets' sets accepted them (protocol
+    /// v39). Permanent state replicated as a stream of additions rather than by re-sending each
+    /// hull's whole set in every snapshot — see `net`'s v39 note for the wire arithmetic.
+    #[serde(default)]
+    armor_breach_events: Vec<crate::event_stamp::ArmorBreachRecord>,
     /// Last-fresh-sight memory behind the spotted hold (see `spotting::SpottingMemory`).
     #[serde(default)]
     spotting_memory: crate::spotting::SpottingMemory,
@@ -83,6 +88,7 @@ impl SimulationState {
             shells: Vec::new(),
             damage_events: Vec::new(),
             shell_impacts: Vec::new(),
+            armor_breach_events: Vec::new(),
             spotting_memory: crate::spotting::SpottingMemory::default(),
             water: None,
             cover_states: Vec::new(),
@@ -144,6 +150,25 @@ impl SimulationState {
 
     pub fn shell_impacts(&self) -> &[ShellImpact] {
         &self.shell_impacts
+    }
+
+    /// Perforations carved this tick, oldest first (protocol v39). Replication forwards these on
+    /// the reliable lane; a client replays them through `ArmorBreachSet::add` and converges.
+    pub fn armor_breach_events(&self) -> &[crate::event_stamp::ArmorBreachRecord] {
+        &self.armor_breach_events
+    }
+
+    /// Every hull's complete perforation set — what a joining crew must be given before the
+    /// stream of additions means anything.
+    pub fn armor_breach_state(&self) -> Vec<crate::event_stamp::ArmorBreachRecord> {
+        self.tanks
+            .iter()
+            .flat_map(|tank| {
+                tank.armor_breaches.breaches().iter().map(|breach| {
+                    crate::event_stamp::ArmorBreachRecord { tank: tank.id, breach: breach.clone() }
+                })
+            })
+            .collect()
     }
 
     pub fn refresh_spotting(&mut self, heightmap: Option<&HeightMap>, cover: &[StaticCoverObject]) {
@@ -239,6 +264,7 @@ impl SimulationState {
         let context = CombatTickContext { dt_seconds: dt, tick: self.tick, water: self.water };
         self.damage_events.clear();
         self.shell_impacts.clear();
+        self.armor_breach_events.clear();
         let mut event_stamp = BattleEventStamp::new(self.last_battle_event_id, self.tick);
         // Keep the cover states aligned with the map's cover (rebuilt only when the count changes,
         // i.e. at battle setup). A dry `apply_commands` passes no cover and clears the states.
@@ -375,6 +401,7 @@ impl SimulationState {
             let mut events = BattleEventOutput::new(
                 &mut self.damage_events,
                 &mut self.shell_impacts,
+                &mut self.armor_breach_events,
                 &mut event_stamp,
             );
             step_shells(

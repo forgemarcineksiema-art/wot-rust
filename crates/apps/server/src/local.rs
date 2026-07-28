@@ -17,6 +17,9 @@ pub struct AuthoritativeTick {
     /// remote host can feed its reliable per-recipient combat lane.
     pub damage_events: Vec<DamageEvent>,
     pub shell_impacts: Vec<ShellImpact>,
+    /// Perforations carved this tick (protocol v39). Permanent per-hull state, replicated as a
+    /// stream of additions on the same reliable lane instead of riding every snapshot.
+    pub armor_breaches: Vec<sim::event_stamp::ArmorBreachRecord>,
 }
 
 #[derive(Debug, Clone)]
@@ -62,6 +65,13 @@ impl LocalAuthoritativeServer {
     ) -> (Self, Vec<TankId>) {
         let (setup, human_tanks) = crate::setup::random_7v7_setup_for_humans(battle, humans);
         (Self::from_setup(config, setup), human_tanks)
+    }
+
+    /// Every hull's complete perforation set (protocol v39). A crew joining mid-battle gets this
+    /// once, before the stream of additions; without it the stream has no baseline to apply to
+    /// and a late joiner would see undamaged steel forever.
+    pub fn armor_breach_state(&self) -> Vec<sim::event_stamp::ArmorBreachRecord> {
+        self.sim.armor_breach_state()
     }
 
     /// Per-target observer masks (bit = tank index) against the LIVE cover — the per-viewer
@@ -258,6 +268,7 @@ impl LocalAuthoritativeServer {
         self.pending_shell_impacts.extend_from_slice(self.sim.shell_impacts());
         let damage_events = self.sim.damage_events().to_vec();
         let shell_impacts = self.sim.shell_impacts().to_vec();
+        let armor_breaches = self.sim.armor_breach_events().to_vec();
 
         let snapshot = if self.config.snapshot_schedule().should_emit(self.sim.tick()) {
             let mut snapshot = Snapshot::from(&self.sim);
@@ -269,7 +280,13 @@ impl LocalAuthoritativeServer {
             None
         };
 
-        AuthoritativeTick { server_tick: self.sim.tick(), snapshot, damage_events, shell_impacts }
+        AuthoritativeTick {
+            server_tick: self.sim.tick(),
+            snapshot,
+            damage_events,
+            shell_impacts,
+            armor_breaches,
+        }
     }
 
     pub fn tick_with_player_input(&mut self, input: ClientInputCommand) -> AuthoritativeTick {
@@ -280,6 +297,7 @@ impl LocalAuthoritativeServer {
             snapshot: tick.snapshot.map(|snapshot| snapshot.filtered_for_viewer(viewer)),
             damage_events: tick.damage_events,
             shell_impacts: tick.shell_impacts,
+            armor_breaches: tick.armor_breaches,
         }
     }
 }

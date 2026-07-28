@@ -17,11 +17,29 @@ impl ClientApp {
         self.accept_and_sync_with(snapshot, Some(reconciliation));
     }
 
+    /// Fold this tick's replicated perforations into the client's own per-hull sets (protocol
+    /// v39). Applying them through the SAME `ArmorBreachSet::add` the authoritative simulation
+    /// ran — on the same values, in the order the reliable lane preserved — is what makes the
+    /// two sides converge, merges and capacity evictions included.
+    pub(super) fn apply_armor_breach_deltas(&mut self, deltas: Vec<net::ArmorBreachDelta>) {
+        for delta in deltas {
+            self.armor_breaches.apply(delta.tank, delta.breach);
+        }
+    }
+
     fn accept_and_sync_with(
         &mut self,
-        snapshot: net::Snapshot,
+        mut snapshot: net::Snapshot,
         reconciliation: Option<super::session::RemoteReconciliation>,
     ) {
+        // Perforations are client-local presentation state now: dress each hull from the set the
+        // reliable lane has been building, since the snapshot itself no longer carries them.
+        for tank in &mut snapshot.tanks {
+            tank.armor_breaches = self.armor_breaches.get(tank.tank_id);
+        }
+        let live: Vec<game_core::TankId> = snapshot.tanks.iter().map(|tank| tank.tank_id).collect();
+        self.armor_breaches.retain_live(&live);
+        let snapshot = snapshot;
         // The replicated crater ledger (protocol v31) folds into OUR heightmap FIRST, before
         // any consumer below reads the ground: the terrain scars of this very snapshot's
         // impacts must drape onto the deformed field (a scorch floating over the bowl it

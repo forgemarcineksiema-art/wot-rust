@@ -1,7 +1,7 @@
 use bincode::Options;
 use game_core::{
-    ArmorBreachSet, DamageEvent, MODULE_SLOT_COUNT, MatchWeather, ShellId, ShellImpact, ShellType,
-    TRACK_HP_MAX, TankId, TeamId, VehicleKind,
+    ArmorBreach, ArmorBreachSet, DamageEvent, MODULE_SLOT_COUNT, MatchWeather, ShellId,
+    ShellImpact, ShellType, TRACK_HP_MAX, TankId, TeamId, VehicleKind,
 };
 use serde::{Deserialize, Serialize};
 use sim::{SimulationState, TankCommand, TankState};
@@ -18,6 +18,23 @@ pub mod transport;
 pub use frame::{FRAME_HEADER_LEN, FRAME_MAGIC, decode_frame, encode_frame};
 pub use snapshot_schedule::SnapshotSchedule;
 
+/// v39: persistent armour perforations leave the world snapshot for the reliable lane.
+///
+/// `TankSnapshot::armor_breaches` was a whole `ArmorBreachSet` re-sent for every tank in every
+/// snapshot, so a battle's wire cost grew monotonically with the shooting and never came back
+/// down. Measured on a full 7v7 at the sim's own `MAX_ARMOR_BREACHES`: 31 695 B, which is 28 of
+/// the transport's 28 fragments — and the reachable case (one shot owning both an ingress and an
+/// egress fragment) is 87 471 B, 2.7x a message the transport can carry at all. Past the ceiling
+/// the host's send fails and that crew simply stops receiving the world.
+///
+/// A perforation is append-only per tank and never changes once carved, which is precisely the
+/// shape the v38 lane exists for. `CombatEvent::ArmorBreach` now carries each new perforation
+/// exactly once, reliably and in order; the client replays them through the same
+/// `ArmorBreachSet::add` the server ran, so both sides converge on the same set — including the
+/// merge and capacity decisions, which depend on order. Unlike the personal damage/impact events
+/// beside them, breaches are queued to EVERY crew: a tank that is invisible now may be visible
+/// later, and a viewer who missed its perforations could never dress it correctly again.
+///
 /// v38: transient personal combat feedback has a small sequenced lane independent of fragmented
 /// world snapshots. `CombatEventBatch` repeats until `CombatEventAck`; delivery sequence is
 /// per-recipient so server-side spotting/audience filtering creates no gaps for the client.
@@ -84,7 +101,7 @@ pub use snapshot_schedule::SnapshotSchedule;
 /// v33: the T-55A clone leaves the roster and its `VehicleKind` variant is deleted outright,
 /// shifting every discriminant after it — a deliberate wire break (no live players yet;
 /// the roster rule is "no clones").
-pub const PROTOCOL_VERSION: u16 = 38;
+pub const PROTOCOL_VERSION: u16 = 39;
 
 #[derive(Debug, Error)]
 pub enum NetError {
@@ -174,8 +191,16 @@ pub struct TankSnapshot {
     /// spotting pass (protocol v16). Local authoritative snapshots are filtered per viewer before
     /// they reach the client.
     pub spotted_by_teams_mask: u8,
-    /// Persistent per-instance perforations (protocol v25); late join and replay converge.
-    #[serde(default)]
+    /// Persistent per-instance perforations — **client-local presentation state, never on the
+    /// wire** (protocol v39).
+    ///
+    /// `serde(skip)`, not `serde(default)`: this used to be replicated in full for every tank in
+    /// every snapshot, which grew a battle's payload monotonically with the shooting until the
+    /// snapshot no longer fit one transport message. Perforations now arrive as a stream of
+    /// additions on the reliable lane (`CombatEvent::ArmorBreach`), and a client fills this field
+    /// from the set it accumulates (`engine::ArmorBreachStore`) before handing the snapshot to
+    /// the render path. Writing to it does not replicate anything.
+    #[serde(skip)]
     pub armor_breaches: ArmorBreachSet,
     /// Normalized thrown-belt gap position `[left, right]` (protocol v25).
     #[serde(default)]
@@ -222,7 +247,10 @@ impl From<&TankState> for TankSnapshot {
             ammo_counts: tank.ammo_counts,
             selected_ammo: tank.selected_ammo,
             spotted_by_teams_mask: tank.spotted_mask,
-            armor_breaches: tank.armor_breaches.clone(),
+            // Deliberately NOT `tank.armor_breaches`: the field is client-local (see its doc).
+            // Filling it here would put the authoritative sets into a struct whose whole point is
+            // that they no longer travel in it, and the client overwrites it from its own store.
+            armor_breaches: ArmorBreachSet::default(),
             track_break_t: tank.track_break_t,
             engine_fire: tank.engine_fire,
             fuel_fire: tank.fuel_fire,
@@ -327,13 +355,29 @@ pub struct SnapshotDelivery {
     pub local_motion: AuthoritativeMotion,
 }
 
-/// The first reliable combat-feedback payloads. World state remains newest-wins snapshots; this
-/// lane exists only for one-shot consequences whose audio/FX/HUD meaning cannot be reconstructed
-/// after a lost packet.
+/// One perforation carved into one vehicle (protocol v39).
+///
+/// The breach is the exact value the authoritative `ArmorBreachSet::add` was given, so a client
+/// replaying it through the same call reproduces the same set — the merge and the capacity
+/// decisions both depend on the ORDER breaches arrive in, which the lane preserves.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ArmorBreachDelta {
+    pub tank: TankId,
+    pub breach: ArmorBreach,
+}
+
+/// The reliable combat-feedback payloads. World state remains newest-wins snapshots; this lane
+/// exists for consequences whose meaning cannot be reconstructed after a lost packet — either
+/// because they are one-shot (a hit, a kill, a shell's terminal) or because they are PERMANENT
+/// and a snapshot cannot afford to keep repeating them (a perforation).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum CombatEvent {
     Damage(DamageEvent),
     ShellImpact(ShellImpact),
+    /// v39. Unlike the two above, this is not personal: it goes to every crew, because a tank
+    /// that is invisible now may be visible later and a viewer who missed its perforations could
+    /// never dress it correctly again.
+    ArmorBreach(ArmorBreachDelta),
 }
 
 /// One per-recipient stream item. `delivery_seq` is continuous for this session even though the
