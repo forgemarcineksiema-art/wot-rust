@@ -129,6 +129,25 @@ pub struct TurretShape {
     pub mantlet_radius: f32,
     pub mantlet_back_z: f32,
     pub mantlet_front_z: f32,
+    /// How finely a [`TurretForm::CastDome`] is tessellated into tagged armour planes: one
+    /// plane per sector, so the impact normal SWEEPS around the casting instead of snapping
+    /// between a few flat faces. Ignored by the prism forms, whose walls really are flat.
+    ///
+    /// Authored per vehicle because it is a property of the casting, not of the engine: the
+    /// T-54's low hemispherical dome earns twice the default because its curvature is what the
+    /// whole vehicle's armour argument rests on. This lived as `if kind == T54_1951` inside the
+    /// shared bake — a content decision hiding in code, where no author could see or change it.
+    #[serde(default = "default_turret_sectors")]
+    pub sector_count: u32,
+}
+
+/// Sectors a cast dome is tessellated into when the blueprint does not say. Twelve puts a plane
+/// every 30°, which is enough that a shell meeting the shoulder of a casting does not resolve
+/// against the same normal as one meeting its centre.
+pub const DEFAULT_TURRET_SECTORS: u32 = 12;
+
+const fn default_turret_sectors() -> u32 {
+    DEFAULT_TURRET_SECTORS
 }
 
 /// Gun placement and barrel shape.

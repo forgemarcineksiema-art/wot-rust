@@ -91,6 +91,7 @@ pub(super) fn is3_blueprint() -> VehicleBlueprint {
             plan_half_length: 1.30,
             mantlet_radius: 0.35,
             mantlet_back_z: 0.95,
+            sector_count: super::DEFAULT_TURRET_SECTORS,
             mantlet_front_z: 1.25,
         },
         gun: GunShape {

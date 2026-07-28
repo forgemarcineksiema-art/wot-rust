@@ -107,6 +107,22 @@ pub fn validate_blueprint(bp: &VehicleBlueprint) -> Vec<BlueprintIssue> {
     }
 
     // --- Turret -------------------------------------------------------------------------
+    // A dome's sector count is what makes its armour normal SWEEP rather than step. Too few and
+    // the casting resolves like a coarse prism (a shell meeting the shoulder gets the centre's
+    // normal); absurdly many is a typo that costs every shell trace on that vehicle.
+    if turret.form == TurretForm::CastDome && !(6..=64).contains(&turret.sector_count) {
+        issue(
+            &mut issues,
+            e,
+            "turret.sector_count",
+            format!(
+                "a cast dome needs 6..=64 armour sectors, got {}: fewer and the casting resolves \
+                 like a coarse prism, more and every shell trace on this vehicle pays for detail \
+                 no shot can feel",
+                turret.sector_count
+            ),
+        );
+    }
     if turret.form == TurretForm::CastDome && turret.ring_radius >= turret.base_radius {
         issue(
             &mut issues,

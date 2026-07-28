@@ -64,13 +64,21 @@ pub(crate) fn impacted_module(
         return Some(ModuleSlot::Suspension);
     }
     let candidate = penetrated.then(|| module_volume_at_hit(zone, local_hit, hitbox)).flatten()?;
-    module_hit_roll_allows(candidate, zone, local_hit, hitbox).then_some(candidate.slot)
+    module_zone_exposes(candidate, zone, local_hit, hitbox).then_some(candidate.slot)
 }
 
+/// A module the struck zone can expose, and how much of that zone actually exposes it.
+///
+/// `exposure` is NOT a probability, and calling it one (it was `hit_chance`) invited exactly the
+/// wrong mental model. There is no roll: [`module_zone_fraction`] is a smooth function of WHERE
+/// on the hull the shell landed, thresholded against this number, so the outcome is a fixed map
+/// of bands over the plate — deterministic, replay-stable, and the same on every machine, which
+/// is the whole point of a game with no ±25% dice. What the number controls is how much of the
+/// zone's area falls inside those bands, not how often a die comes up.
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct ModuleHitCandidate {
     slot: ModuleSlot,
-    hit_chance: f32,
+    exposure: f32,
 }
 
 fn module_volume_at_hit(
@@ -81,7 +89,7 @@ fn module_volume_at_hit(
     let half_length = hitbox.half_length_m.max(0.01);
     let z = local_hit.z / half_length;
 
-    let (slot, hit_chance) = match zone {
+    let (slot, exposure) = match zone {
         ArmorZone::LeftTrack | ArmorZone::RightTrack => (ModuleSlot::Suspension, 1.0),
         ArmorZone::Mantlet => (ModuleSlot::Gun, 1.0),
         ArmorZone::TurretFront | ArmorZone::Roof => (ModuleSlot::Turret, 0.80),
@@ -99,29 +107,29 @@ fn module_volume_at_hit(
         ArmorZone::UpperGlacis | ArmorZone::LowerPlate => (ModuleSlot::Gun, 0.80),
         ArmorZone::HullSide | ArmorZone::Skirt => (ModuleSlot::Suspension, 0.65),
     };
-    Some(ModuleHitCandidate { slot, hit_chance })
+    Some(ModuleHitCandidate { slot, exposure })
 }
 
-fn module_hit_roll_allows(
+fn module_zone_exposes(
     candidate: ModuleHitCandidate,
     zone: ArmorZone,
     local_hit: Vec3,
     hitbox: HitboxProfile,
 ) -> bool {
-    if candidate.hit_chance >= 1.0 {
+    if candidate.exposure >= 1.0 {
         return true;
     }
-    module_hit_roll(zone, local_hit, hitbox) <= candidate.hit_chance
+    module_zone_fraction(zone, local_hit, hitbox) <= candidate.exposure
 }
 
-fn module_hit_roll(zone: ArmorZone, local_hit: Vec3, hitbox: HitboxProfile) -> f32 {
+fn module_zone_fraction(zone: ArmorZone, local_hit: Vec3, hitbox: HitboxProfile) -> f32 {
     let x = local_hit.x.abs() / hitbox.half_width_m.max(0.01);
     let y = local_hit.y.abs() / hitbox.half_height_m.max(0.01);
     let z = local_hit.z.abs() / hitbox.half_length_m.max(0.01);
-    ((x * 0.53) + (y * 0.19) + (z * 0.31) + zone_roll_bias(zone)).fract()
+    ((x * 0.53) + (y * 0.19) + (z * 0.31) + zone_band_offset(zone)).fract()
 }
 
-fn zone_roll_bias(zone: ArmorZone) -> f32 {
+fn zone_band_offset(zone: ArmorZone) -> f32 {
     match zone {
         ArmorZone::UpperGlacis => 0.11,
         ArmorZone::LowerPlate => 0.17,
