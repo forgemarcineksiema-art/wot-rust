@@ -164,13 +164,33 @@ impl ContactImpulse {
     }
 }
 
+/// One PAIR's collision, as the solver resolved it. Ram damage reads these instead of measuring a
+/// closing speed of its own against a slop radius of its own: the collision that hurts is the
+/// collision the physics actually resolved, or the two answer differently and one of them is lying.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ContactPair {
+    pub a: usize,
+    pub b: usize,
+    /// Total normal impulse exchanged, in newton-seconds — mass and closing speed already folded
+    /// together, which is exactly what a collision's severity is.
+    pub normal_impulse_ns: f32,
+}
+
+/// Everything one tick of contact produced: what each hull took, and what each pair exchanged.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct ContactReport {
+    pub bodies: Vec<ContactImpulse>,
+    pub pairs: Vec<ContactPair>,
+}
+
 /// Solve every hull-to-hull contact in the roster and report what each hull took. `bodies` is left
 /// untouched; the caller applies the deltas, because the caller owns the authoritative state.
-pub fn resolve_contacts(bodies: &[ContactBody], dt: f32) -> Vec<ContactImpulse> {
+pub fn resolve_contacts(bodies: &[ContactBody], dt: f32) -> ContactReport {
     let mut out = vec![ContactImpulse::default(); bodies.len()];
     if bodies.len() < 2 {
-        return out;
+        return ContactReport { bodies: out, pairs: Vec::new() };
     }
+    let mut pairs: Vec<ContactPair> = Vec::new();
     // Working copy: iterations converge against the accumulating solution, but within a single
     // iteration every pair reads the SAME state, so the pass order cannot change the result.
     let mut velocity: Vec<Vec3> = bodies.iter().map(|body| body.velocity).collect();
@@ -256,6 +276,10 @@ pub fn resolve_contacts(bodies: &[ContactBody], dt: f32) -> Vec<ContactImpulse> 
 
                 out[a].normal_impulse_ns += magnitude;
                 out[b].normal_impulse_ns += magnitude;
+                match pairs.iter_mut().find(|pair| pair.a == a && pair.b == b) {
+                    Some(pair) => pair.normal_impulse_ns += magnitude,
+                    None => pairs.push(ContactPair { a, b, normal_impulse_ns: magnitude }),
+                }
             }
         }
         for index in 0..bodies.len() {
@@ -268,7 +292,7 @@ pub fn resolve_contacts(bodies: &[ContactBody], dt: f32) -> Vec<ContactImpulse> 
         out[index].delta_velocity = velocity[index] - bodies[index].velocity;
         out[index].delta_yaw_rate_rad_s = yaw_rate[index] - bodies[index].yaw_rate_rad_s;
     }
-    out
+    ContactReport { bodies: out, pairs }
 }
 
 /// Push overlapping hulls apart, and report how far each one had to give.
@@ -353,7 +377,7 @@ mod tests {
     fn a_charging_hull_pushes_a_parked_one_and_pays_for_it() {
         let charger = hull(0.0, 0.0, 0.0, Vec3::new(0.0, 0.0, 12.0), 36_000.0);
         let parked = hull(0.0, 6.0, 0.0, Vec3::ZERO, 36_000.0);
-        let impulses = resolve_contacts(&[charger, parked], DT);
+        let impulses = resolve_contacts(&[charger, parked], DT).bodies;
 
         assert!(impulses[1].delta_velocity.z > 0.5, "the parked hull must be shoved forward");
         assert!(impulses[0].delta_velocity.z < -0.5, "and the charger must lose that momentum");
@@ -366,7 +390,7 @@ mod tests {
     fn the_pair_conserves_momentum() {
         let light = hull(0.0, 0.0, 0.0, Vec3::new(0.0, 0.0, 14.0), 20_000.0);
         let heavy = hull(0.0, 6.0, 0.0, Vec3::ZERO, 60_000.0);
-        let impulses = resolve_contacts(&[light, heavy], DT);
+        let impulses = resolve_contacts(&[light, heavy], DT).bodies;
 
         let gained = impulses[1].delta_velocity.z * 60_000.0;
         let lost = -impulses[0].delta_velocity.z * 20_000.0;
@@ -385,10 +409,10 @@ mod tests {
         // Victim broadside across the charger's path, struck near its nose.
         let charger = hull(0.0, 0.0, 0.0, Vec3::new(0.0, 0.0, 14.0), 36_000.0);
         let offset = hull(-2.6, 4.4, std::f32::consts::FRAC_PI_2, Vec3::ZERO, 36_000.0);
-        let spun = resolve_contacts(&[charger, offset], DT)[1].delta_yaw_rate_rad_s.abs();
+        let spun = resolve_contacts(&[charger, offset], DT).bodies[1].delta_yaw_rate_rad_s.abs();
 
         let centred = hull(0.0, 4.4, std::f32::consts::FRAC_PI_2, Vec3::ZERO, 36_000.0);
-        let square = resolve_contacts(&[charger, centred], DT)[1].delta_yaw_rate_rad_s.abs();
+        let square = resolve_contacts(&[charger, centred], DT).bodies[1].delta_yaw_rate_rad_s.abs();
 
         assert!(spun > 0.05, "a nose-on t-bone must slew the victim, got {spun} rad/s");
         assert!(square < spun * 0.25, "a centred hit must barely spin it: {square} vs {spun}");
@@ -401,8 +425,8 @@ mod tests {
         let a = hull(0.0, 0.0, 0.3, Vec3::new(1.0, 0.0, 11.0), 34_000.0);
         let b = hull(0.6, 5.8, 1.1, Vec3::new(0.0, 0.0, -2.0), 48_000.0);
 
-        let forward = resolve_contacts(&[a, b], DT);
-        let reversed = resolve_contacts(&[b, a], DT);
+        let forward = resolve_contacts(&[a, b], DT).bodies;
+        let reversed = resolve_contacts(&[b, a], DT).bodies;
 
         assert_eq!(forward[0], reversed[1], "the same hull must take the same impulse");
         assert_eq!(forward[1], reversed[0]);
@@ -414,7 +438,7 @@ mod tests {
     fn separating_hulls_are_left_alone() {
         let a = hull(0.0, 0.0, 0.0, Vec3::new(0.0, 0.0, -6.0), 36_000.0);
         let b = hull(0.0, 5.5, 0.0, Vec3::new(0.0, 0.0, 6.0), 36_000.0);
-        let impulses = resolve_contacts(&[a, b], DT);
+        let impulses = resolve_contacts(&[a, b], DT).bodies;
         assert_eq!(impulses[0].normal_impulse_ns, 0.0);
         assert_eq!(impulses[1].normal_impulse_ns, 0.0);
         assert_eq!(impulses[0].delta_velocity, Vec3::ZERO);
@@ -455,7 +479,7 @@ mod tests {
         wreck.movable = false;
         let charger = hull(0.0, 0.0, 0.0, Vec3::new(0.0, 0.0, 12.0), 36_000.0);
 
-        let impulses = resolve_contacts(&[charger, wreck], DT);
+        let impulses = resolve_contacts(&[charger, wreck], DT).bodies;
         assert_eq!(impulses[1].delta_velocity, Vec3::ZERO, "a wreck is not shoved");
         assert!(impulses[0].delta_velocity.z < -0.5, "and the charger is stopped by it");
 
@@ -468,7 +492,8 @@ mod tests {
     #[test]
     fn a_lone_hull_takes_nothing() {
         let impulses =
-            resolve_contacts(&[hull(0.0, 0.0, 0.0, Vec3::new(0.0, 0.0, 12.0), 36_000.0)], DT);
+            resolve_contacts(&[hull(0.0, 0.0, 0.0, Vec3::new(0.0, 0.0, 12.0), 36_000.0)], DT)
+                .bodies;
         assert!(impulses[0].is_empty());
         assert_eq!(impulses[0].delta_velocity, Vec3::ZERO);
     }

@@ -8,7 +8,7 @@ use crate::aim_dispersion::recover_aim_dispersion;
 use crate::combat::{CombatTickContext, fire_click_buffers, try_fire_shell};
 use crate::event_stamp::{BattleEventOutput, BattleEventStamp};
 use crate::landing::apply_landing_impact;
-use crate::ramming::{apply_ramming_damage, capture_ramming_snapshots};
+use crate::ramming::apply_ramming_damage;
 use crate::shell::ShellState;
 use crate::shell_step::step_shells;
 use crate::tank_drive::TankDriveWorld;
@@ -308,7 +308,6 @@ impl SimulationState {
         // ...and the third resolution: what a hull STANDS ON. A collapsed building is debris, and
         // debris is ground — the support envelope and the drive's own slope probe both read it.
         let rubble = crate::cover_damage::rubble_mounds(cover, &self.cover_states);
-        let ramming_before = capture_ramming_snapshots(&self.tanks);
         for tank in &mut self.tanks {
             tank.reload_remaining_s = (tank.reload_remaining_s - dt).max(0.0);
             recover_aim_dispersion(tank, dt);
@@ -370,7 +369,7 @@ impl SimulationState {
         }
 
         // PHASE 2 — the contacts.
-        self.exchange_contact_momentum(dt);
+        let contact_pairs = self.exchange_contact_momentum(dt);
 
         // PHASE 3 — spend what survived, then finish each hull's tick.
         for (index, command, phase) in phases {
@@ -416,11 +415,10 @@ impl SimulationState {
         self.separate_overlapping_hulls(live_cover.movement(), heightmap);
 
         apply_ramming_damage(
-            &ramming_before,
+            &contact_pairs,
             &mut self.tanks,
             &mut self.damage_events,
             &mut event_stamp,
-            dt,
         );
         // ...and the wrecks settle onto the ground under them, whether they were killed in
         // mid-air or the ground moved after they died (see `wreck`).
@@ -513,18 +511,20 @@ impl SimulationState {
     /// Solved against predicted positions — where each velocity is about to put its hull — so a
     /// collision is refused before it happens rather than repaired after. Wrecks take part as
     /// dead weight: they stop a charge without giving ground.
-    fn exchange_contact_momentum(&mut self, dt: f32) {
+    fn exchange_contact_momentum(&mut self, dt: f32) -> Vec<physics::ContactPair> {
         if self.tanks.len() < 2 {
-            return;
+            return Vec::new();
         }
         let bodies = self.contact_bodies();
-        for (index, impulse) in physics::resolve_contacts(&bodies, dt).iter().enumerate() {
+        let report = physics::resolve_contacts(&bodies, dt);
+        for (index, impulse) in report.bodies.iter().enumerate() {
             if impulse.is_empty() || self.tanks[index].hit_points == 0 {
                 continue;
             }
             self.tanks[index].velocity_mps += impulse.delta_velocity;
             self.tanks[index].hull_yaw_velocity_rad_s += impulse.delta_yaw_rate_rad_s;
         }
+        report.pairs
     }
 
     /// PHASE 4: ease apart anything still overlapping — a pivot that swung an oriented footprint

@@ -75,9 +75,7 @@ pub fn step_tank_drive(
 #[derive(Debug, Clone, Copy)]
 pub struct DrivePhase {
     settings: TankControllerSettings,
-    /// `None` when both tracks are thrown — the hull is not going anywhere and no contact solve
-    /// or settle has anything to do for it.
-    step: Option<physics::TankStepContact>,
+    step: physics::TankStepContact,
 }
 
 /// PHASE 1: decide the hull's velocity and heading for this tick without moving it, so a caller
@@ -90,13 +88,25 @@ pub fn advance_tank_drive(
     command: TankCommand,
     dt: f32,
 ) -> DrivePhase {
-    if !modules.tracks.any_ok() {
-        // A thrown track removes all hull motion, linear and angular.
-        drive.kinematic.velocity = glam::Vec3::ZERO;
-        drive.kinematic.yaw_rate_rad_s = 0.0;
-        return DrivePhase { settings: TankControllerSettings::from_spec(spec), step: None };
-    }
-    let (settings, input) = drive_inputs(spec, modules, command);
+    let (settings, input) = if modules.tracks.any_ok() {
+        drive_inputs(spec, modules, command)
+    } else {
+        // Both tracks thrown. The hull has no drive and no steering — and the shed belts drag
+        // under it, which is what the brake channel already models, so it stops within a hull
+        // length or two.
+        //
+        // What it does NOT do is lose the momentum it already had. This used to force the
+        // velocity to ZERO every tick, which was invisible while a hull's own drive was the only
+        // thing that could put velocity there and became a real hole the moment CONTACT could: a
+        // ram throws the victim's track, and from that instant the victim was unpushable — the
+        // handbrake of a dead vehicle deleting the shove that had just been handed to it. It also
+        // froze a hull thrown in mid-air, since the whole world step was skipped with it.
+        // A thrown track removes the DRIVE, not the momentum.
+        (
+            TankControllerSettings::from_spec(spec),
+            TankControlInput { throttle: 0.0, steer: 0.0, brake: 1.0 },
+        )
+    };
     let obstacles = drive_obstacles(spec, world);
     let step = physics::advance_tank_on_world(
         &mut drive.kinematic,
@@ -107,7 +117,7 @@ pub fn advance_tank_drive(
         world.footprint,
         dt,
     );
-    DrivePhase { settings, step: Some(step) }
+    DrivePhase { settings, step }
 }
 
 /// PHASE 3: spend the velocity the hull ended up with — after any contact solve has had its say —
@@ -121,18 +131,15 @@ pub fn settle_tank_drive(
     phase: DrivePhase,
     dt: f32,
 ) -> GroundStep {
-    let ground = match phase.step {
-        Some(step) => physics::settle_tank_on_world(
-            &mut drive.kinematic,
-            &phase.settings,
-            step,
-            world.heightmap,
-            drive_obstacles(spec, world),
-            world.footprint,
-            dt,
-        ),
-        None => GroundStep::resting(),
-    };
+    let ground = physics::settle_tank_on_world(
+        &mut drive.kinematic,
+        &phase.settings,
+        phase.step,
+        world.heightmap,
+        drive_obstacles(spec, world),
+        world.footprint,
+        dt,
+    );
     finish_tank_drive(drive, spec, modules, command, dt);
     ground
 }

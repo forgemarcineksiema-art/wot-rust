@@ -139,10 +139,32 @@ fn a_charging_hull_shoves_the_one_it_runs_into() {
     assert!(gap > 5.5, "the hulls must not end up inside each other, gap {gap} m");
 }
 
-// What this test does NOT yet lock, and why: SUSTAINED bulldozing. The impact transfers momentum
-// correctly (measured: 9.56 m/s equalising to 4.79 m/s across the pair, exactly inelastic), and
-// then the victim stops being pushable — because the ram throws its track, and a thrown-track hull
-// has its velocity forced to ZERO every tick in `tank_drive::advance_tank_drive`. That is the same
-// class of bug as the park brake fixed in `physics::forces` on this branch: momentum DELETED
-// rather than resisted, invisible for as long as a hull's own drive was the only thing that could
-// put velocity there. A thrown track must remove the DRIVE, not the momentum.
+/// ...and the push KEEPS. A shove that dies with the first impact is an event; one that lasts is
+/// a tactic — you drive someone off a ridge, out of hull-down, back into your own guns.
+///
+/// This is the test that named three separate places where the model DELETED momentum instead of
+/// resisting it: the park brake zeroing anything below its grab threshold, a thrown track forcing
+/// the velocity to zero every tick (and a ram throws the victim's track on the first hit), and a
+/// contact with no tangential friction letting the pair slide apart. All three were invisible for
+/// as long as a hull's own drive was the only thing that could put velocity into it.
+#[test]
+fn a_charging_hull_keeps_shoving_and_does_not_pass_through() {
+    let mut state = SimulationState::new();
+    let charger = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
+    let parked = state.spawn_tank(TeamId(2), TankSpec::t54_1951(), Vec3::new(0.0, 0.0, 30.0));
+    let parked_start = state.tank(parked).expect("parked").position.z;
+    let step = FixedTimestep::from_hz(60);
+
+    for _ in 0..900 {
+        state.apply_commands(
+            &[(charger, TankCommand::drive(1.0, 0.0)), (parked, TankCommand::idle())],
+            step,
+        );
+    }
+
+    let pushed = state.tank(parked).expect("parked").position.z - parked_start;
+    assert!(pushed > 3.0, "the hull must be driven down the field, got {pushed} m");
+    let gap = state.tank(parked).expect("parked").position.z
+        - state.tank(charger).expect("charger").position.z;
+    assert!(gap > 5.5, "and the charger must stay behind it, not through it — gap {gap} m");
+}
