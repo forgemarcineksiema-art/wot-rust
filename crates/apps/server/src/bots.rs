@@ -151,11 +151,13 @@ impl BotRoster {
     /// destroyed objects omitted) — the same slice every authoritative consumer uses. Bots must
     /// never raycast the raw authored cover: a bot would keep "hiding" behind a building the
     /// battle has already flattened, and would refuse to fire through the hole it just made.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn commands(
         &mut self,
         tick: u64,
         tanks: &[TankState],
         battlefield: &BattlefieldMap,
+        ground: Option<&terrain::GroundClassifier>,
         live_cover: &[terrain::StaticCoverObject],
         battle_over: bool,
         damage_events: &[DamageEvent],
@@ -176,6 +178,7 @@ impl BotRoster {
                             tank,
                             tanks,
                             battlefield,
+                            ground,
                             live_cover,
                         )
                     }
@@ -210,6 +213,7 @@ fn bot_command_for_tank(
     tank: &TankState,
     tanks: &[TankState],
     battlefield: &BattlefieldMap,
+    ground: Option<&terrain::GroundClassifier>,
     live_cover: &[terrain::StaticCoverObject],
 ) -> TankCommand {
     // Survival preempts everything, combat included: a hull past the route brain's deep-water
@@ -217,10 +221,10 @@ fn bot_command_for_tank(
     // the shortest way back to shallow water before doing anything else. Fords (<= 0.9 m) never
     // trip this; the escape resets the stall counter so the slow wade out is not misread as
     // being stuck.
-    if crate::bot_routes::bot_in_deep_water(tank, battlefield) {
+    if crate::bot_routes::bot_in_deep_water(tank, battlefield, ground) {
         agent.stall_ticks = 0;
         agent.last_position = Some(tank.position);
-        return crate::bot_routes::water_escape_command(tank, battlefield);
+        return crate::bot_routes::water_escape_command(tank, battlefield, ground);
     }
     // The futile-target hold runs down whether fighting or driving.
     if let Some((_, ticks)) = &mut agent.futile_hold {
@@ -493,6 +497,7 @@ mod tests {
                 0,
                 std::slice::from_ref(&bot),
                 &battlefield,
+                None,
                 &battlefield.static_cover,
                 false,
                 &[],
@@ -547,7 +552,7 @@ mod tests {
             let mut roster = BotRoster::new(vec![bot.id], BattleSeed::fixed(7));
             // Run past the cold-acquisition stagger so the selection cadence certainly fired.
             for tick in 0..=ACQUIRE_INTERVAL_TICKS {
-                roster.commands(tick, &tanks, &battlefield, live_cover, false, &[]);
+                roster.commands(tick, &tanks, &battlefield, None, live_cover, false, &[]);
             }
             roster.agents[0].target
         };
@@ -589,6 +594,7 @@ mod tests {
                 0,
                 std::slice::from_ref(&bot),
                 &battlefield,
+                None,
                 &battlefield.static_cover,
                 false,
                 &[],
@@ -622,17 +628,31 @@ mod tests {
         // Engage on a cadence tick (tick + id divisible by the reselect interval).
         let due_tick = TARGET_RESELECT_INTERVAL_TICKS - bot_id.0 % TARGET_RESELECT_INTERVAL_TICKS;
         let tanks = [bot.clone(), first.clone()];
-        let engaged =
-            roster.commands(due_tick, &tanks, &battlefield, &battlefield.static_cover, false, &[])
-                [0]
-            .1;
+        let engaged = roster.commands(
+            due_tick,
+            &tanks,
+            &battlefield,
+            None,
+            &battlefield.static_cover,
+            false,
+            &[],
+        )[0]
+        .1;
         assert!(engaged.brake > 0.0, "the bot stands to fight the spotted enemy");
         assert_eq!(roster.agents[0].target, Some(first.id));
 
         // A NEARER enemy appears off-cadence: the held target must not flick.
         let nearer = tank(3, TeamId(2), grounded(300.0, 340.0), mask);
         let tanks = [bot.clone(), first.clone(), nearer.clone()];
-        roster.commands(due_tick + 1, &tanks, &battlefield, &battlefield.static_cover, false, &[]);
+        roster.commands(
+            due_tick + 1,
+            &tanks,
+            &battlefield,
+            None,
+            &battlefield.static_cover,
+            false,
+            &[],
+        );
         assert_eq!(
             roster.agents[0].target,
             Some(first.id),
@@ -644,6 +664,7 @@ mod tests {
             due_tick + TARGET_RESELECT_INTERVAL_TICKS,
             &tanks,
             &battlefield,
+            None,
             &battlefield.static_cover,
             false,
             &[],
@@ -658,6 +679,7 @@ mod tests {
             due_tick + TARGET_RESELECT_INTERVAL_TICKS + 1,
             &tanks,
             &battlefield,
+            None,
             &battlefield.static_cover,
             false,
             &[],
@@ -679,7 +701,7 @@ mod tests {
         let ground = battlefield.heightmap.sample_height(x, 400.0).expect("in the map");
         let bot = test_support::tank_at(1, TeamId(1), Vec3::new(x, ground, 400.0));
         assert!(
-            crate::bot_routes::bot_in_deep_water(&bot, &battlefield),
+            crate::bot_routes::bot_in_deep_water(&bot, &battlefield, None),
             "mid-channel must read as deep (test premise)"
         );
 
@@ -688,6 +710,7 @@ mod tests {
             0,
             std::slice::from_ref(&bot),
             &battlefield,
+            None,
             &battlefield.static_cover,
             false,
             &[],
@@ -718,15 +741,15 @@ mod tests {
 
         // Tick 30: neither bot's acquire slice is due ((30+1)%3=1, (30+2)%3=2) — nobody
         // raycasts on the hypothetical recompute tick itself.
-        roster.commands(30, &world, &battlefield, &battlefield.static_cover, false, &[]);
+        roster.commands(30, &world, &battlefield, None, &battlefield.static_cover, false, &[]);
         assert_eq!(roster.agents[0].target, None);
         assert_eq!(roster.agents[1].target, None);
 
         // Tick 31: bot 2's slice. Tick 32: bot 1's. Everyone is locked within the interval.
-        roster.commands(31, &world, &battlefield, &battlefield.static_cover, false, &[]);
+        roster.commands(31, &world, &battlefield, None, &battlefield.static_cover, false, &[]);
         assert_eq!(roster.agents[0].target, None);
         assert_eq!(roster.agents[1].target, Some(enemy.id));
-        roster.commands(32, &world, &battlefield, &battlefield.static_cover, false, &[]);
+        roster.commands(32, &world, &battlefield, None, &battlefield.static_cover, false, &[]);
         assert_eq!(roster.agents[0].target, Some(enemy.id));
         assert_eq!(roster.agents[1].target, Some(enemy.id));
     }
@@ -756,6 +779,7 @@ mod tests {
             1,
             std::slice::from_ref(&bot),
             &battlefield,
+            None,
             &battlefield.static_cover,
             false,
             &[hit],
@@ -788,6 +812,7 @@ mod tests {
             1,
             std::slice::from_ref(&bot),
             &battlefield,
+            None,
             &battlefield.static_cover,
             false,
             &[hit],
@@ -799,6 +824,7 @@ mod tests {
                 u64::from(tick) + 2,
                 std::slice::from_ref(&bot),
                 &battlefield,
+                None,
                 &battlefield.static_cover,
                 false,
                 &[],
@@ -845,6 +871,7 @@ mod tests {
             due_tick,
             &tanks,
             &battlefield,
+            None,
             &battlefield.static_cover,
             false,
             &[rear_hit],
@@ -868,6 +895,7 @@ mod tests {
             0,
             std::slice::from_ref(&bot),
             &battlefield,
+            None,
             &battlefield.static_cover,
             true,
             &[],
@@ -880,6 +908,7 @@ mod tests {
             0,
             std::slice::from_ref(&bot),
             &battlefield,
+            None,
             &battlefield.static_cover,
             false,
             &[],

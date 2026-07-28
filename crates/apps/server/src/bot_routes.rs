@@ -136,6 +136,9 @@ const WATER_REACTION_S: f32 = 0.25;
 /// figure is deliberately pessimistic — probing too far only makes a bot turn away from a
 /// channel it was never going to enter, while probing too short drowns it.
 const WATER_BRAKE_DECEL_MPS2: f32 = 2.5;
+/// However slick the ground, the probe never assumes LESS stopping power than this — a floor keeps
+/// a degenerate surface from making the reach unbounded.
+const WATER_BRAKE_DECEL_FLOOR_MPS2: f32 = 1.2;
 /// Sampling step along the approach probe — finer than the narrowest authored channel, so a
 /// probe cannot straddle deep water and miss it.
 const WATER_APPROACH_STEP_M: f32 = 2.5;
@@ -148,7 +151,11 @@ const WATER_APPROACH_MIN_SPEED_MPS: f32 = 0.5;
 /// Fords are never caught by this: every authored ford stays at or under
 /// `physics::water::FORD_MAX_DEPTH_M` (0.9), well under the 1.2 m the probe looks for, and a
 /// crossing deck stands clear of the water entirely.
-pub(crate) fn bot_in_deep_water(tank: &TankState, battlefield: &BattlefieldMap) -> bool {
+pub(crate) fn bot_in_deep_water(
+    tank: &TankState,
+    battlefield: &BattlefieldMap,
+    ground: Option<&terrain::GroundClassifier>,
+) -> bool {
     let here = water_depth_at(battlefield, tank.position.x, tank.position.z);
     if here > BOT_DEEP_WATER_M {
         return true;
@@ -161,7 +168,7 @@ pub(crate) fn bot_in_deep_water(tank: &TankState, battlefield: &BattlefieldMap) 
     if speed < WATER_APPROACH_MIN_SPEED_MPS {
         return false;
     }
-    let reach = braking_reach_m(speed);
+    let reach = braking_reach_m(speed, escape_decel_mps2(tank, battlefield, ground));
     let step = heading / speed * reach;
     let steps = (reach / WATER_APPROACH_STEP_M).ceil().max(1.0) as usize;
     (1..=steps).any(|probe| {
@@ -172,8 +179,37 @@ pub(crate) fn bot_in_deep_water(tank: &TankState, battlefield: &BattlefieldMap) 
 
 /// Reaction room plus braking room for a hull travelling at `speed` — the distance the escape
 /// has to work with before the water decides the outcome.
-fn braking_reach_m(speed: f32) -> f32 {
-    speed * WATER_REACTION_S + speed * speed / (2.0 * WATER_BRAKE_DECEL_MPS2)
+fn braking_reach_m(speed: f32, decel_mps2: f32) -> f32 {
+    speed * WATER_REACTION_S + speed * speed / (2.0 * decel_mps2.max(0.2))
+}
+
+/// How hard this hull can actually stop, HERE.
+///
+/// A fixed figure was fine while every surface was the same surface. It stopped being fine when
+/// the ground became a material: the strip a hull brakes on while backing out of water is the wet
+/// margin, which gives less bite than the grass [`WATER_BRAKE_DECEL_MPS2`] was measured over.
+///
+/// The empirical figure is SCALED by the surface, not replaced by it. Computing the brake's own
+/// physical limit instead was the first attempt and it made the probe WORSE: reversing out of
+/// water fights the slope and the water's drag as well, so the honest brake cap (~4.8 m/s²) is far
+/// above what a hull achieves there, and using it SHORTENED the reach.
+/// `sim::braking_deceleration_mps2` still bounds the result, because the escape may never assume
+/// more stopping power than the tracks could deliver at all.
+fn escape_decel_mps2(
+    tank: &TankState,
+    battlefield: &BattlefieldMap,
+    ground: Option<&terrain::GroundClassifier>,
+) -> f32 {
+    let grip = ground
+        .map(|ground| {
+            ground
+                .properties_at(&battlefield.heightmap, tank.position.x, tank.position.z)
+                .grip_scale
+        })
+        .unwrap_or(1.0);
+    (WATER_BRAKE_DECEL_MPS2 * grip)
+        .min(sim::braking_deceleration_mps2(&tank.spec, grip))
+        .max(WATER_BRAKE_DECEL_FLOOR_MPS2)
 }
 
 /// How far out the escape looks when picking its way to dry ground.
@@ -198,12 +234,17 @@ const WATER_ESCAPE_SAMPLES: usize = 5;
 ///    the shallowest bearing around the hull and takes it whichever way is quicker: forward when
 ///    the way out is roughly ahead, reverse when it is behind. A flooding hull must not spend
 ///    the escape performing a U-turn.
-pub(crate) fn water_escape_command(tank: &TankState, battlefield: &BattlefieldMap) -> TankCommand {
+pub(crate) fn water_escape_command(
+    tank: &TankState,
+    battlefield: &BattlefieldMap,
+    ground: Option<&terrain::GroundClassifier>,
+) -> TankCommand {
     let here = water_depth_at(battlefield, tank.position.x, tank.position.z);
     let drift = Vec3::new(tank.velocity_mps.x, 0.0, tank.velocity_mps.z);
     let speed = drift.length();
     if speed >= WATER_APPROACH_MIN_SPEED_MPS {
-        let ahead = tank.position + drift / speed * braking_reach_m(speed);
+        let ahead = tank.position
+            + drift / speed * braking_reach_m(speed, escape_decel_mps2(tank, battlefield, ground));
         if water_depth_at(battlefield, ahead.x, ahead.z) > here {
             // Kill the plunge along the hull's axis and nothing else: scrubbing sideways at the
             // same time only lengthens the stop, and the hull is not going anywhere useful until
@@ -660,14 +701,14 @@ mod tests {
         let mut parked = on_the_bystra_west_bank(&map);
         parked.velocity_mps = Vec3::ZERO;
         assert!(
-            !bot_in_deep_water(&parked, &map),
+            !bot_in_deep_water(&parked, &map, None),
             "a standing hull on the bank is not drowning — it can simply drive away"
         );
 
         let mut charging = parked.clone();
         charging.velocity_mps = Vec3::new(9.0, 0.0, 0.0); // straight at the channel
         assert!(
-            bot_in_deep_water(&charging, &map),
+            bot_in_deep_water(&charging, &map, None),
             "at 9 m/s the channel is inside the braking distance — that IS the emergency"
         );
     }
@@ -682,9 +723,12 @@ mod tests {
         // Bow and velocity both point east, into the channel.
         diving.yaw_rad = std::f32::consts::FRAC_PI_2;
         diving.velocity_mps = Vec3::new(9.0, 0.0, 0.0);
-        assert!(bot_in_deep_water(&diving, &map), "the dive must be an emergency (test premise)");
+        assert!(
+            bot_in_deep_water(&diving, &map, None),
+            "the dive must be an emergency (test premise)"
+        );
 
-        let command = water_escape_command(&diving, &map);
+        let command = water_escape_command(&diving, &map, None);
         assert!(
             command.throttle < 0.0,
             "a hull diving at the channel must reverse against its own momentum, got {command:?}"
@@ -707,7 +751,7 @@ mod tests {
         let here = water_depth_at(&map, x, 420.0);
         assert!(here > BOT_DEEP_WATER_M, "mid-channel must read as deep (test premise)");
 
-        let command = water_escape_command(&stalled, &map);
+        let command = water_escape_command(&stalled, &map, None);
         // The bearing the hull will actually travel: astern when reversing, ahead otherwise.
         let travel = if command.throttle < 0.0 {
             stalled.yaw_rad + std::f32::consts::PI

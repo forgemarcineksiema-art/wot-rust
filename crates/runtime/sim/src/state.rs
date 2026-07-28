@@ -142,6 +142,12 @@ impl SimulationState {
         self.ground = ground;
     }
 
+    /// The map's ground rule, for anything that must reason about the surface a hull is on —
+    /// the bots' water escape has to know what it is braking over.
+    pub fn ground(&self) -> Option<&terrain::GroundClassifier> {
+        self.ground.as_ref()
+    }
+
     pub fn tick(&self) -> u64 {
         self.tick
     }

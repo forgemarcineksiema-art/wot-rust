@@ -159,6 +159,20 @@ fn drive_obstacles<'a>(spec: &TankSpec, world: TankDriveWorld<'a>) -> TankWorldO
     .with_ground(world.ground)
 }
 
+/// How hard a hull can actually stop on ground of the given grip scale.
+///
+/// Braking is grip-limited, so it is the smaller of what the brakes can demand and what the
+/// tracks can deliver — the same `mu * g * traction` cap the drive is bounded by. Exposed because
+/// anything PLANNING around a stop has to plan with the real number: the bots' water escape reads
+/// it to size its approach probe, and a fixed figure under-reached exactly on the slick wet margin
+/// where backing out of a channel actually happens.
+pub fn braking_deceleration_mps2(spec: &TankSpec, ground_grip_scale: f32) -> f32 {
+    let settings = TankControllerSettings::from_spec(spec);
+    let track_limit =
+        settings.longitudinal_grip_mu * game_core::math::GRAVITY_MPS2 * ground_grip_scale.max(0.0);
+    settings.brake_deceleration_mps2.min(track_limit)
+}
+
 /// The controller settings and control input one tick of module damage implies.
 ///
 /// Partial module damage shapes the drive continuously: a wounded engine delivers less P/v power

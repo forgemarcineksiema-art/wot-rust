@@ -231,6 +231,7 @@ impl LocalAuthoritativeServer {
             self.sim.tick(),
             self.sim.tanks(),
             &self.battlefield,
+            self.sim.ground(),
             &live_cover,
             battle_over,
             self.sim.damage_events(),

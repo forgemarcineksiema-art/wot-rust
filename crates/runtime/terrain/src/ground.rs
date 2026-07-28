@@ -57,13 +57,24 @@ impl GroundMaterial {
     /// finally tuned. Grass is the reference at exactly 1.0, so a map of pure grass drives
     /// bit-identically to the model before ground material existed.
     ///
-    /// GRIP is held on a short leash for now, and the reason is worth recording rather than
-    /// discovering again. Gameplay systems above the drive were tuned against uniform grass, and
-    /// the first one to break was the bots' water escape: a wet bank classified as worn earth gave
-    /// less bite than the constant their reverse-out was measured with, and the Bystra soak caught
-    /// them driving straight into the channel at a steady 3.3 m/s. ROLLING RESISTANCE carries most
-    /// of the first pass's character because nothing above the drive depends on it. The grip
-    /// envelope opens once the water escape reads the ground it is braking on.
+    /// GRIP stays on a short leash, and the reason took three wrong guesses to pin down, so it is
+    /// written out. The Bystra bot soak breaks when the wet margin loses much bite, and the
+    /// mechanism is NOT what it looks like:
+    ///
+    /// * not the route brain's deep-water line — moving it left the failure at the identical tick
+    ///   and the identical position;
+    /// * not a shove from a neighbour — the hull has nobody within 9 m;
+    /// * not a disabled hull sliding — its tracks are whole and nothing is destroyed.
+    ///
+    /// The escape IS engaged (it zeroes steer while it kills the plunge, which is exactly the
+    /// frozen heading the trace shows) and simply cannot win: on a descending slick bank, reverse
+    /// thrust does not overcome gravity plus the water's drag, and the hull rides down at terminal
+    /// velocity. Extracting it needs the escape to steer ALONG the contour rather than straight
+    /// back — a control redesign, not a constant.
+    ///
+    /// So the first pass carries its character in ROLLING RESISTANCE, which nothing above the
+    /// drive plans against, and keeps grip inside a narrow band. The envelope opens when the
+    /// escape learns to climb out sideways.
     pub fn properties(self) -> GroundProperties {
         match self {
             GroundMaterial::Grass => {
