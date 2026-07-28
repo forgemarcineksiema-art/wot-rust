@@ -100,7 +100,7 @@ impl RunningGearKinematics {
     /// the SAME live track it bakes everything else from.
     pub fn from_track(track: &game_core::TrackShape) -> Self {
         let track = *track;
-        let cy = (track.top_y + track.bottom_y) * 0.5;
+        let cy = track.axle_y();
         let cz = (track.wheel_first_z + track.wheel_last_z) * 0.5;
         let half_run = (track.wheel_last_z - track.wheel_first_z) * 0.5;
         // Wheel stations come from the blueprint (explicit for the T-54's signature wider

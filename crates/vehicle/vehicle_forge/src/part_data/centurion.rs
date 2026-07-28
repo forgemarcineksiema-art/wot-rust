@@ -17,8 +17,10 @@ pub(crate) fn centurion_parts(bp: &VehicleBlueprint) -> Vec<ForgePart> {
     let skirt = h.skirt.expect("the Centurion authors a skirt");
 
     let track_mid_y = 0.5 * (t.top_y + t.bottom_y);
-    let wheel_top = track_mid_y + t.wheel_radius;
-    let wheel_bottom = track_mid_y - t.wheel_radius;
+    // The wheels hang on the AXLE line, which the rollered layout puts below the belt's middle.
+    let axle_y = t.axle_y();
+    let wheel_top = axle_y + t.wheel_radius;
+    let wheel_bottom = axle_y - t.wheel_radius;
     let band_min_z = -(t.end_z + t.end_radius);
     let band_max_z = t.end_z + t.end_radius;
     let glacis_run = (h.deck_y - h.sponson_y).max(0.1) * h.glacis_slope_deg.to_radians().tan();
@@ -96,7 +98,7 @@ pub(crate) fn centurion_parts(bp: &VehicleBlueprint) -> Vec<ForgePart> {
             ForgePartKind::RoadWheels,
             PartAnchor::Hull,
             MaterialRole::Rubber,
-            Vec3::new(0.0, track_mid_y, 0.0),
+            Vec3::new(0.0, axle_y, 0.0),
             Vec3::new(-wheel_center_x, wheel_bottom, t.wheel_first_z - t.wheel_radius),
             Vec3::new(wheel_center_x, wheel_top, t.wheel_last_z + t.wheel_radius),
             format!(
@@ -109,11 +111,11 @@ pub(crate) fn centurion_parts(bp: &VehicleBlueprint) -> Vec<ForgePart> {
             ForgePartKind::RoadWheelSet,
             PartAnchor::Hull,
             MaterialRole::Rubber,
-            Vec3::new(0.0, track_mid_y, 0.0),
+            Vec3::new(0.0, axle_y, 0.0),
             Vec3::new(-t.outer_x, wheel_bottom, t.wheel_first_z - t.wheel_radius),
             Vec3::new(t.outer_x, wheel_top, t.wheel_last_z + t.wheel_radius),
             format!(
-                "Centurion road wheel set: {} rubber-tyred 800 mm wheels per side on bogie arms.",
+                "Centurion road wheel set: {} rubber-tyred 610 mm wheels per side on bogie arms.",
                 t.wheel_count
             ),
         ),

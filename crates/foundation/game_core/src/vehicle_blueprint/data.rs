@@ -69,6 +69,8 @@ fn t54() -> VehicleBlueprint {
             belt_half_thickness: 0.13,
             top_y: 0.905,
             bottom_y: 0.045,
+            // The road wheels carry the top run, so the axle IS the belt mid-height.
+            axle_y: None,
             wheel_radius: 0.405,
             wheel_count: 5,
             wheel_first_z: -1.95,
