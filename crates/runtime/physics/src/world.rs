@@ -105,6 +105,9 @@ pub fn step_tank_on_world_with_tanks(
 
     let previous_yaw = state.yaw_rad;
     step_custom_tank_controller_on_contact(state, input, settings, contact, dt_seconds);
+    // Captured before ANY resolver touches it: this is what the drive asked for, and it is the
+    // only honest input to a contact solver that runs after the constraints have had their say.
+    let drive_velocity = state.velocity;
     // Rotation is collision-resolved like translation: a pivot that would grind the hull's
     // corners INTO a wall or a neighbour is refused (yaw reverts, the rotation rate dies),
     // exactly as a blocked move holds its position. Tested at the PREVIOUS position so pure
@@ -185,7 +188,8 @@ pub fn step_tank_on_world_with_tanks(
         });
         let ground = support.map(|s| s.height_m).unwrap_or(next_contact.height_m);
         let moved_xz = (state.position.x - previous.x).hypot(state.position.z - previous.z);
-        let step = resolve_vertical(state, ground, was_grounded, moved_xz, dt_seconds);
+        let mut step = resolve_vertical(state, ground, was_grounded, moved_xz, dt_seconds);
+        step.drive_velocity = drive_velocity;
         if step.grounded {
             // Attitude targets: the support plane when the running gear is known, the probe
             // gradients otherwise (+forward_slope = rises ahead = nose up; +side_slope = right
@@ -200,5 +204,5 @@ pub fn step_tank_on_world_with_tanks(
     }
     // Terrain-free mode: level ground, so the attitude settles back to level.
     advance_hull_attitude(state, 0.0, 0.0, dt_seconds);
-    GroundStep::resting()
+    GroundStep { drive_velocity, ..GroundStep::resting() }
 }

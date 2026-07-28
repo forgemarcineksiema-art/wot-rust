@@ -1,5 +1,6 @@
 mod collision;
 mod contact;
+mod contact_impulse;
 mod controller_settings;
 mod cover;
 mod forces;
@@ -21,6 +22,7 @@ use terrain::HeightMap;
 
 pub use collision::{TankFootprint, TankObstacle, TankWorldObstacles, tank_footprints_touch};
 pub use contact::{TerrainContact, sample_tank_terrain_contact};
+pub use contact_impulse::{ContactBody, ContactImpulse, resolve_contacts};
 pub use controller_settings::TankControllerSettings;
 pub use cover::{
     footprint_overlaps_cover_object, resolve_cover_collision, resolve_cover_collision_with_velocity,
