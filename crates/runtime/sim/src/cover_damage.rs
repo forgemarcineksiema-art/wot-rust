@@ -83,10 +83,20 @@ pub fn initial_cover_states(cover: &[StaticCoverObject]) -> Vec<CoverState> {
 /// a lowered box, and destroyed objects omitted entirely. Every blocking consumer (shell trace,
 /// movement, spotting LOS) takes this in place of the raw static cover, so cover destruction
 /// changes what blocks/hides without any of them knowing about phases.
-pub fn live_cover_for_blocking(
-    cover: &[StaticCoverObject],
+///
+/// A battlefield with nothing broken on it yet BORROWS the authored slice. That is the common
+/// case for most of a battle, and it is worth a `Cow`: a [`StaticCoverObject`] carries two
+/// `String`s, so rebuilding this every tick cost a fresh heap allocation per name per object —
+/// on a city map (90–160 boxes) some 300 allocations a tick, 18 000 a second, for a slice that
+/// is byte-for-byte the input. The server already hand-rolled exactly this `Cow` for the bots'
+/// copy; the rule belongs here, once, where every caller gets it.
+pub fn live_cover_for_blocking<'a>(
+    cover: &'a [StaticCoverObject],
     states: &[CoverState],
-) -> Vec<StaticCoverObject> {
+) -> std::borrow::Cow<'a, [StaticCoverObject]> {
+    if states.iter().all(|state| state.phase == CoverPhase::Intact) {
+        return std::borrow::Cow::Borrowed(cover);
+    }
     let mut live = Vec::with_capacity(cover.len());
     for (index, object) in cover.iter().enumerate() {
         match states.get(index).map(|state| state.phase).unwrap_or_default() {
@@ -104,7 +114,7 @@ pub fn live_cover_for_blocking(
             }
         }
     }
-    live
+    std::borrow::Cow::Owned(live)
 }
 
 /// Resolve replicated phase bytes into the exact blocking geometry used by the authoritative
@@ -117,7 +127,7 @@ pub fn live_cover_for_phase_bytes(
         .iter()
         .map(|&byte| CoverState { health: 0, phase: CoverPhase::from_wire(byte) })
         .collect();
-    live_cover_for_blocking(cover, &states)
+    live_cover_for_blocking(cover, &states).into_owned()
 }
 
 /// The index of the still-standing (non-Gone) cover object whose box contains `point`, if any —
@@ -179,19 +189,6 @@ pub fn crush_cover(states: &mut [CoverState], object: &StaticCoverObject, index:
     state.health = 0;
     state.phase = CoverPhase::Gone;
     true
-}
-
-/// Coarse XZ test: is a hull at `hull_center` (with plan reach `hull_reach_m`, roughly its
-/// half-length) overlapping the cover box? Deliberately coarse — flattening flimsy foliage does
-/// not need the movement SAT; the hull is essentially on top of the hedge.
-pub fn hull_overlaps_cover_xz(
-    hull_center: [f32; 3],
-    hull_reach_m: f32,
-    object: &StaticCoverObject,
-) -> bool {
-    let dx = (hull_center[0] - object.center[0]).abs();
-    let dz = (hull_center[2] - object.center[2]).abs();
-    dx <= object.half_extents_m[0] + hull_reach_m && dz <= object.half_extents_m[2] + hull_reach_m
 }
 
 /// Record the wound one absorbed shell leaves on a cover face (protocol v32): which face took
@@ -319,7 +316,6 @@ mod tests {
             object("barn", StaticCoverKind::FarmBuilding, [40.0, 2.0, 0.0], [5.0, 2.0, 4.0]),
         ];
         let mut states = cover_states_for(&cover);
-        assert!(hull_overlaps_cover_xz([0.0, 0.0, 0.3], 3.0, &cover[0]));
         assert!(crush_cover(&mut states, &cover[0], 0), "the hedge is crushed");
         assert!(!crush_cover(&mut states, &cover[1], 1), "the barn is not crushable");
         assert_eq!(states[0].phase, CoverPhase::Gone);
@@ -402,7 +398,7 @@ mod tests {
         let from_bytes = live_cover_for_phase_bytes(&cover, &[0, 1, 2]);
         assert_eq!(
             from_bytes,
-            live_cover_for_blocking(&cover, &states),
+            live_cover_for_blocking(&cover, &states).into_owned(),
             "client phase bytes must use the sim's exact Intact/Rubble/Gone geometry"
         );
         assert_eq!(

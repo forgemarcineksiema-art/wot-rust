@@ -25,6 +25,7 @@ mod tank_drive;
 mod tank_factory;
 mod tank_state;
 mod timestep;
+mod wreck;
 
 pub use aim_dispersion::recover_dispersion;
 pub use aiming::{

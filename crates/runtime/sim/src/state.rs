@@ -1,6 +1,6 @@
 use game_core::{BattleEventId, DamageEvent, ShellImpact, TankId, TankSpec, TeamId, TrackSide};
 use glam::Vec3;
-use physics::TankObstacle;
+use physics::{TankFootprint, TankObstacle, footprint_overlaps_cover_object};
 use serde::{Deserialize, Serialize};
 use terrain::{HeightMap, StaticCoverObject, WaterBody};
 
@@ -74,9 +74,13 @@ fn cover_damage_hp(shell_type: game_core::ShellType) -> u32 {
 const COVER_CRUSH_MIN_SPEED_MPS: f32 = 2.5;
 /// The nick a hull takes for bulldozing through cover â€” small, but not free.
 const COVER_CRUSH_SELF_HP: u32 = 8;
-/// Reach ahead of the hull's own footprint at which a fast approach bowls a hedge over â€” the hull
-/// flattens it just before contact, so the same tick's movement drives through instead of being
-/// stopped by the (still-blocking) intact hedge and losing the speed the crush needs.
+/// How far ALONG ITS TRAVEL the hull's footprint is carried forward when asking what it is about
+/// to flatten — the hedge goes over just before contact, so the same tick's movement drives
+/// through instead of being stopped by the (still-blocking) intact hedge and losing the speed the
+/// crush needs. It is a reach along the heading, never a radius: the old test put this distance
+/// (plus the hull's HALF-LENGTH) around the hull's centre in every direction, so a T-54 driving
+/// PARALLEL to a hedgerow flattened it from 2 m off its own flank, and a single `TreeLine` box is
+/// tens of metres long — one clean pass deleted the whole run without touching it.
 const COVER_CRUSH_APPROACH_M: f32 = 0.8;
 
 impl SimulationState {
@@ -280,13 +284,16 @@ impl SimulationState {
                 if tank.hit_points == 0 || tank.velocity_mps.length() < COVER_CRUSH_MIN_SPEED_MPS {
                     continue;
                 }
-                let reach = tank.spec.hitbox.half_length_m + COVER_CRUSH_APPROACH_M;
+                // The hull's own oriented footprint, carried one approach-length along the
+                // direction it is actually travelling. This is the same SAT movement collides
+                // with, so what the hull flattens is what the hull would have hit.
+                let heading =
+                    Vec3::new(tank.velocity_mps.x, 0.0, tank.velocity_mps.z).normalize_or_zero();
+                let probe = tank.position + heading * COVER_CRUSH_APPROACH_M;
+                let footprint = TankFootprint::from_hitbox(tank.spec.hitbox);
                 for (index, object) in cover.iter().enumerate() {
-                    if crate::cover_damage::hull_overlaps_cover_xz(
-                        tank.position.to_array(),
-                        reach,
-                        object,
-                    ) && crate::cover_damage::crush_cover(states, object, index)
+                    if footprint_overlaps_cover_object(probe, tank.yaw_rad, footprint, object)
+                        && crate::cover_damage::crush_cover(states, object, index)
                     {
                         tank.hit_points = tank.hit_points.saturating_sub(COVER_CRUSH_SELF_HP);
                     }
@@ -338,7 +345,10 @@ impl SimulationState {
                 );
                 let tank = &mut self.tanks[index];
                 if tank.hit_points == 0 {
-                    tank.velocity_mps = Vec3::ZERO;
+                    // A wreck does not drive: the horizontal motion and the spin die here. Its
+                    // VERTICAL is not this loop's business — `settle_wrecks` below owns it, and
+                    // owns it for every wreck, commanded or not.
+                    tank.velocity_mps = Vec3::new(0.0, tank.velocity_mps.y, 0.0);
                     tank.hull_yaw_velocity_rad_s = 0.0;
                     continue;
                 }
@@ -387,6 +397,9 @@ impl SimulationState {
             &mut event_stamp,
             dt,
         );
+        // ...and the wrecks settle onto the ground under them, whether they were killed in
+        // mid-air or the ground moved after they died (see `wreck`).
+        crate::wreck::settle_wrecks(&mut self.tanks, heightmap, dt);
         // Drowning runs for EVERY living hull, commanded or not â€” a dead-engine tank in the
         // river keeps flooding.
         crate::drowning::step_drowning(
@@ -444,6 +457,9 @@ impl SimulationState {
         // ledger is replicated state, and once the battlefield owner folds it into the
         // heightmap overlay, physics, spotting, the predictor and the bots all stand in the
         // same hole. Kinetic rounds plough a furrow (presentation) but do not move earth.
+        // Filling an old hole back in is only free when it is empty: the ledger evicts around
+        // whoever is standing in one (see `crater_ledger`), so it needs the roster's footing.
+        let standing_on: Vec<Vec3> = self.tanks.iter().map(|tank| tank.position).collect();
         for impact in &self.shell_impacts {
             if impact.surface == game_core::ImpactSurface::Terrain
                 && impact.shell_type == game_core::ShellType::HighExplosive
@@ -452,6 +468,7 @@ impl SimulationState {
                     &mut self.craters,
                     impact.position,
                     impact.caliber_mm,
+                    &standing_on,
                 );
             }
         }

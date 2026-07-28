@@ -137,6 +137,54 @@ rejection tests kept.
   furrow (elongated gouge + forward spoil, fewer stamps than the old crater), lowering the
   locked cap again to 17,040; P3 replaces the radial HE mark with rim+bowl+clods (16,638); P4c drapes the rim and bowl over the true deformation (25 cells each), raising the cap to 35,070 — the price of marks that line the bowl instead of sinking into it.
 
+## Honesty corrections (2026-07-28)
+
+An audit of the shipped physics and destruction code found four places where the implementation
+had drifted from the doctrine above. Each is fixed with its own locking test; none needed a
+protocol bump, because all four are behavioural and land on the shared server/predictor path.
+
+- **A ram's outcome was a function of roster order.** The pair loop charged `tanks[right]` the
+  full bill and `tanks[left]` half, and the closing speed it measured is symmetric — so the model
+  had no notion of an aggressor at all, and a stationary defender broadsided by a charging enemy
+  paid half if it happened to sit earlier in the array. The impulse is now shared (Newton's third
+  law) and the asymmetry that survives is geometry: each hull is charged by the FACE it met the
+  collision with (bow 0.6, flank 1.4, rear 1.0 of the base severity). A charger paying less than
+  the hull it t-bones is now a consequence of where the plates are, not of where the tank is
+  stored. `sim/tests/ramming_contact.rs`.
+- **A round through an existing perforation dealt nothing.** `admits_existing_channel` correctly
+  decides that a projectile's full cross-section clears an open aperture — and then the shell step
+  teleported the round past the hull with `last_penetrated_target` set: no damage, no module
+  touched, no `DamageEvent`, no `ShellImpact`. Shooting the same hole twice was punished, and the
+  crew that fired got no feedback at all. What an open channel buys the round is now the ENTRY
+  STEEL and nothing else (`resolve_penetration_through_open_channel`): it pays no armour and cuts
+  no second ingress wound, but it resolves the internal module path, the damage and the egress
+  exactly like any other perforation. `sim/src/combat.rs`.
+- **Cover crushing reached sideways.** The crush test put the hull's HALF-LENGTH plus the approach
+  slop around its centre as a per-axis box, ignoring yaw — so a T-54 driving parallel to a
+  hedgerow flattened it from 2 m off its own flank, and since one `TreeLine` box is a whole run of
+  hedge, a single clean pass deleted tens of metres of it without contact. The crush now carries
+  the hull's real oriented footprint one approach-length ALONG ITS TRAVEL and runs the same SAT
+  movement collides with (`physics::footprint_overlaps_cover_object`). `sim/tests/cover_destruction.rs`.
+- **Wrecks did not obey gravity.** The drive step is skipped for dead hulls, and the vertical
+  resolution went with it, so a hull killed in mid-flight hung at the altitude it died at for the
+  rest of the battle — blocking shells and hulls, as `StaticCoverKind::Wreck` does, from a hole in
+  the sky. `sim::wreck::settle_wrecks` now resolves the vertical (only the vertical) for every
+  dead hull, commanded or not, on the same support envelope a live hull reads. A wreck already
+  resting on its support is a bit-identical no-op, which is what keeps replays stable.
+  `sim/tests/wreck_settle.rs`.
+
+Two supporting changes ride along:
+
+- The crater ledger's cap used to evict `craters[0]` unconditionally. Filling a hole back in
+  un-deforms the heightmap, and `resolve_vertical`'s rule that rising ground always carries the
+  hull turns that into a snap of up to the full 1.2 m depth cap in one tick — a hull teleported
+  upward by a shell that landed elsewhere. Eviction now takes the oldest crater NOBODY is standing
+  in; when every hole is occupied the burst leaves no record, which is the smaller lie.
+- `live_cover_for_blocking` borrows the authored slice while nothing is broken. A
+  `StaticCoverObject` carries two `String`s, so the old unconditional rebuild cost ~300 heap
+  allocations per tick on a city map. The server had already hand-rolled this `Cow` for the bots'
+  copy; the rule now lives once, in `sim`, where every caller gets it.
+
 ## Known risks
 
 1. Turret-ring seam: a hit zoned Turret whose visual contact is on the hull lip — the

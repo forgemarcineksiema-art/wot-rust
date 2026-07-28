@@ -78,9 +78,9 @@ fn a_kinetic_round_moves_no_earth() {
 #[test]
 fn reshelling_the_same_spot_deepens_the_crater_instead_of_stacking_records() {
     let mut ledger = Vec::new();
-    record_high_explosive_burst(&mut ledger, Vec3::new(100.0, 0.0, 100.0), 122.0);
+    record_high_explosive_burst(&mut ledger, Vec3::new(100.0, 0.0, 100.0), 122.0, &[]);
     let first_depth = ledger[0].depth_m();
-    record_high_explosive_burst(&mut ledger, Vec3::new(100.3, 0.0, 100.2), 122.0);
+    record_high_explosive_burst(&mut ledger, Vec3::new(100.3, 0.0, 100.2), 122.0, &[]);
 
     assert_eq!(ledger.len(), 1, "a burst inside the merge reach re-excavates, not duplicates");
     assert!(ledger[0].depth_m() > first_depth, "and the hole got deeper");
@@ -91,11 +91,66 @@ fn the_ledger_caps_and_the_oldest_crater_weathers_away() {
     let mut ledger = Vec::new();
     for index in 0..(MAX_CRATERS + 8) {
         let x = 50.0 + (index as f32) * 9.0;
-        record_high_explosive_burst(&mut ledger, Vec3::new(x, 0.0, 200.0), 122.0);
+        record_high_explosive_burst(&mut ledger, Vec3::new(x, 0.0, 200.0), 122.0, &[]);
     }
     assert_eq!(ledger.len(), MAX_CRATERS);
     // The oldest bursts (lowest x) slumped away; the freshest survive.
     assert!(ledger[0].x_m() > 50.0 + 7.0 * 9.0 - 1.0);
+}
+
+/// ...but a hole with a tank in it does not weather away under that tank.
+///
+/// Filling the ground back in un-deforms the heightmap, and `resolve_vertical`'s rule that rising
+/// ground always carries the hull turns that into a snap of up to the full depth cap in a single
+/// tick — a hull teleported upward by a shell that landed somewhere else entirely. Eviction takes
+/// the oldest EMPTY hole instead; when every hole is occupied the burst leaves no record at all.
+#[test]
+fn a_crater_with_a_hull_standing_in_it_is_never_the_one_that_weathers_away() {
+    let mut ledger = Vec::new();
+    for index in 0..MAX_CRATERS {
+        record_high_explosive_burst(
+            &mut ledger,
+            Vec3::new(50.0 + index as f32 * 9.0, 0.0, 200.0),
+            122.0,
+            &[],
+        );
+    }
+    // A hull parked in the OLDEST hole — exactly the record the cap would have dropped.
+    let occupied = ledger[0];
+    let hulls = [Vec3::new(occupied.x_m(), 0.0, occupied.z_m())];
+
+    record_high_explosive_burst(&mut ledger, Vec3::new(900.0, 0.0, 200.0), 122.0, &hulls);
+
+    assert_eq!(ledger.len(), MAX_CRATERS, "the cap still holds");
+    assert!(
+        ledger.iter().any(|crater| crater.x_m() == occupied.x_m()),
+        "the hole under the hull must survive; something empty had to give instead"
+    );
+    assert!(
+        ledger.iter().any(|crater| (crater.x_m() - 900.0).abs() < 1.0),
+        "and the new burst still dug its own hole"
+    );
+}
+
+/// When every hole on the field has someone in it, the new burst simply leaves no record. A
+/// crater that fails to appear is a far smaller lie than a hull popped into the air.
+#[test]
+fn a_burst_leaves_no_record_rather_than_filling_a_hole_someone_is_standing_in() {
+    let mut ledger = Vec::new();
+    let mut hulls = Vec::new();
+    for index in 0..MAX_CRATERS {
+        let x = 50.0 + index as f32 * 9.0;
+        record_high_explosive_burst(&mut ledger, Vec3::new(x, 0.0, 200.0), 122.0, &[]);
+        hulls.push(Vec3::new(x, 0.0, 200.0));
+    }
+
+    record_high_explosive_burst(&mut ledger, Vec3::new(900.0, 0.0, 200.0), 122.0, &hulls);
+
+    assert_eq!(ledger.len(), MAX_CRATERS);
+    assert!(
+        ledger.iter().all(|crater| (crater.x_m() - 900.0).abs() > 1.0),
+        "no room left: the ground stays exactly as every hull found it"
+    );
 }
 
 /// Gameplay sanity (P4c): a crater is cover, not a trap — the bowl's slope stays inside what

@@ -108,6 +108,13 @@ Static cover (buildings, treelines, wrecks) is a hard obstacle as well: the shar
 keeps the hull out of cover footprints, sliding along a face rather than sticking, so the
 predicted hull stops exactly where the server stops it (see Shared Drive Step).
 
+A hull that stops being a tank does not stop being an object. The drive step is skipped for dead
+hulls — a wreck neither drives nor steers nor slides — but its VERTICAL is still resolved, every
+tick, commanded or not (`sim::wreck::settle_wrecks`), against the same support envelope a live
+hull reads. Without it a hull killed in mid-flight hung at the altitude it died at for the rest of
+the battle, and a wreck standing where a later crater opened floated over the hole. A wreck already
+resting on its support is a bit-identical no-op, so replays are unaffected.
+
 Rapier remains useful for broadphase, world collision, raycasts, and simple
 bodies. Tank movement truth stays in the custom controller so replays and server
 simulation remain stable.

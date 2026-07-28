@@ -91,6 +91,54 @@ fn a_hull_driving_through_a_hedgerow_flattens_it_and_takes_a_nick() {
     assert!(tank.position.z > 20.0, "and the hull drove on THROUGH where the hedge stood");
 }
 
+/// The negative case the crush test needs, per the engineering rule on contact approximations:
+/// a hull that drives cleanly PAST a hedgerow must leave it standing.
+///
+/// The reach used to be a circle of `half_length + approach` (4.0 m for a T-54) around the hull's
+/// CENTRE, tested per axis — so a full-speed pass 0.65 m clear of the hedge's face flattened it
+/// from the flank, without the hull ever touching it. And because one `TreeLine` box is a whole
+/// run of hedgerow (tens of metres on the shipping maps), a single clean pass deleted the entire
+/// run: the loudest possible way to break "collision boxes ARE the visual footprint".
+#[test]
+fn a_hull_driving_cleanly_past_a_hedgerow_leaves_it_standing() {
+    let terrain = flat_field();
+    // The hedge spans z = 19.4..20.6; the hull drives along +x centred on z = 23.0, so its flank
+    // (half_width 1.75 -> z = 21.25) clears the hedge's face by 0.65 m for the whole pass.
+    let hedge = [cover("hedge", StaticCoverKind::TreeLine, [0.0, 1.0, 20.0], [10.0, 1.0, 0.6])];
+
+    let mut state = SimulationState::new();
+    let tank = state.spawn_tank_with_yaw(
+        TeamId(1),
+        TankSpec::t54_1951(),
+        Vec3::new(-20.0, 0.0, 23.0),
+        std::f32::consts::FRAC_PI_2,
+    );
+    let full_hp = state.tank(tank).expect("tank").hit_points;
+    let step = FixedTimestep::from_hz(60);
+    for _ in 0..300 {
+        state.apply_commands_on_battlefield(
+            &[(tank, TankCommand::drive(1.0, 0.0))],
+            step,
+            &terrain,
+            &hedge,
+        );
+    }
+
+    let tank = state.tank(tank).expect("tank");
+    assert!(tank.position.x > 10.0, "the hull must actually have driven the length of the hedge");
+    assert!(
+        (tank.position.z - 23.0).abs() < 0.5,
+        "...and stayed in its lane, got z {}",
+        tank.position.z
+    );
+    assert_eq!(
+        state.cover_states()[0].phase,
+        CoverPhase::Intact,
+        "a pass with 0.65 m of clearance flattens nothing"
+    );
+    assert_eq!(tank.hit_points, full_hp, "and costs the hull nothing");
+}
+
 #[test]
 fn a_shell_flies_where_a_crushed_hedgerow_used_to_block_it() {
     let terrain = flat_field();
