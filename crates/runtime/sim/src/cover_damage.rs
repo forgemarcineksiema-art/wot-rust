@@ -180,6 +180,39 @@ pub fn rubble_mounds_for_phase_bytes(
     rubble_mounds(cover, &states_from_phase_bytes(phase_bytes))
 }
 
+/// Both live-cover resolutions for one tick, sharing the work whenever they are equal.
+///
+/// They differ ONLY over rubble, and rubble is rare: a battle that has swept a fence away has two
+/// identical answers, and resolving them separately would pay the whole rebuild twice — on a city
+/// map that is 150 objects with two `String`s each, which is exactly the allocation this module
+/// went to some trouble to avoid. So the movement slice is materialised only when a mound actually
+/// exists; otherwise both views borrow the one that was built.
+pub struct LiveCover<'a> {
+    sight: std::borrow::Cow<'a, [StaticCoverObject]>,
+    movement: Option<std::borrow::Cow<'a, [StaticCoverObject]>>,
+}
+
+impl<'a> LiveCover<'a> {
+    pub fn resolve(cover: &'a [StaticCoverObject], states: &[CoverState]) -> Self {
+        let sight = live_cover_for_sight_and_shells(cover, states);
+        let movement = states
+            .iter()
+            .any(|state| state.phase == CoverPhase::Rubble)
+            .then(|| live_cover_for_movement(cover, states));
+        Self { sight, movement }
+    }
+
+    /// What stops a shell and hides a hull.
+    pub fn sight(&self) -> &[StaticCoverObject] {
+        &self.sight
+    }
+
+    /// What stops a HULL.
+    pub fn movement(&self) -> &[StaticCoverObject] {
+        self.movement.as_deref().unwrap_or(&self.sight)
+    }
+}
+
 fn states_from_phase_bytes(phase_bytes: &[u8]) -> Vec<CoverState> {
     phase_bytes
         .iter()
