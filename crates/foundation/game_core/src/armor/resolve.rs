@@ -70,6 +70,29 @@ pub(crate) fn resolve_penetration_at_distance_on_facet(
     }
 }
 
+/// The armour "test" for a round that arrives through a hole an earlier shell already opened.
+///
+/// There is no steel across its path, so there is nothing to resolve: the round is simply INSIDE,
+/// carrying everything it still has at this range, and what it meets there is the interior. It is
+/// a function rather than a literal at the call site so that the damage a perforation deals stays
+/// ONE rule — a round that threads an open channel hurts exactly as much as one that had to earn
+/// its way in, because by the time either is in the fighting compartment nothing about them
+/// differs. The caller is responsible for having checked that the projectile's full cross-section
+/// actually clears the aperture ([`crate::ArmorBreachSet::passage_at`]).
+pub fn resolve_penetration_through_open_channel(
+    shell: &ShellSpec,
+    distance_m: f32,
+) -> PenetrationResult {
+    PenetrationResult {
+        penetrated: true,
+        ricocheted: false,
+        effective_armor_mm: 0.0,
+        remaining_penetration_mm: shell.penetration_mm_at_distance(distance_m),
+        damage_hp: shell_damage_hp(shell, true, false),
+        module_damage_hp: module_damage_hp(shell, true, false),
+    }
+}
+
 /// How much harder a spaced screen is on a shaped charge: the standoff detonates the jet early,
 /// so the track band eats it at a multiple of its line-of-sight steel.
 const HEAT_SCREEN_FACTOR: f32 = 2.0;
