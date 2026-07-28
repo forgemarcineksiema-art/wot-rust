@@ -48,7 +48,8 @@ pub use part_manifest::{
 };
 pub use production_bake::bake_production_vehicle;
 pub use reference::{
-    DimensionKind, DimensionTarget, RatioKind, RatioTarget, ReferencePack, ReferenceSource,
+    AnchorStatus, DimensionKind, DimensionTarget, MeasurementBasis, RatioKind, RatioTarget,
+    ReferencePack, ReferenceSource,
 };
 pub use reference_measure::composed_visual_bounds;
 pub use report::{DimensionReport, MeasuredDimension, MeasuredRatio, RatioReport};

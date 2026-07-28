@@ -45,21 +45,46 @@ impl ReferenceSource {
     }
 }
 
-/// A measurable absolute dimension of the baked vehicle, in metres. Ratios alone pass at the
-/// wrong scale — these are the anchors that pin the model to the real tank's tape measure.
+/// A measurable absolute dimension of the baked vehicle, in metres (counts are unit-less and
+/// say so in their doc). Ratios alone pass at the wrong scale — these are the anchors that pin
+/// the model to the real tank's tape measure. Append-only: reports serialize this enum.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum DimensionKind {
     /// Z-extent of the visual hull including the running gear (hull length over tracks).
     HullLength,
     /// X-extent of the visual hull including the running gear (width over tracks).
     HullWidth,
-    /// Highest exterior point of hull or turret above the ground plane (height to turret roof;
-    /// cupolas and fittings count — they are part of the silhouette).
+    /// Highest exterior point of hull or turret above the ground plane (silhouette apex:
+    /// cupolas and fittings count — the Tiger I anchors 3.00 m at the drum cupola).
     HeightToTurretRoof,
     /// Muzzle to hull rear (overall length, gun forward).
     OverallLengthWithGun,
-    /// Road-wheel diameter, straight from the running-gear kinematics.
+    /// Road-wheel diameter, measured off the road-wheel unit MESH (not the generator field).
     RoadWheelDiameter,
+    /// Turret-ring race diameter in the clear. The race is interior — invisible to an exterior
+    /// bake — so this anchor pins the BLUEPRINT's ring against the dossier (basis: Blueprint).
+    TurretRingDiameter,
+    /// Height of the gun's trunnion axis above the ground plane (basis: Mounts — the same
+    /// frame the sim fires from, so the dossier pins gameplay, not just the picture).
+    FireLineHeight,
+    /// Commander-cupola external diameter, measured as a horizontal slice of the turret mesh
+    /// inside the blueprint's cupola disc, above the bare roof.
+    CupolaDiameter,
+    /// Width of one track belt, measured off the track-link unit mesh.
+    TrackWidth,
+    /// Track gauge (kolej): twice the mean |x| of the link instances — centre distance between
+    /// the two belts as actually placed.
+    TrackGauge,
+    /// Belly floor above the ground plane, measured over the central strip of the hull mesh
+    /// (fenders, sponsons and gear brackets excluded by the strip).
+    GroundClearance,
+    /// Unit-less: link instances per side, counted from the rest-pose placements.
+    TrackLinkCountPerSide,
+    /// Unit-less: road wheels per side, counted from the rest-pose placements.
+    RoadWheelCount,
+    /// Height to the structural turret roof EXCLUDING the cupola (the number Soviet documents
+    /// quote as "по крышу башни"); flush hatch lids count as roof plane by design.
+    HeightToTurretRoofBare,
 }
 
 impl DimensionKind {
@@ -67,11 +92,60 @@ impl DimensionKind {
         match self {
             DimensionKind::HullLength => "hull length (over tracks)",
             DimensionKind::HullWidth => "width (over tracks)",
-            DimensionKind::HeightToTurretRoof => "height to turret roof",
+            DimensionKind::HeightToTurretRoof => "height to silhouette apex",
             DimensionKind::OverallLengthWithGun => "overall length (gun forward)",
             DimensionKind::RoadWheelDiameter => "road wheel diameter",
+            DimensionKind::TurretRingDiameter => "turret ring diameter (in the clear)",
+            DimensionKind::FireLineHeight => "fire line height (trunnion axis)",
+            DimensionKind::CupolaDiameter => "commander cupola diameter",
+            DimensionKind::TrackWidth => "track width",
+            DimensionKind::TrackGauge => "track gauge (belt centres)",
+            DimensionKind::GroundClearance => "ground clearance",
+            DimensionKind::TrackLinkCountPerSide => "track links per side (count)",
+            DimensionKind::RoadWheelCount => "road wheels per side (count)",
+            DimensionKind::HeightToTurretRoofBare => "height to turret roof (bare, no cupola)",
         }
     }
+
+    /// Counts are unit-less integers riding the same anchor machinery; formatting cares.
+    pub fn is_count(self) -> bool {
+        matches!(self, DimensionKind::TrackLinkCountPerSide | DimensionKind::RoadWheelCount)
+    }
+}
+
+/// Where a measurement came from — honesty about the instrument. `Mesh` is the tape measure on
+/// the bake; `Mounts` is the sim's own frame; `Instances` counts what actually renders;
+/// `Blueprint` is a declared value used only where the feature is invisible to an exterior bake
+/// (e.g. the turret-ring race) and says so in the report.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+pub enum MeasurementBasis {
+    #[default]
+    Mesh,
+    Mounts,
+    Instances,
+    Blueprint,
+}
+
+impl MeasurementBasis {
+    pub fn label(self) -> &'static str {
+        match self {
+            MeasurementBasis::Mesh => "mesh",
+            MeasurementBasis::Mounts => "mounts",
+            MeasurementBasis::Instances => "instances",
+            MeasurementBasis::Blueprint => "blueprint",
+        }
+    }
+}
+
+/// Whether an anchor is enforced or a declared, visible debt. `Locked` fails the dimension gate
+/// on any miss; `Target` is the dossier's documented value the model has NOT reached yet — it
+/// reports as debt (never silently passes) and flips to `Locked` in the PR that closes it.
+/// This is the FLOOR/TARGET mechanism of the art-direction program, applied to centimetres.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+pub enum AnchorStatus {
+    #[default]
+    Locked,
+    Target,
 }
 
 /// One real-world dimension the baked model must honour, with the source that documents it.
@@ -82,6 +156,10 @@ pub struct DimensionTarget {
     target_m: f32,
     tolerance_m: f32,
     source: ReferenceSource,
+    /// `Locked` gates; `Target` reports as debt until its fixing PR flips it. Serde-defaulted
+    /// so previously serialized reports decode as the stricter `Locked`.
+    #[serde(default)]
+    status: AnchorStatus,
 }
 
 impl DimensionTarget {
@@ -93,7 +171,21 @@ impl DimensionTarget {
     ) -> Self {
         assert!(target_m.is_finite() && target_m > 0.0);
         assert!(tolerance_m.is_finite() && tolerance_m >= 0.0);
-        Self { kind, target_m, tolerance_m, source }
+        Self { kind, target_m, tolerance_m, source, status: AnchorStatus::Locked }
+    }
+
+    /// A documented value the model has not reached yet: reported as debt, not asserted.
+    /// The dossier number lands first, the geometry PR flips it to `Locked` — data first,
+    /// model second.
+    pub fn target_pending(
+        kind: DimensionKind,
+        target_m: f32,
+        tolerance_m: f32,
+        source: ReferenceSource,
+    ) -> Self {
+        let mut anchor = Self::new(kind, target_m, tolerance_m, source);
+        anchor.status = AnchorStatus::Target;
+        anchor
     }
 
     pub fn kind(&self) -> DimensionKind {
@@ -110,6 +202,10 @@ impl DimensionTarget {
 
     pub fn source(&self) -> &ReferenceSource {
         &self.source
+    }
+
+    pub fn status(&self) -> AnchorStatus {
+        self.status
     }
 
     pub(crate) fn passes(&self, measured_m: f32) -> bool {
@@ -249,5 +345,46 @@ impl ReferencePack {
     /// vehicle is foreign to the pack; an empty report when the pack has no anchors yet.
     pub fn measure_dimensions(&self, vehicle: &BakedVehicle) -> Option<crate::DimensionReport> {
         crate::reference_measure::measure_dimensions(self, vehicle)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn source() -> ReferenceSource {
+        ReferenceSource::new("test", "n/a", "synthetic")
+    }
+
+    #[test]
+    fn a_plain_anchor_is_locked_and_a_pending_one_is_target() {
+        let locked = DimensionTarget::new(DimensionKind::HullLength, 6.0, 0.1, source());
+        assert_eq!(locked.status(), AnchorStatus::Locked);
+        let pending =
+            DimensionTarget::target_pending(DimensionKind::HullLength, 6.0, 0.1, source());
+        assert_eq!(pending.status(), AnchorStatus::Target);
+        // Target anchors still measure and still judge — they only change who fails the gate.
+        assert!(pending.passes(6.05));
+        assert!(!pending.passes(6.2));
+    }
+
+    #[test]
+    fn serialized_anchors_without_a_status_decode_as_locked() {
+        // Reports recorded before the status field existed must come back as the stricter tier.
+        let json = r#"{
+            "kind": "HullLength",
+            "target_m": 6.0,
+            "tolerance_m": 0.1,
+            "source": {"label": "t", "url": "n/a", "note": ""}
+        }"#;
+        let decoded: DimensionTarget = serde_json::from_str(json).expect("decode");
+        assert_eq!(decoded.status(), AnchorStatus::Locked);
+    }
+
+    #[test]
+    fn count_kinds_know_they_are_counts() {
+        assert!(DimensionKind::TrackLinkCountPerSide.is_count());
+        assert!(DimensionKind::RoadWheelCount.is_count());
+        assert!(!DimensionKind::HullLength.is_count());
     }
 }
