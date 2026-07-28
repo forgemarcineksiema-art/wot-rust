@@ -36,9 +36,9 @@ const CONTACT_SKIN_M: f32 = 0.12;
 /// Penetration this deep is left alone, so hulls resting against each other do not jitter.
 const POSITION_SLOP_M: f32 = 0.02;
 
-/// Fraction of the remaining penetration pushed out per tick. Below 1 so the correction eases
-/// hulls apart instead of teleporting them, which would fight the movement constraint.
-const POSITION_CORRECTION: f32 = 0.35;
+/// Fraction of the remaining overlap removed per iteration. Below 1 so a crowd converges instead
+/// of ringing; over [`ITERATIONS`] passes this clears essentially all of it within the tick.
+const POSITION_CORRECTION: f32 = 0.85;
 
 /// Solver iterations. A handful is plenty for a 7v7 pile-up and keeps the cost flat and known.
 const ITERATIONS: usize = 4;
@@ -53,6 +53,9 @@ pub struct ContactBody {
     pub yaw_rate_rad_s: f32,
     pub footprint: TankFootprint,
     pub mass_kg: f32,
+    /// A wreck still blocks, but nothing moves it: it takes part in every contact as an immovable
+    /// obstacle, so a hull that runs into one is stopped by the contact rather than by a veto.
+    pub movable: bool,
 }
 
 impl ContactBody {
@@ -73,13 +76,16 @@ impl ContactBody {
     }
 
     fn inverse_mass(&self) -> f32 {
-        1.0 / self.mass_kg.max(1.0)
+        if self.movable { 1.0 / self.mass_kg.max(1.0) } else { 0.0 }
     }
 
     /// Planar moment of inertia of the hull footprint as a uniform rectangle about its centre.
     fn inverse_inertia(&self) -> f32 {
         let width = self.footprint.half_width_m * 2.0;
         let length = self.footprint.half_length_m * 2.0;
+        if !self.movable {
+            return 0.0;
+        }
         let inertia = self.mass_kg.max(1.0) * (width * width + length * length) / 12.0;
         1.0 / inertia.max(1.0)
     }
@@ -100,8 +106,6 @@ impl ContactBody {
 pub struct ContactImpulse {
     pub delta_velocity: Vec3,
     pub delta_yaw_rate_rad_s: f32,
-    /// Position correction applied to ease the hull out of a penetration.
-    pub delta_position: Vec3,
     /// Total normal impulse this hull absorbed, in newton-seconds. This is the honest measure of
     /// how hard it was hit — mass and closing speed already folded together — which is why ram
     /// damage reads it instead of recomputing a closing speed of its own.
@@ -196,42 +200,62 @@ pub fn resolve_contacts(bodies: &[ContactBody]) -> Vec<ContactImpulse> {
         out[index].delta_velocity = velocity[index] - bodies[index].velocity;
         out[index].delta_yaw_rate_rad_s = yaw_rate[index] - bodies[index].yaw_rate_rad_s;
     }
-    ease_overlap(bodies, &mut out);
     out
 }
 
-/// Ease overlapping hulls apart. The movement constraint already refuses moves that would create
-/// an overlap, so this only ever cleans up the ones that arrive some other way — a pivot swinging
-/// an oriented footprint into a neighbour, or two hulls each clearing the other's pre-step pose.
-/// It is the honest replacement for the interpenetration ESCAPE hack in `tank_resolve`, which
-/// existed purely because nothing could push hulls apart.
+/// Push overlapping hulls apart, and report how far each one had to give.
 ///
-/// Named for overlap rather than penetration on purpose: in this codebase "penetration" is what a
-/// shell does to armour (`game_core::resolve_penetration`), and the architecture gate is right to
-/// refuse a second meaning for it.
-fn ease_overlap(bodies: &[ContactBody], out: &mut [ContactImpulse]) {
-    for a in 0..bodies.len() {
-        for b in a + 1..bodies.len() {
-            // Real overlap only: measured against the bare footprints, not the skinned ones, so
-            // hulls merely resting against each other are never shoved apart.
-            let Some(contact) = obstacles_contact(&bodies[a].obstacle(), &bodies[b].obstacle())
-            else {
-                continue;
-            };
-            let excess = contact.depth_m - POSITION_SLOP_M;
-            if excess <= 0.0 {
-                continue;
+/// With the tick in its honest order — integrate, exchange momentum, THEN separate — this is the
+/// non-overlap guarantee itself, not a touch-up. It replaces `tank_resolve`'s "try each axis, then
+/// hold the previous position", and with it the interpenetration ESCAPE routine that existed only
+/// because nothing could push hulls apart: hulls that end a tick inside each other are simply
+/// pushed out, along the shallowest axis, split by mass so the heavy hull barely gives ground.
+///
+/// Order-independent for the same reason the impulse pass is: each iteration reads one shared set
+/// of positions and every correction is accumulated before any is applied.
+pub fn separate_overlaps(bodies: &[ContactBody]) -> Vec<Vec3> {
+    let mut total = vec![Vec3::ZERO; bodies.len()];
+    if bodies.len() < 2 {
+        return total;
+    }
+    let mut position: Vec<Vec3> = bodies.iter().map(|body| body.position).collect();
+    for _ in 0..ITERATIONS {
+        let mut delta = vec![Vec3::ZERO; bodies.len()];
+        let mut any = false;
+        for a in 0..bodies.len() {
+            for b in a + 1..bodies.len() {
+                let moved_a = ContactBody { position: position[a], ..bodies[a] };
+                let moved_b = ContactBody { position: position[b], ..bodies[b] };
+                let Some(contact) = obstacles_contact(&moved_a.obstacle(), &moved_b.obstacle())
+                else {
+                    continue;
+                };
+                let excess = contact.depth_m - POSITION_SLOP_M;
+                if excess <= 0.0 {
+                    continue;
+                }
+                let (inv_ma, inv_mb) = (moved_a.inverse_mass(), moved_b.inverse_mass());
+                let share = inv_ma + inv_mb;
+                if share <= f32::EPSILON {
+                    // Two immovable hulls: nothing to do, and nothing that could be done.
+                    continue;
+                }
+                any = true;
+                let push = contact.normal * (excess * POSITION_CORRECTION / share);
+                let push = Vec3::new(push.x, 0.0, push.y);
+                delta[a] -= push * inv_ma;
+                delta[b] += push * inv_mb;
             }
-            let (inv_ma, inv_mb) = (bodies[a].inverse_mass(), bodies[b].inverse_mass());
-            let total = inv_ma + inv_mb;
-            if total <= f32::EPSILON {
-                continue;
-            }
-            let push = contact.normal * (excess * POSITION_CORRECTION / total);
-            out[a].delta_position -= Vec3::new(push.x, 0.0, push.y) * inv_ma;
-            out[b].delta_position += Vec3::new(push.x, 0.0, push.y) * inv_mb;
+        }
+        if !any {
+            break;
+        }
+        for index in 0..bodies.len() {
+            position[index] += delta[index];
+            total[index] += delta[index];
         }
     }
+    total
 }
 
 #[cfg(test)]
@@ -246,6 +270,7 @@ mod tests {
             yaw_rate_rad_s: 0.0,
             footprint: TankFootprint { half_width_m: 1.75, half_length_m: 3.2 },
             mass_kg,
+            movable: true,
         }
     }
 
@@ -322,20 +347,48 @@ mod tests {
         assert_eq!(impulses[0].delta_velocity, Vec3::ZERO);
     }
 
-    /// Overlapping hulls are eased apart along the shallowest axis, split by mass — the heavy one
-    /// barely gives ground, the light one yields.
+    /// Overlapping hulls are pushed apart along the shallowest axis, split by mass — the heavy
+    /// one barely gives ground, the light one yields — and the pass actually CLEARS the overlap
+    /// rather than merely easing it, because with the tick in its honest order this pass IS the
+    /// non-overlap guarantee.
     #[test]
-    fn a_penetration_is_eased_apart_by_mass() {
+    fn the_separation_pass_clears_an_overlap_and_splits_it_by_mass() {
         let light = hull(0.0, 0.0, 0.0, Vec3::ZERO, 20_000.0);
         let heavy = hull(0.0, 5.0, 0.0, Vec3::ZERO, 60_000.0);
-        let impulses = resolve_contacts(&[light, heavy]);
+        let pushed = separate_overlaps(&[light, heavy]);
 
-        assert!(impulses[0].delta_position.z < 0.0, "the light hull backs off");
-        assert!(impulses[1].delta_position.z > 0.0, "the heavy one gives a little");
+        assert!(pushed[0].z < 0.0, "the light hull backs off");
+        assert!(pushed[1].z > 0.0, "the heavy one gives a little");
         assert!(
-            impulses[0].delta_position.length() > impulses[1].delta_position.length() * 2.0,
-            "and the light hull does most of the moving"
+            pushed[0].length() > pushed[1].length() * 2.0,
+            "and the light hull does most of the moving: {:?} vs {:?}",
+            pushed[0],
+            pushed[1]
         );
+
+        let settled_light = ContactBody { position: light.position + pushed[0], ..light };
+        let settled_heavy = ContactBody { position: heavy.position + pushed[1], ..heavy };
+        assert!(
+            obstacles_contact(&settled_light.obstacle(), &settled_heavy.obstacle())
+                .is_none_or(|contact| contact.depth_m <= POSITION_SLOP_M * 2.0),
+            "the pass must leave the pair essentially clear"
+        );
+    }
+
+    /// A wreck blocks but never budges: the living hull does all the giving.
+    #[test]
+    fn an_immovable_hull_takes_neither_impulse_nor_ground() {
+        let mut wreck = hull(0.0, 5.0, 0.0, Vec3::ZERO, 36_000.0);
+        wreck.movable = false;
+        let charger = hull(0.0, 0.0, 0.0, Vec3::new(0.0, 0.0, 12.0), 36_000.0);
+
+        let impulses = resolve_contacts(&[charger, wreck]);
+        assert_eq!(impulses[1].delta_velocity, Vec3::ZERO, "a wreck is not shoved");
+        assert!(impulses[0].delta_velocity.z < -0.5, "and the charger is stopped by it");
+
+        let pushed = separate_overlaps(&[charger, wreck]);
+        assert_eq!(pushed[1], Vec3::ZERO, "a wreck never gives ground");
+        assert!(pushed[0].z < 0.0, "the living hull backs out of it");
     }
 
     /// A hull touching nobody is never touched.

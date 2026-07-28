@@ -19,6 +19,30 @@ use crate::vertical::{GroundStep, is_grounded, resolve_vertical};
 /// terrain under every probe — the contact model never degrades against the wall.
 pub const MAP_BORDER_MARGIN_M: f32 = 3.5;
 
+/// Hold a hull inside the arena's red line: the map ends where the heightmap ends. Same contract
+/// as a cover wall — the position holds, the velocity component INTO the wall dies, sliding along
+/// it survives. Public because anything that MOVES a hull outside the drive step (the roster's
+/// contact separation) has to respect the same line, and a second copy of this arithmetic is
+/// exactly what the architecture gate forbids.
+pub fn clamp_to_map_border(position: &mut Vec3, velocity: &mut Vec3, heightmap: &HeightMap) {
+    let [extent_x, extent_z] = heightmap.extent_m();
+    let margin = MAP_BORDER_MARGIN_M;
+    if position.x < margin {
+        position.x = margin;
+        velocity.x = velocity.x.max(0.0);
+    } else if position.x > extent_x - margin {
+        position.x = extent_x - margin;
+        velocity.x = velocity.x.min(0.0);
+    }
+    if position.z < margin {
+        position.z = margin;
+        velocity.z = velocity.z.max(0.0);
+    } else if position.z > extent_z - margin {
+        position.z = extent_z - margin;
+        velocity.z = velocity.z.min(0.0);
+    }
+}
+
 /// Advance one tick on terrain only. Kept for callers without a cover set.
 pub fn step_tank_on_heightmap(
     state: &mut TankKinematicState,
@@ -152,22 +176,7 @@ pub fn step_tank_on_world_with_tanks(
     // velocity component INTO the wall dies, sliding along it survives. Server and client
     // predictor share this step, so prediction stays in lockstep at the line.
     if let Some(heightmap) = heightmap {
-        let [extent_x, extent_z] = heightmap.extent_m();
-        let margin = MAP_BORDER_MARGIN_M;
-        if state.position.x < margin {
-            state.position.x = margin;
-            state.velocity.x = state.velocity.x.max(0.0);
-        } else if state.position.x > extent_x - margin {
-            state.position.x = extent_x - margin;
-            state.velocity.x = state.velocity.x.min(0.0);
-        }
-        if state.position.z < margin {
-            state.position.z = margin;
-            state.velocity.z = state.velocity.z.max(0.0);
-        } else if state.position.z > extent_z - margin {
-            state.position.z = extent_z - margin;
-            state.velocity.z = state.velocity.z.min(0.0);
-        }
+        clamp_to_map_border(&mut state.position, &mut state.velocity, heightmap);
     }
 
     // Vertical resolution against the post-collision ground: the terrain either carries the
