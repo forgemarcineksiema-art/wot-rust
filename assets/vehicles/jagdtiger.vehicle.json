@@ -91,8 +91,8 @@
     "center_y_m": 1.45,
     "turret_min_y_m": 0.41,
     "turret_half_width_m": 1.356,
-    "turret_half_length_m": 1.6,
-    "turret_center_z_m": -0.3
+    "turret_half_length_m": 1.71,
+    "turret_center_z_m": -0.19000001
   },
   "damage_layout": {
     "components": []
