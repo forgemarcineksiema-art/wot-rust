@@ -105,6 +105,7 @@ pub(super) fn tiger_i_blueprint() -> VehicleBlueprint {
             plan_half_width: 1.00,
             // Reaches the Rommelkiste stowage bin's back face — the bin IS the rear armor plane.
             plan_half_length: 1.25,
+            plan_front_pad: 0.0,
             mantlet_radius: 0.34,
             mantlet_back_z: 0.92,
             sector_count: super::DEFAULT_TURRET_SECTORS,

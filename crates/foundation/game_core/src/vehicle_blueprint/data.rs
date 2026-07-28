@@ -120,6 +120,7 @@ fn t54() -> VehicleBlueprint {
             cupola_radius: 0.24,
             plan_half_width: 1.125,
             plan_half_length: 1.17,
+            plan_front_pad: 0.0,
             mantlet_radius: 0.32,
             mantlet_back_z: 0.88,
             sector_count: 24,

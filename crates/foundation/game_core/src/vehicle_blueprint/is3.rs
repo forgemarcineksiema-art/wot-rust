@@ -95,6 +95,7 @@ pub(super) fn is3_blueprint() -> VehicleBlueprint {
             cupola_radius: 0.27,
             plan_half_width: 1.15,
             plan_half_length: 1.30,
+            plan_front_pad: 0.0,
             mantlet_radius: 0.35,
             mantlet_back_z: 0.95,
             sector_count: super::DEFAULT_TURRET_SECTORS,

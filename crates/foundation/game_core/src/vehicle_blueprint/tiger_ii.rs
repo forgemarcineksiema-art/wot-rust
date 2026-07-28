@@ -104,6 +104,7 @@ pub(super) fn tiger_ii_blueprint() -> VehicleBlueprint {
             cupola_radius: 0.32,
             plan_half_width: 0.98,
             plan_half_length: 1.55,
+            plan_front_pad: 0.0,
             mantlet_radius: 0.30,
             mantlet_back_z: 1.35,
             sector_count: super::DEFAULT_TURRET_SECTORS,

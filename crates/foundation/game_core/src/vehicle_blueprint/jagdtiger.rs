@@ -92,6 +92,10 @@ pub(super) fn jagdtiger_blueprint() -> VehicleBlueprint {
             cupola_radius: 0.14,
             plan_half_width: 1.356,
             plan_half_length: 1.60,
+            // The cast collar around the 12.8 cm stands 0.22 m proud of the 250 mm face
+            // (dossier JT.3). That casting is armor a shell must defeat, so the casemate's hit
+            // volume reaches it — the only vehicle in the lineup that needs the pad.
+            plan_front_pad: 0.22,
             mantlet_radius: 0.36,
             mantlet_back_z: 1.06,
             sector_count: super::DEFAULT_TURRET_SECTORS,
