@@ -92,6 +92,7 @@ pub(super) fn jagdtiger_blueprint() -> VehicleBlueprint {
             plan_half_length: 1.60,
             mantlet_radius: 0.36,
             mantlet_back_z: 1.06,
+            sector_count: super::DEFAULT_TURRET_SECTORS,
             mantlet_front_z: 1.38,
         },
         gun: GunShape {

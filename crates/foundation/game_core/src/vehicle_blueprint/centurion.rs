@@ -102,6 +102,7 @@ pub(super) fn centurion_blueprint() -> VehicleBlueprint {
             plan_half_length: 1.45,
             mantlet_radius: 0.30,
             mantlet_back_z: 1.02,
+            sector_count: super::DEFAULT_TURRET_SECTORS,
             mantlet_front_z: 1.32,
         },
         gun: GunShape {

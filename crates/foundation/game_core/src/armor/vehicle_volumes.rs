@@ -57,10 +57,7 @@ const LOWER_PLATE_SLOPE_FACTOR: f32 = 0.45;
 /// rear sectors begin.
 const TURRET_FRONT_AZIMUTH_DEG: f32 = 60.0;
 const TURRET_REAR_AZIMUTH_DEG: f32 = 120.0;
-/// Dome tessellation: one tagged plane per sector, so the impact normal sweeps around the
-/// casting instead of snapping between three flat faces.
-const TURRET_SECTORS: usize = 12;
-const T54_TURRET_SECTORS: usize = 24;
+/// Dome tessellation is AUTHORED, per casting: see [`crate::TurretShape::sector_count`].
 /// The mantlet patch reaches slightly past the casting radius so the socket rim counts as
 /// mantlet, matching the visible ball's footprint.
 const MANTLET_PATCH_SCALE: f32 = 1.2;
@@ -203,8 +200,7 @@ fn turret_dome(blueprint: &VehicleBlueprint, cy: f32) -> ArmorVolume {
         center: Vec3::new(0.0, blueprint.gun.trunnion_y - cy, turret.mantlet_front_z),
         radius_m: turret.mantlet_radius * MANTLET_PATCH_SCALE,
     };
-    let sectors =
-        if blueprint.kind == VehicleKind::T54_1951 { T54_TURRET_SECTORS } else { TURRET_SECTORS };
+    let sectors = turret.sector_count.max(3) as usize;
     let mut planes = Vec::with_capacity(sectors + 2);
     for sector in 0..sectors {
         let azimuth = (sector as f32 + 0.5) / sectors as f32 * std::f32::consts::TAU;
@@ -417,7 +413,7 @@ mod tests {
             .filter(|plane| plane.normal.y.abs() < 0.9)
             .map(|plane| plane.normal.x.atan2(plane.normal.z))
             .collect();
-        assert_eq!(headings.len(), 4, "exactly four wall plates, not {TURRET_SECTORS} sectors");
+        assert_eq!(headings.len(), 4, "exactly four wall plates, not a swept sector ring");
 
         // The front plate carries the blueprint's front slope in its normal, and a shot down the
         // gun line still lands on the mantlet patch.
@@ -477,6 +473,26 @@ mod tests {
         );
     }
 
+    /// The tessellation is CONTENT, and this is the proof: change the blueprint and the armour
+    /// follows. It used to be `if kind == T54_1951` inside the shared bake, so a new casting
+    /// could not be authored finer without editing the engine — and no author could see that the
+    /// decision existed at all.
+    #[test]
+    fn the_dome_sweep_follows_the_blueprint_not_the_vehicle_kind() {
+        let mut blueprint =
+            VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("blueprint");
+        for sectors in [6_u32, 12, 24, 40] {
+            blueprint.turret.sector_count = sectors;
+            let volumes = bake_vehicle_armor(blueprint);
+            let walls =
+                volumes.turret.planes.iter().filter(|plane| plane.normal.y.abs() < 0.9).count();
+            assert_eq!(
+                walls, sectors as usize,
+                "{sectors} authored sectors must bake {sectors} wall planes"
+            );
+        }
+    }
+
     #[test]
     fn dome_sector_normals_sweep_around_the_casting() {
         let volumes = vehicle_armor_volumes(VehicleKind::T54_1951).expect("baked");
@@ -489,7 +505,16 @@ mod tests {
             .filter(|plane| plane.normal.y < 0.9 && plane.normal.y > -0.9)
             .map(|plane| plane.normal.x.atan2(plane.normal.z))
             .collect();
-        assert_eq!(headings.len(), T54_TURRET_SECTORS);
+        let blueprint = VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("blueprint");
+        assert_eq!(
+            headings.len(),
+            blueprint.turret.sector_count as usize,
+            "the sweep is as fine as the BLUEPRINT says, not as fine as the bake decided"
+        );
+        assert!(
+            blueprint.turret.sector_count > crate::vehicle_blueprint::DEFAULT_TURRET_SECTORS,
+            "the T-54 casting is authored finer than the default"
+        );
         for pair in headings.windows(2) {
             assert!((pair[1] - pair[0]).abs() > 1.0e-3, "sector headings must differ");
         }
