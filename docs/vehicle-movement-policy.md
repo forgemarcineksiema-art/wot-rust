@@ -108,6 +108,14 @@ Static cover (buildings, treelines, wrecks) is a hard obstacle as well: the shar
 keeps the hull out of cover footprints, sliding along a face rather than sticking, so the
 predicted hull stops exactly where the server stops it (see Shared Drive Step).
 
+Collapsed buildings are part of that ground. A `CoverPhase::Rubble` object leaves the movement
+collision entirely and enters the support envelope as `terrain::RubbleMound` — a truncated pyramid
+with flanks at the angle of repose of broken masonry. Both the resting line and the drive's slope
+probe read `max(terrain, debris)`, so the hull rides the pile AND pays it: the crossing tilts the
+hull and bleeds speed through the same force model every slope uses. Intact cover is unchanged —
+it blocks in plan at any height, so nothing ends up on a roof. See `docs/destruction-program.md`,
+"Rubble is terrain".
+
 A hull that stops being a tank does not stop being an object. The drive step is skipped for dead
 hulls — a wreck neither drives nor steers nor slides — but its VERTICAL is still resolved, every
 tick, commanded or not (`sim::wreck::settle_wrecks`), against the same support envelope a live

@@ -49,6 +49,9 @@ pub struct TankDriveWorld<'a> {
     pub footprint: Option<&'a game_core::ContactFootprint>,
     /// The map's standing water (wading drag + riverbed traction cut); `None` is a dry map.
     pub water: Option<terrain::WaterBody>,
+    /// Collapsed buildings, as ground (see `terrain::RubbleMound`). Empty until something comes
+    /// down, so an untouched battlefield drives bit-identically.
+    pub rubble: &'a [terrain::RubbleMound],
 }
 
 /// Advance one fixed tick: movement (terrain + cover + tank collision), turret/gun aiming, and
@@ -109,7 +112,8 @@ pub fn step_tank_drive(
             TankFootprint::from_hitbox(spec.hitbox),
             world.tank_obstacles,
         )
-        .with_water(world.water);
+        .with_water(world.water)
+        .with_rubble(world.rubble);
         step_tank_on_world_with_tanks(
             &mut drive.kinematic,
             input,
@@ -147,6 +151,7 @@ pub fn step_tank_drive(
     ground
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn step_tank(
     tank: &mut TankState,
     command: TankCommand,
@@ -155,6 +160,7 @@ pub(crate) fn step_tank(
     cover: &[StaticCoverObject],
     tank_obstacles: &[TankObstacle],
     water: Option<terrain::WaterBody>,
+    rubble: &[terrain::RubbleMound],
 ) -> GroundStep {
     let mut drive = TankDriveState {
         kinematic: TankKinematicState {
@@ -181,8 +187,14 @@ pub(crate) fn step_tank(
     let modules =
         DriveModuleStatus::from_module_hp(tracks, tank.modules.hit_points_by_slot(), &tank.spec);
     let footprint = tank.spec.contact_footprint();
-    let world =
-        TankDriveWorld { heightmap, cover, tank_obstacles, footprint: Some(&footprint), water };
+    let world = TankDriveWorld {
+        heightmap,
+        cover,
+        tank_obstacles,
+        footprint: Some(&footprint),
+        water,
+        rubble,
+    };
 
     let ground = step_tank_drive(&mut drive, &tank.spec, modules, world, command, dt);
 

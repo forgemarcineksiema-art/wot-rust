@@ -1,7 +1,7 @@
 use game_core::math::horizontal_forward;
 use glam::Vec3;
 use serde::{Deserialize, Serialize};
-use terrain::HeightMap;
+use terrain::{HeightMap, RubbleMound};
 
 /// The ground a hull stands on for one tick: its height and the local slope/roughness/traction the
 /// rigid-body integrator resolves forces against. `forward_slope`/`side_slope` are rise/run along
@@ -32,20 +32,25 @@ impl TerrainContact {
     }
 }
 
+/// Sample the ground the DRIVE resolves its forces against. The probe cross must read the same
+/// surface the support envelope rests on, debris included: `forward_slope` is what gravity, the
+/// grip cap and the momentum-climb ceiling are computed from, so a mound that raised the hull but
+/// left the probes on flat terrain would be a pile you climb for free.
 pub fn sample_tank_terrain_contact(
     heightmap: &HeightMap,
     position: Vec3,
     yaw_rad: f32,
     probe_length_m: f32,
+    rubble: &[RubbleMound],
 ) -> Option<TerrainContact> {
     let probe = probe_length_m.max(heightmap.cell_size_m() * 0.5).max(0.5);
     let forward = horizontal_forward(yaw_rad);
     let right = Vec3::new(forward.z, 0.0, -forward.x);
-    let center = heightmap.sample_height(position.x, position.z)?;
-    let front = sample_offset(heightmap, position, forward, probe).unwrap_or(center);
-    let back = sample_offset(heightmap, position, -forward, probe).unwrap_or(center);
-    let right_h = sample_offset(heightmap, position, right, probe).unwrap_or(center);
-    let left_h = sample_offset(heightmap, position, -right, probe).unwrap_or(center);
+    let center = ground(heightmap, position, rubble)?;
+    let front = sample_offset(heightmap, position, forward, probe, rubble).unwrap_or(center);
+    let back = sample_offset(heightmap, position, -forward, probe, rubble).unwrap_or(center);
+    let right_h = sample_offset(heightmap, position, right, probe, rubble).unwrap_or(center);
+    let left_h = sample_offset(heightmap, position, -right, probe, rubble).unwrap_or(center);
     let forward_slope = (front - back) / (probe * 2.0);
     let side_slope = (right_h - left_h) / (probe * 2.0);
     let roughness = [front, back, right_h, left_h]
@@ -71,7 +76,15 @@ fn sample_offset(
     position: Vec3,
     direction: Vec3,
     distance: f32,
+    rubble: &[RubbleMound],
 ) -> Option<f32> {
-    let point = position + direction * distance;
-    heightmap.sample_height(point.x, point.z)
+    ground(heightmap, position + direction * distance, rubble)
+}
+
+fn ground(heightmap: &HeightMap, point: Vec3, rubble: &[RubbleMound]) -> Option<f32> {
+    let terrain = heightmap.sample_height(point.x, point.z);
+    if rubble.is_empty() {
+        return terrain;
+    }
+    terrain::ground_with_rubble(terrain, terrain::rubble_height_at(rubble, point.x, point.z))
 }

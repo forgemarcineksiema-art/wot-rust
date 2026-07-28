@@ -30,6 +30,7 @@ impl ClientApp {
             // local hull where the authority does not.
             self.live_cover.movement(),
             &tank_obstacles,
+            self.live_cover.rubble(),
             TICK_DT,
         );
     }

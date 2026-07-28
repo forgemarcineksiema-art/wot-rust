@@ -31,7 +31,7 @@ fn predictor_matches_the_server_pose_and_dispersion_tick_for_tick() {
 
     for tick in 0..60 {
         server.apply_commands_on_terrain(&[(tank_id, command)], step, &flat);
-        predictor.step(command, &flat, &[], &[], step.dt_seconds());
+        predictor.step(command, &flat, &[], &[], &[], step.dt_seconds());
 
         let tank = server.tank(tank_id).expect("tank");
         assert!(
@@ -81,7 +81,7 @@ fn predictor_matches_the_server_through_a_launch_flight_and_landing() {
     let mut flew = false;
     for tick in 0..600 {
         server.apply_commands_on_terrain(&[(tank_id, command)], step, &map);
-        predictor.step(command, &map, &[], &[], step.dt_seconds());
+        predictor.step(command, &map, &[], &[], &[], step.dt_seconds());
 
         let tank = server.tank(tank_id).expect("tank");
         assert!(

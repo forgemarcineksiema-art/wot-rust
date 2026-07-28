@@ -49,7 +49,7 @@ fn prediction_is_blocked_by_static_cover_like_the_server() {
 
     let drive = TankCommand::drive(1.0, 0.0); // straight north into the barn
     for _ in 0..240 {
-        predictor.step(drive, &flat, &cover, &[], 1.0 / 60.0);
+        predictor.step(drive, &flat, &cover, &[], &[], 1.0 / 60.0);
     }
 
     // The predictor shares the server's movement-and-cover step (`step_tank_on_world`), so it
@@ -71,7 +71,7 @@ fn prediction_is_blocked_by_other_tanks_like_the_server() {
 
     let drive = TankCommand::drive(1.0, 0.0);
     for _ in 0..240 {
-        predictor.step(drive, &flat, &[], &obstacles, 1.0 / 60.0);
+        predictor.step(drive, &flat, &[], &obstacles, &[], 1.0 / 60.0);
     }
 
     // The hulls meet nose-to-tail: the obstacle's near face minus our own half length.

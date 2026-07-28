@@ -18,14 +18,19 @@
 
 use glam::Vec3;
 use physics::{TankKinematicState, is_grounded, resolve_vertical, support_height};
-use terrain::HeightMap;
+use terrain::{HeightMap, RubbleMound};
 
 use crate::tank_state::TankState;
 
 /// Let every wreck fall to, or settle onto, the ground under it. A no-op on terrain-free modes
 /// and for any wreck already resting on its support — which is the overwhelming common case
 /// (a hull dies on the ground it was already grounded to), so replays stay bit-identical.
-pub(crate) fn settle_wrecks(tanks: &mut [TankState], heightmap: Option<&HeightMap>, dt: f32) {
+pub(crate) fn settle_wrecks(
+    tanks: &mut [TankState],
+    heightmap: Option<&HeightMap>,
+    rubble: &[RubbleMound],
+    dt: f32,
+) {
     let Some(heightmap) = heightmap else {
         return;
     };
@@ -36,7 +41,7 @@ pub(crate) fn settle_wrecks(tanks: &mut [TankState], heightmap: Option<&HeightMa
         // The same ride height a living hull reads: the running-gear support envelope, with the
         // centre probe as the fallback, so a wreck rests exactly where the tank rested.
         let footprint = tank.spec.contact_footprint();
-        let ground = support_height(heightmap, tank.position, tank.yaw_rad, &footprint)
+        let ground = support_height(heightmap, tank.position, tank.yaw_rad, &footprint, rubble)
             .or_else(|| heightmap.sample_height(tank.position.x, tank.position.z));
         let Some(ground) = ground else {
             continue;

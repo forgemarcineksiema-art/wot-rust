@@ -308,6 +308,9 @@ impl SimulationState {
             crate::cover_damage::live_cover_for_movement(cover, &self.cover_states);
         let sight_cover =
             crate::cover_damage::live_cover_for_sight_and_shells(cover, &self.cover_states);
+        // ...and the third resolution: what a hull STANDS ON. A collapsed building is debris, and
+        // debris is ground — the support envelope and the drive's own slope probe both read it.
+        let rubble = crate::cover_damage::rubble_mounds(cover, &self.cover_states);
         let ramming_before = capture_ramming_snapshots(&self.tanks);
         for tank in &mut self.tanks {
             tank.reload_remaining_s = (tank.reload_remaining_s - dt).max(0.0);
@@ -365,6 +368,7 @@ impl SimulationState {
                     &movement_cover,
                     &obstacle_scratch,
                     self.water,
+                    &rubble,
                 );
                 all_obstacles[index] =
                     TankObstacle::from_hitbox(tank.position, tank.yaw_rad, tank.spec.hitbox);
@@ -404,7 +408,7 @@ impl SimulationState {
         );
         // ...and the wrecks settle onto the ground under them, whether they were killed in
         // mid-air or the ground moved after they died (see `wreck`).
-        crate::wreck::settle_wrecks(&mut self.tanks, heightmap, dt);
+        crate::wreck::settle_wrecks(&mut self.tanks, heightmap, &rubble, dt);
         // Drowning runs for EVERY living hull, commanded or not â€” a dead-engine tank in the
         // river keeps flooding.
         crate::drowning::step_drowning(

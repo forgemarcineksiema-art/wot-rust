@@ -12,7 +12,7 @@
 //! [`live_cover_for_movement`].
 
 use serde::{Deserialize, Serialize};
-use terrain::StaticCoverObject;
+use terrain::{RubbleMound, StaticCoverObject};
 
 /// How a cover object presents right now.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -20,8 +20,9 @@ pub enum CoverPhase {
     /// Whole and blocking at full height.
     #[default]
     Intact,
-    /// A collapsed building: a low mound that still stops a hull but lets a turret-height shot
-    /// (and a sight line over it) pass.
+    /// A collapsed building: debris. It still stops a shell and hides what is behind it below its
+    /// crest, but for MOVEMENT it is no longer an obstacle at all — it is ground, and a hull
+    /// climbs it (see [`rubble_mounds`] and `terrain::RubbleMound`).
     Rubble,
     /// Gone — flattened foliage or cleared ground. Blocks nothing.
     Gone,
@@ -111,7 +112,6 @@ fn live_cover_for<'a>(
     states: &[CoverState],
     purpose: CoverPurpose,
 ) -> std::borrow::Cow<'a, [StaticCoverObject]> {
-    let _ = purpose;
     if states.iter().all(|state| state.phase == CoverPhase::Intact) {
         return std::borrow::Cow::Borrowed(cover);
     }
@@ -120,6 +120,11 @@ fn live_cover_for<'a>(
         match states.get(index).map(|state| state.phase).unwrap_or_default() {
             CoverPhase::Intact => live.push(object.clone()),
             CoverPhase::Gone => {}
+            // Debris is not an obstacle to a hull — it is the ground the hull stands on, and it
+            // reaches the drive through the support envelope instead (`rubble_mounds`). Leaving
+            // it in the movement slice was the whole reason a flattened block still walled a
+            // tank exactly as the standing block had.
+            CoverPhase::Rubble if purpose == CoverPurpose::Movement => {}
             CoverPhase::Rubble => {
                 let frac = object.kind.rubble_height_frac();
                 let full_half = object.half_extents_m[1];
@@ -150,6 +155,29 @@ pub fn live_cover_for_movement<'a>(
     states: &[CoverState],
 ) -> std::borrow::Cow<'a, [StaticCoverObject]> {
     live_cover_for(cover, states, CoverPurpose::Movement)
+}
+
+/// The collapsed buildings on this battlefield, as the GROUND a hull drives on (see
+/// [`terrain::RubbleMound`]). Built from the AUTHORED boxes, so the pile a hull climbs and the
+/// mound a shell meets are the same debris. Empty until something comes down, which is what keeps
+/// an untouched battlefield bit-identical.
+pub fn rubble_mounds(cover: &[StaticCoverObject], states: &[CoverState]) -> Vec<RubbleMound> {
+    cover
+        .iter()
+        .enumerate()
+        .filter(|(index, _)| {
+            states.get(*index).map(|state| state.phase) == Some(CoverPhase::Rubble)
+        })
+        .map(|(_, object)| RubbleMound::from_cover(object))
+        .collect()
+}
+
+/// The same, from replicated phase bytes — what the client predictor drives on.
+pub fn rubble_mounds_for_phase_bytes(
+    cover: &[StaticCoverObject],
+    phase_bytes: &[u8],
+) -> Vec<RubbleMound> {
+    rubble_mounds(cover, &states_from_phase_bytes(phase_bytes))
 }
 
 fn states_from_phase_bytes(phase_bytes: &[u8]) -> Vec<CoverState> {

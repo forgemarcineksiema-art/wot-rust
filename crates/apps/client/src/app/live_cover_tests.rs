@@ -88,6 +88,7 @@ fn prediction_stops_on_intact_and_rubble_cover_but_passes_gone_cover() {
                 &flat,
                 cache.blocking(),
                 &[],
+                &[],
                 1.0 / 60.0,
             );
         }

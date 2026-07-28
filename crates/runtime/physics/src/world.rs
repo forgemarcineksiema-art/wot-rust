@@ -74,7 +74,8 @@ pub fn step_tank_on_world_with_tanks(
     let ride_height = |position: Vec3, yaw_rad: f32| -> Option<f32> {
         let heightmap = heightmap?;
         if let Some(footprint) = footprint
-            && let Some(height) = support_height(heightmap, position, yaw_rad, footprint)
+            && let Some(height) =
+                support_height(heightmap, position, yaw_rad, footprint, obstacles.rubble)
         {
             return Some(height);
         }
@@ -87,6 +88,7 @@ pub fn step_tank_on_world_with_tanks(
                 state.position,
                 state.yaw_rad,
                 settings.ground_probe_length_m,
+                obstacles.rubble,
             )
         })
         .unwrap_or_else(|| TerrainContact::flat(state.position.y));
@@ -175,10 +177,11 @@ pub fn step_tank_on_world_with_tanks(
             state.position,
             state.yaw_rad,
             settings.ground_probe_length_m,
+            obstacles.rubble,
         )
     {
         let support = footprint.and_then(|footprint| {
-            sample_support(heightmap, state.position, state.yaw_rad, footprint)
+            sample_support(heightmap, state.position, state.yaw_rad, footprint, obstacles.rubble)
         });
         let ground = support.map(|s| s.height_m).unwrap_or(next_contact.height_m);
         let moved_xz = (state.position.x - previous.x).hypot(state.position.z - previous.z);

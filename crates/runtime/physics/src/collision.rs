@@ -45,6 +45,9 @@ pub struct TankWorldObstacles<'a> {
     /// depth of water over the terrain contact (see [`crate::water`]). `None` keeps the dry
     /// path bit-identical (replay-locked).
     pub water: Option<terrain::WaterBody>,
+    /// Collapsed buildings, as GROUND (see [`terrain::RubbleMound`]). Empty on a battlefield
+    /// nothing has knocked down yet, which keeps the untouched path bit-identical.
+    pub rubble: &'a [terrain::RubbleMound],
 }
 
 impl<'a> TankWorldObstacles<'a> {
@@ -53,11 +56,16 @@ impl<'a> TankWorldObstacles<'a> {
         tank_footprint: TankFootprint,
         tanks: &'a [TankObstacle],
     ) -> Self {
-        Self { cover, tank_footprint, tanks, water: None }
+        Self { cover, tank_footprint, tanks, water: None, rubble: &[] }
     }
 
     pub fn with_water(mut self, water: Option<terrain::WaterBody>) -> Self {
         self.water = water;
+        self
+    }
+
+    pub fn with_rubble(mut self, rubble: &'a [terrain::RubbleMound]) -> Self {
+        self.rubble = rubble;
         self
     }
 }

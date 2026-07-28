@@ -11,6 +11,7 @@ pub(super) struct LiveCoverCache {
     phase_bytes: Vec<u8>,
     blocking: Vec<StaticCoverObject>,
     movement: Vec<StaticCoverObject>,
+    rubble: Vec<terrain::RubbleMound>,
     camera_obstacles: Vec<CameraObstacle>,
     replicated: bool,
 }
@@ -34,8 +35,9 @@ impl LiveCoverCache {
     fn build(authored: &[StaticCoverObject], phase_bytes: Vec<u8>, replicated: bool) -> Self {
         let blocking = sim::sight_cover_for_phase_bytes(authored, &phase_bytes);
         let movement = sim::movement_cover_for_phase_bytes(authored, &phase_bytes);
+        let rubble = sim::rubble_mounds_for_phase_bytes(authored, &phase_bytes);
         let camera_obstacles = blocking.iter().map(CameraObstacle::from_static_cover).collect();
-        Self { phase_bytes, blocking, movement, camera_obstacles, replicated }
+        Self { phase_bytes, blocking, movement, rubble, camera_obstacles, replicated }
     }
 
     pub(super) fn phase_bytes(&self) -> &[u8] {
@@ -52,6 +54,13 @@ impl LiveCoverCache {
     /// server's movement uses — see `sim::live_cover_for_movement`.
     pub(super) fn movement(&self) -> &[StaticCoverObject] {
         &self.movement
+    }
+
+    /// What a hull STANDS ON that the heightmap does not know about: collapsed buildings, as
+    /// debris. The predictor must read the same piles the authority does or the local hull will
+    /// climb ground the server has not raised.
+    pub(super) fn rubble(&self) -> &[terrain::RubbleMound] {
+        &self.rubble
     }
 
     pub(super) fn camera_obstacles(&self) -> &[CameraObstacle] {
