@@ -144,10 +144,15 @@ fn tow_hooks(mut builder: MeshBuilder, bp: &VehicleBlueprint, stations: &[f32]) 
     builder
 }
 
-/// Hinged bow fender flaps over the drive sprockets (photo comparison F3): a slanted plate
-/// dropping forward from the sponson lip over each track's front wrap — the German line's
-/// bow signature. Built as an extruded parallelogram so the droop is real geometry.
-fn german_bow_flaps(mut builder: MeshBuilder, bp: &VehicleBlueprint) -> MeshBuilder {
+/// Hinged fender flaps over a track's end wrap (photo comparison F3): a slanted plate dropping
+/// away from the fender line over the front (`end_sign` +1) or rear (-1) wrap — the German
+/// line's bow signature and, on the Tiger I, its rear mudflaps. Built as an extruded
+/// parallelogram so the droop is real geometry.
+fn german_track_flaps(
+    mut builder: MeshBuilder,
+    bp: &VehicleBlueprint,
+    end_sign: f32,
+) -> MeshBuilder {
     let track = &bp.track;
     let band_half = ((track.outer_x - track.inner_x) * 0.5).max(0.05);
     // Clearance math (track autopsy): the belt wraps the driven end on a circle of radius
@@ -156,20 +161,29 @@ fn german_bow_flaps(mut builder: MeshBuilder, bp: &VehicleBlueprint) -> MeshBuil
     // straight through the climbing shoes.
     let wrap_outer = track.end_radius + 0.02 + 0.055;
     let hinge_y = (track.end_y + wrap_outer + 0.03).max(bp.hull.sponson_y + 0.02);
-    let hinge_z = track.end_z + 0.12;
+    let hinge_z = end_sign * (track.end_z + 0.12);
     let droop_dz = 0.45;
     let droop_dy = 0.22;
+    // Mirroring the section in Z reverses its winding, so the rear flap is authored reversed —
+    // a flap whose normals point inward reads as a hole in the fender line.
+    let mut section = vec![
+        Vec2::new(0.0, -0.018),
+        Vec2::new(droop_dz, -droop_dy - 0.018),
+        Vec2::new(droop_dz, -droop_dy),
+        Vec2::new(0.0, 0.0),
+    ];
+    if end_sign < 0.0 {
+        for point in &mut section {
+            point.x = -point.x;
+        }
+        section.reverse();
+    }
     for sign in [-1.0_f32, 1.0] {
         builder = builder
             .extrude(
                 Vec3::new(sign * track.center_x, hinge_y, hinge_z),
                 ExtrudeSpec {
-                    section: vec![
-                        Vec2::new(0.0, -0.018),
-                        Vec2::new(droop_dz, -droop_dy - 0.018),
-                        Vec2::new(droop_dz, -droop_dy),
-                        Vec2::new(0.0, 0.0),
-                    ],
+                    section: section.clone(),
                     axis: crate::Axis::X,
                     half_depth: band_half * 0.96,
                     material: MaterialRole::RolledArmor,
@@ -182,6 +196,45 @@ fn german_bow_flaps(mut builder: MeshBuilder, bp: &VehicleBlueprint) -> MeshBuil
                 Vec3::new(band_half * 0.80, 0.014, 0.024),
                 0.008,
                 MaterialRole::BarrelSteel,
+                SG_HARD,
+            );
+    }
+    builder
+}
+
+/// Full-length track guards (Kotflügel) over the belt run. These exist because the beam is
+/// carried by the TRACKS, not the hull: the belt stands proud of the sponson wall, and without
+/// a guard the flank ends in a bare belt edge with no fender line at all. The shelf seats on
+/// the hull wall, reaches exactly to the belt's outer face (never past it — the width anchor
+/// stays the track's), and turns down into a lip over the run.
+fn german_track_guards(mut builder: MeshBuilder, bp: &VehicleBlueprint) -> MeshBuilder {
+    let hull = &bp.hull;
+    let track = &bp.track;
+    // Nothing to cover when the sponson already overhangs the belt.
+    if track.outer_x - hull.half_width <= 0.02 {
+        return builder;
+    }
+    let inner_x = hull.half_width - 0.06;
+    let half_x = (track.outer_x - inner_x) * 0.5;
+    let center_x = (track.outer_x + inner_x) * 0.5;
+    // Above the belt's top run with real clearance, level with the sponson fold.
+    let y = (hull.sponson_y + 0.03).max(track.top_y + 0.06);
+    let half_z = track.end_z + 0.12;
+    for sign in [-1.0_f32, 1.0] {
+        builder = builder
+            .plate_box(
+                Vec3::new(sign * center_x, y, 0.0),
+                Vec3::new(half_x, 0.012, half_z),
+                0.01,
+                MaterialRole::RolledArmor,
+                SG_HARD,
+            )
+            // Downturned outer lip, flush with the belt's outer face.
+            .plate_box(
+                Vec3::new(sign * (track.outer_x - 0.012), y - 0.05, 0.0),
+                Vec3::new(0.012, 0.05, half_z),
+                0.008,
+                MaterialRole::RolledArmor,
                 SG_HARD,
             );
     }
@@ -412,6 +465,10 @@ fn german_bow(mut builder: MeshBuilder, bp: &VehicleBlueprint, hatch_r: f32) -> 
 pub(crate) fn tiger_i_deck(bp: &VehicleBlueprint) -> GeometryMesh {
     let b = german_bow(MeshBuilder::new(), bp, 0.21);
     let b = tow_hooks(b, bp, &[bp.hull.half_len - 0.14, -bp.hull.half_len + 0.14]);
+    // The Tiger wears its fender line over the full run, closed by hinged flaps at BOTH ends.
+    let b = german_track_guards(b, bp);
+    let b = german_track_flaps(b, bp, 1.0);
+    let b = german_track_flaps(b, bp, -1.0);
     engine_deck_german(b, bp)
 }
 
@@ -419,7 +476,7 @@ pub(crate) fn tiger_ii_deck(bp: &VehicleBlueprint) -> GeometryMesh {
     let b = german_bow(MeshBuilder::new(), bp, 0.21);
     let b = tow_hooks(b, bp, &[bp.hull.half_len - 0.14, -bp.hull.half_len + 0.14]);
     let b = german_exhaust_stacks(b, bp);
-    let b = german_bow_flaps(b, bp);
+    let b = german_track_flaps(b, bp, 1.0);
     engine_deck_german(b, bp)
 }
 

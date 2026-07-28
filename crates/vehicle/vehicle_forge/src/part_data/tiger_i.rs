@@ -21,6 +21,9 @@ pub(crate) fn tiger_i_parts(bp: &VehicleBlueprint) -> Vec<ForgePart> {
     let wheel_bottom = track_mid_y - t.wheel_radius;
     let band_min_z = -(t.end_z + t.end_radius);
     let band_max_z = t.end_z + t.end_radius;
+    // Which end each wheel sits at, straight off the blueprint's drive layout.
+    let drive_z = if t.drive_front { t.end_z } else { -t.end_z };
+    let idler_z = -drive_z;
 
     // The driver's plate stands glacis_slope_deg from vertical, pivoting at the sponson fold —
     // its run over the plate's height is what the glacis part spans in Z.
@@ -95,23 +98,40 @@ pub(crate) fn tiger_i_parts(bp: &VehicleBlueprint) -> Vec<ForgePart> {
             "Schachtellaufwerk stagger: even axles ride the outer row and odd axles the inner \
              row — two visual planes, one wheel unit per axle, no return rollers.",
         ),
-        part(
-            ForgePartKind::Idler,
-            PartAnchor::Hull,
-            MaterialRole::TrackMetal,
-            Vec3::new(0.0, t.end_y, t.end_z),
-            Vec3::new(-t.outer_x, t.end_y - t.end_radius, t.end_z - t.end_radius),
-            Vec3::new(t.outer_x, t.end_y + t.end_radius, t.end_z + t.end_radius),
-            "Front idler at the belt's forward wrap.",
-        ),
+        // Front drive (`drive_front`): the sprocket is the FORWARD end wheel and the idler the
+        // rear one — the German line's layout, and the same end the mesh places them at. The
+        // table used to carry the Soviet arrangement, so the labelled parts named the wrong
+        // wheels while the model drove correctly (model-logic finding, Tiger I).
         part(
             ForgePartKind::DriveSprocket,
             PartAnchor::Hull,
             MaterialRole::TrackMetal,
-            Vec3::new(0.0, t.end_y, -t.end_z),
-            Vec3::new(-t.outer_x, t.end_y - t.end_radius, -t.end_z - t.end_radius),
-            Vec3::new(t.outer_x, t.end_y + t.end_radius, -t.end_z + t.end_radius),
-            "Rear drive sprocket; its toothed rings stay inside the band's outer face.",
+            Vec3::new(0.0, t.end_y, drive_z),
+            Vec3::new(-t.outer_x, t.end_y - t.end_radius, drive_z - t.end_radius),
+            Vec3::new(t.outer_x, t.end_y + t.end_radius, drive_z + t.end_radius),
+            "Front drive sprocket at the transmission end; its toothed rings stay inside the \
+             band's outer face.",
+        ),
+        part(
+            ForgePartKind::Idler,
+            PartAnchor::Hull,
+            MaterialRole::TrackMetal,
+            Vec3::new(0.0, t.end_y, idler_z),
+            Vec3::new(-t.outer_x, t.end_y - t.end_radius, idler_z - t.end_radius),
+            Vec3::new(t.outer_x, t.end_y + t.end_radius, idler_z + t.end_radius),
+            "Rear idler at the belt's trailing wrap.",
+        ),
+        part(
+            ForgePartKind::Fenders,
+            PartAnchor::Hull,
+            MaterialRole::RolledArmor,
+            Vec3::new(0.0, h.sponson_y + 0.03, 0.0),
+            // The shelf runs wrap to wrap; the hinged flaps carry it past both ends and droop
+            // below the fender line, so the part's box has to reach where they actually hang.
+            Vec3::new(-t.outer_x, h.sponson_y - 0.25, -(t.end_z + 0.57)),
+            Vec3::new(t.outer_x, h.sponson_y + 0.05, t.end_z + 0.57),
+            "Track guards over the belt run with hinged flaps at both ends — the fender line the \
+             3.705 m beam needs once the belts, not the sponsons, carry the width.",
         ),
         part(
             ForgePartKind::Turret,
@@ -164,10 +184,11 @@ pub(crate) fn tiger_i_parts(bp: &VehicleBlueprint) -> Vec<ForgePart> {
             Vec3::new(tu.cupola_x - tu.cupola_radius, tu.roof_y, tu.cupola_z - tu.cupola_radius),
             Vec3::new(
                 tu.cupola_x + tu.cupola_radius,
-                tu.roof_y + 0.29,
+                tu.roof_y + tu.cupola_proud_m(h),
                 tu.cupola_z + tu.cupola_radius,
             ),
-            "The drum cupola on the left rear roof — it tops the documented 3.00 m silhouette.",
+            "The drum cupola on the left rear roof — 0.115 m of drum over the 2.885 m roof, \
+             which together make the documented 3.00 m silhouette.",
         ),
         part(
             ForgePartKind::EngineDeck,

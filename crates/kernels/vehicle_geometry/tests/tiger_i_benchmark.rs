@@ -194,7 +194,103 @@ fn the_hitbox_is_the_researched_body_not_the_legacy_stretch() {
     assert!((hitbox.half_width_m - 1.87).abs() < 1.0e-6);
     assert!(((hitbox.center_y_m + hitbox.half_height_m) - 3.01).abs() < 1.0e-6, "3 m tall");
     assert!((bp.hull.half_len - 3.16).abs() < 1.0e-6, "the documented 6.32 m hull");
-    assert!((bp.track.outer_x - 1.84).abs() < 1.0e-6, "3.7 m over the combat tracks");
+    assert!((bp.track.outer_x - 1.8525).abs() < 1.0e-6, "3.705 m over the combat tracks");
+}
+
+/// The Tiger has TWO documented widths and each is carried by the part that owns it: 3.56 m
+/// over the sponsons, 3.705 m over the combat tracks. Authoring the beam on the hull instead
+/// (the migration's shortcut) satisfies the composed-bounds width gate just as well, while
+/// hiding the belts inside the sponson line — and with them the entire fender line.
+#[test]
+fn the_tracks_carry_the_width_anchor_and_stand_proud_of_the_sponsons() {
+    let bp = blueprint();
+    assert!((2.0 * bp.hull.half_width - 3.56).abs() < 1.0e-3, "3.56 m over the sponsons");
+    assert!((2.0 * bp.track.outer_x - 3.705).abs() < 1.0e-3, "3.705 m over the tracks");
+    let proud = bp.track.outer_x - bp.hull.half_width;
+    assert!(proud > 0.06, "the belt must stand proud of the hull wall: {proud} m");
+    let band = bp.track.outer_x - bp.track.inner_x;
+    assert!((band - 0.725).abs() < 1.0e-3, "the 725 mm combat track, edge to edge: {band}");
+    assert!(bp.track.outer_x <= bp.hull.hitbox_half_width, "the box still holds the widest metal");
+}
+
+/// The exposed run wears its guards: there is hull metal outboard of the sponson wall over the
+/// track, and NOTHING out-reaches the belt's outer face — the width anchor stays the track's.
+#[test]
+fn the_exposed_track_run_wears_its_fender_line() {
+    let bp = blueprint();
+    let baked = bake_vehicle(VehicleKind::TigerI).expect("Tiger I bakes");
+    let hull_mesh = &baked.submesh(SubmeshKind::Hull).expect("hull submesh").mesh;
+    let over_the_run: Vec<Vec3> = hull_mesh
+        .vertices()
+        .iter()
+        .map(|vertex| vertex.position)
+        .filter(|point| {
+            point.x > bp.hull.half_width + 0.01
+                && point.y > bp.track.top_y
+                && point.y < bp.hull.deck_y
+        })
+        .collect();
+    assert!(over_the_run.len() >= 8, "the exposed belt must be covered: {}", over_the_run.len());
+    let front = over_the_run.iter().map(|p| p.z).fold(f32::NEG_INFINITY, f32::max);
+    let rear = over_the_run.iter().map(|p| p.z).fold(f32::INFINITY, f32::min);
+    assert!(
+        front > bp.track.end_z && rear < -bp.track.end_z,
+        "the guard must run the whole belt, wrap to wrap: {rear}..{front}"
+    );
+    let widest =
+        hull_mesh.vertices().iter().map(|v| v.position.x).fold(f32::NEG_INFINITY, f32::max);
+    assert!(
+        widest <= bp.track.outer_x + 1.0e-3,
+        "no fitting may reach past the belt: {widest} vs {}",
+        bp.track.outer_x
+    );
+}
+
+/// The roof and the drum are locked SEPARATELY. The bare turret roof stands at the documented
+/// 2.885 m and the cupola adds only the last 0.115 m. The model used to derive the drum's
+/// height as "whatever fills the gap up to the hitbox apex", so a 16.5 cm roof deficit simply
+/// grew a 2.5x-too-tall drum and the 3.00 m silhouette lock still passed.
+#[test]
+fn the_roof_and_the_cupola_are_locked_independently() {
+    let bp = blueprint();
+    assert!((bp.turret.roof_y - 2.885).abs() < 1.0e-6, "the documented bare-roof height");
+    assert!(bp.turret.cupola_height.is_some(), "the drum height must be AUTHORED, not derived");
+    let proud = bp.turret.cupola_proud_m(&bp.hull);
+    assert!((proud - 0.115).abs() < 1.0e-6, "3.00 m silhouette over a 2.885 m roof: {proud}");
+
+    let baked = bake_vehicle(VehicleKind::TigerI).expect("Tiger I bakes");
+    let turret_mesh = &baked.submesh(SubmeshKind::Turret).expect("turret submesh").mesh;
+    let wall_top = turret_mesh
+        .vertices()
+        .iter()
+        .filter(|v| (v.position.x.abs() - bp.turret.plan_half_width).abs() < 0.02)
+        .map(|v| v.position.y)
+        .fold(f32::NEG_INFINITY, f32::max);
+    assert!(
+        (wall_top - bp.turret.roof_y).abs() < 0.02,
+        "the horseshoe wall tops out at the bare roof: {wall_top} vs {}",
+        bp.turret.roof_y
+    );
+    let apex =
+        turret_mesh.vertices().iter().map(|v| v.position.y).fold(f32::NEG_INFINITY, f32::max);
+    assert!(
+        apex - bp.turret.roof_y < 0.15,
+        "the drum tops the roof by a hatch, not by a deficit: {}",
+        apex - bp.turret.roof_y
+    );
+}
+
+/// Audit #3 held to its own number: the cast cupola is a drum a crewman climbs through (the
+/// helper's own reference is ⌀0.78 m), not the ⌀0.66 token the migration carried.
+#[test]
+fn the_cupola_is_a_hatch_a_crewman_fits_through() {
+    let bp = blueprint();
+    let diameter = 2.0 * bp.turret.cupola_radius;
+    assert!(diameter >= 0.76, "the drum must pass a man: ⌀{diameter}");
+    assert!(
+        bp.turret.cupola_x.abs() + bp.turret.cupola_radius <= bp.turret.plan_half_width,
+        "the honest drum must still land inside the roof plan"
+    );
 }
 
 /// Audit #16: the German line drives from the FRONT — the transmission sits at the bow and
