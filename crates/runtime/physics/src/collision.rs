@@ -48,6 +48,10 @@ pub struct TankWorldObstacles<'a> {
     /// Collapsed buildings, as GROUND (see [`terrain::RubbleMound`]). Empty on a battlefield
     /// nothing has knocked down yet, which keeps the untouched path bit-identical.
     pub rubble: &'a [terrain::RubbleMound],
+    /// The map's ground rule (see [`terrain::GroundClassifier`]) — what the surface under the
+    /// tracks IS. `None` is bare grass everywhere, which is exactly the model before material
+    /// existed, so terrain-free modes and old fixtures stay bit-identical.
+    pub ground: Option<&'a terrain::GroundClassifier>,
 }
 
 impl<'a> TankWorldObstacles<'a> {
@@ -56,7 +60,7 @@ impl<'a> TankWorldObstacles<'a> {
         tank_footprint: TankFootprint,
         tanks: &'a [TankObstacle],
     ) -> Self {
-        Self { cover, tank_footprint, tanks, water: None, rubble: &[] }
+        Self { cover, tank_footprint, tanks, water: None, rubble: &[], ground: None }
     }
 
     pub fn with_water(mut self, water: Option<terrain::WaterBody>) -> Self {
@@ -66,6 +70,11 @@ impl<'a> TankWorldObstacles<'a> {
 
     pub fn with_rubble(mut self, rubble: &'a [terrain::RubbleMound]) -> Self {
         self.rubble = rubble;
+        self
+    }
+
+    pub fn with_ground(mut self, ground: Option<&'a terrain::GroundClassifier>) -> Self {
+        self.ground = ground;
         self
     }
 }

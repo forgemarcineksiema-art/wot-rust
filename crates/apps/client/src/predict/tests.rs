@@ -78,7 +78,7 @@ fn prediction_seeds_then_drives_the_hull_forward() {
     assert!(predictor.is_seeded());
 
     for _ in 0..20 {
-        predictor.step(TankCommand::drive(1.0, 0.0), &flat, &[], &[], &[], 1.0 / 60.0);
+        predictor.step(TankCommand::drive(1.0, 0.0), &flat, &[], &[], &[], None, 1.0 / 60.0);
     }
 
     // Yaw 0 means forward = +Z, so the predicted hull advances along +Z with no drift. The force
@@ -102,6 +102,7 @@ fn prediction_tracks_turret_and_gun_pitch_from_local_commands() {
         &[],
         &[],
         &[],
+        None,
         dt,
     );
 
@@ -133,6 +134,7 @@ fn prediction_zeros_fixed_casemate_yaw_from_snapshots_and_commands() {
         &[],
         &[],
         &[],
+        None,
         1.0 / 60.0,
     );
 
@@ -168,6 +170,7 @@ fn prediction_respects_authoritative_module_and_hull_damage() {
         &[],
         &[],
         &[],
+        None,
         1.0 / 60.0,
     );
 
@@ -191,6 +194,7 @@ fn prediction_blooms_dispersion_on_traverse_and_recovers_when_still() {
             &[],
             &[],
             &[],
+            None,
             1.0 / 60.0,
         );
     }
@@ -202,7 +206,7 @@ fn prediction_blooms_dispersion_on_traverse_and_recovers_when_still() {
 
     // Sitting still recovers it back toward the minimum.
     for _ in 0..120 {
-        predictor.step(TankCommand::idle(), &flat, &[], &[], &[], 1.0 / 60.0);
+        predictor.step(TankCommand::idle(), &flat, &[], &[], &[], None, 1.0 / 60.0);
     }
     let recovered = predictor.aim_dispersion_mrad();
     assert!(recovered < bloomed, "stillness should recover dispersion ({bloomed} -> {recovered})");
@@ -217,7 +221,7 @@ fn prediction_recovers_dispersion_against_partial_gun_module_damage() {
         .sync_to(&snapshot_with_gun_module_hp(spec.module_health.hit_points(ModuleSlot::Gun) / 2));
 
     for _ in 0..180 {
-        predictor.step(TankCommand::idle(), &flat, &[], &[], &[], 1.0 / 60.0);
+        predictor.step(TankCommand::idle(), &flat, &[], &[], &[], None, 1.0 / 60.0);
     }
 
     let healthy_minimum = spec.gun.dispersion_mrad;

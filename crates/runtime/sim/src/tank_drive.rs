@@ -52,6 +52,10 @@ pub struct TankDriveWorld<'a> {
     /// Collapsed buildings, as ground (see `terrain::RubbleMound`). Empty until something comes
     /// down, so an untouched battlefield drives bit-identically.
     pub rubble: &'a [terrain::RubbleMound],
+    /// The map's ground rule — what the surface under the tracks IS, from the same
+    /// `terrain::GroundClassifier` the picture's splat is baked from. `None` is bare grass, which
+    /// is the model before material existed.
+    pub ground: Option<&'a terrain::GroundClassifier>,
 }
 
 /// Advance one fixed tick: movement (terrain + cover + tank collision), turret/gun aiming, and
@@ -152,6 +156,7 @@ fn drive_obstacles<'a>(spec: &TankSpec, world: TankDriveWorld<'a>) -> TankWorldO
     )
     .with_water(world.water)
     .with_rubble(world.rubble)
+    .with_ground(world.ground)
 }
 
 /// The controller settings and control input one tick of module damage implies.

@@ -105,6 +105,7 @@ impl LocalPredictor {
     }
 
     /// Advance one fixed tick with the same input being sent to the server.
+    #[allow(clippy::too_many_arguments)]
     pub fn step(
         &mut self,
         command: TankCommand,
@@ -112,6 +113,7 @@ impl LocalPredictor {
         cover: &[StaticCoverObject],
         tank_obstacles: &[TankObstacle],
         rubble: &[terrain::RubbleMound],
+        ground: Option<&terrain::GroundClassifier>,
         dt: f32,
     ) {
         // Record the pre-step pose so the renderer can interpolate previous -> current over
@@ -120,11 +122,12 @@ impl LocalPredictor {
         self.previous = self.current_pose();
         let speed_before = self.drive.kinematic.forward_speed();
         self.previous_forward_speed_mps = speed_before;
-        self.step_drive(command, heightmap, cover, tank_obstacles, rubble, dt);
+        self.step_drive(command, heightmap, cover, tank_obstacles, rubble, ground, dt);
         self.tick_accel_long_mps2 =
             (self.drive.kinematic.forward_speed() - speed_before) / dt.max(1.0e-6);
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn step_drive(
         &mut self,
         command: TankCommand,
@@ -132,6 +135,7 @@ impl LocalPredictor {
         cover: &[StaticCoverObject],
         tank_obstacles: &[TankObstacle],
         rubble: &[terrain::RubbleMound],
+        ground: Option<&terrain::GroundClassifier>,
         dt: f32,
     ) {
         // Mirror the server: dispersion recovers every tick, even for a dead hull.
@@ -161,6 +165,9 @@ impl LocalPredictor {
             footprint: Some(&footprint),
             water: self.water,
             rubble,
+            // The predictor must read the SAME surface the server does, or the local hull grips
+            // differently on a road than the authority says it does.
+            ground,
         };
         let ground =
             step_tank_drive(&mut self.drive, &self.spec, modules, world, command.clamped(), dt);

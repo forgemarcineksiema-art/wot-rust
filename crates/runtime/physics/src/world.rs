@@ -142,6 +142,7 @@ pub fn advance_tank_on_world(
                 state.yaw_rad,
                 settings.ground_probe_length_m,
                 obstacles.rubble,
+                obstacles.ground,
             )
         })
         .unwrap_or_else(|| TerrainContact::flat(state.position.y));
@@ -244,6 +245,7 @@ pub fn settle_tank_on_world(
             state.yaw_rad,
             settings.ground_probe_length_m,
             obstacles.rubble,
+            obstacles.ground,
         )
     {
         let support = footprint.and_then(|footprint| {

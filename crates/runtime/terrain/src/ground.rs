@@ -18,6 +18,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::battlefield::{BattlefieldMap, Road};
+use crate::heightmap::HeightMap;
 
 /// How steep ground starts breaking to rock (1 - normal.y at the sampled point).
 const ROCK_STEEP_START: f32 = 0.18;
@@ -55,6 +56,14 @@ impl GroundMaterial {
     /// that the difference comes from the same rule the eye reads — not that any one of them is
     /// finally tuned. Grass is the reference at exactly 1.0, so a map of pure grass drives
     /// bit-identically to the model before ground material existed.
+    ///
+    /// GRIP is held on a short leash for now, and the reason is worth recording rather than
+    /// discovering again. Gameplay systems above the drive were tuned against uniform grass, and
+    /// the first one to break was the bots' water escape: a wet bank classified as worn earth gave
+    /// less bite than the constant their reverse-out was measured with, and the Bystra soak caught
+    /// them driving straight into the channel at a steady 3.3 m/s. ROLLING RESISTANCE carries most
+    /// of the first pass's character because nothing above the drive depends on it. The grip
+    /// envelope opens once the water escape reads the ground it is braking on.
     pub fn properties(self) -> GroundProperties {
         match self {
             GroundMaterial::Grass => {
@@ -62,15 +71,15 @@ impl GroundMaterial {
             }
             // Loose stubble over dry soil: a little less bite, a little more drag, and it churns.
             GroundMaterial::Straw => {
-                GroundProperties { grip_scale: 0.94, rolling_resist_scale: 1.15, rut_depth_m: 0.05 }
+                GroundProperties { grip_scale: 0.97, rolling_resist_scale: 1.15, rut_depth_m: 0.05 }
             }
             // Worn earth: the softest thing a hull crosses, and the thing that remembers it.
             GroundMaterial::Dirt => {
-                GroundProperties { grip_scale: 0.86, rolling_resist_scale: 1.35, rut_depth_m: 0.09 }
+                GroundProperties { grip_scale: 0.95, rolling_resist_scale: 1.35, rut_depth_m: 0.09 }
             }
             // Rock bites hardest and rolls easiest, and nothing marks it.
             GroundMaterial::Rock => {
-                GroundProperties { grip_scale: 1.08, rolling_resist_scale: 0.9, rut_depth_m: 0.0 }
+                GroundProperties { grip_scale: 1.04, rolling_resist_scale: 0.9, rut_depth_m: 0.0 }
             }
         }
     }
@@ -116,20 +125,17 @@ impl GroundClassifier {
         }
     }
 
-    fn height_at(&self, battlefield: &BattlefieldMap, x: f32, z: f32) -> f32 {
-        battlefield
-            .heightmap
+    fn height_at(&self, heightmap: &HeightMap, x: f32, z: f32) -> f32 {
+        heightmap
             .sample_height(x.clamp(0.0, self.extent_x_m), z.clamp(0.0, self.extent_z_m))
             .unwrap_or(self.min_m)
     }
 
     /// The macro surface normal the classification reads, sampled at the shared scale.
-    pub fn macro_normal_at(&self, battlefield: &BattlefieldMap, x: f32, z: f32) -> [f32; 3] {
+    pub fn macro_normal_at(&self, heightmap: &HeightMap, x: f32, z: f32) -> [f32; 3] {
         let step = self.step_m;
-        let dx =
-            self.height_at(battlefield, x + step, z) - self.height_at(battlefield, x - step, z);
-        let dz =
-            self.height_at(battlefield, x, z + step) - self.height_at(battlefield, x, z - step);
+        let dx = self.height_at(heightmap, x + step, z) - self.height_at(heightmap, x - step, z);
+        let dz = self.height_at(heightmap, x, z + step) - self.height_at(heightmap, x, z - step);
         let inv_len = 1.0 / (dx * dx + (2.0 * step) * (2.0 * step) + dz * dz).sqrt().max(1.0e-6);
         [-dx * inv_len, 2.0 * step * inv_len, -dz * inv_len]
     }
@@ -139,9 +145,9 @@ impl GroundClassifier {
     /// Rock breaks through on steep faces and high crests; roads wear the ground to dirt; water
     /// margins read as worn wet earth; what remains splits between lush grass and dry straw by the
     /// patchwork noise the map's character has always drifted with.
-    pub fn weights_at(&self, battlefield: &BattlefieldMap, x: f32, z: f32) -> [f32; 4] {
-        let y = self.height_at(battlefield, x, z);
-        let normal = self.macro_normal_at(battlefield, x, z);
+    pub fn weights_at(&self, heightmap: &HeightMap, x: f32, z: f32) -> [f32; 4] {
+        let y = self.height_at(heightmap, x, z);
+        let normal = self.macro_normal_at(heightmap, x, z);
         self.weights_from(y, normal[1], x, z)
     }
 
@@ -168,8 +174,8 @@ impl GroundClassifier {
     }
 
     /// The surface that dominates a world point — what a track is actually on.
-    pub fn material_at(&self, battlefield: &BattlefieldMap, x: f32, z: f32) -> GroundMaterial {
-        let weights = self.weights_at(battlefield, x, z);
+    pub fn material_at(&self, heightmap: &HeightMap, x: f32, z: f32) -> GroundMaterial {
+        let weights = self.weights_at(heightmap, x, z);
         let mut best = (GroundMaterial::Grass, weights[0]);
         for (material, weight) in GroundMaterial::ALL.into_iter().zip(weights).skip(1) {
             if weight > best.1 {
@@ -181,8 +187,8 @@ impl GroundClassifier {
 
     /// Ground properties blended by the layer weights, so a surface that is half road and half
     /// grass drives like half of each instead of snapping between them.
-    pub fn properties_at(&self, battlefield: &BattlefieldMap, x: f32, z: f32) -> GroundProperties {
-        let weights = self.weights_at(battlefield, x, z);
+    pub fn properties_at(&self, heightmap: &HeightMap, x: f32, z: f32) -> GroundProperties {
+        let weights = self.weights_at(heightmap, x, z);
         let total: f32 = weights.iter().sum::<f32>().max(1.0e-4);
         let mut blended =
             GroundProperties { grip_scale: 0.0, rolling_resist_scale: 0.0, rut_depth_m: 0.0 };

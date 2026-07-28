@@ -21,7 +21,7 @@ use rapier3d::prelude::{
 use terrain::HeightMap;
 
 pub use collision::{TankFootprint, TankObstacle, TankWorldObstacles, tank_footprints_touch};
-pub use contact::{TerrainContact, sample_tank_terrain_contact};
+pub use contact::{GroundScales, TerrainContact, sample_tank_terrain_contact};
 pub use contact_impulse::{
     ContactBody, ContactImpulse, ContactPair, ContactReport, resolve_contacts, separate_overlaps,
 };

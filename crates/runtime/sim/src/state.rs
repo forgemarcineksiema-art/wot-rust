@@ -40,6 +40,12 @@ pub struct SimulationState {
     /// keeps pre-water fixtures loading dry.
     #[serde(default)]
     water: Option<WaterBody>,
+    /// The map's ground rule (`terrain::GroundClassifier`), installed once at battle setup like
+    /// the water. It is derived wholly from the map, so it is not replicated: the client builds
+    /// the same one from the same battlefield and the predictor reads an identical answer.
+    /// `serde(skip)` keeps it out of saved states; `None` is bare grass everywhere.
+    #[serde(skip)]
+    ground: Option<terrain::GroundClassifier>,
     /// Live structural state of the map's static cover (protocol v21), index-aligned with the
     /// cover slice the battlefield passes in. Rebuilt when the cover count changes (battle setup),
     /// then damaged by HE and crushed by ramming; every blocking consumer sees the resolved live
@@ -95,6 +101,7 @@ impl SimulationState {
             armor_breach_events: Vec::new(),
             spotting_memory: crate::spotting::SpottingMemory::default(),
             water: None,
+            ground: None,
             cover_states: Vec::new(),
             craters: Vec::new(),
             cover_scars: Vec::new(),
@@ -127,6 +134,12 @@ impl SimulationState {
 
     pub fn water(&self) -> Option<WaterBody> {
         self.water
+    }
+
+    /// Install the map's ground rule. Call once at battle setup alongside the heightmap and the
+    /// water; `None` (the default) drives every surface as grass.
+    pub fn set_ground(&mut self, ground: Option<terrain::GroundClassifier>) {
+        self.ground = ground;
     }
 
     pub fn tick(&self) -> u64 {
@@ -363,6 +376,7 @@ impl SimulationState {
                 footprint: Some(&footprint),
                 water: self.water,
                 rubble: &rubble,
+                ground: self.ground.as_ref(),
             };
             let phase = crate::tank_drive::advance_tank(tank, command, dt, world);
             phases.push((index, command, phase));
@@ -381,6 +395,7 @@ impl SimulationState {
                 footprint: Some(&footprint),
                 water: self.water,
                 rubble: &rubble,
+                ground: self.ground.as_ref(),
             };
             let ground =
                 crate::tank_drive::settle_tank(&mut self.tanks[index], command, dt, world, phase);

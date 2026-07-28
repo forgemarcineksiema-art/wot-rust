@@ -118,7 +118,10 @@ pub fn advance_hull_drive(
         // steer / counter-rotating tracks), decoupled from the throttle.
         1.0
     };
-    let turn_grip = (contact.traction - contact.roughness * 0.2).clamp(0.25, 1.0);
+    // Turn grip reads the material too, or a hull would slide on cobble but still pivot on it
+    // like grass. Same scale the force model uses; grass is exactly 1.0.
+    let turn_grip =
+        (contact.traction * contact.ground.grip - contact.roughness * 0.2).clamp(0.25, 1.0);
     let target_yaw_rate = steer * steering_direction * settings.turn_rate_rad_s * turn_grip;
     state.yaw_rate_rad_s =
         move_towards(state.yaw_rate_rad_s, target_yaw_rate, settings.yaw_accel_rad_s2 * dt);

@@ -1,7 +1,7 @@
 use game_core::math::horizontal_forward;
 use glam::Vec3;
 use serde::{Deserialize, Serialize};
-use terrain::{HeightMap, RubbleMound};
+use terrain::{GroundClassifier, GroundProperties, HeightMap, RubbleMound};
 
 /// The ground a hull stands on for one tick: its height and the local slope/roughness/traction the
 /// rigid-body integrator resolves forces against. `forward_slope`/`side_slope` are rise/run along
@@ -17,6 +17,33 @@ pub struct TerrainContact {
     /// [`crate::water`]). Zero on dry maps — `serde(default)` keeps older fixtures loading dry.
     #[serde(default)]
     pub water_depth_m: f32,
+    /// What the ground under the tracks IS, not merely what shape it is: the surface's grip and
+    /// rolling-resistance scales, from the same `terrain::GroundClassifier` rule the picture's
+    /// splat is baked from. Grass is exactly 1.0 in both, so a grass map is bit-identical to the
+    /// model before ground material existed — and `serde(default)` keeps older fixtures on grass.
+    #[serde(default = "GroundScales::grass")]
+    pub ground: GroundScales,
+}
+
+/// The ground-material scales the force model reads, kept as plain numbers so `TerrainContact`
+/// stays a small serializable value on the shared server/predictor path.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct GroundScales {
+    pub grip: f32,
+    pub rolling_resist: f32,
+}
+
+impl GroundScales {
+    /// The reference surface: everything is measured against grass.
+    pub fn grass() -> Self {
+        Self { grip: 1.0, rolling_resist: 1.0 }
+    }
+}
+
+impl From<GroundProperties> for GroundScales {
+    fn from(properties: GroundProperties) -> Self {
+        Self { grip: properties.grip_scale, rolling_resist: properties.rolling_resist_scale }
+    }
 }
 
 impl TerrainContact {
@@ -28,6 +55,7 @@ impl TerrainContact {
             roughness: 0.0,
             traction: 1.0,
             water_depth_m: 0.0,
+            ground: GroundScales::grass(),
         }
     }
 }
@@ -42,11 +70,12 @@ pub fn sample_tank_terrain_contact(
     yaw_rad: f32,
     probe_length_m: f32,
     rubble: &[RubbleMound],
+    ground: Option<&GroundClassifier>,
 ) -> Option<TerrainContact> {
     let probe = probe_length_m.max(heightmap.cell_size_m() * 0.5).max(0.5);
     let forward = horizontal_forward(yaw_rad);
     let right = Vec3::new(forward.z, 0.0, -forward.x);
-    let center = ground(heightmap, position, rubble)?;
+    let center = surface_height(heightmap, position, rubble)?;
     let front = sample_offset(heightmap, position, forward, probe, rubble).unwrap_or(center);
     let back = sample_offset(heightmap, position, -forward, probe, rubble).unwrap_or(center);
     let right_h = sample_offset(heightmap, position, right, probe, rubble).unwrap_or(center);
@@ -68,6 +97,14 @@ pub fn sample_tank_terrain_contact(
         roughness,
         traction,
         water_depth_m: 0.0,
+        // The surface under the hull's own centre decides its footing. Sampling the probe cross
+        // would smear a road's edge into the field beside it, and a track is on one thing at a
+        // time.
+        ground: ground
+            .map(|ground| {
+                GroundScales::from(ground.properties_at(heightmap, position.x, position.z))
+            })
+            .unwrap_or_else(GroundScales::grass),
     })
 }
 
@@ -78,10 +115,10 @@ fn sample_offset(
     distance: f32,
     rubble: &[RubbleMound],
 ) -> Option<f32> {
-    ground(heightmap, position + direction * distance, rubble)
+    surface_height(heightmap, position + direction * distance, rubble)
 }
 
-fn ground(heightmap: &HeightMap, point: Vec3, rubble: &[RubbleMound]) -> Option<f32> {
+fn surface_height(heightmap: &HeightMap, point: Vec3, rubble: &[RubbleMound]) -> Option<f32> {
     let terrain = heightmap.sample_height(point.x, point.z);
     if rubble.is_empty() {
         return terrain;

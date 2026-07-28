@@ -31,6 +31,7 @@ impl ClientApp {
             self.live_cover.movement(),
             &tank_obstacles,
             self.live_cover.rubble(),
+            Some(&self.ground),
             TICK_DT,
         );
     }
