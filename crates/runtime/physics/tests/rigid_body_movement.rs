@@ -117,6 +117,7 @@ fn steep_low_traction_slope_slides_but_gentle_slope_holds() {
             roughness,
             traction,
             water_depth_m: 0.0,
+            ground: physics::GroundScales::grass(),
         };
         let mut state = TankKinematicState::default();
         // Sit still on the slope (no throttle, no steer) and see whether it holds.
@@ -143,6 +144,7 @@ fn descending_a_grade_is_not_slower_than_flat() {
             roughness: 0.0,
             traction: 1.0,
             water_depth_m: 0.0,
+            ground: physics::GroundScales::grass(),
         };
         let mut state = TankKinematicState::default();
         drive(&mut state, &settings, 1.0, 0.0, contact, 600);

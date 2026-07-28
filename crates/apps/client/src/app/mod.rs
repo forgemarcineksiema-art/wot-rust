@@ -415,6 +415,10 @@ pub(crate) struct ClientApp {
     /// to it. The map carries a 201² heightfield plus every cover/scenery record; deep-copying
     /// it per crater on the RENDER thread was pure hitch, and the workers only read it.
     battlefield: std::sync::Arc<BattlefieldMap>,
+    /// The map's ground rule, built once from the battlefield. Not replicated — it is derived
+    /// wholly from the map, so the client resolves the same surfaces the server does and the
+    /// predictor grips the road exactly where the authority grips it.
+    ground: terrain::GroundClassifier,
     player_tank: TankId,
     client_tick: u64,
     /// Fixed ticks run since the last ingested snapshot. Together with the sub-tick remainder it
@@ -670,6 +674,7 @@ impl ClientApp {
         );
         let weather_frame = weather_timeline.sample(0.0);
         Self {
+            ground: terrain::GroundClassifier::new(&battlefield),
             window: None,
             renderer: None,
             loop_driver: WinitLoopDriver::new(DEFAULT_SIMULATION_TICK_HZ),

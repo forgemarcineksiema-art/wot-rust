@@ -1,6 +1,6 @@
 use game_core::{BattleEventId, DamageEvent, ShellImpact, TankId, TankSpec, TeamId, TrackSide};
 use glam::Vec3;
-use physics::{TankFootprint, TankObstacle, footprint_overlaps_cover_object};
+use physics::{ContactBody, TankFootprint, footprint_overlaps_cover_object};
 use serde::{Deserialize, Serialize};
 use terrain::{HeightMap, StaticCoverObject, WaterBody};
 
@@ -8,10 +8,10 @@ use crate::aim_dispersion::recover_aim_dispersion;
 use crate::combat::{CombatTickContext, fire_click_buffers, try_fire_shell};
 use crate::event_stamp::{BattleEventOutput, BattleEventStamp};
 use crate::landing::apply_landing_impact;
-use crate::ramming::{apply_ramming_damage, capture_ramming_snapshots};
+use crate::ramming::apply_ramming_damage;
 use crate::shell::ShellState;
 use crate::shell_step::step_shells;
-use crate::tank_drive::step_tank;
+use crate::tank_drive::TankDriveWorld;
 use crate::tank_factory::fresh_tank;
 use crate::tank_state::TankState;
 use crate::{FixedTimestep, TankCommand};
@@ -40,6 +40,12 @@ pub struct SimulationState {
     /// keeps pre-water fixtures loading dry.
     #[serde(default)]
     water: Option<WaterBody>,
+    /// The map's ground rule (`terrain::GroundClassifier`), installed once at battle setup like
+    /// the water. It is derived wholly from the map, so it is not replicated: the client builds
+    /// the same one from the same battlefield and the predictor reads an identical answer.
+    /// `serde(skip)` keeps it out of saved states; `None` is bare grass everywhere.
+    #[serde(skip)]
+    ground: Option<terrain::GroundClassifier>,
     /// Live structural state of the map's static cover (protocol v21), index-aligned with the
     /// cover slice the battlefield passes in. Rebuilt when the cover count changes (battle setup),
     /// then damaged by HE and crushed by ramming; every blocking consumer sees the resolved live
@@ -95,6 +101,7 @@ impl SimulationState {
             armor_breach_events: Vec::new(),
             spotting_memory: crate::spotting::SpottingMemory::default(),
             water: None,
+            ground: None,
             cover_states: Vec::new(),
             craters: Vec::new(),
             cover_scars: Vec::new(),
@@ -127,6 +134,18 @@ impl SimulationState {
 
     pub fn water(&self) -> Option<WaterBody> {
         self.water
+    }
+
+    /// Install the map's ground rule. Call once at battle setup alongside the heightmap and the
+    /// water; `None` (the default) drives every surface as grass.
+    pub fn set_ground(&mut self, ground: Option<terrain::GroundClassifier>) {
+        self.ground = ground;
+    }
+
+    /// The map's ground rule, for anything that must reason about the surface a hull is on —
+    /// the bots' water escape has to know what it is braking over.
+    pub fn ground(&self) -> Option<&terrain::GroundClassifier> {
+        self.ground.as_ref()
     }
 
     pub fn tick(&self) -> u64 {
@@ -308,7 +327,6 @@ impl SimulationState {
         // ...and the third resolution: what a hull STANDS ON. A collapsed building is debris, and
         // debris is ground — the support envelope and the drive's own slope probe both read it.
         let rubble = crate::cover_damage::rubble_mounds(cover, &self.cover_states);
-        let ramming_before = capture_ramming_snapshots(&self.tanks);
         for tank in &mut self.tanks {
             tank.reload_remaining_s = (tank.reload_remaining_s - dt).max(0.0);
             recover_aim_dispersion(tank, dt);
@@ -326,82 +344,102 @@ impl SimulationState {
             }
         }
 
-        // Tank-vs-tank obstacles in lockstep with the sequential update: built once from the
-        // start-of-tick hulls and refreshed per moved hull, so a later command collides against
-        // exactly the positions the old per-command rebuild saw â€” bit-identical (replay-locked)
-        // at a fraction of the rebuilds and without a fresh Vec per command.
-        let mut all_obstacles: Vec<TankObstacle> = self
-            .tanks
-            .iter()
-            .map(|tank| TankObstacle::from_hitbox(tank.position, tank.yaw_rad, tank.spec.hitbox))
-            .collect();
-        let mut obstacle_scratch: Vec<TankObstacle> =
-            Vec::with_capacity(all_obstacles.len().saturating_sub(1));
+        // The tick's honest rigid-body order, and the reason it is worth the shape:
+        //
+        //   1. every hull decides a velocity, and NOBODY moves;
+        //   2. hull-to-hull contacts are solved against where those velocities WOULD put them;
+        //   3. the surviving velocities are spent and resolved against the world.
+        //
+        // The old order — drive, move, then refuse the move — deleted the whole point. A blocked
+        // hull's momentum simply vanished and the hull it ran into never learned it had been hit,
+        // which is why `tank_resolve` needed an interpenetration escape hatch to stop pile-ups
+        // deadlocking. Solving after the move does not fix it either: a correction that reaches
+        // the velocity only next tick lets a crowd gain ground every tick, and at a river ford
+        // that means gaining it into the water.
+        let footprint_of = |tank: &TankState| tank.spec.contact_footprint();
+        let mut phases: Vec<(usize, TankCommand, crate::tank_drive::DrivePhase)> =
+            Vec::with_capacity(commands.len());
         for (tank_id, command) in commands.iter().copied() {
-            if let Some(index) = self.tanks.iter().position(|tank| tank.id == tank_id) {
-                let command = command.clamped();
-                obstacle_scratch.clear();
-                obstacle_scratch.extend(
-                    all_obstacles
-                        .iter()
-                        .enumerate()
-                        .filter(|(other_index, _)| *other_index != index)
-                        .map(|(_, obstacle)| *obstacle),
-                );
-                let tank = &mut self.tanks[index];
-                if tank.hit_points == 0 {
-                    // A wreck does not drive: the horizontal motion and the spin die here. Its
-                    // VERTICAL is not this loop's business — `settle_wrecks` below owns it, and
-                    // owns it for every wreck, commanded or not.
-                    tank.velocity_mps = Vec3::new(0.0, tank.velocity_mps.y, 0.0);
-                    tank.hull_yaw_velocity_rad_s = 0.0;
-                    continue;
-                }
-                let ground = step_tank(
-                    tank,
-                    command,
-                    dt,
-                    heightmap,
-                    live_cover.movement(),
-                    &obstacle_scratch,
-                    self.water,
-                    &rubble,
-                );
-                all_obstacles[index] =
-                    TankObstacle::from_hitbox(tank.position, tank.yaw_rad, tank.spec.hitbox);
-                apply_landing_impact(
-                    tank,
-                    ground.landing_impact_mps,
-                    &mut self.damage_events,
-                    &mut event_stamp,
-                );
-                // Ammo switch before the fire check: the honest rule is simple â€” any real switch
-                // restarts the full reload (the loader swaps the round out of the breech).
-                if let Some(slot) = command.select_ammo
-                    && (slot as usize) < game_core::MAX_AMMO_SLOTS
-                    && slot != tank.selected_ammo
-                {
-                    tank.selected_ammo = slot;
-                    tank.reload_remaining_s = tank.full_reload_seconds();
-                    // A held click must not survive the switch: the reload it anticipated is gone.
-                    tank.fire_buffered = false;
-                }
-                if command.fire {
-                    if let Some(shell) = try_fire_shell(tank, self.tick) {
-                        self.shells.push(shell);
-                    } else if fire_click_buffers(tank) {
-                        tank.fire_buffered = true;
-                    }
+            let Some(index) = self.tanks.iter().position(|tank| tank.id == tank_id) else {
+                continue;
+            };
+            let command = command.clamped();
+            let tank = &mut self.tanks[index];
+            if tank.hit_points == 0 {
+                // A wreck does not drive: the horizontal motion and the spin die here. Its
+                // VERTICAL is not this loop's business — `settle_wrecks` below owns it, and
+                // owns it for every wreck, commanded or not.
+                tank.velocity_mps = Vec3::new(0.0, tank.velocity_mps.y, 0.0);
+                tank.hull_yaw_velocity_rad_s = 0.0;
+                continue;
+            }
+            let footprint = footprint_of(tank);
+            let world = TankDriveWorld {
+                heightmap,
+                cover: live_cover.movement(),
+                // Hull-to-hull is phase 2's and phase 3's business, not the drive's.
+                tank_obstacles: &[],
+                footprint: Some(&footprint),
+                water: self.water,
+                rubble: &rubble,
+                ground: self.ground.as_ref(),
+            };
+            let phase = crate::tank_drive::advance_tank(tank, command, dt, world);
+            phases.push((index, command, phase));
+        }
+
+        // PHASE 2 — the contacts.
+        let contact_pairs = self.exchange_contact_momentum(dt);
+
+        // PHASE 3 — spend what survived, then finish each hull's tick.
+        for (index, command, phase) in phases {
+            let footprint = footprint_of(&self.tanks[index]);
+            let world = TankDriveWorld {
+                heightmap,
+                cover: live_cover.movement(),
+                tank_obstacles: &[],
+                footprint: Some(&footprint),
+                water: self.water,
+                rubble: &rubble,
+                ground: self.ground.as_ref(),
+            };
+            let ground =
+                crate::tank_drive::settle_tank(&mut self.tanks[index], command, dt, world, phase);
+            let tank = &mut self.tanks[index];
+            apply_landing_impact(
+                tank,
+                ground.landing_impact_mps,
+                &mut self.damage_events,
+                &mut event_stamp,
+            );
+            // Ammo switch before the fire check: the honest rule is simple â€” any real switch
+            // restarts the full reload (the loader swaps the round out of the breech).
+            if let Some(slot) = command.select_ammo
+                && (slot as usize) < game_core::MAX_AMMO_SLOTS
+                && slot != tank.selected_ammo
+            {
+                tank.selected_ammo = slot;
+                tank.reload_remaining_s = tank.full_reload_seconds();
+                // A held click must not survive the switch: the reload it anticipated is gone.
+                tank.fire_buffered = false;
+            }
+            if command.fire {
+                if let Some(shell) = try_fire_shell(tank, self.tick) {
+                    self.shells.push(shell);
+                } else if fire_click_buffers(tank) {
+                    tank.fire_buffered = true;
                 }
             }
         }
 
+        // PHASE 4 — anything still overlapping is eased apart.
+        self.separate_overlapping_hulls(live_cover.movement(), heightmap);
+
         apply_ramming_damage(
-            &ramming_before,
+            &contact_pairs,
             &mut self.tanks,
             &mut self.damage_events,
             &mut event_stamp,
-            dt,
         );
         // ...and the wrecks settle onto the ground under them, whether they were killed in
         // mid-air or the ground moved after they died (see `wreck`).
@@ -487,6 +525,77 @@ impl SimulationState {
         );
         self.last_battle_event_id = event_stamp.last_event_id();
         self.tick += 1;
+    }
+
+    /// PHASE 2: every hull that WOULD meet another this tick exchanges momentum with it.
+    ///
+    /// Solved against predicted positions — where each velocity is about to put its hull — so a
+    /// collision is refused before it happens rather than repaired after. Wrecks take part as
+    /// dead weight: they stop a charge without giving ground.
+    fn exchange_contact_momentum(&mut self, dt: f32) -> Vec<physics::ContactPair> {
+        if self.tanks.len() < 2 {
+            return Vec::new();
+        }
+        let bodies = self.contact_bodies();
+        let report = physics::resolve_contacts(&bodies, dt);
+        for (index, impulse) in report.bodies.iter().enumerate() {
+            if impulse.is_empty() || self.tanks[index].hit_points == 0 {
+                continue;
+            }
+            self.tanks[index].velocity_mps += impulse.delta_velocity;
+            self.tanks[index].hull_yaw_velocity_rad_s += impulse.delta_yaw_rate_rad_s;
+        }
+        report.pairs
+    }
+
+    /// PHASE 4: ease apart anything still overlapping — a pivot that swung an oriented footprint
+    /// into a neighbour, or a spawn accident. With the contacts solved before the move this is a
+    /// mop-up, not the mechanism, and it replaces `tank_resolve`'s "hold the previous position".
+    fn separate_overlapping_hulls(
+        &mut self,
+        cover: &[StaticCoverObject],
+        heightmap: Option<&HeightMap>,
+    ) {
+        if self.tanks.len() < 2 {
+            return;
+        }
+        let bodies = self.contact_bodies();
+        for (index, push) in physics::separate_overlaps(&bodies).into_iter().enumerate() {
+            if push == Vec3::ZERO {
+                continue;
+            }
+            let tank = &mut self.tanks[index];
+            let footprint = TankFootprint::from_hitbox(tank.spec.hitbox);
+            // Being pushed out of a neighbour may never push a hull into a building or past the
+            // red line: both hard limits are re-applied to the corrected position.
+            tank.position = physics::resolve_cover_collision(
+                tank.position,
+                tank.position + push,
+                tank.yaw_rad,
+                footprint,
+                cover,
+            );
+            if let Some(heightmap) = heightmap {
+                let mut velocity = tank.velocity_mps;
+                physics::clamp_to_map_border(&mut tank.position, &mut velocity, heightmap);
+                tank.velocity_mps = velocity;
+            }
+        }
+    }
+
+    fn contact_bodies(&self) -> Vec<ContactBody> {
+        self.tanks
+            .iter()
+            .map(|tank| ContactBody {
+                position: tank.position,
+                velocity: tank.velocity_mps,
+                yaw_rad: tank.yaw_rad,
+                yaw_rate_rad_s: tank.hull_yaw_velocity_rad_s,
+                footprint: TankFootprint::from_hitbox(tank.spec.hitbox),
+                mass_kg: tank.spec.mass_kg,
+                movable: tank.hit_points > 0,
+            })
+            .collect()
     }
 }
 

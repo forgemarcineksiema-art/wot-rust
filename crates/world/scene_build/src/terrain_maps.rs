@@ -7,20 +7,14 @@
 use renderer_api::{TerrainGroundMaps, TerrainMaterialSet};
 use terrain::{BattlefieldMap, MapId};
 
-use super::battlefield::{bake_lane_count, grass_patchwork_noise, road_blend_at};
+use super::battlefield::bake_lane_count;
+use terrain::GroundClassifier;
 
 /// Texture edge: 1024 texels over a 1000 m map is ~1 m ground truth per texel — the macro
 /// scale the art direction's detail discipline wants (rule 5), cheap to hold resident (8 MB
 /// for both maps together).
 const MAP_SIZE: u32 = 1024;
 
-/// How steep ground starts breaking to rock (1 - normal.y at the sampled point).
-const ROCK_STEEP_START: f32 = 0.18;
-/// Crest fraction of the map's height span where chalk/rock begins to break through.
-const ROCK_CREST_START: f32 = 0.72;
-/// Ground within this height above the waterline reads as worn wet earth (mud lives in the
-/// dirt layer, darkened by the existing water tint and wetness at render time).
-const WATER_MARGIN_M: f32 = 0.45;
 /// Smooth pooling suitability across more than one 5 m heightfield cell. This prevents the wet
 /// sheen from exposing the simulation grid when a grazing camera catches the reflected sky.
 const PUDDLE_BLUR_RADIUS_TEXELS: usize = 6;
@@ -69,7 +63,11 @@ struct GroundBakeContext<'a> {
     extent_x: f32,
     extent_z: f32,
     min_m: f32,
-    span: f32,
+    /// The shared ground rule. The bake stopped classifying on its own the day physics needed the
+    /// same answer: what the eye reads under a track and what the tracks feel are one rule now,
+    /// living in `terrain` below both. The splat bytes are golden-locked precisely so this move
+    /// can be proved inert (`client/tests/terrain_ground_maps.rs`).
+    ground: GroundClassifier,
     /// Finite-difference step for the macro normal: half a texel, well under the 5 m grid.
     step: f32,
 }
@@ -85,7 +83,7 @@ impl<'a> GroundBakeContext<'a> {
             extent_x,
             extent_z,
             min_m: stats.min_m,
-            span: (stats.max_m - stats.min_m).max(1.0),
+            ground: GroundClassifier::new(battlefield),
             step: (extent_x / MAP_SIZE as f32) * 0.5,
         }
     }
@@ -141,32 +139,11 @@ impl<'a> GroundBakeContext<'a> {
                     0,
                 ]);
 
-                // Layer weights. Rock breaks through on steep faces and high crests; roads wear
-                // the ground to dirt; water margins read as worn wet earth; what remains splits
-                // between lush grass and dry straw by the same patchwork noise the old vertex
-                // palette drifted with (the map keeps its character, per-pixel now).
-                let steep = (1.0 - n[1]).clamp(0.0, 1.0);
-                let crest = ((y - self.min_m) / self.span - ROCK_CREST_START).max(0.0)
-                    / (1.0 - ROCK_CREST_START);
-                let rock = ((steep - ROCK_STEEP_START).max(0.0) * 3.2 + crest * crest * 0.9)
-                    .clamp(0.0, 1.0);
-
-                let road = road_blend_at(&self.battlefield.roads, wx, wz);
-                let margin = self
-                    .battlefield
-                    .water
-                    .map(|water| {
-                        let above = y - water.surface_level_m;
-                        (1.0 - above.abs() / WATER_MARGIN_M).clamp(0.0, 1.0)
-                    })
-                    .unwrap_or(0.0);
-                let dirt = (road + margin * 0.85).clamp(0.0, 1.0);
-
-                let remaining = (1.0 - rock).max(0.0) * (1.0 - dirt).max(0.0);
-                let patch = grass_patchwork_noise(wx, wz);
-                let straw_share = ((patch - 0.5) * 2.4).clamp(0.0, 1.0);
-                let grass = remaining * (1.0 - straw_share);
-                let straw = remaining * straw_share;
+                // Layer weights come from the shared ground rule (`terrain::GroundClassifier`),
+                // which is the same call the drive reads for grip and rolling resistance. The
+                // height and the macro normal are already in hand, so the bake hands them over
+                // rather than paying for them twice.
+                let [grass, straw, dirt, rock] = self.ground.weights_from(y, n[1], wx, wz);
                 // Normalize into RGBA8; rock and dirt claim their share first, grass/straw fill.
                 let total = (grass + straw + dirt + rock).max(1.0e-4);
                 let quantize = |w: f32| ((w / total) * 255.0).round().clamp(0.0, 255.0) as u8;

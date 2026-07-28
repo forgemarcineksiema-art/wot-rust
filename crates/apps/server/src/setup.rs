@@ -23,6 +23,10 @@ pub(crate) fn practice_duel_setup(player_vehicle: VehicleKind) -> BattleSetup {
     let battlefield = map_forge::battlefield(map_id);
     let mut sim = SimulationState::new();
     sim.set_water(battlefield.water);
+    // The map's ground rule, resolved once: what the surface under every track IS. Same call the
+    // client makes from the same battlefield, so the predictor grips the road where the authority
+    // grips it — it is derived from the map, so it never rides the wire.
+    sim.set_ground(Some(terrain::GroundClassifier::new(&battlefield)));
     let player_pos = random_battle_ground_position(&battlefield, 340.0, 300.0);
     let target_pos = random_battle_ground_position(&battlefield, 340.0, 340.0);
     let player_tank = sim.spawn_tank(game_core::TeamId(1), player_vehicle.spec(), player_pos);
@@ -60,6 +64,10 @@ pub(crate) fn random_7v7_setup_for_humans(
     let battlefield = map_forge::battlefield(config.map);
     let mut sim = SimulationState::new();
     sim.set_water(battlefield.water);
+    // The map's ground rule, resolved once: what the surface under every track IS. Same call the
+    // client makes from the same battlefield, so the predictor grips the road where the authority
+    // grips it — it is derived from the map, so it never rides the wire.
+    sim.set_ground(Some(terrain::GroundClassifier::new(&battlefield)));
     let mut bot_ids = Vec::new();
     let team_one = random_battle_spawn_zone(&battlefield, 1);
     let team_two = random_battle_spawn_zone(&battlefield, 2);

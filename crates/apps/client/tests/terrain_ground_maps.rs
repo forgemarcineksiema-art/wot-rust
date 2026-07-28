@@ -153,3 +153,27 @@ fn each_map_owns_a_policy_conformant_material_set() {
         "an authored palette is not the fallback"
     );
 }
+
+/// The splat bake is a GOLDEN, not merely a pure function of itself.
+///
+/// The classification behind it — rock from steepness and crest, dirt from roads and water
+/// margins, the remainder split by the patchwork noise — is about to stop living only in the
+/// render bake and start being read by physics too, so that what you SEE under the track and what
+/// you FEEL under it are one rule rather than two that can drift. The whole value of that move is
+/// that it changes nothing about the picture, and "nothing" needs a number to be checkable.
+///
+/// If this hash moves, either the classification genuinely changed (bless it deliberately, in the
+/// same diff, with the reason) or a refactor that promised to be inert was not.
+#[test]
+fn the_splat_bake_is_texel_identical_to_its_golden() {
+    for (map, splat, normals) in [
+        (MapId::ProkhorovkaHill252_2, 0x5124_4556_6116_dafa_u64, 0x005a_3eac_ae02_f08a_u64),
+        (MapId::BystraValley, 0x4e34_1f19_bb83_6d56, 0x83a4_b469_4777_9f54),
+        (MapId::OrlinyPereval, 0x9699_5682_1414_f5bd, 0x4576_7f22_e480_fec5),
+        (MapId::Ostrogorsk, 0x4505_e21f_f799_e6ab, 0x28f1_5c8d_6b79_48eb),
+    ] {
+        let maps = bake_terrain_ground_maps(&map_forge::battlefield(map));
+        assert_eq!(splitmix_hash(&maps.splat), splat, "{map:?} splat");
+        assert_eq!(splitmix_hash(&maps.macro_normal), normals, "{map:?} macro normals");
+    }
+}

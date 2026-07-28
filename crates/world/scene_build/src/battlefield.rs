@@ -1223,43 +1223,12 @@ fn grass_patchwork(wx: f32, wz: f32) -> Vec3 {
     let base = Vec3::new(0.26, 0.44, 0.20);
     let dry = Vec3::new(0.40, 0.40, 0.21);
     let lush = Vec3::new(0.18, 0.36, 0.15);
-    let n = grass_patchwork_noise(wx, wz);
+    let n = terrain::grass_patchwork_noise(wx, wz);
     if n > 0.5 {
         base.lerp(dry, ((n - 0.5) * 2.4).min(1.0))
     } else {
         base.lerp(lush, ((0.5 - n) * 2.4).min(1.0) * 0.85)
     }
-}
-
-/// The patchwork drift noise itself, shared with the splat bake so the per-pixel grass/straw
-/// split lands exactly where the old vertex palette drifted: broad drifts (~65 m) shaped by a
-/// finer octave (~19 m), deterministic in the world point.
-pub(crate) fn grass_patchwork_noise(wx: f32, wz: f32) -> f32 {
-    value_noise(wx / 65.0, wz / 65.0) * 0.72 + value_noise(wx / 19.0, wz / 19.0) * 0.28
-}
-
-/// The strongest road-paint blend at a world point, 0 where no road reaches — the splat bake's
-/// dirt-layer source, sharing `road_paint`'s feathering exactly.
-pub(crate) fn road_blend_at(roads: &[Road], wx: f32, wz: f32) -> f32 {
-    road_paint(roads, wx, wz).map(|(_, _, blend)| blend).unwrap_or(0.0)
-}
-
-/// Deterministic 2D value noise in [0, 1]: hashed lattice corners, smoothstep-blended.
-fn value_noise(x: f32, z: f32) -> f32 {
-    let (x0, z0) = (x.floor(), z.floor());
-    let (fx, fz) = (x - x0, z - z0);
-    let (sx, sz) = (fx * fx * (3.0 - 2.0 * fx), fz * fz * (3.0 - 2.0 * fz));
-    let corner = |dx: f32, dz: f32| -> f32 {
-        let (ix, iz) = ((x0 + dx) as i64, (z0 + dz) as i64);
-        // splitmix64 over the packed lattice coordinates.
-        let mut h = (ix as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15) ^ (iz as u64).rotate_left(32);
-        h = (h ^ (h >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-        h = (h ^ (h >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-        ((h ^ (h >> 31)) >> 40) as f32 / ((1u64 << 24) - 1) as f32
-    };
-    let top = corner(0.0, 0.0) + (corner(1.0, 0.0) - corner(0.0, 0.0)) * sx;
-    let bottom = corner(0.0, 1.0) + (corner(1.0, 1.0) - corner(0.0, 1.0)) * sx;
-    top + (bottom - top) * sz
 }
 
 /// The painted albedo + finish for a road surface. Dirt and ballast stay near-matte earth
@@ -1283,9 +1252,10 @@ fn road_paint(roads: &[Road], wx: f32, wz: f32) -> Option<(Vec3, f32, f32)> {
         if distance >= half {
             continue;
         }
-        // Full tone over the inner core, feathered out to the grass at the edge.
-        let fade = ((half - distance) / (half * 0.45)).clamp(0.0, 1.0);
-        let blend = fade * fade * (3.0 - 2.0 * fade);
+        // Full tone over the inner core, feathered out to the grass at the edge — the SAME
+        // falloff `terrain::road_blend` gives the ground rule, so how a road wears and how it
+        // looks cannot drift apart.
+        let blend = terrain::road_blend(road, wx, wz);
         let (tone, gloss) = road_surface_tone(road.surface);
         if best.map(|(_, _, b)| blend > b).unwrap_or(true) {
             best = Some((tone, gloss, blend));

@@ -28,9 +28,12 @@ fn sim_uses_custom_physics_movement_model() {
         .expect("sim tank-drive source");
 
     // The shared drive step runs the custom controller via the physics world step (the same step
-    // the client predictor calls), not rapier.
+    // the client predictor calls), not rapier. The world step comes in two halves — decide a
+    // velocity, then spend it — so the roster can solve hull-to-hull contacts in between; both
+    // halves are `physics`, which is the rule this gate is actually about.
     assert!(drive.contains("TankControllerSettings::from_spec"));
-    assert!(drive.contains("step_tank_on_world_with_tanks"));
+    assert!(drive.contains("physics::advance_tank_on_world"));
+    assert!(drive.contains("physics::settle_tank_on_world"));
 }
 
 fn workspace_root() -> PathBuf {

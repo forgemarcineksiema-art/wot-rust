@@ -60,6 +60,6 @@ pub use spotting::{
     compute_spotted_masks, line_of_sight, tank_line_of_sight,
 };
 pub use state::SimulationState;
-pub use tank_drive::{TankDriveState, TankDriveWorld, step_tank_drive};
+pub use tank_drive::{TankDriveState, TankDriveWorld, braking_deceleration_mps2, step_tank_drive};
 pub use tank_state::TankState;
 pub use timestep::FixedTimestep;

@@ -130,6 +130,11 @@ rejection tests kept.
   whole 150-object rebuild twice, and the cover-crush fix had replaced a four-float-compare
   predicate with a full four-axis SAT run against every box on the map for every moving hull
   (~+18 µs/tick until it got the same circumradius broadphase the blocking test already had).
+- **Contact pile-up**: `crates/runtime/sim/benches/contact_pileup.rs` — fourteen hulls crushed
+  into one point, every pair surviving the broadphase, 128 ticks. `combat_hot_path` cannot see
+  this shape: its teams spread over 200 m and the pair loop throws almost everything away, while a
+  bridge, a ford or a city street is the opposite. Baseline (2026-07-28, dev laptop, release):
+  16.4 ms / 128 ticks ≈ 128 µs/tick, against ~88 µs/tick for the urban battle.
 - **Combat hot path**: `crates/runtime/sim/benches/combat_hot_path.rs` — a 14-tank battle
   with live shells and cover, 128 ticks at 60 Hz through
   `SimulationState::apply_commands_on_battlefield`. The bench is the measurement; the

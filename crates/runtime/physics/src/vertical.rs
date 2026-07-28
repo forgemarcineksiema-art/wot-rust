@@ -27,12 +27,19 @@ pub const MIN_FOLLOW_DROP_M: f32 = 0.03;
 pub struct GroundStep {
     pub grounded: bool,
     pub landing_impact_mps: f32,
+    /// The world velocity the DRIVE produced this tick, before any obstacle trimmed it.
+    ///
+    /// The contact solver needs this and nothing else will do. Collision resolution zeroes the
+    /// component heading into whatever is blocking, so by the time the roster is solved a hull
+    /// leaning on its neighbour has no closing speed left to transfer — and a push that lasts
+    /// longer than the first impact never happens. This is the momentum the hull actually brought.
+    pub drive_velocity: glam::Vec3,
 }
 
 impl GroundStep {
     /// The resting outcome: on the ground, nothing absorbed.
     pub const fn resting() -> Self {
-        Self { grounded: true, landing_impact_mps: 0.0 }
+        Self { grounded: true, landing_impact_mps: 0.0, drive_velocity: glam::Vec3::ZERO }
     }
 }
 
@@ -70,9 +77,9 @@ pub fn resolve_vertical(
         let landing_impact_mps = (-state.velocity.y).max(0.0);
         state.position.y = ground_y;
         state.velocity.y = 0.0;
-        return GroundStep { grounded: true, landing_impact_mps };
+        return GroundStep { grounded: true, landing_impact_mps, ..GroundStep::resting() };
     }
-    GroundStep { grounded: false, landing_impact_mps: 0.0 }
+    GroundStep { grounded: false, ..GroundStep::resting() }
 }
 
 #[cfg(test)]

@@ -53,7 +53,7 @@ fn interpolated_pose_blends_previous_tick_toward_current() {
     predictor.sync_to(&snapshot_at([10.0, 0.0, 10.0]));
 
     // One tick of forward drive establishes a non-trivial previous -> current gap.
-    predictor.step(TankCommand::drive(1.0, 0.0), &flat, &[], &[], &[], 1.0 / 60.0);
+    predictor.step(TankCommand::drive(1.0, 0.0), &flat, &[], &[], &[], None, 1.0 / 60.0);
 
     let start = predictor.interpolated_pose(0.0);
     let end = predictor.interpolated_pose(1.0);
@@ -83,7 +83,7 @@ fn motion_reports_the_rigid_bodys_tick_domain_speed_and_launch_accel() {
     predictor.sync_to(&snapshot_at([10.0, 0.0, 10.0]));
 
     let dt = 1.0 / 60.0;
-    predictor.step(TankCommand::drive(1.0, 0.0), &flat, &[], &[], &[], dt);
+    predictor.step(TankCommand::drive(1.0, 0.0), &flat, &[], &[], &[], None, dt);
 
     // The launch tick: speed goes 0 -> v in one tick, so the tick accel is exactly v/dt and the
     // presented speed blends from the previous tick's 0 toward v alongside the presented pose.
@@ -108,7 +108,7 @@ fn a_large_authoritative_correction_resets_the_motion_history_with_the_pose() {
     let flat = HeightMap::flat(8, 8, 4.0, 0.0).unwrap();
     let mut predictor = LocalPredictor::new(&TankSpec::t54_1951());
     predictor.sync_to(&snapshot_at([10.0, 0.0, 10.0]));
-    predictor.step(TankCommand::drive(1.0, 0.0), &flat, &[], &[], &[], 1.0 / 60.0);
+    predictor.step(TankCommand::drive(1.0, 0.0), &flat, &[], &[], &[], None, 1.0 / 60.0);
 
     predictor.sync_to(&snapshot_at([80.0, 0.0, 80.0]));
 
@@ -124,7 +124,7 @@ fn terminal_freeze_stops_motion_and_anchors_the_presented_pose() {
     let mut predictor = LocalPredictor::new(&TankSpec::t54_1951());
     predictor.sync_to(&snapshot_at([10.0, 0.0, 10.0]));
     for _ in 0..90 {
-        predictor.step(TankCommand::drive(1.0, 0.4), &flat, &[], &[], &[], 1.0 / 60.0);
+        predictor.step(TankCommand::drive(1.0, 0.4), &flat, &[], &[], &[], None, 1.0 / 60.0);
     }
     assert!(predictor.speed_mps() > 1.0, "precondition: the local hull is moving");
 
@@ -161,7 +161,7 @@ fn large_authoritative_correction_snaps_the_render_interpolation_anchor() {
     let flat = HeightMap::flat(8, 8, 4.0, 0.0).unwrap();
     let mut predictor = LocalPredictor::new(&TankSpec::t54_1951());
     predictor.sync_to(&snapshot_at([10.0, 0.0, 10.0]));
-    predictor.step(TankCommand::drive(1.0, 0.0), &flat, &[], &[], &[], 1.0 / 60.0);
+    predictor.step(TankCommand::drive(1.0, 0.0), &flat, &[], &[], &[], None, 1.0 / 60.0);
 
     predictor.sync_to(&snapshot_at([80.0, 0.0, 80.0]));
 
@@ -183,7 +183,7 @@ fn interpolated_turret_takes_the_shortest_arc_across_the_pi_wrap() {
     // Previous turret just below +PI, current just past -PI after a wrap: a naive lerp would
     // sweep the long way around; shortest-arc must stay near the +/-PI seam.
     predictor.sync_to(&snapshot_with_aim(3.10, 0.0));
-    predictor.step(TankCommand::idle(), &flat, &[], &[], &[], 1.0 / 60.0);
+    predictor.step(TankCommand::idle(), &flat, &[], &[], &[], None, 1.0 / 60.0);
     // Force a wrapped current turret by syncing again past the seam without touching previous.
     predictor.sync_to(&snapshot_with_aim(-3.10, 0.0));
 
@@ -212,6 +212,10 @@ fn predictor_stays_in_lockstep_with_the_authoritative_server_under_steering() {
     let mut predictor = LocalPredictor::new(&TankSpec::t54_1951());
     predictor.set_water(battlefield.water);
     predictor.sync_to(&seed);
+    // The predictor reads the SAME ground rule the server installs at setup. Handing it `None`
+    // here drives the local hull over bare grass while the authority drives it over the map's real
+    // surfaces, and the two walk apart — which is precisely what this test exists to catch.
+    let ground = terrain::GroundClassifier::new(&battlefield);
 
     // Hard, sustained steering is the worst case for prediction/authoritative divergence.
     // We deliberately never re-sync so any per-tick drift accumulates and is measurable --
@@ -220,7 +224,15 @@ fn predictor_stays_in_lockstep_with_the_authoritative_server_under_steering() {
     let dt = 1.0 / 60.0;
     let mut max_drift = 0.0f32;
     for client_tick in 0..600 {
-        predictor.step(command, &battlefield.heightmap, &battlefield.static_cover, &[], &[], dt);
+        predictor.step(
+            command,
+            &battlefield.heightmap,
+            &battlefield.static_cover,
+            &[],
+            &[],
+            Some(&ground),
+            dt,
+        );
         let outcome =
             server.tick_with_input(ClientInputCommand { client_tick, tank_id: player, command });
         if let Some(snapshot) = outcome.snapshot {

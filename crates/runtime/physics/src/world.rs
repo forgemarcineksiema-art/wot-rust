@@ -8,7 +8,7 @@ use crate::controller_settings::TankControllerSettings;
 use crate::cover::{footprint_blocked_by_cover, resolve_cover_collision_with_velocity};
 use crate::hull_attitude::advance_hull_attitude;
 use crate::movement::{
-    TankControlInput, TankKinematicState, step_custom_tank_controller_on_contact,
+    TankControlInput, TankKinematicState, advance_hull_drive, integrate_hull_position,
 };
 use crate::tank_resolve::{footprint_blocked_by_tanks, resolve_tank_collision_with_velocity};
 use crate::track_contact::{sample_support, support_height};
@@ -18,6 +18,30 @@ use crate::vertical::{GroundStep, is_grounded, resolve_vertical};
 /// probe reach (`ground_probe_length_m` = 3.0) so a hull held at the line still reads real
 /// terrain under every probe — the contact model never degrades against the wall.
 pub const MAP_BORDER_MARGIN_M: f32 = 3.5;
+
+/// Hold a hull inside the arena's red line: the map ends where the heightmap ends. Same contract
+/// as a cover wall — the position holds, the velocity component INTO the wall dies, sliding along
+/// it survives. Public because anything that MOVES a hull outside the drive step (the roster's
+/// contact separation) has to respect the same line, and a second copy of this arithmetic is
+/// exactly what the architecture gate forbids.
+pub fn clamp_to_map_border(position: &mut Vec3, velocity: &mut Vec3, heightmap: &HeightMap) {
+    let [extent_x, extent_z] = heightmap.extent_m();
+    let margin = MAP_BORDER_MARGIN_M;
+    if position.x < margin {
+        position.x = margin;
+        velocity.x = velocity.x.max(0.0);
+    } else if position.x > extent_x - margin {
+        position.x = extent_x - margin;
+        velocity.x = velocity.x.min(0.0);
+    }
+    if position.z < margin {
+        position.z = margin;
+        velocity.z = velocity.z.max(0.0);
+    } else if position.z > extent_z - margin {
+        position.z = extent_z - margin;
+        velocity.z = velocity.z.min(0.0);
+    }
+}
 
 /// Advance one tick on terrain only. Kept for callers without a cover set.
 pub fn step_tank_on_heightmap(
@@ -70,6 +94,35 @@ pub fn step_tank_on_world_with_tanks(
     footprint: Option<&ContactFootprint>,
     dt_seconds: f32,
 ) -> GroundStep {
+    let contact =
+        advance_tank_on_world(state, input, settings, heightmap, obstacles, footprint, dt_seconds);
+    settle_tank_on_world(state, settings, contact, heightmap, obstacles, footprint, dt_seconds)
+}
+
+/// What the hull's ground looks like this tick, carried from the drive phase to the settle phase
+/// so the terrain is sampled once.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct TankStepContact {
+    contact: TerrainContact,
+    was_grounded: bool,
+    previous: Vec3,
+    previous_yaw_rad: f32,
+    drive_velocity: Vec3,
+}
+
+/// PHASE 1 of a tick: sample the ground, decide the hull's velocity and heading — and do not move
+/// it. Pair with [`settle_tank_on_world`]; between the two a caller with a whole roster in hand
+/// can solve hull-to-hull contacts, which is the only place that solve does any good.
+#[allow(clippy::too_many_arguments)]
+pub fn advance_tank_on_world(
+    state: &mut TankKinematicState,
+    input: TankControlInput,
+    settings: &TankControllerSettings,
+    heightmap: Option<&HeightMap>,
+    obstacles: TankWorldObstacles<'_>,
+    footprint: Option<&ContactFootprint>,
+    dt_seconds: f32,
+) -> TankStepContact {
     let previous = state.position;
     let ride_height = |position: Vec3, yaw_rad: f32| -> Option<f32> {
         let heightmap = heightmap?;
@@ -89,6 +142,7 @@ pub fn step_tank_on_world_with_tanks(
                 state.yaw_rad,
                 settings.ground_probe_length_m,
                 obstacles.rubble,
+                obstacles.ground,
             )
         })
         .unwrap_or_else(|| TerrainContact::flat(state.position.y));
@@ -103,8 +157,36 @@ pub fn step_tank_on_world_with_tanks(
     }
     let was_grounded = is_grounded(state.position.y, contact.height_m);
 
-    let previous_yaw = state.yaw_rad;
-    step_custom_tank_controller_on_contact(state, input, settings, contact, dt_seconds);
+    let previous_yaw_rad = state.yaw_rad;
+    advance_hull_drive(state, input, settings, contact, dt_seconds);
+    TankStepContact {
+        contact,
+        was_grounded,
+        previous,
+        previous_yaw_rad,
+        drive_velocity: state.velocity,
+    }
+}
+
+/// PHASE 3 of a tick: spend the velocity the hull ended up with and resolve it against the world.
+#[allow(clippy::too_many_arguments)]
+pub fn settle_tank_on_world(
+    state: &mut TankKinematicState,
+    settings: &TankControllerSettings,
+    step: TankStepContact,
+    heightmap: Option<&HeightMap>,
+    obstacles: TankWorldObstacles<'_>,
+    footprint: Option<&ContactFootprint>,
+    dt_seconds: f32,
+) -> GroundStep {
+    let TankStepContact {
+        was_grounded,
+        previous,
+        previous_yaw_rad: previous_yaw,
+        drive_velocity,
+        ..
+    } = step;
+    integrate_hull_position(state, dt_seconds);
     // Rotation is collision-resolved like translation: a pivot that would grind the hull's
     // corners INTO a wall or a neighbour is refused (yaw reverts, the rotation rate dies),
     // exactly as a blocked move holds its position. Tested at the PREVIOUS position so pure
@@ -149,22 +231,7 @@ pub fn step_tank_on_world_with_tanks(
     // velocity component INTO the wall dies, sliding along it survives. Server and client
     // predictor share this step, so prediction stays in lockstep at the line.
     if let Some(heightmap) = heightmap {
-        let [extent_x, extent_z] = heightmap.extent_m();
-        let margin = MAP_BORDER_MARGIN_M;
-        if state.position.x < margin {
-            state.position.x = margin;
-            state.velocity.x = state.velocity.x.max(0.0);
-        } else if state.position.x > extent_x - margin {
-            state.position.x = extent_x - margin;
-            state.velocity.x = state.velocity.x.min(0.0);
-        }
-        if state.position.z < margin {
-            state.position.z = margin;
-            state.velocity.z = state.velocity.z.max(0.0);
-        } else if state.position.z > extent_z - margin {
-            state.position.z = extent_z - margin;
-            state.velocity.z = state.velocity.z.min(0.0);
-        }
+        clamp_to_map_border(&mut state.position, &mut state.velocity, heightmap);
     }
 
     // Vertical resolution against the post-collision ground: the terrain either carries the
@@ -178,6 +245,7 @@ pub fn step_tank_on_world_with_tanks(
             state.yaw_rad,
             settings.ground_probe_length_m,
             obstacles.rubble,
+            obstacles.ground,
         )
     {
         let support = footprint.and_then(|footprint| {
@@ -185,7 +253,8 @@ pub fn step_tank_on_world_with_tanks(
         });
         let ground = support.map(|s| s.height_m).unwrap_or(next_contact.height_m);
         let moved_xz = (state.position.x - previous.x).hypot(state.position.z - previous.z);
-        let step = resolve_vertical(state, ground, was_grounded, moved_xz, dt_seconds);
+        let mut step = resolve_vertical(state, ground, was_grounded, moved_xz, dt_seconds);
+        step.drive_velocity = drive_velocity;
         if step.grounded {
             // Attitude targets: the support plane when the running gear is known, the probe
             // gradients otherwise (+forward_slope = rises ahead = nose up; +side_slope = right
@@ -200,5 +269,5 @@ pub fn step_tank_on_world_with_tanks(
     }
     // Terrain-free mode: level ground, so the attitude settles back to level.
     advance_hull_attitude(state, 0.0, 0.0, dt_seconds);
-    GroundStep::resting()
+    GroundStep { drive_velocity, ..GroundStep::resting() }
 }
