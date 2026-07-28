@@ -39,6 +39,11 @@ pub const VEHICLE_BUDGETS: VehicleBudgets = VehicleBudgets {
 /// corner instead of fanning across it (`recipes/is3_hull.rs`), clearing the fleet's last 2
 /// inconsistently wound edges. One triangle's corner moves along a line it was already on, so the
 /// silhouette is identical; no other vehicle's hash moves.
+///
+/// The 2026-07-26 Centurion re-record moves ONLY that vehicle: its bazooka plates drop 0.07 m,
+/// from 0.40 to 0.33, to keep standing at the axle line after the Horstmann wheels shrank to
+/// their real ⌀0.61 (the pairs used to interpenetrate by 0.20 m). Nothing else in the hull moves,
+/// and the running gear itself is instanced, so no other row changes.
 pub const GOLDEN_BAKE_HASHES: [(VehicleKind, u64); 9] = [
     (VehicleKind::PrototypeMedium, 17_689_896_064_511_691_746_u64),
     (VehicleKind::T54_1951, 1_352_245_318_290_454_355_u64),
@@ -47,7 +52,7 @@ pub const GOLDEN_BAKE_HASHES: [(VehicleKind, u64); 9] = [
     (VehicleKind::Jagdtiger, 12_913_696_618_745_343_377_u64),
     (VehicleKind::PantherII, 2_837_722_706_443_665_062_u64),
     (VehicleKind::IS3, 764_441_410_926_956_128_u64),
-    (VehicleKind::Centurion, 7_860_412_385_872_908_373_u64),
+    (VehicleKind::Centurion, 15_818_076_589_286_630_709_u64),
     (VehicleKind::T34_85, 10_310_688_321_347_204_439_u64),
 ];
 

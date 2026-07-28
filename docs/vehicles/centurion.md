@@ -23,7 +23,7 @@ visible mesh, locked by `centurion_benchmark.rs` from day one.
 | Width over skirts | ~3.34 m | `track.outer_x 1.58` + skirt standoff/sheet |
 | Height | 2.99 m | `deck_y 1.88`, `roof_y 2.78`, cupola to 2.99 |
 | Ground clearance | 0.51 m | `belly_y 0.51` |
-| Road wheels | 6 × ⌀0.80 m in 3 Horstmann bogies | `wheel_stations` in PAIRS |
+| Road wheels | 6 × ⌀0.61 m in 3 Horstmann bogies | `wheel_stations` in PAIRS, axle at `axle_y` |
 | Track width | 610 mm | `inner_x 0.97 .. outer_x 1.58` |
 | Overall with gun | 9.83 m | `muzzle_z 6.03` |
 | Fire line | ~2.16 m | `trunnion_y 2.16` |
@@ -39,6 +39,12 @@ visible mesh, locked by `centurion_benchmark.rs` from day one.
 - **Horstmann bogies**: six wheels in three PAIRS — tight in-pair pitch, a real gap between
   bogies — the single `wheel_stations` source both the rendered gear and the physics contact
   footprint ride. Three return rollers carry the top run over the bogie gaps.
+  Tight is not merged: a bogie's ⌀0.61 wheels run 0.66 apart, leaving 5 cm of daylight between
+  the tyres. The layout was born with ⌀0.80 wheels on a 0.60 pitch — a quarter of a wheel inside
+  its own pair, and the middle roller 6.5 cm inside both centre wheels — because the wheel had to
+  be big enough to bridge a belt the ROLLERS carry. `axle_y` now states the axle line outright,
+  so the wheel is sized by the vehicle instead of by the belt, and `fleet_running_gear.rs` holds
+  the whole fleet to it.
 - The 76 mm glacis leans 57° — out-sloping every German plate (only the Soviet 60° school
   leans harder), standing on its armor plane via the shared `blueprint_prism_hull`.
 - The cast Mk 3 dome overhangs its 74-inch race, with the signature bustle stowage bin

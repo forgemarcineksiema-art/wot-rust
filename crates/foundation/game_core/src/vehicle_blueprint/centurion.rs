@@ -35,7 +35,7 @@ pub(super) fn centurion_blueprint() -> VehicleBlueprint {
             // a spaced screen a HEAT jet detonates against early.
             skirt: Some(SkirtShape {
                 top_y: 0.98,
-                bottom_y: 0.40,
+                bottom_y: 0.33,
                 front_z: 2.90,
                 rear_z: -2.90,
                 standoff_m: 0.08,
@@ -49,14 +49,16 @@ pub(super) fn centurion_blueprint() -> VehicleBlueprint {
             hitbox_turret_min_y: 0.41,
         },
         track: TrackShape {
-            // The 610 mm band under the skirts. Horstmann: six 800 mm wheels in three bogie
+            // The 610 mm band under the skirts. Horstmann: six 610 mm wheels in three bogie
             // PAIRS — tight within a bogie, a real gap between bogies — the single source both
-            // the rendered gear and the physics contact footprint read.
+            // the rendered gear and the physics contact footprint read. The rollers carry the
+            // top run, so the axle line is authored rather than averaged out of the belt.
             center_x: 1.275,
             belt_half_thickness: 0.13,
             top_y: 0.86,
             bottom_y: 0.03,
-            wheel_radius: 0.40,
+            axle_y: Some(0.355),
+            wheel_radius: 0.305,
             wheel_count: 6,
             wheel_first_z: -2.05,
             wheel_last_z: 2.05,
@@ -68,7 +70,7 @@ pub(super) fn centurion_blueprint() -> VehicleBlueprint {
             inner_x: 0.97,
             outer_x: 1.58,
             segments: 14,
-            wheel_stations: Some(&[-2.05, -1.45, -0.30, 0.30, 1.45, 2.05]),
+            wheel_stations: Some(&[-2.05, -1.39, -0.33, 0.33, 1.39, 2.05]),
             return_rollers: 3,
             roller_radius: 0.10,
             overlap_inner_dx: 0.0,

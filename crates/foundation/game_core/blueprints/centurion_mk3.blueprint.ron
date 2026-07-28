@@ -13,7 +13,7 @@ BlueprintFile(
         sponson_y: 0.95,
         skirt: Some(SkirtShape(
             top_y: 0.98,
-            bottom_y: 0.4,
+            bottom_y: 0.33,
             front_z: 2.9,
             rear_z: -2.9,
             standoff_m: 0.08,
@@ -30,7 +30,11 @@ BlueprintFile(
         belt_half_thickness: 0.13,
         top_y: 0.86,
         bottom_y: 0.03,
-        wheel_radius: 0.4,
+        // The three return rollers carry the top run at 0.86, well above the wheel tops — so the
+        // axle line is authored, not averaged out of the belt (0.03 + 0.305 + the link seat puts
+        // the ground run back on the belt bottom).
+        axle_y: Some(0.355),
+        wheel_radius: 0.305,
         wheel_count: 6,
         wheel_first_z: -2.05,
         wheel_last_z: 2.05,
@@ -40,12 +44,15 @@ BlueprintFile(
         inner_x: 0.97,
         outer_x: 1.58,
         segments: 14,
+        // Three Horstmann bogies: the two wheels of a bogie run 0.66 apart — 0.05 of daylight
+        // between ⌀0.61 tyres, as close as they can stand without merging — and 1.06 separates
+        // one bogie from the next.
         wheel_stations: Some([
             -2.05,
-            -1.45,
-            -0.3,
-            0.3,
-            1.45,
+            -1.39,
+            -0.33,
+            0.33,
+            1.39,
             2.05,
         ]),
         return_rollers: 3,
