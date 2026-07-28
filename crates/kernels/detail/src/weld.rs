@@ -35,6 +35,7 @@ fn tube_along(
         caps: SweepCaps::Both,
         material,
         smoothing,
+        section_scale: None,
     };
     try_sweep(&spec).expect("a non-degenerate path with a convex section sweeps cleanly")
 }

@@ -256,7 +256,7 @@ fn t54_source_hash_reacts_to_cast_loft_inputs() {
         CastSection::symmetric(0.2, 0.90, 0.96, -0.02, 2.8),
         CastSection::symmetric(0.5, 0.50, 0.60, -0.06, 2.8),
     ];
-    let bump = CastBump { azimuth: 0.0, az_width: 0.4, y: 0.2, y_width: 0.2, amount: 0.12 };
+    let bump = CastBump { azimuth: 0.0, az_width: 0.4, y: 0.2, y_width: 0.2, amount: 0.12, falloff_exponent: 2.0 };
     let planar = CastCaps { bottom: CastCap::Planar, top: CastCap::Planar };
 
     let hash = |sections: &[CastSection], bumps: &[CastBump], caps, material| {

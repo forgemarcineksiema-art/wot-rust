@@ -25,12 +25,9 @@ pub fn t54_turret_loft(t: &TurretLoftVisual) -> GeometryMesh {
         })
         .collect();
 
-    let cheek = |azimuth: f32| CastBump {
-        azimuth,
-        az_width: t.cheek_az_width,
-        y: t.cheek_y,
-        y_width: t.cheek_y_width,
-        amount: t.cheek_amount,
+    // The cheeks are a cast SWELL — the soft Gaussian is exactly right for them.
+    let cheek = |azimuth: f32| {
+        CastBump::gaussian(azimuth, t.cheek_az_width, t.cheek_y, t.cheek_y_width, t.cheek_amount)
     };
     let bumps = [
         cheek(FRAC_PI_2 - t.cheek_azimuth),
@@ -42,6 +39,7 @@ pub fn t54_turret_loft(t: &TurretLoftVisual) -> GeometryMesh {
             y: t.embrasure_y,
             y_width: t.embrasure_y_width,
             amount: t.embrasure_amount,
+            falloff_exponent: 2.0,
         },
     ];
 

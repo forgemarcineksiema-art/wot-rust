@@ -83,16 +83,48 @@ pub struct CastBump {
     pub y_width: f32,
     /// Peak radial push in metres (negative = recess).
     pub amount: f32,
+    /// How sharply the feature's walls stand up, as the exponent of a super-Gaussian.
+    ///
+    /// `2.0` is the plain Gaussian this kernel has always used: a soft dish, right for a
+    /// casting's swells and hollows. Higher exponents flatten the FLOOR and steepen the WALLS
+    /// toward a plateau — 6 already reads as a pocket with a rim rather than a dimple, and that
+    /// is what a gun embrasure is: a narrow aperture cut into a casting, not a dent pressed
+    /// into it.
+    ///
+    /// A sharp feature also has to be RESOLVED: the walls only exist if there are stations
+    /// through them, which is why the validator refuses a bump narrower than its local station
+    /// spacing. Steepness is not a substitute for stations.
+    pub falloff_exponent: f32,
 }
 
 impl CastBump {
+    /// A bump with the kernel's classic Gaussian falloff — a soft cast swell or hollow.
+    pub fn gaussian(azimuth: f32, az_width: f32, y: f32, y_width: f32, amount: f32) -> Self {
+        Self { azimuth, az_width, y, y_width, amount, falloff_exponent: 2.0 }
+    }
+
+    /// The same feature with steep walls and a flat floor: an aperture rather than a dish.
+    pub fn plateau(
+        azimuth: f32,
+        az_width: f32,
+        y: f32,
+        y_width: f32,
+        amount: f32,
+        exponent: f32,
+    ) -> Self {
+        Self { azimuth, az_width, y, y_width, amount, falloff_exponent: exponent.max(2.0) }
+    }
+
     fn push(&self, t: f32, y: f32) -> f32 {
         let mut d = (t - self.azimuth).rem_euclid(TAU);
         if d > PI {
             d -= TAU;
         }
-        let az = (-(d / self.az_width).powi(2)).exp();
-        let h = (-((y - self.y) / self.y_width).powi(2)).exp();
+        // Super-Gaussian: |x|^n instead of x^2. n = 2 is the original curve exactly.
+        let n =
+            if self.falloff_exponent.is_finite() { self.falloff_exponent.max(2.0) } else { 2.0 };
+        let az = (-(d / self.az_width).abs().powf(n)).exp();
+        let h = (-((y - self.y) / self.y_width).abs().powf(n)).exp();
         self.amount * az * h
     }
 }
@@ -320,10 +352,16 @@ mod tests {
     fn a_cheek_bump_pushes_the_surface_out_only_where_aimed() {
         let plain = dome(&[]).bounds().unwrap();
         // A cheek on the +X side at mid height.
-        let bumped =
-            dome(&[CastBump { azimuth: 0.0, az_width: 0.4, y: 0.2, y_width: 0.2, amount: 0.18 }])
-                .bounds()
-                .unwrap();
+        let bumped = dome(&[CastBump {
+            azimuth: 0.0,
+            az_width: 0.4,
+            y: 0.2,
+            y_width: 0.2,
+            amount: 0.18,
+            falloff_exponent: 2.0,
+        }])
+        .bounds()
+        .unwrap();
         assert!(bumped.max.x > plain.max.x + 0.10, "the cheek bulges the aimed side outward");
         assert!((bumped.max.z - plain.max.z).abs() < 0.02, "the front is left untouched");
     }

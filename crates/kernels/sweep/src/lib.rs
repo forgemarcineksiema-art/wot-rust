@@ -48,6 +48,15 @@ pub struct SweepSpec<'a> {
     pub caps: SweepCaps,
     pub material: MaterialRole,
     pub smoothing: SmoothingGroup,
+    /// Per-station scale of the section, one entry per path point (`None` = constant section,
+    /// which is every band and bead this kernel has swept so far).
+    ///
+    /// A constant section can only make tubes and rails. The things a tank carries that are
+    /// NOT tubes — a canvas mantlet cover flaring from the barrel out to the turret face, a
+    /// tapering fuel line, a bellows — are the same sweep with the section growing along the
+    /// path. Without this they had to be faked by revolving and then squashing, which cannot
+    /// follow a bent path at all.
+    pub section_scale: Option<&'a [f32]>,
 }
 
 /// Why a sweep cannot be built.
@@ -65,6 +74,12 @@ pub enum SweepError {
     InvalidUp,
     #[error("the section must be convex in this release")]
     NonConvexSection,
+    #[error(
+        "section_scale has {given} entries for a {expected}-point path — one scale per station"
+    )]
+    SectionScaleLengthMismatch { given: usize, expected: usize },
+    #[error("section scale {value} at station {index} is not a positive, finite number")]
+    InvalidSectionScale { index: usize, value: f32 },
 }
 
 /// Validate the spec, build the transport frames, and sweep the section into a closed band (or a
@@ -112,6 +127,21 @@ fn validate_spec(spec: &SweepSpec<'_>) -> Result<(), SweepError> {
     if path.points.iter().any(|p| !p.is_finite()) || section.points.iter().any(|p| !p.is_finite()) {
         return Err(SweepError::NonFinite);
     }
+    // A scale table is per STATION: a short one would silently leave the tail of the sweep at
+    // full size, which reads as a cover that stops flaring halfway.
+    if let Some(scales) = spec.section_scale {
+        if scales.len() != path.points.len() {
+            return Err(SweepError::SectionScaleLengthMismatch {
+                given: scales.len(),
+                expected: path.points.len(),
+            });
+        }
+        for (index, value) in scales.iter().enumerate() {
+            if !value.is_finite() || *value <= 0.0 {
+                return Err(SweepError::InvalidSectionScale { index, value: *value });
+            }
+        }
+    }
     let n = path.points.len();
     let last = if path.closed { n } else { n - 1 };
     for i in 0..last {
@@ -133,9 +163,12 @@ fn build_rings(
     spec: &SweepSpec<'_>,
 ) -> Vec<GeometryVertex> {
     let mut rings = Vec::with_capacity(points.len() * section.len());
-    for (p, frame) in points.iter().zip(frames) {
+    for (index, (p, frame)) in points.iter().zip(frames).enumerate() {
+        // The section may grow or shrink along the path — a cover that flares, a line that
+        // tapers. Absent a scale table every station is the authored section, exactly as before.
+        let scale = spec.section_scale.and_then(|table| table.get(index).copied()).unwrap_or(1.0);
         for s in section {
-            let world = *p + frame.u * s.x + frame.v * s.y;
+            let world = *p + frame.u * (s.x * scale) + frame.v * (s.y * scale);
             rings.push(GeometryVertex::new(world, Vec3::ZERO, spec.material, spec.smoothing));
         }
     }
