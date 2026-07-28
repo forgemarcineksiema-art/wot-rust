@@ -13,7 +13,11 @@ document becomes history.
   (the remembered "t54_hybrid budget debt" is stale — there is none).
 - Foundation: five audits dated 2026-07-28 (geometry kernels; T-54 authoring stack;
   blueprint schema + armor; Forge workshop; gun/turret + running-gear construction) and a
-  web-sourced dossier now recorded in `docs/vehicles/t-54.md` (Reference anatomy table).
+  web-sourced dossier now recorded in `docs/vehicles/t-54.md` (Reference anatomy table +
+  Part construction table from session S1b).
+- Blender sessions S1 (dome master: station table banked in the plan; height 2.40 confirmed,
+  2.218 ruled out) and S1b (part construction: 13-tooth sprocket rings, hinge-eye drive,
+  the spider-web wheel correction) are done; S2/S3/S4 belong to W3.
 
 ## The decisions this program is built on
 
@@ -46,7 +50,7 @@ loop (`tools export-mesh` → overlay on master → cross-section diff = numeric
 | M5 | Cupola ⌀480 vs 624, exposed 131 mm, hatch 497×670; three copies in code, the rendered one untested | `t54_hybrid_turret.rs:82` | W3/PR-16 |
 | M6 | Gun arc global −8/+20 vs real −5/+18 per vehicle | `aiming.rs:6-8` | W2/PR-10 |
 | M7 | Symmetric fenders vs real asymmetry; missing SG-43 port and 2× MDSh | `t54_kit.rs:40-49` | W3/PR-19 |
-| M8 | Wheels 6 spokes vs 5-arm starfish; no visible dampers st. 1+5; doubled swing arms | RON `wheel_spokes: 6`; `t54_chassis.rs:44-64` | W2/PR-12 + W3/PR-18 |
+| M8 | Wheel disc pattern generic 6 spokes vs the documented **spider-web** casting (12 ribs, 12+12 holes) — S1b corrected the earlier "5-arm starfish" assumption: starfish is a later/rebuild wheel; no visible dampers st. 1+5; doubled swing arms | RON `wheel_spokes: 6`; `t54_chassis.rs:44-64`; dossier "Part construction" | W2/PR-12 + W3/PR-18 |
 | M9 | Track 570 vs 580 mm; gauge 2690 vs 2640 (side-clearance arithmetic — open decision) | RON track fields | W3/PR-18 |
 | M10 | Deck travel lock authored with zero reference citation (real obr. 1951: likely none) | `t54_kit_lines.rs:47-72` | W3/PR-19 after S2 |
 | M11 | `barrel_length_m` D-10T 5.0 vs D-10T2S 5.9 — same real tube L/53.5 ≈ 5.35; upgrade falsely stretches the silhouette | `catalog_soviet.rs:230,252` | W1/PR-07 |
@@ -62,7 +66,7 @@ loop (`tools export-mesh` → overlay on master → cross-section diff = numeric
 | K2 | Mantlet is an OPEN-ended sleeve (no station at r=0); rims stand outside the barrel over ±31° crescents looking into the hollow; `OPEN_OR_CLOSED` contract allows it | `gun_parts.rs:62-83`; `quality.rs:214-219` | PR-17 |
 | K3 | OMSh link: NO guide horn, no hinge knuckles/pins, no cleats; 4 of 7 detail boxes fully buried inside the backing slab (11,520 dead tris/tank); "pin bars" on the wrong face | `running_gear_geom.rs:17-91` | PR-22 |
 | K4 | Road wheel: one body with a groove fakes twin tires; "dish" is a thinner flat coin; hub is a 19 cm peg; ZERO bolts (bolt circle exists only on the German dished path); arms are straight flat slabs | `running_gear_wheels.rs:28-57` | PR-23 |
-| K5 | Sprocket teeth stop 3.2 cm SHORT of the belt line (nothing meshes) yet intersect the backing on the wrap; carrier "rings" are solid coins without lightening holes; tooth is a flat wedge | `running_gear_end_wheels.rs:65-136` | PR-24 |
+| K5 | Sprocket teeth stop 3.2 cm SHORT of the belt line (nothing meshes) yet intersect the backing on the wrap; carrier "rings" are solid coins; tooth is a flat wedge. Documented truth (S1b): **2 × 13 teeth**, ring ⌀682 × 120 mm on a ⌀572.4 pitch circle, 40 bolts, and the tooth bears on the link's **hinge-eye barrel**, not the horn | `running_gear_end_wheels.rs:65-136`; dossier "Part construction" | PR-24 |
 | K6 | Idler: flat cylinder (same coin as the sprocket drum), no dish, no tension crank; open revolve hides the hollow | `running_gear_end_wheels.rs:25-59` | PR-24 |
 | K7 | Swing arm: reach 0.26 / rise 0.13 HARDCODED fleet-wide (not blueprint), flat slab, no torsion-bar hub; duplicated by static hull boxes | `running_gear_arms.rs:18-22`; `t54_chassis.rs:44-65` | PR-27 (+PR-12) |
 | K8 | Cupola/3 hatches/headlight = bare `revolve::drum` pucks (8 real parts from one primitive); ZERO hinges/handles/latches in the whole repo; headlight "lens" faces UP | `parts.rs:12-23`; `t54_details.rs:15-72` | PR-26 (+PR-16) |

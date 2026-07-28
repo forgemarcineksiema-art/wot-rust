@@ -173,6 +173,30 @@ fn the_hybrid_bake_is_deterministic() {
     );
 }
 
+/// The SHIPPED T-54's cross-commit byte lock.
+///
+/// `GOLDEN_BAKE_HASHES` locks the procedural fleet — including a T-54 entry for the legacy
+/// recipe **nobody ships**. The hybrid mesh the game actually draws had no recorded hash at
+/// all: its only guard was ~90 property tests, so a silent geometry drift that happened to
+/// satisfy every ratio and bound could ride in unnoticed.
+///
+/// Re-record deliberately, in the PR that intends the change, together with the studio tiles
+/// (`WOT_UPDATE_GOLDENS=1 cargo test -p tools --test studio_goldens`) — a hash bless with no
+/// picture to look at is a rubber stamp.
+#[test]
+fn the_shipped_hybrid_matches_its_recorded_golden() {
+    // Recorded 2026-07-28 (PR-03): LOD0 15,096 tris, the mirror-fixed studio bless.
+    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0x6a7f_a521_f563_65e8;
+    let baked = t54_description().build();
+    assert_eq!(
+        baked.deterministic_hash(),
+        GOLDEN_HYBRID_LOD0_HASH,
+        "the shipped T-54 hybrid bake drifted from its recorded golden (got 0x{:016x}) — if the \
+         change is intended, re-record this constant in the same commit that makes it",
+        baked.deterministic_hash()
+    );
+}
+
 #[test]
 fn the_hybrid_reduces_through_lod_tiers_within_tiered_budgets() {
     // Per-LOD budgets (the plan's tiered budgets): each tier first drops the parts its policy
