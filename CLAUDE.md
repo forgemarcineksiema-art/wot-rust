@@ -22,6 +22,8 @@ Rust tank game ("honest tank": no ±25% RNG, 7v7, three eras). Workspace of crat
 ## Where things are decided
 - `docs/art-direction-program.md` — **current program STATUS + defect register, start here.**
 - `docs/art-direction-policy.md` — the target look, its 7 rules and their locks.
+- `docs/model-idealny-t54.md` — **active program**: T-54 to zero deviations (M/K registers,
+  waves W0–W4, Blender master-reference workflow); dossier: `docs/vehicles/t-54.md`.
 - `docs/urban-map-program.md` — previous program (complete); still doctrine for maps + flora.
 - `docs/map-forge-policy.md`, `docs/maps/*.md` — map authoring; editor: `cargo run -p editor`.
 - `docs/destruction-program.md`, `docs/shadow-policy.md`, `docs/vehicle-fidelity-masterplan.md`.
