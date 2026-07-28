@@ -111,6 +111,7 @@ impl LocalPredictor {
         heightmap: &HeightMap,
         cover: &[StaticCoverObject],
         tank_obstacles: &[TankObstacle],
+        rubble: &[terrain::RubbleMound],
         dt: f32,
     ) {
         // Record the pre-step pose so the renderer can interpolate previous -> current over
@@ -119,7 +120,7 @@ impl LocalPredictor {
         self.previous = self.current_pose();
         let speed_before = self.drive.kinematic.forward_speed();
         self.previous_forward_speed_mps = speed_before;
-        self.step_drive(command, heightmap, cover, tank_obstacles, dt);
+        self.step_drive(command, heightmap, cover, tank_obstacles, rubble, dt);
         self.tick_accel_long_mps2 =
             (self.drive.kinematic.forward_speed() - speed_before) / dt.max(1.0e-6);
     }
@@ -130,6 +131,7 @@ impl LocalPredictor {
         heightmap: &HeightMap,
         cover: &[StaticCoverObject],
         tank_obstacles: &[TankObstacle],
+        rubble: &[terrain::RubbleMound],
         dt: f32,
     ) {
         // Mirror the server: dispersion recovers every tick, even for a dead hull.
@@ -158,6 +160,7 @@ impl LocalPredictor {
             tank_obstacles,
             footprint: Some(&footprint),
             water: self.water,
+            rubble,
         };
         let ground =
             step_tank_drive(&mut self.drive, &self.spec, modules, world, command.clamped(), dt);

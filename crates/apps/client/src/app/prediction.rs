@@ -25,8 +25,12 @@ impl ClientApp {
         self.predictor.step(
             *command,
             &self.battlefield.heightmap,
-            self.live_cover.blocking(),
+            // The predictor drives, so it takes the MOVEMENT slice — the same one the server's
+            // drive step uses. Sight geometry (which still carries rubble mounds) would stop the
+            // local hull where the authority does not.
+            self.live_cover.movement(),
             &tank_obstacles,
+            self.live_cover.rubble(),
             TICK_DT,
         );
     }

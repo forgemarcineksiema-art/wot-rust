@@ -24,6 +24,7 @@ fn driven(tracks: TrackDriveStatus, command: TankCommand, ticks: u32) -> TankDri
         tank_obstacles: &[],
         footprint: None,
         water: None,
+        rubble: &[],
     };
     for _ in 0..ticks {
         step_tank_drive(&mut drive, &spec, modules, world, command, 1.0 / 60.0);

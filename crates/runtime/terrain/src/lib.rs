@@ -8,6 +8,7 @@ mod map_id;
 mod map_plan;
 mod math;
 mod river;
+mod rubble;
 mod scenery;
 mod sculpt;
 mod water;
@@ -36,6 +37,7 @@ pub use map_id::MapId;
 pub use map_plan::{TerrainMapLayer, TerrainMapPlan};
 pub use math::{gaussian1, gaussian2};
 pub use river::{RIVER_CORRIDOR_HALF_WIDTH_M, RiverSpec, bystra_river_center_x};
+pub use rubble::{RUBBLE_REPOSE_GRADE, RubbleMound, ground_with_rubble, rubble_height_at};
 pub use scenery::{
     ScatterRegion, SceneryInstance, SceneryKind, inside_any_cover, scatter_mirrored,
 };

@@ -81,7 +81,20 @@ pub fn footprint_overlaps_cover_object(
     footprint: TankFootprint,
     object: &StaticCoverObject,
 ) -> bool {
-    obstacles_overlap(&TankObstacle::new(position, yaw_rad, footprint), &cover_obstacle(object))
+    // Same circumradius early-out the any-box test uses, and for the same reason: cover crushing
+    // asks this of EVERY box on the map for every moving hull, every tick. Without it a 150-box
+    // city map ran 2 100 full four-axis SAT projections a tick where the predicate it replaced was
+    // four float compares — measurably (~18 µs/tick on the urban hot-path bench), and for nothing,
+    // since a hull is nowhere near almost all of them.
+    let dx = position.x - object.center[0];
+    let dz = position.z - object.center[2];
+    let reach = circumradius(footprint.half_width_m, footprint.half_length_m)
+        + circumradius(object.half_extents_m[0], object.half_extents_m[2]);
+    dx * dx + dz * dz <= reach * reach
+        && obstacles_overlap(
+            &TankObstacle::new(position, yaw_rad, footprint),
+            &cover_obstacle(object),
+        )
 }
 
 /// Radius of the circle circumscribing a `half_x` × `half_z` footprint.
@@ -142,5 +155,39 @@ mod broadphase_tests {
             let filtered = footprint_blocked_by_cover(position, yaw, footprint, &cover);
             assert_eq!(exact, filtered, "early-out changed the verdict at {position:?} yaw {yaw}");
         }
+    }
+
+    /// The same guarantee for the single-object test cover crushing asks, since it carries the
+    /// same early-out: what a hull flattens must be exactly what its footprint reaches.
+    #[test]
+    fn the_single_object_early_out_never_changes_a_verdict_either() {
+        let object = StaticCoverObject {
+            id: "hedge".into(),
+            name: "hedge".into(),
+            kind: StaticCoverKind::TreeLine,
+            center: [40.0, 1.0, 40.0],
+            half_extents_m: [10.0, 1.0, 0.6],
+        };
+        let footprint = TankFootprint { half_width_m: 1.75, half_length_m: 3.2 };
+        let mut state = 0x51ce_d00du32;
+        let mut touched = 0;
+        for _ in 0..800 {
+            // Sample tight around the hedge so both verdicts actually occur.
+            let position = Vec3::new(
+                25.0 + xorshift(&mut state) * 30.0,
+                0.0,
+                30.0 + xorshift(&mut state) * 20.0,
+            );
+            let yaw = xorshift(&mut state) * std::f32::consts::TAU;
+            let exact = obstacles_overlap(
+                &TankObstacle::new(position, yaw, footprint),
+                &cover_obstacle(&object),
+            );
+            let filtered = footprint_overlaps_cover_object(position, yaw, footprint, &object);
+            assert_eq!(exact, filtered, "early-out changed the verdict at {position:?} yaw {yaw}");
+            touched += usize::from(exact);
+        }
+        assert!(touched > 0, "the sampling must actually produce overlaps to be worth anything");
+        assert!(touched < 800, "...and non-overlaps, which is the case the early-out is for");
     }
 }

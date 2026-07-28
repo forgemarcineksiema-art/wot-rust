@@ -121,6 +121,15 @@ rejection tests kept.
 
 ## Budgets
 
+- **Measured 2026-07-28** (dev laptop, release, interleaved A/B against master, 3 rounds — the
+  bench has a ~9% run-to-run spread on this machine, so single readings prove nothing): the
+  14-tank battle is unchanged at ~8.5 ms / 128 ticks (~66 µs/tick), and `urban_150` improves from
+  ~13.1 ms to ~11.2 ms (~102 → ~88 µs/tick). The improvement is the live-cover `Cow` plus
+  `LiveCover` resolving both views in one pass. Getting there took two corrections the bench
+  caught and review would not have: resolving the movement and sight slices separately paid the
+  whole 150-object rebuild twice, and the cover-crush fix had replaced a four-float-compare
+  predicate with a full four-axis SAT run against every box on the map for every moving hull
+  (~+18 µs/tick until it got the same circumradius broadphase the blocking test already had).
 - **Combat hot path**: `crates/runtime/sim/benches/combat_hot_path.rs` — a 14-tank battle
   with live shells and cover, 128 ticks at 60 Hz through
   `SimulationState::apply_commands_on_battlefield`. The bench is the measurement; the
@@ -184,6 +193,54 @@ Two supporting changes ride along:
   `StaticCoverObject` carries two `String`s, so the old unconditional rebuild cost ~300 heap
   allocations per tick on a city map. The server had already hand-rolled this `Cow` for the bots'
   copy; the rule now lives once, in `sim`, where every caller gets it.
+
+## Rubble is terrain (2026-07-28)
+
+The audit's seventh finding was not a bug but a missing feature, and closing it is the reason
+`CoverPhase::Rubble` now means something different to different consumers.
+
+`physics::cover::footprint_blocked_by_cover` reads neither `position.y` nor a box's height — every
+cover box is an infinitely tall prism for movement. So the care `live_cover_for_blocking` took to
+lower a collapsed building reached the shell trace and the spotting LOS and **never reached the
+hull**: a flattened block walled a tank exactly as the standing block had. "Destruction opens the
+map" was true for fire and for sight and false for manoeuvre, which is half the reason to bring a
+building down in a 7v7.
+
+**The rule.** A collapsed building is debris, and debris is ground.
+
+- The one resolved live slice became two, and every call site states which question it is asking:
+  `live_cover_for_sight_and_shells` (shell traces, spotting LOS, camera solids — a mound is still a
+  lowered box that blocks) and `live_cover_for_movement` (hull collision — a mound is simply
+  absent).
+- The mound reaches movement through the SUPPORT ENVELOPE instead, as `terrain::RubbleMound`: a
+  truncated pyramid with a flat top and flanks at the angle of repose of broken masonry
+  (`RUBBLE_REPOSE_GRADE` = 0.78, ~38°). Debris stays inside the authored footprint, so streets do
+  not silt up, and the surface is continuous with the ground at the footprint edge.
+- `track_contact::rest_line` and `contact::sample_tank_terrain_contact` both read `max(terrain,
+  debris)`. Both, deliberately: the support envelope decides where the hull RIDES, the probe cross
+  decides what the drive's forces resolve against. A mound that raised the hull while leaving the
+  probes on flat ground would be a pile you climb for free.
+- An empty mound list short-circuits to the plain heightmap read, so a battlefield nothing has
+  knocked down yet is bit-identical.
+
+**What the geometry actually does, which is not what the design predicted.** The repose grade sits
+above the momentum-climb ceiling (0.68), so the flank is steeper than anything a tank climbs — and
+yet every mound the shipping `rubble_height_frac` values produce is still crossable. A barn mound
+is 2.4 m of debris over a 3.1 m talus; a T-54's running gear spans 4.4 m between end stations. The
+rigid beam BRIDGES a flank shorter than its own wheelbase, exactly as it bridges a trench narrower
+than its wheel pitch. A pile smaller than the tank is something a tank drives over.
+
+So there is no angle-of-attack gate on rubble, and the "skill climb" the plan expected does not
+exist at these pile sizes. What does exist is a real cost: the crossing pitches the hull up, bleeds
+speed through the same force model every slope uses, and puts the belly in the air on the crest.
+The wall mechanism is still there for a flank the gear cannot bridge (it needs ~5 m of debris) and
+is test-locked, but no map authors one today. If a mound should ever gate manoeuvre, the knob is
+`rubble_height_frac`, not a special case in the drive.
+
+Locked by `physics/tests/rubble_support.rs` (the envelope rests on debris, the crossing costs tilt
+and ground, an unbridgeable flank walls a charge) and `sim/tests/cover_destruction.rs` (a hull
+drives over a collapsed building; a shell still dies in the same mound; a STANDING building is
+still a wall and nothing gets onto its roof).
 
 ## Known risks
 

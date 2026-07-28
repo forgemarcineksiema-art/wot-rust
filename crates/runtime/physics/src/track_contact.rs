@@ -8,7 +8,7 @@
 use game_core::ContactFootprint;
 use game_core::math::horizontal_forward;
 use glam::Vec3;
-use terrain::HeightMap;
+use terrain::{HeightMap, RubbleMound};
 
 /// One side's (or the combined) resting line at the hull origin: the support height and the
 /// slope of the segment the rigid beam rests on there.
@@ -43,8 +43,9 @@ pub fn support_height(
     position: Vec3,
     yaw_rad: f32,
     footprint: &ContactFootprint,
+    rubble: &[RubbleMound],
 ) -> Option<f32> {
-    rest_line(heightmap, position, yaw_rad, footprint, Side::Both).map(|line| line.height_m)
+    rest_line(heightmap, position, yaw_rad, footprint, Side::Both, rubble).map(|line| line.height_m)
 }
 
 /// Full support contact: ride height plus the pitch/roll targets of the support plane. Pitch is
@@ -55,10 +56,11 @@ pub fn sample_support(
     position: Vec3,
     yaw_rad: f32,
     footprint: &ContactFootprint,
+    rubble: &[RubbleMound],
 ) -> Option<SupportContact> {
-    let combined = rest_line(heightmap, position, yaw_rad, footprint, Side::Both)?;
-    let left = rest_line(heightmap, position, yaw_rad, footprint, Side::Left);
-    let right = rest_line(heightmap, position, yaw_rad, footprint, Side::Right);
+    let combined = rest_line(heightmap, position, yaw_rad, footprint, Side::Both, rubble)?;
+    let left = rest_line(heightmap, position, yaw_rad, footprint, Side::Left, rubble);
+    let right = rest_line(heightmap, position, yaw_rad, footprint, Side::Right, rubble);
     let roll_rad = match (left, right) {
         (Some(left), Some(right)) => {
             ((right.height_m - left.height_m) / (2.0 * footprint.half_gauge_x.max(0.1))).atan()
@@ -81,6 +83,7 @@ fn rest_line(
     yaw_rad: f32,
     footprint: &ContactFootprint,
     side: Side,
+    rubble: &[RubbleMound],
 ) -> Option<RestLine> {
     let stations = footprint.station_zs();
     if stations.is_empty() {
@@ -94,8 +97,8 @@ fn rest_line(
     let mut count = 0;
     for &station_z in stations {
         let centre = position + forward * station_z;
-        let left_h = sample(heightmap, centre - right * footprint.half_gauge_x);
-        let right_h = sample(heightmap, centre + right * footprint.half_gauge_x);
+        let left_h = sample(heightmap, centre - right * footprint.half_gauge_x, rubble);
+        let right_h = sample(heightmap, centre + right * footprint.half_gauge_x, rubble);
         let ground = match side {
             Side::Both => match (left_h, right_h) {
                 (Some(l), Some(r)) => Some(l.max(r)),
@@ -131,8 +134,16 @@ fn rest_line(
     Some(rest_on_hull(&hull[..len], 0.0))
 }
 
-fn sample(heightmap: &HeightMap, point: Vec3) -> Option<f32> {
-    heightmap.sample_height(point.x, point.z)
+/// The one surface every station reads: the terrain, raised wherever collapsed masonry stands on
+/// it. Routing the debris through the SUPPORT ENVELOPE (rather than bolting it on beside it) is
+/// what makes a mound behave like ground for free — the rigid-beam convex hull bridges its way up
+/// the flank, the crest overhang works over its lip, and the attitude falls out of the same plane.
+fn sample(heightmap: &HeightMap, point: Vec3, rubble: &[RubbleMound]) -> Option<f32> {
+    let terrain = heightmap.sample_height(point.x, point.z);
+    if rubble.is_empty() {
+        return terrain;
+    }
+    terrain::ground_with_rubble(terrain, terrain::rubble_height_at(rubble, point.x, point.z))
 }
 
 /// True when `a -> b -> c` turns clockwise in the (z, height) plane — the upper-hull keep rule.
@@ -182,7 +193,7 @@ mod tests {
         // A 1.6 m trench: wider than one cell, narrower than the ~1 m wheel pitch spans it —
         // wheels sit on both rims, so the support line stays at the rim height.
         let map = map_from(|_, z| if (29.2..30.8).contains(&z) { -2.0 } else { 1.0 });
-        let height = support_height(&map, Vec3::new(30.0, 1.0, 30.0), 0.0, &t54())
+        let height = support_height(&map, Vec3::new(30.0, 1.0, 30.0), 0.0, &t54(), &[])
             .expect("stations on the map");
         assert!((height - 1.0).abs() < 0.05, "the rigid gear must bridge the trench, got {height}");
         // The centre sample alone would have dropped the hull into it.
@@ -192,7 +203,7 @@ mod tests {
     #[test]
     fn a_pit_wider_than_the_wheelbase_swallows_the_hull() {
         let map = map_from(|_, z| if (24.0..36.0).contains(&z) { -2.0 } else { 1.0 });
-        let height = support_height(&map, Vec3::new(30.0, 1.0, 30.0), 0.0, &t54())
+        let height = support_height(&map, Vec3::new(30.0, 1.0, 30.0), 0.0, &t54(), &[])
             .expect("stations on the map");
         assert!(height < -1.5, "a pit wider than the gear must be entered, got {height}");
     }
@@ -202,7 +213,7 @@ mod tests {
         // Plateau at 6 m ending at z = 30, flat ground beyond. Hull origin still on the plateau,
         // front stations hanging past the edge: the support line must hold the plateau height.
         let map = map_from(|_, z| if z < 30.0 { 6.0 } else { 0.0 });
-        let height = support_height(&map, Vec3::new(30.0, 6.0, 29.0), 0.0, &t54())
+        let height = support_height(&map, Vec3::new(30.0, 6.0, 29.0), 0.0, &t54(), &[])
             .expect("stations on the map");
         // Bilinear sampling softens the edge into a short ramp, so the ride line eases a hand
         // below the plateau as the front wheel crosses — but it must NOT dive toward the floor
@@ -215,8 +226,8 @@ mod tests {
         // Hull origin pushed past the crest so only the rearmost stations still touch the
         // plateau: the extrapolated support falls, handing the hull to the ballistic follow.
         let map = map_from(|_, z| if z < 30.0 { 6.0 } else { 0.0 });
-        let on_edge = support_height(&map, Vec3::new(30.0, 6.0, 29.0), 0.0, &t54()).unwrap();
-        let past_edge = support_height(&map, Vec3::new(30.0, 6.0, 33.5), 0.0, &t54()).unwrap();
+        let on_edge = support_height(&map, Vec3::new(30.0, 6.0, 29.0), 0.0, &t54(), &[]).unwrap();
+        let past_edge = support_height(&map, Vec3::new(30.0, 6.0, 33.5), 0.0, &t54(), &[]).unwrap();
         assert!(past_edge < on_edge - 1.0, "support must drop past the crest: {past_edge}");
     }
 
@@ -227,7 +238,8 @@ mod tests {
             VehicleKind::PrototypeMedium,
         ));
         for footprint in [t54(), fallback] {
-            let height = support_height(&map, Vec3::new(30.0, 2.5, 30.0), 0.7, &footprint).unwrap();
+            let height =
+                support_height(&map, Vec3::new(30.0, 2.5, 30.0), 0.7, &footprint, &[]).unwrap();
             assert!((height - 2.5).abs() < 1.0e-4);
         }
     }
@@ -237,7 +249,7 @@ mod tests {
         // On a plane the convex hull is the plane itself: no bridging artefact, the support at
         // the origin equals the terrain there (the pre-envelope behavior on smooth ground).
         let map = map_from(|_, z| z * 0.2);
-        let height = support_height(&map, Vec3::new(30.0, 6.0, 30.0), 0.0, &t54()).unwrap();
+        let height = support_height(&map, Vec3::new(30.0, 6.0, 30.0), 0.0, &t54(), &[]).unwrap();
         let ground = map.sample_height(30.0, 30.0).unwrap();
         assert!((height - ground).abs() < 0.02, "slope support {height} vs ground {ground}");
     }

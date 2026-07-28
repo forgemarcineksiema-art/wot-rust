@@ -323,3 +323,100 @@ fn a_hull_drives_through_a_wooden_fence_and_a_shell_sweeps_it() {
     fire_once(&mut state, shooter, &terrain, &fence);
     assert_eq!(state.cover_states()[0].phase, CoverPhase::Gone, "one round sweeps the span");
 }
+
+/// The payoff, end to end: a hull drives OVER a collapsed building.
+///
+/// Rubble used to be an infinitely tall prism for movement — `footprint_blocked_by_cover` reads
+/// no height at all — so a flattened block walled a tank exactly as the standing block had.
+/// "Destruction opens the map" was true for fire and for sight and false for manoeuvre, which is
+/// half the reason to bring a building down in a 7v7. The mound is now ground: it leaves the
+/// movement slice entirely and reaches the drive through the support envelope instead.
+#[test]
+fn a_hull_drives_over_a_collapsed_building() {
+    let terrain = flat_field();
+    // A born ruin (the `"ruin"` id rule) opens the battle already collapsed — no shelling needed.
+    let ruin =
+        [cover("barn_ruin", StaticCoverKind::FarmBuilding, [0.0, 3.0, 25.0], [8.0, 3.0, 6.0])];
+
+    let mut state = SimulationState::new();
+    let tank = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::new(0.0, 0.0, 8.0));
+    let step = FixedTimestep::from_hz(60);
+    let mut peak_y = f32::MIN;
+    for _ in 0..400 {
+        state.apply_commands_on_battlefield(
+            &[(tank, TankCommand::drive(1.0, 0.0))],
+            step,
+            &terrain,
+            &ruin,
+        );
+        peak_y = peak_y.max(state.tank(tank).expect("tank").position.y);
+    }
+
+    assert_eq!(state.cover_states()[0].phase, CoverPhase::Rubble, "the ruin is born collapsed");
+    let ended = state.tank(tank).expect("tank").position;
+    assert!(ended.z > 31.0, "the hull must get past where the building stood, got z {}", ended.z);
+    assert!(peak_y > 2.0, "and it must ride OVER the pile, not around it — peaked at y {peak_y}");
+}
+
+/// ...and the half that must NOT change while that happens: the mound still eats a shell. This is
+/// the regression the movement/sight split exists to prevent — drop rubble from the wrong slice
+/// and rounds sail through a building that is visibly still there.
+#[test]
+fn a_shell_still_dies_in_the_rubble_a_hull_can_drive_over() {
+    let terrain = flat_field();
+    let ruin =
+        [cover("barn_ruin", StaticCoverKind::FarmBuilding, [0.0, 3.0, 27.0], [8.0, 3.0, 6.0])];
+
+    let mut state = SimulationState::new();
+    let shooter = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::new(0.0, 0.0, 8.0));
+    let _target =
+        state.spawn_tank_with_yaw(TeamId(2), TankSpec::t54_1951(), Vec3::new(0.0, 0.0, 60.0), PI);
+    {
+        let shooter = state.tank_mut(shooter).expect("shooter");
+        shooter.aim_dispersion_mrad = 0.0;
+        shooter.spec.gun.dispersion_mrad = 0.0;
+        shooter.gun_pitch_rad = -0.02; // flat, into the pile
+    }
+
+    fire_once(&mut state, shooter, &terrain, &ruin);
+
+    assert!(
+        state.damage_events().is_empty(),
+        "the mound must absorb the round short of the target"
+    );
+    assert!(
+        state
+            .shell_impacts()
+            .iter()
+            .any(|impact| impact.surface == game_core::ImpactSurface::Cover),
+        "and it must report where the round died, on the cover it died on"
+    );
+}
+
+/// The negative case that guards the whole change: a STANDING building is still a wall. Rubble
+/// left the movement slice; intact masonry did not, so it blocks in plan at any height and there
+/// is no way to end up parked on a roof.
+#[test]
+fn a_hull_cannot_climb_a_building_that_is_still_standing() {
+    let terrain = flat_field();
+    let barn = [cover("barn", StaticCoverKind::FarmBuilding, [0.0, 3.0, 25.0], [8.0, 3.0, 6.0])];
+
+    let mut state = SimulationState::new();
+    let tank = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::new(0.0, 0.0, 8.0));
+    let step = FixedTimestep::from_hz(60);
+    let mut peak_y = f32::MIN;
+    for _ in 0..400 {
+        state.apply_commands_on_battlefield(
+            &[(tank, TankCommand::drive(1.0, 0.0))],
+            step,
+            &terrain,
+            &barn,
+        );
+        peak_y = peak_y.max(state.tank(tank).expect("tank").position.y);
+    }
+
+    assert_eq!(state.cover_states()[0].phase, CoverPhase::Intact);
+    let ended = state.tank(tank).expect("tank").position;
+    assert!(ended.z < 19.0, "the standing barn must stop the hull short, got z {}", ended.z);
+    assert!(peak_y < 0.05, "and nothing may lift it onto the roof — peaked at y {peak_y}");
+}

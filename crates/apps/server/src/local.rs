@@ -77,8 +77,10 @@ impl LocalAuthoritativeServer {
     /// Per-target observer masks (bit = tank index) against the LIVE cover — the per-viewer
     /// filter's second input beside the team masks already on the snapshot.
     pub fn observer_masks(&self) -> Vec<u16> {
-        let live_cover =
-            sim::live_cover_for_blocking(&self.battlefield.static_cover, self.sim.cover_states());
+        let live_cover = sim::live_cover_for_sight_and_shells(
+            &self.battlefield.static_cover,
+            self.sim.cover_states(),
+        );
         sim::compute_observer_masks(
             self.sim.tanks(),
             Some(&self.battlefield.heightmap),
@@ -221,8 +223,10 @@ impl LocalAuthoritativeServer {
         // keeps hiding behind a flattened building and refuses to fire through the hole it just
         // made. The pristine common case borrows the authored slice; only a battle that has
         // damaged cover pays for building the live view.
-        let live_cover =
-            sim::live_cover_for_blocking(&self.battlefield.static_cover, self.sim.cover_states());
+        let live_cover = sim::live_cover_for_sight_and_shells(
+            &self.battlefield.static_cover,
+            self.sim.cover_states(),
+        );
         commands.extend(self.bots.commands(
             self.sim.tick(),
             self.sim.tanks(),
