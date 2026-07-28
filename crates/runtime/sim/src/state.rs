@@ -179,13 +179,14 @@ impl SimulationState {
         if self.cover_states.len() != cover.len() {
             self.cover_states = crate::cover_damage::initial_cover_states(cover);
         }
-        let live_cover = crate::cover_damage::live_cover_for_blocking(cover, &self.cover_states);
+        let sight_cover =
+            crate::cover_damage::live_cover_for_sight_and_shells(cover, &self.cover_states);
         crate::spotting::apply_spotted_masks_with_hold(
             self.tick,
             &mut self.tanks,
             &mut self.spotting_memory,
             heightmap,
-            &live_cover,
+            &sight_cover,
         );
     }
 
@@ -300,9 +301,13 @@ impl SimulationState {
                 }
             }
         }
-        // The cover the world collides against this tick: intact as-authored, rubble a low mound,
-        // destroyed omitted. Every blocking consumer (movement, shell trace, spotting) uses this.
-        let live_cover = crate::cover_damage::live_cover_for_blocking(cover, &self.cover_states);
+        // The cover this tick resolves against. Two slices, because two different questions:
+        // what stops a HULL, and what stops a SHELL or a sight line. They agree on intact boxes
+        // and on cleared ground, and part ways over rubble — see `cover_damage::CoverPurpose`.
+        let movement_cover =
+            crate::cover_damage::live_cover_for_movement(cover, &self.cover_states);
+        let sight_cover =
+            crate::cover_damage::live_cover_for_sight_and_shells(cover, &self.cover_states);
         let ramming_before = capture_ramming_snapshots(&self.tanks);
         for tank in &mut self.tanks {
             tank.reload_remaining_s = (tank.reload_remaining_s - dt).max(0.0);
@@ -357,7 +362,7 @@ impl SimulationState {
                     command,
                     dt,
                     heightmap,
-                    &live_cover,
+                    &movement_cover,
                     &obstacle_scratch,
                     self.water,
                 );
@@ -423,7 +428,7 @@ impl SimulationState {
                 &mut events,
                 context,
                 heightmap,
-                &live_cover,
+                &sight_cover,
             );
         }
         // Shells absorbed by cover this tick bring it down: an HE round to rubble/clear, a kinetic
@@ -477,7 +482,7 @@ impl SimulationState {
             &mut self.tanks,
             &mut self.spotting_memory,
             heightmap,
-            &live_cover,
+            &sight_cover,
         );
         self.last_battle_event_id = event_stamp.last_event_id();
         self.tick += 1;

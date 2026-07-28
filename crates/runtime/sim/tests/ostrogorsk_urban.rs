@@ -6,7 +6,9 @@
 //! initial states, wire bytes included.
 
 use glam::Vec3;
-use sim::{CoverPhase, damage_cover, initial_cover_states, line_of_sight, live_cover_for_blocking};
+use sim::{
+    CoverPhase, damage_cover, initial_cover_states, line_of_sight, live_cover_for_sight_and_shells,
+};
 use terrain::MapId;
 
 fn city() -> terrain::BattlefieldMap {
@@ -33,7 +35,7 @@ fn hull(map: &terrain::BattlefieldMap, x: f32, z: f32) -> Vec3 {
 fn a_tenement_row_blocks_until_it_collapses_and_the_street_always_carries() {
     let map = city();
     let mut states = initial_cover_states(&map.static_cover);
-    let live = live_cover_for_blocking(&map.static_cover, &states);
+    let live = live_cover_for_sight_and_shells(&map.static_cover, &states);
 
     // Across the block, through the row at z 468: blocked while the tenement stands.
     let from = eye(&map, 250.0, 450.0);
@@ -64,7 +66,7 @@ fn a_tenement_row_blocks_until_it_collapses_and_the_street_always_carries() {
     }
     assert!(collapsed > 0, "the row line must carry at least one standing block to fell");
 
-    let live_after = live_cover_for_blocking(&map.static_cover, &states);
+    let live_after = live_cover_for_sight_and_shells(&map.static_cover, &states);
     // The spotting recompute samples the hull centre AND the turret top: over the mound the
     // TURRET line opens (the pair lights up), while the HULL line stays covered — the mound
     // is still cover, just no longer a wall. Both halves of that promise, asserted.

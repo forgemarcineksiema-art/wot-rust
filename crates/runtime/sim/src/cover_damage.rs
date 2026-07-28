@@ -3,10 +3,13 @@
 //!
 //! The trick that keeps this from touching 40 call sites: the shell trace, movement collision and
 //! spotting LOS all take `&[StaticCoverObject]` and only care about blocking geometry. So instead
-//! of threading a parallel state slice everywhere, the sim resolves ONE live cover slice from the
-//! static cover + the current states ([`live_cover_for_blocking`]) and passes that — a destroyed
-//! object is simply absent, a rubble mound is a lowered box. Damage maps a hit back to its object
-//! with [`cover_index_at`].
+//! of threading a parallel state slice everywhere, the sim resolves the live cover from the static
+//! cover + the current states and passes that — a destroyed object is simply absent, a rubble
+//! mound is a lowered box. Damage maps a hit back to its object with [`cover_index_at`].
+//!
+//! There are TWO resolutions, not one, because rubble means different things to different
+//! consumers: see [`CoverPurpose`], [`live_cover_for_sight_and_shells`] and
+//! [`live_cover_for_movement`].
 
 use serde::{Deserialize, Serialize};
 use terrain::StaticCoverObject;
@@ -79,10 +82,23 @@ pub fn initial_cover_states(cover: &[StaticCoverObject]) -> Vec<CoverState> {
         .collect()
 }
 
+/// What a consumer is asking the live cover FOR.
+///
+/// One resolved slice used to answer for everybody, which worked exactly as long as every
+/// consumer wanted the same geometry. Rubble is where that stops being true: a mound still hides
+/// what is behind it and still stops a shell below its crest, but it is a pile of broken masonry,
+/// not a wall — a hull climbs it. The two questions therefore get two answers, and every call
+/// site has to say which one it is asking.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CoverPurpose {
+    /// Shell traces, spotting LOS, camera solids: a mound is a lowered box that still blocks.
+    SightAndShells,
+    /// Horizontal movement collision.
+    Movement,
+}
+
 /// The cover the world actually collides against this tick: intact objects as-authored, rubble as
-/// a lowered box, and destroyed objects omitted entirely. Every blocking consumer (shell trace,
-/// movement, spotting LOS) takes this in place of the raw static cover, so cover destruction
-/// changes what blocks/hides without any of them knowing about phases.
+/// a lowered box, and destroyed objects omitted entirely.
 ///
 /// A battlefield with nothing broken on it yet BORROWS the authored slice. That is the common
 /// case for most of a battle, and it is worth a `Cow`: a [`StaticCoverObject`] carries two
@@ -90,10 +106,12 @@ pub fn initial_cover_states(cover: &[StaticCoverObject]) -> Vec<CoverState> {
 /// on a city map (90–160 boxes) some 300 allocations a tick, 18 000 a second, for a slice that
 /// is byte-for-byte the input. The server already hand-rolled exactly this `Cow` for the bots'
 /// copy; the rule belongs here, once, where every caller gets it.
-pub fn live_cover_for_blocking<'a>(
+fn live_cover_for<'a>(
     cover: &'a [StaticCoverObject],
     states: &[CoverState],
+    purpose: CoverPurpose,
 ) -> std::borrow::Cow<'a, [StaticCoverObject]> {
+    let _ = purpose;
     if states.iter().all(|state| state.phase == CoverPhase::Intact) {
         return std::borrow::Cow::Borrowed(cover);
     }
@@ -117,17 +135,46 @@ pub fn live_cover_for_blocking<'a>(
     std::borrow::Cow::Owned(live)
 }
 
-/// Resolve replicated phase bytes into the exact blocking geometry used by the authoritative
+/// The cover a shell trace, a spotting sight line or the camera meets: intact objects
+/// as-authored, a collapsed building as the low mound it slumped into, cleared ground absent.
+pub fn live_cover_for_sight_and_shells<'a>(
+    cover: &'a [StaticCoverObject],
+    states: &[CoverState],
+) -> std::borrow::Cow<'a, [StaticCoverObject]> {
+    live_cover_for(cover, states, CoverPurpose::SightAndShells)
+}
+
+/// The cover a hull's movement collides against.
+pub fn live_cover_for_movement<'a>(
+    cover: &'a [StaticCoverObject],
+    states: &[CoverState],
+) -> std::borrow::Cow<'a, [StaticCoverObject]> {
+    live_cover_for(cover, states, CoverPurpose::Movement)
+}
+
+fn states_from_phase_bytes(phase_bytes: &[u8]) -> Vec<CoverState> {
+    phase_bytes
+        .iter()
+        .map(|&byte| CoverState { health: 0, phase: CoverPhase::from_wire(byte) })
+        .collect()
+}
+
+/// Resolve replicated phase bytes into the exact sight/shell geometry used by the authoritative
 /// simulation. Health stays server-only; `Intact`, `Rubble`, and `Gone` geometry does not.
-pub fn live_cover_for_phase_bytes(
+pub fn sight_cover_for_phase_bytes(
     cover: &[StaticCoverObject],
     phase_bytes: &[u8],
 ) -> Vec<StaticCoverObject> {
-    let states: Vec<CoverState> = phase_bytes
-        .iter()
-        .map(|&byte| CoverState { health: 0, phase: CoverPhase::from_wire(byte) })
-        .collect();
-    live_cover_for_blocking(cover, &states).into_owned()
+    live_cover_for_sight_and_shells(cover, &states_from_phase_bytes(phase_bytes)).into_owned()
+}
+
+/// ...and into the movement geometry, which is what the client predictor must drive against if
+/// it is to stop where the server stops it.
+pub fn movement_cover_for_phase_bytes(
+    cover: &[StaticCoverObject],
+    phase_bytes: &[u8],
+) -> Vec<StaticCoverObject> {
+    live_cover_for_movement(cover, &states_from_phase_bytes(phase_bytes)).into_owned()
 }
 
 /// The index of the still-standing (non-Gone) cover object whose box contains `point`, if any —
@@ -277,7 +324,7 @@ mod tests {
         damage_cover(&mut states, &cover, 0, 10_000);
         assert_eq!(states[0].phase, CoverPhase::Rubble);
 
-        let live = live_cover_for_blocking(&cover, &states);
+        let live = live_cover_for_sight_and_shells(&cover, &states);
         assert_eq!(live.len(), 1, "a rubble mound still blocks");
         assert!(live[0].half_extents_m[1] < 3.0, "the mound is lower than the building");
         assert_eq!(live[0].half_extents_m[0], 5.0, "its footprint (plan) is unchanged");
@@ -292,7 +339,10 @@ mod tests {
         let mut states = cover_states_for(&cover);
         damage_cover(&mut states, &cover, 0, 10_000);
         assert_eq!(states[0].phase, CoverPhase::Gone);
-        assert!(live_cover_for_blocking(&cover, &states).is_empty(), "gone foliage blocks nothing");
+        assert!(
+            live_cover_for_sight_and_shells(&cover, &states).is_empty(),
+            "gone foliage blocks nothing"
+        );
     }
 
     #[test]
@@ -306,7 +356,7 @@ mod tests {
         damage_cover(&mut states, &cover, 1, u32::MAX);
         assert_eq!(states[0].phase, CoverPhase::Intact);
         assert_eq!(states[1].phase, CoverPhase::Intact);
-        assert_eq!(live_cover_for_blocking(&cover, &states).len(), 2);
+        assert_eq!(live_cover_for_sight_and_shells(&cover, &states).len(), 2);
     }
 
     #[test]
@@ -341,7 +391,7 @@ mod tests {
         damage_cover(&mut states, &cover, 1, 150);
         assert_eq!(states[1].phase, CoverPhase::Gone, "a breached wall leaves no mound");
 
-        let live = live_cover_for_blocking(&cover, &states);
+        let live = live_cover_for_sight_and_shells(&cover, &states);
         assert_eq!(live.len(), 1, "the wall is a clear door; the rubble still stands");
         assert!(
             live[0].half_extents_m[1] < 5.5 * 0.5,
@@ -395,10 +445,10 @@ mod tests {
             CoverState { health: 0, phase: CoverPhase::Gone },
         ];
 
-        let from_bytes = live_cover_for_phase_bytes(&cover, &[0, 1, 2]);
+        let from_bytes = sight_cover_for_phase_bytes(&cover, &[0, 1, 2]);
         assert_eq!(
             from_bytes,
-            live_cover_for_blocking(&cover, &states).into_owned(),
+            live_cover_for_sight_and_shells(&cover, &states).into_owned(),
             "client phase bytes must use the sim's exact Intact/Rubble/Gone geometry"
         );
         assert_eq!(
@@ -437,9 +487,33 @@ mod tests {
         let bytes: Vec<u8> = states.iter().map(|s| s.phase.to_wire()).collect();
         assert_eq!(bytes, vec![0, 1, 2]);
 
-        let live = live_cover_for_blocking(&cover, &states);
+        let live = live_cover_for_sight_and_shells(&cover, &states);
         assert_eq!(live.len(), 2, "the ruined wall is a clear door from tick zero");
         assert!(live[1].half_extents_m[1] < 5.5 * 0.5, "the born mound is already low");
+    }
+
+    /// The split is inert everywhere except rubble. Intact boxes and cleared ground mean exactly
+    /// one thing to everybody, so the two resolutions must agree on them — this is what says the
+    /// refactor changed nothing on a battlefield that has not been knocked down yet.
+    #[test]
+    fn movement_and_sight_agree_on_everything_that_is_not_rubble() {
+        let cover = vec![
+            object("whole", StaticCoverKind::CityBuilding, [0.0, 5.5, 0.0], [9.0, 5.5, 5.0]),
+            object("swept", StaticCoverKind::StoneWall, [30.0, 1.1, 0.0], [0.4, 1.1, 7.0]),
+        ];
+        let mut states = cover_states_for(&cover);
+        assert_eq!(
+            live_cover_for_movement(&cover, &states),
+            live_cover_for_sight_and_shells(&cover, &states),
+            "an untouched battlefield resolves once"
+        );
+        // A StoneWall breaches clean to Gone: absent for both, still no disagreement.
+        damage_cover(&mut states, &cover, 1, u32::MAX);
+        assert_eq!(
+            live_cover_for_movement(&cover, &states),
+            live_cover_for_sight_and_shells(&cover, &states),
+            "cleared ground blocks nothing, for anybody"
+        );
     }
 
     #[test]
