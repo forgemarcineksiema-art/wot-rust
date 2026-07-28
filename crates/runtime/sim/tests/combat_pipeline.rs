@@ -1,4 +1,4 @@
-use std::f32::consts::PI;
+use std::f32::consts::{FRAC_PI_2, PI};
 
 use game_core::{ArmorFacing, ArmorZone, ModuleSlot, TankSpec, TeamId};
 use glam::Vec3;
@@ -40,8 +40,19 @@ fn shell_hit_penetrates_armor_and_applies_damage() {
     assert!(event.penetrated);
     assert!(event.damage_hp > 0);
     assert!(state.tank(target).expect("target").hit_points < target_hp);
-    assert_eq!(state.shells().len(), 1, "a perforating kinetic round exits with residual energy");
-    assert_eq!(state.shells()[0].last_penetrated_target, Some(target));
+
+    // Leaving is ONE question with one answer. A T-54's own glacis takes most of a D-10T round
+    // to cross, and what is left cannot also punch the far plate — so no exit wound is cut, and
+    // the projectile does not fly on. The two used to disagree (the flight was decided from the
+    // entry plate alone), which let a spent round leave through steel that stayed whole.
+    let breaches = state.tank(target).expect("target").armor_breaches.clone();
+    let exited =
+        breaches.breaches().iter().any(|breach| breach.face == game_core::BreachFace::Egress);
+    assert!(!exited, "the round stopped inside, so no exit wound may be cut");
+    assert!(
+        state.shells().is_empty(),
+        "and a round with no exit wound must not be flying beyond the hull either"
+    );
 }
 
 #[test]
@@ -62,7 +73,15 @@ fn kinetic_round_can_perforate_one_light_hull_and_damage_the_tank_behind_it() {
     let first = state.spawn_tank(TeamId(2), VehicleKind::T34_85.spec(), Vec3::new(0.0, 0.0, 35.0));
     let second = state.spawn_tank(TeamId(2), VehicleKind::T34_85.spec(), Vec3::new(0.0, 0.0, 50.0));
     state.tank_mut(first).expect("first").yaw_rad = PI;
-    state.tank_mut(second).expect("second").yaw_rad = PI;
+    // The tank behind stands broadside. Both aspects matter to what this test claims: the round
+    // must be depressed onto the first hull's GLACIS (a level shot meets the mantlet, the
+    // thickest thing on a T-34-85, and crossing two turrets is not "perforating a light hull"),
+    // and what it reaches afterwards must be a flank. Crossing one hull front-to-back costs the
+    // D-10T2S 132 of its 197 mm; 65 mm defeats a T-34-85's side, and — correctly — falls one
+    // millimetre short of a second frontal glacis. Over-penetration is a real effect with a real
+    // budget, not a free second shot.
+    state.tank_mut(second).expect("second").yaw_rad = FRAC_PI_2;
+    state.tank_mut(shooter).expect("shooter").gun_pitch_rad = -0.010;
     let first_hp = state.tank(first).expect("first").hit_points;
     let second_hp = state.tank(second).expect("second").hit_points;
     let step = FixedTimestep::from_hz(60);
@@ -79,6 +98,19 @@ fn kinetic_round_can_perforate_one_light_hull_and_damage_the_tank_behind_it() {
     assert!(
         state.tank(second).expect("second").hit_points < second_hp,
         "residual projectile reaches the aligned rear tank"
+    );
+    // The round left through a hole that EXISTS. This is the invariant the two halves of leaving
+    // used to break: the exit wound was cut from what survived the internal path, the flight from
+    // the entry plate alone, so a spent round could sail out of steel the game left whole.
+    assert!(
+        state
+            .tank(first)
+            .expect("first")
+            .armor_breaches
+            .breaches()
+            .iter()
+            .any(|breach| breach.face == game_core::BreachFace::Egress),
+        "a round that flew on must have opened the plate it flew out of"
     );
 }
 

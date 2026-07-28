@@ -22,6 +22,13 @@ pub(crate) fn apply_track_damage_for_hit(
     match zone {
         ArmorZone::LeftTrack => Some(degrade_side(target, TrackSide::Left, chunk)),
         ArmorZone::RightTrack => Some(degrade_side(target, TrackSide::Right, chunk)),
+        // A skirt hangs OUTSIDE the belt, so a shell that met the skirt crossed the running
+        // gear behind it — and an HE burst on the sheet goes off a hand's width from the same
+        // belt. Either way it is THIS flank's band, never the far one.
+        ArmorZone::Skirt => {
+            let side = if hit_local_x < 0.0 { TrackSide::Left } else { TrackSide::Right };
+            Some(degrade_side(target, side, chunk))
+        }
         _ if shell_type == ShellType::HighExplosive && !penetrated => {
             Some(degrade_both(target, chunk))
         }
@@ -75,19 +82,22 @@ fn module_volume_at_hit(
     let z = local_hit.z / half_length;
 
     let (slot, hit_chance) = match zone {
-        // A skirt is sheet metal over air — a shell that only met the skirt reached no module.
-        ArmorZone::Skirt => return None,
         ArmorZone::LeftTrack | ArmorZone::RightTrack => (ModuleSlot::Suspension, 1.0),
         ArmorZone::Mantlet => (ModuleSlot::Gun, 1.0),
         ArmorZone::TurretFront | ArmorZone::Roof => (ModuleSlot::Turret, 0.80),
         ArmorZone::TurretSide | ArmorZone::TurretRear => (ModuleSlot::AmmoRack, 0.85),
         ArmorZone::HullRear => (ModuleSlot::Engine, 0.90),
-        ArmorZone::HullSide if z < -0.35 => (ModuleSlot::Engine, 0.90),
-        ArmorZone::HullSide if local_hit.y < -hitbox.half_height_m * 0.20 => {
+        // A skirt is sheet metal over air, but the SIDE PLATE is behind that air: a shell the
+        // armour model resolved as penetrating the skirt stack is inside the hull, so it meets
+        // exactly what a bare-flank penetration meets. Returning `None` here made the only two
+        // skirted vehicles in the fleet (Centurion, Tiger II) immune to engine, ammo-rack and
+        // suspension damage from the whole height of their flank.
+        ArmorZone::HullSide | ArmorZone::Skirt if z < -0.35 => (ModuleSlot::Engine, 0.90),
+        ArmorZone::HullSide | ArmorZone::Skirt if local_hit.y < -hitbox.half_height_m * 0.20 => {
             (ModuleSlot::Suspension, 1.0)
         }
         ArmorZone::UpperGlacis | ArmorZone::LowerPlate => (ModuleSlot::Gun, 0.80),
-        ArmorZone::HullSide => (ModuleSlot::Suspension, 0.65),
+        ArmorZone::HullSide | ArmorZone::Skirt => (ModuleSlot::Suspension, 0.65),
     };
     Some(ModuleHitCandidate { slot, hit_chance })
 }
@@ -134,16 +144,29 @@ mod tests {
 
     use super::*;
 
+    /// A skirt hangs OUTSIDE the running gear, so a shell resolved on it crossed the belt and
+    /// the side plate to get where it got: it reaches the same modules a bare-flank penetration
+    /// reaches, and it degrades THIS flank's band — never the far one. (It used to reach
+    /// neither, which made the Centurion and Tiger II — the only skirted vehicles — immune to
+    /// engine, ammo-rack and suspension damage across the whole height of their flank.)
     #[test]
-    fn a_skirt_hit_is_sheet_metal_never_a_track_or_module_hit() {
-        // The skirt hangs over the running gear, but it is NOT the running gear: a shell that
-        // resolved on the skirt zone must not degrade a track band or roll a module.
+    fn a_skirt_hit_reaches_the_flank_behind_it_and_only_that_flanks_band() {
         let hitbox = HitboxProfile::new(1.75, 1.19, 3.20, 1.14, 0.66);
+        // Low on the flank: the running gear, exactly as a bare hull-side hit there resolves.
         assert_eq!(
-            module_volume_at_hit(ArmorZone::Skirt, Vec3::new(1.7, 0.0, 0.5), hitbox),
-            None,
-            "no module behind sheet metal"
+            module_volume_at_hit(ArmorZone::Skirt, Vec3::new(1.7, -0.6, 0.5), hitbox)
+                .map(|c| c.slot),
+            module_volume_at_hit(ArmorZone::HullSide, Vec3::new(1.7, -0.6, 0.5), hitbox)
+                .map(|c| c.slot),
+            "a skirt penetration meets what a bare-flank penetration meets"
         );
+        // Well aft: the engine bay, again matching the bare flank.
+        assert_eq!(
+            module_volume_at_hit(ArmorZone::Skirt, Vec3::new(1.7, 0.0, -2.0), hitbox)
+                .map(|c| c.slot),
+            Some(ModuleSlot::Engine),
+        );
+
         let mut target = crate::tank_factory::fresh_tank(
             game_core::TankId(1),
             game_core::TeamId(1),
@@ -151,18 +174,23 @@ mod tests {
             Vec3::ZERO,
             0.0,
         );
-        let before = target.tracks;
         let hit = apply_track_damage_for_hit(
             &mut target,
             None,
             ArmorZone::Skirt,
             ShellType::ArmorPiercing,
-            false,
+            true,
             40,
             0.6,
+        )
+        .expect("a skirt hit crosses the belt behind it");
+        assert_eq!(hit.side, TrackSide::Right, "the struck flank, from the hull-local x");
+        assert!(target.tracks.hp(TrackSide::Right) < game_core::TRACK_HP_MAX);
+        assert_eq!(
+            target.tracks.hp(TrackSide::Left),
+            game_core::TRACK_HP_MAX,
+            "the far band must not share this flank's wound"
         );
-        assert_eq!(hit, None, "a skirt hit reports no track feedback");
-        assert_eq!(target.tracks, before, "and degrades no band");
     }
 
     /// W0.7: the suspension is an independent left/right assembly. A penetration into the

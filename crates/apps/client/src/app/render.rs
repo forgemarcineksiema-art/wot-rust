@@ -147,7 +147,8 @@ impl ClientApp {
         }
         let (tx, rx) = std::sync::mpsc::channel();
         self.scene_rebuild_rx = Some(rx);
-        let battlefield = self.battlefield.clone();
+        // An `Arc` handle: the worker only reads the map (see `ClientApp::battlefield`).
+        let battlefield = std::sync::Arc::clone(&self.battlefield);
         std::thread::spawn(move || {
             let buckets = dirty_buckets
                 .into_iter()
@@ -205,13 +206,17 @@ impl ClientApp {
         self.ground_deform_dirty = false;
         let (tx, rx) = std::sync::mpsc::channel();
         self.ground_rebuild_rx = Some(rx);
-        // The clone carries the heightmap's crater overlay — the bake reads sample_height,
-        // the exact deformed truth the sim and predictor stand on. The ground maps ride along
-        // (a few MB, cloned once per crater event) so the card meadow rebakes from the same
-        // splat the first bake used.
-        let battlefield = self.battlefield.clone();
-        let ground_maps =
-            self.battle_scene_meshes.as_ref().map(|meshes| meshes.ground_maps.clone());
+        // Both handles are `Arc` clones — pointer bumps, not copies. The battlefield carries the
+        // heightmap's crater overlay (the bake reads `sample_height`, the exact deformed truth
+        // the sim and predictor stand on) and the ground maps ride along so the card meadow
+        // rebakes from the same splat the first bake used. Deep-copying them here used to put a
+        // ~12 MB memcpy on the RENDER thread in the very frame an HE round landed — the bake
+        // was moved off this thread precisely so the frame would not pay for the crater.
+        let battlefield = std::sync::Arc::clone(&self.battlefield);
+        let ground_maps = self
+            .battle_scene_meshes
+            .as_ref()
+            .map(|meshes| std::sync::Arc::clone(&meshes.ground_maps));
         let materials = scene_build::terrain_maps::terrain_material_set_for(self.session.map_id());
         std::thread::spawn(move || {
             let ground = crate::battlefield_ground_mesh(&battlefield);
@@ -357,6 +362,24 @@ impl ClientApp {
         Ok(())
     }
 
+    /// The HUD's worst-frame readout (F9): the 95th percentile of the raw frame intervals.
+    ///
+    /// It runs on every presented frame, so it does not get to allocate a `Vec` and fully sort
+    /// it there — a frame-drop meter that costs a slice of the frame is its own subject. The
+    /// scratch buffer is reused, and `select_nth_unstable` finds the percentile in one linear
+    /// pass instead of ordering the other ninety-five samples nobody reads.
+    fn frame_p95_ms(&mut self) -> f32 {
+        if self.frame_dt_history.is_empty() {
+            return 0.0;
+        }
+        let scratch = &mut self.frame_p95_scratch;
+        scratch.clear();
+        scratch.extend(self.frame_dt_history.iter().copied());
+        let index = (scratch.len() * 95) / 100;
+        let (_, p95, _) = scratch.select_nth_unstable_by(index, f32::total_cmp);
+        *p95 * 1000.0
+    }
+
     pub(super) fn render_now(&mut self) {
         if self.garage.is_open() {
             self.render_garage();
@@ -495,6 +518,7 @@ impl ClientApp {
         }
         self.prev_camera_mode = Some(camera_mode);
         self.flush_audio(Some(camera.eye), Some(camera.target));
+        let frame_p95_ms = self.frame_p95_ms();
         let vitals = HudVitals {
             hit_points: self.player_hud_hit_points(),
             max_hit_points: self.player_max_hit_points(),
@@ -505,11 +529,7 @@ impl ClientApp {
             vitals,
             reticle: self.hud_reticle(&camera, view_proj, alpha),
             fps: self.fps_estimate,
-            frame_p95_ms: {
-                let mut sorted: Vec<f32> = self.frame_dt_history.iter().copied().collect();
-                sorted.sort_by(f32::total_cmp);
-                if sorted.is_empty() { 0.0 } else { sorted[(sorted.len() * 95) / 100] * 1000.0 }
-            },
+            frame_p95_ms,
             speed_kmh: self.player_speed_kmh(),
             zoom_factor: self.camera_controller.zoom_factor(),
             damage_log: self.damage_log.visible(),

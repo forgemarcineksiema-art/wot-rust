@@ -136,7 +136,9 @@ fn quantize_distant_enemy_hp(tanks: &mut [TankSnapshot], viewer_tank: TankId, vi
         if (dx * dx + dz * dz).sqrt() <= EXACT_HP_RANGE_M {
             continue;
         }
-        let full = tank.vehicle.spec().hit_points.max(1);
+        // `spec_ref`, not `spec`: this runs per distant enemy per VIEWER per snapshot, and it
+        // reads one number.
+        let full = tank.vehicle.spec_ref().hit_points.max(1);
         let step = ((full as f32) * DISTANT_HP_STEP).max(1.0);
         let quantized = ((tank.hit_points as f32 / step).ceil() * step).round() as u32;
         tank.hit_points = quantized.min(full);

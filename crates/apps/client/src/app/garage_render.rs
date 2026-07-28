@@ -64,7 +64,7 @@ impl ClientApp {
         // to a longer/shorter gun visibly changes the silhouette. Local +Z is the barrel direction.
         let barrel_scale = self.garage.gun_silhouette_scale();
         if (barrel_scale - 1.0).abs() > 1.0e-3
-            && let Some(gun) = objects.get_mut(2)
+            && let Some(gun) = objects.get_mut(crate::VEHICLE_GUN_OBJECT)
         {
             let scaled = glam::Mat4::from_cols_array_2d(&gun.transform)
                 * glam::Mat4::from_scale(glam::Vec3::new(1.0, 1.0, barrel_scale));
@@ -224,7 +224,7 @@ impl ClientApp {
 /// A pose-only snapshot of the selected vehicle parked on the garage turntable, angled three-
 /// quarters to the camera. Only the fields the mesh kernels read are meaningful.
 fn garage_preview_snapshot(kind: VehicleKind) -> TankSnapshot {
-    let spec = kind.spec();
+    let spec = kind.spec_ref();
     TankSnapshot {
         tank_id: TankId(0),
         team: TeamId(1),

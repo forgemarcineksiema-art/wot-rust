@@ -8,7 +8,7 @@ mod cover_damage;
 mod crater_ledger;
 mod drive_modules;
 mod drowning;
-mod event_stamp;
+pub mod event_stamp;
 mod landing;
 mod module_hit;
 mod ramming;

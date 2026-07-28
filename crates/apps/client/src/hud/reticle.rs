@@ -149,7 +149,7 @@ fn penetration_from_outcome(
     };
     // The player fires their own shell at the *target's* armor — read the shell from the player's
     // spec, not from the tank we are pointing at.
-    let target_hull = query.tanks.iter().find(|tank| tank.tank_id == id)?.vehicle.spec().hull;
+    let target_hull = query.tanks.iter().find(|tank| tank.tank_id == id)?.vehicle.spec_ref().hull;
     let result = resolve_penetration_at_distance_on_zone(
         &query.player_spec.gun.shell,
         &target_hull,

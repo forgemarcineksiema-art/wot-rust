@@ -87,8 +87,6 @@ var<storage, read> armor_damage_headers: array<ArmorDamageHeader>;
 @group(0) @binding(2)
 var<storage, read> armor_apertures: array<ArmorAperture>;
 
-/// True only for fragments on the pierced plate and inside its deterministic irregular contour.
-/// Shared by color, camera-depth and shadow passes so no pass silently closes the opening.
 /// One bit of the shader-detail mask (Żywy Step P0): `time_params.w` carries the mask as a
 /// small float integer. Bits: 1 terrain normal-bend, 2 terrain micro octave, 4 scene detail
 /// normal, 8 sky five octaves, 16 wide PCF (god rays gate CPU-side).
@@ -96,6 +94,49 @@ fn detail_bit(bit: u32) -> bool {
     return (u32(camera.time_params.w + 0.5) & bit) != 0u;
 }
 
+/// A world point expressed in one aperture's plate-plane tangent frame.
+fn aperture_plane_local(aperture: ArmorAperture, world_pos: vec3<f32>) -> vec2<f32> {
+    let normal = normalize(aperture.normal_minor.xyz);
+    let tangent = normalize(aperture.tangent_rotation.xyz);
+    let bitangent = normalize(cross(normal, tangent));
+    let delta = world_pos - aperture.center_major.xyz;
+    return vec2<f32>(dot(delta, tangent), dot(delta, bitangent));
+}
+
+/// The contour metric of a plate-plane point: inside the aperture exactly when
+/// `dot(metric, metric) <= 1.0`.
+///
+/// THE ONE contour evaluation on the GPU, and it must stay bit-for-bit the same SHAPE as
+/// `game_core::BreachContour::contains` on the CPU — collision clearance
+/// (`ArmorBreach::admits`), the drawn rim (`BreachContour::point_at`) and this discard all
+/// describe one physical hole, and the honesty doctrine says the steel you can see through is
+/// the steel a shell passes through.
+///
+/// The ORDER is the whole contract: un-rotate into the contour's own frame FIRST, then phase
+/// the irregularity waves off THAT angle. Taking the angle before the rotation (which three
+/// copy-pasted versions of this block used to do) phase-shifts the 3rd/5th harmonics by
+/// `rotation` — a uniformly random angle per breach — so the drawn lobes sat at different
+/// azimuths than the collision lobes on every perforation in the game.
+fn aperture_contour_metric(aperture: ArmorAperture, local: vec2<f32>) -> vec2<f32> {
+    let rotation = aperture.tangent_rotation.w;
+    let sin_r = sin(rotation);
+    let cos_r = cos(rotation);
+    let rotated = vec2<f32>(
+        local.x * cos_r + local.y * sin_r,
+        -local.x * sin_r + local.y * cos_r,
+    );
+    let angle = atan2(rotated.y, rotated.x);
+    let rough = 1.0 + aperture.shape.x
+        * (sin(angle * 3.0 + aperture.shape.y) * 0.62
+            + sin(angle * 5.0 + aperture.shape.z) * 0.38);
+    return vec2<f32>(
+        rotated.x / max(aperture.center_major.w * rough, 0.005),
+        rotated.y / max(aperture.normal_minor.w * rough, 0.005),
+    );
+}
+
+/// True only for fragments on the pierced plate and inside its deterministic irregular contour.
+/// Shared by color, camera-depth and shadow passes so no pass silently closes the opening.
 fn armor_fragment_is_cut(world_pos: vec3<f32>, damage_index: u32) -> bool {
     if (damage_index == 0u) {
         return false;
@@ -113,25 +154,11 @@ fn armor_fragment_is_cut(world_pos: vec3<f32>, damage_index: u32) -> bool {
             continue;
         }
         let normal = normalize(aperture.normal_minor.xyz);
-        let tangent = normalize(aperture.tangent_rotation.xyz);
-        let bitangent = normalize(cross(normal, tangent));
         let delta = world_pos - aperture.center_major.xyz;
         if (abs(dot(delta, normal)) <= aperture.shape.w) {
-            let local = vec2<f32>(dot(delta, tangent), dot(delta, bitangent));
-            let angle = atan2(local.y, local.x);
-            let rough = 1.0 + aperture.shape.x
-                * (sin(angle * 3.0 + aperture.shape.y) * 0.62
-                    + sin(angle * 5.0 + aperture.shape.z) * 0.38);
-            let rotation = aperture.tangent_rotation.w;
-            let sin_r = sin(rotation);
-            let cos_r = cos(rotation);
-            let rotated = vec2<f32>(
-                local.x * cos_r + local.y * sin_r,
-                -local.x * sin_r + local.y * cos_r,
-            );
-            let metric = vec2<f32>(
-                rotated.x / max(aperture.center_major.w * rough, 0.005),
-                rotated.y / max(aperture.normal_minor.w * rough, 0.005),
+            let metric = aperture_contour_metric(
+                aperture,
+                aperture_plane_local(aperture, world_pos),
             );
             if (dot(metric, metric) <= 1.0) {
                 return true;
@@ -166,24 +193,8 @@ fn armor_aperture_thermal(world_pos: vec3<f32>, damage_index: u32) -> vec2<f32> 
         if (abs(dot(delta, normal)) > aperture.shape.w) {
             continue;
         }
-        let tangent = normalize(aperture.tangent_rotation.xyz);
-        let bitangent = normalize(cross(normal, tangent));
-        let local = vec2<f32>(dot(delta, tangent), dot(delta, bitangent));
-        let angle = atan2(local.y, local.x);
-        let rough = 1.0 + aperture.shape.x
-            * (sin(angle * 3.0 + aperture.shape.y) * 0.62
-                + sin(angle * 5.0 + aperture.shape.z) * 0.38);
-        let rotation = aperture.tangent_rotation.w;
-        let sin_r = sin(rotation);
-        let cos_r = cos(rotation);
-        let rotated = vec2<f32>(
-            local.x * cos_r + local.y * sin_r,
-            -local.x * sin_r + local.y * cos_r,
-        );
-        let metric = vec2<f32>(
-            rotated.x / max(aperture.center_major.w * rough, 0.005),
-            rotated.y / max(aperture.normal_minor.w * rough, 0.005),
-        );
+        let metric =
+            aperture_contour_metric(aperture, aperture_plane_local(aperture, world_pos));
         let m = length(metric);
         // Glow: 1.0 at the torn lip, fading over a contour-relative ring outside it.
         let ring_width = 0.55 / max(aperture.thermal.y, 0.25);

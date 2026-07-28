@@ -1,4 +1,16 @@
-use game_core::{BattleEventId, DamageEvent, ShellImpact};
+use game_core::{ArmorBreach, BattleEventId, DamageEvent, ShellImpact, TankId};
+use serde::{Deserialize, Serialize};
+
+/// One perforation the authoritative simulation carved this tick, and the hull it belongs to.
+///
+/// Perforations are permanent and append-only, so they are replicated as a STREAM of additions
+/// rather than by re-sending each hull's whole set in every snapshot (which grew the wire cost
+/// of a battle monotonically with the shooting — see `net`'s v39 note).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ArmorBreachRecord {
+    pub tank: TankId,
+    pub breach: ArmorBreach,
+}
 
 /// Per-tick view over the battle's one monotonic event-id space.
 ///
@@ -42,10 +54,11 @@ impl BattleEventStamp {
     }
 }
 
-/// The shell pipeline's two replicated output vectors plus their shared sequencer.
+/// The shell pipeline's replicated output vectors plus their shared sequencer.
 pub(crate) struct BattleEventOutput<'a> {
     damage_events: &'a mut Vec<DamageEvent>,
     shell_impacts: &'a mut Vec<ShellImpact>,
+    armor_breaches: &'a mut Vec<ArmorBreachRecord>,
     stamp: &'a mut BattleEventStamp,
 }
 
@@ -53,9 +66,10 @@ impl<'a> BattleEventOutput<'a> {
     pub(crate) fn new(
         damage_events: &'a mut Vec<DamageEvent>,
         shell_impacts: &'a mut Vec<ShellImpact>,
+        armor_breaches: &'a mut Vec<ArmorBreachRecord>,
         stamp: &'a mut BattleEventStamp,
     ) -> Self {
-        Self { damage_events, shell_impacts, stamp }
+        Self { damage_events, shell_impacts, armor_breaches, stamp }
     }
 
     pub(crate) fn push_damage(&mut self, event: DamageEvent) {
@@ -64,5 +78,12 @@ impl<'a> BattleEventOutput<'a> {
 
     pub(crate) fn push_impact(&mut self, impact: ShellImpact) {
         self.stamp.push_impact(self.shell_impacts, impact);
+    }
+
+    /// Record a perforation the authoritative set just accepted, in the order it accepted it.
+    /// Replication replays these through the same `ArmorBreachSet::add`, and both the merge and
+    /// the capacity rules depend on that order.
+    pub(crate) fn push_armor_breach(&mut self, tank: TankId, breach: ArmorBreach) {
+        self.armor_breaches.push(ArmorBreachRecord { tank, breach });
     }
 }

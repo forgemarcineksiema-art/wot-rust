@@ -71,7 +71,7 @@ mod tests {
             .iter()
             .map(|event| match event {
                 CombatEvent::Damage(damage) => damage.damage_hp,
-                CombatEvent::ShellImpact(_) => panic!("test fixture is a damage event"),
+                other => panic!("test fixture is a damage event, got {other:?}"),
             })
             .collect()
     }

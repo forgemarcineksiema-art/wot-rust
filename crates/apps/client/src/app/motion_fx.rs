@@ -316,7 +316,7 @@ mod tests {
 
         // Dry baseline: dust rises and ruts outlive 8 s of ticking.
         let mut dry = ClientApp::new();
-        dry.battlefield.water = None;
+        std::sync::Arc::make_mut(&mut dry.battlefield).water = None;
         dry.fx = crate::fx::FxSystem::default();
         dry.tick_motion_fx(&[rolling_tank(0.0)], 0.1);
         for step in 1..=15 {
@@ -336,7 +336,8 @@ mod tests {
         let high_ground = (20..=30)
             .filter_map(|z| fording.battlefield.heightmap.sample_height(10.0, z as f32))
             .fold(0.0_f32, f32::max);
-        fording.battlefield.water = Some(terrain::WaterBody { surface_level_m: high_ground + 0.5 });
+        std::sync::Arc::make_mut(&mut fording.battlefield).water =
+            Some(terrain::WaterBody { surface_level_m: high_ground + 0.5 });
         fording.fx = crate::fx::FxSystem::default();
         fording.tick_motion_fx(&[rolling_tank(0.0)], 0.1);
         for step in 1..=15 {

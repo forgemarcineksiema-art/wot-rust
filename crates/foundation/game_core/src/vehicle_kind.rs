@@ -1,3 +1,5 @@
+use std::sync::OnceLock;
+
 use serde::{Deserialize, Serialize};
 
 use crate::TankSpec;
@@ -160,12 +162,37 @@ impl VehicleKind {
     }
 
     /// The canonical [`TankSpec`] for this vehicle, assembled from its stock module loadout.
+    ///
+    /// This is a fresh, owned spec every call. Reading ONE field off it is what
+    /// [`Self::spec_ref`] is for.
     pub fn spec(self) -> TankSpec {
+        self.spec_ref().clone()
+    }
+
+    /// The canonical stock [`TankSpec`], assembled once per process.
+    ///
+    /// Assembling a spec is not cheap: it clones the gun (a `String`), formats the display name
+    /// into another, and builds the armour profile, module health, hitbox, damage layout, mount
+    /// frames and contact footprint. Hot paths were paying all of it to read a single number —
+    /// the HUD's enemy health bars once per tank per FRAME, and the server's distant-HP
+    /// quantiser once per tank per VIEWER per snapshot, which on a full 7v7 at 20 Hz is roughly
+    /// four thousand assemblies a second for one `u32`.
+    ///
+    /// Callers that only read take this; callers that own or mutate take [`Self::spec`].
+    pub fn spec_ref(self) -> &'static TankSpec {
+        static CACHE: OnceLock<[TankSpec; VehicleKind::ALL.len()]> = OnceLock::new();
+        let cache = CACHE.get_or_init(|| VehicleKind::ALL.map(|kind| kind.assemble_spec()));
+        let index = VehicleKind::ALL.iter().position(|&kind| kind == self).expect("kind is in ALL");
+        &cache[index]
+    }
+
+    /// The uncached assembly — the one place the cache above is filled from.
+    fn assemble_spec(self) -> TankSpec {
         self.default_loadout().assemble(self)
     }
 
     pub fn has_fixed_casemate(self) -> bool {
-        self.spec().has_fixed_casemate()
+        self.spec_ref().has_fixed_casemate()
     }
 
     /// The technology era this vehicle fights in — the matchmaking bracket. The test-only
@@ -200,7 +227,7 @@ impl VehicleKind {
     }
 
     pub fn effective_turret_yaw_rad(self, turret_yaw_rad: f32) -> f32 {
-        self.spec().effective_turret_yaw_rad(turret_yaw_rad)
+        self.spec_ref().effective_turret_yaw_rad(turret_yaw_rad)
     }
 }
 
@@ -237,6 +264,31 @@ mod tests {
         );
         assert!(!VehicleKind::PLAYABLE.contains(&VehicleKind::PrototypeMedium));
         assert_eq!(VehicleKind::ALL.len(), VehicleKind::PLAYABLE.len() + 1);
+    }
+
+    /// The cache must be the SAME spec the uncached assembly produces — a stale or mis-indexed
+    /// entry would hand a vehicle another's armour, hitbox and gun, silently, everywhere.
+    #[test]
+    fn the_cached_spec_is_the_assembled_spec_for_every_kind() {
+        for kind in VehicleKind::ALL {
+            assert_eq!(
+                *kind.spec_ref(),
+                kind.assemble_spec(),
+                "{kind:?}: the cached spec drifted from its assembly"
+            );
+            assert_eq!(kind.spec(), kind.assemble_spec(), "{kind:?}: the owned spec drifted");
+            assert_eq!(kind.spec_ref().kind, kind, "{kind:?}: the cache is mis-indexed");
+        }
+        // Every kind gets its own slot: repeated lookups are stable and never alias.
+        for (index, kind) in VehicleKind::ALL.iter().enumerate() {
+            assert!(std::ptr::eq(kind.spec_ref(), kind.spec_ref()), "lookups must be stable");
+            for other in &VehicleKind::ALL[index + 1..] {
+                assert!(
+                    !std::ptr::eq(kind.spec_ref(), other.spec_ref()),
+                    "{kind:?} and {other:?} must not share a cache slot"
+                );
+            }
+        }
     }
 
     #[test]

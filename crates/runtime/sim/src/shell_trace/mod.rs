@@ -57,6 +57,14 @@ pub fn trace_shell(
     max_age_seconds: f32,
     world: &ShellTraceWorld<'_>,
 ) -> TraceOutcome {
+    // A step that does not advance never terminates: with `dt_seconds` at zero (or NaN) the
+    // shell neither moves nor ages, and the loop below has no other exit. The authoritative
+    // step is always fed a real tick, but this routine is also driven by the client's reticle
+    // preview and its gun-elevation solver from caller-supplied timesteps — one paused clock
+    // there would hang the frame rather than mispredict it.
+    if !dt_seconds.is_finite() || dt_seconds <= 0.0 {
+        return TraceOutcome::Expired(start_position);
+    }
     let mut position = start_position;
     let mut velocity = start_velocity;
     let mut age = 0.0;
@@ -131,4 +139,43 @@ fn nearest_obstacle(
 
 fn obstacle_impact(obstacle: Option<(Vec3, ImpactSurface)>) -> Option<SegmentImpact> {
     obstacle.map(|(position, surface)| SegmentImpact::Obstacle { position, surface })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn empty_world() -> ShellTraceWorld<'static> {
+        ShellTraceWorld {
+            projectile_radius_m: 0.05,
+            tanks: &[],
+            blockers: &[],
+            heightmap: None,
+            cover: &[],
+            water: None,
+        }
+    }
+
+    /// A non-advancing timestep must RETURN, not spin. The trace's only exits are a hit and the
+    /// age limit, and with `dt <= 0` the shell neither moves nor ages — so a paused or malformed
+    /// clock in the client's reticle preview would hang the frame instead of mispredicting it.
+    /// `#[test]` cannot assert "terminates", so this simply calls it: a regression hangs the
+    /// suite, which is the loudest possible failure.
+    #[test]
+    fn a_non_advancing_timestep_terminates_instead_of_spinning() {
+        let world = empty_world();
+        let muzzle = Vec3::new(0.0, 2.0, 0.0);
+        let velocity = Vec3::new(0.0, 0.0, 900.0);
+        for dt in [0.0_f32, -1.0 / 60.0, f32::NAN] {
+            let outcome = trace_shell(muzzle, velocity, 0.09, dt, 4.0, &world);
+            assert_eq!(
+                outcome,
+                TraceOutcome::Expired(muzzle),
+                "dt {dt} must expire at the muzzle, not integrate"
+            );
+        }
+        // And a real timestep still flies the arc.
+        let outcome = trace_shell(muzzle, velocity, 0.09, 1.0 / 60.0, 4.0, &world);
+        assert_ne!(outcome.impact_point(), muzzle, "a real timestep still moves the shell");
+    }
 }
