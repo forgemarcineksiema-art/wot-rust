@@ -23,12 +23,28 @@ pub fn t54_description() -> VehicleDescription {
     t54_from_modules(&VehicleKind::T54_1951.default_loadout())
 }
 
+/// Build the hybrid T-54 from an explicit, possibly LIVE blueprint (a Studio `--blueprint-file`
+/// override) at the stock loadout. The same assembly the authoritative bake uses — the fast
+/// loop must never show an author a mesh the game does not ship.
+pub fn t54_description_from_blueprint(bp: &VehicleBlueprint) -> VehicleDescription {
+    t54_from_modules_with_blueprint(&VehicleKind::T54_1951.default_loadout(), bp)
+}
+
 /// Build the hybrid T-54 from an explicit module loadout. The installed gun drives the barrel
 /// geometry, so swapping the gun rebuilds the barrel — visual modularity, not a post-bake scale.
 /// All shape dimensions are read from the blueprint; only the gun length comes from the loadout.
 pub fn t54_from_modules(modules: &VehicleModules) -> VehicleDescription {
+    let bp = VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("T-54 blueprint");
+    t54_from_modules_with_blueprint(modules, &bp)
+}
+
+/// The fully-explicit assembly: loadout + blueprint both injected. Every other constructor is a
+/// convenience wrapper over this one, so the embedded and live paths cannot drift apart.
+pub fn t54_from_modules_with_blueprint(
+    modules: &VehicleModules,
+    bp: &VehicleBlueprint,
+) -> VehicleDescription {
     let kind = VehicleKind::T54_1951;
-    let bp = VehicleBlueprint::for_vehicle(kind).expect("T-54 blueprint");
     let v = bp.hybrid().expect("T-54 carries hybrid visual data");
 
     // The hull is decomposed into its real T-54 plates: a narrow lower tub and the wide upper hull

@@ -338,13 +338,34 @@ impl ReferencePack {
     }
 
     pub fn measure_baked_vehicle(&self, vehicle: &BakedVehicle) -> Option<RatioReport> {
-        crate::reference_measure::measure_baked_vehicle(self, vehicle)
+        crate::reference_measure::measure_baked_vehicle(self, vehicle, None)
+    }
+
+    /// Ratios against a LIVE blueprint (a Studio `--blueprint-file` override): the running gear
+    /// is rebuilt from the edited track instead of the embedded one.
+    pub fn measure_baked_vehicle_live(
+        &self,
+        vehicle: &BakedVehicle,
+        blueprint: &game_core::VehicleBlueprint,
+    ) -> Option<RatioReport> {
+        crate::reference_measure::measure_baked_vehicle(self, vehicle, Some(blueprint))
     }
 
     /// Measure this pack's absolute dimension anchors against the baked vehicle. `None` when the
     /// vehicle is foreign to the pack; an empty report when the pack has no anchors yet.
     pub fn measure_dimensions(&self, vehicle: &BakedVehicle) -> Option<crate::DimensionReport> {
-        crate::reference_measure::measure_dimensions(self, vehicle)
+        crate::reference_measure::measure_dimensions(self, vehicle, None)
+    }
+
+    /// Anchors against a LIVE blueprint: gear-derived anchors (track width, gauge, counts,
+    /// wheel diameter) and blueprint-basis anchors (ring) follow the edited file, so the fast
+    /// loop's numbers describe what the author just typed.
+    pub fn measure_dimensions_live(
+        &self,
+        vehicle: &BakedVehicle,
+        blueprint: &game_core::VehicleBlueprint,
+    ) -> Option<crate::DimensionReport> {
+        crate::reference_measure::measure_dimensions(self, vehicle, Some(blueprint))
     }
 }
 

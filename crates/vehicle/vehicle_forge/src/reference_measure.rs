@@ -14,11 +14,13 @@ use crate::{
 pub(crate) fn measure_baked_vehicle(
     pack: &ReferencePack,
     vehicle: &BakedVehicle,
+    blueprint: Option<&VehicleBlueprint>,
 ) -> Option<RatioReport> {
     if !pack.vehicles().contains(&vehicle.kind()) {
         return None;
     }
-    let hull = visual_hull_bounds(vehicle)?;
+    let kin = gear_kinematics(vehicle, blueprint);
+    let hull = visual_hull_bounds(vehicle, kin.as_ref())?;
     let turret = submesh_bounds(vehicle, SubmeshKind::Turret)?;
     let gun = submesh_bounds(vehicle, SubmeshKind::Gun)?;
 
@@ -37,10 +39,10 @@ pub(crate) fn measure_baked_vehicle(
             RatioKind::TurretRingPositionOnHull => {
                 (vehicle.mounts().turret_ring.translation.z - hull.min.z) / extent_z(hull)
             }
-            RatioKind::RoadWheelDiameterToHullLength => {
-                RunningGearKinematics::for_vehicle(vehicle.kind())
-                    .map_or(0.0, |kin| 2.0 * kin.wheel_radius / extent_z(hull))
-            }
+            RatioKind::RoadWheelDiameterToHullLength => kin
+                .as_ref()
+                .and_then(road_wheel_diameter_from_mesh)
+                .map_or(0.0, |diameter| diameter / extent_z(hull)),
         }
     };
     let measurements = pack
@@ -59,15 +61,18 @@ pub(crate) fn measure_baked_vehicle(
 pub(crate) fn measure_dimensions(
     pack: &ReferencePack,
     vehicle: &BakedVehicle,
+    live: Option<&VehicleBlueprint>,
 ) -> Option<DimensionReport> {
     if !pack.vehicles().contains(&vehicle.kind()) {
         return None;
     }
-    let hull = visual_hull_bounds(vehicle)?;
+    let kin = gear_kinematics(vehicle, live);
+    let hull = visual_hull_bounds(vehicle, kin.as_ref())?;
     let turret = submesh_bounds(vehicle, SubmeshKind::Turret)?;
     let gun = submesh_bounds(vehicle, SubmeshKind::Gun)?;
-    let blueprint = VehicleBlueprint::for_vehicle(vehicle.kind());
-    let kin = RunningGearKinematics::for_vehicle(vehicle.kind());
+    // A live override measures against the blueprint the author is editing; without one the
+    // embedded blueprint is the truth.
+    let blueprint = live.cloned().or_else(|| VehicleBlueprint::for_vehicle(vehicle.kind()));
 
     let mut measurements = Vec::with_capacity(pack.dimensions().len());
     for target in pack.dimensions() {
@@ -125,6 +130,19 @@ pub(crate) fn measure_dimensions(
         );
     }
     Some(DimensionReport::new(vehicle.kind(), measurements))
+}
+
+/// The running gear to measure: a live blueprint's edited track when the Studio is running a
+/// `--blueprint-file` override, otherwise the embedded blueprint's. Without this the fast loop
+/// would measure and draw a belt the author is no longer editing.
+fn gear_kinematics(
+    vehicle: &BakedVehicle,
+    live: Option<&VehicleBlueprint>,
+) -> Option<RunningGearKinematics> {
+    match live {
+        Some(blueprint) => Some(RunningGearKinematics::from_track(&blueprint.track)),
+        None => RunningGearKinematics::for_vehicle(vehicle.kind()),
+    }
 }
 
 /// Diameter of the road-wheel unit mesh across its rolling plane. The wheel spins about X, so
@@ -245,10 +263,13 @@ fn is_exterior(material: MaterialRole) -> bool {
     )
 }
 
-fn visual_hull_bounds(vehicle: &BakedVehicle) -> Option<MeshBounds> {
+fn visual_hull_bounds(
+    vehicle: &BakedVehicle,
+    kin: Option<&RunningGearKinematics>,
+) -> Option<MeshBounds> {
     let mut bounds = submesh_bounds(vehicle, SubmeshKind::Hull)?;
-    if let Some(kin) = RunningGearKinematics::for_vehicle(vehicle.kind()) {
-        bounds = bounds.union(running_gear_bounds(&kin)?);
+    if let Some(kin) = kin {
+        bounds = bounds.union(running_gear_bounds(kin)?);
     }
     Some(bounds)
 }

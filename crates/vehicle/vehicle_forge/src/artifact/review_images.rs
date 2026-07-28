@@ -1,6 +1,5 @@
 use std::io;
 
-use game_core::VehicleKind;
 use glam::{Mat4, Vec2, Vec3};
 use vehicle_geometry::{
     BakedVehicle, GearPart, GeometryMesh, MaterialRole, RunningGearKinematics, idler_unit_mesh,
@@ -57,14 +56,16 @@ pub fn bake_review_images(
 /// Studio-only production review: the baked hull plus the same rest-pose instanced running gear
 /// used by the client. Artifact bytes remain unchanged, while authors finally see the wheels,
 /// suspension, sprockets, and moving track that they are actually judging.
+/// `gear` is the kinematics to draw: a Studio live override passes the kinematics built from
+/// the EDITED track so the tiles show the belt the author is tuning, not the embedded one.
 pub(super) fn render_camera_sized_with_running_gear(
-    kind: VehicleKind,
+    gear: Option<&RunningGearKinematics>,
     vehicle: &BakedVehicle,
     camera: &ReviewCameraSpec,
     width: u32,
     height: u32,
 ) -> Vec<u8> {
-    render_camera_at_with_gear(kind, vehicle, camera, width, height)
+    render_camera_at_with_gear(gear, vehicle, camera, width, height)
 }
 
 pub(super) fn encode_png_sized(width: u32, height: u32, rgba: &[u8]) -> Result<Vec<u8>, io::Error> {
@@ -100,7 +101,7 @@ fn render_camera_at(
 }
 
 fn render_camera_at_with_gear(
-    kind: VehicleKind,
+    gear: Option<&RunningGearKinematics>,
     vehicle: &BakedVehicle,
     camera: &ReviewCameraSpec,
     width: u32,
@@ -108,14 +109,14 @@ fn render_camera_at_with_gear(
 ) -> Vec<u8> {
     let basis = camera_basis(camera);
     let mut tris = projected_tris(vehicle, &basis);
-    if let Some(kin) = RunningGearKinematics::for_vehicle(kind) {
-        let road_wheel = road_wheel_unit_mesh(&kin);
-        let idler = idler_unit_mesh(&kin);
-        let sprocket = sprocket_unit_mesh(&kin);
-        let link = track_link_unit_mesh(&kin);
-        let swing_arm = swing_arm_unit_mesh(&kin);
-        let return_roller = return_roller_unit_mesh(&kin);
-        for placement in running_gear_placements(&kin, 0.0, 0.0) {
+    if let Some(kin) = gear {
+        let road_wheel = road_wheel_unit_mesh(kin);
+        let idler = idler_unit_mesh(kin);
+        let sprocket = sprocket_unit_mesh(kin);
+        let link = track_link_unit_mesh(kin);
+        let swing_arm = swing_arm_unit_mesh(kin);
+        let return_roller = return_roller_unit_mesh(kin);
+        for placement in running_gear_placements(kin, 0.0, 0.0) {
             let mesh = match placement.part {
                 GearPart::RoadWheel => &road_wheel,
                 GearPart::Idler => &idler,
