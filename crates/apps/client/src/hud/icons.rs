@@ -30,6 +30,9 @@ pub(crate) enum HudIcon {
     StatPenetration,
     StatReload,
     StatSignal,
+    StatArmor,
+    StatDispersion,
+    StatAimTime,
 }
 
 impl HudIcon {
@@ -57,7 +60,7 @@ impl HudIcon {
         }
     }
 
-    pub(crate) const ALL: [HudIcon; 18] = [
+    pub(crate) const ALL: [HudIcon; 21] = [
         HudIcon::Crew,
         HudIcon::AmmoAp,
         HudIcon::AmmoApcr,
@@ -76,6 +79,9 @@ impl HudIcon {
         HudIcon::StatPenetration,
         HudIcon::StatReload,
         HudIcon::StatSignal,
+        HudIcon::StatArmor,
+        HudIcon::StatDispersion,
+        HudIcon::StatAimTime,
     ];
 }
 
@@ -172,6 +178,30 @@ pub(crate) fn raster(icon: HudIcon) -> Vec<u8> {
             c.ring(0.5, 0.78, 0.30, 0.22);
             c.ring(0.5, 0.78, 0.52, 0.44);
         }
+        HudIcon::StatArmor => {
+            // A plate, not a fantasy shield: a square top the width of the glyph tapering to a
+            // point, which is the sloped-plate silhouette the armour model actually cares about.
+            c.rect(0.22, 0.14, 0.78, 0.54);
+            c.tri([0.22, 0.54], [0.78, 0.54], [0.5, 0.92]);
+        }
+        HudIcon::StatDispersion => {
+            // The cone the shell can land in: a muzzle at the left with two edges opening right.
+            // This is the game's signature number, so it gets the game's signature shape rather
+            // than another ring.
+            c.disc(0.12, 0.5, 0.08);
+            c.tri([0.16, 0.44], [0.16, 0.56], [0.94, 0.08]);
+            c.tri([0.16, 0.44], [0.16, 0.56], [0.94, 0.92]);
+        }
+        HudIcon::StatAimTime => {
+            // The reticle CLOSING: an outer ring with four ticks driving inward at a centre dot.
+            // Distinct from `StatTraverse` (ring + one outward arrow) and `StatReload` (a clock).
+            c.ring(0.5, 0.5, 0.44, 0.36);
+            c.rect(0.47, 0.12, 0.53, 0.30);
+            c.rect(0.47, 0.70, 0.53, 0.88);
+            c.rect(0.12, 0.47, 0.30, 0.53);
+            c.rect(0.70, 0.47, 0.88, 0.53);
+            c.disc(0.5, 0.5, 0.07);
+        }
     }
     c.px
 }
@@ -186,6 +216,18 @@ mod tests {
             let mask = raster(icon);
             assert_eq!(mask.len(), (ICON_PX * ICON_PX) as usize);
             assert!(mask.iter().any(|&p| p > 0), "{icon:?} drew nothing");
+        }
+    }
+
+    /// An icon that reads as another icon is not an icon. The stats column carries nine rows with
+    /// no text label beside them, so every glyph in it has to carry its meaning alone — and three
+    /// of them (`StatTraverse`, `StatReload`, `StatAimTime`) are all built from a ring.
+    #[test]
+    fn no_two_icons_raster_to_the_same_mask() {
+        for (i, a) in HudIcon::ALL.into_iter().enumerate() {
+            for b in HudIcon::ALL.into_iter().skip(i + 1) {
+                assert_ne!(raster(a), raster(b), "{a:?} and {b:?} draw the same glyph");
+            }
         }
     }
 }

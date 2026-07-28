@@ -107,6 +107,8 @@ fn hover_rect(state: &GarageState, hit: &GarageHit) -> Option<([f32; 2], [f32; 2
             let p = state.cursor_clip();
             if in_rect(p, TREE_CLOSE_CENTER, TREE_CLOSE_HALF) {
                 Some((TREE_CLOSE_CENTER, TREE_CLOSE_HALF))
+            } else if in_rect(p, GARAGE_TAB_CENTER, GARAGE_TAB_HALF) {
+                Some((GARAGE_TAB_CENTER, GARAGE_TAB_HALF))
             } else {
                 Some((TECH_TREE_TAB_CENTER, TECH_TREE_TAB_HALF))
             }
@@ -133,6 +135,13 @@ pub(super) fn hit_test(state: &GarageState, shift: bool) -> GarageHit {
             GarageView::Hangar => GarageHit::OpenTechTree,
             GarageView::TechTree => GarageHit::CloseTechTree,
         };
+    }
+
+    // ...and so does GARAGE, which used to be drawn as a tab beside it and answer to nothing. A
+    // tab that looks like its neighbour and ignores a click is a bug the player reads as a dead
+    // interface; from the hangar it is already the active view, so it falls through to the scene.
+    if in_rect(p, GARAGE_TAB_CENTER, GARAGE_TAB_HALF) && state.view() == GarageView::TechTree {
+        return GarageHit::CloseTechTree;
     }
 
     // The map row lives on the top bar like the tab, so it cycles in both views too.
@@ -402,6 +411,29 @@ mod tests {
     fn clicking_tech_tree_tab_in_hangar_opens_tech_tree() {
         let mut g = GarageState::default();
         assert_eq!(at(&mut g, TECH_TREE_TAB_CENTER), GarageHit::OpenTechTree);
+    }
+
+    /// The GARAGE tab was drawn as a tab and hit-tested as nothing. From the tech tree it now
+    /// takes the player home, and it highlights where it is drawn.
+    #[test]
+    fn clicking_the_garage_tab_in_tech_tree_returns_to_the_hangar() {
+        let mut g = GarageState::default();
+        g.open_tech_tree();
+        assert_eq!(at(&mut g, GARAGE_TAB_CENTER), GarageHit::CloseTechTree);
+        g.set_cursor(GARAGE_TAB_CENTER);
+        assert_eq!(
+            hover_rect(&g, &g.hit_test(false)),
+            Some((GARAGE_TAB_CENTER, GARAGE_TAB_HALF)),
+            "the highlight must land on the GARAGE tab, not its neighbour"
+        );
+    }
+
+    /// From the hangar, GARAGE is already the active view — it must not swallow a scene click
+    /// (the orbit drag starts on `Scene`).
+    #[test]
+    fn the_garage_tab_falls_through_to_the_scene_in_the_hangar() {
+        let mut g = GarageState::default();
+        assert_eq!(at(&mut g, GARAGE_TAB_CENTER), GarageHit::Scene);
     }
 
     #[test]

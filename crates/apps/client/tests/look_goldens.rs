@@ -376,20 +376,71 @@ fn recorded_goldens_hold_the_value_structure() {
     // The garage under the same value structure. A lit hangar is ALLOWED — required, even — to
     // hold real shade, so its dark floor is the interior one rather than the empty-steppe one.
     //
-    // Its BRIGHT plane is the program's first measured FLOOR/TARGET debt (D20). The hero frame
-    // holds 0.00% of pixels above the bright threshold: the room's own skylights and lamp faces
-    // are emissive, but the hero framing points at a wall where none of them are in shot, so the
-    // picture is entirely mid and shade. FLOOR is what it achieves today and is asserted so it
-    // cannot get worse; GARAGE_BRIGHT_TARGET is what rule 1 demands and is closed in W4.
-    const GARAGE_BRIGHT_FLOOR: f32 = 0.0;
+    // Its BRIGHT plane is the program's first measured FLOOR/TARGET debt (D20). The frame used to
+    // hold 0.00% of pixels above the bright threshold, and the reframing that lowered
+    // `HERO_ORBIT_PITCH` to bring the room's daylight into shot moved it to 0.3% — the frosted
+    // panes over the bay gate, and nothing else, because they are the only emissive surface the
+    // hero lens now contains. The floor rises to lock that gain in.
+    //
+    // 0.3% against a 2% target says the reframing did NOT close D20, and the percentiles say why:
+    // p50 sits at 0.119 and p95 at 0.276, so the ENTIRE picture is a narrow band pressed against
+    // the 0.25 dark/mid boundary. The floor a player reads as light grey measures 0.238 — a
+    // hair's breadth on the dark side. That is a RANGE problem, and a camera cannot fix range:
+    // where the lens points decides what is in the picture, the light rig and the grade decide
+    // how far apart its values are. D20 closes with light in the room, not with a framing.
+    const GARAGE_BRIGHT_FLOOR: f32 = 0.0025;
     const GARAGE_BRIGHT_TARGET: f32 = 0.02;
-    // The garage's dark share is 89.9% — it does not clear the 75% the outdoor frames answer to,
-    // so its ceiling is recorded as a debt rather than asserted away. W4 is about putting light
-    // in the room, and this is the number that says by how much.
-    const GARAGE_DARK_CEILING_FLOOR: f32 = 0.92;
+    // The dark share barely moved (89.9% -> 90.0%), for the same reason. It does not clear the
+    // 75% the outdoor frames answer to, so its ceiling is recorded as a debt rather than asserted
+    // away. W4 is about putting light in the room, and this is the number that says by how much.
+    const GARAGE_DARK_CEILING_FLOOR: f32 = 0.905;
     const GARAGE_DARK_CEILING_TARGET: f32 = 0.75;
+    // The screen frame is the room frame plus the overlay and nothing else, so the share of
+    // pixels the two disagree on IS the UI's footprint. It is the one measurement that catches a
+    // HUD which failed to build, failed to upload, or rendered with no font atlas bound — all
+    // three of which produce a perfectly valid-looking picture of an empty hangar that the
+    // byte-exact lock would happily re-record. (D13 was this exact failure with a texture.)
+    const GARAGE_UI_FOOTPRINT_FLOOR: f32 = 0.15;
+    let room_pixels = read_png(&golden_path("garage_hero"));
+
     for view in client::hangar_review_views() {
-        let stats = frame_stats(&read_png(&golden_path(&view.name)));
+        let pixels = read_png(&golden_path(&view.name));
+        let stats = frame_stats(&pixels);
+
+        // A screen is not a photograph. The value-structure bounds below describe a lit room —
+        // three planes, a shade mass, a bright source — and none of them says anything true about
+        // a frame that is half opaque instrument panel. The overlay view answers to its own locks.
+        if view.overlay {
+            let differing = room_pixels
+                .chunks_exact(4)
+                .zip(pixels.chunks_exact(4))
+                .filter(|(room, screen)| room != screen)
+                .count() as f32
+                / (WIDTH * HEIGHT) as f32;
+            assert!(
+                differing >= GARAGE_UI_FOOTPRINT_FLOOR,
+                "{}: the overlay covers {:.1}% of the frame (floor {:.1}%) — the garage UI did \
+                 not reach the picture",
+                view.name,
+                differing * 100.0,
+                GARAGE_UI_FOOTPRINT_FLOOR * 100.0
+            );
+            // Glyphs and plate edges are steps; a UI that lost its text, or drew it in the plate's
+            // own colour, collapses toward the flat panel it sits on.
+            assert!(
+                stats.local_contrast > 0.0,
+                "{}: the screen has no edges at all — text and plates both vanished",
+                view.name
+            );
+            println!(
+                "GARAGE SCREEN {}: overlay covers {:.1}% of the frame, local contrast {:.4}",
+                view.name,
+                differing * 100.0,
+                stats.local_contrast
+            );
+            continue;
+        }
+
         assert!(
             stats.dark >= 0.03,
             "{}: the garage lost its shade ({:.2}% of pixels) — a studio without a dark side is \

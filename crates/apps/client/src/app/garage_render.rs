@@ -230,7 +230,7 @@ fn garage_preview_snapshot(kind: VehicleKind) -> TankSnapshot {
         team: TeamId(1),
         vehicle: kind,
         position: [0.0, scene_build::hangar::TURNTABLE_TOP_M, 0.0],
-        yaw_rad: 0.6,
+        yaw_rad: scene_build::hangar::HERO_PARK_YAW,
         hull_pitch_rad: 0.0,
         hull_roll_rad: 0.0,
         turret_yaw_rad: 0.0,

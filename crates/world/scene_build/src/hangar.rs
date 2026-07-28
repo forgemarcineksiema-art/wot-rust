@@ -65,8 +65,24 @@ pub fn hangar_camera_pivot() -> Vec3 {
 /// The live orbit camera, the review golden and the human-review example all read these, so a
 /// reframing moves the played picture and the locked picture together.
 pub const HERO_ORBIT_YAW: f32 = 0.60;
-pub const HERO_ORBIT_PITCH: f32 = 0.28;
+/// Lowered from 0.28. At 0.28 rad the camera tilted 16 deg down through a 32 deg lens, which put
+/// the TOP of the frame exactly on the horizon through the pivot: everything above the eye — the
+/// roof, the trusses, the skylight strips, the frosted panes over the bay gate, both high-bay
+/// lamps — fell outside the shot. That is the arithmetic behind D20's "0.00% of the hero frame
+/// sits above the bright threshold": the room's light sources are all real and all emissive, and
+/// the lens was pointed under every one of them. At 0.13 the frame reaches roughly 9 deg above
+/// the eye and the daylight over the gate comes into shot.
+pub const HERO_ORBIT_PITCH: f32 = 0.13;
 pub const HERO_ORBIT_DISTANCE: f32 = 14.0;
+/// The heading the hero is PARKED at, which only means anything against [`HERO_ORBIT_YAW`]: the
+/// camera orbits to a bearing, the tank sits at a heading, and the angle between them is the shot.
+///
+/// It used to equal `HERO_ORBIT_YAW` exactly. A tank whose heading matches the camera's bearing
+/// faces the lens dead-on, so the hero shot was a head-on elevation with the gun barrel bisecting
+/// the hull and hiding the glacis behind it — the one angle at which a T-54 and a Centurion are
+/// hardest to tell apart. Offset by ~0.65 rad it reads as the three-quarter the comment beside it
+/// always claimed: front, flank and the length of the running gear in one silhouette.
+pub const HERO_PARK_YAW: f32 = HERO_ORBIT_YAW + 0.65;
 /// A long lens: the hangar is a studio, and a studio does not read at a battle FOV.
 pub const HERO_FOV_DEGREES: f32 = 32.0;
 

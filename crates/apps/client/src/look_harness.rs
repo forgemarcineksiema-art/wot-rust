@@ -154,9 +154,23 @@ pub fn render_hangar_review_views(
         );
     }
 
+    // The HUD atlas is uploaded once, unconditionally: an overlay view that silently rendered
+    // with no font bound would lock a screen full of blank quads and call it a review.
+    let (font_w, font_h, font_coverage) = crate::hud_font_atlas();
+    renderer.set_hud_font_atlas(&ctx, font_w, font_h, font_coverage);
+
     let projection = CameraProjectionPolicy::webgpu_default();
     let mut frames = Vec::with_capacity(views.len());
     for view in views {
+        // The overlay is the REAL garage overlay — `garage_overlay` builds it from a default
+        // `GarageState`, the same call the live client makes — not a review-only reconstruction.
+        let hud = if view.overlay {
+            crate::garage_overlay(false, width as f32 / height as f32)
+        } else {
+            Vec::new()
+        };
+        renderer.set_hud(&ctx, &hud);
+
         let objects = crate::tank_vehicle_render_objects(
             &mut catalog,
             &review_snapshot(&view.vehicle),

@@ -77,10 +77,14 @@ it closes.
 | D13 | **The locked goldens render imported flora as WHITE.** `look_goldens.rs`, `prokhorovka_views`, `orliny_views`, `bystra_views` and `vehicle_lineup` never call `set_foliage_atlas`, so flora samples the 1×1 `[255,255,255,255]` default. The live client is correct (`app/render.rs:334`), as is `ostrogorsk_views`. Visible whole-frame in `target/orliny_pine_belt.png` | `foliage_atlas.rs:36` | W0 |
 | D14 | The imported `stylized-tree` has a glaring orange-red trunk that falls outside the saturation window. **Not** a colour-space bug — the atlas uploads as `Rgba8UnormSrgb` and mips are alpha-weighted in linear. It is the asset's own colour, correctable by per-vertex tint without a re-import | `foliage.rs:75-79` | W2 |
 | D15 | Outside the T-54 the fleet offers nothing to look at up close: unbroken plates, no weld seams, grab handles, tow cable, spare track or vision blocks; hull and turret read as two different paints (cast vs rolled split too far); running gear is a black void with no contact | `target/closeup_probe/centurion_flank.png` | W3 |
-| D16 | The garage room's content — catwalk, crane, workbench, stores, six worklamps, skylights — is built and sits **entirely outside** the hero framing, which points at the emptiest wall. The hero does not separate in value from its background | `garage_render.rs:142`, `hangar_gallery.rs`, `hangar_props.rs` | W4 |
+| D16 | The garage room's content — catwalk, crane, workbench, stores, six worklamps, skylights — is built and sits **entirely outside** the hero framing, which points at the emptiest wall. The hero does not separate in value from its background — **PARTLY CLOSED**: `HERO_ORBIT_PITCH` 0.28 → 0.13 brought the gallery band, the bay gate and the frosted panes into frame (at 0.28 the top of the frame sat exactly on the horizon through the pivot, so *everything* above the eye was out of shot). The value separation is still owed and rides with D20 | `garage_render.rs:142`, `hangar_gallery.rs`, `hangar_props.rs` | W4 |
+| D22 | **The hero was parked at the camera's own bearing.** `HERO_ORBIT_YAW` and the parked `yaw_rad` were both 0.6, so the "three-quarter" the comments claimed was a head-on elevation with the barrel bisecting the hull — the one angle at which the whole fleet looks alike. **CLOSED**: `hangar::HERO_PARK_YAW = HERO_ORBIT_YAW + 0.65`, read by the live garage, the golden and the example | `hangar.rs`, `garage_render.rs`, `review_views.rs` | W4 |
+| D23 | **The human-review example hard-coded the framing** — `(0.60, 0.28, 14.0)` and a 32° lens, copied beside the constants `ecc0777` had just centralised so that "a reframing moves the played picture and the locked picture together". A reframing would have moved the golden and left the reviewed frame behind, which is D13's disease exactly. **CLOSED**: the example reads `hero_orbit_eye()` / `HERO_FOV_DEGREES` | `examples/garage_hangar_review.rs:70` | W4 |
+| D24 | **The garage UI had no picture lock of any kind.** `garage_hero` is the room only; the overlay was covered solely by unit tests over rect arithmetic, which cannot see a control drawn off its plate. It had shipped for months with the top-bar plate ending at y=0.86 while both screen tabs hit-tested 0.785–0.845 — GARAGE and TECH TREE rendered as dim text on the hangar wall, and GARAGE answered no click at all. **CLOSED**: `garage_screen` golden + the plate reaches its own tab row | `review_views.rs`, `panels/topbar.rs` | W4 |
+| D25 | **The VEHICLE column did not carry the game's own promise.** Six rows — HP, kW, km/h, °/s, penetration, reload — with no dispersion, no aim time and no armour: the "no ±25% roll, the gun groups where it is pointed" pitch was absent from the screen where the player picks a gun and presses Battle. **CLOSED**: nine rows, plate derived from `STAT_ROWS` | `panels/stats.rs` | W4 |
 | D17 | The fleet showcase renders vehicles in pastels (powder blue, lavender, pink, cream) — the canonical "no clones" render does not show paint | `target/vehicle_lineup.png` | W3 |
 | D18 | **Orliny Pereval has no light of its own.** Its blueprint's `ClearAfternoon` preset resolves to `bystra_clear_afternoon` — the mountain pass wears the river valley's afternoon. The borrowed look is now locked, so the day it gets its own is visible in the diff | `blueprints/orliny-pereval.map.ron:114-119`, `weather.rs::preset_lighting` | W5 |
-| D20 | **The garage has no bright plane at all** — 0.00% of the hero frame sits above the bright threshold. The room's skylights and lamp faces ARE emissive, but the hero framing points at a wall where none of them are in shot, so the picture is entirely mid and shade. The program's first recorded FLOOR/TARGET debt | `goldens/look/garage_hero.png`, `look_goldens.rs` `GARAGE_BRIGHT_TARGET` | W4 |
+| D20 | **The garage has almost no bright plane** — 0.3% of the hero frame sits above the bright threshold, against a 2% target. Was 0.00%; the reframing (D16) brought the frosted panes into shot and they are the entire gain, being the only emissive surface the hero lens contains. **The reframing did not close this, and the percentiles say why**: p50 0.119, p95 0.276 — the whole picture is a narrow band pressed against the 0.25 dark/mid boundary, and the floor a player reads as light grey measures 0.238, a hair on the dark side. Where the lens points decides what is IN the picture; the light rig and the grade decide how far apart its values are. **This closes with light in the room, not with a camera** | `goldens/look/garage_hero.png`, `look_goldens.rs` `GARAGE_BRIGHT_TARGET` | W4 |
 | D21 | **Cloud shadows never run in the shipped game.** `LightingQuality::canonical()` sets `cloud_shadows: false`; only the dev-only `rich()` enables them, and `gpu_layout` zeroes `sky_params.x` when the tier says no. Every profile's `cloud_shadow_strength` is therefore dead data in the configuration players get — and the arithmetic says D4 **cannot be closed without it**: with ambient+fill+rim carrying ~0.36 of a flat ground's radiance, only near-total key occlusion pushes sunlit steppe below the dark threshold. Enabling it is a per-item buy-back against the one-look budget and needs a min-spec measurement | `lighting_quality.rs:81`, `gpu_layout.rs:290` | W1 |
 | D19 | Grass scatters **onto the city street**: the Ostrogorsk canyon reads as a meadow between tenements, and `RoadSurface::Cobble` reads as a dirt path rather than granite setts. Tenement facades are flat boxes with painted window rectangles over a hard black plinth | `goldens/look/ostrogorsk_canyon.png`, `grass.rs::vegetation_weight` | W2 |
 
@@ -152,7 +156,8 @@ outdoor frame, and meaningless indoors.
 | `ostrogorsk_overcast` | 7.7% | 48.8% | 43.5% | 0.190 | 0.430 | 0.713 | 0.523 | 0.159 | 0.0065 | +0.306 |
 | `ostrogorsk_rain` | 7.5% | 57.7% | 34.8% | 0.181 | 0.397 | 0.676 | 0.495 | 0.173 | 0.0061 | +0.302 |
 | `ostrogorsk_canyon` | 4.8% | 62.8% | 32.4% | 0.256 | 0.526 | 0.880 | 0.624 | 0.259 | 0.0079 | +0.228 |
-| `garage_hero` | 89.9% | 10.1% | 0.0% | 0.029 | 0.163 | 0.264 | 0.235 | 0.195 | 0.0033 | −0.122 |
+| `garage_hero` | 90.0% | 9.7% | 0.3% | 0.001 | 0.119 | 0.276 | 0.275 | 0.251 | 0.0036 | −0.141 |
+| `garage_screen` | 89.1% | 10.5% | 0.4% | 0.020 | 0.106 | 0.281 | 0.261 | 0.180 | 0.0071 | −0.089 |
 
 ### What the baseline says
 
@@ -170,10 +175,18 @@ picture in the set at spread 0.348. That is the milk, quantified: not a colour p
 `ostrogorsk_golden_evening` (19.4%) read bimodal — lit or black, with little in between. Watch
 this when W1 retunes exposure; deepening the shade further would make it worse.
 
-**The garage is the outlier on every axis.** 89.9% dark, **0.0% bright**, the narrowest spread in
-the set (0.235) and the lowest local contrast (0.0033). Its dark share also sits **just under the
-90% "one plane swallowed the picture" bound** — a second debt beside D20, and the reason W4 is
-about light in the room rather than paint on the hero.
+**The garage is the outlier on every axis.** 90.0% dark, **0.3% bright**, the narrowest spread in
+the set (0.275) and the lowest local contrast (0.0036). Its dark share sits **at the 90% "one
+plane swallowed the picture" bound** — a second debt beside D20, and the reason W4 is about light
+in the room rather than paint on the hero.
+
+The reframing that closed D16 is the proof of that sentence rather than a counter-example to it.
+It changed what the picture CONTAINS — a real three-quarter hero, the gallery band, the bay gate,
+daylight over it — and moved bright from 0.000 to 0.003 and dark from 0.899 to 0.900. **The band
+did not move, because the band is not a property of the framing.** The floor a player reads as
+light grey measures 0.238 against a 0.25 threshold: this frame is not dark, it is *narrow*, and
+the whole of it happens to sit on the dark side of one boundary. Nothing about where the camera
+stands can widen it.
 
 ## The debt
 
@@ -196,8 +209,8 @@ ostrogorsk_clear_afternoon:  dark plane 0.044, target 0.080 (short by 0.036, W1)
 ostrogorsk_overcast:         dark plane 0.077, target 0.080 (short by 0.003, W1)
 ostrogorsk_rain:             dark plane 0.075, target 0.080 (short by 0.005, W1)
 ostrogorsk_canyon:           dark plane 0.048, target 0.080 (short by 0.032, W1)
-garage_hero:                 bright     0.000, target 0.020 (short by 0.020, D20, W4)
-garage_hero:                 dark plane 0.899, target ≤ 0.750 (over by 0.149, D20, W4)
+garage_hero:                 bright     0.003, target 0.020 (short by 0.017, D20, W4)
+garage_hero:                 dark plane 0.900, target ≤ 0.750 (over by 0.150, D20, W4)
 ```
 
 **Which frames are absent is the point.** Every golden-evening frame, the tank-at-contact frame,
@@ -324,9 +337,20 @@ PR carries the before/after AABB comparison that proves it.
 the dirt lane wired into battle (D9), the team-colour key fixed (D10), the showcase showing paint
 (D17).
 
-**W4 — Garage.** The room's own content brought into frame, the light pools made visible, the hero
-separated from its background (D16). The garage UI is the strongest work in the game and is not to
-be touched, beyond the `SIGNAL` red of the Battle button falling outside the palette.
+**W4 — Garage.** The room's own content brought into frame (D16 — done, by lowering the hero
+pitch), the light pools made visible, the hero separated from its background. What is LEFT is the
+part a camera cannot do: **D20 is a range problem.** The garage frame is a narrow band pressed
+against the dark/mid boundary — p95 0.276, spread 0.275, the narrowest in the set — so the room
+needs light, not a different angle. The frosted panes are the only emissive surface the hero lens
+reaches; the six worklamps, the second-bay strip and the skylights are all still outside it or
+above it. Also outstanding: the `SIGNAL` red of the Battle button falling outside the palette.
+
+**The claim that the garage UI "is the strongest work in the game and is not to be touched" was
+made without a measurement and did not survive one.** It rested on a review render from
+2026-07-11 that predated the map picker, and the UI had no picture lock of any kind (D24): the
+top bar's plate ended above its own tab row, so both screen tabs rendered on the hangar wall, and
+one of them answered no click. There is now a `garage_screen` golden, and opinions about this
+screen answer to it.
 
 **W5 — Per-map identity.** Four ground palettes, four sets of times of day, four sets of goldens.
 Closing D12 needs a sourced CC0 bush to replace the rejected `FloraBush` — the only item in this

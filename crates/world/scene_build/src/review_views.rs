@@ -75,14 +75,26 @@ pub struct HangarReviewView {
     pub background: (f64, f64, f64),
     /// The hero on the turntable. A garage review with no vehicle reviews an empty room.
     pub vehicle: ReviewVehicle,
+    /// Draw the garage HUD over this view.
+    ///
+    /// `false` reviews the ROOM — light, materials, framing — and the value-structure locks read
+    /// that frame. `true` reviews the SCREEN the player actually meets, which is a different
+    /// object: panels, plates, glyphs and hit-target geometry, none of which is a photograph and
+    /// none of which the grading rules apply to.
+    ///
+    /// The garage UI had no picture lock of ANY kind before this. It was covered only by unit
+    /// tests over rect arithmetic, which cannot see a control drawn off its plate, a glyph that
+    /// went missing, or text that lost contrast against what it sits on — and the top bar had
+    /// shipped for months with both screen tabs rendering on the hangar wall below it.
+    pub overlay: bool,
 }
 
 /// The garage review set: the hero shot the garage actually opens with. The framing comes from
 /// `hangar::HERO_ORBIT_*` — the same constants the live orbit camera rests at — so a reframing
 /// moves the played picture and the locked picture together.
 pub fn hangar_review_views() -> Vec<HangarReviewView> {
-    vec![HangarReviewView {
-        name: "garage_hero".to_string(),
+    let hero = |name: &str, overlay: bool| HangarReviewView {
+        name: name.to_string(),
         eye: crate::hangar::hero_orbit_eye().to_array(),
         target: crate::hangar::hangar_camera_pivot().to_array(),
         lighting: SceneLighting::garage_hero(),
@@ -91,13 +103,18 @@ pub fn hangar_review_views() -> Vec<HangarReviewView> {
         vehicle: ReviewVehicle {
             kind: VehicleKind::T54_1951,
             position: [0.0, crate::hangar::TURNTABLE_TOP_M, 0.0],
-            // Three-quarter to the camera, as `garage_preview_snapshot` parks it.
-            yaw_rad: 0.6,
+            // Three-quarter to the camera — and now actually three-quarter, read from the same
+            // constant `garage_preview_snapshot` parks the live hero at.
+            yaw_rad: crate::hangar::HERO_PARK_YAW,
             turret_yaw_rad: 0.0,
             // The garage's own showroom tint, not the battle green.
             hull_color: [0.72, 0.76, 0.62],
         },
-    }]
+        overlay,
+    };
+    // The room, then the screen. Same framing, same light, same hero: the pair differs by exactly
+    // the overlay, so a diff between them is the UI and nothing else.
+    vec![hero("garage_hero", false), hero("garage_screen", true)]
 }
 
 /// The maps whose looks are locked. A map missing from here ships unreviewed, so the coverage
