@@ -2,6 +2,7 @@ mod battlefield;
 mod chunk;
 mod coordinates;
 mod craters;
+mod ground;
 mod heightmap;
 mod map_build;
 mod map_id;
@@ -25,6 +26,10 @@ pub use craters::{
     CRATER_DEPTH_STEP_M, CRATER_INFLUENCE_FACTOR, CRATER_KIND_HIGH_EXPLOSIVE,
     CRATER_POSITION_STEP_M, CRATER_RADIUS_STEP_M, CRATER_RIM_FRACTION, CoverScar, CraterField,
     CraterRecord, MAX_COVER_SCARS_PER_COVER, he_crater_depth_m, he_crater_radius_m,
+};
+pub use ground::{
+    GroundClassifier, GroundMaterial, GroundProperties, grass_patchwork_noise, road_blend,
+    road_blend_at, value_noise,
 };
 pub use heightmap::{HeightMap, HeightMapStats, TerrainError};
 // The map compiler (`map_forge`) builds battlefields from blueprints through the SAME shared
