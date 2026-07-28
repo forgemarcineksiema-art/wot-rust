@@ -90,6 +90,7 @@ pub(super) fn jagdtiger_blueprint() -> VehicleBlueprint {
             cupola_x: 0.45,
             cupola_z: -0.90,
             cupola_radius: 0.14,
+            cupola_height: None,
             plan_half_width: 1.356,
             plan_half_length: 1.60,
             // The cast collar around the 12.8 cm stands 0.22 m proud of the 250 mm face

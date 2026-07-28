@@ -47,7 +47,11 @@ pub const VEHICLE_BUDGETS: VehicleBudgets = VehicleBudgets {
 pub const GOLDEN_BAKE_HASHES: [(VehicleKind, u64); 9] = [
     (VehicleKind::PrototypeMedium, 17_689_896_064_511_691_746_u64),
     (VehicleKind::T54_1951, 1_352_245_318_290_454_355_u64),
-    (VehicleKind::TigerI, 2_528_636_824_404_053_672_u64),
+    // Re-recorded 2026-07-26 for the Tiger I model-logic review: the 3.705 m beam moves onto the
+    // 725 mm combat tracks (the sponsons were carrying it, with the belts hiding inside them), the
+    // turret roof returns to its documented 2.885 m with an authored drum, the cupola opens to
+    // 0.78 m, and the exposed run gets its fender line. Tiger I only.
+    (VehicleKind::TigerI, 11_582_503_112_659_279_264_u64),
     (VehicleKind::TigerII, 7_566_020_042_162_252_338_u64),
     // Re-recorded 2026-07-26 for dossier JT.3: proud cast collar, full-width casemate face,
     // crewed roof, six-shoe racks and hull-flank stowage. Jagdtiger only — the rest of the fleet

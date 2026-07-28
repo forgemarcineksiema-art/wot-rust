@@ -123,6 +123,13 @@ pub struct TurretShape {
     pub cupola_x: f32,
     pub cupola_z: f32,
     pub cupola_radius: f32,
+    /// How far the commander's cupola stands PROUD of `roof_y`, authored from the vehicle's
+    /// dossier. `None` falls back to the legacy derivation "fill the gap up to the hitbox apex",
+    /// which silently launders any roof-height error into the drum: too low a roof grows the
+    /// cupola by exactly the deficit, so a silhouette-apex test can never fail on it
+    /// (model-logic finding, Tiger I). Author it and the two heights are independently locked.
+    #[serde(default)]
+    pub cupola_height: Option<f32>,
     pub plan_half_width: f32,
     pub plan_half_length: f32,
     /// Extra gameplay length AHEAD of the plan, for armor that stands proud of the turret face —
@@ -155,6 +162,16 @@ pub const DEFAULT_TURRET_SECTORS: u32 = 12;
 
 const fn default_turret_sectors() -> u32 {
     DEFAULT_TURRET_SECTORS
+}
+
+impl TurretShape {
+    /// How far the commander's cupola stands above `roof_y`: the authored dossier height when
+    /// the vehicle has one, else the legacy derivation that fills the gap up to the hitbox apex.
+    /// Every consumer (mesh recipe, part table) must ask HERE, so the drum and the roof cannot
+    /// disagree between the model and its semantic parts.
+    pub fn cupola_proud_m(&self, hull: &HullShape) -> f32 {
+        self.cupola_height.unwrap_or(hull.hitbox_center_y + hull.hitbox_half_height - self.roof_y)
+    }
 }
 
 /// Gun placement and barrel shape.

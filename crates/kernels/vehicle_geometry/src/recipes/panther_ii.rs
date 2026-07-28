@@ -36,7 +36,7 @@ pub(crate) fn panther_ii(_hitbox: &HitboxProfile, mounts: &MountFrames) -> Baked
                 t.cupola_z,
                 t.roof_y,
                 t.cupola_radius,
-                bp.hull.hitbox_center_y + bp.hull.hitbox_half_height - t.roof_y,
+                t.cupola_proud_m(&bp.hull),
             ),
             t.ring_z,
             t.ring_y,
