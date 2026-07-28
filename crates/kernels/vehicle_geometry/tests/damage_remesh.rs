@@ -127,6 +127,7 @@ fn assert_clean_open(remeshed: &GeometryMesh) {
         topology: TopologyExpectation::Open,
         min_triangle_area: 1.0e-12,
         normal_tolerance: 1.0e-3,
+        require_outward: false,
     });
     assert_eq!(report.invalid_indices, 0);
     assert_eq!(report.degenerate_triangles, 0);
@@ -189,6 +190,7 @@ fn local_remesh_opens_the_center_without_bad_topology() {
         topology: TopologyExpectation::Open,
         min_triangle_area: 1.0e-12,
         normal_tolerance: 1.0e-3,
+        require_outward: false,
     });
     assert_eq!(report.invalid_indices, 0);
     assert_eq!(report.degenerate_triangles, 0);

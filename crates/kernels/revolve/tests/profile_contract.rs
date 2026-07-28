@@ -136,3 +136,55 @@ fn a_radius_zero_apex_is_preserved_as_a_pointed_cap() {
     assert!(mesh.triangle_count() > 0);
     assert_eq!(mesh.quality_report(OPEN_OR_CLOSED_MESH).degenerate_triangles, 0);
 }
+
+/// The silent-garbage hole this validation closes: a profile with a positive but sub-weld-grid
+/// radius used to pass validation and mesh into degenerate triangles and non-manifold edges —
+/// a "valid" mesh that no contract could catch, because the weld had already fused the ring
+/// into a single point while the fan still treated it as a ring.
+#[test]
+fn a_sub_millimetre_ring_is_rejected_instead_of_meshing_into_garbage() {
+    let hair = RevolveProfile::new(
+        vec![ProfilePoint::new(0.0, 1.0e-6), ProfilePoint::new(0.5, 0.4)],
+        RevolveCaps::Capped,
+    );
+    assert!(matches!(
+        try_revolve(Vec3::Y, &hair, 16, MaterialRole::Rubber, SmoothingGroup(5)),
+        Err(RevolveError::DegenerateRadius { index: 0, .. })
+    ));
+}
+
+/// The same defect reached from the other direction: a legal radius cut into so many segments
+/// that adjacent ring vertices land inside one weld cell. Open caps here, so the subject is
+/// purely the RING — a flat end disc of that radius has its own (separate, older) limit: the
+/// quality contract's minimum triangle area.
+#[test]
+fn a_legal_radius_sliced_too_finely_is_rejected_before_it_collapses() {
+    let fine = RevolveProfile::new(
+        vec![ProfilePoint::new(0.0, 0.0015), ProfilePoint::new(0.2, 0.0015)],
+        RevolveCaps::Open,
+    );
+    // 0.0015 m radius over 64 segments: chord ~0.15 mm, under the 0.24 mm weld grid.
+    assert!(matches!(
+        try_revolve(Vec3::Y, &fine, 64, MaterialRole::Rubber, SmoothingGroup(5)),
+        Err(RevolveError::RingCollapsesUnderWeld { .. })
+    ));
+    // The same part at a sane tessellation is fine — the gate rejects collapse, not small parts.
+    let mesh = try_revolve(Vec3::Y, &fine, 8, MaterialRole::Rubber, SmoothingGroup(5))
+        .expect("a thin wire-scale tube still revolves");
+    assert_eq!(mesh.quality_report(OPEN_OR_CLOSED_MESH).degenerate_triangles, 0);
+}
+
+/// Small real parts (bolt heads, pin ends, wire) must keep working — the threshold is the weld
+/// grid, not a ban on detail.
+#[test]
+fn millimetre_scale_detail_still_revolves_cleanly() {
+    let bolt = RevolveProfile::new(
+        vec![ProfilePoint::new(0.0, 0.006), ProfilePoint::new(0.004, 0.006)],
+        RevolveCaps::Capped,
+    );
+    let mesh = try_revolve(Vec3::Y, &bolt, 12, MaterialRole::RolledArmor, SmoothingGroup(1))
+        .expect("a 6 mm bolt head revolves");
+    let report = mesh.quality_report(CLOSED_SMOOTH_MESH);
+    assert_eq!(report.degenerate_triangles, 0);
+    assert_eq!(report.non_manifold_edges, 0);
+}

@@ -212,6 +212,7 @@ pub fn bake_world_object(
         topology: TopologyExpectation::Open,
         min_triangle_area: 1.0e-12,
         normal_tolerance: 1.0e-3,
+        require_outward: false,
     })
     .map_err(|error| WorldForgeError::Quality { name: blueprint.name.clone(), error })?;
     Ok(BakedWorldObject { name: blueprint.name.clone(), kind: blueprint.kind, mesh })

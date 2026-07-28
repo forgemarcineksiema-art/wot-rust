@@ -76,9 +76,13 @@ fn triplanar_vertices_still_fuse_on_geometry_alone() {
     };
     for k in 0..4 {
         let (a, b) = (ring[k], ring[(k + 1) % 4]);
-        let base = push(top, a, b, &mut verts);
+        // Wound OUTWARD. This fixture used to be inside out (signed volume -4/3) and still
+        // satisfied the closed-manifold contract — consistent winding only proves neighbours
+        // agree with each other, and an inverted shell agrees with itself perfectly. The
+        // outwardness leg added to `CLOSED_SMOOTH_MESH` is what caught it.
+        let base = push(top, b, a, &mut verts);
         idx.extend_from_slice(&[base, base + 1, base + 2]);
-        let base = push(bot, b, a, &mut verts);
+        let base = push(bot, a, b, &mut verts);
         idx.extend_from_slice(&[base, base + 1, base + 2]);
     }
     let welded = GeometryMesh::new(verts, idx).weld_and_smooth();

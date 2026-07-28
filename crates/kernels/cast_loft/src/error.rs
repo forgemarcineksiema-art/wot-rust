@@ -23,6 +23,14 @@ pub enum CastLoftError {
     InvalidExponent,
     #[error("bump {index} has invalid width or position")]
     InvalidBump { index: usize },
+    #[error(
+        "bump {index} recesses {amount} m into a casting whose local half-extent is about          {local_radius} m — the surface would pass through its own axis"
+    )]
+    RecessDeeperThanTheCasting { index: usize, amount: f32, local_radius: f32 },
+    #[error(
+        "bump {index} is {y_width} m tall but the stations around y={y} are {station_gap} m          apart — the feature falls between samples and would be aliased away"
+    )]
+    BumpFallsBetweenStations { index: usize, y: f32, y_width: f32, station_gap: f32 },
     #[error("cap is invalid")]
     InvalidCap,
 }
@@ -72,6 +80,45 @@ fn validate(spec: &CastLoftSpec<'_>) -> Result<(), CastLoftError> {
             && b.amount.is_finite();
         if !finite || b.az_width <= 0.0 || b.y_width <= 0.0 {
             return Err(CastLoftError::InvalidBump { index });
+        }
+
+        // A recess is a dent, not a hole. Pushed deeper than the local half-extent, the surface
+        // crosses its own axis and self-intersects — a mesh that is watertight by edge count and
+        // nonsense by geometry, which no downstream contract can see.
+        let local_radius = spec
+            .sections
+            .iter()
+            .filter(|station| (station.y - b.y).abs() <= b.y_width.max(1.0e-3))
+            .map(|station| {
+                station.half_width.min(station.half_len_front.min(station.half_len_rear))
+            })
+            .fold(f32::INFINITY, f32::min);
+        if local_radius.is_finite() && b.amount < 0.0 && -b.amount >= local_radius {
+            return Err(CastLoftError::RecessDeeperThanTheCasting {
+                index,
+                amount: b.amount,
+                local_radius,
+            });
+        }
+
+        // Bumps are sampled AT station heights. A feature narrower than the local station
+        // spacing lands between samples: it either vanishes or shows up on one ring only,
+        // depending on where the stations happen to sit. Dense stations are the price of a
+        // crisp feature, and the caller must pay it explicitly.
+        let mut station_gap = f32::INFINITY;
+        for pair in spec.sections.windows(2) {
+            let (low, high) = (pair[0].y, pair[1].y);
+            if b.y >= low - b.y_width && b.y <= high + b.y_width {
+                station_gap = station_gap.min(high - low);
+            }
+        }
+        if station_gap.is_finite() && b.y_width < station_gap * 0.5 {
+            return Err(CastLoftError::BumpFallsBetweenStations {
+                index,
+                y: b.y,
+                y_width: b.y_width,
+                station_gap,
+            });
         }
     }
 
@@ -172,6 +219,43 @@ mod tests {
             try_build_cast_loft(&spec(&sections, &[], CastCaps::default())).unwrap_err(),
             CastLoftError::InvalidExponent
         );
+    }
+
+    /// A recess is a dent, not a hole. Pushed past the local half-extent the surface crosses
+    /// its own axis: still watertight by edge count, geometric nonsense in fact — the class of
+    /// defect no downstream contract can see.
+    #[test]
+    fn a_recess_deeper_than_the_casting_is_rejected() {
+        let sections = [section(0.0), section(0.5)];
+        // The test casting's smallest local half-extent is 0.8 m; ask for a 0.9 m dent.
+        let bumps = [CastBump { azimuth: 0.0, az_width: 0.4, y: 0.25, y_width: 0.3, amount: -0.9 }];
+        assert!(matches!(
+            try_build_cast_loft(&spec(&sections, &bumps, CastCaps::default())).unwrap_err(),
+            CastLoftError::RecessDeeperThanTheCasting { index: 0, .. }
+        ));
+        // A shallow dent of the same shape is exactly what this kernel is for.
+        let shallow =
+            [CastBump { azimuth: 0.0, az_width: 0.4, y: 0.25, y_width: 0.3, amount: -0.12 }];
+        assert!(try_build_cast_loft(&spec(&sections, &shallow, CastCaps::default())).is_ok());
+    }
+
+    /// Bumps are sampled AT station heights, so a feature narrower than the local station
+    /// spacing lands between samples and is aliased away — or appears on exactly one ring,
+    /// depending on where the stations happen to sit. The embrasure work depends on this being
+    /// an error rather than a silent disappearance.
+    #[test]
+    fn a_bump_narrower_than_the_station_spacing_is_rejected() {
+        let sections = [section(0.0), section(0.5)];
+        let sharp =
+            [CastBump { azimuth: 1.4, az_width: 0.3, y: 0.25, y_width: 0.05, amount: -0.1 }];
+        assert!(matches!(
+            try_build_cast_loft(&spec(&sections, &sharp, CastCaps::default())).unwrap_err(),
+            CastLoftError::BumpFallsBetweenStations { index: 0, .. }
+        ));
+        // Densify the stations around the feature and the same bump is legal — the fix is to
+        // pay for the resolution, which is what a crisp aperture actually costs.
+        let dense = [section(0.0), section(0.20), section(0.25), section(0.30), section(0.5)];
+        assert!(try_build_cast_loft(&spec(&dense, &sharp, CastCaps::default())).is_ok());
     }
 
     #[test]
