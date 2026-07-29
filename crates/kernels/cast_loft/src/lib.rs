@@ -54,6 +54,9 @@ impl CastSection {
 
     /// The outline point at azimuth `t` (radians; `0` = `+X`, `PI/2` = `+Z` front), before bumps.
     fn point(&self, t: f32) -> Vec3 {
+        // The armour volume evaluates the same curve (`game_core::TurretLoftVisual::support`),
+        // so the superellipse coordinate is defined once for both.
+        use game_core::math::superlerp;
         let e = 2.0 / self.exponent;
         let (st, ct) = t.sin_cos();
         let x = self.half_width * superlerp(ct, e);
@@ -61,11 +64,6 @@ impl CastSection {
         let z = self.z_center + hl * superlerp(st, e);
         Vec3::new(x, self.y, z)
     }
-}
-
-/// Superellipse coordinate: `sign(c) * |c|^e`.
-fn superlerp(c: f32, e: f32) -> f32 {
-    c.signum() * c.abs().powf(e)
 }
 
 /// An additive radial push localised in azimuth and height: positive bulges the surface outward

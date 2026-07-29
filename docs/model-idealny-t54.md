@@ -22,7 +22,8 @@ document becomes history.
   on the authoritative bake → PR-03 tile goldens + mirror fix → PR-04 OBJ export → PR-05 kernel
   contracts → PR-06 blueprint SSOT → PR-07 module honesty → PR-08 fleet gates → PR-09 armor
   taper [PROTOCOL v40] → PR-10 gun arc → PR-11 loft/sweep shape → PR-12a revolve winding →
-  PR-12 spider-web wheel). Each is its own branch and draft PR; merge order is the stack order.
+  PR-12 spider-web wheel -> bot water slope -> PR-13 armour dome). Each is its own branch and
+  draft PR; merge order is the stack order. **W2 closes at PR-13.**
 - **Two findings worth carrying forward.** (1) The T-54's hydraulic dampers are internal (vane
   type on the balance-arm shaft) — the register's "no visible dampers" line was a mis-reading and
   is struck; nothing is owed on the hull side, and the `GearPart::Damper` drafted for PR-12 was
@@ -30,7 +31,16 @@ document becomes history.
   program exists to remove. (2) The revolve kernel wound every closed lathe profile
   inconsistently — 22 broken edges per ring, on every wheel, tyre, roller and drum in the fleet.
   It surfaced only because a NEW construction pushed a recorded debt ceiling past its limit,
-  which is what the FLOOR/TARGET pattern is for.
+  which is what the FLOOR/TARGET pattern is for. (3) The T-54's cheeks — the vehicle's entire
+  armour argument — stood 0.34 m OUTSIDE their own armour volume, because the dome was swept as a
+  circle of 1.12 m while the casting bulges to 1.37 at the shoulder. Shells went through them.
+  Fixed in PR-13 by placing every sector plane on the casting's support function.
+- **A defect found by deterministic divergence.** Changing the armour volume changed every
+  subsequent shell resolution, so the seeded Bystra soak grew a different battle — and that
+  battle drove a bot into the river. The bot brain's escape budget scaled braking by surface grip
+  but not by SLOPE, and a channel is a hole, so every approach to one runs downhill. Fixed in its
+  own PR before PR-13. The defect was always there; the two recorded seeds never produced that
+  approach.
 
 ## The decisions this program is built on
 
@@ -107,8 +117,9 @@ loop (`tools export-mesh` → overlay on master → cross-section diff = numeric
   zone split + authored mantlet/roof [PROTOCOL bump, replay re-pin] (PR-09); per-vehicle gun arc
   (PR-10); cast_loft sharp bump + sweep per-station taper (PR-11); consistent lathe winding in
   the revolve kernel — one winding, one orientation vote, fleet gear winding debt deleted
-  (PR-12a); `WheelFace::SpiderWeb` + T-54 on the stamped disc + F5 dedup (PR-12); armor dome
-  ellipse + T-54 mesh↔volume lock (PR-13).
+  (PR-12a); `WheelFace::SpiderWeb` + T-54 on the stamped disc + F5 dedup (PR-12); the armour dome
+  becomes the CASTING (support function of the loft, not a swept circle) + the T-54 mesh↔volume
+  lock in both directions (PR-13, closes W2).
 - **W3 Dimensions (PR-14..19, sequential, numbers from S1/S2):** hull 6.2X (PR-14); dome 2.40
   (PR-15); cupola ⌀624 (PR-16); embrasure + internal mantlet + canvas + closed shell (PR-17);
   track 580 + gauge decision + link pitch (PR-18; the dampers once planned here are struck — see

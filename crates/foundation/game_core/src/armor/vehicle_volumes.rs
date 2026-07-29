@@ -195,6 +195,9 @@ fn turret_dome(blueprint: &VehicleBlueprint, cy: f32) -> ArmorVolume {
     let turret = blueprint.turret;
     let ring_y = turret.ring_y - cy;
     let center = Vec3::new(0.0, ring_y, turret.ring_z);
+    // The authored casting, when there is one: the armour follows the metal rather than a circle
+    // drawn near it.
+    let loft = blueprint.hybrid().map(|hybrid| &hybrid.turret_loft);
     let mantlet = ArmorPatch {
         zone: ArmorZone::Mantlet,
         center: Vec3::new(0.0, blueprint.gun.trunnion_y - cy, turret.mantlet_front_z),
@@ -227,7 +230,23 @@ fn turret_dome(blueprint: &VehicleBlueprint, cy: f32) -> ArmorVolume {
         let (slope_sin, slope_cos) = slope_deg.to_radians().sin_cos();
         let direction = Vec3::new(azimuth.sin(), 0.0, azimuth.cos());
         let normal = Vec3::new(direction.x * slope_cos, slope_sin, direction.z * slope_cos);
-        let mut plane = TaggedPlane::new(normal, center + direction * turret.base_radius, zone);
+        // Where the plane sits. When the vehicle authors its casting as a loft, ask the CASTING:
+        // the support function puts the plane exactly on the furthest metal in this direction, so
+        // nothing visible falls outside the armour and no armour stands in air.
+        //
+        // The circle it replaces was wrong in both directions at once on a T-54. Its cheeks — the
+        // whole point of the vehicle — bulge to 1.37 m at the shoulder while the swept radius was
+        // 1.12: a third of a metre of the most-shot-at steel in the game was outside its own
+        // armour volume, and shells went through it. Meanwhile the flanks, narrower than the
+        // circle, stopped shells in air.
+        //
+        // Vehicles with no authored loft keep the swept radius until their own dossier arrives
+        // (Genialna Flota) — this is not the PR that silently moves seven vehicles' armour.
+        let anchor = match loft {
+            Some(loft) => normal * (loft.support(normal) - normal.y * cy),
+            None => center + direction * turret.base_radius,
+        };
+        let mut plane = TaggedPlane::new(normal, anchor, zone);
         if let Some(scale) = thickness_scale {
             plane = plane.with_thickness_scale(scale);
         }

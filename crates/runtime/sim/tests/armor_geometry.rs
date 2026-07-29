@@ -145,27 +145,43 @@ fn a_shot_down_the_gun_line_lands_on_the_mantlet_ball() {
     assert_eq!(zone, ArmorZone::Mantlet, "the gun line meets the mantlet ball, a real circle");
 }
 
+/// The cast dome's normal SWEEPS around the casting, so where a flat shot lands across the face
+/// decides the angle it meets — the whole reason a T-54 is hard to kill from the front.
+///
+/// Re-blessed 2026-07-29 (PR-13, the armour volume became the casting). The sweep used to be
+/// measured against a swept CIRCLE of 1.12 m, which the cheeks bulge a third of a metre past.
+/// With the volume drawn on the real casting the numbers move, and they move toward the vehicle:
+/// the cheek's fuller front face meets a flat shot more squarely at its inboard edge (0.95 m out:
+/// 41 degrees, where the circle gave a steeper sector by accident) and then rises hard across the
+/// shoulder — 60 degrees at 1.05 m, 70 at the flank. That is a casting, not a cylinder.
 #[test]
 fn the_dome_cheek_presents_a_steeper_angle_than_the_dome_center() {
-    // The cast dome's normal sweeps around the casting: the same flat shot meets the front
-    // center near its base slope and the far cheek sector at a much harsher angle.
     let blueprint =
         game_core::VehicleBlueprint::for_vehicle(game_core::VehicleKind::T54_1951).expect("bp");
     let y = blueprint.gun.trunnion_y;
-    let (_, center_angle) = hit(
-        Vec3::new(0.15, y, 10.0),
-        Vec3::new(0.15, y, -2.0),
-        t54_at_origin(HullPose::level(0.0)),
-    );
-    let (_, cheek_angle) = hit(
-        Vec3::new(0.95, y, 10.0),
-        Vec3::new(0.95, y, -2.0),
-        t54_at_origin(HullPose::level(0.0)),
-    );
+    let flat_shot_at = |x: f32| {
+        hit(Vec3::new(x, y, 10.0), Vec3::new(x, y, -2.0), t54_at_origin(HullPose::level(0.0)))
+    };
+
+    let (_, center_angle) = flat_shot_at(0.15);
+    // The cheek SHOULDER, where the swell turns away from the shot.
+    let (_, shoulder_angle) = flat_shot_at(1.05);
     assert!(
-        cheek_angle > center_angle + 15.0,
-        "the cheek glances: {cheek_angle}° vs center {center_angle}°"
+        shoulder_angle > center_angle + 15.0,
+        "the cheek shoulder glances: {shoulder_angle}° vs center {center_angle}°"
     );
+
+    // And it is a sweep, not a step: the angle rises monotonically outward across the casting.
+    let mut previous = 0.0_f32;
+    for x in [0.15_f32, 0.45, 0.75, 0.95, 1.05, 1.12] {
+        let (_, angle) = flat_shot_at(x);
+        assert!(
+            angle >= previous - 0.01,
+            "the casting must turn away steadily, but x={x:.2} meets {angle:.1}° after              {previous:.1}°"
+        );
+        previous = angle;
+    }
+    assert!(previous > 65.0, "by the flank the same shot is glancing hard: {previous:.1}°");
 }
 
 #[test]

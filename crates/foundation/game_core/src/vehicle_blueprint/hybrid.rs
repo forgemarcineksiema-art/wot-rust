@@ -93,6 +93,28 @@ pub struct LoftStation {
     pub z_center: f32,
 }
 
+impl LoftStation {
+    /// The station's outline point at azimuth `t` (radians; `0` = `+X`, `PI/2` = `+Z` front),
+    /// before bumps — the superellipse the `cast_loft` kernel skins.
+    ///
+    /// This lives here, next to the data, because the ARMOUR has to know the shape too. The
+    /// armour volume that a shell is resolved against is built from these same stations
+    /// (`armor::vehicle_volumes`), so the steel a player shoots at is the steel they can see.
+    /// The two evaluations agreeing is not left to trust: `t54_turret_armor_lock` measures the
+    /// finished mesh against the finished volume.
+    pub fn outline(&self, azimuth: f32, exponent: f32) -> Vec3 {
+        let e = 2.0 / exponent;
+        let superlerp = crate::math::superlerp;
+        let (sin, cos) = azimuth.sin_cos();
+        let half_len = if sin >= 0.0 { self.half_len_front } else { self.half_len_rear };
+        Vec3::new(
+            self.half_width * superlerp(cos, e),
+            self.y,
+            self.z_center + half_len * superlerp(sin, e),
+        )
+    }
+}
+
 /// A cast turret built by **lofting** the stations below into one continuous skinned shell, with a
 /// symmetric cheek pair and a front gun embrasure as localized radial modulations. This replaces the
 /// metaball [`TurretVisual`] composition with a controlled, *designed* surface that reads as one
@@ -121,6 +143,71 @@ pub struct TurretLoftVisual {
     pub cupola_center: Vec3,
     pub cupola_radius: f32,
     pub cupola_half_height: f32,
+}
+
+impl TurretLoftVisual {
+    /// How far the casting reaches in direction `normal`: the support function of the lofted
+    /// shell, sampled over its stations and around each station's outline (bumps included).
+    ///
+    /// This is what lets the armour volume BE the casting instead of a circle drawn near it. A
+    /// plane with this normal, placed at this offset, touches the metal at its furthest point in
+    /// that direction and encloses every other point — which is precisely the two halves of the
+    /// honesty doctrine: nothing visible is outside the armour, and no armour stands in air.
+    ///
+    /// The turret's own frame: `y` as authored (ground-relative), `z` about the ring.
+    pub fn support(&self, normal: Vec3) -> f32 {
+        /// Azimuth samples per station. The mesh itself uses `segments` (24 on the T-54); this
+        /// samples finer so the support never falls short of a mesh vertex sitting between two
+        /// of them.
+        const SAMPLES: usize = 240;
+        let mut support = f32::NEG_INFINITY;
+        for station in &self.stations {
+            for index in 0..SAMPLES {
+                let azimuth = index as f32 / SAMPLES as f32 * std::f32::consts::TAU;
+                let mut point = station.outline(azimuth, self.exponent);
+                let push = self.radial_push(azimuth, station.y);
+                if push != 0.0 {
+                    let radial =
+                        Vec3::new(point.x, 0.0, point.z - station.z_center).normalize_or_zero();
+                    point += radial * push;
+                }
+                support = support.max(normal.dot(point));
+            }
+        }
+        support
+    }
+
+    /// The casting's localized radial modulation at `(azimuth, y)`: the two cheek swells and the
+    /// gun embrasure recess. Mirrors `cast_loft::CastBump::push` for the bumps this shell
+    /// carries — the loft builder feeds the kernel exactly these three.
+    fn radial_push(&self, azimuth: f32, y: f32) -> f32 {
+        let front = std::f32::consts::FRAC_PI_2;
+        let gaussian = |center: f32, az_width: f32, center_y: f32, y_width: f32, amount: f32| {
+            let delta = crate::math::wrap_angle(azimuth - center);
+            let az = (-(delta / az_width).powi(2)).exp();
+            let height = (-((y - center_y) / y_width).powi(2)).exp();
+            amount * az * height
+        };
+        gaussian(
+            front - self.cheek_azimuth,
+            self.cheek_az_width,
+            self.cheek_y,
+            self.cheek_y_width,
+            self.cheek_amount,
+        ) + gaussian(
+            front + self.cheek_azimuth,
+            self.cheek_az_width,
+            self.cheek_y,
+            self.cheek_y_width,
+            self.cheek_amount,
+        ) + gaussian(
+            front,
+            self.embrasure_az_width,
+            self.embrasure_y,
+            self.embrasure_y_width,
+            self.embrasure_amount,
+        )
+    }
 }
 
 /// The gun: a revolved steel barrel (driven by the installed module's length) and the moving cast
