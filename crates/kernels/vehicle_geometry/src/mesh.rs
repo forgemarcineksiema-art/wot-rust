@@ -33,6 +33,12 @@ pub enum MaterialRole {
     /// reads it as one. Same argument as [`MaterialRole::Canvas`]: one material for two things
     /// is one of them rendered wrong.
     Glass,
+    /// Seasoned timber: the unditching log. Matte, fibrous, unpainted.
+    ///
+    /// Open decision #6 resolved the honest way: the log is wood, and rendering wood as track
+    /// steel was the recorded compromise. Same argument as Canvas and Glass — one material for
+    /// two things is one of them rendered wrong.
+    Timber,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

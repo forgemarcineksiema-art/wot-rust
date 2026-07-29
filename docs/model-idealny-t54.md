@@ -11,14 +11,14 @@ Both registers are empty and every anchor is **Locked**. By this document's own 
 history; what follows is the record of how it got here.
 
 - **Register M (dimensions): 14 rows, 14 closed or dispositioned.** M1 hull 6.235 (PR-14),
-  M2 dome 2.40 (PR-15), M3 turret taper (PR-09), M4 embrasure + internal mantlet (PR-17),
+  M2 dome 2.40 (PR-15), M3 turret taper (PR-09), M4 embrasure + internal mantlet (PR-17; face rebuilt as the two-step WINDOW after the player's verdict — see below),
   M5 cupola ⌀624 (PR-16), M6 gun arc −5/+18 (PR-10), M7 fender asymmetry + SG-43 + MDSh (PR-19),
   M8 spider-web wheel (PR-12, dampers struck as a mis-reading), M9 belt 580 / gauge 2640 / pitch
   137 / 13 teeth (PR-18), M10 travel lock deleted (PR-19), M11 one D-10 tube (PR-07),
   M12 slope drift (PR-06), M13 the workshop's own lies (PR-01..03). **M14 (hitbox width) is the
   one open item and it is the USER's** — narrowing the box changes ramming, terrain contact and
   spotting together, so it is not a modelling call. It is measured every run and on the record.
-- **Register K (construction): 13 rows, 13 closed.** K1 muzzle (PR-25), K2 mantlet shell (PR-17),
+- **Register K (construction): 13 rows, 13 closed.** K1 muzzle (PR-25), K2 mantlet shell (PR-17; cover rebuilt as panel+frame in the window pass),
   K3 OMSh link (PR-22), K4 road wheel (PR-12/23), K5/K6 sprocket + idler (PR-24), K7 swing arm
   (PR-27), K8 hatch mechanics + headlight (PR-26a/b), K9 hooks, cables, beam (PR-26b),
   K10 DShK (PR-26b), K11 louvres, bolts, casting seam (PR-26a), K12 gear budget + LOD (PR-21),
@@ -29,6 +29,104 @@ history; what follows is the record of how it got here.
 - **The anchor test**: `t54_reference_spec` walks dossier → blueprint → mount chain → mesh in one
   place, plus the form rules no dimension can express. A vehicle can pass every other test and
   still be wrong at the joins.
+
+### The gun window (2026-07-29, the player's verdict on the first internal mount)
+
+PR-17 moved the mantlet inside and the instruments all agreed — and the player looked at the
+front and rejected it: *"Jarzmo wyszło źle, beznadziejne. To nie jest ambrazura, którą ma T-54.
+Tutaj jarzmo praktycznie pozostało te same, zmniejszone i bardziej wchłonięte."* The diagnosis
+held up: a round pocket, a round tapered boot and a visible round mantlet face are three round
+signals stacked, and three round signals read as the old ball shrunk and swallowed — the
+documented ~0.40 m *armour aperture* had been modelled as the thing the EYE sees, when on the
+real vehicle it is invisible under fabric. What the eye reads on a T-54 obr. 1949/1951 is a
+**wide rectangular window** cut between the cheeks with a **rectangular canvas panel** fastened
+into it.
+
+The rebuilt face, judged against Blender renders across six iterations before the golden was
+blessed:
+
+- **The casting is two-step.** A wide shallow window (~0.85 × 0.44 m rebate, `window_*` plateau
+  bump) drops from the face to a shelf; the narrow deep aperture (~0.40 m, the documented
+  number) drops through that shelf. Locked by the extended
+  `the_turret_face_carries_a_narrow_gun_aperture`: shelf step 0.08–0.15 below the face band,
+  window width 0.76–1.05, aperture ~0.40 at half depth — measured by walking the mesh, not by
+  reading the bump function back.
+- **The cover is a mattress, not a funnel.** Rounded-rectangle panel (0.80 × 0.37 m) with the
+  hem rooted at the window shelf, a swell over the fastening strip, a rounded border and a FLAT
+  capped front face the sleeve pierces; the first rebuild tapered the sweep to 0.30 scale and
+  the front read as a pyramid of diagonals. Sleeve radii keep the ten-to-twelve-gon INRADIUS
+  proud of the 0.098 m tube under the sag — at vertex-radius 0.100 the flats dipped under the
+  steel and the barrel showed through as a torn zigzag.
+- **The fastening frame is its own steel part** (`gun_mantlet_frame`, a closed loop swept in
+  the window), locked to the panel and the window by `the_cover_frame_matches_the_window`.
+- **Fold ridges are deliberately absent.** Tried twice — buried behind the face plane they
+  rendered nothing (the K3 defect in miniature); surfaced they read as stamped chevrons, then
+  as claw-mark slashes. Broad low undulations are beyond a tube sweep; clean canvas is the
+  honest render.
+- **The occluded pays for the visible.** The internal mantlet drops to 12 segments (only a
+  breach remesh ever shows it); the panel, frame and window refinement land LOD0 at 21,988 of
+  22,000.
+- The visibility rule is inverted from the ball days:
+  `the_visible_gun_mount_is_no_wider_than_its_canvas_cover` now asserts fabric ahead of the
+  face out to the panel's half-diagonal (0.30–0.47) and **steel no wider than the tube** —
+  anything wider is the ball creeping back.
+
+### The no-compromise pass (2026-07-29, after S3/S4)
+
+The Blender verification's findings were ordered fixed rather than recorded. What changed:
+
+- **The flank waist is gone.** The S1 master's vertical 2.25 m band (ring seat → 2.00) is now
+  carried BY THE STATIONS (half-width 1.125 across the band), and the separate cheek bumps are
+  retired at zero: S1's exponent-2.8 superellipse fit measured the whole outline, so bolting
+  cheek lobes onto a narrowed base DOUBLE-COUNTED the front mass — the documented width appeared
+  only at the bump's own height and the casting waisted everywhere else (−112/−124 mm at
+  1.58/2.00, measured). The dossier's own form rule was the tiebreaker: a full hemispherical
+  dome, one continuous surface.
+- **The interior audit found the interior authored against a remembered hull, and it is now
+  authored against the blueprint.** Side liners sat at a literal ±1.12 — painted walls 90 mm
+  OUTSIDE the armour, a relic of the pre-narrow-box hull; ammo racks and engine-bay fuel tanks
+  hugged the old 1.05 tub (rounds 40 mm inside the 80 mm side plates, tank faces 10 mm past the
+  hull); the final drives sat 18 cm behind the sprocket axle PR-18 moved; torsion bars ran to a
+  literal 1.12; the suspension capsules stood 80 mm inboard of the documented gauge. All derived
+  now, and locked by `t54_interior_containment` — which also NAMES the two legitimate wall
+  penetrations (final drives to their sprockets, torsion bars to their arm hubs) and limits each
+  to the hub it exists to reach.
+- **The recorded compromises are withdrawn.** The DShK stands at fighting height on a real
+  pintle with a cradle, trunnion pin, elevation arc, spade grips and sight (the K10 close below
+  had been OVERCLAIMED — the ring and calibre landed in PR-26b, the controls only now), with its
+  documented 1070 mm barrel and 1625 mm envelope. The smoke canisters are BDSh-5 at their
+  documented ⌀450 × 650 (they were ⌀220 — sized by the collision box, not by a source). The
+  unditching log is `MaterialRole::Timber` (open decision #6, resolved). Each protrusion this
+  buys is CATALOGUED and enforced: `hitbox_fit::HITBOX_EXCEPTIONS` lists the AA gun, the
+  canisters and the grab rails, requires everything else to fit, and separately requires each
+  exception to actually protrude — a quietly shrunk-back compromise fails the gate.
+
+### S3 re-run after the no-compromise pass (same day)
+
+The section-diff, repeated on the fixed bake against the same S1 master:
+
+| h | W model | W wzorzec | ΔW | L model | L wzorzec | ΔL |
+|---:|---:|---:|---:|---:|---:|---:|
+| 1.58 | 2.250 | 2.250 | **0 mm** | 2.355 | 2.363 | −8 mm |
+| 1.68 | 2.250 | 2.250 | **0 mm** | 2.351 | 2.363 | −12 mm |
+| 1.78 | 2.250 | 2.250 | **0 mm** | 2.351 | 2.363 | −12 mm |
+| 1.88 | 2.250 | 2.250 | **0 mm** | 2.351 | 2.363 | −12 mm |
+| 2.00 | 2.250 | 2.250 | **0 mm** | 2.362 | 2.363 | −1 mm |
+| 2.12 | 2.124 | 2.124 | **0 mm** | 2.323 | 2.323 | 0 mm |
+| 2.22 | 1.796 | 1.796 | **0 mm** | 2.105 | 2.105 | 0 mm |
+
+**Width deviation: zero at every trusted station.** The residual −8..−12 mm of length in the
+1.58–1.88 band is the gun aperture itself: the pocket recesses the casting's forward-most point
+at those heights, and the master's outline was extracted un-recessed. Distance to ideal collapsed
+from 124 mm to 12 mm, and the 12 is a documented feature, not a drift. The interior cutaway
+render confirms the audit fixes visually: torsion bars end at the wall, the liner hugs the
+armour, brass reads as brass inside the casting.
+
+The no-compromise pass also cost three instruments their innocence, each caught reading the new
+catalogued exceptions as vehicle structure: overall-length read the BDSh-5 drums as 0.36 m of
+tank; the silhouette-apex anchor and the reference-spec roof check both read the raised DShK as
+the casting. All three now measure armour structure, which is what their documented numbers
+describe — stowage and weapons never counted in the sources either.
 
 ### S3/S4 — the Blender verification (2026-07-29, session close)
 
@@ -66,7 +164,8 @@ already documented in the PR-15 authoring comments. Renders: overlay + 7 review 
 verification job's tmp (`v_*.png`); reproduce with `tools export-mesh` + `verify_phase1/2.py`.
 
 Visual review of the renders confirms every dossier form rule on the shipped mesh: the narrow
-aperture with the canvas boot (no ball), the bore reading as a hole, spider-web wheels with twin
+aperture with the canvas cover, no ball (this session's boot was later rebuilt into the
+window-and-panel face — see the gun window section), the bore reading as a hole, spider-web wheels with twin
 tyres and horns riding between them, sprocket teeth meshing the links, rear drive / front idler
 with its crank, no return rollers (the top run lies on the wheels), the asymmetric fender line
 (right: two X-lid tanks; left: three bins + exhaust), the headlight facing forward with a glass
@@ -143,7 +242,7 @@ loop (`tools export-mesh` → overlay on master → cross-section diff = numeric
 | K7 | Swing arm: reach 0.26 / rise 0.13 HARDCODED fleet-wide (not blueprint), flat slab, no torsion-bar hub. **Duplication closed by PR-12** — the static hull boxes are deleted; the animated arm is the single source | `running_gear_arms.rs:18-22` | PR-27 |
 | K8 | ~~Hatches are bare drums; ZERO hinges/handles/latches in the whole repo; headlight lens faces UP~~ **CLOSED (PR-26a + PR-26b)**: the headlight points FORWARD with a glass lens, bracket and guard; the detail kernel gained generic `hinge` / `grab_handle` / `coaming` generators (the fleet had none — `grep hinge` returned nothing) and all three hatches carry a collar, a hinge behind the lid and a handle on it | `the_headlight_faces_forward_and_shows_glass`, `every_hatch_carries_a_coaming_a_hinge_and_a_handle` | PR-26a/b DONE |
 | K9 | ~~Tow hooks are 240x220x200 bricks; cables levitate on a standoff; beam unbanded~~ **CLOSED (PR-26b)**: each hook is a bracket, a curved throat a shackle drops into and a catch across its mouth; each cable is thimbled at both ends and clamped along its run; the log is strapped by two steel bands. The wood MATERIAL stays open decision #6 — it belongs with the material families, not smuggled in here | `the_tow_hooks_have_a_throat_and_a_catch`, `the_tow_cables_are_thimbled_and_clamped`, `the_unditching_beam_is_banded_to_its_brackets` | PR-26b DONE |
-| K10 | ~~DShK on a pedestal beside the hatch; bore 2.2x too big~~ **CLOSED (PR-26b)**: it turns on the LOADER'S HATCH RING — he stands in his own hatch and swings the gun round himself; on a pedestal beside it, it is a gun he cannot reach from inside. And the bore was worse than recorded: inheriting `..v.gun` gave a 12.7 mm gun the D-10T's 100 mm, a bore WIDER THAN ITS OWN TUBE, so the muzzle turned itself inside out | `the_dshk_turns_on_the_loaders_hatch_ring`, `the_dshk_has_its_own_calibre` | PR-26b DONE |
+| K10 | ~~DShK on a pedestal beside the hatch; bore 2.2x too big~~ **CLOSED (PR-26b ring/calibre + no-compromise pass controls)** — the first close was overclaimed: PR-26b delivered the ring and the calibre while the cradle, arc, grips and sight were still absent, and the gun lay flat to fit the box. It turns on the LOADER'S HATCH RING — he stands in his own hatch and swings the gun round himself; on a pedestal beside it, it is a gun he cannot reach from inside. And the bore was worse than recorded: inheriting `..v.gun` gave a 12.7 mm gun the D-10T's 100 mm, a bore WIDER THAN ITS OWN TUBE, so the muzzle turned itself inside out | `the_dshk_turns_on_the_loaders_hatch_ring`, `the_dshk_has_its_own_calibre` | PR-26b DONE |
 | K11 | ~~Deck boards not raked; `louvre_slats`, `bolt_head`, `casting_seam` DEAD~~ **CLOSED (PR-26a)**: the deck louvres lean (the rake went into the KERNEL too — the primitive named for real louvres made square boxes), the panels carry the bolts that hold them, and the turret has the line where its mould parted. `tube_along` could not make a closed seam at all (`closed: false`, both ends capped → 7 non-manifold edges), so `casting_seam_loop` was added: part of WHY they were dead is that they could not be used for what they were written for | `t54_exterior_mechanics.rs`; `a_raked_louvre_leans_across_its_opening` | PR-26a DONE |
 | K12 | Running gear has NO LOD and NO budget: ~35k tris outside every limit, 204 instances/tank, whole-vehicle culling only; blueprint `segments` knob dead (`.max()` floors) | `frame_scene.rs:95-119`; `budgets.rs:16-25` | PR-21 |
 | K13 | Lying tests: `..._has_omsh_plate_horns_and_pin_cues` is satisfied by the backing slab; `..._reads_as_a_double_wheel_pair` passes on a single tire | `tests/running_gear.rs:338,459` | each W4 PR |

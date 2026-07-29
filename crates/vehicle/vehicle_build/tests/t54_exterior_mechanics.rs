@@ -223,6 +223,68 @@ fn the_dshk_has_its_own_calibre() {
     );
 }
 
+/// K10, without the recorded compromise. The first ring mount laid the gun nearly flat so the
+/// vehicle stayed inside its collision box; a DShK is fired by a loader STANDING in his hatch,
+/// and the mount is a pintle, a cradle on a trunnion pin, an elevation arc, spade grips and a
+/// sight. The protrusion above the hitbox apex is catalogued and enforced in `hitbox_fit`.
+#[test]
+fn the_dshk_stands_at_its_fighting_height_with_its_controls() {
+    let description = t54_description();
+    let bp = VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("blueprint");
+    let roof = bp.turret.roof_y;
+
+    for piece in [
+        "dshk_mount",
+        "dshk_cradle",
+        "dshk_trunnion_pin",
+        "dshk_elevation_arc",
+        "dshk_receiver",
+        "dshk_ammo_box",
+        "dshk_grip",
+        "dshk_sight",
+        "dshk_barrel",
+    ] {
+        assert!(
+            description.parts.iter().any(|p| p.key.name == piece),
+            "the mount carries its {piece}"
+        );
+    }
+
+    let receiver = part_mesh("dshk_receiver").bounds().expect("receiver");
+    let axis_y = (receiver.min.y + receiver.max.y) * 0.5;
+    assert!(
+        axis_y > roof + 0.20,
+        "the receiver rides a real pintle, not the roof plate: axis {axis_y:.3} vs roof {roof:.2}"
+    );
+
+    let barrel = part_mesh("dshk_barrel").bounds().expect("barrel");
+    let barrel_len = barrel.max.z - barrel.min.z;
+    assert!(
+        (barrel_len - 1.07).abs() <= 0.03,
+        "the DShK barrel is a documented 1070 mm, got {barrel_len:.3}"
+    );
+    let grips = part_mesh("dshk_grip").bounds().expect("grips");
+    let overall = barrel.max.z - grips.min.z;
+    assert!(
+        (overall - 1.625).abs() <= 0.08,
+        "grips to muzzle is the documented 1625 mm envelope, got {overall:.3}"
+    );
+    assert!(
+        grips.min.z < receiver.min.z,
+        "the spade grips hang behind the receiver, where the gunner's hands go"
+    );
+
+    let sight = part_mesh("dshk_sight").bounds().expect("sight");
+    assert!(sight.max.y > receiver.max.y, "the AA sight stands above the receiver");
+
+    let arc = part_mesh("dshk_elevation_arc").bounds().expect("arc");
+    assert!(
+        arc.max.y - arc.min.y > 0.12,
+        "the elevation arc sweeps a real quadrant, got {:.3}",
+        arc.max.y - arc.min.y
+    );
+}
+
 /// K9. A tow hook is a hook: a throat a shackle drops into and a catch across its mouth. These
 /// were 240 x 220 x 200 bricks — a boss with nowhere for a shackle to go.
 #[test]

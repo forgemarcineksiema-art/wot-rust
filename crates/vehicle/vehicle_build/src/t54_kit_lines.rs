@@ -37,7 +37,9 @@ fn beam_bands(v: &HybridVisual) -> VehiclePart {
     let z = -v.hull.half_len - 0.04;
     let mut pieces = Vec::with_capacity(2);
     for side in [-1.0_f32, 1.0] {
-        let x = side * 0.62;
+        // Outboard of the BDSh-5 drums below (their ends reach |x| 0.685): the bands and the
+        // drums share the rear plate, and the log is 1.9 m wide — there is room for both.
+        let x = side * 0.78;
         pieces.push(detail::coaming(
             Vec3::new(x, 1.02, z),
             Vec3::X,
@@ -45,6 +47,7 @@ fn beam_bands(v: &HybridVisual) -> VehiclePart {
             0.030,
             0.020,
             MaterialRole::BarrelSteel,
+            12,
         ));
     }
     VehiclePart {
@@ -88,22 +91,23 @@ fn turret_casting_seam(loft: &TurretLoftVisual) -> VehiclePart {
 }
 
 /// The unditching beam: the log carried horizontally across the lower rear plate, as the
-/// references' rear/top views show. Steel-strapped dark timber at this fidelity. Its ends stop
-/// WELL inside the hull side planes (±1.03) and the log floats a hand off the raked rear plate —
-/// any coplanar contact with the hull z-fights as the camera moves.
+/// references' rear/top views show. TIMBER, in its own material — open decision #6, resolved:
+/// rendering wood as track steel was the last recorded material compromise on this vehicle. Its
+/// ends stop WELL inside the hull side planes (±1.03) and the log floats a hand off the raked
+/// rear plate — any coplanar contact with the hull z-fights as the camera moves.
 fn unditching_beam(v: &HybridVisual) -> VehiclePart {
     let profile = [(-0.95_f32, 0.0_f32), (-0.95, 0.10), (0.95, 0.10), (0.95, 0.0)];
     VehiclePart {
         key: PartKey::new("unditching_beam"),
         submesh: SubmeshKind::Hull,
-        material: MaterialRole::TrackMetal,
+        material: MaterialRole::Timber,
         smoothing: vehicle_geometry::SmoothingGroup(5),
         shape: PartShape::Mesh(revolve::translate(
             &revolve::revolve(
                 Vec3::X,
                 &profile,
                 12,
-                MaterialRole::TrackMetal,
+                MaterialRole::Timber,
                 vehicle_geometry::SmoothingGroup(5),
             ),
             // Stowed against the rear plate, a hand's width off it — so it follows the
@@ -155,27 +159,30 @@ fn course_mg_port(v: &HybridVisual, glacis_deg: f32) -> Vec<VehiclePart> {
     }]
 }
 
-/// Two MDSh smoke canisters on the rear plate, below the unditching beam.
+/// Two BDSh-5 smoke canisters on the lower rear plate, below the unditching beam.
 ///
-/// The dossier records the FITTING (2x MDSh on the rear plate) but neither its dimensions nor how
-/// it is bracketed, so two things fix the drum here and neither of them is a source, which is
-/// worth saying out loud.
+/// At their DOCUMENTED size. The tank smoke canister is the BDSh-5 (developed 1944 for the
+/// T-34-85's rear plate, carried until exhaust smoke systems displaced it; "MDSh" in the
+/// modelling literature is its naval parent): a drum 650 mm long and 450 mm across, 45-50 kg.
+/// The first pass here drew 220 mm drums, sized by the collision box instead of by a source, and
+/// recorded that as a compromise. The compromise is withdrawn.
 ///
-/// The first is the vehicle's own rear convention: the unditching beam already hangs at
-/// `half_len + 0.04` with a 0.10 radius, so its back face lands 10 mm inside the hitbox. Rear
-/// fittings on this tank tuck into the 0.15 m the collision box carries past the plates, because
-/// the honesty doctrine is that the collision box IS the visual footprint — a canister sticking
-/// 0.39 m out the back would be metal a shell flies through. So these lie ACROSS the plate rather
-/// than pointing out of it, and reach the same depth the beam does.
-///
-/// The second is that a drum bounded that way is smaller than an MDSh really is. That is a known
-/// approximation, recorded here rather than in the dimension gate — the gate is for numbers with
-/// sources, and this one has a constraint instead.
+/// A 450 mm drum hung on the plate necessarily reaches past the hitbox — by the same honest
+/// exception the MAIN GUN already holds: the box is the fighting body, and thin or expendable
+/// stowage stands outside it (2.6 m of barrel already does). The reach is asserted, not hidden:
+/// `t54_carries_two_smoke_canisters_on_the_rear_plate` locks both the documented diameter and
+/// the documented protrusion.
 fn smoke_canisters(v: &HybridVisual) -> Vec<VehiclePart> {
-    // Axis ACROSS the vehicle: the drum lies against the plate instead of pointing off the stern.
-    let profile = [(-0.275_f32, 0.0_f32), (-0.275, 0.11), (0.275, 0.11), (0.275, 0.0)];
+    // Axis ACROSS the vehicle, one drum each side of the centreline, under the beam. The lower
+    // plate rakes 5 degrees, so the hang point follows it down.
+    const RADIUS: f32 = 0.225;
+    const HALF_LEN: f32 = 0.325;
+    let profile = [(-HALF_LEN, 0.0_f32), (-HALF_LEN, RADIUS), (HALF_LEN, RADIUS), (HALF_LEN, 0.0)];
+    let hang_y = 0.665;
+    let plate_z = -v.hull.half_len + (1.58 - hang_y) * (5.0_f32).to_radians().tan();
     let mut parts = Vec::new();
     for (i, side) in [-1.0_f32, 1.0].into_iter().enumerate() {
+        let center = Vec3::new(side * 0.36, hang_y, plate_z - 0.012 - RADIUS);
         parts.push(VehiclePart {
             key: PartKey::indexed("smoke_canister", i as u16),
             submesh: SubmeshKind::Hull,
@@ -189,9 +196,30 @@ fn smoke_canisters(v: &HybridVisual) -> Vec<VehiclePart> {
                     MaterialRole::TrackMetal,
                     vehicle_geometry::SmoothingGroup(3),
                 ),
-                // Clear of the beam above them (y 1.02) and inside the hull sides.
-                Vec3::new(side * 0.55, 0.70, -v.hull.half_len - 0.03),
+                center,
             )),
+            lod: PartLod::Detail,
+            generator: GeneratorKind::Revolve,
+        });
+        // The quick-release straps that hold a 50 kg drum to a moving tank.
+        let mut straps = Vec::with_capacity(2);
+        for s in [-1.0_f32, 1.0] {
+            straps.push(detail::coaming(
+                center + Vec3::new(s * HALF_LEN * 0.62, 0.0, 0.0),
+                Vec3::X,
+                RADIUS + 0.012,
+                0.030,
+                0.014,
+                MaterialRole::BarrelSteel,
+                12,
+            ));
+        }
+        parts.push(VehiclePart {
+            key: PartKey::indexed("smoke_canister_strap", i as u16),
+            submesh: SubmeshKind::Hull,
+            material: MaterialRole::BarrelSteel,
+            smoothing: vehicle_geometry::SmoothingGroup(3),
+            shape: PartShape::Mesh(revolve::merge(&straps).weld_and_smooth()),
             lod: PartLod::Detail,
             generator: GeneratorKind::Revolve,
         });
@@ -316,7 +344,15 @@ fn cable_hardware(index: u16, path: &[Vec3]) -> VehiclePart {
     let mut pieces = Vec::with_capacity(4);
     // Thimbles: a ring at each spliced end, standing across the rope.
     for end in [path[0], path[path.len() - 1]] {
-        pieces.push(detail::coaming(end, Vec3::Z, 0.052, 0.024, 0.020, MaterialRole::BarrelSteel));
+        pieces.push(detail::coaming(
+            end,
+            Vec3::Z,
+            0.052,
+            0.024,
+            0.020,
+            MaterialRole::BarrelSteel,
+            12,
+        ));
     }
     // Clamps: straps over the run at the quarter points, where a fitter would put them.
     for t in [0.33_f32, 0.67] {

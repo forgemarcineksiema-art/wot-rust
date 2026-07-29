@@ -196,6 +196,7 @@ fn payload_material_role_id(material: MaterialRole) -> u32 {
         MaterialRole::ExposedSteel => 8,
         MaterialRole::Canvas => 9,
         MaterialRole::Glass => 10,
+        MaterialRole::Timber => 11,
     }
 }
 
@@ -212,6 +213,7 @@ fn read_material_role(cursor: &mut Cursor<&[u8]>) -> Result<MaterialRole, io::Er
         8 => MaterialRole::ExposedSteel,
         9 => MaterialRole::Canvas,
         10 => MaterialRole::Glass,
+        11 => MaterialRole::Timber,
         _ => return invalid_data("Forge mesh payload has an unknown material role"),
     })
 }

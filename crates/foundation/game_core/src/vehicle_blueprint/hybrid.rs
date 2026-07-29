@@ -122,7 +122,7 @@ impl LoftStation {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct TurretLoftVisual {
     /// Cross-sections, ring seat (bottom) to roof (top).
-    pub stations: [LoftStation; 9],
+    pub stations: [LoftStation; 10],
     /// Superellipse fullness (`2.0` = ellipse, `>2.0` = fuller cast shoulders).
     pub exponent: f32,
     /// Azimuth samples per ring.
@@ -144,6 +144,18 @@ pub struct TurretLoftVisual {
     /// difference between the two is the whole reason a viewer reads one as a hole in armour
     /// and the other as a dent in it. The cheeks keep the Gaussian — a cast swell IS soft.
     pub embrasure_falloff: f32,
+    /// The WINDOW: the wide, shallow rectangular recess the casting carries between its cheeks,
+    /// which the canvas cover is fastened over. The narrow embrasure above is cut through the
+    /// window's floor.
+    ///
+    /// Two steps, because the vehicle has two: the ~0.40 m armour aperture the dossier names is
+    /// the inner hole, and what the EYE reads on a T-54's face is the outer rectangle. Built as
+    /// one round pocket, the front read as the old ball mantlet shrunk and sunk — the player's
+    /// verdict, and correct.
+    pub window_amount: f32,
+    pub window_az_width: f32,
+    pub window_y_width: f32,
+    pub window_falloff: f32,
     /// The commander's cupola drum, raised proud of the roof (the hatch lid is a separate fitting).
     /// The metaball turret blended this into the casting; the lofted shell carries it as its own part.
     pub cupola_center: Vec3,
@@ -220,6 +232,13 @@ impl TurretLoftVisual {
             self.embrasure_y_width,
             self.embrasure_amount,
             self.embrasure_falloff,
+        ) + bump(
+            front,
+            self.window_az_width,
+            self.embrasure_y,
+            self.window_y_width,
+            self.window_amount,
+            self.window_falloff,
         )
     }
 }
@@ -249,14 +268,20 @@ pub struct GunVisual {
     pub mantlet_profile: [(f32, f32); 8],
     pub mantlet_segments: usize,
     pub mantlet_scale: Vec3,
-    /// The canvas dust cover over the embrasure, as `(z, radius)` stations on the barrel axis,
-    /// trunnion-relative, running from the frame end (buried in the casting) to the clamp that
-    /// grips the tube.
+    /// The canvas cover's SLEEVE: `(z, radius)` stations on the barrel axis, trunnion-relative,
+    /// from inside the panel's mouth out to the strap that grips the tube.
     ///
     /// A vehicle with an INTERNAL mantlet has a hole in its turret face, and something has to
     /// close it or the turret is open to the weather and to the eye. On a T-54 that something is
-    /// a proofed canvas boot. It is the part of the gun mount a viewer actually sees.
+    /// a proofed canvas COVER: a rectangular panel fastened over the whole window, gathering
+    /// through radial folds into this short sleeve. The first build drew only a round boot — and
+    /// a round boot in a round pocket reads as the old ball mantlet, shrunk and swallowed, which
+    /// is exactly the verdict it got.
     pub mantlet_cover: [(f32, f32); 4],
+    /// The panel's frame half-extents `(x, y)` where the fabric is fastened into the window.
+    /// Sized to the window at half-depth; `the_cover_frame_matches_the_window` holds the two
+    /// together, because a frame wider than its window is fabric bolted to air.
+    pub cover_frame_half: (f32, f32),
     /// How far the cover sags between its two clamps, in metres. Fabric is not a tube.
     pub mantlet_cover_sag: f32,
     /// How much of a gun module's length delta the muzzle moves by (visual modularity scale).

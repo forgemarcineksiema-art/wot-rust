@@ -25,13 +25,23 @@ pub fn t54_turret_loft(t: &TurretLoftVisual) -> GeometryMesh {
         })
         .collect();
 
-    // The cheeks are a cast SWELL — the soft Gaussian is exactly right for them.
-    let cheek = |azimuth: f32| {
-        CastBump::gaussian(azimuth, t.cheek_az_width, t.cheek_y, t.cheek_y_width, t.cheek_amount)
-    };
+    // The FACE PLATE: one central plateau swell across the whole window band. On the real
+    // casting (REF 22/23) the forward-most structure IS the face around the window — the
+    // window's walls top out at the front, and the rebate is cut through that fullness. Two
+    // outboard gaussian "cheeks" put the mass on the egg's curl instead, and the window's wall
+    // ring sank below the bare nose; a pair centred on the window filled the rebate itself.
+    // A plateau raises floor, shelf and walls TOGETHER, so the window keeps its depth.
     let bumps = [
-        cheek(FRAC_PI_2 - t.cheek_azimuth),
-        cheek(FRAC_PI_2 + t.cheek_azimuth),
+        CastBump::plateau(
+            FRAC_PI_2,
+            t.cheek_az_width,
+            t.cheek_y,
+            t.cheek_y_width,
+            t.cheek_amount,
+            // Falloff 6: flat until ~0.8 of the width (the wall band included), gone by ~1.3 —
+            // the plate reads as the casting's full face, not as a soft boss on the nose.
+            6.0,
+        ),
         // The front gun embrasure. NOT a cheek: this one is a pocket cut for the gun to come
         // through, so it takes the blueprint's own wall sharpness rather than the cast swell's
         // Gaussian. `2.0` was hard-coded here, which meant the aperture could only ever be a
@@ -43,6 +53,16 @@ pub fn t54_turret_loft(t: &TurretLoftVisual) -> GeometryMesh {
             t.embrasure_y_width,
             t.embrasure_amount,
             t.embrasure_falloff,
+        ),
+        // The outer WINDOW the canvas is fastened over: the wide, shallow rectangular seat a
+        // T-54 carries between its cheeks. The embrasure above is cut through this seat's floor.
+        CastBump::plateau(
+            FRAC_PI_2,
+            t.window_az_width,
+            t.embrasure_y,
+            t.window_y_width,
+            t.window_amount,
+            t.window_falloff,
         ),
     ];
 
@@ -106,42 +126,54 @@ mod tests {
         );
     }
 
-    /// The front cheeks must read as the T-54's signature cast front mass: they add real width to
-    /// the front shoulder over a cheekless shell, and they stop the casting from necking IN at the
-    /// front (the old failure mode, where the front quarter was narrower than the sides).
+    /// The dome tapers CONTINUOUSLY from its widest band — the pilot's photo verdict (REF 46,
+    /// 2026-07-29), which overturned the S1 drawing's "vertical flank to 2.00": the drawing was
+    /// the sheet with a ±4-7% internal disagreement, and the vertical band it dictated read as
+    /// the player's "pancake". What is locked now: the documented 2.25 m lives at the widest
+    /// band (1.66-1.76), every station above it is strictly narrower, and the taper is smooth
+    /// (no plateau followed by a cliff). The face fullness is a central PLATEAU bump (the face
+    /// plate the window is cut through), so cheek_amount is positive and CENTRED.
     #[test]
-    fn the_front_cheeks_carry_real_cast_mass_into_the_front_shoulder() {
+    fn the_dome_tapers_continuously_from_its_widest_band() {
         let v = turret_loft_visual();
-        // Sample the cast shoulder in the band around the cheek centre (the gun-axis height).
-        let band = (v.cheek_y - 0.06)..=(v.cheek_y + 0.06);
-        let front_width = |mesh: &GeometryMesh| {
-            mesh.vertices()
+        assert!(
+            v.cheek_amount > 0.0 && v.cheek_azimuth == 0.0,
+            "the face plate is one centred plateau, not offset lobes"
+        );
+        let mesh = t54_turret_loft(&v);
+        let width_at = |y: f32| {
+            let (lo, hi) = mesh
+                .vertices()
                 .iter()
-                .filter(|p| band.contains(&p.position.y))
-                .filter(|p| (0.35..=0.90).contains(&p.position.z))
-                .map(|p| p.position.x.abs())
-                .fold(0.0_f32, f32::max)
+                .filter(|p| (p.position.y - y).abs() < 1.0e-4)
+                .map(|p| p.position.x)
+                .fold((f32::INFINITY, f32::NEG_INFINITY), |(lo, hi), x| (lo.min(x), hi.max(x)));
+            hi - lo
         };
-        let with_cheeks = t54_turret_loft(&v);
-        let cheekless = t54_turret_loft(&TurretLoftVisual { cheek_amount: 0.0, ..v });
-
-        let front = front_width(&with_cheeks);
+        let widest = width_at(1.66).max(width_at(1.76));
         assert!(
-            front > front_width(&cheekless) + 0.04,
-            "the cheeks must add front-shoulder mass: {front:.3} vs cheekless {:.3}",
-            front_width(&cheekless)
+            (widest - 2.25).abs() <= 0.012,
+            "the documented 2.25 m lives at the widest band, got {widest:.3}"
         );
-
-        let side = with_cheeks
-            .vertices()
-            .iter()
-            .filter(|p| band.contains(&p.position.y) && p.position.z.abs() <= 0.20)
-            .map(|p| p.position.x.abs())
-            .fold(0.0_f32, f32::max);
-        assert!(
-            front >= side - 0.01,
-            "the front must not neck in: front {front:.3} vs side {side:.3}"
-        );
+        let ladder =
+            [width_at(1.76), width_at(1.88), width_at(2.00), width_at(2.12), width_at(2.22)];
+        for pair in ladder.windows(2) {
+            assert!(
+                pair[1] < pair[0] - 0.005,
+                "the taper is continuous above the widest band: {:.3} then {:.3}",
+                pair[0],
+                pair[1]
+            );
+        }
+        let steps: Vec<f32> = ladder.windows(2).map(|p| p[0] - p[1]).collect();
+        for pair in steps.windows(2) {
+            assert!(
+                pair[1] < pair[0] * 3.0 + 0.06,
+                "no plateau-then-cliff: taper steps {:.3} then {:.3}",
+                pair[0],
+                pair[1]
+            );
+        }
     }
 
     /// The lofted turret — cheeks and all — stays inside the gameplay turret plan from the

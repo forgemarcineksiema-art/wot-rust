@@ -160,6 +160,33 @@ fn t54_hull_carries_rear_transmission_covers() {
     );
 }
 
+/// Tight variant for the doubly-curved face: a ±15 mm x-window so a sample on the shelf cannot
+/// swallow the window wall or a cheek column standing 35 mm away. Non-finite means "no ring
+/// column here" — callers scan a small range instead of trusting one x.
+fn face_z_tight(mesh: &vehicle_geometry::GeometryMesh, y: f32, x: f32) -> f32 {
+    mesh.vertices()
+        .iter()
+        .filter(|v| {
+            (v.position.y - y).abs() < 0.035
+                && (v.position.x.abs() - x).abs() < 0.015
+                && v.position.z > 0.6
+        })
+        .map(|v| v.position.z)
+        .fold(f32::NEG_INFINITY, f32::max)
+}
+
+/// Best finite tight sample over a scanned x-range (the loft's azimuth columns are discrete, so
+/// any single x can fall between rings).
+fn face_z_scan(mesh: &vehicle_geometry::GeometryMesh, y: f32, x0: f32, x1: f32) -> f32 {
+    let mut best = f32::NEG_INFINITY;
+    let mut x = x0;
+    while x <= x1 {
+        best = best.max(face_z_tight(mesh, y, x));
+        x += 0.01;
+    }
+    best
+}
+
 /// The casting's front surface at the gun's height, as a function of how far out from the gun
 /// axis you look — the instrument every aperture assertion below reads.
 fn face_z_at(mesh: &vehicle_geometry::GeometryMesh, y: f32, x: f32, dy: f32) -> f32 {
@@ -201,9 +228,12 @@ fn the_turret_face_carries_a_narrow_gun_aperture() {
         "the aperture must be a cavity cut through the wall, got {depth:.3} m deep"
     );
 
-    // Half depth is the edge: the width a tape measure reports.
+    // Half depth is the edge: the width a tape measure reports. Vertically the dome curls
+    // away above the window FASTER than the recess is deep (a_f drops 1.15 -> 1.04 across the
+    // window band), so no global plane ever crosses — the height walk uses a LOCAL threshold:
+    // 0.07 above the floor sits inside the aperture's top wall rise and below the curl.
     let edge = floor + depth * 0.5;
-    let cross = |vertical: bool| {
+    let cross = |vertical: bool, threshold: f32| {
         let mut last = 0.0;
         for step in 1..=40 {
             let offset = step as f32 * 0.01;
@@ -213,7 +243,7 @@ fn the_turret_face_carries_a_narrow_gun_aperture() {
                 face_z_at(&casting, gun_y, offset, 0.0)
             };
             if z.is_finite() {
-                if z >= edge {
+                if z >= threshold {
                     return offset;
                 }
                 last = offset;
@@ -221,15 +251,60 @@ fn the_turret_face_carries_a_narrow_gun_aperture() {
         }
         last
     };
-    let width = 2.0 * cross(false);
-    let height = 2.0 * cross(true);
+    let width = 2.0 * cross(false, edge);
+    // Vertically no single number survives the dome's own curl (above the window the whole
+    // casting sits behind the floor level in z), so the lock is three physical bounds on the
+    // TRULY deep band (z within 30 mm of the floor, y capped at the gun's travel envelope):
+    // the cut clears the gun's travel both ways and never reaches the ring seat.
+    let deep: Vec<f32> = casting
+        .vertices()
+        .iter()
+        .filter(|v| {
+            v.position.x.abs() < 0.06
+                && (v.position.y - gun_y).abs() < 0.25
+                && v.position.z > 0.6
+                && v.position.z <= floor + 0.03
+        })
+        .map(|v| v.position.y)
+        .collect();
+    let deep_lo = deep.iter().copied().fold(f32::INFINITY, f32::min);
+    let deep_hi = deep.iter().copied().fold(f32::NEG_INFINITY, f32::max);
+    assert!(
+        deep_lo <= gun_y - 0.10 && deep_hi >= gun_y + 0.10,
+        "the aperture clears the tube and its travel, got deep band {deep_lo:.3}..{deep_hi:.3}"
+    );
+    assert!(
+        deep_lo >= 1.60,
+        "and it never cuts the ring seat at 1.58, got its floor down to {deep_lo:.3}"
+    );
     assert!(
         (width - 0.40).abs() <= 0.06,
         "the documented aperture is ~0.40 m across, measured {width:.3}"
     );
+
+    // And the recess is the WINDOW: the 0.40 m aperture plus ~50 mm of wall each side — the
+    // MEASURED ~0.50 m pillow of the references (module 2), not the first build's 0.85 m
+    // letterbox (an eyeballed number that lived in this very assert). There is no broad shelf
+    // on the real casting; the reveal between aperture and window wall IS the wall thickness.
+    // Measured here as the recess's outer width near face level: walk out from the centre and
+    // find where the surface climbs back to within 25 mm of the plate around the window.
+    let plate = face_z_scan(&casting, gun_y, 0.30, 0.42);
+    assert!(plate.is_finite(), "the face plate flanks the window");
+    let mut window_half = 0.10;
+    for step in 0..=30 {
+        let offset = 0.10 + step as f32 * 0.01;
+        let z = face_z_tight(&casting, gun_y, offset);
+        if z.is_finite() {
+            if z >= plate - 0.025 {
+                break;
+            }
+            window_half = offset;
+        }
+    }
+    let window_width = 2.0 * window_half;
     assert!(
-        (0.20..=0.40).contains(&height),
-        "the aperture clears the tube and its travel without cutting the ring seat, got {height:.3} m tall"
+        (0.42..=0.60).contains(&window_width),
+        "the window is the measured ~0.50 m pillow, got {window_width:.3}"
     );
 }
 
@@ -276,10 +351,12 @@ fn the_mantlet_is_an_internal_closed_body_wider_than_its_aperture() {
     assert_eq!(report.non_manifold_edges, 0, "and a manifold one");
 }
 
-/// K2. With the mantlet inside, something has to close the hole — and on this vehicle it is a
-/// canvas boot. Its rear ring must lie BEHIND the casting's local face (so the seal has no
-/// visible edge rather than butting up against one), it must cover the aperture on the way, and
-/// its front ring must grip the tube.
+/// K2 → the window rebuild. With the mantlet inside, what closes the hole on a T-54 is a wide
+/// rectangular canvas PANEL clamped into the shallow window by a perimeter strip, gathering into
+/// a short sleeve on the tube. The first build's boot semantics ("rear ring swallowed at its own
+/// radius") described a round plug — a panel's hem legitimately swells PROUD over its frame, so
+/// what is locked here is the panel's own grammar: hem rooted at the window shelf, fabric closing
+/// the deep aperture and wrapping past the metal it hides, sleeve gripping the tube.
 #[test]
 fn the_canvas_cover_seals_the_aperture_to_the_barrel() {
     let bp = game_core::VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).unwrap();
@@ -297,17 +374,29 @@ fn the_canvas_cover_seals_the_aperture_to_the_barrel() {
     assert!(!cover.is_empty(), "the gun mount carries a canvas cover");
 
     let radius = |p: &Vec3| p.x.hypot(p.y - trunnion.y);
-    // The rear ring: widest fabric, and it must be swallowed by the casting at its own radius.
-    let rear = cover.iter().max_by(|a, b| radius(a).total_cmp(&radius(b))).unwrap();
-    let local_face = face_z_at(&casting, trunnion.y, radius(rear), 0.0);
+    // The hem roots at the window shelf: rearmost fabric within a fastening strip of the shelf,
+    // and swallowed past the cheeks' own front — a hem floating at face depth would read as a
+    // pasted-on decal, not a fastened cover.
+    let hem = cover.iter().map(|p| p.z).fold(f32::INFINITY, f32::min);
+    let shelf = face_z_at(&casting, trunnion.y, 0.18, 0.0);
+    let outside = casting.bounds().expect("casting bounds").max.z;
     assert!(
-        local_face.is_finite() && rear.z < local_face,
-        "the cover's rear ring must sit inside the metal, got z {:.3} against a face at {local_face:.3} at radius {:.3}",
-        rear.z,
-        radius(rear)
+        hem < shelf + 0.06,
+        "the hem must root at the window shelf, got z {hem:.3} against a shelf at {shelf:.3}"
+    );
+    assert!(
+        hem < outside - 0.04,
+        "the hem must sit INSIDE the window, got z {hem:.3} against a face at {outside:.3}"
     );
 
-    // The front ring grips the tube: the barrel is 0.098 there, so no daylight around it.
+    // The fabric spans the window it is fastened over — panel width, not boot width.
+    let half_span = cover.iter().map(|p| p.x.abs()).fold(0.0_f32, f32::max);
+    assert!(
+        (0.20..=0.27).contains(&half_span),
+        "the panel spans the measured ~0.50 m window, got half-span {half_span:.3}"
+    );
+
+    // The sleeve grips the tube: the barrel is 0.098 there, so no daylight around it.
     let front = cover.iter().max_by(|a, b| a.z.total_cmp(&b.z)).unwrap();
     assert!(
         radius(front) < 0.115,
@@ -315,13 +404,70 @@ fn the_canvas_cover_seals_the_aperture_to_the_barrel() {
         radius(front)
     );
 
-    // And in between it stands AHEAD of the pocket, which is what closing the hole means.
+    // In between it stands AHEAD of the pocket, which is what closing the hole means.
     let pocket_floor = face_z_at(&casting, trunnion.y, 0.0, 0.0);
     let over_pocket =
         cover.iter().filter(|p| radius(p) < 0.19).map(|p| p.z).fold(f32::NEG_INFINITY, f32::max);
     assert!(
         over_pocket > pocket_floor + 0.05,
         "the cover must close the aperture, not lie in it: fabric at {over_pocket:.3}, floor at {pocket_floor:.3}"
+    );
+
+    // And the metal it exists to hide stays hidden: the fabric reaches past the mantlet's face.
+    let mantlet = revolve::moving_mantlet(trunnion, &v.gun);
+    let mantlet_face = mantlet.bounds().expect("mantlet bounds").max.z;
+    assert!(
+        front.z > mantlet_face + 0.05,
+        "the fabric must wrap past the metal: sleeve ends {:.3}, mantlet face {mantlet_face:.3}",
+        front.z
+    );
+}
+
+/// The fastening frame is the crisp rectangular outline the eye reads first, and it only reads
+/// true if it actually clamps THIS panel into THIS window: strip just outside the fabric hem on
+/// both axes, buried inside the window's depth, inside the window's walls.
+#[test]
+fn the_cover_frame_matches_the_window() {
+    let bp = game_core::VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).unwrap();
+    let v = *bp.hybrid().unwrap();
+    let trunnion = MountFrames::for_vehicle(VehicleKind::T54_1951).gun_trunnion.translation;
+    let casting = vehicle_build::t54_turret_loft(&v.turret_loft);
+    let description = t54_description();
+    let frame = description
+        .parts
+        .iter()
+        .find(|part| part.key.name == "gun_mantlet_frame")
+        .expect("the cover is fastened by a perimeter strip")
+        .mesh();
+    let bounds = frame.bounds().expect("frame bounds");
+
+    let (fx, fy) = v.gun.cover_frame_half;
+    let clearance_x = bounds.max.x - fx;
+    let clearance_y = bounds.max.y - trunnion.y - fy;
+    assert!(
+        (0.005..=0.05).contains(&clearance_x) && (0.005..=0.05).contains(&clearance_y),
+        "the strip clamps just outside the hem on both axes, got +{clearance_x:.3} / +{clearance_y:.3}"
+    );
+
+    let outside = casting.bounds().expect("casting bounds").max.z;
+    assert!(
+        bounds.max.z < outside - 0.02,
+        "the strip is buried in the window, not proud of the face: z {:.3} vs {outside:.3}",
+        bounds.max.z
+    );
+
+    // Inside the window's walls: the shelf the strip clamps into must sit visibly DEEPER than
+    // the wall-and-cheek band just outside the strip — a strip wider than its window would sit
+    // on the wall and read as trim glued to the cheek.
+    let inside_strip = face_z_scan(&casting, trunnion.y, 0.14, 0.20);
+    let outside_strip = face_z_scan(&casting, trunnion.y, bounds.max.x + 0.02, bounds.max.x + 0.10);
+    assert!(
+        inside_strip.is_finite() && outside_strip.is_finite(),
+        "both sides of the strip's edge must be sampled, got {inside_strip:.3} / {outside_strip:.3}"
+    );
+    assert!(
+        outside_strip > inside_strip + 0.015,
+        "the wall must rise outside the strip over the shelf inside it, got {inside_strip:.3} -> {outside_strip:.3}"
     );
 }
 
@@ -432,14 +578,18 @@ fn t54_carries_a_course_machine_gun_port_right_of_centre() {
     assert!(bounds.min.z < plate_z, "and the boss is rooted behind it");
 }
 
-/// M7. Two MDSh smoke canisters on the rear plate — the fitting the dossier records and the model
-/// did not carry. Clear of the unditching beam above them, and inside the hull's own width.
+/// M7, at the documented size. The tank smoke canister is the BDSh-5: a 650 mm drum 450 mm
+/// across, 45-50 kg, carried in pairs on the lower rear plate. The first build drew 220 mm drums
+/// sized by the collision box instead of by a source — the compromise this test used to LOCK, by
+/// demanding the drums stay inside the footprint. Now it locks the documented girth, and the
+/// honest consequence: drums that size necessarily reach past the hitbox, by the same catalogued
+/// exception the main gun holds (`hitbox_fit::HITBOX_EXCEPTIONS`).
 #[test]
 fn t54_carries_two_smoke_canisters_on_the_rear_plate() {
     let description = t54_description();
     let canisters: Vec<_> =
         description.parts.iter().filter(|part| part.key.name == "smoke_canister").collect();
-    assert_eq!(canisters.len(), 2, "obr. 1951 carries two MDSh canisters");
+    assert_eq!(canisters.len(), 2, "obr. 1951 carries two BDSh-5 canisters");
 
     let bp = game_core::VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).unwrap();
     let mut sides = 0.0_f32;
@@ -447,25 +597,46 @@ fn t54_carries_two_smoke_canisters_on_the_rear_plate() {
         let b = canister.mesh().bounds().expect("canister bounds");
         let cx = (b.min.x + b.max.x) * 0.5;
         sides += cx.signum();
+        // The documented drum, measured off the mesh. The DIAMETER is measured radially — the
+        // first draft read the bounding box, and a bounding box measures a 14-gon across its
+        // FLATS (439 mm for a 450 mm circle): the instrument-measures-the-wrong-thing defect,
+        // in miniature, inside the very pass that was hunting it.
+        let cy = (b.min.y + b.max.y) * 0.5;
+        let cz = (b.min.z + b.max.z) * 0.5;
+        let mesh = canister.mesh();
+        let radius = mesh
+            .vertices()
+            .iter()
+            .map(|v| (v.position.y - cy).hypot(v.position.z - cz))
+            .fold(0.0_f32, f32::max);
+        let length = b.max.x - b.min.x;
         assert!(
-            b.min.z < -bp.hull.half_len,
-            "a canister hangs BEHIND the rear plate, not inside it: {:.3}",
-            b.min.z
+            (radius * 2.0 - 0.45).abs() <= 0.005,
+            "a BDSh-5 is 450 mm across, got {:.3}",
+            radius * 2.0
         );
-        // And the doctrine: the collision box IS the visual footprint, so nothing bolted to the
-        // stern may reach past it. A canister pointing off the back reached 0.39 m outside.
+        assert!((length - 0.65).abs() <= 0.01, "and 650 mm long, got {length:.3}");
         assert!(
-            b.min.z >= -bp.hull.hitbox_half_length,
-            "a canister must stay inside the vehicle's own footprint: {:.3} vs {:.3}",
-            b.min.z,
-            -bp.hull.hitbox_half_length
+            b.max.z < -bp.hull.half_len + 0.10,
+            "it hangs on the rear plate, not inside the hull: {:.3}",
+            b.max.z
         );
         assert!(
             b.max.x.abs().max(b.min.x.abs()) <= bp.hull.half_width,
             "and stays inside the hull's own width"
         );
-        // The unditching beam rides at y 1.02 with a 0.10 radius; the canisters go below it.
+        // Below the banded log, above the ground line.
         assert!(b.max.y < 0.92, "clear of the beam above them: top {:.3}", b.max.y);
+        assert!(b.min.y > bp.hull.belly_y, "and off the ground: bottom {:.3}", b.min.y);
+        // A 50 kg drum is strapped, not glued.
+        let strap = description
+            .parts
+            .iter()
+            .find(|p| {
+                p.key.name == "smoke_canister_strap" && p.key.instance == canister.key.instance
+            })
+            .expect("each drum carries its quick-release straps");
+        assert!(strap.mesh().triangle_count() > 50, "real straps, not a decal");
     }
     assert_eq!(sides, 0.0, "one canister each side");
 }

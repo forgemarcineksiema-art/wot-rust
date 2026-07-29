@@ -106,7 +106,6 @@ fn the_mount_chain_carries_the_blueprints_numbers() {
 fn the_finished_mesh_is_the_vehicle_the_dossier_describes() {
     let baked = t54_description().build();
     let hull = baked.submesh(SubmeshKind::Hull).expect("hull").mesh.bounds().expect("bounds");
-    let turret = baked.submesh(SubmeshKind::Turret).expect("turret").mesh.bounds().expect("bounds");
 
     assert!(
         (hull.max.x - hull.min.x - dossier::WIDTH_OVER_FENDERS).abs() <= 0.05,
@@ -114,10 +113,27 @@ fn the_finished_mesh_is_the_vehicle_the_dossier_describes() {
         hull.max.x - hull.min.x,
         dossier::WIDTH_OVER_FENDERS
     );
+    // The CASTING tops out at the documented roof plus its cupola and lid — measured over the
+    // armour skin, because the turret submesh also carries the DShK, which stands at fighting
+    // height by catalogued exception (`hitbox_fit::HITBOX_EXCEPTIONS`) and is not the casting.
+    let armour_top = baked
+        .submesh(SubmeshKind::Turret)
+        .expect("turret")
+        .mesh
+        .vertices()
+        .iter()
+        .filter(|v| {
+            matches!(
+                v.material,
+                vehicle_geometry::MaterialRole::CastArmor
+                    | vehicle_geometry::MaterialRole::RolledArmor
+            )
+        })
+        .map(|v| v.position.y)
+        .fold(f32::NEG_INFINITY, f32::max);
     assert!(
-        turret.max.y >= dossier::TURRET_ROOF && turret.max.y <= dossier::TURRET_ROOF + 0.20,
-        "the casting tops out at its documented roof plus its cupola and lid: {:.3}",
-        turret.max.y
+        (dossier::TURRET_ROOF..=dossier::TURRET_ROOF + 0.20).contains(&armour_top),
+        "the casting tops out at its documented roof plus its cupola and lid: {armour_top:.3}"
     );
 
     // The belt is the chain the dossier specifies, and the pitch falls out of it.

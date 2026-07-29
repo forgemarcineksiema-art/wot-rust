@@ -221,14 +221,42 @@ fn the_shipped_hybrid_matches_its_recorded_golden() {
     // hatches (the fleet had no hinges at all), the DShK moved onto the loader's hatch RING and
     // given its own 12.7 mm calibre instead of the tank gun's, hooks with a throat and a catch,
     // thimbled and clamped cables, and bands round the log.
-    // Previous: 0x6af9_ab6d_876a_8099 (PR-26a, the exterior mechanics);
+    //
+    // Re-recorded 2026-07-29 for the gun WINDOW (the player's verdict on the first internal
+    // mount stood: "the mantlet stayed the same, shrunk and swallowed"). The face is two-step
+    // now — a wide shallow rectangular window (~0.85 x 0.44 m rebate) with the narrow deep
+    // aperture dropping through its shelf — and what closes it is a rectangular canvas PANEL
+    // with a flat mattress front (not a round boot in a round pocket), clamped by a perimeter
+    // steel strip, pierced by a round sleeve whose inradius clears the tube. Judged against
+    // Blender renders across six iterations before this bless; fold ridges were tried twice,
+    // read as stamps/slashes both times, and are deliberately absent. The occluded internal
+    // mantlet pays for the window: 12 segments, since only a breach remesh ever shows it.
+    //
+    // Re-recorded 2026-07-29 for PILOT MODULE 1 — the turret shell rebuilt from PHOTOGRAPHS
+    // (the player's verdict: "wieza nie jest nalesnikiem"). Stations extracted from walkaround
+    // REF 46 (ring->roof calibration, depth-plane cross-check), plan exponent 2.35 (egg, not
+    // squircle), one central face-plate plateau the window is cut through, skirt overhang at
+    // the widest band, no rearward crown drift. The S1 drawing's vertical flank band — the
+    // sheet with its own 4-7% disagreement — is overturned; the instruments were rebuilt with
+    // the geometry (tight face sampler, local wall steps). Player accepted the in-game render
+    // ("jest git") before this bless.
+    //
+    // Re-recorded 2026-07-29 for PILOT MODULE 2 — the window MEASURED: ~0.50 m wide (dead-front
+    // reference, turret width 2.25 in frame; barrel-diameter cross-check), not the first
+    // build's eyeballed 0.85 m letterbox. Panel 0.45 x 0.37 pillow, window bump 0.172 rad,
+    // aperture unchanged at the documented 0.40. Every proportion lock re-anchored to the
+    // measured numbers in the same commit.
+    // Previous: 0x3eb2_aca8_62f7_7ceb (pilot module 1, the photo-derived egg);
+    //           0xa921_f937_ea70_c698 (the gun window rebuild);
+    //           0xadf8_2d0f_e2d8_f8be (PR-26b, the crew's mechanics);
+    //           0x6af9_ab6d_876a_8099 (PR-26a, the exterior mechanics);
     //           0xe9ce_9c05_6f0b_f9df (PR-19, the fittings);
     //           0x7108_fd58_f651_b2c3 (PR-18, the belt at 90 x 137);
     //           0xef40_8214_00ae_a9e4 (PR-17, the mantlet goes inside);
     //           0x8f18_a4aa_f291_5175 (PR-16, the cupola at 624);
     //           0xf490_f9f1_fe07_3049 (PR-14, the hull at 6.235);
     //           0x903d_b868_b9bf_e617 (PR-25, a muzzle is a hole).
-    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0xd442_f17b_ef50_f717;
+    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0x0a07_5ae1_b4fd_f995;
     let baked = t54_description().build();
     assert_eq!(
         baked.deterministic_hash(),
