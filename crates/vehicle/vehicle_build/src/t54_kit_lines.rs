@@ -20,7 +20,37 @@ pub(crate) fn t54_line_kit_parts(v: &HybridVisual, glacis_deg: f32) -> Vec<Vehic
     parts.extend(tow_cables(v, glacis_deg));
     parts.extend(course_mg_port(v, glacis_deg));
     parts.extend(smoke_canisters(v));
+    parts.push(turret_casting_seam(&v.turret_loft));
     parts
+}
+
+/// The turret's mould line: the raised seam left where the two halves of the casting mould met,
+/// running round the dome at cheek height.
+///
+/// `detail::casting_seam` has existed since the detail kernel was written and had never been
+/// called once. A cast turret without its mould line reads as a pressing — and this is a vehicle
+/// whose whole front is one casting.
+fn turret_casting_seam(loft: &TurretLoftVisual) -> VehiclePart {
+    // At the widest band of the casting, where the mould parts. Traced right round, so the seam
+    // closes on itself the way the mould does.
+    let y = 1.95;
+    // No repeated first point: the sweep closes the loop itself. Repeating it puts two end caps
+    // in the same place, and the weld turns that into non-manifold edges on the turret submesh.
+    let path: Vec<Vec3> = (0..48)
+        .map(|k| {
+            let phi = std::f32::consts::TAU * k as f32 / 48.0;
+            loft_ring_point(loft, y, phi, 0.004)
+        })
+        .collect();
+    VehiclePart {
+        key: PartKey::new("turret_casting_seam"),
+        submesh: SubmeshKind::Turret,
+        material: MaterialRole::CastArmor,
+        smoothing: vehicle_geometry::SmoothingGroup(7),
+        shape: PartShape::Mesh(detail::casting_seam_loop(&path)),
+        lod: PartLod::Detail,
+        generator: GeneratorKind::Sweep,
+    }
 }
 
 /// The unditching beam: the log carried horizontally across the lower rear plate, as the

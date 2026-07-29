@@ -133,6 +133,7 @@ impl WorldMaterial {
             // materials out and back. Giving it a world material would break that lock to
             // satisfy a call that cannot happen.
             MaterialRole::Canvas => unreachable!("the world never bakes canvas"),
+            MaterialRole::Glass => unreachable!("the world never bakes vehicle glass"),
         }
     }
 

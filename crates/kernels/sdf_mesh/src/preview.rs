@@ -121,6 +121,7 @@ fn preview_material_color(material: MaterialRole) -> [u8; 3] {
         MaterialRole::Ammunition => [110, 79, 33],
         MaterialRole::ExposedSteel => [92, 75, 57],
         MaterialRole::Canvas => [92, 92, 79],
+        MaterialRole::Glass => [184, 199, 204],
     }
 }
 

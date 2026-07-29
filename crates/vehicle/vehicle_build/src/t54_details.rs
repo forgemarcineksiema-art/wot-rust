@@ -5,7 +5,7 @@
 //! glacis/deck weld bead — and deliberately no mud, rust, battle damage, decals or weathering. Every
 //! piece reads its dimensions from the blueprint's [`HybridVisual`]; none invents a tank dimension.
 
-use game_core::{FittingsVisual, HybridVisual};
+use game_core::{BoxVisual, FittingsVisual, HybridVisual};
 use glam::Vec3;
 use vehicle_geometry::{MaterialRole, SmoothingGroup, SubmeshKind};
 
@@ -41,7 +41,7 @@ fn drum_fitting(
 /// (so they traverse); the driver's hatch and the glacis headlight ride the hull. Each is its own
 /// part, not anonymous greeble.
 pub fn t54_fitting_parts(f: &FittingsVisual) -> Vec<VehiclePart> {
-    vec![
+    let mut parts = vec![
         drum_fitting(
             PartKey::new("cupola_hatch"),
             SubmeshKind::Turret,
@@ -63,14 +63,125 @@ pub fn t54_fitting_parts(f: &FittingsVisual) -> Vec<VehiclePart> {
             f.loader_hatch_radius,
             f.loader_hatch_half_height,
         ),
-        drum_fitting(
-            PartKey::new("headlight"),
+    ];
+    parts.extend(t54_headlight(f));
+    parts
+}
+
+/// The glacis headlight: a drum whose axis points FORWARD, with a glass lens in its face, a stalk
+/// down to the fender and a guard hoop over it.
+///
+/// It was a `drum_fitting`, and `revolve::drum` revolves about **Y** — so the lamp was a vertical
+/// puck with its flat faces up and down. The one part of this vehicle whose whole job is to point
+/// somewhere was lying on its side, shining at the sky. Register K8.
+fn t54_headlight(f: &FittingsVisual) -> Vec<VehiclePart> {
+    let c = f.headlight_center;
+    let r = f.headlight_radius;
+    let depth = f.headlight_half_height;
+    // (z, radius) along +Z: the body, then the rim, then the lens seat.
+    let body = [
+        (-depth, 0.0_f32),
+        (-depth, r * 0.62),
+        (-depth * 0.35, r),
+        (depth * 0.8, r),
+        (depth, r * 0.94),
+        (depth, 0.0),
+    ];
+    let lens = [
+        (depth - 0.004, 0.0_f32),
+        (depth - 0.004, r * 0.88),
+        (depth + 0.012, r * 0.80),
+        (depth + 0.012, 0.0),
+    ];
+
+    let revolved = |profile: &[(f32, f32)], material: MaterialRole, smoothing: SmoothingGroup| {
+        PartShape::Mesh(revolve::translate(
+            &revolve::revolve(Vec3::Z, profile, 16, material, smoothing),
+            c,
+        ))
+    };
+
+    vec![
+        VehiclePart {
+            key: PartKey::new("headlight"),
+            submesh: SubmeshKind::Hull,
+            material: MaterialRole::RolledArmor,
+            smoothing: SmoothingGroup(2),
+            shape: revolved(&body, MaterialRole::RolledArmor, SmoothingGroup(2)),
+            lod: PartLod::Detail,
+            generator: GeneratorKind::Revolve,
+        },
+        // The LENS. Its own part and its own material: a lamp whose glass is rendered as the steel
+        // drum behind it is a disc, and a viewer reads it as one.
+        VehiclePart {
+            key: PartKey::new("headlight_lens"),
+            submesh: SubmeshKind::Hull,
+            material: MaterialRole::Glass,
+            smoothing: SmoothingGroup(2),
+            shape: revolved(&lens, MaterialRole::Glass, SmoothingGroup(2)),
+            lod: PartLod::Detail,
+            generator: GeneratorKind::Revolve,
+        },
+        // The stalk it stands on. A lamp bolted to nothing floats.
+        detail_plate(
+            PartKey::new("headlight_bracket"),
             SubmeshKind::Hull,
-            f.headlight_center,
-            f.headlight_radius,
-            f.headlight_half_height,
+            MaterialRole::RolledArmor,
+            solid::chamfered_box(
+                Vec3::new(c.x, c.y - r - 0.045, c.z - depth * 0.3),
+                Vec3::new(0.028, r * 0.55, 0.028),
+                0.008,
+            ),
         ),
+        // And the hoop that keeps branches off the glass.
+        VehiclePart {
+            key: PartKey::new("headlight_guard"),
+            submesh: SubmeshKind::Hull,
+            material: MaterialRole::BarrelSteel,
+            smoothing: SmoothingGroup::hard_edges(),
+            shape: PartShape::Mesh(detail::handle_rail(
+                &(0..7)
+                    .map(|i| {
+                        let angle = std::f32::consts::PI * (0.15 + 0.70 * i as f32 / 6.0);
+                        let (sin, cos) = angle.sin_cos();
+                        Vec3::new(c.x + cos * (r + 0.022), c.y + sin * (r + 0.022), c.z + depth)
+                    })
+                    .collect::<Vec<_>>(),
+                0.012,
+            )),
+            lod: PartLod::Detail,
+            generator: GeneratorKind::Sweep,
+        },
     ]
+}
+
+/// The bolt rings that hold the engine-deck panels down, laid along the panel seams.
+///
+/// A bolt is a small thing and there are a lot of them, so they merge into ONE part rather than
+/// forty: the graph is a description of the vehicle's assemblies, and "the deck fasteners" is one
+/// assembly. Fine detail only — they drop at the first LOD step, where they stop being resolvable
+/// anyway.
+pub(crate) fn t54_deck_panel_bolts(deck: &BoxVisual, deck_top: f32) -> Vec<VehiclePart> {
+    const PER_ROW: usize = 9;
+    let mut heads = Vec::with_capacity(PER_ROW * 4);
+    for row in 0..2 {
+        // The two long seams, inboard of the deck edges.
+        let x = deck.half.x * if row == 0 { -0.86 } else { 0.86 };
+        for i in 0..PER_ROW {
+            let t = (i as f32 + 0.5) / PER_ROW as f32;
+            let z = deck.center.z - deck.half.z + t * 2.0 * deck.half.z;
+            heads.push(detail::bolt_head(Vec3::new(x, deck_top, z), Vec3::Y, 0.016, 0.010));
+        }
+    }
+    vec![VehiclePart {
+        key: PartKey::new("engine_deck_bolts"),
+        submesh: SubmeshKind::Hull,
+        material: MaterialRole::BarrelSteel,
+        smoothing: SmoothingGroup::hard_edges(),
+        shape: PartShape::Mesh(revolve::merge(&heads).weld_and_smooth()),
+        lod: PartLod::Detail,
+        generator: GeneratorKind::Revolve,
+    }]
 }
 
 pub(crate) fn detail_plate(

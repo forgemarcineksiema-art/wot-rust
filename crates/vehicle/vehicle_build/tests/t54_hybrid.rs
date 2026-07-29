@@ -211,12 +211,18 @@ fn the_shipped_hybrid_matches_its_recorded_golden() {
     // And in PR-19, for the fittings: the asymmetric fender line (two flat fuel tanks on the
     // right, not three), the fixed course MG's boss in the glacis, two smoke canisters lying
     // across the rear plate — and one part DELETED, the travel lock obr. 1951 never had.
-    // Previous: 0x7108_fd58_f651_b2c3 (PR-18, the belt at 90 x 137);
+    //
+    // And in PR-26a, for the exterior mechanics: the headlight turned to face FORWARD with a
+    // glass lens, bracket and guard; raked deck louvres; the bolts holding the deck panels down;
+    // and the turret's mould line. Three of those come from generators that had existed in the
+    // detail kernel since it was written and had never been called once.
+    // Previous: 0xe9ce_9c05_6f0b_f9df (PR-19, the fittings);
+    //           0x7108_fd58_f651_b2c3 (PR-18, the belt at 90 x 137);
     //           0xef40_8214_00ae_a9e4 (PR-17, the mantlet goes inside);
     //           0x8f18_a4aa_f291_5175 (PR-16, the cupola at 624);
     //           0xf490_f9f1_fe07_3049 (PR-14, the hull at 6.235);
     //           0x903d_b868_b9bf_e617 (PR-25, a muzzle is a hole).
-    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0xe9ce_9c05_6f0b_f9df;
+    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0x6af9_ab6d_876a_8099;
     let baked = t54_description().build();
     assert_eq!(
         baked.deterministic_hash(),

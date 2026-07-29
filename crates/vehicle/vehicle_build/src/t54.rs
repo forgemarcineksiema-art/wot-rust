@@ -155,6 +155,7 @@ pub fn t54_from_modules_with_blueprint(
     // hatch and the driver's/loader's hatches (all raised round lids), plus the glacis headlight.
     parts.extend(crate::t54_details::t54_fitting_parts(f));
     // The engine deck reads as bolted panels, not one slab — its split plates carry the silhouette.
+    let deck_top = v.deck.center.y + v.deck.half.y;
     for (i, panel) in solid::t54_engine_deck_panels(&v.deck).into_iter().enumerate() {
         parts.push(VehiclePart {
             key: PartKey::indexed("engine_deck_panel", i as u16),
@@ -166,6 +167,11 @@ pub fn t54_from_modules_with_blueprint(
             generator: GeneratorKind::Solid,
         });
     }
+    // The bolts that hold those panels down. `detail::bolt_head` has existed since the detail
+    // kernel was written and had never been called: the deck read as split plates with nothing
+    // holding them, which is the one thing a bolted panel is FOR. Two rows per panel, along the
+    // seams, because that is where a fastener goes.
+    parts.extend(crate::t54_details::t54_deck_panel_bolts(&v.deck, deck_top));
     for (i, side) in [f.tow_hook_center.x, -f.tow_hook_center.x].into_iter().enumerate() {
         let center = Vec3::new(side, f.tow_hook_center.y, f.tow_hook_center.z);
         parts.push(VehiclePart {

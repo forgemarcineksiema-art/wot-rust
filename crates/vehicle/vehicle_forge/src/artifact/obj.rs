@@ -48,6 +48,7 @@ fn material_name(role: MaterialRole) -> &'static str {
         MaterialRole::Ammunition => "Ammunition",
         MaterialRole::ExposedSteel => "ExposedSteel",
         MaterialRole::Canvas => "Canvas",
+        MaterialRole::Glass => "Glass",
     }
 }
 
@@ -65,10 +66,11 @@ fn material_colour(role: MaterialRole) -> [f32; 3] {
         MaterialRole::Ammunition => [0.65, 0.52, 0.28],
         MaterialRole::ExposedSteel => [0.45, 0.46, 0.48],
         MaterialRole::Canvas => [0.52, 0.51, 0.44],
+        MaterialRole::Glass => [0.80, 0.86, 0.88],
     }
 }
 
-const ROLES: [MaterialRole; 10] = [
+const ROLES: [MaterialRole; 11] = [
     MaterialRole::RolledArmor,
     MaterialRole::CastArmor,
     MaterialRole::BarrelSteel,
@@ -79,6 +81,7 @@ const ROLES: [MaterialRole; 10] = [
     MaterialRole::Ammunition,
     MaterialRole::ExposedSteel,
     MaterialRole::Canvas,
+    MaterialRole::Glass,
 ];
 
 fn submesh_object_name(kind: SubmeshKind) -> &'static str {

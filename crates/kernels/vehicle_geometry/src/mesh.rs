@@ -26,6 +26,13 @@ pub enum MaterialRole {
     /// same mistake the mantlet comment already records about the mask being merged into the
     /// barrel: one material for two things is one of them rendered wrong.
     Canvas,
+    /// Glass: the headlight's lens, vision-block prisms. Bright, smooth, and the one thing on a
+    /// tank that is supposed to catch the sun.
+    ///
+    /// A lens rendered as the steel drum behind it is not a lens — it is a disc, and a viewer
+    /// reads it as one. Same argument as [`MaterialRole::Canvas`]: one material for two things
+    /// is one of them rendered wrong.
+    Glass,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

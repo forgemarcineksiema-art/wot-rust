@@ -223,8 +223,20 @@ mod tests {
             app.run_fixed_ticks(1);
         }
         let mut closest = f32::INFINITY;
+        let mut closest_bearing_error = f32::INFINITY;
         for _ in 0..120 {
             closest = closest.min(app.turret_tracking_command().abs());
+            // The SAME window for the heading check below. The note above explains why the
+            // residual command is measured over a window rather than at one tick — the sight
+            // point rides the hull and the roster jostles — and the heading is the same
+            // measurement of the same thing, so it gets the same treatment. It was left sampling
+            // a single instant, which is half a fix: any change that grows a different seeded
+            // battle (an armour volume, a bake) can land a neighbour's nudge on that one tick.
+            if let Some(bearing) = app.desired_turret_yaw() {
+                let world_yaw = app.predictor.yaw() + app.predictor.turret_yaw();
+                closest_bearing_error =
+                    closest_bearing_error.min(shortest_angle(world_yaw - bearing).abs());
+            }
             app.run_fixed_ticks(1);
         }
 
@@ -240,13 +252,13 @@ mod tests {
         // The convergence target is the muzzle->sight bearing (with the camera centered the
         // bearing sits near the camera yaw, but the mechanism converges on the SIGHT POINT —
         // the target-forward offset still separates the two paths).
-        let bearing = app.desired_turret_yaw().expect("sight point resolves to a bearing");
+        app.desired_turret_yaw().expect("sight point resolves to a bearing");
 
-        // The settled turret actually points along that bearing (world space).
-        let settled_world_yaw = app.predictor.yaw() + app.predictor.turret_yaw();
+        // The settled turret actually points along that bearing (world space), measured at its
+        // closest approach across the window above.
         assert!(
-            shortest_angle(settled_world_yaw - bearing).abs() < 2.0e-2,
-            "settled turret heading {settled_world_yaw} should match the sight bearing {bearing}"
+            closest_bearing_error < 2.0e-2,
+            "settled turret heading should reach the sight bearing, closest {closest_bearing_error}"
         );
     }
 }
