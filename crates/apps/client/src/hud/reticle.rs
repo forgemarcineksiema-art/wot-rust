@@ -44,6 +44,9 @@ pub(crate) struct ReticleFeedbackQuery<'a> {
     pub cover: &'a [StaticCoverObject],
     /// The map's standing water — the previewed splash must be the server's splash.
     pub water: Option<terrain::WaterBody>,
+    /// The PLAYER'S gun arc (min, max) in radians — a per-vehicle property since the fleet
+    /// stopped sharing one hard-coded pair.
+    pub gun_pitch_limits_rad: (f32, f32),
     pub tanks: &'a [TankSnapshot],
     /// Spec of the firing (local) vehicle. Penetration hints read the shell from here so the HUD
     /// shows the *player's* gun, not the gun of whatever tank happens to be under the reticle.
@@ -109,8 +112,10 @@ fn feedback_from_outcome(
         query.drag_per_s,
     );
     let actual_impact_world_point = outcome.impact_point();
-    // The arc is the simulation's gun arc, not a client-side copy that could drift from it.
-    let in_arc = (sim::MIN_GUN_PITCH_RAD..=sim::MAX_GUN_PITCH_RAD).contains(&target_pitch);
+    // The arc is the simulation's gun arc for THIS vehicle, not a client-side copy and not a
+    // fleet-wide constant: the T-54's -5 is the whole reason it cannot fight from a ridge.
+    let (min_pitch, max_pitch) = query.gun_pitch_limits_rad;
+    let in_arc = (min_pitch..=max_pitch).contains(&target_pitch);
     // BLOCKED means something *stops* the shell short of the aim point: the gun cannot elevate
     // there, the sight line dives into terrain, or the trace died on an obstacle away from the
     // aim. An open-sky shot (the trace simply expires in flight with nothing hit) is NOT

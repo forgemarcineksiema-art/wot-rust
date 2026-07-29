@@ -173,6 +173,100 @@ fn the_hybrid_bake_is_deterministic() {
     );
 }
 
+/// The SHIPPED T-54's cross-commit byte lock.
+///
+/// `GOLDEN_BAKE_HASHES` locks the procedural fleet — including a T-54 entry for the legacy
+/// recipe **nobody ships**. The hybrid mesh the game actually draws had no recorded hash at
+/// all: its only guard was ~90 property tests, so a silent geometry drift that happened to
+/// satisfy every ratio and bound could ride in unnoticed.
+///
+/// Re-record deliberately, in the PR that intends the change, together with the studio tiles
+/// (`WOT_UPDATE_GOLDENS=1 cargo test -p tools --test studio_goldens`) — a hash bless with no
+/// picture to look at is a rubber stamp.
+#[test]
+fn the_shipped_hybrid_matches_its_recorded_golden() {
+    // Recorded 2026-07-29 (PR-16, the documented cupola: ⌀624 not ⌀480, authored once
+    // instead of written down three times).
+    // Recorded 2026-07-29 (PR-15, the dome at its documented roof). The casting rises from a
+    // 2.27 m roof to the documented 2.40, and its PLAN changes with it: Blender session S1 found
+    // the widest cut 43% from the front, so the turret reaches 1.016 m forward of the ring and
+    // 2.363 m long where the model had 2.10 — a T-54 with no bustle. (Where that length goes
+    // stays front-heavy: turning S1's "43% from the front" into a ring-relative split needs the
+    // widest cut to BE the ring plane, and S1 flags that registration as an assumption.) The cupola's 131 mm
+    // of exposure is authored now instead of being whatever was left under the hitbox apex, and
+    // the whole roof band (cupola, hatches, periscopes, DShK mount) rides the roof as a depth
+    // into the casting rather than as absolute heights.
+    //
+    // Re-recorded again in PR-17, and this time the mantlet moves the other way: INSIDE. The
+    // external ball is gone, the aperture is a 0.42 x 0.38 m plateau cut through the casting, a
+    // canvas boot closes it to the tube, and `cast_loft` refines its azimuth grid over the
+    // aperture instead of the whole dome carrying the resolution — so the casting is CHEAPER
+    // (1,296 tris against 2,304 at the ring count that failed to sharpen it) and sharper.
+    //
+    // And again in PR-18, for the documented running gear: a 580 mm belt on the 2.640 m gauge,
+    // 90 links at the documented 137 mm pitch, a wrap on the sprocket's own 572.4 mm pitch
+    // circle (which drops the tooth count to the documented 13 without anyone typing 13), the
+    // 3.840 m ground-contact base, and a tub narrowed to the 2.060 m that gauge leaves it.
+    //
+    // And in PR-19, for the fittings: the asymmetric fender line (two flat fuel tanks on the
+    // right, not three), the fixed course MG's boss in the glacis, two smoke canisters lying
+    // across the rear plate — and one part DELETED, the travel lock obr. 1951 never had.
+    //
+    // And in PR-26a, for the exterior mechanics: the headlight turned to face FORWARD with a
+    // glass lens, bracket and guard; raked deck louvres; the bolts holding the deck panels down;
+    // and the turret's mould line. Three of those come from generators that had existed in the
+    // detail kernel since it was written and had never been called once.
+    //
+    // And in PR-26b, for the mechanics a crew touches: coamings, hinges and handles on all three
+    // hatches (the fleet had no hinges at all), the DShK moved onto the loader's hatch RING and
+    // given its own 12.7 mm calibre instead of the tank gun's, hooks with a throat and a catch,
+    // thimbled and clamped cables, and bands round the log.
+    //
+    // Re-recorded 2026-07-29 for the gun WINDOW (the player's verdict on the first internal
+    // mount stood: "the mantlet stayed the same, shrunk and swallowed"). The face is two-step
+    // now — a wide shallow rectangular window (~0.85 x 0.44 m rebate) with the narrow deep
+    // aperture dropping through its shelf — and what closes it is a rectangular canvas PANEL
+    // with a flat mattress front (not a round boot in a round pocket), clamped by a perimeter
+    // steel strip, pierced by a round sleeve whose inradius clears the tube. Judged against
+    // Blender renders across six iterations before this bless; fold ridges were tried twice,
+    // read as stamps/slashes both times, and are deliberately absent. The occluded internal
+    // mantlet pays for the window: 12 segments, since only a breach remesh ever shows it.
+    //
+    // Re-recorded 2026-07-29 for PILOT MODULE 1 — the turret shell rebuilt from PHOTOGRAPHS
+    // (the player's verdict: "wieza nie jest nalesnikiem"). Stations extracted from walkaround
+    // REF 46 (ring->roof calibration, depth-plane cross-check), plan exponent 2.35 (egg, not
+    // squircle), one central face-plate plateau the window is cut through, skirt overhang at
+    // the widest band, no rearward crown drift. The S1 drawing's vertical flank band — the
+    // sheet with its own 4-7% disagreement — is overturned; the instruments were rebuilt with
+    // the geometry (tight face sampler, local wall steps). Player accepted the in-game render
+    // ("jest git") before this bless.
+    //
+    // Re-recorded 2026-07-29 for PILOT MODULE 2 — the window MEASURED: ~0.50 m wide (dead-front
+    // reference, turret width 2.25 in frame; barrel-diameter cross-check), not the first
+    // build's eyeballed 0.85 m letterbox. Panel 0.45 x 0.37 pillow, window bump 0.172 rad,
+    // aperture unchanged at the documented 0.40. Every proportion lock re-anchored to the
+    // measured numbers in the same commit.
+    // Previous: 0x3eb2_aca8_62f7_7ceb (pilot module 1, the photo-derived egg);
+    //           0xa921_f937_ea70_c698 (the gun window rebuild);
+    //           0xadf8_2d0f_e2d8_f8be (PR-26b, the crew's mechanics);
+    //           0x6af9_ab6d_876a_8099 (PR-26a, the exterior mechanics);
+    //           0xe9ce_9c05_6f0b_f9df (PR-19, the fittings);
+    //           0x7108_fd58_f651_b2c3 (PR-18, the belt at 90 x 137);
+    //           0xef40_8214_00ae_a9e4 (PR-17, the mantlet goes inside);
+    //           0x8f18_a4aa_f291_5175 (PR-16, the cupola at 624);
+    //           0xf490_f9f1_fe07_3049 (PR-14, the hull at 6.235);
+    //           0x903d_b868_b9bf_e617 (PR-25, a muzzle is a hole).
+    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0x0a07_5ae1_b4fd_f995;
+    let baked = t54_description().build();
+    assert_eq!(
+        baked.deterministic_hash(),
+        GOLDEN_HYBRID_LOD0_HASH,
+        "the shipped T-54 hybrid bake drifted from its recorded golden (got 0x{:016x}) — if the \
+         change is intended, re-record this constant in the same commit that makes it",
+        baked.deterministic_hash()
+    );
+}
+
 #[test]
 fn the_hybrid_reduces_through_lod_tiers_within_tiered_budgets() {
     // Per-LOD budgets (the plan's tiered budgets): each tier first drops the parts its policy
@@ -209,8 +303,11 @@ fn higher_lods_drop_detail_parts_but_keep_silhouette_and_mounts() {
 }
 
 #[test]
-fn swapping_the_gun_module_changes_the_barrel_geometry() {
-    // Visual modularity: a different gun module rebuilds a different barrel, end to end.
+fn both_d10_barrels_are_the_same_tube_and_the_mechanism_still_rebuilds_them() {
+    // Honesty, not modularity theatre: the D-10T and D-10T2S are ONE physical tube (5350 mm
+    // monobloc, L/53.5). They differ in the breech, the stabilizer and the fume extractor —
+    // things this silhouette does not carry — so a T-54 must NOT grow a longer gun when the
+    // upgrade is installed. This test used to assert the opposite (5.0 vs 5.9 m).
     let kind = VehicleKind::T54_1951;
     let muzzle_z = |gun: game_core::GunModule| {
         let mut loadout = kind.default_loadout();
@@ -226,16 +323,22 @@ fn swapping_the_gun_module_changes_the_barrel_geometry() {
             .z
     };
     let opts = kind.gun_options();
-    let short = opts
-        .iter()
-        .cloned()
-        .reduce(|a, b| if a.barrel_length_m() <= b.barrel_length_m() { a } else { b })
-        .unwrap();
-    let long = opts
-        .iter()
-        .cloned()
-        .reduce(|a, b| if a.barrel_length_m() >= b.barrel_length_m() { a } else { b })
-        .unwrap();
-    assert!(long.barrel_length_m() > short.barrel_length_m(), "the T-54 has two gun lengths");
-    assert!(muzzle_z(long) > muzzle_z(short), "the longer gun module makes a longer barrel");
+    assert!(opts.len() >= 2, "the T-54 fields both D-10 variants");
+    let lengths: Vec<f32> = opts.iter().map(|gun| gun.barrel_length_m()).collect();
+    for length in &lengths {
+        assert!(
+            (length - 5.35).abs() < 0.01,
+            "every D-10 variant carries the documented 5.35 m tube, got {length}"
+        );
+    }
+    // The barrel is still REBUILT from the installed module (not a post-bake scale): same
+    // length in, same muzzle out, to the millimetre.
+    let reach: Vec<f32> = opts.iter().cloned().map(muzzle_z).collect();
+    for pair in reach.windows(2) {
+        assert!(
+            (pair[0] - pair[1]).abs() < 0.001,
+            "equal tubes must reach the same muzzle: {:?}",
+            reach
+        );
+    }
 }

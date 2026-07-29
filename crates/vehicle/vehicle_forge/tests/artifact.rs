@@ -49,7 +49,16 @@ fn forge_artifact_manifest_names_the_baked_vehicle_profile_and_sources() {
     let signals: Vec<&str> = surface_bake.signals().iter().map(String::as_str).collect();
     assert_eq!(
         signals,
-        ["turret_ring_seam", "mantlet_seat", "running_gear_recess", "engine_grille", "glacis_weld"]
+        [
+            "turret_ring_seam",
+            "mantlet_seat",
+            "running_gear_recess",
+            "engine_grille",
+            // The bore: a gun muzzle is the deepest recess on the vehicle, and it used to be lit
+            // exactly like the tube around it (PR-25).
+            "gun_bore",
+            "glacis_weld",
+        ]
     );
     assert!(surface_bake.config_hash() != 0, "the cavity config hash must identify the bake");
 }
@@ -256,7 +265,14 @@ fn t54_source_hash_reacts_to_cast_loft_inputs() {
         CastSection::symmetric(0.2, 0.90, 0.96, -0.02, 2.8),
         CastSection::symmetric(0.5, 0.50, 0.60, -0.06, 2.8),
     ];
-    let bump = CastBump { azimuth: 0.0, az_width: 0.4, y: 0.2, y_width: 0.2, amount: 0.12 };
+    let bump = CastBump {
+        azimuth: 0.0,
+        az_width: 0.4,
+        y: 0.2,
+        y_width: 0.2,
+        amount: 0.12,
+        falloff_exponent: 2.0,
+    };
     let planar = CastCaps { bottom: CastCap::Planar, top: CastCap::Planar };
 
     let hash = |sections: &[CastSection], bumps: &[CastBump], caps, material| {

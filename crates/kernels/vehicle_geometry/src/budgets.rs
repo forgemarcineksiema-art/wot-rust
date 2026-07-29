@@ -24,6 +24,47 @@ pub const VEHICLE_BUDGETS: VehicleBudgets = VehicleBudgets {
     vehicle_vert_max: 11_000,
 };
 
+/// What the instanced RUNNING GEAR is allowed to cost, per vehicle, per detail tier.
+///
+/// `VEHICLE_BUDGETS` above bounds the static bake and says plainly that the gear is excluded —
+/// correct for what it guards, and it meant the largest single body of geometry on a vehicle had
+/// no ceiling at all. A T-54 draws 38.6k gear triangles across 204 instances: more than twice its
+/// whole static bake, and until now nothing could tell you if that number grew.
+///
+/// Two ceilings, because a distance tier that saves nothing is a rename. `far_tri_max` is not
+/// just "smaller"; the ratio between the two is what makes the tier worth its complexity, and
+/// `FAR_MUST_SAVE_FRACTION` states the minimum it has to earn.
+#[derive(Debug, Clone, Copy)]
+pub struct GearBudgets {
+    /// Triangles the gear may draw at [`crate::GearDetail::Near`], per vehicle.
+    pub near_tri_max: usize,
+    /// Triangles at [`crate::GearDetail::Far`], per vehicle.
+    pub far_tri_max: usize,
+    /// Draw instances per vehicle, either tier (the tier changes meshes, never placements).
+    pub instances_max: usize,
+}
+
+/// Recorded 2026-07-29 (PR-21), with the fleet's worst vehicle at each line and a hand of
+/// headroom for the construction work W4 is about to do:
+///
+/// | vehicle | near | far | saved |
+/// |---|---:|---:|---:|
+/// | T-54 | 38,568 | 15,092 | 61% |
+/// | IS-3 | 38,448 | 15,448 | 60% |
+/// | Jagdtiger | 26,392 | 13,788 | 48% |
+/// | T-34-85 | 19,800 | 9,420 | 52% |
+///
+/// The near ceiling is deliberately close to today's worst. W4 adds real construction to these
+/// parts (OMSh hinge eyes, twin tyres, sprocket engagement) and it must PAY for it — PR-22 alone
+/// removes 11,520 triangles per tank that are currently buried inside the link's backing slab and
+/// render nothing.
+pub const GEAR_BUDGETS: GearBudgets =
+    GearBudgets { near_tri_max: 40_000, far_tri_max: 17_000, instances_max: 260 };
+
+/// The distance tier must remove at least this share of the gear's triangles, or it is not
+/// earning the second mesh set it costs to keep.
+pub const FAR_MUST_SAVE_FRACTION: f32 = 0.40;
+
 /// Golden procedural bake hashes. Re-record only after an intentional geometry change and visual
 /// review. The 2026-07-18 fleet re-record removes the fused track band from every blueprint hull;
 /// its overlap skin now rides in the animated link mesh and therefore does not affect these hashes.
@@ -46,7 +87,19 @@ pub const VEHICLE_BUDGETS: VehicleBudgets = VehicleBudgets {
 /// and the running gear itself is instanced, so no other row changes.
 pub const GOLDEN_BAKE_HASHES: [(VehicleKind, u64); 9] = [
     (VehicleKind::PrototypeMedium, 17_689_896_064_511_691_746_u64),
-    (VehicleKind::T54_1951, 1_352_245_318_290_454_355_u64),
+    // Re-recorded 2026-07-29 (PR-14, the hull at its documented length): the T-54's hull grows
+    // from 6.00 m to 6.235 and its belly from 0.440 to the documented 0.425 clearance. The
+    // legacy recipe reads the same `HullShape` the shipping hybrid does, so it moves with it —
+    // again in PR-15 for the 2.40 m turret roof and its 2.363 m plan, and in PR-16 for the
+    // documented ⌀624 cupola, and in PR-17 for the narrow gun aperture that replaces the
+    // external ball mantlet, and in PR-18 for the documented 580 mm belt on the 2.640 m
+    // gauge. T-54 only.
+    // Previous: 4_449_583_882_369_858_906 (PR-17, the aperture);
+    //           12_248_531_318_198_965_275 (PR-16, the cupola);
+    //           4_620_056_473_903_640_451 (PR-15, the dome);
+    //           1_895_447_275_523_063_518 (PR-14, the hull at 6.235);
+    //           3_638_672_634_192_500_695 (PR-06, one-slope-one-truth).
+    (VehicleKind::T54_1951, 10_764_434_940_917_887_702_u64),
     // Re-recorded 2026-07-26 for the Tiger I model-logic review: the 3.705 m beam moves onto the
     // 725 mm combat tracks (the sponsons were carrying it, with the belts hiding inside them), the
     // turret roof returns to its documented 2.885 m with an authored drum, the cupola opens to
@@ -57,7 +110,11 @@ pub const GOLDEN_BAKE_HASHES: [(VehicleKind, u64); 9] = [
     // crewed roof, six-shoe racks and hull-flank stowage. Jagdtiger only — the rest of the fleet
     // is byte-identical, which is the check that `plan_front_pad` defaults to no-op.
     (VehicleKind::Jagdtiger, 5_983_034_482_053_846_612_u64),
-    (VehicleKind::PantherII, 2_837_722_706_443_665_062_u64),
+    // Re-recorded 2026-07-29 (PR-06): the Panther II turret face and rear carried two angles
+    // each (11 vs 20, 25 vs 20). The dossier states 20 deg for both, three times over, so the
+    // SHAPE moves onto the armour's numbers — a real silhouette change (roof plan narrows) and
+    // a real gameplay change (9 deg more slope on the face, 5 less at the rear). Panther II only.
+    (VehicleKind::PantherII, 7_506_679_536_634_783_988_u64),
     (VehicleKind::IS3, 764_441_410_926_956_128_u64),
     (VehicleKind::Centurion, 15_818_076_589_286_630_709_u64),
     (VehicleKind::T34_85, 10_310_688_321_347_204_439_u64),

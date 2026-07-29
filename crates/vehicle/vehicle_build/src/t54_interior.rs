@@ -11,6 +11,10 @@ use vehicle_geometry::{GeometryMesh, GeometryVertex, MaterialRole, SmoothingGrou
 
 use crate::part::{GeneratorKind, PartKey, PartLod, PartShape, VehiclePart};
 
+/// The hull side armour, as the armour module catalog documents it: 80 mm vertical plates.
+/// The interior lives in what is left after the steel takes its share.
+const SIDE_ARMOR_M: f32 = 0.080;
+
 pub(crate) fn t54_interior_parts() -> Vec<VehiclePart> {
     let spec = VehicleKind::T54_1951.spec();
     let blueprint = VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("T-54 blueprint");
@@ -38,12 +42,22 @@ pub(crate) fn t54_interior_parts() -> Vec<VehiclePart> {
 
     // Inner painted envelope and the fighting/engine bulkhead. These thin shells sit inside the
     // real armor and are cut by the same analytic aperture depth as the exterior skin.
+    //
+    // The side liners READ THE HULL now. They were authored at a literal ±1.12 — a relic of a
+    // hull this vehicle has not had since it became the narrow box: the walls of the painted
+    // interior stood 90 mm OUTSIDE the armour they are painted on, and the 2026-07-29 interior
+    // audit found their faces out at |x| 1.145, in the fender band. The floor and bulkheads
+    // carried the matching 0.98 half-width, buried 30 mm into the side plates. Everything spans
+    // the space the blueprint's tub and its 80 mm side armour actually leave.
+    let wall_inner = blueprint.hull.half_width - SIDE_ARMOR_M;
+    let liner_x = wall_inner - 0.030;
+    let clear_half = liner_x - 0.025;
     for (index, (center, half)) in [
-        (Vec3::new(0.0, center_y - 0.63, 0.0), Vec3::new(0.98, 0.025, 2.20)),
-        (Vec3::new(-1.12, center_y - 0.18, 0.0), Vec3::new(0.025, 0.42, 2.20)),
-        (Vec3::new(1.12, center_y - 0.18, 0.0), Vec3::new(0.025, 0.42, 2.20)),
-        (Vec3::new(0.0, center_y - 0.18, 2.22), Vec3::new(0.98, 0.42, 0.025)),
-        (Vec3::new(0.0, center_y - 0.18, -1.02), Vec3::new(0.98, 0.42, 0.035)),
+        (Vec3::new(0.0, center_y - 0.63, 0.0), Vec3::new(clear_half, 0.025, 2.20)),
+        (Vec3::new(-liner_x, center_y - 0.18, 0.0), Vec3::new(0.025, 0.42, 2.20)),
+        (Vec3::new(liner_x, center_y - 0.18, 0.0), Vec3::new(0.025, 0.42, 2.20)),
+        (Vec3::new(0.0, center_y - 0.18, 2.22), Vec3::new(clear_half, 0.42, 0.025)),
+        (Vec3::new(0.0, center_y - 0.18, -1.02), Vec3::new(clear_half, 0.42, 0.035)),
     ]
     .into_iter()
     .enumerate()

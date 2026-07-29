@@ -101,6 +101,8 @@ fn tank_segment_hit(
         impact_angle_degrees,
         hit_position,
         plate_normal: normal,
+        // The legacy band path has no per-plate geometry: the zone's facet IS the plate.
+        thickness_scale: 1.0,
     })
 }
 
@@ -180,5 +182,12 @@ fn armor_volume_hit(
         impact_angle_degrees,
         hit_position: previous.lerp(current, entry.t) - normal * radius_m,
         plate_normal: normal,
+        // A weakspot patch (the mantlet ball) resolves as its OWN zone, with its own derived
+        // plate — the carrier sector's taper does not apply to it.
+        thickness_scale: if zone == entry.plane.zone {
+            entry.plane.thickness_scale.unwrap_or(1.0)
+        } else {
+            1.0
+        },
     })
 }

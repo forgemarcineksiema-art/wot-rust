@@ -111,3 +111,29 @@ fn an_open_four_plane_prism_is_unbounded() {
     ]);
     assert_eq!(mesh(&prism), Err(ConvexSolidError::Unbounded));
 }
+
+/// A zero chamfer means "no chamfer", not "fail". The chamfer planes would otherwise pass
+/// exactly through the box edges, leaving two-corner face rings that `to_mesh` rejects —
+/// so a caller sweeping the parameter to zero used to get `DegenerateFace` instead of a box.
+#[test]
+fn a_zero_chamfer_degrades_to_a_plain_box_instead_of_failing() {
+    let center = Vec3::new(0.2, 1.1, -0.4);
+    let half = Vec3::new(0.30, 0.22, 0.14);
+    let plain = mesh(&ConvexSolid::box_at(center, half));
+    for chamfer in [0.0, 1.0e-6, 1.0e-4] {
+        let built = mesh(&solid::chamfered_box(center, half, chamfer))
+            .expect("a chamfer of zero is a plain box, not an error");
+        let plain = plain.as_ref().expect("the reference box builds");
+        assert_eq!(
+            built.triangle_count(),
+            plain.triangle_count(),
+            "chamfer {chamfer} must produce exactly the plain box"
+        );
+    }
+    // A real chamfer still cuts corners — the degradation is only for sub-epsilon values.
+    let chamfered = mesh(&solid::chamfered_box(center, half, 0.03)).expect("a real chamfer builds");
+    assert!(
+        chamfered.triangle_count() > plain.as_ref().unwrap().triangle_count(),
+        "a genuine chamfer adds faces"
+    );
+}

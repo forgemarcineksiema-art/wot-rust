@@ -81,6 +81,7 @@ pub fn louvre_slats(
     height: f32,
     depth: f32,
     count: u32,
+    rake_rad: f32,
 ) -> GeometryMesh {
     let n = normal.normalize_or_zero();
     let n = if n == Vec3::ZERO { Vec3::Y } else { n };
@@ -92,18 +93,31 @@ pub fn louvre_slats(
     let half_w = width * 0.5;
     let half_slat = pitch * 0.35;
 
+    // The RAKE. A louvre is a plate tilted across the opening: that tilt is what lets air out
+    // while keeping a downward view of the engine bay closed, and it is what makes the slats read
+    // as a grille rather than as a ladder painted on a hole. The slats here were axis-aligned
+    // boxes — flat — so the primitive named for real louvres did not make them.
+    let (sin_rake, cos_rake) = rake_rad.sin_cos();
+    let slat_up = up * cos_rake + n * sin_rake;
+    let slat_out = n * cos_rake - up * sin_rake;
+
     let mut box_meshes = Vec::with_capacity(count as usize);
     for i in 0..count {
         let t = (i as f32 + 0.5) / count as f32 - 0.5;
         let slat_center = center + up * (t * height) + n * (depth * 0.5);
-        box_meshes.push(slat_box(slat_center, across * half_w, up * half_slat, n * (depth * 0.5)));
+        box_meshes.push(plate_box(
+            slat_center,
+            across * half_w,
+            slat_up * half_slat,
+            slat_out * (depth * 0.5),
+        ));
     }
     revolve::merge(&box_meshes).weld_and_smooth()
 }
 
 /// A hard-edged box centred at `c` with half-axes `du`, `dv`, `dw`. Each face authors its own
 /// geometric normal so the welder keeps the corners crisp instead of rounding them.
-fn slat_box(c: Vec3, du: Vec3, dv: Vec3, dw: Vec3) -> GeometryMesh {
+pub(crate) fn plate_box(c: Vec3, du: Vec3, dv: Vec3, dw: Vec3) -> GeometryMesh {
     let mut vertices = Vec::with_capacity(24);
     let mut indices = Vec::with_capacity(36);
     // (sign axis, in-plane half-axes) per face, wound CCW seen from outside.
@@ -194,10 +208,30 @@ mod tests {
 
     #[test]
     fn a_louvre_array_is_clean_and_spans_its_panel() {
-        let mesh = louvre_slats(Vec3::ZERO, Vec3::Y, 0.6, 0.4, 0.02, 4);
+        let mesh = louvre_slats(Vec3::ZERO, Vec3::Y, 0.6, 0.4, 0.02, 4, 0.0);
         let b = mesh.bounds().expect("louvre bounds");
         assert!(b.max.y > 0.0, "slats stand proud along +Y");
         assert!((b.max.x - 0.3).abs() < 0.02 && (b.min.x + 0.3).abs() < 0.02, "spans the width");
         mesh.validate_quality(vehicle_geometry::OPEN_OR_CLOSED_MESH).expect("clean louvre array");
+    }
+
+    /// The rake is the whole point of the primitive, so it gets its own lock: a raked array is
+    /// DEEPER along its own normal than a flat one of the same slats, because each plate now
+    /// leans across the opening instead of lying square to it.
+    #[test]
+    fn a_raked_louvre_leans_across_its_opening() {
+        let flat = louvre_slats(Vec3::ZERO, Vec3::Y, 0.6, 0.4, 0.02, 4, 0.0);
+        let raked = louvre_slats(Vec3::ZERO, Vec3::Y, 0.6, 0.4, 0.02, 4, 0.6);
+        let depth = |mesh: &GeometryMesh| {
+            let b = mesh.bounds().expect("bounds");
+            b.max.y - b.min.y
+        };
+        assert!(
+            depth(&raked) > depth(&flat) * 1.5,
+            "a leaning plate reaches further across the opening: {:.4} vs {:.4}",
+            depth(&raked),
+            depth(&flat)
+        );
+        raked.validate_quality(vehicle_geometry::OPEN_OR_CLOSED_MESH).expect("clean raked array");
     }
 }

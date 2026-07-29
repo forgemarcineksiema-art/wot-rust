@@ -12,7 +12,7 @@ use crate::part::{GeneratorKind, PartKey, PartLod, PartShape, VehiclePart};
 use crate::t54_details::detail_plate;
 
 /// Every kit part: fender stowage, sloping fender ends, splash board, turret rails, tow cables.
-pub fn t54_kit_parts(v: &HybridVisual) -> Vec<VehiclePart> {
+pub fn t54_kit_parts(v: &HybridVisual, glacis_deg: f32) -> Vec<VehiclePart> {
     let mut parts = Vec::new();
     parts.extend(fender_stowage(&v.fender));
     for (i, side) in [v.fender.side_x, -v.fender.side_x].into_iter().enumerate() {
@@ -26,7 +26,7 @@ pub fn t54_kit_parts(v: &HybridVisual) -> Vec<VehiclePart> {
         }
     }
     // Line-work: splash board, turret rails, tow cables, the unditching beam, the travel lock.
-    parts.extend(crate::t54_kit_lines::t54_line_kit_parts(v));
+    parts.extend(crate::t54_kit_lines::t54_line_kit_parts(v, glacis_deg));
     parts
 }
 
@@ -37,11 +37,15 @@ pub fn t54_kit_parts(v: &HybridVisual) -> Vec<VehiclePart> {
 fn fender_stowage(fender: &FenderVisual) -> Vec<VehiclePart> {
     let base = fender.center_y + fender.half.y + 0.005;
     // (side, key, z centre, half length, half height)
+    // The asymmetry IS the recognition feature (register M7): the RIGHT shelf carries two flat
+    // rectangular external fuel tanks with stowage fore and aft of them; the LEFT carries three
+    // stowage bins and the exhaust cover (placed by `t54_details`). The model had three tanks on
+    // the right, which is a later fit — obr. 1951 is two.
     let boxes: [(f32, &str, f32, f32, f32); 8] = [
         (1.0, "stowage_bin", 2.15, 0.28, 0.15),
         (1.0, "fuel_tank", 1.05, 0.42, 0.13),
         (1.0, "fuel_tank", -0.15, 0.42, 0.13),
-        (1.0, "fuel_tank", -1.35, 0.40, 0.13),
+        (1.0, "stowage_bin", -1.35, 0.40, 0.14),
         (1.0, "stowage_bin", -2.35, 0.28, 0.14),
         (-1.0, "stowage_bin", 1.95, 0.40, 0.15),
         (-1.0, "stowage_bin", 0.55, 0.35, 0.14),
@@ -49,7 +53,9 @@ fn fender_stowage(fender: &FenderVisual) -> Vec<VehiclePart> {
     ];
     let mut parts = Vec::new();
     for (i, &(side, key, z, half_z, half_y)) in boxes.iter().enumerate() {
-        let center = Vec3::new(side * 1.34, base + half_y, z);
+        // Centred on the SHELF, not on a copy of where the shelf used to be. This was a
+        // literal 1.34 beside a fender that has since moved with the documented track gauge.
+        let center = Vec3::new(side * fender.side_x, base + half_y, z);
         let half = Vec3::new(0.27, half_y, half_z);
         parts.push(detail_plate(
             PartKey::indexed(key, i as u16),

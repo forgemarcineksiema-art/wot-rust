@@ -51,7 +51,28 @@ pub enum RevolveError {
     CoincidentPoints,
     #[error("segments must be at least 3")]
     TooFewSegments,
+    #[error(
+        "profile point {index} has radius {radius} — a positive radius below {MIN_RING_RADIUS_M} m \
+         is not geometry, it is noise that the weld grid collapses into a point"
+    )]
+    DegenerateRadius { index: usize, radius: f32 },
+    #[error(
+        "profile point {index} (radius {radius}) revolved into {segments} segments gives a \
+         {chord} m chord — below the weld grid, so the ring collapses to a point and the fan \
+         around it degenerates"
+    )]
+    RingCollapsesUnderWeld { index: usize, radius: f32, segments: usize, chord: f32 },
 }
+
+/// The smallest ring a revolve may produce. `vehicle_geometry`'s weld snaps positions to a
+/// 1/4096 m grid (~0.24 mm); anything finer is not a feature, it is float noise wearing a
+/// radius. Zero stays legal — that is an apex, and the kernel caps it deliberately.
+pub const MIN_RING_RADIUS_M: f32 = 1.0e-3;
+
+/// Weld grid step (`vehicle_geometry::weld`, 1/4096 m). Duplicated as a constant rather than
+/// imported so this crate keeps validating even if the weld moves; the test below pins them
+/// together.
+const WELD_GRID_M: f32 = 1.0 / 4096.0;
 
 impl RevolveProfile {
     pub fn new(points: Vec<ProfilePoint>, caps: RevolveCaps) -> Self {
@@ -83,6 +104,14 @@ impl RevolveProfile {
             }
             if p.radius < 0.0 {
                 return Err(RevolveError::NegativeRadius);
+            }
+            // A radius of exactly 0 is an apex — legal, and capped deliberately. A radius that
+            // is positive but finer than the weld grid is the silent-garbage case: validation
+            // passed, then the weld fused the whole ring into one vertex while the fan kept
+            // referencing it as a ring, leaving degenerate triangles and non-manifold edges in
+            // a mesh that had "passed" its contract.
+            if p.radius > 0.0 && p.radius < MIN_RING_RADIUS_M {
+                return Err(RevolveError::DegenerateRadius { index, radius: p.radius });
             }
         }
         for pair in self.points.windows(2) {
@@ -126,5 +155,22 @@ pub fn try_revolve(
         return Err(RevolveError::TooFewSegments);
     }
     profile.validate()?;
+    // Even a legal radius collapses if it is cut into enough segments: adjacent ring vertices
+    // sit `2·r·sin(π/n)` apart, and below the weld grid they fuse. This is the same defect as
+    // `DegenerateRadius`, reached from the other direction (fine tessellation, not a tiny part).
+    for (index, point) in profile.points.iter().enumerate() {
+        if point.radius <= 0.0 {
+            continue;
+        }
+        let chord = 2.0 * point.radius * (std::f32::consts::PI / segments as f32).sin();
+        if chord < WELD_GRID_M {
+            return Err(RevolveError::RingCollapsesUnderWeld {
+                index,
+                radius: point.radius,
+                segments,
+                chord,
+            });
+        }
+    }
     Ok(revolve(axis, &profile.rings(), segments, material, smoothing))
 }

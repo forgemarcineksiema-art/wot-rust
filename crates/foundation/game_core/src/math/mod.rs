@@ -153,6 +153,16 @@ pub fn world_to_tank_local(
     basis.transpose() * (position - center)
 }
 
+/// Superellipse coordinate: `sign(c) * |c|^e`, where `e = 2 / exponent`.
+///
+/// A cast turret's cross-section is a superellipse, and TWO parts of the project have to agree
+/// about what that means: the `cast_loft` kernel that skins the visible casting, and the armour
+/// volume that a shell is resolved against (`TurretLoftVisual::support`). Two copies of this
+/// three-line function would be two definitions of the same steel, so it lives here.
+pub fn superlerp(c: f32, e: f32) -> f32 {
+    c.signum() * c.abs().powf(e)
+}
+
 /// Wrap an angle into the half-open range `(-PI, PI]`.
 pub fn wrap_angle(radians: f32) -> f32 {
     let wrapped = radians.rem_euclid(std::f32::consts::TAU);

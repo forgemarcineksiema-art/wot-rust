@@ -35,36 +35,60 @@ fn tiger_ii_dish_face_normals_stay_axial_across_the_whole_plate() {
     );
 }
 
+/// A tyre is a band pressed onto the rim, so it is CLOSED on its inner face. An open revolve
+/// would show its hollow interior through the gap between the discs.
+///
+/// The Soviet twin-disc wheels are two separate bands with a real axial slot between them (the
+/// horn's road), so each band answers for itself — a single triangle spanning the whole wheel
+/// width, which this test used to demand, is exactly what a twin-tyre wheel must NOT have.
 #[test]
-fn road_wheel_tires_have_an_inner_wall_instead_of_an_open_hollow_ring() {
-    for (kind, material, inner_radius_ratio) in [
-        (VehicleKind::TigerII, MaterialRole::TrackMetal, 0.86_f32),
-        (VehicleKind::Centurion, MaterialRole::Rubber, 0.86_f32),
-        (VehicleKind::T54_1951, MaterialRole::Rubber, 0.86_f32),
+fn every_road_wheel_tyre_band_is_closed_on_its_inner_face() {
+    for (kind, material) in [
+        (VehicleKind::TigerII, MaterialRole::TrackMetal),
+        (VehicleKind::Centurion, MaterialRole::Rubber),
+        (VehicleKind::T54_1951, MaterialRole::Rubber),
     ] {
         let kin = RunningGearKinematics::for_vehicle(kind).expect("vehicle has running gear");
         let wheel = road_wheel_unit_mesh(&kin);
-        let expected_radius = kin.wheel_radius * inner_radius_ratio;
-        let closes_hollow_ring = wheel.indices().chunks_exact(3).any(|triangle| {
-            let vertices: Vec<_> =
-                triangle.iter().map(|&index| &wheel.vertices()[index as usize]).collect();
-            let all_on_inner_wall = vertices.iter().all(|vertex| {
-                let radius = vertex.position.y.hypot(vertex.position.z);
-                vertex.material == material && (radius - expected_radius).abs() <= 1.0e-4
-            });
-            let min_x =
-                vertices.iter().map(|vertex| vertex.position.x).fold(f32::INFINITY, f32::min);
-            let max_x =
-                vertices.iter().map(|vertex| vertex.position.x).fold(f32::NEG_INFINITY, f32::max);
-            all_on_inner_wall
-                && min_x <= -kin.wheel_half_width * 0.90
-                && max_x >= kin.wheel_half_width * 0.90
-        });
+        let expected_radius = kin.wheel_radius * 0.86;
+        let gap_half = kin.tyre_gap_half();
 
-        assert!(
-            closes_hollow_ring,
-            "{kind:?} tire must have an inner cylindrical wall; an open revolve ring exposes its hollow interior"
-        );
+        // Each band's own span: one band across the wheel when there is no slot, two when there
+        // is. A band is closed when a triangle lies wholly on the inner wall and spans it.
+        let bands: Vec<(f32, f32)> = if gap_half > 0.0 {
+            vec![(-kin.wheel_half_width, -gap_half), (gap_half, kin.wheel_half_width)]
+        } else {
+            vec![(-kin.wheel_half_width, kin.wheel_half_width)]
+        };
+        for (x0, x1) in bands {
+            let closed = wheel.indices().chunks_exact(3).any(|triangle| {
+                let vertices: Vec<_> =
+                    triangle.iter().map(|&index| &wheel.vertices()[index as usize]).collect();
+                let on_inner_wall = vertices.iter().all(|vertex| {
+                    let radius = vertex.position.y.hypot(vertex.position.z);
+                    vertex.material == material && (radius - expected_radius).abs() <= 1.0e-4
+                });
+                let min_x = vertices.iter().map(|v| v.position.x).fold(f32::INFINITY, f32::min);
+                let max_x = vertices.iter().map(|v| v.position.x).fold(f32::NEG_INFINITY, f32::max);
+                let span = x1 - x0;
+                on_inner_wall && min_x <= x0 + span * 0.1 && max_x >= x1 - span * 0.1
+            });
+            assert!(
+                closed,
+                "{kind:?}: the tyre band from {x0:.3} to {x1:.3} has no inner wall — an open                  revolve ring shows its hollow interior, and on a twin-disc wheel it shows it                  through the slot the guide horn rides in"
+            );
+        }
+
+        // And the slot is REAL: on a twin-disc wheel no rubber crosses the centreline.
+        if gap_half > 0.0 {
+            let rubber_in_the_slot = wheel.vertices().iter().any(|vertex| {
+                vertex.material == MaterialRole::Rubber && vertex.position.x.abs() < gap_half * 0.9
+            });
+            assert!(
+                !rubber_in_the_slot,
+                "{kind:?}: rubber crosses the slot between the tyres — that is a grooved single                  tyre pretending to be a pair, and the guide horn has nowhere to go"
+            );
+        }
     }
 }
 
@@ -104,13 +128,6 @@ fn count(placements: &[vehicle_geometry::GearPlacement], part: GearPart) -> usiz
 
 fn mats_close(a: Mat4, b: Mat4) -> bool {
     a.to_cols_array().iter().zip(b.to_cols_array()).all(|(x, y)| (x - y).abs() < 1.0e-3)
-}
-
-fn transformed_min_y(mesh: &GeometryMesh, transform: Mat4) -> f32 {
-    mesh.vertices()
-        .iter()
-        .map(|vertex| transform.transform_point3(vertex.position).y)
-        .fold(f32::INFINITY, f32::min)
 }
 
 fn rounded_axis_values(
@@ -334,34 +351,93 @@ fn t54_end_wrap_links_are_dense_around_idler_and_sprocket() {
     }
 }
 
+/// THE OMSh SHOE, CHECKED AGAINST WHAT AN OMSh SHOE IS.
+///
+/// The test this replaces promised "plate, horns and pin cues" and verified none of them. Its
+/// depth assertion was satisfied by the BACKING SKIN — the anti-strobe band under the shoe — so
+/// it passed for years on a link that had no guide horn at all, while its upper bound
+/// (`min.y > -0.075`) actively forbade one. A test that forbids the part it is named after is
+/// worse than no test.
+///
+/// What an OMSh link has (dossier "Part construction", S1b): one guide horn on every shoe from
+/// September 1949, standing up into the gap between the road wheel's twin tyres; a barrel of
+/// hinge eyes at each joint — the цевка the sprocket tooth bears on; a floating pin whose ends
+/// stop about 30 mm inboard of the belt edges, so no pin heads show from outside; and stiffening
+/// ribs on the ground face.
 #[test]
-fn t54_track_link_mesh_has_omsh_plate_horns_and_pin_cues() {
+fn t54_track_link_mesh_is_a_horned_omsh_shoe() {
     let kin = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951).expect("T-54 gear");
     let mesh = track_link_unit_mesh(&kin);
     let bounds = mesh.bounds().expect("link bounds");
-
-    assert!(
-        mesh.triangle_count() >= 48,
-        "OMSh-style link needs plate, guide horns, and pin cues; got {} triangles",
-        mesh.triangle_count()
-    );
     assert!(mesh.vertices().iter().all(|v| v.material == MaterialRole::TrackMetal));
+
+    // The plate spans the belt band: the documented width over tracks.
     assert!(
         bounds.max.x - bounds.min.x > kin.link_half_width * 2.4,
-        "link plate should read as a wide metal shoe across the side-to-side track width"
+        "the shoe plate reads as a wide metal shoe across the track width"
+    );
+
+    // THE HORN. Narrow enough to enter the slot between the twin tyres, and proud enough to be
+    // swallowed by it rather than to ride in a dent.
+    let gap_half = kin.tyre_gap_half();
+    assert!(gap_half > 0.0, "a Soviet twin-disc wheel has a slot for the horn to ride in");
+    let horn_depth = mesh
+        .vertices()
+        .iter()
+        .filter(|v| v.position.x.abs() <= gap_half)
+        .map(|v| v.position.y)
+        .fold(f32::INFINITY, f32::min);
+    let shoulder_depth = mesh
+        .vertices()
+        .iter()
+        .filter(|v| v.position.x.abs() > gap_half * 1.5)
+        .map(|v| v.position.y)
+        .fold(f32::INFINITY, f32::min);
+    assert!(
+        horn_depth < shoulder_depth - 0.020,
+        "the horn must stand proud of everything beside it: horn {horn_depth:.3} vs shoulder \
+         {shoulder_depth:.3}"
+    );
+    let slot_depth = kin.wheel_radius - kin.tyre_seat_radius();
+    assert!(
+        horn_depth >= shoulder_depth - slot_depth,
+        "the horn must fit the slot it rides in ({slot_depth:.3} m deep), not bottom out on the \
+         wheel: horn {horn_depth:.3}, shoulder {shoulder_depth:.3}"
+    );
+    let horn_width = mesh
+        .vertices()
+        .iter()
+        .filter(|v| v.position.y < shoulder_depth - 0.010)
+        .map(|v| v.position.x.abs())
+        .fold(0.0_f32, f32::max);
+    assert!(
+        horn_width <= gap_half,
+        "the horn must clear the tyres it runs between: {horn_width:.3} vs gap half {gap_half:.3}"
+    );
+
+    // THE PIN LINE. The pin floats and its ends stop inboard of the belt edges, so nothing of the
+    // hinge reaches the outer face — a shoe showing pin heads is a different track.
+    let joint_z = (kin.belt_length() / kin.link_count() as f32) * 0.47 * 0.80;
+    let widest_at_joint = mesh
+        .vertices()
+        .iter()
+        // Below the backing skin's face: at the joint, only the eye barrel is down there.
+        .filter(|v| v.position.z.abs() > joint_z && v.position.y < -0.055)
+        .map(|v| v.position.x.abs())
+        .fold(0.0_f32, f32::max);
+    assert!(
+        widest_at_joint < kin.band_half_width - 0.010,
+        "the hinge stops inboard of the belt edge ({widest_at_joint:.3} vs band \
+         {:.3}) — the pin does not show",
+        kin.band_half_width
     );
     assert!(
-        bounds.min.y < -0.035,
-        "inner guide horns should be visible below the flat shoe, bounds={bounds:?}"
+        widest_at_joint > kin.band_half_width * 0.5,
+        "but the eye barrel still runs most of the width: {widest_at_joint:.3}"
     );
-    assert!(
-        bounds.min.y > -0.075,
-        "guide horns must stay shallow; deep comb teeth hang through the top run and wheels, bounds={bounds:?}"
-    );
-    assert!(
-        bounds.max.y < 0.08,
-        "bottom run should stay flattened instead of becoming a round rubber tube"
-    );
+
+    // And the ground face stays a flattened shoe, not a round tube.
+    assert!(bounds.max.y < 0.08, "the bottom run is a flat shoe, not a rubber tube");
 }
 
 #[test]
@@ -402,23 +478,57 @@ fn every_animated_track_link_carries_an_overlapping_backing_skin() {
     }
 }
 
+/// The top run lies ON the road wheels, so nothing on a shoe may hang into one — with exactly
+/// one exception, which is the whole point of the shoe: the guide horn drops into the SLOT
+/// between the wheel's twin tyres. That is what keeps the belt on.
+///
+/// So the rule is measured in two pieces. Everything outside the slot clears the tread; the horn
+/// clears the seat the tyres are pressed onto. Before the horn existed the first piece was the
+/// whole test, and it quietly forbade the second.
 #[test]
-fn t54_top_track_links_clear_the_road_wheel_tops() {
+fn t54_top_track_links_ride_the_wheels_with_only_the_horn_in_the_slot() {
     let kin = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951).expect("T-54 gear");
     let link = track_link_unit_mesh(&kin);
-    let top_clearance_y = kin.cy + kin.wheel_radius - 0.075;
-    let min_top_link_y = running_gear_placements(&kin, 0.0, 0.0)
-        .iter()
+    let gap_half = kin.tyre_gap_half();
+    let tread_clearance_y = kin.cy + kin.wheel_radius - 0.075;
+    let seat_clearance_y = tread_clearance_y - (kin.wheel_radius - kin.tyre_seat_radius());
+
+    let top_links: Vec<_> = running_gear_placements(&kin, 0.0, 0.0)
+        .into_iter()
         .filter(|placement| placement.part == GearPart::Link)
         .filter(|placement| placement.transform.w_axis.x > 0.0)
         .filter(|placement| placement.transform.w_axis.y > kin.cy + kin.wheel_radius * 0.75)
         .filter(|placement| placement.transform.w_axis.z.abs() < kin.half_run * 0.70)
-        .map(|placement| transformed_min_y(&link, placement.transform))
-        .fold(f32::INFINITY, f32::min);
+        .collect();
+    assert!(!top_links.is_empty(), "the top run must have links on it");
+
+    let (mut shoulder_min, mut horn_min) = (f32::INFINITY, f32::INFINITY);
+    for placement in &top_links {
+        let centre_x = placement.transform.w_axis.x;
+        for vertex in link.vertices() {
+            let world = placement.transform.transform_point3(vertex.position);
+            // Inside the slot in the wheel's own frame: the belt plane is the wheel plane.
+            if (world.x - centre_x).abs() <= gap_half {
+                horn_min = horn_min.min(world.y);
+            } else {
+                shoulder_min = shoulder_min.min(world.y);
+            }
+        }
+    }
 
     assert!(
-        min_top_link_y >= top_clearance_y,
-        "top-run links must not hang down into the road wheels: min={min_top_link_y:.3}, clearance={top_clearance_y:.3}"
+        shoulder_min >= tread_clearance_y,
+        "the shoe body must ride ON the tread: min={shoulder_min:.3}, \
+         clearance={tread_clearance_y:.3}"
+    );
+    assert!(
+        horn_min >= seat_clearance_y,
+        "the horn must stay inside the slot, not grind on the wheel: min={horn_min:.3}, \
+         seat={seat_clearance_y:.3}"
+    );
+    assert!(
+        horn_min < shoulder_min,
+        "and it must actually be IN the slot: horn {horn_min:.3} vs shoe {shoulder_min:.3}"
     );
 }
 
@@ -538,5 +648,180 @@ fn t54_sprocket_is_visibly_toothed_while_idler_is_smooth() {
         idler_bounds.max.y <= kin.end_radius + 0.010
             && idler_bounds.max.z <= kin.end_radius + 0.010,
         "front idler must read as a smooth round wheel, not a toothed ring"
+    );
+}
+
+/// THE DRIVE SPROCKET ACTUALLY DRIVES.
+///
+/// Its teeth used to stop 32 mm short of the belt line: decoration passing near a track it never
+/// touched, on the one wheel whose entire job is to push it. Nothing caught that, because no test
+/// asked the two parts about each other.
+///
+/// What a tooth must do is reach the surface it bears on and stop there. On an OMSh belt that
+/// surface is the barrel of hinge eyes on the wheel side of each shoe — the цевка — and stopping
+/// at it is also what keeps the tooth out of the shoe plate, which rides further out on the wrap.
+/// Both parts read the stand-off from `hinge_eye_offset`, so this is one number, checked.
+#[test]
+fn sprocket_teeth_reach_the_hinge_eyes_they_bear_on() {
+    for kind in VehicleKind::PLAYABLE {
+        let kin = RunningGearKinematics::for_vehicle(kind).expect("gear");
+        let mesh = sprocket_unit_mesh(&kin);
+        let reach = mesh
+            .vertices()
+            .iter()
+            .map(|v| v.position.y.hypot(v.position.z))
+            .fold(0.0_f32, f32::max);
+
+        // Where the belt runs on the wrap, and where the eye barrel sits under it.
+        let belt_r = kin.end_radius + 0.02;
+        let eye_r = belt_r - kin.hinge_eye_offset();
+
+        assert!(
+            reach >= eye_r,
+            "{kind:?}: the teeth reach {reach:.3} m but the hinge eyes they drive are at              {eye_r:.3} m — this sprocket is not touching the track"
+        );
+        assert!(
+            reach <= belt_r - kin.hinge_eye_offset() * 0.30,
+            "{kind:?}: the teeth reach {reach:.3} m, past the eyes and into the shoe plate at              {belt_r:.3} m — a tooth through the shoe is not engagement"
+        );
+    }
+}
+
+/// The tooth count is not a style choice: a tooth must meet a link, so it is the number of link
+/// pitches around the wrap circle.
+///
+/// This test used to RECORD a debt rather than gate one. It asserted 14 — the modernised T-55 /
+/// Obj. 167 count — and said so: the belt ran a 142 mm pitch against the documented 137 and the
+/// wrap a 0.32 m radius against a 0.286 m pitch circle, so 14 was the honest consequence of a
+/// belt that was wrong, and asserting 13 would have put a sprocket on the tank that its own
+/// links did not fit.
+///
+/// PR-18 paid the debt at its source. Nobody typed 13 anywhere: the belt is 90 links of the
+/// documented 0.137 m and the wrap is the sprocket's documented ⌀572.4 pitch circle, and 13 is
+/// what those two produce. So the recorder becomes a lock, and it locks all three numbers —
+/// because a count asserted without the pitch and the circle under it would be a magic number
+/// again, just a correct one.
+#[test]
+fn the_t54_sprocket_meshes_the_belt_it_is_given() {
+    let kin = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951).expect("gear");
+    let pitch = kin.belt_length() / kin.link_count() as f32;
+    let wrap_r = kin.end_radius + 0.02;
+    let teeth = ((std::f32::consts::TAU * wrap_r) / pitch).round() as usize;
+    assert!(
+        (pitch - 0.137).abs() <= 0.001,
+        "the OMSh pitch is a documented 137 mm, got {pitch:.4} m over {} links",
+        kin.link_count()
+    );
+    assert!(
+        (wrap_r - 0.2862).abs() <= 0.002,
+        "the belt wraps the sprocket's documented 572.4 mm pitch circle, got r {wrap_r:.4}"
+    );
+    assert_eq!(teeth, 13, "the T-54's sprocket carries 13 teeth per ring; 14 is the T-55's wheel");
+}
+
+/// The idler is the TENSIONER. Its eccentric crank is the part that makes a thrown track a
+/// repair, and it is also how you tell the idler end of the tank from the drive end at a glance.
+#[test]
+fn the_idler_carries_its_tension_crank() {
+    let kin = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951).expect("gear");
+    let mesh = idler_unit_mesh(&kin);
+    let inboard_of_the_wheel =
+        mesh.vertices().iter().filter(|v| v.position.x < -kin.wheel_half_width * 1.2).count();
+    assert!(
+        inboard_of_the_wheel > 0,
+        "the tension crank must stand inboard of the idler disc, where the hull bearing is"
+    );
+    let below_the_axle = mesh
+        .vertices()
+        .iter()
+        .filter(|v| v.position.x < -kin.wheel_half_width * 1.2)
+        .map(|v| v.position.z.hypot(v.position.y))
+        .fold(0.0_f32, f32::max);
+    assert!(
+        below_the_axle > kin.end_radius * 0.35,
+        "the crank arm must reach out to its bearing, not sit on the axle: {below_the_axle:.3}"
+    );
+
+    // And its tyres are STEEL, not rubber (dossier: 510 mm cast wheel, steel tyres).
+    assert!(
+        mesh.vertices().iter().all(|v| v.material == MaterialRole::TrackMetal),
+        "the T-54 idler runs on steel tyres — rubber made it read as a second road wheel"
+    );
+}
+
+/// THE SUSPENSION IS THE VEHICLE'S, NOT THE FLEET'S.
+///
+/// A trailing arm's reach and rise decide where a wheel sits when the suspension works and how
+/// far it can travel — and they were two constants shared by every torsion-bar tank in the game,
+/// from a 36-tonne T-54 to a 70-tonne Tiger II. A suspension is one of the few things a tank is
+/// actually judged on. Its geometry belongs in the blueprint with everything else the vehicle is.
+#[test]
+fn every_swing_arm_reads_its_geometry_from_its_own_blueprint() {
+    for kind in VehicleKind::PLAYABLE {
+        let blueprint = game_core::VehicleBlueprint::for_vehicle(kind).expect("blueprint");
+        let kin = RunningGearKinematics::for_vehicle(kind).expect("gear");
+        assert_eq!(
+            kin.arm_reach,
+            blueprint.track.arm_reach(),
+            "{kind:?}: the arm must reach what its blueprint says"
+        );
+        assert_eq!(kin.arm_rise, blueprint.track.arm_rise());
+
+        // And the number actually drives the mesh: an arm authored longer IS longer.
+        let mut stretched = blueprint.track;
+        stretched.arm_reach_m = Some(blueprint.track.arm_reach() * 1.5);
+        let long = RunningGearKinematics::from_track(&stretched);
+        // How far the arm reaches from its pivot, measured in the plane it swings in. A
+        // bounding box is the wrong ruler here: the section rotates with the arm's own angle, so
+        // a box can shrink at one end while the axle moves further out.
+        let reach_from_pivot = |k: &RunningGearKinematics| {
+            swing_arm_unit_mesh(k)
+                .vertices()
+                .iter()
+                .map(|v| v.position.y.hypot(v.position.z))
+                .fold(0.0_f32, f32::max)
+        };
+        if kin.suspension != game_core::SuspensionKind::Horstmann {
+            assert!(
+                reach_from_pivot(&long) > reach_from_pivot(&kin) + 0.03,
+                "{kind:?}: authoring a longer arm must carry its axle further from the pivot                  ({:.3} vs {:.3})",
+                reach_from_pivot(&long),
+                reach_from_pivot(&kin)
+            );
+        }
+    }
+}
+
+/// A swing arm is a FORGING, not a slab. Its section is an I — thick at the flanges, waisted in
+/// the web — and it carries the torsion-bar hub at its pivot, which is the part that makes the
+/// mechanism legible: the bar twists inside that boss.
+#[test]
+fn the_torsion_arm_is_an_i_section_with_a_bar_hub() {
+    let kin = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951).expect("gear");
+    let mesh = swing_arm_unit_mesh(&kin);
+
+    // The section is not constant: sample the arm's thickness along its own length and require
+    // the flanges to stand proud of the web between them.
+    let thickness_at = |t: f32| {
+        let along = t * kin.arm_reach;
+        mesh.vertices()
+            .iter()
+            .filter(|v| (v.position.z + along).abs() < 0.020)
+            .map(|v| v.position.x.abs())
+            .fold(0.0_f32, f32::max)
+    };
+    let flange = thickness_at(0.05_f32);
+    let web = thickness_at(0.42_f32);
+    assert!(
+        flange > web + 0.004,
+        "the arm must be thicker at its flanges than in its web: {flange:.3} vs {web:.3} — a \
+         constant-thickness arm is a plate, not a forging"
+    );
+
+    // The torsion-bar hub stands INBOARD of the arm plate, where the bar runs across the floor.
+    let inboard = mesh.vertices().iter().map(|v| v.position.x).fold(f32::INFINITY, f32::min);
+    assert!(
+        inboard < -0.070,
+        "the torsion-bar boss must stand proud toward the hull: innermost {inboard:.3}"
     );
 }

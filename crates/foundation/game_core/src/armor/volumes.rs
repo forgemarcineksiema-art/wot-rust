@@ -26,16 +26,43 @@ pub struct TaggedPlane {
     pub offset: f32,
     pub zone: ArmorZone,
     pub patches: Vec<ArmorPatch>,
+    /// How thick this plate is RELATIVE to its zone's facet (1.0 = exactly the facet).
+    ///
+    /// A zone is a six-bucket abstraction: "turret side" is one number for a casting whose wall
+    /// runs 160 mm behind the cheeks and 65 mm at the rear. The dome is already swept as
+    /// per-azimuth sectors, so each sector can carry the share of the wall that belongs to it,
+    /// and a shell striking the rear quarter resolves against the metal actually there.
+    ///
+    /// A SCALE rather than millimetres on purpose: the volume describes the casting's shape,
+    /// which is blueprint data and identical for every loadout; the installed turret module
+    /// supplies the material budget. Fitting a thicker turret scales the whole wall, taper and
+    /// all, instead of silently flattening it.
+    ///
+    /// `None` = exactly the zone's facet, which is what every flat plate wants.
+    pub thickness_scale: Option<f32>,
 }
 
 impl TaggedPlane {
     pub fn new(normal: Vec3, through: Vec3, zone: ArmorZone) -> Self {
         let normal = normal.normalize_or_zero();
-        Self { normal, offset: normal.dot(through), zone, patches: Vec::new() }
+        Self {
+            normal,
+            offset: normal.dot(through),
+            zone,
+            patches: Vec::new(),
+            thickness_scale: None,
+        }
     }
 
     pub fn with_patches(mut self, patches: Vec<ArmorPatch>) -> Self {
         self.patches = patches;
+        self
+    }
+
+    /// Stamp this plate's share of its zone's thickness. Used where the volume's geometry
+    /// carries more truth than the zone bucket — the tapering wall of a cast turret, above all.
+    pub fn with_thickness_scale(mut self, scale: f32) -> Self {
+        self.thickness_scale = Some(scale);
         self
     }
 

@@ -10,8 +10,19 @@ use crate::{ConvexSolid, Plane};
 /// An axis-aligned box with 45° chamfers on its four top edges and four vertical edges — the
 /// pressed-steel read of fender stowage (fuel tanks, bins) instead of a raw primitive box.
 /// `chamfer` is clamped so the cuts can never cross for any sane bin.
+///
+/// A chamfer of zero (or one finer than the corner-merge epsilon) asks for a PLAIN box, and
+/// that is what it gets: each chamfer plane would otherwise pass exactly through a box edge,
+/// leaving a two-corner face ring that `to_mesh` rejects as degenerate. "No chamfer" is a sane
+/// request from a caller sweeping the parameter — not a build error.
 pub fn chamfered_box(center: Vec3, half: Vec3, chamfer: f32) -> ConvexSolid {
+    /// Below this the cut plane is indistinguishable from the edge it would trim: the corner
+    /// dedup in `ConvexSolid::to_mesh` merges at 1e-4, so anything finer is not a chamfer.
+    const MIN_CHAMFER: f32 = 1.0e-3;
     let c = chamfer.clamp(0.0, 0.45 * half.min_element());
+    if c < MIN_CHAMFER {
+        return ConvexSolid::box_at(center, half);
+    }
     let sqrt2 = std::f32::consts::SQRT_2;
     let face = |n: Vec3, off: f32| Plane::new(n, off + n.dot(center));
     let mut planes = vec![

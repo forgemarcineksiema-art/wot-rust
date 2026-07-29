@@ -82,8 +82,49 @@ pub struct RunningGearKinematics {
     pub roller_radius: f32,
     /// Y of the return-roller axles: the roller top carries the belt's top run.
     pub roller_y: f32,
+    /// Trailing-arm geometry, from the blueprint: how far the arm reaches back from its hull
+    /// pivot to the axle, and how far the pivot stands above that axle at rest.
+    pub arm_reach: f32,
+    pub arm_rise: f32,
     pub segments: usize,
+    /// How finely this gear is built. Every generator asks [`Self::segments_for`] rather than
+    /// reading `segments` directly, so one field switches the whole running gear between the
+    /// authored construction and the distant one.
+    pub detail: GearDetail,
     link_count: usize,
+}
+
+/// How finely the running gear is built.
+///
+/// The gear is the largest single body of geometry on a vehicle — on a T-54 it is 38.6k
+/// triangles across 204 instances, more than twice the whole static bake — and until this existed
+/// it was drawn at full detail at every range, on every tank on the field, for the life of the
+/// battle. A 7v7 spent 540k triangles on running gear that is four pixels tall at the far side of
+/// the map.
+///
+/// `Far` is not a different mesh. It is the SAME construction with the tessellation and the
+/// surface detail a viewer at that range cannot resolve taken out, so a wheel that is a
+/// spider-web disc up close is still a spider-web disc at 80 m — just built out of fewer
+/// triangles. Nothing about the silhouette changes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum GearDetail {
+    /// The authored construction: what the blueprint asks for, what the studio tiles show.
+    #[default]
+    Near,
+    /// The same parts, coarsely: half the ring segments and no sub-shoe surface detail.
+    Far,
+}
+
+/// Range past which a vehicle's running gear switches to [`GearDetail::Far`].
+///
+/// Chosen from what a shoe link actually subtends: a 0.14 m detail box on a 1080p screen with a
+/// 60 degree field of view crosses one pixel at about 55 m. Sixty gives a hand of margin, and it
+/// sits well outside the range where a player is reading a tank's suspension.
+pub const GEAR_DETAIL_SWITCH_M: f32 = 60.0;
+
+/// Which detail tier a vehicle at `distance_m` from the camera draws its gear at.
+pub fn gear_detail_for_distance(distance_m: f32) -> GearDetail {
+    if distance_m > GEAR_DETAIL_SWITCH_M { GearDetail::Far } else { GearDetail::Near }
 }
 
 impl RunningGearKinematics {
@@ -152,7 +193,10 @@ impl RunningGearKinematics {
             roller_zs,
             roller_radius: track.roller_radius,
             roller_y: track.top_y - track.roller_radius,
+            arm_reach: track.arm_reach(),
+            arm_rise: track.arm_rise(),
             segments: track.segments.max(12),
+            detail: GearDetail::Near,
             link_count,
         }
     }
@@ -166,6 +210,71 @@ impl RunningGearKinematics {
     /// Number of shoe links around the loop.
     pub fn link_count(&self) -> usize {
         self.link_count
+    }
+
+    /// Half the axial gap between a twin-disc road wheel's two tyres — the slot the track's
+    /// guide horn rides in, and the reason the horn exists at all.
+    ///
+    /// The Soviet road wheel is two discs bolted together with a gap between their rubber tyres
+    /// (T-54: 185 mm tyres, ~53 mm gap in a 423 mm assembly — 12.5% of the width, dossier
+    /// "Part construction"). The horn on every shoe from September 1949 stands up into that slot
+    /// and keeps the belt from walking off the wheel. One dimension, two parts: the wheel cannot
+    /// be honest without the gap and the link cannot be honest without the horn.
+    ///
+    /// German steel-dish and British rubber-dish wheels are ONE disc — their belts are guided
+    /// between adjacent wheels or by a horn riding outside them — so they answer zero.
+    pub fn tyre_gap_half(&self) -> f32 {
+        match self.wheel_face {
+            game_core::WheelFace::Openwork | game_core::WheelFace::SpiderWeb => {
+                self.wheel_half_width * 0.125
+            }
+            game_core::WheelFace::SteelDish | game_core::WheelFace::RubberDish => 0.0,
+        }
+    }
+
+    /// Radius of the steel the rubber tyres are pressed onto.
+    ///
+    /// Between a twin-disc wheel's two tyres this is the FLOOR the track's guide horn runs over,
+    /// so it is the number that decides how tall the horn may be. The wheel generator seats its
+    /// rim ring here and the link generator sizes its horn from here: the horn cannot bottom out
+    /// on the wheel, by construction rather than by a tuned constant.
+    pub fn tyre_seat_radius(&self) -> f32 {
+        self.wheel_radius * 0.895
+    }
+
+    /// How far the hinge-eye barrel stands off the belt's centreline, on the wheel side.
+    ///
+    /// This is the surface a drive sprocket's teeth actually bear on — the цевка. The link
+    /// generator builds the barrel here and the sprocket generator reaches its teeth to here, so
+    /// "the teeth engage the track" is one number rather than two guesses. A tooth that stops
+    /// short of it drives nothing; one that reaches past it cuts through the shoe plate.
+    pub fn hinge_eye_offset(&self) -> f32 {
+        0.061
+    }
+
+    /// This same gear, built for distance. The belt path, the wheel positions and every
+    /// dimension are untouched — only how finely the parts are tessellated changes, so a
+    /// far-detail tank stands in exactly the same place as a near one.
+    pub fn at_detail(&self, detail: GearDetail) -> Self {
+        Self { detail, ..self.clone() }
+    }
+
+    /// Ring segments for a part whose construction needs at least `floor` of them to read as
+    /// round at all.
+    ///
+    /// Every generator used to write `kin.segments.max(floor)`, which meant the authored
+    /// `segments` knob in the blueprint did nothing on any vehicle: every floor (22 on a wheel,
+    /// 20 on an idler, 16 on a sprocket, 12 on an arm) already sat above the 14 the RON asked
+    /// for. The knob was dead data. Now the floor is the part's own minimum, the blueprint can
+    /// raise it, and the detail tier scales the result.
+    pub fn segments_for(&self, floor: usize) -> usize {
+        let full = self.segments.max(floor);
+        match self.detail {
+            GearDetail::Near => full,
+            // Half the ring. The absolute floor is where a disc stops reading as a disc at all;
+            // at the switch range an eight-sided wheel is indistinguishable from a round one.
+            GearDetail::Far => (full / 2).max(8),
+        }
     }
 
     /// Half-length of one shoe link along the belt. Links nearly fill their spacing (only a thin

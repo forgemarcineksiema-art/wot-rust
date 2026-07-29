@@ -100,11 +100,21 @@ mod tests {
 
     #[test]
     fn t54_footprint_reads_the_blueprint_stations() {
+        // Compared against the BLUEPRINT, not against a copy of it typed out here. The list was
+        // literal, so moving the wheels to the documented 3.840 m base broke a test whose whole
+        // job is to prove the footprint follows the blueprint.
+        let bp = crate::VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("blueprint");
+        let stations = bp.track.wheel_stations.expect("the T-54 authors its stations");
         let footprint = ContactFootprint::for_vehicle(VehicleKind::T54_1951);
-        assert_eq!(footprint.station_zs(), &[-1.95, -1.03, -0.11, 0.81, 1.95]);
-        assert!((footprint.half_gauge_x - 1.345).abs() < 1.0e-6);
-        assert!((footprint.wheel_radius - 0.405).abs() < 1.0e-6);
-        assert!((footprint.half_run() - 1.95).abs() < 1.0e-6);
+        assert_eq!(footprint.station_zs(), stations);
+        assert!((footprint.half_gauge_x - bp.track.center_x).abs() < 1.0e-6);
+        assert!((footprint.wheel_radius - bp.track.wheel_radius).abs() < 1.0e-6);
+        assert!((footprint.half_run() - bp.track.wheel_last_z).abs() < 1.0e-6);
+        // And the documented ground-contact base is what those stations span.
+        assert!(
+            ((stations[stations.len() - 1] - stations[0]) - 3.84).abs() < 0.01,
+            "the T-54's ground-contact base is 3.840 m"
+        );
     }
 
     #[test]

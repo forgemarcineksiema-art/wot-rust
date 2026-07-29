@@ -35,6 +35,7 @@ fn tube_along(
         caps: SweepCaps::Both,
         material,
         smoothing,
+        section_scale: None,
     };
     try_sweep(&spec).expect("a non-degenerate path with a convex section sweeps cleanly")
 }
@@ -53,6 +54,29 @@ pub fn handle_rail(path: &[Vec3], radius: f32) -> GeometryMesh {
 /// A casting seam along `path` — the raised mould line left on a cast turret. A very thin soft bead.
 pub fn casting_seam(path: &[Vec3]) -> GeometryMesh {
     tube_along(path, 0.008, 5, MaterialRole::CastArmor, SmoothingGroup(7))
+}
+
+/// The same seam, run right ROUND a casting and closed on itself.
+///
+/// A mould parting line does not stop: the two halves of the mould meet all the way round, so the
+/// bead that records them is a loop. [`tube_along`] cannot make one — it hard-codes `closed:
+/// false` and caps both ends, so feeding it a ring path lands two end caps on top of each other
+/// and welds them into non-manifold edges. `path` must NOT repeat its first point; the closure is
+/// the sweep's job.
+pub fn casting_seam_loop(path: &[Vec3]) -> GeometryMesh {
+    let path = SweepPath { points: path.to_vec(), closed: true };
+    let section = SweepSection { points: polygon(0.008, 5), closed: true };
+    try_sweep(&SweepSpec {
+        path: &path,
+        section: &section,
+        frame_mode: SweepFrameMode::ParallelTransport,
+        // A torus has no ends to cap.
+        caps: SweepCaps::Open,
+        material: MaterialRole::CastArmor,
+        smoothing: SmoothingGroup(7),
+        section_scale: None,
+    })
+    .expect("a non-degenerate ring with a convex section sweeps cleanly")
 }
 
 #[cfg(test)]

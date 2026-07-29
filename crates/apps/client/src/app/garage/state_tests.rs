@@ -154,10 +154,11 @@ fn focus_adjacent_wraps_around_all_slots() {
 fn cycle_focused_cycles_the_focused_slot_option() {
     let mut garage = GarageState::default();
     garage.select_vehicle(VehicleKind::T54_1951);
-    let before = garage.draft().gun_barrel_length();
-    // Focus starts on Gun; cycle forward.
+    let before = garage.draft().gun_name();
+    // Focus starts on Gun; cycle forward. (Identity, not barrel length — the T-54's two D-10
+    // variants share one physical tube, so the silhouette is deliberately unchanged.)
     garage.cycle_focused(1);
-    assert_ne!(garage.draft().gun_barrel_length(), before, "focused cycle changed the gun");
+    assert_ne!(garage.draft().gun_name(), before, "focused cycle changed the gun");
 }
 
 #[test]

@@ -82,6 +82,10 @@ pub(super) fn centurion_blueprint() -> VehicleBlueprint {
             shoe_pattern: ShoePattern::BritishCast,
             wheel_face: WheelFace::RubberDish,
             suspension: super::SuspensionKind::Horstmann,
+            // The trailing arm's own geometry: None takes the family default
+            // (0.26 / 0.13 for a torsion bar) until this vehicle's dossier says otherwise.
+            arm_reach_m: None,
+            arm_rise_m: None,
             drive_front: false,
         },
         turret: TurretShape {
@@ -129,6 +133,7 @@ pub(super) fn centurion_blueprint() -> VehicleBlueprint {
             turret_front: (40.0, 0.9),
             turret_side: (30.0, 1.0),
             turret_rear: (15.0, 1.0),
+            turret_side_taper: None,
         },
         hybrid: None,
     }

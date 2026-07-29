@@ -66,13 +66,17 @@ fn a_penetration_carves_the_same_perforation_on_every_run() {
     // truth. Update the values deliberately when ballistics or armor geometry are retuned.
     // Re-pinned 2026-07-17: the replay's tanks moved from the removed T-55A clone onto the
     // T-54 (same glacis plane, ~2 mm entry shift from the slightly different hull).
+    // Re-pinned 2026-07-29 (PR-14, the hull at its documented length): the hull grew from 6.00 m
+    // to 6.235, so the glacis plane it carries moved 0.1175 m forward and the same shot down the
+    // same line meets it 0.116 m further out. The plate, the zone and the aperture size are
+    // unchanged — only where the bow now is.
     let breach = &first.breaches()[0];
     let lobe = breach.lobes()[0];
     assert_eq!(first.aperture_group_count(), 1);
     assert_eq!(breach.frame, game_core::ArmorFrame::Hull);
     assert_eq!(breach.zone, game_core::ArmorZone::UpperGlacis);
     assert!(
-        (lobe.entry_local - Vec3::new(-0.001623, 1.289858, 2.497_95)).length() < 1.0e-3,
+        (lobe.entry_local - Vec3::new(-0.001619, 1.29092, 2.613_61)).length() < 1.0e-3,
         "the entry point drifted: {:?}",
         lobe.entry_local
     );

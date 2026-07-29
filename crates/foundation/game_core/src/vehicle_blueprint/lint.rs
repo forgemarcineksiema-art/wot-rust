@@ -326,5 +326,63 @@ pub fn validate_blueprint(bp: &VehicleBlueprint) -> Vec<BlueprintIssue> {
         }
     }
 
+    // --- One slope, one truth ---
+    //
+    // Five plate angles are authored TWICE: once on the shape (what the mesh builds) and once
+    // on the armour (what a shell resolves against). Nothing used to compare them, and three
+    // had already drifted — the T-54's rear plate (8 vs 5) and the Panther II's turret face
+    // and rear (11 vs 20, 25 vs 20). A shell that ricochets off an angle the player cannot see
+    // is exactly the dishonesty this project exists to refuse, so the loader now refuses it
+    // instead. (`hull_side` shows the shape this should eventually take everywhere: ONE field,
+    // read by both.)
+    for (field, shape_name, shape_deg, armor_name, armor_deg) in [
+        (
+            "hull.glacis_slope_deg",
+            "hull.glacis_slope_deg",
+            hull.glacis_slope_deg,
+            "armor.hull_front",
+            bp.armor.hull_front.0,
+        ),
+        (
+            "hull.rear_slope_deg",
+            "hull.rear_slope_deg",
+            hull.rear_slope_deg,
+            "armor.hull_rear",
+            bp.armor.hull_rear.0,
+        ),
+        (
+            "turret.front_slope_deg",
+            "turret.front_slope_deg",
+            turret.front_slope_deg,
+            "armor.turret_front",
+            bp.armor.turret_front.0,
+        ),
+        (
+            "turret.side_slope_deg",
+            "turret.side_slope_deg",
+            turret.side_slope_deg,
+            "armor.turret_side",
+            bp.armor.turret_side.0,
+        ),
+        (
+            "turret.rear_slope_deg",
+            "turret.rear_slope_deg",
+            turret.rear_slope_deg,
+            "armor.turret_rear",
+            bp.armor.turret_rear.0,
+        ),
+    ] {
+        if (shape_deg - armor_deg).abs() > 1.0e-6 {
+            issue(
+                &mut issues,
+                e,
+                field,
+                format!(
+                    "{shape_name} is {shape_deg} deg but {armor_name} is {armor_deg} deg — the                      plate you SEE and the plate a shell RESOLVES against must be one angle.                      Decide which is right (the vehicle's dossier in docs/vehicles/ is the                      tiebreaker) and write that number in both places."
+                ),
+            );
+        }
+    }
+
     issues
 }

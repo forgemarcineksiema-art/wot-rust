@@ -18,7 +18,10 @@ pub use volumes::{
     ArmorPatch, ArmorVolume, TaggedPlane, VolumeInterval, segment_volume_entry,
     segment_volume_entry_with_margin, segment_volume_interval_with_margin,
 };
-pub use zone::{ArmorZone, resolve_penetration_at_distance_on_zone};
+pub use zone::{
+    ArmorZone, resolve_penetration_at_distance_on_zone,
+    resolve_penetration_at_distance_on_zone_scaled,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum ArmorFacing {
@@ -39,6 +42,11 @@ pub struct ArmorProfile {
     pub turret_front_mm: f32,
     pub turret_side_mm: f32,
     pub turret_rear_mm: f32,
+    /// Turret roof (mm) when the vehicle's dossier states it. `None` falls back to the fleet
+    /// formula off the front plate — which is how the T-54 ended up with 24 mm where its
+    /// documents say 30.
+    #[serde(default)]
+    pub turret_roof_mm: Option<f32>,
     #[serde(default)]
     pub facets: ArmorFacetProfile,
 }
@@ -62,6 +70,12 @@ impl ArmorProfile {
         )
     }
 
+    /// Author the turret roof instead of deriving it (the dossier states it).
+    pub fn with_turret_roof_mm(mut self, roof_mm: f32) -> Self {
+        self.turret_roof_mm = Some(roof_mm);
+        self
+    }
+
     pub fn new_with_facets(
         hull_front: ArmorFacet,
         hull_side: ArmorFacet,
@@ -77,6 +91,7 @@ impl ArmorProfile {
             turret_front_mm: turret_front.nominal_thickness_mm,
             turret_side_mm: turret_side.nominal_thickness_mm,
             turret_rear_mm: turret_rear.nominal_thickness_mm,
+            turret_roof_mm: None,
             facets: ArmorFacetProfile {
                 hull_front,
                 hull_side,

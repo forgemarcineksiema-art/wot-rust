@@ -57,19 +57,36 @@ fn reduced_lods_carry_no_catastrophic_mesh_defects() {
 
 #[test]
 fn body_stays_inside_its_gameplay_volumes_at_every_lod() {
+    // The part-by-part fit — tight bounds, with the catalogued exception parts excluded — is
+    // proven in `hitbox_fit`. A merged, reduced LOD cannot be filtered by part any more, so what
+    // THIS test owns is two things: the reduction contract (no LOD may grow past the LOD0
+    // envelope — a decimator that moves a vertex outward invents silhouette the hitbox never
+    // covered), and the envelope itself: the box plus exactly the two catalogued protrusions
+    // (`hitbox_fit::HITBOX_EXCEPTIONS`) and nothing more.
     const EPS: f32 = 0.05;
+    /// The BDSh-5 drums' documented reach behind the stern plate: drum ⌀0.45 + strap + rake.
+    const STERN_EXCEPTION: f32 = 0.33;
+    /// The DShK at fighting height above the hitbox apex.
+    const ROOF_EXCEPTION: f32 = 0.30;
     let hitbox = HitboxProfile::for_vehicle(VehicleKind::T54_1951);
-    for level in LODS {
-        let baked = baked_at(level);
-        let body = baked.body_bounds().expect("body bounds");
-        assert!(body.min.x >= -hitbox.half_width_m - EPS, "{level:?} body left");
-        assert!(body.max.x <= hitbox.half_width_m + EPS, "{level:?} body right");
-        assert!(body.min.z >= -hitbox.half_length_m - EPS, "{level:?} body rear");
-        assert!(body.max.z <= hitbox.half_length_m + EPS, "{level:?} body front");
-        assert!(
-            body.max.y <= hitbox.center_y_m + hitbox.half_height_m + EPS,
-            "{level:?} body roof"
-        );
+    let full = baked_at(LodLevel::Lod0).body_bounds().expect("lod0 body bounds");
+
+    assert!(full.min.x >= -hitbox.half_width_m - EPS, "lod0 body left");
+    assert!(full.max.x <= hitbox.half_width_m + EPS, "lod0 body right");
+    assert!(full.min.z >= -hitbox.half_length_m - EPS - STERN_EXCEPTION, "lod0 body rear");
+    assert!(full.max.z <= hitbox.half_length_m + EPS, "lod0 body front");
+    assert!(
+        full.max.y <= hitbox.center_y_m + hitbox.half_height_m + EPS + ROOF_EXCEPTION,
+        "lod0 body roof"
+    );
+
+    for level in [LodLevel::Lod1, LodLevel::Lod2] {
+        let body = baked_at(level).body_bounds().expect("body bounds");
+        assert!(body.min.x >= full.min.x - 0.02, "{level:?} grew left of LOD0");
+        assert!(body.max.x <= full.max.x + 0.02, "{level:?} grew right of LOD0");
+        assert!(body.min.z >= full.min.z - 0.02, "{level:?} grew behind LOD0");
+        assert!(body.max.z <= full.max.z + 0.02, "{level:?} grew ahead of LOD0");
+        assert!(body.max.y <= full.max.y + 0.02, "{level:?} grew above LOD0");
     }
 }
 
@@ -200,18 +217,25 @@ fn the_cupola_is_a_separate_part_above_the_cast_roof() {
     assert!(turret.max.y > roof_y + 0.05, "the cupola rides above the cast roof");
 }
 
+/// The aperture is closed at neutral elevation. This used to compare the gun submesh's bounding
+/// box against the shell's, which the BARREL satisfies on its own from four metres away — the
+/// assertion could not fail whatever the mount looked like. It measures the thing that closes the
+/// hole now, which is the canvas.
 #[test]
-fn the_mantlet_overlaps_the_embrasure_without_a_front_gap() {
+fn the_cover_closes_the_embrasure_without_a_front_gap() {
     let v = turret_visual();
     let baked = t54_description().build();
-    let gun = baked.submesh(SubmeshKind::Gun).expect("gun").mesh.bounds().expect("gun bounds");
+    let gun = &baked.submesh(SubmeshKind::Gun).expect("gun").mesh;
     let shell = t54_turret_loft(&v).bounds().expect("shell bounds");
-    // The mantlet front (gun submesh) reaches at least as far forward as the cast shell front, so
-    // there is no exposed embrasure gap ahead of the casting at neutral elevation.
+    let fabric = gun
+        .vertices()
+        .iter()
+        .filter(|vertex| vertex.material == vehicle_geometry::MaterialRole::Canvas)
+        .map(|vertex| vertex.position.z)
+        .fold(f32::NEG_INFINITY, f32::max);
     assert!(
-        gun.max.z >= shell.max.z - 0.02,
-        "mantlet front {:.2} must overlap the shell front {:.2}",
-        gun.max.z,
+        fabric >= shell.max.z - 0.02,
+        "the cover front {fabric:.2} must reach the shell front {:.2}",
         shell.max.z
     );
 }

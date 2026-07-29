@@ -196,6 +196,17 @@ pub struct ArmorShape {
     pub turret_front: (f32, f32),
     pub turret_side: (f32, f32),
     pub turret_rear: (f32, f32),
+    /// How much of the side wall survives to the rear of the casting (1.0 = a constant wall).
+    ///
+    /// A cast turret is not a box: the T-54's wall is 160 mm behind the cheeks and 65 mm at the
+    /// rear quarter, so its taper is 65/160 ≈ 0.41. It lives here, on the SHAPE, because it is a
+    /// property of the casting rather than of the steel budget — fit a thicker turret module and
+    /// the whole wall scales, taper included.
+    ///
+    /// `None` = a constant side, which is what a welded box turret is and what every vehicle
+    /// without a documented taper keeps.
+    #[serde(default)]
+    pub turret_side_taper: Option<f32>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -293,7 +304,7 @@ mod tests {
     fn t54_hybrid_visual_does_not_reduplicate_blueprint_shape_dimensions() {
         let bp = VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("blueprint");
         let h = bp.hybrid().expect("T-54 carries hybrid visual data");
-        let (hull, track, turret) = (&bp.hull, &bp.track, &bp.turret);
+        let (hull, track, turret, gun) = (&bp.hull, &bp.track, &bp.turret, &bp.gun);
 
         let same = |label: &str, hybrid: f32, shape: f32| {
             assert!(
@@ -320,6 +331,40 @@ mod tests {
         same("turret.cupola_center.z", h.turret.cupola_center.z, turret.cupola_z);
         same("fittings.cupola_hatch_center.x", h.fittings.cupola_hatch_center.x, turret.cupola_x);
         same("fittings.cupola_hatch_center.z", h.fittings.cupola_hatch_center.z, turret.cupola_z);
+
+        // The PRODUCTION turret. Everything above guards the metaball `TurretVisual`, which the
+        // game no longer meshes — the shipped casting is this loft, and until now not one of its
+        // numbers was tied to the blueprint. That is precisely where a shape edit would drift:
+        // raise `roof_y` in the RON and the visible dome would have stayed where it was.
+        let loft = &h.turret_loft;
+        let stations = &loft.stations;
+        let first = stations.first().expect("the loft starts at the ring");
+        let last = stations.last().expect("the loft ends at the roof");
+        same("turret_loft.first_station.y", first.y, turret.ring_y);
+        same("turret_loft.first_station.z_center", first.z_center, turret.ring_z);
+        same("turret_loft.last_station.y", last.y, turret.roof_y);
+        same("turret_loft.last_station.half_width", last.half_width, turret.roof_radius);
+        same("turret_loft.cupola_center.x", loft.cupola_center.x, turret.cupola_x);
+        same("turret_loft.cupola_center.z", loft.cupola_center.z, turret.cupola_z);
+        same("turret_loft.cupola_radius", loft.cupola_radius, turret.cupola_radius);
+        // The cheeks flank the gun at the fire line, and the embrasure is centred ON it.
+        same("turret_loft.cheek_y", loft.cheek_y, gun.trunnion_y);
+        same("turret_loft.embrasure_y", loft.embrasure_y, gun.trunnion_y);
+
+        // Containment, not equality: the casting may be narrower than its authored plan box and
+        // MUST overhang the ring (that overhang is the T-54's armour argument).
+        let widest = stations.iter().map(|station| station.half_width).fold(f32::MIN, f32::max);
+        assert!(
+            widest <= turret.plan_half_width + 1.0e-6,
+            "the casting ({widest}) must fit inside its authored plan half-width ({})",
+            turret.plan_half_width
+        );
+        assert!(
+            first.half_width > turret.ring_radius,
+            "the casting ({}) must overhang the ring ({}) — the undercut IS the armour",
+            first.half_width,
+            turret.ring_radius
+        );
     }
 
     /// Factory detailing is visual-only: it adds nothing to the gameplay-bearing data (hitbox,

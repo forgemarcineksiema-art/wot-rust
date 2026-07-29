@@ -116,7 +116,10 @@ fn gameplay_role(material: MaterialRole, lod: PartLod) -> GameplayRole {
         MaterialRole::InteriorPrimer
         | MaterialRole::InteriorMachinery
         | MaterialRole::Ammunition
-        | MaterialRole::ExposedSteel => GameplayRole::Fitting,
+        | MaterialRole::ExposedSteel
+        | MaterialRole::Canvas
+        | MaterialRole::Glass
+        | MaterialRole::Timber => GameplayRole::Fitting,
     }
 }
 

@@ -191,6 +191,13 @@ impl LoadoutDraft {
         self.modules.turret.max_gun_caliber_mm = max_mm;
     }
 
+    /// Name of the installed gun — the identity a test should assert on. (Barrel LENGTH is not
+    /// an identity: the T-54's two D-10 variants share one physical tube.)
+    #[cfg(test)]
+    pub(super) fn gun_name(&self) -> String {
+        self.modules.gun.spec.name.clone()
+    }
+
     /// Exposed barrel length (m) of the installed gun — drives the garage gun silhouette.
     pub(super) fn gun_barrel_length(&self) -> f32 {
         self.modules.gun.barrel_length_m()
@@ -410,11 +417,17 @@ mod tests {
     }
 
     #[test]
-    fn swapping_the_t54_gun_changes_the_barrel_length() {
+    fn swapping_the_t54_gun_installs_a_different_gun_on_the_same_tube() {
         let mut draft = LoadoutDraft::for_vehicle(VehicleKind::T54_1951);
-        let before = draft.gun_barrel_length();
+        let (before_name, before_length) = (draft.gun_name(), draft.gun_barrel_length());
         draft.cycle_module(FitSlot::Gun, 1);
-        assert_ne!(draft.gun_barrel_length(), before, "the alternate gun has a different barrel");
+        assert_ne!(draft.gun_name(), before_name, "the alternate gun is installed");
+        // ...and the silhouette does NOT change: the D-10T and D-10T2S are one physical tube.
+        assert_eq!(
+            draft.gun_barrel_length(),
+            before_length,
+            "the D-10 variants share their barrel — swapping must not stretch the gun"
+        );
     }
 
     #[test]
@@ -544,9 +557,9 @@ mod tests {
     #[test]
     fn set_option_installs_a_specific_index_and_rejects_out_of_range() {
         let mut draft = LoadoutDraft::for_vehicle(VehicleKind::T54_1951);
-        let before = draft.gun_barrel_length();
+        let before = draft.gun_name();
         assert!(draft.set_option(FitSlot::Gun, 1), "installing a valid option succeeds");
-        assert_ne!(draft.gun_barrel_length(), before, "the picked option is installed");
+        assert_ne!(draft.gun_name(), before, "the picked option is installed");
         assert!(!draft.set_option(FitSlot::Gun, 99), "an out-of-range index is rejected");
     }
 

@@ -149,6 +149,19 @@ pub struct GunSpec {
     /// longer-barrelled gun visibly reaches further and fires from its real tip.
     #[serde(default = "default_barrel_length_m")]
     pub barrel_length_m: f32,
+    /// How far the gun DEPRESSES below horizontal, in degrees (a positive number: 5.0 means
+    /// -5 deg). This is a property of the gun in its mount — how much room the breech has
+    /// under the turret roof before it fouls the ring — and it is one of the sharpest
+    /// balance levers a tank has: depression is what lets a hull sit behind a crest with only
+    /// its turret showing.
+    ///
+    /// The whole fleet used to share one hard-coded -8 deg / +20 deg pair, so the T-54 (a tank
+    /// notorious for its poor -5) played like a British hull-down specialist.
+    #[serde(default = "default_gun_depression_deg")]
+    pub depression_deg: f32,
+    /// How far the gun ELEVATES above horizontal, in degrees.
+    #[serde(default = "default_gun_elevation_deg")]
+    pub elevation_deg: f32,
     pub shell: ShellSpec,
     /// The gun's AUTHORED special round for rack slot 1, when the historical gun fielded one —
     /// e.g. the D-10's BK-5 HEAT. `None` derives the generic APCR from the stock shell (the
@@ -157,7 +170,17 @@ pub struct GunSpec {
     pub special_shell: Option<ShellSpec>,
 }
 
-const fn default_barrel_length_m() -> f32 {
+/// The fleet's historical default until each vehicle's dossier states its own arc: the pair
+/// the whole roster shared as `MIN_GUN_PITCH_RAD` / `MAX_GUN_PITCH_RAD`.
+fn default_gun_depression_deg() -> f32 {
+    8.0
+}
+
+fn default_gun_elevation_deg() -> f32 {
+    20.1
+}
+
+fn default_barrel_length_m() -> f32 {
     5.0
 }
 

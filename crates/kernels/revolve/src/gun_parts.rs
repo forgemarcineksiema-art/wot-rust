@@ -8,16 +8,25 @@ use vehicle_geometry::{GeometryMesh, GeometryVertex, MaterialRole, SmoothingGrou
 
 use crate::{revolve, translate};
 
-/// The barrel side profile from breech (0) to muzzle (`length`): a thick root sleeve behind the
-/// mask, the heavier rear tube half, the D-10 family's mid-tube STEP down to the slim front half,
-/// a stepped muzzle collar, and a RECESSED bore — the muzzle ends as a steel ring with the dark
-/// bore tube set back inside it, never a solid capped rod.
+/// The barrel side profile from breech (0) to muzzle (`length`).
+///
+/// A gun is a BORE with steel wrapped round it. This profile used to be written the other way
+/// about — the hole was `muzzle_radius * 0.55`, a fraction of the outside — and the result was a
+/// muzzle whose face was 76% flat steel with a shallow dimple in the middle. Three quarters of
+/// the thing you look at when a tank points its gun at you was the wrong shape.
+///
+/// Now the bore is the gun's calibre (`GunVisual::bore_radius`), the wall is whatever
+/// `muzzle_radius` leaves around it, and the recess runs deep enough to read as a hole rather
+/// than a dent: at least one and a half bore diameters, which is past the point where a viewer
+/// can see the bottom of it at any normal angle.
 fn barrel_profile(length: f32, gun: &GunVisual) -> Vec<(f32, f32)> {
     let r = gun.barrel_radius;
-    let collar_r = gun.muzzle_radius * 1.13;
+    let collar_r = gun.muzzle_radius * 1.06;
     let collar_len = (length * 0.06).clamp(0.06, 0.26);
-    let bore = gun.muzzle_radius * 0.55;
-    let recess = (length * 0.035).clamp(0.04, 0.15);
+    // The hole is the calibre. Nothing derives it from the outside of the tube.
+    let bore = gun.bore_radius;
+    // Deep enough to be a hole: 1.5 bore diameters of dark before anything stops the eye.
+    let recess = (bore * 3.0).clamp(0.10, 0.30);
     vec![
         (0.0, 0.0),
         (0.0, r * 1.18),
@@ -27,9 +36,14 @@ fn barrel_profile(length: f32, gun: &GunVisual) -> Vec<(f32, f32)> {
         (length - collar_len - gun.muzzle_taper, r * 0.82),
         (length - collar_len, collar_r),
         (length, collar_r),
+        // The muzzle FACE: a thin ring of steel between the collar and the bore. On a D-10T that
+        // ring is 10-13 mm wide, and it is the whole reason the muzzle reads as an opening.
         (length, bore),
-        (length - recess, bore * 0.95),
-        (length - recess, 0.0),
+        // A straight run of bore at FULL diameter — this is the dark the eye falls into, and it
+        // has to be the whole depth, not a cone starting at the face.
+        (length - recess, bore),
+        // Only then the funnel that closes the tube out of sight.
+        (length - recess - bore * 0.8, 0.0),
     ]
 }
 
@@ -119,18 +133,25 @@ mod tests {
     }
 
     #[test]
-    fn the_moving_mantlet_is_a_wide_flat_oval() {
+    fn the_mantlet_is_wider_than_it_is_tall() {
         let m = moving_mantlet(Vec3::new(0.0, 1.70, 1.10), &gun()).bounds().expect("non-empty");
-        assert!((m.max.x - m.min.x) > (m.max.y - m.min.y), "mantlet reads wider than tall");
+        assert!((m.max.x - m.min.x) > (m.max.y - m.min.y), "the trunnion bosses spread it wide");
     }
 
+    /// K2. A cast mantlet is a body. This test used to demand 0.50 m of depth — the length of the
+    /// external sleeve the T-54 does not have — and said nothing at all about the two open rims
+    /// that sleeve left standing in mid-air.
     #[test]
-    fn the_t54_mantlet_has_a_deep_stepped_mask_profile() {
-        let m = moving_mantlet(Vec3::new(0.0, 1.70, 1.10), &gun()).bounds().expect("non-empty");
+    fn the_mantlet_is_a_closed_body_not_an_open_sleeve() {
+        let mesh = moving_mantlet(Vec3::new(0.0, 1.70, 1.10), &gun());
+        let report = mesh.quality_report(vehicle_geometry::OPEN_OR_CLOSED_MESH);
+        assert_eq!(report.boundary_edges, 0, "a cast body has no open rims");
+        assert_eq!(report.non_manifold_edges, 0, "and no seams meeting three ways");
+        let m = mesh.bounds().expect("non-empty");
+        let depth = m.max.z - m.min.z;
         assert!(
-            m.max.z - m.min.z >= 0.50,
-            "T-54 mantlet needs a substantial stepped depth, got {:.3}",
-            m.max.z - m.min.z
+            (0.15..=0.40).contains(&depth),
+            "an internal mantlet is compact, got {depth:.3} m deep"
         );
     }
 }

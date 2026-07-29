@@ -54,9 +54,9 @@ BlueprintFile(
         base_radius: 1.02,
         roof_radius: 0.35,
         roof_y: 2.72,
-        front_slope_deg: 11.0,
+        front_slope_deg: 20.0,
         side_slope_deg: 25.0,
-        rear_slope_deg: 25.0,
+        rear_slope_deg: 20.0,
         cupola_x: -0.22,
         cupola_z: -0.55,
         cupola_radius: 0.31,
@@ -82,5 +82,6 @@ BlueprintFile(
         turret_front: (20.0, 0.9),
         turret_side: (25.0, 1.0),
         turret_rear: (20.0, 1.0),
+        turret_side_taper: None,
     ),
 )

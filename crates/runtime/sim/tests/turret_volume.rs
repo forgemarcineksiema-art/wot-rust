@@ -105,7 +105,7 @@ fn turret_front_keeps_its_mantlet_and_front_bands() {
 /// A plunging hit on the deck beside the turret lands on thin roof plate — previously it read as
 /// a full-thickness turret side.
 #[test]
-fn plunging_hit_on_the_deck_beside_the_turret_is_a_roof_hit() {
+fn plunging_hit_on_the_deck_beside_the_turret_is_a_hull_deck_hit() {
     let tank = t54_at_origin(0.0);
     // The T-54's ⌀2.25 dome overhangs its narrow 1.05 m hull laterally, so "beside the
     // turret" lives along Z: drop the shot on the rear deck behind the dome's plan.
@@ -118,7 +118,9 @@ fn plunging_hit_on_the_deck_beside_the_turret_is_a_roof_hit() {
 
     match outcome {
         Some(SegmentImpact::Tank { zone, hit_position, .. }) => {
-            assert_eq!(zone, ArmorZone::Roof);
+            // `HullDeck`, not `Roof` — the deck and the turret roof are different plates
+            // on different structures, and since v40 they are different zones.
+            assert_eq!(zone, ArmorZone::HullDeck);
             // The deck is the REAL blueprint hull roof, not the hitbox split plane the old
             // box model used.
             let deck_y = game_core::VehicleBlueprint::for_vehicle(VehicleKind::T54_1951)

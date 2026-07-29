@@ -10,7 +10,7 @@ use renderer_api::{
 };
 use vehicle_forge::authoritative_baked_vehicle;
 use vehicle_geometry::{
-    BakedVehicle, GeometryMesh, MeshContactIndex, RunningGearKinematics, SubmeshKind,
+    BakedVehicle, GearDetail, GeometryMesh, MeshContactIndex, RunningGearKinematics, SubmeshKind,
     idler_unit_mesh, road_wheel_unit_mesh, sprocket_unit_mesh, swing_arm_unit_mesh,
     track_link_unit_mesh,
 };
@@ -19,7 +19,7 @@ use super::damage_worker::{
     DamageMeshBudgetReport, DamageMeshJob, DamageMeshResult, DamageMeshTelemetry, DamageMeshWorker,
 };
 use super::pbr_mesh::vehicle_submesh_vertices;
-use super::running_gear_objects::GearMeshHandles;
+use super::running_gear_objects::{GearMeshHandles, GearMeshSet};
 
 #[derive(Debug, Default)]
 pub struct VehicleAssetCatalog {
@@ -275,17 +275,46 @@ impl VehicleAssetCatalog {
     pub(crate) fn register_running_gear(&mut self, kind: VehicleKind) -> Option<GearMeshHandles> {
         let kin = RunningGearKinematics::for_vehicle(kind)?;
         Some(GearMeshHandles {
-            road_wheel: self.register_gear_mesh(kind, "road_wheel", &road_wheel_unit_mesh(&kin)),
-            swing_arm: self.register_gear_mesh(kind, "swing_arm", &swing_arm_unit_mesh(&kin)),
-            idler: self.register_gear_mesh(kind, "idler", &idler_unit_mesh(&kin)),
-            sprocket: self.register_gear_mesh(kind, "sprocket", &sprocket_unit_mesh(&kin)),
-            link: self.register_gear_mesh(kind, "track_link", &track_link_unit_mesh(&kin)),
+            near: self.register_gear_set(kind, &kin, GearDetail::Near),
+            far: self.register_gear_set(kind, &kin, GearDetail::Far),
+        })
+    }
+
+    /// One detail tier of a vehicle's gear. Both tiers come out of the SAME generators — the
+    /// distant one is the authored construction with the tessellation and the sub-shoe detail a
+    /// viewer at 60 m cannot resolve taken out — so a wheel is the same wheel at any range.
+    fn register_gear_set(
+        &mut self,
+        kind: VehicleKind,
+        kin: &RunningGearKinematics,
+        detail: GearDetail,
+    ) -> GearMeshSet {
+        let kin = kin.at_detail(detail);
+        let suffix = match detail {
+            GearDetail::Near => "",
+            GearDetail::Far => "_far",
+        };
+        let name = |part: &str| format!("{part}{suffix}");
+        GearMeshSet {
+            road_wheel: self.register_gear_mesh(
+                kind,
+                &name("road_wheel"),
+                &road_wheel_unit_mesh(&kin),
+            ),
+            swing_arm: self.register_gear_mesh(
+                kind,
+                &name("swing_arm"),
+                &swing_arm_unit_mesh(&kin),
+            ),
+            idler: self.register_gear_mesh(kind, &name("idler"), &idler_unit_mesh(&kin)),
+            sprocket: self.register_gear_mesh(kind, &name("sprocket"), &sprocket_unit_mesh(&kin)),
+            link: self.register_gear_mesh(kind, &name("track_link"), &track_link_unit_mesh(&kin)),
             return_roller: self.register_gear_mesh(
                 kind,
-                "return_roller",
+                &name("return_roller"),
                 &vehicle_geometry::return_roller_unit_mesh(&kin),
             ),
-        })
+        }
     }
 
     fn register_gear_mesh(

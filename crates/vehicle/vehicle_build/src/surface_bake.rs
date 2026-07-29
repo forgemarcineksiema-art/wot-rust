@@ -67,7 +67,7 @@ impl SurfaceBake {
 /// Derive the T-54's contact cavities from its hybrid blueprint (and the gameplay `TrackShape`,
 /// which owns the running gear). Every centre and extent is read from a blueprint dimension, so
 /// the shading tracks the geometry it shades.
-pub fn t54_surface_bake(v: &HybridVisual, track: &TrackShape) -> SurfaceBake {
+pub fn t54_surface_bake(v: &HybridVisual, track: &TrackShape, muzzle: Vec3) -> SurfaceBake {
     let cavities = vec![
         // The cast turret seats on the narrowed ring and overhangs it: the seam and undercut read as
         // a deep ambient shadow around the bottom of the casting and the roof under its skirt.
@@ -80,13 +80,16 @@ pub fn t54_surface_bake(v: &HybridVisual, track: &TrackShape) -> SurfaceBake {
                 amount: 0.38,
             },
         },
-        // The moving mantlet beds into the recessed embrasure: a tight, dark cast trough.
+        // The gun aperture: a pocket cut through the turret wall, with the canvas cover and the
+        // tube inside it. Sized to the HOLE (0.42 x 0.38, measured) rather than to the ball
+        // mantlet that used to fill it — the band was 0.90 x 0.60, which shaded a swathe of open
+        // turret face on either side of an aperture less than half that wide.
         NamedCavity {
             signal: "mantlet_seat",
             band: CavityBand {
                 center: v.turret.socket_center,
-                half_extents: Vec3::new(0.45, 0.30, 0.12),
-                falloff: 0.16,
+                half_extents: Vec3::new(0.23, 0.21, 0.14),
+                falloff: 0.14,
                 amount: 0.45,
             },
         },
@@ -116,12 +119,34 @@ pub fn t54_surface_bake(v: &HybridVisual, track: &TrackShape) -> SurfaceBake {
                 amount: 0.55,
             },
         },
+        // THE BORE. A gun muzzle is a hole, and a hole is dark — but the bore was lit exactly
+        // like the tube around it, so the deepest recess on the vehicle read as a shallow dimple
+        // in a steel disc. The legacy generator had a dark funnel here and the hybrid lost it.
+        // This band puts the shadow back where the metal actually is: down the tube, tight to
+        // the bore, so the ring of steel at the face stays bright and the hole behind it does
+        // not.
+        NamedCavity {
+            signal: "gun_bore",
+            band: CavityBand {
+                center: muzzle - Vec3::Z * (v.gun.bore_radius * 1.6),
+                half_extents: Vec3::new(
+                    v.gun.bore_radius * 1.05,
+                    v.gun.bore_radius * 1.05,
+                    v.gun.bore_radius * 1.8,
+                ),
+                falloff: 0.02,
+                amount: 0.80,
+            },
+        },
         // The glacis-to-roof weld line catches a thin contact shadow across the hull front.
         NamedCavity {
             signal: "glacis_weld",
             band: CavityBand {
-                center: Vec3::new(0.0, v.hull.roof_y, 1.95),
-                half_extents: Vec3::new(1.05, 0.04, 0.05),
+                // On the glacis/roof weld, which moves with the bow.
+                center: Vec3::new(0.0, v.hull.roof_y, v.hull.half_len - 1.05),
+                // As wide as the hull it runs across — it was a literal 1.05, which was that
+                // width until the documented track gauge narrowed the tub to 1.03.
+                half_extents: Vec3::new(v.hull.half_width, 0.04, 0.05),
                 falloff: 0.08,
                 amount: 0.30,
             },

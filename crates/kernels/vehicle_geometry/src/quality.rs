@@ -27,6 +27,13 @@ pub struct MeshQualitySpec {
     pub min_triangle_area: f32,
     /// Allowed deviation of a vertex normal's length from `1.0`.
     pub normal_tolerance: f32,
+    /// Require a closed mesh to enclose a POSITIVE signed volume, i.e. to face outward.
+    ///
+    /// Consistent winding only proves neighbours agree; a globally inverted shell agrees with
+    /// itself perfectly and passed every other check while its normals pointed inward. Only
+    /// meaningful together with `TopologyExpectation::ClosedManifold` — an open shell has no
+    /// enclosed volume to sign.
+    pub require_outward: bool,
 }
 
 /// The measured result of one audit pass — always computable, never panics on bad input.
@@ -42,6 +49,9 @@ pub struct MeshQualityReport {
     pub non_finite_vertices: usize,
     pub non_unit_normals: usize,
     pub inconsistent_winding_edges: usize,
+    /// Signed volume of the mesh (positive when the winding faces outward). Meaningless for an
+    /// open shell, but always reported so a caller can see which way a surface is turned.
+    pub signed_volume: f32,
 }
 
 /// The first contract violation found, in a deterministic priority order.
@@ -57,6 +67,8 @@ pub enum MeshQualityError {
     NonManifoldEdges(usize),
     #[error("mesh is expected to be closed but has {0} boundary edges")]
     UnexpectedBoundaryEdges(usize),
+    #[error("mesh is wound inside out (signed volume {0})")]
+    InvertedWinding(f32),
     #[error("mesh has {0} non-unit normals")]
     NonUnitNormals(usize),
     #[error("mesh has {0} inconsistent winding edges")]
@@ -108,6 +120,7 @@ impl GeometryMesh {
         }
 
         let mut degenerate_triangles = 0;
+        let mut signed_volume = 0.0_f32;
         let mut edges: HashMap<(u32, u32), EdgeUse> = HashMap::new();
         for tri in indices.chunks_exact(3) {
             let [a, b, c] = [tri[0], tri[1], tri[2]];
@@ -130,6 +143,9 @@ impl GeometryMesh {
                 if !doubled_area_sq.is_finite() || doubled_area_sq < spec.min_triangle_area {
                     degenerate_triangles += 1;
                 }
+                // Divergence-theorem accumulation: for a closed mesh the signed tetrahedron
+                // volumes sum to the enclosed volume, positive when the winding faces outward.
+                signed_volume += pa.dot(pb.cross(pc)) / 6.0;
             }
 
             for &(u, v) in &[(a, b), (b, c), (c, a)] {
@@ -170,6 +186,7 @@ impl GeometryMesh {
             non_finite_vertices,
             non_unit_normals,
             inconsistent_winding_edges,
+            signed_volume,
         }
     }
 
@@ -200,6 +217,13 @@ impl GeometryMesh {
         if report.non_unit_normals > 0 {
             return Err(MeshQualityError::NonUnitNormals(report.non_unit_normals));
         }
+        if spec.require_outward
+            && spec.topology == TopologyExpectation::ClosedManifold
+            && report.boundary_edges == 0
+            && report.signed_volume <= 0.0
+        {
+            return Err(MeshQualityError::InvertedWinding(report.signed_volume));
+        }
         Ok(report)
     }
 }
@@ -209,6 +233,7 @@ pub const CLOSED_SMOOTH_MESH: MeshQualitySpec = MeshQualitySpec {
     topology: TopologyExpectation::ClosedManifold,
     min_triangle_area: 1.0e-10,
     normal_tolerance: 1.0e-3,
+    require_outward: true,
 };
 
 /// An open or closed mesh: finiteness and consistency are required, boundary edges are allowed.
@@ -216,4 +241,6 @@ pub const OPEN_OR_CLOSED_MESH: MeshQualitySpec = MeshQualitySpec {
     topology: TopologyExpectation::Any,
     min_triangle_area: 1.0e-10,
     normal_tolerance: 1.0e-3,
+    // An open shell has no enclosed volume to sign; the closed preset carries this promise.
+    require_outward: false,
 };

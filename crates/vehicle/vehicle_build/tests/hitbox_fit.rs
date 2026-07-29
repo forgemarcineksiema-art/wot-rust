@@ -8,7 +8,44 @@
 
 use game_core::{HitboxProfile, VehicleKind};
 use vehicle_build::t54_description;
-use vehicle_geometry::SubmeshKind;
+use vehicle_geometry::{MeshBounds, SubmeshKind};
+
+/// The catalogue of DOCUMENTED hitbox exceptions: parts allowed to stand outside the collision
+/// box, each for the same reason the main gun always has — thin or expendable fittings whose
+/// honest size exceeds the fighting body. Everything else must fit. An exception that is not on
+/// this list is a bug; an exception on this list that stops protruding is also a bug (asserted
+/// below), because then the exception itself has gone stale.
+///
+///   * `dshk_` — the AA machine gun at its fighting height on the loader's ring.
+///   * `smoke_canister` — the two BDSh-5 drums at their documented ⌀450 x 650 on the stern.
+///   * `turret_rail` — the grab rails, standing their grab-space off a casting that now carries
+///     the full documented 2.25 m flank. Growing the turret plan to swallow them would widen the
+///     whole gameplay target by 13 cm of air at every height a rail is not.
+const HITBOX_EXCEPTIONS: [&str; 3] = ["dshk_", "smoke_canister", "turret_rail"];
+
+fn body_bounds_excluding_exceptions() -> MeshBounds {
+    let description = t54_description();
+    let mut bounds: Option<MeshBounds> = None;
+    for part in &description.parts {
+        if part.submesh == SubmeshKind::Gun {
+            continue;
+        }
+        if HITBOX_EXCEPTIONS.iter().any(|prefix| part.key.name.starts_with(prefix)) {
+            continue;
+        }
+        if let Some(b) = part.mesh().bounds() {
+            bounds = Some(match bounds {
+                None => b,
+                Some(mut acc) => {
+                    acc.include(b.min);
+                    acc.include(b.max);
+                    acc
+                }
+            });
+        }
+    }
+    bounds.expect("the T-54 has body parts")
+}
 
 #[test]
 fn hybrid_t54_body_fits_and_fills_its_hitbox() {
@@ -19,7 +56,7 @@ fn hybrid_t54_body_fits_and_fills_its_hitbox() {
 
     let baked = t54_description().build();
     let hitbox = HitboxProfile::for_vehicle(VehicleKind::T54_1951);
-    let body = baked.body_bounds().expect("hybrid T-54 has body bounds");
+    let body = body_bounds_excluding_exceptions();
     let gun = baked
         .submesh(SubmeshKind::Gun)
         .expect("hybrid T-54 has a gun submesh")
@@ -80,18 +117,75 @@ fn hybrid_t54_body_fits_and_fills_its_hitbox() {
     );
 }
 
+/// The exceptions EXIST: each catalogued protrusion actually protrudes. Without this, quietly
+/// shrinking the DShK back onto the roof (or the canisters back to a box-sized toy) would pass
+/// every fit test while re-introducing the exact compromises the catalogue records as withdrawn.
+#[test]
+fn the_documented_exceptions_stand_outside_the_box_they_are_excused_from() {
+    let description = t54_description();
+    let hitbox = HitboxProfile::for_vehicle(VehicleKind::T54_1951);
+    let top = hitbox.center_y_m + hitbox.half_height_m;
+
+    let bounds_of = |prefix: &str| {
+        let mut acc: Option<MeshBounds> = None;
+        for part in description.parts.iter().filter(|p| p.key.name.starts_with(prefix)) {
+            if let Some(b) = part.mesh().bounds() {
+                acc = Some(match acc {
+                    None => b,
+                    Some(mut a) => {
+                        a.include(b.min);
+                        a.include(b.max);
+                        a
+                    }
+                });
+            }
+        }
+        acc.unwrap_or_else(|| panic!("{prefix} parts exist"))
+    };
+
+    let dshk = bounds_of("dshk_");
+    assert!(
+        dshk.max.y > top + 0.10,
+        "the AA gun stands at fighting height above the {top:.2} apex, got {:.2}",
+        dshk.max.y
+    );
+    let canisters = bounds_of("smoke_canister");
+    assert!(
+        canisters.min.z < -hitbox.half_length_m - 0.10,
+        "the BDSh-5 drums hang at their documented girth behind the stern, got {:.2} vs box \
+         {:.2}",
+        canisters.min.z,
+        -hitbox.half_length_m
+    );
+}
+
 #[test]
 fn hybrid_t54_turret_fits_and_fills_its_turret_plan() {
     const EPS: f32 = 0.05;
 
-    let baked = t54_description().build();
+    let description = t54_description();
     let hitbox = HitboxProfile::for_vehicle(VehicleKind::T54_1951);
-    let turret = baked
-        .submesh(SubmeshKind::Turret)
-        .expect("hybrid T-54 has a turret submesh")
-        .mesh
-        .bounds()
-        .expect("turret bounds");
+    let mut turret: Option<MeshBounds> = None;
+    for part in &description.parts {
+        if part.submesh != SubmeshKind::Turret {
+            continue;
+        }
+        if HITBOX_EXCEPTIONS.iter().any(|prefix| part.key.name.starts_with(prefix)) {
+            continue;
+        }
+        if let Some(b) = part.mesh().bounds() {
+            turret = Some(match turret {
+                None => b,
+                Some(mut acc) => {
+                    acc.include(b.min);
+                    acc.include(b.max);
+                    acc
+                }
+            });
+        }
+    }
+    let turret = turret.expect("turret bounds");
+    let baked = t54_description().build();
     let z_lo = hitbox.turret_center_z_m - hitbox.turret_half_length_m;
     let z_hi = hitbox.turret_center_z_m + hitbox.turret_half_length_m;
 

@@ -141,12 +141,35 @@ pub fn t54_deck_grille(d: &DetailVisual, deck_top: f32) -> Vec<ConvexSolid> {
     for slat in 0..slats {
         let t = (slat as f32 + 0.5) / slats as f32;
         let z = c.z - h.z + rail + t * 2.0 * (h.z - rail);
-        solids.push(ConvexSolid::box_at(
+        solids.push(raked_slat(
             Vec3::new(c.x, c.y + h.y * 0.4, z),
-            Vec3::new(h.x - rail, h.y * 0.6, slat_half_z),
+            h.x - rail,
+            h.y * 0.6,
+            slat_half_z,
+            LOUVRE_RAKE_RAD,
         ));
     }
     solids
+}
+
+/// How far a deck louvre leans back from vertical. A louvre that does not lean is a plank: the
+/// slats here were axis-aligned boxes, so the "louvered" grille was a row of flat boards over a
+/// hole and the shadow band under them did all the work.
+const LOUVRE_RAKE_RAD: f32 = 0.62;
+
+/// One louvre plate: a box rotated about X, built from its own six planes because a raked slat is
+/// not an axis-aligned box and `box_at` can only make one of those.
+fn raked_slat(centre: Vec3, half_x: f32, half_up: f32, half_thick: f32, rake: f32) -> ConvexSolid {
+    let (sin, cos) = rake.sin_cos();
+    // The slat's own frame: it still spans X, but its width and thickness axes are tilted in YZ.
+    let up = Vec3::new(0.0, cos, sin);
+    let thick = Vec3::new(0.0, -sin, cos);
+    let mut planes = Vec::with_capacity(6);
+    for (axis, half) in [(Vec3::X, half_x), (up, half_up), (thick, half_thick)] {
+        planes.push(Plane::new(axis, axis.dot(centre) + half));
+        planes.push(Plane::new(-axis, (-axis).dot(centre) + half));
+    }
+    ConvexSolid::new(planes)
 }
 
 #[cfg(test)]

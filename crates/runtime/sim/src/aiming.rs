@@ -4,6 +4,10 @@ use game_core::math::wrap_angle;
 use crate::TankCommand;
 
 pub const GUN_ELEVATION_RATE_RAD_S: f32 = 0.5;
+/// The fleet's old shared arc, kept ONLY as the fallback a caller uses when it has no spec in
+/// hand (an editor probe, a fixture). Every gameplay path reads
+/// [`TankSpec::gun_pitch_limits_rad`] — the arc is a per-vehicle property now, and a tank whose
+/// documented depression is -5 must not aim like one built for -8.
 pub const MIN_GUN_PITCH_RAD: f32 = -0.14;
 pub const MAX_GUN_PITCH_RAD: f32 = 0.35;
 
@@ -35,9 +39,10 @@ pub fn step_aiming(
             wrap_angle(aiming.turret_yaw_rad + aiming.turret_yaw_velocity_rad_s * dt_seconds);
     }
     aiming.turret_yaw_rad = spec.effective_turret_yaw_rad(aiming.turret_yaw_rad);
+    let (min_pitch, max_pitch) = spec.gun_pitch_limits_rad();
     aiming.gun_pitch_rad = (aiming.gun_pitch_rad
         + command.gun_pitch_delta * GUN_ELEVATION_RATE_RAD_S * dt_seconds)
-        .clamp(MIN_GUN_PITCH_RAD, MAX_GUN_PITCH_RAD);
+        .clamp(min_pitch, max_pitch);
 }
 
 #[cfg(test)]

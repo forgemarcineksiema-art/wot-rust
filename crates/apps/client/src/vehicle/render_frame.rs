@@ -95,6 +95,9 @@ pub fn split_pbr_vehicle_render_frame(
         player_gun_scale,
         None,
         0,
+        // No camera: this wrapper serves the harnesses and tests that pose a vehicle rather than
+        // stand in a battle, and they are all close looks.
+        None,
     )
 }
 
@@ -110,6 +113,7 @@ pub fn split_pbr_vehicle_render_frame_on_terrain(
     player_gun_scale: f32,
     terrain: Option<&HeightMap>,
     now_tick: u64,
+    eye: Option<[f32; 3]>,
 ) -> VehicleRenderFrame {
     let mut objects = Vec::new();
     let mut armor_damage = Vec::new();
@@ -124,6 +128,16 @@ pub fn split_pbr_vehicle_render_frame_on_terrain(
             armor_damage.push(damage);
         }
         let variation = VehicleVariation::from_snapshot(&snapshot);
+        // How finely this tank's running gear is built THIS frame. The camera is the only thing
+        // that decides it, and it is the only thing that can: 204 instances of full-detail gear
+        // on a tank four pixels tall is the cost the one-look policy has no room for. Callers
+        // with no camera (the garage, the probes, the offscreen lineups) pass none and get the
+        // authored construction.
+        let gear_detail = eye.map_or(vehicle_geometry::GearDetail::Near, |eye| {
+            let distance =
+                glam::Vec3::from_array(eye).distance(glam::Vec3::from_array(tank.translation));
+            vehicle_geometry::gear_detail_for_distance(distance)
+        });
         let (left_travel, right_travel) = wheel_travel(&tank, terrain);
         // A driven track pulls its top run tight; braking or coasting lets it hang. The gain is
         // gentle: the P/v launch hits ~8 m/sÂ˛, and a sag that slams to its clamp on a throttle
@@ -151,6 +165,7 @@ pub fn split_pbr_vehicle_render_frame_on_terrain(
             tank.track_right_m,
             [tank.attitude_pitch_rad, tank.attitude_roll_rad, tank.attitude_heave_m],
             dynamics,
+            gear_detail,
         );
         recoil_gun(&mut tank_objects, tank.gun_recoil_m);
         scale_player_gun(&mut tank_objects, is_player, player_gun_scale);

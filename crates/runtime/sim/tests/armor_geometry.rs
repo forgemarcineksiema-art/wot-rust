@@ -135,37 +135,57 @@ fn the_track_band_is_the_real_belt_box() {
     assert_eq!(zone, ArmorZone::RightTrack, "the belt box answers before the hull wall");
 }
 
+/// Renamed with PR-17: there is no ball. The zone a shot down the gun line meets is the
+/// APERTURE — the patch is sized to the hole (0.20 half-extent) rather than to a mask half again
+/// wider than it, and it is no longer inflated by the external-ball rule that exists to catch a
+/// socket lip this vehicle does not have.
 #[test]
-fn a_shot_down_the_gun_line_lands_on_the_mantlet_ball() {
+fn a_shot_down_the_gun_line_lands_on_the_gun_aperture() {
     let blueprint =
         game_core::VehicleBlueprint::for_vehicle(game_core::VehicleKind::T54_1951).expect("bp");
     let y = blueprint.gun.trunnion_y;
     let (zone, _) =
         hit(Vec3::new(0.0, y, 10.0), Vec3::new(0.0, y, -2.0), t54_at_origin(HullPose::level(0.0)));
-    assert_eq!(zone, ArmorZone::Mantlet, "the gun line meets the mantlet ball, a real circle");
+    assert_eq!(zone, ArmorZone::Mantlet, "the gun line meets the mount behind the aperture");
 }
 
+/// The cast dome's normal SWEEPS around the casting, so where a flat shot lands across the face
+/// decides the angle it meets — the whole reason a T-54 is hard to kill from the front.
+///
+/// Re-blessed 2026-07-29 (PR-13, the armour volume became the casting). The sweep used to be
+/// measured against a swept CIRCLE of 1.12 m, which the cheeks bulge a third of a metre past.
+/// With the volume drawn on the real casting the numbers move, and they move toward the vehicle:
+/// the cheek's fuller front face meets a flat shot more squarely at its inboard edge (0.95 m out:
+/// 41 degrees, where the circle gave a steeper sector by accident) and then rises hard across the
+/// shoulder — 60 degrees at 1.05 m, 70 at the flank. That is a casting, not a cylinder.
 #[test]
 fn the_dome_cheek_presents_a_steeper_angle_than_the_dome_center() {
-    // The cast dome's normal sweeps around the casting: the same flat shot meets the front
-    // center near its base slope and the far cheek sector at a much harsher angle.
     let blueprint =
         game_core::VehicleBlueprint::for_vehicle(game_core::VehicleKind::T54_1951).expect("bp");
     let y = blueprint.gun.trunnion_y;
-    let (_, center_angle) = hit(
-        Vec3::new(0.15, y, 10.0),
-        Vec3::new(0.15, y, -2.0),
-        t54_at_origin(HullPose::level(0.0)),
-    );
-    let (_, cheek_angle) = hit(
-        Vec3::new(0.95, y, 10.0),
-        Vec3::new(0.95, y, -2.0),
-        t54_at_origin(HullPose::level(0.0)),
-    );
+    let flat_shot_at = |x: f32| {
+        hit(Vec3::new(x, y, 10.0), Vec3::new(x, y, -2.0), t54_at_origin(HullPose::level(0.0)))
+    };
+
+    let (_, center_angle) = flat_shot_at(0.15);
+    // The cheek SHOULDER, where the swell turns away from the shot.
+    let (_, shoulder_angle) = flat_shot_at(1.05);
     assert!(
-        cheek_angle > center_angle + 15.0,
-        "the cheek glances: {cheek_angle}° vs center {center_angle}°"
+        shoulder_angle > center_angle + 15.0,
+        "the cheek shoulder glances: {shoulder_angle}° vs center {center_angle}°"
     );
+
+    // And it is a sweep, not a step: the angle rises monotonically outward across the casting.
+    let mut previous = 0.0_f32;
+    for x in [0.15_f32, 0.45, 0.75, 0.95, 1.05, 1.12] {
+        let (_, angle) = flat_shot_at(x);
+        assert!(
+            angle >= previous - 0.01,
+            "the casting must turn away steadily, but x={x:.2} meets {angle:.1}° after              {previous:.1}°"
+        );
+        previous = angle;
+    }
+    assert!(previous > 65.0, "by the flank the same shot is glancing hard: {previous:.1}°");
 }
 
 #[test]
@@ -203,13 +223,16 @@ fn the_is3_pike_rewards_head_on_and_punishes_angling() {
 }
 
 #[test]
-fn a_shell_dropping_on_the_deck_lands_on_the_roof_measured_against_up() {
+fn a_shell_dropping_on_the_deck_lands_on_the_hull_deck_measured_against_up() {
     // Straight down onto the rear deck, behind the turret: the deck is the hull slab's top face.
     let (zone, angle) = hit(
         Vec3::new(0.6, 12.0, -2.6),
         Vec3::new(0.6, 0.5, -2.6),
         t54_at_origin(HullPose::level(0.0)),
     );
-    assert_eq!(zone, ArmorZone::Roof, "the deck is roof plate, not a phantom side");
-    assert!(angle < 1.0, "a vertical drop is square-on to the roof (angle vs UP), got {angle}");
+    // `HullDeck`, not `Roof`: they used to share one zone, so a deck hit reported the TURRET
+    // front on the wire and both plates resolved against one derived thickness. The deck is
+    // 20 mm of engine cover; the turret roof is 30 mm of casting.
+    assert_eq!(zone, ArmorZone::HullDeck, "the deck is hull plate, not the turret roof");
+    assert!(angle < 1.0, "a vertical drop is square-on to the deck (angle vs UP), got {angle}");
 }

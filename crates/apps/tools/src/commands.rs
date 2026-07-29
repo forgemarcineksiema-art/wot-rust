@@ -4,8 +4,10 @@ use anyhow::Context;
 use game_core::{GunModule, TankSpec, VehicleKind};
 use serde::Serialize;
 use terrain::{HeightMap, MapId};
-use vehicle_forge::{BakeProfile, ForgeArtifact, ReferencePack, TankCompileRequest, compile_tank};
-use vehicle_geometry::bake_vehicle;
+use vehicle_forge::{
+    BakeProfile, ForgeArtifact, ReferencePack, TankCompileRequest, bake_production_vehicle,
+    compile_tank, export_obj,
+};
 
 use crate::cli::Command;
 
@@ -69,6 +71,9 @@ pub fn dispatch(command: Command) -> anyhow::Result<()> {
         Command::ExportBlueprints { out } => export_blueprints(out)?,
         Command::Studio { vehicle, out, blueprint_file } => {
             studio_command(&vehicle, out, blueprint_file)?
+        }
+        Command::ExportMesh { vehicle, out, profile } => {
+            export_mesh_command(&vehicle, out, profile.parse()?)?
         }
     }
     Ok(())
@@ -443,6 +448,51 @@ fn studio_command(
     Ok(())
 }
 
+/// Export a baked vehicle to OBJ+MTL for external inspection (the master-reference loop).
+///
+/// The bake is the PRODUCTION one, so what an inspector measures in Blender is what the battle
+/// draws — including the instanced running gear at rest pose, which lives outside the static
+/// submeshes and is therefore invisible to anyone reading the artifact alone.
+fn export_mesh_command(
+    vehicle: &str,
+    out: Option<PathBuf>,
+    profile: BakeProfile,
+) -> anyhow::Result<()> {
+    let kind = parse_vehicle_kind(vehicle)?;
+    let baked = bake_production_vehicle(kind, profile)?;
+    let obj_path =
+        out.unwrap_or_else(|| PathBuf::from("target/export").join(format!("{}.obj", kind.slug())));
+    let mtl_path = obj_path.with_extension("mtl");
+    let mtl_name = mtl_path
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_else(|| format!("{}.mtl", kind.slug()));
+
+    let export = export_obj(kind, &baked, &mtl_name);
+    if let Some(dir) = obj_path.parent() {
+        std::fs::create_dir_all(dir)
+            .with_context(|| format!("failed to create {}", dir.display()))?;
+    }
+    std::fs::write(&obj_path, export.obj.as_bytes())
+        .with_context(|| format!("failed to write {}", obj_path.display()))?;
+    std::fs::write(&mtl_path, export.mtl.as_bytes())
+        .with_context(|| format!("failed to write {}", mtl_path.display()))?;
+
+    println!(
+        "wrote {} ({} objects, {} tris, {} verts) + {}",
+        obj_path.display(),
+        export.objects.len(),
+        export.triangle_count,
+        export.vertex_count,
+        mtl_path.display(),
+    );
+    println!(
+        "  Blender import: forward Z, up Y (model frame is +X right, +Y up, +Z forward, origin \
+         on the ground)"
+    );
+    Ok(())
+}
+
 fn vehicle_spec(slug: &str) -> anyhow::Result<TankSpec> {
     Ok(match slug {
         "t54-1951" => TankSpec::t54_1951(),
@@ -460,7 +510,9 @@ fn forge_report(vehicle: &str, out: PathBuf) -> anyhow::Result<()> {
     let kind = parse_vehicle_kind(vehicle)?;
     let report = ReferencePack::for_vehicle(kind)
         .with_context(|| format!("no Forge ReferencePack for {vehicle}"))?
-        .measure_baked_vehicle(&bake_vehicle(kind)?)
+        // The AUTHORITATIVE bake, not the raw procedural recipe: for the T-54 those are
+        // different meshes, and a report about a mesh nobody ships is worse than no report.
+        .measure_baked_vehicle(&bake_production_vehicle(kind, BakeProfile::Lod0)?)
         .with_context(|| format!("Forge ReferencePack rejected {vehicle}"))?;
     write_text(out, &report.markdown_summary())
 }

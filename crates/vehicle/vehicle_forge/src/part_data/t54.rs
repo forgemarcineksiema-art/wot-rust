@@ -10,6 +10,17 @@ pub(crate) fn t54_family_parts(bp: &VehicleBlueprint) -> Vec<ForgePart> {
     let tu = &bp.turret;
     let g = &bp.gun;
 
+    // How far the fender shelf actually reaches. The named part used to be described by
+    // `hitbox_half_width` — the COLLISION box, which on this vehicle stands 0.14 m outside
+    // anything drawn (register M14). A part graph is a description of the metal, so a part
+    // whose extents come from the hitbox is a description of the wrong thing; it stayed
+    // inside the containment test's 0.12 m slack by five millimetres, and the documented
+    // 2.640 m gauge took those five millimetres away.
+    let fender_half_width = bp
+        .hybrid()
+        .map(|hybrid| hybrid.fender.side_x + hybrid.fender.half.x)
+        .unwrap_or(h.hitbox_half_width);
+
     let track_mid_y = 0.5 * (t.top_y + t.bottom_y);
     let wheel_top = track_mid_y + t.wheel_radius;
     let wheel_bottom = track_mid_y - t.wheel_radius;
@@ -52,8 +63,8 @@ pub(crate) fn t54_family_parts(bp: &VehicleBlueprint) -> Vec<ForgePart> {
             PartAnchor::Hull,
             MaterialRole::RolledArmor,
             Vec3::new(0.0, h.sponson_y + 0.08, 0.0),
-            Vec3::new(-h.hitbox_half_width, h.sponson_y, -h.half_len),
-            Vec3::new(h.hitbox_half_width, h.sponson_y + 0.16, h.half_len),
+            Vec3::new(-fender_half_width, h.sponson_y, -h.half_len),
+            Vec3::new(fender_half_width, h.sponson_y + 0.16, h.half_len),
             "Named T-54 side fenders over the exposed track run.",
         ),
         part(
@@ -98,7 +109,9 @@ pub(crate) fn t54_family_parts(bp: &VehicleBlueprint) -> Vec<ForgePart> {
         part(
             ForgePartKind::Idler,
             PartAnchor::Hull,
-            MaterialRole::Rubber,
+            // Cast steel with STEEL tyres on the T-54 (unlike the rubber-tyred road wheels) —
+            // the semantic part table said rubber, which is a material lie in the review data.
+            MaterialRole::TrackMetal,
             Vec3::new(0.0, track_mid_y, t.wheel_last_z),
             Vec3::new(-t.outer_x, track_mid_y - t.end_radius, t.wheel_last_z - t.end_radius),
             Vec3::new(t.outer_x, track_mid_y + t.end_radius, t.wheel_last_z + t.end_radius),
@@ -107,7 +120,8 @@ pub(crate) fn t54_family_parts(bp: &VehicleBlueprint) -> Vec<ForgePart> {
         part(
             ForgePartKind::DriveSprocket,
             PartAnchor::Hull,
-            MaterialRole::Rubber,
+            // Hadfield-steel tooth rings bolted to a steel disc — never rubber.
+            MaterialRole::TrackMetal,
             Vec3::new(0.0, track_mid_y, t.wheel_first_z),
             Vec3::new(-t.outer_x, track_mid_y - t.end_radius, t.wheel_first_z - t.end_radius),
             Vec3::new(t.outer_x, track_mid_y + t.end_radius, t.wheel_first_z + t.end_radius),

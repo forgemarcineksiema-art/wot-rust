@@ -14,7 +14,7 @@ fn t54_object_count() -> usize {
 
 /// Cached meshes for one blueprint vehicle: hull/turret/gun plus six unit gear meshes
 /// (road wheel, swing arm, sprocket, idler, track link, return roller).
-const BLUEPRINT_MESH_COUNT: usize = 9;
+const BLUEPRINT_MESH_COUNT: usize = 3 + 6 * 2;
 
 /// Drift lock between the two render paths: the dynamic per-vertex mesh build and the cached
 /// instanced objects must place every vertex identically for the same snapshot â€” including a

@@ -18,6 +18,27 @@ pub enum MaterialRole {
     /// Freshly fractured armor section. Dynamic damage geometry uses this instead of borrowing
     /// barrel steel, so the renderer can distinguish a rough, heat-stained cut from a gun tube.
     ExposedSteel,
+    /// Proofed canvas: the mantlet dust cover, tarpaulins, the gun-cleaning kit's rolls. Matte,
+    /// unlit-looking fabric with no specular lobe worth speaking of.
+    ///
+    /// Its own role because the alternative is worse. Every fabric part this fleet will ever
+    /// carry would otherwise be `CastArmor` — and a canvas boot rendered as cast steel is the
+    /// same mistake the mantlet comment already records about the mask being merged into the
+    /// barrel: one material for two things is one of them rendered wrong.
+    Canvas,
+    /// Glass: the headlight's lens, vision-block prisms. Bright, smooth, and the one thing on a
+    /// tank that is supposed to catch the sun.
+    ///
+    /// A lens rendered as the steel drum behind it is not a lens — it is a disc, and a viewer
+    /// reads it as one. Same argument as [`MaterialRole::Canvas`]: one material for two things
+    /// is one of them rendered wrong.
+    Glass,
+    /// Seasoned timber: the unditching log. Matte, fibrous, unpainted.
+    ///
+    /// Open decision #6 resolved the honest way: the log is wood, and rendering wood as track
+    /// steel was the recorded compromise. Same argument as Canvas and Glass — one material for
+    /// two things is one of them rendered wrong.
+    Timber,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

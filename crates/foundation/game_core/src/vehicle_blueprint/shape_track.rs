@@ -84,6 +84,18 @@ pub struct TrackShape {
     /// torsion-bar vehicles expose one trailing arm per axle.
     #[serde(default)]
     pub suspension: SuspensionKind,
+    /// How far the trailing arm REACHES back from its hull pivot to the axle it carries, and how
+    /// far the pivot sits ABOVE that axle at rest. `None` takes the family default.
+    ///
+    /// These two numbers decide where a wheel sits when the suspension works and how far it can
+    /// travel, and they were a pair of fleet-wide constants — 0.26 and 0.13 for every torsion-bar
+    /// tank ever built, from a 36-tonne T-54 to a 70-tonne Tiger II. A suspension is one of the
+    /// few things a tank is actually judged on, and its geometry belonged in the blueprint with
+    /// everything else the vehicle is.
+    #[serde(default)]
+    pub arm_reach_m: Option<f32>,
+    #[serde(default)]
+    pub arm_rise_m: Option<f32>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
@@ -122,6 +134,14 @@ pub enum WheelFace {
     SteelDish,
     /// Bolted dish under a rubber tire (Centurion).
     RubberDish,
+    /// The Soviet post-war "spider-web" road wheel: a stamped disc stiffened by radial RIBS
+    /// with lightening holes punched between them, not an openwork casting with arms.
+    ///
+    /// This is what a T-54 through T-54B rolled on. The 5-arm "starfish" the model assumed is a
+    /// later wheel (and the ⌀830 starfish is the 500 mm-track era's, not interchangeable at
+    /// all) — corrected from the part-construction dossier, S1b.
+    /// Appended last: the enum is asset identity.
+    SpiderWeb,
 }
 
 /// Deserialize `Option<Vec<f32>>` into the `Copy`-preserving `Option<&'static [f32]>` by
@@ -136,6 +156,22 @@ where
 }
 
 impl TrackShape {
+    /// Horizontal reach from the hull pivot back to the axle, for this vehicle's suspension
+    /// family. The defaults are what the fleet ran on before the numbers were authored.
+    pub fn arm_reach(&self) -> f32 {
+        self.arm_reach_m.unwrap_or(match self.suspension {
+            SuspensionKind::Christie => 0.14,
+            _ => 0.26,
+        })
+    }
+
+    /// How far the pivot stands above the axle at rest.
+    pub fn arm_rise(&self) -> f32 {
+        self.arm_rise_m.unwrap_or(match self.suspension {
+            SuspensionKind::Christie => 0.22,
+            _ => 0.13,
+        })
+    }
     /// Hull-local Y of the road-wheel axle line: the authored value, or the belt's mid-height
     /// for the wheel-carried layouts where the two coincide. Every consumer that needs to know
     /// where the wheels actually hang reads this rather than averaging the belt.

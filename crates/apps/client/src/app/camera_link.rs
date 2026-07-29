@@ -44,7 +44,9 @@ impl ClientApp {
             self.desired_aim.pitch_rad(),
         );
         let (turret_yaw, gun_pitch) = game_core::math::world_direction_to_turret(hull, world_dir);
-        let clamped = gun_pitch.clamp(sim::MIN_GUN_PITCH_RAD, sim::MAX_GUN_PITCH_RAD);
+        // The player's OWN arc: a T-54 may not aim where a Centurion can.
+        let (min_pitch, max_pitch) = self.player_spec().gun_pitch_limits_rad();
+        let clamped = gun_pitch.clamp(min_pitch, max_pitch);
         if (clamped - gun_pitch).abs() > 1.0e-6 {
             let reached = game_core::math::gun_direction_world(hull, turret_yaw, clamped);
             self.desired_aim.set_pitch(reached.y.clamp(-1.0, 1.0).asin());

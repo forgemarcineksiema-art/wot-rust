@@ -11,12 +11,14 @@ const CLOSED: MeshQualitySpec = MeshQualitySpec {
     topology: TopologyExpectation::ClosedManifold,
     min_triangle_area: 1.0e-10,
     normal_tolerance: 1.0e-3,
+    require_outward: true,
 };
 
 const ANY: MeshQualitySpec = MeshQualitySpec {
     topology: TopologyExpectation::Any,
     min_triangle_area: 1.0e-10,
     normal_tolerance: 1.0e-3,
+    require_outward: false,
 };
 
 fn vert(p: Vec3) -> GeometryVertex {
@@ -174,4 +176,48 @@ fn a_non_unit_normal_is_flagged() {
     let report =
         GeometryMesh::new(vec![v, vert(Vec3::X), vert(Vec3::Y)], vec![0, 1, 2]).quality_report(ANY);
     assert_eq!(report.non_unit_normals, 1);
+}
+
+/// A globally inverted shell is self-consistent: every edge is used twice in opposite
+/// directions, every normal is unit length, nothing is degenerate. Only the enclosed volume's
+/// SIGN tells you the surface faces inward — which is why the closed contract measures it.
+///
+/// Without this leg a kernel could ship a tank turned inside out and every gate would agree it
+/// was perfect.
+#[test]
+fn an_inside_out_closed_shell_is_rejected_by_the_closed_contract() {
+    let outward = tetrahedron();
+    let inward = inverted_tetrahedron();
+
+    let report = outward.quality_report(CLOSED);
+    assert!(report.signed_volume > 0.0, "the reference tetrahedron encloses positive volume");
+    outward.validate_quality(CLOSED).expect("an outward-wound tetrahedron passes");
+
+    let inverted = inward.quality_report(CLOSED);
+    assert!(inverted.signed_volume < 0.0);
+    // Everything EXCEPT the sign is identical — that is the point.
+    assert_eq!(inverted.boundary_edges, report.boundary_edges);
+    assert_eq!(inverted.non_manifold_edges, report.non_manifold_edges);
+    assert_eq!(inverted.inconsistent_winding_edges, report.inconsistent_winding_edges);
+    assert_eq!(inverted.degenerate_triangles, report.degenerate_triangles);
+    assert!(matches!(
+        inward.validate_quality(CLOSED),
+        Err(MeshQualityError::InvertedWinding(volume)) if volume < 0.0
+    ));
+
+    // An open-shell audit must stay silent about winding direction: there is no enclosed
+    // volume to sign, and the surface may legitimately be a one-sided sheet.
+    inward.validate_quality(ANY).expect("the open contract does not judge orientation");
+}
+
+/// The same tetrahedron with every face flipped: still closed, still consistently wound, but
+/// enclosing NEGATIVE volume — the shape a kernel produces when its winding convention is
+/// backwards.
+fn inverted_tetrahedron() -> GeometryMesh {
+    let mesh = tetrahedron();
+    let mut indices = mesh.indices().to_vec();
+    for face in indices.chunks_exact_mut(3) {
+        face.swap(1, 2);
+    }
+    GeometryMesh::new(mesh.vertices().to_vec(), indices)
 }

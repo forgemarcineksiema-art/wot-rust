@@ -100,19 +100,25 @@ fn hull_components() -> Vec<DamageComponent> {
             // world 1.67 m — 9 cm PROUD of the 1.58 m foredeck, so the museum rounds hanging
             // off it lay visibly on the glacis. The real 20-round rack stands on the hull
             // floor and stops under the deck; -0.12 puts the top at 1.55, a plate under it.
-            obb([0.65, -0.12, 1.20], [0.37, 0.48, 0.36], 0.0),
+            // x pulled to 0.58 (2026-07-29 interior audit): at 0.65 the rack's outer face
+            // reached 1.02 — through the inner wall of the 80 mm side plate on a 1.03 tub.
+            // Rounds stored inside armour are rounds a side penetration cannot reach honestly.
+            obb([0.58, -0.12, 1.20], [0.37, 0.48, 0.36], 0.0),
             32,
             1.35,
         ),
-        // Four shin-level rounds clipped low along the loader's hull wall. The last free id under
-        // the v26 u16 component mask; the two loader-wall clips and the bulkhead round stay
-        // visual-only until the mask widens.
+        // Four shin-level rounds clipped low along the loader's hull wall. (The mask that once
+        // capped this at id 16 is a u32 as of protocol v27 — ids 17+ own real bits now, so the
+        // remaining loader-wall clips and the bulkhead round are free to become damage
+        // components whenever the interior program wants them.)
         hull_component(
             16,
             K::AmmunitionRack,
             ModuleSlot::AmmoRack,
             M::Ammunition,
-            obb([0.88, -0.335, 0.0], [0.10, 0.18, 0.69], 0.0),
+            // x 0.88 -> 0.85 (interior audit): the clips hug the INNER face of the wall
+            // (0.95), not the middle of the plate.
+            obb([0.85, -0.335, 0.0], [0.10, 0.18, 0.69], 0.0),
             32,
             1.35,
         ),
@@ -121,7 +127,7 @@ fn hull_components() -> Vec<DamageComponent> {
             K::FuelTank,
             ModuleSlot::Engine,
             M::Fuel,
-            obb([-0.79, 0.03, -1.43], [0.25, 0.43, 0.65], 0.0),
+            obb([-0.70, 0.03, -1.43], [0.25, 0.43, 0.65], 0.0),
             25,
             1.1,
         ),
@@ -130,7 +136,9 @@ fn hull_components() -> Vec<DamageComponent> {
             K::FuelTank,
             ModuleSlot::Engine,
             M::Fuel,
-            obb([0.79, 0.03, -1.43], [0.25, 0.43, 0.65], 0.0),
+            // Both engine-bay tanks pulled from ±0.79 to ±0.70 (interior audit): their outer
+            // faces sat at 1.04 — a centimetre PAST the hull side. Fuel outside the tank.
+            obb([0.70, 0.03, -1.43], [0.25, 0.43, 0.65], 0.0),
             25,
             1.1,
         ),
@@ -160,7 +168,12 @@ fn hull_components() -> Vec<DamageComponent> {
             K::FinalDrive,
             ModuleSlot::Suspension,
             M::Driveline,
-            cylinder_shape([-1.08, -0.34, -2.77], Vec3::X, 0.18, 0.24),
+            // z -2.77 -> -2.59 (interior audit): PR-18 moved the end wheels onto the
+            // documented belt, and the final drives stayed where the OLD sprocket was — a
+            // drive housing 18 cm behind the axle it turns. The housing still crosses the hull
+            // side deliberately: the drive must reach the sprocket, and that penetration is the
+            // one interior element allowed outside the tub (see the interior containment lock).
+            cylinder_shape([-1.08, -0.34, -2.59], Vec3::X, 0.18, 0.24),
             28,
             1.0,
         ),
@@ -169,7 +182,7 @@ fn hull_components() -> Vec<DamageComponent> {
             K::FinalDrive,
             ModuleSlot::Suspension,
             M::Driveline,
-            cylinder_shape([1.08, -0.34, -2.77], Vec3::X, 0.18, 0.24),
+            cylinder_shape([1.08, -0.34, -2.59], Vec3::X, 0.18, 0.24),
             28,
             1.0,
         ),
@@ -177,7 +190,10 @@ fn hull_components() -> Vec<DamageComponent> {
 }
 
 fn suspension_components() -> [DamageComponent; 2] {
-    [-1.24, 1.24].map(|x| DamageComponent {
+    // ±1.24 -> ±1.32 (interior audit): the suspension capsule is the torsion-bar/wheel-arm
+    // line, and the wheel plane moved with the documented 2.640 m gauge in PR-18. A capsule 80 mm
+    // inboard of the wheels it stands for takes hits the suspension would not.
+    [-1.32, 1.32].map(|x| DamageComponent {
         id: DamageComponentId(if x < 0.0 { 14 } else { 15 }),
         frame: ArmorFrame::Hull,
         kind: K::Suspension,

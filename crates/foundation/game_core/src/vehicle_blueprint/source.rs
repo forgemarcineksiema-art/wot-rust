@@ -50,7 +50,8 @@ impl BlueprintFile {
             turret: self.turret,
             gun: self.gun,
             armor: self.armor,
-            hybrid: (self.kind == VehicleKind::T54_1951).then(t54_hybrid),
+            hybrid: (self.kind == VehicleKind::T54_1951)
+                .then(|| t54_hybrid(&self.hull, &self.armor)),
         }
     }
 }

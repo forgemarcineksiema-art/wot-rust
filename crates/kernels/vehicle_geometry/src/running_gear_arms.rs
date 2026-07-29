@@ -14,14 +14,8 @@ use crate::{
 const SG_HARD: SmoothingGroup = SmoothingGroup::hard_edges();
 const SG_ARM: SmoothingGroup = SmoothingGroup(6);
 
-/// Horizontal reach from the hull pivot back to the axle (trailing arm, T-54 style).
-const ARM_REACH_M: f32 = 0.26;
-/// How far the pivot sits above the axle line at rest.
-const ARM_RISE_M: f32 = 0.13;
 /// Arm plate half-thickness along the axle.
 const ARM_HALF_X: f32 = 0.045;
-const CHRISTIE_REACH_M: f32 = 0.14;
-const CHRISTIE_RISE_M: f32 = 0.22;
 
 /// One trailing swing arm, authored with the HULL PIVOT at the origin and the axle tip at
 /// `(0, -ARM_RISE_M, -ARM_REACH_M)`: a tapered forged arm, a pivot boss, and an axle stub that
@@ -34,25 +28,62 @@ pub fn swing_arm_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
     }
 }
 
+/// One trailing torsion arm.
+///
+/// It used to be a flat plate of constant thickness, sized by two constants that every
+/// torsion-bar tank in the fleet shared — 0.26 m of reach and 0.13 m of rise, from a 36-tonne
+/// T-54 to a 70-tonne Tiger II. A suspension is one of the few things a tank is judged on, and
+/// its geometry now comes from the blueprint like everything else the vehicle is.
+///
+/// The shape is a forging, not a slab: an I-SECTION, thick along the load path and waisted
+/// between its flanges, with the torsion-bar hub at the pivot end — the splined boss the bar
+/// actually twists inside, which is the part that makes the mechanism legible at all.
 fn torsion_arm_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
-    let seg = kin.segments.max(12);
-    let tip = Vec2::new(-ARM_RISE_M, -ARM_REACH_M);
+    let seg = kin.segments_for(12);
+    let tip = Vec2::new(-kin.arm_rise, -kin.arm_reach);
     let along = tip.normalize_or_zero();
     let across = Vec2::new(-along.y, along.x);
-    // Tapered arm plate in the (y, z) plane: wide at the boss, narrower at the axle.
-    let section = vec![-across * 0.055, across * 0.055, tip + across * 0.040, tip - across * 0.040];
-    MeshBuilder::new()
-        .extrude(
-            Vec3::ZERO,
-            ExtrudeSpec {
-                section,
-                axis: Axis::X,
-                half_depth: ARM_HALF_X,
-                material: MaterialRole::TrackMetal,
-                smoothing: SG_HARD,
-            },
-        )
-        .append(&stub(Vec3::ZERO, 0.075, ARM_HALF_X * 1.5, seg))
+    // The web: the thin middle of the I, carrying the arm from boss to axle.
+    let web = vec![-across * 0.030, across * 0.030, tip + across * 0.024, tip - across * 0.024];
+    // The flanges: the thick edges the section's stiffness actually lives in. They are what
+    // makes it a forging rather than a plate — and they are visible, because a swing arm is
+    // seen edge-on from every angle a tank is looked at from the side.
+    let flange = |offset: f32| {
+        vec![
+            -across * 0.055 + along * offset,
+            across * 0.055 + along * offset,
+            across * 0.048 + along * (offset + 0.045),
+            -across * 0.048 + along * (offset + 0.045),
+        ]
+    };
+    let extrude = |section: Vec<Vec2>, half_depth: f32| {
+        MeshBuilder::new()
+            .extrude(
+                Vec3::ZERO,
+                ExtrudeSpec {
+                    section,
+                    axis: Axis::X,
+                    half_depth,
+                    material: MaterialRole::TrackMetal,
+                    smoothing: SG_HARD,
+                },
+            )
+            .build()
+    };
+    let mut builder = MeshBuilder::new().append(&extrude(web, ARM_HALF_X * 0.55));
+    // The flanges are what makes the section an I rather than a plate — and at the switch range
+    // a 20 mm step on an arm in the hull's shadow is not something anyone resolves.
+    if kin.detail == crate::GearDetail::Near {
+        builder = builder
+            .append(&extrude(flange(0.0), ARM_HALF_X))
+            .append(&extrude(flange(kin.arm_reach * 0.62), ARM_HALF_X));
+    }
+    builder
+        // The torsion-bar hub: the boss at the pivot the bar is splined into. It runs the whole
+        // width of the pivot and stands proud INBOARD toward the hull, where the bar actually
+        // crosses the floor — one boss, not a bar hub overlapping a second plain one.
+        .append(&stub(Vec3::new(-ARM_HALF_X * 0.9, 0.0, 0.0), 0.086, ARM_HALF_X * 2.4, seg))
+        // The axle stub, reaching outboard into the wheel hub.
         .append(&stub(Vec3::new(0.0, tip.x, tip.y), 0.055, ARM_HALF_X * 2.4, seg))
         .build()
 }
@@ -61,8 +92,8 @@ fn torsion_arm_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
 /// itself is internal, so drawing the fleet's generic trailing torsion arm here would advertise the
 /// wrong mechanism.
 fn christie_crank_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
-    let seg = kin.segments.max(12);
-    let tip = Vec2::new(-CHRISTIE_RISE_M, -CHRISTIE_REACH_M);
+    let seg = kin.segments_for(12);
+    let tip = Vec2::new(-kin.arm_rise, -kin.arm_reach);
     let along = tip.normalize_or_zero();
     let across = Vec2::new(-along.y, along.x);
     let section = vec![-across * 0.060, across * 0.060, tip + across * 0.045, tip - across * 0.045];
@@ -123,7 +154,7 @@ fn horstmann_bogie_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
                 smoothing: SG_HARD,
             },
         )
-        .append(&stub(Vec3::new(0.0, 0.055, 0.0), 0.075, ARM_HALF_X * 2.0, kin.segments.max(12)))
+        .append(&stub(Vec3::new(0.0, 0.055, 0.0), 0.075, ARM_HALF_X * 2.0, kin.segments_for(12)))
         .build()
 }
 
@@ -156,8 +187,8 @@ fn torsion_arm_transform(
     travel: f32,
 ) -> Mat4 {
     let arm_x = side_sign * (kin.wheel_x - kin.wheel_half_width - ARM_HALF_X);
-    let pivot = Vec3::new(arm_x, kin.cy + ARM_RISE_M, wheel_z + ARM_REACH_M);
-    let swing = (travel / ARM_REACH_M).clamp(-1.0, 1.0).asin();
+    let pivot = Vec3::new(arm_x, kin.cy + kin.arm_rise, wheel_z + kin.arm_reach);
+    let swing = (travel / kin.arm_reach).clamp(-1.0, 1.0).asin();
     Mat4::from_translation(pivot) * Mat4::from_rotation_x(swing)
 }
 
@@ -168,8 +199,8 @@ fn christie_crank_transform(
     travel: f32,
 ) -> Mat4 {
     let arm_x = side_sign * (kin.wheel_x - kin.wheel_half_width - ARM_HALF_X);
-    let pivot = Vec3::new(arm_x, kin.cy + CHRISTIE_RISE_M, wheel_z + CHRISTIE_REACH_M);
-    let swing = (travel / CHRISTIE_REACH_M).clamp(-1.0, 1.0).asin();
+    let pivot = Vec3::new(arm_x, kin.cy + kin.arm_rise, wheel_z + kin.arm_reach);
+    let swing = (travel / kin.arm_reach).clamp(-1.0, 1.0).asin();
     Mat4::from_translation(pivot) * Mat4::from_rotation_x(swing)
 }
 

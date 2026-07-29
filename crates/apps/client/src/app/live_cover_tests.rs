@@ -139,6 +139,7 @@ fn both_reticle_traces_clear_the_low_rubble_and_gone_phases() {
     let pitch = crate::aim::gun_pitch_to_hit(muzzle, aim, 895.0, 0.09);
     let status = |cache: &LiveCoverCache| {
         crate::hud::reticle::reticle_report(crate::hud::reticle::ReticleFeedbackQuery {
+            gun_pitch_limits_rad: (sim::MIN_GUN_PITCH_RAD, sim::MAX_GUN_PITCH_RAD),
             heightmap: &flat,
             cover: cache.blocking(),
             water: None,

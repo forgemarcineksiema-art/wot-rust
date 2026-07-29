@@ -23,7 +23,10 @@ mod vehicle;
 mod weld;
 
 pub use bounds::MeshBounds;
-pub use budgets::{GOLDEN_BAKE_HASHES, VEHICLE_BUDGETS, VehicleBudgets, golden_bake_hash};
+pub use budgets::{
+    FAR_MUST_SAVE_FRACTION, GEAR_BUDGETS, GOLDEN_BAKE_HASHES, GearBudgets, VEHICLE_BUDGETS,
+    VehicleBudgets, golden_bake_hash,
+};
 pub use builder::MeshBuilder;
 pub use cavity::CavityBand;
 pub use contact::{DecalPatch, MeshContactIndex, SurfaceContact};
@@ -42,7 +45,10 @@ pub use quality::{
     TopologyExpectation,
 };
 pub use recipes::{bake_vehicle, bake_vehicle_from_blueprint};
-pub use running_gear::{GearPart, GearPlacement, RunningGearKinematics};
+pub use running_gear::{
+    GEAR_DETAIL_SWITCH_M, GearDetail, GearPart, GearPlacement, RunningGearKinematics,
+    gear_detail_for_distance,
+};
 pub use running_gear_arms::swing_arm_unit_mesh;
 pub use running_gear_end_wheels::{end_wheel_unit_mesh, idler_unit_mesh, sprocket_unit_mesh};
 pub use running_gear_geom::track_link_unit_mesh;

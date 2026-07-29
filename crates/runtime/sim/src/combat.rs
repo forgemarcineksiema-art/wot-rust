@@ -1,7 +1,7 @@
 use game_core::math::{plate_normal, world_to_tank_local};
 use game_core::{
     ArmorFacing, ArmorZone, DamageCause, DamageEvent, ModuleSlot, PenetrationResult, ShellId,
-    TankId, TrackSide, resolve_penetration_at_distance_on_zone,
+    TankId, TrackSide, resolve_penetration_at_distance_on_zone_scaled,
     resolve_penetration_through_screens,
 };
 use glam::Vec3;
@@ -102,15 +102,23 @@ pub(crate) fn apply_shell_impact(
     distance_m: f32,
     tick: u64,
     entry: ArmorEntry,
+    // The struck plate's share of its zone's thickness — 1.0 for flat plates, less where a
+    // cast wall has thinned (the turret flank running aft).
+    thickness_scale: f32,
     breaches_out: &mut Vec<crate::event_stamp::ArmorBreachRecord>,
 ) -> (DamageEvent, Option<ShellExit>) {
     let target =
         tanks.iter_mut().find(|tank| tank.id == target_id).expect("hit tank still present");
     let target_was_alive = target.hit_points > 0;
     let penetration = match entry {
-        ArmorEntry::Plate => {
-            resolve_impact_penetration(shell, target, zone, impact_angle_degrees, distance_m)
-        }
+        ArmorEntry::Plate => resolve_impact_penetration(
+            shell,
+            target,
+            zone,
+            impact_angle_degrees,
+            distance_m,
+            thickness_scale,
+        ),
         ArmorEntry::OpenChannel => {
             game_core::resolve_penetration_through_open_channel(&shell.shell, distance_m)
         }
@@ -430,14 +438,18 @@ fn resolve_impact_penetration(
     zone: ArmorZone,
     impact_angle_degrees: f32,
     distance_m: f32,
+    // How much of the zone's plate is actually at this spot: a cast turret's wall thins as it
+    // runs aft, so a flank hit resolves against the metal THERE, not against the flank average.
+    thickness_scale: f32,
 ) -> PenetrationResult {
     if !matches!(zone, ArmorZone::LeftTrack | ArmorZone::RightTrack | ArmorZone::Skirt) {
-        return resolve_penetration_at_distance_on_zone(
+        return resolve_penetration_at_distance_on_zone_scaled(
             &shell.shell,
             &target.spec.hull,
             zone,
             impact_angle_degrees,
             distance_m,
+            thickness_scale,
         );
     }
     // Which flank the shell met. The track zones say so outright; the skirt pair shares one
@@ -542,6 +554,7 @@ mod tests {
             18.5,
             0,
             ArmorEntry::Plate,
+            1.0,
             &mut Vec::new(),
         );
 
@@ -575,9 +588,9 @@ mod tests {
             shell_toward(TankId(1), Vec3::new(-5.0, 0.0, 0.0), Vec3::new(900.0, 0.0, 0.0), &spec);
 
         let healthy =
-            resolve_impact_penetration(&shell, &make(false), ArmorZone::LeftTrack, 0.0, 20.0);
+            resolve_impact_penetration(&shell, &make(false), ArmorZone::LeftTrack, 0.0, 20.0, 1.0);
         let broken =
-            resolve_impact_penetration(&shell, &make(true), ArmorZone::LeftTrack, 0.0, 20.0);
+            resolve_impact_penetration(&shell, &make(true), ArmorZone::LeftTrack, 0.0, 20.0, 1.0);
         assert!(
             broken.effective_armor_mm < healthy.effective_armor_mm - 1.0,
             "a broken track must drop the effective armour (screen gone): broken {} vs healthy {}",
@@ -609,9 +622,16 @@ mod tests {
                     ShellType::Heat => game_core::ShellSpec::heat(100.0, 900.0, 300.0, 320),
                     _ => game_core::ShellSpec::armor_piercing(100.0, 900.0, 200.0, 320),
                 };
-                let skirt = resolve_impact_penetration(&shell, &tank, ArmorZone::Skirt, 0.0, 100.0);
-                let belt =
-                    resolve_impact_penetration(&shell, &tank, ArmorZone::RightTrack, 0.0, 100.0);
+                let skirt =
+                    resolve_impact_penetration(&shell, &tank, ArmorZone::Skirt, 0.0, 100.0, 1.0);
+                let belt = resolve_impact_penetration(
+                    &shell,
+                    &tank,
+                    ArmorZone::RightTrack,
+                    0.0,
+                    100.0,
+                    1.0,
+                );
                 assert!(
                     skirt.effective_armor_mm > belt.effective_armor_mm,
                     "{kind:?} vs {shell_type:?}: a skirt hit must cost MORE than the bare belt \
@@ -638,8 +658,10 @@ mod tests {
         };
         let shell =
             shell_toward(TankId(1), Vec3::new(5.0, 0.9, 0.0), Vec3::new(-900.0, 0.0, 0.0), &spec);
-        let whole = resolve_impact_penetration(&shell, &make(false), ArmorZone::Skirt, 0.0, 100.0);
-        let thrown = resolve_impact_penetration(&shell, &make(true), ArmorZone::Skirt, 0.0, 100.0);
+        let whole =
+            resolve_impact_penetration(&shell, &make(false), ArmorZone::Skirt, 0.0, 100.0, 1.0);
+        let thrown =
+            resolve_impact_penetration(&shell, &make(true), ArmorZone::Skirt, 0.0, 100.0, 1.0);
         assert!(
             thrown.effective_armor_mm < whole.effective_armor_mm,
             "a thrown belt must stop screening: {:.1} mm vs {:.1} mm",
@@ -659,6 +681,16 @@ mod tests {
         assert_eq!(ShellType::default(), event.shell_type);
     }
 
+    /// Where the T-54's hull side actually is. It was typed as -1.05 in three places, which was
+    /// right until the documented 2.640 m gauge narrowed the tub to the 2.060 m of clear space
+    /// it leaves (PR-18) — and then three penetration tests were striking 20 mm of air.
+    fn t54_hull_side_x() -> f32 {
+        game_core::VehicleBlueprint::for_vehicle(game_core::VehicleKind::T54_1951)
+            .expect("T-54 blueprint")
+            .hull
+            .half_width
+    }
+
     #[test]
     fn penetrating_t54_side_creates_a_persistent_channel_and_module_mask() {
         let spec = TankSpec::t54_1951();
@@ -672,11 +704,12 @@ mod tests {
             ArmorFacing::HullSide,
             ArmorZone::HullSide,
             0.0,
-            Vec3::new(-1.05, 1.0, -1.8),
+            Vec3::new(-t54_hull_side_x(), 1.0, -1.8),
             Vec3::NEG_X,
             20.0,
             0,
             ArmorEntry::Plate,
+            1.0,
             &mut Vec::new(),
         );
         assert!(event.penetrated);
@@ -708,11 +741,12 @@ mod tests {
                 ArmorFacing::HullSide,
                 ArmorZone::HullSide,
                 0.0,
-                Vec3::new(-1.05, 1.0, -1.8),
+                Vec3::new(-t54_hull_side_x(), 1.0, -1.8),
                 Vec3::NEG_X,
                 20.0,
                 0,
                 entry,
+                1.0,
                 &mut Vec::new(),
             );
             let entry_wounds = tanks[0]
@@ -763,11 +797,12 @@ mod tests {
                 ArmorFacing::HullSide,
                 ArmorZone::HullSide,
                 0.0,
-                Vec3::new(-1.05, 1.0, -1.8),
+                Vec3::new(-t54_hull_side_x(), 1.0, -1.8),
                 Vec3::NEG_X,
                 20.0,
                 44,
                 ArmorEntry::Plate,
+                1.0,
                 &mut Vec::new(),
             );
             assert!(event.penetrated);
@@ -810,6 +845,7 @@ mod tests {
             20.0,
             7,
             ArmorEntry::Plate,
+            1.0,
             &mut Vec::new(),
         );
         assert!(event.penetrated);

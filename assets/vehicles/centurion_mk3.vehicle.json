@@ -14,6 +14,7 @@
     "turret_front_mm": 152.0,
     "turret_side_mm": 112.0,
     "turret_rear_mm": 90.0,
+    "turret_roof_mm": null,
     "facets": {
       "hull_front": {
         "nominal_thickness_mm": 76.0,
@@ -56,6 +57,8 @@
     "shot_bloom_mrad": 3.6,
     "max_dispersion_mrad": 16.0,
     "barrel_length_m": 5.6,
+    "depression_deg": 8.0,
+    "elevation_deg": 20.1,
     "shell": {
       "shell_type": "ArmorPiercing",
       "caliber_mm": 84.0,

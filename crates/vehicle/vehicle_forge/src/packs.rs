@@ -36,15 +36,14 @@ pub fn t54_reference_pack() -> ReferencePack {
                 "In-repo gameplay translation and public source summary.",
             ),
         ],
-        // Targets are the documented 1:1 dimensions: hull 6.04 long x 3.27 wide x 1.75 to the
-        // roof, ~2.25 m casting 0.66 tall with the cupola, and the D-10T's 2.96 m bow overhang
-        // (9.00 m with gun forward).
+        // Proportion gates (scale-free). The absolute tape-measure truth lives in the
+        // dimension anchors below, sourced from the docs/vehicles/t-54.md dossier table.
         vec![
             RatioTarget::new(
                 RatioKind::HullLengthToWidth,
                 1.85,
                 0.15,
-                "Overall hull plan (6.04 / 3.27) should read as a compact Soviet medium, not a long heavy.",
+                "Overall hull plan (6.235 / 3.27) should read as a compact Soviet medium, not a long heavy.",
             ),
             RatioTarget::new(
                 RatioKind::HullHeightToLength,
@@ -60,23 +59,30 @@ pub fn t54_reference_pack() -> ReferencePack {
             ),
             RatioTarget::new(
                 RatioKind::TurretHeightToHullHeight,
-                0.48,
-                0.05,
-                "The tall ~0.7 m hemispherical casting (plus cupola) rides the LOW 1.58 hull roof.",
+                // Re-blessed 2026-07-29 (PR-15) onto the documented casting: 0.82 m of turret
+                // from the 1.58 ring seat to the 2.40 roof, over the hull it rides. The 0.48 it
+                // replaces was the shallow 2.27 dome expressed as a ratio — a target fitted to
+                // the model rather than taken from the tank.
+                0.55,
+                0.06,
+                "The 0.82 m casting (ring 1.58 to roof 2.40) rides the LOW 1.58 hull roof.",
             ),
             RatioTarget::new(
                 RatioKind::GunProtrusionToHullLength,
                 0.49,
                 0.08,
-                "The D-10T projects 2.96 m past the bow (9.00 m overall) — decisive but not a heavy-tank gun.",
+                "The D-10T projects 2.73 m past the bow (9.00 m overall) — decisive but not a heavy-tank gun.",
             ),
             // The PR-04 ratio family — the pilot authors all three so the fleet packs have a
             // worked example to copy in their W1/W2 dossier PRs.
             RatioTarget::new(
                 RatioKind::TurretLengthToWidth,
-                0.95,
+                // Blender session S1 measured 1.05 on the real casting and flagged the bake at
+                // 0.97 — "the cheeks are too wide for the length". The 0.95 target here was that
+                // same wrong bake written down as a goal.
+                1.05,
                 0.06,
-                "The cast dome plan is nearly round, a touch wider than long (2.23 long over                  2.31 wide as baked — the mantlet cheeks carry the width).",
+                "The cast dome plan is a touch LONGER than wide: 2.363 m over 2.25 (S1).",
             ),
             RatioTarget::new(
                 RatioKind::TurretRingPositionOnHull,
@@ -88,63 +94,115 @@ pub fn t54_reference_pack() -> ReferencePack {
                 RatioKind::RoadWheelDiameterToHullLength,
                 0.132,
                 0.008,
-                "810 mm starfish wheels on the 6.04 m hull read heavy on the side view.",
+                "810 mm spider-web wheels on the 6.235 m hull read heavy on the side view.",
             ),
         ],
     )
-    // Absolute anchors (metres): the pilot of the dimension gate. Ratios pass at any scale;
-    // these pin the model to the documented tape measure. Tolerances cover the current
-    // authoritative hybrid (fender stowage widens the plan slightly past the bare hull).
+    // Absolute anchors: the documented tape measure of the obr. 1951, from the dossier table
+    // in docs/vehicles/t-54.md (2026-07-28 research, graded sources). `Locked` rows gate;
+    // `Target` rows are the Model Idealny program's declared debt — the documented value the
+    // model has NOT reached yet, flipped to Locked by the PR that closes the register entry
+    // (M-register, docs/model-idealny-t54.md). Anchoring the WRONG (fit-to-model) number to
+    // keep a gate green is exactly the failure this file used to have — never again.
     .with_dimensions(vec![
-        DimensionTarget::new(
-            DimensionKind::HullLength,
-            6.04,
-            0.15,
-            ReferenceSource::new(
-                "Project T-54 vehicle notes",
-                "docs/vehicles/t-54.md",
-                "Documented 6.04 m hull; the baked mesh adds fender line and rear stowage.",
-            ),
-        ),
+        // -- Locked: the model already honours these documented numbers. --
         DimensionTarget::new(
             DimensionKind::HullWidth,
             3.27,
-            0.10,
-            ReferenceSource::new(
-                "Project T-54 vehicle notes",
-                "docs/vehicles/t-54.md",
-                "3.27 m over the combat tracks.",
-            ),
-        ),
-        DimensionTarget::new(
-            DimensionKind::HeightToTurretRoof,
-            2.40,
             0.05,
-            ReferenceSource::new(
-                "Project T-54 vehicle notes",
-                "docs/vehicles/t-54.md",
-                "2.40 m silhouette apex (cupola lid inside the hitbox top).",
-            ),
+            t54_dossier("3.27 m over the fenders (high confidence)."),
         ),
         DimensionTarget::new(
             DimensionKind::OverallLengthWithGun,
             9.00,
             0.15,
-            ReferenceSource::new(
-                "Project T-54 vehicle notes",
-                "docs/vehicles/t-54.md",
-                "9.00 m overall with the D-10T forward.",
-            ),
+            t54_dossier("9.00 m overall with the D-10T forward (high confidence)."),
         ),
         DimensionTarget::new(
             DimensionKind::RoadWheelDiameter,
             0.81,
             0.01,
-            ReferenceSource::new(
-                "Project T-54 vehicle notes",
-                "docs/vehicles/t-54.md",
-                "810 mm starfish road wheels.",
-            ),
+            t54_dossier("810 mm starfish road wheels; measured off the wheel unit mesh."),
+        ),
+        DimensionTarget::new(
+            DimensionKind::TurretRingDiameter,
+            1.825,
+            0.015,
+            t54_dossier("1825 mm ring in the clear (Tankograd); pins the blueprint ring."),
+        ),
+        DimensionTarget::new(
+            DimensionKind::FireLineHeight,
+            1.79,
+            0.02,
+            t54_dossier("1790 mm fire line; measured off the gun-trunnion mount frame."),
+        ),
+        DimensionTarget::new(
+            DimensionKind::TrackLinkCountPerSide,
+            90.0,
+            0.4,
+            t54_dossier("90 OMSh links per side, counted from the rendered placements."),
+        ),
+        DimensionTarget::new(
+            DimensionKind::RoadWheelCount,
+            5.0,
+            0.4,
+            t54_dossier("5 road wheels per side, counted from the rendered placements."),
+        ),
+        // The clearance debt was FOUND BY this instrument on its first run and CLOSED BY it on the
+        // last: the belly has been at the documented 0.425 since PR-14, and what stayed in debt
+        // was the measurement. It looked in a strip 55% of the widest thing on the vehicle, and
+        // the widest thing on a T-54 is its fenders — so the window was 0.90 wide while the floor's
+        // corners sit at 1.03, and the floor was never in it. It reads the hull's own width now.
+        //
+        // This was the LAST Target anchor on this vehicle. There are none left.
+        DimensionTarget::new(
+            DimensionKind::GroundClearance,
+            0.425,
+            0.01,
+            t54_dossier("425 mm documented clearance, four sources agreeing."),
+        ),
+        DimensionTarget::new(
+            DimensionKind::HullLength,
+            6.235,
+            0.05,
+            t54_dossier("6.20-6.27 m documented band; the hull is built at the working 6.235."),
+        ),
+        DimensionTarget::new(
+            DimensionKind::HeightToTurretRoofBare,
+            2.40,
+            0.05,
+            t54_dossier("2.40 m to the bare turret roof (book sources); the dome is built there."),
+        ),
+        DimensionTarget::new(
+            DimensionKind::HeightToTurretRoof,
+            2.53,
+            0.06,
+            t54_dossier("~2.53 m apex: roof 2.40 plus the authored 131 mm of exposed cupola."),
+        ),
+        DimensionTarget::new(
+            DimensionKind::CupolaDiameter,
+            0.624,
+            0.01,
+            t54_dossier("624 mm external cupola (Tankograd); the drum is built there."),
+        ),
+        DimensionTarget::new(
+            DimensionKind::TrackWidth,
+            0.58,
+            0.005,
+            t54_dossier("580 mm OMSh belt; the links span it (PR-18)."),
+        ),
+        DimensionTarget::new(
+            DimensionKind::TrackGauge,
+            2.64,
+            0.02,
+            t54_dossier("2640 mm gauge; the belts sit on it (PR-18)."),
         ),
     ])
+}
+
+/// Every T-54 anchor cites the in-repo dossier — whose Reference anatomy table carries the
+/// number, its external sources, and its confidence grade. The provenance test enforces that
+/// the cited number actually appears there.
+fn t54_dossier(note: &str) -> ReferenceSource {
+    ReferenceSource::new("T-54 dossier (Reference anatomy)", "docs/vehicles/t-54.md", note)
 }

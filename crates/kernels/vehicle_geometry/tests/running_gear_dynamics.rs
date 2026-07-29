@@ -146,8 +146,17 @@ fn drive_tension_tightens_the_top_run_and_slack_deepens_it() {
     let driven = mid_top_y(0.55);
     let rest = mid_top_y(1.0);
     let braking = mid_top_y(1.5);
-    assert!(driven > rest + 0.01, "a driven track pulls its top run tight");
-    assert!(braking < rest - 0.01, "a braking track lets the top run hang");
+    // The claim is an ORDERING plus a visible range, which is what the eye reads. It used to be
+    // two separate 10 mm gaps, and those were calibrated against a 0.32 m wrap radius: putting
+    // the wrap on the sprocket's documented pitch circle (PR-18) left the driven step at 9.8 mm
+    // and failed a threshold that was never about 10 millimetres.
+    assert!(driven > rest, "a driven track pulls its top run tight");
+    assert!(braking < rest, "a braking track lets the top run hang");
+    assert!(
+        driven - braking >= 0.015,
+        "and the difference has to be visible: {:.4} m between taut and slack",
+        driven - braking
+    );
 }
 
 #[test]

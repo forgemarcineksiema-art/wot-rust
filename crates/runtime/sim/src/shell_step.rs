@@ -55,6 +55,7 @@ pub(crate) fn step_shells(
                 impact_angle_degrees,
                 hit_position,
                 plate_normal,
+                thickness_scale,
             }) => {
                 let distance_m = shells[index].traveled_m + hit_position.distance(previous);
                 let radius_m = shells[index].shell.collision_radius_m();
@@ -84,6 +85,7 @@ pub(crate) fn step_shells(
                     distance_m,
                     context.tick,
                     entry,
+                    thickness_scale,
                     &mut carved,
                 );
                 for record in carved {

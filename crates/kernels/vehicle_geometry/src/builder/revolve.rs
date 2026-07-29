@@ -37,6 +37,16 @@ impl MeshBuilder {
 
         let profile_len = spec.profile.len() as u32;
         let surface_index_start = self.indices.len();
+        // Emit the whole lathe with ONE winding. Every quad follows the same (segment, row)
+        // traversal, so the surface is consistently wound by construction: each interior edge is
+        // walked once in each direction, and no band can disagree with its neighbours.
+        //
+        // It did not used to work that way. Each quad was oriented independently, by asking
+        // whether its normal pointed AWAY FROM THE AXIS — which is only true for a band on the
+        // OUTSIDE of the lathe. A ring's inner wall faces the axis, and a flat annulus faces
+        // neither way, so those bands were flipped (or coin-flipped) relative to the rest and
+        // every seam between them shipped inconsistently wound. That was 22 broken edges per
+        // steel ring, on every road wheel, tyre, roller and drum in the fleet.
         for segment in 0..spec.segments as u32 {
             let next = (segment + 1) % spec.segments as u32;
             for row in 0..profile_len - 1 {
@@ -44,20 +54,15 @@ impl MeshBuilder {
                 let b = base + next * profile_len + row;
                 let c = b + 1;
                 let d = a + 1;
-                let face_center = [a, b, c, d]
-                    .into_iter()
-                    .map(|index| self.vertices[index as usize].position)
-                    .fold(Vec3::ZERO, |sum, point| sum + point)
-                    / 4.0;
-                let axis_point = origin
-                    + axis_vector(spec.axis)
-                        * ((spec.profile[row as usize].offset
-                            + spec.profile[row as usize + 1].offset)
-                            * 0.5);
-                self.push_quad_indices_outward([a, b, c, d], face_center - axis_point);
+                self.indices.extend_from_slice(&[a, b, c, a, c, d]);
             }
         }
         let surface_index_end = self.indices.len();
+        // Now decide, ONCE for the whole surface, whether that winding faces out. The vote is
+        // area-weighted (the cross product is not normalised), so the lathe's dominant faces —
+        // the outer wall of a ring, the tread of a tyre — carry the decision and the minority
+        // bands follow them instead of flipping alone.
+        self.orient_revolve_outward(origin, &spec, surface_index_start, surface_index_end);
         self.rebuild_surface_normals(
             base,
             spec.segments * spec.profile.len(),
@@ -111,17 +116,45 @@ impl MeshBuilder {
         }
     }
 
-    fn push_quad_indices_outward(&mut self, indices: [u32; 4], outward: Vec3) {
-        let [a, b, c, d] = indices;
-        let normal = triangle_normal(
-            self.vertices[a as usize].position,
-            self.vertices[b as usize].position,
-            self.vertices[c as usize].position,
-        );
-        if normal.dot(outward) < 0.0 {
-            self.indices.extend_from_slice(&[a, c, b, a, d, c]);
-        } else {
-            self.indices.extend_from_slice(&[a, b, c, a, c, d]);
+    /// Flip a freshly-emitted lathe surface if its consistent winding came out facing INWARD.
+    ///
+    /// The test is the area-weighted agreement between each triangle's normal and the direction
+    /// away from the revolve axis at that triangle. A lathe that is mostly outer wall votes
+    /// positive and is left alone; one emitted back-to-front votes negative and every triangle in
+    /// the range is reversed together — which keeps the winding consistent either way.
+    fn orient_revolve_outward(
+        &mut self,
+        origin: Vec3,
+        spec: &RevolveSpec,
+        index_start: usize,
+        index_end: usize,
+    ) {
+        let axis = axis_vector(spec.axis);
+        let mut vote = 0.0;
+        for tri in self.indices[index_start..index_end].chunks_exact(3) {
+            let [a, b, c] = [
+                self.vertices[tri[0] as usize].position,
+                self.vertices[tri[1] as usize].position,
+                self.vertices[tri[2] as usize].position,
+            ];
+            let relative = (a + b + c) / 3.0 - origin;
+            let outward = relative - axis * relative.dot(axis);
+            vote += triangle_normal(a, b, c).dot(outward);
+        }
+        // A profile that never leaves its own plane (a flat annulus) has no radial answer at all:
+        // the surface is one-sided and either winding is consistent. Fall back to the direction
+        // the profile travels along the axis, the same tie-break the end caps use.
+        if vote.abs() < 1.0e-12 {
+            let first = spec.profile[0].offset;
+            let last = spec.profile[spec.profile.len() - 1].offset;
+            if last >= first {
+                return;
+            }
+        } else if vote > 0.0 {
+            return;
+        }
+        for tri in self.indices[index_start..index_end].chunks_exact_mut(3) {
+            tri.swap(1, 2);
         }
     }
 

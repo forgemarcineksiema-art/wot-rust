@@ -296,9 +296,9 @@ mod tests {
         let mut app = ClientApp::new();
         app.garage.select_vehicle(VehicleKind::T54_1951);
         app.garage.set_cursor(module_slot_center(1)); // Gun slot
-        let before = app.garage.draft().gun_barrel_length();
+        let before = app.garage.draft().gun_name();
         app.garage_secondary_press();
-        let after = app.garage.draft().gun_barrel_length();
+        let after = app.garage.draft().gun_name();
         assert_ne!(before, after, "right-click cycles the gun backward");
     }
 
@@ -374,7 +374,7 @@ mod tests {
         let mut app = ClientApp::new();
         app.garage.select_vehicle(VehicleKind::T54_1951);
         app.garage.set_cursor(module_slot_center(1)); // Gun slot (a real choice on the T-54)
-        let stock = app.garage.draft().gun_barrel_length();
+        let stock = app.garage.draft().gun_name();
 
         app.garage_primary_press();
 
@@ -384,7 +384,7 @@ mod tests {
             "plain click opens the option list"
         );
         assert_eq!(
-            app.garage.draft().gun_barrel_length(),
+            app.garage.draft().gun_name(),
             stock,
             "opening the list must not change the installed gun"
         );
@@ -395,7 +395,7 @@ mod tests {
         let mut app = ClientApp::new();
         app.garage.select_vehicle(VehicleKind::T54_1951);
         app.garage.set_cursor(module_slot_center(1)); // Gun slot
-        let stock = app.garage.draft().gun_barrel_length();
+        let stock = app.garage.draft().gun_name();
 
         // Shift+click is the express path: it cycles backward (from stock, wraps to the alternate
         // gun) and never opens the list.
@@ -404,7 +404,7 @@ mod tests {
 
         assert_eq!(app.garage.option_list(), None, "the express cycle opens no list");
         assert_ne!(
-            app.garage.draft().gun_barrel_length(),
+            app.garage.draft().gun_name(),
             stock,
             "shift+click moves off the stock gun (express backward cycle)"
         );
@@ -414,7 +414,7 @@ mod tests {
     fn clicking_an_option_row_installs_it_and_closes_the_list() {
         let mut app = ClientApp::new();
         app.garage.select_vehicle(VehicleKind::T54_1951);
-        let stock = app.garage.draft().gun_barrel_length();
+        let stock = app.garage.draft().gun_name();
 
         // Open the gun list, then click the alternate option row (row 1).
         app.garage.set_cursor(module_slot_center(1));
@@ -426,7 +426,7 @@ mod tests {
         app.garage_primary_press();
 
         assert_eq!(app.garage.option_list(), None, "picking a row closes the list");
-        assert_ne!(app.garage.draft().gun_barrel_length(), stock, "the picked gun is installed");
+        assert_ne!(app.garage.draft().gun_name(), stock, "the picked gun is installed");
     }
 
     #[test]

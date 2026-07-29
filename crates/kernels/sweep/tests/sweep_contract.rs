@@ -28,6 +28,7 @@ fn sweep(
         caps,
         material: MaterialRole::TrackMetal,
         smoothing: SmoothingGroup::hard_edges(),
+        section_scale: None,
     })
 }
 
@@ -132,7 +133,100 @@ fn a_concave_section_is_rejected() {
         caps: SweepCaps::Open,
         material: MaterialRole::TrackMetal,
         smoothing: SmoothingGroup::hard_edges(),
+        section_scale: None,
     })
     .unwrap_err();
     assert_eq!(err, SweepError::NonConvexSection);
+}
+
+/// A constant section can only make tubes. The parts a tank carries that are NOT tubes — a
+/// canvas mantlet cover flaring from the barrel out to the turret face, a tapering line, a
+/// bellows — are the same sweep with the section growing along the path.
+#[test]
+fn a_section_scale_flares_the_sweep_along_its_path() {
+    let path = SweepPath {
+        points: vec![Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.3), Vec3::new(0.0, 0.0, 0.6)],
+        closed: false,
+    };
+    let section = square_section();
+    let mut spec = SweepSpec {
+        path: &path,
+        section: &section,
+        frame_mode: SweepFrameMode::FixedUp(Vec3::Y),
+        caps: SweepCaps::Both,
+        material: MaterialRole::CastArmor,
+        smoothing: SmoothingGroup(3),
+        section_scale: None,
+    };
+
+    let straight = try_sweep(&spec).expect("a constant tube sweeps");
+    let straight_bounds = straight.bounds().expect("bounds");
+
+    let flare = [1.0, 2.0, 3.0];
+    spec.section_scale = Some(&flare);
+    let flared = try_sweep(&spec).expect("a flaring cover sweeps");
+    let flared_bounds = flared.bounds().expect("bounds");
+
+    assert_eq!(
+        flared.triangle_count(),
+        straight.triangle_count(),
+        "the taper changes the SHAPE, not the topology"
+    );
+    assert!(
+        flared_bounds.max.x > straight_bounds.max.x * 2.5,
+        "the far end must actually flare: {:.3} vs {:.3}",
+        flared_bounds.max.x,
+        straight_bounds.max.x
+    );
+    // Station-by-station: the scale table IS the profile. 1 -> 2 -> 3 must read as 1:2:3,
+    // whichever way the transport frame happens to lay the section's axes out.
+    let half_width_at = |z: f32| {
+        flared
+            .vertices()
+            .iter()
+            .filter(|vertex| (vertex.position.z - z).abs() < 0.01)
+            .map(|vertex| vertex.position.x.abs())
+            .fold(0.0_f32, f32::max)
+    };
+    let (near, mid, far) = (half_width_at(0.0), half_width_at(0.3), half_width_at(0.6));
+    assert!(near > 0.0, "the near station must exist");
+    assert!(
+        (mid / near - 2.0).abs() < 0.01 && (far / near - 3.0).abs() < 0.01,
+        "the scale table is the profile: got 1 : {:.2} : {:.2}",
+        mid / near,
+        far / near
+    );
+    assert_eq!(
+        flared.quality_report(OPEN_OR_CLOSED_MESH).degenerate_triangles,
+        0,
+        "a flared sweep is still a clean surface"
+    );
+}
+
+#[test]
+fn a_malformed_section_scale_is_a_typed_error() {
+    let path = SweepPath {
+        points: vec![Vec3::ZERO, Vec3::new(0.0, 0.0, 0.5), Vec3::new(0.0, 0.0, 1.0)],
+        closed: false,
+    };
+    let section = square_section();
+    let spec = |scale: &'static [f32]| SweepSpec {
+        path: &path,
+        section: &section,
+        frame_mode: SweepFrameMode::FixedUp(Vec3::Y),
+        caps: SweepCaps::Both,
+        material: MaterialRole::CastArmor,
+        smoothing: SmoothingGroup(3),
+        section_scale: Some(scale),
+    };
+
+    // One scale per station, or the tail of the sweep silently stays at full size.
+    assert!(matches!(
+        try_sweep(&spec(&[1.0, 2.0])),
+        Err(SweepError::SectionScaleLengthMismatch { given: 2, expected: 3 })
+    ));
+    assert!(matches!(
+        try_sweep(&spec(&[1.0, 0.0, 2.0])),
+        Err(SweepError::InvalidSectionScale { index: 1, .. })
+    ));
 }

@@ -77,37 +77,57 @@ impl StudioBundle {
 /// Bake `kind` through its authoritative mesh path and assemble the review bundle.
 pub fn bake_studio_bundle(kind: VehicleKind) -> Result<StudioBundle, ArtifactError> {
     let baked = authoritative_baked_vehicle(kind)?;
-    bundle_from_baked(kind, baked, mesh_source_kind(kind))
+    bundle_from_baked(kind, baked, mesh_source_kind(kind), None)
 }
 
 /// The fast loop: assemble the bundle from a LIVE blueprint (an edited RON parsed from disk,
-/// no rebuild). Bakes through the recipe path — for the T-54 that is its legacy recipe, not
-/// the authoritative hybrid, which is fine for shape-tuning the blueprint fields.
+/// no rebuild). Bakes through the vehicle's AUTHORITATIVE source — the hybrid for migrated
+/// vehicles, the recipe for the rest — so the tiles an author tunes against are the mesh the
+/// game ships. (Before this, the T-54's fast loop rendered its dead legacy recipe.)
 pub fn bake_studio_bundle_from_blueprint(
     blueprint: &game_core::VehicleBlueprint,
 ) -> Result<StudioBundle, ArtifactError> {
-    let baked = vehicle_geometry::bake_vehicle_from_blueprint(blueprint)?;
-    bundle_from_baked(blueprint.kind, baked, MeshSourceKind::Procedural)
+    let kind = blueprint.kind;
+    let source = mesh_source_kind(kind);
+    let baked = match source {
+        MeshSourceKind::Hybrid => vehicle_build::t54_description_from_blueprint(blueprint).build(),
+        MeshSourceKind::Procedural => vehicle_geometry::bake_vehicle_from_blueprint(blueprint)?,
+    };
+    bundle_from_baked(kind, baked, source, Some(blueprint))
 }
 
 fn bundle_from_baked(
     kind: VehicleKind,
     baked: BakedVehicle,
     source: MeshSourceKind,
+    live: Option<&game_core::VehicleBlueprint>,
 ) -> Result<StudioBundle, ArtifactError> {
     let spec =
         crate::registry::forge_spec(kind).ok_or(ArtifactError::MissingReferencePack(kind))?;
     let cameras = (spec.review_cameras)();
     let reference = (spec.reference_pack)();
-    let ratio_report =
-        reference.measure_baked_vehicle(&baked).ok_or(ArtifactError::RatioReportRejected(kind))?;
-    let dimension_report = reference.measure_dimensions(&baked);
+    // Tiles and measurements share ONE kinematics: whatever the author is editing.
+    let gear = match live {
+        Some(blueprint) => {
+            Some(vehicle_geometry::RunningGearKinematics::from_track(&blueprint.track))
+        }
+        None => vehicle_geometry::RunningGearKinematics::for_vehicle(kind),
+    };
+    let ratio_report = match live {
+        Some(blueprint) => reference.measure_baked_vehicle_live(&baked, blueprint),
+        None => reference.measure_baked_vehicle(&baked),
+    }
+    .ok_or(ArtifactError::RatioReportRejected(kind))?;
+    let dimension_report = match live {
+        Some(blueprint) => reference.measure_dimensions_live(&baked, blueprint),
+        None => reference.measure_dimensions(&baked),
+    };
 
     // Per-camera tiles, each annotated with the camera name in its top-left corner.
     let mut views = Vec::new();
     for camera in cameras.cameras() {
         let mut pixels = review_images::render_camera_sized_with_running_gear(
-            kind,
+            gear.as_ref(),
             &baked,
             camera,
             TILE_WIDTH,
@@ -129,7 +149,7 @@ fn bundle_from_baked(
         });
     }
 
-    let contact_sheet_png = bake_contact_sheet(kind, &baked, &cameras)?;
+    let contact_sheet_png = bake_contact_sheet(gear.as_ref(), &baked, &cameras)?;
     let report_md = build_report(kind, source, &baked, &ratio_report, dimension_report.as_ref());
 
     Ok(StudioBundle { vehicle: kind, views, contact_sheet_png, report_md })
@@ -141,7 +161,7 @@ fn trim_view_name(file_name: &str) -> &str {
 
 /// Compose every camera into one grid image with an annotation strip under each tile.
 fn bake_contact_sheet(
-    kind: VehicleKind,
+    gear: Option<&vehicle_geometry::RunningGearKinematics>,
     baked: &BakedVehicle,
     cameras: &super::ReviewCameraSet,
 ) -> Result<Vec<u8>, ArtifactError> {
@@ -157,7 +177,7 @@ fn bake_contact_sheet(
 
     for (index, camera) in cameras.cameras().iter().enumerate() {
         let tile = review_images::render_camera_sized_with_running_gear(
-            kind,
+            gear,
             baked,
             camera,
             TILE_WIDTH,
@@ -349,14 +369,28 @@ fn build_report(
         }
     }
 
-    // The loop, spelled out where the author is already looking.
+    // The loop, spelled out where the author is already looking. The FAST form
+    // (`--blueprint-file`) reparses the RON from disk with no rebuild; the slow form recompiles
+    // the embedded `include_str!`. Both now bake through the vehicle's authoritative source.
     let _ = writeln!(md, "\n## The loop\n");
     let _ = writeln!(
         md,
-        "1. Edit `crates/foundation/game_core/blueprints/{}.blueprint.ron`\n2. `cargo run -p \
-         tools -- studio --vehicle {}`\n3. Re-read this report, then `contact_sheet.png`.",
-        kind.slug(),
-        kind.slug(),
+        "1. Edit `crates/foundation/game_core/blueprints/{slug}.blueprint.ron`\n2. Fast (no \
+         rebuild): `cargo run -p tools -- studio --vehicle {slug} --blueprint-file \
+         crates/foundation/game_core/blueprints/{slug}.blueprint.ron`\n3. Re-read this report, \
+         then `contact_sheet.png`.\n4. When the shape is settled, drop `--blueprint-file` to \
+         re-bake from the embedded blueprint and confirm the two agree.",
+        slug = kind.slug(),
     );
+    if source == MeshSourceKind::Hybrid {
+        let _ = writeln!(
+            md,
+            "\nFast-loop caveat (hybrid source): RON edits to hull/turret/gun/track/armor \
+             shapes flow into this bake, but the Rust-side `HybridVisual` tree (fitting \
+             positions, detail literals) does not live in the RON — a shape change large \
+             enough to move the fittings still needs its Rust counterpart edited. The SSOT \
+             test in `game_core` fails loudly when the two disagree on a shared number."
+        );
+    }
     md
 }

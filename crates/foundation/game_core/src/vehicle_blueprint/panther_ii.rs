@@ -72,6 +72,10 @@ pub(super) fn panther_ii_blueprint() -> VehicleBlueprint {
             shoe_pattern: ShoePattern::Kgs,
             wheel_face: WheelFace::SteelDish,
             suspension: super::SuspensionKind::TorsionBar,
+            // The trailing arm's own geometry: None takes the family default
+            // (0.26 / 0.13 for a torsion bar) until this vehicle's dossier says otherwise.
+            arm_reach_m: None,
+            arm_rise_m: None,
         },
         turret: TurretShape {
             // The Schmalturm: deliberately NARROW — a small 20° face behind the cone mantlet,
@@ -83,9 +87,9 @@ pub(super) fn panther_ii_blueprint() -> VehicleBlueprint {
             base_radius: 1.02,
             roof_radius: 0.35,
             roof_y: 2.72,
-            front_slope_deg: 11.0,
+            front_slope_deg: 20.0,
             side_slope_deg: 25.0,
-            rear_slope_deg: 25.0,
+            rear_slope_deg: 20.0,
             // The low cupola sits close to the centreline — the converged roof is narrow.
             cupola_x: -0.22,
             cupola_z: -0.55,
@@ -119,6 +123,7 @@ pub(super) fn panther_ii_blueprint() -> VehicleBlueprint {
             turret_front: (20.0, 0.9),
             turret_side: (25.0, 1.0),
             turret_rear: (20.0, 1.0),
+            turret_side_taper: None,
         },
         hybrid: None,
     }

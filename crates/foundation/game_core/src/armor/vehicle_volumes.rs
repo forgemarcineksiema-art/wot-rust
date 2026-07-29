@@ -58,9 +58,28 @@ const LOWER_PLATE_SLOPE_FACTOR: f32 = 0.45;
 const TURRET_FRONT_AZIMUTH_DEG: f32 = 60.0;
 const TURRET_REAR_AZIMUTH_DEG: f32 = 120.0;
 /// Dome tessellation is AUTHORED, per casting: see [`crate::TurretShape::sector_count`].
-/// The mantlet patch reaches slightly past the casting radius so the socket rim counts as
-/// mantlet, matching the visible ball's footprint.
-const MANTLET_PATCH_SCALE: f32 = 1.2;
+/// An EXTERNAL ball mantlet stands proud of the casting and its rim is mantlet too, so its patch
+/// reaches slightly past the mantlet radius to catch the socket lip — the visible ball's
+/// footprint.
+const EXTERNAL_MANTLET_PATCH_SCALE: f32 = 1.2;
+
+/// How far past the mantlet radius the gameplay patch reaches, for THIS mount.
+///
+/// An internal mantlet has no rim outside to catch. Its aperture edge is precisely where mantlet
+/// stops and turret front starts, and inflating the patch past it would hand the gun mount 18%
+/// of armour across a band of casting that is, in fact, just casting.
+///
+/// The two cases are told apart by the metal, not by a flag: an external mantlet's own front face
+/// reaches PAST the casting around it, and an internal one does not. Blueprints with no authored
+/// casting keep the external scale, which is what every welded-box mount in this fleet is.
+fn mantlet_patch_scale(blueprint: &VehicleBlueprint) -> f32 {
+    let Some(hybrid) = blueprint.hybrid() else {
+        return EXTERNAL_MANTLET_PATCH_SCALE;
+    };
+    let face_z = blueprint.gun.trunnion_z - blueprint.turret.ring_z
+        + hybrid.gun.mantlet_profile.iter().map(|(z, _)| *z).fold(f32::NEG_INFINITY, f32::max);
+    if face_z < hybrid.turret_loft.support(Vec3::Z) { 1.0 } else { EXTERNAL_MANTLET_PATCH_SCALE }
+}
 
 fn bake_vehicle_armor(blueprint: VehicleBlueprint) -> VehicleArmorVolumes {
     let cy = blueprint.hull.hitbox_center_y;
@@ -101,7 +120,7 @@ fn upper_hull(blueprint: &VehicleBlueprint, cy: f32) -> ArmorVolume {
         planes.push(TaggedPlane::new(normal, fold, ArmorZone::UpperGlacis));
     }
     planes.extend([
-        TaggedPlane::new(Vec3::Y, Vec3::new(0.0, hull.deck_y - cy, 0.0), ArmorZone::Roof),
+        TaggedPlane::new(Vec3::Y, Vec3::new(0.0, hull.deck_y - cy, 0.0), ArmorZone::HullDeck),
         TaggedPlane::new(
             Vec3::new(side_slope.cos(), side_slope.sin(), 0.0),
             Vec3::new(hull.half_width, step_y, 0.0),
@@ -195,10 +214,13 @@ fn turret_dome(blueprint: &VehicleBlueprint, cy: f32) -> ArmorVolume {
     let turret = blueprint.turret;
     let ring_y = turret.ring_y - cy;
     let center = Vec3::new(0.0, ring_y, turret.ring_z);
+    // The authored casting, when there is one: the armour follows the metal rather than a circle
+    // drawn near it.
+    let loft = blueprint.hybrid().map(|hybrid| &hybrid.turret_loft);
     let mantlet = ArmorPatch {
         zone: ArmorZone::Mantlet,
         center: Vec3::new(0.0, blueprint.gun.trunnion_y - cy, turret.mantlet_front_z),
-        radius_m: turret.mantlet_radius * MANTLET_PATCH_SCALE,
+        radius_m: turret.mantlet_radius * mantlet_patch_scale(blueprint),
     };
     let sectors = turret.sector_count.max(3) as usize;
     let mut planes = Vec::with_capacity(sectors + 2);
@@ -212,16 +234,57 @@ fn turret_dome(blueprint: &VehicleBlueprint, cy: f32) -> ArmorVolume {
         } else {
             (ArmorZone::TurretSide, turret.side_slope_deg)
         };
+        // A cast wall thins as it runs aft. Where the blueprint documents that taper, each side
+        // sector carries its own share of the wall instead of the whole flank quoting one
+        // number that is right nowhere: at the cheek boundary the sector is the full side, at
+        // the rear boundary it has thinned to the taper.
+        let thickness_scale = (zone == ArmorZone::TurretSide)
+            .then_some(blueprint.armor.turret_side_taper)
+            .flatten()
+            .map(|taper| {
+                let span = TURRET_REAR_AZIMUTH_DEG - TURRET_FRONT_AZIMUTH_DEG;
+                let t = ((forward_off - TURRET_FRONT_AZIMUTH_DEG) / span).clamp(0.0, 1.0);
+                1.0 + (taper - 1.0) * t
+            });
         let (slope_sin, slope_cos) = slope_deg.to_radians().sin_cos();
         let direction = Vec3::new(azimuth.sin(), 0.0, azimuth.cos());
         let normal = Vec3::new(direction.x * slope_cos, slope_sin, direction.z * slope_cos);
-        let mut plane = TaggedPlane::new(normal, center + direction * turret.base_radius, zone);
-        if zone == ArmorZone::TurretFront {
-            // The patch center is the gun-axis point PROJECTED onto this sector plane, so a
-            // shot down the gun line always lands inside the mantlet, whatever the sector tilt.
-            let on_plane =
-                mantlet.center - plane.normal * (plane.normal.dot(mantlet.center) - plane.offset);
-            plane = plane.with_patches(vec![ArmorPatch { center: on_plane, ..mantlet }]);
+        // Where the plane sits. When the vehicle authors its casting as a loft, ask the CASTING:
+        // the support function puts the plane exactly on the furthest metal in this direction, so
+        // nothing visible falls outside the armour and no armour stands in air.
+        //
+        // The circle it replaces was wrong in both directions at once on a T-54. Its cheeks — the
+        // whole point of the vehicle — bulge to 1.37 m at the shoulder while the swept radius was
+        // 1.12: a third of a metre of the most-shot-at steel in the game was outside its own
+        // armour volume, and shells went through it. Meanwhile the flanks, narrower than the
+        // circle, stopped shells in air.
+        //
+        // Vehicles with no authored loft keep the swept radius until their own dossier arrives
+        // (Genialna Flota) — this is not the PR that silently moves seven vehicles' armour.
+        let anchor = match loft {
+            Some(loft) => normal * (loft.support(normal) - normal.y * cy),
+            None => center + direction * turret.base_radius,
+        };
+        let mut plane = TaggedPlane::new(normal, anchor, zone);
+        if let Some(scale) = thickness_scale {
+            plane = plane.with_thickness_scale(scale);
+        }
+        if zone == ArmorZone::TurretFront && plane.normal.z > 1.0e-3 {
+            // The patch center is where the GUN LINE meets this sector plane.
+            //
+            // It used to be the gun-axis point slid along the plane's NORMAL, which is not the
+            // same thing and is not what the old comment claimed it was. A dome's sector plane is
+            // tangent to the casting at its furthest point, which on a T-54 is up on the shoulder
+            // — so at the gun's height the plane stands 0.29 m ahead of the metal, and sliding
+            // along a normal raked 35 degrees walked the patch 0.17 m UP the plate, off the gun
+            // line entirely. A shot straight down the barrel then landed 0.21 m from the centre
+            // of its own mantlet, and only counted as one because the patch was 0.38 m wide.
+            //
+            // Follow the gun instead and the shot lands dead centre whatever the sector tilt,
+            // which is what lets the patch be the size of the real aperture.
+            let z = (plane.offset - plane.normal.y * mantlet.center.y) / plane.normal.z;
+            let on_gun_line = Vec3::new(0.0, mantlet.center.y, z);
+            plane = plane.with_patches(vec![ArmorPatch { center: on_gun_line, ..mantlet }]);
         }
         planes.push(plane);
     }
@@ -247,7 +310,7 @@ fn turret_prism(blueprint: &VehicleBlueprint, cy: f32) -> ArmorVolume {
     let mantlet = ArmorPatch {
         zone: ArmorZone::Mantlet,
         center: Vec3::new(0.0, blueprint.gun.trunnion_y - cy, turret.mantlet_front_z),
-        radius_m: turret.mantlet_radius * MANTLET_PATCH_SCALE,
+        radius_m: turret.mantlet_radius * mantlet_patch_scale(blueprint),
     };
     let (front_sin, front_cos) = turret.front_slope_deg.to_radians().sin_cos();
     let (side_sin, side_cos) = turret.side_slope_deg.to_radians().sin_cos();

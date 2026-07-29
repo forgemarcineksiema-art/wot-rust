@@ -128,6 +128,15 @@ impl WorldMaterial {
             MaterialRole::Rubber => WorldMaterial::Straw,
             MaterialRole::Ammunition => WorldMaterial::Bark,
             MaterialRole::ExposedSteel => WorldMaterial::Canopy,
+            // Fabric is a VEHICLE role (the mantlet's dust cover). No world bake emits it,
+            // and the bijection this function locks runs the other way — from the nine world
+            // materials out and back. Giving it a world material would break that lock to
+            // satisfy a call that cannot happen.
+            MaterialRole::Canvas => unreachable!("the world never bakes canvas"),
+            MaterialRole::Glass => unreachable!("the world never bakes vehicle glass"),
+            // The WORLD's timber travels as TrackMetal (the carrier bijection above); this is
+            // the VEHICLE's wood.
+            MaterialRole::Timber => unreachable!("vehicle timber is not a world carrier"),
         }
     }
 
@@ -212,6 +221,7 @@ pub fn bake_world_object(
         topology: TopologyExpectation::Open,
         min_triangle_area: 1.0e-12,
         normal_tolerance: 1.0e-3,
+        require_outward: false,
     })
     .map_err(|error| WorldForgeError::Quality { name: blueprint.name.clone(), error })?;
     Ok(BakedWorldObject { name: blueprint.name.clone(), kind: blueprint.kind, mesh })

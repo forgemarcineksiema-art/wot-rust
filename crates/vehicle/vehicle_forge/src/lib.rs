@@ -24,9 +24,9 @@ mod report;
 pub use artifact::{
     ArtifactError, BakeProfile, DEFAULT_MATERIAL_MAP_SIZE, DefaultMaterialFamily,
     DefaultMaterialMap, ForgeArtifact, ForgeArtifactManifest, ForgeSubmeshManifest,
-    ForgeTextureManifest, MaterialFamily, ReviewCamera, ReviewCameraSet, ReviewCameraSpec,
-    StudioBundle, SurfaceBakeManifest, bake_studio_bundle, bake_studio_bundle_from_blueprint,
-    default_material_families, forge_vehicle_slug,
+    ForgeTextureManifest, MaterialFamily, ObjExport, ReviewCamera, ReviewCameraSet,
+    ReviewCameraSpec, StudioBundle, SurfaceBakeManifest, bake_studio_bundle,
+    bake_studio_bundle_from_blueprint, default_material_families, export_obj, forge_vehicle_slug,
 };
 pub use compiler::{
     CompiledTank, TankCompileError, TankCompileRequest, TankValidationError, compile_tank,
@@ -48,7 +48,8 @@ pub use part_manifest::{
 };
 pub use production_bake::bake_production_vehicle;
 pub use reference::{
-    DimensionKind, DimensionTarget, RatioKind, RatioTarget, ReferencePack, ReferenceSource,
+    AnchorStatus, DimensionKind, DimensionTarget, MeasurementBasis, RatioKind, RatioTarget,
+    ReferencePack, ReferenceSource,
 };
 pub use reference_measure::composed_visual_bounds;
 pub use report::{DimensionReport, MeasuredDimension, MeasuredRatio, RatioReport};

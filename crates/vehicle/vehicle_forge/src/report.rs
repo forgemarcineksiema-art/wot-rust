@@ -1,7 +1,10 @@
 use game_core::VehicleKind;
 use serde::{Deserialize, Serialize};
 
-use crate::{DimensionKind, DimensionTarget, RatioKind, RatioTarget, ReferencePack};
+use crate::{
+    AnchorStatus, DimensionKind, DimensionTarget, MeasurementBasis, RatioKind, RatioTarget,
+    ReferencePack,
+};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MeasuredRatio {
@@ -49,12 +52,20 @@ pub struct MeasuredDimension {
     target: DimensionTarget,
     measured_m: f32,
     passed: bool,
+    /// What instrument produced the number (mesh tape-measure by default).
+    #[serde(default)]
+    basis: MeasurementBasis,
 }
 
 impl MeasuredDimension {
     pub fn new(target: DimensionTarget, measured_m: f32) -> Self {
         let passed = target.passes(measured_m);
-        Self { target, measured_m, passed }
+        Self { target, measured_m, passed, basis: MeasurementBasis::Mesh }
+    }
+
+    pub fn with_basis(mut self, basis: MeasurementBasis) -> Self {
+        self.basis = basis;
+        self
     }
 
     pub fn kind(&self) -> DimensionKind {
@@ -71,6 +82,15 @@ impl MeasuredDimension {
 
     pub fn passed(&self) -> bool {
         self.passed
+    }
+
+    pub fn basis(&self) -> MeasurementBasis {
+        self.basis
+    }
+
+    /// A `Target` anchor that does not pass yet — the declared, visible kind of failure.
+    pub fn is_debt(&self) -> bool {
+        self.target.status() == AnchorStatus::Target && !self.passed
     }
 
     /// Signed error in metres — the tape-measure miss, before any percentage flattering.
@@ -119,25 +139,65 @@ impl DimensionReport {
         self.measurements.iter().all(MeasuredDimension::passed)
     }
 
+    /// Every `Locked` anchor holds — the gate's question. `Target` rows are declared debt and
+    /// do not fail this.
+    pub fn all_locked_pass(&self) -> bool {
+        self.measurements
+            .iter()
+            .filter(|measurement| measurement.target().status() == AnchorStatus::Locked)
+            .all(MeasuredDimension::passed)
+    }
+
+    /// The outstanding `Target` anchors — the dossier numbers the model has not reached yet.
+    pub fn debts(&self) -> impl Iterator<Item = &MeasuredDimension> {
+        self.measurements.iter().filter(|measurement| measurement.is_debt())
+    }
+
     pub fn markdown_summary(&self) -> String {
         let mut out = String::from(
-            "| Dimension | Measured m | Target m | Δ m | Δ% | Tolerance | Result | Source |\n",
+            "| Dimension | Measured | Target | Δ | Δ% | Tolerance | Status | Result | Basis | Source |\n",
         );
-        out.push_str("| --- | ---: | ---: | ---: | ---: | ---: | --- | --- |\n");
+        out.push_str("| --- | ---: | ---: | ---: | ---: | ---: | --- | --- | --- | --- |\n");
         for measurement in &self.measurements {
             let target = measurement.target();
-            let result = if measurement.passed() { "pass" } else { "FAIL" };
+            let status = match target.status() {
+                AnchorStatus::Locked => "locked",
+                AnchorStatus::Target => "target",
+            };
+            let result = match (measurement.passed(), target.status()) {
+                (true, _) => "pass",
+                (false, AnchorStatus::Target) => "DEBT",
+                (false, AnchorStatus::Locked) => "FAIL",
+            };
             out.push_str(&format!(
-                "| {} | {:.3} | {:.3} | {:+.3} | {:+.1}% | +/-{:.3} | {} | {} |\n",
+                "| {} | {:.3} | {:.3} | {:+.3} | {:+.1}% | +/-{:.3} | {} | {} | {} | {} |\n",
                 measurement.kind().label(),
                 measurement.measured_m(),
                 target.target_m(),
                 measurement.delta_m(),
                 measurement.percent_difference(),
                 target.tolerance_m(),
+                status,
                 result,
+                measurement.basis().label(),
                 target.source().label(),
             ));
+        }
+        let debts: Vec<&MeasuredDimension> = self.debts().collect();
+        if !debts.is_empty() {
+            out.push_str(&format!(
+                "\nDIMENSION DEBT: {} target anchor(s) outstanding —\n",
+                debts.len()
+            ));
+            for debt in debts {
+                out.push_str(&format!(
+                    "- {}: measured {:.3} vs documented {:.3} (Δ {:+.3})\n",
+                    debt.kind().label(),
+                    debt.measured_m(),
+                    debt.target().target_m(),
+                    debt.delta_m(),
+                ));
+            }
         }
         out
     }

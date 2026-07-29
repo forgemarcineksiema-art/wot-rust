@@ -23,12 +23,28 @@ pub fn t54_description() -> VehicleDescription {
     t54_from_modules(&VehicleKind::T54_1951.default_loadout())
 }
 
+/// Build the hybrid T-54 from an explicit, possibly LIVE blueprint (a Studio `--blueprint-file`
+/// override) at the stock loadout. The same assembly the authoritative bake uses — the fast
+/// loop must never show an author a mesh the game does not ship.
+pub fn t54_description_from_blueprint(bp: &VehicleBlueprint) -> VehicleDescription {
+    t54_from_modules_with_blueprint(&VehicleKind::T54_1951.default_loadout(), bp)
+}
+
 /// Build the hybrid T-54 from an explicit module loadout. The installed gun drives the barrel
 /// geometry, so swapping the gun rebuilds the barrel — visual modularity, not a post-bake scale.
 /// All shape dimensions are read from the blueprint; only the gun length comes from the loadout.
 pub fn t54_from_modules(modules: &VehicleModules) -> VehicleDescription {
+    let bp = VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("T-54 blueprint");
+    t54_from_modules_with_blueprint(modules, &bp)
+}
+
+/// The fully-explicit assembly: loadout + blueprint both injected. Every other constructor is a
+/// convenience wrapper over this one, so the embedded and live paths cannot drift apart.
+pub fn t54_from_modules_with_blueprint(
+    modules: &VehicleModules,
+    bp: &VehicleBlueprint,
+) -> VehicleDescription {
     let kind = VehicleKind::T54_1951;
-    let bp = VehicleBlueprint::for_vehicle(kind).expect("T-54 blueprint");
     let v = bp.hybrid().expect("T-54 carries hybrid visual data");
 
     // The hull is decomposed into its real T-54 plates: a narrow lower tub and the wide upper hull
@@ -100,8 +116,9 @@ pub fn t54_from_modules(modules: &VehicleModules) -> VehicleDescription {
         + Vec3::Z * ((modules.gun.barrel_length_m() - stock_length) * v.gun.module_delta_scale);
     mounts.muzzle.translation = muzzle;
     let trunnion = mounts.gun_trunnion.translation;
-    // The moving mantlet is its own CAST part (the painted mask on the turret face), distinct from
-    // the steel barrel — merging them under one material made the mask read as bare gun steel.
+    // The mantlet is its own CAST part, distinct from the steel barrel — merging them under one
+    // material made the mount read as bare gun steel. On this vehicle it sits INSIDE the turret:
+    // what the outside world sees of the gun mount is the aperture, the canvas boot and the tube.
     let mantlet = VehiclePart {
         key: PartKey::new("gun_mantlet"),
         submesh: SubmeshKind::Gun,
@@ -110,6 +127,28 @@ pub fn t54_from_modules(modules: &VehicleModules) -> VehicleDescription {
         shape: PartShape::Mesh(revolve::moving_mantlet(trunnion, &v.gun)),
         lod: PartLod::MountCritical,
         generator: GeneratorKind::Revolve,
+    };
+    // The canvas cover over the gun window. It moves with the gun, so it belongs to the same
+    // submesh as the barrel and mantlet, and it is neither armour nor steel.
+    let mantlet_cover = VehiclePart {
+        key: PartKey::new("gun_mantlet_cover"),
+        submesh: SubmeshKind::Gun,
+        material: MaterialRole::Canvas,
+        smoothing: SmoothingGroup(6),
+        shape: PartShape::Mesh(crate::t54_gun_cover::t54_mantlet_cover(trunnion, &v.gun)),
+        lod: PartLod::MountCritical,
+        generator: GeneratorKind::Sweep,
+    };
+    // The fastening strip round the window's perimeter: bolted to the CASTING, so it rides the
+    // turret, not the gun — the fabric moves under it.
+    let mantlet_frame = VehiclePart {
+        key: PartKey::new("gun_mantlet_frame"),
+        submesh: SubmeshKind::Turret,
+        material: MaterialRole::BarrelSteel,
+        smoothing: SmoothingGroup(3),
+        shape: PartShape::Mesh(crate::t54_gun_cover::t54_mantlet_frame(trunnion, &v.gun)),
+        lod: PartLod::Detail,
+        generator: GeneratorKind::Sweep,
     };
     let barrel = VehiclePart {
         key: PartKey::new("gun_barrel"),
@@ -122,11 +161,13 @@ pub fn t54_from_modules(modules: &VehicleModules) -> VehicleDescription {
     };
 
     let f = &v.fittings;
-    let mut parts = vec![lower_tub, upper_hull, turret, cupola, mantlet, barrel];
+    let mut parts =
+        vec![lower_tub, upper_hull, turret, cupola, mantlet, mantlet_cover, mantlet_frame, barrel];
     // Semantic drum fittings as their own parts (not anonymous greeble): the commander's cupola
     // hatch and the driver's/loader's hatches (all raised round lids), plus the glacis headlight.
     parts.extend(crate::t54_details::t54_fitting_parts(f));
     // The engine deck reads as bolted panels, not one slab — its split plates carry the silhouette.
+    let deck_top = v.deck.center.y + v.deck.half.y;
     for (i, panel) in solid::t54_engine_deck_panels(&v.deck).into_iter().enumerate() {
         parts.push(VehiclePart {
             key: PartKey::indexed("engine_deck_panel", i as u16),
@@ -138,17 +179,18 @@ pub fn t54_from_modules(modules: &VehicleModules) -> VehicleDescription {
             generator: GeneratorKind::Solid,
         });
     }
+    // The bolts that hold those panels down. `detail::bolt_head` has existed since the detail
+    // kernel was written and had never been called: the deck read as split plates with nothing
+    // holding them, which is the one thing a bolted panel is FOR. Two rows per panel, along the
+    // seams, because that is where a fastener goes.
+    parts.extend(crate::t54_details::t54_deck_panel_bolts(&v.deck, deck_top));
+    // A tow hook is a HOOK: a bracket welded to the nose plate, a curved throat a shackle drops
+    // into, and a catch across the mouth so it cannot drop back out. These were 240 x 220 x 200
+    // bricks — a cast block with no curvature, no throat and no catch, which is a boss, not a
+    // hook (register K9).
     for (i, side) in [f.tow_hook_center.x, -f.tow_hook_center.x].into_iter().enumerate() {
         let center = Vec3::new(side, f.tow_hook_center.y, f.tow_hook_center.z);
-        parts.push(VehiclePart {
-            key: PartKey::indexed("tow_hook", i as u16),
-            submesh: SubmeshKind::Hull,
-            material: MaterialRole::RolledArmor,
-            smoothing: SmoothingGroup::hard_edges(),
-            shape: PartShape::Plates(solid::ConvexSolid::box_at(center, f.tow_hook_half)),
-            lod: PartLod::Detail,
-            generator: GeneratorKind::Solid,
-        });
+        parts.extend(crate::t54_details::t54_tow_hook(i as u16, center, f.tow_hook_half));
     }
     // Fenders split into bolted sections along each run, rather than one continuous slab.
     let mut fender_segment = 0u16;
@@ -171,9 +213,7 @@ pub fn t54_from_modules(modules: &VehicleModules) -> VehicleDescription {
     parts.extend(crate::t54_details::t54_detail_parts(v));
     // The external kit: fender stowage and sloping fender ends, the glacis splash board, turret
     // handrails and stowed tow cables — the reference dressing that makes the narrow hull read.
-    parts.extend(crate::t54_kit::t54_kit_parts(v));
-    // Swing-arm brackets mounting each road wheel to the hull's lower tub side (suspension cue).
-    parts.extend(crate::t54_chassis::t54_suspension_parts(bp.hull.lower_half_width));
+    parts.extend(crate::t54_kit::t54_kit_parts(v, bp.armor.hull_front.0));
     // Hull plate articulation: the glacis-to-roof weld seam and the rear transmission covers.
     parts.extend(crate::t54_chassis::t54_hull_plate_parts(v, bp.armor.hull_front.0));
     // Damage-ready interior: major visible assemblies are generated from the authoritative
@@ -210,6 +250,6 @@ pub fn t54_from_modules(modules: &VehicleModules) -> VehicleDescription {
     // Bake-time ambient contact: darken the turret-ring seam, mantlet seat, running-gear recess and
     // glacis weld into `surface_shade` after merge (the cast turret and welded hull no longer read
     // flat). Derived from the same blueprint `v` that drives the geometry.
-    let surface_bake = crate::surface_bake::t54_surface_bake(v, &bp.track);
+    let surface_bake = crate::surface_bake::t54_surface_bake(v, &bp.track, muzzle);
     VehicleDescription { kind, parts, mounts, surface_bake }
 }

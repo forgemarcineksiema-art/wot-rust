@@ -25,6 +25,13 @@ pub enum ArmorZone {
     /// left the skirted vehicles unable to lose a module to a flank shot at all.
     /// Appended last — the zone rides the wire inside damage events.
     Skirt,
+    /// The hull's engine deck and fighting-compartment roof. Split out from [`ArmorZone::Roof`],
+    /// which used to mean BOTH the turret roof and the hull deck: one zone, one derived
+    /// thickness (a fleet formula off the turret front), and a hull-deck hit that reported
+    /// `TurretFront` on the wire. They are different plates on different structures — the T-54's
+    /// deck is 20 mm where its turret roof is 30 — so they are different zones.
+    /// Appended after `Skirt`, same rule.
+    HullDeck,
 }
 
 impl ArmorZone {
@@ -39,6 +46,9 @@ impl ArmorZone {
             ArmorZone::TurretFront | ArmorZone::Mantlet | ArmorZone::Roof => {
                 ArmorFacing::TurretFront
             }
+            // The deck belongs to the HULL — reporting a deck hit as "turret front" was a wire
+            // lie every consumer of the damage event inherited.
+            ArmorZone::HullDeck => ArmorFacing::HullFront,
             ArmorZone::TurretSide => ArmorFacing::TurretSide,
             ArmorZone::TurretRear => ArmorFacing::TurretRear,
         }
@@ -57,6 +67,7 @@ impl ArmorProfile {
             ArmorZone::TurretSide => self.facet(ArmorFacing::TurretSide),
             ArmorZone::TurretRear => self.facet(ArmorFacing::TurretRear),
             ArmorZone::Roof => roof_plate(self),
+            ArmorZone::HullDeck => deck_plate(self),
             ArmorZone::LeftTrack | ArmorZone::RightTrack => track_plate(self),
             ArmorZone::Skirt => skirt_plate(),
         }
@@ -71,9 +82,22 @@ fn derived(base: ArmorFacet, thickness_mul: f32, slope_mul: f32, weakspot_mul: f
     )
 }
 
+/// The TURRET roof. Authored when the vehicle's dossier states it (`TurretModule::roof_mm`),
+/// otherwise the fleet formula — which gave the T-54 24 mm where its documents say 30.
 fn roof_plate(profile: &ArmorProfile) -> ArmorFacet {
+    if let Some(mm) = profile.turret_roof_mm {
+        return ArmorFacet::new(mm, 0.0, 1.0);
+    }
     let turret = profile.facet(ArmorFacing::TurretFront);
     ArmorFacet::new((turret.nominal_thickness_mm * 0.12).clamp(12.0, 35.0), 0.0, 1.0)
+}
+
+/// The HULL deck: thin plate over the engine and the fighting compartment, historically a third
+/// of the roof of anything. Derived off the hull side (its own structure) rather than off the
+/// turret front, which is what the shared `Roof` zone used to do.
+fn deck_plate(profile: &ArmorProfile) -> ArmorFacet {
+    let side = profile.facet(ArmorFacing::HullSide);
+    ArmorFacet::new((side.nominal_thickness_mm * 0.25).clamp(15.0, 30.0), 0.0, 1.0)
 }
 
 fn track_plate(profile: &ArmorProfile) -> ArmorFacet {
@@ -101,6 +125,30 @@ pub fn resolve_penetration_at_distance_on_zone(
         impact_angle_degrees,
         distance_m,
     )
+}
+
+/// The same resolution, against a plate that carries only PART of its zone's thickness.
+///
+/// A zone is a six-bucket abstraction and a cast turret is not a box: the T-54's wall is 160 mm
+/// behind the cheeks and 65 mm at the rear. The armour volume already sweeps that casting as
+/// per-azimuth sectors, so the sector the shell actually struck reports its share of the wall
+/// and the shell resolves against the metal that is really there. `scale` of 1.0 is exactly
+/// [`resolve_penetration_at_distance_on_zone`], which every flat plate keeps using.
+pub fn resolve_penetration_at_distance_on_zone_scaled(
+    shell: &ShellSpec,
+    armor: &ArmorProfile,
+    zone: ArmorZone,
+    impact_angle_degrees: f32,
+    distance_m: f32,
+    scale: f32,
+) -> PenetrationResult {
+    let plate = armor.plate(zone);
+    let scaled = ArmorFacet::new(
+        plate.nominal_thickness_mm * scale.clamp(0.05, 4.0),
+        plate.slope_degrees,
+        plate.weakspot_multiplier,
+    );
+    super::resolve_penetration_at_distance_on_facet(shell, scaled, impact_angle_degrees, distance_m)
 }
 
 #[cfg(test)]

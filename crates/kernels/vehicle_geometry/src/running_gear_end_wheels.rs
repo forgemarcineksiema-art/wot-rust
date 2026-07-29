@@ -19,17 +19,89 @@ pub fn end_wheel_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
     idler_unit_mesh(kin)
 }
 
-/// Smooth front idler wheel, centred at the origin with its axle along X. Built as a steel disc
-/// wheel with a rubber tire rim and a proud hub — a *smooth* sibling of the road wheel, so the front
-/// of the track reads as a plain wheel against the toothed drive sprocket at the rear.
+/// The front IDLER, centred at the origin with its axle along X.
+///
+/// Two corrections from the dossier ("Part construction", S1b). Its tyres are **steel, not
+/// rubber** — the T-54 idler is a 510 mm cast wheel with steel tyres, and drawing it in rubber
+/// made the front of the track read as a second road wheel. And it carries the track TENSIONER:
+/// a two-worm crank whose eccentric arm swings the axle along an arc. That crank is the part
+/// that tells you which end of the tank the idler is, and it was not there at all.
 pub fn idler_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
-    let seg = kin.segments.max(20);
+    let seg = kin.segments_for(20);
     let r = kin.end_radius;
     let half_w = kin.wheel_half_width;
     MeshBuilder::new()
-        .append(&wheel_disc_at(0.0, r * 0.86, half_w, seg, MaterialRole::TrackMetal))
+        // The dished disc: a rim band and a recessed web, not one flat coin.
+        .append(&wheel_disc_at(0.0, r * 0.86, half_w * 0.42, seg, MaterialRole::TrackMetal))
+        .append(&steel_rim(0.0, r * 0.62, r * 0.88, half_w, seg))
         .append(&tread_band(0.0, r, half_w * 0.9, seg))
         .append(&wheel_disc_at(0.0, r * 0.28, half_w * 1.12, seg, MaterialRole::TrackMetal))
+        // The tension crank: the eccentric arm the axle rides, standing inboard of the wheel.
+        // It is a close-range read — inboard of the wheel, in the hull's shadow — so it goes
+        // with the rest of the surface detail at the distance tier.
+        .append(&if kin.detail == crate::GearDetail::Near {
+            tension_crank(kin, r)
+        } else {
+            GeometryMesh::default()
+        })
+        .build()
+}
+
+/// A steel rim band: the ring the tyres are pressed onto, closed on both faces.
+fn steel_rim(
+    center_x: f32,
+    r_in: f32,
+    r_out: f32,
+    half_width: f32,
+    segments: usize,
+) -> GeometryMesh {
+    let (lo, hi) = (center_x - half_width, center_x + half_width);
+    MeshBuilder::new()
+        .revolve(RevolveSpec {
+            profile: vec![
+                ProfilePoint::new(r_in, lo),
+                ProfilePoint::new(r_out, lo),
+                ProfilePoint::new(r_out, hi),
+                ProfilePoint::new(r_in, hi),
+                ProfilePoint::new(r_in, lo),
+            ],
+            axis: Axis::X,
+            segments,
+            material: MaterialRole::TrackMetal,
+            smoothing: SG_WHEEL,
+        })
+        .build()
+}
+
+/// The idler's eccentric tension crank: the arm between the hull bearing and the wheel axle.
+/// Turning it walks the axle along an arc and takes up the slack — the mechanism that makes a
+/// thrown track a repair rather than a write-off.
+fn tension_crank(kin: &RunningGearKinematics, r: f32) -> GeometryMesh {
+    let arm_x = -kin.wheel_half_width * 1.35;
+    let reach = r * 0.55;
+    MeshBuilder::new()
+        // The arm, reaching back and down from the axle to its bearing.
+        .append(
+            &MeshBuilder::new()
+                .extrude(
+                    Vec3::new(arm_x, 0.0, 0.0),
+                    ExtrudeSpec {
+                        section: vec![
+                            Vec2::new(-0.045, -0.055),
+                            Vec2::new(0.045, -0.055),
+                            Vec2::new(0.030, -reach),
+                            Vec2::new(-0.030, -reach),
+                        ],
+                        axis: Axis::X,
+                        half_depth: 0.030,
+                        material: MaterialRole::TrackMetal,
+                        smoothing: SG_HARD,
+                    },
+                )
+                .build(),
+        )
+        // The worm housing at the bearing end.
+        .append(&wheel_disc_at(arm_x, 0.070, 0.040, 10, MaterialRole::TrackMetal))
         .build()
 }
 
@@ -52,30 +124,38 @@ fn tread_band(center_x: f32, radius: f32, half_width: f32, segments: usize) -> G
             ],
             axis: Axis::X,
             segments,
-            material: MaterialRole::Rubber,
+            material: MaterialRole::TrackMetal,
             smoothing: SG_WHEEL,
         })
         .build()
 }
 
-/// Rear drive sprocket in the real T-54 layout: a steel drum with TWO toothed rings flanking the
-/// track shoes at the drum's outer edges. The teeth pass OUTSIDE the link plates (they never
-/// intersect the belt) and their count comes from the link pitch on the wrap circle, so with the
-/// wrap-radius spin the teeth and the shoes they flank visibly move together — the meshing read.
+/// The rear DRIVE SPROCKET: a steel drum carrying two removable toothed rings.
+///
+/// The teeth used to stop 32 mm short of the belt line — decoration passing near a track it
+/// never touched, on the one wheel whose entire job is to push it. They reach it now, and they
+/// reach exactly as far as the surface they bear on: the barrel of hinge eyes on the wheel side
+/// of each shoe (the цевка), whose stand-off both parts read from
+/// [`RunningGearKinematics::hinge_eye_offset`]. That is the real engagement — tooth on eye, not
+/// tooth on horn — and stopping there is also what keeps the tooth out of the shoe plate, which
+/// sits further out on the wrap.
+///
+/// The carrier rings are RINGS: annuli with the bolt circle that fixes them (40 bolts per wheel
+/// on a T-54, the dominant visual feature of the disc). They used to be solid coins.
 pub fn sprocket_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
-    let seg = kin.segments.max(16);
+    let seg = kin.segments_for(16);
     let r = kin.end_radius;
     let half_w = kin.wheel_half_width;
-    // The toothed rings live INSIDE the belt band: their outer face lands exactly on the
-    // blueprint's `outer_x` (the documented width over tracks), and the teeth are radially
-    // capped under the shoe plates so they never clip them — they show in the gaps between
-    // shoes, which is where a real sprocket's teeth read anyway. (They used to flank the
-    // shoes OUTBOARD, baking every vehicle 5–8 cm wider per side than its dossier.)
     let tooth_half = 0.028;
     let ring_x = (kin.band_half_width - tooth_half).max(0.02);
     let wrap_r = crate::running_gear_belt::wrap_radius(kin);
-    let tooth_outer_r = (r * 1.10).min(wrap_r - 0.032);
+    // Out to the hinge-eye barrel and no further: engagement, without cutting the shoe plate.
+    let tooth_outer_r = wrap_r - kin.hinge_eye_offset() * 0.90;
     let pitch = (kin.belt_length() / kin.link_count().max(1) as f32).max(0.05);
+    // The count is not a style choice: a tooth must meet a link, so it is the number of link
+    // pitches around the wrap circle. (On the T-54 that resolves to 14 rather than the
+    // documented 13, because the belt pitch and the wrap radius are both still long — see the
+    // dimensional register, M9/PR-18. Faking the count here would only hide it.)
     let teeth = ((std::f32::consts::TAU * wrap_r) / pitch).round().max(8.0) as usize;
 
     let mut builder = MeshBuilder::new()
@@ -83,26 +163,62 @@ pub fn sprocket_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
         .append(&wheel_disc_at(0.0, r * 0.26, half_w * 1.15, seg, MaterialRole::TrackMetal));
     for side in [-1.0_f32, 1.0] {
         let center_x = side * ring_x;
-        // Thin carrier ring the teeth root into.
-        builder = builder.append(&wheel_disc_at(
-            center_x,
-            r * 0.80,
-            0.022,
-            seg,
-            MaterialRole::TrackMetal,
-        ));
+        // The carrier ring: an annulus the teeth root into, not a coin.
+        builder = builder.append(&steel_rim(center_x, r * 0.68, r * 0.84, 0.022, seg));
         for i in 0..teeth {
             let angle = (i as f32 / teeth as f32) * std::f32::consts::TAU;
             builder = builder.append(&sprocket_tooth(
                 center_x,
                 angle,
-                r * 0.66,
+                r * 0.72,
                 tooth_outer_r,
                 tooth_half,
             ));
         }
+        // The bolt circle that holds the removable ring on: TWENTY per ring, because the
+        // documented wheel carries 40 bolts and 40 nuts across its two rings. (The first pass
+        // put 42 on each ring — twice the real hardware, and 1,408 triangles a tank was paying
+        // for a number nobody had looked up.)
+        // Sub-pixel at the switch range, exactly like the shoe detail: a 32 mm bolt head on a
+        // wheel 60 m away is not a thing anyone can see, and there are forty of them per tank.
+        for i in 0..(if kin.detail == crate::GearDetail::Near { RING_BOLTS } else { 0 }) {
+            let angle = (i as f32 / RING_BOLTS as f32) * std::f32::consts::TAU;
+            let (sin, cos) = angle.sin_cos();
+            builder = builder.append(&ring_bolt(Vec3::new(
+                center_x - side * 0.014,
+                sin * r * 0.50,
+                cos * r * 0.50,
+            )));
+        }
     }
     builder.build()
+}
+
+/// Bolts per toothed ring. The T-54's drive wheel carries 40 bolts and 40 nuts across its two
+/// removable rings — the dossier calls the bolt circle the dominant visual feature of the disc.
+const RING_BOLTS: usize = 20;
+
+/// One bolt on a sprocket ring's fixing circle: a square-headed fastener sunk into the disc
+/// face. (Distinct from `detail::bolt_head`, which is a chamfered revolved cylinder for hull
+/// panels — and which this crate cannot call, since `detail` is built on top of it.)
+fn ring_bolt(center: Vec3) -> GeometryMesh {
+    MeshBuilder::new()
+        .extrude(
+            center,
+            ExtrudeSpec {
+                section: vec![
+                    Vec2::new(-0.016, -0.016),
+                    Vec2::new(0.016, -0.016),
+                    Vec2::new(0.016, 0.016),
+                    Vec2::new(-0.016, 0.016),
+                ],
+                axis: Axis::X,
+                half_depth: 0.010,
+                material: MaterialRole::TrackMetal,
+                smoothing: SG_HARD,
+            },
+        )
+        .build()
 }
 
 fn sprocket_tooth(

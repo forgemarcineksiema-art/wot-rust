@@ -8,11 +8,14 @@ mod bolt;
 mod scatter;
 mod weld;
 
+mod fitting;
+
 pub use bolt::bolt_head;
+pub use fitting::{coaming, grab_handle, hinge};
 pub use scatter::{
     ExclusionZone, ScatterPlacement, ScatterRequest, ScatterSlot, louvre_slats, scatter,
 };
-pub use weld::{casting_seam, handle_rail, weld_bead};
+pub use weld::{casting_seam, casting_seam_loop, handle_rail, weld_bead};
 
 /// The kinds of semantic detail, used in the stable placement hash.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

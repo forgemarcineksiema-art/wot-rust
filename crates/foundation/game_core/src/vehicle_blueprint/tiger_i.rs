@@ -88,6 +88,10 @@ pub(super) fn tiger_i_blueprint() -> VehicleBlueprint {
             shoe_pattern: ShoePattern::Kgs,
             wheel_face: WheelFace::SteelDish,
             suspension: super::SuspensionKind::TorsionBar,
+            // The trailing arm's own geometry: None takes the family default
+            // (0.26 / 0.13 for a torsion bar) until this vehicle's dossier says otherwise.
+            arm_reach_m: None,
+            arm_rise_m: None,
         },
         turret: TurretShape {
             // The horseshoe: one bent side wall around a flat front plate, all of it VERTICAL —
@@ -141,6 +145,7 @@ pub(super) fn tiger_i_blueprint() -> VehicleBlueprint {
             turret_front: (8.0, 0.92),
             turret_side: (0.0, 1.0),
             turret_rear: (0.0, 1.0),
+            turret_side_taper: None,
         },
         hybrid: None,
     }

@@ -5,7 +5,7 @@
 
 use game_core::math::{gun_direction, integrate_shell_step, wrap_angle};
 use glam::Vec3;
-use sim::{MAX_GUN_PITCH_RAD, MIN_GUN_PITCH_RAD, SHELL_MAX_AGE_SECONDS, TankState};
+use sim::{SHELL_MAX_AGE_SECONDS, TankState};
 
 /// Match the authoritative server's 60 Hz shell integration.
 const SOLVE_DT_S: f32 = 1.0 / 60.0;
@@ -74,7 +74,10 @@ pub(crate) fn solve_firing_solution(tank: &TankState, target: &TankState) -> Bot
     let world_yaw = delta.x.atan2(delta.z);
     let local = tank.hull_pose().basis().transpose() * gun_direction(world_yaw, world_pitch);
     let desired_turret = local.x.atan2(local.z);
-    let desired_pitch = local.y.clamp(-1.0, 1.0).asin().clamp(MIN_GUN_PITCH_RAD, MAX_GUN_PITCH_RAD);
+    // The bot obeys ITS OWN gun's arc: a T-54 bot must not promise itself the -8 degrees the
+    // fleet constant used to hand everyone.
+    let (min_pitch, max_pitch) = tank.spec.gun_pitch_limits_rad();
+    let desired_pitch = local.y.clamp(-1.0, 1.0).asin().clamp(min_pitch, max_pitch);
     let distance = delta.length().max(1.0);
     BotFiringSolution {
         target: target.id,

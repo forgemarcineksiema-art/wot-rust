@@ -97,10 +97,13 @@ fn gun_elevation_clamps_to_its_arc() {
         let command = TankCommand { gun_pitch_delta: 1.0, ..TankCommand::idle() };
         state.apply_commands(&[(id, command)], step);
     }
+    // The arc is per-vehicle now: assert against the tank's OWN limits rather than the
+    // fleet-wide pair this used to hard-code.
+    let (min_pitch, max_pitch) = state.tank(id).expect("tank").spec.gun_pitch_limits_rad();
     let elevation = state.tank(id).expect("tank").gun_pitch_rad;
     assert!(
-        (0.30..=0.40).contains(&elevation),
-        "elevation should saturate near max, got {elevation}"
+        (elevation - max_pitch).abs() < 0.01,
+        "elevation should saturate at this gun's own maximum {max_pitch}, got {elevation}"
     );
 
     for _ in 0..600 {
@@ -108,5 +111,8 @@ fn gun_elevation_clamps_to_its_arc() {
         state.apply_commands(&[(id, command)], step);
     }
     let depression = state.tank(id).expect("tank").gun_pitch_rad;
-    assert!((-0.16..=-0.10).contains(&depression), "depression should saturate, got {depression}");
+    assert!(
+        (depression - min_pitch).abs() < 0.01,
+        "depression should saturate at this gun's own minimum {min_pitch}, got {depression}"
+    );
 }
