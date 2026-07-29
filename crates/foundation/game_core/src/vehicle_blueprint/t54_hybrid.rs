@@ -148,30 +148,42 @@ pub(super) fn t54_hybrid(hull: &HullShape, armor: &ArmorShape) -> HybridVisual {
             // A 20-gon tube shows its facets against the sky at any range where the barrel is
             // the thing you are looking down.
             barrel_segments: 28,
-            // The 1951 mask sits ON the turret face: its wide rounded shoulder rides at the
-            // embrasure mouth (the turret front lip is at z ≈ 1.05, trunnion-relative ≈ -0.10)
-            // and the sleeve tapers forward of it — a visible cast "pig's head", not a collar
-            // swallowed inside the casting with a bare barrel poking out.
-            // Bedded 40 mm FORWARD of where it was. S1's 2.363 m casting reaches further
-            // ahead of the ring than the 2.10 m one did, so the embrasure moved out from under
-            // the mask: the wide cast shoulder has to stay proud of the face it beds into, or
-            // the "pig's head" disappears into the dome.
+            // The T-54 obr. 1951 mantlet is INSIDE the turret. The external "pig's head" ball
+            // is a WoT-ism — the dossier is explicit about it — and this profile used to be
+            // one: a sleeve reaching 0.40 m PAST the trunnion, out through the casting face
+            // and into the air in front of it.
+            //
+            // What replaces it is a cast body: closed at the back, closed at the front, widest
+            // (0.25) well behind the aperture it can therefore never be pushed out through, and
+            // stepping down to a 0.155 face that shows through the hole. The barrel passes
+            // through it; the two are separate parts and the tube is what covers the axis.
+            //
+            // The pocket floor sits at z = 1.240 - 0.16 = 1.080, i.e. -0.07 from the trunnion.
+            // The face at -0.030 therefore stands 40 mm proud of the floor and stays 0.13 m
+            // behind the casting's un-recessed front — inside the aperture, not through it.
             mantlet_profile: [
-                (-0.28, 0.13),
-                (-0.18, 0.24),
-                (-0.10, 0.295),
-                (0.00, 0.30),
-                (0.10, 0.26),
-                (0.20, 0.19),
-                (0.30, 0.13),
-                (0.40, 0.10),
+                (-0.300, 0.000),
+                (-0.265, 0.135),
+                (-0.190, 0.220),
+                (-0.115, 0.250),
+                (-0.070, 0.243),
+                (-0.050, 0.185),
+                (-0.040, 0.155),
+                (-0.030, 0.000),
             ],
             mantlet_segments: 28,
-            // The rounded "pig's head" mask: wider than tall, but full enough to READ as the cast
-            // mask on the turret face (the references show a substantial rounded jarzmo, not a
-            // bare barrel root). Tall enough in Y to overlap the embrasure mouth through the whole
-            // elevation arc — no exposed socket above/below the gun.
-            mantlet_scale: Vec3::new(1.15, 0.72, 1.0),
+            // Very nearly round. The old 1.15/0.72 squash existed to make a BALL read as a mask;
+            // an internal mantlet has no such job — it is a cast cylinder on trunnions, a touch
+            // wider than tall because the trunnion bosses are.
+            mantlet_scale: Vec3::new(1.06, 0.98, 1.0),
+            // The canvas boot. Its rear station is 0.25 out and BEHIND the casting's face at
+            // that radius, so the boot passes through the metal rather than butting against it
+            // and the seal has no visible edge; its front station grips a tube that is 0.098 at
+            // that station. Between them it is the only part of this gun mount a viewer sees —
+            // the internal mantlet's 0.164 face, 29 mm proud of the pocket floor, sits inside
+            // it.
+            mantlet_cover: [(-0.100, 0.250), (-0.020, 0.235), (0.140, 0.170), (0.300, 0.102)],
+            mantlet_cover_sag: 0.014,
             module_delta_scale: 0.65,
         },
         // The engine deck runs from behind the turret ring back to a hand's width off the rear

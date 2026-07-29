@@ -47,6 +47,17 @@ pub(super) fn turret_loft(cupola: (Vec3, f32, f32)) -> TurretLoftVisual {
                 half_len_rear: 1.123,
                 z_center: 0.00,
             },
+            LoftStation {
+                y: 1.68,
+                // A SUBDIVISION of the casting's straight run from the ring seat to 2.00, not a
+                // new measurement: the two stations it sits between carry these same numbers.
+                // It exists so the gun aperture has rings to be cut into. A 0.40 m feature
+                // resolved by three rings is a diamond; resolved by five it is a hole.
+                half_width: 1.038,
+                half_len_front: 1.240,
+                half_len_rear: 1.123,
+                z_center: 0.00,
+            },
             // The cheek station. The swell is a per-RING modulation, so it needs a ring at its
             // own height to appear on at all — with the nearest sections at 1.58 and 2.00 the
             // T-54's signature front mass had nowhere to form.
@@ -56,6 +67,17 @@ pub(super) fn turret_loft(cupola: (Vec3, f32, f32)) -> TurretLoftVisual {
                 // so 1.125 is the casting's widest point, not its base section. The base runs
                 // narrower by the swell it carries, and the two together make the documented
                 // 2.25 m width over the turret.
+                half_width: 1.038,
+                half_len_front: 1.240,
+                half_len_rear: 1.123,
+                z_center: 0.00,
+            },
+            LoftStation {
+                y: 1.88,
+                // A SUBDIVISION of the casting's straight run from the ring seat to 2.00, not a
+                // new measurement: the two stations it sits between carry these same numbers.
+                // It exists so the gun aperture has rings to be cut into. A 0.40 m feature
+                // resolved by three rings is a diamond; resolved by five it is a hole.
                 half_width: 1.038,
                 half_len_front: 1.240,
                 half_len_rear: 1.123,
@@ -108,6 +130,9 @@ pub(super) fn turret_loft(cupola: (Vec3, f32, f32)) -> TurretLoftVisual {
             },
         ],
         exponent: 2.8,
+        // The CASTING's resolution. The gun aperture is a feature on it, and `cast_loft` refines
+        // its own grid over a bump too narrow for this one — so the hole is sharp without the
+        // whole dome paying for it.
         segments: 64,
         // Fuller, wider front cheeks pulled in toward the mantlet (smaller azimuth): the signature
         // T-54 cast front mass must bulge PROUD of the turret sides, not vanish into the superellipse.
@@ -116,12 +141,27 @@ pub(super) fn turret_loft(cupola: (Vec3, f32, f32)) -> TurretLoftVisual {
         cheek_y: 1.78,
         cheek_az_width: 0.50,
         cheek_y_width: 0.24,
-        embrasure_amount: -0.12,
+        // The documented aperture is ~0.40 m across. For this super-Gaussian the half-depth
+        // point sits at 0.941 w, so the vertical opening wants w = 0.17 (the gun needs less
+        // travel up and down than side to side, and a taller pocket would cut into the ring
+        // seat 0.20 m below the axis).
+        //
+        // Azimuth is NOT arc length here. The superellipse is flat across its nose: at exponent
+        // 2.8 the x it reaches is 1.038 * (sin daz)^0.714, so 0.20 m of x is 0.0997 rad of
+        // azimuth, not 0.161. Converting by arc length — which is the obvious thing to do and
+        // is wrong — makes the aperture half again too wide.
+        // It was 0.48 rad x 0.22 m — a metre-wide soft dish, which is why a ball mantlet had to
+        // be invented to fill it.
+        //
+        // The depth is the wall it is cut through, not a dent pressed into it.
+        embrasure_amount: -0.16,
         // ON the gun axis (`gun.trunnion_y`). It used to sit 20 mm above it — a drift nothing
         // measured, in the one feature whose whole job is to be centred on the barrel.
         embrasure_y: 1.78,
-        embrasure_az_width: 0.48,
-        embrasure_y_width: 0.22,
+        embrasure_az_width: 0.106,
+        embrasure_y_width: 0.17,
+        // A pocket with a floor and a rim. Six is where the wall stops reading as a slope.
+        embrasure_falloff: 6.0,
         // Rooted deep into the curved dome (base ~2.02, under the local shell surface) so the
         // drum grows out of the casting instead of levitating over the sloping roof.
         // Seated so exactly 131 mm of drum stands above the 2.40 m roof — the documented

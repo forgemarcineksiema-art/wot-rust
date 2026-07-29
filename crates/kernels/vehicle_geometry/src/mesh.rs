@@ -18,6 +18,14 @@ pub enum MaterialRole {
     /// Freshly fractured armor section. Dynamic damage geometry uses this instead of borrowing
     /// barrel steel, so the renderer can distinguish a rough, heat-stained cut from a gun tube.
     ExposedSteel,
+    /// Proofed canvas: the mantlet dust cover, tarpaulins, the gun-cleaning kit's rolls. Matte,
+    /// unlit-looking fabric with no specular lobe worth speaking of.
+    ///
+    /// Its own role because the alternative is worse. Every fabric part this fleet will ever
+    /// carry would otherwise be `CastArmor` — and a canvas boot rendered as cast steel is the
+    /// same mistake the mantlet comment already records about the mask being merged into the
+    /// barrel: one material for two things is one of them rendered wrong.
+    Canvas,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

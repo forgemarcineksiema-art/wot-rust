@@ -164,14 +164,14 @@ pub struct CastLoftSpec<'a> {
 /// Production callers go through [`try_build_cast_loft`], which validates the spec first; this
 /// unchecked builder stays crate-internal for that wrapper and the tests.
 pub(crate) fn build_cast_loft(spec: &CastLoftSpec) -> GeometryMesh {
-    let n = spec.segments.max(3);
+    let azimuths = ring_azimuths(spec);
+    let n = azimuths.len();
     let rings = spec.sections.len();
     assert!(rings >= 2, "a loft needs at least two cross-sections");
 
     let mut positions: Vec<Vec3> = Vec::with_capacity(rings * n + 2);
     for section in spec.sections {
-        for i in 0..n {
-            let t = TAU * i as f32 / n as f32;
+        for &t in &azimuths {
             let mut p = section.point(t);
             let push: f32 = spec.bumps.iter().map(|b| b.push(t, section.y)).sum();
             if push != 0.0 {
@@ -206,6 +206,76 @@ pub(crate) fn build_cast_loft(spec: &CastLoftSpec) -> GeometryMesh {
         .collect();
     // Smooth normals are rebuilt from the faces here; the placeholder zero normals above are replaced.
     GeometryMesh::new(vertices, indices).weld_and_smooth()
+}
+
+/// How many samples the kernel wants across a bump's azimuth half-width. Three puts a vertex on
+/// the floor, one on the wall and one on the rim, which is the least that reads as an edge.
+const SAMPLES_PER_BUMP_HALF_WIDTH: f32 = 3.0;
+/// How far out from a bump's centre its footprint is considered to reach, in half-widths. Past
+/// 1.6 a super-Gaussian has nothing left to resolve.
+const BUMP_FOOTPRINT_HALF_WIDTHS: f32 = 1.6;
+/// Ceiling on the extra columns one base interval may be split into.
+///
+/// Not a quality knob — a guard rail. `extra` is derived by dividing the base step by the width
+/// the bump wants, and an `f32 -> usize` cast SATURATES: a bump authored with a denormal
+/// `az_width` would ask for `usize::MAX` subdivisions and the loop would never come back. 32 is
+/// far past any feature a casting has (the T-54's gun aperture asks for 2).
+const MAX_BUMP_SUBDIVISIONS: usize = 32;
+
+/// The azimuths every ring is sampled at: the uniform `segments` grid, subdivided wherever a bump
+/// is too narrow for it.
+///
+/// `segments` is the resolution of the CASTING; a gun aperture is a feature on it. Left to the
+/// uniform grid, a 0.2 rad aperture on a 64-segment shell gets two samples and its wall gets one
+/// facet — the hole then measures 20% wider than it was authored, because the tessellation cannot
+/// put a vertex where the wall is. Paying for that globally means quadrupling the whole dome to
+/// sharpen one hole.
+///
+/// So the grid is refined locally instead, over the bump's own footprint. A soft cast swell asks
+/// for nothing (its half-width is already many segments wide) and pays nothing; only features
+/// narrower than the grid add columns, and they add them only where they are.
+///
+/// The refined columns are shared by every ring, so the shell stays one regular quad grid — the
+/// watertightness and winding this kernel promises are untouched.
+fn ring_azimuths(spec: &CastLoftSpec) -> Vec<f32> {
+    let base = spec.segments.max(3);
+    let step = TAU / base as f32;
+    let mut azimuths: Vec<f32> = (0..base).map(|i| step * i as f32).collect();
+
+    for bump in spec.bumps {
+        if !bump.az_width.is_finite() || bump.az_width <= 0.0 || bump.amount == 0.0 {
+            continue;
+        }
+        let wanted = bump.az_width / SAMPLES_PER_BUMP_HALF_WIDTH;
+        if wanted >= step {
+            continue;
+        }
+        let extra = ((step / wanted).ceil() as usize).min(MAX_BUMP_SUBDIVISIONS + 1) - 1;
+        let reach = bump.az_width * BUMP_FOOTPRINT_HALF_WIDTHS;
+        for column in 0..base {
+            let (lo, hi) = (step * column as f32, step * (column + 1) as f32);
+            // Does this column's span come within the bump's reach? Compared on the shorter way
+            // round the circle, so a feature straddling azimuth zero refines both of its sides.
+            let near = |t: f32| {
+                let mut d = (t - bump.azimuth).rem_euclid(TAU);
+                if d > PI {
+                    d -= TAU;
+                }
+                d.abs() <= reach
+            };
+            if !near(lo) && !near(hi) {
+                continue;
+            }
+            for sub in 1..=extra {
+                azimuths.push(lo + (hi - lo) * sub as f32 / (extra + 1) as f32);
+            }
+        }
+    }
+
+    azimuths.sort_by(f32::total_cmp);
+    // Two bumps overlapping would otherwise both insert into the same column.
+    azimuths.dedup_by(|a, b| (*a - *b).abs() < 1.0e-6);
+    azimuths
 }
 
 /// Close one end of the shell according to `cap`. `ring_start` is the first vertex index of the

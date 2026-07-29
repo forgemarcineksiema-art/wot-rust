@@ -35,6 +35,26 @@ document becomes history.
   armour argument — stood 0.34 m OUTSIDE their own armour volume, because the dome was swept as a
   circle of 1.12 m while the casting bulges to 1.37 at the shoulder. Shells went through them.
   Fixed in PR-13 by placing every sector plane on the casting's support function.
+- **Update 2026-07-29 — W3 in flight**: PR-14 (hull 6.235) → PR-15 (dome 2.40) →
+  PR-16 (cupola ⌀624) → PR-17 (embrasure + internal mantlet + canvas) stacked in that order.
+  Four `Target` anchors have flipped to **Locked**; the debt register is down to
+  `[GroundClearance, TrackGauge, TrackWidth]`, and the last two are PR-18's subject.
+- **A kernel gap the aperture exposed (PR-17).** `segments` is the resolution of the CASTING, and
+  a gun aperture is a feature ON it. On the uniform grid the aperture's wall fell inside a single
+  facet, so the hole MEASURED 0.48 m however it was authored — and the obvious fix, quadrupling
+  the ring count, cost 2,304 tris for the dome and still measured 0.48. `cast_loft` now refines
+  its azimuth grid over the footprint of any bump too narrow for the grid, and only there. The
+  dome went back to 64 segments, costs **1,296** tris, and the aperture measures 0.420. A soft
+  cast swell asks for nothing and pays nothing.
+- **A second defect the aperture exposed (PR-17).** Shrinking the mantlet patch to the size of
+  the real hole showed that it was never centred where its comment said. The dome projected the
+  patch centre onto each sector plane ALONG THE PLANE'S NORMAL; a dome's sector plane is tangent
+  to the casting at its FURTHEST point, up on the shoulder, so at gun height it stands 0.29 m
+  ahead of the metal and a normal raked 35 degrees walked the patch 0.17 m up the plate. A shot
+  straight down the barrel landed 0.21 m from the centre of its own mantlet and counted only
+  because the patch was 0.38 m wide. The centre now follows the GUN LINE. Box turrets are
+  unaffected (their front plate already sits at the mantlet's z), so no other vehicle's armour
+  moves.
 - **A defect found by deterministic divergence.** Changing the armour volume changed every
   subsequent shell resolution, so the seeded Bystra soak grew a different battle — and that
   battle drove a bot into the river. The bot brain's escape budget scaled braking by surface grip
@@ -69,7 +89,7 @@ loop (`tools export-mesh` → overlay on master → cross-section diff = numeric
 | M1 | ~~Hull 6.00 m vs real 6.20–6.27~~ **CLOSED (PR-14)**: hull built at the working 6.235, belly at the documented 0.425, and the muzzle at the documented 2.73 m past the bow (it was an absolute, so growing the hull walked the Locked 9.00 m overall length past its tolerance). Every fitting on both ends is a setback from the hull's own ends now, not a literal | RON `half_len: 3.1175`, `belly_y: 0.425`, `muzzle_z: 5.8475`; `dimension_gate` HullLength **Locked** | W3/PR-14 DONE |
 | M2 | ~~Dome roof 2.27 vs 2.40~~ **CLOSED (PR-15)**: the casting is built at the documented 2.40 m roof from the S1 station table, the cupola's 131 mm of exposure is authored instead of being whatever fitted under the hitbox apex, and S1's other finding lands with it — the widest cut is 43% from the front, so the turret reaches 1.016 m forward of the ring and 1.347 aft where the model had 1.05 both ways | RON `roof_y: 2.40`, `cupola_height: Some(0.131)`, `plan_half_length: 1.35`; `dimension_gate` HeightToTurretRoof(Bare) **Locked** | W3/PR-15 DONE |
 | M3 | Turret side 90 mm vs 200/160→65 taper; turret roof 24 (formula) vs 30; mantlet ×1.18 rule vs authored | `catalog_soviet.rs:38`, `zone.rs:52-89` | W2/PR-09 |
-| M4 | External mantlet ball ⌀640 vs narrow ~400 mm embrasure + internal mantlet + canvas | `t54_hybrid.rs:92-107` | W3/PR-17 |
+| M4 | ~~External mantlet ball ⌀640 vs narrow embrasure~~ **CLOSED (PR-17)**: the aperture is cut through the casting as a plateau bump and measures **0.420 × 0.380 m** at half depth (dossier ~0.40); the mantlet is a closed cast body behind it, wider than the hole it sits in; a canvas boot seals the hole to the tube. Three tests that REQUIRED the ball are inverted | `t54_hybrid_turret.rs` embrasure block; `t54_gun_cover.rs`; `the_turret_face_carries_a_narrow_gun_aperture` | W3/PR-17 DONE |
 | M5 | Cupola ⌀480 vs 624, exposed 131 mm, hatch 497×670; three copies in code, the rendered one untested | `t54_hybrid_turret.rs:82` | W3/PR-16 |
 | M6 | Gun arc global −8/+20 vs real −5/+18 per vehicle | `aiming.rs:6-8` | W2/PR-10 |
 | M7 | Symmetric fenders vs real asymmetry; missing SG-43 port and 2× MDSh | `t54_kit.rs:40-49` | W3/PR-19 |
@@ -86,7 +106,7 @@ loop (`tools export-mesh` → overlay on master → cross-section diff = numeric
 | # | Defect | Evidence | PR |
 | --- | --- | --- | --- |
 | K1 | Muzzle reads bore-less: face is 76% flat steel (wall 49 mm vs real 10–15 — tube ~40% too fat), bore has no distinct material/AO (the legacy path had a dark funnel — lost), rim smoothed into a dimple; 20-gon faceting | `gun_parts.rs:15-34`; no muzzle band in `surface_bake.rs` | PR-25 |
-| K2 | Mantlet is an OPEN-ended sleeve (no station at r=0); rims stand outside the barrel over ±31° crescents looking into the hollow; `OPEN_OR_CLOSED` contract allows it | `gun_parts.rs:62-83`; `quality.rs:214-219` | PR-17 |
+| K2 | ~~Mantlet is an OPEN-ended sleeve~~ **CLOSED (PR-17)**: the profile reaches r=0 at both ends, so the mesh has zero boundary edges — asserted directly rather than left to `OPEN_OR_CLOSED`, which is the contract that cannot see this | `the_mantlet_is_a_closed_body_not_an_open_sleeve`, `the_mantlet_profile_closes_at_both_ends` | PR-17 DONE |
 | K3 | OMSh link: NO guide horn, no hinge knuckles/pins, no cleats; 4 of 7 detail boxes fully buried inside the backing slab (11,520 dead tris/tank); "pin bars" on the wrong face | `running_gear_geom.rs:17-91` | PR-22 |
 | K4 | Road wheel: one body with a groove fakes twin tires; "dish" is a thinner flat coin; hub is a 19 cm peg; ZERO bolts (bolt circle exists only on the German dished path). **Partly closed by PR-12**: the T-54 face is now the spider-web frame (two bands + twelve webs + two rings of real holes, ray-measured), so what remains here is the twin tyres with their 53 mm axial gap, the dished disc, and the 10-bolt hub circle | `running_gear_wheels.rs:28-57` | PR-23 |
 | K5 | Sprocket teeth stop 3.2 cm SHORT of the belt line (nothing meshes) yet intersect the backing on the wrap; carrier "rings" are solid coins; tooth is a flat wedge. Documented truth (S1b): **2 × 13 teeth**, ring ⌀682 × 120 mm on a ⌀572.4 pitch circle, 40 bolts, and the tooth bears on the link's **hinge-eye barrel**, not the horn | `running_gear_end_wheels.rs:65-136`; dossier "Part construction" | PR-24 |

@@ -91,11 +91,13 @@ pub const GOLDEN_BAKE_HASHES: [(VehicleKind, u64); 9] = [
     // from 6.00 m to 6.235 and its belly from 0.440 to the documented 0.425 clearance. The
     // legacy recipe reads the same `HullShape` the shipping hybrid does, so it moves with it —
     // again in PR-15 for the 2.40 m turret roof and its 2.363 m plan, and in PR-16 for the
-    // documented ⌀624 cupola. T-54 only.
-    // Previous: 4_620_056_473_903_640_451 (PR-15, the dome);
+    // documented ⌀624 cupola, and in PR-17 for the narrow gun aperture that replaces the
+    // external ball mantlet. T-54 only.
+    // Previous: 12_248_531_318_198_965_275 (PR-16, the cupola);
+    //           4_620_056_473_903_640_451 (PR-15, the dome);
     //           1_895_447_275_523_063_518 (PR-14, the hull at 6.235);
     //           3_638_672_634_192_500_695 (PR-06, one-slope-one-truth).
-    (VehicleKind::T54_1951, 12_248_531_318_198_965_275_u64),
+    (VehicleKind::T54_1951, 4_449_583_882_369_858_906_u64),
     // Re-recorded 2026-07-26 for the Tiger I model-logic review: the 3.705 m beam moves onto the
     // 725 mm combat tracks (the sponsons were carrying it, with the belts hiding inside them), the
     // turret roof returns to its documented 2.885 m with an authored drum, the cupola opens to

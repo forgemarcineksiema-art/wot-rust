@@ -23,5 +23,7 @@ pub(crate) fn material_color(material: MaterialRole, hull_color: [f32; 3]) -> [f
         MaterialRole::InteriorMachinery => [0.18, 0.20, 0.17],
         MaterialRole::Ammunition => [0.42, 0.31, 0.15],
         MaterialRole::ExposedSteel => [0.34, 0.29, 0.23],
+        // Weathered proofed canvas: a grey-green duck that has been in the sun.
+        MaterialRole::Canvas => [0.36, 0.36, 0.31],
     }
 }

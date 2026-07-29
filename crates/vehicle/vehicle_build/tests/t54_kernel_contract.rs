@@ -200,18 +200,25 @@ fn the_cupola_is_a_separate_part_above_the_cast_roof() {
     assert!(turret.max.y > roof_y + 0.05, "the cupola rides above the cast roof");
 }
 
+/// The aperture is closed at neutral elevation. This used to compare the gun submesh's bounding
+/// box against the shell's, which the BARREL satisfies on its own from four metres away — the
+/// assertion could not fail whatever the mount looked like. It measures the thing that closes the
+/// hole now, which is the canvas.
 #[test]
-fn the_mantlet_overlaps_the_embrasure_without_a_front_gap() {
+fn the_cover_closes_the_embrasure_without_a_front_gap() {
     let v = turret_visual();
     let baked = t54_description().build();
-    let gun = baked.submesh(SubmeshKind::Gun).expect("gun").mesh.bounds().expect("gun bounds");
+    let gun = &baked.submesh(SubmeshKind::Gun).expect("gun").mesh;
     let shell = t54_turret_loft(&v).bounds().expect("shell bounds");
-    // The mantlet front (gun submesh) reaches at least as far forward as the cast shell front, so
-    // there is no exposed embrasure gap ahead of the casting at neutral elevation.
+    let fabric = gun
+        .vertices()
+        .iter()
+        .filter(|vertex| vertex.material == vehicle_geometry::MaterialRole::Canvas)
+        .map(|vertex| vertex.position.z)
+        .fold(f32::NEG_INFINITY, f32::max);
     assert!(
-        gun.max.z >= shell.max.z - 0.02,
-        "mantlet front {:.2} must overlap the shell front {:.2}",
-        gun.max.z,
+        fabric >= shell.max.z - 0.02,
+        "the cover front {fabric:.2} must reach the shell front {:.2}",
         shell.max.z
     );
 }

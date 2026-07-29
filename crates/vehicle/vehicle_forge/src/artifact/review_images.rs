@@ -267,6 +267,7 @@ fn review_material_color(material: MaterialRole) -> [u8; 4] {
         MaterialRole::InteriorMachinery => [46, 51, 43, 255],
         MaterialRole::Ammunition => [110, 79, 33, 255],
         MaterialRole::ExposedSteel => [92, 75, 57, 255],
+        MaterialRole::Canvas => [92, 92, 79, 255],
     }
 }
 

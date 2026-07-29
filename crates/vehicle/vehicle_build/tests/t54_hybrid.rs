@@ -195,13 +195,17 @@ fn the_shipped_hybrid_matches_its_recorded_golden() {
     // widest cut to BE the ring plane, and S1 flags that registration as an assumption.) The cupola's 131 mm
     // of exposure is authored now instead of being whatever was left under the hitbox apex, and
     // the whole roof band (cupola, hatches, periscopes, DShK mount) rides the roof as a depth
-    // into the casting rather than as absolute heights. The moving mantlet beds 70 mm further
-    // FORWARD with the casting's front — S1's longer turret reaches further ahead of the ring
-    // than the old one did, and the wide cast shoulder has to stay proud of the face it beds
-    // into or the "pig's head" vanishes into the dome.
-    // Previous: 0xf490_f9f1_fe07_3049 (PR-14, the hull at 6.235);
+    // into the casting rather than as absolute heights.
+    //
+    // Re-recorded again in PR-17, and this time the mantlet moves the other way: INSIDE. The
+    // external ball is gone, the aperture is a 0.42 x 0.38 m plateau cut through the casting, a
+    // canvas boot closes it to the tube, and `cast_loft` refines its azimuth grid over the
+    // aperture instead of the whole dome carrying the resolution — so the casting is CHEAPER
+    // (1,296 tris against 2,304 at the ring count that failed to sharpen it) and sharper.
+    // Previous: 0x8f18_a4aa_f291_5175 (PR-16, the cupola at 624);
+    //           0xf490_f9f1_fe07_3049 (PR-14, the hull at 6.235);
     //           0x903d_b868_b9bf_e617 (PR-25, a muzzle is a hole).
-    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0x8f18_a4aa_f291_5175;
+    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0xef40_8214_00ae_a9e4;
     let baked = t54_description().build();
     assert_eq!(
         baked.deterministic_hash(),

@@ -180,6 +180,7 @@ fn material_appearance(material: MaterialRole) -> ([f32; 3], f32) {
         MaterialRole::InteriorMachinery => ([0.18, 0.20, 0.17], 0.0),
         MaterialRole::Ammunition => ([0.42, 0.31, 0.15], 0.0),
         MaterialRole::ExposedSteel => ([0.34, 0.29, 0.23], 0.0),
+        MaterialRole::Canvas => ([0.36, 0.36, 0.31], 0.0),
     }
 }
 

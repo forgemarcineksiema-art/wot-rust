@@ -56,6 +56,7 @@ pub fn material_role_id(material: MaterialRole) -> u32 {
         MaterialRole::InteriorMachinery => 6,
         MaterialRole::Ammunition => 7,
         MaterialRole::ExposedSteel => 8,
+        MaterialRole::Canvas => 9,
     }
 }
 
@@ -70,7 +71,9 @@ fn material_tint_mask(material: MaterialRole) -> f32 {
         | MaterialRole::InteriorPrimer
         | MaterialRole::InteriorMachinery
         | MaterialRole::Ammunition
-        | MaterialRole::ExposedSteel => 0.0,
+        | MaterialRole::ExposedSteel
+        // Fabric is issued in its own drab, not painted with the tank.
+        | MaterialRole::Canvas => 0.0,
     }
 }
 

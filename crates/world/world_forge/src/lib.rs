@@ -128,6 +128,11 @@ impl WorldMaterial {
             MaterialRole::Rubber => WorldMaterial::Straw,
             MaterialRole::Ammunition => WorldMaterial::Bark,
             MaterialRole::ExposedSteel => WorldMaterial::Canopy,
+            // Fabric is a VEHICLE role (the mantlet's dust cover). No world bake emits it,
+            // and the bijection this function locks runs the other way — from the nine world
+            // materials out and back. Giving it a world material would break that lock to
+            // satisfy a call that cannot happen.
+            MaterialRole::Canvas => unreachable!("the world never bakes canvas"),
         }
     }
 

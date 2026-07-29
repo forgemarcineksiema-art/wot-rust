@@ -58,49 +58,59 @@ fn t54_turret_has_the_flat_pancake_profile_of_the_1951_casting() {
     );
 }
 
+/// What the OUTSIDE of the gun mount is allowed to be. This used to measure the whole gun submesh
+/// and cap it at a "trim pig's head" — a set of numbers describing an external ball mantlet, which
+/// the dossier says this vehicle does not have. The mantlet is inside now, so measuring the gun
+/// submesh measures the wrong thing: most of it is behind the turret face.
+///
+/// The question worth locking is what a viewer sees ahead of the casting, and the answer is the
+/// canvas boot and the tube. Nothing there may be wider than the boot's own mouth.
 #[test]
-fn the_mantlet_reads_as_a_trim_pigs_head_not_a_wide_slab() {
-    // The cast front cheeks carry the turret-front mass; the mantlet just covers the moving gun
-    // aperture. So the mask is a trim oval — narrower than the old wide slab (half-width 0.57) —
-    // while still clearly wider than tall (a flat cast oval, not a round ball).
+fn the_visible_gun_mount_is_no_wider_than_its_canvas_cover() {
+    let blueprint = VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("T-54 blueprint");
+    let hybrid = blueprint.hybrid().expect("hybrid visual");
+    let casting = vehicle_build::t54_turret_loft(&hybrid.turret_loft);
+    let face = casting.bounds().expect("casting bounds").max.z;
+    let trunnion_y = blueprint.gun.trunnion_y;
+
     let baked = vehicle_build::t54_description().build();
-    let gun = baked.submesh(SubmeshKind::Gun).expect("gun").mesh.bounds().expect("gun bounds");
-    let half_width = gun.max.x.max(-gun.min.x);
-    // Caps sized to the 1:1 casting (the ~2.25 m turret): the mask stays subordinate to the cheeks.
+    let gun = &baked.submesh(SubmeshKind::Gun).expect("gun").mesh;
+    let widest = gun
+        .vertices()
+        .iter()
+        .filter(|v| v.position.z > face)
+        .map(|v| v.position.x.hypot(v.position.y - trunnion_y))
+        .fold(0.0_f32, f32::max);
+    // The boot's widest station is 0.25; ahead of the casting it has already tapered below that.
     assert!(
-        half_width < 0.38,
-        "mantlet is oversized for the T-54 nose: half-width {half_width:.3}"
+        widest <= 0.25,
+        "ahead of the turret face the mount is fabric and tube, got a radius of {widest:.3}"
     );
-    let half_height = (gun.max.y - gun.min.y) / 2.0;
-    assert!(
-        half_height < 0.24,
-        "mantlet is too bulbous in side view: half-height {half_height:.3}"
-    );
-    assert!(
-        half_width > 0.95 * half_height,
-        "mantlet stays a wide flat oval: half-width {half_width:.3} vs half-height {half_height:.3}"
-    );
+    assert!(widest > 0.06, "and it is not a bare tube either, got {widest:.3}");
 }
 
+/// K2, at the source. The mantlet profile must close at BOTH ends. Written as a sleeve — first
+/// station 0.13, last station 0.10, neither of them zero — the revolve produced a tube with two
+/// open rims standing in mid-air, and nothing downstream objected: the gun submesh is held to
+/// `OPEN_OR_CLOSED`, which is exactly the contract that cannot see this.
 #[test]
-fn the_mantlet_stays_short_and_compact_like_the_1951_reference() {
+fn the_mantlet_profile_closes_at_both_ends() {
     let blueprint = VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("T-54 blueprint");
     let gun = &blueprint.hybrid().expect("hybrid visual").gun;
-    let profile_back = gun.mantlet_profile.iter().map(|(z, _)| *z).fold(f32::INFINITY, f32::min);
-    let profile_front =
-        gun.mantlet_profile.iter().map(|(z, _)| *z).fold(f32::NEG_INFINITY, f32::max);
-    let profile_depth = profile_front - profile_back;
-    // Sized to the 1:1 casting: the buried shoulder plus the sleeve that covers the embrasure
-    // opening of the ~2.25 m turret; anything longer reads as a pod on the nose.
-    assert!(
-        profile_depth <= 0.70,
-        "mantlet protrudes as an oversized pod: profile depth {profile_depth:.3}"
-    );
+    let profile = gun.mantlet_profile;
+    assert_eq!(profile[0].1, 0.0, "the mantlet has a back");
+    assert_eq!(profile[profile.len() - 1].1, 0.0, "and a front");
 
-    let max_radius = gun.mantlet_profile.iter().map(|(_, radius)| *radius).fold(0.0, f32::max);
+    let depth = profile[profile.len() - 1].0 - profile[0].0;
     assert!(
-        max_radius * gun.mantlet_scale.x <= 0.40,
-        "mantlet maximum width must stay subordinate to the turret cheeks: radius {max_radius:.3}, scale {:.3}",
+        (0.15..=0.40).contains(&depth),
+        "an internal mantlet is a compact cast body, not a sleeve reaching out of the turret: \
+         depth {depth:.3}"
+    );
+    let max_radius = profile.iter().map(|(_, radius)| *radius).fold(0.0, f32::max);
+    assert!(
+        max_radius * gun.mantlet_scale.x <= 0.30,
+        "and it stays subordinate to the cheeks: radius {max_radius:.3}, scale {:.3}",
         gun.mantlet_scale.x
     );
 }

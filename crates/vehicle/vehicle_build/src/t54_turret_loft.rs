@@ -32,15 +32,18 @@ pub fn t54_turret_loft(t: &TurretLoftVisual) -> GeometryMesh {
     let bumps = [
         cheek(FRAC_PI_2 - t.cheek_azimuth),
         cheek(FRAC_PI_2 + t.cheek_azimuth),
-        // The front gun embrasure: an inward recess the moving mantlet beds into.
-        CastBump {
-            azimuth: FRAC_PI_2,
-            az_width: t.embrasure_az_width,
-            y: t.embrasure_y,
-            y_width: t.embrasure_y_width,
-            amount: t.embrasure_amount,
-            falloff_exponent: 2.0,
-        },
+        // The front gun embrasure. NOT a cheek: this one is a pocket cut for the gun to come
+        // through, so it takes the blueprint's own wall sharpness rather than the cast swell's
+        // Gaussian. `2.0` was hard-coded here, which meant the aperture could only ever be a
+        // dimple no matter what the blueprint asked for.
+        CastBump::plateau(
+            FRAC_PI_2,
+            t.embrasure_az_width,
+            t.embrasure_y,
+            t.embrasure_y_width,
+            t.embrasure_amount,
+            t.embrasure_falloff,
+        ),
     ];
 
     try_build_cast_loft(&CastLoftSpec {

@@ -122,7 +122,7 @@ impl LoftStation {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct TurretLoftVisual {
     /// Cross-sections, ring seat (bottom) to roof (top).
-    pub stations: [LoftStation; 7],
+    pub stations: [LoftStation; 9],
     /// Superellipse fullness (`2.0` = ellipse, `>2.0` = fuller cast shoulders).
     pub exponent: f32,
     /// Azimuth samples per ring.
@@ -133,11 +133,17 @@ pub struct TurretLoftVisual {
     pub cheek_y: f32,
     pub cheek_az_width: f32,
     pub cheek_y_width: f32,
-    /// Front gun embrasure: an inward recess (negative amount) the moving mantlet beds into.
+    /// Front gun embrasure: an inward recess (negative amount) the gun comes through.
     pub embrasure_amount: f32,
     pub embrasure_y: f32,
     pub embrasure_az_width: f32,
     pub embrasure_y_width: f32,
+    /// How sharply the embrasure's walls stand up (`cast_loft::CastBump::falloff_exponent`).
+    ///
+    /// `2.0` is a Gaussian dish. An aperture is not a dish: it has a floor and a rim, and the
+    /// difference between the two is the whole reason a viewer reads one as a hole in armour
+    /// and the other as a dent in it. The cheeks keep the Gaussian — a cast swell IS soft.
+    pub embrasure_falloff: f32,
     /// The commander's cupola drum, raised proud of the roof (the hatch lid is a separate fitting).
     /// The metaball turret blended this into the casting; the lofted shell carries it as its own part.
     pub cupola_center: Vec3,
@@ -182,11 +188,18 @@ impl TurretLoftVisual {
     /// carries — the loft builder feeds the kernel exactly these three.
     fn radial_push(&self, azimuth: f32, y: f32) -> f32 {
         let front = std::f32::consts::FRAC_PI_2;
+        // Super-Gaussian, exactly as `cast_loft::CastBump::push` computes it: `exp(-|t|^n)`.
+        // The two evaluations have to agree term for term, because one of them is the mesh the
+        // player looks at and the other is the armour they shoot at.
+        let bump =
+            |center: f32, az_width: f32, center_y: f32, y_width: f32, amount: f32, falloff: f32| {
+                let delta = crate::math::wrap_angle(azimuth - center);
+                let az = (-(delta / az_width).abs().powf(falloff)).exp();
+                let height = (-((y - center_y) / y_width).abs().powf(falloff)).exp();
+                amount * az * height
+            };
         let gaussian = |center: f32, az_width: f32, center_y: f32, y_width: f32, amount: f32| {
-            let delta = crate::math::wrap_angle(azimuth - center);
-            let az = (-(delta / az_width).powi(2)).exp();
-            let height = (-((y - center_y) / y_width).powi(2)).exp();
-            amount * az * height
+            bump(center, az_width, center_y, y_width, amount, 2.0)
         };
         gaussian(
             front - self.cheek_azimuth,
@@ -200,12 +213,13 @@ impl TurretLoftVisual {
             self.cheek_y,
             self.cheek_y_width,
             self.cheek_amount,
-        ) + gaussian(
+        ) + bump(
             front,
             self.embrasure_az_width,
             self.embrasure_y,
             self.embrasure_y_width,
             self.embrasure_amount,
+            self.embrasure_falloff,
         )
     }
 }
@@ -228,9 +242,23 @@ pub struct GunVisual {
     pub muzzle_taper: f32,
     pub barrel_segments: usize,
     /// Mantlet side profile as `(z, radius)` points, revolved about Z then scaled to a flat oval.
+    ///
+    /// Trunnion-relative. Both ends must reach `radius == 0`: the mantlet is a cast BODY, and a
+    /// body has a back and a front. Written as a sleeve open at both ends it was neither — a
+    /// tube whose rims stood in mid-air where nothing met them.
     pub mantlet_profile: [(f32, f32); 8],
     pub mantlet_segments: usize,
     pub mantlet_scale: Vec3,
+    /// The canvas dust cover over the embrasure, as `(z, radius)` stations on the barrel axis,
+    /// trunnion-relative, running from the frame end (buried in the casting) to the clamp that
+    /// grips the tube.
+    ///
+    /// A vehicle with an INTERNAL mantlet has a hole in its turret face, and something has to
+    /// close it or the turret is open to the weather and to the eye. On a T-54 that something is
+    /// a proofed canvas boot. It is the part of the gun mount a viewer actually sees.
+    pub mantlet_cover: [(f32, f32); 4],
+    /// How far the cover sags between its two clamps, in metres. Fabric is not a tube.
+    pub mantlet_cover_sag: f32,
     /// How much of a gun module's length delta the muzzle moves by (visual modularity scale).
     pub module_delta_scale: f32,
 }

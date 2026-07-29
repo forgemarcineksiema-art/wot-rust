@@ -133,18 +133,25 @@ mod tests {
     }
 
     #[test]
-    fn the_moving_mantlet_is_a_wide_flat_oval() {
+    fn the_mantlet_is_wider_than_it_is_tall() {
         let m = moving_mantlet(Vec3::new(0.0, 1.70, 1.10), &gun()).bounds().expect("non-empty");
-        assert!((m.max.x - m.min.x) > (m.max.y - m.min.y), "mantlet reads wider than tall");
+        assert!((m.max.x - m.min.x) > (m.max.y - m.min.y), "the trunnion bosses spread it wide");
     }
 
+    /// K2. A cast mantlet is a body. This test used to demand 0.50 m of depth — the length of the
+    /// external sleeve the T-54 does not have — and said nothing at all about the two open rims
+    /// that sleeve left standing in mid-air.
     #[test]
-    fn the_t54_mantlet_has_a_deep_stepped_mask_profile() {
-        let m = moving_mantlet(Vec3::new(0.0, 1.70, 1.10), &gun()).bounds().expect("non-empty");
+    fn the_mantlet_is_a_closed_body_not_an_open_sleeve() {
+        let mesh = moving_mantlet(Vec3::new(0.0, 1.70, 1.10), &gun());
+        let report = mesh.quality_report(vehicle_geometry::OPEN_OR_CLOSED_MESH);
+        assert_eq!(report.boundary_edges, 0, "a cast body has no open rims");
+        assert_eq!(report.non_manifold_edges, 0, "and no seams meeting three ways");
+        let m = mesh.bounds().expect("non-empty");
+        let depth = m.max.z - m.min.z;
         assert!(
-            m.max.z - m.min.z >= 0.50,
-            "T-54 mantlet needs a substantial stepped depth, got {:.3}",
-            m.max.z - m.min.z
+            (0.15..=0.40).contains(&depth),
+            "an internal mantlet is compact, got {depth:.3} m deep"
         );
     }
 }

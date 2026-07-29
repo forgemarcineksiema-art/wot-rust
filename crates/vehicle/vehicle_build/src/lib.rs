@@ -16,6 +16,7 @@ mod t54;
 mod t54_chassis;
 mod t54_details;
 mod t54_dshk;
+mod t54_gun_cover;
 mod t54_interior;
 mod t54_interior_detail;
 mod t54_kit;

@@ -131,10 +131,13 @@ fn t54() -> VehicleBlueprint {
             plan_half_width: 1.125,
             plan_half_length: 1.30,
             plan_front_pad: 0.0,
-            mantlet_radius: 0.32,
-            mantlet_back_z: 0.92,
+            // The APERTURE, not a ball: the documented opening is ~0.40 m across, so its half-
+            // extent is 0.20. This used to be 0.32 (a 0.64 m mask) inflated another 20% by the
+            // external-ball patch rule — a gun mount half again wider than the hole it sits in.
+            mantlet_radius: 0.20,
+            mantlet_back_z: 0.85,
             sector_count: 24,
-            mantlet_front_z: 1.20,
+            mantlet_front_z: 1.12,
         },
         gun: GunShape {
             // The documented fire line: the D-10T axis at 1.78 (~0.2 above the ring seat), and

@@ -116,8 +116,9 @@ pub fn t54_from_modules_with_blueprint(
         + Vec3::Z * ((modules.gun.barrel_length_m() - stock_length) * v.gun.module_delta_scale);
     mounts.muzzle.translation = muzzle;
     let trunnion = mounts.gun_trunnion.translation;
-    // The moving mantlet is its own CAST part (the painted mask on the turret face), distinct from
-    // the steel barrel — merging them under one material made the mask read as bare gun steel.
+    // The mantlet is its own CAST part, distinct from the steel barrel — merging them under one
+    // material made the mount read as bare gun steel. On this vehicle it sits INSIDE the turret:
+    // what the outside world sees of the gun mount is the aperture, the canvas boot and the tube.
     let mantlet = VehiclePart {
         key: PartKey::new("gun_mantlet"),
         submesh: SubmeshKind::Gun,
@@ -126,6 +127,17 @@ pub fn t54_from_modules_with_blueprint(
         shape: PartShape::Mesh(revolve::moving_mantlet(trunnion, &v.gun)),
         lod: PartLod::MountCritical,
         generator: GeneratorKind::Revolve,
+    };
+    // The canvas dust cover closing the embrasure around the tube. It moves with the gun, so it
+    // belongs to the same submesh as the barrel and mantlet, and it is neither armour nor steel.
+    let mantlet_cover = VehiclePart {
+        key: PartKey::new("gun_mantlet_cover"),
+        submesh: SubmeshKind::Gun,
+        material: MaterialRole::Canvas,
+        smoothing: SmoothingGroup(6),
+        shape: PartShape::Mesh(crate::t54_gun_cover::t54_mantlet_cover(trunnion, &v.gun)),
+        lod: PartLod::MountCritical,
+        generator: GeneratorKind::Sweep,
     };
     let barrel = VehiclePart {
         key: PartKey::new("gun_barrel"),
@@ -138,7 +150,7 @@ pub fn t54_from_modules_with_blueprint(
     };
 
     let f = &v.fittings;
-    let mut parts = vec![lower_tub, upper_hull, turret, cupola, mantlet, barrel];
+    let mut parts = vec![lower_tub, upper_hull, turret, cupola, mantlet, mantlet_cover, barrel];
     // Semantic drum fittings as their own parts (not anonymous greeble): the commander's cupola
     // hatch and the driver's/loader's hatches (all raised round lids), plus the glacis headlight.
     parts.extend(crate::t54_details::t54_fitting_parts(f));

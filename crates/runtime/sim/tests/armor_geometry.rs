@@ -135,14 +135,18 @@ fn the_track_band_is_the_real_belt_box() {
     assert_eq!(zone, ArmorZone::RightTrack, "the belt box answers before the hull wall");
 }
 
+/// Renamed with PR-17: there is no ball. The zone a shot down the gun line meets is the
+/// APERTURE — the patch is sized to the hole (0.20 half-extent) rather than to a mask half again
+/// wider than it, and it is no longer inflated by the external-ball rule that exists to catch a
+/// socket lip this vehicle does not have.
 #[test]
-fn a_shot_down_the_gun_line_lands_on_the_mantlet_ball() {
+fn a_shot_down_the_gun_line_lands_on_the_gun_aperture() {
     let blueprint =
         game_core::VehicleBlueprint::for_vehicle(game_core::VehicleKind::T54_1951).expect("bp");
     let y = blueprint.gun.trunnion_y;
     let (zone, _) =
         hit(Vec3::new(0.0, y, 10.0), Vec3::new(0.0, y, -2.0), t54_at_origin(HullPose::level(0.0)));
-    assert_eq!(zone, ArmorZone::Mantlet, "the gun line meets the mantlet ball, a real circle");
+    assert_eq!(zone, ArmorZone::Mantlet, "the gun line meets the mount behind the aperture");
 }
 
 /// The cast dome's normal SWEEPS around the casting, so where a flat shot lands across the face

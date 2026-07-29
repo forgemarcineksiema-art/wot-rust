@@ -160,93 +160,168 @@ fn t54_hull_carries_rear_transmission_covers() {
     );
 }
 
+/// The casting's front surface at the gun's height, as a function of how far out from the gun
+/// axis you look — the instrument every aperture assertion below reads.
+fn face_z_at(mesh: &vehicle_geometry::GeometryMesh, y: f32, x: f32, dy: f32) -> f32 {
+    mesh.vertices()
+        .iter()
+        .filter(|v| {
+            (v.position.y - y - dy).abs() < 0.035
+                && (v.position.x.abs() - x).abs() < 0.035
+                && v.position.z > 0.6
+        })
+        .map(|v| v.position.z)
+        .fold(f32::NEG_INFINITY, f32::max)
+}
+
+/// M4. The T-54 obr. 1951 has a NARROW APERTURE with the mantlet behind it. The external
+/// "pig's head" ball is a WoT-ism the dossier rules out by name, and the model carried one:
+/// a 0.64 m mask reaching 0.40 m past the trunnion, out through the casting and into the air,
+/// filling a metre-wide soft dish that had been dished out to receive it.
+///
+/// Measured the way a person with a tape measure would: walk out from the gun axis across the
+/// turret face and find where the metal steps back forward. Not compared against the blueprint's
+/// own bump function — that would only prove the blueprint equals itself.
 #[test]
-fn the_mantlet_beds_into_the_lofted_turret_embrasure() {
-    // The moving mantlet beds into the lofted turret's front embrasure recess: its rear sits at or
-    // behind the recessed front surface (not floating wholly proud) while its face protrudes to
-    // cover the opening. With the lofted shell the embrasure is an open dish rather than a deep cast
-    // socket, so this bedding + coverage is what closes the gun-to-turret seam.
-    let v =
-        *game_core::VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).unwrap().hybrid().unwrap();
-    let trunnion = MountFrames::for_vehicle(VehicleKind::T54_1951).gun_trunnion.translation;
-    let mantlet_mesh = revolve::moving_mantlet(trunnion, &v.gun);
-    let mantlet = mantlet_mesh.bounds().expect("mantlet");
-    let turret = vehicle_build::t54_turret_loft(&v.turret_loft);
-
-    // Front-most turret surface along the gun centreline at gun height — the lip the mantlet covers.
-    let front_z = turret
-        .vertices()
+fn the_turret_face_carries_a_narrow_gun_aperture() {
+    let description = t54_description();
+    let casting = description
+        .parts
         .iter()
-        .filter(|vx| vx.position.x.abs() < 0.15 && (vx.position.y - trunnion.y).abs() < 0.18)
-        .map(|vx| vx.position.z)
-        .fold(f32::NEG_INFINITY, f32::max);
+        .find(|part| part.key.name == "turret_shell")
+        .expect("the turret is one lofted casting")
+        .mesh();
+    let gun_y = description.mounts.gun_trunnion.translation.y;
 
+    let floor = face_z_at(&casting, gun_y, 0.0, 0.0);
+    let outside = casting.bounds().expect("casting bounds").max.z;
+    let depth = outside - floor;
     assert!(
-        mantlet.min.z <= front_z + 0.03,
-        "the mantlet rear must bed into the embrasure, not float in front (rear {:.2}, front {front_z:.2})",
-        mantlet.min.z
+        depth >= 0.13,
+        "the aperture must be a cavity cut through the wall, got {depth:.3} m deep"
     );
-    let rear_shoulder_z = mantlet_mesh
-        .vertices()
-        .iter()
-        .filter(|vx| vx.position.x.abs() >= 0.18 || (vx.position.y - trunnion.y).abs() >= 0.12)
-        .map(|vx| vx.position.z)
-        .fold(f32::INFINITY, f32::min);
+
+    // Half depth is the edge: the width a tape measure reports.
+    let edge = floor + depth * 0.5;
+    let cross = |vertical: bool| {
+        let mut last = 0.0;
+        for step in 1..=40 {
+            let offset = step as f32 * 0.01;
+            let z = if vertical {
+                face_z_at(&casting, gun_y, 0.0, offset)
+            } else {
+                face_z_at(&casting, gun_y, offset, 0.0)
+            };
+            if z.is_finite() {
+                if z >= edge {
+                    return offset;
+                }
+                last = offset;
+            }
+        }
+        last
+    };
+    let width = 2.0 * cross(false);
+    let height = 2.0 * cross(true);
     assert!(
-        rear_shoulder_z <= front_z - 0.04,
-        "the mantlet shoulder must tuck into the turret, not leave an air gap (shoulder {rear_shoulder_z:.2}, front {front_z:.2})"
+        (width - 0.40).abs() <= 0.06,
+        "the documented aperture is ~0.40 m across, measured {width:.3}"
     );
     assert!(
-        mantlet.max.z > front_z + 0.20,
-        "the mantlet face must protrude to cover the embrasure opening (face {:.2}, front {front_z:.2})",
-        mantlet.max.z
+        (0.20..=0.40).contains(&height),
+        "the aperture clears the tube and its travel without cutting the ring seat, got {height:.3} m tall"
     );
 }
 
+/// M4 + K2. The mantlet is INSIDE: its face never reaches the casting around it, and it is wider
+/// than the hole, which is the whole mechanical point of an internal mount — it cannot be driven
+/// back through the aperture by a hit.
+///
+/// And it is a BODY. It used to be a sleeve open at both ends — no station reached radius zero —
+/// so its rims stood in mid-air where nothing met them, and the mesh contract the gun submesh is
+/// held to (`OPEN_OR_CLOSED`) had no opinion about it.
 #[test]
-fn the_mantlet_side_silhouette_has_no_daylight_gap_to_the_turret() {
-    let v =
-        *game_core::VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).unwrap().hybrid().unwrap();
+fn the_mantlet_is_an_internal_closed_body_wider_than_its_aperture() {
+    let bp = game_core::VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).unwrap();
+    let v = *bp.hybrid().unwrap();
     let trunnion = MountFrames::for_vehicle(VehicleKind::T54_1951).gun_trunnion.translation;
     let mantlet = revolve::moving_mantlet(trunnion, &v.gun);
-    let turret = vehicle_build::t54_turret_loft(&v.turret_loft);
-
-    // The mask stands PROUD of the casting (that is the visible pig's head), but through the seal
-    // zone around the gun axis its REAR edge must tuck to (or behind) the local turret face —
-    // otherwise the side view shows daylight between the mask and the casting. (The oval's extreme
-    // top/bottom rims legitimately stand ahead of the receding dome, as on the real embrasure.)
-    let mut worst_gap = f32::NEG_INFINITY;
-    let mut worst_sample = (0.0, 0.0, 0.0);
-    for band in 0..7 {
-        let y = trunnion.y - 0.15 + 0.05 * band as f32;
-        let mask_rear = mantlet
-            .vertices()
-            .iter()
-            .filter(|vertex| (vertex.position.y - y).abs() <= 0.03)
-            .map(|vertex| vertex.position.z)
-            .fold(f32::INFINITY, f32::min);
-        let turret_front = turret
-            .vertices()
-            .iter()
-            .filter(|vertex| (vertex.position.y - y).abs() <= 0.06)
-            .map(|vertex| vertex.position.z)
-            .fold(f32::NEG_INFINITY, f32::max);
-        if !mask_rear.is_finite() || !turret_front.is_finite() {
-            continue;
-        }
-        let gap = mask_rear - turret_front;
-        if gap > worst_gap {
-            worst_gap = gap;
-            worst_sample = (y, mask_rear, turret_front);
-        }
-    }
+    let bounds = mantlet.bounds().expect("mantlet bounds");
+    let casting = vehicle_build::t54_turret_loft(&v.turret_loft);
+    let reach = casting.bounds().expect("casting bounds").max.z;
 
     assert!(
-        worst_gap <= 0.04,
-        "the mask's rear edge must tuck into the turret face through the seal zone, gap {worst_gap:.3} at y {:.3}, mask rear z {:.3}, turret z {:.3}",
-        worst_sample.0,
-        worst_sample.1,
-        worst_sample.2
+        bounds.max.z < reach - 0.08,
+        "an internal mantlet stays behind the casting: face {:.3} vs casting {reach:.3}",
+        bounds.max.z
+    );
+    let floor = face_z_at(&casting, trunnion.y, 0.0, 0.0);
+    assert!(
+        bounds.max.z > floor,
+        "its face still shows through the aperture: face {:.3} vs pocket floor {floor:.3}",
+        bounds.max.z
+    );
+
+    let half_width = bounds.max.x.max(-bounds.min.x);
+    assert!(
+        half_width > 0.22,
+        "the mantlet must be wider than the 0.40 m aperture it sits behind, got half-width {half_width:.3}"
+    );
+
+    let report = mantlet.quality_report(vehicle_geometry::OPEN_OR_CLOSED_MESH);
+    assert_eq!(
+        report.boundary_edges, 0,
+        "a cast mantlet is a closed body, not a tube with two open rims"
+    );
+    assert_eq!(report.non_manifold_edges, 0, "and a manifold one");
+}
+
+/// K2. With the mantlet inside, something has to close the hole — and on this vehicle it is a
+/// canvas boot. Its rear ring must lie BEHIND the casting's local face (so the seal has no
+/// visible edge rather than butting up against one), it must cover the aperture on the way, and
+/// its front ring must grip the tube.
+#[test]
+fn the_canvas_cover_seals_the_aperture_to_the_barrel() {
+    let bp = game_core::VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).unwrap();
+    let v = *bp.hybrid().unwrap();
+    let trunnion = MountFrames::for_vehicle(VehicleKind::T54_1951).gun_trunnion.translation;
+    let casting = vehicle_build::t54_turret_loft(&v.turret_loft);
+    let baked = t54_description().build();
+    let gun = &baked.submesh(SubmeshKind::Gun).expect("gun").mesh;
+    let cover: Vec<Vec3> = gun
+        .vertices()
+        .iter()
+        .filter(|vertex| vertex.material == MaterialRole::Canvas)
+        .map(|vertex| vertex.position)
+        .collect();
+    assert!(!cover.is_empty(), "the gun mount carries a canvas cover");
+
+    let radius = |p: &Vec3| p.x.hypot(p.y - trunnion.y);
+    // The rear ring: widest fabric, and it must be swallowed by the casting at its own radius.
+    let rear = cover.iter().max_by(|a, b| radius(a).total_cmp(&radius(b))).unwrap();
+    let local_face = face_z_at(&casting, trunnion.y, radius(rear), 0.0);
+    assert!(
+        local_face.is_finite() && rear.z < local_face,
+        "the cover's rear ring must sit inside the metal, got z {:.3} against a face at {local_face:.3} at radius {:.3}",
+        rear.z,
+        radius(rear)
+    );
+
+    // The front ring grips the tube: the barrel is 0.098 there, so no daylight around it.
+    let front = cover.iter().max_by(|a, b| a.z.total_cmp(&b.z)).unwrap();
+    assert!(
+        radius(front) < 0.115,
+        "the cover must clamp the tube, not hang off it: ring radius {:.3}",
+        radius(front)
+    );
+
+    // And in between it stands AHEAD of the pocket, which is what closing the hole means.
+    let pocket_floor = face_z_at(&casting, trunnion.y, 0.0, 0.0);
+    let over_pocket =
+        cover.iter().filter(|p| radius(p) < 0.19).map(|p| p.z).fold(f32::NEG_INFINITY, f32::max);
+    assert!(
+        over_pocket > pocket_floor + 0.05,
+        "the cover must close the aperture, not lie in it: fabric at {over_pocket:.3}, floor at {pocket_floor:.3}"
     );
 }
 
@@ -415,15 +490,15 @@ fn t54_muzzle_ends_in_a_recessed_bore_not_a_capped_rod() {
     assert!(bore, "a recessed bore duct must sit behind the muzzle ring");
 }
 
-/// The pig's-head mask must be a CAST part visibly wrapping the barrel root ahead of the
-/// casting — not a bare steel tube glued to the dome.
+/// M4, the other way round. This test used to REQUIRE a cast mask standing wide and proud of the
+/// turret face — it locked the very defect the dossier names: "the 'pig's head' external ball is
+/// a WoT-ism, not obr. 1951". A test that demands the wrong shape is not a weaker test than one
+/// that demands the right shape; it is the defect, written down twice.
 ///
-/// "Ahead of the casting" used to be written as `z > 1.05`, a number taken off the turret the
-/// model had. When the casting's front moved (PR-15: S1 puts it 1.016 m forward of the ring, and
-/// the mask bedded back with it) that number described a face that no longer exists. It measures
-/// the casting now.
+/// What it asserts now is the truth about this vehicle: outside the casting there is the tube and
+/// the canvas over the hole, and no cast armour at all.
 #[test]
-fn t54_mask_stands_proud_as_cast_armor_on_the_turret_face() {
+fn no_cast_armour_of_the_gun_mount_stands_proud_of_the_turret_face() {
     let description = t54_description();
     let casting = description
         .parts
@@ -431,22 +506,22 @@ fn t54_mask_stands_proud_as_cast_armor_on_the_turret_face() {
         .find(|part| part.key.name == "turret_shell")
         .expect("the turret is one lofted casting")
         .mesh();
-    let trunnion_y = description.mounts.gun_trunnion.translation.y;
-    // The casting's face at the gun's own height — the embrasure the mask beds into.
-    let face_z = casting
-        .vertices()
-        .iter()
-        .filter(|v| (v.position.y - trunnion_y).abs() < 0.10 && v.position.x.abs() < 0.30)
-        .map(|v| v.position.z)
-        .fold(f32::NEG_INFINITY, f32::max);
-    assert!(face_z.is_finite(), "the casting has a face at the gun height");
+    let reach = casting.bounds().expect("casting bounds").max.z;
 
     let baked = description.build();
     let gun = &baked.submesh(SubmeshKind::Gun).expect("gun").mesh;
-    let proud = gun.vertices().iter().any(|v| {
-        v.material == MaterialRole::CastArmor && v.position.z > face_z && v.position.x.abs() > 0.30
-    });
-    assert!(proud, "the cast mask must stand wide and proud of the turret face at {face_z:.2}");
+    let proud: Vec<f32> = gun
+        .vertices()
+        .iter()
+        .filter(|v| v.material == MaterialRole::CastArmor && v.position.z > reach)
+        .map(|v| v.position.z)
+        .collect();
+    assert!(
+        proud.is_empty(),
+        "an internal mantlet puts no cast armour ahead of the casting at {reach:.3}, found {} vertices (the furthest at z {:.3})",
+        proud.len(),
+        proud.iter().copied().fold(f32::NEG_INFINITY, f32::max)
+    );
 }
 
 #[test]

@@ -79,12 +79,15 @@ BlueprintFile(
         cupola_height: Some(0.131),
         plan_half_width: 1.125,
         plan_half_length: 1.30,
-        mantlet_radius: 0.32,
-        mantlet_back_z: 0.92,
+        // The APERTURE, not a ball: the documented opening is ~0.40 m across, so its half-
+        // extent is 0.20. This used to be 0.32 (a 0.64 m mask) inflated another 20% by the
+        // external-ball patch rule — a gun mount half again wider than the hole it sits in.
+        mantlet_radius: 0.20,
+        mantlet_back_z: 0.85,
         // Twice the default: this low hemispherical casting IS the T-54's armour argument,
         // so the normal a shell meets must sweep, not step.
         sector_count: 24,
-        mantlet_front_z: 1.20,
+        mantlet_front_z: 1.12,
     ),
     gun: GunShape(
         trunnion_y: 1.78,

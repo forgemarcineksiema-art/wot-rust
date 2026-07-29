@@ -80,13 +80,16 @@ pub fn t54_surface_bake(v: &HybridVisual, track: &TrackShape, muzzle: Vec3) -> S
                 amount: 0.38,
             },
         },
-        // The moving mantlet beds into the recessed embrasure: a tight, dark cast trough.
+        // The gun aperture: a pocket cut through the turret wall, with the canvas cover and the
+        // tube inside it. Sized to the HOLE (0.42 x 0.38, measured) rather than to the ball
+        // mantlet that used to fill it — the band was 0.90 x 0.60, which shaded a swathe of open
+        // turret face on either side of an aperture less than half that wide.
         NamedCavity {
             signal: "mantlet_seat",
             band: CavityBand {
                 center: v.turret.socket_center,
-                half_extents: Vec3::new(0.45, 0.30, 0.12),
-                falloff: 0.16,
+                half_extents: Vec3::new(0.23, 0.21, 0.14),
+                falloff: 0.14,
                 amount: 0.45,
             },
         },
