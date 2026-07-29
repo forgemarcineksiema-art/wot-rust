@@ -503,7 +503,9 @@ fn t54_roof_fittings_root_into_the_curved_dome() {
         .expect("the turret is one lofted casting")
         .mesh();
 
-    for key in ["cupola", "loader_hatch", "dshk_mount", "turret_periscope"] {
+    // `dshk_ring`, not `dshk_mount`: the gun turns on the loader hatch's ring now (PR-26b),
+    // so the RING is the part that meets the casting and the pintle stands on the ring.
+    for key in ["cupola", "loader_hatch", "dshk_ring", "turret_periscope"] {
         let part = desc
             .parts
             .iter()

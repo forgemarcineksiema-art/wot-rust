@@ -172,17 +172,13 @@ pub fn t54_from_modules_with_blueprint(
     // holding them, which is the one thing a bolted panel is FOR. Two rows per panel, along the
     // seams, because that is where a fastener goes.
     parts.extend(crate::t54_details::t54_deck_panel_bolts(&v.deck, deck_top));
+    // A tow hook is a HOOK: a bracket welded to the nose plate, a curved throat a shackle drops
+    // into, and a catch across the mouth so it cannot drop back out. These were 240 x 220 x 200
+    // bricks — a cast block with no curvature, no throat and no catch, which is a boss, not a
+    // hook (register K9).
     for (i, side) in [f.tow_hook_center.x, -f.tow_hook_center.x].into_iter().enumerate() {
         let center = Vec3::new(side, f.tow_hook_center.y, f.tow_hook_center.z);
-        parts.push(VehiclePart {
-            key: PartKey::indexed("tow_hook", i as u16),
-            submesh: SubmeshKind::Hull,
-            material: MaterialRole::RolledArmor,
-            smoothing: SmoothingGroup::hard_edges(),
-            shape: PartShape::Plates(solid::ConvexSolid::box_at(center, f.tow_hook_half)),
-            lod: PartLod::Detail,
-            generator: GeneratorKind::Solid,
-        });
+        parts.extend(crate::t54_details::t54_tow_hook(i as u16, center, f.tow_hook_half));
     }
     // Fenders split into bolted sections along each run, rather than one continuous slab.
     let mut fender_segment = 0u16;

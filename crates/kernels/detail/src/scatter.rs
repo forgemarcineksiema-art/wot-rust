@@ -105,7 +105,7 @@ pub fn louvre_slats(
     for i in 0..count {
         let t = (i as f32 + 0.5) / count as f32 - 0.5;
         let slat_center = center + up * (t * height) + n * (depth * 0.5);
-        box_meshes.push(slat_box(
+        box_meshes.push(plate_box(
             slat_center,
             across * half_w,
             slat_up * half_slat,
@@ -117,7 +117,7 @@ pub fn louvre_slats(
 
 /// A hard-edged box centred at `c` with half-axes `du`, `dv`, `dw`. Each face authors its own
 /// geometric normal so the welder keeps the corners crisp instead of rounding them.
-fn slat_box(c: Vec3, du: Vec3, dv: Vec3, dw: Vec3) -> GeometryMesh {
+pub(crate) fn plate_box(c: Vec3, du: Vec3, dv: Vec3, dw: Vec3) -> GeometryMesh {
     let mut vertices = Vec::with_capacity(24);
     let mut indices = Vec::with_capacity(36);
     // (sign axis, in-plane half-axes) per face, wound CCW seen from outside.

@@ -21,7 +21,41 @@ pub(crate) fn t54_line_kit_parts(v: &HybridVisual, glacis_deg: f32) -> Vec<Vehic
     parts.extend(course_mg_port(v, glacis_deg));
     parts.extend(smoke_canisters(v));
     parts.push(turret_casting_seam(&v.turret_loft));
+    parts.push(beam_bands(v));
     parts
+}
+
+/// The steel bands that strap the unditching log to its brackets.
+///
+/// A log lashed to a tank is held by something, and the bands are what a viewer reads as that
+/// something. Without them the beam is a cylinder resting on air beside the plate (register K9).
+///
+/// The log itself stays `TrackMetal` for now: giving wood its own `MaterialRole` is open decision
+/// #6, and it belongs with the material families rather than being smuggled in here. The bands
+/// are the part of this defect that can be closed honestly today.
+fn beam_bands(v: &HybridVisual) -> VehiclePart {
+    let z = -v.hull.half_len - 0.04;
+    let mut pieces = Vec::with_capacity(2);
+    for side in [-1.0_f32, 1.0] {
+        let x = side * 0.62;
+        pieces.push(detail::coaming(
+            Vec3::new(x, 1.02, z),
+            Vec3::X,
+            0.118,
+            0.030,
+            0.020,
+            MaterialRole::BarrelSteel,
+        ));
+    }
+    VehiclePart {
+        key: PartKey::new("unditching_beam_bands"),
+        submesh: SubmeshKind::Hull,
+        material: MaterialRole::BarrelSteel,
+        smoothing: vehicle_geometry::SmoothingGroup(3),
+        shape: PartShape::Mesh(revolve::merge(&pieces).weld_and_smooth()),
+        lod: PartLod::Detail,
+        generator: GeneratorKind::Revolve,
+    }
 }
 
 /// The turret's mould line: the raised seam left where the two halves of the casting mould met,
@@ -258,17 +292,50 @@ fn tow_cables(v: &HybridVisual, glacis_deg: f32) -> Vec<VehiclePart> {
         Vec3::new(0.30, 1.34, -v.hull.half_len - 0.05),
         Vec3::new(0.70, 1.22, -v.hull.half_len - 0.02),
     ];
-    [glacis, rear]
-        .into_iter()
-        .enumerate()
-        .map(|(i, path)| VehiclePart {
+    // A stowed cable is not a floating tube. Each end carries a THIMBLE — the teardrop steel eye
+    // the rope is spliced round — and the run is held down by CLAMPS bolted to the plate. Ours
+    // levitated on a 0.04 standoff with neither, which is a rope lying on air (register K9).
+    let mut parts: Vec<VehiclePart> = Vec::new();
+    for (i, path) in [&glacis, &rear].into_iter().enumerate() {
+        parts.push(VehiclePart {
             key: PartKey::indexed("tow_cable", i as u16),
             submesh: SubmeshKind::Hull,
             material: MaterialRole::BarrelSteel,
             smoothing: vehicle_geometry::SmoothingGroup::hard_edges(),
-            shape: PartShape::Mesh(detail::handle_rail(&path, 0.022)),
+            shape: PartShape::Mesh(detail::handle_rail(path, 0.022)),
             lod: PartLod::Detail,
             generator: GeneratorKind::Sweep,
-        })
-        .collect()
+        });
+        parts.push(cable_hardware(i as u16, path));
+    }
+    parts
+}
+
+/// The steel a stowed cable actually hangs on: a thimble at each end and two clamps along the run.
+fn cable_hardware(index: u16, path: &[Vec3]) -> VehiclePart {
+    let mut pieces = Vec::with_capacity(4);
+    // Thimbles: a ring at each spliced end, standing across the rope.
+    for end in [path[0], path[path.len() - 1]] {
+        pieces.push(detail::coaming(end, Vec3::Z, 0.052, 0.024, 0.020, MaterialRole::BarrelSteel));
+    }
+    // Clamps: straps over the run at the quarter points, where a fitter would put them.
+    for t in [0.33_f32, 0.67] {
+        let i = ((path.len() - 1) as f32 * t).round() as usize;
+        let at = path[i.min(path.len() - 1)];
+        pieces.push(detail::grab_handle(
+            at - Vec3::X * 0.055,
+            at + Vec3::X * 0.055,
+            Vec3::Y,
+            0.030,
+        ));
+    }
+    VehiclePart {
+        key: PartKey::indexed("tow_cable_hardware", index),
+        submesh: SubmeshKind::Hull,
+        material: MaterialRole::BarrelSteel,
+        smoothing: vehicle_geometry::SmoothingGroup(3),
+        shape: PartShape::Mesh(revolve::merge(&pieces).weld_and_smooth()),
+        lod: PartLod::Detail,
+        generator: GeneratorKind::Revolve,
+    }
 }

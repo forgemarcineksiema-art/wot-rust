@@ -117,3 +117,160 @@ fn the_deck_is_bolted_and_the_turret_carries_its_mould_line() {
     );
     assert!(seam.max.y - seam.min.y < 0.30, "at one height, as a parting line is");
 }
+
+// ---------------------------------------------------------------------------------------------
+// PR-26b: the mechanics of the things a crew touches.
+// ---------------------------------------------------------------------------------------------
+
+/// K8. Every hatch gets the hardware that makes a lid a lid: the collar it seats on, the hinge it
+/// swings about, the handle a crewman pulls. Before this the whole FLEET had none — `grep hinge`
+/// over the repository returned nothing, and every hatch was one `revolve::drum` puck.
+#[test]
+fn every_hatch_carries_a_coaming_a_hinge_and_a_handle() {
+    let description = t54_description();
+    for hatch in ["cupola_hatch", "driver_hatch", "loader_hatch"] {
+        let lid = part_mesh(hatch).bounds().expect("lid bounds");
+        let coaming = description
+            .parts
+            .iter()
+            .find(|p| p.key.name == hatch && p.key.instance == 100)
+            .unwrap_or_else(|| panic!("{hatch} has a coaming"))
+            .mesh()
+            .bounds()
+            .expect("coaming bounds");
+        assert!(
+            coaming.min.y <= lid.min.y + 1.0e-3,
+            "{hatch}: the collar is UNDER the cover it seats, {:.3} vs {:.3}",
+            coaming.min.y,
+            lid.min.y
+        );
+        assert!(
+            coaming.max.x - coaming.min.x > lid.max.x - lid.min.x,
+            "{hatch}: and reaches wider than it, so there is a step to see"
+        );
+
+        let hinge = description
+            .parts
+            .iter()
+            .find(|p| p.key.name == hatch && p.key.instance == 101)
+            .unwrap_or_else(|| panic!("{hatch} has a hinge"))
+            .mesh()
+            .bounds()
+            .expect("hinge bounds");
+        assert!(
+            hinge.max.z < lid.max.z,
+            "{hatch}: the hinge is BEHIND the lid — these covers open forward"
+        );
+
+        let handle = description
+            .parts
+            .iter()
+            .find(|p| p.key.name == hatch && p.key.instance == 102)
+            .unwrap_or_else(|| panic!("{hatch} has a handle"))
+            .mesh()
+            .bounds()
+            .expect("handle bounds");
+        // A handle a hand can get behind: proud of the cover's crown, or out past its rim. The
+        // commander's lid gets the rim placement — it is the tallest thing on the tank and a bar
+        // stacked on top of it puts the vehicle above its own collision box.
+        assert!(
+            handle.max.y > lid.max.y || handle.max.z > lid.max.z,
+            "{hatch}: the handle must stand clear of the cover, where a hand goes"
+        );
+    }
+}
+
+/// K10. A DShK on a T-54 turns on the LOADER'S HATCH RING: the loader stands in his own hatch and
+/// swings the gun round it. Ours stood on a pedestal beside the hatch — a gun he cannot reach.
+#[test]
+fn the_dshk_turns_on_the_loaders_hatch_ring() {
+    let bp = VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("blueprint");
+    let f = &bp.hybrid().expect("hybrid").fittings;
+    let ring = part_mesh("dshk_ring").bounds().expect("ring bounds");
+    let ring_center_x = (ring.min.x + ring.max.x) * 0.5;
+    let ring_center_z = (ring.min.z + ring.max.z) * 0.5;
+    assert!(
+        (ring_center_x - f.loader_hatch_center.x).abs() < 0.02
+            && (ring_center_z - f.loader_hatch_center.z).abs() < 0.02,
+        "the ring is concentric with the loader's hatch, not beside it: ({ring_center_x:.3}, \
+         {ring_center_z:.3}) vs ({:.3}, {:.3})",
+        f.loader_hatch_center.x,
+        f.loader_hatch_center.z
+    );
+    // And the gun rides it.
+    let mount = part_mesh("dshk_mount").bounds().expect("mount bounds");
+    let mount_x = (mount.min.x + mount.max.x) * 0.5;
+    let mount_z = (mount.min.z + mount.max.z) * 0.5;
+    let on_ring = ((mount_x - ring_center_x).powi(2) + (mount_z - ring_center_z).powi(2)).sqrt();
+    assert!(
+        on_ring > 0.10 && on_ring <= (ring.max.x - ring.min.x) * 0.5 + 0.02,
+        "the pintle sits ON the ring, not at its centre and not off it: {on_ring:.3}"
+    );
+}
+
+/// K10. A 12.7 mm gun has a 12.7 mm bore. The DShK barrel inherited `..v.gun`, which handed it the
+/// D-10T's 100 mm — a bore WIDER THAN ITS OWN TUBE, so the muzzle turned itself inside out.
+#[test]
+fn the_dshk_has_its_own_calibre() {
+    let bp = VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("blueprint");
+    let tank_gun = &bp.hybrid().expect("hybrid").gun;
+    let barrel = part_mesh("dshk_barrel").bounds().expect("barrel bounds");
+    let radius = (barrel.max.x - barrel.min.x) * 0.5;
+    assert!(
+        radius < tank_gun.bore_radius,
+        "the AA gun's tube is slimmer than the tank gun's BORE: {radius:.4} vs {:.4}",
+        tank_gun.bore_radius
+    );
+}
+
+/// K9. A tow hook is a hook: a throat a shackle drops into and a catch across its mouth. These
+/// were 240 x 220 x 200 bricks — a boss with nowhere for a shackle to go.
+#[test]
+fn the_tow_hooks_have_a_throat_and_a_catch() {
+    let description = t54_description();
+    for index in 0..2u16 {
+        let has = |name: &str| {
+            description.parts.iter().any(|p| p.key.name == name && p.key.instance == index)
+        };
+        assert!(has("tow_hook"), "hook {index} has its bracket");
+        assert!(has("tow_hook_throat"), "hook {index} has a throat to take a shackle");
+        assert!(has("tow_hook_catch"), "hook {index} has a catch across the mouth");
+    }
+    // The throat opens FORWARD, so the catch stands ahead of the bracket it closes.
+    let bracket = part_mesh("tow_hook").bounds().expect("bracket");
+    let catch = part_mesh("tow_hook_catch").bounds().expect("catch");
+    assert!(catch.max.z > bracket.max.z, "the catch closes the mouth, which faces the bow");
+}
+
+/// K9. A stowed cable is spliced round a thimble at each end and clamped to the plate along its
+/// run. Ours were bare tubes floating on a standoff.
+#[test]
+fn the_tow_cables_are_thimbled_and_clamped() {
+    let description = t54_description();
+    for index in 0..2u16 {
+        let hardware = description
+            .parts
+            .iter()
+            .find(|p| p.key.name == "tow_cable_hardware" && p.key.instance == index)
+            .unwrap_or_else(|| panic!("cable {index} carries its hardware"))
+            .mesh();
+        assert!(hardware.triangle_count() > 100, "thimbles and clamps are real geometry");
+    }
+}
+
+/// K9. The log is strapped to the tank by something.
+#[test]
+fn the_unditching_beam_is_banded_to_its_brackets() {
+    let bands = part_mesh("unditching_beam_bands").bounds().expect("band bounds");
+    let beam = part_mesh("unditching_beam").bounds().expect("beam bounds");
+    assert!(
+        bands.min.x > beam.min.x && bands.max.x < beam.max.x,
+        "the bands sit along the log, inboard of its ends"
+    );
+    assert!(
+        bands.max.y > beam.max.y - 0.02,
+        "and wrap it rather than lying under it: {:.3} vs {:.3}",
+        bands.max.y,
+        beam.max.y
+    );
+}
