@@ -1,9 +1,14 @@
 BlueprintFile(
     kind: T54_1951,
     hull: HullShape(
-        half_len: 3.0,
+        // 6.235 m over the hull: the working value between Karpenko's 6.27 (obr. 1949) and
+        // ru-wiki's 6.20 (T-54A), which is the whole ±70 mm the sources disagree by. The model
+        // shipped 6.00 — a third of a metre short, and the reason the barrel read optically long
+        // (overhang 2.93 against a documented 2.58-2.73). Register M1.
+        half_len: 3.1175,
         half_width: 1.05,
-        belly_y: 0.43,
+        // Ground clearance 425 mm, four sources agreeing. The bake read 440.
+        belly_y: 0.425,
         deck_y: 1.58,
         glacis_slope_deg: 60.0,
         pike_sweep_deg: 0.0,
@@ -14,7 +19,8 @@ BlueprintFile(
         skirt: None,
         hitbox_half_width: 1.75,
         hitbox_half_height: 1.24,
-        hitbox_half_length: 3.15,
+        // The same 0.15 m of margin the box always carried past the hull plates.
+        hitbox_half_length: 3.2675,
         hitbox_center_y: 1.19,
         hitbox_turret_min_y: 0.39,
     ),
@@ -79,7 +85,11 @@ BlueprintFile(
     gun: GunShape(
         trunnion_y: 1.78,
         trunnion_z: 1.15,
-        muzzle_z: 5.95,
+        // The muzzle sits 2.73 m past the bow — the documented overhang (the dossier's own
+        // sanity check: 9.00 m overall minus a 6.27 m hull). It used to be an absolute, so when
+        // the hull grew the gun grew with it and the overall length walked past its Locked
+        // anchor. 3.1175 + 2.73.
+        muzzle_z: 5.8475,
         barrel_radius: 0.092,
         evacuator: None,
         muzzle_brake: None,

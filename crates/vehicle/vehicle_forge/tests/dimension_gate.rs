@@ -124,7 +124,8 @@ fn t54_locked_anchors_hold_and_known_debts_are_the_registered_ones() {
         DimensionKind::GroundClearance,
         DimensionKind::HeightToTurretRoof,
         DimensionKind::HeightToTurretRoofBare,
-        DimensionKind::HullLength,
+        // HullLength left this list in PR-14: the hull is built at its documented 6.235 m and
+        // the anchor is Locked.
         DimensionKind::TrackGauge,
         DimensionKind::TrackWidth,
     ];

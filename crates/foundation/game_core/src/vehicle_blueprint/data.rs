@@ -30,7 +30,7 @@ fn t54() -> VehicleBlueprint {
     let mut shape = VehicleBlueprint {
         kind: VehicleKind::T54_1951,
         hull: HullShape {
-            half_len: 3.00,
+            half_len: 3.1175,
             // The T-54 hull is a NARROW box (~2.1 m over the vertical 80 mm side plates) riding
             // between fully exposed tracks — there are no Panther-style sponsons overhanging the
             // running gear. The tracks stand beside the hull nearly flush with its envelope, and
@@ -38,7 +38,7 @@ fn t54() -> VehicleBlueprint {
             half_width: 1.05,
             // Real ground clearance: 0.425 m. The earlier 0.10 dropped the belly to the dirt and
             // made the hull side read as a wall reaching the ground.
-            belly_y: 0.43,
+            belly_y: 0.425,
             // The LOW hull is the T-54's signature: the roof sits at ~1.58 (documented fire line
             // 1.79 with the gun bedded ~0.2 above the ring seat), leaving the tall ~0.7 m cast
             // dome to carry the rest of the 2.40 m silhouette.
@@ -56,7 +56,7 @@ fn t54() -> VehicleBlueprint {
             // (cupola apex ~2.42). Floor ~5 cm below ground (center_y = half_height - 0.05);
             // hull/turret split at world y = 1.58, the hull-roof plane.
             hitbox_half_height: 1.24,
-            hitbox_half_length: 3.15,
+            hitbox_half_length: 3.2675,
             hitbox_center_y: 1.19,
             hitbox_turret_min_y: 0.39,
         },
@@ -138,7 +138,7 @@ fn t54() -> VehicleBlueprint {
             // the muzzle at z = 5.95 — the 2.9 m overhang past the bow (9.00 m gun forward).
             trunnion_y: 1.78,
             trunnion_z: 1.15,
-            muzzle_z: 5.95,
+            muzzle_z: 5.8475,
             barrel_radius: 0.092,
             evacuator: None,
             muzzle_brake: None,

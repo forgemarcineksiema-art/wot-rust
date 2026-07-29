@@ -66,7 +66,7 @@ loop (`tools export-mesh` → overlay on master → cross-section diff = numeric
 
 | # | Deviation | Evidence | Wave |
 | --- | --- | --- | --- |
-| M1 | Hull 6.00 m vs real 6.20–6.27 (barrel overhang optically long: 2.93 vs 2.58–2.73); belly clearance bakes 440 mm vs documented 425 (`belly_y 0.43`) — found by the PR-01 instrument | RON `half_len: 3.0`, `belly_y: 0.43` | W3/PR-14 |
+| M1 | ~~Hull 6.00 m vs real 6.20–6.27~~ **CLOSED (PR-14)**: hull built at the working 6.235, belly at the documented 0.425, and the muzzle at the documented 2.73 m past the bow (it was an absolute, so growing the hull walked the Locked 9.00 m overall length past its tolerance). Every fitting on both ends is a setback from the hull's own ends now, not a literal | RON `half_len: 3.1175`, `belly_y: 0.425`, `muzzle_z: 5.8475`; `dimension_gate` HullLength **Locked** | W3/PR-14 DONE |
 | M2 | Dome too shallow: roof 2.27 vs 2.40 (fire line 1.78 is the anchor and stays) | RON `roof_y`; 3 "pancake" tests lock the deviation | W3/PR-15 |
 | M3 | Turret side 90 mm vs 200/160→65 taper; turret roof 24 (formula) vs 30; mantlet ×1.18 rule vs authored | `catalog_soviet.rs:38`, `zone.rs:52-89` | W2/PR-09 |
 | M4 | External mantlet ball ⌀640 vs narrow ~400 mm embrasure + internal mantlet + canvas | `t54_hybrid.rs:92-107` | W3/PR-17 |

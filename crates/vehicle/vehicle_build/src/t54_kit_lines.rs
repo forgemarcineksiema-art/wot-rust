@@ -11,7 +11,7 @@ use crate::t54_details::detail_plate;
 
 /// Every line-work part: splash board, turret handrails, tow cables, unditching beam, travel lock.
 pub(crate) fn t54_line_kit_parts(v: &HybridVisual, glacis_deg: f32) -> Vec<VehiclePart> {
-    let mut parts = vec![splash_board(v, glacis_deg), unditching_beam()];
+    let mut parts = vec![splash_board(v, glacis_deg), unditching_beam(v)];
     parts.extend(turret_rails(&v.turret_loft));
     parts.extend(tow_cables(v, glacis_deg));
     parts.extend(travel_lock(v));
@@ -22,7 +22,7 @@ pub(crate) fn t54_line_kit_parts(v: &HybridVisual, glacis_deg: f32) -> Vec<Vehic
 /// references' rear/top views show. Steel-strapped dark timber at this fidelity. Its ends stop
 /// WELL inside the hull side planes (±1.05) and the log floats a hand off the raked rear plate —
 /// any coplanar contact with the hull z-fights as the camera moves.
-fn unditching_beam() -> VehiclePart {
+fn unditching_beam(v: &HybridVisual) -> VehiclePart {
     let profile = [(-0.95_f32, 0.0_f32), (-0.95, 0.10), (0.95, 0.10), (0.95, 0.0)];
     VehiclePart {
         key: PartKey::new("unditching_beam"),
@@ -37,7 +37,9 @@ fn unditching_beam() -> VehiclePart {
                 MaterialRole::TrackMetal,
                 vehicle_geometry::SmoothingGroup(5),
             ),
-            Vec3::new(0.0, 1.02, -3.04),
+            // Stowed against the rear plate, a hand's width off it — so it follows the
+            // stern rather than sitting at a Z somebody typed once.
+            Vec3::new(0.0, 1.02, -v.hull.half_len - 0.04),
         )),
         lod: PartLod::Detail,
         generator: GeneratorKind::Revolve,
@@ -48,7 +50,8 @@ fn unditching_beam() -> VehiclePart {
 /// grille and the deck's rear edge (used with the turret reversed on the march).
 fn travel_lock(v: &HybridVisual) -> Vec<VehiclePart> {
     let deck_top = v.deck.center.y + v.deck.half.y;
-    let z = -2.64;
+    // Between the grille and the deck's rear edge: measured from the stern.
+    let z = -v.hull.half_len + 0.36;
     let mut parts = vec![detail_plate(
         PartKey::new("travel_lock_base"),
         SubmeshKind::Hull,
@@ -158,10 +161,10 @@ fn tow_cables(v: &HybridVisual, glacis_deg: f32) -> Vec<VehiclePart> {
         .map(|&(x, y)| glacis_point(v, glacis_deg, x, y, 0.04))
         .collect();
     let rear = vec![
-        Vec3::new(-0.65, 1.22, -3.02),
-        Vec3::new(-0.20, 1.34, -3.05),
-        Vec3::new(0.30, 1.34, -3.05),
-        Vec3::new(0.70, 1.22, -3.02),
+        Vec3::new(-0.65, 1.22, -v.hull.half_len - 0.02),
+        Vec3::new(-0.20, 1.34, -v.hull.half_len - 0.05),
+        Vec3::new(0.30, 1.34, -v.hull.half_len - 0.05),
+        Vec3::new(0.70, 1.22, -v.hull.half_len - 0.02),
     ];
     [glacis, rear]
         .into_iter()

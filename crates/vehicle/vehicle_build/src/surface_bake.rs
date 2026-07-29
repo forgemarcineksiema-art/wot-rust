@@ -139,7 +139,8 @@ pub fn t54_surface_bake(v: &HybridVisual, track: &TrackShape, muzzle: Vec3) -> S
         NamedCavity {
             signal: "glacis_weld",
             band: CavityBand {
-                center: Vec3::new(0.0, v.hull.roof_y, 1.95),
+                // On the glacis/roof weld, which moves with the bow.
+                center: Vec3::new(0.0, v.hull.roof_y, v.hull.half_len - 1.05),
                 half_extents: Vec3::new(1.05, 0.04, 0.05),
                 falloff: 0.08,
                 amount: 0.30,

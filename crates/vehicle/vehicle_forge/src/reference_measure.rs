@@ -53,6 +53,24 @@ pub(crate) fn measure_baked_vehicle(
     Some(RatioReport::new(vehicle.kind(), pack.clone(), measurements))
 }
 
+/// Fore-aft extent of the hull's ROLLED ARMOUR — the plates, without the stowage that rides on
+/// them. Returns `None` when a vehicle has no rolled plate in its hull submesh at all.
+fn armour_plate_extent_z(vehicle: &vehicle_geometry::BakedVehicle) -> Option<f32> {
+    let mesh = &vehicle.submesh(vehicle_geometry::SubmeshKind::Hull)?.mesh;
+    let plate: Vec<f32> = mesh
+        .vertices()
+        .iter()
+        .filter(|v| v.material == vehicle_geometry::MaterialRole::RolledArmor)
+        .map(|v| v.position.z)
+        .collect();
+    if plate.is_empty() {
+        return None;
+    }
+    let lo = plate.iter().copied().fold(f32::INFINITY, f32::min);
+    let hi = plate.iter().copied().fold(f32::NEG_INFINITY, f32::max);
+    Some(hi - lo)
+}
+
 /// Measure the pack's absolute anchors (metres) against the baked mesh. Local space puts the
 /// origin on the ground plane, so `max.y` IS height above ground — no offset juggling.
 ///
@@ -77,7 +95,12 @@ pub(crate) fn measure_dimensions(
     let mut measurements = Vec::with_capacity(pack.dimensions().len());
     for target in pack.dimensions() {
         let (measured_m, basis) = match target.kind() {
-            DimensionKind::HullLength => (Some(extent_z(hull)), MeasurementBasis::Mesh),
+            // Over the ARMOUR PLATE, not over the kit strapped to it. The hull submesh also
+            // carries the stowed unditching beam, which hangs a hand's width past the rear plate
+            // — a log lashed to the stern is field equipment, and no source counts it in a hull
+            // length. Measuring the rolled-armour material answers the question the dossier is
+            // actually asking.
+            DimensionKind::HullLength => (armour_plate_extent_z(vehicle), MeasurementBasis::Mesh),
             DimensionKind::HullWidth => (Some(extent_x(hull)), MeasurementBasis::Mesh),
             DimensionKind::HeightToTurretRoof => {
                 (Some(hull.max.y.max(turret.max.y)), MeasurementBasis::Mesh)

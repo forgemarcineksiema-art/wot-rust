@@ -97,7 +97,7 @@
   "hitbox": {
     "half_width_m": 1.75,
     "half_height_m": 1.24,
-    "half_length_m": 3.15,
+    "half_length_m": 3.2675,
     "center_y_m": 1.19,
     "turret_min_y_m": 0.39,
     "turret_half_width_m": 1.125,
@@ -554,7 +554,7 @@
       "translation": [
         0.0,
         1.78,
-        5.95
+        5.8475
       ],
       "basis": [
         1.0,

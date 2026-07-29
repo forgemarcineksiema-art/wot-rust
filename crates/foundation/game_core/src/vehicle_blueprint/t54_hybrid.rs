@@ -18,8 +18,17 @@ use super::{
 /// Where the glacis meets the deck, and where the lower nose meets the belly. These two are
 /// AUTHORED (the fold positions are a design decision, not a consequence); everything else about
 /// the front plates is derived from them below.
-const GLACIS_BASE_Z: f32 = 2.95;
-const NOSE_BASE_Z: f32 = 2.52;
+///
+/// They are stated as SETBACKS from the bow, not as absolute Z. The hull's length is the one
+/// number the whole front of the vehicle hangs off, and while these were absolutes the two
+/// numbers agreed only by luck: change `half_len` and the two-plate front stayed where it was
+/// while the hull moved out from under it.
+const GLACIS_SETBACK_M: f32 = 0.05;
+const NOSE_SETBACK_M: f32 = 0.48;
+/// How far the engine deck's rear edge stops short of the rear plate.
+const DECK_REAR_GAP_M: f32 = 0.20;
+/// How far each fender run stops short of the hull's end plates.
+const FENDER_END_GAP_M: f32 = 0.30;
 
 pub(super) fn t54_hybrid(hull: &HullShape, armor: &ArmorShape) -> HybridVisual {
     // The glacis plane and the lower-nose plane used to be FROZEN NUMBERS beside the blueprint
@@ -28,27 +37,32 @@ pub(super) fn t54_hybrid(hull: &HullShape, armor: &ArmorShape) -> HybridVisual {
     // tow cable — sat ~2 mm behind the plate it claims to lie on, and the moment anyone edited
     // `half_len` or the glacis angle the drift would have become visible instead of merely
     // measurable. They are derived here, from the same armour rake the plate is built at.
+    let glacis_base_z = hull.half_len - GLACIS_SETBACK_M;
+    let nose_base_z = hull.half_len - NOSE_SETBACK_M;
     let (sin_rake, cos_rake) = armor.hull_front.0.to_radians().sin_cos();
-    let glacis_offset = sin_rake * hull.sponson_y + cos_rake * GLACIS_BASE_Z;
+    let glacis_offset = sin_rake * hull.sponson_y + cos_rake * glacis_base_z;
     // The lower nose runs from the fold down to the belly front; its normal is the perpendicular
     // of that run, so the plate follows the fold and the belly rather than a memorised slope.
-    let run_z = NOSE_BASE_Z - GLACIS_BASE_Z;
+    let run_z = nose_base_z - glacis_base_z;
     let run_y = hull.belly_y - hull.sponson_y;
     let nose_normal = Vec3::new(0.0, -run_z / run_y, 1.0);
-    let nose_offset = nose_normal.dot(Vec3::new(0.0, hull.sponson_y, GLACIS_BASE_Z));
+    let nose_offset = nose_normal.dot(Vec3::new(0.0, hull.sponson_y, glacis_base_z));
 
     HybridVisual {
         hull: HullVisual {
             // The narrow ~2.1 m box between fully exposed tracks — no overhanging sponsons.
             half_width: 1.05,
-            belly_y: 0.43,
+            // Length and belly come from the GAMEPLAY hull, not from a second copy beside it.
+            // They were duplicated here, and a duplicate of a dimension is a dimension that is
+            // about to disagree with itself.
+            belly_y: hull.belly_y,
             roof_y: 1.58,
-            half_len: 3.00,
+            half_len: hull.half_len,
             glacis_offset,
             nose_normal,
             nose_offset,
         },
-        hull_plates: HullPlatesVisual { glacis_base_z: GLACIS_BASE_Z, nose_base_z: NOSE_BASE_Z },
+        hull_plates: HullPlatesVisual { glacis_base_z, nose_base_z },
         turret: TurretVisual {
             // The cast dome bulges LOW and wide: the sphere centre sits just above the ring (not high
             // in the band), so the widest cross-section overhangs the ring and the casting necks back
@@ -133,11 +147,21 @@ pub(super) fn t54_hybrid(hull: &HullShape, armor: &ArmorShape) -> HybridVisual {
             mantlet_scale: Vec3::new(1.15, 0.72, 1.0),
             module_delta_scale: 0.65,
         },
-        deck: BoxVisual { center: Vec3::new(0.0, 1.53, -1.80), half: Vec3::new(0.95, 0.06, 1.00) },
+        // The engine deck runs from behind the turret ring back to a hand's width off the rear
+        // plate: its REAR edge belongs to the stern, its front edge to the fighting compartment.
+        deck: BoxVisual {
+            center: Vec3::new(0.0, 1.53, (-hull.half_len + DECK_REAR_GAP_M - 0.80) * 0.5),
+            half: Vec3::new(0.95, 0.06, (0.80 - hull.half_len + DECK_REAR_GAP_M).abs() * 0.5),
+        },
         // The fender shelf rides over the 1.06..1.63 track band at 1.12 — the primary kit line of
         // the vehicle (stowage, fuel tanks and the exhaust all live on it), with sloping end
         // sections over the idler and sprocket added by the detail pass.
-        fender: FenderVisual { side_x: 1.345, center_y: 1.12, half: Vec3::new(0.29, 0.02, 2.70) },
+        fender: FenderVisual {
+            side_x: 1.345,
+            center_y: 1.12,
+            // The shelf runs the length of the hull, short of each end plate.
+            half: Vec3::new(0.29, 0.02, hull.half_len - FENDER_END_GAP_M),
+        },
         // The running gear (wheels, idler, sprocket, links) has no hybrid-visual copy: the animated
         // path reads the blueprint's `TrackShape` directly (`vehicle_geometry::RunningGearKinematics`).
         fittings: FittingsVisual {
@@ -146,7 +170,7 @@ pub(super) fn t54_hybrid(hull: &HullShape, armor: &ArmorShape) -> HybridVisual {
             cupola_hatch_half_height: 0.04,
             // Driver's hatch on the hull roof, front-left: ahead of the turret ring, on the flat roof
             // that the 60deg glacis cuts off at z ~= 1.95, so the lid stays clear of the slope.
-            driver_hatch_center: Vec3::new(-0.45, 1.62, 1.45),
+            driver_hatch_center: Vec3::new(-0.45, 1.62, hull.half_len - 1.55),
             driver_hatch_radius: 0.17,
             driver_hatch_half_height: 0.05,
             // Loader's hatch ring on the turret roof, loader (right) side. Like the cupola it is
@@ -155,11 +179,11 @@ pub(super) fn t54_hybrid(hull: &HullShape, armor: &ArmorShape) -> HybridVisual {
             loader_hatch_radius: 0.19,
             loader_hatch_half_height: 0.12,
             // On the left fender front, outboard of the glacis, as every reference view shows.
-            headlight_center: Vec3::new(-1.25, 1.225, 2.55),
+            headlight_center: Vec3::new(-1.25, 1.225, hull.half_len - 0.45),
             headlight_radius: 0.10,
             headlight_half_height: 0.09,
             // Bow hooks at the lower corners of the narrow nose plate.
-            tow_hook_center: Vec3::new(0.80, 0.55, 2.62),
+            tow_hook_center: Vec3::new(0.80, 0.55, hull.half_len - 0.38),
             tow_hook_half: Vec3::new(0.12, 0.11, 0.10),
         },
         // Clean factory-fresh detailing only: a louvered rear-deck grille, a boxed left-fender
@@ -170,12 +194,12 @@ pub(super) fn t54_hybrid(hull: &HullShape, armor: &ArmorShape) -> HybridVisual {
             // The grille rides proud of the engine deck (deck top is y=1.59): at center_y 1.60 its
             // frame and slats top out at 1.63, clear of the deck plane. Earlier the grille top
             // was coplanar with the deck top, so the slats z-fought the deck into a flickering mess.
-            grille_center: Vec3::new(0.0, 1.60, -2.00),
+            grille_center: Vec3::new(0.0, 1.60, -hull.half_len + 1.00),
             grille_half: Vec3::new(0.80, 0.03, 0.55),
             grille_slats: 6,
             // The louvered exhaust box sits ON the left fender at the engine bay, as the top view
             // shows — the dark armoured cover among the left-fender stowage line.
-            exhaust_center: Vec3::new(-1.34, 1.25, -0.90),
+            exhaust_center: Vec3::new(-1.34, 1.25, -hull.half_len + 2.10),
             exhaust_half: Vec3::new(0.26, 0.11, 0.45),
             // Turret-roof periscopes root into the curved dome (tall heads, bases ~2.02).
             // Model-logic audit #10: a Mk.4 head is a low fist-sized housing, not a chimney.

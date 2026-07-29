@@ -43,7 +43,7 @@ pub fn t54_reference_pack() -> ReferencePack {
                 RatioKind::HullLengthToWidth,
                 1.85,
                 0.15,
-                "Overall hull plan (6.04 / 3.27) should read as a compact Soviet medium, not a long heavy.",
+                "Overall hull plan (6.235 / 3.27) should read as a compact Soviet medium, not a long heavy.",
             ),
             RatioTarget::new(
                 RatioKind::HullHeightToLength,
@@ -67,7 +67,7 @@ pub fn t54_reference_pack() -> ReferencePack {
                 RatioKind::GunProtrusionToHullLength,
                 0.49,
                 0.08,
-                "The D-10T projects 2.96 m past the bow (9.00 m overall) — decisive but not a heavy-tank gun.",
+                "The D-10T projects 2.73 m past the bow (9.00 m overall) — decisive but not a heavy-tank gun.",
             ),
             // The PR-04 ratio family — the pilot authors all three so the fleet packs have a
             // worked example to copy in their W1/W2 dossier PRs.
@@ -87,7 +87,7 @@ pub fn t54_reference_pack() -> ReferencePack {
                 RatioKind::RoadWheelDiameterToHullLength,
                 0.132,
                 0.008,
-                "810 mm starfish wheels on the 6.04 m hull read heavy on the side view.",
+                "810 mm spider-web wheels on the 6.235 m hull read heavy on the side view.",
             ),
         ],
     )
@@ -148,13 +148,13 @@ pub fn t54_reference_pack() -> ReferencePack {
             DimensionKind::GroundClearance,
             0.425,
             0.01,
-            t54_dossier("425 mm documented clearance; belly strip bakes at 440 mm (M1)."),
+            t54_dossier("425 mm documented clearance, four sources agreeing."),
         ),
-        DimensionTarget::target_pending(
+        DimensionTarget::new(
             DimensionKind::HullLength,
             6.235,
             0.05,
-            t54_dossier("6.20-6.27 m documented band (working: 6.235); bake is short (M1)."),
+            t54_dossier("6.20-6.27 m documented band; the hull is built at the working 6.235."),
         ),
         DimensionTarget::target_pending(
             DimensionKind::HeightToTurretRoofBare,

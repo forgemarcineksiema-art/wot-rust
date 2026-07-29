@@ -185,15 +185,21 @@ fn the_hybrid_bake_is_deterministic() {
 /// picture to look at is a rubber stamp.
 #[test]
 fn the_shipped_hybrid_matches_its_recorded_golden() {
-    // Recorded 2026-07-29 (PR-25, a muzzle is a hole). The gun tube is the only thing that
-    // moved, and it moved a long way: the muzzle goes from ⌀170 with a ⌀192 collar to ⌀124 on a
-    // 100 mm gun (the documented tube is 120-126), the bore opens from ⌀93.5 to the calibre's
-    // ⌀100, the recess runs straight at full diameter for a calibre and a half instead of
-    // coning from the face, and the tube is 28-sided instead of 20.
-    // Previous: 0xe8f1_4157_11a2_cdca (PR-12, the stamped disc and the deleted swing-arm boxes);
-    //           0x375d_cc51_9a6b_c34a (PR-06, one truth per number);
-    //           0x6a7f_a521_f563_65e8 (PR-03, the mirror-fixed bless).
-    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0x903d_b868_b9bf_e617;
+    // Recorded 2026-07-29 (PR-14, the hull at its documented length). The T-54 was 6.00 m over
+    // the hull; the documented figure is 6.20-6.27 and the working value is 6.235, so the bow
+    // moved 0.1175 m forward and the stern the same aft. Everything that hangs off either end
+    // moved WITH it, because this PR stopped those positions being absolutes: the two-plate
+    // front, the engine deck's rear edge, the fender runs, the driver's hatch, the headlight,
+    // the tow hooks, the grille, the exhaust, the unditching beam, the travel lock, the rear
+    // cables and the glacis weld band are all stated as setbacks from the hull's own ends now.
+    // The GUN moved too, and had to: overall length with the gun forward is a Locked anchor at
+    // 9.00 m, and `muzzle_z` was an absolute — so growing the hull grew the whole vehicle past
+    // it. The muzzle now sits 2.73 m past the bow, the dossier's own sanity value (9.00 - 6.27),
+    // down from an effective 2.95.
+    // Previous: 0x903d_b868_b9bf_e617 (PR-25, a muzzle is a hole);
+    //           0xe8f1_4157_11a2_cdca (PR-12, the stamped disc);
+    //           0x375d_cc51_9a6b_c34a (PR-06, one truth per number).
+    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0xf490_f9f1_fe07_3049;
     let baked = t54_description().build();
     assert_eq!(
         baked.deterministic_hash(),
