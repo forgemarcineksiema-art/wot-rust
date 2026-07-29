@@ -101,9 +101,16 @@ pub(super) fn t54_hybrid(hull: &HullShape, armor: &ArmorShape) -> HybridVisual {
         turret_loft: super::t54_hybrid_turret::turret_loft(),
         gun: GunVisual {
             barrel_radius: 0.09,
-            muzzle_radius: 0.085,
+            // The D-10T is a 100 mm gun with a thin wall: the documented muzzle OD is about
+            // 120-126 mm, so a 10-13 mm wall around a 100 mm bore. The tube used to end at
+            // ⌀170 with a ⌀192 collar — 40% too fat, which is why the muzzle read as a flat
+            // steel disc with a dimple in it rather than as a hole.
+            muzzle_radius: 0.062,
+            bore_radius: 0.050,
             muzzle_taper: 0.20,
-            barrel_segments: 20,
+            // A 20-gon tube shows its facets against the sky at any range where the barrel is
+            // the thing you are looking down.
+            barrel_segments: 28,
             // The 1951 mask sits ON the turret face: its wide rounded shoulder rides at the
             // embrasure mouth (the turret front lip is at z ≈ 1.05, trunnion-relative ≈ -0.10)
             // and the sleeve tapers forward of it — a visible cast "pig's head", not a collar

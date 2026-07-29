@@ -49,7 +49,16 @@ fn forge_artifact_manifest_names_the_baked_vehicle_profile_and_sources() {
     let signals: Vec<&str> = surface_bake.signals().iter().map(String::as_str).collect();
     assert_eq!(
         signals,
-        ["turret_ring_seam", "mantlet_seat", "running_gear_recess", "engine_grille", "glacis_weld"]
+        [
+            "turret_ring_seam",
+            "mantlet_seat",
+            "running_gear_recess",
+            "engine_grille",
+            // The bore: a gun muzzle is the deepest recess on the vehicle, and it used to be lit
+            // exactly like the tube around it (PR-25).
+            "gun_bore",
+            "glacis_weld",
+        ]
     );
     assert!(surface_bake.config_hash() != 0, "the cavity config hash must identify the bake");
 }

@@ -224,6 +224,6 @@ pub fn t54_from_modules_with_blueprint(
     // Bake-time ambient contact: darken the turret-ring seam, mantlet seat, running-gear recess and
     // glacis weld into `surface_shade` after merge (the cast turret and welded hull no longer read
     // flat). Derived from the same blueprint `v` that drives the geometry.
-    let surface_bake = crate::surface_bake::t54_surface_bake(v, &bp.track);
+    let surface_bake = crate::surface_bake::t54_surface_bake(v, &bp.track, muzzle);
     VehicleDescription { kind, parts, mounts, surface_bake }
 }

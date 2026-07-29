@@ -67,7 +67,7 @@ impl SurfaceBake {
 /// Derive the T-54's contact cavities from its hybrid blueprint (and the gameplay `TrackShape`,
 /// which owns the running gear). Every centre and extent is read from a blueprint dimension, so
 /// the shading tracks the geometry it shades.
-pub fn t54_surface_bake(v: &HybridVisual, track: &TrackShape) -> SurfaceBake {
+pub fn t54_surface_bake(v: &HybridVisual, track: &TrackShape, muzzle: Vec3) -> SurfaceBake {
     let cavities = vec![
         // The cast turret seats on the narrowed ring and overhangs it: the seam and undercut read as
         // a deep ambient shadow around the bottom of the casting and the roof under its skirt.
@@ -114,6 +114,25 @@ pub fn t54_surface_bake(v: &HybridVisual, track: &TrackShape) -> SurfaceBake {
                 half_extents: Vec3::new(v.detail.grille_half.x, 0.06, v.detail.grille_half.z),
                 falloff: 0.06,
                 amount: 0.55,
+            },
+        },
+        // THE BORE. A gun muzzle is a hole, and a hole is dark — but the bore was lit exactly
+        // like the tube around it, so the deepest recess on the vehicle read as a shallow dimple
+        // in a steel disc. The legacy generator had a dark funnel here and the hybrid lost it.
+        // This band puts the shadow back where the metal actually is: down the tube, tight to
+        // the bore, so the ring of steel at the face stays bright and the hole behind it does
+        // not.
+        NamedCavity {
+            signal: "gun_bore",
+            band: CavityBand {
+                center: muzzle - Vec3::Z * (v.gun.bore_radius * 1.6),
+                half_extents: Vec3::new(
+                    v.gun.bore_radius * 1.05,
+                    v.gun.bore_radius * 1.05,
+                    v.gun.bore_radius * 1.8,
+                ),
+                falloff: 0.02,
+                amount: 0.80,
             },
         },
         // The glacis-to-roof weld line catches a thin contact shadow across the hull front.

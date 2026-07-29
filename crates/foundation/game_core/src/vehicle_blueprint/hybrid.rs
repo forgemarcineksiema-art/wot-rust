@@ -217,6 +217,14 @@ impl TurretLoftVisual {
 pub struct GunVisual {
     pub barrel_radius: f32,
     pub muzzle_radius: f32,
+    /// Half the gun's CALIBRE — the hole down the middle.
+    ///
+    /// It used to be a fraction of the outside diameter (`muzzle_radius * 0.55`), which is
+    /// backwards: a gun is a bore with steel wrapped round it, not an outside with a dent. On a
+    /// 100 mm D-10T this is 0.050 m, full stop, and the wall thickness is then whatever
+    /// `muzzle_radius` leaves — which is how you can tell at a glance whether the tube is the
+    /// right thickness.
+    pub bore_radius: f32,
     pub muzzle_taper: f32,
     pub barrel_segments: usize,
     /// Mantlet side profile as `(z, radius)` points, revolved about Z then scaled to a flat oval.

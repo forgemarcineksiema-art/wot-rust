@@ -185,14 +185,15 @@ fn the_hybrid_bake_is_deterministic() {
 /// picture to look at is a rubber stamp.
 #[test]
 fn the_shipped_hybrid_matches_its_recorded_golden() {
-    // Recorded 2026-07-29 (PR-12, the stamped disc). The hull LOST ten parts: the static
-    // swing-arm boxes that were welded into the bake at every road-wheel station while the
-    // running gear ALSO instanced an animated trailing arm there. Two arms per wheel, one of
-    // them frozen at rest — the baked copy is deleted, so the hull is ten boxes lighter and the
-    // only arm left is the one that moves (F5).
-    // Previous: 0x375d_cc51_9a6b_c34a (PR-06, one truth per number);
+    // Recorded 2026-07-29 (PR-25, a muzzle is a hole). The gun tube is the only thing that
+    // moved, and it moved a long way: the muzzle goes from ⌀170 with a ⌀192 collar to ⌀124 on a
+    // 100 mm gun (the documented tube is 120-126), the bore opens from ⌀93.5 to the calibre's
+    // ⌀100, the recess runs straight at full diameter for a calibre and a half instead of
+    // coning from the face, and the tube is 28-sided instead of 20.
+    // Previous: 0xe8f1_4157_11a2_cdca (PR-12, the stamped disc and the deleted swing-arm boxes);
+    //           0x375d_cc51_9a6b_c34a (PR-06, one truth per number);
     //           0x6a7f_a521_f563_65e8 (PR-03, the mirror-fixed bless).
-    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0xe8f1_4157_11a2_cdca;
+    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0x903d_b868_b9bf_e617;
     let baked = t54_description().build();
     assert_eq!(
         baked.deterministic_hash(),
