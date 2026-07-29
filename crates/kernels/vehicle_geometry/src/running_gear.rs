@@ -236,6 +236,16 @@ impl RunningGearKinematics {
         self.wheel_radius * 0.895
     }
 
+    /// How far the hinge-eye barrel stands off the belt's centreline, on the wheel side.
+    ///
+    /// This is the surface a drive sprocket's teeth actually bear on — the цевка. The link
+    /// generator builds the barrel here and the sprocket generator reaches its teeth to here, so
+    /// "the teeth engage the track" is one number rather than two guesses. A tooth that stops
+    /// short of it drives nothing; one that reaches past it cuts through the shoe plate.
+    pub fn hinge_eye_offset(&self) -> f32 {
+        0.061
+    }
+
     /// This same gear, built for distance. The belt path, the wheel positions and every
     /// dimension are untouched — only how finely the parts are tessellated changes, so a
     /// far-detail tank stands in exactly the same place as a near one.

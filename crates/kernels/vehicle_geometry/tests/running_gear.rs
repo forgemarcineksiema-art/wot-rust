@@ -130,7 +130,6 @@ fn mats_close(a: Mat4, b: Mat4) -> bool {
     a.to_cols_array().iter().zip(b.to_cols_array()).all(|(x, y)| (x - y).abs() < 1.0e-3)
 }
 
-
 fn rounded_axis_values(
     mesh: &GeometryMesh,
     material: MaterialRole,
@@ -649,5 +648,96 @@ fn t54_sprocket_is_visibly_toothed_while_idler_is_smooth() {
         idler_bounds.max.y <= kin.end_radius + 0.010
             && idler_bounds.max.z <= kin.end_radius + 0.010,
         "front idler must read as a smooth round wheel, not a toothed ring"
+    );
+}
+
+/// THE DRIVE SPROCKET ACTUALLY DRIVES.
+///
+/// Its teeth used to stop 32 mm short of the belt line: decoration passing near a track it never
+/// touched, on the one wheel whose entire job is to push it. Nothing caught that, because no test
+/// asked the two parts about each other.
+///
+/// What a tooth must do is reach the surface it bears on and stop there. On an OMSh belt that
+/// surface is the barrel of hinge eyes on the wheel side of each shoe — the цевка — and stopping
+/// at it is also what keeps the tooth out of the shoe plate, which rides further out on the wrap.
+/// Both parts read the stand-off from `hinge_eye_offset`, so this is one number, checked.
+#[test]
+fn sprocket_teeth_reach_the_hinge_eyes_they_bear_on() {
+    for kind in VehicleKind::PLAYABLE {
+        let kin = RunningGearKinematics::for_vehicle(kind).expect("gear");
+        let mesh = sprocket_unit_mesh(&kin);
+        let reach = mesh
+            .vertices()
+            .iter()
+            .map(|v| v.position.y.hypot(v.position.z))
+            .fold(0.0_f32, f32::max);
+
+        // Where the belt runs on the wrap, and where the eye barrel sits under it.
+        let belt_r = kin.end_radius + 0.02;
+        let eye_r = belt_r - kin.hinge_eye_offset();
+
+        assert!(
+            reach >= eye_r,
+            "{kind:?}: the teeth reach {reach:.3} m but the hinge eyes they drive are at              {eye_r:.3} m — this sprocket is not touching the track"
+        );
+        assert!(
+            reach <= belt_r - kin.hinge_eye_offset() * 0.30,
+            "{kind:?}: the teeth reach {reach:.3} m, past the eyes and into the shoe plate at              {belt_r:.3} m — a tooth through the shoe is not engagement"
+        );
+    }
+}
+
+/// The tooth count is not a style choice: a tooth must meet a link, so it is the number of link
+/// pitches around the wrap circle. Recording what that resolves to also records a dimensional
+/// deviation the register already owns.
+///
+/// The T-54's documented sprocket has **13 teeth per ring**; 14 is the modernised T-55 / Obj. 167
+/// wheel. Ours derives 14, and it is right to: our belt pitch is 142 mm against the documented
+/// 137, and our wrap radius 0.32 m against a 0.286 m pitch circle. The count follows the belt, so
+/// the count cannot be fixed here — it falls out when the track dimensions land (M9 / PR-18).
+/// Asserting 13 now would put a sprocket on the tank that its own belt does not fit.
+#[test]
+fn the_t54_tooth_count_records_the_belt_it_has_to_mesh_with() {
+    let kin = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951).expect("gear");
+    let pitch = kin.belt_length() / kin.link_count() as f32;
+    let wrap_r = kin.end_radius + 0.02;
+    let teeth = ((std::f32::consts::TAU * wrap_r) / pitch).round() as usize;
+    assert_eq!(
+        teeth, 14,
+        "the derived tooth count moved; if the belt pitch or wrap radius changed, check it          against the documented 13 and update this record"
+    );
+    println!(
+        "SPROCKET DEBT T54: {teeth} teeth per ring from a {:.4} m pitch on a {wrap_r:.3} m wrap          (documented: 13 teeth, 0.137 m pitch, 0.286 m pitch circle — M9/PR-18)",
+        pitch
+    );
+}
+
+/// The idler is the TENSIONER. Its eccentric crank is the part that makes a thrown track a
+/// repair, and it is also how you tell the idler end of the tank from the drive end at a glance.
+#[test]
+fn the_idler_carries_its_tension_crank() {
+    let kin = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951).expect("gear");
+    let mesh = idler_unit_mesh(&kin);
+    let inboard_of_the_wheel =
+        mesh.vertices().iter().filter(|v| v.position.x < -kin.wheel_half_width * 1.2).count();
+    assert!(
+        inboard_of_the_wheel > 0,
+        "the tension crank must stand inboard of the idler disc, where the hull bearing is"
+    );
+    let below_the_axle = mesh
+        .vertices()
+        .iter()
+        .filter(|v| v.position.x < -kin.wheel_half_width * 1.2)
+        .map(|v| v.position.z.hypot(v.position.y))
+        .fold(0.0_f32, f32::max);
+    assert!(
+        below_the_axle > kin.end_radius * 0.35,
+        "the crank arm must reach out to its bearing, not sit on the axle: {below_the_axle:.3}"
+    );
+
+    // And its tyres are STEEL, not rubber (dossier: 510 mm cast wheel, steel tyres).
+    assert!(
+        mesh.vertices().iter().all(|v| v.material == MaterialRole::TrackMetal),
+        "the T-54 idler runs on steel tyres — rubber made it read as a second road wheel"
     );
 }
