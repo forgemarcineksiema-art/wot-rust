@@ -25,13 +25,23 @@ pub fn t54_turret_loft(t: &TurretLoftVisual) -> GeometryMesh {
         })
         .collect();
 
-    // The cheeks are a cast SWELL — the soft Gaussian is exactly right for them.
-    let cheek = |azimuth: f32| {
-        CastBump::gaussian(azimuth, t.cheek_az_width, t.cheek_y, t.cheek_y_width, t.cheek_amount)
-    };
+    // The FACE PLATE: one central plateau swell across the whole window band. On the real
+    // casting (REF 22/23) the forward-most structure IS the face around the window — the
+    // window's walls top out at the front, and the rebate is cut through that fullness. Two
+    // outboard gaussian "cheeks" put the mass on the egg's curl instead, and the window's wall
+    // ring sank below the bare nose; a pair centred on the window filled the rebate itself.
+    // A plateau raises floor, shelf and walls TOGETHER, so the window keeps its depth.
     let bumps = [
-        cheek(FRAC_PI_2 - t.cheek_azimuth),
-        cheek(FRAC_PI_2 + t.cheek_azimuth),
+        CastBump::plateau(
+            FRAC_PI_2,
+            t.cheek_az_width,
+            t.cheek_y,
+            t.cheek_y_width,
+            t.cheek_amount,
+            // Falloff 6: flat until ~0.8 of the width (the wall band included), gone by ~1.3 —
+            // the plate reads as the casting's full face, not as a soft boss on the nose.
+            6.0,
+        ),
         // The front gun embrasure. NOT a cheek: this one is a pocket cut for the gun to come
         // through, so it takes the blueprint's own wall sharpness rather than the cast swell's
         // Gaussian. `2.0` was hard-coded here, which meant the aperture could only ever be a
@@ -116,19 +126,20 @@ mod tests {
         );
     }
 
-    /// The front cheeks must read as the T-54's signature cast front mass: they add real width to
-    /// the front shoulder over a cheekless shell, and they stop the casting from necking IN at the
-    /// front (the old failure mode, where the front quarter was narrower than the sides).
-    /// The flank band is VERTICAL at the documented width — the S1 master's one trusted shape
-    /// claim, and the deviation the 2026-07-29 Blender section-diff measured at −112/−124 mm of
-    /// total width before the fix. The cheek bumps that caused it (a double-count of the
-    /// superellipse's own front fullness) are retired at zero, and this test replaces the one
-    /// that REQUIRED them to add mass: a test that demands the wrong shape is the defect written
-    /// down twice.
+    /// The dome tapers CONTINUOUSLY from its widest band — the pilot's photo verdict (REF 46,
+    /// 2026-07-29), which overturned the S1 drawing's "vertical flank to 2.00": the drawing was
+    /// the sheet with a ±4-7% internal disagreement, and the vertical band it dictated read as
+    /// the player's "pancake". What is locked now: the documented 2.25 m lives at the widest
+    /// band (1.66-1.76), every station above it is strictly narrower, and the taper is smooth
+    /// (no plateau followed by a cliff). The face fullness is a central PLATEAU bump (the face
+    /// plate the window is cut through), so cheek_amount is positive and CENTRED.
     #[test]
-    fn the_flank_band_is_vertical_at_the_documented_width() {
+    fn the_dome_tapers_continuously_from_its_widest_band() {
         let v = turret_loft_visual();
-        assert_eq!(v.cheek_amount, 0.0, "the front mass lives in the stations, not bolted lobes");
+        assert!(
+            v.cheek_amount > 0.0 && v.cheek_azimuth == 0.0,
+            "the face plate is one centred plateau, not offset lobes"
+        );
         let mesh = t54_turret_loft(&v);
         let width_at = |y: f32| {
             let (lo, hi) = mesh
@@ -139,11 +150,28 @@ mod tests {
                 .fold((f32::INFINITY, f32::NEG_INFINITY), |(lo, hi), x| (lo.min(x), hi.max(x)));
             hi - lo
         };
-        for y in [1.58_f32, 1.68, 1.78, 1.88, 2.00] {
-            let width = width_at(y);
+        let widest = width_at(1.66).max(width_at(1.76));
+        assert!(
+            (widest - 2.25).abs() <= 0.012,
+            "the documented 2.25 m lives at the widest band, got {widest:.3}"
+        );
+        let ladder =
+            [width_at(1.76), width_at(1.88), width_at(2.00), width_at(2.12), width_at(2.22)];
+        for pair in ladder.windows(2) {
             assert!(
-                (width - 2.25).abs() <= 0.012,
-                "the casting carries the documented 2.25 m clear down the flank band, got                  {width:.3} at y {y}"
+                pair[1] < pair[0] - 0.005,
+                "the taper is continuous above the widest band: {:.3} then {:.3}",
+                pair[0],
+                pair[1]
+            );
+        }
+        let steps: Vec<f32> = ladder.windows(2).map(|p| p[0] - p[1]).collect();
+        for pair in steps.windows(2) {
+            assert!(
+                pair[1] < pair[0] * 3.0 + 0.06,
+                "no plateau-then-cliff: taper steps {:.3} then {:.3}",
+                pair[0],
+                pair[1]
             );
         }
     }

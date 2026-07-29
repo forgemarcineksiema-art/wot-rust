@@ -164,20 +164,23 @@ pub(super) fn t54_hybrid(hull: &HullShape, armor: &ArmorShape) -> HybridVisual {
             // The pocket floor sits at z = 1.240 - 0.16 = 1.080, i.e. -0.07 from the trunnion.
             // The face at -0.030 therefore stands 40 mm proud of the floor and stays 0.13 m
             // behind the casting's un-recessed front — inside the aperture, not through it.
+            // Pulled 30 mm deeper behind the face after the egg reshape: the casting's nose
+            // sits further back than the old squircle plateau, and the internal body must keep
+            // clearing it by the contract's 80 mm. It is occluded by the canvas either way.
             mantlet_profile: [
-                (-0.300, 0.000),
-                (-0.265, 0.135),
-                (-0.190, 0.220),
-                (-0.115, 0.250),
-                (-0.070, 0.243),
-                (-0.050, 0.185),
-                (-0.040, 0.155),
-                (-0.030, 0.000),
+                (-0.330, 0.000),
+                (-0.295, 0.135),
+                (-0.220, 0.220),
+                (-0.145, 0.250),
+                (-0.100, 0.243),
+                (-0.080, 0.185),
+                (-0.070, 0.155),
+                (-0.060, 0.000),
             ],
             // Twelve: the mantlet lives BEHIND the canvas now — the cover panel occludes it
             // from every exterior angle, and it only shows through a breach remesh. Twenty-eight
             // was the resolution of a part the player was meant to look at.
-            mantlet_segments: 12,
+            mantlet_segments: 9,
             // Very nearly round. The old 1.15/0.72 squash existed to make a BALL read as a mask;
             // an internal mantlet has no such job — it is a cast cylinder on trunnions, a touch
             // wider than tall because the trunnion bosses are.
@@ -192,12 +195,14 @@ pub(super) fn t54_hybrid(hull: &HullShape, armor: &ArmorShape) -> HybridVisual {
             // it is the ten-gon's INRADIUS (r·cos 18°) that must clear the tube, not the
             // vertex radius: at 0.100 the flats dipped under the steel and the barrel showed
             // through the sleeve as a torn zigzag.
-            mantlet_cover: [(0.140, 0.128), (0.230, 0.118), (0.295, 0.116), (0.360, 0.104)],
+            mantlet_cover: [(0.100, 0.128), (0.230, 0.118), (0.295, 0.116), (0.360, 0.104)],
             mantlet_cover_sag: 0.010,
             // The fabric panel's fastening frame, sized to the window at half-depth (window
             // az 0.26 rad on the 1.125 superellipse is ±0.42 of x; the frame sits 20 mm inside
             // the walls all round).
-            cover_frame_half: (0.40, 0.185),
+            // MEASURED off the dead-front reference (module 2): the fastened panel is a compact
+            // pillow ~0.45 x 0.37, not the first build's 0.80 letterbox.
+            cover_frame_half: (0.225, 0.185),
             module_delta_scale: 0.65,
         },
         // The engine deck runs from behind the turret ring back to a hand's width off the rear

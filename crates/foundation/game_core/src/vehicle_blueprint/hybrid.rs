@@ -122,7 +122,7 @@ impl LoftStation {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct TurretLoftVisual {
     /// Cross-sections, ring seat (bottom) to roof (top).
-    pub stations: [LoftStation; 9],
+    pub stations: [LoftStation; 10],
     /// Superellipse fullness (`2.0` = ellipse, `>2.0` = fuller cast shoulders).
     pub exponent: f32,
     /// Azimuth samples per ring.

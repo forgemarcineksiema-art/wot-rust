@@ -26,7 +26,7 @@ use sweep::{SweepCaps, SweepFrameMode, SweepPath, SweepSection, SweepSpec, try_s
 use vehicle_geometry::{GeometryMesh, MaterialRole, SmoothingGroup};
 
 /// Samples around the sleeve. Twelve keeps the throat round at strap distance.
-const SLEEVE_SEGMENTS: usize = 12;
+const SLEEVE_SEGMENTS: usize = 10;
 /// Corner radius of the panel's rounded rectangle, at frame scale.
 const CORNER_R: f32 = 0.055;
 /// Points per corner arc.
@@ -37,7 +37,7 @@ const CORNER_PTS: usize = 3;
 /// the border rounds off toward the FLAT FRONT FACE — a cover is a mattress, not a funnel. The
 /// first build ran the taper all the way to 0.30 and the front read as a pyramid of diagonals.
 const PANEL_STATIONS: [(f32, f32); 4] =
-    [(0.030, 1.0), (0.075, 1.015), (0.120, 0.97), (0.158, 0.80)];
+    [(-0.010, 1.0), (0.035, 1.015), (0.080, 0.97), (0.118, 0.80)];
 
 /// A rounded-rectangle ring of points, counter-clockwise, no repeated vertex: each corner arc
 /// samples `[base, base + 90)`, so quadrant boundaries appear exactly once.
@@ -130,12 +130,12 @@ pub fn t54_mantlet_cover(trunnion: Vec3, gun: &GunVisual) -> GeometryMesh {
 pub fn t54_mantlet_frame(trunnion: Vec3, gun: &GunVisual) -> GeometryMesh {
     let ring = rounded_rect_ring(gun.cover_frame_half.0 + 0.010, gun.cover_frame_half.1 + 0.010);
     let points: Vec<Vec3> =
-        ring.into_iter().map(|p| trunnion + Vec3::new(p.x, p.y, 0.034)).collect();
+        ring.into_iter().map(|p| trunnion + Vec3::new(p.x, p.y, -0.006)).collect();
     let path = SweepPath { points, closed: true };
     let section = SweepSection {
-        points: (0..6)
+        points: (0..5)
             .map(|index| {
-                let angle = index as f32 / 6.0 * std::f32::consts::TAU;
+                let angle = index as f32 / 5.0 * std::f32::consts::TAU;
                 Vec2::new(angle.cos(), angle.sin()) * 0.012
             })
             .collect(),
@@ -172,8 +172,8 @@ mod tests {
         let width = b.max.x - b.min.x;
         let height = b.max.y - b.min.y;
         assert!(
-            width / height >= 1.8,
-            "a T-54 cover is a WIDE rectangle, got {width:.3} x {height:.3}"
+            (1.05..=1.6).contains(&(width / height)),
+            "a T-54 cover is a compact pillow, wider than tall (measured ~0.45 x 0.37), got {width:.3} x {height:.3}"
         );
     }
 

@@ -160,6 +160,33 @@ fn t54_hull_carries_rear_transmission_covers() {
     );
 }
 
+/// Tight variant for the doubly-curved face: a ±15 mm x-window so a sample on the shelf cannot
+/// swallow the window wall or a cheek column standing 35 mm away. Non-finite means "no ring
+/// column here" — callers scan a small range instead of trusting one x.
+fn face_z_tight(mesh: &vehicle_geometry::GeometryMesh, y: f32, x: f32) -> f32 {
+    mesh.vertices()
+        .iter()
+        .filter(|v| {
+            (v.position.y - y).abs() < 0.035
+                && (v.position.x.abs() - x).abs() < 0.015
+                && v.position.z > 0.6
+        })
+        .map(|v| v.position.z)
+        .fold(f32::NEG_INFINITY, f32::max)
+}
+
+/// Best finite tight sample over a scanned x-range (the loft's azimuth columns are discrete, so
+/// any single x can fall between rings).
+fn face_z_scan(mesh: &vehicle_geometry::GeometryMesh, y: f32, x0: f32, x1: f32) -> f32 {
+    let mut best = f32::NEG_INFINITY;
+    let mut x = x0;
+    while x <= x1 {
+        best = best.max(face_z_tight(mesh, y, x));
+        x += 0.01;
+    }
+    best
+}
+
 /// The casting's front surface at the gun's height, as a function of how far out from the gun
 /// axis you look — the instrument every aperture assertion below reads.
 fn face_z_at(mesh: &vehicle_geometry::GeometryMesh, y: f32, x: f32, dy: f32) -> f32 {
@@ -201,9 +228,12 @@ fn the_turret_face_carries_a_narrow_gun_aperture() {
         "the aperture must be a cavity cut through the wall, got {depth:.3} m deep"
     );
 
-    // Half depth is the edge: the width a tape measure reports.
+    // Half depth is the edge: the width a tape measure reports. Vertically the dome curls
+    // away above the window FASTER than the recess is deep (a_f drops 1.15 -> 1.04 across the
+    // window band), so no global plane ever crosses — the height walk uses a LOCAL threshold:
+    // 0.07 above the floor sits inside the aperture's top wall rise and below the curl.
     let edge = floor + depth * 0.5;
-    let cross = |vertical: bool| {
+    let cross = |vertical: bool, threshold: f32| {
         let mut last = 0.0;
         for step in 1..=40 {
             let offset = step as f32 * 0.01;
@@ -213,7 +243,7 @@ fn the_turret_face_carries_a_narrow_gun_aperture() {
                 face_z_at(&casting, gun_y, offset, 0.0)
             };
             if z.is_finite() {
-                if z >= edge {
+                if z >= threshold {
                     return offset;
                 }
                 last = offset;
@@ -221,46 +251,60 @@ fn the_turret_face_carries_a_narrow_gun_aperture() {
         }
         last
     };
-    let width = 2.0 * cross(false);
-    let height = 2.0 * cross(true);
+    let width = 2.0 * cross(false, edge);
+    // Vertically no single number survives the dome's own curl (above the window the whole
+    // casting sits behind the floor level in z), so the lock is three physical bounds on the
+    // TRULY deep band (z within 30 mm of the floor, y capped at the gun's travel envelope):
+    // the cut clears the gun's travel both ways and never reaches the ring seat.
+    let deep: Vec<f32> = casting
+        .vertices()
+        .iter()
+        .filter(|v| {
+            v.position.x.abs() < 0.06
+                && (v.position.y - gun_y).abs() < 0.25
+                && v.position.z > 0.6
+                && v.position.z <= floor + 0.03
+        })
+        .map(|v| v.position.y)
+        .collect();
+    let deep_lo = deep.iter().copied().fold(f32::INFINITY, f32::min);
+    let deep_hi = deep.iter().copied().fold(f32::NEG_INFINITY, f32::max);
+    assert!(
+        deep_lo <= gun_y - 0.10 && deep_hi >= gun_y + 0.10,
+        "the aperture clears the tube and its travel, got deep band {deep_lo:.3}..{deep_hi:.3}"
+    );
+    assert!(
+        deep_lo >= 1.60,
+        "and it never cuts the ring seat at 1.58, got its floor down to {deep_lo:.3}"
+    );
     assert!(
         (width - 0.40).abs() <= 0.06,
         "the documented aperture is ~0.40 m across, measured {width:.3}"
     );
-    assert!(
-        (0.20..=0.40).contains(&height),
-        "the aperture clears the tube and its travel without cutting the ring seat, got {height:.3} m tall"
-    );
 
-    // And the face is TWO-STEP: between the cheeks' front and the deep aperture lies the wide,
-    // shallow WINDOW the canvas panel is fastened into. One recess reads as a socket for a ball;
-    // the shelf is what makes the front read as a T-54.
-    let shelf = face_z_at(&casting, gun_y, 0.30, 0.0);
-    assert!(
-        (0.08..=0.15).contains(&(shelf - floor)),
-        "the aperture must drop a full step below the window shelf, got {:.3}",
-        shelf - floor
-    );
-    assert!(
-        (0.04..=0.12).contains(&(outside - shelf)),
-        "the window is a SHALLOW rebate in the face, got {:.3} deep",
-        outside - shelf
-    );
-    let mut wall = 0.30;
+    // And the recess is the WINDOW: the 0.40 m aperture plus ~50 mm of wall each side — the
+    // MEASURED ~0.50 m pillow of the references (module 2), not the first build's 0.85 m
+    // letterbox (an eyeballed number that lived in this very assert). There is no broad shelf
+    // on the real casting; the reveal between aperture and window wall IS the wall thickness.
+    // Measured here as the recess's outer width near face level: walk out from the centre and
+    // find where the surface climbs back to within 25 mm of the plate around the window.
+    let plate = face_z_scan(&casting, gun_y, 0.30, 0.42);
+    assert!(plate.is_finite(), "the face plate flanks the window");
+    let mut window_half = 0.10;
     for step in 0..=30 {
-        let offset = 0.30 + step as f32 * 0.01;
-        let z = face_z_at(&casting, gun_y, offset, 0.0);
+        let offset = 0.10 + step as f32 * 0.01;
+        let z = face_z_tight(&casting, gun_y, offset);
         if z.is_finite() {
-            if z >= shelf + 0.03 {
+            if z >= plate - 0.025 {
                 break;
             }
-            wall = offset;
+            window_half = offset;
         }
     }
-    let window_width = 2.0 * wall;
+    let window_width = 2.0 * window_half;
     assert!(
-        (0.76..=1.05).contains(&window_width),
-        "the window is the WIDE rectangle the eye reads — roughly 0.85 m across, got {window_width:.3}"
+        (0.42..=0.60).contains(&window_width),
+        "the window is the measured ~0.50 m pillow, got {window_width:.3}"
     );
 }
 
@@ -334,7 +378,7 @@ fn the_canvas_cover_seals_the_aperture_to_the_barrel() {
     // and swallowed past the cheeks' own front — a hem floating at face depth would read as a
     // pasted-on decal, not a fastened cover.
     let hem = cover.iter().map(|p| p.z).fold(f32::INFINITY, f32::min);
-    let shelf = face_z_at(&casting, trunnion.y, 0.30, 0.0);
+    let shelf = face_z_at(&casting, trunnion.y, 0.18, 0.0);
     let outside = casting.bounds().expect("casting bounds").max.z;
     assert!(
         hem < shelf + 0.06,
@@ -348,8 +392,8 @@ fn the_canvas_cover_seals_the_aperture_to_the_barrel() {
     // The fabric spans the window it is fastened over — panel width, not boot width.
     let half_span = cover.iter().map(|p| p.x.abs()).fold(0.0_f32, f32::max);
     assert!(
-        half_span >= 0.36,
-        "the panel must reach the window's walls, got half-span {half_span:.3}"
+        (0.20..=0.27).contains(&half_span),
+        "the panel spans the measured ~0.50 m window, got half-span {half_span:.3}"
     );
 
     // The sleeve grips the tube: the barrel is 0.098 there, so no daylight around it.
@@ -412,12 +456,18 @@ fn the_cover_frame_matches_the_window() {
         bounds.max.z
     );
 
-    // Inside the window's walls: the shelf must still be shelf just beyond the strip's corner.
-    let beyond = face_z_at(&casting, trunnion.y, bounds.max.x + 0.02, 0.0);
+    // Inside the window's walls: the shelf the strip clamps into must sit visibly DEEPER than
+    // the wall-and-cheek band just outside the strip — a strip wider than its window would sit
+    // on the wall and read as trim glued to the cheek.
+    let inside_strip = face_z_scan(&casting, trunnion.y, 0.14, 0.20);
+    let outside_strip = face_z_scan(&casting, trunnion.y, bounds.max.x + 0.02, bounds.max.x + 0.10);
     assert!(
-        beyond.is_finite() && beyond < outside - 0.02,
-        "the window must continue past the strip's edge, got face {beyond:.3} at x {:.3}",
-        bounds.max.x + 0.02
+        inside_strip.is_finite() && outside_strip.is_finite(),
+        "both sides of the strip's edge must be sampled, got {inside_strip:.3} / {outside_strip:.3}"
+    );
+    assert!(
+        outside_strip > inside_strip + 0.015,
+        "the wall must rise outside the strip over the shelf inside it, got {inside_strip:.3} -> {outside_strip:.3}"
     );
 }
 

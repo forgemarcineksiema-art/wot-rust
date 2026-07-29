@@ -84,14 +84,14 @@ fn the_visible_gun_mount_is_no_wider_than_its_canvas_cover() {
             .map(|v| v.position.x.hypot(v.position.y - trunnion_y))
             .fold(0.0_f32, f32::max)
     };
-    // The panel's fastened rectangle is 0.80 x 0.37; its half-diagonal is ~0.44 and the fabric
-    // never stands wider than what it is fastened over.
+    // The panel's fastened rectangle is the measured 0.45 x 0.37 pillow; its half-diagonal is
+    // ~0.29 and the fabric never stands wider than what it is fastened over.
     let fabric = radius_ahead(true);
     assert!(
-        fabric <= 0.47,
+        fabric <= 0.34,
         "ahead of the turret face the widest thing is the fastened panel, got fabric at {fabric:.3}"
     );
-    assert!(fabric > 0.30, "and it IS the wide panel, not a boot: {fabric:.3}");
+    assert!(fabric > 0.22, "and it IS the fastened panel, not a bare boot: {fabric:.3}");
     let steel = radius_ahead(false);
     assert!(
         steel <= 0.13,
