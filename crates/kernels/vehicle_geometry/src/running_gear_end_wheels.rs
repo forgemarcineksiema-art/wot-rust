@@ -23,7 +23,7 @@ pub fn end_wheel_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
 /// wheel with a rubber tire rim and a proud hub — a *smooth* sibling of the road wheel, so the front
 /// of the track reads as a plain wheel against the toothed drive sprocket at the rear.
 pub fn idler_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
-    let seg = kin.segments.max(20);
+    let seg = kin.segments_for(20);
     let r = kin.end_radius;
     let half_w = kin.wheel_half_width;
     MeshBuilder::new()
@@ -63,7 +63,7 @@ fn tread_band(center_x: f32, radius: f32, half_width: f32, segments: usize) -> G
 /// intersect the belt) and their count comes from the link pitch on the wrap circle, so with the
 /// wrap-radius spin the teeth and the shoes they flank visibly move together — the meshing read.
 pub fn sprocket_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
-    let seg = kin.segments.max(16);
+    let seg = kin.segments_for(16);
     let r = kin.end_radius;
     let half_w = kin.wheel_half_width;
     // The toothed rings live INSIDE the belt band: their outer face lands exactly on the

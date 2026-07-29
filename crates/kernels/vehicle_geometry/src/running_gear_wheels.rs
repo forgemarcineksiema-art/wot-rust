@@ -40,7 +40,7 @@ pub fn road_wheel_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
 /// large-hole ring, rim ring under the tyre. The bands are thin plate; the ribs stand proud of
 /// them on both faces, which is what makes the web read as a web and not as a flat gasket.
 fn spider_web_wheel(kin: &RunningGearKinematics) -> GeometryMesh {
-    let seg = kin.segments.max(22);
+    let seg = kin.segments_for(22);
     let r = kin.wheel_radius;
     let half_w = kin.wheel_half_width;
     let body_half = half_w * 0.92;
@@ -106,7 +106,7 @@ fn stiffening_rib(
 /// The openwork Soviet family face: spokes/ribs over a recessed web (T-54 starfish, IS ribs,
 /// T-34 spoked) — the original construction, now ONE of the family reads (audit #14).
 fn openwork_wheel(kin: &RunningGearKinematics) -> GeometryMesh {
-    let seg = kin.segments.max(22);
+    let seg = kin.segments_for(22);
     let r = kin.wheel_radius;
     let half_w = kin.wheel_half_width;
     let body_half = half_w * 0.92;
@@ -140,7 +140,7 @@ fn openwork_wheel(kin: &RunningGearKinematics) -> GeometryMesh {
 /// late-war steel-rimmed wheel (`rubber_tire == false`: the tire band itself is steel) and the
 /// Centurion's rubber-tired dish (`rubber_tire == true`). No openwork: the dish IS the face.
 fn dished_wheel(kin: &RunningGearKinematics, rubber_tire: bool) -> GeometryMesh {
-    let seg = kin.segments.max(22);
+    let seg = kin.segments_for(22);
     let r = kin.wheel_radius;
     let half_w = kin.wheel_half_width;
     let body_half = half_w * 0.92;
@@ -238,7 +238,7 @@ fn dish_shell(r: f32, body_half: f32, segments: usize) -> GeometryMesh {
 /// One return roller: a small rubber-rimmed carrier wheel for the top run (IS family), centred
 /// at the origin with its axle along X — a compact steel hub disc under a rubber band.
 pub fn return_roller_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
-    let seg = kin.segments.max(16);
+    let seg = kin.segments_for(16);
     let r = kin.roller_radius.max(0.05);
     let half_w = kin.wheel_half_width * 0.55;
     MeshBuilder::new()

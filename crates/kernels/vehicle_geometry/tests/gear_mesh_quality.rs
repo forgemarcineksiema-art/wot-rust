@@ -163,3 +163,63 @@ fn the_hitbox_does_not_grow_further_past_the_visible_vehicle() {
         }
     }
 }
+
+/// THE DISTANCE TIER, AS A RULE RATHER THAN A FEELING.
+///
+/// The gear is the largest body of geometry a vehicle has and it used to be drawn at full detail
+/// on every tank on the field, at every range, for the life of the battle — a 7v7 of T-54s spent
+/// 540k triangles on running gear that is four pixels tall across the map. `GearDetail` is the
+/// answer, and these are the three things that must stay true about it.
+#[test]
+fn the_distance_tier_is_the_same_gear_built_coarser() {
+    use vehicle_geometry::{GEAR_DETAIL_SWITCH_M, GearDetail, gear_detail_for_distance};
+
+    // 1. The rule is a range, and it is the same range for everyone.
+    assert_eq!(gear_detail_for_distance(0.0), GearDetail::Near);
+    assert_eq!(gear_detail_for_distance(GEAR_DETAIL_SWITCH_M - 0.1), GearDetail::Near);
+    assert_eq!(gear_detail_for_distance(GEAR_DETAIL_SWITCH_M + 0.1), GearDetail::Far);
+
+    for kind in VehicleKind::PLAYABLE {
+        let Some(near) = RunningGearKinematics::for_vehicle(kind) else { continue };
+        let far = near.at_detail(GearDetail::Far);
+
+        // 2. Every part gets cheaper, and none of them vanishes. A tier that deletes a wheel is
+        //    not a tier, it is a different tank.
+        for (name, a, b) in [
+            ("road_wheel", road_wheel_unit_mesh(&near), road_wheel_unit_mesh(&far)),
+            ("idler", idler_unit_mesh(&near), idler_unit_mesh(&far)),
+            ("sprocket", sprocket_unit_mesh(&near), sprocket_unit_mesh(&far)),
+            ("track_link", track_link_unit_mesh(&near), track_link_unit_mesh(&far)),
+        ] {
+            assert!(
+                b.triangle_count() < a.triangle_count(),
+                "{kind:?} {name}: the distant build is not cheaper ({} vs {})",
+                b.triangle_count(),
+                a.triangle_count()
+            );
+            assert!(b.triangle_count() > 0, "{kind:?} {name}: the distant build deleted the part");
+            // 3. It is the SAME part: the coarse build stays inside the fine one's envelope,
+            //    within the chord a halved ring gives up. A silhouette that grows at range is a
+            //    popping tank.
+            let (Some(fine), Some(coarse)) = (a.bounds(), b.bounds()) else { continue };
+            let slack = 0.06;
+            for axis in 0..3 {
+                assert!(
+                    coarse.max[axis] <= fine.max[axis] + slack
+                        && coarse.min[axis] >= fine.min[axis] - slack,
+                    "{kind:?} {name}: the distant build changes the silhouette on axis {axis} \
+                     ({:?} vs {:?})",
+                    coarse,
+                    fine
+                );
+            }
+        }
+
+        // And the distant build still obeys every mesh-quality rule the near one does — a
+        // cheaper mesh is not licence to ship a broken one.
+        audit(&road_wheel_unit_mesh(&far), &format!("far gear {kind:?} road_wheel"));
+        audit(&track_link_unit_mesh(&far), &format!("far gear {kind:?} track_link"));
+        audit(&sprocket_unit_mesh(&far), &format!("far gear {kind:?} sprocket"));
+        audit(&idler_unit_mesh(&far), &format!("far gear {kind:?} idler"));
+    }
+}

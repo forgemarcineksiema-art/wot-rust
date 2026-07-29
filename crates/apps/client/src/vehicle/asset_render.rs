@@ -68,6 +68,9 @@ pub fn tank_vehicle_render_objects_with_tracks(
             right_break_t: snapshot.track_break_t[1],
             ..Default::default()
         },
+        // Every caller of this wrapper is looking AT the vehicle — the garage, the probes, the
+        // review harnesses. The battle path calls the posed form below with the real range.
+        vehicle_geometry::GearDetail::Near,
     )
 }
 
@@ -83,6 +86,7 @@ pub fn tank_vehicle_render_objects_posed(
     track_right_m: f32,
     attitude: [f32; 3],
     gear_dynamics: GearDynamics<'_>,
+    gear_detail: vehicle_geometry::GearDetail,
 ) -> Vec<RenderObject> {
     catalog.integrate_one_damage_mesh();
     // The interior's Damaged/Burning variants key the per-instance skin: which module slots are
@@ -186,6 +190,7 @@ pub fn tank_vehicle_render_objects_posed(
             track_right_m,
             gear_dynamics,
             tint,
+            gear_detail,
         ));
     }
 

@@ -24,6 +24,47 @@ pub const VEHICLE_BUDGETS: VehicleBudgets = VehicleBudgets {
     vehicle_vert_max: 11_000,
 };
 
+/// What the instanced RUNNING GEAR is allowed to cost, per vehicle, per detail tier.
+///
+/// `VEHICLE_BUDGETS` above bounds the static bake and says plainly that the gear is excluded —
+/// correct for what it guards, and it meant the largest single body of geometry on a vehicle had
+/// no ceiling at all. A T-54 draws 38.6k gear triangles across 204 instances: more than twice its
+/// whole static bake, and until now nothing could tell you if that number grew.
+///
+/// Two ceilings, because a distance tier that saves nothing is a rename. `far_tri_max` is not
+/// just "smaller"; the ratio between the two is what makes the tier worth its complexity, and
+/// `FAR_MUST_SAVE_FRACTION` states the minimum it has to earn.
+#[derive(Debug, Clone, Copy)]
+pub struct GearBudgets {
+    /// Triangles the gear may draw at [`crate::GearDetail::Near`], per vehicle.
+    pub near_tri_max: usize,
+    /// Triangles at [`crate::GearDetail::Far`], per vehicle.
+    pub far_tri_max: usize,
+    /// Draw instances per vehicle, either tier (the tier changes meshes, never placements).
+    pub instances_max: usize,
+}
+
+/// Recorded 2026-07-29 (PR-21), with the fleet's worst vehicle at each line and a hand of
+/// headroom for the construction work W4 is about to do:
+///
+/// | vehicle | near | far | saved |
+/// |---|---:|---:|---:|
+/// | T-54 | 38,568 | 15,092 | 61% |
+/// | IS-3 | 38,448 | 15,448 | 60% |
+/// | Jagdtiger | 26,392 | 13,788 | 48% |
+/// | T-34-85 | 19,800 | 9,420 | 52% |
+///
+/// The near ceiling is deliberately close to today's worst. W4 adds real construction to these
+/// parts (OMSh hinge eyes, twin tyres, sprocket engagement) and it must PAY for it — PR-22 alone
+/// removes 11,520 triangles per tank that are currently buried inside the link's backing slab and
+/// render nothing.
+pub const GEAR_BUDGETS: GearBudgets =
+    GearBudgets { near_tri_max: 40_000, far_tri_max: 17_000, instances_max: 260 };
+
+/// The distance tier must remove at least this share of the gear's triangles, or it is not
+/// earning the second mesh set it costs to keep.
+pub const FAR_MUST_SAVE_FRACTION: f32 = 0.40;
+
 /// Golden procedural bake hashes. Re-record only after an intentional geometry change and visual
 /// review. The 2026-07-18 fleet re-record removes the fused track band from every blueprint hull;
 /// its overlap skin now rides in the animated link mesh and therefore does not affect these hashes.

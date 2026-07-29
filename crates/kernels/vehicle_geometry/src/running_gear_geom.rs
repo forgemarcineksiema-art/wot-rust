@@ -15,6 +15,9 @@ const SG_HARD: SmoothingGroup = SmoothingGroup::hard_edges();
 /// across three nations, so the Germans, the Centurion and the T-34 read as wearing the
 /// T-54's track. Negative Y is the wheel side (guide horns); positive Y the ground face.
 pub fn track_link_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
+    if kin.detail == crate::GearDetail::Far {
+        return distant_link(kin);
+    }
     let shoe = match kin.shoe {
         game_core::ShoePattern::Omsh => omsh_link(kin),
         game_core::ShoePattern::Kgs => kgs_link(kin),
@@ -35,6 +38,34 @@ pub fn track_link_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
             pitch * 0.56,
         ))
         .append(&shoe)
+        .build()
+}
+
+/// At range a shoe IS its plate.
+///
+/// Every pattern above is a plate plus features that distinguish it — the OMSh guide pads and
+/// edge rails, the Kgs centre horn and grousers, the waffle's ridges, the Centurion's twin horns.
+/// All of them are under 50 mm on a shoe that is a fifth of a metre long, and there are 180 shoes
+/// per tank: the belt alone is 23k of a T-54's 38.6k gear triangles, sixty per cent of the
+/// largest body of geometry on the vehicle. It is the first thing a distance tier should spend.
+///
+/// The plate and the backing skin stay, because those are the belt's silhouette and the belt's
+/// silhouette is what you still see at 60 m.
+fn distant_link(kin: &RunningGearKinematics) -> GeometryMesh {
+    let pitch = kin.belt_length() / kin.link_count().max(1) as f32;
+    MeshBuilder::new()
+        .append(&box_prism(
+            Vec3::new(0.0, -0.038, 0.0),
+            kin.band_half_width * 0.96,
+            0.012,
+            pitch * 0.56,
+        ))
+        .append(&box_prism(
+            Vec3::new(0.0, -0.004, 0.0),
+            kin.band_half_width,
+            0.026,
+            kin.link_half_length(),
+        ))
         .build()
 }
 

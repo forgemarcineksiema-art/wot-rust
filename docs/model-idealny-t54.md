@@ -125,7 +125,8 @@ loop (`tools export-mesh` → overlay on master → cross-section diff = numeric
   track 580 + gauge decision + link pitch (PR-18; the dampers once planned here are struck — see
   M8); fender asymmetry + SG-43 + MDSh + travel-lock removal (PR-19).
 - **W4 Mechanical logic (PR-21..27, parallel with W3, PR-21 first):** gear budget + LOD enabler
-  (PR-21); OMSh link anatomy (PR-22); road wheel construction (PR-23); sprocket/idler engagement
+  (PR-21 — DONE: `GEAR_BUDGETS` per tier + `GearDetail::Far` saving 47-61% past 60 m, and
+  the blueprint's dead `segments` knob revived); OMSh link anatomy (PR-22); road wheel construction (PR-23); sprocket/idler engagement
   (PR-24); muzzle truth + cradle (PR-25); exterior mechanics — hinges, handles, headlight
   forward, hooks, thimbles, louvres, bolts, casting seam, DShK on the hatch ring (PR-26);
   blueprint-driven swing arm (PR-27).

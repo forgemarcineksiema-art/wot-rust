@@ -155,7 +155,7 @@ pub fn thrown_remnant_objects(
         .iter()
         .map(|placement| renderer_api::RenderObject {
             tank_id: Some(tank_id),
-            mesh: gear.link,
+            mesh: gear.near.link,
             material: entry.material,
             transform: (hull_transform * placement.transform).to_cols_array_2d(),
             tint: SHED_STEEL_TINT,
@@ -181,7 +181,7 @@ pub fn ribbon_render_objects(
         .iter()
         .map(|transform| renderer_api::RenderObject {
             tank_id: Some(ribbon.tank_id),
-            mesh: gear.link,
+            mesh: gear.near.link,
             material: entry.material,
             transform: transform.to_cols_array_2d(),
             tint: SHED_STEEL_TINT,

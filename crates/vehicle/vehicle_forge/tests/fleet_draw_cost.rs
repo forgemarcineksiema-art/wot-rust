@@ -6,9 +6,10 @@
 //! the GPU draws. Road wheels, swing arms, idler, sprocket and every shoe link are real
 //! triangles, instanced per side, and nothing wrote their total down.
 //!
-//! This file writes it down. It asserts almost nothing on purpose: it PRINTS the per-vehicle and
-//! whole-battle table so a density decision (how dense may the fleet get before vehicle LOD stops
-//! being optional?) is taken against a measurement instead of an estimate.
+//! This file writes it down — and since PR-21 it also GUARDS it. The measurement came first and
+//! the ceiling came from the measurement (`GEAR_BUDGETS`), which is the right order; what changed
+//! is that the number can no longer grow without someone saying so. It also holds the distance
+//! tier to account: a `Far` mesh set that saves little is a second mesh set for nothing.
 //!
 //! It lives in `vehicle_forge`, not in `vehicle_geometry`, so it can resolve each vehicle through
 //! [`authoritative_baked_vehicle`] — the mesh the game actually draws. Measured from
@@ -19,8 +20,9 @@
 use game_core::VehicleKind;
 use vehicle_forge::authoritative_baked_vehicle;
 use vehicle_geometry::{
-    GearPart, RunningGearKinematics, idler_unit_mesh, road_wheel_unit_mesh,
-    running_gear_placements, sprocket_unit_mesh, swing_arm_unit_mesh, track_link_unit_mesh,
+    FAR_MUST_SAVE_FRACTION, GEAR_BUDGETS, GearDetail, GearPart, RunningGearKinematics,
+    idler_unit_mesh, return_roller_unit_mesh, road_wheel_unit_mesh, running_gear_placements,
+    sprocket_unit_mesh, swing_arm_unit_mesh, track_link_unit_mesh,
 };
 
 /// A 7v7 battle: the fleet size the game is designed around.
@@ -29,51 +31,67 @@ const BATTLE_TANKS: usize = 14;
 struct Cost {
     static_tris: usize,
     gear_tris: usize,
+    far_gear_tris: usize,
     gear_instances: usize,
+}
+
+/// What the gear costs to draw at one detail tier: every instance resolved to its unit mesh.
+fn gear_tris(kin: &RunningGearKinematics) -> usize {
+    let wheel = road_wheel_unit_mesh(kin).triangle_count();
+    let link = track_link_unit_mesh(kin).triangle_count();
+    let arm = swing_arm_unit_mesh(kin).triangle_count();
+    let idler = idler_unit_mesh(kin).triangle_count();
+    let sprocket = sprocket_unit_mesh(kin).triangle_count();
+    let roller = return_roller_unit_mesh(kin).triangle_count();
+    running_gear_placements(kin, 0.0, 0.0)
+        .iter()
+        .map(|placement| match placement.part {
+            GearPart::RoadWheel => wheel,
+            GearPart::Link => link,
+            GearPart::SwingArm => arm,
+            GearPart::Idler => idler,
+            GearPart::Sprocket => sprocket,
+            GearPart::ReturnRoller => roller,
+        })
+        .sum()
 }
 
 fn draw_cost(kind: VehicleKind) -> Cost {
     let baked = authoritative_baked_vehicle(kind).expect("shipped bake");
     let static_tris = baked.submeshes().iter().map(|s| s.mesh.triangle_count()).sum();
 
-    let (mut gear_tris, mut gear_instances) = (0, 0);
+    let (mut near, mut far, mut instances) = (0, 0, 0);
     if let Some(kin) = RunningGearKinematics::for_vehicle(kind) {
-        let wheel = road_wheel_unit_mesh(&kin).triangle_count();
-        let link = track_link_unit_mesh(&kin).triangle_count();
-        let arm = swing_arm_unit_mesh(&kin).triangle_count();
-        let idler = idler_unit_mesh(&kin).triangle_count();
-        let sprocket = sprocket_unit_mesh(&kin).triangle_count();
-        for placement in running_gear_placements(&kin, 0.0, 0.0) {
-            gear_instances += 1;
-            gear_tris += match placement.part {
-                GearPart::RoadWheel => wheel,
-                GearPart::Link => link,
-                GearPart::SwingArm => arm,
-                GearPart::Idler => idler,
-                GearPart::Sprocket => sprocket,
-                _ => 0,
-            };
-        }
+        near = gear_tris(&kin);
+        far = gear_tris(&kin.at_detail(GearDetail::Far));
+        instances = running_gear_placements(&kin, 0.0, 0.0).len();
     }
-    Cost { static_tris, gear_tris, gear_instances }
+    Cost { static_tris, gear_tris: near, far_gear_tris: far, gear_instances: instances }
 }
 
 #[test]
 fn the_measured_draw_cost_of_every_vehicle_and_of_a_full_battle() {
     println!(
-        "\n| vehicle | static tris | gear tris | gear draws | TOTAL | x{BATTLE_TANKS} (7v7) |"
+        "\n| vehicle | static | gear near | gear far | saved | draws | TOTAL | x{BATTLE_TANKS} |"
     );
-    println!("|---|---:|---:|---:|---:|---:|");
+    println!("|---|---:|---:|---:|---:|---:|---:|---:|");
     let (mut lightest, mut heaviest) = (usize::MAX, 0usize);
     for kind in VehicleKind::PLAYABLE {
         let cost = draw_cost(kind);
         let total = cost.static_tris + cost.gear_tris;
         lightest = lightest.min(total);
         heaviest = heaviest.max(total);
+        let saved = if cost.gear_tris == 0 {
+            0.0
+        } else {
+            1.0 - cost.far_gear_tris as f32 / cost.gear_tris as f32
+        };
         println!(
-            "| `{kind:?}` | {} | {} | {} | **{total}** | {} |",
+            "| `{kind:?}` | {} | {} | {} | {:.0}% | {} | **{total}** | {} |",
             cost.static_tris,
             cost.gear_tris,
+            cost.far_gear_tris,
+            saved * 100.0,
             cost.gear_instances,
             total * BATTLE_TANKS
         );
@@ -97,4 +115,60 @@ fn the_measured_draw_cost_of_every_vehicle_and_of_a_full_battle() {
         "no vehicle's instanced running gear reaches a quarter of its static bake — the budget \
          table would then describe the real cost on its own"
     );
+}
+
+/// The ceiling the table above earned. Every vehicle stays inside `GEAR_BUDGETS` at both tiers,
+/// and the distant tier actually saves what it exists to save.
+#[test]
+fn every_vehicles_running_gear_stays_inside_its_budget() {
+    for kind in VehicleKind::PLAYABLE {
+        let cost = draw_cost(kind);
+        if cost.gear_tris == 0 {
+            continue;
+        }
+        assert!(
+            cost.gear_tris <= GEAR_BUDGETS.near_tri_max,
+            "{kind:?}: {} gear triangles up close, past the {} ceiling — the running gear is the \
+             largest body of geometry on the vehicle and it is now spent deliberately",
+            cost.gear_tris,
+            GEAR_BUDGETS.near_tri_max
+        );
+        assert!(
+            cost.far_gear_tris <= GEAR_BUDGETS.far_tri_max,
+            "{kind:?}: {} gear triangles at range, past the {} ceiling",
+            cost.far_gear_tris,
+            GEAR_BUDGETS.far_tri_max
+        );
+        assert!(
+            cost.gear_instances <= GEAR_BUDGETS.instances_max,
+            "{kind:?}: {} gear draw instances, past the {} ceiling",
+            cost.gear_instances,
+            GEAR_BUDGETS.instances_max
+        );
+
+        let saved = 1.0 - cost.far_gear_tris as f32 / cost.gear_tris as f32;
+        assert!(
+            saved >= FAR_MUST_SAVE_FRACTION,
+            "{kind:?}: the distant tier saves only {:.0}% ({} -> {}) — a second mesh set has to \
+             earn the memory and the switch it costs",
+            saved * 100.0,
+            cost.gear_tris,
+            cost.far_gear_tris
+        );
+
+        // The tier changes MESHES, never placements: a tank at range stands in the same place, on
+        // the same number of wheels, as one up close.
+        let kin = RunningGearKinematics::for_vehicle(kind).expect("gear");
+        let near = running_gear_placements(&kin, 0.0, 0.0);
+        let far = running_gear_placements(&kin.at_detail(GearDetail::Far), 0.0, 0.0);
+        assert_eq!(near.len(), far.len(), "{kind:?}: the detail tier moved the draw list");
+        for (a, b) in near.iter().zip(far.iter()) {
+            assert_eq!(a.part, b.part);
+            assert!(
+                (a.transform.w_axis - b.transform.w_axis).length() < 1.0e-5,
+                "{kind:?}: a {:?} sits somewhere else at range",
+                a.part
+            );
+        }
+    }
 }

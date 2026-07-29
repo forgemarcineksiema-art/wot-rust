@@ -35,7 +35,7 @@ pub fn swing_arm_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
 }
 
 fn torsion_arm_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
-    let seg = kin.segments.max(12);
+    let seg = kin.segments_for(12);
     let tip = Vec2::new(-ARM_RISE_M, -ARM_REACH_M);
     let along = tip.normalize_or_zero();
     let across = Vec2::new(-along.y, along.x);
@@ -61,7 +61,7 @@ fn torsion_arm_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
 /// itself is internal, so drawing the fleet's generic trailing torsion arm here would advertise the
 /// wrong mechanism.
 fn christie_crank_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
-    let seg = kin.segments.max(12);
+    let seg = kin.segments_for(12);
     let tip = Vec2::new(-CHRISTIE_RISE_M, -CHRISTIE_REACH_M);
     let along = tip.normalize_or_zero();
     let across = Vec2::new(-along.y, along.x);
@@ -123,7 +123,7 @@ fn horstmann_bogie_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
                 smoothing: SG_HARD,
             },
         )
-        .append(&stub(Vec3::new(0.0, 0.055, 0.0), 0.075, ARM_HALF_X * 2.0, kin.segments.max(12)))
+        .append(&stub(Vec3::new(0.0, 0.055, 0.0), 0.075, ARM_HALF_X * 2.0, kin.segments_for(12)))
         .build()
 }
 

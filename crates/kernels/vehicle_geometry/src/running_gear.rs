@@ -83,7 +83,44 @@ pub struct RunningGearKinematics {
     /// Y of the return-roller axles: the roller top carries the belt's top run.
     pub roller_y: f32,
     pub segments: usize,
+    /// How finely this gear is built. Every generator asks [`Self::segments_for`] rather than
+    /// reading `segments` directly, so one field switches the whole running gear between the
+    /// authored construction and the distant one.
+    pub detail: GearDetail,
     link_count: usize,
+}
+
+/// How finely the running gear is built.
+///
+/// The gear is the largest single body of geometry on a vehicle — on a T-54 it is 38.6k
+/// triangles across 204 instances, more than twice the whole static bake — and until this existed
+/// it was drawn at full detail at every range, on every tank on the field, for the life of the
+/// battle. A 7v7 spent 540k triangles on running gear that is four pixels tall at the far side of
+/// the map.
+///
+/// `Far` is not a different mesh. It is the SAME construction with the tessellation and the
+/// surface detail a viewer at that range cannot resolve taken out, so a wheel that is a
+/// spider-web disc up close is still a spider-web disc at 80 m — just built out of fewer
+/// triangles. Nothing about the silhouette changes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum GearDetail {
+    /// The authored construction: what the blueprint asks for, what the studio tiles show.
+    #[default]
+    Near,
+    /// The same parts, coarsely: half the ring segments and no sub-shoe surface detail.
+    Far,
+}
+
+/// Range past which a vehicle's running gear switches to [`GearDetail::Far`].
+///
+/// Chosen from what a shoe link actually subtends: a 0.14 m detail box on a 1080p screen with a
+/// 60 degree field of view crosses one pixel at about 55 m. Sixty gives a hand of margin, and it
+/// sits well outside the range where a player is reading a tank's suspension.
+pub const GEAR_DETAIL_SWITCH_M: f32 = 60.0;
+
+/// Which detail tier a vehicle at `distance_m` from the camera draws its gear at.
+pub fn gear_detail_for_distance(distance_m: f32) -> GearDetail {
+    if distance_m > GEAR_DETAIL_SWITCH_M { GearDetail::Far } else { GearDetail::Near }
 }
 
 impl RunningGearKinematics {
@@ -153,6 +190,7 @@ impl RunningGearKinematics {
             roller_radius: track.roller_radius,
             roller_y: track.top_y - track.roller_radius,
             segments: track.segments.max(12),
+            detail: GearDetail::Near,
             link_count,
         }
     }
@@ -166,6 +204,31 @@ impl RunningGearKinematics {
     /// Number of shoe links around the loop.
     pub fn link_count(&self) -> usize {
         self.link_count
+    }
+
+    /// This same gear, built for distance. The belt path, the wheel positions and every
+    /// dimension are untouched — only how finely the parts are tessellated changes, so a
+    /// far-detail tank stands in exactly the same place as a near one.
+    pub fn at_detail(&self, detail: GearDetail) -> Self {
+        Self { detail, ..self.clone() }
+    }
+
+    /// Ring segments for a part whose construction needs at least `floor` of them to read as
+    /// round at all.
+    ///
+    /// Every generator used to write `kin.segments.max(floor)`, which meant the authored
+    /// `segments` knob in the blueprint did nothing on any vehicle: every floor (22 on a wheel,
+    /// 20 on an idler, 16 on a sprocket, 12 on an arm) already sat above the 14 the RON asked
+    /// for. The knob was dead data. Now the floor is the part's own minimum, the blueprint can
+    /// raise it, and the detail tier scales the result.
+    pub fn segments_for(&self, floor: usize) -> usize {
+        let full = self.segments.max(floor);
+        match self.detail {
+            GearDetail::Near => full,
+            // Half the ring. The absolute floor is where a disc stops reading as a disc at all;
+            // at the switch range an eight-sided wheel is indistinguishable from a round one.
+            GearDetail::Far => (full / 2).max(8),
+        }
     }
 
     /// Half-length of one shoe link along the belt. Links nearly fill their spacing (only a thin

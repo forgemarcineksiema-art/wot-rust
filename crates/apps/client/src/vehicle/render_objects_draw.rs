@@ -60,6 +60,9 @@ pub fn tank_render_objects(
             0.0,
             vehicle_geometry::GearDynamics::default(),
             hull_tint,
+            // This path exists to LOOK at the vehicle (lineups, probes), so it never reaches for
+            // the distance tier.
+            vehicle_geometry::GearDetail::Near,
         ));
     }
 
