@@ -4,7 +4,7 @@
 //! decals or heavy weathering (that finish belongs to the material layer, not the geometry).
 //!
 //! Dimensions are the documented T-54 obr. 1951 at 1:1 (see `data.rs`): ground clearance 0.43,
-//! track band 1.06..1.63 per side, the LOW hull roof at 1.58, the tall cast dome from the 1.58
+//! track band 1.03..1.61 per side, the LOW hull roof at 1.58, the tall cast dome from the 1.58
 //! ring seat up to 2.27, cupola apex ~2.40, gun axis on the documented 1.78 fire line, muzzle
 //! z 5.95.
 
@@ -73,8 +73,11 @@ pub(super) fn t54_hybrid(hull: &HullShape, armor: &ArmorShape) -> HybridVisual {
 
     HybridVisual {
         hull: HullVisual {
-            // The narrow ~2.1 m box between fully exposed tracks — no overhanging sponsons.
-            half_width: 1.05,
+            // The narrow box between fully exposed tracks — no overhanging sponsons. Its width
+            // is the GAMEPLAY hull's, not a second copy of it: the tub has to fit the space the
+            // documented gauge and track width leave, and a duplicate of that number is a
+            // number that is about to disagree with itself.
+            half_width: hull.half_width,
             // Length and belly come from the GAMEPLAY hull, not from a second copy beside it.
             // They were duplicated here, and a duplicate of a dimension is a dimension that is
             // about to disagree with itself.
@@ -192,14 +195,20 @@ pub(super) fn t54_hybrid(hull: &HullShape, armor: &ArmorShape) -> HybridVisual {
             center: Vec3::new(0.0, 1.53, (-hull.half_len + DECK_REAR_GAP_M - 0.80) * 0.5),
             half: Vec3::new(0.95, 0.06, (0.80 - hull.half_len + DECK_REAR_GAP_M).abs() * 0.5),
         },
-        // The fender shelf rides over the 1.06..1.63 track band at 1.12 — the primary kit line of
+        // The fender shelf rides over the 1.03..1.61 track band at 1.12 — the primary kit line of
         // the vehicle (stowage, fuel tanks and the exhaust all live on it), with sloping end
         // sections over the idler and sprocket added by the detail pass.
+        //
+        // It is CENTRED on the belt (the blueprint lint holds it there — one number, one
+        // truth) and reaches out to 1.635, which is the documented 3.27 m over the fenders. So
+        // it covers the 0.58 m belt and overhangs it by the 25 mm each side that turns 3.220
+        // over the tracks into 3.270 over the vehicle. Both numbers are the dossier's; the
+        // shelf is what reconciles them, and its inner edge tucks behind the tub side.
         fender: FenderVisual {
-            side_x: 1.345,
+            side_x: 1.32,
             center_y: 1.12,
             // The shelf runs the length of the hull, short of each end plate.
-            half: Vec3::new(0.29, 0.02, hull.half_len - FENDER_END_GAP_M),
+            half: Vec3::new(0.315, 0.02, hull.half_len - FENDER_END_GAP_M),
         },
         // The running gear (wheels, idler, sprocket, links) has no hybrid-visual copy: the animated
         // path reads the blueprint's `TrackShape` directly (`vehicle_geometry::RunningGearKinematics`).

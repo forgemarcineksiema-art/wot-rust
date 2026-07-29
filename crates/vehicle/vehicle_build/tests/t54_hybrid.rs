@@ -202,10 +202,16 @@ fn the_shipped_hybrid_matches_its_recorded_golden() {
     // canvas boot closes it to the tube, and `cast_loft` refines its azimuth grid over the
     // aperture instead of the whole dome carrying the resolution — so the casting is CHEAPER
     // (1,296 tris against 2,304 at the ring count that failed to sharpen it) and sharper.
-    // Previous: 0x8f18_a4aa_f291_5175 (PR-16, the cupola at 624);
+    //
+    // And again in PR-18, for the documented running gear: a 580 mm belt on the 2.640 m gauge,
+    // 90 links at the documented 137 mm pitch, a wrap on the sprocket's own 572.4 mm pitch
+    // circle (which drops the tooth count to the documented 13 without anyone typing 13), the
+    // 3.840 m ground-contact base, and a tub narrowed to the 2.060 m that gauge leaves it.
+    // Previous: 0xef40_8214_00ae_a9e4 (PR-17, the mantlet goes inside);
+    //           0x8f18_a4aa_f291_5175 (PR-16, the cupola at 624);
     //           0xf490_f9f1_fe07_3049 (PR-14, the hull at 6.235);
     //           0x903d_b868_b9bf_e617 (PR-25, a muzzle is a hole).
-    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0xef40_8214_00ae_a9e4;
+    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0x7108_fd58_f651_b2c3;
     let baked = t54_description().build();
     assert_eq!(
         baked.deterministic_hash(),

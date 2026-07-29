@@ -20,7 +20,7 @@ pub(crate) fn t54_line_kit_parts(v: &HybridVisual, glacis_deg: f32) -> Vec<Vehic
 
 /// The unditching beam: the log carried horizontally across the lower rear plate, as the
 /// references' rear/top views show. Steel-strapped dark timber at this fidelity. Its ends stop
-/// WELL inside the hull side planes (±1.05) and the log floats a hand off the raked rear plate —
+/// WELL inside the hull side planes (±1.03) and the log floats a hand off the raked rear plate —
 /// any coplanar contact with the hull z-fights as the camera moves.
 fn unditching_beam(v: &HybridVisual) -> VehiclePart {
     let profile = [(-0.95_f32, 0.0_f32), (-0.95, 0.10), (0.95, 0.10), (0.95, 0.0)];

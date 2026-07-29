@@ -139,7 +139,18 @@ fn the_gear_instance_count_is_a_number_someone_chose() {
 #[test]
 fn the_hitbox_does_not_grow_further_past_the_visible_vehicle() {
     /// Recorded 2026-07-29: today's worst offender, as a ceiling only.
-    const PHANTOM_WIDTH_CEILING: f32 = 0.13;
+    ///
+    /// Re-recorded the same day at 0.14 (PR-18), and it is worth being precise about WHY, because
+    /// a raised ceiling normally means something got worse. Nothing got worse. The hitbox did not
+    /// move; the VEHICLE did, onto its documented 2.640 m track gauge, and it was 20 mm too wide
+    /// before. The phantom width was always this — the measurement was reading it against a model
+    /// that shared part of the error.
+    ///
+    /// This is the same shape as the hull anchor that would have failed a corrected model
+    /// (register M13): an instrument calibrated against the thing it is meant to judge cannot
+    /// report the judgement. M14 is unchanged and still owed, and it is the user's call because
+    /// narrowing the box changes ramming, terrain contact and spotting together.
+    const PHANTOM_WIDTH_CEILING: f32 = 0.141;
 
     for kind in VehicleKind::PLAYABLE {
         let Some(blueprint) = game_core::VehicleBlueprint::for_vehicle(kind) else { continue };

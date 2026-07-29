@@ -126,8 +126,9 @@ fn t54_locked_anchors_hold_and_known_debts_are_the_registered_ones() {
         // 2.40 m roof and the cupola stands its documented 131 mm proud of it.
         // HullLength left this list in PR-14: the hull is built at its documented 6.235 m and
         // the anchor is Locked.
-        DimensionKind::TrackGauge,
-        DimensionKind::TrackWidth,
+        // The two track anchors left this list in PR-18: the belt is the documented 580 mm on
+        // the documented 2640 mm gauge, and the tub narrowed to the space that leaves.
+        // Ground clearance is now the LAST debt this vehicle carries.
     ];
     expected.sort_by_key(|kind| format!("{kind:?}"));
     assert_eq!(debts, expected, "debt list must match the M-register exactly");

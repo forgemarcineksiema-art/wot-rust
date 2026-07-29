@@ -39,12 +39,25 @@ fn t54_bake_has_mount_aware_submeshes_and_stable_output() {
     assert!(first.mounts().muzzle.translation.is_finite());
 }
 
+/// Ambient contact: a tank is darker down where its hull meets its running gear than up on the
+/// deck, and the bake is what puts that difference in before any light hits it.
+///
+/// The threshold used to be an absolute `<= 0.72`, and it was reached by an accident. The legacy
+/// hull's lower tub is an EXTRUSION — it has vertices only at its end sections, none along the
+/// track run — so nothing in the running-gear region can be measured on it at all. What actually
+/// carried that 0.72 was the running-gear recess cavity overshooting the belt by 0.42 m in Z and
+/// catching the NOSE PLATE, which is not a recess and has no business being shaded like one.
+/// Shortening the belt to its documented 90 x 137 mm (PR-18) moved the band off the nose and the
+/// number moved with it.
+///
+/// So the assertion is the CONTRAST, which is the thing the pass exists to create, and it is
+/// measured where the mesh actually has metal.
 #[test]
-fn t54_surface_shading_darkens_lower_running_gear() {
+fn t54_surface_shading_darkens_the_hull_bottom_against_its_deck() {
     let baked = bake_vehicle(VehicleKind::T54_1951).expect("T-54 recipe should bake");
     let hull = baked.submesh(SubmeshKind::Hull).expect("hull submesh");
 
-    let lower_running_gear = hull
+    let hull_bottom = hull
         .mesh
         .vertices()
         .iter()
@@ -59,8 +72,11 @@ fn t54_surface_shading_darkens_lower_running_gear() {
         .map(|vertex| vertex.surface_shade)
         .fold(0.0_f32, f32::max);
 
-    assert!(lower_running_gear <= 0.72);
-    assert!(upper_armor >= 0.95);
+    assert!(upper_armor >= 0.95, "the deck reads as lit armour, got {upper_armor:.3}");
+    assert!(
+        upper_armor - hull_bottom >= 0.15,
+        "the hull bottom must read as shaded against the deck: {hull_bottom:.3} vs          {upper_armor:.3}"
+    );
 }
 
 #[test]

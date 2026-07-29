@@ -46,6 +46,12 @@ document becomes history.
   its azimuth grid over the footprint of any bump too narrow for the grid, and only there. The
   dome went back to 64 segments, costs **1,296** tris, and the aperture measures 0.420. A soft
   cast swell asks for nothing and pays nothing.
+- **Open decision #2 (track gauge) resolved by the dossier's own arithmetic (PR-18).** The
+  question was whether to keep the 2.690 gauge or narrow the tub, because at 580 mm of belt the
+  inner edge lands inside a 1.05 hull. The documented set answers it: gauge 2.640 + track 0.580 =
+  3.220 over the tracks, and the fender shelf already sat where 25 mm of overhang each side makes
+  the documented 3.270 over the fenders. So the gauge is right and the TUB was wrong — 2.640 less
+  0.580 leaves 2.060 m of clear space, and the box is 1.03 each side.
 - **A second defect the aperture exposed (PR-17).** Shrinking the mantlet patch to the size of
   the real hole showed that it was never centred where its comment said. The dome projected the
   patch centre onto each sector plane ALONG THE PLANE'S NORMAL; a dome's sector plane is tangent
@@ -94,12 +100,12 @@ loop (`tools export-mesh` → overlay on master → cross-section diff = numeric
 | M6 | Gun arc global −8/+20 vs real −5/+18 per vehicle | `aiming.rs:6-8` | W2/PR-10 |
 | M7 | Symmetric fenders vs real asymmetry; missing SG-43 port and 2× MDSh | `t54_kit.rs:40-49` | W3/PR-19 |
 | M8 | Wheel disc pattern generic 6 spokes vs the documented **spider-web** stamping (12 ribs, 12+12 lightening holes) — S1b corrected the earlier "5-arm starfish" assumption: starfish is a later/rebuild wheel; doubled swing arms (F5). **Struck 2026-07-29: "no visible dampers st. 1+5" was wrong** — the T-54's hydraulic dampers are VANE type acting on the inboard end of the balance-arm shaft, inside the hull; nothing of them is visible from outside, so the honest exterior is bare hull side and no geometry is owed | RON `wheel_spokes: 6`; `t54_chassis.rs:44-64`; dossier "Part construction"; ru.wikipedia / armor.kiev.ua suspension description | W2/PR-12 (done) + W3/PR-18 |
-| M9 | Track 570 vs 580 mm; gauge 2690 vs 2640 (side-clearance arithmetic — open decision); **link pitch 142 vs 137 mm and wrap radius 0.32 vs a 0.286 m pitch circle**, which together derive 14 sprocket teeth per ring where the T-54 has 13 (14 is the modernised T-55 / Obj. 167 wheel) — the count follows the belt, so it lands with the track dimensions | RON track fields; `the_t54_tooth_count_records_the_belt_it_has_to_mesh_with` | W3/PR-18 |
+| M9 | ~~Track 570/gauge 2690/pitch 142/14 teeth~~ **CLOSED (PR-18)**: belt 0.580 on the documented 2.640 gauge, base 3.840, and `end_z` solved (2.66 → 2.590) so 90 links come out at the documented 0.1370 m pitch. The tooth count fell to 13 on its own — it is the number of pitches around the wrap, and the wrap is now the sprocket's documented ⌀572.4 pitch circle. The tub narrowed to the 2.060 m the gauge leaves it | RON track fields; `dimension_gate` TrackWidth + TrackGauge **Locked** | W3/PR-18 DONE |
 | M10 | Deck travel lock authored with zero reference citation (real obr. 1951: likely none) | `t54_kit_lines.rs:47-72` | W3/PR-19 after S2 |
 | M11 | `barrel_length_m` D-10T 5.0 vs D-10T2S 5.9 — same real tube L/53.5 ≈ 5.35; upgrade falsely stretches the silhouette | `catalog_soviet.rs:230,252` | W1/PR-07 |
 | M12 | RON slope drift: T-54 rear 8° visual vs 5° armor; **Panther II turret 11° vs 20°** (fleet-wide defect class) | 2026-07-28 probe | W1/PR-06 |
 | M13 | Workshop lies: anchors fit-to-model (hull 6.04±0.15 — a corrected model would FAIL), citations to a doc with no numbers, mirrored studio tiles, fast loop bakes the non-shipping mesh, wheel measurement is a tautology | Forge audit; `packs.rs:99-146` | W0/PR-01..03 |
-| M14 | Hitbox +12% wider than the outermost armor volume (1.75 vs 1.63) — phantom ram/movement width | `all_vehicles.rs:79-91` | open decision |
+| M14 | Hitbox wider than the outermost armor volume (1.75 vs 1.61) — phantom ram/movement width. **The number moved to 0.141 m in PR-18 and nothing got worse**: the hitbox did not move, the VEHICLE did, onto its documented 2.640 m gauge. The phantom width was always this; the lint had been reading it against a model that shared part of the error | `all_vehicles.rs:79-91`; `the_hitbox_does_not_grow_further_past_the_visible_vehicle` | open decision — **user owns it** (narrowing the box changes ramming, terrain contact and spotting together) |
 
 ## Register K — per-part construction deviations
 
@@ -156,8 +162,10 @@ loop (`tools export-mesh` → overlay on master → cross-section diff = numeric
 ## Open decisions
 
 1. M14 hitbox 1.75 vs 1.63 (gameplay: ram/movement) — owner: user.
-2. Track gauge 2690 vs 2640: at 580 mm the inboard edge (1.035) collides with the 1.05 tub —
-   keep gauge or narrow the lower tub; resolved by S1/S2 cross-section drawings.
+2. ~~Track gauge 2690 vs 2640~~ **RESOLVED (PR-18), and by the dossier rather than by a
+   drawing**: gauge 2.640 + track 0.580 = 3.220 over the tracks, and the fender shelf already
+   sat where 25 mm of overhang each side makes the documented 3.270 over the fenders. The gauge
+   was right and the TUB was wrong — it is 1.03, the half of the 2.060 m the gauge leaves.
 3. Height 2400 vs 2218 — S2 camera-match; fallback 2400.
 4. Panther II turret 11° vs 20° — that vehicle's dossier decides in PR-06.
 5. Protocol bump strategy for purely-visual W3 PRs — single collective entry at PR-20 (PR-09

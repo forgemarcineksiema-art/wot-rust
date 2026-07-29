@@ -35,7 +35,11 @@ fn t54() -> VehicleBlueprint {
             // between fully exposed tracks — there are no Panther-style sponsons overhanging the
             // running gear. The tracks stand beside the hull nearly flush with its envelope, and
             // the fender shelves with their stowage carry the visual mass above them.
-            half_width: 1.05,
+            // The tub is what FITS between the tracks, and that is arithmetic, not taste: gauge
+            // 2.640 less track 0.580 leaves 2.060 m of clear space, so the box is 1.03 each side.
+            // It was 1.05 — described in the visual as "the narrow ~2.1 m box" — which is 20 mm
+            // wider than the space the documented running gear leaves for it. Register M9.
+            half_width: 1.03,
             // Real ground clearance: 0.425 m. The earlier 0.10 dropped the belly to the dirt and
             // made the hull side read as a wall reaching the ground.
             belly_y: 0.425,
@@ -48,7 +52,7 @@ fn t54() -> VehicleBlueprint {
             nose_rise: 0.06,
             rear_slope_deg: 5.0,
             // One box: the "tub" and the plate above the fold share the same vertical side plane.
-            lower_half_width: 1.05,
+            lower_half_width: 1.03,
             sponson_y: 1.00,
             skirt: None,
             hitbox_half_width: 1.75,
@@ -61,11 +65,15 @@ fn t54() -> VehicleBlueprint {
             hitbox_turret_min_y: 0.39,
         },
         track: TrackShape {
-            // The 580 mm OMSh band: outer face flush with the 3.27 m overall width (1.63), inner
-            // face at the tub side (1.06). Road wheels are the documented 810 mm discs; the small
-            // idler and toothed sprocket sit beyond the wheel span on raised axles, and the belt
-            // ramps up to them as the references show.
-            center_x: 1.345,
+            // The 580 mm OMSh band on the documented 2.640 m gauge: 1.32 ± 0.29, so the outer
+            // face sits at 1.61 and the fenders overhang it by 25 mm to the documented 3.27 m.
+            // Road wheels are the documented 810 mm discs; the small idler and toothed sprocket
+            // sit beyond the wheel span on raised axles, and the belt ramps up to them.
+            // Track gauge 2.640 m (the distance between the two belts' centrelines), four sources
+            // agreeing. It was 2.690. The documented set closes on itself: gauge 2.640 + track
+            // 0.580 = 3.220 over the tracks, and 25 mm of fender overhang each side makes the
+            // documented 3.270 over the fenders. Register M9.
+            center_x: 1.32,
             belt_half_thickness: 0.13,
             top_y: 0.905,
             bottom_y: 0.045,
@@ -73,20 +81,33 @@ fn t54() -> VehicleBlueprint {
             axle_y: None,
             wheel_radius: 0.405,
             wheel_count: 5,
-            wheel_first_z: -1.95,
-            wheel_last_z: 1.95,
-            end_radius: 0.30,
-            end_z: 2.66,
-            // Raised so the top run (end_y + end_radius = 0.96) carries the link plates CLEAR of
-            // the 0.88 wheel tops through the full sag — links grinding the tires z-fight.
-            end_y: 0.66,
-            inner_x: 1.06,
-            outer_x: 1.63,
+            // Ground-contact base 3.840 m: the first road wheel's centre to the last. It was
+            // 3.900. The enlarged 1st-to-2nd gap keeps its ratio to the other three (1.24), which
+            // is the recognition feature, not the absolute spacing.
+            wheel_first_z: -1.92,
+            wheel_last_z: 1.92,
+            // The belt's centre line wraps at `end_radius + LINK_SEAT`, and the documented
+            // engagement circle is the sprocket's 572.4 mm pitch diameter — 0.2862 m of radius.
+            // 0.30 put the wrap at 0.32, which is why the tooth count came out 14 (the modernised
+            // T-55 / Obj. 167 wheel) where the T-54 has 13. The count is not authored anywhere: it
+            // is the number of link pitches around this circle, so fixing the circle fixes it.
+            end_radius: 0.2662,
+            end_z: 2.590,
+            // Raised so the top run leaves the end wheels ABOVE the 0.88 m wheel tops — links
+            // grinding the tyres z-fight. What is authored is that 0.96 m anchor, and it was
+            // written as 0.66 against a 0.32 wrap. The wrap is the sprocket's real pitch circle
+            // now, so keeping the anchor means moving this number with it: 0.96 − 0.2862. Written
+            // as a bare 0.66 the anchor would have dropped 34 mm the moment the wrap was corrected,
+            // silently — the middle of the span is governed by the wheels and would not have shown
+            // it.
+            end_y: 0.674,
+            inner_x: 1.03,
+            outer_x: 1.61,
             segments: 14,
             // 810 mm wheels at a ~0.92 m pitch with the T-54's signature wider gap between the
             // first and second road wheels at the front (+Z). Single source: the rendered
             // running gear and the physics contact footprint both read these stations.
-            wheel_stations: Some(&[-1.95, -1.03, -0.11, 0.81, 1.95]),
+            wheel_stations: Some(&[-1.92, -1.014, -0.108, 0.798, 1.92]),
             return_rollers: 0,
             roller_radius: 0.0,
             overlap_inner_dx: 0.0,

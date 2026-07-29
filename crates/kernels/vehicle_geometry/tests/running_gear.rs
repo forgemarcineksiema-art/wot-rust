@@ -688,28 +688,35 @@ fn sprocket_teeth_reach_the_hinge_eyes_they_bear_on() {
 }
 
 /// The tooth count is not a style choice: a tooth must meet a link, so it is the number of link
-/// pitches around the wrap circle. Recording what that resolves to also records a dimensional
-/// deviation the register already owns.
+/// pitches around the wrap circle.
 ///
-/// The T-54's documented sprocket has **13 teeth per ring**; 14 is the modernised T-55 / Obj. 167
-/// wheel. Ours derives 14, and it is right to: our belt pitch is 142 mm against the documented
-/// 137, and our wrap radius 0.32 m against a 0.286 m pitch circle. The count follows the belt, so
-/// the count cannot be fixed here — it falls out when the track dimensions land (M9 / PR-18).
-/// Asserting 13 now would put a sprocket on the tank that its own belt does not fit.
+/// This test used to RECORD a debt rather than gate one. It asserted 14 — the modernised T-55 /
+/// Obj. 167 count — and said so: the belt ran a 142 mm pitch against the documented 137 and the
+/// wrap a 0.32 m radius against a 0.286 m pitch circle, so 14 was the honest consequence of a
+/// belt that was wrong, and asserting 13 would have put a sprocket on the tank that its own
+/// links did not fit.
+///
+/// PR-18 paid the debt at its source. Nobody typed 13 anywhere: the belt is 90 links of the
+/// documented 0.137 m and the wrap is the sprocket's documented ⌀572.4 pitch circle, and 13 is
+/// what those two produce. So the recorder becomes a lock, and it locks all three numbers —
+/// because a count asserted without the pitch and the circle under it would be a magic number
+/// again, just a correct one.
 #[test]
-fn the_t54_tooth_count_records_the_belt_it_has_to_mesh_with() {
+fn the_t54_sprocket_meshes_the_belt_it_is_given() {
     let kin = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951).expect("gear");
     let pitch = kin.belt_length() / kin.link_count() as f32;
     let wrap_r = kin.end_radius + 0.02;
     let teeth = ((std::f32::consts::TAU * wrap_r) / pitch).round() as usize;
-    assert_eq!(
-        teeth, 14,
-        "the derived tooth count moved; if the belt pitch or wrap radius changed, check it          against the documented 13 and update this record"
+    assert!(
+        (pitch - 0.137).abs() <= 0.001,
+        "the OMSh pitch is a documented 137 mm, got {pitch:.4} m over {} links",
+        kin.link_count()
     );
-    println!(
-        "SPROCKET DEBT T54: {teeth} teeth per ring from a {:.4} m pitch on a {wrap_r:.3} m wrap          (documented: 13 teeth, 0.137 m pitch, 0.286 m pitch circle — M9/PR-18)",
-        pitch
+    assert!(
+        (wrap_r - 0.2862).abs() <= 0.002,
+        "the belt wraps the sprocket's documented 572.4 mm pitch circle, got r {wrap_r:.4}"
     );
+    assert_eq!(teeth, 13, "the T-54's sprocket carries 13 teeth per ring; 14 is the T-55's wheel");
 }
 
 /// The idler is the TENSIONER. Its eccentric crank is the part that makes a thrown track a

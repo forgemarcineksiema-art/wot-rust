@@ -49,7 +49,9 @@ fn fender_stowage(fender: &FenderVisual) -> Vec<VehiclePart> {
     ];
     let mut parts = Vec::new();
     for (i, &(side, key, z, half_z, half_y)) in boxes.iter().enumerate() {
-        let center = Vec3::new(side * 1.34, base + half_y, z);
+        // Centred on the SHELF, not on a copy of where the shelf used to be. This was a
+        // literal 1.34 beside a fender that has since moved with the documented track gauge.
+        let center = Vec3::new(side * fender.side_x, base + half_y, z);
         let half = Vec3::new(0.27, half_y, half_z);
         parts.push(detail_plate(
             PartKey::indexed(key, i as u16),

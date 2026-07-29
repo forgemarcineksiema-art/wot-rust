@@ -144,7 +144,9 @@ pub fn t54_surface_bake(v: &HybridVisual, track: &TrackShape, muzzle: Vec3) -> S
             band: CavityBand {
                 // On the glacis/roof weld, which moves with the bow.
                 center: Vec3::new(0.0, v.hull.roof_y, v.hull.half_len - 1.05),
-                half_extents: Vec3::new(1.05, 0.04, 0.05),
+                // As wide as the hull it runs across — it was a literal 1.05, which was that
+                // width until the documented track gauge narrowed the tub to 1.03.
+                half_extents: Vec3::new(v.hull.half_width, 0.04, 0.05),
                 falloff: 0.08,
                 amount: 0.30,
             },

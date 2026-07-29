@@ -181,17 +181,17 @@ pub fn t54_reference_pack() -> ReferencePack {
             0.01,
             t54_dossier("624 mm external cupola (Tankograd); the drum is built there."),
         ),
-        DimensionTarget::target_pending(
+        DimensionTarget::new(
             DimensionKind::TrackWidth,
             0.58,
             0.005,
-            t54_dossier("580 mm OMSh belt; links currently span 570 mm (M9)."),
+            t54_dossier("580 mm OMSh belt; the links span it (PR-18)."),
         ),
-        DimensionTarget::target_pending(
+        DimensionTarget::new(
             DimensionKind::TrackGauge,
             2.64,
             0.02,
-            t54_dossier("2640 mm gauge; belts currently sit at 2690 mm (M9, open decision)."),
+            t54_dossier("2640 mm gauge; the belts sit on it (PR-18)."),
         ),
     ])
 }

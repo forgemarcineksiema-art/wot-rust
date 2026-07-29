@@ -681,6 +681,16 @@ mod tests {
         assert_eq!(ShellType::default(), event.shell_type);
     }
 
+    /// Where the T-54's hull side actually is. It was typed as -1.05 in three places, which was
+    /// right until the documented 2.640 m gauge narrowed the tub to the 2.060 m of clear space
+    /// it leaves (PR-18) — and then three penetration tests were striking 20 mm of air.
+    fn t54_hull_side_x() -> f32 {
+        game_core::VehicleBlueprint::for_vehicle(game_core::VehicleKind::T54_1951)
+            .expect("T-54 blueprint")
+            .hull
+            .half_width
+    }
+
     #[test]
     fn penetrating_t54_side_creates_a_persistent_channel_and_module_mask() {
         let spec = TankSpec::t54_1951();
@@ -694,7 +704,7 @@ mod tests {
             ArmorFacing::HullSide,
             ArmorZone::HullSide,
             0.0,
-            Vec3::new(-1.05, 1.0, -1.8),
+            Vec3::new(-t54_hull_side_x(), 1.0, -1.8),
             Vec3::NEG_X,
             20.0,
             0,
@@ -731,7 +741,7 @@ mod tests {
                 ArmorFacing::HullSide,
                 ArmorZone::HullSide,
                 0.0,
-                Vec3::new(-1.05, 1.0, -1.8),
+                Vec3::new(-t54_hull_side_x(), 1.0, -1.8),
                 Vec3::NEG_X,
                 20.0,
                 0,
@@ -787,7 +797,7 @@ mod tests {
                 ArmorFacing::HullSide,
                 ArmorZone::HullSide,
                 0.0,
-                Vec3::new(-1.05, 1.0, -1.8),
+                Vec3::new(-t54_hull_side_x(), 1.0, -1.8),
                 Vec3::NEG_X,
                 20.0,
                 44,
