@@ -182,6 +182,7 @@ fn material_appearance(material: MaterialRole) -> ([f32; 3], f32) {
         MaterialRole::ExposedSteel => ([0.34, 0.29, 0.23], 0.0),
         MaterialRole::Canvas => ([0.36, 0.36, 0.31], 0.0),
         MaterialRole::Glass => ([0.72, 0.78, 0.80], 0.0),
+        MaterialRole::Timber => ([0.35, 0.27, 0.19], 0.0),
     }
 }
 

@@ -81,6 +81,10 @@ pub fn grab_handle(a: Vec3, b: Vec3, normal: Vec3, standoff: f32) -> GeometryMes
 /// Distinct from the cover for a reason — on a real vehicle they are two pieces of steel, and the
 /// step between them is what makes a closed hatch read as closed rather than as a disc painted on
 /// the roof.
+/// `segments` too: a hatch collar a player leans over wants 20; a cable thimble or a canister
+/// strap reads round at 12 and nobody ever sees it closer than a metre. The triangle budget is a
+/// gameplay promise (one look, MX330 at 60), so resolution is spent where the eye goes.
+///
 /// `material` is the CALLER's, not this function's. A collar round a hatch is rolled armour; a
 /// thimble spliced into a rope and a band strapping a log are not — and a generator that hard-codes
 /// one material hands every caller the same steel. That mattered: with `RolledArmor` baked in, the
@@ -93,6 +97,7 @@ pub fn coaming(
     height: f32,
     wall: f32,
     material: MaterialRole,
+    segments: usize,
 ) -> GeometryMesh {
     let axis = axis.normalize_or_zero();
     let axis = if axis == Vec3::ZERO { Vec3::Y } else { axis };
@@ -100,7 +105,7 @@ pub fn coaming(
     // Closed at both ends: an annulus swept up, then back down its inside face.
     let profile =
         [(0.0_f32, inner), (height, inner), (height, radius), (0.0, radius), (0.0, inner)];
-    translate(&revolve(axis, &profile, 20, material, SmoothingGroup(3)), center)
+    translate(&revolve(axis, &profile, segments.max(8), material, SmoothingGroup(3)), center)
 }
 
 /// A thin rectangular plate: centre plus three half-axes. Used for hinge leaves and clamp straps.
@@ -133,7 +138,7 @@ mod tests {
 
     #[test]
     fn a_coaming_is_a_ring_not_a_disc() {
-        let mesh = coaming(Vec3::ZERO, Vec3::Y, 0.20, 0.04, 0.03, MaterialRole::RolledArmor);
+        let mesh = coaming(Vec3::ZERO, Vec3::Y, 0.20, 0.04, 0.03, MaterialRole::RolledArmor, 20);
         let b = mesh.bounds().expect("coaming bounds");
         assert!((b.max.y - b.min.y - 0.04).abs() < 1.0e-3, "it stands its own height");
         // Nothing on the axis: a collar has a hole in it, which is what an opening is.

@@ -109,39 +109,33 @@ mod tests {
     /// The front cheeks must read as the T-54's signature cast front mass: they add real width to
     /// the front shoulder over a cheekless shell, and they stop the casting from necking IN at the
     /// front (the old failure mode, where the front quarter was narrower than the sides).
+    /// The flank band is VERTICAL at the documented width — the S1 master's one trusted shape
+    /// claim, and the deviation the 2026-07-29 Blender section-diff measured at −112/−124 mm of
+    /// total width before the fix. The cheek bumps that caused it (a double-count of the
+    /// superellipse's own front fullness) are retired at zero, and this test replaces the one
+    /// that REQUIRED them to add mass: a test that demands the wrong shape is the defect written
+    /// down twice.
     #[test]
-    fn the_front_cheeks_carry_real_cast_mass_into_the_front_shoulder() {
+    fn the_flank_band_is_vertical_at_the_documented_width() {
         let v = turret_loft_visual();
-        // Sample the cast shoulder in the band around the cheek centre (the gun-axis height).
-        let band = (v.cheek_y - 0.06)..=(v.cheek_y + 0.06);
-        let front_width = |mesh: &GeometryMesh| {
-            mesh.vertices()
+        assert_eq!(v.cheek_amount, 0.0, "the front mass lives in the stations, not bolted lobes");
+        let mesh = t54_turret_loft(&v);
+        let width_at = |y: f32| {
+            let (lo, hi) = mesh
+                .vertices()
                 .iter()
-                .filter(|p| band.contains(&p.position.y))
-                .filter(|p| (0.35..=0.90).contains(&p.position.z))
-                .map(|p| p.position.x.abs())
-                .fold(0.0_f32, f32::max)
+                .filter(|p| (p.position.y - y).abs() < 1.0e-4)
+                .map(|p| p.position.x)
+                .fold((f32::INFINITY, f32::NEG_INFINITY), |(lo, hi), x| (lo.min(x), hi.max(x)));
+            hi - lo
         };
-        let with_cheeks = t54_turret_loft(&v);
-        let cheekless = t54_turret_loft(&TurretLoftVisual { cheek_amount: 0.0, ..v });
-
-        let front = front_width(&with_cheeks);
-        assert!(
-            front > front_width(&cheekless) + 0.04,
-            "the cheeks must add front-shoulder mass: {front:.3} vs cheekless {:.3}",
-            front_width(&cheekless)
-        );
-
-        let side = with_cheeks
-            .vertices()
-            .iter()
-            .filter(|p| band.contains(&p.position.y) && p.position.z.abs() <= 0.20)
-            .map(|p| p.position.x.abs())
-            .fold(0.0_f32, f32::max);
-        assert!(
-            front >= side - 0.01,
-            "the front must not neck in: front {front:.3} vs side {side:.3}"
-        );
+        for y in [1.58_f32, 1.68, 1.78, 1.88, 2.00] {
+            let width = width_at(y);
+            assert!(
+                (width - 2.25).abs() <= 0.012,
+                "the casting carries the documented 2.25 m clear down the flank band, got                  {width:.3} at y {y}"
+            );
+        }
     }
 
     /// The lofted turret — cheeks and all — stays inside the gameplay turret plan from the

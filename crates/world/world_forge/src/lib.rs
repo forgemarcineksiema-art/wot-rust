@@ -134,6 +134,9 @@ impl WorldMaterial {
             // satisfy a call that cannot happen.
             MaterialRole::Canvas => unreachable!("the world never bakes canvas"),
             MaterialRole::Glass => unreachable!("the world never bakes vehicle glass"),
+            // The WORLD's timber travels as TrackMetal (the carrier bijection above); this is
+            // the VEHICLE's wood.
+            MaterialRole::Timber => unreachable!("vehicle timber is not a world carrier"),
         }
     }
 

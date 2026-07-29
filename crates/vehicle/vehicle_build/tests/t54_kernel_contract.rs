@@ -57,19 +57,36 @@ fn reduced_lods_carry_no_catastrophic_mesh_defects() {
 
 #[test]
 fn body_stays_inside_its_gameplay_volumes_at_every_lod() {
+    // The part-by-part fit — tight bounds, with the catalogued exception parts excluded — is
+    // proven in `hitbox_fit`. A merged, reduced LOD cannot be filtered by part any more, so what
+    // THIS test owns is two things: the reduction contract (no LOD may grow past the LOD0
+    // envelope — a decimator that moves a vertex outward invents silhouette the hitbox never
+    // covered), and the envelope itself: the box plus exactly the two catalogued protrusions
+    // (`hitbox_fit::HITBOX_EXCEPTIONS`) and nothing more.
     const EPS: f32 = 0.05;
+    /// The BDSh-5 drums' documented reach behind the stern plate: drum ⌀0.45 + strap + rake.
+    const STERN_EXCEPTION: f32 = 0.33;
+    /// The DShK at fighting height above the hitbox apex.
+    const ROOF_EXCEPTION: f32 = 0.30;
     let hitbox = HitboxProfile::for_vehicle(VehicleKind::T54_1951);
-    for level in LODS {
-        let baked = baked_at(level);
-        let body = baked.body_bounds().expect("body bounds");
-        assert!(body.min.x >= -hitbox.half_width_m - EPS, "{level:?} body left");
-        assert!(body.max.x <= hitbox.half_width_m + EPS, "{level:?} body right");
-        assert!(body.min.z >= -hitbox.half_length_m - EPS, "{level:?} body rear");
-        assert!(body.max.z <= hitbox.half_length_m + EPS, "{level:?} body front");
-        assert!(
-            body.max.y <= hitbox.center_y_m + hitbox.half_height_m + EPS,
-            "{level:?} body roof"
-        );
+    let full = baked_at(LodLevel::Lod0).body_bounds().expect("lod0 body bounds");
+
+    assert!(full.min.x >= -hitbox.half_width_m - EPS, "lod0 body left");
+    assert!(full.max.x <= hitbox.half_width_m + EPS, "lod0 body right");
+    assert!(full.min.z >= -hitbox.half_length_m - EPS - STERN_EXCEPTION, "lod0 body rear");
+    assert!(full.max.z <= hitbox.half_length_m + EPS, "lod0 body front");
+    assert!(
+        full.max.y <= hitbox.center_y_m + hitbox.half_height_m + EPS + ROOF_EXCEPTION,
+        "lod0 body roof"
+    );
+
+    for level in [LodLevel::Lod1, LodLevel::Lod2] {
+        let body = baked_at(level).body_bounds().expect("body bounds");
+        assert!(body.min.x >= full.min.x - 0.02, "{level:?} grew left of LOD0");
+        assert!(body.max.x <= full.max.x + 0.02, "{level:?} grew right of LOD0");
+        assert!(body.min.z >= full.min.z - 0.02, "{level:?} grew behind LOD0");
+        assert!(body.max.z <= full.max.z + 0.02, "{level:?} grew ahead of LOD0");
+        assert!(body.max.y <= full.max.y + 0.02, "{level:?} grew above LOD0");
     }
 }
 

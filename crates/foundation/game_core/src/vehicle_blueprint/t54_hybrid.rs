@@ -262,7 +262,9 @@ pub(super) fn t54_hybrid(hull: &HullShape, armor: &ArmorShape) -> HybridVisual {
             periscope_half: Vec3::new(0.055, 0.055, 0.055),
             // The pedestal drum centre; the DShK barrel rides near its top (+0.16).
             dshk_mount_center: Vec3::new(0.48, roof - 0.07, -0.18),
-            dshk_barrel_length: 0.62,
+            // The DShK's barrel is a documented 1070 mm. It was 0.62 — sized to look plausible
+            // beside a gun that was lying flat on the roof.
+            dshk_barrel_length: 1.07,
             // Shallow folded edge: the belt's top run carries its link bodies up to ~1.02, so a
             // deeper lip curtain has the scrolling shoes cutting through it (lip bottom 1.05).
             fender_lip_drop: 0.05,

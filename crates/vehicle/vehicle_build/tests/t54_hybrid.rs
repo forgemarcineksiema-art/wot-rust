@@ -228,7 +228,7 @@ fn the_shipped_hybrid_matches_its_recorded_golden() {
     //           0x8f18_a4aa_f291_5175 (PR-16, the cupola at 624);
     //           0xf490_f9f1_fe07_3049 (PR-14, the hull at 6.235);
     //           0x903d_b868_b9bf_e617 (PR-25, a muzzle is a hole).
-    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0xd442_f17b_ef50_f717;
+    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0xadf8_2d0f_e2d8_f8be;
     let baked = t54_description().build();
     assert_eq!(
         baked.deterministic_hash(),

@@ -38,11 +38,16 @@ pub(super) fn turret_loft(cupola: (Vec3, f32, f32)) -> TurretLoftVisual {
         stations: [
             LoftStation {
                 y: 1.58,
-                // S1 measured the SILHOUETTE, and the silhouette includes the cheek swell —
-                // so 1.125 is the casting's widest point, not its base section. The base runs
-                // narrower by the swell it carries, and the two together make the documented
-                // 2.25 m width over the turret.
-                half_width: 1.038,
+                // The S1 master's flank band is VERTICAL: 1.125 from the ring seat to 2.00,
+                // and the Blender section-diff proved the model was not honouring it — the
+                // casting waisted to 2.138/2.126 at 1.58/2.00 because the width was split
+                // between a 1.038 base and separate cheek bumps. That split was a
+                // DOUBLE-COUNT: S1's exponent-2.8 superellipse fit already contains the front
+                // fullness (it fitted the whole outline), so bolting extra cheek lobes onto a
+                // narrowed base reproduced the width only at one height and hollowed it
+                // everywhere else. The stations carry the full silhouette now and the bumps
+                // carry nothing.
+                half_width: 1.125,
                 half_len_front: 1.240,
                 half_len_rear: 1.123,
                 z_center: 0.00,
@@ -53,7 +58,7 @@ pub(super) fn turret_loft(cupola: (Vec3, f32, f32)) -> TurretLoftVisual {
                 // new measurement: the two stations it sits between carry these same numbers.
                 // It exists so the gun aperture has rings to be cut into. A 0.40 m feature
                 // resolved by three rings is a diamond; resolved by five it is a hole.
-                half_width: 1.038,
+                half_width: 1.125,
                 half_len_front: 1.240,
                 half_len_rear: 1.123,
                 z_center: 0.00,
@@ -67,7 +72,7 @@ pub(super) fn turret_loft(cupola: (Vec3, f32, f32)) -> TurretLoftVisual {
                 // so 1.125 is the casting's widest point, not its base section. The base runs
                 // narrower by the swell it carries, and the two together make the documented
                 // 2.25 m width over the turret.
-                half_width: 1.038,
+                half_width: 1.125,
                 half_len_front: 1.240,
                 half_len_rear: 1.123,
                 z_center: 0.00,
@@ -78,7 +83,7 @@ pub(super) fn turret_loft(cupola: (Vec3, f32, f32)) -> TurretLoftVisual {
                 // new measurement: the two stations it sits between carry these same numbers.
                 // It exists so the gun aperture has rings to be cut into. A 0.40 m feature
                 // resolved by three rings is a diamond; resolved by five it is a hole.
-                half_width: 1.038,
+                half_width: 1.125,
                 half_len_front: 1.240,
                 half_len_rear: 1.123,
                 z_center: 0.00,
@@ -91,7 +96,7 @@ pub(super) fn turret_loft(cupola: (Vec3, f32, f32)) -> TurretLoftVisual {
                 // so 1.125 is the casting's widest point, not its base section. The base runs
                 // narrower by the swell it carries, and the two together make the documented
                 // 2.25 m width over the turret.
-                half_width: 1.038,
+                half_width: 1.125,
                 half_len_front: 1.240,
                 half_len_rear: 1.123,
                 z_center: 0.00,
@@ -134,9 +139,13 @@ pub(super) fn turret_loft(cupola: (Vec3, f32, f32)) -> TurretLoftVisual {
         // its own grid over a bump too narrow for this one — so the hole is sharp without the
         // whole dome paying for it.
         segments: 64,
-        // Fuller, wider front cheeks pulled in toward the mantlet (smaller azimuth): the signature
-        // T-54 cast front mass must bulge PROUD of the turret sides, not vanish into the superellipse.
-        cheek_amount: 0.20,
+        // ZERO, deliberately, since the flank fix. The cheek swell was a separate Gaussian lobe
+        // bolted onto a narrowed base — but S1's superellipse fit measured the WHOLE outline, so
+        // the exponent-2.8 fullness of the stations already IS the cast front mass, and a bump on
+        // top double-counted it: the documented 2.25 appeared only at the bump's own height and
+        // the casting waisted everywhere else. The dossier's form rule says it plainly: a full
+        // hemispherical dome — one continuous surface, not a dome wearing lobes.
+        cheek_amount: 0.0,
         cheek_azimuth: 0.95,
         cheek_y: 1.78,
         cheek_az_width: 0.50,

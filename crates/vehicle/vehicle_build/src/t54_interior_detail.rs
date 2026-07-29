@@ -155,6 +155,13 @@ fn add_torsion_bars(parts: &mut Vec<VehiclePart>, damage_layout: &DamageLayout, 
         .fold(f32::NEG_INFINITY, f32::max);
     let floor_y =
         suspension.iter().map(|anchor| anchor.a.y).sum::<f32>() / suspension.len() as f32 + 0.12;
+    // The bar ends in the swing arm's hub JUST past the far wall: anchored at one side, splined
+    // into the arm at the other, so it CROSSES the plate — a named penetration, the same class
+    // as the final drives (the axle must reach the arm). Its half-length was a literal 1.12, a
+    // relic reaching 90 mm past even the old hull; it reads the blueprint's tub now.
+    let blueprint = game_core::VehicleBlueprint::for_vehicle(game_core::VehicleKind::T54_1951)
+        .expect("T-54 blueprint");
+    let bar_half = blueprint.hull.half_width + 0.02;
     for index in 0..10 {
         let z = z_min + 0.20 + index as f32 * (z_max - z_min - 0.40) / 9.0;
         parts.push(drum_part(
@@ -162,7 +169,7 @@ fn add_torsion_bars(parts: &mut Vec<VehiclePart>, damage_layout: &DamageLayout, 
             SubmeshKind::Hull,
             Vec3::new(0.0, floor_y, z),
             Vec3::X,
-            (1.12, 0.035),
+            (bar_half, 0.035),
             MaterialRole::InteriorMachinery,
             PartLod::Detail,
         ));

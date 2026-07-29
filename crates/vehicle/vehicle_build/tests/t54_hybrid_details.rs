@@ -432,14 +432,18 @@ fn t54_carries_a_course_machine_gun_port_right_of_centre() {
     assert!(bounds.min.z < plate_z, "and the boss is rooted behind it");
 }
 
-/// M7. Two MDSh smoke canisters on the rear plate — the fitting the dossier records and the model
-/// did not carry. Clear of the unditching beam above them, and inside the hull's own width.
+/// M7, at the documented size. The tank smoke canister is the BDSh-5: a 650 mm drum 450 mm
+/// across, 45-50 kg, carried in pairs on the lower rear plate. The first build drew 220 mm drums
+/// sized by the collision box instead of by a source — the compromise this test used to LOCK, by
+/// demanding the drums stay inside the footprint. Now it locks the documented girth, and the
+/// honest consequence: drums that size necessarily reach past the hitbox, by the same catalogued
+/// exception the main gun holds (`hitbox_fit::HITBOX_EXCEPTIONS`).
 #[test]
 fn t54_carries_two_smoke_canisters_on_the_rear_plate() {
     let description = t54_description();
     let canisters: Vec<_> =
         description.parts.iter().filter(|part| part.key.name == "smoke_canister").collect();
-    assert_eq!(canisters.len(), 2, "obr. 1951 carries two MDSh canisters");
+    assert_eq!(canisters.len(), 2, "obr. 1951 carries two BDSh-5 canisters");
 
     let bp = game_core::VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).unwrap();
     let mut sides = 0.0_f32;
@@ -447,25 +451,46 @@ fn t54_carries_two_smoke_canisters_on_the_rear_plate() {
         let b = canister.mesh().bounds().expect("canister bounds");
         let cx = (b.min.x + b.max.x) * 0.5;
         sides += cx.signum();
+        // The documented drum, measured off the mesh. The DIAMETER is measured radially — the
+        // first draft read the bounding box, and a bounding box measures a 14-gon across its
+        // FLATS (439 mm for a 450 mm circle): the instrument-measures-the-wrong-thing defect,
+        // in miniature, inside the very pass that was hunting it.
+        let cy = (b.min.y + b.max.y) * 0.5;
+        let cz = (b.min.z + b.max.z) * 0.5;
+        let mesh = canister.mesh();
+        let radius = mesh
+            .vertices()
+            .iter()
+            .map(|v| (v.position.y - cy).hypot(v.position.z - cz))
+            .fold(0.0_f32, f32::max);
+        let length = b.max.x - b.min.x;
         assert!(
-            b.min.z < -bp.hull.half_len,
-            "a canister hangs BEHIND the rear plate, not inside it: {:.3}",
-            b.min.z
+            (radius * 2.0 - 0.45).abs() <= 0.005,
+            "a BDSh-5 is 450 mm across, got {:.3}",
+            radius * 2.0
         );
-        // And the doctrine: the collision box IS the visual footprint, so nothing bolted to the
-        // stern may reach past it. A canister pointing off the back reached 0.39 m outside.
+        assert!((length - 0.65).abs() <= 0.01, "and 650 mm long, got {length:.3}");
         assert!(
-            b.min.z >= -bp.hull.hitbox_half_length,
-            "a canister must stay inside the vehicle's own footprint: {:.3} vs {:.3}",
-            b.min.z,
-            -bp.hull.hitbox_half_length
+            b.max.z < -bp.hull.half_len + 0.10,
+            "it hangs on the rear plate, not inside the hull: {:.3}",
+            b.max.z
         );
         assert!(
             b.max.x.abs().max(b.min.x.abs()) <= bp.hull.half_width,
             "and stays inside the hull's own width"
         );
-        // The unditching beam rides at y 1.02 with a 0.10 radius; the canisters go below it.
+        // Below the banded log, above the ground line.
         assert!(b.max.y < 0.92, "clear of the beam above them: top {:.3}", b.max.y);
+        assert!(b.min.y > bp.hull.belly_y, "and off the ground: bottom {:.3}", b.min.y);
+        // A 50 kg drum is strapped, not glued.
+        let strap = description
+            .parts
+            .iter()
+            .find(|p| {
+                p.key.name == "smoke_canister_strap" && p.key.instance == canister.key.instance
+            })
+            .expect("each drum carries its quick-release straps");
+        assert!(strap.mesh().triangle_count() > 50, "real straps, not a decal");
     }
     assert_eq!(sides, 0.0, "one canister each side");
 }

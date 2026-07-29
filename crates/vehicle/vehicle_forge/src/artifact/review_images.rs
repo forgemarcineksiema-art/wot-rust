@@ -269,6 +269,7 @@ fn review_material_color(material: MaterialRole) -> [u8; 4] {
         MaterialRole::ExposedSteel => [92, 75, 57, 255],
         MaterialRole::Canvas => [92, 92, 79, 255],
         MaterialRole::Glass => [184, 199, 204, 255],
+        MaterialRole::Timber => [89, 69, 48, 255],
     }
 }
 

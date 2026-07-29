@@ -135,6 +135,7 @@ fn hatch_hardware(
                 half_height * 0.85,
                 radius * 0.14,
                 MaterialRole::RolledArmor,
+                20,
             )),
             lod: PartLod::Detail,
             generator: GeneratorKind::Revolve,

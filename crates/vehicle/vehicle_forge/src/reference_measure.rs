@@ -20,8 +20,21 @@ pub(crate) fn measure_baked_vehicle(
         return None;
     }
     let kin = gear_kinematics(vehicle, blueprint);
-    let hull = visual_hull_bounds(vehicle, kin.as_ref())?;
-    let turret = submesh_bounds(vehicle, SubmeshKind::Turret)?;
+    // The bounds the blessed ratio targets were calibrated against — EXCEPT on the two axes the
+    // catalogued hitbox exceptions contaminate, which are clamped to the armour skin: the hull's
+    // LENGTH (the BDSh-5 drums added 0.36 m of stowage the documented proportions never counted)
+    // and the turret's TOP (the DShK at fighting height is a gun, not the casting). Everything
+    // else keeps its original instrument so the calibration of every previously-blessed target
+    // survives untouched.
+    let mut hull = visual_hull_bounds(vehicle, kin.as_ref())?;
+    if let Some(armour) = armour_skin_bounds(vehicle, SubmeshKind::Hull) {
+        hull.min.z = armour.min.z;
+        hull.max.z = armour.max.z;
+    }
+    let mut turret = submesh_bounds(vehicle, SubmeshKind::Turret)?;
+    if let Some(armour) = armour_skin_bounds(vehicle, SubmeshKind::Turret) {
+        turret.max.y = turret.max.y.min(armour.max.y);
+    }
     let gun = submesh_bounds(vehicle, SubmeshKind::Gun)?;
 
     // Every authored target is measured — a pack declares any subset of the ratio family,
@@ -55,6 +68,30 @@ pub(crate) fn measure_baked_vehicle(
 
 /// Fore-aft extent of the hull's ROLLED ARMOUR — the plates, without the stowage that rides on
 /// them. Returns `None` when a vehicle has no rolled plate in its hull submesh at all.
+/// Bounds over a submesh's ARMOUR SKIN only — the structure the documented silhouette numbers
+/// describe, with steel furniture (the catalogued protrusions among it) excluded.
+fn armour_skin_bounds(
+    vehicle: &vehicle_geometry::BakedVehicle,
+    kind: SubmeshKind,
+) -> Option<vehicle_geometry::MeshBounds> {
+    let mesh = &vehicle.submesh(kind)?.mesh;
+    let mut bounds: Option<vehicle_geometry::MeshBounds> = None;
+    for vertex in mesh.vertices().iter().filter(|v| is_armor_skin(v.material)) {
+        bounds = Some(match bounds {
+            None => vehicle_geometry::MeshBounds::from_point(vertex.position),
+            Some(mut acc) => {
+                acc.include(vertex.position);
+                acc
+            }
+        });
+    }
+    bounds
+}
+
+fn hull_mesh(vehicle: &vehicle_geometry::BakedVehicle) -> Option<&vehicle_geometry::GeometryMesh> {
+    vehicle.submesh(vehicle_geometry::SubmeshKind::Hull).map(|s| &s.mesh)
+}
+
 fn armour_plate_extent_z(vehicle: &vehicle_geometry::BakedVehicle) -> Option<f32> {
     let mesh = &vehicle.submesh(vehicle_geometry::SubmeshKind::Hull)?.mesh;
     let plate: Vec<f32> = mesh
@@ -86,7 +123,7 @@ pub(crate) fn measure_dimensions(
     }
     let kin = gear_kinematics(vehicle, live);
     let hull = visual_hull_bounds(vehicle, kin.as_ref())?;
-    let turret = submesh_bounds(vehicle, SubmeshKind::Turret)?;
+    let _turret = submesh_bounds(vehicle, SubmeshKind::Turret)?;
     let gun = submesh_bounds(vehicle, SubmeshKind::Gun)?;
     // A live override measures against the blueprint the author is editing; without one the
     // embedded blueprint is the truth.
@@ -103,10 +140,39 @@ pub(crate) fn measure_dimensions(
             DimensionKind::HullLength => (armour_plate_extent_z(vehicle), MeasurementBasis::Mesh),
             DimensionKind::HullWidth => (Some(extent_x(hull)), MeasurementBasis::Mesh),
             DimensionKind::HeightToTurretRoof => {
-                (Some(hull.max.y.max(turret.max.y)), MeasurementBasis::Mesh)
+                // The documented apex is a STRUCTURE height — roof plus exposed cupola, by the
+                // dossier's own derivation — so it is measured over the armour skin. The turret
+                // submesh also carries the DShK at its fighting height (a catalogued hitbox
+                // exception), and documented vehicle heights never include the AA gun; read off
+                // raw bounds this anchor failed by exactly the machine gun.
+                let apex = vehicle
+                    .submesh(SubmeshKind::Turret)
+                    .map(|sub| {
+                        sub.mesh
+                            .vertices()
+                            .iter()
+                            .filter(|v| is_armor_skin(v.material))
+                            .map(|v| v.position.y)
+                            .fold(f32::NEG_INFINITY, f32::max)
+                    })
+                    .filter(|apex| apex.is_finite());
+                (apex.map(|apex| apex.max(hull.max.y)), MeasurementBasis::Mesh)
             }
             DimensionKind::OverallLengthWithGun => {
-                (Some(gun.max.z.max(hull.max.z) - hull.min.z), MeasurementBasis::Mesh)
+                // Muzzle to the ARMOUR rear. Documented overall lengths never include stowage —
+                // and the hull submesh's rearmost metal is now the BDSh-5 smoke drums, 0.36 m of
+                // catalogued stowage behind the plates. Measured off the whole bounds, the
+                // instrument reported the tank 9.36 m long because of two strapped-on canisters.
+                let armour_rear = hull_mesh(vehicle).and_then(|mesh| {
+                    let zs: Vec<f32> = mesh
+                        .vertices()
+                        .iter()
+                        .filter(|v| v.material == vehicle_geometry::MaterialRole::RolledArmor)
+                        .map(|v| v.position.z)
+                        .collect();
+                    (!zs.is_empty()).then(|| zs.into_iter().fold(f32::INFINITY, f32::min))
+                });
+                (armour_rear.map(|rear| gun.max.z.max(hull.max.z) - rear), MeasurementBasis::Mesh)
             }
             // Off the unit MESH, not the generator's radius field — the mesh disagreeing with
             // its own blueprint is exactly what this instrument must be able to catch.
