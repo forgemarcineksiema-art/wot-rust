@@ -221,14 +221,25 @@ fn the_shipped_hybrid_matches_its_recorded_golden() {
     // hatches (the fleet had no hinges at all), the DShK moved onto the loader's hatch RING and
     // given its own 12.7 mm calibre instead of the tank gun's, hooks with a throat and a catch,
     // thimbled and clamped cables, and bands round the log.
-    // Previous: 0x6af9_ab6d_876a_8099 (PR-26a, the exterior mechanics);
+    //
+    // Re-recorded 2026-07-29 for the gun WINDOW (the player's verdict on the first internal
+    // mount stood: "the mantlet stayed the same, shrunk and swallowed"). The face is two-step
+    // now — a wide shallow rectangular window (~0.85 x 0.44 m rebate) with the narrow deep
+    // aperture dropping through its shelf — and what closes it is a rectangular canvas PANEL
+    // with a flat mattress front (not a round boot in a round pocket), clamped by a perimeter
+    // steel strip, pierced by a round sleeve whose inradius clears the tube. Judged against
+    // Blender renders across six iterations before this bless; fold ridges were tried twice,
+    // read as stamps/slashes both times, and are deliberately absent. The occluded internal
+    // mantlet pays for the window: 12 segments, since only a breach remesh ever shows it.
+    // Previous: 0xadf8_2d0f_e2d8_f8be (PR-26b, the crew's mechanics);
+    //           0x6af9_ab6d_876a_8099 (PR-26a, the exterior mechanics);
     //           0xe9ce_9c05_6f0b_f9df (PR-19, the fittings);
     //           0x7108_fd58_f651_b2c3 (PR-18, the belt at 90 x 137);
     //           0xef40_8214_00ae_a9e4 (PR-17, the mantlet goes inside);
     //           0x8f18_a4aa_f291_5175 (PR-16, the cupola at 624);
     //           0xf490_f9f1_fe07_3049 (PR-14, the hull at 6.235);
     //           0x903d_b868_b9bf_e617 (PR-25, a muzzle is a hole).
-    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0xadf8_2d0f_e2d8_f8be;
+    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0xa921_f937_ea70_c698;
     let baked = t54_description().build();
     assert_eq!(
         baked.deterministic_hash(),

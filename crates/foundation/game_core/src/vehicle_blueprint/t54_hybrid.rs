@@ -174,19 +174,30 @@ pub(super) fn t54_hybrid(hull: &HullShape, armor: &ArmorShape) -> HybridVisual {
                 (-0.040, 0.155),
                 (-0.030, 0.000),
             ],
-            mantlet_segments: 28,
+            // Twelve: the mantlet lives BEHIND the canvas now — the cover panel occludes it
+            // from every exterior angle, and it only shows through a breach remesh. Twenty-eight
+            // was the resolution of a part the player was meant to look at.
+            mantlet_segments: 12,
             // Very nearly round. The old 1.15/0.72 squash existed to make a BALL read as a mask;
             // an internal mantlet has no such job — it is a cast cylinder on trunnions, a touch
             // wider than tall because the trunnion bosses are.
             mantlet_scale: Vec3::new(1.06, 0.98, 1.0),
-            // The canvas boot. Its rear station is 0.25 out and BEHIND the casting's face at
-            // that radius, so the boot passes through the metal rather than butting against it
-            // and the seal has no visible edge; its front station grips a tube that is 0.098 at
-            // that station. Between them it is the only part of this gun mount a viewer sees —
-            // the internal mantlet's 0.164 face, 29 mm proud of the pocket floor, sits inside
-            // it.
-            mantlet_cover: [(-0.100, 0.250), (-0.020, 0.235), (0.140, 0.170), (0.300, 0.102)],
-            mantlet_cover_sag: 0.014,
+            // The SLEEVE of the canvas cover: from inside the panel's mouth (root radius a
+            // shade over the mouth's half-height, so the gather zone is closed by fabric-on-
+            // fabric) out to the strap on the tube (0.094 there). Short, as the real one is —
+            // the panel does the covering; the sleeve only walks the barrel out of it.
+            // The sleeve roots BEHIND the panel's flat front face (the face plane sits at
+            // 0.158) so the boot visibly pierces the canvas instead of floating ahead of it.
+            // Radii keep the sagged top surface proud of the 0.098 tube everywhere — and
+            // it is the ten-gon's INRADIUS (r·cos 18°) that must clear the tube, not the
+            // vertex radius: at 0.100 the flats dipped under the steel and the barrel showed
+            // through the sleeve as a torn zigzag.
+            mantlet_cover: [(0.140, 0.128), (0.230, 0.118), (0.295, 0.116), (0.360, 0.104)],
+            mantlet_cover_sag: 0.010,
+            // The fabric panel's fastening frame, sized to the window at half-depth (window
+            // az 0.26 rad on the 1.125 superellipse is ±0.42 of x; the frame sits 20 mm inside
+            // the walls all round).
+            cover_frame_half: (0.40, 0.185),
             module_delta_scale: 0.65,
         },
         // The engine deck runs from behind the turret ring back to a hand's width off the rear

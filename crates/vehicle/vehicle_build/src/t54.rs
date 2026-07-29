@@ -128,8 +128,8 @@ pub fn t54_from_modules_with_blueprint(
         lod: PartLod::MountCritical,
         generator: GeneratorKind::Revolve,
     };
-    // The canvas dust cover closing the embrasure around the tube. It moves with the gun, so it
-    // belongs to the same submesh as the barrel and mantlet, and it is neither armour nor steel.
+    // The canvas cover over the gun window. It moves with the gun, so it belongs to the same
+    // submesh as the barrel and mantlet, and it is neither armour nor steel.
     let mantlet_cover = VehiclePart {
         key: PartKey::new("gun_mantlet_cover"),
         submesh: SubmeshKind::Gun,
@@ -137,6 +137,17 @@ pub fn t54_from_modules_with_blueprint(
         smoothing: SmoothingGroup(6),
         shape: PartShape::Mesh(crate::t54_gun_cover::t54_mantlet_cover(trunnion, &v.gun)),
         lod: PartLod::MountCritical,
+        generator: GeneratorKind::Sweep,
+    };
+    // The fastening strip round the window's perimeter: bolted to the CASTING, so it rides the
+    // turret, not the gun — the fabric moves under it.
+    let mantlet_frame = VehiclePart {
+        key: PartKey::new("gun_mantlet_frame"),
+        submesh: SubmeshKind::Turret,
+        material: MaterialRole::BarrelSteel,
+        smoothing: SmoothingGroup(3),
+        shape: PartShape::Mesh(crate::t54_gun_cover::t54_mantlet_frame(trunnion, &v.gun)),
+        lod: PartLod::Detail,
         generator: GeneratorKind::Sweep,
     };
     let barrel = VehiclePart {
@@ -150,7 +161,8 @@ pub fn t54_from_modules_with_blueprint(
     };
 
     let f = &v.fittings;
-    let mut parts = vec![lower_tub, upper_hull, turret, cupola, mantlet, mantlet_cover, barrel];
+    let mut parts =
+        vec![lower_tub, upper_hull, turret, cupola, mantlet, mantlet_cover, mantlet_frame, barrel];
     // Semantic drum fittings as their own parts (not anonymous greeble): the commander's cupola
     // hatch and the driver's/loader's hatches (all raised round lids), plus the glacis headlight.
     parts.extend(crate::t54_details::t54_fitting_parts(f));

@@ -1,36 +1,95 @@
-//! The canvas dust cover over the T-54's gun embrasure.
+//! The canvas cover over the T-54's gun window.
 //!
-//! A vehicle whose mantlet is INSIDE the turret has a hole in its turret face. Something closes
-//! that hole against rain, dust and the eye, and on a T-54 that something is a proofed canvas
-//! boot clamped to the aperture frame at one end and to the gun tube at the other. It is the part
-//! of this gun mount a viewer actually sees — the internal mantlet behind it is, by construction,
-//! not visible from outside.
+//! What a viewer sees on a T-54 obr. 1949/1951 front is not a mantlet at all: it is a wide,
+//! roughly RECTANGULAR canvas panel, fastened by a perimeter strip over the window cut between
+//! the turret's cheeks, bulging where the hidden mount presses it, gathering through radial folds
+//! into a short sleeve the barrel walks out of. The armour's narrow ~0.40 m aperture sits UNDER
+//! the fabric, invisible.
 //!
-//! Built with [`sweep`] rather than a revolve on purpose: fabric hangs. A revolve about the barrel
-//! axis can only make a body of revolution, and a body of revolution is exactly the thing a boot
-//! stretched between two clamps is not. The sweep's path droops between them and its
-//! `section_scale` does the flare — the case that parameter was added for.
+//! The first build drew a round tapered boot in a round pocket — three round signals stacked, and
+//! the front read as the old ball mantlet shrunk and swallowed. The player's verdict, and
+//! correct. A cover is a rectangle of fabric; this module builds one:
+//!
+//!   * the PANEL — a rounded-rectangle section swept out of the window: edge buried at the
+//!     window floor, a hem swell, a rounded border, then the FLAT FRONT FACE (a mattress,
+//!     not a funnel);
+//!   * the SLEEVE — the short round throat piercing that face out to the strap on the tube;
+//!   * the FRAME — the perimeter fastening strip (steel, its own part).
+//!
+//! Deliberately ABSENT: fold ridges. Tried twice — thin tubes on the flat face read as four
+//! stamped chevrons from one path, as claw-mark slashes from the other. Real creases are broad,
+//! low undulations this kernel cannot fake with tubes; clean canvas is the honest render.
 
 use game_core::GunVisual;
 use glam::{Vec2, Vec3};
 use sweep::{SweepCaps, SweepFrameMode, SweepPath, SweepSection, SweepSpec, try_sweep};
 use vehicle_geometry::{GeometryMesh, MaterialRole, SmoothingGroup};
 
-/// Section samples around the boot. Sixteen is enough that the fabric reads round at the clamp
-/// without the facets showing at the flare.
-const COVER_SEGMENTS: usize = 16;
+/// Samples around the sleeve. Twelve keeps the throat round at strap distance.
+const SLEEVE_SEGMENTS: usize = 12;
+/// Corner radius of the panel's rounded rectangle, at frame scale.
+const CORNER_R: f32 = 0.055;
+/// Points per corner arc.
+const CORNER_PTS: usize = 3;
 
-/// The canvas boot between the embrasure frame and the barrel clamp, in vehicle-local space.
-///
-/// `trunnion` is the gun's authoritative trunnion frame; the blueprint's cover stations are
-/// trunnion-relative `(z, radius)` on the barrel axis.
+/// The panel's stations: `(z, scale)` along the barrel axis, trunnion-relative. The frame edge
+/// sits just proud of the window floor (buried behind the fastening strip), the hem swells, and
+/// the border rounds off toward the FLAT FRONT FACE — a cover is a mattress, not a funnel. The
+/// first build ran the taper all the way to 0.30 and the front read as a pyramid of diagonals.
+const PANEL_STATIONS: [(f32, f32); 4] =
+    [(0.030, 1.0), (0.075, 1.015), (0.120, 0.97), (0.158, 0.80)];
+
+/// A rounded-rectangle ring of points, counter-clockwise, no repeated vertex: each corner arc
+/// samples `[base, base + 90)`, so quadrant boundaries appear exactly once.
+fn rounded_rect_ring(half_x: f32, half_y: f32) -> Vec<Vec2> {
+    let (cx, cy) = (half_x - CORNER_R, half_y - CORNER_R);
+    let mut points = Vec::with_capacity(4 * CORNER_PTS);
+    for corner in 0..4 {
+        let base = corner as f32 * std::f32::consts::FRAC_PI_2;
+        for k in 0..CORNER_PTS {
+            let a = base + k as f32 / CORNER_PTS as f32 * std::f32::consts::FRAC_PI_2;
+            let mut p = Vec2::new(a.cos(), a.sin()) * CORNER_R;
+            p.x += if p.x >= 0.0 { cx } else { -cx };
+            p.y += if p.y >= 0.0 { cy } else { -cy };
+            points.push(p);
+        }
+    }
+    points
+}
+
+/// The canvas: panel + sleeve + folds, one fabric mesh in vehicle-local space.
 pub fn t54_mantlet_cover(trunnion: Vec3, gun: &GunVisual) -> GeometryMesh {
+    let (fx, fy) = gun.cover_frame_half;
+    let mut pieces: Vec<GeometryMesh> = Vec::new();
+
+    // --- the panel -------------------------------------------------------------------------
+    let panel_points: Vec<Vec3> =
+        PANEL_STATIONS.iter().map(|&(z, _)| trunnion + Vec3::new(0.0, 0.0, z)).collect();
+    let panel_scales: Vec<f32> = PANEL_STATIONS.iter().map(|&(_, s)| s).collect();
+    // The sweep's FixedUp(Y) frame on a +Z path maps the section's X axis onto world Y —
+    // measured, not assumed (the first build came out portrait). The ring is built with the
+    // HEIGHT half first so the wide side lands across the vehicle.
+    let section = SweepSection { points: rounded_rect_ring(fy, fx), closed: true };
+    let path = SweepPath { points: panel_points, closed: false };
+    pieces.push(
+        try_sweep(&SweepSpec {
+            path: &path,
+            section: &section,
+            frame_mode: SweepFrameMode::FixedUp(Vec3::Y),
+            // The END cap is the point: the flat canvas front face the sleeve pierces.
+            // The start cap is buried inside the window.
+            caps: SweepCaps::Both,
+            material: MaterialRole::Canvas,
+            smoothing: SmoothingGroup(6),
+            section_scale: Some(&panel_scales),
+        })
+        .expect("the T-54 cover panel is a valid sweep"),
+    );
+
+    // --- the sleeve ------------------------------------------------------------------------
     let stations = gun.mantlet_cover;
     let span = stations[stations.len() - 1].0 - stations[0].0;
-
-    // The droop: zero at both clamps, deepest in between. A half-sine rather than a parabola so
-    // the fabric leaves each clamp along the axis instead of kinking away from it.
-    let points: Vec<Vec3> = stations
+    let sleeve_points: Vec<Vec3> = stations
         .iter()
         .map(|&(z, _)| {
             let t = if span.abs() > 1.0e-6 { (z - stations[0].0) / span } else { 0.0 };
@@ -38,36 +97,62 @@ pub fn t54_mantlet_cover(trunnion: Vec3, gun: &GunVisual) -> GeometryMesh {
             trunnion + Vec3::new(0.0, -sag, z)
         })
         .collect();
-    let scales: Vec<f32> = stations.iter().map(|&(_, radius)| radius).collect();
-
-    let section = SweepSection {
-        points: (0..COVER_SEGMENTS)
+    let sleeve_scales: Vec<f32> = stations.iter().map(|&(_, radius)| radius).collect();
+    let sleeve_section = SweepSection {
+        points: (0..SLEEVE_SEGMENTS)
             .map(|index| {
-                let angle = index as f32 / COVER_SEGMENTS as f32 * std::f32::consts::TAU;
-                let (sin, cos) = angle.sin_cos();
-                Vec2::new(cos, sin)
+                let angle = index as f32 / SLEEVE_SEGMENTS as f32 * std::f32::consts::TAU;
+                Vec2::new(angle.cos(), angle.sin())
             })
             .collect(),
         closed: true,
     };
-    let path = SweepPath { points, closed: false };
+    let sleeve_path = SweepPath { points: sleeve_points, closed: false };
+    pieces.push(
+        try_sweep(&SweepSpec {
+            path: &sleeve_path,
+            section: &sleeve_section,
+            frame_mode: SweepFrameMode::FixedUp(Vec3::Y),
+            caps: SweepCaps::Open,
+            material: MaterialRole::Canvas,
+            smoothing: SmoothingGroup(6),
+            section_scale: Some(&sleeve_scales),
+        })
+        .expect("the T-54 cover sleeve is a valid sweep"),
+    );
 
+    revolve::merge(&pieces).weld_and_smooth()
+}
+
+/// The fastening FRAME: the perimeter strip that clamps the fabric hem into the window — the
+/// crisp rectangular outline a viewer reads before anything else. A closed loop (a frame has no
+/// ends), just outside the panel's frame station, against the window walls.
+pub fn t54_mantlet_frame(trunnion: Vec3, gun: &GunVisual) -> GeometryMesh {
+    let ring = rounded_rect_ring(gun.cover_frame_half.0 + 0.010, gun.cover_frame_half.1 + 0.010);
+    let points: Vec<Vec3> =
+        ring.into_iter().map(|p| trunnion + Vec3::new(p.x, p.y, 0.034)).collect();
+    let path = SweepPath { points, closed: true };
+    let section = SweepSection {
+        points: (0..6)
+            .map(|index| {
+                let angle = index as f32 / 6.0 * std::f32::consts::TAU;
+                Vec2::new(angle.cos(), angle.sin()) * 0.012
+            })
+            .collect(),
+        closed: true,
+    };
     try_sweep(&SweepSpec {
         path: &path,
         section: &section,
-        // The boot is a planar, gently drooping run: pinning the section's up axis to world Y
-        // keeps it from rolling, which parallel transport has no reason not to do.
-        frame_mode: SweepFrameMode::FixedUp(Vec3::Y),
-        // Both ends are SEATED, not open to view: the rear station is buried inside the casting
-        // and the front one grips the tube. Capping them would put lids inside solid geometry.
+        // The loop lies in the XY plane, so its up reference is the plane NORMAL — a Y up is
+        // parallel to the vertical runs' tangents and degenerates.
+        frame_mode: SweepFrameMode::FixedUp(Vec3::Z),
         caps: SweepCaps::Open,
-        material: MaterialRole::Canvas,
-        smoothing: SmoothingGroup(6),
-        section_scale: Some(&scales),
+        material: MaterialRole::BarrelSteel,
+        smoothing: SmoothingGroup(3),
+        section_scale: None,
     })
-    // The T-54 cover stations are static, validated authoring data locked by the gun tests; an
-    // error here means the blueprint regressed, not bad runtime input.
-    .expect("the T-54 mantlet cover blueprint is a valid sweep")
+    .expect("the cover frame is a valid closed sweep")
 }
 
 #[cfg(test)]
@@ -80,55 +165,42 @@ mod tests {
     }
 
     #[test]
-    fn the_cover_flares_from_the_barrel_clamp_out_to_the_embrasure_frame() {
+    fn the_cover_is_a_rectangle_wider_than_tall() {
         let trunnion = Vec3::new(0.0, 1.78, 1.15);
         let cover = t54_mantlet_cover(trunnion, &gun());
-        let radius_near = |z: f32| {
-            cover
-                .vertices()
-                .iter()
-                .filter(|v| (v.position.z - z).abs() < 0.02)
-                .map(|v| v.position.x.hypot(v.position.y - trunnion.y))
-                .fold(0.0_f32, f32::max)
-        };
-        let frame = radius_near(trunnion.z + gun().mantlet_cover[0].0);
-        let clamp = radius_near(trunnion.z + gun().mantlet_cover[3].0);
+        let b = cover.bounds().expect("cover bounds");
+        let width = b.max.x - b.min.x;
+        let height = b.max.y - b.min.y;
         assert!(
-            frame > clamp * 2.0,
-            "the boot must open out from the tube to the frame, got {frame:.3} vs {clamp:.3}"
+            width / height >= 1.8,
+            "a T-54 cover is a WIDE rectangle, got {width:.3} x {height:.3}"
         );
     }
 
     #[test]
-    fn the_cover_hangs_instead_of_running_straight() {
+    fn the_sleeve_ends_gripping_the_tube() {
         let trunnion = Vec3::new(0.0, 1.78, 1.15);
         let cover = t54_mantlet_cover(trunnion, &gun());
-        // Sampled AT the stations, with a window wide enough to catch a whole ring. The sweep
-        // puts geometry only where the path has points, and it tilts each section with the path's
-        // tangent — so a sagging boot's rings are not planar in z, and a midspan sample taken
-        // between two stations finds nothing at all.
-        let axis_at = |z: f32| {
-            let (low, high) = cover
-                .vertices()
-                .iter()
-                .filter(|v| (v.position.z - z).abs() < 0.045 && v.position.x.abs() < 0.02)
-                .fold((f32::INFINITY, f32::NEG_INFINITY), |(lo, hi), v| {
-                    (lo.min(v.position.y), hi.max(v.position.y))
-                });
-            assert!(low.is_finite(), "the boot has fabric at z {z:.3}");
-            (low + high) * 0.5
-        };
-        let stations = gun().mantlet_cover;
-        let clamp = axis_at(trunnion.z + stations[0].0);
-        let hanging = axis_at(trunnion.z + stations[2].0);
-        assert!(
-            (clamp - trunnion.y).abs() < 1.0e-3,
-            "the boot leaves its frame clamp on the gun axis, got {clamp:.4}"
-        );
-        assert!(
-            hanging < trunnion.y - 0.004,
-            "canvas hangs: the free span at {hanging:.4} must sit below the axis {:.4}",
-            trunnion.y
-        );
+        let far = gun().mantlet_cover[3].0;
+        let ring: Vec<f32> = cover
+            .vertices()
+            .iter()
+            .filter(|v| (v.position.z - (trunnion.z + far)).abs() < 0.01)
+            .map(|v| v.position.x.hypot(v.position.y - trunnion.y))
+            .collect();
+        assert!(!ring.is_empty(), "the sleeve reaches its strap station");
+        let radius = ring.iter().copied().fold(0.0_f32, f32::max);
+        assert!(radius < 0.115, "the strap grips the tube, not the air: {radius:.3}");
+    }
+
+    #[test]
+    fn the_frame_is_a_closed_loop_outside_the_panel() {
+        let trunnion = Vec3::new(0.0, 1.78, 1.15);
+        let frame = t54_mantlet_frame(trunnion, &gun());
+        let report = frame.quality_report(vehicle_geometry::OPEN_OR_CLOSED_MESH);
+        assert_eq!(report.non_manifold_edges, 0, "a ring of strip, cleanly closed");
+        let b = frame.bounds().expect("frame bounds");
+        let (fx, fy) = gun().cover_frame_half;
+        assert!(b.max.x > fx && b.max.y > fy, "the strip clamps OUTSIDE the fabric hem");
     }
 }

@@ -44,6 +44,16 @@ pub fn t54_turret_loft(t: &TurretLoftVisual) -> GeometryMesh {
             t.embrasure_amount,
             t.embrasure_falloff,
         ),
+        // The outer WINDOW the canvas is fastened over: the wide, shallow rectangular seat a
+        // T-54 carries between its cheeks. The embrasure above is cut through this seat's floor.
+        CastBump::plateau(
+            FRAC_PI_2,
+            t.window_az_width,
+            t.embrasure_y,
+            t.window_y_width,
+            t.window_amount,
+            t.window_falloff,
+        ),
     ];
 
     try_build_cast_loft(&CastLoftSpec {

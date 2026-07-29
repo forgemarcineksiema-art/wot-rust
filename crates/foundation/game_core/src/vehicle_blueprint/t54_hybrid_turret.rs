@@ -150,10 +150,10 @@ pub(super) fn turret_loft(cupola: (Vec3, f32, f32)) -> TurretLoftVisual {
         cheek_y: 1.78,
         cheek_az_width: 0.50,
         cheek_y_width: 0.24,
-        // The documented aperture is ~0.40 m across. For this super-Gaussian the half-depth
-        // point sits at 0.941 w, so the vertical opening wants w = 0.17 (the gun needs less
-        // travel up and down than side to side, and a taller pocket would cut into the ring
-        // seat 0.20 m below the axis).
+        // The documented aperture is ~0.40 m across — the INNER armour hole, cut through the
+        // window's floor. For this super-Gaussian the half-depth point sits at 0.941 w, so the
+        // vertical opening wants w = 0.17 (the gun needs less travel up and down than side to
+        // side, and a taller pocket would cut into the ring seat 0.20 m below the axis).
         //
         // Azimuth is NOT arc length here. The superellipse is flat across its nose: at exponent
         // 2.8 the x it reaches is 1.038 * (sin daz)^0.714, so 0.20 m of x is 0.0997 rad of
@@ -163,7 +163,7 @@ pub(super) fn turret_loft(cupola: (Vec3, f32, f32)) -> TurretLoftVisual {
         // be invented to fill it.
         //
         // The depth is the wall it is cut through, not a dent pressed into it.
-        embrasure_amount: -0.16,
+        embrasure_amount: -0.11,
         // ON the gun axis (`gun.trunnion_y`). It used to sit 20 mm above it — a drift nothing
         // measured, in the one feature whose whole job is to be centred on the barrel.
         embrasure_y: 1.78,
@@ -171,6 +171,15 @@ pub(super) fn turret_loft(cupola: (Vec3, f32, f32)) -> TurretLoftVisual {
         embrasure_y_width: 0.17,
         // A pocket with a floor and a rim. Six is where the wall stops reading as a slope.
         embrasure_falloff: 6.0,
+        // The outer WINDOW: ~0.85 m wide and ~0.42 m tall between the cheeks, a shallow
+        // rectangular seat the canvas is fastened over. Azimuth from the superellipse, not arc
+        // length: x = 1.125 * sin(daz)^0.714, so 0.425 m of half-width needs 0.26 rad. The high
+        // exponent is what makes the footprint a rounded RECTANGLE — at 2:1 the recess reads as
+        // the T-54's window, where the old near-square pocket read as a shrunken ball socket.
+        window_amount: -0.07,
+        window_az_width: 0.26,
+        window_y_width: 0.20,
+        window_falloff: 8.0,
         // Rooted deep into the curved dome (base ~2.02, under the local shell surface) so the
         // drum grows out of the casting instead of levitating over the sloping roof.
         // Seated so exactly 131 mm of drum stands above the 2.40 m roof — the documented

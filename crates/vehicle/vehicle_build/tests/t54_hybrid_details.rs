@@ -231,6 +231,37 @@ fn the_turret_face_carries_a_narrow_gun_aperture() {
         (0.20..=0.40).contains(&height),
         "the aperture clears the tube and its travel without cutting the ring seat, got {height:.3} m tall"
     );
+
+    // And the face is TWO-STEP: between the cheeks' front and the deep aperture lies the wide,
+    // shallow WINDOW the canvas panel is fastened into. One recess reads as a socket for a ball;
+    // the shelf is what makes the front read as a T-54.
+    let shelf = face_z_at(&casting, gun_y, 0.30, 0.0);
+    assert!(
+        (0.08..=0.15).contains(&(shelf - floor)),
+        "the aperture must drop a full step below the window shelf, got {:.3}",
+        shelf - floor
+    );
+    assert!(
+        (0.04..=0.12).contains(&(outside - shelf)),
+        "the window is a SHALLOW rebate in the face, got {:.3} deep",
+        outside - shelf
+    );
+    let mut wall = 0.30;
+    for step in 0..=30 {
+        let offset = 0.30 + step as f32 * 0.01;
+        let z = face_z_at(&casting, gun_y, offset, 0.0);
+        if z.is_finite() {
+            if z >= shelf + 0.03 {
+                break;
+            }
+            wall = offset;
+        }
+    }
+    let window_width = 2.0 * wall;
+    assert!(
+        (0.76..=1.05).contains(&window_width),
+        "the window is the WIDE rectangle the eye reads — roughly 0.85 m across, got {window_width:.3}"
+    );
 }
 
 /// M4 + K2. The mantlet is INSIDE: its face never reaches the casting around it, and it is wider
@@ -276,10 +307,12 @@ fn the_mantlet_is_an_internal_closed_body_wider_than_its_aperture() {
     assert_eq!(report.non_manifold_edges, 0, "and a manifold one");
 }
 
-/// K2. With the mantlet inside, something has to close the hole — and on this vehicle it is a
-/// canvas boot. Its rear ring must lie BEHIND the casting's local face (so the seal has no
-/// visible edge rather than butting up against one), it must cover the aperture on the way, and
-/// its front ring must grip the tube.
+/// K2 → the window rebuild. With the mantlet inside, what closes the hole on a T-54 is a wide
+/// rectangular canvas PANEL clamped into the shallow window by a perimeter strip, gathering into
+/// a short sleeve on the tube. The first build's boot semantics ("rear ring swallowed at its own
+/// radius") described a round plug — a panel's hem legitimately swells PROUD over its frame, so
+/// what is locked here is the panel's own grammar: hem rooted at the window shelf, fabric closing
+/// the deep aperture and wrapping past the metal it hides, sleeve gripping the tube.
 #[test]
 fn the_canvas_cover_seals_the_aperture_to_the_barrel() {
     let bp = game_core::VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).unwrap();
@@ -297,17 +330,29 @@ fn the_canvas_cover_seals_the_aperture_to_the_barrel() {
     assert!(!cover.is_empty(), "the gun mount carries a canvas cover");
 
     let radius = |p: &Vec3| p.x.hypot(p.y - trunnion.y);
-    // The rear ring: widest fabric, and it must be swallowed by the casting at its own radius.
-    let rear = cover.iter().max_by(|a, b| radius(a).total_cmp(&radius(b))).unwrap();
-    let local_face = face_z_at(&casting, trunnion.y, radius(rear), 0.0);
+    // The hem roots at the window shelf: rearmost fabric within a fastening strip of the shelf,
+    // and swallowed past the cheeks' own front — a hem floating at face depth would read as a
+    // pasted-on decal, not a fastened cover.
+    let hem = cover.iter().map(|p| p.z).fold(f32::INFINITY, f32::min);
+    let shelf = face_z_at(&casting, trunnion.y, 0.30, 0.0);
+    let outside = casting.bounds().expect("casting bounds").max.z;
     assert!(
-        local_face.is_finite() && rear.z < local_face,
-        "the cover's rear ring must sit inside the metal, got z {:.3} against a face at {local_face:.3} at radius {:.3}",
-        rear.z,
-        radius(rear)
+        hem < shelf + 0.06,
+        "the hem must root at the window shelf, got z {hem:.3} against a shelf at {shelf:.3}"
+    );
+    assert!(
+        hem < outside - 0.04,
+        "the hem must sit INSIDE the window, got z {hem:.3} against a face at {outside:.3}"
     );
 
-    // The front ring grips the tube: the barrel is 0.098 there, so no daylight around it.
+    // The fabric spans the window it is fastened over — panel width, not boot width.
+    let half_span = cover.iter().map(|p| p.x.abs()).fold(0.0_f32, f32::max);
+    assert!(
+        half_span >= 0.36,
+        "the panel must reach the window's walls, got half-span {half_span:.3}"
+    );
+
+    // The sleeve grips the tube: the barrel is 0.098 there, so no daylight around it.
     let front = cover.iter().max_by(|a, b| a.z.total_cmp(&b.z)).unwrap();
     assert!(
         radius(front) < 0.115,
@@ -315,13 +360,64 @@ fn the_canvas_cover_seals_the_aperture_to_the_barrel() {
         radius(front)
     );
 
-    // And in between it stands AHEAD of the pocket, which is what closing the hole means.
+    // In between it stands AHEAD of the pocket, which is what closing the hole means.
     let pocket_floor = face_z_at(&casting, trunnion.y, 0.0, 0.0);
     let over_pocket =
         cover.iter().filter(|p| radius(p) < 0.19).map(|p| p.z).fold(f32::NEG_INFINITY, f32::max);
     assert!(
         over_pocket > pocket_floor + 0.05,
         "the cover must close the aperture, not lie in it: fabric at {over_pocket:.3}, floor at {pocket_floor:.3}"
+    );
+
+    // And the metal it exists to hide stays hidden: the fabric reaches past the mantlet's face.
+    let mantlet = revolve::moving_mantlet(trunnion, &v.gun);
+    let mantlet_face = mantlet.bounds().expect("mantlet bounds").max.z;
+    assert!(
+        front.z > mantlet_face + 0.05,
+        "the fabric must wrap past the metal: sleeve ends {:.3}, mantlet face {mantlet_face:.3}",
+        front.z
+    );
+}
+
+/// The fastening frame is the crisp rectangular outline the eye reads first, and it only reads
+/// true if it actually clamps THIS panel into THIS window: strip just outside the fabric hem on
+/// both axes, buried inside the window's depth, inside the window's walls.
+#[test]
+fn the_cover_frame_matches_the_window() {
+    let bp = game_core::VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).unwrap();
+    let v = *bp.hybrid().unwrap();
+    let trunnion = MountFrames::for_vehicle(VehicleKind::T54_1951).gun_trunnion.translation;
+    let casting = vehicle_build::t54_turret_loft(&v.turret_loft);
+    let description = t54_description();
+    let frame = description
+        .parts
+        .iter()
+        .find(|part| part.key.name == "gun_mantlet_frame")
+        .expect("the cover is fastened by a perimeter strip")
+        .mesh();
+    let bounds = frame.bounds().expect("frame bounds");
+
+    let (fx, fy) = v.gun.cover_frame_half;
+    let clearance_x = bounds.max.x - fx;
+    let clearance_y = bounds.max.y - trunnion.y - fy;
+    assert!(
+        (0.005..=0.05).contains(&clearance_x) && (0.005..=0.05).contains(&clearance_y),
+        "the strip clamps just outside the hem on both axes, got +{clearance_x:.3} / +{clearance_y:.3}"
+    );
+
+    let outside = casting.bounds().expect("casting bounds").max.z;
+    assert!(
+        bounds.max.z < outside - 0.02,
+        "the strip is buried in the window, not proud of the face: z {:.3} vs {outside:.3}",
+        bounds.max.z
+    );
+
+    // Inside the window's walls: the shelf must still be shelf just beyond the strip's corner.
+    let beyond = face_z_at(&casting, trunnion.y, bounds.max.x + 0.02, 0.0);
+    assert!(
+        beyond.is_finite() && beyond < outside - 0.02,
+        "the window must continue past the strip's edge, got face {beyond:.3} at x {:.3}",
+        bounds.max.x + 0.02
     );
 }
 

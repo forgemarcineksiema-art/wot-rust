@@ -11,14 +11,14 @@ Both registers are empty and every anchor is **Locked**. By this document's own 
 history; what follows is the record of how it got here.
 
 - **Register M (dimensions): 14 rows, 14 closed or dispositioned.** M1 hull 6.235 (PR-14),
-  M2 dome 2.40 (PR-15), M3 turret taper (PR-09), M4 embrasure + internal mantlet (PR-17),
+  M2 dome 2.40 (PR-15), M3 turret taper (PR-09), M4 embrasure + internal mantlet (PR-17; face rebuilt as the two-step WINDOW after the player's verdict — see below),
   M5 cupola ⌀624 (PR-16), M6 gun arc −5/+18 (PR-10), M7 fender asymmetry + SG-43 + MDSh (PR-19),
   M8 spider-web wheel (PR-12, dampers struck as a mis-reading), M9 belt 580 / gauge 2640 / pitch
   137 / 13 teeth (PR-18), M10 travel lock deleted (PR-19), M11 one D-10 tube (PR-07),
   M12 slope drift (PR-06), M13 the workshop's own lies (PR-01..03). **M14 (hitbox width) is the
   one open item and it is the USER's** — narrowing the box changes ramming, terrain contact and
   spotting together, so it is not a modelling call. It is measured every run and on the record.
-- **Register K (construction): 13 rows, 13 closed.** K1 muzzle (PR-25), K2 mantlet shell (PR-17),
+- **Register K (construction): 13 rows, 13 closed.** K1 muzzle (PR-25), K2 mantlet shell (PR-17; cover rebuilt as panel+frame in the window pass),
   K3 OMSh link (PR-22), K4 road wheel (PR-12/23), K5/K6 sprocket + idler (PR-24), K7 swing arm
   (PR-27), K8 hatch mechanics + headlight (PR-26a/b), K9 hooks, cables, beam (PR-26b),
   K10 DShK (PR-26b), K11 louvres, bolts, casting seam (PR-26a), K12 gear budget + LOD (PR-21),
@@ -29,6 +29,47 @@ history; what follows is the record of how it got here.
 - **The anchor test**: `t54_reference_spec` walks dossier → blueprint → mount chain → mesh in one
   place, plus the form rules no dimension can express. A vehicle can pass every other test and
   still be wrong at the joins.
+
+### The gun window (2026-07-29, the player's verdict on the first internal mount)
+
+PR-17 moved the mantlet inside and the instruments all agreed — and the player looked at the
+front and rejected it: *"Jarzmo wyszło źle, beznadziejne. To nie jest ambrazura, którą ma T-54.
+Tutaj jarzmo praktycznie pozostało te same, zmniejszone i bardziej wchłonięte."* The diagnosis
+held up: a round pocket, a round tapered boot and a visible round mantlet face are three round
+signals stacked, and three round signals read as the old ball shrunk and swallowed — the
+documented ~0.40 m *armour aperture* had been modelled as the thing the EYE sees, when on the
+real vehicle it is invisible under fabric. What the eye reads on a T-54 obr. 1949/1951 is a
+**wide rectangular window** cut between the cheeks with a **rectangular canvas panel** fastened
+into it.
+
+The rebuilt face, judged against Blender renders across six iterations before the golden was
+blessed:
+
+- **The casting is two-step.** A wide shallow window (~0.85 × 0.44 m rebate, `window_*` plateau
+  bump) drops from the face to a shelf; the narrow deep aperture (~0.40 m, the documented
+  number) drops through that shelf. Locked by the extended
+  `the_turret_face_carries_a_narrow_gun_aperture`: shelf step 0.08–0.15 below the face band,
+  window width 0.76–1.05, aperture ~0.40 at half depth — measured by walking the mesh, not by
+  reading the bump function back.
+- **The cover is a mattress, not a funnel.** Rounded-rectangle panel (0.80 × 0.37 m) with the
+  hem rooted at the window shelf, a swell over the fastening strip, a rounded border and a FLAT
+  capped front face the sleeve pierces; the first rebuild tapered the sweep to 0.30 scale and
+  the front read as a pyramid of diagonals. Sleeve radii keep the ten-to-twelve-gon INRADIUS
+  proud of the 0.098 m tube under the sag — at vertex-radius 0.100 the flats dipped under the
+  steel and the barrel showed through as a torn zigzag.
+- **The fastening frame is its own steel part** (`gun_mantlet_frame`, a closed loop swept in
+  the window), locked to the panel and the window by `the_cover_frame_matches_the_window`.
+- **Fold ridges are deliberately absent.** Tried twice — buried behind the face plane they
+  rendered nothing (the K3 defect in miniature); surfaced they read as stamped chevrons, then
+  as claw-mark slashes. Broad low undulations are beyond a tube sweep; clean canvas is the
+  honest render.
+- **The occluded pays for the visible.** The internal mantlet drops to 12 segments (only a
+  breach remesh ever shows it); the panel, frame and window refinement land LOD0 at 21,988 of
+  22,000.
+- The visibility rule is inverted from the ball days:
+  `the_visible_gun_mount_is_no_wider_than_its_canvas_cover` now asserts fabric ahead of the
+  face out to the panel's half-diagonal (0.30–0.47) and **steel no wider than the tube** —
+  anything wider is the ball creeping back.
 
 ### The no-compromise pass (2026-07-29, after S3/S4)
 
@@ -123,7 +164,8 @@ already documented in the PR-15 authoring comments. Renders: overlay + 7 review 
 verification job's tmp (`v_*.png`); reproduce with `tools export-mesh` + `verify_phase1/2.py`.
 
 Visual review of the renders confirms every dossier form rule on the shipped mesh: the narrow
-aperture with the canvas boot (no ball), the bore reading as a hole, spider-web wheels with twin
+aperture with the canvas cover, no ball (this session's boot was later rebuilt into the
+window-and-panel face — see the gun window section), the bore reading as a hole, spider-web wheels with twin
 tyres and horns riding between them, sprocket teeth meshing the links, rear drive / front idler
 with its crank, no return rollers (the top run lies on the wheels), the asymmetric fender line
 (right: two X-lid tanks; left: three bins + exhaust), the headlight facing forward with a glass

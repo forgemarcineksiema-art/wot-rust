@@ -63,8 +63,10 @@ fn t54_turret_has_the_flat_pancake_profile_of_the_1951_casting() {
 /// the dossier says this vehicle does not have. The mantlet is inside now, so measuring the gun
 /// submesh measures the wrong thing: most of it is behind the turret face.
 ///
-/// The question worth locking is what a viewer sees ahead of the casting, and the answer is the
-/// canvas boot and the tube. Nothing there may be wider than the boot's own mouth.
+/// The question worth locking is what a viewer sees ahead of the casting: CANVAS — the panel over
+/// the window, out to its own half-diagonal — and the tube. Every piece of steel other than the
+/// barrel stays behind the face, inside the window; steel standing ahead is the ball mantlet
+/// creeping back.
 #[test]
 fn the_visible_gun_mount_is_no_wider_than_its_canvas_cover() {
     let blueprint = VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("T-54 blueprint");
@@ -75,18 +77,27 @@ fn the_visible_gun_mount_is_no_wider_than_its_canvas_cover() {
 
     let baked = vehicle_build::t54_description().build();
     let gun = &baked.submesh(SubmeshKind::Gun).expect("gun").mesh;
-    let widest = gun
-        .vertices()
-        .iter()
-        .filter(|v| v.position.z > face)
-        .map(|v| v.position.x.hypot(v.position.y - trunnion_y))
-        .fold(0.0_f32, f32::max);
-    // The boot's widest station is 0.25; ahead of the casting it has already tapered below that.
+    let radius_ahead = |wanted: bool| {
+        gun.vertices()
+            .iter()
+            .filter(|v| v.position.z > face && (v.material == MaterialRole::Canvas) == wanted)
+            .map(|v| v.position.x.hypot(v.position.y - trunnion_y))
+            .fold(0.0_f32, f32::max)
+    };
+    // The panel's fastened rectangle is 0.80 x 0.37; its half-diagonal is ~0.44 and the fabric
+    // never stands wider than what it is fastened over.
+    let fabric = radius_ahead(true);
     assert!(
-        widest <= 0.25,
-        "ahead of the turret face the mount is fabric and tube, got a radius of {widest:.3}"
+        fabric <= 0.47,
+        "ahead of the turret face the widest thing is the fastened panel, got fabric at {fabric:.3}"
     );
-    assert!(widest > 0.06, "and it is not a bare tube either, got {widest:.3}");
+    assert!(fabric > 0.30, "and it IS the wide panel, not a boot: {fabric:.3}");
+    let steel = radius_ahead(false);
+    assert!(
+        steel <= 0.13,
+        "the only steel ahead of the face is the tube — anything wider is the ball mantlet \
+         creeping back, got {steel:.3}"
+    );
 }
 
 /// K2, at the source. The mantlet profile must close at BOTH ends. Written as a sleeve — first
