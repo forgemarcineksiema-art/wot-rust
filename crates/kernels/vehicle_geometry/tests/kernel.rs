@@ -114,6 +114,90 @@ fn a_revolve_profile_that_runs_backwards_still_caps_outward() {
     assert!(all_faces_point_outward(&descending), "descending revolve must be outward-wound");
 }
 
+/// A CLOSED profile — one that goes out, along, back in and returns — is how every ring in the
+/// project is made: the steel rim under a road wheel tyre, the tyre itself, the return roller,
+/// the turret-ring collar, the drums the hatches are cut from.
+///
+/// Such a profile has a band that faces the AXIS rather than away from it: the ring's inner wall.
+/// The kernel used to orient each band on its own by asking whether it pointed away from the
+/// axis, so that one band came out flipped relative to its neighbours and its seams were wound
+/// two different ways at once. It cost 22 broken edges per ring and it shipped on every wheel in
+/// the fleet, because the mesh-quality gate only ever ran over the BAKED submeshes and the gear
+/// lives outside the bake.
+///
+/// The lathe is now wound once and oriented once, so a ring is a ring from both sides.
+#[test]
+fn a_closed_ring_profile_is_wound_one_way_all_the_way_round() {
+    let ring = MeshBuilder::new()
+        .revolve(RevolveSpec {
+            profile: vec![
+                ProfilePoint::new(0.26, -0.16),
+                ProfilePoint::new(0.36, -0.16),
+                ProfilePoint::new(0.36, 0.16),
+                ProfilePoint::new(0.26, 0.16),
+                ProfilePoint::new(0.26, -0.16),
+            ],
+            axis: Axis::X,
+            segments: 24,
+            material: MaterialRole::TrackMetal,
+            smoothing: SmoothingGroup(5),
+        })
+        .build();
+
+    let report = ring.quality_report(OPEN_OR_CLOSED_MESH);
+    assert_eq!(
+        report.inconsistent_winding_edges, 0,
+        "the ring's inner wall must agree with its outer wall — {} edges are wound both ways",
+        report.inconsistent_winding_edges
+    );
+    assert_eq!(report.non_manifold_edges, 0, "a closed ring is a manifold shell");
+    assert!(
+        report.signed_volume > 0.0,
+        "the shell must enclose its metal, not turn it inside out (signed volume {})",
+        report.signed_volume
+    );
+}
+
+/// The orientation vote is decided by the surface as a whole, so the minority band follows the
+/// majority instead of flipping alone — and a plain outer wall is still wound outward.
+#[test]
+fn a_lathe_orients_by_its_dominant_face_not_band_by_band() {
+    // A deep ring: the inner wall is nearly as large as the outer one, so a per-band guess had
+    // the most to disagree about here, and the vote still has to come out facing the world.
+    let deep_ring = MeshBuilder::new()
+        .revolve(RevolveSpec {
+            profile: vec![
+                ProfilePoint::new(0.40, -0.05),
+                ProfilePoint::new(0.44, -0.05),
+                ProfilePoint::new(0.44, 0.05),
+                ProfilePoint::new(0.40, 0.05),
+                ProfilePoint::new(0.40, -0.05),
+            ],
+            axis: Axis::Z,
+            segments: 20,
+            material: MaterialRole::TrackMetal,
+            smoothing: SmoothingGroup(5),
+        })
+        .build();
+    assert_eq!(deep_ring.quality_report(OPEN_OR_CLOSED_MESH).inconsistent_winding_edges, 0);
+    assert!(
+        deep_ring.quality_report(OPEN_OR_CLOSED_MESH).signed_volume > 0.0,
+        "even when the inner wall nearly matches the outer one, the shell faces out"
+    );
+
+    // And the simple case the old heuristic did get right must stay right.
+    let tube = MeshBuilder::new()
+        .revolve(RevolveSpec {
+            profile: vec![ProfilePoint::new(0.20, -0.5), ProfilePoint::new(0.20, 0.5)],
+            axis: Axis::X,
+            segments: 18,
+            material: MaterialRole::BarrelSteel,
+            smoothing: SmoothingGroup(3),
+        })
+        .build();
+    assert!(all_faces_point_outward(&tube), "a plain tube wall still faces away from its axis");
+}
+
 #[test]
 fn chamfered_prism_keeps_bounds_while_adding_shape_detail() {
     let mesh = MeshBuilder::new()

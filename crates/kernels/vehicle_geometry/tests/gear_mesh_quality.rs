@@ -21,30 +21,6 @@ use vehicle_geometry::{
     sprocket_unit_mesh, swing_arm_unit_mesh, track_link_unit_mesh,
 };
 
-/// Winding debt that exists TODAY, booked in the FLOOR/TARGET form the project uses: the count
-/// is a CEILING, so it can only ever shrink, and every entry names its cause.
-///
-/// **The whole fleet's road wheels and return rollers are wound inconsistently** — 22 edges on a
-/// dished wheel, 44 on an openwork (spoked) one, 16 on every return roller, in every vehicle.
-/// This is one systematic generator defect, not eight vehicle defects: the wheel is assembled
-/// from independently-revolved pieces (ring, web, hub, tyre) plus extruded spoke arms, and the
-/// seams between them disagree about which way the surface faces. Nothing had ever audited a
-/// gear mesh, so it has been shipping since the wheels were written.
-///
-/// It is booked rather than fixed here because the fix is a rewrite of the wheel generator, and
-/// that rewrite is already scheduled with its own reference dossier (Model Idealny W4/PR-23:
-/// twin discs with a real axial gap, dished spider casting, hub bolt circle). Fixing it here
-/// would move the whole fleet's geometry twice.
-const RECORDED_GEAR_WINDING_CEILING: &[(&str, usize)] =
-    &[("road_wheel", 44), ("return_roller", 16)];
-
-fn gear_ceiling(part: &str) -> usize {
-    RECORDED_GEAR_WINDING_CEILING
-        .iter()
-        .find(|(name, _)| *name == part)
-        .map_or(0, |(_, allowed)| *allowed)
-}
-
 fn audit(mesh: &GeometryMesh, where_: &str) {
     let report: MeshQualityReport = mesh.quality_report(OPEN_OR_CLOSED_MESH);
     assert_eq!(
@@ -72,45 +48,18 @@ fn audit(mesh: &GeometryMesh, where_: &str) {
         "{where_}: {} vertex normals are not unit length",
         report.non_unit_normals
     );
-    // Winding is the one class with recorded debt (see the ceiling table above).
-    let part = where_.rsplit(' ').next().unwrap_or("");
-    let allowed = gear_ceiling(part);
-    assert!(
-        report.inconsistent_winding_edges <= allowed,
-        "{where_}: {} inconsistently wound edges, past its recorded ceiling {allowed} — those \
-         faces light backwards, and a wheel is seen from every angle on every frame",
+    // Winding used to be the one class with recorded debt here: every road wheel in the fleet
+    // carried 44 inconsistently wound edges and every return roller 16, because the revolve
+    // kernel oriented each band of a lathe on its own (see `builder/revolve.rs`). A ring's inner
+    // wall faces the axis rather than away from it, so it came out flipped relative to its
+    // neighbours and both its seams lit backwards. The kernel now winds a lathe once and orients
+    // it once, and the debt is gone fleet-wide — so this is a hard zero, not a ceiling.
+    assert_eq!(
+        report.inconsistent_winding_edges, 0,
+        "{where_}: {} inconsistently wound edges — those faces light backwards, and a wheel is \
+         seen from every angle on every frame",
         report.inconsistent_winding_edges
     );
-    if report.inconsistent_winding_edges > 0 {
-        println!(
-            "GEAR MESH DEBT {where_}: {} inconsistently wound edges (ceiling {allowed}, target 0 \
-             — Model Idealny W4/PR-23)",
-            report.inconsistent_winding_edges
-        );
-    }
-}
-
-/// A ceiling that no longer bites is a lie about the state of the fleet. Every entry must still
-/// be reached by at least one vehicle, or it gets deleted.
-#[test]
-fn every_recorded_gear_ceiling_is_still_earned() {
-    for (part, allowed) in RECORDED_GEAR_WINDING_CEILING {
-        let mut worst = 0;
-        for kind in VehicleKind::PLAYABLE {
-            let Some(kin) = RunningGearKinematics::for_vehicle(kind) else { continue };
-            let mesh = match *part {
-                "road_wheel" => road_wheel_unit_mesh(&kin),
-                "return_roller" => return_roller_unit_mesh(&kin),
-                other => panic!("unknown recorded gear part {other}"),
-            };
-            worst = worst.max(mesh.quality_report(OPEN_OR_CLOSED_MESH).inconsistent_winding_edges);
-        }
-        assert_eq!(
-            worst, *allowed,
-            "{part} now measures {worst} inconsistently wound edges, not the recorded {allowed} \
-             — lower the ceiling (or delete the entry) in the same commit that improved it"
-        );
-    }
 }
 
 #[test]
