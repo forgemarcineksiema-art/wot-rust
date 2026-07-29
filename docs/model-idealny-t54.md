@@ -30,6 +30,51 @@ history; what follows is the record of how it got here.
   place, plus the form rules no dimension can express. A vehicle can pass every other test and
   still be wrong at the joins.
 
+### S3/S4 — the Blender verification (2026-07-29, session close)
+
+The master-reference loop ran against the FINAL stack head, in Blender over the live S1 scene
+(`master_dome` + calibrated drawings), on a fresh `tools export-mesh` bake (13 objects, 60,692
+tris). Three instruments measured the same vehicle — the in-repo dimension gate, a plain-Python
+OBJ parse, and Blender itself — and their numbers agree to the millimetre. Blender independently
+confirms **0 non-manifold edges** on Hull, Turret and Gun.
+
+Section diff against the S1 master (widths/lengths of the casting, registration-free):
+
+| h | W model | W wzorzec | ΔW | L model | L wzorzec | ΔL |
+|---:|---:|---:|---:|---:|---:|---:|
+| 1.58 | 2.138 | 2.250 | **−112 mm** | 2.363 | 2.363 | −0 mm |
+| 1.68 | 2.207 | 2.250 | −43 mm | 2.366 | 2.363 | +3 mm |
+| 1.78 | 2.245 | 2.250 | −5 mm | 2.369 | 2.363 | +6 mm |
+| 1.88 | 2.207 | 2.250 | −43 mm | 2.366 | 2.363 | +3 mm |
+| 2.00 | 2.126 | 2.250 | **−124 mm** | 2.366 | 2.363 | +3 mm |
+| 2.12 | 2.136 | 2.124 | +12 mm | 2.324 | 2.323 | +1 mm |
+| 2.22 | 1.799 | 1.796 | +3 mm | 2.105 | 2.105 | +0 mm |
+| 2.30* | 1.441 | 1.608 | −167 mm | 1.680 | 1.886 | −206 mm |
+| 2.40* | 0.840 | 0.420 | +420 mm | 0.960 | 0.493 | +467 mm |
+
+\* rows above 2.22 compare against the master's CLOSURE band, which S1 itself marks untrusted
+(roof furniture in the extraction; crown from geometric closure). Our authored flat roof is a
+deliberate divergence from that closure, not from the vehicle.
+
+**Distance to ideal, trusted band (1.58–2.22): length within 6 mm everywhere; width within
+12 mm at the cheeks and the neck.** The one remaining SHAPE deviation: the casting waists in up
+to 112/124 mm of total width at the ring seat and at 2.00, where the S1 sheet claims a vertical
+flank at full 2.25 — and PR-15 reads that 1.125 as the silhouette including the cheek swell. The
+sheet's own ±4–7% inconsistency cannot arbitrate; recorded here as the open shape question, with
+the front/rear registration dispute (ours ring-datum front-heavy, S1's widest-cut rear-heavy)
+already documented in the PR-15 authoring comments. Renders: overlay + 7 review angles in the
+verification job's tmp (`v_*.png`); reproduce with `tools export-mesh` + `verify_phase1/2.py`.
+
+Visual review of the renders confirms every dossier form rule on the shipped mesh: the narrow
+aperture with the canvas boot (no ball), the bore reading as a hole, spider-web wheels with twin
+tyres and horns riding between them, sprocket teeth meshing the links, rear drive / front idler
+with its crank, no return rollers (the top run lies on the wheels), the asymmetric fender line
+(right: two X-lid tanks; left: three bins + exhaust), the headlight facing forward with a glass
+lens and guard, thimbled and clamped cables, the banded log over two MDSh canisters, raked deck
+louvres, bolted panels, the casting seam, and the DShK ring concentric with the loader's hatch.
+Known, recorded compromises visible as intended: the DShK sits low on its ring (footprint
+doctrine) and the MDSh drums are constraint-sized.
+
 ### What this programme kept finding
 
 One defect class dominated, and it is worth naming because the next vehicle will have it too:
