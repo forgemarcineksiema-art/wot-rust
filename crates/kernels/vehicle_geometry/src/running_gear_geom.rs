@@ -69,56 +69,81 @@ fn distant_link(kin: &RunningGearKinematics) -> GeometryMesh {
         .build()
 }
 
-/// Soviet small-pitch OMSh (T-54 family, IS-3): flat plate, twin inner guide pads, pin bars
-/// at the joints, edge rails.
+/// The Soviet small-pitch **OMSh** shoe (T-54 family, IS-3), built the way it is built.
+///
+/// What it had before: a plate, two 10 mm "guide pads" and two edge rails that were entirely
+/// buried inside the backing skin, and two "pin bars" lying across the GROUND face. Four of its
+/// seven detail boxes rendered nothing at all — 64 triangles per shoe, 11,520 per tank, drawing
+/// the inside of another box — and the two that did show were on the wrong face and implied
+/// pin heads the real track does not have.
+///
+/// What it is (dossier, "Part construction", session S1b):
+///
+/// - **One guide horn per shoe.** Every OMSh link is horned from September 1949; the alternating
+///   horned/flat belt belongs to the pre-1947 track. The horn stands up on the WHEEL side and
+///   rides in the gap between the road wheel's twin tyres — which is why
+///   [`RunningGearKinematics::tyre_gap_half`] is the one number that sizes both parts.
+/// - **Hinge eyes at each joint.** The projecting barrel of eyes around the floating pin — the
+///   цевка — is what a sprocket tooth bears on. Not the horn: the tooth enters the window BESIDE
+///   the horn and pushes on the eye barrel. From the side these read as the knuckle line running
+///   the length of the belt.
+/// - **No pin heads.** The pin is ⌀20-22 x 520 mm and floats; its ends sit about 30 mm inboard of
+///   the belt edges, so nothing of it shows from outside. The eye bars stop short accordingly.
+/// - **Ribbed ground face.** Stiffening ribs raised in September 1949 — not chevrons, not smooth.
 fn omsh_link(kin: &RunningGearKinematics) -> GeometryMesh {
     let half_z = kin.link_half_length();
     // The shoe plate spans the full belt band, so its outer face sits AT the blueprint's
-    // `outer_x` — the documented "width over tracks". (It used to be `link_half_width * 1.25`,
-    // which left the band underfilled and pushed the sprocket rings proud of the real width.)
+    // `outer_x` — the documented "width over tracks".
     let plate_half_x = kin.band_half_width;
-    let guide_half_x = (kin.link_half_width * 0.18).max(0.012);
-    let pin_half_z = (half_z * 0.07).max(0.010);
+    // The horn fits the slot between the twin tyres with clearance to either side. A wheel with
+    // no gap (the German dish) gets no horn from this generator — it does not have one.
+    let horn_half_x = kin.tyre_gap_half() * 0.72;
+    // How deep the slot between the tyres actually is: from the tread the belt rides on down to
+    // the steel seat the tyres are pressed onto. The horn is sized from THAT, with a little
+    // clearance, so it is swallowed by the slot instead of bottoming out on the wheel — by
+    // construction, not by a constant someone tuned until the test went quiet.
+    let slot_depth = (kin.wheel_radius - kin.tyre_seat_radius() - 0.006).max(0.008);
+    let plate_face_y = -0.030_f32;
+    let horn_half_y = (slot_depth + 0.020) * 0.5;
+    let horn_y = plate_face_y - horn_half_y;
+    // The eye barrel: at the joint, standing proud of the backing on the wheel side, stopping
+    // short of the belt edges because the pin does.
+    let eye_inset = 0.030_f32.min(plate_half_x * 0.12);
+    let eye_half_x = (plate_half_x - eye_inset).max(plate_half_x * 0.5);
 
-    MeshBuilder::new()
+    let mut builder = MeshBuilder::new()
         .append(&box_prism(Vec3::new(0.0, -0.004, 0.0), plate_half_x, 0.026, half_z))
+        // The two hinge-eye barrels — the belt's knuckle line, and the surface the drive
+        // sprocket actually bears on.
         .append(&box_prism(
-            Vec3::new(0.0, -0.031, -half_z * 0.26),
-            guide_half_x,
-            0.005,
-            half_z * 0.12,
+            Vec3::new(0.0, -0.044, -half_z * 0.90),
+            eye_half_x,
+            0.017,
+            half_z * 0.14,
+        ))
+        .append(&box_prism(Vec3::new(0.0, -0.044, half_z * 0.90), eye_half_x, 0.017, half_z * 0.14))
+        // Stiffening ribs across the ground face.
+        .append(&box_prism(
+            Vec3::new(0.0, 0.026, -half_z * 0.44),
+            plate_half_x * 0.92,
+            0.006,
+            half_z * 0.11,
         ))
         .append(&box_prism(
-            Vec3::new(0.0, -0.031, half_z * 0.26),
-            guide_half_x,
-            0.005,
-            half_z * 0.12,
-        ))
-        .append(&box_prism(
-            Vec3::new(0.0, 0.018, -half_z * 0.78),
-            plate_half_x * 0.88,
-            0.010,
-            pin_half_z,
-        ))
-        .append(&box_prism(
-            Vec3::new(0.0, 0.018, half_z * 0.78),
-            plate_half_x * 0.88,
-            0.010,
-            pin_half_z,
-        ))
-        .append(&box_prism(
-            Vec3::new(-plate_half_x * 0.54, -0.026, 0.0),
-            plate_half_x * 0.12,
-            0.010,
-            half_z * 0.78,
-        ))
-        .append(&box_prism(
-            Vec3::new(plate_half_x * 0.54, -0.026, 0.0),
-            plate_half_x * 0.12,
-            0.010,
-            half_z * 0.78,
-        ))
-        .build()
+            Vec3::new(0.0, 0.026, half_z * 0.44),
+            plate_half_x * 0.92,
+            0.006,
+            half_z * 0.11,
+        ));
+    if horn_half_x > 0.0 {
+        builder = builder.append(&box_prism(
+            Vec3::new(0.0, horn_y, 0.0),
+            horn_half_x,
+            horn_half_y,
+            half_z * 0.46,
+        ));
+    }
+    builder.build()
 }
 
 /// German Kgs 63/725 double-pin shoe (Tiger I/II, Jagdtiger, Panther II): a wide plate with

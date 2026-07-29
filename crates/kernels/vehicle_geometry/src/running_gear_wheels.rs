@@ -49,14 +49,14 @@ fn spider_web_wheel(kin: &RunningGearKinematics) -> GeometryMesh {
     let plate_half = body_half * 0.26;
     let mut builder = MeshBuilder::new()
         // Full-width steel rim ring seated under the tyre (as on the openwork face).
-        .append(&steel_ring(r * 0.64, r * 0.895, body_half, seg))
+        .append(&steel_ring(r * 0.64, kin.tyre_seat_radius(), body_half, seg))
         // The mid band, between the two rings of holes.
         .append(&steel_ring(r * 0.44, r * 0.52, plate_half, seg))
         // The hub collar the small holes are punched around (the bolt circle lands here — PR-23).
         .append(&steel_ring(r * 0.24, r * 0.34, plate_half, seg))
         // Proud central hub cap.
         .append(&wheel_disc_at(0.0, r * 0.24, half_w * 1.05, seg, MaterialRole::TrackMetal))
-        .append(&dual_tire(r, half_w, seg));
+        .append(&road_wheel_tyres(r, half_w, kin.tyre_gap_half(), seg));
     // The webs: narrow radial ribs bridging hub collar → mid band → rim, buried at both ends.
     // They are HALF the width of an openwork arm because they stiffen a stamping rather than
     // carry the rim across a void, and their count is the disc's identity (twelve on the T-54).
@@ -116,13 +116,13 @@ fn openwork_wheel(kin: &RunningGearKinematics) -> GeometryMesh {
         // outer wall, both side annuli, inner wall) — solid at the rim, open inboard of it. The
         // tire's side lips overlap it RADIALLY (down to 0.86 r) but sit on wider planes, so there
         // is neither a see-through gap between tire and ring nor a coplanar face to z-fight.
-        .append(&steel_ring(r * 0.66, r * 0.895, body_half, seg))
+        .append(&steel_ring(r * 0.66, kin.tyre_seat_radius(), body_half, seg))
         // Recessed centre web the openwork reads against: thin, well inboard of the rim faces.
         .append(&wheel_disc_at(0.0, r * 0.72, body_half * 0.28, seg, MaterialRole::TrackMetal))
         // Proud central hub cap; its capped fan reads as the hub.
         .append(&wheel_disc_at(0.0, r * 0.22, half_w * 1.05, seg, MaterialRole::TrackMetal))
         // One centred rubber tire grooved down the middle — the dual-tire look without offset bands.
-        .append(&dual_tire(r, half_w, seg));
+        .append(&road_wheel_tyres(r, half_w, kin.tyre_gap_half(), seg));
     // Radial arms bridging hub to rim, proud of the recessed web: the T-54's six-arm starfish
     // or the IS family's denser rib casting (`wheel_spokes`). Their tips are BURIED radially in
     // the rim ring and the hub, and their faces sit just INBOARD of the ring's side annuli
@@ -180,7 +180,7 @@ fn dished_wheel(kin: &RunningGearKinematics, rubber_tire: bool) -> GeometryMesh 
         }
     }
     if rubber_tire {
-        builder = builder.append(&dual_tire(r, half_w, seg));
+        builder = builder.append(&road_wheel_tyres(r, half_w, kin.tyre_gap_half(), seg));
     } else {
         // Steel tire band: same silhouette as the rubber, cut in steel (no groove).
         builder = builder.append(
@@ -324,24 +324,42 @@ fn spoke_arm(
 /// without a disc cap that would cover the steel face. Its side lips run inward to 0.86 r —
 /// radially UNDER the steel ring's outer wall (0.895 r) on a wider plane — so no annular window
 /// opens between tire and ring (an open ring flickers as the spokes sweep behind it).
-fn dual_tire(r: f32, half_w: f32, segments: usize) -> GeometryMesh {
+/// The rubber on a road wheel.
+///
+/// A Soviet twin-disc wheel is TWO tyres with an axial gap between them, and that gap is not
+/// decoration: it is the slot the track's guide horn rides in. The generator used to draw one
+/// body with a V-groove pressed down the middle and the code said so out loud — "the shoes' guide
+/// horns ride INSIDE it". A groove is not a gap. From any angle where you can see between the
+/// discs you saw solid rubber, and the horn that is supposed to be swallowed by the slot was
+/// riding in a dent.
+///
+/// Wheels whose face is one disc (the German steel-rimmed, the Centurion's) answer
+/// `gap_half == 0` and get the single band they really have.
+fn road_wheel_tyres(r: f32, half_w: f32, gap_half: f32, segments: usize) -> GeometryMesh {
+    if gap_half <= 0.0 {
+        return single_tyre(r, -half_w, half_w, segments);
+    }
+    MeshBuilder::new()
+        .append(&single_tyre(r, -half_w, -gap_half, segments))
+        .append(&single_tyre(r, gap_half, half_w, segments))
+        .build()
+}
+
+/// One rubber band between `x0` and `x1`: a bulged tread with a shoulder at each side, closed on
+/// its inner face so the band reads as a tyre pressed onto the rim rather than a hollow sleeve.
+fn single_tyre(r: f32, x0: f32, x1: f32, segments: usize) -> GeometryMesh {
+    let span = x1 - x0;
+    let shoulder = span * 0.16;
     MeshBuilder::new()
         .revolve(RevolveSpec {
             profile: vec![
-                ProfilePoint::new(r * 0.86, -half_w),
-                ProfilePoint::new(r * 0.91, -half_w),
-                ProfilePoint::new(r, -half_w * 0.80),
-                ProfilePoint::new(r, -half_w * 0.34),
-                // Groove deep enough that the shoes' guide horns ride INSIDE it on the ground
-                // run and the end wraps (the 0.02 link seat leaves the horns ~1.6 cm proud).
-                ProfilePoint::new(r * 0.92, 0.0),
-                ProfilePoint::new(r, half_w * 0.34),
-                ProfilePoint::new(r, half_w * 0.80),
-                ProfilePoint::new(r * 0.91, half_w),
-                ProfilePoint::new(r * 0.86, half_w),
-                // Inner cylindrical wall: closes the tire rather than exposing a hollow
-                // annulus between the proud side lip and the recessed steel wheel face.
-                ProfilePoint::new(r * 0.86, -half_w),
+                ProfilePoint::new(r * 0.86, x0),
+                ProfilePoint::new(r * 0.91, x0),
+                ProfilePoint::new(r, x0 + shoulder),
+                ProfilePoint::new(r, x1 - shoulder),
+                ProfilePoint::new(r * 0.91, x1),
+                ProfilePoint::new(r * 0.86, x1),
+                ProfilePoint::new(r * 0.86, x0),
             ],
             axis: Axis::X,
             segments,

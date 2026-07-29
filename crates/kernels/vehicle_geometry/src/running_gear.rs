@@ -206,6 +206,36 @@ impl RunningGearKinematics {
         self.link_count
     }
 
+    /// Half the axial gap between a twin-disc road wheel's two tyres — the slot the track's
+    /// guide horn rides in, and the reason the horn exists at all.
+    ///
+    /// The Soviet road wheel is two discs bolted together with a gap between their rubber tyres
+    /// (T-54: 185 mm tyres, ~53 mm gap in a 423 mm assembly — 12.5% of the width, dossier
+    /// "Part construction"). The horn on every shoe from September 1949 stands up into that slot
+    /// and keeps the belt from walking off the wheel. One dimension, two parts: the wheel cannot
+    /// be honest without the gap and the link cannot be honest without the horn.
+    ///
+    /// German steel-dish and British rubber-dish wheels are ONE disc — their belts are guided
+    /// between adjacent wheels or by a horn riding outside them — so they answer zero.
+    pub fn tyre_gap_half(&self) -> f32 {
+        match self.wheel_face {
+            game_core::WheelFace::Openwork | game_core::WheelFace::SpiderWeb => {
+                self.wheel_half_width * 0.125
+            }
+            game_core::WheelFace::SteelDish | game_core::WheelFace::RubberDish => 0.0,
+        }
+    }
+
+    /// Radius of the steel the rubber tyres are pressed onto.
+    ///
+    /// Between a twin-disc wheel's two tyres this is the FLOOR the track's guide horn runs over,
+    /// so it is the number that decides how tall the horn may be. The wheel generator seats its
+    /// rim ring here and the link generator sizes its horn from here: the horn cannot bottom out
+    /// on the wheel, by construction rather than by a tuned constant.
+    pub fn tyre_seat_radius(&self) -> f32 {
+        self.wheel_radius * 0.895
+    }
+
     /// This same gear, built for distance. The belt path, the wheel positions and every
     /// dimension are untouched — only how finely the parts are tessellated changes, so a
     /// far-detail tank stands in exactly the same place as a near one.
