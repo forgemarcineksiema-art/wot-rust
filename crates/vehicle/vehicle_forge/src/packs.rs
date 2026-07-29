@@ -148,10 +148,14 @@ pub fn t54_reference_pack() -> ReferencePack {
             0.4,
             t54_dossier("5 road wheels per side, counted from the rendered placements."),
         ),
-        // -- Target: documented values the model has not reached yet (program debt). --
-        // The clearance debt was FOUND BY this instrument on its first run: the dossier says
-        // 425 mm, the belly bakes at 440 (`belly_y 0.43` + plate). Retunes with the hull PR.
-        DimensionTarget::target_pending(
+        // The clearance debt was FOUND BY this instrument on its first run and CLOSED BY it on the
+        // last: the belly has been at the documented 0.425 since PR-14, and what stayed in debt
+        // was the measurement. It looked in a strip 55% of the widest thing on the vehicle, and
+        // the widest thing on a T-54 is its fenders — so the window was 0.90 wide while the floor's
+        // corners sit at 1.03, and the floor was never in it. It reads the hull's own width now.
+        //
+        // This was the LAST Target anchor on this vehicle. There are none left.
+        DimensionTarget::new(
             DimensionKind::GroundClearance,
             0.425,
             0.01,

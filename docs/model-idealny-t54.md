@@ -5,68 +5,46 @@ armor, and per-part mechanical construction — plus the workshop technology abl
 When both registers below are empty and every `Target` anchor has flipped to `Locked`, this
 document becomes history.
 
-## STATUS (2026-07-28) — read this first if you are picking the work up
+## STATUS — **COMPLETE** (2026-07-29)
 
-- Program approved. Wave W0 in flight: **PR-00 (this document + the t-54 dossier) is the first
-  landing**. Nothing else has merged yet.
-- Baseline at program start: 0 open PRs, `trial3` == master, LOD0 = 15,096 / 22,000 tris
-  (the remembered "t54_hybrid budget debt" is stale — there is none).
-- Foundation: five audits dated 2026-07-28 (geometry kernels; T-54 authoring stack;
-  blueprint schema + armor; Forge workshop; gun/turret + running-gear construction) and a
-  web-sourced dossier now recorded in `docs/vehicles/t-54.md` (Reference anatomy table +
-  Part construction table from session S1b).
-- Blender sessions S1 (dome master: station table banked in the plan; height 2.40 confirmed,
-  2.218 ruled out) and S1b (part construction: 13-tooth sprocket rings, hinge-eye drive,
-  the spider-web wheel correction) are done; S2/S3/S4 belong to W3.
-- **Update 2026-07-29 — W0/W1/W2 built as a review stack** (PR-01 reference spec → PR-02 studio
-  on the authoritative bake → PR-03 tile goldens + mirror fix → PR-04 OBJ export → PR-05 kernel
-  contracts → PR-06 blueprint SSOT → PR-07 module honesty → PR-08 fleet gates → PR-09 armor
-  taper [PROTOCOL v40] → PR-10 gun arc → PR-11 loft/sweep shape → PR-12a revolve winding →
-  PR-12 spider-web wheel -> bot water slope -> PR-13 armour dome). Each is its own branch and
-  draft PR; merge order is the stack order. **W2 closes at PR-13.**
-- **Two findings worth carrying forward.** (1) The T-54's hydraulic dampers are internal (vane
-  type on the balance-arm shaft) — the register's "no visible dampers" line was a mis-reading and
-  is struck; nothing is owed on the hull side, and the `GearPart::Damper` drafted for PR-12 was
-  deleted rather than shipped, because inventing an external cylinder is the exact failure this
-  program exists to remove. (2) The revolve kernel wound every closed lathe profile
-  inconsistently — 22 broken edges per ring, on every wheel, tyre, roller and drum in the fleet.
-  It surfaced only because a NEW construction pushed a recorded debt ceiling past its limit,
-  which is what the FLOOR/TARGET pattern is for. (3) The T-54's cheeks — the vehicle's entire
-  armour argument — stood 0.34 m OUTSIDE their own armour volume, because the dome was swept as a
-  circle of 1.12 m while the casting bulges to 1.37 at the shoulder. Shells went through them.
-  Fixed in PR-13 by placing every sector plane on the casting's support function.
-- **Update 2026-07-29 — W3 in flight**: PR-14 (hull 6.235) → PR-15 (dome 2.40) →
-  PR-16 (cupola ⌀624) → PR-17 (embrasure + internal mantlet + canvas) stacked in that order.
-  Four `Target` anchors have flipped to **Locked**; the debt register is down to
-  `[GroundClearance, TrackGauge, TrackWidth]`, and the last two are PR-18's subject.
-- **A kernel gap the aperture exposed (PR-17).** `segments` is the resolution of the CASTING, and
-  a gun aperture is a feature ON it. On the uniform grid the aperture's wall fell inside a single
-  facet, so the hole MEASURED 0.48 m however it was authored — and the obvious fix, quadrupling
-  the ring count, cost 2,304 tris for the dome and still measured 0.48. `cast_loft` now refines
-  its azimuth grid over the footprint of any bump too narrow for the grid, and only there. The
-  dome went back to 64 segments, costs **1,296** tris, and the aperture measures 0.420. A soft
-  cast swell asks for nothing and pays nothing.
-- **Open decision #2 (track gauge) resolved by the dossier's own arithmetic (PR-18).** The
-  question was whether to keep the 2.690 gauge or narrow the tub, because at 580 mm of belt the
-  inner edge lands inside a 1.05 hull. The documented set answers it: gauge 2.640 + track 0.580 =
-  3.220 over the tracks, and the fender shelf already sat where 25 mm of overhang each side makes
-  the documented 3.270 over the fenders. So the gauge is right and the TUB was wrong — 2.640 less
-  0.580 leaves 2.060 m of clear space, and the box is 1.03 each side.
-- **A second defect the aperture exposed (PR-17).** Shrinking the mantlet patch to the size of
-  the real hole showed that it was never centred where its comment said. The dome projected the
-  patch centre onto each sector plane ALONG THE PLANE'S NORMAL; a dome's sector plane is tangent
-  to the casting at its FURTHEST point, up on the shoulder, so at gun height it stands 0.29 m
-  ahead of the metal and a normal raked 35 degrees walked the patch 0.17 m up the plate. A shot
-  straight down the barrel landed 0.21 m from the centre of its own mantlet and counted only
-  because the patch was 0.38 m wide. The centre now follows the GUN LINE. Box turrets are
-  unaffected (their front plate already sits at the mantlet's z), so no other vehicle's armour
-  moves.
-- **A defect found by deterministic divergence.** Changing the armour volume changed every
-  subsequent shell resolution, so the seeded Bystra soak grew a different battle — and that
-  battle drove a bot into the river. The bot brain's escape budget scaled braking by surface grip
-  but not by SLOPE, and a channel is a hole, so every approach to one runs downhill. Fixed in its
-  own PR before PR-13. The defect was always there; the two recorded seeds never produced that
-  approach.
+Both registers are empty and every anchor is **Locked**. By this document's own terms it is now
+history; what follows is the record of how it got here.
+
+- **Register M (dimensions): 14 rows, 14 closed or dispositioned.** M1 hull 6.235 (PR-14),
+  M2 dome 2.40 (PR-15), M3 turret taper (PR-09), M4 embrasure + internal mantlet (PR-17),
+  M5 cupola ⌀624 (PR-16), M6 gun arc −5/+18 (PR-10), M7 fender asymmetry + SG-43 + MDSh (PR-19),
+  M8 spider-web wheel (PR-12, dampers struck as a mis-reading), M9 belt 580 / gauge 2640 / pitch
+  137 / 13 teeth (PR-18), M10 travel lock deleted (PR-19), M11 one D-10 tube (PR-07),
+  M12 slope drift (PR-06), M13 the workshop's own lies (PR-01..03). **M14 (hitbox width) is the
+  one open item and it is the USER's** — narrowing the box changes ramming, terrain contact and
+  spotting together, so it is not a modelling call. It is measured every run and on the record.
+- **Register K (construction): 13 rows, 13 closed.** K1 muzzle (PR-25), K2 mantlet shell (PR-17),
+  K3 OMSh link (PR-22), K4 road wheel (PR-12/23), K5/K6 sprocket + idler (PR-24), K7 swing arm
+  (PR-27), K8 hatch mechanics + headlight (PR-26a/b), K9 hooks, cables, beam (PR-26b),
+  K10 DShK (PR-26b), K11 louvres, bolts, casting seam (PR-26a), K12 gear budget + LOD (PR-21),
+  K13 hollow tests (rewritten per PR).
+- **Every `Target` anchor has flipped to `Locked`** — 14 of 14. The last one, GroundClearance, was
+  never a geometry debt: the belly has been at the documented 0.425 since PR-14 and what was wrong
+  was the INSTRUMENT (PR-20).
+- **The anchor test**: `t54_reference_spec` walks dossier → blueprint → mount chain → mesh in one
+  place, plus the form rules no dimension can express. A vehicle can pass every other test and
+  still be wrong at the joins.
+
+### What this programme kept finding
+
+One defect class dominated, and it is worth naming because the next vehicle will have it too:
+**the instrument and the thing it measured were the same mistake.** Hull length caught the stowed
+beam; bare-roof height caught the hatch lid; cupola diameter caught the roof plate; ground
+clearance looked in a window narrower than the floor it was measuring; the phantom-width lint read
+the hitbox against a model that shared its error; a shading test passed because a cavity band
+overshot onto the nose plate; three tests REQUIRED the wrong shape outright. Every one of them
+surfaced only when the geometry became correct — which is the argument for fixing the vehicle and
+the tape measure in the same commit.
+
+The second class: **a number written down twice is a number about to disagree with itself.** The
+tub width, the wheel stations, the fender centre, the top-run anchor with `0.96 − 0.32` hidden
+inside a bare `0.66`, the DShK inheriting the tank gun's calibre — each was a copy, and each broke
+the moment its source moved.
 
 ## The decisions this program is built on
 

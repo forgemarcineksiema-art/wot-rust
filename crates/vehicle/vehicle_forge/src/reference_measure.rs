@@ -134,7 +134,9 @@ pub(crate) fn measure_dimensions(
             DimensionKind::TrackGauge => {
                 (kin.as_ref().and_then(track_gauge_from_instances), MeasurementBasis::Instances)
             }
-            DimensionKind::GroundClearance => (ground_clearance(vehicle), MeasurementBasis::Mesh),
+            DimensionKind::GroundClearance => {
+                (ground_clearance(vehicle, blueprint.as_ref()), MeasurementBasis::Mesh)
+            }
             DimensionKind::TrackLinkCountPerSide => (
                 kin.as_ref().and_then(|kin| per_side_count(kin, GearPart::Link)),
                 MeasurementBasis::Instances,
@@ -200,10 +202,24 @@ fn per_side_count(kin: &RunningGearKinematics, part: GearPart) -> Option<f32> {
 /// Belly floor over the central strip of the hull submesh. The strip (55% of the hull's own
 /// half-width) excludes fenders, sponsons, and the static gear brackets that hang beside the
 /// tub — the tape goes under the belly, not under the running gear.
-fn ground_clearance(vehicle: &BakedVehicle) -> Option<f32> {
+fn ground_clearance(vehicle: &BakedVehicle, blueprint: Option<&VehicleBlueprint>) -> Option<f32> {
     let mesh = &vehicle.submesh(SubmeshKind::Hull)?.mesh;
-    let bounds = exterior_bounds(mesh)?;
-    let strip = (bounds.max.x - bounds.min.x) * 0.5 * 0.55;
+    // The strip this looks in is the HULL's own width, not a fraction of the widest thing on the
+    // vehicle. It was `(bounds.max.x - bounds.min.x) * 0.5 * 0.55` — and the widest thing on a
+    // T-54 is its FENDERS, so the strip came out at 0.90 while the belly plate's corners sit at
+    // 1.03. The floor was never in the window at all, and what the instrument reported was
+    // whatever chamfer happened to fall inside it: 0.444 against a documented 0.425.
+    //
+    // Clearance is the metal under the hull, across the hull. Without a blueprint (no hull width
+    // to read) it degrades to the old fraction, which is the best a bare mesh allows.
+    let strip = match blueprint {
+        // A hair past the tub side, so the floor's own corners are inside the window.
+        Some(bp) => bp.hull.lower_half_width.max(bp.hull.half_width) * 1.02,
+        None => {
+            let bounds = exterior_bounds(mesh)?;
+            (bounds.max.x - bounds.min.x) * 0.5 * 0.55
+        }
+    };
     let mut min_y = f32::INFINITY;
     for vertex in mesh.vertices().iter().filter(|vertex| is_exterior(vertex.material)) {
         if vertex.position.x.abs() <= strip {

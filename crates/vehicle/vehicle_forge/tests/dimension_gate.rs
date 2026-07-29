@@ -91,27 +91,39 @@ fn the_t54_pilot_reports_every_authored_anchor() {
     ] {
         assert!(report.measurement(kind).is_some(), "{kind:?} measured");
     }
-    // Both tiers are present: the gate has teeth AND the program debt is on the record.
+    // EVERY anchor gates. The Target tier is not gone from the mechanism — it is the FLOOR/TARGET
+    // pattern the whole workshop is built on, and `a_target_anchor_reports_without_failing` below
+    // still exercises it — but this vehicle has nothing left in it. That is what finishing looks
+    // like: the pilot no longer needs the tier it was written to survive.
     assert!(
-        report.measurements().iter().any(|m| m.target().status() == AnchorStatus::Locked),
-        "at least one anchor gates"
-    );
-    assert!(
-        report.measurements().iter().any(|m| m.target().status() == AnchorStatus::Target),
-        "the declared program debt is measured every run"
+        report.measurements().iter().all(|m| m.target().status() == AnchorStatus::Locked),
+        "the T-54 is fully Locked: {:?}",
+        report
+            .measurements()
+            .iter()
+            .filter(|m| m.target().status() != AnchorStatus::Locked)
+            .map(vehicle_forge::MeasuredDimension::kind)
+            .collect::<Vec<_>>()
     );
     // The markdown table carries the columns an author reads in the Studio report.
     let table = report.markdown_summary();
     for column in ["Measured", "Target", "Δ", "Δ%", "Tolerance", "Status", "Basis", "Source"] {
         assert!(table.contains(column), "summary must carry the {column} column");
     }
-    assert!(table.contains("DIMENSION DEBT"), "outstanding Target anchors are summarized");
+    assert!(
+        !table.contains("DIMENSION DEBT"),
+        "with no Target anchors left there is no debt section to print"
+    );
 }
 
+/// The finish line the programme document names: "when both registers are empty and every
+/// `Target` anchor has flipped to `Locked`, this document becomes history".
+///
+/// The list below is empty, and the comments are the record of how it emptied. Left as a list
+/// rather than collapsed to `assert!(debts.is_empty())` on purpose — the next vehicle through
+/// this workshop starts with a full one, and this is the shape it shrinks by.
 #[test]
 fn t54_locked_anchors_hold_and_known_debts_are_the_registered_ones() {
-    // The M-register in docs/model-idealny-t54.md names exactly which documented numbers the
-    // model misses today. The gate must agree: those and ONLY those may be in debt.
     let pack = ReferencePack::for_vehicle(VehicleKind::T54_1951).expect("T-54 pack");
     let baked = authoritative_baked_vehicle(VehicleKind::T54_1951).expect("bake");
     let report = pack.measure_dimensions(&baked).expect("report");
@@ -119,8 +131,7 @@ fn t54_locked_anchors_hold_and_known_debts_are_the_registered_ones() {
     let mut debts: Vec<DimensionKind> =
         report.debts().map(vehicle_forge::MeasuredDimension::kind).collect();
     debts.sort_by_key(|kind| format!("{kind:?}"));
-    let mut expected = vec![
-        DimensionKind::GroundClearance,
+    let mut expected: Vec<DimensionKind> = vec![
         // CupolaDiameter left this list in PR-16: the drum is the documented 624 mm across.
         // The two height anchors left this list in PR-15: the dome is built at its documented
         // 2.40 m roof and the cupola stands its documented 131 mm proud of it.
@@ -128,7 +139,11 @@ fn t54_locked_anchors_hold_and_known_debts_are_the_registered_ones() {
         // the anchor is Locked.
         // The two track anchors left this list in PR-18: the belt is the documented 580 mm on
         // the documented 2640 mm gauge, and the tub narrowed to the space that leaves.
-        // Ground clearance is now the LAST debt this vehicle carries.
+        // GroundClearance left it in PR-20, and it never was a geometry debt: the belly has been
+        // at the documented 0.425 since PR-14. What was wrong was the INSTRUMENT — it looked in a
+        // strip 55% of the widest thing on the vehicle, and the widest thing on a T-54 is its
+        // fenders, so the window was 0.90 wide while the floor's corners sit at 1.03. The floor
+        // was never in it.
     ];
     expected.sort_by_key(|kind| format!("{kind:?}"));
     assert_eq!(debts, expected, "debt list must match the M-register exactly");
