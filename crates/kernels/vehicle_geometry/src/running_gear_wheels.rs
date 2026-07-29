@@ -47,15 +47,31 @@ fn spider_web_wheel(kin: &RunningGearKinematics) -> GeometryMesh {
     // Plate thickness of the stamping: thin, so the ribs read proud of it and the holes read
     // as holes rather than as tunnels.
     let plate_half = body_half * 0.26;
+    // The disc is DISHED. A road wheel is not a flat plate on an axle: the stamping steps out
+    // from the hub toward the rim, which is what gives the wheel its stiffness and what makes
+    // the bands read as a pressing rather than as a stack of washers. The dish is what the eye
+    // reads first on a wheel seen from three-quarters on.
+    let dish = body_half * 0.55;
+    // Tessellation follows SUBTENDED SIZE, not the part. The rim and the tyres are the wheel's
+    // outline and get the full ring; the inner bands sit at a third of that radius, where the
+    // same chord error needs three quarters of the segments. Spending the same count everywhere
+    // buys nothing at the hub and costs the bolt circle its budget.
+    let inner_seg = (seg * 3 / 4).max(10);
     let mut builder = MeshBuilder::new()
-        // Full-width steel rim ring seated under the tyre (as on the openwork face).
+        // Full-width steel rim ring seated under the tyre, at the OUTBOARD end of the dish.
         .append(&steel_ring(r * 0.64, kin.tyre_seat_radius(), body_half, seg))
-        // The mid band, between the two rings of holes.
-        .append(&steel_ring(r * 0.44, r * 0.52, plate_half, seg))
-        // The hub collar the small holes are punched around (the bolt circle lands here — PR-23).
-        .append(&steel_ring(r * 0.24, r * 0.34, plate_half, seg))
-        // Proud central hub cap.
-        .append(&wheel_disc_at(0.0, r * 0.24, half_w * 1.05, seg, MaterialRole::TrackMetal))
+        // The mid band, part-way down the dish.
+        .append(&dished_ring(r * 0.44, r * 0.52, dish * 0.45, plate_half, inner_seg))
+        // The hub collar, deepest inboard — and the ring the two discs are bolted through.
+        .append(&dished_ring(r * 0.24, r * 0.34, dish, plate_half, inner_seg))
+        // Proud central hub cap: the steel hub the discs are pressed onto.
+        .append(&wheel_disc_at(
+            dish * 0.6,
+            r * 0.22,
+            half_w * 0.75,
+            inner_seg,
+            MaterialRole::TrackMetal,
+        ))
         .append(&road_wheel_tyres(r, half_w, kin.tyre_gap_half(), seg));
     // The webs: narrow radial ribs bridging hub collar → mid band → rim, buried at both ends.
     // They are HALF the width of an openwork arm because they stiffen a stamping rather than
@@ -65,7 +81,69 @@ fn spider_web_wheel(kin: &RunningGearKinematics) -> GeometryMesh {
         let angle = (i as f32 / ribs as f32) * std::f32::consts::TAU;
         builder = builder.append(&stiffening_rib(angle, r * 0.26, r * 0.68, r, plate_half * 2.1));
     }
+    // THE BOLT CIRCLE. The wheel is two discs bolted together and pressed onto a steel hub —
+    // ten bolts, on the collar. It is the detail that says "assembly" rather than "casting", and
+    // at the switch range it is ten 30 mm heads on a wheel 60 m away, so it rides the near tier.
+    if kin.detail == crate::GearDetail::Near {
+        for i in 0..HUB_BOLTS {
+            let angle = (i as f32 / HUB_BOLTS as f32) * std::f32::consts::TAU;
+            let (sin, cos) = angle.sin_cos();
+            // On the collar's OUTBOARD face, standing proud of it — a bolt head sunk level
+            // with the plate it fastens is not a bolt head, it is a texture nobody drew.
+            builder = builder.append(&hub_bolt(Vec3::new(
+                dish + plate_half + 0.010,
+                sin * r * 0.29,
+                cos * r * 0.29,
+            )));
+        }
+    }
     builder.build()
+}
+
+/// Bolts holding a twin-disc road wheel together. Ten on a T-54: the discs are bolted to each
+/// other and pressed onto a steel hub (dossier, "Part construction").
+const HUB_BOLTS: usize = 10;
+
+/// One hub bolt head, standing proud of the collar it fastens.
+fn hub_bolt(center: Vec3) -> GeometryMesh {
+    MeshBuilder::new()
+        .extrude(
+            center,
+            ExtrudeSpec {
+                section: vec![
+                    Vec2::new(-0.017, -0.017),
+                    Vec2::new(0.017, -0.017),
+                    Vec2::new(0.017, 0.017),
+                    Vec2::new(-0.017, 0.017),
+                ],
+                axis: Axis::X,
+                half_depth: 0.011,
+                material: MaterialRole::TrackMetal,
+                smoothing: SG_HARD,
+            },
+        )
+        .build()
+}
+
+/// A band of the stamping, offset along the axle by `dish` — the step that makes a pressed disc
+/// a dish instead of a washer.
+fn dished_ring(r_in: f32, r_out: f32, dish: f32, half_width: f32, segments: usize) -> GeometryMesh {
+    let (lo, hi) = (dish - half_width, dish + half_width);
+    MeshBuilder::new()
+        .revolve(RevolveSpec {
+            profile: vec![
+                ProfilePoint::new(r_in, lo),
+                ProfilePoint::new(r_out, lo),
+                ProfilePoint::new(r_out, hi),
+                ProfilePoint::new(r_in, hi),
+                ProfilePoint::new(r_in, lo),
+            ],
+            axis: Axis::X,
+            segments,
+            material: MaterialRole::TrackMetal,
+            smoothing: SG_WHEEL,
+        })
+        .build()
 }
 
 /// One radial web of a spider-web disc: a narrow raised bar standing proud of the stamping,

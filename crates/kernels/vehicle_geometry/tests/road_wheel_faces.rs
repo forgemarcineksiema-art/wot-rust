@@ -187,3 +187,90 @@ fn no_wheel_face_stands_proud_of_its_own_tyre() {
         );
     }
 }
+
+/// A ROAD WHEEL IS AN ASSEMBLY, NOT A CASTING.
+///
+/// The T-54's wheel is two stamped discs bolted to each other and pressed onto a steel hub — ten
+/// bolts, on the collar (dossier, "Part construction"). And the stamping is DISHED: it steps out
+/// from the hub toward the rim, which is what stiffens it and what the eye reads first on a wheel
+/// seen three-quarters on. Flat bands on a common plane read as a stack of washers.
+#[test]
+fn the_t54_wheel_is_a_dished_stamping_bolted_together() {
+    let kin = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951).expect("running gear");
+    let mesh = road_wheel_unit_mesh(&kin);
+    let r = kin.wheel_radius;
+
+    // THE DISH. The collar does not reach across to the inboard side the way the rim does: it
+    // sits OUT in the dish, which is what a pressed disc looks like and what a stack of flat
+    // washers does not. Measured on each band's inboard edge, which is where the step shows.
+    let inboard_edge = |lo: f32, hi: f32| {
+        mesh.vertices()
+            .iter()
+            .filter(|v| {
+                let radius = v.position.y.hypot(v.position.z);
+                (lo..hi).contains(&radius)
+            })
+            .map(|v| v.position.x)
+            .fold(f32::INFINITY, f32::min)
+    };
+    let collar = inboard_edge(r * 0.25, r * 0.33);
+    let rim = inboard_edge(r * 0.72, r * 0.88);
+    assert!(
+        collar > rim + 0.05,
+        "the stamping must dish: the collar's inboard edge sits at {collar:.3} against the rim's          at {rim:.3} — one plane for both is a stack of washers, not a pressing"
+    );
+
+    // THE BOLT CIRCLE: ten heads standing proud on the collar. Counted as angular CLUSTERS of
+    // the geometry that stands out there — no sampling window to get wrong.
+    let bolt_ring = r * 0.29;
+    // The heads are whatever stands FURTHEST out at that radius — which is the whole point of a
+    // bolt head. (Measuring against the collar's inboard edge instead would have counted the
+    // collar itself, and did: the first pass buried the bolts inside the plate they fasten.)
+    let at_ring: Vec<&vehicle_geometry::GeometryVertex> = mesh
+        .vertices()
+        .iter()
+        .filter(|v| (v.position.y.hypot(v.position.z) - bolt_ring).abs() < 0.022)
+        .collect();
+    let outermost = at_ring.iter().map(|v| v.position.x).fold(f32::NEG_INFINITY, f32::max);
+    assert!(
+        outermost > collar + 0.05,
+        "nothing stands proud on the bolt circle: outermost {outermost:.3} vs collar {collar:.3}"
+    );
+    let proud: Vec<f32> = at_ring
+        .iter()
+        .filter(|v| v.position.x > outermost - 0.016)
+        .map(|v| v.position.y.atan2(v.position.z))
+        .collect();
+    assert!(!proud.is_empty(), "no bolt heads stand proud of the collar at all");
+
+    // Ten bolts means: a head in every one of the ten places a head belongs, and nothing
+    // standing proud anywhere else. Stated that way it does not depend on how the head's own
+    // vertices happen to fall.
+    let spacing = std::f32::consts::TAU / HUB_BOLTS_EXPECTED as f32;
+    let offset_from_nearest = |angle: f32| {
+        let k = (angle / spacing).round();
+        (angle - k * spacing).abs()
+    };
+    for bolt in 0..HUB_BOLTS_EXPECTED {
+        let expected = bolt as f32 * spacing;
+        assert!(
+            proud.iter().any(|angle| {
+                let delta = (angle - expected).abs();
+                delta.min(std::f32::consts::TAU - delta) < spacing * 0.35
+            }),
+            "no bolt head at {:.0} degrees of the collar's ten-bolt circle",
+            expected.to_degrees()
+        );
+    }
+    for angle in &proud {
+        assert!(
+            offset_from_nearest(*angle) < spacing * 0.35,
+            "something stands proud on the collar {:.0} degrees off the bolt circle",
+            offset_from_nearest(*angle).to_degrees()
+        );
+    }
+}
+
+/// The documented count: a T-54 road wheel's two discs are bolted to each other with ten bolts
+/// and pressed onto a steel hub.
+const HUB_BOLTS_EXPECTED: usize = 10;
