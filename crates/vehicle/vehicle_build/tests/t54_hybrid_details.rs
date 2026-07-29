@@ -370,6 +370,121 @@ fn t54_fenders_carry_the_reference_stowage_line() {
     }
 }
 
+/// M7. The fender asymmetry is a RECOGNITION feature, not decoration: the right shelf carries two
+/// flat external fuel tanks with stowage fore and aft; the left carries three stowage bins and the
+/// exhaust. The model had three tanks on the right, which is a later fit.
+///
+/// Counted from the part graph, because that is where the vehicle says what each box IS. Counting
+/// boxes in the merged mesh would only tell you how many boxes there are.
+#[test]
+fn t54_fenders_are_asymmetric_the_way_the_references_are() {
+    let description = t54_description();
+    let count = |name: &str, side: f32| {
+        description
+            .parts
+            .iter()
+            .filter(|part| part.key.name == name)
+            .filter(|part| {
+                part.mesh().bounds().is_some_and(|b| (b.min.x + b.max.x) * 0.5 * side > 0.0)
+            })
+            .count()
+    };
+    assert_eq!(count("fuel_tank", 1.0), 2, "the right shelf carries two flat fuel tanks");
+    assert_eq!(count("fuel_tank", -1.0), 0, "the left shelf carries none");
+    assert_eq!(count("stowage_bin", -1.0), 3, "the left shelf carries three stowage bins");
+    assert!(
+        count("stowage_bin", 1.0) >= 2,
+        "and the right carries stowage fore and aft of its tanks"
+    );
+}
+
+/// M7. The fixed course machine gun. obr. 1951 has an SG-43 laid in the glacis, fired by the
+/// driver — and the driver sits LEFT, so the gun is right of centre. The model had a bare plate.
+#[test]
+fn t54_carries_a_course_machine_gun_port_right_of_centre() {
+    let description = t54_description();
+    let port = description
+        .parts
+        .iter()
+        .find(|part| part.key.name == "course_mg_port")
+        .expect("the glacis carries the course MG's port");
+    let bounds = port.mesh().bounds().expect("port bounds");
+    let center_x = (bounds.min.x + bounds.max.x) * 0.5;
+    assert!(center_x > 0.15, "the gun is right of centre, opposite the driver: x {center_x:.3}");
+
+    let driver = description
+        .parts
+        .iter()
+        .find(|part| part.key.name == "driver_hatch")
+        .expect("driver's hatch");
+    let driver_x = driver.mesh().bounds().expect("hatch bounds");
+    assert!(
+        (driver_x.min.x + driver_x.max.x) * 0.5 < 0.0,
+        "and the driver is on the other side of it"
+    );
+
+    // It reaches THROUGH the plate: a port is an aperture with a boss round it, not a stud.
+    let bp = game_core::VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).unwrap();
+    let v = bp.hybrid().unwrap();
+    let glacis = bp.armor.hull_front.0.to_radians();
+    let plate_z = (v.hull.glacis_offset - glacis.sin() * 1.15) / glacis.cos();
+    assert!(bounds.max.z > plate_z, "the jacket stands proud of the glacis");
+    assert!(bounds.min.z < plate_z, "and the boss is rooted behind it");
+}
+
+/// M7. Two MDSh smoke canisters on the rear plate — the fitting the dossier records and the model
+/// did not carry. Clear of the unditching beam above them, and inside the hull's own width.
+#[test]
+fn t54_carries_two_smoke_canisters_on_the_rear_plate() {
+    let description = t54_description();
+    let canisters: Vec<_> =
+        description.parts.iter().filter(|part| part.key.name == "smoke_canister").collect();
+    assert_eq!(canisters.len(), 2, "obr. 1951 carries two MDSh canisters");
+
+    let bp = game_core::VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).unwrap();
+    let mut sides = 0.0_f32;
+    for canister in &canisters {
+        let b = canister.mesh().bounds().expect("canister bounds");
+        let cx = (b.min.x + b.max.x) * 0.5;
+        sides += cx.signum();
+        assert!(
+            b.min.z < -bp.hull.half_len,
+            "a canister hangs BEHIND the rear plate, not inside it: {:.3}",
+            b.min.z
+        );
+        // And the doctrine: the collision box IS the visual footprint, so nothing bolted to the
+        // stern may reach past it. A canister pointing off the back reached 0.39 m outside.
+        assert!(
+            b.min.z >= -bp.hull.hitbox_half_length,
+            "a canister must stay inside the vehicle's own footprint: {:.3} vs {:.3}",
+            b.min.z,
+            -bp.hull.hitbox_half_length
+        );
+        assert!(
+            b.max.x.abs().max(b.min.x.abs()) <= bp.hull.half_width,
+            "and stays inside the hull's own width"
+        );
+        // The unditching beam rides at y 1.02 with a 0.10 radius; the canisters go below it.
+        assert!(b.max.y < 0.92, "clear of the beam above them: top {:.3}", b.max.y);
+    }
+    assert_eq!(sides, 0.0, "one canister each side");
+}
+
+/// M10. There is no gun travel lock. One was drawn on the rear deck with no citation behind it,
+/// and the dossier says obr. 1951 carried none. A fitting nobody can cite is a fitting the
+/// vehicle does not have — and the way to keep it gone is to say so in a test.
+#[test]
+fn t54_has_no_external_gun_travel_lock() {
+    let description = t54_description();
+    let found: Vec<&str> = description
+        .parts
+        .iter()
+        .map(|part| part.key.name)
+        .filter(|name| name.contains("travel_lock"))
+        .collect();
+    assert!(found.is_empty(), "obr. 1951 has no travel lock, found {found:?}");
+}
+
 /// The cupola, the loader's hatch ring, the DShK pedestal and the periscopes sit on a CURVED
 /// casting, not on a flat roof: each must reach deep enough to meet the local shell surface while
 /// still standing proud of it. That is what stops a fitting floating as a drum in mid-air.

@@ -207,11 +207,16 @@ fn the_shipped_hybrid_matches_its_recorded_golden() {
     // 90 links at the documented 137 mm pitch, a wrap on the sprocket's own 572.4 mm pitch
     // circle (which drops the tooth count to the documented 13 without anyone typing 13), the
     // 3.840 m ground-contact base, and a tub narrowed to the 2.060 m that gauge leaves it.
-    // Previous: 0xef40_8214_00ae_a9e4 (PR-17, the mantlet goes inside);
+    //
+    // And in PR-19, for the fittings: the asymmetric fender line (two flat fuel tanks on the
+    // right, not three), the fixed course MG's boss in the glacis, two smoke canisters lying
+    // across the rear plate — and one part DELETED, the travel lock obr. 1951 never had.
+    // Previous: 0x7108_fd58_f651_b2c3 (PR-18, the belt at 90 x 137);
+    //           0xef40_8214_00ae_a9e4 (PR-17, the mantlet goes inside);
     //           0x8f18_a4aa_f291_5175 (PR-16, the cupola at 624);
     //           0xf490_f9f1_fe07_3049 (PR-14, the hull at 6.235);
     //           0x903d_b868_b9bf_e617 (PR-25, a muzzle is a hole).
-    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0x7108_fd58_f651_b2c3;
+    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0xe9ce_9c05_6f0b_f9df;
     let baked = t54_description().build();
     assert_eq!(
         baked.deterministic_hash(),

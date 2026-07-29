@@ -1,20 +1,25 @@
 //! The T-54's line-work kit: the glacis splash board, turret handrails, stowed tow cables, the
-//! unditching beam and the gun travel lock. Split from `t54_kit` to keep each module within the
-//! reviewability budget.
+//! unditching beam, the fixed course machine gun's port and the rear smoke canisters. Split from
+//! `t54_kit` to keep each module within the reviewability budget.
+//!
+//! There is no gun travel lock here. One was drawn on the rear deck with no reference behind it,
+//! and the dossier is explicit that obr. 1951 carried none (register M10). A fitting nobody can
+//! cite is a fitting the vehicle does not have.
 
 use game_core::{HybridVisual, TurretLoftVisual};
 use glam::Vec3;
 use vehicle_geometry::{MaterialRole, SubmeshKind};
 
 use crate::part::{GeneratorKind, PartKey, PartLod, PartShape, VehiclePart};
-use crate::t54_details::detail_plate;
 
-/// Every line-work part: splash board, turret handrails, tow cables, unditching beam, travel lock.
+/// Every line-work part: splash board, turret handrails, tow cables, unditching beam, the course
+/// MG's glacis port and the two rear smoke canisters.
 pub(crate) fn t54_line_kit_parts(v: &HybridVisual, glacis_deg: f32) -> Vec<VehiclePart> {
     let mut parts = vec![splash_board(v, glacis_deg), unditching_beam(v)];
     parts.extend(turret_rails(&v.turret_loft));
     parts.extend(tow_cables(v, glacis_deg));
-    parts.extend(travel_lock(v));
+    parts.extend(course_mg_port(v, glacis_deg));
+    parts.extend(smoke_canisters(v));
     parts
 }
 
@@ -46,29 +51,86 @@ fn unditching_beam(v: &HybridVisual) -> VehiclePart {
     }
 }
 
-/// The stowed gun travel lock: a small clamp crutch on the rear deck centreline, between the
-/// grille and the deck's rear edge (used with the turret reversed on the march).
-fn travel_lock(v: &HybridVisual) -> Vec<VehiclePart> {
-    let deck_top = v.deck.center.y + v.deck.half.y;
-    // Between the grille and the deck's rear edge: measured from the stern.
-    let z = -v.hull.half_len + 0.36;
-    let mut parts = vec![detail_plate(
-        PartKey::new("travel_lock_base"),
-        SubmeshKind::Hull,
-        MaterialRole::TrackMetal,
-        solid::chamfered_box(Vec3::new(0.0, deck_top + 0.02, z), Vec3::new(0.09, 0.02, 0.06), 0.01),
-    )];
-    for (i, side) in [-1.0_f32, 1.0].into_iter().enumerate() {
-        parts.push(detail_plate(
-            PartKey::indexed("travel_lock_jaw", i as u16),
-            SubmeshKind::Hull,
-            MaterialRole::TrackMetal,
-            solid::chamfered_box(
-                Vec3::new(side * 0.065, deck_top + 0.095, z),
-                Vec3::new(0.02, 0.055, 0.04),
-                0.01,
+/// The fixed course machine gun: an SG-43 laid in the glacis right of centre, fired by the driver
+/// (who sits left). What shows outside is a cast boss around the aperture and a short length of
+/// jacket — the gun itself is inside the hull.
+///
+/// The bore runs along +Z because the gun is FIXED and fires straight ahead, so a body of
+/// revolution about the vehicle's forward axis is the shape, not a convenience: the boss is a
+/// cylinder pushed through a raked plate, which is what the aperture is.
+fn course_mg_port(v: &HybridVisual, glacis_deg: f32) -> Vec<VehiclePart> {
+    // Right of centre, at the height the driver's shoulder reaches. The driver's hatch sits at
+    // x = -0.45, so this is the other side of the plate from him — as every reference view shows.
+    let seat = glacis_point(v, glacis_deg, 0.42, 1.15, 0.0);
+    let profile = [
+        (-0.10_f32, 0.000_f32),
+        (-0.10, 0.105),
+        (0.02, 0.105),
+        (0.06, 0.074),
+        (0.06, 0.030),
+        (0.17, 0.026),
+        (0.17, 0.000),
+    ];
+    vec![VehiclePart {
+        key: PartKey::new("course_mg_port"),
+        submesh: SubmeshKind::Hull,
+        material: MaterialRole::RolledArmor,
+        smoothing: vehicle_geometry::SmoothingGroup(3),
+        shape: PartShape::Mesh(revolve::translate(
+            &revolve::revolve(
+                Vec3::Z,
+                &profile,
+                16,
+                MaterialRole::RolledArmor,
+                vehicle_geometry::SmoothingGroup(3),
             ),
-        ));
+            seat,
+        )),
+        lod: PartLod::Detail,
+        generator: GeneratorKind::Revolve,
+    }]
+}
+
+/// Two MDSh smoke canisters on the rear plate, below the unditching beam.
+///
+/// The dossier records the FITTING (2x MDSh on the rear plate) but neither its dimensions nor how
+/// it is bracketed, so two things fix the drum here and neither of them is a source, which is
+/// worth saying out loud.
+///
+/// The first is the vehicle's own rear convention: the unditching beam already hangs at
+/// `half_len + 0.04` with a 0.10 radius, so its back face lands 10 mm inside the hitbox. Rear
+/// fittings on this tank tuck into the 0.15 m the collision box carries past the plates, because
+/// the honesty doctrine is that the collision box IS the visual footprint — a canister sticking
+/// 0.39 m out the back would be metal a shell flies through. So these lie ACROSS the plate rather
+/// than pointing out of it, and reach the same depth the beam does.
+///
+/// The second is that a drum bounded that way is smaller than an MDSh really is. That is a known
+/// approximation, recorded here rather than in the dimension gate — the gate is for numbers with
+/// sources, and this one has a constraint instead.
+fn smoke_canisters(v: &HybridVisual) -> Vec<VehiclePart> {
+    // Axis ACROSS the vehicle: the drum lies against the plate instead of pointing off the stern.
+    let profile = [(-0.275_f32, 0.0_f32), (-0.275, 0.11), (0.275, 0.11), (0.275, 0.0)];
+    let mut parts = Vec::new();
+    for (i, side) in [-1.0_f32, 1.0].into_iter().enumerate() {
+        parts.push(VehiclePart {
+            key: PartKey::indexed("smoke_canister", i as u16),
+            submesh: SubmeshKind::Hull,
+            material: MaterialRole::TrackMetal,
+            smoothing: vehicle_geometry::SmoothingGroup(3),
+            shape: PartShape::Mesh(revolve::translate(
+                &revolve::revolve(
+                    Vec3::X,
+                    &profile,
+                    14,
+                    MaterialRole::TrackMetal,
+                    vehicle_geometry::SmoothingGroup(3),
+                ),
+                // Clear of the beam above them (y 1.02) and inside the hull sides.
+                Vec3::new(side * 0.55, 0.70, -v.hull.half_len - 0.03),
+            )),
+            lod: PartLod::Detail,
+            generator: GeneratorKind::Revolve,
+        });
     }
     parts
 }

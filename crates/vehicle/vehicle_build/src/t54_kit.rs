@@ -37,11 +37,15 @@ pub fn t54_kit_parts(v: &HybridVisual, glacis_deg: f32) -> Vec<VehiclePart> {
 fn fender_stowage(fender: &FenderVisual) -> Vec<VehiclePart> {
     let base = fender.center_y + fender.half.y + 0.005;
     // (side, key, z centre, half length, half height)
+    // The asymmetry IS the recognition feature (register M7): the RIGHT shelf carries two flat
+    // rectangular external fuel tanks with stowage fore and aft of them; the LEFT carries three
+    // stowage bins and the exhaust cover (placed by `t54_details`). The model had three tanks on
+    // the right, which is a later fit — obr. 1951 is two.
     let boxes: [(f32, &str, f32, f32, f32); 8] = [
         (1.0, "stowage_bin", 2.15, 0.28, 0.15),
         (1.0, "fuel_tank", 1.05, 0.42, 0.13),
         (1.0, "fuel_tank", -0.15, 0.42, 0.13),
-        (1.0, "fuel_tank", -1.35, 0.40, 0.13),
+        (1.0, "stowage_bin", -1.35, 0.40, 0.14),
         (1.0, "stowage_bin", -2.35, 0.28, 0.14),
         (-1.0, "stowage_bin", 1.95, 0.40, 0.15),
         (-1.0, "stowage_bin", 0.55, 0.35, 0.14),
