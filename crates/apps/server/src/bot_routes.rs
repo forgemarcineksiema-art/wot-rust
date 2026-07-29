@@ -8,7 +8,7 @@
 //! them. Combat always preempts a route (see `bots.rs`).
 
 use game_core::TeamId;
-use game_core::math::wrap_angle;
+use game_core::math::{GRAVITY_MPS2, wrap_angle};
 use glam::Vec3;
 use sim::{TankCommand, TankState};
 use terrain::{BattlefieldMap, StrategicPoint, StrategicRole};
@@ -207,9 +207,40 @@ fn escape_decel_mps2(
                 .grip_scale
         })
         .unwrap_or(1.0);
-    (WATER_BRAKE_DECEL_MPS2 * grip)
-        .min(sim::braking_deceleration_mps2(&tank.spec, grip))
+    let flat =
+        (WATER_BRAKE_DECEL_MPS2 * grip).min(sim::braking_deceleration_mps2(&tank.spec, grip));
+    // Gravity does not care which way the brake is pointed. A channel is a HOLE, so the last
+    // stretch of every approach to one runs downhill, and on that stretch gravity is spending the
+    // brake before it can bite: at 12 degrees it eats 2.0 m/s² of a 2.5 m/s² budget.
+    //
+    // Ignoring that is what drowned a bot on the Bystra soak (seed 23, tank 14, alone — no queue,
+    // no shove). It rolled off the west shelf at ~6.6 m/s, the probe measured the flat-ground
+    // stopping distance, decided it had room, and the hull coasted 3.5 m past the deep-water line
+    // into 1.53 m of channel, where the engine flooded and it never came out. The brain's estimate
+    // was not conservative — it was measuring a different hill.
+    (flat - GRAVITY_MPS2 * descent_along_heading(tank, battlefield).sin())
         .max(WATER_BRAKE_DECEL_FLOOR_MPS2)
+}
+
+/// How far the ground under this hull is FALLING along the direction it is travelling, as an
+/// angle: positive downhill, negative climbing, zero on the flat (and on a stationary hull).
+fn descent_along_heading(tank: &TankState, battlefield: &BattlefieldMap) -> f32 {
+    /// Far enough ahead to read the bank rather than a bump; short enough that it is still the
+    /// slope the hull is about to be on.
+    const SLOPE_SPAN_M: f32 = 6.0;
+    let heading = Vec3::new(tank.velocity_mps.x, 0.0, tank.velocity_mps.z);
+    let speed = heading.length();
+    if speed < WATER_APPROACH_MIN_SPEED_MPS {
+        return 0.0;
+    }
+    let ahead = tank.position + heading / speed * SLOPE_SPAN_M;
+    let (Some(here), Some(there)) = (
+        battlefield.heightmap.sample_height(tank.position.x, tank.position.z),
+        battlefield.heightmap.sample_height(ahead.x, ahead.z),
+    ) else {
+        return 0.0;
+    };
+    ((here - there) / SLOPE_SPAN_M).atan()
 }
 
 /// How far out the escape looks when picking its way to dry ground.
@@ -774,6 +805,48 @@ mod tests {
         let tank = crate::bots::test_support::tank_at(2, TeamId(1), Vec3::new(300.0, 8.0, 300.0));
         let target = Vec3::new(700.0, 8.0, 700.0);
         assert_eq!(water_safe_target(&tank, target, &map), target);
+    }
+
+    /// A channel is a hole, so the last stretch of every approach to one runs DOWNHILL — and on
+    /// that stretch gravity is spending the brake before it bites. The escape budget has to say
+    /// so, or the probe measures a hill the hull is not on.
+    ///
+    /// This is the physics that drowned a bot on the Bystra soak: alone, no queue and no shove,
+    /// it rolled off the west shelf at ~6.6 m/s, the flat-ground stopping distance said there was
+    /// room, and it coasted into 1.53 m of channel where the engine flooded.
+    #[test]
+    fn the_escape_budget_knows_that_a_channel_is_downhill() {
+        let map = map_forge::battlefield(terrain::MapId::BystraValley);
+        let river_x = terrain::bystra_river_center_x(500.0);
+        // On the west shelf, driving east at the channel — the approach that drowned tank 14.
+        let mut downhill =
+            crate::bots::test_support::tank_at(1, TeamId(1), Vec3::new(river_x - 30.0, 8.0, 520.0));
+        downhill.velocity_mps = Vec3::new(6.6, 0.0, 0.0);
+        let mut uphill = downhill.clone();
+        uphill.velocity_mps = Vec3::new(-6.6, 0.0, 0.0);
+
+        let descent = descent_along_heading(&downhill, &map);
+        assert!(
+            descent > 0.02,
+            "driving at the channel must read as a descent, got {descent:.3} rad"
+        );
+        assert!(
+            descent_along_heading(&uphill, &map) < -0.02,
+            "driving away from it must read as a climb"
+        );
+
+        let toward = escape_decel_mps2(&downhill, &map, None);
+        let away = escape_decel_mps2(&uphill, &map, None);
+        assert!(
+            toward < away,
+            "the same hull stops WORSE running downhill: {toward:.2} vs {away:.2} m/s²"
+        );
+        assert!(toward >= WATER_BRAKE_DECEL_FLOOR_MPS2, "the floor still holds: {toward:.2} m/s²");
+
+        // And a hull that is not moving has no slope to fall down.
+        let mut parked = downhill.clone();
+        parked.velocity_mps = Vec3::ZERO;
+        assert_eq!(descent_along_heading(&parked, &map), 0.0);
     }
 
     #[test]
