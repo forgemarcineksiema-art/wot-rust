@@ -55,7 +55,7 @@ fn t54() -> VehicleBlueprint {
             // Realistic full height: top = center_y + half_height = 2.43 bounds the 2.40 m tank
             // (cupola apex ~2.42). Floor ~5 cm below ground (center_y = half_height - 0.05);
             // hull/turret split at world y = 1.58, the hull-roof plane.
-            hitbox_half_height: 1.24,
+            hitbox_half_height: 1.341,
             hitbox_half_length: 3.2675,
             hitbox_center_y: 1.19,
             hitbox_turret_min_y: 0.39,
@@ -117,21 +117,21 @@ fn t54() -> VehicleBlueprint {
             ring_radius: 0.91,
             base_radius: 1.12,
             roof_radius: 0.42,
-            roof_y: 2.27,
+            roof_y: 2.40,
             front_slope_deg: 35.0,
             side_slope_deg: 25.0,
             rear_slope_deg: 10.0,
             cupola_x: -0.34,
             cupola_z: -0.10,
             cupola_radius: 0.24,
-            cupola_height: None,
+            cupola_height: Some(0.131),
             plan_half_width: 1.125,
-            plan_half_length: 1.17,
+            plan_half_length: 1.30,
             plan_front_pad: 0.0,
             mantlet_radius: 0.32,
-            mantlet_back_z: 0.88,
+            mantlet_back_z: 0.92,
             sector_count: 24,
-            mantlet_front_z: 1.16,
+            mantlet_front_z: 1.20,
         },
         gun: GunShape {
             // The documented fire line: the D-10T axis at 1.78 (~0.2 above the ring seat), and

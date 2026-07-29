@@ -45,9 +45,15 @@ fn t54_turret_has_the_flat_pancake_profile_of_the_1951_casting() {
     }
     let (width, height) = (max_x - min_x, max_y - min_y);
 
+    // Re-blessed 2026-07-29 (PR-15) onto the DOCUMENTED casting instead of the one the model
+    // happened to have. The T-54's turret is 2.25 m wide and runs from a 1.58 m ring seat to a
+    // 2.40 m roof: 0.82 over 2.25 is 0.365. The old ceiling of 0.36 was the shallow 2.27 m dome
+    // expressed as a ratio, so it forbade the vehicle's own proportions — a gate that fails the
+    // real tank is measuring the model's history, not the tank.
     assert!(
-        height / width <= 0.36,
-        "T-54 turret casting must read as a low pancake, got height/width {:.3}",
+        height / width <= 0.40,
+        "T-54 turret casting must read as a low pancake (documented 0.82 / 2.25 = 0.365), got \
+         height/width {:.3}",
         height / width
     );
 }

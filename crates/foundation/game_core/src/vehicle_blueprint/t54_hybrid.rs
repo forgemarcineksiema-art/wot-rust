@@ -23,6 +23,9 @@ use super::{
 /// number the whole front of the vehicle hangs off, and while these were absolutes the two
 /// numbers agreed only by luck: change `half_len` and the two-plate front stayed where it was
 /// while the hull moved out from under it.
+/// Height of the turret casting's flat roof. The dossier's book value, and the number the whole
+/// roof band hangs off.
+const TURRET_ROOF_Y: f32 = 2.40;
 const GLACIS_SETBACK_M: f32 = 0.05;
 const NOSE_SETBACK_M: f32 = 0.48;
 /// How far the engine deck's rear edge stops short of the rear plate.
@@ -31,6 +34,11 @@ const DECK_REAR_GAP_M: f32 = 0.20;
 const FENDER_END_GAP_M: f32 = 0.30;
 
 pub(super) fn t54_hybrid(hull: &HullShape, armor: &ArmorShape) -> HybridVisual {
+    // Everything bolted to the turret roof is stated as a DEPTH INTO THE CASTING, not as an
+    // absolute height. Raise the dome and the cupola, the hatches, the periscopes and the DShK
+    // mount rise with it, each staying the same distance into the metal it is rooted in. They
+    // were absolutes, and the whole band would have had to be re-typed by hand.
+    let roof = TURRET_ROOF_Y;
     // The glacis plane and the lower-nose plane used to be FROZEN NUMBERS beside the blueprint
     // they are functions of (2.34 / (0,-0.75,1) / 2.20, rounded to 2 dp). Nothing recomputed
     // them, so every part hung off them — the glacis/roof weld seam, the splash board, the bow
@@ -92,13 +100,13 @@ pub(super) fn t54_hybrid(hull: &HullShape, armor: &ArmorShape) -> HybridVisual {
             ring_half_height: 0.20,
             ring_center: Vec3::new(0.0, 1.76, 0.0),
             ring_blend: 0.33,
-            roof_plane_y: 2.27,
+            roof_plane_y: roof,
             ring_plane_y: 1.58,
             cupola_radius: 0.24,
             // The drum roots DEEP into the curved dome (base ~2.02, well under the local shell
             // surface) so it grows out of the casting instead of levitating over the slope.
             cupola_half_height: 0.18,
-            cupola_center: Vec3::new(-0.34, 2.20, -0.10),
+            cupola_center: Vec3::new(-0.34, roof - 0.049, -0.10),
             cupola_blend: 0.05,
             // A deeper mantlet socket on the fire line, so the cast trough the gun mantlet beds
             // into reads as a real cavity, not a dimple.
@@ -129,15 +137,19 @@ pub(super) fn t54_hybrid(hull: &HullShape, armor: &ArmorShape) -> HybridVisual {
             // embrasure mouth (the turret front lip is at z ≈ 1.05, trunnion-relative ≈ -0.10)
             // and the sleeve tapers forward of it — a visible cast "pig's head", not a collar
             // swallowed inside the casting with a bare barrel poking out.
+            // Bedded 40 mm FORWARD of where it was. S1's 2.363 m casting reaches further
+            // ahead of the ring than the 2.10 m one did, so the embrasure moved out from under
+            // the mask: the wide cast shoulder has to stay proud of the face it beds into, or
+            // the "pig's head" disappears into the dome.
             mantlet_profile: [
-                (-0.32, 0.13),
-                (-0.22, 0.24),
-                (-0.14, 0.295),
-                (-0.04, 0.30),
-                (0.06, 0.26),
-                (0.16, 0.19),
-                (0.26, 0.13),
-                (0.36, 0.10),
+                (-0.28, 0.13),
+                (-0.18, 0.24),
+                (-0.10, 0.295),
+                (0.00, 0.30),
+                (0.10, 0.26),
+                (0.20, 0.19),
+                (0.30, 0.13),
+                (0.40, 0.10),
             ],
             mantlet_segments: 28,
             // The rounded "pig's head" mask: wider than tall, but full enough to READ as the cast
@@ -165,7 +177,7 @@ pub(super) fn t54_hybrid(hull: &HullShape, armor: &ArmorShape) -> HybridVisual {
         // The running gear (wheels, idler, sprocket, links) has no hybrid-visual copy: the animated
         // path reads the blueprint's `TrackShape` directly (`vehicle_geometry::RunningGearKinematics`).
         fittings: FittingsVisual {
-            cupola_hatch_center: Vec3::new(-0.34, 2.39, -0.10),
+            cupola_hatch_center: Vec3::new(-0.34, roof + 0.12, -0.10),
             cupola_hatch_radius: 0.20,
             cupola_hatch_half_height: 0.04,
             // Driver's hatch on the hull roof, front-left: ahead of the turret ring, on the flat roof
@@ -175,7 +187,9 @@ pub(super) fn t54_hybrid(hull: &HullShape, armor: &ArmorShape) -> HybridVisual {
             driver_hatch_half_height: 0.05,
             // Loader's hatch ring on the turret roof, loader (right) side. Like the cupola it is
             // rooted deep into the curved dome (base ~2.04) so the lid never levitates.
-            loader_hatch_center: Vec3::new(0.36, 2.16, 0.05),
+            // Deep enough to root in the casting, shallow enough that the LID is not what a
+            // tape measure finds when it asks how tall the bare turret roof is.
+            loader_hatch_center: Vec3::new(0.36, roof - 0.085, 0.05),
             loader_hatch_radius: 0.19,
             loader_hatch_half_height: 0.12,
             // On the left fender front, outboard of the glacis, as every reference view shows.
@@ -205,10 +219,13 @@ pub(super) fn t54_hybrid(hull: &HullShape, armor: &ArmorShape) -> HybridVisual {
             // Model-logic audit #10: a Mk.4 head is a low fist-sized housing, not a chimney.
             // The centre sits ON the dome surface so only ~7 cm of head stands proud; the old
             // 0.24 m slab read as a floating plate with holes from the bow.
-            periscope_center: Vec3::new(0.34, 2.045, 0.55),
+            // On the roof PLATE rather than out on the slope past its front edge: at z 0.55 the
+            // casting has already fallen away, so the head sat in mid-air beside the metal it is
+            // supposed to be set into.
+            periscope_center: Vec3::new(0.34, roof - 0.02, 0.42),
             periscope_half: Vec3::new(0.055, 0.055, 0.055),
             // The pedestal drum centre; the DShK barrel rides near its top (+0.16).
-            dshk_mount_center: Vec3::new(0.48, 2.20, -0.18),
+            dshk_mount_center: Vec3::new(0.48, roof - 0.07, -0.18),
             dshk_barrel_length: 0.62,
             // Shallow folded edge: the belt's top run carries its link bodies up to ~1.02, so a
             // deeper lip curtain has the scrolling shoes cutting through it (lip bottom 1.05).

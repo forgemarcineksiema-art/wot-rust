@@ -295,35 +295,59 @@ fn t54_fenders_carry_the_reference_stowage_line() {
     }
 }
 
+/// The cupola, the loader's hatch ring, the DShK pedestal and the periscopes sit on a CURVED
+/// casting, not on a flat roof: each must reach deep enough to meet the local shell surface while
+/// still standing proud of it. That is what stops a fitting floating as a drum in mid-air.
+///
+/// It used to be written as absolute heights — 2.06 here, 2.30 there — measured off a 2.27 m
+/// roof. The moment the dome moved (PR-15 raised it to its documented 2.40 and re-shaped it from
+/// the S1 stations) those numbers described a casting that no longer exists, and the test failed
+/// the correct model. So it MEASURES the dome now, at each fitting's own place on it.
 #[test]
 fn t54_roof_fittings_root_into_the_curved_dome() {
-    // The cupola, loader hatch ring, DShK pedestal and periscopes sit on a CURVED casting, not a
-    // flat roof: each must reach deep enough to intersect the local shell surface (base well below
-    // the 2.27 roof plane) while still poking out above it. This locks out the floating-drum bug.
     let desc = t54_description();
-    for (key, max_base, min_top) in [
-        ("cupola", 2.06, 2.30),
-        ("loader_hatch", 2.06, 2.25),
-        ("dshk_mount", 2.05, 2.30),
-        // Audit #10: a Mk.4 head stands ~6-8 cm proud of the casting, not the 20 cm chimney
-        // the old bound encoded — the slab read as a floating holed plate from the bow.
-        ("turret_periscope", 2.04, 2.09),
-    ] {
+    let casting = desc
+        .parts
+        .iter()
+        .find(|part| part.key.name == "turret_shell")
+        .expect("the turret is one lofted casting")
+        .mesh();
+
+    for key in ["cupola", "loader_hatch", "dshk_mount", "turret_periscope"] {
         let part = desc
             .parts
             .iter()
             .find(|part| part.key.name == key)
             .unwrap_or_else(|| panic!("part {key} present"));
         let bounds = part.mesh().bounds().expect("part has bounds");
+        let (cx, cz) = ((bounds.min.x + bounds.max.x) * 0.5, (bounds.min.z + bounds.max.z) * 0.5);
+        // The casting's surface under this fitting: the top of the metal AT ITS OWN PLACE on
+        // the dome. Sampled from the nearest casting vertices in plan — a wide window would
+        // reach the crown and report the roof for a fitting that sits out on the slope.
+        let mut near: Vec<&vehicle_geometry::GeometryVertex> = casting.vertices().iter().collect();
+        near.sort_by(|a, b| {
+            let da = (a.position.x - cx).hypot(a.position.z - cz);
+            let db = (b.position.x - cx).hypot(b.position.z - cz);
+            da.total_cmp(&db)
+        });
+        let surface = near.iter().take(12).map(|v| v.position.y).fold(f32::NEG_INFINITY, f32::max);
+        assert!(surface.is_finite(), "{key} sits over no casting at all");
+
         assert!(
-            bounds.min.y <= max_base,
-            "{key} base {:.2} must root under the dome surface (<= {max_base})",
+            bounds.min.y <= surface,
+            "{key} base {:.2} floats above the casting under it ({surface:.2})",
             bounds.min.y
         );
         assert!(
-            bounds.max.y >= min_top,
-            "{key} top {:.2} must still emerge above the casting (>= {min_top})",
+            bounds.max.y > surface,
+            "{key} top {:.2} is buried in the casting ({surface:.2})",
             bounds.max.y
+        );
+        // And it stands PROUD, not flush: a fitting level with the roof is a texture.
+        assert!(
+            bounds.max.y - surface > 0.02,
+            "{key} stands only {:.3} m proud of the casting — that reads as paint",
+            bounds.max.y - surface
         );
     }
 }
@@ -391,16 +415,38 @@ fn t54_muzzle_ends_in_a_recessed_bore_not_a_capped_rod() {
     assert!(bore, "a recessed bore duct must sit behind the muzzle ring");
 }
 
+/// The pig's-head mask must be a CAST part visibly wrapping the barrel root ahead of the
+/// casting — not a bare steel tube glued to the dome.
+///
+/// "Ahead of the casting" used to be written as `z > 1.05`, a number taken off the turret the
+/// model had. When the casting's front moved (PR-15: S1 puts it 1.016 m forward of the ring, and
+/// the mask bedded back with it) that number described a face that no longer exists. It measures
+/// the casting now.
 #[test]
 fn t54_mask_stands_proud_as_cast_armor_on_the_turret_face() {
-    // The pig's-head mask must be a CAST part visibly wrapping the barrel root ahead of the
-    // casting — not a bare steel tube glued to the dome.
-    let baked = t54_description().build();
+    let description = t54_description();
+    let casting = description
+        .parts
+        .iter()
+        .find(|part| part.key.name == "turret_shell")
+        .expect("the turret is one lofted casting")
+        .mesh();
+    let trunnion_y = description.mounts.gun_trunnion.translation.y;
+    // The casting's face at the gun's own height — the embrasure the mask beds into.
+    let face_z = casting
+        .vertices()
+        .iter()
+        .filter(|v| (v.position.y - trunnion_y).abs() < 0.10 && v.position.x.abs() < 0.30)
+        .map(|v| v.position.z)
+        .fold(f32::NEG_INFINITY, f32::max);
+    assert!(face_z.is_finite(), "the casting has a face at the gun height");
+
+    let baked = description.build();
     let gun = &baked.submesh(SubmeshKind::Gun).expect("gun").mesh;
     let proud = gun.vertices().iter().any(|v| {
-        v.material == MaterialRole::CastArmor && v.position.z > 1.05 && v.position.x.abs() > 0.30
+        v.material == MaterialRole::CastArmor && v.position.z > face_z && v.position.x.abs() > 0.30
     });
-    assert!(proud, "the cast mask must stand wide and proud of the turret face");
+    assert!(proud, "the cast mask must stand wide and proud of the turret face at {face_z:.2}");
 }
 
 #[test]

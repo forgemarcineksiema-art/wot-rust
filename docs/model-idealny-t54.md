@@ -67,7 +67,7 @@ loop (`tools export-mesh` → overlay on master → cross-section diff = numeric
 | # | Deviation | Evidence | Wave |
 | --- | --- | --- | --- |
 | M1 | ~~Hull 6.00 m vs real 6.20–6.27~~ **CLOSED (PR-14)**: hull built at the working 6.235, belly at the documented 0.425, and the muzzle at the documented 2.73 m past the bow (it was an absolute, so growing the hull walked the Locked 9.00 m overall length past its tolerance). Every fitting on both ends is a setback from the hull's own ends now, not a literal | RON `half_len: 3.1175`, `belly_y: 0.425`, `muzzle_z: 5.8475`; `dimension_gate` HullLength **Locked** | W3/PR-14 DONE |
-| M2 | Dome too shallow: roof 2.27 vs 2.40 (fire line 1.78 is the anchor and stays) | RON `roof_y`; 3 "pancake" tests lock the deviation | W3/PR-15 |
+| M2 | ~~Dome roof 2.27 vs 2.40~~ **CLOSED (PR-15)**: the casting is built at the documented 2.40 m roof from the S1 station table, the cupola's 131 mm of exposure is authored instead of being whatever fitted under the hitbox apex, and S1's other finding lands with it — the widest cut is 43% from the front, so the turret reaches 1.016 m forward of the ring and 1.347 aft where the model had 1.05 both ways | RON `roof_y: 2.40`, `cupola_height: Some(0.131)`, `plan_half_length: 1.35`; `dimension_gate` HeightToTurretRoof(Bare) **Locked** | W3/PR-15 DONE |
 | M3 | Turret side 90 mm vs 200/160→65 taper; turret roof 24 (formula) vs 30; mantlet ×1.18 rule vs authored | `catalog_soviet.rs:38`, `zone.rs:52-89` | W2/PR-09 |
 | M4 | External mantlet ball ⌀640 vs narrow ~400 mm embrasure + internal mantlet + canvas | `t54_hybrid.rs:92-107` | W3/PR-17 |
 | M5 | Cupola ⌀480 vs 624, exposed 131 mm, hatch 497×670; three copies in code, the rendered one untested | `t54_hybrid_turret.rs:82` | W3/PR-16 |

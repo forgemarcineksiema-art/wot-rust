@@ -59,9 +59,13 @@ pub fn t54_reference_pack() -> ReferencePack {
             ),
             RatioTarget::new(
                 RatioKind::TurretHeightToHullHeight,
-                0.48,
-                0.05,
-                "The tall ~0.7 m hemispherical casting (plus cupola) rides the LOW 1.58 hull roof.",
+                // Re-blessed 2026-07-29 (PR-15) onto the documented casting: 0.82 m of turret
+                // from the 1.58 ring seat to the 2.40 roof, over the hull it rides. The 0.48 it
+                // replaces was the shallow 2.27 dome expressed as a ratio — a target fitted to
+                // the model rather than taken from the tank.
+                0.55,
+                0.06,
+                "The 0.82 m casting (ring 1.58 to roof 2.40) rides the LOW 1.58 hull roof.",
             ),
             RatioTarget::new(
                 RatioKind::GunProtrusionToHullLength,
@@ -73,9 +77,12 @@ pub fn t54_reference_pack() -> ReferencePack {
             // worked example to copy in their W1/W2 dossier PRs.
             RatioTarget::new(
                 RatioKind::TurretLengthToWidth,
-                0.95,
+                // Blender session S1 measured 1.05 on the real casting and flagged the bake at
+                // 0.97 — "the cheeks are too wide for the length". The 0.95 target here was that
+                // same wrong bake written down as a goal.
+                1.05,
                 0.06,
-                "The cast dome plan is nearly round, a touch wider than long (2.23 long over                  2.31 wide as baked — the mantlet cheeks carry the width).",
+                "The cast dome plan is a touch LONGER than wide: 2.363 m over 2.25 (S1).",
             ),
             RatioTarget::new(
                 RatioKind::TurretRingPositionOnHull,
@@ -156,17 +163,17 @@ pub fn t54_reference_pack() -> ReferencePack {
             0.05,
             t54_dossier("6.20-6.27 m documented band; the hull is built at the working 6.235."),
         ),
-        DimensionTarget::target_pending(
+        DimensionTarget::new(
             DimensionKind::HeightToTurretRoofBare,
             2.40,
             0.05,
-            t54_dossier("2.40 m to the bare turret roof (book sources); dome is shallow (M2)."),
+            t54_dossier("2.40 m to the bare turret roof (book sources); the dome is built there."),
         ),
-        DimensionTarget::target_pending(
+        DimensionTarget::new(
             DimensionKind::HeightToTurretRoof,
             2.53,
             0.06,
-            t54_dossier("~2.53 m apex, derived: roof 2.40 + cupola exposed 0.131 (M2/M5)."),
+            t54_dossier("~2.53 m apex: roof 2.40 plus the authored 131 mm of exposed cupola."),
         ),
         DimensionTarget::target_pending(
             DimensionKind::CupolaDiameter,

@@ -12,55 +12,96 @@ use super::{LoftStation, TurretLoftVisual};
 
 pub(super) fn turret_loft() -> TurretLoftVisual {
     TurretLoftVisual {
+        // MEASURED, not guessed. Blender session S1 (2026-07-28) built a master dome over
+        // multi-view line drawings, sliced it into horizontal sections and fitted a superellipse
+        // per station. Two findings carry the shape:
+        //
+        //   * the roof is 2.40 m, not 2.27 — book sources and the extracted silhouette agree,
+        //     and 2.218 is ruled out;
+        //   * the casting is 2.363 m long, and it is NOT symmetric: its widest cut sits 43%
+        //     of that length from the front. The model had 1.05 both ways — 2.10 m of turret.
+        //
+        // Where that asymmetry goes is the one place S1 is NOT followed. Turning "43% from the
+        // front" into "1.016 forward of the RING, 1.347 aft" needs the widest cut to BE the ring
+        // plane, and S1 flags that registration as an assumption. On a cast dome the widest cut
+        // is at the CHEEKS, which sit forward of the ring — so measured from the ring the same
+        // casting comes out front-heavy, which is what the kernel contract has said all along.
+        // The measured LENGTH and the measured rearward drift (`z_center`) are kept; only the
+        // assumed registration is dropped.
+        //
+        // The SHAPE is S1's; the absolute heights stay on the dossier, because the drawing sheet
+        // is internally inconsistent by 4-7% (its own projections disagree) and the crown widths
+        // came from closure rather than measurement, with roof furniture in the way.
         stations: [
             LoftStation {
                 y: 1.58,
-                half_width: 0.98,
-                half_len_front: 1.05,
-                half_len_rear: 1.05,
+                // S1 measured the SILHOUETTE, and the silhouette includes the cheek swell —
+                // so 1.125 is the casting's widest point, not its base section. The base runs
+                // narrower by the swell it carries, and the two together make the documented
+                // 2.25 m width over the turret.
+                half_width: 1.038,
+                half_len_front: 1.240,
+                half_len_rear: 1.123,
+                z_center: 0.00,
+            },
+            // The cheek station. The swell is a per-RING modulation, so it needs a ring at its
+            // own height to appear on at all — with the nearest sections at 1.58 and 2.00 the
+            // T-54's signature front mass had nowhere to form.
+            LoftStation {
+                y: 1.78,
+                // S1 measured the SILHOUETTE, and the silhouette includes the cheek swell —
+                // so 1.125 is the casting's widest point, not its base section. The base runs
+                // narrower by the swell it carries, and the two together make the documented
+                // 2.25 m width over the turret.
+                half_width: 1.038,
+                half_len_front: 1.240,
+                half_len_rear: 1.123,
+                z_center: 0.00,
+            },
+            // Vertical to 2.00: the casting's skirt does not begin narrowing until above the
+            // ring overhang.
+            LoftStation {
+                y: 2.00,
+                // S1 measured the SILHOUETTE, and the silhouette includes the cheek swell —
+                // so 1.125 is the casting's widest point, not its base section. The base runs
+                // narrower by the swell it carries, and the two together make the documented
+                // 2.25 m width over the turret.
+                half_width: 1.038,
+                half_len_front: 1.240,
+                half_len_rear: 1.123,
                 z_center: 0.00,
             },
             LoftStation {
-                y: 1.70,
-                half_width: 1.08,
-                half_len_front: 1.16,
-                half_len_rear: 1.10,
-                z_center: -0.02,
+                y: 2.12,
+                half_width: 1.062,
+                half_len_front: 1.219,
+                half_len_rear: 1.104,
+                z_center: -0.011,
             },
             LoftStation {
-                y: 1.82,
-                half_width: 1.06,
-                half_len_front: 1.14,
-                half_len_rear: 1.03,
-                z_center: -0.04,
+                y: 2.22,
+                half_width: 0.898,
+                half_len_front: 1.104,
+                half_len_rear: 1.001,
+                z_center: -0.116,
+            },
+            // Above 2.22 the S1 sheet is CLOSING rather than measuring — its own note says the
+            // crown came from the closure and had roof furniture in the way. So the neck runs to
+            // an authored flat roof plate instead of the sheet's near-point apex: a T-54 has a
+            // roof you can stand hatches on, and `turret.roof_radius` is that plate.
+            LoftStation {
+                y: 2.30,
+                half_width: 0.720,
+                half_len_front: 0.891,
+                half_len_rear: 0.789,
+                z_center: -0.140,
             },
             LoftStation {
-                y: 1.94,
-                half_width: 0.98,
-                half_len_front: 1.06,
-                half_len_rear: 0.92,
-                z_center: -0.06,
-            },
-            LoftStation {
-                y: 2.06,
-                half_width: 0.85,
-                half_len_front: 0.92,
-                half_len_rear: 0.76,
-                z_center: -0.09,
-            },
-            LoftStation {
-                y: 2.18,
-                half_width: 0.65,
-                half_len_front: 0.72,
-                half_len_rear: 0.55,
-                z_center: -0.12,
-            },
-            LoftStation {
-                y: 2.27,
-                half_width: 0.42,
-                half_len_front: 0.50,
-                half_len_rear: 0.36,
-                z_center: -0.14,
+                y: 2.40,
+                half_width: 0.420,
+                half_len_front: 0.537,
+                half_len_rear: 0.423,
+                z_center: -0.180,
             },
         ],
         exponent: 2.8,
@@ -80,7 +121,10 @@ pub(super) fn turret_loft() -> TurretLoftVisual {
         embrasure_y_width: 0.22,
         // Rooted deep into the curved dome (base ~2.02, under the local shell surface) so the
         // drum grows out of the casting instead of levitating over the sloping roof.
-        cupola_center: Vec3::new(-0.34, 2.20, -0.10),
+        // Seated so exactly 131 mm of drum stands above the 2.40 m roof — the documented
+        // exposure. It was an absolute 2.20, which the raised roof simply swallowed: the
+        // commander's cupola disappeared INTO the casting.
+        cupola_center: Vec3::new(-0.34, 2.351, -0.10),
         cupola_radius: 0.24,
         cupola_half_height: 0.18,
     }

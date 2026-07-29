@@ -122,8 +122,8 @@ fn t54_locked_anchors_hold_and_known_debts_are_the_registered_ones() {
     let mut expected = vec![
         DimensionKind::CupolaDiameter,
         DimensionKind::GroundClearance,
-        DimensionKind::HeightToTurretRoof,
-        DimensionKind::HeightToTurretRoofBare,
+        // The two height anchors left this list in PR-15: the dome is built at its documented
+        // 2.40 m roof and the cupola stands its documented 131 mm proud of it.
         // HullLength left this list in PR-14: the hull is built at its documented 6.235 m and
         // the anchor is Locked.
         DimensionKind::TrackGauge,

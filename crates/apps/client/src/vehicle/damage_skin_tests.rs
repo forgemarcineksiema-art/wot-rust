@@ -73,7 +73,9 @@ fn cross_frame_group() -> ArmorBreachSet {
     let (turret_entry, turret_normal) =
         surface_anchor(SubmeshKind::Turret, Vec3::new(-0.42, 1.86, 0.98));
     let (mantlet_entry, mantlet_normal) =
-        surface_anchor(SubmeshKind::Gun, trunnion + Vec3::new(0.12, 0.05, 0.30));
+        // 0.23 rather than 0.30 ahead of the trunnion: the moving mask bedded 70 mm further
+        // back with the casting's front (PR-15), and this probe wants the same spot ON the mask.
+        surface_anchor(SubmeshKind::Gun, trunnion + Vec3::new(0.12, 0.05, 0.23));
     let mut set = ArmorBreachSet::default();
     for (frame, zone, entry, normal) in [
         (ArmorFrame::Hull, ArmorZone::UpperGlacis, hull_entry, hull_normal),
