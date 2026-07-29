@@ -175,11 +175,11 @@ pub fn t54_reference_pack() -> ReferencePack {
             0.06,
             t54_dossier("~2.53 m apex: roof 2.40 plus the authored 131 mm of exposed cupola."),
         ),
-        DimensionTarget::target_pending(
+        DimensionTarget::new(
             DimensionKind::CupolaDiameter,
             0.624,
             0.01,
-            t54_dossier("624 mm external cupola (Tankograd); current drum is 480 mm (M5)."),
+            t54_dossier("624 mm external cupola (Tankograd); the drum is built there."),
         ),
         DimensionTarget::target_pending(
             DimensionKind::TrackWidth,

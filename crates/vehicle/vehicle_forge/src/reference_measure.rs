@@ -252,7 +252,10 @@ fn cupola_diameter(vehicle: &BakedVehicle, blueprint: Option<&VehicleBlueprint>)
     let capture = bp.turret.cupola_radius + 0.06;
     let mut max_radial = 0.0_f32;
     for vertex in mesh.vertices().iter().filter(|vertex| is_armor_skin(vertex.material)) {
-        if vertex.position.y < roof - 0.05 {
+        // ABOVE the roof, which is what the doc comment says and what a tape measure round a
+        // cupola actually touches. The old cut sat 50 mm BELOW the roof, so on a wide drum it
+        // caught the roof plate itself and reported the plate's reach as the cupola's diameter.
+        if vertex.position.y <= roof {
             continue;
         }
         let (dx, dz) = (vertex.position.x - cx, vertex.position.z - cz);

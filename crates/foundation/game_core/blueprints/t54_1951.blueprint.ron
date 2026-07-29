@@ -72,7 +72,10 @@ BlueprintFile(
         rear_slope_deg: 10.0,
         cupola_x: -0.34,
         cupola_z: -0.1,
-        cupola_radius: 0.24,
+        // The commander's cupola is 624 mm across the outside (Tankograd). The model carried
+        // 480 — a fifth too small on the one fitting that reads at every range, because it is
+        // the thing standing above the roofline.
+        cupola_radius: 0.312,
         cupola_height: Some(0.131),
         plan_half_width: 1.125,
         plan_half_length: 1.30,

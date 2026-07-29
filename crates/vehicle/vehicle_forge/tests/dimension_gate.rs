@@ -82,7 +82,7 @@ fn the_t54_pilot_reports_every_authored_anchor() {
         DimensionKind::RoadWheelDiameter,
         DimensionKind::TurretRingDiameter,
         DimensionKind::FireLineHeight,
-        DimensionKind::CupolaDiameter,
+        // CupolaDiameter left this list in PR-16: the drum is the documented 624 mm.
         DimensionKind::TrackWidth,
         DimensionKind::TrackGauge,
         DimensionKind::GroundClearance,
@@ -120,8 +120,8 @@ fn t54_locked_anchors_hold_and_known_debts_are_the_registered_ones() {
         report.debts().map(vehicle_forge::MeasuredDimension::kind).collect();
     debts.sort_by_key(|kind| format!("{kind:?}"));
     let mut expected = vec![
-        DimensionKind::CupolaDiameter,
         DimensionKind::GroundClearance,
+        // CupolaDiameter left this list in PR-16: the drum is the documented 624 mm across.
         // The two height anchors left this list in PR-15: the dome is built at its documented
         // 2.40 m roof and the cupola stands its documented 131 mm proud of it.
         // HullLength left this list in PR-14: the hull is built at its documented 6.235 m and

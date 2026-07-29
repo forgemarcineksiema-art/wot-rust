@@ -185,6 +185,8 @@ fn the_hybrid_bake_is_deterministic() {
 /// picture to look at is a rubber stamp.
 #[test]
 fn the_shipped_hybrid_matches_its_recorded_golden() {
+    // Recorded 2026-07-29 (PR-16, the documented cupola: ⌀624 not ⌀480, authored once
+    // instead of written down three times).
     // Recorded 2026-07-29 (PR-15, the dome at its documented roof). The casting rises from a
     // 2.27 m roof to the documented 2.40, and its PLAN changes with it: Blender session S1 found
     // the widest cut 43% from the front, so the turret reaches 1.016 m forward of the ring and
@@ -199,7 +201,7 @@ fn the_shipped_hybrid_matches_its_recorded_golden() {
     // into or the "pig's head" vanishes into the dome.
     // Previous: 0xf490_f9f1_fe07_3049 (PR-14, the hull at 6.235);
     //           0x903d_b868_b9bf_e617 (PR-25, a muzzle is a hole).
-    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0xecbe_61ab_55c8_033f;
+    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0x8f18_a4aa_f291_5175;
     let baked = t54_description().build();
     assert_eq!(
         baked.deterministic_hash(),

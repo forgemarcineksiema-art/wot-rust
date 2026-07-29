@@ -26,6 +26,15 @@ use super::{
 /// Height of the turret casting's flat roof. The dossier's book value, and the number the whole
 /// roof band hangs off.
 const TURRET_ROOF_Y: f32 = 2.40;
+/// External radius of the commander's cupola: 624 mm across (Tankograd). One number, read by the
+/// gameplay turret, the metaball composition and the loft alike — it used to be written three
+/// times, so "the cupola" was three cupolas that happened to agree.
+const CUPOLA_RADIUS_M: f32 = 0.312;
+/// How far the drum stands above the roof. Documented, not derived from whatever gap was left
+/// under the hitbox apex.
+const CUPOLA_PROUD_M: f32 = 0.131;
+/// Half-height of the drum itself: enough below the roof to root in the casting.
+const CUPOLA_HALF_HEIGHT_M: f32 = 0.18;
 const GLACIS_SETBACK_M: f32 = 0.05;
 const NOSE_SETBACK_M: f32 = 0.48;
 /// How far the engine deck's rear edge stops short of the rear plate.
@@ -39,6 +48,12 @@ pub(super) fn t54_hybrid(hull: &HullShape, armor: &ArmorShape) -> HybridVisual {
     // mount rise with it, each staying the same distance into the metal it is rooted in. They
     // were absolutes, and the whole band would have had to be re-typed by hand.
     let roof = TURRET_ROOF_Y;
+    // The commander's cupola, authored once and handed to everything that draws it.
+    let cupola = (
+        Vec3::new(-0.34, roof + CUPOLA_PROUD_M - CUPOLA_HALF_HEIGHT_M, -0.10),
+        CUPOLA_RADIUS_M,
+        CUPOLA_HALF_HEIGHT_M,
+    );
     // The glacis plane and the lower-nose plane used to be FROZEN NUMBERS beside the blueprint
     // they are functions of (2.34 / (0,-0.75,1) / 2.20, rounded to 2 dp). Nothing recomputed
     // them, so every part hung off them — the glacis/roof weld seam, the splash board, the bow
@@ -102,11 +117,11 @@ pub(super) fn t54_hybrid(hull: &HullShape, armor: &ArmorShape) -> HybridVisual {
             ring_blend: 0.33,
             roof_plane_y: roof,
             ring_plane_y: 1.58,
-            cupola_radius: 0.24,
+            cupola_radius: CUPOLA_RADIUS_M,
             // The drum roots DEEP into the curved dome (base ~2.02, well under the local shell
             // surface) so it grows out of the casting instead of levitating over the slope.
-            cupola_half_height: 0.18,
-            cupola_center: Vec3::new(-0.34, roof - 0.049, -0.10),
+            cupola_half_height: CUPOLA_HALF_HEIGHT_M,
+            cupola_center: cupola.0,
             cupola_blend: 0.05,
             // A deeper mantlet socket on the fire line, so the cast trough the gun mantlet beds
             // into reads as a real cavity, not a dimple.
@@ -120,7 +135,7 @@ pub(super) fn t54_hybrid(hull: &HullShape, armor: &ArmorShape) -> HybridVisual {
         // The lofted cast turret stations and shaping (split into `t54_hybrid_turret` for the file
         // budget): widest LOW for the ring overhang, front-heavy with a rear-pulled bustle, necking
         // into the flat roof, all within the ±1.125 / ±1.17 turret plan.
-        turret_loft: super::t54_hybrid_turret::turret_loft(),
+        turret_loft: super::t54_hybrid_turret::turret_loft(cupola),
         gun: GunVisual {
             barrel_radius: 0.09,
             // The D-10T is a 100 mm gun with a thin wall: the documented muzzle OD is about

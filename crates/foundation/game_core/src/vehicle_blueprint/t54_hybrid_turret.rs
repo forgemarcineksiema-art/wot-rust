@@ -10,7 +10,10 @@ use glam::Vec3;
 
 use super::{LoftStation, TurretLoftVisual};
 
-pub(super) fn turret_loft() -> TurretLoftVisual {
+/// The lofted casting. `cupola` is the drum the roof carries: centre, external radius and
+/// half-height come from the ONE place they are authored (`t54_hybrid`), because a cupola
+/// written down three times is three cupolas that happen to agree.
+pub(super) fn turret_loft(cupola: (Vec3, f32, f32)) -> TurretLoftVisual {
     TurretLoftVisual {
         // MEASURED, not guessed. Blender session S1 (2026-07-28) built a master dome over
         // multi-view line drawings, sliced it into horizontal sections and fitted a superellipse
@@ -124,8 +127,8 @@ pub(super) fn turret_loft() -> TurretLoftVisual {
         // Seated so exactly 131 mm of drum stands above the 2.40 m roof — the documented
         // exposure. It was an absolute 2.20, which the raised roof simply swallowed: the
         // commander's cupola disappeared INTO the casting.
-        cupola_center: Vec3::new(-0.34, 2.351, -0.10),
-        cupola_radius: 0.24,
-        cupola_half_height: 0.18,
+        cupola_center: cupola.0,
+        cupola_radius: cupola.1,
+        cupola_half_height: cupola.2,
     }
 }
