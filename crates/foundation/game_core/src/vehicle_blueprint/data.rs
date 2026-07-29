@@ -94,10 +94,12 @@ fn t54() -> VehicleBlueprint {
             link_half_width: 0.23,
             link_count: Some(90),
             top_sag_m: 0.05,
-            wheel_spokes: 6,
+            // Twelve webs between twelve pairs of lightening holes: the obr. 1951 disc is the
+            // stamped spider-web, not an openwork casting (dossier, part construction / S1b).
+            wheel_spokes: 12,
             drive_front: false,
             shoe_pattern: ShoePattern::Omsh,
-            wheel_face: WheelFace::Openwork,
+            wheel_face: WheelFace::SpiderWeb,
             suspension: super::SuspensionKind::TorsionBar,
         },
         turret: TurretShape {

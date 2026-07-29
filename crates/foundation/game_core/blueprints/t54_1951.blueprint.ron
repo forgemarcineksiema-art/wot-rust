@@ -47,7 +47,11 @@ BlueprintFile(
         link_half_width: 0.23,
         link_count: Some(90),
         top_sag_m: 0.05,
-        wheel_spokes: 6,
+        // Twelve radial webs, not six spokes: the obr. 1951 disc is the stamped "spider-web"
+        // (12 ribs, 12 small + 12 large lightening holes) — see the part-construction dossier
+        // in docs/vehicles/t-54.md. The five-arm starfish is a later/rebuild wheel.
+        wheel_spokes: 12,
+        wheel_face: SpiderWeb,
     ),
     turret: TurretShape(
         form: CastDome,

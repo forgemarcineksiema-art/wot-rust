@@ -18,6 +18,19 @@ document becomes history.
 - Blender sessions S1 (dome master: station table banked in the plan; height 2.40 confirmed,
   2.218 ruled out) and S1b (part construction: 13-tooth sprocket rings, hinge-eye drive,
   the spider-web wheel correction) are done; S2/S3/S4 belong to W3.
+- **Update 2026-07-29 — W0/W1/W2 built as a review stack** (PR-01 reference spec → PR-02 studio
+  on the authoritative bake → PR-03 tile goldens + mirror fix → PR-04 OBJ export → PR-05 kernel
+  contracts → PR-06 blueprint SSOT → PR-07 module honesty → PR-08 fleet gates → PR-09 armor
+  taper [PROTOCOL v40] → PR-10 gun arc → PR-11 loft/sweep shape → PR-12a revolve winding →
+  PR-12 spider-web wheel). Each is its own branch and draft PR; merge order is the stack order.
+- **Two findings worth carrying forward.** (1) The T-54's hydraulic dampers are internal (vane
+  type on the balance-arm shaft) — the register's "no visible dampers" line was a mis-reading and
+  is struck; nothing is owed on the hull side, and the `GearPart::Damper` drafted for PR-12 was
+  deleted rather than shipped, because inventing an external cylinder is the exact failure this
+  program exists to remove. (2) The revolve kernel wound every closed lathe profile
+  inconsistently — 22 broken edges per ring, on every wheel, tyre, roller and drum in the fleet.
+  It surfaced only because a NEW construction pushed a recorded debt ceiling past its limit,
+  which is what the FLOOR/TARGET pattern is for.
 
 ## The decisions this program is built on
 
@@ -50,7 +63,7 @@ loop (`tools export-mesh` → overlay on master → cross-section diff = numeric
 | M5 | Cupola ⌀480 vs 624, exposed 131 mm, hatch 497×670; three copies in code, the rendered one untested | `t54_hybrid_turret.rs:82` | W3/PR-16 |
 | M6 | Gun arc global −8/+20 vs real −5/+18 per vehicle | `aiming.rs:6-8` | W2/PR-10 |
 | M7 | Symmetric fenders vs real asymmetry; missing SG-43 port and 2× MDSh | `t54_kit.rs:40-49` | W3/PR-19 |
-| M8 | Wheel disc pattern generic 6 spokes vs the documented **spider-web** casting (12 ribs, 12+12 holes) — S1b corrected the earlier "5-arm starfish" assumption: starfish is a later/rebuild wheel; no visible dampers st. 1+5; doubled swing arms | RON `wheel_spokes: 6`; `t54_chassis.rs:44-64`; dossier "Part construction" | W2/PR-12 + W3/PR-18 |
+| M8 | Wheel disc pattern generic 6 spokes vs the documented **spider-web** stamping (12 ribs, 12+12 lightening holes) — S1b corrected the earlier "5-arm starfish" assumption: starfish is a later/rebuild wheel; doubled swing arms (F5). **Struck 2026-07-29: "no visible dampers st. 1+5" was wrong** — the T-54's hydraulic dampers are VANE type acting on the inboard end of the balance-arm shaft, inside the hull; nothing of them is visible from outside, so the honest exterior is bare hull side and no geometry is owed | RON `wheel_spokes: 6`; `t54_chassis.rs:44-64`; dossier "Part construction"; ru.wikipedia / armor.kiev.ua suspension description | W2/PR-12 (done) + W3/PR-18 |
 | M9 | Track 570 vs 580 mm; gauge 2690 vs 2640 (side-clearance arithmetic — open decision) | RON track fields | W3/PR-18 |
 | M10 | Deck travel lock authored with zero reference citation (real obr. 1951: likely none) | `t54_kit_lines.rs:47-72` | W3/PR-19 after S2 |
 | M11 | `barrel_length_m` D-10T 5.0 vs D-10T2S 5.9 — same real tube L/53.5 ≈ 5.35; upgrade falsely stretches the silhouette | `catalog_soviet.rs:230,252` | W1/PR-07 |
@@ -65,10 +78,10 @@ loop (`tools export-mesh` → overlay on master → cross-section diff = numeric
 | K1 | Muzzle reads bore-less: face is 76% flat steel (wall 49 mm vs real 10–15 — tube ~40% too fat), bore has no distinct material/AO (the legacy path had a dark funnel — lost), rim smoothed into a dimple; 20-gon faceting | `gun_parts.rs:15-34`; no muzzle band in `surface_bake.rs` | PR-25 |
 | K2 | Mantlet is an OPEN-ended sleeve (no station at r=0); rims stand outside the barrel over ±31° crescents looking into the hollow; `OPEN_OR_CLOSED` contract allows it | `gun_parts.rs:62-83`; `quality.rs:214-219` | PR-17 |
 | K3 | OMSh link: NO guide horn, no hinge knuckles/pins, no cleats; 4 of 7 detail boxes fully buried inside the backing slab (11,520 dead tris/tank); "pin bars" on the wrong face | `running_gear_geom.rs:17-91` | PR-22 |
-| K4 | Road wheel: one body with a groove fakes twin tires; "dish" is a thinner flat coin; hub is a 19 cm peg; ZERO bolts (bolt circle exists only on the German dished path); arms are straight flat slabs | `running_gear_wheels.rs:28-57` | PR-23 |
+| K4 | Road wheel: one body with a groove fakes twin tires; "dish" is a thinner flat coin; hub is a 19 cm peg; ZERO bolts (bolt circle exists only on the German dished path). **Partly closed by PR-12**: the T-54 face is now the spider-web frame (two bands + twelve webs + two rings of real holes, ray-measured), so what remains here is the twin tyres with their 53 mm axial gap, the dished disc, and the 10-bolt hub circle | `running_gear_wheels.rs:28-57` | PR-23 |
 | K5 | Sprocket teeth stop 3.2 cm SHORT of the belt line (nothing meshes) yet intersect the backing on the wrap; carrier "rings" are solid coins; tooth is a flat wedge. Documented truth (S1b): **2 × 13 teeth**, ring ⌀682 × 120 mm on a ⌀572.4 pitch circle, 40 bolts, and the tooth bears on the link's **hinge-eye barrel**, not the horn | `running_gear_end_wheels.rs:65-136`; dossier "Part construction" | PR-24 |
 | K6 | Idler: flat cylinder (same coin as the sprocket drum), no dish, no tension crank; open revolve hides the hollow | `running_gear_end_wheels.rs:25-59` | PR-24 |
-| K7 | Swing arm: reach 0.26 / rise 0.13 HARDCODED fleet-wide (not blueprint), flat slab, no torsion-bar hub; duplicated by static hull boxes | `running_gear_arms.rs:18-22`; `t54_chassis.rs:44-65` | PR-27 (+PR-12) |
+| K7 | Swing arm: reach 0.26 / rise 0.13 HARDCODED fleet-wide (not blueprint), flat slab, no torsion-bar hub. **Duplication closed by PR-12** — the static hull boxes are deleted; the animated arm is the single source | `running_gear_arms.rs:18-22` | PR-27 |
 | K8 | Cupola/3 hatches/headlight = bare `revolve::drum` pucks (8 real parts from one primitive); ZERO hinges/handles/latches in the whole repo; headlight "lens" faces UP | `parts.rs:12-23`; `t54_details.rs:15-72` | PR-26 (+PR-16) |
 | K9 | Tow hooks are bricks; cables float without thimbles/clamps; rails have no welded feet; beam has no steel bands and is `TrackMetal`, not wood; splash board is a ⌀70 sausage, not an angle plate | `t54.rs:141-152`; `t54_kit_lines.rs` | PR-26 |
 | K10 | DShK planted NEXT TO the loader hatch instead of on its ring; no cradle/arc/grips/sight; bore 2.2× oversize | `t54_dshk.rs:13-77` | PR-26 |
@@ -92,13 +105,14 @@ loop (`tools export-mesh` → overlay on master → cross-section diff = numeric
   tightness decision (PR-08).
 - **W2 Tech extensions (PR-09..13):** armor thickness-per-plane + turret side taper + HullDeck
   zone split + authored mantlet/roof [PROTOCOL bump, replay re-pin] (PR-09); per-vehicle gun arc
-  (PR-10); cast_loft sharp bump + sweep per-station taper (PR-11); `WheelFace::Starfish` +
-  curved arms + `GearPart::Damper` + F5 dedup (PR-12); armor dome ellipse + T-54 mesh↔volume
-  lock (PR-13).
+  (PR-10); cast_loft sharp bump + sweep per-station taper (PR-11); consistent lathe winding in
+  the revolve kernel — one winding, one orientation vote, fleet gear winding debt deleted
+  (PR-12a); `WheelFace::SpiderWeb` + T-54 on the stamped disc + F5 dedup (PR-12); armor dome
+  ellipse + T-54 mesh↔volume lock (PR-13).
 - **W3 Dimensions (PR-14..19, sequential, numbers from S1/S2):** hull 6.2X (PR-14); dome 2.40
   (PR-15); cupola ⌀624 (PR-16); embrasure + internal mantlet + canvas + closed shell (PR-17);
-  track 580 + starfish + dampers (PR-18); fender asymmetry + SG-43 + MDSh + travel-lock removal
-  (PR-19).
+  track 580 + gauge decision + link pitch (PR-18; the dampers once planned here are struck — see
+  M8); fender asymmetry + SG-43 + MDSh + travel-lock removal (PR-19).
 - **W4 Mechanical logic (PR-21..27, parallel with W3, PR-21 first):** gear budget + LOD enabler
   (PR-21); OMSh link anatomy (PR-22); road wheel construction (PR-23); sprocket/idler engagement
   (PR-24); muzzle truth + cradle (PR-25); exterior mechanics — hinges, handles, headlight

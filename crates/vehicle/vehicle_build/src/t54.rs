@@ -188,8 +188,6 @@ pub fn t54_from_modules_with_blueprint(
     // The external kit: fender stowage and sloping fender ends, the glacis splash board, turret
     // handrails and stowed tow cables — the reference dressing that makes the narrow hull read.
     parts.extend(crate::t54_kit::t54_kit_parts(v, bp.armor.hull_front.0));
-    // Swing-arm brackets mounting each road wheel to the hull's lower tub side (suspension cue).
-    parts.extend(crate::t54_chassis::t54_suspension_parts(bp.hull.lower_half_width));
     // Hull plate articulation: the glacis-to-roof weld seam and the rear transmission covers.
     parts.extend(crate::t54_chassis::t54_hull_plate_parts(v, bp.armor.hull_front.0));
     // Damage-ready interior: major visible assemblies are generated from the authoritative

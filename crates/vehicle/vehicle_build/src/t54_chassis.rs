@@ -1,11 +1,16 @@
-//! Chassis articulation detail for the hybrid T-54: the hull-plate weld seams, the rear transmission
-//! access covers, and the swing-arm brackets that visibly mount each road wheel to the hull. All are
-//! `PartLod::Detail` visual plates derived from the blueprint's [`HybridVisual`], built through the
-//! shared `detail_plate` helper so they carry stable part keys and the `solid` generator provenance.
+//! Chassis articulation detail for the hybrid T-54: the hull-plate weld seams and the rear
+//! transmission access covers. All are `PartLod::Detail` visual plates derived from the
+//! blueprint's [`HybridVisual`], built through the shared `detail_plate` helper so they carry
+//! stable part keys and the `solid` generator provenance.
+//!
+//! The swing arms are NOT here. They used to be — a static box per station, baked into the hull
+//! at rest height — while the running gear ALSO instanced an animated trailing arm at the same
+//! station. Two arms per wheel, one of them frozen at rest and the other rotating with live
+//! suspension travel: over rough ground they visibly separated. The animated arm is the real
+//! mechanism (`vehicle_geometry::swing_arm_unit_mesh`), so the baked copy is gone.
 
-use game_core::{HybridVisual, VehicleKind};
-use glam::Vec3;
-use vehicle_geometry::{MaterialRole, RunningGearKinematics, SubmeshKind};
+use game_core::HybridVisual;
+use vehicle_geometry::{MaterialRole, SubmeshKind};
 
 use crate::part::{PartKey, VehiclePart};
 use crate::t54_details::detail_plate;
@@ -30,36 +35,6 @@ pub fn t54_hull_plate_parts(v: &HybridVisual, front_deg: f32) -> Vec<VehiclePart
             MaterialRole::RolledArmor,
             cover,
         ));
-    }
-    parts
-}
-
-/// A visual swing-arm bracket per road wheel, bridging the hull's lower tub side to the wheel hub at
-/// axle height. Without it the road wheels read as floating on a bare axle line; this is the link
-/// that mounts them to the hull. `lower_half_width` is the hull tub half-width (the pivot side).
-///
-/// The brackets read the **animated** running-gear kinematics (the same source the rendered road
-/// wheels use), so each bracket lands on the axle and Z of an actual wheel instead of a divergent
-/// second wheel layout.
-pub fn t54_suspension_parts(lower_half_width: f32) -> Vec<VehiclePart> {
-    let kin = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951)
-        .expect("T-54 has animated running gear");
-    let wheel_inner = kin.wheel_x - kin.wheel_half_width;
-    let arm_cx = 0.5 * (lower_half_width + wheel_inner);
-    let arm_hx = (0.5 * (wheel_inner - lower_half_width)).max(0.04);
-    let mut parts = Vec::new();
-    let mut arm = 0u16;
-    for &z in &kin.wheel_zs {
-        for side in [1.0_f32, -1.0] {
-            let center = Vec3::new(side * arm_cx, kin.cy, z);
-            parts.push(detail_plate(
-                PartKey::indexed("swing_arm", arm),
-                SubmeshKind::Hull,
-                MaterialRole::TrackMetal,
-                solid::ConvexSolid::box_at(center, Vec3::new(arm_hx, 0.05, 0.10)),
-            ));
-            arm += 1;
-        }
     }
     parts
 }

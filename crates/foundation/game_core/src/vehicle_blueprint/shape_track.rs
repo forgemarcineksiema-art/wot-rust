@@ -122,6 +122,14 @@ pub enum WheelFace {
     SteelDish,
     /// Bolted dish under a rubber tire (Centurion).
     RubberDish,
+    /// The Soviet post-war "spider-web" road wheel: a stamped disc stiffened by radial RIBS
+    /// with lightening holes punched between them, not an openwork casting with arms.
+    ///
+    /// This is what a T-54 through T-54B rolled on. The 5-arm "starfish" the model assumed is a
+    /// later wheel (and the ⌀830 starfish is the 500 mm-track era's, not interchangeable at
+    /// all) — corrected from the part-construction dossier, S1b.
+    /// Appended last: the enum is asset identity.
+    SpiderWeb,
 }
 
 /// Deserialize `Option<Vec<f32>>` into the `Copy`-preserving `Option<&'static [f32]>` by

@@ -11,16 +11,96 @@ use crate::{
 const SG_HARD: SmoothingGroup = SmoothingGroup::hard_edges();
 const SG_WHEEL: SmoothingGroup = SmoothingGroup(5);
 
-/// One T-54 "starfish" road wheel, centred at the origin with its axle along X: a steel rim ring
-/// under the rubber tire, an openwork face of radial spoke arms over a RECESSED centre web (the
-/// see-into depth between the arms is the starfish read), and a proud hub cap. The rubber shows
-/// only as the dark outer band; the earlier solid disc face read as a blank plate.
+/// One road wheel, centred at the origin with its axle along X. Every family shares the steel
+/// rim ring under the tyre and the proud hub cap; the FACE between them is what tells the
+/// vehicles apart, and each is its own construction rather than one mesh with a parameter.
 pub fn road_wheel_unit_mesh(kin: &RunningGearKinematics) -> GeometryMesh {
     match kin.wheel_face {
         game_core::WheelFace::Openwork => openwork_wheel(kin),
         game_core::WheelFace::SteelDish => dished_wheel(kin, false),
         game_core::WheelFace::RubberDish => dished_wheel(kin, true),
+        game_core::WheelFace::SpiderWeb => spider_web_wheel(kin),
     }
+}
+
+/// The Soviet post-war **"spider-web"** road wheel: a stamped disc lightened by TWO concentric
+/// rings of holes — twelve small ones around the hub collar, twelve large ones further out —
+/// with the radial ribs between them carrying the load out to the rim.
+///
+/// This is not the openwork casting, and the difference reads at any range. An openwork wheel is
+/// one open void crossed by a few heavy arms, so you see the track and the hull straight through
+/// it. A spider-web wheel is a metal frame: two solid bands and twelve narrow webs, so what you
+/// see through are twenty-four separate punched holes.
+///
+/// The T-54 through T-54B rolled on this wheel (part-construction dossier, S1b). The five-arm
+/// "starfish" the model assumed is a later/rebuild wheel — and the ⌀830 mm starfish belongs to
+/// the 500 mm-track era, so it is not even interchangeable.
+///
+/// Radii are fractions of the wheel radius: hub cap, collar band, small-hole ring, mid band,
+/// large-hole ring, rim ring under the tyre. The bands are thin plate; the ribs stand proud of
+/// them on both faces, which is what makes the web read as a web and not as a flat gasket.
+fn spider_web_wheel(kin: &RunningGearKinematics) -> GeometryMesh {
+    let seg = kin.segments.max(22);
+    let r = kin.wheel_radius;
+    let half_w = kin.wheel_half_width;
+    let body_half = half_w * 0.92;
+    // Plate thickness of the stamping: thin, so the ribs read proud of it and the holes read
+    // as holes rather than as tunnels.
+    let plate_half = body_half * 0.26;
+    let mut builder = MeshBuilder::new()
+        // Full-width steel rim ring seated under the tyre (as on the openwork face).
+        .append(&steel_ring(r * 0.64, r * 0.895, body_half, seg))
+        // The mid band, between the two rings of holes.
+        .append(&steel_ring(r * 0.44, r * 0.52, plate_half, seg))
+        // The hub collar the small holes are punched around (the bolt circle lands here — PR-23).
+        .append(&steel_ring(r * 0.24, r * 0.34, plate_half, seg))
+        // Proud central hub cap.
+        .append(&wheel_disc_at(0.0, r * 0.24, half_w * 1.05, seg, MaterialRole::TrackMetal))
+        .append(&dual_tire(r, half_w, seg));
+    // The webs: narrow radial ribs bridging hub collar → mid band → rim, buried at both ends.
+    // They are HALF the width of an openwork arm because they stiffen a stamping rather than
+    // carry the rim across a void, and their count is the disc's identity (twelve on the T-54).
+    let ribs = kin.wheel_spokes.max(3);
+    for i in 0..ribs {
+        let angle = (i as f32 / ribs as f32) * std::f32::consts::TAU;
+        builder = builder.append(&stiffening_rib(angle, r * 0.26, r * 0.68, r, plate_half * 2.1));
+    }
+    builder.build()
+}
+
+/// One radial web of a spider-web disc: a narrow raised bar standing proud of the stamping,
+/// buried at both ends in the bands it bridges.
+fn stiffening_rib(
+    angle: f32,
+    inner_r: f32,
+    outer_r: f32,
+    wheel_r: f32,
+    half_width: f32,
+) -> GeometryMesh {
+    let (sin, cos) = angle.sin_cos();
+    let radial = Vec2::new(sin, cos);
+    let tangent = Vec2::new(cos, -sin);
+    // Half the width of an openwork arm: this is a stiffening web between punched holes, not a
+    // load-bearing arm spanning an open face.
+    let (w_in, w_out) = (wheel_r * 0.035, wheel_r * 0.060);
+    let section = vec![
+        radial * inner_r - tangent * w_in,
+        radial * inner_r + tangent * w_in,
+        radial * outer_r + tangent * w_out,
+        radial * outer_r - tangent * w_out,
+    ];
+    MeshBuilder::new()
+        .extrude(
+            Vec3::ZERO,
+            ExtrudeSpec {
+                section,
+                axis: Axis::X,
+                half_depth: half_width,
+                material: MaterialRole::TrackMetal,
+                smoothing: SG_HARD,
+            },
+        )
+        .build()
 }
 
 /// The openwork Soviet family face: spokes/ribs over a recessed web (T-54 starfish, IS ribs,
