@@ -84,6 +84,10 @@ pub(super) fn tiger_ii_blueprint() -> VehicleBlueprint {
             shoe_pattern: ShoePattern::Kgs,
             wheel_face: WheelFace::SteelDish,
             suspension: super::SuspensionKind::TorsionBar,
+            // The trailing arm's own geometry: None takes the family default
+            // (0.26 / 0.13 for a torsion bar) until this vehicle's dossier says otherwise.
+            arm_reach_m: None,
+            arm_rise_m: None,
         },
         turret: TurretShape {
             // The Henschel: a long faceted welded prism — leaned front plate, 21° sides

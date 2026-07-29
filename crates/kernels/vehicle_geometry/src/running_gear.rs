@@ -82,6 +82,10 @@ pub struct RunningGearKinematics {
     pub roller_radius: f32,
     /// Y of the return-roller axles: the roller top carries the belt's top run.
     pub roller_y: f32,
+    /// Trailing-arm geometry, from the blueprint: how far the arm reaches back from its hull
+    /// pivot to the axle, and how far the pivot stands above that axle at rest.
+    pub arm_reach: f32,
+    pub arm_rise: f32,
     pub segments: usize,
     /// How finely this gear is built. Every generator asks [`Self::segments_for`] rather than
     /// reading `segments` directly, so one field switches the whole running gear between the
@@ -189,6 +193,8 @@ impl RunningGearKinematics {
             roller_zs,
             roller_radius: track.roller_radius,
             roller_y: track.top_y - track.roller_radius,
+            arm_reach: track.arm_reach(),
+            arm_rise: track.arm_rise(),
             segments: track.segments.max(12),
             detail: GearDetail::Near,
             link_count,

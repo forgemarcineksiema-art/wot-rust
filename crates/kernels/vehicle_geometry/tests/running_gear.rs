@@ -741,3 +741,80 @@ fn the_idler_carries_its_tension_crank() {
         "the T-54 idler runs on steel tyres — rubber made it read as a second road wheel"
     );
 }
+
+/// THE SUSPENSION IS THE VEHICLE'S, NOT THE FLEET'S.
+///
+/// A trailing arm's reach and rise decide where a wheel sits when the suspension works and how
+/// far it can travel — and they were two constants shared by every torsion-bar tank in the game,
+/// from a 36-tonne T-54 to a 70-tonne Tiger II. A suspension is one of the few things a tank is
+/// actually judged on. Its geometry belongs in the blueprint with everything else the vehicle is.
+#[test]
+fn every_swing_arm_reads_its_geometry_from_its_own_blueprint() {
+    for kind in VehicleKind::PLAYABLE {
+        let blueprint = game_core::VehicleBlueprint::for_vehicle(kind).expect("blueprint");
+        let kin = RunningGearKinematics::for_vehicle(kind).expect("gear");
+        assert_eq!(
+            kin.arm_reach,
+            blueprint.track.arm_reach(),
+            "{kind:?}: the arm must reach what its blueprint says"
+        );
+        assert_eq!(kin.arm_rise, blueprint.track.arm_rise());
+
+        // And the number actually drives the mesh: an arm authored longer IS longer.
+        let mut stretched = blueprint.track;
+        stretched.arm_reach_m = Some(blueprint.track.arm_reach() * 1.5);
+        let long = RunningGearKinematics::from_track(&stretched);
+        // How far the arm reaches from its pivot, measured in the plane it swings in. A
+        // bounding box is the wrong ruler here: the section rotates with the arm's own angle, so
+        // a box can shrink at one end while the axle moves further out.
+        let reach_from_pivot = |k: &RunningGearKinematics| {
+            swing_arm_unit_mesh(k)
+                .vertices()
+                .iter()
+                .map(|v| v.position.y.hypot(v.position.z))
+                .fold(0.0_f32, f32::max)
+        };
+        if kin.suspension != game_core::SuspensionKind::Horstmann {
+            assert!(
+                reach_from_pivot(&long) > reach_from_pivot(&kin) + 0.03,
+                "{kind:?}: authoring a longer arm must carry its axle further from the pivot                  ({:.3} vs {:.3})",
+                reach_from_pivot(&long),
+                reach_from_pivot(&kin)
+            );
+        }
+    }
+}
+
+/// A swing arm is a FORGING, not a slab. Its section is an I — thick at the flanges, waisted in
+/// the web — and it carries the torsion-bar hub at its pivot, which is the part that makes the
+/// mechanism legible: the bar twists inside that boss.
+#[test]
+fn the_torsion_arm_is_an_i_section_with_a_bar_hub() {
+    let kin = RunningGearKinematics::for_vehicle(VehicleKind::T54_1951).expect("gear");
+    let mesh = swing_arm_unit_mesh(&kin);
+
+    // The section is not constant: sample the arm's thickness along its own length and require
+    // the flanges to stand proud of the web between them.
+    let thickness_at = |t: f32| {
+        let along = t * kin.arm_reach;
+        mesh.vertices()
+            .iter()
+            .filter(|v| (v.position.z + along).abs() < 0.020)
+            .map(|v| v.position.x.abs())
+            .fold(0.0_f32, f32::max)
+    };
+    let flange = thickness_at(0.05_f32);
+    let web = thickness_at(0.42_f32);
+    assert!(
+        flange > web + 0.004,
+        "the arm must be thicker at its flanges than in its web: {flange:.3} vs {web:.3} — a \
+         constant-thickness arm is a plate, not a forging"
+    );
+
+    // The torsion-bar hub stands INBOARD of the arm plate, where the bar runs across the floor.
+    let inboard = mesh.vertices().iter().map(|v| v.position.x).fold(f32::INFINITY, f32::min);
+    assert!(
+        inboard < -0.070,
+        "the torsion-bar boss must stand proud toward the hull: innermost {inboard:.3}"
+    );
+}

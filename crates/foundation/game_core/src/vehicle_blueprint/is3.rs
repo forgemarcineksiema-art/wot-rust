@@ -76,6 +76,10 @@ pub(super) fn is3_blueprint() -> VehicleBlueprint {
             shoe_pattern: ShoePattern::Omsh,
             wheel_face: WheelFace::Openwork,
             suspension: super::SuspensionKind::TorsionBar,
+            // The trailing arm's own geometry: None takes the family default
+            // (0.26 / 0.13 for a torsion bar) until this vehicle's dossier says otherwise.
+            arm_reach_m: None,
+            arm_rise_m: None,
         },
         turret: TurretShape {
             form: TurretForm::CastDome,
