@@ -23,6 +23,13 @@ pub const DUPLICATE_FREE_FN_ALLOWLIST: &[&str] = &[
     // App-shell entry point (`client::run`, `editor::app::run`) — the windowed-app twin of
     // `main`: one per app by design, nothing shareable behind the name.
     "run",
+    // One vehicle's component layout, and the hull half of it: `damage_layout::<vehicle>::layout`
+    // is that module's entry point exactly as `main` is a binary's. The bodies place different
+    // objects in different hulls and share nothing but the section heading — the arithmetic they
+    // DID share (hull anchors, fuel cells, the turret group) has been hoisted into
+    // `damage_layout::authoring`, which is what the name scan cannot see and the body scan can.
+    "layout",
+    "hull_components",
     // The ratchet is empty: every pre-existing duplicate has been hoisted into a shared home —
     // `rotate_around` / `armor_normal` / `world_to_tank_local` into `game_core::math`, and the
     // shell-collision helpers (`terrain_crossing`, `first_cover_impact`, the tank ray-AABB) into

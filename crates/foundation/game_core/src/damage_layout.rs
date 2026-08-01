@@ -3,8 +3,19 @@ use serde::{Deserialize, Serialize};
 
 use crate::{ArmorFrame, HitboxProfile, ModuleSlot, VehicleKind};
 
+pub mod authoring;
+mod centurion;
+mod german;
 mod intersections;
+mod is3;
+mod jagdtiger;
+mod panther_ii;
+mod t34_85;
 mod t54;
+mod tiger_i;
+mod tiger_ii;
+
+use authoring::HullEnvelope;
 
 /// Stable identity of one physical component. It is intentionally separate from [`ModuleSlot`]:
 /// several real objects (two fuel tanks, recoil cylinders, final drives) may feed one existing
@@ -104,10 +115,34 @@ pub struct DamageLayout {
 }
 
 impl DamageLayout {
+    /// The authored component layout for `kind`.
+    ///
+    /// Exhaustive on purpose. The wildcard this replaced handed every vehicle but the T-54 an
+    /// EMPTY layout — a hull with nothing inside it, where a penetration could damage no module,
+    /// start no fire and detonate no rack — and adding a tenth vehicle would have inherited that
+    /// silence without anyone being asked.
     pub fn for_vehicle(kind: VehicleKind) -> Self {
+        let Some(env) = HullEnvelope::of(kind) else {
+            // The prototype medium is a test vessel with no blueprint and no asset file. It has
+            // no interior because it has no documented anatomy to place one against — stated
+            // here rather than reached by falling through a wildcard.
+            debug_assert_eq!(
+                kind,
+                VehicleKind::PrototypeMedium,
+                "every vehicle with a blueprint must own a component layout"
+            );
+            return Self::default();
+        };
         match kind {
             VehicleKind::T54_1951 => Self::t54_1951(),
-            _ => Self::default(),
+            VehicleKind::T34_85 => t34_85::layout(&env),
+            VehicleKind::IS3 => is3::layout(&env),
+            VehicleKind::Centurion => centurion::layout(&env),
+            VehicleKind::TigerI => tiger_i::layout(&env),
+            VehicleKind::TigerII => tiger_ii::layout(&env),
+            VehicleKind::PantherII => panther_ii::layout(&env),
+            VehicleKind::Jagdtiger => jagdtiger::layout(&env),
+            VehicleKind::PrototypeMedium => Self::default(),
         }
     }
 

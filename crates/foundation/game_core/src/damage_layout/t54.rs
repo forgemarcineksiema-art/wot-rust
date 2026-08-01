@@ -2,6 +2,7 @@
 
 use glam::Vec3;
 
+use super::authoring::{cylinder_shape, hull_component, obb, turret_component};
 use super::{
     DamageComponent, DamageComponentId, DamageComponentKind as K, DamageLayout,
     DamageMaterial as M, DamageShape,
@@ -208,64 +209,4 @@ fn suspension_components() -> [DamageComponent; 2] {
         requires_penetration: false,
         vulnerability: 0.8,
     })
-}
-
-fn turret_component(
-    id: u16,
-    kind: K,
-    slot: ModuleSlot,
-    material: M,
-    shape: DamageShape,
-    priority: u8,
-    vulnerability: f32,
-) -> DamageComponent {
-    component(id, ArmorFrame::Turret, kind, slot, material, shape, priority, vulnerability)
-}
-
-fn hull_component(
-    id: u16,
-    kind: K,
-    slot: ModuleSlot,
-    material: M,
-    shape: DamageShape,
-    priority: u8,
-    vulnerability: f32,
-) -> DamageComponent {
-    component(id, ArmorFrame::Hull, kind, slot, material, shape, priority, vulnerability)
-}
-
-#[allow(clippy::too_many_arguments)]
-fn component(
-    id: u16,
-    frame: ArmorFrame,
-    kind: K,
-    slot: ModuleSlot,
-    material: M,
-    shape: DamageShape,
-    priority: u8,
-    vulnerability: f32,
-) -> DamageComponent {
-    DamageComponent {
-        id: DamageComponentId(id),
-        frame,
-        kind,
-        slot,
-        material,
-        shape,
-        priority,
-        requires_penetration: true,
-        vulnerability,
-    }
-}
-
-fn obb(center: [f32; 3], half_extents: [f32; 3], yaw_rad: f32) -> DamageShape {
-    DamageShape::Obb {
-        center: Vec3::from_array(center),
-        half_extents: Vec3::from_array(half_extents),
-        yaw_rad,
-    }
-}
-
-fn cylinder_shape(center: [f32; 3], axis: Vec3, half_length: f32, radius: f32) -> DamageShape {
-    DamageShape::Cylinder { center: Vec3::from_array(center), axis, half_length, radius }
 }
