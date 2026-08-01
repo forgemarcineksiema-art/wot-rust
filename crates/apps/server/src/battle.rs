@@ -115,8 +115,17 @@ pub enum DrawReason {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BattleOutcome {
-    TeamEliminated { winning_team: TeamId },
-    Draw { reason: DrawReason },
+    TeamEliminated {
+        winning_team: TeamId,
+    },
+    /// The clock ran out with one team holding more tanks than the other. Not an elimination — a
+    /// decision on the board, and the side that won the fight is told so.
+    TeamAhead {
+        winning_team: TeamId,
+    },
+    Draw {
+        reason: DrawReason,
+    },
 }
 
 impl BattleOutcome {
@@ -143,24 +152,69 @@ impl BattleOutcome {
     }
 
     pub(crate) fn from_tanks(tanks: &[TankState]) -> Option<Self> {
-        let mut counts: Vec<(TeamId, usize)> = Vec::new();
-        for tank in tanks {
-            if let Some((_, count)) = counts.iter_mut().find(|(team, _)| *team == tank.team) {
-                if tank.hit_points > 0 {
-                    *count += 1;
+        Self::from_team_alive_counts(alive_by_team(tanks))
+    }
+
+    /// The verdict when the clock runs out: **the board decides.**
+    ///
+    /// A measured 7v7 ended `Draw { TimeExpired }` with one team holding four tanks against the
+    /// other's one — a fourfold advantage called even. That is the least satisfying resolution
+    /// available and it punishes the side that won the fight, so the timer now awards the battle
+    /// to whoever is ahead on hulls. Only a genuine tie is a draw.
+    ///
+    /// Tanks remaining is the whole tiebreak, deliberately: it is the one quantity every player can
+    /// read off the scoreboard mid-battle and play toward. A damage-dealt tiebreak would be fairer
+    /// on paper and unreadable in the moment.
+    pub fn from_time_expiry<I>(counts: I) -> Self
+    where
+        I: IntoIterator<Item = (TeamId, usize)>,
+    {
+        let mut best: Option<(TeamId, usize)> = None;
+        let mut tied = false;
+        for (team, alive) in counts {
+            match best {
+                Some((_, most)) if alive > most => {
+                    best = Some((team, alive));
+                    tied = false;
                 }
-            } else {
-                counts.push((tank.team, usize::from(tank.hit_points > 0)));
+                Some((_, most)) if alive == most => tied = true,
+                Some(_) => {}
+                None => best = Some((team, alive)),
             }
         }
-        Self::from_team_alive_counts(counts)
+        match best {
+            Some((winning_team, alive)) if !tied && alive > 0 => Self::TeamAhead { winning_team },
+            _ => Self::Draw { reason: DrawReason::TimeExpired },
+        }
+    }
+
+    pub(crate) fn from_tanks_at_time_expiry(tanks: &[TankState]) -> Self {
+        Self::from_time_expiry(alive_by_team(tanks))
     }
 
     /// The victor, or `None` for a draw.
     pub fn winning_team(self) -> Option<TeamId> {
         match self {
-            Self::TeamEliminated { winning_team } => Some(winning_team),
+            Self::TeamEliminated { winning_team } | Self::TeamAhead { winning_team } => {
+                Some(winning_team)
+            }
             Self::Draw { .. } => None,
         }
     }
+}
+
+/// Living hulls per team, in first-seen order. Shared by the elimination check and the timer
+/// verdict so the two can never count the board differently.
+fn alive_by_team(tanks: &[TankState]) -> Vec<(TeamId, usize)> {
+    let mut counts: Vec<(TeamId, usize)> = Vec::new();
+    for tank in tanks {
+        if let Some((_, count)) = counts.iter_mut().find(|(team, _)| *team == tank.team) {
+            if tank.hit_points > 0 {
+                *count += 1;
+            }
+        } else {
+            counts.push((tank.team, usize::from(tank.hit_points > 0)));
+        }
+    }
+    counts
 }

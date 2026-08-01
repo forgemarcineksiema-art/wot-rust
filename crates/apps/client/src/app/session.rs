@@ -376,8 +376,14 @@ impl RemoteSession {
                     self.inputs.acknowledge_wire(Some(last_processed_input_seq));
                 }
                 ProtocolMessage::BattleEnded { winning_team, .. } => {
+                    // The wire carries WHO won, not HOW — so a remote client cannot tell an
+                    // elimination from a decision on the clock, and the variant below is a stand-in
+                    // for "somebody won", not a claim about the manner of it. That is honest enough
+                    // today because every consumer reads this through `winning_team()` and the
+                    // outcome screen has exactly three faces (Victory / Defeat / Draw). If anything
+                    // ever needs the manner, it belongs on the wire rather than guessed at here.
                     self.outcome = Some(match winning_team {
-                        Some(team) => server::BattleOutcome::TeamEliminated {
+                        Some(team) => server::BattleOutcome::TeamAhead {
                             winning_team: game_core::TeamId(team),
                         },
                         None => {

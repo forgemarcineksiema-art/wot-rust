@@ -5,7 +5,7 @@ use terrain::{BattlefieldMap, MapId};
 
 use crate::RandomBattleConfig;
 use crate::ServerTickConfig;
-use crate::battle::{BattleMode, BattleOutcome, DrawReason, RANDOM_BATTLE_TIME_LIMIT_S};
+use crate::battle::{BattleMode, BattleOutcome, RANDOM_BATTLE_TIME_LIMIT_S};
 use crate::bots::BotRoster;
 use crate::setup::{BattleSetup, practice_duel_setup};
 
@@ -34,9 +34,10 @@ pub struct LocalAuthoritativeServer {
     target_tank: TankId,
     bots: BotRoster,
     outcome: Option<BattleOutcome>,
-    /// Battle clock in server ticks; `None` runs untimed (practice duel). When the clock hits
-    /// zero with both teams alive the battle ends in a draw — the safety net that guarantees a
-    /// random battle always ends even if the last survivors never find each other.
+    /// Battle clock in server ticks; `None` runs untimed (practice duel). When it runs out the
+    /// board decides: whoever holds more hulls wins, and only a genuine tie is a draw (see
+    /// [`BattleOutcome::from_time_expiry`]). The safety net that guarantees a random battle always
+    /// ends even if the last survivors never find each other.
     time_limit_ticks: Option<u64>,
     latest_snapshot: Snapshot,
     pending_damage_events: Vec<DamageEvent>,
@@ -178,6 +179,16 @@ impl LocalAuthoritativeServer {
         self.time_limit_ticks = time_limit_ticks;
     }
 
+    /// Knock a hull out directly. The same argument as the clock override: fighting a 7v7 down to
+    /// a specific board state, shell by shell, is not something a test about the OUTCOME RULE
+    /// should have to pay for. Deliberately the narrowest possible door — it sets hit points to
+    /// zero and nothing else, so it cannot be mistaken for a damage path.
+    pub fn knock_out_for_test(&mut self, tank: TankId) {
+        if let Some(state) = self.sim.tank_mut(tank) {
+            state.hit_points = 0;
+        }
+    }
+
     pub fn authoritative_tick(&self) -> u64 {
         self.sim.tick()
     }
@@ -253,7 +264,9 @@ impl LocalAuthoritativeServer {
         if self.outcome.is_none()
             && self.time_limit_ticks.is_some_and(|limit| self.sim.tick() >= limit)
         {
-            self.outcome = Some(BattleOutcome::Draw { reason: DrawReason::TimeExpired });
+            // The clock is a safety net, not a verdict of "nobody won". Whoever is ahead on hulls
+            // when it runs out has won the battle — see `BattleOutcome::from_time_expiry`.
+            self.outcome = Some(BattleOutcome::from_tanks_at_time_expiry(self.sim.tanks()));
         }
         self.pending_damage_events.extend_from_slice(self.sim.damage_events());
         self.pending_shell_impacts.extend_from_slice(self.sim.shell_impacts());

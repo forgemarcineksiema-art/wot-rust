@@ -203,10 +203,15 @@ fn battle_result_survives_the_orderly_battle_over_disconnect() {
 
     remote.pump_at(100);
 
+    // What must survive the disconnect is WHO WON. The wire carries only that — not whether the
+    // battle was won by elimination or on the clock — so asserting a particular variant here would
+    // be pinning a detail the remote client cannot actually know.
     assert_eq!(
-        remote.outcome,
-        Some(server::BattleOutcome::TeamEliminated { winning_team: game_core::TeamId(1) })
+        remote.outcome.and_then(server::BattleOutcome::winning_team),
+        Some(game_core::TeamId(1)),
+        "the battle result outlives the orderly close"
     );
+    assert!(remote.outcome.is_some(), "and the outcome itself is retained, not just its winner");
     assert_eq!(remote.terminal_reason, Some(RemoteTerminalReason::BattleOver));
     assert!(
         !remote.accepts_player_prediction(),

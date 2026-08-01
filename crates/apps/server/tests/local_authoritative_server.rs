@@ -167,6 +167,97 @@ fn battle_outcome_reports_mutual_wipe_as_a_draw() {
     assert_eq!(outcome.unwrap().winning_team(), None);
 }
 
+/// The clock is a safety net, NOT a verdict of "nobody won".
+///
+/// A measured 7v7 ended `Draw { TimeExpired }` with one team holding four hulls against the
+/// other's one — a fourfold advantage called even, punishing the side that won the fight. The
+/// timer now awards the battle to whoever is ahead on the board.
+#[test]
+fn the_clock_awards_the_battle_to_whoever_is_ahead_on_hulls() {
+    let ahead =
+        BattleOutcome::from_time_expiry([(game_core::TeamId(1), 4), (game_core::TeamId(2), 1)]);
+    assert_eq!(ahead, BattleOutcome::TeamAhead { winning_team: game_core::TeamId(1) });
+    assert_eq!(
+        ahead.winning_team(),
+        Some(game_core::TeamId(1)),
+        "a win on the clock is a win, and reports its winner like any other"
+    );
+
+    // One hull of advantage is still an advantage — there is no "close enough to call it even".
+    assert_eq!(
+        BattleOutcome::from_time_expiry([(game_core::TeamId(1), 2), (game_core::TeamId(2), 3)]),
+        BattleOutcome::TeamAhead { winning_team: game_core::TeamId(2) }
+    );
+}
+
+/// Only a genuine tie is a draw — and an empty board is one too, not a win for nobody in
+/// particular.
+#[test]
+fn the_clock_draws_only_on_a_genuine_tie() {
+    assert_eq!(
+        BattleOutcome::from_time_expiry([(game_core::TeamId(1), 3), (game_core::TeamId(2), 3)]),
+        BattleOutcome::Draw { reason: DrawReason::TimeExpired }
+    );
+    assert_eq!(
+        BattleOutcome::from_time_expiry([(game_core::TeamId(1), 0), (game_core::TeamId(2), 0)]),
+        BattleOutcome::Draw { reason: DrawReason::TimeExpired },
+        "a board with nothing left on it is a draw, not a win"
+    );
+    assert_eq!(
+        BattleOutcome::from_time_expiry([(game_core::TeamId(1), 3), (game_core::TeamId(2), 3)])
+            .winning_team(),
+        None
+    );
+}
+
+/// End to end through the real server: kill enough of one team, run the clock out, and the
+/// survivors are told they won instead of being handed a draw.
+#[test]
+fn a_battle_that_runs_out_of_time_ahead_on_hulls_is_won_not_drawn() {
+    let mut server = LocalAuthoritativeServer::new_random_7v7(
+        ServerTickConfig::new(60, 20),
+        RandomBattleConfig::new(BattleSeed::fixed(11), game_core::VehicleKind::T54_1951),
+    );
+    let player_tank = server.player_tank();
+    let player_team = server
+        .latest_snapshot()
+        .tanks
+        .iter()
+        .find(|tank| tank.tank_id == player_tank)
+        .expect("player")
+        .team;
+
+    // Wipe most of the OTHER team, leaving one alive so the elimination rule cannot fire and the
+    // clock is what ends the battle.
+    let doomed: Vec<_> = server
+        .latest_snapshot()
+        .tanks
+        .iter()
+        .filter(|tank| tank.team != player_team)
+        .skip(1)
+        .map(|tank| tank.tank_id)
+        .collect();
+    assert!(doomed.len() >= 2, "the other team should have hulls to lose");
+    for id in doomed {
+        server.knock_out_for_test(id);
+    }
+
+    server.override_battle_time_limit_ticks(Some(4));
+    for client_tick in 0..4 {
+        server.tick_with_input(ClientInputCommand {
+            client_tick,
+            tank_id: player_tank,
+            command: TankCommand::idle(),
+        });
+    }
+
+    assert_eq!(
+        server.battle_outcome(),
+        Some(BattleOutcome::TeamAhead { winning_team: player_team }),
+        "the side still holding the board wins on the clock"
+    );
+}
+
 /// The battle clock is the safety net that guarantees a random battle always ends: when it runs
 /// out with both teams alive, the battle closes as a draw and stays closed.
 #[test]
