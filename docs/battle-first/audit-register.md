@@ -30,7 +30,7 @@ real thing is a document, not a gate."* The diagnosis was perfect; the fix was a
 | A2 | ~~A 7v7 does not resolve inside its timer~~ — **WITHDRAWN, my error.** I assumed a 7-minute limit; `RANDOM_BATTLE_TIME_LIMIT_S = 600`. The battle ends exactly on the limit. | `server/battle.rs:105` |
 | A3 | ~~Bots barely fight~~ — **OVERSTATED, same filtered log.** Re-measured: **79 impacts and 9 of 14 tanks destroyed** over the full battle. There is a real fight. Target selection is still only `bot_nearest_engageable_enemy`, so the *depth* critique stands; the "passive" claim does not. | `server/bot_combat.rs` |
 | **A5** | **A 4-to-1 battle is declared a draw.** At time expiry team 1 held 4 alive against team 2's 1, and the outcome was `Draw { TimeExpired }`. A decisive tank advantage ending as a draw is the least satisfying resolution available; most games award the win on tanks or damage remaining. **This is the finding that survived the corrections.** | `server/local.rs` |
-| A4 | **Camera freezes on player death** — four rendered frames from t5042 to t20162 pixel-identical while the battle continues. `tick_death_spectate` exists but does not drive this path. | `app/camera_link.rs` |
+| A4 | ~~Camera freezes on player death~~ — **WITHDRAWN, my instrument again.** The death camera works and is already test-locked: `render.rs:434` ticks the spectate every frame, `present.rs:44` drifts the orbit, the boom flows to 1.3× the map ceiling over ~2 s, and `death_gives_the_wreck_a_wide_slow_orbit_and_refuses_the_scope` asserts both. My harness builds a fresh `BattleCameraController::default()` per frame and never enters that path. | — |
 
 ### Measured shot geometry (the numbers that replaced A1)
 
@@ -39,9 +39,19 @@ without either. Impact angles spread across the whole 0–89° range rather than
 Median margin of penetration over effective armour: **+58 mm** (min −796, max +168). Most-hit zone:
 **HullSide, 36 of 77** — the flanks are found and used.
 
-**Lesson recorded on purpose:** three headline findings died to one habit — trusting an instrument
-instead of verifying it. It is the same failure this register documents elsewhere as *"a contract
-nobody runs on the real thing is a document, not a gate."*
+**Lesson recorded on purpose — and it is now a pattern, not an incident.**
+
+**Every finding this audit took from the scripted harness was wrong or overstated. Every finding it
+took from reading code held up.** Four of four: zero ricochets (a filtered log), the unresolved
+timer (an assumed constant), passive bots (the same filtered log), the frozen death camera (a
+hand-rolled camera that never enters the real path). The one gameplay finding that survived — the
+draw at 4-to-1 — survived *because it was independently confirmed in `local.rs` before it was
+believed*.
+
+The harness renders with its own camera and logs a filtered subset of events. **It is not the
+game.** Anything it reports is a hypothesis about the real code path until that path is read. This
+is the same failure the register documents elsewhere as *"a contract nobody runs on the real thing
+is a document, not a gate"* — committed four times by the person quoting it.
 
 ## B. Honesty — silent failures of the core promise
 
