@@ -1,5 +1,5 @@
+use quality::workspace_root;
 use std::fs;
-use std::path::PathBuf;
 
 #[test]
 fn battle_camera_policy_doc_is_required() {
@@ -48,14 +48,4 @@ fn client_render_path_uses_battle_camera_not_default_placeholder() {
         "the aim path must keep the unfiltered battle camera"
     );
     assert!(!render.contains("objects: Vec::new()"), "render path must not submit an empty frame");
-}
-
-fn workspace_root() -> PathBuf {
-    // Layout-agnostic: the nearest ancestor whose Cargo.toml declares [workspace].
-    let mut dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    while !std::fs::read_to_string(dir.join("Cargo.toml")).is_ok_and(|t| t.contains("[workspace]"))
-    {
-        assert!(dir.pop(), "a Cargo.toml with [workspace] should exist in an ancestor");
-    }
-    dir
 }

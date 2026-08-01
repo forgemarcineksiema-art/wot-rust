@@ -1,5 +1,5 @@
+use quality::workspace_root;
 use std::fs;
-use std::path::PathBuf;
 
 #[test]
 fn debug_tools_policy_doc_is_required() {
@@ -35,14 +35,4 @@ fn debug_tools_policy_names_required_first_week_tools_and_wgpu_error_rules() {
     ] {
         assert!(doc.contains(required), "missing debug policy phrase: {required}");
     }
-}
-
-fn workspace_root() -> PathBuf {
-    // Layout-agnostic: the nearest ancestor whose Cargo.toml declares [workspace].
-    let mut dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    while !std::fs::read_to_string(dir.join("Cargo.toml")).is_ok_and(|t| t.contains("[workspace]"))
-    {
-        assert!(dir.pop(), "a Cargo.toml with [workspace] should exist in an ancestor");
-    }
-    dir
 }

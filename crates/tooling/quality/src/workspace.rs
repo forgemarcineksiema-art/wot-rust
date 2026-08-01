@@ -126,3 +126,46 @@ fn declared_dependencies(manifest: &str, workspace_crates: &[String]) -> Vec<Str
     }
     deps
 }
+
+/// The workspace root: the nearest ancestor whose `Cargo.toml` declares `[workspace]`.
+///
+/// Layout-agnostic on purpose — moving a crate between layer directories must not touch this.
+///
+/// Fourteen files in this crate had a byte-identical copy of these four lines, including three
+/// added the same afternoon the duplication gate was extended to reach them. That is not a story
+/// about carelessness; it is what a helper too small to bother sharing does in a codebase with no
+/// rule against it.
+pub fn workspace_root() -> PathBuf {
+    let mut dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    while !std::fs::read_to_string(dir.join("Cargo.toml")).is_ok_and(|t| t.contains("[workspace]"))
+    {
+        assert!(dir.pop(), "a Cargo.toml with [workspace] should exist in an ancestor");
+    }
+    dir
+}
+
+/// Every `.rs` file under `root`, recursively. Empty when `root` does not exist.
+pub fn rust_files(root: &Path) -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+    collect_rust_files(root, &mut paths);
+    paths
+}
+
+fn collect_rust_files(root: &Path, paths: &mut Vec<PathBuf>) {
+    let Ok(entries) = std::fs::read_dir(root) else { return };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            collect_rust_files(&path, paths);
+        } else if path.extension().is_some_and(|extension| extension == "rs") {
+            paths.push(path);
+        }
+    }
+}
+
+/// `#[cfg(test)] mod tests` lives in files named `tests.rs` / `*_tests.rs`.
+pub fn is_test_module_file(path: &Path) -> bool {
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| name == "tests.rs" || name.ends_with("_tests.rs"))
+}

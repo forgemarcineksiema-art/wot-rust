@@ -1,4 +1,5 @@
-use std::{fs, path::PathBuf};
+use quality::workspace_root;
+use std::fs;
 
 #[test]
 fn combat_policy_doc_is_required() {
@@ -66,14 +67,4 @@ fn client_can_send_fire_intent_to_authoritative_server() {
     assert!(input.contains("fire_pending"));
     assert!(dispatch.contains("tick_with_player_input"));
     assert!(dispatch.contains("fire"));
-}
-
-fn workspace_root() -> PathBuf {
-    // Layout-agnostic: the nearest ancestor whose Cargo.toml declares [workspace].
-    let mut dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    while !std::fs::read_to_string(dir.join("Cargo.toml")).is_ok_and(|t| t.contains("[workspace]"))
-    {
-        assert!(dir.pop(), "a Cargo.toml with [workspace] should exist in an ancestor");
-    }
-    dir
 }

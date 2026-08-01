@@ -12,6 +12,7 @@
 //! held the number, not the roster. This file reads both the enum body and the constant and
 //! compares them name by name.
 
+use quality::workspace_root;
 use std::path::{Path, PathBuf};
 
 /// Enums whose variant set is an identity — stored in blueprints, on the wire, or in a baked
@@ -220,13 +221,4 @@ fn collect(dir: &Path, sources: &mut Vec<(PathBuf, String)>) {
             sources.push((path, text));
         }
     }
-}
-
-fn workspace_root() -> PathBuf {
-    let mut dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    while !std::fs::read_to_string(dir.join("Cargo.toml")).is_ok_and(|t| t.contains("[workspace]"))
-    {
-        assert!(dir.pop(), "a Cargo.toml with [workspace] should exist in an ancestor");
-    }
-    dir
 }

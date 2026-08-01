@@ -1,13 +1,22 @@
-//! Architecture gate: detect copy-pasted module-level free functions across crate `src` trees.
+//! Architecture gate: detect copy-pasted free functions across the workspace.
 //!
-//! Splitting a file is cheaper than sharing code, so the same leaf helper can end up pasted into
-//! several crates. This scan closes that gap: it flags free functions defined under the same name
-//! in more than one `src` module, pushing them into a shared crate (see `game_core::math`)
-//! instead.
+//! Splitting a file is cheaper than sharing code, so the same leaf helper ends up pasted into
+//! several places. Two scans, deliberately different in strictness:
+//!
+//!   * by NAME, across crate `src` trees — the original gate, pushing shared leaves into a shared
+//!     crate (see `game_core::math`);
+//!   * by BODY, across `src`, `tests`, `examples` and `benches` — the same function character for
+//!     character in two files, which is one edit that will only ever land in one of them.
+//!
+//! The name scan cannot reach test trees: two crates both calling a local fixture `hull` is a
+//! coincidence, not duplication. The body scan can, because identical code is never a
+//! coincidence.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
+
+use crate::workspace::{is_test_module_file, rust_files, workspace_root};
 
 /// Module-level (column-0) free functions allowed to share a name across `src` modules.
 ///
@@ -103,39 +112,139 @@ pub fn duplicate_offenders(
         .collect()
 }
 
-fn workspace_root() -> PathBuf {
-    // Layout-agnostic: the nearest ancestor whose Cargo.toml declares [workspace].
-    let mut dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    while !std::fs::read_to_string(dir.join("Cargo.toml")).is_ok_and(|t| t.contains("[workspace]"))
-    {
-        assert!(dir.pop(), "a Cargo.toml with [workspace] should exist in an ancestor");
-    }
-    dir
-}
+/// Functions with byte-identical bodies that are duplicated ON PURPOSE, with the reason.
+///
+/// Deliberately separate from [`DUPLICATE_FREE_FN_ALLOWLIST`]: that one forgives a shared NAME,
+/// which is often just two crates calling a local fixture `hull`. This one forgives shared CODE,
+/// which is a much stronger claim and needs a much better excuse.
+pub const IDENTICAL_BODY_ALLOWLIST: &[&str] = &[
+    // Pre-existing copy-paste surfaced when this gate reached beyond `src`. Every entry is a test
+    // fixture that wants a `tests/common/mod.rs` in its own crate — mechanical, but a different
+    // diff from the rule that found them. Burn this list down; do not add to it.
+    "assert_hull_down_line",
+    "bake_all",
+    "blockage",
+    "clearance",
+    "flat_field",
+    "identity",
+    "lod_asset",
+    "luma",
+    "map_key",
+    "max_grade",
+    "run_until_shell_resolved",
+    "snapshot_with_aim",
+    "srgb_to_linear",
+    "submesh_bounds",
+    "t54",
+    "t54_object_count",
+    "tank_snapshot",
+    "total_luma",
+    "turret",
+];
 
-/// `#[cfg(test)] mod tests` lives in files named `tests.rs` / `*_tests.rs`; their helper functions
-/// are commonly (and harmlessly) duplicated, so the duplication gate skips them.
-fn is_test_module_file(path: &Path) -> bool {
-    path.file_name()
-        .and_then(|name| name.to_str())
-        .is_some_and(|name| name == "tests.rs" || name.ends_with("_tests.rs"))
-}
+/// The same function, character for character, in more than one file.
+///
+/// Sharper than the name-collision scan and aimed at a different failure: two crates both calling
+/// a local fixture `hull` is a coincidence, but two files holding the same fourteen lines is one
+/// edit that will only ever land in one of them.
+///
+/// Bodies are compared with comments stripped and whitespace collapsed, so re-indenting or
+/// re-wrapping a comment does not hide a copy. Functions under 60 characters of body are ignored —
+/// a one-line getter that happens to match is not a maintenance hazard.
+pub fn identical_function_bodies() -> Vec<String> {
+    let root = workspace_root();
+    let mut bodies: BTreeMap<(String, String), BTreeSet<PathBuf>> = BTreeMap::new();
 
-fn rust_files(root: &Path) -> Vec<PathBuf> {
-    let mut paths = Vec::new();
-    collect_rust_files(root, &mut paths);
-    paths
-}
-
-fn collect_rust_files(root: &Path, paths: &mut Vec<PathBuf>) {
-    for entry in fs::read_dir(root).expect("source directory should be readable") {
-        let path = entry.expect("source entry should be readable").path();
-        if path.is_dir() {
-            collect_rust_files(&path, paths);
-        } else if path.extension().is_some_and(|extension| extension == "rs") {
-            paths.push(path);
+    for dir in scanned_dirs(&root) {
+        for path in rust_files(&dir) {
+            let source = fs::read_to_string(&path).expect("Rust source should be readable");
+            for (name, body) in free_functions_with_bodies(&source) {
+                bodies.entry((name, body)).or_default().insert(path.clone());
+            }
         }
     }
+
+    let mut offenders: BTreeMap<String, BTreeSet<PathBuf>> = BTreeMap::new();
+    for ((name, _), files) in bodies.into_iter().filter(|(_, files)| files.len() > 1) {
+        offenders.entry(name).or_default().extend(files);
+    }
+    duplicate_offenders(&offenders, IDENTICAL_BODY_ALLOWLIST, &root)
+}
+
+/// `src`, `tests`, `examples` and `benches` of every workspace crate.
+///
+/// The original scan saw only `src`, which is where copy-paste is least likely: a helper worth
+/// sharing between two crates' libraries tends to get shared. Test trees are where it accumulates,
+/// because two integration tests cannot see each other's code without someone deciding to make a
+/// module for it.
+fn scanned_dirs(root: &Path) -> Vec<PathBuf> {
+    crate::workspace::crate_facts(root)
+        .into_iter()
+        .flat_map(|krate| ["src", "tests", "examples", "benches"].map(|sub| krate.dir.join(sub)))
+        .filter(|dir| dir.is_dir())
+        .collect()
+}
+
+/// Column-0 free functions paired with their normalized body. `#[test]`/`#[bench]` functions are
+/// skipped: two tests asserting the same thing about different subjects is not duplication, and
+/// two identical tests are a different (and rarer) problem.
+fn free_functions_with_bodies(source: &str) -> Vec<(String, String)> {
+    // Byte offsets come from `split_inclusive`, which keeps the line terminator. `lines()` drops a
+    // `\r\n` down to `\n`, so accumulating `len() + 1` drifts one byte per line on this repo's
+    // CRLF checkouts and eventually indexes into the middle of a multi-byte character.
+    let mut lines = Vec::new();
+    let mut offset = 0usize;
+    for line in source.split_inclusive('\n') {
+        lines.push((offset, line.trim_end_matches(['\n', '\r'])));
+        offset += line.len();
+    }
+
+    let mut found = Vec::new();
+    for (index, (start, line)) in lines.iter().enumerate() {
+        if line.starts_with(char::is_whitespace) {
+            continue;
+        }
+        let Some(name) = free_function_name(line) else { continue };
+        let attributed = lines[index.saturating_sub(3)..index]
+            .iter()
+            .any(|(_, above)| above.contains("#[test]") || above.contains("#[bench]"));
+        if attributed {
+            continue;
+        }
+        let Some(body) = braced_body(&source[*start..]) else { continue };
+        if body.len() >= 60 {
+            found.push((name, body));
+        }
+    }
+    found
+}
+
+/// The `{ .. }` body starting at the first brace, comments stripped and whitespace collapsed.
+fn braced_body(text: &str) -> Option<String> {
+    let open = text.find('{')?;
+    let mut depth = 0usize;
+    let mut end = None;
+    for (at, byte) in text[open..].bytes().enumerate() {
+        match byte {
+            b'{' => depth += 1,
+            b'}' => {
+                depth -= 1;
+                if depth == 0 {
+                    end = Some(open + at);
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+    let body = &text[open..=end?];
+    let stripped: String = body
+        .lines()
+        .map(|line| line.split("//").next().unwrap_or_default().trim())
+        .filter(|line| !line.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ");
+    Some(stripped)
 }
 
 #[cfg(test)]

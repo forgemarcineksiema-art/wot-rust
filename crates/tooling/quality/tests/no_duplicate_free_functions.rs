@@ -14,3 +14,15 @@ fn free_functions_are_not_duplicated_across_src_modules() {
         offenders.join("\n")
     );
 }
+
+/// The same rule one level sharper: not a shared name, the same code.
+#[test]
+fn no_function_body_is_pasted_into_a_second_file() {
+    let offenders = quality::duplication::identical_function_bodies();
+    assert!(
+        offenders.is_empty(),
+        "identical function bodies in more than one file — one edit will only reach one of them; \
+         hoist into a shared module (a crate lib, or `tests/common/mod.rs`):\n  {}",
+        offenders.join("\n  ")
+    );
+}
