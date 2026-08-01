@@ -27,6 +27,22 @@ pub const SPOTTED_HOLD_TICKS: u64 = 120;
 
 /// A `u8` mask carries up to eight teams.
 const MAX_SPOTTING_TEAMS: usize = 8;
+
+/// One bit per observing hull: which crews' own eyes are on a given tank.
+///
+/// Widened from `u16` because sixteen was not a design decision, it was the type's width used as
+/// a cap. A 7v7 fields fourteen hulls; an 8v8 fields exactly sixteen and would have sat on the
+/// boundary, and anything past it stopped spotting **silently** — no panic, no log, just a crew
+/// that never sees anyone. Thirty-two leaves room for the modes this game might actually field.
+pub type ObserverMask = u32;
+
+/// The most observing hulls one [`ObserverMask`] can name.
+///
+/// Derived from the mask's own width rather than written down beside it. The old code held the
+/// same fact in three places — the `u16` type, a bare `.take(16)`, and an unguarded
+/// `1 << viewer_index` in `net` — so changing the mask without finding all three would have cost
+/// a whole crew their vision with nothing to show for it.
+pub const MAX_OBSERVERS: usize = ObserverMask::BITS as usize;
 /// Sentinel for "this team has never had fresh sight of the tank".
 const NEVER_SEEN: u64 = u64::MAX;
 
@@ -259,15 +275,22 @@ pub fn compute_observer_masks(
     tanks: &[TankState],
     heightmap: Option<&HeightMap>,
     cover: &[StaticCoverObject],
-) -> Vec<u16> {
-    let mut masks = vec![0u16; tanks.len()];
+) -> Vec<ObserverMask> {
+    // A roster past the cap does not half-work: hulls beyond it observe nobody. Loud in dev and
+    // in every test rather than a quiet blind spot in a shipped mode.
+    debug_assert!(
+        tanks.len() <= MAX_OBSERVERS,
+        "{} hulls exceeds the {MAX_OBSERVERS}-observer mask: hulls past it would spot nobody",
+        tanks.len()
+    );
+    let mut masks = vec![0 as ObserverMask; tanks.len()];
     for (i, target) in tanks.iter().enumerate() {
         if target.hit_points == 0 {
-            masks[i] = u16::MAX;
+            masks[i] = ObserverMask::MAX;
             continue;
         }
         let points = target_points(target);
-        for (observer_index, observer) in tanks.iter().enumerate().take(16) {
+        for (observer_index, observer) in tanks.iter().enumerate().take(MAX_OBSERVERS) {
             if observer.hit_points == 0 {
                 continue;
             }

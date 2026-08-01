@@ -11,16 +11,21 @@ impl Snapshot {
     pub fn filtered_for_viewer_with_observers(
         &self,
         viewer_tank: TankId,
-        observer_masks: &[u16],
+        observer_masks: &[sim::ObserverMask],
         viewer_index: usize,
     ) -> Self {
         let viewer_radio_ok =
             self.tanks.iter().find(|tank| tank.tank_id == viewer_tank).is_some_and(|tank| {
                 tank.destroyed_modules_mask & game_core::ModuleSlot::Radio.destroyed_mask_bit() == 0
             });
+        // The viewer's bit has to exist before it can be tested. `1 << viewer_index` on an index
+        // past the mask's width is an overflow, and the third place this cap used to live
+        // unnamed — the other two being the mask type and a bare `.take(16)` in the sim.
+        let viewer_bit =
+            (viewer_index < sim::MAX_OBSERVERS).then(|| (1 as sim::ObserverMask) << viewer_index);
         let mut filtered = self.filtered_for_viewer_gated(viewer_tank, |index, tank_mask| {
-            let own_eyes =
-                observer_masks.get(index).is_some_and(|mask| mask & (1 << viewer_index) != 0);
+            let own_eyes = viewer_bit
+                .is_some_and(|bit| observer_masks.get(index).is_some_and(|mask| mask & bit != 0));
             (viewer_radio_ok && tank_mask) || own_eyes
         });
         filtered.server_tick = self.server_tick;
