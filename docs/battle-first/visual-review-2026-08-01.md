@@ -27,18 +27,31 @@ content.
 
 ## Defects, in order of how much they hurt
 
-### 1. The gun barrel is far too thin
-A D-10T reads as an aerial, not a 100 mm gun. Visible in **every** frame of **every** vehicle; in
-the garage front view it is the first thing the eye lands on. One number in the blueprint.
+### 1. ~~The gun barrel is far too thin~~ — WITHDRAWN, the numbers are right
+The rendered path carries `barrel_radius 0.09` (⌀180 at the breech), `muzzle_radius 0.062` (⌀124)
+and `bore_radius 0.050` (⌀100 — the real calibre). A real D-10T is a 100 mm bore with a documented
+muzzle OD of 120–126 mm. **Someone already measured this and deliberately thinned it** — the
+blueprint comment records that the tube used to end at ⌀170 and read as "a flat steel disc with a
+dimple in it".
+
+The impression was real; the diagnosis was wrong. A correct 124 mm tube at battle range is a few
+pixels wide, and with no specular response and no material it reads as a line rather than as steel.
+**That is the missing-material problem below, not a proportion error** — and changing this number
+would have broken historical accuracy to chase a lighting fault.
 
 ### 2. The T-54 turret front reads as a mushroom
 The side silhouette is good. The front is one smooth continuous lump — no casting character, no
 cheek definition. Surprising after Model Idealny closed with 14 anchors locked and six iterations on
 the mantlet alone, and it says the program's instruments measured the profile better than the face.
 
-### 3. The grass ring boundary is visible
-`prokhorovka_golden_evening`, right-hand slope: a hard diagonal band where the grass population
-ends. It ruins the best-looking frame in the set. Needs a fade, not a cut.
+### 3. ~~The grass ring boundary is visible~~ — WITHDRAWN, both bands already fade
+`scene.wgsl:54` folds the mid-field cards in over 30–45 m and back down over 260–330 m;
+`scene.wgsl:63` folds the near blades into their roots over 34–48 m. The shader comment states the
+intent exactly: *"both ends read as the meadow thinning, never as a pop."* The 340 m chunk cutoff in
+`dressing.rs` culls geometry that has already collapsed, so it can produce no visible edge.
+
+Whatever the diagonal band on that slope is, it is not the grass ring — and I could not identify it
+from the image.
 
 ### 4. The grass tiles
 One tuft, one rotation, one grid step, plainly repeating across the foreground and midfield of
@@ -73,13 +86,19 @@ The enemy tank's shadow is a large soft ellipse displaced to one side, unrelated
 
 ---
 
-## Cheap wins
+## How much of this list to trust — measured
 
-Items 1, 3, 4, 6, 7 are hours of work each and visible in every frame afterwards. They belong in the
-first wave that touches presentation, ahead of anything structural.
+Of the eleven items above: **one verified true** (the terrain, and that one was measured rather than
+seen), **two verified false** (1 and 3, both withdrawn above), **eight unverified**.
 
-Items 2 and 9 are real modelling and material work — later, but they are what stands between "reads
-as a prototype" and "reads as a game".
+Add the four gameplay findings from the scripted harness — all four false — and the pattern is not
+arguable. **Defects found by reading code and by measuring held up; causes diagnosed from rendered
+images did not.** Twice the "fix" would have damaged something correct: a barrel measured against
+its dossier, and a fade someone wrote deliberately.
+
+**So this document is a list of IMPRESSIONS, not of diagnoses.** Each surviving item needs its cause
+confirmed in code before any work starts, and the choice of what in the image is wrong belongs to
+the author's eye, not to this audit's.
 
 ---
 
