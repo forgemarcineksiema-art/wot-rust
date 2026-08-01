@@ -81,10 +81,20 @@ placement jitter · the river's hard bank edge · unlit tree undersides and poly
 Every system here has a strong skeleton and a shallow last 30%, and that last 30% is where the
 gameplay lives.
 
-**2.1 Terrain resolution — the largest single lever in the project.** `cell_m: 5.0` on every map
-means the tank is one cell and no terrain feature is smaller than a tank. Go to 2.5 m, then 1.25 m.
-**Prototype on one map first** and measure before committing the fleet: 16× the samples touches
-meshing, collision, authoring, goldens and every map at once, against a 233 ms scene bake.
+**2.1 Terrain resolution — prototyped, measured, and smaller than planned.** `cell_m: 5.0` means
+the tank is one cell. The sweep on Bystra (see `measurements.md`) says:
+
+- **2.5 m is the target**: 4× the samples for +18 % scene work, contracts still pass.
+- **2.0 m is the ceiling**: +28 %, and scene work alone is 15.99 of the 16.67 ms budget on hardware
+  above min spec.
+- **1.25 m is off the table.** The map fails its own playability contract — the passability rule is
+  a gradient, and a fine grid resolves local pitches that the 5 m sampling averaged away, so
+  authored hillsides stop being drivable. Densifying adds walls nobody placed.
+- `cell_m` is constrained by `symmetry: MirrorZ` to even divisors of the map size: 5.0, 2.5, 2.0,
+  1.25 and nothing between.
+
+So: one map at 2.5 m with the contracts re-run. 1.25 m returns only behind a sculpt rewrite aimed
+at the gradient — a separate program, not a step in this one.
 
 **2.2 Armor depth** — normalization as a function of caliber against thickness; damage that depends
 on what was hit.

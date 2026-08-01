@@ -86,8 +86,43 @@ Largest: `client` 29 861 LOC / 141 files (26 % of all `src/`) · `game_core` 9 9
 Production panic-capable calls across `server` + `net` + `sim`: **12**, nearly all documented
 invariants. `HashMap` in simulation logic: **2**.
 
-## Terrain
+## Terrain — prototyped and measured, and it changed the plan
 
 All four shipped maps: `size_m: (1000, 1000)`, **`cell_m: 5.0`** → 201² samples. A T-54 is
-6.2 × 3.3 m. Going to 2.5 m is 4× the samples; 1.25 m is 16× (642 k floats ≈ 2.5 MB — memory is
-not the constraint, meshing, collision and authoring are).
+6.2 × 3.3 m, so the tank is one cell.
+
+Swept on Bystra through the real compile path, frame cost from `perf_capture`:
+
+| `cell_m` | samples | ground verts | ground indices | **scene work p50** | contracts |
+|---|---|---|---|---|---|
+| **5.0** | 201² = 40 k | 56 277 | 331 k | **12.52 ms** | pass |
+| **2.5** | 401² = 161 k | 176 677 | 1 051 k | **14.83 ms** (+18 %) | pass |
+| **2.0** | 501² = 251 k | 266 877 | 1 591 k | **15.99 ms** (+28 %) | pass |
+| **1.25** | 801² = 642 k | — | — | — | **FAILS** |
+
+**1.25 m is not a performance question — the map stops being playable.**
+
+```
+bystra_valley fails its contracts:
+  "strategic point 'windmill_hill' is unreachable from spawn team 1"
+```
+
+The passability rule is a **gradient**: `|(there − here) / distance| > CLIMB_GRADE` at 0.55
+(`report.rs:185`). A coarse grid *averages* a slope over five metres; a fine grid *resolves* it —
+and the same authored hillside contains local pitches above 0.55 that the 5 m sampling was hiding.
+Ground that was drivable stops being drivable.
+
+**This inverts the plan's assumption.** Densifying was supposed to *add* places to fight over. It
+also adds **walls nobody authored**. It is not a rendering change; it is a re-authoring of every
+map's playability.
+
+**2.0 m is the practical cost ceiling**: scene work alone eats 15.99 of the 16.67 ms 60 FPS budget,
+on hardware well above the stated minimum spec, before vehicles, HUD, FX or present.
+
+**Third finding: `cell_m` is constrained by the mirror.** 3.33 m and 1.67 m fail a *different*
+contract — `heightfield mirror broke` — because `symmetry: MirrorZ` needs a true centre row, so
+`1000 / cell_m` must be an even integer. Legal values are 5.0, 2.5, 2.0, 1.25 and nothing between.
+That authoring rule was written down nowhere.
+
+**Revised W2.1: 2.5 m, one map, with the playability contracts re-run — and 1.25 m only behind a
+sculpt rewrite that targets the gradient, which is its own program, not a step.**
