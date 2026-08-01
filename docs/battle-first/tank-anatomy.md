@@ -33,9 +33,9 @@ The module system is **two-tier**, and richer than the proposal assumed.
 2. **Crew as anything but one number.** `CrewRole` lists five roles but is decorative: `Crew` is a
    single `proficiency: f32` scaling reload and aim time by at most 30 %. No crew member is
    individually hit or knocked out.
-3. **Fuel fire never reaches the screen.** The simulation sets `fuel_fire` when a `FuelTank`
-   component is struck (`sim/combat.rs:276`), and `engine/src/world.rs:205` then hardcodes `false`
-   on the production path. **One line blocks an entire damage state that is otherwise finished.**
+3. ~~Fuel fire never reaches the screen.~~ **DONE** — the projection dropped the flag one line below
+   the correct `engine_fire` mapping. Fire is now a real wound: it costs hit points, is credited to
+   whoever lit it, and the crew fights it. See `audit-register.md`, entries B7–B9.
 
 ---
 
@@ -84,13 +84,18 @@ loaded"* turned out to be a gun destroyed thirty seconds earlier with no persist
 **legibility** failure on a module that already existed. Verify the six current modules satisfy all
 three properties before adding a seventh.
 
-## Objection 4 — the armour layer does not currently function
+## Objection 4 — the armour layer already works; deepen it before layering on top
 
-In a full 7v7 played on 2026-08-01: **53 hits, 53 penetrations, zero ricochets**
-(`playtest-2026-08-01.md`). Angling, hull-down and aim-point selection are dead mechanics right now.
+An earlier draft of this document claimed the armour model never deflected anything, on the strength
+of a playtest that turned out to be instrument error. Corrected measurement, full 7v7,
+`playtest-2026-08-01.md`: **8 ricochets in 79 impacts (~10 %)**, and of the ten impacts above the
+70° threshold, **eight bounced**. Impact angles spread across the whole range; the most-hit zone is
+the hull side. Angling and flanking are live mechanics.
 
-Adding ERA on top of an armour model that never deflects anything is a second roof on a house with
-no walls.
+That strengthens rather than weakens the objection to ERA. The base layer works, so the returns
+are in its **nuance** — normalization as a function of calibre against thickness, a transition band
+instead of a hard 70° step, damage that depends on what was hit — not in bolting a 1970s
+countermeasure onto a 1951 hull.
 
 ---
 
@@ -98,8 +103,8 @@ no walls.
 
 | # | work | why here |
 |---|---|---|
-| 1 | Diagnose the zero-ricochet result | without it the entire armour section is inert |
-| 2 | Let fuel fire reach the screen | one line; the rest is already built |
+| 1 | ~~Diagnose the zero-ricochet result~~ · ~~fuel fire to the screen~~ | **both done** — the first was instrument error, the second is shipped |
+| 2 | Armour **nuance**: calibre-dependent normalization, a ricochet transition band, damage by compartment | the base layer works, so this is where the returns are |
 | 3 | Optics / vision as a module | the only genuinely missing internal module, and the one that most changes tactical play given spotting is pure LOS |
 | 4 | Crew as capability loss | after deciding it is *not* stat multipliers |
 | 5 | HESH | fits the era, adds a real third behaviour |
@@ -110,7 +115,8 @@ no walls.
 What separates a good armoured game from a simulator is not the number of parts. It is **the number
 of decisions the player makes in the second before firing**.
 
-- *"Do I expose my flank to get an angle on his?"* — needs a **working ricochet**, not ERA.
+- *"Do I expose my flank to get an angle on his?"* — needs a ricochet with **nuance** (a transition
+  band, calibre-aware normalization), not ERA. The binary version already works.
 - *"Track him, or go for the hull?"* — needs **legible modules**, not five more of them.
 - *"Peek now, or wait?"* — needs **terrain with somewhere to hide**, and the cell is 5 m today.
 

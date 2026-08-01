@@ -131,14 +131,17 @@ follow spring, speed-driven FOV, barrel recoil, hull rock, camera kick, 343 m/s 
 per-shell flyby crack, tracers, and impact FX that distinguish penetration from ricochet from
 non-penetration from water from stone. Someone knew the full list of things a tank game needs.
 
-**Two measured facts invalidate them anyway:**
+**One measured fact qualifies them.** An earlier draft claimed the battle was empty and the ricochet
+never fired; both came from a harness that filtered out every zero-damage event. Corrected: **79
+impacts and 9 of 14 tanks destroyed** across a full battle. There is plenty happening — the feel
+mechanisms get used.
 
-- **The battle is empty.** Sixteen hits per minute across fourteen tanks. Feel does not exist when
-  nothing happens; a perfectly tuned camera kick fires seven times in seven minutes.
-- **The ricochet never happens.** 53 hits, 53 penetrations. **The bounce is the most satisfying
-  moment in an armoured game** — the second where the player knows they won the positioning duel:
-  angled the hull, took the shell on the slope, heard the clang. In this build that sound never
-  arrives. A feel catastrophe wearing the costume of a maths bug.
+- **The bounce happens, and it is under-sold.** ~10 % of impacts ricochet (an earlier draft of this
+  document claimed zero; that was instrument error). **The bounce is the most satisfying moment in an
+  armoured game** — the second where the player knows they won the positioning duel: angled the hull,
+  took the shell on the slope, heard the clang. The mechanic fires; what is thin is its
+  *presentation*: there is no near-glance signature, no transition band, and the directed spark fan
+  is the only thing distinguishing it at range.
 
 ---
 

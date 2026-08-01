@@ -35,9 +35,13 @@ it is a ratchet. **A fix without a rule is unfinished.**
 
 ## The one surprise
 
-The three most serious findings did not come from reading code. They came from running the game
-once: **the armour never ricocheted a single shell in 53 hits**, a 7v7 does not resolve inside its
-own timer, and thirteen bots killed nobody in a minute. None of that is visible in the source.
+Running the game produced three dramatic findings — and **all three were my own instrument error**
+(the harness filtered out every zero-damage event, which is exactly what a ricochet is). Corrected:
+the armour bounces ~10 % of impacts, the battle resolves on its 600 s timer, and 9 of 14 tanks die
+in a real fight. See [`playtest-2026-08-01.md`](playtest-2026-08-01.md).
+
+The lesson is worth more than the findings would have been, and it is the same one this program
+argues everywhere else: **an instrument nobody checked is not evidence.**
 
 ## Related, outside this folder
 

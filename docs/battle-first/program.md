@@ -25,25 +25,24 @@ same six patterns the register documents.
 
 ---
 
-## W1.0 — What playing the game revealed (highest priority)
+## W1.0 — What playing the game revealed
 
-From [`playtest-2026-08-01.md`](playtest-2026-08-01.md). Three of these are invisible in the source.
+From [`playtest-2026-08-01.md`](playtest-2026-08-01.md). **Read the correction there first**: the
+first pass produced three dramatic findings — zero ricochets, a battle that never resolves, passive
+bots — and all three were instrument error. The armour model works (8 ricochets in 79 impacts, 8 of
+10 above-threshold hits bouncing), the timer is 600 s and the battle ends on it, and 9 of 14 tanks
+die in a real fight.
 
-**a. Diagnose the zero-ricochet result.** 53 hits, 53 penetrations, no bounces, across a full
-7-minute battle. Angling, hull-down and aim-point choice are dead mechanics until this is understood.
-Separate the hypotheses first (bot engagement geometry vs fleet penetration vs the 70° hard
-threshold) — do not tune blind.
+**a. A 4-to-1 battle is declared a draw.** `Draw { TimeExpired }` with a fourfold tank advantage is
+the least satisfying resolution available. Award the win on tanks remaining or damage dealt. This is
+the one genuinely broken thing the playtest found, and it is cheap.
 
-**b. Battle pace.** 7 of 14 destroyed inside a 7-minute limit means every battle ends on the clock.
-No balance judgement is possible until a 7v7 resolves inside its own timer.
-
-**c. Bot aggression.** Thirteen bots, sixty seconds, zero kills except the player. Movement and
-gunnery are already good; the decision layer is `bot_nearest_engageable_enemy` and nothing else.
-
-**d. Fix the camera freezing on player death.** `tick_death_spectate` exists but does not drive this
+**b. Fix the camera freezing on player death.** `tick_death_spectate` exists but does not drive this
 path.
 
----
+**c. Bot decision depth** (moved down from a false alarm, but the critique stands): target selection
+is `bot_nearest_engageable_enemy` and nothing else — no threat priority, no finishing a cripple, no
+answering incoming fire, no withdrawal. The bots fight; they do not choose.
 
 ## W1 — The feel of the shot (3–4 PR)
 
@@ -136,13 +135,13 @@ the gate.
 ## Order
 
 1. **W0** — the ratchets.
-2. **W1.0a** — the zero-ricochet diagnosis. The product's identity is not firing; nothing else
-   matters as much.
-3. **W1.0b/c** — battle pace and bot aggression.
-4. **W1.5** — frame-time measurement. Blocking for W2.1.
-5. **W1.6** — the cheap visual fixes.
+2. **W1.0a** — the draw-at-4-to-1 outcome rule. Cheap, and the clearest broken thing measured.
+3. **W1.5** — frame-time measurement. Blocking for W2.1.
+4. **W1.6** — the cheap visual fixes.
+5. **W2.1** — terrain resolution, once there is a frame number to measure it against.
 6. Everything else in the order written.
 
-The first three answer one question: **does a battle in this game do what the design says it does?**
-The measured answer today is no — and it is not a structural problem. It is a gameplay one, invisible
-in the source and visible in the first minute of play.
+**Does a battle in this game do what the design says it does?** After correcting three false alarms:
+largely yes. Shells bounce, flanks matter, the fight resolves. What is thin is depth — bot decisions,
+armour nuance, terrain that gives the fight somewhere to happen — and what is broken is the rule that
+calls a 4-to-1 a draw.

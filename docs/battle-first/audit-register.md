@@ -26,10 +26,22 @@ real thing is a document, not a gate."* The diagnosis was perfect; the fix was a
 
 | # | finding | severity |
 |---|---|---|
-| A1 | **Zero ricochets in 53 hits** over a full 7-minute 7v7. The armour model never fires. Angling, hull-down and aim-point choice are dead mechanics. | **critical** |
-| A2 | **A 7v7 does not resolve inside its 7-minute timer** — 7 of 14 destroyed, `outcome: None`. Every battle ends on the clock. | **critical** |
-| A3 | **Bots barely fight** — 13 bots, 60 s, zero kills except the player. Target selection is `bot_nearest_engageable_enemy` and nothing more. | high |
-| A4 | **Camera freezes on player death** — four frames from t5042 to t20162 pixel-identical. `tick_death_spectate` exists in `app/camera_link.rs` but does not drive this path. | medium |
+| A1 | ~~Zero ricochets~~ — **WITHDRAWN, my measurement error.** The harness logged only events with `damage_hp > 0`, and a ricochet deals zero by definition. Re-measured: **8 ricochets in 79 impacts (~10 %)**, and of the 10 impacts above the 70° threshold, **8 ricocheted** — the other two are overmatch, which correctly disables ricochet. The armour model works. | — |
+| A2 | ~~A 7v7 does not resolve inside its timer~~ — **WITHDRAWN, my error.** I assumed a 7-minute limit; `RANDOM_BATTLE_TIME_LIMIT_S = 600`. The battle ends exactly on the limit. | `server/battle.rs:105` |
+| A3 | ~~Bots barely fight~~ — **OVERSTATED, same filtered log.** Re-measured: **79 impacts and 9 of 14 tanks destroyed** over the full battle. There is a real fight. Target selection is still only `bot_nearest_engageable_enemy`, so the *depth* critique stands; the "passive" claim does not. | `server/bot_combat.rs` |
+| **A5** | **A 4-to-1 battle is declared a draw.** At time expiry team 1 held 4 alive against team 2's 1, and the outcome was `Draw { TimeExpired }`. A decisive tank advantage ending as a draw is the least satisfying resolution available; most games award the win on tanks or damage remaining. **This is the finding that survived the corrections.** | `server/local.rs` |
+| A4 | **Camera freezes on player death** — four rendered frames from t5042 to t20162 pixel-identical while the battle continues. `tick_death_spectate` exists but does not drive this path. | `app/camera_link.rs` |
+
+### Measured shot geometry (the numbers that replaced A1)
+
+Full battle, Bystra, seed 7, 600 s: **79 shell impacts** — 60 penetrated, 8 ricocheted, 11 absorbed
+without either. Impact angles spread across the whole 0–89° range rather than clustering flat.
+Median margin of penetration over effective armour: **+58 mm** (min −796, max +168). Most-hit zone:
+**HullSide, 36 of 77** — the flanks are found and used.
+
+**Lesson recorded on purpose:** three headline findings died to one habit — trusting an instrument
+instead of verifying it. It is the same failure this register documents elsewhere as *"a contract
+nobody runs on the real thing is a document, not a gate."*
 
 ## B. Honesty — silent failures of the core promise
 
