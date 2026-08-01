@@ -11,6 +11,7 @@ rust-version = "1.89"
 version = "0.1.0"
 
 [workspace.dependencies]
+ab_glyph = "0.2"
 anyhow = "1.0"
 bevy_ecs = "0.18.0"
 cpal = "0.16"
@@ -18,13 +19,13 @@ bincode = "1.3"
 bytemuck = { version = "1.25", features = ["derive"] }
 clap = { version = "4.5", features = ["derive"] }
 criterion = "0.8.2"
-egui = "0.34.3"
 encase = "0.12"
 earcut = "0.4.10"
 glam = { version = "0.30", features = ["serde"] }
 gltf = "1.4"
 meshopt = "0.6.2"
 naga = { version = "29.0.3", features = ["wgsl-in"] }
+png = "0.18"
 parry3d = { version = "0.26.1", default-features = false, features = ["dim3", "f32"] }
 pollster = "0.4"
 rapier3d = { version = "0.32.0", default-features = false, features = ["dim3", "f32"] }
@@ -58,7 +59,7 @@ server = { path = "crates/apps/server" }
 sim = { path = "crates/runtime/sim" }
 solid = { path = "crates/kernels/solid" }
 sweep = { path = "crates/kernels/sweep" }
-terrain = { path = "crates/runtime/terrain" }
+terrain = { path = "crates/foundation/terrain" }
 vehicle_build = { path = "crates/vehicle/vehicle_build" }
 vehicle_forge = { path = "crates/vehicle/vehicle_forge" }
 world_forge = { path = "crates/world/world_forge" }

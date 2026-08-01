@@ -1,6 +1,7 @@
 [package]
 name = "scene_build"
-version = "0.1.0"
+version.workspace = true
+rust-version.workspace = true
 edition.workspace = true
 license.workspace = true
 
@@ -8,7 +9,7 @@ license.workspace = true
 game_core.workspace = true
 glam.workspace = true
 map_forge.workspace = true
-png = "0.18"
+png.workspace = true
 serde_json.workspace = true
 renderer_api.workspace = true
 terrain.workspace = true
@@ -19,4 +20,4 @@ world_forge.workspace = true
 workspace = true
 
 [dev-dependencies]
-sim = { path = "../../runtime/sim" }
+sim.workspace = true
