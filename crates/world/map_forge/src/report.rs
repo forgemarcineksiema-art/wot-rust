@@ -100,6 +100,11 @@ pub fn validate_map(blueprint: &MapBlueprint, map: &BattlefieldMap) -> MapReport
 /// (a determined climb) so the report flags genuine walls, not spirited slopes.
 const CLIMB_GRADE: f32 = 0.55;
 
+/// How far outside a cover box the drive graph still refuses to walk. One number, used by the
+/// passability test AND by the explanation of a failed one, so a block and its account of itself
+/// can never disagree about where a footprint ends.
+const COVER_PASSABILITY_MARGIN_M: f32 = 0.3;
+
 /// M7: geometry was never the point - PLAYABILITY is. A coarse drive graph over the
 /// heightfield (8-neighbour steps, grade within the climb wall, water shallower than
 /// drowning, outside cover boxes) must connect EVERY spawn to every strategic point and
@@ -125,7 +130,7 @@ fn check_playability(
                 return false;
             }
             let (x, z) = (xi as f32 * cell, zi as f32 * cell);
-            !terrain::inside_any_cover(&map.static_cover, x, z, 0.3)
+            !terrain::inside_any_cover(&map.static_cover, x, z, COVER_PASSABILITY_MARGIN_M)
         })
         .collect();
 
@@ -165,39 +170,31 @@ fn check_playability(
             );
             continue;
         };
-        let mut reached = vec![false; passable.len()];
-        let mut queue = std::collections::VecDeque::from([start]);
-        reached[start] = true;
-        while let Some(index) = queue.pop_front() {
-            let (xi, zi) = ((index % width) as isize, (index / width) as isize);
-            let here = heightmap.sample_at_index(index % width, index / width);
-            for (dx, dz) in [(1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (1, -1), (-1, 1), (-1, -1)] {
-                let (nx, nz) = (xi + dx, zi + dz);
-                if nx < 0 || nz < 0 || nx as usize >= width || nz as usize >= height {
-                    continue;
-                }
-                let next = nz as usize * width + nx as usize;
-                if reached[next] || !passable[next] {
-                    continue;
-                }
-                let there = heightmap.sample_at_index(nx as usize, nz as usize);
-                let distance = cell * ((dx * dx + dz * dz) as f32).sqrt();
-                if ((there - here) / distance).abs() > CLIMB_GRADE {
-                    continue;
-                }
-                reached[next] = true;
-                queue.push_back(next);
-            }
-        }
+        let reached = flood_reachable(start, &passable, heightmap, width, height, cell);
         let mut assert_reaches = |what: String, position: [f32; 3]| {
             let target = start_cell(position);
             if target.is_none_or(|target| !reached[target]) {
-                report.push(
-                    "playability",
-                    Severity::Error,
-                    format!("{what} is unreachable from spawn team {}", spawn.team),
-                    Some(position),
-                );
+                // Naming WHAT is cut off leaves the author hunting through everything they placed.
+                // Name the wall too: flood outward from the cut-off point and report the cover
+                // objects ringing that pocket, nearest first. "It broke" is half a report; "this
+                // is what broke it" is the other half.
+                let blame = target
+                    .map(|target| {
+                        walls_around(
+                            target, position, &passable, map, heightmap, width, height, cell,
+                        )
+                    })
+                    .unwrap_or_default();
+                let message = if blame.is_empty() {
+                    format!("{what} is unreachable from spawn team {}", spawn.team)
+                } else {
+                    format!(
+                        "{what} is unreachable from spawn team {} - walled in by {}",
+                        spawn.team,
+                        blame.join(", ")
+                    )
+                };
+                report.push("playability", Severity::Error, message, Some(position));
             }
         };
         for point in &map.strategic_points {
@@ -1053,4 +1050,105 @@ fn check_water_contract(
             }
         }
     }
+}
+
+/// Flood the passable graph from `start`, refusing any step steeper than [`CLIMB_GRADE`].
+///
+/// The limit is a GRADIENT because a hull climbs a grade, not a height — which also means a finer
+/// grid resolves local steepness that a coarse one averaged away. Densifying a map can therefore
+/// make it *less* passable without a single object moving.
+fn flood_reachable(
+    start: usize,
+    passable: &[bool],
+    heightmap: &terrain::HeightMap,
+    width: usize,
+    height: usize,
+    cell: f32,
+) -> Vec<bool> {
+    let mut reached = vec![false; passable.len()];
+    let mut queue = std::collections::VecDeque::from([start]);
+    reached[start] = true;
+    while let Some(index) = queue.pop_front() {
+        let (xi, zi) = ((index % width) as isize, (index / width) as isize);
+        let here = heightmap.sample_at_index(index % width, index / width);
+        for (dx, dz) in [(1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (1, -1), (-1, 1), (-1, -1)] {
+            let (nx, nz) = (xi + dx, zi + dz);
+            if nx < 0 || nz < 0 || nx as usize >= width || nz as usize >= height {
+                continue;
+            }
+            let next = nz as usize * width + nx as usize;
+            if reached[next] || !passable[next] {
+                continue;
+            }
+            let there = heightmap.sample_at_index(nx as usize, nz as usize);
+            let distance = cell * ((dx * dx + dz * dz) as f32).sqrt();
+            if ((there - here) / distance).abs() > CLIMB_GRADE {
+                continue;
+            }
+            reached[next] = true;
+            queue.push_back(next);
+        }
+    }
+    reached
+}
+
+/// How many blockers one report line names before it stops being read.
+const NAMED_BLOCKERS: usize = 3;
+
+/// The cover objects ringing the pocket `target` sits in — the wall between it and the rest of the
+/// map, nearest to `position` first, because the author is usually looking for the thing they just
+/// put down. Empty when the pocket is closed by water or terrain rather than by anything placed:
+/// naming nothing is the honest answer there, not naming the closest innocent building.
+#[allow(clippy::too_many_arguments)]
+fn walls_around(
+    target: usize,
+    position: [f32; 3],
+    passable: &[bool],
+    map: &BattlefieldMap,
+    heightmap: &terrain::HeightMap,
+    width: usize,
+    height: usize,
+    cell: f32,
+) -> Vec<String> {
+    let pocket = flood_reachable(target, passable, heightmap, width, height, cell);
+    let mut nearest: Vec<(f32, usize)> = Vec::new();
+    for (index, blocked) in passable.iter().enumerate() {
+        if *blocked {
+            continue;
+        }
+        let (xi, zi) = ((index % width) as isize, (index / width) as isize);
+        // Only cells on the pocket's rim: a blocker buried inside a wall explains nothing.
+        let on_rim = [(1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (1, -1), (-1, 1), (-1, -1)]
+            .into_iter()
+            .any(|(dx, dz)| {
+                let (nx, nz) = (xi + dx, zi + dz);
+                nx >= 0
+                    && nz >= 0
+                    && (nx as usize) < width
+                    && (nz as usize) < height
+                    && pocket[nz as usize * width + nx as usize]
+            });
+        if !on_rim {
+            continue;
+        }
+        let (x, z) = (xi as f32 * cell, zi as f32 * cell);
+        let distance = (x - position[0]).hypot(z - position[2]);
+        for object in
+            terrain::covers_containing(&map.static_cover, x, z, COVER_PASSABILITY_MARGIN_M)
+        {
+            match nearest.iter_mut().find(|(_, existing)| *existing == object) {
+                Some((best, _)) => *best = best.min(distance),
+                None => nearest.push((distance, object)),
+            }
+        }
+    }
+    nearest.sort_by(|a, b| a.0.total_cmp(&b.0));
+    nearest
+        .into_iter()
+        .take(NAMED_BLOCKERS)
+        .map(|(_, object)| {
+            let object = &map.static_cover[object];
+            format!("'{}' ({:?})", object.id, object.kind)
+        })
+        .collect()
 }

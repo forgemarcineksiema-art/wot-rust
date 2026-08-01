@@ -280,6 +280,25 @@ fn playability_bites_walls_starvation_and_unnamed_crossings() {
     assert!(!unreachable.is_empty(), "a walled-off point must be a playability Error");
     assert!(unreachable[0].at.is_some(), "the Error carries a jump-to position");
 
+    // ...and it NAMES the wall. Telling an author their point is cut off, while leaving them to
+    // hunt through everything they placed for the culprit, is half a report. The courtyard is
+    // ringed by four objects and the line must name them by id, nearest first.
+    let named = &unreachable[0].message;
+    assert!(
+        named.contains("walled in by"),
+        "the report must name what cut the point off, got: {named}"
+    );
+    let walls_named =
+        ["wall_n", "wall_s", "wall_w", "wall_e"].iter().filter(|id| named.contains(**id)).count();
+    assert!(
+        walls_named > 0,
+        "the named blockers must be the courtyard walls themselves, got: {named}"
+    );
+    assert!(
+        named.contains("FarmBuilding"),
+        "naming the KIND too tells the author what they are looking at, got: {named}"
+    );
+
     // Starvation: a big empty map warns that the route planner will starve.
     let mut starved = flat_square();
     starved.grid.size_m = [600.0, 600.0];
