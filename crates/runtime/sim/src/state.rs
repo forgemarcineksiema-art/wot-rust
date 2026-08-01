@@ -454,6 +454,10 @@ impl SimulationState {
             &mut self.damage_events,
             &mut event_stamp,
         );
+        // Fire burns BEFORE this tick's shells land, so a hull the flames finish is already dead
+        // when the next round arrives — the kill belongs to whoever lit it, not to whoever happened
+        // to fire into the wreck a frame later.
+        crate::fire::step_fire(&mut self.tanks, dt, &mut self.damage_events, &mut event_stamp);
         {
             let mut events = BattleEventOutput::new(
                 &mut self.damage_events,

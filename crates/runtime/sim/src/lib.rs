@@ -9,6 +9,7 @@ mod crater_ledger;
 mod drive_modules;
 mod drowning;
 pub mod event_stamp;
+mod fire;
 mod landing;
 mod module_hit;
 mod ramming;
@@ -44,6 +45,10 @@ pub use cover_damage::{
 pub use crater_ledger::{MAX_CRATERS, record_high_explosive_burst};
 pub use drive_modules::{DriveModuleStatus, TrackDriveStatus, TrackSideDrive};
 pub use drowning::{DROWN_DEPTH_M, DROWN_PULSE_INTERVAL_S, ENGINE_FLOOD_S};
+pub use fire::{
+    ENGINE_FIRE_HP_PER_S, FIRE_FIGHT_S, FIRE_PULSE_INTERVAL_S, FUEL_FIRE_HP_PER_S,
+    burn_rate_hp_per_s,
+};
 pub use landing::SAFE_LANDING_MPS;
 pub use repair::{
     CrewRepair, MODULE_PATCH_FRACTION, MODULE_PATCH_S, TRACK_REGEN_CHUNK, TRACK_REGEN_INTERVAL_S,

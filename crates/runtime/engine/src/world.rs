@@ -202,7 +202,7 @@ impl PresentationWorld {
                         track_damage_mask: damage.mask,
                         track_break_t: damage.break_t,
                         engine_fire: damage.engine_fire,
-                        fuel_fire: false,
+                        fuel_fire: damage.fuel_fire,
                         armor_breaches: damage.armor_breaches.clone(),
                         track_left_m: track.left_m,
                         track_right_m: track.right_m,

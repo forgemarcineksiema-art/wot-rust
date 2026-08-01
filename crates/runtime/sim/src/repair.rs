@@ -105,9 +105,9 @@ pub(crate) fn step_crew_repair(tank: &mut TankState, dt: f32) {
             let full = tank.spec.module_health.hit_points(slot);
             let patched = ((full as f32 * MODULE_PATCH_FRACTION) as u32).max(1);
             tank.modules.restore_to(slot, patched);
-            if slot == ModuleSlot::Engine {
-                tank.engine_fire = false;
-            }
+            // Putting the engine right does NOT put its fire out: the burn is owned by
+            // `crate::fire`, which the crew fights on its own clock. Two owners of one flag is how
+            // a tank ends up "repaired" and still alight, or extinguished by a patch it never got.
             *clock = 0.0;
         }
     }

@@ -134,16 +134,19 @@ pub(crate) fn apply_shell_impact(
         target.hull_pose(),
     );
     let before_destroyed = target.modules.destroyed_mask();
-    let (module, damaged_modules_mask, damaged_components_mask, residual_after_modules_mm) =
-        apply_internal_module_path(
-            target,
-            shell,
-            penetration.penetrated,
-            penetration.remaining_penetration_mm,
-            penetration.module_damage_hp,
-            zone,
-            local_hit,
-        );
+    let internal = apply_internal_module_path(
+        target,
+        shell,
+        penetration.penetrated,
+        penetration.remaining_penetration_mm,
+        penetration.module_damage_hp,
+        zone,
+        local_hit,
+    );
+    let module = internal.first_module;
+    let damaged_modules_mask = internal.damaged_modules_mask;
+    let damaged_components_mask = internal.damaged_components_mask;
+    let residual_after_modules_mm = internal.residual_mm;
     let destroyed_modules_mask = target.modules.destroyed_mask() & !before_destroyed;
     // How hard this shell bit the track band: a clean, near-normal AP round throws it outright; an
     // oblique or ricocheting hit only degrades it; an HE burst chips it (see `track_hit_damage`).
@@ -256,14 +259,23 @@ pub(crate) fn apply_shell_impact(
             }
         }
     }
-    if destroyed_modules_mask & ModuleSlot::Engine.destroyed_mask_bit() != 0
-        && penetration.penetrated
-    {
-        target.engine_fire = true;
-    }
-    // Fuel burns as ITSELF (v27): a fuel-tank component holed by the internal path lights a
-    // fuel fire, distinct from the engine's own — the tank can blaze with a healthy engine.
+    // IGNITION IS EARNED, NOT AWARDED — and it is earned deterministically, with no roll.
+    //
+    // A fire needs hot fragments in something flammable. The internal path already knows exactly
+    // where the round still carried enough energy to throw them (`energetic_*`, the same threshold
+    // that spawns the spall cones), so ignition asks for that and nothing softer.
+    //
+    // What this replaces, and why: the engine lit on ANY penetrating engine kill, and a T-54's
+    // 240 hp engine dies to one 320-alpha AP round — so a single frontal hit through the deck was
+    // a guaranteed fire. Fuel was looser still: it lit if the ray so much as BRUSHED a tank, spent
+    // or not. Between them, tanks burned constantly and the fire meant nothing. Now a spent round
+    // that dribbles into the engine bay wrecks it without lighting it, which is both the honest
+    // outcome and the rare one.
     if penetration.penetrated {
+        let engine_lit = destroyed_modules_mask & ModuleSlot::Engine.destroyed_mask_bit() != 0
+            && internal.energetic_slots_mask & ModuleSlot::Engine.destroyed_mask_bit() != 0;
+        // Fuel burns as ITSELF (v27) — distinct from the engine's own fire, so a tank can blaze
+        // with a healthy engine.
         let fuel_bits: u32 = target
             .spec
             .damage_layout
@@ -272,9 +284,8 @@ pub(crate) fn apply_shell_impact(
             .filter(|component| component.kind == game_core::DamageComponentKind::FuelTank)
             .map(|component| component_bit(component.id))
             .fold(0, |bits, bit| bits | bit);
-        if damaged_components_mask & fuel_bits != 0 {
-            target.fuel_fire = true;
-        }
+        let fuel_lit = internal.energetic_components_mask & fuel_bits != 0;
+        crate::fire::ignite(target, shell.owner, engine_lit, fuel_lit);
     }
 
     // The jack-in-the-box: an ammo-rack detonation that kills the tank in this same resolution
@@ -320,6 +331,38 @@ pub(crate) fn apply_shell_impact(
 }
 
 #[allow(clippy::too_many_arguments)]
+/// What the shell did once it was inside the hull.
+///
+/// `energetic_*` is the part that decides FIRES. A round only lights something when it still
+/// carries enough energy at that component to throw hot fragments — the same threshold that spawns
+/// spall below. Merely brushing a fuel tank with a spent round does not start a fire, and that
+/// distinction is the whole difference between "tanks burn sometimes" and "tanks burn constantly".
+struct InternalPath {
+    first_module: Option<ModuleSlot>,
+    damaged_modules_mask: u8,
+    damaged_components_mask: u32,
+    energetic_components_mask: u32,
+    energetic_slots_mask: u8,
+    residual_mm: f32,
+}
+
+/// Residual penetration (mm) a round must still hold at a component to throw fragments off it.
+const SPALL_ENERGY_MM: f32 = 8.0;
+
+/// Residual penetration (mm) a round must hold to LIGHT what it just crossed.
+///
+/// Deliberately far above [`SPALL_ENERGY_MM`]: throwing a few fragments is not the same event as
+/// starting a fire. Fragments come off almost any penetration, so sharing the spall threshold made
+/// tanks burn constantly. Ignition wants a round that reaches the fuel or the engine still carrying
+/// most of its energy — the flank shot that walks in clean, not the frontal round that spent itself
+/// on the glacis first.
+///
+/// TUNED AGAINST A MEASURED BATTLE, not intuition. Ignitions in one 7-minute 7v7 (Bystra, seed 7):
+/// 8 at the shared spall threshold, 5 at 60 mm, **2 at 100 mm**, 0 at 140 mm. Two is one fire per
+/// team per battle — rare enough to be an event, common enough to exist. Re-measure with the same
+/// seed before moving this number.
+const FIRE_ENERGY_MM: f32 = 100.0;
+
 fn apply_internal_module_path(
     target: &mut TankState,
     shell: &ShellState,
@@ -328,7 +371,7 @@ fn apply_internal_module_path(
     base_damage_hp: u32,
     zone: ArmorZone,
     local_hit: Vec3,
-) -> (Option<ModuleSlot>, u8, u32, f32) {
+) -> InternalPath {
     if !penetrated || target.spec.damage_layout.is_empty() {
         let module = if target.spec.damage_layout.is_empty() {
             impacted_module(shell.shell.shell_type, penetrated, zone, local_hit, target.spec.hitbox)
@@ -338,7 +381,14 @@ fn apply_internal_module_path(
         if let Some(slot) = module {
             target.modules.damage(slot, base_damage_hp);
         }
-        return (module, module.map_or(0, ModuleSlot::destroyed_mask_bit), 0, residual_mm);
+        return InternalPath {
+            first_module: module,
+            damaged_modules_mask: module.map_or(0, ModuleSlot::destroyed_mask_bit),
+            damaged_components_mask: 0,
+            energetic_components_mask: 0,
+            energetic_slots_mask: 0,
+            residual_mm,
+        };
     }
 
     let local_direction =
@@ -357,6 +407,8 @@ fn apply_internal_module_path(
     let mut first = None;
     let mut mask = 0_u8;
     let mut component_mask = 0_u32;
+    let mut energetic_component_mask = 0_u32;
+    let mut energetic_slot_mask = 0_u8;
     let mut spall_sources = Vec::new();
     for hit in hits {
         let resistance_mm = hit.material.resistance_mm(hit.path_length_m);
@@ -371,7 +423,12 @@ fn apply_internal_module_path(
             ((base_damage_hp as f32 * energy_fraction * hit.vulnerability).round() as u32).max(1);
         target.modules.damage(hit.slot, damage);
         residual_mm = (residual_mm - resistance_mm).max(0.0);
-        if residual_mm > 8.0 {
+        if residual_mm > FIRE_ENERGY_MM {
+            // Enough energy left here to LIGHT it, not merely to chip it (see `InternalPath`).
+            energetic_component_mask |= component_bit(hit.component_id);
+            energetic_slot_mask |= hit.slot.destroyed_mask_bit();
+        }
+        if residual_mm > SPALL_ENERGY_MM {
             spall_sources
                 .push((hit.component_id, start + local_direction * (hit.distance_t * 8.0)));
         }
@@ -407,7 +464,14 @@ fn apply_internal_module_path(
             target.modules.damage(hit.slot, damage);
         }
     }
-    (first, mask, component_mask, residual_mm)
+    InternalPath {
+        first_module: first,
+        damaged_modules_mask: mask,
+        damaged_components_mask: component_mask,
+        energetic_components_mask: energetic_component_mask,
+        energetic_slots_mask: energetic_slot_mask,
+        residual_mm,
+    }
 }
 
 fn component_bit(id: game_core::DamageComponentId) -> u32 {

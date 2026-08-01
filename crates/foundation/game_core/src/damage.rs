@@ -19,6 +19,10 @@ pub enum DamageCause {
     /// The hull sank past its fording depth: the engine flooded first, then the crew lost the
     /// vehicle (protocol v18). Always self-inflicted — the river is not a combatant.
     Drowning,
+    /// The vehicle is burning. Credited to whoever lit it, because a fire is that shell's
+    /// consequence and not a separate act of nature — the burn keeps taking hit points until the
+    /// crew smothers it (see `sim::fire`).
+    Fire,
 }
 
 impl DamageCause {
