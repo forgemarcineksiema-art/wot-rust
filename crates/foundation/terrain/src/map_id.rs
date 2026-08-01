@@ -34,9 +34,25 @@ pub enum MapId {
 }
 
 impl MapId {
+    /// Every map that exists. Append-only: this is the wire identity of a battle's arena.
+    ///
+    /// Locked variant-by-variant against the declaration by `quality`, not by counting: a
+    /// length assertion cannot tell a forgotten variant from a shorter enum.
+    pub const ALL: [MapId; 5] = [
+        MapId::ProkhorovkaHill252_2,
+        MapId::BystraValley,
+        MapId::Scratch,
+        MapId::OrlinyPereval,
+        MapId::Ostrogorsk,
+    ];
+
     /// Every SHIPPED map — the catalog the rotation, goldens and baked assets cover.
     /// `Scratch` is deliberately absent (a dev vessel, not a shipped map).
-    pub const ALL: &'static [MapId] = &[
+    ///
+    /// This was called `ALL` and was not all: `ALL.contains(&Scratch)` was false, which is a
+    /// sentence no reader should have to hold. `VehicleKind` next door already had the right
+    /// shape — `ALL` for the complete set, a named constant for the subset that ships.
+    pub const SHIPPED: &'static [MapId] = &[
         MapId::ProkhorovkaHill252_2,
         MapId::BystraValley,
         MapId::OrlinyPereval,

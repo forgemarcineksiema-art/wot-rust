@@ -21,6 +21,21 @@ pub enum DamageCause {
     Drowning,
 }
 
+impl DamageCause {
+    /// How a hull lost health. The battle report, the kill feed and the replay all read this, so a
+    /// cause that exists in the game and not in `ALL` is a cause no summary can count.
+    ///
+    /// Locked variant-by-variant against the declaration by `quality`, not by counting: a
+    /// length assertion cannot tell a forgotten variant from a shorter enum.
+    pub const ALL: [DamageCause; 5] = [
+        DamageCause::Shell,
+        DamageCause::Ram,
+        DamageCause::Impact,
+        DamageCause::Splash,
+        DamageCause::Drowning,
+    ];
+}
+
 /// What absorbed a shell that did **not** damage an enemy. Like [`crate::VehicleKind`], the
 /// variant order is wire identity (bincode discriminants) — append, never reorder.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]

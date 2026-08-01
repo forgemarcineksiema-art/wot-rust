@@ -35,6 +35,27 @@ pub enum ArmorZone {
 }
 
 impl ArmorZone {
+    /// Every place a shell can land. A zone absent from here is a zone no armour-coverage test can
+    /// ask about, which is how a hull ends up with an unmodelled face.
+    ///
+    /// Locked variant-by-variant against the declaration by `quality`, not by counting: a
+    /// length assertion cannot tell a forgotten variant from a shorter enum.
+    pub const ALL: [ArmorZone; 13] = [
+        ArmorZone::UpperGlacis,
+        ArmorZone::LowerPlate,
+        ArmorZone::HullSide,
+        ArmorZone::HullRear,
+        ArmorZone::TurretFront,
+        ArmorZone::Mantlet,
+        ArmorZone::TurretSide,
+        ArmorZone::TurretRear,
+        ArmorZone::Roof,
+        ArmorZone::LeftTrack,
+        ArmorZone::RightTrack,
+        ArmorZone::Skirt,
+        ArmorZone::HullDeck,
+    ];
+
     pub fn facing(self) -> ArmorFacing {
         match self {
             ArmorZone::UpperGlacis | ArmorZone::LowerPlate => ArmorFacing::HullFront,

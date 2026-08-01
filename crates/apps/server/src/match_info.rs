@@ -36,7 +36,7 @@ mod tests {
 
     #[test]
     fn every_map_supports_at_least_one_weather_variant() {
-        for &map in MapId::ALL {
+        for &map in MapId::SHIPPED {
             assert!(
                 !supported_weather(map).is_empty(),
                 "map {map:?} has no weather to dress the battle in"
@@ -69,7 +69,7 @@ mod tests {
 
     #[test]
     fn weather_pick_is_deterministic_per_seed() {
-        for &map in MapId::ALL {
+        for &map in MapId::SHIPPED {
             let first = pick_weather(map, BattleSeed::fixed(42));
             assert_eq!(first, pick_weather(map, BattleSeed::fixed(42)));
             assert!(supported_weather(map).contains(&first.variant));

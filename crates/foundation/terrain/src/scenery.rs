@@ -41,6 +41,27 @@ pub enum SceneryKind {
     FloraBush,
 }
 
+impl SceneryKind {
+    /// Every dressing object a map may place. Append-only: the compiled map blueprints store these.
+    ///
+    /// Locked variant-by-variant against the declaration by `quality`, not by counting: a
+    /// length assertion cannot tell a forgotten variant from a shorter enum.
+    pub const ALL: [SceneryKind; 12] = [
+        SceneryKind::Oak,
+        SceneryKind::Poplar,
+        SceneryKind::Willow,
+        SceneryKind::FruitTree,
+        SceneryKind::Rock,
+        SceneryKind::Bush,
+        SceneryKind::Pine,
+        SceneryKind::Lamppost,
+        SceneryKind::DebrisHeap,
+        SceneryKind::FloraTree,
+        SceneryKind::FloraPine,
+        SceneryKind::FloraBush,
+    ];
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct SceneryInstance {
     pub kind: SceneryKind,
