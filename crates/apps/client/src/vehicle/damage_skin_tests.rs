@@ -194,3 +194,32 @@ fn a_destroyed_engine_chars_its_bay_in_the_per_instance_skin() {
         "the healthy bake stays brighter than the charred one"
     );
 }
+
+/// W4 F3: the remesh gate is the DATA — a carried visual-detail block — not the vehicle's name.
+/// Every playable kind takes the same path; whether a damage skin bakes follows exactly whether
+/// its blueprint carries the block. The day the fleet migration (F5) hands another hull the
+/// block, that vehicle flips to remeshing here with NO client edit — this loop is the proof,
+/// because it asks the blueprint, never a `VehicleKind`.
+#[test]
+fn the_damage_skin_gate_is_the_carried_data_not_the_vehicle_name() {
+    let set = cross_frame_group();
+    let mut catalog = VehicleAssetCatalog::default();
+    for (index, kind) in VehicleKind::PLAYABLE.into_iter().enumerate() {
+        let carries = game_core::VehicleBlueprint::for_vehicle(kind)
+            .is_some_and(|blueprint| blueprint.visual_detail().is_some());
+        let tank = TankId(100 + index as u64);
+        assert_eq!(
+            catalog.damaged_frame_mesh(kind, tank, ArmorFrame::Hull, &set, 0, 0),
+            None,
+            "{kind:?}: the first request never blocks the frame"
+        );
+        catalog.finish_damage_mesh_jobs();
+        let second = catalog.damaged_frame_mesh(kind, tank, ArmorFrame::Hull, &set, 0, 0);
+        assert_eq!(
+            second.is_some(),
+            carries,
+            "{kind:?}: the damage-skin path must follow the blueprint's visual-detail slot, \
+             not an identity check"
+        );
+    }
+}
