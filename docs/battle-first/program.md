@@ -160,6 +160,30 @@ dossiers, and inventing them is a BALANCE decision, not a refactor. Research the
 dossiers first — the same source-and-confidence pass every other number in this project got — then
 author them and delete the multipliers together with the fallback that allows them.
 
+### The three decisions, taken 2026-08-02
+
+**What HE is for.** Chip damage, finishing a cripple, and a weapon against tracks and crew — that
+is its job on the anti-tank guns this roster fields. AND a genuinely powerful shell where the gun
+is built for it, which is a class of gun the roster does not have yet: large calibre, low velocity,
+a heavy filler. So HE is not one round with one role; it is a round whose role follows the gun that
+fires it. Two consequences: its damage and penetration must come from the SHELL (caliber, filler),
+never from the gun's armour-piercing round, and the splash has to reach modules and crew for the
+utility half to exist at all — which the damage-layout components and the fire model now make
+possible.
+
+**Whether every gun carries three slots: no — history decides.** A gun fields the rounds it
+actually fielded, so the slot count differs from gun to gun and that difference IS a property of
+the gun. The 12.8 cm Pak 80 keeps AP and HE, and losing a fabricated APCR is not a nerf, it is the
+removal of a round that never existed. The fallback dies with the multipliers.
+
+**APCR stays, because it is historical.** Pzgr 40 for the German 75s and 88s, BR-365P for the
+ZiS-S-53, APDS for the 20-pounder. What goes is the INVENTED APCR handed to guns that never had
+one — not the round class.
+
+Ordering follows from this: research per gun (what it fired, with sources and confidence) → author
+per gun → delete `special_shell`'s derivation and the HE multipliers together. The "powerful HE"
+half stays a design note until a gun that deserves it joins the roster.
+
 **2.4 Bot decisions** — threat priority, finishing a cripple, answering incoming fire, focus fire,
 withdrawal.
 
