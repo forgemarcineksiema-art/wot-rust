@@ -23,6 +23,11 @@ pub enum DamageCause {
     /// consequence and not a separate act of nature — the burn keeps taking hit points until the
     /// crew smothers it (see `sim::fire`).
     Fire,
+    /// The ammunition rack cooked off (protocol v42): charges lit by a penetration burned down to
+    /// detonation before the crew could win. Credited to whoever lit them — the detonation is
+    /// that shell's consequence arriving ten seconds late, and the kill feed should say so
+    /// rather than filing it under a generic fire.
+    AmmoRack,
 }
 
 impl DamageCause {
@@ -31,13 +36,14 @@ impl DamageCause {
     ///
     /// Locked variant-by-variant against the declaration by `quality`, not by counting: a
     /// length assertion cannot tell a forgotten variant from a shorter enum.
-    pub const ALL: [DamageCause; 6] = [
+    pub const ALL: [DamageCause; 7] = [
         DamageCause::Shell,
         DamageCause::Ram,
         DamageCause::Impact,
         DamageCause::Splash,
         DamageCause::Drowning,
         DamageCause::Fire,
+        DamageCause::AmmoRack,
     ];
 }
 

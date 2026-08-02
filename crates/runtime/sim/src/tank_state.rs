@@ -13,6 +13,17 @@ pub struct TankState {
     /// `serde(default)` keeps pre-v42 fixtures loading as never-fired.
     #[serde(default)]
     pub last_shot_tick: Option<u64>,
+    /// The ammunition rack is COOKING OFF: charges lit by a penetration, racing the crew.
+    /// See `fire::step_rack_cookoff` for the whole rule. `serde(default)` keeps older fixtures
+    /// loading with a cold rack.
+    #[serde(default)]
+    pub rack_fire: bool,
+    /// Seconds the rack has been cooking (compared against `fire::RACK_COOKOFF_S`).
+    #[serde(default)]
+    pub rack_fire_s: f32,
+    /// Who lit the rack — the detonation is their kill, ten seconds late.
+    #[serde(default)]
+    pub rack_fire_source: Option<game_core::TankId>,
     pub position: Vec3,
     pub yaw_rad: f32,
     pub turret_yaw_rad: f32,

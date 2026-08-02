@@ -114,6 +114,120 @@ pub(crate) fn step_fire(
     }
 }
 
+/// How long a lit ammunition rack cooks before it resolves — shorter than a fought fire on
+/// purpose: a rack is a fuze, and ten seconds is a decision window, not a sentence.
+pub const RACK_COOKOFF_S: f32 = 10.0;
+
+/// Hit points per second off burning charges while the rack cooks. Hotter than fuel — this is
+/// propellant, not diesel — and the surviving case still pays it in full: winning the cook-off
+/// costs 200 hp, which is what "my rack was on fire" should feel like afterwards.
+pub const RACK_FIRE_HP_PER_S: f32 = 20.0;
+
+/// Advance every cooking rack by one tick: burn, then resolve at [`RACK_COOKOFF_S`].
+///
+/// THE WHOLE RULE, one sentence each: a lit rack cooks for ten seconds; if the rack module is
+/// still functional at the deadline the crew pulls the burning charges and wins, and if it is
+/// DESTROYED there is nothing left to pull — the charges detonate, the hull dies, and the turret
+/// leaves the ring exactly as an instant rack kill throws it.
+///
+/// Deterministic end to end: no roll decides the outcome, only the state of the rack the player
+/// can read on the module row. A cook-off is deliberately NOT folded into the one-rate fire rule
+/// (`burn_rate_hp_per_s`): that rule prices one vehicle burning, and this is a fuze with a drain —
+/// a tank with burning fuel AND a cooking rack is two events, both of which it earned.
+pub(crate) fn step_rack_cookoff(
+    tanks: &mut [TankState],
+    dt: f32,
+    damage_events: &mut Vec<DamageEvent>,
+    event_stamp: &mut BattleEventStamp,
+) {
+    for tank in tanks.iter_mut() {
+        if !tank.rack_fire {
+            continue;
+        }
+        if tank.hit_points == 0 {
+            tank.rack_fire = false;
+            tank.rack_fire_source = None;
+            tank.rack_fire_s = 0.0;
+            continue;
+        }
+        let source = tank.rack_fire_source.unwrap_or(tank.id);
+
+        // The same pulse arithmetic as the compartment fires: the toll is read off the clock, so
+        // the burn is frame-rate independent and costs exactly `rate x time` however it is stepped.
+        let before_s = tank.rack_fire_s;
+        tank.rack_fire_s += dt;
+        let burned_through = |seconds: f32| {
+            let pulses = (seconds / FIRE_PULSE_INTERVAL_S).floor();
+            (RACK_FIRE_HP_PER_S * pulses * FIRE_PULSE_INTERVAL_S).floor() as u32
+        };
+        let toll = burned_through(tank.rack_fire_s).saturating_sub(burned_through(before_s));
+        if toll > 0 {
+            let dealt = toll.min(tank.hit_points);
+            tank.hit_points -= dealt;
+            event_stamp.push_damage(
+                damage_events,
+                DamageEvent {
+                    source,
+                    target: tank.id,
+                    hit_position: tank.position,
+                    damage_hp: dealt,
+                    penetrated: false,
+                    cause: DamageCause::Fire,
+                    module: Some(game_core::ModuleSlot::AmmoRack),
+                    target_destroyed: tank.hit_points == 0,
+                    ..Default::default()
+                },
+            );
+        }
+        if tank.hit_points == 0 {
+            tank.rack_fire = false;
+            tank.rack_fire_source = None;
+            continue;
+        }
+
+        if tank.rack_fire_s >= RACK_COOKOFF_S {
+            tank.rack_fire = false;
+            tank.rack_fire_source = None;
+            tank.rack_fire_s = 0.0;
+            if tank.modules.is_functional(game_core::ModuleSlot::AmmoRack) {
+                // The crew pulled the burning charges: the rack held, so there was something
+                // left to pull. The drain above is the price of the ten seconds.
+                continue;
+            }
+            // Nothing left to pull. The detonation is the lighting shell's kill, ten seconds late.
+            let dealt = tank.hit_points;
+            tank.hit_points = 0;
+            tank.turret_detached = true;
+            event_stamp.push_damage(
+                damage_events,
+                DamageEvent {
+                    source,
+                    target: tank.id,
+                    hit_position: tank.position,
+                    damage_hp: dealt,
+                    penetrated: false,
+                    cause: DamageCause::AmmoRack,
+                    module: Some(game_core::ModuleSlot::AmmoRack),
+                    target_destroyed: true,
+                    ..Default::default()
+                },
+            );
+        }
+    }
+}
+
+/// Light `tank`'s ammunition rack on behalf of `source`. Re-igniting a cooking rack does NOT
+/// restart the clock, for the same reason re-igniting a fire does not: the crew is fighting all
+/// of it, and a second hit must not hand the arsonist a fresh fuze.
+pub(crate) fn ignite_rack(tank: &mut TankState, source: game_core::TankId) {
+    if tank.rack_fire || tank.hit_points == 0 {
+        return;
+    }
+    tank.rack_fire = true;
+    tank.rack_fire_s = 0.0;
+    tank.rack_fire_source = Some(source);
+}
+
 /// The fire is out — by the crew's work or because there is no longer a crew.
 fn extinguish(tank: &mut TankState) {
     tank.engine_fire = false;
