@@ -57,8 +57,8 @@
     "shot_bloom_mrad": 3.5,
     "max_dispersion_mrad": 14.0,
     "barrel_length_m": 7.0,
-    "depression_deg": 8.0,
-    "elevation_deg": 20.1,
+    "depression_deg": 7.5,
+    "elevation_deg": 15.0,
     "shell": {
       "shell_type": "ArmorPiercing",
       "caliber_mm": 128.0,

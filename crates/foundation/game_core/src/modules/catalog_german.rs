@@ -149,8 +149,9 @@ pub(crate) fn gun_kwk36() -> GunModule {
             shot_bloom_mrad: 3.6,
             max_dispersion_mrad: 16.0,
             barrel_length_m: 4.8,
+            // The production Tiger turret: -8 of depression, +16 of elevation (some sources +15).
             depression_deg: 8.0,
-            elevation_deg: 20.1,
+            elevation_deg: 16.0,
             shell: ShellSpec::armor_piercing(88.0, 773.0, 165.0, 360),
             // Pzgr 40 APCR: the round existed and its 100 m figure did not survive into any
             // table this project could source (`docs/ammunition.md` GAP), so velocity and
@@ -177,8 +178,9 @@ pub(crate) fn gun_kwk43() -> GunModule {
             shot_bloom_mrad: 3.4,
             max_dispersion_mrad: 15.0,
             barrel_length_m: 6.4,
+            // The Serienturm: -8 / +15.
             depression_deg: 8.0,
-            elevation_deg: 20.1,
+            elevation_deg: 15.0,
             shell: ShellSpec::armor_piercing(88.0, 1_000.0, 202.0, 390),
             // Pzgr 40/43 APCR at its sourced 1,130 m/s; the 100 m penetration is a balance
             // decision (the tables found start at 500 m). HE is the shared L/4.5 shell — same

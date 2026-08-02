@@ -122,8 +122,9 @@ pub(crate) fn gun_zis_s53() -> GunModule {
             shot_bloom_mrad: 3.8,
             max_dispersion_mrad: 17.0,
             barrel_length_m: 4.645,
-            depression_deg: 8.0,
-            elevation_deg: 20.1,
+            // The T-34-85 turret: -5 / +22. Soviet depression pays for the low silhouette.
+            depression_deg: 5.0,
+            elevation_deg: 22.0,
             shell: ShellSpec::armor_piercing(85.0, 792.0, 145.0, 200),
             // O-365K, fully sourced: 9.54 kg at 793 m/s with 0.741 kg of TNT. The old
             // derivation flew it at 554 — thirty per cent slow, because Soviet tank HE was a
@@ -202,8 +203,11 @@ pub(crate) fn gun_d25t() -> GunModule {
             shot_bloom_mrad: 4.8,
             max_dispersion_mrad: 20.0,
             barrel_length_m: 5.5,
-            depression_deg: 8.0,
-            elevation_deg: 20.1,
+            // THE ARC THAT IS AN IDENTITY: -3 of depression, the shallowest in the fleet. The pike-nosed
+            // brawler cannot use a ridge the way the Western turrets do - it fights on the flat,
+            // nose-on, which is exactly what its armour layout wants anyway.
+            depression_deg: 3.0,
+            elevation_deg: 20.0,
             shell: ShellSpec::armor_piercing(122.0, 795.0, 175.0, 390),
             // NO SPECIAL ROUND: the D-25T fielded no tungsten shell, so two slots. OF-471 is
             // 25.53 kg with 3.605 kg of TNT (sourced); the ~800 m/s is convention rather than a
