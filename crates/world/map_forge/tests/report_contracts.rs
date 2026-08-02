@@ -334,3 +334,58 @@ fn playability_bites_walls_starvation_and_unnamed_crossings() {
         "an unnamed crossing window must be refused"
     );
 }
+
+/// THE HULL-DOWN CENSUS: the gauge the terrain-density withdrawal demanded. "Author the relief
+/// where the fight happens" is a claim with no number until something counts the places a tank
+/// can actually fight from — this is that count, and the sculpting sessions aim at its floor.
+#[test]
+fn the_census_counts_fightable_crests_and_the_report_warns_below_the_floor() {
+    // A flat plain has nowhere to fight from, and the report says so by name.
+    let flat = flat_square();
+    let (map, report) = map_forge::compile(&flat);
+    assert!(map_forge::hull_down_positions(&map).is_empty(), "a plain has no crests");
+    assert!(
+        report.warnings().any(|entry| entry.check == "hull_down"),
+        "below the floor the report must say so, with the count"
+    );
+
+    // One authored ridge — 1.3 m, exactly what the Ridge brush lays down — and the map has a
+    // fighting line: hulls hide behind it on both sides, turrets work over it.
+    let mut ridged = flat_square();
+    ridged.terrain.ops.push(map_forge::blueprint::TerrainOp::Gauss1 {
+        axis: map_forge::blueprint::MapAxis::Z,
+        apply: map_forge::blueprint::Apply::Add,
+        terms: vec![map_forge::blueprint::Gauss1Term { center: 150.0, sigma: 6.0, amp: 1.3 }],
+    });
+    let (map, report) = map_forge::compile(&ridged);
+    let spots = map_forge::hull_down_positions(&map);
+    assert!(
+        spots.len() >= 12,
+        "a 300 m ridge line carries positions along its whole length, got {}",
+        spots.len()
+    );
+    assert!(
+        !report.warnings().any(|entry| entry.check == "hull_down"),
+        "above the floor the gauge is silent"
+    );
+    // Every position faces its crest: the facing is the census's gift to the bots.
+    for spot in &spots {
+        let len = (spot.facing[0].powi(2) + spot.facing[1].powi(2)).sqrt();
+        assert!((len - 1.0).abs() < 1.0e-4, "facing is a unit direction");
+    }
+
+    // A 3 m WALL is not a position: the rise band rejects the near approaches and the
+    // beyond-the-crest drop rejects the far ones — a slope that keeps climbing is terrain
+    // refusing you, not covering you.
+    let mut walled = flat_square();
+    walled.terrain.ops.push(map_forge::blueprint::TerrainOp::Gauss1 {
+        axis: map_forge::blueprint::MapAxis::Z,
+        apply: map_forge::blueprint::Apply::Add,
+        terms: vec![map_forge::blueprint::Gauss1Term { center: 150.0, sigma: 6.0, amp: 3.0 }],
+    });
+    let (map, _) = map_forge::compile(&walled);
+    assert!(
+        map_forge::hull_down_positions(&map).is_empty(),
+        "a wall must count for nothing — the census is a gauge of cover, not of steepness"
+    );
+}
