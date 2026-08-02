@@ -27,8 +27,8 @@ Rust tank game ("honest tank": no ±25% RNG, 7v7, three eras). Workspace of crat
 - `docs/urban-map-program.md` — previous program (complete); still doctrine for maps + flora.
 - `docs/map-forge-policy.md`, `docs/maps/*.md` — map authoring; editor: `cargo run -p editor`.
 - `docs/destruction-program.md`, `docs/shadow-policy.md`, `docs/vehicle-fidelity-masterplan.md`.
-- Review renders: `cargo run -p client --example <tenement|factory|flora|ostrogorsk_views>_probe`.
-- Perf: `cargo run -p client --release --example perf_capture`; sim bench `combat_hot_path`.
+- Review renders: `cargo run -p client --example probe -- <tenement_probe|factory_probe|flora_probe|ostrogorsk_views>`.
+- Perf: `cargo run -p client --release --example probe -- perf_capture`; sim bench `combat_hot_path`.
 
 ## Environment pitfalls (Windows / PowerShell 5.1)
 - `Get-Content -Raw` without encoding mangles UTF-8 (Polish comments!) — edit files with

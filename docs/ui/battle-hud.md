@@ -6,7 +6,7 @@ single pass over the 3D scene. Every element owns a fixed screen region so they
 never collide. Visual language is the "military instrument" art direction
 (`hud/theme.rs`): graphite panels, amber accent, warm off-white stencil
 readouts. A staged reference frame is produced by
-`cargo run -p client --example battle_hud` (both reticle modes).
+`cargo run -p client --example probe -- battle_hud` (both reticle modes).
 
 ## Regions (clip space)
 

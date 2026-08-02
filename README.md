@@ -46,9 +46,9 @@ cargo run -p server -- --max-ticks 10 # headless authoritative server
 Review/QA artifacts:
 
 ```powershell
-cargo run -p client --release --example perf_capture      # the one-look FPS numbers
-cargo run -p client --example flora_probe                 # imported vs procedural trees
-cargo run -p client --example ostrogorsk_views            # city review renders
+cargo run -p client --release --example probe -- perf_capture      # the one-look FPS numbers
+cargo run -p client --example probe -- flora_probe                 # imported vs procedural trees
+cargo run -p client --example probe -- ostrogorsk_views            # city review renders
 cargo run -p tools -- import-flora --input model.glb --manifest model.manifest.ron
 cargo run -p tools -- generate-map --map ostrogorsk --output assets/maps/ostrogorsk.terrain.json
 ```
@@ -59,7 +59,7 @@ replay fixtures — bump deliberately and re-run `./scripts/verify.ps1`.
 ## Controls
 
 **WASD** drives the hull, **mouse** aims, **Space** fires, **1/2/3** select ammo, scroll
-zooms, **Shift** holds the sniper scope. `--example screenshot` renders offscreen to PNG.
+zooms, **Shift** holds the sniper scope. `--example probe -- screenshot` renders offscreen to PNG.
 
 ## Rules and doctrine
 

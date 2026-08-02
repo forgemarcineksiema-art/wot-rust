@@ -121,9 +121,9 @@ ostrogorsk statics rebuild (all-rubble):                 5.0 ms  (worst case, on
 ostrogorsk statics rebuild (single collapse, 1 bucket):  3.39 ms (the real per-collapse cost)
 ```
 
-Numbers from `cargo run -p client --release --example perf_capture`. The sim side is locked
+Numbers from `cargo run -p client --release --example probe -- perf_capture`. The sim side is locked
 by the `urban_150` bench fixture in `combat_hot_path` (150 boxes > the shipped 101). Review
-renders: `cargo run -p client --example ostrogorsk_views` (street canyon at tank-eye level,
+renders: `cargo run -p client --example probe -- ostrogorsk_views` (street canyon at tank-eye level,
 church square, the berm from the fields, and the imported-tree boulevard with the runtime
 foliage atlas bound). Known playtest candidate: the berm reads gently from deep east — a
 sculpt-session candidate after the first human playtest.
@@ -152,7 +152,7 @@ imported-flora delta:                              +3.798 to +4.077 ms/frame
 ```
 
 Two consecutive runs of
-`cargo run -p client --release --example flora_frame_probe` produced those medians. The probe
+`cargo run -p client --release --example probe -- flora_frame_probe` produced those medians. The probe
 warms both renderers, alternates baseline/full order and drains the GPU queue after each batch;
 it measures hot frame throughput, while `perf_capture` continues to own the CPU bake/rebuild
 numbers above.

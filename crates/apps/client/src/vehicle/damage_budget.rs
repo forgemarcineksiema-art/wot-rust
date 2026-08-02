@@ -2,7 +2,7 @@
 //! production T-54s, driven through the real bounded worker with at most one integration per
 //! simulated frame. This is the measurement behind the phase-8 performance gate (worker build
 //! p95 < 8 ms, per-frame main-thread damage work < 0.5 ms, at most one damage-mesh upload per
-//! frame); the budget itself is a review gate read off `cargo run --release --example
+//! frame); the budget itself is a review gate read off `cargo run --release --example probe --
 //! damage_budget_capture`, never a flaky timing assert in CI.
 
 use std::collections::{HashMap, VecDeque};

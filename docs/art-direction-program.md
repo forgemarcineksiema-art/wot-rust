@@ -371,8 +371,8 @@ Two traps this program must not fall into, both already paid for once:
   the old ones in the diff. The always-on CPU statistics run without a GPU and catch structure,
   never taste.
 
-Human review: `cargo run -p client --example {prokhorovka,bystra,orliny,ostrogorsk}_views`,
-`--example garage_hangar_review`, `--example sky_probe`, `--example closeup_probe`.
-Perf: `--release --example perf_capture`, `--example flora_frame_probe` (1080p against the
-16.667 ms budget), `--example detail_cost_probe`. Every raised geometry budget lands with a
+Human review: `cargo run -p client --example probe -- {prokhorovka,bystra,orliny,ostrogorsk}_views`,
+`--example probe -- garage_hangar_review`, `--example probe -- sky_probe`, `--example probe -- closeup_probe`.
+Perf: `--release --example probe -- perf_capture`, `--example probe -- flora_frame_probe` (1080p against the
+16.667 ms budget), `--example probe -- detail_cost_probe`. Every raised geometry budget lands with a
 min-spec measurement in the PR description — one look, and a dropped frame is a game bug.

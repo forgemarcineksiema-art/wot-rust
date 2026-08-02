@@ -105,7 +105,7 @@ group may carry up to four independently posed ingress/egress fragments across H
 Mantlet; each frame is baked and cached separately. The client records a rolling 128-sample p95 for
 worker build and main-thread integration, while integration remains capped at one completed damage
 mesh per rendered frame. The performance gate is a representative capture, not a CI timing assert:
-`cargo run --release -p client --example damage_budget_capture` drives a deterministic 150-hit
+`cargo run --release -p client --example probe -- damage_budget_capture` drives a deterministic 150-hit
 battle sequence over twelve production T-54s through the real worker (one integration per simulated
 frame) and prints the rolling p95 against the budgets. Baseline (2026-07-13, dev laptop, release):
 worker build p95 2.8 ms (budget 8 ms), main-thread p95 0.34 ms per frame (budget 0.5 ms), all 148
