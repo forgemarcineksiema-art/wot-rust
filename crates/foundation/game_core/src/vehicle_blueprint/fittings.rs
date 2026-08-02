@@ -9,7 +9,7 @@ use glam::Vec3;
 /// Semantic external fittings carried as their own parts (not anonymous greeble): the commander's
 /// cupola hatch lid and turret-side vision drum ride the turret; the glacis headlight and the front
 /// tow hooks ride the hull. Finer surface detail (welds, grab handles) is left to the material layer.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct FittingsVisual {
     pub cupola_hatch_center: Vec3,
     pub cupola_hatch_radius: f32,
@@ -38,7 +38,7 @@ pub struct FittingsVisual {
 /// and restrained weld beads). Every value is a *new* visual dimension placed inside the already
 /// validated hull/turret volumes; none restates a hull, track, ring, cupola, mantlet, trunnion or
 /// muzzle dimension, and none feeds collision, armour, the mount frames, or the network snapshot.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct DetailVisual {
     /// Louvered engine-deck grille panel (centre + half-extents) and its slat count.
     pub grille_center: Vec3,

@@ -111,6 +111,49 @@ pub fn parse_blueprint(kind: VehicleKind, ron_text: &str) -> Result<VehicleBluep
     Ok(blueprint)
 }
 
+/// The on-disk schema for a vehicle's [`VisualDetail`](super::VisualDetail) tree (W4 F2c): the
+/// full loft/gun/fittings data under the same kind tag the blueprint files carry, so a file
+/// pasted under the wrong name is the same teaching error, not a silent adoption.
+///
+/// Today the tree is still GENERATED (`t54_hybrid` derives it from the blueprint, so raising
+/// the roof still raises the cupola with it); this schema is what the fleet slot (F3) reads
+/// and what the exporter writes — the round-trip lock in `blueprint_source.rs` proves every
+/// field of the tree survives RON with digit fidelity before any vehicle is asked to live there.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct VisualDetailFile {
+    pub kind: VehicleKind,
+    pub detail: super::VisualDetail,
+}
+
+impl VisualDetailFile {
+    /// Wrap a vehicle's visual tree for export (the exporter's direction).
+    pub fn from_parts(kind: VehicleKind, detail: &super::VisualDetail) -> Self {
+        Self { kind, detail: *detail }
+    }
+}
+
+/// Parse a visual-detail RON string for `kind`. Public for the exporter's round-trip lock and
+/// the future fleet-slot loader; the same BOM tolerance and kind cross-check as
+/// [`parse_blueprint`], because the failure modes of a hand-edited file are the same.
+pub fn parse_visual_detail(
+    kind: VehicleKind,
+    ron_text: &str,
+) -> Result<super::VisualDetail, String> {
+    let ron_text = ron_text.trim_start_matches('\u{feff}');
+    let file: VisualDetailFile = ron::from_str(ron_text)
+        .map_err(|error| format!("{}: visual-detail RON does not parse: {error}", kind.slug()))?;
+    if file.kind != kind {
+        return Err(format!(
+            "{}: visual-detail file declares kind {:?} but is registered for {:?} — a pasted \
+             template must have its `kind` retagged before it is trusted",
+            kind.slug(),
+            file.kind,
+            kind
+        ));
+    }
+    Ok(file.detail)
+}
+
 /// The parsed, validated blueprint for `kind` — parsed once per process.
 pub(super) fn load_blueprint(kind: VehicleKind) -> Option<VehicleBlueprint> {
     static CACHE: OnceLock<[Option<VehicleBlueprint>; VehicleKind::ALL.len()]> = OnceLock::new();

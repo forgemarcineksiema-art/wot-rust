@@ -403,6 +403,8 @@ fn image_to_rgba8(image: &gltf::image::Data) -> anyhow::Result<Vec<u8>> {
 /// Serialize every blueprint-backed vehicle to `<out>/<slug>.blueprint.ron` — the migration
 /// exporter, kept as a permanent normalizer for hand-edited files. f32 serializes at
 /// shortest-round-trip precision, so parse-back is bit-identical to the source values.
+/// A vehicle carrying a visual-detail tree (W4 F2c) also gets `<out>/<slug>.visual.ron` —
+/// the file the fleet slot (F3) will read; today it is a generated export, not a source.
 fn export_blueprints(out: PathBuf) -> anyhow::Result<()> {
     std::fs::create_dir_all(&out)
         .with_context(|| format!("failed to create output directory {}", out.display()))?;
@@ -418,6 +420,20 @@ fn export_blueprints(out: PathBuf) -> anyhow::Result<()> {
         std::fs::write(&path, text.as_bytes())
             .with_context(|| format!("failed to write {}", path.display()))?;
         println!("wrote {}", path.display());
+
+        if let Some(detail) = blueprint.visual_detail() {
+            // The visual tree nests deeper than the flat blueprint shapes (loft stations,
+            // profile arrays); the default depth limit would inline the part a human most
+            // wants to diff line by line.
+            let pretty = ron::ser::PrettyConfig::new().struct_names(true).depth_limit(6);
+            let file = game_core::VisualDetailFile::from_parts(kind, detail);
+            let text = ron::ser::to_string_pretty(&file, pretty)
+                .with_context(|| format!("failed to serialize {kind:?} visual detail"))?;
+            let path = out.join(format!("{}.visual.ron", kind.slug()));
+            std::fs::write(&path, text.as_bytes())
+                .with_context(|| format!("failed to write {}", path.display()))?;
+            println!("wrote {}", path.display());
+        }
     }
     Ok(())
 }

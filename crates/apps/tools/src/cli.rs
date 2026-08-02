@@ -71,6 +71,7 @@ pub enum Command {
     },
     /// Re-serialize every vehicle blueprint to its RON source file — the one-off migration
     /// exporter, kept as a permanent normalizer (a hand-edited file can be re-canonicalized).
+    /// Vehicles that carry a visual-detail tree get a `<slug>.visual.ron` beside the blueprint.
     ExportBlueprints {
         #[arg(long)]
         out: PathBuf,

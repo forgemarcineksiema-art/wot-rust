@@ -25,7 +25,11 @@ inherited red).**
   lock #398 · rack cook-off the crew can win, v42 #400 · mantlet-as-volume measured and re-routed
   to the Model Idealny session #401 · hull-down census in the map report #402. Cook-off is
   sim-only (not replicated) — an information-honesty gap to close before the next playtest.
-- **W4 IN PROGRESS** — redesigned below (approved 2026-08-02); F0 is this PR. W5 absorbed.
+- **W4 IN PROGRESS** — redesigned below (approved 2026-08-02); W5 absorbed. Landed: F0 #404 ·
+  F1 #405 · docs purge #406 · rapier out #407 · probe #408 · F2a #409 · F2b #410 · F2c (serde on
+  the visual tree + `.visual.ron` exporter + round-trip lock) this PR. Found while baselining F2c:
+  the canvas-cover lock had been red on master since the Model Idealny merge (~50 PRs) — fixed and
+  blessed in #411, full workspace suite proven green with `--no-fail-fast`.
 
 The forward ranking lives in [`combat-system.md`](combat-system.md); its headline item — the
 placeholder gun arcs — closed in #398.

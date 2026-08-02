@@ -66,6 +66,52 @@ fn blueprint_files_round_trip_with_digit_fidelity() {
     );
 }
 
+/// The visual-detail tree is DATA (W4 F2c): every vehicle that carries one must survive RON
+/// with digit fidelity — serialize the tree, parse it back, and every field of every station,
+/// profile point and fitting is bit-identical. This is the proof the fleet slot (F3) stands
+/// on before any vehicle is asked to live in a `<slug>.visual.ron` file.
+#[test]
+fn visual_detail_round_trips_with_digit_fidelity() {
+    let mut covered = Vec::new();
+    for kind in VehicleKind::ALL {
+        let Some(blueprint) = VehicleBlueprint::for_vehicle(kind) else {
+            continue;
+        };
+        let Some(detail) = blueprint.visual_detail() else {
+            continue;
+        };
+        covered.push(kind);
+        let file = game_core::VisualDetailFile::from_parts(kind, detail);
+        let text = ron::ser::to_string_pretty(&file, ron::ser::PrettyConfig::new())
+            .expect("visual detail serializes");
+        let reparsed = game_core::parse_visual_detail(kind, &text)
+            .unwrap_or_else(|error| panic!("{kind:?} visual round-trip failed: {error}"));
+        assert_eq!(
+            &reparsed, detail,
+            "{kind:?}: serialize->parse must reproduce the identical visual tree"
+        );
+    }
+    assert!(
+        covered.contains(&VehicleKind::BENCHMARK),
+        "the benchmark always carries a visual tree — its absence means this test checked \
+         nothing and would still have passed"
+    );
+}
+
+/// A visual file pasted under the wrong vehicle's name is a teaching error, not a silent
+/// adoption — the same rule the blueprint files live under.
+#[test]
+fn visual_detail_file_refuses_a_wrong_kind_tag() {
+    let blueprint = VehicleBlueprint::for_vehicle(VehicleKind::BENCHMARK).expect("benchmark loads");
+    let detail = blueprint.visual_detail().expect("benchmark carries a visual tree");
+    let file = game_core::VisualDetailFile::from_parts(VehicleKind::BENCHMARK, detail);
+    let text = ron::ser::to_string_pretty(&file, ron::ser::PrettyConfig::new())
+        .expect("visual detail serializes");
+    let error = game_core::parse_visual_detail(VehicleKind::TigerI, &text)
+        .expect_err("a wrong kind tag must refuse");
+    assert!(error.contains("retagged"), "the error teaches the retag rule, got: {error}");
+}
+
 /// The whole fleet passes the teaching lint with zero ERRORS (warnings are allowed — they are
 /// studio-report material, not gate material).
 #[test]
