@@ -75,8 +75,10 @@ pub(crate) fn gun_20pdr_type_a() -> GunModule {
             shot_bloom_mrad: 3.6,
             max_dispersion_mrad: 16.0,
             barrel_length_m: 5.6,
-            depression_deg: 8.0,
-            elevation_deg: 20.1,
+            // The Centurion mount: -10 / +18, the deepest depression in the fleet. This gun lives on a
+            // ridgeline - the arc, the APDS and the 152 mm turret face are one identity.
+            depression_deg: 10.0,
+            elevation_deg: 18.0,
             shell: ShellSpec::armor_piercing(84.0, 1_020.0, 230.0, 240),
             // The 20-pounder's HE is attested and its numbers are not: velocity, mass and
             // filler are all GAPs in the dossier, so this row is a BALANCE decision at the 84 mm
@@ -108,8 +110,9 @@ pub(crate) fn gun_20pdr_type_b() -> GunModule {
             shot_bloom_mrad: 3.4,
             max_dispersion_mrad: 15.0,
             barrel_length_m: 5.6,
-            depression_deg: 8.0,
-            elevation_deg: 20.1,
+            // Same mount as the Type A.
+            depression_deg: 10.0,
+            elevation_deg: 18.0,
             shell: ShellSpec::armor_piercing(84.0, 1_020.0, 230.0, 240),
             // Same ammunition as the Type A; the bore evacuator does not change the shell.
             // Same ammunition as the Type A.

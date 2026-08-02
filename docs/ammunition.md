@@ -142,6 +142,29 @@ Fictional test vehicle. No research applies; whatever it fires is a design decis
 Six holes across twelve guns. Each is a row that says GAP rather than a number somebody invented,
 which is the whole point of doing this pass before touching `ammo_options()`.
 
+## Gun arcs — mount elevation limits (researched 2026-08-02)
+
+The same rubric as the rounds. Until this pass, **every gun in the catalog but the T-54's ran the
+fleet placeholder −8° / +20.1°** — and depression is *the* hull-down stat, so the placeholder
+flattened the fleet's most tank-like axis of identity.
+
+| gun / mount | depression | elevation | source | confidence |
+|---|---:|---:|---|---|
+| 100 mm D-10T / T-54 turret | −5° | +18° | dossier (ru-wiki, bronetechnikamira) — already authored | high |
+| 85 mm ZiS-S-53 / T-34-85 turret | −5° | +22° | tank-afv, tanks-encyclopedia | high |
+| 122 mm D-25T / IS-3 turret | **−3°** | +20° | tanks-encyclopedia, multiple | high |
+| 8.8 cm KwK 36 / Tiger I turret | −8° | +16° | War Thunder wiki (also +15 cited) | medium |
+| 8.8 cm KwK 43 / Serienturm | −8° | +15° | wiki sources | medium |
+| 12.8 cm Pak 80 / Jagdtiger casemate | −7.5° | +15° | tanks-encyclopedia (desired −8, achieved −7.5 — the 50 mm lowering story) | high |
+| 8.8 cm Pak 43/3 / Jagdtiger casemate | −7.5° | +15° | **derived**: the same casemate mount class | low |
+| 7.5 cm KwK 42 / Schmalturm | −8° | +20° | tanks-encyclopedia, ftr (KwK 44/1 in Schmalturm: +20/−8) | medium |
+| 84 mm 20-pdr / Centurion turret | **−10°** | +18° | en-wiki 20-pdr (Mk 5: +18/−10; +20 also cited) | medium |
+| 120 mm Prototype | −8° | +20.1° | fictional — keeps the old fleet default as its own decision | — |
+
+The identity this table restores: the IS-3 at −3° cannot fight from a ridge the way a Centurion
+at −10° lives on one — the pike-nosed brawler against the Western ridgeline turret. Locked by
+`game_core/tests/gun_arcs.rs`.
+
 ## Sources
 
 - [panther1944.de — 7.5 cm KwK 42 ammunition](https://www.panther1944.de/index.php/en/sdkfz-171-pzkpfwg-panther/technology/75-cm-kwk-42-munition)

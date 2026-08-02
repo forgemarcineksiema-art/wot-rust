@@ -187,8 +187,10 @@ pub(crate) fn gun_pak43_l71() -> GunModule {
             shot_bloom_mrad: 3.2,
             max_dispersion_mrad: 14.0,
             barrel_length_m: 6.6,
-            depression_deg: 8.0,
-            elevation_deg: 20.1,
+            // The Jagdtiger casemate mount, same limits as the 12.8 it replaces (derived - the mount, not
+            // the gun, sets the arc; marked low-confidence in the dossier).
+            depression_deg: 7.5,
+            elevation_deg: 15.0,
             shell: ShellSpec::armor_piercing(88.0, 1_000.0, 202.0, 390),
             // The same weapon as the KwK 43 in a different mount, so the same rounds.
             special_shell: Some(ShellSpec::apcr(88.0, 1_130.0, 237.0, 330)),
@@ -210,6 +212,7 @@ pub(crate) fn gun_prototype() -> GunModule {
             shot_bloom_mrad: 3.7,
             max_dispersion_mrad: 17.0,
             barrel_length_m: 5.6,
+            // Fictional vehicle: the old fleet default kept as its own decision, not as a leftover.
             depression_deg: 8.0,
             elevation_deg: 20.1,
             shell: ShellSpec::armor_piercing(120.0, 900.0, 250.0, 390),
@@ -237,8 +240,10 @@ pub(crate) fn gun_pak80() -> GunModule {
             shot_bloom_mrad: 3.5,
             max_dispersion_mrad: 14.0,
             barrel_length_m: 7.0,
-            depression_deg: 8.0,
-            elevation_deg: 20.1,
+            // The casemate: -7.5 / +15. The design wanted -8 and 100 mm of gun lowering; it got 50 mm and
+            // -7.5, and that half-degree is in the sources by name.
+            depression_deg: 7.5,
+            elevation_deg: 15.0,
             shell: ShellSpec::armor_piercing(128.0, 920.0, 223.0, 530),
             // NO SPECIAL ROUND. The 12.8 cm never fielded a tungsten shell — the shortage that
             // ended Pzgr 40 production is a fact about this gun, not an oversight — so it carries
@@ -263,8 +268,9 @@ pub(crate) fn gun_kwk42() -> GunModule {
             shot_bloom_mrad: 3.2,
             max_dispersion_mrad: 15.0,
             barrel_length_m: 5.2,
+            // The Schmalturm mount: -8 / +20 (KwK 44/1 figures for the same turret).
             depression_deg: 8.0,
-            elevation_deg: 20.1,
+            elevation_deg: 20.0,
             shell: ShellSpec::armor_piercing(75.0, 935.0, 138.0, 240),
             // Pzgr 40/42, fully sourced: 4.75 kg at 1,120 m/s for 194 mm at 100 m — the
             // derivation guessed 172. Sprgr 42 is sourced at 5.74 kg and 700 m/s; its filler is a
