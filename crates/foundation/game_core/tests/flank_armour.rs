@@ -81,8 +81,12 @@ fn a_bigger_gun_demands_a_steeper_angle_from_the_same_hull() {
     assert!(through_the_flank("100 mm D-10T", VehicleKind::T54_1951, 45.0));
     // Angle harder and the same hull turns the 100 away too.
     assert!(!through_the_flank("100 mm D-10T", VehicleKind::T54_1951, 65.0));
-    // The 20-pounder is the gun angling answers worst: it still crosses at 65 degrees.
-    assert!(through_the_flank("84 mm 20-pounder Type A", VehicleKind::T54_1951, 65.0));
+    // The 20-pounder is the gun angling answers WORST — it needs a steeper presentation than the
+    // 100 before it stops. The claim is the ORDERING, not a threshold: the glancing band moved
+    // every absolute number down when it landed, and an assertion pinned to one degree would have
+    // read as a regression instead of as the band working.
+    assert!(through_the_flank("84 mm 20-pounder Type A", VehicleKind::T54_1951, 60.0));
+    assert!(!through_the_flank("100 mm D-10T", VehicleKind::T54_1951, 60.0));
 }
 
 /// EVERY vehicle carries a mantlet, and it is thicker than the turret face around it.
