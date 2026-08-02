@@ -66,7 +66,6 @@ world_forge = { path = "crates/world/world_forge" }
 scene_build = { path = "crates/world/scene_build" }
 timer_resolution = { path = "crates/runtime/timer_resolution" }
 vehicle_geometry = { path = "crates/kernels/vehicle_geometry" }
-experimental_geometry = { path = "crates/kernels/experimental_geometry" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

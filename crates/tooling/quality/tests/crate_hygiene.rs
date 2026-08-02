@@ -11,18 +11,16 @@ use quality::{crate_facts, crate_manifests};
 /// Crates with no dependents and no binary that are kept ON PURPOSE. Each entry is a decision;
 /// an empty list is the goal.
 const ORPHAN_ALLOWLIST: &[&str] = &[
-    // `quality` IS the gate. Nothing depends on a test-only architecture crate by design.
+    // `quality` IS the gate. Nothing depends on a test-only architecture crate by design, and it
+    // is the only entry that will ever belong here for that reason.
+    //
+    // The list held three more until 2026-08-02: `panel` and `shell`, two finished contract-tested
+    // kernels for thin fabricated parts built before the part that needed them, and
+    // `experimental_geometry`, an empty slot for a bake-only CAD trial. They were recorded as debt
+    // rather than as neutral facts — a capability nobody has used is a capability nobody has proven
+    // at the call site — and the debt is settled the way the entry said it could be: the programme
+    // decided the technique was not wanted, so the crates are gone rather than waiting.
     "quality",
-    // Row 28 of docs/procedural-kernel-program.md: two finished, contract-tested kernels for thin
-    // fabricated parts, built before the part that needs them. That is a real debt, not a neutral
-    // fact — a capability nobody has used is a capability nobody has proven at the call site — and
-    // this list is where it stops being invisible. They leave when a part calls them, or when the
-    // program says the technique is not wanted.
-    "panel",
-    "shell",
-    // Row 31: the sanctioned empty slot for a bake-only CAD trial. It holds no capability, only the
-    // rule for opening and closing a trial without breaking `--all-features` for the workspace.
-    "experimental_geometry",
 ];
 
 /// A crate that nothing depends on and that produces no program is dead weight: it compiles on
