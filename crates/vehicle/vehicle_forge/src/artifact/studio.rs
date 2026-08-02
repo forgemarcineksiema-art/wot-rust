@@ -11,9 +11,8 @@ use std::fs;
 use std::path::Path;
 
 use game_core::{VehicleBlueprint, VehicleKind, lint};
-use vehicle_geometry::{
-    BakedVehicle, OPEN_OR_CLOSED_MESH, SubmeshKind, VEHICLE_BUDGETS, golden_bake_hash,
-};
+use vehicle_geometry::{BakedVehicle, OPEN_OR_CLOSED_MESH, SubmeshKind};
+use vehicle_recipes::{VEHICLE_BUDGETS, golden_bake_hash};
 
 use crate::authoritative_baked_vehicle;
 use crate::mesh_source::{MeshSourceKind, mesh_source_kind};
@@ -91,7 +90,7 @@ pub fn bake_studio_bundle_from_blueprint(
     let source = mesh_source_kind(kind);
     let baked = match source {
         MeshSourceKind::Hybrid => vehicle_build::t54_description_from_blueprint(blueprint).build(),
-        MeshSourceKind::Procedural => vehicle_geometry::bake_vehicle_from_blueprint(blueprint)?,
+        MeshSourceKind::Procedural => vehicle_recipes::bake_vehicle_from_blueprint(blueprint)?,
     };
     bundle_from_baked(kind, baked, source, Some(blueprint))
 }

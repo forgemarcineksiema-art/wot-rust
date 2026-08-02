@@ -28,11 +28,14 @@ inherited red).**
 - **W4 IN PROGRESS** — redesigned below (approved 2026-08-02); W5 absorbed. Landed: F0 #404 ·
   F1 #405 · docs purge #406 · rapier out #407 · probe #408 · F2a #409 · F2b #410 · F2c #412
   (serde on the visual tree + `.visual.ron` exporter + round-trip lock) · F3 #413 (the damage-skin
-  gate asks the data; the asset_catalog allowlist entry burned) · `battle_host` → L3 this PR (the
-  server's library half moved to `crates/runtime/battle_host`, the client→server edge burned).
-  Found while baselining F2c: the canvas-cover lock had been red on master since the Model Idealny
-  merge (~50 PRs) — fixed and blessed in #411, full workspace suite proven green with
-  `--no-fail-fast`. Remaining: F4 (display names, recipes/, budgets) · F5 pilot Tiger I · ui_kit.
+  gate asks the data; the asset_catalog allowlist entry burned) · `battle_host` → L3 #414 (the
+  server's library half moved to `crates/runtime/battle_host`, the client→server edge burned) ·
+  F4a #415 (`VehicleKind::short_name()` in game_core; the client's display.rs deleted) · F4b this
+  PR (recipes/ + budgets.rs → `crates/vehicle/vehicle_recipes`; `vehicle_geometry` is a pure
+  kernel; two dispatch entries burned — `review_views` is the allowlist's last survivor, held by
+  the visual freeze). Found while baselining F2c: the canvas-cover lock had been red on master
+  since the Model Idealny merge (~50 PRs) — fixed and blessed in #411, full workspace suite proven
+  green with `--no-fail-fast`. Remaining: F5 pilot Tiger I · ui_kit.
 
 The forward ranking lives in [`combat-system.md`](combat-system.md); its headline item — the
 placeholder gun arcs — closed in #398.

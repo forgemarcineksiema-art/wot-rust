@@ -20,10 +20,11 @@
 use game_core::VehicleKind;
 use vehicle_forge::authoritative_baked_vehicle;
 use vehicle_geometry::{
-    FAR_MUST_SAVE_FRACTION, GEAR_BUDGETS, GearDetail, GearPart, RunningGearKinematics,
-    idler_unit_mesh, return_roller_unit_mesh, road_wheel_unit_mesh, running_gear_placements,
-    sprocket_unit_mesh, swing_arm_unit_mesh, track_link_unit_mesh,
+    GearDetail, GearPart, RunningGearKinematics, idler_unit_mesh, return_roller_unit_mesh,
+    road_wheel_unit_mesh, running_gear_placements, sprocket_unit_mesh, swing_arm_unit_mesh,
+    track_link_unit_mesh,
 };
+use vehicle_recipes::{FAR_MUST_SAVE_FRACTION, GEAR_BUDGETS};
 
 /// A 7v7 battle: the fleet size the game is designed around.
 const BATTLE_TANKS: usize = 14;

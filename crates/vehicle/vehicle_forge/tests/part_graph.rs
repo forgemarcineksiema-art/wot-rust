@@ -5,7 +5,8 @@ use vehicle_forge::{
     composed_visual_bounds, part_manifest_report, production_part_manifest,
     validate_production_manifest,
 };
-use vehicle_geometry::{MaterialRole, MeshBounds, SubmeshKind, bake_vehicle};
+use vehicle_geometry::{MaterialRole, MeshBounds, SubmeshKind};
+use vehicle_recipes::bake_vehicle;
 
 #[test]
 fn t54_part_graph_decomposes_into_expected_semantic_parts() {

@@ -2,7 +2,8 @@ use client::{VehicleMeshCatalog, tank_render_objects, tank_scene_mesh};
 use game_core::{ModuleSlot, TankId, TeamId, VehicleKind};
 use glam::{Mat4, Vec3};
 use net::TankSnapshot;
-use vehicle_geometry::{RunningGearKinematics, SmoothingGroup, SubmeshKind, bake_vehicle};
+use vehicle_geometry::{RunningGearKinematics, SmoothingGroup, SubmeshKind};
+use vehicle_recipes::bake_vehicle;
 
 const SG_RING: SmoothingGroup = SmoothingGroup(7);
 

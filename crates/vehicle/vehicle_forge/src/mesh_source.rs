@@ -4,14 +4,15 @@
 //! validation, and [`crate::ForgeArtifact::bake`] — resolves its geometry here, so the garage, the
 //! battle, and the baked artifact can never describe different tanks. Migrated vehicles return their
 //! denser hybrid mesh (CAD plates + SDF castings + revolved parts, via [`vehicle_build`]); the rest
-//! pass through to the lean procedural recipe ([`vehicle_geometry::bake_vehicle`]).
+//! pass through to the lean procedural recipe ([`vehicle_recipes::bake_vehicle`]).
 //!
 //! This is the seam that lets a vehicle move onto the hybrid pipeline without touching the renderer:
 //! the hybrid [`vehicle_build::VehicleDescription::build`] yields the same [`BakedVehicle`] the
 //! procedural path does, so the consumers do not know which source produced it.
 
 use game_core::VehicleKind;
-use vehicle_geometry::{BakeError, BakedVehicle, bake_vehicle};
+use vehicle_geometry::{BakeError, BakedVehicle};
+use vehicle_recipes::bake_vehicle;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum MeshSourceKind {

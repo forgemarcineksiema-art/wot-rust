@@ -13,7 +13,8 @@ pub(crate) use types::{part, turret_material};
 
 use game_core::{MountFrame, MountFrames, VehicleBlueprint, VehicleKind};
 use glam::Vec3;
-use vehicle_geometry::{SubmeshKind, bake_vehicle};
+use vehicle_geometry::SubmeshKind;
+use vehicle_recipes::bake_vehicle;
 
 use crate::ReferencePack;
 use crate::registry::PartStrategy;

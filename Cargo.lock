@@ -726,6 +726,7 @@ dependencies = [
  "vehicle_build",
  "vehicle_forge",
  "vehicle_geometry",
+ "vehicle_recipes",
  "winit",
  "world_forge",
 ]
@@ -3579,6 +3580,7 @@ dependencies = [
  "thiserror 2.0.18",
  "vehicle_build",
  "vehicle_geometry",
+ "vehicle_recipes",
 ]
 
 [[package]]
@@ -3590,6 +3592,15 @@ dependencies = [
  "glam",
  "serde",
  "thiserror 2.0.18",
+]
+
+[[package]]
+name = "vehicle_recipes"
+version = "0.1.0"
+dependencies = [
+ "game_core",
+ "glam",
+ "vehicle_geometry",
 ]
 
 [[package]]

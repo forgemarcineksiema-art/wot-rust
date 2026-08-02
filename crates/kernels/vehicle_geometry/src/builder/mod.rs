@@ -62,10 +62,11 @@ impl MeshBuilder {
         GeometryMesh::new(self.vertices, self.indices)
     }
 
-    /// One explicit quad (CCW as seen from its outward normal). `pub(crate)` for bespoke plate
-    /// authoring in recipes — faceted armor like the IS-3 pike bow is built face by face on the
-    /// exact planes the armor volumes shoot against.
-    pub(crate) fn push_quad(
+    /// One explicit quad (CCW as seen from its outward normal). Public for bespoke plate
+    /// authoring in `vehicle_recipes` (an L2 content crate since W4 F4b) — faceted armor like
+    /// the IS-3 pike bow is built face by face on the exact planes the armor volumes shoot
+    /// against.
+    pub fn push_quad(
         &mut self,
         points: [Vec3; 4],
         material: MaterialRole,
@@ -80,7 +81,7 @@ impl MeshBuilder {
     }
 
     /// One explicit triangle (CCW from its outward normal); see [`Self::push_quad`].
-    pub(crate) fn push_tri(
+    pub fn push_tri(
         &mut self,
         points: [Vec3; 3],
         material: MaterialRole,

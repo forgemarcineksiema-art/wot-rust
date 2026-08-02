@@ -1,7 +1,8 @@
 //! The one production bake contract shared by Forge artifacts and runtime consumers.
 
 use game_core::VehicleKind;
-use vehicle_geometry::{BakeError, BakedVehicle, bake_vehicle, reduce_vehicle};
+use vehicle_geometry::{BakeError, BakedVehicle, reduce_vehicle};
+use vehicle_recipes::bake_vehicle;
 
 use crate::BakeProfile;
 
