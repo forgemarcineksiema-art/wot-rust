@@ -16,6 +16,14 @@ pub struct PenetrationResult {
     pub remaining_penetration_mm: f32,
     pub damage_hp: u32,
     pub module_damage_hp: u32,
+    /// How much bite this round lost to obliquity alone, 0.0 to [`GLANCE_MAX_LOSS`].
+    ///
+    /// Nonzero means the shell arrived inside the glancing band and was already skidding. It is
+    /// the near-glance signature: a hit that reads differently from a square one because it WAS
+    /// different, and a bounce this reports at its maximum is one the shot had been earning for
+    /// ten degrees.
+    #[serde(default)]
+    pub glance_loss: f32,
 }
 
 pub fn resolve_penetration(
@@ -44,6 +52,26 @@ const OVERMATCH_CALIBER_RATIO: f32 = 3.0;
 /// The steepest angle an overmatched plate can present for LOS thickness.
 const OVERMATCH_ANGLE_CAP_DEGREES: f32 = 70.0;
 
+/// Past this angle a kinetic round is deflecting, not just crossing more steel.
+///
+/// Line-of-sight thickness already prices obliquity geometrically — the same plate is simply
+/// longer through. What it does NOT price is the shell turning: at a shallow enough angle the nose
+/// starts to skid across the face instead of biting into it, so energy goes into the deflection
+/// rather than into the hole. Below this the shell bites; above it, it starts to slide.
+const GLANCE_BAND_START_DEGREES: f32 = 60.0;
+
+/// Where a kinetic round stops trying and bounces.
+const RICOCHET_ANGLE_DEGREES: f32 = 70.0;
+
+/// How much of its penetration a kinetic round has lost by the time it reaches the bounce angle.
+///
+/// The band is what turns a cliff into a slope. Before this existed, 69.9 degrees was a shot at
+/// FULL penetration and 70.1 degrees was a clean bounce — a tenth of a degree between everything
+/// and nothing, which no player can read and no gunner ever experienced. Now the last ten degrees
+/// cost a third of the round's bite, so a near-glance is a weak hit rather than a coin flip, and
+/// the bounce at the end of the band is the arrival of something the shell was already losing.
+const GLANCE_MAX_LOSS: f32 = 0.30;
+
 /// `impact_angle_degrees` is the TRUE angle of incidence — between the shell path and the plate's
 /// real 3D normal ([`crate::math::plate_normal`]), slope already included. Plate slope must never
 /// be added here; it reaches this function only through that geometry.
@@ -55,8 +83,9 @@ pub(crate) fn resolve_penetration_at_distance_on_facet(
 ) -> PenetrationResult {
     let ricocheted = ricochets(shell, &facet, impact_angle_degrees);
     let effective_armor_mm = layer_los_mm(shell, facet, impact_angle_degrees);
+    let bite = kinetic_bite_fraction(shell, impact_angle_degrees);
     let remaining_penetration_mm =
-        shell.penetration_mm_at_distance(distance_m) - effective_armor_mm;
+        shell.penetration_mm_at_distance(distance_m) * bite - effective_armor_mm;
     let penetrated = !ricocheted && remaining_penetration_mm >= 0.0;
     let damage_hp = shell_damage_hp(shell, penetrated, ricocheted);
 
@@ -67,6 +96,7 @@ pub(crate) fn resolve_penetration_at_distance_on_facet(
         remaining_penetration_mm,
         damage_hp,
         module_damage_hp: module_damage_hp(shell, penetrated, ricocheted),
+        glance_loss: 1.0 - bite,
     }
 }
 
@@ -90,6 +120,8 @@ pub fn resolve_penetration_through_open_channel(
         remaining_penetration_mm: shell.penetration_mm_at_distance(distance_m),
         damage_hp: shell_damage_hp(shell, true, false),
         module_damage_hp: module_damage_hp(shell, true, false),
+        // No steel means no face to skid off: a round through an open channel never glances.
+        glance_loss: 0.0,
     }
 }
 
@@ -161,6 +193,7 @@ pub fn resolve_penetration_through_screens(
             remaining_penetration_mm: shell.penetration_mm_at_distance(distance_m) - outer_los,
             damage_hp: shell_damage_hp(shell, false, false),
             module_damage_hp: module_damage_hp(shell, false, false),
+            glance_loss: 0.0,
         };
     }
 
@@ -178,8 +211,11 @@ pub fn resolve_penetration_through_screens(
     let side = armor.facet(ArmorFacing::HullSide);
     let side_los = layer_los_mm(shell, side, side_angle_degrees);
     let effective_armor_mm = screen_mm + side_los;
+    // The OUTERMOST layer decides how much the shell skids, because that is the face it meets
+    // first; past it the round is already committed into the stack.
+    let bite = kinetic_bite_fraction(shell, screen_angle_degrees);
     let remaining_penetration_mm =
-        shell.penetration_mm_at_distance(distance_m) - effective_armor_mm;
+        shell.penetration_mm_at_distance(distance_m) * bite - effective_armor_mm;
     let penetrated = !ricocheted && remaining_penetration_mm >= 0.0;
     let damage_hp = shell_damage_hp(shell, penetrated, ricocheted);
 
@@ -190,6 +226,7 @@ pub fn resolve_penetration_through_screens(
         remaining_penetration_mm,
         damage_hp,
         module_damage_hp: module_damage_hp(shell, penetrated, ricocheted),
+        glance_loss: 1.0 - bite,
     }
 }
 
@@ -227,10 +264,29 @@ fn normalized_impact_angle(shell: &ShellSpec, impact_angle_degrees: f32) -> f32 
     (impact_angle_degrees.abs() - normalization).max(0.0)
 }
 
+/// The fraction of its penetration a kinetic round keeps at this angle of incidence.
+///
+/// One for everything up to [`GLANCE_BAND_START_DEGREES`], then a straight ramp down to
+/// `1 - GLANCE_MAX_LOSS` at the bounce angle. HEAT and HE are untouched: a shaped charge does not
+/// work by biting, and its obliquity limit is its own (85 degrees), while HE bursts on contact.
+fn kinetic_bite_fraction(shell: &ShellSpec, impact_angle_degrees: f32) -> f32 {
+    if !matches!(shell.shell_type, ShellType::ArmorPiercing | ShellType::Apcr) {
+        return 1.0;
+    }
+    let angle = impact_angle_degrees.abs();
+    if angle <= GLANCE_BAND_START_DEGREES {
+        return 1.0;
+    }
+    let span = RICOCHET_ANGLE_DEGREES - GLANCE_BAND_START_DEGREES;
+    let through_band = ((angle - GLANCE_BAND_START_DEGREES) / span).clamp(0.0, 1.0);
+    1.0 - GLANCE_MAX_LOSS * through_band
+}
+
 fn ricochets(shell: &ShellSpec, facet: &ArmorFacet, impact_angle_degrees: f32) -> bool {
     match shell.shell_type {
         ShellType::ArmorPiercing | ShellType::Apcr => {
-            impact_angle_degrees > 70.0 && shell.caliber_mm <= facet.nominal_thickness_mm * 3.0
+            impact_angle_degrees > RICOCHET_ANGLE_DEGREES
+                && shell.caliber_mm <= facet.nominal_thickness_mm * OVERMATCH_CALIBER_RATIO
         }
         ShellType::Heat => impact_angle_degrees > 85.0,
         ShellType::HighExplosive => false,
