@@ -131,7 +131,30 @@ fn puddle_propensity_is_smooth_varied_and_never_a_binary_grid_gate() {
     }
 
     assert!(unique.len() > 128, "pooling mask must retain a broad smooth range");
-    assert!(alpha.iter().any(|&value| value < 64), "steep ground must reject pooling");
+
+    // STEEP GROUND REJECTS POOLING — asserted where the signal lives, not after the blur.
+    //
+    // This used to read `alpha.any(|v| v < 64)`, and it passed by 664 texels out of 1 048 576:
+    // 0.06 %, on a knife edge. Measured across blur radii, the darkest texel on Bystra sits within
+    // one radius step of the 64 threshold in either direction — r5 gives thousands of texels under
+    // it, r7 gives twenty-four, r8 gives none — so the assertion was a coin toss about where one
+    // extreme landed rather than a statement about the terrain. Densifying the map to 2.5 m nudged
+    // that minimum from 44 to 64 and the "contract" flipped, which is how a marginal test reads as
+    // a broken map.
+    //
+    // The flatness signal is the macro normal's Y, unblurred, in the same texture. `pooling_smooth‐
+    // step(0.94, 0.997, n.y)` is what the bake feeds the mask, so n.y below 0.94 IS "steep enough
+    // to reject pooling" — and there are thousands of those texels, on any grid the map might use.
+    let steep = maps
+        .macro_normal
+        .chunks_exact(4)
+        .filter(|texel| f32::from(texel[1]) / 255.0 * 2.0 - 1.0 < 0.94)
+        .count();
+    assert!(
+        steep > 1_000,
+        "steep ground must reject pooling — only {steep} texels are past the flatness edge, so \
+         the mask has nothing to refuse"
+    );
     assert!(alpha.iter().any(|&value| value > 192), "flat ground must admit pooling");
     assert!(
         max_neighbour_jump <= 24,
