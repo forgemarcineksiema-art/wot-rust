@@ -27,18 +27,9 @@ const DISPATCH_ALLOWLIST: &[(&str, &str)] = &[
     // BURNED (W4 F3): `asset_catalog.rs`'s `if kind != T54_1951` became the data question the
     // render path already asked — `vehicle_has_cut_truth`, which reads whether the blueprint
     // carries the visual-detail block.
-    (
-        "crates/kernels/vehicle_geometry/src/recipes/",
-        "Per-vehicle geometry recipes living in the KERNELS layer — content in L1, which the \
-         target architecture puts in L2. A directory entry, deliberately: every file in it is \
-         the same debt. Burns when the recipe registry moves into `crates/vehicle/` beside the \
-         forge.",
-    ),
-    (
-        "crates/kernels/vehicle_geometry/src/budgets.rs",
-        "The per-vehicle triangle budgets and GOLDEN_BAKE_HASHES table — fleet data in the \
-         kernels layer, the same debt and the same burn as the recipes directory.",
-    ),
+    // BURNED (W4 F4b): the recipe registry and the budgets/goldens table moved to
+    // `crates/vehicle/vehicle_recipes` — content in the content layer, where the dispatch
+    // rule's zone already allows it. `vehicle_geometry` is a pure kernel again.
     (
         "crates/world/scene_build/src/review_views.rs",
         "The review scenes park specific vehicles for the look harness — presentation content \

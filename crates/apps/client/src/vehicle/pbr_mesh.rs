@@ -86,7 +86,8 @@ fn material_tint_mask(material: MaterialRole) -> f32 {
 mod tests {
     use super::*;
     use game_core::VehicleKind;
-    use vehicle_geometry::{SubmeshKind, bake_vehicle};
+    use vehicle_geometry::SubmeshKind;
+    use vehicle_recipes::bake_vehicle;
 
     #[test]
     fn t54_hull_converts_to_finite_pbr_vertices_with_a_tangent_frame() {

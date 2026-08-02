@@ -48,7 +48,7 @@ fn every_shipped_vehicle_mesh_obeys_the_quality_contract() {
 fn at_least_one_shipped_vehicle_differs_from_its_procedural_recipe() {
     let differs = VehicleKind::PLAYABLE.into_iter().any(|kind| {
         let shipped = authoritative_baked_vehicle(kind).expect("shipped bake");
-        let procedural = vehicle_geometry::bake_vehicle(kind).expect("procedural bake");
+        let procedural = vehicle_recipes::bake_vehicle(kind).expect("procedural bake");
         shipped.deterministic_hash() != procedural.deterministic_hash()
     });
     assert!(

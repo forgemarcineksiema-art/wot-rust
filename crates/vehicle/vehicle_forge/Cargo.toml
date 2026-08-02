@@ -15,6 +15,7 @@ serde_json.workspace = true
 thiserror.workspace = true
 vehicle_build.workspace = true
 vehicle_geometry.workspace = true
+vehicle_recipes.workspace = true
 
 [dev-dependencies]
 cast_loft.workspace = true

@@ -78,7 +78,7 @@ pub fn compile_tank(request: TankCompileRequest) -> Result<CompiledTank, TankCom
         let blueprint = game_core::VehicleBlueprint::for_vehicle(request.vehicle)
             .ok_or(TankCompileError::UnsupportedVehicle(request.vehicle))?;
         let blueprint = blueprint_with_gun_module(blueprint, &request.modules);
-        let baked = vehicle_geometry::bake_vehicle_from_blueprint(&blueprint)
+        let baked = vehicle_recipes::bake_vehicle_from_blueprint(&blueprint)
             .map_err(|error| TankCompileError::Artifact(ArtifactError::Bake(error)))?;
         (blueprint.mount_frames(), baked)
     };
