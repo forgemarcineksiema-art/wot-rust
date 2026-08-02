@@ -67,13 +67,21 @@
       "damage_hp": 390,
       "explosive_radius_m": 0.0
     },
-    "special_shell": null
+    "special_shell": null,
+    "he_shell": {
+      "shell_type": "HighExplosive",
+      "caliber_mm": 122.0,
+      "muzzle_velocity_mps": 800.0,
+      "penetration_mm_at_100m": 41.0,
+      "damage_hp": 510,
+      "explosive_radius_m": 2.4
+    }
   },
   "ammo": {
     "counts": [
-      17,
-      7,
-      4
+      24,
+      4,
+      0
     ],
     "initial_selected": 0
   },

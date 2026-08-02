@@ -74,6 +74,14 @@
       "penetration_mm_at_100m": 300.0,
       "damage_hp": 220,
       "explosive_radius_m": 0.0
+    },
+    "he_shell": {
+      "shell_type": "HighExplosive",
+      "caliber_mm": 84.0,
+      "muzzle_velocity_mps": 850.0,
+      "penetration_mm_at_100m": 28.0,
+      "damage_hp": 290,
+      "explosive_radius_m": 1.6
     }
   },
   "ammo": {

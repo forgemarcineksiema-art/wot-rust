@@ -87,7 +87,10 @@ impl VehicleModules {
             turret_rotation_rad_s: self.turret.traverse.rate_rad_s(),
             hull: armor_profile_for(kind, self),
             gun: self.gun.spec.clone(),
-            ammo: crate::AmmoLoadout::default_for(kind.ammo_capacity()),
+            ammo: crate::AmmoLoadout::default_for_slots(
+                kind.ammo_capacity(),
+                self.gun.spec.ammo_options().len(),
+            ),
             ammo_capacity: kind.ammo_capacity(),
             hit_points: self.hull.hit_points,
             module_health: ModuleHealth::from_loadout(self),
