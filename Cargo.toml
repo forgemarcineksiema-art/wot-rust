@@ -28,7 +28,6 @@ naga = { version = "29.0.3", features = ["wgsl-in"] }
 png = "0.18"
 parry3d = { version = "0.26.1", default-features = false, features = ["dim3", "f32"] }
 pollster = "0.4"
-rapier3d = { version = "0.32.0", default-features = false, features = ["dim3", "f32"] }
 ron = "0.11"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -85,7 +84,7 @@ opt-level = 1
 
 [profile.dev.package."*"]
 # Dependencies are rarely stepped through in a debugger; stripping their debuginfo is one of the
-# biggest single wins for link time on a large dependency graph (wgpu, rapier, image, ...).
+# biggest single wins for link time on a large dependency graph (wgpu, image, ...).
 # They compile once and land in the cache, so optimize them fully.
 debug = false
 opt-level = 3
