@@ -7,7 +7,25 @@ first, because everything below adds code.
 Findings referenced here live in [`audit-register.md`](audit-register.md); numbers in
 [`measurements.md`](measurements.md).
 
-**STATUS — proposed, not started.**
+**STATUS — 2026-08-02, after PRs #363–#396 (all merged, master clean, gate 2196/1 with the one
+inherited red).**
+
+- **W0 CLOSED** — ten rules landed, six sub-rules rejected after measurement (#363–#377).
+- **W1.0 CLOSED** — outcome-on-the-board #371; the death-camera finding withdrawn as instrument
+  error; bot target choice #378.
+- **W1** — 1.2 (`ShotFired`, protocol v41) #394 · 1.3 (glancing band) #393 · 1.4 (one battlefield
+  memory budget, craters 64→256, `u8` bucket cap widened) #395 · 1.5 (frame time) #374.
+  **Open: 1.1** (own-shot prediction) and **1.6** (visual, deferred by standing instruction;
+  two of its items withdrawn in `visual-review-2026-08-01.md`).
+- **W2** — 2.1 withdrawn below · 2.2 half-shipped, re-scope before scheduling · **2.3 CLOSED**
+  (#382–#389) · 2.4 half (target choice yes, tactical maneuver open) · 2.5 visual-deferred ·
+  **2.6 remains the open design decision**.
+- **W3 CLOSED** in full (#369, #370, #372, #376 — landed as the orphan stack #368–#374).
+- **W4 / W5 untouched** (adjacent hygiene only: unused kernels deleted #384, `panel` returned
+  with the fender that needed it #386).
+
+The forward ranking lives in [`combat-system.md`](combat-system.md); its headline is that every
+gun in the catalog but the T-54's still runs the placeholder −8°/+20.1° arc.
 
 ---
 
