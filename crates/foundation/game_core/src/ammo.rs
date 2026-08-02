@@ -51,10 +51,25 @@ impl AmmoLoadout {
     /// The stock-heavy default fill: 60/25/15 percent of capacity, rounding remainder to stock,
     /// so the sum always equals `capacity`.
     pub fn default_for(capacity: u16) -> Self {
-        let apcr = (f32::from(capacity) * 0.25).floor() as u16;
+        Self::default_for_slots(capacity, MAX_AMMO_SLOTS)
+    }
+
+    /// The same fill for a gun that carries FEWER slots than three.
+    ///
+    /// A gun that never fielded a second armour-piercing round — the 12.8 cm Pak 80, the 122 mm
+    /// D-25T — has no slot to put a quarter of its rack into, and that quarter goes to the round
+    /// it does carry rather than evaporating. The rack still sums to capacity, which is the
+    /// invariant every consumer relies on.
+    pub fn default_for_slots(capacity: u16, slots: usize) -> Self {
         let he = (f32::from(capacity) * 0.15).floor() as u16;
-        let stock = capacity - apcr - he;
-        Self { counts: [stock, apcr, he], initial_selected: 0 }
+        let special = if slots >= 3 { (f32::from(capacity) * 0.25).floor() as u16 } else { 0 };
+        let stock = capacity - special - he;
+        let counts = match slots {
+            0 | 1 => [capacity, 0, 0],
+            2 => [stock, he, 0],
+            _ => [stock, special, he],
+        };
+        Self { counts, initial_selected: 0 }
     }
 
     pub fn total(&self) -> u16 {

@@ -70,10 +70,18 @@
     "special_shell": {
       "shell_type": "Apcr",
       "caliber_mm": 85.0,
-      "muzzle_velocity_mps": 1030.0,
+      "muzzle_velocity_mps": 1050.0,
       "penetration_mm_at_100m": 170.0,
       "damage_hp": 170,
       "explosive_radius_m": 0.0
+    },
+    "he_shell": {
+      "shell_type": "HighExplosive",
+      "caliber_mm": 85.0,
+      "muzzle_velocity_mps": 793.0,
+      "penetration_mm_at_100m": 28.0,
+      "damage_hp": 300,
+      "explosive_radius_m": 1.6
     }
   },
   "ammo": {

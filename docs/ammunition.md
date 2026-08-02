@@ -7,9 +7,16 @@ Research pass for Battle First 2.3 ("author the ammunition"), 2026-08-02. Same r
 Keyed by GUN, not by vehicle, because guns are shared — the 8.8 cm KwK 43 and the Pak 43/3 are the
 same weapon, and `modules::catalog_*` is per gun.
 
-**Nothing here is authored into the catalog yet.** This is the data pass that has to exist before
-`GunSpec::ammo_options()` can stop multiplying one shell by another. Rows marked **GAP** are honest
-holes, not defaults.
+**AUTHORED into the catalog 2026-08-02.** `GunSpec::ammo_options()` no longer multiplies one shell
+by another: it collects the stock round, the special round the gun actually fielded (if any) and
+the authored HE. Rows marked **GAP** are honest holes — where one blocked a number the game needs,
+the value below is a stated BALANCE DECISION and says so in the catalog comment beside it.
+
+**How HE damage was priced.** From the shell, as the decision required: filler mass with cube-root
+(blast) scaling, anchored on the 85 mm O-365K's 0.741 kg of TNT at 300 HP. That is why the 8.8 cm
+lands on the same 300 — it fires a 9.4 kg shell with 0.870 kg of filler, near enough the same
+round — and why the 122 mm reaches 510 rather than the 546 its AP alpha used to grant it. HE
+penetration is caliber/3, which is what put a 122 mm shell above an 84 mm one again.
 
 ---
 

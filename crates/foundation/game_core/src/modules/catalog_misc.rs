@@ -190,7 +190,9 @@ pub(crate) fn gun_pak43_l71() -> GunModule {
             depression_deg: 8.0,
             elevation_deg: 20.1,
             shell: ShellSpec::armor_piercing(88.0, 1_000.0, 202.0, 390),
-            special_shell: None,
+            // The same weapon as the KwK 43 in a different mount, so the same rounds.
+            special_shell: Some(ShellSpec::apcr(88.0, 1_130.0, 237.0, 330)),
+            he_shell: Some(ShellSpec::high_explosive(88.0, 750.0, 29.0, 300, 1.6)),
         },
         mass_kg: 2_400.0,
         hit_points: 170,
@@ -211,7 +213,13 @@ pub(crate) fn gun_prototype() -> GunModule {
             depression_deg: 8.0,
             elevation_deg: 20.1,
             shell: ShellSpec::armor_piercing(120.0, 900.0, 250.0, 390),
-            special_shell: None,
+            // A FICTIONAL vehicle, so every number here is invented by definition and saying so
+            // is the honest part. It keeps three slots because it is also the fleet's general
+            // test tank — the one specs exercise the full rack path against — and inventing a
+            // round for an invented gun is not the fabrication the fallback performed, which was
+            // handing REAL guns rounds they never fired.
+            special_shell: Some(ShellSpec::apcr(120.0, 1_000.0, 300.0, 330)),
+            he_shell: Some(ShellSpec::high_explosive(120.0, 800.0, 40.0, 480, 2.0)),
         },
         mass_kg: 2_600.0,
         hit_points: 160,
@@ -232,7 +240,12 @@ pub(crate) fn gun_pak80() -> GunModule {
             depression_deg: 8.0,
             elevation_deg: 20.1,
             shell: ShellSpec::armor_piercing(128.0, 920.0, 223.0, 530),
+            // NO SPECIAL ROUND. The 12.8 cm never fielded a tungsten shell — the shortage that
+            // ended Pzgr 40 production is a fact about this gun, not an oversight — so it carries
+            // two slots, and the derived APCR at 279 mm it used to be handed never existed. The
+            // 28 kg HE shell is sourced; its velocity and filler are GAPs filled as a decision.
             special_shell: None,
+            he_shell: Some(ShellSpec::high_explosive(128.0, 750.0, 43.0, 520, 2.2)),
         },
         mass_kg: 3_500.0,
         hit_points: 180,
@@ -253,7 +266,11 @@ pub(crate) fn gun_kwk42() -> GunModule {
             depression_deg: 8.0,
             elevation_deg: 20.1,
             shell: ShellSpec::armor_piercing(75.0, 935.0, 138.0, 240),
-            special_shell: None,
+            // Pzgr 40/42, fully sourced: 4.75 kg at 1,120 m/s for 194 mm at 100 m — the
+            // derivation guessed 172. Sprgr 42 is sourced at 5.74 kg and 700 m/s; its filler is a
+            // GAP, so the damage is set from the shell class rather than from the AP round.
+            special_shell: Some(ShellSpec::apcr(75.0, 1_120.0, 194.0, 200)),
+            he_shell: Some(ShellSpec::high_explosive(75.0, 700.0, 25.0, 250, 1.4)),
         },
         mass_kg: 1_600.0,
         hit_points: 140,

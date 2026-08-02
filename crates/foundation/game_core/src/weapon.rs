@@ -173,11 +173,24 @@ pub struct GunSpec {
     #[serde(default = "default_gun_elevation_deg")]
     pub elevation_deg: f32,
     pub shell: ShellSpec,
-    /// The gun's AUTHORED special round for rack slot 1, when the historical gun fielded one —
-    /// e.g. the D-10's BK-5 HEAT. `None` derives the generic APCR from the stock shell (the
-    /// pre-authoring formula), so guns without a real special round lose nothing.
+    /// The gun's AUTHORED special round for rack slot 1 — the second round this weapon actually
+    /// fielded, when it fielded one.
+    ///
+    /// `None` now means what it says: **this gun had no second round**, so it carries two slots
+    /// rather than three. It used to mean "derive a generic APCR from the stock shell", which
+    /// handed the 12.8 cm Pak 80 and the 122 mm D-25T tungsten rounds neither ever fired — the
+    /// no-clones rule broken by arithmetic instead of by copying. See `docs/ammunition.md`.
     #[serde(default)]
     pub special_shell: Option<ShellSpec>,
+    /// The gun's AUTHORED high-explosive round.
+    ///
+    /// Optional only for wire compatibility; every gun in the catalog authors one and
+    /// `every_gun_authors_its_high_explosive_round` holds them to it. It was derived from the
+    /// stock AP round until 2026-08-02 — `x 0.70` velocity, `x 0.35` penetration, `x 1.4` damage —
+    /// which made an 84 mm gun's HE the best-penetrating shell in the game and flew the D-10's HE
+    /// at 626 m/s when the real round leaves the muzzle at 900, FASTER than its own AP.
+    #[serde(default)]
+    pub he_shell: Option<ShellSpec>,
 }
 
 /// The fleet's historical default until each vehicle's dossier states its own arc: the pair
@@ -195,31 +208,20 @@ fn default_barrel_length_m() -> f32 {
 }
 
 impl GunSpec {
-    /// Shells the player can load for this gun — sidegrades, not strict upgrades. The stock AP is
-    /// the balanced default; the special slot is the gun's AUTHORED round when it fielded one
-    /// (HEAT holds its penetration at every range but a spaced screen kills the jet and steep
-    /// plates shrug it off), otherwise a generic APCR derived from the stock shell (penetration
-    /// and speed for alpha); HE trades penetration for damage and splash. No economy — every
-    /// round is freely selectable, and the chosen shell is what the tank fires.
+    /// Shells the player can load for this gun — sidegrades, not strict upgrades, and every one of
+    /// them AUTHORED. Nothing here is computed from anything else: a round's velocity, penetration
+    /// and damage belong to that round, and deriving one shell from another is how an 84 mm gun
+    /// ended up with the best high-explosive penetration in the game.
+    ///
+    /// Slot 0 is the stock armour-piercing round. Slot 1 is the second round this gun actually
+    /// fielded, and a gun that fielded none has no slot 1 — the count is a property of the weapon.
+    /// The last slot is high explosive. No economy: every round is freely selectable, and the
+    /// chosen shell is what the tank fires.
     pub fn ammo_options(&self) -> Vec<ShellSpec> {
-        let stock = self.shell;
-        let caliber = stock.caliber_mm;
-        let special = self.special_shell.unwrap_or_else(|| {
-            ShellSpec::apcr(
-                caliber,
-                stock.muzzle_velocity_mps * 1.20,
-                stock.penetration_mm_at_100m * 1.25,
-                ((stock.damage_hp as f32) * 0.85) as u32,
-            )
-        });
-        let he = ShellSpec::high_explosive(
-            caliber,
-            stock.muzzle_velocity_mps * 0.70,
-            stock.penetration_mm_at_100m * 0.35,
-            ((stock.damage_hp as f32) * 1.4) as u32,
-            1.5,
-        );
-        vec![stock, special, he]
+        let mut options = vec![self.shell];
+        options.extend(self.special_shell);
+        options.extend(self.he_shell);
+        options
     }
 }
 
@@ -281,11 +283,15 @@ mod tests {
             options[1].penetration_mm_at_100m > options[0].penetration_mm_at_100m,
             "APCR out-penetrates the stock AP round"
         );
-        // Sidegrade, not strict upgrade: APCR gives up alpha for that penetration; HE is the
-        // opposite trade (more damage, far less penetration).
+        // Sidegrade, not strict upgrade: APCR gives up alpha for that penetration.
         assert!(options[1].damage_hp < options[0].damage_hp, "APCR trades away alpha");
-        assert!(options[2].damage_hp > options[0].damage_hp, "HE trades penetration for damage");
+        // HE gives up penetration for BLAST — splash, tracks, a finisher — and on a high-velocity
+        // anti-tank gun that is a 9.4 kg shell with 0.87 kg of filler, so it lands BELOW the
+        // armour-piercing round's damage rather than above it. The assertion here used to be
+        // `HE > AP`, which was true only because HE was AP x 1.4; the powerful-HE case belongs to
+        // guns built for it (large caliber, low velocity), and this roster has none yet.
         assert!(options[2].penetration_mm_at_100m < options[0].penetration_mm_at_100m);
+        assert!(options[2].explosive_radius_m > 0.0, "HE is the round that bursts");
         let kinds: std::collections::HashSet<_> = options.iter().map(|s| s.shell_type).collect();
         assert!(kinds.len() >= 3, "the rounds are of distinct shell types");
     }

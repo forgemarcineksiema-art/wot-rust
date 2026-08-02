@@ -78,7 +78,16 @@ pub(crate) fn gun_20pdr_type_a() -> GunModule {
             depression_deg: 8.0,
             elevation_deg: 20.1,
             shell: ShellSpec::armor_piercing(84.0, 1_020.0, 230.0, 240),
+            // The 20-pounder's HE is attested and its numbers are not: velocity, mass and
+            // filler are all GAPs in the dossier, so this row is a BALANCE decision at the 84 mm
+            // class. What is sourced is the shape of this gun's loadout — APDS was the normal
+            // load and conventional APCBC "rarely used", which inverts the usual stock/special
+            // relationship and is the Centurion's own identity.
+            // APDS at a sourced 1,465 m/s for ~300 mm — and per the sources this was the gun's
+            // NORMAL load, with conventional APCBC "rarely used". The Centurion's identity is
+            // that its special round is the everyday one.
             special_shell: Some(ShellSpec::apcr(84.0, 1_465.0, 300.0, 220)),
+            he_shell: Some(ShellSpec::high_explosive(84.0, 850.0, 28.0, 290, 1.6)),
         },
         mass_kg: 1_950.0,
         hit_points: 150,
@@ -102,7 +111,10 @@ pub(crate) fn gun_20pdr_type_b() -> GunModule {
             depression_deg: 8.0,
             elevation_deg: 20.1,
             shell: ShellSpec::armor_piercing(84.0, 1_020.0, 230.0, 240),
+            // Same ammunition as the Type A; the bore evacuator does not change the shell.
+            // Same ammunition as the Type A.
             special_shell: Some(ShellSpec::apcr(84.0, 1_465.0, 300.0, 220)),
+            he_shell: Some(ShellSpec::high_explosive(84.0, 850.0, 28.0, 290, 1.6)),
         },
         mass_kg: 2_050.0,
         hit_points: 150,

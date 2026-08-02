@@ -152,7 +152,14 @@ pub(crate) fn gun_kwk36() -> GunModule {
             depression_deg: 8.0,
             elevation_deg: 20.1,
             shell: ShellSpec::armor_piercing(88.0, 773.0, 165.0, 360),
-            special_shell: None,
+            // Pzgr 40 APCR: the round existed and its 100 m figure did not survive into any
+            // table this project could source (`docs/ammunition.md` GAP), so velocity and
+            // penetration here are a BALANCE decision sitting between the KwK 36's own AP and the
+            // KwK 43's sourced 40/43. Sprgr Patr L/4.5 is sourced: 9.4 kg, 750 m/s, 0.870 kg of
+            // filler — the SAME shell the KwK 43 fires, which is why their HE damage matches and
+            // their AP damage does not.
+            special_shell: Some(ShellSpec::apcr(88.0, 930.0, 217.0, 320)),
+            he_shell: Some(ShellSpec::high_explosive(88.0, 750.0, 29.0, 300, 1.6)),
         },
         mass_kg: 2_200.0,
         hit_points: 150,
@@ -173,7 +180,12 @@ pub(crate) fn gun_kwk43() -> GunModule {
             depression_deg: 8.0,
             elevation_deg: 20.1,
             shell: ShellSpec::armor_piercing(88.0, 1_000.0, 202.0, 390),
-            special_shell: None,
+            // Pzgr 40/43 APCR at its sourced 1,130 m/s; the 100 m penetration is a balance
+            // decision (the tables found start at 500 m). HE is the shared L/4.5 shell — same
+            // 300 HP as the Tiger I's, because it is the same shell, which the old multiplier
+            // could never say.
+            special_shell: Some(ShellSpec::apcr(88.0, 1_130.0, 237.0, 330)),
+            he_shell: Some(ShellSpec::high_explosive(88.0, 750.0, 29.0, 300, 1.6)),
         },
         mass_kg: 2_300.0,
         hit_points: 150,
