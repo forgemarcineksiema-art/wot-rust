@@ -57,7 +57,7 @@ Result during this audit: passed.
 Single current lineup render:
 
 ```powershell
-cargo run -p client --example vehicle_lineup -- target\vehicle_lineup_codex_analysis.png
+cargo run -p client --example probe -- vehicle_lineup -- target\vehicle_lineup_codex_analysis.png
 ```
 
 Result during this audit: wrote `target/vehicle_lineup_codex_analysis.png` at 1800x620.
@@ -65,7 +65,7 @@ Result during this audit: wrote `target/vehicle_lineup_codex_analysis.png` at 18
 Multi-camera audit render:
 
 ```powershell
-cargo run -p client --example vehicle_lineup_views -- target\vehicle_geometry_views
+cargo run -p client --example probe -- vehicle_lineup_views -- target\vehicle_geometry_views
 ```
 
 Result during this audit: wrote seven 1800x720 PNGs.

@@ -123,7 +123,7 @@ constant hides in a shader.
 
 `client::prokhorovka_review_views` — the hill panorama under the hazy noon, the golden
 evening and the dry overcast, plus a golden-evening mid-field vantage. Render them with
-`cargo run -p client --example prokhorovka_views`; the goldens live in
+`cargo run -p client --example probe -- prokhorovka_views`; the goldens live in
 `crates/apps/client/tests/goldens/look/`. Every view added is a view locked.
 
 What the set must cover, because a look this policy cannot see is a look it cannot govern:

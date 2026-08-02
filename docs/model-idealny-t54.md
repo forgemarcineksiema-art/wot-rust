@@ -317,9 +317,9 @@ loop (`tools export-mesh` → overlay on master → cross-section diff = numeric
   three on cold runs; in a worktree run `cargo fmt` per crate — os error 206 pitfall).
 - Shape PRs: `cargo run -p tools -- studio --vehicle t54-1951` (authoritative after PR-02;
   `--blueprint-file` loop ≈1.8 s), `tools export-mesh` → Blender S3 section diff, human review:
-  `cargo run -p client --example garage_hangar_review` / `t54_studio` / `t54_views` /
+  `cargo run -p client --example probe -- garage_hangar_review` / `t54_studio` / `t54_views` /
   `closeup_probe`.
-- Perf: `cargo run -p client --release --example perf_capture` + `combat_hot_path` bench after
+- Perf: `cargo run -p client --release --example probe -- perf_capture` + `combat_hot_path` bench after
   PR-09, PR-15, PR-18 and every W4 PR (min spec MX330 @ 60 FPS; LOD0 budget 22k; gear under the
   new PR-21 budget).
 - Armor: `dimension_gate` + `t54_reference_spec` (PR-20) + deliberate replay re-pins.
