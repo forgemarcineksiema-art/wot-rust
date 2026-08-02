@@ -9,7 +9,6 @@ rust-version.workspace = true
 game_core.workspace = true
 glam.workspace = true
 parry3d.workspace = true
-rapier3d.workspace = true
 serde.workspace = true
 terrain.workspace = true
 

@@ -1,7 +1,7 @@
 use physics::{
     TankControlInput, TankControllerSettings, TankFootprint, TankKinematicState, TankObstacle,
-    make_tank_hull_collider, make_terrain_heightfield_collider, resolve_tank_collision,
-    step_custom_tank_controller, step_tank_on_heightmap, step_tank_on_world,
+    resolve_tank_collision, step_custom_tank_controller, step_tank_on_heightmap,
+    step_tank_on_world,
 };
 use terrain::MapId;
 
@@ -19,30 +19,6 @@ fn custom_tank_controller_accelerates_and_turns() {
 
     assert!(state.forward_speed() > 0.0);
     assert!(state.yaw_rad > 0.0);
-}
-
-#[test]
-fn rapier_hull_collider_can_be_created_for_tank_dimensions() {
-    let _collider = make_tank_hull_collider([2.0, 1.0, 4.0]);
-}
-
-#[test]
-fn historical_map_heightfield_collider_spans_full_world_extent() {
-    let map = map_forge::battlefield(MapId::ProkhorovkaHill252_2);
-    let [extent_x, extent_z] = map.heightmap.extent_m();
-    assert!(extent_x > 900.0 && extent_z > 900.0, "sanity: Prokhorovka is ~1000m");
-
-    let collider = make_terrain_heightfield_collider(&map.heightmap);
-    let aabb = collider.compute_aabb();
-    let span_x = aabb.maxs.x - aabb.mins.x;
-    let span_z = aabb.maxs.z - aabb.mins.z;
-
-    // Must cover the whole map, not collapse to a per-cell (~5m) patch.
-    assert!((span_x - extent_x).abs() < 1.0, "x span {span_x} should match extent {extent_x}");
-    assert!((span_z - extent_z).abs() < 1.0, "z span {span_z} should match extent {extent_z}");
-    // And align to the corner-origin [0, extent] frame the sampler uses.
-    assert!(aabb.mins.x > -1.0 && aabb.mins.z > -1.0, "collider should start near origin");
-    assert!(aabb.maxs.x > extent_x - 1.0, "collider should reach the far edge");
 }
 
 #[test]

@@ -1,41 +1,11 @@
+//! The one physics promise worth a test: the custom controller is DETERMINISTIC — same
+//! inputs, same state, bit for bit. The two "ownership policy" tests that lived here died
+//! with `policy.rs` (2026-08-02): they asserted that a const fn returns the constants it
+//! was written to return, about a rapier integration that never existed.
+
 use physics::{
-    CustomPhysicsRole, PhysicsOwner, PhysicsOwnershipPolicy, RapierPhysicsRole, TankControlInput,
-    TankControllerSettings, TankKinematicState, step_custom_tank_controller,
+    TankControlInput, TankControllerSettings, TankKinematicState, step_custom_tank_controller,
 };
-
-#[test]
-fn rapier_is_limited_to_world_queries_and_simple_bodies() {
-    let policy = PhysicsOwnershipPolicy;
-
-    assert_eq!(
-        policy.rapier_roles(),
-        [
-            RapierPhysicsRole::Broadphase,
-            RapierPhysicsRole::Raycasts,
-            RapierPhysicsRole::WorldCollisions,
-            RapierPhysicsRole::SimpleRigidBodies,
-            RapierPhysicsRole::TriggerVolumes,
-        ]
-    );
-}
-
-#[test]
-fn tank_gameplay_physics_is_owned_by_custom_code() {
-    let policy = PhysicsOwnershipPolicy;
-
-    for role in [
-        CustomPhysicsRole::TankController,
-        CustomPhysicsRole::Traction,
-        CustomPhysicsRole::HullRotation,
-        CustomPhysicsRole::TurretRotation,
-        CustomPhysicsRole::GunDepression,
-        CustomPhysicsRole::Ballistics,
-        CustomPhysicsRole::ArmorPenetration,
-        CustomPhysicsRole::DamageModules,
-    ] {
-        assert_eq!(policy.owner_of(role), PhysicsOwner::CustomDeterministic);
-    }
-}
 
 #[test]
 fn custom_tank_controller_replays_same_inputs_exactly() {

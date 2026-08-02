@@ -23,9 +23,15 @@ Rapier is a world-query and collision tool. It is not the owner of tank feel, we
 
 ## Determinism
 
-The simulation core must be controlled, repeatable, and network-stable. Rapier can be locally deterministic on the same machine under the same conditions, but it is not treated as the cross-platform authoritative gameplay core.
+The simulation core must be controlled, repeatable, and network-stable — and it is custom
+deterministic code end to end: SAT footprints, heightmap stepping, the support envelope.
 
-The workspace pins `rapier3d` with `default-features = false` and only `dim3`/`f32`. Do not enable `enhanced-determinism`, SIMD, or parallel features casually. If cross-platform Rapier determinism is ever needed, it must be a separate design decision with tests and a compatibility note.
+**Rapier left the workspace 2026-08-02** (audit D6: `RapierWorld`, its collider constructors and
+the "ownership policy" beside them were an API surface consumed only by their own tests).
+`parry3d` stays, narrowly, for the footprint-intersection query (`physics::parry_query`), pinned
+to `default-features = false` + `dim3`/`f32` with no SIMD/parallel features — enforced by
+`quality/tests/parry_feature_rules.rs`, which also holds the door shut behind rapier: re-adding
+it is a design decision with its own tests, not a dependency drive-by.
 
 ## Tank Movement
 
