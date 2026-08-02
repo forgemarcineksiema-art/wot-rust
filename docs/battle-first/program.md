@@ -109,11 +109,56 @@ The prerequisites landed anyway and stand on their own: one climb-grade constant
 line whose step follows the grid (#379), and a pooling contract that asserts its property instead
 of balancing on 664 texels (#380).
 
-**2.2 Armor depth** — normalization as a function of caliber against thickness; damage that depends
-on what was hit.
+**2.1 needs an instrument, and that is the whole lesson of the withdrawal.** "Author the relief
+where the fight happens" is a claim with no number attached, which is exactly what densifying was
+before somebody measured it. Nothing in the map contract can say whether a sculpting session
+achieved anything. The missing check is a **hull-down census**: count and locate the crests a tank
+can fight from — a drivable approach, a rise of ~0.8-2.0 m within 5-15 m, hull hidden and turret
+over — and give the contract a floor. Then the Ridge brush has a target instead of a hope, and a
+map cannot be called playable with nowhere to fight from. Build it before the sculpting, not after.
+
+**2.2 Armor depth — HALF OF THIS ALREADY SHIPPED; re-scope before scheduling.** The line below was
+written against an older tree. `armor/resolve.rs` already implements normalization AND overmatch:
+`overmatches()` decides when a shell's caliber bites into a plate instead of glancing, and the
+resolved thickness angle is capped for overmatched plates. What may still be open is the second
+half — damage that depends on what was hit — and even that overlaps the damage-layout components
+and the fire model that landed since. Audit the code before planning the work; do not schedule what
+is already in master.
+
+~~normalization as a function of caliber against thickness~~; damage that depends on what was hit.
 
 **2.3 Author the ammunition** — the derived ×1.20/×1.25/×0.85 rounds break the doctrine the module
 catalog explicitly upholds.
+
+**Measured 2026-08-02, and it is worse than a style complaint.** Twelve guns, every round the game
+can fire, printed from `GunSpec::ammo_options()`:
+
+| gun | AP | slot 1 | HE |
+|---|---|---|---|
+| 84 mm 20-pounder | 230 mm / 240 HP | APDS 300 mm | **80 mm** / 336 HP |
+| 122 mm D-25T | 175 mm / 390 HP | *fabricated APCR 219 mm* | **61 mm** / 546 HP |
+| 12.8 cm Pak 80 | 223 mm / 530 HP | *fabricated APCR 279 mm* | 78 mm / 742 HP |
+| 8.8 cm KwK 43 | 202 mm / 390 HP | *fabricated APCR 252 mm* | 71 mm / **546 HP** |
+| 7.5 cm KwK 42 | 138 mm / 240 HP | *fabricated APCR 172 mm* | 48 mm / 336 HP |
+
+Three defects fall out of it, and none is cosmetic:
+
+1. **HE penetration ranks by AP penetration.** It is 35 % of the AP round, so the 84 mm gun has
+   the highest-penetrating HE shell in the game — ahead of the 122 mm (61 mm) and the 128 mm
+   (78 mm). High-explosive penetration comes from caliber and filler; it cannot be inherited from
+   how good the same gun's armour-piercing round is.
+2. **HE damage is 1.4x AP damage,** so the 122 mm D-25T and the 88 mm KwK 43 fire HE shells doing
+   IDENTICAL damage (546 HP) because their AP alpha happens to match. A shell's identity is coming
+   from a different shell.
+3. **Guns that never fielded a special round are given one.** The 12.8 cm Pak 80 and the 122 mm
+   D-25T get fabricated APCR because the fallback exists, which is the "no clones" rule broken by
+   arithmetic instead of by copying.
+
+The four authored rounds (Centurion APDS, ZiS-S-53 APCR, both D-10 HEAT) show the shape the rest
+should take. What blocks finishing it is not code: HE ballistics for twelve guns are not in the
+dossiers, and inventing them is a BALANCE decision, not a refactor. Research the rounds into the
+dossiers first — the same source-and-confidence pass every other number in this project got — then
+author them and delete the multipliers together with the fallback that allows them.
 
 **2.4 Bot decisions** — threat priority, finishing a cripple, answering incoming fire, focus fire,
 withdrawal.
