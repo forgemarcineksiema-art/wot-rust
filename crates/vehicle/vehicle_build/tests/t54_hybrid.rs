@@ -252,7 +252,14 @@ fn the_shipped_hybrid_matches_its_recorded_golden() {
     // their floors have not moved. This is the first bless in the file that no eye asked for —
     // the previous two of exactly this fault (the engine block's roof, the bow rack) were both
     // caught by looking at renders, once each, on this one vehicle.
-    // Previous: 0x0a07_5ae1_b4fd_f995 (pilot module 2, the measured window);
+    // Re-recorded 2026-08-02 for the FENDERS AS PRESSINGS. Four cuboids a side plus one more
+    // cuboid glued under the outer edge become four `panel` sections a side, each with its own
+    // folded return lip (`PanelEdge::Hem`). The blueprint numbers do not move — same footprint,
+    // same 40 mm plate, same 50 mm lip drop, so the invariant keeping the lip clear of the track's
+    // top run holds unchanged. What changes is that the shelf's deliberate 3 cm seams now run all
+    // the way to the fold, where a single strip used to carry straight through them.
+    // Previous: 0x26e2_4b85_1151_a3ad (the engine-bay fuel cells);
+    //           0x0a07_5ae1_b4fd_f995 (pilot module 2, the measured window);
     //           0x3eb2_aca8_62f7_7ceb (pilot module 1, the photo-derived egg);
     //           0xa921_f937_ea70_c698 (the gun window rebuild);
     //           0xadf8_2d0f_e2d8_f8be (PR-26b, the crew's mechanics);
@@ -263,7 +270,7 @@ fn the_shipped_hybrid_matches_its_recorded_golden() {
     //           0x8f18_a4aa_f291_5175 (PR-16, the cupola at 624);
     //           0xf490_f9f1_fe07_3049 (PR-14, the hull at 6.235);
     //           0x903d_b868_b9bf_e617 (PR-25, a muzzle is a hole).
-    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0x26e2_4b85_1151_a3ad;
+    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0x2768_519d_821e_7b95;
     let baked = t54_description().build();
     assert_eq!(
         baked.deterministic_hash(),

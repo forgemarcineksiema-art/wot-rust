@@ -52,6 +52,7 @@ physics = { path = "crates/runtime/physics" }
 renderer_api = { path = "crates/render/renderer_api" }
 client = { path = "crates/apps/client" }
 renderer_wgpu = { path = "crates/render/renderer_wgpu" }
+panel = { path = "crates/kernels/panel" }
 revolve = { path = "crates/kernels/revolve" }
 sdf = { path = "crates/kernels/sdf" }
 sdf_mesh = { path = "crates/kernels/sdf_mesh" }

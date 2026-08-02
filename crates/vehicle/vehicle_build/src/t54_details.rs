@@ -402,15 +402,10 @@ pub fn t54_detail_parts(v: &HybridVisual) -> Vec<VehiclePart> {
         solid::t54_exhaust_housing(d),
     ));
 
-    // Fender lips on both outer fender edges, plus the support brackets hanging below each fender.
+    // The gusset brackets hanging below each fender. The lip is no longer a part: it is the fold of
+    // the fender pressing itself (`t54_fender`), which is what a lip actually is.
     let mut bracket_n = 0u16;
-    for (i, side) in [v.fender.side_x, -v.fender.side_x].into_iter().enumerate() {
-        parts.push(detail_plate(
-            PartKey::indexed("fender_lip", i as u16),
-            SubmeshKind::Hull,
-            MaterialRole::RolledArmor,
-            solid::t54_fender_lip(side, &v.fender, d),
-        ));
+    for side in [v.fender.side_x, -v.fender.side_x] {
         for bracket in solid::t54_fender_brackets(side, &v.fender) {
             parts.push(detail_plate(
                 PartKey::indexed("fender_bracket", bracket_n),

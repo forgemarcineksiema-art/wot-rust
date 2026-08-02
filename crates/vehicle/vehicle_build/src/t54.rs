@@ -192,22 +192,9 @@ pub fn t54_from_modules_with_blueprint(
         let center = Vec3::new(side, f.tow_hook_center.y, f.tow_hook_center.z);
         parts.extend(crate::t54_details::t54_tow_hook(i as u16, center, f.tow_hook_half));
     }
-    // Fenders split into bolted sections along each run, rather than one continuous slab.
-    let mut fender_segment = 0u16;
-    for side in [v.fender.side_x, -v.fender.side_x] {
-        for segment in solid::t54_fender_segments(side, &v.fender) {
-            parts.push(VehiclePart {
-                key: PartKey::indexed("fender_segment", fender_segment),
-                submesh: SubmeshKind::Hull,
-                material: MaterialRole::RolledArmor,
-                smoothing: SmoothingGroup::hard_edges(),
-                shape: PartShape::Plates(segment),
-                lod: PartLod::Detail,
-                generator: GeneratorKind::Solid,
-            });
-            fender_segment += 1;
-        }
-    }
+    // Fenders split into bolted sections along each run, rather than one continuous slab — and each
+    // section is one folded pressing, plate and return lip together, so a seam runs to the fold.
+    parts.extend(crate::t54_fender::t54_fender_parts(&v.fender, &v.detail));
     // Clean factory greeble (grille, exhaust cover, periscopes, fender lips, weld bead) — all at the
     // Detail tier, so the close-up LOD0 carries it and the lower LODs keep only the silhouette.
     parts.extend(crate::t54_details::t54_detail_parts(v));

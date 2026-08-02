@@ -102,6 +102,8 @@ pub enum GeneratorKind {
     Revolve,
     /// A cross-section swept along a path (`sweep`) — the track belt and link run.
     Sweep,
+    /// A thin fabricated pressing with a folded edge (`panel`) — the fender sections.
+    Panel,
 }
 
 impl GeneratorKind {
@@ -113,6 +115,7 @@ impl GeneratorKind {
             Self::CastLoft => "cast_loft",
             Self::Revolve => "revolve",
             Self::Sweep => "sweep",
+            Self::Panel => "panel",
         }
     }
 }
