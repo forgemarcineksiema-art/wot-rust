@@ -97,51 +97,14 @@ pub(super) fn t54_hybrid(file: &BlueprintFile) -> HybridVisual {
         },
         hull_plates: HullPlatesVisual { glacis_base_z, nose_base_z },
         turret: TurretVisual {
-            // The cast dome bulges LOW and wide: the sphere centre sits just above the ring (not high
-            // in the band), so the widest cross-section overhangs the ring and the casting necks back
-            // in toward the flat roof — the flattened "river-stone" T-54 pancake, not a tall round
-            // pot. The wider radius (>ring_radius) is what gives the signature ring overhang/undercut.
-            // The sphere centres sit BELOW the machined ring seat (the seat plane clips them), so
-            // the widest cross-section is near the bottom of the casting and the tall shell
-            // rounds continuously up to the roof — the 2.25 m-wide, ~0.7 m-tall hemispherical
-            // dome the references show, not a shallow saucer.
-            dome_radius: 1.12,
-            dome_front: Vec3::new(0.0, 1.45, 0.10),
-            // The rear bustle is a low, broad lobe reaching back behind the ring: a sphere set low
-            // gives the casting a heavy overhanging tail rather than a narrow tapered tip.
-            dome_rear: Vec3::new(0.0, 1.43, -0.28),
-            dome_rear_radius: 0.92,
-            dome_blend: 0.55,
-            // Fuller, further-forward front cheeks flanking the mantlet at gun height: the T-54
-            // turret's signature heavy cast front mass, fused into the dome with a wide blend so the
-            // front reads as one continuous casting, not a separate ball stuck on the face.
-            cheek_radius: 0.56,
-            cheek_center: Vec3::new(0.47, 1.76, 0.58),
-            cheek_blend: 0.58,
-            // The ring is narrowed below the dome so the wider low cast dome visibly overhangs it —
-            // the signature Soviet undercut — while the dome itself stays inside the ±1.125 turret
-            // plan. (Visual ring only; the gameplay turret-ring radius lives in `TurretShape`.)
+            // The machined seat, visually narrowed under the loft's overhanging casting (the
+            // gameplay turret-ring radius lives in `TurretShape`); the ring-seam AO band and the
+            // ring collar hang off these two.
             ring_radius: 0.91,
-            ring_half_height: 0.20,
-            ring_center: Vec3::new(0.0, 1.76, 0.0),
-            ring_blend: 0.33,
-            roof_plane_y: roof,
             ring_plane_y: file.turret.ring_y,
-            cupola_radius: file.turret.cupola_radius,
-            // The drum roots DEEP into the curved dome (base ~2.02, well under the local shell
-            // surface) so it grows out of the casting instead of levitating over the slope.
-            cupola_half_height: CUPOLA_HALF_HEIGHT_M,
-            cupola_center: cupola.0,
-            cupola_blend: 0.05,
-            // A deeper mantlet socket on the fire line, so the cast trough the gun mantlet beds
-            // into reads as a real cavity, not a dimple.
-            socket_radius: 0.42,
-            // The socket sits ON the trunnion — the gameplay gun's fire line, not a re-typed
-            // 1.78/1.15 that would stay put if the gun moved.
+            // The mantlet-seat AO band sits ON the trunnion — the gameplay gun's fire line, not
+            // a re-typed 1.78/1.15 that would stay put if the gun moved.
             socket_center: Vec3::new(0.0, file.gun.trunnion_y, file.gun.trunnion_z),
-            socket_blend: 0.07,
-            bbox_min: Vec3::new(-1.30, 1.53, -1.35),
-            bbox_max: Vec3::new(1.30, 2.45, 1.60),
             budget: 12_000,
         },
         // The lofted cast turret stations and shaping (split into `t54_hybrid_turret` for the file

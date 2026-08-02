@@ -324,11 +324,7 @@ mod tests {
         same("fender.side_x", h.fender.side_x, track.center_x);
 
         // Turret machined planes and the commander's cupola placement (carried in three places).
-        same("turret.roof_plane_y", h.turret.roof_plane_y, turret.roof_y);
         same("turret.ring_plane_y", h.turret.ring_plane_y, turret.ring_y);
-        same("turret.cupola_radius", h.turret.cupola_radius, turret.cupola_radius);
-        same("turret.cupola_center.x", h.turret.cupola_center.x, turret.cupola_x);
-        same("turret.cupola_center.z", h.turret.cupola_center.z, turret.cupola_z);
         same("fittings.cupola_hatch_center.x", h.fittings.cupola_hatch_center.x, turret.cupola_x);
         same("fittings.cupola_hatch_center.z", h.fittings.cupola_hatch_center.z, turret.cupola_z);
 
@@ -391,11 +387,19 @@ mod tests {
             inside_hull(d.exhaust_center),
             "exhaust cover sits within the hull collision volume"
         );
-        // Turret periscopes sit inside the cast turret's meshing box and below its cupola-hatch apex,
-        // so they never raise the silhouette or the turret-height proportion.
-        let t = &h.turret;
-        assert!(d.periscope_center.x.abs() + d.periscope_half.x < t.bbox_max.x);
-        assert!(d.periscope_center.z > t.bbox_min.z && d.periscope_center.z < t.bbox_max.z);
+        // Turret periscopes sit inside the LOFT's plan (the shipped casting's own stations, not
+        // the old metaball meshing box) and below its cupola-hatch apex, so they never raise the
+        // silhouette or the turret-height proportion.
+        let stations = &h.turret_loft.stations;
+        let plan_half_width = stations.iter().map(|s| s.half_width).fold(0.0_f32, f32::max);
+        let plan_front = stations
+            .iter()
+            .map(|s| s.z_center + s.half_len_front)
+            .fold(f32::NEG_INFINITY, f32::max);
+        let plan_rear =
+            stations.iter().map(|s| s.z_center - s.half_len_rear).fold(f32::INFINITY, f32::min);
+        assert!(d.periscope_center.x.abs() + d.periscope_half.x < plan_half_width);
+        assert!(d.periscope_center.z > plan_rear && d.periscope_center.z < plan_front);
         assert!(
             d.periscope_center.y + d.periscope_half.y < h.fittings.cupola_hatch_center.y,
             "periscopes stay below the turret apex"

@@ -38,7 +38,6 @@ mod sky_probe;
 mod t34_85_probe;
 mod t54_battle_views;
 mod t54_bow_probe;
-mod t54_loft_spike;
 mod t54_profile_probe;
 mod t54_studio;
 mod t54_views;
@@ -97,7 +96,6 @@ const PROBES: &[ProbeEntry] = &[
     ("t34_85_probe", t34_85_probe::run),
     ("t54_battle_views", t54_battle_views::run),
     ("t54_bow_probe", t54_bow_probe::run),
-    ("t54_loft_spike", t54_loft_spike::run),
     ("t54_profile_probe", t54_profile_probe::run),
     ("t54_studio", t54_studio::run),
     ("t54_views", t54_views::run),
