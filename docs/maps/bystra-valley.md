@@ -31,7 +31,7 @@ the rejected imported bush is not authored.
 
 ## Generator design
 
-Not a bag of Gaussians (see `crates/runtime/terrain/src/bystra.rs`): the channel is a
+Not a bag of Gaussians (see `crates/foundation/terrain/src/sculpt.rs`): the channel is a
 **swept cross-profile along a parametric centerline**, carved to an explicit bed target
 `WATER_LEVEL − depth(z)` — so "the current drowns, the ford is fordable" holds by
 construction; the town bench **flattens toward an explicit ramp**; crossing decks are

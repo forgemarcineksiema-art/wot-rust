@@ -8,7 +8,7 @@ rust-version.workspace = true
 [dependencies]
 game_core.workspace = true
 glam.workspace = true
-png = "0.18"
+png.workspace = true
 sdf.workspace = true
 vehicle_geometry.workspace = true
 
