@@ -61,8 +61,8 @@ pub use shell_trace::{
     trace_shell,
 };
 pub use spotting::{
-    SPOTTED_HOLD_TICKS, SPOTTING_INTERVAL_TICKS, VIEW_RANGE_M, compute_observer_masks,
-    compute_spotted_masks, line_of_sight, tank_line_of_sight,
+    MAX_OBSERVERS, ObserverMask, SPOTTED_HOLD_TICKS, SPOTTING_INTERVAL_TICKS, VIEW_RANGE_M,
+    compute_observer_masks, compute_spotted_masks, line_of_sight, tank_line_of_sight,
 };
 pub use state::SimulationState;
 pub use tank_drive::{TankDriveState, TankDriveWorld, braking_deceleration_mps2, step_tank_drive};

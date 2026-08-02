@@ -76,7 +76,7 @@ impl LocalAuthoritativeServer {
 
     /// Per-target observer masks (bit = tank index) against the LIVE cover — the per-viewer
     /// filter's second input beside the team masks already on the snapshot.
-    pub fn observer_masks(&self) -> Vec<u16> {
+    pub fn observer_masks(&self) -> Vec<sim::ObserverMask> {
         let live_cover = sim::live_cover_for_sight_and_shells(
             &self.battlefield.static_cover,
             self.sim.cover_states(),
