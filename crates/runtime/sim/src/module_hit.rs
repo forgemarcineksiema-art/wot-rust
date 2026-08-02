@@ -40,6 +40,20 @@ pub(crate) fn apply_track_damage_for_hit(
     }
 }
 
+/// The band a burst BESIDE a hull throws: the side the blast came from, chipped by `chunk`.
+///
+/// Splash damages what lives OUTSIDE the plate and nothing behind it. A burst that did not
+/// penetrate has no business reaching an engine or a rack, but the running gear is bare metal in
+/// the open, and a shell going off next to it is the classic way a track comes off.
+pub(crate) fn splash_track_damage(
+    target: &mut TankState,
+    burst_local_x: f32,
+    chunk: u8,
+) -> TrackHit {
+    let side = if burst_local_x < 0.0 { TrackSide::Left } else { TrackSide::Right };
+    degrade_side(target, side, chunk)
+}
+
 fn degrade_side(target: &mut TankState, side: TrackSide, chunk: u8) -> TrackHit {
     let was_broken = target.tracks.is_broken(side);
     target.tracks.damage(side, chunk);
