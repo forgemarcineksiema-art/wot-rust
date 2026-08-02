@@ -5,7 +5,7 @@
 
 use game_core::math::world_to_tank_local;
 use game_core::{
-    ArmorFacing, ArmorProfile, ArmorZone, DamageCause, DamageEvent, ShellType, TankId,
+    ArmorFacing, ArmorProfile, ArmorZone, DamageCause, DamageEvent, ModuleSlot, ShellType, TankId,
 };
 use glam::Vec3;
 use terrain::HeightMap;
@@ -22,6 +22,19 @@ const SPLASH_LOS_STEP_M: f32 = 0.4;
 /// texel while a real crest still shields what hides behind it.
 const SPLASH_LOS_LIFT_M: f32 = 0.35;
 const SPLASH_ARMOR_ABSORPTION: f32 = 1.3;
+
+/// Where the running gear is, in the hull frame: the bottom outer edge on the blast's side.
+///
+/// The track chunk is priced by the distance to THIS, not to the hull box. A hard height gate was
+/// the first attempt and it had a cliff — a burst at gun height beside a hull was rejected outright
+/// while one a centimetre lower bit fully. Distance to the band is continuous and says the same
+/// thing where it matters: a shell going off level with the sprocket throws links, one going off
+/// over the turret roof is metres away from any band and scores nothing. It also refuses by
+/// construction the shortcut the direct-hit path still carries, where a roof burst chips BOTH
+/// bands.
+fn running_gear_point(burst_local: Vec3, half: Vec3) -> Vec3 {
+    Vec3::new(half.x * burst_local.x.signum(), -half.y, burst_local.z.clamp(-half.z, half.z))
+}
 
 /// A high-explosive burst throws damage past its impact point: every vehicle inside the
 /// explosive radius takes attenuated blast damage. The directly-struck tank already took the
@@ -66,6 +79,29 @@ pub(crate) fn burst_he_splash(
         let damage = damage as u32;
         let target_was_alive = tank.hit_points > 0;
         tank.hit_points = tank.hit_points.saturating_sub(damage);
+        // The blast throws the band on the side it came from. `track_hit_damage`'s HE case has
+        // always been documented as "splash / non-pen" and only the non-pen half ever called it —
+        // the flat chunk is scaled by the same falloff the hull damage uses, so a burst under the
+        // sprocket bites and one at the edge of the radius barely scores.
+        let hitbox = tank.spec.hitbox;
+        let half = Vec3::new(hitbox.half_width_m, hitbox.half_height_m, hitbox.half_length_m);
+        let to_gear = burst_local.distance(running_gear_point(burst_local, half));
+        let gear_falloff = 1.0 - to_gear / radius;
+        let track_hit = (gear_falloff > 0.0)
+            .then(|| {
+                let chunk = game_core::track_hit_damage(
+                    shell.shell.caliber_mm,
+                    0.0,
+                    ShellType::HighExplosive,
+                    false,
+                    false,
+                );
+                let scaled = (f32::from(chunk) * gear_falloff).round();
+                (scaled >= 1.0).then(|| {
+                    crate::module_hit::splash_track_damage(tank, burst_local.x, scaled as u8)
+                })
+            })
+            .flatten();
         events.push_damage(DamageEvent {
             source: shell.owner,
             target: tank.id,
@@ -76,6 +112,10 @@ pub(crate) fn burst_he_splash(
             shell_type: shell.shell.shell_type,
             shell_id: Some(shell.id),
             target_destroyed: target_was_alive && tank.hit_points == 0,
+            // Suspension is the one module a burst can reach without penetrating: it is outside
+            // the plate. Nothing behind the armour is touched, which is the whole rule.
+            module: track_hit.map(|_| ModuleSlot::Suspension),
+            track_hit,
             ..Default::default()
         });
     }
