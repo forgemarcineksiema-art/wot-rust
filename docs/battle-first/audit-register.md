@@ -143,6 +143,24 @@ numbers.
 | E5 | **`weapon.rs:98-102` describes the drag ODE as `dv/dt = -c·v`** while the implementation is linear in distance. |
 | E6 | **The blueprint migration lock has no expiry** — `#[cfg(test)]` golden fixtures with "delete once the fleet has lived on RON long enough" and no trigger. |
 
+## F. Adopted from `docs/backlog.md` (file deleted 2026-08-02)
+
+The backlog was a done-ledger from the June reviews; its thirteen still-open boxes were triaged
+here rather than deleted with it. Not adopted, with the reason on record: renderer-contract
+fiction and the dead draw-counter are D4/D5; real network transport is the W1 production list;
+`map_plan`/large-world inertness was superseded by Map Forge (M1–M8); `latest_snapshot()`,
+`ServerTickConfig` dedup and the `tools` lib extraction are cosmetic, gone with the file.
+
+| # | finding |
+|---|---|
+| F1 | **Vehicle JSON assets are stale (all eight)** — `assets/vehicles/*.vehicle.json` predate facets/`shell_type`; nothing loads them, but `vehicle_kind.rs` asset paths and the gate's artifact list still require the files. Regenerate-and-compare, or delete the lot. |
+| F2 | **Enemy health bars render through terrain** and show exact HP at any range — no occlusion check; revisit with spotting. |
+| F3 | **Tiger II turret ratio may invert the hull-down incentive** — a blueprint *data* question (glacis vs turret), wants a per-vehicle armour-ratio test. |
+| F4 | **The sight and meshes ignore terrain tilt** — sim+net+render work; the biggest remaining camera-feel gap on a hilly 1000 m map. |
+| F5 | **No boom-length smoothing** — the camera cut against slabs/terrain is exact but instantaneous; wants a critically-damped boom spring. |
+| F6 | **Turret yaw is interpolated, not predicted** — hull-only prediction; belongs with W1 1.1. |
+| F7 | **glTF `convert` loads no geometry** — rename to "manifest summary" or load buffers (unverified since June). |
+
 ---
 
 ## Withdrawn after verification

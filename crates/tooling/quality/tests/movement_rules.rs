@@ -1,26 +1,7 @@
+// Doc phrase-grep test removed by decision (battle-first, 2026-08-01): the gate holds rules
+// about code. The movement policy lives at `docs/vehicle-movement-policy.md`, cited here.
 use quality::workspace_root;
 use std::fs;
-
-#[test]
-fn vehicle_movement_policy_doc_is_required() {
-    let root = workspace_root();
-    let doc = fs::read_to_string(root.join("docs/vehicle-movement-policy.md"))
-        .expect("vehicle movement policy doc must exist");
-
-    for required in [
-        "TankSpec",
-        "power-to-weight",
-        "terrain contact",
-        "heightmap",
-        "slope",
-        "roughness",
-        "brake",
-        "fixed tick",
-        "server authoritative",
-    ] {
-        assert!(doc.contains(required), "movement doc missing phrase: {required}");
-    }
-}
 
 #[test]
 fn sim_uses_custom_physics_movement_model() {

@@ -47,7 +47,7 @@ in a big-bang rename.
 
 ## What is deliberately NOT a rule
 
-Assertions that a document exists or contains a phrase. Wave 5 removes the 29 hard-required `docs/`
-paths and the five phrase checks — roughly 44% of today's gate — because they ratchet **against**
-cleaning up stale documentation. Their replacement is editorial, not executable: **a policy cites
-its enforcing test; a rule with no test is a note, not a policy.**
+Assertions that a document exists or contains a phrase. **Removed 2026-08-02** (the docs-cleanup
+PR): the hard-required `docs/` paths and the phrase checks — roughly 44% of the old gate — ratcheted
+**against** cleaning up stale documentation. Their replacement is editorial, not executable: **a
+policy cites its enforcing test; a rule with no test is a note, not a policy.**

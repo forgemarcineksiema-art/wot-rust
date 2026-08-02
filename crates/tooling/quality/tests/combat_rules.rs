@@ -1,26 +1,7 @@
+// Doc phrase-grep test removed by decision (battle-first, 2026-08-01): the gate holds rules
+// about code. The combat policy lives at `docs/combat-policy.md`, cited here.
 use quality::workspace_root;
 use std::fs;
-
-#[test]
-fn combat_policy_doc_is_required() {
-    let doc = fs::read_to_string(workspace_root().join("docs/combat-policy.md"))
-        .expect("combat policy doc must exist");
-
-    for required in [
-        "server authoritative",
-        "TankCommand.fire",
-        "reload",
-        "projectile",
-        "hit detection",
-        "armor facing",
-        "penetration",
-        "DamageEvent",
-        "Snapshot",
-        "replay regression",
-    ] {
-        assert!(doc.contains(required), "combat doc missing phrase: {required}");
-    }
-}
 
 #[test]
 fn sim_state_uses_combat_pipeline_not_placeholder_shell_motion() {
