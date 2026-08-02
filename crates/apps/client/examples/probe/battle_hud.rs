@@ -6,6 +6,7 @@
 use std::fs::File;
 use std::io::BufWriter;
 
+use battle_host::{LocalAuthoritativeServer, ServerTickConfig};
 use client::{
     BattleCameraController, BattleCameraEnvironment, CameraSubject, append_tank_mesh,
     battlefield_scene_mesh, demo_battle_hud,
@@ -13,7 +14,6 @@ use client::{
 use net::ClientInputCommand;
 use renderer_api::view_projection_matrix;
 use renderer_wgpu::{GpuContext, OffscreenTarget, SceneRenderer};
-use server::{LocalAuthoritativeServer, ServerTickConfig};
 use sim::TankCommand;
 
 pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {

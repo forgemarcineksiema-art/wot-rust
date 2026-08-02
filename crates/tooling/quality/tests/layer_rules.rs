@@ -47,9 +47,9 @@ const APP_TO_APP_ALLOWLIST: &[(&str, &str)] = &[
     // (`theme`, the `push_*` primitives, `text_width`, `hud_font_atlas`). They are a `ui_kit`
     // waiting to be extracted.
     ("editor", "client"),
-    // The client hosts a local authoritative battle. `server` is a library with a thin binary on
-    // top; the library half belongs in `runtime` as `battle_host`.
-    ("client", "server"),
+    // BURNED (W4): the client→server edge died when the library half of `server` moved to
+    // `runtime` as `battle_host` — the client now hosts a battle through a runtime crate, and
+    // `server` is the thin binary the target architecture always said it was.
 ];
 
 #[test]

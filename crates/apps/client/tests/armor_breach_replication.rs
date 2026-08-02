@@ -130,10 +130,10 @@ fn the_join_seed_fits_the_reliable_lane() {
     let worst_case_records =
         14 * game_core::MAX_ARMOR_BREACHES * game_core::MAX_BREACH_FRAGMENTS_PER_GROUP;
     assert!(
-        worst_case_records <= server::MAX_PENDING_COMBAT_EVENTS,
+        worst_case_records <= battle_host::MAX_PENDING_COMBAT_EVENTS,
         "a full 7v7's perforation seed is {worst_case_records} events but the lane holds {}; \
          raise the capacity rather than refusing a legitimate late joiner",
-        server::MAX_PENDING_COMBAT_EVENTS
+        battle_host::MAX_PENDING_COMBAT_EVENTS
     );
 }
 

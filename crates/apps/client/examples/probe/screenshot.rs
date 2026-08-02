@@ -1,6 +1,7 @@
 use std::fs::File;
 use std::io::BufWriter;
 
+use battle_host::{LocalAuthoritativeServer, ServerTickConfig};
 use client::{
     BattleCameraController, BattleCameraEnvironment, CameraSubject, HudVitals, append_tank_mesh,
     battlefield_scene_mesh, build_hud, shell_tracer_vertices,
@@ -8,7 +9,6 @@ use client::{
 use net::ClientInputCommand;
 use renderer_api::view_projection_matrix;
 use renderer_wgpu::{GpuContext, OffscreenTarget, SceneRenderer};
-use server::{LocalAuthoritativeServer, ServerTickConfig};
 use sim::TankCommand;
 
 /// Drive the authoritative server, then render the resulting battle offscreen and save a

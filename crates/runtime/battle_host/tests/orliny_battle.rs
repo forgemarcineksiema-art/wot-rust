@@ -2,8 +2,8 @@
 //! mountain pass, everyone deploys on real ground on their own side of the wall, and the
 //! authoritative loop ticks. (The map plays via `WOT_MAP=orliny-pereval`; no rotation yet.)
 
+use battle_host::{BattleSeed, LocalAuthoritativeServer, RandomBattleConfig, ServerTickConfig};
 use net::ClientInputCommand;
-use server::{BattleSeed, LocalAuthoritativeServer, RandomBattleConfig, ServerTickConfig};
 use sim::TankCommand;
 use terrain::MapId;
 

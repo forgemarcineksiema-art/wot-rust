@@ -1,9 +1,9 @@
 use std::time::{Duration, Instant};
 
+use battle_host::remote::RemoteBattleServer;
+use battle_host::{BattleSeed, RandomBattleConfig, ServerTickConfig};
 use clap::Parser;
 use net::transport::UdpTransport;
-use server::remote::RemoteBattleServer;
-use server::{BattleSeed, RandomBattleConfig, ServerTickConfig};
 use sim::{DEFAULT_SERVER_TICK_HZ, DEFAULT_SNAPSHOT_HZ};
 use tracing::info;
 
