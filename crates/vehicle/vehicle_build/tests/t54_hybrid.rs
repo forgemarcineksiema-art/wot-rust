@@ -258,7 +258,16 @@ fn the_shipped_hybrid_matches_its_recorded_golden() {
     // same 40 mm plate, same 50 mm lip drop, so the invariant keeping the lip clear of the track's
     // top run holds unchanged. What changes is that the shelf's deliberate 3 cm seams now run all
     // the way to the fold, where a single strip used to carry straight through them.
-    // Previous: 0x26e2_4b85_1151_a3ad (the engine-bay fuel cells);
+    // Re-recorded 2026-08-02 for the COVER PROUD OF THE REBUILT FACE. Pilot module 2 moved the
+    // casting's nose out to z 1.2424 and left the canvas panel's stations at their pre-pilot
+    // values, so the face swallowed the border station and the front read flat — the
+    // swallowed-boot verdict again. `the_visible_gun_mount_is_no_wider_than_its_canvas_cover`
+    // measured it (fabric 0.215 against the 0.22 floor) and was RED ON MASTER from that merge
+    // until this bless: the stack shipped without the full suite running. The panel's edge
+    // stays in the frame's clamp; the border and face stations move ahead of the measured
+    // nose (border 1.255, face 1.300), pressed out past the rim as the photographs show.
+    // Previous: 0x2768_519d_821e_7b95 (the fenders as pressings);
+    //           0x26e2_4b85_1151_a3ad (the engine-bay fuel cells);
     //           0x0a07_5ae1_b4fd_f995 (pilot module 2, the measured window);
     //           0x3eb2_aca8_62f7_7ceb (pilot module 1, the photo-derived egg);
     //           0xa921_f937_ea70_c698 (the gun window rebuild);
@@ -270,7 +279,7 @@ fn the_shipped_hybrid_matches_its_recorded_golden() {
     //           0x8f18_a4aa_f291_5175 (PR-16, the cupola at 624);
     //           0xf490_f9f1_fe07_3049 (PR-14, the hull at 6.235);
     //           0x903d_b868_b9bf_e617 (PR-25, a muzzle is a hole).
-    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0x2768_519d_821e_7b95;
+    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0xea41_7d9a_dd9d_3b4b;
     let baked = t54_description().build();
     assert_eq!(
         baked.deterministic_hash(),
