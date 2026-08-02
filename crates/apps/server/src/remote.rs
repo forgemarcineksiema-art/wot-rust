@@ -410,10 +410,9 @@ impl RemoteBattleServer {
                     && *ended_repeats < BATTLE_ENDED_REPEATS
                 {
                     *ended_repeats += 1;
-                    let winner = match outcome {
-                        BattleOutcome::TeamEliminated { winning_team } => Some(winning_team.0),
-                        BattleOutcome::Draw { .. } => None,
-                    };
+                    // `winning_team()` is the single answer to "who won?", so a new outcome
+                    // variant cannot arrive here meaning one thing and be reported as another.
+                    let winner = outcome.winning_team().map(|team| team.0);
                     for client in self.clients.values_mut() {
                         let word = ProtocolMessage::BattleEnded {
                             session_id: client.session_id,
