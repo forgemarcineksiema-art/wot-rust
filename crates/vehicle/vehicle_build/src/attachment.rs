@@ -3,7 +3,7 @@
 //! part's authored dimensions — never from arbitrary final merged-mesh vertex indices — so they stay
 //! put as the mesh is reduced, rebaked or re-detailed.
 
-use game_core::{HybridVisual, MountFrame};
+use game_core::{MountFrame, VisualDetail};
 use glam::Vec3;
 use vehicle_geometry::{LodLevel, SubmeshKind};
 
@@ -29,7 +29,7 @@ impl SurfaceAttachment {
 }
 
 /// The T-54's named surface anchors, derived from the blueprint's fitting and detail dimensions.
-pub fn t54_attachments(visual: &HybridVisual) -> Vec<SurfaceAttachment> {
+pub fn t54_attachments(visual: &VisualDetail) -> Vec<SurfaceAttachment> {
     let f = &visual.fittings;
     let d = &visual.detail;
     let up = Vec3::Y;
@@ -72,7 +72,7 @@ mod tests {
 
     fn attachments() -> Vec<SurfaceAttachment> {
         let bp = VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).unwrap();
-        t54_attachments(bp.hybrid().unwrap())
+        t54_attachments(bp.visual_detail().unwrap())
     }
 
     fn find(list: &[SurfaceAttachment], key: &str) -> SurfaceAttachment {
@@ -82,7 +82,7 @@ mod tests {
     #[test]
     fn anchors_are_derived_from_the_blueprint_not_the_mesh() {
         let bp = VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).unwrap();
-        let visual = bp.hybrid().unwrap();
+        let visual = bp.visual_detail().unwrap();
         let list = t54_attachments(visual);
         // The cupola-hatch anchor sits exactly at the blueprint cupola-hatch centre.
         let cupola = find(&list, "cupola_hatch");

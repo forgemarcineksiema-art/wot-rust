@@ -1,10 +1,10 @@
 //! The T-54's external kit: the fender stowage line (fuel tanks and bins on the shelves over the
 //! tracks), the sloping fender end sections, the glacis splash board, the turret handrails and the
 //! stowed tow cables. All are `PartLod::Detail` visual parts derived from the blueprint's
-//! [`HybridVisual`]; none adds a gameplay dimension. The kit is what makes the narrow-box hull read
+//! [`VisualDetail`]; none adds a gameplay dimension. The kit is what makes the narrow-box hull read
 //! as a T-54: the tracks stay exposed and the shelves above them carry the visual mass.
 
-use game_core::{FenderVisual, HybridVisual};
+use game_core::{FenderVisual, VisualDetail};
 use glam::Vec3;
 use vehicle_geometry::{MaterialRole, SubmeshKind};
 
@@ -12,7 +12,7 @@ use crate::part::{GeneratorKind, PartKey, PartLod, PartShape, VehiclePart};
 use crate::t54_details::detail_plate;
 
 /// Every kit part: fender stowage, sloping fender ends, splash board, turret rails, tow cables.
-pub fn t54_kit_parts(v: &HybridVisual, glacis_deg: f32) -> Vec<VehiclePart> {
+pub fn t54_kit_parts(v: &VisualDetail, glacis_deg: f32) -> Vec<VehiclePart> {
     let mut parts = Vec::new();
     parts.extend(fender_stowage(&v.fender));
     for (i, side) in [v.fender.side_x, -v.fender.side_x].into_iter().enumerate() {

@@ -7,7 +7,7 @@ fn t54_closeup_budget_reserves_detail_for_the_cast_turret() {
     let blueprint = VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("T-54 blueprint");
 
     assert_eq!(MEDIUM_LOD0_TRI_BUDGET, 22_000);
-    assert_eq!(blueprint.hybrid().expect("hybrid visual").turret.budget, 12_000);
+    assert_eq!(blueprint.visual_detail().expect("hybrid visual").turret.budget, 12_000);
 }
 
 #[test]
@@ -25,7 +25,7 @@ fn t54_hybrid_keeps_a_low_wide_turret_and_headroom_for_garage_detail() {
 #[test]
 fn t54_turret_has_the_flat_pancake_profile_of_the_1951_casting() {
     let bp = VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("blueprint");
-    let roof_y = bp.hybrid().expect("hybrid").turret_loft.stations.last().unwrap().y;
+    let roof_y = bp.visual_detail().expect("hybrid").turret_loft.stations.last().unwrap().y;
     let baked = vehicle_build::t54_description().build();
     let turret = baked.submesh(SubmeshKind::Turret).expect("turret");
 
@@ -70,7 +70,7 @@ fn t54_turret_has_the_flat_pancake_profile_of_the_1951_casting() {
 #[test]
 fn the_visible_gun_mount_is_no_wider_than_its_canvas_cover() {
     let blueprint = VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("T-54 blueprint");
-    let hybrid = blueprint.hybrid().expect("hybrid visual");
+    let hybrid = blueprint.visual_detail().expect("hybrid visual");
     let casting = vehicle_build::t54_turret_loft(&hybrid.turret_loft);
     let face = casting.bounds().expect("casting bounds").max.z;
     let trunnion_y = blueprint.gun.trunnion_y;
@@ -107,7 +107,7 @@ fn the_visible_gun_mount_is_no_wider_than_its_canvas_cover() {
 #[test]
 fn the_mantlet_profile_closes_at_both_ends() {
     let blueprint = VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("T-54 blueprint");
-    let gun = &blueprint.hybrid().expect("hybrid visual").gun;
+    let gun = &blueprint.visual_detail().expect("hybrid visual").gun;
     let profile = gun.mantlet_profile;
     assert_eq!(profile[0].1, 0.0, "the mantlet has a back");
     assert_eq!(profile[profile.len() - 1].1, 0.0, "and a front");

@@ -15,7 +15,7 @@ use crate::VehicleKind;
 
 /// The on-disk schema: the blueprint's plain-data shapes plus the kind tag the registry
 /// cross-checks (a file pasted under the wrong name is a teaching error, not a silent adoption).
-/// The T-54's `HybridVisual` extras stay in Rust and are attached by the loader — they are a
+/// The T-54's `VisualDetail` extras stay in Rust and are attached by the loader — they are a
 /// deep tree of loft data for one vehicle, not part of the shared schema.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct BlueprintFile {
@@ -50,7 +50,7 @@ impl BlueprintFile {
             turret: self.turret,
             gun: self.gun,
             armor: self.armor,
-            hybrid: (self.kind == VehicleKind::T54_1951).then(|| t54_hybrid(&self)),
+            visual_detail: (self.kind == VehicleKind::T54_1951).then(|| t54_hybrid(&self)),
         }
     }
 }

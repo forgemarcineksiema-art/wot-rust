@@ -131,6 +131,6 @@ pub(super) fn jagdtiger_blueprint() -> VehicleBlueprint {
             turret_rear: (5.0, 1.0),
             turret_side_taper: None,
         },
-        hybrid: None,
+        visual_detail: None,
     }
 }

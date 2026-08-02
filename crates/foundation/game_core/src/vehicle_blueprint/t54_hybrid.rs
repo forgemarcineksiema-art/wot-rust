@@ -13,7 +13,7 @@ use glam::Vec3;
 use super::source::BlueprintFile;
 use super::{
     BoxVisual, DetailVisual, FenderVisual, FittingsVisual, GunVisual, HullPlatesVisual, HullVisual,
-    HybridVisual, TurretVisual,
+    TurretVisual, VisualDetail,
 };
 
 /// Where the glacis meets the deck, and where the lower nose meets the belly. These two are
@@ -34,7 +34,7 @@ const DECK_REAR_GAP_M: f32 = 0.20;
 /// How far each fender run stops short of the hull's end plates.
 const FENDER_END_GAP_M: f32 = 0.30;
 
-pub(super) fn t54_hybrid(file: &BlueprintFile) -> HybridVisual {
+pub(super) fn t54_hybrid(file: &BlueprintFile) -> VisualDetail {
     let (hull, armor) = (&file.hull, &file.armor);
     // Everything bolted to the turret roof is stated as a DEPTH INTO THE CASTING, not as an
     // absolute height. Raise the dome and the cupola, the hatches, the periscopes and the DShK
@@ -76,7 +76,7 @@ pub(super) fn t54_hybrid(file: &BlueprintFile) -> HybridVisual {
     let nose_normal = Vec3::new(0.0, -run_z / run_y, 1.0);
     let nose_offset = nose_normal.dot(Vec3::new(0.0, hull.sponson_y, glacis_base_z));
 
-    HybridVisual {
+    VisualDetail {
         hull: HullVisual {
             // The narrow box between fully exposed tracks — no overhanging sponsons. Its width
             // is the GAMEPLAY hull's, not a second copy of it: the tub has to fit the space the

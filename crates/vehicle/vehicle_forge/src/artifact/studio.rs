@@ -386,7 +386,7 @@ fn build_report(
         let _ = writeln!(
             md,
             "\nFast-loop caveat (hybrid source): RON edits to hull/turret/gun/track/armor \
-             shapes flow into this bake, but the Rust-side `HybridVisual` tree (fitting \
+             shapes flow into this bake, but the Rust-side `VisualDetail` tree (fitting \
              positions, detail literals) does not live in the RON — a shape change large \
              enough to move the fittings still needs its Rust counterpart edited. The SSOT \
              test in `game_core` fails loudly when the two disagree on a shared number."

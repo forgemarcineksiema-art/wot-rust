@@ -161,7 +161,7 @@ mod tests {
     use game_core::{VehicleBlueprint, VehicleKind};
 
     fn gun() -> GunVisual {
-        VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).unwrap().hybrid().unwrap().gun
+        VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).unwrap().visual_detail().unwrap().gun
     }
 
     #[test]

@@ -16,7 +16,11 @@ fn baked_at(level: LodLevel) -> BakedVehicle {
 }
 
 fn turret_visual() -> TurretLoftVisual {
-    VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).unwrap().hybrid().unwrap().turret_loft
+    VehicleBlueprint::for_vehicle(VehicleKind::T54_1951)
+        .unwrap()
+        .visual_detail()
+        .unwrap()
+        .turret_loft
 }
 
 fn total_triangles(baked: &BakedVehicle) -> usize {

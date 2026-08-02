@@ -1,6 +1,6 @@
 //! The T-54 as a hybrid parametric description: hull front from exact CAD plates, cast turret from
 //! the SDF, round parts revolved. This module is now an *adapter*: every dimension comes from the
-//! vehicle blueprint's [`HybridVisual`](game_core::HybridVisual) and the installed module loadout —
+//! vehicle blueprint's [`VisualDetail`](game_core::VisualDetail) and the installed module loadout —
 //! it holds no geometry constants of its own. The single dimension that drives the visible glacis is
 //! the same armour facet the penetration model reads, so "what you see is what you shoot" by
 //! construction.
@@ -45,7 +45,7 @@ pub fn t54_from_modules_with_blueprint(
     bp: &VehicleBlueprint,
 ) -> VehicleDescription {
     let kind = VehicleKind::T54_1951;
-    let v = bp.hybrid().expect("T-54 carries hybrid visual data");
+    let v = bp.visual_detail().expect("T-54 carries hybrid visual data");
 
     // The hull is decomposed into its real T-54 plates: a narrow lower tub and the wide upper hull
     // that overhangs it as the sponson. The two-plate front (upper glacis over the tucked nose) and

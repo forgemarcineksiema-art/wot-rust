@@ -1,7 +1,7 @@
 //! Authoritative *visual* dimensions for the hybrid generator path (currently the T-54 benchmark).
 //!
 //! The flat [`VehicleBlueprint`](super::VehicleBlueprint) fields carry the gameplay shape (hitbox,
-//! mounts, armour slopes). [`HybridVisual`] carries everything the hybrid mesh generators
+//! mounts, armour slopes). [`VisualDetail`] carries everything the hybrid mesh generators
 //! (`solid`, `sdf_mesh`, `revolve`) need on top of that — the convex hull block, the cast-turret SDF
 //! composition, the barrel and mantlet profiles, the engine deck, the fenders, and the running gear.
 //!
@@ -282,10 +282,11 @@ pub struct FenderVisual {
     pub half: Vec3,
 }
 
-/// The full hybrid visual description for one vehicle. `Some` only for the hybrid benchmark (T-54);
+/// The full visual-detail description for one vehicle — the FLEET slot (W4): any vehicle may
+/// carry one; today only the benchmark (T-54) does;
 /// other vehicles bake through the legacy `vehicle_geometry` path and carry `None`.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct HybridVisual {
+pub struct VisualDetail {
     pub hull: HullVisual,
     pub hull_plates: HullPlatesVisual,
     pub turret: TurretVisual,
