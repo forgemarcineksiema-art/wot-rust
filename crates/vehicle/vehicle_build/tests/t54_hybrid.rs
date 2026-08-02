@@ -246,7 +246,14 @@ fn the_shipped_hybrid_matches_its_recorded_golden() {
     // build's eyeballed 0.85 m letterbox. Panel 0.45 x 0.37 pillow, window bump 0.172 rad,
     // aperture unchanged at the documented 0.40. Every proportion lock re-anchored to the
     // measured numbers in the same commit.
-    // Previous: 0x3eb2_aca8_62f7_7ceb (pilot module 1, the photo-derived egg);
+    // Re-recorded 2026-08-02 for the ENGINE-BAY FUEL CELLS. The fleet containment rule measured
+    // both of them reaching 0.46 in hull-local y where the hull interior ends at 0.39: 7 cm of
+    // fuel standing above the engine deck, in air. Their roofs now stop on the deck plane and
+    // their floors have not moved. This is the first bless in the file that no eye asked for —
+    // the previous two of exactly this fault (the engine block's roof, the bow rack) were both
+    // caught by looking at renders, once each, on this one vehicle.
+    // Previous: 0x0a07_5ae1_b4fd_f995 (pilot module 2, the measured window);
+    //           0x3eb2_aca8_62f7_7ceb (pilot module 1, the photo-derived egg);
     //           0xa921_f937_ea70_c698 (the gun window rebuild);
     //           0xadf8_2d0f_e2d8_f8be (PR-26b, the crew's mechanics);
     //           0x6af9_ab6d_876a_8099 (PR-26a, the exterior mechanics);
@@ -256,7 +263,7 @@ fn the_shipped_hybrid_matches_its_recorded_golden() {
     //           0x8f18_a4aa_f291_5175 (PR-16, the cupola at 624);
     //           0xf490_f9f1_fe07_3049 (PR-14, the hull at 6.235);
     //           0x903d_b868_b9bf_e617 (PR-25, a muzzle is a hole).
-    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0x0a07_5ae1_b4fd_f995;
+    const GOLDEN_HYBRID_LOD0_HASH: u64 = 0x26e2_4b85_1151_a3ad;
     let baked = t54_description().build();
     assert_eq!(
         baked.deterministic_hash(),

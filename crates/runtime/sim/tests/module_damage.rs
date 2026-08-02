@@ -38,9 +38,11 @@ fn penetrating_centerline_hit_passes_between_racks_and_reaches_the_engine() {
 fn turret_side_penetration_can_destroy_ammo_rack_module() {
     let mut state = SimulationState::new();
     let shooter = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::new(-55.0, 0.0, 0.0));
-    // A target WITHOUT a narrow-phase damage layout (only the T-54 carries one), so the
-    // legacy deterministic zone-roll owns module selection — the path this test locks.
-    let target = state.spawn_tank(TeamId(2), VehicleKind::T34_85.spec(), Vec3::ZERO);
+    // A target WITHOUT a narrow-phase damage layout, so the legacy deterministic zone-roll owns
+    // module selection — the path this test locks. That used to be any tank but the T-54; every
+    // blueprint-born hull now carries authored components, so the prototype is the last vehicle
+    // the legacy path still serves.
+    let target = state.spawn_tank(TeamId(2), VehicleKind::PrototypeMedium.spec(), Vec3::ZERO);
     {
         let shooter = state.tank_mut(shooter).expect("shooter");
         shooter.yaw_rad = PI / 2.0;
@@ -91,8 +93,12 @@ fn rear_side_penetration_hits_engine_volume_instead_of_generic_side_module() {
 fn high_explosive_near_miss_on_armor_can_throw_tracks_without_full_penetration() {
     let mut state = SimulationState::new();
     let shooter = state.spawn_tank(TeamId(1), TankSpec::tiger_i_ausf_e(), Vec3::ZERO);
+    // Legacy zone-roll target: with authored components the Tiger II answers this shot with
+    // `None`, and correctly so — the burst lands on the bow plate, metres from the running gear,
+    // and only a band model could have called that a suspension hit. The track degradation
+    // itself is zone-driven and is locked separately in `track_damage_state`.
     let target =
-        state.spawn_tank(TeamId(2), TankSpec::tiger_ii_ausf_b(), Vec3::new(0.0, 0.0, 55.0));
+        state.spawn_tank(TeamId(2), VehicleKind::PrototypeMedium.spec(), Vec3::new(0.0, 0.0, 55.0));
     {
         let shooter = state.tank_mut(shooter).expect("shooter");
         shooter.spec.gun.shell = game_core::ShellSpec::high_explosive(88.0, 600.0, 22.0, 300, 3.5);

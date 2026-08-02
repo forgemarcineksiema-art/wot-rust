@@ -2,6 +2,7 @@
 
 use glam::Vec3;
 
+use super::authoring::{cylinder_shape, hull_component, obb, turret_component};
 use super::{
     DamageComponent, DamageComponentId, DamageComponentKind as K, DamageLayout,
     DamageMaterial as M, DamageShape,
@@ -127,7 +128,13 @@ fn hull_components() -> Vec<DamageComponent> {
             K::FuelTank,
             ModuleSlot::Engine,
             M::Fuel,
-            obb([-0.70, 0.03, -1.43], [0.25, 0.43, 0.65], 0.0),
+            // Top pulled onto the deck plane (fleet containment rule, 2026-08-02). At half-y 0.43
+            // about centre 0.03 the cell reached 0.46, and the hull interior at this station ends
+            // at 0.39: 7 cm of fuel standing in open air above the engine deck. It is the third
+            // instance of the fault this file already records fixing twice — the engine block
+            // roof and the bow rack — and the first one nothing had to see by eye. The floor
+            // stays where the interior audit put it; only the roof moves.
+            obb([-0.70, -0.005, -1.43], [0.25, 0.395, 0.65], 0.0),
             25,
             1.1,
         ),
@@ -138,7 +145,8 @@ fn hull_components() -> Vec<DamageComponent> {
             M::Fuel,
             // Both engine-bay tanks pulled from ±0.79 to ±0.70 (interior audit): their outer
             // faces sat at 1.04 — a centimetre PAST the hull side. Fuel outside the tank.
-            obb([0.70, 0.03, -1.43], [0.25, 0.43, 0.65], 0.0),
+            // Roof pulled to the deck plane with its mirror; see the note on component 8.
+            obb([0.70, -0.005, -1.43], [0.25, 0.395, 0.65], 0.0),
             25,
             1.1,
         ),
@@ -208,64 +216,4 @@ fn suspension_components() -> [DamageComponent; 2] {
         requires_penetration: false,
         vulnerability: 0.8,
     })
-}
-
-fn turret_component(
-    id: u16,
-    kind: K,
-    slot: ModuleSlot,
-    material: M,
-    shape: DamageShape,
-    priority: u8,
-    vulnerability: f32,
-) -> DamageComponent {
-    component(id, ArmorFrame::Turret, kind, slot, material, shape, priority, vulnerability)
-}
-
-fn hull_component(
-    id: u16,
-    kind: K,
-    slot: ModuleSlot,
-    material: M,
-    shape: DamageShape,
-    priority: u8,
-    vulnerability: f32,
-) -> DamageComponent {
-    component(id, ArmorFrame::Hull, kind, slot, material, shape, priority, vulnerability)
-}
-
-#[allow(clippy::too_many_arguments)]
-fn component(
-    id: u16,
-    frame: ArmorFrame,
-    kind: K,
-    slot: ModuleSlot,
-    material: M,
-    shape: DamageShape,
-    priority: u8,
-    vulnerability: f32,
-) -> DamageComponent {
-    DamageComponent {
-        id: DamageComponentId(id),
-        frame,
-        kind,
-        slot,
-        material,
-        shape,
-        priority,
-        requires_penetration: true,
-        vulnerability,
-    }
-}
-
-fn obb(center: [f32; 3], half_extents: [f32; 3], yaw_rad: f32) -> DamageShape {
-    DamageShape::Obb {
-        center: Vec3::from_array(center),
-        half_extents: Vec3::from_array(half_extents),
-        yaw_rad,
-    }
-}
-
-fn cylinder_shape(center: [f32; 3], axis: Vec3, half_length: f32, radius: f32) -> DamageShape {
-    DamageShape::Cylinder { center: Vec3::from_array(center), axis, half_length, radius }
 }

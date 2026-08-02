@@ -31,7 +31,10 @@ fn run_until_shell_resolved(state: &mut SimulationState, shooter: TankId) {
 fn detonation_kill() -> (SimulationState, TankId) {
     let mut state = SimulationState::new();
     let shooter = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::new(-55.0, 0.0, 0.0));
-    let target = state.spawn_tank(TeamId(2), game_core::VehicleKind::T34_85.spec(), Vec3::ZERO);
+    // The prototype is the one hull left without authored components, so the legacy zone-roll
+    // this fixture depends on still runs.
+    let target =
+        state.spawn_tank(TeamId(2), game_core::VehicleKind::PrototypeMedium.spec(), Vec3::ZERO);
     {
         let shooter = state.tank_mut(shooter).expect("shooter");
         shooter.yaw_rad = PI / 2.0;

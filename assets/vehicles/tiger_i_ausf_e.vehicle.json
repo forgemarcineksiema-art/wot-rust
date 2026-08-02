@@ -98,7 +98,414 @@
     "turret_center_z_m": -0.1
   },
   "damage_layout": {
-    "components": []
+    "components": [
+      {
+        "id": 1,
+        "frame": "Turret",
+        "kind": "Breech",
+        "slot": "Gun",
+        "material": "Machinery",
+        "shape": {
+          "Obb": {
+            "center": [
+              0.0,
+              0.7155,
+              0.39174554
+            ],
+            "half_extents": [
+              0.31249455,
+              0.19700001,
+              0.4044047
+            ],
+            "yaw_rad": 0.0
+          }
+        },
+        "priority": 40,
+        "requires_penetration": true,
+        "vulnerability": 1.15
+      },
+      {
+        "id": 2,
+        "frame": "Turret",
+        "kind": "RecoilMechanism",
+        "slot": "Gun",
+        "material": "Machinery",
+        "shape": {
+          "Cylinder": {
+            "center": [
+              -0.22499608,
+              0.82385004,
+              0.40976194
+            ],
+            "axis": [
+              0.0,
+              0.0,
+              1.0
+            ],
+            "half_length": 0.38418445,
+            "radius": 0.09374837
+          }
+        },
+        "priority": 38,
+        "requires_penetration": true,
+        "vulnerability": 1.0
+      },
+      {
+        "id": 3,
+        "frame": "Turret",
+        "kind": "RecoilMechanism",
+        "slot": "Gun",
+        "material": "Machinery",
+        "shape": {
+          "Cylinder": {
+            "center": [
+              0.22499608,
+              0.82385004,
+              0.40976194
+            ],
+            "axis": [
+              0.0,
+              0.0,
+              1.0
+            ],
+            "half_length": 0.38418445,
+            "radius": 0.09374837
+          }
+        },
+        "priority": 38,
+        "requires_penetration": true,
+        "vulnerability": 1.0
+      },
+      {
+        "id": 4,
+        "frame": "Turret",
+        "kind": "TurretDrive",
+        "slot": "Turret",
+        "material": "Driveline",
+        "shape": {
+          "Cylinder": {
+            "center": [
+              0.77177227,
+              0.41999996,
+              -0.08
+            ],
+            "axis": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "half_length": 0.2167,
+            "radius": 0.1773
+          }
+        },
+        "priority": 34,
+        "requires_penetration": true,
+        "vulnerability": 1.0
+      },
+      {
+        "id": 7,
+        "frame": "Turret",
+        "kind": "Radio",
+        "slot": "Radio",
+        "material": "Electronics",
+        "shape": {
+          "Obb": {
+            "center": [
+              -0.19780663,
+              0.69579995,
+              -0.81240153
+            ],
+            "half_extents": [
+              0.21978515,
+              0.1576,
+              0.13986328
+            ],
+            "yaw_rad": 0.0
+          }
+        },
+        "priority": 28,
+        "requires_penetration": true,
+        "vulnerability": 1.4
+      },
+      {
+        "id": 10,
+        "frame": "Hull",
+        "kind": "Engine",
+        "slot": "Engine",
+        "material": "Machinery",
+        "shape": {
+          "Obb": {
+            "center": [
+              0.0,
+              -0.59000003,
+              -2.0856
+            ],
+            "half_extents": [
+              0.6,
+              0.42,
+              0.62
+            ],
+            "yaw_rad": 0.0
+          }
+        },
+        "priority": 30,
+        "requires_penetration": true,
+        "vulnerability": 0.9
+      },
+      {
+        "id": 11,
+        "frame": "Hull",
+        "kind": "Transmission",
+        "slot": "Engine",
+        "material": "Driveline",
+        "shape": {
+          "Obb": {
+            "center": [
+              0.0,
+              -0.66999996,
+              2.7037504
+            ],
+            "half_extents": [
+              0.98,
+              0.34,
+              0.34
+            ],
+            "yaw_rad": 0.0
+          }
+        },
+        "priority": 30,
+        "requires_penetration": true,
+        "vulnerability": 0.9
+      },
+      {
+        "id": 17,
+        "frame": "Hull",
+        "kind": "Transmission",
+        "slot": "Engine",
+        "material": "Driveline",
+        "shape": {
+          "Cylinder": {
+            "center": [
+              0.0,
+              -0.88,
+              0.31599998
+            ],
+            "axis": [
+              0.0,
+              0.0,
+              1.0
+            ],
+            "half_length": 1.3271999,
+            "radius": 0.1
+          }
+        },
+        "priority": 26,
+        "requires_penetration": true,
+        "vulnerability": 0.9
+      },
+      {
+        "id": 5,
+        "frame": "Hull",
+        "kind": "AmmunitionRack",
+        "slot": "AmmoRack",
+        "material": "Ammunition",
+        "shape": {
+          "Obb": {
+            "center": [
+              -1.4989063,
+              -0.07500003,
+              0.0
+            ],
+            "half_extents": [
+              0.2,
+              0.435,
+              1.1376001
+            ],
+            "yaw_rad": 0.0
+          }
+        },
+        "priority": 32,
+        "requires_penetration": true,
+        "vulnerability": 1.35
+      },
+      {
+        "id": 16,
+        "frame": "Hull",
+        "kind": "AmmunitionRack",
+        "slot": "AmmoRack",
+        "material": "Ammunition",
+        "shape": {
+          "Obb": {
+            "center": [
+              1.4989063,
+              -0.07500003,
+              0.0
+            ],
+            "half_extents": [
+              0.2,
+              0.435,
+              1.1376001
+            ],
+            "yaw_rad": 0.0
+          }
+        },
+        "priority": 32,
+        "requires_penetration": true,
+        "vulnerability": 1.35
+      },
+      {
+        "id": 8,
+        "frame": "Hull",
+        "kind": "FuelTank",
+        "slot": "Engine",
+        "material": "Fuel",
+        "shape": {
+          "Obb": {
+            "center": [
+              -1.4989063,
+              -0.69,
+              -1.2639999
+            ],
+            "half_extents": [
+              0.2,
+              0.32,
+              0.44
+            ],
+            "yaw_rad": 0.0
+          }
+        },
+        "priority": 25,
+        "requires_penetration": true,
+        "vulnerability": 1.1
+      },
+      {
+        "id": 9,
+        "frame": "Hull",
+        "kind": "FuelTank",
+        "slot": "Engine",
+        "material": "Fuel",
+        "shape": {
+          "Obb": {
+            "center": [
+              1.4989063,
+              -0.69,
+              -1.2639999
+            ],
+            "half_extents": [
+              0.2,
+              0.32,
+              0.44
+            ],
+            "yaw_rad": 0.0
+          }
+        },
+        "priority": 25,
+        "requires_penetration": true,
+        "vulnerability": 1.1
+      },
+      {
+        "id": 12,
+        "frame": "Hull",
+        "kind": "FinalDrive",
+        "slot": "Suspension",
+        "material": "Driveline",
+        "shape": {
+          "Cylinder": {
+            "center": [
+              -1.1775,
+              -0.92499995,
+              2.6
+            ],
+            "axis": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "half_length": 0.1875,
+            "radius": 0.25
+          }
+        },
+        "priority": 28,
+        "requires_penetration": true,
+        "vulnerability": 1.0
+      },
+      {
+        "id": 13,
+        "frame": "Hull",
+        "kind": "FinalDrive",
+        "slot": "Suspension",
+        "material": "Driveline",
+        "shape": {
+          "Cylinder": {
+            "center": [
+              1.1775,
+              -0.92499995,
+              2.6
+            ],
+            "axis": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "half_length": 0.1875,
+            "radius": 0.25
+          }
+        },
+        "priority": 28,
+        "requires_penetration": true,
+        "vulnerability": 1.0
+      },
+      {
+        "id": 14,
+        "frame": "Hull",
+        "kind": "Suspension",
+        "slot": "Suspension",
+        "material": "SuspensionSteel",
+        "shape": {
+          "Capsule": {
+            "a": [
+              -1.49,
+              -0.99999994,
+              -2.3999999
+            ],
+            "b": [
+              -1.49,
+              -0.99999994,
+              2.3999999
+            ],
+            "radius": 0.2
+          }
+        },
+        "priority": 20,
+        "requires_penetration": false,
+        "vulnerability": 0.8
+      },
+      {
+        "id": 15,
+        "frame": "Hull",
+        "kind": "Suspension",
+        "slot": "Suspension",
+        "material": "SuspensionSteel",
+        "shape": {
+          "Capsule": {
+            "a": [
+              1.49,
+              -0.99999994,
+              -2.3999999
+            ],
+            "b": [
+              1.49,
+              -0.99999994,
+              2.3999999
+            ],
+            "radius": 0.2
+          }
+        },
+        "priority": 20,
+        "requires_penetration": false,
+        "vulnerability": 0.8
+      }
+    ]
   },
   "mounts": {
     "turret_ring": {
