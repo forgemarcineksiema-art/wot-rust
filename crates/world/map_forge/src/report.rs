@@ -95,10 +95,13 @@ pub fn validate_map(blueprint: &MapBlueprint, map: &BattlefieldMap) -> MapReport
     report
 }
 
-/// The grade an average hull still climbs, per horizontal metre - the drive graph's wall.
-/// The road and crossing checks use 0.5 as "drivable-ish"; the graph allows a touch more
-/// (a determined climb) so the report flags genuine walls, not spirited slopes.
-const CLIMB_GRADE: f32 = 0.55;
+/// The drive graph's wall: the grade a hull still climbs, per horizontal metre.
+///
+/// It was 0.55 — a hand-written "touch more than drivable-ish", against the physics controller's
+/// 0.6. That made the map contract STRICTER than the game: ground between the two was refused by
+/// the gate and driven by the hull. Both are `game_core::MAX_CLIMB_GRADE` now, so a map can only
+/// fail on ground a tank genuinely cannot take.
+const CLIMB_GRADE: f32 = game_core::MAX_CLIMB_GRADE;
 
 /// How far outside a cover box the drive graph still refuses to walk. One number, used by the
 /// passability test AND by the explanation of a failed one, so a block and its account of itself
@@ -768,7 +771,8 @@ fn check_spawns(map: &BattlefieldMap, report: &mut MapReport) {
     }
 }
 
-/// Roads stay on the map and drivable-ish: no 5 m step along the polyline exceeds a 0.5 grade.
+/// Roads stay on the map and comfortable: no 5 m step along the polyline reaches
+/// [`game_core::ROAD_COMFORT_GRADE`]. A road at the hull's climb limit is a climb drawn as a road.
 fn check_roads(map: &BattlefieldMap, report: &mut MapReport) {
     for road in &map.roads {
         for pair in road.points.windows(2) {
@@ -783,7 +787,7 @@ fn check_roads(map: &BattlefieldMap, report: &mut MapReport) {
                 let Some(h) = map.heightmap.sample_height(x, z) else { continue };
                 if let Some(previous) = previous {
                     let grade = ((h - previous) / 5.0).abs();
-                    if grade >= 0.5 {
+                    if grade >= game_core::ROAD_COMFORT_GRADE {
                         report.push(
                             "roads",
                             Severity::Warning,

@@ -59,8 +59,12 @@ pub struct TankControllerSettings {
 }
 
 /// Maximum uphill grade (rise/run) a tank can climb. Steeper faces -- like the railway
-/// embankment -- stall it. ~0.6 is roughly 31 degrees, the classic ~60% tank gradeability.
-const DEFAULT_MAX_CLIMB_GRADE: f32 = 0.6;
+/// embankment -- stall it.
+///
+/// The number itself lives in `game_core::mobility`, because the map contract's drive graph has
+/// to refuse exactly the ground this refuses. Two hand-written copies meant a map could wall off
+/// a slope the hull drives, and nobody would see the pair.
+const DEFAULT_MAX_CLIMB_GRADE: f32 = game_core::MAX_CLIMB_GRADE;
 
 /// Lateral grip coefficient. 0.95 keeps the hull on its line through normal turns and only lets
 /// it break loose near the top of the speed/turn-rate envelope or on low-traction ground (the

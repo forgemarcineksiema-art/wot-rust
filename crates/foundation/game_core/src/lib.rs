@@ -7,6 +7,7 @@ mod damage;
 mod damage_layout;
 mod ids;
 pub mod math;
+pub mod mobility;
 mod modules;
 mod mount;
 mod tank;
@@ -41,6 +42,7 @@ pub use damage_layout::{
     DamagePlane, DamageShape, ModuleIntersection,
 };
 pub use ids::{BattleEventId, ShellId, TankId, TeamId};
+pub use mobility::{MAX_CLIMB_GRADE, ROAD_COMFORT_GRADE};
 pub use modules::{
     EngineModule, GunModule, HullChassis, MODULE_SLOT_COUNT, ModuleCondition, ModuleError,
     ModuleHealth, ModuleSlot, RadioModule, SuspensionModule, TurretModule, TurretTraverse,
