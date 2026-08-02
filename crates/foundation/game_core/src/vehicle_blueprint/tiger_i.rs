@@ -147,6 +147,6 @@ pub(super) fn tiger_i_blueprint() -> VehicleBlueprint {
             turret_rear: (0.0, 1.0),
             turret_side_taper: None,
         },
-        hybrid: None,
+        visual_detail: None,
     }
 }

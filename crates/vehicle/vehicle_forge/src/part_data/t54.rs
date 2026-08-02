@@ -17,7 +17,7 @@ pub(crate) fn t54_family_parts(bp: &VehicleBlueprint) -> Vec<ForgePart> {
     // inside the containment test's 0.12 m slack by five millimetres, and the documented
     // 2.640 m gauge took those five millimetres away.
     let fender_half_width = bp
-        .hybrid()
+        .visual_detail()
         .map(|hybrid| hybrid.fender.side_x + hybrid.fender.half.x)
         .unwrap_or(h.hitbox_half_width);
 

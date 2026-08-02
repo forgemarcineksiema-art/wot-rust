@@ -87,7 +87,11 @@ mod tests {
     use game_core::{VehicleBlueprint, VehicleKind};
 
     fn turret_loft_visual() -> TurretLoftVisual {
-        VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).unwrap().hybrid().unwrap().turret_loft
+        VehicleBlueprint::for_vehicle(VehicleKind::T54_1951)
+            .unwrap()
+            .visual_detail()
+            .unwrap()
+            .turret_loft
     }
 
     fn max_half_width_in_band(mesh: &GeometryMesh, lo: f32, hi: f32) -> f32 {

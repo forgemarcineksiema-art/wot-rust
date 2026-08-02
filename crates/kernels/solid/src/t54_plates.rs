@@ -40,10 +40,10 @@ mod tests {
     use super::*;
     use vehicle_geometry::{MaterialRole, SmoothingGroup};
 
-    fn visual() -> game_core::HybridVisual {
+    fn visual() -> game_core::VisualDetail {
         *game_core::VehicleBlueprint::for_vehicle(game_core::VehicleKind::T54_1951)
             .unwrap()
-            .hybrid()
+            .visual_detail()
             .unwrap()
     }
 

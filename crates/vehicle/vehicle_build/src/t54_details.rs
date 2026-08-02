@@ -3,9 +3,9 @@
 //! mount-critical parts and a readable track band). Clean factory build: crisp manufactured greeble
 //! — an engine-deck grille, the exhaust cover, turret periscopes, fender lips and a restrained
 //! glacis/deck weld bead — and deliberately no mud, rust, battle damage, decals or weathering. Every
-//! piece reads its dimensions from the blueprint's [`HybridVisual`]; none invents a tank dimension.
+//! piece reads its dimensions from the blueprint's [`VisualDetail`]; none invents a tank dimension.
 
-use game_core::{BoxVisual, FittingsVisual, HybridVisual};
+use game_core::{BoxVisual, FittingsVisual, VisualDetail};
 use glam::Vec3;
 use vehicle_geometry::{MaterialRole, SmoothingGroup, SubmeshKind};
 
@@ -379,7 +379,7 @@ pub(crate) fn detail_plate(
 }
 
 /// Every factory detail part for the T-54, all at `PartLod::Detail`.
-pub fn t54_detail_parts(v: &HybridVisual) -> Vec<VehiclePart> {
+pub fn t54_detail_parts(v: &VisualDetail) -> Vec<VehiclePart> {
     let d = &v.detail;
     let mut parts = Vec::new();
 

@@ -40,8 +40,8 @@ mod tiger_ii;
 
 pub use fittings::{DetailVisual, FittingsVisual};
 pub use hybrid::{
-    BoxVisual, FenderVisual, GunVisual, HullPlatesVisual, HullVisual, HybridVisual, LoftStation,
-    TurretLoftVisual, TurretVisual,
+    BoxVisual, FenderVisual, GunVisual, HullPlatesVisual, HullVisual, LoftStation,
+    TurretLoftVisual, TurretVisual, VisualDetail,
 };
 pub use shape_track::{ShoePattern, SuspensionKind, TrackShape, WheelFace};
 pub use source::{BlueprintFile, parse_blueprint};
@@ -217,9 +217,9 @@ pub struct VehicleBlueprint {
     pub turret: TurretShape,
     pub gun: GunShape,
     pub armor: ArmorShape,
-    /// Full visual dimensions for the hybrid mesh generators. `Some` only for the hybrid benchmark
+    /// Full visual dimensions for the detail mesh generators. `Some` only for the benchmark
     /// (T-54); other vehicles bake through the legacy `vehicle_geometry` path and carry `None`.
-    pub hybrid: Option<HybridVisual>,
+    pub visual_detail: Option<VisualDetail>,
 }
 
 impl VehicleBlueprint {
@@ -247,8 +247,8 @@ impl VehicleBlueprint {
     }
 
     /// The hybrid visual dimensions, if this vehicle bakes through the hybrid generator path.
-    pub fn hybrid(&self) -> Option<&HybridVisual> {
-        self.hybrid.as_ref()
+    pub fn visual_detail(&self) -> Option<&VisualDetail> {
+        self.visual_detail.as_ref()
     }
 
     /// The mount frames (turret ring, gun trunnion, muzzle) derived from the shape.
@@ -287,12 +287,12 @@ mod tests {
     #[test]
     fn t54_blueprint_carries_hybrid_visual_data() {
         let t54 = VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("blueprint");
-        let hybrid = t54.hybrid().expect("T-54 is the hybrid benchmark");
+        let hybrid = t54.visual_detail().expect("T-54 is the hybrid benchmark");
         assert_eq!(t54.track.wheel_count, 5, "five road wheels per side");
         assert!(hybrid.turret.budget > 0, "the cast turret meshes to a triangle budget");
     }
 
-    /// SSOT guard for the hybrid path: [`HybridVisual`] may *add* visual-only dimensions, but every
+    /// SSOT guard for the hybrid path: [`VisualDetail`] may *add* visual-only dimensions, but every
     /// field that merely restates a gameplay-shape number must equal that number — otherwise the
     /// hybrid mesh and the production (legacy `vehicle_geometry`) mesh would describe two different
     /// tanks. This is the test the duplicated literals previously had no guard for: `half_len` had
@@ -303,7 +303,7 @@ mod tests {
     #[test]
     fn t54_hybrid_visual_does_not_reduplicate_blueprint_shape_dimensions() {
         let bp = VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("blueprint");
-        let h = bp.hybrid().expect("T-54 carries hybrid visual data");
+        let h = bp.visual_detail().expect("T-54 carries hybrid visual data");
         let (hull, track, turret, gun) = (&bp.hull, &bp.track, &bp.turret, &bp.gun);
 
         let same = |label: &str, hybrid: f32, shape: f32| {
@@ -374,7 +374,7 @@ mod tests {
         assert_eq!(bp.hitbox(), HitboxProfile::for_vehicle(VehicleKind::T54_1951));
         assert_eq!(bp.mount_frames(), MountFrames::for_vehicle(VehicleKind::T54_1951));
 
-        let h = bp.hybrid().expect("hybrid visual");
+        let h = bp.visual_detail().expect("hybrid visual");
         let d = &h.detail;
         let hull = &bp.hull;
         let inside_hull = |p: Vec3| {

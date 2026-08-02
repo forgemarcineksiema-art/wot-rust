@@ -11,7 +11,7 @@
 //! and its own calibre, 12.7 mm, not the tank gun's (that inheritance bug is locked out by
 //! `the_dshk_has_its_own_calibre`).
 
-use game_core::{GunVisual, HybridVisual};
+use game_core::{GunVisual, VisualDetail};
 use glam::Vec3;
 use vehicle_geometry::{MaterialRole, SmoothingGroup, SubmeshKind};
 
@@ -19,7 +19,7 @@ use crate::part::{GeneratorKind, PartKey, PartLod, PartShape, VehiclePart};
 use crate::t54_details::detail_plate;
 
 /// Every DShK part, all at the `Detail` tier, riding the turret so the gun traverses.
-pub(crate) fn t54_dshk_parts(v: &HybridVisual) -> Vec<VehiclePart> {
+pub(crate) fn t54_dshk_parts(v: &VisualDetail) -> Vec<VehiclePart> {
     let d = &v.detail;
     let f = &v.fittings;
     let mut parts = Vec::new();

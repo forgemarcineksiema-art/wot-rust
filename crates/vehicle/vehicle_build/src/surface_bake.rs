@@ -3,12 +3,12 @@
 //! The hybrid T-54 carried a flat `surface_shade`; this module darkens the recesses a real casting
 //! and welded hull show in ambient light — the turret-ring seam and undercut, the mantlet seat in
 //! the embrasure, the running-gear/track recess under the sponson, and the glacis weld line. Bands
-//! are derived from the blueprint's [`HybridVisual`] semantics (never from merged-mesh indices), so
+//! are derived from the blueprint's [`VisualDetail`] semantics (never from merged-mesh indices), so
 //! the shading is reproducible and survives LOD. The renderer already multiplies albedo by
 //! `surface_shade`; no renderer change is needed. Mud, rust, decals and camouflage stay runtime
 //! overlays — this pass bakes only the geometry's own ambient contact.
 
-use game_core::{HybridVisual, TrackShape};
+use game_core::{TrackShape, VisualDetail};
 use glam::Vec3;
 use vehicle_geometry::CavityBand;
 
@@ -67,7 +67,7 @@ impl SurfaceBake {
 /// Derive the T-54's contact cavities from its hybrid blueprint (and the gameplay `TrackShape`,
 /// which owns the running gear). Every centre and extent is read from a blueprint dimension, so
 /// the shading tracks the geometry it shades.
-pub fn t54_surface_bake(v: &HybridVisual, track: &TrackShape, muzzle: Vec3) -> SurfaceBake {
+pub fn t54_surface_bake(v: &VisualDetail, track: &TrackShape, muzzle: Vec3) -> SurfaceBake {
     let cavities = vec![
         // The cast turret seats on the narrowed ring and overhangs it: the seam and undercut read as
         // a deep ambient shadow around the bottom of the casting and the roof under its skirt.

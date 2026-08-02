@@ -184,10 +184,10 @@ fn t54() -> VehicleBlueprint {
             // obr. 1951 casting.
             turret_side_taper: Some(0.41),
         },
-        hybrid: None,
+        visual_detail: None,
     };
     // Derived from the shapes this very fixture declares — the hybrid tree may not restate them.
-    shape.hybrid = Some(t54_hybrid(&super::source::BlueprintFile::from_blueprint(&shape)));
+    shape.visual_detail = Some(t54_hybrid(&super::source::BlueprintFile::from_blueprint(&shape)));
     shape
 }
 

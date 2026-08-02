@@ -82,7 +82,7 @@ const EXTERNAL_MANTLET_PATCH_SCALE: f32 = 1.2;
 /// reaches PAST the casting around it, and an internal one does not. Blueprints with no authored
 /// casting keep the external scale, which is what every welded-box mount in this fleet is.
 fn mantlet_patch_scale(blueprint: &VehicleBlueprint) -> f32 {
-    let Some(hybrid) = blueprint.hybrid() else {
+    let Some(hybrid) = blueprint.visual_detail() else {
         return EXTERNAL_MANTLET_PATCH_SCALE;
     };
     let face_z = blueprint.gun.trunnion_z - blueprint.turret.ring_z
@@ -225,7 +225,7 @@ fn turret_dome(blueprint: &VehicleBlueprint, cy: f32) -> ArmorVolume {
     let center = Vec3::new(0.0, ring_y, turret.ring_z);
     // The authored casting, when there is one: the armour follows the metal rather than a circle
     // drawn near it.
-    let loft = blueprint.hybrid().map(|hybrid| &hybrid.turret_loft);
+    let loft = blueprint.visual_detail().map(|hybrid| &hybrid.turret_loft);
     let mantlet = ArmorPatch {
         zone: ArmorZone::Mantlet,
         center: Vec3::new(0.0, blueprint.gun.trunnion_y - cy, turret.mantlet_front_z),

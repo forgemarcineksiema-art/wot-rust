@@ -16,7 +16,7 @@ fn the_blueprint_is_the_sole_source_of_hull_dimensions() {
     // lives in the generator. Its extents track the blueprint block, and perturbing the
     // blueprint copy moves the geometry with it.
     let bp = game_core::VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).unwrap();
-    let v = bp.hybrid().unwrap();
+    let v = bp.visual_detail().unwrap();
     let to_bounds = |hull: &game_core::HullVisual| {
         solid::t54_hull_solid(
             hull,

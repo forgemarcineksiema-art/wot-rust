@@ -6,7 +6,7 @@
 //! and the dossier is explicit that obr. 1951 carried none (register M10). A fitting nobody can
 //! cite is a fitting the vehicle does not have.
 
-use game_core::{HybridVisual, TurretLoftVisual};
+use game_core::{TurretLoftVisual, VisualDetail};
 use glam::Vec3;
 use vehicle_geometry::{MaterialRole, SubmeshKind};
 
@@ -14,7 +14,7 @@ use crate::part::{GeneratorKind, PartKey, PartLod, PartShape, VehiclePart};
 
 /// Every line-work part: splash board, turret handrails, tow cables, unditching beam, the course
 /// MG's glacis port and the two rear smoke canisters.
-pub(crate) fn t54_line_kit_parts(v: &HybridVisual, glacis_deg: f32) -> Vec<VehiclePart> {
+pub(crate) fn t54_line_kit_parts(v: &VisualDetail, glacis_deg: f32) -> Vec<VehiclePart> {
     let mut parts = vec![splash_board(v, glacis_deg), unditching_beam(v)];
     parts.extend(turret_rails(&v.turret_loft));
     parts.extend(tow_cables(v, glacis_deg));
@@ -33,7 +33,7 @@ pub(crate) fn t54_line_kit_parts(v: &HybridVisual, glacis_deg: f32) -> Vec<Vehic
 /// The log itself stays `TrackMetal` for now: giving wood its own `MaterialRole` is open decision
 /// #6, and it belongs with the material families rather than being smuggled in here. The bands
 /// are the part of this defect that can be closed honestly today.
-fn beam_bands(v: &HybridVisual) -> VehiclePart {
+fn beam_bands(v: &VisualDetail) -> VehiclePart {
     let z = -v.hull.half_len - 0.04;
     let mut pieces = Vec::with_capacity(2);
     for side in [-1.0_f32, 1.0] {
@@ -95,7 +95,7 @@ fn turret_casting_seam(loft: &TurretLoftVisual) -> VehiclePart {
 /// rendering wood as track steel was the last recorded material compromise on this vehicle. Its
 /// ends stop WELL inside the hull side planes (±1.03) and the log floats a hand off the raked
 /// rear plate — any coplanar contact with the hull z-fights as the camera moves.
-fn unditching_beam(v: &HybridVisual) -> VehiclePart {
+fn unditching_beam(v: &VisualDetail) -> VehiclePart {
     let profile = [(-0.95_f32, 0.0_f32), (-0.95, 0.10), (0.95, 0.10), (0.95, 0.0)];
     VehiclePart {
         key: PartKey::new("unditching_beam"),
@@ -126,7 +126,7 @@ fn unditching_beam(v: &HybridVisual) -> VehiclePart {
 /// The bore runs along +Z because the gun is FIXED and fires straight ahead, so a body of
 /// revolution about the vehicle's forward axis is the shape, not a convenience: the boss is a
 /// cylinder pushed through a raked plate, which is what the aperture is.
-fn course_mg_port(v: &HybridVisual, glacis_deg: f32) -> Vec<VehiclePart> {
+fn course_mg_port(v: &VisualDetail, glacis_deg: f32) -> Vec<VehiclePart> {
     // Right of centre, at the height the driver's shoulder reaches. The driver's hatch sits at
     // x = -0.45, so this is the other side of the plate from him — as every reference view shows.
     let seat = glacis_point(v, glacis_deg, 0.42, 1.15, 0.0);
@@ -172,7 +172,7 @@ fn course_mg_port(v: &HybridVisual, glacis_deg: f32) -> Vec<VehiclePart> {
 /// stowage stands outside it (2.6 m of barrel already does). The reach is asserted, not hidden:
 /// `t54_carries_two_smoke_canisters_on_the_rear_plate` locks both the documented diameter and
 /// the documented protrusion.
-fn smoke_canisters(v: &HybridVisual) -> Vec<VehiclePart> {
+fn smoke_canisters(v: &VisualDetail) -> Vec<VehiclePart> {
     // Axis ACROSS the vehicle, one drum each side of the centreline, under the beam. The lower
     // plate rakes 5 degrees, so the hang point follows it down.
     const RADIUS: f32 = 0.225;
@@ -229,7 +229,7 @@ fn smoke_canisters(v: &HybridVisual) -> Vec<VehiclePart> {
 
 /// The V-shaped splash board across the upper glacis: a raised bead standing just proud of the
 /// plate, vertex low on the centreline, arms rising outward — every front view shows it.
-fn splash_board(v: &HybridVisual, glacis_deg: f32) -> VehiclePart {
+fn splash_board(v: &VisualDetail, glacis_deg: f32) -> VehiclePart {
     let path: Vec<Vec3> = [(-0.85_f32, 1.42_f32), (0.0, 1.26), (0.85, 1.42)]
         .iter()
         .map(|&(x, y)| glacis_point(v, glacis_deg, x, y, 0.03))
@@ -247,7 +247,7 @@ fn splash_board(v: &HybridVisual, glacis_deg: f32) -> VehiclePart {
 
 /// A point on the 60° glacis plate at hull-local `(x, y)`, pushed `standoff` along the plate
 /// normal. Derived from the blueprint's glacis plane, so it tracks the armour rake.
-fn glacis_point(v: &HybridVisual, glacis_deg: f32, x: f32, y: f32, standoff: f32) -> Vec3 {
+fn glacis_point(v: &VisualDetail, glacis_deg: f32, x: f32, y: f32, standoff: f32) -> Vec3 {
     // The rake comes from the blueprint (`armor.hull_front.0`) — the same number the plate is
     // built at. It used to be a literal 60.0 while the doc comment claimed otherwise, so any
     // future change to the glacis angle would have left this line work floating off the plate.
@@ -307,7 +307,7 @@ fn loft_ring_point(loft: &TurretLoftVisual, y: f32, phi: f32, standoff: f32) -> 
 
 /// The stowed tow cables: one running diagonally across the glacis (the top view's signature
 /// diagonal), one draped across the hull rear plate.
-fn tow_cables(v: &HybridVisual, glacis_deg: f32) -> Vec<VehiclePart> {
+fn tow_cables(v: &VisualDetail, glacis_deg: f32) -> Vec<VehiclePart> {
     // The diagonal stays in the LOWER half of the plate, under the splash board's V, so the two
     // never cross into an X.
     let glacis: Vec<Vec3> = [(0.95_f32, 1.02_f32), (0.35, 1.10), (-0.35, 1.20), (-0.95, 1.30)]
