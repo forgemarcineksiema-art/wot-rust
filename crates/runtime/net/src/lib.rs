@@ -110,7 +110,7 @@ pub use snapshot_schedule::SnapshotSchedule;
 /// The armour VALUES that move with it (a cast turret's wall tapering aft, the T-54's
 /// documented 200/160→65 and its 30 mm roof) are geometry, not wire — the deterministic bake
 /// resolves them identically on both sides.
-pub const PROTOCOL_VERSION: u16 = 41;
+pub const PROTOCOL_VERSION: u16 = 42;
 
 #[derive(Debug, Error)]
 pub enum NetError {

@@ -470,6 +470,12 @@ impl SimulationState {
         // when the next round arrives — the kill belongs to whoever lit it, not to whoever happened
         // to fire into the wreck a frame later.
         crate::fire::step_fire(&mut self.tanks, dt, &mut self.damage_events, &mut event_stamp);
+        crate::fire::step_rack_cookoff(
+            &mut self.tanks,
+            dt,
+            &mut self.damage_events,
+            &mut event_stamp,
+        );
         {
             let mut events = BattleEventOutput::new(
                 &mut self.damage_events,

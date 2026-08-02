@@ -288,6 +288,20 @@ pub(crate) fn apply_shell_impact(
             .fold(0, |bits, bit| bits | bit);
         let fuel_lit = internal.energetic_components_mask & fuel_bits != 0;
         crate::fire::ignite(target, shell.owner, engine_lit, fuel_lit);
+        // Charges hit with fire-level energy on a SURVIVING hull start the cook-off — the staged
+        // rack fire the crew races (`fire::step_rack_cookoff`). A hull the hit already killed
+        // takes the instant jack-in-the-box below instead; the fuze is for the living.
+        let rack_bits = target
+            .spec
+            .damage_layout
+            .components()
+            .iter()
+            .filter(|component| component.kind == game_core::DamageComponentKind::AmmunitionRack)
+            .map(|component| component_bit(component.id))
+            .fold(0, |bits, bit| bits | bit);
+        if target.hit_points > 0 && internal.energetic_components_mask & rack_bits != 0 {
+            crate::fire::ignite_rack(target, shell.owner);
+        }
     }
 
     // The jack-in-the-box: an ammo-rack detonation that kills the tank in this same resolution

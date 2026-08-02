@@ -9,6 +9,9 @@ use sim::{
     burn_rate_hp_per_s,
 };
 
+mod common;
+use common::two_tanks;
+
 /// `SimulationState` clears its damage events at the top of every step, so anything that wants to
 /// see a whole burn has to collect as it goes.
 fn step_collecting(state: &mut SimulationState, out: &mut Vec<DamageEvent>) {
@@ -38,13 +41,6 @@ fn burn_for(
         step_collecting(state, &mut events);
     }
     events
-}
-
-fn two_tanks() -> (SimulationState, TankId, TankId) {
-    let mut state = SimulationState::new();
-    let arsonist = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
-    let victim = state.spawn_tank(TeamId(2), TankSpec::t54_1951(), Vec3::new(0.0, 0.0, 120.0));
-    (state, arsonist, victim)
 }
 
 #[test]
