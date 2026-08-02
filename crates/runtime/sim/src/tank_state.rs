@@ -81,6 +81,15 @@ pub struct TankState {
     /// A holed fuel tank burns as itself (v27) — independent of the engine's own fire.
     #[serde(default)]
     pub fuel_fire: bool,
+    /// Who lit the fire currently burning, so the hit points it takes are credited to that
+    /// crew and not to nobody. `None` whenever nothing is burning (see `crate::fire`).
+    #[serde(default)]
+    pub fire_source: Option<TankId>,
+    /// Seconds the current fire has been burning. The crew smothers it at
+    /// [`crate::fire::FIRE_FIGHT_S`]; the clock resets whenever the tank is not burning, so a
+    /// second ignition costs the full fight again.
+    #[serde(default)]
+    pub fire_s: f32,
 }
 
 fn default_ammo_counts() -> [u16; game_core::MAX_AMMO_SLOTS] {

@@ -215,3 +215,60 @@ fn module_hp(state: &SimulationState, tank: TankId, slot: ModuleSlot) -> u32 {
 fn fire_command() -> TankCommand {
     TankCommand { fire: true, ..TankCommand::idle() }
 }
+
+/// Ignition is EARNED, and this is the rule that earns it.
+///
+/// A fire needs hot fragments in something flammable, so it asks for spall-level energy at the
+/// component — the same threshold that throws the spall cones — and not for mere contact. What
+/// that buys is the case below: a round that gets in and WRECKS the engine outright without
+/// carrying enough left to light it.
+///
+/// Before this gate, any penetrating engine kill lit the deck. A T-54's engine dies to a single
+/// hit, so every centreline penetration was a guaranteed fire and the fire meant nothing. The two
+/// shots here differ only in muzzle penetration; both destroy the engine, and only the energetic
+/// one burns.
+///
+/// Note what the tuned threshold implies, and why it is the point: a round needs ~300 mm of muzzle
+/// penetration to light this engine THROUGH THE GLACIS, and the era's real guns carry 175-200. So a
+/// frontal hit essentially never starts a fire — fires are what the flank and the rear cost you.
+#[test]
+fn wrecking_an_engine_is_not_the_same_as_lighting_it() {
+    let spent = engine_kill_shot(260.0);
+    let energetic = engine_kill_shot(340.0);
+
+    assert_eq!(spent.engine_hp, 0, "the spent round still wrecks the engine outright");
+    assert_eq!(energetic.engine_hp, 0, "so does the energetic one");
+    assert!(
+        !spent.engine_fire,
+        "a round with nothing left to throw wrecks the engine WITHOUT lighting it"
+    );
+    assert!(energetic.engine_fire, "a round with fragments to spare lights the deck");
+}
+
+struct EngineKill {
+    engine_hp: u32,
+    engine_fire: bool,
+}
+
+/// One centreline glacis penetration into the engine bay at the given muzzle penetration.
+fn engine_kill_shot(penetration_mm_at_100m: f32) -> EngineKill {
+    let mut state = SimulationState::new();
+    let shooter = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
+    let target = state.spawn_tank(TeamId(2), TankSpec::t54_1951(), Vec3::new(0.0, 0.0, 55.0));
+    state.tank_mut(target).expect("target").yaw_rad = PI;
+    {
+        let shooter = state.tank_mut(shooter).expect("shooter");
+        shooter.gun_pitch_rad = -0.010;
+        shooter.aim_dispersion_mrad = 0.0;
+        shooter.spec.gun.dispersion_mrad = 0.0;
+        shooter.spec.gun.shell.penetration_mm_at_100m = penetration_mm_at_100m;
+    }
+    run_until_shell_resolved(&mut state, shooter);
+    let event = state.damage_events().last().expect("an impact");
+    assert!(event.penetrated, "both shots must get inside at {penetration_mm_at_100m} mm");
+    let tank = state.tank(target).expect("target");
+    EngineKill {
+        engine_hp: tank.modules.hit_points(ModuleSlot::Engine),
+        engine_fire: tank.engine_fire,
+    }
+}

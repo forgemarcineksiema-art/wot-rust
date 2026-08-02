@@ -19,6 +19,10 @@ pub enum DamageCause {
     /// The hull sank past its fording depth: the engine flooded first, then the crew lost the
     /// vehicle (protocol v18). Always self-inflicted — the river is not a combatant.
     Drowning,
+    /// The vehicle is burning. Credited to whoever lit it, because a fire is that shell's
+    /// consequence and not a separate act of nature — the burn keeps taking hit points until the
+    /// crew smothers it (see `sim::fire`).
+    Fire,
 }
 
 impl DamageCause {
@@ -27,12 +31,13 @@ impl DamageCause {
     ///
     /// Locked variant-by-variant against the declaration by `quality`, not by counting: a
     /// length assertion cannot tell a forgotten variant from a shorter enum.
-    pub const ALL: [DamageCause; 5] = [
+    pub const ALL: [DamageCause; 6] = [
         DamageCause::Shell,
         DamageCause::Ram,
         DamageCause::Impact,
         DamageCause::Splash,
         DamageCause::Drowning,
+        DamageCause::Fire,
     ];
 }
 

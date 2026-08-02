@@ -468,6 +468,8 @@ pub(crate) mod test_support {
             track_break_t: [None, None],
             engine_fire: false,
             fuel_fire: false,
+            fire_source: None,
+            fire_s: 0.0,
         }
     }
 

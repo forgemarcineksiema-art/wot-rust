@@ -58,6 +58,37 @@ fn sync_spawns_an_entity_per_tank_and_extracts_its_pose() {
     assert_eq!(tanks[1].hit_points, 500);
 }
 
+/// History this test exists to not repeat: `sync_tanks` carried `fuel_fire` into the component
+/// correctly, and the projection back out hardcoded `false` on the line directly below the correct
+/// `engine_fire` mapping. The sim set the flag on a holed tank (`combat.rs`, a `FuelTank` component
+/// struck), the wire replicated it, the component held it — and it died one line before the two
+/// consumers that were already waiting for it: the burning-audio voice and the flame/smoke column
+/// (`app/audio_link.rs`, `app/battle_scars.rs`, both reading `engine_fire || fuel_fire`).
+///
+/// A whole replicated damage state was invisible in game because of one literal. Assert BOTH flags
+/// so the next one cannot be dropped quietly either.
+#[test]
+fn both_fire_flags_survive_the_projection_out_of_the_presentation_world() {
+    let mut world = PresentationWorld::default();
+
+    let mut engine_burning = snapshot(1, [0.0, 0.0, 0.0], 900);
+    engine_burning.engine_fire = true;
+    let mut fuel_burning = snapshot(2, [5.0, 0.0, 0.0], 900);
+    fuel_burning.fuel_fire = true;
+    let mut both_burning = snapshot(3, [10.0, 0.0, 0.0], 900);
+    both_burning.engine_fire = true;
+    both_burning.fuel_fire = true;
+
+    world.sync_tanks(&[still(engine_burning), still(fuel_burning), still(both_burning)]);
+
+    let tanks = world.presentation_tanks();
+    assert!(tanks[0].engine_fire, "an engine fire must reach the presentation world");
+    assert!(!tanks[0].fuel_fire, "an engine fire is not a fuel fire");
+    assert!(tanks[1].fuel_fire, "a holed fuel tank must reach the presentation world");
+    assert!(!tanks[1].engine_fire, "a fuel fire is not an engine fire");
+    assert!(tanks[2].engine_fire && tanks[2].fuel_fire, "a tank can burn on both counts at once");
+}
+
 #[test]
 fn re_syncing_a_tank_updates_in_place_without_respawning() {
     let mut world = PresentationWorld::default();
