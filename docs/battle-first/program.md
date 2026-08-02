@@ -184,6 +184,17 @@ Ordering follows from this: research per gun (what it fired, with sources and co
 per gun → delete `special_shell`'s derivation and the HE multipliers together. The "powerful HE"
 half stays a design note until a gun that deserves it joins the roster.
 
+**The research pass is DONE: `docs/ammunition.md`.** Twelve guns, keyed by gun rather than by
+vehicle because the KwK 43 and the Pak 43/3 are one weapon. It confirms the fabricated-APCR charge
+against the 12.8 cm Pak 80 and the 122 mm D-25T (neither fielded a tungsten round), and it turns up
+a defect nobody had named: the HE velocity multiplier is roughly right for the German guns and
+**30 % wrong for the Soviet ones**, whose tank HE was full-charge. The 100 mm D-10's real HE round
+leaves the muzzle FASTER than its AP round — 900 against 895 — and the game flies it at 626. Flight
+time and drop are what a player leads with, so that is a third of the lead.
+
+Six holes remain, each recorded as GAP rather than filled with a guess: HE filler for three guns,
+HE velocity for two, and Pzgr 40 penetration at 100 m for the two 88s.
+
 ### What the HE mechanism can actually deliver (audited 2026-08-02, before authoring anything)
 
 The decided role has three parts. The code answers them differently, and the numbers are worth
