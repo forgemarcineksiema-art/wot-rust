@@ -30,15 +30,10 @@ const ARMOUR_CONTAINMENT_EXEMPT: &[(VehicleKind, u16)] = &[
     // It stays a single named exemption rather than a blanket pass for every Breech, so the
     // mechanisms this rule CAN judge — the seven authored against `turret_group` — stay judged.
     (VehicleKind::T54_1951, 1),
-    // A REAL defect, recorded rather than fixed here. Both engine-bay fuel cells top out at
-    // y 0.46 against a deck plane at 0.39 — 7 cm of fuel above the engine deck, the third
-    // instance of a fault this file already records catching twice by eye (the engine block, the
-    // bow rack). Correcting it is a two-line edit and it is NOT made here, because the T-54's
-    // geometry is baked into `assets/vehicles/t54_1951.vehicle.json`, the studio tiles and the
-    // hybrid golden: the fix costs a deliberate re-bake of the reference model, which is its own
-    // decision and not a side effect of authoring the other seven hulls.
-    (VehicleKind::T54_1951, 8),
-    (VehicleKind::T54_1951, 9),
+    // The list ends here on purpose. It briefly carried the T-54's two engine-bay fuel cells,
+    // which this rule caught standing 7 cm above the engine deck — a real defect, exempted only
+    // long enough to decide whether correcting it was worth re-baking the reference model. It
+    // was: the cells now stop on the deck plane and the rule judges them like everybody else.
 ];
 
 #[test]
