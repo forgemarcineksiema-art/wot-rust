@@ -126,3 +126,46 @@ That authoring rule was written down nowhere.
 
 **Revised W2.1: 2.5 m, one map, with the playability contracts re-run — and 1.25 m only behind a
 sculpt rewrite that targets the gradient, which is its own program, not a step.**
+
+## Terrain — the other half of the ledger, and it reverses the recommendation (2026-08-02)
+
+Everything above measures what densifying COSTS. Nothing measured what it buys. The case for it is
+that a tank is one cell at 5 m, so the ground cannot make a fold to hide a hull behind. That is a
+claim about relief at tank scale, and relief at tank scale is measurable.
+
+Bystra, both grids, sampled on a common 1 m lattice over the central 800 x 800 m. Local relief at
+scale *s* is the height against the mean of four neighbours *s* metres away — RMS over the lattice:
+
+| scale | 5.0 m grid | 2.5 m grid | change |
+|---|---|---|---|
+| 5 m | 0.061 m | 0.070 m | +15 % |
+| 10 m | 0.153 m | 0.165 m | +8 % |
+| 20 m | 0.302 m | 0.310 m | +3 % |
+| 40 m | 0.667 m | 0.676 m | +1 % |
+
+Read the absolute column, not the percentages. **RMS relief at tank scale is seven centimetres**,
+and after densifying it is seven centimetres. Ground with a bump over half a metre at 5 m scale
+covers **0.14 % of the map, rising to 0.21 %** — about 900 m² becoming 1 340 m², on a square
+kilometre.
+
+**Sampling cannot create what was never drawn.** The compile evaluates authored sculpt ops; halving
+the sample spacing renders the same gentle valley more faithfully, it does not add a ditch nobody
+cut. What the finer grid does resolve is the EDGES of those ops, which is exactly why 1.25 m breaks
+passability: the new steepness is op boundaries turning into walls, not cover turning up.
+
+**The grid was never the limit.** Two cells is the finest feature a grid can hold, so a 5 m grid
+represents any crest from ~10 m wavelength upward, at any height. A hull-down position is a
+10-15 m crest 1.5-2 m high — comfortably inside that, and the running-gear model already resolves
+hull attitude from the support envelope, so a drawn crest gives real hull-down today. Bystra has
+almost no tank-scale relief because nobody authored any, not because 5 m could not hold it.
+
+**Recommendation: do not densify. Author the relief.** Densifying pays 1.87 ms of a 16.67 ms frame
+— 11 % of the budget, permanently, on every frame of that map — for one centimetre of RMS relief
+at the scale that matters, spread uniformly and therefore mostly where no fight happens. The Ridge
+brush with its drag tangent, the terrace mode and stroke authoring all shipped with the terrain
+programme; a designer can put a 2 m crest exactly where a duel should be fought, for zero frame
+cost.
+
+**What would reopen it:** authored relief hitting the 5 m wall — designers wanting folds narrower
+than ~10 m. At that point densification has a named purpose and a known place, instead of being a
+uniform tax paid in the hope that something useful appears.

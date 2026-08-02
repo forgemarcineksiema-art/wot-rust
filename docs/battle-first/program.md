@@ -96,6 +96,19 @@ the tank is one cell. The sweep on Bystra (see `measurements.md`) says:
 So: one map at 2.5 m with the contracts re-run. 1.25 m returns only behind a sculpt rewrite aimed
 at the gradient — a separate program, not a step in this one.
 
+**WITHDRAWN 2026-08-02, after measuring the benefit instead of only the cost.** See
+`measurements.md`, "the other half of the ledger". Densifying buys about one centimetre of RMS
+relief at tank scale (0.061 → 0.070 m) for 1.87 ms of a 16.67 ms frame, because sampling cannot
+create relief nobody authored — and a 5 m grid already represents any crest from ~10 m wavelength
+up, which is what a hull-down position is. Ostrogorsk is excluded outright at 18.55 ms of scene
+work. **2.1 becomes: author the relief where the fight happens, with the Ridge brush and strokes
+that already shipped, at zero frame cost.** Densification reopens only if authored relief hits the
+5 m wall — folds narrower than ~10 m — where it would then have a named purpose and a known place.
+
+The prerequisites landed anyway and stand on their own: one climb-grade constant (PR #379), a sight
+line whose step follows the grid (#379), and a pooling contract that asserts its property instead
+of balancing on 664 texels (#380).
+
 **2.2 Armor depth** — normalization as a function of caliber against thickness; damage that depends
 on what was hit.
 
