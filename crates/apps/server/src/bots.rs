@@ -7,7 +7,8 @@ use terrain::BattlefieldMap;
 use crate::battle::BattleSeed;
 use crate::bot_aim::{BotFiringSolution, solve_firing_solution};
 use crate::bot_combat::{
-    bot_combat_command, bot_nearest_engageable_enemy, bot_target_still_engageable, find_tank,
+    AlliedEngagement, BotSituation, bot_best_engageable_enemy, bot_combat_command,
+    bot_target_still_engageable, find_tank,
 };
 use crate::bot_routes::{
     BotPosture, ROUTE_REPLAN_INTERVAL_TICKS, RoutePlan, bot_posture, bot_route_command,
@@ -63,6 +64,19 @@ const REPOSITION_TICKS: u32 = 480;
 /// bot actually sees something.
 const THREAT_FACE_TICKS: u32 = 240;
 
+/// Below this fraction of its hit points, a bot still being hit stops trading and pulls out.
+///
+/// A quarter is where one more penetration is likely to be the last one. Trading at that point is
+/// only correct if the bot wins the exchange, and a bot has no way to know that — what it does
+/// know is that it is nearly dead and that something is still hitting it.
+const WITHDRAW_HP_FRACTION: f32 = 0.25;
+
+/// How long a withdrawal runs before the bot may stand and fight again.
+///
+/// Long enough to actually break contact (five seconds at 60 Hz), short enough that a crippled bot
+/// which got away rejoins the battle instead of driving to the edge of the map for good.
+const WITHDRAW_TICKS: u32 = 300;
+
 /// True on the ticks where `tank_id`'s slice of periodic work is due (deterministic stagger).
 fn cadence_due(tick: u64, tank_id: TankId, interval: u64) -> bool {
     tick.wrapping_add(tank_id.0).is_multiple_of(interval)
@@ -98,6 +112,10 @@ struct BotAgent {
     /// A hit from a gun this bot cannot see: the world-yaw bearing of the strike point on its
     /// own hull and the ticks left of turning to face it. See [`THREAT_FACE_TICKS`].
     threat: Option<(f32, u32)>,
+    /// Whether a shell or a burst landed on this hull during THIS tick.
+    struck_this_tick: bool,
+    /// Remaining ticks of a withdrawal: driving away from the last known threat, not fighting.
+    withdraw_ticks: u32,
     /// The cached water-detour plan; replanned on [`ROUTE_REPLAN_INTERVAL_TICKS`] or when the
     /// objective changes. See `bot_routes::RoutePlan`.
     route_plan: Option<RoutePlan>,
@@ -121,6 +139,8 @@ impl BotAgent {
             sidestep_ticks: 0,
             escape_left,
             threat: None,
+            struck_this_tick: false,
+            withdraw_ticks: 0,
             route_plan: None,
         }
     }
@@ -163,6 +183,17 @@ impl BotRoster {
         damage_events: &[DamageEvent],
     ) -> Vec<(TankId, TankCommand)> {
         let mut commands = Vec::with_capacity(self.agents.len());
+        // Who everybody was shooting at when the tick began. Taken BEFORE any agent thinks, so
+        // concentration is a fact about last tick rather than about this loop's order.
+        let engagements: Vec<AlliedEngagement> = self
+            .agents
+            .iter()
+            .filter_map(|agent| {
+                let target = agent.target?;
+                let team = tanks.iter().find(|tank| tank.id == agent.tank_id)?.team;
+                Some(AlliedEngagement { bot: agent.tank_id, team, target })
+            })
+            .collect();
         for index in 0..self.agents.len() {
             let tank_id = self.agents[index].tank_id;
             let command = tanks.iter().find(|tank| tank.id == tank_id).map_or_else(
@@ -180,6 +211,7 @@ impl BotRoster {
                             battlefield,
                             ground,
                             live_cover,
+                            &engagements,
                         )
                     }
                 },
@@ -194,12 +226,14 @@ impl BotRoster {
 /// strike point on their OWN hull — its bearing says which side rang, and that is all the
 /// reaction may use. `event.source` is deliberately never resolved to a position.
 fn note_incoming_fire(agent: &mut BotAgent, tank: &TankState, damage_events: &[DamageEvent]) {
+    agent.struck_this_tick = false;
     for event in damage_events {
         if event.target != tank.id
             || !matches!(event.cause, DamageCause::Shell | DamageCause::Splash)
         {
             continue;
         }
+        agent.struck_this_tick = true;
         let strike = event.hit_position - tank.position;
         if strike.x.abs().max(strike.z.abs()) > 1.0e-3 {
             agent.threat = Some((strike.x.atan2(strike.z), THREAT_FACE_TICKS));
@@ -207,6 +241,7 @@ fn note_incoming_fire(agent: &mut BotAgent, tank: &TankState, damage_events: &[D
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn bot_command_for_tank(
     agent: &mut BotAgent,
     tick: u64,
@@ -215,6 +250,7 @@ fn bot_command_for_tank(
     battlefield: &BattlefieldMap,
     ground: Option<&terrain::GroundClassifier>,
     live_cover: &[terrain::StaticCoverObject],
+    engagements: &[AlliedEngagement],
 ) -> TankCommand {
     // Survival preempts everything, combat included: a hull past the route brain's deep-water
     // line — or driving at it with no room to stop — is heading for a flooded engine. It takes
@@ -233,12 +269,35 @@ fn bot_command_for_tank(
             agent.futile_hold = None;
         }
     }
+    // WITHDRAWAL outranks combat, because the point of it is to stop fighting. A crew down to its
+    // last quarter that is STILL being hit breaks contact: it turns away from the bearing the hit
+    // came from and drives, keeping the turret on that quarter so it is not shot in the back for
+    // free. Trading here is only right if the bot wins the exchange, and a bot cannot know that —
+    // what it knows is that it is nearly dead and something is still hitting it.
+    if agent.withdraw_ticks == 0
+        && agent.struck_this_tick
+        && (tank.hit_points as f32) <= tank.spec.hit_points as f32 * WITHDRAW_HP_FRACTION
+    {
+        agent.withdraw_ticks = WITHDRAW_TICKS;
+        agent.target = None;
+        agent.solution = None;
+        agent.futile_watch = None;
+    }
+    if agent.withdraw_ticks > 0 {
+        agent.withdraw_ticks -= 1;
+        agent.stall_ticks = 0;
+        agent.last_position = Some(tank.position);
+        if let Some((bearing, _)) = agent.threat {
+            return bot_withdraw_command(tank, bearing);
+        }
+    }
     let repositioning = agent.reposition_ticks > 0;
     if repositioning {
         agent.reposition_ticks -= 1;
     }
     if !repositioning
-        && let Some(target) = bot_current_target(agent, tick, tank, tanks, battlefield, live_cover)
+        && let Some(target) =
+            bot_current_target(agent, tick, tank, tanks, battlefield, live_cover, engagements)
     {
         // A duel that changes nothing is a parked bot: shells eating a crest or a bank while
         // combat preempts the route for the whole battle. When the target's hit points have
@@ -372,6 +431,7 @@ fn bot_current_target<'a>(
     tanks: &'a [TankState],
     battlefield: &BattlefieldMap,
     live_cover: &[terrain::StaticCoverObject],
+    engagements: &[AlliedEngagement],
 ) -> Option<&'a TankState> {
     // The futile hold: this bot walked away from that duel — the held enemy is out of the
     // candidate pool entirely, so a second visible enemy can still be fought.
@@ -387,12 +447,42 @@ fn bot_current_target<'a>(
         had_target || cadence_due(tick, tank.id, ACQUIRE_INTERVAL_TICKS)
     };
     let target = if select_due {
-        bot_nearest_engageable_enemy(tank, tanks, held, Some(&battlefield.heightmap), live_cover)
+        let situation = BotSituation {
+            threat_bearing: agent.threat.map(|(bearing, _)| bearing),
+            allied_targets: engagements,
+        };
+        bot_best_engageable_enemy(
+            tank,
+            tanks,
+            held,
+            Some(&battlefield.heightmap),
+            live_cover,
+            &situation,
+        )
     } else {
         cached
     };
     agent.target = target.map(|target| target.id);
     target
+}
+
+/// Drive away from the threat bearing with the turret still on it.
+///
+/// The hull steers to the OPPOSITE bearing and drives; the turret keeps tracking the quarter the
+/// fire came from, so a withdrawing bot presents its back to the enemy but not its attention. The
+/// steering gain matches the route brain — a retreat is nothing a driving bot could not do.
+fn bot_withdraw_command(tank: &TankState, bearing: f32) -> TankCommand {
+    let away = wrap_angle(bearing + std::f32::consts::PI);
+    let hull_error = wrap_angle(away - tank.yaw_rad);
+    let turret_error = wrap_angle(bearing - tank.yaw_rad - tank.turret_yaw_rad);
+    TankCommand {
+        // Turn first, then run: driving at full throttle while still broadside just shows the
+        // flank for longer.
+        throttle: if hull_error.abs() < std::f32::consts::FRAC_PI_4 { 1.0 } else { 0.3 },
+        steer: (hull_error * 1.8).clamp(-1.0, 1.0),
+        turret_yaw_delta: (turret_error * 4.0).clamp(-1.0, 1.0),
+        ..TankCommand::idle()
+    }
 }
 
 /// Pivot the hull and slew the turret toward the threat bearing; no fire, no drive. The same
@@ -796,6 +886,57 @@ mod tests {
 
     /// The threat window runs out: one stray round turns the bot for a few seconds, then the
     /// route resumes — a single hit must not park a bot for the rest of the battle.
+    /// WITHDRAWAL. A crew down to its last quarter that is STILL being hit stops trading and
+    /// pulls out: hull turned away from the quarter the shell came from, throttle open, turret
+    /// still tracking that quarter so the retreat is not a free shot in the back.
+    ///
+    /// The same hit on a healthy hull does the opposite — it stands and looks — which is the
+    /// point: withdrawal is a decision about how much tank is left, not a reaction to being shot.
+    #[test]
+    fn a_crippled_bot_under_fire_breaks_contact_instead_of_trading() {
+        let battlefield = map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2);
+        let mut bot = tank(1, TeamId(1), Vec3::new(300.0, 0.0, 300.0), TeamId(1).spotting_bit());
+        // A round into the LEFT flank, as in the threat-facing test above.
+        let hit = game_core::DamageEvent {
+            source: TankId(99),
+            target: bot.id,
+            hit_position: bot.position + Vec3::new(-1.05, 0.8, 0.3),
+            damage_hp: 90,
+            penetrated: true,
+            cause: DamageCause::Shell,
+            ..Default::default()
+        };
+        let drive = |bot: &TankState| {
+            let mut roster = BotRoster::new(vec![bot.id], BattleSeed::fixed(7));
+            roster.commands(
+                1,
+                std::slice::from_ref(bot),
+                &battlefield,
+                None,
+                &battlefield.static_cover,
+                false,
+                std::slice::from_ref(&hit),
+            )[0]
+            .1
+        };
+
+        let healthy = drive(&bot);
+        assert_eq!(healthy.throttle, 0.0, "a whole tank stands and looks for the shooter");
+
+        bot.hit_points = bot.spec.hit_points / 10;
+        let crippled = drive(&bot);
+        assert!(crippled.throttle > 0.0, "a nearly dead tank drives, got {crippled:?}");
+        assert!(
+            crippled.steer > 0.5,
+            "the hull turns AWAY from the struck left side, got {crippled:?}"
+        );
+        assert!(
+            crippled.turret_yaw_delta < -0.5,
+            "the turret keeps covering the quarter it is running from, got {crippled:?}"
+        );
+        assert!(!crippled.fire, "a withdrawal is not an engagement");
+    }
+
     #[test]
     fn threat_facing_expires_back_into_the_route() {
         let battlefield = map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2);
