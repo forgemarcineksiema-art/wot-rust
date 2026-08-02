@@ -31,12 +31,13 @@ impl DamageCause {
     ///
     /// Locked variant-by-variant against the declaration by `quality`, not by counting: a
     /// length assertion cannot tell a forgotten variant from a shorter enum.
-    pub const ALL: [DamageCause; 5] = [
+    pub const ALL: [DamageCause; 6] = [
         DamageCause::Shell,
         DamageCause::Ram,
         DamageCause::Impact,
         DamageCause::Splash,
         DamageCause::Drowning,
+        DamageCause::Fire,
     ];
 }
 
