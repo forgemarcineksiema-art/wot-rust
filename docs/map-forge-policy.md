@@ -141,5 +141,6 @@ world the game would not build. The viewport is the game's own render path; the 
 are the client's instrument UI toolkit (D3 — one look, one implementation). Playtest
 (Ctrl+P) saves the document and launches the client on it through `MapId::Scratch` +
 `WOT_MAP=<file>.map.ron` — one local process, one document, and the v35 content hash
-guards the remote case. The tool manual lives in `crates/apps/editor/README.md`;
-milestones and decisions in `docs/map-editor-plan.md`.
+guards the remote case. The tool manual lives in `crates/apps/editor/README.md`; the
+program's milestones and decisions are in git history (`docs/map-editor-plan.md`, removed
+after completion — M1–M8, PRs #258–#268).

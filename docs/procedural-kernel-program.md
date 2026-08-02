@@ -1,8 +1,8 @@
 # Procedural Geometry Kernel Program
 
 This document is the live taxonomy for the renderer-neutral procedural geometry kernels that build
-armored vehicles. It supersedes the spike table in
-[hybrid-geometry-spike.md](hybrid-geometry-spike.md) as the source of truth for *which generator
+armored vehicles. It superseded the spike table of `docs/hybrid-geometry-spike.md` (spike
+concluded; the file now lives in git history) as the source of truth for *which generator
 builds which part, and why*.
 
 **Starting point:** commit `2efa773` — the T-54 cast turret shell is a designed **cast loft**, not a

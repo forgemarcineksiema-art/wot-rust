@@ -1,40 +1,9 @@
+// The gate holds rules about CODE. The old `core_architecture_docs_exist` here — a hard list of
+// 23 `docs/` paths — and the phrase-grep tests in the sibling files are gone by decision
+// (battle-first, 2026-08-01): a policy document earns its keep by being cited from the tests
+// that enforce it, not by a test asserting the file exists or contains a sentence.
 use quality::{rust_files, workspace_root};
 use std::fs;
-
-#[test]
-fn core_architecture_docs_exist() {
-    let root = workspace_root();
-    for required_doc in [
-        "docs/architecture.md",
-        "docs/aiming-model-policy.md",
-        "docs/armored-battle-domain.md",
-        "docs/battle-camera-policy.md",
-        "docs/combat-policy.md",
-        "docs/debug-tools-policy.md",
-        "docs/destruction-program.md",
-        "docs/engineering-rules.md",
-        "docs/gpu-upload-policy.md",
-        "docs/pipeline-policy.md",
-        "docs/physics-policy.md",
-        "docs/render-boundary.md",
-        "docs/server-first-policy.md",
-        "docs/simulation-render-separation.md",
-        "docs/testing-and-regression.md",
-        "docs/map-forge-policy.md",
-        "docs/terrain-large-world-policy.md",
-        "docs/vehicle-forge-policy.md",
-        "docs/vehicle-geometry-policy.md",
-        "docs/vehicle-movement-policy.md",
-        "docs/wgpu-capability-model.md",
-        "docs/winit-event-loop-policy.md",
-        "docs/wgsl-layout-policy.md",
-    ] {
-        assert!(
-            root.join(required_doc).is_file(),
-            "missing required architecture doc: {required_doc}"
-        );
-    }
-}
 
 /// Every piece of the render surface, and the exhaustive list of crates allowed to name it.
 ///
@@ -150,12 +119,6 @@ fn workspace_has_protocol_snapshots_replays_and_benchmarks() {
         "assets/vehicles/panther_ii.vehicle.json",
         "assets/vehicles/is3.vehicle.json",
         "assets/vehicles/t34_85.vehicle.json",
-        "docs/maps/prokhorovka-hill-252-2.md",
-        "docs/vehicles/panzerkampfwagen-vi-tiger.md",
-        "docs/vehicles/panzerkampfwagen-vi-b-tiger-ii.md",
-        "docs/vehicles/jagdtiger.md",
-        "docs/vehicles/panzerkampfwagen-v-panther-ii.md",
-        "docs/vehicles/is-3.md",
         "scripts/verify.ps1",
         ".github/workflows/ci.yml",
     ] {

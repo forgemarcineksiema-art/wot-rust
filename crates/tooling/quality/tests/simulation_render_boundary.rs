@@ -1,14 +1,8 @@
+// Doc-existence test removed by decision (battle-first, 2026-08-01): the gate holds rules about
+// code. The boundary doctrine lives at `docs/simulation-render-separation.md`, cited here.
 use quality::is_test_module_file;
 use quality::{rust_files, workspace_root};
 use std::fs;
-
-#[test]
-fn simulation_render_separation_doc_is_required() {
-    assert!(
-        workspace_root().join("docs/simulation-render-separation.md").is_file(),
-        "missing docs/simulation-render-separation.md"
-    );
-}
 
 #[test]
 fn sim_net_and_server_stay_free_of_render_frame_concepts() {
