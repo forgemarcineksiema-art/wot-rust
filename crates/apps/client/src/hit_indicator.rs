@@ -2,10 +2,10 @@ use game_core::{DamageEvent, ModuleSlot, TankId};
 use glam::Vec3;
 use renderer_api::HudVertex;
 
-mod hit_indicator_draw;
+mod draw;
 
 use crate::hud::reticle::world_to_clip_xy;
-use hit_indicator_draw::{color_for, fade, push_marker, push_module_icon};
+use draw::{color_for, fade, push_marker, push_module_icon};
 
 const FEEDBACK_TTL: f32 = 2.5;
 const FADE_DURATION: f32 = 0.8;
