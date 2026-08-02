@@ -149,11 +149,15 @@ impl BotAgent {
 #[derive(Debug, Default, Clone, PartialEq)]
 pub(crate) struct BotRoster {
     agents: Vec<BotAgent>,
+    /// The map's measured hull-down census, computed once on first use — the SAME
+    /// `map_forge::hull_down_positions` the map report gauges with, so the bots hold exactly the
+    /// crests the contract counts.
+    hull_down: Option<Vec<map_forge::HullDownSpot>>,
 }
 
 impl BotRoster {
     pub(crate) fn empty() -> Self {
-        Self { agents: Vec::new() }
+        Self { agents: Vec::new(), hull_down: None }
     }
 
     pub(crate) fn new(tank_ids: Vec<TankId>, seed: BattleSeed) -> Self {
@@ -164,7 +168,7 @@ impl BotRoster {
                 BotAgent::new(tank_id, seed_route_index(seed, index), bot_posture(index))
             })
             .collect();
-        Self { agents }
+        Self { agents, hull_down: None }
     }
 
     /// `live_cover` is the cover the battle actually blocks with THIS tick (rubble lowered,
@@ -183,6 +187,11 @@ impl BotRoster {
         damage_events: &[DamageEvent],
     ) -> Vec<(TankId, TankCommand)> {
         let mut commands = Vec::with_capacity(self.agents.len());
+        // The census once per battle: ~10k heightmap samples, far too hot for a tick and
+        // perfectly stable — the ground does not move (craters live in an overlay the census
+        // deliberately reads through `sample_height` if it ever matters).
+        let hull_down =
+            self.hull_down.get_or_insert_with(|| map_forge::hull_down_positions(battlefield));
         // Who everybody was shooting at when the tick began. Taken BEFORE any agent thinks, so
         // concentration is a fact about last tick rather than about this loop's order.
         let engagements: Vec<AlliedEngagement> = self
@@ -212,6 +221,7 @@ impl BotRoster {
                             ground,
                             live_cover,
                             &engagements,
+                            hull_down,
                         )
                     }
                 },
@@ -251,6 +261,7 @@ fn bot_command_for_tank(
     ground: Option<&terrain::GroundClassifier>,
     live_cover: &[terrain::StaticCoverObject],
     engagements: &[AlliedEngagement],
+    hull_down: &[map_forge::HullDownSpot],
 ) -> TankCommand {
     // Survival preempts everything, combat included: a hull past the route brain's deep-water
     // line — or driving at it with no room to stop — is heading for a flooded engine. It takes
@@ -362,6 +373,7 @@ fn bot_command_for_tank(
         posture,
         tank,
         battlefield,
+        hull_down,
     );
     // Stall detection guards MOVEMENT intent only. An overwatch bot holding its shelf (and the
     // slow on-station pivot) stands still on purpose — without this gate the hold would read as

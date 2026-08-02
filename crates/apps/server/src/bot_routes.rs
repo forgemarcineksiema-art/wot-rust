@@ -64,6 +64,7 @@ pub(crate) fn bot_route_command(
     posture: BotPosture,
     tank: &TankState,
     battlefield: &BattlefieldMap,
+    census: &[map_forge::HullDownSpot],
 ) -> TankCommand {
     match posture {
         BotPosture::Skirmish => {
@@ -73,7 +74,7 @@ pub(crate) fn bot_route_command(
                 planned_drive_target(plan, replan_due, tank, target, battlefield),
             )
         }
-        BotPosture::Overwatch => bot_overwatch_command(plan, replan_due, tank, battlefield),
+        BotPosture::Overwatch => bot_overwatch_command(plan, replan_due, tank, battlefield, census),
     }
 }
 
@@ -434,9 +435,32 @@ fn bot_overwatch_command(
     replan_due: bool,
     tank: &TankState,
     battlefield: &BattlefieldMap,
+    census: &[map_forge::HullDownSpot],
 ) -> TankCommand {
     let Some(point) = bot_overwatch_point(tank.team, tank.position, battlefield) else {
-        // A map without authored overwatch ground: fall back to standing pressure mid-map.
+        // No AUTHORED overwatch ground on this side — ask the census: the same
+        // `hull_down_positions` the map report gauges with, so the AI and the contract can never
+        // disagree about what a position is. A measured crest, held bow-on to its facing.
+        if let Some(spot) = bot_census_point(tank.team, tank.position, battlefield, census) {
+            let target = Vec3::new(spot.at[0], tank.position.y, spot.at[2]);
+            if tank.position.distance(target) > 12.0 {
+                return bot_drive_toward(
+                    tank,
+                    planned_drive_target(plan, replan_due, tank, target, battlefield),
+                );
+            }
+            let face = tank.position + Vec3::new(spot.facing[0], 0.0, spot.facing[1]) * 50.0;
+            let yaw_error = wrap_angle(bot_yaw_to(tank.position, face) - tank.yaw_rad);
+            if yaw_error.abs() > 0.35 {
+                return TankCommand {
+                    throttle: 0.15,
+                    steer: (yaw_error * 1.8).clamp(-1.0, 1.0),
+                    ..TankCommand::idle()
+                };
+            }
+            return TankCommand { brake: 0.5, ..TankCommand::idle() };
+        }
+        // No authored ground AND no measured crests: standing pressure mid-map.
         let center =
             Vec3::new(battlefield.size_m[0] * 0.5, tank.position.y, battlefield.size_m[1] * 0.5);
         return bot_drive_toward(
@@ -484,6 +508,39 @@ fn bot_overwatch_point(
                 .total_cmp(&position.distance_squared(Vec3::from_array(b.position))),
         )
     })
+}
+
+/// The nearest measured hull-down position on the team's side whose crest faces the enemy half.
+///
+/// The census carries the facing precisely so this choice is one comparison: a crest facing your
+/// own spawn is cover from your own side, which is no cover at all.
+fn bot_census_point<'a>(
+    team: TeamId,
+    position: Vec3,
+    battlefield: &BattlefieldMap,
+    census: &'a [map_forge::HullDownSpot],
+) -> Option<&'a map_forge::HullDownSpot> {
+    let center_z = battlefield.size_m[1] * 0.5;
+    let own_side = battlefield
+        .spawn_zones
+        .iter()
+        .find(|zone| zone.team == team.0)
+        .map(|zone| (zone.center[2] - center_z).signum());
+    census
+        .iter()
+        .filter(|spot| {
+            let side_ok = own_side.is_none_or(|side| {
+                let spot_side = spot.at[2] - center_z;
+                spot_side.abs() < 25.0 || spot_side.signum() == side
+            });
+            let toward_enemy = own_side.is_none_or(|side| spot.facing[1] * side < 0.1);
+            side_ok && toward_enemy
+        })
+        .min_by(|a, b| {
+            position
+                .distance_squared(Vec3::new(a.at[0], position.y, a.at[2]))
+                .total_cmp(&position.distance_squared(Vec3::new(b.at[0], position.y, b.at[2])))
+        })
 }
 
 fn bot_route_target(
@@ -560,6 +617,35 @@ mod tests {
             .collect()
     }
 
+    /// THE CENSUS FEEDS THE OVERWATCH: on a side with no authored hull-down ground, the bot holds
+    /// the nearest MEASURED crest that faces the enemy — the same `hull_down_positions` the map
+    /// report gauges with, so the AI and the contract can never disagree about what a position is.
+    #[test]
+    fn the_census_picks_the_nearest_crest_that_faces_the_enemy() {
+        let mut map = battlefield();
+        // Team 1 spawns south (z below centre) on this map; strip the authored points so the
+        // census is the only voice.
+        map.strategic_points.clear();
+        let center_z = map.size_m[1] * 0.5;
+        let south = |z_off: f32| center_z - z_off;
+        let census = vec![
+            // Nearest, on the south half, facing NORTH (toward the enemy): the right answer.
+            map_forge::HullDownSpot { at: [300.0, 5.0, south(80.0)], facing: [0.0, 1.0] },
+            // Nearer still, but its crest faces SOUTH — cover from your own side is no cover.
+            map_forge::HullDownSpot { at: [290.0, 5.0, south(60.0)], facing: [0.0, -1.0] },
+            // Right facing, wrong half of the map.
+            map_forge::HullDownSpot { at: [300.0, 5.0, center_z + 200.0], facing: [0.0, 1.0] },
+        ];
+        let position = Vec3::new(300.0, 5.0, south(40.0));
+
+        let spot = bot_census_point(TeamId(1), position, &map, &census)
+            .expect("a qualifying crest exists");
+
+        assert_eq!(spot.at[0], 300.0);
+        assert_eq!(spot.at[2], south(80.0), "nearest CORRECT crest, not nearest crest");
+        assert_eq!(spot.facing, [0.0, 1.0]);
+    }
+
     #[test]
     fn team_pools_come_from_geometry_not_point_ids() {
         let map = battlefield();
@@ -627,6 +713,7 @@ mod tests {
             BotPosture::Overwatch,
             &tank,
             &map,
+            &[],
         );
         assert!(approach.throttle > 0.0, "en route the bot drives");
         let desired = bot_yaw_to(tank.position, Vec3::from_array(shelf.position));
@@ -649,6 +736,7 @@ mod tests {
             BotPosture::Overwatch,
             &tank,
             &map,
+            &[],
         );
         assert_eq!(hold.throttle, 0.0, "an overwatch bot on station stands");
         assert!(hold.brake > 0.0, "and holds the brake");
@@ -662,6 +750,7 @@ mod tests {
             BotPosture::Overwatch,
             &tank,
             &map,
+            &[],
         );
         assert!(pivot.steer.abs() > 0.0, "a shelf only works bow-on: the bot swings its hull");
         assert!(pivot.throttle > 0.0 && pivot.throttle < 0.5, "a pivot creeps, not charges");
@@ -863,7 +952,15 @@ mod tests {
 
         let mut route_index = 0;
         let mut plan = None;
-        bot_route_command(&mut route_index, &mut plan, true, BotPosture::Skirmish, &tank, &map);
+        bot_route_command(
+            &mut route_index,
+            &mut plan,
+            true,
+            BotPosture::Skirmish,
+            &tank,
+            &map,
+            &[],
+        );
         assert_eq!(route_index, 1, "arriving at the objective advances the rotation");
     }
 }
