@@ -10,9 +10,10 @@
 
 use glam::Vec3;
 
+use super::source::BlueprintFile;
 use super::{
-    ArmorShape, BoxVisual, DetailVisual, FenderVisual, FittingsVisual, GunVisual, HullPlatesVisual,
-    HullShape, HullVisual, HybridVisual, TurretVisual,
+    BoxVisual, DetailVisual, FenderVisual, FittingsVisual, GunVisual, HullPlatesVisual, HullVisual,
+    HybridVisual, TurretVisual,
 };
 
 /// Where the glacis meets the deck, and where the lower nose meets the belly. These two are
@@ -23,17 +24,8 @@ use super::{
 /// number the whole front of the vehicle hangs off, and while these were absolutes the two
 /// numbers agreed only by luck: change `half_len` and the two-plate front stayed where it was
 /// while the hull moved out from under it.
-/// Height of the turret casting's flat roof. The dossier's book value, and the number the whole
-/// roof band hangs off.
-const TURRET_ROOF_Y: f32 = 2.40;
-/// External radius of the commander's cupola: 624 mm across (Tankograd). One number, read by the
-/// gameplay turret, the metaball composition and the loft alike — it used to be written three
-/// times, so "the cupola" was three cupolas that happened to agree.
-const CUPOLA_RADIUS_M: f32 = 0.312;
-/// How far the drum stands above the roof. Documented, not derived from whatever gap was left
-/// under the hitbox apex.
-const CUPOLA_PROUD_M: f32 = 0.131;
-/// Half-height of the drum itself: enough below the roof to root in the casting.
+/// Half-height of the cupola drum itself: enough below the roof to root in the casting. AUTHORED —
+/// the blueprint states how proud the drum stands (`cupola_height`), not how deep it roots.
 const CUPOLA_HALF_HEIGHT_M: f32 = 0.18;
 const GLACIS_SETBACK_M: f32 = 0.05;
 const NOSE_SETBACK_M: f32 = 0.48;
@@ -42,16 +34,29 @@ const DECK_REAR_GAP_M: f32 = 0.20;
 /// How far each fender run stops short of the hull's end plates.
 const FENDER_END_GAP_M: f32 = 0.30;
 
-pub(super) fn t54_hybrid(hull: &HullShape, armor: &ArmorShape) -> HybridVisual {
+pub(super) fn t54_hybrid(file: &BlueprintFile) -> HybridVisual {
+    let (hull, armor) = (&file.hull, &file.armor);
     // Everything bolted to the turret roof is stated as a DEPTH INTO THE CASTING, not as an
     // absolute height. Raise the dome and the cupola, the hatches, the periscopes and the DShK
     // mount rise with it, each staying the same distance into the metal it is rooted in. They
     // were absolutes, and the whole band would have had to be re-typed by hand.
-    let roof = TURRET_ROOF_Y;
+    //
+    // The roof height, the cupola's footprint and how proud it stands are the GAMEPLAY turret's
+    // numbers, not a second copy beside it: these used to be consts re-typed from the blueprint
+    // (2.40 / 0.312 / 0.131 / −0.34 / −0.10), each one a number about to disagree with itself.
+    let roof = file.turret.roof_y;
+    let cupola_proud = file
+        .turret
+        .cupola_height
+        .expect("a hybrid vehicle authors its cupola height; the legacy fallback launders errors");
     // The commander's cupola, authored once and handed to everything that draws it.
     let cupola = (
-        Vec3::new(-0.34, roof + CUPOLA_PROUD_M - CUPOLA_HALF_HEIGHT_M, -0.10),
-        CUPOLA_RADIUS_M,
+        Vec3::new(
+            file.turret.cupola_x,
+            roof + cupola_proud - CUPOLA_HALF_HEIGHT_M,
+            file.turret.cupola_z,
+        ),
+        file.turret.cupola_radius,
         CUPOLA_HALF_HEIGHT_M,
     );
     // The glacis plane and the lower-nose plane used to be FROZEN NUMBERS beside the blueprint
@@ -82,7 +87,9 @@ pub(super) fn t54_hybrid(hull: &HullShape, armor: &ArmorShape) -> HybridVisual {
             // They were duplicated here, and a duplicate of a dimension is a dimension that is
             // about to disagree with itself.
             belly_y: hull.belly_y,
-            roof_y: 1.58,
+            // The hull roof IS the plane the turret ring seats on — one number, the gameplay
+            // turret's, not a 1.58 re-typed beside it.
+            roof_y: file.turret.ring_y,
             half_len: hull.half_len,
             glacis_offset,
             nose_normal,
@@ -119,8 +126,8 @@ pub(super) fn t54_hybrid(hull: &HullShape, armor: &ArmorShape) -> HybridVisual {
             ring_center: Vec3::new(0.0, 1.76, 0.0),
             ring_blend: 0.33,
             roof_plane_y: roof,
-            ring_plane_y: 1.58,
-            cupola_radius: CUPOLA_RADIUS_M,
+            ring_plane_y: file.turret.ring_y,
+            cupola_radius: file.turret.cupola_radius,
             // The drum roots DEEP into the curved dome (base ~2.02, well under the local shell
             // surface) so it grows out of the casting instead of levitating over the slope.
             cupola_half_height: CUPOLA_HALF_HEIGHT_M,
@@ -129,7 +136,9 @@ pub(super) fn t54_hybrid(hull: &HullShape, armor: &ArmorShape) -> HybridVisual {
             // A deeper mantlet socket on the fire line, so the cast trough the gun mantlet beds
             // into reads as a real cavity, not a dimple.
             socket_radius: 0.42,
-            socket_center: Vec3::new(0.0, 1.78, 1.15),
+            // The socket sits ON the trunnion — the gameplay gun's fire line, not a re-typed
+            // 1.78/1.15 that would stay put if the gun moved.
+            socket_center: Vec3::new(0.0, file.gun.trunnion_y, file.gun.trunnion_z),
             socket_blend: 0.07,
             bbox_min: Vec3::new(-1.30, 1.53, -1.35),
             bbox_max: Vec3::new(1.30, 2.45, 1.60),
@@ -140,6 +149,12 @@ pub(super) fn t54_hybrid(hull: &HullShape, armor: &ArmorShape) -> HybridVisual {
         // into the flat roof, all within the ±1.125 / ±1.17 turret plan.
         turret_loft: super::t54_hybrid_turret::turret_loft(cupola),
         gun: GunVisual {
+            // THE DRIFTED PAIR (W4 F1 finding, left in place deliberately): the gameplay gun says
+            // `barrel_radius: 0.092` and the drawn tube says 0.090 — the shell's barrel is 2 mm
+            // fatter than the eye's. The visible thickness carries a player verdict (the "barrel
+            // too thin" review item was withdrawn), so reconciling is a DECISION about which
+            // number is the vehicle, not a mechanical fix; it goes to the Model Idealny session
+            // with the plateau/mantlet debt. Until then the drift is on the record here.
             barrel_radius: 0.09,
             // The D-10T is a 100 mm gun with a thin wall: the documented muzzle OD is about
             // 120-126 mm, so a 10-13 mm wall around a 100 mm bore. The tube used to end at
@@ -221,6 +236,10 @@ pub(super) fn t54_hybrid(hull: &HullShape, armor: &ArmorShape) -> HybridVisual {
         // over the tracks into 3.270 over the vehicle. Both numbers are the dossier's; the
         // shelf is what reconciles them, and its inner edge tucks behind the tub side.
         fender: FenderVisual {
+            // Stated, not derived — MEASURED decision (W4 F1): `(inner_x + outer_x) * 0.5` lands
+            // one ULP off this literal (0x3fa8f5c2 vs 0x3fa8f5c3) and re-blessing a golden over
+            // a rounding ghost is not worth the precedent. The blueprint lint still holds the
+            // shelf centred on the belt, so the pair cannot drift.
             side_x: 1.32,
             center_y: 1.12,
             // The shelf runs the length of the hull, short of each end plate.
@@ -229,7 +248,8 @@ pub(super) fn t54_hybrid(hull: &HullShape, armor: &ArmorShape) -> HybridVisual {
         // The running gear (wheels, idler, sprocket, links) has no hybrid-visual copy: the animated
         // path reads the blueprint's `TrackShape` directly (`vehicle_geometry::RunningGearKinematics`).
         fittings: FittingsVisual {
-            cupola_hatch_center: Vec3::new(-0.34, roof + 0.12, -0.10),
+            // The hatch rides ITS cupola: same x/z as the drum, never a second copy of them.
+            cupola_hatch_center: Vec3::new(file.turret.cupola_x, roof + 0.12, file.turret.cupola_z),
             cupola_hatch_radius: 0.20,
             cupola_hatch_half_height: 0.04,
             // Driver's hatch on the hull roof, front-left: ahead of the turret ring, on the flat roof
