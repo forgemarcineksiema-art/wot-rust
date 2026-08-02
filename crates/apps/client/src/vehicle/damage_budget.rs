@@ -18,7 +18,7 @@ use vehicle_geometry::{MeshContactIndex, SubmeshKind};
 use super::asset_catalog::VehicleAssetCatalog;
 use super::damage_worker::{DamageMeshBudgetReport, percentile_95_ms};
 
-const KIND: VehicleKind = VehicleKind::T54_1951;
+const KIND: VehicleKind = VehicleKind::BENCHMARK;
 const TANKS: u32 = 12;
 const HITS: usize = 150;
 const DRAIN_TIMEOUT: Duration = Duration::from_secs(60);

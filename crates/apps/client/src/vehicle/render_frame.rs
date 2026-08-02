@@ -179,7 +179,11 @@ pub fn split_pbr_vehicle_render_frame_on_terrain(
 /// the rest of the fleet joins with its hybrid migration (W2c), and until then a hole into
 /// nothing would be dishonest — those hulls scorch instead.
 fn vehicle_has_cut_truth(kind: game_core::VehicleKind) -> bool {
-    kind == game_core::VehicleKind::T54_1951
+    // The capability IS the data: a vehicle whose blueprint carries the part-aware visual detail
+    // block has an analytic breach path; one without it scorches. When the fleet migration gives
+    // another hull that block (W4 F5), it joins here with no client edit — which is the whole
+    // point of the dispatch rule that flushed out the old `kind == T54_1951` version.
+    game_core::VehicleBlueprint::for_vehicle(kind).is_some_and(|bp| bp.hybrid().is_some())
 }
 
 pub fn armor_damage_instance(

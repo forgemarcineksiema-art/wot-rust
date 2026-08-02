@@ -7,7 +7,7 @@ first, because everything below adds code.
 Findings referenced here live in [`audit-register.md`](audit-register.md); numbers in
 [`measurements.md`](measurements.md).
 
-**STATUS — 2026-08-02, after PRs #363–#396 (all merged, master clean, gate 2196/1 with the one
+**STATUS — 2026-08-02, after PRs #363–#403 (all merged, master clean, gate green with the one
 inherited red).**
 
 - **W0 CLOSED** — ten rules landed, six sub-rules rejected after measurement (#363–#377).
@@ -18,14 +18,17 @@ inherited red).**
   **Open: 1.1** (own-shot prediction) and **1.6** (visual, deferred by standing instruction;
   two of its items withdrawn in `visual-review-2026-08-01.md`).
 - **W2** — 2.1 withdrawn below · 2.2 half-shipped, re-scope before scheduling · **2.3 CLOSED**
-  (#382–#389) · 2.4 half (target choice yes, tactical maneuver open) · 2.5 visual-deferred ·
-  **2.6 remains the open design decision**.
+  (#382–#389) · 2.4 CLOSED (target choice #378, overwatch from the hull-down census #403) ·
+  2.5 visual-deferred · **2.6 DECIDED AND SHIPPED** #399 (stationary ×0.7, firing reveals 8 s).
 - **W3 CLOSED** in full (#369, #370, #372, #376 — landed as the orphan stack #368–#374).
-- **W4 / W5 untouched** (adjacent hygiene only: unused kernels deleted #384, `panel` returned
-  with the fender that needed it #386).
+- **From the combat-system ranking** (#398–#403): gun arcs authored fleet-wide with an ordering
+  lock #398 · rack cook-off the crew can win, v42 #400 · mantlet-as-volume measured and re-routed
+  to the Model Idealny session #401 · hull-down census in the map report #402. Cook-off is
+  sim-only (not replicated) — an information-honesty gap to close before the next playtest.
+- **W4 IN PROGRESS** — redesigned below (approved 2026-08-02); F0 is this PR. W5 absorbed.
 
-The forward ranking lives in [`combat-system.md`](combat-system.md); its headline is that every
-gun in the catalog but the T-54's still runs the placeholder −8°/+20.1° arc.
+The forward ranking lives in [`combat-system.md`](combat-system.md); its headline item — the
+placeholder gun arcs — closed in #398.
 
 ---
 
@@ -279,26 +282,46 @@ Silent armor (B1/B2) · `MaterialRole` 9/10/11 (B3) · the `.take(16)` spotting 
 
 ---
 
-## W4 — Structure (7–8 PR)
+## W4 — One fleet technology (redesigned 2026-08-02, approved)
 
-Per [`target-architecture.md`](target-architecture.md): `ui_kit` extracted · `probe` binary ·
-the layer DAG · `mesh_core` to L0 · `scene_build` to L4 · `battle_host` to L3 · the facade
-dismantled · orphan crates deleted.
+The original W4 was written before the W0 ratchets landed; most of its reasons (layer DAG, facade,
+orphans, `mesh_core`/`scene_build` placement) are already enforced or already done. What remains is
+the real asymmetry: **the T-54 is raised by editing data, every other vehicle by writing Rust in
+half a dozen crates.** W4 makes the T-54's technology the FLEET's technology, and the T-54 merely
+its first user. Waves, each inert-by-proof (goldens byte-identical, or a digit-fidelity round-trip
+lock):
 
-**The T-54 stack**: pass the whole `&BlueprintFile` into `t54_hybrid()` (deleting 11 re-typed
-constants, one pair of which already drifted); delete the dead metaball path (~600 lines) and rewrite
-the test that keeps it alive; rename `HybridVisual` → `VisualDetail`; serialize the loft into RON so
-fifteen `if kind == T54_1951` sites collapse into one question about data; move `solid/t54*.rs` into
-`vehicle_build`.
+- **F0 — inventory + ratchet.** The `vehicle_dispatch` quality rule: a specific `VehicleKind`
+  variant may be named only in `game_core`, `crates/vehicle/`, and tooling. Baseline measured
+  (runtime layer already clean), benchmark references burned via `VehicleKind::BENCHMARK`, the
+  CLI's two hand-typed slug tables replaced by the data tables they had drifted from. Allowlist =
+  the whole remaining debt, each entry naming the wave that burns it.
+- **F1 — the blueprint is one argument.** Pass the whole `&BlueprintFile` into `t54_hybrid()`,
+  deleting the 11 re-typed constants (one pair had already drifted). Proof: `GOLDEN_HYBRID_LOD0_HASH`
+  unchanged.
+- **probe** — 41 client examples → one binary with subcommands; metric is gate/link wall-clock.
+- **F2 — the loft is data.** `VisualDetail` serialized into the RON blueprint with a round-trip
+  digit-fidelity lock (the `blueprint_source.rs` pattern); goldens byte-identical.
+- **F3 — the slot is fleet-wide.** `HybridVisual` → `VisualDetail` as a slot ANY vehicle may carry;
+  dead metaball/loft-spike paths deleted; burns the `asset_catalog.rs` allowlist entry.
+- **`battle_host` → L3** — burns the `client→server` edge in the layer rule's allowlist.
+- **F4 — burn the rest of the allowlist.** Display short-names become a `game_core` accessor;
+  the recipe registry and the budget table move out of the kernels layer into `crates/vehicle/`.
+- **F5 — the pilot.** Tiger I authors a `VisualDetail` block through the studio — the proof the
+  slot is fleet technology, and the vehicle whose plateau/mantlet armour debt (#401) it pays.
+- **`ui_kit`** extracted LAST (largest churn, smallest risk while the rest moves).
+- **Hygiene woven throughout** (was W5): `RenderBackend` trait deleted · stale `spotting.rs`
+  caveat · `weapon.rs` drag comment · `engineering-rules.md` reconciled with `verify.ps1` ·
+  document-content assertions out of the gate (user-decided) · rapier trimmed to `parry3d` if the
+  one `rapier3d::prelude` import proves vestigial (parry stays — the footprint query is live).
 
 ---
 
-## W5 — Hygiene (2 PR)
+## W5 — Hygiene (absorbed into W4)
 
-Delete `rapier3d` + `parry3d` (dead, heavy) · the ~400-line dead renderer layer · fix the stale
-anti-wallhack warning in `spotting.rs` · fix the drag ODE comment in `weapon.rs` · reconcile
-`engineering-rules.md` with `verify.ps1` · restructure `docs/` and drop the document assertions from
-the gate.
+Folded into the redesigned W4 above ("hygiene woven throughout"). One correction to the original
+entry: `parry3d` is NOT dead — `physics/parry_query.rs` runs the live footprint-intersection
+query — so the trim is rapier-only, and only if its one `prelude` import proves vestigial.
 
 ---
 
