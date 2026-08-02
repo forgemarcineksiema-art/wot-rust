@@ -140,8 +140,22 @@ pub fn scatter_mirrored(
 /// True when `(x, z)` lands inside any cover footprint inflated by `margin_m` — trees do not
 /// grow through barns, parapets or wrecks.
 pub fn inside_any_cover(cover: &[StaticCoverObject], x: f32, z: f32, margin_m: f32) -> bool {
-    cover.iter().any(|object| {
-        (x - object.center[0]).abs() <= object.half_extents_m[0] + margin_m
-            && (z - object.center[2]).abs() <= object.half_extents_m[2] + margin_m
+    covers_containing(cover, x, z, margin_m).next().is_some()
+}
+
+/// Indices of every cover object a point falls inside — the NAMED answer to
+/// [`inside_any_cover`], for callers that must report *what* blocked them rather than only
+/// *that* something did. Both share this one containment rule, so a blocking test and the
+/// explanation of that block can never disagree about where an object's footprint ends.
+pub fn covers_containing(
+    cover: &[StaticCoverObject],
+    x: f32,
+    z: f32,
+    margin_m: f32,
+) -> impl Iterator<Item = usize> + '_ {
+    cover.iter().enumerate().filter_map(move |(index, object)| {
+        let inside = (x - object.center[0]).abs() <= object.half_extents_m[0] + margin_m
+            && (z - object.center[2]).abs() <= object.half_extents_m[2] + margin_m;
+        inside.then_some(index)
     })
 }
