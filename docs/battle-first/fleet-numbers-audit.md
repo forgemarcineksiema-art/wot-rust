@@ -41,12 +41,39 @@ kind of characterful spread the honest-ammo pillar asked for, and it is real.
 
 Every gun's stock and special round against every vehicle's turret front and hull side, at 0°:
 
-**Finding 1 — side armour is decorative.** Every gun in the game penetrates every vehicle's side,
-without exception. The weakest round in the roster (85 mm AP, 145 mm) beats the thickest side in
-the roster (IS-3, 90 mm) with 55 mm to spare. A Centurion's 51 mm flank and an IS-3's 90 mm flank
-play identically: both die to everything. Angling and the overmatch rule still matter at oblique
-impact, but nothing about a vehicle's SIDE thickness is ever decisive. If flanking is meant to be a
-skill that rewards the right target choice, it currently rewards all target choices equally.
+**Finding 1 — WITHDRAWN. Side armour matters; this audit measured it with the wrong instrument.**
+
+The first version of this section read "side armour is decorative: every gun penetrates every
+vehicle's side, without exception", and a design decision was taken on it. It was wrong, and the
+error is worth keeping on the page because it is the same one this programme has now made three
+times: measure with a tool that does not include the thing being measured, then conclude
+confidently.
+
+The number used was `effective_thickness_mm(HullSide, 0.0)`, which is `nominal x weakspot` and
+contains **no geometry at all**. A plate's slope does not live there — it lives in `plate_normal`,
+which builds the true 3D outward normal, and the impact angle is taken against that. The file even
+says so: *"slope must NOT be added to the impact angle anywhere downstream — it lives here, in
+geometry."*
+
+Resolved properly — through `resolve_penetration_through_screens`, across the track belt, at real
+hull yaw — the flank is a genuine skill surface. Whether the stock round crosses belt and side:
+
+| hull yaw | 7.5 cm KwK 42 (138) | 100 mm D-10T (185) | 84 mm 20-pdr (230) |
+|---|---|---|---|
+| 0° (broadside) | through everything | through everything | through everything |
+| 45° | stopped by every 80 mm+ flank; through Panther II, Centurion, T-34-85 | through everything | through everything |
+| 55° | stopped by all but the three thin flanks | stopped by the IS-3 only | through everything |
+| 65° | stopped by everything | stopped by all but the three thin flanks | still through five of eight |
+
+So: a flat flank is lethal to every hull in the fleet, which is historically right — no tank of
+this era carried a side that stopped a contemporary anti-tank round square on. **Angle is the
+skill, and it pays differently depending on what you are angling.** An 80–90 mm flank (T-54, both
+Tigers, Jagdtiger, IS-3) starts turning medium guns away at 45°; a 45–60 mm flank (Panther II,
+Centurion, T-34-85) cannot be saved by angling against the same gun. And the 20-pounder is the
+weapon angling answers worst — it still crosses a T-54's flank at 65°.
+
+That spread is exactly what makes side thickness a stat rather than decoration, and it is now
+locked by `game_core/tests/flank_armour.rs` so the claim cannot drift back into prose.
 
 **Finding 2 — the frontal hierarchy is real and steep.** Turret fronts split the roster into four
 tiers: Jagdtiger 238, IS-3 225, T-54 180 / Tiger II 162, then everything else at 137 and below.
@@ -162,8 +189,8 @@ included — chips BOTH tracks, a shortcut from before the damage layouts existe
 
 1. **The Tiger I's mantlet.** The only outright historical defect in the armour table, and it makes
    a 57-tonne heavy softer frontally than a medium.
-2. **Decide whether side armour should ever matter.** Today it never does. This is a design
-   question, not a bug, but it is the largest single flattening of the combat model.
+2. ~~Decide whether side armour should ever matter.~~ **Withdrawn — it already does.** See
+   Finding 1. Nothing to change; the finding was a measurement error and is now locked by test.
 3. **Playtest Soviet HE.** It is now the higher-alpha round on the D-10 and the D-25T, which is
    correct by the sources and untested in a battle.
 4. **Look again at the Jagdtiger's two guns**, where one dominates the other on every axis but
