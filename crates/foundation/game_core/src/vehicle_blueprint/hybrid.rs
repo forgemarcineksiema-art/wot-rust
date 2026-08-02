@@ -44,39 +44,18 @@ pub struct HullPlatesVisual {
     pub nose_base_z: f32,
 }
 
-/// The cast turret as a Surface-Nets SDF: two offset spheres for the flattened dome, a seating ring,
-/// flat roof/ring planes, the commander's cupola, and the recessed mantlet socket. Positions are in
-/// vehicle-local space; the gun's moving mantlet belongs to the gun submesh, not the casting.
+/// Machined reference planes of the turret seat, plus the casting's triangle budget — what
+/// SURVIVES of the old metaball composition (deleted 2026-08-02). The shipped casting is the
+/// loft below; these four numbers are the fields production code still reads: the ring-seam
+/// AO band and the ring collar sit on `ring_plane_y`/`ring_radius`, the mantlet-seat AO band
+/// on `socket_center`, and the bake holds the casting to `budget`.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct TurretVisual {
-    pub dome_radius: f32,
-    pub dome_front: Vec3,
-    pub dome_rear: Vec3,
-    /// Rear dome radius, smaller than the front, so the casting tapers to a lower narrower bustle.
-    pub dome_rear_radius: f32,
-    pub dome_blend: f32,
-    /// Front cheek bulge flanking the mantlet (right side; mirrored to the left). The cast cheeks are
-    /// the T-54 turret's signature front mass, distinct from the rounded rear.
-    pub cheek_radius: f32,
-    pub cheek_center: Vec3,
-    pub cheek_blend: f32,
     pub ring_radius: f32,
-    pub ring_half_height: f32,
-    pub ring_center: Vec3,
-    pub ring_blend: f32,
-    /// Flat machined planes capping the casting: roof (upper) and ring seat (lower).
-    pub roof_plane_y: f32,
+    /// The flat machined ring seat the casting sits on.
     pub ring_plane_y: f32,
-    pub cupola_radius: f32,
-    pub cupola_half_height: f32,
-    pub cupola_center: Vec3,
-    pub cupola_blend: f32,
-    pub socket_radius: f32,
+    /// Centre of the recessed mantlet socket on the fire line.
     pub socket_center: Vec3,
-    pub socket_blend: f32,
-    /// Tight world-space meshing box for the casting.
-    pub bbox_min: Vec3,
-    pub bbox_max: Vec3,
     /// Triangle budget the casting meshes to.
     pub budget: usize,
 }
