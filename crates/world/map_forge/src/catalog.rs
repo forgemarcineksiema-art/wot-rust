@@ -53,8 +53,9 @@ pub fn cached_blueprint(map: MapId) -> &'static MapBlueprint {
         // Scratch freezes the document the whole process agreed on.
         return SCRATCH.get_or_init(|| blueprint_for(MapId::Scratch));
     }
-    let all = ALL.get_or_init(|| MapId::ALL.iter().map(|id| blueprint_for(*id)).collect());
-    let index = MapId::ALL.iter().position(|id| *id == map).expect("every shipped map is in ALL");
+    let all = ALL.get_or_init(|| MapId::SHIPPED.iter().map(|id| blueprint_for(*id)).collect());
+    let index =
+        MapId::SHIPPED.iter().position(|id| *id == map).expect("every shipped map is in ALL");
     &all[index]
 }
 

@@ -9,6 +9,16 @@ pub enum ShellType {
     HighExplosive,
 }
 
+impl ShellType {
+    /// Every shell the guns can chamber. Ammo racks, penetration tables and impact FX are all
+    /// per-type, so a type missing here is a type some table forgot.
+    ///
+    /// Locked variant-by-variant against the declaration by `quality`, not by counting: a
+    /// length assertion cannot tell a forgotten variant from a shorter enum.
+    pub const ALL: [ShellType; 4] =
+        [ShellType::ArmorPiercing, ShellType::Apcr, ShellType::Heat, ShellType::HighExplosive];
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct ShellSpec {
     #[serde(default)]

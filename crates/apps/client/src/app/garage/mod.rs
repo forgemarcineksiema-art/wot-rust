@@ -147,20 +147,21 @@ impl GarageState {
         self.selected_map
     }
 
-    /// Cycle the pre-battle map choice: AUTO → each shipped map ([`terrain::MapId::ALL`]) →
+    /// Cycle the pre-battle map choice: AUTO → each shipped map ([`terrain::MapId::SHIPPED`]) →
     /// back to AUTO. AUTO keeps the env/default map resolution, so the choice ring always
     /// has `ALL.len() + 1` stops and never lands on `Scratch`.
     pub(super) fn cycle_map(&mut self, dir: i8) {
-        let ring = terrain::MapId::ALL.len() as isize + 1;
+        let ring = terrain::MapId::SHIPPED.len() as isize + 1;
         let current = match self.selected_map {
             None => 0,
-            Some(map) => {
-                terrain::MapId::ALL.iter().position(|&id| id == map).map_or(0, |i| i as isize + 1)
-            }
+            Some(map) => terrain::MapId::SHIPPED
+                .iter()
+                .position(|&id| id == map)
+                .map_or(0, |i| i as isize + 1),
         };
         let next = (current + dir as isize).rem_euclid(ring);
         self.selected_map =
-            if next == 0 { None } else { Some(terrain::MapId::ALL[next as usize - 1]) };
+            if next == 0 { None } else { Some(terrain::MapId::SHIPPED[next as usize - 1]) };
     }
 
     pub(super) fn cycle_module(&mut self, slot: FitSlot, dir: isize) {

@@ -11,7 +11,7 @@ use terrain::MapId;
 
 #[test]
 fn compilation_is_deterministic() {
-    for id in MapId::ALL {
+    for id in MapId::SHIPPED {
         let first = compile(&blueprint_for(*id)).0;
         let second = compile(&blueprint_for(*id)).0;
         assert_eq!(first, second, "{id:?} compilation is not deterministic");
@@ -20,7 +20,7 @@ fn compilation_is_deterministic() {
 
 #[test]
 fn blueprint_ron_round_trips_losslessly() {
-    for id in MapId::ALL {
+    for id in MapId::SHIPPED {
         let blueprint = blueprint_for(*id);
         let ron = blueprint.to_ron();
         let parsed = map_forge::blueprint::MapBlueprint::from_ron(&ron)

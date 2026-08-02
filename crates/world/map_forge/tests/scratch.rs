@@ -7,7 +7,7 @@ use terrain::MapId;
 #[test]
 fn scratch_serves_the_placeholder_then_the_installed_document() {
     // Scratch is a dev vessel, not a shipped map: not in ALL, no golden, no rotation.
-    assert!(!MapId::ALL.contains(&MapId::Scratch));
+    assert!(!MapId::SHIPPED.contains(&MapId::Scratch));
 
     // Before an install, the placeholder compiles clean (battlefield() asserts that).
     let placeholder = map_forge::battlefield(MapId::Scratch);

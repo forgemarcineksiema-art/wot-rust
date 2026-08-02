@@ -351,7 +351,7 @@ mod tests {
     /// nobody ever looked at.
     #[test]
     fn every_shipped_map_is_in_the_review_set() {
-        for map in MapId::ALL {
+        for map in MapId::SHIPPED {
             assert!(
                 REVIEWED_MAPS.contains(map),
                 "{map:?} ships but is not in REVIEWED_MAPS — its look is never reviewed"
