@@ -22,10 +22,16 @@ const MAX_COMPONENT_ID: u16 = 32;
 /// Components this rule cannot judge, with the reason. Not a list of things to fix later.
 const ARMOUR_CONTAINMENT_EXEMPT: &[(VehicleKind, u16)] = &[
     // The T-54's breech box reaches forward and up into the gun aperture, and its two top-front
-    // corners land 0.5 m outside the CASTING at y 1.09. That is not stowage floating beside the
-    // tank: the mantlet is modelled as a patch ON the turret volume rather than as a volume of its
-    // own, so the ball the breech sits behind simply is not in the shape being tested. Until the
-    // mount is a volume, a gun mechanism reaching into it cannot be checked this way.
+    // corners land outside the CASTING at y 1.09. MEASURED 2026-08-02 before attempting the
+    // "mantlet as a volume" fix, and the measurement killed that plan: the mantlet patch has
+    // radius 0.20 while the breech corners sit 0.60 off the gun axis — no volume built from the
+    // blueprint's existing numbers covers them. The real causes are two, and both are geometry
+    // authoring rather than mechanics: the armour volume models the whole turret front as a 35
+    // degree sector, where the real casting stands nearly upright around the gun window (the
+    // plateau band the visual loft already carries and the armour volume does not); and the
+    // breech box front (±0.34 m) is wider than the internal mount it bolts into. Closing this
+    // routes through a Model Idealny session — photograph, dossier row, then the volume — not
+    // through a mechanics PR inventing a mount size.
     //
     // It stays a single named exemption rather than a blanket pass for every Breech, so the
     // mechanisms this rule CAN judge — the seven authored against `turret_group` — stay judged.

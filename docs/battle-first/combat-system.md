@@ -151,13 +151,17 @@ readable, and it turns "ammoracked" from a coin-flip impression into a drama wit
 it. The German sponson racks and the Tiger II bustle make placement matter exactly as the damage
 layouts intended.
 
-### 4. The mantlet as a volume (kills the last exemption)
+### 4. The mantlet as a volume — MEASURED 2026-08-02, and it is not a mechanics change
 
-The T-54's breech exemption in the containment rule exists because the mantlet is a *patch* on the
-casting rather than a volume with its own thickness. Making mantlets real volumes: honest gun-mask
-weakspots (shooting *through* the mask into the breech — currently approximated by the ×1.18
-patch), the breech containment test closes, and `ARMOUR_CONTAINMENT_EXEMPT` goes to zero. Medium
-effort; touches vehicle_volumes and the zone map.
+The plan was a mount volume built from blueprint data; the measurement killed it. The T-54's
+mantlet patch has radius 0.20 and the breech corners sit 0.60 off the gun axis — nothing built
+from existing numbers covers them, and inventing a mount size would violate the data-first rule.
+The real causes: the armour volume models the whole turret front as a 35° sector where the real
+casting stands nearly upright around the gun window (the plateau band the visual loft carries and
+the armour volume does not — which also means window-region shots currently enjoy a slope discount
+the real plateau never gave); and the breech box front is wider than the mount it bolts into.
+Both are geometry authoring: a Model Idealny session (photograph → dossier row → volume), after
+which the exemption dies as a side effect. Re-ranked out of the mechanics queue.
 
 ### 5. Weakspot patches replace weakspot multipliers
 
