@@ -87,6 +87,7 @@ impl LocalAuthoritativeServer {
         );
         sim::compute_observer_masks(
             self.sim.tanks(),
+            self.sim.tick(),
             Some(&self.battlefield.heightmap),
             &live_cover,
         )

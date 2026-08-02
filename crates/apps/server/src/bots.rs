@@ -533,6 +533,7 @@ pub(crate) mod test_support {
             team,
             hit_points: spec.hit_points,
             spec,
+            last_shot_tick: None,
             position,
             yaw_rad: 0.0,
             turret_yaw_rad: 0.0,

@@ -46,6 +46,36 @@ pub const MAX_OBSERVERS: usize = ObserverMask::BITS as usize;
 /// Sentinel for "this team has never had fresh sight of the tank".
 const NEVER_SEEN: u64 = u64::MAX;
 
+/// THE SPOTTING DECISION (2.6, taken 2026-08-02) — two rules, one sentence each:
+///
+///   * **a stationary tank is seen from 70 % of range** — sitting still is the whole of
+///     concealment, binary and readable, no percentage camouflage to memorise per vehicle;
+///   * **firing makes you fully visible for 8 seconds** — the muzzle flash is the loudest,
+///     brightest thing on a battlefield, and the sim already records the shot as a fact.
+///
+/// Together they create the scout loop this game lacked: a hull that stops and holds fire is
+/// genuinely harder to find; the moment it shoots, it is lit. Deterministic, explainable, and
+/// honest — nothing is hidden that a crew would see.
+pub const STATIONARY_SPOT_FACTOR: f32 = 0.7;
+
+/// Below this planar speed a hull counts as stationary. Half a metre a second is a crawl no
+/// driver holds by accident — creeping to a ridge is still "moving".
+pub const STATIONARY_SPEED_MPS: f32 = 0.5;
+
+/// How long a shot keeps its firer fully visible (8 s at the 60 Hz sim).
+pub const FIRE_REVEAL_TICKS: u64 = 480;
+
+/// The fraction of an observer's view range at which `target` can currently be seen.
+///
+/// One rule shared by the team recompute and the personal observer masks, so the two kinds of
+/// sight can never disagree about what concealment means.
+pub fn spotting_range_factor(target: &TankState, tick: u64) -> f32 {
+    let recently_fired =
+        target.last_shot_tick.is_some_and(|shot| tick.saturating_sub(shot) <= FIRE_REVEAL_TICKS);
+    let planar_speed = Vec3::new(target.velocity_mps.x, 0.0, target.velocity_mps.z).length();
+    if recently_fired || planar_speed > STATIONARY_SPEED_MPS { 1.0 } else { STATIONARY_SPOT_FACTOR }
+}
+
 /// Per-tank memory of the last tick each team had FRESH line of sight. The LOS test is boolean
 /// and recomputed at 10 Hz, so a target dancing on a ridge line strobes in and out several times
 /// a second — its model pops, the minimap blinks, and the shooter's ballistic aim point flips
@@ -245,7 +275,7 @@ pub(crate) fn apply_spotted_masks_with_hold(
     heightmap: Option<&HeightMap>,
     cover: &[StaticCoverObject],
 ) {
-    let masks = compute_spotted_masks(tanks, heightmap, cover);
+    let masks = compute_spotted_masks(tanks, tick, heightmap, cover);
     for (tank, fresh_mask) in tanks.iter_mut().zip(masks) {
         tank.spotted_mask = memory.hold(tank.id, fresh_mask, tick);
     }
@@ -262,6 +292,7 @@ pub(crate) fn apply_spotted_masks_with_hold(
 /// eyes; it just cannot light targets for the team, nor the team for it.
 pub fn compute_spotted_masks(
     tanks: &[TankState],
+    tick: u64,
     heightmap: Option<&HeightMap>,
     cover: &[StaticCoverObject],
 ) -> Vec<u8> {
@@ -283,7 +314,8 @@ pub fn compute_spotted_masks(
                 continue;
             }
             let eye = observer_eye(observer);
-            if eye.distance(target.position) > observer.spec.view_range_m() {
+            let range = observer.spec.view_range_m() * spotting_range_factor(target, tick);
+            if eye.distance(target.position) > range {
                 continue;
             }
             if points.iter().any(|&p| line_of_sight(heightmap, cover, eye, p)) {
@@ -300,6 +332,7 @@ pub fn compute_spotted_masks(
 /// vanishes off a radio-dead crew's screen.
 pub fn compute_observer_masks(
     tanks: &[TankState],
+    tick: u64,
     heightmap: Option<&HeightMap>,
     cover: &[StaticCoverObject],
 ) -> Vec<ObserverMask> {
@@ -326,7 +359,10 @@ pub fn compute_observer_masks(
                 continue;
             }
             let eye = observer_eye(observer);
-            if eye.distance(target.position) > observer.spec.view_range_m() {
+            // The SAME concealment rule as the team recompute: personal eyes obey what the crew
+            // could actually pick out, or the two kinds of sight drift apart.
+            let range = observer.spec.view_range_m() * spotting_range_factor(target, tick);
+            if eye.distance(target.position) > range {
                 continue;
             }
             if points.iter().any(|&p| line_of_sight(heightmap, cover, eye, p)) {

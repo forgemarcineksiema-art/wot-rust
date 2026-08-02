@@ -41,7 +41,7 @@ fn hulls_past_the_retired_sixteen_still_see() {
         state.spawn_tank(team, TankSpec::t54_1951(), Vec3::new(index as f32 * 3.0, 0.0, 0.0));
     }
 
-    let masks = compute_observer_masks(state.tanks(), None, &[]);
+    let masks = compute_observer_masks(state.tanks(), 0, None, &[]);
     assert_eq!(masks.len(), roster);
 
     // The highest-index hull is a friend of every other even-index hull, so its bit MUST appear

@@ -173,6 +173,11 @@ fn view_range_follows_the_observers_era() {
     let mut state = SimulationState::new();
     let cold = state.spawn_tank(TeamId(1), VehicleKind::T54_1951.spec(), Vec3::ZERO);
     let late = state.spawn_tank(TeamId(2), VehicleKind::T34_85.spec(), Vec3::new(0.0, 0.0, 420.0));
+    // Both hulls have JUST FIRED: concealment is off, so this test measures optics alone.
+    // (A parked, silent hull at 420 m is a different question — the spotting decision's own
+    // tests below own it.)
+    state.tank_mut(cold).unwrap().last_shot_tick = Some(0);
+    state.tank_mut(late).unwrap().last_shot_tick = Some(0);
     state.apply_commands(&[], FixedTimestep::from_hz(60));
     assert_eq!(
         state.tank(late).unwrap().spotted_mask,
@@ -205,8 +210,8 @@ fn a_dead_radio_stops_sharing_but_never_blinds_its_own_eyes() {
     state.apply_commands(&[], FixedTimestep::from_hz(60));
 
     let tanks: Vec<_> = state.tanks().to_vec();
-    let team_masks = sim::compute_spotted_masks(&tanks, None, &[]);
-    let observer_masks = sim::compute_observer_masks(&tanks, None, &[]);
+    let team_masks = sim::compute_spotted_masks(&tanks, 0, None, &[]);
+    let observer_masks = sim::compute_observer_masks(&tanks, 0, None, &[]);
     // The enemy is index 1; the scout is index 0.
     assert_eq!(
         team_masks[1] & TEAM_1_BIT,
@@ -218,4 +223,83 @@ fn a_dead_radio_stops_sharing_but_never_blinds_its_own_eyes() {
         0,
         "the scout's own eyes still see the enemy in front of them"
     );
+}
+
+/// THE SPOTTING DECISION (2.6): a stationary tank is seen from 70 % of range.
+///
+/// One rule, binary and readable — sitting still IS the concealment, with no per-vehicle
+/// camouflage percentage to memorise. At 350 m against 440 m optics: a parked hull sits outside
+/// the 308 m concealed radius and stays dark; the same hull rolling is lit.
+#[test]
+fn a_stationary_hull_is_harder_to_find_and_a_rolling_one_is_not() {
+    let mut state = SimulationState::new();
+    let _observer = state.spawn_tank(TeamId(1), VehicleKind::T54_1951.spec(), Vec3::ZERO);
+    let enemy =
+        state.spawn_tank(TeamId(2), VehicleKind::T54_1951.spec(), Vec3::new(0.0, 0.0, 350.0));
+    state.apply_commands(&[], FixedTimestep::from_hz(60));
+    assert_eq!(
+        state.tank(enemy).unwrap().spotted_mask,
+        TEAM_2_BIT,
+        "a parked, silent hull at 350 m hides inside the 0.7 factor of 440 m optics"
+    );
+
+    // The same hull with real planar speed is spotted on the next recompute.
+    state.tank_mut(enemy).unwrap().velocity_mps = Vec3::new(0.0, 0.0, -3.0);
+    for _ in 0..sim::SPOTTING_INTERVAL_TICKS {
+        state.apply_commands(&[], FixedTimestep::from_hz(60));
+    }
+    assert_eq!(
+        state.tank(enemy).unwrap().spotted_mask,
+        TEAM_1_BIT | TEAM_2_BIT,
+        "a rolling hull at the same range is seen — motion is the whole of the rule"
+    );
+}
+
+/// THE SPOTTING DECISION (2.6), second rule: firing makes you fully visible for 8 seconds.
+///
+/// The muzzle flash is the loudest, brightest thing on a battlefield, and the sim records the
+/// shot as a fact — so the reveal costs one field read, not a new system.
+#[test]
+fn firing_reveals_a_parked_hull_and_the_reveal_expires() {
+    let mut state = SimulationState::new();
+    let _observer = state.spawn_tank(TeamId(1), VehicleKind::T54_1951.spec(), Vec3::ZERO);
+    let enemy =
+        state.spawn_tank(TeamId(2), VehicleKind::T54_1951.spec(), Vec3::new(0.0, 0.0, 350.0));
+    state.apply_commands(&[], FixedTimestep::from_hz(60));
+    assert_eq!(state.tank(enemy).unwrap().spotted_mask, TEAM_2_BIT, "parked and silent: dark");
+
+    // The shot lights it on the next recompute.
+    state.tank_mut(enemy).unwrap().last_shot_tick = Some(1);
+    for _ in 0..sim::SPOTTING_INTERVAL_TICKS {
+        state.apply_commands(&[], FixedTimestep::from_hz(60));
+    }
+    assert_eq!(
+        state.tank(enemy).unwrap().spotted_mask,
+        TEAM_1_BIT | TEAM_2_BIT,
+        "the gun that just fired is lit"
+    );
+
+    // Reveal over, hold over: the parked hull goes dark again.
+    for _ in 0..(sim::FIRE_REVEAL_TICKS + sim::SPOTTED_HOLD_TICKS + sim::SPOTTING_INTERVAL_TICKS) {
+        state.apply_commands(&[], FixedTimestep::from_hz(60));
+    }
+    assert_eq!(
+        state.tank(enemy).unwrap().spotted_mask,
+        TEAM_2_BIT,
+        "eight seconds of reveal plus the hold, and the silent hull disappears again"
+    );
+}
+
+/// The reveal input is written where the shell is born — firing through the real command path
+/// stamps `last_shot_tick`, so the rule can never be forgotten at a second wiring site.
+#[test]
+fn a_real_shot_stamps_the_reveal_clock() {
+    let mut state = SimulationState::new();
+    let shooter = state.spawn_tank(TeamId(1), VehicleKind::T54_1951.spec(), Vec3::ZERO);
+    assert!(state.tank(shooter).unwrap().last_shot_tick.is_none());
+    state.apply_commands(
+        &[(shooter, sim::TankCommand { fire: true, ..sim::TankCommand::idle() })],
+        FixedTimestep::from_hz(60),
+    );
+    assert!(state.tank(shooter).unwrap().last_shot_tick.is_some(), "the shot stamped the clock");
 }

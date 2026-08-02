@@ -69,6 +69,8 @@ pub(crate) fn try_fire_shell(tank: &mut TankState, tick: u64) -> Option<ShellSta
     tank.reload_remaining_s = tank.full_reload_seconds();
     let shell_id = ShellId::from_shot(tank.id, tank.dispersion_shot_index);
     tank.dispersion_shot_index = tank.dispersion_shot_index.wrapping_add(1);
+    // The fire-reveal input of the spotting decision: a gun that just fired is lit.
+    tank.last_shot_tick = Some(tick);
     apply_shot_bloom(tank);
 
     // The shell leaves the *visible* muzzle: the mount pivots about the trunnion and ring exactly
