@@ -255,8 +255,21 @@ withdrawal.
 **2.5 The T-54 turret front and the distant buildings** — the front reads as a mushroom; buildings
 at range read as untextured slabs.
 
-**2.6 Decide the spotting model** — pure LOS + range means no scouting, no ambush, no light-tank
-identity. That should be a decision on the record, not an omission.
+**2.6 Decide the spotting model — DECIDED 2026-08-02, and shipped in the same change.** Two rules,
+one sentence each, both deterministic and both riding machinery that already existed:
+
+- **a stationary tank is seen from 70 % of range** — sitting still is the whole of concealment,
+  binary and readable, with no per-vehicle camouflage percentage to memorise;
+- **firing makes you fully visible for 8 seconds** — the muzzle flash is the loudest, brightest
+  thing on a battlefield, and since v41 the sim records the shot as a fact, so the reveal costs a
+  field read.
+
+What this buys: the scout loop. A hull that stops and holds fire is genuinely harder to find; the
+moment it shoots, it is lit — ambush, overwatch and counter-battery reading all become plays.
+Foliage stays what it is (a LOS blocker), wrecks stay public, the hold and the per-era optics are
+untouched. One shared rule (`spotting_range_factor`) feeds both the team recompute and the
+personal observer masks so the two kinds of sight can never disagree about what concealment means.
+Locked in `sim/tests/spotting.rs`.
 
 ---
 

@@ -8,6 +8,11 @@ pub struct TankState {
     pub id: TankId,
     pub team: TeamId,
     pub spec: TankSpec,
+    /// The tick this gun last fired, if ever — the fire-reveal input of the spotting decision
+    /// (a shot keeps its firer fully visible for [`crate::spotting::FIRE_REVEAL_TICKS`]).
+    /// `serde(default)` keeps pre-v42 fixtures loading as never-fired.
+    #[serde(default)]
+    pub last_shot_tick: Option<u64>,
     pub position: Vec3,
     pub yaw_rad: f32,
     pub turret_yaw_rad: f32,

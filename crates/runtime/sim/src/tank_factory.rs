@@ -21,6 +21,7 @@ pub(crate) fn fresh_tank(
         team,
         hit_points: spec.hit_points,
         spec,
+        last_shot_tick: None,
         position,
         yaw_rad,
         turret_yaw_rad: 0.0,
