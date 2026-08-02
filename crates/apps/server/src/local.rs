@@ -41,6 +41,9 @@ pub struct LocalAuthoritativeServer {
     time_limit_ticks: Option<u64>,
     latest_snapshot: Snapshot,
     pending_damage_events: Vec<DamageEvent>,
+    /// Shots fired since the last emitted snapshot. A gun fires on a sim tick; a snapshot goes out
+    /// on a slower schedule, so a shot on a non-snapshot tick has to WAIT rather than vanish.
+    pending_shots_fired: Vec<game_core::ShotFired>,
     pending_shell_impacts: Vec<ShellImpact>,
 }
 
@@ -111,6 +114,7 @@ impl LocalAuthoritativeServer {
             time_limit_ticks,
             latest_snapshot,
             pending_damage_events: Vec::new(),
+            pending_shots_fired: Vec::new(),
             pending_shell_impacts: Vec::new(),
         }
     }
@@ -128,6 +132,7 @@ impl LocalAuthoritativeServer {
         }
         self.pending_damage_events.clear();
         self.pending_shell_impacts.clear();
+        self.pending_shots_fired.clear();
         self.outcome = None;
         self.sim
             .refresh_spotting(Some(&self.battlefield.heightmap), &self.battlefield.static_cover);
@@ -269,6 +274,7 @@ impl LocalAuthoritativeServer {
             self.outcome = Some(BattleOutcome::from_tanks_at_time_expiry(self.sim.tanks()));
         }
         self.pending_damage_events.extend_from_slice(self.sim.damage_events());
+        self.pending_shots_fired.extend_from_slice(self.sim.shots_fired());
         self.pending_shell_impacts.extend_from_slice(self.sim.shell_impacts());
         let damage_events = self.sim.damage_events().to_vec();
         let shell_impacts = self.sim.shell_impacts().to_vec();
@@ -278,6 +284,7 @@ impl LocalAuthoritativeServer {
             let mut snapshot = Snapshot::from(&self.sim);
             snapshot.damage_events = std::mem::take(&mut self.pending_damage_events);
             snapshot.shell_impacts = std::mem::take(&mut self.pending_shell_impacts);
+            snapshot.shots_fired = std::mem::take(&mut self.pending_shots_fired);
             self.latest_snapshot = snapshot.clone();
             Some(snapshot)
         } else {

@@ -35,7 +35,7 @@ pub use armor_breach::{
 };
 pub use contact_footprint::{ContactFootprint, MAX_CONTACT_STATIONS};
 pub use crew::{Crew, CrewRole};
-pub use damage::{DamageCause, DamageEvent, ImpactSurface, ShellImpact, TrackHit};
+pub use damage::{DamageCause, DamageEvent, ImpactSurface, ShellImpact, ShotFired, TrackHit};
 pub use damage_layout::authoring::HullEnvelope;
 pub use damage_layout::{
     DamageComponent, DamageComponentId, DamageComponentKind, DamageLayout, DamageMaterial,

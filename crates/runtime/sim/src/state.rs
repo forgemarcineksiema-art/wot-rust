@@ -27,6 +27,8 @@ pub struct SimulationState {
     /// hull), so the firing client gets impact feedback instead of a silently vanished shot.
     #[serde(default)]
     shell_impacts: Vec<ShellImpact>,
+    /// Shots fired this tick — the authoritative muzzle event (protocol v41).
+    shots_fired: Vec<game_core::ShotFired>,
     /// Perforations carved THIS tick, in the order the targets' sets accepted them (protocol
     /// v39). Permanent state replicated as a stream of additions rather than by re-sending each
     /// hull's whole set in every snapshot — see `net`'s v39 note for the wire arithmetic.
@@ -98,6 +100,7 @@ impl SimulationState {
             shells: Vec::new(),
             damage_events: Vec::new(),
             shell_impacts: Vec::new(),
+            shots_fired: Vec::new(),
             armor_breach_events: Vec::new(),
             spotting_memory: crate::spotting::SpottingMemory::default(),
             water: None,
@@ -169,6 +172,10 @@ impl SimulationState {
 
     pub fn damage_events(&self) -> &[DamageEvent] {
         &self.damage_events
+    }
+
+    pub fn shots_fired(&self) -> &[game_core::ShotFired] {
+        &self.shots_fired
     }
 
     pub fn shell_impacts(&self) -> &[ShellImpact] {
@@ -288,6 +295,7 @@ impl SimulationState {
         let context = CombatTickContext { dt_seconds: dt, tick: self.tick, water: self.water };
         self.damage_events.clear();
         self.shell_impacts.clear();
+        self.shots_fired.clear();
         self.armor_breach_events.clear();
         let mut event_stamp = BattleEventStamp::new(self.last_battle_event_id, self.tick);
         // Keep the cover states aligned with the map's cover (rebuilt only when the count changes,
@@ -339,6 +347,8 @@ impl SimulationState {
             if tank.fire_buffered && tank.reload_remaining_s <= 0.0 {
                 tank.fire_buffered = false;
                 if let Some(shell) = try_fire_shell(tank, self.tick) {
+                    self.shots_fired
+                        .push(game_core::ShotFired { shooter: shell.owner, shell_id: shell.id });
                     self.shells.push(shell);
                 }
             }
@@ -425,6 +435,8 @@ impl SimulationState {
             }
             if command.fire {
                 if let Some(shell) = try_fire_shell(tank, self.tick) {
+                    self.shots_fired
+                        .push(game_core::ShotFired { shooter: shell.owner, shell_id: shell.id });
                     self.shells.push(shell);
                 } else if fire_click_buffers(tank) {
                     tank.fire_buffered = true;

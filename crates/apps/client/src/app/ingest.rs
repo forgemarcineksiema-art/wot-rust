@@ -204,16 +204,16 @@ impl ClientApp {
         // Static cover that collapsed or was cleared this snapshot: burst dust at each newly
         // destroyed object and flag the scene for a rebuild (buildings -> rubble, foliage -> gone).
         self.sync_cover_destruction(&snapshot);
-        // Shots fired since the previous snapshot: diffed here, where both snapshots exist side
-        // by side, then fanned out to every fire cue (muzzle FX, recoil, hull rock, camera kick).
-        let fired = self.render_state.latest_snapshot().map_or_else(Vec::new, |previous| {
-            crate::fx::detect_fired(
-                &previous.tanks,
-                &snapshot.tanks,
-                self.player_tank,
-                self.player_barrel_scale(),
-            )
-        });
+        // Shots the server says were fired this tick (protocol v41), resolved against the poses
+        // that fired them and fanned out to every fire cue (muzzle FX, recoil, hull rock, camera
+        // kick). No longer diffed out of two snapshots' reload clocks — a shot is a fact, and a
+        // tank that fired and died in the same window used to lose its flash entirely.
+        let fired = crate::fx::resolve_shots(
+            &snapshot.shots_fired,
+            &snapshot.tanks,
+            self.player_tank,
+            self.player_barrel_scale(),
+        );
         // A decapitated wreck (ammo-rack detonation, protocol v20): start its flying-turret arc
         // once, with a burst at the ring, and forget wrecks that have despawned.
         self.sync_turret_popoffs(&snapshot);

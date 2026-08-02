@@ -149,5 +149,6 @@ fn snapshot_with_aim(
         cover_states: Vec::new(),
         craters: Vec::new(),
         cover_scars: Vec::new(),
+        shots_fired: Vec::new(),
     }
 }

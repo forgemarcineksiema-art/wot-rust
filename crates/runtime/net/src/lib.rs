@@ -110,7 +110,7 @@ pub use snapshot_schedule::SnapshotSchedule;
 /// The armour VALUES that move with it (a cast turret's wall tapering aft, the T-54's
 /// documented 200/160→65 and its 30 mm roof) are geometry, not wire — the deterministic bake
 /// resolves them identically on both sides.
-pub const PROTOCOL_VERSION: u16 = 40;
+pub const PROTOCOL_VERSION: u16 = 41;
 
 #[derive(Debug, Error)]
 pub enum NetError {
@@ -323,6 +323,10 @@ pub struct Snapshot {
     /// snapshot (a late joiner converges). `serde(default)` keeps pre-v32 fixtures unwounded.
     #[serde(default)]
     pub cover_scars: Vec<terrain::CoverScar>,
+    /// Guns that fired this tick (protocol v41) — the shot as an EVENT rather than as a jump in
+    /// somebody's reload clock. `serde(default)` keeps pre-v41 fixtures loading silent.
+    #[serde(default)]
+    pub shots_fired: Vec<game_core::ShotFired>,
 }
 
 impl From<&SimulationState> for Snapshot {
@@ -333,6 +337,7 @@ impl From<&SimulationState> for Snapshot {
             shells: state.shells().iter().map(ShellSnapshot::from).collect(),
             damage_events: state.damage_events().to_vec(),
             shell_impacts: state.shell_impacts().to_vec(),
+            shots_fired: state.shots_fired().to_vec(),
             detached_turrets: state
                 .tanks()
                 .iter()
