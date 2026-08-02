@@ -187,7 +187,7 @@ fn t54() -> VehicleBlueprint {
         hybrid: None,
     };
     // Derived from the shapes this very fixture declares — the hybrid tree may not restate them.
-    shape.hybrid = Some(t54_hybrid(&shape.hull, &shape.armor));
+    shape.hybrid = Some(t54_hybrid(&super::source::BlueprintFile::from_blueprint(&shape)));
     shape
 }
 
