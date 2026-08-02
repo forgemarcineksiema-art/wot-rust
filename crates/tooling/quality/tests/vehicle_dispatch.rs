@@ -21,12 +21,9 @@ use quality::workspace::{
 
 /// Files allowed to name specific vehicles, with the reason and the wave that burns the entry.
 const DISPATCH_ALLOWLIST: &[(&str, &str)] = &[
-    (
-        "crates/apps/client/src/vehicle/display.rs",
-        "Short display names (\"T-54\", \"Tiger II\") hardcoded in the CLIENT — UI data living in \
-         the app layer. Burns in W4 F4: the short name becomes a `game_core` data accessor beside \
-         the spec name.",
-    ),
+    // BURNED (W4 F4): the client's `vehicle/display.rs` short-name table became
+    // `VehicleKind::short_name()` in `game_core`, beside `display_name()` — a new vehicle
+    // states both names in one file or fails the exhaustive match.
     // BURNED (W4 F3): `asset_catalog.rs`'s `if kind != T54_1951` became the data question the
     // render path already asked — `vehicle_has_cut_truth`, which reads whether the blueprint
     // carries the visual-detail block.

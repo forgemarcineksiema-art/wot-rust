@@ -175,6 +175,25 @@ impl VehicleKind {
         }
     }
 
+    /// Short display name — compact enough for carousel cells and damage-log rows. Entity
+    /// identity is DATA: this table lived in the client (`vehicle/display.rs`) as the last
+    /// hand-rolled `VehicleKind` match in the app layer, which is exactly the asymmetry the
+    /// dispatch rule exists to burn (W4 F4). It lives here beside [`Self::display_name`], so a
+    /// new vehicle states both names in one file or fails the exhaustive match.
+    pub fn short_name(self) -> &'static str {
+        match self {
+            VehicleKind::PrototypeMedium => "Proto",
+            VehicleKind::T54_1951 => "T-54",
+            VehicleKind::TigerI => "Tiger I",
+            VehicleKind::TigerII => "Tiger II",
+            VehicleKind::Jagdtiger => "Jagdtg",
+            VehicleKind::PantherII => "Panth II",
+            VehicleKind::IS3 => "IS-3",
+            VehicleKind::Centurion => "Cent 3",
+            VehicleKind::T34_85 => "T-34-85",
+        }
+    }
+
     /// The canonical [`TankSpec`] for this vehicle, assembled from its stock module loadout.
     ///
     /// This is a fresh, owned spec every call. Reading ONE field off it is what
@@ -427,6 +446,21 @@ mod tests {
                 VehicleKind::PLAYABLE.iter().any(|kind| kind.nation() == nation),
                 "playable roster must include {nation:?}"
             );
+        }
+    }
+
+    /// W4 F4: the short name's contract is COMPACT — it fits a carousel cell and a damage-log
+    /// row. Eight ASCII characters is the widest shipped name ("Tiger II", "Panth II"); a new
+    /// vehicle that needs more needs an abbreviation, not a wider cell.
+    #[test]
+    fn short_names_are_short_ascii_and_distinct() {
+        let mut seen = std::collections::HashSet::new();
+        for kind in VehicleKind::ALL {
+            let name = kind.short_name();
+            assert!(!name.is_empty(), "{kind:?} has a short name");
+            assert!(name.len() <= 8, "{kind:?}: '{name}' exceeds the 8-char carousel budget");
+            assert!(name.is_ascii(), "{kind:?}: the font atlas bakes ASCII only");
+            assert!(seen.insert(name), "{kind:?}: '{name}' collides with another vehicle");
         }
     }
 }

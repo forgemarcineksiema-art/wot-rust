@@ -166,7 +166,7 @@ pub(crate) fn push_damage_log(
         if let Some(kind) = entry.other_vehicle {
             crate::hud::font::push_text(
                 vertices,
-                crate::vehicle::display::short_name(kind),
+                kind.short_name(),
                 x,
                 y,
                 LOG_TEXT_SIZE,

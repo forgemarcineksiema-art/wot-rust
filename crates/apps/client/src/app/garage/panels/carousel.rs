@@ -106,7 +106,7 @@ pub(in crate::app::garage) fn draw(v: &mut Vec<HudVertex>, state: &GarageState, 
 
         push_text(
             v,
-            short_name(kind),
+            kind.short_name(),
             c[0] - CAR_HALF[0] + 0.01,
             c[1] + 0.045,
             0.03,

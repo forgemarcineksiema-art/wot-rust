@@ -1,6 +1,6 @@
 //! Every user-facing UI string lives here, grouped by screen, so the copy is auditable in one
 //! place and future localization is a table swap instead of a literal hunt. UI copy only: entity
-//! identity stays data-side (vehicle short names in `garage::layout::short_name`, nation labels in
+//! identity stays data-side (vehicle short names in `game_core::VehicleKind::short_name`, nation labels in
 //! `game_core::Nation::label`, crew role labels in `game_core::CrewRole::label`) — those name
 //! things, they don't phrase them. The font atlas bakes ASCII, so every string here must be ASCII.
 

@@ -14,7 +14,7 @@ use crate::app::garage::GarageState;
 use crate::app::garage::layout::{
     BATTLE, PANEL, SLOT, SLOT_SELECTED, TEXT, TEXT_DIM, TREE_CLOSE_CENTER, TREE_CLOSE_HALF,
     TREE_ERA_LABEL_X, TREE_NODE_HALF, TREE_PANEL_CENTER, TREE_PANEL_HALF, VALUE, in_rect,
-    short_name, tree_era_y, tree_node_center,
+    tree_era_y, tree_node_center,
 };
 use crate::hud::font::{push_text, text_width};
 use crate::hud::push_panel;
@@ -86,7 +86,7 @@ pub(in crate::app::garage) fn draw(state: &GarageState, aspect: f32) -> Vec<HudV
             aspect,
             [color[0], color[1], color[2], 0.95],
         );
-        let name = short_name(kind);
+        let name = kind.short_name();
         let w = text_width(name, 0.032, aspect);
         push_text(&mut v, name, center[0] - w / 2.0, center[1] + 0.012, 0.032, aspect, TEXT);
     }
