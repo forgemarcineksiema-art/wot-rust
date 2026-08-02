@@ -92,6 +92,7 @@ pub fn validate_map(blueprint: &MapBlueprint, map: &BattlefieldMap) -> MapReport
         check_water_contract(blueprint, map, &WaterThresholds::default(), &mut report);
     }
     check_playability(blueprint, map, &WaterThresholds::default(), &mut report);
+    check_hull_down(map, &mut report);
     report
 }
 
@@ -1155,4 +1156,120 @@ fn walls_around(
             format!("'{}' ({:?})", object.id, object.kind)
         })
         .collect()
+}
+
+/// A fightable crest, as the census counts them: where a hull can hide and a gun can work.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct HullDownSpot {
+    /// Where the hull stands, on the ground.
+    pub at: [f32; 3],
+    /// Unit direction toward the crest it fights over.
+    pub facing: [f32; 2],
+}
+
+/// The census lattice step. Ten metres is finer than any crest worth naming and keeps the whole
+/// sweep at ~10k samples on a 1 km map.
+const HULL_DOWN_LATTICE_M: f32 = 10.0;
+/// The window ahead in which the crest must rise: close enough to hug, far enough to depress over.
+const HULL_DOWN_NEAR_M: f32 = 5.0;
+const HULL_DOWN_FAR_M: f32 = 15.0;
+/// The rise band that makes a crest fightable: enough to cover a hull (the fleet's hulls run
+/// roughly 1.5-1.9 m to the deck), not so much that the turret and gun are buried too.
+const HULL_DOWN_RISE_MIN_M: f32 = 0.9;
+const HULL_DOWN_RISE_MAX_M: f32 = 1.8;
+/// Beyond the crest the ground must FALL — a slope that keeps climbing is a wall, not a position.
+const HULL_DOWN_BEYOND_M: f32 = 10.0;
+const HULL_DOWN_BEYOND_DROP_M: f32 = 0.5;
+/// The hull has to stand roughly level where it fights: the local grade under it stays parkable.
+const HULL_DOWN_STAND_GRADE: f32 = 0.30;
+/// The border ring is clamp-and-apron territory; positions there are not positions.
+const HULL_DOWN_MARGIN_M: f32 = 20.0;
+
+/// The floor the sculpting sessions aim at: three positions per side. Every shipped map warns
+/// today — that is the instrument working, not the instrument failing: authored relief now has a
+/// number to move instead of a hope.
+const HULL_DOWN_FLOOR: usize = 6;
+
+/// Count and locate the map's hull-down positions.
+///
+/// The whole lesson of the terrain-density withdrawal, made into a gauge: "author the relief
+/// where the fight happens" is a claim with no number until something counts the places a tank
+/// can actually fight from. A qualifying spot is a lattice point where, in at least one of eight
+/// directions, the ground within 5-15 m rises 0.9-1.8 m (hull covered, turret working), falls
+/// away again past the crest (a crest, not a wall), and the hull stands on parkable grade.
+/// Deterministic, pure heightmap arithmetic — the same census the bots will read to seek these
+/// positions, so the map gauge and the AI can never disagree about what a position is.
+pub fn hull_down_positions(map: &BattlefieldMap) -> Vec<HullDownSpot> {
+    let mut spots = Vec::new();
+    let height = |x: f32, z: f32| map.heightmap.sample_height(x, z);
+    let mut x = HULL_DOWN_MARGIN_M;
+    while x <= map.size_m[0] - HULL_DOWN_MARGIN_M {
+        let mut z = HULL_DOWN_MARGIN_M;
+        while z <= map.size_m[1] - HULL_DOWN_MARGIN_M {
+            let Some(here) = height(x, z) else {
+                z += HULL_DOWN_LATTICE_M;
+                continue;
+            };
+            // Parkable: the ground under the hull is close to level.
+            let step = HULL_DOWN_LATTICE_M * 0.5;
+            let level =
+                [(step, 0.0), (-step, 0.0), (0.0, step), (0.0, -step)].iter().all(|(dx, dz)| {
+                    height(x + dx, z + dz)
+                        .is_some_and(|there| (there - here).abs() / step <= HULL_DOWN_STAND_GRADE)
+                });
+            if !level {
+                z += HULL_DOWN_LATTICE_M;
+                continue;
+            }
+            let facing = (0..8).map(|i| i as f32 * std::f32::consts::FRAC_PI_4).find_map(|a| {
+                let (dx, dz) = (a.cos(), a.sin());
+                let mut crest: Option<(f32, f32)> = None;
+                let mut t = HULL_DOWN_NEAR_M;
+                while t <= HULL_DOWN_FAR_M {
+                    if let Some(ahead) = height(x + dx * t, z + dz * t) {
+                        let rise = ahead - here;
+                        if crest.is_none_or(|(_, best)| rise > best) {
+                            crest = Some((t, rise));
+                        }
+                    }
+                    t += 1.0;
+                }
+                let (crest_t, rise) = crest?;
+                if !(HULL_DOWN_RISE_MIN_M..=HULL_DOWN_RISE_MAX_M).contains(&rise) {
+                    return None;
+                }
+                // Past the crest the ground falls away: a firing line exists on the other side.
+                let beyond = height(
+                    x + dx * (crest_t + HULL_DOWN_BEYOND_M),
+                    z + dz * (crest_t + HULL_DOWN_BEYOND_M),
+                )?;
+                (beyond <= here + rise - HULL_DOWN_BEYOND_DROP_M).then_some([dx, dz])
+            });
+            if let Some(facing) = facing {
+                spots.push(HullDownSpot { at: [x, here, z], facing });
+            }
+            z += HULL_DOWN_LATTICE_M;
+        }
+        x += HULL_DOWN_LATTICE_M;
+    }
+    spots
+}
+
+/// The census as a contract gauge: below the floor the report says so, with the count, so a
+/// sculpting session has a target instead of a hope. A warning rather than an error while the
+/// shipped maps carry their measured ~7 cm of tank-scale relief — the gauge leads the brush.
+fn check_hull_down(map: &BattlefieldMap, report: &mut MapReport) {
+    let spots = hull_down_positions(map);
+    if spots.len() < HULL_DOWN_FLOOR {
+        let at = spots.first().map(|spot| spot.at);
+        report.push(
+            "hull_down",
+            Severity::Warning,
+            format!(
+                "the map has {} hull-down position(s) against a floor of {HULL_DOWN_FLOOR} —                  nowhere enough places to fight from a crest; see hull_down_positions()",
+                spots.len()
+            ),
+            at,
+        );
+    }
 }

@@ -16,4 +16,6 @@ pub use backdrop::{backdrop_height, cached_blueprint_by_id};
 pub use catalog::{battlefield, blueprint_for, cached_blueprint, set_scratch_source};
 pub use compile::{ForgeError, compile};
 pub use golden::{battlefield_hash, map_golden_hashes};
-pub use report::{MapReport, ReportEntry, Severity, WaterThresholds};
+pub use report::{
+    HullDownSpot, MapReport, ReportEntry, Severity, WaterThresholds, hull_down_positions,
+};
