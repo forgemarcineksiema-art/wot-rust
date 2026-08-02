@@ -168,7 +168,7 @@ pub(super) fn t54_hybrid(file: &BlueprintFile) -> VisualDetail {
             // fabric) out to the strap on the tube (0.094 there). Short, as the real one is —
             // the panel does the covering; the sleeve only walks the barrel out of it.
             // The sleeve roots BEHIND the panel's flat front face (the face plane sits at
-            // 0.158) so the boot visibly pierces the canvas instead of floating ahead of it.
+            // 0.150) so the boot visibly pierces the canvas instead of floating ahead of it.
             // Radii keep the sagged top surface proud of the 0.098 tube everywhere — and
             // it is the ten-gon's INRADIUS (r·cos 18°) that must clear the tube, not the
             // vertex radius: at 0.100 the flats dipped under the steel and the barrel showed

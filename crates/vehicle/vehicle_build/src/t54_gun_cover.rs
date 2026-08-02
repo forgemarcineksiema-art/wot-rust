@@ -36,8 +36,17 @@ const CORNER_PTS: usize = 3;
 /// sits just proud of the window floor (buried behind the fastening strip), the hem swells, and
 /// the border rounds off toward the FLAT FRONT FACE — a cover is a mattress, not a funnel. The
 /// first build ran the taper all the way to 0.30 and the front read as a pyramid of diagonals.
+///
+/// The EDGE is anchored to the frame's clamp (z −0.010, where `t54_mantlet_frame` grips the
+/// hem); the BULGE is anchored to the casting. When the pilot-foto rebuild pushed the loft's
+/// nose out to z 1.2424 these stations stayed at their 2026-07 values, the face swallowed the
+/// border station, and the front read flat again — the swallowed-boot verdict the panel exists
+/// to prevent (`the_visible_gun_mount_is_no_wider_than_its_canvas_cover` measures exactly
+/// this, and was red for it). The border and face stations sit AHEAD of the measured nose:
+/// clamped at the floor, pressed out past the rim by the mount under it, as the photographs
+/// show.
 const PANEL_STATIONS: [(f32, f32); 4] =
-    [(-0.010, 1.0), (0.035, 1.015), (0.080, 0.97), (0.118, 0.80)];
+    [(-0.010, 1.0), (0.040, 1.015), (0.105, 0.97), (0.150, 0.80)];
 
 /// A rounded-rectangle ring of points, counter-clockwise, no repeated vertex: each corner arc
 /// samples `[base, base + 90)`, so quadrant boundaries appear exactly once.
