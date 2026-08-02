@@ -80,7 +80,7 @@ pub use budgets::{
     VehicleBudgets, golden_bake_hash,
 };
 
-pub(crate) use armament::{GunPlan, build_gun, build_gun_with_mantlet_scale};
+pub(crate) use armament::{GunPlan, gun_group, gun_group_with_mantlet_scale};
 pub(crate) use chassis::{HullPlan, RunningGear, add_running_gear, hull_body, shade_hull};
 pub(crate) use chassis_blueprint::{blueprint_prism_hull, blueprint_skirts};
 pub(crate) use t54::{t54_hull, t54_turret_front};

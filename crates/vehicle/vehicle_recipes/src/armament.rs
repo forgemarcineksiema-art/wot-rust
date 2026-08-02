@@ -33,6 +33,40 @@ pub(crate) fn build_gun(plan: &GunPlan) -> GeometryMesh {
     build_gun_with_mantlet_scale(plan, 1.0, 1.0)
 }
 
+/// The FLEET's gun group (W4 F5.ii): when the blueprint authors a [`game_core::GunVisual`]
+/// part, the gun submesh is the generic revolved group — the bore-honest barrel between the
+/// authoritative trunnion and muzzle frames plus the mantlet BODY on the trunnion — and the
+/// [`GunPlan`] is only the fallback for vehicles that have not authored one. This is the
+/// per-part migration the F5 scoping named: a vehicle upgrades its gun by writing data, and
+/// the recipe covers the rest.
+pub(crate) fn gun_group(kind: game_core::VehicleKind, plan: &GunPlan) -> GeometryMesh {
+    authored_gun_group(kind).unwrap_or_else(|| build_gun(plan))
+}
+
+/// [`gun_group`], with the legacy fallback's flattened-mantlet variant.
+pub(crate) fn gun_group_with_mantlet_scale(
+    kind: game_core::VehicleKind,
+    plan: &GunPlan,
+    mantlet_x_scale: f32,
+    mantlet_y_scale: f32,
+) -> GeometryMesh {
+    authored_gun_group(kind)
+        .unwrap_or_else(|| build_gun_with_mantlet_scale(plan, mantlet_x_scale, mantlet_y_scale))
+}
+
+/// The authored path: `Some` only when the active blueprint carries a gun part. Reads through
+/// [`super::active_blueprint`] so the studio's live-override RON drives it like everything else.
+fn authored_gun_group(kind: game_core::VehicleKind) -> Option<GeometryMesh> {
+    let bp = super::active_blueprint(kind)?;
+    let gun = *bp.visual_detail()?.gun.as_ref()?;
+    let trunnion = Vec3::new(0.0, bp.gun.trunnion_y, bp.gun.trunnion_z);
+    let muzzle = Vec3::new(0.0, bp.gun.trunnion_y, bp.gun.muzzle_z);
+    Some(revolve::merge(&[
+        revolve::gun_barrel_between(trunnion, muzzle, &gun),
+        revolve::moving_mantlet(trunnion, &gun),
+    ]))
+}
+
 /// Build the gun with an optionally flattened moving mantlet. T-54 uses this to model the low,
 /// broad oval mantlet mask seated in the turret cheeks instead of a round revolved collar.
 pub(crate) fn build_gun_with_mantlet_scale(
