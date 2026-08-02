@@ -11,7 +11,14 @@ fn draw_call_requires_a_prewarmed_pipeline() {
         .expect_err("draw call must not compile missing pipelines");
 
     assert!(error.message.contains("prewarm"));
-    assert_eq!(registry.compilation_requests_during_draw(), 0);
+    // ONE, not zero. This is the assertion that proves the counter is an instrument rather than a
+    // decoration: until 2026-08-02 the field behind it was never written, so all four tests in
+    // this file were asserting `usize::default()` and would have passed with the registry gutted.
+    assert_eq!(
+        registry.compilation_requests_during_draw(),
+        1,
+        "a draw that misses the cache is exactly the mid-frame compile this counter exists to see"
+    );
 }
 
 #[test]
