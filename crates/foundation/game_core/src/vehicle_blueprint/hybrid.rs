@@ -16,7 +16,7 @@ use super::{DetailVisual, FittingsVisual};
 /// The convex hull block plus its two-plate front. The plate slopes (glacis/side/rear) are *not*
 /// stored here — they are read from [`ArmorShape`](super::ArmorShape) so the visible rake is the same
 /// number the penetration model uses ("what you see is what you shoot").
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct HullVisual {
     pub half_width: f32,
     pub belly_y: f32,
@@ -35,7 +35,7 @@ pub struct HullVisual {
 /// reconciled-to-gameplay form. These fields add only what the shape model does not already carry:
 /// where the two-plate front folds, and the small thickness/bevel/seam cues that make the plates read
 /// as plates rather than one block.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct HullPlatesVisual {
     /// Z where the upper glacis meets the lower nose plate, taken at the sponson step height — the
     /// fold line of the T-54 two-plate front.
@@ -49,7 +49,7 @@ pub struct HullPlatesVisual {
 /// loft below; these four numbers are the fields production code still reads: the ring-seam
 /// AO band and the ring collar sit on `ring_plane_y`/`ring_radius`, the mantlet-seat AO band
 /// on `socket_center`, and the bake holds the casting to `budget`.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct TurretVisual {
     pub ring_radius: f32,
     /// The flat machined ring seat the casting sits on.
@@ -63,7 +63,7 @@ pub struct TurretVisual {
 /// One horizontal station of a lofted turret casting: a superellipse outline at height `y`, with
 /// separate front (`+Z`) and rear (`-Z`) half-lengths so the casting reads front-heavy with a
 /// tapered rear bustle.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct LoftStation {
     pub y: f32,
     pub half_width: f32,
@@ -98,7 +98,7 @@ impl LoftStation {
 /// symmetric cheek pair and a front gun embrasure as localized radial modulations. This replaces the
 /// metaball [`TurretVisual`] composition with a controlled, *designed* surface that reads as one
 /// casting from every angle. The cupola and the moving mantlet stay separate bedded parts.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct TurretLoftVisual {
     /// Cross-sections, ring seat (bottom) to roof (top).
     pub stations: [LoftStation; 10],
@@ -225,7 +225,7 @@ impl TurretLoftVisual {
 /// The gun: a revolved steel barrel (driven by the installed module's length) and the moving cast
 /// mantlet mask. The barrel dimensions are the hybrid visual ones — distinct from the legacy-recipe
 /// `GunShape`, which feeds the older `vehicle_geometry` path.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct GunVisual {
     pub barrel_radius: f32,
     pub muzzle_radius: f32,
@@ -268,14 +268,14 @@ pub struct GunVisual {
 }
 
 /// An axis-aligned box part (engine deck), as centre + half-extents.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct BoxVisual {
     pub center: Vec3,
     pub half: Vec3,
 }
 
 /// A fender (mudguard) plate riding above one track run, mirrored to both sides at `±side_x`.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct FenderVisual {
     pub side_x: f32,
     pub center_y: f32,
@@ -285,7 +285,7 @@ pub struct FenderVisual {
 /// The full visual-detail description for one vehicle — the FLEET slot (W4): any vehicle may
 /// carry one; today only the benchmark (T-54) does;
 /// other vehicles bake through the legacy `vehicle_geometry` path and carry `None`.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct VisualDetail {
     pub hull: HullVisual,
     pub hull_plates: HullPlatesVisual,
