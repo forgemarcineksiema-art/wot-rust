@@ -73,6 +73,11 @@ impl Snapshot {
             // Like shells (above), impacts are world events everyone standing there sees, not
             // owner-gated intel (see #95); they ride through unfiltered.
             shell_impacts: self.shell_impacts.clone(),
+            // A muzzle flash is the loudest, brightest thing on a battlefield. It rides through
+            // for the same reason the shell does: an unspotted gun firing from a treeline is a
+            // thing you SEE, and hiding it would make counter-battery reading impossible while
+            // the shell it fired flew past in plain view.
+            shots_fired: self.shots_fired.clone(),
             // Wrecks are always visible (the hit_points == 0 rule above), so every detached-turret
             // wreck the viewer can see rides through.
             detached_turrets: self

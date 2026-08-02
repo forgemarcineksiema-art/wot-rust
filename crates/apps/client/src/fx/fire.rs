@@ -1,11 +1,20 @@
-//! Client-side fire detection: the protocol replicates no explicit "tank fired" event, but a
-//! shot is the only thing that *raises* `reload_remaining_s` between snapshots. Deriving fire
-//! events from that jump works identically for the local player, allied tanks, and enemies â€”
-//! one code path, no protocol change, and at the in-process 20 Hz snapshot cadence the cue lands
-//! within two sim ticks of the authoritative shot.
-
+//! Client-side fire cues, driven by the AUTHORITATIVE shot event (protocol v41).
+//!
+//! This used to derive a shot from `reload_remaining_s` jumping up between snapshots — a good
+//! proxy, and not the thing itself. The proxy has holes it cannot close, and every one of them
+//! silences a muzzle flash that really happened:
+//!
+//!   * a tank that fires and DIES inside one snapshot window never reports, because the
+//!     derivation requires the shooter alive in the later snapshot;
+//!   * a tank whose vehicle changed between snapshots is filtered out;
+//!   * two shots inside one window collapse into one;
+//!   * a point-blank shell born and absorbed between snapshots appears in no `shells` list
+//!     either, so no signal for it exists anywhere on the client.
+//!
+//! A shot is a fact the server knows exactly once. It is replicated as that fact now, and the
+//! muzzle position is still resolved from the shooter's pose because that is presentation.
 use game_core::math::{gun_direction_world, muzzle_world_position_scaled};
-use game_core::{MountFrames, TankId};
+use game_core::{MountFrames, ShotFired, TankId};
 use glam::Vec3;
 use net::TankSnapshot;
 
@@ -19,30 +28,22 @@ pub(crate) struct FireEvent {
     pub direction: Vec3,
 }
 
-/// Reload can only jump UP by (nearly) the full reload on a shot; module repairs and HUD noise
-/// move it by far less. Half the spec reload splits the two cleanly.
-fn fired_between(previous: &TankSnapshot, latest: &TankSnapshot) -> bool {
-    let reload_s = latest.vehicle.spec_ref().gun.reload_seconds;
-    latest.hit_points > 0
-        && latest.vehicle == previous.vehicle
-        && latest.reload_remaining_s - previous.reload_remaining_s > reload_s * 0.5
-}
-
-/// Diff two consecutive snapshots into the shots fired between them. `player` fires from its
+/// Resolve this tick's replicated shots against the tanks that fired them. `player` fires from its
 /// installed (possibly non-stock) barrel via `player_barrel_scale`; remote tanks are stock.
-pub(crate) fn detect_fired(
-    previous: &[TankSnapshot],
+///
+/// A shot whose shooter is not in this snapshot — killed and removed, or filtered out — still
+/// happened, and is simply not drawable: there is no pose to hang a flash on. That is a missing
+/// POSE, not a missing shot, which is the distinction the reload proxy could never make.
+pub(crate) fn resolve_shots(
+    shots: &[ShotFired],
     latest: &[TankSnapshot],
     player: TankId,
     player_barrel_scale: f32,
 ) -> Vec<FireEvent> {
-    latest
+    shots
         .iter()
-        .filter_map(|tank| {
-            let before = previous.iter().find(|prev| prev.tank_id == tank.tank_id)?;
-            if !fired_between(before, tank) {
-                return None;
-            }
+        .filter_map(|shot| {
+            let tank = latest.iter().find(|tank| tank.tank_id == shot.shooter)?;
             let mounts = MountFrames::for_vehicle(tank.vehicle);
             let barrel_scale = if tank.tank_id == player { player_barrel_scale } else { 1.0 };
             let muzzle = muzzle_world_position_scaled(
@@ -67,7 +68,7 @@ pub(crate) fn detect_fired(
 
 #[cfg(test)]
 mod tests {
-    use game_core::{TeamId, VehicleKind};
+    use game_core::{ShellId, TeamId, VehicleKind};
 
     use super::*;
 
@@ -100,13 +101,15 @@ mod tests {
         }
     }
 
-    #[test]
-    fn a_reload_jump_is_a_shot_and_resolves_to_the_muzzle() {
-        let reload = VehicleKind::T54_1951.spec().gun.reload_seconds;
-        let before = vec![snapshot(1, 0.0, 1000)];
-        let after = vec![snapshot(1, reload, 1000)];
+    fn shot(id: u64) -> ShotFired {
+        ShotFired { shooter: TankId(id), shell_id: ShellId::from_shot(TankId(id), 0) }
+    }
 
-        let events = detect_fired(&before, &after, TankId(1), 1.0);
+    #[test]
+    fn a_replicated_shot_resolves_to_the_muzzle_it_left() {
+        let tanks = vec![snapshot(1, 8.4, 1000)];
+
+        let events = resolve_shots(&[shot(1)], &tanks, TankId(1), 1.0);
 
         assert_eq!(events.len(), 1);
         let event = events[0];
@@ -115,37 +118,44 @@ mod tests {
         // The muzzle sits meters from the hull origin, along the composed gun chain.
         let offset = event.muzzle - Vec3::new(10.0, 2.0, 20.0);
         assert!(offset.length() > 2.0, "muzzle is out on the barrel: {offset}");
-        // The direction matches the shared gun chain (unit length, mostly horizontal here).
         assert!((event.direction.length() - 1.0).abs() < 1.0e-4);
         assert!(event.direction.dot(offset.normalize()) > 0.95, "direction points out the barrel");
     }
 
+    /// THE HOLE THE PROXY COULD NOT CLOSE. A tank that fires and dies inside one snapshot window
+    /// showed no flash at all, because the derivation required the shooter alive in the later
+    /// snapshot. The shot happened; the shell is in the air; the gun flashed.
     #[test]
-    fn a_ticking_reload_or_a_dead_tank_is_not_a_shot() {
-        // Reload counting down: no event.
-        let before = vec![snapshot(1, 3.0, 1000)];
-        let after = vec![snapshot(1, 2.85, 1000)];
-        assert!(detect_fired(&before, &after, TankId(1), 1.0).is_empty());
+    fn a_tank_that_fired_and_died_in_the_same_window_still_flashes() {
+        let dead = vec![snapshot(1, 8.4, 0)];
 
-        // Reload jumped but the tank is dead in the latest snapshot: no event.
-        let reload = VehicleKind::T54_1951.spec().gun.reload_seconds;
-        let before = vec![snapshot(1, 0.0, 1000)];
-        let after = vec![snapshot(1, reload, 0)];
-        assert!(detect_fired(&before, &after, TankId(1), 1.0).is_empty());
+        let events = resolve_shots(&[shot(1)], &dead, TankId(1), 1.0);
 
-        // A tank absent from the previous snapshot (fresh spawn) is not a shot either.
-        let after = vec![snapshot(9, reload, 1000)];
-        assert!(detect_fired(&[], &after, TankId(1), 1.0).is_empty());
+        assert_eq!(events.len(), 1, "the gun fired before the hull died — that is not undone");
     }
 
+    /// Two shots inside one window are two flashes. The reload proxy could only ever report one,
+    /// because a clock has one value.
     #[test]
-    fn every_firing_tank_reports_not_just_the_player() {
-        let reload = VehicleKind::T54_1951.spec().gun.reload_seconds;
-        let before = vec![snapshot(1, 0.0, 1000), snapshot(2, 0.0, 900)];
-        let after = vec![snapshot(1, reload, 1000), snapshot(2, reload, 900)];
+    fn two_shots_in_one_window_are_two_cues() {
+        let tanks = vec![snapshot(1, 8.4, 1000), snapshot(2, 8.4, 900)];
 
-        let events = detect_fired(&before, &after, TankId(1), 1.0);
+        let events = resolve_shots(&[shot(1), shot(2)], &tanks, TankId(1), 1.0);
 
         assert_eq!(events.len(), 2, "remote shots get muzzle FX too");
+    }
+
+    /// No shots means no cues — a ticking reload is not an event, which is the whole point.
+    #[test]
+    fn a_ticking_reload_is_not_a_shot() {
+        let tanks = vec![snapshot(1, 2.85, 1000)];
+        assert!(resolve_shots(&[], &tanks, TankId(1), 1.0).is_empty());
+    }
+
+    /// A shooter with no pose in this snapshot is a missing POSE, not a missing shot: there is
+    /// nothing to hang a flash on, and nothing is invented.
+    #[test]
+    fn a_shot_from_a_tank_with_no_pose_draws_nothing() {
+        assert!(resolve_shots(&[shot(9)], &[snapshot(1, 8.4, 1000)], TankId(1), 1.0).is_empty());
     }
 }

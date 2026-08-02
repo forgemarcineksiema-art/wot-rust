@@ -31,7 +31,7 @@ fn input_command_wire_snapshot_v34_is_stable() {
 
     let bytes = encode_message(&message).expect("message should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 40);
+    assert_eq!(PROTOCOL_VERSION, 41);
     assert_eq!(hex(&bytes), wire_fixture(&bytes, "input_command_v33"));
     assert_eq!(decode_message(&bytes).expect("message should decode"), message);
 }
@@ -45,7 +45,7 @@ fn vehicle_selection_wire_snapshot_v34_is_stable() {
 
     let bytes = encode_message(&message).expect("vehicle selection should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 40);
+    assert_eq!(PROTOCOL_VERSION, 41);
     assert_eq!(hex(&bytes), wire_fixture(&bytes, "vehicle_selection_v33"));
     assert_eq!(decode_message(&bytes).expect("message should decode"), message);
 }
@@ -57,7 +57,7 @@ fn tank_snapshot_wire_v34_is_stable() {
 
     let bytes = encode_message(&message).expect("snapshot should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 40);
+    assert_eq!(PROTOCOL_VERSION, 41);
     assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_tank_v39"));
     assert_eq!(decode_message(&bytes).expect("snapshot should decode"), message);
 }
@@ -108,7 +108,7 @@ fn combat_snapshot_wire_v34_is_stable() {
 
     let bytes = encode_message(&message).expect("snapshot should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 40);
+    assert_eq!(PROTOCOL_VERSION, 41);
     assert_eq!(hex(&bytes), wire_fixture(&bytes, "snapshot_combat_v39"));
     assert_eq!(decode_message(&bytes).expect("snapshot should decode"), message);
 }
@@ -127,7 +127,7 @@ fn server_hello_wire_snapshot_v38_is_stable() {
 
     let bytes = encode_message(&message).expect("server hello should encode");
 
-    assert_eq!(PROTOCOL_VERSION, 40);
+    assert_eq!(PROTOCOL_VERSION, 41);
     assert_eq!(hex(&bytes), wire_fixture(&bytes, "server_hello_v39"));
     assert_eq!(decode_message(&bytes).expect("server hello should decode"), message);
 }
@@ -169,6 +169,7 @@ pub fn tank_snapshot_message() -> Snapshot {
         cover_states: Vec::new(),
         craters: Vec::new(),
         cover_scars: Vec::new(),
+        shots_fired: Vec::new(),
     }
 }
 
@@ -375,6 +376,12 @@ pub fn combat_snapshot_message() -> Snapshot {
             v_q: 40,
             radius_q: 20,
             kind: terrain::COVER_SCAR_KIND_HIGH_EXPLOSIVE,
+        }],
+        // v41: the shot as an event, so the muzzle-flash cue no longer has to be inferred from a
+        // reload clock jumping between snapshots.
+        shots_fired: vec![game_core::ShotFired {
+            shooter: TankId(7),
+            shell_id: game_core::ShellId::from_shot(TankId(7), 0),
         }],
     }
 }

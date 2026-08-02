@@ -102,6 +102,24 @@ pub struct TrackHit {
     pub broke: bool,
 }
 
+/// A gun fired: the authoritative shot, replicated as an EVENT (protocol v41).
+///
+/// The client used to derive this from `reload_remaining_s` jumping up between snapshots, which
+/// is a good proxy and not the thing itself. It has holes the proxy cannot close: a tank that
+/// fires and DIES inside one snapshot window never reports (the derivation requires the shooter
+/// alive in the later snapshot), a tank whose vehicle changed is filtered out, two shots inside
+/// one window collapse into one, and a point-blank shell that is born and absorbed between
+/// snapshots never appears in `shells` either — so no signal exists anywhere for the flash.
+///
+/// A shot is a fact the server knows exactly once. This is that fact.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ShotFired {
+    pub shooter: TankId,
+    /// The shell this shot created, so a client can tie a muzzle flash to the round that leaves
+    /// it and to the impact that ends it.
+    pub shell_id: ShellId,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Default)]
 pub struct DamageEvent {
     pub source: TankId,

@@ -135,6 +135,7 @@ fn late_battle_delivery(groups: u64, fragments_per_group: u64) -> Vec<u8> {
             .map(|i| terrain::CraterRecord::from_world(i as f32 * 7.0, 300.0, 2.4, 0.6, 0))
             .collect(),
         cover_scars: Vec::new(),
+        shots_fired: Vec::new(),
     };
     encode_frame(&ProtocolMessage::SnapshotDelivery(SnapshotDelivery {
         session_id: 0xD00D,
