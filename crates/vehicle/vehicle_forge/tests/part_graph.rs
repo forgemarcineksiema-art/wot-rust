@@ -497,8 +497,10 @@ fn is3_and_centurion_parts_fit_the_hitbox_and_the_baked_vehicle() {
 /// deliberately absent from the baked submeshes.
 #[test]
 fn every_declared_part_answers_to_real_geometry() {
+    let mut graphs_checked = 0;
     for kind in VehicleKind::PLAYABLE {
         let Some(graph) = ForgePartGraph::for_vehicle(kind) else { continue };
+        graphs_checked += 1;
         let baked = vehicle_forge::authoritative_baked_vehicle(kind).expect("shipped bake");
         let positions: Vec<glam::Vec3> = baked
             .submeshes()
@@ -523,6 +525,11 @@ fn every_declared_part_answers_to_real_geometry() {
             );
         }
     }
+    assert_eq!(
+        graphs_checked,
+        VehicleKind::PLAYABLE.len(),
+        "every playable vehicle declares a part graph; skipping one hides an unbuilt part"
+    );
 }
 
 #[test]
@@ -612,11 +619,13 @@ fn the_executable_manifest_does_not_drift_from_the_baked_geometry() {
 /// the per-vehicle graph tests only ask for non-degenerate bounds and a non-empty source.
 #[test]
 fn every_part_table_puts_the_sprocket_where_the_model_drives() {
+    let mut sprockets_checked = 0;
     for kind in VehicleKind::PLAYABLE {
         let Some(graph) = ForgePartGraph::for_vehicle(kind) else { continue };
         let Some(kin) = vehicle_geometry::RunningGearKinematics::for_vehicle(kind) else {
             continue;
         };
+        sprockets_checked += 1;
         let placements = vehicle_geometry::running_gear_placements(&kin, 0.0, 0.0);
         for (part_kind, gear) in [
             (ForgePartKind::DriveSprocket, vehicle_geometry::GearPart::Sprocket),
@@ -636,4 +645,9 @@ fn every_part_table_puts_the_sprocket_where_the_model_drives() {
             );
         }
     }
+    assert_eq!(
+        sprockets_checked,
+        VehicleKind::PLAYABLE.len(),
+        "every playable vehicle's part table must place its sprocket where the model drives"
+    );
 }

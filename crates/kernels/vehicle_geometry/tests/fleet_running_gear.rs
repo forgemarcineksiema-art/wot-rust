@@ -113,10 +113,12 @@ fn worst_merge(kin: &RunningGearKinematics) -> (f32, String) {
 /// real suspension could be built to.
 #[test]
 fn no_running_gear_disc_merges_into_another() {
+    let mut gears_checked = 0;
     for kind in VehicleKind::ALL {
         let Some(kin) = RunningGearKinematics::for_vehicle(kind) else {
             continue; // The test-only prototype keeps fused static gear.
         };
+        gears_checked += 1;
         let (merge, what) = worst_merge(&kin);
         let allowed = ceiling(kind) + TOUCH_TOLERANCE_M;
         assert!(
@@ -131,6 +133,11 @@ fn no_running_gear_disc_merges_into_another() {
             );
         }
     }
+    assert_eq!(
+        gears_checked,
+        VehicleKind::PLAYABLE.len(),
+        "every blueprint-born vehicle has running gear; skipping one hides it from this rule"
+    );
 }
 
 /// A recorded ceiling that no longer bites is a lie about the state of the fleet: it reads as
@@ -155,12 +162,14 @@ fn every_recorded_merge_ceiling_is_still_earned() {
 /// the 0.03 it authors, and closing that is a shape decision on that vehicle.
 #[test]
 fn the_authored_belt_bottom_is_reported_against_the_drawn_one() {
+    let mut belts_reported = 0;
     for kind in VehicleKind::ALL {
         let (Some(kin), Some(bp)) =
             (RunningGearKinematics::for_vehicle(kind), VehicleBlueprint::for_vehicle(kind))
         else {
             continue;
         };
+        belts_reported += 1;
         // `LINK_SEAT` (0.02) is the belt module's private constant; the drawn ground run sits
         // that far under the wheel rim.
         let drawn = kin.cy - kin.wheel_radius - 0.02;
@@ -171,4 +180,9 @@ fn the_authored_belt_bottom_is_reported_against_the_drawn_one() {
             );
         }
     }
+    assert_eq!(
+        belts_reported,
+        VehicleKind::PLAYABLE.len(),
+        "every blueprint-born vehicle has running gear; skipping one hides it from this rule"
+    );
 }

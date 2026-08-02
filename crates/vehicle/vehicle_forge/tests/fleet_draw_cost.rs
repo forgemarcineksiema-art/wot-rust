@@ -121,11 +121,13 @@ fn the_measured_draw_cost_of_every_vehicle_and_of_a_full_battle() {
 /// and the distant tier actually saves what it exists to save.
 #[test]
 fn every_vehicles_running_gear_stays_inside_its_budget() {
+    let mut gears_budgeted = 0;
     for kind in VehicleKind::PLAYABLE {
         let cost = draw_cost(kind);
         if cost.gear_tris == 0 {
             continue;
         }
+        gears_budgeted += 1;
         assert!(
             cost.gear_tris <= GEAR_BUDGETS.near_tri_max,
             "{kind:?}: {} gear triangles up close, past the {} ceiling — the running gear is the \
@@ -171,4 +173,9 @@ fn every_vehicles_running_gear_stays_inside_its_budget() {
             );
         }
     }
+    assert_eq!(
+        gears_budgeted,
+        VehicleKind::PLAYABLE.len(),
+        "every playable vehicle draws running gear, so every one must be held to the budget"
+    );
 }

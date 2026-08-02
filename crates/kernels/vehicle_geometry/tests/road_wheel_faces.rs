@@ -174,8 +174,10 @@ fn the_openwork_face_is_solid_where_the_spider_web_is_punched() {
 /// on the track horn.
 #[test]
 fn no_wheel_face_stands_proud_of_its_own_tyre() {
+    let mut wheels_checked = 0;
     for kind in VehicleKind::PLAYABLE {
         let Some(kin) = RunningGearKinematics::for_vehicle(kind) else { continue };
+        wheels_checked += 1;
         let mesh = road_wheel_unit_mesh(&kin);
         let widest =
             mesh.vertices().iter().map(|vertex| vertex.position.x.abs()).fold(0.0_f32, f32::max);
@@ -186,6 +188,12 @@ fn no_wheel_face_stands_proud_of_its_own_tyre() {
             kin.wheel_half_width
         );
     }
+    assert_eq!(
+        wheels_checked,
+        VehicleKind::PLAYABLE.len(),
+        "every playable vehicle has road wheels to measure; a vehicle whose kinematics went \
+         missing must fail here rather than skip out of the check"
+    );
 }
 
 /// A ROAD WHEEL IS AN ASSEMBLY, NOT A CASTING.

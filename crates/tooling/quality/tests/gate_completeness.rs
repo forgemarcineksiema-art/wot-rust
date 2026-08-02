@@ -10,9 +10,8 @@
 //! with the reason, where a reader of the gate can count them.
 
 use std::fs;
-use std::path::{Path, PathBuf};
 
-use quality::workspace::{crate_manifests, rust_files, workspace_root};
+use quality::workspace::{integration_test_files, repo_relative, workspace_root};
 
 /// Environment variables a test is allowed to consult, with what happens when they are unset.
 ///
@@ -57,8 +56,8 @@ fn every_test_that_can_decline_to_run_is_named_here() {
     let root = workspace_root();
     let mut offenders = Vec::new();
 
-    for path in test_files(&root) {
-        let relative = relative(&path, &root);
+    for path in integration_test_files(&root) {
+        let relative = repo_relative(&path, &root);
         let source = fs::read_to_string(&path).expect("test source should be readable");
         for variable in env_vars_read(&source) {
             let known = ENV_GATE_ALLOWLIST
@@ -87,8 +86,8 @@ fn no_test_is_ignored_without_a_stated_reason() {
     let root = workspace_root();
     let mut offenders = Vec::new();
 
-    for path in test_files(&root) {
-        let relative = relative(&path, &root);
+    for path in integration_test_files(&root) {
+        let relative = repo_relative(&path, &root);
         let source = fs::read_to_string(&path).expect("test source should be readable");
         // An ATTRIBUTE, not the text. The first draft matched the substring anywhere in the file
         // and its first offender was this rule itself, which mentions `#[ignore]` inside a string
@@ -110,7 +109,8 @@ fn no_test_is_ignored_without_a_stated_reason() {
 #[test]
 fn the_allowlists_name_only_files_that_still_exist() {
     let root = workspace_root();
-    let present: Vec<String> = test_files(&root).iter().map(|path| relative(path, &root)).collect();
+    let present: Vec<String> =
+        integration_test_files(&root).iter().map(|path| repo_relative(path, &root)).collect();
 
     let stale: Vec<&str> = ENV_GATE_ALLOWLIST
         .iter()
@@ -123,19 +123,6 @@ fn the_allowlists_name_only_files_that_still_exist() {
         stale.is_empty(),
         "an allowlist that outlives its file forgives nothing and hides the next offender: {stale:?}"
     );
-}
-
-/// Every integration-test file in the workspace: `crates/<layer>/<crate>/tests/**.rs`.
-///
-/// Unit tests inside `src` are deliberately out of scope — an env read there is production
-/// configuration, which is a different argument from a test declining to run.
-fn test_files(root: &Path) -> Vec<PathBuf> {
-    crate_manifests(root)
-        .iter()
-        .filter_map(|manifest| manifest.parent().map(|dir| dir.join("tests")))
-        .filter(|dir| dir.is_dir())
-        .flat_map(|dir| rust_files(&dir))
-        .collect()
 }
 
 /// The names passed to `env::var` / `var_os` in a source file.
@@ -153,8 +140,4 @@ fn env_vars_read(source: &str) -> Vec<String> {
     names.sort();
     names.dedup();
     names
-}
-
-fn relative(path: &Path, root: &Path) -> String {
-    path.strip_prefix(root).unwrap_or(path).display().to_string().replace('\\', "/")
 }

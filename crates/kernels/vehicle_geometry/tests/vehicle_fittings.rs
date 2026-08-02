@@ -6,6 +6,7 @@ use vehicle_geometry::{
 
 #[test]
 fn road_wheel_rows_stay_outside_the_lower_hull_tub() {
+    let mut rows_checked = 0;
     for kind in VehicleKind::ALL {
         let Some(blueprint) = VehicleBlueprint::for_vehicle(kind) else {
             continue;
@@ -13,6 +14,7 @@ fn road_wheel_rows_stay_outside_the_lower_hull_tub() {
         let Some(kin) = RunningGearKinematics::for_vehicle(kind) else {
             continue;
         };
+        rows_checked += 1;
         let innermost_center = running_gear_placements(&kin, 0.0, 0.0)
             .iter()
             .filter(|placement| {
@@ -28,6 +30,11 @@ fn road_wheel_rows_stay_outside_the_lower_hull_tub() {
             blueprint.hull.lower_half_width
         );
     }
+    assert_eq!(
+        rows_checked,
+        VehicleKind::PLAYABLE.len(),
+        "every blueprint-born vehicle has road wheels to place; a skip here is a hull nobody measured"
+    );
 }
 
 /// The migrated T-54's visible body (hull + turret, tracks included) must sit inside the collision
@@ -155,10 +162,12 @@ fn t54_cast_turret_shell_carries_its_mass_forward() {
 
 #[test]
 fn turreted_vehicles_have_dedicated_turret_ring_geometry() {
+    let mut rings_checked = 0;
     for kind in VehicleKind::ALL {
         if kind == VehicleKind::Jagdtiger {
             continue;
         }
+        rings_checked += 1;
         let vehicle = bake_vehicle(kind).unwrap_or_else(|e| panic!("{kind:?} should bake: {e}"));
         let ring = vehicle.mounts().turret_ring.translation;
         let turret = vehicle.submesh(SubmeshKind::Turret).expect("turret submesh");
@@ -177,6 +186,11 @@ fn turreted_vehicles_have_dedicated_turret_ring_geometry() {
 
         assert!(ring_vertices >= 12, "{kind:?} missing visible turret-ring collar");
     }
+    assert_eq!(
+        rings_checked,
+        VehicleKind::ALL.len() - 1,
+        "every vehicle but the casemate must show a turret ring"
+    );
 }
 
 /// Cupolas are authored with absolute heights, so this pins their seating: the cupola must crown
@@ -185,10 +199,12 @@ fn turreted_vehicles_have_dedicated_turret_ring_geometry() {
 /// (bare casemate) and the prototype medium (plain box turret) carry no cupola by design.
 #[test]
 fn cupolas_crown_their_turret_roofs() {
+    let mut cupolas_checked = 0;
     for kind in VehicleKind::ALL {
         if matches!(kind, VehicleKind::Jagdtiger | VehicleKind::PrototypeMedium) {
             continue;
         }
+        cupolas_checked += 1;
         let vehicle = bake_vehicle(kind).unwrap_or_else(|e| panic!("{kind:?} should bake: {e}"));
         let turret = vehicle.submesh(SubmeshKind::Turret).expect("turret submesh");
 
@@ -214,6 +230,11 @@ fn cupolas_crown_their_turret_roofs() {
             "{kind:?} cupola base {cupola_min_y:.2} floats above turret roof {rest_max_y:.2}"
         );
     }
+    assert_eq!(
+        cupolas_checked,
+        VehicleKind::ALL.len() - 2,
+        "every turreted production vehicle must seat its cupola"
+    );
 }
 
 #[test]
@@ -276,10 +297,12 @@ fn t54_mantlet_socket_visibly_seats_the_moving_mask() {
 /// Henschel roof edge — both placed by eye instead of by clearance math.
 #[test]
 fn bow_furniture_clears_the_wrap_and_cupolas_sit_on_their_roofs() {
+    let mut hulls_checked = 0;
     for kind in VehicleKind::ALL {
         let Some(bp) = VehicleBlueprint::for_vehicle(kind) else {
             continue;
         };
+        hulls_checked += 1;
         let vehicle = bake_vehicle(kind).unwrap_or_else(|e| panic!("{kind:?} should bake: {e}"));
         let hull = vehicle.submesh(SubmeshKind::Hull).expect("hull submesh");
 
@@ -327,4 +350,9 @@ fn bow_furniture_clears_the_wrap_and_cupolas_sit_on_their_roofs() {
             );
         }
     }
+    assert_eq!(
+        hulls_checked,
+        VehicleKind::PLAYABLE.len(),
+        "bow furniture is checked on every blueprint-born hull or on none provably"
+    );
 }

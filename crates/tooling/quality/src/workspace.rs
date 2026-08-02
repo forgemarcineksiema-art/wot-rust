@@ -163,6 +163,27 @@ fn collect_rust_files(root: &Path, paths: &mut Vec<PathBuf>) {
     }
 }
 
+/// Every integration-test file in the workspace: `crates/<layer>/<crate>/tests/**.rs`.
+///
+/// Unit tests inside `src` are deliberately out of scope for the rules that use this — an env read
+/// or a skipping loop there is production code, which is a different argument from a test.
+pub fn integration_test_files(root: &Path) -> Vec<PathBuf> {
+    crate_manifests(root)
+        .iter()
+        .filter_map(|manifest| manifest.parent().map(|dir| dir.join("tests")))
+        .filter(|dir| dir.is_dir())
+        .flat_map(|dir| rust_files(&dir))
+        .collect()
+}
+
+/// A path as the repo writes it: relative to the workspace root, forward slashes on every OS.
+///
+/// Allowlists in the gate name files as strings, and a `\` from Windows would silently match
+/// nothing — an allowlist that matches nothing forgives nothing and hides its next offender.
+pub fn repo_relative(path: &Path, root: &Path) -> String {
+    path.strip_prefix(root).unwrap_or(path).display().to_string().replace('\\', "/")
+}
+
 /// `#[cfg(test)] mod tests` lives in files named `tests.rs` / `*_tests.rs`.
 pub fn is_test_module_file(path: &Path) -> bool {
     path.file_name()
