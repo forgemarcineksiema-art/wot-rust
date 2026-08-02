@@ -204,8 +204,6 @@ pub(super) fn crew_prof_arrows() -> ([f32; 2], [f32; 2]) {
 /// client, beside the primitives that draw them.
 pub(super) use crate::hud::primitives::in_rect;
 
-pub(super) use crate::vehicle::display::short_name;
-
 /// The header label for a fitting slot, shown atop its option list.
 pub(super) fn slot_label(slot: FitSlot) -> &'static str {
     match slot {

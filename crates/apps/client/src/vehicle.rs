@@ -11,7 +11,6 @@ pub mod damage_budget;
 mod damage_skin_tests;
 pub(crate) mod damage_worker;
 pub(crate) mod default_material;
-pub(crate) mod display;
 pub(crate) mod equipment;
 pub(crate) mod geometry_mesh;
 pub(crate) mod mesh;
