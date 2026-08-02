@@ -178,7 +178,7 @@ pub fn split_pbr_vehicle_render_frame_on_terrain(
 /// really OPEN it (analytic discard + remeshed skin). True for the part-aware hybrid T-54 today;
 /// the rest of the fleet joins with its hybrid migration (W2c), and until then a hole into
 /// nothing would be dishonest — those hulls scorch instead.
-fn vehicle_has_cut_truth(kind: game_core::VehicleKind) -> bool {
+pub(crate) fn vehicle_has_cut_truth(kind: game_core::VehicleKind) -> bool {
     // The capability IS the data: a vehicle whose blueprint carries the part-aware visual detail
     // block has an analytic breach path; one without it scorches. When the fleet migration gives
     // another hull that block (W4 F5), it joins here with no client edit — which is the whole

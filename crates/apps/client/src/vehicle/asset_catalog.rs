@@ -185,7 +185,11 @@ impl VehicleAssetCatalog {
         damaged_modules: u8,
         destroyed_modules: u8,
     ) -> Option<MeshHandle> {
-        if kind != VehicleKind::T54_1951
+        // The gate is the DATA, not the vehicle's name (W4 F3): a blueprint that carries the
+        // part-aware visual-detail block has an analytic breach path worth remeshing; one
+        // without it scorches, and a remesh of its skin would open a hole into nothing. When
+        // the fleet migration hands another hull the block (F5), it joins here with no edit.
+        if !super::render_frame::vehicle_has_cut_truth(kind)
             || !breaches.breaches().iter().any(|breach| breach.frame == frame)
         {
             return None;

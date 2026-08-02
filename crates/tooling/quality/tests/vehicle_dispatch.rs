@@ -27,11 +27,9 @@ const DISPATCH_ALLOWLIST: &[(&str, &str)] = &[
          the app layer. Burns in W4 F4: the short name becomes a `game_core` data accessor beside \
          the spec name.",
     ),
-    (
-        "crates/apps/client/src/vehicle/asset_catalog.rs",
-        "`if kind != T54_1951` — the client deciding the T-54 is special. Burns in W4 F3 when \
-         VisualDetail becomes a fleet slot every vehicle may carry.",
-    ),
+    // BURNED (W4 F3): `asset_catalog.rs`'s `if kind != T54_1951` became the data question the
+    // render path already asked — `vehicle_has_cut_truth`, which reads whether the blueprint
+    // carries the visual-detail block.
     (
         "crates/kernels/vehicle_geometry/src/recipes/",
         "Per-vehicle geometry recipes living in the KERNELS layer — content in L1, which the \
