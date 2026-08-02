@@ -16,7 +16,7 @@ fn the_blueprint_is_the_sole_source_of_hull_dimensions() {
     // lives in the generator. Its extents track the blueprint block, and perturbing the
     // blueprint copy moves the geometry with it.
     let bp = game_core::VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).unwrap();
-    let v = bp.visual_detail().unwrap();
+    let v = bp.complete_visual().unwrap();
     let to_bounds = |hull: &game_core::HullVisual| {
         solid::t54_hull_solid(
             hull,
@@ -30,12 +30,12 @@ fn the_blueprint_is_the_sole_source_of_hull_dimensions() {
         .expect("non-empty hull")
     };
 
-    let plate = to_bounds(&v.hull);
+    let plate = to_bounds(v.hull);
     assert!((plate.max.x - v.hull.half_width).abs() < 0.05, "hull width tracks the blueprint");
     assert!((plate.min.y - v.hull.belly_y).abs() < 0.05, "hull belly tracks the blueprint");
     assert!((plate.max.y - v.hull.roof_y).abs() < 0.05, "hull roof tracks the blueprint");
 
-    let mut wide = v.hull;
+    let mut wide = *v.hull;
     wide.half_width *= 2.0;
     let wide_plate = to_bounds(&wide);
     assert!(

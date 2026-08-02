@@ -21,6 +21,7 @@ fn turret_visual() -> TurretLoftVisual {
         .visual_detail()
         .unwrap()
         .turret_loft
+        .expect("the benchmark authors its loft")
 }
 
 fn total_triangles(baked: &BakedVehicle) -> usize {

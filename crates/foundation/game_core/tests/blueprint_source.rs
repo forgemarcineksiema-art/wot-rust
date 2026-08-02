@@ -98,6 +98,37 @@ fn visual_detail_round_trips_with_digit_fidelity() {
     );
 }
 
+/// F5.i: the slot is a sum of OPTIONAL parts. A file authoring only a gun group parses, keeps
+/// digit fidelity through a round-trip, and does NOT claim the complete truth-aligned view —
+/// which is exactly what lets a welded-turret vehicle author its mantlet without pretending to
+/// be a casting.
+#[test]
+fn a_partial_visual_file_round_trips_and_does_not_claim_completeness() {
+    let benchmark = VehicleBlueprint::for_vehicle(VehicleKind::BENCHMARK).expect("benchmark");
+    let full = benchmark.visual_detail().expect("benchmark tree");
+    assert!(full.is_complete(), "the benchmark authors every part");
+
+    let partial = game_core::VisualDetail { gun: full.gun, ..Default::default() };
+    assert!(!partial.is_complete(), "a gun group alone is not the complete view");
+    assert!(partial.complete().is_none(), "no complete view without every part");
+
+    let file = game_core::VisualDetailFile::from_parts(VehicleKind::TigerI, &partial);
+    let text = ron::ser::to_string_pretty(&file, ron::ser::PrettyConfig::new())
+        .expect("partial visual serializes");
+    let reparsed =
+        game_core::parse_visual_detail(VehicleKind::TigerI, &text).expect("partial visual parses");
+    assert_eq!(reparsed, partial, "partial serialize->parse is digit-identical");
+
+    // And a RON that simply omits every field is a valid empty slot, not a parse error —
+    // `#[serde(default)]` is what makes authoring incremental.
+    let empty = game_core::parse_visual_detail(
+        VehicleKind::TigerI,
+        "VisualDetailFile(kind: TigerI, detail: VisualDetail())",
+    )
+    .expect("an empty detail block parses");
+    assert_eq!(empty, game_core::VisualDetail::default());
+}
+
 /// A visual file pasted under the wrong vehicle's name is a teaching error, not a silent
 /// adoption — the same rule the blueprint files live under.
 #[test]

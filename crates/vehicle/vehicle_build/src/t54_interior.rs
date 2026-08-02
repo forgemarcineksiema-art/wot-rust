@@ -18,7 +18,7 @@ const SIDE_ARMOR_M: f32 = 0.080;
 pub(crate) fn t54_interior_parts() -> Vec<VehiclePart> {
     let spec = VehicleKind::T54_1951.spec();
     let blueprint = VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("T-54 blueprint");
-    let visual = blueprint.visual_detail().expect("T-54 hybrid visual");
+    let visual = blueprint.complete_visual().expect("T-54 hybrid visual");
     let center_y = spec.hitbox.center_y_m;
     let damage_layout = DamageLayout::t54_1951();
     let mut parts: Vec<_> = damage_layout
@@ -34,7 +34,7 @@ pub(crate) fn t54_interior_parts() -> Vec<VehiclePart> {
         material: MaterialRole::InteriorPrimer,
         smoothing: SmoothingGroup(22),
         shape: PartShape::Mesh(turret_inner_skin(&crate::t54_turret_loft::t54_turret_loft(
-            &visual.turret_loft,
+            visual.turret_loft,
         ))),
         lod: PartLod::Silhouette,
         generator: GeneratorKind::CastLoft,

@@ -45,7 +45,7 @@ pub fn t54_from_modules_with_blueprint(
     bp: &VehicleBlueprint,
 ) -> VehicleDescription {
     let kind = VehicleKind::T54_1951;
-    let v = bp.visual_detail().expect("T-54 carries hybrid visual data");
+    let v = bp.complete_visual().expect("T-54 carries hybrid visual data");
 
     // The hull is decomposed into its real T-54 plates: a narrow lower tub and the wide upper hull
     // that overhangs it as the sponson. The two-plate front (upper glacis over the tucked nose) and
@@ -57,7 +57,7 @@ pub fn t54_from_modules_with_blueprint(
         smoothing: SmoothingGroup::hard_edges(),
         shape: PartShape::Plates(solid::t54_lower_tub(
             &bp.hull,
-            &v.hull_plates,
+            v.hull_plates,
             bp.armor.hull_rear.0,
         )),
         lod: PartLod::Silhouette,
@@ -70,7 +70,7 @@ pub fn t54_from_modules_with_blueprint(
         smoothing: SmoothingGroup::hard_edges(),
         shape: PartShape::Plates(solid::t54_upper_hull(
             &bp.hull,
-            &v.hull_plates,
+            v.hull_plates,
             bp.armor.hull_front.0,
             bp.armor.hull_side.0,
             bp.armor.hull_rear.0,
@@ -87,7 +87,7 @@ pub fn t54_from_modules_with_blueprint(
         submesh: SubmeshKind::Turret,
         material: MaterialRole::CastArmor,
         smoothing: SmoothingGroup(2),
-        shape: PartShape::Mesh(crate::t54_turret_loft::t54_turret_loft(&v.turret_loft)),
+        shape: PartShape::Mesh(crate::t54_turret_loft::t54_turret_loft(v.turret_loft)),
         lod: PartLod::MountCritical,
         generator: GeneratorKind::CastLoft,
     };
@@ -124,7 +124,7 @@ pub fn t54_from_modules_with_blueprint(
         submesh: SubmeshKind::Gun,
         material: MaterialRole::CastArmor,
         smoothing: SmoothingGroup(2),
-        shape: PartShape::Mesh(revolve::moving_mantlet(trunnion, &v.gun)),
+        shape: PartShape::Mesh(revolve::moving_mantlet(trunnion, v.gun)),
         lod: PartLod::MountCritical,
         generator: GeneratorKind::Revolve,
     };
@@ -135,7 +135,7 @@ pub fn t54_from_modules_with_blueprint(
         submesh: SubmeshKind::Gun,
         material: MaterialRole::Canvas,
         smoothing: SmoothingGroup(6),
-        shape: PartShape::Mesh(crate::t54_gun_cover::t54_mantlet_cover(trunnion, &v.gun)),
+        shape: PartShape::Mesh(crate::t54_gun_cover::t54_mantlet_cover(trunnion, v.gun)),
         lod: PartLod::MountCritical,
         generator: GeneratorKind::Sweep,
     };
@@ -146,7 +146,7 @@ pub fn t54_from_modules_with_blueprint(
         submesh: SubmeshKind::Turret,
         material: MaterialRole::BarrelSteel,
         smoothing: SmoothingGroup(3),
-        shape: PartShape::Mesh(crate::t54_gun_cover::t54_mantlet_frame(trunnion, &v.gun)),
+        shape: PartShape::Mesh(crate::t54_gun_cover::t54_mantlet_frame(trunnion, v.gun)),
         lod: PartLod::Detail,
         generator: GeneratorKind::Sweep,
     };
@@ -155,7 +155,7 @@ pub fn t54_from_modules_with_blueprint(
         submesh: SubmeshKind::Gun,
         material: MaterialRole::BarrelSteel,
         smoothing: SmoothingGroup(4),
-        shape: PartShape::Mesh(revolve::gun_barrel_between(trunnion, muzzle, &v.gun)),
+        shape: PartShape::Mesh(revolve::gun_barrel_between(trunnion, muzzle, v.gun)),
         lod: PartLod::MountCritical,
         generator: GeneratorKind::Revolve,
     };
@@ -168,7 +168,7 @@ pub fn t54_from_modules_with_blueprint(
     parts.extend(crate::t54_details::t54_fitting_parts(f));
     // The engine deck reads as bolted panels, not one slab — its split plates carry the silhouette.
     let deck_top = v.deck.center.y + v.deck.half.y;
-    for (i, panel) in solid::t54_engine_deck_panels(&v.deck).into_iter().enumerate() {
+    for (i, panel) in solid::t54_engine_deck_panels(v.deck).into_iter().enumerate() {
         parts.push(VehiclePart {
             key: PartKey::indexed("engine_deck_panel", i as u16),
             submesh: SubmeshKind::Hull,
@@ -183,7 +183,7 @@ pub fn t54_from_modules_with_blueprint(
     // kernel was written and had never been called: the deck read as split plates with nothing
     // holding them, which is the one thing a bolted panel is FOR. Two rows per panel, along the
     // seams, because that is where a fastener goes.
-    parts.extend(crate::t54_details::t54_deck_panel_bolts(&v.deck, deck_top));
+    parts.extend(crate::t54_details::t54_deck_panel_bolts(v.deck, deck_top));
     // A tow hook is a HOOK: a bracket welded to the nose plate, a curved throat a shackle drops
     // into, and a catch across the mouth so it cannot drop back out. These were 240 x 220 x 200
     // bricks — a cast block with no curvature, no throat and no catch, which is a boss, not a
@@ -194,7 +194,7 @@ pub fn t54_from_modules_with_blueprint(
     }
     // Fenders split into bolted sections along each run, rather than one continuous slab — and each
     // section is one folded pressing, plate and return lip together, so a seam runs to the fold.
-    parts.extend(crate::t54_fender::t54_fender_parts(&v.fender, &v.detail));
+    parts.extend(crate::t54_fender::t54_fender_parts(v.fender, v.detail));
     // Clean factory greeble (grille, exhaust cover, periscopes, fender lips, weld bead) — all at the
     // Detail tier, so the close-up LOD0 carries it and the lower LODs keep only the silhouette.
     parts.extend(crate::t54_details::t54_detail_parts(v));

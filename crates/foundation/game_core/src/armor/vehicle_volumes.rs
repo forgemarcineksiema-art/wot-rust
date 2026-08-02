@@ -82,12 +82,19 @@ const EXTERNAL_MANTLET_PATCH_SCALE: f32 = 1.2;
 /// reaches PAST the casting around it, and an internal one does not. Blueprints with no authored
 /// casting keep the external scale, which is what every welded-box mount in this fleet is.
 fn mantlet_patch_scale(blueprint: &VehicleBlueprint) -> f32 {
-    let Some(hybrid) = blueprint.visual_detail() else {
+    // Both PARTS must be authored to prove an internal mount (F5.i: the slot holds optional
+    // parts): the mantlet profile says where the mount's metal ends, the loft says where the
+    // casting's face is. A vehicle authoring only a gun group keeps the external scale until
+    // its turret is authored too — the conservative reading of partial data.
+    let (Some(gun), Some(loft)) = (
+        blueprint.visual_detail().and_then(|hybrid| hybrid.gun.as_ref()),
+        blueprint.visual_detail().and_then(|hybrid| hybrid.turret_loft.as_ref()),
+    ) else {
         return EXTERNAL_MANTLET_PATCH_SCALE;
     };
     let face_z = blueprint.gun.trunnion_z - blueprint.turret.ring_z
-        + hybrid.gun.mantlet_profile.iter().map(|(z, _)| *z).fold(f32::NEG_INFINITY, f32::max);
-    if face_z < hybrid.turret_loft.support(Vec3::Z) { 1.0 } else { EXTERNAL_MANTLET_PATCH_SCALE }
+        + gun.mantlet_profile.iter().map(|(z, _)| *z).fold(f32::NEG_INFINITY, f32::max);
+    if face_z < loft.support(Vec3::Z) { 1.0 } else { EXTERNAL_MANTLET_PATCH_SCALE }
 }
 
 fn bake_vehicle_armor(blueprint: VehicleBlueprint) -> VehicleArmorVolumes {
@@ -225,7 +232,7 @@ fn turret_dome(blueprint: &VehicleBlueprint, cy: f32) -> ArmorVolume {
     let center = Vec3::new(0.0, ring_y, turret.ring_z);
     // The authored casting, when there is one: the armour follows the metal rather than a circle
     // drawn near it.
-    let loft = blueprint.visual_detail().map(|hybrid| &hybrid.turret_loft);
+    let loft = blueprint.visual_detail().and_then(|hybrid| hybrid.turret_loft.as_ref());
     let mantlet = ArmorPatch {
         zone: ArmorZone::Mantlet,
         center: Vec3::new(0.0, blueprint.gun.trunnion_y - cy, turret.mantlet_front_z),
