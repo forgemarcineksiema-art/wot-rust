@@ -40,9 +40,19 @@ impl BlueprintFile {
         }
     }
 
-    /// Assemble the runtime blueprint: the parsed shapes plus any Rust-side extras
-    /// (the T-54's hybrid visual tree).
+    /// Assemble the runtime blueprint: the parsed shapes plus the visual slot. The benchmark's
+    /// tree stays GENERATED (`t54_hybrid` derives it from the blueprint, so raising the roof
+    /// still raises the cupola with it); every other vehicle reads whatever parts its
+    /// `<slug>.visual.ron` authors — the F5 fleet slot's loading half.
     fn into_blueprint(self) -> VehicleBlueprint {
+        let visual_detail = if self.kind == VehicleKind::T54_1951 {
+            Some(t54_hybrid(&self))
+        } else {
+            visual_ron(self.kind).map(|text| {
+                parse_visual_detail(self.kind, text)
+                    .unwrap_or_else(|error| panic!("embedded visual detail invalid — {error}"))
+            })
+        };
         VehicleBlueprint {
             kind: self.kind,
             hull: self.hull,
@@ -50,8 +60,26 @@ impl BlueprintFile {
             turret: self.turret,
             gun: self.gun,
             armor: self.armor,
-            visual_detail: (self.kind == VehicleKind::T54_1951).then(|| t54_hybrid(&self)),
+            visual_detail,
         }
+    }
+}
+
+/// The embedded `<slug>.visual.ron` for `kind`, or `None` for vehicles that have not authored
+/// any visual parts yet. EXHAUSTIVE like [`blueprint_ron`], so a new vehicle states its answer
+/// here — `None` is a decision, not an omission. The benchmark is deliberately absent: its tree
+/// is generated, and an embedded file would be a second source about to disagree with it.
+fn visual_ron(kind: VehicleKind) -> Option<&'static str> {
+    match kind {
+        VehicleKind::PrototypeMedium
+        | VehicleKind::T54_1951
+        | VehicleKind::TigerI
+        | VehicleKind::TigerII
+        | VehicleKind::Jagdtiger
+        | VehicleKind::PantherII
+        | VehicleKind::IS3
+        | VehicleKind::Centurion
+        | VehicleKind::T34_85 => None,
     }
 }
 

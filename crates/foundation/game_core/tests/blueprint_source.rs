@@ -129,6 +129,35 @@ fn a_partial_visual_file_round_trips_and_does_not_claim_completeness() {
     assert_eq!(empty, game_core::VisualDetail::default());
 }
 
+/// Today's truth, stated as a ratchet (F5.iii-prep): the loader half of the fleet slot is
+/// wired — `into_blueprint` reads `<slug>.visual.ron` for non-benchmark vehicles — but no
+/// vehicle has authored a file yet, so the benchmark is the only one with ANY visual parts,
+/// and the only one with the complete view. When Tiger I authors its gun group (F5.iii), it
+/// updates this test in the same PR — the slot's population is a deliberate roster decision,
+/// never a side effect.
+#[test]
+fn only_the_benchmark_carries_visual_parts_today() {
+    let mut walked = 0;
+    for kind in VehicleKind::PLAYABLE {
+        let blueprint = VehicleBlueprint::for_vehicle(kind)
+            .unwrap_or_else(|| panic!("{kind:?}: every playable vehicle is blueprint-born"));
+        walked += 1;
+        if kind == VehicleKind::BENCHMARK {
+            assert!(
+                blueprint.complete_visual().is_some(),
+                "the benchmark's generated tree is complete"
+            );
+        } else {
+            assert!(
+                blueprint.visual_detail().is_none(),
+                "{kind:?}: no visual parts are authored yet — authoring one means updating \
+                 this ratchet deliberately"
+            );
+        }
+    }
+    assert_eq!(walked, VehicleKind::PLAYABLE.len(), "the ratchet covered the whole roster");
+}
+
 /// A visual file pasted under the wrong vehicle's name is a teaching error, not a silent
 /// adoption — the same rule the blueprint files live under.
 #[test]
