@@ -42,11 +42,14 @@ pub enum MaterialRole {
 }
 
 impl MaterialRole {
-    /// Every surface role a baked vehicle mesh can carry. The shader switches on the id, so a role
-    /// absent here is a role nothing can prove the shader draws.
+    /// Every surface role a baked vehicle mesh can carry, in id order.
     ///
-    /// Locked variant-by-variant against the declaration by `quality`, not by counting: a
-    /// length assertion cannot tell a forgotten variant from a shorter enum.
+    /// Two locks meet on this one list, from both ends of the pipeline. `quality` holds it to the
+    /// enum DECLARATION, variant by variant rather than by counting — a length assertion cannot
+    /// tell a forgotten variant from a shorter enum. And the renderer's `material_role_id` plus
+    /// the shader's `material_params` both answer for it, with `vehicle_material_ids.rs` holding
+    /// them to it: a role added here without a shader branch is a build failure, not a
+    /// wrong-looking part.
     pub const ALL: [MaterialRole; 12] = [
         MaterialRole::RolledArmor,
         MaterialRole::CastArmor,

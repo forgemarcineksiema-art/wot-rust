@@ -116,11 +116,33 @@ fn material_params(id: u32) -> Material {
     } else if (id == 7u) {
         m.albedo = vec3<f32>(0.43, 0.31, 0.13);
         m.roughness = 0.65;
-    } else {
+    } else if (id == 8u) {
         // Torn armor is warmer than a gun tube but never a black void. High roughness keeps the
         // irregular section legible without turning it into a polished copper ring.
         m.albedo = vec3<f32>(0.34, 0.285, 0.22);
         m.roughness = 0.78;
+    } else if (id == 9u) {
+        // Proofed canvas: the mantlet cover, tarpaulins, the cleaning kit's rolls. Matte, faded
+        // duck cloth with no specular lobe worth speaking of. It used to fall through to torn
+        // armour, which is exactly the mistake the role exists to prevent: one material for two
+        // things is one of them rendered wrong.
+        m.albedo = vec3<f32>(0.40, 0.37, 0.29);
+        m.roughness = 0.95;
+    } else if (id == 10u) {
+        // Glass: the headlight lens, vision-block prisms. The one thing on a tank that is meant
+        // to catch the sun, so it is the only role here with a genuinely tight lobe.
+        m.albedo = vec3<f32>(0.55, 0.60, 0.62);
+        m.roughness = 0.08;
+    } else if (id == 11u) {
+        // Seasoned timber: the unditching log. Warm, fibrous, unpainted — nothing like steel.
+        m.albedo = vec3<f32>(0.33, 0.25, 0.16);
+        m.roughness = 0.88;
+    } else {
+        // Unknown role. Reached only if `material_role_id` grows past what this function answers,
+        // which `vehicle_material_ids.rs` makes a build failure — so this is a visible flag, not a
+        // silent stand-in. Magenta is the point.
+        m.albedo = vec3<f32>(1.0, 0.0, 1.0);
+        m.roughness = 0.5;
     }
     return m;
 }
@@ -340,7 +362,10 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     var lit = albedo
         * light_radiance(input.world_pos, world_n, shadow, screen)
         * surface_occlusion;
-    if (input.material_id >= 5u) {
+    // INTERIOR roles only (5 primer, 6 machinery, 7 ammunition). Canvas, glass and timber are
+    // exterior fittings that happen to sit above them in the id order, and an unbounded `>= 5`
+    // lit a tarpaulin as though it were inside the fighting compartment.
+    if (input.material_id >= 5u && input.material_id <= 7u) {
         lit += albedo
             * armor_interior_radiance(input.world_pos, world_n, input.damage_index)
             * surface_occlusion;
