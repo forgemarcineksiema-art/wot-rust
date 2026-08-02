@@ -1,8 +1,8 @@
-use net::ClientInputCommand;
-use server::{
+use battle_host::{
     BattleMode, BattleOutcome, BattleSeed, DrawReason, LocalAuthoritativeServer,
     RandomBattleConfig, ServerTickConfig,
 };
+use net::ClientInputCommand;
 use sim::TankCommand;
 
 #[test]
@@ -269,7 +269,7 @@ fn random_battle_clock_expiry_ends_the_battle_in_a_draw() {
     let player_tank = server.player_tank();
     assert_eq!(
         server.battle_time_remaining_s(),
-        Some(server::RANDOM_BATTLE_TIME_LIMIT_S as f32),
+        Some(battle_host::RANDOM_BATTLE_TIME_LIMIT_S as f32),
         "the clock starts full"
     );
 

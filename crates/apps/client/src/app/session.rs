@@ -9,11 +9,11 @@
 use std::net::SocketAddr;
 use std::time::Instant;
 
+use battle_host::{BattleMode, LocalAuthoritativeServer};
 use game_core::{TankId, TankSpec};
 use net::session::{ClientSession, SessionFailure, SessionState, TIMEOUT_MS};
 use net::transport::Transport;
 use net::{AuthoritativeMotion, ClientInputCommand, ProtocolMessage, ReplicationConfig, Snapshot};
-use server::{BattleMode, LocalAuthoritativeServer};
 use terrain::MapId;
 
 use super::remote_events::RemoteCombatEventInbox;
@@ -145,7 +145,7 @@ impl BattleSessionKind {
         }
     }
 
-    pub fn battle_outcome(&self) -> Option<server::BattleOutcome> {
+    pub fn battle_outcome(&self) -> Option<battle_host::BattleOutcome> {
         match self {
             Self::Local(server) => server.battle_outcome(),
             Self::Remote(session) => session.outcome,
@@ -214,7 +214,7 @@ pub struct RemoteSession {
     weather: game_core::MatchWeather,
     latest_snapshot: Option<Snapshot>,
     latest_server_tick: u64,
-    outcome: Option<server::BattleOutcome>,
+    outcome: Option<battle_host::BattleOutcome>,
     inputs: RemoteInputHistory,
     combat_events: RemoteCombatEventInbox,
     pending_combat_events: Vec<net::CombatEvent>,
@@ -383,12 +383,12 @@ impl RemoteSession {
                     // outcome screen has exactly three faces (Victory / Defeat / Draw). If anything
                     // ever needs the manner, it belongs on the wire rather than guessed at here.
                     self.outcome = Some(match winning_team {
-                        Some(team) => server::BattleOutcome::TeamAhead {
+                        Some(team) => battle_host::BattleOutcome::TeamAhead {
                             winning_team: game_core::TeamId(team),
                         },
-                        None => {
-                            server::BattleOutcome::Draw { reason: server::DrawReason::TimeExpired }
-                        }
+                        None => battle_host::BattleOutcome::Draw {
+                            reason: battle_host::DrawReason::TimeExpired,
+                        },
                     });
                 }
                 ProtocolMessage::ServerHello { map_id, weather, map_content_hash, .. } => {
@@ -542,9 +542,9 @@ mod contract_tests;
 
 #[cfg(test)]
 mod tests {
+    use battle_host::remote::RemoteBattleServer;
+    use battle_host::{BattleSeed, RandomBattleConfig, ServerTickConfig};
     use net::transport::MemoryHub;
-    use server::remote::RemoteBattleServer;
-    use server::{BattleSeed, RandomBattleConfig, ServerTickConfig};
 
     use super::*;
 

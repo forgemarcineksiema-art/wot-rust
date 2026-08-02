@@ -296,6 +296,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 
 [[package]]
+name = "battle_host"
+version = "0.1.0"
+dependencies = [
+ "criterion",
+ "game_core",
+ "glam",
+ "map_forge",
+ "net",
+ "sim",
+ "terrain",
+ "tracing",
+]
+
+[[package]]
 name = "bevy_ecs"
 version = "0.18.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -689,6 +703,7 @@ dependencies = [
  "ab_glyph",
  "anyhow",
  "audio",
+ "battle_host",
  "cpal",
  "deform",
  "engine",
@@ -703,7 +718,6 @@ dependencies = [
  "scene_build",
  "serde",
  "serde_json",
- "server",
  "sim",
  "terrain",
  "timer_resolution",
@@ -3006,11 +3020,9 @@ name = "server"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "battle_host",
  "clap",
- "criterion",
  "game_core",
- "glam",
- "map_forge",
  "net",
  "sim",
  "terrain",

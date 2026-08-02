@@ -194,8 +194,8 @@ fn interpolated_turret_takes_the_shortest_arc_across_the_pi_wrap() {
 
 #[test]
 fn predictor_stays_in_lockstep_with_the_authoritative_server_under_steering() {
+    use battle_host::{LocalAuthoritativeServer, ServerTickConfig};
     use net::ClientInputCommand;
-    use server::{LocalAuthoritativeServer, ServerTickConfig};
 
     let mut server = LocalAuthoritativeServer::new(ServerTickConfig::default());
     let player = server.player_tank();

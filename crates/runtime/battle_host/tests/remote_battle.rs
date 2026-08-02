@@ -3,11 +3,11 @@
 //! the viewer's own cut — at spawn distances nothing hostile is spotted, so neither client may
 //! receive the enemy team's positions. The wallhack dies here, before the wire.
 
+use battle_host::remote::RemoteBattleServer;
+use battle_host::{BattleSeed, RandomBattleConfig, ServerTickConfig};
 use net::ProtocolMessage;
 use net::session::{ClientSession, SessionState};
 use net::transport::{MemoryHub, Transport};
-use server::remote::RemoteBattleServer;
-use server::{BattleSeed, RandomBattleConfig, ServerTickConfig};
 
 #[test]
 fn two_clients_get_their_own_filtered_views_and_bots_fill_the_rest() {

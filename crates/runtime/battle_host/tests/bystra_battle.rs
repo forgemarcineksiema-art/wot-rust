@@ -2,8 +2,8 @@
 //! the new battlefield, everyone deploys on dry ground, and the authoritative loop ticks.
 //! (The map joins the seeded rotation only after the bots learn to respect deep water.)
 
+use battle_host::{BattleSeed, LocalAuthoritativeServer, RandomBattleConfig, ServerTickConfig};
 use net::ClientInputCommand;
-use server::{BattleSeed, LocalAuthoritativeServer, RandomBattleConfig, ServerTickConfig};
 use sim::TankCommand;
 use terrain::MapId;
 

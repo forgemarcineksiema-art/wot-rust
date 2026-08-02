@@ -40,6 +40,7 @@ winit = "0.30.12"
 # Internal workspace crates. Paths are centralized here so a crate directory move only edits this
 # one block; each crate depends on them via `name.workspace = true`.
 audio = { path = "crates/runtime/audio" }
+battle_host = { path = "crates/runtime/battle_host" }
 cast_loft = { path = "crates/kernels/cast_loft" }
 deform = { path = "crates/kernels/deform" }
 detail = { path = "crates/kernels/detail" }

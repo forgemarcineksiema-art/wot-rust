@@ -1,10 +1,10 @@
 use std::io::BufWriter;
 
+use battle_host::remote::RemoteBattleServer;
+use battle_host::{BattleSeed, RandomBattleConfig, ServerTickConfig};
 use net::session::Endpoint;
 use net::transport::MemoryHub;
 use net::{AuthoritativeMotion, ProtocolMessage, Snapshot, SnapshotDelivery};
-use server::remote::RemoteBattleServer;
-use server::{BattleSeed, RandomBattleConfig, ServerTickConfig};
 
 use super::*;
 
@@ -207,7 +207,7 @@ fn battle_result_survives_the_orderly_battle_over_disconnect() {
     // battle was won by elimination or on the clock — so asserting a particular variant here would
     // be pinning a detail the remote client cannot actually know.
     assert_eq!(
-        remote.outcome.and_then(server::BattleOutcome::winning_team),
+        remote.outcome.and_then(battle_host::BattleOutcome::winning_team),
         Some(game_core::TeamId(1)),
         "the battle result outlives the orderly close"
     );

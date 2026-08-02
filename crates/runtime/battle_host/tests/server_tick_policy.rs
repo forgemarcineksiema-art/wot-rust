@@ -1,4 +1,4 @@
-use server::ServerTickConfig;
+use battle_host::ServerTickConfig;
 
 #[test]
 fn server_tick_config_controls_authoritative_tick_and_snapshot_rate() {

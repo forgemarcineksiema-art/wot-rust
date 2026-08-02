@@ -1,20 +1,25 @@
 [package]
-name = "server"
+name = "battle_host"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-anyhow.workspace = true
-battle_host.workspace = true
-clap.workspace = true
 game_core.workspace = true
+glam.workspace = true
+map_forge.workspace = true
 net.workspace = true
 sim.workspace = true
 terrain.workspace = true
 tracing.workspace = true
-tracing-subscriber.workspace = true
+
+[dev-dependencies]
+criterion.workspace = true
+
+[[bench]]
+name = "battle_tick"
+harness = false
 
 [lints]
 workspace = true

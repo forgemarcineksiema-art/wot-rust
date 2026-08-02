@@ -3,9 +3,9 @@
 //! The old `sim` bench stepped one tank on a flat void and measured none of the hot paths.
 //! Run with `cargo bench -p server` and compare before/after any tick-path change.
 
+use battle_host::{BattleSeed, LocalAuthoritativeServer, RandomBattleConfig, ServerTickConfig};
 use criterion::{Criterion, criterion_group, criterion_main};
 use net::ClientInputCommand;
-use server::{BattleSeed, LocalAuthoritativeServer, RandomBattleConfig, ServerTickConfig};
 use sim::TankCommand;
 
 fn battle_tick(criterion: &mut Criterion) {

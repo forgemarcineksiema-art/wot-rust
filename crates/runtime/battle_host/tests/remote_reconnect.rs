@@ -1,8 +1,8 @@
+use battle_host::remote::RemoteBattleServer;
+use battle_host::{BattleSeed, RandomBattleConfig, ServerTickConfig};
 use net::session::{ClientSession, Endpoint};
 use net::transport::MemoryHub;
 use net::{ClientInputCommand, ProtocolMessage};
-use server::remote::RemoteBattleServer;
-use server::{BattleSeed, RandomBattleConfig, ServerTickConfig};
 
 const OLD_SESSION: u64 = 0x1111_2222_3333_4444;
 const NEW_SESSION: u64 = 0xAAAA_BBBB_CCCC_DDDD;

@@ -38,9 +38,9 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use anyhow::Context;
+use battle_host::{LocalAuthoritativeServer, RandomBattleConfig, ServerTickConfig};
 use game_core::{TankId, VehicleKind};
 use renderer_wgpu::WindowRenderer;
-use server::{LocalAuthoritativeServer, RandomBattleConfig, ServerTickConfig};
 use sim::DEFAULT_SIMULATION_TICK_HZ;
 use terrain::BattlefieldMap;
 use winit::event_loop::{ControlFlow, EventLoop};
@@ -607,7 +607,7 @@ impl ClientApp {
         );
         let weather_frame = weather_timeline.sample(0.0);
         let mut app = Self::from_battle_config(RandomBattleConfig::new(
-            server::BattleSeed::fixed(1),
+            battle_host::BattleSeed::fixed(1),
             VehicleKind::default(),
         ));
         let player_tank = session.player_tank();
@@ -638,7 +638,7 @@ impl ClientApp {
     #[cfg(test)]
     pub(crate) fn new_seeded(seed: u64) -> Self {
         Self::from_battle_config(RandomBattleConfig::new(
-            server::BattleSeed::fixed(seed),
+            battle_host::BattleSeed::fixed(seed),
             VehicleKind::default(),
         ))
     }

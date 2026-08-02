@@ -206,17 +206,17 @@ impl ClientApp {
         // battle was a free heal: G mid-fight, confirm, and the hull came back factory-new while
         // everyone else stayed shot up. It also closes the loop after VICTORY/DEFEAT/DRAW — the
         // garage's Battle button IS the next battle.
-        if self.session.battle_mode() == server::BattleMode::Random7v7 {
+        if self.session.battle_mode() == battle_host::BattleMode::Random7v7 {
             // The garage map row overrides the env/default resolution; AUTO (`None`) keeps
             // `runtime_from_env` intact — including the editor's Ctrl+P `.map.ron` playtest path.
-            let mut battle_config = server::RandomBattleConfig::runtime_from_env(spec.kind);
+            let mut battle_config = battle_host::RandomBattleConfig::runtime_from_env(spec.kind);
             if let Some(map) = self.garage.selected_map() {
                 battle_config.map = map;
             }
             let previous_map = self.session.map_id();
             self.session = crate::app::session::BattleSessionKind::Local(Box::new(
-                server::LocalAuthoritativeServer::new_random_7v7(
-                    server::ServerTickConfig::default(),
+                battle_host::LocalAuthoritativeServer::new_random_7v7(
+                    battle_host::ServerTickConfig::default(),
                     battle_config,
                 ),
             ));
@@ -481,7 +481,7 @@ mod tests {
         assert_eq!(app.session.battle_outcome(), None);
         assert_eq!(
             app.session.battle_time_remaining_s(),
-            Some(server::RANDOM_BATTLE_TIME_LIMIT_S as f32),
+            Some(battle_host::RANDOM_BATTLE_TIME_LIMIT_S as f32),
             "the battle clock starts full again"
         );
     }
@@ -534,7 +534,8 @@ mod tests {
     fn the_garage_map_row_picks_the_battle_map_and_auto_keeps_the_env_resolution() {
         let mut app = ClientApp::new();
         app.confirm_garage_selection();
-        let auto = server::RandomBattleConfig::runtime_from_env(app.garage.selected_vehicle()).map;
+        let auto =
+            battle_host::RandomBattleConfig::runtime_from_env(app.garage.selected_vehicle()).map;
         assert_eq!(app.session.map_id(), auto, "AUTO keeps the env/default resolution");
 
         // Click the map row until Ostrogorsk is set, then commit: the fresh battle runs there.

@@ -2,8 +2,8 @@
 //! real ticks, and no bot ever drives itself into the drowning channel — while the teams
 //! still reach the far bank, so the crossings are used, not avoided by hugging the spawn.
 
+use battle_host::{BattleSeed, LocalAuthoritativeServer, RandomBattleConfig, ServerTickConfig};
 use net::ClientInputCommand;
-use server::{BattleSeed, LocalAuthoritativeServer, RandomBattleConfig, ServerTickConfig};
 use sim::{DROWN_DEPTH_M, TankCommand};
 use terrain::MapId;
 
