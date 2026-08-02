@@ -9,8 +9,15 @@ fn bots_target_only_enemies_spotted_by_their_team() {
     let observer = tank(1, TeamId(1), Vec3::new(300.0, 0.0, 300.0), TeamId(1).spotting_bit());
     let enemy = tank(2, TeamId(2), Vec3::new(305.0, 0.0, 305.0), TeamId(2).spotting_bit());
     assert!(
-        bot_nearest_engageable_enemy(&observer, &[observer.clone(), enemy], None, None, &[])
-            .is_none()
+        bot_best_engageable_enemy(
+            &observer,
+            &[observer.clone(), enemy],
+            None,
+            None,
+            &[],
+            &BotSituation::default()
+        )
+        .is_none()
     );
 }
 
@@ -29,10 +36,17 @@ fn bots_engage_only_enemies_in_their_own_line_of_sight() {
         half_extents_m: [20.0, 10.0, 2.0],
     };
 
-    let blocked =
-        bot_nearest_engageable_enemy(&observer, &tanks, None, None, std::slice::from_ref(&wall));
+    let blocked = bot_best_engageable_enemy(
+        &observer,
+        &tanks,
+        None,
+        None,
+        std::slice::from_ref(&wall),
+        &BotSituation::default(),
+    );
     assert_eq!(blocked.map(|target| target.id), Some(TankId(3)));
-    let clear = bot_nearest_engageable_enemy(&observer, &tanks, None, None, &[]);
+    let clear =
+        bot_best_engageable_enemy(&observer, &tanks, None, None, &[], &BotSituation::default());
     assert_eq!(clear.map(|target| target.id), Some(TankId(2)));
 }
 
@@ -133,4 +147,98 @@ fn cached_targets_drop_the_moment_the_cheap_gates_fail() {
     let mut far = live;
     far.position = Vec3::new(300.0 + VIEW_RANGE_M + 10.0, 0.0, 300.0);
     assert!(!bot_target_still_engageable(&observer, &far));
+}
+
+/// FINISHING A CRIPPLE. Two enemies, the nearer one fresh and the farther one nearly dead. The
+/// selector used to take the near one every time; a crew takes the kill. Damage already spent on a
+/// hull is the cheapest damage left on the field — a half-dead tank that lives shoots as often as
+/// a whole one.
+#[test]
+fn a_bot_finishes_the_cripple_instead_of_the_nearer_healthy_enemy() {
+    let mask = TeamId(1).spotting_bit() | TeamId(2).spotting_bit();
+    let observer = tank(1, TeamId(1), Vec3::new(300.0, 0.0, 300.0), mask);
+    let healthy = tank(2, TeamId(2), Vec3::new(300.0, 0.0, 340.0), mask);
+    let mut cripple = tank(3, TeamId(2), Vec3::new(300.0, 0.0, 400.0), mask);
+    cripple.hit_points = cripple.spec.hit_points / 10;
+    let tanks = [observer.clone(), healthy, cripple];
+
+    let chosen =
+        bot_best_engageable_enemy(&observer, &tanks, None, None, &[], &BotSituation::default());
+
+    assert_eq!(
+        chosen.map(|target| target.id),
+        Some(TankId(3)),
+        "the kill outranks the nearer hull"
+    );
+}
+
+/// ANSWERING INCOMING FIRE. Two identical enemies at the same range, one of them in the quarter a
+/// shell just came from. The bot shoots back at that quarter. The bearing is the only thing the
+/// crew honestly knows — it never reads the shooter's position.
+#[test]
+fn a_bot_shoots_back_at_the_quarter_the_shell_came_from() {
+    let mask = TeamId(1).spotting_bit() | TeamId(2).spotting_bit();
+    let observer = tank(1, TeamId(1), Vec3::new(300.0, 0.0, 300.0), mask);
+    let ahead = tank(2, TeamId(2), Vec3::new(300.0, 0.0, 360.0), mask);
+    let to_the_left = tank(3, TeamId(2), Vec3::new(240.0, 0.0, 300.0), mask);
+    let tanks = [observer.clone(), ahead, to_the_left];
+
+    let struck_from_the_left =
+        BotSituation { threat_bearing: Some(-std::f32::consts::FRAC_PI_2), ..Default::default() };
+    let chosen =
+        bot_best_engageable_enemy(&observer, &tanks, None, None, &[], &struck_from_the_left);
+    assert_eq!(chosen.map(|target| target.id), Some(TankId(3)));
+
+    // With no hit to answer, the same two enemies tie on range and the first one stands.
+    let calm =
+        bot_best_engageable_enemy(&observer, &tanks, None, None, &[], &BotSituation::default());
+    assert_eq!(calm.map(|target| target.id), Some(TankId(2)));
+}
+
+/// THREAT PRIORITY, concretely: of two enemies at equal range, the one whose gun is already laid
+/// on this bot is the one about to fire. Not who is dangerous in the abstract — who is pointing.
+#[test]
+fn a_gun_already_laid_on_this_bot_outranks_one_looking_elsewhere() {
+    let mask = TeamId(1).spotting_bit() | TeamId(2).spotting_bit();
+    let observer = tank(1, TeamId(1), Vec3::new(300.0, 0.0, 300.0), mask);
+    let mut looking_away = tank(2, TeamId(2), Vec3::new(300.0, 0.0, 360.0), mask);
+    looking_away.turret_yaw_rad = 0.0; // facing +Z, straight away from the observer
+    let mut laid_on_us = tank(3, TeamId(2), Vec3::new(360.0, 0.0, 300.0), mask);
+    laid_on_us.turret_yaw_rad = -std::f32::consts::FRAC_PI_2; // swung onto the observer
+    let tanks = [observer.clone(), looking_away, laid_on_us];
+
+    let chosen =
+        bot_best_engageable_enemy(&observer, &tanks, None, None, &[], &BotSituation::default());
+
+    assert_eq!(chosen.map(|target| target.id), Some(TankId(3)), "shoot the gun that is pointing");
+}
+
+/// FOCUS FIRE. Of two equal enemies, the one a teammate is already fighting. Two bots splitting
+/// their fire leave two enemies alive and shooting; concentration is what turns damage into kills.
+#[test]
+fn bots_concentrate_on_the_enemy_a_teammate_is_already_fighting() {
+    let mask = TeamId(1).spotting_bit() | TeamId(2).spotting_bit();
+    let observer = tank(1, TeamId(1), Vec3::new(300.0, 0.0, 300.0), mask);
+    let alone = tank(2, TeamId(2), Vec3::new(300.0, 0.0, 360.0), mask);
+    let already_engaged = tank(3, TeamId(2), Vec3::new(360.0, 0.0, 300.0), mask);
+    let tanks = [observer.clone(), alone, already_engaged];
+    let ally_on_three = [AlliedEngagement { bot: TankId(9), team: TeamId(1), target: TankId(3) }];
+
+    let supported = BotSituation { allied_targets: &ally_on_three, ..Default::default() };
+    let chosen = bot_best_engageable_enemy(&observer, &tanks, None, None, &[], &supported);
+    assert_eq!(chosen.map(|target| target.id), Some(TankId(3)));
+
+    // The same engagement from the OTHER team is not support, and this bot's own entry is not
+    // support either — otherwise the term would just be hysteresis on its own last choice.
+    for irrelevant in [
+        AlliedEngagement { bot: TankId(9), team: TeamId(2), target: TankId(3) },
+        AlliedEngagement { bot: TankId(1), team: TeamId(1), target: TankId(3) },
+    ] {
+        let situation = BotSituation {
+            allied_targets: std::slice::from_ref(&irrelevant),
+            ..Default::default()
+        };
+        let chosen = bot_best_engageable_enemy(&observer, &tanks, None, None, &[], &situation);
+        assert_eq!(chosen.map(|target| target.id), Some(TankId(2)), "{irrelevant:?}");
+    }
 }
