@@ -1,5 +1,5 @@
+use quality::{rust_files, workspace_root};
 use std::fs;
-use std::path::{Path, PathBuf};
 
 #[test]
 fn core_architecture_docs_exist() {
@@ -36,140 +36,100 @@ fn core_architecture_docs_exist() {
     }
 }
 
+/// Every piece of the render surface, and the exhaustive list of crates allowed to name it.
+///
+/// Default-deny: a crate absent from a row may not declare that dependency in its manifest nor
+/// name it in its source. That is the difference between this table and the five hand-written
+/// tests it replaces — those protected `world_forge`, `map_forge`, `vehicle_forge` and `server`
+/// by name, and a sixth crate that should have been renderer-free was protected by nobody.
+///
+/// The rows are not one policy but four, and writing them out makes that visible:
+///   - `wgpu` is confined to a single crate, so a backend swap has one blast radius.
+///   - `winit` reaches only the two crates that own a window.
+///   - `renderer_wgpu` is the backend; only the apps that present may bind it.
+///   - `renderer_api` is the boundary type layer, so it reaches further ON PURPOSE — including
+///     down into `scene_build`, which builds vertex buffers in the layout the API declares.
+const RENDER_SURFACE: &[(&str, &[&str])] = &[
+    ("wgpu", &["renderer_wgpu"]),
+    ("winit", &["client", "editor"]),
+    // Declared by nobody today. The empty row is the statement: a UI toolkit re-entering this
+    // workspace names its crates here first.
+    ("egui", &[]),
+    ("renderer_wgpu", &["client", "editor"]),
+    ("renderer_api", &["client", "editor", "renderer_wgpu", "scene_build"]),
+];
+
+/// One rule where there were five, applying to all 32 crates instead of four.
+///
+/// `server` is the reason this is default-deny rather than a layer rule: `crates/apps` sits ABOVE
+/// `crates/render`, so the dependency direction is legal and only policy keeps the server
+/// headless. Policy that lives in one hand-written test is policy that protects one crate.
 #[test]
-fn world_forge_stays_renderer_free() {
+fn the_render_surface_stays_confined_to_the_crates_that_own_it() {
     let root = workspace_root();
-    let manifest = fs::read_to_string(root.join("crates/world/world_forge/Cargo.toml"))
-        .expect("world_forge manifest exists");
     let mut offenders = Vec::new();
-    for dependency in ["renderer_api", "renderer_wgpu", "wgpu", "winit", "egui"] {
-        if manifest_has_dependency(&manifest, dependency) {
-            offenders.push(format!("world_forge manifest depends on {dependency}"));
-        }
-    }
-    for source in rust_files(&root.join("crates/world/world_forge/src")) {
-        let source_text = fs::read_to_string(&source).expect("world_forge source is readable");
-        for crate_name in ["renderer_api", "renderer_wgpu", "wgpu", "winit", "egui"] {
-            if source_uses_crate(&source_text, crate_name) {
-                offenders.push(format!("{} references {crate_name}", source.display()));
+
+    for krate in quality::crate_facts(&root) {
+        let manifest = fs::read_to_string(krate.dir.join("Cargo.toml"))
+            .expect("every crate manifest is readable");
+        let sources: Vec<String> = rust_files(&krate.dir.join("src"))
+            .into_iter()
+            .map(|path| {
+                let text = fs::read_to_string(&path).expect("Rust source is readable");
+                format!("{}\u{0}{text}", path.display())
+            })
+            .collect();
+
+        for (surface, permitted) in RENDER_SURFACE {
+            if krate.name == *surface || permitted.contains(&krate.name.as_str()) {
+                continue;
             }
-        }
-    }
-    assert!(offenders.is_empty(), "world_forge must stay renderer-free: {offenders:?}");
-}
-
-#[test]
-fn map_forge_stays_renderer_free() {
-    let root = workspace_root();
-    let manifest = fs::read_to_string(root.join("crates/world/map_forge/Cargo.toml"))
-        .expect("map_forge manifest exists");
-    let mut offenders = Vec::new();
-    for dependency in ["renderer_api", "renderer_wgpu", "wgpu", "winit", "egui"] {
-        if manifest_has_dependency(&manifest, dependency) {
-            offenders.push(format!("map_forge manifest depends on {dependency}"));
-        }
-    }
-    for source in rust_files(&root.join("crates/world/map_forge/src")) {
-        let source_text = fs::read_to_string(&source).expect("map_forge source is readable");
-        for crate_name in ["renderer_api", "renderer_wgpu", "wgpu", "winit", "egui"] {
-            if source_uses_crate(&source_text, crate_name) {
-                offenders.push(format!("{} references {crate_name}", source.display()));
+            if manifest_has_dependency(&manifest, surface) {
+                offenders.push(format!("{} manifest depends on {surface}", krate.name));
             }
-        }
-    }
-    assert!(offenders.is_empty(), "map_forge must stay renderer-free: {offenders:?}");
-}
-
-#[test]
-fn vehicle_forge_stays_renderer_free() {
-    let root = workspace_root();
-    let manifest = fs::read_to_string(root.join("crates/vehicle/vehicle_forge/Cargo.toml"))
-        .expect("vehicle_forge manifest exists");
-    let mut offenders = Vec::new();
-
-    for dependency in ["renderer_api", "renderer_wgpu", "wgpu", "winit", "egui"] {
-        if manifest_has_dependency(&manifest, dependency) {
-            offenders.push(format!("vehicle_forge manifest depends on {dependency}"));
-        }
-    }
-
-    for source in rust_files(&root.join("crates/vehicle/vehicle_forge/src")) {
-        let source_text = fs::read_to_string(&source).expect("vehicle_forge source is readable");
-        for crate_name in ["renderer_api", "renderer_wgpu", "wgpu", "winit", "egui"] {
-            if source_uses_crate(&source_text, crate_name) {
-                offenders.push(format!("{} references {crate_name}", source.display()));
-            }
-        }
-    }
-
-    assert!(
-        offenders.is_empty(),
-        "vehicle_forge must stay an authoring/bake layer, not a renderer layer:\n{}",
-        offenders.join("\n")
-    );
-}
-
-#[test]
-fn wgpu_stays_confined_to_renderer_backend() {
-    let root = workspace_root();
-    let mut offenders = Vec::new();
-
-    for manifest in quality::crate_manifests(&root) {
-        let crate_name = crate_name_from_manifest(&manifest);
-        let manifest_text =
-            fs::read_to_string(&manifest).expect("crate manifest should be readable");
-
-        if crate_name != "renderer_wgpu" && manifest_has_dependency(&manifest_text, "wgpu") {
-            offenders.push(format!("{crate_name} manifest depends on wgpu"));
-        }
-
-        if ["game_core", "sim", "net", "physics"].contains(&crate_name.as_str()) {
-            for dependency in ["renderer", "renderer_api", "renderer_wgpu"] {
-                if manifest_has_dependency(&manifest_text, dependency) {
-                    offenders.push(format!("{crate_name} manifest depends on {dependency}"));
+            for source in &sources {
+                let (path, text) = source.split_once('\u{0}').expect("path and text are joined");
+                if source_uses_crate(text, surface) {
+                    offenders.push(format!("{path} references {surface}"));
                 }
             }
         }
     }
 
-    for crate_name in ["game_core", "sim", "net", "physics", "renderer_api", "server"] {
-        for source in rust_files(&quality::crate_src_dir(&root, crate_name)) {
-            let source_text = fs::read_to_string(&source).expect("Rust source should be readable");
-            if source_uses_crate(&source_text, "wgpu") {
-                offenders.push(format!("{} references wgpu", source.display()));
-            }
-        }
-    }
-
-    assert!(offenders.is_empty(), "wgpu must stay behind renderer_wgpu:\n{}", offenders.join("\n"));
+    assert!(
+        offenders.is_empty(),
+        "the render surface reached a crate that does not own it — either the dependency is wrong, \
+         or RENDER_SURFACE should say so:\n{}",
+        offenders.join("\n")
+    );
 }
 
+/// Permission granted and never used is permission nobody re-examined. A name in the table that no
+/// longer depends on its surface has to leave, so the table keeps describing the real graph.
 #[test]
-fn server_stays_headless_and_renderer_free() {
+fn the_render_surface_table_grants_nothing_unused() {
     let root = workspace_root();
-    let manifest = fs::read_to_string(root.join("crates/apps/server/Cargo.toml"))
-        .expect("server manifest exists");
-    let mut offenders = Vec::new();
+    let facts = quality::crate_facts(&root);
+    let mut stale = Vec::new();
 
-    for dependency in ["renderer", "renderer_api", "renderer_wgpu", "wgpu", "winit", "egui"] {
-        if manifest_has_dependency(&manifest, dependency) {
-            offenders.push(format!("server manifest depends on {dependency}"));
-        }
-    }
-
-    for source in rust_files(&root.join("crates/apps/server/src")) {
-        let source_text = fs::read_to_string(&source).expect("server source should be readable");
-        for crate_name in ["renderer", "renderer_api", "renderer_wgpu", "wgpu", "winit", "egui"] {
-            if source_uses_crate(&source_text, crate_name) {
-                offenders.push(format!("{} references {crate_name}", source.display()));
+    for (surface, permitted) in RENDER_SURFACE {
+        for name in *permitted {
+            let Some(krate) = facts.iter().find(|krate| krate.name == *name) else {
+                stale.push(format!("{surface}: `{name}` is not a crate in this workspace"));
+                continue;
+            };
+            let manifest = fs::read_to_string(krate.dir.join("Cargo.toml"))
+                .expect("every crate manifest is readable");
+            if !manifest_has_dependency(&manifest, surface) {
+                stale.push(format!("{surface}: `{name}` no longer depends on it"));
             }
         }
     }
 
     assert!(
-        offenders.is_empty(),
-        "server must stay headless and renderer-free:\n{}",
-        offenders.join("\n")
+        stale.is_empty(),
+        "RENDER_SURFACE grants permission nobody uses:\n{}",
+        stale.join("\n")
     );
 }
 
@@ -206,46 +166,6 @@ fn workspace_has_protocol_snapshots_replays_and_benchmarks() {
     }
 }
 
-fn workspace_root() -> PathBuf {
-    // Layout-agnostic: the nearest ancestor whose Cargo.toml declares [workspace].
-    let mut dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    while !std::fs::read_to_string(dir.join("Cargo.toml")).is_ok_and(|t| t.contains("[workspace]"))
-    {
-        assert!(dir.pop(), "a Cargo.toml with [workspace] should exist in an ancestor");
-    }
-    dir
-}
-
-fn rust_files(root: &Path) -> Vec<PathBuf> {
-    let mut paths = Vec::new();
-    collect_rust_files(root, &mut paths);
-    paths
-}
-
-fn crate_name_from_manifest(manifest: &Path) -> String {
-    manifest
-        .parent()
-        .and_then(Path::file_name)
-        .expect("crate manifest should have crate directory")
-        .to_string_lossy()
-        .into_owned()
-}
-
-fn collect_rust_files(root: &Path, paths: &mut Vec<PathBuf>) {
-    for entry in fs::read_dir(root).expect("workspace crates directory should be readable") {
-        let entry = entry.expect("workspace entry should be readable");
-        let path = entry.path();
-        if path.is_dir() {
-            if path.file_name().is_some_and(|name| name == "target") {
-                continue;
-            }
-            collect_rust_files(&path, paths);
-        } else if path.extension().is_some_and(|extension| extension == "rs") {
-            paths.push(path);
-        }
-    }
-}
-
 fn manifest_has_dependency(manifest: &str, dependency: &str) -> bool {
     manifest.lines().any(|line| {
         let trimmed = line.trim();
@@ -260,8 +180,20 @@ fn source_uses_crate(source: &str, crate_name: &str) -> bool {
     source.lines().any(|line| {
         let trimmed = line.trim();
         !trimmed.starts_with("//")
-            && (trimmed.contains(&format!("{crate_name}::"))
+            && (names_path_root(trimmed, &format!("{crate_name}::"))
                 || trimmed.starts_with(&format!("use {crate_name}"))
                 || trimmed.starts_with(&format!("extern crate {crate_name}")))
+    })
+}
+
+/// `renderer_wgpu::WindowRenderer` is not a use of `wgpu`, and a plain substring search cannot tell
+/// the difference. The name has to START a path segment to count.
+///
+/// This mattered the moment the render-surface rule stopped scanning a hand-picked list of crates:
+/// every crate that legitimately binds `renderer_wgpu` read as a `wgpu` violation.
+fn names_path_root(line: &str, needle: &str) -> bool {
+    line.match_indices(needle).any(|(at, _)| {
+        at == 0
+            || !matches!(line.as_bytes()[at - 1], b'_' | b'0'..=b'9' | b'a'..=b'z' | b'A'..=b'Z')
     })
 }

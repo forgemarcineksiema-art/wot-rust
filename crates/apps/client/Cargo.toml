@@ -6,7 +6,7 @@ license.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-ab_glyph = "0.2"
+ab_glyph.workspace = true
 anyhow.workspace = true
 audio.workspace = true
 cpal.workspace = true
@@ -17,7 +17,7 @@ map_forge.workspace = true
 glam.workspace = true
 net.workspace = true
 physics.workspace = true
-png = "0.18"
+png.workspace = true
 renderer_api.workspace = true
 scene_build.workspace = true
 timer_resolution.workspace = true
@@ -35,7 +35,7 @@ vehicle_geometry.workspace = true
 winit.workspace = true
 
 [dev-dependencies]
-png = "0.18"
+png.workspace = true
 vehicle_build.workspace = true
 
 [lints]

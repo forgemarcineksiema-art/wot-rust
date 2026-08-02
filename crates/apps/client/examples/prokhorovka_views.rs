@@ -19,7 +19,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let slug = std::env::args().nth(1);
     let map = match &slug {
         Some(slug) => MapId::from_slug(slug)
-            .ok_or_else(|| format!("unknown map slug {slug:?}; try one of {:?}", MapId::ALL))?,
+            .ok_or_else(|| format!("unknown map slug {slug:?}; try one of {:?}", MapId::SHIPPED))?,
         None => MapId::ProkhorovkaHill252_2,
     };
 

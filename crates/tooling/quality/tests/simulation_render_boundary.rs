@@ -1,5 +1,6 @@
+use quality::is_test_module_file;
+use quality::{rust_files, workspace_root};
 use std::fs;
-use std::path::{Path, PathBuf};
 
 #[test]
 fn simulation_render_separation_doc_is_required() {
@@ -99,40 +100,4 @@ fn client_vehicle_rendering_has_no_dynamic_fallback_mesh_path() {
         "vehicle rendering must use baked objects for every vehicle, not the old dynamic fallback:\n{}",
         offenders.join("\n")
     );
-}
-
-fn workspace_root() -> PathBuf {
-    // Layout-agnostic: the nearest ancestor whose Cargo.toml declares [workspace].
-    let mut dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    while !std::fs::read_to_string(dir.join("Cargo.toml")).is_ok_and(|t| t.contains("[workspace]"))
-    {
-        assert!(dir.pop(), "a Cargo.toml with [workspace] should exist in an ancestor");
-    }
-    dir
-}
-
-fn rust_files(root: &Path) -> Vec<PathBuf> {
-    let mut paths = Vec::new();
-    collect_rust_files(root, &mut paths);
-    paths
-}
-
-/// `#[cfg(test)] mod tests` lives in files named `tests.rs` / `*_tests.rs`; these hold test code,
-/// not production client code, so the authoritative-sim rule does not apply to them.
-fn is_test_module_file(path: &Path) -> bool {
-    path.file_name()
-        .and_then(|name| name.to_str())
-        .is_some_and(|name| name == "tests.rs" || name.ends_with("_tests.rs"))
-}
-
-fn collect_rust_files(root: &Path, paths: &mut Vec<PathBuf>) {
-    for entry in fs::read_dir(root).expect("source directory should be readable") {
-        let entry = entry.expect("source entry should be readable");
-        let path = entry.path();
-        if path.is_dir() {
-            collect_rust_files(&path, paths);
-        } else if path.extension().is_some_and(|extension| extension == "rs") {
-            paths.push(path);
-        }
-    }
 }

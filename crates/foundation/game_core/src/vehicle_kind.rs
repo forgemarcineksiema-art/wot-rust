@@ -14,6 +14,12 @@ pub enum Nation {
 }
 
 impl Nation {
+    /// Every nation the roster can open. The tech tree is built by walking this.
+    ///
+    /// Locked variant-by-variant against the declaration by `quality`, not by counting: a
+    /// length assertion cannot tell a forgotten variant from a shorter enum.
+    pub const ALL: [Nation; 3] = [Nation::Ussr, Nation::Germany, Nation::Britain];
+
     pub fn label(self) -> &'static str {
         match self {
             Nation::Ussr => "USSR",

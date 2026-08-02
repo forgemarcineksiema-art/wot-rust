@@ -41,6 +41,28 @@ pub enum MaterialRole {
     Timber,
 }
 
+impl MaterialRole {
+    /// Every surface role a baked vehicle mesh can carry. The shader switches on the id, so a role
+    /// absent here is a role nothing can prove the shader draws.
+    ///
+    /// Locked variant-by-variant against the declaration by `quality`, not by counting: a
+    /// length assertion cannot tell a forgotten variant from a shorter enum.
+    pub const ALL: [MaterialRole; 12] = [
+        MaterialRole::RolledArmor,
+        MaterialRole::CastArmor,
+        MaterialRole::BarrelSteel,
+        MaterialRole::TrackMetal,
+        MaterialRole::Rubber,
+        MaterialRole::InteriorPrimer,
+        MaterialRole::InteriorMachinery,
+        MaterialRole::Ammunition,
+        MaterialRole::ExposedSteel,
+        MaterialRole::Canvas,
+        MaterialRole::Glass,
+        MaterialRole::Timber,
+    ];
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SmoothingGroup(pub u16);
 

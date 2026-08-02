@@ -85,6 +85,20 @@ pub enum StaticCoverKind {
 }
 
 impl StaticCoverKind {
+    /// Every kind of cover a map may place. Append-only: the compiled map blueprints store these.
+    ///
+    /// Locked variant-by-variant against the declaration by `quality`, not by counting: a
+    /// length assertion cannot tell a forgotten variant from a shorter enum.
+    pub const ALL: [StaticCoverKind; 7] = [
+        StaticCoverKind::FarmBuilding,
+        StaticCoverKind::RailCover,
+        StaticCoverKind::TreeLine,
+        StaticCoverKind::Wreck,
+        StaticCoverKind::WoodenFence,
+        StaticCoverKind::CityBuilding,
+        StaticCoverKind::StoneWall,
+    ];
+
     /// Structural health before the object is destroyed; `None` is indestructible (rail
     /// embankments, pre-placed decorative wrecks — they never take damage or change phase).
     pub fn max_health(self) -> Option<u32> {
@@ -161,6 +175,15 @@ pub enum RoadSurface {
     /// Granite setts: the paved city street (urban-map program PR-05). Append-only, like
     /// every content enum — the variant order never changes.
     Cobble,
+}
+
+impl RoadSurface {
+    /// Every road surface a map may lay. Append-only: the compiled map blueprints store these.
+    ///
+    /// Locked variant-by-variant against the declaration by `quality`, not by counting: a
+    /// length assertion cannot tell a forgotten variant from a shorter enum.
+    pub const ALL: [RoadSurface; 3] =
+        [RoadSurface::Dirt, RoadSurface::Ballast, RoadSurface::Cobble];
 }
 
 /// A render-only road: a polyline in world XZ painted onto the terrain vertices as worn

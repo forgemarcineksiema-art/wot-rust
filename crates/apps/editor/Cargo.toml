@@ -18,7 +18,7 @@ terrain.workspace = true
 winit.workspace = true
 
 [dev-dependencies]
-png = "0.18"
+png.workspace = true
 
 [lints]
 workspace = true

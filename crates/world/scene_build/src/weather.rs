@@ -105,7 +105,7 @@ mod tests {
 
     #[test]
     fn no_weather_look_can_hide_a_spotted_target_at_view_range() {
-        for &map in terrain::MapId::ALL {
+        for &map in terrain::MapId::SHIPPED {
             for variant in game_core::WeatherVariant::ALL {
                 let look = weather_look(map, variant);
                 let mut height = 0.0_f32;

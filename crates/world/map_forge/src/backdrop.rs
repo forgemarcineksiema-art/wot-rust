@@ -25,8 +25,10 @@ pub fn cached_blueprint_by_id(id: &str) -> Option<&'static MapBlueprint> {
     if let Some(blueprint) = cache.read().expect("backdrop cache").get(id) {
         return Some(blueprint);
     }
-    let parsed =
-        MapId::ALL.iter().map(|id| blueprint_for(*id)).find(|blueprint| blueprint.meta.id == id)?;
+    let parsed = MapId::SHIPPED
+        .iter()
+        .map(|id| blueprint_for(*id))
+        .find(|blueprint| blueprint.meta.id == id)?;
     let blueprint: &'static MapBlueprint = Box::leak(Box::new(parsed));
     cache.write().expect("backdrop cache").insert(id.to_string(), blueprint);
     Some(blueprint)

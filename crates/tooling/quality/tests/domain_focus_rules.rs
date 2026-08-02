@@ -1,5 +1,5 @@
+use quality::workspace_root;
 use std::fs;
-use std::path::PathBuf;
 
 #[test]
 fn domain_focus_doc_is_required() {
@@ -28,14 +28,4 @@ fn readme_names_the_project_domain_before_the_stack() {
         fs::read_to_string(workspace_root().join("README.md")).expect("README should be readable");
 
     assert!(readme.contains("armored vehicle battles on large terrain maps"));
-}
-
-fn workspace_root() -> PathBuf {
-    // Layout-agnostic: the nearest ancestor whose Cargo.toml declares [workspace].
-    let mut dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    while !std::fs::read_to_string(dir.join("Cargo.toml")).is_ok_and(|t| t.contains("[workspace]"))
-    {
-        assert!(dir.pop(), "a Cargo.toml with [workspace] should exist in an ancestor");
-    }
-    dir
 }

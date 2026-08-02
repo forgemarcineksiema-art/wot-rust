@@ -2,7 +2,7 @@ use terrain::MapId;
 
 #[test]
 fn every_map_id_round_trips_through_its_slug() {
-    for &id in MapId::ALL {
+    for &id in MapId::SHIPPED {
         assert_eq!(MapId::from_slug(id.slug()), Some(id), "slug round-trip broke for {id:?}");
     }
     assert_eq!(MapId::from_slug("no-such-map"), None);

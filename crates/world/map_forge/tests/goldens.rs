@@ -7,11 +7,11 @@ use terrain::MapId;
 #[test]
 fn every_shipped_map_compiles_clean_deterministic_and_on_its_golden() {
     let goldens = map_golden_hashes();
-    assert_eq!(MapId::ALL.len(), goldens.len(), "every shipped map owns a golden");
+    assert_eq!(MapId::SHIPPED.len(), goldens.len(), "every shipped map owns a golden");
     // The game PLAYS the valley by default, and the compiled default proves it.
     assert_eq!(battlefield(MapId::default()).id, "bystra_valley");
     for (name, golden) in goldens {
-        let id = MapId::ALL
+        let id = MapId::SHIPPED
             .iter()
             .copied()
             .find(|id| blueprint_for(*id).meta.id == name.as_str())

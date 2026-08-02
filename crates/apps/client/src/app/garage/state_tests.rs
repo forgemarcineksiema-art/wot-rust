@@ -226,14 +226,14 @@ fn the_cursor_over_carousel_predicate_gates_wheel_routing() {
 fn map_cycle_walks_auto_then_every_shipped_map_and_wraps() {
     let mut garage = GarageState::default();
     assert_eq!(garage.selected_map(), None, "the garage starts on AUTO");
-    for &map in terrain::MapId::ALL {
+    for &map in terrain::MapId::SHIPPED {
         garage.cycle_map(1);
         assert_eq!(garage.selected_map(), Some(map), "the ring visits every shipped map");
     }
     garage.cycle_map(1);
     assert_eq!(garage.selected_map(), None, "past the last map the ring wraps back to AUTO");
     // Backward from AUTO lands on the last shipped map — and `Scratch` (absent from
-    // `MapId::ALL`) is never a stop on the ring.
+    // `MapId::SHIPPED`) is never a stop on the ring.
     garage.cycle_map(-1);
-    assert_eq!(garage.selected_map(), terrain::MapId::ALL.last().copied());
+    assert_eq!(garage.selected_map(), terrain::MapId::SHIPPED.last().copied());
 }

@@ -704,7 +704,7 @@ mod tests {
     fn a_fly_past_through_the_map_ring_bakes_none_of_the_maps_it_crosses() {
         let mut app = ClientApp::new();
         app.open_garage();
-        for _ in 0..terrain::MapId::ALL.len() {
+        for _ in 0..terrain::MapId::SHIPPED.len() {
             app.cycle_battle_map(1);
         }
         assert!(app.map_prebake.is_none(), "no stop crossed at click speed earns a bake");
