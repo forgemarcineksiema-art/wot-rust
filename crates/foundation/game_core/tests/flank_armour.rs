@@ -84,3 +84,34 @@ fn a_bigger_gun_demands_a_steeper_angle_from_the_same_hull() {
     // The 20-pounder is the gun angling answers worst: it still crosses at 65 degrees.
     assert!(through_the_flank("84 mm 20-pounder Type A", VehicleKind::T54_1951, 65.0));
 }
+
+/// EVERY vehicle carries a mantlet, and it is thicker than the turret face around it.
+///
+/// The audit claimed the Tiger I had none and that "the facet model has no mantlet concept at
+/// all". Both were false: `ArmorZone::Mantlet` is a zone, `ArmorProfile::plate` derives it from the
+/// turret front at x1.18, and both turret builders — the cast dome and the welded prism — put a
+/// mantlet patch on the front. The Tiger I's is 118 mm nominal against a 100 mm face, which is
+/// what the real tank carried.
+///
+/// The claim was made by reading `effective_thickness_mm(TurretFront, 0.0)` and finding 92 mm,
+/// exactly as the flank claim was made by reading the side facet flat. A descriptive accessor is
+/// not the resolution path, and an audit that uses one is measuring its own convenience.
+#[test]
+fn every_vehicle_carries_a_mantlet_thicker_than_its_turret_face() {
+    for kind in VehicleKind::PLAYABLE {
+        let hull = kind.spec().hull;
+        let face = hull.plate(ArmorZone::TurretFront);
+        let mantlet = hull.plate(ArmorZone::Mantlet);
+        assert!(
+            mantlet.nominal_thickness_mm > face.nominal_thickness_mm,
+            "{kind:?}: the mantlet ({:.0} mm) must out-thick the face it sits on ({:.0} mm)",
+            mantlet.nominal_thickness_mm,
+            face.nominal_thickness_mm
+        );
+    }
+    // The one the audit named. A 100 mm face with a 118 mm mantlet is the Tiger I as built, and a
+    // 75 or an 85 going through it at 100 m is history, not a modelling defect.
+    let tiger = VehicleKind::TigerI.spec().hull;
+    assert_eq!(tiger.plate(ArmorZone::TurretFront).nominal_thickness_mm, 100.0);
+    assert!((tiger.plate(ArmorZone::Mantlet).nominal_thickness_mm - 118.0).abs() < 0.5);
+}

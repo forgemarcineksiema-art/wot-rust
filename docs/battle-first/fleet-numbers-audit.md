@@ -23,13 +23,15 @@ Each matches its dossier and the standard references: the Jagdtiger's 250 mm cas
 pike nose and 250 mm turret, the Tiger II's 150/180 Serienturm, the Centurion Mk 3's 76/152, the
 T-34-85's 45 @ 60°. **No historical defect found in the armour table.**
 
-**One real omission: the Tiger I has no mantlet.** Its turret front resolves to 92 mm effective,
-which makes it the second-softest turret in the game — softer than a Panther II's and barely above
-a T-34-85's. The real Tiger I carried a 100 mm turret face PLUS a 100–200 mm cast mantlet across
-most of that frontal area, and the facet model has no mantlet concept at all, so the tank's
-best-protected frontal region is modelled as its weakest. Every other vehicle happens to fold its
-mantlet into a turret-front number that already accounts for it (the T-54's 200, the IS-3's 250);
-the Tiger I's does not. This is the only place the armour table reads as wrong.
+**"The Tiger I has no mantlet" — WITHDRAWN, and it was wrong three ways.** `ArmorZone::Mantlet` is
+a zone; `ArmorProfile::plate` derives the mantlet from the turret front at ×1.18 thickness; and
+BOTH turret builders — the cast dome and the welded prism — place a mantlet patch on the front
+face. The Tiger I's mantlet is 118 mm nominal against its 100 mm turret face, which is what the
+real tank carried. A 75 or an 85 going through it at 100 m is history, not a modelling defect.
+
+The claim came from reading `effective_thickness_mm(TurretFront, 0.0)`, finding 92, and stopping —
+the same accessor, and the same mistake, as Finding 1 below. **The armour table has no defect at
+all.** Locked by `flank_armour.rs::every_vehicle_carries_a_mantlet_thicker_than_its_turret_face`.
 
 ## Rack capacity — all eight are historically right
 
@@ -185,15 +187,36 @@ Plus two behavioural debts recorded in code rather than in a register: the IS-3 
 bottom at 0.11 against the 0.03 it authors, and a non-penetrating HE hit anywhere — turret roof
 included — chips BOTH tracks, a shortcut from before the damage layouts existed.
 
-## What this audit recommends, in order
+## What this audit found, after its own corrections
 
-1. **The Tiger I's mantlet.** The only outright historical defect in the armour table, and it makes
-   a 57-tonne heavy softer frontally than a medium.
-2. ~~Decide whether side armour should ever matter.~~ **Withdrawn — it already does.** See
-   Finding 1. Nothing to change; the finding was a measurement error and is now locked by test.
-3. **Playtest Soviet HE.** It is now the higher-alpha round on the D-10 and the D-25T, which is
-   correct by the sources and untested in a battle.
-4. **Look again at the Jagdtiger's two guns**, where one dominates the other on every axis but
-   alpha.
-5. **HP per tonne** — 29 to 43 across the roster, un-sourced by definition, and nobody has decided
-   whether that spread is character or drift.
+**Two of its four defect claims were errors, and both came from the same habit: auditing through a
+descriptive accessor instead of through the path a shot actually takes.** `effective_thickness_mm`
+is `nominal × weakspot` with no geometry in it; the geometry lives in `plate_normal` and the
+resolution in `resolve_penetration_through_screens`. Read the summary, and a sloped flank reads
+flat and a mantlet reads absent. Both claims are withdrawn above and both are now locked by tests
+so they cannot be re-made in prose.
+
+**The rule this earns:** an audit measures through the resolution path, never through an accessor
+that summarises it. A number that is convenient to print is not evidence.
+
+What survives:
+
+1. **The armour table is historically correct on all eight vehicles**, mantlets included.
+2. **Rack capacities are historically correct on all eight.**
+3. **The frontal hierarchy is steep and intended** — the Jagdtiger resists 18 of 20 gun/round
+   combinations head-on, the IS-3 16 of 20.
+4. **Soviet HE now out-damages Soviet AP** and German HE does not, which falls out of pricing HE by
+   filler mass. Situational rather than dominant: at 33–41 mm of penetration it lands full alpha
+   only through roofs and thin rears, and is splash everywhere else. **Decision: keep.** The real
+   test is a battle, and it is worth one.
+5. **The Jagdtiger's two guns. Decision: keep both, unchanged.** The audit called the 88 dominant on
+   DPM, and it is — by 13 % (2 721 against 2 356). The 128 answers with 36 % more alpha (530 against
+   390). In a fleet whose hit-point pools run 1 300–2 200, alpha compresses the number of shots a
+   kill takes far more sharply than a 13 % rate advantage stretches it: 530 kills a T-34-85 in three
+   and a T-54 in three, where 390 needs four of each. That is a real trade, and the DPM column alone
+   overstated the case.
+6. **HP per tonne, 29 to 43. Decision: keep, and here is the rationale it was missing.** Absolute
+   hit points rise with mass (1 300 → 2 200) but SUB-LINEARLY, on purpose: if the best-armoured
+   vehicles also carried the deepest pools, armour and hit points would be paying twice for the
+   same quality. The spread means armour does the differentiating and the pool does not, which is
+   the honest split. It is un-sourced because no source exists — but it is no longer undecided.
