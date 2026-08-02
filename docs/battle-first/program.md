@@ -319,6 +319,33 @@ lock):
   the recipe registry and the budget table move out of the kernels layer into `crates/vehicle/`.
 - **F5 — the pilot.** Tiger I authors a `VisualDetail` block through the studio — the proof the
   slot is fleet technology, and the vehicle whose plateau/mantlet armour debt (#401) it pays.
+
+  **Scoped 2026-08-03 (consumer audit, after F2c/F3/F4 landed).** Who reads the block today:
+  (a) the T-54 construction stack — `vehicle_build/t54_*`, `solid/t54*`, `revolve/gun_parts` —
+  per-PART generators each taking one sub-struct; (b) the armour volumes — `TurretLoftVisual::
+  support()` IS the T-54's turret armour; (c) the client's cut-truth gate (F3) and damage-skin
+  remesh; (d) the exporter + round-trip lock (F2c). Three findings that shape the pilot:
+  1. **The tree is a bundle, and the bundle is cast-shaped.** `TurretLoftVisual` speaks fluent
+     cast dome (stations, cheeks, embrasure, window). A Tiger I turret is a vertical WELDED
+     prism whose whole honesty story is flat plates on the armour's exact planes — a loft buys
+     it nothing, and faking stations to satisfy a mandatory field would be the metaball corpse
+     again. The pilot therefore starts by making the slot a sum of OPTIONAL part vocabularies
+     (hull plates, gun-with-mantlet, fittings, detail, turret-form), not by teaching a welded
+     turret to impersonate a casting.
+  2. **The valuable Tiger I parts are the gun group and the plate cues.** The boxy EXTERNAL
+     mantlet as a real revolved/extruded body on the trunnion (the #401-family debt: mantlet as
+     a volume the armour can quote), the two-plate bow cues, fender/detail vocabulary. That is
+     where the studio-authoring loop earns its proof.
+  3. **Construction must dispatch on the DATA, not the vehicle.** `authoritative_baked_vehicle`
+     routes T-54 → hybrid stack, everyone else → recipe. The pilot's end state: a vehicle whose
+     blueprint carries a visual part is baked with that part by the shared machinery, and the
+     recipe covers the rest — per-part migration, not per-vehicle rewrite.
+  Order inside F5: (i) split the slot into optional parts with a round-trip lock per part
+  (`VisualDetailFile` from F2c already carries whatever the tree holds); (ii) generic gun-group
+  builder consuming `GunVisual` for any vehicle; (iii) Tiger I authors its gun group + mantlet
+  body in RON through the studio, armour quotes the mantlet volume; (iv) plate/fitting parts as
+  the reference loop demands. Each step lands green with goldens either byte-identical or
+  re-blessed with the story in place.
 - **`ui_kit`** extracted LAST (largest churn, smallest risk while the rest moves).
 - **Hygiene woven throughout** (was W5): `RenderBackend` trait deleted · stale `spotting.rs`
   caveat · `weapon.rs` drag comment · `engineering-rules.md` reconciled with `verify.ps1` ·
