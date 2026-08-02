@@ -5,8 +5,7 @@
 //! Nothing here is clever; it is the kind of thing a human reviewer stops noticing by the fortieth
 //! manifest.
 
-use std::path::PathBuf;
-
+use quality::workspace_root;
 use quality::{crate_facts, crate_manifests};
 
 /// Crates with no dependents and no binary that are kept ON PURPOSE. Each entry is a decision;
@@ -187,13 +186,4 @@ fn the_allowlists_name_only_crates_that_still_exist() {
         .collect();
 
     assert!(stale.is_empty(), "allowlisted crates that no longer exist — drop them: {stale:?}");
-}
-
-fn workspace_root() -> PathBuf {
-    let mut dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    while !std::fs::read_to_string(dir.join("Cargo.toml")).is_ok_and(|t| t.contains("[workspace]"))
-    {
-        assert!(dir.pop(), "a Cargo.toml with [workspace] should exist in an ancestor");
-    }
-    dir
 }

@@ -1,4 +1,5 @@
-use std::{fs, path::PathBuf};
+use quality::workspace_root;
+use std::fs;
 
 #[test]
 fn vehicle_movement_policy_doc_is_required() {
@@ -34,14 +35,4 @@ fn sim_uses_custom_physics_movement_model() {
     assert!(drive.contains("TankControllerSettings::from_spec"));
     assert!(drive.contains("physics::advance_tank_on_world"));
     assert!(drive.contains("physics::settle_tank_on_world"));
-}
-
-fn workspace_root() -> PathBuf {
-    // Layout-agnostic: the nearest ancestor whose Cargo.toml declares [workspace].
-    let mut dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    while !std::fs::read_to_string(dir.join("Cargo.toml")).is_ok_and(|t| t.contains("[workspace]"))
-    {
-        assert!(dir.pop(), "a Cargo.toml with [workspace] should exist in an ancestor");
-    }
-    dir
 }

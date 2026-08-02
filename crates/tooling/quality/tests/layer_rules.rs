@@ -10,8 +10,9 @@
 //! it.
 
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
+use quality::workspace_root;
 use quality::{CrateFacts, crate_facts};
 
 /// Depth order of the layer folders. A crate may depend on its own layer or on anything below it,
@@ -140,15 +141,6 @@ fn the_allowlists_describe_edges_that_actually_exist() {
         "these allowlist entries no longer describe anything — the edge is gone, so delete the \
          entry and let the rule protect it: {stale:?}"
     );
-}
-
-fn workspace_root() -> PathBuf {
-    let mut dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    while !std::fs::read_to_string(dir.join("Cargo.toml")).is_ok_and(|t| t.contains("[workspace]"))
-    {
-        assert!(dir.pop(), "a Cargo.toml with [workspace] should exist in an ancestor");
-    }
-    dir
 }
 
 const _: fn(&CrateFacts) -> &Path = |krate| krate.dir.as_path();

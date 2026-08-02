@@ -1,5 +1,5 @@
+use quality::{rust_files, workspace_root};
 use std::fs;
-use std::path::{Path, PathBuf};
 
 #[test]
 fn core_architecture_docs_exist() {
@@ -163,37 +163,6 @@ fn workspace_has_protocol_snapshots_replays_and_benchmarks() {
             root.join(required_path).is_file(),
             "missing required quality gate artifact: {required_path}"
         );
-    }
-}
-
-fn workspace_root() -> PathBuf {
-    // Layout-agnostic: the nearest ancestor whose Cargo.toml declares [workspace].
-    let mut dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    while !std::fs::read_to_string(dir.join("Cargo.toml")).is_ok_and(|t| t.contains("[workspace]"))
-    {
-        assert!(dir.pop(), "a Cargo.toml with [workspace] should exist in an ancestor");
-    }
-    dir
-}
-
-fn rust_files(root: &Path) -> Vec<PathBuf> {
-    let mut paths = Vec::new();
-    collect_rust_files(root, &mut paths);
-    paths
-}
-
-fn collect_rust_files(root: &Path, paths: &mut Vec<PathBuf>) {
-    for entry in fs::read_dir(root).expect("workspace crates directory should be readable") {
-        let entry = entry.expect("workspace entry should be readable");
-        let path = entry.path();
-        if path.is_dir() {
-            if path.file_name().is_some_and(|name| name == "target") {
-                continue;
-            }
-            collect_rust_files(&path, paths);
-        } else if path.extension().is_some_and(|extension| extension == "rs") {
-            paths.push(path);
-        }
     }
 }
 

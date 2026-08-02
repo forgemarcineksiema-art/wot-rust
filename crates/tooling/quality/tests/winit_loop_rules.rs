@@ -1,5 +1,5 @@
+use quality::workspace_root;
 use std::fs;
-use std::path::PathBuf;
 
 #[test]
 fn client_uses_winit_application_handler_model() {
@@ -30,14 +30,4 @@ fn client_has_testable_fixed_tick_loop_driver() {
     assert!(loop_policy.contains("ClientLoopAction"));
     assert!(loop_policy.contains("uses_manual_event_polling() -> bool"));
     assert!(!loop_policy.contains("poll_events"));
-}
-
-fn workspace_root() -> PathBuf {
-    // Layout-agnostic: the nearest ancestor whose Cargo.toml declares [workspace].
-    let mut dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    while !std::fs::read_to_string(dir.join("Cargo.toml")).is_ok_and(|t| t.contains("[workspace]"))
-    {
-        assert!(dir.pop(), "a Cargo.toml with [workspace] should exist in an ancestor");
-    }
-    dir
 }

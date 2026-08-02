@@ -1,5 +1,5 @@
+use quality::workspace_root;
 use std::fs;
-use std::path::PathBuf;
 
 #[test]
 fn terrain_large_world_policy_doc_is_required() {
@@ -33,14 +33,4 @@ fn terrain_policy_doc_names_all_map_systems_and_precision_rules() {
     ] {
         assert!(doc.contains(required), "missing terrain policy phrase: {required}");
     }
-}
-
-fn workspace_root() -> PathBuf {
-    // Layout-agnostic: the nearest ancestor whose Cargo.toml declares [workspace].
-    let mut dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    while !std::fs::read_to_string(dir.join("Cargo.toml")).is_ok_and(|t| t.contains("[workspace]"))
-    {
-        assert!(dir.pop(), "a Cargo.toml with [workspace] should exist in an ancestor");
-    }
-    dir
 }
