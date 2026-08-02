@@ -184,6 +184,39 @@ Ordering follows from this: research per gun (what it fired, with sources and co
 per gun → delete `special_shell`'s derivation and the HE multipliers together. The "powerful HE"
 half stays a design note until a gun that deserves it joins the roster.
 
+### What the HE mechanism can actually deliver (audited 2026-08-02, before authoring anything)
+
+The decided role has three parts. The code answers them differently, and the numbers are worth
+nothing until it answers all three, so this audit re-orders the work.
+
+**Chip damage and finishing: WORKS.** `burst_he_splash` throws attenuated blast at every hull
+inside the radius, soaked by the thinnest plate facing the burst and killed by terrain between —
+so a burst finds the roof and the engine deck, heavies shrug off what mediums feel, and a crest
+that stops the shell stops its pressure wave.
+
+**Tracks: WORKS ON A DIRECT HIT, NOT ON A BURST.** A non-penetrating HE hit degrades BOTH bands
+(`module_hit::degrade_both`) and reports `ModuleSlot::Suspension`. But `shell_splash.rs` contains
+no reference to modules, tracks or crew at all: a burst BESIDE a tank takes hit points and cannot
+throw a track. So the round is a track weapon only when it lands on the hull, which is the case a
+player is least likely to be aiming for when they load HE at a fast flanker.
+
+Worth a second look while the file is open: `impacted_module` returns `Suspension` for ANY
+non-penetrating HE hit regardless of where it landed, so HE bursting on the turret ROOF chips both
+tracks. That is a shortcut from before the damage layouts existed.
+
+**Crew: NO MECHANISM.** `game_core::crew` defines `Crew` and `CrewRole`, and nothing in `sim`
+damages a crewman — the only mentions are a comment in `fire.rs` and the repair clocks. Crew is
+data with no consequence. The most distinctive half of the role chosen for HE has nowhere to land
+today, and authoring twelve guns' worth of shells into that gap would produce rounds that chip hit
+points and break tracks they hit directly, which is what they already do.
+
+**So the order changes.** Crew damage is not part of 2.3 — it is a system: injured crew slowing
+reload, aim, traverse and repair, with its own design and its own balance. Either it gets built (a
+decision), or HE's role is re-scoped to chip / finish / tracks and the crew half is struck from the
+brief. Splash reaching modules and tracks is smaller and squarely inside 2.3's spirit. Both come
+before the research pass, because a number is only worth sourcing once there is a model that can
+spend it.
+
 **2.4 Bot decisions** — threat priority, finishing a cripple, answering incoming fire, focus fire,
 withdrawal.
 
