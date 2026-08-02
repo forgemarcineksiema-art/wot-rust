@@ -9,7 +9,7 @@ use glam::Vec3;
 
 use super::soviet::{CastRoof, soviet_cast_turret_for};
 use super::{
-    GunPlan, SG_HARD, assemble, blueprint_prism_hull, blueprint_skirts, build_gun, shade_hull,
+    GunPlan, SG_HARD, assemble, blueprint_prism_hull, blueprint_skirts, gun_group, shade_hull,
 };
 use vehicle_geometry::{BakedVehicle, MaterialRole, MeshBuilder};
 
@@ -36,16 +36,19 @@ pub(crate) fn centurion(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedV
         .append(&soviet_cast_turret_for(t, bp.gun.trunnion_y, mantlet, CastRoof::Centurion, 20))
         .build();
 
-    let gun = build_gun(&GunPlan {
-        axis_y: bp.gun.trunnion_y,
-        breech_z: bp.gun.trunnion_z - 0.25,
-        muzzle_z: bp.gun.muzzle_z,
-        radius: bp.gun.barrel_radius,
-        segments: bp.gun.segments,
-        mantlet,
-        evacuator: bp.gun.evacuator,
-        muzzle_brake: bp.gun.muzzle_brake,
-    });
+    let gun = gun_group(
+        VehicleKind::Centurion,
+        &GunPlan {
+            axis_y: bp.gun.trunnion_y,
+            breech_z: bp.gun.trunnion_z - 0.25,
+            muzzle_z: bp.gun.muzzle_z,
+            radius: bp.gun.barrel_radius,
+            segments: bp.gun.segments,
+            mantlet,
+            evacuator: bp.gun.evacuator,
+            muzzle_brake: bp.gun.muzzle_brake,
+        },
+    );
 
     assemble(VehicleKind::Centurion, hull, turret, gun, *mounts)
 }

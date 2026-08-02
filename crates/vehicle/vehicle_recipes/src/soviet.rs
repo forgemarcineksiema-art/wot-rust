@@ -17,7 +17,7 @@ use super::{
     GunPlan, HullPlan, RunningGear, SG_CAST, add_british_cupola, add_broad_mantlet_socket,
     add_commander_periscope, add_cupola, add_flush_ring_hatch, add_mantlet_socket,
     add_running_gear, add_soviet_slit_cupola, add_t54_mantlet_socket, add_turret_ring, assemble,
-    blueprint_skirts, build_gun, build_gun_with_mantlet_scale, cast_turret_shell, hull_body,
+    blueprint_skirts, cast_turret_shell, gun_group, gun_group_with_mantlet_scale, hull_body,
     shade_hull, t54_hull, t54_turret_front,
 };
 use vehicle_geometry::{BakedVehicle, GeometryMesh, MaterialRole, MeshBuilder};
@@ -174,7 +174,8 @@ pub(crate) fn t54_1951(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVe
     let mantlet = Some((t.mantlet_radius, t.mantlet_back_z, t.mantlet_front_z));
     let turret = soviet_cast_turret(t, bp.gun.trunnion_y, mantlet, true, CastRoof::T54, 28);
 
-    let gun = build_gun_with_mantlet_scale(
+    let gun = gun_group_with_mantlet_scale(
+        VehicleKind::T54_1951,
         &GunPlan {
             axis_y: bp.gun.trunnion_y,
             breech_z: bp.gun.trunnion_z - 0.18,
@@ -233,16 +234,19 @@ pub(crate) fn prototype_medium(hitbox: &HitboxProfile, mounts: &MountFrames) -> 
     )
     .build();
 
-    let gun = build_gun(&GunPlan {
-        axis_y: mounts.gun_trunnion.translation.y,
-        breech_z: mounts.gun_trunnion.translation.z - 0.10,
-        muzzle_z: mounts.muzzle.translation.z,
-        radius: 0.10,
-        segments: 12,
-        mantlet,
-        evacuator: None,
-        muzzle_brake: None,
-    });
+    let gun = gun_group(
+        VehicleKind::PrototypeMedium,
+        &GunPlan {
+            axis_y: mounts.gun_trunnion.translation.y,
+            breech_z: mounts.gun_trunnion.translation.z - 0.10,
+            muzzle_z: mounts.muzzle.translation.z,
+            radius: 0.10,
+            segments: 12,
+            mantlet,
+            evacuator: None,
+            muzzle_brake: None,
+        },
+    );
 
     assemble(VehicleKind::PrototypeMedium, hull, turret, gun, *mounts)
 }

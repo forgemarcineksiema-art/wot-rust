@@ -100,3 +100,39 @@ fn t54_body_fits_and_fills_gameplay_hitbox_but_gun_can_protrude() {
     assert!(body.max.y >= top - 0.30);
     assert!(gun.max.z > hitbox.half_length_m, "barrel should protrude past the hitbox");
 }
+
+/// W4 F5.ii: a blueprint that AUTHORS a gun part bakes the generic revolved group — provable
+/// from the mesh itself, because the group's signature is the bore: a ring of vertices at the
+/// gun's calibre radius at the muzzle face, where the legacy plan drew near-solid steel with a
+/// dimple. The dispatch reads data, not identity: this test asks the blueprint first, so the
+/// day another vehicle authors a part it is covered with no edit here.
+#[test]
+fn an_authored_gun_part_bakes_the_bore_honest_group() {
+    let mut covered = 0;
+    for kind in VehicleKind::PLAYABLE {
+        let Some(blueprint) = game_core::VehicleBlueprint::for_vehicle(kind) else { continue };
+        let Some(gun) = blueprint.visual_detail().and_then(|d| d.gun.as_ref().copied()) else {
+            continue;
+        };
+        covered += 1;
+        let baked = bake_vehicle(kind).expect("recipe bakes");
+        let mesh = &baked.submesh(SubmeshKind::Gun).expect("gun submesh").mesh;
+        let muzzle_z = blueprint.gun.muzzle_z;
+        let axis_y = blueprint.gun.trunnion_y;
+        let bore_ring = mesh
+            .vertices()
+            .iter()
+            .filter(|v| (v.position.z - muzzle_z).abs() < 1.0e-3)
+            .filter(|v| {
+                let r = v.position.x.hypot(v.position.y - axis_y);
+                (r - gun.bore_radius).abs() < 1.0e-3
+            })
+            .count();
+        assert!(
+            bore_ring >= gun.barrel_segments,
+            "{kind:?}: the muzzle face must carry a bore ring at the calibre radius \
+             (found {bore_ring} vertices) — the authored part bakes the bore-honest group"
+        );
+    }
+    assert!(covered >= 1, "the benchmark authors a gun part, so this test must cover it");
+}

@@ -9,7 +9,7 @@ use glam::{Vec2, Vec3};
 
 use super::{
     GunPlan, SG_HARD, add_german_cast_cupola, add_mantlet_socket, add_turret_ring, assemble,
-    build_gun, shade_hull,
+    gun_group, shade_hull,
 };
 use vehicle_geometry::{
     Axis, BakedVehicle, ExtrudeSpec, GeometryMesh, LoftSection, LoftSpec, MaterialRole,
@@ -49,16 +49,19 @@ pub(crate) fn tiger_i(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVeh
     )
     .build();
 
-    let gun = build_gun(&GunPlan {
-        axis_y: bp.gun.trunnion_y,
-        breech_z: bp.gun.trunnion_z - 0.30,
-        muzzle_z: bp.gun.muzzle_z,
-        radius: bp.gun.barrel_radius,
-        segments: bp.gun.segments,
-        mantlet,
-        evacuator: bp.gun.evacuator,
-        muzzle_brake: bp.gun.muzzle_brake,
-    });
+    let gun = gun_group(
+        VehicleKind::TigerI,
+        &GunPlan {
+            axis_y: bp.gun.trunnion_y,
+            breech_z: bp.gun.trunnion_z - 0.30,
+            muzzle_z: bp.gun.muzzle_z,
+            radius: bp.gun.barrel_radius,
+            segments: bp.gun.segments,
+            mantlet,
+            evacuator: bp.gun.evacuator,
+            muzzle_brake: bp.gun.muzzle_brake,
+        },
+    );
 
     assemble(VehicleKind::TigerI, hull, turret, gun, *mounts)
 }

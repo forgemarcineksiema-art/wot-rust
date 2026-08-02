@@ -19,7 +19,12 @@ pub struct VehicleBudgets {
 pub const VEHICLE_BUDGETS: VehicleBudgets = VehicleBudgets {
     hull_tri: (120, 2750),
     turret_tri: (24, 900),
-    gun_tri: (24, 500),
+    // Raised 500 -> 650 (measured 2026-08-03, W4 F5.ii): the authored gun group - the
+    // bore-honest barrel (28 segments x 11 profile stations, the muzzle reads as a HOLE)
+    // plus the mantlet body - measures 612 on the T-54. The old cap was sized to the legacy
+    // flat-dimple barrel this group replaces; 650 gives the measured shape 6% headroom and
+    // still bounds a 14-tank lineup to under 10k gun triangles.
+    gun_tri: (24, 650),
     vehicle_tri: (250, 3950),
     vehicle_vert_max: 11_000,
 };
@@ -94,12 +99,19 @@ pub const GOLDEN_BAKE_HASHES: [(VehicleKind, u64); 9] = [
     // documented ⌀624 cupola, and in PR-17 for the narrow gun aperture that replaces the
     // external ball mantlet, and in PR-18 for the documented 580 mm belt on the 2.640 m
     // gauge. T-54 only.
-    // Previous: 4_449_583_882_369_858_906 (PR-17, the aperture);
+    // Re-recorded 2026-08-03 (W4 F5.ii, the authored gun group): the recipe's gun submesh
+    // now dispatches on the DATA - a blueprint carrying a GunVisual part bakes the generic
+    // revolved group (bore-honest barrel + mantlet body) instead of the legacy plan, and the
+    // T-54 is the first vehicle whose blueprint carries one. T-54 only: no other vehicle
+    // authors a gun part yet, so no other row moves - which is itself the proof the dispatch
+    // reads data, not identity.
+    // Previous: 10_764_434_940_917_887_702 (PR-18, the 580 mm belt);
+    //           4_449_583_882_369_858_906 (PR-17, the aperture);
     //           12_248_531_318_198_965_275 (PR-16, the cupola);
     //           4_620_056_473_903_640_451 (PR-15, the dome);
     //           1_895_447_275_523_063_518 (PR-14, the hull at 6.235);
     //           3_638_672_634_192_500_695 (PR-06, one-slope-one-truth).
-    (VehicleKind::T54_1951, 10_764_434_940_917_887_702_u64),
+    (VehicleKind::T54_1951, 7_427_199_630_274_926_331_u64),
     // Re-recorded 2026-07-26 for the Tiger I model-logic review: the 3.705 m beam moves onto the
     // 725 mm combat tracks (the sponsons were carrying it, with the belts hiding inside them), the
     // turret roof returns to its documented 2.885 m with an authored drum, the cupola opens to

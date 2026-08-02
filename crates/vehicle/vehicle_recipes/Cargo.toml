@@ -8,6 +8,7 @@ rust-version.workspace = true
 [dependencies]
 game_core.workspace = true
 glam.workspace = true
+revolve.workspace = true
 vehicle_geometry.workspace = true
 
 [lints]

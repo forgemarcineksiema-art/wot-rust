@@ -9,7 +9,7 @@ use glam::{Vec2, Vec3};
 
 use super::{
     GunPlan, SG_HARD, add_german_cast_cupola, add_oval_mantlet_socket, add_turret_ring, assemble,
-    blueprint_prism_hull, build_gun_with_mantlet_scale, shade_hull,
+    blueprint_prism_hull, gun_group_with_mantlet_scale, shade_hull,
 };
 use vehicle_geometry::{
     Axis, BakedVehicle, GeometryMesh, LoftSection, LoftSpec, MaterialRole, MeshBuilder,
@@ -55,7 +55,8 @@ pub(crate) fn tiger_ii(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVe
     // The Turmblende: the Serienturm's WIDE mantlet band spanning most of the flat 180 mm
     // front plate (~1.4 m over the 0.6 m round collar the generic gun would wear) — the
     // per-vehicle mantlet MASS from the dossier (audit #6).
-    let gun = build_gun_with_mantlet_scale(
+    let gun = gun_group_with_mantlet_scale(
+        VehicleKind::TigerII,
         &GunPlan {
             axis_y: bp.gun.trunnion_y,
             breech_z: bp.gun.trunnion_z - 0.35,

@@ -8,7 +8,7 @@
 use game_core::{HitboxProfile, MountFrames, VehicleKind};
 
 use super::soviet::{CastRoof, soviet_cast_turret_for};
-use super::{GunPlan, assemble, blueprint_prism_hull, build_gun, shade_hull};
+use super::{GunPlan, assemble, blueprint_prism_hull, gun_group, shade_hull};
 use vehicle_geometry::BakedVehicle;
 
 pub(crate) fn t34_85(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVehicle {
@@ -23,16 +23,19 @@ pub(crate) fn t34_85(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVehi
     let mantlet = Some((t.mantlet_radius, t.mantlet_back_z, t.mantlet_front_z));
     let turret = soviet_cast_turret_for(t, bp.gun.trunnion_y, mantlet, CastRoof::T3485, 20);
 
-    let gun = build_gun(&GunPlan {
-        axis_y: bp.gun.trunnion_y,
-        breech_z: bp.gun.trunnion_z - 0.25,
-        muzzle_z: bp.gun.muzzle_z,
-        radius: bp.gun.barrel_radius,
-        segments: bp.gun.segments,
-        mantlet,
-        evacuator: bp.gun.evacuator,
-        muzzle_brake: bp.gun.muzzle_brake,
-    });
+    let gun = gun_group(
+        VehicleKind::T34_85,
+        &GunPlan {
+            axis_y: bp.gun.trunnion_y,
+            breech_z: bp.gun.trunnion_z - 0.25,
+            muzzle_z: bp.gun.muzzle_z,
+            radius: bp.gun.barrel_radius,
+            segments: bp.gun.segments,
+            mantlet,
+            evacuator: bp.gun.evacuator,
+            muzzle_brake: bp.gun.muzzle_brake,
+        },
+    );
 
     assemble(VehicleKind::T34_85, hull, turret, gun, *mounts)
 }

@@ -10,7 +10,7 @@ use glam::{Vec2, Vec3};
 
 use super::{
     GunPlan, SG_CUPOLA, SG_HARD, SG_MANTLET, add_flush_ring_hatch, assemble, blueprint_prism_hull,
-    build_gun, shade_hull,
+    gun_group, shade_hull,
 };
 use vehicle_geometry::{
     Axis, BakedVehicle, ExtrudeSpec, GeometryMesh, GeometryVertex, LoftSection, LoftSpec,
@@ -32,16 +32,19 @@ pub(crate) fn jagdtiger(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedV
         .append(&casemate_gun_collar(t, bp.gun.trunnion_y))
         .build();
 
-    let gun = build_gun(&GunPlan {
-        axis_y: bp.gun.trunnion_y,
-        breech_z: bp.gun.trunnion_z - 0.20,
-        muzzle_z: bp.gun.muzzle_z,
-        radius: bp.gun.barrel_radius,
-        segments: bp.gun.segments,
-        mantlet,
-        evacuator: bp.gun.evacuator,
-        muzzle_brake: bp.gun.muzzle_brake,
-    });
+    let gun = gun_group(
+        VehicleKind::Jagdtiger,
+        &GunPlan {
+            axis_y: bp.gun.trunnion_y,
+            breech_z: bp.gun.trunnion_z - 0.20,
+            muzzle_z: bp.gun.muzzle_z,
+            radius: bp.gun.barrel_radius,
+            segments: bp.gun.segments,
+            mantlet,
+            evacuator: bp.gun.evacuator,
+            muzzle_brake: bp.gun.muzzle_brake,
+        },
+    );
 
     assemble(VehicleKind::Jagdtiger, hull, casemate, gun, *mounts)
 }

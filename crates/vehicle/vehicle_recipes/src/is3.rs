@@ -9,7 +9,7 @@ use glam::{Vec2, Vec3};
 
 use super::is3_hull::is3_pike_hull;
 use super::soviet::{CastRoof, soviet_cast_turret_for};
-use super::{GunPlan, SG_HARD, assemble, blueprint_skirts, build_gun, shade_hull};
+use super::{GunPlan, SG_HARD, assemble, blueprint_skirts, gun_group, shade_hull};
 use vehicle_geometry::{
     Axis, BakedVehicle, ExtrudeSpec, GeometryMesh, MaterialRole, MeshBuilder, ProfilePoint,
     RevolveSpec,
@@ -30,16 +30,19 @@ pub(crate) fn is3(_hitbox: &HitboxProfile, mounts: &MountFrames) -> BakedVehicle
     let mantlet = Some((t.mantlet_radius, t.mantlet_back_z, t.mantlet_front_z));
     let turret = soviet_cast_turret_for(t, bp.gun.trunnion_y, mantlet, CastRoof::Is3, 20);
 
-    let gun = build_gun(&GunPlan {
-        axis_y: bp.gun.trunnion_y,
-        breech_z: bp.gun.trunnion_z - 0.22,
-        muzzle_z: bp.gun.muzzle_z,
-        radius: bp.gun.barrel_radius,
-        segments: bp.gun.segments,
-        mantlet,
-        evacuator: bp.gun.evacuator,
-        muzzle_brake: bp.gun.muzzle_brake,
-    });
+    let gun = gun_group(
+        VehicleKind::IS3,
+        &GunPlan {
+            axis_y: bp.gun.trunnion_y,
+            breech_z: bp.gun.trunnion_z - 0.22,
+            muzzle_z: bp.gun.muzzle_z,
+            radius: bp.gun.barrel_radius,
+            segments: bp.gun.segments,
+            mantlet,
+            evacuator: bp.gun.evacuator,
+            muzzle_brake: bp.gun.muzzle_brake,
+        },
+    );
 
     assemble(VehicleKind::IS3, hull, turret, gun, *mounts)
 }
