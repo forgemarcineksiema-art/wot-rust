@@ -145,9 +145,11 @@ fn every_layout_fits_its_own_hitbox() {
 #[test]
 fn every_component_sits_inside_the_armour_that_protects_it() {
     let mut offenders = Vec::new();
+    let mut hulls_measured = 0;
 
     for kind in VehicleKind::PLAYABLE {
         let Some(volumes) = vehicle_armor_volumes(kind) else { continue };
+        hulls_measured += 1;
         let ring_y =
             HullEnvelope::of(kind).expect("a blueprint-born vehicle has an envelope").ring_y;
         for component in DamageLayout::for_vehicle(kind).components() {
@@ -184,6 +186,12 @@ fn every_component_sits_inside_the_armour_that_protects_it() {
         offenders.is_empty(),
         "components outside the armour they are supposed to sit behind:\n  {}",
         offenders.join("\n  ")
+    );
+    assert_eq!(
+        hulls_measured,
+        VehicleKind::PLAYABLE.len(),
+        "containment has to be measured against every playable hull — a vehicle whose armour \
+         volumes went missing would otherwise leave this test green and unarmoured"
     );
 }
 
@@ -230,8 +238,10 @@ fn the_gearbox_sits_at_the_driven_end_of_each_hull() {
 #[test]
 fn sponson_stowage_matches_the_hull_that_has_a_sponson() {
     let mut offenders = Vec::new();
+    let mut hulls_measured = 0;
     for kind in VehicleKind::PLAYABLE {
         let Some(env) = HullEnvelope::of(kind) else { continue };
+        hulls_measured += 1;
         let outboard = DamageLayout::for_vehicle(kind).components().iter().any(|component| {
             component.frame == ArmorFrame::Hull
                 && matches!(
@@ -246,6 +256,12 @@ fn sponson_stowage_matches_the_hull_that_has_a_sponson() {
         }
     }
     assert!(offenders.is_empty(), "{}", offenders.join("\n  "));
+    assert_eq!(
+        hulls_measured,
+        VehicleKind::PLAYABLE.len(),
+        "every playable hull answers whether it has a sponson; a missing envelope must fail here \
+         rather than quietly excuse a vehicle from the question"
+    );
 }
 
 #[test]

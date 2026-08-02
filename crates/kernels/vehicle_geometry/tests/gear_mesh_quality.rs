@@ -87,9 +87,11 @@ fn every_running_gear_unit_mesh_obeys_the_quality_contract() {
 /// draw list has to say so out loud.
 #[test]
 fn the_gear_instance_count_is_a_number_someone_chose() {
+    let mut fleets_checked = 0;
     for kind in VehicleKind::PLAYABLE {
         let Some(kin) = RunningGearKinematics::for_vehicle(kind) else { continue };
         let placements = running_gear_placements(&kin, 0.0, 0.0);
+        fleets_checked += 1;
         assert!(!placements.is_empty(), "{kind:?} has running gear kinematics but no placements");
 
         // Every placement must name a part the renderer can resolve to a mesh, and both sides
@@ -123,6 +125,11 @@ fn the_gear_instance_count_is_a_number_someone_chose() {
             placements.len()
         );
     }
+    assert_eq!(
+        fleets_checked,
+        VehicleKind::PLAYABLE.len(),
+        "every playable vehicle must reach this check; a skipped one is an unchecked one"
+    );
 }
 
 /// M14, made visible: the collision box is WIDER than the widest thing the player can see.
@@ -138,6 +145,7 @@ fn the_gear_instance_count_is_a_number_someone_chose() {
 /// WORSE and put the number on the record every run.
 #[test]
 fn the_hitbox_does_not_grow_further_past_the_visible_vehicle() {
+    let mut hulls_checked = 0;
     /// Recorded 2026-07-29: today's worst offender, as a ceiling only.
     ///
     /// Re-recorded the same day at 0.14 (PR-18), and it is worth being precise about WHY, because
@@ -158,6 +166,7 @@ fn the_hitbox_does_not_grow_further_past_the_visible_vehicle() {
         // The widest thing drawn: the outer face of the belt band.
         let visible_half_width = kin.link_x + kin.band_half_width;
         let phantom = blueprint.hull.hitbox_half_width - visible_half_width;
+        hulls_checked += 1;
         assert!(
             phantom <= PHANTOM_WIDTH_CEILING,
             "{kind:?}: the hitbox reaches {:.3} m but nothing is drawn past {:.3} m — {:.3} m of \
@@ -173,6 +182,11 @@ fn the_hitbox_does_not_grow_further_past_the_visible_vehicle() {
             );
         }
     }
+    assert_eq!(
+        hulls_checked,
+        VehicleKind::PLAYABLE.len(),
+        "every playable vehicle must reach this check; a skipped one is an unchecked one"
+    );
 }
 
 /// THE DISTANCE TIER, AS A RULE RATHER THAN A FEELING.
@@ -183,6 +197,7 @@ fn the_hitbox_does_not_grow_further_past_the_visible_vehicle() {
 /// answer, and these are the three things that must stay true about it.
 #[test]
 fn the_distance_tier_is_the_same_gear_built_coarser() {
+    let mut tiers_checked = 0;
     use vehicle_geometry::{GEAR_DETAIL_SWITCH_M, GearDetail, gear_detail_for_distance};
 
     // 1. The rule is a range, and it is the same range for everyone.
@@ -196,6 +211,7 @@ fn the_distance_tier_is_the_same_gear_built_coarser() {
 
         // 2. Every part gets cheaper, and none of them vanishes. A tier that deletes a wheel is
         //    not a tier, it is a different tank.
+        tiers_checked += 1;
         for (name, a, b) in [
             ("road_wheel", road_wheel_unit_mesh(&near), road_wheel_unit_mesh(&far)),
             ("idler", idler_unit_mesh(&near), idler_unit_mesh(&far)),
@@ -233,4 +249,9 @@ fn the_distance_tier_is_the_same_gear_built_coarser() {
         audit(&sprocket_unit_mesh(&far), &format!("far gear {kind:?} sprocket"));
         audit(&idler_unit_mesh(&far), &format!("far gear {kind:?} idler"));
     }
+    assert_eq!(
+        tiers_checked,
+        VehicleKind::PLAYABLE.len(),
+        "every playable vehicle must reach this check; a skipped one is an unchecked one"
+    );
 }

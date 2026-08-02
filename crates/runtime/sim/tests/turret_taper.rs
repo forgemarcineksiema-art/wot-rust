@@ -136,8 +136,10 @@ fn a_plate_without_a_taper_resolves_exactly_as_before() {
         assert_eq!(plain, scaled, "{zone:?}: scale 1.0 must be the identity");
     }
 
+    let mut castings_checked = 0;
     for kind in VehicleKind::PLAYABLE {
         let Some(volumes) = vehicle_armor_volumes(kind) else { continue };
+        castings_checked += 1;
         let tapered =
             volumes.turret.planes.iter().filter(|plane| plane.thickness_scale.is_some()).count();
         if kind == VehicleKind::T54_1951 {
@@ -150,4 +152,10 @@ fn a_plate_without_a_taper_resolves_exactly_as_before() {
             );
         }
     }
+    assert_eq!(
+        castings_checked,
+        VehicleKind::PLAYABLE.len(),
+        "the taper claim covers every playable turret; a missing armour volume must fail here \
+         rather than quietly excuse a casting from the question"
+    );
 }

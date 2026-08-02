@@ -41,10 +41,12 @@ fn blueprint_dir_and_vehicle_roster_are_a_bijection() {
 /// comments in the files survive.
 #[test]
 fn blueprint_files_round_trip_with_digit_fidelity() {
+    let mut round_tripped = 0;
     for kind in VehicleKind::ALL {
         let Some(blueprint) = VehicleBlueprint::for_vehicle(kind) else {
             continue;
         };
+        round_tripped += 1;
         let file = BlueprintFile::from_blueprint(&blueprint);
         assert_eq!(file.kind, kind, "{kind:?}: file kind tag must match its registry arm");
 
@@ -57,16 +59,23 @@ fn blueprint_files_round_trip_with_digit_fidelity() {
             "{kind:?}: serialize->parse must reproduce the identical blueprint"
         );
     }
+    assert_eq!(
+        round_tripped,
+        VehicleKind::PLAYABLE.len(),
+        "every playable vehicle is blueprint-born, so every one of them must round-trip — a          `continue` here used to mean this test could check nothing and still pass"
+    );
 }
 
 /// The whole fleet passes the teaching lint with zero ERRORS (warnings are allowed — they are
 /// studio-report material, not gate material).
 #[test]
 fn all_blueprints_pass_lint() {
+    let mut linted = 0;
     for kind in VehicleKind::ALL {
         let Some(blueprint) = VehicleBlueprint::for_vehicle(kind) else {
             continue;
         };
+        linted += 1;
         let errors: Vec<_> = lint::validate_blueprint(&blueprint)
             .into_iter()
             .filter(|issue| issue.severity == lint::Severity::Error)
@@ -81,6 +90,12 @@ fn all_blueprints_pass_lint() {
                 .join("\n")
         );
     }
+    assert_eq!(
+        linted,
+        VehicleKind::PLAYABLE.len(),
+        "the lint must have been pointed at every blueprint-born vehicle, not at whatever the \
+         registry happened to answer for"
+    );
 }
 
 /// The lint TEACHES: a physically impossible dome (ring wider than the casting) is refused
@@ -144,8 +159,10 @@ fn lint_refuses_a_plate_that_looks_one_way_and_resolves_another() {
 /// Panther II turret face and rear to 20 deg) are locked here, not just in the RON.
 #[test]
 fn every_shipped_blueprint_states_each_slope_exactly_once() {
+    let mut reconciled = 0;
     for kind in VehicleKind::PLAYABLE {
         let Some(bp) = VehicleBlueprint::for_vehicle(kind) else { continue };
+        reconciled += 1;
         for (name, shape, armor) in [
             ("glacis", bp.hull.glacis_slope_deg, bp.armor.hull_front.0),
             ("hull rear", bp.hull.rear_slope_deg, bp.armor.hull_rear.0),
@@ -159,4 +176,9 @@ fn every_shipped_blueprint_states_each_slope_exactly_once() {
             );
         }
     }
+    assert_eq!(
+        reconciled,
+        VehicleKind::PLAYABLE.len(),
+        "the slope reconciliation covers the whole shipped fleet or it covers nothing provable"
+    );
 }

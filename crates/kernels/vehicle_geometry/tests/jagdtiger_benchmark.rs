@@ -274,6 +274,7 @@ fn the_hull_flank_carries_stowage_on_the_armor_plane() {
 /// the bow, and no other vehicle's reach beats it.
 #[test]
 fn the_pak44_overhang_is_the_longest_in_the_lineup() {
+    let mut rivals_compared = 0;
     let bp = blueprint();
     // Dossier PR-JT.1: the reference specimen (Aberdeen) and service photos run the PaK 44
     // with a PLAIN muzzle — a brake reappearing here means someone re-fitted it on spec alone.
@@ -287,8 +288,14 @@ fn the_pak44_overhang_is_the_longest_in_the_lineup() {
         }
         let mounts = game_core::MountFrames::for_vehicle(kind);
         let other = mounts.muzzle.translation.z - mounts.gun_trunnion.translation.z;
+        rivals_compared += 1;
         assert!(other < reach, "{kind:?} out-reaches the PaK 44: {other} vs {reach}");
     }
+    assert_eq!(
+        rivals_compared,
+        VehicleKind::ALL.len() - 1,
+        "the PaK 44's reach is only a claim if it was measured against every other gun in the fleet"
+    );
 }
 
 /// Nine overlapped wheels per side in two rows on the stretched chassis, no return rollers.
