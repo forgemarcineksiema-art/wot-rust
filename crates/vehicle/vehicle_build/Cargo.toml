@@ -10,6 +10,7 @@ cast_loft.workspace = true
 detail.workspace = true
 game_core.workspace = true
 glam.workspace = true
+panel.workspace = true
 revolve.workspace = true
 sdf.workspace = true
 sdf_mesh.workspace = true

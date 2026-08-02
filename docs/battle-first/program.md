@@ -210,12 +210,15 @@ data with no consequence. The most distinctive half of the role chosen for HE ha
 today, and authoring twelve guns' worth of shells into that gap would produce rounds that chip hit
 points and break tracks they hit directly, which is what they already do.
 
-**So the order changes.** Crew damage is not part of 2.3 — it is a system: injured crew slowing
-reload, aim, traverse and repair, with its own design and its own balance. Either it gets built (a
-decision), or HE's role is re-scoped to chip / finish / tracks and the crew half is struck from the
-brief. Splash reaching modules and tracks is smaller and squarely inside 2.3's spirit. Both come
-before the research pass, because a number is only worth sourcing once there is a model that can
-spend it.
+**DECIDED 2026-08-02: the crew half is struck.** HE's role is chip damage, finishing a cripple and
+tracks — three jobs the model can express — plus the heavy-gun case when a gun that deserves it
+joins the roster. Crew damage is not re-scoped, it is DEFERRED as its own question: injured crew
+slowing reload, aim, traverse and repair is a system with its own design and its own balance, and
+it will be decided on its own terms rather than smuggled in as a property of one shell type.
+
+What remains inside 2.3 before the research pass is small and concrete: **splash must reach modules
+and tracks**, so a burst beside a hull can throw a band instead of only shaving hit points. Today
+that only happens on a direct hit. A number is worth sourcing once the model can spend it.
 
 **2.4 Bot decisions** — threat priority, finishing a cripple, answering incoming fire, focus fire,
 withdrawal.

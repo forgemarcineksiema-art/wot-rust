@@ -2592,6 +2592,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "panel"
+version = "0.1.0"
+dependencies = [
+ "glam 0.30.10",
+ "thiserror 2.0.18",
+ "vehicle_geometry",
+]
+
+[[package]]
 name = "parking"
 version = "2.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3834,6 +3843,7 @@ dependencies = [
  "detail",
  "game_core",
  "glam 0.30.10",
+ "panel",
  "revolve",
  "sdf",
  "sdf_mesh",
