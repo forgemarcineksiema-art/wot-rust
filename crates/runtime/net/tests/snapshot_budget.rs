@@ -16,7 +16,7 @@
 
 use game_core::{
     ApertureLobe, ArmorBreach, ArmorBreachDescriptor, ArmorBreachSet, ArmorFrame, ArmorMaterial,
-    ArmorSurfaceId, ArmorZone, BreachContour, BreachFace, MAX_ARMOR_BREACHES,
+    ArmorSurfaceId, ArmorZone, BreachContour, BreachFace, MAX_ARMOR_BREACHES, MAX_ARMOR_SCARS,
     MAX_BREACH_FRAGMENTS_PER_GROUP, ShellType, TRACK_HP_MAX, TankId, TeamId, VehicleKind,
 };
 use glam::Vec3;
@@ -204,4 +204,35 @@ fn an_oversized_message_is_refused_not_silently_truncated() {
         fragment_message(1, &oversized),
         Err(net::transport::TransportError::TooLarge { .. })
     ));
+}
+
+/// THE BATTLEFIELD'S MEMORY IS ONE BUDGET, and this holds the three shares comparable.
+///
+/// They were set one at a time and never put side by side. What they said together was:
+///
+///   * craters — 64 for the WHOLE battle, one map, fourteen tanks, seven minutes;
+///   * armour scars — 24 PER TANK, so 336 across a 7v7;
+///   * cover scars — 8 per object, up to roughly 800 on the urban map.
+///
+/// The ground, the surface a player looks at for the whole battle and the only record of where
+/// the fighting actually happened, was budgeted at a twelfth of what tank paint got. That is why
+/// the field never read as shelled — not because craters are expensive, but because nobody put
+/// the three numbers on the same page.
+///
+/// The wire cost of the raised cap is already covered by
+/// `a_full_7v7_snapshot_fits_one_transport_message_with_room_to_spare`, whose fixture fills the
+/// crater ledger to `MAX_CRATERS`. What is NOT otherwise covered is the relationship, so it lives
+/// here: the ground may not fall back to a fraction of what the vehicles standing on it get.
+#[test]
+fn the_ground_is_budgeted_on_a_par_with_the_vehicles_standing_on_it() {
+    let armour_across_the_battle = MAX_ARMOR_SCARS * BATTLE_TANKS as usize;
+    assert!(
+        sim::MAX_CRATERS * 2 >= armour_across_the_battle,
+        "the whole battlefield gets {} craters against {armour_across_the_battle} armour scars —          the ground is the most-looked-at surface in the game and cannot be an afterthought",
+        sim::MAX_CRATERS
+    );
+    // And the ceiling is stated rather than discovered: the overlay files craters under a u16
+    // bucket index, and a cap past that would deform the ground in the wrong place instead of
+    // failing. `crater_ledger.rs` asserts it at compile time; this is the reader-facing half.
+    assert!(sim::MAX_CRATERS <= u16::MAX as usize);
 }

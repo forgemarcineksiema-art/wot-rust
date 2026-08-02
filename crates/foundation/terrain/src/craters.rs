@@ -150,13 +150,20 @@ pub struct CraterField {
     records: Vec<CraterRecord>,
     cols: usize,
     rows: usize,
-    buckets: Vec<Vec<u8>>,
+    /// Indices into `records`, as `u16`.
+    ///
+    /// This was `u8`, and `index as u8` in the rebuild below is a SILENT wrap: past 255 records a
+    /// crater would be filed under somebody else's index and the ground would deform in the wrong
+    /// place. The old cap of 64 hid it, which is exactly how a silent cap survives — the number
+    /// that would reveal it was never reached. The type states the ceiling now, and the assertion
+    /// under `MAX_CRATERS` holds the cap below it.
+    buckets: Vec<Vec<u16>>,
 }
 
 impl CraterField {
     /// Replace the ledger (idempotent: same records, same field). Called by the battlefield
-    /// owner whenever the replicated ledger changes; with ≤ 64 tiny records the rebuild is
-    /// cheap enough to run on any snapshot that moved it.
+    /// owner whenever the replicated ledger changes; the records are five bytes each and the
+    /// rebuild is a bucket fill, so it is cheap enough to run on any snapshot that moved it.
     pub fn rebuild(&mut self, records: &[CraterRecord], extent_m: [f32; 2]) {
         if self.records == records {
             return;
@@ -173,7 +180,7 @@ impl CraterField {
             let row_hi = self.row_at(record.z_m() + reach);
             for row in row_lo..=row_hi {
                 for col in col_lo..=col_hi {
-                    self.buckets[row * self.cols + col].push(index as u8);
+                    self.buckets[row * self.cols + col].push(index as u16);
                 }
             }
         }

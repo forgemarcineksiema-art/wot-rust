@@ -8,8 +8,30 @@ use glam::Vec3;
 use terrain::{CRATER_KIND_HIGH_EXPLOSIVE, CraterRecord};
 
 /// The ledger's hard cap: past it the OLDEST crater weathers away (soil slumps, ruts fill in).
-/// 64 five-byte records keep the wire and the overlay query trivially cheap.
-pub const MAX_CRATERS: usize = 64;
+///
+/// ONE BATTLEFIELD MEMORY BUDGET (W1.4). These caps were set one at a time and never compared,
+/// and side by side they said something nobody meant:
+///
+///   * craters: **64 for the whole battle** — one map, fourteen tanks, seven minutes;
+///   * armour scars: `MAX_ARMOR_SCARS` = 24 PER TANK, so 336 across a 7v7;
+///   * cover scars: `MAX_COVER_SCARS_PER_COVER` = 8 per object, up to ~800 on the urban map.
+///
+/// The ground — the surface a player looks at for the whole battle, and the only record of where
+/// the fighting actually happened — was budgeted at a twelfth of what tank paint got. That is why
+/// the field never reads as shelled: not because craters are expensive, but because nobody ever
+/// put the three numbers on the same page.
+///
+/// 256 puts the ground on a par with the tanks standing on it. It costs 1 280 B of a snapshot
+/// that measures 3 591 B against a 8 050 B standing ceiling (a quarter of the transport message),
+/// and the overlay query is bucketed — a sample's cost depends on the craters NEAR it, never on
+/// how many exist. It is also exactly the ceiling of the overlay's `u16` bucket index with room
+/// to spare, which the assertion below states rather than leaves to be discovered.
+pub const MAX_CRATERS: usize = 256;
+
+/// The overlay files each crater under a `u16` index (`terrain::CraterField`). Raising the cap
+/// past what that can address would not fail — it would file craters under the wrong index and
+/// deform the ground somewhere else, which is the failure mode a silent cap always has.
+const _: () = assert!(MAX_CRATERS <= u16::MAX as usize);
 
 /// A burst landing within this fraction of the bigger crater's radius re-excavates it instead
 /// of stacking a near-duplicate record.
