@@ -282,20 +282,74 @@ pub struct FenderVisual {
     pub half: Vec3,
 }
 
-/// The full visual-detail description for one vehicle — the FLEET slot (W4): any vehicle may
-/// carry one; today only the benchmark (T-54) does;
-/// other vehicles bake through the legacy `vehicle_geometry` path and carry `None`.
-#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+/// The visual-detail description for one vehicle — the FLEET slot (W4): any vehicle may carry
+/// one, and a vehicle carries only the PARTS it has authored (F5.i). The slot is a sum of
+/// optional part vocabularies, not a bundle: a welded-turret vehicle authors its gun group and
+/// plate cues without pretending to be a casting, and a missing part simply falls back to that
+/// vehicle's recipe geometry. Today the benchmark (T-54) authors every part; `#[serde(default)]`
+/// on each field means a RON author states only what exists.
+#[derive(Debug, Clone, Copy, PartialEq, Default, serde::Serialize, serde::Deserialize)]
 pub struct VisualDetail {
-    pub hull: HullVisual,
-    pub hull_plates: HullPlatesVisual,
-    pub turret: TurretVisual,
+    #[serde(default)]
+    pub hull: Option<HullVisual>,
+    #[serde(default)]
+    pub hull_plates: Option<HullPlatesVisual>,
+    #[serde(default)]
+    pub turret: Option<TurretVisual>,
     /// The lofted cast turret — the controlled-surface replacement for the metaball `turret`. Both
     /// are carried during migration; the bake selects which one feeds the turret submesh.
-    pub turret_loft: TurretLoftVisual,
-    pub gun: GunVisual,
-    pub deck: BoxVisual,
-    pub fender: FenderVisual,
-    pub fittings: FittingsVisual,
-    pub detail: DetailVisual,
+    #[serde(default)]
+    pub turret_loft: Option<TurretLoftVisual>,
+    #[serde(default)]
+    pub gun: Option<GunVisual>,
+    #[serde(default)]
+    pub deck: Option<BoxVisual>,
+    #[serde(default)]
+    pub fender: Option<FenderVisual>,
+    #[serde(default)]
+    pub fittings: Option<FittingsVisual>,
+    #[serde(default)]
+    pub detail: Option<DetailVisual>,
+}
+
+/// Every part of a [`VisualDetail`], unwrapped — the view a FULLY-authored consumer stack
+/// reads. The benchmark's construction modules each take their sub-struct by reference; this
+/// view is the one place the "every part is present" claim is made, so the modules stay free
+/// of per-field unwrapping and a partially-authored vehicle simply never yields the view.
+#[derive(Debug, Clone, Copy)]
+pub struct CompleteVisual<'a> {
+    pub hull: &'a HullVisual,
+    pub hull_plates: &'a HullPlatesVisual,
+    pub turret: &'a TurretVisual,
+    pub turret_loft: &'a TurretLoftVisual,
+    pub gun: &'a GunVisual,
+    pub deck: &'a BoxVisual,
+    pub fender: &'a FenderVisual,
+    pub fittings: &'a FittingsVisual,
+    pub detail: &'a DetailVisual,
+}
+
+impl VisualDetail {
+    /// The FULL truth-aligned view — `Some` only when every part is authored, so the analytic
+    /// breach path may really OPEN the vehicle (the client's cut-truth gate reads this, not
+    /// mere presence of the slot). A partial block (a gun group alone, F5.iii) improves the
+    /// LOOK without claiming the skin/armour alignment it does not have.
+    pub fn complete(&self) -> Option<CompleteVisual<'_>> {
+        Some(CompleteVisual {
+            hull: self.hull.as_ref()?,
+            hull_plates: self.hull_plates.as_ref()?,
+            turret: self.turret.as_ref()?,
+            turret_loft: self.turret_loft.as_ref()?,
+            gun: self.gun.as_ref()?,
+            deck: self.deck.as_ref()?,
+            fender: self.fender.as_ref()?,
+            fittings: self.fittings.as_ref()?,
+            detail: self.detail.as_ref()?,
+        })
+    }
+
+    /// Whether every part is authored — see [`Self::complete`].
+    pub fn is_complete(&self) -> bool {
+        self.complete().is_some()
+    }
 }

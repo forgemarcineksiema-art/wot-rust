@@ -52,7 +52,8 @@ mod tests {
         let bp =
             game_core::VehicleBlueprint::for_vehicle(game_core::VehicleKind::T54_1951).unwrap();
         let v = visual();
-        let seams = t54_hull_plate_seams(&v.hull, bp.armor.hull_front.0);
+        let hull = v.hull.expect("benchmark hull part");
+        let seams = t54_hull_plate_seams(&hull, bp.armor.hull_front.0);
         assert!(!seams.is_empty(), "the hull carries a glacis-to-roof weld seam");
         let b = seams[0]
             .to_mesh(MaterialRole::RolledArmor, SmoothingGroup::hard_edges())
@@ -61,16 +62,17 @@ mod tests {
             .expect("non-empty seam");
         // The seam straddles the roof height and lies just ahead of the turret ring, on the join.
         let mid_y = 0.5 * (b.min.y + b.max.y);
-        assert!((mid_y - v.hull.roof_y).abs() < 0.05, "seam straddles the roof plane");
+        assert!((mid_y - hull.roof_y).abs() < 0.05, "seam straddles the roof plane");
         assert!(b.min.z > 1.0, "seam sits forward on the upper glacis join");
     }
 
     #[test]
     fn the_transmission_covers_are_raised_plates_flanking_the_deck() {
         let v = visual();
-        let covers = t54_transmission_covers(&v.deck);
+        let deck = v.deck.expect("benchmark deck part");
+        let covers = t54_transmission_covers(&deck);
         assert_eq!(covers.len(), 2, "two flanking transmission covers");
-        let deck_top = v.deck.center.y + v.deck.half.y;
+        let deck_top = deck.center.y + deck.half.y;
         let mut sides = (false, false);
         for cover in &covers {
             let b = cover

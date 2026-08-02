@@ -206,7 +206,7 @@ fn the_damage_skin_gate_is_the_carried_data_not_the_vehicle_name() {
     let mut catalog = VehicleAssetCatalog::default();
     for (index, kind) in VehicleKind::PLAYABLE.into_iter().enumerate() {
         let carries = game_core::VehicleBlueprint::for_vehicle(kind)
-            .is_some_and(|blueprint| blueprint.visual_detail().is_some());
+            .is_some_and(|blueprint| blueprint.complete_visual().is_some());
         let tank = TankId(100 + index as u64);
         assert_eq!(
             catalog.damaged_frame_mesh(kind, tank, ArmorFrame::Hull, &set, 0, 0),

@@ -12,7 +12,7 @@ use vehicle_geometry::{MaterialRole, SubmeshKind};
 #[test]
 fn t54_carries_driver_and_loader_hatches() {
     let bp = game_core::VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).unwrap();
-    let v = bp.visual_detail().unwrap();
+    let v = bp.complete_visual().unwrap();
     let f = &v.fittings;
     let baked = t54_description().build();
 
@@ -140,10 +140,8 @@ fn t54_static_bake_leaves_moving_running_gear_to_the_runtime() {
 
 #[test]
 fn t54_hull_carries_rear_transmission_covers() {
-    let v = *game_core::VehicleBlueprint::for_vehicle(VehicleKind::T54_1951)
-        .unwrap()
-        .visual_detail()
-        .unwrap();
+    let bp = game_core::VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).unwrap();
+    let v = bp.complete_visual().unwrap();
     let deck_top = v.deck.center.y + v.deck.half.y;
     let baked = t54_description().build();
     let hull = &baked.submesh(SubmeshKind::Hull).expect("hull").mesh;
@@ -320,11 +318,11 @@ fn the_turret_face_carries_a_narrow_gun_aperture() {
 #[test]
 fn the_mantlet_is_an_internal_closed_body_wider_than_its_aperture() {
     let bp = game_core::VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).unwrap();
-    let v = *bp.visual_detail().unwrap();
+    let v = bp.complete_visual().unwrap();
     let trunnion = MountFrames::for_vehicle(VehicleKind::T54_1951).gun_trunnion.translation;
-    let mantlet = revolve::moving_mantlet(trunnion, &v.gun);
+    let mantlet = revolve::moving_mantlet(trunnion, v.gun);
     let bounds = mantlet.bounds().expect("mantlet bounds");
-    let casting = vehicle_build::t54_turret_loft(&v.turret_loft);
+    let casting = vehicle_build::t54_turret_loft(v.turret_loft);
     let reach = casting.bounds().expect("casting bounds").max.z;
 
     assert!(
@@ -362,9 +360,9 @@ fn the_mantlet_is_an_internal_closed_body_wider_than_its_aperture() {
 #[test]
 fn the_canvas_cover_seals_the_aperture_to_the_barrel() {
     let bp = game_core::VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).unwrap();
-    let v = *bp.visual_detail().unwrap();
+    let v = bp.complete_visual().unwrap();
     let trunnion = MountFrames::for_vehicle(VehicleKind::T54_1951).gun_trunnion.translation;
-    let casting = vehicle_build::t54_turret_loft(&v.turret_loft);
+    let casting = vehicle_build::t54_turret_loft(v.turret_loft);
     let baked = t54_description().build();
     let gun = &baked.submesh(SubmeshKind::Gun).expect("gun").mesh;
     let cover: Vec<Vec3> = gun
@@ -416,7 +414,7 @@ fn the_canvas_cover_seals_the_aperture_to_the_barrel() {
     );
 
     // And the metal it exists to hide stays hidden: the fabric reaches past the mantlet's face.
-    let mantlet = revolve::moving_mantlet(trunnion, &v.gun);
+    let mantlet = revolve::moving_mantlet(trunnion, v.gun);
     let mantlet_face = mantlet.bounds().expect("mantlet bounds").max.z;
     assert!(
         front.z > mantlet_face + 0.05,
@@ -431,9 +429,9 @@ fn the_canvas_cover_seals_the_aperture_to_the_barrel() {
 #[test]
 fn the_cover_frame_matches_the_window() {
     let bp = game_core::VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).unwrap();
-    let v = *bp.visual_detail().unwrap();
+    let v = bp.complete_visual().unwrap();
     let trunnion = MountFrames::for_vehicle(VehicleKind::T54_1951).gun_trunnion.translation;
-    let casting = vehicle_build::t54_turret_loft(&v.turret_loft);
+    let casting = vehicle_build::t54_turret_loft(v.turret_loft);
     let description = t54_description();
     let frame = description
         .parts
@@ -480,7 +478,7 @@ fn t54_fenders_carry_the_reference_stowage_line() {
     // fenders never regress to bare shelves. Everything stays inside the track span and well
     // below the hull roof.
     let bp = game_core::VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).unwrap();
-    let v = bp.visual_detail().unwrap();
+    let v = bp.complete_visual().unwrap();
     let fender_top = v.fender.center_y + v.fender.half.y;
     let outer = bp.track.outer_x;
     let baked = t54_description().build();
@@ -573,7 +571,7 @@ fn t54_carries_a_course_machine_gun_port_right_of_centre() {
 
     // It reaches THROUGH the plate: a port is an aperture with a boss round it, not a stud.
     let bp = game_core::VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).unwrap();
-    let v = bp.visual_detail().unwrap();
+    let v = bp.complete_visual().unwrap();
     let glacis = bp.armor.hull_front.0.to_radians();
     let plate_z = (v.hull.glacis_offset - glacis.sin() * 1.15) / glacis.cos();
     assert!(bounds.max.z > plate_z, "the jacket stands proud of the glacis");

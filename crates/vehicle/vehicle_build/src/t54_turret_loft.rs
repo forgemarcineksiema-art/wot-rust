@@ -92,6 +92,7 @@ mod tests {
             .visual_detail()
             .unwrap()
             .turret_loft
+            .expect("the benchmark authors its loft")
     }
 
     fn max_half_width_in_band(mesh: &GeometryMesh, lo: f32, hi: f32) -> f32 {

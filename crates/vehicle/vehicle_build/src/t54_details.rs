@@ -5,7 +5,7 @@
 //! glacis/deck weld bead — and deliberately no mud, rust, battle damage, decals or weathering. Every
 //! piece reads its dimensions from the blueprint's [`VisualDetail`]; none invents a tank dimension.
 
-use game_core::{BoxVisual, FittingsVisual, VisualDetail};
+use game_core::{BoxVisual, CompleteVisual, FittingsVisual};
 use glam::Vec3;
 use vehicle_geometry::{MaterialRole, SmoothingGroup, SubmeshKind};
 
@@ -379,7 +379,7 @@ pub(crate) fn detail_plate(
 }
 
 /// Every factory detail part for the T-54, all at `PartLod::Detail`.
-pub fn t54_detail_parts(v: &VisualDetail) -> Vec<VehiclePart> {
+pub fn t54_detail_parts(v: CompleteVisual<'_>) -> Vec<VehiclePart> {
     let d = &v.detail;
     let mut parts = Vec::new();
 
@@ -406,7 +406,7 @@ pub fn t54_detail_parts(v: &VisualDetail) -> Vec<VehiclePart> {
     // the fender pressing itself (`t54_fender`), which is what a lip actually is.
     let mut bracket_n = 0u16;
     for side in [v.fender.side_x, -v.fender.side_x] {
-        for bracket in solid::t54_fender_brackets(side, &v.fender) {
+        for bracket in solid::t54_fender_brackets(side, v.fender) {
             parts.push(detail_plate(
                 PartKey::indexed("fender_bracket", bracket_n),
                 SubmeshKind::Hull,

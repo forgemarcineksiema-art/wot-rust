@@ -77,7 +77,7 @@ pub(super) fn t54_hybrid(file: &BlueprintFile) -> VisualDetail {
     let nose_offset = nose_normal.dot(Vec3::new(0.0, hull.sponson_y, glacis_base_z));
 
     VisualDetail {
-        hull: HullVisual {
+        hull: Some(HullVisual {
             // The narrow box between fully exposed tracks — no overhanging sponsons. Its width
             // is the GAMEPLAY hull's, not a second copy of it: the tub has to fit the space the
             // documented gauge and track width leave, and a duplicate of that number is a
@@ -94,9 +94,9 @@ pub(super) fn t54_hybrid(file: &BlueprintFile) -> VisualDetail {
             glacis_offset,
             nose_normal,
             nose_offset,
-        },
-        hull_plates: HullPlatesVisual { glacis_base_z, nose_base_z },
-        turret: TurretVisual {
+        }),
+        hull_plates: Some(HullPlatesVisual { glacis_base_z, nose_base_z }),
+        turret: Some(TurretVisual {
             // The machined seat, visually narrowed under the loft's overhanging casting (the
             // gameplay turret-ring radius lives in `TurretShape`); the ring-seam AO band and the
             // ring collar hang off these two.
@@ -106,12 +106,12 @@ pub(super) fn t54_hybrid(file: &BlueprintFile) -> VisualDetail {
             // a re-typed 1.78/1.15 that would stay put if the gun moved.
             socket_center: Vec3::new(0.0, file.gun.trunnion_y, file.gun.trunnion_z),
             budget: 12_000,
-        },
+        }),
         // The lofted cast turret stations and shaping (split into `t54_hybrid_turret` for the file
         // budget): widest LOW for the ring overhang, front-heavy with a rear-pulled bustle, necking
         // into the flat roof, all within the ±1.125 / ±1.17 turret plan.
-        turret_loft: super::t54_hybrid_turret::turret_loft(cupola),
-        gun: GunVisual {
+        turret_loft: Some(super::t54_hybrid_turret::turret_loft(cupola)),
+        gun: Some(GunVisual {
             // THE DRIFTED PAIR (W4 F1 finding, left in place deliberately): the gameplay gun says
             // `barrel_radius: 0.092` and the drawn tube says 0.090 — the shell's barrel is 2 mm
             // fatter than the eye's. The visible thickness carries a player verdict (the "barrel
@@ -182,13 +182,13 @@ pub(super) fn t54_hybrid(file: &BlueprintFile) -> VisualDetail {
             // pillow ~0.45 x 0.37, not the first build's 0.80 letterbox.
             cover_frame_half: (0.225, 0.185),
             module_delta_scale: 0.65,
-        },
+        }),
         // The engine deck runs from behind the turret ring back to a hand's width off the rear
         // plate: its REAR edge belongs to the stern, its front edge to the fighting compartment.
-        deck: BoxVisual {
+        deck: Some(BoxVisual {
             center: Vec3::new(0.0, 1.53, (-hull.half_len + DECK_REAR_GAP_M - 0.80) * 0.5),
             half: Vec3::new(0.95, 0.06, (0.80 - hull.half_len + DECK_REAR_GAP_M).abs() * 0.5),
-        },
+        }),
         // The fender shelf rides over the 1.03..1.61 track band at 1.12 — the primary kit line of
         // the vehicle (stowage, fuel tanks and the exhaust all live on it), with sloping end
         // sections over the idler and sprocket added by the detail pass.
@@ -198,7 +198,7 @@ pub(super) fn t54_hybrid(file: &BlueprintFile) -> VisualDetail {
         // it covers the 0.58 m belt and overhangs it by the 25 mm each side that turns 3.220
         // over the tracks into 3.270 over the vehicle. Both numbers are the dossier's; the
         // shelf is what reconciles them, and its inner edge tucks behind the tub side.
-        fender: FenderVisual {
+        fender: Some(FenderVisual {
             // Stated, not derived — MEASURED decision (W4 F1): `(inner_x + outer_x) * 0.5` lands
             // one ULP off this literal (0x3fa8f5c2 vs 0x3fa8f5c3) and re-blessing a golden over
             // a rounding ghost is not worth the precedent. The blueprint lint still holds the
@@ -207,10 +207,10 @@ pub(super) fn t54_hybrid(file: &BlueprintFile) -> VisualDetail {
             center_y: 1.12,
             // The shelf runs the length of the hull, short of each end plate.
             half: Vec3::new(0.315, 0.02, hull.half_len - FENDER_END_GAP_M),
-        },
+        }),
         // The running gear (wheels, idler, sprocket, links) has no hybrid-visual copy: the animated
         // path reads the blueprint's `TrackShape` directly (`vehicle_geometry::RunningGearKinematics`).
-        fittings: FittingsVisual {
+        fittings: Some(FittingsVisual {
             // The hatch rides ITS cupola: same x/z as the drum, never a second copy of them.
             cupola_hatch_center: Vec3::new(file.turret.cupola_x, roof + 0.12, file.turret.cupola_z),
             cupola_hatch_radius: 0.20,
@@ -234,12 +234,12 @@ pub(super) fn t54_hybrid(file: &BlueprintFile) -> VisualDetail {
             // Bow hooks at the lower corners of the narrow nose plate.
             tow_hook_center: Vec3::new(0.80, 0.55, hull.half_len - 0.38),
             tow_hook_half: Vec3::new(0.12, 0.11, 0.10),
-        },
+        }),
         // Clean factory-fresh detailing only: a louvered rear-deck grille, a boxed left-fender
         // exhaust cover, two low turret-roof periscopes, fender lips and a restrained glacis weld
         // bead. No mud, rust, battle damage, decals or heavy weathering — all sit inside the already
         // validated hull/turret volumes and add nothing to collision, armour, mounts or the snapshot.
-        detail: DetailVisual {
+        detail: Some(DetailVisual {
             // The grille rides proud of the engine deck (deck top is y=1.59): at center_y 1.60 its
             // frame and slats top out at 1.63, clear of the deck plane. Earlier the grille top
             // was coplanar with the deck top, so the slats z-fought the deck into a flickering mess.
@@ -269,6 +269,6 @@ pub(super) fn t54_hybrid(file: &BlueprintFile) -> VisualDetail {
             fender_lip_drop: 0.05,
             fender_lip_thickness: 0.03,
             weld_seam_half_thickness: 0.015,
-        },
+        }),
     }
 }

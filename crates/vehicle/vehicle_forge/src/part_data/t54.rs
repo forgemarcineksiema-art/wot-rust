@@ -18,7 +18,8 @@ pub(crate) fn t54_family_parts(bp: &VehicleBlueprint) -> Vec<ForgePart> {
     // 2.640 m gauge took those five millimetres away.
     let fender_half_width = bp
         .visual_detail()
-        .map(|hybrid| hybrid.fender.side_x + hybrid.fender.half.x)
+        .and_then(|hybrid| hybrid.fender.as_ref())
+        .map(|fender| fender.side_x + fender.half.x)
         .unwrap_or(h.hitbox_half_width);
 
     let track_mid_y = 0.5 * (t.top_y + t.bottom_y);

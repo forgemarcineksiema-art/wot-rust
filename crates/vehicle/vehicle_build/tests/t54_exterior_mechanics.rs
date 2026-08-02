@@ -71,9 +71,9 @@ fn the_headlight_is_bracketed_and_guarded() {
 #[test]
 fn the_deck_grille_carries_raked_louvres() {
     let bp = VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("blueprint");
-    let v = bp.visual_detail().expect("hybrid");
+    let v = bp.complete_visual().expect("hybrid");
     let deck_top = v.deck.center.y + v.deck.half.y;
-    let solids = solid::t54_deck_grille(&v.detail, deck_top);
+    let solids = solid::t54_deck_grille(v.detail, deck_top);
 
     // Every slat plate must present a face whose normal has BOTH a vertical and a fore-aft
     // component — that is what a rake is, and an axis-aligned box has neither pair.
@@ -98,7 +98,7 @@ fn the_deck_grille_carries_raked_louvres() {
 fn the_deck_is_bolted_and_the_turret_carries_its_mould_line() {
     let bolts = part_mesh("engine_deck_bolts").bounds().expect("bolt bounds");
     let bp = VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("blueprint");
-    let v = bp.visual_detail().expect("hybrid");
+    let v = bp.complete_visual().expect("hybrid");
     let deck_top = v.deck.center.y + v.deck.half.y;
     assert!(
         bolts.min.y >= deck_top - 0.005 && bolts.max.y <= deck_top + 0.03,
@@ -185,7 +185,7 @@ fn every_hatch_carries_a_coaming_a_hinge_and_a_handle() {
 #[test]
 fn the_dshk_turns_on_the_loaders_hatch_ring() {
     let bp = VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("blueprint");
-    let f = &bp.visual_detail().expect("hybrid").fittings;
+    let f = &bp.complete_visual().expect("hybrid").fittings;
     let ring = part_mesh("dshk_ring").bounds().expect("ring bounds");
     let ring_center_x = (ring.min.x + ring.max.x) * 0.5;
     let ring_center_z = (ring.min.z + ring.max.z) * 0.5;
@@ -213,7 +213,7 @@ fn the_dshk_turns_on_the_loaders_hatch_ring() {
 #[test]
 fn the_dshk_has_its_own_calibre() {
     let bp = VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("blueprint");
-    let tank_gun = &bp.visual_detail().expect("hybrid").gun;
+    let tank_gun = &bp.complete_visual().expect("hybrid").gun;
     let barrel = part_mesh("dshk_barrel").bounds().expect("barrel bounds");
     let radius = (barrel.max.x - barrel.min.x) * 0.5;
     assert!(

@@ -15,12 +15,12 @@ use vehicle_geometry::SubmeshKind;
 
 fn t54_gun() -> (vehicle_geometry::GeometryMesh, game_core::GunVisual, Vec3) {
     let blueprint = VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("blueprint");
-    let hybrid = blueprint.visual_detail().expect("hybrid visual");
+    let hybrid = blueprint.complete_visual().expect("hybrid visual");
     let description = vehicle_build::t54_description();
     let muzzle = description.mounts.muzzle.translation;
     let baked = description.build();
     let mesh = baked.submesh(SubmeshKind::Gun).expect("gun submesh").mesh.clone();
-    (mesh, hybrid.gun, muzzle)
+    (mesh, *hybrid.gun, muzzle)
 }
 
 /// The steel ring at the muzzle face is a WALL, not a plate.

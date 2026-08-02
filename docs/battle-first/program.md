@@ -35,7 +35,11 @@ inherited red).**
   kernel; two dispatch entries burned — `review_views` is the allowlist's last survivor, held by
   the visual freeze). Found while baselining F2c: the canvas-cover lock had been red on master
   since the Model Idealny merge (~50 PRs) — fixed and blessed in #411, full workspace suite proven
-  green with `--no-fail-fast`. Remaining: F5 pilot Tiger I · ui_kit.
+  green with `--no-fail-fast`. F5.i landed this PR: the slot is a sum of OPTIONAL parts
+  (`Option` per field, `#[serde(default)]`), the benchmark stack reads the `CompleteVisual`
+  view, cut-truth means COMPLETE (a partial block improves the look without claiming
+  skin/armour alignment), and the T-54 golden did not move — inert by proof. Remaining:
+  F5.ii–iv (generic gun-group builder → Tiger I authors its mantlet volume) · ui_kit.
 
 The forward ranking lives in [`combat-system.md`](combat-system.md); its headline item — the
 placeholder gun arcs — closed in #398.

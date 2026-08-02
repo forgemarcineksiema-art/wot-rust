@@ -103,9 +103,10 @@ mod tests {
     fn gun() -> GunVisual {
         game_core::VehicleBlueprint::for_vehicle(game_core::VehicleKind::T54_1951)
             .unwrap()
-            .visual_detail()
+            .complete_visual()
             .unwrap()
             .gun
+            .to_owned()
     }
 
     #[test]

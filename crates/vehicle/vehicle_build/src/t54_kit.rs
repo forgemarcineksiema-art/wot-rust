@@ -4,7 +4,7 @@
 //! [`VisualDetail`]; none adds a gameplay dimension. The kit is what makes the narrow-box hull read
 //! as a T-54: the tracks stay exposed and the shelves above them carry the visual mass.
 
-use game_core::{FenderVisual, VisualDetail};
+use game_core::{CompleteVisual, FenderVisual};
 use glam::Vec3;
 use vehicle_geometry::{MaterialRole, SubmeshKind};
 
@@ -12,16 +12,16 @@ use crate::part::{GeneratorKind, PartKey, PartLod, PartShape, VehiclePart};
 use crate::t54_details::detail_plate;
 
 /// Every kit part: fender stowage, sloping fender ends, splash board, turret rails, tow cables.
-pub fn t54_kit_parts(v: &VisualDetail, glacis_deg: f32) -> Vec<VehiclePart> {
+pub fn t54_kit_parts(v: CompleteVisual<'_>, glacis_deg: f32) -> Vec<VehiclePart> {
     let mut parts = Vec::new();
-    parts.extend(fender_stowage(&v.fender));
+    parts.extend(fender_stowage(v.fender));
     for (i, side) in [v.fender.side_x, -v.fender.side_x].into_iter().enumerate() {
         for (j, sign) in [1.0_f32, -1.0].into_iter().enumerate() {
             parts.push(detail_plate(
                 PartKey::indexed("fender_slope", (i * 2 + j) as u16),
                 SubmeshKind::Hull,
                 MaterialRole::RolledArmor,
-                solid::t54_fender_slope(side, &v.fender, sign),
+                solid::t54_fender_slope(side, v.fender, sign),
             ));
         }
     }

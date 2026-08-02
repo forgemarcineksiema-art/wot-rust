@@ -40,7 +40,7 @@ mod tiger_ii;
 
 pub use fittings::{DetailVisual, FittingsVisual};
 pub use hybrid::{
-    BoxVisual, FenderVisual, GunVisual, HullPlatesVisual, HullVisual, LoftStation,
+    BoxVisual, CompleteVisual, FenderVisual, GunVisual, HullPlatesVisual, HullVisual, LoftStation,
     TurretLoftVisual, TurretVisual, VisualDetail,
 };
 pub use shape_track::{ShoePattern, SuspensionKind, TrackShape, WheelFace};
@@ -251,6 +251,13 @@ impl VehicleBlueprint {
         self.visual_detail.as_ref()
     }
 
+    /// The FULLY-authored visual view (every part present) — what the benchmark's construction
+    /// stack and the cut-truth gate read. `None` both for vehicles without the slot and for
+    /// vehicles that author only some parts (F5.i).
+    pub fn complete_visual(&self) -> Option<CompleteVisual<'_>> {
+        self.visual_detail().and_then(VisualDetail::complete)
+    }
+
     /// The mount frames (turret ring, gun trunnion, muzzle) derived from the shape.
     pub fn mount_frames(&self) -> MountFrames {
         MountFrames {
@@ -288,8 +295,10 @@ mod tests {
     fn t54_blueprint_carries_hybrid_visual_data() {
         let t54 = VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("blueprint");
         let hybrid = t54.visual_detail().expect("T-54 is the hybrid benchmark");
+        assert!(hybrid.is_complete(), "the benchmark authors every part of the slot");
         assert_eq!(t54.track.wheel_count, 5, "five road wheels per side");
-        assert!(hybrid.turret.budget > 0, "the cast turret meshes to a triangle budget");
+        let turret = hybrid.turret.expect("benchmark turret part");
+        assert!(turret.budget > 0, "the cast turret meshes to a triangle budget");
     }
 
     /// SSOT guard for the hybrid path: [`VisualDetail`] may *add* visual-only dimensions, but every
@@ -304,6 +313,12 @@ mod tests {
     fn t54_hybrid_visual_does_not_reduplicate_blueprint_shape_dimensions() {
         let bp = VehicleBlueprint::for_vehicle(VehicleKind::T54_1951).expect("blueprint");
         let h = bp.visual_detail().expect("T-54 carries hybrid visual data");
+        let (h_hull, h_fender, h_turret, h_fittings) = (
+            h.hull.expect("benchmark hull part"),
+            h.fender.expect("benchmark fender part"),
+            h.turret.expect("benchmark turret part"),
+            h.fittings.expect("benchmark fittings part"),
+        );
         let (hull, track, turret, gun) = (&bp.hull, &bp.track, &bp.turret, &bp.gun);
 
         let same = |label: &str, hybrid: f32, shape: f32| {
@@ -314,25 +329,25 @@ mod tests {
         };
 
         // Hull body extents.
-        same("hull.half_width", h.hull.half_width, hull.half_width);
-        same("hull.belly_y", h.hull.belly_y, hull.belly_y);
-        same("hull.half_len", h.hull.half_len, hull.half_len);
-        same("hull.roof_y", h.hull.roof_y, hull.deck_y);
+        same("hull.half_width", h_hull.half_width, hull.half_width);
+        same("hull.belly_y", h_hull.belly_y, hull.belly_y);
+        same("hull.half_len", h_hull.half_len, hull.half_len);
+        same("hull.roof_y", h_hull.roof_y, hull.deck_y);
 
         // The fender shelf rides the blueprint track lane (the running gear itself has no hybrid
         // copy — the animated path reads `TrackShape` directly).
-        same("fender.side_x", h.fender.side_x, track.center_x);
+        same("fender.side_x", h_fender.side_x, track.center_x);
 
         // Turret machined planes and the commander's cupola placement (carried in three places).
-        same("turret.ring_plane_y", h.turret.ring_plane_y, turret.ring_y);
-        same("fittings.cupola_hatch_center.x", h.fittings.cupola_hatch_center.x, turret.cupola_x);
-        same("fittings.cupola_hatch_center.z", h.fittings.cupola_hatch_center.z, turret.cupola_z);
+        same("turret.ring_plane_y", h_turret.ring_plane_y, turret.ring_y);
+        same("fittings.cupola_hatch_center.x", h_fittings.cupola_hatch_center.x, turret.cupola_x);
+        same("fittings.cupola_hatch_center.z", h_fittings.cupola_hatch_center.z, turret.cupola_z);
 
         // The PRODUCTION turret. Everything above guards the metaball `TurretVisual`, which the
         // game no longer meshes — the shipped casting is this loft, and until now not one of its
         // numbers was tied to the blueprint. That is precisely where a shape edit would drift:
         // raise `roof_y` in the RON and the visible dome would have stayed where it was.
-        let loft = &h.turret_loft;
+        let loft = &h.turret_loft.expect("benchmark loft part");
         let stations = &loft.stations;
         let first = stations.first().expect("the loft starts at the ring");
         let last = stations.last().expect("the loft ends at the roof");
@@ -375,7 +390,12 @@ mod tests {
         assert_eq!(bp.mount_frames(), MountFrames::for_vehicle(VehicleKind::T54_1951));
 
         let h = bp.visual_detail().expect("hybrid visual");
-        let d = &h.detail;
+        let d = &h.detail.expect("benchmark detail part");
+        let (h_fender, h_deck, h_fittings) = (
+            h.fender.expect("benchmark fender part"),
+            h.deck.expect("benchmark deck part"),
+            h.fittings.expect("benchmark fittings part"),
+        );
         let hull = &bp.hull;
         let inside_hull = |p: Vec3| {
             p.x.abs() <= hull.hitbox_half_width + 1.0e-3
@@ -390,7 +410,7 @@ mod tests {
         // Turret periscopes sit inside the LOFT's plan (the shipped casting's own stations, not
         // the old metaball meshing box) and below its cupola-hatch apex, so they never raise the
         // silhouette or the turret-height proportion.
-        let stations = &h.turret_loft.stations;
+        let stations = &h.turret_loft.expect("benchmark loft part").stations;
         let plan_half_width = stations.iter().map(|s| s.half_width).fold(0.0_f32, f32::max);
         let plan_front = stations
             .iter()
@@ -401,7 +421,7 @@ mod tests {
         assert!(d.periscope_center.x.abs() + d.periscope_half.x < plan_half_width);
         assert!(d.periscope_center.z > plan_rear && d.periscope_center.z < plan_front);
         assert!(
-            d.periscope_center.y + d.periscope_half.y < h.fittings.cupola_hatch_center.y,
+            d.periscope_center.y + d.periscope_half.y < h_fittings.cupola_hatch_center.y,
             "periscopes stay below the turret apex"
         );
         // Restrained, factory-clean detail: lips and weld beads are small.
@@ -410,7 +430,7 @@ mod tests {
         // The fender lip curtain must clear the track's top run (wrap top + link seat + link
         // body, ~0.08 over the wrap): a lip that dips into the belt band has the scrolling
         // shoes cutting through it on every frame.
-        let lip_bottom = h.fender.center_y - h.fender.half.y - d.fender_lip_drop;
+        let lip_bottom = h_fender.center_y - h_fender.half.y - d.fender_lip_drop;
         let belt_top = bp.track.end_y + bp.track.end_radius + 0.08;
         assert!(
             lip_bottom > belt_top,
@@ -419,7 +439,7 @@ mod tests {
 
         // The grille must ride proud of the engine-deck top, never coplanar with it — a coplanar
         // top z-fights the slats into a flickering mess.
-        let deck_top = h.deck.center.y + h.deck.half.y;
+        let deck_top = h_deck.center.y + h_deck.half.y;
         assert!(
             d.grille_center.y + d.grille_half.y > deck_top + 0.01,
             "deck grille top {} must clear the engine-deck top {deck_top} to avoid z-fighting",
