@@ -15,7 +15,7 @@ use crate::fx::decal_from_damage_event;
 use crate::vehicle::asset_catalog::VehicleContactIndex;
 use crate::vehicle::variation::DecalFrame;
 
-const KIND: VehicleKind = VehicleKind::T54_1951;
+const KIND: VehicleKind = VehicleKind::BENCHMARK;
 
 /// The target snapshot: a T-54 at the origin, level, turret and gun neutral — so its hull frame is
 /// the identity and its authoring coordinates are world coordinates, matching the trace tank.

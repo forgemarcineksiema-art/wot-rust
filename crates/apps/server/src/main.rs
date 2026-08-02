@@ -54,7 +54,7 @@ fn main() -> anyhow::Result<()> {
     };
     let battle = RandomBattleConfig {
         seed,
-        player_vehicle: game_core::VehicleKind::T54_1951,
+        player_vehicle: game_core::VehicleKind::BENCHMARK,
         map: terrain::MapId::default(),
     };
     let started = Instant::now();

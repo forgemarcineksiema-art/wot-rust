@@ -55,7 +55,10 @@ pub fn demo_battle_hud(sniper: bool, aspect: f32) -> Vec<HudVertex> {
                 damage_hp: 240,
                 module: Some(ModuleSlot::Gun),
                 track: None,
-                other_vehicle: Some(VehicleKind::TigerII),
+                other_vehicle: VehicleKind::PLAYABLE
+                    .iter()
+                    .copied()
+                    .find(|kind| *kind != VehicleKind::BENCHMARK),
                 age_s: 0.5,
             },
             DamageLogEntry {
@@ -63,7 +66,11 @@ pub fn demo_battle_hud(sniper: bool, aspect: f32) -> Vec<HudVertex> {
                 damage_hp: 0,
                 module: None,
                 track: Some((game_core::TrackSide::Right, true)),
-                other_vehicle: Some(VehicleKind::IS3),
+                other_vehicle: VehicleKind::PLAYABLE
+                    .iter()
+                    .copied()
+                    .filter(|kind| *kind != VehicleKind::BENCHMARK)
+                    .nth(1),
                 age_s: 1.5,
             },
         ],

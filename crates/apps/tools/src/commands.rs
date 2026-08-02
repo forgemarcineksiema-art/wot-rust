@@ -494,17 +494,7 @@ fn export_mesh_command(
 }
 
 fn vehicle_spec(slug: &str) -> anyhow::Result<TankSpec> {
-    Ok(match slug {
-        "t54-1951" => TankSpec::t54_1951(),
-        "tiger-i-ausf-e" => TankSpec::tiger_i_ausf_e(),
-        "tiger-ii-ausf-b" => TankSpec::tiger_ii_ausf_b(),
-        "jagdtiger" => TankSpec::jagdtiger(),
-        "panther-ii" => TankSpec::panther_ii(),
-        "is3" | "is-3" => TankSpec::is3(),
-        "t34-85" | "t34_85" => VehicleKind::T34_85.spec(),
-        "centurion-mk3" | "centurion_mk3" => TankSpec::centurion_mk3(),
-        other => anyhow::bail!("unknown vehicle profile: {other}"),
-    })
+    Ok(parse_vehicle_kind(slug)?.spec())
 }
 fn forge_report(vehicle: &str, out: PathBuf) -> anyhow::Result<()> {
     let kind = parse_vehicle_kind(vehicle)?;
@@ -556,19 +546,18 @@ fn write_text(path: PathBuf, text: &str) -> anyhow::Result<()> {
     std::fs::write(&path, text).with_context(|| format!("failed to write {}", path.display()))?;
     Ok(())
 }
+/// Resolve a CLI slug against the two DATA tables — the forge's hyphenated slug and the asset
+/// stem — so every vehicle accepts both spellings and the CLI never names one.
+///
+/// This replaces two hand-written match tables whose aliases had already drifted apart: the old
+/// `vehicle_spec` accepted `"is-3"` and `"t34_85"` but only `"t54-1951"`, purely because each row
+/// was typed by hand on a different day.
 fn parse_vehicle_kind(slug: &str) -> anyhow::Result<VehicleKind> {
-    match slug {
-        "prototype-medium" | "prototype_medium" => Ok(VehicleKind::PrototypeMedium),
-        "t54-1951" | "t54_1951" => Ok(VehicleKind::T54_1951),
-        "tiger-i-ausf-e" | "tiger_i_ausf_e" => Ok(VehicleKind::TigerI),
-        "tiger-ii-ausf-b" | "tiger_ii_ausf_b" => Ok(VehicleKind::TigerII),
-        "jagdtiger" => Ok(VehicleKind::Jagdtiger),
-        "panther-ii" | "panther_ii" => Ok(VehicleKind::PantherII),
-        "is3" | "is-3" => Ok(VehicleKind::IS3),
-        "centurion-mk3" | "centurion_mk3" => Ok(VehicleKind::Centurion),
-        "t34-85" | "t34_85" => Ok(VehicleKind::T34_85),
-        other => anyhow::bail!("unknown vehicle profile: {other}"),
-    }
+    VehicleKind::ALL
+        .iter()
+        .copied()
+        .find(|kind| slug == vehicle_forge::forge_vehicle_slug(*kind) || slug == kind.slug())
+        .ok_or_else(|| anyhow::anyhow!("unknown vehicle profile: {slug}"))
 }
 fn write_forge_lineup(out: PathBuf) -> anyhow::Result<()> {
     std::fs::create_dir_all(&out)

@@ -103,6 +103,14 @@ pub enum VehicleKind {
 }
 
 impl VehicleKind {
+    /// The fleet's BENCHMARK vehicle — the one with the richest authored content, which budget
+    /// baselines, authoring harnesses and contact-lock fixtures measure against.
+    ///
+    /// Declared HERE, in the data crate, so no app-layer file ever names a specific vehicle to
+    /// get a reference hull (the W4 dispatch rule forbids exactly that). When another vehicle
+    /// overtakes the T-54's fidelity, the whole fleet's instruments retarget on this one line.
+    pub const BENCHMARK: VehicleKind = VehicleKind::T54_1951;
+
     /// Every known vehicle, in declaration (wire) order.
     pub const ALL: [VehicleKind; 9] = [
         VehicleKind::PrototypeMedium,

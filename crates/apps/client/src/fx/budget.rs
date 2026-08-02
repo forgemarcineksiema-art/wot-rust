@@ -28,7 +28,7 @@ const BATTLE_TANKS: usize = 14;
 const FX_FRAME_VERTEX_BUDGET: usize = 35_070;
 
 fn snapshot() -> TankSnapshot {
-    let spec = VehicleKind::T54_1951.spec();
+    let spec = VehicleKind::BENCHMARK.spec();
     TankSnapshot {
         tank_id: TankId(9),
         team: TeamId(2),
