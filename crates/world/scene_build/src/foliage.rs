@@ -48,6 +48,36 @@ fn imported_flora_name(kind: SceneryKind) -> Option<&'static str> {
     }
 }
 
+/// The trees-to-scale multiplier for an IMPORTED flora MESH (trees-to-scale, 2026-08-03). The
+/// CC0 assets were authored small — `stylized-tree` bakes at ~7.3 m, `stylized-pine` ~7.4 m,
+/// ~30% of a real mature tree — so on top of the per-instance scatter scale they get a species
+/// factor that brings a broadleaf to ~20 m and a pine to ~21 m. A tank beside one now reads at
+/// a tank's true fraction of a tree, not half a tree. The bush is already the right knee-height.
+fn imported_flora_scale(kind: SceneryKind) -> f32 {
+    match kind {
+        SceneryKind::FloraTree => 2.75,
+        SceneryKind::FloraPine => 2.85,
+        _ => 1.0,
+    }
+}
+
+/// The trees-to-scale multiplier for a BACKDROP-ring frustum stack. The far stack is coarser and
+/// intrinsically shorter than the mesh it stands in for, so the factor is per-kind (larger than
+/// the mesh factor) to bring the horizon silhouette up to the same mature height the near mesh
+/// now has — a distant treeline that reads as a treeline, not a hedge. Furniture (lamppost,
+/// rock, debris, fruit, bush) is already correct and stays at 1.0.
+fn far_frustum_scale(kind: SceneryKind) -> f32 {
+    match kind {
+        SceneryKind::Oak => 3.4,
+        SceneryKind::Poplar => 3.0,
+        SceneryKind::Willow => 3.6,
+        SceneryKind::Pine => 2.7,
+        SceneryKind::FloraTree => 3.3,
+        SceneryKind::FloraPine => 2.8,
+        _ => 1.0,
+    }
+}
+
 /// An imported CC0 asset, transformed into the static scene mesh with its UVs remapped into
 /// the packed atlas region (Flora 2.0, FL-4). Vertex color carries the baked material tint
 /// (base_color_factor from the source) and the FL-2 fragment path multiplies the sampled
@@ -66,9 +96,10 @@ fn push_imported_flora(
     };
     let base = Vec3::from_array(instance.position);
     let rotation = Mat3::from_rotation_y(instance.yaw_rad);
+    let scale = instance.scale * imported_flora_scale(instance.kind);
     let start = vertices.len() as u32;
     for (index, position) in asset.positions.iter().enumerate() {
-        let world = base + rotation * (Vec3::from_array(*position) * instance.scale);
+        let world = base + rotation * (Vec3::from_array(*position) * scale);
         let normal = (rotation * Vec3::from_array(asset.normals[index])).normalize_or_zero();
         let uv = asset.uvs[index];
         vertices.push(
@@ -147,7 +178,9 @@ pub fn push_scenery_instance_far(
     instance: &SceneryInstance,
 ) {
     let base = Vec3::from_array(instance.position);
-    let s = instance.scale;
+    // Trees-to-scale: the backdrop silhouette rises to the same mature height the near mesh now
+    // has (furniture stays at 1.0). See `far_frustum_scale`.
+    let s = instance.scale * far_frustum_scale(instance.kind);
     let yaw = instance.yaw_rad;
     match instance.kind {
         SceneryKind::Oak => {
