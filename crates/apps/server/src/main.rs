@@ -36,6 +36,11 @@ struct Args {
     /// serve the default map — an operator could not run a rotation without editing the binary.
     #[arg(long)]
     map: Option<String>,
+    /// How many battles to host before the process exits. 0 (the default) hosts battles forever:
+    /// when one ends, a fresh lobby opens for the next, so a rented server keeps running instead
+    /// of dying after a single match. Set 1 to serve one battle and stop (the old behaviour).
+    #[arg(long, default_value_t = 0)]
+    max_battles: u64,
 }
 
 /// The dedicated server's whole configuration, from flags or a RON file. `serde(default)` lets a
@@ -51,6 +56,7 @@ struct ServerConfig {
     seed: u64,
     map: Option<String>,
     max_ticks: Option<u64>,
+    max_battles: u64,
 }
 
 impl Default for ServerConfig {
@@ -63,6 +69,7 @@ impl Default for ServerConfig {
             seed: 0,
             map: None,
             max_ticks: None,
+            max_battles: 0,
         }
     }
 }
@@ -77,7 +84,31 @@ impl From<&Args> for ServerConfig {
             seed: args.seed,
             map: args.map.clone(),
             max_ticks: args.max_ticks,
+            max_battles: args.max_battles,
         }
+    }
+}
+
+/// Whether to open another battle after `battles_done` have finished. `max_battles` of 0 means
+/// host forever (a rented server); any positive value stops after that many.
+fn should_host_another_battle(battles_done: u64, max_battles: u64) -> bool {
+    max_battles == 0 || battles_done < max_battles
+}
+
+/// The seed for battle number `index` (0-based). A configured seed advances deterministically per
+/// round so a rotation is reproducible yet never replays the same battle; seed 0 draws a fresh one
+/// from the clock each round.
+fn battle_seed(config_seed: u64, index: u64) -> BattleSeed {
+    if config_seed == 0 {
+        BattleSeed::fixed(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_millis() as u64)
+                .unwrap_or(1)
+                .wrapping_add(index),
+        )
+    } else {
+        BattleSeed::fixed(config_seed.wrapping_add(index))
     }
 }
 
@@ -127,22 +158,10 @@ fn main() -> anyhow::Result<()> {
     let bind = config.bind.parse().map_err(|e| anyhow::anyhow!("bind {}: {e}", config.bind))?;
     let mut transport =
         UdpTransport::bind(bind).map_err(|e| anyhow::anyhow!("bind {}: {e}", config.bind))?;
-    let seed = if config.seed == 0 {
-        BattleSeed::fixed(
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|d| d.as_millis() as u64)
-                .unwrap_or(1),
-        )
-    } else {
-        BattleSeed::fixed(config.seed)
-    };
     let map = resolve_map(config.map.as_deref())?;
-    let battle =
-        RandomBattleConfig { seed, player_vehicle: game_core::VehicleKind::BENCHMARK, map };
     let started = Instant::now();
-    let mut host = RemoteBattleServer::new(tick_config, battle, config.lobby_wait_s * 1_000, 0);
     let mut ticks: u64 = 0;
+    let mut battles_done: u64 = 0;
 
     info!(
         bind = config.bind,
@@ -150,36 +169,55 @@ fn main() -> anyhow::Result<()> {
         tick_rate = config.tick_rate,
         snapshot_rate = config.snapshot_rate,
         lobby_wait_s = config.lobby_wait_s,
+        max_battles = config.max_battles,
         "dedicated server listening"
     );
 
-    loop {
-        if config.max_ticks.is_some_and(|max_ticks| ticks >= max_ticks) {
-            info!(ticks, "server stopped after requested max ticks");
-            break;
-        }
-        let tick_start = Instant::now();
+    // Outer loop: one iteration hosts one battle. When it ends, a fresh lobby opens for the next
+    // (a rented server keeps running) unless a total tick budget or a battle cap says otherwise.
+    // Clients from the finished battle received BattleOver and must reconnect for the next one;
+    // in-client auto-reconnect is a later step (N4).
+    'rotation: while should_host_another_battle(battles_done, config.max_battles) {
         let now_ms = started.elapsed().as_millis() as u64;
-        host.pump(now_ms, &mut transport);
-        host.tick(now_ms, &mut transport);
-        ticks += 1;
-        if host.is_finished() {
-            info!(ticks, "battle lifecycle delivered; dedicated server exiting");
-            break;
-        }
+        let battle = RandomBattleConfig {
+            seed: battle_seed(config.seed, battles_done),
+            player_vehicle: game_core::VehicleKind::BENCHMARK,
+            map,
+        };
+        let mut host =
+            RemoteBattleServer::new(tick_config, battle, config.lobby_wait_s * 1_000, now_ms);
+        info!(battle = battles_done, "lobby open");
 
-        let elapsed = tick_start.elapsed();
-        if elapsed > tick_duration {
-            tracing::warn!(
-                elapsed_ms = elapsed.as_secs_f32() * 1_000.0,
-                budget_ms = tick_duration.as_secs_f32() * 1_000.0,
-                "tick over budget"
-            );
-        } else {
-            std::thread::sleep(tick_duration - elapsed);
+        loop {
+            if config.max_ticks.is_some_and(|max_ticks| ticks >= max_ticks) {
+                info!(ticks, "server stopped after requested max ticks");
+                break 'rotation;
+            }
+            let tick_start = Instant::now();
+            let now_ms = started.elapsed().as_millis() as u64;
+            host.pump(now_ms, &mut transport);
+            host.tick(now_ms, &mut transport);
+            ticks += 1;
+            if host.is_finished() {
+                battles_done += 1;
+                info!(ticks, battles_done, "battle lifecycle delivered");
+                break;
+            }
+
+            let elapsed = tick_start.elapsed();
+            if elapsed > tick_duration {
+                tracing::warn!(
+                    elapsed_ms = elapsed.as_secs_f32() * 1_000.0,
+                    budget_ms = tick_duration.as_secs_f32() * 1_000.0,
+                    "tick over budget"
+                );
+            } else {
+                std::thread::sleep(tick_duration - elapsed);
+            }
         }
     }
 
+    info!(battles_done, ticks, "dedicated server exiting");
     Ok(())
 }
 
@@ -209,7 +247,34 @@ fn validate_config(config: &ServerConfig) -> anyhow::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::{ServerConfig, parse_config, resolve_map, validate_config};
+    use super::{
+        ServerConfig, battle_seed, parse_config, resolve_map, should_host_another_battle,
+        validate_config,
+    };
+
+    #[test]
+    fn max_battles_zero_hosts_forever_and_a_cap_stops_after_its_count() {
+        // 0 = a rented server that keeps opening lobbies.
+        assert!(should_host_another_battle(0, 0));
+        assert!(should_host_another_battle(1_000_000, 0));
+        // A cap of 1 serves exactly one battle (the old single-battle behaviour).
+        assert!(should_host_another_battle(0, 1));
+        assert!(!should_host_another_battle(1, 1));
+        // A cap of 3 stops once three have finished.
+        assert!(should_host_another_battle(2, 3));
+        assert!(!should_host_another_battle(3, 3));
+    }
+
+    #[test]
+    fn a_configured_seed_advances_per_round_so_no_two_battles_repeat() {
+        let a = battle_seed(42, 0);
+        let b = battle_seed(42, 1);
+        let c = battle_seed(42, 2);
+        assert_ne!(a, b, "consecutive rounds must not replay the same battle");
+        assert_ne!(b, c);
+        // Reproducible: the same round of the same configured seed is identical.
+        assert_eq!(a, battle_seed(42, 0));
+    }
 
     #[test]
     fn a_partial_config_fills_the_rest_from_defaults() {
