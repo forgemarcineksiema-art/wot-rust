@@ -26,6 +26,44 @@ struct Args {
     seed: u64,
 }
 
+/// How often the server emits its ops heartbeat (ms). Slow on purpose — a running log, not a
+/// firehose; the per-tick over-budget warning already catches spikes.
+const STATS_PERIOD_MS: u64 = 10_000;
+
+/// Rolling tick-time accumulator over one heartbeat window. Pure arithmetic so it can be
+/// locked without a clock; `drain` reports the window and resets it.
+#[derive(Debug, Default)]
+struct WindowStats {
+    count: u64,
+    sum_ms: f32,
+    max_ms: f32,
+}
+
+#[derive(Debug, PartialEq)]
+struct WindowSummary {
+    count: u64,
+    avg_ms: f32,
+    max_ms: f32,
+}
+
+impl WindowStats {
+    fn record(&mut self, elapsed_ms: f32) {
+        self.count += 1;
+        self.sum_ms += elapsed_ms;
+        self.max_ms = self.max_ms.max(elapsed_ms);
+    }
+
+    fn drain(&mut self) -> WindowSummary {
+        let summary = WindowSummary {
+            count: self.count,
+            avg_ms: if self.count == 0 { 0.0 } else { self.sum_ms / self.count as f32 },
+            max_ms: self.max_ms,
+        };
+        *self = Self::default();
+        summary
+    }
+}
+
 fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
@@ -60,6 +98,8 @@ fn main() -> anyhow::Result<()> {
     let started = Instant::now();
     let mut host = RemoteBattleServer::new(tick_config, battle, args.lobby_wait_s * 1_000, 0);
     let mut ticks: u64 = 0;
+    let mut stats = WindowStats::default();
+    let mut next_stats_ms = STATS_PERIOD_MS;
 
     info!(
         bind = args.bind,
@@ -79,12 +119,30 @@ fn main() -> anyhow::Result<()> {
         host.pump(now_ms, &mut transport);
         host.tick(now_ms, &mut transport);
         ticks += 1;
+
+        let elapsed = tick_start.elapsed();
+        stats.record(elapsed.as_secs_f32() * 1_000.0);
+        // A heartbeat an operator can watch on a VPS: tick load and who is connected, on a slow
+        // cadence so a quiet server stays quiet. Distinct from the per-tick over-budget warning.
+        if now_ms >= next_stats_ms {
+            let window = stats.drain();
+            info!(
+                ticks,
+                phase = if host.is_running() { "battle" } else { "lobby" },
+                clients = host.tracked_client_count(),
+                tick_avg_ms = window.avg_ms,
+                tick_max_ms = window.max_ms,
+                window_ticks = window.count,
+                "server heartbeat"
+            );
+            next_stats_ms = now_ms + STATS_PERIOD_MS;
+        }
+
         if host.is_finished() {
             info!(ticks, "battle lifecycle delivered; dedicated server exiting");
             break;
         }
 
-        let elapsed = tick_start.elapsed();
         if elapsed > tick_duration {
             tracing::warn!(
                 elapsed_ms = elapsed.as_secs_f32() * 1_000.0,
@@ -121,4 +179,25 @@ fn validate_args(args: &Args) -> anyhow::Result<()> {
         );
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{WindowStats, WindowSummary};
+
+    #[test]
+    fn window_stats_report_average_and_peak_then_reset() {
+        let mut stats = WindowStats::default();
+        for ms in [1.0_f32, 3.0, 2.0] {
+            stats.record(ms);
+        }
+        let window = stats.drain();
+        assert_eq!(window.count, 3);
+        assert!((window.avg_ms - 2.0).abs() < 1.0e-6, "avg of 1/3/2 is 2.0, got {}", window.avg_ms);
+        assert!((window.max_ms - 3.0).abs() < 1.0e-6, "peak is 3.0, got {}", window.max_ms);
+
+        // Drain resets: an empty window reports zeros, never a stale peak or a divide-by-zero.
+        let empty = stats.drain();
+        assert_eq!(empty, WindowSummary { count: 0, avg_ms: 0.0, max_ms: 0.0 });
+    }
 }
