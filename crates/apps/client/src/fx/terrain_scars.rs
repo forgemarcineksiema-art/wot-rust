@@ -357,7 +357,7 @@ mod tests {
     /// An HE impact at a position — the radial-crater branch (kinetic marks get furrows).
     fn he_impact(position: Vec3) -> game_core::ShellImpact {
         game_core::ShellImpact {
-            owner: game_core::TankId(1),
+            owner: Some(game_core::TankId(1)),
             position,
             surface: game_core::ImpactSurface::Terrain,
             shell_type: game_core::ShellType::HighExplosive,
@@ -369,7 +369,7 @@ mod tests {
     /// A kinetic impact flying along +Z at the given calibre.
     fn ap_impact(position: Vec3, caliber_mm: f32) -> game_core::ShellImpact {
         game_core::ShellImpact {
-            owner: game_core::TankId(1),
+            owner: Some(game_core::TankId(1)),
             position,
             surface: game_core::ImpactSurface::Terrain,
             shell_type: game_core::ShellType::ArmorPiercing,

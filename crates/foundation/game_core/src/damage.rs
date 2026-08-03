@@ -66,8 +66,11 @@ pub enum ImpactSurface {
 /// instead of the shell silently vanishing between snapshots.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Default)]
 pub struct ShellImpact {
-    /// Who fired the absorbed shell.
-    pub owner: TankId,
+    /// Who fired the absorbed shell — `None` when the viewer has not spotted the firing tank
+    /// (protocol v44). The impact itself (dirt thrown, a mark on the wall) is a world event
+    /// everyone standing there sees and always replicates; the OWNER is intel. Presentation
+    /// never reads this — it keys on `shell_id`.
+    pub owner: Option<TankId>,
     pub position: Vec3,
     pub surface: ImpactSurface,
     /// What kind of shell died here (protocol v17): a high-explosive round detonating against

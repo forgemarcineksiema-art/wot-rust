@@ -501,7 +501,8 @@ fn queue_personal_combat_events(
         }
     }
     for impact in shell_impacts {
-        if impact.owner == tank && client.events.enqueue(CombatEvent::ShellImpact(*impact)).is_err()
+        if impact.owner == Some(tank)
+            && client.events.enqueue(CombatEvent::ShellImpact(*impact)).is_err()
         {
             client.event_overflowed = true;
             return;
@@ -511,7 +512,7 @@ fn queue_personal_combat_events(
 
 fn strip_reliable_personal_events(snapshot: &mut net::Snapshot, tank: TankId) {
     snapshot.damage_events.retain(|event| event.source != tank && event.target != tank);
-    snapshot.shell_impacts.retain(|impact| impact.owner != tank);
+    snapshot.shell_impacts.retain(|impact| impact.owner != Some(tank));
 }
 
 #[cfg(test)]
@@ -567,8 +568,9 @@ mod lifecycle_tests {
             damage_hp: 100,
             ..Default::default()
         };
-        let own_impact = game_core::ShellImpact { owner: TankId(7), ..Default::default() };
-        let foreign_impact = game_core::ShellImpact { owner: TankId(9), ..Default::default() };
+        let own_impact = game_core::ShellImpact { owner: Some(TankId(7)), ..Default::default() };
+        let foreign_impact =
+            game_core::ShellImpact { owner: Some(TankId(9)), ..Default::default() };
 
         queue_personal_combat_events(
             &mut client,

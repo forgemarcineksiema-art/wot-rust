@@ -442,7 +442,7 @@ mod blast_grammar_tests {
                 .position;
             app.camera_controller.zero_motion_for_test();
             snapshot.shell_impacts.push(game_core::ShellImpact {
-                owner: game_core::TankId(999),
+                owner: Some(game_core::TankId(999)),
                 position: glam::Vec3::from_array(player) + glam::Vec3::from_array(offset),
                 surface: game_core::ImpactSurface::Terrain,
                 shell_type,

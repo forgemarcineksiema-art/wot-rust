@@ -108,7 +108,7 @@ fn the_fx_frame_vertex_budget_is_locked() {
         // Worst case alternates the two mark families (furrow stamps vs crater stamps).
         scars.record(
             &game_core::ShellImpact {
-                owner: game_core::TankId(1),
+                owner: Some(game_core::TankId(1)),
                 position: Vec3::new(5.0 + index as f32 * 2.0, 0.0, 40.0),
                 surface: game_core::ImpactSurface::Terrain,
                 shell_type: if index % 2 == 0 {

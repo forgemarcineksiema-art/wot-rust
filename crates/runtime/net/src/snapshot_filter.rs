@@ -49,17 +49,25 @@ impl Snapshot {
         conceal_enemy_rack_fuze(&mut visible_tanks, viewer_team);
         let visible_ids = visible_tanks.iter().map(|tank| tank.tank_id).collect::<Vec<_>>();
 
+        // A shell's OWNER is intel; the shell is not (v44). The tracer, the dirt of a near-miss
+        // and the mark on a wall are world events everyone standing there sees, so they always
+        // replicate — but the identity of the gun that fired is stripped whenever the viewer has
+        // not spotted it. Anonymizing (rather than dropping) keeps the counter-battery read a
+        // real signal — "a shell came from over there" — while denying the wallhack of naming
+        // the unspotted tank that fired it. Presentation keys on `shell_id`, never on `owner`.
+        let known = |owner: TankId| owner == viewer_tank || visible_ids.contains(&owner);
         Snapshot {
             server_tick: self.server_tick,
             tanks: visible_tanks,
-            // Shells and impacts are world events, not intel: a tracer in the air and dirt
-            // thrown by a near-miss are visible to everyone standing there, whatever the
-            // spotting state of the gun that fired. Filtering them by OWNER visibility made
-            // fire from beyond spotting range fully invisible (no tracer, no impact, no
-            // counter-battery read — only the damage), and a shell vanished mid-flight the
-            // moment its owner's spotted hold expired. The tank itself stays hidden; the
-            // shot it fired does not.
-            shells: self.shells.clone(),
+            shells: self
+                .shells
+                .iter()
+                .map(|shell| {
+                    let mut shell = *shell;
+                    shell.owner = shell.owner.filter(|owner| known(*owner));
+                    shell
+                })
+                .collect(),
             damage_events: self
                 .damage_events
                 .iter()
@@ -71,14 +79,27 @@ impl Snapshot {
                             && visible_ids.contains(&event.target))
                 })
                 .collect(),
-            // Like shells (above), impacts are world events everyone standing there sees, not
-            // owner-gated intel (see #95); they ride through unfiltered.
-            shell_impacts: self.shell_impacts.clone(),
-            // A muzzle flash is the loudest, brightest thing on a battlefield. It rides through
-            // for the same reason the shell does: an unspotted gun firing from a treeline is a
-            // thing you SEE, and hiding it would make counter-battery reading impossible while
-            // the shell it fired flew past in plain view.
-            shots_fired: self.shots_fired.clone(),
+            // Impacts ride through as world events; their owner is anonymized like the shell's.
+            shell_impacts: self
+                .shell_impacts
+                .iter()
+                .copied()
+                .map(|mut impact| {
+                    impact.owner = impact.owner.filter(|owner| known(*owner));
+                    impact
+                })
+                .collect(),
+            // A muzzle flash is only ever drawn from the shooter's pose, which the client does
+            // not have for an unspotted tank — so a flash from an unspotted gun was never
+            // rendered, yet `shooter` (paired with `shell_id`) leaked its identity on the wire.
+            // Keep the shot ONLY when the viewer may know the shooter; the tracer it fired still
+            // rides via `shells` for everyone.
+            shots_fired: self
+                .shots_fired
+                .iter()
+                .copied()
+                .filter(|shot| known(shot.shooter))
+                .collect(),
             // Wrecks are always visible (the hit_points == 0 rule above), so every detached-turret
             // wreck the viewer can see rides through.
             detached_turrets: self
