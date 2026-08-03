@@ -34,50 +34,54 @@ impl TreeSpecies {
 
     fn params(self) -> SpeciesParams {
         match self {
-            // Broad, muscular: a tall trunk, heavy limbs, a wide 4-lobe crown.
+            // Broad, muscular: a tall trunk, heavy limbs, a wide 4-lobe crown. Scaled to a
+            // real mature oak (~17-18 m) — the whole species k=2.0 over its first draft, trunk
+            // radius by k^0.6 so a taller tree reads correctly SLENDER, not a fat stump.
             TreeSpecies::Oak => SpeciesParams {
-                trunk_height: 4.6,
-                trunk_radius: 0.34,
+                trunk_height: 9.2,
+                trunk_radius: 0.52,
                 taper: 0.55,
                 limbs: 4,
-                limb_length: 2.2,
+                limb_length: 4.4,
                 limb_pitch: 0.9,
                 lobes: 4,
-                lobe_radius: 2.3,
-                crown_height: 5.9,
-                crown_spread: 1.7,
+                lobe_radius: 4.6,
+                crown_height: 11.8,
+                crown_spread: 3.4,
                 fbm_amplitude: 0.34,
                 crown_stack_height: 0.0,
                 crown_tip_frac: 1.0,
             },
-            // A column: minimal limbs, stacked narrow lobes.
+            // A column: minimal limbs, stacked narrow lobes. A Lombardy poplar reaches ~22 m
+            // and stays slim — k=2.4 on height, the spread barely grows.
             TreeSpecies::Poplar => SpeciesParams {
-                trunk_height: 6.5,
-                trunk_radius: 0.22,
+                trunk_height: 15.6,
+                trunk_radius: 0.37,
                 taper: 0.45,
                 limbs: 2,
-                limb_length: 0.9,
+                limb_length: 2.2,
                 limb_pitch: 1.25,
                 lobes: 3,
-                lobe_radius: 1.35,
-                crown_height: 7.4,
-                crown_spread: 0.45,
+                lobe_radius: 3.2,
+                crown_height: 17.8,
+                crown_spread: 1.1,
                 fbm_amplitude: 0.22,
                 crown_stack_height: 0.0,
                 crown_tip_frac: 1.0,
             },
-            // Weeping: a short trunk, long drooping limbs, a low wide crown.
+            // Weeping: a short trunk, long drooping limbs, a low wide crown. ~15 m riverside
+            // willow — k=2.0, the wide skirt scales with it.
             TreeSpecies::Willow => SpeciesParams {
-                trunk_height: 3.2,
-                trunk_radius: 0.30,
+                trunk_height: 6.4,
+                trunk_radius: 0.46,
                 taper: 0.6,
                 limbs: 5,
-                limb_length: 2.6,
+                limb_length: 5.2,
                 limb_pitch: 0.35,
                 lobes: 3,
-                lobe_radius: 2.5,
-                crown_height: 4.1,
-                crown_spread: 1.9,
+                lobe_radius: 5.0,
+                crown_height: 8.2,
+                crown_spread: 3.8,
                 fbm_amplitude: 0.42,
                 crown_stack_height: 0.0,
                 crown_tip_frac: 1.0,
@@ -115,20 +119,21 @@ impl TreeSpecies {
                 crown_tip_frac: 1.0,
             },
             // The conifer: a bare lower trunk, then lobes STACKED up the axis with radii
-            // tapering toward a tip — a cone by construction, not by scatter luck.
+            // tapering toward a tip — a cone by construction, not by scatter luck. A mature
+            // pine is ~20-22 m; k=2.7, and the cone stays narrow (spread barely moves).
             TreeSpecies::Pine => SpeciesParams {
-                trunk_height: 7.2,
-                trunk_radius: 0.26,
+                trunk_height: 19.4,
+                trunk_radius: 0.47,
                 taper: 0.4,
                 limbs: 0,
                 limb_length: 0.0,
                 limb_pitch: 0.0,
                 lobes: 6,
-                lobe_radius: 1.5,
-                crown_height: 2.4,
-                crown_spread: 0.1,
+                lobe_radius: 4.0,
+                crown_height: 6.5,
+                crown_spread: 0.3,
                 fbm_amplitude: 0.22,
-                crown_stack_height: 4.6,
+                crown_stack_height: 12.4,
                 crown_tip_frac: 0.32,
             },
         }
@@ -194,12 +199,14 @@ pub const TREE_LOD1_MAX_TRIS: usize = 260;
 
 /// The review gate for the whole species table at seed 0 (goldens; bless deliberately).
 pub const TREE_GOLDEN_HASHES: [(TreeSpecies, u64); 6] = [
-    (TreeSpecies::Oak, 0x0e88_3970_b14c_9477),
-    (TreeSpecies::Poplar, 0x5a9a_fc2b_4554_b887),
-    (TreeSpecies::Willow, 0xd92e_1100_8379_9c62),
+    // Blessed 2026-08-03 with the trees-to-scale pass (Oak 17.6 m, Poplar 21.9, Willow 14.5,
+    // Pine 20.4 — realistic mature heights; FruitTree/Bush unchanged).
+    (TreeSpecies::Oak, 0x2edc_517d_b880_a3e3),
+    (TreeSpecies::Poplar, 0xabdc_14c3_7b65_6976),
+    (TreeSpecies::Willow, 0xe919_48a3_f6cf_487d),
     (TreeSpecies::FruitTree, 0xbca2_9510_33bc_79f2),
     (TreeSpecies::Bush, 0x9706_2456_e825_0149),
-    (TreeSpecies::Pine, 0x8095_eea7_4698_b97a),
+    (TreeSpecies::Pine, 0x3b7d_1202_48cc_dc4d),
 ];
 
 /// Bake one tree. `seed` varies the individual (limb headings, lobe scatter, FBM phases) —
@@ -443,6 +450,20 @@ mod tests {
                 first.deterministic_hash()
             );
         }
+    }
+
+    /// The scale floor: the trees-to-scale pass put mature species at realistic heights, and a
+    /// later edit must not silently shrink them back to the diorama saplings they were (Oak was
+    /// 8.6 m, Pine 7.5). One number per species, comfortably below the blessed heights.
+    #[test]
+    fn the_canopy_reaches_a_realistic_mature_height() {
+        let top = |species| {
+            bake_tree(species, 0).canopy.bounds().map(|bounds| bounds.max.y).unwrap_or_default()
+        };
+        assert!(top(TreeSpecies::Oak) > 15.0, "oak: {}", top(TreeSpecies::Oak));
+        assert!(top(TreeSpecies::Poplar) > 19.0, "poplar: {}", top(TreeSpecies::Poplar));
+        assert!(top(TreeSpecies::Willow) > 12.0, "willow: {}", top(TreeSpecies::Willow));
+        assert!(top(TreeSpecies::Pine) > 18.0, "pine: {}", top(TreeSpecies::Pine));
     }
 
     #[test]
