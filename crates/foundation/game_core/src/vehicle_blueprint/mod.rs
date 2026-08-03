@@ -207,6 +207,25 @@ pub struct ArmorShape {
     /// without a documented taper keeps.
     #[serde(default)]
     pub turret_side_taper: Option<f32>,
+    /// The PORTS cut through the bow plates — the driver's visor and the hull MG mount — as
+    /// aimable armour patches on the glacis. A port's weakness is GEOMETRY, not a scalar: the
+    /// ball or visor presents FLAT where the plate around it rakes, so the patch resolves the
+    /// plate's own steel at zero slope (the T-54's 60° glacis drops from ~200 mm effective to
+    /// its 100 mm plate inside the port). Authored only where the vehicle VISIBLY carries the
+    /// feature — an invisible weak patch would be aim-at-nothing dishonesty — and the roster
+    /// ratchet in `blueprint_source.rs` records who carries what.
+    #[serde(default)]
+    pub glacis_ports: [Option<GlacisPort>; 2],
+}
+
+/// One bow-plate port: hull-frame `x`/`y` of its centre on the glacis, and the disc radius the
+/// patch claims. The visible fitting (MG ball, visor block) sits at these same numbers — the
+/// mesh-coupling lock in `vehicle_recipes` holds the two together.
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct GlacisPort {
+    pub x: f32,
+    pub y: f32,
+    pub radius_m: f32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

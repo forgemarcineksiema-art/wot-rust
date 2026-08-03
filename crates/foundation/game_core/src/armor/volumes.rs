@@ -16,6 +16,11 @@ pub struct ArmorPatch {
     pub zone: ArmorZone,
     pub center: Vec3,
     pub radius_m: f32,
+    /// How the patch PRESENTS to an arriving shell, when that differs from its carrier plane:
+    /// a bow port's ball or visor stands flat out of a raked plate, so inside the disc the
+    /// impact angle is measured against THIS normal. `None` keeps the carrier's presentation
+    /// (the mantlet patch, which genuinely lies in its plate).
+    pub presents_normal: Option<Vec3>,
 }
 
 /// One armor plate as a half-space boundary: inside is `normal · p <= offset`. The normal is the
@@ -68,10 +73,13 @@ impl TaggedPlane {
 
     /// The zone a hit at `point` resolves to: a patch if the hit lands inside one, else the plane.
     pub fn zone_at(&self, point: Vec3) -> ArmorZone {
-        self.patches
-            .iter()
-            .find(|patch| point.distance(patch.center) <= patch.radius_m)
-            .map_or(self.zone, |patch| patch.zone)
+        self.patch_at(point).map_or(self.zone, |patch| patch.zone)
+    }
+
+    /// The patch whose disc contains `point`, if any — the trace asks for both its zone and
+    /// its presentation.
+    pub fn patch_at(&self, point: Vec3) -> Option<&ArmorPatch> {
+        self.patches.iter().find(|patch| point.distance(patch.center) <= patch.radius_m)
     }
 }
 
@@ -294,6 +302,7 @@ mod tests {
     fn a_patch_overrides_the_zone_only_inside_its_radius() {
         let plane = TaggedPlane::new(Vec3::Z, Vec3::Z, ArmorZone::TurretFront).with_patches(vec![
             ArmorPatch {
+                presents_normal: None,
                 zone: ArmorZone::Mantlet,
                 center: Vec3::new(0.0, 0.2, 1.0),
                 radius_m: 0.3,

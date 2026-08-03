@@ -41,6 +41,8 @@ pub fn plate_normal(
         ArmorZone::TurretRear => turret * Vec3::new(0.0, sin, -cos),
         // The drum's wall faces the shooter like an unsloped turret-front band.
         ArmorZone::Cupola => turret * Vec3::new(0.0, sin, cos),
+        // A port presents flat out of the bow.
+        ArmorZone::GlacisPort => Vec3::new(0.0, sin, cos),
     };
     hull.basis() * local
 }

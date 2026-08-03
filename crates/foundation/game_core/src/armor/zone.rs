@@ -41,6 +41,11 @@ pub enum ArmorZone {
     /// catches that shell on its cylinder wall at a honest near-flat angle; the weakness IS the
     /// roundness, not an invented number. Appended after `HullDeck`, same wire rule.
     Cupola,
+    /// A port cut through the bow plates — the driver's visor or the hull MG mount — riding the
+    /// glacis as an aimable patch. Same philosophy as [`ArmorZone::Cupola`]: the weakness is
+    /// GEOMETRY (the ball or visor presents FLAT where the plate rakes), not a scalar. Authored
+    /// per vehicle only where the feature is VISIBLE. Appended after `Cupola`, same wire rule.
+    GlacisPort,
 }
 
 impl ArmorZone {
@@ -49,7 +54,7 @@ impl ArmorZone {
     ///
     /// Locked variant-by-variant against the declaration by `quality`, not by counting: a
     /// length assertion cannot tell a forgotten variant from a shorter enum.
-    pub const ALL: [ArmorZone; 14] = [
+    pub const ALL: [ArmorZone; 15] = [
         ArmorZone::UpperGlacis,
         ArmorZone::LowerPlate,
         ArmorZone::HullSide,
@@ -64,6 +69,7 @@ impl ArmorZone {
         ArmorZone::Skirt,
         ArmorZone::HullDeck,
         ArmorZone::Cupola,
+        ArmorZone::GlacisPort,
     ];
 
     pub fn facing(self) -> ArmorFacing {
@@ -84,6 +90,7 @@ impl ArmorZone {
             ArmorZone::TurretRear => ArmorFacing::TurretRear,
             // The drum turns with the turret and is shot at from ahead — front aspect.
             ArmorZone::Cupola => ArmorFacing::TurretFront,
+            ArmorZone::GlacisPort => ArmorFacing::HullFront,
         }
     }
 }
@@ -107,6 +114,9 @@ impl ArmorProfile {
             // weakness the player aims at is the roundness (a cylinder always offers a flat
             // patch) and the grade, both of which are the real vehicle's.
             ArmorZone::Cupola => derived(self.facet(ArmorFacing::TurretSide), 1.0, 0.0, 1.0),
+            // The port is the bow plate's own steel presenting FLAT: losing the glacis rake is
+            // the whole (real) weakness, so thickness and multiplier stay 1.0.
+            ArmorZone::GlacisPort => derived(self.facet(ArmorFacing::HullFront), 1.0, 0.0, 1.0),
         }
     }
 }
