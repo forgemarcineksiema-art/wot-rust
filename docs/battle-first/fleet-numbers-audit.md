@@ -174,11 +174,11 @@ tank gunnery because nobody was trying to defeat armour with them.
 | `IDENTICAL_BODY_ALLOWLIST` | 19 | identical function bodies across test fixtures |
 | `UNEXERCISED_CHECK_ALLOWLIST` | 9 | map-contract checks no test has ever made fire |
 | `MIXED_MODULE_STYLE_ALLOWLIST` | 5 | crates using `mod.rs` and sibling files at once |
-| `APP_TO_APP_ALLOWLIST` | 2 | `editor → client`, `client → server` |
+| `APP_TO_APP_ALLOWLIST` | **0** | burned: `client → server` by `battle_host` (#414), `editor → client` by `ui_kit` (#424) |
 | `UPWARD_ALLOWLIST` | 1 | `scene_build → renderer_api` |
 | `RECORDED_MERGE_CEILING` | 1 | T-34-85 road wheels 0.09 m inside the end wheels |
 | `ARMOUR_CONTAINMENT_EXEMPT` | 1 | the T-54 breech, which reaches into a mantlet that is a patch rather than a volume |
-| `ORPHAN_ALLOWLIST` | **1** | `quality` itself — burned from 4 by deleting `panel`, `shell`, `experimental_geometry` |
+| `ORPHAN_ALLOWLIST` | **1** | `quality` itself — burned from 4: `shell` and `experimental_geometry` deleted; `panel` deleted too, then RESTORED (`073dfe1`) with a live consumer (`t54_fender.rs:19`) — it left the list by gaining a dependent, not by staying dead |
 | `DECORATIVE_FIELD_ALLOWLIST` | **0** | — |
 | `IGNORE_ALLOWLIST` | **0** | — |
 | `INLINE_VERSION_ALLOWLIST` | **0** | — |

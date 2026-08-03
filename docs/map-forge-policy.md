@@ -120,8 +120,11 @@ The map's presentation lives in the blueprint the same way its truth does:
   FIRST look is the default and the fallback; the server's `supported_weather` reads the
   list in authored order (the order feeds the seeded weather roll). Look coherence
   (non-empty, one look per variant, rain/wetness in 0..1) is a report Error; the
-  fog-fairness bound at the 400 m view range stays a `scene_build` lock over the blueprint
-  looks (it needs the renderer's fog math): no sky may hide a legitimately spotted target.
+  fog-fairness bound — no sky may hide a legitimately spotted target — stays a
+  `scene_build` lock over the blueprint looks (it needs the renderer's fog math). View
+  range is per-era since v29 (360/400/440 m by era, `game_core::VehicleSpec::view_range_m`),
+  so the bound answers to the longest era range; the lock (`scene_build/src/weather.rs`)
+  still asserts at the 400 m Late-War figure and owes the 440 m Cold-War raise.
 - `meta.version` marks the schema: additive sections stay `serde(default)`, a breaking
   document change bumps the version so the editor knows what to migrate.
 - World objects own their surface vocabulary: `world_forge::WorldMaterial` (9 semantic
@@ -132,13 +135,65 @@ The map's presentation lives in the blueprint the same way its truth does:
   collision footprint, rubble form from the same numbers) and their per-instance palettes;
   statics take weather wetness through the same scene-shader lane as vehicles.
 
+## Content Vocabulary — Standing Decisions
+
+Absorbed from the urban-map program (Ostrogorsk + Imported Flora 2.0, #280–#298, complete
+2026-07-23; the program document is retired — these decisions are doctrine for every map,
+not history):
+
+1. **No protocol bump for content-enum appends.** `StaticCoverKind`, `RoadSurface`, and
+   `SceneryKind` never serialize onto the wire: both ends compile the same blueprint
+   (handshake refuses on `map_content_hash` skew) and cover crosses the wire only as
+   index-aligned, kind-agnostic phase bytes. A round-trip test is the recorded proof.
+   Precedent check: v33 was a *removal* (breaking); these are pure appends.
+2. **`CityBuilding` / `StoneWall` semantics** (appended after `WoodenFence`):
+   - `CityBuilding` — 1500 HP, leaves rubble at the standard 0.4 height fraction (a hull
+     still stops behind the mound; a turret-height shot clears it). Masonry durability is
+     stated in the map document, not inferred from box proportions.
+   - `StoneWall` — 150 HP, **crushable** (a 30 t hull breaches a brick garden wall).
+     Destroyed or crushed it goes to **Gone** plus a cosmetic knee-high rubble line inside
+     the footprint (the felled-tree-line pattern) — never a hull-blocking mound.
+3. **Building style hints are explicit id substrings** (extends the church/windmill
+   precedent): `"tenement"` → Tenement, `"factory"` → FactoryHall. The proportion heuristic
+   stays as fallback (`half.y >= 5.0` → Tenement, existing rules below that).
+4. **Ruins are born ruined via id substring `"ruin"`.** A shared `initial_cover_states()`
+   spawns the object at Rubble/0 HP on the server and in the client's pre-first-snapshot
+   bake. Server-authoritative snapshots make convergence free.
+5. **`RoadSurface::Cobble` only.** Granite setts are the 1943 identity; asphalt is wrong
+   for the setting and is skipped (append later if ever needed).
+6. **Statics strategy: chunked single buffer, not instancing.** Per-building seeds and
+   palettes mean every building mesh is unique ("no clones"), so instancing buys nothing.
+   Bake into a 4×4 XZ grid of buckets (plus an always-drawn backdrop/skirt bucket) as index
+   ranges over one vertex buffer; frustum-cull per bucket AABB; on a cover-phase change
+   rebake **only the dirty bucket** on the existing worker.
+7. **Sim guardrail: segment-vs-AABB broadphase, not a spatial index.** Prefilter LOS and
+   shell-trace slab tests by segment-vs-box XZ overlap, and movement SAT by an XZ distance
+   early-out. Deterministic, no data structure, provably result-identical (property test),
+   and the `urban_150` bench fixture proves the budget instead of assuming it.
+8. **Street furniture: only `Lamppost` and `DebrisHeap`** (knee-high) as scenery kinds.
+   Sandbags/barricades are skipped: anything that *reads* as cover must be a cover box
+   (honest-blockers rule), and authored `Wreck`/`StoneWall` boxes already fill that role.
+9. **Triangle budgets rise deliberately, per style, with proof.** Tenement/FactoryHall
+   ≤ 600 tris; landmark styles (Church) may reach ~1200 now that bucket culling has landed.
+   Every raise ships with a `perf_capture` measurement on the min-spec machine in the PR
+   description (one look: a dropped frame is a game bug, not a player problem).
+10. **Imported flora is CC0 only**, with a per-asset manifest (source, URL, author) in the
+    repo. No CC-BY — attribution management is a liability we do not take on. **Two
+    vegetation languages by design** (direction decision 2026-07-22): close-range
+    tree/bush quality comes from imported CC0 assets, never from more procedural work;
+    procedural trees stay as the far LOD and fallback. The look gate rules per species
+    (`flora_probe`): tree ACCEPTED, pine ACCEPTED, bush REJECTED (bad source model) —
+    **do not author `FloraBush` on maps** until a sourced replacement passes the gate.
+
 ## The Editor
 
 The interactive editor (`crates/apps/editor`) is a blueprint authoring surface:
 everything it does edits the document through one door (`apply_edit` — one gesture, one
 undo step) and every viewport reload is a full recompile, so the editor can never show a
 world the game would not build. The viewport is the game's own render path; the panels
-are the client's instrument UI toolkit (D3 — one look, one implementation). Playtest
+are the shared instrument UI toolkit `crates/ui/ui_kit` (D3 — one look, one
+implementation; since #424 the editor takes it without depending on the client — the
+app-to-app dependency allowlist is empty). Playtest
 (Ctrl+P) saves the document and launches the client on it through `MapId::Scratch` +
 `WOT_MAP=<file>.map.ron` — one local process, one document, and the v35 content hash
 guards the remote case. The tool manual lives in `crates/apps/editor/README.md`; the

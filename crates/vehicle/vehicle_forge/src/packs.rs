@@ -100,9 +100,11 @@ pub fn t54_reference_pack() -> ReferencePack {
     )
     // Absolute anchors: the documented tape measure of the obr. 1951, from the dossier table
     // in docs/vehicles/t-54.md (2026-07-28 research, graded sources). `Locked` rows gate;
-    // `Target` rows are the Model Idealny program's declared debt — the documented value the
-    // model has NOT reached yet, flipped to Locked by the PR that closes the register entry
-    // (M-register, docs/model-idealny-t54.md). Anchoring the WRONG (fit-to-model) number to
+    // `Target` rows were the Model Idealny programme's declared debt — the documented value
+    // the model had NOT reached yet, flipped to Locked by the PR that closed each register
+    // entry. The programme closed 2026-07-29 with every T-54 anchor Locked
+    // (tests/dimension_gate.rs asserts it stays that way); the record lives in
+    // docs/vehicles/t-54.md. Anchoring the WRONG (fit-to-model) number to
     // keep a gate green is exactly the failure this file used to have — never again.
     .with_dimensions(vec![
         // -- Locked: the model already honours these documented numbers. --

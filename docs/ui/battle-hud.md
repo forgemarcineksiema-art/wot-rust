@@ -24,14 +24,26 @@ readouts. A staged reference frame is produced by
 | Minimap (relief, cover, view wedge, allies, spotted enemies, player arrow) | bottom-right square | centre `[0.80, -0.58]`, half-height `0.185` | `hud/minimap.rs`, built by `app/minimap_build.rs` |
 | Enemy floating HP bars | world-anchored over live **spotted** enemies | projected | `hud/health_bar.rs` |
 | Outgoing damage numbers | world-anchored at the hit point | projected | `hit_indicator.rs` |
+| Track callout + re-seat bar | centre-top | callout `y ≈ 0.42`, bar `y ≈ 0.35` | `hud/track_callout.rs` |
+| Ammo-rack cook-off callout (v43 fuze countdown + bar) | centre-top, above the track callout | callout `y ≈ 0.50`, bar `y ≈ 0.435` | `hud/rack_callout.rs` |
+| Module-status panel (gun / rack / engine / suspension icons) | top-left, under the self HP bar | `x` from `-0.90` stepping `0.076`, `y ≈ 0.72` | `hud/module_panel.rs` |
+| Kill confirmation (diamond flare + "TARGET DESTROYED") | around the reticle | centre, timed (`≈1.8 s`) | `hud/kill_marker.rs` |
+| Battle outcome banner (victory / defeat / draw / connection lost, exit hint) | centre banner | centre | `hud/outcome.rs` |
+| Sniper scope surround (vignette, sight window, stadia) | full screen, sniper mode only | rides the mode-transition fade | `hud/scope_overlay.rs` |
+| Pause menu (ESC modal; the battle does not pause) | centre modal | shared draw/hit-test rects | `hud/pause_menu.rs` |
 
 ## Spotting gate (LOS v1)
 
 The minimap's enemy blips and the floating enemy HP bars are both gated on the
 same server-authoritative visibility bit: `TankSnapshot::spotted_by_teams_mask &
 player_team.spotting_bit()`. An enemy the player's team has not spotted appears
-in neither. Allies and the player are always shown; a wreck is public. This is a
-UI gate only — positions still replicate to every client. See
+in neither. Allies and the player are always shown; a wreck is public. Since
+protocol v38 this is NOT merely a UI gate: unspotted enemies are stripped from
+the snapshot BEFORE the wire (`crates/runtime/net/src/snapshot_filter.rs:11-45`,
+`filtered_for_viewer_with_observers` — radio-gated team intel unioned with the
+viewer's own eyes), applied on both host paths
+(`crates/runtime/battle_host/src/local.rs:145,219,309` and `remote.rs:375`).
+What the HUD does not draw, the client was never sent. See
 `docs/spotting-policy.md`.
 
 ## Reticle honesty (hybrid)

@@ -109,6 +109,24 @@ visible hull front/rear plates are authored on the same plane equations the volu
 - Contact footprint: eight real wheel stations (was a five-station hitbox estimate), so trench
   bridging and crest behavior follow the actual running gear.
 
+## Authored visual parts (fleet slot W4 F5, #422)
+
+The Tiger I is the first — and so far only — vehicle in the fleet to author a visual file:
+`game_core/blueprints/tiger_i_ausf_e.visual.ron`. Only the GUN GROUP is authored; every other
+part is `None` and the recipe keeps covering the rest — a partial file improves the look without
+claiming cut-truth. What the file states:
+
+- **Bore-honest KwK 36**: bore 88 mm (`bore_radius 0.044`) recessed in the muzzle face, tube
+  radius 0.1 — the gameplay gun's, one truth.
+- **Double-baffle muzzle brake** as real chambers with a waist (`revolve::muzzle_brake`,
+  2 baffles); no bore evacuator, no canvas — the external mantlet has no window.
+- **The Walzenblende** as a wide rolled casting spanning exactly the armour's mantlet patch band
+  (trunnion-relative −0.23 … +0.07, widest radius 0.34 = the gameplay `mantlet_radius`) — the
+  visible body IS the volume the armour quotes.
+
+The golden bake hash was re-recorded Tiger-I-only (`vehicle_recipes/src/budgets.rs`), which is
+itself the proof that the visual dispatch reads data, not vehicle identity.
+
 ## Data Sources And Gameplay Translation
 
 The implemented values are practical gameplay specs grounded in public historical data.

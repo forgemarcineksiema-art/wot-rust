@@ -1,6 +1,6 @@
 //! The combat hot-path benchmark: a full 14-tank battle with live shells and cover, stepped
 //! through the same `apply_commands_on_battlefield` the server runs. This is the measurement
-//! behind the destruction-program budget (`docs/destruction-program.md`) — new per-tick combat
+//! behind the Honest Steel budget (`docs/honest-steel-policy.md`) — new per-tick combat
 //! work (cover damage, detached turrets, richer trace shapes) must show its cost here.
 
 use std::f32::consts::PI;

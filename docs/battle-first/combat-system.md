@@ -118,7 +118,7 @@ Worth naming, because future work should lean on them rather than around them:
 
 Ordered by player-felt impact against cost, with what each leans on.
 
-### 1. Historical gun arcs (small, loud, overdue)
+### 1. Historical gun arcs (small, loud, overdue) — LANDED #398
 
 **Every gun in the catalog but the T-54's runs the fleet default −8°/+20.1°.** The defaults were
 placeholders; the dossiers already carry real arcs. This flattens a defining balance axis:
@@ -128,7 +128,7 @@ against the Western turret that lives on one). One catalog pass + a `flank_armou
 research-first like the ammunition. Synergises directly with authored relief (the 2.1
 replacement): ridges only matter if depression differs.
 
-### 2. The spotting decision (2.6), with fire-reveal riding v41
+### 2. The spotting decision (2.6), with fire-reveal riding v41 — DECIDED AND SHIPPED #399
 
 Open design decision, now with a mechanical hook it did not have before: **a shot is a replicated
 event, so "firing reveals you" is an afternoon, not a system**. A minimal honest model that gives
@@ -141,7 +141,7 @@ scouts an identity without camo-stat sorcery:
 Everything stays deterministic and explainable in one sentence each — the design bar this game
 sets. Needs a written decision first; the register has asked for one since July.
 
-### 3. Ammunition cook-off (staged rack fire)
+### 3. Ammunition cook-off (staged rack fire) — LANDED #400 (v42, sim) + #425 (v43, replicated)
 
 The pieces already exist: racks are components, fires are deterministic wounds, the IS-3 separates
 charges from projectiles, turret pop-off exists. The missing stage: a rack hit with fire-level
@@ -150,6 +150,10 @@ win against (extinguish window), with detonation at the end popping the turret. 
 readable, and it turns "ammoracked" from a coin-flip impression into a drama with a decision in
 it. The German sponson racks and the Tiger II bustle make placement matter exactly as the damage
 layouts intended.
+
+Shipped exactly so, in two stages: the staged sim (#400, protocol v42) and the countdown on the
+wire (#425, protocol v43) — `rack_fire_remaining_s` rides `TankSnapshot` behind a teammate-only
+filter, with the HUD callout at `client/src/hud/rack_callout.rs`.
 
 ### 4. The mantlet as a volume — MEASURED 2026-08-02, and it is not a mechanics change
 
@@ -163,7 +167,7 @@ the real plateau never gave); and the breech box front is wider than the mount i
 Both are geometry authoring: a Model Idealny session (photograph → dossier row → volume), after
 which the exemption dies as a side effect. Re-ranked out of the mechanics queue.
 
-### 5. Weakspot patches replace weakspot multipliers
+### 5. Weakspot patches replace weakspot multipliers — LANDED #426–#428
 
 `weakspot_multiplier` (0.82 on a glacis to stand in for the MG port) is a flat discount over a
 whole facet — the last coarse hack in an otherwise geometric model. The patch mechanism the
@@ -171,7 +175,11 @@ mantlet uses generalises: cupolas, MG bosses, driver hatches as small tagged reg
 own thickness. This is what makes "aim at the cupola" a real skill on a hull-down target. Pairs
 with #1: depression creates hull-down fights, patches give them an answer.
 
-### 6. Tactical bots (the second half of 2.4)
+Shipped: the commander's cupola as an armour VOLUME (#426), the bow ports as aimable patches
+(#427), and the smear multipliers retired fleet-wide (#428) — a front's weakness is now its
+measured patches. Before/after numbers: `measurements.md`, "Weakspot smear retirement".
+
+### 6. Tactical bots (the second half of 2.4) — census LANDED #402, overwatch #403; movement open
 
 Target choice landed (#378); movement is still route-driven. The next behaviour with battle-wide
 effect: **seeking hull-down** — which needs the hull-down census instrument first (count and
@@ -232,17 +240,20 @@ passed through. Blocked on the user's call, correctly.
 - **Module catalog options**: every vehicle but three offers `vec![stock]` behind a wildcard —
   deferred by decision, recorded here because it borders the loadout half of combat.
 - T-34-85 gear merge 0.09 m; IS-3 drawn belt bottom 0.11 vs authored 0.03 (shape decisions).
-- The inherited red test (`the_visible_gun_mount_is_no_wider_than_its_canvas_cover`) — untouched
-  by standing instruction.
+- The canvas-cover lock (`the_visible_gun_mount_is_no_wider_than_its_canvas_cover`) had been red
+  on master since the Model Idealny merge — fixed and blessed in #411.
 
-## V. Recommended order
+## V. Recommended order — with the 2026-08-03 score
 
-1. **Gun arcs** (research → author → lock) — smallest change with the largest identity payoff.
-2. **Spotting decision written**, then fire-reveal on v41.
-3. **Cook-off** — drama from existing pieces.
-4. **Mantlet volumes**, then **weakspot patches** — the armour model's last two abstractions.
-5. **Hull-down census** → **tactical bots** — one instrument, two consumers.
-6. **1.1 prediction**; **quadratic drag** behind table verification.
+1. **Gun arcs** (research → author → lock) — DONE #398.
+2. **Spotting decision written**, then fire-reveal on v41 — DONE #399.
+3. **Cook-off** — DONE #400 (sim) + #425 (replicated, v43).
+4. **Mantlet volumes**, then **weakspot patches** — patches DONE (#426 cupola volume, #427 bow
+   ports, #428 smear retired); the #401 mantlet/plateau geometry session is still open (the T-54
+   breech containment exemption still stands, `damage_layout_fleet.rs:23`).
+5. **Hull-down census** → **tactical bots** — census DONE #402 (+ overwatch #403); bot movement
+   depth still open.
+6. **1.1 prediction**; **quadratic drag** behind table verification — both still open.
 7. Decline #9 in writing; park crew until called.
 
 What this order preserves: every step is data-first, deterministic, testable through the

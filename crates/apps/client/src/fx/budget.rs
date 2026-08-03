@@ -1,8 +1,8 @@
 //! The FX pass frame budget, locked as one executable number. Every capped FX pool — the
 //! particle pool, the terrain-scar pool, and the per-tank decal lists — is filled to its cap
 //! and rendered through the REAL append paths, and the summed worst-case vertex count must
-//! equal [`FX_FRAME_VERTEX_BUDGET`]. A destruction-program phase that adds stamps or raises a
-//! cap updates the locked number in the same diff (`docs/destruction-program.md`) — the budget
+//! equal [`FX_FRAME_VERTEX_BUDGET`]. A Honest Steel phase that adds stamps or raises a
+//! cap updates the locked number in the same diff (`docs/honest-steel-policy.md`) — the budget
 //! moves consciously, never by drift. Shell tracers are the one uncapped source: they are
 //! bounded by live shells (4 s lifetime x fire cadence), not by a pool, so they stay outside
 //! this lock.
@@ -139,7 +139,7 @@ fn the_fx_frame_vertex_budget_is_locked() {
         FX_FRAME_VERTEX_BUDGET,
         "the FX frame worst case moved (particles {particle_vertices} + craters {} + fleet \
          decals {fleet_decal_vertices}); if the change is intentional, update \
-         FX_FRAME_VERTEX_BUDGET in the same diff and note it in docs/destruction-program.md",
+         FX_FRAME_VERTEX_BUDGET in the same diff and note it in docs/honest-steel-policy.md",
         scar_batch.len()
     );
 }

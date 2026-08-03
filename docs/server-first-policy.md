@@ -17,7 +17,9 @@ The first playable loop is:
 
 - `game_core` owns durable gameplay data.
 - `sim` owns deterministic state transitions.
-- `server` owns authoritative simulation state.
+- `crates/runtime/battle_host` owns authoritative state and the battle loop, local and
+  remote (#414); the `server` app is a thin binary shell over it
+  (`crates/apps/server/src/main.rs`, ~115 lines).
 - `client` owns input capture, prediction/interpolation state, renderer, and UI.
 - `renderer_wgpu` owns GPU resources only.
 
@@ -51,10 +53,12 @@ while `InputBatch` repeatedly carries up to twelve oldest unacknowledged command
 Protocol v38 also moves personal transient combat truth off the snapshot cadence. Damage involving
 the player and terminal impacts of the player's own shells enter a per-session ordered queue,
 repeat in a single-datagram `CombatEventBatch` until `CombatEventAck`, and are deduplicated before
-recording, audio, FX, or HUD presentation. The queue is bounded at 256 events; sequence gaps,
-an event that cannot fit one datagram, or overflow end the session loudly instead of silently
-dropping a hit or kill.
-Every remote message carries a v38 session id, so a fast reconnect on the same UDP four-tuple
+recording, audio, FX, or HUD presentation. The queue is bounded at
+`MAX_PENDING_COMBAT_EVENTS = 1_024` (`crates/runtime/battle_host/src/remote_events.rs:14` —
+sized by the v39 join seed, the burst that hands a late joiner every hull's existing
+perforations at once); sequence gaps, an event that cannot fit one datagram, or overflow end
+the session loudly instead of silently dropping a hit or kill.
+Every remote message carries a v37 session id, so a fast reconnect on the same UDP four-tuple
 starts sequence zero cleanly and delayed traffic from the retired session is ignored before
 liveness or gameplay side effects. Hello resends with backoff and `StartBattle` repeats until the
 first valid batch acknowledges the seat. Messages fragment at 1150 B; an incomplete snapshot is

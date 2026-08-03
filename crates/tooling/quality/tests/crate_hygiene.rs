@@ -18,8 +18,10 @@ const ORPHAN_ALLOWLIST: &[&str] = &[
     // kernels for thin fabricated parts built before the part that needed them, and
     // `experimental_geometry`, an empty slot for a bake-only CAD trial. They were recorded as debt
     // rather than as neutral facts — a capability nobody has used is a capability nobody has proven
-    // at the call site — and the debt is settled the way the entry said it could be: the programme
-    // decided the technique was not wanted, so the crates are gone rather than waiting.
+    // at the call site — and the debt settled both ways an entry can: `shell` and
+    // `experimental_geometry` are gone rather than waiting, while `panel` came back the same day
+    // WITH the part that needed it (073dfe1, the T-54 fender pressings, `t54_fender.rs`) and now
+    // stays off this list the honest way — it has a real dependent.
     "quality",
 ];
 

@@ -11,6 +11,13 @@ projectile only when reload is ready, the tank is alive, the gun works, and the
 ammo rack is not destroyed. Firing starts reload immediately. Client frame time,
 renderer state, and camera mode do not affect reload.
 
+Two player-visible rules ride on that timer. A fire click landing inside the last
+`FIRE_BUFFER_S = 0.3` s of the reload is HELD and released the tick the breech closes
+(`crates/runtime/sim/src/combat.rs:40` — sized to human anticipation timing, not to hide
+the reload); earlier clicks are genuine misfires. And switching ammunition restarts the
+FULL reload — the loader swaps the round out of the breech — and cancels any held click
+(`crates/runtime/sim/src/state.rs:427-435`).
+
 ## Shell Types
 
 `ShellSpec` carries a deterministic `ShellType`:
@@ -31,13 +38,18 @@ renderer state, and camera mode do not affect reload.
   protected exactly like direct fire; the owner's own HE can
   hurt the owner.
 
-Kinetic penetration falls out of the impact VELOCITY, not a separate distance
-table: shells fly with linear drag (`ShellSpec::drag_per_s`, integrated by the
-shared `game_core::math::integrate_shell_step`), which makes speed — and
-therefore `penetration_mm_at_distance` — a closed-form function of travelled
-distance. One physics serves the arc you see, the elevation the solver holds,
-and the armor math that resolves the hit. Chemical rounds (HEAT/HE) ignore
-impact speed.
+Kinetic penetration is a function of TRAVELLED DISTANCE, converted to speed in
+closed form — nothing reads the projectile's live velocity vector at impact.
+`resolve_impact_penetration` (`crates/runtime/sim/src/combat.rs:527-533`) passes
+`distance_m` only, and `ShellSpec::penetration_mm_at_distance`
+(`crates/foundation/game_core/src/weapon.rs:130-142`) recomputes the impact
+speed as `muzzle_velocity − drag · distance` and takes a De Marre-style power
+of the speed ratio. The approximation is honest because it is CONSISTENT: the
+server resolution, the reticle's penetration preview, and the HUD readout all
+use the same formula, so the player is never promised a number the server will
+not deliver — but it ignores the speed gravity adds back on a plunging arc (the
+flown arc itself uses the shared `game_core::math::integrate_shell_step`, with
+real drag and gravity). Chemical rounds (HEAT/HE) ignore impact speed.
 
 There is no random damage roll — ever; this is a standing design law, not a
 slice limitation. Damage, module damage, ricochet, overmatch, and range falloff
@@ -149,18 +161,43 @@ normalization, ricochet, AP/APCR overmatch (a caliber over three times the
 plate neither ricochets nor enjoys unbounded line-of-sight gain), velocity-based
 penetration falloff, and effective armor thickness.
 
-Track zones are SPACED ARMOR, not a hull plate
-(`game_core::resolve_penetration_through_track`): the track band strips its own
-line-of-sight steel off the shell (double for HEAT — the screen kills the
-jet's standoff), and only the remainder challenges the hull side plate behind
-it at that plate's own true angle. Hull hit points fall only if BOTH layers
-fall; the running gear takes its module damage either way, and HE bursts on the
-track without ever reaching the plate.
+Track and skirt zones are SPACED ARMOR, not a hull plate. Production resolves
+them through `game_core::resolve_penetration_through_screens`
+(`crates/runtime/sim/src/combat.rs:578`): the spaced stack is assembled
+OUTERMOST FIRST — a skirt hit still has the belt behind it — and each screen
+strips its own line-of-sight steel off the shell (double for HEAT — the screen
+kills the jet's standoff); only the remainder challenges the hull side plate
+behind it at that plate's own true angle. The honest half of the rule: a BROKEN
+belt is not there any more (the thrown track lies on the ground beside the
+hull), so it drops out of the screen stack — `combat.rs:574` includes the belt
+only while its track pool has hit points. Hull hit points fall only if every
+layer falls; the running gear takes its module damage either way, and HE bursts
+on the outermost surface without ever reaching the plate. (The older
+single-screen helper `resolve_penetration_through_track` survives with
+test-only callers; it is not the production path.)
+
+A front's weakness is GEOMETRY, not a multiplier. `ArmorZone::Cupola`
+(`crates/foundation/game_core/src/armor/zone.rs:43`, appended wire-safe, #426)
+models the commander's drum as its own convex volume standing proud of the
+roof: a shell that used to graze the roof plane and auto-bounce now catches the
+drum wall near-flat, and the drum resolves as side-grade casting standing
+unsloped (`zone.rs:116`). `ArmorZone::GlacisPort` (`zone.rs:44-48`, #427) does
+the same for the bow — the driver's visor and hull MG ball ride the glacis as
+aimable patches presenting the bow plate's own steel FLAT (`zone.rs:119`),
+authored only where the feature is visible. With those patches real, #428
+pinned every `hull_front`/`turret_front` `weakspot_multiplier` at exactly 1.0
+and the guard test holds it there against the smear creeping back
+(`crates/foundation/game_core/tests/tiger_i.rs:4-26` asserts an authored,
+sloped facet whose multiplier IS 1.0 — and the duel it buys:
+`tiger_kwk36_beats_the_t54_port_but_not_its_honest_glacis`). The multiplier
+stays in the schema for the zones that legitimately derive with it; a front's
+weakness is now a patch you aim at, not a facet-wide discount.
 
 A ricochet is a deflection, not a despawn: the shell mirrors about the struck
 plate's normal, keeps flying slower and blunted
 (`RICOCHET_SPEED_RETENTION`/`RICOCHET_PENETRATION_RETENTION` in
-`sim::shell_step`), and the next surface it finds resolves it for good — the
+`sim::shell_continuation`, `crates/runtime/sim/src/shell_continuation.rs:8-9`),
+and the next surface it finds resolves it for good — the
 classic turret-roof skip into an engine deck is a real outcome. One skip per
 shell, ever. The reticle preview intentionally stops at the first impact; the
 skip is a server-side continuation.
@@ -170,11 +207,15 @@ with an authored `DamageLayout` intersect the complete through-flight with physi
 legacy vehicles retain the deterministic zone/local-hit fallback until separately migrated.
 Exposed running gear and non-penetrating HE remain direct suspension damage.
 
-For the T-54 benchmark, a penetrating AP/APCR hit also creates a permanent `ArmorBreach` in the
-struck `Hull`, `Turret`, or gun-pitched `Mantlet` frame. Later projectiles pass through that opening
-only when their complete swept-body radius clears its rim. The internal shell segment intersects
-the authored module volumes in distance order and can damage more than one module before its
-residual penetration is exhausted; no frontal-zone shortcut substitutes for that geometry.
+EVERY penetrating hit that enters through a plate — AP, APCR, HEAT, and HE alike, on every
+blueprint vehicle — also creates a permanent `ArmorBreach` in the struck `Hull`, `Turret`, or
+gun-pitched `Mantlet` frame: `crates/runtime/sim/src/combat.rs:192-217` cuts the breach for
+every penetrating `ArmorEntry::Plate`, and the fleet scope is locked by the test named for it
+(`reusable_aperture_physics_is_not_gated_to_the_t54_asset`, `combat.rs:905`). Later
+projectiles pass through that opening only when their complete swept-body radius clears its
+rim. The internal shell segment intersects the authored module volumes in distance order and
+can damage more than one module before its residual penetration is exhausted; no
+frontal-zone shortcut substitutes for that geometry.
 Non-penetrating AP/APCR or HEAT hits emit a bounce `DamageEvent` with zero damage
 and no module. HE surface hits emit non-penetrating damage and can throw tracks.
 
@@ -183,8 +224,8 @@ steel is removed from its penetration budget, velocity falls with the square roo
 energy fraction, and the shell exits forward while the just-perforated hull is ignored for the exit
 step. It can then hit another aligned vehicle with the residual penetration. HE detonates on its
 first surface and HEAT resolves its shaped-charge jet there; neither continues as a second flying
-projectile. T-54 additionally resolves its authored internal modules and permanent plate channel;
-crew rays, fluids and free-flying spall fragments remain future layers.
+projectile. Blueprint vehicles additionally resolve their authored internal modules and permanent
+plate channels; crew rays, fluids and free-flying spall fragments remain future layers.
 
 ## Ramming
 

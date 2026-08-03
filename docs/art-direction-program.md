@@ -38,11 +38,15 @@ Three failures compound, and none of them is a tuning mistake.
    **14 m** above the ground. The game has four maps, its subject is a tank, and the player's
    camera sits at hull height. Nothing about the shipped experience is under lock.
 
-A fourth failure is the direct consequence of (3) and is worth stating on its own: because the
-review example and the golden harness each hand-roll ~50 lines of identical scene setup, they
-drifted, and **both forgot to bind the foliage atlas**. The locked reference frames render
+A fourth failure was the direct consequence of (3) and is worth stating on its own: because the
+review example and the golden harness each hand-rolled ~50 lines of identical scene setup, they
+drifted, and **both forgot to bind the foliage atlas**. The locked reference frames rendered
 imported flora as untextured white (D13). The document's own promise — "the frame a human reviews
 is exactly the frame the harness locks" — was a convention, and conventions rot.
+
+W0 answered all four: the FLOOR/TARGET pairs (`look_goldens.rs:273-277`) replaced the symbolic
+floor, `review_views_for` + `hangar_review_views` rebuilt the review set, and the shared
+`look_harness` killed the setup duplication — the register below records each closure.
 
 ## The decisions this program is built on
 
@@ -62,19 +66,19 @@ it closes.
 
 | # | Defect | Evidence | Wave |
 |---|---|---|---|
-| D1 | Locks computed from the profile, not the picture; dark-plane floor is 0.1% of pixels | `look_locks.rs`, `look_goldens.rs:218` | W0 |
-| D2 | Review set covers 1 map of 4, contains no vehicle, shoots from 14 m, and has no garage entry | `review_views.rs:22-64` | W0 |
+| ~~D1~~ | ~~Locks computed from the profile, not the picture; dark-plane floor is 0.1% of pixels~~ — **CLOSED (W0)**: the FLOOR/TARGET mechanism below replaced the symbolic floor — `look_goldens.rs:273-277` asserts `OUTDOOR_DARK_FLOOR = 0.008`, reports `OUTDOOR_DARK_TARGET = 0.08`, and holds `OUTDOOR_SPREAD_FLOOR = 0.34`, all measured on the golden pixels | `look_goldens.rs:273-277` | W0 |
+| ~~D2~~ | ~~Review set covers 1 map of 4, contains no vehicle, shoots from 14 m, and has no garage entry~~ — **CLOSED (W0)**: `review_views_for` covers all four `REVIEWED_MAPS`, `hangar_review_views()` adds the garage, the vantage is locked by `no_review_camera_sits_above_the_players_own_eye` and a vehicle-in-frame range assert | `review_views.rs:371,399-403` | W0 |
 | D3 | The milky sky is **structural**, not a tuning error. Clouds live in `smoothstep(0.04, 0.32, dir.y)`; the bottom is forced to `sky_horizon_rgb * 1.06`. A hull-height camera sees `dir.y ≈ 0..0.2`, so the authored zenith `[0.15, 0.32, 0.62]` **never appears in play** and the visible band is the fog colour, which must be pale by construction | `sky.wgsl:150,188` | W1 |
 | D4 | No dark mass: the field is uniformly sunlit, and cloud shadows run at 0.25–0.3 strength over a very large scale | `lighting.rs` profiles | W1 |
-| D5 | **Every** battle tree is pinned to `TreeLod::Mid`, where lobes are raw 20-triangle icosahedra, `trunk_sides = 5`, and limbs are skipped entirely. The limbed, subdivided `TreeLod::Close` (180–1200 tris) has **no shipping caller at all** | `foliage.rs:97`, `tree.rs:220-235` | W2 |
-| D6 | Four content kinds still render as a bare cuboid: `TreeLine` (on Prokhorovka, solids of **44 × 10 × 6 m**), `RailCover`, `Wreck` (a "knocked-out tank" as a brown 3.4 × 1.6 × 6.2 m box), and `SceneryKind::Rock` — **there is no rock generator** | `battlefield.rs:630-659`, `foliage.rs:268` | W2 |
+| D5 | **Every** battle tree is pinned to `TreeLod::Mid`, where lobes are raw 20-triangle icosahedra, `trunk_sides = 5`, and limbs are skipped entirely. The limbed, subdivided `TreeLod::Close` (180–1200 tris) has **no shipping caller at all**. This is half of the user's 2026-08-03 verdict that the world reads **too small and too uniform**; tree HEIGHT moves under the world-scale program (`docs/world-scale-program.md`, #430; #441 raises trees to mature height) — the LOD pin stays this register's defect even after it | `foliage.rs:97`, `tree.rs:220-235` | W2 |
+| D6 | Four content kinds still render as a bare cuboid: `TreeLine` (on Prokhorovka, solids of **44 × 10 × 6 m**), `RailCover`, `Wreck` (a "knocked-out tank" as a brown 3.4 × 1.6 × 6.2 m box), and `SceneryKind::Rock` — **there is no rock generator**. The other half of the 2026-08-03 "too small, too uniform" verdict; the SIZES move under the world-scale program (#430; #442 shrinks the Wreck box to a real hull, so the dimensions quoted here are the pre-#442 record) — the bare-cuboid rendering stays this register's defect | `battlefield.rs:639-651`, `foliage.rs:268` | W2 |
 | D7 | Grass has no clumping term: 28 candidates per 8 m cell at uniformly random positions, accepted by splat weight | `grass.rs:108-203` | W2 |
 | D8 | Baked contact AO exists for the **T-54 only**; there is **no curvature/edge-wear term anywhere in the repository**; dust is confined to the running gear | `surface_bake.rs`, `vehicle.wgsl:310` | W3 |
 | D9 | `VehicleVariation` carries `dirt` / `snow` / `camo` lanes that are **never populated in battle** | `variation.rs:105-116` | W3 |
 | ~~D10~~ | ~~Team colour keys on `tank.id == player_tank` instead of `TeamId`~~ — **CLOSED (PR #317)**: both paths now read `PresentationTank::team` through one shared rule; identity still decides the gun. In a 7v7 this had six of the thirteen other tanks wearing enemy paint | `render_frame.rs` | W3 |
-| D11 | The garage has **no golden and no review view**; `garage_workshop` is a dead look with no caller | `review_views.rs`, `lighting.rs:517` | W0/W4 |
-| D12 | Two vegetation languages share a frame: imported CC0 `stylized-pine` beside a procedural distance LOD. `FloraBush` is look-gate rejected, so maps still scatter procedural `Bush` | `docs/urban-map-program.md:19-20` | W2/W5 |
-| D13 | **The locked goldens render imported flora as WHITE.** `look_goldens.rs`, `prokhorovka_views`, `orliny_views`, `bystra_views` and `vehicle_lineup` never call `set_foliage_atlas`, so flora samples the 1×1 `[255,255,255,255]` default. The live client is correct (`app/render.rs:334`), as is `ostrogorsk_views`. Visible whole-frame in `target/orliny_pine_belt.png` | `foliage_atlas.rs:36` | W0 |
+| ~~D11~~ | ~~The garage has **no golden and no review view**~~ — **CLOSED (W0/W4)**: `goldens/look/garage_hero.png` and `garage_screen.png` are both locked (D24 records the screen golden landing) and `hangar_review_views()` puts the hangar in the review set. `garage_workshop` itself stays a test-only profile (`lighting.rs:517`) — the locked frames light through the hero preset | `review_views.rs:95`, `goldens/look/` | W0/W4 |
+| D12 | Two vegetation languages share a frame: imported CC0 `stylized-pine` beside a procedural distance LOD. `FloraBush` is look-gate rejected, so maps still scatter procedural `Bush` | `docs/map-forge-policy.md` (flora standing decision) | W2/W5 |
+| ~~D13~~ | ~~**The locked goldens render imported flora as WHITE.**~~ — **CLOSED (W0)**: `look_harness.rs:66` is the single shared review-render path and binds the atlas for every reviewed and locked frame; the probes that still hand-roll a scene bind it too (`bystra_views.rs:104`, `orliny_views.rs:103`, `ostrogorsk_views.rs:36`, `vehicle_lineup.rs:95`, `perf_capture.rs:208`, `flora_frame_probe.rs:108`). The live client was always correct (`app/render.rs:339`) | `look_harness.rs:66` | W0 |
 | D14 | The imported `stylized-tree` has a glaring orange-red trunk that falls outside the saturation window. **Not** a colour-space bug — the atlas uploads as `Rgba8UnormSrgb` and mips are alpha-weighted in linear. It is the asset's own colour, correctable by per-vertex tint without a re-import | `foliage.rs:75-79` | W2 |
 | D15 | Outside the T-54 the fleet offers nothing to look at up close: unbroken plates, no weld seams, grab handles, tow cable, spare track or vision blocks; hull and turret read as two different paints (cast vs rolled split too far); running gear is a black void with no contact | `target/closeup_probe/centurion_flank.png` | W3 |
 | D16 | The garage room's content — catwalk, crane, workbench, stores, six worklamps, skylights — is built and sits **entirely outside** the hero framing, which points at the emptiest wall. The hero does not separate in value from its background — **PARTLY CLOSED**: `HERO_ORBIT_PITCH` 0.28 → 0.13 brought the gallery band, the bay gate and the frosted panes into frame (at 0.28 the top of the frame sat exactly on the horizon through the pivot, so *everything* above the eye was out of shot). The value separation is still owed and rides with D20 | `garage_render.rs:142`, `hangar_gallery.rs`, `hangar_props.rs` | W4 |
@@ -319,10 +323,11 @@ baseline to argue against instead of an impression.
 
 ## Wave plan
 
-**W0 — Instrument** (the approved scope of the first program). One shared review-render path so
-the reviewed frame and the locked frame cannot drift again (and D13 dies with the duplication); a
-review set covering four maps, the garage, a vehicle in frame and the player's own eye height; a
-pixel-side meter with a recorded baseline; locks that bite.
+**W0 — Instrument** (the approved scope of the first program) — **DELIVERED**: one shared
+review-render path so the reviewed frame and the locked frame cannot drift again (D13 died with
+the duplication); a review set covering four maps, the garage, a vehicle in frame and the
+player's own eye height (D2, D11); a pixel-side meter with a recorded baseline; locks that bite
+(D1 — the FLOOR/TARGET pairs).
 
 **W1 — Image.** The sky's visible band (D3), the missing dark mass (D4), exposure and grade per
 look — driven by measured percentiles, not by feel. All three looks on all four maps clear the

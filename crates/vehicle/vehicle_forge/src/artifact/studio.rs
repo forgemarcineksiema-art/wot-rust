@@ -343,7 +343,7 @@ fn build_report(
             let _ = writeln!(
                 md,
                 "- bake hash `{hash}` DIFFERS from golden `{golden}` — the geometry changed. \
-                 If intentional, re-record in `vehicle_geometry/src/budgets.rs`."
+                 If intentional, re-record in `vehicle_recipes/src/budgets.rs`."
             );
         }
         (MeshSourceKind::Procedural, None) => {

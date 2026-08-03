@@ -1,5 +1,12 @@
 # GPU Upload Policy
 
+> **STATUS (2026-08-03): built, not wired.** The five upload systems below exist only in
+> `renderer_wgpu/src/{upload_buffers,texture_upload,readback_queue,render_frame_batch}.rs` and
+> `tests/upload_system.rs`; no production frame flows through them. The shipping renderer uploads
+> through `Queue::write_buffer` in `scene_renderer/{resources,draw,armor_damage}.rs` — the exact
+> call the first rule below forbids. This document is the contract those paths adopt when the
+> machinery is wired; it does not describe today's renderer.
+
 GPU uploads are a renderer backend system, not scattered draw-call code. The renderer collects data by frame and resource class, uploads it in predictable batches, and draws with instancing.
 
 ## Upload Systems
@@ -23,4 +30,4 @@ GPU uploads are a renderer backend system, not scattered draw-call code. The ren
 
 `Queue::write_buffer` is convenient for low-frequency or coarse uploads, but many small writes can create short-lived staging allocations. Real backend upload code should use `wgpu::util::StagingBelt`, persistent mapped staging buffers, or explicit upload buffers behind these renderer-owned queues.
 
-This document defines the project-level contract before the full renderer exists: draw code consumes prepared batches; upload code prepares batches.
+This document defines the project-level contract the shipping renderer has not yet adopted: draw code consumes prepared batches; upload code prepares batches.

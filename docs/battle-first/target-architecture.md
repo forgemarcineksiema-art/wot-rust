@@ -24,6 +24,13 @@ bound and a test.
 These three are the entire onboarding for anyone — human or model — who must not make the codebase
 worse.
 
+### Why an allowlist and not "fix first"
+
+A rule that waits for a big cleanup PR does not exist until that PR lands, and in the meantime
+fresh violations keep arriving. A rule that ships with a visible allowlist starts protecting
+immediately and makes the debt countable. (Salvaged from the retired W0 gate-rules spec; the rules
+themselves are the 18 test files in `crates/tooling/quality/tests/`.)
+
 ## Seven layers, one rule
 
 **A crate in layer N depends only on layers below N.** That is the whole rule; a test enforces it.
@@ -33,8 +40,9 @@ L0  foundation/   pure data + mathematics. No I/O, no GPU, no clock.
                   game_core · mesh_core  ← (vehicle_geometry)
 
 L1  kernels/      stateless mesh operations. They know only mesh_core.
-                  solid · revolve · sweep · sdf · sdf_mesh · cast_loft · deform · detail
-                  ✗ panel, shell, experimental_geometry — deleted (zero dependents)
+                  solid · revolve · sweep · sdf · sdf_mesh · cast_loft · deform · detail · panel
+                  ✗ shell, experimental_geometry — deleted (zero dependents). panel was deleted
+                    with them, then restored (073dfe1) when t54_fender gave it a real caller
 
 L2  content/      CONTENT built from kernels. The fleet and the maps live here.
                   vehicle_build · vehicle_forge · world_forge · map_forge
@@ -48,7 +56,7 @@ L4  render/       renderer_api · renderer_wgpu
 
 L5  ui/           ui_kit  ← (from client: hud/font, primitives, theme, icons)
 
-L6  apps/         client · server(bin) · editor · tools · probe(new)
+L6  apps/         client · server(bin) · editor · tools
 ```
 
 ### What the single rule dissolves
@@ -61,6 +69,12 @@ L6  apps/         client · server(bin) · editor · tools · probe(new)
 | `vehicle_geometry` a "kernel" that every kernel depends on | `foundation/mesh_core` at L0 |
 | `client::` re-exporting 28 `scene_build` items for its own examples | examples import `scene_build::` directly; `lib.rs` drops from 74 to ~25 lines |
 | 41 examples in `client`, 37 cloning the same prologue | one `probe` binary with a subcommand — 41 compilation units become one |
+
+**Score 2026-08-03**: the `editor→client` and `client→server` rows are burned (#424 `ui_kit`,
+#414 `battle_host` — `APP_TO_APP_ALLOWLIST` is empty) and the probe consolidation landed (#408) —
+as ONE subcommand example binary at `crates/apps/client/examples/probe/`, not the new app the L6
+row once proposed. Still standing: `scene_build → renderer_api` (the one `UPWARD_ALLOWLIST`
+entry) and `vehicle_geometry` in `kernels/`.
 
 Two edges remain legal but worth noting: `net → sim` (the wire layer knows the simulation — an
 inversion, not a cycle) and fleet content still inside `kernels/` (`solid/t54*.rs`), which goes on
@@ -85,6 +99,9 @@ Diagnosed once, committed fifteen more times.
 
 **A policy cites its enforcing test. A rule with no test is not a policy — it is a note.**
 
+**Status 2026-08-03: the tree below was NOT executed** — `docs/` keeps its flat shape, and this
+layout stays a proposal. The boldface principle above is what actually governs.
+
 ```
 docs/
   ARCHITECTURE.md     three laws, seven layers, a map of where things live.
@@ -100,5 +117,9 @@ docs/
 The side effect is the point: **a document cannot go stale in secret.** If it states a rule, the
 rule is tested; if it is not tested, it lives in `notes/` and nobody pretends it binds.
 
-This also removes the current ratchet in the wrong direction — `architecture_rules.rs` hard-requires
-29 `docs/` paths, which makes deleting a stale document harder than keeping it.
+### What is deliberately NOT a rule
+
+Assertions that a document exists or contains a phrase. Removed 2026-08-02 (#406): the
+hard-required `docs/` paths and the phrase checks — roughly 44 % of the old gate — ratcheted
+AGAINST cleaning up stale documentation, making deleting a stale document harder than keeping it.
+Their replacement is editorial, not executable: the boldface rule at the top of this section.

@@ -1,16 +1,22 @@
 # Physics Policy
 
-Rapier is a world-query and collision tool. It is not the owner of tank feel, weapon behavior, armor, or network-stable gameplay physics.
+There is no physics engine. The simulation core is custom deterministic code end to end:
+the hand-rolled SAT footprint test (`crates/runtime/physics/src/collision.rs`,
+`obstacles_overlap` — reached from `tank_resolve.rs`, `contact_impulse.rs` and `cover.rs`),
+heightmap stepping, and the running-gear support envelope
+(`crates/runtime/physics/src/track_contact.rs`).
 
-## Rapier Owns
-
-- broadphase;
-- raycasts;
-- world collision shapes;
-- simple rigid bodies;
-- trigger volumes.
+rapier3d left the workspace 2026-08-02. `parry3d` remains a dependency, but its only entry
+point — `physics::parry_query::tank_footprints_intersect_query`
+(`crates/runtime/physics/src/parry_query.rs:7`) — currently has ZERO production callers: the
+only references are its own `#[cfg(test)]` module and the re-export. That is an OPEN decision,
+not a settled one: either the query earns a production caller, or `parry3d` follows rapier out
+of the workspace. `crates/tooling/quality/tests/parry_feature_rules.rs` pins the feature set
+meanwhile, so a version bump cannot drag rapier back in through it.
 
 ## Custom Code Owns
+
+Everything gameplay touches:
 
 - tank controller;
 - traction;
@@ -32,6 +38,20 @@ the "ownership policy" beside them were an API surface consumed only by their ow
 to `default-features = false` + `dim3`/`f32` with no SIMD/parallel features — enforced by
 `quality/tests/parry_feature_rules.rs`, which also holds the door shut behind rapier: re-adding
 it is a design decision with its own tests, not a dependency drive-by.
+
+## Gravity Is A Scale Decision
+
+`GRAVITY_MPS2 = 12.0` (`crates/foundation/game_core/src/math/mod.rs:16-17`) — deliberately
+above the real 9.81; the constant's own words are "mildly exaggerated gravity so shell arcs
+read at map scale". It is not a ballistics-only fudge: `forces.rs:31` binds the same value
+into the hull force model, where it multiplies every grip cap — the longitudinal thrust cap
+(`crates/runtime/physics/src/forces.rs:93`), the lateral friction cap (`forces.rs:148`) —
+and the parked static hold (`forces.rs:66`), and `vertical.rs:74` uses it for airborne fall.
+For an "honest tank" game this is a real physical exaggeration, recorded here as a
+deliberate scale decision: shells drop faster and tracks grip harder than Earth allows, in
+the same proportion, so arc feel and slope behavior stay mutually consistent. Changing the
+number retunes gradeability, the momentum-climb band, the static hold, landing impacts, and
+every firing solution at once.
 
 ## Tank Movement
 

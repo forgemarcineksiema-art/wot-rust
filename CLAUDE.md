@@ -1,7 +1,7 @@
 # Working in this repo (read me first — any AI tool)
 
 Rust tank game ("honest tank": no ±25% RNG, 7v7, three eras). Workspace of crates under
-`crates/{foundation,runtime,world,render,vehicle,apps,kernels,tooling}`.
+`crates/{foundation,kernels,vehicle,world,runtime,render,ui,apps,tooling}`.
 
 ## Non-negotiable rules
 - **Every change lands with a locking test.** Gameplay promises live in tests, not comments.
@@ -20,13 +20,16 @@ Rust tank game ("honest tank": no ±25% RNG, 7v7, three eras). Workspace of crat
 - 1 branch = 1 PR from master; commits end with the Co-Authored-By line of the tool used.
 
 ## Where things are decided
-- `docs/art-direction-program.md` — **current program STATUS + defect register, start here.**
-- `docs/art-direction-policy.md` — the target look, its 7 rules and their locks.
-- `docs/model-idealny-t54.md` — **active program**: T-54 to zero deviations (M/K registers,
-  waves W0–W4, Blender master-reference workflow); dossier: `docs/vehicles/t-54.md`.
-- `docs/urban-map-program.md` — previous program (complete); still doctrine for maps + flora.
-- `docs/map-forge-policy.md`, `docs/maps/*.md` — map authoring; editor: `cargo run -p editor`.
-- `docs/destruction-program.md`, `docs/shadow-policy.md`, `docs/vehicle-fidelity-masterplan.md`.
+- `docs/battle-first/program.md` — **the live plan (waves + STATUS), start here**; defects:
+  `docs/battle-first/audit-register.md`.
+- `docs/art-direction-program.md` — the visual DEFECT register; `docs/art-direction-policy.md` —
+  the target look, its 7 rules and their locks.
+- `docs/vehicles/t-54.md` — the benchmark vehicle dossier (the fleet's bar; siblings alongside).
+- `docs/map-forge-policy.md` — map + flora doctrine; `docs/maps/*.md` — per-map dossiers;
+  editor: `cargo run -p editor`.
+- `docs/honest-steel-policy.md`, `docs/shadow-policy.md`.
+- `crates/tooling/quality` — **the ratchet**: 18 gate tests enforce the layer DAG, append-only
+  identity enums and the W0 rules. Burn allowlist entries down; never widen one to get green.
 - Review renders: `cargo run -p client --example probe -- <tenement_probe|factory_probe|flora_probe|ostrogorsk_views>`.
 - Perf: `cargo run -p client --release --example probe -- perf_capture`; sim bench `combat_hot_path`.
 

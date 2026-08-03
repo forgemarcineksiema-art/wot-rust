@@ -3,7 +3,12 @@
 //! (model-logic audit #1/#2, photo comparison F4). What is shared here is CONSTRUCTION
 //! (how a hinged hatch or a guarded headlight is built); every vehicle owns its LAYOUT —
 //! hatch count and positions, light count and positions, and the engine deck of its family
-//! — sourced from the reference photos (docs/vehicle-photo-comparison-2026-07.md).
+//! — sourced from the 2026-07-17 photo comparison: one canonical Wikimedia Commons
+//! reference per vehicle, viewed as images against garage-distance renders —
+//! `Bundesarchiv Bild 101I-299-1805-16` (Tiger I), `Bundesarchiv Bild 101I-721-0398-21A`
+//! (Tiger II), `Jagdtiger at Aberdeen proving grounds 2008.jpg`,
+//! `Panther II US Army Armor & Cavalry Collection.jpg` (Fort Benning), `IS3.jpg`,
+//! `T-55 4.jpg` (T-54 family silhouette), `Centurion cfb borden 1.JPG`, `Tank T-34.JPG`.
 //!
 //! Hatches carry a hinge bar and a grab handle (audit #12): a plate that shows HOW it
 //! opens reads as a door, not a sticker.

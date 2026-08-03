@@ -123,9 +123,12 @@ The canonical gate remains `./scripts/verify.ps1`.
    a live rim, and the ACES-lite tone curve, shared by the scene and vehicle shaders. Data + shader
    only; one trailing uniform field. *(implemented)*
 2. **Sky gradient + fog/aerial perspective**: gradient sky to match the ambient hemisphere; profile
-   fog with aerial perspective for 1000 m depth.
+   fog with aerial perspective for 1000 m depth. *(implemented — the gradient sky, cloud sheet and
+   profile fog described under "Sky And Air" above are live)*
 3. **Directional shadow map** (one cascade to start): the step that turns "procedural boxes" into "a
-   vehicle on a field". Contact shadows seat hatches, the gun, fenders and tracks.
+   vehicle on a field". Contact shadows seat hatches, the gun, fenders and tracks. *(implemented —
+   and grown to TWO cascades: a crisp focused near box plus a wide far cascade for terrain at
+   range; `docs/shadow-policy.md`)*
 4. **Weather / time-of-day profiles + exposure + grade**: dawn / midday / overcast / dusk as data;
    exposure and grade on the profile. *(exposure/black point/saturation/contrast implemented by
    the lighting 2.0 program; new time-of-day presets ride its final phase)*

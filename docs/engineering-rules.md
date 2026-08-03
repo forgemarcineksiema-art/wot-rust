@@ -20,17 +20,24 @@ These are hard rules for this prototype. If a rule hurts, change the design befo
 
 ## Required Gates
 
+The merge gate is exactly what `scripts/verify.ps1` runs (`verify.ps1:33-41`):
+
 - `cargo fmt --all -- --check`
 - `cargo clippy --workspace --all-targets -- -D warnings`
 - `cargo test --workspace --all-targets`
-- `cargo check --workspace --all-targets`
-- `cargo bench --workspace --no-run`
 
 Run all gates with:
 
 ```powershell
 ./scripts/verify.ps1
 ```
+
+`cargo check --workspace --all-targets` is deliberately NOT a separate gate: clippy
+`--all-targets` already runs the full compiler front-end over every target, so a second
+check would be redundant work (the script says so at `verify.ps1:34-35`). The benchmark
+compile (`cargo bench --workspace --no-run`) runs only behind `./scripts/verify.ps1
+-Release` — it is a second, optimized build of the whole workspace and roughly doubles wall
+time; run it before cutting a release or tag.
 
 ## Testing Policy
 
