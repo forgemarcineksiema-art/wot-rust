@@ -126,7 +126,7 @@ pub(super) fn jagdtiger_blueprint() -> VehicleBlueprint {
             hull_front: (50.0, 1.0),
             hull_side: (25.0, 1.0),
             hull_rear: (30.0, 1.0),
-            turret_front: (15.0, 0.95),
+            turret_front: (15.0, 1.0),
             turret_side: (25.0, 1.0),
             turret_rear: (5.0, 1.0),
             turret_side_taper: None,

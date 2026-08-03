@@ -97,10 +97,10 @@ BlueprintFile(
         segments: 12,
     ),
     armor: ArmorShape(
-        hull_front: (57.0, 0.9),
+        hull_front: (57.0, 1.0),
         hull_side: (0.0, 1.0),
         hull_rear: (8.0, 1.0),
-        turret_front: (40.0, 0.9),
+        turret_front: (40.0, 1.0),
         turret_side: (30.0, 1.0),
         turret_rear: (15.0, 1.0),
         turret_side_taper: None,

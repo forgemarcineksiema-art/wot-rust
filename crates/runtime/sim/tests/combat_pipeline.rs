@@ -72,14 +72,14 @@ fn kinetic_round_can_perforate_one_light_hull_and_damage_the_tank_behind_it() {
     let shooter = state.spawn_tank(TeamId(1), loadout.assemble(VehicleKind::T54_1951), Vec3::ZERO);
     let first = state.spawn_tank(TeamId(2), VehicleKind::T34_85.spec(), Vec3::new(0.0, 0.0, 35.0));
     let second = state.spawn_tank(TeamId(2), VehicleKind::T34_85.spec(), Vec3::new(0.0, 0.0, 50.0));
-    state.tank_mut(first).expect("first").yaw_rad = PI;
-    // The tank behind stands broadside. Both aspects matter to what this test claims: the round
-    // must be depressed onto the first hull's GLACIS (a level shot meets the mantlet, the
-    // thickest thing on a T-34-85, and crossing two turrets is not "perforating a light hull"),
-    // and what it reaches afterwards must be a flank. Crossing one hull front-to-back costs the
-    // D-10T2S 132 of its 197 mm; 65 mm defeats a T-34-85's side, and — correctly — falls one
-    // millimetre short of a second frontal glacis. Over-penetration is a real effect with a real
-    // budget, not a free second shot.
+    // BOTH hulls stand broadside — the canonical over-penetration: flank in, flank out,
+    // flank again. Re-derived for the honest plates (#428, the facet smear retired): the
+    // first hull's 60-degree glacis now costs the full 78 mm on entry, and front-to-back no
+    // longer leaves the D-10T2S enough past the rear plate to beat a second flank — which is
+    // CORRECT, a raked bow is exactly what a 45 mm plate at 60 degrees should buy. Side-to-
+    // side the crossing costs two flat 45 mm plates plus the interior, and the residual still
+    // defeats the second broadside. Over-penetration keeps a real budget, not a free shot.
+    state.tank_mut(first).expect("first").yaw_rad = FRAC_PI_2;
     state.tank_mut(second).expect("second").yaw_rad = FRAC_PI_2;
     state.tank_mut(shooter).expect("shooter").gun_pitch_rad = -0.010;
     let first_hp = state.tank(first).expect("first").hit_points;

@@ -7,7 +7,19 @@ use sim::{FixedTimestep, SimulationState, TankCommand};
 #[test]
 fn penetrating_centerline_hit_passes_between_racks_and_reaches_the_engine() {
     let mut state = SimulationState::new();
-    let shooter = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
+    // The D-10T2S: with the facet smear retired (#428) the stock D-10T's 185 mm meets an
+    // honest 174 mm glacis and penetrates with single-digit residual — not enough to walk the
+    // interior to the engine. This test is about the INTERIOR pass-through, so it fires the
+    // round with the budget to make the walk.
+    let mut loadout = game_core::VehicleKind::T54_1951.default_loadout();
+    let d10t2s = game_core::VehicleKind::T54_1951
+        .gun_options()
+        .into_iter()
+        .find(|gun| gun.spec.name == "100 mm D-10T2S")
+        .expect("the T-54 offers the D-10T2S");
+    loadout.try_install_gun(d10t2s).expect("the D-10T2S fits");
+    let shooter =
+        state.spawn_tank(TeamId(1), loadout.assemble(game_core::VehicleKind::T54_1951), Vec3::ZERO);
     let target = state.spawn_tank(TeamId(2), TankSpec::t54_1951(), Vec3::new(0.0, 0.0, 55.0));
     state.tank_mut(target).expect("target").yaw_rad = PI;
     // Depress onto the middle of the T-54's REAL glacis plate (the plane spans 1.0–1.58 m of
@@ -253,7 +265,19 @@ struct EngineKill {
 /// One centreline glacis penetration into the engine bay at the given muzzle penetration.
 fn engine_kill_shot(penetration_mm_at_100m: f32) -> EngineKill {
     let mut state = SimulationState::new();
-    let shooter = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
+    // The D-10T2S: with the facet smear retired (#428) the stock D-10T's 185 mm meets an
+    // honest 174 mm glacis and penetrates with single-digit residual — not enough to walk the
+    // interior to the engine. This test is about the INTERIOR pass-through, so it fires the
+    // round with the budget to make the walk.
+    let mut loadout = game_core::VehicleKind::T54_1951.default_loadout();
+    let d10t2s = game_core::VehicleKind::T54_1951
+        .gun_options()
+        .into_iter()
+        .find(|gun| gun.spec.name == "100 mm D-10T2S")
+        .expect("the T-54 offers the D-10T2S");
+    loadout.try_install_gun(d10t2s).expect("the D-10T2S fits");
+    let shooter =
+        state.spawn_tank(TeamId(1), loadout.assemble(game_core::VehicleKind::T54_1951), Vec3::ZERO);
     let target = state.spawn_tank(TeamId(2), TankSpec::t54_1951(), Vec3::new(0.0, 0.0, 55.0));
     state.tank_mut(target).expect("target").yaw_rad = PI;
     {

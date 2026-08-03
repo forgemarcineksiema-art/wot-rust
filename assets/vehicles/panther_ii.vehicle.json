@@ -34,7 +34,7 @@
       "turret_front": {
         "nominal_thickness_mm": 120.0,
         "slope_degrees": 20.0,
-        "weakspot_multiplier": 0.9
+        "weakspot_multiplier": 1.0
       },
       "turret_side": {
         "nominal_thickness_mm": 60.0,
