@@ -254,14 +254,14 @@ MapBlueprint(
             name: "south hill knocked-out tank",
             kind: Wreck,
             at: (Fixed(700.0), Fixed(360.0)),
-            half_extents_m: (3.4, 1.6, 6.2),
+            half_extents_m: (1.75, 1.1, 3.25),
         ),
         Cover(
             id: "hill_wreck_north",
             name: "north hill knocked-out tank",
             kind: Wreck,
             at: (Fixed(700.0), Fixed(640.0)),
-            half_extents_m: (3.4, 1.6, 6.2),
+            half_extents_m: (1.75, 1.1, 3.25),
         ),
         Cover(
             id: "steppe_shelterbelt_south",
@@ -282,14 +282,14 @@ MapBlueprint(
             name: "burned-out hull in the balka (south)",
             kind: Wreck,
             at: (Fixed(540.0), Fixed(386.0)),
-            half_extents_m: (3.4, 1.6, 6.2),
+            half_extents_m: (1.75, 1.1, 3.25),
         ),
         Cover(
             id: "ditch_wreck_north",
             name: "burned-out hull in the balka (north)",
             kind: Wreck,
             at: (Fixed(540.0), Fixed(614.0)),
-            half_extents_m: (3.4, 1.6, 6.2),
+            half_extents_m: (1.75, 1.1, 3.25),
         ),
     ],
     scenery: [
