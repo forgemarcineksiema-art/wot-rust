@@ -413,6 +413,37 @@ fn combat_event_sequence_gap_is_terminal_without_partial_presentation() {
     assert_eq!(remote.combat_events.last_received_seq(), None);
 }
 
+/// A `ServerHello` whose map hash disagrees ends the session with a message — it must NEVER
+/// panic. A public server's hello reaches an untrusted client, so a wrong (or hostile) hash
+/// cannot be a remote crash: the session goes terminal (`MapMismatch`) and the app keeps running.
+#[test]
+fn a_mismatched_map_hash_ends_the_session_instead_of_panicking() {
+    let hub = MemoryHub::new();
+    let server_addr: SocketAddr = "10.27.0.1:40000".parse().expect("server addr");
+    let client_addr: SocketAddr = "10.27.0.2:5000".parse().expect("client addr");
+    let mut server_port = hub.port(server_addr);
+    let client_port = hub.port(client_addr);
+    let mut server = Endpoint::new(client_addr);
+    let mut remote = RemoteSession::connect(server_addr, Box::new(client_port));
+
+    let map_id = MapId::default();
+    let real_hash = map_forge::battlefield_hash(&map_forge::battlefield(map_id));
+    let hello = ProtocolMessage::ServerHello {
+        session_id: remote.session.session_id(),
+        protocol_version: net::PROTOCOL_VERSION,
+        map_id,
+        weather: Default::default(),
+        // A deliberately wrong hash: a stale build or a hostile server.
+        map_content_hash: real_hash ^ 0xDEAD_BEEF,
+    };
+    server.send(&mut server_port, &hello).expect("mismatched hello");
+
+    // The pump must return normally, not unwind.
+    remote.pump_at(10);
+
+    assert_eq!(remote.terminal_reason, Some(RemoteTerminalReason::MapMismatch));
+}
+
 /// A shove the player did not ask for has to reach the predictor as MOTION.
 ///
 /// The predictor simulates the local hull with the same code the server runs and reconciles

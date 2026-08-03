@@ -46,6 +46,11 @@ pub(super) enum RemoteTerminalReason {
     Transport,
     SnapshotStalled,
     InputBacklog,
+    /// The server compiled a different map document than this client (v35 hash mismatch:
+    /// a stale build or an edited blueprint). The world never crosses the wire, so agreement
+    /// is the only safety — but a mismatch must END the session with a message, never crash
+    /// the process. A hostile or out-of-date server cannot take the client down with it.
+    MapMismatch,
 }
 
 pub(crate) enum BattleSessionKind {
@@ -393,16 +398,23 @@ impl RemoteSession {
                 }
                 ProtocolMessage::ServerHello { map_id, weather, map_content_hash, .. } => {
                     // The pairing's proof (v35): both ends compile the SAME document or
-                    // nobody plays. A mismatch here means diverged content (a stale build,
-                    // an edited blueprint) - failing loud at the door beats a silent
-                    // desync twenty ticks into a battle.
+                    // nobody plays. A mismatch means diverged content (a stale build, an edited
+                    // blueprint) - failing loud at the door beats a silent desync twenty ticks
+                    // into a battle. But "loud" is a TERMINAL SESSION with a message, never a
+                    // panic: a public server's hello reaches an untrusted client, and a wrong
+                    // hash must not be a remote crash. The world never crosses the wire, so
+                    // agreement is the only safety - and disagreement simply ends the session.
                     let ours = map_forge::battlefield_hash(&map_forge::battlefield(map_id));
-                    assert!(
-                        ours == map_content_hash,
-                        "map content mismatch for {map_id:?}: server 0x{map_content_hash:016x}, \
-                         client 0x{ours:016x} - update your build (the world never crosses \
-                         the wire, so agreement is the ONLY safety)"
-                    );
+                    if ours != map_content_hash {
+                        tracing::warn!(
+                            ?map_id,
+                            server = format!("0x{map_content_hash:016x}"),
+                            client = format!("0x{ours:016x}"),
+                            "map content mismatch - update your build; ending the session"
+                        );
+                        self.enter_terminal(RemoteTerminalReason::MapMismatch);
+                        continue;
+                    }
                     self.map_id = map_id;
                     self.weather = weather;
                 }
