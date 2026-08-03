@@ -42,8 +42,11 @@ inherited red).**
   tells the truth about both mount families (#421, canvas and muzzle brake both optional) ·
   **Tiger I authors its gun group (#422)** — the fleet slot's first file: bore-honest KwK 36,
   double-baffle brake (new `revolve::muzzle_brake`), the Walzenblende spanning exactly the
-  armour's mantlet patch band. Remaining: F5.iv (plate/fitting parts as the reference loop
-  demands — optional deepening) · ui_kit (the allowlist's last app-to-app edge).
+  armour's mantlet patch band. **ui_kit extracted this PR** — the shared HUD kit
+  (theme, primitives, font, icons) in `crates/ui/ui_kit` (the target architecture's L5); the
+  editor draws through the kit and drops the client, the app-to-app allowlist is EMPTY.
+  **W4's planned structure is complete.** Remaining: F5.iv (plate/fitting parts as the
+  reference loop demands — optional deepening, content-driven).
 
 The forward ranking lives in [`combat-system.md`](combat-system.md); its headline item — the
 placeholder gun arcs — closed in #398.

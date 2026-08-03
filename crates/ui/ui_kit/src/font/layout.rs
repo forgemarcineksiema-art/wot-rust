@@ -3,7 +3,7 @@
 use renderer_api::HudVertex;
 
 use super::atlas;
-use crate::hud::icons::HudIcon;
+use crate::icons::HudIcon;
 
 /// Clip-space advance width of `text` drawn at em-height `height`. `aspect` squishes x so glyphs
 /// stay square on wide viewports — matching `push_text`.
@@ -31,7 +31,7 @@ pub fn push_text(
     aspect: f32,
     color: [f32; 4],
 ) {
-    let shadow = crate::hud::theme::color::TEXT_SHADOW;
+    let shadow = crate::theme::color::TEXT_SHADOW;
     let offset = height * 0.09;
     push_text_pass(
         vertices,

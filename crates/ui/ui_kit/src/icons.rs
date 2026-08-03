@@ -7,11 +7,11 @@ mod canvas;
 use canvas::Canvas;
 
 /// One icon's coverage canvas is `ICON_PX` square; the linear atlas sampler softens the downscale.
-pub(crate) const ICON_PX: u32 = 40;
+pub const ICON_PX: u32 = 40;
 
 /// Every HUD icon. Monochrome masks, tinted at draw time to match the flat-shaded look.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub(crate) enum HudIcon {
+pub enum HudIcon {
     Crew,
     AmmoAp,
     AmmoApcr,
@@ -38,7 +38,7 @@ pub(crate) enum HudIcon {
 impl HudIcon {
     /// The atlas icon standing in for a damaged module in battle feeds. The ammo rack has no
     /// dedicated slot icon; the AP shell silhouette reads as "ammunition" at feed sizes.
-    pub(crate) fn for_module(module: game_core::ModuleSlot) -> HudIcon {
+    pub fn for_module(module: game_core::ModuleSlot) -> HudIcon {
         match module {
             game_core::ModuleSlot::Engine => HudIcon::SlotEngine,
             game_core::ModuleSlot::Suspension => HudIcon::SlotSuspension,
@@ -51,7 +51,7 @@ impl HudIcon {
 
     /// The icon for a shell type — the ammo panels map by TYPE, not slot index, so a gun whose
     /// authored special round is HEAT shows the shaped-charge glyph instead of lying with APCR.
-    pub(crate) fn for_shell(shell_type: game_core::ShellType) -> HudIcon {
+    pub fn for_shell(shell_type: game_core::ShellType) -> HudIcon {
         match shell_type {
             game_core::ShellType::ArmorPiercing => HudIcon::AmmoAp,
             game_core::ShellType::Apcr => HudIcon::AmmoApcr,
@@ -60,7 +60,7 @@ impl HudIcon {
         }
     }
 
-    pub(crate) const ALL: [HudIcon; 21] = [
+    pub const ALL: [HudIcon; 21] = [
         HudIcon::Crew,
         HudIcon::AmmoAp,
         HudIcon::AmmoApcr,
@@ -86,7 +86,7 @@ impl HudIcon {
 }
 
 /// Rasterize `icon` into an `ICON_PX * ICON_PX` coverage bitmap (row-major, R8).
-pub(crate) fn raster(icon: HudIcon) -> Vec<u8> {
+pub fn raster(icon: HudIcon) -> Vec<u8> {
     let mut c = Canvas::new(ICON_PX as i32);
     match icon {
         HudIcon::Crew => {

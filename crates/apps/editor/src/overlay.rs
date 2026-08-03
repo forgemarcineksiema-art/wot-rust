@@ -4,10 +4,11 @@
 //! stubs), and a help/readout footer. Pure view code over [`OverlayModel`] — testable
 //! without a window.
 
-use client::theme::{self, color};
-use client::{push_hairline, push_panel, push_text, push_text_right};
 use map_forge::Severity;
 use renderer_api::HudVertex;
+use ui_kit::font::{push_text, push_text_right};
+use ui_kit::primitives::{push_hairline, push_panel};
+use ui_kit::theme::{self, color};
 
 const TEXT_H: f32 = 0.038;
 const LINE: f32 = 0.052;
@@ -91,7 +92,7 @@ pub fn overlay(model: &OverlayModel, aspect: f32) -> Vec<HudVertex> {
     let dirty = if model.dirty { " *" } else { "" };
     push_text(&mut vertices, &model.document_label, -0.985, 0.985, TEXT_H, aspect, color::TEXT);
     if model.dirty {
-        let width = client::text_width(&model.document_label, TEXT_H, aspect);
+        let width = ui_kit::font::text_width(&model.document_label, TEXT_H, aspect);
         push_text(
             &mut vertices,
             dirty.trim(),

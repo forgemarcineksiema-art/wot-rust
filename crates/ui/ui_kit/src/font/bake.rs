@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use ab_glyph::{Font, FontRef, PxScale, ScaleFont};
 
 use super::{FontAtlas, Glyph};
-use crate::hud::icons::{HudIcon, ICON_PX, raster as raster_icon};
+use crate::icons::{HudIcon, ICON_PX, raster as raster_icon};
 
 /// Embedded font (SIL OFL 1.1, see `assets/fonts/OFL-BarlowCondensed.txt`). Barlow Condensed's
 /// narrow industrial letterforms carry the "military instrument" art direction (`hud/theme.rs`):

@@ -7,7 +7,7 @@ rust-version.workspace = true
 
 [dependencies]
 anyhow.workspace = true
-client.workspace = true
+ui_kit.workspace = true
 game_core.workspace = true
 glam.workspace = true
 map_forge.workspace = true
