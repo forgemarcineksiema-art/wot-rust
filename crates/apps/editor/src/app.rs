@@ -1661,7 +1661,7 @@ impl ApplicationHandler for EditorApp {
             &statics.1,
         ) {
             Ok(mut renderer) => {
-                let (width, height, coverage) = client::hud_font_atlas();
+                let (width, height, coverage) = ui_kit::font::hud_font_atlas();
                 renderer.set_hud_font_atlas(width, height, coverage);
                 // The imported-flora atlas (FL-4): the editor previews the same textured
                 // foliage the battle draws.

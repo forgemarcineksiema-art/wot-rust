@@ -26,9 +26,12 @@ fn layer_rank(layer: &str) -> Option<usize> {
         "vehicle" | "world" => 2,
         "runtime" => 3,
         "render" => 4,
-        "apps" => 5,
+        // Shared UI machinery (theme, primitives, font, icons) — apps compose it, it composes
+        // render-layer vertex types (W4: the `ui_kit` extraction created this layer).
+        "ui" => 5,
+        "apps" => 6,
         // Test-only architecture gates: they read the whole tree by definition.
-        "tooling" => 6,
+        "tooling" => 7,
         _ => return None,
     })
 }
@@ -41,15 +44,13 @@ const UPWARD_ALLOWLIST: &[(&str, &str)] = &[
     ("scene_build", "renderer_api"),
 ];
 
-/// App-to-app edges that exist today and are known wrong.
+/// App-to-app edges that exist today and are known wrong. EMPTY, and staying that way: apps
+/// compose the layers below them, never each other.
 const APP_TO_APP_ALLOWLIST: &[(&str, &str)] = &[
-    // The editor pulls the whole client — winit, wgpu, cpal, audio, server — for FOUR symbols
-    // (`theme`, the `push_*` primitives, `text_width`, `hud_font_atlas`). They are a `ui_kit`
-    // waiting to be extracted.
-    ("editor", "client"),
     // BURNED (W4): the client→server edge died when the library half of `server` moved to
-    // `runtime` as `battle_host` — the client now hosts a battle through a runtime crate, and
-    // `server` is the thin binary the target architecture always said it was.
+    // `runtime` as `battle_host`. BURNED (W4, last entry): the editor→client edge died when
+    // `ui_kit` was extracted — the editor draws its overlays through the same kit the client
+    // does, instead of pulling winit, wgpu, cpal and audio for four symbols.
 ];
 
 #[test]

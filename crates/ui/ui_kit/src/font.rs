@@ -11,12 +11,12 @@
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
-use crate::hud::icons::HudIcon;
+use crate::icons::HudIcon;
 
 mod bake;
 pub mod layout;
 
-pub(crate) use layout::{push_icon, push_text, push_text_right, text_width};
+pub use layout::{push_icon, push_text, push_text_right, text_width};
 
 /// One baked glyph: its slot in the atlas (pixels) plus the metrics needed to lay it out on a line.
 #[derive(Debug, Clone, Copy)]
@@ -32,7 +32,7 @@ struct Glyph {
 }
 
 /// The baked font: a coverage atlas (`R8`, row-major) plus a glyph table and line metrics.
-pub(crate) struct FontAtlas {
+pub struct FontAtlas {
     width: u32,
     height: u32,
     coverage: Vec<u8>,
@@ -44,21 +44,21 @@ pub(crate) struct FontAtlas {
 }
 
 impl FontAtlas {
-    pub(crate) fn width(&self) -> u32 {
+    pub fn width(&self) -> u32 {
         self.width
     }
 
-    pub(crate) fn height(&self) -> u32 {
+    pub fn height(&self) -> u32 {
         self.height
     }
 
-    pub(crate) fn coverage(&self) -> &[u8] {
+    pub fn coverage(&self) -> &[u8] {
         &self.coverage
     }
 }
 
 /// The process-wide baked atlas (built on first use).
-pub(crate) fn atlas() -> &'static FontAtlas {
+pub fn atlas() -> &'static FontAtlas {
     static ATLAS: OnceLock<FontAtlas> = OnceLock::new();
     ATLAS.get_or_init(bake::bake)
 }

@@ -25,7 +25,10 @@ const RENDER_SURFACE: &[(&str, &[&str])] = &[
     // workspace names its crates here first.
     ("egui", &[]),
     ("renderer_wgpu", &["client", "editor"]),
-    ("renderer_api", &["client", "editor", "renderer_wgpu", "scene_build"]),
+    // `ui_kit` (W4): the shared HUD kit emits `HudVertex` triangles — it owns the boundary
+    // TYPES without touching a device or a window, which is exactly why the editor can draw
+    // through it instead of pulling the whole client.
+    ("renderer_api", &["client", "editor", "renderer_wgpu", "scene_build", "ui_kit"]),
 ];
 
 /// One rule where there were five, applying to all 32 crates instead of four.
