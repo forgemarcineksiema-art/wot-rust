@@ -116,7 +116,13 @@ pub const GOLDEN_BAKE_HASHES: [(VehicleKind, u64); 9] = [
     // 725 mm combat tracks (the sponsons were carrying it, with the belts hiding inside them), the
     // turret roof returns to its documented 2.885 m with an authored drum, the cupola opens to
     // 0.78 m, and the exposed run gets its fender line. Tiger I only.
-    (VehicleKind::TigerI, 11_582_503_112_659_279_264_u64),
+    // Re-recorded 2026-08-03 (W4 F5.iii): Tiger I is the first vehicle to AUTHOR a visual part
+    // in a file — tiger_i_ausf_e.visual.ron carries its gun group, so the recipe bakes the
+    // generic revolved group: the bore-honest KwK 36 (88 mm hole in the muzzle face), the
+    // double-baffle brake as chambers with a waist, and the Walzenblende body spanning exactly
+    // the armour's mantlet patch band (-0.23..+0.07 of the trunnion, radius 0.34). Tiger I only.
+    // Previous: 11_582_503_112_659_279_264 (the model-logic review).
+    (VehicleKind::TigerI, 8_638_016_921_081_242_465_u64),
     (VehicleKind::TigerII, 7_566_020_042_162_252_338_u64),
     // Re-recorded 2026-07-26 for dossier JT.3: proud cast collar, full-width casemate face,
     // crewed roof, six-shoe racks and hull-flank stowage. Jagdtiger only — the rest of the fleet

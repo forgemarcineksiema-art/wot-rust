@@ -10,7 +10,7 @@ mod parts;
 mod profile;
 mod revolve;
 
-pub use gun_parts::{gun_barrel, gun_barrel_between, moving_mantlet};
+pub use gun_parts::{gun_barrel, gun_barrel_between, moving_mantlet, muzzle_brake};
 pub use parts::drum;
 pub use profile::{ProfilePoint, RevolveCaps, RevolveError, RevolveProfile, try_revolve};
 pub use revolve::{merge, revolve, translate};

@@ -135,14 +135,14 @@ fn a_partial_visual_file_round_trips_and_does_not_claim_completeness() {
     assert_eq!(empty, game_core::VisualDetail::default());
 }
 
-/// Today's truth, stated as a ratchet (F5.iii-prep): the loader half of the fleet slot is
-/// wired — `into_blueprint` reads `<slug>.visual.ron` for non-benchmark vehicles — but no
-/// vehicle has authored a file yet, so the benchmark is the only one with ANY visual parts,
-/// and the only one with the complete view. When Tiger I authors its gun group (F5.iii), it
-/// updates this test in the same PR — the slot's population is a deliberate roster decision,
-/// never a side effect.
+/// The slot's population, stated as a ratchet: which vehicle carries which visual parts is a
+/// deliberate roster decision — authoring a new part means updating this test in the same PR,
+/// never a side effect. The benchmark's generated tree is complete; Tiger I authors its GUN
+/// GROUP from `tiger_i_ausf_e.visual.ron` (F5.iii — the first file-authored part in the
+/// fleet: the KwK 36 with its double-baffle brake and the Walzenblende body, no canvas,
+/// and deliberately NOT the complete view); everyone else carries nothing yet.
 #[test]
-fn only_the_benchmark_carries_visual_parts_today() {
+fn the_visual_slot_roster_is_a_deliberate_decision() {
     let mut walked = 0;
     for kind in VehicleKind::PLAYABLE {
         let blueprint = VehicleBlueprint::for_vehicle(kind)
@@ -152,6 +152,16 @@ fn only_the_benchmark_carries_visual_parts_today() {
             assert!(
                 blueprint.complete_visual().is_some(),
                 "the benchmark's generated tree is complete"
+            );
+        } else if kind == VehicleKind::TigerI {
+            let detail = blueprint.visual_detail().expect("Tiger I authors visual parts");
+            let gun = detail.gun.as_ref().expect("Tiger I's authored part is its gun group");
+            assert!(gun.canvas.is_none(), "an external mantlet has no window to cover");
+            let brake = gun.muzzle_brake.expect("the KwK 36 wears its double-baffle brake");
+            assert_eq!(brake.baffles, 2, "double-baffle, as the dossier states");
+            assert!(
+                blueprint.complete_visual().is_none(),
+                "a gun group alone must not claim the complete truth-aligned view"
             );
         } else {
             assert!(
