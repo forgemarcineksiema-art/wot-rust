@@ -219,7 +219,14 @@ mod golden_fixtures {
         for (kind, fixture) in fixtures {
             let parsed =
                 blueprint(kind).unwrap_or_else(|| panic!("{kind:?} must load from its RON source"));
-            assert_eq!(parsed, fixture, "{kind:?}: parsed RON diverges from the Rust fixture");
+            // The fixtures guard the SHAPES. The visual slot is attached by the loader from a
+            // separate `<slug>.visual.ron` (F5.iii) and has its own locks in
+            // `blueprint_source.rs` — a Rust fixture restating it would be a second source.
+            assert_eq!(
+                super::source::BlueprintFile::from_blueprint(&parsed),
+                super::source::BlueprintFile::from_blueprint(&fixture),
+                "{kind:?}: parsed RON diverges from the Rust fixture"
+            );
         }
     }
 }

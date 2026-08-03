@@ -61,10 +61,17 @@ fn authored_gun_group(kind: game_core::VehicleKind) -> Option<GeometryMesh> {
     let gun = *bp.visual_detail()?.gun.as_ref()?;
     let trunnion = Vec3::new(0.0, bp.gun.trunnion_y, bp.gun.trunnion_z);
     let muzzle = Vec3::new(0.0, bp.gun.trunnion_y, bp.gun.muzzle_z);
-    Some(revolve::merge(&[
-        revolve::gun_barrel_between(trunnion, muzzle, &gun),
+    // The tube ends where the brake begins; the brake carries the bore-honest face instead.
+    let tube_end = match gun.muzzle_brake {
+        Some(brake) => muzzle - Vec3::new(0.0, 0.0, brake.length),
+        None => muzzle,
+    };
+    let mut pieces = vec![
+        revolve::gun_barrel_between(trunnion, tube_end, &gun),
         revolve::moving_mantlet(trunnion, &gun),
-    ]))
+    ];
+    pieces.extend(revolve::muzzle_brake(muzzle, &gun));
+    Some(revolve::merge(&pieces))
 }
 
 /// Build the gun with an optionally flattened moving mantlet. T-54 uses this to model the low,

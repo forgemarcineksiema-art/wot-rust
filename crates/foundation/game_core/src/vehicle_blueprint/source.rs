@@ -71,9 +71,9 @@ impl BlueprintFile {
 /// is generated, and an embedded file would be a second source about to disagree with it.
 fn visual_ron(kind: VehicleKind) -> Option<&'static str> {
     match kind {
+        VehicleKind::TigerI => Some(include_str!("../../blueprints/tiger_i_ausf_e.visual.ron")),
         VehicleKind::PrototypeMedium
         | VehicleKind::T54_1951
-        | VehicleKind::TigerI
         | VehicleKind::TigerII
         | VehicleKind::Jagdtiger
         | VehicleKind::PantherII

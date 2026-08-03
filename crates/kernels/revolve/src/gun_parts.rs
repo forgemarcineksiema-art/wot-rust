@@ -71,6 +71,49 @@ pub fn gun_barrel_between(trunnion: Vec3, muzzle: Vec3, gun: &GunVisual) -> Geom
     )
 }
 
+/// The muzzle BRAKE at the end of the tube, or `None` when the gun states it wears none.
+///
+/// A revolved chamber body: a neck off the tube, one bulged chamber per baffle with a waist
+/// between them (the dip is what makes two chambers read as TWO at combat range), and a front
+/// plate the bore pierces — the same bore-is-a-hole rule the bare muzzle face lives by, because
+/// a brake with a solid face is the flat-disc lie wearing a different hat.
+pub fn muzzle_brake(muzzle: Vec3, gun: &GunVisual) -> Option<GeometryMesh> {
+    let brake = gun.muzzle_brake?;
+    let radius = brake.radius;
+    let length = brake.length.max(0.1);
+    let bore = gun.bore_radius;
+    let neck = gun.barrel_radius * 0.9;
+    let baffles = brake.baffles.max(1);
+    // Local profile from the brake's rear (0) to its front plate (`length`).
+    let mut profile: Vec<(f32, f32)> = vec![(0.0, 0.0), (0.0, neck)];
+    let chamber = length * 0.82 / baffles as f32;
+    let mut z = length * 0.06;
+    for index in 0..baffles {
+        profile.push((z, radius * 0.9));
+        profile.push((z + chamber * 0.45, radius));
+        profile.push((z + chamber * 0.8, radius * 0.92));
+        if index + 1 < baffles {
+            // The waist between chambers — the read that says "double-baffle".
+            profile.push((z + chamber, radius * 0.72));
+        }
+        z += chamber;
+    }
+    // Front plate: rim, then the face runs down to the bore and the hole recedes into the body.
+    profile.push((length * 0.97, radius * 0.94));
+    profile.push((length, radius * 0.9));
+    profile.push((length, bore));
+    profile.push((length - bore * 1.5, bore));
+    profile.push((length - bore * 2.2, 0.0));
+    let mesh = revolve(
+        Vec3::Z,
+        &profile,
+        gun.barrel_segments,
+        MaterialRole::BarrelSteel,
+        SmoothingGroup(4),
+    );
+    Some(translate(&mesh, muzzle - Vec3::new(0.0, 0.0, length)))
+}
+
 /// The moving cast mantlet mask, seated at the trunnion: a profile revolved about Z then squashed to
 /// a wide flat oval (so it reads as a mask, not a round ball) by the blueprint's mantlet scale.
 pub fn moving_mantlet(trunnion: Vec3, gun: &GunVisual) -> GeometryMesh {
