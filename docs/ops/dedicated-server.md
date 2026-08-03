@@ -88,7 +88,9 @@ WOT_CONNECT=<VPS_IP>:40000 cargo run --release -p client
 ## Known limits of this slice (tracked, deliberate)
 
 - Battle clock is not replicated — remote HUD hides the timer (v30 candidate).
-- One battle per process; restart the unit between rounds (`Restart=on-failure` also re-arms
-  the lobby after the process exits on its own).
+- The process hosts battles in a loop: when one ends a fresh lobby opens for the next, so no
+  systemd restart is needed between rounds. `--max-battles N` stops after N (0 = forever, the
+  default); clients from a finished battle must reconnect for the next (in-client auto-reconnect
+  is a later step). Still ONE battle at a time — concurrent battles per process are future work.
 - Host:port is typed by hand (garage UI field is a tracked follow-up; the coordinator replaces
   both in W3).
