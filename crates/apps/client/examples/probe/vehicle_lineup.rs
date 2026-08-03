@@ -66,6 +66,7 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
             track_break_t: [None, None],
             engine_fire: false,
             fuel_fire: false,
+            rack_fire_remaining_s: None,
         };
         render_objects.append(&mut tank_render_objects(&mut catalog, &snapshot, palette[index]));
     }

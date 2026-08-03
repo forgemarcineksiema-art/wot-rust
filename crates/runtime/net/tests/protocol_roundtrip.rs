@@ -133,6 +133,7 @@ fn snapshot_round_trips_track_damage_mask() {
         track_break_t: [None, None],
         engine_fire: false,
         fuel_fire: false,
+        rack_fire_remaining_s: None,
     };
     let message = ProtocolMessage::Snapshot(Snapshot {
         server_tick: 99,

@@ -46,6 +46,7 @@ impl Snapshot {
         };
         let mut visible_tanks = self.visible_tanks_for(viewer_tank, viewer_team, &admits);
         quantize_distant_enemy_hp(&mut visible_tanks, viewer_tank, viewer_team);
+        conceal_enemy_rack_fuze(&mut visible_tanks, viewer_team);
         let visible_ids = visible_tanks.iter().map(|tank| tank.tank_id).collect::<Vec<_>>();
 
         Snapshot {
@@ -152,5 +153,16 @@ fn quantize_distant_enemy_hp(tanks: &mut [TankSnapshot], viewer_tank: TankId, vi
         let step = ((full as f32) * DISTANT_HP_STEP).max(1.0);
         let quantized = ((tank.hit_points as f32 / step).ceil() * step).round() as u32;
         tank.hit_points = quantized.min(full);
+    }
+}
+
+/// A cooking rack is INTERIOR state: the crew and their team read the fuze (that is the whole
+/// decision window), and an enemy learns of it only when it resolves. Anti-wallhack in the
+/// same sense as the spotting filter — what never reaches the wire cannot be read out of it.
+fn conceal_enemy_rack_fuze(tanks: &mut [TankSnapshot], viewer_team: TeamId) {
+    for tank in tanks.iter_mut() {
+        if tank.team != viewer_team {
+            tank.rack_fire_remaining_s = None;
+        }
     }
 }

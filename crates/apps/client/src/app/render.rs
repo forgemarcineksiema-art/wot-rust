@@ -535,6 +535,9 @@ impl ClientApp {
             zoom_factor: self.camera_controller.zoom_factor(),
             damage_log: self.damage_log.visible(),
             track_feedback: self.track_feedback.model(),
+            rack_fire_remaining_s: self
+                .player_snapshot()
+                .and_then(|tank| tank.rack_fire_remaining_s),
             incoming_hits: self.incoming_hits.screen_hits(camera_forward_xz),
             ammo: Some(self.player_ammo_hud()),
             modules: self.player_module_hud(),

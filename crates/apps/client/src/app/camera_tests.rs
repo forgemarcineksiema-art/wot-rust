@@ -141,6 +141,7 @@ fn snapshot_with_aim(
             track_break_t: [None, None],
             engine_fire: false,
             fuel_fire: false,
+            rack_fire_remaining_s: None,
         }],
         shells: Vec::new(),
         damage_events: Vec::new(),

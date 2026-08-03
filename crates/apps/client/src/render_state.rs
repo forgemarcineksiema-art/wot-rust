@@ -124,6 +124,7 @@ impl InterpolatedBattleState {
                 track_break_t: tank.track_break_t,
                 engine_fire: tank.engine_fire,
                 fuel_fire: tank.fuel_fire,
+                rack_fire_remaining_s: tank.rack_fire_remaining_s,
             },
             None => tank.clone(),
         }

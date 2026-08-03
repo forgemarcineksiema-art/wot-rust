@@ -395,6 +395,7 @@ fn tank_snapshot(
         track_break_t: [Some(0.62), None],
         engine_fire: false,
         fuel_fire: false,
+        rack_fire_remaining_s: None,
     }
 }
 

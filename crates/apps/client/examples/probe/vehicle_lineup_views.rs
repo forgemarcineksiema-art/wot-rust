@@ -185,6 +185,7 @@ fn lineup_objects(
             track_break_t: [None, None],
             engine_fire: false,
             fuel_fire: false,
+            rack_fire_remaining_s: None,
         };
         render_objects.append(&mut tank_render_objects(catalog, &snapshot, palette[index]));
     }

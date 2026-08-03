@@ -54,6 +54,7 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
         track_break_t: [None, None],
         engine_fire: false,
         fuel_fire: false,
+        rack_fire_remaining_s: None,
     };
 
     // Load the baked Forge artifacts (textured materials) the garage uses; harmless if absent.

@@ -16,6 +16,7 @@ pub(crate) mod module_panel;
 pub(crate) mod number;
 pub(crate) mod outcome;
 pub(crate) mod pause_menu;
+pub(crate) mod rack_callout;
 pub use ui_kit::primitives;
 pub(crate) mod readouts;
 pub(crate) mod reticle;
@@ -61,6 +62,9 @@ pub struct BattleHudModel {
     pub damage_log: Vec<damage_log::DamageLogEntry>,
     /// Track-damage callout + re-seat bars for the player's own hull (`hud/track_callout.rs`).
     pub track_feedback: track_callout::TrackFeedbackModel,
+    /// Seconds left on the player's OWN lit ammunition rack (`hud/rack_callout.rs`); `None`
+    /// when the rack is quiet. Protocol v43 — the ten seconds the crew can win, made visible.
+    pub rack_fire_remaining_s: Option<f32>,
     /// Incoming hits resolved to screen bearings (`hud/hit_direction.rs`).
     pub incoming_hits: Vec<hit_direction::IncomingHit>,
     pub ammo: Option<ammo_panel::AmmoHudModel>,
@@ -100,6 +104,7 @@ pub fn build_hud(vitals: HudVitals, aspect: f32) -> Vec<HudVertex> {
             zoom_factor: None,
             damage_log: Vec::new(),
             track_feedback: Default::default(),
+            rack_fire_remaining_s: None,
             incoming_hits: Vec::new(),
             ammo: None,
             modules: None,
@@ -137,6 +142,7 @@ pub(crate) fn build_hud_with_reticle(
             zoom_factor,
             damage_log: Vec::new(),
             track_feedback: Default::default(),
+            rack_fire_remaining_s: None,
             incoming_hits: Vec::new(),
             ammo: None,
             modules: None,
@@ -205,6 +211,7 @@ pub(crate) fn build_battle_hud(model: &BattleHudModel, aspect: f32) -> Vec<HudVe
 
     damage_log::push_damage_log(&mut vertices, &model.damage_log, aspect);
     track_callout::push_track_callout(&mut vertices, &model.track_feedback, aspect);
+    rack_callout::push_rack_callout(&mut vertices, model.rack_fire_remaining_s, aspect);
     hit_direction::push_hit_direction(&mut vertices, &model.incoming_hits, aspect);
     if let Some(ammo) = &model.ammo {
         ammo_panel::push_ammo_panel(&mut vertices, ammo, aspect);
