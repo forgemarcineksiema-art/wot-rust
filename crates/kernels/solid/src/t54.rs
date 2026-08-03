@@ -82,23 +82,6 @@ pub fn t54_hull_solid(
     ])
 }
 
-/// The hull front / glacis as a two-plate solid: the hull block clipped by the upper glacis plate
-/// (normal `slope` degrees above horizontal) and the lower nose bevel. The CAD counterpart of the
-/// SDF glacis in `sdf_mesh`, built from the same dimensions for a like-for-like sharpness comparison.
-pub fn t54_glacis_solid(hull: &HullVisual, slope_deg: f32) -> ConvexSolid {
-    let slope = slope_deg.to_radians();
-    let center = Vec3::new(0.0, 0.5 * (hull.belly_y + hull.roof_y), 0.0);
-    let half = Vec3::new(hull.half_width, 0.5 * (hull.roof_y - hull.belly_y), hull.half_len);
-    let glacis = Plane::new(Vec3::new(0.0, slope.sin(), slope.cos()), hull.glacis_offset);
-    let nose = Plane::new(hull.nose_normal, hull.nose_offset);
-    ConvexSolid::box_at(center, half).clipped_by(glacis).clipped_by(nose)
-}
-
-/// The raised rear engine deck panel behind the turret.
-pub fn t54_engine_deck(deck: &BoxVisual) -> ConvexSolid {
-    ConvexSolid::box_at(deck.center, deck.half)
-}
-
 /// The engine deck split into three recognizable panels (front/centre/rear) separated by thin seam
 /// gaps, so the rear deck reads as bolted plates rather than one slab. Flat tops, hard edges — the
 /// CAD generator keeps the plate normals crisp. The split is visual only; the deck footprint is
@@ -184,21 +167,6 @@ mod tests {
             .unwrap()
             .hull
             .to_owned()
-    }
-
-    #[test]
-    fn the_glacis_solid_meshes_to_a_handful_of_crisp_triangles() {
-        let bp =
-            game_core::VehicleBlueprint::for_vehicle(game_core::VehicleKind::T54_1951).unwrap();
-        let mesh = t54_glacis_solid(&hull(), bp.armor.hull_front.0)
-            .to_mesh(MaterialRole::RolledArmor, SmoothingGroup::hard_edges())
-            .expect("glacis solid is valid");
-        assert!(mesh.triangle_count() > 0, "glacis solid is empty");
-        assert!(
-            mesh.triangle_count() < 40,
-            "exact convex glacis stays tiny: {}",
-            mesh.triangle_count()
-        );
     }
 
     #[test]

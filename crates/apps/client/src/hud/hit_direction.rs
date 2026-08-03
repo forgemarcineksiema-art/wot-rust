@@ -1,7 +1,7 @@
 //! Directional incoming-hit indicators: a short red arc on a fixed ring around the screen
 //! center, at the attacker's bearing relative to the camera, fading over about a second and a
-//! half. The arc answers the only question that matters in the moment Ă˘â‚¬â€ť WHERE did that come
-//! from Ă˘â‚¬â€ť without turning the HUD into a radar.
+//! half. The arc answers the only question that matters in the moment — WHERE did that come
+//! from — without turning the HUD into a radar.
 
 use renderer_api::HudVertex;
 
@@ -28,7 +28,7 @@ pub(crate) struct IncomingHit {
 }
 
 /// App-side store: hits keep their world direction and are resolved to a screen bearing each
-/// frame at draw time Ă˘â‚¬â€ť the camera turns underneath them, the arcs must not turn with it.
+/// frame at draw time — the camera turns underneath them, the arcs must not turn with it.
 #[derive(Debug, Default)]
 pub(crate) struct IncomingHitFeed {
     hits: Vec<WorldHit>,
@@ -43,7 +43,7 @@ struct WorldHit {
 }
 
 impl IncomingHitFeed {
-    /// Ingest a snapshot's damage events aimed at the player Ă˘â‚¬â€ť including zero-damage bounces:
+    /// Ingest a snapshot's damage events aimed at the player — including zero-damage bounces:
     /// being shot at deserves a direction even when the armor held.
     pub(crate) fn ingest(
         &mut self,

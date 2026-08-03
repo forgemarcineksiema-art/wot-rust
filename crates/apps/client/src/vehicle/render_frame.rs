@@ -143,7 +143,7 @@ pub fn split_pbr_vehicle_render_frame_on_terrain(
         // gentle: the P/v launch hits ~8 m/sÂ˛, and a sag that slams to its clamp on a throttle
         // tap reads as the track convulsing rather than tensioning. A hard landing (the sprung
         // hull dips below the replicated height) throws extra slack into both runs for a beat,
-        // and a THROWN track loses its tension entirely â€” that side hangs deep and dead.
+        // and a THROWN track loses its tension entirely — that side hangs deep and dead.
         let landing_slack = (-tank.attitude_heave_m).max(0.0) * 2.5;
         let sag_scale = (1.0 - tank.accel_long_mps2 * 0.05 + landing_slack).clamp(0.72, 1.5);
         let damage = game_core::TrackDamageMask::from_bits(tank.track_damage_mask);
@@ -264,7 +264,7 @@ fn hash_phase(seed: u64) -> f32 {
 }
 
 /// Slide the gun submesh back along its own barrel axis by the live recoil stroke. Applied
-/// BEFORE the player barrel scale so the stroke stays in real meters â€” a long gun recoils the
+/// BEFORE the player barrel scale so the stroke stays in real meters — a long gun recoils the
 /// same distance as its stock sibling, it does not stretch the recoil with the mesh.
 fn recoil_gun(objects: &mut [RenderObject], recoil_m: f32) {
     if recoil_m > 1.0e-4
@@ -316,7 +316,7 @@ fn scale_player_gun(objects: &mut [RenderObject], is_player: bool, player_gun_sc
 
 /// Adapt a presentation entity into the pose-only `TankSnapshot` the procedural mesh kernels
 /// consume. The fields the meshes never read (`reload_remaining_s`, `aim_dispersion_mrad`) are
-/// zeroed â€” they belong to the player's HUD path, not vehicle geometry.
+/// zeroed — they belong to the player's HUD path, not vehicle geometry.
 pub(crate) fn render_snapshot(tank: &PresentationTank) -> TankSnapshot {
     TankSnapshot {
         tank_id: tank.id,

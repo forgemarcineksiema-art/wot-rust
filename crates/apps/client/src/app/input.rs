@@ -82,7 +82,7 @@ impl ClientApp {
                 self.open_garage();
             }
             // 1/2/3 select ammo (genre standard; the vision's ammo-rack slots). The camera
-            // moved to V â€” the wheel scroll-through stays the primary camera path.
+            // moved to V — the wheel scroll-through stays the primary camera path.
             PhysicalKey::Code(KeyCode::Digit1) if pressed => self.request_ammo_slot(0),
             PhysicalKey::Code(KeyCode::Digit2) if pressed => self.request_ammo_slot(1),
             PhysicalKey::Code(KeyCode::Digit3) if pressed => self.request_ammo_slot(2),

@@ -212,7 +212,7 @@ impl ClientApp {
     }
 
     /// Barrel-length scale of the player's installed gun vs the vehicle's stock gun. The predictor
-    /// holds the real (custom) loadout â€” the snapshot-derived `player_spec` is stock by kind â€” so
+    /// holds the real (custom) loadout — the snapshot-derived `player_spec` is stock by kind — so
     /// the rendered gun and the reticle muzzle both track the gun the player actually fitted.
     pub(super) fn player_barrel_scale(&self) -> f32 {
         let spec = self.predictor.spec();

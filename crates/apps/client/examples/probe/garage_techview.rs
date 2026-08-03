@@ -52,7 +52,7 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     // screen over the dim hangar. Kept here so the example stays close to the
     // real garage frame structure.
 
-    // Hero orbit camera â€” the same framing the garage opens with.
+    // Hero orbit camera — the same framing the garage opens with.
     let pivot = hangar_camera_pivot();
     let orbit_yaw = 0.60_f32;
     let orbit_pitch = 0.28_f32;

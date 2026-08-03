@@ -6,7 +6,6 @@ license.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-ab_glyph.workspace = true
 ui_kit.workspace = true
 anyhow.workspace = true
 audio.workspace = true
@@ -37,8 +36,6 @@ vehicle_geometry.workspace = true
 winit.workspace = true
 
 [dev-dependencies]
-png.workspace = true
-vehicle_build.workspace = true
 
 [lints]
 workspace = true

@@ -20,7 +20,6 @@ serde.workspace = true
 serde_json.workspace = true
 terrain.workspace = true
 vehicle_forge.workspace = true
-vehicle_geometry.workspace = true
 world_forge.workspace = true
 
 [lints]

@@ -26,7 +26,7 @@ fn drive(
     }
 }
 
-/// Sideways speed in the hull's current frame â€” the slip that distinguishes gripping from drifting.
+/// Sideways speed in the hull's current frame — the slip that distinguishes gripping from drifting.
 fn lateral_speed(state: &TankKinematicState) -> f32 {
     let forward = horizontal_forward(state.yaw_rad);
     let right = Vec3::new(forward.z, 0.0, -forward.x);
@@ -98,7 +98,7 @@ fn hard_turn_at_speed_drifts_but_a_gentle_turn_grips() {
     let gentle = drift_for(0.2);
 
     // The scrub term bleeds speed through the turn, so the residual slide is smaller than the
-    // old un-scrubbed model's â€” but a full-lock turn at speed must still visibly break loose.
+    // old un-scrubbed model's — but a full-lock turn at speed must still visibly break loose.
     assert!(hard > 0.08, "a hard turn at speed must break grip and slide, got lateral {hard}");
     assert!(gentle < 0.05, "a gentle turn must hold its line, got lateral {gentle}");
 }

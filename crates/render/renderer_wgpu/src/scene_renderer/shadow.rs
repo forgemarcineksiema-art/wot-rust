@@ -53,7 +53,7 @@ pub(crate) struct ShadowResources {
     pub pipeline_scene: wgpu::RenderPipeline,
     pub pipeline_vehicle: wgpu::RenderPipeline,
     /// The far-cascade occluder pipeline: scene vertex stride through `vs_far`. The fleet has no
-    /// far pipeline on purpose â€” at the far map's texel size a tank's shadow does not resolve.
+    /// far pipeline on purpose — at the far map's texel size a tank's shadow does not resolve.
     pub pipeline_scene_far: wgpu::RenderPipeline,
     pub params: SunShadowParams,
     pub far_params: SunShadowParams,
@@ -77,8 +77,8 @@ impl ShadowResources {
         cascade_count: u32,
     ) -> Self {
         // The caller resolved the resolution per adapter (`quality::resolve_lighting_quality`);
-        // clamp to the device limit last so a capped device gets a smaller map â€” with the
-        // texel-derived PCF step and normal offset shrinking with it â€” never a failed texture.
+        // clamp to the device limit last so a capped device gets a smaller map — with the
+        // texel-derived PCF step and normal offset shrinking with it — never a failed texture.
         // `WOT_SHADOW_FOCUS=<metres>` — the near box's half-size. A DEV knob, and the reason it
         // exists: resolution and box size both change the world size of a shadow texel, so
         // measuring shadow sharpness needs each of them movable ALONE. Eyeballing two renders
@@ -177,7 +177,7 @@ impl ShadowResources {
         );
         // A small constant depth bias plus a normal offset scaled to the texel footprint kills acne
         // without peter-panning; strength 1 = full shadow (0 is the no-shadow capability fallback).
-        // The bias is NDC over the 2*depth_radius span â€” 0.0008 * 160 m = ~13 cm of world slack,
+        // The bias is NDC over the 2*depth_radius span — 0.0008 * 160 m = ~13 cm of world slack,
         // tight enough that wheel-scale detail keeps its contact shadow.
         Self {
             depth_view,
@@ -223,7 +223,7 @@ impl ShadowResources {
 
     /// The packed `cascade_params` the shaders read: far texel UV step, far normal offset,
     /// cascade count, containment margin. A single-cascade setup packs margin 0, so the near
-    /// box's valid region is exactly the pre-cascade `[0, 1]` UV â€” byte-for-byte the old lookup.
+    /// box's valid region is exactly the pre-cascade `[0, 1]` UV — byte-for-byte the old lookup.
     pub fn cascade_shader_params(&self) -> [f32; 4] {
         [
             self.far_params.texel_uv_size(),
@@ -283,7 +283,7 @@ fn build_shadow_pipeline(
             topology: wgpu::PrimitiveTopology::TriangleList,
             front_face: wgpu::FrontFace::Ccw,
             // No culling: the static world is an open heightmap (buildings/trees are baked into the
-            // same buffer), whose sun-facing surface IS its front face â€” front-culling it would drop
+            // same buffer), whose sun-facing surface IS its front face — front-culling it would drop
             // exactly the casters we want (hills self-shadowing, roofs onto walls). Acne is held off
             // instead by a slope-scaled hardware depth bias plus the shader's normal offset, which
             // together behave on both the open ground and the closed hulls.
@@ -296,7 +296,7 @@ fn build_shadow_pipeline(
             depth_compare: Some(wgpu::CompareFunction::Less),
             stencil: wgpu::StencilState::default(),
             // Slope-scaled: grazing hillsides (where the sun rakes along the surface and depth
-            // varies fastest across a texel) get the most push, flat decks almost none â€” the
+            // varies fastest across a texel) get the most push, flat decks almost none — the
             // classic peter-pan-free acne fix for an open receiver that also casts.
             bias: wgpu::DepthBiasState { constant: 2, slope_scale: 2.5, clamp: 0.0 },
         }),

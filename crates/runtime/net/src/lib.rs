@@ -522,17 +522,7 @@ pub enum ProtocolMessage {
     },
 }
 
-/// v29 lobby/battle lifecycle. Appended after the v28 messages, wire-stable.
 impl ProtocolMessage {
-    pub fn is_lifecycle(&self) -> bool {
-        matches!(
-            self,
-            ProtocolMessage::LobbyState { .. }
-                | ProtocolMessage::StartBattle { .. }
-                | ProtocolMessage::BattleEnded { .. }
-        )
-    }
-
     /// The remote connection incarnation this message belongs to. The three legacy/local-play
     /// payloads intentionally remain untagged and must not be accepted as remote-session traffic.
     pub fn session_id(&self) -> Option<u64> {

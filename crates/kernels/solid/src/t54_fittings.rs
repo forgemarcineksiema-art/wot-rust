@@ -65,22 +65,6 @@ pub fn t54_fender_slope(side_x: f32, fender: &FenderVisual, sign: f32) -> Convex
     ])
 }
 
-/// The fender (mudguard) above one track run, split into bolted sections along its length with thin
-/// seam gaps, so it reads as pressed plates rather than one continuous slab. Visual only; the overall
-/// footprint is unchanged. The downturned outer lip ([`t54_fender_lip`]) runs the full edge.
-pub fn t54_fender_segments(side_x: f32, fender: &FenderVisual) -> Vec<ConvexSolid> {
-    const SEGMENTS: usize = 4;
-    let seam = 0.03_f32;
-    let seg_half = Vec3::new(fender.half.x, fender.half.y, fender.half.z / SEGMENTS as f32 - seam);
-    (0..SEGMENTS)
-        .map(|i| {
-            let t = (i as f32 + 0.5) / SEGMENTS as f32;
-            let z = -fender.half.z + t * 2.0 * fender.half.z;
-            ConvexSolid::box_at(Vec3::new(side_x, fender.center_y, z), seg_half)
-        })
-        .collect()
-}
-
 /// Thin gusset plates under the fender span, evenly spaced along its run — the supports that carry
 /// the shelf over the exposed track. Each is a cross-fender plate hanging just below the shelf
 /// (clear of the moving top track run). Visual only, at the close-up detail tier.
@@ -102,16 +86,6 @@ pub fn t54_fender_brackets(side_x: f32, fender: &FenderVisual) -> Vec<ConvexSoli
 /// the clean factory exhaust, not a sooted pipe.
 pub fn t54_exhaust_housing(d: &DetailVisual) -> ConvexSolid {
     chamfered_box(d.exhaust_center, d.exhaust_half, 0.03)
-}
-
-/// A thin downturned fender lip running the length of one fender's outer edge, at world `side_x`.
-/// It drops just below the fender plate so the mudguard reads as a folded-edge pressing.
-pub fn t54_fender_lip(side_x: f32, fender: &FenderVisual, d: &DetailVisual) -> ConvexSolid {
-    let edge_x = side_x.signum() * (side_x.abs() + fender.half.x);
-    let bottom = fender.center_y - fender.half.y;
-    let center = Vec3::new(edge_x, bottom - d.fender_lip_drop * 0.5, 0.0);
-    let half = Vec3::new(d.fender_lip_thickness * 0.5, d.fender_lip_drop * 0.5, fender.half.z);
-    ConvexSolid::box_at(center, half)
 }
 
 /// A periscope head: a small housing box whose front-top edge is sliced by a forward-and-up plane,
@@ -138,26 +112,6 @@ mod tests {
             .unwrap()
             .fender
             .to_owned()
-    }
-
-    #[test]
-    fn the_fender_splits_into_separated_sections() {
-        let f = fender();
-        let segs = t54_fender_segments(1.5, &f);
-        assert!(segs.len() >= 3, "fender reads as bolted sections, got {}", segs.len());
-        // The seam gaps mean the sections' lengths sum to less than the whole fender span.
-        let covered: f32 = segs
-            .iter()
-            .map(|s| {
-                let b = s
-                    .to_mesh(MaterialRole::RolledArmor, SmoothingGroup::hard_edges())
-                    .expect("fender segment is valid")
-                    .bounds();
-                let b = b.expect("non-empty segment");
-                b.max.z - b.min.z
-            })
-            .sum();
-        assert!(covered < 2.0 * f.half.z - 0.05, "seam gaps separate the fender sections");
     }
 
     #[test]

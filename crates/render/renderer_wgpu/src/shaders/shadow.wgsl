@@ -38,13 +38,6 @@ fn vs_main(input: VsIn) -> VsDepthOut {
 // The far-cascade occluder pass: same inputs, transformed by the far cascade's light matrix.
 // Only terrain and static/dynamic scene geometry run through it — at the far map's ~0.56 m
 // texels a vehicle's shadow does not resolve, so the fleet stays out of this pass.
-@vertex
-fn vs_far(input: VsIn) -> VsDepthOut {
-    let model = mat4x4<f32>(input.model_0, input.model_1, input.model_2, input.model_3);
-    let world = model * vec4<f32>(input.position, 1.0);
-    return depth_out(camera.light_view_proj_far * world, world.xyz, input.damage_index);
-}
-
 // Camera depth prepass for SSAO: same inputs, but transformed by the CAMERA view-projection into
 // the screen-sized depth texture the SSAO pass reads.
 @vertex

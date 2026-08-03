@@ -44,7 +44,7 @@ pub struct HudVitals {
 }
 
 /// Everything the battle HUD draws in one frame, gathered by `render_now` and consumed by
-/// `build_battle_hud`. One struct instead of a growing positional parameter list â€” upcoming
+/// `build_battle_hud`. One struct instead of a growing positional parameter list — upcoming
 /// elements (damage log, ammo panel, minimap) land here as fields.
 #[derive(Debug, Clone, PartialEq)]
 pub struct BattleHudModel {

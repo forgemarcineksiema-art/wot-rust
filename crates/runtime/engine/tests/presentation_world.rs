@@ -99,7 +99,7 @@ fn re_syncing_a_tank_updates_in_place_without_respawning() {
     world.sync_tanks(&[still(snapshot(1, [10.0, 0.0, 0.0], 300))]);
     let second = world.presentation_tanks();
 
-    // Same single entity, moved and damaged â€” not a duplicate.
+    // Same single entity, moved and damaged — not a duplicate.
     assert_eq!(world.tank_count(), 1);
     assert_eq!(first.len(), 1);
     assert_eq!(second.len(), 1);

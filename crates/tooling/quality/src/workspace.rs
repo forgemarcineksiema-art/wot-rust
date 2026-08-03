@@ -67,8 +67,6 @@ pub struct CrateFacts {
     /// Workspace crates in `[dependencies]`. Dev-dependencies are deliberately excluded: a test
     /// reaching sideways for a fixture is not the shipped shape of the tree.
     pub deps: Vec<String>,
-    /// A binary, example or bench target — the things that justify a crate nothing depends on.
-    pub has_executable_target: bool,
 }
 
 /// Parse every workspace crate once.
@@ -89,10 +87,6 @@ pub fn crate_facts(root: &Path) -> Vec<CrateFacts> {
                 name: crate_name(manifest)?,
                 layer,
                 deps: declared_dependencies(&text, &names),
-                has_executable_target: dir.join("src/main.rs").is_file()
-                    || text.contains("[[bin]]")
-                    || dir.join("examples").is_dir()
-                    || dir.join("benches").is_dir(),
                 dir,
             })
         })
