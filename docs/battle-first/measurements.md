@@ -186,3 +186,26 @@ Frontal exchanges respect armour honestly (+70% non-pens); battle outcome tempo 
 (kills -2/battle at the clock) - the tempo item predates this and stays separately ranked.
 Bots aim centre-mass, so the cupola/port hits (1 each across three battles) are incidental;
 teaching bot aim to PREFER patches when centre-mass shows no pen is the natural follow-up.
+
+## Bot weakspot aiming (2026-08-03, bots-aim-at-patches)
+
+Probe: `battle_host/tests/probe_weakspot_aim.rs` (committed this time, `#[ignore]`) — mixed-fleet
+7v7, seeds 11/21/33, 600 s, idle player, EVERY damage event deduped by `event_id` (so the counts
+sit higher than #428's table, which was a narrower filter; before/after below share one method).
+Before = centre-of-mass aim (master 2b279e6); after = the gunner switches to the largest
+penetrable weakspot disc when the centre shows no pen.
+
+| | pens | non-pens | ricochets | kills | GlacisPort hits |
+|---|---:|---:|---:|---:|---:|
+| before | 92 | 157 | 13 | 13 | 1 |
+| after | 89 | 152 | 9 | **14** | **3** |
+
+Seed 21 is bit-identical before/after — proof the penetrable-centre path changes NOTHING.
+The effect is real but modest, and the probe says why: the bounce mass sits on the UPPER GLACIS
+of heavies (IS-3, Tiger II, Jagdtiger, Panther II) whose blueprints author NO bow ports yet
+(`glacis_ports: [None, None]`), and the dispersion-feasibility line honestly retires a 0.11 m
+port past ~250-300 m for 2-3 mrad guns. Bench `random_7v7_tick`: 82.4 -> 87.1 us mid-battle
+(+5.7%, near the bench's known 9% spread; 0.5% of the 16.7 ms tick budget).
+
+Follow-ups this measurement names: (a) author the heavies' bow details -> their ports exist to
+aim at; (b) the tempo item (all battles at the clock) stays separately ranked.
