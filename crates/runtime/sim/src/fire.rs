@@ -103,6 +103,10 @@ pub(crate) fn step_fire(
                     penetrated: false,
                     cause: DamageCause::Fire,
                     module: None,
+                    // The kill feed reads THIS field, not the cause. Without it a hull the flames
+                    // finished handed its arsonist nothing, while the rack path twenty lines
+                    // below stamped it correctly — so a cook-off scored and a burn-out did not.
+                    target_destroyed: tank.hit_points == 0,
                     ..Default::default()
                 },
             );
