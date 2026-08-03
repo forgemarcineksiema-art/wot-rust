@@ -135,7 +135,10 @@ pub fn t54_from_modules_with_blueprint(
         submesh: SubmeshKind::Gun,
         material: MaterialRole::Canvas,
         smoothing: SmoothingGroup(6),
-        shape: PartShape::Mesh(crate::t54_gun_cover::t54_mantlet_cover(trunnion, v.gun)),
+        shape: PartShape::Mesh(crate::t54_gun_cover::t54_mantlet_cover(
+            trunnion,
+            v.gun.canvas.as_ref().expect("the benchmark wears its canvas"),
+        )),
         lod: PartLod::MountCritical,
         generator: GeneratorKind::Sweep,
     };
@@ -146,7 +149,10 @@ pub fn t54_from_modules_with_blueprint(
         submesh: SubmeshKind::Turret,
         material: MaterialRole::BarrelSteel,
         smoothing: SmoothingGroup(3),
-        shape: PartShape::Mesh(crate::t54_gun_cover::t54_mantlet_frame(trunnion, v.gun)),
+        shape: PartShape::Mesh(crate::t54_gun_cover::t54_mantlet_frame(
+            trunnion,
+            v.gun.canvas.as_ref().expect("the benchmark wears its canvas"),
+        )),
         lod: PartLod::Detail,
         generator: GeneratorKind::Sweep,
     };

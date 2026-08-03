@@ -441,7 +441,7 @@ fn the_cover_frame_matches_the_window() {
         .mesh();
     let bounds = frame.bounds().expect("frame bounds");
 
-    let (fx, fy) = v.gun.cover_frame_half;
+    let (fx, fy) = v.gun.canvas.expect("the benchmark wears its canvas").frame_half;
     let clearance_x = bounds.max.x - fx;
     let clearance_y = bounds.max.y - trunnion.y - fy;
     assert!(

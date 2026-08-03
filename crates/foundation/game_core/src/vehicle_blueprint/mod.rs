@@ -40,8 +40,8 @@ mod tiger_ii;
 
 pub use fittings::{DetailVisual, FittingsVisual};
 pub use hybrid::{
-    BoxVisual, CompleteVisual, FenderVisual, GunVisual, HullPlatesVisual, HullVisual, LoftStation,
-    TurretLoftVisual, TurretVisual, VisualDetail,
+    BoxVisual, CanvasCoverVisual, CompleteVisual, FenderVisual, GunVisual, HullPlatesVisual,
+    HullVisual, LoftStation, MuzzleBrakeVisual, TurretLoftVisual, TurretVisual, VisualDetail,
 };
 pub use shape_track::{ShoePattern, SuspensionKind, TrackShape, WheelFace};
 pub use source::{BlueprintFile, VisualDetailFile, parse_blueprint, parse_visual_detail};

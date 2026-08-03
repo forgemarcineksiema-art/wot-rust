@@ -247,24 +247,52 @@ pub struct GunVisual {
     pub mantlet_profile: [(f32, f32); 8],
     pub mantlet_segments: usize,
     pub mantlet_scale: Vec3,
-    /// The canvas cover's SLEEVE: `(z, radius)` stations on the barrel axis, trunnion-relative,
-    /// from inside the panel's mouth out to the strap that grips the tube.
-    ///
-    /// A vehicle with an INTERNAL mantlet has a hole in its turret face, and something has to
-    /// close it or the turret is open to the weather and to the eye. On a T-54 that something is
-    /// a proofed canvas COVER: a rectangular panel fastened over the whole window, gathering
-    /// through radial folds into this short sleeve. The first build drew only a round boot — and
-    /// a round boot in a round pocket reads as the old ball mantlet, shrunk and swallowed, which
-    /// is exactly the verdict it got.
-    pub mantlet_cover: [(f32, f32); 4],
+    /// The canvas COVER over the gun window — an INTERNAL-mantlet vehicle's part (F5.iii-a:
+    /// optional, because a vehicle with an external mantlet has no window to cover, and a
+    /// mandatory field would force it to author fabric it does not have).
+    #[serde(default)]
+    pub canvas: Option<CanvasCoverVisual>,
+    /// The muzzle BRAKE, when the gun wears one (the Tiger's double-baffle KwK 36; the D-10T
+    /// carries none). `None` is a statement, not an omission — the bore-honest muzzle face is
+    /// then the end of the tube.
+    #[serde(default)]
+    pub muzzle_brake: Option<MuzzleBrakeVisual>,
+    /// How much of a gun module's length delta the muzzle moves by (visual modularity scale).
+    pub module_delta_scale: f32,
+}
+
+/// The proofed canvas cover fastened over an internal mantlet's gun window.
+///
+/// A vehicle with an INTERNAL mantlet has a hole in its turret face, and something has to
+/// close it or the turret is open to the weather and to the eye. On a T-54 that something is
+/// a canvas COVER: a rectangular panel fastened over the whole window, gathering through
+/// radial folds into a short sleeve. The first build drew only a round boot — and a round boot
+/// in a round pocket reads as the old ball mantlet, shrunk and swallowed, which is exactly the
+/// verdict it got.
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct CanvasCoverVisual {
+    /// The cover's SLEEVE: `(z, radius)` stations on the barrel axis, trunnion-relative, from
+    /// inside the panel's mouth out to the strap that grips the tube.
+    pub sleeve: [(f32, f32); 4],
     /// The panel's frame half-extents `(x, y)` where the fabric is fastened into the window.
     /// Sized to the window at half-depth; `the_cover_frame_matches_the_window` holds the two
     /// together, because a frame wider than its window is fabric bolted to air.
-    pub cover_frame_half: (f32, f32),
+    pub frame_half: (f32, f32),
     /// How far the cover sags between its two clamps, in metres. Fabric is not a tube.
-    pub mantlet_cover_sag: f32,
-    /// How much of a gun module's length delta the muzzle moves by (visual modularity scale).
-    pub module_delta_scale: f32,
+    pub sag: f32,
+}
+
+/// A revolved muzzle brake at the end of the tube: the chamber body, its baffle count, and the
+/// front plate the bore pierces. One radius and one length, because that is what the eye reads
+/// at combat range — the baffles are rings the profile dips between.
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct MuzzleBrakeVisual {
+    /// Outer radius of the brake body (proud of the tube).
+    pub radius: f32,
+    /// Length along the barrel axis; the tube ends where the brake begins.
+    pub length: f32,
+    /// Baffle chambers (the KwK 36 wears two).
+    pub baffles: usize,
 }
 
 /// An axis-aligned box part (engine deck), as centre + half-extents.

@@ -12,8 +12,8 @@ use glam::Vec3;
 
 use super::source::BlueprintFile;
 use super::{
-    BoxVisual, DetailVisual, FenderVisual, FittingsVisual, GunVisual, HullPlatesVisual, HullVisual,
-    TurretVisual, VisualDetail,
+    BoxVisual, CanvasCoverVisual, DetailVisual, FenderVisual, FittingsVisual, GunVisual,
+    HullPlatesVisual, HullVisual, TurretVisual, VisualDetail,
 };
 
 /// Where the glacis meets the deck, and where the lower nose meets the belly. These two are
@@ -173,14 +173,17 @@ pub(super) fn t54_hybrid(file: &BlueprintFile) -> VisualDetail {
             // it is the ten-gon's INRADIUS (r·cos 18°) that must clear the tube, not the
             // vertex radius: at 0.100 the flats dipped under the steel and the barrel showed
             // through the sleeve as a torn zigzag.
-            mantlet_cover: [(0.100, 0.128), (0.230, 0.118), (0.295, 0.116), (0.360, 0.104)],
-            mantlet_cover_sag: 0.010,
-            // The fabric panel's fastening frame, sized to the window at half-depth (window
-            // az 0.26 rad on the 1.125 superellipse is ±0.42 of x; the frame sits 20 mm inside
-            // the walls all round).
-            // MEASURED off the dead-front reference (module 2): the fastened panel is a compact
-            // pillow ~0.45 x 0.37, not the first build's 0.80 letterbox.
-            cover_frame_half: (0.225, 0.185),
+            canvas: Some(CanvasCoverVisual {
+                sleeve: [(0.100, 0.128), (0.230, 0.118), (0.295, 0.116), (0.360, 0.104)],
+                // The fabric panel's fastening frame, sized to the window at half-depth (window
+                // az 0.26 rad on the 1.125 superellipse is ±0.42 of x; the frame sits 20 mm inside
+                // the walls all round).
+                // MEASURED off the dead-front reference (module 2): the fastened panel is a compact
+                // pillow ~0.45 x 0.37, not the first build's 0.80 letterbox.
+                frame_half: (0.225, 0.185),
+                sag: 0.010,
+            }),
+            muzzle_brake: None,
             module_delta_scale: 0.65,
         }),
         // The engine deck runs from behind the turret ring back to a hand's width off the rear
