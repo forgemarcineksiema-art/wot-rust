@@ -2,8 +2,11 @@
 // deliberate map change without editing code. The diff review stays: a changed line here IS
 // the deliberate-change record.
 [
-    ("bystra_valley", "26d60291b7e650c4"),
-    ("orliny_pereval", "6c7be15b0c85a844"),
-    ("ostrogorsk", "e307cce107d36ed3"),
-    ("prokhorovka_hill_252_2", "05a4a02a4a4485e1"),
+    // Re-blessed 2026-08-03 (Świat w Skali): the 12 wrecks shrank from a 6.8×3.2×12.4 m bus to a
+    // real knocked-out-hull footprint (~3.5×2.2×6.5 m), so a live tank no longer looks miniature
+    // beside one — and the Ostrogorsk factory pair's scrambled wider-than-long box is corrected.
+    ("bystra_valley", "16b34a6104680cec"),
+    ("orliny_pereval", "a16328285e6ea81c"),
+    ("ostrogorsk", "3820fd376dcc377d"),
+    ("prokhorovka_hill_252_2", "cd36351cec065151"),
 ]
