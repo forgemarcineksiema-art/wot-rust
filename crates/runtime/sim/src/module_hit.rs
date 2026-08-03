@@ -107,6 +107,9 @@ fn module_volume_at_hit(
         ArmorZone::LeftTrack | ArmorZone::RightTrack => (ModuleSlot::Suspension, 1.0),
         ArmorZone::Mantlet => (ModuleSlot::Gun, 1.0),
         ArmorZone::TurretFront | ArmorZone::Roof => (ModuleSlot::Turret, 0.80),
+        // A penetration through the commander's drum is inside the turret's crown works —
+        // traverse gear, vision train: the turret module, and a high chance of meeting it.
+        ArmorZone::Cupola => (ModuleSlot::Turret, 0.90),
         // The hull deck is over the engine bay and the fighting compartment, not over the
         // turret race: a deck penetration meets the engine, as a plunging hit should.
         ArmorZone::HullDeck => (ModuleSlot::Engine, 0.85),
@@ -161,6 +164,7 @@ fn zone_band_offset(zone: ArmorZone) -> f32 {
         ArmorZone::LeftTrack => 0.59,
         ArmorZone::RightTrack => 0.61,
         ArmorZone::Skirt => 0.67,
+        ArmorZone::Cupola => 0.71,
     }
 }
 

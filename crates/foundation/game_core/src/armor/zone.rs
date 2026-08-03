@@ -32,6 +32,15 @@ pub enum ArmorZone {
     /// deck is 20 mm where its turret roof is 30 — so they are different zones.
     /// Appended after `Skirt`, same rule.
     HullDeck,
+    /// The commander's cupola drum, standing PROUD of the turret roof as its own convex volume.
+    ///
+    /// Before this zone existed the drum was unmodelled: a shell aimed at it from the front
+    /// travelled above the casting and resolved against the ROOF plane at a grazing angle —
+    /// auto-bounce off the most famous weakspot in tank warfare — while the facet-wide
+    /// `weakspot_multiplier` smeared the compensation across the whole turret front. The drum
+    /// catches that shell on its cylinder wall at a honest near-flat angle; the weakness IS the
+    /// roundness, not an invented number. Appended after `HullDeck`, same wire rule.
+    Cupola,
 }
 
 impl ArmorZone {
@@ -40,7 +49,7 @@ impl ArmorZone {
     ///
     /// Locked variant-by-variant against the declaration by `quality`, not by counting: a
     /// length assertion cannot tell a forgotten variant from a shorter enum.
-    pub const ALL: [ArmorZone; 13] = [
+    pub const ALL: [ArmorZone; 14] = [
         ArmorZone::UpperGlacis,
         ArmorZone::LowerPlate,
         ArmorZone::HullSide,
@@ -54,6 +63,7 @@ impl ArmorZone {
         ArmorZone::RightTrack,
         ArmorZone::Skirt,
         ArmorZone::HullDeck,
+        ArmorZone::Cupola,
     ];
 
     pub fn facing(self) -> ArmorFacing {
@@ -72,6 +82,8 @@ impl ArmorZone {
             ArmorZone::HullDeck => ArmorFacing::HullFront,
             ArmorZone::TurretSide => ArmorFacing::TurretSide,
             ArmorZone::TurretRear => ArmorFacing::TurretRear,
+            // The drum turns with the turret and is shot at from ahead — front aspect.
+            ArmorZone::Cupola => ArmorFacing::TurretFront,
         }
     }
 }
@@ -91,6 +103,10 @@ impl ArmorProfile {
             ArmorZone::HullDeck => deck_plate(self),
             ArmorZone::LeftTrack | ArmorZone::RightTrack => track_plate(self),
             ArmorZone::Skirt => skirt_plate(),
+            // The drum is side-grade casting standing UNSLOPED: no invented multiplier — the
+            // weakness the player aims at is the roundness (a cylinder always offers a flat
+            // patch) and the grade, both of which are the real vehicle's.
+            ArmorZone::Cupola => derived(self.facet(ArmorFacing::TurretSide), 1.0, 0.0, 1.0),
         }
     }
 }

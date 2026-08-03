@@ -39,6 +39,8 @@ pub fn plate_normal(
         ArmorZone::TurretFront | ArmorZone::Mantlet => turret * Vec3::new(0.0, sin, cos),
         ArmorZone::TurretSide => turret * Vec3::new(side * cos, sin, 0.0),
         ArmorZone::TurretRear => turret * Vec3::new(0.0, sin, -cos),
+        // The drum's wall faces the shooter like an unsloped turret-front band.
+        ArmorZone::Cupola => turret * Vec3::new(0.0, sin, cos),
     };
     hull.basis() * local
 }
