@@ -227,6 +227,7 @@ impl RemoteBattleServer {
                                 session_id,
                                 assigned_tank: tank,
                                 server_tick: core.authoritative_tick(),
+                                time_limit_tick: core.time_limit_tick(),
                             };
                             let _ = client.endpoint.send(transport, &start);
                             // v39: the world's EXISTING perforations, once, before the stream of
@@ -393,6 +394,7 @@ impl RemoteBattleServer {
                 // Until the first InputBatch acks the seat, keep repeating the one word a
                 // crew cannot play without.
                 let acked_tick = core.authoritative_tick();
+                let time_limit_tick = core.time_limit_tick();
                 for client in self.clients.values_mut() {
                     if let Some(tank) = client.tank
                         && !client.acked_start
@@ -401,6 +403,7 @@ impl RemoteBattleServer {
                             session_id: client.session_id,
                             assigned_tank: tank,
                             server_tick: acked_tick,
+                            time_limit_tick,
                         };
                         let _ = client.endpoint.send(transport, &start);
                     }
@@ -499,6 +502,9 @@ impl RemoteBattleServer {
         let (core, human_tanks) =
             LocalAuthoritativeServer::new_random_7v7_for_humans(self.config, self.battle, humans);
         let server_tick = core.authoritative_tick();
+        let time_limit_tick = core.time_limit_tick();
+        // The same `is_established()` cut as the count above: a seat may only go to a client that
+        // completed the handshake, or the zip hands a real tank to a spoofed address.
         for (client, tank) in
             self.clients.values_mut().filter(|client| client.is_established()).zip(human_tanks)
         {
@@ -507,6 +513,7 @@ impl RemoteBattleServer {
                 session_id: client.session_id,
                 assigned_tank: tank,
                 server_tick,
+                time_limit_tick,
             };
             let _ = client.endpoint.send(transport, &start);
         }
@@ -553,7 +560,8 @@ fn queue_personal_combat_events(
         }
     }
     for impact in shell_impacts {
-        if impact.owner == tank && client.events.enqueue(CombatEvent::ShellImpact(*impact)).is_err()
+        if impact.owner == Some(tank)
+            && client.events.enqueue(CombatEvent::ShellImpact(*impact)).is_err()
         {
             client.event_overflowed = true;
             return;
@@ -563,7 +571,7 @@ fn queue_personal_combat_events(
 
 fn strip_reliable_personal_events(snapshot: &mut net::Snapshot, tank: TankId) {
     snapshot.damage_events.retain(|event| event.source != tank && event.target != tank);
-    snapshot.shell_impacts.retain(|impact| impact.owner != tank);
+    snapshot.shell_impacts.retain(|impact| impact.owner != Some(tank));
 }
 
 #[cfg(test)]
@@ -619,8 +627,9 @@ mod lifecycle_tests {
             damage_hp: 100,
             ..Default::default()
         };
-        let own_impact = game_core::ShellImpact { owner: TankId(7), ..Default::default() };
-        let foreign_impact = game_core::ShellImpact { owner: TankId(9), ..Default::default() };
+        let own_impact = game_core::ShellImpact { owner: Some(TankId(7)), ..Default::default() };
+        let foreign_impact =
+            game_core::ShellImpact { owner: Some(TankId(9)), ..Default::default() };
 
         queue_personal_combat_events(
             &mut client,

@@ -69,7 +69,7 @@ fn replicated_shell_deaths_and_armor_hits_burst_into_particles() {
         app.render_state.latest_snapshot().cloned().expect("battle-ready app has a snapshot");
     snapshot.server_tick += 1;
     snapshot.shell_impacts.push(ShellImpact {
-        owner: app.player_tank,
+        owner: Some(app.player_tank),
         position: glam::Vec3::new(30.0, 0.5, 40.0),
         surface: ImpactSurface::Terrain,
         ..Default::default()
@@ -119,13 +119,13 @@ fn a_terrain_impact_digs_a_crater_and_an_armor_hit_does_not() {
     let mut snapshot = app.render_state.latest_snapshot().cloned().expect("snapshot");
     snapshot.server_tick += 1;
     snapshot.shell_impacts.push(ShellImpact {
-        owner: app.player_tank,
+        owner: Some(app.player_tank),
         position: glam::Vec3::new(30.0, 0.5, 40.0),
         surface: ImpactSurface::Terrain,
         ..Default::default()
     });
     snapshot.shell_impacts.push(ShellImpact {
-        owner: app.player_tank,
+        owner: Some(app.player_tank),
         position: glam::Vec3::new(50.0, 1.6, 60.0),
         surface: ImpactSurface::Hull,
         ..Default::default()

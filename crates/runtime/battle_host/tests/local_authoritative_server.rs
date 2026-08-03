@@ -510,6 +510,6 @@ fn local_server_replication_carries_absorbed_shell_impacts_to_next_snapshot() {
     // so the firing client always learns where its shot died.
     let snapshot = impact_snapshot.expect("an absorbed shell must reach the client in a snapshot");
     let impact = &snapshot.shell_impacts[0];
-    assert_eq!(impact.owner, player_tank);
+    assert_eq!(impact.owner, Some(player_tank));
     assert_eq!(impact.surface, game_core::ImpactSurface::Terrain);
 }

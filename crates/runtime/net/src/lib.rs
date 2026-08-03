@@ -110,7 +110,20 @@ pub use snapshot_schedule::SnapshotSchedule;
 /// The armour VALUES that move with it (a cast turret's wall tapering aft, the T-54's
 /// documented 200/160→65 and its 30 mm roof) are geometry, not wire — the deterministic bake
 /// resolves them identically on both sides.
-pub const PROTOCOL_VERSION: u16 = 43;
+///
+/// v44: a third-party projectile's OWNER is intel, not world state. `ShellSnapshot.owner` and
+/// `ShellImpact.owner` become `Option<TankId>` — `None` when the viewer has not spotted the
+/// firing tank — and a `ShotFired` from an unspotted shooter is dropped by the per-viewer
+/// filter (it was never drawable and its shooter+shell_id pairing was the sharpest leak). The
+/// tracer and the impact still replicate for everyone; only the identity is withheld. A wire
+/// break because `owner`'s type changed. See `docs/spotting-policy.md`.
+///
+/// v45: `StartBattle` carries `time_limit_tick` — the sim tick the clock expires on, or `None`
+/// for an untimed battle. Constant per battle, so it rides the one-shot seat word rather than
+/// every snapshot; the client counts down locally against the `server_tick` it already tracks.
+/// Before it, a remote HUD hid the battle timer because it knew the current tick but not the
+/// deadline. Appended field — a wire break by layout.
+pub const PROTOCOL_VERSION: u16 = 45;
 
 #[derive(Debug, Error)]
 pub enum NetError {
@@ -129,13 +142,12 @@ pub enum NetError {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ReplicationConfig {
     pub snapshot_hz: u32,
-    pub interpolation_delay_ticks: u32,
     pub max_prediction_ticks: u32,
 }
 
 impl Default for ReplicationConfig {
     fn default() -> Self {
-        Self { snapshot_hz: 20, interpolation_delay_ticks: 2, max_prediction_ticks: 8 }
+        Self { snapshot_hz: 20, max_prediction_ticks: 8 }
     }
 }
 
@@ -282,7 +294,13 @@ impl From<&TankState> for TankSnapshot {
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Default)]
 pub struct ShellSnapshot {
     pub shell_id: ShellId,
-    pub owner: TankId,
+    /// Who fired the shell — but ONLY when the viewer may know it (protocol v44). A tracer is a
+    /// world event everyone standing there sees, so the shell always replicates; its OWNER is
+    /// intel, so it is `None` for a shell whose firing tank the viewer has not spotted. The
+    /// client keys presentation on `shell_id`, never on this. (Residual: `shell_id` is a hash of
+    /// the owner id — a determined packet reader could brute-force it over the ~14 tank ids; a
+    /// per-viewer shell-id remap is future work, tracked in the multiplayer program.)
+    pub owner: Option<TankId>,
     pub position: [f32; 3],
     pub velocity_mps: [f32; 3],
     pub shell_type: ShellType,
@@ -295,7 +313,9 @@ impl From<&sim::ShellState> for ShellSnapshot {
     fn from(shell: &sim::ShellState) -> Self {
         Self {
             shell_id: shell.id,
-            owner: shell.owner,
+            // The sim always knows the owner; the per-viewer filter decides whether the viewer
+            // may. `Some` here, possibly anonymized to `None` in `filtered_for_viewer_gated`.
+            owner: Some(shell.owner),
             position: shell.position.to_array(),
             velocity_mps: shell.velocity_mps.to_array(),
             shell_type: shell.shell.shell_type,
@@ -471,6 +491,11 @@ pub enum ProtocolMessage {
         session_id: u64,
         assigned_tank: TankId,
         server_tick: u64,
+        /// v45: the authoritative sim tick at which the clock expires, or `None` for an untimed
+        /// battle. Constant for the whole battle, so it rides the seat word once instead of
+        /// every snapshot; the client counts down locally against `server_tick`. Without it a
+        /// remote HUD had to HIDE the timer (it knew the current tick but not the deadline).
+        time_limit_tick: Option<u64>,
     },
     /// v29: the battle is over. `winning_team` is `None` for a draw.
     BattleEnded {

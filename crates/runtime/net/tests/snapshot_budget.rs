@@ -119,7 +119,7 @@ fn late_battle_delivery(groups: u64, fragments_per_group: u64) -> Vec<u8> {
         shells: (0..8)
             .map(|i| ShellSnapshot {
                 shell_id: game_core::ShellId(i),
-                owner: TankId(i % BATTLE_TANKS),
+                owner: Some(TankId(i % BATTLE_TANKS)),
                 position: [i as f32 * 3.0, 6.0, 210.0],
                 velocity_mps: [0.0, -3.0, 780.0],
                 shell_type: ShellType::ArmorPiercing,

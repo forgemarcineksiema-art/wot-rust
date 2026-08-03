@@ -4,6 +4,7 @@ mod facet;
 mod resolve;
 mod vehicle_volumes;
 mod volumes;
+mod weakspots;
 mod zone;
 
 pub use facet::{ArmorFacet, ArmorFacetProfile};
@@ -18,6 +19,7 @@ pub use volumes::{
     ArmorPatch, ArmorVolume, TaggedPlane, VolumeInterval, segment_volume_entry,
     segment_volume_entry_with_margin, segment_volume_interval_with_margin,
 };
+pub use weakspots::{WeakspotFrame, WeakspotPoint};
 pub use zone::{
     ArmorZone, resolve_penetration_at_distance_on_zone,
     resolve_penetration_at_distance_on_zone_scaled,

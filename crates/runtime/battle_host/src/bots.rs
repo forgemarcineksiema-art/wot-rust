@@ -536,7 +536,17 @@ pub(crate) mod test_support {
         position: Vec3,
         spotted_mask: u8,
     ) -> TankState {
-        let spec = game_core::VehicleKind::T54_1951.spec();
+        tank_of_kind(id, team, position, spotted_mask, game_core::VehicleKind::T54_1951)
+    }
+
+    pub(crate) fn tank_of_kind(
+        id: u64,
+        team: TeamId,
+        position: Vec3,
+        spotted_mask: u8,
+        kind: game_core::VehicleKind,
+    ) -> TankState {
+        let spec = kind.spec();
         let modules = spec.module_health;
         let ammo_counts = spec.ammo.counts;
         let selected_ammo = spec.ammo.initial_selected;

@@ -71,6 +71,7 @@ fn session_id_covers_remote_messages_and_excludes_legacy_payloads() {
             session_id: SESSION_ID,
             assigned_tank: TankId(1),
             server_tick: 0,
+            time_limit_tick: Some(36_000),
         },
         ProtocolMessage::BattleEnded { session_id: SESSION_ID, winning_team: None },
         ProtocolMessage::SnapshotDelivery(net::SnapshotDelivery {
@@ -139,7 +140,7 @@ fn snapshot_round_trips_track_damage_mask() {
         server_tick: 99,
         tanks: vec![tank],
         shells: vec![ShellSnapshot {
-            owner: TankId(42),
+            owner: Some(TankId(42)),
             position: [0.0, 1.0, 2.0],
             velocity_mps: [0.0, 0.0, 900.0],
             ..Default::default()
