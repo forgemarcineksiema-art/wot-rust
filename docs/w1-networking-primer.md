@@ -99,11 +99,19 @@ handshake/szyfrowanie (pomijalna przy 20 paczkach/s).
 
 - **Predykcja własnego czołgu** — JEST (`LocalPredictor` + korekty po snapshotach).
 - **Interpolacja zdalnych** — JEST (faza w domenie ticków, odporna na jitter klatek).
-- **Lag compensation przy strzale** — DO ZROBIENIA: celujesz w przeszłość (interpolacja +
-  ping), więc serwer przy strzale cofa pozycje CELÓW o opóźnienie strzelca i sprawdza
-  trafienie tam, gdzie cel był na jego ekranie. Decyzje z zębami: górny limit cofnięcia
-  (proponuję ~200 ms — powyżej gramy „w to, co widzi serwer"), czy cofamy też fazy coverów
-  (proponuję NIE — rzadkie, a tanio), test-lock: „strzał w to, co widział klient, trafia".
+- **Lag compensation przy strzale** — ZMIERZONE 2026-08-03, ODMOWA NA PIŚMIE dla wariantu
+  „rewind wieży strzelca". Ta strona TEGO primera proponowała pierwotnie cofanie pozycji CELÓW —
+  a to jest DOKŁADNIE „pełny rewind świata", którego `docs/server-first-policy.md` zakazuje
+  (slow ballistic shells → i tak wyprzedzasz cel). Wariant zgodny z polityką (rewind TYLKO wieży
+  strzelca) jest **no-opem**: serwer nie próbkuje celowania strzelca ze spóźnionego snapshotu,
+  tylko ODTWARZA jego własny uporządkowany strumień delt wieży (`turret_yaw_delta`) przez ten sam
+  integrator (`aiming.rs step_aiming`) co predykcja klienta; pocisk startuje z wieży po zwinięciu
+  delty tego ticku (`state.rs` settle→fire, `combat.rs` czyta żywy `turret_yaw_rad`). Kąt, który
+  rewind by odtworzył, jest już w ręku. Strata pakietu nie rozjeżdża tego: brak sekwencji TRZYMA
+  krawędź ognia zamiast strzelić w stary kąt (`remote_input.rs continuous_only`). Zalockowane:
+  `sim/tests/shooter_aim_no_rewind.rs` (pocisk wychodzi wzdłuż zwiniętego celowania strzelca).
+  Realna luka „trafiasz to, co widziałeś" dotyczy pozycji CELU (interpolacja), a jej cofanie jest
+  odrzucone przez politykę — więc pole zamknięte, nie odłożone.
 - **Zegary**: klient goni tick serwera z małym buforem; dryf korygowany płynnie (mamy już
   kulturę akumulatorów ticków po stronie klienta — to rozszerzenie, nie rewolucja).
 
