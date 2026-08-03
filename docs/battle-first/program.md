@@ -35,11 +35,15 @@ inherited red).**
   kernel; two dispatch entries burned — `review_views` is the allowlist's last survivor, held by
   the visual freeze). Found while baselining F2c: the canvas-cover lock had been red on master
   since the Model Idealny merge (~50 PRs) — fixed and blessed in #411, full workspace suite proven
-  green with `--no-fail-fast`. F5.i landed this PR: the slot is a sum of OPTIONAL parts
-  (`Option` per field, `#[serde(default)]`), the benchmark stack reads the `CompleteVisual`
-  view, cut-truth means COMPLETE (a partial block improves the look without claiming
-  skin/armour alignment), and the T-54 golden did not move — inert by proof. Remaining:
-  F5.ii–iv (generic gun-group builder → Tiger I authors its mantlet volume) · ui_kit.
+  green with `--no-fail-fast`. F5 landed across #418–#422: the slot is a sum of OPTIONAL
+  parts (#418, `CompleteVisual` view, cut-truth means COMPLETE, T-54 golden inert) · the
+  recipes ask the gun part first (#419, bore-honest group, gun_tri 500→650 by measurement) ·
+  the loading half reads `<slug>.visual.ron` (#420, roster ratchet) · the gun vocabulary
+  tells the truth about both mount families (#421, canvas and muzzle brake both optional) ·
+  **Tiger I authors its gun group (#422)** — the fleet slot's first file: bore-honest KwK 36,
+  double-baffle brake (new `revolve::muzzle_brake`), the Walzenblende spanning exactly the
+  armour's mantlet patch band. Remaining: F5.iv (plate/fitting parts as the reference loop
+  demands — optional deepening) · ui_kit (the allowlist's last app-to-app edge).
 
 The forward ranking lives in [`combat-system.md`](combat-system.md); its headline item — the
 placeholder gun arcs — closed in #398.
