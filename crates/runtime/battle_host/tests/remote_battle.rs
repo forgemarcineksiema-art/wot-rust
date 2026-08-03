@@ -6,7 +6,7 @@
 use battle_host::remote::RemoteBattleServer;
 use battle_host::{BattleSeed, RandomBattleConfig, ServerTickConfig};
 use net::ProtocolMessage;
-use net::session::{ClientSession, SessionState};
+use net::session::{ClientSession, Endpoint, SessionState};
 use net::transport::{MemoryHub, Transport};
 
 #[test]
@@ -335,4 +335,47 @@ fn the_flow_survives_heavy_seeded_loss() {
     }
     assert!(seated, "25% loss must not stop the handshake and seating");
     assert!(snapshots >= 30, "snapshots keep flowing through the loss, got {snapshots}");
+}
+
+/// N0 security: junk datagrams from spoofed sources allocate table entries but complete no
+/// hello. They must not be counted as lobby players (which started the battle early and handed
+/// the human seats to nobody), and they must not exceed the table cap.
+#[test]
+fn unestablished_sources_neither_start_the_battle_nor_overrun_the_table() {
+    let hub = MemoryHub::new();
+    let server_addr = "10.0.0.1:40000".parse().expect("addr");
+    let mut server_port = hub.port(server_addr);
+
+    let battle = RandomBattleConfig {
+        seed: BattleSeed::fixed(7),
+        player_vehicle: game_core::VehicleKind::T54_1951,
+        map: terrain::MapId::default(),
+    };
+    // A long lobby wait so ONLY a real player count could start it early.
+    let mut host = RemoteBattleServer::new(ServerTickConfig::default(), battle, 100_000, 0);
+
+    // 200 spoofed sources each send one unparseable-as-hello datagram (a bare InputBatch for a
+    // tank they were never assigned). Far more than the table cap.
+    for i in 0..200_u32 {
+        let addr = format!("10.9.{}.{}:6000", i / 256, i % 256).parse().expect("addr");
+        let mut junk_port = hub.port(addr);
+        let mut endpoint = Endpoint::new(server_addr);
+        let junk = ProtocolMessage::InputBatch {
+            session_id: 12345,
+            commands: vec![net::ClientInputCommand {
+                client_tick: 0,
+                tank_id: game_core::TankId(0),
+                command: sim::TankCommand::idle(),
+            }],
+        };
+        endpoint.send(&mut junk_port, &junk).expect("junk");
+        host.pump((i as u64) * 4, &mut server_port);
+    }
+    host.tick(1_000, &mut server_port);
+    assert!(!host.is_running(), "junk sources must not start the battle");
+    assert!(
+        host.tracked_client_count() <= 32,
+        "the client table is capped, got {}",
+        host.tracked_client_count()
+    );
 }

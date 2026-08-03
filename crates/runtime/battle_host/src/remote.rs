@@ -21,6 +21,14 @@ use crate::{LocalAuthoritativeServer, RandomBattleConfig, ServerTickConfig};
 pub const LOBBY_FULL_PLAYERS: usize = 7;
 /// A joined client that stays silent this long (ms) is dropped.
 const CLIENT_TIMEOUT_MS: u64 = 10_000;
+/// An address that has sent traffic but never completed a hello (`session_id` still 0) is a
+/// stranger — a stray datagram or a spoofed source. It ages out far faster than a real crew so
+/// a flood of junk sources cannot squat near the table cap for ten seconds each.
+const UNESTABLISHED_GRACE_MS: u64 = 2_000;
+/// Hard ceiling on tracked client addresses. A public UDP port hears anyone, and every new
+/// source allocates a `RemoteClient` BEFORE any message is validated; without a cap a spoofed
+/// source flood is unbounded memory. Sized well above the seven seats plus reconnect churn.
+const MAX_TRACKED_CLIENTS: usize = 32;
 /// How many times the battle-over word is repeated (unreliable wire, no ack lane needed).
 const BATTLE_ENDED_REPEATS: u32 = 20;
 const RETIRED_SESSION_IDS: usize = 4;
@@ -59,6 +67,13 @@ impl RemoteClient {
             self.last_heard_ms = now_ms;
             return true;
         }
+        // NOTE: a different session_id on a SEATED address re-keys the seat and keeps the tank.
+        // That is the fast-reconnect feature (`remote_reconnect.rs`), not a bug — and because a
+        // spoofed source is address-identical to the real client, it is ALSO the seat-hijack
+        // vector (multiplayer-production-program.md, N-row 1). The two are indistinguishable
+        // without a real identity, so the mitigation lives with authentication in N5, not here.
+        // Do not add an address/timing guard: it cannot separate a reconnect from a takeover and
+        // only breaks the reconnect.
         if self.retired_session_ids.contains(&session_id) {
             return false;
         }
@@ -80,6 +95,13 @@ impl RemoteClient {
 
     fn belongs_to(&self, session_id: u64) -> bool {
         self.session_id == session_id
+    }
+
+    /// A client that completed a hello (its `session_id` is set). Only these count as lobby
+    /// players and toward the seated roster — a bare address that merely sent a datagram has
+    /// proven nothing and must not be able to start a battle or fill a seat.
+    fn is_established(&self) -> bool {
+        self.session_id != 0
     }
 }
 
@@ -124,6 +146,12 @@ impl RemoteBattleServer {
         matches!(self.phase, Phase::Running { .. })
     }
 
+    /// How many client addresses the host is currently tracking. Bounded by
+    /// [`MAX_TRACKED_CLIENTS`]; exposed so ops/telemetry and the flood-cap test can read it.
+    pub fn tracked_client_count(&self) -> usize {
+        self.clients.len()
+    }
+
     pub fn battle_outcome(&self) -> Option<BattleOutcome> {
         match &self.phase {
             Phase::Running { core, .. } => core.battle_outcome(),
@@ -151,6 +179,13 @@ impl RemoteBattleServer {
             Phase::Running { core, .. } => core.authoritative_tick(),
         };
         while let Ok(Some((from, datagram))) = transport.recv() {
+            // A public port hears anyone. A brand-new source is only worth a table slot while
+            // there is room: at the cap, an unknown address is dropped on the floor rather than
+            // allocated, so a spoofed-source flood cannot grow the map without bound. Known
+            // addresses (a seated crew, a client mid-handshake) always keep being served.
+            if !self.clients.contains_key(&from) && self.clients.len() >= MAX_TRACKED_CLIENTS {
+                continue;
+            }
             let client =
                 self.clients.entry(from).or_insert_with(|| RemoteClient::new(from, now_ms));
             let Ok(Some(message)) = client.endpoint.accept(&datagram) else {
@@ -246,7 +281,11 @@ impl RemoteBattleServer {
         // late joiner claims the freed seat.
         let free_seats = &mut self.free_seats;
         self.clients.retain(|_, client| {
-            let alive = now_ms.saturating_sub(client.last_heard_ms) < CLIENT_TIMEOUT_MS;
+            // A crew that finished its handshake gets the full silence budget; a bare stranger
+            // gets only the short grace, so junk sources do not linger near the cap.
+            let budget =
+                if client.is_established() { CLIENT_TIMEOUT_MS } else { UNESTABLISHED_GRACE_MS };
+            let alive = now_ms.saturating_sub(client.last_heard_ms) < budget;
             if !alive && let Some(tank) = client.tank {
                 free_seats.0.push(tank);
             }
@@ -259,7 +298,11 @@ impl RemoteBattleServer {
     pub fn tick(&mut self, now_ms: u64, transport: &mut dyn Transport) {
         match &mut self.phase {
             Phase::Lobby { deadline_ms } => {
-                let players = self.clients.len();
+                // Only crews that completed a hello count. A stray or spoofed datagram allocates
+                // a table entry (session_id 0), and counting those started the battle early and
+                // handed the human seats to nobody.
+                let players =
+                    self.clients.values().filter(|client| client.is_established()).count();
                 let deadline = *deadline_ms;
                 let countdown_ms = deadline.saturating_sub(now_ms);
                 for client in self.clients.values_mut() {
@@ -448,12 +491,23 @@ impl RemoteBattleServer {
     }
 
     fn start_battle(&mut self, transport: &mut dyn Transport) {
-        let humans = self.clients.len().clamp(1, LOBBY_FULL_PLAYERS);
+        // Seats go to crews that finished a hello, never to bare addresses. Counting every table
+        // entry let a spoofed datagram consume a human seat that then answered to nobody.
+        let humans = self
+            .clients
+            .values()
+            .filter(|client| client.is_established())
+            .count()
+            .clamp(1, LOBBY_FULL_PLAYERS);
         let (core, human_tanks) =
             LocalAuthoritativeServer::new_random_7v7_for_humans(self.config, self.battle, humans);
         let server_tick = core.authoritative_tick();
         let time_limit_tick = core.time_limit_tick();
-        for (client, tank) in self.clients.values_mut().zip(human_tanks) {
+        // The same `is_established()` cut as the count above: a seat may only go to a client that
+        // completed the handshake, or the zip hands a real tank to a spoofed address.
+        for (client, tank) in
+            self.clients.values_mut().filter(|client| client.is_established()).zip(human_tanks)
+        {
             client.tank = Some(tank);
             let start = ProtocolMessage::StartBattle {
                 session_id: client.session_id,

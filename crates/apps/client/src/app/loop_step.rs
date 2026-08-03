@@ -125,7 +125,8 @@ impl ClientApp {
                     | super::session::RemoteTerminalReason::CombatEventGap
                     | super::session::RemoteTerminalReason::Transport
                     | super::session::RemoteTerminalReason::SnapshotStalled
-                    | super::session::RemoteTerminalReason::InputBacklog => {
+                    | super::session::RemoteTerminalReason::InputBacklog
+                    | super::session::RemoteTerminalReason::MapMismatch => {
                         crate::hud::BattleHudOutcome::ConnectionLost
                     }
                 })

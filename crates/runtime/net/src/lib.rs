@@ -142,13 +142,12 @@ pub enum NetError {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ReplicationConfig {
     pub snapshot_hz: u32,
-    pub interpolation_delay_ticks: u32,
     pub max_prediction_ticks: u32,
 }
 
 impl Default for ReplicationConfig {
     fn default() -> Self {
-        Self { snapshot_hz: 20, interpolation_delay_ticks: 2, max_prediction_ticks: 8 }
+        Self { snapshot_hz: 20, max_prediction_ticks: 8 }
     }
 }
 
