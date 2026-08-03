@@ -4,8 +4,14 @@
 //! authoritative shell step. There is no private simplified bot trajectory.
 
 use game_core::math::{gun_direction, integrate_shell_step, wrap_angle};
-use glam::Vec3;
-use sim::{SHELL_MAX_AGE_SECONDS, TankState};
+use game_core::{
+    ArmorZone, ShellSpec, WeakspotFrame, resolve_penetration_at_distance_on_zone_scaled,
+    vehicle_armor_volumes,
+};
+use glam::{Mat3, Vec3};
+use sim::{
+    SHELL_MAX_AGE_SECONDS, SegmentImpact, ShellTraceWorld, TankState, TraceTank, segment_impact,
+};
 
 /// Match the authoritative server's 60 Hz shell integration.
 const SOLVE_DT_S: f32 = 1.0 / 60.0;
@@ -16,6 +22,16 @@ const INTERCEPT_ROUNDS: usize = 4;
 const MAX_LEAD_DISPLACEMENT_M: f32 = 120.0;
 /// Aim at the middle 80% of the target silhouette, leaving dispersion margin at the rim.
 const GATE_MARGIN: f32 = 0.8;
+/// How far past a weakspot's surface the verification lay probes, so the segment actually
+/// enters the armor volume instead of stopping ON its boundary plane.
+const LAY_PROBE_OVERSHOOT_M: f32 = 2.0;
+/// A weakspot is worth holding on only while its disc subtends at least this fraction of the
+/// gun's aimed dispersion radius — roughly a 2% straight-in hit chance. Below that the hold is
+/// theater: the round lands by luck alone, on the very plate the gunner switched away from.
+/// With the fleet's 2–3 mrad guns this retires a 0.11 m bow port past ~300 m; what happens
+/// past the line belongs to the futility clock, which already makes a bouncing bot relocate —
+/// closing in IS the counterplay the weakspot economy asks for.
+const PATCH_FEASIBLE_DISPERSION_FACTOR: f32 = 0.15;
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct BotAimErrors {
@@ -61,11 +77,11 @@ impl BotFiringSolution {
 /// Solve a constant-velocity intercept, then pull the world lay through the hull attitude.
 pub(crate) fn solve_firing_solution(tank: &TankState, target: &TankState) -> BotFiringSolution {
     let muzzle = tank.muzzle_world_position();
-    let target_center = target.position + Vec3::Y * target.spec.hitbox.center_y_m;
+    let choice = choose_aim_point(tank, target);
     let shell = tank.selected_shell();
     let (aim_point, world_pitch) = intercept_lay(
         muzzle,
-        target_center,
+        choice.point,
         target.velocity_mps,
         shell.muzzle_velocity_mps,
         shell.drag_per_s(),
@@ -84,9 +100,132 @@ pub(crate) fn solve_firing_solution(tank: &TankState, target: &TankState) -> Bot
         desired_turret_yaw_rad: desired_turret,
         desired_gun_pitch_rad: desired_pitch,
         aim_point_world: aim_point,
-        yaw_gate: (target.spec.hitbox.half_width_m * GATE_MARGIN / distance).atan(),
-        pitch_gate: (target.spec.hitbox.half_height_m * GATE_MARGIN / distance).atan(),
+        yaw_gate: (choice.half_width_m * GATE_MARGIN / distance).atan(),
+        pitch_gate: (choice.half_height_m * GATE_MARGIN / distance).atan(),
     }
+}
+
+/// The point on the target worth shooting, with the half-extents the trigger gates read.
+struct AimChoice {
+    point: Vec3,
+    half_width_m: f32,
+    half_height_m: f32,
+}
+
+/// Centre of mass while the gun beats the armor there; the largest penetrable weakspot disc
+/// when it does not. The estimate is the crew's honest knowledge: the same shell trace and the
+/// same penetration resolution the player's reticle hint runs against a spotted target —
+/// nothing here reads hidden state, only the enemy's visible geometry and the bot's own gun.
+///
+/// The straight lay stands in for the arc, exactly like the trigger-safety line: at the ranges
+/// where drop would bend the answer the dispersion gate has already retired the weakspot.
+fn choose_aim_point(tank: &TankState, target: &TankState) -> AimChoice {
+    let center = target.position + Vec3::Y * target.spec.hitbox.center_y_m;
+    let hitbox = AimChoice {
+        point: center,
+        half_width_m: target.spec.hitbox.half_width_m,
+        half_height_m: target.spec.hitbox.half_height_m,
+    };
+    // Vehicles without baked volumes have no patch geometry to aim at (and their box bands
+    // never auto-bounce the way a real front does): centre of mass, as always.
+    let Some(volumes) = vehicle_armor_volumes(target.spec.kind) else {
+        return hitbox;
+    };
+    let muzzle = tank.muzzle_world_position();
+    let shell = tank.selected_shell();
+    let trace_tank = [TraceTank::from_spec(
+        target.id,
+        target.position,
+        target.hull_pose(),
+        target.turret_yaw_rad,
+        &target.spec,
+    )];
+    let world = ShellTraceWorld {
+        projectile_radius_m: shell.collision_radius_m(),
+        tanks: &trace_tank,
+        blockers: &[],
+        heightmap: None,
+        cover: &[],
+        water: None,
+    };
+    // A centre the shell beats — or a degenerate pose the probe cannot read — keeps the lay
+    // this solver has always produced.
+    match penetration_on_lay(muzzle, center, &shell, target, &world) {
+        Some((_, penetrated)) if !penetrated => {}
+        _ => return hitbox,
+    }
+    let basis = target.hull_pose().basis();
+    let pivot = Vec3::new(0.0, 0.0, volumes.turret_ring_z);
+    let turret_spin = Mat3::from_rotation_y(target.turret_yaw_rad);
+    let mut spots = volumes.weakspot_aim_points();
+    // Largest disc first: among penetrable weakspots the biggest is the one dispersion is most
+    // likely to actually put a round through.
+    spots.sort_by(|a, b| b.radius_m.total_cmp(&a.radius_m));
+    for spot in spots {
+        let local = match spot.frame {
+            WeakspotFrame::Hull => spot.center,
+            WeakspotFrame::Turret => pivot + turret_spin * (spot.center - pivot),
+        };
+        let point =
+            target.position + basis * (Vec3::Y * target.spec.hitbox.center_y_m) + basis * local;
+        let distance = muzzle.distance(point).max(1.0);
+        if let Some(outward) = spot.outward {
+            let outward_local = match spot.frame {
+                WeakspotFrame::Hull => outward,
+                WeakspotFrame::Turret => turret_spin * outward,
+            };
+            if (basis * outward_local).dot(muzzle - point) <= 0.0 {
+                continue; // The disc faces away from this gun.
+            }
+        }
+        if spot.radius_m / distance
+            < tank.spec.gun.dispersion_mrad * 1.0e-3 * PATCH_FEASIBLE_DISPERSION_FACTOR
+        {
+            continue; // Too far to hold on a disc this small.
+        }
+        // The verification asks the authoritative trace: does the straight lay to this point
+        // actually land on the weakspot's own zone (not occluded by another part of the same
+        // vehicle), and does the shell beat the metal there?
+        if let Some((zone, penetrated)) = penetration_on_lay(muzzle, point, &shell, target, &world)
+            && zone == spot.zone
+            && penetrated
+        {
+            return AimChoice { point, half_width_m: spot.radius_m, half_height_m: spot.radius_m };
+        }
+    }
+    hitbox
+}
+
+/// The zone a straight lay from `muzzle` through `point` strikes on the target, and whether
+/// the bot's shell beats the metal there — the reticle hint's two-step, run server-side.
+/// `None` when the segment fails to strike the target at all.
+fn penetration_on_lay(
+    muzzle: Vec3,
+    point: Vec3,
+    shell: &ShellSpec,
+    target: &TankState,
+    world: &ShellTraceWorld<'_>,
+) -> Option<(ArmorZone, bool)> {
+    let direction = (point - muzzle).normalize_or_zero();
+    if direction == Vec3::ZERO {
+        return None;
+    }
+    let probe_end = point + direction * LAY_PROBE_OVERSHOOT_M;
+    let impact = segment_impact(muzzle, probe_end, direction * shell.muzzle_velocity_mps, world)?;
+    let SegmentImpact::Tank { zone, impact_angle_degrees, hit_position, thickness_scale, .. } =
+        impact
+    else {
+        return None;
+    };
+    let result = resolve_penetration_at_distance_on_zone_scaled(
+        shell,
+        &target.spec.hull,
+        zone,
+        impact_angle_degrees,
+        muzzle.distance(hit_position),
+        thickness_scale,
+    );
+    Some((zone, result.penetrated))
 }
 
 /// Refine the future point from the real flight time. Unreachable or corrupt input falls back
