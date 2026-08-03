@@ -15,9 +15,11 @@ as boxes, without requiring glTF assets or texture authoring for the first playa
 
 ## Ownership
 
-The `vehicle_geometry` crate owns deterministic mesh construction for vehicles. It may use
-`glam`, `serde`, and stable game identity data such as `VehicleKind` and `HitboxProfile`. It must not
-depend on `wgpu`, `renderer_wgpu`, `winit`, `net`, `sim`, `server`, or live renderer objects.
+The `vehicle_geometry` crate (`crates/kernels/vehicle_geometry`) is a pure geometry kernel: mesh
+types, builders, and the mesh-quality audit. Its manifest declares only `earcut`, `game_core`,
+`glam`, `serde`, and `thiserror` — no renderer, no sim, no upward dependencies. Vehicle recipes,
+the fleet budget envelope, and the golden bake hashes moved up to `crates/vehicle/vehicle_recipes`
+(#416); the T-54 hybrid's part description lives in `crates/vehicle/vehicle_build`.
 
 `client` selects recipes for snapshots and adapts baked geometry to the current render path.
 `renderer_api` owns handles, frame objects, and backend-neutral render contracts. `renderer_wgpu`
@@ -86,8 +88,12 @@ The first surface pass uses the existing vertex format:
   hatches, and subtle dirt.
 - team or ownership color as a tint layer, not the vehicle's identity.
 
-Do not add UVs, texture arrays, normal maps, or extra vertex attributes until `wgsl-layout-policy`
-and renderer tests are updated for the new format.
+Vertex-format growth is append-only, and a new lane lands WITH its instruments in the same change:
+a layout test (`renderer_wgpu/tests/wgsl_layout.rs` plus the `SceneVertex` size assert) and a
+comparison golden proving existing content unchanged. The UV lane (Imported Flora 2.0, FL-1)
+shipped exactly this way — appended at location 12, `[0, 0]` everywhere for procedural content —
+and it is the standing precedent for any future lane (texture arrays, normal maps): never a
+reorder, never a lane without a lock.
 
 ## Runtime Path
 

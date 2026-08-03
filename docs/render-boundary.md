@@ -52,11 +52,11 @@ WGSL buffer layout belongs to `renderer_wgpu`. Gameplay crates do not define GPU
 
 ## Pipeline Ownership
 
-`renderer_api` defines the backend-neutral `PipelineKey`; `renderer_wgpu` translates that key to concrete render pipeline state. Pipelines are prepared through startup prewarm, dev hot reload, or release cache loading. Draw calls may only require an existing key and must not call pipeline creation as a side effect.
+`renderer_api` defines the backend-neutral `PipelineKey`; `renderer_wgpu` translates that key to concrete render pipeline state. Pipelines are prepared through startup prewarm, dev hot reload, or release cache loading. Draw calls may only require an existing key and must not call pipeline creation as a side effect. (Adoption status: the registry exists but the shipping renderer does not yet create its pipelines through it — see `docs/pipeline-policy.md`.)
 
 ## Upload Ownership
 
-GPU upload staging belongs to `renderer_wgpu`. The backend batches frame data through upload arenas, dynamic uniform rings, instance allocators, texture upload queues, and readback queues. Gameplay structs still expose durable handles and transforms only; they do not decide when or how bytes are written to GPU memory.
+GPU upload staging belongs to `renderer_wgpu`. The backend batches frame data through upload arenas, dynamic uniform rings, instance allocators, texture upload queues, and readback queues. Gameplay structs still expose durable handles and transforms only; they do not decide when or how bytes are written to GPU memory. (Adoption status: the batching machinery exists but the shipping renderer still writes through `Queue::write_buffer` — see `docs/gpu-upload-policy.md`.)
 
 ## Why This Exists
 
@@ -68,5 +68,4 @@ This keeps the authoritative server, protocol snapshots, replay regression tests
 
 - only `renderer_wgpu` has a direct `wgpu` dependency;
 - `game_core`, `sim`, `net`, `physics`, `renderer_api`, and `server` do not reference `wgpu`;
-- `server` does not depend on renderer crates, `wgpu`, `winit`, or `egui`;
-- this document remains present.
+- `server` does not depend on renderer crates, `wgpu`, `winit`, or `egui`.

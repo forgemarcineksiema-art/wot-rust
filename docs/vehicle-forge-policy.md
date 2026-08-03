@@ -28,8 +28,9 @@ this move the benchmark vehicle closer to the Forge quality target?*
   migrated vehicles. It is treated as a prototype: useful, but gradually superseded by the Forge's
   semantic part graph. It is not ripped out early.
 - The pre-Forge lineup screenshots are kept as the comparison baseline. New Forge output is judged
-  against them, not against a blank slate. The reference audit lives in
-  [vehicle-geometry-photo-analysis.md](vehicle-geometry-photo-analysis.md).
+  against them, not against a blank slate. The photo-reference record lives in the per-vehicle
+  dossiers (`docs/vehicles/*.md`); the old fleet-wide photo audits were retired once their findings
+  either shipped or moved into those dossiers.
 
 ## Ownership And Boundaries
 
@@ -139,21 +140,174 @@ The canonical gate remains `./scripts/verify.ps1`. Focused crate tests (`cargo t
 vehicle_forge`, `-p vehicle_geometry`, `-p renderer_wgpu`) are fine for tight loops, but no phase is
 complete until the full gate passes.
 
+## The Seal Gate (Garage Distance)
+
+Number gates are the floor, never the bar. Carried over from the 2026-07-17 model-logic audit
+(its defect ledger closed clear), this is what every vehicle PR passes before any "sealed" claim:
+
+1. **Garage-distance renders** — front, rear ¾ low, flank close, turret close, gun close —
+   reviewed for floaters, interpenetrations, closed openings, scale absurdities.
+2. **Functional checklist**: every hatch passes a 0.55 m torso; the barrel has a visible bore;
+   the engine deck has intake AND exhaust paths; tracks carry the wheels (contact, sag); every
+   attached thing has a bracket or support; nothing shares its exact shape with another vehicle
+   unless the real vehicles shared it.
+3. Numbers gates (dimensions/ratios/budgets) stay — as the floor, not the bar.
+
+One lesson from that audit outlived its ledger (Jagdtiger JT.3): a cage asserted the cast collar
+"spans over a metre" and passed — on a collar buried 275 mm INSIDE the leaning plate. Width was
+never the property in question; RELIEF was. **When a lock and a photo disagree, check whether the
+lock measures the quantity the photo is about.**
+
+The audit named two systemic causes, and both are answered: the missing functional-logic pass IS
+this gate, and the clone factory is gone in code — per-vehicle deck layouts in
+`vehicle_recipes/src/deck_details.rs`, per-family `add_german_cast_cupola` /
+`add_soviet_slit_cupola` / `add_british_cupola` in `turret_fittings.rs`, per-family
+`shoe_pattern` + `wheel_face` in the track shape, and every braked gun wearing a real
+double-baffle with OPEN chambers over a recessed dark bore
+(`vehicle_recipes/src/armament.rs:153-225`).
+
+## Budget Procedure (Raising Is Conscious, Never Drift)
+
+1. Measure the candidate detail with `detail_cost_probe` (client examples) before deciding.
+2. Exhaust the cheap paths first: running-gear instancing (interleaved wheels are more
+   *instances*, not more unique triangles), detail kernels, harder LOD1/LOD2.
+3. Only then raise a budget, with the probe number in the PR description. Stated honestly: the
+   fleet bake envelope is currently ONE `VEHICLE_BUDGETS` covering all nine kinds
+   (`crates/vehicle/vehicle_recipes/src/budgets.rs`), so "raise it per-vehicle" is a rule the
+   code cannot yet express. The only per-vehicle precedent is the T-54 hybrid's own
+   `MEDIUM_LOD0_TRI_BUDGET` of 22k in a different crate
+   (`crates/vehicle/vehicle_build/src/t54.rs:19`), and the 2026-08-03 `gun_tri` 500→650 raise
+   was a fleet-wide bump justified by a T-54-only measurement (recorded in `budgets.rs`). A
+   per-vehicle envelope mechanism is open debt of this procedure.
+4. LOD ratios keep holding after any raise; the gates are
+   `vehicle_recipes/tests/vehicle_budgets.rs` and `vehicle_recipes/tests/vehicle_lod.rs`.
+
+## The Per-Vehicle Authoring Protocol
+
+Every vehicle passes steps (a)–(h), packed into 2–3 PRs. Data first, model second: the dossier
+and its machine-checked targets land *before* the PR that edits the blueprint RON.
+
+**"Dossier and measure"** — zero geometry changes.
+
+- (a) Research the real tank: museum specimens, factory drawings, manuals, model-kit
+  cross-checks. Output: a dossier in `docs/vehicles/<x>.md` following
+  `docs/vehicles/_template.md`, with the anchor-numbers table
+  (dimension | value | source | confidence | encoding).
+- (b) `DimensionTarget`s + tightened `RatioTarget`s in the vehicle's reference pack
+  (`vehicle_forge/src/packs*.rs`), each with a `ReferenceSource`. Targets the current model
+  *fails* enter with tolerance temporarily widened to the current state plus a
+  `// TODO(<wave>-<x>): target ±…` — the PR stays green while the intended gate is already
+  written down.
+
+**"Shape"**.
+
+- (c) RON correction through the Studio loop (`cargo run -p tools -- studio --vehicle X
+  --blueprint-file Y`), contact sheet compared against the dossier photographs, iterated until
+  Δ% sits inside tolerance. The RON also feeds the hitbox and the armor volumes — check
+  `game_core/src/armor/vehicle_volumes.rs` behaviour after every major change.
+- (d) Detail in the recipe (`crates/vehicle/vehicle_recipes`), built from the kernel crates.
+- (e) Bespoke part table in `vehicle_forge/src/part_data/<x>.rs`, then tighten the temporary
+  tolerances to their targets (delete the TODOs).
+
+**"Cage and seal"**.
+
+- (f) Benchmark cage at Tiger-class density (17–28 anatomy asserts, each quoting the dossier's
+  real dimensions in a comment).
+- (g) `GOLDEN_BAKE_HASHES` re-record (`vehicle_recipes/src/budgets.rs`) plus the budget, LOD and
+  dimension gates (`vehicle_recipes/tests/vehicle_budgets.rs`,
+  `vehicle_recipes/tests/vehicle_lod.rs`, `vehicle_forge/tests/dimension_gate.rs`).
+- (h) Verification renders in the PR description: Studio contact sheet, a PBR studio render, the
+  fleet lineup — and then the seal gate above.
+
 ## Milestones
 
-0. **Lock the philosophy** — this document; benchmark and baseline chosen. *(current)*
+Status 2026-08-03: milestones 0–6 are **done**, 7 is **partial**, 8 is **in progress** through
+the W4 fleet slot (below).
+
+0. **Lock the philosophy** — this document; benchmark and baseline chosen. *(done)*
 1. **Reference pack and ratio tests** — `ReferencePack` for T-54, photo-derived ratio tests.
-2. **Semantic part graph** — move T-54 from flat constants to a `ForgePartGraph`.
+   *(done)*
+2. **Semantic part graph** — move T-54 from flat constants to a `ForgePartGraph`. *(done)*
 3. **Geometry operators for real tank forms** — plate/loft/cast-shell/track-belt/wheel-train, UVs,
-   tangents.
+   tangents. *(done)*
 4. **PBR-lite vehicle pipeline** — `VehicleVertex`, material textures, normal/AO maps, shader path,
-   screenshot regression.
+   screenshot regression. *(done)*
 5. **Bake artifact and toolchain** — Forge CLI writes artifact folders; client loads baked assets.
+   *(done)*
 6. **First production benchmark** — T-54 with LOD0/1/2, full screenshot set, passing ratio/
-   geometry/renderer/perf gates.
-7. **Runtime variation** — decals, dirt/camo, equipment, damage and track state.
+   geometry/renderer/perf gates. *(done — the Model Idealny programme took it further, to zero
+   dimensional deviations; see the lessons below)*
+7. **Runtime variation** — decals, dirt/camo, equipment, damage and track state. *(partial)*
 8. **Migrate other vehicles** — Jagdtiger, Tiger I, Tiger II, then Panther II after an explicit
-   interpretation decision.
+   interpretation decision. *(in progress — the whole fleet is blueprint-born and caged; per-vehicle
+   visual authoring runs through the fleet slot)*
 
 Each migrated vehicle must arrive with a `ReferencePack`, part graph, ratio tests, LODs, screenshot
 review, and a baked material set.
+
+### The Fleet Slot (W4 F5)
+
+A vehicle's visual is a sum of OPTIONAL parts loaded from `<slug>.visual.ron`
+(`game_core/blueprints/`): a partial file improves the look without claiming cut-truth, and `None`
+is a decision, not an omission. The Tiger I is the first and so far only vehicle to author one
+(#422) — its gun group: the bore-honest KwK 36, the double-baffle brake with open chambers
+(`revolve::muzzle_brake`), and the Walzenblende spanning exactly the armour's mantlet patch band.
+The T-54 is the exception by design: its `VisualDetail` is generated in Rust from the blueprint
+(`game_core/src/vehicle_blueprint/source.rs` — an embedded file "would be a second source about to
+disagree" with the generated tree).
+
+## Lessons From The Closed T-54 Programme (Model Idealny, 2026-07-29)
+
+The programme that took the benchmark to zero deviations (PRs #330–#362) closed with its truth in
+two places: the dossier (`docs/vehicles/t-54.md`) and the gate
+(`vehicle_forge/tests/dimension_gate.rs`, which asserts every T-54 anchor is Locked and the debt
+list is empty). Two findings from it apply to every vehicle that follows:
+
+**The instrument and the thing it measured were the same mistake.** Hull length caught the stowed
+beam; bare-roof height caught the hatch lid; cupola diameter caught the roof plate; ground
+clearance looked in a window narrower than the floor it was measuring; the phantom-width lint read
+the hitbox against a model that shared its error; three tests REQUIRED the wrong shape outright.
+The workshop itself opened the programme with the same defect class: self-calibrated anchors with
+dangling citations, mirrored review tiles, and a fast loop that did not send the mesh it claimed
+to. Every one of these surfaced only when the geometry became correct — which is the argument for
+fixing the vehicle and the tape measure in the same commit.
+
+**A number written down twice is a number about to disagree with itself.** The tub width, the
+wheel stations, the fender centre, a top-run anchor with `0.96 − 0.32` hidden inside a bare
+`0.66`, the DShK inheriting the tank gun's calibre — each was a copy, and each broke the moment
+its source moved.
+
+**One decision from the programme stays open, and it is the USER's** (M14): the T-54 hitbox is
+wider than its outermost armor volume — 0.141 m of phantom ram/movement width. Narrowing the box
+changes ramming, terrain contact and spotting together, so it is not a modelling call; it is
+measured every run (`the_hitbox_does_not_grow_further_past_the_visible_vehicle`) and recorded in
+the dossier's follow-ups.
+
+## Open Fleet Debt (2026-08-03)
+
+Recorded so the next vehicle PR starts from the true state. Four gaps, each with the code that
+proves it:
+
+1. **Six vehicles derive `cupola_height` from the collision box.** Only the T-54 (0.131) and
+   Tiger I (0.115) author it; everyone else falls back to "whatever fills the gap up to the
+   hitbox apex" (`game_core/src/vehicle_blueprint/mod.rs:172-174`), and since #426 that derived
+   number is SHOOTABLE ARMOR — the cupola drum volume is built from it
+   (`game_core/src/armor/vehicle_volumes.rs:142`). Derived today: Tiger II 0.34, T-34-85 0.33,
+   Panther II 0.27, Centurion 0.21, IS-3 0.10, Jagdtiger 0.07 — dossier numbers for none of them.
+2. **Six vehicles have no `glacis_ports`.** #428 retired the front weakspot "smear" fleet-wide,
+   but only the T-54 (one bow port) and Tiger I (two) authored the replacement patches
+   (`game_core/blueprints/t54_1951.blueprint.ron:141`,
+   `game_core/blueprints/tiger_i_ausf_e.blueprint.ron:91-94`); the other six now front nothing
+   but the mantlet patch and a derived cupola.
+3. **Seven of eight turret armor volumes are a swept CIRCLE, not the casting.** The sector plane
+   anchors on the authored `turret_loft` support function only where one exists — today the T-54
+   alone (`game_core/src/armor/vehicle_volumes.rs:344-348`); every other turret keeps the swept
+   radius until its own dossier arrives.
+4. **Centurion, IS-3 and T-34-85 have no `DimensionTarget`s**, so their dossier numbers are
+   unmeasured: the dimension gate skips packs with no dimensions
+   (`vehicle_forge/tests/dimension_gate.rs:20-22`) and the packs carry the unclosed TODOs
+   (`packs_is3.rs:38`, `packs_british.rs:38`, `packs_t34.rs:33`). The cost is already visible:
+   the IS-3 dossier says 2.44 m to the turret roof while the shipped blueprint bakes
+   `roof_y: 2.39` (`game_core/blueprints/is3.blueprint.ron:53`) and no gate can notice. The
+   T-34-85 additionally had no dossier at all until the unresearched stub
+   (`docs/vehicles/t-34-85.md`).

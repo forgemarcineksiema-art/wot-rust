@@ -28,7 +28,7 @@ pub enum MapId {
     OrlinyPereval,
     /// The railway city (Voronezh axis, 1943): a dense masonry bench on the west flank,
     /// open fields walled off by an impassable rail berm with three gates on the east —
-    /// the urban-map program's map (docs/urban-map-program.md). Plays opt-in via
+    /// the urban-map program's map (docs/maps/ostrogorsk.md). Plays opt-in via
     /// `WOT_MAP=ostrogorsk`.
     Ostrogorsk,
 }

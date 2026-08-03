@@ -1,7 +1,9 @@
-# Destruction Program ("Honest Steel")
+# Honest Steel (destruction policy)
 
-This document is the live plan for battlefield destruction: contact-true shell impacts,
-visible vehicle damage, spectacular vehicle deaths, and destructible cover. It is a
+This document is the standing policy for battlefield destruction: contact-true shell
+impacts, visible vehicle damage, spectacular vehicle deaths, and destructible cover. It
+began as a phased program (0–8 plus the wreck epilogue); every phase is implemented and
+test-locked, so what remains here is the contract that keeps the results honest. It was a
 deliberate direction change from the original scaffold disclaimer ("does not optimize for
 full-world destruction") — but it stays inside the domain rule of
 [armored-battle-domain.md](armored-battle-domain.md): **destruction is selective gameplay
@@ -10,15 +12,16 @@ flags; the world never becomes a voxel sandbox.
 
 ## Why
 
-The picture must never lie about collision. Today it does, three ways:
+The picture must never lie about collision. Before this program it did, three ways — each
+closed by a phase, and the invariants below are what keep them closed:
 
-1. Shell hits resolve on collision geometry (baked armor volumes / legacy boxes) while the
+1. Shell hits resolved on collision geometry (baked armor volumes / legacy boxes) while the
    visual mesh is deliberately inset (`crates/vehicle/vehicle_build/tests/hitbox_fit.rs`),
-   so impact marks float in the air next to the tank.
-2. The server computes the true struck-plate normal (`SegmentImpact::Tank.plate_normal`)
-   but never transmits it; the client reconstructs a coarse cardinal normal.
+   so impact marks floated in the air next to the tank.
+2. The server computed the true struck-plate normal (`SegmentImpact::Tank.plate_normal`)
+   but never transmitted it; the client reconstructed a coarse cardinal normal.
 3. Destroyed modules, ammo-rack detonations, and dead tanks all read as a tint change —
-   the damage state is on the wire, the picture ignores it.
+   the damage state was on the wire, the picture ignored it.
 
 ## Standing invariants
 
@@ -39,24 +42,19 @@ Every phase preserves these; a phase that cannot is redesigned, not excused.
 - **Budgets are executable.** The combat hot-path bench and the FX frame-vertex budget
   test lock costs; raising a budget is a conscious diff, not drift.
 
-## Phases
+## What shipped (the program, one line)
 
-| # | Phase | Scope | Protocol | Status |
-|---|---|---|---|---|
-| 0 | Program doc + budgets | this doc, combat hot-path bench, FX vertex budget lock | — | implemented |
-| 1 | Contact-true impacts | `DamageEvent` carries plate normal + shell direction; client raycasts the visual mesh (BVH per `VehicleKind`) and anchors marks flush on the armor | v19 | implemented |
-| 2 | Conformal decals | penetration holes as mesh-clipped triangle patches that wrap curved castings | — | implemented |
-| 3 | Visible module damage | gun droop, thrown track + dropped wheels, engine-deck fire, wreck dressing — all from state already on the wire | — | implemented |
-| 4 | Turret pop-off | ammo-rack detonation kill detaches the turret: sim flag + trace exemption + `wreck_state` on the wire; client flies a deterministic ballistic arc | v20 | implemented |
-| 5 | Wreck deformation | runtime `deform`-kernel dents on per-instance wreck meshes at death; ricochet spark streaks | — | implemented |
-| 6 | Destructible cover | `CoverView` + `cover_states` (Intact/Rubble/Gone): HE and ramming destroy fences/tree-line segments and pound farm buildings into rubble; shell trace, movement, and spotting LOS all follow the state | v21 | implemented |
-| 7 | Honest Steel T-54 | bounded persistent armor channels, multi-module interior path, pose-aware mantlet scars, engine fire and authored thrown-track gap | v25 | implemented |
-| 8 | Real perforations | fleet-wide reusable apertures, v26 contours, analytic color/depth/shadow cut, T-54 interior lighting and local CPU remesh | v26 | implemented |
-| E | Wreck epilogue (Inna Liga D6) | thrown-track ribbon prop shed onto the field (unit link mesh, deterministic S-curve, budgeted pool), wreck burn-out (~20 s of flames, then smolder), ricochet sparks leave along the deflection from the wire's plate normal + shell direction | — | implemented |
+All phases are implemented: contact-true impacts (v19), conformal decals, visible module
+damage, turret pop-off (v20), wreck deformation, destructible cover (v21), Honest Steel
+T-54 channels (v25), fleet-wide real perforations (v26), and the wreck epilogue
+(thrown-track ribbon, burn-out, deflection sparks). The sections below are the contract
+those features live under, not a plan.
 
-Sequencing: 0 → 1 → {2, 3 in either order} → 4 → {5, 6 in parallel} → 7 → 8 → E.
+## Protocol ledger (historical)
 
-## Protocol ledger
+The bumps this program made. Later protocol history lives in
+`crates/runtime/net/src/lib.rs` (`PROTOCOL_VERSION`) and
+`docs/testing-and-regression.md`.
 
 | Version | Phase | Change |
 |---|---|---|
@@ -82,7 +80,7 @@ Sequencing: 0 → 1 → {2, 3 in either order} → 4 → {5, 6 in parallel} → 
 - A freshly thrown track records its normalized belt-path location. Presentation omits five links
   around it; crew re-seat clears the gap in the same tick that restores the track pool.
 
-Phase 8 is intentionally landing as reviewable slices. Fleet physics, v26 state, analytical
+Phase 8 landed as reviewable slices. Fleet physics, v26 state, analytical
 clipping, detailed component traces, aperture-only interior light, the bounded remesh worker and
 the grouped cross-frame remesh cases are implemented. The remesh contract is locked by tests on a
 weld bead, a cast cheek, an undercut fold and an off-axis mantlet (kernel), plus one split shot
@@ -247,13 +245,6 @@ and ground, an unbridgeable flank walls a charge) and `sim/tests/cover_destructi
 drives over a collapsed building; a shell still dies in the same mound; a STANDING building is
 still a wall and nothing gets onto its roof).
 
-## Known risks
-
-1. Turret-ring seam: a hit zoned Turret whose visual contact is on the hull lip — the
-   client retries the raycast in the other frame before falling back (phase 1).
-2. Per-instance wreck meshes strain the "meshes shared per kind" assumption in the
-   instance batcher — audit before phase 5 lands.
-3. The `CoverView` refactor touches every consumer of `&[StaticCoverObject]`; it lands as
-   its own mechanical commit, and bot routing must not cache destroyed cover (phase 6).
-4. A detached turret's frame must freeze at detonation and ignore later replicated turret
-   yaw (phase 4) — test-locked.
+The program's risk register is retired: every row was paid by its phase (the turret-ring
+seam retry, the per-instance wreck mesh batching audit, the `CoverView` refactor, and the
+detached-turret frame freeze — the last is test-locked).

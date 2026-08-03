@@ -7,8 +7,8 @@ first, because everything below adds code.
 Findings referenced here live in [`audit-register.md`](audit-register.md); numbers in
 [`measurements.md`](measurements.md).
 
-**STATUS — 2026-08-02, after PRs #363–#403 (all merged, master clean, gate green with the one
-inherited red).**
+**STATUS — 2026-08-03, after PRs #363–#428 (all merged, master clean; the one inherited red
+died in #411).**
 
 - **W0 CLOSED** — ten rules landed, six sub-rules rejected after measurement (#363–#377).
 - **W1.0 CLOSED** — outcome-on-the-board #371; the death-camera finding withdrawn as instrument
@@ -16,15 +16,20 @@ inherited red).**
 - **W1** — 1.2 (`ShotFired`, protocol v41) #394 · 1.3 (glancing band) #393 · 1.4 (one battlefield
   memory budget, craters 64→256, `u8` bucket cap widened) #395 · 1.5 (frame time) #374.
   **Open: 1.1** (own-shot prediction) and **1.6** (visual, deferred by standing instruction;
-  two of its items withdrawn in `visual-review-2026-08-01.md`).
+  two of its items withdrawn after code reading — the barrel diameters match the dossier and
+  both grass bands already fade).
 - **W2** — 2.1 withdrawn below · 2.2 half-shipped, re-scope before scheduling · **2.3 CLOSED**
   (#382–#389) · 2.4 CLOSED (target choice #378, overwatch from the hull-down census #403) ·
   2.5 visual-deferred · **2.6 DECIDED AND SHIPPED** #399 (stationary ×0.7, firing reveals 8 s).
 - **W3 CLOSED** in full (#369, #370, #372, #376 — landed as the orphan stack #368–#374).
 - **From the combat-system ranking** (#398–#403): gun arcs authored fleet-wide with an ordering
   lock #398 · rack cook-off the crew can win, v42 #400 · mantlet-as-volume measured and re-routed
-  to the Model Idealny session #401 · hull-down census in the map report #402. Cook-off is
-  sim-only (not replicated) — an information-honesty gap to close before the next playtest.
+  to the Model Idealny session #401 · hull-down census in the map report #402. **Landed since
+  (#425–#428)**: cook-off on the wire #425 (v43 — `rack_fire_remaining_s` on the snapshot behind
+  a teammate-only filter, HUD callout in `client/src/hud/rack_callout.rs`; the
+  information-honesty gap is closed) · the commander's cupola as an armour VOLUME #426 · the bow
+  ports as aimable patches #427 · the weakspot smear retired #428 — a front's weakness is its
+  measured patches, not a facet multiplier.
 - **W4 IN PROGRESS** — redesigned below (approved 2026-08-02); W5 absorbed. Landed: F0 #404 ·
   F1 #405 · docs purge #406 · rapier out #407 · probe #408 · F2a #409 · F2b #410 · F2c #412
   (serde on the visual tree + `.visual.ron` exporter + round-trip lock) · F3 #413 (the damage-skin
@@ -45,8 +50,15 @@ inherited red).**
   armour's mantlet patch band. **ui_kit extracted this PR** — the shared HUD kit
   (theme, primitives, font, icons) in `crates/ui/ui_kit` (the target architecture's L5); the
   editor draws through the kit and drops the client, the app-to-app allowlist is EMPTY.
-  **W4's planned structure is complete.** Remaining: F5.iv (plate/fitting parts as the
-  reference loop demands — optional deepening, content-driven).
+  **W4's planned STRUCTURE is complete** (through #424). Its woven-in hygiene list is NOT:
+  the `RenderBackend` no-op still exists (`renderer_api/src/lib.rs:148`,
+  `renderer_wgpu/src/renderer.rs:83`), the stale `spotting.rs:7-9` caveat and the
+  `weapon.rs:108` drag comment still stand, and `engineering-rules.md` remains unreconciled
+  with `verify.ps1`. Remaining otherwise: F5.iv (plate/fitting parts as the reference loop
+  demands — optional deepening, content-driven).
+- **Pending as PRs, not yet landed**: world scale #430 (`docs/world-scale-program.md` — the
+  world reads too small) and multiplayer production #431
+  (`docs/multiplayer-production-program.md` — the road to Steam multiplayer).
 
 The forward ranking lives in [`combat-system.md`](combat-system.md); its headline item — the
 placeholder gun arcs — closed in #398.
@@ -55,8 +67,9 @@ placeholder gun arcs — closed in #398.
 
 ## W0 — Ratchets (5 PR, no gameplay risk)
 
-Twelve gate rules in `crates/tooling/quality`, each landing green with an explicit allowlist. Full
-specification: [`gate-rules.md`](gate-rules.md).
+Gate rules in `crates/tooling/quality`, each landing green with an explicit allowlist. The rules
+ARE the 18 test files in `crates/tooling/quality/tests/` — the W0 spec document retired when the
+wave closed (ten rules written, six sub-rules rejected after measurement).
 
 Layers · exhaustive dispatch · coverage asserts · enum↔WGSL binding · no silent caps · data
 contracts · no orphan crates · manifest hygiene · gate completeness · duplication in `tests/` ·
@@ -69,11 +82,12 @@ same six patterns the register documents.
 
 ## W1.0 — What playing the game revealed
 
-From [`playtest-2026-08-01.md`](playtest-2026-08-01.md). **Read the correction there first**: the
-first pass produced three dramatic findings — zero ricochets, a battle that never resolves, passive
-bots — and all three were instrument error. The armour model works (8 ricochets in 79 impacts, 8 of
-10 above-threshold hits bouncing), the timer is 600 s and the battle ends on it, and 9 of 14 tanks
-die in a real fight.
+From the first measured battle — numbers in [`measurements.md`](measurements.md), corrected record
+in [`audit-register.md`](audit-register.md) §A. **The correction is the finding**: the first pass
+produced three dramatic findings — zero ricochets, a battle that never resolves, passive bots — and
+all three were instrument error (a `damage_hp > 0` filter ate the ricochets). The armour model
+works (8 ricochets in 79 impacts, 8 of 10 above-threshold hits bouncing), the timer is 600 s and
+the battle ends on it, and 9 of 14 tanks die in a real fight.
 
 **a. A 4-to-1 battle is declared a draw.** `Draw { TimeExpired }` with a fourfold tank advantage is
 the least satisfying resolution available. Award the win on tanks remaining or damage dealt. This is
@@ -112,9 +126,10 @@ with W1.0a.
 measurement exists anywhere in the project, and the "one look" policy has neither test nor tool. Add
 p50/p95/p99 plus a budget test before densifying terrain 4–16×.
 
-**1.6 Cheap visual fixes**, from [`visual-review-2026-08-01.md`](visual-review-2026-08-01.md):
-barrel thickness · grass ring fade · per-instance grass variance · tree trunk proportions and
-placement jitter · the river's hard bank edge · unlit tree undersides and polygonal shadows.
+**1.6 Cheap visual fixes**, now tracked with `file:line` causes in `docs/art-direction-program.md`
+(the visual defect register): per-instance grass variance · tree trunk proportions and placement
+jitter · the river's hard bank edge · unlit tree undersides and polygonal shadows. (Barrel
+thickness and grass-ring fade were withdrawn — both correct in code.)
 
 ---
 
@@ -269,6 +284,12 @@ joins the roster. Crew damage is not re-scoped, it is DEFERRED as its own questi
 slowing reload, aim, traverse and repair is a system with its own design and its own balance, and
 it will be decided on its own terms rather than smuggled in as a property of one shell type.
 
+Two design constraints bind that future decision, salvaged from the anatomy review as it retired:
+**no hidden multipliers** — a stack of proficiency coefficients is the ±25 % roll wearing a crew
+uniform — and **a crew loss removes a CAPABILITY, not a percentage** (loader down: no shell
+switching; gunner down: the commander's stated, worse lay; driver down: one gear; radio down: no
+shared spotting). "I lost the ability to X" is readable; "my gunner is at 73 %" is not.
+
 What remains inside 2.3 before the research pass is small and concrete: **splash must reach modules
 and tracks**, so a burst beside a hull can throw a band instead of only shaving hit points. Today
 that only happens on a direct hit. A number is worth sourcing once the model can spend it.
@@ -384,5 +405,5 @@ query — so the trim is rapier-only, and only if its one `prelude` import prove
 
 **Does a battle in this game do what the design says it does?** After correcting three false alarms:
 largely yes. Shells bounce, flanks matter, the fight resolves. What is thin is depth — bot decisions,
-armour nuance, terrain that gives the fight somewhere to happen — and what is broken is the rule that
-calls a 4-to-1 a draw.
+armour nuance, terrain that gives the fight somewhere to happen: **the tank is better than the ground
+it stands on.** The rule that called a 4-to-1 a draw is closed (#371, outcome on the board).

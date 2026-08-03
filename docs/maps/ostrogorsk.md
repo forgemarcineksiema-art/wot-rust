@@ -1,9 +1,10 @@
 # Ostrogorsk
 
-The fourth battle map — the urban-map program's city (docs/urban-map-program.md), authored
-as a Map Forge blueprint, compiled by `map_forge::compile`, gated by the map report, and
-locked by its golden hash. Status: **opt-in** via `WOT_MAP=ostrogorsk`, and **dense-core
-stage** (program PR-12): a 93-box city — a 48-block `CityBuilding` tenement grid in cobbled
+The fourth battle map — the urban-map program's city (#280–#294; the program is complete
+and its standing decisions live in docs/map-forge-policy.md), authored as a Map Forge
+blueprint, compiled by `map_forge::compile`, gated by the map report, and locked by its
+golden hash. Status: **opt-in** via `WOT_MAP=ostrogorsk`, program complete: a 101-box
+city — a 48-block `CityBuilding` tenement grid in cobbled
 street canyons plus boulevard-front and back-street ranks, mirrored factory compounds
 behind breachable `StoneWall` yards with east gates, three mirrored born-ruin pairs opening
 cross-block sightlines, garden walls screening the boulevard seam, lamps and debris through
@@ -68,8 +69,10 @@ the wreck-marked level crossing is the axis door both teams can pre-sight.
   crossing (Crossing, axis), underpass pair (Crossing), mill yard pair (FlankRoute),
   outskirts rise pair (HighGround), rise shoulder hull-down pair (HullDown), grain
   elevator pair (Observation).
-- Cover (dense core, 93 boxes): the 48-block `CityBuilding` tenement `TownGrid` (four
-  columns, six mirrored rows), boulevard-front rank (x 415) and back-street rank (x 130),
+- Cover (101 boxes compiled: 70 `CityBuilding`, 14 `StoneWall`, 5 `FarmBuilding`,
+  4 `Wreck`, 4 `RailCover`, 4 `TreeLine` — matching the perf sign-off below): the 48-block
+  `CityBuilding` tenement `TownGrid` (four columns, six mirrored rows), boulevard-front
+  rank (x 415) and back-street rank (x 130),
   three mirrored born-`ruin` pairs punched into the row lines, the on-axis church, factory
   compounds (`CityBuilding` halls + `StoneWall` yards with east gates + yard wrecks),
   garden-wall runs on the boulevard seam, the crossing wreck pair, field windbreaks, the

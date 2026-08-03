@@ -14,14 +14,20 @@ WGSL data layout is a renderer backend contract, not a visual detail. Rust struc
 ## Current Baseline
 
 - `TankVertex` is POD and can be copied to vertex buffers through `bytemuck`.
-- `SceneVertex` is POD (`bytemuck`): `position`, `normal`, `color`, and `tint_weight`. `tint_weight`
-  selects how much of the per-instance team tint multiplies the base color (`0.0` absolute, `1.0`
-  fully tinted), so one team-neutral mesh serves every team color.
+- `SceneVertex` is POD (`bytemuck`): eight fields, 15 floats, 60 bytes — `position`, `normal`,
+  `color`, `tint_weight`, `gloss` (materials v2), `surface` (surface-role lane), `sway` (wind
+  lane), `uv` (foliage-atlas lane); `renderer_api/src/scene.rs:41-70` locks the size. Grown ONLY
+  by appending: the mesh occupies vertex attribute locations `0..=3` plus the appended `9..=12`
+  (`scene_pipeline.rs::VERTEX_ATTRIBUTES`) — a reorder would corrupt every pipeline at once.
+  `tint_weight` selects how much of the per-instance team tint multiplies the base color (`0.0`
+  absolute, `1.0` fully tinted), so one team-neutral mesh serves every team color.
 - `SceneInstance` is POD (`bytemuck`): the per-object `model` matrix plus a `tint` color, bound as a
-  second instance-step vertex buffer. The scene pipeline maps the mesh to vertex attribute locations
-  `0..=3` and the instance buffer to `4..=8`.
+  second instance-step vertex buffer at locations `4..=8`.
 - `CameraUniform` is serialized through `encase::UniformBuffer`.
-- `basic_tank.wgsl` and `scene.wgsl` are validated by `naga` in `renderer_wgpu` tests.
+- `basic_tank.wgsl` and `scene.wgsl` are validated by `naga` in `renderer_wgpu` tests. Note that
+  `basic_tank.wgsl` is a dead-path shader: only the unused `RenderBackend` (`renderer.rs`) and the
+  validation tests reference it — the shipping picture is drawn by the scene/vehicle/sky/water/FX
+  pipelines.
 - The camera uniform lives in group 1, binding 0, matching the camera/view slot.
 - `CameraUniform.time_params.x` is the presentation clock every shader animation reads
   (water ripple, foliage sway, weather). It is **tick-domain by doctrine**: fed from the fixed

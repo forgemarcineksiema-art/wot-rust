@@ -21,8 +21,10 @@ accident. The lock set:
 - **GPU, opt-in** — `look_goldens_match_their_recordings` in the same file, gated by
   `WOT_LOOK_GOLDENS=1` (byte-exact per machine, like the Forge studio goldens); re-record
   with `WOT_UPDATE_GOLDENS=1`. The rendered views are the canonical review set
-  (`client::prokhorovka_review_views`), shared with the `prokhorovka_views` example so the
-  frame a human reviews is exactly the frame the harness locks.
+  (`client::review_views_for(map, &battlefield)` over `REVIEWED_MAPS`, plus
+  `hangar_review_views()`), shared with the `*_views` examples through the one
+  `look_harness` render path so the frame a human reviews is exactly the frame the
+  harness locks.
 
 ## The seven rules
 
@@ -55,8 +57,9 @@ campaign that closes the gap — and the evidence that the gap is real — is
 
 Silhouette readability at combat range is the second half of this rule and is already
 locked map-wide: no weather look may fog away more than 35% of a spotted target's contrast
-at the 400 m view range (`crates/apps/client/src/scene/weather.rs`). That bound is
-inviolable — atmosphere is depth, never concealment.
+at view range (`crates/world/scene_build/src/weather.rs`; the lock asserts at the 400 m
+Late-War range — view range is per-era, 360/400/440 m, and the 440 m Cold-War raise is
+owed). That bound is inviolable — atmosphere is depth, never concealment.
 
 ### 2. The saturation window
 
@@ -121,10 +124,10 @@ constant hides in a shader.
 
 ## The canonical review set
 
-`client::prokhorovka_review_views` — the hill panorama under the hazy noon, the golden
-evening and the dry overcast, plus a golden-evening mid-field vantage. Render them with
-`cargo run -p client --example probe -- prokhorovka_views`; the goldens live in
-`crates/apps/client/tests/goldens/look/`. Every view added is a view locked.
+`client::review_views_for(map, &battlefield)` yields each map's views; `REVIEWED_MAPS`
+names the maps under lock and `hangar_review_views()` covers the garage. Render them with
+`cargo run -p client --example probe -- {prokhorovka,bystra,orliny,ostrogorsk}_views`; the
+goldens live in `crates/apps/client/tests/goldens/look/`. Every view added is a view locked.
 
 What the set must cover, because a look this policy cannot see is a look it cannot govern:
 
@@ -140,9 +143,10 @@ What the set must cover, because a look this policy cannot see is a look it cann
 
 **One render path.** The reviewed frame and the locked frame must be produced by the same
 code, not by two hand-rolled copies of the same setup. They were once two copies, they
-drifted, and both silently stopped binding the foliage atlas — so the committed goldens
-render imported flora as untextured white. A shared harness is the structural form of the
-promise; the convention was not enough.
+drifted, and both silently stopped binding the foliage atlas — the committed goldens
+rendered imported flora as untextured white until the drift was closed. The shared harness
+(`crates/apps/client/src/look_harness.rs:66` binds the atlas for every reviewed and locked
+frame) is the structural form of the promise; the convention was not enough.
 
 ## The garage is the same picture
 

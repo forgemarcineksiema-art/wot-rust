@@ -51,7 +51,11 @@ the clatter's top end and damps the crawl squeal that lives at walking pace.
 
 ## Spatialization is honest physics
 
-- Loudness falls off as `1/r` against an 18 m reference distance.
+- Loudness falls off as `gain · ref/(ref + r)` with `ref = 18 m`
+  (`crates/runtime/audio/src/spatial.rs:60`) — asymptotically `1/r`, but
+  materially gentler inside ~50 m: the code's own reading of 18 m is "the
+  distance at which a source has fallen to HALF its close-up level"
+  (`spatial.rs:26-27`), and the curve never diverges at the muzzle.
 - Air absorption low-passes with distance (~20 kHz at the muzzle, ~2 kHz at
   half a kilometre) — far battles rumble, near ones crack.
 - Bearing pans constant-power; screen-right is `(-forward.z, 0, forward.x)`,
@@ -83,6 +87,13 @@ judgment): the deepest ridge intrusion over the sight line, with a meter of
 grace, saturating at ~6 m. A masked source loses most of its level and its
 highs close far harder than open-air absorption — only the low thud
 diffracts over the hill. The player's own gun is never occluded.
+
+Known gap: the judgment reaches only ONE-SHOT voices. The persistent remote
+engine beds are spatialized without it — `remote.rs` computes gain/pan/air
+with no occlusion input at all (`crates/runtime/audio/src/remote.rs:74-110`),
+unlike `VoiceSlot::positioned` (`spatial.rs:48-88`), which takes an occlusion
+argument for every one-shot — so a tank idling behind a ridge hums as if it
+stood in the open.
 
 HE speaks as the charge, not the plate: a direct HE hit (and every splash
 strike) routes to a burst voice — sub boom sweeping 45 -> 25 Hz, a pressure

@@ -11,8 +11,8 @@ authoritative server.
 **Contributing (human or AI): read `CLAUDE.md` first** — the working contract (locking
 tests, the local verify gate, one-look budgets, append-only enums) — then
 **`docs/ROADMAP.md`** for the whole picture: systems inventory, the honest gap list toward
-release, and where the center of gravity should go next. Individual program docs (urban
-map, destruction, fleet…) are execution details under `docs/`.
+release, and where the center of gravity should go next. Individual program docs
+(battle-first, destruction, art direction…) are execution details under `docs/`.
 
 ## What exists today
 
@@ -65,6 +65,6 @@ zooms, **Shift** holds the sniper scope. `--example probe -- screenshot` renders
 
 - `CLAUDE.md` — the working contract for any contributor or AI tool.
 - `docs/engineering-rules.md`, `docs/testing-and-regression.md` — hard project rules.
-- `docs/urban-map-program.md` — current program status; `docs/maps/*.md` — per-map dossiers.
-- `docs/map-forge-policy.md`, `docs/destruction-program.md`, `docs/shadow-policy.md`,
-  `docs/vehicle-fidelity-masterplan.md` — the standing doctrines.
+- `docs/battle-first/program.md` — the live program status; `docs/maps/*.md` — per-map dossiers.
+- `docs/map-forge-policy.md`, `docs/honest-steel-policy.md`, `docs/shadow-policy.md` — the
+  standing doctrines.

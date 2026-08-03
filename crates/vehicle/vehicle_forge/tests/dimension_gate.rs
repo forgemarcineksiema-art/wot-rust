@@ -60,7 +60,7 @@ fn every_locked_dimension_anchor_holds_on_the_authoritative_bake() {
         gated += 1;
     }
     assert!(gated >= 1, "at least the T-54 pilot must be gated — the gate must never go silent");
-    // Debt is visible, never fatal — the register in docs/model-idealny-t54.md owns the fixes.
+    // Debt is visible, never fatal — the vehicle's dossier in docs/vehicles/ owns the fixes.
     for line in &debts {
         println!("DIMENSION DEBT: {line}");
     }

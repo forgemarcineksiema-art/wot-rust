@@ -49,9 +49,13 @@ blindly copy desired pitch. The client resolves the desired sight point, then
 commands turret yaw and gun pitch toward the ballistic solution for the current
 vehicle gun and shell velocity.
 
-Turret traverse and gun elevation speed are vehicle properties today. Crew and
-module modifiers may layer on top later, but they must feed the same command
-path rather than bypassing it.
+Turret traverse speed is a vehicle property — it comes from the installed
+turret module (`crates/foundation/game_core/src/modules/loadout.rs:87`,
+`turret.traverse.rate_rad_s()` assembled into `TankSpec::turret_rotation_rad_s`).
+Gun elevation speed is NOT: the whole fleet shares
+`GUN_ELEVATION_RATE_RAD_S = 0.5` (`crates/runtime/sim/src/aiming.rs:6,43-45`).
+Crew and module modifiers may layer on top later, but they must feed the same
+command path rather than bypassing it.
 
 ## Aim Time And Dispersion
 
@@ -65,6 +69,11 @@ The server simulation owns the live dispersion value and applies a deterministic
 center-biased shot offset when spawning a shell. Snapshots replicate the current
 dispersion so the client can draw the aiming circle without inventing combat
 truth locally.
+
+The offset has a floor: the radial draw is clamped to at least 0.15 before it
+is squared (`crates/runtime/sim/src/aim_dispersion.rs:92`, applied at `:65`),
+so no shot ever lands dead centre — the minimum offset is 2.25% of the current
+dispersion radius. The same squaring is what produces the center bias.
 
 ## Sweep And Authority
 

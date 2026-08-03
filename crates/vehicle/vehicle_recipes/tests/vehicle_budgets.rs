@@ -48,8 +48,9 @@ fn every_vehicle_bake_is_deterministic_and_hash_is_unique() {
 
 #[test]
 fn every_vehicle_bake_hash_matches_golden_output() {
-    // The golden table lives in `vehicle_geometry::budgets` so the Forge Studio report quotes
-    // the same source this gate enforces. Re-record THERE on an intentional geometry change.
+    // The golden table lives in `vehicle_recipes::budgets` (src/budgets.rs) so the Forge Studio
+    // report quotes the same source this gate enforces. Re-record THERE on an intentional
+    // geometry change.
     let expected = GOLDEN_BAKE_HASHES;
     let actual: Vec<(VehicleKind, u64)> =
         bake_all().iter().map(|vehicle| (vehicle.kind(), vehicle.deterministic_hash())).collect();

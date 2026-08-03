@@ -148,7 +148,7 @@ collision entirely and enters the support envelope as `terrain::RubbleMound` —
 with flanks at the angle of repose of broken masonry. Both the resting line and the drive's slope
 probe read `max(terrain, debris)`, so the hull rides the pile AND pays it: the crossing tilts the
 hull and bleeds speed through the same force model every slope uses. Intact cover is unchanged —
-it blocks in plan at any height, so nothing ends up on a roof. See `docs/destruction-program.md`,
+it blocks in plan at any height, so nothing ends up on a roof. See `docs/honest-steel-policy.md`,
 "Rubble is terrain".
 
 A hull that stops being a tank does not stop being an object. The drive step is skipped for dead
@@ -158,9 +158,16 @@ hull reads. Without it a hull killed in mid-flight hung at the altitude it died 
 the battle, and a wreck standing where a later crater opened floated over the hole. A wreck already
 resting on its support is a bit-identical no-op, so replays are unaffected.
 
-Rapier remains useful for broadphase, world collision, raycasts, and simple
-bodies. Tank movement truth stays in the custom controller so replays and server
-simulation remain stable.
+No physics engine sits under any of this. rapier3d left the workspace 2026-08-02; `parry3d`
+survives only as the narrow footprint-intersection query
+(`physics::parry_query::tank_footprints_intersect_query`,
+`crates/runtime/physics/src/parry_query.rs:7`), which today has no production caller — the
+live tank-vs-tank test is the hand-rolled SAT in `crates/runtime/physics/src/collision.rs`.
+`crates/tooling/quality/tests/parry_feature_rules.rs` pins parry's features
+(`default-features = false`, `dim3`/`f32`, no SIMD, no parallel) and asserts the manifest
+contains no "rapier": re-adding an engine is a design decision with its own tests, not a
+dependency drive-by. Tank movement truth stays in the custom controller so replays and
+server simulation remain stable.
 
 ## Boundaries
 

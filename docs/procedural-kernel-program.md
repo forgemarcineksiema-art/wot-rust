@@ -22,29 +22,36 @@ independent of the rendering technology that consumes the baked result.
 |---|---|---|
 | Rolled/welded armour, glacis, casemate plates | `solid` | Exact plane normals, sharp seams, exact armour angle, low triangle cost |
 | Designed cast shells: turrets, masks, rounded housings | `cast_loft` (renamed from `loft`) | Direct silhouette control at every station; avoids the "metaball lump" failure mode |
-| Fluid unions, sockets, organic local transitions | `sdf` + `sdf_mesh` | CSG and smooth blending where a controlled station model would be awkward |
+| Fluid unions, sockets, organic local transitions | `sdf` + `sdf_mesh` — **aspirational, no production part routes through them**: `GeneratorKind::Sdf` has zero construction sites and `PartShape::Cast` appears only at its declaration (`vehicle_build/src/part.rs:128`) and its match arm (`:152`) | CSG and smooth blending where a controlled station model would be awkward — but a capability with no proven call site is the same debt the panel/shell note below names; the next cast part either proves this row or retires it |
 | Barrels, wheels, rollers, drums, sprockets | `revolve` | Exact axial symmetry and efficient radial resolution |
 | Closed paths: tracks; later hoses, rails, welded bead paths | new `sweep` | A cross-section follows a stable path frame |
-| ~~Thin fabricated parts~~ | ~~`panel` and `shell`~~ — DELETED 2026-08-02 | Both were finished and contract-tested, and nothing ever called either. See the note below. |
+| Thin fabricated parts: folded pressings, hems | `panel` — back in production; ~~`shell`~~ deleted 2026-08-02 | `panel` returned the same day it was deleted, WITH the part that needed it (`073dfe1`): the T-54 fender folds plate, chamfer and return lip as one pressing with a `Hem` (`vehicle_build/src/t54_fender.rs:19`). `shell` stays in git history. See the note below. |
 | Bolts, weld seams, handles, casting marks | new `detail` and `scatter` | Semantic, deterministic decoration with LOD policy |
 | Local visual asymmetry and wear | new bake-only `deform` | Controlled visual change that never changes collision or armour truth |
 | ~~Mesh boolean / subdivision~~ | ~~bake-only experimental CAD lane~~ — DELETED 2026-08-02 | The `experimental_geometry` slot held no capability, only the trial rule now kept below. |
 
-### Three kernels deleted, 2026-08-02
+### Three kernels deleted 2026-08-02 — and one came back the same day, with its part
 
-`panel`, `shell` and `experimental_geometry` are gone — 753 lines, three crates that compiled on
-every build, linted on every gate and answered to nobody.
+`panel`, `shell` and `experimental_geometry` were deleted — 753 lines, three crates that compiled
+on every build, linted on every gate and answered to nobody.
 
 `panel` and `shell` were not failures: both were finished, both were contract-tested (`shell` even
 carried the rule that matters — the outer visible surface is preserved EXACTLY, so thickening can
-never move the surface the combat model reads), and both were built for parts nobody has since
+never move the surface the combat model reads), and both were built for parts nobody had yet
 authored. That is the whole lesson of the row above: a capability built before the part that needs
 it is a capability nobody has proven at the call site, and it ages as debt rather than as an asset.
 `crate_hygiene`'s orphan allowlist recorded them as debt precisely so this decision could be taken
-deliberately instead of by neglect; it is down to `quality` alone now, which is the gate itself.
+deliberately instead of by neglect; the allowlist is down to `quality` alone, which is the gate
+itself.
 
-If thin fabricated parts come back — basket sheets, splash guards, fender lips — they come back
-with the part that needs them, and `git` still has these two.
+The deletion note said: if thin fabricated parts come back — basket sheets, splash guards, fender
+lips — they come back with the part that needs them. That prediction cashed in the same day:
+commit `073dfe1` rebuilt the T-54 fender as the folded pressing it is, and `panel` returned as its
+generator — 261 src + 147 test LOC, a workspace dependency again, called at
+`vehicle_build/src/t54_fender.rs:19`. The lesson stands *because* of the return, not despite it:
+the crate that waited was debt; the same crate summoned by a real part is an asset with a proven
+call site — and it re-entered through a consumer, never through the orphan allowlist. `shell` and
+`experimental_geometry` stay gone; if shells come back, they come back the same way.
 
 **The trial rule `experimental_geometry` used to hold, kept because it is still true:** a backend
 lives in a trial only while it is being tried. Declaring an optional dependency that does not build

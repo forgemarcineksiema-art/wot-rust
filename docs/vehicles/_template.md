@@ -56,6 +56,16 @@ source, not a fittings source.
 What of the above reaches `TankSpec`/blueprint and where the model deliberately deviates
 (gameplay honesty, budget, readability) — every deviation listed with its reason.
 
+State the four fleet-slot facts explicitly — each is authored or consciously absent, never an
+omission:
+
+- `cupola_height`: authored from the records, or derived from the hitbox apex (a derived value
+  is SHOOTABLE armor — say which, and why).
+- `glacis_ports`: the bow's aimable weakspot patches — with the smear retired, a front without
+  them presents only the mantlet and the cupola.
+- `turret_loft`: without one the turret armor volume is a swept circle, not the casting.
+- `<slug>.visual.ron`: which parts (if any) it authors — `None` is a decision, not an omission.
+
 ## Known deviations & follow-ups
 
 The current model's measured misses (from the Studio report's Δ columns) and which wave

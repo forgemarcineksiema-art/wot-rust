@@ -31,12 +31,18 @@ When changing protocol encoding intentionally:
 5. Remove that variable and rerun the same test clean.
 6. Document the compatibility impact before merging.
 
-Current compatibility note: protocol v38 adds a per-session reliable personal-combat lane and
-authoritative event identity/tick/shell/lethal truth. v37 introduced lightweight input ACKs and
-snapshot-aligned prediction replay; v16 introduced LOS spotting masks. Older notable payload
-breaks include v12 adding `team` to `TankSnapshot`, `shell_impacts: Vec<ShellImpact>` to
-`Snapshot`, v14 adding hull pitch/roll, and v15 adding ammo state. The transport frame carries
-`PROTOCOL_VERSION = 38`; a peer with a different version fails the frame before payload decode.
+Current compatibility note: the transport frame carries `PROTOCOL_VERSION = 43`
+(`crates/runtime/net/src/lib.rs:113`); a peer with a different version fails the frame before
+payload decode. Recent versions: v39 moves persistent armor perforations off the world
+snapshot onto the reliable event lane; v40 appends `ArmorZone::HullDeck`; v41 replicates guns
+fired this tick as `ShotFired` events; v42 adds the ammo-rack cook-off damage cause; v43
+replicates a lit rack's fuze countdown (`TankSnapshot::rack_fire_remaining_s`, concealed
+from enemies by the snapshot filter). Earlier: v38 added the per-session reliable
+personal-combat lane and authoritative event identity/tick/shell/lethal truth; v37
+introduced session ids, lightweight input ACKs and snapshot-aligned prediction replay; v16
+introduced LOS spotting masks. Older notable payload breaks include v12 adding `team` to
+`TankSnapshot` and `shell_impacts: Vec<ShellImpact>` to `Snapshot`, v14 adding hull
+pitch/roll, and v15 adding ammo state.
 
 ## Replays
 
@@ -70,14 +76,27 @@ steps authoritative simulation.
 
 ## Physics Policy Tests
 
-Physics tests lock the Rapier/custom split: Rapier is used for world queries and collision helpers, while tank movement and gameplay-critical physics stay in custom deterministic code. Quality tests also lock the workspace Rapier feature set.
+There is no engine to split against: rapier3d left the workspace 2026-08-02, and the tests
+say so. `crates/runtime/physics/tests/physics_policy.rs` locks the one promise worth
+locking — the custom tank controller replays the same inputs bit for bit (its header notes
+the old "ownership policy" tests died with it: they described a rapier integration that
+never existed). `crates/tooling/quality/tests/parry_feature_rules.rs` pins the surviving
+`parry3d` dependency: the workspace manifest must contain no "rapier", and parry stays at
+`default-features = false` + `dim3`/`f32` with no SIMD or parallel features, so a geometry
+library on the authoritative path cannot quietly grow nondeterminism.
 
 ## Benchmarks
 
 Benchmarks live beside the crate they measure:
 
 - `crates/runtime/sim/benches/fixed_tick.rs`
+- `crates/runtime/sim/benches/combat_hot_path.rs` — the 14-tank battle hot path (the
+  destruction/combat budget gate)
+- `crates/runtime/sim/benches/contact_pileup.rs` — fourteen hulls crushed into one point,
+  the contact-solver worst case
 - `crates/runtime/net/benches/protocol_codec.rs`
+- `crates/runtime/battle_host/benches/battle_tick.rs` — the authoritative host tick
+- `crates/kernels/sdf_mesh/benches/meshing.rs` — SDF surface-nets meshing
 
 Compile all benchmark targets with:
 

@@ -1,6 +1,8 @@
 # Audit register — 2026-08-01
 
 Every entry verified against master `101068a`. Check an entry still exists before working it.
+Struck rows carry the PR that closed them; rows marked **still open 2026-08-03** were re-verified
+against master `49a6f18` (#428).
 
 ## The pattern under most of these
 
@@ -22,7 +24,7 @@ real thing is a document, not a gate."* The diagnosis was perfect; the fix was a
 
 ---
 
-## A. Gameplay — found by playing (see `playtest-2026-08-01.md`)
+## A. Gameplay — found by playing (the first measured battle, 2026-08-01)
 
 | # | finding | severity |
 |---|---|---|
@@ -115,19 +117,19 @@ numbers.
 | C4 | **Damage does not depend on what was hit** — a turret penetration and an engine-bay penetration deal identical HP. |
 | C5 | **Physics is a 2.5D model** — `integrate_hull_position` integrates X and Z only; attitude is a 52-line rate limiter, deliberately spring-free. No roll-over, no track slip, no load transfer. |
 | C6 | **Spotting is pure LOS + range** — no camouflage, no concealment contest. Follows from the doctrine, but removes scouting, ambush and light-tank identity. Needs to be a decision on the record. |
-| C7 | **No frame-time measurement exists anywhere.** `perf_capture` reports bake times only; the "one look" policy (MX330 @ 60 FPS) has neither test nor tool. |
+| C7 | ~~No frame-time measurement exists anywhere~~ — **CLOSED (#374, W1 1.5).** Frame-time p50/p95/p99 measurement landed; the one-look policy has a number. |
 
 ## D. Structure
 
 | # | finding |
 |---|---|
 | D1 | **God objects**: `ClientApp` 64 fields; `EditorApp` 36 fields + a 1465-line impl / 48 methods / **0 tests**; `scene_build/battlefield.rs` 1267 LOC of code splitting into 8 modules with no cycles. |
-| D2 | **App-to-app edges**: `editor→client` pulls 30k LOC (winit, wgpu, cpal, audio, server) for FOUR symbols; `client→server`; `world/scene_build → render/renderer_api`. |
+| D2 | ~~App-to-app edges~~ — **CLOSED (W4).** `client→server` burned by the `battle_host` extraction (#414); `editor→client` burned by `ui_kit` (#424); `APP_TO_APP_ALLOWLIST` is empty (`layer_rules.rs:49`). The upward `scene_build → renderer_api` edge still stands, allowlisted (`layer_rules.rs:41`). |
 | D3 | **Passthrough facade** — `client/lib.rs` re-exports 28 `scene_build` items **only for the client's own examples**; several have no consumer at all. |
-| D4 | **Dead renderer layer ≈400 LOC** — `RenderBackend`, `WgpuRenderer` (`render_frame` is `Ok(())`), `basic_tank.wgsl`, and four test-only modules (`readback_queue`, `texture_upload`, `render_frame_batch`, `gpu_diagnostics`). |
+| D4 | **Dead renderer layer ≈400 LOC** — `RenderBackend`, `WgpuRenderer` (`render_frame` is `Ok(())`), `basic_tank.wgsl`, and four test-only modules (`readback_queue`, `texture_upload`, `render_frame_batch`, `gpu_diagnostics`). **Still open 2026-08-03**: the no-op stands at `renderer_api/src/lib.rs:148` and `renderer_wgpu/src/renderer.rs:83`. |
 | D5 | **A lying getter** — `pipeline_registry.rs:20,63`: the field is never incremented, so `compilation_requests_during_draw()` always returns 0. |
-| D6 | **Dead dependencies** — `rapier3d` and `parry3d` have zero production uses; the only consumer is a test that discards the result. |
-| D7 | **Orphan crates** — `panel`, `shell`, `experimental_geometry` (24 LOC of doc comment, zero dependents). `kernels/solid` exports 15 functions, **14 named `t54_`** — it is not a kernel. |
+| D6 | ~~Dead dependencies~~ — **CLOSED (#407).** `rapier3d` removed; `parry3d` stays and is LIVE — `physics/parry_query.rs` runs the footprint-intersection query, so "zero production uses" was already half wrong when written. |
+| D7 | **REWRITTEN 2026-08-03.** `shell` and `experimental_geometry` deleted (2026-08-02, zero dependents). `panel` was deleted with them and then CAME BACK — restored by `073dfe1` with a real consumer (`vehicle_build/src/t54_fender.rs:19`), which is the right way for an orphan to leave the list. `ORPHAN_ALLOWLIST` holds only `quality` itself. Still standing: `kernels/solid` exports 15 `t54_`-named functions — fleet content in a kernel crate. |
 | D8 | **The T-54 stack**: 23 dedicated files / ~4200 lines vs Tiger I's 4 / ~510 and T-34-85's 3. Fifteen `if kind == T54_1951` sites. "Hybrid" named CAD+SDF; the SDF half was retired for `cast_loft`, so the name is dead. `t54_hybrid()` re-types 11 numbers that already exist in the RON, and one pair already drifted (`hybrid.rs:296-302`). |
 | D9 | **Naming has no rule**: two module conventions inside one crate; three test conventions plus a hidden fourth (`fx/budget.rs`, `fx/contact_lock.rs` are `#[cfg(test)]` with no marker, next to a production `vehicle/damage_budget.rs`); three grouping axes (`packs_german` vs `packs_is3`); `forge` vs `build` undefined; `shell` (CAD) collides with `shell` (projectile). |
 | D10 | **Manifests**: `png` declared 8× outside the workspace table, one raw path dep, two manifests not inheriting `version`/`rust-version`. |
@@ -137,10 +139,10 @@ numbers.
 | # | finding |
 |---|---|
 | E1 | **`engineering-rules.md` contradicts `verify.ps1`** — five required gates listed, three run; the decision to drop `cargo check` lives only in a script comment. Two of its rules are broken and unmeasured. |
-| E2 | **`architecture_rules.rs` hard-requires 29 `docs/` paths** — a ratchet that makes deleting a stale document harder than keeping it. |
-| E3 | **~44% of the gate (14 of 32 tests) asserts about markdown**, not code. |
-| E4 | **`spotting.rs:7-9` warns of an anti-wallhack hole that no longer exists** — the per-viewer filter runs on both the remote and the local path. |
-| E5 | **`weapon.rs:98-102` describes the drag ODE as `dv/dt = -c·v`** while the implementation is linear in distance. |
+| E2 | ~~`architecture_rules.rs` hard-requires 29 `docs/` paths~~ — **CLOSED (#406).** The doc-path list is gone from the gate. |
+| E3 | ~~44% of the gate asserts about markdown~~ — **CLOSED (#406).** The phrase greps went with the doc-path list; the replacement is editorial, not executable: a policy cites its enforcing test. |
+| E4 | **`spotting.rs:7-9` warns of an anti-wallhack hole that no longer exists** — the per-viewer filter runs on both the remote and the local path. **Still open 2026-08-03.** |
+| E5 | **`weapon.rs` describes the drag ODE as `dv/dt = -c·v`** while the implementation is linear in distance. **Still open 2026-08-03** (the comment now sits at `weapon.rs:108`). |
 | E6 | **The blueprint migration lock has no expiry** — `#[cfg(test)]` golden fixtures with "delete once the fleet has lived on RON long enough" and no trigger. |
 
 ## F. Adopted from `docs/backlog.md` (file deleted 2026-08-02)
@@ -153,7 +155,7 @@ fiction and the dead draw-counter are D4/D5; real network transport is the W1 pr
 
 | # | finding |
 |---|---|
-| F1 | **Vehicle JSON assets are stale (all eight)** — `assets/vehicles/*.vehicle.json` predate facets/`shell_type`; nothing loads them, but `vehicle_kind.rs` asset paths and the gate's artifact list still require the files. Regenerate-and-compare, or delete the lot. |
+| F1 | ~~Vehicle JSON assets are stale (all eight)~~ — **CLOSED (#428).** `assets/vehicles/*.vehicle.json` regenerated. |
 | F2 | **Enemy health bars render through terrain** and show exact HP at any range — no occlusion check; revisit with spotting. |
 | F3 | **Tiger II turret ratio may invert the hull-down incentive** — a blueprint *data* question (glacis vs turret), wants a per-vehicle armour-ratio test. |
 | F4 | **The sight and meshes ignore terrain tilt** — sim+net+render work; the biggest remaining camera-feel gap on a hilly 1000 m map. |
@@ -172,5 +174,5 @@ fiction and the dead draw-counter are D4/D5; real network transport is the W1 pr
 - ~~"The domain vocabulary has drifted"~~ — `cover` vs `scenery` is a principled contract
   distinction, not sprawl. Only `obstacle`/`blocker`/`structure`/`building` are loose.
 - ~~"Do not touch the T-54, its program is warm"~~ — Model Idealny **closed 2026-07-29**.
-- ~~"Muzzle flash is ≤50 ms late"~~ — **measured at 1 tick = 16.7 ms** locally. See
-  `playtest-2026-08-01.md`.
+- ~~"Muzzle flash is ≤50 ms late"~~ — **measured at 1 tick = 16.7 ms** locally, over seven
+  shots with zero variance.
