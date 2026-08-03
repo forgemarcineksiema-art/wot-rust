@@ -8,14 +8,39 @@ use glam::{Mat3, Vec3};
 
 use crate::TankState;
 
+/// Which body a wound is filed against — and therefore which pose carries it once the tank moves.
+///
+/// EXHAUSTIVE on purpose, with no `_` arm. The wildcard this replaced silently filed
+/// [`ArmorZone::Cupola`] against the hull: the commander's drum is a turret volume, traced in the
+/// turret frame, so a hole in it was stored in hull space. The hole then stayed parked where the
+/// drum HAD been while the turret traversed away from it, the egress search looked for an exit
+/// through hull volumes a full turret-wall below the entry and so never found one, and a second
+/// shell through the same visible hole paid full steel because the channel lookup missed. No test
+/// went red for any of that — the zone was appended and inherited a default nobody chose.
+///
+/// The rule is locked below against [`ArmorZone::facing`]: a zone rides a traversing frame if and
+/// only if it faces off the turret. A sixteenth zone now fails to compile here instead.
 pub(crate) fn frame_for_zone(zone: ArmorZone) -> ArmorFrame {
     match zone {
+        // Follows the gun in pitch as well as the ring in yaw.
         ArmorZone::Mantlet => ArmorFrame::Mantlet,
+        // Turns with the ring. `Roof` is the TURRET roof — the hull deck split off as `HullDeck`.
         ArmorZone::TurretFront
         | ArmorZone::TurretSide
         | ArmorZone::TurretRear
-        | ArmorZone::Roof => ArmorFrame::Turret,
-        _ => ArmorFrame::Hull,
+        | ArmorZone::Roof
+        | ArmorZone::Cupola => ArmorFrame::Turret,
+        // Hull structure. The tracks, the skirt hung outside them and the ports cut through the
+        // bow plates are all anchored to the hull and stay put when the turret moves.
+        ArmorZone::UpperGlacis
+        | ArmorZone::LowerPlate
+        | ArmorZone::HullSide
+        | ArmorZone::HullRear
+        | ArmorZone::HullDeck
+        | ArmorZone::LeftTrack
+        | ArmorZone::RightTrack
+        | ArmorZone::Skirt
+        | ArmorZone::GlacisPort => ArmorFrame::Hull,
     }
 }
 
@@ -349,6 +374,88 @@ mod tests {
                 outer.minor_radius_m
             );
             assert!(outer.major_radius_m >= outer.minor_radius_m - 1.0e-6);
+        }
+    }
+
+    /// The rule, not the instance: a wound rides a TRAVERSING frame if and only if its zone faces
+    /// off the turret. [`ArmorZone::facing`] and [`frame_for_zone`] answer the same question about
+    /// the same steel, and before this lock they disagreed for exactly one zone — the cupola, whose
+    /// decal already rode the turret while its hole was filed against the hull. Walking `ALL`
+    /// means the sixteenth zone is covered the day it is appended.
+    #[test]
+    fn a_zone_rides_a_traversing_frame_exactly_when_it_faces_off_the_turret() {
+        for zone in ArmorZone::ALL {
+            let traverses =
+                matches!(frame_for_zone(zone), ArmorFrame::Turret | ArmorFrame::Mantlet);
+            let faces_turret = matches!(
+                zone.facing(),
+                game_core::ArmorFacing::TurretFront
+                    | game_core::ArmorFacing::TurretSide
+                    | game_core::ArmorFacing::TurretRear
+            );
+            assert_eq!(
+                traverses, faces_turret,
+                "{zone:?}: frame_for_zone says traverses={traverses}, but facing() says \
+                 faces_turret={faces_turret} — one of them is filing this wound on the wrong body"
+            );
+        }
+    }
+
+    /// A hole in the drum is a hole in the drum, wherever the drum is pointing.
+    ///
+    /// The same physical point on the cupola is shot with the turret at four different bearings.
+    /// Because the drum turns with the ring, all four wounds must land on the SAME spot in the
+    /// frame they are stored in — that is what lets the aperture travel with the casting, the
+    /// egress search look inside the turret, and a second shell reuse the channel it can see.
+    /// Filed against the hull (the bug this replaced) the four answers scatter by the better part
+    /// of a metre, because hull space rotates out from under the drum.
+    #[test]
+    fn a_drum_wound_lands_on_the_same_spot_however_the_turret_is_pointed() {
+        let mut state = SimulationState::new();
+        let id = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
+        let pivot = state.tank(id).expect("spawned tank").spec.mounts.turret_ring.translation;
+        // A point on the drum, stated once in TURRET-local space and then carried around by yaw.
+        let drum_local = pivot + Vec3::new(0.24, 0.95, 0.15);
+
+        let mut filed = Vec::new();
+        for yaw in [0.0_f32, 0.9, std::f32::consts::FRAC_PI_2, 2.7] {
+            state.tank_mut(id).expect("spawned tank").turret_yaw_rad = yaw;
+            let tank = state.tank(id).expect("spawned tank");
+            let world = pivot
+                + glam::Mat3::from_rotation_y(yaw) * (drum_local - pivot)
+                + Vec3::Y * tank.spec.hitbox.center_y_m;
+            let breach = make_breach(
+                tank,
+                BreachImpact {
+                    zone: ArmorZone::Cupola,
+                    shell_id: ShellId::from_shot(game_core::TankId(1), 1),
+                    shell_type: ShellType::ArmorPiercing,
+                    created_tick: 1,
+                    hit_position: world,
+                    plate_normal: Vec3::Z,
+                    direction: -Vec3::Z,
+                    caliber_mm: 100.0,
+                    impact_angle_degrees: 10.0,
+                    impact_speed_mps: 800.0,
+                    effective_armor_mm: 60.0,
+                    residual_penetration_mm: 90.0,
+                },
+            );
+            assert_eq!(
+                breach.frame,
+                ArmorFrame::Turret,
+                "the drum is a turret volume, so its wound belongs to the turret"
+            );
+            filed.push(breach.lobes()[0].entry_local);
+        }
+
+        let first: Vec3 = filed[0];
+        for (yaw_index, entry) in filed.iter().enumerate().skip(1) {
+            assert!(
+                entry.distance(first) < 1.0e-3,
+                "bearing {yaw_index} filed the same drum point at {entry:?}, not {first:?} — \
+                 the hole is not travelling with the casting"
+            );
         }
     }
 }

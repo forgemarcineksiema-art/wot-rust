@@ -120,6 +120,17 @@ fn fire_finishes_a_wounded_hull_and_the_kill_belongs_to_the_arsonist() {
     let killing_blow = events.iter().rfind(|e| e.target == victim).expect("a killing event");
     assert_eq!(killing_blow.cause, DamageCause::Fire);
     assert_eq!(killing_blow.source, arsonist, "the burn-out is the arsonist's kill");
+    // The kill feed filters on `target_destroyed`, not on the cause — so a burn-out that leaves
+    // this flag clear pays the arsonist nothing, however correct the rest of the event is. This
+    // assertion is one field longer than it used to be for exactly that reason.
+    assert!(
+        killing_blow.target_destroyed,
+        "the killing blow must be STAMPED as a kill, or the arsonist scores nothing"
+    );
+    assert!(
+        events.iter().filter(|e| e.target == victim && e.target_destroyed).count() == 1,
+        "a hull dies once: only the blow that emptied it is stamped"
+    );
 }
 
 /// The fire and the module patch are separate repairs on separate clocks, and the fire's is the
