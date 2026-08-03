@@ -109,11 +109,13 @@ handshake/szyfrowanie (pomijalna przy 20 paczkach/s).
 
 ## 7. Uczciwość sieciowa = anty-wallhack
 
-Dziś snapshot niesie WSZYSTKIE pozycje, a spotting gate'uje tylko UI — w LAN uczciwe, przez
-internet to wallhack na tacy (dług jawnie zapisany w `spotting.rs`). W1 musi domknąć
-**filtrowanie snapshotów per klient**: serwer wysyła graczowi tylko czołgi widziane przez
-jego drużynę (maski spotted już istnieją — to konsument się zmienia). Uwaga na pochodne:
-dźwięki i tracery też muszą przejść przez ten filtr.
+**ZROBIONE (v38+).** Snapshot NIE niesie już wszystkich pozycji: `filtered_for_viewer_with_observers`
+tnie go per klient (drużynowe maski spotted ∪ własne oczy, radio permitting) po obu stronach —
+lokalnej i `RemoteBattleServer`. Pochodne domknięte: v44/N1 zdjęło tożsamość właściciela z cudzych
+pocisków/trafień (`ShellSnapshot.owner`/`ShellImpact.owner` → `Option`, `None` dla niespotowanego
+strzelca; `ShotFired` niespotowanego dropowany) — tracer/kurz zostają jako zdarzenia świata,
+identyczność znika. Uczciwy dług resztkowy: `shell_id` to hash właściciela (brute-force po ~14 id
+możliwy) — remap per-viewer zapisany jako przyszłość w `docs/multiplayer-production-program.md`.
 
 ## 8. Cykl życia i zgodność
 
