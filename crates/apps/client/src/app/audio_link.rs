@@ -127,7 +127,7 @@ impl ClientApp {
         };
         let mut cracks = Vec::new();
         for shell in &latest.shells {
-            if shell.owner == self.player_tank
+            if shell.owner == Some(self.player_tank)
                 || self.cracked_shells.contains(&shell.shell_id)
                 || glam::Vec3::from_array(shell.velocity_mps).length() < SPEED_OF_SOUND_MPS
             {
@@ -391,7 +391,7 @@ mod tests {
         let shell =
             |id: u64, owner: game_core::TankId, x: f32, z: f32, speed: f32| net::ShellSnapshot {
                 shell_id: game_core::ShellId(id),
-                owner,
+                owner: Some(owner),
                 position: [x, 2.0, z],
                 velocity_mps: [0.0, 0.0, speed],
                 shell_type: game_core::ShellType::ArmorPiercing,
@@ -497,7 +497,7 @@ mod tests {
         });
         // Protocol v17: an HE round dying against the world detonates instead of thudding.
         snapshot.shell_impacts.push(game_core::ShellImpact {
-            owner: game_core::TankId(1),
+            owner: Some(game_core::TankId(1)),
             position: Vec3::new(40.0, 0.0, 44.0),
             surface: game_core::ImpactSurface::Terrain,
             shell_type: game_core::ShellType::HighExplosive,
@@ -541,7 +541,7 @@ mod tests {
             ..game_core::DamageEvent::default()
         });
         snapshot.shell_impacts.push(game_core::ShellImpact {
-            owner: game_core::TankId(1),
+            owner: Some(game_core::TankId(1)),
             position: Vec3::new(30.0, 0.0, 40.0),
             surface: game_core::ImpactSurface::Terrain,
             ..Default::default()

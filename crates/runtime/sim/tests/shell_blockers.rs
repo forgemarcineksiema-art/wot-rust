@@ -60,7 +60,7 @@ fn friendly_hull_absorbs_the_shell_without_damage() {
     assert_eq!(state.tank(enemy).expect("enemy").hit_points, enemy_hp, "enemy stays protected");
 
     let impact = state.shell_impacts().last().expect("absorption must emit impact feedback");
-    assert_eq!(impact.owner, shooter);
+    assert_eq!(impact.owner, Some(shooter));
     assert_eq!(impact.surface, ImpactSurface::Hull);
     // The ally sits at z=50 with half_length 3.2: the shell dies on its near face, not beyond.
     assert!(
@@ -134,7 +134,7 @@ fn shot_into_the_ground_emits_a_terrain_impact() {
 
     let impact = impact.expect("a ground shot must report where it landed");
     assert_eq!(impact.surface, ImpactSurface::Terrain);
-    assert_eq!(impact.owner, shooter);
+    assert_eq!(impact.owner, Some(shooter));
     assert!(impact.position.z > 20.0, "impact lands ahead of the muzzle");
     assert!(impact.position.y <= 0.1, "impact sits at ground level, got y {}", impact.position.y);
     // Protocol v17: the impact says WHAT died here, so presentation can voice HE as a blast.

@@ -87,7 +87,7 @@ mod tests {
 
     fn shell(position: [f32; 3], velocity_mps: [f32; 3]) -> ShellSnapshot {
         ShellSnapshot {
-            owner: TankId(1),
+            owner: Some(TankId(1)),
             position,
             velocity_mps,
             caliber_mm: 100.0,

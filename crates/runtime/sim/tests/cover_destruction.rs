@@ -270,7 +270,7 @@ fn a_wall_remembers_at_most_eight_wounds_and_recycles_the_oldest() {
     let mut ledger = Vec::new();
     for index in 0..12 {
         let impact = game_core::ShellImpact {
-            owner: game_core::TankId(1),
+            owner: Some(game_core::TankId(1)),
             position: glam::Vec3::new(-3.0 + index as f32 * 0.5, 1.5, 25.5),
             surface: game_core::ImpactSurface::Cover,
             shell_type: game_core::ShellType::ArmorPiercing,

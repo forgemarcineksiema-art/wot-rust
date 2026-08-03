@@ -119,7 +119,7 @@ pub(crate) fn step_shells(
             }
             Some(SegmentImpact::Obstacle { position, surface }) => {
                 events.push_impact(ShellImpact {
-                    owner: shells[index].owner,
+                    owner: Some(shells[index].owner),
                     position,
                     surface,
                     shell_type: shells[index].shell.shell_type,
@@ -151,7 +151,7 @@ fn step_unhit_shell(
     if ground_contact(shells[index].position, heightmap) {
         let position = shells[index].position;
         events.push_impact(ShellImpact {
-            owner: shells[index].owner,
+            owner: Some(shells[index].owner),
             position,
             surface: ImpactSurface::Terrain,
             shell_type: shells[index].shell.shell_type,

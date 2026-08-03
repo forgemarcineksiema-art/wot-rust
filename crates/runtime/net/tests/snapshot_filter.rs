@@ -30,13 +30,16 @@ fn snapshot_filter_keeps_allies_wrecks_and_spotted_enemies_only() {
     assert_eq!(tank_ids(&filtered), vec![1, 2, 3, 5]);
 }
 
-/// Shells and impacts are world events: a tracer in the air and the dirt a near-miss throws are
-/// visible to everyone standing there, whatever the spotting state of the gun that fired. Locked
-/// here on the worst case — an UNSPOTTED shooter (tank 3 is filtered out of the viewer's tank
-/// list) whose round and impact still replicate, so incoming fire is never silent and a shell
-/// never vanishes mid-flight when its owner's spotted hold expires.
+/// Shells and impacts are world events that ALWAYS replicate (a tracer in the air and the dirt a
+/// near-miss throws are visible to everyone standing there) — but their OWNER is intel (v44).
+/// Locked here on the worst case: an UNSPOTTED shooter (tank 3, filtered out of the viewer's
+/// tank list) whose round and impact still ride through, so incoming fire is never silent — yet
+/// carry NO owner, so back-integrating the tracer cannot name the tank that fired it. A visible
+/// shooter (tank 2) and the viewer's own (tank 1) keep their owner. A shot from an unspotted gun
+/// is dropped entirely — it was never drawable (no pose) and its shooter+shell_id pairing was
+/// the sharpest leak of all.
 #[test]
-fn snapshot_filter_replicates_every_shell_and_impact_even_from_hidden_owners() {
+fn a_hidden_shooters_shell_replicates_but_carries_no_identity() {
     let snapshot = Snapshot {
         server_tick: 12,
         tanks: vec![
@@ -51,21 +54,39 @@ fn snapshot_filter_replicates_every_shell_and_impact_even_from_hidden_owners() {
         cover_states: Vec::new(),
         craters: Vec::new(),
         cover_scars: Vec::new(),
-        shots_fired: Vec::new(),
+        shots_fired: vec![
+            game_core::ShotFired { shooter: TankId(1), shell_id: game_core::ShellId(1) },
+            game_core::ShotFired { shooter: TankId(2), shell_id: game_core::ShellId(2) },
+            game_core::ShotFired { shooter: TankId(3), shell_id: game_core::ShellId(3) },
+        ],
     };
 
     let filtered = snapshot.filtered_for_viewer(TankId(1));
 
     assert_eq!(tank_ids(&filtered), vec![1, 2], "the hidden shooter's TANK stays filtered");
+    // Every shell still in the air — the tracer is a world event, always replicated.
+    assert_eq!(filtered.shells.len(), 3, "every shell replicates, hidden shooter included");
     assert_eq!(
-        filtered.shells.iter().map(|shell| shell.owner.0).collect::<Vec<_>>(),
-        vec![1, 2, 3],
-        "every shell in the air replicates, including the hidden shooter's"
+        filtered.shells.iter().map(|shell| shell.owner).collect::<Vec<_>>(),
+        vec![Some(TankId(1)), Some(TankId(2)), None],
+        "the viewer's own and the spotted shooter keep their owner; the hidden one is anonymized"
     );
     assert_eq!(
-        filtered.shell_impacts.iter().map(|impact| impact.owner.0).collect::<Vec<_>>(),
-        vec![1, 2, 3],
-        "every impact replicates - a near-miss from an unspotted gun still throws dirt"
+        filtered.shell_impacts.len(),
+        3,
+        "every impact replicates - the dirt is world state"
+    );
+    assert_eq!(
+        filtered.shell_impacts.iter().map(|impact| impact.owner).collect::<Vec<_>>(),
+        vec![Some(TankId(1)), Some(TankId(2)), None],
+        "impacts anonymize their owner exactly like shells"
+    );
+    // The muzzle-flash event carries shooter+shell_id, the sharpest pairing: it survives only for
+    // shooters the viewer may know. The hidden shooter's shot is gone; its tracer still flies.
+    assert_eq!(
+        filtered.shots_fired.iter().map(|shot| shot.shooter).collect::<Vec<_>>(),
+        vec![TankId(1), TankId(2)],
+        "an unspotted gun's shot is dropped; a known gun's shot rides through"
     );
 }
 
@@ -162,7 +183,8 @@ fn tank(id: u64, team: u16, hit_points: u32, spotted_by_teams_mask: u8) -> TankS
 
 fn shell(owner: u64) -> ShellSnapshot {
     ShellSnapshot {
-        owner: TankId(owner),
+        shell_id: game_core::ShellId(owner),
+        owner: Some(TankId(owner)),
         position: [owner as f32, 1.5, 0.0],
         velocity_mps: [0.0, 0.0, 900.0],
         ..Default::default()
@@ -171,9 +193,10 @@ fn shell(owner: u64) -> ShellSnapshot {
 
 fn impact(owner: u64) -> ShellImpact {
     ShellImpact {
-        owner: TankId(owner),
+        owner: Some(TankId(owner)),
         position: Vec3::new(owner as f32, 0.0, 10.0),
         surface: ImpactSurface::Terrain,
+        shell_id: game_core::ShellId(owner),
         ..ShellImpact::default()
     }
 }

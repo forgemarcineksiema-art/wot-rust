@@ -94,7 +94,7 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
         let y = ground_y(&battlefield, x, z);
         scars.record(
             &ShellImpact {
-                owner: TankId(1),
+                owner: Some(TankId(1)),
                 position: Vec3::new(x, y, z),
                 surface: game_core::ImpactSurface::Terrain,
                 shell_type: ShellType::HighExplosive,
@@ -127,7 +127,7 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
         let y = ground_y(&battlefield, x, z);
         ap_scars.record(
             &ShellImpact {
-                owner: TankId(1),
+                owner: Some(TankId(1)),
                 position: Vec3::new(x, y, z),
                 surface: game_core::ImpactSurface::Terrain,
                 shell_type: ShellType::ArmorPiercing,

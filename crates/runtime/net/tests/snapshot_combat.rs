@@ -35,7 +35,7 @@ fn snapshots_carry_projectiles_and_damage_events_through_the_wire() {
             rack_fire_remaining_s: None,
         }],
         shells: vec![ShellSnapshot {
-            owner: TankId(1),
+            owner: Some(TankId(1)),
             position: [0.0, 1.5, 12.0],
             velocity_mps: [0.0, 0.0, 900.0],
             ..Default::default()
@@ -51,7 +51,7 @@ fn snapshots_carry_projectiles_and_damage_events_through_the_wire() {
             ..Default::default()
         }],
         shell_impacts: vec![game_core::ShellImpact {
-            owner: TankId(1),
+            owner: Some(TankId(1)),
             position: Vec3::new(4.0, 0.1, 70.0),
             surface: game_core::ImpactSurface::Cover,
             ..Default::default()
