@@ -24,6 +24,23 @@ struct Args {
     /// Deterministic battle seed (0 derives one from the clock).
     #[arg(long, default_value_t = 0)]
     seed: u64,
+    /// Map slug to host (e.g. "bystra-valley", "prokhorovka", "ostrogorsk", "orliny-pereval").
+    /// Omitted, the catalog default is used. Before this flag the dedicated host could ONLY ever
+    /// serve the default map — an operator could not run a rotation without editing the binary.
+    #[arg(long)]
+    map: Option<String>,
+}
+
+/// Resolve the `--map` slug against the shipped catalog, or the default when unset. A bad slug
+/// fails at startup with the full list, not with a silent fallback to the wrong world.
+fn resolve_map(slug: Option<&str>) -> anyhow::Result<terrain::MapId> {
+    let Some(slug) = slug else {
+        return Ok(terrain::MapId::default());
+    };
+    terrain::MapId::from_slug(slug).ok_or_else(|| {
+        let catalog = terrain::MapId::ALL.iter().map(|id| id.slug()).collect::<Vec<_>>().join(", ");
+        anyhow::anyhow!("--map {slug}: unknown map. Available: {catalog}")
+    })
 }
 
 fn main() -> anyhow::Result<()> {
@@ -52,17 +69,16 @@ fn main() -> anyhow::Result<()> {
     } else {
         BattleSeed::fixed(args.seed)
     };
-    let battle = RandomBattleConfig {
-        seed,
-        player_vehicle: game_core::VehicleKind::BENCHMARK,
-        map: terrain::MapId::default(),
-    };
+    let map = resolve_map(args.map.as_deref())?;
+    let battle =
+        RandomBattleConfig { seed, player_vehicle: game_core::VehicleKind::BENCHMARK, map };
     let started = Instant::now();
     let mut host = RemoteBattleServer::new(tick_config, battle, args.lobby_wait_s * 1_000, 0);
     let mut ticks: u64 = 0;
 
     info!(
         bind = args.bind,
+        map = map.slug(),
         tick_rate = args.tick_rate,
         snapshot_rate = args.snapshot_rate,
         lobby_wait_s = args.lobby_wait_s,
@@ -121,4 +137,33 @@ fn validate_args(args: &Args) -> anyhow::Result<()> {
         );
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::resolve_map;
+
+    #[test]
+    fn no_map_flag_serves_the_catalog_default() {
+        assert_eq!(resolve_map(None).expect("default resolves"), terrain::MapId::default());
+    }
+
+    #[test]
+    fn every_catalog_slug_resolves_to_its_map() {
+        for id in terrain::MapId::ALL {
+            assert_eq!(resolve_map(Some(id.slug())).expect("catalog slug resolves"), id);
+        }
+    }
+
+    #[test]
+    fn an_unknown_map_fails_at_startup_and_names_the_catalog() {
+        let error = resolve_map(Some("no-such-map")).expect_err("unknown slug must fail");
+        let message = error.to_string();
+        assert!(message.contains("no-such-map"), "the error names the bad slug: {message}");
+        // The failure lists real alternatives instead of a silent fallback to the wrong world.
+        assert!(
+            message.contains(terrain::MapId::default().slug()),
+            "the error lists the catalog: {message}"
+        );
+    }
 }
