@@ -18,7 +18,7 @@ fn t54_object_count() -> usize {
 const BLUEPRINT_MESH_COUNT: usize = 3 + 6 * 2;
 
 /// Drift lock between the two render paths: the dynamic per-vertex mesh build and the cached
-/// instanced objects must place every vertex identically for the same snapshot â€” including a
+/// instanced objects must place every vertex identically for the same snapshot — including a
 /// posed turret, pitched gun, and a casemate holding its yaw. If either path grows its own
 /// transform math again, this turns red.
 #[test]

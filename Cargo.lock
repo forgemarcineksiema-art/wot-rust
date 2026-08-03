@@ -700,7 +700,6 @@ checksum = "c8d4a3bb8b1e0c1050499d1815f5ab16d04f0959b233085fb31653fbfc9d98f9"
 name = "client"
 version = "0.1.0"
 dependencies = [
- "ab_glyph",
  "anyhow",
  "audio",
  "battle_host",
@@ -724,7 +723,6 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "ui_kit",
- "vehicle_build",
  "vehicle_forge",
  "vehicle_geometry",
  "vehicle_recipes",
@@ -2811,7 +2809,6 @@ dependencies = [
  "png",
  "pollster",
  "renderer_api",
- "thiserror 2.0.18",
  "tracing",
  "wgpu",
 ]
@@ -2918,7 +2915,6 @@ dependencies = [
  "serde_json",
  "sim",
  "terrain",
- "vehicle_geometry",
  "world_forge",
 ]
 
@@ -2960,11 +2956,9 @@ name = "sdf_mesh"
 version = "0.1.0"
 dependencies = [
  "criterion",
- "game_core",
  "glam",
  "png",
  "sdf",
- "solid",
  "vehicle_geometry",
 ]
 
@@ -3236,7 +3230,6 @@ name = "terrain"
 version = "0.1.0"
 dependencies = [
  "bincode",
- "glam",
  "serde",
  "thiserror 2.0.18",
 ]
@@ -3401,7 +3394,6 @@ dependencies = [
  "serde_json",
  "terrain",
  "vehicle_forge",
- "vehicle_geometry",
  "world_forge",
 ]
 

@@ -109,20 +109,17 @@ fn the_render_surface_table_grants_nothing_unused() {
 fn workspace_has_protocol_snapshots_replays_and_benchmarks() {
     let root = workspace_root();
     for required_path in [
-        "crates/runtime/net/tests/snapshots/input_command_v1.hex",
+        // A wire fixture a test actually READS. The old entry named `input_command_v1.hex`,
+        // which no test had opened for many protocol versions — the gate was guarding a file
+        // whose deletion nothing else would have noticed.
+        "crates/runtime/net/tests/snapshots/input_command_v33.hex",
         "crates/runtime/sim/tests/replays/drive_forward_v1.json",
         "crates/runtime/sim/benches/fixed_tick.rs",
         "crates/runtime/sim/benches/combat_hot_path.rs",
         "crates/runtime/net/benches/protocol_codec.rs",
-        "assets/maps/prokhorovka_hill_252_2.terrain.json",
-        "assets/vehicles/t54_1951.vehicle.json",
-        "assets/vehicles/tiger_i_ausf_e.vehicle.json",
-        "assets/vehicles/tiger_ii_ausf_b.vehicle.json",
-        "assets/vehicles/jagdtiger.vehicle.json",
-        "assets/vehicles/panther_ii.vehicle.json",
-        "assets/vehicles/is3.vehicle.json",
-        "assets/vehicles/t34_85.vehicle.json",
         "scripts/verify.ps1",
+        // Dormant while CI billing is blocked, and kept for exactly that reason: restoring CI
+        // should be one commit, not an archaeology exercise.
         ".github/workflows/ci.yml",
     ] {
         assert!(
@@ -130,6 +127,39 @@ fn workspace_has_protocol_snapshots_replays_and_benchmarks() {
             "missing required quality gate artifact: {required_path}"
         );
     }
+}
+
+/// Every blueprint-born vehicle ships a baked asset, counted rather than named.
+///
+/// The list this replaced was hand-typed and had already drifted: it named seven of the eight
+/// vehicles, and the missing one (Centurion) was therefore protected by nobody — the exact
+/// failure this file's `RENDER_SURFACE` rule was made default-deny to avoid. Counting the two
+/// directories against each other means the ninth vehicle is covered on the day it is authored.
+#[test]
+fn every_blueprint_vehicle_has_a_baked_asset() {
+    let root = workspace_root();
+    let count = |dir: &str, suffix: &str| -> Vec<String> {
+        let Ok(entries) = std::fs::read_dir(root.join(dir)) else {
+            panic!("{dir} must exist — it is where this gate looks");
+        };
+        let mut names: Vec<String> = entries
+            .filter_map(Result::ok)
+            .filter_map(|e| e.file_name().into_string().ok())
+            .filter(|n| n.ends_with(suffix))
+            .map(|n| n.trim_end_matches(suffix).to_string())
+            .collect();
+        names.sort();
+        names
+    };
+
+    let blueprints = count("crates/foundation/game_core/blueprints", ".blueprint.ron");
+    let assets = count("assets/vehicles", ".vehicle.json");
+
+    assert!(!blueprints.is_empty(), "the blueprint fleet cannot be empty");
+    assert_eq!(
+        blueprints, assets,
+        "every blueprint vehicle ships a baked asset and vice versa;\n  blueprints: {blueprints:?}\n  assets:     {assets:?}"
+    );
 }
 
 fn manifest_has_dependency(manifest: &str, dependency: &str) -> bool {

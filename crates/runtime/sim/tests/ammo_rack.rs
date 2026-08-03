@@ -1,5 +1,5 @@
 //! Locks the ammo rack (protocol v15): a spawned tank carries `spec.ammo`, firing consumes the
-//! selected slot and an empty one refuses, and switching slots restarts the full reload â€” the
+//! selected slot and an empty one refuses, and switching slots restarts the full reload — the
 //! simple honest rule: the loader swaps the round out of the breech.
 
 use game_core::{ShellType, TankSpec, TeamId};

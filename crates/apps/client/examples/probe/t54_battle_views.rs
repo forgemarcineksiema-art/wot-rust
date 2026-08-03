@@ -1,8 +1,8 @@
 //! T-54 rendered under the **battle** lighting profile (`SceneLighting::battlefield_default`) through
-//! the live PBR vehicle path â€” the same light the windowed game uses. The `t54_views` studio shots
+//! the live PBR vehicle path — the same light the windowed game uses. The `t54_views` studio shots
 //! use `garage_studio`, so this closes the QA gap where humans reviewed a profile the game never
 //! ships. See `docs/atmosphere-policy.md`.
-//! `cargo run -p client --example probe -- t54_battle_views -- target/t54_battle`  (writes `_threequarter.png`, â€¦)
+//! `cargo run -p client --example probe -- t54_battle_views -- target/t54_battle`  (writes `_threequarter.png`, …)
 
 use std::f32::consts::FRAC_PI_2;
 use std::fs::File;

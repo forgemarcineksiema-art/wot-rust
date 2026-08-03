@@ -80,7 +80,7 @@ fn cover_damage_hp(shell_type: game_core::ShellType) -> u32 {
 
 /// A hull must be moving at least this fast to flatten a hedgerow it drives into.
 const COVER_CRUSH_MIN_SPEED_MPS: f32 = 2.5;
-/// The nick a hull takes for bulldozing through cover â€” small, but not free.
+/// The nick a hull takes for bulldozing through cover — small, but not free.
 const COVER_CRUSH_SELF_HP: u32 = 8;
 /// How far ALONG ITS TRAVEL the hull's footprint is carried forward when asking what it is about
 /// to flatten — the hedge goes over just before contact, so the same tick's movement drives
@@ -340,7 +340,7 @@ impl SimulationState {
             recover_aim_dispersion(tank, dt);
             crate::repair::step_crew_repair(tank, dt);
         }
-        // Release buffered fire clicks the tick their reload completes â€” one attempt, then the
+        // Release buffered fire clicks the tick their reload completes — one attempt, then the
         // intent drops (if the gun died in the meantime, nothing fires and nothing lingers).
         for index in 0..self.tanks.len() {
             let tank = &mut self.tanks[index];
@@ -422,7 +422,7 @@ impl SimulationState {
                 &mut self.damage_events,
                 &mut event_stamp,
             );
-            // Ammo switch before the fire check: the honest rule is simple â€” any real switch
+            // Ammo switch before the fire check: the honest rule is simple — any real switch
             // restarts the full reload (the loader swaps the round out of the breech).
             if let Some(slot) = command.select_ammo
                 && (slot as usize) < game_core::MAX_AMMO_SLOTS
@@ -456,7 +456,7 @@ impl SimulationState {
         // ...and the wrecks settle onto the ground under them, whether they were killed in
         // mid-air or the ground moved after they died (see `wreck`).
         crate::wreck::settle_wrecks(&mut self.tanks, heightmap, &rubble, dt);
-        // Drowning runs for EVERY living hull, commanded or not â€” a dead-engine tank in the
+        // Drowning runs for EVERY living hull, commanded or not — a dead-engine tank in the
         // river keeps flooding.
         crate::drowning::step_drowning(
             &mut self.tanks,

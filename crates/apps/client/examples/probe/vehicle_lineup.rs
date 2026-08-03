@@ -105,6 +105,6 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     encoder.set_color(png::ColorType::Rgba);
     encoder.set_depth(png::BitDepth::Eight);
     encoder.write_header()?.write_image_data(&pixels)?;
-    println!("wrote {path} ({width}x{height}) â€” {} vehicles", VehicleKind::PLAYABLE.len());
+    println!("wrote {path} ({width}x{height}) — {} vehicles", VehicleKind::PLAYABLE.len());
     Ok(())
 }

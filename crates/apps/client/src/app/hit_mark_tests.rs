@@ -1,4 +1,4 @@
-//! Locks the damage-event â†’ battle-scar pipeline: a replicated shell strike on a tank records a
+//! Locks the damage-event → battle-scar pipeline: a replicated shell strike on a tank records a
 //! decal in that tank's local frame (rendered on the hull by the FX pass), non-shell damage does
 //! not, and a strike on a tank missing from the snapshot is dropped rather than misplaced.
 

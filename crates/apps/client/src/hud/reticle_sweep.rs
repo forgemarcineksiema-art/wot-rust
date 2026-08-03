@@ -17,18 +17,18 @@ pub(crate) struct ReticleTraceQuery<'a> {
     pub owner: TankId,
     pub owner_team: TeamId,
     pub muzzle: Vec3,
-    /// World-space unit direction of the barrel â€” already carried through the hull pose, so a
+    /// World-space unit direction of the barrel — already carried through the hull pose, so a
     /// tilted hull previews the tilted arc the server will fire.
     pub gun_direction: Vec3,
     pub muzzle_velocity_mps: f32,
     pub projectile_radius_m: f32,
-    /// The previewed shell's linear drag â€” the preview must fly the same air as the server.
+    /// The previewed shell's linear drag — the preview must fly the same air as the server.
     pub drag_per_s: f32,
 }
 
 /// Trace the player's shot with the authoritative shell physics ([`sim::trace_shell`]). The reticle
 /// preview and the server run the same trajectory + collision, so a previewed impact is one the
-/// server will confirm â€” even under input latency.
+/// server will confirm — even under input latency.
 pub(crate) fn reticle_trace(query: ReticleTraceQuery<'_>) -> TraceOutcome {
     let velocity = query.gun_direction.normalize_or_zero() * query.muzzle_velocity_mps;
     let sets = trace_sets(query.tanks, query.owner, query.owner_team);
@@ -80,7 +80,7 @@ pub(crate) fn trace_sets(tanks: &[TankSnapshot], owner: TankId, owner_team: Team
     sets
 }
 
-/// The authoritative simulation timestep â€” the preview must integrate at the server's `dt`, not a
+/// The authoritative simulation timestep — the preview must integrate at the server's `dt`, not a
 /// finer one, or its arc would drift from the server's.
 pub(crate) fn tick_dt_seconds() -> f32 {
     1.0 / DEFAULT_SIMULATION_TICK_HZ as f32
@@ -190,7 +190,7 @@ mod tests {
             drag_per_s: 0.09,
         });
 
-        // The same inputs fed straight through `sim` must produce the identical outcome â€” the
+        // The same inputs fed straight through `sim` must produce the identical outcome — the
         // reticle is a thin adapter over the authoritative trace, nothing more.
         let velocity = gun_direction(0.0, 0.0) * 895.0;
         let sets = trace_sets(std::slice::from_ref(&target), TankId(1), TeamId(1));

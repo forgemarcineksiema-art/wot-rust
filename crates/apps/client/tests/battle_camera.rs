@@ -117,7 +117,7 @@ fn the_camera_stays_centered_at_every_boom_length_so_zoom_cannot_slide_the_view(
     let mut camera = BattleCameraController::new(BattleCameraSettings::default());
     camera.set_mode(BattleCameraMode::ThirdPerson);
 
-    // Scroll the boom through its whole range: the lateral placement must not move â€” a
+    // Scroll the boom through its whole range: the lateral placement must not move — a
     // zoom-dependent offset swept the scene sideways on every scroll (the "slides left" bug).
     let far = camera.render_camera(&subject, &environment);
     assert!(far.target[0] > subject.position[0] + 3.0, "TPP target leads the current turret");

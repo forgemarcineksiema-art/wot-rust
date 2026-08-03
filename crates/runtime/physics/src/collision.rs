@@ -83,21 +83,6 @@ pub fn default_tank_footprint() -> TankFootprint {
     TankFootprint { half_width_m: TANK_COLLISION_RADIUS_M, half_length_m: TANK_COLLISION_RADIUS_M }
 }
 
-/// Whether two hull footprints (OBBs in the XZ plane) touch within `slop_m`. This is the same
-/// SAT used for movement blocking, with footprint `a` inflated by the slop, so "touching" can
-/// never disagree with the shape that movement collided. Ramming uses a per-tick dynamic slop
-/// (base + closing distance per tick) so fast closing hulls cannot tunnel past the contact.
-pub fn tank_footprints_touch(a: &TankObstacle, b: &TankObstacle, slop_m: f32) -> bool {
-    let inflated = TankObstacle {
-        footprint: TankFootprint {
-            half_width_m: a.footprint.half_width_m + slop_m.max(0.0),
-            half_length_m: a.footprint.half_length_m + slop_m.max(0.0),
-        },
-        ..*a
-    };
-    obstacles_overlap(&inflated, b)
-}
-
 /// Zero the world-axis velocity components that the resolver had to drop back to `previous`,
 /// leaving the sliding axis intact. The axis-separated resolver only ever holds whole world axes,
 /// so killing exactly those axes keeps the surviving velocity tangent to the obstacle (the hull

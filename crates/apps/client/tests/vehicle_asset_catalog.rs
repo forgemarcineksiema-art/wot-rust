@@ -125,7 +125,7 @@ fn loaded_forge_artifact_queues_decoded_material_maps_for_gpu_upload() {
         }
         assert!(layer.cavity().is_some(), "each baked family includes a cavity map");
     }
-    // A second take is empty â€” uploads are drained, not duplicated.
+    // A second take is empty — uploads are drained, not duplicated.
     assert!(catalog.take_pending_vehicle_materials().is_empty());
 
     std::fs::remove_dir_all(out).expect("remove client artifact");

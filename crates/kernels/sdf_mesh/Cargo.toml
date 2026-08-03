@@ -6,7 +6,6 @@ license.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-game_core.workspace = true
 glam.workspace = true
 png.workspace = true
 sdf.workspace = true
@@ -14,7 +13,6 @@ vehicle_geometry.workspace = true
 
 [dev-dependencies]
 criterion.workspace = true
-solid.workspace = true
 
 [[bench]]
 name = "meshing"

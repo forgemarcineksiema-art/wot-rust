@@ -352,7 +352,7 @@ pub fn combat_snapshot_message() -> Snapshot {
             owner: TankId(7),
             position: Vec3::new(2.0, 0.1, 80.0),
             surface: ImpactSurface::Hull,
-            // v17: the wire says WHAT died here â€” lock a non-default variant into the fixture.
+            // v17: the wire says WHAT died here — lock a non-default variant into the fixture.
             shell_type: game_core::ShellType::HighExplosive,
             direction: Vec3::new(0.6, -0.64, 0.48),
             caliber_mm: 122.0,

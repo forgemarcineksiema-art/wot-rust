@@ -22,7 +22,7 @@ use net::TankSnapshot;
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct FireEvent {
     pub tank_id: TankId,
-    /// Hull-relative turret heading at the shot â€” the hull-rock impulse decomposes over it.
+    /// Hull-relative turret heading at the shot — the hull-rock impulse decomposes over it.
     pub turret_yaw_rad: f32,
     pub muzzle: Vec3,
     pub direction: Vec3,

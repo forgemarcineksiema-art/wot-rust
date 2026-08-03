@@ -1,4 +1,4 @@
-//! Hit decals on vehicles: every replicated shell strike leaves a mark ON the plate it hit â€”
+//! Hit decals on vehicles: every replicated shell strike leaves a mark ON the plate it hit —
 //! a permanent black hole for a penetration, a fading bare-metal scuff for a bounce, a long
 //! gouge for a ricochet. Marks are stored in the frame they belong to (hull marks ride the
 //! hull, turret marks traverse with the turret) and drawn as flat oriented quads through the

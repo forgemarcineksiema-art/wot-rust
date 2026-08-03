@@ -25,12 +25,10 @@ pub use fx::{append_decal_quads, decal_from_damage_event};
 pub use hud::demo::demo_battle_hud;
 pub use hud::font::hud_font_atlas;
 pub use hud::{HudVitals, build_hud};
-// The in-house UI toolkit surface (map-editor D3): the editor draws its panels and text
-// with the SAME primitives the battle HUD and garage use — one look, one implementation.
-pub use hud::font::layout::{push_text, push_text_right, text_width};
-pub use hud::primitives::{push_arc, push_bar, push_hairline, push_panel, push_quad, push_segment};
-pub use hud::theme;
-pub use look_harness::{LookHarnessError, render_hangar_review_views, render_review_views};
+// The UI toolkit surface this used to re-export for the editor moved to `crates/ui/ui_kit`
+// when it was extracted (#424); the editor imports it directly and the app-to-app allowlist is
+// empty, so the ten forwarding names here had no caller left in the workspace.
+pub use look_harness::{render_hangar_review_views, render_review_views};
 pub use loop_policy::{
     ClientLoopAction, ClientLoopEvent, ClientLoopPhase, FixedTickAccumulator, WinitLoopDriver,
 };

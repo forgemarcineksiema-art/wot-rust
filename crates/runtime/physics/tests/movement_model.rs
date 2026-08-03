@@ -369,7 +369,7 @@ fn slope_past_climb_limit_stalls_the_tank_but_gentle_slope_does_not() {
 fn momentum_carries_the_hull_up_a_steep_hump_then_it_stalls() {
     let settings = TankControllerSettings::from_spec(&TankSpec::t54_1951());
     // A steep-but-below-ceiling face (in the momentum-climb band): a committed run-up at 10 m/s
-    // scrabbles the hull meaningfully up it, then bleeds off and stalls â€” momentum climbing, not a
+    // scrabbles the hull meaningfully up it, then bleeds off and stalls — momentum climbing, not a
     // wall, but no free crest either.
     let grade = settings.max_climb_grade + 0.06;
     assert!(grade < settings.momentum_climb_ceiling, "grade under test must be in the climb band");
@@ -428,8 +428,8 @@ fn a_face_past_the_ceiling_is_a_hard_wall_even_with_momentum() {
 #[test]
 fn a_parked_hull_holds_a_slope_it_used_to_creep_down() {
     let settings = TankControllerSettings::from_spec(&TankSpec::t54_1951());
-    // A 20Â° downhill (grade ~0.36) with the throttle released: the static track-lock must hold the
-    // hull in place â€” the old kinetic-only model crept downhill on anything past ~8Â°.
+    // A 20° downhill (grade ~0.36) with the throttle released: the static track-lock must hold the
+    // hull in place — the old kinetic-only model crept downhill on anything past ~8°.
     let grade = 0.36_f32;
     assert!(grade <= settings.static_grip_mu, "grade under test must be within static hold");
     let contact = TerrainContact {
@@ -453,7 +453,7 @@ fn a_parked_hull_holds_a_slope_it_used_to_creep_down() {
         state.position.z - start_z
     );
 
-    // A face past the static grade does NOT hold â€” it slides downhill (+z here). A cliff is not a
+    // A face past the static grade does NOT hold — it slides downhill (+z here). A cliff is not a
     // parking spot.
     let steep = TerrainContact { forward_slope: -1.3, ..contact };
     let mut sliding = TankKinematicState::default();
