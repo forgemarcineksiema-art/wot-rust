@@ -155,9 +155,9 @@ impl BattleSessionKind {
     pub fn battle_time_remaining_s(&self) -> Option<f32> {
         match self {
             Self::Local(server) => server.battle_time_remaining_s(),
-            // The battle clock is not replicated yet (a v30 candidate); the HUD simply hides
-            // the timer on a remote battle instead of showing a guess.
-            Self::Remote(_) => None,
+            // v45: the deadline arrived once in StartBattle; the countdown runs locally against
+            // the server tick the client already tracks.
+            Self::Remote(session) => session.battle_time_remaining_s(),
         }
     }
 
@@ -214,6 +214,10 @@ pub struct RemoteSession {
     weather: game_core::MatchWeather,
     latest_snapshot: Option<Snapshot>,
     latest_server_tick: u64,
+    /// The sim tick the clock expires on (v45, from `StartBattle`); `None` for an untimed
+    /// battle or before the seat word arrives. The countdown runs locally against
+    /// `latest_server_tick` so it costs no per-snapshot bytes.
+    time_limit_tick: Option<u64>,
     outcome: Option<battle_host::BattleOutcome>,
     inputs: RemoteInputHistory,
     combat_events: RemoteCombatEventInbox,
@@ -239,6 +243,7 @@ impl RemoteSession {
             weather: game_core::MatchWeather::default(),
             latest_snapshot: None,
             latest_server_tick: 0,
+            time_limit_tick: None,
             outcome: None,
             inputs: RemoteInputHistory::default(),
             combat_events: RemoteCombatEventInbox::default(),
@@ -282,6 +287,15 @@ impl RemoteSession {
             && self.outcome.is_none()
             && self.terminal_reason.is_none()
             && *self.session.state() == SessionState::Connected
+    }
+
+    /// Seconds left on the battle clock, counted locally against the last server tick (v45);
+    /// `None` for an untimed battle or before the seat word carrying the deadline arrives. The
+    /// client already assumes the fixed authoritative rate everywhere it converts ticks to time.
+    fn battle_time_remaining_s(&self) -> Option<f32> {
+        let limit = self.time_limit_tick?;
+        let remaining_ticks = limit.saturating_sub(self.latest_server_tick);
+        Some(remaining_ticks as f32 / sim::DEFAULT_SERVER_TICK_HZ as f32)
     }
 
     /// Drive the wire until the lobby seats us (called from the connecting screen).
@@ -348,7 +362,12 @@ impl RemoteSession {
                 ProtocolMessage::Pong { client_time_us, .. } => {
                     self.rtt_ms = Some((now_ms.saturating_sub(client_time_us / 1_000)) as u32);
                 }
-                ProtocolMessage::StartBattle { assigned_tank, server_tick, .. } => {
+                ProtocolMessage::StartBattle {
+                    assigned_tank,
+                    server_tick,
+                    time_limit_tick,
+                    ..
+                } => {
                     match self.assigned_tank {
                         None => self.assigned_tank = Some(assigned_tank),
                         Some(current) if current == assigned_tank => {}
@@ -356,6 +375,7 @@ impl RemoteSession {
                     }
                     self.seat_started_ms.get_or_insert(now_ms);
                     self.latest_server_tick = self.latest_server_tick.max(server_tick);
+                    self.time_limit_tick = time_limit_tick;
                 }
                 ProtocolMessage::SnapshotDelivery(delivery) => {
                     self.inputs.acknowledge_wire(delivery.last_processed_input_seq);

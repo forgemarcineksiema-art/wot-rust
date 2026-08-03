@@ -192,6 +192,7 @@ impl RemoteBattleServer {
                                 session_id,
                                 assigned_tank: tank,
                                 server_tick: core.authoritative_tick(),
+                                time_limit_tick: core.time_limit_tick(),
                             };
                             let _ = client.endpoint.send(transport, &start);
                             // v39: the world's EXISTING perforations, once, before the stream of
@@ -350,6 +351,7 @@ impl RemoteBattleServer {
                 // Until the first InputBatch acks the seat, keep repeating the one word a
                 // crew cannot play without.
                 let acked_tick = core.authoritative_tick();
+                let time_limit_tick = core.time_limit_tick();
                 for client in self.clients.values_mut() {
                     if let Some(tank) = client.tank
                         && !client.acked_start
@@ -358,6 +360,7 @@ impl RemoteBattleServer {
                             session_id: client.session_id,
                             assigned_tank: tank,
                             server_tick: acked_tick,
+                            time_limit_tick,
                         };
                         let _ = client.endpoint.send(transport, &start);
                     }
@@ -449,12 +452,14 @@ impl RemoteBattleServer {
         let (core, human_tanks) =
             LocalAuthoritativeServer::new_random_7v7_for_humans(self.config, self.battle, humans);
         let server_tick = core.authoritative_tick();
+        let time_limit_tick = core.time_limit_tick();
         for (client, tank) in self.clients.values_mut().zip(human_tanks) {
             client.tank = Some(tank);
             let start = ProtocolMessage::StartBattle {
                 session_id: client.session_id,
                 assigned_tank: tank,
                 server_tick,
+                time_limit_tick,
             };
             let _ = client.endpoint.send(transport, &start);
         }

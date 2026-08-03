@@ -117,7 +117,13 @@ pub use snapshot_schedule::SnapshotSchedule;
 /// filter (it was never drawable and its shooter+shell_id pairing was the sharpest leak). The
 /// tracer and the impact still replicate for everyone; only the identity is withheld. A wire
 /// break because `owner`'s type changed. See `docs/spotting-policy.md`.
-pub const PROTOCOL_VERSION: u16 = 44;
+///
+/// v45: `StartBattle` carries `time_limit_tick` — the sim tick the clock expires on, or `None`
+/// for an untimed battle. Constant per battle, so it rides the one-shot seat word rather than
+/// every snapshot; the client counts down locally against the `server_tick` it already tracks.
+/// Before it, a remote HUD hid the battle timer because it knew the current tick but not the
+/// deadline. Appended field — a wire break by layout.
+pub const PROTOCOL_VERSION: u16 = 45;
 
 #[derive(Debug, Error)]
 pub enum NetError {
@@ -486,6 +492,11 @@ pub enum ProtocolMessage {
         session_id: u64,
         assigned_tank: TankId,
         server_tick: u64,
+        /// v45: the authoritative sim tick at which the clock expires, or `None` for an untimed
+        /// battle. Constant for the whole battle, so it rides the seat word once instead of
+        /// every snapshot; the client counts down locally against `server_tick`. Without it a
+        /// remote HUD had to HIDE the timer (it knew the current tick but not the deadline).
+        time_limit_tick: Option<u64>,
     },
     /// v29: the battle is over. `winning_team` is `None` for a draw.
     BattleEnded {

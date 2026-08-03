@@ -71,6 +71,7 @@ fn session_id_covers_remote_messages_and_excludes_legacy_payloads() {
             session_id: SESSION_ID,
             assigned_tank: TankId(1),
             server_tick: 0,
+            time_limit_tick: Some(36_000),
         },
         ProtocolMessage::BattleEnded { session_id: SESSION_ID, winning_team: None },
         ProtocolMessage::SnapshotDelivery(net::SnapshotDelivery {

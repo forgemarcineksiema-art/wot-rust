@@ -188,7 +188,12 @@ fn battle_result_survives_the_orderly_battle_over_disconnect() {
     server
         .send(
             &mut server_port,
-            &ProtocolMessage::StartBattle { session_id, assigned_tank: TankId(7), server_tick: 10 },
+            &ProtocolMessage::StartBattle {
+                session_id,
+                assigned_tank: TankId(7),
+                server_tick: 10,
+                time_limit_tick: None,
+            },
         )
         .expect("start");
     server
@@ -411,6 +416,46 @@ fn combat_event_sequence_gap_is_terminal_without_partial_presentation() {
     assert_eq!(remote.terminal_reason, Some(RemoteTerminalReason::CombatEventGap));
     assert!(remote.pending_combat_events.is_empty());
     assert_eq!(remote.combat_events.last_received_seq(), None);
+}
+
+/// v45: the battle clock is replicated. `StartBattle` carries the deadline tick; the client
+/// counts down locally against the server tick it already tracks, so a remote HUD shows the
+/// timer instead of hiding it. An untimed battle (`None`) still shows nothing.
+#[test]
+fn the_remote_battle_clock_counts_down_from_the_replicated_deadline() {
+    let hub = MemoryHub::new();
+    let server_addr: SocketAddr = "10.28.0.1:40000".parse().expect("server addr");
+    let client_addr: SocketAddr = "10.28.0.2:5000".parse().expect("client addr");
+    let mut server_port = hub.port(server_addr);
+    let client_port = hub.port(client_addr);
+    let mut server = Endpoint::new(client_addr);
+    let mut remote = RemoteSession::connect(server_addr, Box::new(client_port));
+    let session_id = remote.session.session_id();
+
+    // A ten-minute battle at 60 Hz, already 60 s in: 540 s should remain.
+    let limit = 600 * sim::DEFAULT_SERVER_TICK_HZ as u64;
+    server
+        .send(
+            &mut server_port,
+            &ProtocolMessage::StartBattle {
+                session_id,
+                assigned_tank: TankId(3),
+                server_tick: 60 * sim::DEFAULT_SERVER_TICK_HZ as u64,
+                time_limit_tick: Some(limit),
+            },
+        )
+        .expect("start");
+    remote.pump_at(10);
+
+    let remaining = remote.battle_time_remaining_s().expect("a timed battle reports its clock");
+    assert!(
+        (remaining - 540.0).abs() < 0.5,
+        "≈540 s remain 60 s into a 600 s battle, got {remaining}"
+    );
+
+    // Wrap it in the session kind the app actually reads through.
+    let session = BattleSessionKind::Remote(Box::new(remote));
+    assert!(session.battle_time_remaining_s().is_some(), "the HUD path sees the clock");
 }
 
 /// A shove the player did not ask for has to reach the predictor as MOTION.
