@@ -3026,6 +3026,8 @@ dependencies = [
  "clap",
  "game_core",
  "net",
+ "ron",
+ "serde",
  "sim",
  "terrain",
  "tracing",
