@@ -22,6 +22,12 @@ use crate::{VehicleBlueprint, VehicleKind};
 pub struct VehicleArmorVolumes {
     pub hull: Vec<ArmorVolume>,
     pub turret: ArmorVolume,
+    /// The commander's cupola drum, PROUD of the turret roof as its own convex volume (turret
+    /// frame, so it traverses). Before it existed, a shell aimed at the drum sailed over the
+    /// casting and resolved against the ROOF at a grazing angle — auto-bounce off the most
+    /// famous weakspot in tank warfare. Fleet-wide from blueprint cupola data: no vehicle can
+    /// opt out of having the drum it visibly carries.
+    pub cupola: ArmorVolume,
     pub turret_ring_z: f32,
 }
 
@@ -115,7 +121,40 @@ fn bake_vehicle_armor(blueprint: VehicleBlueprint) -> VehicleArmorVolumes {
         TurretForm::CastDome => turret_dome(&blueprint, cy),
         TurretForm::WeldedBox | TurretForm::Casemate => turret_prism(&blueprint, cy),
     };
-    VehicleArmorVolumes { hull, turret, turret_ring_z: blueprint.turret.ring_z }
+    VehicleArmorVolumes {
+        hull,
+        turret,
+        cupola: cupola_drum(&blueprint, cy),
+        turret_ring_z: blueprint.turret.ring_z,
+    }
+}
+
+/// The commander's cupola as a convex sector prism in the TURRET frame: eight wall planes
+/// around the drum's authored footprint, a lid at its authored proud height, and a floor at
+/// the roof line it roots into. Every number is the blueprint's — the same drum the loft
+/// draws and the silhouette tests measure, so what the eye aims at is what the shell meets.
+fn cupola_drum(blueprint: &VehicleBlueprint, cy: f32) -> ArmorVolume {
+    let turret = &blueprint.turret;
+    // HULL-frame coordinates, like every turret plane here: the trace rotates the segment
+    // about the ring PIVOT, which leaves z on the hull scale (T-34-85's off-zero ring caught
+    // the subtraction this comment replaces).
+    let center = Vec3::new(turret.cupola_x, 0.0, turret.cupola_z);
+    let top_y = turret.roof_y + turret.cupola_proud_m(&blueprint.hull) - cy;
+    let root_y = turret.roof_y - 0.05 - cy;
+    let mut planes = Vec::with_capacity(10);
+    const SECTORS: usize = 8;
+    for sector in 0..SECTORS {
+        let azimuth = (sector as f32 + 0.5) / SECTORS as f32 * std::f32::consts::TAU;
+        let normal = Vec3::new(azimuth.cos(), 0.0, azimuth.sin());
+        planes.push(TaggedPlane::new(
+            normal,
+            center + normal * turret.cupola_radius,
+            ArmorZone::Cupola,
+        ));
+    }
+    planes.push(TaggedPlane::new(Vec3::Y, Vec3::new(0.0, top_y, 0.0), ArmorZone::Cupola));
+    planes.push(TaggedPlane::new(Vec3::NEG_Y, Vec3::new(0.0, root_y, 0.0), ArmorZone::Cupola));
+    ArmorVolume { planes }
 }
 
 /// The upper hull: glacis, deck, upper sides, upper rear — everything above the sponson step.

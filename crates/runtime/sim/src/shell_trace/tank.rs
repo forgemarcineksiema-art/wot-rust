@@ -161,6 +161,21 @@ fn armor_volume_hit(
                 turret_frame: true,
             });
         }
+        // The commander's drum stands PROUD of the casting: a shell aimed at it enters the
+        // drum before (or instead of) anything else, and resolves as the drum — not as the
+        // roof plane it used to graze over.
+        if let Some((t, index)) =
+            segment_volume_entry_with_margin(turret_start, turret_end, &volumes.cupola, radius_m)
+            && best.as_ref().is_none_or(|entry| t < entry.t)
+        {
+            best = Some(Entry {
+                t,
+                plane: &volumes.cupola.planes[index],
+                frame_start: turret_start,
+                frame_end: turret_end,
+                turret_frame: true,
+            });
+        }
     }
 
     let entry = best?;

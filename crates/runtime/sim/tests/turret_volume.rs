@@ -170,3 +170,35 @@ fn turret_traverse_swings_the_hittable_volume() {
         "with the turret swung away the same lane crosses open deck"
     );
 }
+
+/// The commander's drum catches the shell the roof used to shrug off. Before the cupola was a
+/// volume, a dead-front shot at drum height sailed over the casting and resolved against the
+/// ROOF plane at a grazing angle — auto-bounce off the most famous weakspot in tank warfare.
+/// Fleet-wide, from each blueprint's own cupola numbers: the shot arrives level at the drum's
+/// mid-height, over the drum's authored footprint, and must resolve as `Cupola` at a near-flat
+/// angle (the roundness IS the weakness — no invented multiplier).
+#[test]
+fn a_dead_front_shot_at_the_drum_resolves_as_cupola_fleet_wide() {
+    let mut covered = 0;
+    for kind in VehicleKind::PLAYABLE {
+        let Some(blueprint) = game_core::VehicleBlueprint::for_vehicle(kind) else { continue };
+        covered += 1;
+        let turret = &blueprint.turret;
+        let drum_mid_y = turret.roof_y + turret.cupola_proud_m(&blueprint.hull) * 0.5;
+        let tank = TraceTank::for_kind(TankId(1), Vec3::ZERO, HullPose::level(0.0), 0.0, kind);
+        // Level flight straight down the drum's own x lane, from ahead.
+        let start = Vec3::new(turret.cupola_x, drum_mid_y, 20.0);
+        let end = Vec3::new(turret.cupola_x, drum_mid_y, turret.cupola_z);
+        let outcome = segment_impact(start, end, Vec3::new(0.0, 0.0, -600.0), &world(&tank));
+        let Some(SegmentImpact::Tank { zone, impact_angle_degrees, .. }) = outcome else {
+            panic!("{kind:?}: the drum must catch a level shot aimed at it, got {outcome:?}");
+        };
+        assert_eq!(zone, ArmorZone::Cupola, "{kind:?}: the drum resolves as the drum");
+        assert!(
+            impact_angle_degrees < 35.0,
+            "{kind:?}: a cylinder offers a near-flat patch to a level shot, got \
+             {impact_angle_degrees:.1} deg"
+        );
+    }
+    assert_eq!(covered, VehicleKind::PLAYABLE.len(), "the drum lock covers the whole roster");
+}
