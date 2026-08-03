@@ -99,21 +99,31 @@ handshake/szyfrowanie (pomijalna przy 20 paczkach/s).
 
 - **Predykcja własnego czołgu** — JEST (`LocalPredictor` + korekty po snapshotach).
 - **Interpolacja zdalnych** — JEST (faza w domenie ticków, odporna na jitter klatek).
-- **Lag compensation przy strzale** — DO ZROBIENIA: celujesz w przeszłość (interpolacja +
-  ping), więc serwer przy strzale cofa pozycje CELÓW o opóźnienie strzelca i sprawdza
-  trafienie tam, gdzie cel był na jego ekranie. Decyzje z zębami: górny limit cofnięcia
-  (proponuję ~200 ms — powyżej gramy „w to, co widzi serwer"), czy cofamy też fazy coverów
-  (proponuję NIE — rzadkie, a tanio), test-lock: „strzał w to, co widział klient, trafia".
+- **Lag compensation przy strzale** — ZMIERZONE 2026-08-03, ODMOWA NA PIŚMIE dla wariantu
+  „rewind wieży strzelca". Ta strona TEGO primera proponowała pierwotnie cofanie pozycji CELÓW —
+  a to jest DOKŁADNIE „pełny rewind świata", którego `docs/server-first-policy.md` zakazuje
+  (slow ballistic shells → i tak wyprzedzasz cel). Wariant zgodny z polityką (rewind TYLKO wieży
+  strzelca) jest **no-opem**: serwer nie próbkuje celowania strzelca ze spóźnionego snapshotu,
+  tylko ODTWARZA jego własny uporządkowany strumień delt wieży (`turret_yaw_delta`) przez ten sam
+  integrator (`aiming.rs step_aiming`) co predykcja klienta; pocisk startuje z wieży po zwinięciu
+  delty tego ticku (`state.rs` settle→fire, `combat.rs` czyta żywy `turret_yaw_rad`). Kąt, który
+  rewind by odtworzył, jest już w ręku. Strata pakietu nie rozjeżdża tego: brak sekwencji TRZYMA
+  krawędź ognia zamiast strzelić w stary kąt (`remote_input.rs continuous_only`). Zalockowane:
+  `sim/tests/shooter_aim_no_rewind.rs` (pocisk wychodzi wzdłuż zwiniętego celowania strzelca).
+  Realna luka „trafiasz to, co widziałeś" dotyczy pozycji CELU (interpolacja), a jej cofanie jest
+  odrzucone przez politykę — więc pole zamknięte, nie odłożone.
 - **Zegary**: klient goni tick serwera z małym buforem; dryf korygowany płynnie (mamy już
   kulturę akumulatorów ticków po stronie klienta — to rozszerzenie, nie rewolucja).
 
 ## 7. Uczciwość sieciowa = anty-wallhack
 
-Dziś snapshot niesie WSZYSTKIE pozycje, a spotting gate'uje tylko UI — w LAN uczciwe, przez
-internet to wallhack na tacy (dług jawnie zapisany w `spotting.rs`). W1 musi domknąć
-**filtrowanie snapshotów per klient**: serwer wysyła graczowi tylko czołgi widziane przez
-jego drużynę (maski spotted już istnieją — to konsument się zmienia). Uwaga na pochodne:
-dźwięki i tracery też muszą przejść przez ten filtr.
+**ZROBIONE (v38+).** Snapshot NIE niesie już wszystkich pozycji: `filtered_for_viewer_with_observers`
+tnie go per klient (drużynowe maski spotted ∪ własne oczy, radio permitting) po obu stronach —
+lokalnej i `RemoteBattleServer`. Pochodne domknięte: v44/N1 zdjęło tożsamość właściciela z cudzych
+pocisków/trafień (`ShellSnapshot.owner`/`ShellImpact.owner` → `Option`, `None` dla niespotowanego
+strzelca; `ShotFired` niespotowanego dropowany) — tracer/kurz zostają jako zdarzenia świata,
+identyczność znika. Uczciwy dług resztkowy: `shell_id` to hash właściciela (brute-force po ~14 id
+możliwy) — remap per-viewer zapisany jako przyszłość w `docs/multiplayer-production-program.md`.
 
 ## 8. Cykl życia i zgodność
 
