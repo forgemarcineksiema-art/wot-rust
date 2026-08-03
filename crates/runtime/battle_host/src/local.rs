@@ -172,6 +172,12 @@ impl LocalAuthoritativeServer {
         self.outcome
     }
 
+    /// The sim tick the clock expires on, or `None` for an untimed battle. Sent once in
+    /// `StartBattle` so a remote client can run the countdown locally (v45).
+    pub fn time_limit_tick(&self) -> Option<u64> {
+        self.time_limit_ticks
+    }
+
     /// Seconds left on the battle clock; `None` when this battle runs untimed.
     pub fn battle_time_remaining_s(&self) -> Option<f32> {
         let limit = self.time_limit_ticks?;
