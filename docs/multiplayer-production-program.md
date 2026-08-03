@@ -14,7 +14,7 @@ since has touched **discovery, identity, trust, or ops**.
 
 | # | Area | Current state | Production needs | Scope |
 |---|------|---------------|------------------|-------|
-| 1 | **Seat hijack via spoofed hello** | any new `ClientHello` from a seated address re-keys the session and KEEPS the tank (`battle_host/src/remote.rs:57-79,154-155,177-204`); the victim's own packets are then rejected | refuse re-keying a live seated session; server nonce/cookie; identity-bound seats | S mitigation / L auth |
+| 1 | **Seat hijack via spoofed hello** | any new `ClientHello` from a seated address re-keys the session and KEEPS the tank (`remote.rs::begin_session`); this IS the fast-reconnect feature (`remote_reconnect.rs`), so a spoof is indistinguishable from a reconnect without identity — **measured, moved to N5** | identity-bound seats (Steam auth) — no address/timing guard is possible | L auth (N5) |
 | 2 | **No authentication, no encryption** | a "player" is a `SocketAddr`; `session_id` is a client-chosen cleartext u64 (`net/src/session.rs:114-129`); zero crypto deps | Steam auth tickets + AEAD session (or SDR, which gives both) | L |
 | 3 | **Unvalidated entries, lobby counts them, no rate limits** | every datagram from an unknown address allocates a `RemoteClient` BEFORE validation (`remote.rs:153-155`); lobby start counts `clients.len()` (`remote.rs:261,448`) — 7 junk datagrams start a battle and eat the human seats | validate-before-retain, client cap, per-address token bucket, count only seated | S–M |
 | 4 | **Owner identity on third-party shells/impacts/shots** | `snapshot_filter.rs:62,76,81` clones `shells`, `shell_impacts`, `shots_fired` with `owner`/`shooter` intact — v41's `ShotFired` names every unspotted shooter on the map; behavior LOCKED by `net/tests/snapshot_filter.rs:39`; `docs/spotting-policy.md:30-31` claims the opposite of the code | opaque handles or drop the field (key presentation on `shell_id`); re-anchor the lock; fix the doc | M |
@@ -31,12 +31,20 @@ since has touched **discovery, identity, trust, or ops**.
 
 ## Wave plan (proposal)
 
-- **N0 — Close the door (S, 1–2 PR).** Register rows 1(mitigation), 3, 11, 14. No new
-  systems: refuse live-seat re-keys behind a server nonce, validate-before-retain + client cap
-  + token bucket, count only seated clients for lobby start, replace the map-mismatch panic
-  with a refusal message, delete dead config, fix the spotting-policy paragraph. Locks:
-  spoofed-hello test (hijack refused), junk-datagram test (lobby does not start), mismatch
-  test (client survives with a message).
+- **N0 — Close the door (S, 1–2 PR). PARTLY LANDED.** Register rows 3, 11, 14, plus the parts
+  of 1 that do not need identity. Shipped so far: validate-before-retain via a table cap
+  (`MAX_TRACKED_CLIENTS = 32`, unknown sources dropped at the cap), unestablished-source fast
+  aging (2 s vs 10 s), and lobby start / seat assignment counting only crews that completed a
+  hello — so a spoofed-datagram flood can neither start the battle, take a seat, nor grow the
+  table without bound. Locks: `unestablished_sources_neither_start_the_battle_nor_overrun_the_table`.
+  **Measured finding on row 1 (seat hijack):** it CANNOT be closed at N0. A spoofed source is
+  address-identical to the real client, and the host already treats a different session_id on a
+  seated address as the fast-reconnect feature (`remote_reconnect.rs`) — keeping the tank on
+  purpose. A timing/address guard cannot separate a reconnect from a takeover; it only breaks
+  the reconnect. **Row 1 moves to N5 (authentication):** with a real identity the seat binds to
+  the player, not the socket, and the takeover has nothing to spoof. A `NOTE` in
+  `begin_session` records this so no one re-adds the broken guard. Still open in N0: the
+  map-mismatch panic → refusal message, and deleting the dead `interpolation_delay_ticks`.
 - **N1 — Honest wire (M, 1–2 PR).** Row 4: strip `owner`/`shooter` from third-party shells,
   impacts and `ShotFired` (presentation keys on `shell_id`); per-viewer boolean instead of the
   full `spotted_by_teams_mask`. Re-anchor the locking test to the new promise.
