@@ -124,7 +124,11 @@ fn module_volume_at_hit(
         ArmorZone::HullSide | ArmorZone::Skirt if local_hit.y < -hitbox.half_height_m * 0.20 => {
             (ModuleSlot::Suspension, 1.0)
         }
-        ArmorZone::UpperGlacis | ArmorZone::LowerPlate => (ModuleSlot::Gun, 0.80),
+        // A port penetration is inside the driver's station / bow compartment — same interior
+        // band a glacis penetration meets.
+        ArmorZone::UpperGlacis | ArmorZone::LowerPlate | ArmorZone::GlacisPort => {
+            (ModuleSlot::Gun, 0.80)
+        }
         ArmorZone::HullSide | ArmorZone::Skirt => (ModuleSlot::Suspension, 0.65),
     };
     Some(ModuleHitCandidate { slot, exposure })
@@ -165,6 +169,7 @@ fn zone_band_offset(zone: ArmorZone) -> f32 {
         ArmorZone::RightTrack => 0.61,
         ArmorZone::Skirt => 0.67,
         ArmorZone::Cupola => 0.71,
+        ArmorZone::GlacisPort => 0.73,
     }
 }
 

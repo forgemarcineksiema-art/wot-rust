@@ -169,10 +169,35 @@ fn upper_hull(blueprint: &VehicleBlueprint, cy: f32) -> ArmorVolume {
     let fold = Vec3::new(0.0, step_y, hull.half_len);
     let mut planes = Vec::with_capacity(8);
     // A pike nose is TWO glacis planes yawed about the central ridge; a flat bow is one.
+    // The authored bow ports (driver's visor, hull MG) ride the glacis plane as aimable
+    // patches: inside the disc the plate's own steel presents FLAT — losing the rake is the
+    // whole, real weakness. A port's centre sits ON the plate at its authored x/y: z follows
+    // the plate's run, so an edit to the glacis angle carries the ports with it.
+    let ports: Vec<ArmorPatch> = blueprint
+        .armor
+        .glacis_ports
+        .iter()
+        .flatten()
+        .map(|port| {
+            // ON the armour plane itself: the plate runs from the FOLD at the sponson step,
+            // so the port's z follows that run — not the kit's belly-anchored approximation,
+            // which sat a metre behind the plate and made the patch unreachable.
+            let run = (port.y - hull.sponson_y) * blueprint.armor.hull_front.0.to_radians().tan();
+            ArmorPatch {
+                zone: ArmorZone::GlacisPort,
+                center: Vec3::new(port.x, port.y - cy, hull.half_len - run),
+                radius_m: port.radius_m,
+                // The ball or visor stands FLAT out of the raked plate — straight out the bow.
+                presents_normal: Some(Vec3::Z),
+            }
+        })
+        .collect();
     for yaw_deg in bow_sweeps(hull.pike_sweep_deg) {
         let normal =
             Mat3::from_rotation_y(yaw_deg.to_radians()) * Vec3::new(0.0, glacis_sin, glacis_cos);
-        planes.push(TaggedPlane::new(normal, fold, ArmorZone::UpperGlacis));
+        planes.push(
+            TaggedPlane::new(normal, fold, ArmorZone::UpperGlacis).with_patches(ports.clone()),
+        );
     }
     planes.extend([
         TaggedPlane::new(Vec3::Y, Vec3::new(0.0, hull.deck_y - cy, 0.0), ArmorZone::HullDeck),
@@ -273,6 +298,7 @@ fn turret_dome(blueprint: &VehicleBlueprint, cy: f32) -> ArmorVolume {
     // drawn near it.
     let loft = blueprint.visual_detail().and_then(|hybrid| hybrid.turret_loft.as_ref());
     let mantlet = ArmorPatch {
+        presents_normal: None,
         zone: ArmorZone::Mantlet,
         center: Vec3::new(0.0, blueprint.gun.trunnion_y - cy, turret.mantlet_front_z),
         radius_m: turret.mantlet_radius * mantlet_patch_scale(blueprint),
@@ -363,6 +389,7 @@ fn turret_prism(blueprint: &VehicleBlueprint, cy: f32) -> ArmorVolume {
     let turret = blueprint.turret;
     let ring_y = turret.ring_y - cy;
     let mantlet = ArmorPatch {
+        presents_normal: None,
         zone: ArmorZone::Mantlet,
         center: Vec3::new(0.0, blueprint.gun.trunnion_y - cy, turret.mantlet_front_z),
         radius_m: turret.mantlet_radius * mantlet_patch_scale(blueprint),

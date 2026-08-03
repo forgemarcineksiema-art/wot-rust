@@ -202,3 +202,52 @@ fn a_dead_front_shot_at_the_drum_resolves_as_cupola_fleet_wide() {
     }
     assert_eq!(covered, VehicleKind::PLAYABLE.len(), "the drum lock covers the whole roster");
 }
+
+/// The bow ports resolve as PORTS: at the authored centre the plate presents flat (the whole,
+/// real weakness — no invented multiplier), and one radius outside the disc the same shot meets
+/// the raked glacis again. Walks every authored port in the fleet; vehicles whose bow features
+/// are not yet drawn author none, and the roster ratchet in `blueprint_source.rs` names them.
+#[test]
+fn an_authored_bow_port_resolves_flat_inside_its_disc_and_raked_outside() {
+    let mut ports_checked = 0;
+    for kind in VehicleKind::PLAYABLE {
+        let Some(blueprint) = game_core::VehicleBlueprint::for_vehicle(kind) else { continue };
+        for port in blueprint.armor.glacis_ports.iter().flatten() {
+            ports_checked += 1;
+            let tank = TraceTank::for_kind(TankId(1), Vec3::ZERO, HullPose::level(0.0), 0.0, kind);
+            let fire = |x: f32, y: f32| {
+                segment_impact(
+                    Vec3::new(x, y, 20.0),
+                    Vec3::new(x, y, 0.0),
+                    Vec3::new(0.0, 0.0, -600.0),
+                    &world(&tank),
+                )
+            };
+            let Some(SegmentImpact::Tank { zone, impact_angle_degrees, .. }) = fire(port.x, port.y)
+            else {
+                panic!("{kind:?}: the port at ({}, {}) must be hittable", port.x, port.y);
+            };
+            assert_eq!(zone, ArmorZone::GlacisPort, "{kind:?}: the port resolves as the port");
+            assert!(
+                impact_angle_degrees < 10.0,
+                "{kind:?}: inside the disc the plate presents flat, got \
+                 {impact_angle_degrees:.1} deg"
+            );
+            // One and a half radii to the side: the same height, the raked plate again.
+            let beside = fire(port.x + port.radius_m * 1.5, port.y);
+            let Some(SegmentImpact::Tank { zone: beside_zone, .. }) = beside else {
+                panic!("{kind:?}: beside the port the glacis still stands");
+            };
+            assert_eq!(
+                beside_zone,
+                ArmorZone::UpperGlacis,
+                "{kind:?}: the patch must not leak past its disc"
+            );
+        }
+    }
+    assert!(
+        ports_checked >= 3,
+        "the T-54's course MG and the Tiger's visor + ball are authored — the lock must have \
+         walked them, got {ports_checked}"
+    );
+}

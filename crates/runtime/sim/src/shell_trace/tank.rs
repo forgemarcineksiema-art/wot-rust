@@ -181,11 +181,16 @@ fn armor_volume_hit(
     let entry = best?;
     let frame_center = entry.frame_start.lerp(entry.frame_end, entry.t);
     let frame_contact = frame_center - entry.plane.normal * radius_m;
-    let zone = entry.plane.zone_at(frame_contact);
+    let patch = entry.plane.patch_at(frame_contact);
+    let zone = patch.map_or(entry.plane.zone, |patch| patch.zone);
+    // A patch may PRESENT differently than its carrier: a bow port's ball stands flat out of
+    // the raked plate, so inside the disc the impact angle is the ball's, not the glacis'.
+    let presented_normal =
+        patch.and_then(|patch| patch.presents_normal).unwrap_or(entry.plane.normal);
     let hull_local_normal = if entry.turret_frame {
-        Mat3::from_rotation_y(tank.turret_yaw_rad) * entry.plane.normal
+        Mat3::from_rotation_y(tank.turret_yaw_rad) * presented_normal
     } else {
-        entry.plane.normal
+        presented_normal
     };
     let normal = (tank.hull.basis() * hull_local_normal).normalize_or_zero();
     let direction = velocity.normalize_or_zero();
