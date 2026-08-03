@@ -20,7 +20,7 @@
 //! stamped chevrons from one path, as claw-mark slashes from the other. Real creases are broad,
 //! low undulations this kernel cannot fake with tubes; clean canvas is the honest render.
 
-use game_core::GunVisual;
+use game_core::CanvasCoverVisual;
 use glam::{Vec2, Vec3};
 use sweep::{SweepCaps, SweepFrameMode, SweepPath, SweepSection, SweepSpec, try_sweep};
 use vehicle_geometry::{GeometryMesh, MaterialRole, SmoothingGroup};
@@ -67,8 +67,8 @@ fn rounded_rect_ring(half_x: f32, half_y: f32) -> Vec<Vec2> {
 }
 
 /// The canvas: panel + sleeve + folds, one fabric mesh in vehicle-local space.
-pub fn t54_mantlet_cover(trunnion: Vec3, gun: &GunVisual) -> GeometryMesh {
-    let (fx, fy) = gun.cover_frame_half;
+pub fn t54_mantlet_cover(trunnion: Vec3, canvas: &CanvasCoverVisual) -> GeometryMesh {
+    let (fx, fy) = canvas.frame_half;
     let mut pieces: Vec<GeometryMesh> = Vec::new();
 
     // --- the panel -------------------------------------------------------------------------
@@ -96,13 +96,13 @@ pub fn t54_mantlet_cover(trunnion: Vec3, gun: &GunVisual) -> GeometryMesh {
     );
 
     // --- the sleeve ------------------------------------------------------------------------
-    let stations = gun.mantlet_cover;
+    let stations = canvas.sleeve;
     let span = stations[stations.len() - 1].0 - stations[0].0;
     let sleeve_points: Vec<Vec3> = stations
         .iter()
         .map(|&(z, _)| {
             let t = if span.abs() > 1.0e-6 { (z - stations[0].0) / span } else { 0.0 };
-            let sag = gun.mantlet_cover_sag * (t * std::f32::consts::PI).sin();
+            let sag = canvas.sag * (t * std::f32::consts::PI).sin();
             trunnion + Vec3::new(0.0, -sag, z)
         })
         .collect();
@@ -136,8 +136,8 @@ pub fn t54_mantlet_cover(trunnion: Vec3, gun: &GunVisual) -> GeometryMesh {
 /// The fastening FRAME: the perimeter strip that clamps the fabric hem into the window — the
 /// crisp rectangular outline a viewer reads before anything else. A closed loop (a frame has no
 /// ends), just outside the panel's frame station, against the window walls.
-pub fn t54_mantlet_frame(trunnion: Vec3, gun: &GunVisual) -> GeometryMesh {
-    let ring = rounded_rect_ring(gun.cover_frame_half.0 + 0.010, gun.cover_frame_half.1 + 0.010);
+pub fn t54_mantlet_frame(trunnion: Vec3, canvas: &CanvasCoverVisual) -> GeometryMesh {
+    let ring = rounded_rect_ring(canvas.frame_half.0 + 0.010, canvas.frame_half.1 + 0.010);
     let points: Vec<Vec3> =
         ring.into_iter().map(|p| trunnion + Vec3::new(p.x, p.y, -0.006)).collect();
     let path = SweepPath { points, closed: true };
@@ -169,19 +169,20 @@ mod tests {
     use super::*;
     use game_core::{VehicleBlueprint, VehicleKind};
 
-    fn gun() -> GunVisual {
+    fn canvas() -> CanvasCoverVisual {
         VehicleBlueprint::for_vehicle(VehicleKind::T54_1951)
             .unwrap()
             .complete_visual()
             .unwrap()
             .gun
-            .to_owned()
+            .canvas
+            .expect("the benchmark's internal mantlet wears its canvas")
     }
 
     #[test]
     fn the_cover_is_a_rectangle_wider_than_tall() {
         let trunnion = Vec3::new(0.0, 1.78, 1.15);
-        let cover = t54_mantlet_cover(trunnion, &gun());
+        let cover = t54_mantlet_cover(trunnion, &canvas());
         let b = cover.bounds().expect("cover bounds");
         let width = b.max.x - b.min.x;
         let height = b.max.y - b.min.y;
@@ -194,8 +195,8 @@ mod tests {
     #[test]
     fn the_sleeve_ends_gripping_the_tube() {
         let trunnion = Vec3::new(0.0, 1.78, 1.15);
-        let cover = t54_mantlet_cover(trunnion, &gun());
-        let far = gun().mantlet_cover[3].0;
+        let cover = t54_mantlet_cover(trunnion, &canvas());
+        let far = canvas().sleeve[3].0;
         let ring: Vec<f32> = cover
             .vertices()
             .iter()
@@ -210,11 +211,11 @@ mod tests {
     #[test]
     fn the_frame_is_a_closed_loop_outside_the_panel() {
         let trunnion = Vec3::new(0.0, 1.78, 1.15);
-        let frame = t54_mantlet_frame(trunnion, &gun());
+        let frame = t54_mantlet_frame(trunnion, &canvas());
         let report = frame.quality_report(vehicle_geometry::OPEN_OR_CLOSED_MESH);
         assert_eq!(report.non_manifold_edges, 0, "a ring of strip, cleanly closed");
         let b = frame.bounds().expect("frame bounds");
-        let (fx, fy) = gun().cover_frame_half;
+        let (fx, fy) = canvas().frame_half;
         assert!(b.max.x > fx && b.max.y > fy, "the strip clamps OUTSIDE the fabric hem");
     }
 }

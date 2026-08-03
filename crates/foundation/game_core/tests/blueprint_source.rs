@@ -108,7 +108,13 @@ fn a_partial_visual_file_round_trips_and_does_not_claim_completeness() {
     let full = benchmark.visual_detail().expect("benchmark tree");
     assert!(full.is_complete(), "the benchmark authors every part");
 
-    let partial = game_core::VisualDetail { gun: full.gun, ..Default::default() };
+    // The Tiger-shaped part (F5.iii-a): an external-mantlet gun wears a muzzle brake and NO
+    // canvas — both statements, not omissions, and both must survive the file.
+    let mut gun = full.gun.expect("benchmark gun part");
+    gun.canvas = None;
+    gun.muzzle_brake =
+        Some(game_core::MuzzleBrakeVisual { radius: 0.17, length: 0.34, baffles: 2 });
+    let partial = game_core::VisualDetail { gun: Some(gun), ..Default::default() };
     assert!(!partial.is_complete(), "a gun group alone is not the complete view");
     assert!(partial.complete().is_none(), "no complete view without every part");
 
