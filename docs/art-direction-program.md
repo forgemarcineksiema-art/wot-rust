@@ -5,6 +5,11 @@
 fixed.** The policy is the bible; this is the campaign. When the register below is empty and every
 `FLOOR` has met its `TARGET`, this document becomes history and the policy stands alone.
 
+> Sibling program: [world-scale-program.md](world-scale-program.md) (2026-08-03) — the measured
+> register of the WORLD being 25–75% too small and too uniform around a correctly-scaled tank
+> (trees, landmarks, horizon, instance variance, camera FOV). This program fixes the light;
+> that one fixes the metres.
+
 ## Why this program exists
 
 The engine has the whole apparatus: cascaded sun shadows, SSAO, HDR + ACES-lite, height/distance
