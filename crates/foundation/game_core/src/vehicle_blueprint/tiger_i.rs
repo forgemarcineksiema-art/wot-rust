@@ -139,10 +139,10 @@ pub(super) fn tiger_i_blueprint() -> VehicleBlueprint {
         armor: ArmorShape {
             // The slab, honestly: 9° driver's plate, VERTICAL 80 mm sides, 8° rear; the turret
             // walls stand straight up and only the front plate leans its 8°.
-            hull_front: (9.0, 0.9),
+            hull_front: (9.0, 1.0),
             hull_side: (0.0, 1.0),
             hull_rear: (8.0, 1.0),
-            turret_front: (8.0, 0.92),
+            turret_front: (8.0, 1.0),
             turret_side: (0.0, 1.0),
             turret_rear: (0.0, 1.0),
             turret_side_taper: None,

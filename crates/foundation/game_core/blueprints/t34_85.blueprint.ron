@@ -95,12 +95,12 @@ BlueprintFile(
     ),
     armor: ArmorShape(
         // Slope IS the armour: 45 mm at 60 degrees front...
-        hull_front: (60.0, 0.85),
+        hull_front: (60.0, 1.0),
         // ...40-degree raked upper sides...
         hull_side: (40.0, 1.0),
         hull_rear: (47.0, 1.0),
         // ...and the rounded 90 mm turret face around the mantlet.
-        turret_front: (28.0, 0.9),
+        turret_front: (28.0, 1.0),
         turret_side: (20.0, 1.0),
         turret_rear: (12.0, 1.0),
         turret_side_taper: None,

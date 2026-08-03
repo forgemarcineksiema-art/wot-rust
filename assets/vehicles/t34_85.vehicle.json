@@ -19,7 +19,7 @@
       "hull_front": {
         "nominal_thickness_mm": 45.0,
         "slope_degrees": 60.0,
-        "weakspot_multiplier": 0.85
+        "weakspot_multiplier": 1.0
       },
       "hull_side": {
         "nominal_thickness_mm": 45.0,
@@ -34,7 +34,7 @@
       "turret_front": {
         "nominal_thickness_mm": 90.0,
         "slope_degrees": 28.0,
-        "weakspot_multiplier": 0.9
+        "weakspot_multiplier": 1.0
       },
       "turret_side": {
         "nominal_thickness_mm": 75.0,

@@ -118,10 +118,10 @@ pub(super) fn is3_blueprint() -> VehicleBlueprint {
             segments: 12,
         },
         armor: ArmorShape {
-            hull_front: (56.0, 0.9),
+            hull_front: (56.0, 1.0),
             hull_side: (15.0, 1.0),
             hull_rear: (18.0, 1.0),
-            turret_front: (55.0, 0.9),
+            turret_front: (55.0, 1.0),
             turret_side: (45.0, 1.0),
             turret_rear: (30.0, 1.0),
             turret_side_taper: None,

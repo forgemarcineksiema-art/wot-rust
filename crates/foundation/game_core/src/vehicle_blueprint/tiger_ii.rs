@@ -133,7 +133,7 @@ pub(super) fn tiger_ii_blueprint() -> VehicleBlueprint {
             hull_front: (50.0, 1.0),
             hull_side: (25.0, 1.0),
             hull_rear: (30.0, 1.0),
-            turret_front: (10.0, 0.9),
+            turret_front: (10.0, 1.0),
             turret_side: (21.0, 1.0),
             turret_rear: (20.0, 1.0),
             turret_side_taper: None,

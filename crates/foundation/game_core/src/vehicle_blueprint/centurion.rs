@@ -127,10 +127,10 @@ pub(super) fn centurion_blueprint() -> VehicleBlueprint {
         armor: ArmorShape {
             // The gunnery school: a thin 76 mm glacis at the fleet's steepest 57°, vertical
             // 51 mm sides SCREENED by the skirts, and the cast turret's 40/30/15.
-            hull_front: (57.0, 0.9),
+            hull_front: (57.0, 1.0),
             hull_side: (0.0, 1.0),
             hull_rear: (8.0, 1.0),
-            turret_front: (40.0, 0.9),
+            turret_front: (40.0, 1.0),
             turret_side: (30.0, 1.0),
             turret_rear: (15.0, 1.0),
             turret_side_taper: None,

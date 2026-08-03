@@ -172,12 +172,12 @@ fn t54() -> VehicleBlueprint {
             segments: 12,
         },
         armor: ArmorShape {
-            hull_front: (60.0, 0.82),
+            hull_front: (60.0, 1.0),
             // The documented 80 mm side plates are VERTICAL — and the visible side carries the
             // same rake the penetration model reads ("what you see is what you shoot").
             hull_side: (0.0, 1.0),
             hull_rear: (5.0, 1.0),
-            turret_front: (35.0, 0.9),
+            turret_front: (35.0, 1.0),
             turret_side: (25.0, 1.0),
             turret_rear: (10.0, 1.0),
             // 65 mm rear over the 160 mm side wall: the documented taper of the

@@ -169,3 +169,20 @@ cost.
 **What would reopen it:** authored relief hitting the 5 m wall — designers wanting folds narrower
 than ~10 m. At that point densification has a named purpose and a known place, instead of being a
 uniform tax paid in the hope that something useful appears.
+
+## Weakspot smear retirement (2026-08-03, #428)
+
+Probe: deterministic all-T-54 7v7, seeds 11/21/33, 600 s limit, idle player; damage events
+deduped by `event_id`. Before = facet multipliers 0.82-0.95 on `hull_front`/`turret_front`;
+after = 1.0 fleet-wide (the front's weakness is its PATCHES: mantlet, cupola #426, bow ports
+#427).
+
+| | pens | non-pens | ricochets | kills |
+|---|---:|---:|---:|---:|
+| before | 88 | 40 | 8 | 14 |
+| after | 92 | 68 | 13 | 12 |
+
+Frontal exchanges respect armour honestly (+70% non-pens); battle outcome tempo dips mildly
+(kills -2/battle at the clock) - the tempo item predates this and stays separately ranked.
+Bots aim centre-mass, so the cupola/port hits (1 each across three battles) are incidental;
+teaching bot aim to PREFER patches when centre-mass shows no pen is the natural follow-up.
