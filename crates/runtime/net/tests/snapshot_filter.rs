@@ -156,6 +156,7 @@ fn tank(id: u64, team: u16, hit_points: u32, spotted_by_teams_mask: u8) -> TankS
         track_break_t: [None, None],
         engine_fire: false,
         fuel_fire: false,
+        rack_fire_remaining_s: None,
     }
 }
 
@@ -241,4 +242,28 @@ fn a_dead_viewer_keeps_team_vision() {
     let cut = snapshot.filtered_for_viewer(game_core::TankId(1));
     assert!(cut.tanks.iter().any(|t| t.tank_id.0 == 2), "team-spotted enemies stay visible");
     assert!(!cut.tanks.iter().any(|t| t.tank_id.0 == 3), "unspotted enemies stay hidden");
+}
+
+/// v43: a cooking rack is INTERIOR state. The crew and their team read the fuze — that is the
+/// decision window the whole mechanic is about — and an enemy learns of it only when it
+/// resolves. What never reaches the wire cannot be read out of it.
+#[test]
+fn snapshot_filter_conceals_an_enemy_rack_fuze_and_keeps_a_teammates() {
+    let mut ally = tank(2, 1, 900, 0b11);
+    ally.rack_fire_remaining_s = Some(6.5);
+    let mut enemy = tank(3, 2, 900, 0b11);
+    enemy.rack_fire_remaining_s = Some(4.0);
+    let snapshot = Snapshot {
+        server_tick: 7,
+        tanks: vec![tank(1, 1, 1000, 0b11), ally, enemy],
+        ..Default::default()
+    };
+    let cut = snapshot.filtered_for_viewer(game_core::TankId(1));
+    let by_id = |id: u64| cut.tanks.iter().find(|t| t.tank_id.0 == id).expect("visible");
+    assert_eq!(by_id(2).rack_fire_remaining_s, Some(6.5), "a teammate's fuze rides the radio net");
+    assert_eq!(
+        by_id(3).rack_fire_remaining_s,
+        None,
+        "an enemy's interior stays private until it resolves"
+    );
 }

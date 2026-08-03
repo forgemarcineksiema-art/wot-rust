@@ -29,6 +29,7 @@ fn t54_client_mesh_uses_rich_procedural_geometry() {
         track_break_t: [None, None],
         engine_fire: false,
         fuel_fire: false,
+        rack_fire_remaining_s: None,
     };
 
     let (vertices, indices) = tank_scene_mesh(&snapshot);

@@ -32,6 +32,7 @@ fn snapshots_carry_projectiles_and_damage_events_through_the_wire() {
             track_break_t: [None, None],
             engine_fire: false,
             fuel_fire: false,
+            rack_fire_remaining_s: None,
         }],
         shells: vec![ShellSnapshot {
             owner: TankId(1),
@@ -175,4 +176,28 @@ fn tank_snapshot_replicates_authoritative_turret_yaw_velocity() {
     let snapshot = Snapshot::from(&state);
 
     assert_eq!(snapshot.tanks[0].turret_yaw_velocity_rad_s, 0.31);
+}
+
+/// v43: a lit rack replicates as the seconds LEFT on its fuze — the countdown is what the crew
+/// races, so the countdown is what travels. A quiet rack replicates as `None`.
+#[test]
+fn tank_snapshot_replicates_the_rack_fuze_countdown_from_sim_state() {
+    let mut state = SimulationState::new();
+    let tank = state.spawn_tank(TeamId(1), TankSpec::t54_1951(), Vec3::ZERO);
+    assert_eq!(
+        Snapshot::from(&state).tanks[0].rack_fire_remaining_s,
+        None,
+        "a quiet rack has no fuze on the wire"
+    );
+
+    let hull = state.tank_mut(tank).expect("tank");
+    hull.rack_fire = true;
+    hull.rack_fire_s = 3.5;
+
+    let replicated = Snapshot::from(&state).tanks[0].rack_fire_remaining_s;
+    let expected = sim::RACK_COOKOFF_S - 3.5;
+    assert!(
+        replicated.is_some_and(|s| (s - expected).abs() < 1.0e-6),
+        "the wire carries the seconds left, got {replicated:?} want {expected}"
+    );
 }

@@ -346,6 +346,7 @@ pub(crate) fn render_snapshot(tank: &PresentationTank) -> TankSnapshot {
         track_break_t: tank.track_break_t,
         engine_fire: tank.engine_fire,
         fuel_fire: tank.fuel_fire,
+        rack_fire_remaining_s: None,
     }
 }
 
@@ -478,6 +479,7 @@ mod tests {
             track_break_t: [None, None],
             engine_fire: false,
             fuel_fire: false,
+            rack_fire_remaining_s: None,
         }
     }
 

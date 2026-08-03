@@ -53,6 +53,7 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
         track_break_t: [None, None],
         engine_fire: false,
         fuel_fire: false,
+        rack_fire_remaining_s: None,
     };
 
     let mut catalog = VehicleAssetCatalog::default();

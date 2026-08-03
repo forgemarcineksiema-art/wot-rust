@@ -110,7 +110,7 @@ pub use snapshot_schedule::SnapshotSchedule;
 /// The armour VALUES that move with it (a cast turret's wall tapering aft, the T-54's
 /// documented 200/160→65 and its 30 mm roof) are geometry, not wire — the deterministic bake
 /// resolves them identically on both sides.
-pub const PROTOCOL_VERSION: u16 = 42;
+pub const PROTOCOL_VERSION: u16 = 43;
 
 #[derive(Debug, Error)]
 pub enum NetError {
@@ -220,6 +220,15 @@ pub struct TankSnapshot {
     /// v27: a holed fuel tank burns as itself, independent of the engine's fire.
     #[serde(default)]
     pub fuel_fire: bool,
+    /// v43: seconds left on a lit ammunition rack's fuze, `None` when the rack is not cooking.
+    ///
+    /// The countdown IS the mechanic — ten seconds the crew can win — and until this field a
+    /// cook-off was sim-only: the player whose rack was burning learned about it from the
+    /// damage ticks. PRIVATE state: the owner and their team read the fuze (the radio net
+    /// would carry nothing else first); an enemy sees a tank's interior only when it resolves
+    /// (`snapshot_filter::conceal_enemy_rack_fuze`).
+    #[serde(default)]
+    pub rack_fire_remaining_s: Option<f32>,
 }
 
 impl TankSnapshot {
@@ -263,6 +272,9 @@ impl From<&TankState> for TankSnapshot {
             track_break_t: tank.track_break_t,
             engine_fire: tank.engine_fire,
             fuel_fire: tank.fuel_fire,
+            rack_fire_remaining_s: tank
+                .rack_fire
+                .then(|| (sim::RACK_COOKOFF_S - tank.rack_fire_s).max(0.0)),
         }
     }
 }

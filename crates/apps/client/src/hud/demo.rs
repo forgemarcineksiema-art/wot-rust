@@ -74,6 +74,7 @@ pub fn demo_battle_hud(sniper: bool, aspect: f32) -> Vec<HudVertex> {
                 age_s: 1.5,
             },
         ],
+        rack_fire_remaining_s: None,
         track_feedback: crate::hud::track_callout::TrackFeedbackModel {
             callout: Some(crate::hud::track_callout::CalloutView {
                 broke: true,

@@ -41,6 +41,7 @@ fn player_snapshot(position: [f32; 3]) -> TankSnapshot {
         track_break_t: [None, None],
         engine_fire: false,
         fuel_fire: false,
+        rack_fire_remaining_s: None,
     }
 }
 

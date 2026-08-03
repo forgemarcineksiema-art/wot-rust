@@ -263,6 +263,7 @@ mod tests {
             track_break_t: [None, None],
             engine_fire: false,
             fuel_fire: false,
+            rack_fire_remaining_s: None,
         };
         let tanks = [tank];
         let eye_ground = heightmap.sample_height(500.0, 400.0).unwrap();
