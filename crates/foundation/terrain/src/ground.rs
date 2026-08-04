@@ -17,7 +17,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::battlefield::{BattlefieldMap, Road};
+use crate::battlefield::{BattlefieldMap, Road, RoadSurface};
 use crate::flow::FlowField;
 use crate::heightmap::HeightMap;
 
@@ -184,10 +184,22 @@ impl GroundClassifier {
         let steep = (1.0 - normal_y).clamp(0.0, 1.0);
         let crest = ((height_m - self.min_m) / self.span_m - ROCK_CREST_START).max(0.0)
             / (1.0 - ROCK_CREST_START);
-        let rock =
-            ((steep - ROCK_STEEP_START).max(0.0) * 3.2 + crest * crest * 0.9).clamp(0.0, 1.0);
 
-        let road = road_blend_at(&self.roads, x, z);
+        // What the strongest road here is MADE OF decides which channel it claims: packed
+        // farm dirt wears the ground to dirt; ballast and granite setts are STONE and take
+        // the rock lane — in the picture and under the tracks (rock: grip 1.04 / rolling
+        // 0.9), so a paved road stops being the slowest ground in the game. The hard
+        // shoulder's feather is sharpened one extra smoothstep: stone ends where the kerb
+        // does instead of bleeding a metre of gravel into the verge.
+        let (road, surface) =
+            strongest_road_at(&self.roads, x, z).unwrap_or((0.0, RoadSurface::Dirt));
+        let (dirt_road, paved) = match surface {
+            RoadSurface::Dirt => (road, 0.0),
+            RoadSurface::Ballast | RoadSurface::Cobble => (0.0, road * road * (3.0 - 2.0 * road)),
+        };
+        let rock = ((steep - ROCK_STEEP_START).max(0.0) * 3.2 + crest * crest * 0.9 + paved)
+            .clamp(0.0, 1.0);
+
         let margin = self
             .water_level_m
             .map(|level| (1.0 - (height_m - level).abs() / WATER_MARGIN_M).clamp(0.0, 1.0))
@@ -199,7 +211,7 @@ impl GroundClassifier {
         // stands on.
         let moisture = self.flow.wetness_at(x, z);
         let wet = (margin * 0.85).max(moisture * FLOW_DIRT_GAIN);
-        let dirt = (road + wet).clamp(0.0, 1.0);
+        let dirt = (dirt_road + wet).clamp(0.0, 1.0);
 
         let remaining = (1.0 - rock).max(0.0) * (1.0 - dirt).max(0.0);
         let patch = grass_patchwork_noise(x, z);
@@ -253,6 +265,21 @@ pub fn road_blend(road: &Road, x: f32, z: f32) -> f32 {
 /// The strongest road paint at a world point, 0 where no road reaches.
 pub fn road_blend_at(roads: &[Road], x: f32, z: f32) -> f32 {
     roads.iter().map(|road| road_blend(road, x, z)).fold(0.0, f32::max)
+}
+
+/// The strongest road paint at a world point TOGETHER with the surface that paints it.
+/// The winning blend is float-identical to [`road_blend_at`]'s fold (same set, same max),
+/// so a map whose roads are all Dirt keeps a bit-identical splat — the golden hashes of
+/// roadless and dirt-only maps are the lock on that.
+pub fn strongest_road_at(roads: &[Road], x: f32, z: f32) -> Option<(f32, RoadSurface)> {
+    let mut best: Option<(f32, RoadSurface)> = None;
+    for road in roads {
+        let blend = road_blend(road, x, z);
+        if best.is_none_or(|(strongest, _)| blend > strongest) {
+            best = Some((blend, road.surface));
+        }
+    }
+    best
 }
 
 /// The patchwork the steppe's grass and straw drift with.
@@ -386,6 +413,65 @@ mod tests {
             dry[2]
         );
         assert_eq!(wet[3], dry[3], "and rock is untouched by moisture");
+    }
+
+    fn straight_road(surface: RoadSurface) -> Road {
+        Road {
+            id: "lane".into(),
+            surface,
+            points: vec![[0.0, 250.0], [500.0, 250.0]],
+            width_m: 8.0,
+        }
+    }
+
+    fn flat_ground() -> crate::HeightMap {
+        crate::heightmap_from_fn(101, 5.0, |_, _| 10.0)
+    }
+
+    #[test]
+    fn a_paved_road_is_never_the_slowest_ground() {
+        // Before surface routing, EVERY road classified as worn earth — grip 0.95, rolling
+        // resistance 1.35 — making roads the slowest ground in the game, inverted. Stone
+        // surfaces now drive as stone; a packed farm lane keeps exactly the old drive.
+        let mut cobbled = synthetic_battlefield(flat_ground(), None);
+        cobbled.roads = vec![straight_road(RoadSurface::Cobble)];
+        let street =
+            GroundClassifier::new(&cobbled).properties_at(&cobbled.heightmap, 250.0, 250.0);
+        assert!(
+            street.grip_scale > 1.0 && street.rolling_resist_scale < 1.0,
+            "granite setts must drive as stone: {street:?}"
+        );
+
+        let mut farm = synthetic_battlefield(flat_ground(), None);
+        farm.roads = vec![straight_road(RoadSurface::Dirt)];
+        let lane = GroundClassifier::new(&farm).properties_at(&farm.heightmap, 250.0, 250.0);
+        assert_eq!(
+            (lane.grip_scale, lane.rolling_resist_scale),
+            (0.95, 1.35),
+            "a packed farm lane keeps exactly the worn-earth drive"
+        );
+    }
+
+    #[test]
+    fn stone_ends_where_the_kerb_does() {
+        // The hard shoulder is sharpened one extra smoothstep: at the outer feather the
+        // stone share sits BELOW the dirt share the same geometry paints — tighter, not
+        // merely recolored.
+        let mut cobbled = synthetic_battlefield(flat_ground(), None);
+        cobbled.roads = vec![straight_road(RoadSurface::Cobble)];
+        let mut farm = synthetic_battlefield(flat_ground(), None);
+        farm.roads = vec![straight_road(RoadSurface::Dirt)];
+        let probe = (250.0, 253.55);
+        let stone =
+            GroundClassifier::new(&cobbled).weights_at(&cobbled.heightmap, probe.0, probe.1);
+        let earth = GroundClassifier::new(&farm).weights_at(&farm.heightmap, probe.0, probe.1);
+        assert!(stone[3] > 0.0, "the feather still paints stone");
+        assert!(
+            stone[3] < earth[2],
+            "the stone shoulder must be tighter than the dirt one ({} vs {})",
+            stone[3],
+            earth[2]
+        );
     }
 
     #[test]

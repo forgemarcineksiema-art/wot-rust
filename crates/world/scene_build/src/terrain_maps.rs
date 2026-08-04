@@ -314,5 +314,14 @@ mod tests {
         assert!(valley.layers[2].albedo[0] < steppe.layers[2].albedo[0]);
         assert_eq!(steppe.macro_normal_strength, 0.65);
         assert_eq!(valley.macro_normal_strength, 0.65);
+
+        // Ostrogorsk's stone lane is GRANITE (teren A2): the cobbled boulevard splats as
+        // rock, so the layer's albedo is the street's — cool set stone, never steppe chalk.
+        let city = terrain_material_set_for(MapId::Ostrogorsk);
+        assert_eq!(city.layers[3].albedo, [0.36, 0.37, 0.4]);
+        assert!(
+            city.layers[3].albedo[2] > city.layers[3].albedo[0],
+            "granite leans cool: b must beat r"
+        );
     }
 }
