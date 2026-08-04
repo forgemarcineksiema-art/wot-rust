@@ -1,6 +1,6 @@
 //! The garage hangar: a single static interior scene the owned tank is parked in, replacing the
 //! battlefield while the garage is open. Modelled as a working repair shop — a cool concrete floor,
-//! ribbed metal walls with near-black upper reaches, roof trusses under bright skylight strips, a
+//! ribbed metal walls with near-black upper reaches, roof trusses under REAL skylight openings, a
 //! cold-daylight doorway in back, a turntable spot, and workshop props (`hangar_props`: crane,
 //! wheel/track stacks, workbench, barrels, oil stains). The room is built from *solid slabs*
 //! surrounding the play volume: each slab's inner surface is an ordinary outward-facing face, so
@@ -35,8 +35,6 @@ const RIB: [f32; 3] = [0.28, 0.29, 0.31];
 const ROOF: [f32; 3] = [0.125, 0.13, 0.14];
 const TRUSS: [f32; 3] = [0.17, 0.17, 0.18];
 const TURNTABLE: [f32; 3] = [0.34, 0.34, 0.35];
-/// Skylight strips run hot so the tone curve blooms them into daylight pouring through the roof.
-const SKYLIGHT: [f32; 3] = [1.5, 1.5, 1.35];
 const MARKING: [f32; 3] = [0.62, 0.55, 0.20];
 // Wall dressing: panel joints recessed a shade darker, a girt rail riding the band seam.
 const PANEL_JOINT: [f32; 3] = [0.19, 0.195, 0.205];
@@ -45,7 +43,7 @@ const GIRT: [f32; 3] = [0.27, 0.275, 0.29];
 const GATE_FRAME: [f32; 3] = [0.145, 0.15, 0.16];
 const GATE_SLAT: [f32; 3] = [0.215, 0.22, 0.235];
 const GATE_SLAT_ALT: [f32; 3] = [0.235, 0.24, 0.255];
-/// Frosted panes high on the back wall: soft daylight, well under the skylights' bloom.
+/// Frosted panes high on the back wall: soft daylight, well under the lamp faces' bloom.
 const WINDOW_PANE: [f32; 3] = [0.92, 0.99, 1.08];
 // Floor dressing: expansion joints, the worn drive lane in from the gate, and its track wear.
 const FLOOR_JOINT: [f32; 3] = [0.235, 0.23, 0.225];
@@ -111,6 +109,51 @@ pub fn hangar_interior() -> (f32, f32) {
     (HALF, WALL_HEIGHT)
 }
 
+/// The roof's skylight bands as `(x centre, x half-width)` — REAL openings cut through the
+/// roof slab, not bright plates under it. The first is the SUN band, placed by physics: the
+/// `garage_hero` key direction leaves the turntable centre through the roof plane at
+/// x ≈ −7.2, z ≈ +6.7, so the band straddles that exit lane and the key genuinely falls on
+/// the hero — a real beam, a real contact shadow on the deck (the whole point of D20's fix;
+/// locked by `the_workshop_sun_reaches_the_turntable_through_a_real_opening`). The other two
+/// bands rhythm the roof toward the second bay, so the openings read as architecture, not as
+/// one hole drilled for a light rig.
+const SKYLIGHT_BANDS: [(f32, f32); 3] = [(-6.85, 3.2), (1.8, 1.6), (10.8, 1.6)];
+/// The bands' half-length along z; the roof stays solid in a border along both end walls.
+const SKYLIGHT_HALF_Z: f32 = 13.0;
+
+/// The roof: solid strips between the skylight bands, end caps closing each band short of the
+/// walls, and thin glazing mullions across the openings (they cast the honest striped shadows
+/// a glazed roof throws). Through the openings the renderer's interior background shows — set
+/// to daylight sky by the client, so an opening reads as sky, not void.
+fn push_skylight_roof(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
+    let roof_y = WALL_HEIGHT + SLAB;
+    // Solid strips spanning the full hall depth, between and outside the bands.
+    let mut edges = vec![-HALF];
+    for (cx, hx) in SKYLIGHT_BANDS {
+        edges.push(cx - hx);
+        edges.push(cx + hx);
+    }
+    edges.push(HALF);
+    for pair in edges.chunks(2) {
+        let (lo, hi) = (pair[0], pair[1]);
+        slab(v, i, [(lo + hi) / 2.0, roof_y, 0.0], [(hi - lo) / 2.0, SLAB, HALF], ROOF);
+    }
+    // End caps and mullions per band.
+    let cap_c = (SKYLIGHT_HALF_Z + HALF) / 2.0;
+    let cap_h = (HALF - SKYLIGHT_HALF_Z) / 2.0;
+    for (cx, hx) in SKYLIGHT_BANDS {
+        for sign in [-1.0_f32, 1.0] {
+            slab(v, i, [cx, roof_y, sign * cap_c], [hx, SLAB, cap_h], ROOF);
+        }
+        // Mullion phase is offset by half a pitch: the hero-centre sun ray crosses the roof
+        // plane near z ≈ 6.4, and a bar there would put the one guaranteed-clear ray of the
+        // sun lock behind glazing framing forever.
+        for k in -4i32..=3 {
+            slab(v, i, [cx, WALL_HEIGHT + 0.05, k as f32 * 3.25 + 1.625], [hx, 0.08, 0.11], TRUSS);
+        }
+    }
+}
+
 /// Build the static hangar mesh. The tank is parked at the origin on top of the turntable
 /// (`TURNTABLE_TOP_M`), so place the parked vehicle's `position.y` at that height.
 pub fn hangar_scene_mesh() -> (Vec<SceneVertex>, Vec<u32>) {
@@ -129,7 +172,7 @@ pub fn hangar_scene_mesh() -> (Vec<SceneVertex>, Vec<u32>) {
     // Sealed concrete carries a faint sheen that catches the worklight pools; the painted
     // lower panels a satin step less; the shadowed upper band and roof stay matte.
     slab_finished(&mut v, &mut i, [0.0, -SLAB, 0.0], [HALF, SLAB, HALF], CONCRETE, 0.08);
-    slab(&mut v, &mut i, [0.0, WALL_HEIGHT + SLAB, 0.0], [HALF, SLAB, HALF], ROOF);
+    push_skylight_roof(&mut v, &mut i);
     for cz in [-HALF, HALF] {
         slab_finished(&mut v, &mut i, [0.0, lower_c, cz], [HALF, lower_h, SLAB], METAL, 0.12);
         slab(&mut v, &mut i, [0.0, upper_c, cz], [HALF, upper_h, SLAB], UPPER_WALL);
@@ -172,19 +215,10 @@ pub fn hangar_scene_mesh() -> (Vec<SceneVertex>, Vec<u32>) {
         slab(&mut v, &mut i, [k * HALF, h, -(HALF - 0.2)], [0.35, h - 0.4, 0.12], RIB);
     }
 
-    // Roof trusses spanning the bay, backlit by bright skylight strips above them so the trusses
-    // read as dark bars against daylight.
+    // Roof trusses spanning the bay, backlit by the REAL skylight bands cut through the roof
+    // above them, so the trusses read as dark bars against daylight.
     for k in [-0.8_f32, -0.4, 0.0, 0.4, 0.8] {
         slab(&mut v, &mut i, [0.0, WALL_HEIGHT - 0.3, k * HALF], [HALF - 0.5, 0.12, 0.18], TRUSS);
-    }
-    for k in [-0.55_f32, 0.0, 0.55] {
-        slab(
-            &mut v,
-            &mut i,
-            [k * HALF, WALL_HEIGHT - 0.02, 0.0],
-            [1.4, 0.03, HALF - 3.0],
-            SKYLIGHT,
-        );
     }
 
     // The bay gate the tank rolled in through: a framed, closed, segmented steel door on the back
@@ -509,21 +543,95 @@ mod tests {
     }
 
     #[test]
-    fn the_skylights_run_hot_and_no_faked_shadow_disc_remains() {
+    fn no_faked_shadow_disc_remains() {
         let (vertices, _) = hangar_scene_mesh();
-        // The skylight strips blow past 1.0 so the tone curve blooms them into daylight.
-        assert!(
-            vertices.iter().any(|v| v.color[0] > 1.2 && v.color[1] > 1.2),
-            "skylight strips must run hot"
-        );
-        // The old near-black shadow disc sat just above the turntable; nothing that dark should
-        // hover there now that the vehicle casts a real contact shadow.
+        // The old near-black shadow disc sat just above the turntable; nothing that dark may
+        // hover there — the vehicle casts a REAL contact shadow from the skylight sun now.
         let disc = vertices.iter().any(|v| {
             v.color[0] < 0.08
                 && v.position[1] > TURNTABLE_TOP_M
                 && v.position[1] < TURNTABLE_TOP_M + 0.02
         });
         assert!(!disc, "the faked shadow disc must be gone");
+    }
+
+    /// Ray-vs-mesh (Möller–Trumbore over the triangle list): does a ray from `origin` along
+    /// `dir` hit any hangar triangle?
+    fn ray_hits_mesh(
+        origin: [f32; 3],
+        dir: [f32; 3],
+        vertices: &[SceneVertex],
+        indices: &[u32],
+    ) -> bool {
+        let o = Vec3::from_array(origin);
+        let d = Vec3::from_array(dir).normalize();
+        indices.chunks(3).any(|tri| {
+            let a = Vec3::from_array(vertices[tri[0] as usize].position);
+            let b = Vec3::from_array(vertices[tri[1] as usize].position);
+            let c = Vec3::from_array(vertices[tri[2] as usize].position);
+            let (e1, e2) = (b - a, c - a);
+            let p = d.cross(e2);
+            let det = e1.dot(p);
+            if det.abs() < 1.0e-8 {
+                return false;
+            }
+            let inv = 1.0 / det;
+            let s = o - a;
+            let u = s.dot(p) * inv;
+            if !(0.0..=1.0).contains(&u) {
+                return false;
+            }
+            let q = s.cross(e1);
+            let w = d.dot(q) * inv;
+            if w < 0.0 || u + w > 1.0 {
+                return false;
+            }
+            e2.dot(q) * inv > 1.0e-3
+        })
+    }
+
+    /// THE lock behind D20's fix: the workshop sun is REAL. The `garage_hero` key direction,
+    /// followed up from the turntable deck, must leave the hall through a genuine roof opening
+    /// — the roof comment claimed "sun through the skylights" for months while a solid slab
+    /// blocked every ray, which is why the hero never threw a contact shadow. Reads the LIVE
+    /// lighting profile, so a relight that moves the key forces whoever moves it to move the
+    /// sun band too.
+    #[test]
+    fn the_workshop_sun_reaches_the_turntable_through_a_real_opening() {
+        let (vertices, indices) = hangar_scene_mesh();
+        let key = renderer_api::SceneLighting::garage_hero().key_direction;
+
+        // Rays start just above the turntable's dressing (plate seams, hub), where the hull
+        // stands — the lock is "the sun reaches the hero's station", not "the deck sticker".
+        let deck = TURNTABLE_TOP_M + 0.6;
+
+        // The hero's centre stands in the sun, exactly.
+        assert!(
+            !ray_hits_mesh([0.0, deck, 0.0], key, &vertices, &indices),
+            "the key must reach the turntable centre unobstructed"
+        );
+        // Across the deck, most of the sun arrives; mullions, trusses and the lamp rig are
+        // allowed to stripe it (that is what a glazed workshop roof looks like).
+        let (mut clear, mut total) = (0, 0);
+        for gx in -2i32..=2 {
+            for gz in -2i32..=2 {
+                total += 1;
+                let origin = [gx as f32 * 1.5, deck, gz as f32 * 1.5];
+                if !ray_hits_mesh(origin, key, &vertices, &indices) {
+                    clear += 1;
+                }
+            }
+        }
+        assert!(
+            clear * 10 >= total * 6,
+            "most of the deck stands in the sun: {clear}/{total} rays clear"
+        );
+        // And the hall still HAS a roof: straight up from the hero is covered — the openings
+        // are windows in a roof, not a missing lid.
+        assert!(
+            ray_hits_mesh([0.0, deck, 0.0], [0.0, 1.0, 0.0], &vertices, &indices),
+            "straight overhead stays roofed"
+        );
     }
 
     /// The garage's shadow boxes pin to the turntable, and the pin is inside the hall.
@@ -537,7 +645,7 @@ mod tests {
 
     /// The back of the frame is a CLOSED bay gate, not a glowing plate: nothing on the back
     /// wall below the seam may run brighter than the walls' own palette (the only hot
-    /// emitters in the hall are the roof skylight strips).
+    /// emitters in the hall are the worklamp faces).
     #[test]
     fn the_bay_gate_is_steel_not_a_lightbox() {
         let (vertices, _) = hangar_scene_mesh();
@@ -701,8 +809,12 @@ mod tests {
             "the floor contact is the darkest part of a barrel"
         );
         assert!(darkest.color[0] >= BARREL[0] * 0.8 - 1.0e-4, "the bake is bounded at 0.8x");
-        // Emitters keep their authored bits.
-        assert!(vertices.iter().any(|v| v.color == SKYLIGHT), "skylight strips stay authored-hot");
+        // Emitters keep their authored bits: the lamp faces run hot and survive the bake
+        // exactly as authored (the bake skips every emissive face).
+        assert!(
+            vertices.iter().any(|v| v.color[0] > 1.3 && v.color[1] > 1.3),
+            "the lamp rig's hot faces stay authored-hot"
+        );
     }
 
     /// The hall re-bakes on every garage entry: the whole dressed interior must stay cheap.
