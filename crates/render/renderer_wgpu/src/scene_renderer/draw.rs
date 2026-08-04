@@ -109,6 +109,11 @@ impl super::SceneRenderer {
             let hdr = targets.as_ref().expect("post targets just ensured");
             self.bloom.ensure_targets(&ctx.device, target.width, target.height, &hdr.resolve_view);
         }
+        if hdr_recreated || self.fxaa.bind_group.borrow().is_none() {
+            let targets = self.post.targets.borrow();
+            let hdr = targets.as_ref().expect("post targets just ensured");
+            self.fxaa.rebuild_bind_group(&ctx.device, &hdr.ldr_view);
+        }
         if hdr_recreated || self.post.bind_group.borrow().is_none() {
             // The post pass reads the HDR frame and the bloom mip; a black 1x1 stands in when
             // the ladder is off (bloom_mips 0 / weight 0).
@@ -255,15 +260,13 @@ impl super::SceneRenderer {
             self.bloom.encode(&mut encoder);
         }
         // The post pass: one fullscreen triangle applies the display transform (exposure ->
-        // ACES -> grade) to the resolved HDR frame and writes the caller's target — the single
-        // place the picture is formed. The HUD draws after it, un-graded: the UI reads the
-        // battle, it is not part of the painting.
+        // ACES -> grade -> dither) to the resolved HDR frame and writes the ENCODED picture
+        // into the LDR intermediate — the single place the picture is formed.
         {
-            let output_view = target.resolve_target.unwrap_or(target.color_view);
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("post_pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: output_view,
+                    view: &hdr.ldr_view,
                     resolve_target: None,
                     depth_slice: None,
                     ops: wgpu::Operations {
@@ -281,6 +284,37 @@ impl super::SceneRenderer {
             pass.set_bind_group(
                 1,
                 self.post.bind_group.borrow().as_ref().expect("post bind group just ensured"),
+                &[],
+            );
+            pass.draw(0..3, 0..1);
+        }
+        // The FXAA pass reads that formed picture and writes the caller's target — the one
+        // anti-aliasing every player gets (canonical ships 1x MSAA, so this is the shipped
+        // game's only AA). The HUD draws after it, un-graded and never softened: the UI reads
+        // the battle, it is not part of the painting.
+        {
+            let output_view = target.resolve_target.unwrap_or(target.color_view);
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("fxaa_pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: output_view,
+                    resolve_target: None,
+                    depth_slice: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            });
+            pass.set_pipeline(&self.fxaa.pipeline);
+            pass.set_bind_group(0, &self.camera_bind_group, &[]);
+            pass.set_bind_group(
+                1,
+                self.fxaa.bind_group.borrow().as_ref().expect("fxaa bind group just ensured"),
                 &[],
             );
             pass.draw(0..3, 0..1);

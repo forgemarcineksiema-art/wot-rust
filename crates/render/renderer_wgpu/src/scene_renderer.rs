@@ -125,6 +125,9 @@ pub struct SceneRenderer {
     /// The HDR image-formation chain: the internal Rgba16Float target the world renders into
     /// and the fullscreen display-transform pass that forms the final picture (rule 7).
     post: post::PostResources,
+    /// The FXAA pass over the formed LDR picture — the shipped game's ONE anti-aliasing
+    /// (canonical runs 1x MSAA on every adapter); the HUD draws after it, never softened.
+    fxaa: post::FxaaResources,
     /// The dual-Kawase bloom ladder feeding the post pass (rule 6); depth from the quality tier.
     bloom: bloom::BloomResources,
     /// Whether this adapter tier runs terrain cloud shadows (`LightingQuality::cloud_shadows`).
@@ -358,7 +361,8 @@ impl SceneRenderer {
             vehicle_material_bgl,
         );
         let hud_pipeline = build_hud_pipeline(device, color_format, &hud_font_bgl);
-        let post = post::PostResources::new(device, color_format, &camera_bgl);
+        let post = post::PostResources::new(device, &camera_bgl);
+        let fxaa = post::FxaaResources::new(device, color_format, &camera_bgl);
         let bloom = bloom::BloomResources::new(device, lighting_quality.bloom_mips);
         let ground = ground::GroundResources::new(
             device,
@@ -430,6 +434,7 @@ impl SceneRenderer {
             ssao,
             ground,
             post,
+            fxaa,
             bloom,
             cloud_shadows_enabled: lighting_quality.cloud_shadows,
             shader_detail: lighting_quality.shader_detail,

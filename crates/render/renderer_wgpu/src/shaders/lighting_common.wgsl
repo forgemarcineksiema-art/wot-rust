@@ -133,3 +133,19 @@ fn aces_curve(x: vec3<f32>) -> vec3<f32> {
 fn tonemap_aces(x: vec3<f32>) -> vec3<f32> {
     return display_grade(aces_curve(x));
 }
+
+// The exact piecewise sRGB transfer pair (not a gamma approximation). Two consumers, one copy:
+// the post pass dithers on the real 8-bit quantization grid, and the FXAA pass — which works on
+// the ENCODED picture, where luma is perceptual — decodes its result back to display-linear for
+// the hardware encode of the sRGB target.
+fn srgb_encode(c: vec3<f32>) -> vec3<f32> {
+    let low = c * 12.92;
+    let high = 1.055 * pow(c, vec3<f32>(1.0 / 2.4)) - 0.055;
+    return select(high, low, c <= vec3<f32>(0.0031308));
+}
+
+fn srgb_decode(c: vec3<f32>) -> vec3<f32> {
+    let low = c / 12.92;
+    let high = pow((c + 0.055) / 1.055, vec3<f32>(2.4));
+    return select(high, low, c <= vec3<f32>(0.04045));
+}
