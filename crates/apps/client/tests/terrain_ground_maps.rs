@@ -221,9 +221,13 @@ fn the_splat_bake_is_texel_identical_to_its_golden() {
     // tributaries, approach crests, the rail borrow ditch. Only Prokhorovka moved, and its
     // whole envelope held: all five contract suites, symmetry, playability BFS and the
     // hull-down census passed over the sculpted ground before this bless.
+    // Blessed again 2026-08-05 (teren C3): the Bystra sculpt session — first roads (the
+    // gravel tracks and cobbled street splat as stone since A2), the second floodplain
+    // terrace and swales (the moisture rule wets the wider lowland), the bridgehead bluffs
+    // and the RoadProfile causeway (its crown rides the baked normal). Only Bystra moved.
     for (map, splat, normals) in [
         (MapId::ProkhorovkaHill252_2, 0xb61e_5715_f3e5_3cda_u64, 0xd510_1fd3_8cfb_461d_u64),
-        (MapId::BystraValley, 0x61a2_4960_f9ad_f27c, 0xde43_400d_7a7a_9ca2),
+        (MapId::BystraValley, 0x784f_7027_fd7a_47ac, 0xff3d_ff4c_3740_6c61),
         (MapId::OrlinyPereval, 0x2190_5581_e680_a62a, 0x6e4c_4dfb_0d92_aa12),
         (MapId::Ostrogorsk, 0x05aa_aa18_21ca_2043, 0x2b5d_0b7e_63b5_2aa9),
     ] {

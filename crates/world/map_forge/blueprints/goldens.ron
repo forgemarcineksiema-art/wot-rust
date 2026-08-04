@@ -5,7 +5,11 @@
     // Re-blessed 2026-08-03 (Świat w Skali): the 12 wrecks shrank from a 6.8×3.2×12.4 m bus to a
     // real knocked-out-hull footprint (~3.5×2.2×6.5 m), so a live tank no longer looks miniature
     // beside one — and the Ostrogorsk factory pair's scrambled wider-than-long box is corrected.
-    ("bystra_valley", "16b34a6104680cec"),
+    // Re-blessed 2026-08-05 (teren C3): the valley's first roads (quarry-gravel crossing
+    // tracks, cobbled Kamienna street, the bridge causeway — RoadProfile's debut), the
+    // second floodplain terrace, meadow swales and the bridgehead bluffs. Water contract,
+    // playability BFS and symmetry held un-relaxed.
+    ("bystra_valley", "e32481e993be8a5c"),
     ("orliny_pereval", "a16328285e6ea81c"),
     ("ostrogorsk", "3820fd376dcc377d"),
     ("prokhorovka_hill_252_2", "f2e1e71a1c0c215b"),
