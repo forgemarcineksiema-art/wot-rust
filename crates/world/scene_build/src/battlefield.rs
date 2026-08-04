@@ -617,6 +617,7 @@ fn push_face_quad(
             surface: 0.0,
             sway: 0.0,
             uv: [0.0, 0.0],
+            bounce: [0.0; 3],
         });
     }
     // Winding agrees with the face normal; the scene pipeline lights it like the wall it marks.
@@ -979,6 +980,7 @@ fn terrain_scene_mesh_full(
             surface: 0.0,
             sway: 0.0,
             uv: [0.0, 0.0],
+            bounce: [0.0; 3],
         }
     };
 

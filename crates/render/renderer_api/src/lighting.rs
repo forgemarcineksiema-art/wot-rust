@@ -623,7 +623,10 @@ impl SceneLighting {
             cloud_sheet_scale: 0.0,
             storm_front_dir_rad: 0.0,
             storm_front_strength: 0.0,
-            bloom_weight: 0.03,
+            // Raised from 0.03 with the emission boost (Hala 2.0 T1a.1): the composite is
+            // `hdr + blurred * weight`, and 3% of a blurred pane was a halo of ~0.02 - nothing.
+            // At 0.07 (under the 0.10 art-direction cap) a 3.5 HDR pane carries a real glow.
+            bloom_weight: 0.07,
             vignette: 0.05,
             local_lights: [
                 LocalLight {

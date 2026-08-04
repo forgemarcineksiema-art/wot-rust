@@ -1,0 +1,512 @@
+//! Hala 2.0 T1: the hangar's build-time GI bake — one bounce of directed light plus emissive
+//! output, written into the `SceneVertex::bounce` lane the scene shader adds onto its lit
+//! result. CPU-side and deterministic (fixed sample spiral, no clock, no RNG), so the golden
+//! harness locks it like any other picture-forming code.
+//!
+//! Why it exists: the hall had no indirect light at all. The frosted panes and lamp faces are
+//! authored emitters (any colour channel past 1.0 — the same convention `bake_corner_shade`
+//! honours), yet the wall under a pane received not a photon of it, the skylight shafts on the
+//! floor bounced nothing back up, and D20 recorded the result: 0.3% of the hero frame bright.
+//! A static room with a static rig is the textbook case for baking: all the cost at build
+//! time, zero at runtime.
+//!
+//! Two stages:
+//! 1. **Conformal subdivision** (`subdivide_for_bake`): the shell is authored as huge slabs
+//!    whose faces carry vertices only at their corners, so a per-vertex bake would smear into
+//!    one flat wash — the same reason `bake_corner_shade` excludes the shell. Longest-edge
+//!    bisection WITH propagation (every triangle sharing the split edge divides with it) keeps
+//!    the mesh crack-free while giving the bake a canvas fine enough to hold a pool of light.
+//! 2. **Gather** (`bake_bounce`): for every vertex, a fixed cosine-weighted hemisphere of rays.
+//!    A ray that hits geometry brings back the hit surface's DIRECT light — sun through the
+//!    real skylight openings (shadow decided by a second ray toward the key), the worklamp
+//!    pools, and emissive faces at their authored radiance — scaled by the hit's albedo. The
+//!    result, premultiplied by the receiving vertex's own albedo, is the bounce lane; emitter
+//!    vertices additionally carry their own emission so a pane GLOWS instead of merely being
+//!    pale, which is what the garage's bloom chain picks up.
+
+use glam::Vec3;
+use renderer_api::{SceneLighting, SceneVertex};
+
+/// Faces with any edge longer than this are subdivided before the bake. 2.2 m holds a pool
+/// of light on a wall; finer buys little and multiplies vertices.
+const MAX_EDGE_M: f32 = 2.2;
+/// Which triangles earn bake resolution: PANELS the room can see. Two filters, both learned
+/// from a 140k-triangle explosion and a broken vertex-proxy test:
+///
+/// - **panel, not lath**: both shorter edges over a metre. A crane rail is 36 m long and
+///   0.1 m wide — subdividing it buys no light gradient and (because the orbit-clearance
+///   test reads VERTICES as its proxy for geometry) plants midpoints inside volumes the
+///   authored geometry only crosses;
+/// - **faces the room**: a triangle whose inward normal offset leaves the hall's interior is
+///   the outside/underside of a closed slab and can never show its bounce.
+fn earns_bake_resolution(vertices: &[SceneVertex], tri: &[u32]) -> bool {
+    let p: Vec<Vec3> =
+        tri.iter().map(|&i| Vec3::from_array(vertices[i as usize].position)).collect();
+    let mut edges = [(p[1] - p[0]).length(), (p[2] - p[1]).length(), (p[0] - p[2]).length()];
+    edges.sort_by(|a, b| a.partial_cmp(b).expect("finite edges"));
+    if edges[0].min(edges[1]) < 1.0 {
+        return false;
+    }
+    let centre = (p[0] + p[1] + p[2]) / 3.0;
+    let normal = (p[1] - p[0]).cross(p[2] - p[0]).normalize_or_zero();
+    let probe = centre + normal * 0.08;
+    // The hall interior, with a slab's thickness of forgiveness.
+    probe.x.abs() < 18.1 && probe.z.abs() < 18.1 && probe.y > -0.05 && probe.y < 12.65
+}
+/// Hemisphere rays per vertex. 16 cosine-weighted directions keep the bake under ~100 ms in
+/// release for the whole hall; banding hides in the vertex interpolation.
+const RAY_COUNT: usize = 16;
+/// One-bounce gain: how much of the gathered radiance survives into the lane. Slightly under
+/// 1.0 stands in for the energy the single bounce cannot conserve exactly.
+const BOUNCE_GAIN: f32 = 0.85;
+/// The emission scale: authored HDR colour → radiated HDR, applied BOTH to an emitter's own
+/// lane and to what a gather ray brings back from hitting one, so the pane the eye sees and
+/// the pane the wall sees are the same source.
+///
+/// The first value here was 0.55 on the self term only, and the user's verdict was earned:
+/// "ta poświata z okien jest beznadziejna... ma z czego w ogóle?" It did not. A pane radiated
+/// ~0.8 HDR — an office monitor, not daylight — and the garage's bloom composite is
+/// `hdr + blurred × weight`, so at weight 0.03 the halo measured ~0.02 on screen: nothing.
+/// Real daylight glazing against a dim interior runs several times the room's luminance. At
+/// 2.2 a pane leaves the bake at ~3.5 HDR, which the tone curve rolls to a hot white and the
+/// bloom chain turns into a visible soft halo over the near-black upper band.
+const EMISSION_BOOST: f32 = 2.2;
+/// The emitter convention shared with `bake_corner_shade`: any channel past 1.0 is a hot face.
+fn is_emitter(color: [f32; 3]) -> bool {
+    color.iter().any(|c| *c > 1.0)
+}
+
+/// Subdivide every triangle until no edge exceeds `MAX_EDGE_M`, splitting by the longest edge
+/// and propagating the split to every triangle that shares it — conformal, so the render mesh
+/// stays crack-free. All vertex lanes interpolate linearly at the midpoint.
+fn subdivide_for_bake(vertices: &mut Vec<SceneVertex>, indices: &mut Vec<u32>) {
+    let midpoint = |a: &SceneVertex, b: &SceneVertex| -> SceneVertex {
+        let lerp3 = |x: [f32; 3], y: [f32; 3]| {
+            [(x[0] + y[0]) * 0.5, (x[1] + y[1]) * 0.5, (x[2] + y[2]) * 0.5]
+        };
+        SceneVertex {
+            position: lerp3(a.position, b.position),
+            normal: lerp3(a.normal, b.normal),
+            color: lerp3(a.color, b.color),
+            tint_weight: (a.tint_weight + b.tint_weight) * 0.5,
+            gloss: (a.gloss + b.gloss) * 0.5,
+            surface: a.surface,
+            sway: (a.sway + b.sway) * 0.5,
+            uv: [(a.uv[0] + b.uv[0]) * 0.5, (a.uv[1] + b.uv[1]) * 0.5],
+            bounce: [0.0; 3],
+        }
+    };
+    let edge_len = |v: &[SceneVertex], a: u32, b: u32| {
+        (Vec3::from_array(v[a as usize].position) - Vec3::from_array(v[b as usize].position))
+            .length()
+    };
+
+    // Iterate to a fixed point: split the longest over-limit edge of every triangle, reusing
+    // one midpoint per edge so shared edges split identically (conformity).
+    loop {
+        let mut midpoints: std::collections::HashMap<(u32, u32), u32> =
+            std::collections::HashMap::new();
+        let mut next: Vec<u32> = Vec::with_capacity(indices.len());
+        let mut any_split = false;
+        for tri in indices.chunks_exact(3) {
+            let (a, b, c) = (tri[0], tri[1], tri[2]);
+            let edges = [(a, b, c), (b, c, a), (c, a, b)];
+            let longest = edges
+                .into_iter()
+                .max_by(|x, y| {
+                    edge_len(vertices, x.0, x.1)
+                        .partial_cmp(&edge_len(vertices, y.0, y.1))
+                        .expect("finite edge lengths")
+                })
+                .expect("triangle has edges");
+            if edge_len(vertices, longest.0, longest.1) <= MAX_EDGE_M
+                || !earns_bake_resolution(vertices, tri)
+            {
+                next.extend_from_slice(tri);
+                continue;
+            }
+            any_split = true;
+            let key = (longest.0.min(longest.1), longest.0.max(longest.1));
+            let mid = *midpoints.entry(key).or_insert_with(|| {
+                let m = midpoint(&vertices[longest.0 as usize], &vertices[longest.1 as usize]);
+                vertices.push(m);
+                (vertices.len() - 1) as u32
+            });
+            // Split (p, q, r) across mid(p, q): two triangles that keep the winding.
+            let (p, q, r) = longest;
+            next.extend_from_slice(&[p, mid, r]);
+            next.extend_from_slice(&[mid, q, r]);
+        }
+        *indices = next;
+        if !any_split {
+            break;
+        }
+    }
+}
+
+/// A flat BVH over the mesh triangles (median split on the longest centroid axis), enough to
+/// take the gather from quadratic to interactive. Node children are `left`/`right` indices
+/// into the same arena; leaves hold triangle ranges of `order`.
+struct Bvh {
+    nodes: Vec<Node>,
+    /// Triangle indices (into `tris`), reordered by the build.
+    order: Vec<u32>,
+    tris: Vec<[Vec3; 3]>,
+}
+
+struct Node {
+    min: Vec3,
+    max: Vec3,
+    /// Leaf: `count > 0` and `start` indexes `order`. Inner: `count == 0`, `start` is the
+    /// left child's node index and `right` the right child's.
+    start: u32,
+    count: u32,
+    right: u32,
+}
+
+impl Bvh {
+    fn build(vertices: &[SceneVertex], indices: &[u32]) -> Self {
+        let tris: Vec<[Vec3; 3]> = indices
+            .chunks_exact(3)
+            .map(|t| {
+                [
+                    Vec3::from_array(vertices[t[0] as usize].position),
+                    Vec3::from_array(vertices[t[1] as usize].position),
+                    Vec3::from_array(vertices[t[2] as usize].position),
+                ]
+            })
+            .collect();
+        let mut order: Vec<u32> = (0..tris.len() as u32).collect();
+        let mut nodes = Vec::new();
+        Self::split(&tris, &mut order, &mut nodes, 0, tris.len());
+        Self { nodes, order, tris }
+    }
+
+    fn split(
+        tris: &[[Vec3; 3]],
+        order: &mut [u32],
+        nodes: &mut Vec<Node>,
+        start: usize,
+        end: usize,
+    ) -> u32 {
+        let mut min = Vec3::splat(f32::INFINITY);
+        let mut max = Vec3::splat(f32::NEG_INFINITY);
+        for &t in &order[start..end] {
+            for p in tris[t as usize] {
+                min = min.min(p);
+                max = max.max(p);
+            }
+        }
+        let index = nodes.len() as u32;
+        nodes.push(Node { min, max, start: start as u32, count: (end - start) as u32, right: 0 });
+        if end - start <= 8 {
+            return index;
+        }
+        let extent = max - min;
+        let axis = if extent.x >= extent.y && extent.x >= extent.z {
+            0
+        } else if extent.y >= extent.z {
+            1
+        } else {
+            2
+        };
+        let centroid = |t: u32| {
+            let tri = tris[t as usize];
+            (tri[0][axis] + tri[1][axis] + tri[2][axis]) / 3.0
+        };
+        order[start..end]
+            .sort_by(|&x, &y| centroid(x).partial_cmp(&centroid(y)).expect("finite centroids"));
+        let mid = (start + end) / 2;
+        let left = Self::split(tris, order, nodes, start, mid);
+        let right = Self::split(tris, order, nodes, mid, end);
+        nodes[index as usize].start = left;
+        nodes[index as usize].count = 0;
+        nodes[index as usize].right = right;
+        index
+    }
+
+    /// Nearest hit along `dir` from `origin`, as (distance, triangle index).
+    fn nearest_hit(&self, origin: Vec3, dir: Vec3) -> Option<(f32, u32)> {
+        let inv = dir.recip();
+        let mut stack = vec![0u32];
+        let mut best: Option<(f32, u32)> = None;
+        while let Some(node_index) = stack.pop() {
+            let node = &self.nodes[node_index as usize];
+            // Slab test against the node box.
+            let t0 = (node.min - origin) * inv;
+            let t1 = (node.max - origin) * inv;
+            let lo = t0.min(t1).max_element().max(0.0);
+            let hi = t0.max(t1).min_element();
+            if lo > hi || best.is_some_and(|(d, _)| d < lo) {
+                continue;
+            }
+            if node.count > 0 {
+                for &t in &self.order[node.start as usize..(node.start + node.count) as usize] {
+                    if let Some(d) = bake_ray_hits_triangle(origin, dir, self.tris[t as usize])
+                        && best.is_none_or(|(bd, _)| d < bd)
+                    {
+                        best = Some((d, t));
+                    }
+                }
+            } else {
+                stack.push(node.start);
+                stack.push(node.right);
+            }
+        }
+        best
+    }
+
+    /// Whether anything blocks the ray from `origin` along `dir` — any-hit with an early out,
+    /// which is what makes the sun-shadow half of the gather cheap.
+    fn occluded(&self, origin: Vec3, dir: Vec3) -> bool {
+        let inv = dir.recip();
+        let mut stack = vec![0u32];
+        while let Some(node_index) = stack.pop() {
+            let node = &self.nodes[node_index as usize];
+            let t0 = (node.min - origin) * inv;
+            let t1 = (node.max - origin) * inv;
+            let lo = t0.min(t1).max_element().max(0.0);
+            let hi = t0.max(t1).min_element();
+            if lo > hi {
+                continue;
+            }
+            if node.count > 0 {
+                for &t in &self.order[node.start as usize..(node.start + node.count) as usize] {
+                    if bake_ray_hits_triangle(origin, dir, self.tris[t as usize]).is_some() {
+                        return true;
+                    }
+                }
+            } else {
+                stack.push(node.start);
+                stack.push(node.right);
+            }
+        }
+        false
+    }
+}
+
+/// Möller–Trumbore, front-and-back faces alike (the hall's slabs are thin closed boxes).
+fn bake_ray_hits_triangle(origin: Vec3, dir: Vec3, tri: [Vec3; 3]) -> Option<f32> {
+    const EPS: f32 = 1.0e-6;
+    let e1 = tri[1] - tri[0];
+    let e2 = tri[2] - tri[0];
+    let p = dir.cross(e2);
+    let det = e1.dot(p);
+    if det.abs() < EPS {
+        return None;
+    }
+    let inv = 1.0 / det;
+    let s = origin - tri[0];
+    let u = s.dot(p) * inv;
+    if !(0.0..=1.0).contains(&u) {
+        return None;
+    }
+    let q = s.cross(e1);
+    let v = dir.dot(q) * inv;
+    if v < 0.0 || u + v > 1.0 {
+        return None;
+    }
+    let t = e2.dot(q) * inv;
+    (t > EPS).then_some(t)
+}
+
+/// The fixed cosine-weighted hemisphere: a Fibonacci spiral over the disc, projected up. The
+/// same directions for every vertex (rotated into its normal frame) — deterministic by
+/// construction, and any residual banding disappears into vertex interpolation.
+fn hemisphere_dirs() -> [Vec3; RAY_COUNT] {
+    let golden = std::f32::consts::PI * (3.0 - 5.0_f32.sqrt());
+    std::array::from_fn(|i| {
+        let r = ((i as f32 + 0.5) / RAY_COUNT as f32).sqrt();
+        let theta = golden * i as f32;
+        let (sin_t, cos_t) = theta.sin_cos();
+        // Cosine-weighted: disc sample lifted onto the hemisphere.
+        Vec3::new(r * cos_t, (1.0 - r * r).max(0.0).sqrt(), r * sin_t)
+    })
+}
+
+/// Direct light arriving at a surface point for the bake's purposes: the sun (shadowed by the
+/// real geometry — the skylight openings admit it, the roof blocks it) and the worklamp pools.
+/// The hemispheric ambient stays out: the runtime already lights every surface with it, and a
+/// bounce of a bounce is beyond this bake's one-bounce honesty.
+fn direct_light(bvh: &Bvh, lighting: &SceneLighting, point: Vec3, normal: Vec3) -> Vec3 {
+    let mut total = Vec3::ZERO;
+    let key = Vec3::from_array(lighting.key_direction).normalize_or_zero();
+    let facing = normal.dot(key);
+    if facing > 0.0 && !bvh.occluded(point + normal * 0.02, key) {
+        total += Vec3::from_array(lighting.key_rgb) * facing;
+    }
+    for light in &lighting.local_lights {
+        if light.radius_m <= 0.0 {
+            continue;
+        }
+        let to_light = Vec3::from_array(light.position) - point;
+        let distance = to_light.length();
+        let attenuation = light.attenuation_at(distance);
+        if attenuation <= 0.0 {
+            continue;
+        }
+        // The same soft-wrap facing the shader's `local_pools` uses: bounced worklight, not a
+        // hard spot.
+        let facing = 0.25 + 0.75 * normal.dot(to_light / distance.max(1.0e-4)).max(0.0);
+        total += Vec3::from_array(light.rgb) * light.intensity * attenuation * facing;
+    }
+    total
+}
+
+/// Subdivide the hall for bake resolution, then gather one bounce per vertex into the bounce
+/// lane. Runs once at mesh build; everything is pure math over the arrays.
+pub(super) fn bake_bounce_lane(vertices: &mut Vec<SceneVertex>, indices: &mut Vec<u32>) {
+    subdivide_for_bake(vertices, indices);
+    let lighting = SceneLighting::garage_hero();
+    let bvh = Bvh::build(vertices, indices);
+    let dirs = hemisphere_dirs();
+
+    let bounces: Vec<[f32; 3]> = vertices
+        .iter()
+        .map(|vertex| {
+            let n = Vec3::from_array(vertex.normal).normalize_or(Vec3::Y);
+            let origin = Vec3::from_array(vertex.position) + n * 0.02;
+            // An orthonormal frame around the normal for the fixed spiral.
+            let seed = if n.x.abs() < 0.9 { Vec3::X } else { Vec3::Y };
+            let tangent = (seed - n * seed.dot(n)).normalize_or(Vec3::Z);
+            let bitangent = n.cross(tangent);
+
+            let mut gathered = Vec3::ZERO;
+            for dir in dirs {
+                let world = tangent * dir.x + n * dir.y + bitangent * dir.z;
+                let Some((distance, tri)) = bvh.nearest_hit(origin, world) else {
+                    // Escaped through a skylight opening: the runtime's ambient already
+                    // carries the sky, so an escape contributes nothing extra.
+                    continue;
+                };
+                let hit = origin + world * distance;
+                let t = indices[(tri as usize) * 3] as usize;
+                let hit_vertex = &vertices[t];
+                let hit_albedo = Vec3::from_array(hit_vertex.color);
+                if is_emitter(hit_vertex.color) {
+                    // An emitter radiates its boosted HDR colour — the same energy the eye
+                    // sees on its face, so the wall's spill and the pane agree.
+                    gathered += hit_albedo * EMISSION_BOOST;
+                    continue;
+                }
+                let hit_normal = {
+                    // Geometric normal, oriented toward the incoming ray so a thin slab's
+                    // back face reflects like its front.
+                    let g = (self::tri_normal(&bvh.tris[tri as usize])).normalize_or(Vec3::Y);
+                    if g.dot(world) > 0.0 { -g } else { g }
+                };
+                let direct = direct_light(&bvh, &lighting, hit, hit_normal);
+                gathered += direct * hit_albedo.clamp(Vec3::ZERO, Vec3::ONE);
+            }
+            // Cosine weighting lives in the sample distribution, so the mean IS the
+            // irradiance estimate; the gain stands in for unmodelled losses.
+            let indirect = gathered / RAY_COUNT as f32 * BOUNCE_GAIN;
+
+            let albedo = Vec3::from_array(vertex.color).clamp(Vec3::ZERO, Vec3::ONE);
+            let mut lane = indirect * albedo;
+            if is_emitter(vertex.color) {
+                lane += Vec3::from_array(vertex.color) * EMISSION_BOOST;
+            }
+            lane.to_array()
+        })
+        .collect();
+
+    for (vertex, bounce) in vertices.iter_mut().zip(bounces) {
+        vertex.bounce = bounce;
+    }
+}
+
+fn tri_normal(tri: &[Vec3; 3]) -> Vec3 {
+    (tri[1] - tri[0]).cross(tri[2] - tri[0])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn baked_hall() -> (Vec<SceneVertex>, Vec<u32>) {
+        super::super::hangar::hangar_scene_mesh()
+    }
+
+    /// The bake is a pure function: two builds agree to the bit. This is what licenses the
+    /// golden harness to lock frames rendered from it.
+    #[test]
+    fn the_bake_is_deterministic() {
+        let (a, _) = baked_hall();
+        let (b, _) = baked_hall();
+        assert_eq!(a.len(), b.len());
+        for (x, y) in a.iter().zip(&b) {
+            assert_eq!(x.bounce, y.bounce, "bounce must be bit-identical across builds");
+        }
+    }
+
+    /// Every lane value is finite and inside a sane HDR envelope — a NaN or a runaway value
+    /// here becomes a hole or a flare in every garage frame at once.
+    #[test]
+    fn the_bounce_lane_is_finite_and_bounded() {
+        let (vertices, _) = baked_hall();
+        for v in &vertices {
+            for c in v.bounce {
+                assert!(c.is_finite() && (0.0..=4.0).contains(&c), "bounce {:?}", v.bounce);
+            }
+        }
+    }
+
+    /// The point of the whole bake: light lands where the room says it should. The wall band
+    /// under/around the frosted panes carries real spill, and the floor — lit by the skylight
+    /// sun — returns light onto the hall at all.
+    #[test]
+    fn light_spills_where_the_room_emits() {
+        let (vertices, _) = baked_hall();
+        let luma = |b: [f32; 3]| 0.2126 * b[0] + 0.7152 * b[1] + 0.0722 * b[2];
+
+        // Emitter vertices glow on their own.
+        let emitters: Vec<_> = vertices.iter().filter(|v| super::is_emitter(v.color)).collect();
+        assert!(!emitters.is_empty(), "the hall has authored emitters");
+        for e in &emitters {
+            assert!(luma(e.bounce) > 0.3, "an emitter must carry its own glow, got {:?}", e.bounce);
+        }
+
+        // The back wall around the panes (panes hang at y ~7.6 on the -Z wall) reads spill.
+        let near_panes: Vec<f32> = vertices
+            .iter()
+            .filter(|v| {
+                v.position[2] < -17.0
+                    && (6.0..9.5).contains(&v.position[1])
+                    && !super::is_emitter(v.color)
+            })
+            .map(|v| luma(v.bounce))
+            .collect();
+        assert!(!near_panes.is_empty(), "the wall band by the panes has bake vertices");
+        let peak = near_panes.iter().copied().fold(0.0f32, f32::max);
+        assert!(peak > 0.005, "the panes must spill light onto their wall, peak {peak}");
+
+        // And the bake is not a uniform wash: somewhere far from every emitter and the
+        // skylight shafts it is much dimmer than the peak.
+        let floor_min = vertices
+            .iter()
+            .filter(|v| v.position[1] < 0.1 && !super::is_emitter(v.color))
+            .map(|v| luma(v.bounce))
+            .fold(f32::INFINITY, f32::min);
+        assert!(
+            floor_min < peak * 0.5,
+            "bounce must vary across the room (floor min {floor_min}, peak {peak})"
+        );
+    }
+
+    /// Subdivision keeps the mesh conformal and bounded: no edge past the bake limit grows
+    /// the hall beyond a sane budget, and every index stays valid.
+    #[test]
+    fn subdivision_stays_bounded_and_valid() {
+        let (vertices, indices) = baked_hall();
+        assert_eq!(indices.len() % 3, 0);
+        for &i in &indices {
+            assert!((i as usize) < vertices.len(), "index {i} out of range");
+        }
+        assert!(
+            indices.len() / 3 < 120_000,
+            "the bake subdivision exploded: {} triangles",
+            indices.len() / 3
+        );
+    }
+}

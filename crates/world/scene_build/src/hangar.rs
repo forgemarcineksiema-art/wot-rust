@@ -43,8 +43,11 @@ const GIRT: [f32; 3] = [0.27, 0.275, 0.29];
 const GATE_FRAME: [f32; 3] = [0.145, 0.15, 0.16];
 const GATE_SLAT: [f32; 3] = [0.215, 0.22, 0.235];
 const GATE_SLAT_ALT: [f32; 3] = [0.235, 0.24, 0.255];
-/// Frosted panes high on the back wall: soft daylight, well under the lamp faces' bloom.
-const WINDOW_PANE: [f32; 3] = [0.92, 0.99, 1.08];
+/// Frosted panes high on the back wall: genuinely EMISSIVE now (Hala 2.0 T1 — any channel
+/// past 1.0 is the hall's hot-face convention), cool daylight still a step under the warm
+/// lamp faces. The GI bake spills them onto their wall and the garage's bloom chain gives
+/// them the glow five floating white rectangles never had.
+const WINDOW_PANE: [f32; 3] = [1.30, 1.42, 1.60];
 // Floor dressing: expansion joints, the worn drive lane in from the gate, and its track wear.
 const FLOOR_JOINT: [f32; 3] = [0.235, 0.23, 0.225];
 const DRIVE_LANE: [f32; 3] = [0.272, 0.265, 0.256];
@@ -130,6 +133,14 @@ pub fn hangar_shadow_radius_m() -> f32 {
     30.0
 }
 
+/// The garage's bloom depth (Hala 2.0 T1): the quality table's "integrated budget" 3-mip
+/// chain, enough for pane and lamp glow. Scene data like the shadow radius above — the live
+/// garage and every offscreen review of it must read the same number, or the locked picture
+/// stops being the played picture.
+pub fn hangar_bloom_mips() -> u32 {
+    3
+}
+
 /// Interior of the hangar shell as `(half_extent_xz, height)`. Used by the CLIENT camera
 /// invariant test to prove the whole orbit range stays inside the room — cross-crate now, so
 /// it cannot hide behind cfg(test).
@@ -185,6 +196,13 @@ fn push_skylight_roof(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
 /// Build the static hangar mesh. The tank is parked at the origin on top of the turntable
 /// (`TURNTABLE_TOP_M`), so place the parked vehicle's `position.y` at that height.
 pub fn hangar_scene_mesh() -> (Vec<SceneVertex>, Vec<u32>) {
+    // The hall is static and its GI bake is honest work (a hemisphere of rays per vertex), so
+    // the whole build runs once per process and callers take a copy of the cached result.
+    static MESH: std::sync::OnceLock<(Vec<SceneVertex>, Vec<u32>)> = std::sync::OnceLock::new();
+    MESH.get_or_init(build_hangar_scene_mesh).clone()
+}
+
+fn build_hangar_scene_mesh() -> (Vec<SceneVertex>, Vec<u32>) {
     let mut v = Vec::new();
     let mut i = Vec::new();
     let h = WALL_HEIGHT / 2.0;
@@ -352,6 +370,11 @@ pub fn hangar_scene_mesh() -> (Vec<SceneVertex>, Vec<u32>) {
     super::hangar_props::push_props(&mut v, &mut i);
 
     bake_corner_shade(&mut v[furniture_start..]);
+
+    // Hala 2.0 T1: subdivide for bake resolution and gather one bounce of light into the
+    // bounce lane (see hangar_bake.rs). After the corner shade, so the bake reads final
+    // albedos; cached by `hangar_scene_mesh` because the gather is real work.
+    super::hangar_bake::bake_bounce_lane(&mut v, &mut i);
 
     (v, i)
 }
@@ -830,15 +853,25 @@ mod tests {
     }
 
     /// Every hot lamp face hangs where the `garage_hero` light rig says a light is: the pools
-    /// and the housings are twins, or the room reads as haunted.
+    /// and the housings are twins, or the room reads as haunted. The frosted panes are the one
+    /// sanctioned exception since they became emitters (Hala 2.0 T1): they are DAYLIGHT, hung
+    /// on the back wall as a bank the rig covers with its single gate pool — so they are
+    /// excused from the per-housing pairing but must still sit on that wall.
     #[test]
     fn lamp_faces_run_hot_and_hang_from_housings() {
         let (vertices, _) = hangar_scene_mesh();
         let rig = renderer_api::SceneLighting::garage_hero().local_lights;
-        let hot: Vec<_> = vertices
+        let (panes, hot): (Vec<&SceneVertex>, Vec<&SceneVertex>) = vertices
             .iter()
             .filter(|v| v.color.iter().any(|&c| c > 1.3) && v.position[1] < WALL_HEIGHT - 0.6)
-            .collect();
+            .partition(|v| v.position[2] < -(HALF - 1.0));
+        for pane in &panes {
+            assert!(
+                pane.position[1] > WALL_SEAM,
+                "a glowing pane below the seam is a lightbox again: {:?}",
+                pane.position
+            );
+        }
         assert!(hot.len() >= 6 * 4, "the lamp rig has hot faces, got {}", hot.len());
         for vertex in &hot {
             let near_light = rig.iter().any(|light| {

@@ -155,6 +155,7 @@ fn push_card(
                 surface: surface_role::GRASS_CARD,
                 sway,
                 uv: [0.0, 0.0],
+                bounce: [0.0; 3],
             });
         }
         indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);

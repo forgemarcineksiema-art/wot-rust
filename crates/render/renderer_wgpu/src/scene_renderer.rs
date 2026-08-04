@@ -146,6 +146,9 @@ pub struct SceneRenderer {
     /// render-frame deltas (see `CameraUniform::time_params`).
     pub scene_time_s: f32,
     pub skipped_mesh_draws: Cell<u32>,
+    /// The quality tier's bloom depth, kept so the battlefield can restore it after the
+    /// garage's richer chain (`set_bloom_mips`).
+    default_bloom_mips: u32,
 }
 
 impl SceneRenderer {
@@ -440,6 +443,7 @@ impl SceneRenderer {
             post,
             fxaa,
             bloom,
+            default_bloom_mips: lighting_quality.bloom_mips,
             cloud_shadows_enabled: lighting_quality.cloud_shadows,
             shader_detail: lighting_quality.shader_detail,
             shadow_focus: None,

@@ -10,6 +10,7 @@ pub mod foliage;
 pub mod grass;
 pub mod grass_cards;
 pub mod hangar;
+pub(crate) mod hangar_bake;
 pub(crate) mod hangar_gallery;
 pub(crate) mod hangar_props;
 pub mod review_views;
