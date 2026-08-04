@@ -195,6 +195,31 @@ fn dynamic_weather_uses_one_seeded_phase_and_separate_puddle_fill() {
 }
 
 #[test]
+fn terrain_furrows_are_plot_oriented_gated_and_distance_faded() {
+    let terrain = terrain_shader_source();
+
+    // Teren B1's three promises: the feature hides behind its redemption bit (never in the
+    // shipped mask without a measurement), each plot ploughs by its OWN hash — never a
+    // world axis — and the stripes die by 150 m so the far field cannot shimmer (rule 5).
+    assert!(
+        terrain.contains("detail_bit(64u)"),
+        "furrows must stay behind the TERRAIN_FURROWS redemption bit"
+    );
+    assert!(
+        terrain.contains("floor(plough_lane * 8.0)"),
+        "the plough direction is quantized from the plot's own hash"
+    );
+    assert!(
+        terrain.contains("detail_hash(vec2<f32>(cell * 5.7"),
+        "the direction hash reads the quilt's plot identity, not a world axis"
+    );
+    assert!(
+        terrain.contains("smoothstep(60.0, 150.0, eye_dist)) * furrow_mask"),
+        "the stripes must fade out with distance"
+    );
+}
+
+#[test]
 fn sky_sun_disc_is_cloud_occluded_and_reads_profile_softness() {
     let sky = sky_shader_source();
 

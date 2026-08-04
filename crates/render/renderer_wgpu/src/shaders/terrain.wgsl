@@ -76,6 +76,11 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     // darker) and the borders blend over a few metres like real headlands. Only the two
     // vegetation layers move - dirt roads and rock cut through the quilt unchanged.
     var field_light = 1.0;
+    // Teren B1 (bought back through the redemption gate): each worked plot ploughs in its
+    // own direction. The lanes are declared here and evaluated after the eye distance is
+    // in hand; a plot names its furrow direction from its OWN hash — never a world axis.
+    var furrow_dir = vec2<f32>(1.0, 0.0);
+    var furrow_mask = 0.0;
     let field_strength = materials.params.w;
     if (field_strength > 0.001) {
         let cells = value_noise(input.world_pos.xz / 90.0) * 4.0
@@ -101,6 +106,16 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
         w = vec4<f32>(w.r - to_straw + to_grass, w.g + to_straw - to_grass, w.b, w.a);
         // ...and drift the plot's lightness on the vegetation share only.
         field_light = 1.0 + (light - 0.5) * 0.34 * field_strength * (w.r + w.g);
+        // The plot's cultivation direction: quantized to 8 lanes over a half-turn
+        // (furrows are bidirectional), from the plot hash — headlands (borders) and
+        // unworked ground fade it out. Structure, not an octave: it rides the quilt's
+        // plot identity the way the tone lanes above do.
+        if (detail_bit(64u)) {
+            let plough_lane = detail_hash(vec2<f32>(cell * 5.7 + 13.1, cell * 2.3 + 7.9));
+            let plough_angle = floor(plough_lane * 8.0) * 0.39269908;
+            furrow_dir = vec2<f32>(cos(plough_angle), sin(plough_angle));
+            furrow_mask = field_strength * (1.0 - border) * (w.r + w.g);
+        }
     }
 
     // The baked macro normal (~1 m relief) leaned into by the profile's strength; the detail
@@ -156,13 +171,24 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
         micro_shade = 1.0 + (micro.x - 0.5) * 0.11 * near_amp * amp;
         bend += vec3<f32>(-micro.y, 0.0, -micro.z) * 0.05 * near_amp;
     }
+    // Teren B1: the furrow wave — ~1.25 m anisotropic stripes ACROSS the plough direction,
+    // read as both an albedo ripple and a normal corrugation, gone by 150 m so the far
+    // field never shimmers (rule 5's no-noise clause is the gate this feature answered).
+    var furrow_shade = 1.0;
+    if (furrow_mask > 0.001) {
+        let across = dot(input.world_pos.xz, vec2<f32>(-furrow_dir.y, furrow_dir.x));
+        let phase = across * 5.0265482;
+        let reach = (1.0 - smoothstep(60.0, 150.0, eye_dist)) * furrow_mask;
+        furrow_shade = 1.0 + sin(phase) * 0.06 * reach;
+        bend += vec3<f32>(-furrow_dir.y, 0.0, furrow_dir.x) * cos(phase) * 0.10 * reach;
+    }
     let n = normalize(base_n + bend);
 
     var albedo = materials.layers[0].rgb * w.r
         + materials.layers[1].rgb * w.g
         + materials.layers[2].rgb * w.b
         + materials.layers[3].rgb * w.a;
-    albedo = albedo * detail_factor * field_light * micro_shade;
+    albedo = albedo * detail_factor * field_light * micro_shade * furrow_shade;
     // The submerged riverbed: the baked depth tint wins by the vertex lane.
     albedo = mix(albedo, input.color, clamp(input.vertex_dominance, 0.0, 1.0));
     albedo = albedo * mix(1.0, 0.62, wet);
