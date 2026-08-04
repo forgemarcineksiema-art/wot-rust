@@ -77,6 +77,7 @@ pub fn validate_map(blueprint: &MapBlueprint, map: &BattlefieldMap) -> MapReport
     check_grid(blueprint, &mut report);
     check_sculpt(blueprint, &mut report);
     check_strokes(blueprint, map, &mut report);
+    check_road_profiles(blueprint, map, &mut report);
     check_river_dependencies(blueprint, &mut report);
     check_presentation(blueprint, &mut report);
     check_heightmap_sane(blueprint, map, &mut report);
@@ -351,6 +352,43 @@ fn check_sculpt(blueprint: &MapBlueprint, report: &mut MapReport) {
 /// edit loop is priced for; band widths inside the sane envelope. Degenerate wiggles and
 /// off-map points are Warnings — evaluation is total and the backdrop continues the program
 /// past the border, but they almost always mean a slipped gesture.
+/// Teren C1: a `RoadProfile` must NAME a road that exists after expansion — an unknown id
+/// evaluates as the identity so the editor survives the keystroke, and this check is what
+/// makes that silence loud. The band envelope shares the stroke discipline.
+fn check_road_profiles(blueprint: &MapBlueprint, map: &BattlefieldMap, report: &mut MapReport) {
+    for (index, op) in blueprint.terrain.ops.iter().enumerate() {
+        let TerrainOp::RoadProfile(spec) = op else { continue };
+        let named = map.roads.iter().find(|road| road.id == spec.road_id);
+        let Some(road) = named else {
+            report.push(
+                "road_profile",
+                Severity::Error,
+                format!(
+                    "terrain op {index}: RoadProfile names road '{}' which no expanded road \
+                     carries (a MirroredPair expands to `…_south` / `…_north`)",
+                    spec.road_id
+                ),
+                None,
+            );
+            continue;
+        };
+        let at = road.points.first().map(|[x, z]| {
+            let h = map.heightmap.sample_height(*x, *z).unwrap_or(0.0);
+            [*x, h, *z]
+        });
+        for (name, value) in [("half_width_m", spec.half_width_m), ("falloff_m", spec.falloff_m)] {
+            if !(0.5..=80.0).contains(&value) {
+                report.push(
+                    "road_profile",
+                    Severity::Error,
+                    format!("terrain op {index}: {name} {value} leaves the 0.5..=80 band"),
+                    at,
+                );
+            }
+        }
+    }
+}
+
 fn check_strokes(blueprint: &MapBlueprint, map: &BattlefieldMap, report: &mut MapReport) {
     let [w, d] = blueprint.grid.size_m;
     for (index, op) in blueprint.terrain.ops.iter().enumerate() {

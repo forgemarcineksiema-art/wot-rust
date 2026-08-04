@@ -221,6 +221,27 @@ pub enum TerrainOp {
     /// smoothed, resampled and quantized by the authoring tool; the document is the fitted
     /// curve and evaluation stays dumb and pure (the stamp philosophy).
     Stroke(StrokeSpec),
+    /// The road's own earthwork (teren C1): a stroke profile that rides a NAMED road instead
+    /// of carrying points of its own. The polyline is resolved from the expanded road at
+    /// compile time (`effective_terrain_ops`), so the paint and the profile CANNOT drift
+    /// apart — the anti-drift the Stroke clause of `docs/map-forge-policy.md` exists to
+    /// protect, promoted from a check to a construction. A `MirroredPair` expands to
+    /// `_south`/`_north` twins: profile each twin explicitly — order is the design.
+    RoadProfile(RoadProfileSpec),
+}
+
+/// An embankment/shoulder profile along a named road (see [`TerrainOp::RoadProfile`]).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RoadProfileSpec {
+    /// The EXPANDED road id (a plain `Road`'s own id, or a pair's `…_south` / `…_north`).
+    /// An unknown id is a report Error and the op evaluates as the identity — the editor
+    /// survives every keystroke.
+    pub road_id: String,
+    pub profile: StrokeProfile,
+    /// Full-strength band half-width — usually the road's own half width or wider.
+    pub half_width_m: f32,
+    /// Smoothstep skirt beyond the band.
+    pub falloff_m: f32,
 }
 
 /// One drawn stroke: the centerline plus the cross-profile band around it. The band's

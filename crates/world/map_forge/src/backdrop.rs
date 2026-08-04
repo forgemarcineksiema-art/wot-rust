@@ -57,10 +57,14 @@ pub fn backdrop_height(blueprint: &MapBlueprint, x: f32, z: f32) -> f32 {
 }
 
 /// Evaluate the terrain program at any world point (the same walk the compiler samples).
+/// Walks the EFFECTIVE op list (RoadProfile resolved to its road's stroke) so the apron
+/// seam stays exact. The per-call resolution only triggers on maps that actually use
+/// RoadProfile (the fast path is a plain borrow), and every caller here is a one-time
+/// scene bake, never a frame.
 fn terrain_program_height(blueprint: &MapBlueprint, x: f32, z: f32) -> f32 {
     let ctx = EvalContext { river: blueprint.river.as_ref(), axis_z: blueprint.grid.axis_z() };
     let mut h = blueprint.terrain.base.eval(x);
-    for op in &blueprint.terrain.ops {
+    for op in crate::compile::effective_terrain_ops(blueprint).iter() {
         h = op.apply(&ctx, x, z, h);
     }
     h

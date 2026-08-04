@@ -58,6 +58,15 @@ Ops are structural — they carry guarantees by construction, like `sculpt.rs` a
   drifting apart. Because `band_mask`'s support ends exactly at `half_width + falloff`,
   the compiler culls samples outside a stroke's rectangle with bitwise-identical results
   (test-locked); the backdrop skirt evaluates ops directly and stays in agreement.
+- **`RoadProfile` (teren C1) promotes that anti-drift from a discipline to a construction**:
+  the op names a road and carries NO points of its own — the compiler resolves the polyline
+  from the expanded road (`effective_terrain_ops`), so an embankment and the paint it lifts
+  cannot diverge even in principle. Both evaluation paths (compile sampling and the backdrop
+  skirt) walk the resolved list — the apron seam is test-locked over a profiled edge road.
+  An unknown road id evaluates as the identity and errors in the report
+  (`check_road_profiles`): the editor survives every keystroke. A `MirroredPair` is profiled
+  per expanded twin (`…_south` / `…_north`) — order is the design, one visible op per
+  earthwork.
 
 The editor's brushes write these ops (quantized), so an edited map stays deterministic and
 diff-readable. Undo is popping an op; the document never hides state.
