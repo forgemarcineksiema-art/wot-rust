@@ -1,17 +1,15 @@
-// Unlit battle-FX pass: world-space quads (muzzle flash, smoke, dirt, sparks, tracers) that the
-// client already built in world space, drawn with depth TEST against the lit scene but no depth
-// write, blended premultiplied. Colors are authored premultiplied: alpha 0 with non-zero RGB is
-// pure additive glow, full premultiplied color is ordinary transparency.
+// Battle-FX pass: world-space quads (muzzle flash, smoke, dirt, sparks, tracers, ground
+// marks) that the client already built in world space, drawn with depth TEST against the
+// lit scene but no depth write, blended premultiplied. Colors are authored premultiplied:
+// alpha 0 with non-zero RGB is pure additive glow, full premultiplied color is ordinary
+// transparency.
 //
-// The uniform declares only the leading `view_proj` of the shared scene camera buffer; binding a
-// buffer larger than the declared struct is valid, and FX needs none of the lighting fields.
-
-struct FxCamera {
-    view_proj: mat4x4<f32>,
-};
-
-@group(0) @binding(0)
-var<uniform> camera: FxCamera;
+// Teren F3 (slice 1): PHYSICAL media breathe the air — a rut, a smoke plume, a dust sheet
+// recede into the same haze the world does, through the shared `apply_fog` (rule 4:
+// atmosphere is depth). PURE-ADDITIVE glow stays unfogged on purpose: a tracer's read at
+// range is a gameplay promise, not a lighting choice. Sun/cloud shade on ground marks is
+// the recorded slice 2 — it needs the shadow group in this pipeline's layout.
+// Composed after camera_common.wgsl and lighting_common.wgsl.
 
 struct VsIn {
     @location(0) position: vec3<f32>,
@@ -25,6 +23,7 @@ struct VsOut {
     @location(0) uv: vec2<f32>,
     @location(1) sharpness: f32,
     @location(2) color: vec4<f32>,
+    @location(3) world_pos: vec3<f32>,
 };
 
 @vertex
@@ -34,6 +33,7 @@ fn vs_main(input: VsIn) -> VsOut {
     out.uv = input.uv;
     out.sharpness = input.sharpness;
     out.color = input.color;
+    out.world_pos = input.position;
     return out;
 }
 
@@ -48,5 +48,12 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     if (fade <= 0.001) {
         discard;
     }
-    return input.color * fade;
+    var color = input.color;
+    // Physical media only (alpha carries coverage): un-premultiply, run the ONE fog
+    // implementation, re-premultiply. Additive glow (alpha ~ 0) passes through.
+    if (color.a > 0.011) {
+        let straight = color.rgb / color.a;
+        color = vec4<f32>(apply_fog(straight, input.world_pos) * color.a, color.a);
+    }
+    return color * fade;
 }
