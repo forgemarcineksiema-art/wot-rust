@@ -88,13 +88,20 @@ fn terrain_shader_is_valid_wgsl() {
 
 #[test]
 fn fx_shader_is_valid_wgsl_and_shares_the_scene_camera_slot() {
-    let report = validate_wgsl_shader("fx", fx_shader_source()).expect("fx shader validates");
+    let source = fx_shader_source();
+    let report = validate_wgsl_shader("fx", &source).expect("fx shader validates");
 
     assert!(report.entry_points.iter().any(|entry| entry == "vs_main"));
     assert!(report.entry_points.iter().any(|entry| entry == "fs_main"));
     // The FX pipeline reuses the scene camera bind group, so its uniform must sit at the same
     // slot the scene pipeline binds (group 0, binding 0).
     assert!(report.has_uniform_binding("camera", 0, 0));
+
+    // Teren F3 (slice 1): PHYSICAL media (alpha carries coverage) breathe the world's air
+    // through the ONE shared fog implementation, while pure-additive glow — tracers, fire —
+    // stays unfogged: an emissive read at range is a gameplay promise.
+    assert!(source.contains("apply_fog"), "physical FX must fog through the shared lane");
+    assert!(source.contains("if (color.a > 0.011)"), "additive glow must pass the fog untouched");
 }
 
 #[test]

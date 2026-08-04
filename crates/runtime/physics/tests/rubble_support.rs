@@ -41,6 +41,43 @@ fn barn_rubble() -> RubbleMound {
     })
 }
 
+/// Teren F2's lock: a hull STANDING ON the mound drives on broken masonry, and a hull
+/// beside it keeps the ground rule's answer. Before this, the pile changed the hull's
+/// height and tilt but the tracks still gripped the lawn under the dead building.
+#[test]
+fn a_hull_on_the_mound_drives_on_masonry_not_on_the_lawn() {
+    let map = flat_ground();
+    let mound = barn_rubble();
+    let on = physics::sample_tank_terrain_contact(
+        &map,
+        Vec3::new(60.0, 0.0, 60.0),
+        0.0,
+        2.2,
+        std::slice::from_ref(&mound),
+        None,
+    )
+    .expect("contact on the mound");
+    assert_eq!(
+        (on.ground.grip, on.ground.rolling_resist),
+        (terrain::RUBBLE_PROPERTIES.grip_scale, terrain::RUBBLE_PROPERTIES.rolling_resist_scale),
+        "the mound's surface is the mound's material"
+    );
+    let beside = physics::sample_tank_terrain_contact(
+        &map,
+        Vec3::new(20.0, 0.0, 20.0),
+        0.0,
+        2.2,
+        std::slice::from_ref(&mound),
+        None,
+    )
+    .expect("contact beside the mound");
+    assert_eq!(
+        (beside.ground.grip, beside.ground.rolling_resist),
+        (1.0, 1.0),
+        "off the pile the ground rule keeps its say"
+    );
+}
+
 /// Drive a hull from `start` on the given heading and report the HIGHEST it ever got, plus the
 /// steepest nose-up attitude it reached. The peak is the honest measure of "did it climb": a hull
 /// that scales the pile also drives off the far side, so the final pose says nothing.

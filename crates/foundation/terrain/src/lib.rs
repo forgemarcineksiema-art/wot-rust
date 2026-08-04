@@ -44,7 +44,9 @@ pub use map_id::MapId;
 pub use map_plan::{TerrainMapLayer, TerrainMapPlan};
 pub use math::{gaussian1, gaussian2};
 pub use river::{RIVER_CORRIDOR_HALF_WIDTH_M, RiverSpec, bystra_river_center_x};
-pub use rubble::{RUBBLE_REPOSE_GRADE, RubbleMound, ground_with_rubble, rubble_height_at};
+pub use rubble::{
+    RUBBLE_PROPERTIES, RUBBLE_REPOSE_GRADE, RubbleMound, ground_with_rubble, rubble_height_at,
+};
 pub use scenery::{
     ScatterRegion, SceneryInstance, SceneryKind, covers_containing, inside_any_cover,
     scatter_mirrored,

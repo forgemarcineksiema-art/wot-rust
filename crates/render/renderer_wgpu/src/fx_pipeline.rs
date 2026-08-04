@@ -5,8 +5,15 @@
 
 use crate::offscreen::DEPTH_FORMAT;
 
-pub fn fx_shader_source() -> &'static str {
-    include_str!("shaders/fx.wgsl")
+pub fn fx_shader_source() -> String {
+    // Teren F3: FX composes the shared camera + lighting fragments so physical media
+    // (ruts, smoke, dust, scorch) can breathe the SAME air as the world through the one
+    // `apply_fog` implementation — never a private fog fork.
+    crate::shader_library::compose_shader(&[
+        crate::shader_library::CAMERA_COMMON_WGSL,
+        crate::shader_library::LIGHTING_COMMON_WGSL,
+        include_str!("shaders/fx.wgsl"),
+    ])
 }
 
 const FX_ATTRIBUTES: [wgpu::VertexAttribute; 4] =
