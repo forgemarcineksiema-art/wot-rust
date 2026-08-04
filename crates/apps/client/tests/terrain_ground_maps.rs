@@ -217,8 +217,12 @@ fn the_splat_bake_is_texel_identical_to_its_golden() {
     // only the three maps WITH roads moved their normals, and only their normals: the splat
     // stays bit-identical everywhere because the crown bends the visual lane, never the
     // weights physics reads. Roadless Bystra did not move at all.
+    // Blessed again 2026-08-05 (teren C2): the Prokhorovka sculpt session — balka
+    // tributaries, approach crests, the rail borrow ditch. Only Prokhorovka moved, and its
+    // whole envelope held: all five contract suites, symmetry, playability BFS and the
+    // hull-down census passed over the sculpted ground before this bless.
     for (map, splat, normals) in [
-        (MapId::ProkhorovkaHill252_2, 0x301b_8626_edd6_c483_u64, 0xc3a3_2fae_82bb_f107_u64),
+        (MapId::ProkhorovkaHill252_2, 0xb61e_5715_f3e5_3cda_u64, 0xd510_1fd3_8cfb_461d_u64),
         (MapId::BystraValley, 0x61a2_4960_f9ad_f27c, 0xde43_400d_7a7a_9ca2),
         (MapId::OrlinyPereval, 0x2190_5581_e680_a62a, 0x6e4c_4dfb_0d92_aa12),
         (MapId::Ostrogorsk, 0x05aa_aa18_21ca_2043, 0x2b5d_0b7e_63b5_2aa9),
