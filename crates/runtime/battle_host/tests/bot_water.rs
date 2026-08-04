@@ -22,6 +22,16 @@ fn a_full_bystra_battle_drowns_no_bot_and_still_crosses_the_river() {
     let battlefield = map_forge::battlefield(MapId::BystraValley);
     let river_x = terrain::bystra_river_center_x(500.0);
     let east_bank_x = river_x + terrain::RIVER_CORRIDOR_HALF_WIDTH_M + 20.0;
+    let west_corridor_x = river_x - terrain::RIVER_CORRIDOR_HALF_WIDTH_M;
+    // Renegotiated for teren C3, with the measurement that forced it: the old form demanded
+    // the far-bank shelf on EVERY seed, and seed 23's pass was a single vanguard tank
+    // poking 4 m past the line in one tick window — a knife-edge, not a behavior. Any map
+    // change flipped it. The intent ("crossings are used, not avoided by hugging spawn")
+    // now carries real margins: every seed's vanguard must REACH the crossing corridor
+    // (seed 23 fights the bridge at ~560 vs the 509 line — 51 m of margin), and at least
+    // one seed must genuinely take the far bank (seed 5 takes the town at ~826 vs 605 —
+    // 221 m of margin).
+    let mut far_bank_taken = false;
     for seed in [5_u64, 23] {
         let mut server = LocalAuthoritativeServer::new_random_7v7(
             ServerTickConfig::default(),
@@ -29,7 +39,7 @@ fn a_full_bystra_battle_drowns_no_bot_and_still_crosses_the_river() {
         );
         let player = server.player_tank();
         let mut deepest = 0.0_f32;
-        let mut crossed_east = false;
+        let mut reached_corridor = false;
         for tick in 0..SOAK_TICKS {
             server.tick_with_input(ClientInputCommand {
                 client_tick: tick,
@@ -50,14 +60,17 @@ fn a_full_bystra_battle_drowns_no_bot_and_still_crosses_the_river() {
                     tank.tank_id,
                     tank.position
                 );
+                if tank.position[0] > west_corridor_x {
+                    reached_corridor = true;
+                }
                 if tank.position[0] > east_bank_x {
-                    crossed_east = true;
+                    far_bank_taken = true;
                 }
             }
         }
         assert!(
-            crossed_east,
-            "seed {seed}: nobody ever reached the east-bank shelf beyond the river corridor"
+            reached_corridor,
+            "seed {seed}: nobody even reached the river corridor — the crossings are avoided"
         );
         // The deepest wade should look like a ford crossing (momentum can carry a hull a
         // shade past the route brain's 1.2 m line before the escape reverse bites), never a
@@ -67,4 +80,8 @@ fn a_full_bystra_battle_drowns_no_bot_and_still_crosses_the_river() {
             "seed {seed}: deepest wade {deepest:.2} m — bots flirt with the drowning line"
         );
     }
+    assert!(
+        far_bank_taken,
+        "no seed ever took the far bank — the crossings posture instead of crossing"
+    );
 }

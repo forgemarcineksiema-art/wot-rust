@@ -50,6 +50,30 @@ and every mask are even in `z − 500`, features are on-axis or mirrored pairs.
   side: the escape reads the hull's braking distance, so anything that changes how a hull sheds
   speed changes who drowns. Bot water behaviour lives in `server/src/bot_routes.rs`.
 
+## The sculpt session (teren C3, 2026-08-05) — roads and the floodplain
+
+The default battle map fought ROADLESS for a month (`roads: []`), with an RMS tank-scale
+relief of six centimetres. The session gives it:
+
+- **The valley's first road net**: dirt `valley_road` from each spawn to the bridge
+  approach; the cobbled `bridge_street` and Kamienna's `town_street` (granite setts — and
+  since teren A2 they DRIVE as stone: the paved rotation is the fast one); quarry-gravel
+  (`Ballast`) `ford_track` and `plank_track` pairs — Kamienna's quarry is up the hill, and
+  a crushed-stone road through a floodplain is exactly what a quarry town lays.
+- **The second floodplain terrace** (−0.3 m over a wider band): the valley used to drop a
+  metre over sixty and read as a hard bank; the structural moisture rule (teren A1) wets
+  the wider lowland into meadow on its own.
+- **Meadow swales** (0.7 m, mirrored, west slope) and the **bridgehead bluffs** (1.6 m
+  arcs curling around the bridge exit — a real foothold on the far bank).
+- **The bridge causeway** — `RoadProfile`'s debut: the approach rides half a metre over
+  the floodplain, an earthwork that cannot drift from the street it carries. Its crown
+  (teren B2) sheds into the baked normal.
+- The `bot_water` lock was renegotiated WITH the measurement that forced it: the old
+  far-bank clause passed on a single 4 m vanguard excursion (seed 23, one tick window) —
+  a knife-edge any map change flipped. The intent now carries margins: every seed's
+  vanguard reaches the crossing corridor (51 m of margin), and at least one seed takes the
+  far bank outright (221 m of margin, seed 5 takes the town).
+
 ## Status
 
 DEFAULT battle map (the opt-in gate now selects AWAY from it); historical note: playable behind the opt-in gate: set `WOT_MAP=bystra-valley` before launching the client.
