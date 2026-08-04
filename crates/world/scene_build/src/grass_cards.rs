@@ -10,7 +10,7 @@ use glam::Vec3;
 use renderer_api::{SceneVertex, TerrainGroundMaps, TerrainMaterialSet, surface_role};
 use terrain::BattlefieldMap;
 
-use crate::grass::vegetation_weight;
+use crate::grass::{clump_centres, meadow_baldness, pull_toward_clump, vegetation_weight};
 
 /// Scatter cell edge (matches the near ring's rhythm).
 const CELL_M: f32 = 8.0;
@@ -56,10 +56,17 @@ pub fn grass_card_dressing_mesh(
             if veg < MIN_VEG_WEIGHT {
                 continue;
             }
+            // D7, same recipe as the near ring: cards gravitate to the cell's clump
+            // centres and refuse the bald patches — the two systems share one rule
+            // (`crate::grass`), so the meadow and the blades agree where grass IS.
+            let (centres, centre_count) = clump_centres(&mut seed);
             let count = (veg * CELL_CARDS + game_core::math::next_hash_unit(&mut seed)) as u32;
             for _ in 0..count {
-                let x = origin_x + game_core::math::next_hash_unit(&mut seed) * CELL_M;
-                let z = origin_z + game_core::math::next_hash_unit(&mut seed) * CELL_M;
+                let raw_x = game_core::math::next_hash_unit(&mut seed) * CELL_M;
+                let raw_z = game_core::math::next_hash_unit(&mut seed) * CELL_M;
+                let (local_x, local_z) = pull_toward_clump(raw_x, raw_z, &centres, centre_count);
+                let x = origin_x + local_x;
+                let z = origin_z + local_z;
                 let yaw = game_core::math::next_hash_unit(&mut seed) * std::f32::consts::TAU;
                 let height = 0.55 + game_core::math::next_hash_unit(&mut seed) * 0.3;
                 let tone = game_core::math::next_hash_unit(&mut seed);
@@ -72,6 +79,11 @@ pub fn grass_card_dressing_mesh(
                 // full quota straight across the cobbles (D19). The near ring always
                 // re-sampled per candidate; the meadow now does too.
                 if vegetation_weight(maps, x, z) < MIN_VEG_WEIGHT {
+                    continue;
+                }
+                // Bald patches (D7): z is south-half here, which IS the folded coordinate,
+                // so the mirrored twin inherits exactly the near ring's field.
+                if meadow_baldness(x, z) < crate::grass::BALD_CUT {
                     continue;
                 }
                 let Some(albedo) = card_albedo(maps, materials, x, z, tone) else {
@@ -233,6 +245,71 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn the_meadow_clumps_like_the_near_ring() {
+        // D7, card half: the same Clark–Evans direction as the near ring's lock — the mean
+        // nearest-neighbour distance of card roots sits well under the uniform-Poisson
+        // expectation, because both systems share one clump rule in `crate::grass`.
+        let heightmap = terrain::HeightMap::flat(65, 65, 5.0, 1.0).expect("flat map");
+        let battlefield = BattlefieldMap {
+            id: "flat".into(),
+            name: "flat".into(),
+            size_m: heightmap.extent_m(),
+            historical_basis: String::new(),
+            design_notes: vec![],
+            heightmap,
+            water: None,
+            river: None,
+            spawn_zones: vec![],
+            capture_zones: vec![],
+            strategic_points: vec![],
+            features: vec![],
+            static_cover: vec![],
+            scenery: vec![],
+            roads: vec![],
+        };
+        let mut splat = Vec::new();
+        for _ in 0..4 {
+            splat.extend_from_slice(&[255, 0, 0, 0]);
+        }
+        let maps = TerrainGroundMaps {
+            size: 2,
+            splat,
+            macro_normal: vec![128; 2 * 2 * 4],
+            extent_m: [320.0, 320.0],
+        };
+        let (vertices, _) =
+            grass_card_dressing_mesh(&battlefield, &maps, &TerrainMaterialSet::default());
+        let roots: Vec<(f32, f32)> = vertices
+            .chunks(8)
+            .map(|card| {
+                (
+                    (card[0].position[0] + card[1].position[0]) * 0.5,
+                    (card[0].position[2] + card[1].position[2]) * 0.5,
+                )
+            })
+            .filter(|&(_, z)| z < 160.0)
+            .collect();
+        assert!(roots.len() > 300, "enough cards for the statistic: {}", roots.len());
+        let density = roots.len() as f32 / (320.0 * 160.0);
+        let uniform_expectation = 0.5 / density.sqrt();
+        let mut total = 0.0;
+        for (i, &(x, z)) in roots.iter().enumerate() {
+            let mut best = f32::INFINITY;
+            for (j, &(ox, oz)) in roots.iter().enumerate() {
+                if i != j {
+                    best = best.min((x - ox).hypot(z - oz));
+                }
+            }
+            total += best;
+        }
+        let clumped = total / roots.len() as f32;
+        assert!(
+            clumped < 0.85 * uniform_expectation,
+            "the meadow must clump (mean NN {clumped:.3} vs uniform {uniform_expectation:.3})"
+        );
     }
 
     #[test]
