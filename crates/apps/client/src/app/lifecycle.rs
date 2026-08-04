@@ -99,10 +99,7 @@ impl ApplicationHandler for ClientApp {
                         self.garage_secondary_press();
                     }
                 } else if state == ElementState::Pressed {
-                    self.set_cursor_captured(true);
-                    if button == MouseButton::Left {
-                        self.input.fire_pending = true;
-                    }
+                    self.on_battle_mouse_press(button);
                 }
                 Vec::new()
             }
@@ -111,11 +108,7 @@ impl ApplicationHandler for ClientApp {
                 Vec::new()
             }
             WindowEvent::Focused(focused) => {
-                // Keep the cursor free in the garage menu and under the ESC modal; only the live
-                // battle view captures it.
-                self.set_cursor_captured(
-                    focused && !self.garage.is_open() && self.pause_menu.is_none(),
-                );
+                self.on_focus_change(focused);
                 Vec::new()
             }
             _ => Vec::new(),

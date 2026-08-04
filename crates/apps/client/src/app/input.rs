@@ -1,4 +1,4 @@
-use winit::event::{ElementState, KeyEvent, MouseScrollDelta};
+use winit::event::{ElementState, KeyEvent, MouseButton, MouseScrollDelta};
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::CursorGrabMode;
 
@@ -98,6 +98,29 @@ impl ClientApp {
             }
             _ => {}
         }
+    }
+
+    /// A mouse press in the live battle view (no garage, no modal): it (re)captures the cursor,
+    /// and the left button latches the trigger for the next fixed-tick batch. A left press
+    /// inside the post-deploy window is the second half of a double-click on BATTLE — UI
+    /// residue, not a fire order — so it captures without latching.
+    pub(in crate::app) fn on_battle_mouse_press(&mut self, button: MouseButton) {
+        self.set_cursor_captured(true);
+        if button == MouseButton::Left && self.input.deploy_fire_shield_ticks == 0 {
+            self.input.fire_pending = true;
+        }
+    }
+
+    /// Alt-tab and friends. An unfocused window receives no key or button releases, so anything
+    /// latched at the moment of the switch would stay latched until re-pressed — the hull driving
+    /// itself, a queued shot going off on return, the garage orbit glued to a button nobody
+    /// holds. Drop all of it on either edge; the cursor is recaptured only for the live battle
+    /// view (the garage menu and the ESC modal keep it free).
+    pub(in crate::app) fn on_focus_change(&mut self, focused: bool) {
+        self.input.release_driving();
+        self.input.clear_mouse_look();
+        self.garage.end_drag();
+        self.set_cursor_captured(focused && !self.garage.is_open() && self.pause_menu.is_none());
     }
 
     pub(super) fn on_mouse_wheel(&mut self, delta: MouseScrollDelta) {
@@ -309,7 +332,8 @@ impl ClientApp {
         }
     }
 
-    pub(super) fn set_cursor_captured(&self, captured: bool) {
+    pub(super) fn set_cursor_captured(&mut self, captured: bool) {
+        self.cursor_captured = captured;
         let Some(window) = &self.window else {
             return;
         };

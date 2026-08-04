@@ -13,7 +13,9 @@ impl GarageState {
         self.dragging = true;
     }
 
-    pub(super) fn end_drag(&mut self) {
+    /// `crate::app`-visible: focus loss must also drop the drag — an unfocused window never
+    /// delivers the button release that would have ended it.
+    pub(in crate::app) fn end_drag(&mut self) {
         self.dragging = false;
     }
 
@@ -26,6 +28,10 @@ impl ClientApp {
     pub(in crate::app) fn open_garage(&mut self) {
         self.garage.open();
         self.input.clear_mouse_look();
+        // Same rule as `open_pause_menu`: the battle does NOT pause behind the garage, and the
+        // held keys will never deliver their release to it — without this, G with W held kept
+        // the hull driving itself while its commander shopped for modules.
+        self.input.release_driving();
         self.set_cursor_captured(false);
     }
 
@@ -156,6 +162,13 @@ impl ClientApp {
                     self.garage.return_to_hero_view();
                 } else {
                     self.garage.close_if_started();
+                    if !self.garage.is_open() {
+                        // Mirrors `close_pause_menu`: back in the live battle the mouse is the
+                        // gun again — recapture it, and drop the motion accumulated while it
+                        // was a pointer so the turret does not jump on the first frame.
+                        self.input.clear_mouse_look();
+                        self.set_cursor_captured(true);
+                    }
                 }
             }
             // Keyboard loadout editing: focus + cycle + ammo + crew.
@@ -257,6 +270,9 @@ impl ClientApp {
         self.predictor.reset_to_spec(&spec);
         self.render_state = crate::InterpolatedBattleState::default();
         self.input.fire_pending = false;
+        // The second press of a double-click on BATTLE arrives after the garage has closed and
+        // would latch the trigger for the battle's first tick; shield it out (see the constant).
+        self.input.deploy_fire_shield_ticks = crate::app::DEPLOY_FIRE_SHIELD_TICKS;
         self.input.clear_mouse_look();
         self.battle_outcome = None;
         self.kill_confirm_age_s = None;
@@ -727,6 +743,97 @@ mod tests {
             app.map_prebake.as_ref().is_none_or(|prebake| prebake.map != loaded),
             "the world already loaded must never be baked again"
         );
+    }
+
+    fn player_rack_total(app: &ClientApp) -> u32 {
+        app.session
+            .latest_snapshot()
+            .tanks
+            .iter()
+            .find(|tank| tank.tank_id == app.player_tank)
+            .expect("player tank in snapshot")
+            .ammo_counts
+            .iter()
+            .map(|&count| u32::from(count))
+            .sum()
+    }
+
+    /// The second press of a double-click on BATTLE lands after the garage has closed, in the
+    /// battle view — it used to latch the trigger and fire the battle's very first tick. The
+    /// deploy shield swallows the residue; a press after the window still fires normally.
+    #[test]
+    fn the_second_press_of_a_double_click_on_battle_never_fires_the_first_shot() {
+        use winit::event::MouseButton;
+
+        let mut app = ClientApp::new();
+        app.confirm_garage_selection(); // press 1: BATTLE — closes the garage
+        let full = player_rack_total(&app);
+
+        app.on_battle_mouse_press(MouseButton::Left); // press 2, milliseconds later
+        app.run_fixed_ticks(crate::app::DEPLOY_FIRE_SHIELD_TICKS + 6);
+        assert_eq!(player_rack_total(&app), full, "the double-click residue fires no shot");
+
+        // The shield is a window, not a dead trigger.
+        app.on_battle_mouse_press(MouseButton::Left);
+        app.run_fixed_ticks(6);
+        assert_eq!(player_rack_total(&app), full - 1, "an intentional press still fires");
+    }
+
+    /// Escape from the garage back into a live battle hands the mouse back to the gun. It used
+    /// to leave the cursor free over a running battle — mouse look dead until a click, and that
+    /// click then fired.
+    #[test]
+    fn escape_from_the_garage_over_a_live_battle_recaptures_the_cursor() {
+        let mut app = ClientApp::new();
+        app.confirm_garage_selection();
+        app.open_garage();
+        assert!(!app.cursor_captured, "the garage menu keeps the cursor free");
+
+        app.garage_keyboard(PhysicalKey::Code(KeyCode::Escape));
+
+        assert!(!app.garage.is_open(), "escape at hero rest closes the garage");
+        assert!(app.cursor_captured, "back in the live battle the mouse is the gun again");
+    }
+
+    /// G over a live battle is a modal takeover exactly like the ESC menu: the held drive keys
+    /// will never deliver their release to the battle, so they are dropped — the hull coasts to
+    /// a stop instead of driving itself while its commander shops for modules.
+    #[test]
+    fn opening_the_garage_over_a_live_battle_stops_the_hull() {
+        let mut app = ClientApp::new();
+        app.confirm_garage_selection();
+        app.input.forward = true;
+        app.input.fire_pending = true;
+
+        app.on_battle_keyboard(PhysicalKey::Code(KeyCode::KeyG), true);
+
+        assert!(app.garage.is_open(), "G over a live battle opens the garage");
+        assert_eq!(app.input.throttle(), 0.0, "held drive keys are released, not latched");
+        assert!(!app.input.fire_pending, "a pending shot does not survive into the menu");
+    }
+
+    /// An unfocused window receives no key or button releases, so everything latched at the
+    /// moment of an alt-tab used to stay latched: the orbit drag glued to a button nobody holds,
+    /// the hull driving itself on return. Focus loss drops all of it.
+    #[test]
+    fn losing_focus_drops_every_latch_whose_release_will_never_arrive() {
+        let mut app = ClientApp::new();
+        app.confirm_garage_selection();
+        app.open_garage();
+        app.garage.begin_drag();
+        app.input.forward = true;
+        app.input.fire_pending = true;
+
+        app.on_focus_change(false);
+
+        assert!(!app.garage.is_dragging(), "alt-tab ends the orbit drag");
+        assert_eq!(app.input.throttle(), 0.0, "no key release will arrive; drop the latch");
+        assert!(!app.input.fire_pending, "a queued shot does not go off on return");
+        assert!(!app.cursor_captured);
+
+        // Refocus over the open garage keeps the pointer free — it is still a menu.
+        app.on_focus_change(true);
+        assert!(!app.cursor_captured, "the garage menu keeps the cursor free on refocus");
     }
 
     #[test]
