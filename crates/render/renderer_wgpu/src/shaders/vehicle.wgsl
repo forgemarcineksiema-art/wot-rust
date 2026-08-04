@@ -340,7 +340,8 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     // cloud sheet both. Vehicles used to skip the cloud term that terrain.wgsl and scene.wgsl
     // apply, so a bank of shade swept the field and left every tank standing in it fully lit —
     // a bright cut-out pasted on darkened ground.
-    let shadow = sun_shadow(input.world_pos, world_n) * cloud_shadow(input.world_pos);
+    let shadow =
+        sun_shadow(input.world_pos, world_n, input.clip) * cloud_shadow(input.world_pos);
     // Baked contact occlusion (geometry-bake surface_shade): authored per-vertex, it dampens
     // every term so the turret-ring seam, running-gear recess and grille wells read as real
     // cavities. SCREEN-space AO is different — it rides inside light_radiance on the indirect

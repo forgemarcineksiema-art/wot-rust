@@ -296,6 +296,9 @@ fn the_pcf_kernel_is_centred_on_the_fragment() {
     /// full texel the two mirrored shadows are supposed to be separated by. The tolerance sits
     /// between them with room for a different rasteriser on either side.
     const ROW_TOLERANCE_PX: f32 = 2.0;
+    /// Measured on this scene: the fixed ±1-diagonal lattice leaves 42.0% of the penumbra as
+    /// flat plateau (the printed weave), the rotated cross 8.4%. The tolerance sits between.
+    const WEAVE_FLAT_TOLERANCE: f32 = 0.20;
 
     let render = |mirror: bool, shadows: bool| {
         let sign = if mirror { -1.0 } else { 1.0 };
@@ -360,6 +363,63 @@ fn the_pcf_kernel_is_centred_on_the_fragment() {
             .has(renderer_api::ShaderDetailMask::PCF_WIDE),
         "premise: the shipped profile runs the REDUCED kernel — this test guards that one"
     );
+
+    // THE PENUMBRA MUST NOT PRINT A PATTERN. A four-tap kernel wide enough to be soft samples
+    // a sparse lattice, and if that lattice is FIXED it prints: the ±1-diagonal variant shipped
+    // briefly and every penumbra came back wearing the same woven-cloth weave — plateaus
+    // wherever no tap support crossed a depth edge. The rotated cross dithers those plateaus
+    // into per-pixel grain.
+    //
+    // Measured as the share of transition-band pixels (10–90% of the local drop) that are FLAT
+    // against all four neighbours. A plateau is flat in every direction by definition; a clean
+    // gradient is not (across the penumbra the drop changes several luma steps per pixel); grain
+    // is not (neighbours differ pseudo-randomly). So the share is orientation-proof — a first
+    // draft measured plateau RUN LENGTHS per row and drowned in lines running parallel to the
+    // shadow edge, which sit in the band for dozens of near-identical pixels with any kernel.
+    {
+        let lit = render(false, false);
+        let shadowed = render(false, true);
+        let size = SIZE as usize;
+        let drop_at = |x: usize, y: usize| -> f32 {
+            let p = (y * size + x) * 4;
+            luma(&lit[p..p + 4]) - luma(&shadowed[p..p + 4])
+        };
+        let max_drop = (0..size * size).map(|i| drop_at(i % size, i / size)).fold(0.0f32, f32::max);
+        assert!(max_drop > 30.0, "the scene must cast a strong shadow, got drop {max_drop}");
+        let (band_lo, band_hi) = (max_drop * 0.1, max_drop * 0.9);
+        let (mut band, mut flat) = (0u32, 0u32);
+        for y in 1..size - 1 {
+            for x in 1..size - 1 {
+                let d = drop_at(x, y);
+                if d <= band_lo || d >= band_hi {
+                    continue;
+                }
+                band += 1;
+                let still = |dx: isize, dy: isize| {
+                    (drop_at((x as isize + dx) as usize, (y as isize + dy) as usize) - d).abs()
+                        < 1.5
+                };
+                if still(1, 0) && still(-1, 0) && still(0, 1) && still(0, -1) {
+                    flat += 1;
+                }
+            }
+        }
+        assert!(band > 100, "too few penumbra pixels to judge ({band})");
+        let share = flat as f32 / band as f32;
+        eprintln!(
+            "PCF weave: {:.1}% of {band} penumbra pixels are flat plateaus \
+             (tolerance {:.0}%; the fixed diagonal lattice measured 42.0%, the rotated \
+             cross 8.4%)",
+            share * 100.0,
+            WEAVE_FLAT_TOLERANCE * 100.0
+        );
+        assert!(
+            share <= WEAVE_FLAT_TOLERANCE,
+            "{:.1}% of the penumbra is flat plateau — a fixed sparse kernel is printing its \
+             lattice into the shadow edge again",
+            share * 100.0
+        );
+    }
 
     let straight = centroid_row(false);
     let mirrored = centroid_row(true);

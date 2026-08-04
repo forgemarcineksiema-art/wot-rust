@@ -53,16 +53,22 @@ statics.
   the frame's texel footprint, so it follows a scene-sized box down; at ~50 cm texels it grows
   large enough to push a receiver past a caster 1.2 m above it and the shadow disappears, which is
   the practical floor on how coarse a box may get.
-- **PCF: the shipped tier runs four taps at ±1 texel**, the dev tier nine at ±1 (`PCF_WIDE` is not
-  in `canonical()`'s detail mask). Each tap is a hardware bilinear comparison covering 2×2 texels,
-  so the four sweep the same ±2 texel footprint the nine do: the reduced tier buys the wide
-  kernel's SOFTNESS without its tap count. Softness is not a luxury here — a sun 0.53° across
-  throws a penumbra widening ~0.9 cm per metre of blocker distance, so a hard edge is wrong, and a
-  soft edge is also what stops a 6.25 cm texel from reading as a staircase. Both kernels must
-  **straddle** the fragment; the reduced one used to tap `{0, 1}`, putting its centroid half a
-  texel up-right and dragging every near-cascade shadow edge with it. Locked by
-  `the_pcf_kernel_is_centred_on_the_fragment`, which mirrors the scene and measures 0.01 px of
-  disagreement centred against 4.39 px off-centre.
+- **PCF: the shipped tier runs four taps on a cross of radius 1 texel, rotated per pixel**
+  (interleaved gradient noise — deterministic in the fragment coordinate, so the goldens stay
+  byte-exact); the dev tier runs the contiguous 3×3 at ±1 (`PCF_WIDE` is not in `canonical()`'s
+  detail mask). The rotation is load-bearing, and its absence is a **known, user-visible
+  defect**: a fixed four-tap pattern spread wide enough to be soft samples a sparse lattice with
+  holes, and the lattice prints — the ±1-diagonal variant shipped briefly and every penumbra came
+  back wearing the same woven-cloth weave (plateaus wherever no tap support crossed a depth
+  edge). Rotating the cross decorrelates neighbours, so the same four taps read as fine grain the
+  FXAA pass and the post dither integrate away. Radius 1 texel keeps the ~3-texel penumbra of the
+  3×3 reference while the taps' bilinear support still touches the fragment's own texel at every
+  angle, so contact shadows keep their root. Softness is not a luxury here — a sun 0.53° across
+  throws a penumbra widening ~0.9 cm per metre of blocker distance, so a hard edge is wrong, and
+  a soft edge is also what stops a 6.25 cm texel from reading as a staircase. Two locks in
+  `shadow_render_frame.rs`: the weave (flat-plateau share of the penumbra — 42.0% woven against
+  8.4% rotated, bound 20%) and the centring (mirrored scenes, 0.00 px of disagreement centred
+  against 4.4 px for the old off-straddle `{0, 1}` kernel).
 
 ## Occluders
 

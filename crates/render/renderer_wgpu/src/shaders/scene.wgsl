@@ -219,7 +219,8 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     let n = detail_normal(input.world_pos, geometric_n, gloss);
     // Cloud shade rides the same channel as the cast shadow: it occludes the key (and the key's
     // specular below) without touching the ambient/fill.
-    let shadow = sun_shadow(input.world_pos, geometric_n) * cloud_shadow(input.world_pos);
+    let shadow =
+        sun_shadow(input.world_pos, geometric_n, input.clip) * cloud_shadow(input.world_pos);
     let ao = screen_ao(input.clip);
     // A named surface wears its own treatment; everything else keeps the generic detail.
     var detail = material_detail(input.world_pos, geometric_n);
