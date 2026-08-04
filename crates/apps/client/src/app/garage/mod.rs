@@ -41,6 +41,10 @@ pub(super) struct GarageState {
     /// Edited loadouts for the non-selected vehicles (the selected one's live draft is `draft`),
     /// so switching back restores each tank's own draft; persisted to `save_path` when set.
     saved: HashMap<VehicleKind, SavedLoadout>,
+    /// Stored loadouts whose vehicle slug this build does not know (a removed vehicle, a save
+    /// from a newer build). Carried by slug and written back verbatim on every persist, so an
+    /// entry this build cannot use is preserved for the build that can — never destroyed.
+    foreign_loadouts: HashMap<String, SavedLoadout>,
     save_path: Option<PathBuf>,
     orbit_yaw: f32,
     orbit_pitch: f32,
@@ -76,6 +80,7 @@ impl Default for GarageState {
             carousel_scroll: 0,
             draft: LoadoutDraft::for_vehicle(VehicleKind::PLAYABLE[0]),
             saved: HashMap::new(),
+            foreign_loadouts: HashMap::new(),
             save_path: None,
             orbit_yaw: HERO_ORBIT_YAW,
             orbit_pitch: HERO_ORBIT_PITCH,

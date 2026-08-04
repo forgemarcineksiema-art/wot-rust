@@ -145,17 +145,31 @@ impl GarageState {
     /// this once at startup. Loading happens before the path is stored, so it does not rewrite the
     /// file it just read.
     pub(super) fn enable_persistence(&mut self, path: PathBuf) {
-        if let Some(save) = load(&path) {
-            self.saved = save.resolved_loadouts();
-            if let Some(kind) = save.selected_kind()
-                && let Some(index) = VehicleKind::PLAYABLE.iter().position(|k| *k == kind)
-            {
-                self.selected_index = index;
+        match load(&path) {
+            Some(save) => {
+                self.saved = save.resolved_loadouts();
+                self.foreign_loadouts = save
+                    .loadouts
+                    .iter()
+                    .filter(|(slug, _)| VehicleKind::from_slug(slug).is_none())
+                    .map(|(slug, loadout)| (slug.clone(), *loadout))
+                    .collect();
+                if let Some(kind) = save.selected_kind()
+                    && let Some(index) = VehicleKind::PLAYABLE.iter().position(|k| *k == kind)
+                {
+                    self.selected_index = index;
+                }
+                // The draft mirrors whatever ends up selected — INCLUDING the fallback when the
+                // stored selection no longer resolves. Restoring it only on the happy path left
+                // a stock draft standing in for the default vehicle's saved edits, and the first
+                // persist then wrote that stock draft over them.
+                let kind = self.selected_vehicle();
                 self.draft = match self.saved.get(&kind) {
                     Some(saved) => LoadoutDraft::from_saved(kind, saved),
                     None => LoadoutDraft::for_vehicle(kind),
                 };
             }
+            None => back_up_undecipherable(&path),
         }
         self.save_path = Some(path);
     }
@@ -168,7 +182,31 @@ impl GarageState {
         };
         let mut loadouts = self.saved.clone();
         loadouts.insert(self.selected_vehicle(), self.draft.to_saved());
-        store(path, &GarageSave::new(self.selected_vehicle(), &loadouts));
+        let mut save = GarageSave::new(self.selected_vehicle(), &loadouts);
+        // Entries this build could not resolve ride along verbatim — a resolvable slug can
+        // never collide with them, so `or_insert` is only belt-and-braces.
+        for (slug, loadout) in &self.foreign_loadouts {
+            save.loadouts.entry(slug.clone()).or_insert(*loadout);
+        }
+        store(path, &save);
+    }
+}
+
+/// A save that exists but cannot be understood — a newer build's version, a hand-edit gone
+/// wrong — is copied to a `.bak` sibling before this session's first persist overwrites it:
+/// degrading to the stock garage is fine, DESTROYING what we failed to read is not. Best-effort
+/// like every write here, and an existing backup is never clobbered (the first failure is the
+/// copy closest to intact).
+fn back_up_undecipherable(path: &Path) {
+    if !path.exists() {
+        return;
+    }
+    let backup = path.with_extension("json.bak");
+    if backup.exists() {
+        return;
+    }
+    if let Err(error) = std::fs::copy(path, &backup) {
+        tracing::warn!(%error, "could not back up the unreadable garage save");
     }
 }
 
@@ -226,6 +264,97 @@ mod tests {
 
         let _ = std::fs::remove_dir_all(corrupt.parent().unwrap());
         let _ = std::fs::remove_dir_all(versioned.parent().unwrap());
+    }
+
+    #[test]
+    fn a_vanished_selected_vehicle_does_not_cost_the_default_vehicle_its_edits() {
+        // The stored selection names a vehicle this build does not ship. The garage falls back
+        // to the default vehicle — and must stand ITS saved edits up as the live draft: the old
+        // happy-path-only restore left a stock draft there, and the very first persist then
+        // wrote that stock draft over the player's edits.
+        let path = temp_path("vanished-selected");
+        let default_kind = VehicleKind::PLAYABLE[0];
+        let edited = SavedLoadout {
+            option_index: [0, 1, 0, 0, 0, 0],
+            ammo_index: 1,
+            ammo_counts: None,
+            crew_proficiency: 0.7,
+        };
+        let mut loadouts = HashMap::new();
+        loadouts.insert(default_kind, edited);
+        let mut save = GarageSave::new(default_kind, &loadouts);
+        save.selected_vehicle = "vehicle-this-build-never-shipped".to_string();
+        store(&path, &save);
+
+        let mut garage = GarageState::default();
+        garage.enable_persistence(path.clone());
+        garage.persist();
+
+        let reloaded = load(&path).expect("the save still parses after the persist");
+        let kept = reloaded.loadouts.get(default_kind.slug()).expect("the entry survives");
+        assert_eq!(kept.option_index, edited.option_index, "the persist keeps the edits");
+        assert!((kept.crew_proficiency - 0.7).abs() < 1.0e-6);
+        let _ = std::fs::remove_dir_all(path.parent().unwrap());
+    }
+
+    #[test]
+    fn loadouts_this_build_cannot_resolve_survive_the_persist_round_trip() {
+        // An entry for a vehicle this build does not know (removed, or written by a newer
+        // build) is not ours to spend: it rides along by slug and is written back verbatim,
+        // for the build that can use it. Loading used to drop it; the first persist then
+        // erased it from disk for good.
+        let path = temp_path("foreign-loadouts");
+        let foreign = SavedLoadout {
+            option_index: [5; 6],
+            ammo_index: 2,
+            ammo_counts: Some([1, 2, 3]),
+            crew_proficiency: 1.0,
+        };
+        let mut save = sample();
+        save.loadouts.insert("future-vehicle".to_string(), foreign);
+        store(&path, &save);
+
+        let mut garage = GarageState::default();
+        garage.enable_persistence(path.clone());
+        garage.persist();
+
+        let reloaded = load(&path).expect("still a valid save");
+        let kept = reloaded.loadouts.get("future-vehicle").expect("the unknown slug survives");
+        assert_eq!(kept.option_index, [5; 6], "...verbatim");
+        assert_eq!(kept.ammo_counts, Some([1, 2, 3]));
+        let _ = std::fs::remove_dir_all(path.parent().unwrap());
+    }
+
+    #[test]
+    fn an_undecipherable_save_is_backed_up_before_the_first_persist_clobbers_it() {
+        // Degrading to the stock garage is fine; destroying the only copy of what we failed to
+        // read is not. A version from a newer build (or a hand-edit gone wrong) is copied to
+        // `.bak` at load, so the overwrite that follows costs nothing irreplaceable.
+        let path = temp_path("bak-on-mismatch");
+        store(&path, &sample());
+        let newer =
+            std::fs::read_to_string(&path).unwrap().replace("\"version\": 2", "\"version\": 999");
+        std::fs::write(&path, &newer).unwrap();
+
+        let mut garage = GarageState::default();
+        garage.enable_persistence(path.clone());
+        garage.persist(); // previously this overwrote the only copy
+
+        let backup = path.with_extension("json.bak");
+        assert_eq!(
+            std::fs::read_to_string(&backup).unwrap(),
+            newer,
+            "the unreadable original survives in the backup"
+        );
+        assert!(load(&path).is_some(), "the main file is this build's fresh save again");
+        let _ = std::fs::remove_dir_all(path.parent().unwrap());
+
+        // A merely MISSING file earns no backup — there is nothing to protect.
+        let missing = temp_path("bak-none");
+        let mut fresh = GarageState::default();
+        fresh.enable_persistence(missing.clone());
+        assert!(!missing.with_extension("json.bak").exists());
+        let _ = std::fs::remove_dir_all(missing.parent().unwrap());
     }
 
     #[test]
