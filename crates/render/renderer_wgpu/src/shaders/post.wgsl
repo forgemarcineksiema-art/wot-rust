@@ -68,5 +68,30 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     // the frame's corners that seats the picture without ever reading as a lens.
     let ndc = uv * 2.0 - vec2<f32>(1.0);
     let vignette = 1.0 - camera.sky_params.w * smoothstep(0.55, 1.45, length(ndc));
-    return vec4<f32>(out * vignette, 1.0);
+    // Quantization dither — the last act of forming the picture. The sRGB swapchain rounds
+    // display-linear colour to 8-bit steps, and a clean gradient (a crushed hangar corner, a
+    // dusk sky) rounds into visible BANDS: this pipeline previously carried no dither at all.
+    // Half an 8-bit step of interleaved-gradient noise, applied IN THE ENCODED DOMAIN (near
+    // black the sRGB step is ~13x smaller in linear units, so linear-domain noise would read
+    // as fog exactly where banding lives), then decoded back for the hardware encode — which
+    // now rounds across the very step the noise straddles. Position-hashed and frame-stable,
+    // so offscreen goldens stay byte-deterministic.
+    let graded = clamp(out * vignette, vec3<f32>(0.0), vec3<f32>(1.0));
+    let ign = fract(52.9829189 * fract(dot(input.clip.xy, vec2<f32>(0.06711056, 0.00583715))));
+    let encoded = srgb_encode(graded) + vec3<f32>((ign - 0.5) / 255.0);
+    return vec4<f32>(srgb_decode(clamp(encoded, vec3<f32>(0.0), vec3<f32>(1.0))), 1.0);
+}
+
+// The exact piecewise sRGB transfer pair (not a gamma approximation): the dither must land on
+// the real quantization grid or it dithers the wrong step size.
+fn srgb_encode(c: vec3<f32>) -> vec3<f32> {
+    let low = c * 12.92;
+    let high = 1.055 * pow(c, vec3<f32>(1.0 / 2.4)) - 0.055;
+    return select(high, low, c <= vec3<f32>(0.0031308));
+}
+
+fn srgb_decode(c: vec3<f32>) -> vec3<f32> {
+    let low = c / 12.92;
+    let high = pow((c + 0.055) / 1.055, vec3<f32>(2.4));
+    return select(high, low, c <= vec3<f32>(0.04045));
 }
