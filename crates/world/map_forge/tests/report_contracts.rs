@@ -108,12 +108,12 @@ fn a_road_profile_naming_a_ghost_road_is_an_error_not_a_panic() {
         Some(5.0),
         "an unresolved profile is the identity, never a panic"
     );
-    let errors = error_messages(&blueprint);
+    let (_, report) = compile(&blueprint);
     assert!(
-        errors
-            .iter()
-            .any(|message| { message.starts_with("road_profile:") && message.contains("ghost") }),
-        "the report must name the ghost road, got: {errors:?}"
+        report
+            .errors()
+            .any(|entry| entry.check == "road_profile" && entry.message.contains("ghost")),
+        "the report must name the ghost road"
     );
 }
 
