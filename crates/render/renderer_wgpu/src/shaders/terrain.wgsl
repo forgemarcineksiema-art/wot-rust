@@ -58,63 +58,9 @@ fn vs_main(input: VsIn) -> VsOut {
     return out;
 }
 
-// The scene pass's two-octave detail noise (same hash, same scales) so ground grain matches
-// the statics standing on it.
-fn detail_hash(p: vec2<f32>) -> f32 {
-    return fract(sin(dot(p, vec2<f32>(127.1, 311.7))) * 43758.5453);
-}
-
-fn value_noise(p: vec2<f32>) -> f32 {
-    let i = floor(p);
-    let f = fract(p);
-    let u = f * f * (3.0 - 2.0 * f);
-    let a = detail_hash(i);
-    let b = detail_hash(i + vec2<f32>(1.0, 0.0));
-    let c = detail_hash(i + vec2<f32>(0.0, 1.0));
-    let d = detail_hash(i + vec2<f32>(1.0, 1.0));
-    return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
-}
-
-// Break the square lattice of value_noise before thresholding it into rain pools. Two rotated
-// scales keep the broad patches coherent while the finer scale erodes their grid-aligned edges.
-fn puddle_pool(world_xz: vec2<f32>, fill: f32) -> f32 {
-    let edge_p = vec2(
-        world_xz.x * 0.197 + world_xz.y * -0.151,
-        world_xz.x * 0.151 + world_xz.y * 0.197,
-    ) + vec2<f32>(19.7, 43.1);
-    let edge = value_noise(edge_p);
-    let warp = (edge - 0.5) * 5.5;
-    let warped = world_xz + vec2<f32>(warp, warp * -0.73);
-    let broad_p = vec2(
-        warped.x * 0.110 + warped.y * 0.071,
-        warped.x * -0.071 + warped.y * 0.110,
-    );
-    let basin = value_noise(broad_p) * 0.72 + edge * 0.28;
-    let threshold = mix(0.80, 0.54, clamp(fill, 0.0, 1.0));
-    return smoothstep(threshold, threshold + 0.16, basin);
-}
-
-fn cloud_shadow(world: vec3<f32>) -> f32 {
-    let strength = camera.sky_params.x;
-    if (strength <= 0.0) {
-        return 1.0;
-    }
-    let drift = camera.time_params.x * camera.cloud_params.w;
-    let base_uv = world.xz * (1.35 / 400.0) * camera.cloud_params.y
-        + vec2<f32>(drift, drift * 0.6) + camera.weather_params.xy;
-    // Domain-warp and rotate the broad field before thresholding. Raw value noise exposes its
-    // square interpolation cells as enormous rectangles/trapezoids from a steep camera.
-    let warp = vec2<f32>(
-        value_noise(base_uv * 0.73 + vec2<f32>(5.2, 1.3)),
-        value_noise(base_uv * 0.73 + vec2<f32>(1.7, 8.6)),
-    ) - vec2<f32>(0.5);
-    let uv = base_uv + warp * 0.72;
-    let rotated = vec2<f32>(uv.x * 0.83 - uv.y * 0.56, uv.x * 0.56 + uv.y * 0.83);
-    let coverage = value_noise(uv) * 0.46 + value_noise(rotated * 1.9) * 0.34
-        + value_noise(uv * 4.1 + vec2<f32>(11.4, 3.8)) * 0.2 + camera.cloud_params.x;
-    let cloud = smoothstep(0.40, 0.72, coverage);
-    return 1.0 - cloud * strength;
-}
+// The ground grain, its light-catch gradient, the puddle field and the cloud shade all live
+// in the shared fragments (noise_common.wgsl, shadow_common.wgsl) — the terrain and the
+// statics standing on it must read ONE implementation or their grains drift apart.
 
 @fragment
 fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
@@ -172,9 +118,10 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     let layer_gloss = dot(w, materials.layer_gloss);
     let gloss = clamp(max(input.gloss, layer_gloss) + wet * 0.08 + puddle, 0.0, 1.0);
 
-    // Detail: the scene pass's ground/strata mix, amplitude blended per layer.
-    let ground = value_noise(input.world_pos.xz * 0.4) * 0.6
-        + value_noise(input.world_pos.xz * 1.7) * 0.4;
+    // Detail: the scene pass's ground/strata mix, amplitude blended per layer. One shared
+    // evaluation carries the albedo grain AND the analytic gradient the normal bend reads.
+    let grain = ground_grain(input.world_pos.xz);
+    let ground = grain.x;
     let strata = value_noise(vec2<f32>(
         input.world_pos.y * 2.2,
         (input.world_pos.x + input.world_pos.z) * 0.15,
@@ -190,15 +137,12 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     let detail_factor = 1.0 + (detail_mix * 0.16 - 0.08) * amp;
 
     // The detail-noise gradient bent into the normal (the scene pass's grain-catches-light).
-    // The reduced tier (time_params.w, F2) skips the three-sample gradient: the albedo grain
-    // stays, only its light-catching micro-relief folds.
+    // Analytic (rides the ground_grain evaluation above): no extra lattice samples, and no
+    // finite-difference faceting. The reduced tier (time_params.w, F2) keeps the albedo
+    // grain and folds only its light-catching micro-relief.
     var bend = vec3<f32>(0.0);
     if (detail_bit(1u)) {
-        let e = 0.35;
-        let here = value_noise(input.world_pos.xz * 1.7);
-        let dx = value_noise((input.world_pos.xz + vec2<f32>(e, 0.0)) * 1.7) - here;
-        let dz = value_noise((input.world_pos.xz + vec2<f32>(0.0, e)) * 1.7) - here;
-        bend = vec3<f32>(-dx, 0.0, -dz) * (0.12 / e) * clamp(1.0 - gloss, 0.35, 1.0);
+        bend = vec3<f32>(-grain.y, 0.0, -grain.z) * 0.12 * clamp(1.0 - gloss, 0.35, 1.0);
     }
 
     // Ziemia 2.0, pasmo mikro: a third, finer octave (~31 cm crumb — inside the art policy's
@@ -208,12 +152,9 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     let eye_dist = length(camera.camera_pos - input.world_pos);
     let near_amp = (1.0 - smoothstep(20.0, 55.0, eye_dist)) * select(0.0, 1.0, detail_bit(2u));
     if (near_amp > 0.004) {
-        let micro = value_noise(input.world_pos.xz * 3.2);
-        micro_shade = 1.0 + (micro - 0.5) * 0.11 * near_amp * amp;
-        let me = 0.12;
-        let mdx = value_noise((input.world_pos.xz + vec2<f32>(me, 0.0)) * 3.2) - micro;
-        let mdz = value_noise((input.world_pos.xz + vec2<f32>(0.0, me)) * 3.2) - micro;
-        bend += vec3<f32>(-mdx, 0.0, -mdz) * (0.05 / me) * near_amp;
+        let micro = micro_grain(input.world_pos.xz);
+        micro_shade = 1.0 + (micro.x - 0.5) * 0.11 * near_amp * amp;
+        bend += vec3<f32>(-micro.y, 0.0, -micro.z) * 0.05 * near_amp;
     }
     let n = normalize(base_n + bend);
 

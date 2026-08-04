@@ -209,3 +209,20 @@ port past ~250-300 m for 2-3 mrad guns. Bench `random_7v7_tick`: 82.4 -> 87.1 us
 
 Follow-ups this measurement names: (a) author the heavies' bow details -> their ports exist to
 aim at; (b) the tempo item (all battles at the clock) stays separately ranked.
+
+## Cloud shade: the baked tile's cost, measured A/B (2026-08-04)
+
+`perf_capture` frame section, Bystra Valley 1080p, offscreen, three runs each on the same
+machine with `WOT_CLOUD_SHADOWS` as the single variable. Machine under background load, so the
+read is the scene-work p50 spread across repeats, not one clean run:
+
+| variant | scene work p50 across 3 runs |
+|---|---|
+| cloud shade OFF | 23.05 / 22.28 / 20.55 ms |
+| cloud shade ON (baked tile) | 17.67* / 22.19 / 23.91 ms |
+
+(*first run of the set, cold caches — read as an outlier.) Both medians sit at ~22–23 ms; the
+on/off delta is ~0.5 ms inside the machine's own run-to-run noise (~±1.5 ms). Compare the
+procedural implementation's measured +4.837 ms on the same map (`docs/art-direction-program.md`,
+the refusal table) — the baked tile delivers the same shade for an order of magnitude less, and
+that measurement is what let D21 close with the feature IN the shipped canonical look.

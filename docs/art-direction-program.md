@@ -94,8 +94,9 @@ it closes.
 | D17 | The fleet showcase renders vehicles in pastels (powder blue, lavender, pink, cream) — the canonical "no clones" render does not show paint | `target/vehicle_lineup.png` | W3 |
 | D18 | **Orliny Pereval has no light of its own.** Its blueprint's `ClearAfternoon` preset resolves to `bystra_clear_afternoon` — the mountain pass wears the river valley's afternoon. The borrowed look is now locked, so the day it gets its own is visible in the diff | `blueprints/orliny-pereval.map.ron:114-119`, `weather.rs::preset_lighting` | W5 |
 | D20 | **The garage has almost no bright plane** — 0.3% of the hero frame sits above the bright threshold, against a 2% target. Was 0.00%; the reframing (D16) brought the frosted panes into shot and they are the entire gain, being the only emissive surface the hero lens contains. **The reframing did not close this, and the percentiles say why**: p50 0.119, p95 0.276 — the whole picture is a narrow band pressed against the 0.25 dark/mid boundary, and the floor a player reads as light grey measures 0.238, a hair on the dark side. Where the lens points decides what is IN the picture; the light rig and the grade decide how far apart its values are. **This closes with light in the room, not with a camera** | `goldens/look/garage_hero.png`, `look_goldens.rs` `GARAGE_BRIGHT_TARGET` | W4 |
-| D21 | **Cloud shadows never run in the shipped game.** `LightingQuality::canonical()` sets `cloud_shadows: false`; only the dev-only `rich()` enables them, and `gpu_layout` zeroes `sky_params.x` when the tier says no. Every profile's `cloud_shadow_strength` is therefore dead data in the configuration players get — and the arithmetic says D4 **cannot be closed without it**: with ambient+fill+rim carrying ~0.36 of a flat ground's radiance, only near-total key occlusion pushes sunlit steppe below the dark threshold. Enabling it is a per-item buy-back against the one-look budget and needs a min-spec measurement | `lighting_quality.rs:81`, `gpu_layout.rs:290` | W1 |
+| D21 | **Cloud shadows never run in the shipped game.** `LightingQuality::canonical()` set `cloud_shadows: false`; only the dev-only `rich()` enabled them. The procedural evaluation was measured and refused at +4.8 ms (see below) — then made cheap instead of argued: the coverage field is now baked once into a seamlessly tiling R8 texture at renderer init (`cloud_map.rs`, bindings 5–6 of the environment group), so the per-fragment cost fell from ~6 lattice evaluations to one repeat-sampled tap. **CLOSED**: `canonical()` ships `cloud_shadows: true`; the `WOT_CLOUD_SHADOWS` knob stays so the cost keeps being measurable as one variable. Locked by the one-look profile test and the tile's seam/determinism/span tests | `lighting_quality.rs`, `cloud_map.rs`, `shadow_common.wgsl::cloud_shadow` | W1 |
 | D19 | Grass scatters **onto the city street**: the Ostrogorsk canyon reads as a meadow between tenements, and `RoadSurface::Cobble` reads as a dirt path rather than granite setts. Tenement facades are flat boxes with painted window rectangles over a hard black plinth | `goldens/look/ostrogorsk_canyon.png`, `grass.rs::vegetation_weight` | W2 |
+| D26 | **The ground grain rendered as hard ~0.3–0.6 m square plates** (most visible under grazing raking light and near the eye) — the ground twin of the square-sky artefact, with the same three roots: the `fract(sin(dot))` lattice hash collapsed to correlated corners once world-metre coordinates left the GPU sin's accurate range; every detail octave sampled one axis-aligned square lattice; and the light-catching normal "gradient" was a finite difference stepped at over half a lattice cell, faceting the field into tiles. **CLOSED**: `noise_common.wgsl` — an integer-domain hash, rotated octave frames, and the analytic gradient (`value_noise_grad`, also ~4 fewer noise evaluations per terrain fragment); one implementation shared by terrain and statics, de-squaring locked by `ground_grain_is_lattice_decorrelated` | `noise_common.wgsl`, `terrain.wgsl`, `scene.wgsl` | W1 |
 
 ## What the instrument found first
 
@@ -246,18 +247,19 @@ The release-gate probe is the one that decides, and it lands at **96.7% of the 1
 Its own gate prints PASS — and PASS is misleading here, because that probe draws **no vehicles, no
 FX, no HUD**. Roughly 0.55 ms is left for everything a real battle adds on top.
 
-**Refused at this cost.** Under a policy that calls a dropped frame a game bug, this is not a
-buy-back; it is a loan. The knob and these numbers ship anyway, because the next person to ask
-"why is the steppe flat?" should find the measurement instead of repeating it.
+**Refused at this cost — and then bought back by making it cheap.** The knob and these numbers
+shipped so the next person asking "why is the steppe flat?" would find the measurement instead
+of repeating it; the next person did. The section's own opening was the answer:
 
-The cost is concentrated where it would be: `cloud_shadow()` in `terrain.wgsl` runs a domain warp
-plus five `value_noise` evaluations **per terrain fragment**, which is why an open map with heavy
-scatter pays 5 ms while an empty midfield pays 0.9. That shape is the opening: the same coverage
-baked into a small scrolling R8 texture is one sample instead of eight ALU-heavy taps. Making it
-cheap is the work, not arguing the budget — tracked as W1's next item.
-
-Until then, D4's dark mass must come from levers that are already free: the grade (black point,
-contrast), the ambient/key balance, and the shadow-casting content W2 adds.
+The cost was concentrated where it would be: `cloud_shadow()` ran a domain warp plus five
+`value_noise` evaluations **per terrain fragment**, which is why an open map with heavy scatter
+paid 5 ms while an empty midfield paid 0.9. The same coverage is now baked once at renderer init
+into a seamlessly tiling R8 texture (`cloud_map.rs` — the lattice wrapped modulo an integer
+period so the tile is seamless by construction, not by blending) and sampled through one
+repeat-addressed tap at group-2 bindings 5–6. The per-fragment ALU fell to the sample, the
+offset arithmetic and the threshold, and `canonical()` ships the shade in the one look (D21,
+closed). The min-spec `perf_capture` number for THIS build lands in `docs/battle-first/
+measurements.md` beside the refusal table.
 
 ## Why the vehicle's shaded half is dark: four levers, measured, all insufficient
 

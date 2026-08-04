@@ -1,6 +1,7 @@
 pub(crate) mod armor_damage;
 mod bloom;
 mod buffers;
+mod cloud_map;
 mod draw;
 mod draw_depth;
 mod dressing;
@@ -299,6 +300,7 @@ impl SceneRenderer {
         let placeholder_ao = ssao_pipelines::placeholder_ao_view(device, &ctx.queue);
         let shadow = shadow::ShadowResources::new(
             device,
+            &ctx.queue,
             &shadow_bgl,
             &camera_bgl,
             &foliage_bgl,

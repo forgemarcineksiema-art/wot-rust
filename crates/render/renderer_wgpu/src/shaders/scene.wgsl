@@ -100,40 +100,8 @@ fn vs_main(input: VsIn) -> VsOut {
 // fill with world-space value noise (stable — anchored to world coordinates, so nothing swims)
 // and give steep faces a horizontal strata pattern so cliffs and cut banks read as rock beds,
 // not smooth paint. Purely multiplicative around 1.0: palettes and lighting stay authored.
-
-fn detail_hash(p: vec2<f32>) -> f32 {
-    return fract(sin(dot(p, vec2<f32>(127.1, 311.7))) * 43758.5453);
-}
-
-fn value_noise(p: vec2<f32>) -> f32 {
-    let i = floor(p);
-    let f = fract(p);
-    let u = f * f * (3.0 - 2.0 * f);
-    let a = detail_hash(i);
-    let b = detail_hash(i + vec2<f32>(1.0, 0.0));
-    let c = detail_hash(i + vec2<f32>(0.0, 1.0));
-    let d = detail_hash(i + vec2<f32>(1.0, 1.0));
-    return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
-}
-
-// Break the square lattice of value_noise before thresholding it into rain pools. Two rotated
-// scales keep the broad patches coherent while the finer scale erodes their grid-aligned edges.
-fn puddle_pool(world_xz: vec2<f32>, fill: f32) -> f32 {
-    let edge_p = vec2(
-        world_xz.x * 0.197 + world_xz.y * -0.151,
-        world_xz.x * 0.151 + world_xz.y * 0.197,
-    ) + vec2<f32>(19.7, 43.1);
-    let edge = value_noise(edge_p);
-    let warp = (edge - 0.5) * 5.5;
-    let warped = world_xz + vec2<f32>(warp, warp * -0.73);
-    let broad_p = vec2(
-        warped.x * 0.110 + warped.y * 0.071,
-        warped.x * -0.071 + warped.y * 0.110,
-    );
-    let basin = value_noise(broad_p) * 0.72 + edge * 0.28;
-    let threshold = mix(0.80, 0.54, clamp(fill, 0.0, 1.0));
-    return smoothstep(threshold, threshold + 0.16, basin);
-}
+// The hash, the lattice and the ground octaves live in noise_common.wgsl — the terrain pass
+// reads the SAME functions, so the ground and the statics on it carry one grain.
 
 fn material_detail(world: vec3<f32>, n: vec3<f32>) -> f32 {
     // Interior looks (fog density 0 — the hangar; see `fog_params` docs) keep a near-flat
@@ -146,7 +114,7 @@ fn material_detail(world: vec3<f32>, n: vec3<f32>) -> f32 {
         return 0.955 + value_noise(p) * 0.07;
     }
     // Two octaves (~2.5 m patches with ~0.6 m grain) on level ground...
-    let ground = value_noise(world.xz * 0.4) * 0.6 + value_noise(world.xz * 1.7) * 0.4;
+    let ground = ground_grain(world.xz).x;
     // ...crossfaded into height-banded strata on steep faces (walls, cliffs, cut banks).
     let strata = value_noise(vec2<f32>(world.y * 2.2, (world.x + world.z) * 0.15));
     let steep = clamp(1.0 - n.y, 0.0, 1.0);
@@ -166,7 +134,7 @@ fn surface_treatment(role: f32, world: vec3<f32>, n: vec3<f32>) -> f32 {
     // tens of thousands of card fragments. The old catch-all painted bark striations across
     // every card and blade and made the field read noisy at driving distance.
     if (role > 4.5) {
-        return 0.94 + value_noise(world.xz * 1.7) * 0.12;
+        return 0.94 + value_noise(octave_frame_fine(world.xz) * 1.7) * 0.12;
     }
     // The wall-plane frame: h runs along the face, world.y climbs it.
     let tangent = normalize(vec3<f32>(-n.z, 1.0e-4, n.x));
@@ -208,49 +176,22 @@ fn surface_treatment(role: f32, world: vec3<f32>, n: vec3<f32>) -> f32 {
     return 0.80 + striae * 0.24 + groove * 0.12;
 }
 
-// Cloud shade wandering the field: the terrain's sun is modulated by a 2-octave slice of the
-// same value noise the sky's cloud sheet drifts with — matched scale (a ~400 m virtual cloud
-// height maps the dome's UV onto world metres) and the same clock, so the ground shade moves
-// with the banks overhead. Coherent in motion and scale, not pixel-exact (the dome is a ray
-// projection, this is world-XZ) — right for a 2D sheet at infinity. Strength (sky_params.x) is
-// profile data gated per tier; 0 skips it. Terrain only — a tank is too small for cloud shade
-// to read as anything but a dirty hull.
-fn cloud_shadow(world: vec3<f32>) -> f32 {
-    let strength = camera.sky_params.x;
-    if (strength <= 0.0) {
-        return 1.0;
-    }
-    let drift = camera.time_params.x * camera.cloud_params.w;
-    let base_uv = world.xz * (1.35 / 400.0) * camera.cloud_params.y
-        + vec2<f32>(drift, drift * 0.6) + camera.weather_params.xy;
-    // Keep the terrain and generic-ground paths bit-identical: a warped, rotated field avoids
-    // showing value-noise interpolation cells as giant rectangles from elevated cameras.
-    let warp = vec2<f32>(
-        value_noise(base_uv * 0.73 + vec2<f32>(5.2, 1.3)),
-        value_noise(base_uv * 0.73 + vec2<f32>(1.7, 8.6)),
-    ) - vec2<f32>(0.5);
-    let uv = base_uv + warp * 0.72;
-    let rotated = vec2<f32>(uv.x * 0.83 - uv.y * 0.56, uv.x * 0.56 + uv.y * 0.83);
-    let coverage = value_noise(uv) * 0.46 + value_noise(rotated * 1.9) * 0.34
-        + value_noise(uv * 4.1 + vec2<f32>(11.4, 3.8)) * 0.2 + camera.cloud_params.x;
-    let cloud = smoothstep(0.40, 0.72, coverage);
-    return 1.0 - cloud * strength;
-}
+// Cloud shade lives in shadow_common.wgsl (the baked coverage texture at group 2) — one
+// implementation for the terrain and the generic-ground path, matched to the dome's scale
+// and clock. Terrain and statics only — a tank is too small for cloud shade to read as
+// anything but a dirty hull.
 
 // The albedo noise's analytic gradient bent into the normal, so the grain CATCHES LIGHT
 // instead of only darkening the paint. Glossier surfaces perturb less — polish is smooth.
 fn detail_normal(world: vec3<f32>, n: vec3<f32>, gloss: f32) -> vec3<f32> {
     // Interiors: machined and painted surfaces stay true to their authored normal. The
-    // reduced tier (time_params.w, F2) also keeps the authored normal — the three-sample
-    // gradient is the priciest part of the material grain for the least visible return.
+    // reduced tier (time_params.w, F2) also keeps the authored normal — the gradient
+    // is the priciest part of the material grain for the least visible return.
     if (camera.fog_params.x <= 0.0 || !detail_bit(4u)) {
         return n;
     }
-    let e = 0.35;
-    let here = value_noise(world.xz * 1.7);
-    let dx = value_noise((world.xz + vec2<f32>(e, 0.0)) * 1.7) - here;
-    let dz = value_noise((world.xz + vec2<f32>(0.0, e)) * 1.7) - here;
-    let bend = vec3<f32>(-dx, 0.0, -dz) * (0.12 / e) * clamp(1.0 - gloss, 0.35, 1.0);
+    let grain = ground_grain(world.xz);
+    let bend = vec3<f32>(-grain.y, 0.0, -grain.z) * 0.12 * clamp(1.0 - gloss, 0.35, 1.0);
     return normalize(n + bend);
 }
 
