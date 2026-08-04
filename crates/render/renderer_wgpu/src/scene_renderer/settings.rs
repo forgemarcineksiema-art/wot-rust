@@ -37,4 +37,24 @@ impl SceneRenderer {
     pub fn set_ssao_enabled(&mut self, enabled: bool) {
         self.ssao.strength = if enabled { 1.0 } else { 0.0 };
     }
+
+    /// Set the bloom ladder's mip depth for the CURRENT scene. The garage runs a modest chain
+    /// (its emissive panes and lamp faces are the point of having one — "a bit richer", the
+    /// 2026-08-04 decision); the battlefield passes its tier default back in. Scene-swap
+    /// cadence, never per frame: switching drops the ladder's targets and the post pass's
+    /// bind group so both rebuild against the new chain on the next render.
+    pub fn set_bloom_mips(&mut self, mips: u32) {
+        if self.bloom.mips == mips {
+            return;
+        }
+        self.bloom.mips = mips;
+        *self.bloom.targets.borrow_mut() = None;
+        *self.post.bind_group.borrow_mut() = None;
+    }
+
+    /// The bloom depth this renderer was born with (the quality tier's value) — what the
+    /// battlefield restores after the garage's richer chain.
+    pub fn default_bloom_mips(&self) -> u32 {
+        self.default_bloom_mips
+    }
 }

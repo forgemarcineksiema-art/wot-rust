@@ -176,4 +176,25 @@ mod tests {
             "shadow_common.wgsl must declare {expected}"
         );
     }
+
+    /// CLOUD SHADE FALLS ON EVERYTHING THE SUN LIGHTS — honesty doctrine, one sun for one world.
+    /// Terrain and statics took the cloud term from the day it shipped; vehicles did not, so a
+    /// tank sitting in a bank of moving shade stayed at full key while the field around it went
+    /// dark. Nothing in the policy asked for that; it was simply missed, which is exactly the
+    /// kind of omission a per-pass list catches and a screenshot does not.
+    #[test]
+    fn every_sunlit_pass_takes_the_cloud_shade() {
+        for (pass, source) in [
+            ("terrain", crate::scene_renderer::ground::terrain_shader_source()),
+            ("scene", crate::scene_pipeline::scene_shader_source()),
+            ("vehicle", crate::vehicle_pipeline::vehicle_shader_source()),
+        ] {
+            assert!(
+                source.contains("cloud_shadow(input.world_pos)"),
+                "the {pass} pass shades with the sun but never multiplies it by \
+                 cloud_shadow(input.world_pos) — its surfaces would ignore the cloud layer the \
+                 rest of the world obeys"
+            );
+        }
+    }
 }

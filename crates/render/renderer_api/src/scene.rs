@@ -62,12 +62,17 @@ pub struct SceneVertex {
     /// first ([0, 0] everywhere — procedural content never samples), the textured fragment
     /// path opts in with FL-2. Location 12.
     pub uv: [f32; 2],
+    /// The bounce lane (Hala 2.0, T1): baked indirect radiance — one-bounce light plus any
+    /// emissive output, **premultiplied by this vertex's albedo** so the shader adds it
+    /// straight onto the lit result. Zero everywhere by default, which keeps every existing
+    /// mesh pixel-identical; the hangar's build-time GI bake is the first writer. Location 13.
+    pub bounce: [f32; 3],
 }
 
-// The GPU vertex layout is data: 15 floats, 60 bytes. Grown ONLY by appending (locations 10
-// and 11 were the first growth, 12 the second) — every pipeline strides by `size_of`, so a
-// silent field reorder would corrupt all of them at once.
-const _: () = assert!(std::mem::size_of::<SceneVertex>() == 60);
+// The GPU vertex layout is data: 18 floats, 72 bytes. Grown ONLY by appending (locations 10
+// and 11 were the first growth, 12 the second, 13 the third) — every pipeline strides by
+// `size_of`, so a silent field reorder would corrupt all of them at once.
+const _: () = assert!(std::mem::size_of::<SceneVertex>() == 72);
 
 /// The surface-role table (Materia Świata 3): the shared language between mesh producers and
 /// the scene shader's procedural detail treatments. Roles are floats because they ride a
@@ -107,6 +112,7 @@ impl SceneVertex {
             surface: 0.0,
             sway: 0.0,
             uv: [0.0, 0.0],
+            bounce: [0.0; 3],
         }
     }
 
@@ -126,6 +132,7 @@ impl SceneVertex {
             surface: 0.0,
             sway: 0.0,
             uv: [0.0, 0.0],
+            bounce: [0.0; 3],
         }
     }
 
@@ -145,6 +152,7 @@ impl SceneVertex {
             surface: 0.0,
             sway: 0.0,
             uv: [0.0, 0.0],
+            bounce: [0.0; 3],
         }
     }
 
@@ -164,6 +172,13 @@ impl SceneVertex {
     /// else leaves the default [0, 0] and renders exactly as before.
     pub const fn with_uv(mut self, uv: [f32; 2]) -> Self {
         self.uv = uv;
+        self
+    }
+
+    /// Name the bounce lane (see `bounce`) — the hangar GI bake writes it; everything else
+    /// leaves the default zeros and renders exactly as before.
+    pub const fn with_bounce(mut self, bounce: [f32; 3]) -> Self {
+        self.bounce = bounce;
         self
     }
 }

@@ -13,6 +13,9 @@ struct VsIn {
     // The UV lane (Imported Flora 2.0, FL-1): rides mechanically at [0, 0] for all
     // procedural content; the textured foliage fragment path opts in with FL-2.
     @location(12) uv: vec2<f32>,
+    // The bounce lane (Hala 2.0, T1): baked indirect radiance premultiplied by the vertex's
+    // albedo, plus any emissive output. Zeros everywhere except GI-baked interiors.
+    @location(13) bounce: vec3<f32>,
     @location(4) model_0: vec4<f32>,
     @location(5) model_1: vec4<f32>,
     @location(6) model_2: vec4<f32>,
@@ -28,6 +31,7 @@ struct VsOut {
     @location(3) gloss: f32,
     @location(4) surface: f32,
     @location(5) uv: vec2<f32>,
+    @location(6) bounce: vec3<f32>,
 };
 
 // The foliage atlas (Imported Flora 2.0, FL-2): every scene fragment samples it at the UV
@@ -92,6 +96,8 @@ fn vs_main(input: VsIn) -> VsOut {
     out.gloss = input.gloss;
     out.surface = input.surface;
     out.uv = input.uv;
+    // Baked light is light, not paint: the team tint never touches it.
+    out.bounce = input.bounce;
     return out;
 }
 
@@ -219,7 +225,8 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     let n = detail_normal(input.world_pos, geometric_n, gloss);
     // Cloud shade rides the same channel as the cast shadow: it occludes the key (and the key's
     // specular below) without touching the ambient/fill.
-    let shadow = sun_shadow(input.world_pos, geometric_n) * cloud_shadow(input.world_pos);
+    let shadow =
+        sun_shadow(input.world_pos, geometric_n, input.clip) * cloud_shadow(input.world_pos);
     let ao = screen_ao(input.clip);
     // A named surface wears its own treatment; everything else keeps the generic detail.
     var detail = material_detail(input.world_pos, geometric_n);
@@ -232,6 +239,10 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     // Screen AO rides inside light_radiance on the indirect terms only — a sunlit crease keeps
     // its full key while its ambient/fill correctly dampens.
     var lit = albedo * light_radiance(input.world_pos, n, shadow, ao);
+    // Baked indirect radiance (Hala 2.0 GI bake): already premultiplied by albedo and already
+    // geometrically occluded by the bake's own ray casts, so it joins as a plain add — screen
+    // AO on top would double-count the very occlusion the rays measured. Zeros outdoors.
+    lit += input.bounce;
     // Specular: a Blinn lobe on the key light plus the analytic-sky reflection, both scaled by
     // the material lane. Matte (gloss 0) surfaces skip this entirely — the historical look.
     if (gloss > 0.001) {

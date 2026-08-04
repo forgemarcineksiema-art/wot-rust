@@ -31,13 +31,14 @@ impl super::SceneRenderer {
         // battlefield leaves it unset, so the box is pushed forward along the view so its coverage
         // lands on the field the chase camera looks at, not the empty ground behind it. Then build
         // the texel-snapped light matrix and pack it into the shared uniform.
+        let (near_cascade, far_cascade) = self.shadow.cascades(self.shadow_focus_radius_m);
         let focus = self.shadow_focus.unwrap_or_else(|| {
             renderer_api::forward_shadow_focus(camera_pos, view_proj, SHADOW_FORWARD_OFFSET_M)
         });
         let light_view_proj = renderer_api::sun_light_view_projection(
             self.scene_lighting.key_direction,
             focus,
-            self.shadow.params,
+            near_cascade,
         );
         // The far cascade rides the same sun, centred further out along the look. A studio shot's
         // explicit focus centres both boxes on the subject — the far box just covers more floor.
@@ -47,7 +48,7 @@ impl super::SceneRenderer {
         let light_view_proj_far = renderer_api::sun_light_view_projection(
             self.scene_lighting.key_direction,
             far_focus,
-            self.shadow.far_params,
+            far_cascade,
         );
         // The projection's Y scale (P[1][1]) survives in the view-projection's second row, whose
         // rotation part is unit length — recovered here so SSAO can convert world radii to pixels.
@@ -63,8 +64,8 @@ impl super::SceneRenderer {
             crate::FramePassParams {
                 light_view_proj,
                 light_view_proj_far,
-                shadow_params: self.shadow.shader_params(),
-                cascade_params: self.shadow.cascade_shader_params(),
+                shadow_params: self.shadow.shader_params(near_cascade),
+                cascade_params: self.shadow.cascade_shader_params(far_cascade),
                 ssao_params: [self.ssao.near, self.ssao.far, self.ssao.strength, proj_y_scale],
                 inv_render_size: [
                     1.0 / target.width.max(1) as f32,

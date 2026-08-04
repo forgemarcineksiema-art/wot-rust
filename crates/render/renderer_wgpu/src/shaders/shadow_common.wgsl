@@ -58,14 +58,23 @@ fn screen_ao(frag: vec4<f32>) -> f32 {
     return textureSampleLevel(ssao_tex, ssao_sampler, frag.xy * camera.fog_params.zw, 0.0).r;
 }
 
+// Per-pixel rotation for the reduced PCF cross (interleaved gradient noise, Jimenez 2014):
+// a unit direction whose angle has no coherent structure along any screen axis, deterministic
+// in the fragment coordinate (the golden renders stay byte-exact). Cheap pure ALU.
+fn pcf_rotation(frag_xy: vec2<f32>) -> vec2<f32> {
+    let angle = 6.2831853
+        * fract(52.9829189 * fract(dot(frag_xy, vec2<f32>(0.06711056, 0.00583715))));
+    return vec2<f32>(cos(angle), sin(angle));
+}
+
 // Two-cascade sun-shadow lookup. Only the key light is occluded; strength 0 (the capability
 // fallback) returns fully lit. Cascade selection is by containment, not split distance: a fragment
-// whose near-box UV sits inside the margin samples the crisp near map with a 3×3 PCF; everything
+// whose near-box UV sits inside the margin samples the crisp near map; everything
 // else falls through to the far cascade (terrain/static casters only, 2×2 PCF — its softness sits
 // out where the aerial haze lives). cascade_params.z < 2 disables the far lookup, and its margin
 // lane is 0 then, so a single cascade behaves exactly like the pre-cascade shadow.
 // Uses the Level sample variants so the lookup is valid outside uniform control flow.
-fn sun_shadow(world_pos: vec3<f32>, n: vec3<f32>) -> f32 {
+fn sun_shadow(world_pos: vec3<f32>, n: vec3<f32>, frag: vec4<f32>) -> f32 {
     let strength = camera.shadow_params.z;
     if (strength <= 0.0) {
         return 1.0;
@@ -81,22 +90,42 @@ fn sun_shadow(world_pos: vec3<f32>, n: vec3<f32>) -> f32 {
         let texel = camera.shadow_params.x;
         let reference = ndc.z - camera.shadow_params.y;
         var sum = 0.0;
-        // Full detail: 3×3 PCF. The reduced tier (time_params.w, F2) trims to the 2×2 core —
-        // four taps instead of nine; the far cascade below is 2×2 on every tier already.
-        var lo = -1;
-        var tap_count = 9.0;
-        if (!detail_bit(16u)) {
-            lo = 0;
-            tap_count = 4.0;
-        }
-        for (var i = lo; i <= 1; i = i + 1) {
-            for (var j = lo; j <= 1; j = j + 1) {
-                let off = vec2<f32>(f32(i), f32(j)) * texel;
-                sum = sum
-                    + textureSampleCompareLevel(shadow_map, shadow_sampler, uv + off, reference);
+        // Full detail (time_params.w, F2): the 3×3 reference kernel — nine taps straddling the
+        // fragment at ±1 texel, contiguous bilinear coverage, ~3-texel penumbra.
+        if (detail_bit(16u)) {
+            for (var i = -1; i <= 1; i = i + 1) {
+                for (var j = -1; j <= 1; j = j + 1) {
+                    let off = vec2<f32>(f32(i), f32(j)) * texel;
+                    sum = sum
+                        + textureSampleCompareLevel(
+                            shadow_map, shadow_sampler, uv + off, reference);
+                }
             }
+            return mix(1.0, sum / 9.0, strength);
         }
-        return mix(1.0, sum / tap_count, strength);
+        // Reduced tier — THE SHIPPED ONE: four taps on a cross of radius 1 texel, ROTATED PER
+        // PIXEL. The rotation is the load-bearing part. A fixed four-tap pattern spread wide
+        // enough to be soft samples a sparse lattice with holes, and that lattice PRINTS: the
+        // ±1-diagonal variant shipped briefly and every penumbra came back wearing the same
+        // woven-cloth weave (user screenshots, 2026-08-04) — plateaus wherever no tap support
+        // crossed a depth edge, diagonal ripples where it did. Rotating the cross by a per-pixel
+        // angle decorrelates neighbours, so the same four taps read as fine grain instead of
+        // fabric — grain the FXAA pass and the post dither integrate away, which no fixed
+        // lattice allows.
+        //
+        // Radius 1 texel: the taps' bilinear support reaches 1.5 texels — the same ~3-texel
+        // penumbra as the 3×3 reference — while still touching the fragment's own texel at
+        // every angle (no hole at the centre, so contact shadows keep their root). Softness
+        // matters beyond taste: a soft edge is also what stops a 6.25 cm texel from reading as
+        // a staircase, which no amount of extra resolution would fix as cheaply.
+        let rot = pcf_rotation(frag.xy);
+        let arm = rot * texel;
+        let cross_arm = vec2<f32>(-rot.y, rot.x) * texel;
+        sum = textureSampleCompareLevel(shadow_map, shadow_sampler, uv + arm, reference)
+            + textureSampleCompareLevel(shadow_map, shadow_sampler, uv - arm, reference)
+            + textureSampleCompareLevel(shadow_map, shadow_sampler, uv + cross_arm, reference)
+            + textureSampleCompareLevel(shadow_map, shadow_sampler, uv - cross_arm, reference);
+        return mix(1.0, sum / 4.0, strength);
     }
     if (camera.cascade_params.z < 2.0) {
         return 1.0;

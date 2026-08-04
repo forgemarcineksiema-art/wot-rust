@@ -17,16 +17,20 @@ fn the_uv_lane_defaults_to_zero_through_every_constructor() {
         SceneVertex::new(p, n, c).with_sway(0.7),
     ] {
         assert_eq!(vertex.uv, [0.0, 0.0], "procedural content never samples - uv stays zero");
+        assert_eq!(vertex.bounce, [0.0; 3], "unbaked content carries no indirect light");
     }
     let textured = SceneVertex::new(p, n, c).with_uv([0.25, 0.75]);
     assert_eq!(textured.uv, [0.25, 0.75], "the textured path names its coordinates");
+    let baked = SceneVertex::new(p, n, c).with_bounce([0.1, 0.2, 0.3]);
+    assert_eq!(baked.bounce, [0.1, 0.2, 0.3], "the GI bake names its radiance");
 }
 
 #[test]
 fn the_layout_grew_by_appending() {
-    // 15 floats, 60 bytes: the earlier lanes keep their offsets, uv is the tail. A reorder
+    // 18 floats, 72 bytes: the earlier lanes keep their offsets, bounce is the tail. A reorder
     // would corrupt every pipeline at once - this pins the append discipline.
-    assert_eq!(std::mem::size_of::<SceneVertex>(), 60);
+    assert_eq!(std::mem::size_of::<SceneVertex>(), 72);
+    assert_eq!(std::mem::offset_of!(SceneVertex, bounce), 60, "bounce appended after uv");
     assert_eq!(std::mem::offset_of!(SceneVertex, uv), 52, "uv appended after sway");
     assert_eq!(std::mem::offset_of!(SceneVertex, sway), 48);
     assert_eq!(std::mem::offset_of!(SceneVertex, surface), 44);

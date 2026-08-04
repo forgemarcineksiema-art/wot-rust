@@ -161,18 +161,19 @@ fn shadow_shader_is_valid_wgsl() {
 }
 
 #[test]
-fn reduced_near_shadow_pcf_normalizes_its_four_samples() {
+fn each_near_shadow_pcf_tier_normalizes_its_own_tap_count() {
+    // The two tiers are separate paths now (the reduced one rotates its cross per pixel), so
+    // each carries its own explicit normalizer — the invariant is that BOTH exist: a shared
+    // divisor would over- or under-normalize whichever tier it was not written for.
     let source = scene_shader_source();
 
-    assert!(source.contains("var tap_count = 9.0;"), "wide 3x3 PCF must normalize nine taps");
-    assert!(source.contains("tap_count = 4.0;"), "reduced 2x2 PCF must normalize four taps");
+    assert!(source.contains("sum / 9.0"), "the wide 3x3 tier must normalize its nine taps");
+    assert!(source.contains("sum / 4.0"), "the reduced tier must normalize its four taps");
+    // The reduced tier's four taps sit on the per-pixel rotated cross — the fixed sparse
+    // lattice printed a weave into every penumbra (D32), so the rotation is load-bearing.
     assert!(
-        source.contains("sum / tap_count"),
-        "near shadow visibility must use the active PCF tap count"
-    );
-    assert!(
-        !source.contains("sum / 9.0"),
-        "the reduced path must never divide four samples by nine"
+        source.contains("let rot = pcf_rotation(frag.xy);"),
+        "the reduced PCF cross must rotate per pixel"
     );
 }
 

@@ -175,9 +175,15 @@ impl SceneLighting {
         let black = self.black_point;
         let pulled = hdr.map(|c| ((aces(c) - black) / (1.0 - black)).clamp(0.0, 1.0));
         let luma = 0.2126 * pulled[0] + 0.7152 * pulled[1] + 0.0722 * pulled[2];
+        // The contrast S and its toe — see `display_grade` in lighting_common.wgsl for why the
+        // straight line had to go. `smoothstep` clamps its argument before the polynomial, and
+        // the blend runs against the UNCLAMPED saturated value, exactly as WGSL's `mix` does.
+        let k = ((self.contrast - 1.0) * 2.0).clamp(0.0, 1.0);
         pulled.map(|c| {
             let saturated = luma + (c - luma) * self.saturation;
-            ((saturated - 0.5) * self.contrast + 0.5).clamp(0.0, 1.0)
+            let t = saturated.clamp(0.0, 1.0);
+            let smooth = t * t * (3.0 - 2.0 * t);
+            (saturated + (smooth - saturated) * k).clamp(0.0, 1.0)
         })
     }
 
@@ -617,7 +623,10 @@ impl SceneLighting {
             cloud_sheet_scale: 0.0,
             storm_front_dir_rad: 0.0,
             storm_front_strength: 0.0,
-            bloom_weight: 0.03,
+            // Raised from 0.03 with the emission boost (Hala 2.0 T1a.1): the composite is
+            // `hdr + blurred * weight`, and 3% of a blurred pane was a halo of ~0.02 - nothing.
+            // At 0.07 (under the 0.10 art-direction cap) a 3.5 HDR pane carries a real glow.
+            bloom_weight: 0.07,
             vignette: 0.05,
             local_lights: [
                 LocalLight {

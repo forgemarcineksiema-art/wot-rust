@@ -43,8 +43,11 @@ const GIRT: [f32; 3] = [0.27, 0.275, 0.29];
 const GATE_FRAME: [f32; 3] = [0.145, 0.15, 0.16];
 const GATE_SLAT: [f32; 3] = [0.215, 0.22, 0.235];
 const GATE_SLAT_ALT: [f32; 3] = [0.235, 0.24, 0.255];
-/// Frosted panes high on the back wall: soft daylight, well under the lamp faces' bloom.
-const WINDOW_PANE: [f32; 3] = [0.92, 0.99, 1.08];
+/// Frosted panes high on the back wall: genuinely EMISSIVE now (Hala 2.0 T1 — any channel
+/// past 1.0 is the hall's hot-face convention), cool daylight still a step under the warm
+/// lamp faces. The GI bake spills them onto their wall and the garage's bloom chain gives
+/// them the glow five floating white rectangles never had.
+const WINDOW_PANE: [f32; 3] = [1.30, 1.42, 1.60];
 // Floor dressing: expansion joints, the worn drive lane in from the gate, and its track wear.
 const FLOOR_JOINT: [f32; 3] = [0.235, 0.23, 0.225];
 const DRIVE_LANE: [f32; 3] = [0.272, 0.265, 0.256];
@@ -114,6 +117,30 @@ pub fn hangar_shadow_focus() -> [f32; 3] {
     [0.0, TURNTABLE_TOP_M, 0.0]
 }
 
+/// The near shadow box the garage asks for, as a half-size in metres.
+///
+/// Pinning the box's CENTRE to the turntable was only half the job: its SIZE stayed the
+/// battlefield's 64 m half-box, so a 36 m room sat inside a 128 m box and the hall received 576
+/// of 2048 texels — 7.9% of the map, the other 92% spent on empty ground outside the walls. At a
+/// 14 m hero boom one 6.25 cm texel covered 8.4 screen pixels, which is what a staircased
+/// skylight shaft on the floor actually is.
+///
+/// 30 m is the smallest box that still contains the whole hall under every garage rig (the
+/// steepest, `garage_workshop`, needs 28.3 m — see `the_near_shadow_box_contains_the_whole_hall`)
+/// plus the cascade's containment margin. Tighter would sharpen the turntable further but push
+/// the far corners of the room out to the coarse far cascade, trading a staircase for a seam.
+pub fn hangar_shadow_radius_m() -> f32 {
+    30.0
+}
+
+/// The garage's bloom depth (Hala 2.0 T1): the quality table's "integrated budget" 3-mip
+/// chain, enough for pane and lamp glow. Scene data like the shadow radius above — the live
+/// garage and every offscreen review of it must read the same number, or the locked picture
+/// stops being the played picture.
+pub fn hangar_bloom_mips() -> u32 {
+    3
+}
+
 /// Interior of the hangar shell as `(half_extent_xz, height)`. Used by the CLIENT camera
 /// invariant test to prove the whole orbit range stays inside the room — cross-crate now, so
 /// it cannot hide behind cfg(test).
@@ -169,6 +196,13 @@ fn push_skylight_roof(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
 /// Build the static hangar mesh. The tank is parked at the origin on top of the turntable
 /// (`TURNTABLE_TOP_M`), so place the parked vehicle's `position.y` at that height.
 pub fn hangar_scene_mesh() -> (Vec<SceneVertex>, Vec<u32>) {
+    // The hall is static and its GI bake is honest work (a hemisphere of rays per vertex), so
+    // the whole build runs once per process and callers take a copy of the cached result.
+    static MESH: std::sync::OnceLock<(Vec<SceneVertex>, Vec<u32>)> = std::sync::OnceLock::new();
+    MESH.get_or_init(build_hangar_scene_mesh).clone()
+}
+
+fn build_hangar_scene_mesh() -> (Vec<SceneVertex>, Vec<u32>) {
     let mut v = Vec::new();
     let mut i = Vec::new();
     let h = WALL_HEIGHT / 2.0;
@@ -336,6 +370,11 @@ pub fn hangar_scene_mesh() -> (Vec<SceneVertex>, Vec<u32>) {
     super::hangar_props::push_props(&mut v, &mut i);
 
     bake_corner_shade(&mut v[furniture_start..]);
+
+    // Hala 2.0 T1: subdivide for bake resolution and gather one bounce of light into the
+    // bounce lane (see hangar_bake.rs). After the corner shade, so the bake reads final
+    // albedos; cached by `hangar_scene_mesh` because the gather is real work.
+    super::hangar_bake::bake_bounce_lane(&mut v, &mut i);
 
     (v, i)
 }
@@ -655,6 +694,75 @@ mod tests {
         assert!(x.abs() < HALF && z.abs() < HALF && y < WALL_HEIGHT);
     }
 
+    /// THE GARAGE'S SHADOW BOX IS SIZED TO THE ROOM. Two halves of one contract, because
+    /// failing either way ruins the picture:
+    ///
+    /// - too LARGE and the texels are wasted on ground outside the walls (the 64 m battlefield
+    ///   box gave the hall 7.9% of the map, and staircased every skylight shaft);
+    /// - too SMALL and the hall's own corners fall out of the near cascade onto the coarse far
+    ///   one, which trades the staircase for a visible quality seam across the walls.
+    ///
+    /// So: every corner of the hall must project INSIDE the near box (with the cascade's
+    /// containment margin to spare), under every garage light rig — and the box must still be
+    /// small enough to beat the battlefield default by a real factor.
+    #[test]
+    fn the_near_shadow_box_contains_the_whole_hall() {
+        use glam::Mat4;
+        use renderer_api::{SceneLighting, SunShadowParams, sun_light_view_projection};
+
+        let radius = hangar_shadow_radius_m();
+        let params = SunShadowParams { focus_radius_m: radius, ..SunShadowParams::default() };
+        let focus = hangar_shadow_focus();
+        // The near cascade hands a fragment to the far cascade once its UV leaves this margin
+        // (CASCADE_MARGIN_UV in renderer_wgpu's shadow.rs); in NDC that is 4% of the half-box.
+        const MARGIN_NDC: f32 = 1.0 - 2.0 * 0.02;
+
+        for rig in [
+            SceneLighting::garage_hero(),
+            SceneLighting::garage_workshop(),
+            SceneLighting::garage_studio(),
+        ] {
+            let m = Mat4::from_cols_array_2d(&sun_light_view_projection(
+                rig.key_direction,
+                focus,
+                params,
+            ));
+            for x in [-HALF, HALF] {
+                for z in [-HALF, HALF] {
+                    for y in [0.0, WALL_HEIGHT] {
+                        let clip = m * glam::Vec4::new(x, y, z, 1.0);
+                        let ndc = clip.truncate() / clip.w;
+                        assert!(
+                            ndc.x.abs() <= MARGIN_NDC && ndc.y.abs() <= MARGIN_NDC,
+                            "hall corner ({x}, {y}, {z}) falls out of the near shadow box \
+                             (ndc {ndc:?}) under key {:?} — the walls would take the far \
+                             cascade and read a seam",
+                            rig.key_direction
+                        );
+                    }
+                }
+            }
+        }
+
+        // And it is genuinely tighter than the battlefield box it replaces: same 2048² map,
+        // smaller footprint, finer texels. The numbers this whole change exists for.
+        let battlefield = SunShadowParams::default();
+        assert!(
+            radius < battlefield.focus_radius_m,
+            "a garage box no smaller than the battlefield's buys nothing"
+        );
+        let gain = battlefield.texel_world_size() / params.texel_world_size();
+        assert!(
+            gain >= 2.0,
+            "the garage box must be worth the wiring: only {gain:.1}x finer texels"
+        );
+        assert!(
+            params.texel_world_size() < 0.03,
+            "hangar texel {:.4} m regressed past 3 cm",
+            params.texel_world_size()
+        );
+    }
+
     /// The back of the frame is a CLOSED bay gate, not a glowing plate: nothing on the back
     /// wall below the seam may run brighter than the walls' own palette (the only hot
     /// emitters in the hall are the worklamp faces).
@@ -745,15 +853,25 @@ mod tests {
     }
 
     /// Every hot lamp face hangs where the `garage_hero` light rig says a light is: the pools
-    /// and the housings are twins, or the room reads as haunted.
+    /// and the housings are twins, or the room reads as haunted. The frosted panes are the one
+    /// sanctioned exception since they became emitters (Hala 2.0 T1): they are DAYLIGHT, hung
+    /// on the back wall as a bank the rig covers with its single gate pool — so they are
+    /// excused from the per-housing pairing but must still sit on that wall.
     #[test]
     fn lamp_faces_run_hot_and_hang_from_housings() {
         let (vertices, _) = hangar_scene_mesh();
         let rig = renderer_api::SceneLighting::garage_hero().local_lights;
-        let hot: Vec<_> = vertices
+        let (panes, hot): (Vec<&SceneVertex>, Vec<&SceneVertex>) = vertices
             .iter()
             .filter(|v| v.color.iter().any(|&c| c > 1.3) && v.position[1] < WALL_HEIGHT - 0.6)
-            .collect();
+            .partition(|v| v.position[2] < -(HALF - 1.0));
+        for pane in &panes {
+            assert!(
+                pane.position[1] > WALL_SEAM,
+                "a glowing pane below the seam is a lightbox again: {:?}",
+                pane.position
+            );
+        }
         assert!(hot.len() >= 6 * 4, "the lamp rig has hot faces, got {}", hot.len());
         for vertex in &hot {
             let near_light = rig.iter().any(|light| {

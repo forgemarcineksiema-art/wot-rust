@@ -235,6 +235,67 @@ fn the_battle_profile_pulls_deep_shade_to_true_black() {
 }
 
 #[test]
+fn only_the_black_point_may_produce_pure_black() {
+    // THE CONTRAST STEP IS A CURVE, NOT A CLIFF. It used to be `(x - 0.5) * contrast + 0.5`, a
+    // straight line of slope `contrast` — which drives everything below `0.5 - 0.5/contrast`
+    // negative, where the clamp turns it into pure black. At the shipped 1.12–1.15 that is a
+    // dead band reaching up to 0.054–0.065 of the post-curve range, and a hull's shaded flank
+    // lives inside it: the backlit review frame graded its median vehicle pixel from 0.068 to
+    // 0.016, with its darkest twentieth at exactly 0.000.
+    //
+    // Deep shade still reaches true black — `the_battle_profile_pulls_deep_shade_to_true_black`
+    // above stays green, because that is the BLACK POINT's job and the black point is untouched.
+    // What may not happen is a second, undeclared crush stacked on top of it. So: every radiance
+    // the black point does not eat has to come out of the grade visible.
+    let aces = |x: f32, exposure: f32| {
+        let x = x * exposure;
+        ((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14)).clamp(0.0, 1.0)
+    };
+    for (name, lighting) in [
+        ("battlefield", SceneLighting::battlefield_default()),
+        ("clear afternoon", SceneLighting::bystra_clear_afternoon()),
+        ("golden evening", SceneLighting::prokhorovka_golden_evening()),
+        ("overcast", SceneLighting::prokhorovka_overcast()),
+        ("garage hero", SceneLighting::garage_hero()),
+    ] {
+        let mut checked = 0;
+        for step in 1..=2000 {
+            let hdr = step as f32 * 0.001;
+            if aces(hdr, lighting.exposure) <= lighting.black_point + 1.0e-4 {
+                continue;
+            }
+            let graded = lighting.grade_reference([hdr; 3])[1];
+            assert!(
+                graded > 0.0,
+                "{name}: radiance {hdr} clears the black point but the grade still crushes it to \
+                 pure black — the contrast step has a cliff again"
+            );
+            checked += 1;
+        }
+        assert!(checked > 100, "{name}: the sweep must exercise the band above the black point");
+    }
+}
+
+#[test]
+fn contrast_still_separates_the_midtones_it_is_named_for() {
+    // The toe must not have cost the knob its job. `contrast` is the slope at mid grey, so
+    // raising it has to push a value below mid down and one above mid up — measured across the
+    // step, the separation must widen.
+    let mut soft = SceneLighting::battlefield_default();
+    soft.contrast = 1.0;
+    let mut hard = SceneLighting::battlefield_default();
+    hard.contrast = 1.30;
+    let separation =
+        |l: &SceneLighting| l.grade_reference([0.6; 3])[1] - l.grade_reference([0.1; 3])[1];
+    assert!(
+        separation(&hard) > separation(&soft) + 0.01,
+        "raising contrast must widen midtone separation: {:.4} vs {:.4}",
+        separation(&hard),
+        separation(&soft)
+    );
+}
+
+#[test]
 fn exposure_brightens_monotonically_before_the_curve() {
     let mut l = SceneLighting::battlefield_default();
     l.exposure = 0.8;

@@ -196,9 +196,23 @@ impl ClientApp {
             // arms live here so neither scene inherits the other's focus.
             match want {
                 SceneKind::Garage => {
-                    renderer.set_shadow_focus(Some(scene_build::hangar::hangar_shadow_focus()))
+                    renderer.set_shadow_focus(Some(scene_build::hangar::hangar_shadow_focus()));
+                    // ...and SIZE them to the room. Pinning only the centre left a 36 m hall
+                    // inside the battlefield's 128 m box, staircasing every skylight shaft.
+                    renderer.set_shadow_focus_radius_m(Some(
+                        scene_build::hangar::hangar_shadow_radius_m(),
+                    ));
+                    // The garage renders "a bit richer" (Hala 2.0, user decision 2026-08-04):
+                    // a modest bloom chain so the frosted panes and lamp faces genuinely glow.
+                    // The battlefield keeps its tier default — no fairness surface is touched.
+                    renderer.set_bloom_mips(scene_build::hangar::hangar_bloom_mips());
                 }
-                SceneKind::Battle => renderer.set_shadow_focus(None),
+                SceneKind::Battle => {
+                    renderer.set_shadow_focus(None);
+                    renderer.set_shadow_focus_radius_m(None);
+                    let tier = renderer.default_bloom_mips();
+                    renderer.set_bloom_mips(tier);
+                }
             }
             self.current_scene = want;
             self.scene_upload_dirty = false;

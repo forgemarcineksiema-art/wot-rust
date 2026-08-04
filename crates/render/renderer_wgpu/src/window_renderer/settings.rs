@@ -38,6 +38,26 @@ impl WindowRenderer {
         self.scene.shadow_focus = focus;
     }
 
+    /// Size the near shadow box to the scene: `Some(half_size_m)` for an interior, `None` for the
+    /// battlefield default. The shadow map's resolution never changes — this only stops a small
+    /// room from being covered by a box built for a 1000 m field, which is the whole difference
+    /// between 6.25 cm and 2.9 cm texels in the hangar.
+    pub fn set_shadow_focus_radius_m(&mut self, radius_m: Option<f32>) {
+        self.scene.shadow_focus_radius_m = radius_m;
+    }
+
+    /// Set the bloom mip depth for the current scene (see [`SceneRenderer::set_bloom_mips`]);
+    /// [`Self::default_bloom_mips`] is the tier value the battlefield restores.
+    ///
+    /// [`SceneRenderer::set_bloom_mips`]: crate::SceneRenderer::set_bloom_mips
+    pub fn set_bloom_mips(&mut self, mips: u32) {
+        self.scene.set_bloom_mips(mips);
+    }
+
+    pub fn default_bloom_mips(&self) -> u32 {
+        self.scene.default_bloom_mips()
+    }
+
     /// Advance the presentation clock shaders animate with (water ripple, foliage sway, weather).
     /// Tick-domain by doctrine: pass interpolated-tick seconds (whole fixed ticks + the sub-tick
     /// render phase over the tick rate), never an accumulation of render-frame deltas — a jittery

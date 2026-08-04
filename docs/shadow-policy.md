@@ -18,9 +18,19 @@ statics.
 ## Model
 
 - **Near cascade: one orthographic shadow map, sun-aligned, focused on a bounded box**
-  (`SunShadowParams`) centred on the play field. A 4096² map over a ~64 m half-box is ~3 cm/texel —
-  crisp on hatches and the gun, wide enough that the near/mid field of buildings and hillsides
-  grounds too (a halved 2048² map on integrated GPUs lands at ~6 cm, acceptably soft).
+  (`SunShadowParams`) centred on the play field. **The shipped map is 2048²** — the one-look policy
+  (2026-07-14) gives every adapter `LightingQuality::canonical()`, so the per-tier split this
+  document was written under is gone and the 4096² figure survives only in the dev-only `rich()`
+  profile. Over the battlefield's 64 m half-box that is **6.25 cm/texel**.
+- **The box is sized by the SCENE, not by the GPU** (`ShadowResources::cascades`). The resolution
+  is fixed for everyone; where its texels are aimed is not. The battlefield keeps the 64 m half-box
+  pushed 40 m along the look; the garage asks for 30 m (`hangar_shadow_radius_m`), because a 36 m
+  hall inside a 128 m box received 7.9% of the map — 576 of 2048 texels across — and staircased
+  every skylight shaft at 8.4 screen pixels per texel on a 14 m hero boom. Same texture, same
+  memory, same frame cost; 2.9 cm texels instead of 6.25. The smallest box that still contains the
+  whole hall under every garage rig is 28.3 m, and a box tighter than the room trades the
+  staircase for a cascade seam across the walls — both halves are locked by
+  `the_near_shadow_box_contains_the_whole_hall`.
 - **Far cascade** (`SunShadowParams::far_cascade`): a 4.5× box (288 m half-size) at half the
   resolution, centred ~200 m along the look, in its **own depth texture** (not an array layer —
   the two maps run at different resolutions, and array layers must share a size). Casters:
@@ -28,7 +38,7 @@ statics.
   a tank's shadow does not resolve, and vehicles beyond the near box cast nothing before either,
   so the far pass stays nearly free while hillsides and the far town finally ground. Selection is
   by **containment, not split distance**: a fragment whose near-box UV sits inside a small margin
-  samples the near map (3×3 PCF); everything else falls through to the far map (2×2 PCF), whose
+  samples the near map; everything else falls through to the far map (2×2 PCF), whose
   softness sits out where the aerial haze lives. A third cascade is deliberately absent — past the
   far box the 400 m fog fairness band owns the image. `WOT_SHADOW_CASCADES=1` drops back to the
   single near box, byte-for-byte the pre-cascade lookup.
@@ -39,8 +49,26 @@ statics.
 - **Only the key (sun) light is occluded.** Ambient (sky/ground hemisphere), fill and rim are
   indirect and stay lit: `radiance = hemi_ambient + shadow·key + fill + rim`, and the key-driven
   specular is shadowed too. Shadows deepen form without crushing the image to black.
-- **Normal-offset + a small depth bias** to kill acne without peter-panning; a **3×3 PCF** tap for
-  soft contact edges (hard shadows read "gamey").
+- **Normal-offset + a small depth bias** to kill acne without peter-panning. The offset scales with
+  the frame's texel footprint, so it follows a scene-sized box down; at ~50 cm texels it grows
+  large enough to push a receiver past a caster 1.2 m above it and the shadow disappears, which is
+  the practical floor on how coarse a box may get.
+- **PCF: the shipped tier runs four taps on a cross of radius 1 texel, rotated per pixel**
+  (interleaved gradient noise — deterministic in the fragment coordinate, so the goldens stay
+  byte-exact); the dev tier runs the contiguous 3×3 at ±1 (`PCF_WIDE` is not in `canonical()`'s
+  detail mask). The rotation is load-bearing, and its absence is a **known, user-visible
+  defect**: a fixed four-tap pattern spread wide enough to be soft samples a sparse lattice with
+  holes, and the lattice prints — the ±1-diagonal variant shipped briefly and every penumbra came
+  back wearing the same woven-cloth weave (plateaus wherever no tap support crossed a depth
+  edge). Rotating the cross decorrelates neighbours, so the same four taps read as fine grain the
+  FXAA pass and the post dither integrate away. Radius 1 texel keeps the ~3-texel penumbra of the
+  3×3 reference while the taps' bilinear support still touches the fragment's own texel at every
+  angle, so contact shadows keep their root. Softness is not a luxury here — a sun 0.53° across
+  throws a penumbra widening ~0.9 cm per metre of blocker distance, so a hard edge is wrong, and
+  a soft edge is also what stops a 6.25 cm texel from reading as a staircase. Two locks in
+  `shadow_render_frame.rs`: the weave (flat-plateau share of the penumbra — 42.0% woven against
+  8.4% rotated, bound 20%) and the centring (mirrored scenes, 0.00 px of disagreement centred
+  against 4.4 px for the old off-straddle `{0, 1}` kernel).
 
 ## Occluders
 
@@ -79,7 +107,22 @@ Per `docs/wgpu-capability-model.md`, shadow resolution / PCF scale by adapter ti
 tier falls back to **no shadow** — a 1×1 lit dummy map bound with `strength = 0`, so the bind groups
 and shaders stay valid on every tier with no branching in the pipeline layout. The mechanism (a
 `shadow_params.strength` knob and a swappable resolution) ships here; automatic tier probing is a
-tracked follow-up.
+tracked follow-up. (The tier split itself is superseded by the one-look policy — see Model above.)
+
+## Deliberately not shipped
+
+**Contact-hardening (PCSS)** — a blocker search that widens the penumbra with blocker distance, so
+a track's contact shadow stays tight while a canopy 10 m up goes soft. It is the physically right
+answer and the next real step; it is not here because it costs a second set of taps per fragment
+and the one-look policy raises a budget **per item, with a measurement on the min spec** — which
+this machine cannot produce. The cheap half of its benefit is already taken: the shipped kernel now
+carries the wide kernel's reach at four taps, which is what removes the staircase. Buy the rest
+when there is an MX330 number, not before.
+
+**Turning shadow `strength` down to make shadows gentler** — rejected on sight. It greys the shade
+instead of softening it, reads as fake, and pushes the frame-wide dark-mass debt (D4) the wrong
+way. Softness belongs in the kernel and the shade's floor belongs in the grade's toe (D27); neither
+is a reason to stop the sun being blocked.
 
 ## Tests and gates
 
@@ -91,8 +134,11 @@ tracked follow-up.
   exists); a static occluder **200 m past the shadow focus** darkens the ground beneath it —
   impossible with the single box; a `strength = 0` render matches the pre-shadow look (fallback is
   a true no-op).
-- executable budget: per-tier shadow memory is locked to exact bytes (integrated 2048²+1024² =
-  20 MB, discrete 4096²+2048² = 80 MB) in `shadow.rs` tests — moving it is a deliberate diff.
+- executable budget: shadow memory is locked to exact bytes in `quality.rs` tests — the shipped
+  canonical profile at 2048²+1024² = 20 MB, the dev-only `rich()` at 4096²+2048² = 80 MB. These
+  were the *integrated* and *discrete* tiers before the one-look policy; everyone now renders the
+  canonical one. Moving either is a deliberate diff. Note the scene-sized focus box costs nothing
+  here: it re-aims the same texels.
 - `wgsl_layout`: the camera uniform encodes at its new std140 size with both cascade matrices +
   `shadow_params`/`cascade_params`; both shaders parse with the shadow bind group at group 2.
 

@@ -144,8 +144,12 @@ pub fn render_hangar_review_views(
     let mut renderer = SceneRenderer::for_offscreen(&ctx, &hangar_vertices, &hangar_indices)?;
     renderer.scene_time_s = REVIEW_SCENE_TIME_S;
     // The orbit camera sweeps a full circle, so the battle path's forward-offset shadow heuristic
-    // would walk the boxes off the subject. Pin them to the turntable, as the garage does.
+    // would walk the boxes off the subject. Pin them to the turntable AND size them to the room,
+    // as the garage does — a review artifact shows what the game shows. Same for the garage's
+    // richer bloom chain (Hala 2.0 T1): the panes' glow is part of the locked picture.
     renderer.shadow_focus = Some(scene_build::hangar::hangar_shadow_focus());
+    renderer.shadow_focus_radius_m = Some(scene_build::hangar::hangar_shadow_radius_m());
+    renderer.set_bloom_mips(scene_build::hangar::hangar_bloom_mips());
 
     let mut catalog = crate::VehicleAssetCatalog::default();
     if let Err(error) = catalog.load_forge_artifact_tree("target/forge") {

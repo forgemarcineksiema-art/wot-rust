@@ -167,7 +167,8 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     albedo = mix(albedo, input.color, clamp(input.vertex_dominance, 0.0, 1.0));
     albedo = albedo * mix(1.0, 0.62, wet);
 
-    let shadow = sun_shadow(input.world_pos, geometric_n) * cloud_shadow(input.world_pos);
+    let shadow =
+        sun_shadow(input.world_pos, geometric_n, input.clip) * cloud_shadow(input.world_pos);
     let ao = screen_ao(input.clip);
     var lit = albedo * light_radiance(input.world_pos, n, shadow, ao);
     if (gloss > 0.001) {
