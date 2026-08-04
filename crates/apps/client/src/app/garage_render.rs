@@ -46,19 +46,22 @@ impl ClientApp {
             projection.far_plane_m(),
         );
 
-        // While a vehicle switch rolls the new tank in from the doorway, animate its position down
-        // the entry lane and scroll its tracks with the travelled distance; once parked both are 0.
-        let (drive_z, track_m) = self.garage.drive_in_pose();
+        // While a vehicle switch rolls the new tank in from the doorway, animate its pose down
+        // the entry lane — the hull FACES the lane while it travels and pivot-turns to the hero
+        // pose on the mark (see `drive_in.rs`) — and scroll each track with its own travelled
+        // distance (the pivot runs them in opposite directions). Once parked: hero pose, still.
+        let pose = self.garage.drive_in_pose();
         let mut snapshot = garage_preview_snapshot(self.garage.selected_vehicle());
-        snapshot.position[2] = drive_z;
+        snapshot.position[2] = pose.z;
+        snapshot.yaw_rad = pose.yaw_rad;
         let variation = VehicleVariation::from_snapshot(&snapshot);
         let mut objects = tank_vehicle_render_objects_with_tracks(
             &mut self.vehicle_asset_catalog,
             &snapshot,
             [0.72, 0.76, 0.62],
             &variation,
-            track_m,
-            track_m,
+            pose.track_left_m,
+            pose.track_right_m,
         );
         // Stretch the gun submesh (objects: [hull, turret, gun]) along its barrel axis so swapping
         // to a longer/shorter gun visibly changes the silhouette. Local +Z is the barrel direction.
@@ -75,7 +78,7 @@ impl ClientApp {
 
         // Dust streams off the tracks while the tank rolls in; the pool ages out once it parks.
         if self.garage.poll_drive_dust() {
-            self.fx.track_dust(Vec3::new(0.0, 0.0, drive_z - 3.0));
+            self.fx.track_dust(Vec3::new(0.0, 0.0, pose.z - 3.0));
         }
         self.fx.tick(dt);
         let fx_vertices =

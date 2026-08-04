@@ -196,6 +196,16 @@ impl ClientApp {
     /// full power screams, one coasting downhill hums.
     fn player_engine_audio_state(&self, in_garage: bool) -> (f32, f32, f32, bool) {
         if in_garage {
+            // The hangar is not deaf: while the freshly picked tank rolls in (or pivots to
+            // park), its engine is the loudest thing in the hall — the roll-in used to be
+            // MUTE, a 36-tonne tank arriving in silence. rpm follows the track speed, so the
+            // bed swells down the lane, growls through the pivot, and dies on the mark; the
+            // parked hall stays engine-off exactly as before.
+            let track_speed = self.garage.drive_in_track_speed_mps();
+            if track_speed > 0.05 {
+                let rpm_norm = (track_speed / 12.0).clamp(0.25, 1.0);
+                return (rpm_norm, 0.6, track_speed, true);
+            }
             return (0.0, 0.0, 0.0, false);
         }
         let alive = self.player_hud_hit_points() > 0;
