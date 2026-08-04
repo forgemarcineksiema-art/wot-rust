@@ -76,6 +76,36 @@ MapBlueprint(
                 apply: Subtract,
                 terms: [Gauss2Term(x: 830.0, z: 500.0, sx: 12.0, sz: 14.0, amp: 7.0), Gauss2Term(x: 830.0, z: 270.0, sx: 12.0, sz: 10.0, amp: 7.0), Gauss2Term(x: 830.0, z: 730.0, sx: 12.0, sz: 10.0, amp: 7.0)],
             ),
+            // Teren C4 (the dossier's own TODO): the berm "reads gently from deep east" -
+            // so the east foot gets the BORROW DITCH every real embankment is dug from,
+            // broken at the three gates the way real ditches break at crossings (two
+            // mirrored pairs). The 0.9 m cut deepens the toe, the drainage rule wets it
+            // into the dark line under the fill, and the berm reads taller from the east
+            // farmland by contrast - form, then materia, no new mechanism.
+            Stroke(StrokeSpec(
+                points: [(848.0, 70.0), (848.0, 240.0)],
+                profile: Valley(depth_m: 0.9),
+                half_width_m: 4.0,
+                falloff_m: 7.0,
+            )),
+            Stroke(StrokeSpec(
+                points: [(848.0, 760.0), (848.0, 930.0)],
+                profile: Valley(depth_m: 0.9),
+                half_width_m: 4.0,
+                falloff_m: 7.0,
+            )),
+            Stroke(StrokeSpec(
+                points: [(848.0, 310.0), (848.0, 460.0)],
+                profile: Valley(depth_m: 0.9),
+                half_width_m: 4.0,
+                falloff_m: 7.0,
+            )),
+            Stroke(StrokeSpec(
+                points: [(848.0, 540.0), (848.0, 690.0)],
+                profile: Valley(depth_m: 0.9),
+                half_width_m: 4.0,
+                falloff_m: 7.0,
+            )),
             ClampMin(0.2),
         ],
     ),

@@ -229,7 +229,7 @@ fn the_splat_bake_is_texel_identical_to_its_golden() {
         (MapId::ProkhorovkaHill252_2, 0xb61e_5715_f3e5_3cda_u64, 0xd510_1fd3_8cfb_461d_u64),
         (MapId::BystraValley, 0x784f_7027_fd7a_47ac, 0xff3d_ff4c_3740_6c61),
         (MapId::OrlinyPereval, 0x2190_5581_e680_a62a, 0x6e4c_4dfb_0d92_aa12),
-        (MapId::Ostrogorsk, 0x05aa_aa18_21ca_2043, 0x2b5d_0b7e_63b5_2aa9),
+        (MapId::Ostrogorsk, 0x4b6a_1ab6_9add_dbd8, 0xac6e_0948_2b47_9e51),
     ] {
         let maps = bake_terrain_ground_maps(&map_forge::battlefield(map));
         assert_eq!(splitmix_hash(&maps.splat), splat, "{map:?} splat");
