@@ -102,6 +102,56 @@ pub(crate) fn vegetation_weight(maps: &TerrainGroundMaps, x: f32, z: f32) -> f32
     (u32::from(maps.splat[index]) + u32::from(maps.splat[index + 1])) as f32 / total as f32
 }
 
+/// How hard a candidate is pulled toward its nearest clump centre (D7). A convex lerp
+/// between two in-cell points, so a pulled candidate NEVER leaves its cell — the per-cell
+/// determinism and phase-sweep contracts hold by construction.
+pub(crate) const CLUMP_PULL: f32 = 0.55;
+/// Baldness threshold: where the low-frequency meadow noise dips below this, nothing grows
+/// — real fields hold bare patches, not a uniform carpet. Redistribution, not addition:
+/// budgets and candidate counts stay exactly what they were.
+pub(crate) const BALD_CUT: f32 = 0.24;
+
+/// 2–3 deterministic clump centres per cell, in cell-local metres. Always draws the same
+/// number of lanes from the seed stream, so the candidate stream after it never shifts.
+pub(crate) fn clump_centres(seed: &mut u64) -> ([(f32, f32); 3], usize) {
+    let count = if game_core::math::next_hash_unit(seed) < 0.5 { 2 } else { 3 };
+    let mut centres = [(0.0, 0.0); 3];
+    for centre in &mut centres {
+        *centre = (
+            game_core::math::next_hash_unit(seed) * CELL_M,
+            game_core::math::next_hash_unit(seed) * CELL_M,
+        );
+    }
+    (centres, count)
+}
+
+/// Pull a cell-local candidate toward its nearest centre.
+pub(crate) fn pull_toward_clump(
+    x: f32,
+    z: f32,
+    centres: &[(f32, f32); 3],
+    count: usize,
+) -> (f32, f32) {
+    let mut nearest = centres[0];
+    let mut best = f32::INFINITY;
+    for &(cx, cz) in &centres[..count] {
+        let d = (x - cx).hypot(z - cz);
+        if d < best {
+            best = d;
+            nearest = (cx, cz);
+        }
+    }
+    (x + (nearest.0 - x) * CLUMP_PULL, z + (nearest.1 - z) * CLUMP_PULL)
+}
+
+/// The meadow's baldness field: low-frequency world-anchored noise. Sample it at the
+/// FOLDED z (`z.min(extent_z - z)`) — the card meadow mirrors its south-half decisions
+/// north, and the near ring samples true positions; without the fold the two systems'
+/// bare patches would disagree across the axis and pop against each other.
+pub(crate) fn meadow_baldness(x: f32, z_folded: f32) -> f32 {
+    terrain::value_noise(x / 31.0, z_folded / 31.0)
+}
+
 /// Build the stable grass population cached around `eye`. Every cell owns exactly one candidate
 /// sequence; local splat acceptance, terrain, water and craters may remove candidates, but the
 /// eye never changes their rank, size or transform. The shader performs the visible 34–48 m
@@ -115,6 +165,7 @@ pub fn grass_frame_objects(
     eye: Vec3,
 ) -> Vec<RenderObject> {
     let mut objects = Vec::with_capacity(MAX_GRASS_INSTANCES);
+    let extent_z = heightmap.extent_m()[1];
     let min_cx = ((eye.x - GRASS_CACHE_RADIUS_M) / CELL_M).floor() as i32;
     let max_cx = ((eye.x + GRASS_CACHE_RADIUS_M) / CELL_M).floor() as i32;
     let min_cz = ((eye.z - GRASS_CACHE_RADIUS_M) / CELL_M).floor() as i32;
@@ -135,6 +186,8 @@ pub fn grass_frame_objects(
             // The cell's own dryness lane: tufts lean grass or straw per plot, echoing the
             // shader's field quilt without resampling it.
             let cell_dry = game_core::math::next_hash_unit(&mut seed);
+            // D7: grass grows in CLUMPS around 2–3 hash centres, not uniformly at random.
+            let (centres, centre_count) = clump_centres(&mut seed);
             let origin = Vec3::new(cx as f32 * CELL_M, 0.0, cz as f32 * CELL_M);
             // Craters whose kill zone can touch this cell — usually none, so the per-tuft
             // test costs nothing on virgin ground.
@@ -151,14 +204,24 @@ pub fn grass_frame_objects(
                 })
                 .collect();
             for _ in 0..CELL_TUFT_CANDIDATES {
-                let x = origin.x + game_core::math::next_hash_unit(&mut seed) * CELL_M;
-                let z = origin.z + game_core::math::next_hash_unit(&mut seed) * CELL_M;
+                let raw_x = game_core::math::next_hash_unit(&mut seed) * CELL_M;
+                let raw_z = game_core::math::next_hash_unit(&mut seed) * CELL_M;
                 let yaw = game_core::math::next_hash_unit(&mut seed) * std::f32::consts::TAU;
                 let size = 1.0 + game_core::math::next_hash_unit(&mut seed) * 0.6;
                 let tone = game_core::math::next_hash_unit(&mut seed);
                 let vegetation_lane = game_core::math::next_hash_unit(&mut seed);
+                // The pull is a convex combination of two in-cell points — the candidate
+                // stays in its cell, so every per-cell contract survives unchanged.
+                let (local_x, local_z) = pull_toward_clump(raw_x, raw_z, &centres, centre_count);
+                let x = origin.x + local_x;
+                let z = origin.z + local_z;
                 let flat = Vec3::new(x - eye.x, 0.0, z - eye.z).length();
                 if flat > GRASS_CACHE_RADIUS_M {
+                    continue;
+                }
+                // Bare patches: redistribution, not addition — the candidate budget stays
+                // 28, the meadow just refuses the low-noise ground.
+                if meadow_baldness(x, z.min(extent_z - z)) < BALD_CUT {
                     continue;
                 }
                 // Vegetation is sampled at the candidate, not at the 8 m cell centre. The
@@ -269,6 +332,81 @@ mod tests {
 
     fn flat_ground() -> HeightMap {
         HeightMap::flat(65, 65, 4.0, 1.0).expect("flat map")
+    }
+
+    fn mean_nearest_neighbour(points: &[(f32, f32)]) -> f32 {
+        let mut total = 0.0;
+        for (i, &(x, z)) in points.iter().enumerate() {
+            let mut best = f32::INFINITY;
+            for (j, &(ox, oz)) in points.iter().enumerate() {
+                if i != j {
+                    best = best.min((x - ox).hypot(z - oz));
+                }
+            }
+            total += best;
+        }
+        total / points.len() as f32
+    }
+
+    #[test]
+    fn tufts_clump_instead_of_scattering_uniformly() {
+        // D7's closing lock, in the Clark–Evans direction: clumping pulls the MEAN
+        // nearest-neighbour distance well under the uniform-Poisson expectation
+        // (0.5 / sqrt(density)). Variance would be the wrong statistic — clustered points
+        // can move it either way.
+        let ground = flat_ground();
+        let eye = Vec3::new(128.0, 3.0, 128.0);
+        let materials = TerrainMaterialSet::default();
+        let grown = grass_frame_objects(&ground, None, &[], &full_veg_maps(256.0), &materials, eye);
+        let tufts: Vec<(f32, f32)> = grown
+            .iter()
+            .map(|object| (object.transform[3][0], object.transform[3][2]))
+            .filter(|(x, z)| (x - eye.x).hypot(z - eye.z) < 40.0)
+            .collect();
+        assert!(tufts.len() > 400, "enough tufts for the statistic: {}", tufts.len());
+        let density = tufts.len() as f32 / (std::f32::consts::PI * 40.0 * 40.0);
+        let uniform_expectation = 0.5 / density.sqrt();
+        let clumped = mean_nearest_neighbour(&tufts);
+        assert!(
+            clumped < 0.85 * uniform_expectation,
+            "the field must clump (mean NN {clumped:.3} vs uniform {uniform_expectation:.3})"
+        );
+    }
+
+    #[test]
+    fn the_meadow_holds_bald_patches_and_stays_lush_around_them() {
+        // Where the low-frequency noise dips, NOTHING grows — a whole cell stands bare
+        // while the field around it keeps its budgeted density. The test lets the field's
+        // own rule NAME a bald cell first (all five probes under the cut), then demands
+        // the meadow honored it. If baldness ever silently disappears, the finder fails
+        // loudly — that is the lock.
+        let ground = flat_ground();
+        let extent_z = ground.extent_m()[1];
+        let bald = (2..30)
+            .flat_map(|cz| (2..30).map(move |cx| (cx, cz)))
+            .find(|&(cx, cz): &(i32, i32)| {
+                let x0 = cx as f32 * CELL_M;
+                let z0 = cz as f32 * CELL_M;
+                [(0.0, 0.0), (CELL_M, 0.0), (0.0, CELL_M), (CELL_M, CELL_M), (4.0, 4.0)].iter().all(
+                    |&(dx, dz)| {
+                        let z = z0 + dz;
+                        meadow_baldness(x0 + dx, z.min(extent_z - z)) < BALD_CUT
+                    },
+                )
+            })
+            .expect("a 256 m field holds at least one fully bald cell");
+        let eye = Vec3::new((bald.0 as f32 + 0.5) * CELL_M, 3.0, (bald.1 as f32 + 0.5) * CELL_M);
+        let materials = TerrainMaterialSet::default();
+        let grown = grass_frame_objects(&ground, None, &[], &full_veg_maps(256.0), &materials, eye);
+        let inside_bald = grown.iter().any(|object| {
+            (object.transform[3][0] / CELL_M).floor() as i32 == bald.0
+                && (object.transform[3][2] / CELL_M).floor() as i32 == bald.1
+        });
+        assert!(!inside_bald, "nothing grows in the bald cell at {bald:?}");
+        // The eye is parked ON the hole, so this window reads balder than any real camera
+        // ever will — the every-phase density floor lives in the cache-sweep test. Here the
+        // lock is only that a hole is a HOLE in a field, not a dead map.
+        assert!(grown.len() > 2000, "the field around the holes stays alive: {}", grown.len());
     }
 
     #[test]
@@ -529,7 +667,10 @@ mod tests {
                 );
             }
         }
-        assert!(floor > 3_800, "lush cache stays visually dense at every phase: {floor}");
+        // Renegotiated for D7 (teren A4): visible bald patches ARE the feature, and a floor
+        // of 3 800 was arithmetically incompatible with ~10 % baldness on a 28-candidate
+        // budget. The field must still read dense — just not carpet-uniform.
+        assert!(floor > 3_300, "lush cache stays visually dense at every phase: {floor}");
         assert!(peak < MAX_GRASS_INSTANCES, "lush cache keeps explicit headroom: {peak}");
     }
 
