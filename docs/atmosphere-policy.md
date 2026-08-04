@@ -101,6 +101,12 @@ linear colour/intensity. `ground_ambient_rgb` is the only new profile field for 
   outcomes. A late joiner reconstructs the same visual phase without replicating per-frame weather.
 - Surface wetness and standing-water fill are separate presentation lanes. Natural basins are map
   truth; the timeline only fills and drains them, never creates collision water or gameplay depth.
+- **Structural ground moisture is NOT weather.** The drainage the heightfield collects
+  (`terrain::FlowField`, folded into `terrain::GroundClassifier`) is map truth like the basins
+  above: static per map, independent of the timeline, and it drives BOTH the picture and the
+  drive — the splat darkens the drainage lines the tracks drag through, one rule for the eye and
+  the running gear. Weather wetness stays a presentation lane forever; the moisture that changes
+  how ground drives comes only from the map itself.
 - Surface narrative (edge wear, cavity dirt, weld beads — the "Surface Field" system) is a **separate
   policy**. Atmosphere lights the surface; it does not author it. The two meet at the vehicle vertex,
   which gains an ambient-occlusion channel so per-vehicle contact AO reaches the lit shader.

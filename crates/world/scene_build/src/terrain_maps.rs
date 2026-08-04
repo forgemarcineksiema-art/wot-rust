@@ -19,6 +19,11 @@ const MAP_SIZE: u32 = 1024;
 /// sheen from exposing the simulation grid when a grazing camera catches the reflected sky.
 const PUDDLE_BLUR_RADIUS_TEXELS: usize = 6;
 
+/// How much of the drainage wetness (the classifier's flow lane) reaches the pooling alpha:
+/// a saturated drainage line glosses at half strength, so cieki catch the sky without
+/// reading as standing water. Composed by MAX with the flatness/basin term, then blurred.
+const FLOW_PUDDLE_GAIN: f32 = 0.5;
+
 fn pooling_smoothstep(edge0: f32, edge1: f32, value: f32) -> f32 {
     let t = ((value - edge0) / (edge1 - edge0)).clamp(0.0, 1.0);
     t * t * (3.0 - 2.0 * t)
@@ -131,7 +136,12 @@ impl<'a> GroundBakeContext<'a> {
                     + self.height_at(wx, wz + basin_radius_m))
                     * 0.25;
                 let basin = pooling_smoothstep(-0.12, 0.18, neighbour_mean - y);
-                puddle_propensity.push(flatness * (0.82 + basin * 0.18));
+                // Pooling comes from the stronger of two truths: local flatness/basin, or
+                // the drainage line the classifier's flow lane traces — the same MAX rule
+                // the splat's moisture uses, so gloss and tone agree on where wet is.
+                let pooling = (flatness * (0.82 + basin * 0.18))
+                    .max(self.ground.flow_wetness_at(wx, wz) * FLOW_PUDDLE_GAIN);
+                puddle_propensity.push(pooling);
                 macro_normal.extend([
                     ((n[0] * 0.5 + 0.5) * 255.0).round() as u8,
                     ((n[1] * 0.5 + 0.5) * 255.0).round() as u8,
