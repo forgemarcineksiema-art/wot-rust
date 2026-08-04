@@ -3,6 +3,8 @@
 The whole picture — not the current sprint. Program docs (urban map, destruction, fleet…)
 are execution details; THIS is what the game is and what it still owes the player.
 Release shape: buy-to-play (~20-25 EUR), 7v7, three eras, skill matchmaking from day one.
+The road to that release — builds, dates, decision gates and the numbers that end each one —
+is `docs/product-program.md`.
 
 ## The creed (why this game exists)
 
@@ -36,8 +38,10 @@ tests. It does not mean final art polish; where finish varies, the partial list 
   procedural audio (DSP, speed-of-sound delay), garage with workshop UX, full battle HUD,
   frame-time p50/p95/p99 measurement backing the one-look budget.
 - **Sim/net foundation**: deterministic fixed tick, authoritative headless server, protocol
-  snapshots (v43 — breaches v39, `ShotFired` as a replicated fact v41, cook-off staging v42,
-  rack countdown on the wire v43), replay regression, bots with routes/fire discipline, 7v7
+  snapshots (**wire v45** — breaches v39, `ShotFired` as a replicated fact v41, cook-off
+  staging v42, rack countdown v43, a third-party projectile's owner withheld from a viewer
+  who has not spotted the shooter v44, the battle clock on the wire v45), replay regression,
+  bots with routes/fire discipline, 7v7
   mode. Remote input
   has epoch-safe reconnect, lightweight ACKs, snapshot-aligned prediction replay, and a terminal
   gameplay gate that freezes prediction on outcome/timeout/stalled world state instead of
@@ -53,29 +57,36 @@ tests. It does not mean final art polish; where finish varies, the partial list 
 - Map rotation & per-map bot battle tests (only Orliny has one).
 - Human playtesting: the maps have never met a second human.
 
-**MISSING toward release** (the honest gap list — the master plan's waves W1-W5):
-1. **Production networking hardening (W1)**: the dedicated UDP path, lossy lifecycle,
-   epoch-safe reconnect and client prediction work today. Still missing are public-session
+**MISSING toward release** (the honest gap list; dates and thresholds now live in
+`docs/product-program.md`):
+1. **Production networking hardening**: the dedicated UDP path, lossy lifecycle, epoch-safe
+   reconnect and client prediction work today. Still missing are public-session
    discovery/relay, player authentication, beta-validated lag compensation, cheating posture
-   and dedicated-server operations. A production program covering this list is pending as
-   PR #431 (`docs/multiplayer-production-program.md`).
-2. **Meta & matchmaking (W3)**: OpenSkill-based MM, sessions/lobbies, player identity,
-   progression that respects the no-grind creed, garage economy (module unlocks without
-   pay-to-win), stats.
-3. **Content breadth (W2/W4)**: more vehicles per era/nation, 2-3 more maps, game modes
-   beyond the single 7v7 skirmish.
-4. **Product shell (W5)**: settings/keybinds UI, localization (PL/EN), onboarding/tutorial,
-   packaging/installer, crash reporting, store presence, trailers/devlogs, NAME of the game.
+   and dedicated-server operations — the register and wave plan are in
+   `docs/multiplayer-production-program.md`.
+2. **Meta & matchmaking**: OpenSkill-based MM, sessions/lobbies, player identity, and a
+   record that a battle happened at all (today the game keeps none). Progression is **proof,
+   never power**: no XP, no credits, no research, and no module unlocks — modules carry real
+   stat deltas, so gating them behind time would be power behind time, which the creed
+   forbids. The design is `docs/product-program.md` §6.
+3. **Content breadth**: more vehicles per era/nation (Era I is an empty bracket and Britain
+   has one tank), 2-3 more maps, game modes beyond the single 7v7 skirmish.
+4. **Product shell**: settings/keybinds UI, localization (PL/EN — the glyph atlas bakes ASCII
+   only today), onboarding/tutorial, packaging/installer, crash reporting, store presence,
+   trailers/devlogs, NAME of the game.
 5. **Audio/presentation polish**: voice-over callouts, music, more FX variety.
 
 ## How work is organized
 
 Programs of small PRs (1 branch = 1 PR), local `scripts/verify.ps1` as the only merge gate,
-every feature landing with a locking test. Current program status lives in
-`docs/battle-first/program.md`; completed program docs stay as doctrine. Master plan:
-**W0 foundations → W1 network → W2 content → W3 meta → W4 new content → W5 release** —
-W0-level foundations are effectively done; the center of gravity should now shift toward
-W1 (network) and W3 (meta), which no amount of map polish substitutes for. Two programs are
-on pending PRs: **world scale** (#430, `docs/world-scale-program.md` — the world reads too
-small, the standing user verdict) and **multiplayer production** (#431 — the road to Steam
-multiplayer).
+every feature landing with a locking test. Current battle work lives in
+`docs/battle-first/program.md`; completed program docs stay as doctrine.
+
+**`docs/product-program.md` is the plan above all of them** (approved 2026-08-04): it holds
+the release ladder — a closed playtest, a demo at Next Fest, then Early Access — the three
+named builds, the go-to-market track, the honest-retention design that replaces grind, and
+the first numeric release criteria this project has written down. The other programs keep
+their own documents; that one sequences them against dates. The open picture work is
+`docs/art-direction-program.md`, `docs/world-scale-program.md` (the world reads too small —
+a standing user verdict) and `docs/hala-2-program.md`, and it is now on the marketing
+critical path, because a store page is made of frames.
