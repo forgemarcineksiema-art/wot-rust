@@ -46,6 +46,10 @@ impl ClientApp {
         // Like the fire latch: the switch request rides exactly one command (the batch's first).
         let mut select_ammo = self.input.pending_ammo_select.take();
         for _ in 0..count {
+            // The post-deploy shield window counts down in sim time; the gate itself sits at
+            // the mouse-press latch in `on_battle_mouse_press` (see `DEPLOY_FIRE_SHIELD_TICKS`).
+            self.input.deploy_fire_shield_ticks =
+                self.input.deploy_fire_shield_ticks.saturating_sub(1);
             if !self.session.prepare_player_tick() {
                 // Keep pumping/rendering, camera look and G-to-garage alive, but stop inventing
                 // authoritative motion. Retire one-shot edges rather than firing them next match.

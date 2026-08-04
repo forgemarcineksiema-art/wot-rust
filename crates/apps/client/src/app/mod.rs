@@ -352,6 +352,12 @@ impl ClientApp {
     }
 }
 
+/// Fixed ticks the trigger stays shielded after deploying from the garage: 30 ticks at 60 Hz
+/// covers the Windows double-click window (500 ms). The second press of a double-click on
+/// BATTLE lands after the garage has already closed and latched `fire_pending` — without the
+/// shield it fired the battle's very first tick.
+pub(crate) const DEPLOY_FIRE_SHIELD_TICKS: u32 = 30;
+
 #[derive(Default)]
 pub(crate) struct InputState {
     forward: bool,
@@ -362,6 +368,8 @@ pub(crate) struct InputState {
     mouse_dx: f32,
     mouse_dy: f32,
     fire_pending: bool,
+    /// Fixed ticks left of the post-deploy trigger shield (see [`DEPLOY_FIRE_SHIELD_TICKS`]).
+    deploy_fire_shield_ticks: u32,
     /// Ammo slot requested with 1/2/3 this frame, consumed once by the next fixed-tick batch.
     pending_ammo_select: Option<u8>,
     free_look: bool,
@@ -398,6 +406,9 @@ impl PauseMenuState {
 
 pub(crate) struct ClientApp {
     window: Option<Arc<Window>>,
+    /// Mirror of the cursor grab this app last requested — the testable half of
+    /// `set_cursor_captured` (a headless test has no window to ask about the real grab).
+    cursor_captured: bool,
     renderer: Option<WindowRenderer>,
     loop_driver: WinitLoopDriver,
     last_loop_time: Instant,
@@ -676,6 +687,7 @@ impl ClientApp {
         Self {
             ground: terrain::GroundClassifier::new(&battlefield),
             window: None,
+            cursor_captured: false,
             renderer: None,
             loop_driver: WinitLoopDriver::new(DEFAULT_SIMULATION_TICK_HZ),
             last_loop_time: Instant::now(),
