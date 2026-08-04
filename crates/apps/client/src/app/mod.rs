@@ -304,6 +304,10 @@ impl ClientApp {
         self.minimap_static = minimap;
         self.predictor.set_water(battlefield.water);
         self.camera_controller = BattleCameraController::new(Self::map_camera_settings(map));
+        // The ground rule is per-map (roads, water, height stats, drainage). Before this
+        // line existed the predictor kept gripping by the PREVIOUS map's classifier after
+        // a swap — locked by `adopting_a_map_rebuilds_the_ground_rule`.
+        self.ground = terrain::GroundClassifier::new(&battlefield);
         self.battlefield = battlefield;
         // Everything keyed to the old world is void: the cached bake, the bakes in flight (their
         // worker holds a clone of the previous battlefield), and the ledgers those bakes diff
@@ -630,6 +634,9 @@ impl ClientApp {
         )
         .unwrap_or_else(|| live_cover::LiveCoverCache::from_born_phases(&battlefield.static_cover));
         app.minimap_static = crate::app::minimap_build::minimap_static_layers(&battlefield);
+        // Same per-map ground rule refresh as `adopt_session_map` — the config template the
+        // app was built from may name a different map than the session does.
+        app.ground = terrain::GroundClassifier::new(&battlefield);
         app.battlefield = battlefield;
         app.live_cover = live_cover;
         app.player_tank = player_tank;

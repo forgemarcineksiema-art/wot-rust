@@ -23,6 +23,10 @@ it is the renderer and the bakes. Sim-side optimisation is wasted work.
 scene bake (ground+statics):      232.9 ms   (ground 56 277 v / 331 464 i;
                                               statics 362 480 v / 538 176 i)
 ground maps bake (splat+macro):   107.6 ms
+flow field (D8, teren A1):          5.1 ms   (release, Bystra 201²; once per
+                                              GroundClassifier construction —
+                                              battle setup / bake / client, never
+                                              per frame; sort dominates)
 water mesh:                         0.7 ms   (2 350 v)
 statics rebuild (cover collapse):  27.9 ms
 statics rebuild (single collapse):  21.9 ms  (362 382 v)

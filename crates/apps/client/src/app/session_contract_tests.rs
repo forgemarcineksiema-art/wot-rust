@@ -502,6 +502,34 @@ fn a_mismatched_map_hash_ends_the_session_instead_of_panicking() {
 /// LOCAL play passed `reconciliation: None` and dropped it on the floor, which is the regression
 /// locked here: a local session must hand up the authoritative motion of a moving hull.
 #[test]
+fn adopting_a_map_rebuilds_the_ground_rule() {
+    // Before the fix this locks, `ClientApp.ground` was built once and never refreshed: after
+    // a map swap the predictor kept gripping by the PREVIOUS map's roads/water/drainage. The
+    // classifier must follow the battlefield it stands on, always.
+    let mut app = crate::app::ClientApp::new_seeded(7);
+    let previous = app.session.map_id();
+    let next = if previous == MapId::ProkhorovkaHill252_2 {
+        MapId::BystraValley
+    } else {
+        MapId::ProkhorovkaHill252_2
+    };
+    app.session = BattleSessionKind::Local(Box::new(LocalAuthoritativeServer::new_random_7v7(
+        ServerTickConfig::default(),
+        RandomBattleConfig {
+            seed: BattleSeed::fixed(7),
+            player_vehicle: game_core::VehicleKind::T54_1951,
+            map: next,
+        },
+    )));
+    app.adopt_session_map();
+    assert_eq!(
+        app.ground,
+        terrain::GroundClassifier::new(&app.battlefield),
+        "the predictor's ground rule must be rebuilt for the adopted map"
+    );
+}
+
+#[test]
 fn local_play_hands_the_predictor_the_authoritative_motion() {
     let server =
         LocalAuthoritativeServer::new_random_7v7(ServerTickConfig::default(), contract_battle());

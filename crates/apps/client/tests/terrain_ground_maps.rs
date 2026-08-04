@@ -189,11 +189,16 @@ fn each_map_owns_a_policy_conformant_material_set() {
 /// same diff, with the reason) or a refactor that promised to be inert was not.
 #[test]
 fn the_splat_bake_is_texel_identical_to_its_golden() {
+    // Blessed 2026-08-04 (teren A1): structural ground moisture entered the rule — the D8
+    // drainage darkens the splat's wet-earth lane and glosses the pooling alpha. Deliberate,
+    // locked in `terrain::ground` (margin caps flow) and `terrain::flow` (determinism).
+    // Orliny's NORMALS hash survived untouched: its valley floors were already fully flat in
+    // the pooling term, so the flow lane never exceeded them at u8 quantization.
     for (map, splat, normals) in [
-        (MapId::ProkhorovkaHill252_2, 0x5124_4556_6116_dafa_u64, 0x005a_3eac_ae02_f08a_u64),
-        (MapId::BystraValley, 0x4e34_1f19_bb83_6d56, 0x83a4_b469_4777_9f54),
-        (MapId::OrlinyPereval, 0x9699_5682_1414_f5bd, 0x4576_7f22_e480_fec5),
-        (MapId::Ostrogorsk, 0x4505_e21f_f799_e6ab, 0x28f1_5c8d_6b79_48eb),
+        (MapId::ProkhorovkaHill252_2, 0x88cc_1284_3757_aa9a_u64, 0x5299_c29f_e553_4cb1_u64),
+        (MapId::BystraValley, 0x61a2_4960_f9ad_f27c, 0xde43_400d_7a7a_9ca2),
+        (MapId::OrlinyPereval, 0x2190_5581_e680_a62a, 0x4576_7f22_e480_fec5),
+        (MapId::Ostrogorsk, 0x3f94_6810_187b_31bd, 0xea84_9dcf_ffb5_525e),
     ] {
         let maps = bake_terrain_ground_maps(&map_forge::battlefield(map));
         assert_eq!(splitmix_hash(&maps.splat), splat, "{map:?} splat");

@@ -18,6 +18,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::battlefield::{BattlefieldMap, Road};
+use crate::flow::FlowField;
 use crate::heightmap::HeightMap;
 
 /// How steep ground starts breaking to rock (1 - normal.y at the sampled point).
@@ -26,6 +27,11 @@ const ROCK_STEEP_START: f32 = 0.18;
 const ROCK_CREST_START: f32 = 0.72;
 /// Ground within this height above the waterline reads as worn wet earth.
 const WATER_MARGIN_M: f32 = 0.45;
+/// How much dirt full drainage wetness claims. Sized so a saturated drainage line blends
+/// to grip ≈ 0.973 / rolling resistance ≈ 1.19 — a drag a driver feels, nowhere near the
+/// regime the Bystra escape analysis below calls out. The water margin composes with flow
+/// by MAX, never sum, so the margin band itself keeps today's exact weights.
+const FLOW_DIRT_GAIN: f32 = 0.55;
 /// Texel edge the render bake uses; the classification's slope term is measured at half of one,
 /// so the rule has ONE sampling scale rather than one per reader.
 const CLASSIFY_TEXELS: f32 = 1024.0;
@@ -117,6 +123,9 @@ pub struct GroundClassifier {
     step_m: f32,
     water_level_m: Option<f32>,
     roads: Vec<Road>,
+    /// Drainage truth (see [`crate::FlowField`]): computed ONCE from the authored samples
+    /// at construction — flow is geology, craters never recompute it.
+    flow: FlowField,
 }
 
 impl GroundClassifier {
@@ -133,7 +142,14 @@ impl GroundClassifier {
             step_m: (extent_x_m / CLASSIFY_TEXELS) * 0.5,
             water_level_m: battlefield.water.map(|water| water.surface_level_m),
             roads: battlefield.roads.clone(),
+            flow: FlowField::from_heightmap(heightmap),
         }
+    }
+
+    /// The drainage wetness at a world point, for readers that want the raw lane (the bake
+    /// composes it into the puddle-propensity alpha). The weights below already fold it in.
+    pub fn flow_wetness_at(&self, x: f32, z: f32) -> f32 {
+        self.flow.wetness_at(x, z)
     }
 
     fn height_at(&self, heightmap: &HeightMap, x: f32, z: f32) -> f32 {
@@ -176,7 +192,14 @@ impl GroundClassifier {
             .water_level_m
             .map(|level| (1.0 - (height_m - level).abs() / WATER_MARGIN_M).clamp(0.0, 1.0))
             .unwrap_or(0.0);
-        let dirt = (road + margin * 0.85).clamp(0.0, 1.0);
+        // Wet earth comes from the stronger of two truths: the waterline margin, or the
+        // drainage the heightfield collects (docs/atmosphere-policy.md, structural ground
+        // moisture). MAX, not sum — wherever the margin already dominates, the weights are
+        // bit-identical to the pre-flow rule, which is the armor the Bystra escape (above)
+        // stands on.
+        let moisture = self.flow.wetness_at(x, z);
+        let wet = (margin * 0.85).max(moisture * FLOW_DIRT_GAIN);
+        let dirt = (road + wet).clamp(0.0, 1.0);
 
         let remaining = (1.0 - rock).max(0.0) * (1.0 - dirt).max(0.0);
         let patch = grass_patchwork_noise(x, z);
@@ -278,6 +301,91 @@ mod tests {
         assert!(rock.rolling_resist_scale < 1.0, "and rolls easiest");
         assert_eq!(rock.rut_depth_m, 0.0, "nothing marks rock");
         assert!(dirt.rut_depth_m > GroundMaterial::Grass.properties().rut_depth_m);
+    }
+
+    fn synthetic_battlefield(
+        heightmap: crate::HeightMap,
+        water_level_m: Option<f32>,
+    ) -> BattlefieldMap {
+        BattlefieldMap {
+            id: "test".into(),
+            name: "test".into(),
+            size_m: heightmap.extent_m(),
+            historical_basis: String::new(),
+            design_notes: vec![],
+            heightmap,
+            water: water_level_m.map(|level| crate::WaterBody { surface_level_m: level }),
+            river: None,
+            spawn_zones: vec![],
+            capture_zones: vec![],
+            strategic_points: vec![],
+            features: vec![],
+            static_cover: vec![],
+            scenery: vec![],
+            roads: vec![],
+        }
+    }
+
+    #[test]
+    fn a_drainage_line_pulls_the_ground_toward_wet_earth() {
+        // A tilted valley: the trough collects the whole slope, the shoulder only its own
+        // strip. The rule must read more worn wet earth in the trough — this is the lock
+        // on structural ground moisture reaching BOTH the splat and the drive.
+        let battlefield = synthetic_battlefield(
+            // A V-valley: cross-slope 0.08 beats the down-valley 0.01, so the shoulders
+            // converge into the trough and the trough earns real catchment.
+            crate::heightmap_from_fn(101, 5.0, |x, z| 20.0 + (x - 250.0).abs() * 0.08 - z * 0.01),
+            None,
+        );
+        let classifier = GroundClassifier::new(&battlefield);
+        let trough = classifier.weights_at(&battlefield.heightmap, 250.0, 400.0);
+        let shoulder = classifier.weights_at(&battlefield.heightmap, 125.0, 400.0);
+        assert!(
+            trough[2] > shoulder[2] + 0.1,
+            "the trough must read wetter than its shoulder (dirt {} vs {})",
+            trough[2],
+            shoulder[2]
+        );
+    }
+
+    #[test]
+    fn the_water_margin_caps_flow_instead_of_stacking_on_it() {
+        // Two shoreline points at the SAME height over the waterline — one fed by a wet
+        // gully, one on a plain slope. The margin term dominates both (max, not sum), so
+        // their weights must be identical even though their drainage differs. This is the
+        // armor the fragile Bystra escape stands on: flow never deepens the margin band.
+        let battlefield = synthetic_battlefield(
+            // A V-notch gully (walls 0.05) cut into a plain tilted 0.02 toward z=500: the
+            // walls converge flow onto the gully axis, the plain sheds parallel strips.
+            // Both probe points sit on exact grid nodes at the waterline height, so the
+            // margin term saturates identically on both.
+            crate::heightmap_from_fn(101, 5.0, |x, z| {
+                let notch = (2.5 - (x - 125.0).abs() * 0.05).max(0.0);
+                0.02 * (500.0 - z) - notch
+            }),
+            Some(2.0),
+        );
+        let classifier = GroundClassifier::new(&battlefield);
+        let in_gully = (125.0, 275.0);
+        let on_plain = (375.0, 400.0);
+        assert!(
+            classifier.flow_wetness_at(in_gully.0, in_gully.1)
+                > classifier.flow_wetness_at(on_plain.0, on_plain.1),
+            "the gully must actually carry more drainage for this lock to mean anything"
+        );
+        // Grass/straw split rides the patchwork noise and legitimately differs between the
+        // two points — the lock lives in the dirt lane. Epsilon instead of bit equality:
+        // two different world points never share exact f32 arithmetic, but SUM composition
+        // would separate these dirt values by ~0.1, five orders above the tolerance.
+        let wet = classifier.weights_at(&battlefield.heightmap, in_gully.0, in_gully.1);
+        let dry = classifier.weights_at(&battlefield.heightmap, on_plain.0, on_plain.1);
+        assert!(
+            (wet[2] - dry[2]).abs() < 1.0e-4,
+            "inside the margin band the pre-flow dirt holds ({} vs {})",
+            wet[2],
+            dry[2]
+        );
+        assert_eq!(wet[3], dry[3], "and rock is untouched by moisture");
     }
 
     #[test]
