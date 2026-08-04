@@ -103,17 +103,27 @@ impl ClientApp {
                         Some(from)
                             if state.rut_travel_m[side] >= crate::fx::TRACK_MARK_SPACING_M =>
                         {
-                            // Fording writes its wake on the surface; dry ground takes a rut.
+                            // Fording writes its wake on the surface; dry ground takes a rut
+                            // as deep as the GROUND under it remembers (one classifier read
+                            // at the segment midpoint — rock takes none).
                             match water_surface {
                                 Some(surface) => {
                                     self.track_marks.record_foam_segment(from, contact, surface);
                                 }
-                                None => self.track_marks.record_segment(
-                                    from,
-                                    contact,
-                                    wetness,
-                                    &self.battlefield.heightmap,
-                                ),
+                                None => {
+                                    let mid = (from + contact) * 0.5;
+                                    let rut_depth_m = self
+                                        .ground
+                                        .properties_at(&self.battlefield.heightmap, mid.x, mid.z)
+                                        .rut_depth_m;
+                                    self.track_marks.record_segment(
+                                        from,
+                                        contact,
+                                        wetness,
+                                        rut_depth_m,
+                                        &self.battlefield.heightmap,
+                                    );
+                                }
                             }
                             state.rut_from[side] = Some(contact);
                             state.rut_travel_m[side] = 0.0;
@@ -192,6 +202,17 @@ mod tests {
 
     use super::super::ClientApp;
 
+    /// Pin the app's world to an analytic heightfield and rebuild the ground rule to match.
+    /// The rut writer reads real ground now (teren A3) — a test that drives on "wherever
+    /// the default map happens to be at (10, 20)" would assert on geography, not on code.
+    fn pin_ground(app: &mut ClientApp, height_at: impl Fn(f32, f32) -> f32) {
+        let battlefield = std::sync::Arc::make_mut(&mut app.battlefield);
+        battlefield.heightmap = terrain::heightmap_from_fn(65, 5.0, height_at);
+        battlefield.water = None;
+        battlefield.roads.clear();
+        app.ground = terrain::GroundClassifier::new(&app.battlefield);
+    }
+
     fn tank(id: u64, track_m: f32, hit_points: u32) -> PresentationTank {
         PresentationTank {
             id: TankId(id),
@@ -260,6 +281,7 @@ mod tests {
     #[test]
     fn rolling_tracks_write_ruts_and_a_broken_track_stops() {
         let mut app = ClientApp::new();
+        pin_ground(&mut app, |_, _| 0.0);
 
         // Prime, then roll ~9 m — the hull actually travels (a rut is ground covered, not an
         // odometer; a tank spinning its tracks on ice writes nothing).
@@ -286,6 +308,7 @@ mod tests {
 
         // Break the left track: only the right side keeps writing over the same distance.
         let mut app = ClientApp::new();
+        pin_ground(&mut app, |_, _| 0.0);
         let broken = |travel_m: f32| {
             let mut t = tank(1, 100.0 + travel_m, 900);
             t.translation = [10.0, 0.0, 20.0 + travel_m];
@@ -316,7 +339,7 @@ mod tests {
 
         // Dry baseline: dust rises and ruts outlive 8 s of ticking.
         let mut dry = ClientApp::new();
-        std::sync::Arc::make_mut(&mut dry.battlefield).water = None;
+        pin_ground(&mut dry, |_, _| 0.0);
         dry.fx = crate::fx::FxSystem::default();
         dry.tick_motion_fx(&[rolling_tank(0.0)], 0.1);
         for step in 1..=15 {
@@ -332,12 +355,10 @@ mod tests {
         // The same run through water over the hull's floor: no dust — spray instead — and the
         // wake is foam the river closes over.
         let mut fording = ClientApp::new();
-        // Flood the whole run: the surface sits half a meter over the path's highest ground.
-        let high_ground = (20..=30)
-            .filter_map(|z| fording.battlefield.heightmap.sample_height(10.0, z as f32))
-            .fold(0.0_f32, f32::max);
+        pin_ground(&mut fording, |_, _| 0.0);
+        // Flood the flat run: the surface sits half a meter over the ground.
         std::sync::Arc::make_mut(&mut fording.battlefield).water =
-            Some(terrain::WaterBody { surface_level_m: high_ground + 0.5 });
+            Some(terrain::WaterBody { surface_level_m: 0.5 });
         fording.fx = crate::fx::FxSystem::default();
         fording.tick_motion_fx(&[rolling_tank(0.0)], 0.1);
         for step in 1..=15 {
@@ -350,5 +371,35 @@ mod tests {
             fording.track_marks.tick(0.1);
         }
         assert_eq!(fording.track_marks.live_marks(), 0, "the river closes over the wake");
+    }
+
+    /// Teren A3's contract: the rut writer consults the GROUND, not only the weather. The
+    /// same 9 m drive prints on turf and prints NOTHING on bare rock — "nothing marks rock"
+    /// stops being an unread field and becomes a picture.
+    #[test]
+    fn tracks_read_the_ground_not_just_the_weather() {
+        let rolling_tank = |travel_m: f32| {
+            let mut t = tank(1, 100.0 + travel_m, 900);
+            t.translation = [10.0, 0.0, 20.0 + travel_m];
+            t
+        };
+
+        let mut turf = ClientApp::new();
+        pin_ground(&mut turf, |_, _| 0.0);
+        turf.tick_motion_fx(&[rolling_tank(0.0)], 0.1);
+        for step in 1..=15 {
+            turf.tick_motion_fx(&[rolling_tank(step as f32 * 0.6)], 0.1);
+        }
+        assert!(turf.track_marks.live_marks() > 0, "turf takes the mark");
+
+        // A 60-degree stone face: the classifier reads pure rock there (steep saturates),
+        // and rock's rut depth is 0.0 — the pen never touches the ground.
+        let mut stone = ClientApp::new();
+        pin_ground(&mut stone, |x, _| x * 1.7);
+        stone.tick_motion_fx(&[rolling_tank(0.0)], 0.1);
+        for step in 1..=15 {
+            stone.tick_motion_fx(&[rolling_tank(step as f32 * 0.6)], 0.1);
+        }
+        assert_eq!(stone.track_marks.live_marks(), 0, "stone remembers nothing");
     }
 }
