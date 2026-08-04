@@ -89,9 +89,12 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     let ctx = GpuContext::headless()?;
     let target = OffscreenTarget::new(&ctx, width, height)?;
     let mut renderer = SceneRenderer::for_offscreen(&ctx, &terrain_vertices, &terrain_indices)?;
-    // Match `ensure_scene(SceneKind::Garage)`: hero lighting + interior backdrop.
+    // Match `ensure_scene(SceneKind::Garage)`: hero lighting + interior backdrop, both READ
+    // from where the client reads them (a copied literal here locked a night sky through the
+    // roof openings the game fills with daylight).
     renderer.scene_lighting = SceneLighting::garage_hero();
-    renderer.set_interior_background(0.05, 0.05, 0.06);
+    let (bg_r, bg_g, bg_b) = scene_build::hangar::INTERIOR_BACKGROUND;
+    renderer.set_interior_background(bg_r, bg_g, bg_b);
     for (handle, mesh) in catalog.take_pending_vehicle_meshes() {
         renderer.register_vehicle_mesh(&ctx, handle, &mesh);
     }

@@ -75,31 +75,69 @@ pub struct HangarReviewView {
     pub background: (f64, f64, f64),
     /// The hero on the turntable. A garage review with no vehicle reviews an empty room.
     pub vehicle: ReviewVehicle,
-    /// Draw the garage HUD over this view.
-    ///
-    /// `false` reviews the ROOM — light, materials, framing — and the value-structure locks read
-    /// that frame. `true` reviews the SCREEN the player actually meets, which is a different
-    /// object: panels, plates, glyphs and hit-target geometry, none of which is a photograph and
-    /// none of which the grading rules apply to.
-    ///
-    /// The garage UI had no picture lock of ANY kind before this. It was covered only by unit
-    /// tests over rect arithmetic, which cannot see a control drawn off its plate, a glyph that
-    /// went missing, or text that lost contrast against what it sits on — and the top bar had
-    /// shipped for months with both screen tabs rendering on the hangar wall below it.
-    pub overlay: bool,
+    /// Which garage screen this view locks (see [`GarageScreen`]).
+    pub screen: GarageScreen,
+}
+
+/// The garage screens under image lock.
+///
+/// [`GarageScreen::Room`] reviews the ROOM — light, materials, framing — and the value-structure
+/// locks read that frame. The rest review SCREENS the player actually meets, which are a
+/// different object: panels, plates, glyphs and hit-target geometry, none of which is a
+/// photograph and none of which the grading rules apply to.
+///
+/// The garage UI had no picture lock of ANY kind until the hero pair landed, and even then only
+/// the hangar screen was covered: the tech tree and the module option list — the two screens a
+/// player reaches by pressing `T` or clicking a slot — shipped with unit tests over rect
+/// arithmetic and nothing else. Rect arithmetic cannot see a node drawn past its panel (which
+/// the tech tree did, for five vehicles), a glyph that went missing, or text that lost contrast
+/// against what it sits on. Every screen the garage can show is listed here, and
+/// `every_garage_screen_is_under_an_image_lock` fails if one is added without a view.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GarageScreen {
+    /// No overlay: the hangar as a photograph.
+    Room,
+    /// The hangar screen — carousel, loadout strip, crew and vehicle columns.
+    Hangar,
+    /// The browse-only tech tree (`T`).
+    TechTree,
+    /// A module slot's option list, open over the hangar screen.
+    OptionList,
+}
+
+impl GarageScreen {
+    /// Every screen, so the review set and its coverage lock cannot disagree about the list.
+    pub const ALL: [GarageScreen; 4] = [
+        GarageScreen::Room,
+        GarageScreen::Hangar,
+        GarageScreen::TechTree,
+        GarageScreen::OptionList,
+    ];
+
+    /// The golden's name for this screen.
+    pub fn view_name(self) -> &'static str {
+        match self {
+            GarageScreen::Room => "garage_hero",
+            GarageScreen::Hangar => "garage_screen",
+            GarageScreen::TechTree => "garage_tech_tree",
+            GarageScreen::OptionList => "garage_option_list",
+        }
+    }
 }
 
 /// The garage review set: the hero shot the garage actually opens with. The framing comes from
 /// `hangar::HERO_ORBIT_*` — the same constants the live orbit camera rests at — so a reframing
 /// moves the played picture and the locked picture together.
 pub fn hangar_review_views() -> Vec<HangarReviewView> {
-    let hero = |name: &str, overlay: bool| HangarReviewView {
-        name: name.to_string(),
+    let hero = |screen: GarageScreen| HangarReviewView {
+        name: screen.view_name().to_string(),
         eye: crate::hangar::hero_orbit_eye().to_array(),
         target: crate::hangar::hangar_camera_pivot().to_array(),
         lighting: SceneLighting::garage_hero(),
-        // Matches `garage_render::ensure_scene`'s interior background.
-        background: (0.05, 0.05, 0.06),
+        // READ from the one place the live client reads it, not copied from it: a literal here
+        // is how the goldens ended up locking a near-black sky through roof openings the game
+        // fills with daylight.
+        background: crate::hangar::INTERIOR_BACKGROUND,
         vehicle: ReviewVehicle {
             kind: VehicleKind::T54_1951,
             position: [0.0, crate::hangar::TURNTABLE_TOP_M, 0.0],
@@ -110,11 +148,11 @@ pub fn hangar_review_views() -> Vec<HangarReviewView> {
             // The garage's own showroom tint, not the battle green.
             hull_color: [0.72, 0.76, 0.62],
         },
-        overlay,
+        screen,
     };
-    // The room, then the screen. Same framing, same light, same hero: the pair differs by exactly
-    // the overlay, so a diff between them is the UI and nothing else.
-    vec![hero("garage_hero", false), hero("garage_screen", true)]
+    // The room, then every screen drawn over it. Same framing, same light, same hero: the views
+    // differ by exactly the overlay, so a diff between any two of them is the UI and nothing else.
+    GarageScreen::ALL.into_iter().map(hero).collect()
 }
 
 /// The maps whose looks are locked. A map missing from here ships unreviewed, so the coverage
@@ -400,6 +438,41 @@ mod tests {
             assert!(
                 (4.0..=200.0).contains(&range),
                 "{}: the vehicle is {range:.1} m from the eye — too far to judge its surface",
+                view.name
+            );
+        }
+    }
+
+    /// A screen the garage can show and the review set cannot is a screen that ships
+    /// unreviewed — the same rule `REVIEWED_MAPS` enforces for maps, applied to the UI. The
+    /// tech tree and the option list lived outside it until this lock existed, which is how a
+    /// tech-tree node could print past its panel for five vehicles without a picture noticing.
+    #[test]
+    fn every_garage_screen_is_under_an_image_lock() {
+        let views = hangar_review_views();
+        for screen in GarageScreen::ALL {
+            assert!(
+                views.iter().any(|view| view.screen == screen),
+                "{screen:?} has no review view — it would ship with no picture lock"
+            );
+        }
+        assert_eq!(views.len(), GarageScreen::ALL.len(), "one view per screen, no strays");
+        // The room view is the one the value-structure locks read; it must carry no overlay.
+        let room = views.iter().find(|view| view.screen == GarageScreen::Room).expect("room view");
+        assert_eq!(room.name, "garage_hero");
+    }
+
+    /// The garage's sky is single-sourced: what shows through the roof openings in a review
+    /// frame is what the live client paints there. The two used to be separate literals, and
+    /// when the roof gained real openings the goldens kept locking a near-black sky the game
+    /// had already replaced with daylight.
+    #[test]
+    fn the_review_background_is_the_clients_own_interior_background() {
+        for view in hangar_review_views() {
+            assert_eq!(
+                view.background,
+                crate::hangar::INTERIOR_BACKGROUND,
+                "{} locks a different sky than the game paints",
                 view.name
             );
         }

@@ -141,10 +141,12 @@ impl ClientApp {
             };
         let (sky, lighting, rain_intensity, wetness) = match want {
             // The workshop rig rakes a warm sun down through the skylights (real contact shadow
-            // on the turntable) over a dim, near-neutral shop interior. The background is a
-            // bright daylight sky: the roof carries REAL openings now, and what shows through
-            // an opening is the day outside — the old near-black read as a hole into night.
-            SceneKind::Garage => ((1.30, 1.38, 1.55), SceneLighting::garage_hero(), 0.0, 0.0),
+            // on the turntable) over a dim, near-neutral shop interior. What shows through a
+            // roof opening is the day outside — single-sourced, so the review goldens and the
+            // probes cannot drift onto a different sky than the one the player sees.
+            SceneKind::Garage => {
+                (scene_build::hangar::INTERIOR_BACKGROUND, SceneLighting::garage_hero(), 0.0, 0.0)
+            }
             SceneKind::Battle => {
                 let frame = self.weather_frame;
                 (frame.sky, frame.lighting, frame.rain_intensity, frame.surface_wetness)

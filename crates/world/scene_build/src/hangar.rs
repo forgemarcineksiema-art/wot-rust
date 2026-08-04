@@ -84,6 +84,18 @@ pub const HERO_PARK_YAW: f32 = HERO_ORBIT_YAW + 0.65;
 /// A long lens: the hangar is a studio, and a studio does not read at a battle FOV.
 pub const HERO_FOV_DEGREES: f32 = 32.0;
 
+/// What shows THROUGH the roof's skylight openings: the day outside. The renderer paints it as
+/// the interior background (the hangar runs no sky dome), so it is the colour of the sky in
+/// every garage frame.
+///
+/// It lives here because four callers need the same answer — the live client
+/// (`garage_render::ensure_scene`), the review view set (`review_views::hangar_review_views`)
+/// and both hangar probes. It used to be four copies of a literal, and the moment the roof
+/// gained real openings the game moved to daylight while the goldens and the probes kept the
+/// old near-black: the locked picture stopped being the played picture, which is the one thing
+/// a review artifact may never do.
+pub const INTERIOR_BACKGROUND: (f64, f64, f64) = (1.30, 1.38, 1.55);
+
 /// Direction from the pivot to the eye for an orbit yaw/pitch. Shared so the live camera and
 /// every offscreen review of it cannot disagree about where the camera is.
 pub fn orbit_direction(yaw: f32, pitch: f32) -> Vec3 {
