@@ -13,6 +13,38 @@ var ssao_tex: texture_2d<f32>;
 var ssao_sampler: sampler;
 @group(2) @binding(4)
 var shadow_map_far: texture_depth_2d;
+@group(2) @binding(5)
+var cloud_coverage_map: texture_2d<f32>;
+@group(2) @binding(6)
+var cloud_sampler: sampler;
+
+// How many cloud-UV units one repeat of the baked coverage tile spans. Kept in lockstep with
+// `cloud_map::CLOUD_TILE_SPAN_UV` (the bake's periodic lattice) — locked by
+// `the_cloud_tile_span_matches_the_shader.`
+const CLOUD_TILE_SPAN: f32 = 8.0;
+
+// Cloud shade wandering the field: the sun is modulated by the BAKED tiling coverage field —
+// the same warped, multi-octave value-noise construction the procedural version evaluated per
+// fragment (its ~6 lattice evaluations were the 5 ms that kept cloud shade out of the shipped
+// look, D21), reduced to one repeat-sampled texture tap. Matched scale (a ~400 m virtual
+// cloud height maps the dome's UV onto world metres) and the same clock as the sky's sheet,
+// so the ground shade moves with the banks overhead. Coherent in motion and scale, not
+// pixel-exact (the dome is a ray projection, this is world-XZ) — right for a 2D sheet at
+// infinity. Strength (sky_params.x) is profile data; 0 skips it.
+fn cloud_shadow(world: vec3<f32>) -> f32 {
+    let strength = camera.sky_params.x;
+    if (strength <= 0.0) {
+        return 1.0;
+    }
+    let drift = camera.time_params.x * camera.cloud_params.w;
+    let base_uv = world.xz * (1.35 / 400.0) * camera.cloud_params.y
+        + vec2<f32>(drift, drift * 0.6) + camera.weather_params.xy;
+    let coverage = textureSampleLevel(
+        cloud_coverage_map, cloud_sampler, base_uv / CLOUD_TILE_SPAN, 0.0).r
+        + camera.cloud_params.x;
+    let cloud = smoothstep(0.40, 0.72, coverage);
+    return 1.0 - cloud * strength;
+}
 
 // Screen-space AO from the blurred SSAO target, addressed by framebuffer pixel scaled by the
 // inverse RENDER target size (fog_params.zw) — the AO chain may run at a reduced resolution

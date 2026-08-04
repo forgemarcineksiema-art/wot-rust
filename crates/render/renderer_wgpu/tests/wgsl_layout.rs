@@ -69,9 +69,12 @@ fn grass_blade_shader_contract_fades_the_tuft_and_scales_its_wind() {
         "raw sway would turn a small faded tuft into a long wind-blown needle"
     );
 
-    // Grass geometry roles must not fall through to bark or the costlier generic ground path.
+    // Grass geometry roles must not fall through to bark or the costlier generic ground path;
+    // the single octave rides the shared fine frame so the cards match the ground's grain.
     assert!(source.contains("if (role > 4.5)"));
-    assert!(source.contains("return 0.94 + value_noise(world.xz * 1.7) * 0.12;"));
+    assert!(
+        source.contains("return 0.94 + value_noise(octave_frame_fine(world.xz) * 1.7) * 0.12;")
+    );
 }
 
 #[test]
@@ -360,6 +363,64 @@ fn shared_wgsl_fragments_are_composed_exactly_once_per_shader() {
             source.matches("fn sun_shadow(").count(),
             0,
             "{label}: no group-2 shadow bindings in a pass without that bind group"
+        );
+    }
+
+    // The ground grain is ONE implementation (noise_common.wgsl): the terrain pass and the
+    // statics standing on it must never grow a second hash/lattice copy, or their grains
+    // silently drift apart and the ground stops reading as one picture.
+    for (label, source) in [("scene", scene_shader_source()), ("terrain", terrain_shader_source())]
+    {
+        for function in
+            ["fn value_noise(", "fn value_noise_grad(", "fn ground_grain(", "fn puddle_pool("]
+        {
+            assert_eq!(
+                source.matches(function).count(),
+                1,
+                "{label}: exactly one shared {function}"
+            );
+        }
+    }
+}
+
+#[test]
+fn ground_grain_is_lattice_decorrelated() {
+    // The ground twin of `sky_cloud_field_is_lattice_decorrelated`. The pixelated-square
+    // ground had the same three roots as the square sky, each locked here:
+    for (label, source) in [("scene", scene_shader_source()), ("terrain", terrain_shader_source())]
+    {
+        // 1. The world-metre lattices must not hash through sin — fract(sin(dot)) collapses
+        //    into flat hard-edged plates once its argument leaves the GPU sin's accurate
+        //    range, which world.xz * 1.7 does within metres of the origin. The sin hash
+        //    survives ONLY as the small-index corner-tone picker (detail_hash).
+        let noise_body = source
+            .split("fn value_noise")
+            .nth(1)
+            .expect("value_noise present")
+            .split("fn ")
+            .next()
+            .expect("function body");
+        assert!(
+            !noise_body.contains("sin("),
+            "{label}: the value-noise lattice hash must be integer-domain, not sin"
+        );
+        // 2. The detail octaves must ride rotated frames, never the bare world axes —
+        //    axis-aligned octaves all reinforce ONE square lattice.
+        assert!(
+            source.contains("octave_frame_broad(world_xz) * 0.4")
+                && source.contains("octave_frame_fine(world_xz) * 1.7")
+                && source.contains("octave_frame_broad(world_xz) * 3.2"),
+            "{label}: every ground octave must sample a rotated frame"
+        );
+        // 3. The light-catching bend must be the ANALYTIC gradient. A finite difference
+        //    stepped at over half a lattice cell facets the grain into square plates.
+        assert!(
+            source.contains("fn value_noise_grad("),
+            "{label}: the grain gradient must be analytic"
+        );
+        assert!(
+            !source.contains("let e = 0.35;"),
+            "{label}: the coarse finite-difference step must not return"
         );
     }
 }

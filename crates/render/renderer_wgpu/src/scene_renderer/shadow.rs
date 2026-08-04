@@ -64,11 +64,16 @@ pub(crate) struct ShadowResources {
     pub strength: f32,
     shadow_sampler: wgpu::Sampler,
     ao_sampler: wgpu::Sampler,
+    /// The baked cloud-coverage tile + repeat sampler (group-2 bindings 5–6, `cloud_map.rs`).
+    cloud_view: wgpu::TextureView,
+    cloud_sampler: wgpu::Sampler,
 }
 
 impl ShadowResources {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         device: &wgpu::Device,
+        queue: &wgpu::Queue,
         shadow_bgl: &wgpu::BindGroupLayout,
         camera_bgl: &wgpu::BindGroupLayout,
         foliage_bgl: &wgpu::BindGroupLayout,
@@ -133,6 +138,7 @@ impl ShadowResources {
             min_filter: wgpu::FilterMode::Linear,
             ..Default::default()
         });
+        let (cloud_view, cloud_sampler) = super::cloud_map::create_cloud_resources(device, queue);
         let bind_group = super::env_group::build_environment_bind_group(
             device,
             shadow_bgl,
@@ -141,6 +147,8 @@ impl ShadowResources {
             &shadow_sampler,
             initial_ao_view,
             &ao_sampler,
+            &cloud_view,
+            &cloud_sampler,
         );
         // Scene casters go through the CUTOUT entries (position + uv, atlas at group 1) so a
         // leaf's shadow is its mask; the fleet keeps the plain depth path — vehicle vertices
@@ -194,6 +202,8 @@ impl ShadowResources {
             strength: 1.0,
             shadow_sampler,
             ao_sampler,
+            cloud_view,
+            cloud_sampler,
         }
     }
 
@@ -212,6 +222,8 @@ impl ShadowResources {
             &self.shadow_sampler,
             ao_view,
             &self.ao_sampler,
+            &self.cloud_view,
+            &self.cloud_sampler,
         );
     }
 

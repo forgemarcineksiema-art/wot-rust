@@ -77,9 +77,9 @@ pub(crate) fn apply_refraction_override(
     quality
 }
 
-/// Apply the `WOT_CLOUD_SHADOWS=on|off` (or `1|0`) override. Cloud shade is off in the shipped
-/// canonical tier, so this is how its cost is measured against the min-spec budget before any
-/// buy-back — one variable at a time, per the Żywy Step protocol. Garbage is ignored.
+/// Apply the `WOT_CLOUD_SHADOWS=on|off` (or `1|0`) override. Cloud shade ships in the canonical
+/// tier since the baked-tile buy-back (D21); the knob stays so its cost keeps being measurable
+/// as ONE variable, per the Żywy Step protocol. Garbage is ignored.
 pub(crate) fn apply_cloud_shadow_override(
     mut quality: LightingQuality,
     cloud_env: Option<&str>,
@@ -117,9 +117,10 @@ pub(crate) fn apply_shader_detail_override(
 #[cfg(test)]
 mod tests {
 
-    /// One-look policy over F2's folds: the canonical profile ships folded (no bloom, no
-    /// cloud shadows, reduced detail) for EVERY adapter, the dev-only rich profile keeps
-    /// everything, and WOT_GPU_DETAIL still flips the detail lane for profiling.
+    /// One-look policy over F2's folds: the canonical profile ships folded (no bloom, reduced
+    /// detail; cloud shade is IN since the baked-tile buy-back) for EVERY adapter, the
+    /// dev-only rich profile keeps everything, and WOT_GPU_DETAIL still flips the detail lane
+    /// for profiling.
     #[test]
     fn the_canonical_look_folds_and_the_dev_overrides_flip_it() {
         use renderer_api::LightingQuality;
@@ -130,7 +131,7 @@ mod tests {
                     renderer_api::ShaderDetailMask::TERRAIN_NORMAL_BEND
                         | renderer_api::ShaderDetailMask::TERRAIN_MICRO_OCTAVE
                 )
-                && !canonical.cloud_shadows
+                && canonical.cloud_shadows
         );
         assert_eq!(canonical.bloom_mips, 0);
         let rich = LightingQuality::rich();
@@ -202,19 +203,19 @@ mod tests {
     fn the_cloud_shadow_override_forces_the_flag_both_ways_and_ignores_garbage() {
         use super::apply_cloud_shadow_override;
         let shipped = renderer_api::LightingQuality::canonical();
-        assert!(!shipped.cloud_shadows, "premise: the shipped tier runs no cloud shade");
-        assert!(apply_cloud_shadow_override(shipped, Some("on")).cloud_shadows);
-        assert!(apply_cloud_shadow_override(shipped, Some("1")).cloud_shadows);
+        assert!(shipped.cloud_shadows, "premise: cloud shade ships since the baked-tile D21");
+        assert!(!apply_cloud_shadow_override(shipped, Some("off")).cloud_shadows);
+        assert!(!apply_cloud_shadow_override(shipped, Some("0")).cloud_shadows);
 
-        let rich = renderer_api::LightingQuality::rich();
-        assert!(rich.cloud_shadows, "premise: the dev profile runs cloud shade");
-        assert!(!apply_cloud_shadow_override(rich, Some("off")).cloud_shadows);
-        assert!(!apply_cloud_shadow_override(rich, Some("0")).cloud_shadows);
+        let mut bare = renderer_api::LightingQuality::canonical();
+        bare.cloud_shadows = false;
+        assert!(apply_cloud_shadow_override(bare, Some("on")).cloud_shadows);
+        assert!(apply_cloud_shadow_override(bare, Some("1")).cloud_shadows);
 
         // Garbage leaves the tier default untouched, in both directions.
-        assert!(!apply_cloud_shadow_override(shipped, Some("banana")).cloud_shadows);
-        assert!(!apply_cloud_shadow_override(shipped, None).cloud_shadows);
-        assert!(apply_cloud_shadow_override(rich, Some("banana")).cloud_shadows);
+        assert!(!apply_cloud_shadow_override(bare, Some("banana")).cloud_shadows);
+        assert!(!apply_cloud_shadow_override(bare, None).cloud_shadows);
+        assert!(apply_cloud_shadow_override(shipped, Some("banana")).cloud_shadows);
     }
 
     #[test]

@@ -17,8 +17,8 @@ pub struct LightingQuality {
     /// SSAO render scale relative to the frame: 1.0 = full resolution, 0.5 = half (quarter the
     /// pixels — including the depth prepass rasterization, the real cost on shared-memory GPUs).
     pub ssao_scale: f32,
-    /// Whether the terrain modulates the sun by the procedural cloud layer (a ~10 ALU/px cost the
-    /// weakest adapters skip).
+    /// Whether the ground modulates the sun by the wandering cloud layer — one repeat-sampled
+    /// tap of the baked coverage tile per fragment (`renderer_wgpu`'s `cloud_map.rs`).
     pub cloud_shadows: bool,
     /// Bloom mip-chain depth in the central post pass: 0 disables the chain entirely, 3 is the
     /// integrated-GPU budget (half/quarter/eighth res), 5 the full dual-Kawase ladder.
@@ -78,7 +78,11 @@ impl LightingQuality {
             shadow_resolution: 2048,
             shadow_cascades: 2,
             ssao_scale: 0.5,
-            cloud_shadows: false,
+            // Bought back for the ship (D21): the coverage field is baked into a tiling
+            // texture at renderer init (`cloud_map.rs`), so the per-fragment cost fell from
+            // ~6 lattice evaluations (the measured ~5 ms on open maps that kept the feature
+            // out) to one repeat-sampled texture tap.
+            cloud_shadows: true,
             bloom_mips: 0,
             refraction: false,
             // Żywy Step P1: the ground's micro-relief is bought back — pure per-pixel ALU
@@ -131,7 +135,9 @@ mod tests {
         assert_eq!(canonical.shadow_resolution, 2048);
         assert_eq!(canonical.shadow_cascades, 2);
         assert_eq!(canonical.ssao_scale, 0.5);
-        assert!(!canonical.cloud_shadows && canonical.bloom_mips == 0 && !canonical.refraction);
+        // Cloud shade ships: the baked-tile rework (D21) collapsed its cost to one texture
+        // tap, so the wandering shade is part of the one look on every adapter.
+        assert!(canonical.cloud_shadows && canonical.bloom_mips == 0 && !canonical.refraction);
         assert_eq!(
             canonical.shader_detail,
             ShaderDetailMask(

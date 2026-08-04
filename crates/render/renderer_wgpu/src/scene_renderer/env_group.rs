@@ -1,12 +1,14 @@
 //! The group-2 "environment" bind group both main pipelines consume: the comparison-sampled sun
-//! shadow cascades (bindings 0-1 near map + sampler, binding 4 far map) and the blurred SSAO
-//! target (bindings 2-3). The two cascade maps are separate textures, not one array — they run at
+//! shadow cascades (bindings 0-1 near map + sampler, binding 4 far map), the blurred SSAO
+//! target (bindings 2-3), and the baked cloud-coverage tile (bindings 5-6, repeat-sampled —
+//! see `cloud_map.rs`). The two cascade maps are separate textures, not one array — they run at
 //! different resolutions (the far box needs half the texels), and array layers must share a size.
 //! Split from `shadow.rs` to keep each module within the reviewability budget.
 
 /// The screen-environment bind group layout both main pipelines bind at group 2: the
-/// comparison-sampled sun shadow map (bindings 0–1), the blurred SSAO target (bindings 2–3), and
-/// the far shadow cascade (binding 4, sharing the comparison sampler at binding 1).
+/// comparison-sampled sun shadow map (bindings 0–1), the blurred SSAO target (bindings 2–3),
+/// the far shadow cascade (binding 4, sharing the comparison sampler at binding 1), and the
+/// cloud-coverage tile with its repeat sampler (bindings 5–6).
 pub fn build_shadow_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
     let depth_texture = |binding: u32| wgpu::BindGroupLayoutEntry {
         binding,
@@ -16,6 +18,22 @@ pub fn build_shadow_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupL
             view_dimension: wgpu::TextureViewDimension::D2,
             multisampled: false,
         },
+        count: None,
+    };
+    let float_texture = |binding: u32| wgpu::BindGroupLayoutEntry {
+        binding,
+        visibility: wgpu::ShaderStages::FRAGMENT,
+        ty: wgpu::BindingType::Texture {
+            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+            view_dimension: wgpu::TextureViewDimension::D2,
+            multisampled: false,
+        },
+        count: None,
+    };
+    let filtering_sampler = |binding: u32| wgpu::BindGroupLayoutEntry {
+        binding,
+        visibility: wgpu::ShaderStages::FRAGMENT,
+        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
         count: None,
     };
     device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -28,28 +46,17 @@ pub fn build_shadow_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupL
                 ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Comparison),
                 count: None,
             },
-            wgpu::BindGroupLayoutEntry {
-                binding: 2,
-                visibility: wgpu::ShaderStages::FRAGMENT,
-                ty: wgpu::BindingType::Texture {
-                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                    view_dimension: wgpu::TextureViewDimension::D2,
-                    multisampled: false,
-                },
-                count: None,
-            },
-            wgpu::BindGroupLayoutEntry {
-                binding: 3,
-                visibility: wgpu::ShaderStages::FRAGMENT,
-                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                count: None,
-            },
+            float_texture(2),
+            filtering_sampler(3),
             depth_texture(4),
+            float_texture(5),
+            filtering_sampler(6),
         ],
     })
 }
 
 /// The full group-2 entries in binding order.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn build_environment_bind_group(
     device: &wgpu::Device,
     shadow_bgl: &wgpu::BindGroupLayout,
@@ -58,6 +65,8 @@ pub(crate) fn build_environment_bind_group(
     shadow_sampler: &wgpu::Sampler,
     ao_view: &wgpu::TextureView,
     ao_sampler: &wgpu::Sampler,
+    cloud_view: &wgpu::TextureView,
+    cloud_sampler: &wgpu::Sampler,
 ) -> wgpu::BindGroup {
     device.create_bind_group(&wgpu::BindGroupDescriptor {
         label: Some("shadow_bg"),
@@ -82,6 +91,14 @@ pub(crate) fn build_environment_bind_group(
             wgpu::BindGroupEntry {
                 binding: 4,
                 resource: wgpu::BindingResource::TextureView(far_depth_view),
+            },
+            wgpu::BindGroupEntry {
+                binding: 5,
+                resource: wgpu::BindingResource::TextureView(cloud_view),
+            },
+            wgpu::BindGroupEntry {
+                binding: 6,
+                resource: wgpu::BindingResource::Sampler(cloud_sampler),
             },
         ],
     })
