@@ -137,6 +137,10 @@ pub struct SceneRenderer {
     /// World point the focused sun-shadow box centres on (the player/subject). `None` falls back to
     /// the camera position, which still covers the near action.
     pub shadow_focus: Option<[f32; 3]>,
+    /// The scene's near-shadow-box half-size in metres; `None` takes the battlefield default
+    /// (`SunShadowParams::default().focus_radius_m`). An interior sets its own — see
+    /// `ShadowResources::cascades`.
+    pub shadow_focus_radius_m: Option<f32>,
     /// The presentation clock shaders animate with (`Camera.time_params.x`). Tick-domain by
     /// doctrine: the caller feeds interpolated-tick seconds, never an accumulation of
     /// render-frame deltas (see `CameraUniform::time_params`).
@@ -439,6 +443,7 @@ impl SceneRenderer {
             cloud_shadows_enabled: lighting_quality.cloud_shadows,
             shader_detail: lighting_quality.shader_detail,
             shadow_focus: None,
+            shadow_focus_radius_m: None,
             scene_time_s: 0.0,
             skipped_mesh_draws: Cell::new(0),
         })

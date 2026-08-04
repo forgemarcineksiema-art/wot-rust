@@ -83,15 +83,35 @@ fn sun_shadow(world_pos: vec3<f32>, n: vec3<f32>) -> f32 {
         var sum = 0.0;
         // Full detail: 3×3 PCF. The reduced tier (time_params.w, F2) trims to the 2×2 core —
         // four taps instead of nine; the far cascade below is 2×2 on every tier already.
+        //
+        // Both kernels must STRADDLE the fragment. The 3×3 does so naturally (i, j from -1 to 1);
+        // the reduced one ran i, j over {0, 1}, whose four taps have their centroid half a texel
+        // up-right of the sample — so the shipped tier (which is the reduced one) biased every
+        // near-cascade shadow edge in +u/+v by ~3 cm of world. `centre` puts the 2×2 back around
+        // the fragment, exactly as the far cascade below has always done.
+        //
+        // The reduced kernel also SPREADS to ±1 texel rather than ±0.5. Each tap is already a
+        // hardware bilinear comparison covering 2×2 texels, so four taps at that spacing sweep
+        // the same ±2 texel footprint the nine-tap kernel does: the reduced tier buys back the
+        // wide kernel's SOFTNESS without buying its tap count. A sun 0.53° across throws a
+        // penumbra that widens ~0.9 cm per metre of blocker distance, so a shadow edge is never
+        // the hard step a minimal kernel draws — and a soft edge is also what stops a 6.25 cm
+        // texel from reading as a staircase, which no amount of extra resolution would fix as
+        // cheaply.
         var lo = -1;
         var tap_count = 9.0;
+        var centre = 0.0;
+        var spread = 1.0;
         if (!detail_bit(16u)) {
             lo = 0;
             tap_count = 4.0;
+            centre = 0.5;
+            spread = 2.0;
         }
         for (var i = lo; i <= 1; i = i + 1) {
             for (var j = lo; j <= 1; j = j + 1) {
-                let off = vec2<f32>(f32(i), f32(j)) * texel;
+                let off =
+                    (vec2<f32>(f32(i), f32(j)) - vec2<f32>(centre, centre)) * spread * texel;
                 sum = sum
                     + textureSampleCompareLevel(shadow_map, shadow_sampler, uv + off, reference);
             }

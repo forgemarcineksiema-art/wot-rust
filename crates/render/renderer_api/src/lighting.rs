@@ -175,9 +175,15 @@ impl SceneLighting {
         let black = self.black_point;
         let pulled = hdr.map(|c| ((aces(c) - black) / (1.0 - black)).clamp(0.0, 1.0));
         let luma = 0.2126 * pulled[0] + 0.7152 * pulled[1] + 0.0722 * pulled[2];
+        // The contrast S and its toe — see `display_grade` in lighting_common.wgsl for why the
+        // straight line had to go. `smoothstep` clamps its argument before the polynomial, and
+        // the blend runs against the UNCLAMPED saturated value, exactly as WGSL's `mix` does.
+        let k = ((self.contrast - 1.0) * 2.0).clamp(0.0, 1.0);
         pulled.map(|c| {
             let saturated = luma + (c - luma) * self.saturation;
-            ((saturated - 0.5) * self.contrast + 0.5).clamp(0.0, 1.0)
+            let t = saturated.clamp(0.0, 1.0);
+            let smooth = t * t * (3.0 - 2.0 * t);
+            (saturated + (smooth - saturated) * k).clamp(0.0, 1.0)
         })
     }
 

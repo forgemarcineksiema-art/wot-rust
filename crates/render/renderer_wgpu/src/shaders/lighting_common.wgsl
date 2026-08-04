@@ -105,7 +105,19 @@ fn display_grade(c: vec3<f32>) -> vec3<f32> {
     let pulled = clamp((c - vec3<f32>(black)) / (1.0 - black), vec3<f32>(0.0), vec3<f32>(1.0));
     let luma = dot(pulled, vec3<f32>(0.2126, 0.7152, 0.0722));
     let saturated = mix(vec3<f32>(luma), pulled, camera.grade_params.z);
-    let contrasted = (saturated - vec3<f32>(0.5)) * camera.grade_params.w + vec3<f32>(0.5);
+    // Contrast as a real S-curve WITH A TOE, not a straight line through mid grey. The old
+    // `(x - 0.5) * contrast + 0.5` carried slope `contrast` everywhere, so everything below
+    // `0.5 - 0.5/contrast` — 0.054 at the shipped 1.12 — was driven negative and clamped to pure
+    // black. That band is exactly where a hull's shaded flank lives: measured on the backlit
+    // review frame, the vehicle's median pixel arrived here at 0.068 and left at 0.016.
+    //
+    // `smoothstep` is the ordinary S: slope 1.5 at mid grey, slope 0 at both ends. Blending
+    // toward it by `k` keeps the profile's `contrast` meaning exactly what it always meant — the
+    // slope at mid grey, which is `1 + k/2` — while the toe COMPRESSES the darks instead of
+    // clipping them. The lit end does not move (0.556 stays 0.556); the shade gains its
+    // structure back. Mirrored on the CPU by `SceneLighting::grade_reference`.
+    let k = clamp((camera.grade_params.w - 1.0) * 2.0, 0.0, 1.0);
+    let contrasted = mix(saturated, smoothstep(vec3<f32>(0.0), vec3<f32>(1.0), saturated), k);
     return clamp(contrasted, vec3<f32>(0.0), vec3<f32>(1.0));
 }
 

@@ -336,7 +336,11 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     albedo = mix(albedo, dust_tone * albedo_var, dust * 0.30 * (1.0 - wet * 0.5));
     let ao = ao_rough.r;
 
-    let shadow = sun_shadow(input.world_pos, world_n);
+    // The sun a hull sees is the sun the GROUND under it sees: the shadow map and the wandering
+    // cloud sheet both. Vehicles used to skip the cloud term that terrain.wgsl and scene.wgsl
+    // apply, so a bank of shade swept the field and left every tank standing in it fully lit —
+    // a bright cut-out pasted on darkened ground.
+    let shadow = sun_shadow(input.world_pos, world_n) * cloud_shadow(input.world_pos);
     // Baked contact occlusion (geometry-bake surface_shade): authored per-vertex, it dampens
     // every term so the turret-ring seam, running-gear recess and grille wells read as real
     // cavities. SCREEN-space AO is different — it rides inside light_radiance on the indirect
@@ -359,9 +363,23 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     // cavities the artists authored keep their full depth. What disappears is only the
     // accidental product of three independent bakes agreeing.
     let surface_occlusion = min(ao, min(cavity, contact));
+    // ...and screen AO is a FOURTH estimate of that same quantity, so it joins by `min` too.
+    // Multiplying it in on top of the three bakes was the very compounding the paragraph above
+    // rejects, surviving one level up: the bakes were reconciled with each other and the product
+    // was then taken against SSAO anyway. On a shaded flank both terms sit near 0.7, so the
+    // indirect light a hull's dark side lives on was being halved instead of dimmed once.
+    let indirect_occlusion = min(surface_occlusion, screen);
+    // The direct sun keeps the baked occlusion (a crease IS darker under a raking key, and the
+    // seams were authored to read that way); the indirect terms take the reconciled one. The rim
+    // stays out of both, which is what lighting_common promises it does — it is a silhouette
+    // accent, and the silhouette is the thing this frame exists to keep readable.
     var lit = albedo
-        * light_radiance(input.world_pos, world_n, shadow, screen)
-        * surface_occlusion;
+        * light_radiance(
+            input.world_pos,
+            world_n,
+            shadow * surface_occlusion,
+            indirect_occlusion,
+        );
     // INTERIOR roles only (5 primer, 6 machinery, 7 ammunition). Canvas, glass and timber are
     // exterior fittings that happen to sit above them in the id order, and an unbounded `>= 5`
     // lit a tarpaulin as though it were inside the fighting compartment.
@@ -386,7 +404,14 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
         1.0,
     );
     let shininess = mix(4.0, 96.0, 1.0 - roughness);
-    let spec = pow(max(dot(world_n, half_v), 0.0), shininess) * (1.0 - roughness) * 0.4;
+    // Amplitude falls with the CUBE of smoothness, not linearly. A rough surface does not just
+    // spread its lobe, it dims it — and the linear law left matte service paint with a specular
+    // amplitude of 0.168 at roughness 0.58, about four times a dielectric's ~0.04 reflectance.
+    // On big smooth cast shapes that read as broad hot sheets of sky and is a large part of what
+    // "the light is too strong" actually is. The cube collapses paint to ~0.044 while LIFTING
+    // genuinely smooth roles: headlight glass at roughness 0.1 goes 0.36 -> 0.44, so the one
+    // thing on a tank meant to catch the sun still catches it.
+    let spec = pow(max(dot(world_n, half_v), 0.0), shininess) * pow(1.0 - roughness, 3.0) * 0.6;
     // The specular is the key light's highlight, so it is occluded by the same shadow.
     let spec_color = camera.key_rgb * spec * shadow * contact;
 
@@ -402,7 +427,7 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
     let interior_env = select(1.0, 0.10, input.material_id >= 5u && input.material_id <= 7u);
     let fracture_env = select(1.0, 0.32, fractured_steel);
     let env = env_sky(reflect(-view_dir, world_n))
-        * smoothness * smoothness * fresnel * surface_occlusion * screen
+        * smoothness * smoothness * fresnel * indirect_occlusion
         * (1.0 - burnt * 0.85) * interior_env * fracture_env;
 
     // Perforation marks. Scorch is the permanent soot (the whole visible penetration on a

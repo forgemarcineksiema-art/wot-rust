@@ -37,6 +37,11 @@ const SHADOW_SCENE_VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 2] = [
 const SHADOW_INSTANCE_ATTRIBUTES: [wgpu::VertexAttribute; 6] = wgpu::vertex_attr_array![6 => Float32x4, 7 => Float32x4, 8 => Float32x4, 9 => Float32x4,
         10 => Float32x4, 13 => Uint32];
 
+/// The legal range for a scene's near-box half-size, shared by the `WOT_SHADOW_FOCUS` dev knob
+/// and the per-scene override. Below 4 m the box stops containing a vehicle; past 256 m the
+/// texel is coarser than the far cascade's and the near map buys nothing.
+pub(crate) const FOCUS_RADIUS_RANGE_M: std::ops::RangeInclusive<f32> = 4.0..=256.0;
+
 /// The focused sun shadow map: depth target, the group-2 environment bind group (shadow map +
 /// SSAO target), the depth-only occluder pipelines, and the tuning that drives the light matrix
 /// and PCF in the shaders. The bind group is rebuilt whenever the SSAO target resizes.
@@ -55,12 +60,13 @@ pub(crate) struct ShadowResources {
     /// The far-cascade occluder pipeline: scene vertex stride through `vs_far`. The fleet has no
     /// far pipeline on purpose — at the far map's texel size a tank's shadow does not resolve.
     pub pipeline_scene_far: wgpu::RenderPipeline,
+    /// The DEFAULT cascades: the battlefield's 64 m half-box (or the `WOT_SHADOW_FOCUS` dev
+    /// override). A scene may narrow the near box per frame — see [`Self::cascades`].
     pub params: SunShadowParams,
     pub far_params: SunShadowParams,
     /// 2 = near + far cascades; 1 = the single near box (`WOT_SHADOW_CASCADES=1`).
     pub cascade_count: u32,
     pub depth_bias: f32,
-    pub normal_offset: f32,
     pub strength: f32,
     shadow_sampler: wgpu::Sampler,
     ao_sampler: wgpu::Sampler,
@@ -91,7 +97,7 @@ impl ShadowResources {
         let focus_radius_m = std::env::var("WOT_SHADOW_FOCUS")
             .ok()
             .and_then(|value| value.trim().parse::<f32>().ok())
-            .filter(|value| (4.0..=256.0).contains(value))
+            .filter(|value| FOCUS_RADIUS_RANGE_M.contains(value))
             .unwrap_or(SunShadowParams::default().focus_radius_m);
         let params = SunShadowParams {
             resolution: resolution.min(device.limits().max_texture_dimension_2d),
@@ -198,7 +204,6 @@ impl ShadowResources {
             far_params,
             cascade_count: cascade_count.clamp(1, 2),
             depth_bias: 0.0008,
-            normal_offset: params.texel_world_size() * 1.5,
             strength: 1.0,
             shadow_sampler,
             ao_sampler,
@@ -227,19 +232,41 @@ impl ShadowResources {
         );
     }
 
+    /// The two cascades for ONE frame, at the scene's near-box half-size (`None` = the default
+    /// battlefield box).
+    ///
+    /// The box size is a property of the SCENE, not of the GPU: a 36 m hangar and a 1000 m
+    /// battlefield are handed the same 2048² map, and pointing the battlefield's 128 m box at a
+    /// 36 m room spends 92% of its texels on the ground outside the walls. So everything that
+    /// depends on the box — both light matrices and both normal offsets — is derived here per
+    /// frame rather than frozen at construction. The RESOLUTION stays fixed (one look, one
+    /// memory budget); only where the texels are aimed changes.
+    pub fn cascades(&self, focus_radius_m: Option<f32>) -> (SunShadowParams, SunShadowParams) {
+        let Some(radius) = focus_radius_m else {
+            return (self.params, self.far_params);
+        };
+        let near = SunShadowParams {
+            focus_radius_m: radius
+                .clamp(*FOCUS_RADIUS_RANGE_M.start(), *FOCUS_RADIUS_RANGE_M.end()),
+            ..self.params
+        };
+        (near, near.far_cascade())
+    }
+
     /// The packed `shadow_params` the shaders read: texel UV step, depth bias, strength, normal
-    /// offset.
-    pub fn shader_params(&self) -> [f32; 4] {
-        [self.params.texel_uv_size(), self.depth_bias, self.strength, self.normal_offset]
+    /// offset. The offset is derived from the FRAME's near box — it is a world distance scaled to
+    /// the texel footprint, so a narrowed box must shrink it or a tight scene peter-pans.
+    pub fn shader_params(&self, near: SunShadowParams) -> [f32; 4] {
+        [near.texel_uv_size(), self.depth_bias, self.strength, near.texel_world_size() * 1.5]
     }
 
     /// The packed `cascade_params` the shaders read: far texel UV step, far normal offset,
     /// cascade count, containment margin. A single-cascade setup packs margin 0, so the near
     /// box's valid region is exactly the pre-cascade `[0, 1]` UV — byte-for-byte the old lookup.
-    pub fn cascade_shader_params(&self) -> [f32; 4] {
+    pub fn cascade_shader_params(&self, far: SunShadowParams) -> [f32; 4] {
         [
-            self.far_params.texel_uv_size(),
-            self.far_params.texel_world_size() * 1.5,
+            far.texel_uv_size(),
+            far.texel_world_size() * 1.5,
             self.cascade_count as f32,
             if self.cascade_count >= 2 { CASCADE_MARGIN_UV } else { 0.0 },
         ]

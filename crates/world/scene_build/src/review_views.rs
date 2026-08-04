@@ -359,7 +359,12 @@ fn prokhorovka_identity_views(
                 // for a whole battle.
                 hull_color: [0.30, 0.40, 0.28],
             }),
-            subject_box: None,
+            // THE COUNTERWEIGHT. The backlit frame measures the side the sun never reaches, so
+            // every lever that helps it is a lever that could wash out the side the sun DOES
+            // reach — and this is the frame the program calls golden, the one that must not be
+            // spent paying for the other. Framed on the hull and running gear at the distance a
+            // player actually sits, so "the fix did not flatten the good frame" is a number.
+            subject_box: Some([0.37, 0.62, 0.62, 0.83]),
         },
     ]
 }

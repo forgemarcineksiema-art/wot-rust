@@ -629,20 +629,60 @@ fn crop(pixels: &[u8], box_n: [f32; 4]) -> (Vec<u8>, usize, usize) {
 /// Two numbers, because a silhouette fails both ways: `p95` says the brightest part of the
 /// vehicle is not crushed, `local_contrast` says the shape still has internal form rather than
 /// being one flat mass.
+/// Per-view subject bounds. A backlit flank and a sunlit three-quarter are different
+/// measurements of different situations, and one global pair of numbers cannot hold both — the
+/// attempt is what produced the mis-set bound described below.
+struct SubjectBounds {
+    view: &'static str,
+    /// Recorded medians and dark shares: asserted so the picture cannot regress.
+    median_floor: f32,
+    dark_ceiling: f32,
+    form_floor: f32,
+}
+
+const SUBJECT_BOUNDS: &[SubjectBounds] = &[
+    SubjectBounds {
+        view: "prokhorovka_contact_backlit",
+        median_floor: 0.060,
+        dark_ceiling: 0.76,
+        form_floor: 0.0070,
+    },
+    SubjectBounds {
+        view: "prokhorovka_evening_contact",
+        median_floor: 0.110,
+        dark_ceiling: 0.92,
+        form_floor: 0.0135,
+    },
+];
+
+/// The reference frame every other subject is judged against: the one `docs/art-direction-program.md`
+/// calls golden.
+const SUBJECT_REFERENCE_VIEW: &str = "prokhorovka_evening_contact";
+
 #[test]
 fn the_vehicle_stays_readable_on_the_side_the_sun_never_touches() {
-    // The metrics are chosen from what the measurement actually showed, not from what sounded
-    // reasonable. The recorded backlit frame reads p95 0.588 — the turret top catches plenty of
-    // light — while its MEDIAN pixel is 0.000 and 78.4% of the subject is dark. So the brightest
-    // part of the vehicle was never the problem; the half that is void is. Median and dark share
-    // are the two numbers that say "you cannot see half the tank".
-    const SUBJECT_MEDIAN_FLOOR: f32 = 0.0;
+    // The median is the number that said "you cannot see half the tank": the backlit subject's
+    // was 0.016 against this target, with its darkest twentieth at pure 0.000, because the
+    // display grade's contrast ran as a straight line and clipped everything below 0.054 to
+    // black. With a toe under that line (`display_grade`) and screen AO reconciled against the
+    // bakes instead of multiplied into them (`vehicle.wgsl`), it reads 0.070.
     const SUBJECT_MEDIAN_TARGET: f32 = 0.045;
-    /// A ceiling, so the debt runs the other way: too MUCH of the subject is void.
-    const SUBJECT_DARK_CEILING_FLOOR: f32 = 0.82;
-    const SUBJECT_DARK_CEILING_TARGET: f32 = 0.45;
 
-    let mut judged = 0;
+    // WHY THERE IS NO SHARED "VOID" TARGET ANY MORE. There used to be one: dark share <= 0.45.
+    // Then the golden frame was given a subject box of its own and scored 89.4% dark — WORSE
+    // than the 72.1% of the frame the program calls broken. The bound was not measuring
+    // readability at all; `dark` counts pixels under 0.25 linear luma, and a dark-green vehicle
+    // is under that almost everywhere it is not in direct sun. It measured how dark the PAINT
+    // is. So dark share stays as a per-view regression ceiling, and the readability TARGET moves
+    // to the metric that ranked the two frames the way an eye does: local contrast, which reads
+    // 0.0145 on the golden frame and read 0.0061 on the broken one.
+    //
+    // The target is derived from the reference frame rather than invented: two thirds of the
+    // structure the golden frame carries. A flank the sun never touches legitimately models less
+    // than a sunlit three-quarter — it may not, however, be a flat mass.
+    const FORM_TARGET_SHARE_OF_REFERENCE: f32 = 2.0 / 3.0;
+
+    let mut measured = std::collections::HashMap::new();
     for map in REVIEWED_MAPS {
         let battlefield = map_forge::battlefield(map);
         for view in review_views_for(map, &battlefield) {
@@ -660,34 +700,49 @@ fn the_vehicle_stays_readable_on_the_side_the_sun_never_touches() {
                 stats.dark * 100.0,
                 stats.local_contrast
             );
-            debt(
-                &view.name,
-                "subject median",
-                stats.p50,
-                SUBJECT_MEDIAN_FLOOR,
-                SUBJECT_MEDIAN_TARGET,
-                "W1",
-            );
-            assert!(
-                stats.dark <= SUBJECT_DARK_CEILING_FLOOR,
-                "{}: {:.1}% of the vehicle is void, past its recorded ceiling {:.1}% — the light                  got WORSE at reading the tank",
-                view.name,
-                stats.dark * 100.0,
-                SUBJECT_DARK_CEILING_FLOOR * 100.0
-            );
-            if stats.dark > SUBJECT_DARK_CEILING_TARGET {
-                println!(
-                    "LOOK DEBT {}: subject void {:.3}, target <= {:.3} (over by {:.3}, W1)",
-                    view.name,
-                    stats.dark,
-                    SUBJECT_DARK_CEILING_TARGET,
-                    stats.dark - SUBJECT_DARK_CEILING_TARGET
-                );
-            }
-            judged += 1;
+            measured.insert(view.name.clone(), stats);
         }
     }
-    assert!(judged > 0, "no review view frames a subject — the vehicle is unwatched again");
+    assert!(
+        !measured.is_empty(),
+        "no review view frames a subject — the vehicle is unwatched again"
+    );
+
+    let reference_form = measured
+        .get(SUBJECT_REFERENCE_VIEW)
+        .unwrap_or_else(|| panic!("the reference subject view {SUBJECT_REFERENCE_VIEW} is missing"))
+        .local_contrast;
+    let form_target = reference_form * FORM_TARGET_SHARE_OF_REFERENCE;
+
+    for bounds in SUBJECT_BOUNDS {
+        let stats = measured
+            .get(bounds.view)
+            .unwrap_or_else(|| panic!("{} lost its subject box", bounds.view));
+        debt(
+            bounds.view,
+            "subject median",
+            stats.p50,
+            bounds.median_floor,
+            SUBJECT_MEDIAN_TARGET,
+            "W1",
+        );
+        debt(
+            bounds.view,
+            "subject form",
+            stats.local_contrast,
+            bounds.form_floor,
+            form_target,
+            "W1",
+        );
+        assert!(
+            stats.dark <= bounds.dark_ceiling,
+            "{}: {:.1}% of the vehicle is void, past its recorded ceiling {:.1}% — the light got \
+             WORSE at reading the tank",
+            bounds.view,
+            stats.dark * 100.0,
+            bounds.dark_ceiling * 100.0
+        );
+    }
 }
 
 /// Mirrors `scene_build::review_views`'s naming so the warmth lookup above can address a map's

@@ -114,6 +114,22 @@ pub fn hangar_shadow_focus() -> [f32; 3] {
     [0.0, TURNTABLE_TOP_M, 0.0]
 }
 
+/// The near shadow box the garage asks for, as a half-size in metres.
+///
+/// Pinning the box's CENTRE to the turntable was only half the job: its SIZE stayed the
+/// battlefield's 64 m half-box, so a 36 m room sat inside a 128 m box and the hall received 576
+/// of 2048 texels — 7.9% of the map, the other 92% spent on empty ground outside the walls. At a
+/// 14 m hero boom one 6.25 cm texel covered 8.4 screen pixels, which is what a staircased
+/// skylight shaft on the floor actually is.
+///
+/// 30 m is the smallest box that still contains the whole hall under every garage rig (the
+/// steepest, `garage_workshop`, needs 28.3 m — see `the_near_shadow_box_contains_the_whole_hall`)
+/// plus the cascade's containment margin. Tighter would sharpen the turntable further but push
+/// the far corners of the room out to the coarse far cascade, trading a staircase for a seam.
+pub fn hangar_shadow_radius_m() -> f32 {
+    30.0
+}
+
 /// Interior of the hangar shell as `(half_extent_xz, height)`. Used by the CLIENT camera
 /// invariant test to prove the whole orbit range stays inside the room — cross-crate now, so
 /// it cannot hide behind cfg(test).
@@ -653,6 +669,75 @@ mod tests {
         assert_eq!([x, z], [0.0, 0.0], "the focus is the turntable centre");
         assert!((y - TURNTABLE_TOP_M).abs() < 1.0e-6);
         assert!(x.abs() < HALF && z.abs() < HALF && y < WALL_HEIGHT);
+    }
+
+    /// THE GARAGE'S SHADOW BOX IS SIZED TO THE ROOM. Two halves of one contract, because
+    /// failing either way ruins the picture:
+    ///
+    /// - too LARGE and the texels are wasted on ground outside the walls (the 64 m battlefield
+    ///   box gave the hall 7.9% of the map, and staircased every skylight shaft);
+    /// - too SMALL and the hall's own corners fall out of the near cascade onto the coarse far
+    ///   one, which trades the staircase for a visible quality seam across the walls.
+    ///
+    /// So: every corner of the hall must project INSIDE the near box (with the cascade's
+    /// containment margin to spare), under every garage light rig — and the box must still be
+    /// small enough to beat the battlefield default by a real factor.
+    #[test]
+    fn the_near_shadow_box_contains_the_whole_hall() {
+        use glam::Mat4;
+        use renderer_api::{SceneLighting, SunShadowParams, sun_light_view_projection};
+
+        let radius = hangar_shadow_radius_m();
+        let params = SunShadowParams { focus_radius_m: radius, ..SunShadowParams::default() };
+        let focus = hangar_shadow_focus();
+        // The near cascade hands a fragment to the far cascade once its UV leaves this margin
+        // (CASCADE_MARGIN_UV in renderer_wgpu's shadow.rs); in NDC that is 4% of the half-box.
+        const MARGIN_NDC: f32 = 1.0 - 2.0 * 0.02;
+
+        for rig in [
+            SceneLighting::garage_hero(),
+            SceneLighting::garage_workshop(),
+            SceneLighting::garage_studio(),
+        ] {
+            let m = Mat4::from_cols_array_2d(&sun_light_view_projection(
+                rig.key_direction,
+                focus,
+                params,
+            ));
+            for x in [-HALF, HALF] {
+                for z in [-HALF, HALF] {
+                    for y in [0.0, WALL_HEIGHT] {
+                        let clip = m * glam::Vec4::new(x, y, z, 1.0);
+                        let ndc = clip.truncate() / clip.w;
+                        assert!(
+                            ndc.x.abs() <= MARGIN_NDC && ndc.y.abs() <= MARGIN_NDC,
+                            "hall corner ({x}, {y}, {z}) falls out of the near shadow box \
+                             (ndc {ndc:?}) under key {:?} — the walls would take the far \
+                             cascade and read a seam",
+                            rig.key_direction
+                        );
+                    }
+                }
+            }
+        }
+
+        // And it is genuinely tighter than the battlefield box it replaces: same 2048² map,
+        // smaller footprint, finer texels. The numbers this whole change exists for.
+        let battlefield = SunShadowParams::default();
+        assert!(
+            radius < battlefield.focus_radius_m,
+            "a garage box no smaller than the battlefield's buys nothing"
+        );
+        let gain = battlefield.texel_world_size() / params.texel_world_size();
+        assert!(
+            gain >= 2.0,
+            "the garage box must be worth the wiring: only {gain:.1}x finer texels"
+        );
+        assert!(
+            params.texel_world_size() < 0.03,
+            "hangar texel {:.4} m regressed past 3 cm",
+            params.texel_world_size()
+        );
     }
 
     /// The back of the frame is a CLOSED bay gate, not a glowing plate: nothing on the back
