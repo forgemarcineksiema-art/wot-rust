@@ -13,35 +13,37 @@ use crate::app::garage::GarageHit;
 use crate::app::garage::GarageState;
 use crate::app::garage::layout::{
     BATTLE, PANEL, SLOT, SLOT_SELECTED, TEXT, TEXT_DIM, TREE_CLOSE_CENTER, TREE_CLOSE_HALF,
-    TREE_ERA_LABEL_X, TREE_NODE_HALF, TREE_PANEL_CENTER, TREE_PANEL_HALF, VALUE, in_rect,
-    tree_era_y, tree_node_center,
+    TREE_ERA_LABEL_X, TREE_PANEL_CENTER, TREE_PANEL_HALF, VALUE, in_rect, tree_era_y,
+    tree_node_center, tree_node_half,
 };
 use crate::hud::font::{push_text, text_width};
 use crate::hud::push_panel;
 use crate::hud::theme::{CHAMFER_PANEL, CHAMFER_SLOT};
 
-/// One entry in the tree layout: (index into `VehicleKind::PLAYABLE`, the kind, its node centre).
-/// Vehicles line up left-to-right inside their ERA's band, in roster order.
-fn tree_nodes() -> Vec<(usize, VehicleKind, [f32; 2])> {
+/// One entry in the tree layout: (index into `VehicleKind::PLAYABLE`, the kind, its node centre,
+/// its node half-extents). Vehicles line up left-to-right inside their ERA's band, in roster
+/// order; a band's node size comes from its own population (`layout::tree_node_half`).
+fn tree_nodes() -> Vec<(usize, VehicleKind, [f32; 2], [f32; 2])> {
     let mut out = Vec::new();
     for era in Era::ALL {
+        let half = tree_node_half(era);
         for (col, kind) in era.playable().enumerate() {
             let index = VehicleKind::PLAYABLE
                 .iter()
                 .position(|k| *k == kind)
                 .expect("era.playable() draws from PLAYABLE");
-            out.push((index, kind, tree_node_center(era, col)));
+            out.push((index, kind, tree_node_center(era, col), half));
         }
     }
     out
 }
 
-/// The tree-node centre for a `VehicleKind::PLAYABLE` index, or `None` if out of range. Reuses the
-/// same `tree_nodes()` enumeration the draw and hit-test paths use, so a hover highlight lands on the
-/// exact node the click would select (the hangar carousel and the tech tree lay nodes out
-/// differently, so the hover rect must be resolved per view).
-pub(in crate::app::garage) fn node_center_for_index(index: usize) -> Option<[f32; 2]> {
-    tree_nodes().into_iter().find(|(i, _, _)| *i == index).map(|(_, _, center)| center)
+/// The tree-node rect (centre, half) for a `VehicleKind::PLAYABLE` index, or `None` if out of
+/// range. Reuses the same `tree_nodes()` enumeration the draw and hit-test paths use, so a hover
+/// highlight lands on the exact node the click would select (the hangar carousel and the tech
+/// tree lay nodes out differently, so the hover rect must be resolved per view).
+pub(in crate::app::garage) fn node_rect_for_index(index: usize) -> Option<([f32; 2], [f32; 2])> {
+    tree_nodes().into_iter().find(|(i, ..)| *i == index).map(|(_, _, center, half)| (center, half))
 }
 
 pub(in crate::app::garage) fn draw(state: &GarageState, aspect: f32) -> Vec<HudVertex> {
@@ -59,7 +61,7 @@ pub(in crate::app::garage) fn draw(state: &GarageState, aspect: f32) -> Vec<HudV
             push_text(
                 &mut v,
                 placeholder,
-                tree_node_center(era, 0)[0] - TREE_NODE_HALF[0],
+                tree_node_center(era, 0)[0] - tree_node_half(era)[0],
                 y + 0.014,
                 0.026,
                 aspect,
@@ -70,9 +72,9 @@ pub(in crate::app::garage) fn draw(state: &GarageState, aspect: f32) -> Vec<HudV
 
     // Vehicle nodes inside their era band: a nation tag in the nation's colour over the name.
     let selected = state.selected_index();
-    for (i, kind, center) in tree_nodes() {
+    for (i, kind, center, half) in tree_nodes() {
         let bg = if i == selected { SLOT_SELECTED } else { SLOT };
-        push_panel(&mut v, center, TREE_NODE_HALF, CHAMFER_SLOT, aspect, bg);
+        push_panel(&mut v, center, half, CHAMFER_SLOT, aspect, bg);
         let nation = kind.nation();
         let tag = nation.label();
         let color = nation.color();
@@ -86,9 +88,17 @@ pub(in crate::app::garage) fn draw(state: &GarageState, aspect: f32) -> Vec<HudV
             aspect,
             [color[0], color[1], color[2], 0.95],
         );
+        // The name fits ITS node: a crowded band's narrower plate shrinks the text to match
+        // rather than letting a long name print past the plate edge.
         let name = kind.short_name();
-        let w = text_width(name, 0.032, aspect);
-        push_text(&mut v, name, center[0] - w / 2.0, center[1] + 0.012, 0.032, aspect, TEXT);
+        let mut size = 0.032;
+        let max_w = 2.0 * half[0] - 0.02;
+        let w = text_width(name, size, aspect);
+        if w > max_w {
+            size *= max_w / w;
+        }
+        let w = text_width(name, size, aspect);
+        push_text(&mut v, name, center[0] - w / 2.0, center[1] + 0.012, size, aspect, TEXT);
     }
 
     // Close button in the top-right corner.
@@ -115,8 +125,8 @@ pub(in crate::app::garage) fn hit_test(state: &GarageState) -> GarageHit {
         return GarageHit::CloseTechTree;
     }
 
-    for (i, _kind, center) in tree_nodes() {
-        if in_rect(p, center, TREE_NODE_HALF) {
+    for (i, _kind, center, half) in tree_nodes() {
+        if in_rect(p, center, half) {
             return GarageHit::Vehicle(i);
         }
     }
@@ -151,7 +161,7 @@ mod tests {
     fn every_node_sits_in_its_own_eras_band() {
         // THE phase-5 lock: era is the layout's primary axis. Every playable vehicle's node
         // centre-line is its era's band, not a nation column.
-        for (_, kind, center) in tree_nodes() {
+        for (_, kind, center, _) in tree_nodes() {
             assert_eq!(
                 center[1],
                 tree_era_y(kind.era()),

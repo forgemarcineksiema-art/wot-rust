@@ -91,9 +91,7 @@ fn hover_rect(state: &GarageState, hit: &GarageHit) -> Option<([f32; 2], [f32; 2
         // lands on the node the click would hit (the old code always used the carousel rect, so
         // hovering a tree node lit an unrelated cell at the bottom of the screen).
         GarageHit::Vehicle(i) => match state.view() {
-            GarageView::TechTree => {
-                panels::techtree::node_center_for_index(*i).map(|center| (center, TREE_NODE_HALF))
-            }
+            GarageView::TechTree => panels::techtree::node_rect_for_index(*i),
             GarageView::Hangar => carousel_cell_rect(state, *i),
         },
         GarageHit::CarouselScroll(dir) => {
