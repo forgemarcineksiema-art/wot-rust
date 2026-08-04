@@ -188,36 +188,6 @@ fn each_map_owns_a_policy_conformant_material_set() {
 /// If this hash moves, either the classification genuinely changed (bless it deliberately, in the
 /// same diff, with the reason) or a refactor that promised to be inert was not.
 #[test]
-#[ignore = "temporary measurement helper"]
-fn print_flow_field_cost() {
-    let battlefield = map_forge::battlefield(MapId::BystraValley);
-    let start = std::time::Instant::now();
-    let field = terrain::FlowField::from_heightmap(&battlefield.heightmap);
-    let flow_ms = start.elapsed().as_secs_f64() * 1000.0;
-    let start = std::time::Instant::now();
-    let classifier = terrain::GroundClassifier::new(&battlefield);
-    let classifier_ms = start.elapsed().as_secs_f64() * 1000.0;
-    eprintln!("flow field alone: {flow_ms:.3} ms; classifier with flow: {classifier_ms:.3} ms");
-    assert!(field.wetness_at(500.0, 500.0) >= 0.0);
-    assert!(classifier.flow_wetness_at(500.0, 500.0) >= 0.0);
-}
-
-#[test]
-#[ignore = "temporary bless helper"]
-fn print_fresh_golden_hashes() {
-    for map in
-        [MapId::ProkhorovkaHill252_2, MapId::BystraValley, MapId::OrlinyPereval, MapId::Ostrogorsk]
-    {
-        let maps = bake_terrain_ground_maps(&map_forge::battlefield(map));
-        eprintln!(
-            "{map:?}: splat 0x{:016x} normals 0x{:016x}",
-            splitmix_hash(&maps.splat),
-            splitmix_hash(&maps.macro_normal)
-        );
-    }
-}
-
-#[test]
 fn the_splat_bake_is_texel_identical_to_its_golden() {
     // Blessed 2026-08-04 (teren A1): structural ground moisture entered the rule — the D8
     // drainage darkens the splat's wet-earth lane and glosses the pooling alpha. Deliberate,
