@@ -99,12 +99,21 @@ pub fn sample_tank_terrain_contact(
         water_depth_m: 0.0,
         // The surface under the hull's own centre decides its footing. Sampling the probe cross
         // would smear a road's edge into the field beside it, and a track is on one thing at a
-        // time.
-        ground: ground
-            .map(|ground| {
-                GroundScales::from(ground.properties_at(heightmap, position.x, position.z))
-            })
-            .unwrap_or_else(GroundScales::grass),
+        // time. A hull STANDING ON a mound drives on broken masonry (teren F2), not on
+        // whatever the splat said was under the building — the mound's surface is the
+        // mound's material.
+        ground: if terrain::rubble_height_at(rubble, position.x, position.z)
+            .zip(heightmap.sample_height(position.x, position.z))
+            .is_some_and(|(rubble_y, terrain_y)| rubble_y > terrain_y)
+        {
+            GroundScales::from(terrain::RUBBLE_PROPERTIES)
+        } else {
+            ground
+                .map(|ground| {
+                    GroundScales::from(ground.properties_at(heightmap, position.x, position.z))
+                })
+                .unwrap_or_else(GroundScales::grass)
+        },
     })
 }
 

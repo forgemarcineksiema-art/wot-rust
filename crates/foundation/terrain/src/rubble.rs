@@ -92,6 +92,17 @@ impl RubbleMound {
 /// The highest debris surface at a world XZ point across every mound, or `None` if the point is
 /// on none of them. `mounds` is empty for the overwhelming majority of battles, which is why this
 /// is a plain linear scan: the fast path is the emptiness check.
+/// What broken masonry does under a track (teren F2). Before this constant existed, a hull
+/// on a collapsed tenement drove with whatever the splat said was under the BUILDING —
+/// lawn, usually. Debris bites decently (edges catch the links) but rolls hard (the climb
+/// is a churn of brick), and stone rubble takes no rut. The mound's surface is the mound's
+/// material; the ground rule keeps owning everything that is actually ground.
+pub const RUBBLE_PROPERTIES: crate::ground::GroundProperties = crate::ground::GroundProperties {
+    grip_scale: 0.98,
+    rolling_resist_scale: 1.3,
+    rut_depth_m: 0.0,
+};
+
 pub fn rubble_height_at(mounds: &[RubbleMound], x_m: f32, z_m: f32) -> Option<f32> {
     let mut highest: Option<f32> = None;
     for mound in mounds {
