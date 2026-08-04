@@ -11,6 +11,8 @@ use super::hangar::{HALF, WALL_HEIGHT, push_cylinder, slab, slab_finished};
 const STEEL: [f32; 3] = [0.24, 0.25, 0.27];
 const DARK_STEEL: [f32; 3] = [0.16, 0.17, 0.18];
 const RUBBER: [f32; 3] = [0.11, 0.11, 0.12];
+/// The wear-and-grime ring where a standing prop meets the concrete (`push_contact_ring`).
+const CONTACT: [f32; 3] = [0.185, 0.182, 0.176];
 const WHEEL_HUB: [f32; 3] = [0.30, 0.28, 0.24];
 const WOOD: [f32; 3] = [0.34, 0.26, 0.17];
 const BARREL: [f32; 3] = [0.30, 0.34, 0.30];
@@ -55,25 +57,51 @@ fn overhead_crane(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
     slab(v, i, [6.4, beam_y - 1.9, -1.6], [0.28, 0.22, 0.28], STEEL); // hook block
 }
 
+/// Spare road wheels are FLEET parts, not prop-bin filler: the T-54's road wheel is 0.81 m
+/// across (`docs/vehicles/t-54.md`), and a spare on the workshop floor is the same wheel that
+/// hangs on the tank five metres away. The old stack was ⌀1.24 m — subliminally wrong next to
+/// every hull in the hall. Locked by `spare_wheels_are_fleet_wheels`.
+const SPARE_WHEEL_RADIUS_M: f32 = 0.405;
+const SPARE_WHEEL_THICKNESS_M: f32 = 0.25;
+
 /// A stack of spare road wheels lying flat: rubber tyre discs with a lighter hub, tapering up.
 fn wheel_stack(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>, x: f32, z: f32) {
+    push_contact_ring(v, i, x, z, SPARE_WHEEL_RADIUS_M + 0.08);
     for layer in 0..4 {
-        let y = 0.16 + layer as f32 * 0.30;
-        push_cylinder(v, i, Vec3::new(x, y, z), 0.62, 0.24, 20, RUBBER);
-        push_cylinder(v, i, Vec3::new(x, y + 0.24, z), 0.22, 0.03, 14, WHEEL_HUB);
+        let y = 0.02 + layer as f32 * (SPARE_WHEEL_THICKNESS_M + 0.01);
+        push_cylinder(
+            v,
+            i,
+            Vec3::new(x, y, z),
+            SPARE_WHEEL_RADIUS_M,
+            SPARE_WHEEL_THICKNESS_M,
+            20,
+            RUBBER,
+        );
+        push_cylinder(
+            v,
+            i,
+            Vec3::new(x, y + SPARE_WHEEL_THICKNESS_M, z),
+            0.15,
+            0.03,
+            14,
+            WHEEL_HUB,
+        );
     }
 }
 
-/// A low heap of track links: staggered dark-steel blocks.
+/// A low heap of track links: staggered dark-steel blocks in the fleet's LINK dimensions —
+/// a T-54 link is 0.58 m wide at a ~0.14 m pitch and less than a decimetre thick, so a pile
+/// of them is a low, WIDE stack of plates, not a crate of bricks.
 fn track_link_pile(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>, x: f32, z: f32) {
-    for row in 0..3 {
+    for row in 0..4 {
         for col in 0..4 {
             let jitter = ((row * 4 + col) as f32 * 0.37).sin() * 0.05;
             slab(
                 v,
                 i,
-                [x + col as f32 * 0.26 - 0.4, 0.09 + row as f32 * 0.16, z + jitter],
-                [0.12, 0.08, 0.20],
+                [x + col as f32 * 0.16 - 0.24, 0.045 + row as f32 * 0.09, z + jitter],
+                [0.07, 0.045, 0.29],
                 DARK_STEEL,
             );
         }
@@ -90,14 +118,34 @@ fn workbench(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>, x: f32, z: f32) {
     }
 }
 
+/// A standard 200-litre steel drum: ⌀0.57 m × 0.88 m tall, its two rolling hoops sitting
+/// FLUSH on the shell (6 mm proud) at the real third-points. The old drums were ⌀0.68 with
+/// hoops overhanging the shell by 2 cm — from the hero framing those unlit hoop undersides
+/// read as dark ellipses floating around the can. One helper for every drum in the hall, so
+/// a barrel cannot drift back into a caricature in one corner only.
+fn push_drum(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>, x: f32, z: f32) {
+    const DRUM_RADIUS_M: f32 = 0.29;
+    const DRUM_HEIGHT_M: f32 = 0.88;
+    push_contact_ring(v, i, x, z, DRUM_RADIUS_M + 0.08);
+    push_cylinder(v, i, Vec3::new(x, 0.0, z), DRUM_RADIUS_M, DRUM_HEIGHT_M, 18, BARREL);
+    for hoop_y in [0.28_f32, 0.56] {
+        push_cylinder(v, i, Vec3::new(x, hoop_y, z), DRUM_RADIUS_M + 0.006, 0.06, 18, DARK_STEEL);
+    }
+}
+
+/// The dark ring of wear and grime where a prop meets the concrete. Honest grounding — this
+/// is dirt that accumulates around anything that stands in a workshop for months, not a faked
+/// shadow (the sun draws the real shadows now); it keeps a prop's foot from reading as a
+/// mathematically clean seam.
+fn push_contact_ring(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>, x: f32, z: f32, radius: f32) {
+    push_cylinder(v, i, Vec3::new(x, 0.005, z), radius, 0.004, 18, CONTACT);
+}
+
 /// A short row of fuel barrels standing against the left wall (`wall_x`).
 fn barrels(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>, wall_x: f32) {
     for (n, z) in [-3.4_f32, -2.6, -1.8].into_iter().enumerate() {
         let x = wall_x + (n as f32 * 0.05);
-        push_cylinder(v, i, Vec3::new(x, 0.0, z), 0.34, 0.92, 18, BARREL);
-        // Two rim rings read the barrel as steel, not a plain can.
-        push_cylinder(v, i, Vec3::new(x, 0.28, z), 0.36, 0.04, 18, DARK_STEEL);
-        push_cylinder(v, i, Vec3::new(x, 0.62, z), 0.36, 0.04, 18, DARK_STEEL);
+        push_drum(v, i, x, z);
     }
 }
 
@@ -204,12 +252,10 @@ fn stores_zone(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>, x: f32, z: f32) {
     for (layer_y, hx, hz) in [(0.35_f32, 1.05_f32, 0.8_f32), (0.85, 0.85, 0.62), (1.2, 0.6, 0.45)] {
         slab_finished(v, i, [x + 0.3, layer_y, z + 3.6], [hx, 0.36, hz], TARP, 0.1);
     }
-    // Reserve barrels.
+    // Reserve barrels — the same honest drum as by the gate wall.
     for (n, dz) in [-3.2_f32, -3.9].into_iter().enumerate() {
         let bx = x - 0.9 + n as f32 * 0.15;
-        push_cylinder(v, i, Vec3::new(bx, 0.0, z + dz), 0.34, 0.92, 18, BARREL);
-        push_cylinder(v, i, Vec3::new(bx, 0.28, z + dz), 0.36, 0.04, 18, DARK_STEEL);
-        push_cylinder(v, i, Vec3::new(bx, 0.62, z + dz), 0.36, 0.04, 18, DARK_STEEL);
+        push_drum(v, i, bx, z + dz);
     }
 }
 
@@ -228,5 +274,122 @@ fn extinguishers(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>) {
             vertex.gloss = 0.45;
         }
         slab(v, i, [x, 1.34, z], [0.045, 0.07, 0.045], DARK_STEEL);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::hangar::hangar_scene_mesh;
+    use super::*;
+
+    /// Corner-shade multiplies all channels by one factor in `[0.8, 1.0]`, so hue identity
+    /// survives the bake (mirror of the helper in `hangar::tests`).
+    fn is_shade_of(color: [f32; 3], base: [f32; 3]) -> bool {
+        let k = color[0] / base[0];
+        (0.79..=1.001).contains(&k) && (0..3).all(|i| (color[i] - base[i] * k).abs() < 1.0e-4)
+    }
+
+    /// The five drums the hall stands (three by the gate wall, two in stores), by the centres
+    /// the builders use. A duplicated list, on purpose: moving a drum without moving its lock
+    /// is exactly the drift this test exists to catch.
+    const DRUMS: [(f32, f32); 5] =
+        [(-16.3, -3.4), (-16.25, -2.6), (-16.2, -1.8), (-16.4, 7.3), (-16.25, 6.6)];
+
+    #[test]
+    fn spare_wheels_are_fleet_wheels() {
+        // The T-54 road wheel is 0.81 m across; a spare on the floor is the SAME part that
+        // hangs on the hull five metres away. The old ⌀1.24 m stack read subliminally wrong
+        // against every tank in the hall.
+        let (vertices, _) = hangar_scene_mesh();
+        // Two stacks stand side by side; a vertex belongs to the NEARER axis, so the max of
+        // that min-distance is exactly one wheel's radius.
+        let corner = HALF - 3.0;
+        let stacks = [(-corner, -corner), (-corner - 0.7, -corner)];
+        let radius = vertices
+            .iter()
+            .filter(|v| is_shade_of(v.color, RUBBER))
+            .map(|v| {
+                stacks
+                    .iter()
+                    .map(|(cx, cz)| {
+                        let (dx, dz) = (v.position[0] - cx, v.position[2] - cz);
+                        (dx * dx + dz * dz).sqrt()
+                    })
+                    .fold(f32::MAX, f32::min)
+            })
+            .filter(|r| *r < 1.0)
+            .fold(0.0f32, f32::max);
+        assert!(
+            (radius - SPARE_WHEEL_RADIUS_M).abs() < 0.02,
+            "the spare wheel is the fleet's 0.81 m wheel, measured radius {radius}"
+        );
+    }
+
+    #[test]
+    fn drum_hoops_hug_the_shell() {
+        // The rolling hoops of a steel drum sit flush on the shell. The old hoops overhung by
+        // 2 cm, and their unlit undersides read as dark ellipses floating around the can.
+        let (vertices, _) = hangar_scene_mesh();
+        for (cx, cz) in DRUMS {
+            let max_r = vertices
+                .iter()
+                .filter(|v| v.position[1] > 0.05 && v.position[1] < 0.9)
+                .map(|v| {
+                    let (dx, dz) = (v.position[0] - cx, v.position[2] - cz);
+                    (dx * dx + dz * dz).sqrt()
+                })
+                .filter(|r| *r < 0.40)
+                .fold(0.0f32, f32::max);
+            assert!(
+                max_r <= 0.30,
+                "drum at ({cx}, {cz}): nothing on the shell may overhang it, widest {max_r}"
+            );
+        }
+    }
+
+    #[test]
+    fn standing_props_meet_the_floor_on_a_wear_ring() {
+        // Honest grounding: the dark ring is dirt that accumulates around anything standing
+        // on workshop concrete for months — not a faked shadow (the skylight sun draws the
+        // real ones). Every drum and wheel stack must sit on one wider than its own foot.
+        let (vertices, _) = hangar_scene_mesh();
+        let ring_under = |cx: f32, cz: f32, foot: f32| {
+            vertices.iter().filter(|v| is_shade_of(v.color, CONTACT) && v.position[1] < 0.02).any(
+                |v| {
+                    let (dx, dz) = (v.position[0] - cx, v.position[2] - cz);
+                    let r = (dx * dx + dz * dz).sqrt();
+                    (r - (foot + 0.08)).abs() < 0.03
+                },
+            )
+        };
+        for (cx, cz) in DRUMS {
+            assert!(ring_under(cx, cz, 0.29), "the drum at ({cx}, {cz}) stands on a wear ring");
+        }
+        let corner = HALF - 3.0;
+        assert!(
+            ring_under(-corner, -corner, SPARE_WHEEL_RADIUS_M),
+            "the wheel stack stands on a wear ring"
+        );
+    }
+
+    #[test]
+    fn the_track_link_pile_is_a_pile_of_links_not_bricks() {
+        // A T-54 link is 0.58 m wide, ~0.14 m at the pitch and under a decimetre thick: the
+        // pile reads as low, WIDE plates.
+        let (vertices, _) = hangar_scene_mesh();
+        let (cx, cz) = (HALF - 3.0, -(HALF - 3.0));
+        let pile: Vec<_> = vertices
+            .iter()
+            .filter(|v| {
+                is_shade_of(v.color, DARK_STEEL)
+                    && (v.position[0] - cx).abs() < 1.0
+                    && (v.position[2] - cz).abs() < 1.0
+            })
+            .collect();
+        assert!(!pile.is_empty(), "the link pile exists");
+        let z_span = pile.iter().map(|v| v.position[2] - cz).fold(0.0f32, |a, b| a.max(b.abs()));
+        let height = pile.iter().map(|v| v.position[1]).fold(0.0f32, f32::max);
+        assert!(z_span >= 0.28, "links are track-width plates, got half-span {z_span}");
+        assert!(height <= 0.45, "the heap stays low, got {height}");
     }
 }
