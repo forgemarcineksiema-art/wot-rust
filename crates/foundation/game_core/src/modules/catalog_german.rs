@@ -1,4 +1,4 @@
-﻿use super::{
+use super::{
     EngineModule, GunModule, HullChassis, RadioModule, SuspensionModule, TurretModule,
     TurretTraverse, VehicleModules,
 };
@@ -39,16 +39,10 @@ pub(crate) fn tiger_i_loadout() -> VehicleModules {
             rear_mm: 80.0,
             roof_mm: None,
             traverse: TurretTraverse::Rotating { rate_rad_s: 0.33 },
-            view_range_m: 380.0,
             max_gun_caliber_mm: 90.0,
         },
         gun: gun_kwk36(),
-        radio: RadioModule {
-            name: "FuG 5".to_string(),
-            mass_kg: 100.0,
-            hit_points: 50,
-            signal_range_m: 650.0,
-        },
+        radio: RadioModule { name: "FuG 5".to_string(), mass_kg: 100.0, hit_points: 50 },
     }
 }
 
@@ -87,16 +81,10 @@ pub(crate) fn tiger_ii_loadout() -> VehicleModules {
             rear_mm: 80.0,
             roof_mm: None,
             traverse: TurretTraverse::Rotating { rate_rad_s: 0.28 },
-            view_range_m: 390.0,
             max_gun_caliber_mm: 90.0,
         },
         gun: gun_kwk43(),
-        radio: RadioModule {
-            name: "FuG 5".to_string(),
-            mass_kg: 100.0,
-            hit_points: 50,
-            signal_range_m: 650.0,
-        },
+        radio: RadioModule { name: "FuG 5".to_string(), mass_kg: 100.0, hit_points: 50 },
     }
 }
 

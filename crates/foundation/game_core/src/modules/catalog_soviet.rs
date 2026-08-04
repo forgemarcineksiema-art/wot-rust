@@ -43,16 +43,10 @@ pub(crate) fn t54_loadout() -> VehicleModules {
             rear_mm: 65.0,
             roof_mm: Some(30.0),
             traverse: TurretTraverse::Rotating { rate_rad_s: 0.42 },
-            view_range_m: 370.0,
             max_gun_caliber_mm: 105.0,
         },
         gun: gun_d10t(),
-        radio: RadioModule {
-            name: "10-RT".to_string(),
-            mass_kg: 100.0,
-            hit_points: 50,
-            signal_range_m: 700.0,
-        },
+        radio: RadioModule { name: "10-RT".to_string(), mass_kg: 100.0, hit_points: 50 },
     }
 }
 
@@ -95,16 +89,10 @@ pub(crate) fn t34_85_loadout() -> VehicleModules {
             rear_mm: 52.0,
             roof_mm: None,
             traverse: TurretTraverse::Rotating { rate_rad_s: 0.44 },
-            view_range_m: 350.0,
             max_gun_caliber_mm: 85.0,
         },
         gun: gun_zis_s53(),
-        radio: RadioModule {
-            name: "9-RS".to_string(),
-            mass_kg: 100.0,
-            hit_points: 50,
-            signal_range_m: 550.0,
-        },
+        radio: RadioModule { name: "9-RS".to_string(), mass_kg: 100.0, hit_points: 50 },
     }
 }
 
@@ -176,16 +164,10 @@ pub(crate) fn is3_loadout() -> VehicleModules {
             rear_mm: 110.0,
             roof_mm: None,
             traverse: TurretTraverse::Rotating { rate_rad_s: 0.36 },
-            view_range_m: 350.0,
             max_gun_caliber_mm: 130.0,
         },
         gun: gun_d25t(),
-        radio: RadioModule {
-            name: "10-RK-26".to_string(),
-            mass_kg: 110.0,
-            hit_points: 50,
-            signal_range_m: 625.0,
-        },
+        radio: RadioModule { name: "10-RK-26".to_string(), mass_kg: 110.0, hit_points: 50 },
     }
 }
 
