@@ -24,6 +24,60 @@ const PUDDLE_BLUR_RADIUS_TEXELS: usize = 6;
 /// reading as standing water. Composed by MAX with the flatness/basin term, then blurred.
 const FLOW_PUDDLE_GAIN: f32 = 0.5;
 
+/// The road crown's rise at the centerline (teren B2): a parabolic camber baked as a
+/// cross-road bend of the MACRO NORMAL — pure shading, ~10 cm that blocks nothing and
+/// collides with nothing (the honest-steel line for sub-profile relief). The 5 m heightfield
+/// cannot carry a form this narrow; the 1 m bake texel can. Entering through dx/dz BEFORE
+/// normalization, the crown also reaches the pooling flatness — a crowned road sheds water,
+/// which is what a crown is FOR.
+const ROAD_CROWN_M: f32 = 0.10;
+
+/// A road's XZ bounding box grown by its half-width + the bake's sampling step — the cheap
+/// rejection in front of the polyline walk, computed once per bake instead of per texel.
+struct RoadBound {
+    min: [f32; 2],
+    max: [f32; 2],
+}
+
+fn road_bounds(roads: &[terrain::Road], step: f32) -> Vec<RoadBound> {
+    roads
+        .iter()
+        .map(|road| {
+            let mut min = [f32::INFINITY; 2];
+            let mut max = [f32::NEG_INFINITY; 2];
+            for point in &road.points {
+                min[0] = min[0].min(point[0]);
+                min[1] = min[1].min(point[1]);
+                max[0] = max[0].max(point[0]);
+                max[1] = max[1].max(point[1]);
+            }
+            let reach = road.width_m * 0.5 + step * 2.0;
+            RoadBound {
+                min: [min[0] - reach, min[1] - reach],
+                max: [max[0] + reach, max[1] + reach],
+            }
+        })
+        .collect()
+}
+
+/// The crown height field: parabolic over each road's width, strongest road wins — the same
+/// fold rule as the paint, so the camber and the surface never disagree about which road a
+/// texel belongs to. Zero beyond the kerb (the edge discontinuity IS the kerb's read).
+fn road_crown_m(roads: &[terrain::Road], bounds: &[RoadBound], x: f32, z: f32) -> f32 {
+    roads
+        .iter()
+        .zip(bounds)
+        .map(|(road, bound)| {
+            if x < bound.min[0] || x > bound.max[0] || z < bound.min[1] || z > bound.max[1] {
+                return 0.0;
+            }
+            let half = road.width_m * 0.5;
+            let d = road.distance_to(x, z);
+            if d >= half { 0.0 } else { ROAD_CROWN_M * (1.0 - (d / half) * (d / half)) }
+        })
+        .fold(0.0, f32::max)
+}
+
 fn pooling_smoothstep(edge0: f32, edge1: f32, value: f32) -> f32 {
     let t = ((value - edge0) / (edge1 - edge0)).clamp(0.0, 1.0);
     t * t * (3.0 - 2.0 * t)
@@ -75,6 +129,8 @@ struct GroundBakeContext<'a> {
     ground: GroundClassifier,
     /// Finite-difference step for the macro normal: half a texel, well under the 5 m grid.
     step: f32,
+    /// Per-road XZ bounds (teren B2) — the cheap rejection in front of the crown's walks.
+    road_bounds: Vec<RoadBound>,
 }
 
 impl<'a> GroundBakeContext<'a> {
@@ -83,13 +139,15 @@ impl<'a> GroundBakeContext<'a> {
         let extent_x = (heightmap.width() - 1) as f32 * heightmap.cell_size_m();
         let extent_z = (heightmap.height() - 1) as f32 * heightmap.cell_size_m();
         let stats = heightmap.stats();
+        let step = (extent_x / MAP_SIZE as f32) * 0.5;
         Self {
             battlefield,
             extent_x,
             extent_z,
             min_m: stats.min_m,
             ground: GroundClassifier::new(battlefield),
-            step: (extent_x / MAP_SIZE as f32) * 0.5,
+            step,
+            road_bounds: road_bounds(&battlefield.roads, step),
         }
     }
 
@@ -121,14 +179,42 @@ impl<'a> GroundBakeContext<'a> {
                 // Macro normal from central differences at sub-grid step.
                 let dx = self.height_at(wx + step, wz) - self.height_at(wx - step, wz);
                 let dz = self.height_at(wx, wz + step) - self.height_at(wx, wz - step);
+                // Teren B2: the crown's numerical gradient rides the same central
+                // difference — the cross-road perpendicular emerges from the distance rule
+                // itself, no segment geometry re-derived. It bends ONLY the packed visual
+                // normal and the pooling flatness (a crowned road sheds water); the layer
+                // WEIGHTS keep the base normal, so the splat stays bit-identical to what
+                // physics reads through `weights_at` — the one-rule discipline holds. The
+                // cheap gate keeps the four extra distance walks off road-free texels.
+                let (mut view_dx, mut view_dz) = (dx, dz);
+                let roads = &self.battlefield.roads;
+                let bounds = &self.road_bounds;
+                let near_road = roads.iter().zip(bounds).any(|(road, bound)| {
+                    wx >= bound.min[0]
+                        && wx <= bound.max[0]
+                        && wz >= bound.min[1]
+                        && wz <= bound.max[1]
+                        && road.distance_to(wx, wz) < road.width_m * 0.5 + step
+                });
+                if near_road {
+                    view_dx += road_crown_m(roads, bounds, wx + step, wz)
+                        - road_crown_m(roads, bounds, wx - step, wz);
+                    view_dz += road_crown_m(roads, bounds, wx, wz + step)
+                        - road_crown_m(roads, bounds, wx, wz - step);
+                }
                 let inv_len =
                     1.0 / (dx * dx + (2.0 * step) * (2.0 * step) + dz * dz).sqrt().max(1.0e-6);
                 let n = [-dx * inv_len, 2.0 * step * inv_len, -dz * inv_len];
+                let view_inv = 1.0
+                    / (view_dx * view_dx + (2.0 * step) * (2.0 * step) + view_dz * view_dz)
+                        .sqrt()
+                        .max(1.0e-6);
+                let view_n = [-view_dx * view_inv, 2.0 * step * view_inv, -view_dz * view_inv];
                 // Pooling is broad terrain truth, not a per-fragment normal threshold. A wide
                 // flatness ramp plus a weak local-depression preference is blurred below before
                 // entering alpha, so neither the 5 m height grid nor its triangle diagonal
-                // survives.
-                let flatness = pooling_smoothstep(0.94, 0.997, n[1]);
+                // survives. It reads the CROWNED normal: a cambered road sheds its water.
+                let flatness = pooling_smoothstep(0.94, 0.997, view_n[1]);
                 let basin_radius_m = 8.0;
                 let neighbour_mean = (self.height_at(wx - basin_radius_m, wz)
                     + self.height_at(wx + basin_radius_m, wz)
@@ -143,9 +229,9 @@ impl<'a> GroundBakeContext<'a> {
                     .max(self.ground.flow_wetness_at(wx, wz) * FLOW_PUDDLE_GAIN);
                 puddle_propensity.push(pooling);
                 macro_normal.extend([
-                    ((n[0] * 0.5 + 0.5) * 255.0).round() as u8,
-                    ((n[1] * 0.5 + 0.5) * 255.0).round() as u8,
-                    ((n[2] * 0.5 + 0.5) * 255.0).round() as u8,
+                    ((view_n[0] * 0.5 + 0.5) * 255.0).round() as u8,
+                    ((view_n[1] * 0.5 + 0.5) * 255.0).round() as u8,
+                    ((view_n[2] * 0.5 + 0.5) * 255.0).round() as u8,
                     0,
                 ]);
 
@@ -292,6 +378,63 @@ mod tests {
             assert_eq!(window[0].1, window[1].0, "chunks meet without gap or overlap");
         }
         assert!(chunks.iter().all(|&(start, end)| start < end), "no empty chunk is scheduled");
+    }
+
+    fn flat_battlefield(roads: Vec<terrain::Road>) -> BattlefieldMap {
+        let heightmap = terrain::HeightMap::flat(65, 65, 5.0, 1.0).expect("flat map");
+        BattlefieldMap {
+            id: "flat".into(),
+            name: "flat".into(),
+            size_m: heightmap.extent_m(),
+            historical_basis: String::new(),
+            design_notes: vec![],
+            heightmap,
+            water: None,
+            river: None,
+            spawn_zones: vec![],
+            capture_zones: vec![],
+            strategic_points: vec![],
+            features: vec![],
+            static_cover: vec![],
+            scenery: vec![],
+            roads,
+        }
+    }
+
+    /// Teren B2: the baked macro normal wears the road's crown — up at the apex, tilting
+    /// OUTWARD across the carriageway, and bit-identical to a roadless bake past the kerb.
+    #[test]
+    fn a_road_wears_a_crown_in_the_baked_normal() {
+        let road = terrain::Road {
+            id: "lane".into(),
+            surface: terrain::RoadSurface::Dirt,
+            points: vec![[0.0, 160.0], [320.0, 160.0]],
+            width_m: 8.0,
+        };
+        let crowned_map = flat_battlefield(vec![road]);
+        let bare_map = flat_battlefield(vec![]);
+        let crowned = GroundBakeContext::new(&crowned_map).bake_rows(500, 535);
+        let bare = GroundBakeContext::new(&bare_map).bake_rows(500, 535);
+        let normal_at = |rows: &GroundBakeRows, tx: usize, tz: usize| -> [f32; 3] {
+            let index = ((tz - 500) * MAP_SIZE as usize + tx) * 4;
+            std::array::from_fn(|axis| {
+                f32::from(rows.macro_normal[index + axis]) / 255.0 * 2.0 - 1.0
+            })
+        };
+        // Texel rows: wz = (tz + 0.5) / 1024 * 320 — the apex sits at wz ≈ 160 (tz 512),
+        // the shoulder probe at wz ≈ 162 (tz 518), the beyond-kerb probe at wz ≈ 166.7.
+        let apex = normal_at(&crowned, 512, 512);
+        assert!(apex[1] > 0.99, "the crown's apex reads flat-up, got {apex:?}");
+        let shoulder = normal_at(&crowned, 512, 518);
+        assert!(
+            shoulder[2] > 0.01,
+            "the shoulder must tilt outward, away from the centerline: {shoulder:?}"
+        );
+        assert_eq!(
+            normal_at(&crowned, 512, 533),
+            normal_at(&bare, 512, 533),
+            "past the kerb the bake is bit-identical to a roadless map"
+        );
     }
 
     /// The migration lock: the blueprint palettes reproduce the hand-tuned sets exactly, and

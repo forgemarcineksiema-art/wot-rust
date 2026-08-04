@@ -27,6 +27,11 @@ flow field (D8, teren A1):          5.1 ms   (release, Bystra 201²; once per
                                               GroundClassifier construction —
                                               battle setup / bake / client, never
                                               per frame; sort dominates)
+ground maps bake, all 4 maps:       1.12 s   (release, teren B2 reference: full
+                                              splat+macro pair per map incl. flow
+                                              + road-crown distance walks, AABB
+                                              gated; ~280 ms/map, absorbed by the
+                                              garage prebake path)
 water mesh:                         0.7 ms   (2 350 v)
 statics rebuild (cover collapse):  27.9 ms
 statics rebuild (single collapse):  21.9 ms  (362 382 v)
