@@ -116,7 +116,11 @@ pub(super) const NATION_TEXT_SIZE: f32 = 0.028;
 pub(super) const CAR_VISIBLE: usize = 8;
 /// Scroll-arrow hit rects, just outside the widest window (drawn only when the roster overflows).
 pub(super) const CAR_ARROW_HALF: [f32; 2] = [0.028, 0.072];
-const CAR_ARROW_X: f32 = 0.52;
+// 0.58, not the old 0.52: a full 8-cell window's outer cell edge reaches 0.513, and an arrow
+// at 0.52 (half 0.028) started at 0.492 — overlapping the very cell it scrolls, exactly when
+// the arrows first appear (the ninth vehicle). Locked by
+// `the_scroll_arrows_clear_the_widest_carousel_window`.
+const CAR_ARROW_X: f32 = 0.58;
 
 pub(super) fn module_slot_center(i: usize) -> [f32; 2] {
     [MODULE_START_X + i as f32 * SLOT_STEP, LOADOUT_Y]
@@ -244,9 +248,31 @@ pub(super) const TREE_PANEL_CENTER: [f32; 2] = [0.0, 0.30];
 pub(super) const TREE_PANEL_HALF: [f32; 2] = [0.82, 0.36];
 /// Left edge where each band's era label + years print.
 pub(super) const TREE_ERA_LABEL_X: f32 = -0.76;
-const TREE_NODE_START_X: f32 = -0.34;
-const TREE_NODE_PITCH_X: f32 = 0.31;
-pub(super) const TREE_NODE_HALF: [f32; 2] = [0.14, 0.052];
+// The node row's usable band: left edge clear of the era-label column, right edge inside the
+// panel (air before its chamfer). A band with few nodes keeps the roomy default node width —
+// the numbers below reproduce the old fixed layout exactly for up to four nodes — while a
+// crowded band derives a narrower node and pitch from its OWN count, so the last node sits
+// inside the panel by construction. The 5-vehicle Era II row used to print its fifth node
+// centred at x 0.90: past the panel edge (0.82) and clipped by the screen.
+const TREE_ROW_LEFT: f32 = -0.48;
+const TREE_ROW_RIGHT: f32 = 0.78;
+const TREE_NODE_GAP: f32 = 0.03;
+const TREE_NODE_MAX_HALF_X: f32 = 0.14;
+const TREE_NODE_HALF_Y: f32 = 0.052;
+
+/// Number of playable vehicles in `era`'s band.
+pub(super) fn tree_band_len(era: game_core::Era) -> usize {
+    era.playable().count()
+}
+
+/// Node half-extents in `era`'s band — every node in a band shares one size, derived from the
+/// band's population so the whole row always fits the panel.
+pub(super) fn tree_node_half(era: game_core::Era) -> [f32; 2] {
+    let count = tree_band_len(era).max(1) as f32;
+    let width = ((TREE_ROW_RIGHT - TREE_ROW_LEFT - (count - 1.0) * TREE_NODE_GAP) / count)
+        .min(2.0 * TREE_NODE_MAX_HALF_X);
+    [width / 2.0, TREE_NODE_HALF_Y]
+}
 pub(super) const TREE_CLOSE_CENTER: [f32; 2] = [0.86, 0.80];
 pub(super) const TREE_CLOSE_HALF: [f32; 2] = [0.06, 0.04];
 
@@ -261,7 +287,9 @@ pub(super) fn tree_era_y(era: game_core::Era) -> f32 {
 
 /// Centre of the `col`-th vehicle node in `era`'s band.
 pub(super) fn tree_node_center(era: game_core::Era, col: usize) -> [f32; 2] {
-    [TREE_NODE_START_X + col as f32 * TREE_NODE_PITCH_X, tree_era_y(era)]
+    let half_x = tree_node_half(era)[0];
+    let pitch = 2.0 * half_x + TREE_NODE_GAP;
+    [TREE_ROW_LEFT + half_x + col as f32 * pitch, tree_era_y(era)]
 }
 
 #[cfg(test)]
@@ -289,6 +317,56 @@ mod tests {
         let max_scroll = count - CAR_VISIBLE;
         assert_eq!(clamp_carousel_scroll(count, 999), max_scroll);
         assert_eq!(carousel_window(count, 999), max_scroll..count);
+    }
+
+    #[test]
+    fn every_tree_node_of_the_live_fleet_stays_inside_the_panel() {
+        // The defect this locks: the 5-vehicle Era II band printed its fifth node past the
+        // panel and the screen. Node size and pitch now derive from each band's population,
+        // so this holds for the CURRENT fleet by construction — and keeps holding as W2/W4
+        // content lands more vehicles per era.
+        for era in game_core::Era::ALL {
+            let half = tree_node_half(era);
+            for col in 0..tree_band_len(era) {
+                let center = tree_node_center(era, col);
+                assert!(
+                    center[0] - half[0] >= TREE_PANEL_CENTER[0] - TREE_PANEL_HALF[0],
+                    "{era:?} col {col} leaks off the panel's left edge"
+                );
+                assert!(
+                    center[0] + half[0] <= TREE_PANEL_CENTER[0] + TREE_PANEL_HALF[0],
+                    "{era:?} col {col} leaks off the panel's right edge"
+                );
+            }
+            // Neighbours never overlap: the pitch always exceeds one node's width.
+            if tree_band_len(era) >= 2 {
+                let gap = tree_node_center(era, 1)[0] - tree_node_center(era, 0)[0];
+                assert!(gap >= 2.0 * half[0] + 0.01, "{era:?} nodes overlap");
+            }
+            // A roomy band keeps the roomy node — no needless shrink below five vehicles.
+            if tree_band_len(era) <= 4 {
+                assert_eq!(half[0], 0.14, "{era:?} shrank a band that fits");
+            }
+        }
+    }
+
+    #[test]
+    fn the_scroll_arrows_clear_the_widest_carousel_window() {
+        // The arrows only appear when the roster overflows — which is exactly when the window
+        // is at its widest. At the old x 0.52 the right arrow overlapped the eighth cell by
+        // 0.021 clip: the control and the content it scrolls fought for the same pixels.
+        let (left, right) = carousel_arrows();
+        let first = carousel_cell_center(0, CAR_VISIBLE);
+        let last = carousel_cell_center(CAR_VISIBLE - 1, CAR_VISIBLE);
+        assert!(
+            right[0] - CAR_ARROW_HALF[0] > last[0] + CAR_HALF[0] + 0.005,
+            "the right arrow clips the outermost cell"
+        );
+        assert!(
+            left[0] + CAR_ARROW_HALF[0] < first[0] - CAR_HALF[0] - 0.005,
+            "the left arrow clips the outermost cell"
+        );
+        assert!(right[0] + CAR_ARROW_HALF[0] < 1.0, "the arrow stays on screen");
     }
 
     #[test]
