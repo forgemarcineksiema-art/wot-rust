@@ -15,11 +15,25 @@ use crate::shader_library::{CAMERA_COMMON_WGSL, LIGHTING_COMMON_WGSL, compose_sh
 /// clipping at 1.0 in the framebuffer.
 pub(crate) const HDR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float;
 
+/// The formed-picture intermediate the FXAA pass reads: plain (non-sRGB) 8-bit Unorm carrying
+/// the post pass's sRGB-ENCODED output verbatim. Plain on purpose, twice over: the dither in
+/// `post.wgsl` straddles exactly this texture's quantization grid, and FXAA wants its input
+/// luma perceptual — a hardware-decoding sRGB view would hand it linear values instead.
+pub(crate) const LDR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
+
 fn post_shader_source() -> String {
     compose_shader(&[
         CAMERA_COMMON_WGSL,
         LIGHTING_COMMON_WGSL,
         include_str!("../shaders/post.wgsl"),
+    ])
+}
+
+fn fxaa_shader_source() -> String {
+    compose_shader(&[
+        CAMERA_COMMON_WGSL,
+        LIGHTING_COMMON_WGSL,
+        include_str!("../shaders/fxaa.wgsl"),
     ])
 }
 
@@ -36,6 +50,8 @@ pub(crate) struct HdrTargets {
     pub resolve_view: wgpu::TextureView,
     /// True when the scene pass needs a resolve attachment (sample_count > 1).
     pub multisampled: bool,
+    /// The formed LDR picture (post pass output, sRGB-encoded bytes) the FXAA pass reads.
+    pub ldr_view: wgpu::TextureView,
     /// The resolved HDR texture, kept for the diagnostic readback.
     resolve_texture: wgpu::Texture,
     /// Water-refraction grab: a single-sample HDR texture the opaque pass resolves into so the
@@ -55,11 +71,10 @@ pub(crate) struct PostResources {
 }
 
 impl PostResources {
-    pub fn new(
-        device: &wgpu::Device,
-        output_format: wgpu::TextureFormat,
-        camera_bgl: &wgpu::BindGroupLayout,
-    ) -> Self {
+    pub fn new(device: &wgpu::Device, camera_bgl: &wgpu::BindGroupLayout) -> Self {
+        // The post pass forms the picture into the LDR intermediate; the FXAA pass owns the
+        // caller's output format.
+        let output_format = LDR_FORMAT;
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("post_bgl"),
             entries: &[
@@ -208,6 +223,19 @@ impl PostResources {
             view_formats: &[],
         });
         let resolve_view = resolve_texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let ldr_view = device
+            .create_texture(&wgpu::TextureDescriptor {
+                label: Some("ldr_formed"),
+                size,
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: LDR_FORMAT,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                    | wgpu::TextureUsages::TEXTURE_BINDING,
+                view_formats: &[],
+            })
+            .create_view(&wgpu::TextureViewDescriptor::default());
         let multisampled = sample_count > 1;
         let color_view = if multisampled {
             device
@@ -247,10 +275,114 @@ impl PostResources {
             color_view,
             resolve_view,
             multisampled,
+            ldr_view,
             resolve_texture,
             grab_view,
         });
         true
+    }
+}
+
+/// The FXAA pass: reads the formed LDR picture and writes the caller's sRGB target — the one
+/// anti-aliasing every player gets (the one-look policy ships 1x MSAA on every adapter, so
+/// without this pass the shipped game had NO anti-aliasing at all). See `fxaa.wgsl` for why
+/// filtering happens on the ENCODED picture.
+pub(crate) struct FxaaResources {
+    pub pipeline: wgpu::RenderPipeline,
+    bind_group_layout: wgpu::BindGroupLayout,
+    sampler: wgpu::Sampler,
+    pub bind_group: RefCell<Option<wgpu::BindGroup>>,
+}
+
+impl FxaaResources {
+    pub fn new(
+        device: &wgpu::Device,
+        output_format: wgpu::TextureFormat,
+        camera_bgl: &wgpu::BindGroupLayout,
+    ) -> Self {
+        let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("fxaa_bgl"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
+            ],
+        });
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("fxaa_shader"),
+            source: wgpu::ShaderSource::Wgsl(fxaa_shader_source().into()),
+        });
+        let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("fxaa_pipeline_layout"),
+            bind_group_layouts: &[Some(camera_bgl), Some(&bind_group_layout)],
+            immediate_size: 0,
+        });
+        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("fxaa_pipeline"),
+            layout: Some(&layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: Some("vs_main"),
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+                buffers: &[],
+            },
+            primitive: wgpu::PrimitiveState::default(),
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState::default(),
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: Some("fs_main"),
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: output_format,
+                    blend: None,
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+            }),
+            multiview_mask: None,
+            cache: None,
+        });
+        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("fxaa_sampler"),
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            ..Default::default()
+        });
+        Self { pipeline, bind_group_layout, sampler, bind_group: RefCell::new(None) }
+    }
+
+    /// Rebuild the pass's input bind group (called whenever the LDR intermediate is recreated).
+    pub fn rebuild_bind_group(&self, device: &wgpu::Device, ldr_view: &wgpu::TextureView) {
+        *self.bind_group.borrow_mut() =
+            Some(device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("fxaa_bg"),
+                layout: &self.bind_group_layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::TextureView(ldr_view),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::Sampler(&self.sampler),
+                    },
+                ],
+            }));
     }
 }
 
