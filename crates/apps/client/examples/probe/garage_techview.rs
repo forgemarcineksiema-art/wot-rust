@@ -52,20 +52,17 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     // screen over the dim hangar. Kept here so the example stays close to the
     // real garage frame structure.
 
-    // Hero orbit camera — the same framing the garage opens with.
+    // Hero orbit camera, READ from the constants the live garage rests at rather than copied
+    // from them. This probe carried its own yaw/pitch/distance/FOV, and when the hero pitch was
+    // lowered 0.28 -> 0.13 (the D20 relight, which exists because the old lens pointed under
+    // every light in the room) the probe kept shooting the retired framing: a review artifact
+    // showing a picture the game had stopped taking.
     let pivot = hangar_camera_pivot();
-    let orbit_yaw = 0.60_f32;
-    let orbit_pitch = 0.28_f32;
-    let orbit_distance = 14.0_f32;
-    let horizontal = orbit_distance * orbit_pitch.cos();
-    let eye = pivot
-        + glam::Vec3::new(
-            horizontal * orbit_yaw.sin(),
-            orbit_distance * orbit_pitch.sin(),
-            horizontal * orbit_yaw.cos(),
-        );
-    let camera =
-        Camera { eye: eye.to_array(), target: pivot.to_array(), vertical_fov_degrees: 32.0 };
+    let camera = Camera {
+        eye: client::hero_orbit_eye().to_array(),
+        target: pivot.to_array(),
+        vertical_fov_degrees: client::HERO_FOV_DEGREES,
+    };
     let projection = CameraProjectionPolicy::webgpu_default();
     let view_proj = view_projection_matrix(
         &camera,
@@ -80,7 +77,8 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     // Match the real garage frame (`ensure_scene`): hero lighting + the interior backdrop the game
     // uses, so this review shot never flatters the scene differently than the player sees it.
     renderer.scene_lighting = SceneLighting::garage_hero();
-    renderer.set_interior_background(0.05, 0.05, 0.06);
+    let (bg_r, bg_g, bg_b) = client::INTERIOR_BACKGROUND;
+    renderer.set_interior_background(bg_r, bg_g, bg_b);
 
     // The tech tree HUD overlay.
     let (font_w, font_h, font_coverage) = client::hud_font_atlas();

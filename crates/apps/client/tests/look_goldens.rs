@@ -409,8 +409,10 @@ fn recorded_goldens_hold_the_value_structure() {
 
         // A screen is not a photograph. The value-structure bounds below describe a lit room —
         // three planes, a shade mass, a bright source — and none of them says anything true about
-        // a frame that is half opaque instrument panel. The overlay view answers to its own locks.
-        if view.overlay {
+        // a frame that is half opaque instrument panel. The overlay views answer to their own
+        // locks — and every one of them does, not just the hangar screen: the tech tree and the
+        // module option list are screens the player reaches with one key or one click.
+        if view.screen != client::GarageScreen::Room {
             let differing = room_pixels
                 .chunks_exact(4)
                 .zip(pixels.chunks_exact(4))

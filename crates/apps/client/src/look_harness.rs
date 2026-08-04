@@ -162,12 +162,20 @@ pub fn render_hangar_review_views(
     let projection = CameraProjectionPolicy::webgpu_default();
     let mut frames = Vec::with_capacity(views.len());
     for view in views {
-        // The overlay is the REAL garage overlay — `garage_overlay` builds it from a default
-        // `GarageState`, the same call the live client makes — not a review-only reconstruction.
-        let hud = if view.overlay {
-            crate::garage_overlay(false, width as f32 / height as f32)
-        } else {
-            Vec::new()
+        // The overlay is the REAL garage overlay — these are the same builders the live client
+        // calls, driven from a default `GarageState`, not a review-only reconstruction.
+        let aspect = width as f32 / height as f32;
+        let hud = match view.screen {
+            scene_build::review_views::GarageScreen::Room => Vec::new(),
+            scene_build::review_views::GarageScreen::Hangar => crate::garage_overlay(false, aspect),
+            scene_build::review_views::GarageScreen::TechTree => {
+                crate::garage_overlay(true, aspect)
+            }
+            // The T-54's gun slot: the one slot on the opening vehicle with a real choice, so
+            // the locked list has rows to draw rather than an empty plate.
+            scene_build::review_views::GarageScreen::OptionList => {
+                crate::garage_overlay_option_list(0, 1, aspect)
+            }
         };
         renderer.set_hud(&ctx, &hud);
 

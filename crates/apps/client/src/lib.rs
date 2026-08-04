@@ -42,9 +42,13 @@ pub use scene_build::battlefield::{
 };
 pub use scene_build::grass::{GRASS_MESH_HANDLE, grass_frame_objects, grass_tuft_mesh};
 pub use scene_build::grass_cards::grass_card_dressing_mesh;
-pub use scene_build::hangar::{TURNTABLE_TOP_M, hangar_camera_pivot, hangar_scene_mesh};
+pub use scene_build::hangar::{
+    HERO_FOV_DEGREES, INTERIOR_BACKGROUND, TURNTABLE_TOP_M, hangar_camera_pivot, hangar_scene_mesh,
+    hero_orbit_eye,
+};
 pub use scene_build::review_views::{
-    HangarReviewView, REVIEWED_MAPS, ReviewView, hangar_review_views, review_views_for,
+    GarageScreen, HangarReviewView, REVIEWED_MAPS, ReviewView, hangar_review_views,
+    review_views_for,
 };
 pub use scene_build::terrain_maps::{bake_terrain_ground_maps, terrain_material_set_for};
 pub use scene_build::water::battlefield_water_mesh;
