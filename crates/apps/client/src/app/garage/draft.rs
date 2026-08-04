@@ -62,12 +62,18 @@ pub(crate) struct LoadoutDraft {
 
 impl LoadoutDraft {
     pub(super) fn for_vehicle(kind: VehicleKind) -> Self {
+        let modules = kind.default_loadout();
+        // The fill is shaped by the stock gun's REAL slot count: a gun that never fielded a
+        // special round (the IS-3's D-25T, the Jagdtiger's Pak 80) has no slot to hide a quarter
+        // of the rack in, so those rounds go to the rounds it does carry.
+        let slots = modules.gun.spec.ammo_options().len();
         Self {
             kind,
-            modules: kind.default_loadout(),
             option_index: [0; 6],
             ammo_index: 0,
-            ammo_counts: game_core::AmmoLoadout::default_for(kind.ammo_capacity()).counts,
+            ammo_counts: game_core::AmmoLoadout::default_for_slots(kind.ammo_capacity(), slots)
+                .counts,
+            modules,
             crew: Crew::default(),
         }
     }
@@ -113,12 +119,11 @@ impl LoadoutDraft {
                 self.modules.try_install_turret(self.kind.turret_options()[index].clone()).is_ok()
             }
             FitSlot::Gun => {
+                let old_options = self.ammo_options();
                 let ok =
                     self.modules.try_install_gun(self.kind.gun_options()[index].clone()).is_ok();
                 if ok {
-                    // A new gun has its own ammo list; keep the selection in range.
-                    self.ammo_index =
-                        self.ammo_index.min(self.ammo_options().len().saturating_sub(1));
+                    self.remap_ammo_to_new_gun(&old_options);
                 }
                 ok
             }
@@ -145,6 +150,33 @@ impl LoadoutDraft {
         installed
     }
 
+    /// A new gun has its own ammo list; the rack follows each round's SHELL TYPE across the swap,
+    /// not its slot index. Rounds of a type the new gun cannot chamber pour into the stock slot —
+    /// they never vanish and never impersonate another round — and the selection likewise re-finds
+    /// its type or falls back to stock. The total is conserved, so the rack stays within the
+    /// vehicle's capacity.
+    fn remap_ammo_to_new_gun(&mut self, old_options: &[ShellSpec]) {
+        let new_options = self.ammo_options();
+        let selected_type = old_options.get(self.ammo_index).map(|shell| shell.shell_type);
+        let mut counts = [0u16; MAX_AMMO_SLOTS];
+        for (slot, &count) in self.ammo_counts.iter().enumerate() {
+            if count == 0 {
+                continue;
+            }
+            let target = old_options
+                .get(slot)
+                .and_then(|shell| {
+                    new_options.iter().position(|new| new.shell_type == shell.shell_type)
+                })
+                .unwrap_or(0);
+            counts[target] += count;
+        }
+        self.ammo_counts = counts;
+        self.ammo_index = selected_type
+            .and_then(|ty| new_options.iter().position(|new| new.shell_type == ty))
+            .unwrap_or(0);
+    }
+
     /// The persistable snapshot of the current choices.
     pub(super) fn to_saved(&self) -> SavedLoadout {
         SavedLoadout {
@@ -168,11 +200,15 @@ impl LoadoutDraft {
         }
         draft.set_ammo(saved.ammo_index);
         // A stored rack fill applies only if it still fits this build's authored capacity (a
-        // rebalance may have shrunk the rack) and is not empty; anything stale degrades to the
-        // stock-heavy default instead of an invalid fill.
+        // rebalance may have shrunk the rack), is not empty, and puts no rounds in a slot the
+        // restored gun does not have; anything stale degrades to the stock-heavy default instead
+        // of an invalid fill. The sum runs in u32: the file is user-editable, and three u16::MAX
+        // entries must degrade here, not overflow.
         if let Some(counts) = saved.ammo_counts {
-            let total: u16 = counts.iter().sum();
-            if total >= 1 && total <= kind.ammo_capacity() {
+            let total: u32 = counts.iter().map(|&count| u32::from(count)).sum();
+            let slots = draft.ammo_options().len();
+            let phantom = counts.iter().skip(slots).any(|&count| count > 0);
+            if total >= 1 && total <= u32::from(kind.ammo_capacity()) && !phantom {
                 draft.ammo_counts = counts;
             }
         }
@@ -310,7 +346,9 @@ impl LoadoutDraft {
     /// least one round stays aboard (an empty rack cannot fight). Returns whether anything moved
     /// — partial application (e.g. +5 into 2 free spaces) still counts as a change.
     pub(super) fn adjust_ammo_count(&mut self, slot: usize, delta: i32) -> bool {
-        if slot >= MAX_AMMO_SLOTS || delta == 0 {
+        // A slot the fitted gun does not have takes no rounds — the bound lives here in the
+        // data, not only in the hit test that currently never offers such a slot.
+        if slot >= self.ammo_options().len() || delta == 0 {
             return false;
         }
         let count = i32::from(self.ammo_counts[slot]);
@@ -481,6 +519,79 @@ mod tests {
         assert!(draft.adjust_ammo_count(0, -999));
         assert_eq!(draft.rack_total(), 1, "an empty rack cannot fight; one round stays aboard");
         assert!(!draft.adjust_ammo_count(0, -1), "the last round is not removable");
+    }
+
+    #[test]
+    fn a_fresh_draft_never_fills_a_slot_the_gun_does_not_have() {
+        // The phantom-slot defect: the old flat 3-way split gave a 2-slot gun (the IS-3's D-25T,
+        // the Jagdtiger's Pak 80) rounds in a slot the garage never draws — and in battle the
+        // clamped index fired a DIFFERENT round type. The fill must follow the gun's real slots.
+        for kind in VehicleKind::PLAYABLE {
+            let draft = LoadoutDraft::for_vehicle(kind);
+            let slots = draft.ammo_options().len();
+            for (i, &count) in draft.ammo_counts().iter().enumerate() {
+                assert!(
+                    i < slots || count == 0,
+                    "{kind:?} slot {i} is a phantom holding {count} rounds"
+                );
+            }
+            assert_eq!(draft.rack_total(), draft.rack_capacity(), "{kind:?} still fills full");
+        }
+        // The IS-3 concretely: two real slots, the special quarter folded back into them.
+        let is3 = LoadoutDraft::for_vehicle(VehicleKind::IS3);
+        assert_eq!(is3.ammo_options().len(), 2);
+        assert!(is3.ammo_counts()[1] > 0, "the D-25T's second slot is HE, and it is stocked");
+        assert_eq!(is3.ammo_counts()[2], 0);
+    }
+
+    #[test]
+    fn swapping_the_gun_moves_the_rack_by_shell_type_not_slot_index() {
+        // Jagdtiger: the Pak 80 carries 2 slots (AP, HE), the fielded 88 carries 3 (AP, APCR,
+        // HE) — the one vehicle whose gun swap changes the slot count on the live catalog.
+        let mut draft = LoadoutDraft::for_vehicle(VehicleKind::Jagdtiger);
+        let he_rounds = draft.ammo_counts()[1];
+        assert!(he_rounds > 0, "the Pak 80's slot 1 is its HE fill");
+        draft.set_ammo(1); // select HE on the Pak 80
+        assert!(draft.cycle_module(FitSlot::Gun, 1));
+        assert_eq!(draft.ammo_options().len(), 3);
+        assert_eq!(draft.ammo_counts()[2], he_rounds, "HE rounds follow the HE slot");
+        assert_eq!(draft.ammo_counts()[1], 0, "no rounds materialise in the new APCR slot");
+        assert_eq!(draft.rack_total(), draft.rack_capacity(), "the swap conserves the rack");
+        assert_eq!(draft.ammo_index(), 2, "the HE selection follows its type");
+        assert_eq!(
+            draft.ammo_options()[draft.ammo_index()].shell_type,
+            game_core::ShellType::HighExplosive
+        );
+    }
+
+    #[test]
+    fn rounds_the_new_gun_cannot_chamber_pour_into_the_stock_slot() {
+        let mut draft = LoadoutDraft::for_vehicle(VehicleKind::Jagdtiger);
+        assert!(draft.cycle_module(FitSlot::Gun, 1)); // onto the 3-slot 88
+        // Load the APCR slot and select it, then swap back to the 2-slot Pak 80.
+        assert!(draft.adjust_ammo_count(0, -10));
+        assert!(draft.adjust_ammo_count(1, 10));
+        draft.set_ammo(1);
+        assert!(draft.cycle_module(FitSlot::Gun, 1)); // the two-gun ring wraps back to stock
+        assert_eq!(draft.ammo_options().len(), 2);
+        assert_eq!(draft.rack_total(), draft.rack_capacity(), "no round vanishes in the swap");
+        assert_eq!(draft.ammo_counts()[2], 0, "no phantom slot survives the swap back");
+        assert_eq!(draft.ammo_index(), 0, "a selection whose type is gone falls back to stock");
+    }
+
+    #[test]
+    fn from_saved_rejects_an_overflowing_or_phantom_rack_without_panicking() {
+        // The file is user-editable JSON: three u16::MAX counts used to overflow the u16 sum
+        // (a debug panic), and a fill in a slot the gun doesn't have loaded verbatim.
+        let mut stale = LoadoutDraft::for_vehicle(VehicleKind::IS3).to_saved();
+        stale.ammo_counts = Some([u16::MAX; 3]);
+        let overflow = LoadoutDraft::from_saved(VehicleKind::IS3, &stale);
+        assert_eq!(overflow.rack_total(), overflow.rack_capacity(), "overflow degrades stock");
+
+        stale.ammo_counts = Some([14, 10, 4]); // sums to the IS-3's 28, but slot 2 is a phantom
+        let phantom = LoadoutDraft::from_saved(VehicleKind::IS3, &stale);
+        assert_eq!(phantom.ammo_counts()[2], 0, "a phantom-slot fill degrades to the default");
+        assert_eq!(phantom.rack_total(), phantom.rack_capacity());
     }
 
     #[test]
