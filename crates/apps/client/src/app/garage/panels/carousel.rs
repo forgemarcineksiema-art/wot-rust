@@ -11,10 +11,13 @@ use crate::app::garage::layout::*;
 use crate::hud::font::{push_text, text_width};
 use crate::hud::{push_panel, push_quad};
 
-/// Clip units per metre for the cell silhouettes. One shared scale keeps the profiles honestly
-/// comparable — the IS-3 genuinely reads smaller than a Tiger — capped per vehicle only when a
-/// long gun overhang would otherwise leave the cell.
-const SILHOUETTE_CLIP_PER_M: f32 = 0.0085;
+/// Clip units per metre for the cell silhouettes — the VERTICAL truth; the horizontal axis
+/// divides by the aspect ratio so a metre of length and a metre of height land on the same
+/// number of PIXELS (clip x-units are aspect-times wider on screen than y-units, and the card
+/// used to ignore that: every tank rendered ~1.78× too long for its height at 16:9). One shared
+/// scale keeps the profiles honestly comparable — the IS-3 genuinely reads smaller than a
+/// Tiger — capped per vehicle only when a long gun overhang would otherwise leave the cell.
+const SILHOUETTE_CLIP_PER_M: f32 = 0.015;
 /// The silhouette's ground line, below the name row inside the cell.
 const SILHOUETTE_GROUND_DY: f32 = -0.056;
 const SILHOUETTE_MAX_HALF_SPAN: f32 = 0.054;
@@ -28,6 +31,7 @@ pub(in crate::app::garage) fn push_silhouette(
     v: &mut Vec<HudVertex>,
     kind: VehicleKind,
     cell: [f32; 2],
+    aspect: f32,
     color: [f32; 4],
 ) {
     let hitbox = game_core::HitboxProfile::for_vehicle(kind);
@@ -37,29 +41,25 @@ pub(in crate::app::garage) fn push_silhouette(
     let muzzle = turret_front + kind.stock_barrel_length_m();
 
     // Centre the full extent (hull rear to muzzle) and cap the scale so the overhang stays in
-    // the cell; the midpoint shift keeps a long gun from pushing the hull off-centre.
+    // the cell; the midpoint shift keeps a long gun from pushing the hull off-centre. The cap
+    // shrinks BOTH axes (sx and sy share `scale`), so a capped card keeps its true proportion.
     let (x_min, x_max) = (-hitbox.half_length_m, muzzle.max(hitbox.half_length_m));
-    let scale =
-        SILHOUETTE_CLIP_PER_M.min(2.0 * SILHOUETTE_MAX_HALF_SPAN / (x_max - x_min).max(0.1));
+    let scale = SILHOUETTE_CLIP_PER_M
+        .min(2.0 * SILHOUETTE_MAX_HALF_SPAN * aspect / (x_max - x_min).max(0.1));
+    let (sx, sy) = (scale / aspect, scale);
     let mid = (x_min + x_max) * 0.5;
-    let at =
-        |z: f32, y: f32| [cell[0] + (z - mid) * scale, cell[1] + SILHOUETTE_GROUND_DY + y * scale];
+    let at = |z: f32, y: f32| [cell[0] + (z - mid) * sx, cell[1] + SILHOUETTE_GROUND_DY + y * sy];
 
     // Hull: ground to the turret split, full length.
     let hull_c = at(0.0, split_y * 0.5);
-    push_quad(v, hull_c, [hitbox.half_length_m * scale, split_y * 0.5 * scale], color);
+    push_quad(v, hull_c, [hitbox.half_length_m * sx, split_y * 0.5 * sy], color);
     // Turret / casemate: the plan box above the split.
     let turret_c = at(hitbox.turret_center_z_m, (split_y + top_y) * 0.5);
-    push_quad(
-        v,
-        turret_c,
-        [hitbox.turret_half_length_m * scale, (top_y - split_y) * 0.5 * scale],
-        color,
-    );
+    push_quad(v, turret_c, [hitbox.turret_half_length_m * sx, (top_y - split_y) * 0.5 * sy], color);
     // The barrel, from the turret front at the gun line's height.
     let gun_y = split_y + (top_y - split_y) * 0.45;
     let barrel_c = at((turret_front + muzzle) * 0.5, gun_y);
-    push_quad(v, barrel_c, [(muzzle - turret_front) * 0.5 * scale, 0.0028], color);
+    push_quad(v, barrel_c, [(muzzle - turret_front) * 0.5 * sx, 0.0028], color);
 }
 
 pub(in crate::app::garage) fn draw(v: &mut Vec<HudVertex>, state: &GarageState, aspect: f32) {
@@ -115,7 +115,7 @@ pub(in crate::app::garage) fn draw(v: &mut Vec<HudVertex>, state: &GarageState, 
         );
 
         // The recognition silhouette under the name: the selected tank's card reads bright.
-        push_silhouette(v, kind, c, if selected { ICON } else { ICON_DIM });
+        push_silhouette(v, kind, c, aspect, if selected { ICON } else { ICON_DIM });
     }
 
     // Scroll arrows flank the window only when the roster does not fit.
@@ -152,6 +152,8 @@ mod tests {
         );
     }
 
+    const TEST_ASPECT: f32 = 16.0 / 9.0;
+
     #[test]
     fn silhouettes_draw_three_quads_from_real_dimensions_and_stay_in_the_cell() {
         // The recognition card is gameplay-true: hull box + turret box + barrel, from the same
@@ -159,7 +161,7 @@ mod tests {
         let cell = [0.0, 0.0];
         for kind in VehicleKind::PLAYABLE {
             let mut v = Vec::new();
-            push_silhouette(&mut v, kind, cell, [1.0; 4]);
+            push_silhouette(&mut v, kind, cell, TEST_ASPECT, [1.0; 4]);
             assert_eq!(v.len(), 18, "{kind:?}: hull + turret + barrel = 3 quads");
             for vert in &v {
                 assert!(
@@ -174,7 +176,7 @@ mod tests {
         // and the low T-54 stands shorter than the tall Tiger II.
         let span = |kind: VehicleKind| {
             let mut v = Vec::new();
-            push_silhouette(&mut v, kind, cell, [1.0; 4]);
+            push_silhouette(&mut v, kind, cell, TEST_ASPECT, [1.0; 4]);
             let min = v.iter().map(|vert| vert.position[0]).fold(f32::MAX, f32::min);
             let max = v.iter().map(|vert| vert.position[0]).fold(f32::MIN, f32::max);
             max - min
@@ -182,13 +184,43 @@ mod tests {
         assert!(span(VehicleKind::Jagdtiger) > span(VehicleKind::IS3));
         let height = |kind: VehicleKind| {
             let mut v = Vec::new();
-            push_silhouette(&mut v, kind, cell, [1.0; 4]);
+            push_silhouette(&mut v, kind, cell, TEST_ASPECT, [1.0; 4]);
             v.iter().map(|vert| vert.position[1]).fold(f32::MIN, f32::max)
         };
         assert!(
             height(VehicleKind::TigerII) > height(VehicleKind::T54_1951),
             "the famously low T-54 must read lower than the Tiger II"
         );
+    }
+
+    #[test]
+    fn the_silhouette_is_drawn_in_true_proportion_not_stretched_by_aspect() {
+        // A metre of hull length and a metre of hull height must land on the same number of
+        // PIXELS. Clip x-units are aspect-times wider on screen than y-units, and the card used
+        // to spend one shared clip-per-metre on both axes — every tank rendered ~1.78× too long
+        // for its height at 16:9. On-screen ratio = (clip x-span × aspect) / clip y-span.
+        for kind in VehicleKind::PLAYABLE {
+            let hitbox = game_core::HitboxProfile::for_vehicle(kind);
+            let turret_front = hitbox.turret_center_z_m + hitbox.turret_half_length_m;
+            let muzzle = turret_front + kind.stock_barrel_length_m();
+            let range_m = hitbox.half_length_m + muzzle.max(hitbox.half_length_m);
+            let height_m = hitbox.center_y_m + hitbox.half_height_m;
+
+            let mut v = Vec::new();
+            push_silhouette(&mut v, kind, [0.0, 0.0], TEST_ASPECT, [1.0; 4]);
+            let x_min = v.iter().map(|vert| vert.position[0]).fold(f32::MAX, f32::min);
+            let x_max = v.iter().map(|vert| vert.position[0]).fold(f32::MIN, f32::max);
+            let y_min = v.iter().map(|vert| vert.position[1]).fold(f32::MAX, f32::min);
+            let y_max = v.iter().map(|vert| vert.position[1]).fold(f32::MIN, f32::max);
+
+            let screen_ratio = ((x_max - x_min) * TEST_ASPECT) / (y_max - y_min);
+            let true_ratio = range_m / height_m;
+            assert!(
+                (screen_ratio / true_ratio - 1.0).abs() < 0.05,
+                "{kind:?}: on-screen ratio {screen_ratio:.2} must match the true {true_ratio:.2} \
+                 (the cap scales both axes, so even a capped card keeps its proportion)"
+            );
+        }
     }
 
     #[test]
