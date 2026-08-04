@@ -32,6 +32,15 @@ ground maps bake, all 4 maps:       1.12 s   (release, teren B2 reference: full
                                               + road-crown distance walks, AABB
                                               gated; ~280 ms/map, absorbed by the
                                               garage prebake path)
+furrows buy-back (teren B1):       ±0.05 ms  (detail_cost_probe, mask 3 vs 67,
+                                              COLD GPU, both orders: 11.008 vs
+                                              11.002 and 9.947 vs 9.998 ms/frame —
+                                              inside noise; bought into canonical.
+                                              METHOD WARNING: a hot laptop ramps
+                                              monotonically across runs (12.5 →
+                                              32.1 ms REGARDLESS of mask) — probe
+                                              pairs must be interleaved and cold,
+                                              or the ramp reads as feature cost)
 water mesh:                         0.7 ms   (2 350 v)
 statics rebuild (cover collapse):  27.9 ms
 statics rebuild (single collapse):  21.9 ms  (362 382 v)

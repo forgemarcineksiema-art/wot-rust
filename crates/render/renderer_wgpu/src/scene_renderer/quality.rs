@@ -130,6 +130,7 @@ mod tests {
                 == renderer_api::ShaderDetailMask(
                     renderer_api::ShaderDetailMask::TERRAIN_NORMAL_BEND
                         | renderer_api::ShaderDetailMask::TERRAIN_MICRO_OCTAVE
+                        | renderer_api::ShaderDetailMask::TERRAIN_FURROWS
                 )
                 && canonical.cloud_shadows
         );

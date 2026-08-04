@@ -52,9 +52,11 @@ impl ShaderDetailMask {
     pub const PCF_WIDE: u32 = 1 << 4;
     /// The crepuscular sun march (god rays).
     pub const GOD_RAYS: u32 = 1 << 5;
+    /// Ploughed-field furrows: per-plot anisotropic stripes on the terrain (teren B1).
+    pub const TERRAIN_FURROWS: u32 = 1 << 6;
 
     pub const NONE: Self = Self(0);
-    pub const FULL: Self = Self(0b11_1111);
+    pub const FULL: Self = Self(0b111_1111);
 
     pub fn has(self, bit: u32) -> bool {
         self.0 & bit != 0
@@ -88,8 +90,15 @@ impl LightingQuality {
             // Żywy Step P1: the ground's micro-relief is bought back — pure per-pixel ALU
             // (value noise, no texture taps), measured on the min-spec before shipping. The
             // remaining bits stay in the buy-back pool.
+            // Teren B1: the ploughed-field furrows bought back through the same protocol —
+            // detail_cost_probe, cold GPU, both orders: mask 3 vs 67 read 11.008 vs
+            // 11.002 ms and 9.947 vs 9.998 ms — a ±0.05 ms delta inside the noise. (The
+            // first measurement session showed +3 ms and was WRONG: a laptop thermal ramp
+            // climbing monotonically across runs regardless of mask. Interleave and cool.)
             shader_detail: ShaderDetailMask(
-                ShaderDetailMask::TERRAIN_NORMAL_BEND | ShaderDetailMask::TERRAIN_MICRO_OCTAVE,
+                ShaderDetailMask::TERRAIN_NORMAL_BEND
+                    | ShaderDetailMask::TERRAIN_MICRO_OCTAVE
+                    | ShaderDetailMask::TERRAIN_FURROWS,
             ),
         }
     }
@@ -141,7 +150,9 @@ mod tests {
         assert_eq!(
             canonical.shader_detail,
             ShaderDetailMask(
-                ShaderDetailMask::TERRAIN_NORMAL_BEND | ShaderDetailMask::TERRAIN_MICRO_OCTAVE
+                ShaderDetailMask::TERRAIN_NORMAL_BEND
+                    | ShaderDetailMask::TERRAIN_MICRO_OCTAVE
+                    | ShaderDetailMask::TERRAIN_FURROWS
             )
         );
         // Dev-only rich profile is a strict superset for captures, never the shipped look.
@@ -175,6 +186,7 @@ mod mask_tests {
             ShaderDetailMask::SKY_FIVE_OCTAVES,
             ShaderDetailMask::PCF_WIDE,
             ShaderDetailMask::GOD_RAYS,
+            ShaderDetailMask::TERRAIN_FURROWS,
         ] {
             assert!(full.has(bit));
             assert!(!ShaderDetailMask::NONE.has(bit));
