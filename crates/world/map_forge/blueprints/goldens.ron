@@ -11,6 +11,8 @@
     // playability BFS and symmetry held un-relaxed.
     ("bystra_valley", "e32481e993be8a5c"),
     ("orliny_pereval", "a16328285e6ea81c"),
-    ("ostrogorsk", "3820fd376dcc377d"),
+    // Re-blessed 2026-08-05 (teren C4): the berm's east borrow ditch, broken at the gates
+    // — the dossier's own sculpt-session TODO, closed with form + materia, no mechanism.
+    ("ostrogorsk", "9632558597e3dff5"),
     ("prokhorovka_hill_252_2", "f2e1e71a1c0c215b"),
 ]

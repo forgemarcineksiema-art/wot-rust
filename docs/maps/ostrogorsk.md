@@ -128,8 +128,12 @@ Numbers from `cargo run -p client --release --example probe -- perf_capture`. Th
 by the `urban_150` bench fixture in `combat_hot_path` (150 boxes > the shipped 101). Review
 renders: `cargo run -p client --example probe -- ostrogorsk_views` (street canyon at tank-eye level,
 church square, the berm from the fields, and the imported-tree boulevard with the runtime
-foliage atlas bound). Known playtest candidate: the berm reads gently from deep east — a
-sculpt-session candidate after the first human playtest.
+foliage atlas bound). ~~Known playtest candidate: the berm reads gently from deep east~~ —
+closed by the teren C4 sculpt session (2026-08-05): the berm's east foot got the BORROW
+DITCH every real embankment is dug from (0.9 m, broken at the three gates the way real
+ditches break at crossings, two mirrored pairs). The cut deepens the toe, the structural
+moisture rule (teren A1) wets it into the dark line under the fill, and the berm reads
+taller from the east farmland by contrast — form, then materia, no new mechanism.
 
 FL-5's full-scatter release capture (2026-07-23, warm median of three runs after the release
 build) explicitly counted **118 imported flora instances** in the Ostrogorsk bake:
