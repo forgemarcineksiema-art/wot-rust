@@ -42,6 +42,19 @@ WoT map anatomy as the genre reference.
   - The **Storozhevoe draw**: a diagonal balka from each spawn's east shoulder to the hill
     foot — the masked approach into the east lane; its mouth opens drivably onto the
     shelf.
+- **The sculpt session (teren C2, 2026-08-05) — drainage and approach relief:**
+  - **Balka tributaries**: two mirrored feeder-draw pairs (1.2–1.4 m deep) running down
+    the mid-steppe into the trench line, the way real drainage carves. The structural
+    moisture rule (teren A1) collects along them on its own — the tributary system reads
+    wet without a single authored texel.
+  - **Approach crests**: a gentle mirrored ridge in each half (rise ~1.4 m over ~12 m,
+    x 380–460) between spawn apron and balka line — the mid-map hull-down the census was
+    starving for, authored per the W2.1 withdrawal's doctrine ("author the relief, never
+    densify the grid").
+  - **The railbed's borrow ditch**: a 0.8 m pit along the embankment's west foot
+    (self-mirrored), which the drainage rule wets into the dark line under the rail.
+  - The whole envelope held un-relaxed over the sculpt: all five contract suites,
+    symmetry, playability BFS and the hull-down census, before the golden was blessed.
 - The embankment itself is unchanged: a ~9 m railbed barrier with three gates
   (x = 250/500/750); its faces exceed gradeability, so movement funnels through the gates
   (locked by physics' `embankment_blocks_movement_except_at_crossings`).
