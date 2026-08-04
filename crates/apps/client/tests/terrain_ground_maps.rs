@@ -54,16 +54,31 @@ fn splat_at(maps: &renderer_api::TerrainGroundMaps, wx: f32, wz: f32) -> [u8; 4]
 
 #[test]
 fn the_splat_reads_the_maps_own_truth() {
-    // Prokhorovka: a point on a road polyline wears dirt-dominant, and every layer owns real
-    // ground somewhere on the map (grass, straw, road dirt, chalk break on the massif).
+    // Prokhorovka: what a road wears depends on what it is MADE OF (teren A2) — the
+    // railway ballast is crushed stone and splats rock-dominant; a farm road is packed
+    // earth and stays dirt-dominant. And every layer owns real ground somewhere.
     let steppe = map_forge::battlefield(terrain::MapId::ProkhorovkaHill252_2);
     let maps = bake_terrain_ground_maps(&steppe);
-    let road = &steppe.roads[0];
-    let mid = road.points[road.points.len() / 2];
+    let ballast = &steppe.roads[0];
+    assert_eq!(ballast.surface, terrain::RoadSurface::Ballast, "roads[0] is the railbed");
+    let mid = ballast.points[ballast.points.len() / 2];
+    let w = splat_at(&maps, mid[0], mid[1]);
+    assert!(
+        w[3] as u32 >= 140,
+        "a ballast core must wear stone-dominant: {w:?} at ({:.0},{:.0})",
+        mid[0],
+        mid[1]
+    );
+    let farm = steppe
+        .roads
+        .iter()
+        .find(|road| road.surface == terrain::RoadSurface::Dirt)
+        .expect("the steppe keeps its packed-earth lanes");
+    let mid = farm.points[farm.points.len() / 2];
     let w = splat_at(&maps, mid[0], mid[1]);
     assert!(
         w[2] as u32 >= 140,
-        "a road core must wear dirt-dominant: {w:?} at ({:.0},{:.0})",
+        "a farm-road core must stay dirt-dominant: {w:?} at ({:.0},{:.0})",
         mid[0],
         mid[1]
     );
@@ -194,11 +209,15 @@ fn the_splat_bake_is_texel_identical_to_its_golden() {
     // locked in `terrain::ground` (margin caps flow) and `terrain::flow` (determinism).
     // Orliny's NORMALS hash survived untouched: its valley floors were already fully flat in
     // the pooling term, so the flow lane never exceeded them at u8 quantization.
+    // Blessed again 2026-08-04 (teren A2): Ballast/Cobble route to the ROCK lane — only the
+    // two maps with stone roads moved (Prokhorovka's railbed, Ostrogorsk's streets); Bystra
+    // (roadless) and Orliny (dirt-only) staying bit-identical IS the lock on
+    // `strongest_road_at`'s float-identity with the old fold.
     for (map, splat, normals) in [
-        (MapId::ProkhorovkaHill252_2, 0x88cc_1284_3757_aa9a_u64, 0x5299_c29f_e553_4cb1_u64),
+        (MapId::ProkhorovkaHill252_2, 0x301b_8626_edd6_c483_u64, 0x5299_c29f_e553_4cb1_u64),
         (MapId::BystraValley, 0x61a2_4960_f9ad_f27c, 0xde43_400d_7a7a_9ca2),
         (MapId::OrlinyPereval, 0x2190_5581_e680_a62a, 0x4576_7f22_e480_fec5),
-        (MapId::Ostrogorsk, 0x3f94_6810_187b_31bd, 0xea84_9dcf_ffb5_525e),
+        (MapId::Ostrogorsk, 0x05aa_aa18_21ca_2043, 0xea84_9dcf_ffb5_525e),
     ] {
         let maps = bake_terrain_ground_maps(&map_forge::battlefield(map));
         assert_eq!(splitmix_hash(&maps.splat), splat, "{map:?} splat");

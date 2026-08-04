@@ -140,6 +140,7 @@ pub(crate) fn run() {
         let objects = client::grass_frame_objects(
             &battlefield.heightmap,
             battlefield.water,
+            &battlefield.static_cover,
             &maps,
             &materials,
             eye + wobble,
@@ -230,6 +231,7 @@ fn frame_time_capture() {
         let grass = client::grass_frame_objects(
             &battlefield.heightmap,
             battlefield.water,
+            &battlefield.static_cover,
             &ground_maps,
             &materials,
             eye,

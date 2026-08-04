@@ -67,6 +67,13 @@ pub fn grass_card_dressing_mesh(
                 if z >= mirror_z {
                     continue;
                 }
+                // A card must stand on vegetation ITSELF, not merely in a cell whose
+                // centre does: an 8 m cell whose centre missed the street used to grow its
+                // full quota straight across the cobbles (D19). The near ring always
+                // re-sampled per candidate; the meadow now does too.
+                if vegetation_weight(maps, x, z) < MIN_VEG_WEIGHT {
+                    continue;
+                }
                 let Some(albedo) = card_albedo(maps, materials, x, z, tone) else {
                     continue;
                 };
@@ -79,6 +86,11 @@ pub fn grass_card_dressing_mesh(
                         continue;
                     }
                     if craters.iter().any(|&(kx, kz, kill)| (px - kx).hypot(pz - kz) < kill) {
+                        continue;
+                    }
+                    // Grass does not grow through a tenement floor: the authored cover
+                    // footprints exclude both twins, each tested at its own position.
+                    if terrain::inside_any_cover(&battlefield.static_cover, px, pz, 0.0) {
                         continue;
                     }
                     push_card(
@@ -220,6 +232,36 @@ mod tests {
                     assert_eq!(vertex.sway, 0.0, "roots stay planted");
                 }
             }
+        }
+    }
+
+    #[test]
+    fn the_city_grows_no_cards_on_streets_or_through_floors() {
+        // The two mechanical roots of D19's meadow-in-the-canyon: the cell-centre gate let
+        // cards straddle streets the centre missed, and nothing excluded building
+        // footprints. Both are locked here on the real city.
+        let map = map_forge::battlefield(terrain::MapId::Ostrogorsk);
+        let maps = bake_terrain_ground_maps(&map);
+        let materials = terrain_material_set_for(terrain::MapId::Ostrogorsk);
+        let (vertices, _) = grass_card_dressing_mesh(&map, &maps, &materials);
+        assert!(!vertices.is_empty(), "the verges and the east farmland still grow");
+        let stone_roads: Vec<_> =
+            map.roads.iter().filter(|road| road.surface != terrain::RoadSurface::Dirt).collect();
+        assert!(!stone_roads.is_empty(), "the city keeps its cobbles and ballast");
+        for card in vertices.chunks(8) {
+            let root_x = (card[0].position[0] + card[1].position[0]) * 0.5;
+            let root_z = (card[0].position[2] + card[1].position[2]) * 0.5;
+            for road in &stone_roads {
+                assert!(
+                    road.distance_to(root_x, root_z) > road.width_m * 0.2,
+                    "a card rooted on the {} at ({root_x:.1}, {root_z:.1})",
+                    road.id
+                );
+            }
+            assert!(
+                !terrain::inside_any_cover(&map.static_cover, root_x, root_z, 0.0),
+                "a card rooted through a building floor at ({root_x:.1}, {root_z:.1})"
+            );
         }
     }
 

@@ -109,6 +109,7 @@ pub(crate) fn vegetation_weight(maps: &TerrainGroundMaps, x: f32, z: f32) -> f32
 pub fn grass_frame_objects(
     heightmap: &HeightMap,
     water: Option<WaterBody>,
+    cover: &[terrain::StaticCoverObject],
     maps: &TerrainGroundMaps,
     materials: &TerrainMaterialSet,
     eye: Vec3,
@@ -169,6 +170,9 @@ pub fn grass_frame_objects(
                 }
                 if nearby_craters.iter().any(|&(kx, kz, kill)| (x - kx).hypot(z - kz) < kill) {
                     continue; // burned and buried where the shell landed
+                }
+                if terrain::inside_any_cover(cover, x, z, 0.0) {
+                    continue; // grass does not grow through a tenement floor
                 }
                 let Some(ground) = heightmap.sample_height(x, z) else {
                     continue;
@@ -268,12 +272,45 @@ mod tests {
     }
 
     #[test]
+    fn a_cover_footprint_grows_no_grass() {
+        // Grass never grew UNDER an authored building on purpose — it grew THROUGH the
+        // floor because nothing told it the footprint existed (part of D19). Both twins of
+        // the exclusion are the near ring's; the card meadow carries its own.
+        let ground = flat_ground();
+        let eye = Vec3::new(128.0, 3.0, 128.0);
+        let block = terrain::StaticCoverObject {
+            id: "tenement".into(),
+            name: "Tenement".into(),
+            kind: terrain::StaticCoverKind::CityBuilding,
+            center: [128.0, 1.0, 128.0],
+            half_extents_m: [6.0, 3.0, 5.0],
+        };
+        let materials = TerrainMaterialSet::default();
+        let grown = grass_frame_objects(
+            &ground,
+            None,
+            std::slice::from_ref(&block),
+            &full_veg_maps(256.0),
+            &materials,
+            eye,
+        );
+        assert!(!grown.is_empty(), "the meadow around the building still grows");
+        for tuft in &grown {
+            let (x, z) = (tuft.transform[3][0], tuft.transform[3][2]);
+            assert!(
+                (x - 128.0).abs() > 6.0 || (z - 128.0).abs() > 5.0,
+                "a tuft rooted inside the tenement footprint at ({x}, {z})"
+            );
+        }
+    }
+
+    #[test]
     fn grass_grows_on_vegetation_and_refuses_roads_water_and_the_far_field() {
         let ground = flat_ground();
         let materials = crate::terrain_maps::terrain_material_set_for(terrain::MapId::BystraValley);
         let eye = Vec3::new(128.0, 3.0, 128.0);
 
-        let grown = grass_frame_objects(&ground, None, &full_veg_maps(256.0), &materials, eye);
+        let grown = grass_frame_objects(&ground, None, &[], &full_veg_maps(256.0), &materials, eye);
         assert!(
             grown.len() > 400 && grown.len() <= MAX_GRASS_INSTANCES,
             "a vegetated ring stands dense but budgeted, got {}",
@@ -292,11 +329,12 @@ mod tests {
             );
         }
 
-        let bare = grass_frame_objects(&ground, None, &bare_dirt_maps(256.0), &materials, eye);
+        let bare = grass_frame_objects(&ground, None, &[], &bare_dirt_maps(256.0), &materials, eye);
         assert!(bare.is_empty(), "a dirt road grows nothing, got {}", bare.len());
 
         let flood = Some(WaterBody { surface_level_m: 2.0 });
-        let drowned = grass_frame_objects(&ground, flood, &full_veg_maps(256.0), &materials, eye);
+        let drowned =
+            grass_frame_objects(&ground, flood, &[], &full_veg_maps(256.0), &materials, eye);
         assert!(drowned.is_empty(), "standing water drowns the tufts, got {}", drowned.len());
     }
 
@@ -313,7 +351,7 @@ mod tests {
         let eye = Vec3::new(128.0, 3.0, 128.0);
         assert!(vegetation_weight(&maps, 124.0, eye.z) > 0.99);
         assert!(vegetation_weight(&maps, 132.0, eye.z) > 0.99);
-        let grown = grass_frame_objects(&ground, None, &maps, &materials, eye);
+        let grown = grass_frame_objects(&ground, None, &[], &maps, &materials, eye);
 
         let mut left = 0;
         let mut right = 0;
@@ -352,7 +390,7 @@ mod tests {
             terrain::CRATER_KIND_HIGH_EXPLOSIVE,
         );
         ground.set_craters(&[crater]);
-        let after = grass_frame_objects(&ground, None, &maps, &materials, eye);
+        let after = grass_frame_objects(&ground, None, &[], &maps, &materials, eye);
 
         let kill = crater.radius_m() * 1.45;
         let mut ring_neighbours = 0;
@@ -379,7 +417,7 @@ mod tests {
             crate::terrain_maps::terrain_material_set_for(terrain::MapId::ProkhorovkaHill252_2);
         let maps = full_veg_maps(260.0);
         let eye = Vec3::new(128.0, 3.0, 128.0);
-        let grown = grass_frame_objects(&ground, None, &maps, &materials, eye);
+        let grown = grass_frame_objects(&ground, None, &[], &maps, &materials, eye);
         for tuft in grown.iter().step_by(97) {
             let x = tuft.transform[3][0];
             let z = tuft.transform[3][2];
@@ -425,8 +463,8 @@ mod tests {
         let maps = full_veg_maps(256.0);
         let eye_a = Vec3::new(127.75, 3.0, 128.0);
         let eye_b = eye_a + Vec3::new(4.25, 0.0, 0.0);
-        let a = grass_frame_objects(&ground, None, &maps, &materials, eye_a);
-        let b = grass_frame_objects(&ground, None, &maps, &materials, eye_b);
+        let a = grass_frame_objects(&ground, None, &[], &maps, &materials, eye_a);
+        let b = grass_frame_objects(&ground, None, &[], &maps, &materials, eye_b);
         let a_by_key: std::collections::HashMap<_, _> =
             a.iter().map(|tuft| (tuft_key(tuft), tuft)).collect();
         let b_by_key: std::collections::HashMap<_, _> =
@@ -474,7 +512,7 @@ mod tests {
         for z_phase in 0..16 {
             for x_phase in 0..16 {
                 let eye = Vec3::new(96.0 + x_phase as f32 * 0.5, 3.0, 96.0 + z_phase as f32 * 0.5);
-                let grown = grass_frame_objects(&ground, None, &maps, &materials, eye);
+                let grown = grass_frame_objects(&ground, None, &[], &maps, &materials, eye);
                 peak = peak.max(grown.len());
                 floor = floor.min(grown.len());
                 assert!(
@@ -502,8 +540,8 @@ mod tests {
             crate::terrain_maps::terrain_material_set_for(terrain::MapId::ProkhorovkaHill252_2);
         let maps = full_veg_maps(256.0);
         let eye = Vec3::new(100.0, 3.0, 100.0);
-        let a = grass_frame_objects(&ground, None, &maps, &materials, eye);
-        let b = grass_frame_objects(&ground, None, &maps, &materials, eye);
+        let a = grass_frame_objects(&ground, None, &[], &maps, &materials, eye);
+        let b = grass_frame_objects(&ground, None, &[], &maps, &materials, eye);
         assert_eq!(a.len(), b.len(), "the same eye grows the same field");
         assert_eq!(a[0].transform, b[0].transform);
 
@@ -511,6 +549,7 @@ mod tests {
         let moved = grass_frame_objects(
             &ground,
             None,
+            &[],
             &maps,
             &materials,
             eye + Vec3::new(CELL_M, 0.0, 0.0),

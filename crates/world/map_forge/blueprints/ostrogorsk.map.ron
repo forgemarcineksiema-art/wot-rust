@@ -81,12 +81,15 @@ MapBlueprint(
     ),
     materials: Some(GroundMaterialsSpec(
         // Dusty late-summer city palette: worn green verges, sun-cured stubble, packed
-        // earth lanes, and grey rubble-stone where the grades break.
+        // earth lanes — and GRANITE in the stone lane (teren A2): the cobbled boulevard
+        // and the ballast mainline splat as rock now, so the city's stone reads cool set
+        // granite instead of steppe chalk. The gate scarps share the lane and read as cut
+        // stone, which is what they are.
         layers: (
             GroundLayerSpec(albedo: (0.3, 0.33, 0.24), detail: 1.0, gloss: 0.03),
             GroundLayerSpec(albedo: (0.45, 0.41, 0.28), detail: 1.0, gloss: 0.03),
             GroundLayerSpec(albedo: (0.33, 0.29, 0.23), detail: 0.85, gloss: 0.05),
-            GroundLayerSpec(albedo: (0.46, 0.46, 0.44), detail: 1.0, gloss: 0.12),
+            GroundLayerSpec(albedo: (0.36, 0.37, 0.4), detail: 1.0, gloss: 0.12),
         ),
         macro_normal_strength: 0.7,
         // The east flank is worked farmland right up to the berm - the patchwork reads.

@@ -53,6 +53,7 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
         let grass = grass_frame_objects(
             &battlefield.heightmap,
             battlefield.water,
+            &battlefield.static_cover,
             &ground_maps,
             &materials,
             glam::Vec3::from_array(eye),
