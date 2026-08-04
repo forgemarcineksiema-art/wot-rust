@@ -1,4 +1,4 @@
-﻿use super::{
+use super::{
     EngineModule, GunModule, HullChassis, RadioModule, SuspensionModule, TurretModule,
     TurretTraverse, VehicleModules,
 };
@@ -39,16 +39,10 @@ pub(crate) fn prototype_loadout() -> VehicleModules {
             rear_mm: 60.0,
             roof_mm: None,
             traverse: TurretTraverse::Rotating { rate_rad_s: 0.75 },
-            view_range_m: 390.0,
             max_gun_caliber_mm: 122.0,
         },
         gun: gun_prototype(),
-        radio: RadioModule {
-            name: "Prototype radio".to_string(),
-            mass_kg: 100.0,
-            hit_points: 50,
-            signal_range_m: 700.0,
-        },
+        radio: RadioModule { name: "Prototype radio".to_string(), mass_kg: 100.0, hit_points: 50 },
     }
 }
 
@@ -87,16 +81,10 @@ pub(crate) fn jagdtiger_loadout() -> VehicleModules {
             rear_mm: 80.0,
             roof_mm: None,
             traverse: TurretTraverse::Fixed,
-            view_range_m: 370.0,
             max_gun_caliber_mm: 130.0,
         },
         gun: gun_pak80(),
-        radio: RadioModule {
-            name: "FuG 5".to_string(),
-            mass_kg: 100.0,
-            hit_points: 50,
-            signal_range_m: 650.0,
-        },
+        radio: RadioModule { name: "FuG 5".to_string(), mass_kg: 100.0, hit_points: 50 },
     }
 }
 
@@ -135,16 +123,10 @@ pub(crate) fn panther_loadout() -> VehicleModules {
             rear_mm: 45.0,
             roof_mm: None,
             traverse: TurretTraverse::Rotating { rate_rad_s: 0.38 },
-            view_range_m: 380.0,
             max_gun_caliber_mm: 80.0,
         },
         gun: gun_kwk42(),
-        radio: RadioModule {
-            name: "FuG 5".to_string(),
-            mass_kg: 100.0,
-            hit_points: 50,
-            signal_range_m: 650.0,
-        },
+        radio: RadioModule { name: "FuG 5".to_string(), mass_kg: 100.0, hit_points: 50 },
     }
 }
 

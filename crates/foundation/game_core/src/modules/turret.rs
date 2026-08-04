@@ -21,8 +21,10 @@ impl TurretTraverse {
     }
 }
 
-/// Turret (or casemate). Provides front-armor for the assembled profile, traverse, view
-/// range, and the largest gun caliber it can mount.
+/// Turret (or casemate). Provides front-armor for the assembled profile, traverse, and the
+/// largest gun caliber it can mount. It carries NO view range: spotting is per-era by design
+/// (`TankSpec::view_range_m`, v29) — a per-turret number here was dead data that contradicted
+/// a settled rule, and dead data is where the next dishonest UI number comes from.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TurretModule {
     pub name: String,
@@ -39,7 +41,6 @@ pub struct TurretModule {
     #[serde(default)]
     pub roof_mm: Option<f32>,
     pub traverse: TurretTraverse,
-    pub view_range_m: f32,
     /// Largest gun caliber (mm) this turret accepts — the gun-mount compatibility gate.
     pub max_gun_caliber_mm: f32,
 }

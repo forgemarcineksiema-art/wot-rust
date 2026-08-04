@@ -252,7 +252,9 @@ impl LoadoutDraft {
                     self.modules.suspension.turn_rate_rad_s.to_degrees().round() as i32
                 )
             }
-            FitSlot::Radio => format!("{}m", self.modules.radio.signal_range_m.round() as i32),
+            // Mass, not a fake "signal range": nothing in the battle reads a radio range, and
+            // a stat printed where the player picks modules must be one the fight honours.
+            FitSlot::Radio => format!("{}kg", self.modules.radio.mass_kg.round() as i32),
         }
     }
 
@@ -268,7 +270,8 @@ impl LoadoutDraft {
             FitSlot::Hull => ("HP", true),
             FitSlot::Engine => ("kW", true),
             FitSlot::Suspension => ("d/s", true),
-            FitSlot::Radio => ("m", true),
+            // A radio's honest headline is its mass (lighter is better) — see `RadioModule`.
+            FitSlot::Radio => ("kg", false),
         };
         (0..self.options_len(slot))
             .map(|i| {
@@ -303,7 +306,7 @@ impl LoadoutDraft {
             }
             FitSlot::Radio => {
                 let m = &self.kind.radio_options()[index];
-                (m.name.clone(), m.signal_range_m)
+                (m.name.clone(), m.mass_kg)
             }
         }
     }
@@ -638,6 +641,19 @@ mod tests {
         draft.cycle_module(FitSlot::Engine, 1);
         let eng_after = draft.current_module_summary(FitSlot::Engine);
         assert_ne!(eng_before, eng_after, "the V-55 retrofit shows a different kW value");
+    }
+
+    #[test]
+    fn the_radio_slot_states_a_stat_the_battle_honours() {
+        // The audit's dead-number rule: a stat printed where the player picks modules must be
+        // one the fight reads. The radio used to print "700m" of signal range that nothing in
+        // the sim consumed; its honest headline is its mass (it rides the assembled weight).
+        let draft = LoadoutDraft::for_vehicle(VehicleKind::T54_1951);
+        let summary = draft.current_module_summary(FitSlot::Radio);
+        assert!(summary.ends_with("kg"), "the radio summary is its mass, got {summary}");
+        let radios = draft.module_options(FitSlot::Radio);
+        assert_eq!(radios[0].unit, "kg");
+        assert!(!radios[0].higher_is_better, "a lighter radio is the better radio");
     }
 
     #[test]

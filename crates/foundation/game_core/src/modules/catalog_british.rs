@@ -47,16 +47,10 @@ pub(crate) fn centurion_loadout() -> VehicleModules {
             roof_mm: None,
             traverse: TurretTraverse::Rotating { rate_rad_s: 0.44 },
             // British optics: the best view range in the Cold War park.
-            view_range_m: 390.0,
             max_gun_caliber_mm: 84.0,
         },
         gun: gun_20pdr_type_a(),
-        radio: RadioModule {
-            name: "WS No. 19".to_string(),
-            mass_kg: 90.0,
-            hit_points: 50,
-            signal_range_m: 680.0,
-        },
+        radio: RadioModule { name: "WS No. 19".to_string(), mass_kg: 90.0, hit_points: 50 },
     }
 }
 
