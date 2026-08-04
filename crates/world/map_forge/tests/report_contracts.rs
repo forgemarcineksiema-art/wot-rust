@@ -50,6 +50,104 @@ fn error_messages(blueprint: &MapBlueprint) -> Vec<String> {
 }
 
 #[test]
+fn a_road_profile_rides_its_named_road_bit_for_bit() {
+    use map_forge::blueprint::{RoadProfileSpec, RoadSpec, StrokeProfile, StrokeSpec};
+    let points = vec![[40.0, 150.0], [260.0, 150.0]];
+    let road = RoadSpec::Road {
+        id: "lane".into(),
+        surface: terrain::RoadSurface::Dirt,
+        points: points.clone(),
+        width_m: 8.0,
+    };
+
+    // The profile op names the road and carries NO points of its own…
+    let mut profiled = flat_square();
+    profiled.roads = vec![road.clone()];
+    profiled.terrain.ops.push(TerrainOp::RoadProfile(RoadProfileSpec {
+        road_id: "lane".into(),
+        profile: StrokeProfile::Ridge { amp_m: 1.5 },
+        half_width_m: 4.0,
+        falloff_m: 6.0,
+    }));
+    let (profiled_map, profiled_report) = compile(&profiled);
+    assert!(profiled_report.errors().next().is_none(), "a well-named profile compiles clean");
+
+    // …and the compiled ground is BIT-IDENTICAL to a hand-authored stroke on the same line:
+    // the resolution is the whole mechanism, and this is its lock.
+    let mut stroked = flat_square();
+    stroked.roads = vec![road];
+    stroked.terrain.ops.push(TerrainOp::Stroke(StrokeSpec {
+        points,
+        profile: StrokeProfile::Ridge { amp_m: 1.5 },
+        half_width_m: 4.0,
+        falloff_m: 6.0,
+    }));
+    let (stroked_map, _) = compile(&stroked);
+    assert_eq!(
+        profiled_map.heightmap.samples(),
+        stroked_map.heightmap.samples(),
+        "RoadProfile must resolve to exactly the stroke its road draws"
+    );
+    let mid = profiled_map.heightmap.sample_height(150.0, 150.0).expect("inside");
+    assert!((mid - 6.5).abs() < 1.0e-3, "the roadbed rides the embankment: {mid}");
+}
+
+#[test]
+fn a_road_profile_naming_a_ghost_road_is_an_error_not_a_panic() {
+    use map_forge::blueprint::{RoadProfileSpec, StrokeProfile};
+    let mut blueprint = flat_square();
+    blueprint.terrain.ops.push(TerrainOp::RoadProfile(RoadProfileSpec {
+        road_id: "ghost".into(),
+        profile: StrokeProfile::Ridge { amp_m: 1.0 },
+        half_width_m: 4.0,
+        falloff_m: 6.0,
+    }));
+    let (map, _) = compile(&blueprint);
+    assert_eq!(
+        map.heightmap.sample_height(150.0, 150.0),
+        Some(5.0),
+        "an unresolved profile is the identity, never a panic"
+    );
+    let (_, report) = compile(&blueprint);
+    assert!(
+        report
+            .errors()
+            .any(|entry| entry.check == "road_profile" && entry.message.contains("ghost")),
+        "the report must name the ghost road"
+    );
+}
+
+#[test]
+fn a_road_profile_reaches_the_backdrop_skirt() {
+    use map_forge::blueprint::{RoadProfileSpec, RoadSpec, StrokeProfile};
+    // A road running to the map edge: the apron's analytic continuation must agree with
+    // the compiled border EXACTLY, or the seam shows — the backdrop walks the same
+    // effective op list, and this is the lock on that sentence.
+    let mut blueprint = flat_square();
+    blueprint.roads = vec![RoadSpec::Road {
+        id: "edge_lane".into(),
+        surface: terrain::RoadSurface::Dirt,
+        points: vec![[0.0, 150.0], [300.0, 150.0]],
+        width_m: 8.0,
+    }];
+    blueprint.terrain.ops.push(TerrainOp::RoadProfile(RoadProfileSpec {
+        road_id: "edge_lane".into(),
+        profile: StrokeProfile::Ridge { amp_m: 1.5 },
+        half_width_m: 4.0,
+        falloff_m: 6.0,
+    }));
+    let (map, _) = compile(&blueprint);
+    for z in [140.0_f32, 150.0, 160.0] {
+        let compiled = map.heightmap.sample_height(300.0, z).expect("border node");
+        let continued = map_forge::backdrop_height(&blueprint, 300.0, z);
+        assert!(
+            (compiled - continued).abs() < 1.0e-4,
+            "the apron must not tear at the profiled road (z {z}: {compiled} vs {continued})"
+        );
+    }
+}
+
+#[test]
 fn a_rectangular_grid_is_refused_not_silently_miscompiled() {
     let mut blueprint = flat_square();
     blueprint.grid.size_m = [300.0, 400.0];

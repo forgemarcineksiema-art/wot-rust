@@ -172,6 +172,16 @@ impl TerrainOp {
                     StrokeProfile::Plateau { target_m } => lerp(h, target_m, mask),
                 }
             }
+            // Every evaluation path walks `effective_terrain_ops`, which resolves this into
+            // a Stroke riding the named road. Reaching here means a caller evaluated the RAW
+            // document list — a silent identity would hide that bug; fail loudly instead.
+            TerrainOp::RoadProfile(spec) => {
+                unreachable!(
+                    "RoadProfile '{}' must be resolved via effective_terrain_ops before \
+                     evaluation",
+                    spec.road_id
+                )
+            }
         }
     }
 

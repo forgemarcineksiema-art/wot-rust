@@ -38,20 +38,59 @@ impl MapBlueprint {
     }
 }
 
+/// The terrain ops as EVALUATED: `RoadProfile` resolves into a `Stroke` riding its named
+/// road's polyline; everything else passes through. Both the compiler's sampling closure
+/// and the backdrop skirt walk THIS list, never the raw document — the resolution is the
+/// construction that makes paint/profile drift impossible. An unknown road id resolves to
+/// nothing here and to an Error in the report (`check_road_profiles`): a live editor
+/// session must survive every keystroke.
+pub(crate) fn effective_terrain_ops(
+    blueprint: &MapBlueprint,
+) -> std::borrow::Cow<'_, [crate::blueprint::TerrainOp]> {
+    use crate::blueprint::TerrainOp;
+    if !blueprint.terrain.ops.iter().any(|op| matches!(op, TerrainOp::RoadProfile(_))) {
+        // The common case borrows: the backdrop walks this per sample and must not pay an
+        // allocation for maps that never use RoadProfile.
+        return std::borrow::Cow::Borrowed(&blueprint.terrain.ops);
+    }
+    let roads = expand_roads(blueprint);
+    std::borrow::Cow::Owned(
+        blueprint
+            .terrain
+            .ops
+            .iter()
+            .filter_map(|op| match op {
+                TerrainOp::RoadProfile(spec) => {
+                    roads.iter().find(|road| road.id == spec.road_id).map(|road| {
+                        TerrainOp::Stroke(crate::blueprint::StrokeSpec {
+                            points: road.points.clone(),
+                            profile: spec.profile,
+                            half_width_m: spec.half_width_m,
+                            falloff_m: spec.falloff_m,
+                        })
+                    })
+                }
+                other => Some(other.clone()),
+            })
+            .collect(),
+    )
+}
+
 /// Compile a blueprint into the runtime battlefield plus its validation report.
 pub fn compile(blueprint: &MapBlueprint) -> (BattlefieldMap, MapReport) {
     let samples = blueprint.grid.samples_per_side();
     let cell = blueprint.grid.cell_m;
     let axis_z = blueprint.grid.axis_z();
+    let ops = effective_terrain_ops(blueprint);
     // Per-op cull rectangles: exact compact support (strokes), `None` = never cull. The
     // skip is bitwise invisible — outside its support an op is the identity — so the
-    // backdrop skirt, which evaluates ops directly without this table, stays in agreement.
-    let culls: Vec<Option<[f32; 4]>> =
-        blueprint.terrain.ops.iter().map(|op| op.influence_bounds()).collect();
+    // backdrop skirt, which evaluates the same effective list without this table, stays
+    // in agreement.
+    let culls: Vec<Option<[f32; 4]>> = ops.iter().map(|op| op.influence_bounds()).collect();
     let heightmap = heightmap_from_fn(samples, cell, |x, z| {
         let ctx = EvalContext { river: blueprint.river.as_ref(), axis_z };
         let mut h = blueprint.terrain.base.eval(x);
-        for (op, cull) in blueprint.terrain.ops.iter().zip(&culls) {
+        for (op, cull) in ops.iter().zip(&culls) {
             if let Some([x0, z0, x1, z1]) = cull
                 && (x < *x0 || x > *x1 || z < *z0 || z > *z1)
             {
