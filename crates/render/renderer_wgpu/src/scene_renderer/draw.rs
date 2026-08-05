@@ -72,6 +72,7 @@ impl super::SceneRenderer {
                 ],
                 cloud_shadows_enabled: self.cloud_shadows_enabled,
                 shader_detail: self.shader_detail,
+                crushers: self.grass_crusher_slots(camera_pos),
                 bloom_enabled: self.bloom.mips > 0,
                 time_s: self.scene_time_s,
                 rain_intensity: self.rain_intensity,

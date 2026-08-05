@@ -60,6 +60,9 @@ struct Camera {
     cloud2_params: vec4<f32>,
     // xy = seeded cloud UV offset, z = standing-water fill, w = seeded rain time phase.
     weather_params: vec4<f32>,
+    // Vehicles pressing the meadow down (Jedna Trawa P9): xyz = world position, w = crush
+    // radius. Radius 0 disables the slot, so an all-zero array costs one compare per slot.
+    crusher_pos_radius: array<vec4<f32>, 6>,
 };
 
 @group(0) @binding(0)

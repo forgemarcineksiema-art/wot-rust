@@ -18,6 +18,9 @@ mod vehicle;
 mod vehicle_asset;
 
 use game_core::TankId;
+/// Re-exported so renderer backends can key per-vehicle frame state (e.g. which tanks press
+/// the meadow down) without depending on the sim crate directly.
+pub use game_core::TankId as VehicleId;
 
 pub const DEFAULT_MSAA_SAMPLES: u8 = 4;
 
@@ -122,6 +125,29 @@ pub fn projection_y_scale(view_proj: &[[f32; 4]; 4]) -> f32 {
         + view_proj[1][1] * view_proj[1][1]
         + view_proj[2][1] * view_proj[2][1])
         .sqrt()
+}
+
+/// How many vehicles can press the meadow down at once (Jedna Trawa P9). Grass only exists
+/// within ~47 m of the eye, and the renderer keeps the nearest crushers, so a 7v7's full
+/// roster never needs a slot each — what matters is that the ones you can SEE standing in
+/// grass are the ones flattening it.
+pub const MAX_GRASS_CRUSHERS: usize = 6;
+/// The radius a hull presses flat. A medium tank is ~3.3 m across and ~6.5 m long; one
+/// circle is the honest approximation at grass scale, sized so the tracks' own width is
+/// inside it rather than fringed by standing blades.
+pub const GRASS_CRUSH_RADIUS_M: f32 = 3.6;
+
+/// How hard the meadow is pressed at `distance` from a crusher's centre: 1 under the hull,
+/// easing to 0 at the radius. The CPU mirror of `meadow_crush` in `meadow_common.wgsl`, so
+/// the model is testable without a GPU.
+pub fn grass_crush_strength(distance: f32, radius: f32) -> f32 {
+    if radius <= 0.0 {
+        return 0.0;
+    }
+    let t = (1.0 - distance / radius).clamp(0.0, 1.0);
+    // Squared: the flattening stays near-total under the hull and releases quickly at the
+    // rim, instead of leaving a wide skirt of half-bent grass around every tank.
+    t * t
 }
 
 /// Costume C (Jedna Trawa P5): how much of the meadow's own darkness the GROUND carries.

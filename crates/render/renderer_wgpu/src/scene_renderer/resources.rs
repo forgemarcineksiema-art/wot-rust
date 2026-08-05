@@ -72,6 +72,7 @@ impl super::SceneRenderer {
     /// is exactly the failure that froze every tank on screen once a 7v7 exceeded the old budget.
     pub fn set_vehicle_render_frame(&mut self, ctx: &GpuContext, frame: &RenderFrame) {
         self.armor_damage.upload(ctx, &frame.armor_damage);
+        self.collect_grass_crushers(frame);
         let (mut instances, mut draws) = frame_instances(frame);
         let capacity = buffer_instance_capacity(&self.vehicle_instances);
         if clip_instances_to_capacity(&mut instances, &mut draws, capacity) {
@@ -80,6 +81,60 @@ impl super::SceneRenderer {
         ctx.queue.write_buffer(&self.vehicle_instances, 0, bytemuck::cast_slice(&instances));
         self.vehicle_instance_count = instances.len() as u32;
         self.vehicle_draws = draws;
+    }
+
+    /// Where the vehicles stand, for the meadow to be pressed by (Jedna Trawa P9).
+    ///
+    /// Nothing new crosses the API for this: a vehicle frame already carries which objects
+    /// belong to which tank, so the renderer reads the truth it is handed instead of asking
+    /// the client to send tank positions a second time (and to keep them in sync). A tank is
+    /// many objects — hull, turret, tracks — and the FIRST one seen fixes its position; the
+    /// parts sit within a metre of each other, well inside a 3.6 m crush radius.
+    fn collect_grass_crushers(&mut self, frame: &RenderFrame) {
+        self.grass_crushers.clear();
+        for object in &frame.objects {
+            let Some(tank) = object.tank_id else { continue };
+            if self.grass_crushers.iter().any(|(id, _)| *id == tank) {
+                continue;
+            }
+            let t = object.transform;
+            self.grass_crushers.push((tank, [t[3][0], t[3][1], t[3][2]]));
+        }
+    }
+
+    /// The crusher slots this frame would hand the shader (test/diagnostic hook — the exact
+    /// selection the uniform carries).
+    pub fn grass_crusher_slots_for_test(
+        &self,
+        eye: [f32; 3],
+    ) -> [[f32; 4]; renderer_api::MAX_GRASS_CRUSHERS] {
+        self.grass_crusher_slots(eye)
+    }
+
+    /// The crusher slots for one frame: the nearest tanks to the eye, because grass only
+    /// exists around the eye — a tank flattening a meadow 300 m away is flattening nothing
+    /// anyone can see. Disabled (radius 0) slots pad the rest and cost one compare each.
+    pub(super) fn grass_crusher_slots(
+        &self,
+        eye: [f32; 3],
+    ) -> [[f32; 4]; renderer_api::MAX_GRASS_CRUSHERS] {
+        let mut slots = [[0.0f32; 4]; renderer_api::MAX_GRASS_CRUSHERS];
+        if self.grass_crushers.is_empty() {
+            return slots;
+        }
+        let mut nearest: Vec<([f32; 3], f32)> = self
+            .grass_crushers
+            .iter()
+            .map(|(_, position)| {
+                let flat = (position[0] - eye[0]).hypot(position[2] - eye[2]);
+                (*position, flat)
+            })
+            .collect();
+        nearest.sort_by(|a, b| a.1.total_cmp(&b.1));
+        for (slot, (position, _)) in slots.iter_mut().zip(nearest) {
+            *slot = [position[0], position[1], position[2], renderer_api::GRASS_CRUSH_RADIUS_M];
+        }
+        slots
     }
 
     /// Upload this frame's battle-FX quads (already world-space, premultiplied colors). Oversized

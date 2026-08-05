@@ -177,6 +177,10 @@ pub struct CameraUniform {
     /// Dynamic match-weather lanes: xy = seeded cloud UV offset, z = standing-water fill,
     /// w = seeded rain time phase. Appended so all established uniform offsets remain stable.
     pub weather_params: GpuVec4,
+    /// Vehicles pressing the meadow down (Jedna Trawa P9): xyz = world position, w = crush
+    /// radius (0 disables the slot, which is the whole array on every grass-free scene).
+    /// Appended, like every lane before it.
+    pub crusher_pos_radius: [GpuVec4; renderer_api::MAX_GRASS_CRUSHERS],
 }
 
 /// The per-frame pass parameters that ride the camera uniform beside the view matrices and
@@ -210,6 +214,10 @@ pub struct FramePassParams {
     /// Per-feature shader-detail mask (`time_params.w`, Żywy Step P0): the lane carries the
     /// bits of `ShaderDetailMask` as a small float integer; shaders test bits independently.
     pub shader_detail: renderer_api::ShaderDetailMask,
+    /// Vehicles pressing the meadow down (Jedna Trawa P9), nearest-first: xyz world position,
+    /// w crush radius. An all-zero array is a bit-exact no-op — every grass-free scene, and
+    /// every battle frame with no tank standing in view of the grass, pays nothing.
+    pub crushers: [[f32; 4]; renderer_api::MAX_GRASS_CRUSHERS],
 }
 
 impl Default for FramePassParams {
@@ -229,6 +237,7 @@ impl Default for FramePassParams {
             wetness: 0.0,
             weather_params: [0.0; 4],
             shader_detail: renderer_api::ShaderDetailMask::FULL,
+            crushers: [[0.0; 4]; renderer_api::MAX_GRASS_CRUSHERS],
         }
     }
 }
@@ -318,6 +327,7 @@ impl CameraUniform {
                 lighting.storm_front_strength,
             ]),
             weather_params: GpuVec4(passes.weather_params),
+            crusher_pos_radius: passes.crushers.map(GpuVec4),
         }
     }
 

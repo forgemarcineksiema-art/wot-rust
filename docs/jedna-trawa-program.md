@@ -87,7 +87,7 @@ S2/S3 blow the budget: S1 + analytic anti-sun darkening of blades.
 | P6 | Near densification, bought INSIDE the tuft (more blades, wider arcs) after two costlier routes were measured and rejected | a tuft must splay (reach > 0.2 m); tuft index budget with its measurement cited |
 | P7 | Wind 2.0: gust FRONTS advected along the sky's own storm heading, arc bend (drop ∝ deflection²), per-species stiffness, per-tuft flutter | one wind for sky and field; gusts stretched across the wind; a calm day still breathes |
 | P8 | Shadows S2 (+S3 if the number allows); shadow-policy carve-out (D2) | measured budget; doctrine doc updated |
-| P9 | Tank-in-grass: hull/track press-down (D4) | press is local, deterministic, recovers |
+| P9 | Tank-in-grass (D4): the hull presses the meadow flat and shoves it outward, overruling the wind; crushers read off the vehicle frame the renderer already gets | press overrules wind; empty frame releases the grass; nearest tanks take the slots |
 | P10 | (stretch) audio-visual wind: one gust envelope for ear and field | shared envelope |
 
 Golden probes (`bystra_views`, `orliny_views`, `flora_probe`, look metrics) are re-blessed
@@ -216,3 +216,19 @@ generator — locks travel, they do not die.
   raised 180 → 300 with that measurement cited in the lock. Net: cheaper than either
   rejected route, and the tufts read as tufts instead of a few blades.
   Doctrine: **move work to the lane that has room**, and let the measurement name the lane.
+- 2026-08-05 — **P9 landed (D4 closed): the tank in the meadow.** Forty tonnes drive through
+  a field and the field answers — the hull presses grass flat and shoves it outward on the
+  same root-pinned arc the wind uses (drop ∝ deflection²), and the press OVERRULES the
+  weather: only the un-crushed share of a blade still sways. Nothing new crosses the client
+  API: the vehicle frame already says which objects belong to which tank, so the renderer
+  reads the truth it is handed (`collect_grass_crushers`) instead of asking for tank
+  positions a second time and keeping them in sync. The nearest tanks take the six slots,
+  because grass only exists around the eye. Uniform 800 → 896 B (`array<vec4, 6>`; an
+  all-zero array is a bit-exact no-op, so every grass-free scene pays one compare per slot).
+  Honesty: this reveals nothing — grass never hid anything under the 0.6 m cap (D1) — and
+  every client derives it from the same replicated positions, so no one's GPU buys them
+  information. Measured: conjure 913 µs, ring Δ −1.44 ms (both in family; the crush is ALU
+  on vertices already being transformed). Locks in three layers: shader text (the press wins
+  over the wind, the arc is quadratic, a blade is never driven past flat), the CPU falloff
+  model, and an end-to-end test that a tank's many parts make ONE crusher, the nearest win,
+  and an empty vehicle frame RELEASES the meadow instead of pinning it flat forever.
