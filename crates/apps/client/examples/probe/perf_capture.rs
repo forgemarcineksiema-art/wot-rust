@@ -218,15 +218,20 @@ fn frame_time_capture() {
     // reported REMOVING work as costing +2.6 ms. So the configs rotate INSIDE one process in
     // short blocks — every config visits every thermal state, every block walks the identical
     // camera path, and only the per-config aggregate is reported.
-    let configs: [(&str, bool, bool); 3] = [
-        ("full scene", true, true),
-        ("no card meadow", false, true),
-        ("no near ring", true, false),
+    // The sniper entry step (18°) rides along as its own config: D3 stretches the far
+    // collapse and the chunk cutoff under magnification, and the honest question — does a
+    // magnified meadow cost more than the wide view? — is only answerable by measuring the
+    // scope in the same rotation as the battle view.
+    let configs: [(&str, bool, bool, f32); 4] = [
+        ("full scene", true, true, 60.0),
+        ("no card meadow", false, true, 60.0),
+        ("no near ring", true, false, 60.0),
+        ("scope 18deg", true, true, 18.0),
     ];
     const CYCLES: usize = 4;
     const BLOCK_WARMUP: usize = 8;
     let block_frames = FRAMES / CYCLES;
-    let mut samples: [Vec<f64>; 3] = [Vec::new(), Vec::new(), Vec::new()];
+    let mut samples: [Vec<f64>; 4] = [Vec::new(), Vec::new(), Vec::new(), Vec::new()];
     let mut dressing_bound = true;
 
     for _ in 0..WARMUP {
@@ -249,7 +254,7 @@ fn frame_time_capture() {
     let _ = target.read_rgba8(&ctx);
 
     for _cycle in 0..CYCLES {
-        for (config, &(_, with_dressing, with_grass)) in configs.iter().enumerate() {
+        for (config, &(_, with_dressing, with_grass, fov)) in configs.iter().enumerate() {
             // Buffer swaps happen OUTSIDE the timed frames; empty slices clear the slot.
             if with_dressing != dressing_bound {
                 if with_dressing {
@@ -267,7 +272,7 @@ fn frame_time_capture() {
                 let camera = renderer_api::Camera {
                     eye: eye.into(),
                     target: (eye + glam::Vec3::new(0.35, -0.25, 1.0)).into(),
-                    vertical_fov_degrees: 60.0,
+                    vertical_fov_degrees: fov,
                 };
                 let view_proj = renderer_api::view_projection_matrix(
                     &camera,
@@ -328,7 +333,7 @@ fn frame_time_capture() {
     let fence_p50 = fence_ms.get(fence_ms.len() / 2).copied().unwrap_or(0.0);
 
     let mut full_p50 = 0.0;
-    for (config, (name, _, _)) in configs.iter().enumerate() {
+    for (config, (name, _, _, _)) in configs.iter().enumerate() {
         let series = &mut samples[config];
         series.sort_by(f64::total_cmp);
         let at = |p: f64| series[((series.len() as f64 * p) as usize).min(series.len() - 1)];

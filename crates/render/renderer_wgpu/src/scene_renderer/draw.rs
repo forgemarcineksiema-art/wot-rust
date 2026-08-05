@@ -51,11 +51,10 @@ impl super::SceneRenderer {
             far_cascade,
         );
         // The projection's Y scale (P[1][1]) survives in the view-projection's second row, whose
-        // rotation part is unit length — recovered here so SSAO can convert world radii to pixels.
-        let proj_y_scale = (view_proj[0][1] * view_proj[0][1]
-            + view_proj[1][1] * view_proj[1][1]
-            + view_proj[2][1] * view_proj[2][1])
-            .sqrt();
+        // rotation part is unit length — recovered so SSAO can convert world radii to pixels,
+        // and (Jedna Trawa P4b) so the grass bands know this frame's magnification.
+        let proj_y_scale = renderer_api::projection_y_scale(&view_proj);
+        let band_scale = renderer_api::grass_zoom_band_scale(proj_y_scale);
         let camera = CameraUniform::from_scene(
             view_proj,
             renderer_api::view_projection_inverse(view_proj),
@@ -191,7 +190,7 @@ impl super::SceneRenderer {
                     occlusion_query_set: None,
                     multiview_mask: None,
                 });
-                self.draw_world_opaque(&mut pass, &camera_frustum, camera_pos);
+                self.draw_world_opaque(&mut pass, &camera_frustum, camera_pos, band_scale);
             }
             {
                 let grab_bg = self.water_refraction.bind_group.borrow();
@@ -251,7 +250,7 @@ impl super::SceneRenderer {
                 occlusion_query_set: None,
                 multiview_mask: None,
             });
-            self.draw_world_opaque(&mut pass, &camera_frustum, camera_pos);
+            self.draw_world_opaque(&mut pass, &camera_frustum, camera_pos, band_scale);
             self.draw_water_surface(&mut pass, None);
             self.draw_overlay_fx(&mut pass);
         }
@@ -338,6 +337,7 @@ impl super::SceneRenderer {
         pass: &mut wgpu::RenderPass<'_>,
         camera_frustum: &Frustum,
         eye: [f32; 3],
+        band_scale: f32,
     ) {
         pass.set_pipeline(&self.pipeline);
         pass.set_bind_group(0, &self.camera_bind_group, &[]);
@@ -350,8 +350,9 @@ impl super::SceneRenderer {
             self.draw_visible_terrain(pass, camera_frustum);
         }
         // The dressing slot (Żywy Step P2): color pass ONLY — never the cascades, never the
-        // SSAO prepass — and distance-cut past its own collapse band.
-        self.draw_visible_dressing(pass, camera_frustum, eye);
+        // SSAO prepass — and distance-cut past its own collapse band, which the scope
+        // stretches (Jedna Trawa P4b) exactly as far as the shader stands far tufts.
+        self.draw_visible_dressing(pass, camera_frustum, eye, band_scale);
         if self.dynamic_index_count > 0 {
             pass.set_vertex_buffer(0, self.dynamic_vertices.slice(..));
             pass.set_index_buffer(self.dynamic_indices.slice(..), wgpu::IndexFormat::Uint32);

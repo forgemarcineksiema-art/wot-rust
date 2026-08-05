@@ -48,6 +48,18 @@ fn scene_shader_is_valid_wgsl_with_tint_inputs() {
     assert!(report.entry_points.iter().any(|entry| entry == "fs_main"));
 }
 
+/// Read a `const <name>: f32 = <value>;` straight out of a shader. Parsing the real source
+/// (rather than restating the literal) means these locks fail when the shader moves, which
+/// is the entire point of a CPU↔GPU contract test.
+fn wgsl_const(source: &str, name: &str) -> f32 {
+    let needle = format!("const {name}: f32 = ");
+    let start = source.find(&needle).unwrap_or_else(|| panic!("{name} is missing from the shader"))
+        + needle.len();
+    let rest = &source[start..];
+    let end = rest.find(';').expect("a terminated const");
+    rest[..end].trim().parse().expect("a numeric const")
+}
+
 #[test]
 fn grass_blade_shader_contract_fades_the_tuft_and_scales_its_wind() {
     let source = scene_shader_source();
@@ -57,9 +69,45 @@ fn grass_blade_shader_contract_fades_the_tuft_and_scales_its_wind() {
     assert_eq!(surface_role::GRASS_BLADE, 6.0);
     assert!(source.contains("abs(input.surface - 6.0) < 0.5"));
 
-    // Only the outer edge is camera-relative: every vertex folds toward one instance root.
-    assert!(source.contains("stand = 1.0 - smoothstep(34.0, 48.0, d);"));
+    // The costume hand-off (Jedna Trawa P4): ONE function decides where grass changes
+    // costume — the near ring takes its value, the far meadow takes the complement, so
+    // stand_near + stand_far ≡ 1 at every place by construction, and the radius is a
+    // world-anchored coastline (noise), never a ring line.
+    assert!(source.contains("fn grass_handoff_stand"));
+    assert!(source.contains("stand = grass_handoff_stand(root.xz, camera.camera_pos.xz);"));
+    assert!(source.contains("(1.0 - grass_handoff_stand(world.xz, camera.camera_pos.xz))"));
     assert!(source.contains("root + (world.xyz - root) * stand"));
+
+    // The coastline's outermost reach stays inside the shader ring the CPU cache's
+    // anti-streaming lock is written against (scene_build's GRASS_RADIUS_M — restated here
+    // because the renderer sits BELOW scene_build in the layer DAG and cannot import it).
+    const CPU_SHADER_RING_M: f32 = 48.0;
+    let base = wgsl_const(&source, "GRASS_HANDOFF_BASE_M");
+    let spread = wgsl_const(&source, "GRASS_HANDOFF_SPREAD_M");
+    let half_band = wgsl_const(&source, "GRASS_HANDOFF_HALF_BAND_M");
+    assert!(
+        base + spread + half_band < CPU_SHADER_RING_M,
+        "the coastline's farthest reach ({}) must stay inside the {CPU_SHADER_RING_M} m ring \
+         the CPU population is cached for",
+        base + spread + half_band
+    );
+
+    // Zoom-aware bands (D3/P4b): the shader's magnification constants ARE the CPU's, read
+    // from the projection lane the renderer already fills — one number, no camera state
+    // synchronised across the boundary.
+    assert_eq!(
+        wgsl_const(&source, "GRASS_ZOOM_REFERENCE_PROJ_Y"),
+        renderer_api::GRASS_ZOOM_REFERENCE_PROJ_Y
+    );
+    assert_eq!(wgsl_const(&source, "GRASS_ZOOM_BAND_CAP"), renderer_api::GRASS_ZOOM_BAND_CAP);
+    assert!(source.contains("camera.ssao_params.w / GRASS_ZOOM_REFERENCE_PROJ_Y"));
+    // Only the FAR collapse stretches. The near hand-off must not: the ring is a CPU cache
+    // of fixed world radius whose instance count grows with the square of any stretch.
+    assert!(source.contains("smoothstep(260.0 * zoom, 330.0 * zoom, d)"));
+    assert!(
+        !source.contains("GRASS_HANDOFF_BASE_M * zoom"),
+        "stretching the near ring would multiply the CPU population, not the view"
+    );
 
     // Wind displacement is mesh-local, scaled into world metres, and dies with the tuft.
     assert!(source.contains("let model_scale = length(model[1].xyz);"));
@@ -75,6 +123,30 @@ fn grass_blade_shader_contract_fades_the_tuft_and_scales_its_wind() {
     assert!(
         source.contains("return 0.94 + value_noise(octave_frame_fine(world.xz) * 1.7) * 0.12;")
     );
+}
+
+/// The magnification factor itself (P4b): every off-game camera lands on exactly 1.0, the
+/// scope ladder stretches the bands, and the cap holds at its narrowest steps.
+#[test]
+fn the_grass_band_magnification_is_one_off_scope_and_capped_on_it() {
+    let proj_y = |fov_degrees: f32| 1.0 / (fov_degrees.to_radians() * 0.5).tan();
+    for battle_fov in [55.0, 60.0, 65.0, 75.0] {
+        assert_eq!(
+            renderer_api::grass_zoom_band_scale(proj_y(battle_fov)),
+            1.0,
+            "a normal battle view at {battle_fov}° is not magnified"
+        );
+    }
+    // The scope ladder (client `SNIPER_FOV_STEPS_DEGREES`): 18° is the entry step.
+    let entry = renderer_api::grass_zoom_band_scale(proj_y(18.0));
+    assert!((3.0..3.6).contains(&entry), "the entry scope step stretches ~3.3x: {entry}");
+    for narrow in [8.0, 5.0, 3.0] {
+        assert_eq!(
+            renderer_api::grass_zoom_band_scale(proj_y(narrow)),
+            renderer_api::GRASS_ZOOM_BAND_CAP,
+            "the deep steps hold at the cap instead of asking for kilometres of grass"
+        );
+    }
 }
 
 #[test]

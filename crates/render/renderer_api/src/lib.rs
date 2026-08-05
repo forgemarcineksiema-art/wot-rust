@@ -105,6 +105,37 @@ pub struct MeshHandle(pub u32);
 /// darkness that matters.
 pub const SHADOWLESS_DRESSING_MESH_BASE: u32 = 0xFFFF_0000;
 
+/// The projection Y scale (`P[1][1]` = cot(fov_y / 2)) of the widest normal battle view.
+/// Anything narrower than this is MAGNIFIED — the sniper scope, and nothing else.
+pub const GRASS_ZOOM_REFERENCE_PROJ_Y: f32 = 1.921;
+/// How far the grass bands may stretch under magnification (Jedna Trawa D3/P4b). The scope
+/// ladder reaches ~20× angular magnification at its 3° step; letting the bands follow that
+/// literally would ask for grass geometry kilometres out. The cap is a measured compromise,
+/// not a taste: see the program's STATUS ledger.
+pub const GRASS_ZOOM_BAND_CAP: f32 = 4.0;
+
+/// Recover the projection's Y scale (`P[1][1]` = cot(fov_y / 2)) from a view-projection.
+/// The view's rotation part is unit length, so the second column's norm survives the
+/// multiply — the same recovery SSAO uses for its world-radius → pixel-radius conversion.
+pub fn projection_y_scale(view_proj: &[[f32; 4]; 4]) -> f32 {
+    (view_proj[0][1] * view_proj[0][1]
+        + view_proj[1][1] * view_proj[1][1]
+        + view_proj[2][1] * view_proj[2][1])
+        .sqrt()
+}
+
+/// How far a frame's grass bands stretch, from the projection alone (Jedna Trawa P4b).
+///
+/// The scope is a COMBAT view: at 3.4× a card 100 m out covers the screen area it would at
+/// 29 m, so bands measured in world metres collapse the meadow inside the very view the
+/// player aims through. Deriving the factor from `P[1][1]` — which the renderer already
+/// recovers from the view-projection every frame — means the CPU chunk cutoff and the
+/// shader's collapse band read ONE number with no camera state to synchronise, and every
+/// off-game camera (probe, garage, review) lands on exactly 1.0.
+pub fn grass_zoom_band_scale(proj_y_scale: f32) -> f32 {
+    (proj_y_scale / GRASS_ZOOM_REFERENCE_PROJ_Y).clamp(1.0, GRASS_ZOOM_BAND_CAP)
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct MaterialHandle(pub u32);
 
