@@ -1,5 +1,6 @@
 use std::sync::OnceLock;
 
+use game_core::math::HullPose;
 use game_core::{TankId, TankSpec, TeamId, VehicleKind};
 use glam::Vec3;
 use net::TankSnapshot;
@@ -36,7 +37,112 @@ fn feedback_is_clear_when_current_gun_arc_lands_near_the_aim_point() {
         feedback.actual_impact_world_point,
         feedback.actual_impact_world_point.distance(aim)
     );
-    assert!(feedback.actual_impact_world_point.distance(aim) < RETICLE_MATCH_TOLERANCE_M);
+    let fired = (aim - muzzle).normalize();
+    assert!(
+        feedback.actual_impact_world_point.distance(aim)
+            < aim_match_tolerance_m(fired, muzzle.distance(aim), 895.0),
+        "a nearly flat shot grazes the ground metres early — that IS arriving"
+    );
+}
+
+/// The gun arc is judged in the HULL frame, where the simulation's own limits live. A tank nosed
+/// down on a ridge reaches further below the horizon than its documented depression suggests —
+/// that extra reach IS hull-down — and the sight must promise the shot the gun can take from the
+/// slope it is standing on, not from an imaginary level one.
+#[test]
+fn the_gun_arc_is_judged_on_the_hull_the_tank_is_standing_on() {
+    let heightmap = HeightMap::flat(80, 80, 5.0, 0.0).unwrap();
+    // Four metres down over twenty: about -0.197 rad, past the level arc's -0.14 floor.
+    let muzzle = Vec3::new(40.0, 4.0, 40.0);
+    let aim = Vec3::new(40.0, 0.0, 60.0);
+
+    let level = query(&heightmap, &[], &[], muzzle, aim, 0.0, -0.14);
+    assert_eq!(
+        reticle_feedback(level).status,
+        ReticleStatus::Blocked,
+        "a level hull genuinely cannot depress that far"
+    );
+
+    let nosed_down = ReticleFeedbackQuery {
+        hull_pose: HullPose { yaw_rad: 0.0, pitch_rad: -0.20, roll_rad: 0.0 },
+        ..level
+    };
+    let feedback = reticle_feedback(nosed_down);
+    assert_eq!(
+        feedback.status,
+        ReticleStatus::Clear,
+        "nose-down, the same sight point sits inside the gun's arc — impact {:?}",
+        feedback.actual_impact_world_point
+    );
+}
+
+/// The arrival window is set by the ARRIVAL ANGLE. It used to be one flat 4.5 m constant, which
+/// priced the grazing case into every shot — including the thirty-metre street corner, where
+/// 4.5 m is the whole difference between the window and the wall.
+#[test]
+fn the_arrival_window_follows_the_arrival_angle_not_the_range() {
+    // A plunging shot lands where it was sent; a grazing one touches down metres early through
+    // the same centimetres of vertical slack. The window has to know the difference.
+    let steep = aim_match_tolerance_m(Vec3::new(0.0, -0.3, 1.0).normalize(), 300.0, 895.0);
+    let grazing = aim_match_tolerance_m(Vec3::new(0.0, -0.012, 1.0).normalize(), 300.0, 895.0);
+    assert!(steep < 1.0, "a steep arrival is judged in centimetres, got {steep}");
+    assert!(grazing > 3.0, "a flat arrival must be allowed its graze, got {grazing}");
+
+    // A slab two metres short of a thirty-metre sight point stops the shell dead.
+    let heightmap = HeightMap::flat(80, 80, 5.0, 0.0).unwrap();
+    let muzzle = Vec3::new(40.0, 2.0, 40.0);
+    let aim = Vec3::new(40.0, 0.0, 70.0);
+    let wall = StaticCoverObject {
+        id: "wall".to_string(),
+        name: "wall".to_string(),
+        kind: terrain::StaticCoverKind::FarmBuilding,
+        center: [40.0, 1.0, 68.5],
+        half_extents_m: [4.0, 1.5, 0.5],
+    };
+
+    let feedback = reticle_feedback(query(
+        &heightmap,
+        std::slice::from_ref(&wall),
+        &[],
+        muzzle,
+        aim,
+        0.0,
+        0.0,
+    ));
+
+    assert_eq!(feedback.status, ReticleStatus::Blocked);
+    assert!(
+        feedback.actual_impact_world_point.distance(aim) < 4.5,
+        "and it stops INSIDE the old flat window, which called this shot clear"
+    );
+}
+
+/// A crest the straight muzzle->aim line grazes is not a blocked shot: the shell flies a BALLISTIC
+/// ARC, which rides above that chord for the whole flight. The sight used to sample the chord
+/// against the heightmap and veto the trace with it — so a slow shell over a low ridge, the
+/// classic indirect lob, read as "no shot" while the round would have sailed over.
+#[test]
+fn a_crest_the_arc_flies_over_is_not_blocked() {
+    // 400 m/s over 600 m: about 1.5 s of flight, so the arc peaks roughly 2.7 m above the chord.
+    let mut samples = vec![0.0; 70 * 70];
+    for x in 0..70 {
+        samples[35 * 70 + x] = 1.5; // a 1.5 m crest at mid-range; the chord there sits at 1.0
+    }
+    let heightmap = HeightMap::new(70, 70, 10.0, samples).unwrap();
+    let muzzle = Vec3::new(300.0, 2.0, 50.0);
+    let aim = Vec3::new(300.0, 0.0, 650.0);
+
+    let feedback = reticle_feedback(ReticleFeedbackQuery {
+        muzzle_velocity_mps: 400.0,
+        ..query(&heightmap, &[], &[], muzzle, aim, 0.0, 0.0)
+    });
+
+    assert_eq!(
+        feedback.status,
+        ReticleStatus::Clear,
+        "the arc clears the crest — impact {:?}",
+        feedback.actual_impact_world_point
+    );
 }
 
 #[test]
@@ -202,6 +308,7 @@ fn query<'a>(
 ) -> ReticleFeedbackQuery<'a> {
     ReticleFeedbackQuery {
         gun_pitch_limits_rad: (sim::MIN_GUN_PITCH_RAD, sim::MAX_GUN_PITCH_RAD),
+        hull_pose: HullPose { yaw_rad: 0.0, pitch_rad: 0.0, roll_rad: 0.0 },
         heightmap,
         cover,
         water: None,

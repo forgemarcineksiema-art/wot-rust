@@ -34,25 +34,33 @@ impl ClientApp {
         // an ammo switch, reconciled from snapshots) — not the spec's stock shell.
         let shell = self.predictor.selected_shell();
         // The sight may not promise an elevation this gun cannot reach.
-        let (min_pitch, max_pitch) = self.player_spec().gun_pitch_limits_rad();
+        let limits = self.player_spec().gun_pitch_limits_rad();
+        // The SAME solution the reticle previews (`crate::aim::firing_solution`): the gun chases
+        // exactly the shot the sight promises, because both read one function.
+        if let Some(solution) = crate::aim::firing_solution(
+            muzzle,
+            aim,
+            hull,
+            limits,
+            shell.muzzle_velocity_mps,
+            shell.drag_per_s(),
+        ) {
+            return Some(SightSolution {
+                pitch_rad: solution.gun_pitch_rad,
+                turret_yaw_rad: Some(solution.turret_yaw_rad),
+            });
+        }
+        // Sight point on the muzzle: no bearing to solve, so hold the traverse and keep the
+        // elevation the world arc asks for.
         let world_pitch = crate::aim::gun_pitch_to_hit(
             muzzle,
             aim,
             shell.muzzle_velocity_mps,
             shell.drag_per_s(),
         );
-        let delta = aim - muzzle;
-        if delta.x.abs() <= 1.0e-4 && delta.z.abs() <= 1.0e-4 {
-            let pitch_rad = world_pitch.clamp(min_pitch, max_pitch);
-            return Some(SightSolution { pitch_rad, turret_yaw_rad: None });
-        }
-        // World arc (azimuth muzzle->aim, solved ballistic elevation) -> hull-relative targets.
-        let world_direction = game_core::math::gun_direction(delta.x.atan2(delta.z), world_pitch);
-        let (turret_yaw, gun_pitch) =
-            game_core::math::world_direction_to_turret(hull, world_direction);
         Some(SightSolution {
-            pitch_rad: gun_pitch.clamp(min_pitch, max_pitch),
-            turret_yaw_rad: Some(turret_yaw),
+            pitch_rad: world_pitch.clamp(limits.0, limits.1),
+            turret_yaw_rad: None,
         })
     }
 
@@ -95,6 +103,7 @@ impl ClientApp {
                 cover: self.live_cover.blocking(),
                 water: self.battlefield.water,
                 gun_pitch_limits_rad: player_spec.gun_pitch_limits_rad(),
+                hull_pose: tank.hull_pose(),
                 tanks,
                 player_spec: &player_spec,
                 owner: self.player_tank,
