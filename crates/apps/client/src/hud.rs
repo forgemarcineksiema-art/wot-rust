@@ -199,7 +199,13 @@ pub(crate) fn build_battle_hud(model: &BattleHudModel, aspect: f32) -> Vec<HudVe
         );
     }
     if let Some(age_s) = model.fire_denied_age_s {
-        reticle_marks::push_denied_flash(&mut vertices, reticle.aim_clip, age_s, aspect);
+        reticle_marks::push_denied_flash(
+            &mut vertices,
+            reticle.aim_clip,
+            reticle.aim_radius_clip,
+            age_s,
+            aspect,
+        );
     }
     // The reload countdown lives AT the reticle with its arc — one loading display, where the
     // eye already is (the old bottom-center bar was a second, competing one).

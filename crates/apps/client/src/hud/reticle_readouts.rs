@@ -53,26 +53,53 @@ pub(super) fn push_hit_confirm(
     }
 }
 
+/// Where the readout column stands: to the right of the aim and below it, clear of the aiming
+/// circle whatever it is doing.
+///
+/// The offsets used to be fixed at 0.18/0.055. Two ways that failed: a bloomed ring reaches 0.35
+/// and simply swallowed the numbers, and the fixed spot sat at clip radius 0.325 — right on the
+/// 0.30 ring where incoming-hit arcs draw, so the range and the "you are being shot from there"
+/// arc overprinted each other. The column now starts closer in (radius ~0.20, comfortably inside
+/// the hit ring) and steps outward only as far as the circle forces it.
+fn readout_anchor(
+    aim_clip: [f32; 2],
+    ring_radius: f32,
+    row: f32,
+    value_width: f32,
+    aspect: f32,
+) -> [f32; 2] {
+    // The numbers are RIGHT-aligned on this anchor, so their own width has to be part of the
+    // clearance or the leftmost digit is the one the circle swallows.
+    let clear_of_ring = (ring_radius + 0.02) / aspect.max(0.01) + value_width;
+    // 0.135 puts the column at clip radius ~0.25: clear of the marker, and a comfortable 20 px
+    // inside the 0.30 ring the incoming-hit arcs draw on.
+    let x = (aim_clip[0] + (0.135f32).max(clear_of_ring)).clamp(-0.88, 0.96);
+    let y = (aim_clip[1] - row.max(ring_radius + row * 0.3)).clamp(-0.75, 0.85);
+    [x, y]
+}
+
+/// Width of an `n`-digit value at `height`, measured through the real font metrics without
+/// formatting a string every frame.
+fn digits_width(value: u32, height: f32, aspect: f32) -> f32 {
+    const RULER: [&str; 5] = ["0", "0", "00", "000", "0000"];
+    let digits = crate::hud::number::digit_count(value).min(4) as usize;
+    crate::hud::font::text_width(RULER[digits], height, aspect)
+}
+
 /// Sniper-only mm readout under the distance: the shell penetration (verdict color) against
 /// the effective armor under the marker (dim red).
 pub(super) fn push_pen_numbers(
     vertices: &mut Vec<HudVertex>,
     aim_clip: [f32; 2],
+    ring_radius: f32,
     hint: PenetrationHint,
     aspect: f32,
 ) {
-    let right_x = (aim_clip[0] + 0.18).clamp(-0.88, 0.96);
-    let top_y = (aim_clip[1] - 0.115).clamp(-0.75, 0.85);
+    let pen_mm = hint.shell_pen_mm.round().clamp(0.0, 9_999.0) as u32;
+    let [right_x, top_y] =
+        readout_anchor(aim_clip, ring_radius, 0.105, digits_width(pen_mm, 0.038, aspect), aspect);
     let pen_color = if hint.penetrates { RETICLE_PEN } else { RETICLE_NO_PEN };
-    crate::hud::number::push_number(
-        vertices,
-        hint.shell_pen_mm.round().clamp(0.0, 9_999.0) as u32,
-        right_x,
-        top_y,
-        0.038,
-        aspect,
-        pen_color,
-    );
+    crate::hud::number::push_number(vertices, pen_mm, right_x, top_y, 0.038, aspect, pen_color);
     crate::hud::font::push_text(
         vertices,
         "/",
@@ -96,11 +123,13 @@ pub(super) fn push_pen_numbers(
 pub(super) fn push_target_distance(
     vertices: &mut Vec<HudVertex>,
     aim_clip: [f32; 2],
+    ring_radius: f32,
     distance_m: f32,
     aspect: f32,
 ) {
-    let right_x = (aim_clip[0] + 0.18).clamp(-0.88, 0.96);
-    let top_y = (aim_clip[1] - 0.055).clamp(-0.70, 0.90);
+    let metres = distance_m.round().clamp(0.0, 9_999.0) as u32;
+    let [right_x, top_y] =
+        readout_anchor(aim_clip, ring_radius, 0.05, digits_width(metres, 0.05, aspect), aspect);
     crate::hud::number::push_number(
         vertices,
         distance_m.round().clamp(0.0, 9_999.0) as u32,

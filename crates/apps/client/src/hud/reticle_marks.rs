@@ -13,8 +13,13 @@ use super::reticle_overlay::{
 /// Floor for the reload arc / flash radius: even a fully settled hairline ring leaves the arc
 /// readable (it hugs the ring whenever the ring is larger).
 const RELOAD_ARC_MIN_RADIUS: f32 = 0.040;
-/// Kept for the denied flash's base scale.
-const RELOAD_ARC_RADIUS: f32 = 0.055;
+/// Segments a circle of this radius needs to read as a circle. A settled third-person ring is
+/// 1.7 px across; forty segments of it were forty degenerate quads, and the doubled underlay
+/// turned that waste into a real cost. The chord error at the cap (48 segments on the widest
+/// bloomed sniper ring) is a quarter of a pixel.
+fn arc_segments(radius: f32) -> u32 {
+    ((radius * 640.0).ceil() as u32).clamp(12, 48)
+}
 
 /// Where the gun's own state draws: just outside the live dispersion ring, never inside a
 /// hairline one. The loading arc and the loaded ring share it, so the red arc drains and the
@@ -31,10 +36,18 @@ fn gun_state_radius(ring_radius: f32) -> f32 {
 /// Measured against the ring — that is, in milliradians — because that is the only honest scale
 /// for "different enough from the crosshair to matter": inside its own dispersion cone the gun
 /// cannot tell the two points apart, so neither should the sight. Fixed clip constants could
-/// not do this: 0.014..0.030 clip is 7..15 mrad in the third-person view but barely 1..2 mrad
-/// under 6.9x sniper zoom, so the marker stayed lit through the whole exponential tail of the
-/// turret's fine lay — most nagging exactly where aiming is most deliberate. These fractions
-/// reproduce the old band at the third-person settled ring and fix every other view.
+/// not do this — 0.014..0.030 clip measured through each view is
+///
+/// | view | band |
+/// |---|---|
+/// | third person (62 deg) | 8.4 .. 18.0 mrad |
+/// | sniper, 8 deg step (x7.8) | 0.98 .. 2.10 mrad |
+/// | sniper, 3 deg step (x20.7) | 0.37 .. 0.79 mrad |
+///
+/// so under zoom the marker stayed lit through the whole exponential tail of the turret's fine
+/// lay, most nagging exactly where aiming is most deliberate. In third person the floors below
+/// carry the band (the ring itself is tiny there), which is why this reproduces today's
+/// third-person feel while fixing every magnified view.
 const SEPARATION_FADE_LOW_RING: f32 = 0.75;
 const SEPARATION_FADE_HIGH_RING: f32 = 1.60;
 /// Floors for degenerate rings (an unseeded predictor, a hairline settled circle) so the band
@@ -42,12 +55,18 @@ const SEPARATION_FADE_HIGH_RING: f32 = 1.60;
 const SEPARATION_FADE_LOW_FLOOR: f32 = 0.010;
 const SEPARATION_FADE_HIGH_FLOOR: f32 = 0.022;
 
+/// Hairline floor: only a guard against a degenerate (zero) circle, never a size the ring is
+/// pushed up to. At the third-person 62 degree view a settled 2.9 mrad gun is 0.0048 clip — 1.7
+/// pixels at 720p — so the previous 0.008 floor drew that gun at 4.8 mrad, a 67% lie of exactly
+/// the kind the old 0.025 floor was deleted for. The circle is angular truth or it is nothing.
+const RING_MIN_RADIUS: f32 = 0.0035;
+
 /// A continuous circle outline: short segments between consecutive points, not floating dots.
-/// The ring is HONEST now: no fat minimum clamp — the old 0.025 floor sat a third-person
-/// circle permanently on the clamp, ~40% larger than the real dispersion and dead to aiming.
-/// A hairline floor only guards degeneracy; the visible size IS the server's dispersion, so
-/// watching the circle shrink to its settled hairline is the convergence signal the sight
-/// never had. A dark underlay ring keeps it readable on bright straw and dark shade alike.
+/// The visible size IS the server's dispersion, projected through the actual view — so it is a
+/// SNIPER instrument by arithmetic: 2.9 mrad is 15 px at the 8 degree step and 40 px at maximum
+/// zoom, against 1.7 px in third person. What third person reads from it is bloom (10 px at the
+/// 17 mrad ceiling) and the settled brightening, not fine convergence. A dark underlay on BOTH
+/// sides keeps the hairline readable on bright straw and dark shade alike.
 pub(super) fn push_dispersion_ring(
     vertices: &mut Vec<HudVertex>,
     center: [f32; 2],
@@ -58,20 +77,28 @@ pub(super) fn push_dispersion_ring(
     if radius <= 0.0 {
         return;
     }
-    let radius = radius.clamp(0.008, 0.35);
+    let radius = radius.clamp(RING_MIN_RADIUS, 0.35);
     let color = if converged { RETICLE_RING_CONVERGED } else { RETICLE_RING };
-    // Underlay first: one slightly larger dark twin behind the ring reads as an outline.
-    push_arc(
-        vertices,
-        center,
-        radius + 0.0018,
-        0.0,
-        std::f32::consts::TAU,
-        40,
-        aspect,
-        RETICLE_RING_OUTLINE,
-    );
-    push_arc(vertices, center, radius, 0.0, std::f32::consts::TAU, 40, aspect, color);
+    // Underlay first: a dark twin on EACH side, so the hairline is outlined against whatever it
+    // crosses. One outer twin left the inner edge bare — on pale straw the circle lost its lower
+    // half against the ground it was drawn over.
+    let segments = arc_segments(radius);
+    for offset in [0.0018, -0.0018] {
+        let twin = radius + offset;
+        if twin > 0.0 {
+            push_arc(
+                vertices,
+                center,
+                twin,
+                0.0,
+                std::f32::consts::TAU,
+                segments,
+                aspect,
+                RETICLE_RING_OUTLINE,
+            );
+        }
+    }
+    push_arc(vertices, center, radius, 0.0, std::f32::consts::TAU, segments, aspect, color);
 }
 
 /// The remaining reload as a RED arc that DRAINS clockwise from the top: full circle right after
@@ -90,7 +117,8 @@ pub(super) fn push_reload_arc(
     }
     let sweep = remaining * std::f32::consts::TAU;
     let start = std::f32::consts::FRAC_PI_2 - sweep; // ends at 12 o'clock, drains clockwise
-    let segments = (remaining * 32.0).ceil().max(2.0) as u32;
+    let segments =
+        (remaining * arc_segments(gun_state_radius(ring_radius)) as f32).ceil().max(2.0) as u32;
     // The arc RIDES the dispersion ring (just outside it): one visual centre for one gun,
     // instead of the old fixed-radius arc fighting the live ring for the eye.
     push_arc(
@@ -110,12 +138,19 @@ pub(crate) const READY_RING_HOLD_S: f32 = 0.55;
 /// Seconds the loaded ring lives in total (hold + dissolve).
 pub(crate) const READY_RING_TTL_S: f32 = 0.95;
 
-/// A refused fire click: one short red pulse ring at the reticle — the visual twin of the
-/// UiReject knock, so a swallowed shot is SEEN as refused, never wondered about. Distinct
-/// from the blue ready flash by colour and by pulsing inward (denial) vs outward (ready).
+/// A refused fire click: one heavy red ring that SLAMS INWARD across the gun's own line — the
+/// visual twin of the UiReject knock, so a swallowed shot is SEEN as refused, never wondered
+/// about.
+///
+/// It has to survive being drawn over a red loading arc, because "still reloading" is the
+/// refusal a player meets most. Colour cannot carry that (both are red, and denial-red is the
+/// right red), so MOTION does: it starts well outside the arc, crosses it, and collapses past
+/// it to the marker in a third of a second, at double stroke. A pulse that merely sat on the
+/// arc's radius read as the arc briefly thickening.
 pub(super) fn push_denied_flash(
     vertices: &mut Vec<renderer_api::HudVertex>,
     center: [f32; 2],
+    ring_radius: f32,
     age_s: f32,
     aspect: f32,
 ) {
@@ -124,11 +159,26 @@ pub(super) fn push_denied_flash(
         return;
     }
     let t = age_s / DENIED_FLASH_S;
-    // Collapse inward from the reload-arc radius toward the marker, fading out.
-    let radius = RELOAD_ARC_RADIUS * (1.0 - t * 0.55);
-    let alpha = (1.0 - t) * 0.85;
+    // Sweep from outside the gun's own line to well inside it.
+    let line = gun_state_radius(ring_radius);
+    let radius = line * (1.9 - t * 1.55);
+    let alpha = (1.0 - t) * 0.9;
     let color = [0.92, 0.28, 0.22, alpha];
-    push_arc(vertices, center, radius, 0.0, std::f32::consts::TAU, 40, aspect, color);
+    // Two concentric strokes: the arc primitive draws one hairline, and a hairline is what the
+    // eye loses against the loading arc.
+    for stroke in [0.0, 0.0035] {
+        let radius = (radius + stroke).max(0.002);
+        push_arc(
+            vertices,
+            center,
+            radius,
+            0.0,
+            std::f32::consts::TAU,
+            arc_segments(radius),
+            aspect,
+            color,
+        );
+    }
 }
 
 /// The loaded gun: the drained arc CLOSES into one full green circle on the same line, holds,
@@ -153,45 +203,82 @@ pub(super) fn push_ready_ring(
     let fade = ((READY_RING_TTL_S - age_s) / dissolve).clamp(0.0, 1.0);
     let mut color = RETICLE_LOADED;
     color[3] *= fade;
+    let radius = gun_state_radius(ring_radius);
     push_arc(
         vertices,
         center,
-        gun_state_radius(ring_radius),
+        radius,
         0.0,
         std::f32::consts::TAU,
-        40,
+        arc_segments(radius),
         aspect,
         color,
     );
 }
 
+/// The central marker: four arms around an OPEN centre, plus the aim dot the caller adds.
+///
+/// The gap is where the aiming circle lives. Through the 62 degree third-person view the ring
+/// runs from 0.0035 clip settled to 0.028 at the 17 mrad bloom ceiling, while solid arms used to
+/// run from the centre out to 0.020 — ink straight through the whole useful range of the one
+/// glyph that reports the gun. Now the arms start outside it, and bloom crosses them only in its
+/// top third, where the circle is already 4-9 px across and impossible to miss.
 pub(super) fn push_crosshair(
     vertices: &mut Vec<HudVertex>,
     center: [f32; 2],
+    inner: f32,
     reach: f32,
     thick: f32,
     aspect: f32,
     color: [f32; 4],
 ) {
-    push_quad(vertices, center, [reach / aspect, thick], color);
-    push_quad(vertices, center, [thick / aspect, reach], color);
+    // Dark backing first, a hair larger on every side: the marker has to hold on pale straw the
+    // same way the ring does. The ring got its outline and the glyph the player actually aims
+    // with did not.
+    push_arms(vertices, center, inner, reach, thick + MARKER_OUTLINE, aspect, RETICLE_RING_OUTLINE);
+    push_arms(vertices, center, inner, reach, thick, aspect, color);
 }
 
-/// The BLOCKED form: the crosshair's four arms pulled apart around an empty center — visibly
-/// "broken" at a glance, with no penetration coloring to lie over it.
-pub(super) fn push_blocked_marker(vertices: &mut Vec<HudVertex>, center: [f32; 2], aspect: f32) {
-    let (inner, outer) = (0.010, 0.026);
-    let mid = (inner + outer) * 0.5;
-    let half = (outer - inner) * 0.5;
-    let thick = 0.0028;
+/// Half-thickness added to the marker's dark backing on each side.
+const MARKER_OUTLINE: f32 = 0.0014;
+
+fn push_arms(
+    vertices: &mut Vec<HudVertex>,
+    center: [f32; 2],
+    inner: f32,
+    reach: f32,
+    thick: f32,
+    aspect: f32,
+    color: [f32; 4],
+) {
+    let (inner, reach) = (inner.max(0.0), reach.max(inner));
+    let half = (reach - inner) * 0.5;
+    let mid = inner + half;
     for (dx, dy) in [(1.0, 0.0), (-1.0, 0.0), (0.0, 1.0), (0.0, -1.0_f32)] {
         push_quad(
             vertices,
             [center[0] + dx * mid / aspect, center[1] + dy * mid],
             [(half * dx.abs() + thick * dy.abs()) / aspect, half * dy.abs() + thick * dx.abs()],
-            RETICLE_BLOCKED,
+            color,
         );
     }
+}
+
+/// The BLOCKED form: the SAME four arms, blown outward off the aim point and greyed, with no dot
+/// left in the middle — the marker has come apart. It must stay unmistakable against the live
+/// crosshair, which now also has an open centre (the ring lives there); reading them apart is
+/// the distance the arms have flown, so this form starts outside where that one ends.
+pub(super) fn push_blocked_marker(vertices: &mut Vec<HudVertex>, center: [f32; 2], aspect: f32) {
+    push_arms(
+        vertices,
+        center,
+        0.020,
+        0.036,
+        0.0028 + MARKER_OUTLINE,
+        aspect,
+        RETICLE_RING_OUTLINE,
+    );
+    push_arms(vertices, center, 0.020, 0.036, 0.0028, aspect, RETICLE_BLOCKED);
 }
 
 /// Alpha of a secondary marker by its separation from the aim, measured against the live

@@ -132,9 +132,12 @@ fn both_reticle_traces_clear_the_low_rubble_and_gone_phases() {
         )
     };
 
-    assert!(sight_hit(&intact).z < 80.0);
-    assert!(sight_hit(&rubble).z > 1000.0, "the sight ray passes over the low mound");
-    assert!(sight_hit(&gone).z > 1000.0, "gone cover is absent from the sight ray");
+    assert!(sight_hit(&intact).point.z < 80.0);
+    assert!(
+        !sight_hit(&rubble).on_surface,
+        "over the low mound the ray meets nothing and runs out — open sky, not a target"
+    );
+    assert!(!sight_hit(&gone).on_surface, "gone cover is absent from the sight ray");
 
     let spec = VehicleKind::T54_1951.spec();
     let pitch = crate::aim::gun_pitch_to_hit(muzzle, aim, 895.0, 0.09);

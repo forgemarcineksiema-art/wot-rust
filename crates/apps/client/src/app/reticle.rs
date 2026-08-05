@@ -88,7 +88,8 @@ impl ClientApp {
         view_projection: [[f32; 4]; 4],
         alpha: f32,
     ) -> Option<HudReticle> {
-        let aim = self.aim_world_point(camera)?;
+        let sight = self.sight_point(camera)?;
+        let aim = sight.point;
         let tank = self.interpolated_local_tank(alpha)?;
         let tanks = self.render_state.interpolated_tanks();
         // The reticle trace and pen hint fly the SELECTED shell (the predictor holds the custom
@@ -142,7 +143,11 @@ impl ClientApp {
                 view_projection,
             ),
             aim_radius_clip: self.player_aim_radius_clip(camera.vertical_fov_degrees),
-            target_distance_m: Some((feedback.aim_world_point - muzzle).length()),
+            // Open sky has no range: the only number available there is how far the sight ray
+            // itself reaches, which is not a fact about the battlefield.
+            target_distance_m: sight
+                .on_surface
+                .then(|| (feedback.aim_world_point - muzzle).length()),
             status: feedback.status,
             penetration_hint: pen_hint,
             reload_fraction: 1.0 - (reload_remaining / reload_max.max(0.001)).clamp(0.0, 1.0),
@@ -161,6 +166,12 @@ impl ClientApp {
     }
 
     pub(super) fn aim_world_point(&self, camera: &Camera) -> Option<Vec3> {
+        self.sight_point(camera).map(|sight| sight.point)
+    }
+
+    /// The sight ray's end AND whether it landed on anything — the readouts must not print a
+    /// distance to open sky (that number is the ray's own reach, not a target's).
+    pub(super) fn sight_point(&self, camera: &Camera) -> Option<crate::aim::SightPoint> {
         let eye = Vec3::from_array(camera.eye);
         let forward = (Vec3::from_array(camera.target) - eye).normalize_or_zero();
         (forward != Vec3::ZERO).then(|| {

@@ -93,6 +93,18 @@ pub(crate) fn aim_point(heightmap: &HeightMap, eye: Vec3, forward: Vec3) -> Vec3
     eye + forward * AIM_MAX_RANGE_M
 }
 
+/// Where the sight ray ends, and whether it ended on anything.
+///
+/// A ray that clears the map runs out at [`AIM_MAX_RANGE_M`] and the sight aims at that point in
+/// mid-air — which is correct for laying the gun, and a lie for any readout: the distance to it
+/// is the ray's own length, not a target's.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct SightPoint {
+    pub point: Vec3,
+    /// `false` for open sky: the ray met terrain, cover, water nor hull inside its reach.
+    pub on_surface: bool,
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn aim_point_with_sweep(
     heightmap: &HeightMap,
@@ -103,7 +115,7 @@ pub(crate) fn aim_point_with_sweep(
     owner_team: TeamId,
     eye: Vec3,
     forward: Vec3,
-) -> Vec3 {
+) -> SightPoint {
     let sets = crate::hud::reticle_sweep::trace_sets(tanks, owner, owner_team);
     let world = ShellTraceWorld {
         projectile_radius_m: 0.0,
@@ -120,8 +132,10 @@ pub(crate) fn aim_point_with_sweep(
     // internally. Same answer, three orders of magnitude fewer intersection tests.
     // Straight sight ray, so `forward` stands in for the shell velocity; the aim point only
     // needs the impact location, not the (unused) tank impact angle.
-    segment_impact(eye, eye + forward * AIM_MAX_RANGE_M, forward, &world)
-        .map_or(eye + forward * AIM_MAX_RANGE_M, |impact| impact.point())
+    match segment_impact(eye, eye + forward * AIM_MAX_RANGE_M, forward, &world) {
+        Some(impact) => SightPoint { point: impact.point(), on_surface: true },
+        None => SightPoint { point: eye + forward * AIM_MAX_RANGE_M, on_surface: false },
+    }
 }
 
 /// The shot this gun will actually take toward a sight point: the ballistic arc solved in world
@@ -363,10 +377,33 @@ mod tests {
             );
             let slow = oracle(eye, forward);
             assert!(
-                fast.distance(slow) < 1.0e-3,
-                "sweep diverged from the stepped oracle: {fast:?} vs {slow:?} (eye {eye:?})"
+                fast.point.distance(slow) < 1.0e-3,
+                "sweep diverged from the stepped oracle: {:?} vs {slow:?} (eye {eye:?})",
+                fast.point
             );
         }
+    }
+
+    /// The sweep reports whether the sight ray landed on anything. A ray into the sky runs out
+    /// at its own maximum reach — the point is right for laying the gun, and the distance to it
+    /// is a fact about the ray, not about the battlefield, so the readouts must not print it.
+    #[test]
+    fn the_sweep_reports_open_sky_apart_from_a_real_target() {
+        let flat = HeightMap::flat(64, 64, 5.0, 0.0).unwrap();
+        let eye = Vec3::new(100.0, 10.0, 100.0);
+        let sweep = |forward: Vec3| {
+            aim_point_with_sweep(&flat, &[], None, &[], TankId(1), TeamId(1), eye, forward)
+        };
+
+        let ground = sweep(Vec3::new(0.0, -1.0, 1.0).normalize());
+        assert!(ground.on_surface, "a ray into the ground has a target");
+
+        let sky = sweep(Vec3::new(0.0, 0.5, 1.0).normalize());
+        assert!(!sky.on_surface, "a ray over the horizon has none");
+        assert!(
+            (sky.point - eye).length() > AIM_MAX_RANGE_M - 1.0,
+            "and it ends at the ray's own reach"
+        );
     }
 
     #[test]

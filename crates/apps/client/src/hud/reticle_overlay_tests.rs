@@ -207,14 +207,166 @@ fn the_gun_marker_band_scales_with_the_ring_so_the_same_angle_reads_the_same_at_
     );
 }
 
+/// The aiming circle is angular truth projected through the actual view, so in the 62-degree
+/// third-person camera it is TINY — a settled 2.9 mrad gun is 0.0048 clip, 1.7 px at 720p. The
+/// central marker must therefore leave that space empty: solid arms from the centre out to 0.020
+/// drew ink straight through the entire useful range of the one glyph that reports the gun.
+#[test]
+fn the_central_marker_leaves_the_ring_its_own_space() {
+    let aspect = 16.0f32 / 9.0;
+    let settled_third_person = 0.0048;
+    let hud = hud_with(HudReticle {
+        aim_radius_clip: settled_third_person,
+        ..reticle_at(ReticleStatus::Clear, None)
+    });
+
+    // Everything the marker draws is either the tiny centre dot or an arm outside the ring.
+    let ink: Vec<f32> = hud
+        .iter()
+        .filter(|v| v.color == RETICLE_NEUTRAL)
+        .map(|v| {
+            let dx = v.position[0] * aspect;
+            (dx * dx + v.position[1] * v.position[1]).sqrt()
+        })
+        .collect();
+    assert!(!ink.is_empty(), "the marker draws");
+    let crossing = ink.iter().filter(|r| **r > 0.004 && **r < 0.010).count();
+    assert_eq!(crossing, 0, "no arm may cross the band a settled circle lives in");
+    assert!(ink.iter().any(|r| *r < 0.004), "the aim dot still marks the exact point");
+    assert!(ink.iter().any(|r| *r > 0.012), "and the arms still reach out around it");
+}
+
+/// The BLOCKED form and the live marker are now BOTH four arms around an open centre, so the
+/// only thing telling them apart is how far the arms have flown. Opening the crosshair's centre
+/// (so the aiming circle has somewhere to live) nearly turned "no shot here" into "shot here".
+#[test]
+fn the_blocked_form_cannot_be_mistaken_for_the_live_marker() {
+    let aspect = 16.0f32 / 9.0;
+    let radius = |v: &HudVertex| {
+        let dx = v.position[0] * aspect;
+        (dx * dx + v.position[1] * v.position[1]).sqrt()
+    };
+    let blocked = hud_with(reticle_at(ReticleStatus::Blocked, None));
+    let clear = hud_with(reticle_at(ReticleStatus::Clear, None));
+
+    let blocked_inner =
+        blocked.iter().filter(|v| v.color == RETICLE_BLOCKED).map(radius).fold(f32::MAX, f32::min);
+    let clear_outer =
+        clear.iter().filter(|v| v.color == RETICLE_NEUTRAL).map(radius).fold(0.0f32, f32::max);
+    let clear_inner =
+        clear.iter().filter(|v| v.color == RETICLE_NEUTRAL).map(radius).fold(f32::MAX, f32::min);
+
+    assert!(
+        blocked_inner > clear_inner * 3.0,
+        "the broken form must open a far wider hole than the live marker: {blocked_inner} vs {clear_inner}"
+    );
+    assert!(
+        blocked_inner > clear_outer * 0.75,
+        "its arms start out where the live arms are already ending"
+    );
+    assert!(clear_inner < 0.005, "the live marker keeps a dot on the exact aim point");
+}
+
+/// Every mark the player aims with carries a dark backing, like the ring does. Without it the
+/// pale marker sat directly on pale straw.
+#[test]
+fn the_marker_is_backed_so_it_holds_on_bright_ground() {
+    use super::reticle_overlay::RETICLE_RING_OUTLINE;
+    for status in [ReticleStatus::Clear, ReticleStatus::Blocked] {
+        let hud = hud_with(reticle_at(status, None));
+        assert!(
+            hud.iter().any(|v| v.color == RETICLE_RING_OUTLINE),
+            "{status:?} must draw its dark backing"
+        );
+    }
+}
+
+/// The ring's hairline floor is a guard against a degenerate circle, NOT a size it is pushed up
+/// to: at 62 degrees the old 0.008 floor drew a settled 2.9 mrad gun at 4.8 mrad — a 67% lie of
+/// exactly the kind the 0.025 floor was deleted for.
+#[test]
+fn the_ring_floor_does_not_inflate_a_settled_third_person_circle() {
+    let aspect = 16.0f32 / 9.0;
+    let settled_third_person = 0.0048;
+    let hud = hud_with(HudReticle {
+        aim_radius_clip: settled_third_person,
+        ..reticle_at(ReticleStatus::Clear, None)
+    });
+    // Mean over the stroke's two sides, so the line's own width cancels out.
+    let radii: Vec<f32> = hud
+        .iter()
+        .filter(|v| v.color == RETICLE_RING)
+        .map(|v| {
+            let dx = v.position[0] * aspect;
+            (dx * dx + v.position[1] * v.position[1]).sqrt()
+        })
+        .collect();
+    let drawn = radii.iter().sum::<f32>() / radii.len() as f32;
+
+    assert!(
+        (drawn - settled_third_person).abs() < 1.0e-3,
+        "the circle must draw at its true angular size, got {drawn} for {settled_third_person}"
+    );
+}
+
+/// The hairline needs a dark twin on BOTH sides. With only the outer one, the inner edge was bare
+/// and the circle lost its lower half against pale straw.
+#[test]
+fn the_ring_is_outlined_on_both_sides() {
+    let aspect = 16.0f32 / 9.0;
+    let radius = 0.10;
+    let hud =
+        hud_with(HudReticle { aim_radius_clip: radius, ..reticle_at(ReticleStatus::Clear, None) });
+    let outline: Vec<f32> = hud
+        .iter()
+        .filter(|v| v.color == super::reticle_overlay::RETICLE_RING_OUTLINE)
+        .map(|v| {
+            let dx = v.position[0] * aspect;
+            (dx * dx + v.position[1] * v.position[1]).sqrt()
+        })
+        .collect();
+
+    assert!(outline.iter().any(|r| *r > radius + 0.001), "a dark twin outside the hairline");
+    assert!(outline.iter().any(|r| *r < radius - 0.001), "and one inside it");
+}
+
+/// A refused click has to be seen over the RED loading arc, which is the state it answers most
+/// often. Colour cannot carry that, so motion does: the pulse starts outside the gun's own line
+/// and collapses through it.
+#[test]
+fn the_denial_pulse_sweeps_across_the_guns_line_rather_than_sitting_on_it() {
+    let aspect = 16.0f32 / 9.0;
+    let ring = 0.010;
+    let radii = |age: f32| {
+        let mut vertices = Vec::new();
+        super::reticle_marks::push_denied_flash(&mut vertices, [0.0, 0.0], ring, age, aspect);
+        vertices
+            .iter()
+            .map(|v| {
+                let dx = v.position[0] * aspect;
+                (dx * dx + v.position[1] * v.position[1]).sqrt()
+            })
+            .fold((f32::MAX, 0.0f32), |(lo, hi), r| (lo.min(r), hi.max(r)))
+    };
+
+    let (start_lo, _) = radii(0.0);
+    let (_, end_hi) = radii(0.30);
+    // The gun's own line: where the loading arc and the loaded ring draw.
+    let line = 0.040f32.max(ring + 0.008);
+    assert!(start_lo > line, "the pulse opens OUTSIDE the arc it must be seen over");
+    assert!(end_hi < line, "and ends inside it — it crosses, it does not sit on it");
+}
+
 #[test]
 fn the_dispersion_ring_is_continuous_geometry_around_the_aim() {
     let hud =
         hud_with(HudReticle { aim_radius_clip: 0.10, ..reticle_at(ReticleStatus::Clear, None) });
 
     let ring: Vec<_> = hud.iter().filter(|vertex| vertex.color == RETICLE_RING).collect();
-    // 40 segments x 6 vertices: a drawn circle, not a scatter of dots.
-    assert_eq!(ring.len(), 240, "continuous ring geometry");
+    // A closed circle of quads, not a scatter of dots. The segment count follows the radius
+    // (a 1.7 px settled ring does not need forty), so assert the shape, not a magic number.
+    assert_eq!(ring.len() % 6, 0, "whole quads");
+    assert!(ring.len() >= 12 * 6, "enough segments to read as a circle at this radius");
     assert!(ring.iter().any(|v| v.position[0] > 0.04), "ring reaches right of center");
     assert!(ring.iter().any(|v| v.position[1] < -0.09), "ring reaches below center");
 }
@@ -311,6 +463,50 @@ fn reticle_draws_target_distance_meters_in_both_modes() {
             "distance digits should sit just below and right of the aim reticle"
         );
     }
+}
+
+/// The readout column has to stay clear of two things that move: the aiming circle, which can
+/// bloom past any fixed offset, and the incoming-hit ring, whose arcs the range used to sit
+/// exactly on top of.
+#[test]
+fn the_readout_column_clears_the_circle_and_the_incoming_hit_ring() {
+    let aspect = 16.0f32 / 9.0;
+    let column = |ring: f32| {
+        let hud = hud_with(HudReticle {
+            aim_radius_clip: ring,
+            target_distance_m: Some(347.0),
+            ..reticle_at(ReticleStatus::Clear, None)
+        });
+        hud.iter()
+            .filter(|v| v.color == TARGET_DISTANCE_COLOR)
+            .map(|v| {
+                let dx = v.position[0] * aspect;
+                ((dx * dx + v.position[1] * v.position[1]).sqrt(), dx)
+            })
+            .fold((f32::MAX, f32::MAX), |(r, x), (vr, vx)| (r.min(vr), x.min(vx)))
+    };
+
+    // Settled: close enough to read without a saccade, and well inside the hit ring.
+    let (radius, _) = column(0.008);
+    assert!(radius < super::hit_direction::HIT_ARC_RADIUS - 0.04, "range sits inside the hit ring");
+    assert!(radius > 0.10, "and not on top of the marker either");
+
+    // Bloomed: the column steps outward rather than being swallowed by the circle.
+    let bloomed_ring = 0.22;
+    let (_, x) = column(bloomed_ring);
+    assert!(
+        x > bloomed_ring,
+        "a bloomed circle must push the readout clear of itself: {x} vs {bloomed_ring}"
+    );
+}
+
+/// Open sky has no range. The sight ray runs out at its own maximum reach and the sight aims at
+/// that point in mid-air — correct for laying the gun, a lie for a readout.
+#[test]
+fn open_sky_prints_no_range() {
+    let hud =
+        hud_with(HudReticle { target_distance_m: None, ..reticle_at(ReticleStatus::Clear, None) });
+    assert!(!hud.iter().any(|v| v.color == TARGET_DISTANCE_COLOR), "no digits without a target");
 }
 
 #[test]
@@ -412,7 +608,7 @@ fn the_reload_arc_runs_red_and_the_loaded_gun_closes_a_green_ring_on_the_same_li
     // The moment it closes: one full green circle, at full strength, on the arc's own line.
     let ready = hud_with_ready_age(loaded, Some(0.0));
     let green: Vec<_> = ready.iter().filter(|v| v.color == RETICLE_LOADED).collect();
-    assert_eq!(green.len(), 240, "the loaded ring is one closed 40-segment circle");
+    assert!(green.len() >= 12 * 6 && green.len() % 6 == 0, "one closed circle of whole quads");
     let red_line = red.iter().map(|v| radius(v)).fold(0.0f32, f32::max);
     let green_line = green.iter().map(|v| radius(v)).fold(0.0f32, f32::max);
     assert!(

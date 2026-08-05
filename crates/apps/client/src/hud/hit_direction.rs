@@ -13,8 +13,9 @@ pub(crate) const HIT_DIRECTION_COLOR: [f32; 4] = [0.92, 0.24, 0.18, 0.90];
 
 pub(crate) const HIT_DIRECTION_TTL_S: f32 = 1.4;
 /// Fixed screen radius of the bearing ring: outside the reload arc and any realistic dispersion
-/// ring, inside the panel regions.
-const HIT_ARC_RADIUS: f32 = 0.30;
+/// ring, inside the panel regions. The reticle's readout column is placed against this (see
+/// `reticle_readouts::readout_anchor`) — the two used to overprint each other.
+pub(crate) const HIT_ARC_RADIUS: f32 = 0.30;
 /// Angular width of one bearing arc.
 const HIT_ARC_SWEEP_RAD: f32 = 0.55;
 

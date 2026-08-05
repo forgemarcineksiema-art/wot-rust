@@ -96,6 +96,11 @@ pub fn push_segment(
 
 /// An arc of short segments around `center`, radius in clip-y units (x aspect-corrected so the
 /// arc stays circular on screen).
+///
+/// The stroke is built in CIRCLE space and squashed on the way out, not offset in clip space
+/// after the squash. Offsetting afterwards makes the normal's x component survive the viewport's
+/// own x scale: the line came out `aspect` times heavier at the left and right of every ring
+/// than at its top and bottom — 1.5 px against 0.9 px at 16:9, on every circle the HUD draws.
 #[allow(clippy::too_many_arguments)]
 pub fn push_arc(
     vertices: &mut Vec<HudVertex>,
@@ -107,12 +112,28 @@ pub fn push_arc(
     aspect: f32,
     color: [f32; 4],
 ) {
-    let point =
-        |angle: f32| [center[0] + angle.cos() * radius / aspect, center[1] + angle.sin() * radius];
+    const HALF_THICK: f32 = 0.0024;
+    let aspect = aspect.max(0.01);
+    let squash = |p: [f32; 2]| [center[0] + p[0] / aspect, center[1] + p[1]];
     for index in 0..segments {
-        let a = start_rad + sweep_rad * (index as f32 / segments as f32);
-        let b = start_rad + sweep_rad * ((index + 1) as f32 / segments as f32);
-        push_segment(vertices, point(a), point(b), 0.0024, color);
+        let angle_a = start_rad + sweep_rad * (index as f32 / segments as f32);
+        let angle_b = start_rad + sweep_rad * ((index + 1) as f32 / segments as f32);
+        let a = [angle_a.cos() * radius, angle_a.sin() * radius];
+        let b = [angle_b.cos() * radius, angle_b.sin() * radius];
+        let (dx, dy) = (b[0] - a[0], b[1] - a[1]);
+        let len = (dx * dx + dy * dy).sqrt().max(1.0e-6);
+        let (nx, ny) = (-dy / len * HALF_THICK, dx / len * HALF_THICK);
+        let corners = [
+            [a[0] + nx, a[1] + ny],
+            [b[0] + nx, b[1] + ny],
+            [b[0] - nx, b[1] - ny],
+            [a[0] + nx, a[1] + ny],
+            [b[0] - nx, b[1] - ny],
+            [a[0] - nx, a[1] - ny],
+        ];
+        for corner in corners {
+            vertices.push(HudVertex::new(squash(corner), color));
+        }
     }
 }
 
@@ -128,4 +149,48 @@ pub fn push_hairline(
     let half_w = (right_x - left_x).abs() / 2.0;
     let center_x = (left_x + right_x) / 2.0;
     push_quad(vertices, [center_x, y], [half_w, theme::HAIRLINE_THICKNESS / 2.0], color);
+}
+
+#[cfg(test)]
+mod arc_tests {
+    use super::*;
+
+    /// A ring must be one even line all the way round. The stroke used to be offset AFTER the
+    /// aspect squash, so the viewport's own x scale carried it back out: at 16:9 the sides of
+    /// every circle in the HUD were drawn `aspect` times heavier than the top and bottom.
+    #[test]
+    fn a_ring_draws_the_same_stroke_at_its_sides_as_at_its_top() {
+        let aspect = 16.0f32 / 9.0;
+        let radius = 0.2;
+        let mut vertices = Vec::new();
+        push_arc(
+            &mut vertices,
+            [0.0, 0.0],
+            radius,
+            0.0,
+            std::f32::consts::TAU,
+            64,
+            aspect,
+            [1.0, 1.0, 1.0, 1.0],
+        );
+
+        // Screen space: undo the squash on x, then measure how far the geometry strays from the
+        // ideal circle near the top (normal along y) and near the right (normal along x).
+        let spread = |keep: fn(f32, f32) -> bool| {
+            vertices
+                .iter()
+                .map(|v| (v.position[0] * aspect, v.position[1]))
+                .filter(|(x, y)| keep(*x, *y))
+                .map(|(x, y)| ((x * x + y * y).sqrt() - radius).abs())
+                .fold(0.0f32, f32::max)
+        };
+        let top = spread(|x, y| y > 0.0 && x.abs() < 0.02);
+        let right = spread(|x, y| x > 0.0 && y.abs() < 0.02);
+
+        assert!(top > 0.0 && right > 0.0, "both ends of the ring draw geometry");
+        assert!(
+            (top - right).abs() < 0.15 * top.max(right),
+            "the stroke must be even: top {top}, right {right}"
+        );
+    }
 }
