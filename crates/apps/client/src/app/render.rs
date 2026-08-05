@@ -496,13 +496,13 @@ impl ClientApp {
             ..RenderFrame::default()
         };
         let (reload_remaining, reload_max) = self.player_reload();
-        self.reload_ready_age_s = tick_ready_flash(
+        self.reload_ready_age_s = tick_ready_ring(
             self.reload_ready_age_s,
             self.prev_reload_remaining_s,
             reload_remaining,
             frame_dt,
         );
-        // The ready flash's audible twin: the breech clacks the frame the reload completes.
+        // The loaded ring's audible twin: the breech clacks the frame the reload completes.
         if self.prev_reload_remaining_s > 0.0 && reload_remaining <= 0.0 {
             self.queue_audio(audio::AudioEvent::GunReady);
         }
@@ -642,10 +642,10 @@ fn crater_ledger_fingerprint(records: &[terrain::CraterRecord]) -> u64 {
     })
 }
 
-/// Advance the gun-ready flash clock: the beat starts the frame the reload crosses to ready,
-/// ages per presented frame, and expires after its TTL. Battle start (reload already at zero)
-/// never fires it — only a real reload finishing does.
-fn tick_ready_flash(
+/// Advance the loaded-ring clock: the beat starts the frame the reload crosses to ready, ages
+/// per presented frame, and expires after its TTL. Battle start (reload already at zero) never
+/// fires it — only a real reload finishing does.
+fn tick_ready_ring(
     age: Option<f32>,
     prev_remaining_s: f32,
     remaining_s: f32,
@@ -654,26 +654,26 @@ fn tick_ready_flash(
     if prev_remaining_s > 0.0 && remaining_s <= 0.0 {
         return Some(0.0);
     }
-    age.map(|a| a + dt).filter(|a| *a < crate::hud::reticle_marks::READY_FLASH_TTL_S)
+    age.map(|a| a + dt).filter(|a| *a < crate::hud::reticle_marks::READY_RING_TTL_S)
 }
 
 #[cfg(test)]
-mod ready_flash_tests {
-    use super::{crater_ledger_fingerprint, tick_ready_flash};
+mod ready_ring_tests {
+    use super::{crater_ledger_fingerprint, tick_ready_ring};
 
     #[test]
-    fn the_flash_fires_on_the_ready_crossing_ages_and_expires() {
-        // Battle start: reload has always been ready — no flash.
-        assert_eq!(tick_ready_flash(None, 0.0, 0.0, 0.016), None);
+    fn the_loaded_ring_fires_on_the_ready_crossing_ages_and_expires() {
+        // Battle start: reload has always been ready — no beat.
+        assert_eq!(tick_ready_ring(None, 0.0, 0.0, 0.016), None);
         // Mid-reload: still none.
-        assert_eq!(tick_ready_flash(None, 3.2, 3.0, 0.016), None);
+        assert_eq!(tick_ready_ring(None, 3.2, 3.0, 0.016), None);
         // The crossing frame starts the beat.
-        assert_eq!(tick_ready_flash(None, 0.1, 0.0, 0.016), Some(0.0));
+        assert_eq!(tick_ready_ring(None, 0.1, 0.0, 0.016), Some(0.0));
         // Frames age it...
-        assert_eq!(tick_ready_flash(Some(0.0), 0.0, 0.0, 0.1), Some(0.1));
+        assert_eq!(tick_ready_ring(Some(0.0), 0.0, 0.0, 0.1), Some(0.1));
         // ...and past the TTL it expires.
         let expired =
-            tick_ready_flash(Some(crate::hud::reticle_marks::READY_FLASH_TTL_S), 0.0, 0.0, 0.016);
+            tick_ready_ring(Some(crate::hud::reticle_marks::READY_RING_TTL_S), 0.0, 0.0, 0.016);
         assert_eq!(expired, None);
     }
 

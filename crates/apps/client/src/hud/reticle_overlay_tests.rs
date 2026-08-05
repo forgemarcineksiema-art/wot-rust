@@ -230,6 +230,105 @@ fn pen_numbers_print_only_in_sniper_mode() {
     );
 }
 
+/// One HUD frame with the reload beat driven directly — `build_hud_with_reticle` predates the
+/// loaded ring and cannot carry its clock.
+fn hud_with_ready_age(reticle: HudReticle, reload_ready_age_s: Option<f32>) -> Vec<HudVertex> {
+    build_battle_hud(
+        &BattleHudModel {
+            vitals: vitals(),
+            reticle: Some(reticle),
+            fps: 0.0,
+            frame_p95_ms: 0.0,
+            speed_kmh: 0.0,
+            zoom_factor: None,
+            damage_log: Vec::new(),
+            track_feedback: Default::default(),
+            rack_fire_remaining_s: None,
+            incoming_hits: Vec::new(),
+            ammo: None,
+            modules: None,
+            minimap: None,
+            battle_outcome: None,
+            battle_clock_remaining_s: None,
+            kill_confirm_age_s: None,
+            reload_ready_age_s,
+            fire_denied_age_s: None,
+            scope_fade: 0.0,
+            pause_menu: None,
+        },
+        16.0 / 9.0,
+    )
+}
+
+/// The gun's state is a COLOUR the player already knows, not an invented event glyph: the arc
+/// drains RED while loading and closes into ONE full GREEN circle on the same line when it is
+/// done. The expanding blue flash is gone — no third colour may claim "ready" at the reticle.
+#[test]
+fn the_reload_arc_runs_red_and_the_loaded_gun_closes_a_green_ring_on_the_same_line() {
+    use super::reticle_marks::{READY_RING_HOLD_S, READY_RING_TTL_S};
+    use super::reticle_overlay::RETICLE_LOADED;
+
+    let aspect = 16.0f32 / 9.0;
+    let radius = |v: &HudVertex| {
+        let dx = v.position[0] * aspect;
+        (dx * dx + v.position[1] * v.position[1]).sqrt()
+    };
+    let ring_clip = 0.08;
+    let loading = HudReticle {
+        aim_radius_clip: ring_clip,
+        reload_fraction: 0.4,
+        ..reticle_at(ReticleStatus::Clear, None)
+    };
+    let loaded = HudReticle { reload_fraction: 1.0, ..loading };
+
+    // Loading: a red arc, and nothing green claiming the gun is ready.
+    let mid_reload = hud_with_ready_age(loading, None);
+    let red: Vec<_> = mid_reload.iter().filter(|v| v.color == RETICLE_RELOAD).collect();
+    assert!(!red.is_empty(), "a loading gun draws its red arc");
+    assert!(
+        !mid_reload.iter().any(|v| v.color[..3] == RETICLE_LOADED[..3]),
+        "nothing may read as loaded while the arc is still draining"
+    );
+
+    // The moment it closes: one full green circle, at full strength, on the arc's own line.
+    let ready = hud_with_ready_age(loaded, Some(0.0));
+    let green: Vec<_> = ready.iter().filter(|v| v.color == RETICLE_LOADED).collect();
+    assert_eq!(green.len(), 240, "the loaded ring is one closed 40-segment circle");
+    let red_line = red.iter().map(|v| radius(v)).fold(0.0f32, f32::max);
+    let green_line = green.iter().map(|v| radius(v)).fold(0.0f32, f32::max);
+    assert!(
+        (red_line - green_line).abs() < 2.0e-3,
+        "the green ring must close on the line the red arc drained: {red_line} vs {green_line}"
+    );
+    assert!(
+        !ready.iter().any(|v| v.color[2] > v.color[0] + 0.2 && v.color[3] > 0.0),
+        "no blue flash: the colour change IS the ready event"
+    );
+
+    // It holds, then dissolves, then is silence again.
+    let holding = hud_with_ready_age(loaded, Some(READY_RING_HOLD_S * 0.5));
+    assert!(
+        holding.iter().any(|v| v.color == RETICLE_LOADED),
+        "the ring holds at full strength before dissolving"
+    );
+    let dissolving =
+        hud_with_ready_age(loaded, Some((READY_RING_HOLD_S + READY_RING_TTL_S) * 0.5));
+    let fading: Vec<_> = dissolving
+        .iter()
+        .filter(|v| v.color[..3] == RETICLE_LOADED[..3] && v.color[3] > 0.0)
+        .collect();
+    assert!(!fading.is_empty(), "mid-dissolve the ring is still on screen");
+    assert!(
+        fading.iter().all(|v| v.color[3] < RETICLE_LOADED[3] - 0.05),
+        "mid-dissolve it draws dimmer than the hold"
+    );
+    let expired = hud_with_ready_age(loaded, Some(READY_RING_TTL_S + 0.01));
+    assert!(
+        !expired.iter().any(|v| v.color[..3] == RETICLE_LOADED[..3]),
+        "a loaded gun settles into silence: the ring is a beat, not a permanent glyph"
+    );
+}
+
 #[test]
 fn the_dispersion_ring_is_honest_brightens_when_converged_and_carries_its_arc() {
     use super::reticle_overlay::{RETICLE_RELOAD, RETICLE_RING, RETICLE_RING_CONVERGED};

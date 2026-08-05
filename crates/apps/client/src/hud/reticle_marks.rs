@@ -6,15 +6,22 @@ use renderer_api::HudVertex;
 
 use super::primitives::{push_arc, push_quad, push_segment};
 use super::reticle_overlay::{
-    RETICLE_BLOCKED, RETICLE_GUN, RETICLE_IMPACT, RETICLE_RELOAD, RETICLE_RING,
+    RETICLE_BLOCKED, RETICLE_GUN, RETICLE_IMPACT, RETICLE_LOADED, RETICLE_RELOAD, RETICLE_RING,
     RETICLE_RING_CONVERGED, RETICLE_RING_OUTLINE,
 };
 
 /// Floor for the reload arc / flash radius: even a fully settled hairline ring leaves the arc
 /// readable (it hugs the ring whenever the ring is larger).
 const RELOAD_ARC_MIN_RADIUS: f32 = 0.040;
-/// Kept for the ready/denied flashes' base scale.
+/// Kept for the denied flash's base scale.
 const RELOAD_ARC_RADIUS: f32 = 0.055;
+
+/// Where the gun's own state draws: just outside the live dispersion ring, never inside a
+/// hairline one. The loading arc and the loaded ring share it, so the red arc drains and the
+/// green circle closes on the SAME line — one gun, one place on screen.
+fn gun_state_radius(ring_radius: f32) -> f32 {
+    (ring_radius + 0.008).max(RELOAD_ARC_MIN_RADIUS)
+}
 
 /// The secondary-marker fade band (impact X, gun circle): fully hidden below the low edge,
 /// fully drawn above the high one. A BAND, not a threshold — the old single 0.022 cutoff made
@@ -40,7 +47,7 @@ pub(super) fn push_dispersion_ring(
     }
     let radius = radius.clamp(0.008, 0.35);
     let color = if converged { RETICLE_RING_CONVERGED } else { RETICLE_RING };
-    // Underlay first: a slightly offset dark twin on each side reads as an outline.
+    // Underlay first: one slightly larger dark twin behind the ring reads as an outline.
     push_arc(
         vertices,
         center,
@@ -54,8 +61,9 @@ pub(super) fn push_dispersion_ring(
     push_arc(vertices, center, radius, 0.0, std::f32::consts::TAU, 40, aspect, color);
 }
 
-/// The remaining reload as an arc that DRAINS clockwise from the top: full circle right after
-/// firing, gone the instant the gun is ready. Nothing draws when loaded — a ready gun is silence.
+/// The remaining reload as a RED arc that DRAINS clockwise from the top: full circle right after
+/// firing, gone the instant the gun is ready. Red is the state, not an alarm — the trigger does
+/// nothing while this draws, and [`push_ready_ring`] closes the same line in green when it does.
 pub(super) fn push_reload_arc(
     vertices: &mut Vec<HudVertex>,
     center: [f32; 2],
@@ -72,12 +80,22 @@ pub(super) fn push_reload_arc(
     let segments = (remaining * 32.0).ceil().max(2.0) as u32;
     // The arc RIDES the dispersion ring (just outside it): one visual centre for one gun,
     // instead of the old fixed-radius arc fighting the live ring for the eye.
-    let radius = (ring_radius + 0.008).max(RELOAD_ARC_MIN_RADIUS);
-    push_arc(vertices, center, radius, start, sweep, segments, aspect, RETICLE_RELOAD);
+    push_arc(
+        vertices,
+        center,
+        gun_state_radius(ring_radius),
+        start,
+        sweep,
+        segments,
+        aspect,
+        RETICLE_RELOAD,
+    );
 }
 
-/// Seconds the gun-ready flash lives at the reticle.
-pub(crate) const READY_FLASH_TTL_S: f32 = 0.4;
+/// Seconds the loaded ring holds at full strength before it starts dissolving.
+pub(crate) const READY_RING_HOLD_S: f32 = 0.55;
+/// Seconds the loaded ring lives in total (hold + dissolve).
+pub(crate) const READY_RING_TTL_S: f32 = 0.95;
 
 /// A refused fire click: one short red pulse ring at the reticle — the visual twin of the
 /// UiReject knock, so a swallowed shot is SEEN as refused, never wondered about. Distinct
@@ -100,31 +118,37 @@ pub(super) fn push_denied_flash(
     push_arc(vertices, center, radius, 0.0, std::f32::consts::TAU, 40, aspect, color);
 }
 
-/// The gun-ready beat: the instant the reload arc drains away, one thin ring expands from the
-/// arc's radius and fades. The whole engagement rhythm times itself against this moment — it must
-/// be readable without ever looking away from the sight picture.
-pub(super) fn push_ready_flash(
+/// The loaded gun: the drained arc CLOSES into one full green circle on the same line, holds,
+/// then dissolves into silence. No expansion, no second glyph — the state simply finished, and
+/// the whole engagement rhythm times itself against that closing.
+///
+/// This replaced an expanding blue flash. That flash existed only because "ready" had no colour
+/// of its own (a loaded gun drew nothing), so the moment needed an event glyph to be seen at
+/// all; once red/green carry the state, the event is the colour change itself.
+pub(super) fn push_ready_ring(
     vertices: &mut Vec<HudVertex>,
     center: [f32; 2],
     age_s: f32,
+    ring_radius: f32,
     aspect: f32,
 ) {
-    if !(0.0..READY_FLASH_TTL_S).contains(&age_s) {
+    if !(0.0..READY_RING_TTL_S).contains(&age_s) {
         return;
     }
-    let t = age_s / READY_FLASH_TTL_S;
-    let radius = RELOAD_ARC_RADIUS * (1.0 + 0.8 * t);
-    let alpha = (1.0 - t) * 0.85;
-    // The ready-state blue of the reload bar, so the two cues read as one system.
+    // Full strength through the hold, then a linear dissolve to nothing.
+    let dissolve = (READY_RING_TTL_S - READY_RING_HOLD_S).max(1.0e-3);
+    let fade = ((READY_RING_TTL_S - age_s) / dissolve).clamp(0.0, 1.0);
+    let mut color = RETICLE_LOADED;
+    color[3] *= fade;
     push_arc(
         vertices,
         center,
-        radius,
+        gun_state_radius(ring_radius),
         0.0,
         std::f32::consts::TAU,
         40,
         aspect,
-        [0.55, 0.85, 0.96, alpha],
+        color,
     );
 }
 

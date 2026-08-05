@@ -188,7 +188,13 @@ pub(crate) fn build_battle_hud(model: &BattleHudModel, aspect: f32) -> Vec<HudVe
     }
     reticle_overlay::push_reticle(&mut vertices, &reticle, aspect);
     if let Some(age_s) = model.reload_ready_age_s {
-        reticle_marks::push_ready_flash(&mut vertices, reticle.aim_clip, age_s, aspect);
+        reticle_marks::push_ready_ring(
+            &mut vertices,
+            reticle.aim_clip,
+            age_s,
+            reticle.aim_radius_clip,
+            aspect,
+        );
     }
     if let Some(age_s) = model.fire_denied_age_s {
         reticle_marks::push_denied_flash(&mut vertices, reticle.aim_clip, age_s, aspect);

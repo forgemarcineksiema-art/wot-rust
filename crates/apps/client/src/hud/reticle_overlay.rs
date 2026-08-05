@@ -38,8 +38,15 @@ pub(crate) const RETICLE_RING_OUTLINE: [f32; 4] = [0.05, 0.06, 0.05, 0.55];
 pub(crate) const RETICLE_RING_CONVERGED: [f32; 4] = [0.96, 0.98, 0.92, 0.95];
 /// Amber "X" at the shell's real landing point (gravity + collision).
 pub(crate) const RETICLE_IMPACT: [f32; 4] = [0.98, 0.66, 0.18, 0.92];
-/// The reload arc draining clockwise around the marker while the gun is loading.
-pub(crate) const RETICLE_RELOAD: [f32; 4] = [0.92, 0.62, 0.20, 0.88];
+/// The reload arc draining clockwise around the marker while the gun is loading. RED because the
+/// arc's colour IS the gun's state — red means "this trigger does nothing yet". Deeper and duller
+/// than the pen verdict's [`RETICLE_NO_PEN`], but deliberately the same family: both say "no
+/// damage from here, now".
+pub(crate) const RETICLE_RELOAD: [f32; 4] = [0.86, 0.24, 0.18, 0.86];
+/// The completed reload: the drained arc closes into one full green circle at the same radius,
+/// holds, and dissolves. Green is already the sight's "yes" (pen verdict, landed-hit ticks), so a
+/// loaded gun speaks the same word. Its own bytes so the locks can tag it apart from those two.
+pub(crate) const RETICLE_LOADED: [f32; 4] = [0.40, 0.90, 0.42, 0.88];
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct HudReticle {
