@@ -210,16 +210,27 @@ fn frame_time_capture() {
     renderer.register_mesh(&ctx, client::GRASS_MESH_HANDLE, &client::grass_tuft_mesh());
 
     let projection = renderer_api::CameraProjectionPolicy::webgpu_default();
-    let mut samples_ms: Vec<f64> = Vec::with_capacity(FRAMES);
 
-    for frame in 0..(WARMUP + FRAMES) {
-        // Walk the eye across the valley: a static camera lets anything that caches per-position
-        // report a frame cost the moving game never pays.
-        let travel = frame as f32 * 0.35;
-        let eye = glam::Vec3::new(430.0 + travel * 0.4, 26.0, 380.0 + travel);
+    // The A/B instrument (Jedna Trawa P0). Sequential probe processes measure the thermal ramp
+    // of this laptop, not the scene (the Teren program learned this the hard way): run 2 of 3
+    // reported REMOVING work as costing +2.6 ms. So the configs rotate INSIDE one process in
+    // short blocks — every config visits every thermal state, every block walks the identical
+    // camera path, and only the per-config aggregate is reported.
+    let configs: [(&str, bool, bool); 3] = [
+        ("full scene", true, true),
+        ("no card meadow", false, true),
+        ("no near ring", true, false),
+    ];
+    const CYCLES: usize = 4;
+    const BLOCK_WARMUP: usize = 8;
+    let block_frames = FRAMES / CYCLES;
+    let mut samples: [Vec<f64>; 3] = [Vec::new(), Vec::new(), Vec::new()];
+    let mut dressing_bound = true;
+
+    for _ in 0..WARMUP {
         let camera = renderer_api::Camera {
-            eye: eye.into(),
-            target: (eye + glam::Vec3::new(0.35, -0.25, 1.0)).into(),
+            eye: [430.0, 26.0, 380.0],
+            target: [430.35, 25.75, 381.0],
             vertical_fov_degrees: 60.0,
         };
         let view_proj = renderer_api::view_projection_matrix(
@@ -228,33 +239,76 @@ fn frame_time_capture() {
             projection.near_plane_m(),
             projection.far_plane_m(),
         );
-        let grass = client::grass_frame_objects(
-            &battlefield.heightmap,
-            battlefield.water,
-            &battlefield.static_cover,
-            &ground_maps,
-            &materials,
-            eye,
-        );
-
-        let t = Instant::now();
-        renderer.set_render_frame(
-            &ctx,
-            &renderer_api::RenderFrame { objects: grass, ..renderer_api::RenderFrame::default() },
-        );
         if renderer.render(&ctx, target.render_target(), view_proj, camera.eye).is_err() {
             println!("frame time: a render failed — skipped");
             return;
         }
-        // The GPU is asynchronous. Without a fence this times command SUBMISSION and reports a
-        // fiction; the readback is the cheapest fence available here — and it is NOT free, so its
-        // cost is measured separately below and reported alongside.
-        if target.read_rgba8(&ctx).is_err() {
-            println!("frame time: readback failed — skipped");
-            return;
-        }
-        if frame >= WARMUP {
-            samples_ms.push(t.elapsed().as_secs_f64() * 1000.0);
+    }
+    let _ = target.read_rgba8(&ctx);
+
+    for _cycle in 0..CYCLES {
+        for (config, &(_, with_dressing, with_grass)) in configs.iter().enumerate() {
+            // Buffer swaps happen OUTSIDE the timed frames; empty slices clear the slot.
+            if with_dressing != dressing_bound {
+                if with_dressing {
+                    renderer.set_dressing(&ctx, &dressing_v, &dressing_i);
+                } else {
+                    renderer.set_dressing(&ctx, &[], &[]);
+                }
+                dressing_bound = with_dressing;
+            }
+            for block_frame in 0..(BLOCK_WARMUP + block_frames) {
+                // Every block walks the SAME eye path: configs are compared on identical
+                // content, and nothing that caches per-position flatters a moving camera.
+                let travel = block_frame.saturating_sub(BLOCK_WARMUP) as f32 * 0.35 * 4.0;
+                let eye = glam::Vec3::new(430.0 + travel * 0.4, 26.0, 380.0 + travel);
+                let camera = renderer_api::Camera {
+                    eye: eye.into(),
+                    target: (eye + glam::Vec3::new(0.35, -0.25, 1.0)).into(),
+                    vertical_fov_degrees: 60.0,
+                };
+                let view_proj = renderer_api::view_projection_matrix(
+                    &camera,
+                    width as f32 / height as f32,
+                    projection.near_plane_m(),
+                    projection.far_plane_m(),
+                );
+                let grass = if with_grass {
+                    client::grass_frame_objects(
+                        &battlefield.heightmap,
+                        battlefield.water,
+                        &battlefield.static_cover,
+                        &ground_maps,
+                        &materials,
+                        eye,
+                    )
+                } else {
+                    Vec::new()
+                };
+
+                let t = Instant::now();
+                renderer.set_render_frame(
+                    &ctx,
+                    &renderer_api::RenderFrame {
+                        objects: grass,
+                        ..renderer_api::RenderFrame::default()
+                    },
+                );
+                if renderer.render(&ctx, target.render_target(), view_proj, camera.eye).is_err() {
+                    println!("frame time: a render failed — skipped");
+                    return;
+                }
+                // The GPU is asynchronous. Without a fence this times command SUBMISSION and
+                // reports a fiction; the readback is the cheapest fence available here — and it
+                // is NOT free, so its cost is measured separately below and reported alongside.
+                if target.read_rgba8(&ctx).is_err() {
+                    println!("frame time: readback failed — skipped");
+                    return;
+                }
+                if block_frame >= BLOCK_WARMUP {
+                    samples[config].push(t.elapsed().as_secs_f64() * 1000.0);
+                }
+            }
         }
     }
 
@@ -271,20 +325,27 @@ fn frame_time_capture() {
     fence_ms.sort_by(f64::total_cmp);
     let fence_p50 = fence_ms.get(fence_ms.len() / 2).copied().unwrap_or(0.0);
 
-    samples_ms.sort_by(f64::total_cmp);
-    let at =
-        |p: f64| samples_ms[((samples_ms.len() as f64 * p) as usize).min(samples_ms.len() - 1)];
+    let mut full_p50 = 0.0;
+    for (config, (name, _, _)) in configs.iter().enumerate() {
+        let series = &mut samples[config];
+        series.sort_by(f64::total_cmp);
+        let at = |p: f64| series[((series.len() as f64 * p) as usize).min(series.len() - 1)];
+        if config == 0 {
+            full_p50 = at(0.50);
+        }
+        println!(
+            "frame time @{width}x{height} [{name}] ({} samples, {CYCLES} interleaved cycles): p50 {:.2} ms  p95 {:.2} ms  p99 {:.2} ms  max {:.2} ms  (Δ vs full {:+.2} ms p50)",
+            series.len(),
+            at(0.50),
+            at(0.95),
+            at(0.99),
+            series[series.len() - 1],
+            at(0.50) - full_p50,
+        );
+    }
     println!(
-        "frame time @{width}x{height} ({} samples): p50 {:.2} ms  p95 {:.2} ms  p99 {:.2} ms  max {:.2} ms",
-        samples_ms.len(),
-        at(0.50),
-        at(0.95),
-        at(0.99),
-        samples_ms[samples_ms.len() - 1]
-    );
-    println!(
-        "  readback fence alone: {fence_p50:.2} ms  ->  scene work ~{:.2} ms p50",
-        (at(0.50) - fence_p50).max(0.0)
+        "  readback fence alone: {fence_p50:.2} ms  ->  full-scene work ~{:.2} ms p50",
+        (full_p50 - fence_p50).max(0.0)
     );
     println!("  (offscreen: excludes present/vsync, and this is not the MX330 the policy names.");
     println!("   Read it BEFORE and AFTER a change on one machine; it is not a pass mark.)");
