@@ -222,31 +222,44 @@ fn second_bay(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>, x: f32, z: f32) {
     push_cylinder(v, i, Vec3::new(x - 0.4, 0.006, z + 0.9), 0.45, 0.004, 20, OIL);
 }
 
+/// The rack's shelf CENTRE heights and half-thickness — the one place they live. The crates
+/// compute their seat from these, so a shelf cannot move without its stock following (locked
+/// by `rack_crates_sit_on_their_shelves`; they used to float 19–27 cm above the steel).
+const RACK_SHELF_YS: [f32; 3] = [0.5, 1.4, 2.3];
+const RACK_SHELF_HALF_H: f32 = 0.03;
+/// Each crate on the stores rack as `(shelf index, z offset, x jog, half-depth, half-height)`.
+/// The x jog breaks the stamped all-flush face without letting a crate overhang an upright.
+const RACK_CRATES: [(usize, f32, f32, f32, f32); 7] = [
+    (0, -1.4, -0.05, 0.5, 0.25),
+    (0, -0.3, 0.04, 0.42, 0.19),
+    (0, 0.9, 0.0, 0.55, 0.27),
+    (1, -0.9, 0.06, 0.48, 0.23),
+    (1, 0.4, -0.04, 0.38, 0.19),
+    (2, -0.2, 0.02, 0.52, 0.23),
+    (2, 1.2, -0.06, 0.4, 0.19),
+];
+
 /// The stores zone against the left wall: a shelving rack with crates, a tarped mound, and a
 /// reserve barrel row — the quartermaster's corner.
 fn stores_zone(v: &mut Vec<SceneVertex>, i: &mut Vec<u32>, x: f32, z: f32) {
     const CRATE: [f32; 3] = [0.295, 0.315, 0.235];
     const TARP: [f32; 3] = [0.24, 0.26, 0.23];
-    // Rack: four uprights, three shelves.
+    // Rack: four uprights ending just proud of the top shelf (a post sticking a metre into the
+    // air above the last shelf read as scaffolding), three shelves.
+    let post_top = RACK_SHELF_YS[2] + RACK_SHELF_HALF_H + 0.08;
     for dz in [-2.0_f32, 2.0] {
         for dx in [-0.7_f32, 0.7] {
-            slab(v, i, [x + dx, 1.5, z + dz], [0.05, 1.5, 0.05], STEEL);
+            slab(v, i, [x + dx, post_top / 2.0, z + dz], [0.05, post_top / 2.0, 0.05], STEEL);
         }
     }
-    for shelf_y in [0.5_f32, 1.4, 2.3] {
-        slab(v, i, [x, shelf_y, z], [0.75, 0.03, 2.1], STEEL);
+    for shelf_y in RACK_SHELF_YS {
+        slab(v, i, [x, shelf_y, z], [0.75, RACK_SHELF_HALF_H, 2.1], STEEL);
     }
-    // Crates on the shelves, varied so the rack reads stocked, not stamped.
-    for (dy, dz, hw, hh) in [
-        (0.78_f32, -1.4_f32, 0.5_f32, 0.25_f32),
-        (0.72, -0.3, 0.42, 0.19),
-        (0.80, 0.9, 0.55, 0.27),
-        (1.66, -0.9, 0.48, 0.23),
-        (1.62, 0.4, 0.38, 0.19),
-        (2.56, -0.2, 0.52, 0.23),
-        (2.52, 1.2, 0.4, 0.19),
-    ] {
-        slab(v, i, [x, dy + hh, z + dz], [0.55, hh, hw], CRATE);
+    // Crates on the shelves, varied so the rack reads stocked, not stamped; every crate SEATS
+    // on its shelf's top face.
+    for (shelf, dz, dx, hw, hh) in RACK_CRATES {
+        let seat = RACK_SHELF_YS[shelf] + RACK_SHELF_HALF_H;
+        slab(v, i, [x + dx, seat + hh, z + dz], [0.55, hh, hw], CRATE);
     }
     // The tarped mound beside the rack.
     for (layer_y, hx, hz) in [(0.35_f32, 1.05_f32, 0.8_f32), (0.85, 0.85, 0.62), (1.2, 0.6, 0.45)] {
@@ -370,6 +383,35 @@ mod tests {
             ring_under(-corner, -corner, SPARE_WHEEL_RADIUS_M),
             "the wheel stack stands on a wear ring"
         );
+    }
+
+    /// The stock SITS on the steel: every rack crate's lowest vertex lies on its shelf's top
+    /// face. Locks the floating-rack fix — the crates used to hover 19–27 cm above their
+    /// shelves because their seats were hand-numbers strangers to the shelf heights.
+    #[test]
+    fn rack_crates_sit_on_their_shelves() {
+        let (vertices, _) = hangar_scene_mesh();
+        const CRATE: [f32; 3] = [0.295, 0.315, 0.235];
+        let (rack_x, rack_z) = (-(HALF - 2.5), 10.5);
+        for (shelf, dz, dx, hw, hh) in RACK_CRATES {
+            let seat = RACK_SHELF_YS[shelf] + RACK_SHELF_HALF_H;
+            let (cx, cz) = (rack_x + dx, rack_z + dz);
+            let band_top = seat + 2.0 * hh + 0.02;
+            let bottom = vertices
+                .iter()
+                .filter(|v| {
+                    is_shade_of(v.color, CRATE)
+                        && (v.position[0] - cx).abs() <= 0.56
+                        && (v.position[2] - cz).abs() <= hw + 0.005
+                        && (seat - 0.02..band_top).contains(&v.position[1])
+                })
+                .map(|v| v.position[1])
+                .fold(f32::INFINITY, f32::min);
+            assert!(
+                (bottom - seat).abs() < 0.01,
+                "the crate at dz {dz} must sit on shelf {shelf}: bottom {bottom}, shelf top {seat}"
+            );
+        }
     }
 
     #[test]
