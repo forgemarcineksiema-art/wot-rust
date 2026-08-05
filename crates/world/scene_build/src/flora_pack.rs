@@ -42,20 +42,13 @@ impl FloraCatalog {
     }
 }
 
-const SHIPPED: &[(&str, &[u8])] = &[
-    (
-        include_str!("../../../../assets/flora/stylized-tree.flora.json"),
-        include_bytes!("../../../../assets/flora/stylized-tree.flora.png"),
-    ),
-    (
-        include_str!("../../../../assets/flora/stylized-pine.flora.json"),
-        include_bytes!("../../../../assets/flora/stylized-pine.flora.png"),
-    ),
-    (
-        include_str!("../../../../assets/flora/stylized-bush.flora.json"),
-        include_bytes!("../../../../assets/flora/stylized-bush.flora.png"),
-    ),
-];
+// Hero-flora program (2026-08-05): the stylized download pack is retired; `dab-hero` — an
+// oak distilled from a Blender master with photoscan CC0 textures (ambientCG Bark012 +
+// LeafSet016) — is the first of the new family. Freed slots host its future siblings.
+const SHIPPED: &[(&str, &[u8])] = &[(
+    include_str!("../../../../assets/flora/dab-hero.flora.json"),
+    include_bytes!("../../../../assets/flora/dab-hero.flora.png"),
+)];
 
 pub fn flora_catalog() -> &'static FloraCatalog {
     static CATALOG: OnceLock<FloraCatalog> = OnceLock::new();

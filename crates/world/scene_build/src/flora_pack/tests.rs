@@ -120,8 +120,11 @@ fn safe_tail_has_non_overlapping_content_and_gutters_for_every_shipped_region() 
 #[test]
 fn remapped_uvs_stay_on_texel_centers_inside_their_region() {
     let catalog = flora_catalog();
-    for name in ["stylized-tree", "stylized-pine", "stylized-bush"] {
-        let (asset, region) = catalog.get(name).expect("shipped");
+    // The roster is data (`SHIPPED`), so the lock walks whatever actually ships — today the
+    // hero oak alone — and survives the family growing without a hand-synced name list.
+    assert!(catalog.get("dab-hero").is_some(), "the hero oak ships");
+    for (asset, region) in &catalog.entries {
+        let name = asset.name.as_str();
         for uv in &asset.uvs {
             let u = region.u_offset + uv[0] * region.u_scale;
             let v = region.v_offset + uv[1] * region.v_scale;

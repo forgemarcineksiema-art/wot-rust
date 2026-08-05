@@ -18,6 +18,12 @@ pub const ACCEPTED_SPDX: &str = "CC0-1.0";
 /// task, not an asset.
 pub const FLORA_MAX_TRIS: usize = 1500;
 
+/// The hard bound a manifest's `tri_budget` may raise an individual asset to. Doctrine:
+/// budgets are raised PER ITEM with a measurement (`flora_frame_probe` before/after in the
+/// PR body), never fleet-wide — this constant keeps "hero flora" a deliberate, bounded
+/// exception rather than a new default.
+pub const FLORA_TRI_CEILING: usize = 8000;
+
 /// The provenance record — part of the asset, not a side note.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FloraLicense {
@@ -48,11 +54,21 @@ pub struct FloraAsset {
     pub indices: Vec<u32>,
     /// Canopy top over the ground plane, metres.
     pub height_m: f32,
+    /// Per-asset triangle budget override (hero flora). `None` means [`FLORA_MAX_TRIS`].
+    /// Bounded by [`FLORA_TRI_CEILING`]; every raise is a measured, per-item decision.
+    #[serde(default)]
+    pub tri_budget: Option<usize>,
 }
 
 impl FloraAsset {
     pub fn triangle_count(&self) -> usize {
         self.indices.len() / 3
+    }
+
+    /// The budget this asset is judged against: its own declared `tri_budget` (clamped to
+    /// the ceiling by `validate`) or the fleet default.
+    pub fn effective_tri_budget(&self) -> usize {
+        self.tri_budget.unwrap_or(FLORA_MAX_TRIS)
     }
 
     /// THE import gate: every reason a downloaded model is refused, spelled out. The tool
@@ -93,11 +109,21 @@ impl FloraAsset {
                 return Err(format!("vertex tint {color:?} outside [0, 1]"));
             }
         }
-        if self.triangle_count() > FLORA_MAX_TRIS {
+        if let Some(budget) = self.tri_budget
+            && !(1..=FLORA_TRI_CEILING).contains(&budget)
+        {
             return Err(format!(
-                "{} triangles over the {FLORA_MAX_TRIS} budget: decimate the source, do not \
-                 raise the ceiling",
-                self.triangle_count()
+                "tri_budget {budget} outside 1..={FLORA_TRI_CEILING}: hero budgets are \
+                 bounded — beyond the ceiling the asset belongs on the instanced mesh \
+                 path, not in the statics bake"
+            ));
+        }
+        if self.triangle_count() > self.effective_tri_budget() {
+            return Err(format!(
+                "{} triangles over the {} budget: decimate the source, or raise this asset's \
+                 tri_budget deliberately (per-item, with a flora_frame_probe measurement)",
+                self.triangle_count(),
+                self.effective_tri_budget()
             ));
         }
         if let Some(bad) = self.indices.iter().find(|&&index| index as usize >= vertex_count) {
@@ -151,6 +177,7 @@ mod tests {
             colors: vec![[0.4, 0.7, 0.3]; 3],
             indices: vec![0, 1, 2],
             height_m: 1.2,
+            tri_budget: None,
         }
     }
 
@@ -185,6 +212,19 @@ mod tests {
         let mut lying = sane();
         lying.height_m = 5.0;
         assert!(lying.validate().unwrap_err().contains("disagrees"));
+    }
+
+    /// A hero asset raises its own budget deliberately — and only up to the ceiling. The
+    /// fleet default still bites anything that does not declare a budget.
+    #[test]
+    fn hero_budget_is_per_item_and_bounded() {
+        let mut hero = sane();
+        hero.indices = (0..(FLORA_MAX_TRIS as u32 + 1) * 3).map(|i| i % 3).collect();
+        assert!(hero.validate().unwrap_err().contains("budget"), "default ceiling holds");
+        hero.tri_budget = Some(FLORA_MAX_TRIS * 4);
+        assert!(hero.validate().is_ok(), "declared hero budget admits the same mesh");
+        hero.tri_budget = Some(FLORA_TRI_CEILING + 1);
+        assert!(hero.validate().unwrap_err().contains("ceiling"), "the ceiling is hard");
     }
 
     /// The asset round-trips losslessly through serde JSON — the same determinism discipline

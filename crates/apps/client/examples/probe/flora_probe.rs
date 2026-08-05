@@ -1,7 +1,8 @@
-//! THE Flora 2.0 look gate (FL-4): imported CC0 foliage side by side with the baked
-//! procedural trees, one frame, same light — the render the per-species accept/reject
-//! verdict is made on. Front row: imported tree, pine, bush (textured, alpha-cut, atlas-fed).
-//! Back row: procedural Oak, Pine, Bush (trees 2.0). One PNG:
+//! THE flora look gate (FL-4): imported foliage side by side with the baked procedural
+//! trees, one frame, same light — the render the accept/reject verdict is made on. Front
+//! row: the hero oak behind `FloraTree` (photoscan-textured, alpha-cut, atlas-fed) and the
+//! two retired slots, which now bake to nothing on purpose — their emptiness beside the
+//! procedural back row (Oak, Pine, Bush) IS the state of the family. One PNG:
 //! `cargo run -p client --example probe -- flora_probe`
 
 use std::fs::File;
@@ -55,8 +56,10 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     renderer.scene_lighting = SceneLighting::battlefield_default();
     renderer.scene_time_s = 12.0;
 
-    let eye = [498.0, ground(498.0, 478.0) + 3.2, 478.0];
-    let look = [499.0, ground(499.0, 500.0) + 3.5, 500.0];
+    // Pulled back and tilted up for the hero oak: at ~22 m it is three times the stylized
+    // assets this shot was framed for, and a look gate that crops the canopy judges nothing.
+    let eye = [498.0, ground(498.0, 455.0) + 4.0, 455.0];
+    let look = [499.0, ground(499.0, 500.0) + 11.0, 500.0];
     renderer.shadow_focus = Some(look);
     let camera = Camera { eye, target: look, vertical_fov_degrees: 55.0 };
     let projection = CameraProjectionPolicy::webgpu_default();

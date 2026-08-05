@@ -87,6 +87,11 @@ struct FloraManifest {
     spdx: String,
     author: String,
     source_url: String,
+    /// Optional per-asset triangle budget (hero flora). Bounded by
+    /// `world_forge::flora::FLORA_TRI_CEILING`; raising it is a measured, per-item
+    /// decision — cite a `flora_frame_probe` before/after in the PR body.
+    #[serde(default)]
+    tri_budget: Option<usize>,
 }
 
 /// Import a CC0 foliage model (FL-3): read the glTF/GLB, merge its triangle primitives,
@@ -253,8 +258,12 @@ fn import_flora(
     // Over-budget sources get DECIMATED here, loudly — the validate gate's "decimate the
     // source" is a step of this pipeline, never a raised ceiling. meshopt preserves the
     // silhouette as far as the budget allows; how it looks is the FL-4 look gate's verdict.
+    let tri_budget = manifest
+        .tri_budget
+        .unwrap_or(world_forge::flora::FLORA_MAX_TRIS)
+        .min(world_forge::flora::FLORA_TRI_CEILING);
     let source_tris = indices.len() / 3;
-    if source_tris > world_forge::flora::FLORA_MAX_TRIS {
+    if source_tris > tri_budget {
         let vertex_bytes: &[u8] = bytemuck::cast_slice(&positions);
         let adapter =
             meshopt::VertexDataAdapter::new(vertex_bytes, std::mem::size_of::<[f32; 3]>(), 0)
@@ -267,12 +276,12 @@ fn import_flora(
             simplified = meshopt::simplify(
                 &indices,
                 &adapter,
-                world_forge::flora::FLORA_MAX_TRIS * 3,
+                tri_budget * 3,
                 target_error,
                 meshopt::SimplifyOptions::None,
                 None,
             );
-            if simplified.len() / 3 <= world_forge::flora::FLORA_MAX_TRIS {
+            if simplified.len() / 3 <= tri_budget {
                 break;
             }
         }
@@ -356,6 +365,7 @@ fn import_flora(
         uvs,
         colors,
         indices,
+        tri_budget: manifest.tri_budget,
     };
     asset.validate().map_err(|reason| anyhow::anyhow!("{} refused: {reason}", input.display()))?;
 

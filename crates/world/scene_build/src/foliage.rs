@@ -31,6 +31,12 @@ pub fn push_scenery_instance(
         push_imported_flora(vertices, indices, instance, name);
         return;
     }
+    // Retired imported kinds (hero-flora program) bake to NOTHING: falling through to the
+    // painted far frusta would resurrect the retired silhouette at close range under a
+    // hero-asset name.
+    if matches!(instance.kind, SceneryKind::FloraPine | SceneryKind::FloraBush) {
+        return;
+    }
     if let Some(species) = species {
         push_baked_tree(vertices, indices, instance, species);
         return;
@@ -38,25 +44,25 @@ pub fn push_scenery_instance(
     push_scenery_instance_far(vertices, indices, instance);
 }
 
-/// Which shipped `assets/flora` asset a scenery kind names, if any.
+/// Which shipped `assets/flora` asset a scenery kind names, if any. The stylized download
+/// pack is retired (hero-flora program, 2026-08-05): `dab-hero` — a photoscan-textured oak
+/// distilled from the Blender master — is the first of the new family. `FloraPine` and
+/// `FloraBush` keep their wire identity (append-only enum) but currently name no asset and
+/// bake to nothing; they return when their hero counterparts are authored.
 fn imported_flora_name(kind: SceneryKind) -> Option<&'static str> {
     match kind {
-        SceneryKind::FloraTree => Some("stylized-tree"),
-        SceneryKind::FloraPine => Some("stylized-pine"),
-        SceneryKind::FloraBush => Some("stylized-bush"),
+        SceneryKind::FloraTree => Some("dab-hero"),
         _ => None,
     }
 }
 
-/// The trees-to-scale multiplier for an IMPORTED flora MESH (trees-to-scale, 2026-08-03). The
-/// CC0 assets were authored small — `stylized-tree` bakes at ~7.3 m, `stylized-pine` ~7.4 m,
-/// ~30% of a real mature tree — so on top of the per-instance scatter scale they get a species
-/// factor that brings a broadleaf to ~20 m and a pine to ~21 m. A tank beside one now reads at
-/// a tank's true fraction of a tree, not half a tree. The bush is already the right knee-height.
+/// The trees-to-scale multiplier for an IMPORTED flora MESH (trees-to-scale, 2026-08-03;
+/// re-derived for hero flora 2026-08-05). `dab-hero` bakes at ~13 m — a young oak — and the
+/// world-scale program (W1, "Drzewa 1:1") wants a mature ~22 m specimen, so the species
+/// factor is 1.7 on top of the per-instance scatter scale.
 fn imported_flora_scale(kind: SceneryKind) -> f32 {
     match kind {
-        SceneryKind::FloraTree => 2.75,
-        SceneryKind::FloraPine => 2.85,
+        SceneryKind::FloraTree => 1.7,
         _ => 1.0,
     }
 }
@@ -382,6 +388,27 @@ mod tests {
         // Imported kinds (Flora 2.0) carry their own DELIBERATE ceiling: the whole program
         // exists to spend more triangles on close-range foliage, and the import gate already
         // enforces it per asset — the raise is per-kind, never a fleet-wide envelope bump.
+        let hero_budget = crate::flora_pack::flora_catalog()
+            .get("dab-hero")
+            .map(|(asset, _)| asset.effective_tri_budget())
+            .expect("dab-hero ships");
+        // Retired imported kinds keep their wire identity but name no asset: they bake to
+        // nothing until a hero counterpart is authored.
+        for retired in [SceneryKind::FloraPine, SceneryKind::FloraBush] {
+            let mut vertices = Vec::new();
+            let mut indices = Vec::new();
+            push_scenery_instance(
+                &mut vertices,
+                &mut indices,
+                &SceneryInstance {
+                    kind: retired,
+                    position: [10.0, 3.0, 10.0],
+                    yaw_rad: 0.7,
+                    scale: 1.3,
+                },
+            );
+            assert!(indices.is_empty(), "{retired:?} is retired and must bake to nothing");
+        }
         for (kind, ceiling) in [
             (SceneryKind::Oak, MAX_TRIS_PER_INSTANCE),
             (SceneryKind::Poplar, MAX_TRIS_PER_INSTANCE),
@@ -392,9 +419,7 @@ mod tests {
             (SceneryKind::Pine, MAX_TRIS_PER_INSTANCE),
             (SceneryKind::Lamppost, MAX_TRIS_PER_INSTANCE),
             (SceneryKind::DebrisHeap, MAX_TRIS_PER_INSTANCE),
-            (SceneryKind::FloraTree, world_forge::flora::FLORA_MAX_TRIS),
-            (SceneryKind::FloraPine, world_forge::flora::FLORA_MAX_TRIS),
-            (SceneryKind::FloraBush, world_forge::flora::FLORA_MAX_TRIS),
+            (SceneryKind::FloraTree, hero_budget),
         ] {
             let mut vertices = Vec::new();
             let mut indices = Vec::new();
@@ -424,7 +449,8 @@ mod tests {
     }
 
     /// The imported kinds carry REMAPPED atlas UVs (never the whole page, never outside it)
-    /// on white vertices — the texture is the palette, exactly the FL-2 contract.
+    /// on white vertices — the texture is the palette, exactly the FL-2 contract. Measured
+    /// on the hero oak, the one imported kind that still names an asset.
     #[test]
     fn imported_kinds_carry_remapped_atlas_uvs() {
         let mut vertices = Vec::new();
@@ -433,7 +459,7 @@ mod tests {
             &mut vertices,
             &mut indices,
             &SceneryInstance {
-                kind: SceneryKind::FloraPine,
+                kind: SceneryKind::FloraTree,
                 position: [0.0, 0.0, 0.0],
                 yaw_rad: 0.0,
                 scale: 1.0,
@@ -441,11 +467,10 @@ mod tests {
         );
         assert!(!vertices.is_empty());
         let (region_area, page_area) = {
-            let (_, region) =
-                crate::flora_pack::flora_catalog().get("stylized-pine").expect("shipped");
+            let (_, region) = crate::flora_pack::flora_catalog().get("dab-hero").expect("shipped");
             (region.u_scale * region.v_scale, 1.0)
         };
-        assert!(region_area < page_area, "the pine owns a region, not the page");
+        assert!(region_area < page_area, "the oak owns a region, not the page");
         assert!(
             vertices.iter().all(|v| {
                 (0.0..=1.0).contains(&v.uv[0])
