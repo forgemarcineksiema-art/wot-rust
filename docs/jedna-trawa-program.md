@@ -84,7 +84,7 @@ S2/S3 blow the budget: S1 + analytic anti-sun darkening of blades.
 | P4a | Invisible seam: the hand-off radius is a world-anchored COASTLINE (noise-undulated), one WGSL function serves both costumes — near takes `stand`, far takes the complement, sum ≡ 1 by construction | shader-text lock on the shared function + both call sites; coastline reach < 48 m ring contract |
 | P4b | Zoom-aware bands (D3): magnification derived from `P[1][1]`, scales the far collapse + dressing cutoff (near ring's CPU cache cannot scale — instance count grows with zoom²) | shader constants PARSED and matched to the CPU's; near ring must not stretch; scope measured in the rotation |
 | P5 | Costume C: the ground carries the meadow's own darkness, taking over the far tufts' share on the SAME curve they fold on (`meadow_common.wgsl`, composed into both passes) | one shared fragment, two consumers; take-over linear in far presence; bare ground untouched |
-| P6 | Carpet layer + near densification (paid from P3's gains) | budget sweep (existing pattern) |
+| P6 | Near densification, bought INSIDE the tuft (more blades, wider arcs) after two costlier routes were measured and rejected | a tuft must splay (reach > 0.2 m); tuft index budget with its measurement cited |
 | P7 | Wind 2.0: gust FRONTS advected along the sky's own storm heading, arc bend (drop ∝ deflection²), per-species stiffness, per-tuft flutter | one wind for sky and field; gusts stretched across the wind; a calm day still breathes |
 | P8 | Shadows S2 (+S3 if the number allows); shadow-policy carve-out (D2) | measured budget; doctrine doc updated |
 | P9 | Tank-in-grass: hull/track press-down (D4) | press is local, deterministic, recovers |
@@ -199,3 +199,20 @@ generator — locks travel, they do not die.
   is busy: **read p95/p99 first as the series' credibility, and only then trust its p50
   deltas**. (The phase hash was simplified from a second lattice sample to a trig hash while
   chasing this — kept, because it is cheaper for an effect that only needs decorrelation.)
+- 2026-08-05 — **P6 landed (near density), after two rejections**. A grazing-camera frame
+  (`crater_grazing`) showed the real defect: bare soil with thin clumps standing on it.
+  **Rejected 1 — a turf mat of separate rosette instances.** Built, measured, deleted: at
+  the density the budget allows (~1.2 rosettes/m²) it closed ~4 % of the bare soil for
+  0.4 ms of CPU, invisible from a tank's eye height. Coverage by instance COUNT does not pay
+  in grass — a rosette covers ~0.03 m².
+  **Rejected 2 — `CELL_TUFT_CANDIDATES` 28 → 40.** The conjure is the frame's grass cost and
+  it scales with candidates: it ran ~3.0 ms (min of three) against ~1.1 ms at 28, while the
+  ring's GPU cost was 0.29 ms. **The bottleneck is instance count, not triangles.**
+  **Shipped — density bought inside the tuft**: blades 10→16 (Meadow), 9→14 (Carpet),
+  10→15 (DrySteppe), 8→11 (TallSeed), and arcs reaching roughly twice as wide (coverage is
+  the square of the reach and costs the same triangles). TallSeed keeps its narrow footprint
+  — splaying a stalk would make a shrub. Measured: conjure back to ~1.1 ms (CPU unchanged,
+  same instance count), ring GPU ~1–1.8 ms (the paid-for triangles), tuft index budget
+  raised 180 → 300 with that measurement cited in the lock. Net: cheaper than either
+  rejected route, and the tufts read as tufts instead of a few blades.
+  Doctrine: **move work to the lane that has room**, and let the measurement name the lane.
