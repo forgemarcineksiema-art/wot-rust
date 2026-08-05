@@ -32,12 +32,32 @@ struct StripCell {
     denied_age_s: Option<f32>,
 }
 
+/// The aiming circle PROJECTED, not invented — clip radius is `mrad / tan(fov/2)`, so every
+/// radius on this sheet is a real gun through a real view:
+///
+/// | state | mrad | third person (62 deg) | sniper (8 deg step) |
+/// |---|---|---|---|
+/// | settled T-54 | 2.9 | 0.0048 (1.7 px) | 0.0415 (15 px) |
+/// | on the move | 6.0 | 0.0100 (3.6 px) | — |
+/// | bloom ceiling | 17.0 | 0.0283 (10 px) | — |
+///
+/// The sheet drew invented radii before, which is how it showed a settled third-person circle
+/// four times its real size and made the crosshair look innocent.
+const TPP_MOVING_RING: f32 = 0.010;
+const TPP_SETTLED_RING: f32 = 0.0048;
+const TPP_BLOOM_CEILING_RING: f32 = 0.0283;
+const SNIPER_SETTLED_RING: f32 = 0.0415;
+
 fn base(mode: ReticleMode) -> HudReticle {
     HudReticle {
         aim_clip: [0.0, 0.0],
         impact_clip: None,
         gun_clip: None,
-        aim_radius_clip: 0.055,
+        aim_radius_clip: if mode == ReticleMode::Sniper {
+            SNIPER_SETTLED_RING
+        } else {
+            TPP_MOVING_RING
+        },
         // Out on purpose (see the module note): the readouts' fixed offsets would cross cells.
         target_distance_m: None,
         status: ReticleStatus::Clear,
@@ -81,8 +101,11 @@ fn cells() -> Vec<StripCell> {
     vec![
         cell("LOADING", HudReticle { reload_fraction: 0.35, ..tpp }),
         StripCell { ready_age_s: Some(0.0), ..cell("LOADED", tpp) },
-        cell("CONVERGED", HudReticle { aim_radius_clip: 0.022, converged: true, ..tpp }),
-        cell("BLOOMED", HudReticle { aim_radius_clip: 0.135, reload_fraction: 0.6, ..tpp }),
+        cell("CONVERGED", HudReticle { aim_radius_clip: TPP_SETTLED_RING, converged: true, ..tpp }),
+        cell(
+            "BLOOMED",
+            HudReticle { aim_radius_clip: TPP_BLOOM_CEILING_RING, reload_fraction: 0.6, ..tpp },
+        ),
         StripCell {
             denied_age_s: Some(0.04),
             ..cell("DENIED", HudReticle { reload_fraction: 0.5, ..tpp })
@@ -146,7 +169,13 @@ pub fn demo_reticle_strip(aspect: f32) -> Vec<HudVertex> {
                 );
             }
             if let Some(age_s) = state.denied_age_s {
-                reticle_marks::push_denied_flash(&mut vertices, center, age_s, aspect);
+                reticle_marks::push_denied_flash(
+                    &mut vertices,
+                    center,
+                    reticle.aim_radius_clip,
+                    age_s,
+                    aspect,
+                );
             }
             // The label reads against its own ground, not the other one.
             let ink = if dark { [0.92, 0.92, 0.86, 0.95] } else { [0.06, 0.06, 0.05, 0.95] };
