@@ -128,7 +128,7 @@ pub(crate) fn reticle_report(query: ReticleFeedbackQuery<'_>) -> ReticleReport {
             drag_per_s: query.drag_per_s,
         });
     ReticleReport {
-        feedback: feedback_from_outcome(&query, &outcome, solution),
+        feedback: feedback_from_outcome(&query, &outcome, solution, fired_direction),
         penetration: penetration_from_outcome(&query, &outcome),
     }
 }
@@ -156,6 +156,7 @@ fn feedback_from_outcome(
     query: &ReticleFeedbackQuery<'_>,
     outcome: &sim::TraceOutcome,
     solution: Option<crate::aim::FiringSolution>,
+    fired_direction: Vec3,
 ) -> ReticleFeedback {
     let actual_impact_world_point = outcome.impact_point();
     let distance = query.aim.distance(query.muzzle).max(1.0);
@@ -167,7 +168,6 @@ fn feedback_from_outcome(
     // reach that elevation, or the shot dies on terrain, cover, an ally or a wreck along the way.
     // An open-sky shot (the trace expires in flight with nothing hit) is NOT blocked — it is a
     // shot with no target, and flagging the whole horizon taught players to ignore the signal.
-    let fired_direction = solution.map_or(query.gun_direction, |solution| solution.world_direction);
     let arrives = matches!(outcome, sim::TraceOutcome::Expired(_))
         || actual_impact_world_point.distance(query.aim)
             <= aim_match_tolerance_m(fired_direction, distance, query.muzzle_velocity_mps);
