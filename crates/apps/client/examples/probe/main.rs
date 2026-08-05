@@ -24,6 +24,7 @@ mod flora_frame_probe;
 mod flora_probe;
 mod garage_hangar_review;
 mod garage_techview;
+mod grass_costumes;
 mod is3_studio;
 mod jagdtiger_profile_probe;
 mod muzzle_probe;
@@ -79,6 +80,7 @@ const PROBES: &[ProbeEntry] = &[
     ("flora_probe", flora_probe::run),
     ("garage_hangar_review", garage_hangar_review::run),
     ("garage_techview", garage_techview::run),
+    ("grass_costumes", grass_costumes::run),
     ("is3_studio", is3_studio::run),
     ("jagdtiger_profile_probe", jagdtiger_profile_probe::run),
     ("muzzle_probe", muzzle_probe::run),
