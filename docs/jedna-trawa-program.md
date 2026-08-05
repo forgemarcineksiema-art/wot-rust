@@ -81,7 +81,8 @@ S2/S3 blow the budget: S1 + analytic anti-sun darkening of blades.
 | P1 | Blade kernel 2.0: arc, taper, pointed tips, real sizes, cap 0.6 m | tip sharpness; cap; size distributions |
 | P2 | Species in A (one kernel, parameter sets; field-quilt + hash selection) | determinism; mirror-fair; per-map mix |
 | P3 | **Death of the tents**: costume B baked from A's candidate stream, serrated tops, shared heights, horizon by measurement | population unification (B ⊂ A stream); silhouette serration; height continuity |
-| P4 | Invisible seam: per-tuft dither radii, A↔B crossfade, zoom-aware bands (D3) | stand_A + stand_B ≈ 1 across bands; zoom multiplier |
+| P4a | Invisible seam: the hand-off radius is a world-anchored COASTLINE (noise-undulated), one WGSL function serves both costumes — near takes `stand`, far takes the complement, sum ≡ 1 by construction | shader-text lock on the shared function + both call sites; coastline reach < 48 m ring contract |
+| P4b | Zoom-aware bands (D3): scope magnification scales the far collapse + dressing cutoff (near ring's CPU cache cannot scale — instance count grows with zoom²) | zoom multiplier; scope-view measurement |
 | P5 | Costume C: meadow-AO bake + terrain meadow tone | B-aggregate ↔ C tone Δ < threshold |
 | P6 | Carpet layer + near densification (paid from P3's gains) | budget sweep (existing pattern) |
 | P7 | Wind 2.0: gust fronts, arc bend, stiffness, flutter, `WindState` uniform | roots planted; dy ∝ dx²; world-anchored gusts |
@@ -140,3 +141,12 @@ generator — locks travel, they do not die.
   species equality, muted-ground rule, unification lock now species-aware. Measured: scene
   work ~16.9 ms p50 (no regression; this series' noise ±1.4 ms), conjure 772 µs (within
   the historical 647–848 spread).
+- 2026-08-05 — **P4a landed**: the seam is a coastline. `grass_handoff_stand` in
+  `scene.wgsl` is the ONE function both costumes read — the near ring folds by its value,
+  the far meadow stands by its complement (sum ≡ 1 by construction), and the radius
+  undulates ±5.5 m on world-anchored noise (~14 m features), so no ring line exists to
+  see. Reach tops at 47 m, inside the 48 m shader-ring contract of the anti-streaming
+  lock. Locks: shader-text contract (function + both call sites + constants), naga
+  validation. Cost: one `value_noise` per grass vertex in VS — deltas in the noise floor.
+  D3 (zoom) split to P4b: the far collapse + dressing cutoff can scale with magnification,
+  the near ring's CPU cache cannot (instance count grows with zoom²).

@@ -57,9 +57,21 @@ fn grass_blade_shader_contract_fades_the_tuft_and_scales_its_wind() {
     assert_eq!(surface_role::GRASS_BLADE, 6.0);
     assert!(source.contains("abs(input.surface - 6.0) < 0.5"));
 
-    // Only the outer edge is camera-relative: every vertex folds toward one instance root.
-    assert!(source.contains("stand = 1.0 - smoothstep(34.0, 48.0, d);"));
+    // The costume hand-off (Jedna Trawa P4): ONE function decides where grass changes
+    // costume — the near ring takes its value, the far meadow takes the complement, so
+    // stand_near + stand_far ≡ 1 at every place by construction, and the radius is a
+    // world-anchored coastline (noise), never a ring line.
+    assert!(source.contains("fn grass_handoff_stand"));
+    assert!(source.contains("stand = grass_handoff_stand(root.xz, camera.camera_pos.xz);"));
+    assert!(source.contains("(1.0 - grass_handoff_stand(world.xz, camera.camera_pos.xz))"));
     assert!(source.contains("root + (world.xyz - root) * stand"));
+
+    // The coastline's outermost reach stays inside the 48 m shader ring the CPU cache's
+    // anti-streaming lock is written against.
+    assert!(source.contains("const GRASS_HANDOFF_BASE_M: f32 = 33.0;"));
+    assert!(source.contains("const GRASS_HANDOFF_SPREAD_M: f32 = 11.0;"));
+    assert!(source.contains("const GRASS_HANDOFF_HALF_BAND_M: f32 = 3.0;"));
+    assert!(33.0 + 11.0 + 3.0 < 48.0, "hand-off reach vs the shader-ring contract");
 
     // Wind displacement is mesh-local, scaled into world metres, and dies with the tuft.
     assert!(source.contains("let model_scale = length(model[1].xyz);"));

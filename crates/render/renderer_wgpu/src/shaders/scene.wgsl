@@ -41,6 +41,22 @@ struct VsOut {
 @group(1) @binding(0) var foliage_atlas: texture_2d<f32>;
 @group(1) @binding(1) var foliage_sampler: sampler;
 
+// The costume hand-off (Jedna Trawa P4): near tufts fold down EXACTLY where far tufts
+// stand up, per place. The radius is not a circle but a coastline — world-anchored noise
+// undulates it ±half the spread over ~14 m features, so the eye never finds a ring line.
+// ONE function serves both costumes: the near ring takes `stand`, the far meadow takes its
+// complement, and their sum is 1 by construction. The band tops out at 47 m, safely inside
+// the 48 m shader-ring contract the CPU cache's anti-streaming lock is written against.
+const GRASS_HANDOFF_BASE_M: f32 = 33.0;
+const GRASS_HANDOFF_SPREAD_M: f32 = 11.0;
+const GRASS_HANDOFF_HALF_BAND_M: f32 = 3.0;
+
+fn grass_handoff_stand(anchor: vec2<f32>, eye: vec2<f32>) -> f32 {
+    let d = length(eye - anchor);
+    let r = GRASS_HANDOFF_BASE_M + value_noise(anchor / 7.0) * GRASS_HANDOFF_SPREAD_M;
+    return 1.0 - smoothstep(r - GRASS_HANDOFF_HALF_BAND_M, r + GRASS_HANDOFF_HALF_BAND_M, d);
+}
+
 @vertex
 fn vs_main(input: VsIn) -> VsOut {
     var out: VsOut;
@@ -48,23 +64,24 @@ fn vs_main(input: VsIn) -> VsOut {
     var world = model * vec4<f32>(input.position, 1.0);
     let root = model[3].xyz;
     let model_scale = length(model[1].xyz);
-    // A mid-field grass card (Żywy Step P2) STANDS only in its band: it grows in under the
-    // near blade ring (30-45 m) and folds back into the ground before its chunk culls
-    // (260-330 m) — both ends read as the meadow thinning, never as a pop. The sway lane
-    // doubles as the vertex's height over its root (sway = height * 0.3).
+    // A far tuft (costume B) STANDS only in its band: it grows in exactly where the near
+    // ring folds (the shared hand-off above; per-vertex anchor differs from the tuft's root
+    // by at most its half-width, far inside the band) and folds back into the ground before
+    // its chunk culls (260-330 m) — both ends read as the meadow thinning, never as a pop.
+    // The sway lane doubles as the vertex's height over its root (sway = height * 0.3).
     var stand = 1.0;
     if (abs(input.surface - 5.0) < 0.5) {
         let d = length(camera.camera_pos.xz - world.xz);
-        stand = smoothstep(30.0, 45.0, d) * (1.0 - smoothstep(260.0, 330.0, d));
+        stand = (1.0 - grass_handoff_stand(world.xz, camera.camera_pos.xz))
+            * (1.0 - smoothstep(260.0, 330.0, d));
         world.y -= (input.sway / 0.3) * (1.0 - stand);
     }
     // Near blades are a stable, deterministic population. Only the OUTER presentation edge
-    // depends on the camera: fold every vertex (including roots) into the instance root over
-    // a broad 34-48 m band. There is no camera-driven birth/reveal inside the playable ring,
-    // so driving cannot make individual tufts load in around the tank.
+    // depends on the camera: fold every vertex (including roots) into the instance root at
+    // the shared hand-off coastline. There is no camera-driven birth/reveal inside the
+    // playable ring, so driving cannot make individual tufts load in around the tank.
     if (abs(input.surface - 6.0) < 0.5) {
-        let d = length(camera.camera_pos.xz - root.xz);
-        stand = 1.0 - smoothstep(34.0, 48.0, d);
+        stand = grass_handoff_stand(root.xz, camera.camera_pos.xz);
         world = vec4<f32>(root + (world.xyz - root) * stand, world.w);
     }
     // The wind lane (D4, lit by the grass field): vertices that opted in — blade tips, leaf
