@@ -103,7 +103,8 @@ fn grass_blade_shader_contract_fades_the_tuft_and_scales_its_wind() {
     assert!(source.contains("camera.ssao_params.w / GRASS_ZOOM_REFERENCE_PROJ_Y"));
     // Only the FAR collapse stretches. The near hand-off must not: the ring is a CPU cache
     // of fixed world radius whose instance count grows with the square of any stretch.
-    assert!(source.contains("smoothstep(260.0 * zoom, 330.0 * zoom, d)"));
+    assert!(source.contains("meadow_far_stand(d)"));
+    assert!(source.contains("MEADOW_FAR_COLLAPSE_START_M * zoom"));
     assert!(
         !source.contains("GRASS_HANDOFF_BASE_M * zoom"),
         "stretching the near ring would multiply the CPU population, not the view"
@@ -122,6 +123,50 @@ fn grass_blade_shader_contract_fades_the_tuft_and_scales_its_wind() {
     assert!(source.contains("if (role > 4.5)"));
     assert!(
         source.contains("return 0.94 + value_noise(octave_frame_fine(world.xz) * 1.7) * 0.12;")
+    );
+}
+
+/// Costume C (P5): the ground carries the meadow's darkness, and the curve it takes over on
+/// is the SAME one the scene pass folds the far tufts with — one shared fragment, composed
+/// into both passes, so the collapse cannot drift into a visible horizon.
+#[test]
+fn the_ground_takes_over_the_meadow_where_the_far_tufts_fold() {
+    let scene = scene_shader_source();
+    let terrain = terrain_shader_source();
+
+    // ONE definition, two consumers: the shared fragment declares the curve, and each pass
+    // calls it rather than restating a threshold of its own.
+    for (pass, source) in [("scene", &scene), ("terrain", &terrain)] {
+        assert_eq!(
+            source.matches("fn meadow_far_stand").count(),
+            1,
+            "{pass} composes exactly one copy of the shared meadow fragment"
+        );
+        assert_eq!(source.matches("fn grass_zoom_band_scale").count(), 1);
+    }
+    assert!(
+        terrain.contains("meadow_ground_shade(w.r + w.g, eye_dist)"),
+        "the ground's meadow share is vegetation-weighted and distance-aware"
+    );
+
+    // The shade constants are the CPU's, and they mean what the doctrine says: the ground
+    // carries MORE of the meadow once the tufts in front of it are gone.
+    let standing = wgsl_const(&terrain, "MEADOW_SHADE_STANDING");
+    let collapsed = wgsl_const(&terrain, "MEADOW_SHADE_COLLAPSED");
+    assert_eq!(standing, renderer_api::MEADOW_SHADE_STANDING);
+    assert_eq!(collapsed, renderer_api::MEADOW_SHADE_COLLAPSED);
+    assert!(collapsed > standing, "a folded meadow leaves MORE for the ground to carry");
+
+    // The hand-over itself: bare ground is never touched, and vegetated ground darkens as
+    // the far costume folds — continuously, with no step at the collapse band.
+    assert_eq!(renderer_api::meadow_ground_shade(0.0, 0.0), 1.0, "a road is never shaded");
+    let near = renderer_api::meadow_ground_shade(1.0, 1.0);
+    let far = renderer_api::meadow_ground_shade(1.0, 0.0);
+    assert!(far < near, "the ground darkens as the tufts fold: {near} -> {far}");
+    let midpoint = renderer_api::meadow_ground_shade(1.0, 0.5);
+    assert!(
+        (midpoint - (near + far) * 0.5).abs() < 1.0e-6,
+        "the take-over is linear in the far costume's presence — no step to see"
     );
 }
 

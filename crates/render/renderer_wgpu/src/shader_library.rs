@@ -9,6 +9,9 @@
 //!   for pipelines whose layout carries that bind group (scene, vehicle, terrain).
 //! - `noise_common.wgsl` — the world-anchored detail noise (hash, lattice, octave frames) the
 //!   ground passes share, so terrain and the statics standing on it carry ONE grain.
+//! - `meadow_common.wgsl` — the grass bands and the ground's share of the meadow (Jedna
+//!   Trawa); composed into the scene pass that draws the tufts AND the terrain pass that
+//!   draws what they stand on, because the two must agree to the metre.
 //!
 //! The composed sources are validated by the wgsl_layout tests, including a dedup lock that each
 //! final shader contains exactly one copy of the shared declarations.
@@ -17,6 +20,7 @@ pub(crate) const CAMERA_COMMON_WGSL: &str = include_str!("shaders/camera_common.
 pub(crate) const LIGHTING_COMMON_WGSL: &str = include_str!("shaders/lighting_common.wgsl");
 pub(crate) const SHADOW_COMMON_WGSL: &str = include_str!("shaders/shadow_common.wgsl");
 pub(crate) const NOISE_COMMON_WGSL: &str = include_str!("shaders/noise_common.wgsl");
+pub(crate) const MEADOW_COMMON_WGSL: &str = include_str!("shaders/meadow_common.wgsl");
 
 pub(crate) fn compose_shader(parts: &[&str]) -> String {
     parts.join("\n")

@@ -124,6 +124,23 @@ pub fn projection_y_scale(view_proj: &[[f32; 4]; 4]) -> f32 {
         .sqrt()
 }
 
+/// Costume C (Jedna Trawa P5): how much of the meadow's own darkness the GROUND carries.
+/// Grass is darker than the soil it grows from — blades shade each other and the gaps hold
+/// shadow. Near the eye the ground shows only the shade between standing tufts
+/// ([`MEADOW_SHADE_STANDING`]); where the far costume has folded away it is all the meadow
+/// there is, so it takes their full share ([`MEADOW_SHADE_COLLAPSED`]). Mirrored in
+/// `meadow_common.wgsl`, which both the scene and terrain passes compose.
+pub const MEADOW_SHADE_STANDING: f32 = 0.05;
+pub const MEADOW_SHADE_COLLAPSED: f32 = 0.17;
+
+/// The ground's albedo multiplier under a meadow. `far_stand` is the far costume's presence
+/// (1 = tufts at full height, 0 = folded), `vegetation` the splat's grass+straw share.
+pub fn meadow_ground_shade(vegetation: f32, far_stand: f32) -> f32 {
+    let carried = MEADOW_SHADE_COLLAPSED
+        + (MEADOW_SHADE_STANDING - MEADOW_SHADE_COLLAPSED) * far_stand.clamp(0.0, 1.0);
+    1.0 - carried * vegetation.clamp(0.0, 1.0)
+}
+
 /// How far a frame's grass bands stretch, from the projection alone (Jedna Trawa P4b).
 ///
 /// The scope is a COMBAT view: at 3.4× a card 100 m out covers the screen area it would at
