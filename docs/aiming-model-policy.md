@@ -11,7 +11,11 @@ The persistent HUD reticle has three layers in every mode:
 - central reticle: the desired sight and camera target under the screen center,
 - gun marker: where the current barrel direction sits at the desired target
   range, so the player can see turret and elevation catch-up; it fades out as
-  the barrel converges on the sight instead of stacking a second glyph there,
+  the barrel converges on the sight instead of stacking a second glyph there.
+  It is a diamond, because every circle at this sight means the dispersion of
+  this gun. Its fade band is ANGULAR — 0.75..1.6 of the live aiming circle, not
+  a fixed screen distance — so the same barrel error reads the same way at any
+  zoom, and a barrel already inside its own dispersion cone says nothing,
 - aiming circle: the server-replicated current dispersion radius after aim time,
   movement bloom, shot bloom, and gun damage.
 

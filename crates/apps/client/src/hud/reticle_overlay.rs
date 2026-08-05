@@ -111,7 +111,8 @@ pub(crate) fn push_reticle(vertices: &mut Vec<HudVertex>, reticle: &HudReticle, 
     // second glyph under the crosshair would only be noise. Drawn in both modes, and also while
     // BLOCKED: it reports the player's own barrel, not the target's armor.
     if let Some(gun_clip) = reticle.gun_clip {
-        let alpha = impact_separation_alpha(reticle.aim_clip, gun_clip, aspect);
+        let alpha =
+            impact_separation_alpha(reticle.aim_clip, gun_clip, reticle.aim_radius_clip, aspect);
         if alpha > 0.0 {
             push_gun_marker(vertices, gun_clip, aspect, alpha);
         }
@@ -120,7 +121,8 @@ pub(crate) fn push_reticle(vertices: &mut Vec<HudVertex>, reticle: &HudReticle, 
     // Sniper only: the real-impact X, fading in as it separates from the aim point instead of
     // popping at a threshold.
     if sniper && let Some(impact_clip) = reticle.impact_clip {
-        let alpha = impact_separation_alpha(reticle.aim_clip, impact_clip, aspect);
+        let alpha =
+            impact_separation_alpha(reticle.aim_clip, impact_clip, reticle.aim_radius_clip, aspect);
         if alpha > 0.0 {
             push_impact_marker(vertices, impact_clip, aspect, alpha);
         }

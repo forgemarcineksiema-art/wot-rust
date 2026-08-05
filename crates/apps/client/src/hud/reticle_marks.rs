@@ -23,11 +23,24 @@ fn gun_state_radius(ring_radius: f32) -> f32 {
     (ring_radius + 0.008).max(RELOAD_ARC_MIN_RADIUS)
 }
 
-/// The secondary-marker fade band (impact X, gun circle): fully hidden below the low edge,
-/// fully drawn above the high one. A BAND, not a threshold — the old single 0.022 cutoff made
-/// the gun marker flicker on/off every frame while the turret settled across it.
-const SEPARATION_FADE_LOW_CLIP: f32 = 0.014;
-const SEPARATION_FADE_HIGH_CLIP: f32 = 0.030;
+/// The secondary-marker fade band (impact X, gun marker), as a fraction of the LIVE dispersion
+/// ring: hidden below the low edge, fully drawn above the high one. A BAND, not a threshold —
+/// a zero-width cutoff made the markers flicker on/off every frame while the turret settled
+/// across it.
+///
+/// Measured against the ring — that is, in milliradians — because that is the only honest scale
+/// for "different enough from the crosshair to matter": inside its own dispersion cone the gun
+/// cannot tell the two points apart, so neither should the sight. Fixed clip constants could
+/// not do this: 0.014..0.030 clip is 7..15 mrad in the third-person view but barely 1..2 mrad
+/// under 6.9x sniper zoom, so the marker stayed lit through the whole exponential tail of the
+/// turret's fine lay — most nagging exactly where aiming is most deliberate. These fractions
+/// reproduce the old band at the third-person settled ring and fix every other view.
+const SEPARATION_FADE_LOW_RING: f32 = 0.75;
+const SEPARATION_FADE_HIGH_RING: f32 = 1.60;
+/// Floors for degenerate rings (an unseeded predictor, a hairline settled circle) so the band
+/// can never collapse to zero width and pin a marker on screen.
+const SEPARATION_FADE_LOW_FLOOR: f32 = 0.010;
+const SEPARATION_FADE_HIGH_FLOOR: f32 = 0.022;
 
 /// A continuous circle outline: short segments between consecutive points, not floating dots.
 /// The ring is HONEST now: no fat minimum clamp — the old 0.025 floor sat a third-person
@@ -181,20 +194,20 @@ pub(super) fn push_blocked_marker(vertices: &mut Vec<HudVertex>, center: [f32; 2
     }
 }
 
-/// Alpha of a secondary marker by its separation from the aim: hidden below the fade band,
-/// full above it. A BAND (0.014..0.030), not the old single 0.022 threshold whose zero-width
-/// onset made the gun marker flicker on/off every frame while the turret settled across it.
+/// Alpha of a secondary marker by its separation from the aim, measured against the live
+/// dispersion ring: hidden inside the gun's own cone, full once it is clearly outside.
 pub(super) fn impact_separation_alpha(
     aim_clip: [f32; 2],
     marker_clip: [f32; 2],
+    ring_radius: f32,
     aspect: f32,
 ) -> f32 {
     let dx = (marker_clip[0] - aim_clip[0]) * aspect;
     let dy = marker_clip[1] - aim_clip[1];
     let separation = (dx * dx + dy * dy).sqrt();
-    ((separation - SEPARATION_FADE_LOW_CLIP)
-        / (SEPARATION_FADE_HIGH_CLIP - SEPARATION_FADE_LOW_CLIP))
-        .clamp(0.0, 1.0)
+    let low = (ring_radius * SEPARATION_FADE_LOW_RING).max(SEPARATION_FADE_LOW_FLOOR);
+    let high = (ring_radius * SEPARATION_FADE_HIGH_RING).max(SEPARATION_FADE_HIGH_FLOOR);
+    ((separation - low) / (high - low).max(1.0e-4)).clamp(0.0, 1.0)
 }
 
 /// A small amber "X" marking where the shell actually lands.
@@ -219,8 +232,13 @@ pub(super) fn push_impact_marker(
     }
 }
 
-/// The hollow gun marker: a small circle outline at the barrel's converged point, dimming as it
-/// merges with the central marker.
+/// The hollow gun marker: a small DIAMOND outline where the barrel points at target range,
+/// dimming as it merges with the central marker.
+///
+/// A diamond, not a circle, because at this sight every circle already means one thing — the
+/// dispersion of this gun (the ring, the loading arc, the loaded ring, the denial pulse all
+/// speak it). A second small circle carrying an unrelated meaning was a homonym: sitting on the
+/// ring it read as a knot in it rather than as the barrel.
 pub(super) fn push_gun_marker(
     vertices: &mut Vec<HudVertex>,
     center: [f32; 2],
@@ -229,5 +247,16 @@ pub(super) fn push_gun_marker(
 ) {
     let mut color = RETICLE_GUN;
     color[3] *= alpha;
-    push_arc(vertices, center, 0.012, 0.0, std::f32::consts::TAU, 16, aspect, color);
+    const REACH: f32 = 0.013;
+    let corners = [[0.0, REACH], [REACH, 0.0], [0.0, -REACH], [-REACH, 0.0_f32]];
+    let point = |c: [f32; 2]| [center[0] + c[0] / aspect, center[1] + c[1]];
+    for index in 0..corners.len() {
+        push_segment(
+            vertices,
+            point(corners[index]),
+            point(corners[(index + 1) % corners.len()]),
+            0.0022,
+            color,
+        );
+    }
 }
