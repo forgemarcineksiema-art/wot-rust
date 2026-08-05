@@ -140,9 +140,11 @@ fn local_light_attenuation_is_bounded_and_vanishes_at_radius() {
     assert_eq!(renderer_api::LocalLight::OFF.attenuation_at(0.0), 0.0, "disabled slot is dark");
 }
 
-/// The garage rig hangs its light where the work is: warm pools over the turntable, exactly one
-/// cool pane-glow at the back wall, every emitter inside the hall, and enough of them that the
-/// hall reads worked-in. Positions must agree with the lamp housings the hangar mesh hangs.
+/// The garage rig hangs its light where the work is: warm pools over the turntable, every
+/// emitter inside the hall, and enough of them that the hall reads worked-in. Readable-light
+/// doctrine (2026-08-05): every pool is WARM lamp light — the cool "pane-glow" pool died with
+/// the fake panes, because daylight enters this room through the skylight key only. Positions
+/// must agree with the lamp housings the hangar mesh hangs.
 #[test]
 fn garage_hero_pools_the_light_where_the_work_is() {
     let rig = SceneLighting::garage_hero().local_lights;
@@ -157,11 +159,12 @@ fn garage_hero_pools_the_light_where_the_work_is() {
         .count();
     assert!(warm_by_turntable >= 2, "warm pools hang over the turntable: {warm_by_turntable}");
 
-    let cool_at_back =
-        enabled.iter().filter(|l| l.rgb[2] > l.rgb[0] && l.position[2] < -15.0).count();
-    assert_eq!(cool_at_back, 1, "exactly one cool pane-glow over the gate");
-
     for light in &enabled {
+        assert!(
+            light.rgb[0] > light.rgb[2],
+            "every pool is warm lamp light — a cool pool is daylight from nowhere: {:?}",
+            light.rgb
+        );
         assert!(
             light.position[0].abs() < 18.0
                 && light.position[2].abs() < 18.0
@@ -465,16 +468,30 @@ fn garage_hero_lifts_the_subject_off_the_workshop_silhouette() {
         "hero key must rake more than the top-down workshop key: hero {hero_horiz} vs {workshop_horiz}"
     );
 
-    // 3. The fill lifts the camera-facing flank: near-horizontal (raking, not top-down or out the
-    //    back) and stronger than the workshop fill.
+    // 3. The fill lifts the camera-facing flank, but under the readable-light doctrine
+    //    (2026-08-05) it may only claim to be floor bounce: near-horizontal (raking, not
+    //    top-down or out the back), alive, and a clear step UNDER the key — never a second
+    //    sun the room cannot explain. The old studio fill out-lit the workshop's and the
+    //    floor shafts read as coming from two suns at once.
     assert!(
         hero.fill_direction[0].abs() > hero.fill_direction[1].abs(),
         "hero fill must rake the flank horizontally, not point down: {:?}",
         hero.fill_direction
     );
+    assert!(luminance(hero.fill_rgb) > 0.0, "the fill is alive — flanks must not fall to black");
     assert!(
-        luminance(hero.fill_rgb) > luminance(workshop.fill_rgb),
-        "hero fill must be stronger than the workshop fill"
+        luminance(hero.fill_rgb) < luminance(hero.key_rgb) * 0.25,
+        "the fill is bounce, not a second sun: fill {:?} vs key {:?}",
+        hero.fill_rgb,
+        hero.key_rgb
+    );
+
+    // 5. The rim is DEAD: a cool light from behind had no source in the room at all. The GI
+    //    bake and the lamp pools separate the hull from the back wall now.
+    assert_eq!(
+        hero.rim_rgb,
+        [0.0, 0.0, 0.0],
+        "the sourceless rear rim must stay dead — readable light has no light from nowhere"
     );
 
     // 4. The display grade must SERVE the relight, not undo it (regression from the lighting 2.0
