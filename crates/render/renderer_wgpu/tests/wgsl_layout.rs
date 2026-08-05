@@ -26,7 +26,8 @@ fn camera_uniform_is_encoded_with_wgsl_uniform_layout() {
     // fill pools add light_pos_radius + light_rgb_intensity (2 x array<vec4, 6>, 192):
     // 560 + 192 = 752. The two-layer air + second cloud layer append haze_params +
     // cloud2_params (2 vec4, 32): 752 + 32 = 784. Dynamic weather appends one vec4: 800.
-    assert_eq!(bytes.len(), 800);
+    // The meadow's crushers (Jedna Trawa P9) append array<vec4, 6> = 96: 800 + 96 = 896.
+    assert_eq!(bytes.len(), 896);
     assert_eq!(bytes.len() % 16, 0);
 }
 
@@ -186,6 +187,44 @@ fn the_ground_takes_over_the_meadow_where_the_far_tufts_fold() {
     assert!(
         (midpoint - (near + far) * 0.5).abs() < 1.0e-6,
         "the take-over is linear in the far costume's presence — no step to see"
+    );
+}
+
+/// The tank in the meadow (P9): a hull presses grass flat and shoves it outward, the press
+/// overrules the wind, and an empty crusher array is a bit-exact no-op.
+#[test]
+fn a_hull_presses_the_meadow_flat_and_overrules_the_wind() {
+    let source = scene_shader_source();
+
+    // The shader reads the crusher slots and the press wins over the weather: what is
+    // crushed is bent by the machine, and only the REMAINDER still feels the wind.
+    assert!(source.contains("camera.crusher_pos_radius[i]"));
+    assert!(source.contains("fn meadow_crush_at"));
+    assert!(
+        source.contains("meadow_wind_offset_free(world_xz, root_xz, reach * (1.0 - crush.y), t)"),
+        "the crushed share of a blade must not also sway"
+    );
+    // The same arc as the wind: a flattened blade drops with the square of its deflection
+    // rather than sliding along the ground.
+    assert!(source.contains("let drop = bend * bend / max(reach * 2.0, 0.02);"));
+    // Driving a blade past flat would make it climb out the far side of the tank.
+    assert!(wgsl_const(&source, "MEADOW_CRUSH_SPREAD") <= 1.0);
+
+    // The falloff model itself, CPU-side (the shader mirrors it).
+    let radius = renderer_api::GRASS_CRUSH_RADIUS_M;
+    assert_eq!(renderer_api::grass_crush_strength(0.0, radius), 1.0, "flat under the hull");
+    assert_eq!(renderer_api::grass_crush_strength(radius, radius), 0.0, "free at the rim");
+    assert_eq!(
+        renderer_api::grass_crush_strength(1.0, 0.0),
+        0.0,
+        "a disabled slot presses nothing"
+    );
+    let near = renderer_api::grass_crush_strength(radius * 0.25, radius);
+    let far = renderer_api::grass_crush_strength(radius * 0.75, radius);
+    assert!(near > far, "the press eases outward: {near} vs {far}");
+    assert!(
+        far < 0.1,
+        "the release is quick — no wide skirt of half-bent grass around every tank: {far}"
     );
 }
 

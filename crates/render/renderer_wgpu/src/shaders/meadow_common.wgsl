@@ -65,6 +65,50 @@ const MEADOW_GUST_SPEED: f32 = 3.4;
 const MEADOW_BEND_PER_HEIGHT: f32 = 0.42;
 const MEADOW_FLUTTER: f32 = 0.055;
 
+// --- The tank in the meadow (Jedna Trawa P9) ------------------------------------------
+//
+// Forty tonnes drive through a field and the field answers. The hull presses grass FLAT and
+// pushes it outward from where it stands — the same arc as the wind (pinned at the root,
+// dropping with the square of the deflection), but the direction is the machine's, not the
+// weather's, and it wins: nothing sways under a tank.
+//
+// This is presentation, not gameplay. Grass never hid anything (the 0.6 m honesty cap), so
+// flattening it reveals nothing either — and because every client derives it from the same
+// replicated tank positions, every player sees the same field. Nobody's GPU buys them
+// information.
+
+/// How hard the meadow is pressed at `distance` from a crusher's centre: 1 under the hull,
+/// easing to 0 at the radius. Mirrors renderer_api::grass_crush_strength.
+fn meadow_crush(distance: f32, radius: f32) -> f32 {
+    if (radius <= 0.0) {
+        return 0.0;
+    }
+    let t = clamp(1.0 - distance / radius, 0.0, 1.0);
+    return t * t;
+}
+
+/// The strongest press on this root, and the direction to shove the blades — away from the
+/// hull that is standing on them.
+fn meadow_crush_at(root_xz: vec2<f32>) -> vec3<f32> {
+    var best = 0.0;
+    var push = vec2<f32>(0.0, 0.0);
+    for (var i = 0u; i < 6u; i = i + 1u) {
+        let slot = camera.crusher_pos_radius[i];
+        if (slot.w <= 0.0) {
+            continue;
+        }
+        let away = root_xz - slot.xz;
+        let strength = meadow_crush(length(away), slot.w);
+        if (strength > best) {
+            best = strength;
+            // Dead centre under the hull there is no outward direction to speak of; the
+            // grass there is simply flattened, so a zero push is the honest answer.
+            push = normalize(away + vec2<f32>(1.0e-4, 0.0));
+        }
+    }
+    return vec3<f32>(push.x, best, push.y);
+}
+
 /// The world-space displacement of one grass vertex.
 ///
 /// `reach` is the vertex's wind lane already scaled into world metres and faded with its
@@ -76,6 +120,33 @@ const MEADOW_FLUTTER: f32 = 0.055;
 /// under a gust instead of skating downwind, which is the whole difference between grass and
 /// a flag.
 fn meadow_wind_offset(world_xz: vec2<f32>, root_xz: vec2<f32>, reach: f32, t: f32) -> vec3<f32> {
+    if (reach <= 0.0) {
+        return vec3<f32>(0.0);
+    }
+    // A hull standing on this tuft overrules the weather: the crushed share of the blade
+    // is bent by the machine, and only what is left of it still feels the wind.
+    let crush = meadow_crush_at(root_xz);
+    if (crush.y > 0.0) {
+        let flattened = reach * crush.y;
+        let bend = flattened * MEADOW_CRUSH_SPREAD;
+        let drop = bend * bend / max(reach * 2.0, 0.02);
+        let free = meadow_wind_offset_free(world_xz, root_xz, reach * (1.0 - crush.y), t);
+        return vec3<f32>(crush.x * bend, -drop, crush.z * bend) + free;
+    }
+    return meadow_wind_offset_free(world_xz, root_xz, reach, t);
+}
+
+/// How far a fully crushed blade is shoved outward, per metre of its height. Above 1.0 the
+/// blade would be driven past flat and start climbing out the far side.
+const MEADOW_CRUSH_SPREAD: f32 = 0.95;
+
+/// The wind alone, with no machine standing on the tuft.
+fn meadow_wind_offset_free(
+    world_xz: vec2<f32>,
+    root_xz: vec2<f32>,
+    reach: f32,
+    t: f32,
+) -> vec3<f32> {
     if (reach <= 0.0) {
         return vec3<f32>(0.0);
     }

@@ -162,6 +162,7 @@ fiction and the dead draw-counter are D4/D5; real network transport is the W1 pr
 | F5 | **No boom-length smoothing** — the camera cut against slabs/terrain is exact but instantaneous; wants a critically-damped boom spring. |
 | F6 | **Turret yaw is interpolated, not predicted** — hull-only prediction; belongs with W1 1.1. |
 | F7 | **glTF `convert` loads no geometry** — rename to "manifest summary" or load buffers (unverified since June). |
+| F8 | **`turret_converges_gun_onto_the_sight_point_not_parallel_to_camera` is FLAKY** — failed once during the Jedna Trawa work (closest 0.0339 against a 0.01 gate) and passed on every re-run (3/3 solo, 2/2 full suite); the failure was unrelated to the change under test. The test's own comment names the cause: it drives a seeded battle whose roster jostles, so a neighbour can move the sight point at the sampling instant. The window-of-closest-approach fix already applied is evidently not wide enough. A gate that fails at random teaches the team to re-run instead of to read — fix or pin the scenario. |
 
 ---
 

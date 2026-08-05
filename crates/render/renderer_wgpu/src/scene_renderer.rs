@@ -76,6 +76,9 @@ pub struct SceneRenderer {
     vehicle_instances: wgpu::Buffer,
     vehicle_instance_count: u32,
     vehicle_draws: Vec<SceneObjectDraw>,
+    /// Where each tank stands this frame (Jedna Trawa P9), read off the vehicle frame — the
+    /// meadow is pressed down by the nearest of these.
+    grass_crushers: Vec<(renderer_api::VehicleId, [f32; 3])>,
     vehicle_meshes: VehicleMeshRegistry,
     sky_pipeline: wgpu::RenderPipeline,
     rain_pipeline: wgpu::RenderPipeline,
@@ -406,6 +409,7 @@ impl SceneRenderer {
             vehicle_instances: buffers.vehicle_instances,
             vehicle_instance_count: 0,
             vehicle_draws: Vec::new(),
+            grass_crushers: Vec::new(),
             vehicle_meshes: VehicleMeshRegistry::default(),
             sky_pipeline,
             rain_pipeline,
