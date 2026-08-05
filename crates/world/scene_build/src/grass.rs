@@ -30,10 +30,22 @@ pub const GRASS_CACHE_RADIUS_M: f32 = GRASS_RADIUS_M + GRASS_CACHE_MARGIN_M;
 pub(crate) const CELL_M: f32 = 8.0;
 /// Fixed world population ceiling per 8 m cell. Vegetation acceptance can only remove from
 /// this deterministic candidate sequence; camera movement never changes a cell's population.
+///
+/// Held at 28 by MEASUREMENT (Jedna Trawa P6). Raising it to 40 was tried and reverted: the
+/// conjure is the frame's CPU cost and it scales with CANDIDATES, running ~3 ms at 40 —
+/// while the ring's GPU cost is 0.29 ms. The bottleneck is instance COUNT, not triangles,
+/// so density is bought inside each tuft (more blades, wider arcs) where the budget is.
 pub(crate) const CELL_TUFT_CANDIDATES: u32 = 28;
 /// Full-vegetation population budget for the 54 m cache disc. This is a verification guard,
 /// not a runtime crop: hard truncation would reintroduce a moving wall at the cache boundary.
 pub const MAX_GRASS_INSTANCES: usize = 4_800;
+
+// A turf MAT of separate rosette instances was built here and measured out (P6): at the
+// density the budget allows (~1.2 rosettes/m²) it closed about 4 % of the bare soil for
+// 0.4 ms of CPU — invisible from a tank's eye height. Coverage by instance count does not
+// pay in grass. Density here is bought where it is cheap instead: more tufts per cell
+// (the same CPU price, but a tuft covers an order of magnitude more ground than a rosette)
+// and WIDER tufts (free — the same triangles, splayed further).
 /// Ground with less vegetation weight than this grows nothing (roads, rock, riverbed).
 const MIN_VEG_WEIGHT: f32 = 0.35;
 /// Standing water drowns the tufts.
@@ -123,30 +135,36 @@ impl GrassSpecies {
 
     fn params(self) -> SpeciesParams {
         match self {
+            // P6 buys density INSIDE the tuft, because that is where the budget is: the
+            // conjure (CPU, per instance) is the frame's grass cost at ~2 ms, while the
+            // ring's GPU cost is 0.29 ms. So blade counts go up and arcs reach wider —
+            // coverage is the square of the reach and the extra blades ride a lane with
+            // room in it. Only the upright seed-head species keeps its narrow footprint;
+            // splaying that one would turn a stalk into a shrub.
             GrassSpecies::Meadow => SpeciesParams {
-                blades: 10,
+                blades: 16,
                 height_min: 0.14,
                 height_span: 0.20,
-                arc_min: 0.06,
-                arc_span: 0.10,
+                arc_min: 0.11,
+                arc_span: 0.17,
                 half_w: 0.016,
                 half_w_span: 0.006,
                 sway_mult: 1.0,
                 seed_head: false,
             },
             GrassSpecies::Carpet => SpeciesParams {
-                blades: 9,
+                blades: 14,
                 height_min: 0.06,
                 height_span: 0.05,
-                arc_min: 0.09,
-                arc_span: 0.05,
+                arc_min: 0.15,
+                arc_span: 0.09,
                 half_w: 0.022,
                 half_w_span: 0.006,
                 sway_mult: 0.4,
                 seed_head: false,
             },
             GrassSpecies::TallSeed => SpeciesParams {
-                blades: 8,
+                blades: 11,
                 height_min: 0.19,
                 height_span: 0.11,
                 arc_min: 0.03,
@@ -157,11 +175,11 @@ impl GrassSpecies {
                 seed_head: true,
             },
             GrassSpecies::DrySteppe => SpeciesParams {
-                blades: 10,
+                blades: 15,
                 height_min: 0.12,
                 height_span: 0.16,
-                arc_min: 0.14,
-                arc_span: 0.08,
+                arc_min: 0.22,
+                arc_span: 0.12,
                 half_w: 0.013,
                 half_w_span: 0.004,
                 sway_mult: 0.6,
@@ -202,7 +220,7 @@ pub(crate) fn species_tinted_albedo(species: GrassSpecies, albedo: [f32; 3]) -> 
     [luma + k * (c[0] - luma), luma + k * (c[1] - luma), luma + k * (c[2] - luma)]
 }
 
-/// Every species' mesh with its handle — the one list registration sites loop over.
+/// Every grass mesh with its handle — the one list registration sites loop over.
 pub fn grass_species_meshes() -> [(MeshHandle, MeshAsset); 4] {
     GRASS_SPECIES.map(|species| (species.mesh_handle(), grass_tuft_mesh_for(species)))
 }
@@ -748,8 +766,10 @@ mod tests {
         }
     }
 
-    fn tuft_key(object: &RenderObject) -> (u32, u32) {
-        (object.transform[3][0].to_bits(), object.transform[3][2].to_bits())
+    fn tuft_key(object: &RenderObject) -> (u32, u32, u32) {
+        // The mesh joins the key: two LAYERS may legitimately populate the same cell, and a
+        // position-only key would silently pair a rosette with a tuft.
+        (object.transform[3][0].to_bits(), object.transform[3][2].to_bits(), object.mesh.0)
     }
 
     fn tuft_flat_distance(object: &RenderObject, eye: Vec3) -> f32 {
@@ -1159,8 +1179,12 @@ mod tests {
     }
 
     /// THE anti-streaming contract: a normal cache rebuild may change only the invisible
-    /// six-metre population margin. Every tuft that either eye can show remains in both caches
+    /// population margin. Every instance that either eye can show remains in both caches
     /// with a bit-identical natural transform; the shader alone changes its distance fade.
+    ///
+    /// Each LAYER answers for its own band (P6): a tuft is shader-visible out to the ring,
+    /// a turf rosette only to its own much tighter fade. One threshold for both would either
+    /// wave the turf layer through untested or demand a 48 m turf cache nobody needs.
     #[test]
     fn rebuild_and_cell_crossing_keep_the_visible_population_stable() {
         let ground = flat_ground();
@@ -1300,13 +1324,14 @@ mod tests {
 
     #[test]
     fn every_species_mesh_is_cheap_double_sided_and_fully_tintable() {
-        // Kernel 2.0 budget: ≤10 station runs × 18 indices (2-segment run, both faces).
-        // Raised from 150 with the P0 measurement in hand (ring 0.83 ms GPU at 144
-        // indices/tuft); the delta is re-measured in the program's STATUS ledger.
+        // Budget: ≤16 station runs × 18 indices (2-segment run, both faces). Raised 180 →
+        // 300 in P6 with the measurement that justified it — the ring's GPU cost was
+        // 0.29 ms against a ~2 ms CPU conjure, so triangles are the lane with room. Any
+        // further growth belongs on the other side of a fresh measurement.
         for (handle, mesh) in grass_species_meshes() {
             let species = GrassSpecies::from_mesh_handle(handle).expect("a grass handle");
             assert!(
-                mesh.indices().len() <= 180,
+                mesh.indices().len() <= 300,
                 "{species:?} stays cheap: {} indices",
                 mesh.indices().len()
             );
@@ -1320,6 +1345,21 @@ mod tests {
                 );
                 assert!(vertex.position[1] >= 0.0 && vertex.position[1] <= 0.37);
             }
+        }
+        // P6's free density: a tuft must SPLAY, covering ground rather than standing in a
+        // pillar. Ground coverage is the square of the reach and costs the same triangles —
+        // this is the lock that keeps that lesson from being tuned away.
+        for species in [GrassSpecies::Meadow, GrassSpecies::Carpet, GrassSpecies::DrySteppe] {
+            let mesh = grass_tuft_mesh_for(species);
+            let reach = mesh
+                .vertices()
+                .iter()
+                .map(|v| v.position[0].hypot(v.position[2]))
+                .fold(0.0f32, f32::max);
+            assert!(
+                reach > 0.2,
+                "{species:?} must cover ground, not stand in a pillar: reach {reach:.3}"
+            );
         }
     }
 }
