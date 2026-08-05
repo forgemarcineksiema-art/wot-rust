@@ -2,9 +2,8 @@ use std::fs::File;
 use std::io::BufWriter;
 
 use client::{
-    GRASS_MESH_HANDLE, bake_terrain_ground_maps, battlefield_ground_and_statics_meshes,
-    battlefield_water_mesh, grass_card_dressing_mesh, grass_frame_objects, grass_tuft_mesh,
-    terrain_material_set_for,
+    bake_terrain_ground_maps, battlefield_ground_and_statics_meshes, battlefield_water_mesh,
+    grass_card_dressing_mesh, grass_frame_objects, grass_species_meshes, terrain_material_set_for,
 };
 use renderer_api::RenderFrame;
 use renderer_api::{Camera, CameraProjectionPolicy, SceneLighting, view_projection_matrix};
@@ -103,7 +102,9 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     // white default, and a review shot of white trees reviews nothing.
     renderer.set_foliage_atlas(&ctx, &scene_build::flora_pack::flora_catalog().atlas_mips);
     renderer.scene_time_s = 12.0;
-    renderer.register_mesh(&ctx, GRASS_MESH_HANDLE, &grass_tuft_mesh());
+    for (handle, mesh) in grass_species_meshes() {
+        renderer.register_mesh(&ctx, handle, &mesh);
+    }
 
     for view in &views {
         // The near-field grass ring the live client conjures around the camera each frame.

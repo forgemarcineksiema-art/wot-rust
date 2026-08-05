@@ -16,9 +16,9 @@ use std::fs::File;
 use std::io::BufWriter;
 
 use client::{
-    GRASS_MESH_HANDLE, TerrainScars, bake_terrain_ground_maps,
-    battlefield_ground_and_statics_meshes, battlefield_water_mesh, grass_card_dressing_mesh,
-    grass_frame_objects, grass_tuft_mesh, terrain_material_set_for,
+    TerrainScars, bake_terrain_ground_maps, battlefield_ground_and_statics_meshes,
+    battlefield_water_mesh, grass_card_dressing_mesh, grass_frame_objects, grass_species_meshes,
+    terrain_material_set_for,
 };
 use game_core::{ShellImpact, ShellType, TankId};
 use glam::Vec3;
@@ -73,7 +73,9 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     renderer.set_water(&ctx, &water_vertices, &water_indices);
     let (dressing_v, dressing_i) = grass_card_dressing_mesh(&battlefield, &ground_maps, &materials);
     renderer.set_dressing(&ctx, &dressing_v, &dressing_i);
-    renderer.register_mesh(&ctx, GRASS_MESH_HANDLE, &grass_tuft_mesh());
+    for (handle, mesh) in grass_species_meshes() {
+        renderer.register_mesh(&ctx, handle, &mesh);
+    }
     set_crater_view_grass(&ctx, &mut renderer, &battlefield, &ground_maps, &materials, close_eye);
     renderer.scene_lighting = SceneLighting::battlefield_default();
     renderer.scene_time_s = 12.0;

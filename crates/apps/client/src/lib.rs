@@ -40,7 +40,9 @@ pub use scene_build::battlefield::{
     battlefield_statics_buckets, battlefield_statics_mesh, battlefield_statics_mesh_with_scars,
     statics_buckets_touched_by_cover, terrain_scene_mesh,
 };
-pub use scene_build::grass::{GRASS_MESH_HANDLE, grass_frame_objects, grass_tuft_mesh};
+pub use scene_build::grass::{
+    GRASS_MESH_HANDLE, GrassSpecies, grass_frame_objects, grass_species_meshes, grass_tuft_mesh,
+};
 pub use scene_build::grass_cards::grass_card_dressing_mesh;
 pub use scene_build::hangar::{
     HERO_FOV_DEGREES, INTERIOR_BACKGROUND, TURNTABLE_TOP_M, hangar_camera_pivot, hangar_scene_mesh,
