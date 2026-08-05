@@ -38,8 +38,52 @@ pub(crate) const RETICLE_RING_OUTLINE: [f32; 4] = [0.05, 0.06, 0.05, 0.55];
 pub(crate) const RETICLE_RING_CONVERGED: [f32; 4] = [0.96, 0.98, 0.92, 0.95];
 /// Amber "X" at the shell's real landing point (gravity + collision).
 pub(crate) const RETICLE_IMPACT: [f32; 4] = [0.98, 0.66, 0.18, 0.92];
-/// The reload arc draining clockwise around the marker while the gun is loading.
-pub(crate) const RETICLE_RELOAD: [f32; 4] = [0.92, 0.62, 0.20, 0.88];
+/// The reload arc draining clockwise around the marker while the gun is loading. RED because the
+/// arc's colour IS the gun's state — red means "this trigger does nothing yet". Deeper and duller
+/// than the pen verdict's [`RETICLE_NO_PEN`], but deliberately the same family: both say "no
+/// damage from here, now".
+pub(crate) const RETICLE_RELOAD: [f32; 4] = [0.86, 0.24, 0.18, 0.86];
+/// The completed reload: the drained arc closes into one full green circle at the same radius,
+/// holds, and dissolves. Green is already the sight's "yes" (pen verdict, landed-hit ticks), so a
+/// loaded gun speaks the same word. Its own bytes so the locks can tag it apart from those two.
+pub(crate) const RETICLE_LOADED: [f32; 4] = [0.40, 0.90, 0.42, 0.88];
+
+/// Seconds of easing on the central marker's colour. Long enough that a verdict flipping across
+/// a plate edge reads as one settling colour instead of a strobe, short enough that a deliberate
+/// re-aim answers immediately.
+pub(crate) const MARKER_FADE_TAU_S: f32 = 0.12;
+
+/// The honesty matrix as a colour (`docs/aiming-model-policy.md`): neutral in third person,
+/// the pen verdict in sniper — scaled by how much of the optics is actually there, so the
+/// verdict arrives WITH the scope housing instead of snapping mid-blend.
+pub(crate) fn marker_color(
+    mode: ReticleMode,
+    hint: Option<PenetrationHint>,
+    scope_fade: f32,
+) -> [f32; 4] {
+    let Some(hint) = hint.filter(|_| mode == ReticleMode::Sniper) else {
+        return RETICLE_NEUTRAL;
+    };
+    let verdict = if hint.penetrates { RETICLE_PEN } else { RETICLE_NO_PEN };
+    let t = scope_fade.clamp(0.0, 1.0);
+    // Settled optics must land on the verdict EXACTLY (a lerp by 1.0 lands a float's breadth
+    // away, and the locks read these colours as tags).
+    if t >= 1.0 {
+        return verdict;
+    }
+    std::array::from_fn(|i| RETICLE_NEUTRAL[i] + (verdict[i] - RETICLE_NEUTRAL[i]) * t)
+}
+
+/// Ease the drawn marker colour toward the matrix's answer. Exponential, frame-rate independent.
+///
+/// Without it the marker strobed: sweeping a plate edge flips the verdict every frame the mouse
+/// twitches, and a mode switch swapped the colour in one frame while the camera was still
+/// travelling into the optics. The verdict itself is unchanged — only how fast the eye is asked
+/// to accept it.
+pub(crate) fn ease_marker_color(current: [f32; 4], target: [f32; 4], dt_s: f32) -> [f32; 4] {
+    let t = 1.0 - (-dt_s.max(0.0) / MARKER_FADE_TAU_S).exp();
+    std::array::from_fn(|i| current[i] + (target[i] - current[i]) * t)
+}
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct HudReticle {
@@ -59,6 +103,10 @@ pub(crate) struct HudReticle {
     pub hit_confirm: Option<HitConfirm>,
     /// The honesty regime: third person draws fully neutral, sniper may speak penetration.
     pub mode: ReticleMode,
+    /// The central marker's colour, already eased toward the matrix's answer by the frame clock
+    /// ([`marker_color`] + [`ease_marker_color`]). Carried rather than derived here because a
+    /// fade needs the previous frame, and only the app owns that.
+    pub marker_color: [f32; 4],
     /// Whether the gun has settled to its minimum dispersion (aim fully taken): the ring
     /// brightens as the ready-to-fire signal. Server truth via the replicated dispersion.
     pub converged: bool,
@@ -86,15 +134,10 @@ pub(crate) fn push_reticle(vertices: &mut Vec<HudVertex>, reticle: &HudReticle, 
     match reticle.status {
         ReticleStatus::Blocked => push_blocked_marker(vertices, reticle.aim_clip, aspect),
         ReticleStatus::Clear => {
-            // Third person never speaks armor: the marker stays neutral even with a pen hint
-            // computed (the hint keeps flowing so a mode switch answers instantly).
-            let color = if sniper {
-                reticle.penetration_hint.map_or(RETICLE_NEUTRAL, |hint| {
-                    if hint.penetrates { RETICLE_PEN } else { RETICLE_NO_PEN }
-                })
-            } else {
-                RETICLE_NEUTRAL
-            };
+            // Third person never speaks armor: the eased colour is computed from the matrix,
+            // which answers neutral there even with a pen hint in hand (the hint keeps flowing
+            // so a mode switch answers immediately).
+            let color = reticle.marker_color;
             push_crosshair(vertices, reticle.aim_clip, 0.020, 0.0036, aspect, color);
             push_quad(vertices, reticle.aim_clip, [0.0022 / aspect, 0.0022], color);
         }
@@ -104,7 +147,8 @@ pub(crate) fn push_reticle(vertices: &mut Vec<HudVertex>, reticle: &HudReticle, 
     // second glyph under the crosshair would only be noise. Drawn in both modes, and also while
     // BLOCKED: it reports the player's own barrel, not the target's armor.
     if let Some(gun_clip) = reticle.gun_clip {
-        let alpha = impact_separation_alpha(reticle.aim_clip, gun_clip, aspect);
+        let alpha =
+            impact_separation_alpha(reticle.aim_clip, gun_clip, reticle.aim_radius_clip, aspect);
         if alpha > 0.0 {
             push_gun_marker(vertices, gun_clip, aspect, alpha);
         }
@@ -113,7 +157,8 @@ pub(crate) fn push_reticle(vertices: &mut Vec<HudVertex>, reticle: &HudReticle, 
     // Sniper only: the real-impact X, fading in as it separates from the aim point instead of
     // popping at a threshold.
     if sniper && let Some(impact_clip) = reticle.impact_clip {
-        let alpha = impact_separation_alpha(reticle.aim_clip, impact_clip, aspect);
+        let alpha =
+            impact_separation_alpha(reticle.aim_clip, impact_clip, reticle.aim_radius_clip, aspect);
         if alpha > 0.0 {
             push_impact_marker(vertices, impact_clip, aspect, alpha);
         }

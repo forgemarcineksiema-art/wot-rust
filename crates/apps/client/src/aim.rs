@@ -2,7 +2,9 @@
 //! The gun then solves toward the world point under that sight ray. The shot path remains
 //! authoritative server/sim state; this module only provides client-side aim prediction.
 
-use game_core::math::{gun_direction, wrap_angle};
+use game_core::math::{
+    HullPose, gun_direction, gun_direction_world, world_direction_to_turret, wrap_angle,
+};
 use game_core::{TankId, TeamId};
 use glam::Vec3;
 use net::TankSnapshot;
@@ -120,6 +122,53 @@ pub(crate) fn aim_point_with_sweep(
     // needs the impact location, not the (unused) tank impact angle.
     segment_impact(eye, eye + forward * AIM_MAX_RANGE_M, forward, &world)
         .map_or(eye + forward * AIM_MAX_RANGE_M, |impact| impact.point())
+}
+
+/// The shot this gun will actually take toward a sight point: the ballistic arc solved in world
+/// space, folded through the hull pose, and clamped to the gun's own elevation limits.
+///
+/// ONE definition of "the shot I am asking for", shared by the gun commands (which chase it) and
+/// by the reticle (which previews it). They used to derive it separately, and the reticle's copy
+/// compared a WORLD elevation against HULL-relative limits — so a nose-down hull on a ridge, the
+/// whole point of hull-down, read as "out of arc" while the gun was happily on target.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct FiringSolution {
+    /// World direction the shell leaves along once the gun has settled.
+    pub world_direction: Vec3,
+    /// Hull-relative gun elevation after the arc clamp.
+    pub gun_pitch_rad: f32,
+    /// Hull-relative turret bearing that puts the muzzle *through* the sight point.
+    pub turret_yaw_rad: f32,
+    /// Whether the arc could reach the ballistic solution at all — false means the clamp bit,
+    /// and no amount of waiting will put a shell on that point from this hull.
+    pub in_arc: bool,
+}
+
+/// `None` when the sight point sits on the muzzle itself: there is no bearing to solve, so the
+/// caller keeps its own fallback (hold the traverse / fly the current barrel).
+pub(crate) fn firing_solution(
+    muzzle: Vec3,
+    aim: Vec3,
+    hull: HullPose,
+    gun_pitch_limits_rad: (f32, f32),
+    muzzle_velocity_mps: f32,
+    drag_per_s: f32,
+) -> Option<FiringSolution> {
+    let delta = aim - muzzle;
+    if delta.x.abs() <= 1.0e-4 && delta.z.abs() <= 1.0e-4 {
+        return None;
+    }
+    let world_pitch = gun_pitch_to_hit(muzzle, aim, muzzle_velocity_mps, drag_per_s);
+    let world_direction = gun_direction(delta.x.atan2(delta.z), world_pitch);
+    let (turret_yaw_rad, solved_pitch) = world_direction_to_turret(hull, world_direction);
+    let (min_pitch, max_pitch) = gun_pitch_limits_rad;
+    let gun_pitch_rad = solved_pitch.clamp(min_pitch, max_pitch);
+    Some(FiringSolution {
+        world_direction: gun_direction_world(hull, turret_yaw_rad, gun_pitch_rad),
+        gun_pitch_rad,
+        turret_yaw_rad,
+        in_arc: (gun_pitch_rad - solved_pitch).abs() <= 1.0e-6,
+    })
 }
 
 /// Gun elevation (radians, + = up) that puts the muzzle on `aim` using the same fixed-step

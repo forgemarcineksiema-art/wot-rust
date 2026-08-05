@@ -23,6 +23,7 @@ pub use fx::TerrainScars;
 pub use fx::shell_tracer_vertices;
 pub use fx::{append_decal_quads, decal_from_damage_event};
 pub use hud::demo::demo_battle_hud;
+pub use hud::demo_strip::demo_reticle_strip;
 pub use hud::font::hud_font_atlas;
 pub use hud::{HudVitals, build_hud};
 // The UI toolkit surface this used to re-export for the editor moved to `crates/ui/ui_kit`

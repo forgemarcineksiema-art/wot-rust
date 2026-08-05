@@ -1,10 +1,31 @@
+use game_core::math::HullPose;
 use game_core::{ArmorFacing, TankId, TankSpec, TeamId, resolve_penetration_at_distance_on_zone};
 use glam::{Mat4, Vec3, Vec4};
 use net::TankSnapshot;
 use terrain::{HeightMap, StaticCoverObject};
 
-// A physical shell touches shallow ground slightly before its center-line ballistic solution.
-const RETICLE_MATCH_TOLERANCE_M: f32 = 4.5;
+/// Vertical slack under the sight point that still counts as "the shell got there": the terrain
+/// sweep resolves a touchdown to within a few centimetres of height (measured at 5 cm on flat
+/// ground), and the server flies the very same trace, so this is a shared artefact rather than a
+/// preview error.
+const GRAZE_SLACK_M: f32 = 0.10;
+
+/// How far the previewed impact may sit from the sight point and still count as "arrives there".
+///
+/// The honest scale is the ARRIVAL ANGLE, not the range. A shell coming down steeply lands
+/// within centimetres of its solution; the same shell arriving nearly flat touches shallow
+/// ground metres early, because those few centimetres of vertical slack divide by the sine of a
+/// very small angle. A flat 4.5 m constant priced that grazing case into every shot — including
+/// the thirty-metre street corner, where 4.5 m is the whole difference between the window and
+/// the wall.
+fn aim_match_tolerance_m(fired_direction: Vec3, distance_m: f32, muzzle_velocity_mps: f32) -> f32 {
+    // Arrival = launch elevation minus what gravity took over the flight (time ~ range/speed).
+    let launch = fired_direction.normalize_or_zero().y;
+    let fall =
+        game_core::math::GRAVITY_MPS2 * distance_m / muzzle_velocity_mps.max(1.0).powi(2).max(1.0);
+    let sin_arrival = (launch - fall).abs().max(0.01);
+    (GRAZE_SLACK_M / sin_arrival).clamp(0.75, 8.0)
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ReticleStatus {
@@ -45,8 +66,12 @@ pub(crate) struct ReticleFeedbackQuery<'a> {
     /// The map's standing water — the previewed splash must be the server's splash.
     pub water: Option<terrain::WaterBody>,
     /// The PLAYER'S gun arc (min, max) in radians — a per-vehicle property since the fleet
-    /// stopped sharing one hard-coded pair.
+    /// stopped sharing one hard-coded pair. HULL-relative, like the simulation's own limits.
     pub gun_pitch_limits_rad: (f32, f32),
+    /// The firing hull's attitude. The arc test lives in the hull frame, so a tank nose-down on
+    /// a ridge is judged by what its gun can reach FROM THAT SLOPE — the depression hull-down
+    /// actually buys.
+    pub hull_pose: HullPose,
     pub tanks: &'a [TankSnapshot],
     /// Spec of the firing (local) vehicle. Penetration hints read the shell from here so the HUD
     /// shows the *player's* gun, not the gun of whatever tank happens to be under the reticle.
@@ -70,7 +95,24 @@ pub(crate) struct ReticleReport {
 
 /// One authoritative-shaped ballistic trace serves both the reticle status and the penetration
 /// hint — running the identical trace twice per frame doubled the most expensive HUD work.
+///
+/// It flies THE SHOT THE PLAYER IS ASKING FOR — the firing solution this gun can take toward the
+/// sight point ([`crate::aim::firing_solution`]) — not wherever the barrel happens to sweep
+/// mid-traverse. That is what makes one trace enough to answer every question the sight asks:
+/// does the shell arrive (status), where does it land if the arc cannot reach (impact X), and
+/// what does it meet there (penetration). It also stops the verdict from flickering through
+/// every tank and barn the barrel crosses on its way to the target.
 pub(crate) fn reticle_report(query: ReticleFeedbackQuery<'_>) -> ReticleReport {
+    let solution = crate::aim::firing_solution(
+        query.muzzle,
+        query.aim,
+        query.hull_pose,
+        query.gun_pitch_limits_rad,
+        query.muzzle_velocity_mps,
+        query.drag_per_s,
+    );
+    // Sight point on the muzzle (no bearing to solve): fall back to the live barrel.
+    let fired_direction = solution.map_or(query.gun_direction, |s| s.world_direction);
     let outcome =
         crate::hud::reticle_sweep::reticle_trace(crate::hud::reticle_sweep::ReticleTraceQuery {
             heightmap: query.heightmap,
@@ -80,13 +122,13 @@ pub(crate) fn reticle_report(query: ReticleFeedbackQuery<'_>) -> ReticleReport {
             owner: query.owner,
             owner_team: query.owner_team,
             muzzle: query.muzzle,
-            gun_direction: query.gun_direction,
+            gun_direction: fired_direction,
             muzzle_velocity_mps: query.muzzle_velocity_mps,
             projectile_radius_m: query.player_spec.gun.shell.collision_radius_m(),
             drag_per_s: query.drag_per_s,
         });
     ReticleReport {
-        feedback: feedback_from_outcome(&query, &outcome),
+        feedback: feedback_from_outcome(&query, &outcome, solution, fired_direction),
         penetration: penetration_from_outcome(&query, &outcome),
     }
 }
@@ -101,37 +143,36 @@ pub(crate) fn penetration_hint(query: ReticleFeedbackQuery<'_>) -> Option<Penetr
     reticle_report(query).penetration
 }
 
+/// ONE verdict, read off the one trace: does the shot the player is asking for arrive where they
+/// are pointing?
+///
+/// This used to be an OR of three separate geometries — a flat 4.5 m interception window, a
+/// straight muzzle->aim chord sampled against the heightmap, and an arc test that compared a
+/// world elevation to hull-relative limits. Each patched a hole in the previous one and opened
+/// its own: the chord lies the other way (a ballistic arc rides ABOVE it, so a crest it grazes
+/// read as blocked while the shell would clear it), and the arc test failed on exactly the
+/// nose-down ridge pose hull-down exists for.
 fn feedback_from_outcome(
     query: &ReticleFeedbackQuery<'_>,
     outcome: &sim::TraceOutcome,
+    solution: Option<crate::aim::FiringSolution>,
+    fired_direction: Vec3,
 ) -> ReticleFeedback {
-    let target_pitch = crate::aim::gun_pitch_to_hit(
-        query.muzzle,
-        query.aim,
-        query.muzzle_velocity_mps,
-        query.drag_per_s,
-    );
     let actual_impact_world_point = outcome.impact_point();
-    // The arc is the simulation's gun arc for THIS vehicle, not a client-side copy and not a
-    // fleet-wide constant: the T-54's -5 is the whole reason it cannot fight from a ridge.
-    let (min_pitch, max_pitch) = query.gun_pitch_limits_rad;
-    let in_arc = (min_pitch..=max_pitch).contains(&target_pitch);
-    // BLOCKED means something *stops* the shell short of the aim point: the gun cannot elevate
-    // there, the sight line dives into terrain, or the trace died on an obstacle away from the
-    // aim. An open-sky shot (the trace simply expires in flight with nothing hit) is NOT
-    // blocked — flagging the whole horizon red taught players to ignore the signal entirely.
-    let intercepted =
-        matches!(outcome, sim::TraceOutcome::Obstacle { .. } | sim::TraceOutcome::Tank { .. })
-            && actual_impact_world_point.distance(query.aim) > RETICLE_MATCH_TOLERANCE_M;
-    let status = if !in_arc
-        || intercepted
-        || !terrain_line_clear(query.heightmap, query.muzzle, query.aim)
-    {
-        ReticleStatus::Blocked
-    } else {
-        ReticleStatus::Clear
-    };
     let distance = query.aim.distance(query.muzzle).max(1.0);
+    // The arc is the simulation's gun arc for THIS vehicle, judged in the hull frame: the T-54's
+    // -5 is the whole reason it cannot fight from a ridge, and the slope it stands on decides
+    // what that -5 reaches in the world.
+    let in_arc = solution.is_none_or(|solution| solution.in_arc);
+    // BLOCKED means something *stops* the shell short of where the player points: the gun cannot
+    // reach that elevation, or the shot dies on terrain, cover, an ally or a wreck along the way.
+    // An open-sky shot (the trace expires in flight with nothing hit) is NOT blocked — it is a
+    // shot with no target, and flagging the whole horizon taught players to ignore the signal.
+    let arrives = matches!(outcome, sim::TraceOutcome::Expired(_))
+        || actual_impact_world_point.distance(query.aim)
+            <= aim_match_tolerance_m(fired_direction, distance, query.muzzle_velocity_mps);
+    let status = if in_arc && arrives { ReticleStatus::Clear } else { ReticleStatus::Blocked };
+    // The gun marker reports the LIVE barrel, not the solution — that is its whole job.
     let gun_world_point = query.muzzle + query.gun_direction.normalize_or_zero() * distance;
 
     ReticleFeedback {
@@ -142,6 +183,9 @@ fn feedback_from_outcome(
     }
 }
 
+/// The verdict for the shot under the crosshair. It rides the same solution trace, so it follows
+/// what the player is AIMING AT instead of flashing green/red through every hull the barrel
+/// happens to sweep across on its way there.
 fn penetration_from_outcome(
     query: &ReticleFeedbackQuery<'_>,
     outcome: &sim::TraceOutcome,
@@ -178,18 +222,6 @@ pub(crate) fn world_to_clip_xy(point: Vec3, view_projection: [[f32; 4]; 4]) -> O
     }
     let ndc = clip.truncate() / clip.w;
     (ndc.x.abs() <= 1.2 && ndc.y.abs() <= 1.2).then_some([ndc.x, ndc.y])
-}
-
-fn terrain_line_clear(heightmap: &HeightMap, from: Vec3, to: Vec3) -> bool {
-    let segment = to - from;
-    let steps = (segment.length() / 1.0).ceil().max(1.0) as u32;
-    for step in 1..steps {
-        let point = from + segment * (step as f32 / steps as f32);
-        if heightmap.sample_height(point.x, point.z).is_some_and(|ground| ground > point.y + 0.15) {
-            return false;
-        }
-    }
-    true
 }
 
 #[cfg(test)]

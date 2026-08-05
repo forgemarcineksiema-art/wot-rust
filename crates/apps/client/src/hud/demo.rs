@@ -19,7 +19,7 @@ use super::{BattleHudModel, HudVitals, build_battle_hud};
 /// example to show both reticle regimes and every readout in one frame.
 pub fn demo_battle_hud(sniper: bool, aspect: f32) -> Vec<HudVertex> {
     let mode = if sniper { ReticleMode::Sniper } else { ReticleMode::ThirdPerson };
-    let reticle = HudReticle {
+    let mut reticle = HudReticle {
         aim_clip: [0.0, 0.0],
         impact_clip: Some([0.06, -0.07]),
         gun_clip: Some([0.035, 0.02]),
@@ -36,7 +36,15 @@ pub fn demo_battle_hud(sniper: bool, aspect: f32) -> Vec<HudVertex> {
         hit_confirm: Some(HitConfirm { age_s: 0.1, penetrated: true, ricocheted: false }),
         mode,
         converged: true,
+        marker_color: super::reticle_overlay::RETICLE_NEUTRAL,
     };
+    // Resolved from the reticle's own hint, exactly as a live frame would (settled optics in
+    // sniper), instead of a second copy of the same verdict.
+    reticle.marker_color = super::reticle_overlay::marker_color(
+        mode,
+        reticle.penetration_hint,
+        if sniper { 1.0 } else { 0.0 },
+    );
     let model = BattleHudModel {
         vitals: HudVitals {
             hit_points: 780,

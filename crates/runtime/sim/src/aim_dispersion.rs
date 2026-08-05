@@ -6,7 +6,11 @@ use crate::{TankCommand, TankState};
 
 /// Settled-minimum dispersion: the gun's base bloom, raised by partial gun-module damage.
 /// `gun_damage_fraction` is `0` healthy .. `1` destroyed.
-pub(crate) fn base_dispersion_mrad(spec: &TankSpec, gun_damage_fraction: f32) -> f32 {
+///
+/// Public because the sight has to ask the same question the recovery curve answers: a wounded
+/// gun settles onto a WIDER minimum, and "the aim has been taken" means reaching that minimum,
+/// not the pristine one off the spec sheet.
+pub fn base_dispersion_mrad(spec: &TankSpec, gun_damage_fraction: f32) -> f32 {
     spec.gun.dispersion_mrad * (1.0 + gun_damage_fraction.clamp(0.0, 1.0) * 1.5)
 }
 

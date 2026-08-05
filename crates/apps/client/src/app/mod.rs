@@ -533,10 +533,13 @@ pub(crate) struct ClientApp {
     /// Seconds since the player's latest kill, driving the reticle confirmation; `None` when the
     /// confirmation has played out (see `hud/kill_marker.rs`).
     kill_confirm_age_s: Option<f32>,
-    /// Reload seconds remaining at the previous presented frame, for the ready-flash crossing.
+    /// Reload seconds remaining at the previous presented frame, for the ready crossing.
     prev_reload_remaining_s: f32,
-    /// Seconds since the reload finished, driving the gun-ready flash at the reticle.
+    /// Seconds since the reload finished, driving the loaded ring at the reticle.
     reload_ready_age_s: Option<f32>,
+    /// The central marker's drawn colour, eased toward the honesty matrix's answer each frame so
+    /// a verdict flipping across a plate edge settles instead of strobing.
+    reticle_marker_color: [f32; 4],
     /// Seconds since a fire click was refused (see `register_fire_intent_feedback`); drives the
     /// red denial pulse at the reticle and expires with it.
     fire_denied_age_s: Option<f32>,
@@ -748,6 +751,7 @@ impl ClientApp {
             kill_confirm_age_s: None,
             prev_reload_remaining_s: 0.0,
             reload_ready_age_s: None,
+            reticle_marker_color: crate::hud::reticle_overlay::RETICLE_NEUTRAL,
             fire_denied_age_s: None,
             // The renderer is created with the battlefield mesh (see `create_renderer`); the first
             // garage frame swaps in the hangar. Starting at `Garage` here would skip that swap.

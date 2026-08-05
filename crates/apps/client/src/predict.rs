@@ -262,6 +262,13 @@ impl LocalPredictor {
     pub fn aim_dispersion_mrad(&self) -> f32 {
         self.drive.aim_dispersion_mrad
     }
+
+    /// The dispersion this gun is recovering TOWARD — the settled minimum including whatever the
+    /// gun module has taken. The same value [`Self::step`] feeds the recovery curve, so the sight
+    /// can ask "has the aim been taken?" against the floor the circle is actually falling to.
+    pub fn settled_dispersion_mrad(&self) -> f32 {
+        sim::base_dispersion_mrad(&self.spec, self.module_damage_fraction(ModuleSlot::Gun))
+    }
 }
 
 mod pose;

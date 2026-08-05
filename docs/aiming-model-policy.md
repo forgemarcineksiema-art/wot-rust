@@ -11,9 +11,24 @@ The persistent HUD reticle has three layers in every mode:
 - central reticle: the desired sight and camera target under the screen center,
 - gun marker: where the current barrel direction sits at the desired target
   range, so the player can see turret and elevation catch-up; it fades out as
-  the barrel converges on the sight instead of stacking a second glyph there,
+  the barrel converges on the sight instead of stacking a second glyph there.
+  It is a diamond, because every circle at this sight means the dispersion of
+  this gun. Its fade band is ANGULAR — 0.75..1.6 of the live aiming circle, not
+  a fixed screen distance — so the same barrel error reads the same way at any
+  zoom, and a barrel already inside its own dispersion cone says nothing,
 - aiming circle: the server-replicated current dispersion radius after aim time,
-  movement bloom, shot bloom, and gun damage.
+  movement bloom, shot bloom, and gun damage. It is the FULL envelope, not a
+  percentile: the shell is never outside it. The server squares its shot draw,
+  so half the shots land inside the inner quarter of the drawn radius — the gun
+  feels more accurate than the circle promises, and that is the deliberate
+  trade for a promise that never breaks (register G11).
+
+The gun's own state is a COLOUR, on one line just outside the aiming circle:
+the reload arc drains RED, and closes into one full GREEN circle when the
+breech is shut. Green holds a beat and dissolves; a loaded gun then draws
+nothing. The circle brightens separately when the dispersion has settled onto
+THIS gun's minimum — damage included, since a wounded gun recovers toward a
+wider floor and reaching it is still "the aim has been taken".
 
 ## The Hybrid Honesty Matrix
 
@@ -82,6 +97,24 @@ sweep shape as the local shell preview path: terrain, static cover, and vehicle
 hitboxes are all considered. The result drives the reticle status in both modes
 and the sniper-mode impact marker; third person does not render the actual
 impact point as a player aid.
+
+The trace flies the FIRING SOLUTION, not the live barrel: the ballistic arc
+toward the sight point, folded through the hull pose and clamped to the gun's
+own limits (`crate::aim::firing_solution`, shared with the gun commands that
+chase it). So the status, the impact marker and the penetration verdict all
+follow the crosshair instead of flickering through whatever the barrel sweeps
+across mid-traverse.
+
+BLOCKED is ONE question — does that shot arrive where the player is pointing? —
+answered by that one trace: the gun cannot reach the elevation (judged in the
+HULL frame, so a nose-down hull gets the depression it really has), or the shell
+dies on terrain, cover, an ally or a wreck along the way. An open-sky shot that
+simply expires is not blocked; it has no target, which is different. The
+arrival window follows the ARRIVAL ANGLE rather than the range: a plunging shot
+is judged in centimetres, a grazing one touches shallow ground metres early
+through the same few centimetres of vertical slack. There is no second
+geometry — no straight-line chord — because a ballistic arc rides above its own
+chord and a crest the chord grazes is not a blocked shot (register G1–G3).
 
 The server remains authoritative for firing, projectile travel, penetration,
 damage, module state, and snapshots. The client reticle is predictive only; if a

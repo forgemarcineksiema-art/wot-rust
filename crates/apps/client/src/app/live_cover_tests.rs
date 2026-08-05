@@ -141,6 +141,7 @@ fn both_reticle_traces_clear_the_low_rubble_and_gone_phases() {
     let status = |cache: &LiveCoverCache| {
         crate::hud::reticle::reticle_report(crate::hud::reticle::ReticleFeedbackQuery {
             gun_pitch_limits_rad: (sim::MIN_GUN_PITCH_RAD, sim::MAX_GUN_PITCH_RAD),
+            hull_pose: game_core::math::HullPose { yaw_rad: 0.0, pitch_rad: 0.0, roll_rad: 0.0 },
             heightmap: &flat,
             cover: cache.blocking(),
             water: None,

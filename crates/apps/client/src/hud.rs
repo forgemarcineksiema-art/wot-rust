@@ -5,6 +5,7 @@ use crate::hud::reticle::ReticleStatus;
 pub(crate) mod ammo_panel;
 pub(crate) mod damage_log;
 pub(crate) mod demo;
+pub(crate) mod demo_strip;
 pub use ui_kit::font;
 pub(crate) mod health;
 pub(crate) mod health_bar;
@@ -179,6 +180,7 @@ pub(crate) fn build_battle_hud(model: &BattleHudModel, aspect: f32) -> Vec<HudVe
         hit_confirm: None,
         converged: false,
         mode: crate::hud::reticle::ReticleMode::ThirdPerson,
+        marker_color: reticle_overlay::RETICLE_NEUTRAL,
     });
     // The scope surround paints first so every live marker (reticle, readouts) stays on top.
     // Fade-driven, not mode-driven: during the TPP <-> sniper camera blend the housing is
@@ -188,7 +190,13 @@ pub(crate) fn build_battle_hud(model: &BattleHudModel, aspect: f32) -> Vec<HudVe
     }
     reticle_overlay::push_reticle(&mut vertices, &reticle, aspect);
     if let Some(age_s) = model.reload_ready_age_s {
-        reticle_marks::push_ready_flash(&mut vertices, reticle.aim_clip, age_s, aspect);
+        reticle_marks::push_ready_ring(
+            &mut vertices,
+            reticle.aim_clip,
+            age_s,
+            reticle.aim_radius_clip,
+            aspect,
+        );
     }
     if let Some(age_s) = model.fire_denied_age_s {
         reticle_marks::push_denied_flash(&mut vertices, reticle.aim_clip, age_s, aspect);
