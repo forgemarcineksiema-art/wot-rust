@@ -221,11 +221,19 @@ impl ClientApp {
 
     /// Whether the live dispersion has settled onto the gun's minimum (within a small margin):
     /// the ring brightens as the ready-to-fire signal. Uses the same source as the drawn ring.
+    ///
+    /// The minimum is THIS gun's, damage included. A wounded gun recovers toward a wider floor
+    /// (`sim::base_dispersion_mrad` raises it by up to 2.5x), so measuring against the pristine
+    /// spec number meant that from the first splinter in the barrel the circle could never be
+    /// called settled: the ready-to-fire signal died for the rest of the battle, exactly when a
+    /// hurt tank needs to know its aim is as good as it will get.
     fn player_aim_converged(&self) -> bool {
-        let settled = self.player_spec().gun.dispersion_mrad;
-        let current =
-            if self.predictor.is_seeded() { self.predictor.aim_dispersion_mrad() } else { settled };
-        current <= settled * 1.12
+        if !self.predictor.is_seeded() {
+            // Before prediction seeds, the ring is drawn from the spec minimum: it IS settled.
+            return true;
+        }
+        let settled = self.predictor.settled_dispersion_mrad();
+        self.predictor.aim_dispersion_mrad() <= settled * 1.12
     }
 }
 
@@ -352,6 +360,32 @@ mod tests {
             start.gun_clip,
             end.gun_clip,
         );
+    }
+
+    /// A wounded gun recovers toward a WIDER floor, and reaching that floor is still "the aim has
+    /// been taken". Measured against the pristine spec number instead, the ring stopped
+    /// brightening from the first splinter in the barrel: the ready-to-fire cue died for the rest
+    /// of the battle, exactly when a hurt tank most needs to know its aim is as good as it gets.
+    #[test]
+    fn the_convergence_signal_survives_a_wounded_gun() {
+        let mut app = ClientApp::new();
+        app.confirm_garage_selection();
+        app.run_fixed_ticks(150);
+        assert!(app.player_aim_converged(), "a healthy gun that has finished aiming reads settled");
+
+        let mut wounded = app.player_snapshot().cloned().expect("player snapshot");
+        let slot = game_core::ModuleSlot::Gun;
+        wounded.module_hit_points[slot.wire_index()] /= 2;
+        // As settled as this gun now gets: fully recovered for the damage it carries.
+        let floor = sim::base_dispersion_mrad(&app.player_spec(), 0.5);
+        wounded.aim_dispersion_mrad = floor;
+        app.predictor.sync_to(&wounded);
+
+        assert!(
+            floor > app.player_spec().gun.dispersion_mrad,
+            "half a gun module widens the floor the circle falls to"
+        );
+        assert!(app.player_aim_converged(), "a settled wounded gun is still settled");
     }
 
     #[test]
