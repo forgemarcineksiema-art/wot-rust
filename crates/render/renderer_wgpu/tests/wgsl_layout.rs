@@ -114,8 +114,27 @@ fn grass_blade_shader_contract_fades_the_tuft_and_scales_its_wind() {
     assert!(source.contains("let model_scale = length(model[1].xyz);"));
     assert!(source.contains("let scaled_sway = input.sway * model_scale * stand;"));
     assert!(
-        !source.contains("gust * input.sway"),
-        "raw sway would turn a small faded tuft into a long wind-blown needle"
+        source.contains("meadow_wind_offset(world.xz, root.xz, scaled_sway"),
+        "the wind reads the SCALED, faded lane — raw sway would turn a small faded tuft \
+         into a long wind-blown needle"
+    );
+
+    // Wind 2.0 (P7): one wind for sky and field, gust FRONTS rather than a global hum, and
+    // a bend that is an arc pinned at the root — the tip drops with the SQUARE of its
+    // deflection (the chord of a bent blade), so grass lies down instead of skating.
+    assert!(
+        source.contains("camera.cloud2_params.z"),
+        "the field is laid by the same heading that drives the sky's cloud sheet"
+    );
+    assert!(source.contains("t * MEADOW_GUST_ALONG * MEADOW_GUST_SPEED"), "gusts advect downwind");
+    assert!(source.contains("deflection * deflection / max(reach * 2.0, 0.02)"));
+    assert!(
+        wgsl_const(&source, "MEADOW_GUST_ACROSS") < wgsl_const(&source, "MEADOW_GUST_ALONG"),
+        "a gust front is STRETCHED across the wind — equal scales would read as blobs"
+    );
+    assert!(
+        wgsl_const(&source, "MEADOW_WIND_BASE") > 0.0,
+        "a calm day still breathes: the field never freezes when no storm front is set"
     );
 
     // Grass geometry roles must not fall through to bark or the costlier generic ground path;

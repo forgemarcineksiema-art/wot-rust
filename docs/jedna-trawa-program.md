@@ -85,7 +85,7 @@ S2/S3 blow the budget: S1 + analytic anti-sun darkening of blades.
 | P4b | Zoom-aware bands (D3): magnification derived from `P[1][1]`, scales the far collapse + dressing cutoff (near ring's CPU cache cannot scale — instance count grows with zoom²) | shader constants PARSED and matched to the CPU's; near ring must not stretch; scope measured in the rotation |
 | P5 | Costume C: the ground carries the meadow's own darkness, taking over the far tufts' share on the SAME curve they fold on (`meadow_common.wgsl`, composed into both passes) | one shared fragment, two consumers; take-over linear in far presence; bare ground untouched |
 | P6 | Carpet layer + near densification (paid from P3's gains) | budget sweep (existing pattern) |
-| P7 | Wind 2.0: gust fronts, arc bend, stiffness, flutter, `WindState` uniform | roots planted; dy ∝ dx²; world-anchored gusts |
+| P7 | Wind 2.0: gust FRONTS advected along the sky's own storm heading, arc bend (drop ∝ deflection²), per-species stiffness, per-tuft flutter | one wind for sky and field; gusts stretched across the wind; a calm day still breathes |
 | P8 | Shadows S2 (+S3 if the number allows); shadow-policy carve-out (D2) | measured budget; doctrine doc updated |
 | P9 | Tank-in-grass: hull/track press-down (D4) | press is local, deterministic, recovers |
 | P10 | (stretch) audio-visual wind: one gust envelope for ear and field | shared envelope |
@@ -181,3 +181,21 @@ generator — locks travel, they do not die.
   already shared by both sides; that is the honest common ground. Measured: scene work
   ~16.5 ms p50, no regression. Locks: one-copy-per-pass of the shared fragment, terrain's
   call site, shade constants matched to the CPU's, take-over linear with no step.
+- 2026-08-05 — **P7 landed (Wind 2.0)**: the field is laid by the wind the SKY already has —
+  the storm front's heading (`cloud2_params.z`) that drives the cloud sheet, so there is no
+  second wind to keep in sync and no new uniform. A gust is a FRONT, not a hum: one
+  low-frequency sample advected ALONG the wind and stretched across it (~28 m along, ~85 m
+  across), so waves visibly roll over the meadow. The bend is an ARC pinned at the root —
+  the tip drops with the SQUARE of its deflection (the chord of a bent blade), so grass
+  lies down instead of skating downwind. Per-species stiffness rides in free: the mesh's
+  sway lane already carries P2's `sway_mult`, so carpet barely stirs while seed heads swing
+  deep. Per-tuft flutter decorrelates neighbours. A calm day still breathes
+  (`MEADOW_WIND_BASE` > 0, locked); a storm front adds on top.
+  Cost: nil within noise (near-ring Δ −0.65 ms, unchanged from P5's −0.35).
+  **Measurement lesson (worth more than the feature)**: the first P7 run read the ring at
+  −4.35 ms and looked like a 4 ms regression. It was machine load — the same run showed the
+  scope's p95 at 128 ms, and a re-run showed REMOVING the card meadow "costing" +4.86 ms,
+  which is physically impossible. Even the in-process rotation instrument lies when the box
+  is busy: **read p95/p99 first as the series' credibility, and only then trust its p50
+  deltas**. (The phase hash was simplified from a second lattice sample to a trig hash while
+  chasing this — kept, because it is cheaper for an effect that only needs decorrelation.)

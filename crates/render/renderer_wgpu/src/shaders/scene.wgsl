@@ -92,24 +92,18 @@ fn vs_main(input: VsIn) -> VsOut {
         stand = grass_handoff_stand(root.xz, camera.camera_pos.xz);
         world = vec4<f32>(root + (world.xyz - root) * stand, world.w);
     }
-    // The wind lane (D4, lit by the grass field): vertices that opted in — blade tips, leaf
-    // edges, card tops — ride the field's wind. Two drifting world-space waves, so
-    // neighbouring blades gust TOGETHER instead of jittering independently; roots carry
-    // sway 0 and stay planted. A collapsed card stops feeling the wind with its stand.
+    // The wind lane (D4; Wind 2.0 in `meadow_common.wgsl`): vertices that opted in — blade
+    // tips, leaf edges, card teeth — ride the field's wind, a gust FRONT rolling downwind
+    // along the same heading that drives the sky's cloud sheet. Roots carry sway 0 and stay
+    // planted. A collapsed card stops feeling the wind with its stand.
     if (input.sway > 0.0) {
-        let t = camera.time_params.x;
-        let gust = (sin(dot(world.xz, vec2<f32>(0.31, 0.17)) + t * 1.6)
-            + 0.45 * sin(dot(world.xz, vec2<f32>(0.83, -0.51)) + t * 2.7));
         // `sway` is mesh-local. Convert it to world metres with the instance scale, then
         // suppress it as the card/tuft folds down. Without this conversion a tiny faded tuft
         // could still move by the full-size displacement and flash as a long needle.
         let scaled_sway = input.sway * model_scale * stand;
-        world = vec4<f32>(
-            world.x + gust * scaled_sway * 0.24,
-            world.y - abs(gust) * scaled_sway * 0.05,
-            world.z + gust * scaled_sway * 0.15,
-            world.w,
-        );
+        let offset =
+            meadow_wind_offset(world.xz, root.xz, scaled_sway, camera.time_params.x);
+        world = vec4<f32>(world.xyz + offset, world.w);
     }
     out.clip = camera.view_proj * world;
     out.world_pos = world.xyz;
