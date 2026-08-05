@@ -65,7 +65,9 @@ pub fn render_review_views(
     // (`app::render`); the review path had not.
     renderer.set_foliage_atlas(&ctx, &scene_build::flora_pack::flora_catalog().atlas_mips);
     renderer.scene_time_s = REVIEW_SCENE_TIME_S;
-    renderer.register_mesh(&ctx, crate::GRASS_MESH_HANDLE, &crate::grass_tuft_mesh());
+    for (handle, mesh) in crate::grass_species_meshes() {
+        renderer.register_mesh(&ctx, handle, &mesh);
+    }
 
     let mut catalog = crate::VehicleAssetCatalog::default();
     if let Err(error) = catalog.load_forge_artifact_tree("target/forge") {

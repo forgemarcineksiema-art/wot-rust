@@ -345,10 +345,9 @@ impl ClientApp {
         );
         // The near-field grass tuft (Materia Świata 1b): one registered unit mesh the battle
         // frame instances around the eye every frame.
-        renderer.register_mesh(
-            scene_build::grass::GRASS_MESH_HANDLE,
-            &scene_build::grass::grass_tuft_mesh(),
-        );
+        for (handle, mesh) in scene_build::grass::grass_species_meshes() {
+            renderer.register_mesh(handle, &mesh);
+        }
         let atlas = crate::hud::font::atlas();
         renderer.set_hud_font_atlas(atlas.width(), atlas.height(), atlas.coverage());
         // The battle scene starts loaded, so its river (if the map has one) starts loaded too.

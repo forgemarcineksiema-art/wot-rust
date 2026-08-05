@@ -41,10 +41,171 @@ const MAX_WATER_DEPTH_M: f32 = 0.05;
 /// A crater's kill zone: nothing grows in the bowl or on the fresh spoil. One factor for
 /// BOTH costumes — a burst that mows the near ring mows the far meadow identically.
 pub(crate) const CRATER_KILL_FACTOR: f32 = 1.45;
-/// The tallest blade the kernel emits, mesh-local (locked to the mesh by test). The far
-/// costume's peak height is exactly this times the candidate's scale — height continuity
-/// across the hand-off is this single number.
-pub(crate) const TUFT_MESH_TALLEST_M: f32 = 0.34;
+/// The species palette (Jedna Trawa P2): four grasses, ONE kernel — a species is a
+/// parameter set, never a separate generator. Presentation identity only (not wire/asset),
+/// but append-only all the same: meshes live under per-species handles.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum GrassSpecies {
+    /// The workhorse meadow tussock — kernel 2.0's original silhouette.
+    Meadow,
+    /// Low fine turf between the tussocks: short, wide, splayed, barely sways.
+    Carpet,
+    /// The sparse accent that sells the wind: upright blades, a stalk and a spikelet
+    /// head that rides deep and slow.
+    TallSeed,
+    /// Steppe grass for the dry plots: stiff, thin, splayed, straw-toned.
+    DrySteppe,
+}
+
+pub const GRASS_SPECIES: [GrassSpecies; 4] =
+    [GrassSpecies::Meadow, GrassSpecies::Carpet, GrassSpecies::TallSeed, GrassSpecies::DrySteppe];
+
+/// One kernel, four parameter sets.
+struct SpeciesParams {
+    blades: u32,
+    height_min: f32,
+    height_span: f32,
+    arc_min: f32,
+    arc_span: f32,
+    half_w: f32,
+    half_w_span: f32,
+    /// Wind-lane multiplier: stiffness per species (carpet barely moves, seed heads ride).
+    sway_mult: f32,
+    /// Grow the stalk-and-spikelet accent on top of the blades.
+    seed_head: bool,
+}
+
+impl GrassSpecies {
+    /// The scene-registry handle this species' mesh lives under. All four sit inside the
+    /// shadowless-dressing band (compile-time locks below).
+    pub fn mesh_handle(self) -> MeshHandle {
+        match self {
+            GrassSpecies::Meadow => GRASS_MESH_HANDLE,
+            GrassSpecies::Carpet => MeshHandle(0xFFFF_0002),
+            GrassSpecies::TallSeed => MeshHandle(0xFFFF_0003),
+            GrassSpecies::DrySteppe => MeshHandle(0xFFFF_0004),
+        }
+    }
+
+    /// The species standing at a mesh handle, if it is a grass handle at all.
+    pub fn from_mesh_handle(handle: MeshHandle) -> Option<Self> {
+        GRASS_SPECIES.into_iter().find(|species| species.mesh_handle() == handle)
+    }
+
+    /// The tallest vertex this species' mesh emits, mesh-local — locked to the real mesh by
+    /// test. The far costume's peak is exactly this times the candidate's scale: height
+    /// continuity across the hand-off is one number per species.
+    pub(crate) fn tallest_mesh_m(self) -> f32 {
+        match self {
+            GrassSpecies::Meadow => 0.34,
+            GrassSpecies::Carpet => 0.11,
+            GrassSpecies::TallSeed => 0.36,
+            GrassSpecies::DrySteppe => 0.28,
+        }
+    }
+
+    /// Multiplies the ground-albedo tint: the species' own colour lean, mild enough to
+    /// keep the muted-saturation rule (dry grass is straw, carpet leans a touch green).
+    pub(crate) fn tint_shift(self) -> [f32; 3] {
+        match self {
+            GrassSpecies::Meadow => [1.0, 1.0, 1.0],
+            GrassSpecies::Carpet => [0.96, 1.03, 0.94],
+            GrassSpecies::TallSeed => [1.05, 1.0, 0.88],
+            GrassSpecies::DrySteppe => [1.1, 1.02, 0.78],
+        }
+    }
+
+    /// Only silhouette-carrying species keep a far costume; the carpet is sub-pixel past
+    /// the near ring, its far costume is the ground itself (costume C).
+    pub(crate) fn wears_far_costume(self) -> bool {
+        !matches!(self, GrassSpecies::Carpet)
+    }
+
+    fn params(self) -> SpeciesParams {
+        match self {
+            GrassSpecies::Meadow => SpeciesParams {
+                blades: 10,
+                height_min: 0.14,
+                height_span: 0.20,
+                arc_min: 0.06,
+                arc_span: 0.10,
+                half_w: 0.016,
+                half_w_span: 0.006,
+                sway_mult: 1.0,
+                seed_head: false,
+            },
+            GrassSpecies::Carpet => SpeciesParams {
+                blades: 9,
+                height_min: 0.06,
+                height_span: 0.05,
+                arc_min: 0.09,
+                arc_span: 0.05,
+                half_w: 0.022,
+                half_w_span: 0.006,
+                sway_mult: 0.4,
+                seed_head: false,
+            },
+            GrassSpecies::TallSeed => SpeciesParams {
+                blades: 8,
+                height_min: 0.19,
+                height_span: 0.11,
+                arc_min: 0.03,
+                arc_span: 0.04,
+                half_w: 0.013,
+                half_w_span: 0.004,
+                sway_mult: 1.35,
+                seed_head: true,
+            },
+            GrassSpecies::DrySteppe => SpeciesParams {
+                blades: 10,
+                height_min: 0.12,
+                height_span: 0.16,
+                arc_min: 0.14,
+                arc_span: 0.08,
+                half_w: 0.013,
+                half_w_span: 0.004,
+                sway_mult: 0.6,
+                seed_head: false,
+            },
+        }
+    }
+}
+
+// Compile-time locks: every species mesh stays inside the shadowless-dressing band.
+const _: () = assert!(0xFFFF_0001u32 >= renderer_api::SHADOWLESS_DRESSING_MESH_BASE);
+const _: () = assert!(0xFFFF_0004u32 >= renderer_api::SHADOWLESS_DRESSING_MESH_BASE);
+
+/// Rule 2 of the art policy: the ground family stays muted. Slightly under the policy's
+/// 0.45 so float error never crosses the locked line.
+pub(crate) const MAX_GRASS_SATURATION: f32 = 0.449;
+
+/// The species lean applied to a ground albedo, WITH the muted-ground rule built in: the
+/// shifted colour is pulled back toward its own luma exactly far enough to sit on the
+/// saturation cap — dry grass reads straw, never orange, on any ground the map offers.
+/// Both costumes tint through here, so the hand-off never changes colour.
+pub(crate) fn species_tinted_albedo(species: GrassSpecies, albedo: [f32; 3]) -> [f32; 3] {
+    let shift = species.tint_shift();
+    let c = [albedo[0] * shift[0], albedo[1] * shift[1], albedo[2] * shift[2]];
+    let max = c[0].max(c[1]).max(c[2]);
+    let min = c[0].min(c[1]).min(c[2]);
+    if max <= 0.0 {
+        return c;
+    }
+    let saturation = (max - min) / max;
+    if saturation <= MAX_GRASS_SATURATION {
+        return c;
+    }
+    let luma = (c[0] + c[1] + c[2]) / 3.0;
+    // Exact: lerping toward the luma by k lands the saturation ON the cap (derivation in
+    // the locking test — sat(c') = cap identically).
+    let k = MAX_GRASS_SATURATION * luma / ((max - min) - MAX_GRASS_SATURATION * (max - luma));
+    [luma + k * (c[0] - luma), luma + k * (c[1] - luma), luma + k * (c[2] - luma)]
+}
+
+/// Every species' mesh with its handle — the one list registration sites loop over.
+pub fn grass_species_meshes() -> [(MeshHandle, MeshAsset); 4] {
+    GRASS_SPECIES.map(|species| (species.mesh_handle(), grass_tuft_mesh_for(species)))
+}
 
 /// The honesty cap (Jedna Trawa D1): no grass, at any instance scale, stands taller than
 /// this. There is no camouflage mechanic, so grass that hid a tank would lie about gameplay.
@@ -54,54 +215,153 @@ pub const GRASS_HEIGHT_CAP_M: f32 = 0.6;
 pub const TUFT_SCALE_MIN: f32 = 1.0;
 pub const TUFT_SCALE_SPAN: f32 = 0.6;
 
-/// One tuft (blade kernel 2.0, Jedna Trawa P1): ten blades arcing outward from a common
+/// One tuft (blade kernel 2.0, Jedna Trawa P1/P2): blades arcing outward from a common
 /// root, each a two-segment curve — root station, mid station, and a POINTED tip. The
 /// serrated tuft silhouette is nothing but the per-blade height spread meeting sharp tips;
 /// the arc is visible as the mid station leaning part-way and the tip reaching full out.
-/// Both faces are wound (the scene pipeline culls back faces; a blade must read from
-/// anywhere). Vertices carry a white-to-dusk gradient with `tint_weight` 1.0 — the INSTANCE
-/// tint is the actual grass colour, so one mesh serves every plot tone on the map.
-pub fn grass_tuft_mesh() -> MeshAsset {
+/// A species is a parameter set over this one kernel; the seed-head accent grows a stalk
+/// and a spikelet as two more five-vertex stations, so every station contract (chunks of
+/// five, monotone wind lane) holds for every species. Both faces are wound (the scene
+/// pipeline culls back faces; a blade must read from anywhere). Vertices carry a
+/// white-to-dusk gradient with `tint_weight` 1.0 — the INSTANCE tint is the actual grass
+/// colour, so one mesh serves every plot tone on the map.
+pub fn grass_tuft_mesh_for(species: GrassSpecies) -> MeshAsset {
+    let p = species.params();
     let mut vertices = Vec::new();
     let mut indices = Vec::new();
-    let blades = 10;
-    for blade in 0..blades {
+    for blade in 0..p.blades {
         let angle =
-            blade as f32 / blades as f32 * std::f32::consts::TAU + ((blade % 3) as f32) * 0.35;
-        let (sin, cos) = angle.sin_cos();
-        let dir = Vec3::new(cos, 0.0, sin);
-        // Strong per-blade height spread: 0.14–0.34 mesh-local — the serration IS this.
-        let height = 0.14 + 0.20 * ((blade * 7 + 3) % 6) as f32 / 5.0;
+            blade as f32 / p.blades as f32 * std::f32::consts::TAU + ((blade % 3) as f32) * 0.35;
+        // Strong per-blade height spread — the serration IS this.
+        let height = p.height_min + p.height_span * ((blade * 7 + 3) % 6) as f32 / 5.0;
         // Horizontal reach at the tip; the mid station takes only 35 % of it, so the blade
         // profile is a convex outward curve, not a straight lean.
-        let arc = 0.06 + 0.10 * ((blade * 5 + 1) % 4) as f32 / 3.0;
-        let root = dir * (0.05 + 0.05 * ((blade % 4) as f32 / 3.0));
-        let across = Vec3::new(-sin, 0.0, cos);
-        let half_w = 0.016 + 0.006 * ((blade % 3) as f32 / 2.0);
-        let mid = root + dir * (arc * 0.35) + Vec3::Y * (height * 0.58);
-        let tip = root + dir * arc + Vec3::Y * height;
-        // Base sits in shade, the tip catches the sky — a cheap self-shadow gradient. The
-        // normals stand mostly UP so a blade takes the same sun the ground under it does —
-        // side-facing normals read as a dark alien succulent, not grass.
-        let base_tone = [0.72, 0.72, 0.72];
-        let mid_tone = [0.9, 0.9, 0.9];
-        let tip_tone = [1.05, 1.05, 1.05];
-        let normal = Vec3::new(cos * 0.3, 1.0, sin * 0.3).normalize().to_array();
-        let base = vertices.len() as u32;
-        // Roots stay planted (sway 0); the wind lane grows QUADRATICALLY with the station's
-        // relative height (0.58² ≈ 0.34), so the shader bends the blade as an arc pinned at
-        // the root instead of hinging a rigid stick.
-        let tip_sway = 0.35 + height * 0.8;
-        let mid_sway = tip_sway * 0.34;
-        for (position, tone, sway, taper) in [
-            (root, base_tone, 0.0, 1.0),
-            (mid, mid_tone, mid_sway, 0.55),
-            (tip, tip_tone, tip_sway, 0.0),
-        ] {
-            // The tip's taper is 0: both "sides" collapse into one point — pushed once.
-            if taper <= 0.0 {
+        let arc = p.arc_min + p.arc_span * ((blade * 5 + 1) % 4) as f32 / 3.0;
+        let root_out = 0.05 + 0.05 * ((blade % 4) as f32 / 3.0);
+        let half_w = p.half_w + p.half_w_span * ((blade % 3) as f32 / 2.0);
+        push_blade(&mut vertices, &mut indices, angle, root_out, arc, height, half_w, p.sway_mult);
+    }
+    if p.seed_head {
+        push_seed_head(&mut vertices, &mut indices, p.sway_mult);
+    }
+    MeshAsset::new(vertices, indices)
+}
+
+/// The workhorse mesh (Meadow) — kernel 2.0's original tuft, kept under its P1 name.
+pub fn grass_tuft_mesh() -> MeshAsset {
+    grass_tuft_mesh_for(GrassSpecies::Meadow)
+}
+
+/// One five-vertex blade station run: root pair, mid pair, pointed tip, both faces wound.
+#[allow(clippy::too_many_arguments)]
+fn push_blade(
+    vertices: &mut Vec<SceneVertex>,
+    indices: &mut Vec<u32>,
+    angle: f32,
+    root_out: f32,
+    arc: f32,
+    height: f32,
+    half_w: f32,
+    sway_mult: f32,
+) {
+    let (sin, cos) = angle.sin_cos();
+    let dir = Vec3::new(cos, 0.0, sin);
+    let root = dir * root_out;
+    let across = Vec3::new(-sin, 0.0, cos);
+    let mid = root + dir * (arc * 0.35) + Vec3::Y * (height * 0.58);
+    let tip = root + dir * arc + Vec3::Y * height;
+    // Roots stay planted (sway 0); the wind lane grows QUADRATICALLY with the station's
+    // relative height (0.58² ≈ 0.34), so the shader bends the blade as an arc pinned at
+    // the root instead of hinging a rigid stick. Stiffness is the species' say.
+    let tip_sway = (0.35 + height * 0.8) * sway_mult;
+    let mid_sway = tip_sway * 0.34;
+    let normal = Vec3::new(cos * 0.3, 1.0, sin * 0.3).normalize().to_array();
+    push_station_run(
+        vertices,
+        indices,
+        normal,
+        across,
+        [
+            (root, [0.72, 0.72, 0.72], 0.0, half_w),
+            (mid, [0.9, 0.9, 0.9], mid_sway, half_w * 0.55),
+            (tip, [1.05, 1.05, 1.05], tip_sway, 0.0),
+        ],
+    );
+}
+
+/// The TallSeed accent: an upright stalk (a narrow blade) carrying a spikelet head — a
+/// second five-vertex run whose base RIDES the stalk's wind instead of rooting on the
+/// ground. The head's mid pair bulges wider than its tip: that is the spikelet.
+fn push_seed_head(vertices: &mut Vec<SceneVertex>, indices: &mut Vec<u32>, sway_mult: f32) {
+    let angle = 0.7f32;
+    let (sin, cos) = angle.sin_cos();
+    let dir = Vec3::new(cos, 0.0, sin);
+    let across = Vec3::new(-sin, 0.0, cos);
+    let normal = Vec3::new(cos * 0.3, 1.0, sin * 0.3).normalize().to_array();
+    // The stalk: nearly upright, pointed just under the head's seat.
+    let stalk_root = dir * 0.01;
+    let stalk_arc = 0.02;
+    let stalk_h = 0.31;
+    let stalk_sway = (0.35 + stalk_h * 0.8) * sway_mult;
+    push_station_run(
+        vertices,
+        indices,
+        normal,
+        across,
+        [
+            (stalk_root, [0.72, 0.72, 0.72], 0.0, 0.007),
+            (
+                stalk_root + dir * (stalk_arc * 0.35) + Vec3::Y * (stalk_h * 0.58),
+                [0.9, 0.9, 0.9],
+                stalk_sway * 0.34,
+                0.005,
+            ),
+            (stalk_root + dir * stalk_arc + Vec3::Y * stalk_h, [1.0, 1.0, 1.0], stalk_sway, 0.0),
+        ],
+    );
+    // The spikelet: seated at the stalk's reach, riding at least the stalk's wind.
+    let seat = stalk_root + dir * stalk_arc;
+    push_station_run(
+        vertices,
+        indices,
+        normal,
+        across,
+        [
+            (seat + Vec3::Y * 0.30, [0.98, 0.96, 0.9], stalk_sway, 0.011),
+            (seat + Vec3::Y * 0.335, [1.04, 1.0, 0.92], stalk_sway * 1.05, 0.02),
+            (seat + Vec3::Y * 0.36, [1.08, 1.04, 0.94], stalk_sway * 1.1, 0.0),
+        ],
+    );
+}
+
+/// Emit one five-vertex, six-triangle station run: two tapered pairs and a point, both
+/// faces wound (the pipeline culls back faces; a blade must not vanish from behind).
+fn push_station_run(
+    vertices: &mut Vec<SceneVertex>,
+    indices: &mut Vec<u32>,
+    normal: [f32; 3],
+    across: Vec3,
+    stations: [(Vec3, [f32; 3], f32, f32); 3],
+) {
+    let base = vertices.len() as u32;
+    for (position, tone, sway, taper) in stations {
+        // A zero taper collapses both "sides" into one point — pushed once.
+        if taper <= 0.0 {
+            vertices.push(SceneVertex {
+                position: position.to_array(),
+                normal,
+                color: tone,
+                tint_weight: 1.0,
+                gloss: 0.05,
+                surface: renderer_api::surface_role::GRASS_BLADE,
+                sway,
+                uv: [0.0, 0.0],
+                bounce: [0.0; 3],
+            });
+        } else {
+            for side in [-1.0f32, 1.0] {
                 vertices.push(SceneVertex {
-                    position: position.to_array(),
+                    position: (position + across * (taper * side)).to_array(),
                     normal,
                     color: tone,
                     tint_weight: 1.0,
@@ -111,29 +371,13 @@ pub fn grass_tuft_mesh() -> MeshAsset {
                     uv: [0.0, 0.0],
                     bounce: [0.0; 3],
                 });
-            } else {
-                for side in [-1.0f32, 1.0] {
-                    vertices.push(SceneVertex {
-                        position: (position + across * (half_w * taper * side)).to_array(),
-                        normal,
-                        color: tone,
-                        tint_weight: 1.0,
-                        gloss: 0.05,
-                        surface: renderer_api::surface_role::GRASS_BLADE,
-                        sway,
-                        uv: [0.0, 0.0],
-                        bounce: [0.0; 3],
-                    });
-                }
             }
         }
-        // Vertex order per blade: r-, r+, m-, m+, tip. Front and back faces: the pipeline
-        // culls, the blade must not vanish from behind.
-        let (r0, r1, m0, m1, t) = (base, base + 1, base + 2, base + 3, base + 4);
-        indices.extend_from_slice(&[r0, r1, m1, r0, m1, m0, m0, m1, t]);
-        indices.extend_from_slice(&[m1, r1, r0, m0, m1, r0, m1, m0, t]);
     }
-    MeshAsset::new(vertices, indices)
+    // Vertex order per run: r-, r+, m-, m+, tip.
+    let (r0, r1, m0, m1, t) = (base, base + 1, base + 2, base + 3, base + 4);
+    indices.extend_from_slice(&[r0, r1, m1, r0, m1, m0, m0, m1, t]);
+    indices.extend_from_slice(&[m1, r1, r0, m0, m1, r0, m1, m0, t]);
 }
 
 /// The vegetation weight (grass + straw splat channels, 0..1) standing at a world position.
@@ -208,6 +452,7 @@ pub(crate) struct TuftCandidate {
     pub size: f32,
     pub tone: f32,
     pub vegetation_lane: f32,
+    pub species_lane: f32,
 }
 
 /// THE candidate stream (Jedna Trawa P3): one deterministic per-cell sequence that BOTH
@@ -252,6 +497,9 @@ impl CellStream {
             TUFT_SCALE_MIN + game_core::math::next_hash_unit(&mut self.seed) * TUFT_SCALE_SPAN;
         let tone = game_core::math::next_hash_unit(&mut self.seed);
         let vegetation_lane = game_core::math::next_hash_unit(&mut self.seed);
+        // P2's lane sits LAST so every lane before it kept its P3 value — adding species
+        // re-dressed the field without re-rolling where anything stands.
+        let species_lane = game_core::math::next_hash_unit(&mut self.seed);
         // The pull is a convex combination of two in-cell points — the candidate stays in
         // its cell, so every per-cell contract survives unchanged.
         let (local_x, local_z) = pull_toward_clump(raw_x, raw_z, &self.centres, self.centre_count);
@@ -262,8 +510,24 @@ impl CellStream {
             size,
             tone,
             vegetation_lane,
+            species_lane,
         }
     }
+}
+
+/// Which grass stands at a candidate (Jedna Trawa P2): a world-anchored PLOT field leans
+/// whole patches dry or lush (sampled at the FOLDED z, so twins agree), the cell's dryness
+/// lane echoes the shader's field quilt, and the candidate's own lane sprinkles the carpet
+/// and the sparse seed-head accents through every plot. Shared by both costumes.
+pub(crate) fn species_at(x: f32, z_folded: f32, cell_dry: f32, species_lane: f32) -> GrassSpecies {
+    if species_lane > 0.92 {
+        return GrassSpecies::TallSeed;
+    }
+    if species_lane < 0.30 {
+        return GrassSpecies::Carpet;
+    }
+    let plot = terrain::value_noise(x / 19.0 + 31.0, z_folded / 19.0 + 47.0);
+    if plot * 0.6 + cell_dry * 0.4 > 0.62 { GrassSpecies::DrySteppe } else { GrassSpecies::Meadow }
 }
 
 /// The ground both costumes stand on: one bundle of the map facts acceptance needs, so the
@@ -407,15 +671,23 @@ pub fn grass_frame_objects(
                     ) else {
                         continue;
                     };
+                    // The species is decided at the FOLDED source position, so both twins
+                    // of a candidate grow the same grass.
+                    let species = species_at(
+                        candidate.x,
+                        candidate.z,
+                        stream.cell_dry,
+                        candidate.species_lane,
+                    );
                     let transform = Mat4::from_translation(Vec3::new(px, ground, pz))
                         * Mat4::from_rotation_y(pyaw)
                         * Mat4::from_scale(Vec3::splat(candidate.size));
                     objects.push(RenderObject {
                         tank_id: None,
-                        mesh: GRASS_MESH_HANDLE,
+                        mesh: species.mesh_handle(),
                         material: MaterialHandle(0),
                         transform: transform.to_cols_array_2d(),
-                        tint: albedo,
+                        tint: species_tinted_albedo(species, albedo),
                     });
                 }
             }
@@ -726,73 +998,164 @@ mod tests {
         }
     }
 
-    /// Blade tips opted into the wind lane, roots stayed planted, and the lane grows
-    /// with height ALONG each blade — the shader bends an arc pinned at the root, not a
-    /// rigid stick on a hinge (kernel 2.0).
+    /// The wind lane grows with height ALONG each station run for EVERY species — the
+    /// shader bends an arc pinned at the carrier, not a rigid stick on a hinge. Ground
+    /// stations stay planted; an elevated station (the spikelet's seat) rides at least its
+    /// carrier's wind instead of anchoring dead air above a swaying stalk.
     #[test]
-    fn the_wind_lane_grows_along_each_blade_and_roots_stay_planted() {
-        let mesh = grass_tuft_mesh();
-        assert_eq!(mesh.vertices().len() % 5, 0, "a blade is root pair + mid pair + tip");
-        for blade in mesh.vertices().chunks(5) {
-            let (roots, mids, tip) = (&blade[0..2], &blade[2..4], &blade[4]);
-            for root in roots {
-                assert!(root.position[1] <= 0.001, "roots sit on the ground");
-                assert_eq!(root.sway, 0.0, "a root stays planted");
+    fn the_wind_lane_grows_along_each_station_run_for_every_species() {
+        for species in GRASS_SPECIES {
+            let mesh = grass_tuft_mesh_for(species);
+            assert_eq!(
+                mesh.vertices().len() % 5,
+                0,
+                "{species:?}: a run is root pair + mid pair + tip"
+            );
+            for run in mesh.vertices().chunks(5) {
+                let (base, mids, tip) = (&run[0..2], &run[2..4], &run[4]);
+                let grounded = base[0].position[1] <= 0.001;
+                for vertex in base {
+                    if grounded {
+                        assert_eq!(vertex.sway, 0.0, "{species:?}: a ground root stays planted");
+                    } else {
+                        assert!(
+                            vertex.sway > 0.0,
+                            "{species:?}: an elevated seat rides its carrier's wind"
+                        );
+                    }
+                }
+                for mid in mids {
+                    assert!(
+                        mid.sway >= base[0].sway && mid.sway < tip.sway,
+                        "{species:?}: the lane grows along the run: {} / {} / {}",
+                        base[0].sway,
+                        mid.sway,
+                        tip.sway
+                    );
+                }
+                assert!(tip.sway > base[0].sway, "{species:?}: the tip rides hardest");
             }
-            for mid in mids {
-                assert!(
-                    mid.sway > 0.0 && mid.sway < tip.sway,
-                    "the mid station rides less wind than the tip: {} vs {}",
-                    mid.sway,
-                    tip.sway
-                );
-            }
-            assert!(tip.sway > 0.3, "a tip rides the wind: sway {}", tip.sway);
         }
     }
 
-    /// Kernel 2.0's silhouette locks (Jedna Trawa P1): every blade ends in a single POINTED
-    /// tip, the per-blade height spread is wide enough to serrate the tuft's outline, the
-    /// blade profile arcs outward (mid station part-way, tip full reach), and the tallest
-    /// blade at the largest conjured scale stays under the honesty cap — grass never hides
-    /// a tank (D1).
+    /// The silhouette locks, per species (Jedna Trawa P1/P2): every station run ends in a
+    /// single POINTED tip, ground-rooted blades arc outward (mid part-way, tip full reach),
+    /// the height spread serrates every species' outline, the declared `tallest_mesh_m` IS
+    /// the mesh's real apex (the far costume's height continuity hangs on it), and the
+    /// tallest at the largest conjured scale stays under the honesty cap — grass never
+    /// hides a tank (D1).
     #[test]
-    fn blades_are_pointed_arced_serrated_and_capped() {
-        let mesh = grass_tuft_mesh();
-        let mut tallest: f32 = 0.0;
-        let mut shortest = f32::INFINITY;
-        for blade in mesh.vertices().chunks(5) {
-            let tip = &blade[4];
-            let apex = blade.iter().map(|v| v.position[1]).fold(0.0f32, f32::max);
+    fn every_species_is_pointed_arced_serrated_and_capped() {
+        for species in GRASS_SPECIES {
+            let mesh = grass_tuft_mesh_for(species);
+            let mut tallest: f32 = 0.0;
+            let mut shortest = f32::INFINITY;
+            for run in mesh.vertices().chunks(5) {
+                let tip = &run[4];
+                let apex = run.iter().map(|v| v.position[1]).fold(0.0f32, f32::max);
+                assert!(
+                    (tip.position[1] - apex).abs() < 1.0e-6,
+                    "{species:?}: the single tip vertex IS the run's apex"
+                );
+                let radial = |v: &SceneVertex| v.position[0].hypot(v.position[2]);
+                if run[0].position[1] <= 0.001 {
+                    let root_out = (radial(&run[0]) + radial(&run[1])) * 0.5;
+                    let mid_out = (radial(&run[2]) + radial(&run[3])) * 0.5;
+                    assert!(
+                        root_out < mid_out && mid_out < radial(tip),
+                        "{species:?}: a blade arcs outward: {root_out:.3} < {mid_out:.3} < {:.3}",
+                        radial(tip)
+                    );
+                }
+                tallest = tallest.max(tip.position[1]);
+                shortest = shortest.min(tip.position[1]);
+            }
             assert!(
-                (tip.position[1] - apex).abs() < 1.0e-6,
-                "the single tip vertex IS the blade's apex"
+                tallest / shortest > 1.8,
+                "{species:?}: the height spread serrates the silhouette: \
+                 {shortest:.3}..{tallest:.3}"
             );
-            let radial = |v: &SceneVertex| v.position[0].hypot(v.position[2]);
-            let root_out = (radial(&blade[0]) + radial(&blade[1])) * 0.5;
-            let mid_out = (radial(&blade[2]) + radial(&blade[3])) * 0.5;
             assert!(
-                root_out < mid_out && mid_out < radial(tip),
-                "a blade arcs outward: root {root_out:.3} < mid {mid_out:.3} < tip {:.3}",
-                radial(tip)
+                (tallest - species.tallest_mesh_m()).abs() < 1.0e-6,
+                "{species:?}: tallest_mesh_m is the mesh's real apex: {tallest}"
             );
-            tallest = tallest.max(tip.position[1]);
-            shortest = shortest.min(tip.position[1]);
+            assert!(
+                tallest * (TUFT_SCALE_MIN + TUFT_SCALE_SPAN) <= GRASS_HEIGHT_CAP_M + 1.0e-6,
+                "{species:?}: the honesty cap holds at the largest scale: {}",
+                tallest * (TUFT_SCALE_MIN + TUFT_SCALE_SPAN)
+            );
         }
-        assert!(
-            tallest / shortest > 1.8,
-            "the height spread serrates the silhouette: {shortest:.3}..{tallest:.3}"
-        );
-        assert!(
-            (tallest - TUFT_MESH_TALLEST_M).abs() < 1.0e-6,
-            "TUFT_MESH_TALLEST_M is the mesh's real apex — the far costume's height \
-             continuity hangs on this single number: {tallest}"
-        );
-        assert!(
-            tallest * (TUFT_SCALE_MIN + TUFT_SCALE_SPAN) <= GRASS_HEIGHT_CAP_M + 1.0e-6,
-            "the tallest blade at the largest scale respects the honesty cap: {}",
-            tallest * (TUFT_SCALE_MIN + TUFT_SCALE_SPAN)
-        );
+    }
+
+    /// Rule 2 made structural (P2): the species lean can NEVER push a ground albedo past
+    /// the muted-saturation cap — the tint helper lands over-saturated results exactly on
+    /// the cap, and leaves already-muted colours the pure species multiply.
+    #[test]
+    fn the_species_lean_never_breaks_the_muted_ground_rule() {
+        let saturation = |c: [f32; 3]| {
+            let max = c[0].max(c[1]).max(c[2]);
+            let min = c[0].min(c[1]).min(c[2]);
+            if max <= 0.0 { 0.0 } else { (max - min) / max }
+        };
+        for species in GRASS_SPECIES {
+            for base in [[0.42, 0.36, 0.24], [0.5, 0.45, 0.42], [0.3, 0.38, 0.22]] {
+                let tinted = species_tinted_albedo(species, base);
+                assert!(
+                    saturation(tinted) <= 0.45 + 1.0e-4,
+                    "{species:?} on {base:?} stays muted: {}",
+                    saturation(tinted)
+                );
+            }
+            // A neutral ground keeps the pure species lean (no needless muting).
+            let tinted = species_tinted_albedo(species, [0.4, 0.4, 0.4]);
+            let shift = species.tint_shift();
+            for lane in 0..3 {
+                assert!(
+                    (tinted[lane] - 0.4 * shift[lane]).abs() < 1.0e-6,
+                    "{species:?}: an already-muted colour is the pure lean"
+                );
+            }
+        }
+    }
+
+    /// The species field (P2): deterministic, all four grasses present on lush flat
+    /// ground, the carpet common but not dominant, the seed-head accents sparse — and a
+    /// mirrored twin always grows the SAME species as its original.
+    #[test]
+    fn the_field_grows_four_species_in_sane_proportions_and_twins_agree() {
+        let ground = flat_ground();
+        let extent_z = ground.extent_m()[1];
+        let materials = TerrainMaterialSet::default();
+        let maps = full_veg_maps(extent_z);
+        let eye = Vec3::new(128.0, 3.0, extent_z * 0.5);
+        let grown = grass_frame_objects(&ground, None, &[], &maps, &materials, eye);
+        let count_of = |species: GrassSpecies| {
+            grown.iter().filter(|tuft| tuft.mesh == species.mesh_handle()).count()
+        };
+        let total = grown.len();
+        for species in GRASS_SPECIES {
+            assert!(count_of(species) > 0, "{species:?} grows somewhere on lush ground");
+        }
+        let carpet = count_of(GrassSpecies::Carpet) as f32 / total as f32;
+        assert!((0.2..0.4).contains(&carpet), "carpet is common, not dominant: {carpet:.2}");
+        let accents = count_of(GrassSpecies::TallSeed) as f32 / total as f32;
+        assert!((0.03..0.14).contains(&accents), "seed heads stay sparse: {accents:.2}");
+        // Twins wear the same species.
+        let mut probed = 0;
+        for tuft in grown.iter().step_by(53) {
+            let (x, z) = (tuft.transform[3][0], tuft.transform[3][2]);
+            if (z - extent_z * 0.5).abs() < 0.5 || tuft_flat_distance(tuft, eye) > 40.0 {
+                continue;
+            }
+            if let Some(twin) = grown.iter().find(|other| {
+                (other.transform[3][0] - x).abs() < 1.0e-3
+                    && (other.transform[3][2] - (extent_z - z)).abs() < 1.0e-3
+            }) {
+                assert_eq!(twin.mesh, tuft.mesh, "a twin grows the same grass");
+                probed += 1;
+            }
+        }
+        assert!(probed > 20, "the twin probe saw a real sample: {probed}");
     }
 
     /// THE anti-streaming contract: a normal cache rebuild may change only the invisible
@@ -936,25 +1299,27 @@ mod tests {
     }
 
     #[test]
-    fn the_tuft_mesh_is_cheap_double_sided_and_fully_tintable() {
-        let mesh = grass_tuft_mesh();
-        // Kernel 2.0 budget: 10 blades × 18 indices (2-segment blade, both faces). Raised
-        // from 150 with the P0 measurement in hand (ring 0.83 ms GPU at 144 indices/tuft);
-        // the delta is re-measured in the program's STATUS ledger.
-        assert!(
-            mesh.indices().len() <= 180,
-            "a tuft stays cheap: {} indices",
-            mesh.indices().len()
-        );
-        assert_eq!(mesh.indices().len() % 3, 0, "whole triangles only");
-        for vertex in mesh.vertices() {
-            assert_eq!(vertex.tint_weight, 1.0, "the instance tint IS the grass colour");
-            assert_eq!(
-                vertex.surface,
-                renderer_api::surface_role::GRASS_BLADE,
-                "the shader must recognize every near blade for its camera-distance fade"
+    fn every_species_mesh_is_cheap_double_sided_and_fully_tintable() {
+        // Kernel 2.0 budget: ≤10 station runs × 18 indices (2-segment run, both faces).
+        // Raised from 150 with the P0 measurement in hand (ring 0.83 ms GPU at 144
+        // indices/tuft); the delta is re-measured in the program's STATUS ledger.
+        for (handle, mesh) in grass_species_meshes() {
+            let species = GrassSpecies::from_mesh_handle(handle).expect("a grass handle");
+            assert!(
+                mesh.indices().len() <= 180,
+                "{species:?} stays cheap: {} indices",
+                mesh.indices().len()
             );
-            assert!(vertex.position[1] >= 0.0 && vertex.position[1] <= 0.35);
+            assert_eq!(mesh.indices().len() % 3, 0, "whole triangles only");
+            for vertex in mesh.vertices() {
+                assert_eq!(vertex.tint_weight, 1.0, "the instance tint IS the grass colour");
+                assert_eq!(
+                    vertex.surface,
+                    renderer_api::surface_role::GRASS_BLADE,
+                    "the shader must recognize every near blade for its camera-distance fade"
+                );
+                assert!(vertex.position[1] >= 0.0 && vertex.position[1] <= 0.37);
+            }
         }
     }
 }

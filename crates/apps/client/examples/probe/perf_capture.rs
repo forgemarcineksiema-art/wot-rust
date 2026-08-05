@@ -207,7 +207,9 @@ fn frame_time_capture() {
     renderer.set_water(&ctx, &water_v, &water_i);
     renderer.set_dressing(&ctx, &dressing_v, &dressing_i);
     renderer.set_foliage_atlas(&ctx, &scene_build::flora_pack::flora_catalog().atlas_mips);
-    renderer.register_mesh(&ctx, client::GRASS_MESH_HANDLE, &client::grass_tuft_mesh());
+    for (handle, mesh) in client::grass_species_meshes() {
+        renderer.register_mesh(&ctx, handle, &mesh);
+    }
 
     let projection = renderer_api::CameraProjectionPolicy::webgpu_default();
 

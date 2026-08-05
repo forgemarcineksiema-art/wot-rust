@@ -15,8 +15,8 @@ use renderer_api::{SceneVertex, TerrainGroundMaps, TerrainMaterialSet, surface_r
 use terrain::BattlefieldMap;
 
 use crate::grass::{
-    BALD_CUT, CELL_M, CELL_TUFT_CANDIDATES, CRATER_KILL_FACTOR, CellStream, MeadowGround,
-    TUFT_MESH_TALLEST_M, meadow_baldness, vegetation_weight,
+    BALD_CUT, CELL_M, CELL_TUFT_CANDIDATES, CRATER_KILL_FACTOR, CellStream, GrassSpecies,
+    MeadowGround, meadow_baldness, species_at, vegetation_weight,
 };
 
 /// Far tufts a fully-vegetated cell keeps: the first N standing candidates of the cell's
@@ -78,6 +78,14 @@ pub fn grass_card_dressing_mesh(
                 if meadow_baldness(candidate.x, candidate.z) < BALD_CUT {
                     continue;
                 }
+                // Only silhouette carriers keep a far costume; the carpet is sub-pixel out
+                // here — its far costume is the ground itself. Skipping it consumes no
+                // budget, so the tall species still fill the cell's quota.
+                let species =
+                    species_at(candidate.x, candidate.z, stream.cell_dry, candidate.species_lane);
+                if !species.wears_far_costume() {
+                    continue;
+                }
                 // THE unification gate: the identical acceptance the near ring applies, at
                 // the identical position, with the identical stochastic lane. A candidate
                 // consumes budget only when its south original stands — the far meadow is
@@ -107,6 +115,7 @@ pub fn grass_card_dressing_mesh(
                     candidate.yaw,
                     candidate.size,
                     candidate.tone,
+                    species,
                     albedo,
                 );
                 // The twin stands (or falls) on its own mirrored ground.
@@ -129,6 +138,7 @@ pub fn grass_card_dressing_mesh(
                         tyaw,
                         candidate.size,
                         candidate.tone,
+                        species,
                         talbedo,
                     );
                 }
@@ -166,10 +176,11 @@ pub(crate) fn card_albedo(
 
 /// One far tuft: two crossed SERRATED planes (peak – valley – peak), both faces wound —
 /// 10 vertices, 12 triangles. The tallest tooth is exactly the near tuft's tallest blade
-/// at this candidate's scale (height continuity is one number, `TUFT_MESH_TALLEST_M`), and
+/// at this candidate's scale (height continuity is one number per species), and
 /// the tone gradient (0.72 base / 0.9 valley / 1.05 peaks) matches the near blades', so the
 /// hand-off swaps silhouette detail, never colour or height. The sway lane carries
 /// height-over-root for the shader's collapse AND the wind.
+#[allow(clippy::too_many_arguments)]
 fn push_far_tuft(
     vertices: &mut Vec<SceneVertex>,
     indices: &mut Vec<u32>,
@@ -177,9 +188,11 @@ fn push_far_tuft(
     yaw: f32,
     size: f32,
     tooth: f32,
+    species: GrassSpecies,
     albedo: [f32; 3],
 ) {
-    let height = TUFT_MESH_TALLEST_M * size;
+    let albedo = crate::grass::species_tinted_albedo(species, albedo);
+    let height = species.tallest_mesh_m() * size;
     let half_w = 0.30 * size;
     let tall = height;
     let short = height * (0.62 + tooth * 0.24);
@@ -298,13 +311,17 @@ mod tests {
                         && (tuft.transform[3][2] - root_z).abs() < 1.0e-3
                 })
                 .unwrap_or_else(|| panic!("a far tuft at ({root_x}, {root_z}) has no near twin"));
+            let species = GrassSpecies::from_mesh_handle(near.mesh)
+                .expect("the near twin is a grass instance");
+            assert!(species.wears_far_costume(), "the carpet keeps no far costume");
             let scale = near.transform[0][0].hypot(near.transform[0][2]);
             let peak =
                 card.iter().map(|v| v.position[1]).fold(f32::MIN, f32::max) - card[0].position[1];
             assert!(
-                (peak - TUFT_MESH_TALLEST_M * scale).abs() < 1.0e-3,
-                "height continuity is one number: far peak {peak:.4} vs near tallest {:.4}",
-                TUFT_MESH_TALLEST_M * scale
+                (peak - species.tallest_mesh_m() * scale).abs() < 1.0e-3,
+                "height continuity is one number per species: far peak {peak:.4} vs \
+                 near {species:?} tallest {:.4}",
+                species.tallest_mesh_m() * scale
             );
             checked += 1;
         }
@@ -330,8 +347,12 @@ mod tests {
                 );
             }
             let peak = card.iter().map(|v| v.position[1]).fold(f32::MIN, f32::max) - base_y;
-            let band = (TUFT_MESH_TALLEST_M * TUFT_SCALE_MIN - 1.0e-3)
-                ..=(TUFT_MESH_TALLEST_M * (TUFT_SCALE_MIN + TUFT_SCALE_SPAN) + 1.0e-3);
+            // The band spans the shortest far-costume species at the smallest scale to the
+            // tallest at the largest.
+            let shortest_far = GrassSpecies::DrySteppe.tallest_mesh_m();
+            let tallest_far = GrassSpecies::TallSeed.tallest_mesh_m();
+            let band = (shortest_far * TUFT_SCALE_MIN - 1.0e-3)
+                ..=(tallest_far * (TUFT_SCALE_MIN + TUFT_SCALE_SPAN) + 1.0e-3);
             assert!(
                 band.contains(&peak),
                 "a far peak is a near tuft's tallest blade at some legal scale: {peak:.3}"

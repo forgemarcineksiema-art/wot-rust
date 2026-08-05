@@ -126,3 +126,17 @@ generator — locks travel, they do not die.
   collapse contract; the count band and D19/crater/road locks migrated. Measured: costume B
   Δ −0.07 ms p50 (noise — still GPU-free), conjure 672 µs (no fold regression), full-scene
   work ~16.7 ms p50. P2 (species) now flows into BOTH costumes through the shared stream.
+- 2026-08-05 — **P2 landed**: four species, ONE kernel (`SpeciesParams` over the P1 blade
+  builder + a stalk-and-spikelet station run for the accents): Meadow, Carpet (short wide
+  turf, no far costume — its far costume is the ground), TallSeed (sparse ~8 % accents,
+  stiffness 1.35 — the wind seller), DrySteppe (stiff splayed straw on dry plots). The
+  species lane sits LAST in the stream, so P3's positions did not re-roll; `species_at`
+  reads a world-anchored plot field at the FOLDED z — twins grow the same grass, and
+  costume B inherits species height + tone through the shared stream automatically. Rule 2
+  made structural: `species_tinted_albedo` lands over-saturated straw EXACTLY on the 0.449
+  cap (found live: raw straw shift × Prokhorovka's warm plots hit 0.56). Locks: per-species
+  pointed/arced/serrated/capped + `tallest_mesh_m` is the real apex, wind lane monotone per
+  station run (elevated spikelet seats ride their carrier), species proportions + twin
+  species equality, muted-ground rule, unification lock now species-aware. Measured: scene
+  work ~16.9 ms p50 (no regression; this series' noise ±1.4 ms), conjure 772 µs (within
+  the historical 647–848 spread).
