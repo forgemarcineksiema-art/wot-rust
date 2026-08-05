@@ -94,6 +94,34 @@ Golden probes (`bystra_views`, `orliny_views`, `flora_probe`, look metrics) are 
 deliberately after each visual step. Existing `grass_cards.rs` locks migrate to the new
 generator — locks travel, they do not die.
 
+## REOPENED AND FIXED — 2026-08-05 (the cones survived P3)
+
+The user played the merged build and reported the cones were **still there**, turning into
+good grass on approach. He was right, and the way the defect survived is worth more than the
+fix.
+
+**What P3 actually did.** It replaced solid trapezoids with crossed planes carrying a notched
+top edge, and declared the tents dead on the strength of a review frame shot across a valley.
+At range a notched slab is still a slab: nothing shows through it, so it reads as one bright
+geometric chip. Worse, the cards were TINTED BRIGHTER than the ground (peaks at 1.05×) while
+costume C (P5) was busy darkening the ground on the doctrine that grass is darker than soil —
+the program contradicted itself across two of its own PRs, and the far meadow won the contrast.
+Their up-facing normals compounded it: a vertical plane lit as if it were flat ground.
+
+**The fix**: a far tuft is now FIVE SEPARATE BLADES splayed from one root, with sky between
+them; the blade heights differ so the outline is ragged by construction (blade 0 IS the
+tallest, keeping the hand-off's one-number height continuity); the whole tuft is shaded to
+0.86 of the ground rather than brightened above it; and the normals lean outward with each
+blade instead of pointing at the sky. 15 vertices / 10 triangles — no dearer than the
+crossed planes (measured: card meadow Δ −0.37 ms, in family with every reading since P0).
+
+**The process lesson, and it is the expensive one**: every frame that "proved" the tents dead
+was shot from a review camera looking ACROSS terrain, where the far band hides behind the near
+one. The defect lives in the third-person battle view and under the scope — the two frames a
+player actually uses, and the two nobody had rendered. `grass_costumes` now renders exactly
+those (near / hand-off / far / **scope 18°**), because a look defect that cannot be seen from
+the camera the game is played on is a look defect that ships.
+
 ## CLOSED — 2026-08-05
 
 The program is closed on the user's call after nine PRs (#478–#486, stacked in that order
