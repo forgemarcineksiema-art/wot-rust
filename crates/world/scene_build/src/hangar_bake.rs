@@ -452,9 +452,10 @@ mod tests {
         }
     }
 
-    /// The point of the whole bake: light lands where the room says it should. The wall band
-    /// under/around the frosted panes carries real spill, and the floor — lit by the skylight
-    /// sun — returns light onto the hall at all.
+    /// The point of the whole bake: light lands where the room says it should. The roof plane
+    /// around the high-bay lamps carries their spill (the panes that used to anchor this lock
+    /// are gone — readable-light correction — so the lamps ARE the room's emitters now), and
+    /// the floor — lit by the skylight sun — returns light onto the hall at all.
     #[test]
     fn light_spills_where_the_room_emits() {
         let (vertices, _) = baked_hall();
@@ -467,19 +468,30 @@ mod tests {
             assert!(luma(e.bounce) > 0.3, "an emitter must carry its own glow, got {:?}", e.bounce);
         }
 
-        // The back wall around the panes (panes hang at y ~7.6 on the -Z wall) reads spill.
-        let near_panes: Vec<f32> = vertices
-            .iter()
-            .filter(|v| {
-                v.position[2] < -17.0
-                    && (6.0..9.5).contains(&v.position[1])
-                    && !super::is_emitter(v.color)
-            })
-            .map(|v| luma(v.bounce))
-            .collect();
-        assert!(!near_panes.is_empty(), "the wall band by the panes has bake vertices");
-        let peak = near_panes.iter().copied().fold(0.0f32, f32::max);
-        assert!(peak > 0.005, "the panes must spill light onto their wall, peak {peak}");
+        // The surfaces around each high-bay lamp (rig lights over the turntable, y 9.8) read
+        // its spill.
+        let rig = SceneLighting::garage_hero().local_lights;
+        let high_bays: Vec<_> =
+            rig.iter().filter(|l| l.radius_m > 0.0 && l.position[1] > 9.0).collect();
+        assert!(!high_bays.is_empty(), "the rig hangs high-bay lamps");
+        let mut spill_peak = 0.0f32;
+        for lamp in &high_bays {
+            let near_lamp: Vec<f32> = vertices
+                .iter()
+                .filter(|v| {
+                    let (dx, dz) =
+                        (v.position[0] - lamp.position[0], v.position[2] - lamp.position[2]);
+                    (dx * dx + dz * dz).sqrt() < 3.0
+                        && v.position[1] > lamp.position[1] - 1.5
+                        && !super::is_emitter(v.color)
+                })
+                .map(|v| luma(v.bounce))
+                .collect();
+            assert!(!near_lamp.is_empty(), "the band around a high-bay has bake vertices");
+            let peak = near_lamp.iter().copied().fold(0.0f32, f32::max);
+            assert!(peak > 0.005, "a lamp must spill light onto its surroundings, peak {peak}");
+            spill_peak = spill_peak.max(peak);
+        }
 
         // And the bake is not a uniform wash: somewhere far from every emitter and the
         // skylight shafts it is much dimmer than the peak.
@@ -489,8 +501,8 @@ mod tests {
             .map(|v| luma(v.bounce))
             .fold(f32::INFINITY, f32::min);
         assert!(
-            floor_min < peak * 0.5,
-            "bounce must vary across the room (floor min {floor_min}, peak {peak})"
+            floor_min < spill_peak * 0.5,
+            "bounce must vary across the room (floor min {floor_min}, peak {spill_peak})"
         );
     }
 

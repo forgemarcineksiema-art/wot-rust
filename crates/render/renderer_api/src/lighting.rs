@@ -7,7 +7,7 @@
 /// slots are disabled by `radius_m == 0` and cost one uniform read.
 pub const MAX_LOCAL_LIGHTS: usize = 6;
 
-/// An unshadowed local fill pool — a worklamp over the turntable, the glow of a frosted pane.
+/// An unshadowed local fill pool — a worklamp over the turntable, a zone lamp over a bay.
 /// Purely additive on top of the directional rig, attenuated by distance so it reads as a POOL
 /// of light, never a sun. No shadowing: these are bounce-light approximations, kept soft.
 /// `radius_m == 0` disables the slot (the outdoor profiles carry all-off arrays for free).
@@ -585,13 +585,18 @@ impl SceneLighting {
             // so `dot(n, key)` is meaningful on the vertical flanks, not only the decks.
             key_direction: [-0.45, 0.78, 0.42],
             key_rgb: [1.10, 1.00, 0.82],
-            // The lever: a near-horizontal fill from the side opposite the key (studio motif), aimed
-            // across the turntable at the camera-facing flank the key leaves in shadow.
+            // Readable-light doctrine (Hala 2.0 T1 correction, user verdict 2026-08-05): every
+            // light in the hall must have a visible source. The fill is the one survivor of the
+            // old studio rig, demoted to what it can honestly claim to be — concrete bounce off
+            // the sunlit floor — so it stays near-horizontal but a clear step under the key,
+            // never a second sun (locked by `garage_hero_lifts_the_subject_off_the_workshop_silhouette`).
             fill_direction: [0.85, 0.30, 0.35],
-            fill_rgb: [0.26, 0.27, 0.30],
-            // A cool rear rim to peel the hull off the dim back wall.
+            fill_rgb: [0.13, 0.14, 0.15],
+            // The cool rear rim had no source in the room at all — the hull was peeled off the
+            // back wall by a light from nowhere. Dead, deliberately: the GI bake and the lamp
+            // pools carry the separation now.
             rim_direction: [0.10, 0.45, -0.98],
-            rim_rgb: [0.30, 0.33, 0.40],
+            rim_rgb: [0.0, 0.0, 0.0],
             sky_zenith_rgb: [0.12, 0.125, 0.14],
             sky_horizon_rgb: [0.17, 0.175, 0.20],
             fog_density: 0.0,
@@ -614,8 +619,10 @@ impl SceneLighting {
             // The worklight rig. Positions coincide with the lamp housings the hangar mesh
             // hangs (`hangar_gallery::push_high_bay_lamps`) — the light pools where the lamp
             // is, or the room reads as haunted. Two warm high-bays over the turntable, a
-            // strip over the workbench, the cool glow of the frosted panes over the gate,
-            // and a zone lamp each for the stores corner and the second bay.
+            // strip over the workbench, and a zone lamp each for the stores corner and the
+            // second bay. Every pool is WARM lamp light: daylight enters this room through
+            // the skylights only (the glowing "frosted panes" are gone — a flat HDR slab is
+            // not a window, per the 2026-08-05 verdict).
             valley_haze_density: 0.0,
             valley_haze_height_m: 0.0,
             god_ray_strength: 0.0,
@@ -623,10 +630,10 @@ impl SceneLighting {
             cloud_sheet_scale: 0.0,
             storm_front_dir_rad: 0.0,
             storm_front_strength: 0.0,
-            // Raised from 0.03 with the emission boost (Hala 2.0 T1a.1): the composite is
-            // `hdr + blurred * weight`, and 3% of a blurred pane was a halo of ~0.02 - nothing.
-            // At 0.07 (under the 0.10 art-direction cap) a 3.5 HDR pane carries a real glow.
-            bloom_weight: 0.07,
+            // Trimmed back from 0.07 with the panes gone: 0.07 was sized for a 3.5 HDR pane
+            // bank, and on the remaining lamp faces it smeared. At 0.04 a worklamp face keeps
+            // a modest halo and nothing in the hall reads as fog.
+            bloom_weight: 0.04,
             vignette: 0.05,
             local_lights: [
                 LocalLight {
@@ -647,12 +654,10 @@ impl SceneLighting {
                     rgb: [1.0, 0.95, 0.85],
                     intensity: 1.2,
                 },
-                LocalLight {
-                    position: [0.0, 7.6, -17.0],
-                    radius_m: 10.0,
-                    rgb: [0.72, 0.82, 1.0],
-                    intensity: 0.8,
-                },
+                // The slot that held the "frosted pane glow" is dark: its emitter was a flat
+                // HDR slab on the back wall, not a window, and a pool with no honest source
+                // is exactly the unreadability the correction removes.
+                LocalLight::OFF,
                 LocalLight {
                     position: [-14.5, 6.2, 10.0],
                     radius_m: 7.0,

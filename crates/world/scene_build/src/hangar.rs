@@ -43,11 +43,10 @@ const GIRT: [f32; 3] = [0.27, 0.275, 0.29];
 const GATE_FRAME: [f32; 3] = [0.145, 0.15, 0.16];
 const GATE_SLAT: [f32; 3] = [0.215, 0.22, 0.235];
 const GATE_SLAT_ALT: [f32; 3] = [0.235, 0.24, 0.255];
-/// Frosted panes high on the back wall: genuinely EMISSIVE now (Hala 2.0 T1 — any channel
-/// past 1.0 is the hall's hot-face convention), cool daylight still a step under the warm
-/// lamp faces. The GI bake spills them onto their wall and the garage's bloom chain gives
-/// them the glow five floating white rectangles never had.
-const WINDOW_PANE: [f32; 3] = [1.30, 1.42, 1.60];
+// The glowing "frosted panes" are GONE (Hala 2.0 T1 correction, user verdict 2026-08-05): a
+// flat HDR slab is not a window, and its bloom halo read as fog. Real windows are framed
+// openings with glass and the day behind them — T4 scope; until then the wall over the gate
+// is honestly a wall, and daylight enters through the skylights only.
 // Floor dressing: expansion joints, the worn drive lane in from the gate, and its track wear.
 const FLOOR_JOINT: [f32; 3] = [0.235, 0.23, 0.225];
 const DRIVE_LANE: [f32; 3] = [0.272, 0.265, 0.256];
@@ -271,11 +270,6 @@ fn build_hangar_scene_mesh() -> (Vec<SceneVertex>, Vec<u32>) {
     // wall — jambs, lintel, alternating slats. The old glowing doorway plate read as a broken
     // texture; a real gate explains the drive-in and grounds the back of the frame.
     push_bay_gate(&mut v, &mut i);
-
-    // Frosted panes high on the back wall: soft daylight over the gate, not a lightbox.
-    for x in [-6.8_f32, -3.4, 0.0, 3.4, 6.8] {
-        slab(&mut v, &mut i, [x, 7.6, -(HALF - SLAB - 0.03)], [1.05, 0.5, 0.03], WINDOW_PANE);
-    }
 
     // Floor: expansion joints score the slab into cast bays; the drive lane in from the gate is
     // worn a step darker with two track-polished strips — the floor tells the room's story.
@@ -853,27 +847,25 @@ mod tests {
     }
 
     /// Every hot lamp face hangs where the `garage_hero` light rig says a light is: the pools
-    /// and the housings are twins, or the room reads as haunted. The frosted panes are the one
-    /// sanctioned exception since they became emitters (Hala 2.0 T1): they are DAYLIGHT, hung
-    /// on the back wall as a bank the rig covers with its single gate pool — so they are
-    /// excused from the per-housing pairing but must still sit on that wall.
+    /// and the housings are twins, or the room reads as haunted. NO exceptions any more — the
+    /// glowing "frosted panes" that used to be excused from the pairing are gone (a flat HDR
+    /// slab is not a window; readable-light correction, 2026-08-05), so every emissive vertex
+    /// in the hall below the skylights is a worklamp face with a housing and a rig pool.
     #[test]
     fn lamp_faces_run_hot_and_hang_from_housings() {
         let (vertices, _) = hangar_scene_mesh();
         let rig = renderer_api::SceneLighting::garage_hero().local_lights;
-        let (panes, hot): (Vec<&SceneVertex>, Vec<&SceneVertex>) = vertices
+        let hot: Vec<&SceneVertex> = vertices
             .iter()
             .filter(|v| v.color.iter().any(|&c| c > 1.3) && v.position[1] < WALL_HEIGHT - 0.6)
-            .partition(|v| v.position[2] < -(HALF - 1.0));
-        for pane in &panes {
-            assert!(
-                pane.position[1] > WALL_SEAM,
-                "a glowing pane below the seam is a lightbox again: {:?}",
-                pane.position
-            );
-        }
+            .collect();
         assert!(hot.len() >= 6 * 4, "the lamp rig has hot faces, got {}", hot.len());
         for vertex in &hot {
+            assert!(
+                vertex.position[2] > -(HALF - 1.0),
+                "an emitter on the back wall is a lightbox, not a window: {:?}",
+                vertex.position
+            );
             let near_light = rig.iter().any(|light| {
                 light.radius_m > 0.0
                     && (vertex.position[0] - light.position[0]).abs() < 1.6
