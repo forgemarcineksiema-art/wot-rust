@@ -8,6 +8,12 @@ use winit::keyboard::{KeyCode, PhysicalKey};
 
 use super::{GarageHit, GarageState};
 use crate::app::ClientApp;
+
+/// The battle every test deploys into. One pinned seed for the whole suite, so a client test
+/// measures the change under test instead of which roster the clock happened to deal it.
+#[cfg(test)]
+const TEST_BATTLE_SEED: u64 = 0x5748_4154_5F41_494D;
+
 impl GarageState {
     pub(super) fn begin_drag(&mut self) {
         self.dragging = true;
@@ -225,6 +231,17 @@ impl ClientApp {
             let mut battle_config = battle_host::RandomBattleConfig::runtime_from_env(spec.kind);
             if let Some(map) = self.garage.selected_map() {
                 battle_config.map = map;
+            }
+            // A played battle is seeded from the wall clock (`BattleSeed::runtime`), which is
+            // right for playing and poison for a test: every `confirm_garage_selection()` in the
+            // suite drew a DIFFERENT roster, spawn assignment and set of bot routes. Tests that
+            // then measured anything downstream of where the tanks stand — the sight point, the
+            // aim bloom it commands — passed or failed by coin flip, and were read as
+            // "load-sensitive" because a busy machine is where coins get flipped often enough to
+            // notice (register F8, G12). Under test the battle is pinned.
+            #[cfg(test)]
+            {
+                battle_config.seed = battle_host::BattleSeed::fixed(TEST_BATTLE_SEED);
             }
             let previous_map = self.session.map_id();
             self.session = crate::app::session::BattleSessionKind::Local(Box::new(
@@ -846,5 +863,39 @@ mod tests {
         app.garage.set_cursor(TREE_CLOSE_CENTER);
         app.garage_primary_press();
         assert_eq!(app.garage.view(), GarageView::Hangar);
+    }
+
+    /// Two clients driven identically must live the SAME battle. A played battle is seeded from
+    /// the wall clock, so under test every deploy used to deal a different roster and every
+    /// measurement downstream of where the tanks stand — the sight point, the bloom it commands —
+    /// became a coin flip that read as "flaky under load" (register F8, G12).
+    #[test]
+    fn deploying_under_test_is_the_same_battle_every_time() {
+        let fingerprint = || {
+            let mut app = ClientApp::new();
+            app.confirm_garage_selection();
+            app.run_fixed_ticks(60);
+            let snapshot = app.session.latest_snapshot();
+            snapshot
+                .tanks
+                .iter()
+                .map(|tank| {
+                    format!(
+                        "{}:{:?}:{:.4},{:.4}:{:.4}",
+                        tank.tank_id.0,
+                        tank.vehicle,
+                        tank.position[0],
+                        tank.position[2],
+                        tank.turret_yaw_rad
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join("|")
+        };
+
+        let first = fingerprint();
+        let second = fingerprint();
+        assert!(!first.is_empty(), "the deploy produces a roster");
+        assert_eq!(first, second, "same input, same battle — roster, spawns and all");
     }
 }
