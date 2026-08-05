@@ -86,13 +86,45 @@ S2/S3 blow the budget: S1 + analytic anti-sun darkening of blades.
 | P5 | Costume C: the ground carries the meadow's own darkness, taking over the far tufts' share on the SAME curve they fold on (`meadow_common.wgsl`, composed into both passes) | one shared fragment, two consumers; take-over linear in far presence; bare ground untouched |
 | P6 | Near densification, bought INSIDE the tuft (more blades, wider arcs) after two costlier routes were measured and rejected | a tuft must splay (reach > 0.2 m); tuft index budget with its measurement cited |
 | P7 | Wind 2.0: gust FRONTS advected along the sky's own storm heading, arc bend (drop ∝ deflection²), per-species stiffness, per-tuft flutter | one wind for sky and field; gusts stretched across the wind; a calm day still breathes |
-| P8 | Shadows S2 (+S3 if the number allows); shadow-policy carve-out (D2) | measured budget; doctrine doc updated |
+| P8 | Shadows S2 (+S3 if the number allows); shadow-policy carve-out (D2) — **NOT SHIPPED, see the closing balance** | measured budget; doctrine doc updated |
 | P9 | Tank-in-grass (D4): the hull presses the meadow flat and shoves it outward, overruling the wind; crushers read off the vehicle frame the renderer already gets | press overrules wind; empty frame releases the grass; nearest tanks take the slots |
 | P10 | (stretch) audio-visual wind: one gust envelope for ear and field | shared envelope |
 
 Golden probes (`bystra_views`, `orliny_views`, `flora_probe`, look metrics) are re-blessed
 deliberately after each visual step. Existing `grass_cards.rs` locks migrate to the new
 generator — locks travel, they do not die.
+
+## CLOSED — 2026-08-05
+
+The program is closed on the user's call after nine PRs (#478–#486, stacked in that order
+off master). The thesis held: there is **one grass population** now, wearing three costumes,
+and every seam in it is a shared function rather than two systems agreeing by hand.
+
+**Delivered against the opening complaint** ("two grasses, one good, one made of cones"):
+the cone/tent meadow is gone (P3) — the far field is the near field's own population in a
+cheaper silhouette; the blades are pointed and arced (P1); there are four species (P2); the
+hand-off is a noise coastline nobody can find (P4a); the scope keeps its meadow (P4b); the
+ground carries the meadow past the geometry horizon so nothing "disappears" (P5); the field
+is denser (P6); the wind rolls in gust fronts on the sky's own heading and lays the blades
+down instead of skating them (P7); and a hull now presses the field flat (P9).
+
+**Rejected after measurement** — recorded because the rejections cost real work and are the
+program's most reusable knowledge:
+- a baked meadow-density map (P5) — CPU and WGSL noise are different functions;
+- a turf mat of rosette instances (P6) — ~4 % coverage for 0.4 ms of CPU;
+- more tufts per cell, 28 → 40 (P6) — ~3 ms conjure against a 0.29 ms ring.
+
+**Not shipped: P8 (shadows S2/S3), and with it decision D2.** The user approved the
+shadow-policy carve-out at the start, and it remains unspent: near tufts still never enter
+the cascades, and `docs/shadow-policy.md` is unchanged. Costume C (P5) delivered the S1 rung
+of that ladder — the ground carries the meadow's own darkness — so the field is not
+shadowless-looking, but a tuft still casts nothing. Anyone resuming this starts by rewriting
+the compile-time lock in `grass.rs` (which today asserts grass CANNOT reach the cascades)
+and by measuring cascade-0-only casting on the min spec.
+
+**Left as an idea, not a debt**: a persistent crushed trail read from the existing track
+ruts (P9's second half). It adds no tactical information — the rut already says a tank
+passed — so it is a look decision, not an honesty one.
 
 ## STATUS
 
