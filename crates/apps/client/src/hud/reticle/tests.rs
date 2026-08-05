@@ -9,8 +9,11 @@ use terrain::{HeightMap, StaticCoverObject};
 
 use super::*;
 
+/// A ridge the shell actually dies on. (Named for the muzzle-to-aim CHORD once, back when a
+/// straight line sampled against the heightmap could veto the trace; the chord is gone and the
+/// ridge is now judged by the arc that hits it.)
 #[test]
-fn feedback_marks_terrain_blocking_the_muzzle_line() {
+fn feedback_marks_a_ridge_the_shell_dies_on() {
     let heightmap = ridge_heightmap();
     let muzzle = Vec3::new(20.0, 2.0, 5.0);
     let aim = Vec3::new(20.0, 0.0, 35.0);
