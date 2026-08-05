@@ -38,27 +38,33 @@ pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
     }
     renderer.scene_time_s = 12.0;
 
-    // Open meadow on the hill's east slope, looking along it — the same ground the live
-    // frame that opened this program was shot on.
+    // THE view that matters: the third-person battle camera, ~7 m up and looking DOWN the
+    // field ahead. It is the only frame that holds all three costumes at once — near tufts
+    // at the bottom, the hand-off across the middle, the far meadow running to the horizon.
+    // A ground-level camera hides the far band behind the near one, which is exactly how a
+    // defect in the far band survived a review pass.
     let anchor = glam::Vec3::new(520.0, 0.0, 470.0);
     let forward = glam::Vec3::new(0.82, 0.0, 0.57).normalize();
-    // Commander's eye height: what the player actually looks from, not a review helicopter.
-    let eye_h = 2.4;
+    let eye_h = 7.0;
 
-    // Three stations down one sightline. The MIDDLE one is the interesting frame: it stands
-    // just past the costume hand-off, where the far tufts are the biggest they ever get on
-    // screen — if they read as cones anywhere, it is here.
-    let stations: [(&str, f32); 3] = [("near", 0.0), ("handoff", 34.0), ("far", 90.0)];
-    for (name, back) in stations {
+    // Four stations down one sightline. The last one is the SCOPE: the sniper view is where
+    // the far costume is judged hardest, because 3.4x magnification shows a card 100 m out
+    // at the screen size it would have at 30 m. A defect the wide view forgives, the scope
+    // puts under a magnifying glass — and the scope is a combat view, not a debug one.
+    let stations: [(&str, f32, f32); 4] =
+        [("near", 0.0, 55.0), ("handoff", 34.0, 55.0), ("far", 90.0, 55.0), ("scope", 0.0, 18.0)];
+    for (name, back, fov) in stations {
         let ground = battlefield.heightmap.sample_height(anchor.x, anchor.z).unwrap_or(0.0);
         let eye = glam::Vec3::new(
             anchor.x - forward.x * back,
             ground + eye_h,
             anchor.z - forward.z * back,
         );
-        let target_point = eye + forward * 40.0 - glam::Vec3::Y * 4.0;
+        // The scope looks flatter and further, the way a gunner does.
+        let (reach, drop) = if fov < 30.0 { (160.0, 14.0) } else { (120.0, 22.0) };
+        let target_point = eye + forward * reach - glam::Vec3::Y * drop;
         let camera =
-            Camera { eye: eye.into(), target: target_point.into(), vertical_fov_degrees: 55.0 };
+            Camera { eye: eye.into(), target: target_point.into(), vertical_fov_degrees: fov };
         let projection = CameraProjectionPolicy::webgpu_default();
         let view_proj = view_projection_matrix(
             &camera,

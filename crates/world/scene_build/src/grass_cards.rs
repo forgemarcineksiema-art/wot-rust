@@ -1,8 +1,13 @@
 //! The mid-field meadow, costume B (Jedna Trawa P3): FAR TUFTS baked statically for the
 //! whole map and drawn through the renderer's dressing slot (color pass only, chunk-culled,
-//! distance cut). The old solid-trapezoid "tents" are dead. A far tuft is two crossed
-//! serrated planes — peak, valley, peak — whose tallest tooth is EXACTLY the near tuft's
-//! tallest blade at that candidate's scale, in the exact albedo of the ground it stands on.
+//! distance cut). A far tuft is FIVE SEPARATE BLADES splayed from one root, each a tapered
+//! triangle, with sky between them — the tallest exactly the near tuft's tallest blade at
+//! that candidate's scale, in a shade of the ground it stands on.
+//!
+//! It got here the hard way. First the tents (solid trapezoids). Then crossed planes with a
+//! notch cut in the top edge — which still read at range as bright geometric chips, because
+//! a slab is a slab however you notch it, and because they were brightened ABOVE the ground
+//! while grass is darker than soil. Separateness and shade are the fix; both are locked.
 //! Above all: costume B reads the SAME per-cell candidate stream as the near ring
 //! (`grass::CellStream`) and applies the SAME acceptance (`grass::tuft_ground`), so a far
 //! card can only stand where a near tuft stands — the hand-off between costumes swaps the
@@ -174,12 +179,28 @@ pub(crate) fn card_albedo(
     Some((albedo * (1.02 + tone * 0.08)).to_array())
 }
 
-/// One far tuft: two crossed SERRATED planes (peak – valley – peak), both faces wound —
-/// 10 vertices, 12 triangles. The tallest tooth is exactly the near tuft's tallest blade
-/// at this candidate's scale (height continuity is one number per species), and
-/// the tone gradient (0.72 base / 0.9 valley / 1.05 peaks) matches the near blades', so the
-/// hand-off swaps silhouette detail, never colour or height. The sway lane carries
-/// height-over-root for the shader's collapse AND the wind.
+/// How many separate blades a far tuft is drawn with. It is the SEPARATENESS that matters,
+/// not the count: a solid plane — however cleverly its top edge is notched — reads at range
+/// as one bright geometric chip, because nothing shows through it. Sky between the blades
+/// is what makes a silhouette read as grass rather than as a tent.
+const FAR_BLADES: usize = 5;
+/// A far blade's half-width. Wide enough to survive as ~1 px at 100 m (so the meadow does
+/// not dissolve into shimmer), narrow enough that the gaps stay gaps.
+const FAR_BLADE_HALF_W: f32 = 0.042;
+/// How far a far tuft's blades splay from the root, per metre of its height.
+const FAR_SPLAY: f32 = 0.55;
+/// A far tuft is grass, and grass is DARKER than the soil it grows from — the same fact
+/// costume C leans on when the ground takes over the meadow's share (P5). The old cards
+/// were brightened (peaks at 1.05x the ground), which is why they stood out as pale chips
+/// against their own field: the far costume contradicted the near one's doctrine.
+const FAR_TUFT_SHADE: f32 = 0.86;
+
+/// One far tuft: [`FAR_BLADES`] separate blades splayed from a common root, each a single
+/// tapered triangle wound both ways — 15 vertices, 10 triangles, no more than the crossed
+/// planes it replaces. Blade heights vary, so the tuft's outline is ragged by construction
+/// rather than by a notch cut into a slab; the tallest blade is exactly the near tuft's
+/// tallest at this candidate's scale, so height continuity across the hand-off survives.
+/// The sway lane carries height-over-root for the shader's collapse AND the wind.
 #[allow(clippy::too_many_arguments)]
 fn push_far_tuft(
     vertices: &mut Vec<SceneVertex>,
@@ -192,44 +213,49 @@ fn push_far_tuft(
     albedo: [f32; 3],
 ) {
     let albedo = crate::grass::species_tinted_albedo(species, albedo);
-    let height = species.tallest_mesh_m() * size;
-    let half_w = 0.30 * size;
-    let tall = height;
-    let short = height * (0.62 + tooth * 0.24);
-    let valley = height * (0.38 + tooth * 0.1);
-    let base_tone = [albedo[0] * 0.72, albedo[1] * 0.72, albedo[2] * 0.72];
-    let valley_tone = [albedo[0] * 0.9, albedo[1] * 0.9, albedo[2] * 0.9];
-    let peak_tone = [albedo[0] * 1.05, albedo[1] * 1.05, albedo[2] * 1.05];
-    let (sin, cos) = yaw.sin_cos();
-    for second in [false, true] {
-        let (dir_x, dir_z) = if second { (-sin, cos) } else { (cos, sin) };
-        // Alternate which side carries the tall tooth so the crossed planes show four
-        // distinct teeth from any viewing angle.
-        let (right_peak, left_peak) = if second { (short, tall) } else { (tall, short) };
+    let albedo =
+        [albedo[0] * FAR_TUFT_SHADE, albedo[1] * FAR_TUFT_SHADE, albedo[2] * FAR_TUFT_SHADE];
+    let tallest = species.tallest_mesh_m() * size;
+    let base_tone = [albedo[0] * 0.74, albedo[1] * 0.74, albedo[2] * 0.74];
+    let tip_tone = [albedo[0] * 1.02, albedo[1] * 1.02, albedo[2] * 1.02];
+    for blade in 0..FAR_BLADES {
+        // Deterministic spread from the tuft's own yaw and the blade index — the candidate's
+        // tone lane varies the heights, so neighbouring tufts are not clones.
+        let angle = yaw + blade as f32 / FAR_BLADES as f32 * std::f32::consts::TAU;
+        let (sin, cos) = angle.sin_cos();
+        // Blade 0 IS the tuft's tallest — height continuity across the hand-off is that one
+        // number, and a formula that only approaches it would break the contract silently.
+        // The rest fall away beneath it, which is what makes the outline ragged.
+        let height = if blade == 0 {
+            tallest
+        } else {
+            tallest * (0.5 + 0.42 * ((blade as f32 * 0.37 + tooth) % 1.0))
+        };
+        let reach = height * FAR_SPLAY;
+        let half_w = FAR_BLADE_HALF_W * size;
         let base = vertices.len() as u32;
-        for (offset, y, tone) in [
-            (-half_w, 0.0, base_tone),
-            (half_w, 0.0, base_tone),
-            (half_w * 0.55, right_peak, peak_tone),
-            (0.0, valley, valley_tone),
-            (-half_w * 0.55, left_peak, peak_tone),
+        for (px, py, pz, tone) in [
+            (-sin * half_w, 0.0, cos * half_w, base_tone),
+            (sin * half_w, 0.0, -cos * half_w, base_tone),
+            (cos * reach, height, sin * reach, tip_tone),
         ] {
             vertices.push(SceneVertex {
-                position: [root.x + dir_x * offset, root.y + y, root.z + dir_z * offset],
-                normal: [0.0, 1.0, 0.0],
+                position: [root.x + px, root.y + py, root.z + pz],
+                // Leaning the normal outward with the blade keeps a standing blade from
+                // being lit like flat ground — the old up-facing normal is what made a
+                // vertical card catch full sun and glow.
+                normal: Vec3::new(cos * 0.45, 1.0, sin * 0.45).normalize().to_array(),
                 color: tone,
                 tint_weight: 0.0,
                 gloss: 0.05,
                 surface: surface_role::GRASS_CARD,
-                sway: y * SWAY_PER_HEIGHT,
+                sway: py * SWAY_PER_HEIGHT,
                 uv: [0.0, 0.0],
                 bounce: [0.0; 3],
             });
         }
-        // Fan from the left base corner across the serrated top, both windings.
-        let (b0, b1, tr, tv, tl) = (base, base + 1, base + 2, base + 3, base + 4);
-        indices.extend_from_slice(&[b0, b1, tr, b0, tr, tv, b0, tv, tl]);
-        indices.extend_from_slice(&[tr, b1, b0, tv, tr, b0, tl, tv, b0]);
+        indices.extend_from_slice(&[base, base + 1, base + 2]);
+        indices.extend_from_slice(&[base + 2, base + 1, base]);
     }
 }
 
@@ -298,7 +324,7 @@ mod tests {
             eye,
         );
         let mut checked = 0;
-        for card in vertices.chunks(10) {
+        for card in vertices.chunks(15) {
             let root_x = (card[0].position[0] + card[1].position[0]) * 0.5;
             let root_z = (card[0].position[2] + card[1].position[2]) * 0.5;
             if (root_x - eye.x).hypot(root_z - eye.z) > crate::grass::GRASS_RADIUS_M {
@@ -328,23 +354,48 @@ mod tests {
         assert!(checked > 40, "the probe saw a real sample: {checked}");
     }
 
-    /// Costume B's silhouette locks: every plane of every far tuft reads peak–valley–peak
-    /// (the tents are dead), and every peak sits inside the near kernel's height band and
-    /// under the honesty cap (D1).
+    /// Costume B's silhouette lock: a far tuft is SEPARATE blades with sky between them, not
+    /// a slab with a notch cut in it — that distinction is the whole difference between
+    /// reading as grass and reading as a bright geometric chip at range. Plus: every blade
+    /// has its own height (the outline is ragged by construction), the tallest sits inside
+    /// the near kernel's band, and the honesty cap (D1) holds out here too.
     #[test]
-    fn far_tufts_are_serrated_and_stay_inside_the_near_height_band() {
+    fn far_tufts_are_separate_blades_with_gaps_and_stay_inside_the_near_height_band() {
         use crate::grass::{GRASS_HEIGHT_CAP_M, TUFT_SCALE_MIN, TUFT_SCALE_SPAN};
         let (vertices, _) = baked();
-        for card in vertices.chunks(10).step_by(97) {
+        for card in vertices.chunks(15).step_by(97) {
             let base_y = card[0].position[1];
-            for plane in [&card[0..5], &card[5..10]] {
-                let right = plane[2].position[1] - base_y;
-                let valley = plane[3].position[1] - base_y;
-                let left = plane[4].position[1] - base_y;
+            // Five blades of three vertices: two on the ground, one tip. A blade that shared
+            // its base with its neighbour would be a plane again.
+            let mut heights = Vec::new();
+            for blade in card.chunks(3) {
                 assert!(
-                    right > valley && left > valley,
-                    "peak–valley–peak, never a flat tent top: {right:.3} {valley:.3} {left:.3}"
+                    (blade[0].position[1] - base_y).abs() < 1.0e-4
+                        && (blade[1].position[1] - base_y).abs() < 1.0e-4,
+                    "a blade stands on the ground at both base corners"
                 );
+                let tip = blade[2].position;
+                assert!(
+                    tip[1] - base_y > 0.0,
+                    "the third vertex is the tip, and it is the only one off the ground"
+                );
+                heights.push(tip[1] - base_y);
+            }
+            assert_eq!(heights.len(), 5, "five separate blades");
+            let tallest = heights.iter().copied().fold(f32::MIN, f32::max);
+            let shortest = heights.iter().copied().fold(f32::MAX, f32::min);
+            assert!(
+                tallest / shortest > 1.25,
+                "blade heights differ, so the outline is ragged without cutting a notch: \
+                 {shortest:.3}..{tallest:.3}"
+            );
+            // Gaps: the tips fan out around the root, so no two are stacked into a wall.
+            let tips: Vec<[f32; 3]> = card.chunks(3).map(|b| b[2].position).collect();
+            for (i, a) in tips.iter().enumerate() {
+                for b in tips.iter().skip(i + 1) {
+                    let apart = (a[0] - b[0]).hypot(a[2] - b[2]);
+                    assert!(apart > 0.01, "two tips in the same place would close the gap");
+                }
             }
             let peak = card.iter().map(|v| v.position[1]).fold(f32::MIN, f32::max) - base_y;
             // The band spans the shortest far-costume species at the smallest scale to the
@@ -366,10 +417,11 @@ mod tests {
         let (vertices, indices) = baked();
         let (twin_v, twin_i) = baked();
         assert!(vertices == twin_v && indices == twin_i, "every client bakes the same field");
-        // 10 vertices / 12 triangles per far tuft (two serrated planes, both faces).
-        assert_eq!(vertices.len() % 10, 0);
-        assert_eq!(indices.len(), (vertices.len() / 10) * 36);
-        let cards = vertices.len() / 10;
+        // 15 vertices / 10 triangles per far tuft (five blades, both faces) — no dearer
+        // than the two crossed planes it replaced.
+        assert_eq!(vertices.len() % 15, 0);
+        assert_eq!(indices.len(), (vertices.len() / 15) * 30);
+        let cards = vertices.len() / 15;
         assert!(
             (20_000..90_000).contains(&cards),
             "the whole-map meadow is tens of thousands of far tufts: {cards}"
@@ -386,7 +438,7 @@ mod tests {
         let (vertices, _) =
             grass_card_dressing_mesh(&battlefield, &maps, &TerrainMaterialSet::default());
         let roots: Vec<(f32, f32)> = vertices
-            .chunks(10)
+            .chunks(15)
             .map(|card| {
                 (
                     (card[0].position[0] + card[1].position[0]) * 0.5,
@@ -406,7 +458,7 @@ mod tests {
     #[test]
     fn cards_wear_the_ground_tone_and_the_sway_lane_encodes_height() {
         let (vertices, _) = baked();
-        for card in vertices.chunks(10).step_by(211) {
+        for card in vertices.chunks(15).step_by(211) {
             let base_y = card[0].position[1];
             for vertex in card {
                 assert!(
@@ -466,7 +518,7 @@ mod tests {
         let (vertices, _) =
             grass_card_dressing_mesh(&battlefield, &maps, &TerrainMaterialSet::default());
         let roots: Vec<(f32, f32)> = vertices
-            .chunks(10)
+            .chunks(15)
             .map(|card| {
                 (
                     (card[0].position[0] + card[1].position[0]) * 0.5,
@@ -508,7 +560,7 @@ mod tests {
         let stone_roads: Vec<_> =
             map.roads.iter().filter(|road| road.surface != terrain::RoadSurface::Dirt).collect();
         assert!(!stone_roads.is_empty(), "the city keeps its cobbles and ballast");
-        for card in vertices.chunks(10) {
+        for card in vertices.chunks(15) {
             let root_x = (card[0].position[0] + card[1].position[0]) * 0.5;
             let root_z = (card[0].position[2] + card[1].position[2]) * 0.5;
             for road in &stone_roads {
@@ -540,7 +592,7 @@ mod tests {
         map.heightmap.set_craters(&[crater]);
         let (vertices, _) = grass_card_dressing_mesh(&map, &maps, &materials);
         let kill = crater.radius_m() * CRATER_KILL_FACTOR;
-        for card in vertices.chunks(10) {
+        for card in vertices.chunks(15) {
             // The ROOT is the midpoint of the base edge (vertex 0 and 1 are offset by the
             // card's half-width); the kill zone is measured from where the clump grows.
             let root_x = (card[0].position[0] + card[1].position[0]) * 0.5;
