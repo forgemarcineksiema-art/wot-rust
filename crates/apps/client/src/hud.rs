@@ -5,6 +5,7 @@ use crate::hud::reticle::ReticleStatus;
 pub(crate) mod ammo_panel;
 pub(crate) mod damage_log;
 pub(crate) mod demo;
+pub(crate) mod demo_strip;
 pub use ui_kit::font;
 pub(crate) mod health;
 pub(crate) mod health_bar;

@@ -311,8 +311,7 @@ fn the_reload_arc_runs_red_and_the_loaded_gun_closes_a_green_ring_on_the_same_li
         holding.iter().any(|v| v.color == RETICLE_LOADED),
         "the ring holds at full strength before dissolving"
     );
-    let dissolving =
-        hud_with_ready_age(loaded, Some((READY_RING_HOLD_S + READY_RING_TTL_S) * 0.5));
+    let dissolving = hud_with_ready_age(loaded, Some((READY_RING_HOLD_S + READY_RING_TTL_S) * 0.5));
     let fading: Vec<_> = dissolving
         .iter()
         .filter(|v| v.color[..3] == RETICLE_LOADED[..3] && v.color[3] > 0.0)

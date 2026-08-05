@@ -33,6 +33,7 @@ mod ostrogorsk_views;
 mod panther_ii_profile_probe;
 mod perf_capture;
 mod prokhorovka_views;
+mod reticle_strip;
 mod screenshot;
 mod shadow_probe;
 mod sky_probe;
@@ -92,6 +93,7 @@ const PROBES: &[ProbeEntry] = &[
         Ok(())
     }),
     ("prokhorovka_views", prokhorovka_views::run),
+    ("reticle_strip", reticle_strip::run),
     ("screenshot", screenshot::run),
     ("shadow_probe", shadow_probe::run),
     ("sky_probe", sky_probe::run),
